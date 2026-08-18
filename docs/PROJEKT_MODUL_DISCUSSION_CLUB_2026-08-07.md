@@ -10,14 +10,14 @@ z `AUDYT_NETWORKING_KONTAKT_WYSZUKIWANIE_2026-08-07.md`.
 
 Platforma ma dziś **pięć** powierzchni rozmowy i żadna z nich nie robi tego, co Discussion Club:
 
-| Powierzchnia | Rytm | Trwałość | Kto inicjuje | Relacja |
-| ------------ | ---- | -------- | ------------ | ------- |
-| Komentarze pod wpisem | reaktywny | żyje z wpisem | czytelnik | czytelnik → redakcja |
-| Q&A (`qa_sessions`) | sesyjny | żyje z sesją | uczestnik pyta | laik → ekspert |
-| Czat / grupy | synchroniczny | efemeryczny | dowolny | 1:1 lub mała grupa |
-| Programy badawcze | redakcyjny | trwały | **redakcja** | redakcja → odbiorca |
-| Tracker / dossier | monitorujący | trwały | system | system → obserwator |
-| **Discussion Club** | **asynchroniczny** | **trwały** | **członek** | **równy ↔ równy** |
+| Powierzchnia          | Rytm               | Trwałość      | Kto inicjuje   | Relacja              |
+| --------------------- | ------------------ | ------------- | -------------- | -------------------- |
+| Komentarze pod wpisem | reaktywny          | żyje z wpisem | czytelnik      | czytelnik → redakcja |
+| Q&A (`qa_sessions`)   | sesyjny            | żyje z sesją  | uczestnik pyta | laik → ekspert       |
+| Czat / grupy          | synchroniczny      | efemeryczny   | dowolny        | 1:1 lub mała grupa   |
+| Programy badawcze     | redakcyjny         | trwały        | **redakcja**   | redakcja → odbiorca  |
+| Tracker / dossier     | monitorujący       | trwały        | system         | system → obserwator  |
+| **Discussion Club**   | **asynchroniczny** | **trwały**    | **członek**    | **równy ↔ równy**    |
 
 Dziura jest dokładnie jedna i jest duża: **nigdzie członek nie może założyć trwałego wątku
 i prowadzić go z innymi członkami jak z równymi sobie.** Wszystko, co dziś istnieje, to albo
@@ -41,12 +41,12 @@ a wstąpienie jest zdarzeniem, które można powitać, wyjaśnić i zmierzyć.
 
 Cztery poziomy widoczności (`clubs.visibility`), świadomie rozdzielone od polityki wstępu:
 
-| Widoczność | Kto widzi, że klub istnieje | Kto czyta treść | Zastosowanie |
-| ---------- | --------------------------- | --------------- | ------------ |
-| `public` | wszyscy, także anonim, indeksowane | wszyscy | klub wizerunkowy, lejek pozyskania |
-| `members` | zalogowani | zalogowani | domyślny |
-| `private` | zalogowani (widzą kartę, nie treść) | tylko członkowie | grupa robocza |
-| `secret` | tylko członkowie | tylko członkowie | konsorcjum, sprawa wrażliwa |
+| Widoczność | Kto widzi, że klub istnieje         | Kto czyta treść  | Zastosowanie                       |
+| ---------- | ----------------------------------- | ---------------- | ---------------------------------- |
+| `public`   | wszyscy, także anonim, indeksowane  | wszyscy          | klub wizerunkowy, lejek pozyskania |
+| `members`  | zalogowani                          | zalogowani       | domyślny                           |
+| `private`  | zalogowani (widzą kartę, nie treść) | tylko członkowie | grupa robocza                      |
+| `secret`   | tylko członkowie                    | tylko członkowie | konsorcjum, sprawa wrażliwa        |
 
 Polityka wstępu (`join_policy`) jest **osobną osią**: `open` / `request` / `invite`.
 Klub `public` + `invite` to publiczna wizytówka zamkniętego grona — poprawna i częsta
@@ -88,14 +88,14 @@ jest niemożliwa w module, który ma odpowiadać za nadużycia.**
 
 Każdy wątek deklaruje rodzaj (`club_threads.kind`), a rodzaj zmienia zachowanie UI i cyklu życia:
 
-| Rodzaj | Po co | Co dodaje |
-| ------ | ----- | --------- |
-| `discussion` | otwarta debata | domyślny |
-| `question` | ktoś czegoś nie wie | „oznacz jako rozstrzygające" (`resolved_reply_id`), status `resolved` |
-| `position` | wykuć wspólne stanowisko | stanowiska `support`/`oppose`/`abstain` + licznik, wynik do `eu_policy_positions` |
-| `resource` | podzielić się materiałem | wymaga linku/pliku, wpina się w `cross_references` |
-| `announcement` | ogłoszenie prowadzącego | tylko `lead`/`moderator`, przypięte, opcjonalnie bez odpowiedzi |
-| `poll` | szybki sondaż | reużywa istniejące `polls` / `poll_votes` |
+| Rodzaj         | Po co                    | Co dodaje                                                                         |
+| -------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| `discussion`   | otwarta debata           | domyślny                                                                          |
+| `question`     | ktoś czegoś nie wie      | „oznacz jako rozstrzygające" (`resolved_reply_id`), status `resolved`             |
+| `position`     | wykuć wspólne stanowisko | stanowiska `support`/`oppose`/`abstain` + licznik, wynik do `eu_policy_positions` |
+| `resource`     | podzielić się materiałem | wymaga linku/pliku, wpina się w `cross_references`                                |
+| `announcement` | ogłoszenie prowadzącego  | tylko `lead`/`moderator`, przypięte, opcjonalnie bez odpowiedzi                   |
+| `poll`         | szybki sondaż            | reużywa istniejące `polls` / `poll_votes`                                         |
 
 Wątek, który nie prowadzi do niczego, po 90 dniach bez odpowiedzi dostaje status `dormant`
 i wypada z rankingu — bez kasowania. To utrzymuje klub czytelnym bez moderacyjnej pracy ręcznej.
@@ -248,6 +248,7 @@ w istniejącej architekturze. Lista wątków musi się renderować bez `COUNT(*)
 bo to jest ekran otwierany najczęściej w całym module.
 
 **Indeksy krytyczne:**
+
 ```sql
 club_threads (club_id, status, pinned_at DESC NULLS LAST, hotness DESC)  -- lista domyślna
 club_threads (club_id, status, last_reply_at DESC)                        -- sort "najnowsze"
@@ -294,10 +295,11 @@ więc to nie jest skok skali — to jeden moduł więcej w tej samej konwencji.
 
 ### 4.1 Kompozytor
 
-Reużywa **w całości** istniejący `MentionTextarea` + `useMentionAutocomplete`
-+ `MentionSuggestionList`. Zero nowego kodu wzmianek po stronie klienta.
+Reużywa **w całości** istniejący `MentionTextarea` + `useMentionAutocomplete` +
+`MentionSuggestionList`. Zero nowego kodu wzmianek po stronie klienta.
 
 Rozszerzenia specyficzne dla klubu:
+
 - przełącznik „opublikuj anonimowo" (tylko gdy `attribution_mode` na to pozwala),
 - wybór rodzaju wątku (§1.3) z jednozdaniowym wyjaśnieniem, co dany rodzaj zmienia,
 - selektor kotwicy z podpowiedziami z `eu_policy_items` / `posts` / `events`,
@@ -313,14 +315,14 @@ dają szum nieprzydatny ani do rankingu, ani do reputacji, ani do mapy stanowisk
 
 Sześć rodzajów w dwóch rozłącznych grupach:
 
-| Grupa | Rodzaj | Znaczenie | Wielokrotny? |
-| ----- | ------ | --------- | ------------ |
-| **jakość** | `insightful` | wnosi wiedzę | ✅ niezależny |
-| | `evidence` | poparte źródłem | ✅ niezależny |
-| | `question` | wymaga wyjaśnienia | ✅ niezależny |
-| | `thanks` | podziękowanie | ✅ niezależny |
-| **stanowisko** | `agree` | zgadzam się | ⛔ wyklucza `disagree` |
-| | `disagree` | nie zgadzam się | ⛔ wyklucza `agree` |
+| Grupa          | Rodzaj       | Znaczenie          | Wielokrotny?           |
+| -------------- | ------------ | ------------------ | ---------------------- |
+| **jakość**     | `insightful` | wnosi wiedzę       | ✅ niezależny          |
+|                | `evidence`   | poparte źródłem    | ✅ niezależny          |
+|                | `question`   | wymaga wyjaśnienia | ✅ niezależny          |
+|                | `thanks`     | podziękowanie      | ✅ niezależny          |
+| **stanowisko** | `agree`      | zgadzam się        | ⛔ wyklucza `disagree` |
+|                | `disagree`   | nie zgadzam się    | ⛔ wyklucza `agree`    |
 
 Rozłączność grupy „stanowisko" egzekwuje trigger `club_reactions_stance_exclusive`, nie
 klient — `UNIQUE (target, user, kind)` sam z siebie pozwoliłby na `agree` **i** `disagree`
@@ -427,7 +429,7 @@ UX w tej klasie produktów; czat może sobie na to pozwolić, długa deliberacja
 
 - **Karta dossier / wpis**: `ClubThreadsCard` — „dyskutowane w klubach" (przez `cross_references`),
 - **Widgety buildera**: `club-card`, `club-threads` (rejestracja w `schema.ts` + `schemas.ts`
-  + bramka wierności ustawień),
+  - bramka wierności ustawień),
 - **Wyszukiwarka globalna**: piąta zakładka `clubs` w `OVERLAY_TABS`,
 - **Profil**: „aktywność w klubach" (respektuje anonimowość — posty z `chatham` nigdy),
 - **Pasek mobilny**: licznik nieprzeczytanych.
@@ -541,6 +543,7 @@ jego. Spójność między modułami jak `tg_user_blocks_sever_connection`.
 być przy każdym poście od pierwszego dnia (w czacie brakuje go od sześciu wydań).
 
 **RODO:**
+
 - eksport — nowa sekcja w istniejącym eksporcie (dziś 17 sekcji),
 - usunięcie konta — **anonimizacja autorstwa, nie kasowanie treści**: `author_id → NULL`,
   `subject_ref`, `anonymized_at` (wzorzec `payment_orders`). Dyskusja jest dorobkiem
@@ -553,16 +556,16 @@ być przy każdym poście od pierwszego dnia (w czacie brakuje go od sześciu wy
 
 ## 8. Bramki CI
 
-| Bramka | Co musi pokryć |
-| ------ | -------------- |
-| pgTAP | macierz widoczności (4 × 3 kombinacje) · redakcja `author_id` w `chatham` · rozłączność `agree`/`disagree` · limit głębokości · rate limity · izolacja tenanta · brak grantów klienta |
-| `check:sql-tenant-scope` | wszystkie nowe RPC |
-| `check:sql-anon-insert` | brak ścieżki anonimowego zapisu |
-| `check:sql-owner-tenant-scope` | polityki właściciela (ratchet nie może drgnąć) |
-| `check:i18n-parity` + key-usage | prefiks `club`, zero `defaultValue` |
-| `check:bundle` / `check:chunks` / `check:entry-purity` | moduł poza entry |
-| `check:widget-fidelity` | jeśli dochodzą widgety buildera |
-| vitest | drzewo odpowiedzi, `hotness`, macierz uprawnień, alias Chatham (czyste funkcje) |
+| Bramka                                                 | Co musi pokryć                                                                                                                                                                        |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pgTAP                                                  | macierz widoczności (4 × 3 kombinacje) · redakcja `author_id` w `chatham` · rozłączność `agree`/`disagree` · limit głębokości · rate limity · izolacja tenanta · brak grantów klienta |
+| `check:sql-tenant-scope`                               | wszystkie nowe RPC                                                                                                                                                                    |
+| `check:sql-anon-insert`                                | brak ścieżki anonimowego zapisu                                                                                                                                                       |
+| `check:sql-owner-tenant-scope`                         | polityki właściciela (ratchet nie może drgnąć)                                                                                                                                        |
+| `check:i18n-parity` + key-usage                        | prefiks `club`, zero `defaultValue`                                                                                                                                                   |
+| `check:bundle` / `check:chunks` / `check:entry-purity` | moduł poza entry                                                                                                                                                                      |
+| `check:widget-fidelity`                                | jeśli dochodzą widgety buildera                                                                                                                                                       |
+| vitest                                                 | drzewo odpowiedzi, `hotness`, macierz uprawnień, alias Chatham (czyste funkcje)                                                                                                       |
 
 Progi pokrycia dla nowego katalogu **od razu wysokie** — `src/components/network` przeszło
 drogę od 4,64% do 99% dopiero po fakcie; nowy moduł nie powinien jej powtarzać.
@@ -574,7 +577,7 @@ drogę od 4,64% do 99% dopiero po fakcie; nowy moduł nie powinien jej powtarza�
 **E1 — Szkielet (wartość: klub istnieje).** `clubs`, `club_members`, `club_threads`,
 `club_replies` + RPC odczytu/zapisu + `/club`, `/club/$slug`, `/club/$slug/t/$slug` +
 i18n + pgTAP widoczności. Bez reakcji, bez anonimowości, bez rankingu (sort `new`).
-*To jest najmniejszy zestaw, który daje działający produkt.*
+_To jest najmniejszy zestaw, który daje działający produkt._
 
 **E2 — Interakcja.** Reakcje (§4.2) + wzmianki (`process_mentions`) + subskrypcje +
 powiadomienia z **kompletem** producentów + liczniki nieprzeczytanych.
@@ -618,14 +621,14 @@ Cztery pytania, gdzie różne odpowiedzi dają **różny moduł**, nie różny s
 
 ## 11. Co ten moduł zmienia poza sobą
 
-| Luka z audytu 07.08 | Jak Discussion Club ją domyka |
-| ------------------- | ----------------------------- |
-| **#8** trwałe kręgi tematyczne | **całkowicie** — to jest ten moduł |
-| **#17** kanał aktywności członków | **całkowicie**, i to w formie mniej ryzykownej niż otwarty feed: treść ma kontekst, właściciela i moderację |
-| **#1** semantyka na ludziach | **częściowo** — `club_thread_embeddings` dokłada drugą tabelę do gotowej infrastruktury i uczy tego wzorca przed profilami |
-| **#2** sygnały intencji | **częściowo** — członkostwo w klubie *jest* deklaracją zainteresowania, mocniejszą niż pole w profilu |
-| **#5** pętla zwrotna sugestii | **zasila** — wspólny klub to sygnał rankingu mocniejszy niż wspólne wydarzenie |
-| **#7** ciche funkcje | **nie powiela** — komplet producentów w E2 |
+| Luka z audytu 07.08               | Jak Discussion Club ją domyka                                                                                              |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **#8** trwałe kręgi tematyczne    | **całkowicie** — to jest ten moduł                                                                                         |
+| **#17** kanał aktywności członków | **całkowicie**, i to w formie mniej ryzykownej niż otwarty feed: treść ma kontekst, właściciela i moderację                |
+| **#1** semantyka na ludziach      | **częściowo** — `club_thread_embeddings` dokłada drugą tabelę do gotowej infrastruktury i uczy tego wzorca przed profilami |
+| **#2** sygnały intencji           | **częściowo** — członkostwo w klubie _jest_ deklaracją zainteresowania, mocniejszą niż pole w profilu                      |
+| **#5** pętla zwrotna sugestii     | **zasila** — wspólny klub to sygnał rankingu mocniejszy niż wspólne wydarzenie                                             |
+| **#7** ciche funkcje              | **nie powiela** — komplet producentów w E2                                                                                 |
 
 Klub jest jedyną pozycją z listy siedemnastu, która domyka **dwie** luki w całości i zasila
 cztery kolejne — i dlatego, mimo że jest największym pojedynczym przedsięwzięciem z tej listy,

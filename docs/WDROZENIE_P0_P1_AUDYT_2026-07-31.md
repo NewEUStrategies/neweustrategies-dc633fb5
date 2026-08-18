@@ -24,13 +24,13 @@ sterowany przez klienta (`resolveEnvironment` ufał wartości z żądania).
 
 **Naprawa (obrona dwuwarstwowa, jak subskrypcje):**
 
-| Warstwa | Plik | Zmiana |
-| ------- | ---- | ------ |
-| DB | `supabase/migrations/20260731220000_payment_orders_environment_isolation.sql` | Kolumna `environment text NOT NULL DEFAULT 'live' CHECK (in ('sandbox','live'))` + indeks. Backfill istniejących wierszy do `'live'` (zamówienia produkcyjne); `DEFAULT 'live'` jest fail-closed dla zapomnianego stempla. |
-| Serwer (autorytatywność) | `src/lib/billing/paddleTransaction.server.ts` | `resolveEnvironment()` w produkcji zwraca **zawsze `'live'`**, ignorując wartość klienta (poza produkcją honoruje żądanie dla testów). Klient nie wymusi już `'sandbox'`. |
-| Serwer (stempel) | `src/lib/billing/checkout.functions.ts` | Środowisko rozstrzygane serwerowo **przed** insertem zamówienia i stemplowane na `payment_orders.environment`; ta sama wartość idzie do transakcji dostawcy (order.environment ≡ env transakcji). |
-| Serwer (guard) | `src/lib/billing/oneTimeFulfilment.server.ts` | `fulfilOrder()` czyta `environment` i **pomija realizację** przy niezgodności ze środowiskiem webhooka (odpowiednik `.eq("environment", env)` subskrypcji). `fulfilOneTimeTransaction(txn, env)` przewleka `env` z dyspozytora. |
-| Serwer (przekazanie) | `src/lib/billing/webhookDispatch.server.ts` | Przekazuje `env` do `fulfilOneTimeTransaction`. |
+| Warstwa                  | Plik                                                                          | Zmiana                                                                                                                                                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DB                       | `supabase/migrations/20260731220000_payment_orders_environment_isolation.sql` | Kolumna `environment text NOT NULL DEFAULT 'live' CHECK (in ('sandbox','live'))` + indeks. Backfill istniejących wierszy do `'live'` (zamówienia produkcyjne); `DEFAULT 'live'` jest fail-closed dla zapomnianego stempla.      |
+| Serwer (autorytatywność) | `src/lib/billing/paddleTransaction.server.ts`                                 | `resolveEnvironment()` w produkcji zwraca **zawsze `'live'`**, ignorując wartość klienta (poza produkcją honoruje żądanie dla testów). Klient nie wymusi już `'sandbox'`.                                                       |
+| Serwer (stempel)         | `src/lib/billing/checkout.functions.ts`                                       | Środowisko rozstrzygane serwerowo **przed** insertem zamówienia i stemplowane na `payment_orders.environment`; ta sama wartość idzie do transakcji dostawcy (order.environment ≡ env transakcji).                               |
+| Serwer (guard)           | `src/lib/billing/oneTimeFulfilment.server.ts`                                 | `fulfilOrder()` czyta `environment` i **pomija realizację** przy niezgodności ze środowiskiem webhooka (odpowiednik `.eq("environment", env)` subskrypcji). `fulfilOneTimeTransaction(txn, env)` przewleka `env` z dyspozytora. |
+| Serwer (przekazanie)     | `src/lib/billing/webhookDispatch.server.ts`                                   | Przekazuje `env` do `fulfilOneTimeTransaction`.                                                                                                                                                                                 |
 
 **Test:** `src/lib/billing/__tests__/oneTimeFulfilment.event.test.ts` — nowy przypadek „POMIJA zamówienie
 z innego środowiska (sandbox webhook vs live order)": brak nadania uprawnienia, brak księgowania,
@@ -46,6 +46,7 @@ adminów tenanta (dane psychometryczne). Wynik był wystawiany staffowi CRM bez 
 przetwarzania.
 
 **Naprawa:** usunięcie odczytu i pola w całości (Big5 nie jest CRM-owi potrzebny):
+
 - `src/lib/crm.functions.ts` — usunięto blok `admin.from("personality_results")` z `Promise.all`,
   destrukturyzację `personalityRes` i pole `personality` ze zwrotki; komentarz nagłówkowy odnotowuje
   powód RODO.
@@ -84,13 +85,13 @@ main: `✓ OK (517 polityk w stanie końcowym, 6 tabel intake chronionych)`.
 
 ## Weryfikacja
 
-| Sprawdzenie | Wynik |
-| --- | --- |
-| `tsc --noEmit` | czysto |
-| `eslint` (pliki zmienione) | czysto |
-| `oneTimeFulfilment.event.test.ts` (+ env-mismatch) | 4/4 |
-| `check:sql-anon-insert` (+ self-test wstrzyknięcia) | OK / poprawnie failuje |
-| `vitest run` (pełny) | 3665 pass / 50 skip / **0 fail** |
+| Sprawdzenie                                         | Wynik                            |
+| --------------------------------------------------- | -------------------------------- |
+| `tsc --noEmit`                                      | czysto                           |
+| `eslint` (pliki zmienione)                          | czysto                           |
+| `oneTimeFulfilment.event.test.ts` (+ env-mismatch)  | 4/4                              |
+| `check:sql-anon-insert` (+ self-test wstrzyknięcia) | OK / poprawnie failuje           |
+| `vitest run` (pełny)                                | 3665 pass / 50 skip / **0 fail** |
 
 ## Stan listy P0/P1 po tej sesji
 

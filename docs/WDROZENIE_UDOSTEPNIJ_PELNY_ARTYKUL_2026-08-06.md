@@ -10,19 +10,19 @@ Mechanika „Udostępnij pełny artykuł" (treść za paywallem otwierana linkie
 istniała już jako moduł _Gift Articles_, ale jej reguły nie odpowiadały
 zamówionej funkcjonalności:
 
-| Wymaganie                                | Stan przed                                                   | Stan po                                                        |
-| ---------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
-| dostępne dla osób **zarejestrowanych**   | wyłącznie płatny subskrybent (`can_gift_articles`)             | ustawienie `eligibility`, domyślnie `registered`                 |
-| link **jednego** użytkownika             | tak (unikalny per wpis + nadawca)                              | bez zmian, doprecyzowane w UI i testach                          |
-| **do 5 kliknięć** w link                 | cap 50, liczony od każdego wywołania RPC, nigdzie niepokazany  | budżet 5, dedup po odbiorcy, widoczny dla nadawcy i odbiorcy     |
-| dotyczy **treści za paywallem**          | przycisk na każdym wpisie, także publicznym                    | przycisk i RPC wyłącznie dla `members` / `paid`                  |
+| Wymaganie                              | Stan przed                                                    | Stan po                                                      |
+| -------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
+| dostępne dla osób **zarejestrowanych** | wyłącznie płatny subskrybent (`can_gift_articles`)            | ustawienie `eligibility`, domyślnie `registered`             |
+| link **jednego** użytkownika           | tak (unikalny per wpis + nadawca)                             | bez zmian, doprecyzowane w UI i testach                      |
+| **do 5 kliknięć** w link               | cap 50, liczony od każdego wywołania RPC, nigdzie niepokazany | budżet 5, dedup po odbiorcy, widoczny dla nadawcy i odbiorcy |
+| dotyczy **treści za paywallem**        | przycisk na każdym wpisie, także publicznym                   | przycisk i RPC wyłącznie dla `members` / `paid`              |
 
 ## 2. Reguły mechaniki (stan docelowy)
 
 1. **Kto udostępnia.** `can_share_full_article()`: konto musi należeć do tenanta
    przeglądanego serwisu (tenant **domowy** z `profiles`, nie nagłówek
    `x-tenant-host` - nagłówek jest do podrobienia). Przy `eligibility =
-   'subscribers'` dochodzi warunek `can_gift_articles()` (aktywna subskrypcja
+'subscribers'` dochodzi warunek `can_gift_articles()` (aktywna subskrypcja
    albo warstwa `premium_content`). Anonim nigdy.
 2. **Jeden link per artykuł i nadawca.** `create_gift_link` jest idempotentne:
    pierwsze otwarcie popovera tworzy kod, każde kolejne zwraca ten sam.
@@ -62,7 +62,7 @@ zamówionej funkcjonalności:
   limitu".
 - `post_gift_redemptions` (nowa): rejestr slotów -
   `(tenant_id, link_id, post_id, recipient_key, recipient_id, first_seen_at,
-  last_seen_at, hits)`, unikalny indeks `(link_id, recipient_key)`.
+last_seen_at, hits)`, unikalny indeks `(link_id, recipient_key)`.
   **RLS: tylko redakcja tenanta.** Zapis wyłącznie przez SECURITY DEFINER -
   żadnej polityki INSERT dla roli klienta (bramka `check:sql-anon-insert`).
 - `gift_events`: `CHECK` rozszerzony o typ `exhausted` (odbicie od wyczerpanego
@@ -70,15 +70,15 @@ zamówionej funkcjonalności:
 
 **Funkcje** (wszystkie `SECURITY DEFINER`, `search_path = public`)
 
-| Funkcja                                        | Zmiana                                                                                                    |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `gift_share_eligibility()`                     | nowa - tryb bramki dla tenanta hosta                                                                        |
-| `can_share_full_article()`                     | nowa - członkostwo w tenancie + (opcjonalnie) subskrypcja                                                   |
-| `gift_article_state(uuid)`                     | + `eligibility`, `max_redemptions`, `redemption_count`, `redemptions_remaining`; limit liczony po artykułach |
-| `create_gift_link(uuid)`                       | bramka `eligibility`, wymóg paywalla, zamrożenie budżetu, carry-forward zużycia                             |
-| `redeem_gift_link(uuid, text, uuid)`           | + `_visitor_id`, + `reason`, dedup odbiorcy, egzekucja budżetu, audyt `exhausted`                            |
-| `list_gift_links_admin(...)`                   | + `max_redemptions`, `unique_recipients`                                                                     |
-| `get_gift_stats_admin()`                       | + `exhausted_links`, `unique_recipients`                                                                     |
+| Funkcja                              | Zmiana                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `gift_share_eligibility()`           | nowa - tryb bramki dla tenanta hosta                                                                         |
+| `can_share_full_article()`           | nowa - członkostwo w tenancie + (opcjonalnie) subskrypcja                                                    |
+| `gift_article_state(uuid)`           | + `eligibility`, `max_redemptions`, `redemption_count`, `redemptions_remaining`; limit liczony po artykułach |
+| `create_gift_link(uuid)`             | bramka `eligibility`, wymóg paywalla, zamrożenie budżetu, carry-forward zużycia                              |
+| `redeem_gift_link(uuid, text, uuid)` | + `_visitor_id`, + `reason`, dedup odbiorcy, egzekucja budżetu, audyt `exhausted`                            |
+| `list_gift_links_admin(...)`         | + `max_redemptions`, `unique_recipients`                                                                     |
+| `get_gift_stats_admin()`             | + `exhausted_links`, `unique_recipients`                                                                     |
 
 `redeem_gift_link` zwraca `reason`: `ok` / `owner` / `entitled` / `exhausted` /
 `expired` / `revoked` / `invalid`. Współbieżne wejścia serializuje

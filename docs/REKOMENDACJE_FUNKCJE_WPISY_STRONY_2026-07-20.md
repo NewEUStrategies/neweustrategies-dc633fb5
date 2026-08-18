@@ -15,11 +15,11 @@ pętli już w połowie zbudowanych, (3) higiena z audytu. Nie: kolejne duże mod
 
 ## 0. Co jest już zarekomendowane gdzie indziej (nie dublujemy)
 
-| Dokument                                    | Pozycje tam przypisane                                                                                                                                                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OCENA_MODULOW_2026-07-20.md` (P0–P2)       | tryb czytania artykułu; „pisz od razu" w edytorze; diff rewizji; inline editing na kanwie buildera; miniatury w palecie widgetów; style presets; alerty zapisanych wyszukiwań; multi-select faset; pgvector |
-| ``.lovable/plan.md` (metadane sandboxu)` (fazy 1–4)               | scalenie kategorii + merge tool; walidator SEO w edytorze; sugestie linków wewnętrznych; dashboard Search Console                                                                                           |
-| `OCENA_KONKURENCYJNA_MODULOW_2026-07-20.md` | 2–3 flagowe digital features / microsites (dorobek, nie zdolność); A/B na lejkach subskrypcji                                                                                                               |
+| Dokument                                            | Pozycje tam przypisane                                                                                                                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OCENA_MODULOW_2026-07-20.md` (P0–P2)               | tryb czytania artykułu; „pisz od razu" w edytorze; diff rewizji; inline editing na kanwie buildera; miniatury w palecie widgetów; style presets; alerty zapisanych wyszukiwań; multi-select faset; pgvector |
+| ``.lovable/plan.md` (metadane sandboxu)` (fazy 1–4) | scalenie kategorii + merge tool; walidator SEO w edytorze; sugestie linków wewnętrznych; dashboard Search Console                                                                                           |
+| `OCENA_KONKURENCYJNA_MODULOW_2026-07-20.md`         | 2–3 flagowe digital features / microsites (dorobek, nie zdolność); A/B na lejkach subskrypcji                                                                                                               |
 
 Niniejszy dokument jest trzecim filarem: **backlog nowych funkcji produktowych** wpisów i stron.
 

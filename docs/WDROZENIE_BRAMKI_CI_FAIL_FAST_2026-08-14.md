@@ -9,12 +9,12 @@ bramki istnieją, są dobre i **nie są uruchamiane przed wypchnięciem**.
 
 Zmierzony stan wejściowy (nie przepisany - odtworzony lokalnie):
 
-| Krok CI                       | Objaw                                              |
-| ----------------------------- | -------------------------------------------------- |
-| `Lint`                        | 291 problemów: **115 błędów**, wszystkie `prettier/prettier`, zero błędów logiki |
-| `check:sql-migration-replay`  | 2 nowe pary bliźniaków treści (migracje rekrutacji) |
-| `Test + coverage gate`        | 2 testy w `src/lib/ci/__tests__/migrationReplay.test.ts` - ta sama przyczyna |
-| `check:legacy-payment-refs`   | 1 żywa referencja do poprzedniego operatora płatności |
+| Krok CI                      | Objaw                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `Lint`                       | 291 problemów: **115 błędów**, wszystkie `prettier/prettier`, zero błędów logiki |
+| `check:sql-migration-replay` | 2 nowe pary bliźniaków treści (migracje rekrutacji)                              |
+| `Test + coverage gate`       | 2 testy w `src/lib/ci/__tests__/migrationReplay.test.ts` - ta sama przyczyna     |
+| `check:legacy-payment-refs`  | 1 żywa referencja do poprzedniego operatora płatności                            |
 
 Żadna z czterech nie była defektem produktu. Trzy pierwsze przyczyny kosztują
 **razem poniżej minuty pomiaru**, a CI podawało je po ~8 minutach instalacji,
@@ -156,11 +156,11 @@ ten sam krok przewróci CI. Przy sukcesie podaje trzy najdroższe bramki.
 
 ## Testy
 
-| Plik                                                | Zakres                                                                        |
-| --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `src/lib/ci/__tests__/dbTypeBoundary.test.ts`       | +4: rename kolumny (stara/nowa nazwa), rename tabeli, `RENAME CONSTRAINT` jako nie-zdarzenie |
-| `src/lib/ci/__tests__/policyTenantRegression.test.ts`| 10: sygnały wiązania, `WITH CHECK`, cofnięcie otwarte, cofnięcie zaleczone, polityka bez historii wiązania, polityka skasowana, ratchet długu, pusty skan |
-| `src/lib/ci/__tests__/gateCoverage.test.ts`          | 8: przypisanie do joba i linii, bramka niewpięta, duplikat w jobie, ten sam skrypt w dwóch jobach, skrypt nieznany manifestowi, pusty skan |
+| Plik                                                  | Zakres                                                                                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/ci/__tests__/dbTypeBoundary.test.ts`         | +4: rename kolumny (stara/nowa nazwa), rename tabeli, `RENAME CONSTRAINT` jako nie-zdarzenie                                                              |
+| `src/lib/ci/__tests__/policyTenantRegression.test.ts` | 10: sygnały wiązania, `WITH CHECK`, cofnięcie otwarte, cofnięcie zaleczone, polityka bez historii wiązania, polityka skasowana, ratchet długu, pusty skan |
+| `src/lib/ci/__tests__/gateCoverage.test.ts`           | 8: przypisanie do joba i linii, bramka niewpięta, duplikat w jobie, ten sam skrypt w dwóch jobach, skrypt nieznany manifestowi, pusty skan                |
 
 Każda z trzech bramek oblewa też na **pustym skanie** (zero polityk, zero
 bramek, zero definicji). Bramka, która po zmianie parsera przestaje cokolwiek
@@ -229,14 +229,14 @@ luk izolacji najemców** starszych o miesiąc od tego wydania. Wszystkie z jedne
 migracji: `20260714130000_expert_hub.sql` przepisało polityki sześciu tabel
 ŁĄCZĄCYCH z predykatu „rodzic należy do przeglądanego najemcy" na `USING (true)`:
 
-| Tabela                   | Polityki                              |
-| ------------------------ | ------------------------------------- |
-| `post_authors`           | `public read`                         |
-| `post_programs`          | `public read`                         |
-| `post_regions`           | `public read`                         |
-| `event_speakers`         | `public read`, `staff manage`         |
-| `program_members`        | `public read`, `staff write`          |
-| `expert_expertise_areas` | `expert_areas public read`            |
+| Tabela                   | Polityki                      |
+| ------------------------ | ----------------------------- |
+| `post_authors`           | `public read`                 |
+| `post_programs`          | `public read`                 |
+| `post_regions`           | `public read`                 |
+| `event_speakers`         | `public read`, `staff manage` |
+| `program_members`        | `public read`, `staff write`  |
+| `expert_expertise_areas` | `expert_areas public read`    |
 
 Wiersze noszą wyłącznie pary UUID, więc nie wyciekają treści (rodzice mają
 własne, zawężone polityki) - wycieka GRAF: kto jest autorem którego wpisu i kto

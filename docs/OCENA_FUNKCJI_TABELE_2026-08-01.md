@@ -28,307 +28,307 @@ Konwencja: ocena „**X → Y**" = zmiana względem wydania 30.07; „(nowa)" = 
 
 # MODUŁ 1 — Wpisy: doświadczenie czytelnika · **8,2/10** (30.07: 8,0)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Paywall / bramka dostępu | **9** | 4 tryby, entitlement dowodzony obecnością body — anon SSR nie wysyła bajtów premium; enforcement kolumnowy (REVOKE+RPC) | Lockout hasła tylko po stronie klienta | Przenieść lockout hasła do RPC (server-side) |
-| Metering „N darmowych/mies." | **9** | Serwerowy `consume_metered_view`, konsumpcja po hydracji (boty nie palą limitu), gość=UUID; **od 31.07 licznik „zostało N" w warstwie treści** z kluczami okresu rozliczeniowego (PR #119) | — | Utrzymać (rekomendacja z 30.07 wdrożona) |
-| Podaruj artykuł (gift, NYT-style) | **9** | Idempotentny link, RPC SECURITY DEFINER, cap `max_redemptions_per_link`, testy domeny | Cap niedostępny w UI admina | Wystawić edycję capu w panelu |
-| Spis treści (TOC) | **8 → 9** | Skonsolidowany `slugifyAnchor` (jedno źródło + test parytetu na `ł`), scrollspy, mobile sheet z focus-trap; **piąta kopia slugify usunięta — `TocWidget` przepięty na kanoniczny** (PR #123) | — | Utrzymać (rekomendacja z 30.07 wdrożona) |
-| Pasek postępu czytania | **8** | `rafThrottle` na najgorętszym handlerze, liczony wg realnych granic `.article-body` | Sticky header bez własnego wskaźnika | Kosmetyka — opcjonalnie |
-| Przypisy (footnotes) | **9** | End-to-end: edytor→silnik→SSR, jeden kontrakt wyjścia, 8+ plików testów | — | Utrzymać |
-| Key takeaways | **8** | Placeholder publiczny **usunięty** (`$.tsx:820`), `aria-hidden` gdy brak | Dla stron gałąź renderu nigdy ich nie pokazuje (martwy przełącznik) | Wyciąć takeaways ze stron albo dorobić render |
-| Cytowania / eksport bib. | **7** | Realny formatter (Chicago i in.), testy fallbacków | Zakres formatów ograniczony | Dodać BibTeX/RIS jeśli jest popyt |
-| Audio artykułu (TTS w treści) | **7** | Publiczny `post-tts` z cache w prywatnym buckecie, gating `has_content_access` | 24-krotna amplifikacja kosztu (6 głosów×2 modele×2 języki na wpis) | Jeden kanoniczny głos/model per artykuł |
+| Funkcja                           |   Ocena   | ✅ Dobry                                                                                                                                                                                     | ⚠️ Słaby                                                            | 🔧 Rekomendacja                               |
+| --------------------------------- | :-------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------- |
+| Paywall / bramka dostępu          |   **9**   | 4 tryby, entitlement dowodzony obecnością body — anon SSR nie wysyła bajtów premium; enforcement kolumnowy (REVOKE+RPC)                                                                      | Lockout hasła tylko po stronie klienta                              | Przenieść lockout hasła do RPC (server-side)  |
+| Metering „N darmowych/mies."      |   **9**   | Serwerowy `consume_metered_view`, konsumpcja po hydracji (boty nie palą limitu), gość=UUID; **od 31.07 licznik „zostało N" w warstwie treści** z kluczami okresu rozliczeniowego (PR #119)   | —                                                                   | Utrzymać (rekomendacja z 30.07 wdrożona)      |
+| Podaruj artykuł (gift, NYT-style) |   **9**   | Idempotentny link, RPC SECURITY DEFINER, cap `max_redemptions_per_link`, testy domeny                                                                                                        | Cap niedostępny w UI admina                                         | Wystawić edycję capu w panelu                 |
+| Spis treści (TOC)                 | **8 → 9** | Skonsolidowany `slugifyAnchor` (jedno źródło + test parytetu na `ł`), scrollspy, mobile sheet z focus-trap; **piąta kopia slugify usunięta — `TocWidget` przepięty na kanoniczny** (PR #123) | —                                                                   | Utrzymać (rekomendacja z 30.07 wdrożona)      |
+| Pasek postępu czytania            |   **8**   | `rafThrottle` na najgorętszym handlerze, liczony wg realnych granic `.article-body`                                                                                                          | Sticky header bez własnego wskaźnika                                | Kosmetyka — opcjonalnie                       |
+| Przypisy (footnotes)              |   **9**   | End-to-end: edytor→silnik→SSR, jeden kontrakt wyjścia, 8+ plików testów                                                                                                                      | —                                                                   | Utrzymać                                      |
+| Key takeaways                     |   **8**   | Placeholder publiczny **usunięty** (`$.tsx:820`), `aria-hidden` gdy brak                                                                                                                     | Dla stron gałąź renderu nigdy ich nie pokazuje (martwy przełącznik) | Wyciąć takeaways ze stron albo dorobić render |
+| Cytowania / eksport bib.          |   **7**   | Realny formatter (Chicago i in.), testy fallbacków                                                                                                                                           | Zakres formatów ograniczony                                         | Dodać BibTeX/RIS jeśli jest popyt             |
+| Audio artykułu (TTS w treści)     |   **7**   | Publiczny `post-tts` z cache w prywatnym buckecie, gating `has_content_access`                                                                                                               | 24-krotna amplifikacja kosztu (6 głosów×2 modele×2 języki na wpis)  | Jeden kanoniczny głos/model per artykuł       |
 
 ---
 
 # MODUŁ 2 — Edytor wpisów i workflow redakcyjny · **8,4/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Autozapis (wpisy) | **9** | Realny `useAutosave` z ochroną przed utratą, `AutosaveBar` | — | Utrzymać |
-| Rewizje wpisów | **8** | Limit 50, throttling 5 min, restore pomija `status` (celowo) | Zero testów integracyjnych na restore | Dodać test przywracania |
-| Workflow draft→review→published | **9** | Egzekwowany **potrójnie**: UI, server fn ×2, trigger DB | — | Utrzymać |
-| Publikacja planowana | **8** | pg_cron `publish_due_posts` co minutę + fallback best-effort | — | Utrzymać |
-| Kalendarz redakcyjny | **7** | Drag-and-drop, realny | Brak testów | Dodać smoke test |
-| Redirecty 301 przy zmianie slug | **8** | Automatyczne, realne; `?lang=` przeżywa twardy reload edytora (PR #125) | — | Utrzymać |
+| Funkcja                         | Ocena | ✅ Dobry                                                                | ⚠️ Słaby                              | 🔧 Rekomendacja         |
+| ------------------------------- | :---: | ----------------------------------------------------------------------- | ------------------------------------- | ----------------------- |
+| Autozapis (wpisy)               | **9** | Realny `useAutosave` z ochroną przed utratą, `AutosaveBar`              | —                                     | Utrzymać                |
+| Rewizje wpisów                  | **8** | Limit 50, throttling 5 min, restore pomija `status` (celowo)            | Zero testów integracyjnych na restore | Dodać test przywracania |
+| Workflow draft→review→published | **9** | Egzekwowany **potrójnie**: UI, server fn ×2, trigger DB                 | —                                     | Utrzymać                |
+| Publikacja planowana            | **8** | pg_cron `publish_due_posts` co minutę + fallback best-effort            | —                                     | Utrzymać                |
+| Kalendarz redakcyjny            | **7** | Drag-and-drop, realny                                                   | Brak testów                           | Dodać smoke test        |
+| Redirecty 301 przy zmianie slug | **8** | Automatyczne, realne; `?lang=` przeżywa twardy reload edytora (PR #125) | —                                     | Utrzymać                |
 
 ---
 
 # MODUŁ 3 — Silniki treści: bloki + page builder · **8,8/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Silnik bloków (posty) | **9** | **100 typów bloków**, renderer pokrywa 100/100, 0 placeholderów, ~25 plików testów widgetów | Schemat persystencji celowo luźny (dowolny JSON) | Utrzymać (ryzyko cięte error boundaries) |
-| Page builder (widgety) | **9** | **89 widgetów** (+2 od 30.07, m.in. slidery), pełne pokrycie rejestru, sekcja→kolumna→widget | — | Utrzymać |
-| Interop bloki⇄builder | **7** | Konwersja blocks→builder realna (`blocksToBuilder`) | **Jednokierunkowa** i tylko w imporcie WP; builder→bloki nie istnieje | Dorobić kierunek odwrotny albo udokumentować jako by-design |
-| Import z Gutenberga / markdown | **8** | Realne parsery, osobne stosy undo per język; wzmocniony parser wklejania z Worda (31.07) | — | Utrzymać |
-| Undo/redo per język | **8** | Osobne stosy, poprawne | — | Utrzymać |
+| Funkcja                        | Ocena | ✅ Dobry                                                                                     | ⚠️ Słaby                                                              | 🔧 Rekomendacja                                             |
+| ------------------------------ | :---: | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Silnik bloków (posty)          | **9** | **100 typów bloków**, renderer pokrywa 100/100, 0 placeholderów, ~25 plików testów widgetów  | Schemat persystencji celowo luźny (dowolny JSON)                      | Utrzymać (ryzyko cięte error boundaries)                    |
+| Page builder (widgety)         | **9** | **89 widgetów** (+2 od 30.07, m.in. slidery), pełne pokrycie rejestru, sekcja→kolumna→widget | —                                                                     | Utrzymać                                                    |
+| Interop bloki⇄builder          | **7** | Konwersja blocks→builder realna (`blocksToBuilder`)                                          | **Jednokierunkowa** i tylko w imporcie WP; builder→bloki nie istnieje | Dorobić kierunek odwrotny albo udokumentować jako by-design |
+| Import z Gutenberga / markdown | **8** | Realne parsery, osobne stosy undo per język; wzmocniony parser wklejania z Worda (31.07)     | —                                                                     | Utrzymać                                                    |
+| Undo/redo per język            | **8** | Osobne stosy, poprawne                                                                       | —                                                                     | Utrzymać                                                    |
 
 ---
 
 # MODUŁ 4 — Strony, wygląd, motyw, media, import · **6,8/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Builder stron | **7** | Ten sam potężny builder co posty, realny | — | Utrzymać |
-| **Autozapis stron** | **3** | — | **Nadal wyłączony** — `useAutosave` nieimportowany; komentarz „Autozapis włączony (jak dla wpisów)" wręcz **rozbudowano** (`admin.pages.$slug.tsx:294`), a hook żyje tylko w edytorze wpisów (`usePostEditorForm.ts:218`) | Włączyć `useAutosave`+`AutosaveBar` albo poprawić kłamliwy komentarz |
-| Rewizje stron | **6** | Istnieją (`writeRevisionSnapshot(entityType:"page")`) | Snapshot gubi `template_type`/`header_override`/`toc_override` (lista pól jest postowa) | Rozdzielić `REVISION_FIELDS` post vs page |
-| Motyw / design tokens | **8** | Głębia frameworka komercyjnego, tokeny, globalne kolory | — | Utrzymać |
-| Media — upload/skan użycia | **7** | Skan użycia przed usunięciem, foldery/rename/bulk, `OptimizedImage` z srcSet | Walidacja na danych **deklarowanych przez klienta** (zero magic-bytes), brak deduplikacji | Sniffing bajtów + kolumna hash |
-| Media — SVG stored-XSS | **7** | Allowlista aplikacyjna blokuje SVG + bucket allowlist | Importer WP **nadal ma `image/svg+xml`** na liście | Usunąć SVG z list importera WP |
-| **Import WP** | **4** | Realny potok WP.com API + WXR | **Nadal niszczy drugi język** — nadpisuje cały `blocks_data`, brak merge; dwa równoległe stacki (688+924 linie) | Merge per-język zamiast nadpisania; zunifikować stacki |
+| Funkcja                    | Ocena | ✅ Dobry                                                                     | ⚠️ Słaby                                                                                                                                                                                                                  | 🔧 Rekomendacja                                                      |
+| -------------------------- | :---: | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Builder stron              | **7** | Ten sam potężny builder co posty, realny                                     | —                                                                                                                                                                                                                         | Utrzymać                                                             |
+| **Autozapis stron**        | **3** | —                                                                            | **Nadal wyłączony** — `useAutosave` nieimportowany; komentarz „Autozapis włączony (jak dla wpisów)" wręcz **rozbudowano** (`admin.pages.$slug.tsx:294`), a hook żyje tylko w edytorze wpisów (`usePostEditorForm.ts:218`) | Włączyć `useAutosave`+`AutosaveBar` albo poprawić kłamliwy komentarz |
+| Rewizje stron              | **6** | Istnieją (`writeRevisionSnapshot(entityType:"page")`)                        | Snapshot gubi `template_type`/`header_override`/`toc_override` (lista pól jest postowa)                                                                                                                                   | Rozdzielić `REVISION_FIELDS` post vs page                            |
+| Motyw / design tokens      | **8** | Głębia frameworka komercyjnego, tokeny, globalne kolory                      | —                                                                                                                                                                                                                         | Utrzymać                                                             |
+| Media — upload/skan użycia | **7** | Skan użycia przed usunięciem, foldery/rename/bulk, `OptimizedImage` z srcSet | Walidacja na danych **deklarowanych przez klienta** (zero magic-bytes), brak deduplikacji                                                                                                                                 | Sniffing bajtów + kolumna hash                                       |
+| Media — SVG stored-XSS     | **7** | Allowlista aplikacyjna blokuje SVG + bucket allowlist                        | Importer WP **nadal ma `image/svg+xml`** na liście                                                                                                                                                                        | Usunąć SVG z list importera WP                                       |
+| **Import WP**              | **4** | Realny potok WP.com API + WXR                                                | **Nadal niszczy drugi język** — nadpisuje cały `blocks_data`, brak merge; dwa równoległe stacki (688+924 linie)                                                                                                           | Merge per-język zamiast nadpisania; zunifikować stacki               |
 
 ---
 
 # MODUŁ 5 — Strona główna, archiwa, chrome · **8,0/10** (30.07: 7,8)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Strona główna | **8** | W pełni CMS-owa, SSR, uczciwy empty state, poprawna hydracja | Tryb „najnowsze wpisy" z ustawień — widmo (trasa nie honoruje) | Wyciąć martwy tryb albo okablować |
-| Archiwa kategoria/tag | **8** | Prawdziwa paginacja `?page=N&sort=`, `noindex,follow` dla >1 | — | Utrzymać |
-| Archiwum bloga | **6 → 8** | **SSR-paginacja `?page=N` zamiast „load more"** (PR #121) — indeksowalne strony, defensywny parser searcha, wzorzec taksonomii | — | Utrzymać (rekomendacja z 30.07 wdrożona) |
-| Archiwum autora | **8** | Role-gated; paginacja serwerowa `?page=N` + filtry w URL (RPC `get_expert_materials`: SECURITY INVOKER, deterministyczne okno, indeks częściowy; SSR strony N; `noindex,follow` dla widoków >1/filtrowanych) | — | Utrzymać (wdrożone 2026-07-31 — `WDROZENIE_PAGINACJA_AUTORA_2026-07-31.md`) |
-| Mega menu / ticker / chrome | **8** | 6 layoutów archiwum, mega menu, ticker | — | Utrzymać |
+| Funkcja                     |   Ocena   | ✅ Dobry                                                                                                                                                                                                     | ⚠️ Słaby                                                       | 🔧 Rekomendacja                                                             |
+| --------------------------- | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Strona główna               |   **8**   | W pełni CMS-owa, SSR, uczciwy empty state, poprawna hydracja                                                                                                                                                 | Tryb „najnowsze wpisy" z ustawień — widmo (trasa nie honoruje) | Wyciąć martwy tryb albo okablować                                           |
+| Archiwa kategoria/tag       |   **8**   | Prawdziwa paginacja `?page=N&sort=`, `noindex,follow` dla >1                                                                                                                                                 | —                                                              | Utrzymać                                                                    |
+| Archiwum bloga              | **6 → 8** | **SSR-paginacja `?page=N` zamiast „load more"** (PR #121) — indeksowalne strony, defensywny parser searcha, wzorzec taksonomii                                                                               | —                                                              | Utrzymać (rekomendacja z 30.07 wdrożona)                                    |
+| Archiwum autora             |   **8**   | Role-gated; paginacja serwerowa `?page=N` + filtry w URL (RPC `get_expert_materials`: SECURITY INVOKER, deterministyczne okno, indeks częściowy; SSR strony N; `noindex,follow` dla widoków >1/filtrowanych) | —                                                              | Utrzymać (wdrożone 2026-07-31 — `WDROZENIE_PAGINACJA_AUTORA_2026-07-31.md`) |
+| Mega menu / ticker / chrome |   **8**   | 6 layoutów archiwum, mega menu, ticker                                                                                                                                                                       | —                                                              | Utrzymać                                                                    |
 
 ---
 
 # MODUŁ 6 — Wyszukiwarka · **8,3/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| FTS treści (Postgres) | **9** | Natywna FTS+pgvector, koszt marginalny ~0 vs Algolia | — | Utrzymać |
-| Fasety / filtry | **8** | Realne fasety, klasa zbliżona do RAND | — | Utrzymać |
-| Paleta ⌘K | **8** | Lazy-mount, realna | — | Utrzymać |
-| Wyszukiwanie głosowe (STT) | **7** | `api/stt` z auth+limitami, fallback Web Speech dla anon | Brak allowlisty MIME uploadu (dowolny 8 MB blob do gatewaya) | Dodać allowlistę MIME |
-| Alerty zapisanych wyszukiwań | **7** | pg_cron `saved-search-alerts` realny | Brak testu integracyjnego | Dodać test |
+| Funkcja                      | Ocena | ✅ Dobry                                                | ⚠️ Słaby                                                     | 🔧 Rekomendacja       |
+| ---------------------------- | :---: | ------------------------------------------------------- | ------------------------------------------------------------ | --------------------- |
+| FTS treści (Postgres)        | **9** | Natywna FTS+pgvector, koszt marginalny ~0 vs Algolia    | —                                                            | Utrzymać              |
+| Fasety / filtry              | **8** | Realne fasety, klasa zbliżona do RAND                   | —                                                            | Utrzymać              |
+| Paleta ⌘K                    | **8** | Lazy-mount, realna                                      | —                                                            | Utrzymać              |
+| Wyszukiwanie głosowe (STT)   | **7** | `api/stt` z auth+limitami, fallback Web Speech dla anon | Brak allowlisty MIME uploadu (dowolny 8 MB blob do gatewaya) | Dodać allowlistę MIME |
+| Alerty zapisanych wyszukiwań | **7** | pg_cron `saved-search-alerts` realny                    | Brak testu integracyjnego                                    | Dodać test            |
 
 ---
 
 # MODUŁ 7 — Typy treści specjalne · **7,0/10** (30.07: 6,5)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Tracker legislacyjny | **6 → 7** | Pasek etapów, macierz 27 państw, feed „co się zmieniło", obserwacje przez RPC, bramka warstw w DB; **od 31.07 SSR: defensywny loader + ItemList JSON-LD + cache ISR** (PR #117) — crawler bez JS dostaje treść | **Brak importu** (wszystko ręcznie), **brak diffu wersji**, **brak RSS**, **obserwacje nikogo nie powiadamiają** (a alerty są w cenniku!) | Job czytający `eu_policy_follows` + `tracker.rss.xml` + import EUR-Lex/OEIL |
-| Huby ekspertów | **7 → 8** | Katalog z filtrami, capability „zapytanie do eksperta" (Pro+) z kwotami; **inline editor layoutów DOKOŃCZONY** — nadpisania per-ekspert na `/author/$slug` (PR #120, migracja `expert_layout_inline_overrides`) | — | Utrzymać (słabość z 30.07 wdrożona) |
-| Programy badawcze | **5** | `research-programs` realny hub (members/projects/partners), RSS per program | **Dwie równoległe tabele** (`programs` vs `research_programs`), admin edytuje dane bez publicznego odbiorcy | Zmigrować na jedną tabelę, usunąć duplikat |
-| Wydarzenia | **8** | Waitlist FIFO serwerowy, RSVP-mail idempotentny, ICS RFC 5545, przypomnienia cron | Brak SSR listy (`events.tsx` bez loadera) | Dodać loader SSR |
-| Q&A | **7** | Moderacja (4 statusy) + odpowiedzi eksperckie, Chatham House, JSON-LD, SSR | — | Utrzymać |
-| Ankiety (polls) | **7** | Realtime głosowanie, zapisy przez utwardzone RPC, pgTAP | Brak SSR | Dodać loader |
-| Biblioteka | **7** | Pliki w prywatnym buckecie, bramka rangi **egzekwowana w DB**, logowanie pobrań | Podmiana pliku niemożliwa w edycji; brak SSR | Dodać replace + loader |
-| Glosariusz | **8** | CRUD + realny odbiorca (tooltipy w treści) | — | Utrzymać |
-| Quiz (EuroChallenge) | **7** | Celowa landing-strona promocyjna **drugiej platformy NES** (`nes-quiz.com`; korekta 31.07 — nie wydmuszka): branded `head()`, `LazyQuizIframe`, tło z preloadem, przyciski udostępniania | `head()` **nadal** z opisem i OG zahardkodowanymi po polsku (bez `activeLang`) → odwiedzający EN dostaje polski snippet | Zbilingwalizować meta (`activeLang` PL/EN) + `og:url`/canonical do `nes-quiz.com` |
-| Web stories | **7** | AMP + JSON-LD + sitemap + indeks (naprawione) | `rel=amphtml` tylko gdy `cover_url`; indeks bez `ItemList`/paginacji | Emitować `amphtml` zawsze + paginacja indeksu |
+| Funkcja              |   Ocena   | ✅ Dobry                                                                                                                                                                                                        | ⚠️ Słaby                                                                                                                                  | 🔧 Rekomendacja                                                                   |
+| -------------------- | :-------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Tracker legislacyjny | **6 → 7** | Pasek etapów, macierz 27 państw, feed „co się zmieniło", obserwacje przez RPC, bramka warstw w DB; **od 31.07 SSR: defensywny loader + ItemList JSON-LD + cache ISR** (PR #117) — crawler bez JS dostaje treść  | **Brak importu** (wszystko ręcznie), **brak diffu wersji**, **brak RSS**, **obserwacje nikogo nie powiadamiają** (a alerty są w cenniku!) | Job czytający `eu_policy_follows` + `tracker.rss.xml` + import EUR-Lex/OEIL       |
+| Huby ekspertów       | **7 → 8** | Katalog z filtrami, capability „zapytanie do eksperta" (Pro+) z kwotami; **inline editor layoutów DOKOŃCZONY** — nadpisania per-ekspert na `/author/$slug` (PR #120, migracja `expert_layout_inline_overrides`) | —                                                                                                                                         | Utrzymać (słabość z 30.07 wdrożona)                                               |
+| Programy badawcze    |   **5**   | `research-programs` realny hub (members/projects/partners), RSS per program                                                                                                                                     | **Dwie równoległe tabele** (`programs` vs `research_programs`), admin edytuje dane bez publicznego odbiorcy                               | Zmigrować na jedną tabelę, usunąć duplikat                                        |
+| Wydarzenia           |   **8**   | Waitlist FIFO serwerowy, RSVP-mail idempotentny, ICS RFC 5545, przypomnienia cron                                                                                                                               | Brak SSR listy (`events.tsx` bez loadera)                                                                                                 | Dodać loader SSR                                                                  |
+| Q&A                  |   **7**   | Moderacja (4 statusy) + odpowiedzi eksperckie, Chatham House, JSON-LD, SSR                                                                                                                                      | —                                                                                                                                         | Utrzymać                                                                          |
+| Ankiety (polls)      |   **7**   | Realtime głosowanie, zapisy przez utwardzone RPC, pgTAP                                                                                                                                                         | Brak SSR                                                                                                                                  | Dodać loader                                                                      |
+| Biblioteka           |   **7**   | Pliki w prywatnym buckecie, bramka rangi **egzekwowana w DB**, logowanie pobrań                                                                                                                                 | Podmiana pliku niemożliwa w edycji; brak SSR                                                                                              | Dodać replace + loader                                                            |
+| Glosariusz           |   **8**   | CRUD + realny odbiorca (tooltipy w treści)                                                                                                                                                                      | —                                                                                                                                         | Utrzymać                                                                          |
+| Quiz (EuroChallenge) |   **7**   | Celowa landing-strona promocyjna **drugiej platformy NES** (`nes-quiz.com`; korekta 31.07 — nie wydmuszka): branded `head()`, `LazyQuizIframe`, tło z preloadem, przyciski udostępniania                        | `head()` **nadal** z opisem i OG zahardkodowanymi po polsku (bez `activeLang`) → odwiedzający EN dostaje polski snippet                   | Zbilingwalizować meta (`activeLang` PL/EN) + `og:url`/canonical do `nes-quiz.com` |
+| Web stories          |   **7**   | AMP + JSON-LD + sitemap + indeks (naprawione)                                                                                                                                                                   | `rel=amphtml` tylko gdy `cover_url`; indeks bez `ItemList`/paginacji                                                                      | Emitować `amphtml` zawsze + paginacja indeksu                                     |
 
 ---
 
 # MODUŁ 8 — SEO, feedy, dane strukturalne · **7,5/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| JSON-LD (`safeJsonLd`) | **9** | Escaping `< > & U+2028/9`, ~20 tras (od 31.07 też ItemList trackera), test kontraktu w CI | — | Utrzymać |
-| hreflang PL/EN | **8** | x-default+pl+en, suppress przy canonical-override | — | Utrzymać |
-| Paywall markup (AEO) | **8** | `isAccessibleForFree:false`+`hasPart/cssSelector`, selektor realnie istnieje | — | Utrzymać |
-| Sitemap | **6** | Zawiera web-stories/tracker/programy/ekspertów/Q&A/eventy | Jednoplikowa bez indeksu (ściana 50k URL); **news-sitemap nieodkrywalny** (nie ma go w robots.txt mimo komentarza) | Dopisać `Sitemap: news-sitemap.xml` + sitemap-index |
-| Podcast RSS | **8** | **Ingestowalny** (enclosure+length+type, itunes:*), panel readiness | GUID z prefiksem językowym (PL/EN = 2 kanały); brak autodiscovery w `<head>` | Wspólny GUID + `<link rel=alternate>` |
-| OG images | **8** | HMAC-gated webhook refresh, 501 bez sekretu | — | Utrzymać |
-| RSS/feedy treści | **8** | Kategoria/tag/program RSS realne | — | Utrzymać |
+| Funkcja                | Ocena | ✅ Dobry                                                                                  | ⚠️ Słaby                                                                                                           | 🔧 Rekomendacja                                     |
+| ---------------------- | :---: | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| JSON-LD (`safeJsonLd`) | **9** | Escaping `< > & U+2028/9`, ~20 tras (od 31.07 też ItemList trackera), test kontraktu w CI | —                                                                                                                  | Utrzymać                                            |
+| hreflang PL/EN         | **8** | x-default+pl+en, suppress przy canonical-override                                         | —                                                                                                                  | Utrzymać                                            |
+| Paywall markup (AEO)   | **8** | `isAccessibleForFree:false`+`hasPart/cssSelector`, selektor realnie istnieje              | —                                                                                                                  | Utrzymać                                            |
+| Sitemap                | **6** | Zawiera web-stories/tracker/programy/ekspertów/Q&A/eventy                                 | Jednoplikowa bez indeksu (ściana 50k URL); **news-sitemap nieodkrywalny** (nie ma go w robots.txt mimo komentarza) | Dopisać `Sitemap: news-sitemap.xml` + sitemap-index |
+| Podcast RSS            | **8** | **Ingestowalny** (enclosure+length+type, itunes:*), panel readiness                       | GUID z prefiksem językowym (PL/EN = 2 kanały); brak autodiscovery w `<head>`                                       | Wspólny GUID + `<link rel=alternate>`               |
+| OG images              | **8** | HMAC-gated webhook refresh, 501 bez sekretu                                               | —                                                                                                                  | Utrzymać                                            |
+| RSS/feedy treści       | **8** | Kategoria/tag/program RSS realne                                                          | —                                                                                                                  | Utrzymać                                            |
 
 ---
 
 # MODUŁ 9 — Czat / komunikator · **8,0/10** (30.07: 7,5)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| DM 1:1 | **8** | RLS v2 z helperem SECURITY DEFINER, dedup konwersacji race-safe, okno edycji 5 min | Kursor paginacji bez tiebreakera id | Dodać id do kursora |
-| Motywy / tapety | **8** | 5 motywów + 3 tapety z DB, realne | — | Utrzymać |
-| Read receipts | **8** | 4-stanowe, wzajemność wyłączenia testowana pgTAP | — | Utrzymać |
-| Wskaźnik pisania | **8** | **Naprawiony** — stabilny topic `chat-conv:${id}`, odbiorca realny | — | Utrzymać |
-| Głosówki (voice notes) | **7** | MediaRecorder, fallback formatów, `durationSeconds` | — | Utrzymać |
-| Grupy | **7** | `create_group_conversation`, member picker, info dialog | — | Utrzymać |
-| Wyszukiwarka w wiadomościach | **6** | `search_vector` + RPC z powtórzonym RLS | Konfiguracja `simple` = **zero fleksji**, wbrew komentarzowi „polska fleksja" | Zmienić na słownik z fleksją albo poprawić komentarz |
-| Załączniki | **8** | Bucket `chat-attachments` istnieje (30 MB, allowlist), purge osieroconych | — | Utrzymać |
-| Blokowanie / mute / rate limit | **7** | `user_blocks` owner-only, egzekucja serwerowa, mute, limit 20/min | „Zgłoś" istnieje w sieci, **brak w oknie czatu** | Dodać wejście „Zgłoś" z `MessageBubble` |
-| Prywatność peerów (`get_chat_peers`) | **3 → 9** | **Regresja cross-tenant NAPRAWIONA** (PR #118): filtr tenanta przywrócony nad OBIEMA gałęziami (discoverable + wspólna konwersacja), REVOKE ponowiony, ostrzeżenie w `COMMENT`; **samodzielny kontrakt pgTAP** (`get_chat_peers_contract_test.sql`, 178 linii); pgTAP w CI odblokowany (pin CLI + własność triggerów) | — | Utrzymać — kontrakt pilnuje regresji |
-| „AI" bot | **3** | Uczciwie opisany jako symulator | Lokalne echo/3 odpowiedzi, duplikuje ~300 linii UI | Wyciąć albo podłączyć realny backend |
+| Funkcja                              |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                              | ⚠️ Słaby                                                                      | 🔧 Rekomendacja                                      |
+| ------------------------------------ | :-------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------- |
+| DM 1:1                               |   **8**   | RLS v2 z helperem SECURITY DEFINER, dedup konwersacji race-safe, okno edycji 5 min                                                                                                                                                                                                                                    | Kursor paginacji bez tiebreakera id                                           | Dodać id do kursora                                  |
+| Motywy / tapety                      |   **8**   | 5 motywów + 3 tapety z DB, realne                                                                                                                                                                                                                                                                                     | —                                                                             | Utrzymać                                             |
+| Read receipts                        |   **8**   | 4-stanowe, wzajemność wyłączenia testowana pgTAP                                                                                                                                                                                                                                                                      | —                                                                             | Utrzymać                                             |
+| Wskaźnik pisania                     |   **8**   | **Naprawiony** — stabilny topic `chat-conv:${id}`, odbiorca realny                                                                                                                                                                                                                                                    | —                                                                             | Utrzymać                                             |
+| Głosówki (voice notes)               |   **7**   | MediaRecorder, fallback formatów, `durationSeconds`                                                                                                                                                                                                                                                                   | —                                                                             | Utrzymać                                             |
+| Grupy                                |   **7**   | `create_group_conversation`, member picker, info dialog                                                                                                                                                                                                                                                               | —                                                                             | Utrzymać                                             |
+| Wyszukiwarka w wiadomościach         |   **6**   | `search_vector` + RPC z powtórzonym RLS                                                                                                                                                                                                                                                                               | Konfiguracja `simple` = **zero fleksji**, wbrew komentarzowi „polska fleksja" | Zmienić na słownik z fleksją albo poprawić komentarz |
+| Załączniki                           |   **8**   | Bucket `chat-attachments` istnieje (30 MB, allowlist), purge osieroconych                                                                                                                                                                                                                                             | —                                                                             | Utrzymać                                             |
+| Blokowanie / mute / rate limit       |   **7**   | `user_blocks` owner-only, egzekucja serwerowa, mute, limit 20/min                                                                                                                                                                                                                                                     | „Zgłoś" istnieje w sieci, **brak w oknie czatu**                              | Dodać wejście „Zgłoś" z `MessageBubble`              |
+| Prywatność peerów (`get_chat_peers`) | **3 → 9** | **Regresja cross-tenant NAPRAWIONA** (PR #118): filtr tenanta przywrócony nad OBIEMA gałęziami (discoverable + wspólna konwersacja), REVOKE ponowiony, ostrzeżenie w `COMMENT`; **samodzielny kontrakt pgTAP** (`get_chat_peers_contract_test.sql`, 178 linii); pgTAP w CI odblokowany (pin CLI + własność triggerów) | —                                                                             | Utrzymać — kontrakt pilnuje regresji                 |
+| „AI" bot                             |   **3**   | Uczciwie opisany jako symulator                                                                                                                                                                                                                                                                                       | Lokalne echo/3 odpowiedzi, duplikuje ~300 linii UI                            | Wyciąć albo podłączyć realny backend                 |
 
 ---
 
 # MODUŁ 10 — Sieć / networking · **8,0/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Graf połączeń | **9** | Deny-all (`REVOKE ALL FROM PUBLIC,anon,authenticated`), cały dostęp przez granularne RPC | — | Utrzymać (wzorzec) |
-| Zaproszenia / wprowadzenia | **8** | `request_introduction`/`respond_introduction`, race-safe; polityki odczytu dokręcone o zakres tenanta (31.07) | — | Utrzymać |
-| Rekomendacje | **8** | **Naprawione kontraktowo** — RPC rzuca na nieznany czasownik, pgTAP | — | Utrzymać |
-| Zgłaszanie użytkownika | **8** | `report_user` + kolejka admina | — | Utrzymać |
-| Katalog osób (/people) | **8** | Consent-first (`discoverable`), trgm z escapowaniem LIKE, paginacja | — | Utrzymać |
-| Testy warstwy klienta | **4** | — | `network/__tests__` **nie istnieje** (~880 linii bez unit testów) | Dodać unit testy hooków |
+| Funkcja                    | Ocena | ✅ Dobry                                                                                                      | ⚠️ Słaby                                                          | 🔧 Rekomendacja         |
+| -------------------------- | :---: | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------- |
+| Graf połączeń              | **9** | Deny-all (`REVOKE ALL FROM PUBLIC,anon,authenticated`), cały dostęp przez granularne RPC                      | —                                                                 | Utrzymać (wzorzec)      |
+| Zaproszenia / wprowadzenia | **8** | `request_introduction`/`respond_introduction`, race-safe; polityki odczytu dokręcone o zakres tenanta (31.07) | —                                                                 | Utrzymać                |
+| Rekomendacje               | **8** | **Naprawione kontraktowo** — RPC rzuca na nieznany czasownik, pgTAP                                           | —                                                                 | Utrzymać                |
+| Zgłaszanie użytkownika     | **8** | `report_user` + kolejka admina                                                                                | —                                                                 | Utrzymać                |
+| Katalog osób (/people)     | **8** | Consent-first (`discoverable`), trgm z escapowaniem LIKE, paginacja                                           | —                                                                 | Utrzymać                |
+| Testy warstwy klienta      | **4** | —                                                                                                             | `network/__tests__` **nie istnieje** (~880 linii bez unit testów) | Dodać unit testy hooków |
 
 ---
 
 # MODUŁ 11 — Newsletter · **7,5/10** (30.07: 6,5)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Double opt-in | **8** | Token serwerowy TTL 48h, rate limit per-IP i per-adresat, audyt zgód IP/UA | — | Utrzymać |
-| Kreator e-maili (EmailDoc) | **8** | Realny builder, PL/EN | HTML kampanii bez sanityzacji (staff-only) | Dodać sanityzację obronną |
-| Wysyłka kampanii | **7** | Lease + batching (200/inv, 20/batch), recovery po crashu, idempotencja per odbiorca | `failed_count:0` nadpisywane; `markFailed` wywala całą kampanię | Akumulować liczniki; izolować błąd odbiorcy |
-| Runner (scheduler) | **4 → 8** | **SAMOZBROJENIE + heartbeat** (migracja `20260731110000`, PR #111/#112): dziewicza konfiguracja sama ustawia `base_url` z domeny tenanta i włącza runner (`auto_armed_at`; decyzja operatora nienaruszalna); rozjazd `last_invoked_at` vs `last_app_*` = diagnoza „cron puka, aplikacja milczy"; append-only log `job_runner_runs`; `job_scheduler_health()` w 1 RPC; pgTAP 348 linii | — | Utrzymać (rekomendacja z 30.07 wdrożona z nawiązką) |
-| Open/click tracking | **6** | Przepisywanie linków + piksel, token HMAC per (kampania, subskrybent) | Brak dedup na `campaign_events` + podwójny zapis z webhooka → **liczby zawyżone, możliwe >100%** | UNIQUE na zdarzeniach + wyłączyć podwójny zapis |
-| One-click unsubscribe (RFC 8058) | **8** | `List-Unsubscribe`+`-Post`, GET nie mutuje | — | Utrzymać |
-| Suppression / deliverability | **4 → 8** | **JEDNA kanoniczna lista** (`email_suppressions`; migracja `20260731120000`, PR #111): `suppressed_emails` = widok zgodności (`INSTEAD OF` → `email_record_suppression`) — drugiej listy nie da się odtworzyć; bramka dla **19/19 typów** (macierz powód×kategoria) ze śladem w `email_send_log`; **dren kolejki tx wpięty** (`queueDrain.server.ts` ← `jobsTick`); pgTAP 265 linii | Dostarczalność produkcyjna nieweryfikowalna z repo (wymaga realnego Resend) | Utrzymać (P0 z 30.07 wdrożony) |
-| Segmentacja | **6** | Segment `min_tier_rank` działa realnie | `admin.audience` to dashboard retencji, **nie** narzędzie segmentacji mimo nazwy | Dobudować segmenty definiowane przez usera |
+| Funkcja                          |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                                                                                              | ⚠️ Słaby                                                                                         | 🔧 Rekomendacja                                     |
+| -------------------------------- | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Double opt-in                    |   **8**   | Token serwerowy TTL 48h, rate limit per-IP i per-adresat, audyt zgód IP/UA                                                                                                                                                                                                                                                                                                            | —                                                                                                | Utrzymać                                            |
+| Kreator e-maili (EmailDoc)       |   **8**   | Realny builder, PL/EN                                                                                                                                                                                                                                                                                                                                                                 | HTML kampanii bez sanityzacji (staff-only)                                                       | Dodać sanityzację obronną                           |
+| Wysyłka kampanii                 |   **7**   | Lease + batching (200/inv, 20/batch), recovery po crashu, idempotencja per odbiorca                                                                                                                                                                                                                                                                                                   | `failed_count:0` nadpisywane; `markFailed` wywala całą kampanię                                  | Akumulować liczniki; izolować błąd odbiorcy         |
+| Runner (scheduler)               | **4 → 8** | **SAMOZBROJENIE + heartbeat** (migracja `20260731110000`, PR #111/#112): dziewicza konfiguracja sama ustawia `base_url` z domeny tenanta i włącza runner (`auto_armed_at`; decyzja operatora nienaruszalna); rozjazd `last_invoked_at` vs `last_app_*` = diagnoza „cron puka, aplikacja milczy"; append-only log `job_runner_runs`; `job_scheduler_health()` w 1 RPC; pgTAP 348 linii | —                                                                                                | Utrzymać (rekomendacja z 30.07 wdrożona z nawiązką) |
+| Open/click tracking              |   **6**   | Przepisywanie linków + piksel, token HMAC per (kampania, subskrybent)                                                                                                                                                                                                                                                                                                                 | Brak dedup na `campaign_events` + podwójny zapis z webhooka → **liczby zawyżone, możliwe >100%** | UNIQUE na zdarzeniach + wyłączyć podwójny zapis     |
+| One-click unsubscribe (RFC 8058) |   **8**   | `List-Unsubscribe`+`-Post`, GET nie mutuje                                                                                                                                                                                                                                                                                                                                            | —                                                                                                | Utrzymać                                            |
+| Suppression / deliverability     | **4 → 8** | **JEDNA kanoniczna lista** (`email_suppressions`; migracja `20260731120000`, PR #111): `suppressed_emails` = widok zgodności (`INSTEAD OF` → `email_record_suppression`) — drugiej listy nie da się odtworzyć; bramka dla **19/19 typów** (macierz powód×kategoria) ze śladem w `email_send_log`; **dren kolejki tx wpięty** (`queueDrain.server.ts` ← `jobsTick`); pgTAP 265 linii   | Dostarczalność produkcyjna nieweryfikowalna z repo (wymaga realnego Resend)                      | Utrzymać (P0 z 30.07 wdrożony)                      |
+| Segmentacja                      |   **6**   | Segment `min_tier_rank` działa realnie                                                                                                                                                                                                                                                                                                                                                | `admin.audience` to dashboard retencji, **nie** narzędzie segmentacji mimo nazwy                 | Dobudować segmenty definiowane przez usera          |
 
 ---
 
 # MODUŁ 12 — Realtime / powiadomienia / web-push · **8,0/10** (30.07: 6,5)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Szyna zdarzeń domenowych | **9** | Anti-drift, korelacja, optymistyczne mutacje | — | Utrzymać |
-| Powiadomienia in-app | **8** | Producenci w triggerach DB, dedup 5 min, RLS insert-only-definer, realtime dzwonka | — | Utrzymać |
-| Paginacja powiadomień | **8** | `useInfiniteQuery`+`.range()` (naprawione), usuwanie grupy `.in("id",ids)` | — | Utrzymać |
-| Preferencje powiadomień | **8** | **Respektowane** — `enqueue_notification` CASE pokrywa wszystkie rodzaje | Test gating dla 4 z 10 rodzajów brakuje | Dodać asercje pgTAP |
-| Krypto web-push (VAPID) | **9** | Własna impl. RFC 8291/8188, ES256, roundtrip test | — | Utrzymać |
-| Service worker | **8** | `push-sw.js` push+notificationclick, rejestrowany po opt-in | — | Utrzymać |
-| Scheduler push + digest | **2 → 9** | **Dwóch producentów** (P0 z 30.07 domknięty podwójnie, PR #112/#116): pg_cron w bazie (`community-cron` co 5 min, `invoke_community_cron` przez pg_net, telemetria `community_last_tick_*`) + siatka Actions (`scheduler.yml` co 5 min → `scheduler-tick.mjs`), której pierwszy tick **sam uzbraja** ścieżkę bazową (`arm_job_runner`); pgTAP `community_cron_schedule_test`; runbook `RUNBOOK_COMMUNITY.md` | — | Utrzymać |
+| Funkcja                  |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                                                                                                                     | ⚠️ Słaby                                | 🔧 Rekomendacja     |
+| ------------------------ | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | ------------------- |
+| Szyna zdarzeń domenowych |   **9**   | Anti-drift, korelacja, optymistyczne mutacje                                                                                                                                                                                                                                                                                                                                                                 | —                                       | Utrzymać            |
+| Powiadomienia in-app     |   **8**   | Producenci w triggerach DB, dedup 5 min, RLS insert-only-definer, realtime dzwonka                                                                                                                                                                                                                                                                                                                           | —                                       | Utrzymać            |
+| Paginacja powiadomień    |   **8**   | `useInfiniteQuery`+`.range()` (naprawione), usuwanie grupy `.in("id",ids)`                                                                                                                                                                                                                                                                                                                                   | —                                       | Utrzymać            |
+| Preferencje powiadomień  |   **8**   | **Respektowane** — `enqueue_notification` CASE pokrywa wszystkie rodzaje                                                                                                                                                                                                                                                                                                                                     | Test gating dla 4 z 10 rodzajów brakuje | Dodać asercje pgTAP |
+| Krypto web-push (VAPID)  |   **9**   | Własna impl. RFC 8291/8188, ES256, roundtrip test                                                                                                                                                                                                                                                                                                                                                            | —                                       | Utrzymać            |
+| Service worker           |   **8**   | `push-sw.js` push+notificationclick, rejestrowany po opt-in                                                                                                                                                                                                                                                                                                                                                  | —                                       | Utrzymać            |
+| Scheduler push + digest  | **2 → 9** | **Dwóch producentów** (P0 z 30.07 domknięty podwójnie, PR #112/#116): pg_cron w bazie (`community-cron` co 5 min, `invoke_community_cron` przez pg_net, telemetria `community_last_tick_*`) + siatka Actions (`scheduler.yml` co 5 min → `scheduler-tick.mjs`), której pierwszy tick **sam uzbraja** ścieżkę bazową (`arm_job_runner`); pgTAP `community_cron_schedule_test`; runbook `RUNBOOK_COMMUNITY.md` | —                                       | Utrzymać            |
 
 ---
 
 # MODUŁ 13 — Monetyzacja: checkout / subskrypcje / billing · **8,3/10** (30.07: 8,0)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Ceny serwer-autorytatywne | **9** | Klient nie może manipulować kwotą, ceny rozwiązywane serwerowo | Brak testu przypinającego „cena serwerowa" | Dodać test |
-| Webhook Paddle | **8** | Podpis `unmarshal` obowiązkowy, błąd→500 (retry), allowlista IP | `claimWebhookEvent` fail-open (błąd logu→podwójne przetworzenie) | Fail-closed na claim albo idempotencja maili/CRM |
-| `grantEntitlement` | **9** | **Naprawiony mocno** — każdy błąd rzucany, udokumentowany kontrakt, 8 testów regresji | — | Utrzymać |
-| Izolacja sandbox/live (one-time) | **3 → 9** | **P0 z 30.07 domknięty dwuwarstwowo** (PR #124): kolumna `payment_orders.environment NOT NULL DEFAULT 'live'` + backfill (migracja `20260731220000`); `resolveEnvironment()` w produkcji **zawsze `'live'`** (ignoruje klienta); `fulfilOrder()` **pomija realizację przy niezgodności** env webhooka (parytet z `.eq("environment")` subskrypcji); test env-mismatch 4/4 | — | Utrzymać |
-| Customer Portal | **8** | **Istnieje** (`portalLink.server.ts`) — overview/karta/anulowanie + mail | — | Utrzymać |
-| Faktury / dokumenty | **8** | `invoice.server.ts` z 3-ścieżkową kontrolą własności, zasilane z webhooka | — | Utrzymać |
-| Dunning | **8** | Licznik prób + dedup po `transactionId` | — | Utrzymać |
-| Zmiana planu | **8** | Provider-first, `prevent_change` przy odmowie | — | Utrzymać |
-| NIP / VAT | **7** | Walidacja `nip.ts`, formularz | Nie przekazywany do Paddle w części ścieżek | Ujednolicić przekazywanie NIP |
-| Waluty / FX | **8** | Realne API NBP z retry i TTL (nie sztywny parytet) | — | Utrzymać |
-| Mock mode | **8** | Fail-closed w 3 punktach (dostawca skonfigurowany→mock nigdy) | — | Utrzymać |
+| Funkcja                          |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                                                                                  | ⚠️ Słaby                                                         | 🔧 Rekomendacja                                  |
+| -------------------------------- | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------ |
+| Ceny serwer-autorytatywne        |   **9**   | Klient nie może manipulować kwotą, ceny rozwiązywane serwerowo                                                                                                                                                                                                                                                                                                            | Brak testu przypinającego „cena serwerowa"                       | Dodać test                                       |
+| Webhook Paddle                   |   **8**   | Podpis `unmarshal` obowiązkowy, błąd→500 (retry), allowlista IP                                                                                                                                                                                                                                                                                                           | `claimWebhookEvent` fail-open (błąd logu→podwójne przetworzenie) | Fail-closed na claim albo idempotencja maili/CRM |
+| `grantEntitlement`               |   **9**   | **Naprawiony mocno** — każdy błąd rzucany, udokumentowany kontrakt, 8 testów regresji                                                                                                                                                                                                                                                                                     | —                                                                | Utrzymać                                         |
+| Izolacja sandbox/live (one-time) | **3 → 9** | **P0 z 30.07 domknięty dwuwarstwowo** (PR #124): kolumna `payment_orders.environment NOT NULL DEFAULT 'live'` + backfill (migracja `20260731220000`); `resolveEnvironment()` w produkcji **zawsze `'live'`** (ignoruje klienta); `fulfilOrder()` **pomija realizację przy niezgodności** env webhooka (parytet z `.eq("environment")` subskrypcji); test env-mismatch 4/4 | —                                                                | Utrzymać                                         |
+| Customer Portal                  |   **8**   | **Istnieje** (`portalLink.server.ts`) — overview/karta/anulowanie + mail                                                                                                                                                                                                                                                                                                  | —                                                                | Utrzymać                                         |
+| Faktury / dokumenty              |   **8**   | `invoice.server.ts` z 3-ścieżkową kontrolą własności, zasilane z webhooka                                                                                                                                                                                                                                                                                                 | —                                                                | Utrzymać                                         |
+| Dunning                          |   **8**   | Licznik prób + dedup po `transactionId`                                                                                                                                                                                                                                                                                                                                   | —                                                                | Utrzymać                                         |
+| Zmiana planu                     |   **8**   | Provider-first, `prevent_change` przy odmowie                                                                                                                                                                                                                                                                                                                             | —                                                                | Utrzymać                                         |
+| NIP / VAT                        |   **7**   | Walidacja `nip.ts`, formularz                                                                                                                                                                                                                                                                                                                                             | Nie przekazywany do Paddle w części ścieżek                      | Ujednolicić przekazywanie NIP                    |
+| Waluty / FX                      |   **8**   | Realne API NBP z retry i TTL (nie sztywny parytet)                                                                                                                                                                                                                                                                                                                        | —                                                                | Utrzymać                                         |
+| Mock mode                        |   **8**   | Fail-closed w 3 punktach (dostawca skonfigurowany→mock nigdy)                                                                                                                                                                                                                                                                                                             | —                                                                | Utrzymać                                         |
 
 ---
 
 # MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy · **7,3/10** (30.07: 6,8)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Kupony B2B | **8** | **Naprawione** — `applied_cents` jedno źródło prawdy, grant tieru fail-closed, rezerwacja limitu atomowa, pgTAP+test niezmiennika | — | Utrzymać |
-| Prezenty (gift) | **9** | End-to-end, `create/redeem_gift_link`, czysta domena z testami | — | Utrzymać |
-| Darowizny | **3 → 7** | **Kłamstwo usunięte** (PR #115): panel `/admin/donations` wycięty (−1 trasa), pozycja nawigacji = jawny **link zewnętrzny** do zbiórki (`SidebarExternalNavLink`: `target=_blank`+`rel`, glif „external", dopisek `sr-only`, i18n PL/EN, 5 testów); rejestr historyczny + widget CMS czytają dalej z `public.donations` | Model zbiórki poza platformą (AUP Paddle wyklucza darowizny u operatora) — brak wewnętrznego przepływu | Utrzymać jako link zewnętrzny (rekomendacja z 30.07 wdrożona) |
-| Partner Biznesowy (nowa) | **8** | Sprzedaż ekspozycji przekształcona w **samoobsługową subskrypcję B2B** (2 tyg./mies./kwartał: 590/990/2490 zł) zgodną z AUP Paddle (migracje `20260730190000`/`191000`); parytet katalogu pilnowany testem (`tierCatalogParity`); seed v3 UNION business + idempotentny backfill tenantów | Świeże — brak danych o konwersji | Obserwować sprzedaż; rozważyć faktury per-org |
-| Reklamy (house ads) | **6** | 7 pozycji, targetowanie, zgody, ochrona CLS, `ad_events`→dashboard; kierunek: ekspozycja jako świadczenie członkowskie (Partner Biznesowy), nie osobny produkt | Sloty script/html to stored-XSS w rękach edytora | Sanityzacja/sandbox slotów HTML |
-| Popupy | **7** | Triggery (delay/scroll/exit), capping, targetowanie, a11y, testy | Capping tylko localStorage | Server-side capping opcjonalnie |
+| Funkcja                  |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                                | ⚠️ Słaby                                                                                               | 🔧 Rekomendacja                                               |
+| ------------------------ | :-------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Kupony B2B               |   **8**   | **Naprawione** — `applied_cents` jedno źródło prawdy, grant tieru fail-closed, rezerwacja limitu atomowa, pgTAP+test niezmiennika                                                                                                                                                                                       | —                                                                                                      | Utrzymać                                                      |
+| Prezenty (gift)          |   **9**   | End-to-end, `create/redeem_gift_link`, czysta domena z testami                                                                                                                                                                                                                                                          | —                                                                                                      | Utrzymać                                                      |
+| Darowizny                | **3 → 7** | **Kłamstwo usunięte** (PR #115): panel `/admin/donations` wycięty (−1 trasa), pozycja nawigacji = jawny **link zewnętrzny** do zbiórki (`SidebarExternalNavLink`: `target=_blank`+`rel`, glif „external", dopisek `sr-only`, i18n PL/EN, 5 testów); rejestr historyczny + widget CMS czytają dalej z `public.donations` | Model zbiórki poza platformą (AUP Paddle wyklucza darowizny u operatora) — brak wewnętrznego przepływu | Utrzymać jako link zewnętrzny (rekomendacja z 30.07 wdrożona) |
+| Partner Biznesowy (nowa) |   **8**   | Sprzedaż ekspozycji przekształcona w **samoobsługową subskrypcję B2B** (2 tyg./mies./kwartał: 590/990/2490 zł) zgodną z AUP Paddle (migracje `20260730190000`/`191000`); parytet katalogu pilnowany testem (`tierCatalogParity`); seed v3 UNION business + idempotentny backfill tenantów                               | Świeże — brak danych o konwersji                                                                       | Obserwować sprzedaż; rozważyć faktury per-org                 |
+| Reklamy (house ads)      |   **6**   | 7 pozycji, targetowanie, zgody, ochrona CLS, `ad_events`→dashboard; kierunek: ekspozycja jako świadczenie członkowskie (Partner Biznesowy), nie osobny produkt                                                                                                                                                          | Sloty script/html to stored-XSS w rękach edytora                                                       | Sanityzacja/sandbox slotów HTML                               |
+| Popupy                   |   **7**   | Triggery (delay/scroll/exit), capping, targetowanie, a11y, testy                                                                                                                                                                                                                                                        | Capping tylko localStorage                                                                             | Server-side capping opcjonalnie                               |
 
 ---
 
 # MODUŁ 15 — Profil i konto · **7,8/10** (30.07: 7,5)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Logowanie / rejestracja | **7** | Reset hasła **działa** (naprawiony), brute-force fail-closed, polityka 8 znaków spójna | **3 ścieżki logowania** — OAuth Google tylko w bloku buildera, tam **bez MFA** (user z TOTP wchodzi na aal1) | Ujednolicić: MFA we wszystkich, OAuth z przełącznikiem |
-| MFA (TOTP) | **8** | Realne (`enroll/challenge/verify`), step-up aal2 egzekwowany serwerowo | Brak listy sesji/urządzeń | Dodać listę aktywnych sesji |
-| Eksport danych (RODO) | **8** | 17 sekcji, user-scoped, jawna sekcja `errors` | Brak testów integracyjnych | Dodać test |
-| Usunięcie konta (RODO) | **6** | Re-auth hasłem, uprzednie anulowanie subskrypcji u operatora | **Kaskadowe kasowanie `payment_orders`** — niszczy dowody księgowe (art. 74 uor); **jedyny niedomknięty punkt P1 audytu** | `SET NULL`+anonimizacja zamiast `CASCADE` |
-| Bezpieczeństwo konta | **8** | Zmiana hasła/e-maila z re-auth, „wyloguj inne sesje" | Brak listy sesji | j.w. |
-| Profil (edytor, CV, dorobek) | **8** | Bio **skonsolidowane** (`canonicalBio`), optymistyczne edycje z rollbackiem, CV w prywatnym buckecie | — | Utrzymać |
-| Test osobowości (Big Five) | **4 → 7** | **Furtka zamknięta** (PR #124): odczyt `personality_results` service-rolem i pole `personality` usunięte z `crm.functions.ts` w całości, `Big5Panel` wycięty z `ProfileSyncCard`; REVOKE w DB bez zmian — wyniki psychometryczne znów prywatne end-to-end | Wynik nie zasila niczego (rekomendacje go nie czytają) — funkcja bez odbiorcy produktowego | Zasilić rekomendacje za jawną zgodą albo pozycjonować jako self-insight |
-| Personalizacja / zainteresowania | **7** | 4–5 powierzchni (nie 1), tryb anon z merge po zalogowaniu | Żywa słabsza z 2 impl. RPC (pełny skan) | Ujednolicić RPC rekomendacji |
-| Organizacje (seaty) | **7** | Realny moduł: seaty, grace, przypomnienia cron, zaproszenia | Brak faktur per-org i ról poza owner/member | Dodać role + faktury org |
-| Zgody / prywatność | **6** | CMP (4 kategorie) + audytowany rejestr RODO z IP/UA | **Dwa niekomunikujące się systemy**; `personalization` niczego nie bramkuje; brak GPC/„do not sell" | Zunifikować zgody w `/profile/privacy` |
+| Funkcja                          |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                  | ⚠️ Słaby                                                                                                                  | 🔧 Rekomendacja                                                         |
+| -------------------------------- | :-------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Logowanie / rejestracja          |   **7**   | Reset hasła **działa** (naprawiony), brute-force fail-closed, polityka 8 znaków spójna                                                                                                                                                                    | **3 ścieżki logowania** — OAuth Google tylko w bloku buildera, tam **bez MFA** (user z TOTP wchodzi na aal1)              | Ujednolicić: MFA we wszystkich, OAuth z przełącznikiem                  |
+| MFA (TOTP)                       |   **8**   | Realne (`enroll/challenge/verify`), step-up aal2 egzekwowany serwerowo                                                                                                                                                                                    | Brak listy sesji/urządzeń                                                                                                 | Dodać listę aktywnych sesji                                             |
+| Eksport danych (RODO)            |   **8**   | 17 sekcji, user-scoped, jawna sekcja `errors`                                                                                                                                                                                                             | Brak testów integracyjnych                                                                                                | Dodać test                                                              |
+| Usunięcie konta (RODO)           |   **6**   | Re-auth hasłem, uprzednie anulowanie subskrypcji u operatora                                                                                                                                                                                              | **Kaskadowe kasowanie `payment_orders`** — niszczy dowody księgowe (art. 74 uor); **jedyny niedomknięty punkt P1 audytu** | `SET NULL`+anonimizacja zamiast `CASCADE`                               |
+| Bezpieczeństwo konta             |   **8**   | Zmiana hasła/e-maila z re-auth, „wyloguj inne sesje"                                                                                                                                                                                                      | Brak listy sesji                                                                                                          | j.w.                                                                    |
+| Profil (edytor, CV, dorobek)     |   **8**   | Bio **skonsolidowane** (`canonicalBio`), optymistyczne edycje z rollbackiem, CV w prywatnym buckecie                                                                                                                                                      | —                                                                                                                         | Utrzymać                                                                |
+| Test osobowości (Big Five)       | **4 → 7** | **Furtka zamknięta** (PR #124): odczyt `personality_results` service-rolem i pole `personality` usunięte z `crm.functions.ts` w całości, `Big5Panel` wycięty z `ProfileSyncCard`; REVOKE w DB bez zmian — wyniki psychometryczne znów prywatne end-to-end | Wynik nie zasila niczego (rekomendacje go nie czytają) — funkcja bez odbiorcy produktowego                                | Zasilić rekomendacje za jawną zgodą albo pozycjonować jako self-insight |
+| Personalizacja / zainteresowania |   **7**   | 4–5 powierzchni (nie 1), tryb anon z merge po zalogowaniu                                                                                                                                                                                                 | Żywa słabsza z 2 impl. RPC (pełny skan)                                                                                   | Ujednolicić RPC rekomendacji                                            |
+| Organizacje (seaty)              |   **7**   | Realny moduł: seaty, grace, przypomnienia cron, zaproszenia                                                                                                                                                                                               | Brak faktur per-org i ról poza owner/member                                                                               | Dodać role + faktury org                                                |
+| Zgody / prywatność               |   **6**   | CMP (4 kategorie) + audytowany rejestr RODO z IP/UA                                                                                                                                                                                                       | **Dwa niekomunikujące się systemy**; `personalization` niczego nie bramkuje; brak GPC/„do not sell"                       | Zunifikować zgody w `/profile/privacy`                                  |
 
 ---
 
 # MODUŁ 16 — Zarządzanie społecznością · **7,5/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Moderacja Q&A / ankiet | **8** | Statusy, odpowiedzi eksperckie, zapisy przez utwardzone RPC | — | Utrzymać |
-| Reputacja | **7** | Leaderboard, poziomy, RPC, testy | — | Utrzymać |
-| **Odznaki** | **4** | Emiter domain-eventu przy nadaniu | **Katalog UI (6) ≠ DB CHECK (4)** — 3 klucze (`moderator`, `early_adopter`, `supporter`) zawsze łamią CHECK; `staff` nienadawalny; **zero auto-przyznawania** mimo silnika reputacji — bez zmian na 01.08 | Zunifikować katalog z DB + auto-grant z reputacji |
-| Powitania | **7** | Wołaczowe, szablony maili | — | Utrzymać |
-| Engagement dashboard | **7** | Jeden RPC `get_engagement_overview` | — | Utrzymać |
-| Contribute → review | **8** | Pełna pętla zgłoszenie→moderacja z RLS | — | Utrzymać |
+| Funkcja                | Ocena | ✅ Dobry                                                    | ⚠️ Słaby                                                                                                                                                                                                  | 🔧 Rekomendacja                                   |
+| ---------------------- | :---: | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Moderacja Q&A / ankiet | **8** | Statusy, odpowiedzi eksperckie, zapisy przez utwardzone RPC | —                                                                                                                                                                                                         | Utrzymać                                          |
+| Reputacja              | **7** | Leaderboard, poziomy, RPC, testy                            | —                                                                                                                                                                                                         | Utrzymać                                          |
+| **Odznaki**            | **4** | Emiter domain-eventu przy nadaniu                           | **Katalog UI (6) ≠ DB CHECK (4)** — 3 klucze (`moderator`, `early_adopter`, `supporter`) zawsze łamią CHECK; `staff` nienadawalny; **zero auto-przyznawania** mimo silnika reputacji — bez zmian na 01.08 | Zunifikować katalog z DB + auto-grant z reputacji |
+| Powitania              | **7** | Wołaczowe, szablony maili                                   | —                                                                                                                                                                                                         | Utrzymać                                          |
+| Engagement dashboard   | **7** | Jeden RPC `get_engagement_overview`                         | —                                                                                                                                                                                                         | Utrzymać                                          |
+| Contribute → review    | **8** | Pełna pętla zgłoszenie→moderacja z RLS                      | —                                                                                                                                                                                                         | Utrzymać                                          |
 
 ---
 
 # MODUŁ 17 — Analityka i BI · **7,5/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| GA4 (import + export) | **8** | **Realny** Data API (JWT RS256 service account) + Measurement Protocol | Klucze `GA4_*` nieudokumentowane w `.env.example`; zero cache (2× API na odświeżenie) | Dodać cache + docs env |
-| Search Console | **6** | Realne API przez gateway platformy | Vendor lock + SPOF; status „zbiera dane" to **tylko test obecności env, bez pingu** | Ping API + własny OAuth jako alternatywa |
-| First-party tracking | **7** | Pełny łańcuch track→tabela→dashboard, consent gate, rate limit | Sessionization per karta (przeszacowuje); **zero bot-filtering** (kod to przyznaje) | Dodać filtr botów + sessionization cross-tab |
-| Warstwa semantyczna | **9** | Reconciliation, authoritative vs corroborating, `safeRatio`, rozróżnia `not_configured`/`no_data`, testy+pgTAP | **6 z 7 zakładek omija słownik** — jeszcze nie obowiązująca | Przepiąć pozostałe zakładki na słownik |
-| „Silnik insightów" | **5** | Data-driven insighty GA4/GSC/semantic realne | Overview to **hardkodowane stringi z flag env**, nie z liczb; „silnik" semantic = 3 reguły | Generować Overview z liczb |
-| RUM (web vitals) | **8** | Pełny łańcuch beacon→tabela→dashboard | Typy Supabase niezregenerowane (`as never`) | Zregenerować typy |
-| Eksperymenty A/B | **6** | Przydział FNV-1a deterministyczny, ekspozycje z blokadą cross-tenant, z-test | Client-side (flash B, SSR zawsze A); **brak korekty na peeking**, brak min. próby; `z=0→winner=A` | Przydział server-side + bramka istotności |
+| Funkcja               | Ocena | ✅ Dobry                                                                                                       | ⚠️ Słaby                                                                                          | 🔧 Rekomendacja                              |
+| --------------------- | :---: | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| GA4 (import + export) | **8** | **Realny** Data API (JWT RS256 service account) + Measurement Protocol                                         | Klucze `GA4_*` nieudokumentowane w `.env.example`; zero cache (2× API na odświeżenie)             | Dodać cache + docs env                       |
+| Search Console        | **6** | Realne API przez gateway platformy                                                                             | Vendor lock + SPOF; status „zbiera dane" to **tylko test obecności env, bez pingu**               | Ping API + własny OAuth jako alternatywa     |
+| First-party tracking  | **7** | Pełny łańcuch track→tabela→dashboard, consent gate, rate limit                                                 | Sessionization per karta (przeszacowuje); **zero bot-filtering** (kod to przyznaje)               | Dodać filtr botów + sessionization cross-tab |
+| Warstwa semantyczna   | **9** | Reconciliation, authoritative vs corroborating, `safeRatio`, rozróżnia `not_configured`/`no_data`, testy+pgTAP | **6 z 7 zakładek omija słownik** — jeszcze nie obowiązująca                                       | Przepiąć pozostałe zakładki na słownik       |
+| „Silnik insightów"    | **5** | Data-driven insighty GA4/GSC/semantic realne                                                                   | Overview to **hardkodowane stringi z flag env**, nie z liczb; „silnik" semantic = 3 reguły        | Generować Overview z liczb                   |
+| RUM (web vitals)      | **8** | Pełny łańcuch beacon→tabela→dashboard                                                                          | Typy Supabase niezregenerowane (`as never`)                                                       | Zregenerować typy                            |
+| Eksperymenty A/B      | **6** | Przydział FNV-1a deterministyczny, ekspozycje z blokadą cross-tenant, z-test                                   | Client-side (flash B, SSR zawsze A); **brak korekty na peeking**, brak min. próby; `z=0→winner=A` | Przydział server-side + bramka istotności    |
 
 ---
 
 # MODUŁ 18 — CRM · **8,0/10** (bez zmian)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Lead scoring | **9** | **10 realnych triggerów**, parytet TS↔SQL pilnowany testem+pgTAP, decay 30 dni, capy | — | Utrzymać |
-| Pipeline / funnel | **6** | 8 stage'ów, timeline | `funnelStats` **ściąga całą tabelę i liczy pętlą w JS** (N+1 przy skali) | Agregacja `COUNT(*) FILTER` w SQL |
-| Zadania / follow-upy | **8** | pg_cron co 10 min, `SKIP LOCKED`, deep-linki, szyna zdarzeń | — | Utrzymać |
-| Firmy ↔ leady | **8** | FK + indeks, propagacja `company_id`, aktywność firmy | — | Utrzymać |
-| Import / eksport CSV | **8** | Chunk 500, dedup po `email_norm` w transakcji, obrona przed CSV-injection | — | Utrzymać |
-| Lista leadów | **6** | Sort/filtr po score | Limit 500 **bez paginacji i bez totala** (admin widzi ucięty zbiór) | Paginacja + `count:exact` |
-| Saved views | **5** | Pełny `LeadFilterSchema` gotowy | Podłączone **tylko dla firm**, nie dla leadów | Podłączyć do `admin.crm.index` |
-| Integracje wychodzące | **6** | HMAC-podpisane, sekrety w Vault, `forward_stages` konfigurowalne | **Jeden sztywny partner (Merydian)** w kolumnach — brak 2. odbiorcy bez migracji | Tabela `crm_webhook_endpoints` + `integration_outbox` |
+| Funkcja               | Ocena | ✅ Dobry                                                                             | ⚠️ Słaby                                                                         | 🔧 Rekomendacja                                       |
+| --------------------- | :---: | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Lead scoring          | **9** | **10 realnych triggerów**, parytet TS↔SQL pilnowany testem+pgTAP, decay 30 dni, capy | —                                                                                | Utrzymać                                              |
+| Pipeline / funnel     | **6** | 8 stage'ów, timeline                                                                 | `funnelStats` **ściąga całą tabelę i liczy pętlą w JS** (N+1 przy skali)         | Agregacja `COUNT(*) FILTER` w SQL                     |
+| Zadania / follow-upy  | **8** | pg_cron co 10 min, `SKIP LOCKED`, deep-linki, szyna zdarzeń                          | —                                                                                | Utrzymać                                              |
+| Firmy ↔ leady         | **8** | FK + indeks, propagacja `company_id`, aktywność firmy                                | —                                                                                | Utrzymać                                              |
+| Import / eksport CSV  | **8** | Chunk 500, dedup po `email_norm` w transakcji, obrona przed CSV-injection            | —                                                                                | Utrzymać                                              |
+| Lista leadów          | **6** | Sort/filtr po score                                                                  | Limit 500 **bez paginacji i bez totala** (admin widzi ucięty zbiór)              | Paginacja + `count:exact`                             |
+| Saved views           | **5** | Pełny `LeadFilterSchema` gotowy                                                      | Podłączone **tylko dla firm**, nie dla leadów                                    | Podłączyć do `admin.crm.index`                        |
+| Integracje wychodzące | **6** | HMAC-podpisane, sekrety w Vault, `forward_stages` konfigurowalne                     | **Jeden sztywny partner (Merydian)** w kolumnach — brak 2. odbiorcy bez migracji | Tabela `crm_webhook_endpoints` + `integration_outbox` |
 
 ---
 
 # MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO · **8,2/10** (30.07: 7,8)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| Multi-tenant (host→tenant) | **8** | 2 płaszczyzny (treść fallback / crawler fail-closed), `profiles.tenant_id` przypięty triggerem, gate CI | **`x-tenant-host` wciąż spoofowalny** — eskalacja zamknięta, spoofowalność nie (brak trusted-proxy) [02.08: **wdrożono** - `pickTrustedHost()`/`resolveTrustedRequestHost()` walidują parę `Host`/`X-Forwarded-Host` vs `tenants.domain` na krawędzi; zarejestrowany `Host` wygrywa ze spoofowanym XFH, nieznany host = brak wskazówki tenanta; patrz `WDROZENIE_TRUSTED_HOST_2026-08-02.md`] | Walidacja hosta vs `tenants.domain` w krawędzi [02.08: ✅] |
-| RLS coverage | **9** | **0 tabel bez RLS**; parser stanu końcowego (gate) liczy **517 realnych polityk** — metryka odporna na churn | Stare metryki mylące: „915" liczyło instrukcje churnu, „408" pary nazwa+tabela [02.08: stare wystąpienia "915" opatrzone korektą w `INWENTARZ_FUNKCJONALNOSCI_2026-07-24.md` i `OCENA_FUNKCJI_2026-07-24.md`] | Używać metryki stanu końcowego w dokumentacji [02.08: ✅] |
-| Sekrety (Vault) | **9** | Sekrety CRM/integracji w Vault, service-role tylko w `*.server.ts` | Klucze Merydian historycznie plaintext | Zweryfikować migrację do Vault |
-| Impersonacja | **8** | Gate `is_super_admin`, audytowana, ścieżka `end` domknięta | — | Utrzymać |
-| Anonimowe INSERT-y | **4 → 8** | **Klasa błędu domknięta gate'em CI** (PR #124): `check-sql-anon-insert.ts` (271 linii) — inwariant A (żadna permisywna polityka INSERT dla `anon`/`public`) + B (6 tabel intake bez klienckiego INSERT); **self-test nie-pustości** (wstrzyknięta polityka failuje gate); ✓ na tym HEAD; równolegle platforma hostingowa dokręcił polityki `introduction_requests`/`user_connections`/`profiles` | Gate działa w CI — commity pchane prosto na main weryfikuje dopiero post-hoc | Utrzymać; rozważyć ochronę gałęzi `main` |
-| CSP / nagłówki | **6** | CSP + XFO + Referrer + Permissions + HSTS + nosniff | `script-src 'unsafe-inline'` → **CSP nie chroni przed XSS** (uczciwie przyznane) | Plan wyjścia z `unsafe-inline` (nonce) |
-| Consent RODO | **7** | Rejestr z IP/UA/wersją/źródłem | Rozjazd z CMP (patrz M15) | Zunifikować |
+| Funkcja                    |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                                                                                                         | ⚠️ Słaby                                                                                                                                                                                                                                                                                                                                                                                      | 🔧 Rekomendacja                                            |
+| -------------------------- | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Multi-tenant (host→tenant) |   **8**   | 2 płaszczyzny (treść fallback / crawler fail-closed), `profiles.tenant_id` przypięty triggerem, gate CI                                                                                                                                                                                                                                                                                          | **`x-tenant-host` wciąż spoofowalny** — eskalacja zamknięta, spoofowalność nie (brak trusted-proxy) [02.08: **wdrożono** - `pickTrustedHost()`/`resolveTrustedRequestHost()` walidują parę `Host`/`X-Forwarded-Host` vs `tenants.domain` na krawędzi; zarejestrowany `Host` wygrywa ze spoofowanym XFH, nieznany host = brak wskazówki tenanta; patrz `WDROZENIE_TRUSTED_HOST_2026-08-02.md`] | Walidacja hosta vs `tenants.domain` w krawędzi [02.08: ✅] |
+| RLS coverage               |   **9**   | **0 tabel bez RLS**; parser stanu końcowego (gate) liczy **517 realnych polityk** — metryka odporna na churn                                                                                                                                                                                                                                                                                     | Stare metryki mylące: „915" liczyło instrukcje churnu, „408" pary nazwa+tabela [02.08: stare wystąpienia "915" opatrzone korektą w `INWENTARZ_FUNKCJONALNOSCI_2026-07-24.md` i `OCENA_FUNKCJI_2026-07-24.md`]                                                                                                                                                                                 | Używać metryki stanu końcowego w dokumentacji [02.08: ✅]  |
+| Sekrety (Vault)            |   **9**   | Sekrety CRM/integracji w Vault, service-role tylko w `*.server.ts`                                                                                                                                                                                                                                                                                                                               | Klucze Merydian historycznie plaintext                                                                                                                                                                                                                                                                                                                                                        | Zweryfikować migrację do Vault                             |
+| Impersonacja               |   **8**   | Gate `is_super_admin`, audytowana, ścieżka `end` domknięta                                                                                                                                                                                                                                                                                                                                       | —                                                                                                                                                                                                                                                                                                                                                                                             | Utrzymać                                                   |
+| Anonimowe INSERT-y         | **4 → 8** | **Klasa błędu domknięta gate'em CI** (PR #124): `check-sql-anon-insert.ts` (271 linii) — inwariant A (żadna permisywna polityka INSERT dla `anon`/`public`) + B (6 tabel intake bez klienckiego INSERT); **self-test nie-pustości** (wstrzyknięta polityka failuje gate); ✓ na tym HEAD; równolegle platforma hostingowa dokręcił polityki `introduction_requests`/`user_connections`/`profiles` | Gate działa w CI — commity pchane prosto na main weryfikuje dopiero post-hoc                                                                                                                                                                                                                                                                                                                  | Utrzymać; rozważyć ochronę gałęzi `main`                   |
+| CSP / nagłówki             |   **6**   | CSP + XFO + Referrer + Permissions + HSTS + nosniff                                                                                                                                                                                                                                                                                                                                              | `script-src 'unsafe-inline'` → **CSP nie chroni przed XSS** (uczciwie przyznane)                                                                                                                                                                                                                                                                                                              | Plan wyjścia z `unsafe-inline` (nonce)                     |
+| Consent RODO               |   **7**   | Rejestr z IP/UA/wersją/źródłem                                                                                                                                                                                                                                                                                                                                                                   | Rozjazd z CMP (patrz M15)                                                                                                                                                                                                                                                                                                                                                                     | Zunifikować                                                |
 
 ---
 
 # MODUŁ 20 — Platforma / backend / infrastruktura / SSR · **7,8/10** (30.07: 7,5)
 
-| Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
-| ------- | :---: | ------- | -------- | -------------- |
-| SSR render treści | **8 → 9** | Post/home/archiwa/eksperci/autor **i od 31.07 tracker** renderują treść serwerowo (defensywne loadery `allSettled`, budżety czasowe); SSR-paginacja bloga/autora | Lista wydarzeń i ankiety wciąż bez loaderów (patrz M7) | Dodać brakujące loadery |
-| Edge cache dokumentów | **7** | L1 per-isolate + L2 per-colo, kill-switch, sekcja zwłok incydentu 61 s; ISR trackera (PR #117) | Invalidacja **nie pokrywa** podcast/program/web-story/event; `reader.cancel` nie ubija upstreamu | Rozszerzyć `DOCUMENT_PURGE_ACTIONS`; naprawić kolejność tee/guard |
-| Bramka kompletności SSR (e2e) | **3** | Test istnieje | **Pozorny — bez zmian na 01.08**: guard sam dopisuje `</body></html>`, więc asercja nie może zafailować; 4 ścieżki, zero asercji treści | Asercje treściowe + wyłączyć guard w teście |
-| Bundle publiczny | **5** | Gate `check:bundle`+`check:chunks` (Tarjan) blokujące w CI; klasyfikacja błędów importu chunka per przeglądarka (PR #125) | **1,47 MB gzip** dla czytelnika (5–6× ponad budżet); progi gonią regresję — bez zmian na 01.08 | Code-split agresywnie; obniżyć budżet |
-| Prerender | **3** | — | **Nie istnieje** (0 stron); `prerender.ts` to Speculation Rules, nie build | Rozważyć prerender kluczowych stron |
-| Testy jednostkowe | **7** | **3666 pass / 0 fail** (421 plików), gate coverage w CI; **lint wszedł do CI** po sformatowaniu całego repo; CI samo przepina lockfile na publiczny rejestr | Progi **19,5%/15,75%** (niskie); **knip poza CI**; main znów czerwony na lincie (1440 problemów) przez commity platformy **prosto na main** — bramka broni PR-ów, nie gałęzi | Podnieść progi; wpiąć knip; chronić `main` |
-| pgTAP (izolacja/tenant) | **6 → 8** | **Realnie odpala się w CI** (pin `setup-cli@2.111.0` — `latest` padał na rate-limicie; krok własności triggerów `auth.users` — wcześniej `42501`); 65 plików, **+5 suit kontraktowych** (+1244 linii); w ciągu doby od odblokowania **złapał realny defekt** — kolizję numeracji migracji (naprawa: PR #125) | Kolizje numeracji migracji między równoległymi gałęziami bez gate'u (2 incydenty w 2 dni) | Gate na unikalność wersji migracji |
-| Gate'y SQL statyczne | **8 → 9** | **Trzy blokujące**: `check-sql-tenant-scope`, `check-sql-app-role`, **`check-sql-anon-insert` (nowy, z self-testem)** — wspólny parser stanu końcowego | — | Dodać gate kolizji wersji migracji |
+| Funkcja                       |   Ocena   | ✅ Dobry                                                                                                                                                                                                                                                                                                     | ⚠️ Słaby                                                                                                                                                                     | 🔧 Rekomendacja                                                   |
+| ----------------------------- | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| SSR render treści             | **8 → 9** | Post/home/archiwa/eksperci/autor **i od 31.07 tracker** renderują treść serwerowo (defensywne loadery `allSettled`, budżety czasowe); SSR-paginacja bloga/autora                                                                                                                                             | Lista wydarzeń i ankiety wciąż bez loaderów (patrz M7)                                                                                                                       | Dodać brakujące loadery                                           |
+| Edge cache dokumentów         |   **7**   | L1 per-isolate + L2 per-colo, kill-switch, sekcja zwłok incydentu 61 s; ISR trackera (PR #117)                                                                                                                                                                                                               | Invalidacja **nie pokrywa** podcast/program/web-story/event; `reader.cancel` nie ubija upstreamu                                                                             | Rozszerzyć `DOCUMENT_PURGE_ACTIONS`; naprawić kolejność tee/guard |
+| Bramka kompletności SSR (e2e) |   **3**   | Test istnieje                                                                                                                                                                                                                                                                                                | **Pozorny — bez zmian na 01.08**: guard sam dopisuje `</body></html>`, więc asercja nie może zafailować; 4 ścieżki, zero asercji treści                                      | Asercje treściowe + wyłączyć guard w teście                       |
+| Bundle publiczny              |   **5**   | Gate `check:bundle`+`check:chunks` (Tarjan) blokujące w CI; klasyfikacja błędów importu chunka per przeglądarka (PR #125)                                                                                                                                                                                    | **1,47 MB gzip** dla czytelnika (5–6× ponad budżet); progi gonią regresję — bez zmian na 01.08                                                                               | Code-split agresywnie; obniżyć budżet                             |
+| Prerender                     |   **3**   | —                                                                                                                                                                                                                                                                                                            | **Nie istnieje** (0 stron); `prerender.ts` to Speculation Rules, nie build                                                                                                   | Rozważyć prerender kluczowych stron                               |
+| Testy jednostkowe             |   **7**   | **3666 pass / 0 fail** (421 plików), gate coverage w CI; **lint wszedł do CI** po sformatowaniu całego repo; CI samo przepina lockfile na publiczny rejestr                                                                                                                                                  | Progi **19,5%/15,75%** (niskie); **knip poza CI**; main znów czerwony na lincie (1440 problemów) przez commity platformy **prosto na main** — bramka broni PR-ów, nie gałęzi | Podnieść progi; wpiąć knip; chronić `main`                        |
+| pgTAP (izolacja/tenant)       | **6 → 8** | **Realnie odpala się w CI** (pin `setup-cli@2.111.0` — `latest` padał na rate-limicie; krok własności triggerów `auth.users` — wcześniej `42501`); 65 plików, **+5 suit kontraktowych** (+1244 linii); w ciągu doby od odblokowania **złapał realny defekt** — kolizję numeracji migracji (naprawa: PR #125) | Kolizje numeracji migracji między równoległymi gałęziami bez gate'u (2 incydenty w 2 dni)                                                                                    | Gate na unikalność wersji migracji                                |
+| Gate'y SQL statyczne          | **8 → 9** | **Trzy blokujące**: `check-sql-tenant-scope`, `check-sql-app-role`, **`check-sql-anon-insert` (nowy, z self-testem)** — wspólny parser stanu końcowego                                                                                                                                                       | —                                                                                                                                                                            | Dodać gate kolizji wersji migracji                                |
 
 ---
 
 # PODSUMOWANIE OCEN MODUŁÓW
 
-| # | Moduł | 30.07 | **01.08** | # | Moduł | 30.07 | **01.08** |
-| - | ----- | :---: | :-------: | - | ----- | :---: | :-------: |
-| 1 | Wpisy — czytelnik | 8,0 | **8,2** ↑ | 11 | Newsletter | 6,5 | **7,5** ↑ |
-| 2 | Edytor + workflow | 8,4 | **8,4** | 12 | Realtime / push | 6,5 | **8,0** ↑ |
-| 3 | Bloki + builder | 8,8 | **8,8** | 13 | Monetyzacja — checkout | 8,0 | **8,3** ↑ |
-| 4 | Strony / media / import | 6,8 | **6,8** | 14 | Monetyzacja — kupony/darowizny | 6,8 | **7,3** ↑ |
-| 5 | Strona główna / archiwa | 7,8 | **8,0** ↑ | 15 | Profil i konto | 7,5 | **7,8** ↑ |
-| 6 | Wyszukiwarka | 8,3 | **8,3** | 16 | Społeczność | 7,5 | **7,5** |
-| 7 | Typy specjalne | 6,5 | **7,0** ↑ | 17 | Analityka i BI | 7,5 | **7,5** |
-| 8 | SEO / feedy | 7,5 | **7,5** | 18 | CRM | 8,0 | **8,0** |
-| 9 | Czat | 7,5 | **8,0** ↑ | 19 | Ustawienia / multi-tenant | 7,8 | **8,2** ↑ |
-| 10 | Sieć | 8,0 | **8,0** | 20 | Platforma / backend / SSR | 7,5 | **7,8** ↑ |
+| #   | Moduł                   | 30.07 | **01.08** | #   | Moduł                          | 30.07 | **01.08** |
+| --- | ----------------------- | :---: | :-------: | --- | ------------------------------ | :---: | :-------: |
+| 1   | Wpisy — czytelnik       |  8,0  | **8,2** ↑ | 11  | Newsletter                     |  6,5  | **7,5** ↑ |
+| 2   | Edytor + workflow       |  8,4  |  **8,4**  | 12  | Realtime / push                |  6,5  | **8,0** ↑ |
+| 3   | Bloki + builder         |  8,8  |  **8,8**  | 13  | Monetyzacja — checkout         |  8,0  | **8,3** ↑ |
+| 4   | Strony / media / import |  6,8  |  **6,8**  | 14  | Monetyzacja — kupony/darowizny |  6,8  | **7,3** ↑ |
+| 5   | Strona główna / archiwa |  7,8  | **8,0** ↑ | 15  | Profil i konto                 |  7,5  | **7,8** ↑ |
+| 6   | Wyszukiwarka            |  8,3  |  **8,3**  | 16  | Społeczność                    |  7,5  |  **7,5**  |
+| 7   | Typy specjalne          |  6,5  | **7,0** ↑ | 17  | Analityka i BI                 |  7,5  |  **7,5**  |
+| 8   | SEO / feedy             |  7,5  |  **7,5**  | 18  | CRM                            |  8,0  |  **8,0**  |
+| 9   | Czat                    |  7,5  | **8,0** ↑ | 19  | Ustawienia / multi-tenant      |  7,8  | **8,2** ↑ |
+| 10  | Sieć                    |  8,0  |  **8,0**  | 20  | Platforma / backend / SSR      |  7,5  | **7,8** ↑ |
 
 **Średnia platformy: ~7,8/10** (30.07: ~7,5). Werdykt kompozytu z audytu po aktualizacji 01.08:
 **7,5/10** (30.07: 7,0) — niżej niż średnia arytmetyczna, bo ważę w dół pozostałe wydmuszki UI
@@ -347,19 +347,19 @@ połowę P1 (CASCADE faktur). 11 modułów w górę, 9 bez zmian, **żaden w dó
 
 ## Polska (PISM, OSW, Klub Jagielloński, Nowa Konfederacja, INE)
 
-| Moduł obserwowalny | NES | najlepszy PL | przewaga NES |
-| ------------------ | :-: | :----------: | :----------: |
-| Wpisy — czytelnik | **8,2** | OSW 5,0 | +3,2 |
-| Strona główna / archiwa | **8,0** | OSW 4,0 | +4,0 |
-| Wyszukiwarka | **8,3** | OSW 2,3 | +6,0 |
-| Typy specjalne | **7,0** | OSW 3,0 | +4,0 |
-| SEO / feedy | **7,5** | OSW 5,0 | +2,5 |
-| Czat | **8,0** | brak | kategorialna |
-| Sieć | **8,0** | ~0,5 | kategorialna |
-| Newsletter | **7,5** | OSW 3,0 | +4,5 |
-| Paywall | **8,3** | NK 4,0 | +4,3 |
-| Konwersja | **7,3** | NK 3,5 | +3,8 |
-| Profil | **7,8** | PISM/OSW 2,3 | +5,5 |
+| Moduł obserwowalny      |   NES   | najlepszy PL | przewaga NES |
+| ----------------------- | :-----: | :----------: | :----------: |
+| Wpisy — czytelnik       | **8,2** |   OSW 5,0    |     +3,2     |
+| Strona główna / archiwa | **8,0** |   OSW 4,0    |     +4,0     |
+| Wyszukiwarka            | **8,3** |   OSW 2,3    |     +6,0     |
+| Typy specjalne          | **7,0** |   OSW 3,0    |     +4,0     |
+| SEO / feedy             | **7,5** |   OSW 5,0    |     +2,5     |
+| Czat                    | **8,0** |     brak     | kategorialna |
+| Sieć                    | **8,0** |     ~0,5     | kategorialna |
+| Newsletter              | **7,5** |   OSW 3,0    |     +4,5     |
+| Paywall                 | **8,3** |    NK 4,0    |     +4,3     |
+| Konwersja               | **7,3** |    NK 3,5    |     +3,8     |
+| Profil                  | **7,8** | PISM/OSW 2,3 |     +5,5     |
 
 **Werdykt PL: bez zmian strukturalnych — NES bije każdy polski think-tank we WSZYSTKICH 11 modułach
 obserwowalnych, zwykle o 3–6 punktów**, a po fali napraw przewagi jeszcze urosły (newsletter +3,5 → +4,5).
@@ -368,19 +368,19 @@ wyszukiwarki ponad podstawową, czatu, sieci ani profilu użytkownika. **To nie 
 
 ## UE / Europa Zachodnia (ECFR, Bruegel, Chatham House, RUSI, CEPS, SWP)
 
-| Moduł obserwowalny | NES | najlepszy UE | różnica |
-| ------------------ | :-: | :----------: | :-----: |
-| Wpisy — czytelnik | **8,2** | ECFR/Bruegel 6,5 | +1,7 |
-| Strona główna / archiwa | **8,0** | ECFR/Bruegel 6,0 | +2,0 |
-| Wyszukiwarka | **8,3** | ECFR 3,8 | +4,5 |
-| Typy specjalne | **7,0** | ECFR/Bruegel 5,0 | +2,0 |
-| SEO / feedy | **7,5** | ECFR/Bruegel 6,0 | +1,5 |
-| Czat | **8,0** | brak | kategorialna |
-| Sieć | **8,0** | ~1,0 | kategorialna |
-| Newsletter | **7,5** | ECFR 4,0 | +3,5 |
-| Paywall | **8,3** | RUSI 6,0 | +2,3 |
-| Konwersja | **7,3** | CH/RUSI 6,0 | +1,3 |
-| Profil | **7,8** | ECFR 3,8 | +4,0 |
+| Moduł obserwowalny      |   NES   |   najlepszy UE   |   różnica    |
+| ----------------------- | :-----: | :--------------: | :----------: |
+| Wpisy — czytelnik       | **8,2** | ECFR/Bruegel 6,5 |     +1,7     |
+| Strona główna / archiwa | **8,0** | ECFR/Bruegel 6,0 |     +2,0     |
+| Wyszukiwarka            | **8,3** |     ECFR 3,8     |     +4,5     |
+| Typy specjalne          | **7,0** | ECFR/Bruegel 5,0 |     +2,0     |
+| SEO / feedy             | **7,5** | ECFR/Bruegel 6,0 |     +1,5     |
+| Czat                    | **8,0** |       brak       | kategorialna |
+| Sieć                    | **8,0** |       ~1,0       | kategorialna |
+| Newsletter              | **7,5** |     ECFR 4,0     |     +3,5     |
+| Paywall                 | **8,3** |     RUSI 6,0     |     +2,3     |
+| Konwersja               | **7,3** |   CH/RUSI 6,0    |     +1,3     |
+| Profil                  | **7,8** |     ECFR 3,8     |     +4,0     |
 
 **Werdykt UE: NES prowadzi we wszystkich 11 modułach, a margines — który rewizja 30.07 uczciwie
 zwęziła — po naprawach znów się rozszerzył.** Chatham House i RUSI (jedyne TT w Europie z realnym
@@ -391,15 +391,15 @@ microsites/interaktywnych raportach (5,0), ale tracker z SSR i dokończone huby 
 
 ## Świat — think-tanki USA (Brookings, CSIS, CFR, RAND, Carnegie, Atlantic Council, CNAS)
 
-| Moduł obserwowalny | NES | najlepszy USA | różnica |
-| ------------------ | :-: | :-----------: | :-----: |
-| Wpisy — czytelnik | **8,2** | CFR 7,5 | +0,7 |
-| Wyszukiwarka | **8,3** | **RAND 5,6** | +2,7 |
-| Typy specjalne | **7,0** | **CSIS 7,0** | **0,0** |
-| SEO / feedy | **7,5** | Brookings/CFR 7,5 | 0,0 |
-| Paywall | **8,3** | CFR 2,0 | +6,3 |
-| Konwersja | **7,3** | Brookings/CSIS 5,0 | +2,3 |
-| Profil | **7,8** | Brookings 4,0 | +3,8 |
+| Moduł obserwowalny |   NES   |   najlepszy USA    | różnica |
+| ------------------ | :-----: | :----------------: | :-----: |
+| Wpisy — czytelnik  | **8,2** |      CFR 7,5       |  +0,7   |
+| Wyszukiwarka       | **8,3** |    **RAND 5,6**    |  +2,7   |
+| Typy specjalne     | **7,0** |    **CSIS 7,0**    | **0,0** |
+| SEO / feedy        | **7,5** | Brookings/CFR 7,5  |   0,0   |
+| Paywall            | **8,3** |      CFR 2,0       |  +6,3   |
+| Konwersja          | **7,3** | Brookings/CSIS 5,0 |  +2,3   |
+| Profil             | **7,8** |   Brookings 4,0    |  +3,8   |
 
 **Werdykt USA: 30.07 CSIS był jedynym think-tankiem świata bijącym NES w pojedynczym module
 (typy specjalne 7,0 vs 6,5) — po SSR trackera i dokończeniu hubów ekspertów jest REMIS.** NES nie
@@ -411,18 +411,18 @@ studiami deweloperów, nie self-service** — a paywall (≤2,0), sieć (~1,0) i
 
 ## Świat — media globalne (FT, Bloomberg, Reuters, Economist, Politico, Axios, Euractiv)
 
-| Moduł obserwowalny | NES | najlepsze medium | różnica |
-| ------------------ | :-: | :--------------: | :-----: |
-| Wpisy — czytelnik | **8,2** | **FT/Bloomberg 9,0** | **−0,8** |
-| Wyszukiwarka | **8,3** | FT 4,8 | +3,5 |
-| Typy specjalne | **7,0** | **Bloomberg 9,0** | **−2,0** |
-| SEO / feedy | **7,5** | **Reuters 9,0** | **−1,5** |
-| Czat | **8,0** | brak | kategorialna |
-| Sieć | **8,0** | ~1,0 | kategorialna |
-| Newsletter | **7,5** | **FT/Politico 8,0** | **−0,5** |
-| Paywall | **8,3** | **FT 9,0** | **−0,7** |
-| Konwersja | **7,3** | **FT 8,5** | **−1,2** |
-| Profil | **7,8** | FT 3,7 | +4,1 |
+| Moduł obserwowalny |   NES   |   najlepsze medium   |   różnica    |
+| ------------------ | :-----: | :------------------: | :----------: |
+| Wpisy — czytelnik  | **8,2** | **FT/Bloomberg 9,0** |   **−0,8**   |
+| Wyszukiwarka       | **8,3** |        FT 4,8        |     +3,5     |
+| Typy specjalne     | **7,0** |  **Bloomberg 9,0**   |   **−2,0**   |
+| SEO / feedy        | **7,5** |   **Reuters 9,0**    |   **−1,5**   |
+| Czat               | **8,0** |         brak         | kategorialna |
+| Sieć               | **8,0** |         ~1,0         | kategorialna |
+| Newsletter         | **7,5** | **FT/Politico 8,0**  |   **−0,5**   |
+| Paywall            | **8,3** |      **FT 9,0**      |   **−0,7**   |
+| Konwersja          | **7,3** |      **FT 8,5**      |   **−1,2**   |
+| Profil             | **7,8** |        FT 3,7        |     +4,1     |
 
 **Werdykt media: to nadal jedyni realni rywale NES — ale lista modułów, które wygrywają, skróciła się,
 a marginesy stopniały.** 30.07 media biły NES w 6 modułach (do −2,5); po naprawach nadal wygrywają
@@ -456,6 +456,7 @@ użytkownika (max 3,7 vs 7,8–8,0), wyszukiwarka (max RAND 5,6 / FT 4,8 vs 8,3)
 nie stopniowe — i żadna z nich nie ucierpiała w rewizji.
 
 **3. Gdzie NES realnie przegrywa (stan 01.08, uczciwie):**
+
 - **Storytelling/microsites** — Bloomberg Graphics (9,0) pozostaje poza zasięgiem (−2,0); z CSIS/CFR
   (7,0) jest już **remis** zamiast porażki — ale utrzymanie go wymaga domknięcia trackera (import,
   RSS, **działające alerty**, które cennik wciąż obiecuje bez implementacji).
@@ -481,8 +482,8 @@ e2e SSR i zatrzymania dryfu formatowania na main.
 
 ---
 
-*Wydanie 2026-08-01 dokumentu `OCENA_FUNKCJI_TABELE_2026-07-30.md` (tamten pozostaje nietknięty jako
+_Wydanie 2026-08-01 dokumentu `OCENA_FUNKCJI_TABELE_2026-07-30.md` (tamten pozostaje nietknięty jako
 migawka stanu 30.07). Towarzyszy `AUDYT_BRUTALNY_REWIZJA_ZALOZEN_2026-07-30.md` (werdykt 8,0→7,0,
 po aktualizacji 01.08 → 7,5) i mapuje oceny funkcji na strukturę konkurencyjną z
 `OCENA_FUNKCJI_KONKURENCI_2026-07-24.md`. Oceny konkurentów = stan wiedzy do poł. 2026; „b/d" = brak
-danych z zewnątrz, nie brak funkcji.*
+danych z zewnątrz, nie brak funkcji._

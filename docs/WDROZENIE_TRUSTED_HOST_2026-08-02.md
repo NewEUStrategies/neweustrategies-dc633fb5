@@ -2,10 +2,10 @@
 
 Realizacja dwóch rekomendacji z `OCENA_FUNKCJI_TABELE_2026-08-01.md` (Moduł 19):
 
-| Rekomendacja | Status |
-| ------------ | ------ |
+| Rekomendacja                                                                                                     | Status      |
+| ---------------------------------------------------------------------------------------------------------------- | ----------- |
 | Multi-tenant: "Walidacja hosta vs `tenants.domain` w krawędzi" (spoofowalny `x-tenant-host`, brak trusted-proxy) | ✅ wdrożone |
-| RLS coverage: "Używać metryki stanu końcowego w dokumentacji" (mylące "915"/"408") | ✅ wdrożone |
+| RLS coverage: "Używać metryki stanu końcowego w dokumentacji" (mylące "915"/"408")                               | ✅ wdrożone |
 
 ---
 

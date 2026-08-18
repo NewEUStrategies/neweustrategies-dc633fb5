@@ -89,14 +89,14 @@ e-mail + hasło, plus link „Masz już konto? Zaloguj się".
 `src/lib/i18n-admin-popup-signup.ts`), pod nim podgląd na żywo z przełącznikami PL/EN i
 jasny/ciemny:
 
-| Zakładka | Co obsługuje |
-| --- | --- |
-| Układ | wariant (stacked/split/showcase), strona galerii, proporcje kolumn, zaokrąglenie (6px), szerokość, ramka, cień |
-| Lewa strona | siatka kadrów, rotacja, wysokość, odstępy, kąt gradientu, przygaszenie, **kolejność bloków** (logo/mozaika/podpis/hasło/kropki), wyrównanie, 8 przełączników detali, logo (nadpisanie + wysokość), marka i hasło PL/EN, prefiks podpisu PL/EN, 4 kadry z opisami i tytułami PL/EN |
-| Prawa strona | eyebrow, tytuł, opis, podpowiedź, CTA, notka (PL/EN), wyrównanie, rozmiar tytułu, jedna linia, szerokość, kolumny par pól, link do logowania |
-| Pola | widoczność, wymagalność, etykiety i **podpowiedzi** PL/EN dla 11 pól (e-mail i hasła zablokowane systemowo) |
-| Zgody | wymagalność + treść HTML polityki prywatności i regulaminu w PL/EN |
-| Kolory | tryb (ciemny/jasny/auto) i dwie pełne palety z ostrzeżeniem o kontraście < 4.5:1 |
+| Zakładka     | Co obsługuje                                                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Układ        | wariant (stacked/split/showcase), strona galerii, proporcje kolumn, zaokrąglenie (6px), szerokość, ramka, cień                                                                                                                                                                    |
+| Lewa strona  | siatka kadrów, rotacja, wysokość, odstępy, kąt gradientu, przygaszenie, **kolejność bloków** (logo/mozaika/podpis/hasło/kropki), wyrównanie, 8 przełączników detali, logo (nadpisanie + wysokość), marka i hasło PL/EN, prefiks podpisu PL/EN, 4 kadry z opisami i tytułami PL/EN |
+| Prawa strona | eyebrow, tytuł, opis, podpowiedź, CTA, notka (PL/EN), wyrównanie, rozmiar tytułu, jedna linia, szerokość, kolumny par pól, link do logowania                                                                                                                                      |
+| Pola         | widoczność, wymagalność, etykiety i **podpowiedzi** PL/EN dla 11 pól (e-mail i hasła zablokowane systemowo)                                                                                                                                                                       |
+| Zgody        | wymagalność + treść HTML polityki prywatności i regulaminu w PL/EN                                                                                                                                                                                                                |
+| Kolory       | tryb (ciemny/jasny/auto) i dwie pełne palety z ostrzeżeniem o kontraście < 4.5:1                                                                                                                                                                                                  |
 
 Każdy patch zapisuje **komplet** `popup_design`, więc do bazy nigdy nie leci częściowy JSON.
 Rekomendowane wymiary są przy każdym uploadzie: kadr główny 1200x1200 (1:1), małe 600x600,
@@ -137,7 +137,9 @@ Panel dziedziczył tokeny motywu **adminu**. Najbardziej bolała globalna reguł
 autouzupełniania Chrome:
 
 ```css
-:where(input):-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px var(--background) inset; }
+:where(input):-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+}
 ```
 
 W jasnym adminie `--background` jest niemal biały, więc przeglądarka zamalowywała pola

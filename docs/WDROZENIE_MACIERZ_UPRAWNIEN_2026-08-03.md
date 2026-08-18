@@ -14,13 +14,13 @@ Mandat z `OCENA_FUNKCJI_TABELE_2026-08-03.md` (wiersz „Macierz uprawnień", oc
 
 Audyt zarzucał ryzyko rozjazdu. Weryfikacja na kodzie pokazała, że rozjazd **już nastąpił**:
 
-| Zapis starej strony | Stan faktyczny w bazie | Wniosek |
-| ------------------- | ---------------------- | ------- |
+| Zapis starej strony                                                 | Stan faktyczny w bazie                                                                                                                                                                                                            | Wniosek           |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | 4 poziomy subskrybenta: `free` / `basic` / `premium` / `enterprise` | katalog warstw ma 14 kluczy (`reader`, `supporter`, `member`, `student`, `educator`, `pro`, `ngo`, `vip`, `team`, `business`, `corporate`, `partner`, `partner_general`, `presidents_circle`) - **żadna z 4 kolumn nie istniała** | wymyślone kolumny |
-| „Odczyt treści premium": editor i author = pełny dostęp | `has_content_access` liczy rangę warstwy, plany i zakupy; **nie ma obejścia stafowego** | nieprawda |
-| „Zarządzanie użytkownikami": admin pełny, super_admin pełny | `admin_list_users` bramkuje `has_role('admin') OR is_super_admin()` - zgadza się, ale przypadkiem | niesprawdzalne |
-| „Rozliczenia": `sub_enterprise` = częściowy | żadna bramka nie wiąże warstwy `corporate` z rozliczeniami | wymyślone |
-| 26 wierszy uprawnień | zero referencji do funkcji/polityk, po których dałoby się to sprawdzić | nieweryfikowalne |
+| „Odczyt treści premium": editor i author = pełny dostęp             | `has_content_access` liczy rangę warstwy, plany i zakupy; **nie ma obejścia stafowego**                                                                                                                                           | nieprawda         |
+| „Zarządzanie użytkownikami": admin pełny, super_admin pełny         | `admin_list_users` bramkuje `has_role('admin') OR is_super_admin()` - zgadza się, ale przypadkiem                                                                                                                                 | niesprawdzalne    |
+| „Rozliczenia": `sub_enterprise` = częściowy                         | żadna bramka nie wiąże warstwy `corporate` z rozliczeniami                                                                                                                                                                        | wymyślone         |
+| 26 wierszy uprawnień                                                | zero referencji do funkcji/polityk, po których dałoby się to sprawdzić                                                                                                                                                            | nieweryfikowalne  |
 
 Strona nie była „ryzykiem dryfu" - była dokumentem, którego **nie dało się skonfrontować ze źródłem**,
 bo nie wskazywała żadnego źródła.
@@ -40,29 +40,29 @@ src/lib/authz/authzSnapshot.generated.ts        (artefakt: 40 bramek rolowych + 
 /admin/permissions                              (atoms → molecules → organisms)
 ```
 
-| Warstwa | Plik | Odpowiedzialność |
-| ------- | ---- | ---------------- |
-| Kontrakt artefaktu | `src/lib/authz/authzSnapshotTypes.ts` | same typy, zero runtime - parser i strona patrzą na jeden kształt |
-| Parser | `src/lib/ci/authzGates.ts` | literały ról, aliasy rolowe, odczyty flag, żywotność polityk, render i diff snapshotu |
-| Wejście I/O | `scripts/lib/authzSource.ts` | jedno czytanie migracji dla generatora **i** dla bramki parytetu (jeden parser = dryf nie może być artefaktem dwóch implementacji) |
-| Generator | `scripts/generate-authz-snapshot.ts` | zapis artefaktu + tryb `--check` dla CI |
-| Deklaracja wierszy | `src/lib/authz/permissionRows.ts` | **tylko** `id` + sekcja + `gateRef` (+ jawne zawężenia). Żadnych poziomów dostępu |
-| Kompozycja | `src/lib/authz/permissionMatrix.ts` | poziomy per komórka, metryki, filtrowanie, etykiety - czyste funkcje bez Reacta |
-| Dane tenanta | `src/lib/authz/permissionMatrixQuery.ts` | `membership_tiers` z **jawnym** `tenant_id` i tenantem w kluczu cache |
-| UI | `src/components/admin/permissions/{atoms,molecules,organisms}` | prezentacja; zero logiki uprawnień |
-| Etykiety | `src/lib/i18n-admin-permissions.ts` | PL/EN pod twardą bramką parytetu i18n |
+| Warstwa            | Plik                                                           | Odpowiedzialność                                                                                                                   |
+| ------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Kontrakt artefaktu | `src/lib/authz/authzSnapshotTypes.ts`                          | same typy, zero runtime - parser i strona patrzą na jeden kształt                                                                  |
+| Parser             | `src/lib/ci/authzGates.ts`                                     | literały ról, aliasy rolowe, odczyty flag, żywotność polityk, render i diff snapshotu                                              |
+| Wejście I/O        | `scripts/lib/authzSource.ts`                                   | jedno czytanie migracji dla generatora **i** dla bramki parytetu (jeden parser = dryf nie może być artefaktem dwóch implementacji) |
+| Generator          | `scripts/generate-authz-snapshot.ts`                           | zapis artefaktu + tryb `--check` dla CI                                                                                            |
+| Deklaracja wierszy | `src/lib/authz/permissionRows.ts`                              | **tylko** `id` + sekcja + `gateRef` (+ jawne zawężenia). Żadnych poziomów dostępu                                                  |
+| Kompozycja         | `src/lib/authz/permissionMatrix.ts`                            | poziomy per komórka, metryki, filtrowanie, etykiety - czyste funkcje bez Reacta                                                    |
+| Dane tenanta       | `src/lib/authz/permissionMatrixQuery.ts`                       | `membership_tiers` z **jawnym** `tenant_id` i tenantem w kluczu cache                                                              |
+| UI                 | `src/components/admin/permissions/{atoms,molecules,organisms}` | prezentacja; zero logiki uprawnień                                                                                                 |
+| Etykiety           | `src/lib/i18n-admin-permissions.ts`                            | PL/EN pod twardą bramką parytetu i18n                                                                                              |
 
 ### Skąd parser bierze role (i dlaczego to jest prawda, a nie heurystyka)
 
 `has_role(uuid, app_role)` nie ma hierarchii - `super_admin` **nie dziedziczy** uprawnień `admin`. Zbiór
 ról bramki to więc dokładnie zbiór literałów, które bramka wymienia:
 
-| Wzorzec w SQL | Interpretacja |
-| ------------- | ------------- |
-| `has_role(auth.uid(), 'admin')` | alternatywa (gałąź OR) |
-| `role = 'super_admin'::app_role` | alternatywa; **wymagane jawne rzutowanie**, bo kolumna `role` istnieje też w `member_organizations`/`conversation_participants` i goły literał dawałby fałszywe trafienia |
-| `is_staff()`, `is_super_admin()`, `can_publish_content()` | alias rolowy → rozwijany o **własny** zbiór ról tej funkcji (liczony z jej ciała, nie wpisany w TS) |
-| `assert_admin_tenant()` | warunek **twardy** (`RAISE` przy braku roli) → `allRoles`, nie `anyRoles` |
+| Wzorzec w SQL                                             | Interpretacja                                                                                                                                                             |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `has_role(auth.uid(), 'admin')`                           | alternatywa (gałąź OR)                                                                                                                                                    |
+| `role = 'super_admin'::app_role`                          | alternatywa; **wymagane jawne rzutowanie**, bo kolumna `role` istnieje też w `member_organizations`/`conversation_participants` i goły literał dawałby fałszywe trafienia |
+| `is_staff()`, `is_super_admin()`, `can_publish_content()` | alias rolowy → rozwijany o **własny** zbiór ról tej funkcji (liczony z jej ciała, nie wpisany w TS)                                                                       |
+| `assert_admin_tenant()`                                   | warunek **twardy** (`RAISE` przy braku roli) → `allRoles`, nie `anyRoles`                                                                                                 |
 
 Literał poza enumem jest odsiewany (osobna bramka `check:sql-app-role` pilnuje, żeby takich nie było).
 Bramka wymieniająca i twardy warunek, i alternatywy dostaje tryb `mixed` widoczny w UI.
@@ -90,15 +90,15 @@ Ten podział jest testowany osobno - bez niego cała mapa „egzekwowana / dekor
 
 ## 4. Test parytetu: co dokładnie obleje CI
 
-| Zdarzenie | Sygnał |
-| --------- | ------ |
-| bramka zyskuje/traci rolę | `authzSnapshotParity` - diff wskazuje bramkę i różnicę zbiorów |
-| bramka znika, a wiersz macierzy nadal na nią wskazuje | referencja wisząca (`danglingRefs`) |
-| nowa wartość enuma `app_role` bez kolumny | porównanie `APP_ROLES` z enumem z migracji |
-| flaga czytana przez bramkę, nieopisana w rejestrze | „flaga egzekwowana, a macierz o niej milczy" |
-| `enforced: true` bez bramki / bramka przy `enforced: false` | dwa osobne przypadki testowe |
-| wiersz albo kolumna bez tłumaczenia PL/EN | bramka i18n (`adminPermissions` w `GATED_PREFIXES`) + test kompletności etykiet |
-| snapshot nieodświeżony po migracji | `check:authz-snapshot` (tryb `--check`, bez zapisu) - krok CI **„Authorization snapshot freshness"** |
+| Zdarzenie                                                   | Sygnał                                                                                               |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| bramka zyskuje/traci rolę                                   | `authzSnapshotParity` - diff wskazuje bramkę i różnicę zbiorów                                       |
+| bramka znika, a wiersz macierzy nadal na nią wskazuje       | referencja wisząca (`danglingRefs`)                                                                  |
+| nowa wartość enuma `app_role` bez kolumny                   | porównanie `APP_ROLES` z enumem z migracji                                                           |
+| flaga czytana przez bramkę, nieopisana w rejestrze          | „flaga egzekwowana, a macierz o niej milczy"                                                         |
+| `enforced: true` bez bramki / bramka przy `enforced: false` | dwa osobne przypadki testowe                                                                         |
+| wiersz albo kolumna bez tłumaczenia PL/EN                   | bramka i18n (`adminPermissions` w `GATED_PREFIXES`) + test kompletności etykiet                      |
+| snapshot nieodświeżony po migracji                          | `check:authz-snapshot` (tryb `--check`, bez zapisu) - krok CI **„Authorization snapshot freshness"** |
 
 Parser ma **własne** 26 testów na syntetycznym SQL-u. Bez nich ślepy parser dawałby dwa równie puste
 zbiory i bramka przechodziłaby na zielono, nie pilnując niczego.
@@ -139,8 +139,8 @@ bun run check:permissions-parity    # CI: parser + parytet + kompozycja + render
 
 ## 8. Co zostało otwarte
 
-| Pozycja | Dlaczego nie teraz |
-| ------- | ------------------ |
-| Oś rolowa opisuje 40 z 338 znalezionych bramek | selekcja jest świadoma (`permissionRows.ts`) - macierz ma być czytelna, nie kompletna jak `pg_policies`. Rozszerzanie jest dopisaniem wiersza plus etykiety PL/EN |
-| Poziom „własne" jest deklarowany, nie odtwarzany | wymaga analizy predykatów własności (`author_id = auth.uid()`) w politykach; test pilnuje dziś tylko, że zawężona rola **nadal przechodzi** bramkę |
-| Bramki `tenantRef: "none"` | macierz je **pokazuje** i liczy w KPI; ocena, które są realnym problemem, to zadanie osobnego audytu bezpieczeństwa, nie tej strony |
+| Pozycja                                          | Dlaczego nie teraz                                                                                                                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Oś rolowa opisuje 40 z 338 znalezionych bramek   | selekcja jest świadoma (`permissionRows.ts`) - macierz ma być czytelna, nie kompletna jak `pg_policies`. Rozszerzanie jest dopisaniem wiersza plus etykiety PL/EN |
+| Poziom „własne" jest deklarowany, nie odtwarzany | wymaga analizy predykatów własności (`author_id = auth.uid()`) w politykach; test pilnuje dziś tylko, że zawężona rola **nadal przechodzi** bramkę                |
+| Bramki `tenantRef: "none"`                       | macierz je **pokazuje** i liczy w KPI; ocena, które są realnym problemem, to zadanie osobnego audytu bezpieczeństwa, nie tej strony                               |

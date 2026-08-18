@@ -48,10 +48,20 @@ export interface UnknownCastHit {
  * `as unknown as T`. Komentarze są maskowane PRZED skanem, żeby bramka nie
  * liczyła własnej dokumentacji ani komentarzy typu „tu było `as unknown as`".
  *
- * TRZY POSTACIE CELU, bo wszystkie trzy występują w repo:
+ * CZTERY POSTACIE CELU, bo wszystkie cztery występują (albo występowały) w repo:
  *   `as unknown as Widget`                nazwa (z opcjonalnym generykiem),
  *   `as unknown as { id: string }`        literał typu obiektowego,
- *   `as unknown as (fn: string) => void`  TYP FUNKCYJNY.
+ *   `as unknown as (fn: string) => void`  TYP FUNKCYJNY,
+ *   `as unknown as | A | undefined`       UNIA Z WIODĄCYM `|`.
+ *
+ * Czwarta postać to dziura tej samej klasy, odsłonięta przy podniesieniu
+ * Prettiera 3.7 -> 3.9.6. Prettier 3.7 łamał unię w celu rzutowania na wiodący
+ * `|` (`as unknown as` + nowa linia + `| WidgetTypography`), a taki cel NIE
+ * pasował do żadnej z trzech postaci - rzutowanie było dla ratchetu niewidzialne.
+ * 3.9.6 składa tę unię z powrotem do jednej linii i licznik podskakiwał "sam
+ * z siebie" przy zmianie, która nie dotykała kodu. Liczy się więc teraz także
+ * wiodący `|`: dziś w repo nie ma ani jednego takiego miejsca, ale bramka nie
+ * może zależeć od tego, jak formater akurat złamie linię.
  *
  * Trzecia postać była pominięta w pierwszej wersji i to była dziura w ratchecie:
  * `supabase.rpc as unknown as (fn: string, args: …) => PromiseLike<…>`
@@ -59,7 +69,7 @@ export interface UnknownCastHit {
  * kolejnych rzutowań na typ funkcyjny NIE podnosiło progu i bramka zostawała
  * zielona wbrew inwariantowi, którego pilnuje. Zgłoszone w review PR-a #235.
  */
-const CAST = /\bas\s+unknown\s+as\s+([A-Za-z_$][\w$.]*(?:<[^<>]*>)?|\{|\()/g;
+const CAST = /\bas\s+unknown\s+as\s+([A-Za-z_$][\w$.]*(?:<[^<>]*>)?|\{|\(|\|)/g;
 
 export function isScannable(file: string): boolean {
   if (!/\.tsx?$/.test(file)) return false;
