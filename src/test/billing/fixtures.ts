@@ -96,6 +96,24 @@ export function isoPast(days = 30): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
+/**
+ * Wzorzec kwoty NIEZALEŻNY OD WERSJI ICU. Asercja na gotowym napisie z `Intl`
+ * (`"49,00 zł"`) pęka przy zmianie wersji ICU w środowisku - a zmienia się
+ * i separator dziesiętny, i odstęp przed symbolem waluty (bywa NBSP albo
+ * U+202F). Test ma dowodzić, że kwota pochodzi z WŁAŚCIWEGO ŹRÓDŁA, nie
+ * odtwarzać formatowania, więc dopasowujemy same cyfry z dowolnym separatorem.
+ *
+ * Samo formatowanie waluty jest sprawdzane w regułach (`types.test.ts`,
+ * `displayCurrencyApprox.test.ts`), nie tutaj.
+ */
+export function moneyPattern(amountCents: number): RegExp {
+  const whole = Math.trunc(Math.abs(amountCents) / 100);
+  const fraction = String(Math.abs(amountCents) % 100).padStart(2, "0");
+  // Separator tysięcy też jest zależny od ICU (spacja, NBSP, kropka).
+  const groupedWhole = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, "[\\s.,  ]?");
+  return new RegExp(`${groupedWhole}[.,]${fraction}`);
+}
+
 // --- katalog i plany --------------------------------------------------------
 
 /**
