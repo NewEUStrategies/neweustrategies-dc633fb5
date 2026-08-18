@@ -355,6 +355,9 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Adaptacja dark / light": "Dark / light adaptation",
   Autoodtwarzanie: "Autoplay",
   "Pauza po najechaniu": "Pause on hover",
+  // trending-now (schemas.ts) - bramka labelsEn.test wymusza komplet tłumaczeń.
+  "Co ile sekund zmieniać wpis": "Seconds between rotations",
+  "Autor (awatar + imię)": "Author (avatar + name)",
   Lightbox: "Lightbox",
   "Sticky (desktop)": "Sticky (desktop)",
 
