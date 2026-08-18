@@ -48,9 +48,8 @@ vi.mock("@supabase/supabase-js", () => ({
   },
 }));
 
-const { assertSeatAvailable, loadEventSeatState, loadMyEventTicket } = await import(
-  "@/lib/events/ticket.server"
-);
+const { assertSeatAvailable, loadEventSeatState, loadMyEventTicket } =
+  await import("@/lib/events/ticket.server");
 
 /** Atrapa klienta w typie, którego oczekuje warstwa serwerowa. */
 function asClient(stub: SupabaseClientStub): SupabaseClient {
@@ -58,19 +57,13 @@ function asClient(stub: SupabaseClientStub): SupabaseClient {
 }
 
 /** Wydarzenie o danej pojemności + liczniki RSVP z RPC. */
-function seatScenario(input: {
-  capacity: number | null;
-  counts?: unknown;
-}): SupabaseClientStub {
+function seatScenario(input: { capacity: number | null; counts?: unknown }): SupabaseClientStub {
   const stub = supabaseClientStub();
   stub.db.setResponse("events", ok({ capacity: input.capacity }));
   // `in` zamiast `??`: scenariusz MUSI umieć podać jawne `null` jako odpowiedź
   // RPC. Z `??` null zamieniał się w wiersz zerowy i gałąź obronna
   // `Array.isArray(counts) ? ... : null` nigdy nie była wykonywana.
-  stub.setRpc(
-    "get_event_rsvp_counts",
-    ok("counts" in input ? input.counts : rsvpCountsRow(0)),
-  );
+  stub.setRpc("get_event_rsvp_counts", ok("counts" in input ? input.counts : rsvpCountsRow(0)));
   return stub;
 }
 
@@ -286,8 +279,9 @@ describe("assertSeatAvailable - bramka przed sprzedażą biletu", () => {
     // przez tę samą osobę liczyłoby się jako druga rezerwacja i przy ostatnim
     // wolnym miejscu blokowałoby ją przed jej WŁASNYM biletem.
     const stub = gate({ mine: { status: "going" }, capacity: 1, going: 1 });
-    await expect(assertSeatAvailable(asClient(stub), EVENT_IDS.event, EVENT_IDS.user))
-      .resolves.toBeUndefined();
+    await expect(
+      assertSeatAvailable(asClient(stub), EVENT_IDS.event, EVENT_IDS.user),
+    ).resolves.toBeUndefined();
   });
 
   it("wraca NATYCHMIAST - nie liczy w ogóle miejsc dla kogoś, kto już wszedł", async () => {

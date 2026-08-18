@@ -6,11 +6,27 @@
 // KAŻDY FORMAT MA WŁASNĄ ŚCIEŻKĘ, ale wspólny kontrakt: dostaje podpisany
 // adres i metadane, a zwraca gotowy widok albo komunikat. Nie ma tu żadnego
 // pobierania uprawnień - popup pokazuje to, do czego wywołujący już ma URL.
+//
+// DECYZJE MIESZKAJĄ POZA RENDEREM (od 18.08.2026). Sekwencja „stary format? ->
+// błąd? -> jeszcze mielimy? -> pusto? -> pokaż" była wcześniej przepisana
+// wewnątrz JSX-a w trzech czytnikach osobno i nie dawała się sprawdzić inaczej
+// niż pełnym renderem z fetchem i parserem naraz - stąd zero pokrycia całej
+// funkcjonalności w audycie. Teraz reguła jest w `lib/files/viewerState`
+// (czysta, 100% pokrycia), a czytniki są jej cienką kompozycją.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, FileWarning, Loader2 } from "lucide-react";
+import { FileWarning } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extensionOf, viewerKindFor, type ViewerKind } from "@/lib/files/fileKinds";
+import { viewerKindFor, type ViewerKind } from "@/lib/files/fileKinds";
+import {
+  activeSheetIndex,
+  clampText,
+  csvRows,
+  officePanel,
+  textPanel,
+  VIEWER_LABEL_KEYS,
+} from "@/lib/files/viewerState";
+import { ViewerFrame, ViewerNotice } from "./atoms/ViewerNotice";
 import {
   parseDocx,
   parsePptx,
@@ -23,33 +39,6 @@ export interface ViewerSource {
   url: string;
   name: string;
   mime: string;
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
-function Busy({ label }: { label: string }) {
-  return (
-    <Centered>
-      <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
-      <span>{label}</span>
-    </Centered>
-  );
-}
-
-function Failure({ label, hint }: { label: string; hint?: string }) {
-  return (
-    <Centered>
-      <AlertTriangle className="h-6 w-6 text-destructive" aria-hidden="true" />
-      <span className="font-medium text-foreground">{label}</span>
-      {hint !== undefined ? <span className="max-w-sm text-xs">{hint}</span> : null}
-    </Centered>
-  );
 }
 
 /** Pobranie zawartości do pamięci - wspólne dla formatów parsowanych lokalnie. */
@@ -86,7 +75,6 @@ function useArrayBuffer(url: string, enabled: boolean) {
 }
 
 function DocxView({ source }: { source: ViewerSource }) {
-  const { t } = useTranslation();
   const { buffer, error, loading } = useArrayBuffer(source.url, true);
   const [html, setHtml] = useState<string | null>(null);
   const [parseError, setParseError] = useState(false);
@@ -106,11 +94,19 @@ function DocxView({ source }: { source: ViewerSource }) {
     };
   }, [buffer]);
 
-  if (extensionOf(source.name) === "doc") return <Failure label={t("fileViewer.legacyFormat")} />;
-  if (error || parseError)
-    return <Failure label={t("fileViewer.error")} hint={t("fileViewer.protectedHint")} />;
-  if (loading || html === null) return <Busy label={t("fileViewer.parsing")} />;
-  if (html.trim() === "") return <Centered>{t("fileViewer.emptyDocument")}</Centered>;
+  const panel = officePanel({
+    fileName: source.name,
+    legacyExtension: "doc",
+    fetchFailed: error,
+    parseFailed: parseError,
+    loading,
+    hasContent: html !== null,
+    isEmpty: (html ?? "").trim() === "",
+    // Tylko czytnik Worda podaje podpowiedź - dla arkusza i prezentacji
+    // „plik może być zaszyfrowany lub uszkodzony" byłoby zgadywaniem.
+    failureHintKey: VIEWER_LABEL_KEYS.protectedHint,
+  });
+  if (panel.kind !== "ready") return <ViewerNotice panel={panel} />;
 
   return (
     <div className="flex justify-center bg-muted/40 p-4 sm:p-8">
@@ -118,7 +114,7 @@ function DocxView({ source }: { source: ViewerSource }) {
         className="w-full max-w-3xl rounded-lg bg-background px-6 py-8 shadow-sm sm:px-10 sm:py-12"
         // Treść przeszła przez DOMPurify w warstwie parsowania - to jedyne
         // miejsce, w którym dokument użytkownika staje się DOM-em.
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: html ?? "" }}
         data-testid="file-viewer-docx"
       />
     </div>
@@ -147,22 +143,29 @@ function SheetView({ source }: { source: ViewerSource }) {
     };
   }, [buffer]);
 
-  if (extensionOf(source.name) === "xls") return <Failure label={t("fileViewer.legacyFormat")} />;
-  if (error || parseError) return <Failure label={t("fileViewer.error")} />;
-  if (loading || sheets === null) return <Busy label={t("fileViewer.parsing")} />;
-  if (sheets.length === 0) return <Centered>{t("fileViewer.emptyDocument")}</Centered>;
+  const panel = officePanel({
+    fileName: source.name,
+    legacyExtension: "xls",
+    fetchFailed: error,
+    parseFailed: parseError,
+    loading,
+    hasContent: sheets !== null,
+    isEmpty: (sheets ?? []).length === 0,
+  });
+  if (panel.kind !== "ready") return <ViewerNotice panel={panel} />;
 
-  const current = sheets[Math.min(active, sheets.length - 1)]!;
+  const list = sheets ?? [];
+  const current = list[activeSheetIndex(active, list.length)]!;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {sheets.length > 1 ? (
+      {list.length > 1 ? (
         <div
           role="tablist"
           aria-label={t("fileViewer.sheet")}
           className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-muted/40 px-3 py-2"
         >
-          {sheets.map((sheet, index) => (
+          {list.map((sheet, index) => (
             <button
               key={sheet.name}
               type="button"
@@ -225,14 +228,20 @@ function SlidesView({ source }: { source: ViewerSource }) {
     [slides],
   );
 
-  if (extensionOf(source.name) === "ppt") return <Failure label={t("fileViewer.legacyFormat")} />;
-  if (error || parseError) return <Failure label={t("fileViewer.error")} />;
-  if (loading || slides === null) return <Busy label={t("fileViewer.parsing")} />;
-  if (slides.length === 0) return <Centered>{t("fileViewer.emptyDocument")}</Centered>;
+  const panel = officePanel({
+    fileName: source.name,
+    legacyExtension: "ppt",
+    fetchFailed: error,
+    parseFailed: parseError,
+    loading,
+    hasContent: slides !== null,
+    isEmpty: (slides ?? []).length === 0,
+  });
+  if (panel.kind !== "ready") return <ViewerNotice panel={panel} />;
 
   return (
     <div className="space-y-5 bg-muted/40 p-4 sm:p-6" data-testid="file-viewer-slides">
-      {slides.map((slide) => (
+      {(slides ?? []).map((slide) => (
         <section
           key={slide.index}
           className="mx-auto w-full max-w-3xl overflow-hidden rounded-xl border border-border bg-background shadow-sm"
@@ -277,7 +286,6 @@ function SlidesView({ source }: { source: ViewerSource }) {
 }
 
 function TextView({ source, kind }: { source: ViewerSource; kind: ViewerKind }) {
-  const { t } = useTranslation();
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -289,7 +297,7 @@ function TextView({ source, kind }: { source: ViewerSource; kind: ViewerKind }) 
         return response.text();
       })
       .then((value) => {
-        if (alive) setText(value.slice(0, 400_000));
+        if (alive) setText(clampText(value));
       })
       .catch(() => {
         if (alive) setError(true);
@@ -300,18 +308,12 @@ function TextView({ source, kind }: { source: ViewerSource; kind: ViewerKind }) 
   }, [source.url]);
 
   const rows = useMemo(
-    () =>
-      kind === "csv" && text !== null
-        ? text
-            .split(/\r?\n/)
-            .slice(0, 2000)
-            .map((line) => line.split(/[,;\t]/))
-        : null,
+    () => (kind === "csv" && text !== null ? csvRows(text) : null),
     [kind, text],
   );
 
-  if (error) return <Failure label={t("fileViewer.error")} />;
-  if (text === null) return <Busy label={t("fileViewer.loading")} />;
+  const panel = textPanel({ fetchFailed: error, hasText: text !== null });
+  if (panel.kind !== "ready") return <ViewerNotice panel={panel} />;
 
   if (rows !== null) {
     return (
@@ -359,10 +361,10 @@ export function DocumentViewerBody({ source }: { source: ViewerSource }) {
         aria-label={source.name}
         data-testid="file-viewer-pdf"
       >
-        <Centered>
+        <ViewerFrame>
           <FileWarning className="h-6 w-6" aria-hidden="true" />
-          {t("fileViewer.unsupported")}
-        </Centered>
+          {t(VIEWER_LABEL_KEYS.unsupported)}
+        </ViewerFrame>
       </object>
     );
   }
@@ -405,10 +407,10 @@ export function DocumentViewerBody({ source }: { source: ViewerSource }) {
     return <TextView source={source} kind={kind} />;
 
   return (
-    <Centered>
+    <ViewerFrame>
       <FileWarning className="h-6 w-6" aria-hidden="true" />
-      {t("fileViewer.unsupported")}
-    </Centered>
+      {t(VIEWER_LABEL_KEYS.unsupported)}
+    </ViewerFrame>
   );
 }
 

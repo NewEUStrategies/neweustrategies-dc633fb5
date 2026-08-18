@@ -31,6 +31,13 @@ describe("podcast/types", () => {
     expect(parseDuration("garbage")).toBe(0);
   });
 
+  it("parseDuration odrzuca zapis z więcej niż trzema członami", () => {
+    // Ostatnia, niesprawdzana dotąd gałąź funkcji. Redaktor wklejający
+    // „0:01:02:05" (dni:godziny:minuty:sekundy z innego systemu) dostaje 0,
+    // a nie po cichu policzone 62 sekundy z dwóch pierwszych członów.
+    expect(parseDuration("0:01:02:05")).toBe(0);
+  });
+
   it("podcastEpisodeLabel locale", () => {
     expect(podcastEpisodeLabel({ season: 2, episode_number: 7 }, "pl")).toBe("Sezon 2 · Odc. 7");
     expect(podcastEpisodeLabel({ season: 2, episode_number: 7 }, "en")).toBe("S2 · E7");

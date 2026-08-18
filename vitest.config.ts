@@ -533,6 +533,60 @@ export default defineConfig({
           lines: 100,
           branches: 70,
         },
+        // ── MODUŁ 7: BIBLIOTEKA PLIKÓW ────────────────────────────────────────
+        // Jedyna funkcjonalność modułu, którą audyt 18.08 podał na ABSOLUTNYM
+        // zerze: 5 plików, 0 z 72 funkcji, 229 linii bez ani jednego wykonania.
+        // Powodem nie była trudność reguł, tylko ich MIEJSCE - decyzje
+        // („stary format? błąd? jeszcze mielimy? pusto?") siedziały wewnątrz
+        // JSX-a czterech czytników, więc sprawdzenie którejkolwiek wymagało
+        // renderu z fetchem i parserem naraz.
+        //
+        // Oba pliki poniżej są czyste i trzymamy je pod 100% na wszystkich
+        // czterech metrykach, jak pozostałe czyste moduły w tym pliku.
+        // `viewerState.ts` powstał z wyprowadzenia tej reguły z komponentu;
+        // `fileKinds.ts` był czysty od początku i po prostu nikt go nie tknął.
+        //
+        // Bramki RANGI (kto w ogóle widzi plik) NIE ma w tych testach i mieć jej
+        // nie będzie - egzekwuje ją baza, a jej testy żyją w supabase/tests.
+        "src/lib/files/fileKinds.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/files/viewerState.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ── MODUŁ 7: WEB STORIES ──────────────────────────────────────────────
+        // `StoryViewer.tsx` stał na 0%, bo maszyna przewijania mieszkała w tym
+        // samym pliku, co pętla `requestAnimationFrame`, focus trap i markup
+        // pełnoekranowy - żeby sprawdzić „co robi strzałka w prawo na ostatniej
+        // planszy", trzeba było sterować zegarem i klatkami animacji naraz.
+        // Reguły są teraz w `viewerNav.ts` (czysty moduł, dane zamiast napisów),
+        // a komponent jest ich kompozycją.
+        "src/lib/web-stories/viewerNav.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ── MODUŁ 7: PODCAST ──────────────────────────────────────────────────
+        // Parsery jsonb i czas trwania miały testy od dawna; ETYKIETY
+        // (`podcastTitle`, `showTitle`, `showDescription`, `personRoleLabel`)
+        // nie miały ANI JEDNEGO wywołania, mimo że to one decydują, co czytelnik
+        // widzi na karcie odcinka. Statements/branches poniżej 100, bo `zod`
+        // generuje w tym pliku ramiona domyślnych wartości schematów, których
+        // nie da się wywołać inaczej niż przez parsowanie każdej kombinacji
+        // brakujących pól - a to testowałoby zod, nie nasz kod.
+        "src/lib/podcast/types.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
       },
     },
   },
