@@ -13,10 +13,10 @@ narzędzia albo odtworzone zachowanie.
 > **Nota o pomiarze — trzy przebiegi, nie jeden.** Dokument powstawał w trakcie aktywnych prac na
 > `main`, więc każde ustalenie ma jawnie przypisany HEAD:
 >
-> | Przebieg | HEAD | Co się zmieniło |
-> | -------- | ---- | --------------- |
-> | 1. Audyt | `633d02e` | 16 ustaleń, suita czerwona (4 testy) |
-> | 2. Re-pomiar | `d42e5eb` | `main` zamknął §1 i §2; suita zielona; §3–§16 potwierdzone jako otwarte |
+> | Przebieg                     | HEAD          | Co się zmieniło                                                                 |
+> | ---------------------------- | ------------- | ------------------------------------------------------------------------------- |
+> | 1. Audyt                     | `633d02e`     | 16 ustaleń, suita czerwona (4 testy)                                            |
+> | 2. Re-pomiar                 | `d42e5eb`     | `main` zamknął §1 i §2; suita zielona; §3–§16 potwierdzone jako otwarte         |
 > | 3. **Weryfikacja wdrożenia** | **`c6f94cf`** | PR #187–#190 zamknęły **9 z 14** otwartych ustaleń — patrz sekcja „Weryfikacja” |
 >
 > Ustalenia zamknięte zostawiam w treści z zachowanym opisem mechanizmu (konwencja
@@ -46,30 +46,30 @@ narzędzia albo odtworzone zachowanie.
 Zależności zainstalowano tak, jak robi to CI (`bun.lock` przepięty z prywatnego GAR na publiczny
 npm — `.github/workflows/ci.yml:37`), 848 pakietów, instalacja czysta.
 
-| Sprawdzenie | Pokrycie | **Wynik na `d42e5eb`** | Było na `633d02e` |
-| ----------- | -------- | ---------------------- | ----------------- |
-| `tsc --noEmit` | całość repo | **✓ czysto** | ✓ czysto |
-| `vitest run` (pełna suita) | 618 plików | **✓ ZIELONO — 616 pass / 2 skip · 6707 testów: 6657 pass / 50 skip** | ✗ 4 FAIL |
-| `vitest run` (tylko moduły audytu) | chat, network, experts, profile, billing, pricing, access | **✓ 62 pliki / 670 testów** | ✓ |
-| `check:sql-migration-replay` | 627 plików migracji | **✓ (exit 0)** — zero kolizji wersji | ✗ dubel `20260806150000` (§1) |
-| `check:authz-snapshot` | snapshot bramek vs migracje | **✓ zgodny z migracjami** | ✗ dryf `fn:profiles_guard_verification/0` (§2) |
-| `check:permissions-parity` | 4 pliki / 99 testów | **✓** (w ramach zielonej suity) | ✗ 1 FAIL |
-| `check:i18n-parity` | 16 plików / 229 testów | **✓** | ✗ 2 FAIL (collateral z §1) |
-| `check:db-contract` | schemat żywej bazy vs kod | **nie dało się uruchomić** — brak `SUPABASE_URL`/klucza; w CI jest krokiem po wdrożeniu (`ci.yml:385`), więc rozjazd nazwy tabeli z §6 nie jest łapany przed mergem |
-| Kontrakt nazw RPC klient↔SQL↔typy | 56 unikalnych RPC modułu | **✓ czysto** — każde istnieje w migracjach i w `types.ts` |
-| Kontrakt nazw **tabel** w ciałach RPC vs stan po replayu | ścieżka „Zapytanie do eksperta” | **✗ rozjazd** — 5 RPC celuje w tabelę, która po replayu nie istnieje (§6) |
-| Pokrycie testami modułu (v8) | 7 katalogów (lib+components) | **15,44 % stmt / 14,2 % br / 13,19 % fn** (861 z 5573 instrukcji) (§12) |
-| `knip` | całość | 6 martwych plików, 205 martwych eksportów — **w tym module wszystkie sprawdzone trafienia okazały się pozorne** i NIE są raportowane jako ustalenia: `lib/profile/badges.ts` to barrel re-eksportujący `badgeCatalog.ts` (oba używane), `ChatUnreadBadge`/`NetworkPendingBadge` są ładowane leniwie przez `LiveTabBadge` (`BottomBarTab.tsx:17`), `ReportUserDialog` jest wpięty w `AuthorMoreMenu.tsx:55` i `ConnectButton.tsx:370` (martwy jest tylko dodatkowy eksport `ReportUserButton`) |
+| Sprawdzenie                                              | Pokrycie                                                  | **Wynik na `d42e5eb`**                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Było na `633d02e`                              |
+| -------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `tsc --noEmit`                                           | całość repo                                               | **✓ czysto**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | ✓ czysto                                       |
+| `vitest run` (pełna suita)                               | 618 plików                                                | **✓ ZIELONO — 616 pass / 2 skip · 6707 testów: 6657 pass / 50 skip**                                                                                                                                                                                                                                                                                                                                                                                                                          | ✗ 4 FAIL                                       |
+| `vitest run` (tylko moduły audytu)                       | chat, network, experts, profile, billing, pricing, access | **✓ 62 pliki / 670 testów**                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ✓                                              |
+| `check:sql-migration-replay`                             | 627 plików migracji                                       | **✓ (exit 0)** — zero kolizji wersji                                                                                                                                                                                                                                                                                                                                                                                                                                                          | ✗ dubel `20260806150000` (§1)                  |
+| `check:authz-snapshot`                                   | snapshot bramek vs migracje                               | **✓ zgodny z migracjami**                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | ✗ dryf `fn:profiles_guard_verification/0` (§2) |
+| `check:permissions-parity`                               | 4 pliki / 99 testów                                       | **✓** (w ramach zielonej suity)                                                                                                                                                                                                                                                                                                                                                                                                                                                               | ✗ 1 FAIL                                       |
+| `check:i18n-parity`                                      | 16 plików / 229 testów                                    | **✓**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✗ 2 FAIL (collateral z §1)                     |
+| `check:db-contract`                                      | schemat żywej bazy vs kod                                 | **nie dało się uruchomić** — brak `SUPABASE_URL`/klucza; w CI jest krokiem po wdrożeniu (`ci.yml:385`), więc rozjazd nazwy tabeli z §6 nie jest łapany przed mergem                                                                                                                                                                                                                                                                                                                           |
+| Kontrakt nazw RPC klient↔SQL↔typy                        | 56 unikalnych RPC modułu                                  | **✓ czysto** — każde istnieje w migracjach i w `types.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Kontrakt nazw **tabel** w ciałach RPC vs stan po replayu | ścieżka „Zapytanie do eksperta”                           | **✗ rozjazd** — 5 RPC celuje w tabelę, która po replayu nie istnieje (§6)                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Pokrycie testami modułu (v8)                             | 7 katalogów (lib+components)                              | **15,44 % stmt / 14,2 % br / 13,19 % fn** (861 z 5573 instrukcji) (§12)                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `knip`                                                   | całość                                                    | 6 martwych plików, 205 martwych eksportów — **w tym module wszystkie sprawdzone trafienia okazały się pozorne** i NIE są raportowane jako ustalenia: `lib/profile/badges.ts` to barrel re-eksportujący `badgeCatalog.ts` (oba używane), `ChatUnreadBadge`/`NetworkPendingBadge` są ładowane leniwie przez `LiveTabBadge` (`BottomBarTab.tsx:17`), `ReportUserDialog` jest wpięty w `AuthorMoreMenu.tsx:55` i `ConnectButton.tsx:370` (martwy jest tylko dodatkowy eksport `ReportUserButton`) |
 
 Na `633d02e` czerwone były cztery testy — **wszystkie w obszarze weryfikacji profilu**, wszystkie
 zielone po naprawie na `main`. Zostawiam listę, bo pokazuje, jak wąsko ta klasa defektu uderza:
 
-| Plik testu | Test | `633d02e` | `d42e5eb` |
-| ---------- | ---- | --------- | --------- |
-| `src/lib/ci/__tests__/migrationReplay.test.ts` | „ŻADNA wersja się nie powtarza” | ✗ | ✓ |
-| `src/lib/ci/__tests__/migrationReplay.test.ts` | „nazwy są parsowalne i porządek nazw = porządek wersji” | ✗ | ✓ |
-| `src/lib/authz/__tests__/authzSnapshotParity.test.ts` | „zacommitowany snapshot zgadza się z odtworzeniem z migracji” | ✗ | ✓ |
-| `src/__tests__/profilesVerificationGuard.invariant.test.ts` | „przepuszcza rolę super_admin (regresja z 20260806094104)” | ✗ | ✓ |
+| Plik testu                                                  | Test                                                          | `633d02e` | `d42e5eb` |
+| ----------------------------------------------------------- | ------------------------------------------------------------- | --------- | --------- |
+| `src/lib/ci/__tests__/migrationReplay.test.ts`              | „ŻADNA wersja się nie powtarza”                               | ✗         | ✓         |
+| `src/lib/ci/__tests__/migrationReplay.test.ts`              | „nazwy są parsowalne i porządek nazw = porządek wersji”       | ✗         | ✓         |
+| `src/lib/authz/__tests__/authzSnapshotParity.test.ts`       | „zacommitowany snapshot zgadza się z odtworzeniem z migracji” | ✗         | ✓         |
+| `src/__tests__/profilesVerificationGuard.invariant.test.ts` | „przepuszcza rolę super_admin (regresja z 20260806094104)”    | ✗         | ✓         |
 
 **Czego NIE dało się uruchomić: pgTAP** (`supabase test db`, 74 pliki, w tym
 `chat_privacy_isolation_test.sql`, `connections_v2_test.sql`, `introductions_flow_test.sql`,
@@ -105,13 +105,13 @@ Kontrakt nazw i obecność w `types.ts` — **czysto** (sprawdzone maszynowo, pa
 **Cztery równoległe pojęcia „rodzaju subskrypcji”** — warto to nazwać wprost, bo dokumentacja
 używa tych słów wymiennie:
 
-| Byt | Tabela | Rola | Kto to czyta |
-| --- | ------ | ---- | ------------ |
-| **Warstwa członkostwa** (tier) | `membership_tiers` (`key`, `rank`, `features` jsonb) | katalog oferty + flagi zdolności | `current_membership_tier()`, `my_effective_tier_features()`, `/pricing` |
-| **Plan dostępu** | `access_plans` (`tier_key`) | to, co kupuje checkout; mostek do tiera | `user_subscriptions.plan_id`, paywall |
-| **Subskrypcja użytkownika** | `user_subscriptions` (`status`, `plan_id`) | uprawnienie wynikające z zakupu | `my_effective_tier_features()`, `is_vip_user()` |
-| **Lustro operatora** | `subscriptions` (`provider_subscription_id`, `environment`) | stan u Stripe’a, dunning, portal | wyłącznie warstwa serwerowa `lib/billing/*.server.ts` |
-| **Nadanie** | `membership_grants` (`tier_key`, `source`, `expires_at`) | warstwa poza planem (VIP eksperta, darowizna) | `my_effective_tier_features()`, `is_vip_user()` |
+| Byt                            | Tabela                                                      | Rola                                          | Kto to czyta                                                            |
+| ------------------------------ | ----------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| **Warstwa członkostwa** (tier) | `membership_tiers` (`key`, `rank`, `features` jsonb)        | katalog oferty + flagi zdolności              | `current_membership_tier()`, `my_effective_tier_features()`, `/pricing` |
+| **Plan dostępu**               | `access_plans` (`tier_key`)                                 | to, co kupuje checkout; mostek do tiera       | `user_subscriptions.plan_id`, paywall                                   |
+| **Subskrypcja użytkownika**    | `user_subscriptions` (`status`, `plan_id`)                  | uprawnienie wynikające z zakupu               | `my_effective_tier_features()`, `is_vip_user()`                         |
+| **Lustro operatora**           | `subscriptions` (`provider_subscription_id`, `environment`) | stan u Stripe’a, dunning, portal              | wyłącznie warstwa serwerowa `lib/billing/*.server.ts`                   |
+| **Nadanie**                    | `membership_grants` (`tier_key`, `source`, `expires_at`)    | warstwa poza planem (VIP eksperta, darowizna) | `my_effective_tier_features()`, `is_vip_user()`                         |
 
 Rozdział jest **celowy i spójny** — `subscriptions` nigdy nie wchodzi do decyzji o dostępie
 (sprawdzone: 33 referencje, wszystkie w `*.server.ts` + panel admina), a `user_subscriptions` nigdy
@@ -123,26 +123,26 @@ w dokumentacji, bo „subskrypcja” w kodzie znaczy dwie różne rzeczy zależn
 Poniższe **nie jest streszczeniem opisów z PR-ów** — każdą pozycję sprawdziłem na ostatniej
 definicji funkcji/widoku w łańcuchu migracji albo na kodzie, i uruchomiłem bramki od nowa.
 
-| # | Ustalenie | Status | Dowód pomiaru |
-| - | --------- | ------ | ------------- |
-| 1 | Kolizja wersji migracji | ✅ **zamknięte** | `check:sql-migration-replay` exit 0; zero duplikatów w 638 plikach |
-| 2 | Autorytet weryfikacji profilu | ✅ **zamknięte** | trigger woła `can_manage_profile_verification` + `OLD.tenant_id = current_tenant_id()`; `check:authz-snapshot` zgodny |
-| 3 | `profiles_public` dla anonimów | ✅ **zamknięte, mocniej niż rekomendacja** | widok (`20260806183256`) filtruje: własny wiersz **lub** `discoverable` **lub** staff **lub** `caller_is_connected_to()`; dla anonimów wyłącznie `profile_has_public_presence()` (rola redakcyjna / odznaka `expert` / profil autora / materiały). Copy PL+EN przepisane — zamiast obietnicy „nikt spoza platformy” pokazuje **faktyczny stan ekspozycji** (`i18n-chat.ts:444`, `:905`) |
-| 4 | Bramki eksperta/VIP bez tenanta | ✅ **zamknięte** | `is_expert_user`, `is_vip_user`, `is_gated_recipient` przedefiniowane w `20260806184400` — odpowiednio 12 / 7 / 23 odwołania do `tenant_id` |
-| 5 | Niekompletny eksport RODO | ✅ **zamknięte, z nawiązką** | 17 → **50 sekcji**: `chat_messages_sent`, `chat_conversations`, `chat_participation`, `chat_blocks`, `chat_nicknames_set`, `expert_requests_sent/received`, `profile_{experiences,education,skills,awards,hobbies,cv_files}`, `recommendations_written/received`, `skill_endorsements_given/received`, `network_introductions`, `profile_viewers`, `profile_view_stats`, `user_reports_filed`, `media_mentions`, `notifications` + `manifest` |
-| 6a | Obejście puli pętlą anulowań | ✅ **zamknięte** | `my_expert_request_quota` (`20260806185055`): `used` liczy wszystko z bieżącego miesiąca, **bez** filtra statusu, i jest skalowane `ei.tenant_id = v_tenant` |
-| 6b | Rozjazd nazwy tabeli | ✅ **zamknięte** | kanoniczne `expert_inmails` (rename powrotny + indeksy, `20260806185055:28–31`); `send_expert_inmail` i `my_inmail_quota` to dziś **cienkie delegaty** do `send_expert_request` / `my_expert_request_quota` — jedna implementacja, dwie nazwy dla zgodności kontraktu klienta |
-| 6c | TOCTOU przy wysyłce | ✅ **zamknięte** | `pg_advisory_xact_lock(hashtext('expert_request:' || v_uid))` w jedynej implementacji |
-| 6d | Brak klucza `direct` | ✅ **zamknięte** | delegat zwraca `direct` we wszystkich gałęziach → `ExpertRequestButton.tsx:77` wreszcie działa |
-| 7 | Brak powiadomień o zapytaniach | ✅ **zamknięte** | rodzaj `expert_request` w `NotificationKind` (`preferences.ts:33`), przełącznik `enabled_expert_request` (`:64`, `:113`), producent `tg_expert_request_notify` (`20260806161000_expert_request_notifications.sql`) |
-| 16 | Pula bez skalowania tenantem | ✅ **zamknięte** | `ei.tenant_id = v_tenant` w liczniku |
-| 12 | Pokrycie testami modułu | 🟡 **częściowo** | całość **15,44 % → 25,05 %**; `src/lib/network` **0 % → 89,7 %** (0 plików na zerze), `src/components/profile` **0 % → 26,1 %**. **Ale `src/components/network` bez zmian: 4,6 %, 12 z 13 plików na zerze** — w tym `ConnectButton.tsx` |
-| 8 | `search_chat_contacts` | ❌ **otwarte** | ostatnia definicja nadal: surowe `p_query` w 7 × `ILIKE '%…%'`, bez `esc`/`unaccent`, bez `discovery_search` |
-| 9 | Fantomowe `'contacts'` | ❌ **otwarte** | `NOT IN ('everyone','contacts')` w najnowszej definicji bramki (`20260806184400:53`); CHECK nadal `everyone/existing/nobody` |
-| 10 | IA prywatności | ❌ **otwarte** | `/profile/privacy` wciąż ma 0 odwołań do `discoverable` / `profile_view_mode` |
-| 11 | IA finansów | ❌ **otwarte** | `FINANCE` nadal 6 pozycji; `/profile/subscription` wciąż podzbiór `/profile/membership` |
-| 13 | Przedawnione `as never` | ❌ **otwarte** | 3 + 1 + 3 wystąpienia w `useConversations.ts` / `attachments.ts` / `useDiscoverable.ts` |
-| 14, 15 | Decyzje projektowe | ⚪ bez zmian | świadomie — wymagają zapisania wyboru, nie kodu |
+| #      | Ustalenie                       | Status                                     | Dowód pomiaru                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | Kolizja wersji migracji         | ✅ **zamknięte**                           | `check:sql-migration-replay` exit 0; zero duplikatów w 638 plikach                                                                                                                                                                                                                                                                                                                                                                            |
+| 2      | Autorytet weryfikacji profilu   | ✅ **zamknięte**                           | trigger woła `can_manage_profile_verification` + `OLD.tenant_id = current_tenant_id()`; `check:authz-snapshot` zgodny                                                                                                                                                                                                                                                                                                                         |
+| 3      | `profiles_public` dla anonimów  | ✅ **zamknięte, mocniej niż rekomendacja** | widok (`20260806183256`) filtruje: własny wiersz **lub** `discoverable` **lub** staff **lub** `caller_is_connected_to()`; dla anonimów wyłącznie `profile_has_public_presence()` (rola redakcyjna / odznaka `expert` / profil autora / materiały). Copy PL+EN przepisane — zamiast obietnicy „nikt spoza platformy” pokazuje **faktyczny stan ekspozycji** (`i18n-chat.ts:444`, `:905`)                                                       |
+| 4      | Bramki eksperta/VIP bez tenanta | ✅ **zamknięte**                           | `is_expert_user`, `is_vip_user`, `is_gated_recipient` przedefiniowane w `20260806184400` — odpowiednio 12 / 7 / 23 odwołania do `tenant_id`                                                                                                                                                                                                                                                                                                   |
+| 5      | Niekompletny eksport RODO       | ✅ **zamknięte, z nawiązką**               | 17 → **50 sekcji**: `chat_messages_sent`, `chat_conversations`, `chat_participation`, `chat_blocks`, `chat_nicknames_set`, `expert_requests_sent/received`, `profile_{experiences,education,skills,awards,hobbies,cv_files}`, `recommendations_written/received`, `skill_endorsements_given/received`, `network_introductions`, `profile_viewers`, `profile_view_stats`, `user_reports_filed`, `media_mentions`, `notifications` + `manifest` |
+| 6a     | Obejście puli pętlą anulowań    | ✅ **zamknięte**                           | `my_expert_request_quota` (`20260806185055`): `used` liczy wszystko z bieżącego miesiąca, **bez** filtra statusu, i jest skalowane `ei.tenant_id = v_tenant`                                                                                                                                                                                                                                                                                  |
+| 6b     | Rozjazd nazwy tabeli            | ✅ **zamknięte**                           | kanoniczne `expert_inmails` (rename powrotny + indeksy, `20260806185055:28–31`); `send_expert_inmail` i `my_inmail_quota` to dziś **cienkie delegaty** do `send_expert_request` / `my_expert_request_quota` — jedna implementacja, dwie nazwy dla zgodności kontraktu klienta                                                                                                                                                                 |
+| 6c     | TOCTOU przy wysyłce             | ✅ **zamknięte**                           | `pg_advisory_xact_lock(hashtext('expert_request:'                                                                                                                                                                                                                                                                                                                                                                                             |     | v_uid))` w jedynej implementacji |
+| 6d     | Brak klucza `direct`            | ✅ **zamknięte**                           | delegat zwraca `direct` we wszystkich gałęziach → `ExpertRequestButton.tsx:77` wreszcie działa                                                                                                                                                                                                                                                                                                                                                |
+| 7      | Brak powiadomień o zapytaniach  | ✅ **zamknięte**                           | rodzaj `expert_request` w `NotificationKind` (`preferences.ts:33`), przełącznik `enabled_expert_request` (`:64`, `:113`), producent `tg_expert_request_notify` (`20260806161000_expert_request_notifications.sql`)                                                                                                                                                                                                                            |
+| 16     | Pula bez skalowania tenantem    | ✅ **zamknięte**                           | `ei.tenant_id = v_tenant` w liczniku                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 12     | Pokrycie testami modułu         | 🟡 **częściowo**                           | całość **15,44 % → 25,05 %**; `src/lib/network` **0 % → 89,7 %** (0 plików na zerze), `src/components/profile` **0 % → 26,1 %**. **Ale `src/components/network` bez zmian: 4,6 %, 12 z 13 plików na zerze** — w tym `ConnectButton.tsx`                                                                                                                                                                                                       |
+| 8      | `search_chat_contacts`          | ❌ **otwarte**                             | ostatnia definicja nadal: surowe `p_query` w 7 × `ILIKE '%…%'`, bez `esc`/`unaccent`, bez `discovery_search`                                                                                                                                                                                                                                                                                                                                  |
+| 9      | Fantomowe `'contacts'`          | ❌ **otwarte**                             | `NOT IN ('everyone','contacts')` w najnowszej definicji bramki (`20260806184400:53`); CHECK nadal `everyone/existing/nobody`                                                                                                                                                                                                                                                                                                                  |
+| 10     | IA prywatności                  | ❌ **otwarte**                             | `/profile/privacy` wciąż ma 0 odwołań do `discoverable` / `profile_view_mode`                                                                                                                                                                                                                                                                                                                                                                 |
+| 11     | IA finansów                     | ❌ **otwarte**                             | `FINANCE` nadal 6 pozycji; `/profile/subscription` wciąż podzbiór `/profile/membership`                                                                                                                                                                                                                                                                                                                                                       |
+| 13     | Przedawnione `as never`         | ❌ **otwarte**                             | 3 + 1 + 3 wystąpienia w `useConversations.ts` / `attachments.ts` / `useDiscoverable.ts`                                                                                                                                                                                                                                                                                                                                                       |
+| 14, 15 | Decyzje projektowe              | ⚪ bez zmian                               | świadomie — wymagają zapisania wyboru, nie kodu                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Bramki i suita na `c6f94cf`:** `tsc --noEmit` ✓ · `check:sql-migration-replay` ✓ ·
 `check:authz-snapshot` ✓ · pełna suita **✓ ZIELONA: 633 pliki pass / 2 skip, 6991 testów pass /
@@ -163,27 +163,27 @@ potwierdzić §6b na realnym `supabase db start` — to jedyne ustalenie z tej s
 
 ## 4. Tabela zbiorcza ustaleń (stan pierwotny, z pierwszego przebiegu)
 
-| # | Obszar | Ustalenie | Waga |
-| --- | ------ | --------- | ---- |
-| 1 | Profil — weryfikacja / migracje | Dwie migracje o wersji `20260806150000`: `supabase db start` pada, pgTAP nie startuje, 2 bramki CI czerwone | ~~Krytyczna~~ **✅ zamknięte na `d42e5eb`** |
-| 2 | Profil — autorytet weryfikacji | Inwariant „jeden predykat” złamany: trigger nie czyta `can_manage_profile_verification`, efektywny krąg jest międzytenantowy, dokumentacja opisuje inny stan | ~~Krytyczna~~ **✅ zamknięte na `d42e5eb`** |
-| 3 | Profil — prywatność | `profiles_public` (definer, grant dla `anon`) serwuje 22 kolumny **każdego** profilu; `discoverable` nie jest honorowane; copy UI obiecuje odwrotnie | **Wysoka** |
-| 4 | Czat — bramka tierów | `is_expert_user` / `is_vip_user` / `is_gated_recipient` nie są skalowane tenantem, w przeciwieństwie do `my_effective_tier_features()` | **Wysoka** |
-| 5 | Profil — RODO | Eksport danych (art. 15/20) pomija czat, zapytania do ekspertów, artefakty sieci i CAŁE „rozszerzenia profilu”, deklarując komplet | **Wysoka** |
-| **6a** | Czat — zapytania do ekspertów | **Pula miesięczna do obejścia pętlą „wyślij → anuluj → wyślij”** — poprawka istnieje w nieużywanej generacji RPC | **Wysoka** |
-| **6b** | Czat — zapytania do ekspertów | Świeża baza: rename tabeli sprawia, że 5 wołanych przez klienta RPC celuje w nieistniejącą relację (`42P01`) | **Wysoka** |
-| 6c | Czat — zapytania do ekspertów | TOCTOU w `send_expert_inmail`: brak serializacji równoległych wysyłek (advisory lock jest tylko w generacji nieużywanej) | **Średnia** |
-| 6d | Czat — zapytania do ekspertów | `my_inmail_quota()` nie zwraca `direct` → CTA nie chowa się progom bezpośrednim; jedna gałąź copy martwa | **Średnia** |
-| 7 | Czat — zapytania do ekspertów | Zero powiadomień: ani ekspert o nowym zapytaniu, ani nadawca o decyzji | **Średnia** |
-| 8 | Czat — wyszukiwarka kontaktów | `search_chat_contacts` wstrzykuje surowe `p_query` w 7 `ILIKE`, bez escapowania `% _` i bez indeksu — regres wobec `search_people` | **Średnia** |
-| 9 | Czat — prywatność wiadomości | Dryf słownika `allow_messages_from`: bramka testuje `'contacts'`, którego CHECK nie dopuszcza (5 generacji migracji) | **Średnia** |
-| 10 | Profil — IA prywatności | Ustawienia prywatności rozrzucone na 3 powierzchnie; strona nazwana „Prywatność” nie zawiera widoczności profilu | **Średnia** |
-| 11 | Profil — IA finansów | 6 pozycji nawigacji na jeden temat; `/profile/subscription` jest ścisłym podzbiorem `/profile/membership` | **Średnia** |
-| 12 | Przekrojowo | Pokrycie testami modułu 15,4 %: `src/lib/network` **0 %**, `src/components/profile` **0 %** | **Średnia** |
-| 13 | Czat/profil — typy | Przedawnione `as never` na RPC, które SĄ już w `types.ts` — wyłącza kontrolę argumentów bramkowanego RPC | **Niska** |
-| 14 | Czat — RODO/integralność | `messages.sender_id ON DELETE CASCADE`: usunięcie konta przepisuje historię rozmówcy bez śladu | **Niska** |
-| 15 | Czat — spójność prywatności | `show_online_status` działa jednostronnie, `read_receipts_enabled` wzajemnie | **Niska** |
-| 16 | Czat — kwoty | Miesięczna pula inMail liczona bez skalowania tenantem | **Niska** |
+| #      | Obszar                          | Ustalenie                                                                                                                                                    | Waga                                        |
+| ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| 1      | Profil — weryfikacja / migracje | Dwie migracje o wersji `20260806150000`: `supabase db start` pada, pgTAP nie startuje, 2 bramki CI czerwone                                                  | ~~Krytyczna~~ **✅ zamknięte na `d42e5eb`** |
+| 2      | Profil — autorytet weryfikacji  | Inwariant „jeden predykat” złamany: trigger nie czyta `can_manage_profile_verification`, efektywny krąg jest międzytenantowy, dokumentacja opisuje inny stan | ~~Krytyczna~~ **✅ zamknięte na `d42e5eb`** |
+| 3      | Profil — prywatność             | `profiles_public` (definer, grant dla `anon`) serwuje 22 kolumny **każdego** profilu; `discoverable` nie jest honorowane; copy UI obiecuje odwrotnie         | **Wysoka**                                  |
+| 4      | Czat — bramka tierów            | `is_expert_user` / `is_vip_user` / `is_gated_recipient` nie są skalowane tenantem, w przeciwieństwie do `my_effective_tier_features()`                       | **Wysoka**                                  |
+| 5      | Profil — RODO                   | Eksport danych (art. 15/20) pomija czat, zapytania do ekspertów, artefakty sieci i CAŁE „rozszerzenia profilu”, deklarując komplet                           | **Wysoka**                                  |
+| **6a** | Czat — zapytania do ekspertów   | **Pula miesięczna do obejścia pętlą „wyślij → anuluj → wyślij”** — poprawka istnieje w nieużywanej generacji RPC                                             | **Wysoka**                                  |
+| **6b** | Czat — zapytania do ekspertów   | Świeża baza: rename tabeli sprawia, że 5 wołanych przez klienta RPC celuje w nieistniejącą relację (`42P01`)                                                 | **Wysoka**                                  |
+| 6c     | Czat — zapytania do ekspertów   | TOCTOU w `send_expert_inmail`: brak serializacji równoległych wysyłek (advisory lock jest tylko w generacji nieużywanej)                                     | **Średnia**                                 |
+| 6d     | Czat — zapytania do ekspertów   | `my_inmail_quota()` nie zwraca `direct` → CTA nie chowa się progom bezpośrednim; jedna gałąź copy martwa                                                     | **Średnia**                                 |
+| 7      | Czat — zapytania do ekspertów   | Zero powiadomień: ani ekspert o nowym zapytaniu, ani nadawca o decyzji                                                                                       | **Średnia**                                 |
+| 8      | Czat — wyszukiwarka kontaktów   | `search_chat_contacts` wstrzykuje surowe `p_query` w 7 `ILIKE`, bez escapowania `% _` i bez indeksu — regres wobec `search_people`                           | **Średnia**                                 |
+| 9      | Czat — prywatność wiadomości    | Dryf słownika `allow_messages_from`: bramka testuje `'contacts'`, którego CHECK nie dopuszcza (5 generacji migracji)                                         | **Średnia**                                 |
+| 10     | Profil — IA prywatności         | Ustawienia prywatności rozrzucone na 3 powierzchnie; strona nazwana „Prywatność” nie zawiera widoczności profilu                                             | **Średnia**                                 |
+| 11     | Profil — IA finansów            | 6 pozycji nawigacji na jeden temat; `/profile/subscription` jest ścisłym podzbiorem `/profile/membership`                                                    | **Średnia**                                 |
+| 12     | Przekrojowo                     | Pokrycie testami modułu 15,4 %: `src/lib/network` **0 %**, `src/components/profile` **0 %**                                                                  | **Średnia**                                 |
+| 13     | Czat/profil — typy              | Przedawnione `as never` na RPC, które SĄ już w `types.ts` — wyłącza kontrolę argumentów bramkowanego RPC                                                     | **Niska**                                   |
+| 14     | Czat — RODO/integralność        | `messages.sender_id ON DELETE CASCADE`: usunięcie konta przepisuje historię rozmówcy bez śladu                                                               | **Niska**                                   |
+| 15     | Czat — spójność prywatności     | `show_online_status` działa jednostronnie, `read_receipts_enabled` wzajemnie                                                                                 | **Niska**                                   |
+| 16     | Czat — kwoty                    | Miesięczna pula inMail liczona bez skalowania tenantem                                                                                                       | **Niska**                                   |
 
 ---
 
@@ -191,7 +191,7 @@ potwierdzić §6b na realnym `supabase db start` — to jedyne ustalenie z tej s
 
 > **Status na `d42e5eb`: naprawione, potwierdzone pomiarem.** Commit `1e17363` przemianował
 > kolidujący plik na `20260806150001_…` (rename R100, treść bit w bit), a `62ac3be` usunął go
-> całkowicie — na `main` została wyłącznie migracja *authority*. Zmierzone ponownie:
+> całkowicie — na `main` została wyłącznie migracja _authority_. Zmierzone ponownie:
 > `check:sql-migration-replay` **✓ (exit 0)**, zero zduplikowanych wersji wśród 627 plików,
 > oba testy `migrationReplay` zielone. Opis mechanizmu zostawiam, bo **to była druga
 > manifestacja tej klasy** w repozytorium (pierwsza — patrz §6b — do dziś rzutuje na schemat)
@@ -246,7 +246,7 @@ w ledgerze jako pierwszy) na kolejne sekundy, z zachowaniem względnej kolejnoś
 
 Faktycznie wykonano dokładnie to, i o krok dalej: `1e17363` przemianował plik na
 `20260806150001_…` (rename R100), a `62ac3be` **usunął go w całości** — czyli zamiast utrwalać
-wariant `is_super_admin`, porzucono go na rzecz migracji *authority*. To rozwiązuje §1 i §2
+wariant `is_super_admin`, porzucono go na rzecz migracji _authority_. To rozwiązuje §1 i §2
 jednym ruchem i jest lepsze niż sama rekomendacja: nie zostawia w łańcuchu drugiej definicji
 tej samej bramki. Zweryfikowane pomiarem na `d42e5eb` — patrz banner na początku tego paragrafu.
 
@@ -254,7 +254,7 @@ tej samej bramki. Zweryfikowane pomiarem na `d42e5eb` — patrz banner na począ
 
 > **Status na `d42e5eb`: naprawione, i to dokładnie tak, jak rekomendowała pierwsza wersja tego
 > paragrafu.** Po usunięciu kolidującej migracji (§1) ostatnią definicją `profiles_guard_verification()`
-> jest wariant *authority*: woła `can_manage_profile_verification(v_uid)` zamiast wyliczać role
+> jest wariant _authority_: woła `can_manage_profile_verification(v_uid)` zamiast wyliczać role
 > inline, a dodatkowo egzekwuje `OLD.tenant_id = current_tenant_id()` (świadomie `OLD`, bo
 > `tenant_id` przypina późniejszy alfabetycznie trigger). Inwariant behawioralny został przy tym
 > **wzmocniony, nie poluzowany**: `profilesVerificationGuard.invariant.test.ts:68–74` doszywa
@@ -276,7 +276,7 @@ tej samej bramki. Zweryfikowane pomiarem na `d42e5eb` — patrz banner na począ
 · `docs/WERYFIKACJA_PROFILI.md` (sekcja „Kto może nadawać weryfikację (autorytet)”)
 
 Weryfikacja profilu nie jest ozdobą: steruje odznaką, a odznaka `expert` nadaje **dożywotni VIP**
-(`sync_expert_vip_grant`, migracja `20260805201517`). Migracja *authority* wprowadziła jedno
+(`sync_expert_vip_grant`, migracja `20260805201517`). Migracja _authority_ wprowadziła jedno
 źródło prawdy:
 
 ```sql
@@ -299,10 +299,10 @@ IF NOT ( public.has_role(v_uid, 'admin'::app_role) OR public.is_super_admin(v_ui
 
 To **nie jest ta sama bramka**. Różnica jest w skalowaniu tenantem:
 
-| Predykat | Definicja | Zasięg |
-| -------- | --------- | ------ |
+| Predykat                    | Definicja                                                  | Zasięg                       |
+| --------------------------- | ---------------------------------------------------------- | ---------------------------- |
 | `has_role(u,'super_admin')` | `20260625160054:16` — `ur.tenant_id = current_tenant_id()` | **tenant domowy** wołającego |
-| `is_super_admin(u)` | `20260628212746` — brak filtra tenanta | **ponad tenantami** |
+| `is_super_admin(u)`         | `20260628212746` — brak filtra tenanta                     | **ponad tenantami**          |
 
 Stan efektywny (potwierdzony przez własną bramkę repo — snapshot vs migracje):
 
@@ -319,7 +319,7 @@ Trzy konsekwencje, wszystkie realne:
 1. **`can_manage_profile_verification()` przestał być „jedynym źródłem prawdy”.** Czytają go już
    tylko `admin_assert_verification_admin` i polityka RLS `verification_domains`; trigger — warstwa,
    która produkuje `42501` — go nie woła. Dokładnie ten rozjazd („te same kolumny pilnowały DWIE
-   bramki o różnych zbiorach ról”) migracja *authority* miała zamknąć na stałe; wrócił w ciągu
+   bramki o różnych zbiorach ról”) migracja _authority_ miała zamknąć na stałe; wrócił w ciągu
    jednego dnia.
 2. **Dokumentacja opisuje stan, którego nie ma.** `docs/WERYFIKACJA_PROFILI.md` twierdzi:
    „od migracji `20260806150000` decyzję »kto może« podejmuje **jeden predykat**… **zawsze w tenancie
@@ -332,13 +332,14 @@ Trzy konsekwencje, wszystkie realne:
    (`:39–41`, `:48–56`); ostatnia definicja realizuje ten sam krąg **inną pisownią**
    (`is_super_admin`), więc asercja nie widzi równoważnego predykatu i pada.
 
-**Werdykt rozdzielony, bo nie jest jednorodny:** samo *uprawnienie* `super_admin` do weryfikacji
+**Werdykt rozdzielony, bo nie jest jednorodny:** samo _uprawnienie_ `super_admin` do weryfikacji
 w praktyce **działa** (przez `is_super_admin`) — test jest tu wrażliwy na pisownię, nie na
 zachowanie. Krytyczne jest natomiast (a) rozstrzygnięcie zasięgu tenantowego, które dziś zależy od
 kolejności alfabetycznej nazw plików, oraz (b) fakt, że po tej zmianie żadna bramka nie pilnuje już
 inwariantu „jedna kolumna = jedna bramka = jeden predykat”.
 
 🔧 **Naprawa (jedna decyzja, potem trzy edycje):**
+
 1. Rozstrzygnąć produktowo: czy super-admin platformy stempluje weryfikację w **obcym** tenancie?
    Reszta modułu (`admin_set_profile_verification` w obu wariantach) trzyma równość tenantów, więc
    spójna odpowiedź brzmi „nie”.
@@ -401,7 +402,7 @@ Kod **wie o tej luce** i wprost ją nazywa — ale mityguje tylko indeksację, n
 
 `isIndexableProfile()` daje `noindex, nofollow` gołemu profilowi członka
 (`author.$slug.tsx:246–260`) — to zamyka ścieżkę „Google”, ale **nie** ścieżkę „ktokolwiek z URL-em
-lub z anon key”. Obietnica w copy dotyczy *dostępu*, nie indeksowania, więc pozostaje niespełniona.
+lub z anon key”. Obietnica w copy dotyczy _dostępu_, nie indeksowania, więc pozostaje niespełniona.
 To materiał na roszczenie z art. 5 ust. 1 lit. a RODO (rzetelność/przejrzystość), nie tylko dług
 techniczny — zgoda została zebrana pod opisem szerszym niż faktyczna ochrona.
 
@@ -474,17 +475,17 @@ o WYWOŁUJĄCYM” (art. 15 — dostęp, art. 20 — przenoszalność). Eksportu
 
 **Czego nie ma** — a jest przechowywane i jest danymi osobowymi wywołującego:
 
-| Pominięte | Tabela | Dlaczego to nie kosmetyka |
-| --------- | ------ | ------------------------- |
-| Treść rozmów | `messages`, `conversations`, `conversation_participants` | rdzeń modułu czatu; treść pisana przez podmiot danych |
-| Personalizacja rozmów | `conversation_nicknames`, `message_stars`, `message_reactions` | nadane przez użytkownika etykiety osób trzecich |
-| Zapytania do ekspertów | `expert_inmails` | temat, uzasadnienie, pytania, linki — dane wprost od użytkownika |
-| Doświadczenie zawodowe | `profile_experiences`, `profile_education`, `profile_skills`, `profile_awards`, `profile_hobbies`, `profile_cv_files` | **CV wpisane ręcznie w profil** — najbardziej „własne” dane w całym systemie |
-| Rekomendacje i poparcia | `profile_recommendations`, `profile_skill_endorsements` | wystawione i otrzymane |
-| Przedstawienia | `introduction_requests` | z treścią prośby |
-| Odsłony profilu | `profile_view_events` | „kto oglądał” + „kogo oglądałem” |
-| Moderacja | `user_reports`, `user_blocks` | zgłoszenia złożone przez użytkownika |
-| Obecność medialna | `media_mentions`, `expert_expertise_areas` | kurowane, ale wpisywane przez właściciela profilu |
+| Pominięte               | Tabela                                                                                                                | Dlaczego to nie kosmetyka                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Treść rozmów            | `messages`, `conversations`, `conversation_participants`                                                              | rdzeń modułu czatu; treść pisana przez podmiot danych                        |
+| Personalizacja rozmów   | `conversation_nicknames`, `message_stars`, `message_reactions`                                                        | nadane przez użytkownika etykiety osób trzecich                              |
+| Zapytania do ekspertów  | `expert_inmails`                                                                                                      | temat, uzasadnienie, pytania, linki — dane wprost od użytkownika             |
+| Doświadczenie zawodowe  | `profile_experiences`, `profile_education`, `profile_skills`, `profile_awards`, `profile_hobbies`, `profile_cv_files` | **CV wpisane ręcznie w profil** — najbardziej „własne” dane w całym systemie |
+| Rekomendacje i poparcia | `profile_recommendations`, `profile_skill_endorsements`                                                               | wystawione i otrzymane                                                       |
+| Przedstawienia          | `introduction_requests`                                                                                               | z treścią prośby                                                             |
+| Odsłony profilu         | `profile_view_events`                                                                                                 | „kto oglądał” + „kogo oglądałem”                                             |
+| Moderacja               | `user_reports`, `user_blocks`                                                                                         | zgłoszenia złożone przez użytkownika                                         |
+| Obecność medialna       | `media_mentions`, `expert_expertise_areas`                                                                            | kurowane, ale wpisywane przez właściciela profilu                            |
 
 Konstrukcja funkcji jest przy tym dobra: `Promise.allSettled` + jawna sekcja `errors`, kolumny
 wypisane bez `*`, sieć czytana przez te same RPC co UI (bo `user_connections` nie ma grantów).
@@ -509,14 +510,14 @@ wyłączeń z uzasadnieniem” — inaczej luka wróci przy następnej nowej tab
 To najbardziej rozgałęzione ustalenie audytu, dlatego najpierw mapa. Funkcja ma w repozytorium
 **dwie kompletne, równoległe implementacje**, różniące się nazwą tabeli i nazwami RPC:
 
-| | **Generacja A — „inmail”** | **Generacja B — „expert_request”** |
-| --- | --- | --- |
-| Tabela | `expert_inmails` (`20260723090707:131`) | `expert_requests` — **rename** tej samej tabeli (`20260723180000:299`) |
-| Pula | `my_inmail_quota()` (`20260723092200`) | `my_expert_request_quota()` (ostatnia def. `20260724090500:16`) |
-| Wysyłka | `send_expert_inmail()` (ostatnia def. `20260724130000:95`) | `send_expert_request()` (ostatnia def. `20260724090500:78`) |
-| Rozstrzygnięcie | *— brak —* | komentarz SQL: „**kanoniczny** podgląd puli” (`20260723180000:353`) |
-| **Kto tego woła w `src/`** | **KLIENT — wszystko** (`useExpertRequests.ts:50, 74, 93, 122, 148`) | **nikt** (0 trafień w `src/`) |
-| Obecność w `types.ts` | `expert_inmails`, `my_inmail_quota`, `send_expert_inmail` | `my_expert_request_quota:14014`, `send_expert_request:14768` — **ale tabeli `expert_requests` w typach nie ma** |
+|                            | **Generacja A — „inmail”**                                          | **Generacja B — „expert_request”**                                                                              |
+| -------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Tabela                     | `expert_inmails` (`20260723090707:131`)                             | `expert_requests` — **rename** tej samej tabeli (`20260723180000:299`)                                          |
+| Pula                       | `my_inmail_quota()` (`20260723092200`)                              | `my_expert_request_quota()` (ostatnia def. `20260724090500:16`)                                                 |
+| Wysyłka                    | `send_expert_inmail()` (ostatnia def. `20260724130000:95`)          | `send_expert_request()` (ostatnia def. `20260724090500:78`)                                                     |
+| Rozstrzygnięcie            | _— brak —_                                                          | komentarz SQL: „**kanoniczny** podgląd puli” (`20260723180000:353`)                                             |
+| **Kto tego woła w `src/`** | **KLIENT — wszystko** (`useExpertRequests.ts:50, 74, 93, 122, 148`) | **nikt** (0 trafień w `src/`)                                                                                   |
+| Obecność w `types.ts`      | `expert_inmails`, `my_inmail_quota`, `send_expert_inmail`           | `my_expert_request_quota:14014`, `send_expert_request:14768` — **ale tabeli `expert_requests` w typach nie ma** |
 
 Rozjazd nie jest przypadkiem — repozytorium sam go opisało, gdy się o niego potknęło:
 
@@ -611,15 +612,15 @@ wyjścia** (`20260724090500:27`, `:68`, `:73`), łącznie z `is_super_admin` i `
 Klient został więc napisany pod
 kontrakt generacji B, a woła generację A — dlatego `quota.direct` jest **zawsze `false`**:
 
-* `ExpertRequestButton.tsx:77` — `if (quota?.direct) return null;` **nigdy się nie wykonuje**,
+- `ExpertRequestButton.tsx:77` — `if (quota?.direct) return null;` **nigdy się nie wykonuje**,
   choć nagłówek pliku deklaruje: „Progi »bezpośrednie« (VIP i wyżej, eksperci, admin) piszą wprost
   przez zwykłą wiadomość — **nie pokazujemy im tego CTA**” (`:4–5`). Pokazujemy: VIP widzi obok
   siebie „Wyślij wiadomość” i „Zapytanie do eksperta”.
-* Ten sam nagłówek (`:6`) powołuje się na `my_expert_request_quota` i `send_expert_request` — czyli
+- Ten sam nagłówek (`:6`) powołuje się na `my_expert_request_quota` i `send_expert_request` — czyli
   **komentarz opisuje generację B**, a import obok woła A. To nie jest przeoczenie w komentarzu,
   to ślad, że klient nigdy nie został przepięty.
-* `ExpertRequestDialog.tsx:78` — gałąź `t("expertRequest.quota.direct")` jest **martwa**.
-* `ExpertRequestDialog.tsx:87` — `outOfQuota = !!quota && !quota.direct && quota.remaining <= 0`
+- `ExpertRequestDialog.tsx:78` — gałąź `t("expertRequest.quota.direct")` jest **martwa**.
+- `ExpertRequestDialog.tsx:87` — `outOfQuota = !!quota && !quota.direct && quota.remaining <= 0`
   działa poprawnie tylko przypadkiem.
 
 Obejście częściowe istnieje i działa: `UNLIMITED_THRESHOLD = 1000` + `isUnlimited`
@@ -636,7 +637,7 @@ tabeli to migracja z ryzykiem, a nazwa jest wewnętrzna — UI mówi „Zapytani
 niezależnie od niej). Wtedy:
 
 1. **Odwrócić rename w nowej migracji:** `ALTER TABLE IF EXISTS public.expert_requests RENAME TO
-   expert_inmails;` (+ indeksy) — idempotentnie, żeby produkcja była no-opem, a świeża baza wróciła
+expert_inmails;` (+ indeksy) — idempotentnie, żeby produkcja była no-opem, a świeża baza wróciła
    do stanu z typów. To zamyka §6b.
 2. **Przenieść obie poprawki z generacji B do generacji A** — to dwie edycje w ciele
    `send_expert_inmail` i `my_inmail_quota`: usunąć `AND status <> 'cancelled'` z obu liczników
@@ -648,7 +649,7 @@ niezależnie od niej). Wtedy:
    cienkie aliasy delegujące do A — dziś to 2 nieużywane RPC w `types.ts`, które udają kanoniczne
    i przy następnej edycji znów zmylą autora.
 5. **pgTAP na §6a:** „wyślij → anuluj → wyślij przy `quota = 1` musi odbić się o `monthly quota
-   exceeded`”. Bez tego obejście wróci, bo dziś nic go nie pilnuje —
+exceeded`”. Bez tego obejście wróci, bo dziś nic go nie pilnuje —
    `expert_request_visibility_test.sql` sprawdza widoczność, nie zużycie puli.
 
 # §7. ŚREDNIA — „Zapytanie do eksperta” nie generuje żadnego powiadomienia
@@ -766,14 +767,14 @@ jest już gotowy.
 
 Zmierzone rozmieszczenie kontrolek:
 
-| Ustawienie | Gdzie żyje | Plik |
-| ---------- | ---------- | ---- |
-| `discoverable` (widoczność w katalogu) | `/profile/edit` → zakładka „Dane podstawowe” | `AccountIdentityPanel.tsx:126–161` |
-| `expert_requests_enabled` | `/profile/edit` | `AccountIdentityPanel.tsx:166–185` |
-| `allow_messages_from`, `allow_connections_from` | `/profile/edit` | `AccountIdentityPanel.tsx:113–116` |
-| `read_receipts_enabled`, `typing_indicators_enabled`, `show_online_status` | `/profile/edit` | `AccountIdentityPanel.tsx:66–101` |
-| `profile_view_mode` (public/anonymous/private) | **karta na `/profile`** | `ProfileViewsCard` (`profile.index.tsx:616`) |
-| zgody cookie/marketing/analityka + rejestr RODO | **`/profile/privacy`** | `profile.privacy.tsx:61` |
+| Ustawienie                                                                 | Gdzie żyje                                   | Plik                                         |
+| -------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
+| `discoverable` (widoczność w katalogu)                                     | `/profile/edit` → zakładka „Dane podstawowe” | `AccountIdentityPanel.tsx:126–161`           |
+| `expert_requests_enabled`                                                  | `/profile/edit`                              | `AccountIdentityPanel.tsx:166–185`           |
+| `allow_messages_from`, `allow_connections_from`                            | `/profile/edit`                              | `AccountIdentityPanel.tsx:113–116`           |
+| `read_receipts_enabled`, `typing_indicators_enabled`, `show_online_status` | `/profile/edit`                              | `AccountIdentityPanel.tsx:66–101`            |
+| `profile_view_mode` (public/anonymous/private)                             | **karta na `/profile`**                      | `ProfileViewsCard` (`profile.index.tsx:616`) |
+| zgody cookie/marketing/analityka + rejestr RODO                            | **`/profile/privacy`**                       | `profile.privacy.tsx:61`                     |
 
 Strona, którą nawigacja nazywa „Prywatność” (`ProfileNav.tsx:80`, `profile.nav.privacy`), zawiera
 **wyłącznie** zgody CMP i katalogowe — czyli ani jednej kontrolki widoczności profilu. Jej nagłówek
@@ -794,14 +795,14 @@ prywatności →”. Jedna powierzchnia = jedno miejsce, w którym audytuje się
 Grupa „Finanse” ma sześć pozycji: `membership`, `plan`, `billing`, `subscription`, `orders`,
 `payments` (+ warunkowo `organization`). Nakładki są mierzalne:
 
-* `/profile/subscription` renderuje **wyłącznie** `<SubscriptionManagerSection />`
+- `/profile/subscription` renderuje **wyłącznie** `<SubscriptionManagerSection />`
   (`profile.subscription.tsx:12`), a `/profile/membership` renderuje ten sam komponent
   (`profile.membership.tsx:135`) plus resztę huba. Czyli `/profile/subscription` jest **ścisłym
   podzbiorem** `/profile/membership` — dwie pozycje nawigacji, jedna zawartość. Komentarz trasy
   („ten sam komponent renderuje hub członkostwa… więc obie ścieżki nigdy się nie rozjadą”,
   `profile.subscription.tsx:1–3`) rozwiązuje problem dryfu treści, ale nie tłumaczy, po co obie
   są w menu.
-* Historia płatności występuje na **trzech** stronach: skrót na `/profile/plan`
+- Historia płatności występuje na **trzech** stronach: skrót na `/profile/plan`
   (`PaymentHistoryCard limit={10} showAllLink`, `profile.plan.tsx:165`), pełna z eksportem na
   `/profile/payments` (`profile.payments.tsx:25`) i dokumenty na `/profile/orders`
   (`BillingDocumentsCard`, `profile.orders.tsx:114`).
@@ -819,16 +820,16 @@ trasę z zakładkami („Plan · Dane do faktur · Zamówienia · Historia”). 
 
 Zmierzone (v8, tylko pliki tych katalogów, testy modułu zielone — 62 pliki / 670 testów):
 
-| Katalog | Instrukcje | Pokrycie | Plików | Plików z 0 % |
-| ------- | ---------- | -------- | ------ | ------------ |
-| `src/lib/network` | 0 / 251 | **0,0 %** | 6 | **6** |
-| `src/components/profile` | 0 / 1040 | **0,0 %** | 13 | **13** |
-| `src/components/network` | 19 / 409 | 4,6 % | 13 | 12 |
-| `src/lib/profile` | 16 / 198 | 8,1 % | 8 | 6 |
-| `src/components/chat` | 309 / 1820 | 17,0 % | 27 | 19 |
-| `src/lib/chat` | 266 / 1396 | 19,1 % | 27 | 12 |
-| `src/lib/experts` | 251 / 459 | **54,7 %** | 14 | 4 |
-| **Razem** | **861 / 5573** | **15,44 %** | 108 | 72 |
+| Katalog                  | Instrukcje     | Pokrycie    | Plików | Plików z 0 % |
+| ------------------------ | -------------- | ----------- | ------ | ------------ |
+| `src/lib/network`        | 0 / 251        | **0,0 %**   | 6      | **6**        |
+| `src/components/profile` | 0 / 1040       | **0,0 %**   | 13     | **13**       |
+| `src/components/network` | 19 / 409       | 4,6 %       | 13     | 12           |
+| `src/lib/profile`        | 16 / 198       | 8,1 %       | 8      | 6            |
+| `src/components/chat`    | 309 / 1820     | 17,0 %      | 27     | 19           |
+| `src/lib/chat`           | 266 / 1396     | 19,1 %      | 27     | 12           |
+| `src/lib/experts`        | 251 / 459      | **54,7 %**  | 14     | 4            |
+| **Razem**                | **861 / 5573** | **15,44 %** | 108    | 72           |
 
 `src/lib/network` nie ma nawet katalogu `__tests__` — sześć modułów danych sieci kontaktów
 (`useConnections.ts` 350 linii, `useRecommendations.ts` 173, `useIntroductions.ts` 134,
@@ -859,11 +860,11 @@ ale testu nie dostały.
 
 # §13. NISKA — przedawnione `as never` na RPC, które są już w `types.ts`
 
-| Miejsce | Uzasadnienie w komentarzu | Stan faktyczny |
-| ------- | ------------------------- | -------------- |
-| `src/lib/chat/useConversations.ts:266–271` | „`as never` **do czasu regeneracji types.ts**” | `search_chat_contacts` jest w `types.ts:14565` z pełną sygnaturą `{ p_limit?: number; p_query?: string }` |
-| `src/lib/chat/attachments.ts:115` | (precedens, bez uzasadnienia) | `chat_check_upload_quota` jest w `types.ts:12686` |
-| `src/lib/chat/useDiscoverable.ts:54,67,87` | „Kolumna z migracji 20260724130000 — `as never` do czasu regeneracji” | `expert_requests_enabled` jest w `types.ts:8867` (Row), `:8904` (Insert), `:8941` (Update) |
+| Miejsce                                    | Uzasadnienie w komentarzu                                             | Stan faktyczny                                                                                            |
+| ------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `src/lib/chat/useConversations.ts:266–271` | „`as never` **do czasu regeneracji types.ts**”                        | `search_chat_contacts` jest w `types.ts:14565` z pełną sygnaturą `{ p_limit?: number; p_query?: string }` |
+| `src/lib/chat/attachments.ts:115`          | (precedens, bez uzasadnienia)                                         | `chat_check_upload_quota` jest w `types.ts:12686`                                                         |
+| `src/lib/chat/useDiscoverable.ts:54,67,87` | „Kolumna z migracji 20260724130000 — `as never` do czasu regeneracji” | `expert_requests_enabled` jest w `types.ts:8867` (Row), `:8904` (Insert), `:8941` (Update)                |
 
 Rzut na `never` **wyłącza kontrolę nazwy RPC i typów argumentów**. Dla `search_chat_contacts` to
 kontrola na bramkowanym RPC (zwraca tylko kontakty z zaakceptowanym połączeniem) — zmiana
@@ -914,39 +915,39 @@ z §6a/§6c**: to ta sama para funkcji i ten sam `count(*)`, więc jedna edycja 
 Audyt szuka defektów, ale przemilczenie tego byłoby zafałszowaniem obrazu — kilka rozwiązań jest
 wyraźnie powyżej średniej i **nie należy ich ruszać przy naprawach**:
 
-* **Sieć kontaktów jest RPC-only.** `user_connections` nie ma ŻADNYCH grantów dla klientów; każdy
+- **Sieć kontaktów jest RPC-only.** `user_connections` nie ma ŻADNYCH grantów dla klientów; każdy
   odczyt i zapis idzie przez SECURITY DEFINER (`useConnections.ts:1–8`). Dzięki temu odmowa
   zaproszenia jest niewidoczna dla zapraszającego (prywatność jak na LinkedIn) — i nie da się tego
   obejść, bo nie ma czego czytać.
-* **Realtime sieci nasłuchuje sygnałów pośrednich.** `user_connections` świadomie NIE jest
+- **Realtime sieci nasłuchuje sygnałów pośrednich.** `user_connections` świadomie NIE jest
   w publikacji Realtime (bo zdarzenie ujawniłoby odmowę); zamiast tego nasłuchiwane są
   `notifications kind='connection'` i licznik `connections_pending`
   (`useConnections.ts:319–350`). To rzadko spotykana dbałość o to, żeby kanał czasu rzeczywistego
   nie wyciekał informacji, której RPC pilnuje.
-* **Jeden kanał realtime na użytkownika, badge liczony z cache.** `useChatUnreadTotal` to `select`
+- **Jeden kanał realtime na użytkownika, badge liczony z cache.** `useChatUnreadTotal` to `select`
   nad **tym samym** zapytaniem co lista rozmów — zero dodatkowych round-tripów i zero drugiego
   cyklu unieważnień (`useConversations.ts:201–214`); kanał współdzielony refcountem w
   `tableChannelHub`, więc dzwonek + dock + `/messages` to jedno WebSocket.
-* **Tożsamość rozmowy nie zależy od wiersza, który RLS może ukryć.** `peerIdsFromDirectKey`
+- **Tożsamość rozmowy nie zależy od wiersza, który RLS może ukryć.** `peerIdsFromDirectKey`
   wyprowadza parę z `direct_key`, więc wyłączenie potwierdzeń odczytu przez rozmówcę nie psuje
   nagłówka wątku — zamiast tego powstaje `hiddenPeerRow` renderujący się jako „dostarczono”,
   nigdy „przeczytano” (`useConversations.ts:37–71`).
-* **Rejestr capabilities z maszynowym parytetem.** `TIER_CAPABILITIES`
+- **Rejestr capabilities z maszynowym parytetem.** `TIER_CAPABILITIES`
   (`src/lib/billing/capabilities.ts`) mówi wprost, że **11 z 20** flag warstw to dekoracja
   marketingowa bez bramki, a panel renderuje z tego badge „Egzekwowana / Dekoracyjna”. Do tego
   test parytetu vs snapshot bramek generowany ze SQL-a. Uczciwość wobec redakcji sprzedającej plany
   jest tu wpisana w typ — to najlepszy element całego modułu subskrypcji.
-* **Rozdział czterech pojęć subskrypcji jest szczelny** (patrz §2 inwentarza): `subscriptions`
+- **Rozdział czterech pojęć subskrypcji jest szczelny** (patrz §2 inwentarza): `subscriptions`
   (lustro Stripe’a) nigdy nie wchodzi do decyzji o dostępie — sprawdzone na wszystkich 33
   referencjach.
-* **Kontrakt RPC klient↔SQL↔typy jest czysty** dla wszystkich 56 RPC modułu.
-* **Załączniki czatu:** prywatny bucket, allowlista MIME bez SVG (świadomie —
+- **Kontrakt RPC klient↔SQL↔typy jest czysty** dla wszystkich 56 RPC modułu.
+- **Załączniki czatu:** prywatny bucket, allowlista MIME bez SVG (świadomie —
   `attachments.ts:12–13`), podpisane URL-e skrócone do 15 min z odświeżaniem 5 min przed
   wygaśnięciem, batch-podpisywanie całego wątku jednym wywołaniem, kwota uploadu egzekwowana RPC
   **przed** podpisaniem (bo wiersz wiadomości jeszcze nie istnieje, więc trigger rate-limitu nie
   ma czego bramkować — `attachments.ts:112–116`), oraz trigger czyszczący obiekt w storage przy
   usunięciu wiadomości (`20260801162518:45–70`).
-* **`search_people` robi wyszukiwanie porządnie**: `unaccent` + `lower` + escapowanie `\ % _`,
+- **`search_people` robi wyszukiwanie porządnie**: `unaccent` + `lower` + escapowanie `\ % _`,
   jedna kolumna `discovery_search` z indeksem trigramowym, twarde `p.discoverable` i równość
   tenanta. To wzorzec, do którego należy dociągnąć §8.
 
@@ -956,12 +957,12 @@ Kolejność dotyczy **stanu na `c6f94cf`**, czyli po wdrożeniu PR #187–#190. 
 krytyczne i wysokie są zamknięte, więc to, co zostało, jest planowe — żadna z tych rzeczy nie
 wymaga pośpiechu.
 
-| Priorytet | Pozycje | Uzasadnienie kolejności |
-| --------- | ------- | ----------------------- |
-| **P2 — planowo** | §8, §9 | §8 to przeniesienie gotowego CTE `q` z `search_people` (escape `\ % _` + `unaccent` + trigramowy `discovery_search`) — zysk: identyczna semantyka wyszukiwania w `/people` i w oknie „nowa rozmowa”, jeden indeks na obie ścieżki. §9 wymaga **decyzji produktowej**, nie tylko kodu: albo dodać realną wartość `'contacts'` (bramka jest już pod nią napisana i brakuje tej opcji między „wszyscy” a „nikt nowy”), albo usunąć martwy literał i doprecyzować etykietę. |
-| **P3 — dług** | §10, §11, §12*, §13 | IA prywatności i finansów (§10, §11) — wzorzec konsolidacji istnieje już w grupie „Tożsamość” (trzy trasy → jedna z zakładkami + przekierowania). §13 to usunięcie trzech przedawnionych rzutów. **§12 tylko w części `src/components/network`** — reszta zamknięta. |
-| **Do rozstrzygnięcia** | §14, §15 | Decyzje projektowe, nie błędy — wymagają zapisania wyboru, niekoniecznie zmiany kodu. |
-| ✅ **Zamknięte** | §1, §2, §3, §4, §5, §6a–d, §7, §16 | Potwierdzone pomiarem na `c6f94cf` — patrz sekcja 3. |
+| Priorytet              | Pozycje                            | Uzasadnienie kolejności                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P2 — planowo**       | §8, §9                             | §8 to przeniesienie gotowego CTE `q` z `search_people` (escape `\ % _` + `unaccent` + trigramowy `discovery_search`) — zysk: identyczna semantyka wyszukiwania w `/people` i w oknie „nowa rozmowa”, jeden indeks na obie ścieżki. §9 wymaga **decyzji produktowej**, nie tylko kodu: albo dodać realną wartość `'contacts'` (bramka jest już pod nią napisana i brakuje tej opcji między „wszyscy” a „nikt nowy”), albo usunąć martwy literał i doprecyzować etykietę. |
+| **P3 — dług**          | §10, §11, §12*, §13                | IA prywatności i finansów (§10, §11) — wzorzec konsolidacji istnieje już w grupie „Tożsamość” (trzy trasy → jedna z zakładkami + przekierowania). §13 to usunięcie trzech przedawnionych rzutów. **§12 tylko w części `src/components/network`** — reszta zamknięta.                                                                                                                                                                                                    |
+| **Do rozstrzygnięcia** | §14, §15                           | Decyzje projektowe, nie błędy — wymagają zapisania wyboru, niekoniecznie zmiany kodu.                                                                                                                                                                                                                                                                                                                                                                                   |
+| ✅ **Zamknięte**       | §1, §2, §3, §4, §5, §6a–d, §7, §16 | Potwierdzone pomiarem na `c6f94cf` — patrz sekcja 3.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Jedna rekomendacja domykająca §12.** `src/components/network` to jedyny katalog audytu, którego
 fala poprawek nie ruszyła: 4,6 % pokrycia, 12 z 13 plików na zerze. Priorytetem nie jest procent,
@@ -979,7 +980,7 @@ po pierwszym incydencie, **wykryła drugi i doprowadziła do jego naprawy w cią
 to zadziałało dokładnie tak, jak miało.
 
 Konsekwencja, o którą tu chodzi, jest jednak ogólniejsza: **usunięcie kolizji odmraża zmianę,
-którą kolizja wcześniej wstrzymywała.** Dla jasności — to *nie* naprawa §1 odblokowała rename
+którą kolizja wcześniej wstrzymywała.** Dla jasności — to _nie_ naprawa §1 odblokowała rename
 tabeli z §6b. Tamta kolizja (`20260723180000`) została zdjęta wcześniej, przez scalenie obu
 plików w jeden (marker `SCALONE Z:` w `20260723180000_chat_plus_tier_gating_and_benefit.sql:260`),
 i już wtedy rename stał się częścią każdego replayu. §6b jest więc żywy niezależnie od §1 —
