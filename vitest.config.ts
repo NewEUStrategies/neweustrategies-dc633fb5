@@ -500,6 +500,39 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── MODUŁ 7: REZERWACJA MIEJSC I BILET ────────────────────────────────
+        // Audyt 18.08 pokazał `ticket.server.ts` i `ticketCode.ts` z ZEREM
+        // wywołanych funkcji, mimo że to jedyne miejsce w TypeScripcie, które
+        // decyduje „czy jest jeszcze miejsce". pgTAP dowodzi FIFO listy
+        // rezerwowej i bramki tier w bazie, ale bramkę sprzedaży trzyma ta
+        // warstwa - i to ona rozstrzyga w dwie strony o pieniądzach: przed
+        // zakupem (`checkout.functions`, `adhocCheckoutOrder.server`) i po
+        // zapłacie (`oneTimeFulfilment.refundIfOversold`, który łapie WYŁĄCZNIE
+        // `err.message === "event_full"` i rzuca dalej wszystko inne).
+        //
+        // Trzymamy pod 100% na trzech metrykach, bo warstwa jest w pełni
+        // wstrzykiwalna: `assertSeatAvailable` i `loadMyEventTicket` biorą
+        // klienta parametrem, a `loadEventSeatState` buduje go przez
+        // `createClient` (mockowany w teście razem z opakowanym `fetch`).
+        "src/lib/events/ticket.server.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // ticketCode.ts - gałęzie stoją na 75% i to jest liczba UCZCIWA, nie
+        // niedoróbka testu: ramię `Number.isNaN(value) ? index : value` jest
+        // NIEOSIĄGALNE. `hex` jest wcześniej przefiltrowany do [0-9a-f], a
+        // fallback pustego kawałka to `String(i)` (cyfra 0-7), więc
+        // `Number.parseInt(chunk, 16)` nigdy nie zwróci NaN. Zostawiamy ten
+        // kod jako obronę na wypadek zmiany filtra i NIE naginamy testu, żeby
+        // sztucznie dobić gałąź.
+        "src/lib/events/ticketCode.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 70,
+        },
       },
     },
   },
