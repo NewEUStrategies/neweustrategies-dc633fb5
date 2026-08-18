@@ -980,7 +980,10 @@ describe("regenerateThumbnails", () => {
   it("odpytuje KAŻDY rozmiar dla KAŻDEGO pliku metodą HEAD", async () => {
     // Natywny `sharp` nie działa w Workers - warianty materializuje sam
     // Supabase przy pierwszym żądaniu, więc rozgrzewka to seria HEAD-ów.
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }));
+    const fetchMock = vi.fn(async (_url: string, _init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+    }));
     vi.stubGlobal("fetch", fetchMock);
     library([SRC, SRC], [{ name: "karta", width: 640, height: 360 }]);
 
@@ -1015,7 +1018,10 @@ describe("regenerateThumbnails", () => {
   });
 
   it("pomija wiersze bez adresu publicznego", async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }));
+    const fetchMock = vi.fn(async (_url: string, _init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+    }));
     vi.stubGlobal("fetch", fetchMock);
     library([null, SRC], [{ name: "karta", width: 640, height: 360 }]);
 
@@ -1026,7 +1032,10 @@ describe("regenerateThumbnails", () => {
   });
 
   it("bez zdefiniowanych rozmiarów nie wykonuje ANI JEDNEGO żądania", async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }));
+    const fetchMock = vi.fn(async (_url: string, _init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+    }));
     vi.stubGlobal("fetch", fetchMock);
     library([SRC], []);
 

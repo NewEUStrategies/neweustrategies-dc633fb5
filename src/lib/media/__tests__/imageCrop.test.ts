@@ -43,10 +43,6 @@ class ImageStub {
   naturalHeight = 0;
   #src = "";
 
-  constructor() {
-    lastImage = this;
-  }
-
   set src(value: string) {
     this.#src = value;
     const o = imageOptions;
@@ -151,7 +147,13 @@ beforeEach(() => {
   for (const key of Object.keys(canvasBehaviour)) {
     delete canvasBehaviour[key as keyof CanvasBehaviour];
   }
-  vi.stubGlobal("Image", ImageStub);
+  // Konstruktor-opakowanie zamiast zapisu `this` w ciele klasy: rejestruje
+  // utworzoną atrapę, żeby test mógł sprawdzić `crossOrigin`.
+  vi.stubGlobal("Image", function ImageCtor() {
+    const image = new ImageStub();
+    lastImage = image;
+    return image;
+  });
   vi.spyOn(document, "createElement").mockImplementation(((tag: string) => {
     if (tag !== "canvas") throw new Error(`nieoczekiwany element w teście: ${tag}`);
     const canvas = makeCanvas(canvases.length);
