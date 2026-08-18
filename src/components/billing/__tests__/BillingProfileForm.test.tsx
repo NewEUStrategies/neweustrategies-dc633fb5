@@ -357,3 +357,111 @@ describe("BillingProfileForm - skutki zapisu", () => {
     expect(screen.getByRole("button", { name: "Zapisz i kontynuuj" })).toBeTruthy();
   });
 });
+
+describe("BillingProfileForm - wszystkie pola faktury trafiają do zapisu", () => {
+  // Każde pole ma własny `onChange`. Test przechodzi po WSZYSTKICH, bo dane
+  // z tego formularza idą wprost na dokument księgowy: pominięte pole to
+  // faktura bez adresu albo bez nazwy nabywcy, czyli dokument do korekty.
+  // `company` i `fullName` WYKLUCZAJĄ SIĘ: tryb firmy pokazuje nazwę firmy,
+  // tryb prywatny - imię i nazwisko. Pola wspólne są tu, nazwa nabywcy osobno.
+  const SHARED_FIELDS: Array<[string, string]> = [
+    ["profile.billing.email", "syntetyczny@example.test"],
+    ["profile.billing.phone", "+48000000000"],
+    ["profile.billing.addressLine1", "Testowa 1"],
+    ["profile.billing.addressLine2", "lok. 2"],
+    ["profile.billing.postalCode", "00-001"],
+    ["profile.billing.city", "Warszawa"],
+    ["profile.billing.region", "mazowieckie"],
+  ];
+
+  function fillShared(): void {
+    for (const [label, value] of SHARED_FIELDS) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    }
+  }
+
+  it("tryb PRYWATNY: imię i nazwisko oraz adres idą do zapisu w całości", async () => {
+    renderWithQueryClient(<BillingProfileForm />);
+    await waitFor(() => expect(countryField()).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("profile.billing.fullName"), {
+      target: { value: "Jan Syntetyczny" },
+    });
+    fillShared();
+    submitForm();
+
+    await waitFor(() => expect(h.saved).toHaveLength(1));
+    expect(h.saved[0]).toMatchObject({
+      full_name: "Jan Syntetyczny",
+      email: "syntetyczny@example.test",
+      phone: "+48000000000",
+      address_line1: "Testowa 1",
+      address_line2: "lok. 2",
+      postal_code: "00-001",
+      city: "Warszawa",
+      region: "mazowieckie",
+    });
+  });
+
+  it("tryb FIRMY: nazwa firmy zastępuje imię i nazwisko na dokumencie", async () => {
+    renderWithQueryClient(<BillingProfileForm />);
+    await waitFor(() => expect(countryField()).toBeTruthy());
+    enableCompany();
+    await waitFor(() => expect(taxField()).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("profile.billing.company"), {
+      target: { value: "Firma Syntetyczna" },
+    });
+    fillShared();
+    fillTaxId(NIP_OK);
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    submitForm();
+
+    await waitFor(() => expect(h.saved).toHaveLength(1));
+    expect(h.saved[0]).toMatchObject({
+      company: "Firma Syntetyczna",
+      tax_id: NIP_OK,
+      city: "Warszawa",
+      is_company: true,
+    });
+    // Pole imienia i nazwiska nie istnieje w trybie firmy.
+    expect(screen.queryByLabelText("profile.billing.fullName")).toBeNull();
+  });
+
+  it("KOD KRAJU jest normalizowany do wielkich liter", async () => {
+    renderWithQueryClient(<BillingProfileForm />);
+    await waitFor(() => expect(countryField()).toBeTruthy());
+
+    fireEvent.change(countryField(), { target: { value: "de" } });
+
+    expect(countryField().value).toBe("DE");
+    submitForm();
+    await waitFor(() => expect(h.saved[0].country_code).toBe("DE"));
+  });
+
+  it("wyłączenie trybu firmy usuwa pole NIP z formularza", async () => {
+    renderWithQueryClient(<BillingProfileForm />);
+    await waitFor(() => expect(countryField()).toBeTruthy());
+
+    enableCompany();
+    await waitFor(() => expect(taxField()).toBeTruthy());
+    fireEvent.click(companySwitch());
+
+    await waitFor(() => expect(screen.queryByLabelText("profile.billing.taxId")).toBeNull());
+    expect(companySwitch().getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("BŁĘDNY NIP po wyłączeniu trybu firmy przestaje blokować zapis", async () => {
+    renderWithQueryClient(<BillingProfileForm />);
+    await waitFor(() => expect(countryField()).toBeTruthy());
+    enableCompany();
+    await waitFor(() => expect(taxField()).toBeTruthy());
+    fillTaxId(NIP_BAD_CHECKSUM);
+    await waitFor(() => expect(submitButton().hasAttribute("disabled")).toBe(true));
+
+    fireEvent.click(companySwitch());
+
+    await waitFor(() => expect(submitButton().hasAttribute("disabled")).toBe(false));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});

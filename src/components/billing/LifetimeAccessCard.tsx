@@ -6,13 +6,8 @@ import { useTranslation } from "react-i18next";
 import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useMyGrants, type MembershipGrantRow } from "@/lib/billing/membership";
+import { activeGrants, isLifetimeGrant, useMyGrants } from "@/lib/billing/membership";
 import { useCurrentTier } from "@/lib/billing/tiers";
-
-/** Nadanie bez daty końca = dostęp dożywotni. */
-function isLifetime(grant: MembershipGrantRow): boolean {
-  return !grant.expires_at;
-}
 
 export function LifetimeAccessCard() {
   const { t, i18n } = useTranslation();
@@ -20,9 +15,8 @@ export function LifetimeAccessCard() {
   const grantsQ = useMyGrants();
   const tierQ = useCurrentTier();
 
-  const grants = (grantsQ.data ?? []).filter(
-    (g) => !g.revoked_at && (isLifetime(g) || new Date(g.expires_at as string) > new Date()),
-  );
+  // Wspólna reguła zamiast lokalnej kopii - patrz komentarz przy `activeGrants`.
+  const grants = activeGrants(grantsQ.data ?? []);
   if (grants.length === 0) return null;
 
   const tier = tierQ.data ?? null;
@@ -43,7 +37,7 @@ export function LifetimeAccessCard() {
               {grant.tier_key === tier?.key && tierName ? tierName : grant.tier_key.toUpperCase()}
             </span>
             <Badge variant="secondary">
-              {isLifetime(grant)
+              {isLifetimeGrant(grant)
                 ? t("profile.planPage.grantLifetime")
                 : new Date(grant.expires_at as string).toLocaleDateString(
                     lang === "en" ? "en-GB" : "pl-PL",

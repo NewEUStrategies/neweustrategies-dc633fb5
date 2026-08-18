@@ -30,7 +30,7 @@ import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
 import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
-import { useMyGrants } from "@/lib/billing/membership";
+import { primaryGrant, useMyGrants } from "@/lib/billing/membership";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
 function TierChip() {
@@ -70,10 +70,9 @@ export function SubscriptionManagerSection() {
   // Nadanie (dożywotni VIP eksperta) zastępuje komunikat „brak subskrypcji" -
   // użytkownik ma widzieć swój realny poziom dostępu, nie pustkę.
   const grantsQ = useMyGrants();
-  const activeGrant =
-    (grantsQ.data ?? []).find(
-      (g) => !g.revoked_at && (!g.expires_at || new Date(g.expires_at).getTime() > Date.now()),
-    ) ?? null;
+  // Reguła „które nadanie faktycznie daje dostęp" mieszka w lib/billing/membership
+  // (jedna dla wszystkich ekranów) - tu była jej lokalna kopia.
+  const activeGrant = primaryGrant(grantsQ.data ?? []);
 
   const providerSubQ = useMySubscriptionProvider();
   const providerSub = providerSubQ.data ?? null;

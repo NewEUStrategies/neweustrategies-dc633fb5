@@ -72,7 +72,10 @@ vi.mock("@/lib/billing/subscriptionQueries", async (importOriginal) => ({
   fetchMyStripeSubscription: () => Promise.resolve(h.providerSub.current),
 }));
 
-vi.mock("@/lib/billing/membership", () => ({
+// Reguła „które nadanie daje dostęp" (`activeGrants`/`primaryGrant`) NIE jest
+// atrapą - jest przedmiotem użycia. Atrapą jest tylko odczyt z bazy.
+vi.mock("@/lib/billing/membership", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/billing/membership")>()),
   useMyGrants: () => ({ data: h.grants.current }),
 }));
 
