@@ -91,13 +91,18 @@ describe("buildMenuTree", () => {
     expect(buildMenuTree([])).toEqual([]);
   });
 
-  it("SIEROTA (rodzic spoza listy) nie trafia do drzewa edytora", () => {
-    // STAN FAKTYCZNY, nie postulat: publiczne `SiteMenu` promuje taką pozycję
-    // na najwyższy poziom, więc pozycja WIDOCZNA na stronie jest NIEWIDOCZNA
-    // w edytorze. Asymetria jest naprawiana osobnym commitem - ten test
-    // przypina dzisiejsze zachowanie, żeby zmiana była widoczna w diffie.
-    const items = [node("a", null, 0), node("orphan", "zniknięty-rodzic", 0)];
-    expect(shape(buildMenuTree(items))).toBe("a");
+  it("SIEROTA (rodzic spoza listy) wraca na najwyższy poziom, a nie znika", () => {
+    // Do 18.08.2026 edytor gubił taką pozycję bez śladu, choć publiczne
+    // `SiteMenu` pokazywało ją w nawigacji. Administrator nie mógł jej ani
+    // poprawić, ani usunąć - a zapis (delete-all + insert-all) kasował ją
+    // z bazy przy najbliższym kliknięciu „Zapisz".
+    const items = [node("a", null, 0), node("orphan", "zniknięty-rodzic", 1)];
+    expect(shape(buildMenuTree(items))).toBe("a,orphan");
+  });
+
+  it("sierota wchodzi w kolejność rzędu po swoim `position`", () => {
+    const items = [node("a", null, 1), node("orphan", "duch", 0)];
+    expect(shape(buildMenuTree(items))).toBe("orphan,a");
   });
 
   it("cykl w danych nie zawiesza budowy - pierścień po prostu nie ma korzenia", () => {

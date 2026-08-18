@@ -62,18 +62,23 @@ export type MenuDropMode = "before" | "after" | "child";
 /**
  * Buduje drzewo z płaskiej listy, sortując rodzeństwo po `position`.
  *
- * Pozycja wskazująca rodzica, którego NIE MA na liście, nie trafia do drzewa:
- * ląduje w kubełku, po który nikt nie sięga (patrz test „sierota"). To jest
- * dzisiejsze zachowanie edytora, przeniesione tu bez zmian.
+ * SIEROTA (pozycja wskazująca rodzica, którego nie ma na liście) wraca na
+ * najwyższy poziom - dokładnie tak, jak od zawsze robi to publiczne `SiteMenu`.
+ * Wcześniej edytor grupował po surowej wartości `parent_local_id`, więc sierota
+ * lądowała w kubełku, po który rekurencja nigdy nie sięgała: pozycja WIDOCZNA
+ * w nawigacji serwisu była NIEWIDOCZNA w edytorze, nie dało się jej ani
+ * poprawić, ani skasować, a zapis (delete-all + insert-all) usuwał ją z bazy
+ * przy najbliższym „Zapisz" - bez śladu i bez ostrzeżenia.
  *
  * Cykl w danych (A rodzicem B, B rodzicem A) nie zawiesza budowy: żaden
  * z wierzchołków pierścienia nie jest korzeniem, więc rekurencja nigdy do
  * niego nie wchodzi.
  */
 export function buildMenuTree<T extends MenuTreeItem>(items: readonly T[]): MenuTreeNode<T>[] {
+  const known = new Set(items.map((it) => it.local_id));
   const byParent = new Map<string | null, T[]>();
   for (const it of items) {
-    const key = it.parent_local_id;
+    const key = it.parent_local_id && known.has(it.parent_local_id) ? it.parent_local_id : null;
     const arr = byParent.get(key) ?? [];
     arr.push(it);
     byParent.set(key, arr);
