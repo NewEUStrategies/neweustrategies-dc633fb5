@@ -285,15 +285,15 @@ export default defineConfig({
         // środowiska CI) i wolno je wyłącznie podnosić - identyczna zasada, co
         // przy sieci kontaktów i paywallu wyżej.
         //
-        // WARSTWA DANYCH: 19,67% -> 70,34% instrukcji. Niedobita reszta to
-        // powierzchnie z własnymi warstwami danych, których ten PR nie dotykał
-        // (katalog osób, skrzynka zapytań do eksperta, nagrywanie głosu,
-        // dataset emoji) - one są następnym krokiem, nie regresją tego.
+        // WARSTWA DANYCH: 19,67% -> 78,52% instrukcji (84,82% funkcji).
+        // Niedobita reszta to nagrywanie głosu (MediaRecorder), toasty
+        // przychodzące, katalog osób i pseudonimy - powierzchnie z własnymi
+        // warstwami danych, które są następnym krokiem, nie regresją tego.
         "src/lib/chat/**": {
-          statements: 66,
-          functions: 70,
-          lines: 69,
-          branches: 61,
+          statements: 74,
+          functions: 80,
+          lines: 77,
+          branches: 67,
         },
         // CZYSTE MODUŁY WĄTKU trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak pozostałe czyste moduły w tym pliku. To one
