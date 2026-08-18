@@ -58,7 +58,7 @@
     "check:i18n-default-value": "bun run scripts/check-i18n-default-value.ts",
     "codemod:i18n-default-value": "bun run scripts/codemod-i18n-default-value.ts",
     "check:i18n-overlay-imports": "bun run scripts/check-i18n-overlay-imports.ts",
-    "check:i18n-parity": "vitest run src/__tests__/i18nParity.gate.test.ts src/__tests__/i18nKeyDrift.gate.test.ts src/lib/ci/__tests__ src/components/network/__tests__/networkI18nKeys.gate.test.ts src/components/clubs/__tests__/clubI18nKeys.gate.test.ts",
+    "check:i18n-parity": "vitest run src/__tests__/i18nParity.gate.test.ts src/__tests__/i18nKeyDrift.gate.test.ts src/lib/ci/__tests__ src/components/network/__tests__/networkI18nKeys.gate.test.ts src/components/clubs/__tests__/clubI18nKeys.gate.test.ts src/components/admin/post-editor/__tests__/i18nParity.test.ts src/components/admin/post-editor/__tests__/workflowTriggerParity.gate.test.ts",
     "check:widget-fidelity": "FIDELITY_REPORT=1 vitest run src/components/admin/builder/__tests__/settingsFidelity.gate.test.tsx src/components/admin/builder/__tests__/sampleDataLeak.gate.test.tsx src/lib/builder/__tests__/localizedQueryKeys.gate.test.ts",
     "report:deployment": "bun run scripts/deployment-report.ts",
     "cron:tick": "node scripts/scheduler-tick.mjs",
