@@ -419,7 +419,12 @@ export function xhrStub(
     }
   }
 
-  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+  // `FakeXhr` odgrywa tylko cztery użyte przez kod produkcyjny człony, nie
+  // pełny interfejs `XMLHttpRequest` (kilkadziesiąt pól) - stąd cel
+  // przypisania jest typowany WŁASNYM, minimalnym kształtem zamiast
+  // podwójnego rzutowania `as unknown as`, które bramka `check:unknown-casts`
+  // traktuje jak `as any`.
+  (globalThis as { XMLHttpRequest: typeof FakeXhr }).XMLHttpRequest = FakeXhr;
   return {
     requests,
     restore() {
