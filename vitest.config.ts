@@ -11,6 +11,13 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
+      // Raport POWSTAJE TAKŻE NA CZERWONEJ SUICIE. `checkThresholds()` żyje
+      // wewnątrz `reportCoverage()`, z którego vitest wychodzi natychmiast po
+      // pierwszym nieudanym teście - bez tej flagi każda praca nad pokryciem
+      // na czerwonym maine była ślepa: nie dało się zmierzyć WŁASNEJ zmiany,
+      // dopóki cudzy test nie wrócił do zieleni. Progi nadal oblewają bieg,
+      // zmienia się tylko to, czy liczby w ogóle zobaczymy.
+      reportOnFailure: true,
       // HONEST measurement scope: the WHOLE application source. The previous
       // config whitelisted ~38 files (~5% of src/) and presented a 98% number
       // for that sliver as if it were the project's coverage. Coverage is now
