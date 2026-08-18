@@ -14604,6 +14604,24 @@ export type Database = {
           title_en: string | null
           title_pl: string | null
         }
+        Insert: {
+          is_visible?: boolean | null
+          key?: string | null
+          sort_order?: number | null
+          subtitle_en?: never
+          subtitle_pl?: never
+          title_en?: never
+          title_pl?: never
+        }
+        Update: {
+          is_visible?: boolean | null
+          key?: string | null
+          sort_order?: number | null
+          subtitle_en?: never
+          subtitle_pl?: never
+          title_en?: never
+          title_pl?: never
+        }
         Relationships: []
       }
       content_access_public: {
