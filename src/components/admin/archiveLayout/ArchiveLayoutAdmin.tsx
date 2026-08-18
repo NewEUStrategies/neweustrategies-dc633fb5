@@ -28,6 +28,7 @@ import {
 } from "@/lib/archive-layout-settings";
 import { LAYOUT_REGISTRY, type LayoutVariant } from "@/components/archive/layouts/registry";
 import { ArchiveLivePreview } from "./ArchiveLivePreview";
+import { moveWidget as moveWidgetIn, toggleWidget as toggleWidgetIn } from "./lib/widgetOrder";
 import "@/lib/i18n-archive-layout";
 
 interface Props {
@@ -90,28 +91,24 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
   const set = <K extends keyof ArchiveLayoutSettings>(key: K, value: ArchiveLayoutSettings[K]) =>
     setDraft((d) => (d ? { ...d, [key]: value } : d));
 
-  const moveWidget = (key: SidebarWidgetKey, dir: -1 | 1) => {
+  // Reguły listy widgetów mieszkają w `lib/widgetOrder` (czyste, testowalne);
+  // tutaj zostaje samo wpięcie ich w stan wersji roboczej.
+  const applyWidgets = (
+    next: (widgets: readonly SidebarWidgetKey[]) => readonly SidebarWidgetKey[],
+  ) =>
     setDraft((d) => {
       if (!d) return d;
-      const arr = [...d.sidebar_widgets];
-      const idx = arr.indexOf(key);
-      if (idx < 0) return d;
-      const next = idx + dir;
-      if (next < 0 || next >= arr.length) return d;
-      [arr[idx], arr[next]] = [arr[next], arr[idx]];
-      return { ...d, sidebar_widgets: arr };
+      const widgets = next(d.sidebar_widgets);
+      return widgets === d.sidebar_widgets
+        ? d
+        : { ...d, sidebar_widgets: widgets as SidebarWidgetKey[] };
     });
-  };
 
-  const toggleWidget = (key: SidebarWidgetKey, on: boolean) => {
-    setDraft((d) => {
-      if (!d) return d;
-      const has = d.sidebar_widgets.includes(key);
-      if (on && !has) return { ...d, sidebar_widgets: [...d.sidebar_widgets, key] };
-      if (!on && has) return { ...d, sidebar_widgets: d.sidebar_widgets.filter((w) => w !== key) };
-      return d;
-    });
-  };
+  const moveWidget = (key: SidebarWidgetKey, dir: -1 | 1) =>
+    applyWidgets((widgets) => moveWidgetIn(widgets, key, dir));
+
+  const toggleWidget = (key: SidebarWidgetKey, on: boolean) =>
+    applyWidgets((widgets) => toggleWidgetIn(widgets, key, on));
 
   const title =
     archiveType === "category"
