@@ -15,6 +15,7 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   parseMegaConfig,
   saveMenuInputSchema,
+  type SaveMenuInput,
   type MenuItemRow,
   type MenuItemType,
   type MenuWithItems,
@@ -34,16 +35,32 @@ export interface MenuSummary {
   name: string;
 }
 
+/**
+ * Ciała handlerów są zwykłymi funkcjami, a `createServerFn` zostaje CIENKĄ
+ * OBWOLUTĄ. Powód jest praktyczny: server fn nie da się wywołać bez kontekstu
+ * żądania frameworka, więc dopóki orkiestracja siedziała w `.handler(...)`,
+ * cały plik stał na 0% - łącznie z bramką roli i kolejnością wstawiania,
+ * czyli miejscami, w których błąd kosztuje najwięcej. Klient jest parametrem
+ * z wartością domyślną, więc produkcja nie zmienia zachowania, a test podaje
+ * własną atrapę łańcucha PostgREST.
+ */
+export type MenuReadClient = Pick<ReturnType<typeof serverPublicClient>, "from">;
+
+export async function listMenuSummaries(
+  supabase: MenuReadClient = serverPublicClient(),
+): Promise<MenuSummary[]> {
+  const { data, error } = await supabase.from("menus").select("id, key, name").order("key");
+  if (error) {
+    // Lista menu to ekran administracyjny - pusta lista jest czytelniejsza
+    // niż pięćset z błędem, a powód zostaje w logu serwera.
+    console.error("[listMenus]", error.message);
+    return [];
+  }
+  return (data ?? []) as MenuSummary[];
+}
+
 export const listMenus = createServerFn({ method: "GET" }).handler(
-  async (): Promise<MenuSummary[]> => {
-    const supabase = serverPublicClient();
-    const { data, error } = await supabase.from("menus").select("id, key, name").order("key");
-    if (error) {
-      console.error("[listMenus]", error.message);
-      return [];
-    }
-    return (data ?? []) as MenuSummary[];
-  },
+  async (): Promise<MenuSummary[]> => listMenuSummaries(),
 );
 
 const getMenuInputSchema = z.object({ key: z.string().min(1).max(64) });
@@ -60,8 +77,10 @@ export const getMenuWithItems = createServerFn({ method: "GET" })
     return edgeTtlCache(`menu-with-items:${data.key}`, 60_000, () => fetchMenuWithItems(data.key));
   });
 
-async function fetchMenuWithItems(key: string): Promise<MenuWithItems | null> {
-  const supabase = serverPublicClient();
+export async function fetchMenuWithItems(
+  key: string,
+  supabase: MenuReadClient = serverPublicClient(),
+): Promise<MenuWithItems | null> {
   // Jedno okrążenie zamiast dwóch sekwencyjnych: nagłówek pokazywał się
   // dopiero po dwóch round-tripach do bazy (menu -> pozycje). Pozycje
   // filtrujemy przez inner join po `menus.key`, więc obie odpowiedzi lecą
@@ -106,83 +125,130 @@ async function fetchMenuWithItems(key: string): Promise<MenuWithItems | null> {
   return { id: menu.id, key: menu.key, name: menu.name, items: normalized };
 }
 
+/**
+ * Klient użytkownika (z sesją) - `from` do tabel i `rpc` do bramek ról.
+ * Kształt jest zawężony strukturalnie, żeby test mógł podać atrapę bez
+ * odtwarzania całego `SupabaseClient`.
+ */
+export interface MenuWriteClient {
+  from: (table: string) => never;
+  rpc: (fn: string, args: Record<string, unknown>) => never;
+}
+
+/**
+ * Zapis menu: bramka roli, wyczyszczenie starych pozycji, wstawienie nowych
+ * POZIOMAMI (BFS).
+ *
+ * DLACZEGO POZIOMAMI: `parent_id` wskazuje wiersz z tej samej partii, a klucz
+ * obcy sprawdzany jest per wiersz - wstawienie wszystkiego naraz wywala się na
+ * dziecku, które wyprzedziło rodzica.
+ *
+ * SIEROTA (pozycja wskazująca rodzica nieobecnego w payloadzie) zapisuje się
+ * na NAJWYŻSZYM poziomie: mapowanie `local_id -> uuid` nie zna takiego rodzica,
+ * więc `parent_id` wychodzi `null`. Zgadza się to z tym, co edytor pokazuje po
+ * poprawce z 18.08.2026 - pozycja jest widoczna u góry drzewa i tam też ląduje.
+ * (Komentarz w tym miejscu twierdził wcześniej, że taki wpis „nigdy nie zostanie
+ * wstawiony" - nieprawda, wpis wchodzi jako pozycja najwyższego poziomu.)
+ */
+export async function saveMenuItems(
+  supabase: MenuWriteClient,
+  userId: string,
+  data: SaveMenuInput,
+  makeId: () => string = () => crypto.randomUUID(),
+): Promise<{ ok: true }> {
+  const client = supabase as unknown as {
+    from: (table: string) => {
+      select: (cols: string) => {
+        eq: (
+          col: string,
+          val: unknown,
+        ) => {
+          maybeSingle: () => Promise<{
+            data: { id: string; tenant_id: string } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+      delete: () => {
+        eq: (col: string, val: unknown) => Promise<{ error: { message: string } | null }>;
+      };
+      insert: (rows: unknown[]) => Promise<{ error: { message: string } | null }>;
+    };
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
+  };
+
+  // Twarda bramka staff (admin/editor). RLS też to wymusi, ale komunikat
+  // „Forbidden" jest czytelniejszy niż 42501 z bazy.
+  const [{ data: isAdmin }, { data: isEditor }] = await Promise.all([
+    client.rpc("has_role", { _user_id: userId, _role: "admin" }),
+    client.rpc("has_role", { _user_id: userId, _role: "editor" }),
+  ]);
+  if (!isAdmin && !isEditor) throw new Error("Forbidden: staff role required");
+
+  const { data: menu, error: menuErr } = await client
+    .from("menus")
+    .select("id, tenant_id")
+    .eq("key", data.menu_key)
+    .maybeSingle();
+  if (menuErr) throw new Error(`menu lookup: ${menuErr.message}`);
+  if (!menu) throw new Error(`Menu '${data.menu_key}' nie istnieje`);
+
+  // Wyczyść stare pozycje. RLS ograniczy do tenanta użytkownika.
+  const { error: delErr } = await client.from("menu_items").delete().eq("menu_id", menu.id);
+  if (delErr) throw new Error(`delete items: ${delErr.message}`);
+
+  if (data.items.length === 0) return { ok: true };
+
+  // Mapuj local_id -> nowe UUID, żeby zachować hierarchię.
+  const localToUuid = new Map<string, string>();
+  for (const it of data.items) localToUuid.set(it.local_id, makeId());
+
+  const rows = data.items.map((it) => ({
+    id: localToUuid.get(it.local_id)!,
+    menu_id: menu.id,
+    parent_id: it.parent_local_id ? (localToUuid.get(it.parent_local_id) ?? null) : null,
+    position: it.position,
+    item_type: it.item_type,
+    ref_id: it.ref_id,
+    label_pl: it.label_pl,
+    label_en: it.label_en,
+    href: it.href,
+    target: it.target,
+    css_class: it.css_class,
+    icon: it.icon,
+    mega_enabled: it.mega_enabled,
+    mega_config: it.mega_config,
+  }));
+
+  const byParent = new Map<string | null, typeof rows>();
+  for (const r of rows) {
+    const k = r.parent_id;
+    const arr = byParent.get(k) ?? [];
+    arr.push(r);
+    byParent.set(k, arr);
+  }
+  const queue: (string | null)[] = [null];
+  while (queue.length) {
+    const parent = queue.shift() ?? null;
+    const batch = byParent.get(parent) ?? [];
+    if (batch.length === 0) continue;
+    const { error: insErr } = await client.from("menu_items").insert(batch);
+    if (insErr) throw new Error(`insert items: ${insErr.message}`);
+    for (const r of batch) queue.push(r.id);
+  }
+  return { ok: true };
+}
+
 export const saveMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveMenuInputSchema.parse(input))
-  .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const { supabase, userId } = context;
-
-    // Hard guard: staff (admin/editor) - RLS też to wymusi, ale chcemy jasny błąd.
-    const [{ data: isAdmin }, { data: isEditor }] = await Promise.all([
-      supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
-      supabase.rpc("has_role", { _user_id: userId, _role: "editor" }),
-    ]);
-    if (!isAdmin && !isEditor) throw new Error("Forbidden: staff role required");
-
-    const { data: menu, error: menuErr } = await supabase
-      .from("menus")
-      .select("id, tenant_id")
-      .eq("key", data.menu_key)
-      .maybeSingle();
-    if (menuErr) throw new Error(`menu lookup: ${menuErr.message}`);
-    if (!menu) throw new Error(`Menu '${data.menu_key}' nie istnieje`);
-
-    // Wyczyść stare pozycje. RLS ograniczy do tenanta użytkownika.
-    const { error: delErr } = await supabase.from("menu_items").delete().eq("menu_id", menu.id);
-    if (delErr) throw new Error(`delete items: ${delErr.message}`);
-
-    if (data.items.length === 0) return { ok: true };
-
-    // Mapuj local_id -> nowe UUID, żeby zachować hierarchię.
-    const localToUuid = new Map<string, string>();
-    for (const it of data.items) localToUuid.set(it.local_id, crypto.randomUUID());
-
-    const rows = data.items.map((it) => ({
-      id: localToUuid.get(it.local_id)!,
-      menu_id: menu.id as string,
-      parent_id: it.parent_local_id ? (localToUuid.get(it.parent_local_id) ?? null) : null,
-      position: it.position,
-      item_type: it.item_type,
-      ref_id: it.ref_id,
-      label_pl: it.label_pl,
-      label_en: it.label_en,
-      href: it.href,
-      target: it.target,
-      css_class: it.css_class,
-      icon: it.icon,
-      mega_enabled: it.mega_enabled,
-      mega_config: it.mega_config,
-    }));
-
-    // Insert w batchach, żeby parent_id do własnego wpisu w tej samej partii
-    // nie wywalił FK - najpierw poziom 0, potem kolejne.
-    const byParent = new Map<string | null, typeof rows>();
-    for (const r of rows) {
-      const k = r.parent_id;
-      const arr = byParent.get(k) ?? [];
-      arr.push(r);
-      byParent.set(k, arr);
-    }
-    const inserted = new Set<string>();
-    // BFS insert
-    const queue: (string | null)[] = [null];
-    while (queue.length) {
-      const parent = queue.shift() ?? null;
-      // Bez filtru: `parent` trafia do kolejki DOPIERO po swoim wstawieniu
-      // (patrz `inserted.add` + `queue.push` niżej), więc warunek
-      // `parent === null || inserted.has(parent)` był tożsamościowo prawdziwy
-      // dla całej partii - stąd nieużywany argument predykatu.
-      // Uwaga na zachowanie, którego ta zmiana NIE rusza: wpis wskazujący
-      // rodzica nieobecnego w payloadzie nigdy nie zostanie wstawiony, bo jego
-      // rodzic nie wejdzie do kolejki. Tak było i tak zostaje.
-      const batch = byParent.get(parent) ?? [];
-      if (batch.length === 0) continue;
-      const { error: insErr } = await supabase.from("menu_items").insert(batch);
-      if (insErr) throw new Error(`insert items: ${insErr.message}`);
-      for (const r of batch) {
-        inserted.add(r.id);
-        queue.push(r.id);
-      }
-    }
-    return { ok: true };
-  });
+  .handler(async ({ data, context }): Promise<{ ok: true }> =>
+    saveMenuItems(
+      context.supabase as unknown as MenuWriteClient,
+      context.userId,
+      data as SaveMenuInput,
+    ),
+  );
