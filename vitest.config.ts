@@ -369,6 +369,66 @@ export default defineConfig({
           lines: 98,
           branches: 81,
         },
+        // ── LOGOWANIE / REJESTRACJA / WYLOGOWANIE ────────────────────────────
+        // 2026-08-18: ten lejek miał najgorszy stosunek krytyczności do
+        // pokrycia w całym repo - portal logowania (AuthPortal.tsx) 0,4%,
+        // useAuth 1,6%, MFA (mfa.ts + MfaChallenge.tsx) 2,3%, reset hasła
+        // (routes/reset-password.tsx) 0% - mimo że to JEDYNA brama wejścia do
+        // konta na całej powierzchni publicznej. Progi floorowane tuż pod
+        // zmierzonym pokryciem, tak jak pozostałe wpisy w tym pliku.
+        //
+        // AuthPortal.tsx - niedobite gałęzie: pola rejestracji poza fixture
+        // testu (phone/company/job/linkedin - typ/autoComplete), domyślne
+        // linki prawne (privacy_url/terms_url) i wyścig `mfaPending` w
+        // efekcie przekierowania, którego nie da się wywołać bez reaktywnego
+        // mocka sesji (useAuth() w teście zwraca statyczną wartość per render).
+        "src/components/auth/AuthPortal.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // MfaChallenge.tsx - niedobite: puste ciało `.catch(() => {})` na
+        // signOut() podczas anulowania (mock nigdy nie odrzuca, więc callback
+        // się nie odpala) i strażnik `active` chroniący przed osadzeniem
+        // odpowiedzi factorId po zamknięciu/odmontowaniu (wyścig wymagający
+        // sterowanego opóźnionego promise).
+        "src/components/auth/MfaChallenge.tsx": {
+          statements: 100,
+          functions: 90,
+          lines: 100,
+          branches: 83,
+        },
+        // useAuth.tsx - niedobite: fallback `?? []` dla `rolesData` (RPC nigdy
+        // nie zwraca null/undefined w testach) i strażnik `typeof window !==
+        // "undefined"` w signOut() - zawsze prawdziwy pod happy-dom, więc
+        // ścieżka SSR-bez-window jest nieosiągalna z testu jednostkowego.
+        "src/hooks/useAuth.tsx": {
+          statements: 100,
+          functions: 93,
+          lines: 100,
+          branches: 95,
+        },
+        // reset-password.tsx - niedobite: `lang` z `head()` zależny od URL-a
+        // (activeLang), nie od `i18n.language` czytanego w ciele komponentu -
+        // wariant angielski wymagałby osobnego fixture z prefiksem /en, oraz
+        // strażniki `cancelled` w efekcie nasłuchu recovery (wyścig przy
+        // odmontowaniu w trakcie oczekiwania na sesję/timer).
+        "src/routes/reset-password.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        // mfa.ts - cztery czyste funkcje owijające supabase.auth.mfa.*; każda
+        // gałąź (poziomy AAL, obecność/brak czynnika, błąd challenge vs
+        // verify) ma dedykowany test.
+        "src/lib/auth/mfa.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
       },
     },
   },

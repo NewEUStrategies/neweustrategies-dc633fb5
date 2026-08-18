@@ -20,12 +20,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-const {
-  toQrDataUri,
-  isMfaChallengeRequired,
-  getVerifiedTotpFactorId,
-  verifyTotpCode,
-} = await import("@/lib/auth/mfa");
+const { toQrDataUri, isMfaChallengeRequired, getVerifiedTotpFactorId, verifyTotpCode } =
+  await import("@/lib/auth/mfa");
 
 beforeEach(() => {
   h.getAal.mockReset();
