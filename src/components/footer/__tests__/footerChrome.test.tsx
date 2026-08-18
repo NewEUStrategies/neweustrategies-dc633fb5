@@ -178,6 +178,51 @@ describe("BackToTop", () => {
     await i18n.changeLanguage("pl");
   });
 
+  it("respektuje prośbę systemu o ograniczenie ruchu", () => {
+    // Płynne przewijanie przez całą wysokość dokumentu jest dla części
+    // czytelników objawowe (migrena przedsionkowa, choroba lokomocyjna).
+    // Z ustawieniem „ogranicz ruch" skok ma być natychmiastowy.
+    const scrollSpy = vi.fn();
+    const originalScroll = window.scrollTo;
+    const originalMatch = window.matchMedia;
+    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      render(<BackToTop />);
+      fireEvent.click(screen.getByRole("button", { name: realT("pl")("footer.back_to_top") }));
+      expect(scrollSpy).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
+    } finally {
+      window.scrollTo = originalScroll;
+      window.matchMedia = originalMatch;
+    }
+  });
+
+  it("bez zgłoszonej preferencji przewija płynnie - zachowanie bez zmian", () => {
+    const scrollSpy = vi.fn();
+    const originalScroll = window.scrollTo;
+    const originalMatch = window.matchMedia;
+    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      render(<BackToTop />);
+      fireEvent.click(screen.getByRole("button", { name: realT("pl")("footer.back_to_top") }));
+      expect(scrollSpy).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    } finally {
+      window.scrollTo = originalScroll;
+      window.matchMedia = originalMatch;
+    }
+  });
+
   it("odmontowanie zdejmuje nasłuch przewijania", () => {
     // Nasłuch zostawiony po odmontowaniu narastałby przy każdej nawigacji SPA -
     // chrome nie jest przeładowywane między trasami.
