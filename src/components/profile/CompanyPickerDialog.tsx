@@ -215,10 +215,23 @@ export function CompanyPickerDialog({
       // Drugi krok - powiązanie z profilem - musi zgłosić błąd tak samo jak
       // pierwszy. Bez sprawdzenia `error` tutaj firma ląduje w CRM, profil
       // zostaje BEZ powiązania, a użytkownik i tak widzi "utworzono".
+      //
+      // Błąd TEGO kroku dostaje WŁASNY komunikat (`linkFailed`, nie
+      // `createFailed`): firma w tym miejscu JUŻ istnieje w CRM, więc
+      // "nie udało się dodać firmy" jest nieprawdziwe i wysłałoby użytkownika
+      // do ponownego tworzenia - czyli duplikatu firmy zamiast powtórzenia
+      // samego powiązania. Lista wyszukiwania jest tu i tak unieważniana, bo
+      // firma naprawdę przybyła do CRM - kolejne wpisanie tej samej nazwy w
+      // wyszukiwarkę znajdzie ją i pozwoli połączyć bez tworzenia drugiej.
       const { error: linkError } = await supabase.rpc("link_current_company", {
         _company_id: companyId,
       });
-      if (linkError) throw linkError;
+      if (linkError) {
+        void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
+        const msg = linkError instanceof Error ? linkError.message : String(linkError);
+        toast.error(t("company.errors.linkFailed") + ` (${msg})`);
+        return;
+      }
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created"));

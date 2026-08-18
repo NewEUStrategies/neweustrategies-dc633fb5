@@ -453,6 +453,15 @@ describe("utworzenie nowej firmy", () => {
     // Firma wylądowała w CRM, ale profil o niej nie wie - użytkownik MUSI
     // zobaczyć, że coś poszło nie tak, żeby nie zamknął dialogu w przekonaniu,
     // że ma powiązaną firmę.
+    //
+    // DOMKNIĘTE PO PRZEGLĄDZIE (Codex): pierwsza wersja poprawki rzucała błąd
+    // do WSPÓLNEGO catcha, który pokazuje `company.errors.createFailed`
+    // ("nie udało się DODAĆ firmy") - nieprawda, bo firma w tym miejscu już
+    // istnieje w CRM. Komunikat wysyłałby użytkownika do ponownego tworzenia,
+    // czyli do DUPLIKATU firmy zamiast powtórzenia samego powiązania.
+    // Poprawny komunikat to `company.errors.linkFailed` ("nie udało się
+    // POWIĄZAĆ") - i to jest ten, którego pilnuje ten test.
+    const view = renderDialog();
     h.rpc.mockImplementation((fn: string) => {
       if (fn === "create_company_self_service")
         return Promise.resolve({ data: "new-id", error: null });
@@ -463,13 +472,24 @@ describe("utworzenie nowej firmy", () => {
       }
       return Promise.resolve({ data: [], error: null });
     });
-    await openCreateForm();
+    const spy = vi.spyOn(view.queryClient, "invalidateQueries");
 
+    await typeQuery("Nowa Sp. z o.o.");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /company\.createNamed/ })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /company\.createNamed/ }));
     fireEvent.click(screen.getByRole("button", { name: "company.save" }));
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    expect(String(h.toastError.mock.calls[0][0])).toContain("link failed");
+    expect(String(h.toastError.mock.calls[0][0])).toBe("company.errors.linkFailed (link failed)");
     expect(h.toastSuccess).not.toHaveBeenCalled();
+    // Firma NAPRAWDĘ przybyła do CRM - wpisanie tej samej nazwy ponownie w
+    // wyszukiwarkę ma ją znaleźć, więc lista wyników musi się odświeżyć.
+    const keys = spy.mock.calls.map((c) =>
+      JSON.stringify((c[0] as { queryKey: unknown }).queryKey),
+    );
+    expect(keys).toContain(JSON.stringify(["crm-companies-search"]));
   });
 
   it("odpowiedź BEZ id firmy (RPC nic nie zwrócił) jest awarią, nie cichym przejściem", async () => {
