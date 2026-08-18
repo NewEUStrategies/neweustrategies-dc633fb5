@@ -621,6 +621,75 @@ export default defineConfig({
           lines: 94,
           branches: 95,
         },
+        // ── NEWSLETTER: ZAPIS, DOUBLE OPT-IN, WYPIS ──────────────────────────
+        // Ścieżka RODO i lejka naraz. Audyt zastał ją na 14,3% (zapis) i 38,5%
+        // (wypis), mimo że to jedyne miejsce, w którym powstaje i znika ZGODA
+        // marketingowa.
+        //
+        // newsletter.functions.ts: endpoint PUBLICZNY i nieuwierzytelniony,
+        // który wysyła mail na adres podany przez wywołującego - czyli zarazem
+        // brama zgody, kanał do bombardowania cudzej skrzynki i sposób na
+        // spalenie limitu dostawcy. Próg pilnuje przypadków „kiedy NIE WOLNO
+        // zapisać": trwała blokada na liście wykluczeń (bez wiersza `pending`
+        // i bez maila), dwa niezależne limity (na IP i na ODBIORCĘ - sam limit
+        // na IP obchodzi się rotacją), brak resetu potwierdzonego subskrybenta
+        // oraz nadrzędność polityki pól tenanta nad deklaracją widgetu.
+        // Osobno przybite: adres linku DOI bierze się z konfiguracji, NIE
+        // z nagłówków żądania (podstawiony `x-forwarded-host` wyprowadzałby
+        // token na domenę atakującego).
+        "src/lib/newsletter.functions.ts": {
+          statements: 96,
+          functions: 88,
+          lines: 98,
+          branches: 88,
+        },
+        // Potwierdzenie zapisu - handler trasy. Kluczowa własność to
+        // IDEMPOTENCJA: token zostaje w rekordzie po potwierdzeniu, więc
+        // ponowne kliknięcie (klienty pocztowe i skanery klikają linki same)
+        // trafia w gałąź „już potwierdzone" zamiast w 404 albo w drugą wysyłkę
+        // powitania. Brak maila powitalnego NIE unieważnia potwierdzenia.
+        "src/routes/api.public.newsletter.confirm.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Wypis jednym kliknięciem (RFC 8058). Wytyczne Google/Yahoo wymagają,
+        // by zadziałał bezwarunkowo. Próg pilnuje: token czytany z każdego
+        // z trzech miejsc (query / formularz / JSON), ponowne kliknięcie to
+        // sukces a nie błąd, a odpowiedź i log NIE zdradzają adresu ani tokenu.
+        "src/routes/email/unsubscribe.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // STRONY ZGODY - jedyne ekrany, jakie widzi odbiorca po kliknięciu
+        // w link z maila. Wszystkie trzy startowały z 0%.
+        //
+        // Reguła, której złamanie kosztuje zgodność: WYPIS NIE MOŻE WYKONAĆ
+        // SIĘ SAM. Klienty pocztowe i skanery antywirusowe pobierają linki
+        // z wiadomości w tle, więc wejście na stronę tylko SPRAWDZA token,
+        // a wypis następuje dopiero po kliknięciu przycisku - test asertuje to
+        // wprost (po montażu leci dokładnie jedno żądanie i nie jest to POST).
+        "src/routes/newsletter.confirm.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/routes/newsletter.unsubscribe.tsx": {
+          statements: 92,
+          functions: 72,
+          lines: 98,
+          branches: 85,
+        },
+        "src/routes/unsubscribe.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
       },
     },
   },
