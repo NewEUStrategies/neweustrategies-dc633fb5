@@ -9,6 +9,7 @@ import { ExternalLink, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
+import { providerErrorCode, unwrapProviderResult } from "@/lib/billing/providerResult";
 import { safeReturnPath } from "@/lib/billing/returnPath";
 import { createStripePortalSession } from "@/utils/payments.functions";
 
@@ -42,19 +43,14 @@ export function CustomerPortalButton({
         (typeof window !== "undefined"
           ? `${window.location.pathname}${window.location.search}`
           : undefined);
+      // Ta sama reguła kontraktu, co w `SubscriptionCard` - odmowa operatora
+      // („{ error }" bez rzucania) staje się wyjątkiem, więc `onSuccess` znaczy
+      // naprawdę sukces. Wcześniej sprawdzenie było skopiowane w obu miejscach.
       return createStripePortalSession({
         data: { environment, returnPath: safeReturnPath(current) },
-      });
+      }).then(unwrapProviderResult);
     },
     onSuccess: (session) => {
-      if ("error" in session && session.error) {
-        toast.error(
-          session.error === "no_customer"
-            ? t("profile.subscription.portal.noCustomer")
-            : t("profile.subscription.portal.error"),
-        );
-        return;
-      }
       const url = "url" in session ? session.url : null;
       if (!url) {
         toast.error(t("profile.subscription.portal.error"));
@@ -63,7 +59,12 @@ export function CustomerPortalButton({
       // Portal operatora nie działa w iframe - zawsze nowa karta.
       window.open(url, "_blank", "noopener,noreferrer");
     },
-    onError: () => toast.error(t("profile.subscription.portal.error")),
+    onError: (error) =>
+      toast.error(
+        providerErrorCode(error) === "no_customer"
+          ? t("profile.subscription.portal.noCustomer")
+          : t("profile.subscription.portal.error"),
+      ),
   });
 
   return (

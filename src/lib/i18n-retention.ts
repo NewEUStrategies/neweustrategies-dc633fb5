@@ -34,6 +34,10 @@ const retentionPl = {
     errors: {
       submit: "Nie udało się zapisać. Spróbuj ponownie.",
       offer: "Nie udało się przygotować oferty. Spróbuj ponownie.",
+      // Anulowanie NIE przeszło u operatora. Komunikat musi być jednoznaczny:
+      // subskrypcja DALEJ jest aktywna, a więc dalej będzie obciążana.
+      cancel:
+        "Nie udało się anulować subskrypcji - jest nadal aktywna. Spróbuj ponownie albo napisz do nas.",
     },
   },
 };
@@ -70,6 +74,8 @@ const retentionEn: typeof retentionPl = {
     errors: {
       submit: "Saving failed. Please try again.",
       offer: "We could not prepare the offer. Please try again.",
+      cancel:
+        "We could not cancel the subscription - it is still active, so it will still be billed. Please try again or contact us.",
     },
   },
 };

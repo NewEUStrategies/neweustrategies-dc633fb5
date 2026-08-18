@@ -31,6 +31,7 @@ import {
   type ProviderSubscriptionRow,
 } from "@/lib/billing/subscriptionQueries";
 import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
+import { providerErrorCode, unwrapProviderResult } from "@/lib/billing/providerResult";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import {
@@ -98,8 +99,14 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   };
 
   const changePlan = useMutation({
+    // `unwrapProviderResult` jest tu OBOWIĄZKOWY: server fn zwraca `{ error }`
+    // bez rzucania, więc bez niego odmowa operatora dolatuje do `onSuccess`,
+    // `result.direction` jest `undefined` i karta melduje udaną zmianę planu,
+    // której nie było.
     mutationFn: (priceId: string) =>
-      changeStripePlan({ data: { targetPriceId: priceId, environment } }),
+      changeStripePlan({ data: { targetPriceId: priceId, environment } }).then(
+        unwrapProviderResult,
+      ),
     onSuccess: (result) => {
       setTargetPriceId("");
       refresh();
@@ -113,7 +120,10 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   });
 
   const cancel = useMutation({
-    mutationFn: () => cancelStripeSubscription({ data: { environment } }),
+    // NAJWAŻNIEJSZE wywołanie na tej karcie: bez odpakowania odmowy klient
+    // czytał „Subskrypcja anulowana" i był dalej obciążany.
+    mutationFn: () =>
+      cancelStripeSubscription({ data: { environment } }).then(unwrapProviderResult),
     onSuccess: () => {
       refresh();
       toast.success(t("profile.subscription.canceled"));
@@ -122,7 +132,8 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   });
 
   const resume = useMutation({
-    mutationFn: () => resumeStripeSubscription({ data: { environment } }),
+    mutationFn: () =>
+      resumeStripeSubscription({ data: { environment } }).then(unwrapProviderResult),
     onSuccess: (result) => {
       refresh();
       toast.success(
@@ -145,7 +156,7 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
 
   const seatsMutation = useMutation({
     mutationFn: (quantity: number) =>
-      updateStripeSubscriptionSeats({ data: { quantity, environment } }),
+      updateStripeSubscriptionSeats({ data: { quantity, environment } }).then(unwrapProviderResult),
     onSuccess: () => {
       refresh();
       toast.success(t("profile.subscription.portal.seats.success"));
@@ -163,16 +174,10 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
               ? `${window.location.pathname}${window.location.search}`
               : undefined,
         },
-      }).then((session) => ({ session, mode })),
+      })
+        .then(unwrapProviderResult)
+        .then((session) => ({ session, mode })),
     onSuccess: ({ session, mode }) => {
-      if ("error" in session && session.error) {
-        toast.error(
-          session.error === "no_customer"
-            ? t("profile.subscription.portal.noCustomer")
-            : t("profile.subscription.portal.error"),
-        );
-        return;
-      }
       if (!("url" in session)) {
         toast.error(t("profile.subscription.portal.error"));
         return;
@@ -184,7 +189,15 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
       // Portal dostawcy nie działa w iframe - zawsze nowa karta.
       window.open(url, "_blank", "noopener,noreferrer");
     },
-    onError: () => toast.error(t("profile.subscription.portal.error")),
+    // Odmowa operatora i awaria transportu schodzą się w JEDNEJ ścieżce;
+    // `no_customer` zachowuje własny komunikat, bo to nie awaria, a informacja
+    // („nie masz jeszcze konta u operatora").
+    onError: (error) =>
+      toast.error(
+        providerErrorCode(error) === "no_customer"
+          ? t("profile.subscription.portal.noCustomer")
+          : t("profile.subscription.portal.error"),
+      ),
   });
 
   const busy =

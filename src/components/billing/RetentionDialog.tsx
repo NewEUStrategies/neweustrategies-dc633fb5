@@ -5,6 +5,12 @@
 //   3) ekran z kodem do skopiowania.
 // Zapis ankiety NIGDY nie blokuje anulowania - jeśli serwer analityki
 // zawiedzie, rezygnacja i tak przechodzi (feedback jest best-effort).
+//
+// Symetrycznie: OKNO ZAMYKA SIĘ WYŁĄCZNIE PO UDANEJ REZYGNACJI. Zamknięcie
+// dialogu jest dla klienta najmocniejszym sygnałem „zrobione" - mocniejszym niż
+// znikający toast - więc pokazanie go po nieudanym anulowaniu to komunikat
+// nieprawdziwy o skutku pieniężnym. `onConfirmCancel` sygnalizuje porażkę
+// ODRZUCENIEM promise'a; wtedy okno zostaje z komunikatem i pozwala ponowić.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
@@ -45,6 +51,11 @@ export function RetentionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   subscriptionId: string;
+  /**
+   * Wykonuje rezygnację. MUSI odrzucić promise, gdy anulowanie nie przeszło -
+   * inaczej dialog nie ma jak odróżnić skutku i zamknie się tak samo jak po
+   * sukcesie (patrz nagłówek pliku).
+   */
   onConfirmCancel: () => Promise<void> | void;
 }) {
   ensureRetentionI18n();
@@ -61,6 +72,7 @@ export function RetentionDialog({
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [offerBlocked, setOfferBlocked] = useState(false);
+  const [cancelFailed, setCancelFailed] = useState(false);
   const [accepted, setAccepted] = useState<AcceptedOffer | null>(null);
 
   useEffect(() => {
@@ -70,6 +82,7 @@ export function RetentionDialog({
       setComment("");
       setBusy(false);
       setOfferBlocked(false);
+      setCancelFailed(false);
       setAccepted(null);
     }
   }, [open]);
@@ -102,10 +115,15 @@ export function RetentionDialog({
 
   const finalizeCancel = async (offerShown: boolean) => {
     setBusy(true);
+    setCancelFailed(false);
     try {
       await recordFeedback(offerShown);
       await onConfirmCancel();
+      // Dopiero TU - po potwierdzonym anulowaniu - wolno zamknąć okno.
       onOpenChange(false);
+    } catch (error) {
+      console.error("[retention] cancel failed", error);
+      setCancelFailed(true);
     } finally {
       setBusy(false);
     }
@@ -232,6 +250,7 @@ export function RetentionDialog({
                 placeholder={t("retention.commentPlaceholder")}
               />
             </div>
+            {cancelFailed && <CancelFailedNote message={t("retention.errors.cancel")} />}
             <DialogFooter>
               <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
                 {t("retention.keep")}
@@ -276,6 +295,7 @@ export function RetentionDialog({
                 {t("retention.offer.downgradeCta")}
               </Link>
             </p>
+            {cancelFailed && <CancelFailedNote message={t("retention.errors.cancel")} />}
             <DialogFooter className="gap-2 sm:flex-col">
               {!offerBlocked && (
                 <Button className="w-full" disabled={busy} onClick={onAccept}>
@@ -327,5 +347,22 @@ export function RetentionDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Komunikat o NIEUDANEJ rezygnacji. `role="alert"` jest tu wymogiem, nie
+ * ozdobą: klient, który właśnie kliknął „anuluj", musi usłyszeć od czytnika
+ * ekranu, że subskrypcja jest nadal aktywna - brak zmiany na ekranie zostałby
+ * odczytany jako brak reakcji, a nie jako niepowodzenie.
+ */
+function CancelFailedNote({ message }: { message: string }) {
+  return (
+    <p
+      role="alert"
+      className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+    >
+      {message}
+    </p>
   );
 }

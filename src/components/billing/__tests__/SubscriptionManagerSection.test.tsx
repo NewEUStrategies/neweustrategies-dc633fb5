@@ -403,3 +403,47 @@ describe("SubscriptionManagerSection - karty dodatkowe", () => {
     expect(screen.queryByTestId("karta-zmiany-planu")).toBeNull();
   });
 });
+
+describe("SubscriptionManagerSection - błąd rezygnacji idzie DALEJ, nie kończy się w toaście", () => {
+  // Rodzic wykonuje anulowanie, ale nie jest jedynym odbiorcą wyniku: dialog
+  // retencyjny MUSI się dowiedzieć o porażce, żeby nie zamknąć się jak po
+  // sukcesie. Wcześniej `catch` kończył sprawę tutaj i dialog widział
+  // rozwiązany promise.
+  beforeEach(() => {
+    h.subscription.current = userSubscription();
+  });
+
+  it("nieudane anulowanie ODRZUCA promise widziany przez dialog", async () => {
+    h.cancel.mockRejectedValue(new Error("provider_cancel_failed"));
+    render();
+    await waitFor(() => expect(screen.getByText("profile.subscription.cancel")).toBeTruthy());
+    fireEvent.click(screen.getByText("profile.subscription.cancel"));
+    await waitFor(() => expect(h.confirmCancel.current).toBeTruthy());
+
+    await expect(h.confirmCancel.current!()).rejects.toThrow("provider_cancel_failed");
+    expect(h.toastError).toHaveBeenCalledWith("profile.subscription.cancelFailed");
+  });
+
+  it("nieudane anulowanie NIE ogłasza sukcesu", async () => {
+    h.cancel.mockRejectedValue(new Error("provider_cancel_failed"));
+    render();
+    await waitFor(() => expect(screen.getByText("profile.subscription.cancel")).toBeTruthy());
+    fireEvent.click(screen.getByText("profile.subscription.cancel"));
+    await waitFor(() => expect(screen.getByText("potwierdz-rezygnacje")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("potwierdz-rezygnacje"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(h.toastSuccess).not.toHaveBeenCalledWith("profile.subscription.canceled");
+  });
+
+  it("UDANE anulowanie rozwiązuje promise (dialog może się zamknąć)", async () => {
+    render();
+    await waitFor(() => expect(screen.getByText("profile.subscription.cancel")).toBeTruthy());
+    fireEvent.click(screen.getByText("profile.subscription.cancel"));
+    await waitFor(() => expect(h.confirmCancel.current).toBeTruthy());
+
+    await expect(h.confirmCancel.current!()).resolves.toBeUndefined();
+    expect(h.toastSuccess).toHaveBeenCalledWith("profile.subscription.canceled");
+  });
+});

@@ -349,3 +349,81 @@ describe("RetentionDialog - przyjęta kontrofertka", () => {
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 });
+
+describe("RetentionDialog - NIEUDANA rezygnacja nie może wyglądać jak udana", () => {
+  // Zamknięcie okna jest dla klienta MOCNIEJSZYM sygnałem „zrobione" niż
+  // znikający toast. Do 18.08.2026 dialog zamykał się identycznie po sukcesie
+  // i po porażce, bo rodzic połykał wyjątek, a `onConfirmCancel` zawsze
+  // rozwiązywał promise. Efekt: klient wychodził przekonany, że zrezygnował,
+  // przy subskrypcji, która dalej była obciążana.
+  it("okno ZOSTAJE otwarte, gdy anulowanie nie przeszło", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.settings.current = retentionSettings({ enabled: false });
+    const { onOpenChange } = renderDialog({
+      cancel: () => Promise.reject(new Error("provider_cancel_failed")),
+    });
+
+    clickKey("retention.continue");
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    consoleError.mockRestore();
+  });
+
+  it("komunikat mówi wprost, że subskrypcja jest nadal aktywna", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.settings.current = retentionSettings({ enabled: false });
+    renderDialog({ cancel: () => Promise.reject(new Error("boom")) });
+
+    clickKey("retention.continue");
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByRole("alert").textContent).toBe("retention.errors.cancel");
+    consoleError.mockRestore();
+  });
+
+  it("po nieudanej próbie MOŻNA ponowić rezygnację", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.settings.current = retentionSettings({ enabled: false });
+    let attempt = 0;
+    const { onConfirmCancel, onOpenChange } = renderDialog({
+      cancel: () => {
+        attempt += 1;
+        return attempt === 1 ? Promise.reject(new Error("boom")) : Promise.resolve();
+      },
+    });
+
+    clickKey("retention.continue");
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    clickKey("retention.continue");
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onConfirmCancel).toHaveBeenCalledTimes(2);
+    consoleError.mockRestore();
+  });
+
+  it("udana rezygnacja NIE pokazuje komunikatu błędu i zamyka okno", async () => {
+    h.settings.current = retentionSettings({ enabled: false });
+    const { onOpenChange } = renderDialog();
+
+    clickKey("retention.continue");
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("porażka po ODRZUCENIU OFERTY też nie zamyka okna", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { onOpenChange } = renderDialog({
+      cancel: () => Promise.reject(new Error("boom")),
+    });
+
+    clickKey("retention.continue");
+    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
+    clickKey("retention.offer.declineAndCancel");
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    consoleError.mockRestore();
+  });
+});

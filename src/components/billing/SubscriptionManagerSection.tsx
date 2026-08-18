@@ -78,6 +78,12 @@ export function SubscriptionManagerSection() {
   const providerSubQ = useMySubscriptionProvider();
   const providerSub = providerSubQ.data ?? null;
 
+  // Rezygnacja. Błąd jest zgłaszany DALEJ (`throw`), a nie połykany w toaście:
+  // wywołuje to dialog retencyjny, który po nieudanym anulowaniu MUSI zostać
+  // otwarty z komunikatem. Wcześniej wyjątek kończył się tutaj, więc dialog
+  // widział rozwiązany promise, zamykał się jak po sukcesie i klient dostawał
+  // najmocniejszy możliwy sygnał „zrezygnowano" przy subskrypcji, która dalej
+  // była obciążana.
   const onCancel = async () => {
     if (!data) return;
     setBusy(true);
@@ -85,8 +91,9 @@ export function SubscriptionManagerSection() {
       await cancelMySubscription(data.id);
       await qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       toast.success(t("profile.subscription.canceled"));
-    } catch {
+    } catch (error) {
       toast.error(t("profile.subscription.cancelFailed"));
+      throw error;
     } finally {
       setBusy(false);
     }
