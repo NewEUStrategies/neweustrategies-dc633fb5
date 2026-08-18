@@ -15,6 +15,7 @@
 //      przysyłają różni klienci: query, formularz, JSON.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ok, supabaseFromStub } from "@/test/supabaseChain";
+import { routeServerHandlers } from "@/test/routeHarness";
 
 const h = vi.hoisted(() => ({ unsubscribeByToken: vi.fn() }));
 
@@ -29,11 +30,8 @@ const db = supabaseFromStub();
 const TOKENS = "email_unsubscribe_tokens";
 const SUBSCRIBERS = "newsletter_subscribers";
 
-type Handler = (args: { request: Request }) => Promise<Response>;
-
-function handlers(): { GET: Handler; POST: Handler } {
-  return (Route.options as { server: { handlers: { GET: Handler; POST: Handler } } }).server
-    .handlers;
+function handlers() {
+  return routeServerHandlers(Route);
 }
 
 function get(query = "?token=tok-1"): Promise<Response> {

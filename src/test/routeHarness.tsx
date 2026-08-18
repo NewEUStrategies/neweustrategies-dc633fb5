@@ -138,3 +138,29 @@ export async function routeMeta(route: AnyRoute): Promise<RouteMetaEntry[]> {
   const result = await head({} as Parameters<typeof head>[0]);
   return (result?.meta ?? []) as RouteMetaEntry[];
 }
+
+/** Handler serwerowy trasy (`server.handlers.GET/POST`) w kształcie testowym. */
+export type RouteServerHandler = (args: { request: Request }) => Promise<Response>;
+
+/**
+ * Handlery serwerowe trasy pliku - JEDYNE miejsce z rzutowaniem `Route.options`.
+ *
+ * PO CO. Trasy API (`createFileRoute(...)({ server: { handlers } })` ) nie
+ * wystawiają handlerów w typie publicznym: `RouteOptions` jest sparametryzowane
+ * kontekstem routera i ścieżką, więc odczyt „daj mi POST" wymaga rzutowania.
+ * Zamiast powtarzać je w każdym pliku testowym trasy, mieszka tu raz - z
+ * wyjaśnieniem, i z jednym miejscem do poprawienia, gdyby framework zaczął
+ * ten kształt eksportować.
+ *
+ * Handler wołamy WPROST, bez runtime'u routera: to on niesie całą logikę
+ * odpowiedzi (kody, nagłówki, zapisy), a przejście przez router niczego by tu
+ * nie dowiodło.
+ */
+export function routeServerHandlers(route: AnyRoute): Record<string, RouteServerHandler> {
+  const options = route.options as unknown as {
+    server?: { handlers?: Record<string, RouteServerHandler> };
+  };
+  const handlers = options.server?.handlers;
+  if (!handlers) throw new Error("test: trasa nie ma handlerów serwerowych");
+  return handlers;
+}

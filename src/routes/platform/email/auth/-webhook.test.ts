@@ -17,6 +17,7 @@
 // nie trzeba do tego runtime'u routera ani zmian w kodzie produkcyjnym.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ok, supabaseFromStub } from "@/test/supabaseChain";
+import { routeServerHandlers } from "@/test/routeHarness";
 
 const h = vi.hoisted(() => {
   // Klasa MUSI powstać w bloku hoisted: fabryki `vi.mock` są wynoszone nad
@@ -54,10 +55,8 @@ import { Route } from "@/routes/platform/email/auth/webhook";
 
 const db = supabaseFromStub();
 
-type Handler = (args: { request: Request }) => Promise<Response>;
-
 function post(headers: Record<string, string> = {}): Promise<Response> {
-  const handlers = (Route.options as { server: { handlers: { POST: Handler } } }).server.handlers;
+  const handlers = routeServerHandlers(Route);
   return handlers.POST({
     request: new Request("https://example.test/platform/email/auth/webhook", {
       method: "POST",

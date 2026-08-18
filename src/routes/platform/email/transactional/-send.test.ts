@@ -13,6 +13,7 @@
 // wypisu (RFC 8058), także wtedy, gdy poprzedni token został już zużyty.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
+import { routeServerHandlers } from "@/test/routeHarness";
 
 const h = vi.hoisted(() => ({
   render: vi.fn(),
@@ -51,10 +52,8 @@ const LOG = "email_send_log";
 const TOKENS = "email_unsubscribe_tokens";
 const ROLES = "user_roles";
 
-type Handler = (args: { request: Request }) => Promise<Response>;
-
 function post(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
-  const handlers = (Route.options as { server: { handlers: { POST: Handler } } }).server.handlers;
+  const handlers = routeServerHandlers(Route);
   return handlers.POST({
     request: new Request("https://example.test/platform/email/transactional/send", {
       method: "POST",
@@ -147,7 +146,7 @@ describe("uwierzytelnienie", () => {
   });
 
   it("brak nagłówka Authorization to 401", async () => {
-    const handlers = (Route.options as { server: { handlers: { POST: Handler } } }).server.handlers;
+    const handlers = routeServerHandlers(Route);
     const res = await handlers.POST({
       request: new Request("https://example.test/x", { method: "POST", body: "{}" }),
     });

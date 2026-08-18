@@ -12,6 +12,7 @@
 // potwierdzone" zamiast w 404 albo w drugą wysyłkę powitania.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
+import { routeServerHandlers } from "@/test/routeHarness";
 
 const h = vi.hoisted(() => ({ sendTxEmail: vi.fn() }));
 
@@ -26,13 +27,11 @@ const db = supabaseFromStub();
 const SUBSCRIBERS = "newsletter_subscribers";
 const TOKEN = "0123456789abcdef0123456789abcdef";
 
-type Handler = (args: { request: Request }) => Promise<Response>;
-
 function get(
   token: string | null = TOKEN,
   headers: Record<string, string> = {},
 ): Promise<Response> {
-  const handlers = (Route.options as { server: { handlers: { GET: Handler } } }).server.handlers;
+  const handlers = routeServerHandlers(Route);
   const url = new URL("https://example.test/api/public/newsletter/confirm");
   if (token !== null) url.searchParams.set("token", token);
   return handlers.GET({ request: new Request(url, { headers }) });
