@@ -588,6 +588,52 @@ export default defineConfig({
           lines: 100,
           branches: 70,
         },
+        // ── AUDIO / TTS ──────────────────────────────────────────────────────
+        // Najsłabsza funkcjonalność modułu 1 w audycie: 11,4% linii przy 743
+        // liniach i 136 funkcjach, 7 z 12 plików na okrągłym zerze. Reguły
+        // wyprowadzone z 752-linijkowego `global-player.tsx` do czystych modułów
+        // trzymamy pod 100% linii - one decydują o WYCIEKU PAMIĘCI w długiej
+        // sesji czytania (blobCache) i o tym, czy czytelnik wróci tam, gdzie
+        // skończył (positionMemory).
+        //
+        // positionMemory: niedobite gałęzie to strażniki `typeof window ===
+        // "undefined"` (pod happy-dom zawsze fałszywe - ścieżka SSR jest
+        // nieosiągalna z testu jednostkowego).
+        "src/lib/audio/positionMemory.ts": {
+          statements: 88,
+          functions: 100,
+          lines: 100,
+          branches: 84,
+        },
+        // blobCache: niedobita gałąź to `typeof URL !== "undefined"` -
+        // środowisko bez globalnego `URL` nie istnieje ani w przeglądarce, ani
+        // pod happy-dom.
+        "src/lib/audio/blobCache.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
+        // ttsStage: reguła etapu syntezy i etykiet transportu - zwraca KLUCZ
+        // i18n, nie napis, więc jest w pełni pokrywalna bez renderu.
+        "src/lib/audio/ttsStage.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // TRASA SYNTEZY: 0% -> 95,41% linii. Wejście do PŁATNEGO dostawcy i
+        // jednocześnie potencjalny objazd wokół paywalla (treść płatnego
+        // artykułu dałoby się usłyszeć bez uprawnienia). Niedobite: obronny
+        // `catch` wokół `getRequestIP`, gałąź `blocks[lang] ?? blocks.pl ??
+        // blocks.en` dla dokumentu bez żadnego języka oraz puste ciała
+        // `.catch()` przy zapisie cache w tle.
+        "src/routes/api/public/post-tts.ts": {
+          statements: 95,
+          functions: 83,
+          lines: 95,
+          branches: 85,
+        },
       },
     },
   },

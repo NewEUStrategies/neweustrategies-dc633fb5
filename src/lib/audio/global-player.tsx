@@ -22,6 +22,15 @@ import {
   readStoredPlaybackRate,
   writeStoredPlaybackRate,
 } from "@/lib/audio/playbackRate";
+import { cacheKey, getCachedBlob, sanitizeFilename, setCachedBlob } from "@/lib/audio/blobCache";
+import {
+  POSITION_SAVE_INTERVAL,
+  clearStoredPosition,
+  isRestorablePosition,
+  positionKey,
+  readStoredPosition,
+  writeStoredPosition,
+} from "@/lib/audio/positionMemory";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface AudioTrackMeta {
@@ -104,16 +113,12 @@ const INITIAL_TTS: TtsProgress = {
 
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
 
-// Cache blob URL na sesję. Ten sam artykuł ⇒ ten sam blob (bez ponownego TTS).
-const audioBlobCache = new Map<string, string>();
-
-// Górny limit trzymanych blobów. Zapobiega nieograniczonemu wzrostowi pamięci
-// w długiej sesji - najstarsze wpisy są usuwane, a ich blob URL zwalniane.
-const MAX_CACHED_BLOBS = 12;
-
-function cacheKey(postId: string, lang: "pl" | "en"): string {
-  return `${postId}:${lang}`;
-}
+// Cache blobów narracji (z limitem i zwalnianiem URL-i), pamięć pozycji
+// odtwarzania i nazwa pliku pobrania żyją w czystych modułach obok:
+// `lib/audio/blobCache` i `lib/audio/positionMemory`. Są tam testowane bez
+// montowania providera, elementu `<audio>` i fetchera TTS - a to one decydują
+// o wycieku pamięci w długiej sesji czytania i o tym, czy czytelnik wróci tam,
+// gdzie skończył. Tutaj zostaje wyłącznie skład.
 
 /**
  * Wybór źródła audio dla wpisu w danym języku. Gdy wgrany jest MP3 dla tego
@@ -151,92 +156,6 @@ export function resolveAudioFetch(
     },
     usesElevenLabs: true,
   };
-}
-
-/**
- * Zapisuje blob URL do cache, zwalniając (revokeObjectURL) stary URL gdy dany
- * klucz jest nadpisywany oraz gdy najstarsze wpisy są eksmitowane po
- * przekroczeniu `MAX_CACHED_BLOBS`. `keepUrl` chroni aktualnie odtwarzany blob
- * przed zwolnieniem, gdyby akurat miał zostać eksmitowany.
- */
-function setCachedBlob(key: string, url: string, keepUrl?: string | null): void {
-  const previous = audioBlobCache.get(key);
-  if (previous && previous !== url) {
-    URL.revokeObjectURL(previous);
-  }
-  audioBlobCache.set(key, url);
-  while (audioBlobCache.size > MAX_CACHED_BLOBS) {
-    const oldestKey = audioBlobCache.keys().next().value;
-    if (oldestKey === undefined || oldestKey === key) break;
-    const oldestUrl = audioBlobCache.get(oldestKey);
-    audioBlobCache.delete(oldestKey);
-    if (oldestUrl && oldestUrl !== url && oldestUrl !== keepUrl) {
-      URL.revokeObjectURL(oldestUrl);
-    }
-  }
-}
-
-// Trwałość pozycji odtwarzania (localStorage). Klucz per tożsamość audio
-// (postId+lang), spójny z formatem `cacheKey`. Wszystkie dostępy chronione pod
-// kątem SSR i trybu prywatnego.
-const POSITION_KEY_PREFIX = "audio-pos:";
-// Poniżej tego progu (s) nie zapisujemy/nie przywracamy - offset jest trywialny.
-const POSITION_MIN_SECONDS = 5;
-// Odstęp od końca (s), przy którym uznajemy materiał za "prawie skończony".
-const POSITION_END_MARGIN = 5;
-// Throttle zapisu pozycji (ms).
-const POSITION_SAVE_INTERVAL = 5000;
-
-function positionKey(postId: string, lang: "pl" | "en"): string {
-  return `${POSITION_KEY_PREFIX}${postId}:${lang}`;
-}
-
-function readStoredPosition(key: string): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const raw = window.localStorage.getItem(key);
-    const n = raw ? Number(raw) : 0;
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function writeStoredPosition(key: string, seconds: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, String(Math.floor(seconds)));
-  } catch {
-    /* private mode / quota - ignorujemy */
-  }
-}
-
-function clearStoredPosition(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    /* noop */
-  }
-}
-
-/** Czy pozycja `t` w materiale o długości `dur` warta jest zapisania/przywrócenia. */
-function isRestorablePosition(t: number, dur: number): boolean {
-  if (t <= POSITION_MIN_SECONDS) return false;
-  if (Number.isFinite(dur) && dur > 0 && t >= dur - POSITION_END_MARGIN) return false;
-  return true;
-}
-
-function sanitizeFilename(input: string): string {
-  return (
-    input
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9-_ ]/gi, "")
-      .trim()
-      .replace(/\s+/g, "-")
-      .slice(0, 80) || "artykul"
-  );
 }
 
 export function GlobalAudioPlayerProvider({ children }: { children: ReactNode }) {
@@ -356,7 +275,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   const fetchBlob = useCallback(
     async (postId: string, lang: "pl" | "en", audioUrl?: string | null): Promise<string> => {
       const key = cacheKey(postId, lang);
-      const cached = audioBlobCache.get(key);
+      const cached = getCachedBlob(key);
       if (cached) {
         setTts({
           stage: "cached",

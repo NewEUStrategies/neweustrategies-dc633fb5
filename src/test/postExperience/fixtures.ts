@@ -118,6 +118,51 @@ export function keyTakeawaysSettings(
   return { ...KEY_TAKEAWAYS_DEFAULTS, ...overrides };
 }
 
+// --- magazyn przeglądarki ---------------------------------------------------
+
+/**
+ * Magazyn w pamięci o kontrakcie `Storage`. Wariant `blockWrites` odgrywa tryb
+ * prywatny Safari i wyczerpany limit: `setItem` RZUCA, a odczyt nadal działa.
+ */
+export function memoryStorage(options: { blockWrites?: boolean } = {}): Storage {
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear: () => map.clear(),
+    getItem: (key: string) => map.get(key) ?? null,
+    key: (index: number) => [...map.keys()][index] ?? null,
+    removeItem: (key: string) => void map.delete(key),
+    setItem: (key: string, value: string) => {
+      if (options.blockWrites) throw new DOMException("QuotaExceededError");
+      map.set(key, value);
+    },
+  } as Storage;
+}
+
+/**
+ * Podstawia magazyn pod `window.localStorage` na czas wywołania i PRZYWRACA
+ * oryginał.
+ *
+ * Podmiana idzie przez `Object.defineProperty` na obiekcie `window` - i jest to
+ * JEDYNY sposób, który pod happy-dom faktycznie dociera do kodu produkcyjnego
+ * (zmierzone). `localStorage` jest tam Proxy, więc ani przypisanie `setItem` na
+ * instancji, ani łatanie prototypu, ani `vi.spyOn` na instancji NIE zmieniają
+ * tego, co widzi moduł czytający `window.localStorage` - a szpieg z `vi.spyOn`
+ * dodatkowo nie jest zdejmowany przez `vi.restoreAllMocks()` i przecieka do
+ * kolejnych przypadków.
+ */
+export function withStorage<T>(storage: Storage, run: () => T): T {
+  const original = window.localStorage;
+  Object.defineProperty(window, "localStorage", { value: storage, configurable: true });
+  try {
+    return run();
+  } finally {
+    Object.defineProperty(window, "localStorage", { value: original, configurable: true });
+  }
+}
+
 // --- atrapa i18n ------------------------------------------------------------
 
 /**

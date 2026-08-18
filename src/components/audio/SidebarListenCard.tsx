@@ -12,6 +12,7 @@ import {
   useGlobalAudioPlayer,
   type AudioTrackMeta,
 } from "@/lib/audio/global-player";
+import { ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
 
 interface SidebarListenCardProps {
   postId: string;
@@ -91,23 +92,12 @@ export function SidebarListenCard({
   const playing = isThis && player.status === "playing";
   const errored = isThis && player.status === "error";
   const tts = player.tts;
-  const stageLabel = (() => {
-    switch (tts.stage) {
-      case "preparing":
-        return t.stagePreparing;
-      case "synthesizing":
-        return t.stageSynthesizing;
-      case "streaming":
-        return t.stageStreaming;
-      case "ready":
-        return t.stageReady;
-      case "cached":
-        return t.stageCached;
-      default:
-        return t.loading;
-    }
-  })();
-  const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
+  // Reguła etapu i próg wiarygodności procentu żyją w `lib/audio/ttsStage`
+  // i zwracają KLUCZ, nie napis - ten sam `switch` stał wcześniej w DWÓCH
+  // kopiach (tu i w drugim odtwarzaczu) nad dwoma osobnymi słownikami `COPY`,
+  // więc dodanie etapu rozjeżdżało oba paski.
+  const stageLabel = t[ttsStageKey(tts.stage)];
+  const stagePct = ttsStagePercent(tts);
 
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);

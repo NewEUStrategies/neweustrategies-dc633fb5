@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 
 import { promptDialog } from "@/lib/appDialogs";
+import { ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
 function ActionTip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Tooltip>
@@ -125,23 +126,12 @@ export function GlobalAudioBar() {
   const loading = player.status === "loading";
   const playing = player.status === "playing";
   const tts = player.tts;
-  const stageLabel = (() => {
-    switch (tts.stage) {
-      case "preparing":
-        return t.stagePreparing;
-      case "synthesizing":
-        return t.stageSynthesizing;
-      case "streaming":
-        return t.stageStreaming;
-      case "ready":
-        return t.stageReady;
-      case "cached":
-        return t.stageCached;
-      default:
-        return t.loading;
-    }
-  })();
-  const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
+  // Reguła etapu i próg wiarygodności procentu żyją w `lib/audio/ttsStage`
+  // i zwracają KLUCZ, nie napis - ten sam `switch` stał wcześniej w DWÓCH
+  // kopiach (tu i w drugim odtwarzaczu) nad dwoma osobnymi słownikami `COPY`,
+  // więc dodanie etapu rozjeżdżało oba paski.
+  const stageLabel = t[ttsStageKey(tts.stage)];
+  const stagePct = ttsStagePercent(tts);
   const duration = player.duration || 0;
   const displayTime = scrub ?? player.currentTime;
   const displayPct = duration > 0 ? (displayTime / duration) * 100 : 0;
