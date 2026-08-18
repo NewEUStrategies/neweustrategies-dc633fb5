@@ -41,37 +41,46 @@ import { MegaPanelView } from "@/components/menu/MegaPanelView";
 import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
 import { megaFeaturedPostQueryOptions, type MegaFeaturedPost } from "@/lib/menus/megaFeatured";
 
+import { type MenuItemInput, type MenuItemType, type MegaConfig } from "@/lib/menus/types";
 import {
-  DEFAULT_MEGA_CONFIG,
-  type MenuItemInput,
-  type MenuItemType,
-  type MegaConfig,
-} from "@/lib/menus/types";
+  MAX_MENU_DEPTH,
+  appendMenuItems,
+  buildMenuTree,
+  dropZoneForOffset,
+  indentMenuItem,
+  moveMenuItem,
+  outdentMenuItem,
+  parentToExpandOnIndent,
+  removeMenuSubtree,
+  toSavePayload,
+  updateMenuItemById,
+  type MenuClientItem,
+  type MenuDropMode,
+  type MenuTreeNode,
+} from "@/lib/menus/tree";
+import {
+  addMegaColumn,
+  columnPickedContent,
+  deriveMegaColumns,
+  linkPickedContent,
+  removeMegaColumn,
+  removeMegaLink,
+  updateMegaColumn,
+  updateMegaLink,
+  addMegaLink,
+} from "@/lib/menus/megaColumns";
 
 interface Props {
   menuKey: string;
 }
 
-// Praca w klientowym modelu: każdy item ma stabilne `local_id`,
-// hierarchia przez `parent_local_id`.
-interface ClientItem {
-  local_id: string;
-  parent_local_id: string | null;
-  position: number;
-  item_type: MenuItemType;
-  ref_id: string | null;
-  label_pl: string;
-  label_en: string;
-  href: string;
-  target: "_self" | "_blank";
-  css_class: string;
-  icon: string;
-  mega_enabled: boolean;
-  mega_config: MegaConfig;
-}
+// Praca w klientowym modelu: każdy item ma stabilne `local_id`, hierarchia
+// przez `parent_local_id`. Kształt i WSZYSTKIE reguły drzewa mieszkają
+// w `lib/menus/tree.ts` - ten plik jest kompozycją, nie miejscem na logikę.
+type ClientItem = MenuClientItem;
+type TreeNode = MenuTreeNode<ClientItem>;
 
 const DND_MIME = "application/x-menu-item";
-const MAX_DEPTH = 3;
 
 const rid = (): string =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -129,25 +138,17 @@ export function MenuManager({ menuKey }: Props) {
     },
   });
 
-  const tree = useMemo(() => buildTree(items ?? []), [items]);
+  const tree = useMemo(() => buildMenuTree(items ?? []), [items]);
 
+  // Poniżej: WYŁĄCZNIE spięcie stanu z regułami. Każda z tych operacji to
+  // czysty reduktor z `lib/menus/tree.ts` - hierarchia, limit poziomów,
+  // ochrona przed cyklem i renumeracja rzędu mają tam własne asercje.
   const updateItem = (local_id: string, patch: Partial<ClientItem>) => {
-    setItems((curr) =>
-      (curr ?? []).map((it) => (it.local_id === local_id ? { ...it, ...patch } : it)),
-    );
+    setItems((curr) => [...updateMenuItemById(curr ?? [], local_id, patch)]);
   };
 
   const removeItem = (local_id: string) => {
-    setItems((curr) => {
-      if (!curr) return curr;
-      const idsToRemove = new Set<string>();
-      const collect = (id: string) => {
-        idsToRemove.add(id);
-        for (const child of curr.filter((c) => c.parent_local_id === id)) collect(child.local_id);
-      };
-      collect(local_id);
-      return curr.filter((it) => !idsToRemove.has(it.local_id));
-    });
+    setItems((curr) => (curr ? [...removeMenuSubtree(curr, local_id)] : curr));
   };
 
   const addItems = (
@@ -159,158 +160,29 @@ export function MenuManager({ menuKey }: Props) {
       href: string;
     }[],
   ) => {
-    setItems((curr) => {
-      const base = curr ?? [];
-      const nextPos = base.filter((i) => i.parent_local_id === null).length;
-      const additions: ClientItem[] = payloads.map((p, idx) => ({
-        local_id: rid(),
-        parent_local_id: null,
-        position: nextPos + idx,
-        item_type: p.item_type,
-        ref_id: p.ref_id,
-        label_pl: p.label_pl,
-        label_en: p.label_en,
-        href: p.href,
-        target: "_self",
-        css_class: "",
-        icon: "",
-        mega_enabled: false,
-        mega_config: DEFAULT_MEGA_CONFIG,
-      }));
-      return [...base, ...additions];
-    });
+    setItems((curr) => [...appendMenuItems(curr ?? [], payloads, rid)]);
   };
 
-  const moveItem = (
-    dragId: string,
-    targetId: string | null,
-    mode: "before" | "after" | "child",
-  ) => {
-    setItems((curr) => {
-      if (!curr) return curr;
-      const dragged = curr.find((i) => i.local_id === dragId);
-      if (!dragged) return curr;
-      // Chroń przed cyklem - target nie może być potomkiem dragged.
-      if (targetId) {
-        const descendants = new Set<string>();
-        const collect = (id: string) => {
-          descendants.add(id);
-          for (const child of curr.filter((c) => c.parent_local_id === id)) collect(child.local_id);
-        };
-        collect(dragId);
-        if (descendants.has(targetId)) return curr;
-      }
-      let newParent: string | null = dragged.parent_local_id;
-      if (targetId === null) {
-        newParent = null;
-      } else if (mode === "child") {
-        newParent = targetId;
-      } else {
-        const target = curr.find((i) => i.local_id === targetId);
-        newParent = target?.parent_local_id ?? null;
-      }
-      // Ogranicz głębokość.
-      if (newParent && depthOf(curr, newParent) + 1 >= MAX_DEPTH) return curr;
-
-      const others = curr.filter((i) => i.local_id !== dragId);
-      const siblings = others.filter((i) => i.parent_local_id === newParent);
-      const remaining = others.filter((i) => i.parent_local_id !== newParent);
-      let insertIndex = siblings.length;
-      if (targetId && mode !== "child") {
-        const targetIdx = siblings.findIndex((s) => s.local_id === targetId);
-        if (targetIdx >= 0) insertIndex = mode === "before" ? targetIdx : targetIdx + 1;
-      }
-      const updated: ClientItem = { ...dragged, parent_local_id: newParent };
-      const reordered = [
-        ...siblings.slice(0, insertIndex),
-        updated,
-        ...siblings.slice(insertIndex),
-      ].map((it, idx) => ({ ...it, position: idx }));
-      return [...remaining, ...reordered];
-    });
+  const moveItem = (dragId: string, targetId: string | null, mode: MenuDropMode) => {
+    setItems((curr) => (curr ? [...moveMenuItem(curr, dragId, targetId, mode)] : curr));
   };
 
-  // Podpięcie w prawo: element staje się dzieckiem swojego poprzedniego rodzeństwa.
+  // Podpięcie w prawo: element staje się dzieckiem swojego poprzedniego
+  // rodzeństwa - i ta gałąź musi się rozwinąć, inaczej pozycja „znika".
   const indentItem = (local_id: string) => {
-    setItems((curr) => {
-      if (!curr) return curr;
-      const it = curr.find((i) => i.local_id === local_id);
-      if (!it) return curr;
-      const siblings = curr
-        .filter((i) => i.parent_local_id === it.parent_local_id)
-        .sort((a, b) => a.position - b.position);
-      const idx = siblings.findIndex((s) => s.local_id === local_id);
-      if (idx <= 0) return curr; // brak poprzedniego rodzeństwa
-      const newParent = siblings[idx - 1].local_id;
-      if (depthOf(curr, newParent) + 1 >= MAX_DEPTH) return curr;
-
-      const newParentChildren = curr
-        .filter((i) => i.parent_local_id === newParent)
-        .sort((a, b) => a.position - b.position);
-      const insertPos = newParentChildren.length;
-
-      const updatedItem: ClientItem = { ...it, parent_local_id: newParent, position: insertPos };
-      const remainingSiblings = siblings
-        .filter((s) => s.local_id !== local_id)
-        .map((s, i) => ({ ...s, position: i }));
-      const others = curr.filter(
-        (i) =>
-          i.parent_local_id !== it.parent_local_id &&
-          i.parent_local_id !== newParent &&
-          i.local_id !== local_id,
-      );
-      return [...others, ...remainingSiblings, ...newParentChildren, updatedItem];
-    });
+    setItems((curr) => (curr ? [...indentMenuItem(curr, local_id)] : curr));
     setExpanded((s) => {
-      const it = (items ?? []).find((i) => i.local_id === local_id);
-      if (!it) return s;
-      const siblings = (items ?? [])
-        .filter((i) => i.parent_local_id === it.parent_local_id)
-        .sort((a, b) => a.position - b.position);
-      const idx = siblings.findIndex((sib) => sib.local_id === local_id);
-      if (idx <= 0) return s;
-      const n = new Set(s);
-      n.add(siblings[idx - 1].local_id);
-      return n;
+      const parent = parentToExpandOnIndent(items ?? [], local_id);
+      if (!parent) return s;
+      const next = new Set(s);
+      next.add(parent);
+      return next;
     });
   };
 
   // Cofnięcie w lewo: element wychodzi poziom wyżej, tuż za swoim rodzicem.
   const outdentItem = (local_id: string) => {
-    setItems((curr) => {
-      if (!curr) return curr;
-      const it = curr.find((i) => i.local_id === local_id);
-      if (!it || !it.parent_local_id) return curr;
-      const parent = curr.find((i) => i.local_id === it.parent_local_id);
-      if (!parent) return curr;
-      const grandParent = parent.parent_local_id;
-
-      const grandSiblings = curr
-        .filter((i) => i.parent_local_id === grandParent)
-        .sort((a, b) => a.position - b.position);
-      const parentIdx = grandSiblings.findIndex((s) => s.local_id === parent.local_id);
-      const insertAt = parentIdx + 1;
-
-      const oldSiblings = curr
-        .filter((i) => i.parent_local_id === it.parent_local_id && i.local_id !== local_id)
-        .sort((a, b) => a.position - b.position)
-        .map((s, i) => ({ ...s, position: i }));
-
-      const updatedItem: ClientItem = { ...it, parent_local_id: grandParent };
-      const reorderedGrand = [
-        ...grandSiblings.slice(0, insertAt),
-        updatedItem,
-        ...grandSiblings.slice(insertAt),
-      ].map((s, i) => ({ ...s, position: i }));
-
-      const others = curr.filter(
-        (i) =>
-          i.parent_local_id !== it.parent_local_id &&
-          i.parent_local_id !== grandParent &&
-          i.local_id !== local_id,
-      );
-      return [...others, ...oldSiblings, ...reorderedGrand];
-    });
+    setItems((curr) => (curr ? [...outdentMenuItem(curr, local_id)] : curr));
   };
 
   const toggleExpanded = (id: string) => {
@@ -324,22 +196,10 @@ export function MenuManager({ menuKey }: Props) {
 
   const handleSave = () => {
     if (!items) return;
-    const payload: MenuItemInput[] = items.map((it) => ({
-      local_id: it.local_id,
-      parent_local_id: it.parent_local_id,
-      position: it.position,
-      item_type: it.item_type,
-      ref_id: it.ref_id,
-      label_pl: it.label_pl || it.href || "(bez nazwy)",
-      label_en: it.label_en,
-      href: it.href,
-      target: it.target,
-      css_class: it.css_class,
-      icon: it.icon,
-      mega_enabled: it.mega_enabled,
-      mega_config: it.mega_config,
-    }));
-    saveMutation.mutate(payload);
+    // Etykieta zastępcza idzie ZE SŁOWNIKA, bo ląduje w bazie i pokaże się
+    // czytelnikowi w nawigacji - zaszyty w kodzie napis „(bez nazwy)" trafiał
+    // do menu także w wersji angielskiej.
+    saveMutation.mutate(toSavePayload(items, t("admin.menu.untitledItem")));
   };
 
   if (menuQuery.isLoading || items === null) {
@@ -423,38 +283,6 @@ export function MenuManager({ menuKey }: Props) {
   );
 }
 
-interface TreeNode {
-  item: ClientItem;
-  children: TreeNode[];
-}
-
-function buildTree(items: ClientItem[]): TreeNode[] {
-  const byParent = new Map<string | null, ClientItem[]>();
-  for (const it of items) {
-    const key = it.parent_local_id;
-    const arr = byParent.get(key) ?? [];
-    arr.push(it);
-    byParent.set(key, arr);
-  }
-  const build = (parent: string | null): TreeNode[] =>
-    (byParent.get(parent) ?? [])
-      .slice()
-      .sort((a, b) => a.position - b.position)
-      .map((item) => ({ item, children: build(item.local_id) }));
-  return build(null);
-}
-
-function depthOf(items: ClientItem[], local_id: string): number {
-  let d = 0;
-  let cur: ClientItem | undefined = items.find((i) => i.local_id === local_id);
-  while (cur?.parent_local_id) {
-    d++;
-    cur = items.find((i) => i.local_id === cur!.parent_local_id);
-    if (d > 10) break;
-  }
-  return d;
-}
-
 interface NodeProps {
   node: TreeNode;
   depth: number;
@@ -484,7 +312,7 @@ function MenuNode({
   const { item, children } = node;
   const isOpen = expanded.has(item.local_id);
   const hasChildren = children.length > 0;
-  const [dropZone, setDropZone] = useState<"before" | "after" | "child" | null>(null);
+  const [dropZone, setDropZone] = useState<MenuDropMode | null>(null);
 
   const onDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData(DND_MIME, item.local_id);
@@ -494,11 +322,8 @@ function MenuNode({
     if (!e.dataTransfer.types.includes(DND_MIME)) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const h = rect.height;
-    if (y < h * 0.3) setDropZone("before");
-    else if (y > h * 0.7) setDropZone("after");
-    else setDropZone(depth + 1 < MAX_DEPTH ? "child" : "after");
+    const ratio = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5;
+    setDropZone(dropZoneForOffset(ratio, depth));
   };
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -676,7 +501,7 @@ function MenuNode({
               variant="ghost"
               className="h-7 w-7"
               onClick={() => onIndent(item.local_id)}
-              disabled={siblingIndex === 0 || depth + 1 >= MAX_DEPTH}
+              disabled={siblingIndex === 0 || depth + 1 >= MAX_MENU_DEPTH}
               aria-label={t("admin.menu.indent")}
               title={t("admin.menu.indent")}
             >
@@ -859,34 +684,14 @@ function MegaColumnsEditor({
 }) {
   const { t } = useTranslation();
   const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
-  const derivedCols = useMemo<MegaConfig["columns"]>(
-    () =>
-      treeChildren.map((c) => ({
-        title_pl: c.item.label_pl,
-        title_en: c.item.label_en,
-        href: c.item.href,
-        links: c.children.map((gc) => ({
-          label_pl: gc.item.label_pl,
-          label_en: gc.item.label_en,
-          href: gc.item.href,
-          icon: gc.item.icon ?? "",
-        })),
-      })),
-    [treeChildren],
-  );
+  // Wszystkie operacje na układzie to reduktory z `lib/menus/megaColumns.ts` -
+  // tu zostaje wyłącznie podpięcie ich pod pola formularza.
+  const derivedCols = useMemo(() => deriveMegaColumns(treeChildren), [treeChildren]);
   const importFromTree = () => onChange({ ...config, columns: derivedCols });
-  const addColumn = () =>
-    onChange({
-      ...config,
-      columns: [...config.columns, { title_pl: "", title_en: "", href: "", links: [] }],
-    });
+  const addColumn = () => onChange(addMegaColumn(config));
   const updateColumn = (idx: number, patch: Partial<MegaConfig["columns"][number]>) =>
-    onChange({
-      ...config,
-      columns: config.columns.map((c, i) => (i === idx ? { ...c, ...patch } : c)),
-    });
-  const removeColumn = (idx: number) =>
-    onChange({ ...config, columns: config.columns.filter((_, i) => i !== idx) });
+    onChange(updateMegaColumn(config, idx, patch));
+  const removeColumn = (idx: number) => onChange(removeMegaColumn(config, idx));
 
   return (
     <div className="border border-border rounded-md p-3 space-y-2 bg-background">
@@ -946,13 +751,7 @@ function MegaColumnsEditor({
                 className="h-7 text-xs"
               />
               <InternalContentPicker
-                onPick={(p) =>
-                  updateColumn(idx, {
-                    title_pl: col.title_pl || p.label_pl,
-                    title_en: col.title_en || p.label_en,
-                    href: p.href,
-                  })
-                }
+                onPick={(p) => updateColumn(idx, columnPickedContent(col, p))}
                 title="Powiąż nagłówek kolumny z treścią"
               />
               <Button
@@ -970,9 +769,7 @@ function MegaColumnsEditor({
                   <LucideIconPicker
                     value={l.icon}
                     onChange={(name) =>
-                      updateColumn(idx, {
-                        links: col.links.map((x, i) => (i === li ? { ...x, icon: name ?? "" } : x)),
-                      })
+                      onChange(updateMegaLink(config, idx, li, { icon: name ?? "" }))
                     }
                     className="h-7"
                     placeholder="Ikona"
@@ -980,11 +777,7 @@ function MegaColumnsEditor({
                   <Input
                     value={l.label_pl}
                     onChange={(e) =>
-                      updateColumn(idx, {
-                        links: col.links.map((x, i) =>
-                          i === li ? { ...x, label_pl: e.target.value } : x,
-                        ),
-                      })
+                      onChange(updateMegaLink(config, idx, li, { label_pl: e.target.value }))
                     }
                     placeholder="Etykieta PL"
                     className="h-7 text-xs"
@@ -992,11 +785,7 @@ function MegaColumnsEditor({
                   <Input
                     value={l.label_en}
                     onChange={(e) =>
-                      updateColumn(idx, {
-                        links: col.links.map((x, i) =>
-                          i === li ? { ...x, label_en: e.target.value } : x,
-                        ),
-                      })
+                      onChange(updateMegaLink(config, idx, li, { label_en: e.target.value }))
                     }
                     placeholder="EN"
                     className="h-7 text-xs"
@@ -1004,29 +793,14 @@ function MegaColumnsEditor({
                   <Input
                     value={l.href}
                     onChange={(e) =>
-                      updateColumn(idx, {
-                        links: col.links.map((x, i) =>
-                          i === li ? { ...x, href: e.target.value } : x,
-                        ),
-                      })
+                      onChange(updateMegaLink(config, idx, li, { href: e.target.value }))
                     }
                     placeholder="href"
                     className="h-7 text-xs"
                   />
                   <InternalContentPicker
                     onPick={(p) =>
-                      updateColumn(idx, {
-                        links: col.links.map((x, i) =>
-                          i === li
-                            ? {
-                                ...x,
-                                label_pl: x.label_pl || p.label_pl,
-                                label_en: x.label_en || p.label_en,
-                                href: p.href,
-                              }
-                            : x,
-                        ),
-                      })
+                      onChange(updateMegaLink(config, idx, li, linkPickedContent(l, p)))
                     }
                     title="Powiąż link z treścią wewnętrzną"
                   />
@@ -1034,9 +808,7 @@ function MegaColumnsEditor({
                     size="icon"
                     variant="ghost"
                     className="h-6 w-6 text-destructive"
-                    onClick={() =>
-                      updateColumn(idx, { links: col.links.filter((_, i) => i !== li) })
-                    }
+                    onClick={() => onChange(removeMegaLink(config, idx, li))}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -1047,22 +819,20 @@ function MegaColumnsEditor({
                   size="sm"
                   variant="outline"
                   className="h-7 text-[11px]"
-                  onClick={() =>
-                    updateColumn(idx, {
-                      links: [...col.links, { label_pl: "", label_en: "", href: "", icon: "" }],
-                    })
-                  }
+                  onClick={() => onChange(addMegaLink(config, idx))}
                 >
                   + Własny link
                 </Button>
                 <InternalContentPicker
                   onPick={(p) =>
-                    updateColumn(idx, {
-                      links: [
-                        ...col.links,
-                        { label_pl: p.label_pl, label_en: p.label_en, href: p.href, icon: "" },
-                      ],
-                    })
+                    onChange(
+                      addMegaLink(config, idx, {
+                        label_pl: p.label_pl,
+                        label_en: p.label_en,
+                        href: p.href,
+                        icon: "",
+                      }),
+                    )
                   }
                   title="Dodaj link z wewnętrznej treści"
                   variant="button"
