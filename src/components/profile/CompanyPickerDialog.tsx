@@ -212,7 +212,13 @@ export function CompanyPickerDialog({
       });
       if (error) throw error;
       if (!companyId) throw new Error("empty_response");
-      await supabase.rpc("link_current_company", { _company_id: companyId });
+      // Drugi krok - powiązanie z profilem - musi zgłosić błąd tak samo jak
+      // pierwszy. Bez sprawdzenia `error` tutaj firma ląduje w CRM, profil
+      // zostaje BEZ powiązania, a użytkownik i tak widzi "utworzono".
+      const { error: linkError } = await supabase.rpc("link_current_company", {
+        _company_id: companyId,
+      });
+      if (linkError) throw linkError;
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created"));
