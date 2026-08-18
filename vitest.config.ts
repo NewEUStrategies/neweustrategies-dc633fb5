@@ -586,6 +586,28 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // officeParse: linie i funkcje pod 100%, gałęzie niżej i to jest liczba
+        // UCZCIWA. Niedobite ramiona to obrona przed `textContent === null`
+        // (dla elementu nigdy nie zachodzi) oraz `match === null` w regexie,
+        // który wcześniej odfiltrował ścieżkę - nie da się ich wywołać bez
+        // podstawienia atrapy DOM-u, a taki test dowodziłby wyłącznie tego,
+        // że atrapa kłamie. DOMPurify jest w testach PRAWDZIWY: to jedyne
+        // miejsce, w którym dokument obcego autorstwa staje się DOM-em.
+        "src/lib/files/officeParse.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 75,
+        },
+        // Powłoka i czytniki podglądu. Cała piątka plików biblioteki startowała
+        // z ZERA; po wyprowadzeniu reguł do `lib/files/viewerState` render jest
+        // ich cienką kompozycją i daje się sprawdzić bez sterowania czasem.
+        "src/components/files/**": {
+          statements: 95,
+          functions: 95,
+          lines: 97,
+          branches: 80,
+        },
         // ── MODUŁ 7: WEB STORIES ──────────────────────────────────────────────
         // `StoryViewer.tsx` stał na 0%, bo maszyna przewijania mieszkała w tym
         // samym pliku, co pętla `requestAnimationFrame`, focus trap i markup
@@ -598,6 +620,16 @@ export default defineConfig({
           functions: 100,
           lines: 100,
           branches: 100,
+        },
+        // Sam widok: 100% linii i funkcji. Pętla klatek jest sprawdzana przez
+        // PRZEJĘCIE `requestAnimationFrame` i podanie własnego znacznika czasu -
+        // czekanie sekundami na prawdziwe klatki dałoby test migoczący przy
+        // obciążonym CI, a test migoczący uczy zespół ignorować czerwień.
+        "src/components/web-stories/StoryViewer.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 88,
         },
         // ── MODUŁ 7: PODCAST ──────────────────────────────────────────────────
         // Parsery jsonb i czas trwania miały testy od dawna; ETYKIETY

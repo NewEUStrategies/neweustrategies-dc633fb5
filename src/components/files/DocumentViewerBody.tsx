@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileWarning } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { viewerKindFor, type ViewerKind } from "@/lib/files/fileKinds";
+import { extensionOf, viewerKindFor, type ViewerKind } from "@/lib/files/fileKinds";
 import {
   activeSheetIndex,
   clampText,
@@ -75,7 +75,12 @@ function useArrayBuffer(url: string, enabled: boolean) {
 }
 
 function DocxView({ source }: { source: ViewerSource }) {
-  const { buffer, error, loading } = useArrayBuffer(source.url, true);
+  // Stary format Office rozstrzyga się z NAZWY, więc pliku nie ma po co
+  // pobierać - `useArrayBuffer` dostaje `enabled: false`. Wcześniej hook
+  // startował bezwarunkowo i ściągał kilkanaście megabajtów .doc tylko po to,
+  // żeby chwilę później pokazać „pobierz plik, aby otworzyć go lokalnie".
+  const isLegacy = extensionOf(source.name) === "doc";
+  const { buffer, error, loading } = useArrayBuffer(source.url, !isLegacy);
   const [html, setHtml] = useState<string | null>(null);
   const [parseError, setParseError] = useState(false);
 
@@ -122,8 +127,13 @@ function DocxView({ source }: { source: ViewerSource }) {
 }
 
 function SheetView({ source }: { source: ViewerSource }) {
+  // Stary format Office rozstrzyga się z NAZWY, więc pliku nie ma po co
+  // pobierać - `useArrayBuffer` dostaje `enabled: false`. Wcześniej hook
+  // startował bezwarunkowo i ściągał kilkanaście megabajtów .xls tylko po to,
+  // żeby chwilę później pokazać „pobierz plik, aby otworzyć go lokalnie".
+  const isLegacy = extensionOf(source.name) === "xls";
   const { t } = useTranslation();
-  const { buffer, error, loading } = useArrayBuffer(source.url, true);
+  const { buffer, error, loading } = useArrayBuffer(source.url, !isLegacy);
   const [sheets, setSheets] = useState<SheetResult[] | null>(null);
   const [active, setActive] = useState(0);
   const [parseError, setParseError] = useState(false);
@@ -199,8 +209,13 @@ function SheetView({ source }: { source: ViewerSource }) {
 }
 
 function SlidesView({ source }: { source: ViewerSource }) {
+  // Stary format Office rozstrzyga się z NAZWY, więc pliku nie ma po co
+  // pobierać - `useArrayBuffer` dostaje `enabled: false`. Wcześniej hook
+  // startował bezwarunkowo i ściągał kilkanaście megabajtów .ppt tylko po to,
+  // żeby chwilę później pokazać „pobierz plik, aby otworzyć go lokalnie".
+  const isLegacy = extensionOf(source.name) === "ppt";
   const { t } = useTranslation();
-  const { buffer, error, loading } = useArrayBuffer(source.url, true);
+  const { buffer, error, loading } = useArrayBuffer(source.url, !isLegacy);
   const [slides, setSlides] = useState<SlideResult[] | null>(null);
   const [parseError, setParseError] = useState(false);
 
