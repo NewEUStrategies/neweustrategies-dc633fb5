@@ -132,7 +132,11 @@ export function expertMaterial(overrides: Partial<ExpertMaterial> = {}): ExpertM
     excerpt_en: "Analysis summary",
     cover_url: null,
     date: "2026-07-01",
+    programIds: [],
+    regionIds: [],
+    categoryIds: [],
+    tagIds: [],
     isCoauthor: false,
     ...overrides,
-  } as ExpertMaterial;
+  };
 }

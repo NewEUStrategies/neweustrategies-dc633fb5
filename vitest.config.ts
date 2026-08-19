@@ -695,6 +695,25 @@ export default defineConfig({
           lines: 100,
           branches: 95,
         },
+        // Eksplorator materiałów: organizm bez własnego stanu - filtry i numer
+        // strony żyją w URL trasy /author/$slug. Bramka pilnuje trzech reguł
+        // budowy tego URL-a, których złamanie jest niewidoczne w typach:
+        // zmiana filtra wraca na stronę 1, wartości domyślne NIE trafiają do
+        // adresu (jeden kanoniczny URL profilu), a nawigacja nie przewija
+        // strony na górę. Gałęzie poniżej 100% to warianty `??` na fasetach,
+        // które w komplecie danych z RPC nie występują pusto.
+        "src/components/experts/ExpertMaterialsExplorer.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        "src/components/experts/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         // ── MODUŁ 7: WYDARZENIA - dokument biletu i atomy prelegenta ──────────
         // `ticketDocument` skleja HTML z danych z bazy i formularza, a plik ląduje
         // na dysku człowieka i otwiera się BEZ naszego CSP. Ucieczka znaków jest
