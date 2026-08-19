@@ -253,18 +253,18 @@ describe("WorkflowStatusSection - harmonogram publikacji", () => {
     expect(screen.queryByText("admin.workflow.publishAtPast")).not.toBeInTheDocument();
   });
 
-  it("SWIADEK DEFEKTU: pole terminu publikacji nie ma dostępnej nazwy", () => {
-    // `<Label>` renderuje się BEZ `htmlFor`, a pole bez `id`/`aria-label`, więc
-    // etykieta „Data publikacji" nie jest z niczym powiązana. Dla czytnika ekranu
-    // to bezimienne pole daty i godziny - a od jego zawartości zależy, kiedy wpis
-    // stanie się publiczny. Test opisuje stan OBECNY; po dodaniu powiązania ma
-    // pęknąć i zostać przepisany na `getByLabelText`.
+  it("pole terminu publikacji ma dostępną nazwę powiązaną z etykietą", () => {
+    // Od zawartości tego pola zależy, kiedy wpis stanie się publiczny, więc dla
+    // czytnika ekranu nie może być bezimienne: `<Label htmlFor>` musi wskazywać
+    // `id` kontrolki. Test pilnuje, żeby to powiązanie nie zniknęło.
     const { container } = renderSection({ status: "scheduled", publishAt: BASE_ISO });
     const field = dateField(container) as HTMLInputElement;
 
-    expect(field.getAttribute("id")).toBeNull();
-    expect(field.getAttribute("aria-label")).toBeNull();
-    expect(screen.getByText("admin.workflow.publishAt").getAttribute("for")).toBeNull();
+    expect(field.getAttribute("id")).toBe("workflow-publish-at");
+    expect(screen.getByText("admin.workflow.publishAt").getAttribute("for")).toBe(
+      "workflow-publish-at",
+    );
+    expect(screen.getByLabelText("admin.workflow.publishAt")).toBe(field);
   });
 });
 
