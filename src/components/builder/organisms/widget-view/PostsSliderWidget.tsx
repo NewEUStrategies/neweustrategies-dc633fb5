@@ -19,7 +19,10 @@ import {
 } from "@/lib/builder/sliderOptions";
 import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
-import { SliderRender } from "./lazyWidgets";
+// Import z `lazySliderRender`, NIE z `lazyWidgets`: ten plik jest sam ładowany
+// leniwie z tamtego rejestru, więc import całego rejestru zamykał cykl (w
+// testach podmieniających rejestr fabryka `vi.mock` czekała na samą siebie).
+import { SliderRender } from "./lazySliderRender";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
 

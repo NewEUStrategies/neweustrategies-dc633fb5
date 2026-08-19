@@ -57,6 +57,12 @@ const CONVERTED = [
   "src/components/admin/newsletter/system-emails/AuthEmailPreviewPanel.tsx",
   "src/components/admin/newsletter/auth-logs/AuthEmailLogsPanel.tsx",
   "src/components/admin/newsletter/deliverability/DeliverabilityPanel.tsx",
+  // Moduly regul wyciagniete z paneli. Mapy etykiet przeniosly sie razem z
+  // regulami, wiec bramka musi patrzec tam, gdzie teraz mieszkaja - inaczej
+  // pilnowalaby plikow, w ktorych zadnej mapy juz nie ma.
+  "src/components/admin/newsletter/campaignBlocks.ts",
+  "src/components/admin/newsletter/system-emails/txContentRules.ts",
+  "src/components/admin/newsletter/system-emails/authPreviewRules.ts",
 ] as const;
 
 const SOURCES = CONVERTED.map((path) => ({ path, src: readFileSync(path, "utf8") }));
@@ -180,12 +186,18 @@ describe("i18n-newsletter-admin", () => {
     // Klucz skladany szablonem (`types.${type}`) przechodzi typowanie, ale
     // znika z bramki pokrycia - brak tlumaczenia ujawnilby sie dopiero
     // w interfejsie. Dlatego mapy wypisuja pelne sciezki literalnie.
-    for (const name of ["PopupEventsPanel.tsx", "TxEmailContentPanel.tsx"]) {
+    for (const name of ["PopupEventsPanel.tsx", "txContentRules.ts", "campaignBlocks.ts"]) {
       const { src } = SOURCES.find((s) => s.path.endsWith(name))!;
-      expect({ name, hasLabelKey: src.includes("labelKey:") }).toEqual({ name, hasLabelKey: true });
+      const hasLabelKey = src.includes("labelKey:") || src.includes("LABEL_KEYS");
+      expect({ name, hasLabelKey }).toEqual({ name, hasLabelKey: true });
     }
-    const preview = SOURCES.find((s) => s.path.endsWith("AuthEmailPreviewPanel.tsx"))!.src;
-    expect(preview).toContain("TYPE_LABEL_KEYS");
+    // Mapa typow podgladu mieszka w modelu regul, razem z komentarzem, dlaczego
+    // klucze sa wypisane literalnie. Panel MUSI przechodzic przez nazwany
+    // helper - to on gwarantuje, ze klucz pochodzi z mapy, a nie z szablonu.
+    const rules = SOURCES.find((s) => s.path.endsWith("authPreviewRules.ts"))!.src;
+    expect(rules).toContain("TYPE_LABEL_KEYS");
+    const panel = SOURCES.find((s) => s.path.endsWith("AuthEmailPreviewPanel.tsx"))!.src;
+    expect(code(panel)).toContain("previewTypeLabelKey");
     for (const { path, src } of SOURCES) {
       const templated = [...code(src).matchAll(/`adminNewsletter\.[^`]*\$\{/g)].map((m) => m[0]);
       expect({ path, templated }).toEqual({ path, templated: [] });

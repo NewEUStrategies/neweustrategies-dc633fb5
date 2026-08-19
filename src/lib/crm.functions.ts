@@ -12,117 +12,53 @@ import {
   type ConsentLogTimelineRow,
 } from "@/lib/crm/consentLog";
 import { z } from "zod";
+import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
 import {
-  looseClient,
-  looseTable,
-  rowsOf,
-  fetchRows,
-  type LooseQuery,
-} from "@/lib/supabase/looseQuery";
+  LeadListFilterSchema,
+  LeadSortDirSchema,
+  LeadSortKeySchema,
+  LeadStageSchema,
+  applyLeadFilterSpec,
+  applyLeadSortSpec,
+  buildLeadFilterSpec,
+  type LeadFilterQuery,
+} from "@/lib/crm/leadListSpec";
 
-const STAGE_ENUM = z.enum(["new", "contacted", "qualified", "proposal", "won", "lost", "archived"]);
+const STAGE_ENUM = LeadStageSchema;
 
-// Sortowanie serwerowe: przy paginacji porządek MUSI liczyć się w SQL (strona
-// posortowana klientem kłamałaby o kolejności globalnej). Klucze odpowiadają
-// LeadSortSchema (lib/crm/leadViews.ts).
-const SORT_ENUM = z.enum([
-  "activity",
-  "score",
-  "created",
-  "followUp",
-  "company",
-  "country",
-  "stage",
-  "name",
-]);
-type SortKey = z.infer<typeof SORT_ENUM>;
-
-const SORT_COLUMNS: Record<SortKey, string> = {
-  activity: "last_activity_at",
-  score: "score",
-  created: "created_at",
-  followUp: "follow_up_at",
-  company: "company",
-  country: "country",
-  stage: "stage",
-  name: "first_name",
-};
-
-const ListInput = z.object({
-  search: z.string().trim().max(200).optional(),
-  stage: STAGE_ENUM.optional(),
+// Wejście listy = WSPÓLNY opis filtra (lib/crm/leadListSpec.ts) + paginacja
+// i zakres tenanta, które są sprawą wyłącznie serwera. Filtry stały tu
+// wcześniej jako druga, niezależna lista pól - obok predykatów klientowych
+// w leadViews.ts; rozjazd między nimi był kwestią czasu, nie ryzykiem.
+const ListInput = LeadListFilterSchema.extend({
   scope: z.enum(["tenant", "all"]).default("tenant"),
   // Paginacja serwerowa: limit = rozmiar strony, page liczona od 1. Odpowiedź
   // niesie total z count:"exact", więc admin zawsze widzi pełny rozmiar zbioru.
   limit: z.number().int().min(1).max(500).default(200),
   page: z.number().int().min(1).max(10_000).default(1),
-  sort: SORT_ENUM.default("activity"),
-  sort_dir: z.enum(["asc", "desc"]).default("desc"),
-  band: z.enum(["hot", "warm", "cool", "cold"]).optional(),
-  // Rozszerzone filtry: wybór właściciela (multi), tagi (multi, overlaps),
-  // przedział score (0-100), kraj (dokładne dopasowanie po dwuznakowym kodzie
-  // lub nazwie), zakres last_activity_at oraz created_at (ISO). Zostawiamy
-  // pola opcjonalne, żeby nie łamać istniejących wywołań i saved_views.
-  owner_ids: z.array(z.string().uuid()).max(50).optional(),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
-  score_min: z.number().int().min(0).max(100).optional(),
-  score_max: z.number().int().min(0).max(100).optional(),
-  country: z.string().trim().max(120).optional(),
-  company: z.string().trim().max(200).optional(),
-  newsletter_status: z.string().trim().max(40).optional(),
-  consent_only: z.boolean().optional(),
-  // Źródło jak w LeadFilterSchema: newsletter (status niepusty), form
-  // (zgłoszenia formularzy bez newslettera), import (reszta).
-  source: z.enum(["form", "newsletter", "import"]).optional(),
-  activity_from: z.string().datetime().optional(),
-  activity_to: z.string().datetime().optional(),
-  created_from: z.string().datetime().optional(),
-  created_to: z.string().datetime().optional(),
+  // Sortowanie serwerowe: przy paginacji porządek MUSI liczyć się w SQL (strona
+  // posortowana klientem kłamałaby o kolejności globalnej).
+  sort: LeadSortKeySchema.default("activity"),
+  sort_dir: LeadSortDirSchema.default("desc"),
 });
 type ListParams = z.infer<typeof ListInput>;
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
-// Wspólna aplikacja filtrów listy leadów - jedno źródło prawdy dla listy
-// (paginowanej) i eksportu CSV, żeby eksport zawsze odpowiadał temu, co admin
-// widzi po filtrach.
-function applyLeadListFilters(q: LooseQuery, data: ListParams): LooseQuery {
-  if (data.stage) q = q.eq("stage", data.stage);
-  if (data.band) q = q.eq("score_band", data.band);
-  if (data.owner_ids && data.owner_ids.length > 0) q = q.in("owner_id", data.owner_ids);
-  if (data.tags && data.tags.length > 0) q = q.overlaps("tags", data.tags);
-  if (typeof data.score_min === "number") q = q.gte("score", data.score_min);
-  if (typeof data.score_max === "number") q = q.lte("score", data.score_max);
-  if (data.country) q = q.eq("country", data.country);
-  if (data.company) q = q.eq("company", data.company);
-  if (data.newsletter_status) q = q.eq("newsletter_status", data.newsletter_status);
-  if (data.consent_only) q = q.eq("marketing_consent", true);
-  if (data.source === "newsletter") q = q.not("newsletter_status", "is", null);
-  if (data.source === "form") q = q.is("newsletter_status", null).gte("source_count", 1);
-  if (data.source === "import") {
-    q = q.is("newsletter_status", null).or("source_count.is.null,source_count.lte.0");
-  }
-  if (data.activity_from) q = q.gte("last_activity_at", data.activity_from);
-  if (data.activity_to) q = q.lte("last_activity_at", data.activity_to);
-  if (data.created_from) q = q.gte("created_at", data.created_from);
-  if (data.created_to) q = q.lte("created_at", data.created_to);
-  if (data.search) {
-    // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
-    // term can't inject extra filter conditions (RLS still scopes rows, but
-    // the term must not alter the query's filter logic).
-    const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
-    q = q.or(`email.ilike.${s},first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s}`);
-  }
-  return q;
+// Filtry listy leadów - jedno źródło prawdy dla listy (paginowanej), eksportu
+// CSV oraz predykatów klientowych w leadViews.ts. Cała reguła („co znaczy
+// źródło = import", jak escapujemy frazę, gdzie lądują NULL-e) mieszka
+// w lib/crm/leadListSpec.ts; tutaj zostaje wyłącznie wykonanie opisu na
+// zapytaniu PostgREST. Bramka parytetu (leadListParity.test.ts) pilnuje, że
+// oba wykonania dają ten sam zbiór i tę samą kolejność.
+export function applyLeadListFilters<Q extends LeadFilterQuery<Q>>(q: Q, data: ListParams): Q {
+  return applyLeadFilterSpec(q, buildLeadFilterSpec(data));
 }
 
-function applyLeadListSort(q: LooseQuery, data: ListParams): LooseQuery {
-  const ascending = data.sort_dir === "asc";
+export function applyLeadListSort<Q extends LeadFilterQuery<Q>>(q: Q, data: ListParams): Q {
   // nullsFirst: false trzyma puste follow-upy/firmy na końcu niezależnie od
   // kierunku; id jako tiebreaker daje deterministyczne okna paginacji.
-  q = q.order(SORT_COLUMNS[data.sort], { ascending, nullsFirst: false });
-  if (data.sort === "name") q = q.order("last_name", { ascending, nullsFirst: false });
-  return q.order("id", { ascending: true });
+  return applyLeadSortSpec(q, data.sort, data.sort_dir);
 }
 
 export const listCrmLeads = createServerFn({ method: "POST" })

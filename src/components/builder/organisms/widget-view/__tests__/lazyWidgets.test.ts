@@ -69,6 +69,26 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
+  // 2026-08-19: `TrendingNowView` figurował na tej liście DWA razy - dwie
+  // gałęzie dopisały go niezależnie, a scalenie zostawiło obie kopie. Druga
+  // asercja porównuje listę z kluczami modułu, więc duplikat czerwienił bramkę
+  // na eksport, który jest poprawny. Każdy widget stoi na liście RAZ.
+  //
+  // Cięcie ścieżki bootowania (01253dc, chunk wejściowy 374 -> 253 KB gz).
+  // Trzy widgety zeszły wtedy na leniwą krawędź, ale lista tutaj nie została
+  // dopisana - a druga asercja tego pliku jest SYMETRYCZNA, więc bramka
+  // czerwieniła się na eksporty, które są poprawne i realnie konsumowane
+  // (WidgetView -> TrendingNowView; SimpleWidgets -> AccordionWidget,
+  // SectionLabelWidgetView). Powód leniwości każdego z nich:
+  //  * AccordionWidget - jedyny konsument sanitizeHtml/DOMPurify w SimpleWidgets;
+  //    statyczna krawędź trzymała DOMPurify w chunku wejściowym,
+  //  * SectionLabelWidgetView - wariantownia z lib/builder/sectionLabelVariants,
+  //  * TrendingNowView - widok listy „na czasie" spod WidgetView; jego wpis stoi
+  //    wyżej, przy `NewsTickerView` - dopisanie go PONOWNIE tutaj (scalenie
+  //    c145e2f) czerwieniło strażnika, bo lista miała 59 pozycji wobec 58
+  //    eksportów rejestru.
+  "AccordionWidget",
+  "SectionLabelWidgetView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

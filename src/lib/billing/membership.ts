@@ -45,6 +45,55 @@ export function useMyGrants(): UseQueryResult<MembershipGrantRow[]> {
   });
 }
 
+/** Nadanie bez daty końca = dostęp dożywotni (VIP eksperta NES). */
+export function isLifetimeGrant(grant: Pick<MembershipGrantRow, "expires_at">): boolean {
+  return !grant.expires_at;
+}
+
+/**
+ * Nadania, z których dostęp FAKTYCZNIE wynika: nieodwołane i nieprzedawnione.
+ *
+ * Reguła stała dotąd w TRZECH miejscach w trzech różnych kształtach -
+ * `deriveSubscriptionStatus` (kanoniczny), `SubscriptionManagerSection`
+ * i `LifetimeAccessCard` (lokalne kopie porównujące daty na dwa różne sposoby).
+ * Rozbieżność między nimi znaczyłaby, że jeden ekran pokazuje uprawnienie,
+ * którego drugi już nie widzi - a to jest pytanie „co ja właściwie mam
+ * wykupione", zadawane przez płacącego klienta.
+ *
+ * `now` jest parametrem, nie `Date.now()` w ciele: bez tego reguła nie da się
+ * przetestować na granicy wygaśnięcia inaczej niż przez czekanie.
+ *
+ * Uwaga: `fetchMyGrants` odsiewa odwołane już po stronie bazy. Filtr po
+ * `revoked_at` zostaje tu świadomie - reguła musi być poprawna także dla
+ * nadań z innego źródła (np. z pełnej listy w panelu administratora).
+ */
+export function activeGrants(
+  grants: readonly MembershipGrantRow[],
+  now: number = Date.now(),
+): MembershipGrantRow[] {
+  return grants.filter((grant) => {
+    if (grant.revoked_at) return false;
+    if (isLifetimeGrant(grant)) return true;
+    const expiresAt = new Date(grant.expires_at as string).getTime();
+    // Data nieparsowalna nie może „przedłużać" dostępu przez NaN w porównaniu.
+    return Number.isFinite(expiresAt) && expiresAt > now;
+  });
+}
+
+/**
+ * Jedno nadanie do pokazania, gdy ekran ma miejsce tylko na jedno.
+ * Dożywotnie ma pierwszeństwo - jest mocniejszym uprawnieniem niż terminowe,
+ * więc pokazanie daty wygaśnięcia obok dostępu bezterminowego byłoby myląco
+ * gorsze niż prawda.
+ */
+export function primaryGrant(
+  grants: readonly MembershipGrantRow[],
+  now: number = Date.now(),
+): MembershipGrantRow | null {
+  const active = activeGrants(grants, now);
+  return active.find(isLifetimeGrant) ?? active[0] ?? null;
+}
+
 export interface MyDonationRow {
   id: string;
   amount_cents: number;

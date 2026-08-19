@@ -15,38 +15,17 @@ import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { getAuthEmailPreviews } from "@/lib/auth-email-preview.functions";
 import { getTxEmailPreviews } from "@/lib/tx-email-preview.functions";
-
-type Lang = "pl" | "en";
-type Gender = "male" | "female" | "unknown";
-type Device = "desktop" | "mobile";
-type Scope = "auth" | "app";
-
-/**
- * `type` przychodzi z serwera jako zwykly string, wiec mapa zostaje mapa -
- * tylko z KLUCZEM tlumaczenia zamiast pary `{ pl, en }`. Klucze wypisane
- * literalnie (nie skladane szablonem), zeby bramka pokrycia je widziala,
- * a nieznany typ nadal ma czym sie awaryjnie wyrenderowac.
- */
-const TYPE_LABEL_KEYS: Record<string, string> = {
-  signup: "adminNewsletter.emailPreview.types.signup",
-  magiclink: "adminNewsletter.emailPreview.types.magiclink",
-  recovery: "adminNewsletter.emailPreview.types.recovery",
-  invite: "adminNewsletter.emailPreview.types.invite",
-  email_change: "adminNewsletter.emailPreview.types.email_change",
-  reauthentication: "adminNewsletter.emailPreview.types.reauthentication",
-  subscription_confirmed: "adminNewsletter.emailPreview.types.subscription_confirmed",
-  subscription_renewed: "adminNewsletter.emailPreview.types.subscription_renewed",
-  subscription_canceled: "adminNewsletter.emailPreview.types.subscription_canceled",
-  subscription_upgraded: "adminNewsletter.emailPreview.types.subscription_upgraded",
-  subscription_downgraded: "adminNewsletter.emailPreview.types.subscription_downgraded",
-  subscription_paused: "adminNewsletter.emailPreview.types.subscription_paused",
-  subscription_resumed: "adminNewsletter.emailPreview.types.subscription_resumed",
-  team_seat_grace: "adminNewsletter.emailPreview.types.team_seat_grace",
-  team_seat_grace_reminder: "adminNewsletter.emailPreview.types.team_seat_grace_reminder",
-  team_seat_access_ended: "adminNewsletter.emailPreview.types.team_seat_access_ended",
-  event_registered: "adminNewsletter.emailPreview.types.event_registered",
-  newsletter_confirmed: "adminNewsletter.emailPreview.types.newsletter_confirmed",
-};
+import {
+  activePreview,
+  defaultTypeForScope,
+  frameMaxWidth,
+  previewFirstName,
+  previewTypeLabelKey,
+  type PreviewDevice as Device,
+  type PreviewGender as Gender,
+  type PreviewLang as Lang,
+  type PreviewScope as Scope,
+} from "./authPreviewRules";
 
 export function AuthEmailPreviewPanel() {
   ensureNewsletterAdminI18n();
@@ -66,7 +45,7 @@ export function AuthEmailPreviewPanel() {
     queryKey: ["email-previews", scope, lang, firstName, gender],
     queryFn: async () => {
       const input = {
-        data: { lang, firstName: firstName.trim() ? firstName.trim() : null, gender },
+        data: { lang, firstName: previewFirstName(firstName), gender },
       };
       const rows = scope === "auth" ? await fetchAuthPreviews(input) : await fetchTxPreviews(input);
       return rows as Array<{
@@ -80,10 +59,7 @@ export function AuthEmailPreviewPanel() {
     staleTime: 60_000,
   });
 
-  const active = useMemo(
-    () => data?.find((p) => p.type === activeType) ?? data?.[0],
-    [data, activeType],
-  );
+  const active = useMemo(() => activePreview(data, activeType), [data, activeType]);
 
   const copyHtml = async () => {
     if (!active) return;
@@ -121,7 +97,7 @@ export function AuthEmailPreviewPanel() {
           value={scope}
           onChange={(v) => {
             setScope(v as Scope);
-            setActiveType(v === "auth" ? "signup" : "subscription_confirmed");
+            setActiveType(defaultTypeForScope(v as Scope));
           }}
           options={[
             { value: "auth", label: t("adminNewsletter.emailPreview.scopeAuth") },
@@ -170,7 +146,7 @@ export function AuthEmailPreviewPanel() {
         <Card className="p-2 h-fit">
           <nav className="flex flex-col gap-1">
             {(data ?? []).map((p) => {
-              const labelKey = TYPE_LABEL_KEYS[p.type];
+              const labelKey = previewTypeLabelKey(p.type);
               const isActive = active?.type === p.type;
               return (
                 <button
@@ -226,7 +202,7 @@ export function AuthEmailPreviewPanel() {
                 sandbox="allow-same-origin"
                 className="bg-white rounded-md border border-border w-full"
                 style={{
-                  maxWidth: device === "mobile" ? 390 : 720,
+                  maxWidth: frameMaxWidth(device),
                   height: 880,
                 }}
               />

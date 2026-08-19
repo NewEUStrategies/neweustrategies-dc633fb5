@@ -32,36 +32,21 @@ import {
 import { FileText, Upload } from "lucide-react";
 import { parseCsv } from "@/lib/csv/parseCsv";
 import {
+  LEAD_IMPORT_FIELD_CHOICES,
+  autoMapHeaders,
+  mapImportRows,
+  type LeadImportFieldChoice,
+  type LeadImportMapping,
+} from "@/lib/crm/importMapping";
+import {
   CRM_IMPORT_CHUNK_SIZE,
   importCrmLeads,
-  type CrmImportRow,
   type CrmImportSummary,
 } from "@/lib/crm-tasks.functions";
 
-type FieldKey =
-  | "email"
-  | "first_name"
-  | "last_name"
-  | "phone"
-  | "company"
-  | "position"
-  | "country"
-  | "linkedin_url"
-  | "tags"
-  | "";
-
-const FIELD_ORDER: FieldKey[] = [
-  "email",
-  "first_name",
-  "last_name",
-  "phone",
-  "company",
-  "position",
-  "country",
-  "linkedin_url",
-  "tags",
-  "",
-];
+// Etykiety pól zostają w panelu (PL/EN), reguła mapowania mieszka w
+// lib/crm/importMapping.ts - to ona decyduje o losie danych osobowych.
+type FieldKey = LeadImportFieldChoice;
 
 const FIELD_LABELS: Record<"pl" | "en", Record<FieldKey, string>> = {
   pl: {
@@ -89,6 +74,12 @@ const FIELD_LABELS: Record<"pl" | "en", Record<FieldKey, string>> = {
     "": "-- skip --",
   },
 };
+
+// Radix Select ODRZUCA pustą wartość pozycji (rzuca wyjątkiem, żeby `""` mogło
+// znaczyć „wyczyszczone"). Opcja „pomiń kolumnę" ma w mapowaniu właśnie pustą
+// wartość, więc w interfejsie zastępuje ją wartownik - inaczej krok mapowania
+// kolumn NIE RENDERUJE SIĘ WCALE (cały dialog padał po wybraniu pliku).
+const SKIP_VALUE = "__skip__";
 
 const TXT = {
   pl: {
@@ -130,64 +121,6 @@ const TXT = {
   },
 };
 
-function autoMap(header: string[]): FieldKey[] {
-  return header.map((h): FieldKey => {
-    const n = h.trim().toLowerCase();
-    if (/^(e[-_ ]?mail|mail|adres)/.test(n)) return "email";
-    if (/(first|imi)/.test(n)) return "first_name";
-    if (/(last|nazwisko|surname)/.test(n)) return "last_name";
-    if (/(phone|tel)/.test(n)) return "phone";
-    if (/(company|firma|organi)/.test(n)) return "company";
-    if (/(position|stanowisko|title|rola|role)/.test(n)) return "position";
-    if (/(country|kraj)/.test(n)) return "country";
-    if (/linked/.test(n)) return "linkedin_url";
-    if (/(tags?|tagi|etykiet)/.test(n)) return "tags";
-    return "";
-  });
-}
-
-const MAX_ROWS = 5000;
-
-interface MappedRows {
-  rows: CrmImportRow[];
-  inFileDuplicates: number;
-}
-
-function mapRows(rows: string[][], mapping: FieldKey[]): MappedRows {
-  const emailIdx = mapping.indexOf("email");
-  const seen = new Set<string>();
-  const out: CrmImportRow[] = [];
-  let dupes = 0;
-  for (const r of rows) {
-    const email = (r[emailIdx] ?? "").trim();
-    if (!/.+@.+\..+/.test(email)) continue;
-    const norm = email.toLowerCase();
-    if (seen.has(norm)) {
-      dupes++;
-      continue;
-    }
-    seen.add(norm);
-    const row: CrmImportRow = { email };
-    mapping.forEach((key, i) => {
-      const value = (r[i] ?? "").trim();
-      if (!key || key === "email" || !value) return;
-      if (key === "tags") {
-        const tags = value
-          .split(/[|;,]/)
-          .map((t) => t.trim())
-          .filter((t) => t.length > 0)
-          .slice(0, 20);
-        if (tags.length > 0) row.tags = tags;
-        return;
-      }
-      row[key] = value.slice(0, 300);
-    });
-    out.push(row);
-    if (out.length >= MAX_ROWS) break;
-  }
-  return { rows: out, inFileDuplicates: dupes };
-}
-
 export function ImportLeadsCsvDialog({
   open,
   onOpenChange,
@@ -201,7 +134,7 @@ export function ImportLeadsCsvDialog({
   const fieldLabels = FIELD_LABELS[lang];
   const [file, setFile] = useState<File | null>(null);
   const [csvText, setCsvText] = useState("");
-  const [mapping, setMapping] = useState<FieldKey[]>([]);
+  const [mapping, setMapping] = useState<LeadImportMapping>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const qc = useQueryClient();
@@ -211,7 +144,9 @@ export function ImportLeadsCsvDialog({
   const emailIdx = mapping.indexOf("email");
   const mapped = useMemo(
     () =>
-      parsed && emailIdx >= 0 ? mapRows(parsed.rows, mapping) : { rows: [], inFileDuplicates: 0 },
+      parsed && emailIdx >= 0
+        ? mapImportRows(parsed.rows, mapping)
+        : { rows: [], inFileDuplicates: 0, skippedWithoutEmail: 0, droppedOverLimit: 0 },
     [parsed, mapping, emailIdx],
   );
 
@@ -219,7 +154,7 @@ export function ImportLeadsCsvDialog({
     setFile(f);
     const text = await f.text();
     setCsvText(text);
-    setMapping(autoMap(parseCsv(text).header));
+    setMapping(autoMapHeaders(parseCsv(text).header));
   };
 
   const reset = () => {
@@ -319,19 +254,19 @@ export function ImportLeadsCsvDialog({
                       {h || `col_${i + 1}`}
                     </div>
                     <Select
-                      value={mapping[i] ?? ""}
+                      value={mapping[i] ? mapping[i] : SKIP_VALUE}
                       onValueChange={(v) => {
                         const next = [...mapping];
-                        next[i] = v as FieldKey;
+                        next[i] = v === SKIP_VALUE ? "" : (v as FieldKey);
                         setMapping(next);
                       }}
                     >
-                      <SelectTrigger className="h-8">
+                      <SelectTrigger className="h-8" aria-label={`${t.mapping}: ${h || i + 1}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {FIELD_ORDER.map((k) => (
-                          <SelectItem key={k || "skip"} value={k}>
+                        {LEAD_IMPORT_FIELD_CHOICES.map((k) => (
+                          <SelectItem key={k || SKIP_VALUE} value={k || SKIP_VALUE}>
                             {fieldLabels[k]}
                           </SelectItem>
                         ))}

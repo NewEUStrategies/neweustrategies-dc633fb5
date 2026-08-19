@@ -23,28 +23,22 @@ import {
 import { uiLocale } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-auth-email-logs";
-
-const RANGES = [1, 7, 30] as const;
-type Range = (typeof RANGES)[number];
-
-const TYPES = [
-  "signup",
-  "invite",
-  "magiclink",
-  "recovery",
-  "email_change",
-  "reauthentication",
-] as const;
-
-const STATUSES: readonly AuthEventStatus[] = ["enqueued", "rejected", "failed"];
-
-const PAGE_SIZE = 50;
-
-function statusTone(status: AuthEventStatus): string {
-  if (status === "enqueued") return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-  if (status === "rejected") return "bg-amber-500/10 text-amber-600 border-amber-500/20";
-  return "bg-destructive/10 text-destructive border-destructive/20";
-}
+import {
+  ALL_OPTION,
+  PAGE_SIZE,
+  RANGES,
+  STATUSES,
+  TYPES,
+  filterOption,
+  filterValue,
+  langLabel,
+  langSourceKey,
+  rowTimestamp,
+  searchValue,
+  statusTone,
+  totalPages as totalPagesFor,
+  type Range,
+} from "./authLogsView";
 
 export function AuthEmailLogsPanel() {
   const { t, i18n } = useTranslation();
@@ -69,7 +63,7 @@ export function AuthEmailLogsPanel() {
           lang,
           status,
           fallbackOnly,
-          search: search.trim() ? search.trim() : null,
+          search: searchValue(search),
           page,
           pageSize: PAGE_SIZE,
         },
@@ -78,7 +72,7 @@ export function AuthEmailLogsPanel() {
 
   const data = report.data;
   const rows: AuthEmailEventRow[] = data?.rows ?? [];
-  const totalPages = Math.max(1, Math.ceil((data?.rowsTotal ?? 0) / PAGE_SIZE));
+  const totalPages = totalPagesFor(data?.rowsTotal ?? 0);
 
   const kpis = [
     { key: "total", value: data?.totals.total ?? 0 },
@@ -140,9 +134,9 @@ export function AuthEmailLogsPanel() {
         </div>
 
         <Select
-          value={emailType ?? "all"}
+          value={filterOption(emailType)}
           onValueChange={(v) => {
-            setEmailType(v === "all" ? null : v);
+            setEmailType(filterValue(v));
             resetPage();
           }}
         >
@@ -150,7 +144,7 @@ export function AuthEmailLogsPanel() {
             <SelectValue placeholder={t("authEmailLogs.filters.type")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("authEmailLogs.filters.all")}</SelectItem>
+            <SelectItem value={ALL_OPTION}>{t("authEmailLogs.filters.all")}</SelectItem>
             {TYPES.map((type) => (
               <SelectItem key={type} value={type}>
                 {type}
@@ -160,9 +154,9 @@ export function AuthEmailLogsPanel() {
         </Select>
 
         <Select
-          value={lang ?? "all"}
+          value={filterOption(lang)}
           onValueChange={(v) => {
-            setLang(v === "all" ? null : (v as "pl" | "en"));
+            setLang(filterValue(v) as "pl" | "en" | null);
             resetPage();
           }}
         >
@@ -170,16 +164,16 @@ export function AuthEmailLogsPanel() {
             <SelectValue placeholder={t("authEmailLogs.filters.lang")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("authEmailLogs.filters.all")}</SelectItem>
+            <SelectItem value={ALL_OPTION}>{t("authEmailLogs.filters.all")}</SelectItem>
             <SelectItem value="pl">PL</SelectItem>
             <SelectItem value="en">EN</SelectItem>
           </SelectContent>
         </Select>
 
         <Select
-          value={status ?? "all"}
+          value={filterOption(status)}
           onValueChange={(v) => {
-            setStatus(v === "all" ? null : (v as AuthEventStatus));
+            setStatus(filterValue(v) as AuthEventStatus | null);
             resetPage();
           }}
         >
@@ -187,7 +181,7 @@ export function AuthEmailLogsPanel() {
             <SelectValue placeholder={t("authEmailLogs.filters.status")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("authEmailLogs.filters.all")}</SelectItem>
+            <SelectItem value={ALL_OPTION}>{t("authEmailLogs.filters.all")}</SelectItem>
             {STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {t(`authEmailLogs.status.${s}`)}
@@ -303,24 +297,24 @@ export function AuthEmailLogsPanel() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
-                    {t("authEmailLogs.table.empty")}
+                    {/* Przy awarii zapytania „brak wpisow w zakresie" klamie:
+                        log moze byc pelny, tylko nieodczytany. */}
+                    {report.isError ? t("authEmailLogs.error") : t("authEmailLogs.table.empty")}
                   </td>
                 </tr>
               )}
               {rows.map((row) => (
                 <tr key={row.id} className="border-t border-border/50 align-top">
                   <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                    {row.createdAt
-                      ? new Date(row.createdAt).toLocaleString(locale, {
-                          day: "2-digit",
-                          month: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "-"}
+                    {rowTimestamp(row.createdAt, locale, {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">{row.emailType}</td>
-                  <td className="px-3 py-2 uppercase">{row.lang ?? "-"}</td>
+                  <td className="px-3 py-2 uppercase">{langLabel(row.lang)}</td>
                   <td className="px-3 py-2">
                     <span
                       className={cn(
@@ -330,8 +324,8 @@ export function AuthEmailLogsPanel() {
                           : "border-border text-muted-foreground",
                       )}
                     >
-                      {t(`authEmailLogs.sources.${row.langSource ?? "unknown"}`, {
-                        defaultValue: row.langSource ?? "-",
+                      {t(langSourceKey(row.langSource).key, {
+                        defaultValue: langSourceKey(row.langSource).fallbackText,
                       })}
                     </span>
                   </td>

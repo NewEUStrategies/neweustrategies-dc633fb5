@@ -12,10 +12,12 @@
 // publicznej płynie z URL przez props, nigdy z globalnego singletona i18next,
 // więc edge-cache nie może zserwować złego języka.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Copy, Quote } from "@/lib/lucide-shim";
 import { buildCitations, type CitationAuthor, type CitationLang } from "@/lib/citations/format";
 import { SITE_NAME } from "@/lib/seo/meta";
+import "@/lib/i18n-post-experience";
 
 type CitationFormatKey = "chicago" | "apa" | "bibtex";
 
@@ -26,21 +28,6 @@ const FORMAT_LABELS: Readonly<Record<CitationFormatKey, string>> = {
   apa: "APA",
   bibtex: "BibTeX",
 };
-
-const COPY_TEXTS = {
-  pl: {
-    heading: "Cytuj tę analizę",
-    copy: "Kopiuj",
-    copied: "Skopiowano",
-    copyAria: "Kopiuj cytowanie w formacie",
-  },
-  en: {
-    heading: "Cite this analysis",
-    copy: "Copy",
-    copied: "Copied",
-    copyAria: "Copy citation in format",
-  },
-} as const;
 
 export interface CitationBoxProps {
   title: string;
@@ -61,7 +48,9 @@ export function CitationBox({
   url,
   siteName = SITE_NAME,
 }: CitationBoxProps) {
-  const t = COPY_TEXTS[lang];
+  // Napisy idą w języku ARTYKUŁU, nie interfejsu - dotyczą TEJ treści.
+  const { t: translate } = useTranslation();
+  const t = (key: string) => translate(`postExperience.citation.${key}`, { lng: lang });
   const headingId = useId();
 
   // Data dostępu czytelnika - wyłącznie po stronie klienta (patrz nagłówek).
@@ -111,7 +100,7 @@ export function CitationBox({
       <div className="flex items-center gap-2 mb-3">
         <Quote className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
         <h2 id={headingId} className="text-xs uppercase tracking-wide text-muted-foreground">
-          {t.heading}
+          {t("heading")}
         </h2>
       </div>
       <Tabs defaultValue="chicago">
@@ -141,7 +130,7 @@ export function CitationBox({
                 <button
                   type="button"
                   onClick={() => void onCopy(key)}
-                  aria-label={`${t.copyAria} ${FORMAT_LABELS[key]}`}
+                  aria-label={`${t("copyAria")} ${FORMAT_LABELS[key]}`}
                   className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-border hover:bg-muted/60 transition"
                 >
                   {copiedKey === key ? (
@@ -149,7 +138,7 @@ export function CitationBox({
                   ) : (
                     <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                   )}
-                  <span aria-live="polite">{copiedKey === key ? t.copied : t.copy}</span>
+                  <span aria-live="polite">{copiedKey === key ? t("copied") : t("copy")}</span>
                 </button>
               </figcaption>
             </figure>

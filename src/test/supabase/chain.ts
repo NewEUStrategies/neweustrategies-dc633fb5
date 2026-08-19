@@ -133,6 +133,8 @@ const CHAIN_METHODS: readonly string[] = [
   "in",
   "is",
   "not",
+  "like",
+  "ilike",
   "or",
   "filter",
   "match",

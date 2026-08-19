@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
 import { createPost } from "@/lib/content.functions";
+import { shouldStartPostCreation } from "@/components/admin/post-editor/lib/postRouteParams";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/new")({
@@ -16,11 +17,22 @@ function NewPost() {
   const [busy, setBusy] = useState(false);
   // React StrictMode uruchamia setup efektu dwukrotnie w dev. Stan `busy`
   // aktualizuje się dopiero w kolejnym renderze, więc sam nie chroni przed
-  // dwoma równoległymi POST-ami. Ref jest synchronicznym single-flight lockiem.
+  // dwoma równoległymi POST-ami. Ref jest synchronicznym single-flight lockiem
+  // (regułę trzyma `shouldStartPostCreation`).
   const createStartedRef = useRef(false);
 
   useEffect(() => {
-    if (loading || busy || !user || !tenantId || createStartedRef.current) return;
+    if (
+      !shouldStartPostCreation({
+        loading,
+        busy,
+        user,
+        tenantId,
+        alreadyStarted: createStartedRef.current,
+      })
+    ) {
+      return;
+    }
     createStartedRef.current = true;
     setBusy(true);
     (async () => {

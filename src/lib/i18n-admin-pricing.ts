@@ -120,6 +120,10 @@ const adminPricingPl = {
     benefits: {
       heading: "Benefity (PL/EN)",
       add: "Dodaj",
+      // Etykiety dostępne pól benefitu - `placeholder` znika po pierwszym
+      // znaku, więc nie zastępuje etykiety dla czytnika ekranu.
+      labelPl: "Treść benefitu PL",
+      labelEn: "Treść benefitu EN",
       empty: "Brak benefitów - dodaj pierwszy punkt.",
       moveUp: "Przesuń wyżej",
       moveDown: "Przesuń niżej",
@@ -283,6 +287,8 @@ const adminPricingEn: typeof adminPricingPl = {
     benefits: {
       heading: "Benefits (PL/EN)",
       add: "Add",
+      labelPl: "Benefit text PL",
+      labelEn: "Benefit text EN",
       empty: "No benefits yet - add the first point.",
       moveUp: "Move up",
       moveDown: "Move down",

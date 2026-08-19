@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
 import { XIcon } from "@/components/atoms/XIcon";
+import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 
 interface SocialRow {
   slug: string | null;
@@ -65,38 +66,13 @@ const RESERVED = new Set([
 
 type SlugStatus = "idle" | "checking" | "ok" | "invalid" | "short" | "taken" | "reserved";
 
-/**
- * Litery, których unicode NIE rozkłada na „podstawa + znak diakrytyczny".
- *
- * DLACZEGO TO TU JEST. `normalize("NFKD")` radzi sobie z ą/ć/ę/ń/ó/ś/ź/ż, bo to
- * są złożenia. „ł" (U+0142) złożeniem NIE jest - to osobna litera z przekreśleniem,
- * więc NFKD zostawia ją bez zmian, a następny krok (`[^a-z0-9]`) zamienia ją na
- * dywiz i usuwa z brzegu. Skutek dla polskiego produktu: propozycja adresu
- * ZJADAŁA literę z imienia - „Michał Nowak" dawało `micha-nowak`, „Paweł" ->
- * `pawe`, a „Łukasz Zieliński" -> `ukasz-zielinski` (bez pierwszej litery).
- * Użytkownik dostawał do rozesłania publiczny adres z okaleczonym nazwiskiem.
- *
- * Mapa obejmuje litery ze znakiem i ligatury spotykane w nazwiskach z UE, bo
- * katalog osób jest ogólnoeuropejski.
- */
-const STROKE_LETTERS: Readonly<Record<string, string>> = {
-  ł: "l",
-  đ: "d",
-  ð: "d",
-  ø: "o",
-  æ: "ae",
-  œ: "oe",
-  ß: "ss",
-  þ: "th",
-  ħ: "h",
-  ŀ: "l",
-  ı: "i",
-};
-
 function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, (char) => STROKE_LETTERS[char] ?? char)
+  // Transliteracja liter, ktorych Unicode NIE rozklada („l z przekresleniem",
+  // ligatury) - mapa mieszka w `@/lib/text/strokeLetters`, wspolna z generatorem
+  // slugow taksonomii i wpisow. Trzecia kopia rozjechalaby sie przy pierwszej
+  // zmianie, a rozjazd oznaczalby, ze ten sam tekst daje rozne adresy zaleznie
+  // od tego, ktory ekran go wygenerowal.
+  return replaceStrokeLetters(s.toLowerCase())
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")

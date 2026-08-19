@@ -6,6 +6,15 @@ interface Props {
   thresholdPx?: number;
 }
 
+/** Czy system prosi o ograniczenie ruchu. Brak `matchMedia` (SSR) = brak prośby. */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export function BackToTop({ thresholdPx = 400 }: Props) {
   const { t } = useTranslation();
   const [show, setShow] = useState(false);
@@ -17,7 +26,14 @@ export function BackToTop({ thresholdPx = 400 }: Props) {
     return () => window.removeEventListener("scroll", onScroll);
   }, [thresholdPx]);
 
-  const onClick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  // Płynne przewijanie jest ANIMACJĄ przez całą wysokość dokumentu - dokładnie
+  // tym, co `prefers-reduced-motion` ma wyłączyć. Dla części czytelników
+  // (migrena przedsionkowa, choroba lokomocyjna, padaczka światłoczuła) taki
+  // przejazd jest objawowy, a nie „mniej ładny". Bez zgłoszonej preferencji
+  // zachowanie zostaje bez zmian.
+  const onClick = () => {
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  };
 
   return (
     <button

@@ -6,6 +6,7 @@ import { Columns3, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { requiredColumns, toggleColumn } from "@/lib/crm/columnSelection";
 import { COMPANY_COLUMNS, DEFAULT_COMPANY_VIEW_CONFIG } from "@/lib/crm/companyViews";
 import type { CompanyColumnKey } from "@/lib/crm/companyViews";
 
@@ -18,12 +19,10 @@ interface Props {
 export function CompanyColumnManager({ lang, active, onChange }: Props) {
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const set = new Set(active);
+  // Reguła przełączania (kolejność semantyczna, kolumna wymagana, brak pustej
+  // tabeli) jest wspólna z drugim menedżerem kolumn - lib/crm/columnSelection.
   const toggle = (key: CompanyColumnKey) => {
-    if (key === "name") return; // required
-    const next = COMPANY_COLUMNS.filter((c) =>
-      c.key === key ? !set.has(key) : set.has(c.key),
-    ).map((c) => c.key);
-    onChange(next.length ? next : ["name"]);
+    onChange(toggleColumn(COMPANY_COLUMNS, active, key, requiredColumns(COMPANY_COLUMNS)));
   };
   return (
     <Popover>

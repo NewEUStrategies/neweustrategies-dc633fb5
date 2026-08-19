@@ -99,7 +99,7 @@ vi.mock("@/components/checkout/EmbeddedCheckoutFrame", () => ({
 }));
 // Formularz danych do faktury ma własny test - tu liczy się tylko to, że lejek
 // pokazuje go W MIEJSCU, zamiast wyrzucać kupującego na /profile/billing.
-vi.mock("@/components/billing/BillingProfileForm", () => ({
+vi.mock("@/components/billing/molecules/BillingProfileForm", () => ({
   BillingProfileForm: ({ submitLabel }: { submitLabel?: string }) => (
     <form data-testid="billing-form">
       <button type="button">{submitLabel}</button>

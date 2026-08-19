@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { TierBenefit } from "@/lib/billing/tiers";
 import { ensureI18n as ensureAdminPricingI18n } from "@/lib/i18n-admin-pricing";
+import { shiftExpandedAfterRemove, swapExpanded, type ExpandedRows } from "@/lib/ui/expandedRows";
 
 function hasExtras(benefit: TierBenefit): boolean {
   return Boolean(
@@ -33,17 +34,25 @@ export function TierBenefitsEditor({
   const tb = (k: string) => t(`adminPricing.benefits.${k}`);
   // Ręcznie rozwinięte wiersze; wiersze z wypełnionymi polami dodatkowymi
   // są otwarte zawsze (nic edytowalnego nie znika z oczu).
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [expanded, setExpanded] = useState<ExpandedRows>({});
 
   const update = (i: number, patch: Partial<TierBenefit>) => {
     onChange(value.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
   };
-  const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
+  const remove = (i: number) => {
+    // Stan rozwinięcia jest kluczowany POZYCJĄ, więc przy usuwaniu wiersza
+    // trzeba go przesunąć razem z listą - inaczej rozwinięcie „zostaje" przy
+    // numerze i odsłania cudzy wiersz.
+    setExpanded((state) => shiftExpandedAfterRemove(state, i));
+    onChange(value.filter((_, idx) => idx !== i));
+  };
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= value.length) return;
     const next = value.slice();
     [next[i], next[j]] = [next[j], next[i]];
+    // Rozwinięcie idzie za wierszem, nie za pozycją.
+    setExpanded((state) => swapExpanded(state, i, j));
     onChange(next);
   };
   const add = () => onChange([...value, { pl: "", en: "" }]);
@@ -77,6 +86,7 @@ export function TierBenefitsEditor({
                       className="h-6 w-6"
                       onClick={() => move(i, -1)}
                       disabled={i === 0}
+                      aria-label={`${tb("moveUp")} #${i + 1}`}
                       title={tb("moveUp")}
                     >
                       <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
@@ -88,6 +98,7 @@ export function TierBenefitsEditor({
                       className="h-6 w-6"
                       onClick={() => move(i, 1)}
                       disabled={i === value.length - 1}
+                      aria-label={`${tb("moveDown")} #${i + 1}`}
                       title={tb("moveDown")}
                     >
                       <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
@@ -98,6 +109,7 @@ export function TierBenefitsEditor({
                       variant="ghost"
                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
                       onClick={() => remove(i)}
+                      aria-label={`${tb("remove")} #${i + 1}`}
                       title={tb("remove")}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -105,13 +117,20 @@ export function TierBenefitsEditor({
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-1.5">
+                  {/* Etykiety dostępne, nie same podpowiedzi w polu: `placeholder`
+                      znika po pierwszym znaku, więc czytnik ekranu (i osoba
+                      wracająca do wypełnionego formularza) nie wie, które pole
+                      jest którym językiem. Numer wiersza w etykiecie odróżnia
+                      pola między benefitami. */}
                   <Input
+                    aria-label={`${tb("labelPl")} #${i + 1}`}
                     placeholder="PL"
                     value={benefit.pl}
                     onChange={(e) => update(i, { pl: e.target.value })}
                     className="h-8 text-sm"
                   />
                   <Input
+                    aria-label={`${tb("labelEn")} #${i + 1}`}
                     placeholder="EN"
                     value={benefit.en}
                     onChange={(e) => update(i, { en: e.target.value })}
@@ -133,24 +152,28 @@ export function TierBenefitsEditor({
                 {open && (
                   <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                     <Input
+                      aria-label={`${tb("detailPl")} #${i + 1}`}
                       placeholder={tb("detailPl")}
                       value={benefit.detail_pl ?? ""}
                       onChange={(e) => update(i, { detail_pl: e.target.value })}
                       className="h-8 text-sm"
                     />
                     <Input
+                      aria-label={`${tb("detailEn")} #${i + 1}`}
                       placeholder={tb("detailEn")}
                       value={benefit.detail_en ?? ""}
                       onChange={(e) => update(i, { detail_en: e.target.value })}
                       className="h-8 text-sm"
                     />
                     <Input
+                      aria-label={`${tb("groupPl")} #${i + 1}`}
                       placeholder={tb("groupPl")}
                       value={benefit.group_pl ?? ""}
                       onChange={(e) => update(i, { group_pl: e.target.value })}
                       className="h-8 text-sm"
                     />
                     <Input
+                      aria-label={`${tb("groupEn")} #${i + 1}`}
                       placeholder={tb("groupEn")}
                       value={benefit.group_en ?? ""}
                       onChange={(e) => update(i, { group_en: e.target.value })}

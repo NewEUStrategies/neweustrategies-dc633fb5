@@ -4,6 +4,24 @@ import i18n from "@/lib/i18n";
 const pl = {
   adminLayouts: {
     postLayouts: {
+      saving: "Zapisywanie…",
+      livePreview: "Podgląd na żywo",
+      coverRow: "Okładka:",
+      ratioRow: "Proporcja:",
+      centeringHeading: "Wyśrodkowanie nagłówka",
+      featuredRatioHeading: "Proporcja obrazu wyróżniającego",
+      featuredRatioField: "Układ {{layout}}",
+      group: {
+        standard: "Wpis standardowy",
+        video: "Wpis wideo",
+        audio: "Wpis audio",
+        gallery: "Wpis galerii",
+      },
+      breakpoint: {
+        mobile: "Telefon",
+        tablet: "Tablet",
+        desktop: "Komputer",
+      },
       loading: "Ładowanie…",
       savedToast: "Zapisano - layout wpisów został zaktualizowany",
       saveFailed: "Nie udało się zapisać",
@@ -119,6 +137,24 @@ const pl = {
 const en = {
   adminLayouts: {
     postLayouts: {
+      saving: "Saving…",
+      livePreview: "Live preview",
+      coverRow: "Cover:",
+      ratioRow: "Ratio:",
+      centeringHeading: "Header centering",
+      featuredRatioHeading: "Featured image ratio",
+      featuredRatioField: "Layout {{layout}}",
+      group: {
+        standard: "Standard post",
+        video: "Video post",
+        audio: "Audio post",
+        gallery: "Gallery post",
+      },
+      breakpoint: {
+        mobile: "Mobile",
+        tablet: "Tablet",
+        desktop: "Desktop",
+      },
       loading: "Loading…",
       savedToast: "Saved - post layout has been updated",
       saveFailed: "Failed to save",

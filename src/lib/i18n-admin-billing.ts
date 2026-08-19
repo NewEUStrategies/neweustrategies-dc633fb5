@@ -164,6 +164,18 @@ const pl = {
     ticketStats: "Opłacone: {{paid}} · biletów: {{tickets}} · oczekujące: {{pending}}",
     webhookStats: "Przetworzone: {{processed}} · błędy: {{failed}} · w toku: {{stuck}}",
     retriesCount: "ponowienia: {{count}}",
+    // Ponowna wysyłka linku do portalu klienta. Do 19.08.2026 te pięć
+    // komunikatów istniało WYŁĄCZNIE w kodzie przycisku, jako pary
+    // `pl ? "..." : "..."` - poza słownikiem, więc poza bramką parytetu
+    // i poza zasięgiem tłumacza. To komunikaty obsługi zgłoszeń: po nich
+    // operator poznaje, czy klient dostanie dostęp do swojego rozliczenia.
+    resendPortal: {
+      sent: "Link wysłany na {{email}}",
+      noCustomer: "Brak konta płatnika dla tego użytkownika.",
+      portalFailed: "Nie udało się utworzyć linku do portalu.",
+      noRecipient: "Brak adresu e-mail użytkownika.",
+      sendFailed: "Nie udało się wysłać wiadomości.",
+    },
   },
 };
 
@@ -321,6 +333,13 @@ const en = {
     ticketStats: "Paid: {{paid}} · tickets: {{tickets}} · pending: {{pending}}",
     webhookStats: "Processed: {{processed}} · errors: {{failed}} · in progress: {{stuck}}",
     retriesCount: "retries: {{count}}",
+    resendPortal: {
+      sent: "Link sent to {{email}}",
+      noCustomer: "This user has no billing customer yet.",
+      portalFailed: "Could not create the portal link.",
+      noRecipient: "The user has no email address.",
+      sendFailed: "Could not send the message.",
+    },
   },
 };
 

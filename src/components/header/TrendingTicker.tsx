@@ -50,13 +50,24 @@ export interface TickerProps {
   className?: string;
 }
 
-function normalizeMode(mode: TickerMode): "scroll" | "fade" | "slide" | "flip" | "typewriter" {
+/**
+ * Tryb `rotate` to nazwa historyczna (zapisana w ustawieniach tenantów), która
+ * oznacza dokładnie to samo, co `slide`. Eksport, bo to mapowanie jest jedyną
+ * rzeczą stojącą między starą konfiguracją a pustym paskiem.
+ */
+export function normalizeMode(
+  mode: TickerMode,
+): "scroll" | "fade" | "slide" | "flip" | "typewriter" {
   if (mode === "rotate") return "slide";
   return mode;
 }
 
-// Stable, DOM-safe attribute selector fragment for the given variant id.
-function safeAttr(id: string): string {
+/**
+ * Bezpieczny fragment selektora atrybutu dla identyfikatora wariantu.
+ * Identyfikator pochodzi z ustawień i ląduje w selektorze CSS wstrzykiwanym
+ * przez `dangerouslySetInnerHTML` - stąd biała lista znaków, a nie ucieczka.
+ */
+export function safeAttr(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, "_") || "default";
 }
 
@@ -387,7 +398,7 @@ const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
 };
 
 /** Inicjały jako zapas, gdy profil nie ma awatara - autor MA być zawsze widoczny. */
-function authorInitials(name: string): string {
+export function authorInitials(name: string): string {
   return name
     .split(/\s+/)
     .filter(Boolean)
@@ -442,13 +453,13 @@ interface MarqueeLayoutProps {
   skin: MarqueeSkin;
 }
 
-function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
+export function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
   return lang === "en"
     ? post.title_en || post.title_pl || ""
     : post.title_pl || post.title_en || "";
 }
 
-function itemHref(post: TickerItemProps["post"]): string {
+export function itemHref(post: TickerItemProps["post"]): string {
   return post.href ?? (post.slug ? `/post/${post.slug}` : "#");
 }
 

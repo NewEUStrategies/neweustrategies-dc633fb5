@@ -5,6 +5,7 @@
 //  - framing ceny rocznej jako równowartości miesięcznej + realny % zniżki,
 //  - segment odbiorcy nigdy nie "gubi" warstw (nieznane klucze -> pierwszy
 //    segment), więc redakcyjne literówki nie chowają oferty.
+import { SLUG_KEY_RE } from "@/lib/keyFormat";
 import type { AccessPlan } from "@/lib/billing/types";
 import { parseTierBenefits, type MembershipTierRow, type TierBenefit } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "./queries";
@@ -19,11 +20,12 @@ export const RECURRING_INTERVAL_ORDER: readonly BillingInterval[] = [
   "year",
 ] as const;
 
-const AUDIENCE_KEY_RE = /^[a-z0-9_-]{2,32}$/;
-
-/** Walidacja parametru ?audience= z URL (deep-link do segmentu). */
+/**
+ * Walidacja parametru ?audience= z URL (deep-link do segmentu). Ten sam format,
+ * którym panel przyjmuje nowy klucz - patrz `lib/keyFormat`.
+ */
 export function sanitizeAudienceKey(value: unknown): string | undefined {
-  return typeof value === "string" && AUDIENCE_KEY_RE.test(value) ? value : undefined;
+  return typeof value === "string" && SLUG_KEY_RE.test(value) ? value : undefined;
 }
 
 export function audienceName(

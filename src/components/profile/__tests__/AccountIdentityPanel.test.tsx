@@ -82,11 +82,15 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: unknown }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href: to }, children as never);
-  },
+// Wspólna atrapa `<Link>` (`src/test/routerLinkStub`), nie lokalna kopia:
+// poprzednia wersja budowała własny anchor przez `require("react")` wewnątrz
+// fabryki `vi.mock` - a `require()` jest w tym repo zabroniony regułą
+// `@typescript-eslint/no-require-imports`, więc `bun run lint` był czerwony.
+// Fabryka `vi.mock` jest hoistowana nad importy, dlatego stub wchodzi
+// dynamicznym `await import` - dokładnie jak w pozostałych suitach profilu
+// i sieci.
+vi.mock("@tanstack/react-router", async () => ({
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 
 vi.mock("sonner", () => ({

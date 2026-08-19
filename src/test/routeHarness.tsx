@@ -73,6 +73,8 @@ export interface RenderedRoute extends RenderResult {
   search: () => Record<string, unknown>;
   /** `meta` z `head()` dopasowanej trasy - to, co trafiłoby do `<HeadContent/>`. */
   meta: () => RouteMetaEntry[];
+  /** `links` z `head()` - m.in. kanoniczny adres i preload obrazu LCP. */
+  links: () => RouteMetaEntry[];
   /** Nawigacja w obrębie zamontowanego drzewa (np. na trasę rodzeństwa). */
   navigate: (href: string) => Promise<void>;
 }
@@ -121,6 +123,7 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     currentPath: () => router.state.location.pathname,
     search: () => (router.state.matches.at(-1)?.search ?? {}) as Record<string, unknown>,
     meta: () => (router.state.matches.at(-1)?.meta ?? []) as RouteMetaEntry[],
+    links: () => (router.state.matches.at(-1)?.links ?? []) as RouteMetaEntry[],
     navigate: async (href: string) => {
       await router.navigate({ href });
       await router.invalidate();
@@ -137,4 +140,30 @@ export async function routeMeta(route: AnyRoute): Promise<RouteMetaEntry[]> {
   if (typeof head !== "function") return [];
   const result = await head({} as Parameters<typeof head>[0]);
   return (result?.meta ?? []) as RouteMetaEntry[];
+}
+
+/** Handler serwerowy trasy (`server.handlers.GET/POST`) w kształcie testowym. */
+export type RouteServerHandler = (args: { request: Request }) => Promise<Response>;
+
+/**
+ * Handlery serwerowe trasy pliku - JEDYNE miejsce z rzutowaniem `Route.options`.
+ *
+ * PO CO. Trasy API (`createFileRoute(...)({ server: { handlers } })` ) nie
+ * wystawiają handlerów w typie publicznym: `RouteOptions` jest sparametryzowane
+ * kontekstem routera i ścieżką, więc odczyt „daj mi POST" wymaga rzutowania.
+ * Zamiast powtarzać je w każdym pliku testowym trasy, mieszka tu raz - z
+ * wyjaśnieniem, i z jednym miejscem do poprawienia, gdyby framework zaczął
+ * ten kształt eksportować.
+ *
+ * Handler wołamy WPROST, bez runtime'u routera: to on niesie całą logikę
+ * odpowiedzi (kody, nagłówki, zapisy), a przejście przez router niczego by tu
+ * nie dowiodło.
+ */
+export function routeServerHandlers(route: AnyRoute): Record<string, RouteServerHandler> {
+  const options = route.options as unknown as {
+    server?: { handlers?: Record<string, RouteServerHandler> };
+  };
+  const handlers = options.server?.handlers;
+  if (!handlers) throw new Error("test: trasa nie ma handlerów serwerowych");
+  return handlers;
 }
