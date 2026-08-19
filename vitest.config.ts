@@ -618,6 +618,18 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // Server functions historii zmian: lista, migawki do porównania,
+        // przywracanie. Największy plik modułu 2, który stał na 0% - a niesie
+        // trzy reguły, których nie widać z zewnątrz: przywrócenie NIE rusza
+        // `status`, migawka zabezpieczająca powstaje PRZED nadpisaniem, a UPDATE
+        // odfiltrowany przez RLS (zero wierszy, zero błędu) jest zgłaszany jako
+        // porażka. Każda gałąź błędu bazy ma test, więc próg stoi na 100%.
+        "src/lib/revisions.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         // Wersje buildera: typ encji przy przywracaniu, dokument sekcji/widgetu
         // i zakres zapytania. Tu siedział defekt `span: 12` zamiast
         // `{ desktop: 12 }` - podgląd wersji renderował się w domyślnej
