@@ -343,7 +343,9 @@ describe("język i personalizacja", () => {
 
     await post();
 
+    // Wołacz ze słownika, nie mianownik z adresu - „Cześć Anna" brzmi obco.
     expect(lastInsert("auth_email_events").greeting_name).toBe("Aniu");
+    expect(lastInsert("auth_email_events").greeting_name).not.toBe("Anna");
   });
 
   it("awaria ustalania imienia NIE zatrzymuje maila", async () => {

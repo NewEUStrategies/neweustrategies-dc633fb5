@@ -73,6 +73,8 @@ describe("autoMapHeader - rozpoznanie kolumn", () => {
   it("„confirmed” NIE jest firmą - granica słowa wyklucza fałszywe dopasowanie", () => {
     // Bez granicy słowa nagłówek daty potwierdzenia mapowałby się na firmę.
     expect(autoMapHeader(["confirmed_at"])).toEqual([""]);
+    // Prawdziwy nagłówek firmy nadal się mapuje - granica słowa nie psuje reguły.
+    expect(autoMapHeader(["company"])).toEqual(["company"]);
   });
 
   it("nazwa OSOBY nadal trafia do nazwy wyświetlanej", () => {
@@ -82,6 +84,8 @@ describe("autoMapHeader - rozpoznanie kolumn", () => {
       "displayName",
       "displayName",
     ]);
+    // „Nazwa firmy" to jednak firma - pierwszeństwo działa tam, gdzie powinno.
+    expect(autoMapHeader(["Nazwa firmy"])).toEqual(["company"]);
   });
 
   it("ignoruje białe znaki i wielkość liter nagłówka", () => {
@@ -91,6 +95,8 @@ describe("autoMapHeader - rozpoznanie kolumn", () => {
 
   it("nagłówek NIEROZPOZNANY zostaje pominięty - nie zgadujemy", () => {
     expect(autoMapHeader(["notatka", "id_wewnetrzny", "kolumna7"])).toEqual(["", "", ""]);
+    // Pusty napis, nie `undefined` - lista mapowań ma tyle pozycji, ile kolumn.
+    expect(autoMapHeader(["notatka"])[0]).toBe("");
   });
 
   it("dopasowanie jest zachłanne - wygrywa PIERWSZA pasująca reguła", () => {
@@ -147,6 +153,8 @@ describe("validRows - które wiersze wejdą do importu", () => {
 
   it("pusty plik daje pustą listę", () => {
     expect(validRows([], 0)).toEqual([]);
+    // Tablica, nie `null` - panel liczy `.length` bez osłony.
+    expect(validRows([], 0)).toBeInstanceOf(Array);
   });
 });
 
@@ -162,6 +170,8 @@ describe("buildImportRow - składanie ładunku", () => {
       lastName: "Nowak",
       company: "ACME",
     });
+    // Adres małymi literami - unikalność w bazie jest bez wielkości liter.
+    expect(row.email).toBe(row.email!.toLowerCase());
   });
 
   it("kolumny POMINIĘTE nie trafiają do ładunku", () => {
@@ -210,6 +220,8 @@ describe("buildImportRow - język", () => {
 
   it("brak kolumny języka daje polski", () => {
     expect(buildImportRow(["a@example.test"], ["email"]).language).toBe("pl");
+    // Nie `undefined` - kolumna języka w bazie nie przyjmuje braku wartości.
+    expect(buildImportRow(["a@example.test"], ["email"]).language).toBeTruthy();
   });
 
   it("wariant WIELKĄ literą i regionalny też daje angielski", () => {
@@ -316,6 +328,7 @@ describe("buildImportRows - cały plik", () => {
 
   it("pusty plik daje pustą listę", () => {
     expect(buildImportRows([], mapping)).toEqual([]);
+    expect(buildImportRows([], mapping)).toBeInstanceOf(Array);
   });
 });
 

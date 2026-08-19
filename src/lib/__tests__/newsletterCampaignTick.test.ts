@@ -156,7 +156,10 @@ describe("brak pracy", () => {
   it("błąd odczytu zaległych kampanii leci w górę", async () => {
     db.setResponse(CAMPAIGNS, fail("due read failed"));
 
+    // Cicha porażka odczytu znaczyłaby „nic nie jest zaplanowane" i zaplanowane
+    // kampanie nie wyszłyby nigdy, bez śladu w logu.
     await expect(tickNewsletterCampaigns(admin())).rejects.toThrow("due read failed");
+    expect(h.sendEmail).not.toHaveBeenCalled();
   });
 });
 
@@ -199,6 +202,8 @@ describe("odpalanie zaplanowanych", () => {
     await tickNewsletterCampaigns(admin());
 
     expect(h.evaluateSendGate).toHaveBeenCalledTimes(1);
+    // Bramka jednak ZOSTAŁA zapytana o tego najemcę.
+    expect(h.evaluateSendGate.mock.calls[0]![1]).toBe(TENANT);
   });
 
   it("kampania przejęta przez równoległy tick jest pomijana", async () => {
@@ -273,6 +278,8 @@ describe("wznawianie przerwanych", () => {
     });
 
     await expect(tickNewsletterCampaigns(admin())).rejects.toThrow("continuation read failed");
+    // Kampanie w trakcie wysyłki nie mogą zostać po cichu porzucone.
+    expect(h.sendEmail).not.toHaveBeenCalled();
   });
 });
 

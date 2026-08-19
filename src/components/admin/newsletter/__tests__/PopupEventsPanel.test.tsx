@@ -149,7 +149,10 @@ describe("wskaźniki procentowe", () => {
   it("zero jest pokazane jawnie jako 0,0%", async () => {
     await mount(stats({ submitRate: 0, successRate: 0, errorRate: 0 }));
 
+    // Jawne „0.0%", a nie pusta komórka: operator musi widzieć różnicę między
+    // „nikt nie wysłał formularza" i „nie ma jeszcze danych".
     expect(screen.getAllByText("0.0%")).toHaveLength(3);
+    expect(screen.queryByText("NaN%")).toBeNull();
   });
 });
 
@@ -183,6 +186,8 @@ describe("zakres czasu", () => {
     await mount();
 
     expect(env.calls[0]?.days).toBe(30);
+    // Jedno zapytanie na wejście, nie jedno na każdy przycisk zakresu.
+    expect(env.calls).toHaveLength(1);
   });
 
   it("oferuje trzy zakresy", async () => {
@@ -199,6 +204,8 @@ describe("zakres czasu", () => {
     fireEvent.click(screen.getByText(E2(90)));
 
     await waitFor(() => expect(env.calls.at(-1)?.days).toBe(90));
+    // Liczba, nie napis - RPC oczekuje `_days` jako liczby.
+    expect(typeof env.calls.at(-1)?.days).toBe("number");
   });
 
   it("powrót na krótszy zakres też pyta serwer", async () => {

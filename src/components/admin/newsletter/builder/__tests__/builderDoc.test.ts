@@ -679,6 +679,8 @@ describe("zaczep pierwszego dokumentu z ustawień", () => {
     });
 
     expect(seed.submitLabel).toEqual({ pl: "Zapisuję się", en: "Sign me up" });
+    // Etykieta popupu wygrywa nad etykietą formularza inline.
+    expect(seed.submitLabel).not.toEqual({ pl: "Zapisz sie", en: "Subscribe" });
   });
 
   it("okładka, zgoda i styl okna są WYŁĄCZNIE popupowe", () => {

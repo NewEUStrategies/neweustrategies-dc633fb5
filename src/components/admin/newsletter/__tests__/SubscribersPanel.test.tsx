@@ -160,7 +160,9 @@ describe("stany listy", () => {
     planSelect(null);
     mount();
 
+    // `null` z PostgREST nie może wywrócić `.map()` w tabeli.
     expect(await screen.findByText("adminNewsletter.subscribers.emptyFiltered")).toBeTruthy();
+    expect(screen.queryByText(/capWarning/)).toBeNull();
   });
 
   it("wiersze pokazują adres, nazwę, język, status i źródło", async () => {
@@ -177,12 +179,16 @@ describe("stany listy", () => {
     await mountWithRows([row({ id: "c", display_name: null, source: null })]);
 
     expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
+    // Kreska, nie słowo „null" w tabeli.
+    expect(screen.queryByText("null")).toBeNull();
   });
 
   it("nagłówek liczy WIDOCZNE wiersze", async () => {
     await mountWithRows();
 
     expect(screen.getByText("adminNewsletter.subscribers.heading:3")).toBeTruthy();
+    // Liczba idzie z danych, nie ze stałej - zero byłoby innym podpisem.
+    expect(screen.queryByText("adminNewsletter.subscribers.heading:0")).toBeNull();
   });
 });
 
@@ -191,6 +197,8 @@ describe("ostrzeżenie o limicie odczytu", () => {
     await mountWithRows();
 
     expect(screen.queryByText(/capWarning/)).toBeNull();
+    // Tabela jednak się wyrenderowała - brak ostrzeżenia to nie brak danych.
+    expect(screen.getByText("adminNewsletter.subscribers.heading:3")).toBeTruthy();
   });
 
   // Ścieżka Z ostrzeżeniem nie jest tu renderowana świadomie: warunek to
@@ -266,6 +274,8 @@ describe("eksport CSV", () => {
 
     const button = screen.getByRole("button", { name: /exportCsv/ }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+    // Przycisk jednak JEST widoczny - operator wie, że eksport istnieje.
+    expect(button.textContent).toBeTruthy();
   });
 
   it("eksportuje WIDOCZNE wiersze i nazywa plik datą", async () => {

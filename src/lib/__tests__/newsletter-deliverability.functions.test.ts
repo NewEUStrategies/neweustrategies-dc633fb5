@@ -340,6 +340,8 @@ describe("listSuppressions - sanityzacja frazy szukania", () => {
     await listSuppressions({ data: { search: "ANNA" } });
 
     expect(db.lastChain(SUPPRESSIONS)?.argsOf("ilike")).toEqual(["email", "%anna%"]);
+    // Fragment, nie całe dopasowanie - operator wpisuje kawałek adresu.
+    expect(db.lastChain(SUPPRESSIONS)?.has("eq")).toBe(false);
   });
 
   it("usuwa znaki sterujące PostgREST - filtra nie da się rozszerzyć", async () => {
@@ -354,7 +356,10 @@ describe("listSuppressions - sanityzacja frazy szukania", () => {
   it("fraza złożona z samych znaków sterujących NIE tworzy filtra", async () => {
     await listSuppressions({ data: { search: '%%,,(("' } });
 
+    // Bez tego `%%` weszłoby do zapytania i „filtrowałoby" całą listę.
     expect(db.lastChain(SUPPRESSIONS)?.has("ilike")).toBe(false);
+    // Zapytanie i tak POSZŁO - odrzucamy filtr, nie całe pobranie.
+    expect(db.chainsFor(SUPPRESSIONS).length).toBeGreaterThan(0);
   });
 
   it("pusta fraza nie dokłada filtra", async () => {
@@ -434,7 +439,10 @@ describe("listSuppressions - mapowanie wierszy", () => {
   it("błąd zapytania leci w górę", async () => {
     db.setResponse(SUPPRESSIONS, fail("permission denied"));
 
+    // Nie pusta lista - „brak blokad" przy awarii RLS to zaproszenie do wysyłki
+    // na adresy, które są zablokowane.
     await expect(listSuppressions()).rejects.toThrow("permission denied");
+    await expect(listSuppressions()).rejects.toThrow();
   });
 });
 
@@ -447,6 +455,8 @@ describe("addSuppression", () => {
       p_reason: "manual",
       p_note: undefined,
     });
+    // Jedno wywołanie - podwójna blokada zawyżałaby licznik wystąpień.
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 
   it("przekazuje notatkę operatora, gdy jest", async () => {
@@ -483,6 +493,8 @@ describe("addSuppression", () => {
     await expect(addSuppression({ data: { email: "a@example.test" } })).rejects.toThrow(
       "duplicate",
     );
+    // Wywołanie NASTĄPIŁO - błąd pochodzi z bazy, nie z walidacji wejścia.
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -492,10 +504,13 @@ describe("releaseSuppression", () => {
   it("zdjęcie blokady NIE przywraca subskrypcji domyślnie", async () => {
     await releaseSuppression({ data: { id } });
 
+    // Zdjęcie blokady i przywrócenie subskrypcji to DWIE decyzje - domyślne
+    // przywracanie zapisałoby kogoś, kto się nie zapisał.
     expect(rpc).toHaveBeenCalledWith("email_suppression_release", {
       p_id: id,
       p_resubscribe: false,
     });
+    expect(rpc.mock.calls[0]![1].p_resubscribe).not.toBe(true);
   });
 
   it("przywrócenie subskrypcji jest osobną, jawną decyzją", async () => {
@@ -514,6 +529,8 @@ describe("releaseSuppression", () => {
     rpc.mockResolvedValue({ data: null, error: { message: "not found" } });
 
     await expect(releaseSuppression({ data: { id } })).rejects.toThrow("not found");
+    // Cicha porażka zostawiłaby operatora w przekonaniu, że blokada zniknęła.
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });
 

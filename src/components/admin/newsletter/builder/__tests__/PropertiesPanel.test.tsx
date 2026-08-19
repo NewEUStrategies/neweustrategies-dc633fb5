@@ -323,6 +323,8 @@ describe("edycja treści dwujęzycznej", () => {
 
     // Sedno: patch niesie OBA języki, więc angielski nie znika z dokumentu.
     expect(onPatch).toHaveBeenCalledWith({ text: { pl: "Nowy", en: "Old" } });
+    // Jeden patch na jedną zmianę - inaczej historia edycji byłaby nieczytelna.
+    expect(onPatch).toHaveBeenCalledTimes(1);
   });
 
   it("zmiana wersji ANGIELSKIEJ zachowuje polską", () => {
@@ -336,6 +338,7 @@ describe("edycja treści dwujęzycznej", () => {
     fireEvent.change(inputs[1]!, { target: { value: "New" } });
 
     expect(onPatch).toHaveBeenCalledWith({ text: { pl: "Stary", en: "New" } });
+    expect(onPatch).toHaveBeenCalledTimes(1);
   });
 
   it("oba języki mają widoczne, opisane pola", () => {
@@ -349,12 +352,17 @@ describe("edycja treści dwujęzycznej", () => {
     mount({ selected: makeWidget("paragraph") });
 
     expect(screen.getByText(/Skrypty sa usuwane/)).toBeTruthy();
+    // Ostrzeżenie stoi przy polu treści, nie zamiast niego.
+    expect(document.querySelector("textarea")).toBeTruthy();
   });
 
   it("akapit edytuje się w polu WIELOLINIOWYM", () => {
     mount({ selected: makeWidget("paragraph") });
 
+    // Dwa pola - polskie i angielskie; jednoliniowy input nie nadaje się do
+    // akapitu z HTML-em.
     expect(document.querySelectorAll("textarea").length).toBeGreaterThanOrEqual(2);
+    expect(document.querySelectorAll('input[type="text"]').length).toBeLessThan(2);
   });
 });
 
@@ -380,6 +388,8 @@ describe("nagłówek", () => {
     fireEvent.click(await screen.findByRole("option", { name: "Srodek" }));
 
     expect(onPatch).toHaveBeenCalledWith({ align: "center" });
+    // Wartość docelowa, nie widoczna etykieta „Srodek".
+    expect(onPatch).not.toHaveBeenCalledWith({ align: "Srodek" });
   });
 
   it("panel oferuje wybór koloru", () => {
@@ -400,6 +410,7 @@ describe("pola formularza", () => {
     fireEvent.change(i18nInputs()[0]!, { target: { value: "Adres" } });
 
     expect(onPatch).toHaveBeenCalledWith({ label: { pl: "Adres", en: "Email" } });
+    expect(onPatch).toHaveBeenCalledTimes(1);
   });
 
   it("pole tekstowe ma nazwę techniczną - to ona mapuje się na kolumnę CRM", () => {
@@ -407,18 +418,24 @@ describe("pola formularza", () => {
 
     // Nazwa pola decyduje, gdzie w CRM wyląduje wartość (imię vs firma).
     expect(screen.getByText(/Nazwa/)).toBeTruthy();
+    // Pole jest edytowalne, nie tylko opisane.
+    expect(document.querySelectorAll("input").length).toBeGreaterThan(0);
   });
 
   it("checkbox zgody edytuje treść jako HTML", () => {
     mount({ selected: makeWidget("field.checkbox") });
 
     expect(document.querySelectorAll("textarea").length).toBeGreaterThanOrEqual(2);
+    // Treść zgody to HTML, więc panel ostrzega o sanityzacji tak jak w akapicie.
+    expect(screen.getByText(/Skrypty sa usuwane/)).toBeTruthy();
   });
 
   it("lista wyboru pozwala edytować opcje", () => {
     const { container } = mount({ selected: makeWidget("field.select") });
 
     expect(container.querySelectorAll("input, textarea, button").length).toBeGreaterThan(2);
+    // Domyślne opcje widgetu są wypełnione w polach, a nie tylko policzone.
+    expect(container.innerHTML).toContain("Opcja 1");
   });
 });
 

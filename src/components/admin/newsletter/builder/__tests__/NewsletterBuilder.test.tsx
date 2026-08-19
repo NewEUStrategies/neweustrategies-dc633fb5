@@ -493,6 +493,8 @@ describe("sekcje na kanwie", () => {
 
     const body = document.body.textContent ?? "";
     expect(body.indexOf("Druga")).toBeLessThan(body.indexOf("Pierwsza"));
+    // Oba nagłówki nadal są - przesunięcie nie gubi sekcji.
+    expect(body).toContain("Pierwsza");
   });
 
   it("etykiety narzędzi sekcji są tłumaczone", async () => {
@@ -622,6 +624,8 @@ describe("przeciąganie - wiązanie obszarów z dokumentem", () => {
     expect(await savedDoc()).toMatchObject({
       sections: [{ widgets: [{ type: "heading" }, { type: "field.email" }, { type: "divider" }] }],
     });
+    // Jeden widget, nie dwa - upuszczenie nie może dublować karty biblioteki.
+    expect((await savedDoc()).sections[0]!.widgets).toHaveLength(3);
   });
 
   it("upuszczenie NA WIDGET wstawia nowy element PRZED nim", async () => {
@@ -687,7 +691,11 @@ describe("przeciąganie - wiązanie obszarów z dokumentem", () => {
 
     dragEnd("w-email", "w-email", undefined);
 
+    // Zablokowany zapis znaczy „nie ma czego zapisywać" - nowy dokument o tej
+    // samej treści oznaczyłby formularz jako zmieniony.
     expect(screen.getByRole("button", { name: /Zapisz/ })).toHaveProperty("disabled", true);
+    // Widgety nadal są na kanwie - dokument nie został przepisany.
+    expect(screen.getAllByLabelText("Usun").length).toBeGreaterThan(0);
   });
 
   it("nieznany obszar upuszczenia nie gubi widgetu", async () => {

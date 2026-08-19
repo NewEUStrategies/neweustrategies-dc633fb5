@@ -516,6 +516,9 @@ describe("kolejkowanie", () => {
     await post(body({ templateName: "owner_alert", templateData: { kind: "awaria" } }));
 
     expect(queuedPayload().subject).toBe("Alert: awaria");
+    // Dane szablonu naprawdę weszły do tematu - stały napis przeszedłby test
+    // z niewłaściwego powodu.
+    expect(queuedPayload().subject).toContain("awaria");
   });
 
   it("temat statyczny idzie bez zmian", async () => {

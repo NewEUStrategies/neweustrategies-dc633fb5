@@ -247,7 +247,7 @@ describe("polityka pól", () => {
 
     expect(res).toEqual({ ok: false, error: "policy_violation:required:company" });
     // Jedno wystąpienie, nie „required:company,required:company".
-    expect(res.error!.split(",")).toHaveLength(1);
+    expect(res.ok ? [] : res.error.split(",")).toHaveLength(1);
   });
 
   it("awaria sprawdzenia polityki nie blokuje zapisu, ale zostawia ślad w logu", async () => {
