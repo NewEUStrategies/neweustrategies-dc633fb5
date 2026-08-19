@@ -226,6 +226,18 @@ export default defineConfig({
         // __root.tsx keep the totals below 100 (honest floor, raise with new
         // tests rather than trimming the measurement).
         "src/lib/seo/meta.ts": { statements: 84, functions: 72, lines: 90, branches: 66 },
+        // Reguły zero-click: czysty analizator kształtu wpisu (lead 40-70 słów,
+        // nagłówki pytaniowe, FAQ jako blok, długość odpowiedzi). Zasila
+        // checklistę redakcyjną, więc fałszywe „OK" jest tu kosztowniejsze niż
+        // brak reguły - stąd wysoki próg. Niedobite gałęzie to warianty
+        // czytania cudzych kształtów bloków (Gutenberg/Editor.js), których
+        // ten projekt nie produkuje, a które muszą zostać jako furtka importu.
+        "src/lib/seo/zeroClick.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
         "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
         // Lejek monetyzacji czytelnika (paywall). Do 2026-08-15 gating.ts był
         // jedynym plikiem tej powierzchni z bramką, a komponent ściany, licznik
@@ -1806,6 +1818,15 @@ export default defineConfig({
         // albo stoi na liście wykluczeń - czyli że nowe pole nie zniknie po
         // cichu przy zapisie. Czysty moduł, więc równo 100%.
         "src/components/admin/post-editor/lib/postPatch.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Mapowanie pomiaru zero-click na komunikat checklisty. Każda gałąź to
+        // inna instrukcja naprawy dla redaktora, więc każda musi być trafiona
+        // testem - czysty moduł, równo 100%.
+        "src/components/admin/post-editor/lib/zeroClickMessages.ts": {
           statements: 100,
           functions: 100,
           lines: 100,

@@ -15,6 +15,8 @@ export { TtsVoiceCard } from "./TtsVoiceCard";
 export { StepIndicator } from "./StepIndicator";
 export { PostOrganizationPicker } from "./PostOrganizationPicker";
 export { PostSponsoredCard } from "./PostSponsoredCard";
+export { ZeroClickChecklist } from "./ZeroClickChecklist";
+export { ZeroClickCheatSheet } from "./ZeroClickCheatSheet";
 export { type OrganizationSelection } from "./organizationDirectory";
 // `OrganizationPickerDialog` świadomie NIE jest tu wystawiony: to szczegół
 // implementacyjny `PostOrganizationPicker` (sąsiedni moduł importuje go wprost),

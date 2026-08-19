@@ -31,6 +31,7 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/post-editor/fixtures")).reactI18nextStub(),
 );
 vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
+vi.mock("@/lib/i18n-admin-zero-click", () => ({ ensureI18n: () => {} }));
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
@@ -109,6 +110,7 @@ vi.mock("../PostTranslateCard", () => ({ PostTranslateCard: probe("PostTranslate
 vi.mock("../PostTaxonomyGrid", () => ({ PostTaxonomyGrid: probe("PostTaxonomyGrid") }));
 vi.mock("../AudioSection", () => ({ AudioSection: probe("AudioSection") }));
 vi.mock("../TakeawaysSection", () => ({ TakeawaysSection: probe("TakeawaysSection") }));
+vi.mock("../ZeroClickSection", () => ({ ZeroClickSection: probe("ZeroClickSection") }));
 vi.mock("../CustomMetaSection", () => ({ CustomMetaSection: probe("CustomMetaSection") }));
 vi.mock("../RelatedSection", () => ({ RelatedSection: probe("RelatedSection") }));
 vi.mock("../../molecules", async (importOriginal) => {
@@ -227,20 +229,25 @@ describe("PostEditorHeader", () => {
 // ---------------------------------------------------------------------------
 
 describe("PostDetailsNav", () => {
-  const ALL_TABS: DetailsTab[] = [
-    "general",
-    "takeaways",
-    "audio",
-    "settings",
-    "layout",
-    "taxonomy",
-    "related",
-    "seo",
-    "meta",
-    "publish",
-    "access",
-    "organization",
-    "revisions",
+  // Zakładka + klucz jej etykiety. Większość siedzi w `adminPostPanes.nav.*`,
+  // ale ściągawka zero-click ma własną nakładkę i18n (cały jej słownik jedzie
+  // razem z edytorem wpisu) - rejestr nawigacji dopuszcza dowolny `labelKey`,
+  // więc test nie może zakładać jednego prefiksu.
+  const ALL_TABS: Array<[DetailsTab, string]> = [
+    ["general", "adminPostPanes.nav.general"],
+    ["takeaways", "adminPostPanes.nav.takeaways"],
+    ["audio", "adminPostPanes.nav.audio"],
+    ["settings", "adminPostPanes.nav.settings"],
+    ["layout", "adminPostPanes.nav.layout"],
+    ["taxonomy", "adminPostPanes.nav.taxonomy"],
+    ["related", "adminPostPanes.nav.related"],
+    ["seo", "adminPostPanes.nav.seo"],
+    ["zeroClick", "adminZeroClick.nav.label"],
+    ["meta", "adminPostPanes.nav.meta"],
+    ["publish", "adminPostPanes.nav.publish"],
+    ["access", "adminPostPanes.nav.access"],
+    ["organization", "adminPostPanes.nav.organization"],
+    ["revisions", "adminPostPanes.nav.revisions"],
   ];
 
   it("renderuje KAŻDĄ zakładkę z rejestru", () => {
@@ -254,9 +261,9 @@ describe("PostDetailsNav", () => {
     const onSelect = vi.fn();
     render(<PostDetailsNav active="general" onSelect={onSelect} />);
 
-    for (const tab of ALL_TABS) {
+    for (const [tab, labelKey] of ALL_TABS) {
       onSelect.mockClear();
-      fireEvent.click(screen.getByText(`adminPostPanes.nav.${tab}`));
+      fireEvent.click(screen.getByText(labelKey));
       expect(onSelect, tab).toHaveBeenCalledWith(tab);
     }
   });
@@ -321,6 +328,7 @@ describe("PostDetailsPanel - jedna zakładka na raz", () => {
       ["settings", "PostSettingsMetabox"],
       ["takeaways", "TakeawaysSection"],
       ["seo", "SeoPanel"],
+      ["zeroClick", "ZeroClickSection"],
       ["meta", "CustomMetaSection"],
       ["related", "RelatedSection"],
       ["publish", "PostSidebarBundle"],

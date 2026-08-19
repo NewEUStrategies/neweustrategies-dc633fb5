@@ -2,9 +2,12 @@
 // + wybór wariantu wizualnego. Kadr karty zapewnia atom SectionCard.
 import { useTranslation } from "react-i18next";
 import { TakeawaysTab } from "@/components/admin/PostSettingsMetabox";
-import { SectionCard } from "../atoms";
+import { SectionCard, InfoHint } from "../atoms";
 import type { PostEditorFormApi } from "../hooks";
 import "@/lib/i18n-admin-post-panes";
+// Punkty „Dowiesz się…" nie są ozdobą: idą do JSON-LD jako `abstract`, więc
+// reguła zero-click (3-5 samodzielnych zdań) musi stać przy tym polu.
+import "@/lib/i18n-admin-zero-click";
 
 export function TakeawaysSection({ formApi }: { formApi: PostEditorFormApi }) {
   const { t } = useTranslation();
@@ -12,7 +15,12 @@ export function TakeawaysSection({ formApi }: { formApi: PostEditorFormApi }) {
   if (!form) return null;
   return (
     <SectionCard
-      title={t("adminPostPanes.sections.takeawaysTitle")}
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          {t("adminPostPanes.sections.takeawaysTitle")}
+          <InfoHint text={t("adminZeroClick.hints.takeaways")} />
+        </span>
+      }
       description={t("adminPostPanes.sections.takeawaysHint")}
     >
       <TakeawaysTab

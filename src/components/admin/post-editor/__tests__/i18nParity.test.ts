@@ -4,6 +4,7 @@
 import { describe, it, expect } from "vitest";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-admin-post-panes";
+import "@/lib/i18n-admin-zero-click";
 
 type Tree = Record<string, unknown>;
 
@@ -17,7 +18,8 @@ function leafPaths(obj: unknown, prefix = ""): string[] {
 
 function namespace(lang: "pl" | "en", key: string): unknown {
   const bundle = i18n.getResourceBundle(lang, "translation") as
-    { adminPostPanes?: Record<string, unknown> } | undefined;
+    | { adminPostPanes?: Record<string, unknown> }
+    | undefined;
   return bundle?.adminPostPanes?.[key];
 }
 
@@ -50,5 +52,57 @@ describe("post-editor i18n PL/EN parity", () => {
       "Przejdź do edycji treści",
     );
     expect(i18n.getFixedT("en")("adminPostPanes.editor.goToContent")).toBe("Go to content editing");
+  });
+});
+
+/**
+ * Ściągawka zero-click to nie etykiety przycisków, tylko INSTRUKCJA redakcyjna:
+ * budżet leadu, reguła długości odpowiedzi w FAQ, podział na treść „pod
+ * cytowanie" i „pod klik". Brak jednego liścia po stronie EN oznacza redaktora
+ * pracującego po angielsku, który dostaje polską regułę - albo, przy fallbacku
+ * i18next, nie dostaje jej wcale. Dlatego parytet jest tu sprawdzany na całym
+ * drzewie, a nie na wybranych podprzestrzeniach.
+ */
+describe("zero-click cheat sheet i18n PL/EN parity", () => {
+  const bundle = (lang: "pl" | "en"): unknown =>
+    (i18n.getResourceBundle(lang, "translation") as { adminZeroClick?: unknown } | undefined)
+      ?.adminZeroClick;
+
+  it("całe drzewo adminZeroClick ma identyczne klucze w PL i EN", () => {
+    const pl = bundle("pl");
+    const en = bundle("en");
+    expect(pl, "PL namespace adminZeroClick should exist").toBeTruthy();
+    expect(en, "EN namespace adminZeroClick should exist").toBeTruthy();
+    expect(leafPaths(en)).toEqual(leafPaths(pl));
+  });
+
+  it("każda reguła niesie komplet: tytuł, opis, „rób” i „nie rób”", () => {
+    // Ściągawka bez kontrprzykładu uczy połowy reguły - a to właśnie „nie rób”
+    // (rozbiegówka, FAQ prozą) jest tym, co redakcje robią odruchowo.
+    const RULES = ["lead", "questionHeadings", "faq", "faqAnswerLength", "takeaways", "scannable"];
+    for (const lang of ["pl", "en"] as const) {
+      const t = i18n.getFixedT(lang);
+      for (const rule of RULES) {
+        for (const leaf of ["title", "body", "do", "dont"]) {
+          const key = `adminZeroClick.rules.${rule}.${leaf}`;
+          expect(t(key), `${lang}: ${key}`).not.toBe(key);
+        }
+      }
+    }
+  });
+
+  it("podpowiedzi przy polach edytora istnieją w obu językach", () => {
+    for (const lang of ["pl", "en"] as const) {
+      const t = i18n.getFixedT(lang);
+      for (const hint of ["takeaways", "excerpt", "seo"]) {
+        const key = `adminZeroClick.hints.${hint}`;
+        expect(t(key), `${lang}: ${key}`).not.toBe(key);
+      }
+    }
+  });
+
+  it("PL i EN to różne brzmienia, nie skopiowany angielski", () => {
+    expect(i18n.getFixedT("pl")("adminZeroClick.nav.hint")).toContain("Ściągawka");
+    expect(i18n.getFixedT("en")("adminZeroClick.nav.hint")).toContain("cheat sheet");
   });
 });
