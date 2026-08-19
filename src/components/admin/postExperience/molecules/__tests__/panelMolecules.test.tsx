@@ -2,7 +2,7 @@
 // przełącznik języka podglądu. Obie scaliły kopie o rozjechanych umowach, więc
 // test opisuje tu umowę, a nie wygląd.
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 vi.mock("react-i18next", async () => {
   const fixtures = await import("@/test/postExperience/fixtures");
@@ -17,6 +17,12 @@ vi.mock("@/components/ui/select", async () => {
 
 vi.mock("@/components/admin/RelatedLayoutPreview", () => ({
   RelatedLayoutPreview: ({ value }: { value: string }) => <div data-testid="preview">{value}</div>,
+}));
+
+vi.mock("@/components/admin/LayoutPreview", () => ({
+  LayoutPreview: ({ preset }: { preset: { id: string } }) => (
+    <span data-testid="layout-preview" data-preset={preset.id} />
+  ),
 }));
 
 vi.mock("@/components/admin/blocks/AdminColorPicker", () => ({
@@ -45,7 +51,9 @@ import { PreviewLangTabs } from "@/components/admin/postExperience/molecules/Pre
 import { KeyTakeawaysHighlightSection } from "@/components/admin/postExperience/molecules/KeyTakeawaysHighlightSection";
 import { RelatedPostsConfigSection } from "@/components/admin/postExperience/molecules/RelatedPostsConfigSection";
 import { RelatedPostsEngineSection } from "@/components/admin/postExperience/molecules/RelatedPostsEngineSection";
+import { PostLayoutGroup } from "@/components/admin/postExperience/molecules/PostLayoutGroup";
 import { RELATED_POSTS_DEFAULTS } from "@/lib/relatedPosts";
+import { STANDARD_LAYOUTS, defaultPostLayoutSettings } from "@/lib/postLayouts";
 import type { KeyTakeawaysSettings } from "@/lib/keyTakeaways/settings";
 
 const labels = {
@@ -269,5 +277,42 @@ describe("sekcje rekomendacji - stan zapisu w toku", () => {
     expect(
       screen.queryByRole("button", { name: "adminRelatedPosts.actions.saveWeights" }),
     ).toBeNull();
+  });
+});
+
+describe("PostLayoutGroup - przypadki brzegowe katalogu presetów", () => {
+  const settings = defaultPostLayoutSettings();
+
+  it("PUSTY katalog presetów nie renderuje sekcji zamiast się przewracać", () => {
+    // Katalog może wyjść pusty po migracji albo po wycięciu formatu. Molekuła
+    // musi wtedy zniknąć, a nie sięgnąć po `selected.label` z `undefined`.
+    const { container } = render(
+      <PostLayoutGroup
+        group={{ field: "standard_layout", titleKey: "grupa", presets: [] }}
+        settings={settings}
+        onPatch={() => {}}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("BRAK wybranego układu w ustawieniach schodzi na pierwszy preset katalogu", () => {
+    const bare = { ...settings, standard_layout: undefined } as never;
+    render(
+      <PostLayoutGroup
+        group={{ field: "standard_layout", titleKey: "grupa", presets: STANDARD_LAYOUTS }}
+        settings={bare}
+        onPatch={() => {}}
+      />,
+    );
+    const preview = screen.getByRole("complementary", {
+      name: "adminLayouts.postLayouts.livePreview",
+    });
+    expect(within(preview).getByTestId("layout-preview")).toHaveAttribute(
+      "data-preset",
+      STANDARD_LAYOUTS[0].id,
+    );
+    expect(screen.getAllByText(STANDARD_LAYOUTS[0].label).length).toBeGreaterThan(0);
   });
 });
