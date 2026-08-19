@@ -559,6 +559,22 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // Atomy trackera. Katalog `components/tracker` NIE dostaje progu
+        // zbiorczego, bo `PolicyPositionsMap.tsx` (217 linii, mapa stanowisk
+        // państw) jest poza tą porcją - wspólny próg musiałby być floorowany
+        // pod jego zerem i nie pilnowałby niczego.
+        "src/components/tracker/TrackerFeedLink.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/tracker/TrackerIndexSkeleton.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         // ── MODUŁ 7: BIBLIOTEKA PLIKÓW ────────────────────────────────────────
         // Jedyna funkcjonalność modułu, którą audyt 18.08 podał na ABSOLUTNYM
         // zerze: 5 plików, 0 z 72 funkcji, 229 linii bez ani jednego wykonania.
