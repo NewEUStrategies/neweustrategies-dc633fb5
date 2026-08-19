@@ -6,7 +6,7 @@
 // która w bazie jest tablicą. Każda z nich da się złamać bez błędu typów
 // i bez zmiany wyglądu - dlatego mieszkają tutaj, gdzie sprawdza się je
 // na WYNIKU, a nie na renderze.
-import type { WorkflowStep } from "@/lib/admin/workflows";
+import type { WorkflowStep, WorkflowStepParamValue } from "@/lib/admin/workflows";
 import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 
 /** Wartość wybieraka oznaczająca „typ zdarzenia spoza katalogu”. */
