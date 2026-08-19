@@ -18,8 +18,7 @@ function leafPaths(obj: unknown, prefix = ""): string[] {
 
 function namespace(lang: "pl" | "en", key: string): unknown {
   const bundle = i18n.getResourceBundle(lang, "translation") as
-    | { adminPostPanes?: Record<string, unknown> }
-    | undefined;
+    { adminPostPanes?: Record<string, unknown> } | undefined;
   return bundle?.adminPostPanes?.[key];
 }
 

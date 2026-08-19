@@ -35,12 +35,7 @@ export const ZERO_CLICK_BUDGETS = {
 } as const;
 
 export type ZeroClickCheckId =
-  | "lead"
-  | "questionHeadings"
-  | "faq"
-  | "faqAnswerLength"
-  | "takeaways"
-  | "scannable";
+  "lead" | "questionHeadings" | "faq" | "faqAnswerLength" | "takeaways" | "scannable";
 
 /**
  * `ok` - reguła spełniona. `warn` - jest, ale poza budżetem (do poprawy).
@@ -55,13 +50,7 @@ export type ZeroClickStatus = "ok" | "warn" | "todo";
  * `reason` na komunikat - bez zgadywania po obecności `snippet`.
  */
 export type ZeroClickReason =
-  | "filler"
-  | "short"
-  | "long"
-  | "few"
-  | "many"
-  | "tooFewHeadings"
-  | "prose";
+  "filler" | "short" | "long" | "few" | "many" | "tooFewHeadings" | "prose";
 
 export interface ZeroClickCheck {
   id: ZeroClickCheckId;
