@@ -498,6 +498,118 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── SPOŁECZNOŚĆ: KLUBY, KOMENTARZE, MODERACJA (MODUŁ 16) ─────────────
+        // 2026-08-19: audyt z 18.08 dał temu modułowi 17,56% linii przy 242
+        // plikach produkcyjnych - najgorszy stosunek rozmiaru do pokrycia
+        // w repo. Bez progu ta praca zjedzie w kwartał, bo warstwa danych
+        // klubów to WYŁĄCZNIE wywołania SECURITY DEFINER RPC: literówka
+        // w nazwie funkcji albo w nazwie parametru nie jest błędem typów,
+        // tylko błędem 404/42883 dopiero na produkcji. Progi floorowane tuż
+        // pod zmierzonym pokryciem, wzorem wpisów dla lib/chat/**.
+        //
+        // WARSTWA DANYCH - te pliki są pod 100% linii i tam mają zostać:
+        // każda funkcja ma ścieżkę happy path oraz ścieżkę błędu, a testy
+        // pilnują nazwy RPC i KOMPLETU nazw parametrów (te dwie rzeczy łamią
+        // się cicho). Niedobite gałęzie to wyłącznie ramiona obronne dla
+        // danych, których wygenerowany typ `Returns` nie pozwala zbudować.
+        "src/lib/clubs/api.ts": { statements: 100, functions: 100, lines: 100, branches: 98 },
+        "src/lib/clubs/workspaceApi.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/clubs/threadWorkspaceApi.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/lib/clubs/networkApi.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/lib/clubs/topicsApi.ts": { statements: 95, functions: 100, lines: 100, branches: 92 },
+        "src/lib/clubs/specializationsApi.ts": {
+          statements: 96,
+          functions: 87,
+          lines: 100,
+          branches: 100,
+        },
+        // CZYSTE MODUŁY WYDZIELONE Z ORGANIZMÓW I Z useClubs.ts - pod 100% na
+        // wszystkich czterech metrykach, tak jak pozostałe czyste moduły w tym
+        // pliku. Niosą reguły, których złamanie widzi wyłącznie użytkownik:
+        // komplet kluczy unieważnianych po mutacji (`clubInvalidations`),
+        // deskryptor bramki dostępu (`gateView`) i reguły operacji
+        // NIEODWRACALNYCH w moderacji (`moderationRules`).
+        "src/lib/clubs/clubInvalidations.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/clubs/gateView.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/clubs/moderationRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Zbiorczy próg warstwy: 24,6% -> 87,3% linii, 86,5% funkcji. Niżej niż
+        // per-plik i to jest uczciwe - `linkPreview.functions`,
+        // `clubSemantic.functions` i `applyPrefill.functions` (funkcje brzegowe
+        // Supabase) oraz `postTypes` nadal stoją nisko albo na zerze.
+        "src/lib/clubs/**": {
+          statements: 85,
+          functions: 85,
+          lines: 86,
+          branches: 79,
+        },
+        // KOMENTARZE - warstwa danych z 17,2% na 100% linii. Tu bramka jest
+        // ostra, bo `canEditComment` to JEDYNE miejsce, w którym o prawie do
+        // edycji decyduje okno czasowe, a `fetchPostComments` odpytuje bazę
+        // łańcuchem PostgREST (nie RPC), więc kształt zapytania jest częścią
+        // kontraktu bezpieczeństwa, nie detalem implementacji.
+        "src/lib/comments/**": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
+        // ORGANIZMY: bramka dostępu do klubu i panel moderacji. Oba startowały
+        // z 0%. Próg pilnuje tego, co faktycznie zostało pokryte - warianty
+        // stanu bramki i wsad moderacyjny - a nie całej powierzchni panelu.
+        "src/components/clubs/organisms/ClubAccessGate.tsx": {
+          statements: 82,
+          functions: 64,
+          lines: 82,
+          branches: 65,
+        },
+        "src/components/admin/clubs/organisms/ClubModerationTab.tsx": {
+          statements: 56,
+          functions: 41,
+          lines: 58,
+          branches: 41,
+        },
+        "src/components/comments/CommentsSection.tsx": {
+          statements: 64,
+          functions: 45,
+          lines: 67,
+          branches: 65,
+        },
+        "src/components/comments/CommentComposerShell.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
       },
     },
   },
