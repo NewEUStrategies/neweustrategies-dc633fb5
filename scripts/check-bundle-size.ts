@@ -520,6 +520,38 @@ const CLIENT_DIR =
 // PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack poza entry -
 // jest wciąż osobną pracą i z każdym takim wpisem pilniejszą.
 
+// 2026-08-19 III  FLOOR Z NIEWŁAŚCIWEGO HOSTA - i dlaczego ta bramka mierzy
+//             ARTEFAKT NIEDETERMINISTYCZNY. Wpis II wyżej postawił floor 3882 na
+//             pomiarze z hosta deweloperskiego. Bramka i tak padła w CI:
+//
+//               host deweloperski (frozen lockfile):  788 plików / 3881,6 KB
+//               runner CI (run 2397, 9c6a441):        790 plików / 3892,0 KB
+//                                                     -> +2 pliki, +10,4 KB
+//
+//             Cała różnica jest SKUPIONA w jednym chunku: `admin.posts._slug`
+//             ma 71,0 KB lokalnie i 80,5 KB na runnerze (+9,5 KB), co pokrywa
+//             się z deltą ADMIN_ONLY (1339,0 -> 1348,5). PUBLIC różni się
+//             o 1,0 KB, największy chunk jest identyczny (266,8).
+//
+//             PRZYCZYNA: krok `Install dependencies` w `ci.yml` uruchamia
+//             `bun install` BEZ `--frozen-lockfile`. Runner może więc rozwiązać
+//             nowsze wersje w zakresach semver niż te zapisane w `bun.lock`,
+//             a build z innych wersji daje inny podział chunków. Ta bramka mierzy
+//             zatem artefakt, który potrafi się zmienić BEZ ŻADNEJ zmiany w kodzie
+//             - floor osuwa się pod nią sam. Dopóki to trwa, każdy floor jest
+//             prowizorką, a „zero zapasu" (reguła z 08-06) oznacza, że bramka
+//             zapali się przy pierwszym dryfie rozwiązywania zależności.
+//
+//             ZASADA NA PRZYSZŁOŚĆ: floor tej bramki ustawia się WYŁĄCZNIE
+//             z liczby zmierzonej na runnerze (log kroku `Bundle size budget`).
+//             Pomiar lokalny służy do szukania przyczyny, nigdy do stawiania progu.
+//
+//             NASTĘPNY KROK, NIE ROBIONY TUTAJ: `bun install --frozen-lockfile`
+//             w CI. Zdeterminizowałby artefakt i najpewniej sprowadził pomiar
+//             do liczby lokalnej (3881,6), ale zmienia instalację zależności dla
+//             WSZYSTKICH jobów i może odsłonić rozjazd `bun.lock` z `package.json`,
+//             więc zasługuje na własny PR i własne review.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -538,11 +570,13 @@ const FROZEN_BUDGET_KB = {
   // (host czytający ~1% wyżej niż CI) - słowniki adminowe wróciły do grafu
   // admin-only. Ratchet 2570 -> 2545.
   public: 2545,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-19 na f23fb74:
-  // 3881,6. Podniesione 3876 -> 3882: floor wraca „tuż nad zmierzony ślad", bez
-  // zapasu (wpis 2026-08-19 II w kronice wyżej). Poprzedni floor 3876 stał na
-  // pomiarze 3870,5 z tego samego dnia i main przebił go SAM, o 5,6 KB.
-  overall: 3882,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
+  // (run 2397, 9c6a441): 3892,0 przy 790 plikach. Podniesione 3882 -> 3892.
+  // Floor 3882 stał na pomiarze z hosta deweloperskiego (3881,6 / 788 plików)
+  // i bramka padła w CI mimo zielonego przebiegu lokalnego - patrz wpis
+  // 2026-08-19 III w kronice wyżej. Ten próg mierzy artefakt CI, więc JEDYNYM
+  // ważnym pomiarem jest pomiar z CI.
+  overall: 3892,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
