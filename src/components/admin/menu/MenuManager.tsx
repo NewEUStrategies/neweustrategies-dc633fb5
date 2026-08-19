@@ -198,8 +198,15 @@ export function MenuManager({ menuKey }: Props) {
     if (!items) return;
     // Etykieta zastępcza idzie ZE SŁOWNIKA, bo ląduje w bazie i pokaże się
     // czytelnikowi w nawigacji - zaszyty w kodzie napis „(bez nazwy)" trafiał
-    // do menu także w wersji angielskiej.
-    saveMutation.mutate(toSavePayload(items, t("admin.menu.untitledItem")));
+    // do menu także w wersji angielskiej. Obie wersje bierzemy JAWNIE przez
+    // `lng`, a nie z aktywnego języka panelu: język interfejsu administratora
+    // nie może decydować o tym, co zobaczy czytelnik serwisu.
+    saveMutation.mutate(
+      toSavePayload(items, {
+        pl: t("admin.menu.untitledItem", { lng: "pl" }),
+        en: t("admin.menu.untitledItem", { lng: "en" }),
+      }),
+    );
   };
 
   if (menuQuery.isLoading || items === null) {

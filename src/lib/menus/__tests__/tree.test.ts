@@ -356,16 +356,41 @@ describe("appendMenuItems", () => {
 });
 
 describe("toSavePayload", () => {
+  /** Etykieta zastępcza zawsze w obu językach - patrz test o wycieku języka panelu. */
+  const FALLBACK = { pl: "Pozycja bez nazwy", en: "Untitled item" };
+
   it("pustą etykietę zastępuje adresem - schemat wymaga niepustej nazwy", () => {
-    const payload = toSavePayload([clientItem({ local_id: "a", href: "/analizy" })], "(bez nazwy)");
+    const payload = toSavePayload([clientItem({ local_id: "a", href: "/analizy" })], FALLBACK);
     expect(payload[0].label_pl).toBe("/analizy");
+    // Adres wystarczy za nazwę, więc `label_en` zostaje puste - pustka w tej
+    // kolumnie znaczy „dziedzicz z polskiej", a nie „brak nazwy".
+    expect(payload[0].label_en).toBe("");
   });
 
   it("bez etykiety i bez adresu wchodzi etykieta zastępcza ZE SŁOWNIKA", () => {
     // Ta wartość ląduje W BAZIE i pokaże się czytelnikowi w nawigacji, więc
     // nie może być napisem zaszytym w module - podaje ją wywołujący.
-    const payload = toSavePayload([clientItem({ local_id: "a" })], "Bez nazwy");
-    expect(payload[0].label_pl).toBe("Bez nazwy");
+    const payload = toSavePayload([clientItem({ local_id: "a" })], FALLBACK);
+    expect(payload[0].label_pl).toBe("Pozycja bez nazwy");
+  });
+
+  it("etykieta zastępcza wchodzi do KAŻDEJ kolumny w swoim języku", () => {
+    // Regresja: jeden napis dla obu kolumn oznaczał, że język panelu
+    // administratora decyduje o tym, co zobaczy czytelnik. Panel po angielsku
+    // wpisywał „Untitled item" do `label_pl`, więc polskie menu serwisu
+    // pokazywało angielski napis.
+    const payload = toSavePayload([clientItem({ local_id: "a" })], FALLBACK);
+    expect(payload[0]).toMatchObject({
+      label_pl: "Pozycja bez nazwy",
+      label_en: "Untitled item",
+    });
+  });
+
+  it("nazwa z drugiego języka wygrywa z etykietą zastępczą", () => {
+    // Kolejność źródeł jest ta sama, co przy czytaniu (`pickMenuLabel`):
+    // „Reports" w polskim menu niesie więcej niż „Pozycja bez nazwy".
+    const payload = toSavePayload([clientItem({ local_id: "a", label_en: "Reports" })], FALLBACK);
+    expect(payload[0]).toMatchObject({ label_pl: "Reports", label_en: "Reports" });
   });
 
   it("przenosi hierarchię i całą treść pozycji", () => {
@@ -385,7 +410,7 @@ describe("toSavePayload", () => {
           mega_enabled: true,
         }),
       ],
-      "Bez nazwy",
+      FALLBACK,
     );
     expect(payload[1]).toMatchObject({
       local_id: "a1",

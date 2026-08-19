@@ -10,7 +10,7 @@ import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import "@/lib/i18n";
+import i18n from "@/lib/i18n";
 import "@/lib/i18n-admin-extras";
 import { realT } from "@/test/i18nReal";
 import { DEFAULT_MEGA_CONFIG, type MenuItemRow, type MenuWithItems } from "@/lib/menus/types";
@@ -136,8 +136,11 @@ function pickerPanel(): HTMLElement {
 
 /** Klik „Zapisz" + oddanie tury mutacji react-query (zapis jest asynchroniczny). */
 async function clickSave() {
+  // Nazwa przycisku zależy od języka panelu - test dwujęzyczny pyta o napis
+  // w AKTUALNYM języku, a nie w polskim na sztywno.
+  const label = realT(i18n.language === "en" ? "en" : "pl")("common.save");
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("common.save")) }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(label) }));
   });
 }
 
@@ -174,7 +177,12 @@ beforeEach(() => {
   server.single = {};
 });
 
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  // Język i18next jest globalny dla procesu testowego - test, który go
+  // przełącza, musi go oddać, inaczej psuje wszystkie asercje po sobie.
+  if (i18n.language !== "pl") await act(async () => void (await i18n.changeLanguage("pl")));
+});
 
 describe("wczytywanie i stan pusty", () => {
   it("do czasu odpowiedzi pokazuje wskaźnik, nie puste drzewo", async () => {
@@ -382,6 +390,23 @@ describe("zapis menu", () => {
     const labels = lastPayload().items.map((i) => i.label_pl);
     expect(labels).toContain("/analizy");
     expect(labels).toContain(t("admin.menu.untitledItem"));
+  });
+
+  it("ANGIELSKI PANEL nie wpisuje angielskiej etykiety do polskiej kolumny", async () => {
+    // Regresja: etykieta zastępcza brana z aktywnego języka panelu lądowała
+    // w `label_pl`, więc administrator pracujący po angielsku wpisywał
+    // czytelnikom polskiego menu napis „Untitled item". Język interfejsu
+    // administratora nie może decydować o treści serwisu.
+    await act(async () => void (await i18n.changeLanguage("en")));
+    setMenu([item({ id: "a", label_pl: "", label_en: "", href: "" })]);
+    render(renderManager());
+    await screen.findAllByText("(bez nazwy)");
+    await clickSave();
+
+    expect(lastPayload().items[0]).toMatchObject({
+      label_pl: realT("pl")("admin.menu.untitledItem"),
+      label_en: realT("en")("admin.menu.untitledItem"),
+    });
   });
 
   it("udany zapis potwierdza się komunikatem", async () => {

@@ -313,31 +313,53 @@ export function appendMenuItems(
   return [...items, ...additions];
 }
 
+/** Etykieta zastępcza w OBU językach - patrz `toSavePayload`. */
+export interface MenuFallbackLabel {
+  pl: string;
+  en: string;
+}
+
 /**
  * Payload zapisu. `label_pl` jest w schemacie WYMAGANE (min 1 znak), więc
  * pozycja bez nazwy dostaje adres, a w ostateczności etykietę zastępczą -
  * podaje ją wywołujący ze słownika, bo ta wartość LĄDUJE W BAZIE i pokaże się
  * czytelnikowi w nawigacji.
+ *
+ * DLACZEGO OSOBNA WARTOŚĆ NA JĘZYK, A NIE JEDEN NAPIS. Etykieta zastępcza
+ * wchodzi do KOLUMNY, a kolumny są dwie i czyta je publiczne menu w obu
+ * wersjach. Jeden napis (w języku, w którym akurat pracuje administrator)
+ * trafiłby do `label_pl` także wtedy, gdy panel jest po angielsku - i polski
+ * czytelnik zobaczyłby w nawigacji „Untitled item". Język interfejsu admina
+ * nie może wyciekać do treści serwisu.
+ *
+ * KOLEJNOŚĆ ŹRÓDEŁ jest ta sama, co przy CZYTANIU (`pickMenuLabel`): własna
+ * etykieta, potem adres, potem etykieta z drugiego języka, a etykieta
+ * zastępcza dopiero wtedy, gdy nazwy nie ma NIGDZIE. `label_en` zostaje puste,
+ * gdy jest z czego dziedziczyć - pustka w tej kolumnie znaczy „użyj polskiej",
+ * a nie „brak nazwy".
  */
 export function toSavePayload(
   items: readonly MenuClientItem[],
-  fallbackLabel: string,
+  fallback: MenuFallbackLabel,
 ): MenuItemInput[] {
-  return items.map((it) => ({
-    local_id: it.local_id,
-    parent_local_id: it.parent_local_id,
-    position: it.position,
-    item_type: it.item_type,
-    label_pl: it.label_pl || it.href || fallbackLabel,
-    label_en: it.label_en,
-    ref_id: it.ref_id,
-    href: it.href,
-    target: it.target,
-    css_class: it.css_class,
-    icon: it.icon,
-    mega_enabled: it.mega_enabled,
-    mega_config: it.mega_config,
-  }));
+  return items.map((it) => {
+    const anyName = it.label_pl || it.href || it.label_en;
+    return {
+      local_id: it.local_id,
+      parent_local_id: it.parent_local_id,
+      position: it.position,
+      item_type: it.item_type,
+      label_pl: it.label_pl || it.href || it.label_en || fallback.pl,
+      label_en: it.label_en || (anyName ? "" : fallback.en),
+      ref_id: it.ref_id,
+      href: it.href,
+      target: it.target,
+      css_class: it.css_class,
+      icon: it.icon,
+      mega_enabled: it.mega_enabled,
+      mega_config: it.mega_config,
+    };
+  });
 }
 
 /**
