@@ -110,7 +110,7 @@ function setup(spec: CanvasSpec = {}, selected: string[] = []) {
       clearSelection,
     }),
   );
-  return { canvas, result, setSelectedIds, clearSelection, unmount };
+  return { canvas, canvasRef, result, setSelectedIds, clearSelection, unmount };
 }
 
 /** Ostatni zestaw identyfikatorów przekazany do `setSelectedIds`. */
@@ -125,10 +125,27 @@ const GRID: ItemSpec[] = [
   { id: "c", left: 0, top: 200, width: 100, height: 100 },
 ];
 
+/**
+ * Kolejka klatek animacji. Auto-przewijanie kręci się na
+ * `requestAnimationFrame`, więc bez przejęcia kontroli nad klatkami ta ścieżka
+ * jest w teście niewykonalna - a to ona przewija listę pod wskaźnikiem.
+ */
+const frames: FrameRequestCallback[] = [];
+
+/** Odpala DOKŁADNIE jedną zaplanowaną klatkę. */
+function tick(): void {
+  const cb = frames.shift();
+  if (!cb) throw new Error("brak zaplanowanej klatki auto-przewijania");
+  act(() => {
+    cb(0);
+  });
+}
+
 beforeEach(() => {
   captured.length = 0;
   released.length = 0;
-  vi.stubGlobal("requestAnimationFrame", () => 1);
+  frames.length = 0;
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => frames.push(cb));
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
 });
 
@@ -412,5 +429,135 @@ describe("useMarqueeSelection - przechwycenie wskaźnika i sprzątanie", () => {
     expect(() =>
       act(() => result.current.onCanvasPointerUp(bare as unknown as ReactPointerEvent)),
     ).not.toThrow();
+  });
+});
+
+// AUTO-PRZEWIJANIE PRZY KRAWĘDZI. Do 19.08.2026 ta pętla nie miała ani jednego
+// wykonania - `requestAnimationFrame` był w testach atrapą zwracającą numer.
+//
+// To ścieżka, bez której nie da się zaznaczyć więcej plików, niż mieści się na
+// ekranie: użytkownik dociąga wskaźnik do krawędzi listy i TRZYMA, a lista ma
+// jechać sama. Reguły są trzy: kierunek zgodny z krawędzią, prędkość rosnąca
+// im głębiej w strefie krawędzi, i zatrzymanie w chwili puszczenia przycisku.
+describe("useMarqueeSelection - auto-przewijanie przy krawędzi", () => {
+  const CANVAS = { items: GRID, left: 0, top: 100, width: 1000, height: 400 } as const;
+
+  /** Wciska i przeciąga tak, żeby przeciąganie było AKTYWNE i planowało klatki. */
+  function drag(spec: CanvasSpec, to: { x: number; y: number }) {
+    const s = setup(spec);
+    act(() => s.result.current.onCanvasPointerDown(pointer(s.canvas, { x: 500, y: 300 })));
+    act(() => s.result.current.onCanvasPointerMove(pointer(s.canvas, to)));
+    return s;
+  }
+
+  it("przy GÓRNEJ krawędzi przewija listę W GÓRĘ", () => {
+    const { canvas } = drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 110 });
+    tick();
+    expect(canvas.scrollTop).toBeLessThan(300);
+  });
+
+  it("przy DOLNEJ krawędzi przewija listę W DÓŁ", () => {
+    const { canvas } = drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 495 });
+    tick();
+    expect(canvas.scrollTop).toBeGreaterThan(300);
+  });
+
+  it("przy LEWEJ krawędzi przewija listę W LEWO", () => {
+    const { canvas } = drag({ ...CANVAS, scrollLeft: 300 }, { x: 10, y: 300 });
+    tick();
+    expect(canvas.scrollLeft).toBeLessThan(300);
+  });
+
+  it("przy PRAWEJ krawędzi przewija listę W PRAWO", () => {
+    const { canvas } = drag({ ...CANVAS, scrollLeft: 300 }, { x: 990, y: 300 });
+    tick();
+    expect(canvas.scrollLeft).toBeGreaterThan(300);
+  });
+
+  it("w ŚRODKU płótna nie przewija i nie przelicza zaznaczenia", () => {
+    // Bez tego warunku każda klatka nadpisywałaby zaznaczenie tą samą wartością
+    // sześćdziesiąt razy na sekundę.
+    // Ruch musi przekroczyć próg (inaczej pętla w ogóle nie ruszy), ale
+    // skończyć się z dala od każdej krawędzi.
+    const { canvas, setSelectedIds } = drag({ ...CANVAS, scrollTop: 300 }, { x: 700, y: 400 });
+    const before = setSelectedIds.mock.calls.length;
+    tick();
+
+    expect(canvas.scrollTop).toBe(300);
+    expect(setSelectedIds.mock.calls.length).toBe(before);
+  });
+
+  it("prędkość ROŚNIE im głębiej w strefie krawędzi", () => {
+    // Płynne przyspieszanie zamiast skokowego „jedzie albo stoi”.
+    const plytko = drag({ ...CANVAS, scrollTop: 1000 }, { x: 500, y: 128 });
+    tick();
+    const krokPlytki = 1000 - plytko.canvas.scrollTop;
+    plytko.unmount();
+
+    frames.length = 0;
+    const gleboko = drag({ ...CANVAS, scrollTop: 1000 }, { x: 500, y: 104 });
+    tick();
+    const krokGleboki = 1000 - gleboko.canvas.scrollTop;
+
+    expect(krokPlytki).toBeGreaterThan(0);
+    expect(krokGleboki).toBeGreaterThan(krokPlytki);
+  });
+
+  it("TRZYMANIE przy krawędzi rozciąga prostokąt bez ruchu wskaźnika", () => {
+    // Sedno funkcji: wskaźnik stoi, a zaznaczenie rośnie razem z przewijaniem.
+    const { result, setSelectedIds } = drag({ ...CANVAS, scrollLeft: 0 }, { x: 990, y: 300 });
+    const przed = result.current.marquee;
+    const wywolan = setSelectedIds.mock.calls.length;
+    tick();
+
+    expect(result.current.marquee?.w).toBeGreaterThan(przed?.w ?? 0);
+    expect(setSelectedIds.mock.calls.length).toBeGreaterThan(wywolan);
+  });
+
+  it("pętla planuje KOLEJNĄ klatkę, dopóki przeciąganie trwa", () => {
+    drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 110 });
+    expect(frames).toHaveLength(1);
+    tick();
+    expect(frames).toHaveLength(1);
+  });
+
+  it("kolejne ruchy NIE mnożą równoległych pętli", () => {
+    // Druga pętla przewijałaby dwa razy szybciej i nie dała się zatrzymać.
+    const { canvas, result } = drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 110 });
+    act(() => result.current.onCanvasPointerMove(pointer(canvas, { x: 500, y: 105 })));
+    act(() => result.current.onCanvasPointerMove(pointer(canvas, { x: 500, y: 102 })));
+
+    expect(frames).toHaveLength(1);
+  });
+
+  it("puszczenie przycisku KOŃCZY pętlę, nawet gdy klatka była już w locie", () => {
+    // Klatka zaplanowana przed pointer-up i tak się wykona; ma wtedy zamilknąć,
+    // inaczej lista jechałaby dalej po zakończeniu zaznaczania.
+    const { canvas, result } = drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 110 });
+    act(() => result.current.onCanvasPointerUp(pointer(canvas, { x: 500, y: 110 })));
+    tick();
+
+    expect(canvas.scrollTop).toBe(300);
+    expect(frames).toHaveLength(0);
+  });
+
+  it("nowe wciśnięcie przed progiem ruchu ucisza starą klatkę", () => {
+    const { canvas, result } = drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 110 });
+    act(() => result.current.onCanvasPointerUp(pointer(canvas, { x: 500, y: 110 })));
+    act(() => result.current.onCanvasPointerDown(pointer(canvas, { x: 500, y: 300 })));
+    tick();
+
+    expect(canvas.scrollTop).toBe(300);
+    expect(frames).toHaveLength(0);
+  });
+
+  it("zniknięcie płótna między klatkami nie przewraca pętli", () => {
+    // Odmontowanie listy w trakcie przeciągania (np. przejście do innego
+    // folderu) zeruje ref, a klatka i tak wpada.
+    const { canvasRef } = drag({ ...CANVAS, scrollTop: 300 }, { x: 500, y: 110 });
+    canvasRef.current = null;
+
+    expect(() => tick()).not.toThrow();
+    expect(frames).toHaveLength(0);
   });
 });
