@@ -117,6 +117,10 @@ export function paramInputValue(raw: unknown): string {
 }
 
 /** Zmiana jednego parametru kroku; pozostałe parametry zostają. */
-export function stepWithParam(step: WorkflowStep, key: string, value: unknown): WorkflowStep {
+export function stepWithParam(
+  step: WorkflowStep,
+  key: string,
+  value: WorkflowStepParamValue,
+): WorkflowStep {
   return { ...step, params: { ...step.params, [key]: value } };
 }
