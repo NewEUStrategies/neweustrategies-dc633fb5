@@ -4,7 +4,7 @@
 // Każda z tych reguł mieszkała wewnątrz komponentu, więc jedyną drogą do niej
 // był render panelu z zamockowanym zapytaniem - stąd 0% pokrycia na 19 plikach
 // panelu CRM. Funkcje zwracają DANE albo KLUCZ; tłumaczenia zostają w panelach.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   defaultDueDate,
   formatDue,
@@ -15,6 +15,7 @@ import {
   taskLocale,
 } from "../tasksView";
 import { isColumnActive, requiredColumns, toggleColumn, visibleColumns } from "../columnSelection";
+import { runViewAction } from "../viewActions";
 import {
   DEFAULT_MONTHLY_LIMIT,
   meteringPeriodStart,
@@ -276,5 +277,31 @@ describe("drobne reguły tekstowe", () => {
   it("skrót identyfikatora ma stałą długość", () => {
     expect(shortId("11111111-1111-4111-8111-111111111111")).toBe("111111");
     expect(shortId("abc", 6)).toBe("abc");
+  });
+});
+
+describe("runViewAction", () => {
+  it("sprząta po akcji dopiero po jej powodzeniu", async () => {
+    const done = vi.fn();
+    runViewAction(Promise.resolve("ok"), done);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+
+  it("porażka nie sprząta i nie wypuszcza odrzuconego promise'a", async () => {
+    const done = vi.fn();
+    // Brak `await`/`catch` w handlerze zdarzenia oznaczałby unhandled rejection:
+    // komunikat i tak pokazuje warstwa mutacji, a monitoring dostawałby
+    // dodatkowy, niewyjaśniony błąd.
+    expect(() => runViewAction(Promise.reject(new Error("odrzucone")), done)).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(done).not.toHaveBeenCalled();
+  });
+
+  it("działa bez sprzątania", async () => {
+    expect(() => runViewAction(Promise.resolve(null))).not.toThrow();
+    await Promise.resolve();
   });
 });
