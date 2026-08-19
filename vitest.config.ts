@@ -927,6 +927,34 @@ export default defineConfig({
           lines: 100,
           branches: 85,
         },
+        // builderDoc: reguły dokumentu wyjęte z 900-linijkowej powłoki buildera.
+        // Pilnują pomyłek, które NIE wywalają aplikacji: przeniesienie widgetu,
+        // które gubi element albo wstawia go o jedno miejsce dalej; wyjście z
+        // dwóch kolumn, które zostawia „col: 1" (kanwa pomija taki widget, więc
+        // operator widzi, że element zniknął); duplikat sekcji z powtórzonymi
+        // identyfikatorami (dwa elementy zaznaczają się i patchują razem);
+        // wreszcie mapowanie ustawień na pierwszy dokument - pole, które tu
+        // wypadnie, znika z formularza bez śladu (np. klauzula RODO).
+        "src/components/admin/newsletter/builder/builderDoc.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // NewsletterBuilder: powłoka spinająca bibliotekę, kanwę, panel
+        // właściwości, historię zmian i zapis. Próg pilnuje tego, czego czysta
+        // funkcja nie pokaże: ZAPIS zablokowany bez zmian i odblokowany po
+        // pierwszej edycji, WIDOCZNY błąd zapisu (cichy = utracony dokument),
+        // przełączanie kontekstu prawej kolumny (widget / sekcja / dokument),
+        // szerokość podglądu zgodna z produkcją oraz wiązanie identyfikatorów
+        // obszarów @dnd-kit z dokumentem (zły identyfikator wstawia widget w
+        // innym miejscu, niż operator go upuścił).
+        "src/components/admin/newsletter/builder/NewsletterBuilder.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 97,
+          branches: 88,
+        },
       },
     },
   },
