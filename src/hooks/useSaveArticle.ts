@@ -131,15 +131,25 @@ export function useSaveArticle({
           // Re-stamp legacy entries missing a timestamp so they age from now on.
           ...list.map((s) => (typeof s.savedAt === "number" ? s : { ...s, savedAt: Date.now() })),
         ].slice(0, 200);
-    try {
-      writeStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY, JSON.stringify(next));
-      setLocalSaved(!exists);
-      if (exists) toast.success(removedMsg);
-      else savedToast();
-    } catch {
-      /* private mode / storage unavailable - ignore */
+    // Stan i potwierdzenie zależą od TEGO, czy zapis faktycznie wszedł.
+    // Wcześniej stało tu `try/catch` wokół `writeStoredValue`, ale ta funkcja
+    // pochłania wyjątek SAMA - `catch` był martwy, więc w trybie prywatnym
+    // Safari (i przy wyczerpanym limicie) przycisk przechodził w „zapisano"
+    // i pokazywał toast, choć w magazynie nic nie zostało. Po odświeżeniu
+    // strony artykuł znikał z listy bez żadnego sygnału dla użytkownika.
+    const written = writeStoredValue(
+      browserStorage("local"),
+      GUEST_SAVED_ARTICLES_KEY,
+      JSON.stringify(next),
+    );
+    if (!written) {
+      toast.error(errorMsg);
+      return;
     }
-  }, [url, title, guestTtlDays, removedMsg, savedToast]);
+    setLocalSaved(!exists);
+    if (exists) toast.success(removedMsg);
+    else savedToast();
+  }, [url, title, guestTtlDays, removedMsg, errorMsg, savedToast]);
 
   const toggle = useCallback(() => {
     // Guest hitting a gated save: nudge to sign in (mirrors /reading-list).
