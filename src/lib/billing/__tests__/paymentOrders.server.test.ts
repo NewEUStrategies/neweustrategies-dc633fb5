@@ -154,7 +154,7 @@ describe("loadPaymentOrders - odwzorowanie wiersza", () => {
     const result = await load();
 
     expect(result.rows[0].planId).toBeNull();
-    expect(result.rows[0].planName).toBeNull();
+    expect(result.rows[0].planNamePl).toBeNull();
   });
 });
 
@@ -236,5 +236,56 @@ describe("loadPaymentOrders - PODSUMOWANIE i zamówienia wiszące", () => {
 
     expect(result.summary).toEqual({ total: 6, stuck: 2, paid: 2, failed: 1 });
     expect(result.rows).toHaveLength(6);
+  });
+});
+
+describe("loadPaymentOrders - NAZWA PLANU (bramka po defekcie)", () => {
+  // DEFEKT NAPRAWIONY 19.08.2026. Zapytanie o nazwy planów pytało o kolumnę
+  // `access_plans.name`, której w tej tabeli NIE MA (są `name_pl` i `name_en`),
+  // a błąd zapytania był odrzucany bez sprawdzenia (`const { data: plans } =`).
+  // Skutek: mapa nazw zostawała pusta, `planName` był ZAWSZE `null`, a panel
+  // administratora pokazywał w kolumnie „pozycja" wyłącznie ogólne „Subskrypcja"
+  // dla każdego zamówienia - niezależnie od kupionego planu. Cicho, bez śladu
+  // w logach, przy 200 wierszach na ekran.
+  //
+  // Te testy są bramką: gdyby ktoś wrócił do nieistniejącej kolumny albo znów
+  // zgubił sprawdzenie błędu, plik natychmiast to pokaże.
+  it("pyta o nazwy w OBU językach, nie o nieistniejącą kolumnę `name`", async () => {
+    await load();
+
+    const query = chain.lastChain("access_plans")!;
+    const columns = String(query.argsOf("select")?.[0] ?? "");
+    expect(columns).toContain("name_pl");
+    expect(columns).toContain("name_en");
+  });
+
+  it("nazwa planu FAKTYCZNIE dociera do wiersza", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok([{ id: "plan-1", name_pl: "Członek miesięcznie", name_en: "Member monthly" }]),
+    );
+
+    const result = await load();
+
+    expect(result.rows[0].planNamePl).toBe("Członek miesięcznie");
+    expect(result.rows[0].planNameEn).toBe("Member monthly");
+  });
+
+  it("plan bez odpowiednika w tabeli planów zostaje bez nazwy, nie wywala odczytu", async () => {
+    chain.setResponse("access_plans", ok([]));
+
+    const result = await load();
+
+    expect(result.rows[0].planNamePl).toBeNull();
+    expect(result.rows[0].planId).toBe("plan-1");
+  });
+
+  it("BŁĄD ODCZYTU PLANÓW jest zgłaszany, a nie odrzucany w milczeniu", async () => {
+    chain.setResponse("access_plans", {
+      data: null,
+      error: Object.assign(new Error("column does not exist"), { name: "PostgrestError" }),
+    });
+
+    await expect(load()).rejects.toThrow("column does not exist");
   });
 });

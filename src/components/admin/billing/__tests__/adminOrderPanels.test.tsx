@@ -28,7 +28,8 @@ interface PaymentOrderView {
   sessionId: string | null;
   amountCents: number;
   currency: string;
-  planName: string | null;
+  planNamePl: string | null;
+  planNameEn: string | null;
   buyerEmail: string | null;
 }
 
@@ -111,7 +112,8 @@ function paymentOrder(overrides: Partial<PaymentOrderView> = {}): PaymentOrderVi
     sessionId: "cs_test_1",
     amountCents: 4900,
     currency: "PLN",
-    planName: null,
+    planNamePl: null,
+    planNameEn: null,
     buyerEmail: "syntetyczny@example.test",
     ...overrides,
   };
@@ -253,14 +255,14 @@ describe("AdminPaymentOrdersPanel - treść wiersza", () => {
   });
 
   it("bez nazwy planu pokazuje RODZAJ zamówienia, nie pustkę", async () => {
-    setPaymentRows([paymentOrder({ planName: null, kind: "subscription" })]);
+    setPaymentRows([paymentOrder({ planNamePl: null, planNameEn: null, kind: "subscription" })]);
     renderWithQueryClient(<AdminPaymentOrdersPanel />);
 
     await waitFor(() => expect(screen.getByText("adminBilling.subscription")).toBeTruthy());
   });
 
   it("zamówienie jednorazowe ma własną etykietę rodzaju", async () => {
-    setPaymentRows([paymentOrder({ planName: null, kind: "one_time" })]);
+    setPaymentRows([paymentOrder({ planNamePl: null, planNameEn: null, kind: "one_time" })]);
     renderWithQueryClient(<AdminPaymentOrdersPanel />);
 
     await waitFor(() => expect(screen.getByText("adminBilling.oneTimePayment")).toBeTruthy());
@@ -268,7 +270,29 @@ describe("AdminPaymentOrdersPanel - treść wiersza", () => {
   });
 
   it("nazwa planu, gdy jest, wypiera etykietę rodzaju", async () => {
-    setPaymentRows([paymentOrder({ planName: "Członek miesięcznie" })]);
+    setPaymentRows([
+      paymentOrder({ planNamePl: "Członek miesięcznie", planNameEn: "Member monthly" }),
+    ]);
+    renderWithQueryClient(<AdminPaymentOrdersPanel />);
+
+    await waitFor(() => expect(screen.getByText("Członek miesięcznie")).toBeTruthy());
+    expect(screen.queryByText("adminBilling.subscription")).toBeNull();
+  });
+
+  it("nazwa planu w panelu idzie za JĘZYKIEM INTERFEJSU administratora", async () => {
+    h.lang.current = "en";
+    setPaymentRows([
+      paymentOrder({ planNamePl: "Członek miesięcznie", planNameEn: "Member monthly" }),
+    ]);
+    renderWithQueryClient(<AdminPaymentOrdersPanel />);
+
+    await waitFor(() => expect(screen.getByText("Member monthly")).toBeTruthy());
+    expect(screen.queryByText("Członek miesięcznie")).toBeNull();
+  });
+
+  it("nazwa tylko w jednym języku jest używana w obu (lepsza niż etykieta ogólna)", async () => {
+    h.lang.current = "en";
+    setPaymentRows([paymentOrder({ planNamePl: "Członek miesięcznie", planNameEn: null })]);
     renderWithQueryClient(<AdminPaymentOrdersPanel />);
 
     await waitFor(() => expect(screen.getByText("Członek miesięcznie")).toBeTruthy());
