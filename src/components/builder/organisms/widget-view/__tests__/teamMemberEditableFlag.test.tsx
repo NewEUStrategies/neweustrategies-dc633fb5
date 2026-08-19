@@ -8,6 +8,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
 import { renderSimpleWidget } from "../SimpleWidgets";
 
+// Rejestr leniwych widgetow -> lustro eager: `team-member` jedzie przez
+// React.lazy od 2026-08-15, wiec bez podmiany widget renderuje fallback.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 // BrandIcon czyta bibliotekę ikon przez Supabase - thenable stub wystarczy.
 vi.mock("@/integrations/supabase/client", () => {
   const chain: Record<string, unknown> = {};

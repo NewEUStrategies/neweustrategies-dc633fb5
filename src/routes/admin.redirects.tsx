@@ -3,6 +3,11 @@
 // middleware), CSV import/export for bulk permalink maps, hit statistics and
 // the 404 monitor with one-click "create redirect". Follows the admin CRUD
 // conventions (dense table, Dialog editor, ConfirmDialog, sonner toasts).
+//
+// The rules this screen carries (query shape, filtering, form validation, the
+// save payload, CSV export and the labels) live in the pure module
+// `@/components/admin/post-editor/lib/redirectsAdmin` - this file is their
+// composition with react-query, i18n and Radix.
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -50,73 +55,41 @@ import {
   upsertRedirect,
 } from "@/lib/redirects.functions";
 import {
-  normalizeSourcePath,
-  normalizeTargetPath,
-  serializeRedirectsCsv,
-  REDIRECT_STATUS_CODES,
-  type RedirectStatusCode,
-} from "@/lib/seo/redirects";
+  EMPTY_REDIRECT_EDITOR,
+  HITS_404_COLUMNS,
+  REDIRECTS_INVALIDATE_KEYS,
+  REDIRECTS_LIST_COLUMNS,
+  applyHits404Query,
+  applyRedirectsListQuery,
+  editorStateFromHit,
+  editorStateFromRow,
+  filterRedirects,
+  formatRedirectStamp,
+  importSkippedSuffix,
+  isGoneCode,
+  normalizationHint,
+  redirectDraftValidity,
+  redirectSourceLabel,
+  redirectUpsertInput,
+  redirectsCsvDownload,
+  redirectsEmptyStateKey,
+  showsTargetField,
+  statusFilterFromSelect,
+  tenantDomainsOf,
+  withStatusCode,
+  type RedirectEditorState,
+  type RedirectRow,
+  type RedirectsListFilter,
+  type Seo404Row,
+} from "@/components/admin/post-editor/lib/redirectsAdmin";
 
 export const Route = createFileRoute("/admin/redirects")({
   component: RedirectsAdmin,
   head: () => ({ meta: [{ title: "Przekierowania - Admin" }] }),
 });
 
-interface RedirectRow {
-  id: string;
-  source_path: string;
-  target_path: string;
-  status_code: number;
-  is_enabled: boolean;
-  source: string;
-  note: string | null;
-  hit_count: number;
-  last_hit_at: string | null;
-  created_at: string;
-}
-
-interface Hit404Row {
-  path: string;
-  hits: number;
-  first_seen: string;
-  last_seen: string;
-  last_referrer: string | null;
-}
-
-interface EditorState {
-  id: string | null;
-  source_path: string;
-  target_path: string;
-  status_code: RedirectStatusCode;
-  is_enabled: boolean;
-  note: string;
-}
-
-const EMPTY_EDITOR: EditorState = {
-  id: null,
-  source_path: "",
-  target_path: "",
-  status_code: 301,
-  is_enabled: true,
-  note: "",
-};
-
-const SOURCE_LABELS: Record<string, { pl: string; en: string }> = {
-  manual: { pl: "ręczne", en: "manual" },
-  slug_change: { pl: "zmiana sluga", en: "slug change" },
-  wp_import: { pl: "import WP", en: "WP import" },
-  csv_import: { pl: "import CSV", en: "CSV import" },
-  quick_404: { pl: "z monitora 404", en: "from 404 monitor" },
-};
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "-";
-  return iso.slice(0, 16).replace("T", " ");
-}
-
 function RedirectsAdmin() {
   const { t, i18n } = useTranslation();
-  const isPL = !i18n.language.startsWith("en");
   const qc = useQueryClient();
   const upsert$ = useServerFn(upsertRedirect);
   const delete$ = useServerFn(deleteRedirects);
@@ -125,8 +98,8 @@ function RedirectsAdmin() {
   const dismiss404$ = useServerFn(dismissSeo404);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
-  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [statusFilter, setStatusFilter] = useState<RedirectsListFilter["status"]>("all");
+  const [editor, setEditor] = useState<RedirectEditorState | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -135,13 +108,9 @@ function RedirectsAdmin() {
   const { data: redirects } = useQuery({
     queryKey: ["admin-redirects"],
     queryFn: async (): Promise<RedirectRow[]> => {
-      const { data, error } = await supabase
-        .from("redirects")
-        .select(
-          "id, source_path, target_path, status_code, is_enabled, source, note, hit_count, last_hit_at, created_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(2000);
+      const { data, error } = await applyRedirectsListQuery(
+        supabase.from("redirects").select(REDIRECTS_LIST_COLUMNS),
+      );
       if (error) throw error;
       return data ?? [];
     },
@@ -155,58 +124,35 @@ function RedirectsAdmin() {
     staleTime: 10 * 60_000,
     queryFn: async (): Promise<string[]> => {
       const { data } = await supabase.from("tenants").select("domain");
-      return (data ?? []).map((t) => t.domain).filter((d): d is string => !!d);
+      return tenantDomainsOf(data);
     },
   });
 
   const { data: hits404 } = useQuery({
     queryKey: ["admin-seo-404"],
-    queryFn: async (): Promise<Hit404Row[]> => {
-      const { data, error } = await supabase
-        .from("seo_404_hits")
-        .select("path, hits, first_seen, last_seen, last_referrer")
-        .order("hits", { ascending: false })
-        .limit(300);
+    queryFn: async (): Promise<Seo404Row[]> => {
+      const { data, error } = await applyHits404Query(
+        supabase.from("seo_404_hits").select(HITS_404_COLUMNS),
+      );
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (redirects ?? []).filter((r) => {
-      if (statusFilter === "enabled" && !r.is_enabled) return false;
-      if (statusFilter === "disabled" && r.is_enabled) return false;
-      if (!q) return true;
-      return (
-        r.source_path.toLowerCase().includes(q) ||
-        r.target_path.toLowerCase().includes(q) ||
-        (r.note ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [redirects, search, statusFilter]);
+  const filtered = useMemo(
+    () => filterRedirects(redirects, { search, status: statusFilter }),
+    [redirects, search, statusFilter],
+  );
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["admin-redirects"] });
-    qc.invalidateQueries({ queryKey: ["admin-seo-404"] });
+    for (const queryKey of REDIRECTS_INVALIDATE_KEYS) qc.invalidateQueries({ queryKey });
   };
 
   const save = async () => {
     if (!editor) return;
     setSaving(true);
     try {
-      await upsert$({
-        data: {
-          id: editor.id ?? undefined,
-          fields: {
-            source_path: editor.source_path,
-            target_path: editor.target_path || "/",
-            status_code: editor.status_code,
-            is_enabled: editor.is_enabled,
-            note: editor.note || null,
-          },
-        },
-      });
+      await upsert$({ data: redirectUpsertInput(editor) });
       toast.success(t("admin.saved"));
       setEditor(null);
       invalidate();
@@ -245,12 +191,12 @@ function RedirectsAdmin() {
   };
 
   const exportCsv = () => {
-    const csv = serializeRedirectsCsv(redirects ?? []);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const file = redirectsCsvDownload(redirects ?? []);
+    const blob = new Blob([file.content], { type: file.mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "redirects.csv";
+    a.download = file.filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -261,12 +207,8 @@ function RedirectsAdmin() {
       const csv = await file.text();
       const result = await importCsv$({ data: { csv } });
       toast.success(
-        t("admin.redirects.imported", {
-          count: result.imported,
-        }) +
-          (result.issues.length
-            ? ` (${result.issues.length} ${isPL ? "pominiętych wierszy" : "rows skipped"})`
-            : ""),
+        t("admin.redirects.imported", { count: result.imported }) +
+          importSkippedSuffix(result.issues.length, i18n.language),
       );
       invalidate();
     } catch (e) {
@@ -277,11 +219,7 @@ function RedirectsAdmin() {
     }
   };
 
-  const createFrom404 = (hit: Hit404Row) => {
-    setEditor({ ...EMPTY_EDITOR, source_path: hit.path });
-  };
-
-  const dismiss404 = async (hit: Hit404Row) => {
+  const dismiss404 = async (hit: Seo404Row) => {
     try {
       await dismiss404$({ data: { paths: [hit.path] } });
       invalidate();
@@ -290,10 +228,9 @@ function RedirectsAdmin() {
     }
   };
 
-  const normalizedSource = editor ? normalizeSourcePath(editor.source_path) : null;
-  const normalizedTarget = editor
-    ? normalizeTargetPath(editor.target_path, tenantDomains ?? [])
-    : null;
+  const draft = redirectDraftValidity(editor, tenantDomains ?? []);
+  const sourceHint = normalizationHint(editor?.source_path ?? "", draft.source);
+  const targetHint = normalizationHint(editor?.target_path ?? "", draft.target);
 
   return (
     <div className="space-y-5">
@@ -333,7 +270,7 @@ function RedirectsAdmin() {
             <Download className="w-4 h-4 mr-1.5" />
             {t("admin.redirects.exportCsv")}
           </Button>
-          <Button size="sm" onClick={() => setEditor({ ...EMPTY_EDITOR })}>
+          <Button size="sm" onClick={() => setEditor({ ...EMPTY_REDIRECT_EDITOR })}>
             <Plus className="w-4 h-4 mr-1.5" />
             {t("admin.new")}
           </Button>
@@ -367,9 +304,7 @@ function RedirectsAdmin() {
             />
             <Select
               value={statusFilter}
-              onValueChange={(v) =>
-                setStatusFilter(v === "enabled" ? "enabled" : v === "disabled" ? "disabled" : "all")
-              }
+              onValueChange={(v) => setStatusFilter(statusFilterFromSelect(v))}
             >
               <SelectTrigger className="w-[140px] h-8 text-xs">
                 <SelectValue />
@@ -408,7 +343,7 @@ function RedirectsAdmin() {
                     <td className="p-2 font-mono max-w-[260px] truncate" title={row.target_path}>
                       <span className="inline-flex items-center gap-1">
                         <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                        {row.status_code === 410 ? (
+                        {isGoneCode(row.status_code) ? (
                           <span className="text-destructive">410 Gone</span>
                         ) : (
                           row.target_path
@@ -417,20 +352,18 @@ function RedirectsAdmin() {
                     </td>
                     <td className="p-2 text-center">
                       <span
-                        className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${row.status_code === 410 ? "bg-destructive/10 text-destructive" : "bg-muted"}`}
+                        className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${isGoneCode(row.status_code) ? "bg-destructive/10 text-destructive" : "bg-muted"}`}
                       >
                         {row.status_code}
                       </span>
                     </td>
                     <td className="p-2 text-muted-foreground">
-                      {SOURCE_LABELS[row.source]
-                        ? isPL
-                          ? SOURCE_LABELS[row.source].pl
-                          : SOURCE_LABELS[row.source].en
-                        : row.source}
+                      {redirectSourceLabel(row.source, i18n.language)}
                     </td>
                     <td className="p-2 text-right tabular-nums">{row.hit_count}</td>
-                    <td className="p-2 text-muted-foreground">{formatDate(row.last_hit_at)}</td>
+                    <td className="p-2 text-muted-foreground">
+                      {formatRedirectStamp(row.last_hit_at)}
+                    </td>
                     <td className="p-2 text-center">
                       <Switch
                         checked={row.is_enabled}
@@ -442,20 +375,7 @@ function RedirectsAdmin() {
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0"
-                        onClick={() =>
-                          setEditor({
-                            id: row.id,
-                            source_path: row.source_path,
-                            target_path: row.target_path,
-                            status_code: (REDIRECT_STATUS_CODES as readonly number[]).includes(
-                              row.status_code,
-                            )
-                              ? (row.status_code as RedirectStatusCode)
-                              : 301,
-                            is_enabled: row.is_enabled,
-                            note: row.note ?? "",
-                          })
-                        }
+                        onClick={() => setEditor(editorStateFromRow(row))}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
@@ -473,7 +393,7 @@ function RedirectsAdmin() {
                 {!filtered.length && (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                      {redirects?.length ? t("admin.list.noResults") : t("admin.redirects.empty")}
+                      {t(redirectsEmptyStateKey(redirects?.length ?? 0))}
                     </td>
                   </tr>
                 )}
@@ -505,7 +425,9 @@ function RedirectsAdmin() {
                       {hit.path}
                     </td>
                     <td className="p-2 text-right tabular-nums">{hit.hits}</td>
-                    <td className="p-2 text-muted-foreground">{formatDate(hit.last_seen)}</td>
+                    <td className="p-2 text-muted-foreground">
+                      {formatRedirectStamp(hit.last_seen)}
+                    </td>
                     <td
                       className="p-2 text-muted-foreground max-w-[200px] truncate"
                       title={hit.last_referrer ?? ""}
@@ -517,7 +439,7 @@ function RedirectsAdmin() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-[11px]"
-                        onClick={() => createFrom404(hit)}
+                        onClick={() => setEditor(editorStateFromHit(hit))}
                       >
                         <Plus className="w-3 h-3 mr-1" />
                         {t("admin.redirects.create")}
@@ -568,15 +490,15 @@ function RedirectsAdmin() {
                   placeholder="/2023/05/stary-wpis/ lub /stara-sekcja/*"
                   className="font-mono"
                 />
-                {editor.source_path.trim() && (
+                {sourceHint.kind !== "none" && (
                   <p className="text-[10px] mt-1 text-muted-foreground">
-                    {normalizedSource
-                      ? `→ ${normalizedSource}`
+                    {sourceHint.kind === "normalized"
+                      ? sourceHint.text
                       : t("admin.redirects.invalidSource")}
                   </p>
                 )}
               </div>
-              {editor.status_code !== 410 && (
+              {showsTargetField(editor.status_code) && (
                 <div>
                   <Label>{t("admin.redirects.fieldTarget")}</Label>
                   <Input
@@ -585,10 +507,10 @@ function RedirectsAdmin() {
                     placeholder="/nowa-sekcja/nowy-wpis lub https://…"
                     className="font-mono"
                   />
-                  {editor.target_path.trim() && (
+                  {targetHint.kind !== "none" && (
                     <p className="text-[10px] mt-1 text-muted-foreground">
-                      {normalizedTarget
-                        ? `→ ${normalizedTarget}`
+                      {targetHint.kind === "normalized"
+                        ? targetHint.text
                         : t("admin.redirects.invalidTarget")}
                     </p>
                   )}
@@ -599,15 +521,7 @@ function RedirectsAdmin() {
                   <Label>{t("admin.redirects.fieldCode")}</Label>
                   <Select
                     value={String(editor.status_code)}
-                    onValueChange={(v) => {
-                      const code = Number(v);
-                      setEditor({
-                        ...editor,
-                        status_code: (REDIRECT_STATUS_CODES as readonly number[]).includes(code)
-                          ? (code as RedirectStatusCode)
-                          : 301,
-                      });
-                    }}
+                    onValueChange={(v) => setEditor(withStatusCode(editor, v))}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -644,12 +558,7 @@ function RedirectsAdmin() {
             <Button variant="outline" onClick={() => setEditor(null)}>
               {t("admin.cancel")}
             </Button>
-            <Button
-              onClick={save}
-              disabled={
-                saving || !normalizedSource || (editor?.status_code !== 410 && !normalizedTarget)
-              }
-            >
+            <Button onClick={save} disabled={saving || !draft.canSave}>
               {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null}
               {t("admin.save")}
             </Button>

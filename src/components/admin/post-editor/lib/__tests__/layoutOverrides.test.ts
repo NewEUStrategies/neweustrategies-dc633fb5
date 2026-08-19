@@ -5,6 +5,7 @@ import {
   readLayoutOverrides,
   nextLayoutOverrides,
   resolvePostFormat,
+  layoutSetFor,
   overridePatch,
 } from "../layoutOverrides";
 
@@ -59,6 +60,14 @@ describe("resolvePostFormat", () => {
     expect(resolvePostFormat({}, form)).toBe("video");
   });
 
+  it('falls back to "standard" when neither override nor stored format is set', () => {
+    // Ostatnie ramie `?? "standard"`: wiersz zapisany przed dodaniem kolumny
+    // formatu. Bez tego fallbacku karta ukladu dostalaby `undefined` i nie
+    // wiedzialaby, ktory zestaw presetow pokazac.
+    const empty = { post_format: null } as unknown as Pick<PostForm, "post_format">;
+    expect(resolvePostFormat({}, empty)).toBe("standard");
+  });
+
   it("falls back to 'standard' when neither is present", () => {
     expect(resolvePostFormat({}, { post_format: "standard" })).toBe("standard");
   });
@@ -72,5 +81,20 @@ describe("overridePatch", () => {
   it("can carry an 'undefined' clear so nextLayoutOverrides collapses it", () => {
     const patch = overridePatch("layout", undefined);
     expect(nextLayoutOverrides({ layout: "wide" }, patch)).toBeNull();
+  });
+});
+
+// Dopisane 18.08 przy audycie pokrycia: `layoutSetFor` byla jedyna funkcja tego
+// modulu bez ani jednego wywolania (linia 44 w raporcie v8).
+describe("layoutSetFor", () => {
+  it("oddaje zestaw presetow dla kazdego formatu wpisu", () => {
+    // Nazwany re-eksport `getLayoutSet` - miejsce, w ktorym edytor pyta „jakie
+    // ukladiy wolno wybrac dla tego formatu". Pusty zestaw oznaczalby karte
+    // ukladu bez ani jednej opcji.
+    for (const format of ["standard", "video", "audio", "gallery"] as const) {
+      const presets = layoutSetFor(format);
+      expect(Array.isArray(presets), `format ${format}`).toBe(true);
+      expect(presets.length, `format ${format}`).toBeGreaterThan(0);
+    }
   });
 });

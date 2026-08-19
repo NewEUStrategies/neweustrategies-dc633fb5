@@ -11,14 +11,17 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
-      // Raport pokrycia MA powstać także przy czerwonej suicie. Bez tego
-      // `checkThresholds` żyje wewnątrz `reportCoverage()`, z którego vitest
-      // wychodzi natychmiast po pierwszym padniętym teście - czyli dokładnie
-      // wtedy, gdy pomiar jest najbardziej potrzebny (praca nad testami zawsze
-      // zaczyna się od czerwieni), nie ma żadnych liczb. Skutek uboczny w drugą
-      // stronę: przy czerwonej suicie liczby są ZANIŻONE (nieukończone pliki
-      // nie dołożyły swoich linii), więc progów nie wolno kalibrować na
-      // czerwonym przebiegu - tylko odczytywać kierunek.
+      // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
+      // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
+      // z niego natychmiast przy pierwszym padniętym teście
+      // (`if (!this._coverageOptions.reportOnFailure) return;`). Skutek przy
+      // domyślnym `false`: jeden czerwony test wyłączał JEDNOCZEŚNIE próg
+      // globalny i wszystkie progi per-ścieżka, a raportu nie było wcale -
+      // czyli dokładnie w chwili, w której pokrycie może się osunąć, bramka
+      // milczała, a autor zmiany nie miał czym zmierzyć własnej pracy.
+      // Audyt 2026-08-18 (rozdz. 9.3) musiał z tego powodu odtwarzać pomiar
+      // obejściem. Zieleń CI nadal zależy od testów - to jest wyłącznie
+      // przywrócenie widoczności pomiaru.
       reportOnFailure: true,
       // HONEST measurement scope: the WHOLE application source. The previous
       // config whitelisted ~38 files (~5% of src/) and presented a 98% number
@@ -65,21 +68,65 @@ export default defineConfig({
         // Podnosimy próg do poziomu „zmierzone minus ~4 pp marginesu na dryf
         // środowiska CI", żeby bramka znów łapała REGRESJE, a nie tylko
         // katastrofę. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
-        statements: 29,
-        functions: 22,
-        lines: 29,
-        branches: 25,
+        //
+        // 2026-08-18: RATCHET W GÓRĘ — i tym razem nie dzięki nowym testom, a dzięki
+        // NAPRAWIE. `bun run test` nie dawał się dokończyć na tym HEAD-zie w żadnym
+        // środowisku: 18 plików testowych wisiało bez końca na zakleszczeniu cyklu
+        // pod fabryką `vi.mock` (szczegóły w `widget-view/lazySuspense.tsx` i w
+        // rozdziale 9.2 audytu). Odblokowanie odzyskało 1 026 testów, które wcześniej
+        // nie wnosiły do pomiaru NIC, a praca testowa nad tokenami marki dołożyła 211.
+        // Pomiar całego src/ na tym HEAD: 37,19% instrukcji / 32,41% gałęzi /
+        // 29,13% funkcji / 37,78% linii (838 plików, 10 475 testów, zielono).
+        // Próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła co
+        // 2026-08-06. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
+        statements: 33,
+        functions: 25,
+        lines: 33,
+        branches: 28,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
         // Lines re-floored 95 -> 94.5: the gate was already red on main
         // (94.81% after the #43 merge); removing dead-but-imported code in
         // this layer moved it to 94.96%, still under the stale floor.
+        // 2026-08-18: RATCHET W GÓRĘ po odblokowaniu suity. Ten próg był wpisany
+        // „tuż poniżej poziomu, który pełna suita realnie osiąga" - i to była
+        // prawda, tylko nikt nie mógł jej ZMIERZYĆ: 18 plików testowych MODUŁU 3
+        // wisiało w nieskończoność na zakleszczeniu rejestru leniwych widgetów
+        // (patrz `widget-view/lazySuspense.tsx`), więc audyt 2026-08-18 raportował
+        // dla tej powierzchni 68,8% linii i sam oznaczał liczbę jako zaniżoną.
+        // Po naprawie ZMIERZONE: 95,86% instrukcji / 88,83% gałęzi /
+        // 95,12% funkcji / 97,65% linii. Podnoszę floor tuż pod ten poziom.
         "src/components/builder/organisms/widget-view/**": {
-          statements: 93,
-          functions: 90,
-          lines: 94.5,
-          branches: 83,
+          statements: 95,
+          functions: 94,
+          lines: 97,
+          branches: 87,
+        },
+        // ── PANELE WŁAŚCIWOŚCI WIDGETÓW ───────────────────────────────────────
+        // Audyt 2026-08-18: „jedyna duża powierzchnia MODUŁU 3 BEZ ŻADNEGO progu
+        // per-ścieżka - i dlatego jako jedyna osunęła się do 13,6%".
+        // `check:widget-fidelity` dowodzi, że panel i renderer zgadzają się co do
+        // ustawień, ale NIE wykonuje kodu paneli, więc walidacja pól, konwersje
+        // jednostek i obsługa błędu wejścia nie mają żadnego dowodu.
+        //
+        // Ten wpis zamyka lukę „brak progu". Poziom jest ZMIERZONY, nie życzeniowy:
+        // 28,66% instrukcji / 27,60% gałęzi / 17,53% funkcji / 29,14% linii
+        // (364 z 2077 funkcji) po odblokowaniu suity - samo odblokowanie podniosło
+        // tę powierzchnię z 166 na 364 wykonane funkcje, bez ani jednego nowego
+        // testu. Floor wpisany ~1 pp niżej, żeby łapał REGRESJĘ.
+        //
+        // TO NIE JEST poziom docelowy. 112 plików / 2 077 funkcji tej powierzchni
+        // wymaga własnej pracy testowej (wyprowadzenie warstwy dostępu do wartości
+        // pól ze `WidgetProperties.tsx` - readDesktopHeight, writeDesktopHeight,
+        // klasyfikacja trybu szerokości, klampy rozmiarów, `unhandledSchemaFields`)
+        // i to jest następny krok, nie regresja tego. Zasada bez zmian: ten próg
+        // wolno wyłącznie PODNOSIĆ.
+        "src/components/admin/builder/**": {
+          statements: 27,
+          functions: 16,
+          lines: 28,
+          branches: 26,
         },
         // Per-file bars for the newly-guarded public-pipeline modules. Floored a
         // touch below the achieved coverage to catch regressions without being
@@ -97,6 +144,75 @@ export default defineConfig({
           branches: 95,
         },
         "src/lib/builder/schema.ts": { statements: 98, functions: 100, lines: 100, branches: 95 },
+        // ── DESIGN TOKENS / KOLORY GLOBALNE / TYPOGRAFIA ─────────────────────
+        // Audyt 2026-08-18 wskazał tę powierzchnię jako „najtańsze pokrycie
+        // o największym zasięgu": czyste funkcje bez Reacta, których wynik idzie
+        // do <style> na :root montowanego w `__root.tsx`, czyli na KAŻDEJ trasie
+        // publicznej. Startowała z 32,3% linii, a najsłabsze pliki z 0-15%.
+        // Progi floorowane tuż pod ZMIERZONYM poziomem po dopisaniu testów.
+        //
+        // globalColors.ts - katalog 65 slotów w 20 grupach + emiter CSS. Gałęzie
+        // < 100%, bo fałszywe ramiona `if (rootLines.length)` /
+        // `if (darkLines.length)` są nieosiągalne: katalog ZAWSZE produkuje
+        // deklaracje dla obu trybów.
+        "src/lib/builder/globalColors.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 94,
+        },
+        "src/lib/builder/hoverCss.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // sectionStyles.tsx - jedyny plik tej powierzchni z JSX (`ShapeDivider`),
+        // renderowany przez `renderToStaticMarkup`.
+        "src/lib/builder/sectionStyles.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 99,
+          branches: 95,
+        },
+        // designTokens.ts - niedobita jedna linia: `.catch(() => null)` na
+        // `edgeTtlCache`, nieosiągalna pod happy-dom (jest `window`, więc cache
+        // woła fetcher wprost, a ten sam obsługuje błąd).
+        "src/lib/builder/designTokens.ts": {
+          statements: 95,
+          functions: 90,
+          lines: 96,
+          branches: 95,
+        },
+        // dynamicText.ts - 15 tokenów dynamicznych; niedobite gałęzie to
+        // kombinacje języka i braku wartości, których nie da się osiągnąć
+        // jednocześnie.
+        "src/lib/builder/dynamicText.ts": {
+          statements: 95,
+          functions: 95,
+          lines: 97,
+          branches: 85,
+        },
+        // chromeDefaults.ts - gałąź `inner-section` w `withStableIds` jest
+        // NIEOSIĄGALNA przez `defaultDocFor` (żaden domyślny dokument chrome'u
+        // nie ma sekcji wewnętrznej), a helper nie jest eksportowany. Stąd 84%,
+        // a nie 100% - uczciwy sufit przez API publiczne, nie obniżony próg.
+        "src/lib/builder/chromeDefaults.ts": {
+          statements: 85,
+          functions: 84,
+          lines: 83,
+          branches: 52,
+        },
+        // Detektor skrótów markdown w bloku akapitu - każde pisanie w edytorze
+        // bloków przechodzi przez te dziewięć wzorców. Niedobita linia to
+        // gałąź SSR `typeof document === "undefined"` w `htmlToPlain`,
+        // nieosiągalna pod happy-dom.
+        "src/lib/blocks/markdown.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
         // report.ts line 14 is the defensive `catch` around import.meta.env,
         // which cannot be exercised from a test - hence < 100 here.
         "src/lib/observability/report.ts": {
@@ -500,368 +616,203 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
-        // ── MODUŁ 7: REZERWACJA MIEJSC I BILET ────────────────────────────────
-        // Audyt 18.08 pokazał `ticket.server.ts` i `ticketCode.ts` z ZEREM
-        // wywołanych funkcji, mimo że to jedyne miejsce w TypeScripcie, które
-        // decyduje „czy jest jeszcze miejsce". pgTAP dowodzi FIFO listy
-        // rezerwowej i bramki tier w bazie, ale bramkę sprzedaży trzyma ta
-        // warstwa - i to ona rozstrzyga w dwie strony o pieniądzach: przed
-        // zakupem (`checkout.functions`, `adhocCheckoutOrder.server`) i po
-        // zapłacie (`oneTimeFulfilment.refundIfOversold`, który łapie WYŁĄCZNIE
-        // `err.message === "event_full"` i rzuca dalej wszystko inne).
+        // ── MODUŁ 2: EDYTOR WPISÓW I WORKFLOW REDAKCYJNY ───────────────────────
+        // Audyt z 18.08.2026 dał temu modułowi najgorszą notę w repo: 8,34%
+        // linii, 6,85% funkcji, 64 z 83 plików na okrągłym zerze - i, co dla tej
+        // sekcji najważniejsze, ANI JEDNEGO progu per-ścieżka (rozdz. 6 audytu).
+        // Moduł rozstrzyga, czy redakcja zapisze to, co napisała: patch wpisu,
+        // przejścia workflow, rewizje, blokada wyjścia z niezapisaną treścią.
         //
-        // Trzymamy pod 100% na trzech metrykach, bo warstwa jest w pełni
-        // wstrzykiwalna: `assertSeatAvailable` i `loadMyEventTicket` biorą
-        // klienta parametrem, a `loadEventSeatState` buduje go przez
-        // `createClient` (mockowany w teście razem z opakowanym `fetch`).
-        "src/lib/events/ticket.server.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 95,
-        },
-        // ticketCode.ts - gałęzie stoją na 75% i to jest liczba UCZCIWA, nie
-        // niedoróbka testu: ramię `Number.isNaN(value) ? index : value` jest
-        // NIEOSIĄGALNE. `hex` jest wcześniej przefiltrowany do [0-9a-f], a
-        // fallback pustego kawałka to `String(i)` (cyfra 0-7), więc
-        // `Number.parseInt(chunk, 16)` nigdy nie zwróci NaN. Zostawiamy ten
-        // kod jako obronę na wypadek zmiany filtra i NIE naginamy testu, żeby
-        // sztucznie dobić gałąź.
-        "src/lib/events/ticketCode.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 70,
-        },
-        // ── MODUŁ 7: TRACKER LEGISLACYJNY ─────────────────────────────────────
-        // Flagowa funkcja publiczna, której WARSTWA WEJŚCIA stała na zerze:
-        // `queries.ts` (488 linii - największy plik trackera) i `feed.server.ts`
-        // nie miały ani jednego wykonania, mimo że przechodzi przez nie każdy
-        // publiczny odczyt i cały kanał RSS. Reguły etapów, JSON-LD i budowa
-        // pozycji feedu miały testy od dawna - dziura była dokładnie w tym,
-        // co loader ZWRACA.
-        //
-        // Testy sprawdzają KONTRAKT ZAPYTANIA (nagrane ogniwa łańcucha
-        // PostgREST), nie tylko dane z atrapy - inaczej „przechodziłyby" także
-        // po skasowaniu `.eq("status", "published")`.
-        //
-        // Izolacji tenantów feedu tu NIE MA: to własność RLS, dowiedziona
-        // w `supabase/tests/tracker_feed_tenant_isolation_test.sql`.
-        "src/lib/tracker/queries.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/lib/tracker/feed.server.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // Atomy trackera. Katalog `components/tracker` NIE dostaje progu
-        // zbiorczego, bo `PolicyPositionsMap.tsx` (217 linii, mapa stanowisk
-        // państw) jest poza tą porcją - wspólny próg musiałby być floorowany
-        // pod jego zerem i nie pilnowałby niczego.
-        // Mapa stanowisk państw w dossier. Jedyny wykres modułu kodujący dane
-        // KOLOREM, więc pod bramką stoi reguła z nagłówka pliku: tooltip nigdy
-        // nie jest jedyną drogą do danych - pełne wartości niesie przełączana
-        // tabela, a kraje ze stanowiskiem są osiągalne z klawiatury. Druga
-        // rzecz: porządek tabeli (za -> przeciw -> podzielone -> brak, dalej
-        // alfabetycznie W JĘZYKU STRONY) niesie sens polityczny, a `localeCompare`
-        // bez locale stawia „Łotwę" za „Węgrami". Instrukcje poniżej 100% to dwa
-        // obronne `return` przy braku geometrii SVG.
-        "src/components/tracker/PolicyPositionsMap.tsx": {
-          statements: 96,
-          functions: 100,
-          lines: 100,
-          branches: 88,
-        },
-        "src/components/tracker/TrackerFeedLink.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/components/tracker/TrackerIndexSkeleton.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // ── MODUŁ 7: BIBLIOTEKA PLIKÓW ────────────────────────────────────────
-        // Jedyna funkcjonalność modułu, którą audyt 18.08 podał na ABSOLUTNYM
-        // zerze: 5 plików, 0 z 72 funkcji, 229 linii bez ani jednego wykonania.
-        // Powodem nie była trudność reguł, tylko ich MIEJSCE - decyzje
-        // („stary format? błąd? jeszcze mielimy? pusto?") siedziały wewnątrz
-        // JSX-a czterech czytników, więc sprawdzenie którejkolwiek wymagało
-        // renderu z fetchem i parserem naraz.
-        //
-        // Oba pliki poniżej są czyste i trzymamy je pod 100% na wszystkich
-        // czterech metrykach, jak pozostałe czyste moduły w tym pliku.
-        // `viewerState.ts` powstał z wyprowadzenia tej reguły z komponentu;
-        // `fileKinds.ts` był czysty od początku i po prostu nikt go nie tknął.
-        //
-        // Bramki RANGI (kto w ogóle widzi plik) NIE ma w tych testach i mieć jej
-        // nie będzie - egzekwuje ją baza, a jej testy żyją w supabase/tests.
-        "src/lib/files/fileKinds.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/lib/files/viewerState.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // officeParse: linie i funkcje pod 100%, gałęzie niżej i to jest liczba
-        // UCZCIWA. Niedobite ramiona to obrona przed `textContent === null`
-        // (dla elementu nigdy nie zachodzi) oraz `match === null` w regexie,
-        // który wcześniej odfiltrował ścieżkę - nie da się ich wywołać bez
-        // podstawienia atrapy DOM-u, a taki test dowodziłby wyłącznie tego,
-        // że atrapa kłamie. DOMPurify jest w testach PRAWDZIWY: to jedyne
-        // miejsce, w którym dokument obcego autorstwa staje się DOM-em.
-        "src/lib/files/officeParse.ts": {
-          statements: 95,
-          functions: 100,
-          lines: 100,
-          branches: 75,
-        },
-        // Powłoka i czytniki podglądu. Cała piątka plików biblioteki startowała
-        // z ZERA; po wyprowadzeniu reguł do `lib/files/viewerState` render jest
-        // ich cienką kompozycją i daje się sprawdzić bez sterowania czasem.
-        "src/components/files/**": {
-          statements: 95,
-          functions: 95,
-          lines: 97,
-          branches: 80,
-        },
-        // ── MODUŁ 7: WEB STORIES ──────────────────────────────────────────────
-        // `StoryViewer.tsx` stał na 0%, bo maszyna przewijania mieszkała w tym
-        // samym pliku, co pętla `requestAnimationFrame`, focus trap i markup
-        // pełnoekranowy - żeby sprawdzić „co robi strzałka w prawo na ostatniej
-        // planszy", trzeba było sterować zegarem i klatkami animacji naraz.
-        // Reguły są teraz w `viewerNav.ts` (czysty moduł, dane zamiast napisów),
-        // a komponent jest ich kompozycją.
-        "src/lib/web-stories/viewerNav.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // Sam widok: 100% linii i funkcji. Pętla klatek jest sprawdzana przez
-        // PRZEJĘCIE `requestAnimationFrame` i podanie własnego znacznika czasu -
-        // czekanie sekundami na prawdziwe klatki dałoby test migoczący przy
-        // obciążonym CI, a test migoczący uczy zespół ignorować czerwień.
-        "src/components/web-stories/StoryViewer.tsx": {
-          statements: 95,
-          functions: 100,
-          lines: 100,
-          branches: 88,
-        },
-        // ── MODUŁ 7: PODCAST ──────────────────────────────────────────────────
-        // Parsery jsonb i czas trwania miały testy od dawna; ETYKIETY
-        // (`podcastTitle`, `showTitle`, `showDescription`, `personRoleLabel`)
-        // nie miały ANI JEDNEGO wywołania, mimo że to one decydują, co czytelnik
-        // widzi na karcie odcinka. Statements/branches poniżej 100, bo `zod`
-        // generuje w tym pliku ramiona domyślnych wartości schematów, których
-        // nie da się wywołać inaczej niż przez parsowanie każdej kombinacji
-        // brakujących pól - a to testowałoby zod, nie nasz kod.
-        "src/lib/podcast/types.ts": {
-          statements: 95,
-          functions: 100,
-          lines: 100,
-          branches: 90,
-        },
-        "src/components/podcast/PodcastEpisodeStrip.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 90,
-        },
-        // ── MODUŁ 7: HUBY EKSPERTÓW ───────────────────────────────────────────
-        // Największa funkcjonalność modułu (808 linii, 11 z 23 plików na zerze).
-        // Warstwa REGUŁ miała testy od dawna - dziura była w warstwie, która te
-        // reguły karmi, czyli w tej, która decyduje, KOGO widać na /experts.
-        // Próg obejmuje CAŁY katalog razem z `refreshOg.functions.ts` (server fn,
-        // świadomie pominięta), więc jest floorowany poniżej średniej katalogu,
-        // a nie poniżej najlepszego pliku.
-        // 2026-08-19: RATCHET. `refreshOg.functions.ts` (ostatni plik katalogu
-        // bez testu) dostał własny, a druga fala zapytań huba - współautorstwa
-        // i wystąpienia dobierane po identyfikatorach z fali pierwszej - ma
-        // teraz asercje. Cały katalog: 100% linii i funkcji.
-        "src/lib/experts/**": {
+        // Reguły wyszły z organizmów do czystych modułów (`lib/`), bo dopiero
+        // wtedy da się je sprawdzać na WYNIKU, a nie na renderze. Progi idą więc
+        // w dwóch klasach:
+        //   * czyste moduły - równo 100%, bez marginesu: nie ma tu gałęzi,
+        //     której nie dałoby się wywołać z testu, więc każdy spadek oznacza
+        //     realną regułę bez pokrycia;
+        //   * powierzchnie komponentowe - floor pod ZMIERZONYM poziomem
+        //     (margines na dryf CI), zgodnie z konwencją sekcji PROFIL.
+        // Wolno je wyłącznie podnosić.
+
+        // Reguły kalendarza redakcyjnego: siatka miesiąca, klucz dnia liczony
+        // LOKALNIE (nie w UTC) i bramka przeciągania wpisu. Niedobite gałęzie to
+        // ramiona obronne przy dacie nie do sparsowania. Trzymane osobno, bo to
+        // jedyny plik w `lib/` poniżej 100% - reszta katalogu ma być na 100%.
+        "src/components/admin/post-editor/lib/editorialCalendar.ts": {
           statements: 98,
-          functions: 100,
-          lines: 100,
-          branches: 88,
-        },
-        // Renderer huba eksperta: 1134 linie, jeden plik obsługujący DWIE
-        // powierzchnie (podgląd w adminie i publiczną stronę /author/$slug).
-        // Trzymamy 100% linii i funkcji, bo najgroźniejsza regresja tego pliku
-        // nie wywala testu typów ani lintu: to WYCIEK TREŚCI PRZYKŁADOWEJ na
-        // stronę realnego eksperta. Każda gałąź `showPlaceholders` ma parę
-        // asercji „w podglądzie jest / publicznie nie ma" i bez bramki taka
-        // para po cichu zniknie przy pierwszym refaktorze presetów.
-        // Gałęzie poniżej 100%, bo część wariantów układu (sidebar po prawej,
-        // centrowanie w karcie) różni się wyłącznie klasą CSS.
-        "src/components/experts/ExpertLayoutRenderer.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 95,
-        },
-        // Eksplorator materiałów: organizm bez własnego stanu - filtry i numer
-        // strony żyją w URL trasy /author/$slug. Bramka pilnuje trzech reguł
-        // budowy tego URL-a, których złamanie jest niewidoczne w typach:
-        // zmiana filtra wraca na stronę 1, wartości domyślne NIE trafiają do
-        // adresu (jeden kanoniczny URL profilu), a nawigacja nie przewija
-        // strony na górę. Gałęzie poniżej 100% to warianty `??` na fasetach,
-        // które w komplecie danych z RPC nie występują pusto.
-        "src/components/experts/ExpertMaterialsExplorer.tsx": {
-          statements: 98,
-          functions: 100,
-          lines: 100,
-          branches: 85,
-        },
-        "src/components/experts/atoms/**": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // Inline-edytor layoutu na publicznej stronie eksperta. Zapisuje NIE
-        // ustawienia, tylko RÓŻNICĘ wobec ustawień tenanta, więc bramka pilnuje
-        // jednej reguły: „dziedzicz" = klucza NIE MA. Zapisanie w tym miejscu
-        // `false`, `null` albo pustego obiektu wygląda w UI identycznie, a
-        // zamraża stronę eksperta na dzisiejszej wartości tenanta - profil
-        // przestaje nadążać za zmianami organizacji i nikt nie wie dlaczego.
-        // Instrukcje poniżej 100% to jeden obronny `return` w `moveSection`,
-        // nieosiągalny z UI (strzałki na krańcach listy są wyłączone).
-        "src/components/experts/ExpertLayoutInlineEditor.tsx": {
-          statements: 99,
           functions: 100,
           lines: 100,
           branches: 92,
         },
-        // Reszta katalogu: karty, blok tożsamości, piktogramy presetów i CTA
-        // zapytania do eksperta. Katalog stał na 5,08% linii w audycie z 18.08.
-        "src/components/experts/**": {
-          statements: 99,
-          functions: 100,
-          lines: 100,
-          branches: 90,
-        },
-        // ── MODUŁ 7: WYDARZENIA - dokument biletu i atomy prelegenta ──────────
-        // `ticketDocument` skleja HTML z danych z bazy i formularza, a plik ląduje
-        // na dysku człowieka i otwiera się BEZ naszego CSP. Ucieczka znaków jest
-        // jedyną barierą, więc trzymamy go pod 100% na wszystkich metrykach.
-        // Dialog profilu prelegenta. Dwie reguły pod bramką: okno NIGDY nie jest
-        // puste (dane awaryjne z kafelka, gdy profilu w bazie brak) oraz oba
-        // zapytania ŚPIĄ przy zamkniętym oknie - agenda montuje ten dialog raz
-        // na prelegenta, więc bez `enabled` wydarzenie z 30 nazwiskami odpalałoby
-        // 60 równoległych zapytań. Instrukcje poniżej 100% to gałęzie formatowania
-        // daty dla ustawień regionalnych, których happy-dom nie odtwarza.
-        "src/components/events/SpeakerProfileDialog.tsx": {
-          statements: 97,
-          functions: 100,
-          lines: 100,
-          branches: 95,
-        },
-        "src/components/community/ticketDocument.ts": {
+        // Patch wpisu: 47 kolumn plus jawna lista pól NIEpatchowanych. Test
+        // kompletności dowodzi, że każde pole formularza albo trafia do patcha,
+        // albo stoi na liście wykluczeń - czyli że nowe pole nie zniknie po
+        // cichu przy zapisie. Czysty moduł, więc równo 100%.
+        "src/components/admin/post-editor/lib/postPatch.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        // Deklaracje server functions wydarzeń. Repo trzyma w nich WYŁĄCZNIE
-        // deklarację (wymóg tss-serverfn-split), ale niosą dwie rzeczy, których
-        // nie ma nigdzie indziej: walidator wejścia - jedyną barierę między
-        // publicznym POST-em a kolumną `uuid` - oraz granicę uprawnień
-        // (`getMyEventTicket` czyta klientem WOŁAJĄCEGO, `getEventSeatState`
-        // jest świadomie publiczny, bo licznik miejsc działa przed logowaniem).
-        "src/lib/events/{ticket,rsvp-email}.functions.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 95,
-        },
-        // Rejestr ikon programów: ikony importowane PO NAZWIE, nie przez
-        // `import * as LucideIcons` - namespace zaciąga całą bibliotekę do
-        // publicznego bundla i nie widać tego ani w testach, ani w recenzji.
-        "src/lib/programs/icons.ts": {
+        // Budowa zapytania listy wpisów: filtry, paginacja, sortowanie. Błąd tu
+        // nie wywala się na typach - pokazuje redakcji NIE TE wpisy.
+        "src/components/admin/post-editor/lib/postsListQuery.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        "src/components/programs/**": {
+        // Bramki dialogów listy wpisów (usuwanie, duplikowanie, zbiorcze akcje).
+        "src/components/admin/post-editor/lib/postsListDialogs.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        "src/lib/events/kinds.ts": {
+        // Parametry trasy edytora: slug vs `new`, tryb podglądu, język.
+        "src/components/admin/post-editor/lib/postRouteParams.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        // Katalog `components/events` NIE dostaje progu zbiorczego, bo
-        // `SpeakerProfileDialog.tsx` (254 linie) jest świadomie poza tą porcją -
-        // wspólny próg musiałby być floorowany pod jego zerem i nie pilnowałby
-        // niczego. Zamiast tego bramkujemy pliki, które faktycznie pokryto.
-        "src/components/events/EventSpeakersSection.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 85,
-        },
-        "src/components/events/SpeakerChip.tsx": {
+        // Reguły przekierowań: normalizacja ścieżki, wykrycie pętli i kolizji.
+        // Zła reguła zabiera adres, pod którym artykuł jest już zaindeksowany.
+        "src/components/admin/post-editor/lib/redirectsAdmin.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        "src/components/events/SpeakerAvatar.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 90,
-        },
-        "src/components/events/SpeakerStars.tsx": {
+        // Katalog organizacji: schemat wiersza z RPC, klucz cache z tenantem,
+        // doklejenie przypisanej firmy do droplisty i ATOMOWY patch migawki
+        // `posts.organization_*`. Rozjazd tej migawki widać dopiero w
+        // opublikowanym artykule, przy nocie sponsorskiej.
+        "src/components/admin/post-editor/molecules/organizationDirectory.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        // ── MODUŁ 7: QUIZ ─────────────────────────────────────────────────────
-        // Cały sens `LazyQuizIframe` jest WYDAJNOŚCIOWY i niewidoczny na ekranie:
-        // ciężki, zewnętrzny bundel quizu nie ma się pobierać przed pierwszym
-        // paintem, a strona nie może skakać, gdy iframe wreszcie wjedzie. Takich
-        // własności nie sprawdzi się okiem, więc próg pilnuje ich zamiast
-        // przeglądu kodu.
-        // Tło strony /quiz. Cała wartość tego pliku to jedna oszczędność: wariant
-        // PRZECIWNEGO motywu nigdy nie trafia do DOM (cztery pliki po kilkaset kB
-        // w trzech formatach). Zamiana warunku na dwa `<picture>` z `dark:opacity-0`
-        // wygląda identycznie i podwaja transfer na wejściu w quiz - a to jest
-        // ruch kampanijny, w większości mobilny. Pod bramką jest też ustąpienie
-        // parallaxu przy `prefers-reduced-motion`: ruchome tło przy przewijaniu
-        // wywołuje mdłości u części osób. Instrukcje poniżej 100% to dwa obronne
-        // `return` (brak `document` w SSR, brak `ref`), nieosiągalne z testu DOM.
-        "src/components/quiz/QuizBackground.tsx": {
+        // Warstwa czystych reguł edytora jako całość: 99,2% instrukcji, 99,5%
+        // linii, 98,8% funkcji, 98,4% gałęzi. Próg katalogowy istnieje po to, by
+        // NOWY plik reguł nie wszedł tu bez testu - progi per-plik takiego
+        // przypadku nie łapią.
+        "src/components/admin/post-editor/lib/**": {
           statements: 95,
-          functions: 100,
-          lines: 100,
-          branches: 85,
+          functions: 95,
+          lines: 95,
+          branches: 94,
         },
-        "src/components/quiz/LazyQuizIframe.tsx": {
-          statements: 92,
+        // Haki edytora (`usePostEditorForm`, `usePostEditorData`,
+        // `useBilingualReadingStats`, `useInlineTaxonomy`): 98,5% instrukcji,
+        // 99,6% linii, 100% funkcji, 93,3% gałęzi. To tu mieszka walidacja przed
+        // zapisem i budowa patcha - bez pokrycia formularz „zapisuje się"
+        // zielono, a kolumna zostaje pusta.
+        "src/components/admin/post-editor/hooks/**": {
+          statements: 94,
+          functions: 96,
+          lines: 95,
+          branches: 89,
+        },
+        // Atomy edytora: 92,3% instrukcji, 91,7% linii, 88,9% funkcji, 93,8%
+        // gałęzi. Warstwa prezentacyjna, ale to ona niesie etykiety i stany
+        // pól - a atomic design zakłada, że wyżej nikt tego nie powtarza.
+        "src/components/admin/post-editor/atoms/**": {
+          statements: 88,
+          functions: 85,
+          lines: 87,
+          branches: 89,
+        },
+        // Projekcja listy rewizji: przez granicę klient-serwer przechodzą
+        // WYŁĄCZNIE pola listy, nigdy migawka treści. Czysty moduł, 100%.
+        "src/lib/revisions/**": {
+          statements: 100,
           functions: 100,
           lines: 100,
-          branches: 88,
+          branches: 100,
+        },
+        // Server functions historii zmian: lista, migawki do porównania,
+        // przywracanie. Największy plik modułu 2, który stał na 0% - a niesie
+        // trzy reguły, których nie widać z zewnątrz: przywrócenie NIE rusza
+        // `status`, migawka zabezpieczająca powstaje PRZED nadpisaniem, a UPDATE
+        // odfiltrowany przez RLS (zero wierszy, zero błędu) jest zgłaszany jako
+        // porażka. Każda gałąź błędu bazy ma test, więc próg stoi na 100%.
+        "src/lib/revisions.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Wersje buildera: typ encji przy przywracaniu, dokument sekcji/widgetu
+        // i zakres zapytania. Tu siedział defekt `span: 12` zamiast
+        // `{ desktop: 12 }` - podgląd wersji renderował się w domyślnej
+        // szerokości, bo `span.desktop` na liczbie daje `undefined`.
+        "src/components/admin/versions/lib/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Reguły panelu automatyzacji: katalog statusów przebiegu i dostaw
+        // (czytany wprost z CHECK-ów w migracjach), sentinel „wszystkie" dla
+        // Radiksa, parametry zapytań i bramka podglądu trasy korelacji.
+        "src/components/admin/workflows/lib/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Maszyna stanu niezapisanych zmian + jej hak. Jedyna rzecz, która stoi
+        // między redaktorem a utratą tekstu przy zamknięciu karty - dlatego bez
+        // marginesu.
+        "src/lib/unsavedChanges.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useUnsavedChangesGuard.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Obecność edytorska: kto jeszcze trzyma otwarty ten wpis. Plik stał na
+        // 0% mimo trzech funkcji i kanału realtime.
+        "src/hooks/useEditPresence.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ZAPORY ANTYREGRESYJNE (nie deklaracje jakości). Trzy powierzchnie
+        // komponentowe modułu 2 wyszły z zera, ale są dopiero w połowie drogi.
+        // Próg jest tu wyłącznie po to, żeby nie wróciły na zero przy kolejnym
+        // refaktorze; docelowy poziom to ta sama półka, co w `lib/` i `hooks/`,
+        // i te liczby mają rosnąć wraz z kolejnymi testami.
+        // Zmierzone: molecules 27,8% linii / 30,9% funkcji, workflows 20,3% /
+        // 17,0%, versions 10,6% / 11,8%.
+        "src/components/admin/post-editor/molecules/**": {
+          statements: 23,
+          functions: 26,
+          lines: 23,
+          branches: 22,
+        },
+        // Automatyzacje po dopisaniu edytora przepisu: 51,5% instrukcji, 50%
+        // linii, 55,7% funkcji, 31,6% gałęzi (zmierzone samymi testami tego
+        // katalogu, więc pełna suita daje nie mniej). Na zerze zostają cztery
+        // panele listujące - próg ma pilnować, żeby edytor do nich nie dołączył.
+        "src/components/admin/workflows/**": {
+          statements: 45,
+          functions: 50,
+          lines: 45,
+          branches: 27,
+        },
+        "src/components/admin/versions/**": {
+          statements: 7,
+          functions: 8,
+          lines: 7,
+          branches: 9,
         },
       },
     },

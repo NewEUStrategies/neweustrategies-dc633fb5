@@ -137,6 +137,13 @@ function resolveToken(
 }
 
 const TOKEN_RE = /\{([a-zA-Z][a-zA-Z0-9._-]*)\}/g;
+/**
+ * Bliźniak `TOKEN_RE` BEZ flagi `g` - wyłącznie do sprawdzania „czy jest choć
+ * jeden token". Regexp z `g` trzyma `lastIndex` między wywołaniami, więc
+ * `TOKEN_RE.test(x)` na tym samym wejściu zwracał na przemian `true` i `false`.
+ * `String.replace` sam zeruje `lastIndex`, dlatego dotyczyło to tylko `.test()`.
+ */
+const TOKEN_TEST_RE = /\{[a-zA-Z][a-zA-Z0-9._-]*\}/;
 
 /**
  * Replace `{token}` occurrences in a single string. Unknown tokens are left
@@ -169,5 +176,5 @@ export function resolveDynamicList(
 /** Detect whether a string uses at least one supported dynamic token. */
 export function hasDynamicTokens(input: string | undefined | null): boolean {
   if (!input) return false;
-  return TOKEN_RE.test(input);
+  return TOKEN_TEST_RE.test(input);
 }
