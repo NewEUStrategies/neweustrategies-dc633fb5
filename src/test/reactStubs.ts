@@ -203,3 +203,64 @@ export function radixSwitchStub(react: typeof import("react")): Record<string, u
       }),
   };
 }
+
+// --- atrapa Radix Tabs ------------------------------------------------------
+
+/**
+ * Zakładki na natywnych przyciskach w miejsce Radixowych.
+ *
+ * Radix Tabs nie przełącza panelu pod happy-dom od samego `fireEvent.click`
+ * (`TabsTrigger` reaguje na zdarzenia wskaźnika i zarządza fokusem), więc test
+ * nie miałby jak wejść na drugą zakładkę - a w panelach adminowych to właśnie
+ * zakładki decydują, KTÓRA powierzchnia jest w ogóle zamontowana.
+ *
+ * Atrapa jest wierna w tym, na czym stoją asercje: renderuje wyłącznie panel
+ * aktywnej zakładki (jak Radix), utrzymuje rolę `tab`/`tablist`,
+ * `aria-selected` i sterowanie przez `value`/`onValueChange`.
+ *
+ * Bez JSX (jak cały ten moduł) - wołane z wnętrza fabryki `vi.mock`.
+ */
+export function radixTabsStub(react: typeof import("react")): Record<string, unknown> {
+  const TabsContext = react.createContext<{
+    value: string;
+    onValueChange?: (next: string) => void;
+  }>({ value: "" });
+
+  return {
+    Tabs: ({
+      value,
+      onValueChange,
+      children,
+    }: {
+      value: string;
+      onValueChange?: (next: string) => void;
+      children?: unknown;
+    }) =>
+      react.createElement(
+        TabsContext.Provider,
+        { value: { value, onValueChange } },
+        children as never,
+      ),
+    TabsList: ({ children }: { children?: unknown }) =>
+      react.createElement("div", { role: "tablist" }, children as never),
+    TabsTrigger: ({ value, children }: { value: string; children?: unknown }) => {
+      const ctx = react.useContext(TabsContext);
+      return react.createElement(
+        "button",
+        {
+          type: "button",
+          role: "tab",
+          "aria-selected": ctx.value === value,
+          onClick: () => ctx.onValueChange?.(value),
+        },
+        children as never,
+      );
+    },
+    TabsContent: ({ value, children }: { value: string; children?: unknown }) => {
+      const ctx = react.useContext(TabsContext);
+      return ctx.value === value
+        ? react.createElement("div", { role: "tabpanel" }, children as never)
+        : null;
+    },
+  };
+}
