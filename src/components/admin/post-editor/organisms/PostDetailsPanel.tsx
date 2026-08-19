@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "@/lib/lucide-shim";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { PostGeneralOverview } from "@/components/admin/PostGeneralOverview";
@@ -15,6 +16,7 @@ import { RevisionsCard } from "@/components/admin/molecules/RevisionsCard";
 import { PostOrganizationPicker, PostSponsoredCard } from "../molecules";
 import { PostDetailsNav, type DetailsTab } from "./PostDetailsNav";
 import { TakeawaysSection } from "./TakeawaysSection";
+import { ZeroClickSection } from "./ZeroClickSection";
 import { AudioSection } from "./AudioSection";
 import { CustomMetaSection } from "./CustomMetaSection";
 import { RelatedSection } from "./RelatedSection";
@@ -23,6 +25,7 @@ import { PostSidebarBundle } from "./PostSidebarBundle";
 import type { AutoReadMinutes, PostForm } from "../types";
 import type { InlineTaxonomyApi, PostEditorData, PostEditorFormApi } from "../hooks";
 import "@/lib/i18n-admin-post-panes";
+import "@/lib/i18n-admin-zero-click";
 
 export function PostDetailsPanel({
   formApi,
@@ -118,6 +121,13 @@ export function PostDetailsPanel({
 
           {detailsTab === "seo" && (
             <div className="space-y-3">
+              {/* Reguła zero-click przy polach, których dotyczy: opis SEO bywa
+                  JEDYNYM, co czytelnik przeczyta. Pełna ściągawka siedzi w
+                  zakładce „Zero-click" obok. */}
+              <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 mt-px shrink-0 text-brand" aria-hidden="true" />
+                <span>{t("adminZeroClick.hints.seo")}</span>
+              </p>
               <SeoPanel
                 value={{
                   seo_title_pl: form.seo_title_pl,
@@ -158,6 +168,8 @@ export function PostDetailsPanel({
               />
             </div>
           )}
+
+          {detailsTab === "zeroClick" && <ZeroClickSection formApi={formApi} />}
 
           {detailsTab === "meta" && <CustomMetaSection formApi={formApi} data={data} />}
 

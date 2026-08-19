@@ -15,14 +15,18 @@ import {
 // Building2 nie ma w `@/lib/lucide-shim` (shim niesie tylko ikony z gorących
 // ścieżek publicznych) - ta sama furtka, z której już korzystają History,
 // Database i ListChecks.
-import { History, Database, ListChecks, Building2 } from "lucide-react";
+import { History, Database, ListChecks, Building2, Sparkles } from "lucide-react";
 import "@/lib/i18n-admin-post-panes";
+// Słownik ściągawki zero-click: etykieta i podpowiedź zakładki są jego częścią,
+// więc rejestracja musi wejść razem z tą nawigacją.
+import "@/lib/i18n-admin-zero-click";
 
 export type DetailsTab =
   | "general"
   | "takeaways"
   | "settings"
   | "seo"
+  | "zeroClick"
   | "meta"
   | "related"
   | "publish"
@@ -99,6 +103,15 @@ const GROUPS: { id: string; labelKey: string; tabs: TabDef[] }[] = [
         labelKey: "adminPostPanes.nav.seo",
         icon: Search,
         hintKey: "adminPostPanes.nav.seoHint",
+      },
+      // Zero-click stoi w grupie SEO, nie w „Treść": to nie jest kolejne pole
+      // wpisu, tylko sposób, w jaki treść ma być czytana przez wyszukiwarkę i
+      // asystenta - dokładnie ten sam adresat, co panel SEO obok.
+      {
+        id: "zeroClick",
+        labelKey: "adminZeroClick.nav.label",
+        icon: Sparkles,
+        hintKey: "adminZeroClick.nav.hint",
       },
       {
         id: "meta",

@@ -6,6 +6,7 @@ export { PostTranslateCard } from "./PostTranslateCard";
 export { PostLayoutCard } from "./PostLayoutCard";
 export { PostTaxonomyGrid } from "./PostTaxonomyGrid";
 export { TakeawaysSection } from "./TakeawaysSection";
+export { ZeroClickSection } from "./ZeroClickSection";
 export { AudioSection } from "./AudioSection";
 export { CustomMetaSection } from "./CustomMetaSection";
 export { RelatedSection } from "./RelatedSection";

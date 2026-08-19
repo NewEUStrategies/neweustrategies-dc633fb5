@@ -5,6 +5,10 @@ serves and where to extend it. Everything below shipped together with the
 WordPress-migration hardening (per-entity SEO fields, redirect manager, feeds,
 news sitemap, OG cards, llms.txt).
 
+Editorial counterpart: [`ZERO_CLICK.md`](./ZERO_CLICK.md) - how posts have to be
+SHAPED (definition paragraph, question headings, FAQ block, takeaways) for the
+machine layer described here to have anything worth quoting.
+
 ## Architecture
 
 Pure, unit-tested builders live in `src/lib/seo/` and are consumed by three
@@ -18,19 +22,20 @@ thin layers that never re-implement logic:
   `/admin/settings/seo`) - the same resolution chain editors preview is the one
   crawlers receive.
 
-| Module (`src/lib/seo/`)               | Responsibility                                                                                                  |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `meta.ts`                             | `<head>` meta/links, hreflang, article JSON-LD (+ speakable, abstract, publisher logo), feed discovery links    |
-| `fields.ts`                           | Per-entity SEO override resolution (title/description/canonical/robots/og image chain)                          |
-| `jsonld.ts`                           | Organization (NewsMediaOrganization), WebSite + SearchAction, localized BreadcrumbList                          |
-| `redirects.ts`                        | Path normalization, exact/query/wildcard matching, chain resolution, CSV import/export                          |
-| `rss.ts`, `newsSitemap.ts`, `llms.ts` | RSS 2.0, Google News sitemap and llms.txt document builders                                                     |
-| `sitemapIndex.ts`, `sitemapXml.ts`    | `<sitemapindex>` + shard naming/limits; `<urlset>` rendering, hreflang cluster, deterministic URL expansion     |
-| `machineSurfaces.ts`                  | Single registry of machine-readable surfaces (sitemaps, feeds, llms.txt) - consumed by llms.txt + contract test |
-| `robots.ts`                           | robots.txt body builder (crawl policy, per-agent groups, sitemap declarations) + response headers               |
-| `serp.ts`                             | Pixel-width SERP metrics (Google truncates by px, not chars) for the admin preview                              |
-| `ogCard.ts` + `ogCardCanvas.ts`       | 1200x630 OG-card layout (pure) + browser canvas renderer/uploader                                               |
-| `settings.ts`                         | Site-wide SEO settings schema (site_settings key `"seo"`) + AI-crawler policy                                   |
+| Module (`src/lib/seo/`)               | Responsibility                                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `meta.ts`                             | `<head>` meta/links, hreflang, article JSON-LD (+ speakable, abstract, publisher logo), feed discovery links          |
+| `fields.ts`                           | Per-entity SEO override resolution (title/description/canonical/robots/og image chain)                                |
+| `jsonld.ts`                           | Organization (NewsMediaOrganization), WebSite + SearchAction, localized BreadcrumbList                                |
+| `redirects.ts`                        | Path normalization, exact/query/wildcard matching, chain resolution, CSV import/export                                |
+| `rss.ts`, `newsSitemap.ts`, `llms.ts` | RSS 2.0, Google News sitemap and llms.txt document builders                                                           |
+| `sitemapIndex.ts`, `sitemapXml.ts`    | `<sitemapindex>` + shard naming/limits; `<urlset>` rendering, hreflang cluster, deterministic URL expansion           |
+| `machineSurfaces.ts`                  | Single registry of machine-readable surfaces (sitemaps, feeds, llms.txt) - consumed by llms.txt + contract test       |
+| `robots.ts`                           | robots.txt body builder (crawl policy, per-agent groups, sitemap declarations) + response headers                     |
+| `serp.ts`                             | Pixel-width SERP metrics (Google truncates by px, not chars) for the admin preview                                    |
+| `zeroClick.ts`                        | Zero-click content rules + pure analyzer (lead length, question headings, FAQ block, takeaways) - see `ZERO_CLICK.md` |
+| `ogCard.ts` + `ogCardCanvas.ts`       | 1200x630 OG-card layout (pure) + browser canvas renderer/uploader                                                     |
+| `settings.ts`                         | Site-wide SEO settings schema (site_settings key `"seo"`) + AI-crawler policy                                         |
 
 ## Public surfaces
 

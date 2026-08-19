@@ -1,4 +1,5 @@
 import "@/lib/i18n-admin-post-panes";
+import "@/lib/i18n-admin-zero-click";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PostDetailsNav } from "../PostDetailsNav";
@@ -6,10 +7,10 @@ import { PostDetailsNav } from "../PostDetailsNav";
 describe("PostDetailsNav", () => {
   it("renders every tab across the metadata groups (i18n labels)", () => {
     render(<PostDetailsNav active="general" onSelect={() => {}} />);
-    // 13 tabs total across the five groups. Assert via the button role so a tab
+    // 14 tabs total across the five groups. Assert via the button role so a tab
     // label that coincides with a group header (e.g. "Publikacja") is
     // unambiguous - the group headers are plain text, only tabs are buttons.
-    expect(screen.getAllByRole("button")).toHaveLength(13);
+    expect(screen.getAllByRole("button")).toHaveLength(14);
     for (const label of [
       /Ogólne/,
       /Dowiesz się…/,
@@ -19,6 +20,7 @@ describe("PostDetailsNav", () => {
       /Kategorie i tagi/,
       /Powiązane wpisy/,
       /SEO i podgląd/,
+      /Zero-click/,
       /Custom meta/,
       /Publikacja/,
       /Dostęp/,

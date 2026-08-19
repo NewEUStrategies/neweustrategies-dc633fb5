@@ -16,6 +16,8 @@ import {
   Tags as TagIcon,
 } from "@/lib/lucide-shim";
 import { Database, History, ListChecks } from "lucide-react";
+import { InfoHint } from "@/components/admin/post-editor/atoms";
+import "@/lib/i18n-admin-zero-click";
 import type { SeoIssue } from "@/lib/seo/validation";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import type { TocOverride } from "@/lib/toc/settings";
@@ -313,8 +315,12 @@ export function PostGeneralOverview({
               {t("adminPostPanes.general.lead")}{" "}
               <span className="text-[10px] text-muted-foreground">(PL)</span>
             </span>
-            <span className="text-[10px] text-muted-foreground font-normal">
+            <span className="text-[10px] text-muted-foreground font-normal inline-flex items-center gap-1.5">
               {t("adminPostPanes.general.charsCount", { n: excerptPl.length })}
+              {/* Zapowiedź jest tym, co czytelnik zobaczy w SERP i w feedzie -
+                  częściej niż sam wpis. Podpowiedź trzyma regułę zero-click
+                  przy polu, a nie w osobnej zakładce. */}
+              <InfoHint text={t("adminZeroClick.hints.excerpt")} />
             </span>
           </Label>
           <Textarea
@@ -347,8 +353,9 @@ export function PostGeneralOverview({
               {t("adminPostPanes.general.lead")}{" "}
               <span className="text-[10px] text-muted-foreground">(EN)</span>
             </span>
-            <span className="text-[10px] text-muted-foreground font-normal">
+            <span className="text-[10px] text-muted-foreground font-normal inline-flex items-center gap-1.5">
               {t("adminPostPanes.general.charsCount", { n: excerptEn.length })}
+              <InfoHint text={t("adminZeroClick.hints.excerpt")} />
             </span>
           </Label>
           <Textarea

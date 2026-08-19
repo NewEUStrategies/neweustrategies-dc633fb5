@@ -18,6 +18,7 @@ vi.mock("react-i18next", async () =>
 );
 vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
 vi.mock("@/lib/i18n-admin-tts", () => ({}));
+vi.mock("@/lib/i18n-admin-zero-click", () => ({}));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -66,6 +67,8 @@ const OCZEKIWANE_EKSPORTY = [
   "TranslateCard",
   "TtsVoiceCard",
   "WorkflowStatusSection",
+  "ZeroClickCheatSheet",
+  "ZeroClickChecklist",
 ] as const;
 
 describe("barrel molekuł edytora wpisu", () => {
