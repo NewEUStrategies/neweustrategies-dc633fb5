@@ -874,6 +874,47 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── KREATOR TREŚCI KAMPANII ──────────────────────────────────────────
+        // Kampania jedzie do CAŁEJ listy i nie da się jej odwołać, więc reguły
+        // edytora bloków są tu przybite osobno:
+        //  * duplikat bloku musi być GŁĘBOKĄ kopią z nowym identyfikatorem -
+        //    kopia płytka dzieli obiekty `{ pl, en }` z oryginałem, więc edycja
+        //    jednego bloku po cichu zmienia drugi;
+        //  * klucz doboru wpisów bierze TYLKO pola zmieniające dobór (tryb,
+        //    liczba, kategoria, ręczne id). Za wąski - podgląd pokazuje stare
+        //    wpisy; za szeroki - każdy klawisz w nagłówku strzela do bazy;
+        //  * limity 1-10 wpisów i 10 ręcznie wybranych trzymają się zakresu
+        //    także przy śmieciach - mail z pustą listą wychodzi po cichu.
+        "src/components/admin/newsletter/campaignBlocks.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // CampaignContentBuilder: podgląd używa DOKŁADNIE tego samego
+        // `renderEmailHtml` co wysyłka - test czyta `srcDoc` ramki i porównuje z
+        // wynikiem prawdziwego renderera. Rozjazd znaczyłby, że redaktor
+        // zatwierdza treść, której odbiorca nie zobaczy. Próg pilnuje też
+        // opóźnienia podglądu (300 ms), komunikatu o braku treści w danym języku
+        // i tego, że serwer o wpisy jest pytany tylko wtedy, gdy dokument ma
+        // blok „najnowsze wpisy".
+        "src/components/admin/newsletter/CampaignContentBuilder.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        // CampaignBlockProperties: jedyne miejsce, w którym redaktor wpisuje
+        // treść wychodzącego maila. 100% funkcji, bo każda funkcja tego pliku to
+        // handler edycji: patch gubiący drugi język wysyła połowie listy maila
+        // z pustym nagłówkiem, a pole bez podłączonego `onChange` przyjmuje
+        // treść i ją gubi.
+        "src/components/admin/newsletter/CampaignBlockProperties.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
         // ── BUILDER MAILA: KANWA, BIBLIOTEKA, PODGLĄD ────────────────────────
         // WidgetPreview: JEDEN test na typ widgetu, plus przejście po CAŁYM
         // rejestrze. Typ, który renderuje się jako `null`, nie wywala
