@@ -34,6 +34,8 @@ const h = vi.hoisted(() => {
     portalThrows: { current: false },
     portalPayloads: [] as Array<Record<string, unknown>>,
     sendResult: { current: { ok: true } as { ok: boolean } },
+    /** Dostawca poczty RZUCA (timeout, 5xx) zamiast oddać `{ ok: false }`. */
+    sendThrows: { current: false },
     sentEmails: [] as Array<Record<string, unknown>>,
   };
 
@@ -90,6 +92,7 @@ vi.mock("stripe", () => {
 vi.mock("@/lib/email/transactional.server", () => ({
   sendTxEmail: (payload: Record<string, unknown>) => {
     h.sentEmails.push(payload);
+    if (h.sendThrows.current) return Promise.reject(new Error("dostawca poczty nie odpowiada"));
     return Promise.resolve(h.sendResult.current);
   },
 }));
@@ -120,6 +123,7 @@ beforeEach(() => {
   h.portalThrows.current = false;
   h.portalPayloads.length = 0;
   h.sendResult.current = { ok: true };
+  h.sendThrows.current = false;
   h.sentEmails.length = 0;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -289,5 +293,36 @@ describe("sendPortalLinkEmail - mail z linkiem", () => {
     await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "1" });
 
     expect(h.sentEmails[0].lang).toBe("en");
+  });
+});
+
+describe("brzegi, na których portal MUSI zadziałać albo odmówić spokojnie", () => {
+  it("brak zapisanego identyfikatora subskrypcji NIE blokuje linku", async () => {
+    // Wiersz `subscriptions` powstaje przy checkoucie, a `provider_subscription_id`
+    // dopisuje dopiero webhook. Klient, który trafi na profil w tym oknie, ma
+    // dostać portal - to jedyne miejsce, gdzie poprawi kartę po odrzuconej
+    // płatności. Odmowa byłaby tu najgorsza z możliwych.
+    h.subscription.current = { provider_customer_id: "cus_bez_subskrypcji" };
+
+    const result = await createPortalLinkForUser(USER, "sandbox");
+
+    expect(result.ok).toBe(true);
+    expect(h.portalPayloads[0]).toMatchObject({ customer: "cus_bez_subskrypcji" });
+  });
+
+  it("WYJĄTEK dostawcy poczty nie wychodzi na zewnątrz - odmowa `send_failed`", async () => {
+    // Kontrakt modułu brzmi „nigdy nie rzuca". Wyjątek z dostawcy poczty
+    // przebiłby się przez panel administratora jako biała strona, a link do
+    // portalu i tak byłby już zużyty.
+    h.sendThrows.current = true;
+
+    const result = await sendPortalLinkEmail({
+      userId: USER,
+      environment: "sandbox",
+      idempotencySeed: "ziarno-1",
+    });
+
+    expect(result).toEqual({ ok: false, error: "send_failed" });
+    expect(console.error).toHaveBeenCalled();
   });
 });

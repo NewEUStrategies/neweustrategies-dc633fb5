@@ -309,4 +309,53 @@ describe("useClaimOrgSeats - odbiór zaproszeń po zalogowaniu", () => {
     await waitFor(() => expect(h.rpc).toHaveBeenCalled());
     expect(invalidate).not.toHaveBeenCalled();
   });
+
+  it("BŁĄD odbioru NIE unieważnia warstwy uprawnień - to nie jest odebrane miejsce", async () => {
+    // Gdyby błąd był zjadany i szedł dalej jako `claimed = 0`, byłoby to
+    // nieszkodliwe. Gorszy jest wariant odwrotny: potraktowanie nieudanego
+    // RPC jako sukcesu skasowałoby cache uprawnień przy KAŻDYM wejściu na
+    // profil, gdy odbiór jest trwale zepsuty. Hook ma zgłosić błąd i nic nie
+    // unieważniać.
+    h.rpc.mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error("claim failed"), { name: "PostgrestError" }),
+    });
+    const { queryClient, wrapper } = harness();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHook(() => useClaimOrgSeats(), { wrapper });
+
+    await waitFor(() =>
+      expect(queryClient.getQueryState(["claim-org-seats", "user-me"])?.status).toBe("error"),
+    );
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("GOŚĆ - klucze historii nie mogą kolidować z kluczami zalogowanego", () => {
+  // Klucz gościa kończy się na „anon”. Gdyby zamiast tego był `undefined`,
+  // dwa różne stany (gość i zalogowany bez identyfikatora) trafiłyby do tego
+  // samego wpisu cache'u - a po zalogowaniu historia gościa udawałaby historię
+  // klienta, dopóki zapytanie się nie odświeży.
+  it("historia uczestnictwa gościa ma klucz „anon” i nie woła RPC", async () => {
+    h.user.current = null;
+    const { queryClient, wrapper } = harness();
+
+    renderHook(() => useMyEventParticipation(), { wrapper });
+
+    await waitFor(() => expect(cacheKeys(queryClient).length).toBeGreaterThan(0));
+    expect(cacheKeys(queryClient)[0]).toContain("anon");
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("historia pobrań gościa również", async () => {
+    h.user.current = null;
+    const { queryClient, wrapper } = harness();
+
+    renderHook(() => useMyResourceDownloads(), { wrapper });
+
+    await waitFor(() => expect(cacheKeys(queryClient).length).toBeGreaterThan(0));
+    expect(cacheKeys(queryClient)[0]).toContain("anon");
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
 });

@@ -245,6 +245,15 @@ describe("fetchMyDonations", () => {
 
     await expect(fetchMyDonations()).rejects.toThrow("boom");
   });
+
+  it("PUSTA odpowiedź bez błędu daje pustą listę, nie `null`", async () => {
+    // PostgREST oddaje `data: null` przy zerowym wyniku równie chętnie co `[]`.
+    // Gdyby `null` szedł dalej, ekran darowizn wywaliłby się na `.map()` -
+    // i to u darczyńcy, który akurat nie ma jeszcze żadnej wpłaty.
+    h.chain!.setResponse("donations", { data: null, error: null });
+
+    expect(await fetchMyDonations()).toEqual([]);
+  });
 });
 
 describe("fetchMyOrganization - członkostwo zespołowe", () => {
