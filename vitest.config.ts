@@ -908,6 +908,25 @@ export default defineConfig({
           lines: 98,
           branches: 70,
         },
+        // PropertiesPanel: prawa kolumna buildera - JEDYNA droga, którą treść
+        // trafia do dokumentu. Próg pilnuje trzech rzeczy:
+        //  1. KAŻDA kontrolka jest podłączona (przemiał po całym rejestrze
+        //     widgetów: pola tekstowe, listy wyboru, przełączniki). Kontrolka
+        //     bez `onChange` przyjmuje wpisaną wartość i ją gubi - operator
+        //     wychodzi przekonany, że zapisał.
+        //  2. patch NIE GUBI DRUGIEGO JĘZYKA. Edycja PL musi zachować EN,
+        //     inaczej połowa listy dostaje maila z pustym nagłówkiem.
+        //  3. pole obrazu ma trzy ścieżki: sukces, awaria magazynu i awaria
+        //     rejestracji w bibliotece mediów. Trzecia jest podstępna - upload
+        //     się udał, więc adresu NIE WOLNO zgubić.
+        // 100% funkcji jest tu wymagane właśnie dlatego, że każda funkcja tego
+        // pliku to jeden handler edycji.
+        "src/components/admin/newsletter/builder/PropertiesPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
       },
     },
   },
