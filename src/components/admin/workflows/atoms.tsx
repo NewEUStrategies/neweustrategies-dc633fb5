@@ -6,54 +6,39 @@ import { CheckCircle2, XCircle, Clock3, Skull } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { parseWorkflowSteps } from "@/lib/admin/workflows";
+import { runStatusDescriptor, type StatusIcon, type StatusTone } from "./lib/runStatus";
 import type { Json } from "@/integrations/supabase/types";
 import { useActionName } from "./useActionName";
 
 /** Status przebiegu workflow lub dostawy outboxu (wspólna paleta). */
+const TONE_CLASS: Record<StatusTone, string> = {
+  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+  danger: "bg-destructive/10 text-destructive border-destructive/30",
+  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  neutral: "bg-muted text-muted-foreground border-border",
+};
+
+const TONE_ICON: Record<StatusIcon, typeof CheckCircle2> = {
+  check: CheckCircle2,
+  x: XCircle,
+  clock: Clock3,
+  skull: Skull,
+};
+
 export function RunStatusBadge({ status }: { status: string }) {
   const { t } = useTranslation();
-  const map: Record<string, { icon: typeof CheckCircle2; className: string; label: string }> = {
-    succeeded: {
-      icon: CheckCircle2,
-      className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-      label: t("adminWorkflows.runs.statusSucceeded"),
-    },
-    delivered: {
-      icon: CheckCircle2,
-      className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-      label: "delivered",
-    },
-    failed: {
-      icon: XCircle,
-      className: "bg-destructive/10 text-destructive border-destructive/30",
-      label: t("adminWorkflows.runs.statusFailed"),
-    },
-    pending: {
-      icon: Clock3,
-      className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
-      label: "pending",
-    },
-    retry: {
-      icon: Clock3,
-      className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
-      label: "retry",
-    },
-    dead: {
-      icon: Skull,
-      className: "bg-muted text-muted-foreground border-border",
-      label: "dead",
-    },
-  };
-  const entry = map[status] ?? {
-    icon: Clock3,
-    className: "bg-muted text-muted-foreground border-border",
-    label: status,
-  };
-  const Icon = entry.icon;
+  // Ton, ikona i klucz etykiety pochodzą z katalogu będącego lustrem CHECK-ów
+  // w migracjach - komponent nie trzyma już własnej mapy, która rozjechała się
+  // z bazą w obie strony (patrz `lib/runStatus`).
+  const descriptor = runStatusDescriptor(status);
+  const Icon = TONE_ICON[descriptor.icon];
+  // Status spoza katalogu pokazujemy surowo - ma być widoczny jako nieznany,
+  // a nie ukryty pod wymyśloną etykietą.
+  const label = descriptor.labelKey ? t(descriptor.labelKey) : status;
   return (
-    <Badge variant="outline" className={cn("gap-1 font-normal", entry.className)}>
+    <Badge variant="outline" className={cn("gap-1 font-normal", TONE_CLASS[descriptor.tone])}>
       <Icon className="h-3 w-3" aria-hidden />
-      {entry.label}
+      {label}
     </Badge>
   );
 }

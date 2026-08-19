@@ -61,6 +61,19 @@ const GATED_PREFIXES = [
   // pierwszym incydencie (lekcja z prefiksów „network" i „club").
   "sponsored",
   "postOrganization",
+  // MODUŁ 2 (edytor wpisów i workflow redakcyjny). Do 08.2026 obie powierzchnie
+  // stały poza bramką i rozjazd PL/EN był tu wyłącznie OSTRZEŻENIEM, mimo że
+  // panel administracyjny ma dwie wersje językowe, a redakcja bywa dwujęzyczna.
+  // Skutek braku klucza jest inny niż na powierzchni publicznej i dlatego
+  // groźniejszy: redaktor nie widzi surowego klucza w miejscu, gdzie spodziewa
+  // się zdania - widzi go w ETYKIECIE POLA albo w komunikacie odmowy zapisu,
+  // czyli dokładnie tam, gdzie musi zrozumieć, czego brakuje, żeby wpis
+  // dało się opublikować. Bramka modułowa
+  // (components/admin/post-editor/__tests__/i18nParity.test.ts) pilnowała
+  // dotąd tylko ośmiu sub-namespace'ów `adminPostPanes` i nie była wpięta
+  // w `check:i18n-parity`; oba braki domknięte razem z tym wpisem.
+  "adminPostPanes",
+  "adminWorkflows",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

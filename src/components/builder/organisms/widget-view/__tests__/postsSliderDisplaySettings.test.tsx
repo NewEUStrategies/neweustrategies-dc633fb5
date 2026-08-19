@@ -213,7 +213,9 @@ describe("PostsSliderWidget - granica leniwego chunka", () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const src = readFileSync(
-      resolve(process.cwd(), "src/components/builder/organisms/widget-view/mediaWidgets.tsx"),
+      // PostsSlider wyjechal z `mediaWidgets.tsx` do wlasnego leniwego chunka -
+      // straznik musi czytac plik, ktory FAKTYCZNIE zawiera zawezanie wariantow.
+      resolve(process.cwd(), "src/components/builder/organisms/widget-view/PostsSliderWidget.tsx"),
       "utf8",
     );
     expect(src).toContain('from "@/lib/builder/sliderOptions"');

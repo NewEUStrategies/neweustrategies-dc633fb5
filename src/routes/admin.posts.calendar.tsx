@@ -32,6 +32,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { updatePost } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
+import {
+  canReschedule,
+  dayKey,
+  entryDate,
+  gridRange,
+  groupByDay,
+  monthGrid,
+  rescheduleTarget,
+  type CalendarEntry,
+} from "@/components/admin/post-editor/lib/editorialCalendar";
 import { ArrowLeft } from "@/lib/lucide-shim";
 import { ChevronLeft, ChevronRight, CalendarDays, GripVertical } from "lucide-react";
 
@@ -39,42 +49,11 @@ export const Route = createFileRoute("/admin/posts/calendar")({
   component: EditorialCalendar,
 });
 
-interface CalendarPost {
-  id: string;
+interface CalendarPost extends CalendarEntry {
   slug: string;
   title_pl: string;
   title_en: string;
-  status: string;
-  published_at: string | null;
-  publish_at: string | null;
   updated_at: string;
-}
-
-/** Data wpisu w kalendarzu: scheduled -> publish_at, published -> published_at. */
-function entryDate(post: CalendarPost): string | null {
-  if (post.status === "scheduled") return post.publish_at;
-  if (post.status === "published") return post.published_at;
-  return null;
-}
-
-/** Lokalny YYYY-MM-DD (klucz komórki dnia). */
-function dayKey(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
-/** Siatka 6 tygodni od poniedziałku obejmująca wskazany miesiąc. */
-function monthGrid(anchor: Date): Date[] {
-  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const offset = (first.getDay() + 6) % 7; // 0 = poniedziałek
-  const start = new Date(first);
-  start.setDate(first.getDate() - offset);
-  return Array.from({ length: 42 }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    return d;
-  });
 }
 
 const WEEKDAYS = {
@@ -176,7 +155,7 @@ function DayCell({
           key={p.id}
           post={p}
           lang={lang}
-          draggable={canPublish && p.status === "scheduled"}
+          draggable={canReschedule(p, { canPublish })}
         />
       ))}
     </div>
@@ -197,9 +176,7 @@ function EditorialCalendar() {
   const [saving, setSaving] = useState(false);
 
   const grid = useMemo(() => monthGrid(anchor), [anchor]);
-  const rangeStart = grid[0];
-  const rangeEnd = new Date(grid[grid.length - 1]);
-  rangeEnd.setDate(rangeEnd.getDate() + 1);
+  const { start: rangeStart, end: rangeEnd } = useMemo(() => gridRange(grid), [grid]);
 
   const { data: monthPosts } = useQuery({
     enabled: !!tenantId,
@@ -238,21 +215,7 @@ function EditorialCalendar() {
     },
   });
 
-  const byDay = useMemo(() => {
-    const map = new Map<string, CalendarPost[]>();
-    for (const post of monthPosts ?? []) {
-      const iso = entryDate(post);
-      if (!iso) continue;
-      const key = dayKey(new Date(iso));
-      const list = map.get(key) ?? [];
-      list.push(post);
-      map.set(key, list);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => (entryDate(a) ?? "").localeCompare(entryDate(b) ?? ""));
-    }
-    return map;
-  }, [monthPosts]);
+  const byDay = useMemo(() => groupByDay(monthPosts ?? []), [monthPosts]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -264,18 +227,17 @@ function EditorialCalendar() {
     const post = all.find((p) => p.id === postId);
     if (!post) return;
 
-    // Zachowaj godzinę z dotychczasowego terminu; szkic dostaje 09:00.
-    const prior = post.status === "scheduled" && post.publish_at ? new Date(post.publish_at) : null;
-    const [y, m, d] = targetDay.split("-").map(Number);
-    const next = new Date(y, m - 1, d, prior?.getHours() ?? 9, prior?.getMinutes() ?? 0);
-    const nextIso = next.toISOString();
-    const priorKey = prior ? dayKey(prior) : null;
-    if (priorKey === targetDay) return;
+    // Godzina zachowana, szkic dostaje 09:00, ten sam dzień to brak zapisu,
+    // a wpis OPUBLIKOWANY jest odrzucany - reguła i jej uzasadnienie żyją
+    // w `editorialCalendar`, więc pyta o nią zarówno uchwyt przeciągania
+    // (prop `draggable`), jak i to miejsce, które faktycznie zapisuje.
+    const outcome = rescheduleTarget(post, targetDay, { canPublish });
+    if (outcome.kind !== "reschedule") return;
 
     setSaving(true);
     try {
       await update$({
-        data: { id: post.id, fields: { status: "scheduled", publish_at: nextIso } },
+        data: { id: post.id, fields: { status: "scheduled", publish_at: outcome.publishAtIso } },
       });
       toast.success(t("admin.calendar.rescheduled"));
       void qc.invalidateQueries({ queryKey: ["admin", "posts-calendar"] });
@@ -389,7 +351,12 @@ function EditorialCalendar() {
                   </p>
                 )}
                 {(backlog ?? []).map((p) => (
-                  <DraggableEntry key={p.id} post={p} lang={lang} draggable />
+                  <DraggableEntry
+                    key={p.id}
+                    post={p}
+                    lang={lang}
+                    draggable={canReschedule(p, { canPublish })}
+                  />
                 ))}
               </div>
             </aside>
