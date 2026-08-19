@@ -1,5 +1,8 @@
 // Reguły tabeli subskrybentów: filtrowanie i eksport CSV - warstwa CZYSTA.
 //
+// Cytowanie CSV mieszka we WSPÓLNYM module `lib/csv/formatCsv` - tę samą regułę
+// stosuje lista wykluczeń, a dwie kopie rozjechałyby się przy pierwszej zmianie.
+//
 // PO CO OSOBNY MODUŁ. Obie reguły odpowiadają na pytania, których nie da się
 // sprawdzić „na oko" w panelu:
 //   * FILTR decyduje, kogo operator widzi - a od tego zależy, komu potem
@@ -10,6 +13,12 @@
 //     rozjeżdża kolumny i przypisuje komuś cudzą zgodę.
 // Wyprowadzenie jest bezstratne - ciała przeniesione z `SubscribersPanel` bez
 // zmiany zachowania.
+
+import { csvCell, csvFileNameFor, toCsv } from "@/lib/csv/formatCsv";
+
+// Re-eksport: testy reguł tabeli i panel czytają cytowanie stąd, a implementacja
+// mieszka w jednym miejscu dla całego repo.
+export { csvCell };
 
 /** Wiersz tabeli - dokładnie te kolumny, które panel czyta z bazy. */
 export interface SubscriberRow {
@@ -80,24 +89,16 @@ export const CSV_COLUMNS = [
   "confirmed_at",
 ] as const;
 
-/**
- * Jedna komórka CSV. Cytujemy tylko wtedy, gdy trzeba (cudzysłów, przecinek,
- * nowa linia), a cudzysłów w treści podwajamy - RFC 4180.
- */
-export function csvCell(value: string | null | undefined): string {
-  const v = String(value ?? "");
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
-
 /** Cała tabela jako tekst CSV z wierszem nagłówka. */
 export function subscribersToCsv(rows: readonly SubscriberRow[]): string {
   const asRecord = (row: SubscriberRow) => row as unknown as Record<string, string | null>;
-  return [CSV_COLUMNS.join(",")]
-    .concat(rows.map((row) => CSV_COLUMNS.map((key) => csvCell(asRecord(row)[key])).join(",")))
-    .join("\n");
+  return toCsv(
+    CSV_COLUMNS,
+    rows.map((row) => CSV_COLUMNS.map((key) => asRecord(row)[key])),
+  );
 }
 
 /** Nazwa pliku eksportu dla podanego dnia (ISO). */
 export function csvFileName(nowIso: string): string {
-  return `newsletter-${nowIso.slice(0, 10)}.csv`;
+  return csvFileNameFor("newsletter", nowIso);
 }

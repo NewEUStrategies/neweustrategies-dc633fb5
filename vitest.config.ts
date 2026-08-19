@@ -796,6 +796,59 @@ export default defineConfig({
           lines: 98,
           branches: 90,
         },
+        // ── PANEL ADMINA: DORĘCZALNOŚĆ ───────────────────────────────────────
+        // Trzy ekrany, na których operator decyduje, czy wolno jeszcze wysyłać.
+        //
+        // WebhookSetupCard musi rozróżniać SKONFIGUROWANY od DZIAŁAJĄCEGO
+        // (sekret jest, ale nie przyszło ani jedno zdarzenie) - to dwie różne
+        // awarie, a najczęstszy powód pustej listy wykluczeń mimo odbić to
+        // właśnie niepodłączony webhook. Kafel tłumaczy też, czemu w trybie
+        // `first_party` NIE ma tu otwarć: bez tego zdania operator dopisuje
+        // `email.opened` „na wszelki wypadek" i wraca podwójne zliczanie.
+        //
+        // SuppressionTable: jedyne miejsce, w którym operator ZDEJMUJE blokadę.
+        // Próg pilnuje, że przywrócenie subskrypcji jest OSOBNĄ, jawną decyzją
+        // (domyślnie `resubscribe: false`) - zdjęcie blokady po skardze bez
+        // zgody odbiorcy wraca prosto pod próg skarg Google. Plus: filtr
+        // tekstowy działa lokalnie (bez zapytania na każdy klawisz), a zmiana
+        // filtru powodu/stanu odpytuje serwer na nowo.
+        //
+        // DeliverabilityPanel: ostrzeżenie o zablokowanej wysyłce musi się
+        // pokazać i WYMIENIĆ powody - inaczej operator nie wie, co naprawić.
+        "src/components/admin/newsletter/deliverability/WebhookSetupCard.tsx": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 90,
+        },
+        "src/components/admin/newsletter/deliverability/SuppressionTable.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 96,
+          branches: 76,
+        },
+        "src/components/admin/newsletter/deliverability/DeliverabilityPanel.tsx": {
+          statements: 94,
+          functions: 90,
+          lines: 94,
+          branches: 75,
+        },
+        // Czyste reguły listy wykluczeń + WSPÓLNE cytowanie CSV dla całego repo.
+        // Cytowanie było skopiowane w dwóch panelach; diagnostyka dostawcy
+        // zawiera przecinki („550, mailbox full"), więc bez cytowania plik
+        // rozjeżdża się o kolumnę i przypisuje komuś cudzy powód blokady.
+        "src/components/admin/newsletter/deliverability/suppressionTable.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/csv/formatCsv.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
       },
     },
   },
