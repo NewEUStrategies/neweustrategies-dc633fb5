@@ -29,7 +29,7 @@ import { ClubNoticeKindPill } from "@/components/clubs/atoms/ClubNetworkPrimitiv
 import { ClubTopicChip, ClubTopicFilterChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubBoardComposer } from "@/components/clubs/molecules/ClubBoardPanel";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useCloseClubBoardNotice, useClubBoardNotices } from "@/lib/clubs/useClubNetwork";
 import type { ClubBoardScope } from "@/lib/clubs/useClubNetwork";
@@ -256,7 +256,7 @@ export function ClubBoardScreen({ clubId, canPost }: { clubId: string; canPost: 
                         sprawa jest załatwiona i pisanie do autora jest tylko
                         kosztem dla niego. */}
                     {outcome === "open" && !row.is_mine ? (
-                      <DirectMessageButton
+                      <MessageOrConnectButton
                         userId={row.author_id}
                         displayName={row.author_name}
                         displayAvatar={row.author_avatar}

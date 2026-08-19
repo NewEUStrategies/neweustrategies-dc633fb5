@@ -36,7 +36,7 @@ import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubNoticeKindPill } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import {
   useCloseClubBoardNotice,
@@ -358,7 +358,7 @@ export function ClubBoardPanel({
                         {t("club.network.board.resolve")}
                       </Button>
                     ) : (
-                      <DirectMessageButton
+                      <MessageOrConnectButton
                         userId={row.author_id}
                         displayName={row.author_name}
                         displayAvatar={row.author_avatar}

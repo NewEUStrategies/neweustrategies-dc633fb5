@@ -221,7 +221,18 @@ function MutualConnectionsPage() {
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <DirectMessageButton userId={r.user_id} displayName={r.display_name} />
+                    <DirectMessageButton
+                      userId={r.user_id}
+                      displayName={r.display_name}
+                      connectionState={{
+                        status: "connected",
+                        connectionId: null,
+                        mutualCount: 0,
+                        canInvite: false,
+                        degree: 1,
+                        bridge: null,
+                      }}
+                    />
                   </div>
                 </li>
               ))}

@@ -25,7 +25,7 @@ import { ClubTopicFilterChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubExpertiseEditor } from "@/components/clubs/molecules/ClubRosterPanel";
 import { ClubPersonCard } from "@/components/clubs/molecules/ClubPersonCard";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useClubExperts, useClubExpertiseAreas } from "@/lib/clubs/useClubNetwork";
 import { expertContribution } from "@/lib/clubs/networkTypes";
@@ -180,7 +180,7 @@ export function ClubExpertsScreen({
                       </span>
                     }
                     actions={
-                      <DirectMessageButton
+                      <MessageOrConnectButton
                         userId={row.user_id}
                         displayName={row.display_name}
                         displayAvatar={row.avatar_url}
