@@ -307,9 +307,27 @@ export interface ClubGroupSettings {
   attributionMode: InheritedSetting<ClubAttributionMode>;
 }
 
-function narrow<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+/**
+ * Zawezenie GOLEGO `string` z RPC do slownika, z degradacja do wartosci
+ * domyslnej. Generator Supabase typuje kolumny CHECK-owe jako `string`, wiec
+ * bez tego kazdy konsument robilby wlasne rzutowanie - a rzutowanie nie ma
+ * galezi dla wartosci spoza slownika i cicho przepuszcza kod, ktorego i18n nie
+ * zna (efekt: goly klucz na ekranie).
+ *
+ * EKSPORTOWANE, bo dokladnie ta sama funkcja stala skopiowana w trasie edytora
+ * klubu (`admin.community.clubs.$clubId.tsx`). Dwie kopie tej samej degradacji
+ * znaczyly dwa mozliwe fallbacki dla tej samej kolumny.
+ */
+export function narrowClubEnum<T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+  fallback: T,
+): T {
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
+
+/** Alias wewnetrzny - historyczna nazwa uzywana w tym pliku. */
+const narrow = narrowClubEnum;
 
 /**
  * Zawezenie trybu atrybucji KLUBU. Generator Supabase typuje `attribution_mode`

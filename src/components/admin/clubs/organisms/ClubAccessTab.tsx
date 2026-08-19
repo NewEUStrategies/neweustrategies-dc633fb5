@@ -15,6 +15,7 @@ import {
   type AccessSentenceInput,
 } from "@/lib/clubs/accessSentence";
 import { CLUB_PLAN_TIERS, planTierFromRank, rankFromPlanTier } from "@/lib/clubs/planTiers";
+import { type ClubAccessDraftValues } from "@/lib/clubs/adminClubEditor";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_ATTRIBUTION_MODES,
@@ -29,14 +30,11 @@ import {
   type ClubVisibility,
 } from "@/lib/clubs/types";
 
-export interface ClubAccessDraft {
-  visibility: ClubVisibility;
-  joinPolicy: ClubJoinPolicy;
-  minTierRank: number;
-  attributionMode: ClubAttributionMode;
-  whoCanPost: ClubPostPolicy;
-  moderationMode: ClubModerationMode;
-}
+/**
+ * Kształt wersji roboczej. JEDNO źródło z `lib/clubs/adminClubEditor` - ten sam
+ * kształt składa `toClubAccessDraft` i rozkłada `clubEditorPayload`.
+ */
+export type ClubAccessDraft = ClubAccessDraftValues;
 
 interface ClubAccessTabProps {
   draft: ClubAccessDraft;

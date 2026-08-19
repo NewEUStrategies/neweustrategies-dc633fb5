@@ -37,37 +37,31 @@ import { ClubThreadsTab } from "@/components/admin/clubs/organisms/ClubThreadsTa
 import { ClubStatusBadge } from "@/components/admin/clubs/atoms/ClubBadges";
 import { useAdminClub, useUpsertClub } from "@/lib/clubs/useClubs";
 import {
-  CLUB_ATTRIBUTION_MODES,
-  CLUB_JOIN_POLICIES,
-  CLUB_MODERATION_MODES,
-  CLUB_POST_POLICIES,
   CLUB_STATUSES,
-  toClubLayout,
+  narrowClubEnum,
   toClubSaveError,
-  CLUB_VISIBILITIES,
-  type AdminClubDetailRow,
-  type ClubAttributionMode,
-  type ClubJoinPolicy,
-  type ClubModerationMode,
-  type ClubPostPolicy,
   type ClubStatus,
-  type ClubVisibility,
 } from "@/lib/clubs/types";
+// Wersja robocza, wykrycie zmiany i payload zapisu to REGUŁY - mieszkają
+// w `lib/clubs/adminClubEditor` z tabelą przypadków. W ciele trasy stały jako
+// dwie funkcje przepisujące wiersz RPC i literał dwudziestu pól wewnątrz
+// handlera `onClick`, więc jedynym sposobem ich sprawdzenia było zamontowanie
+// edytora z dziewięcioma zakładkami.
+import {
+  CLUB_EDITOR_TABS,
+  clubEditorBlock,
+  clubEditorPayload,
+  clubEditorTab,
+  isClubEditorDirty,
+  toClubAccessDraft,
+  toClubGeneralDraft,
+  type ClubEditorTab,
+} from "@/lib/clubs/adminClubEditor";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
-const TAB_KEYS = [
-  "general",
-  "access",
-  "groups",
-  "threads",
-  "members",
-  "invitations",
-  "permissions",
-  "moderation",
-  "analytics",
-] as const;
-type TabKey = (typeof TAB_KEYS)[number];
+const TAB_KEYS = CLUB_EDITOR_TABS;
+type TabKey = ClubEditorTab;
 
 interface ClubEditorSearch {
   tab: TabKey;
@@ -75,54 +69,11 @@ interface ClubEditorSearch {
 
 export const Route = createFileRoute("/admin/community/clubs/$clubId")({
   head: () => ({ meta: [{ title: "Club · Community · Admin" }] }),
-  validateSearch: (search: Record<string, unknown>): ClubEditorSearch => {
-    const raw = typeof search.tab === "string" ? search.tab : "";
-    return { tab: (TAB_KEYS as readonly string[]).includes(raw) ? (raw as TabKey) : "general" };
-  },
+  validateSearch: (search: Record<string, unknown>): ClubEditorSearch => ({
+    tab: clubEditorTab(search.tab),
+  }),
   component: ClubEditor,
 });
-
-function narrow<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
-  return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
-}
-
-function toGeneralDraft(club: AdminClubDetailRow): ClubGeneralDraft {
-  ensureAdminClubsI18n();
-  return {
-    slug: club.slug,
-    namePl: club.name_pl,
-    nameEn: club.name_en,
-    taglinePl: club.tagline_pl ?? "",
-    taglineEn: club.tagline_en ?? "",
-    descriptionPl: club.description_pl ?? "",
-    descriptionEn: club.description_en ?? "",
-    rulesPl: club.rules_pl ?? "",
-    rulesEn: club.rules_en ?? "",
-    policyArea: club.policy_area ?? "",
-    status: narrow<ClubStatus>(club.status, CLUB_STATUSES, "draft"),
-    cover: club.cover_image_url ?? "",
-    layout: toClubLayout(club.layout),
-  };
-}
-
-function toAccessDraft(club: AdminClubDetailRow): ClubAccessDraft {
-  return {
-    visibility: narrow<ClubVisibility>(club.visibility, CLUB_VISIBILITIES, "members"),
-    joinPolicy: narrow<ClubJoinPolicy>(club.join_policy, CLUB_JOIN_POLICIES, "request"),
-    minTierRank: club.min_tier_rank,
-    attributionMode: narrow<ClubAttributionMode>(
-      club.attribution_mode,
-      CLUB_ATTRIBUTION_MODES,
-      "attributed",
-    ),
-    whoCanPost: narrow<ClubPostPolicy>(club.who_can_post, CLUB_POST_POLICIES, "moderators"),
-    moderationMode: narrow<ClubModerationMode>(
-      club.moderation_mode,
-      CLUB_MODERATION_MODES,
-      "trusted",
-    ),
-  };
-}
 
 function ClubEditor() {
   ensureClubI18n();
@@ -146,19 +97,15 @@ function ClubEditor() {
   const loadedAt = clubQ.data?.updated_at;
   useEffect(() => {
     if (!clubQ.data) return;
-    setGeneral(toGeneralDraft(clubQ.data));
-    setAccess(toAccessDraft(clubQ.data));
+    ensureAdminClubsI18n();
+    setGeneral(toClubGeneralDraft(clubQ.data));
+    setAccess(toClubAccessDraft(clubQ.data));
   }, [clubQ.data, loadedAt]);
 
-  const dirty = useMemo(() => {
-    if (!clubQ.data || !general || !access) return false;
-    const base = toGeneralDraft(clubQ.data);
-    const baseAccess = toAccessDraft(clubQ.data);
-    return (
-      JSON.stringify(base) !== JSON.stringify(general) ||
-      JSON.stringify(baseAccess) !== JSON.stringify(access)
-    );
-  }, [clubQ.data, general, access]);
+  const dirty = useMemo(
+    () => (clubQ.data && general && access ? isClubEditorDirty(clubQ.data, general, access) : false),
+    [clubQ.data, general, access],
+  );
 
   if (!isAdmin) {
     return (
@@ -191,41 +138,19 @@ function ClubEditor() {
   const club = clubQ.data;
 
   const handleSave = () => {
-    if (general.slug.trim().length === 0 || general.namePl.trim().length === 0) {
+    // Braki pól wymaganych rozstrzyga czysta funkcja: baza odrzuca zapis bez
+    // sluga i nazwy polskiej, więc panel nie ma powodu wysyłać żądania, które
+    // i tak wróci błędem.
+    if (clubEditorBlock(general) !== null) {
       toast.error(t("adminClubs.requiredFields"));
       return;
     }
-    saveM.mutate(
-      {
-        id: club.id,
-        slug: general.slug.trim(),
-        name_pl: general.namePl.trim(),
-        name_en: general.nameEn.trim().length > 0 ? general.nameEn.trim() : general.namePl.trim(),
-        // Puste pole tekstowe wysyłamy jako null - "wyczyść", nie "nie ruszaj".
-        tagline_pl: general.taglinePl.trim() || null,
-        tagline_en: general.taglineEn.trim() || null,
-        description_pl: general.descriptionPl.trim() || null,
-        description_en: general.descriptionEn.trim() || null,
-        rules_pl: general.rulesPl.trim() || null,
-        rules_en: general.rulesEn.trim() || null,
-        policy_area: general.policyArea.trim() || null,
-        status: general.status,
-        cover_image_url: general.cover.trim() || null,
-        layout: general.layout,
-        visibility: access.visibility,
-        join_policy: access.joinPolicy,
-        min_tier_rank: access.minTierRank,
-        attribution_mode: access.attributionMode,
-        who_can_post: access.whoCanPost,
-        moderation_mode: access.moderationMode,
-      },
-      {
-        onSuccess: () => toast.success(t("adminClubs.saved")),
-        // Ten sam słownik powodów, co przy zakładaniu klubu: "Nie udało się
-        // zapisać" bez powodu zostawia administratora bez następnego kroku.
-        onError: (error) => toast.error(t(`adminClubs.create.error.${toClubSaveError(error)}`)),
-      },
-    );
+    saveM.mutate(clubEditorPayload(club.id, general, access), {
+      onSuccess: () => toast.success(t("adminClubs.saved")),
+      // Ten sam słownik powodów, co przy zakładaniu klubu: "Nie udało się
+      // zapisać" bez powodu zostawia administratora bez następnego kroku.
+      onError: (error) => toast.error(t(`adminClubs.create.error.${toClubSaveError(error)}`)),
+    });
   };
 
   return (
@@ -240,7 +165,9 @@ function ClubEditor() {
           </Button>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="truncate text-2xl font-semibold">{pickLocalized(club, "name", lang)}</h1>
-            <ClubStatusBadge status={narrow<ClubStatus>(club.status, CLUB_STATUSES, "draft")} />
+            <ClubStatusBadge
+              status={narrowClubEnum<ClubStatus>(club.status, CLUB_STATUSES, "draft")}
+            />
           </div>
           <p className="text-sm text-muted-foreground">/{club.slug}</p>
         </div>

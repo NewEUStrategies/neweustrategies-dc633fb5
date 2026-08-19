@@ -4,7 +4,7 @@
 // dekoracją (patrz nagłówek `ClubBadges.tsx`): czerwony = odcięte,
 // bursztynowy = czeka na decyzję człowieka. Administrator skanuje tabelę
 // wzrokiem PRZED przeczytaniem etykiet, więc znacznik z pustym tonem albo
-// z tonem „nie tym" kłamie o stanie klubu w sposób, którego nie widać
+// z tonem „nie tym” kłamie o stanie klubu w sposób, którego nie widać
 // w recenzji kodu - `Record<ClubStatus, Tone>` nie pilnuje, żeby `frozen`
 // był czerwony, tylko żeby COŚ tam było.
 //
@@ -145,7 +145,7 @@ describe("ClubVisibilityBadge", () => {
   it("`secret` NIE jest szary - to informacja o ryzyku, nie o domyślności", () => {
     // Nagłówek komponentu opisuje to jako regułę: treść klubu tajnego jest
     // niewidoczna nawet dla zalogowanych, więc znacznik nie może wyglądać
-    // jak „ustawienie standardowe".
+    // jak „ustawienie standardowe”.
     render(<ClubVisibilityBadge visibility="secret" />);
     expect(toneOf(badgeWithKey("club.visibility.secret"))).toEqual(["danger"]);
   });
@@ -204,7 +204,7 @@ describe("ClubRoleBadge", () => {
 
 describe("wspólny szkielet znacznika", () => {
   it("każdy znacznik jest wariantem `outline` i nie łamie się w pół słowa", () => {
-    // `whitespace-nowrap` to nie ozdoba: „oczekuje zatwierdzenia" złamane
+    // `whitespace-nowrap` to nie ozdoba: „oczekuje zatwierdzenia” złamane
     // w wąskiej kolumnie tabeli rozjeżdża wysokość wiersza w całej liście.
     render(<ClubStatusBadge status="active" />);
     const element = badgeWithKey("club.status.active");

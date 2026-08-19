@@ -131,6 +131,37 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
   };
 }
 
+/** Walidator search params trasy w kształcie testowym. */
+export type RouteSearchValidator = (raw: Record<string, unknown>) => Record<string, unknown>;
+
+/**
+ * `validateSearch` trasy jako FUNKCJA - jedno miejsce, które zawęża ten odczyt.
+ *
+ * PO CO. `RouteOptions.validateSearch` jest unią: framework przyjmuje tam
+ * funkcję ALBO obiekt ze standardowym schematem (`{ parse }`), więc wywołanie
+ * `Route.options.validateSearch?.(raw)` nie kompiluje się - „this expression is
+ * not callable" na członie obiektowym. Kontrakt adresu chcemy sprawdzać BEZ
+ * montowania trasy (walidator jest czystą funkcją i to jego zachowanie jest
+ * przedmiotem dowodu), więc zawężenie musi mieszkać w jednym miejscu.
+ *
+ * STRAŻNIK, nie rzutowanie: warunek sprawdza w RUNTIME, że to funkcja, i to on
+ * zawęża typ. Wyjątek zamiast `undefined` w wyniku, bo test, który „przechodzi"
+ * na braku walidatora, nie dowodzi niczego o kontrakcie adresu.
+ */
+export function routeSearchValidator(route: AnyRoute): RouteSearchValidator {
+  const validate = route.options.validateSearch;
+  if (typeof validate !== "function") {
+    throw new Error("test: trasa nie ma `validateSearch` w postaci funkcji");
+  }
+  return (raw) => {
+    const result: unknown = validate(raw);
+    if (result === null || typeof result !== "object") {
+      throw new Error("test: `validateSearch` nie zwrócił obiektu search params");
+    }
+    return { ...result };
+  };
+}
+
 /**
  * Odczytuje `head()` trasy BEZ montowania jej komponentu - do bramek nagłówka
  * (tytuł, `robots`) na trasach, których render wymagałby całej sesji zakupowej.

@@ -3,9 +3,9 @@
 // CO TO DOWODZI. To nie dekoracja, a reguła interfejsu opisana w nagłówku
 // komponentu: pole z wartością odziedziczoną wygląda identycznie jak pole
 // ustawione ręcznie, więc bez etykiety i bez wyszarzenia administrator
-// zmienia ustawienie KLUBU i „bez powodu" nic się nie dzieje - bo dział ma
+// zmienia ustawienie KLUBU i „bez powodu” nic się nie dzieje - bo dział ma
 // nadpisanie. Test pilnuje trzech rzeczy, które o tym decydują:
-//   1. wariant „odziedziczone" vs „nadpisane" niesie INNY klucz i18n
+//   1. wariant „odziedziczone” vs „nadpisane” niesie INNY klucz i18n
 //      i INNĄ ikonę (spięte vs rozerwane ogniwo),
 //   2. pole odziedziczone jest realnie nieaktywne (`pointer-events-none`),
 //      a nie tylko przygaszone - inaczej klik przechodzi i cicho nadpisuje,
@@ -50,7 +50,7 @@ describe("InheritedField - wariant odziedziczony", () => {
   });
 
   it("blokuje pole ODCINAJĄC ZDARZENIA, nie tylko je przygaszając", () => {
-    // Sam `opacity` przepuszcza klik i pozwala nadpisać wartość „przypadkiem",
+    // Sam `opacity` przepuszcza klik i pozwala nadpisać wartość „przypadkiem”,
     // co jest dokładnie tym błędem, przed którym ten atom ma chronić.
     render(
       <InheritedField label="Widoczność" inherited onToggleInherit={() => {}}>
@@ -159,7 +159,7 @@ describe("InheritedField - stany brzegowe", () => {
 
   it("przełącznik jest `type=button` - w formularzu nie może wysyłać", () => {
     // Ten atom żyje wewnątrz formularza edycji działu; `type` domyślny
-    // („submit") zapisywałby dział przy każdym przełączeniu dziedziczenia.
+    // („submit”) zapisywałby dział przy każdym przełączeniu dziedziczenia.
     render(
       <InheritedField label="Widoczność" inherited onToggleInherit={() => {}}>
         <input data-testid="pole" />

@@ -12,24 +12,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
-import { CLUB_STATUSES, type ClubLayout, type ClubStatus } from "@/lib/clubs/types";
+import { CLUB_STATUSES } from "@/lib/clubs/types";
+import {
+  isClubSlugChanged,
+  normalizeClubSlugInput,
+  type ClubGeneralDraftValues,
+} from "@/lib/clubs/adminClubEditor";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
-export interface ClubGeneralDraft {
-  slug: string;
-  namePl: string;
-  nameEn: string;
-  taglinePl: string;
-  taglineEn: string;
-  descriptionPl: string;
-  descriptionEn: string;
-  rulesPl: string;
-  rulesEn: string;
-  policyArea: string;
-  status: ClubStatus;
-  cover: string;
-  layout: ClubLayout;
-}
+/**
+ * Kształt wersji roboczej. JEDNO źródło z `lib/clubs/adminClubEditor` - ten sam
+ * kształt składa `toClubGeneralDraft` i rozkłada `clubEditorPayload`, więc
+ * dwie osobne definicje znaczyłyby dwa kształty, które muszą się zgadzać
+ * z pamięci autora.
+ */
+export type ClubGeneralDraft = ClubGeneralDraftValues;
 
 interface ClubGeneralTabProps {
   draft: ClubGeneralDraft;
@@ -42,7 +39,7 @@ interface ClubGeneralTabProps {
 export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: ClubGeneralTabProps) {
   ensureAdminClubsI18n();
   const { t } = useTranslation();
-  const slugChanged = draft.slug !== persistedSlug && persistedSlug.length > 0;
+  const slugChanged = isClubSlugChanged(draft.slug, persistedSlug);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -79,15 +76,9 @@ export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: Clu
               disabled={disabled}
               // Normalizujemy w locie zamiast walidować po zapisie: CHECK w bazie
               // odrzuca wszystko poza [a-z0-9-], więc lepiej nie pozwolić wpisać
-              // czegoś, co i tak zostanie odrzucone.
-              onChange={(e) =>
-                onChange({
-                  slug: e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9-]+/g, "-")
-                    .replace(/-{2,}/g, "-"),
-                })
-              }
+              // czegoś, co i tak zostanie odrzucone. Reguła mieszka
+              // w `lib/clubs/adminClubEditor` i ma tabelę przypadków.
+              onChange={(e) => onChange({ slug: normalizeClubSlugInput(e.target.value) })}
             />
             <p className="text-xs text-muted-foreground">{t("adminClubs.fields.slugHint")}</p>
             {slugChanged ? (

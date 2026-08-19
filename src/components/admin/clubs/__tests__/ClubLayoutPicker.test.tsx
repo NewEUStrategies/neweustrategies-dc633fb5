@@ -3,8 +3,8 @@
 // CO TO DOWODZI. Cztery miniatury zamiast droplisty to cała wartość tego
 // komponentu (patrz nagłówek pliku), ale wartością użytkową jest tylko wtedy,
 // gdy: (1) klik emituje ID TEGO układu, którego miniaturę widać - pomyłka
-// w mapowaniu `CLUB_LAYOUTS` -> podglądy daje panel, który zapisuje „karty"
-// przy kliknięciu w „magazyn" i nikt tego nie zauważy w recenzji; (2) wybór
+// w mapowaniu `CLUB_LAYOUTS` -> podglądy daje panel, który zapisuje „karty”
+// przy kliknięciu w „magazyn” i nikt tego nie zauważy w recenzji; (2) wybór
 // jest ogłoszony czytnikowi ekranu przez `aria-checked`, bo `<button>` sam
 // niczego o stanie nie mówi; (3) `disabled` faktycznie odcina zmianę, a nie
 // tylko przygasza kafel.
@@ -76,7 +76,7 @@ describe("ClubLayoutPicker - kontrakt radiogroup", () => {
   it("aktywny kafel niesie pierścień wyboru, pozostałe tylko podświetlenie najazdu", () => {
     render(<ClubLayoutPicker value="magazine" onChange={() => {}} />);
     // `ring-2` jest tu rozstrzygające: `hover:border-primary/50` na kaflach
-    // niewybranych też zawiera napis „border-primary", więc sama krawędź nie
+    // niewybranych też zawiera napis „border-primary”, więc sama krawędź nie
     // odróżnia stanów - odróżnia je pierścień, który widać BEZ najazdu.
     expect(tile("magazine").className).toContain("ring-2 ring-primary/30");
     expect(tile("list").className).not.toContain("ring-primary/30");
@@ -89,7 +89,7 @@ describe("ClubLayoutPicker - kliknięcie i klawiatura", () => {
     // Reguła świadoma: komponent jest bezstanowy, więc powtórny wybór woła
     // `onChange` z NIEZMIENIONĄ wartością. Rodzic ustawia identyczny stan,
     // czyli dla użytkownika to no-op - i o to tu chodzi. Gdyby handler
-    // emitował „następny" układ albo `undefined`, ten test padłby.
+    // emitował „następny” układ albo `undefined`, ten test padłby.
     const onChange = vi.fn();
     render(<ClubLayoutPicker value="cards" onChange={onChange} />);
     fireEvent.click(tile("cards"));
@@ -140,7 +140,7 @@ describe("ClubLayoutPicker - stan zablokowany", () => {
 });
 
 describe("ClubLayoutPicker - miniatury różnią się STRUKTURĄ", () => {
-  /** Liczba pasków „wiersza tekstu" w miniaturze danego kafla. */
+  /** Liczba pasków „wiersza tekstu” w miniaturze danego kafla. */
   function barCount(layout: ClubLayout): number {
     return tile(layout).querySelectorAll("[style*='width']").length;
   }
