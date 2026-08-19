@@ -341,6 +341,46 @@ describe("PostLayoutsSettingsPanel - stan wczytywania i zapis", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["post-layout-settings"] });
   });
 
+  it("UDANY zapis WYGASZA przyciski - nie ma juz czego zapisywac", async () => {
+    // Bez przesunięcia stanu odniesienia „niezapisane zmiany" zostawały
+    // prawdziwe po zapisie: oba przyciski czynne, choć baza jest już zgodna.
+    renderPanel({ show_citation: true });
+    fireEvent.click(screen.getByRole("switch", { name: /citationBox/ }));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    expect(saveButton()).toBeDisabled();
+    expect(resetButton()).toBeDisabled();
+  });
+
+  it("po UDANYM zapisie przywrócenie nie cofa do stanu SPRZED zapisu", async () => {
+    // To jest sedno usterki: stare odniesienie znaczyło, że przywrócenie
+    // wyrzucało dokładnie to, co administrator właśnie utrwalił.
+    renderPanel({ show_citation: true, show_author_card: true });
+    fireEvent.click(screen.getByRole("switch", { name: /citationBox/ }));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("switch", { name: /authorCard/ }));
+    fireEvent.click(resetButton());
+    expect(screen.getByRole("switch", { name: /citationBox/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(screen.getByRole("switch", { name: /authorCard/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("NIEUDANY zapis NIE przesuwa odniesienia - zmiany zostają niezapisane", async () => {
+    from().setResponse("post_layout_settings", fail("permission denied", "42501"));
+    renderPanel({ show_citation: true });
+    fireEvent.click(screen.getByRole("switch", { name: /citationBox/ }));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(saveButton()).not.toBeDisabled();
+    expect(resetButton()).not.toBeDisabled();
+  });
+
   it("NIEUDANY zapis melduje błąd z treścią, a szkic zostaje", async () => {
     from().setResponse("post_layout_settings", fail("permission denied", "42501"));
     renderPanel({ show_citation: true });

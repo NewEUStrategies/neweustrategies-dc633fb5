@@ -61,10 +61,20 @@ export function PostLayoutsSettingsPanel() {
   const dirty = draftDirty(draft.local, draft.baseline);
 
   const onSave = async () => {
-    const { tenant_id, ...rest } = local;
+    // MIGAWKA WYSYŁANA, nie „bieżący szkic". Po udanym zapisie odniesieniem
+    // staje się DOKŁADNIE to, co poszło do bazy - nie stan z chwili odpowiedzi.
+    // Różnica jest widoczna, gdy administrator edytuje dalej w czasie żądania:
+    // te późniejsze zmiany muszą zostać niezapisane, a nie zniknąć razem
+    // z odpowiedzią serwera.
+    const snapshot = draft.local;
+    const { tenant_id, ...rest } = snapshot;
     void tenant_id;
     try {
       await save.mutateAsync(rest);
+      // Bez tego kroku `dirty` zostaje prawdziwe po udanym zapisie: przyciski
+      // zapisu i przywrócenia zostają czynne, a „przywróć" cofa do stanu SPRZED
+      // zapisu, czyli wyrzuca to, co właśnie utrwalono.
+      setDraft((d) => (d ? { ...d, baseline: snapshot } : d));
       toast.success(adminToast.layoutSaved());
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("adminLayouts.postLayouts.saveFailed");
