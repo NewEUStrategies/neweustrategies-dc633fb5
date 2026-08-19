@@ -46,8 +46,8 @@
 // wpisu, lightbox galerii i slider z wpisów. SSR wypełnia każdą granicę
 // Suspense na serwerze, więc HTML i LCP są identyczne - odroczony jest
 // wyłącznie transfer JS na kliencie.
-import { lazy, Suspense, type ComponentProps, type ComponentType, type ReactElement } from "react";
-import { useBuilderMode } from "@/lib/content-model/editorCanvas";
+import { lazy, type ComponentProps, type ComponentType } from "react";
+import { withSuspense } from "./lazySuspense";
 
 import type { Editable as EditableImpl } from "../../molecules/Editable";
 
@@ -76,7 +76,6 @@ import type { TabsBlock as TabsBlockImpl } from "./TabsBlock";
 import type { AdSlotById as AdSlotByIdImpl } from "@/components/ads/AdSlotById";
 import type { DonationsWidgetView as DonationsWidgetViewImpl } from "@/components/donations/DonationsWidgetView";
 import type { RichTextView as RichTextViewImpl } from "./RichTextView";
-import type { SliderRender as SliderRenderImpl } from "@/lib/builder/sliderVariants";
 import type { AnimatedHeadingRender as AnimatedHeadingRenderImpl } from "@/lib/builder/animatedHeadingVariants";
 import type {
   ChartWidgetView as ChartWidgetViewImpl,
@@ -115,33 +114,9 @@ import type { AccordionWidget as AccordionWidgetImpl } from "./AccordionWidget";
 import type { SectionLabelWidgetView as SectionLabelWidgetViewImpl } from "@/lib/builder/sectionLabelVariants";
 import type { PostsSliderWidget as PostsSliderWidgetImpl } from "./PostsSliderWidget";
 
-/** Builder-only shimmer; `null` on public pages (SSR fills the boundary). */
-function LazyFallback() {
-  const inBuilder = useBuilderMode() !== null;
-  if (!inBuilder) return null;
-  return (
-    <div
-      aria-hidden="true"
-      data-lazy-widget-fallback
-      className="skeleton-shimmer"
-      style={{ minHeight: 48, width: "100%", borderRadius: 8, opacity: 0.7 }}
-    />
-  );
-}
-
-const FALLBACK = <LazyFallback />;
-
-/** Wrap a `React.lazy` chunk in Suspense + typed prop forwarding. */
-function withSuspense<P>(Lazy: ComponentType<P>): (props: P) => ReactElement {
-  return function Suspended(props: P) {
-    return (
-      <Suspense fallback={FALLBACK}>
-        {/* @ts-expect-error - React.lazy component signature is compatible at runtime. */}
-        <Lazy {...props} />
-      </Suspense>
-    );
-  };
-}
+// `LazyFallback` i `withSuspense` żyją w `./lazySuspense`, żeby pojedynczy
+// leniwy komponent dał się skonsumować bez importu całego rejestru (patrz
+// nagłówek tamtego pliku - to naprawa zakleszczenia w testach).
 
 // --- form / interaction widgets -------------------------------------------
 const NewsletterFormLazy = lazy(() =>
@@ -284,10 +259,10 @@ const RichTextViewLazy = lazy(() =>
 export const RichTextView = withSuspense(RichTextViewLazy);
 
 // --- heavy visual widgets --------------------------------------------------
-const SliderRenderLazy = lazy(() =>
-  import("@/lib/builder/sliderVariants").then((m) => ({ default: m.SliderRender })),
-) as ComponentType<ComponentProps<typeof SliderRenderImpl>>;
-export const SliderRender = withSuspense(SliderRenderLazy);
+// `SliderRender` mieszka w osobnym module, bo importuje go też
+// `PostsSliderWidget` (sam ładowany leniwie z tego rejestru) - import całego
+// rejestru zamykał tam cykl. Re-eksport trzyma kontrakt eksportów bez zmian.
+export { SliderRender } from "./lazySliderRender";
 
 const AnimatedHeadingRenderLazy = lazy(() =>
   import("@/lib/builder/animatedHeadingVariants").then((m) => ({

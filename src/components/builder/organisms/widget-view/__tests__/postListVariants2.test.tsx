@@ -9,6 +9,13 @@ import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
+// Rejestr leniwych widgetow -> lustro eager: `post-list` jedzie przez React.lazy
+// od 2026-08-15, wiec bez podmiany warianty renderuja fallback Suspense.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -198,7 +205,13 @@ describe("PostListView - globalne przełączniki i typografia", () => {
       },
     );
 
-    const title = await screen.findByText("Tytuł PL");
+    // Tytuł jedzie w <TitleSpan> WEWNĄTRZ <h4 class="cms-post-title">, a
+    // typografia współdzielona siedzi na tym <h4> (span dziedziczy ją
+    // kaskadą). `findByText` zwraca najgłębszy element z tekstem, czyli
+    // span - stąd odczyt stylu z nagłówka, nie z trafienia po tekście.
+    const titleSpan = await screen.findByText("Tytuł PL");
+    const title = titleSpan.closest("h4") as HTMLElement;
+    expect(title).not.toBeNull();
     expect(title.style.fontFamily).toBe("Georgia");
     expect(title.style.fontStyle).toBe("italic");
     expect(title.style.textTransform).toBe("uppercase");

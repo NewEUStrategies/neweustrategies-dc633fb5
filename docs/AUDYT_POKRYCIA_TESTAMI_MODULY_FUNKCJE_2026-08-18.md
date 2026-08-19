@@ -17,8 +17,9 @@ więc liczby da się wprost podłożyć pod tamte tabele ocen.
 | Plików produkcyjnych w mianowniku  | 2 538                                                                                                                                                     |
 | Plików testowych zmierzonych       | 778 z 817 (95,2%)                                                                                                                                         |
 | Przypadków testowych w pomiarze    | 7 810 z 8 274                                                                                                                                             |
-| Testy poza pomiarem                | 39 plików / 464 testów — zawieszają się w tym sandboksie (rozdział 9.2)                                                                                   |
+| Testy poza pomiarem                | **0 — przyczyna ustalona i NAPRAWIONA 2026-08-18 wieczorem (rozdział 9.2)**                                                                               |
 | Data pomiaru                       | 2026-08-18, HEAD `e83570c`                                                                                                                                |
+| Pomiar POPRAWIONY                  | 2026-08-18 (po naprawie), całe `src/`: **36,84% instr. / 32,02% gał. / 28,90% fn / 37,46% linii** — 833 pliki, 10 269 testów                              |
 
 **Cztery zastrzeżenia, bez których te procenty można źle odczytać:**
 
@@ -33,13 +34,23 @@ więc liczby da się wprost podłożyć pod tamte tabele ocen.
    2 538 plików do 21 modułów zrobiłem regułami po ścieżkach (rozdział 9.1). Pliki graniczne
    (np. `gifting` — „podaruj artykuł” jest funkcją MODUŁU 1, a kod leży w powierzchni MODUŁU 14)
    zaznaczam w tabelach.
-4. **Pomiar wykonany w sandboksie CI-podobnym, nie na maszynie repo.** 39 plików testowych
-   zawiesza się tu w fazie kolekcji — również uruchamiane POJEDYNCZO i przy jednym workerze, więc nie jest to
-   kwestia równoległości. Prawdopodobna przyczyna: `bun.lock` wskazuje prywatny rejestr Lovable, odcięty tu
-   polityką egress, więc zależności zainstalowano z publicznego npm i wersje nie są tymi z pinów; pliki, które
-   padają, to najcięższe importy w repo. Te pliki zostały z pomiaru wyłączone, a powierzchnie, których
-   dotyczą, są w tabelach oznaczone ⚠ — ich realne pokrycie jest WYŻSZE niż podana liczba.
-   Pełna lista i skutki w rozdziale 9.2.
+4. ~~**Pomiar wykonany w sandboksie CI-podobnym, nie na maszynie repo.**~~ **NIEAKTUALNE —
+   PRZYCZYNA USTALONA I NAPRAWIONA (2026-08-18, wieczorem).** Pierwotne brzmienie tego
+   zastrzeżenia zgadywało, że 39 plików testowych zawiesza się z powodu ciężkich importów
+   i zależności z publicznego npm zamiast pinów z `bun.lock`. **Obie hipotezy były fałszywe.**
+   Weryfikacja: przy KOMPLETNYM `bun install` (806 paczek zgodnych z pinami, zero dryfu wersji)
+   zawieszenie było identyczne, a same importy są szybkie — `WidgetView` ładuje się w 1,8 s,
+   lustro `eagerWidgetChunks` w 3,9 s.
+   Prawdziwa przyczyna to ZAKLESZCZENIE CYKLU pod fabryką `vi.mock`:
+   `vi.mock(".../lazyWidgets", () => import("@/test/eagerWidgetChunks"))` → lustro importuje
+   `PostsSliderWidget` → ten importował `SliderRender` z `./lazyWidgets`, czyli z modułu,
+   którego fabryka WŁAŚNIE trwała. Fabryka czekała na import, który czekał na tę samą fabrykę.
+   Limity `testTimeout`/`hookTimeout` nie dotyczą fazy ładowania modułu, więc przebieg stał
+   bez końca zamiast paść — dlatego wyglądało to na „ciężki import".
+   Skutek dla czytelnika tabel: **`bun run test` nie dawał się dokończyć na tym HEAD-zie w ŻADNYM
+   środowisku, także w CI repo.** Naprawa (rozdział 9.2) odblokowała 18 plików / 1 026 testów.
+   Liczby w tabelach niżej pochodzą z pomiaru PRZED naprawą; wiersz „Pomiar POPRAWIONY" w tabeli
+   metodologii i rozdział 9.2 podają wartości po niej.
 
 ---
 
@@ -191,6 +202,20 @@ Sześć wierszy pokrywa **wszystkie 93** pliki modułu; tabela z 18.08 miała pi
 obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jednego.
 
 ### MODUŁ 3 — Silniki treści: bloki + page builder ⚠ · linie 39,99% · funkcje 29,04%
+
+> **⚠ ZNACZNIK „POMIAR ZANIŻONY” ZDJĘTY (2026-08-18, wieczorem).** Liczby w tabeli poniżej
+> pochodzą z przebiegu, w którym 38 plików testowych tego modułu nie startowało z powodu
+> zakleszczenia opisanego w rozdziale 9.2 — **nie** z powodu ciężkich importów ani dryfu
+> zależności, jak zgadywało pierwotne zastrzeżenie nr 4. Po naprawie ZMIERZONE:
+>
+> | Funkcjonalność                           | W tabeli (zaniżone) |                    Zmierzone po naprawie |
+> | ---------------------------------------- | ------------------: | ---------------------------------------: |
+> | CMS: widgety buildera — render publiczny |         68,8% linii | **97,65% linii** · 95,12% fn (1326/1394) |
+> | CMS: panele właściwości widgetów         |         13,6% linii |  **29,14% linii** · 17,53% fn (364/2077) |
+>
+> Pozostałe wiersze tabeli pozostają aktualne. Powierzchnia „design tokens / kolory globalne /
+> typografia” (32,3% linii) została w tej samej sesji podniesiona pracą testową — patrz
+> `docs/WDROZENIE_MODUL3_ODBLOKOWANIE_SUITY_I_TOKENY_2026-08-18.md`.
 
 | Funkcjonalność                                         | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------------------------------ | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
@@ -1317,19 +1342,57 @@ modułów zostają w wartościach z 18.08, więc porównuj kolumnę „Pliki”,
 
 ### 9.2 Pliki testowe wyłączone z pomiaru (zawieszają się w tym środowisku)
 
-39 plików / 464 testów / 950 asercji. Wszystkie oprócz jednego dotyczą
-DWÓCH powierzchni MODUŁU 3: `components/admin/builder/**` (panele właściwości, w tym bramka
-`settingsFidelity.gate` z 537 testami) oraz `components/builder/organisms/widget-view/**` (render widgetów).
-Zawieszają się w fazie kolekcji także uruchamiane pojedynczo, przy jednym workerze — to najcięższe
-importy w repo (komplet 99 typów widgetów, echarts, tiptap) na czterordzeniowym sandboksie z zależnościami
-z publicznego npm zamiast pinów z `bun.lock`. Wniosek dla czytelnika tabel: pokrycie obu tych powierzchni
-jest w tym dokumencie ZANIŻONE. O ile — mówi własny próg repo: `widget-view/**` ma bramkę
-**94,5% linii / 90% funkcji**, a komentarz w `vitest.config.ts` opisuje ją jako floor wpisany TUŻ PONIŻEJ
-poziomu, który pełna suita realnie osiąga. Czytaj więc tę powierzchnię jako ~95% linii, nie jak zmierzone
-tu 68,8%; panele właściwości (`admin/builder/**`) nie mają własnego progu, więc dla nich górnego
-oszacowania nie ma — wiadomo tylko, że 13,6% to za mało.
+| Hipoteza pierwotna             | Weryfikacja                                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| dryf wersji zależności         | komplet `bun install`: 806 paczek zgodnych z pinami, **zero** dryfu → zawieszenie identyczne |
+| ciężar importów (99 widgetów)  | `WidgetView` importuje się w **1,8 s**, lustro `eagerWidgetChunks` w **3,9 s** → to nie to   |
+| równoległość / liczba workerów | pojedynczy plik, `--pool=threads` i `--pool=forks` — zawieszenie w każdej konfiguracji       |
 
-Lista:
+**Prawdziwa przyczyna: zakleszczenie cyklu pod fabryką `vi.mock`.**
+
+```
+vi.mock(".../widget-view/lazyWidgets", () => import("@/test/eagerWidgetChunks"))
+    → eagerWidgetChunks importuje PostsSliderWidget
+    → PostsSliderWidget importował { SliderRender } z "./lazyWidgets"
+    → czyli z modułu, którego fabryka WŁAŚNIE trwa          ⇒ DEADLOCK
+```
+
+Fabryka czekała na import, który czekał na tę samą fabrykę. Ani `testTimeout`, ani `hookTimeout`
+nie dotyczą fazy ładowania modułu, więc przebieg stał **bez końca**, zamiast paść — i to właśnie
+upodabniało objaw do „bardzo ciężkiego importu". W produkcji ten sam cykl rozwiązywał się po
+ESM-owemu, dlatego nikt go nie widział.
+
+**Wniosek poważniejszy niż zaniżony pomiar:** `bun run test` **nie dawał się dokończyć na tym
+HEAD-zie w żadnym środowisku**, także w CI repo (wersja vitest jest przypięta, więc zachowanie
+jest deterministyczne). Powierzchnie MODUŁU 3 nie były „słabo przetestowane" — ich testy po prostu
+nigdy nie dobiegały.
+
+**Naprawa** (osobne commity): krawędź `PostsSliderWidget → lazyWidgets` rozerwana przez wydzielenie
+`widget-view/lazySuspense.tsx` (wspólne `withSuspense` + shimmer) i `widget-view/lazySliderRender.tsx`
+(sam `SliderRender`, z DOKŁADNIE tą samą granicą `lazy(() => import(...))`, więc bundle bez zmian).
+Do tego trzy klasy dryfu, które wyszły dopiero wtedy, gdy bramki zaczęły dobiegać: brak dwóch
+eksportów w lustrze `eagerWidgetChunks` (`AccordionWidget`, `SectionLabelWidgetView` — przeniesione
+do rejestru leniwego tego samego dnia), niepełne zaślepki `supabase.channel` oraz strażnicy
+pilnujący nieaktualnego stanu (`SPLIT_WIDGETS`, ścieżka pliku w teście granicy chunka).
+
+**Efekt — ZMIERZONE po naprawie:**
+
+| Powierzchnia                                  | Audyt (zaniżony) |                             Po naprawie |
+| --------------------------------------------- | ---------------: | --------------------------------------: |
+| `components/builder/organisms/widget-view/**` |      68,8% linii |            **97,65% linii** · 95,12% fn |
+| `components/admin/builder/**`                 |      13,6% linii | **29,14% linii** · 17,53% fn (364/2077) |
+| całe `src/` — linie                           |           33,19% |                              **37,46%** |
+| całe `src/` — funkcje                         |           25,33% |                              **28,90%** |
+| suita                                         |   778/817 plików |   **833 pliki, 10 269 testów, zielono** |
+
+Panele właściwości nadal są najsłabszą dużą powierzchnią MODUŁU 3 — ale ich liczba wzrosła
+z 166 na 364 wykonane funkcje **bez ani jednego nowego testu**, wyłącznie dlatego, że istniejące
+testy wreszcie się uruchamiają. Od tej naprawy powierzchnia ma też własny próg per-ścieżka
+w `vitest.config.ts` (wcześniej była jedyną dużą powierzchnią modułu bez progu — i jedyną, która
+osunęła się do 13,6%).
+
+Lista plików, które NIE startowały (18 z nich to zakleszczenie opisane wyżej — dziś wszystkie
+przechodzą; pozostałe pozycje tej listy padały na dryfie lustra i zaślepek, opisanym wyżej):
 
 - `src/components/admin/builder/__tests__/buttonFullWidth.test.tsx`
 - `src/components/admin/builder/__tests__/fidelityGateFindings.test.tsx`
@@ -1370,6 +1433,9 @@ Lista:
 - `src/components/builder/organisms/widget-view/__tests__/widgetViewEditable.test.tsx`
 - `src/components/builder/organisms/widget-view/__tests__/worldMapWidget.test.tsx`
 - `src/components/mobile/bottomBar/__tests__/MobileBottomBarView.test.tsx`
+
+**Status: wszystkie powyższe pliki przechodzą.** Cały MODUŁ 3 uruchomiony w jednym przebiegu:
+90 plików / 1 832 testy / 64 s (wcześniej: przebieg nie kończył się nigdy).
 
 ### 9.3 Odtworzenie pomiaru
 

@@ -21,7 +21,19 @@ vi.mock("@/integrations/supabase/client", () => {
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "is", "in", "not", "order", "range", "limit"]) b[m] = () => b;
   b.then = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
-  return { supabase: { from: () => b, rpc: async () => ({ data: [], error: null }) } };
+  // Realtime no-op: widgety zainteresowan (JoinUsForm / InterestsCustomizer
+  // przez useInterests) subskrybuja postgres_changes przy montowaniu.
+  const channel: Record<string, unknown> = {};
+  channel.on = vi.fn(() => channel);
+  channel.subscribe = vi.fn(() => channel);
+  return {
+    supabase: {
+      from: () => b,
+      rpc: async () => ({ data: [], error: null }),
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(async () => "ok"),
+    },
+  };
 });
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
