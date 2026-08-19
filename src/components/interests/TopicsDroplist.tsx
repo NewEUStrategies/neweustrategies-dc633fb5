@@ -15,7 +15,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, X } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useInterestCatalog, type InterestItem } from "@/hooks/useInterests";
 import { topicLabel, topicsTriggerText } from "@/lib/newsletter/newsletterFieldLabels";
@@ -129,6 +128,29 @@ export function canToggleInterestSelection(
 ): boolean {
   if (picked.has(id) || maxSelections === undefined) return true;
   return picked.size < Math.max(0, Math.floor(maxSelections));
+}
+
+function TopicSelectionMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-state={checked ? "checked" : "unchecked"}
+      className="lov-check group pointer-events-none relative inline-flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-[4px] bg-transparent p-0"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 18 18"
+        aria-hidden="true"
+        focusable="false"
+        className="lov-check__svg"
+      >
+        <path d="M1,9 L1,3.5 C1,2 2,1 3.5,1 L14.5,1 C16,1 17,2 17,3.5 L17,14.5 C17,16 16,17 14.5,17 L3.5,17 C2,17 1,16 1,14.5 L1,9 Z" />
+        <polyline points="1,9 7,14 15,4" />
+        <line x1="4.5" y1="9" x2="13.5" y2="9" className="lov-check__dash" />
+      </svg>
+    </span>
+  );
 }
 
 export function TopicsDroplist({
@@ -356,12 +378,7 @@ export function TopicsDroplist({
                                     active ? "bg-brand/10 text-brand" : "hover:bg-accent",
                                   )}
                                 >
-                                  <Checkbox
-                                    checked={active}
-                                    tabIndex={-1}
-                                    aria-hidden="true"
-                                    className="pointer-events-none h-[16px] w-[16px]"
-                                  />
+                                  <TopicSelectionMark checked={active} />
                                   <span className="min-w-0 flex-1 truncate">{it.label}</span>
                                 </button>
                               );
