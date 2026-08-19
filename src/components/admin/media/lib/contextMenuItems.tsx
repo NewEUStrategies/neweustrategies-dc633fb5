@@ -23,6 +23,7 @@ import {
   ClipboardPaste,
 } from "@/lib/lucide-shim";
 import type { ContextMenuItem, ContextMenuState, MediaRow } from "../types";
+import "@/lib/i18n-admin-media";
 import { folderName } from "./mediaPaths";
 
 /** Wszystko, czego reguła potrzebuje od organizmu - żadnego stanu własnego. */

@@ -245,6 +245,34 @@ describe("ImageCropDialog - zatwierdzenie", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("PORAŻKA kadrowania jest widoczna, nie tylko cicho zdejmuje blokadę", async () => {
+    // Kadrowanie idzie przez canvas i potrafi się nie udać (brak kontekstu 2d,
+    // obraz „skażony" CORS-em). Sam odblokowany przycisk niczego nie mówi -
+    // użytkownik klika drugi raz i znowu nic.
+    h.getCroppedBlob.mockRejectedValue(new Error("no 2d ctx"));
+    setup();
+    await reportCropArea();
+    fireEvent.click(applyButton());
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/nie udało się przygotować kadru/i);
+  });
+
+  it("komunikat porażki znika przy KOLEJNEJ próbie", async () => {
+    // Zostawiony komunikat kłamałby po udanym kadrze.
+    h.getCroppedBlob.mockRejectedValue(new Error("no 2d ctx"));
+    const { onConfirm } = setup();
+    await reportCropArea();
+    fireEvent.click(applyButton());
+    await screen.findByRole("alert");
+
+    h.getCroppedBlob.mockResolvedValue(new Blob(["ok"], { type: "image/jpeg" }));
+    fireEvent.click(applyButton());
+
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("anulowanie zamyka okno BEZ kadrowania", async () => {
     const { onOpenChange, onConfirm } = setup();
     await reportCropArea();

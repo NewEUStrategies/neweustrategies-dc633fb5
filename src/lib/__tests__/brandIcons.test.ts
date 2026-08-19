@@ -6,7 +6,7 @@
 // bazy, wejście użytkownika). Nazwa nieznana nie może wywrócić drzewa Reacta -
 // musi trafić w bezpieczny fallback. To jest jedyna reguła, która się tu liczy,
 // i do 18.08 nie miała ani jednego wywołania.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
 import { BRAND_ICONS, resolveBrandIcon } from "@/lib/brandIconRegistry";

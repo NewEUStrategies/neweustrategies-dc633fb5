@@ -8,7 +8,7 @@
 //   3. kliknięcie akcji NIE może jednocześnie wejść do folderu; bez
 //      `stopPropagation` „zmień nazwę” zmieniałoby też bieżącą ścieżkę.
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import { MediaFolderTree } from "../MediaFolderTree";
 import type { FolderRow } from "../../types";
 

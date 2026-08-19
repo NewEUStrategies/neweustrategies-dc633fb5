@@ -18,7 +18,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { success: toastSuccess } }));
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
 // Nakładka i18n rejestruje się efektem ubocznym importu. Panel i lista same
 // jej nie importują (robi to organizm nadrzędny), więc test musi ją wciągnąć -
@@ -165,6 +166,7 @@ describe("MediaInfoPanel - tekst alternatywny", () => {
 
   it("potwierdza zapis komunikatem", async () => {
     toastSuccess.mockClear();
+    toastError.mockClear();
     setupPanel(file());
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Opis" } });
     fireEvent.click(screen.getByRole("button", { name: /zapisz|save/i }));
@@ -207,13 +209,26 @@ describe("MediaInfoPanel - tekst alternatywny", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: /zapisz|save/i })).toBeEnabled());
   });
+
+  it("PORAŻKA zapisu zgłasza błąd, a nie ciszę", async () => {
+    // Sam odblokowany przycisk bez potwierdzenia redaktor odczyta jako zapis,
+    // który się udał - i zamknie panel z niezapisanym opisem.
+    toastSuccess.mockClear();
+    toastError.mockClear();
+    setupPanel(file(), {
+      onSaveAlt: async () => {
+        throw new Error("odmowa");
+      },
+    });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Opis" } });
+    fireEvent.click(screen.getByRole("button", { name: /zapisz|save/i }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Nie udało się zapisać"));
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
 });
 
 describe("MediaUsageList - cztery stany", () => {
-  function usage(overrides: Partial<MediaUsageItem> = {}): MediaUsageItem {
-    return { kind: "post", id: "p1", slug: "wpis", title: "Wpis", where: ["cover"], ...overrides };
-  }
-
   it("stan ŁADOWANIA nie udaje braku użyć", () => {
     // „Nieużywany" pokazany w trakcie ładowania to zaproszenie do skasowania
     // zasobu, który jest w użyciu.

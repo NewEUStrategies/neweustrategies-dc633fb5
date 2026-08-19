@@ -76,6 +76,7 @@ const L = {
       "Proporcje zdjęcia mocno odbiegają od zalecanych - efekt może być mocno przycięty. Popraw kadr poniżej lub wgraj inne zdjęcie.",
     target: "Zapis: ",
     ratio: "Wymagany format: ",
+    cropFailed: "Nie udało się przygotować kadru. Spróbuj ponownie lub wgraj inne zdjęcie.",
   },
   en: {
     title: "Crop image",
@@ -93,6 +94,7 @@ const L = {
       "Source aspect ratio differs significantly from the recommended one - the result may be heavily cropped. Adjust the frame below or upload another image.",
     target: "Saved as: ",
     ratio: "Required aspect: ",
+    cropFailed: "Could not prepare the crop. Try again or upload a different image.",
   },
 } as const;
 
@@ -113,6 +115,7 @@ export function ImageCropDialog({
   const [rotation, setRotation] = useState(0);
   const [pixelCrop, setPixelCrop] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cropFailed, setCropFailed] = useState(false);
 
   const tolerance = preset.tolerance ?? 0.35;
 
@@ -162,6 +165,7 @@ export function ImageCropDialog({
   const handleConfirm = async () => {
     if (!src || !pixelCrop) return;
     setBusy(true);
+    setCropFailed(false);
     try {
       const blob = await getCroppedBlob(
         src,
@@ -175,6 +179,12 @@ export function ImageCropDialog({
       const previewUrl = URL.createObjectURL(blob);
       onConfirm(blob, previewUrl);
       onOpenChange(false);
+    } catch {
+      // Kadrowanie idzie przez canvas i potrafi się nie udać (brak kontekstu 2d,
+      // obraz z obcej domeny „skażony" CORS-em). Bez tej gałęzi odrzucenie
+      // wypływało poza komponent jako nieobsłużone, a użytkownik widział tylko
+      // odblokowany przycisk - klikał drugi raz i znowu nic.
+      setCropFailed(true);
     } finally {
       setBusy(false);
     }
@@ -200,6 +210,16 @@ export function ImageCropDialog({
             </b>
           </span>
         </div>
+
+        {cropFailed && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-[6px] border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
+          >
+            <ImageOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>{t.cropFailed}</span>
+          </div>
+        )}
 
         {aspectWarn && (
           <div className="flex items-start gap-2 rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">

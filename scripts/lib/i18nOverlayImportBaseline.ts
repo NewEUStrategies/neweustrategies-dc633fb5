@@ -11,11 +11,9 @@
 //
 // Odśwież po sprzątaniu: bun run check:i18n-overlay-imports --print-baseline
 export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[] = [
-  ["src/components/admin/AdminShell.tsx", 2],
   ["src/components/admin/archiveLayout/ArchiveLivePreview.tsx", 2],
   ["src/components/admin/builder/ui/molecules/SchemaFieldControl.tsx", 4],
   ["src/components/admin/builder/ui/organisms/widget-properties/DisplayLivePreview.tsx", 1],
-  ["src/components/builder/organisms/widget-view/AccountMenuWidget.tsx", 1],
   ["src/components/admin/builder/ui/organisms/WidgetLivePreview.tsx", 3],
   ["src/components/admin/media/atoms/MediaEmptyState.tsx", 1],
   ["src/components/admin/media/hooks/useMediaMutations.ts", 5],
@@ -25,7 +23,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/media/molecules/MediaToolbar.tsx", 4],
   ["src/components/admin/media/molecules/MediaUsageList.tsx", 9],
   ["src/components/admin/media/organisms/MediaFolderTree.tsx", 1],
-  ["src/components/admin/media/organisms/MediaInfoPanel.tsx", 10],
   ["src/components/admin/media/organisms/MediaListView.tsx", 5],
   ["src/components/admin/media/organisms/MediaPreviewDialog.tsx", 6],
   ["src/components/admin/molecules/RevisionDiffDialog.tsx", 6],
@@ -36,11 +33,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/popups/signup/FormTab.tsx", 24],
   ["src/components/admin/popups/signup/GalleryTab.tsx", 45],
   ["src/components/admin/popups/signup/LayoutTab.tsx", 33],
-  // 2026-08-17: 4 -> 0. Hook dostał bezpośredni import `@/lib/i18n-admin-post-panes`
-  // (woła `adminPostPanes.sponsored.*` przy odrzuconej publikacji), co domknęło
-  // też cztery wcześniejsze pośrednie zależności. Wpis zostaje z zerem, żeby
-  // ratchet nie wpuścił ich z powrotem.
-  ["src/components/admin/post-editor/hooks/usePostEditorForm.ts", 0],
   ["src/components/admin/post-editor/molecules/TtsVoiceCard.tsx", 17],
   ["src/components/archive/layouts/ArchiveHeader.tsx", 2],
   ["src/components/billing/BillingDocumentsCard.tsx", 10],
@@ -59,6 +51,7 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/billing/SubscriptionStatusCard.tsx", 10],
   ["src/components/billing/SyncBillingButton.tsx", 3],
   ["src/components/blocks/renderer/molecules.tsx", 10],
+  ["src/components/builder/organisms/widget-view/AccountMenuWidget.tsx", 1],
   ["src/components/checkout/CheckoutAssurances.tsx", 4],
   ["src/components/checkout/CouponInput.tsx", 4],
   ["src/components/checkout/FxRateNotice.tsx", 7],
