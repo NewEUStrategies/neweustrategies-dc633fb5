@@ -1,6 +1,8 @@
 // Atomy testowe MODUŁU CZATU - atomic design zastosowany do testów, dokładnie
-// jak w `src/test/network/fixtures.ts`. Jedno źródło prawdy dla: wierszy bazy,
-// atrapy klienta PostgREST/RPC, atrapy realtime i stubu tłumaczeń.
+// jak w `src/test/network/fixtures.ts`. Jedno źródło prawdy dla WIERSZY BAZY
+// i widoków domenowych czatu; generyczna maszyneria klienta (łańcuch PostgREST,
+// RPC, realtime, storage, i18n) mieszka w `src/test/supabase/` i jest stąd
+// re-eksportowana.
 //
 // DLACZEGO TO ISTNIEJE. Czat był najsłabszą powierzchnią testową repo (17-20%
 // pokrycia przy 12 tys. linii). Główną barierą nie był brak chęci, a koszt
@@ -13,7 +15,6 @@
 // Świadomie BEZ JSX i bez importu komponentów - moduł jest wciągany także
 // z wnętrza fabryk `vi.mock` (dynamiczny import), więc musi być tani
 // i wolny od side-effectów.
-import { vi, type Mock } from "vitest";
 import type {
   ChatContactHit,
   ChatMessage,
@@ -278,224 +279,42 @@ export function peerProfileMap(
   return new Map(profiles.map((p) => [p.id, p]));
 }
 
-// --- atrapa klienta Supabase ------------------------------------------------
+// --- atomy klienta Supabase (re-eksport) ------------------------------------
 
-// Atrapa łańcucha PostgREST wyprowadziła się do `src/test/supabaseChain.ts`:
-// nie ma w niej niczego czatowego, a powierzchnia PROFILU czyta przez ten sam
-// łańcuch. Re-eksport zostaje, żeby żaden z plików testowych czatu nie musiał
-// zmieniać importu - `@/test/chat/fixtures` nadal daje pełny zestaw atomów.
+// Generyczna maszyneria klienta wyprowadzila sie do `src/test/supabase/`:
+// atrapa lancucha PostgREST, rejestrator RPC, kanaly realtime, magazyn plikow
+// i stub i18n. Nie ma w nich niczego czatowego, a czytaja przez nie takze
+// profil, kluby i siec kontaktow.
+//
+// Re-eksport zostaje, zeby zaden z plikow testowych czatu nie musial zmieniac
+// importu - `@/test/chat/fixtures` nadal daje PELNY zestaw atomow, a to, co
+// czatowe (fabryki wierszy i widokow wyzej), zostalo na miejscu.
 export {
   fail,
   ok,
+  okCount,
   pgError,
+  reactI18nextStub,
+  realtimeStub,
+  storageStub,
+  supabaseAuthStub,
   supabaseFromStub,
+  supabaseRpcStub,
+  translateKey,
+  type FakeChannel,
   type PostgrestErrorLike,
+  type RealtimeEventPayload,
+  type RealtimeHandler,
+  type RealtimeStub,
   type RecordedCall,
   type RecordedChain,
+  type RecordedListener,
+  type RecordedRpc,
+  type RpcResponder,
+  type StorageStub,
+  type SupabaseAuthStub,
   type SupabaseFromStub,
   type SupabaseResult,
+  type SupabaseRpcStub,
   type TableResponder,
-} from "@/test/supabaseChain";
-
-// --- atrapa realtime --------------------------------------------------------
-
-/**
- * Ładunek zdarzenia realtime w atrapie - suma pól, których używa warstwa
- * danych czatu: `postgres_changes` czyta `eventType`/`new`/`old`, `broadcast`
- * czyta `payload`.
- *
- * JEDEN typ dla obu rodzajów jest tu decyzją, nie skrótem: dwa osobne typy
- * handlerów wymuszały rzutowanie `as unknown as` przy zapisie do wspólnej
- * listy nasłuchujących, a to omija kontrolę typów dokładnie tak samo jak
- * `as any`. Wszystkie pola są opcjonalne, więc handler zadeklarowany na
- * węższym kształcie pozostaje przypisywalny (kontrawariancja parametru).
- */
-export interface RealtimeEventPayload {
-  eventType?: string;
-  new?: unknown;
-  old?: unknown;
-  payload?: unknown;
-}
-
-/** Handler zdarzenia realtime w atrapie (postgres_changes / broadcast / presence). */
-export type RealtimeHandler = (payload: RealtimeEventPayload) => void;
-
-export interface RecordedListener {
-  readonly type: "postgres_changes" | "broadcast" | "presence";
-  readonly filter: Record<string, unknown>;
-  readonly handler: RealtimeHandler;
-}
-
-export interface FakeChannel {
-  readonly name: string;
-  readonly config: Record<string, unknown> | undefined;
-  readonly listeners: RecordedListener[];
-  readonly sent: Array<Record<string, unknown>>;
-  /** Ile razy `subscribe()` zostało wywołane na TYM kanale. */
-  subscribeCount: number;
-  removed: boolean;
-  on(type: string, filter: Record<string, unknown>, handler: RealtimeHandler): FakeChannel;
-  subscribe(cb?: (status: string) => void): FakeChannel;
-  send(payload: Record<string, unknown>): Promise<"ok">;
-  track(payload: Record<string, unknown>): Promise<"ok">;
-  presenceState(): Record<string, Array<{ user_id: string }>>;
-  /** Test: wywołaj handler pasujący do zdarzenia/tabeli. */
-  emitPostgres(table: string, payload: RealtimeEventPayload): void;
-  /** Test: wywołaj handler broadcastu o danej nazwie zdarzenia. */
-  emitBroadcast(event: string, payload: unknown): void;
-  /** Test: ponów callback statusu (symulacja re-subscribe po zerwaniu). */
-  emitStatus(status: string): void;
-}
-
-export interface RealtimeStub {
-  channel(name: string, config?: Record<string, unknown>): FakeChannel;
-  removeChannel(channel: FakeChannel): Promise<"ok">;
-  /** Wszystkie utworzone kanały (także usunięte). */
-  channels: FakeChannel[];
-  /** Kanały o nazwie zaczynającej się prefiksem, jeszcze nieusunięte. */
-  liveChannels(prefix?: string): FakeChannel[];
-  channelByPrefix(prefix: string): FakeChannel | undefined;
-  reset(): void;
-}
-
-export function realtimeStub(
-  presence: Record<string, Array<{ user_id: string }>> = {},
-): RealtimeStub {
-  const channels: FakeChannel[] = [];
-  return {
-    channel(name, config) {
-      const statusCallbacks: Array<(status: string) => void> = [];
-      const channel: FakeChannel = {
-        name,
-        config,
-        listeners: [],
-        sent: [],
-        subscribeCount: 0,
-        removed: false,
-        on(type, filter, handler) {
-          channel.listeners.push({
-            type: type as RecordedListener["type"],
-            filter,
-            handler,
-          });
-          return channel;
-        },
-        subscribe(cb) {
-          channel.subscribeCount += 1;
-          if (cb) {
-            statusCallbacks.push(cb);
-            cb("SUBSCRIBED");
-          }
-          return channel;
-        },
-        async send(payload) {
-          channel.sent.push(payload);
-          return "ok";
-        },
-        async track(payload) {
-          channel.sent.push({ type: "presence", ...payload });
-          return "ok";
-        },
-        presenceState: () => presence,
-        emitPostgres(table, payload) {
-          for (const listener of channel.listeners) {
-            if (listener.type !== "postgres_changes") continue;
-            if (listener.filter.table !== table) continue;
-            const event = listener.filter.event;
-            const payloadEvent = payload.eventType;
-            if (event !== "*" && payloadEvent && event !== payloadEvent) continue;
-            listener.handler(payload);
-          }
-        },
-        emitBroadcast(event, payload) {
-          for (const listener of channel.listeners) {
-            if (listener.type !== "broadcast") continue;
-            if (listener.filter.event !== event) continue;
-            listener.handler({ payload });
-          }
-        },
-        emitStatus(status) {
-          for (const cb of statusCallbacks) cb(status);
-        },
-      };
-      channels.push(channel);
-      return channel;
-    },
-    async removeChannel(channel) {
-      channel.removed = true;
-      return "ok";
-    },
-    channels,
-    liveChannels: (prefix) =>
-      channels.filter((c) => !c.removed && (!prefix || c.name.startsWith(prefix))),
-    channelByPrefix: (prefix) => channels.find((c) => c.name.startsWith(prefix)),
-    reset() {
-      channels.length = 0;
-    },
-  };
-}
-
-// --- atrapa storage ---------------------------------------------------------
-
-export interface StorageStub {
-  from: Mock;
-  createSignedUrl: Mock;
-  createSignedUrls: Mock;
-  createSignedUploadUrl: Mock;
-  reset(): void;
-}
-
-/** Atrapa `supabase.storage` dla załączników (podpisy 15-minutowe, batch). */
-export function storageStub(): StorageStub {
-  const createSignedUrl = vi.fn(async (path: string) => ({
-    data: { signedUrl: `https://signed.test/${path}` },
-    error: null,
-  }));
-  const createSignedUrls = vi.fn(async (paths: string[]) => ({
-    data: paths.map((path) => ({ path, signedUrl: `https://signed.test/${path}`, error: null })),
-    error: null,
-  }));
-  const createSignedUploadUrl = vi.fn(async (path: string) => ({
-    data: { signedUrl: `https://upload.test/${path}`, path, token: "tok" },
-    error: null,
-  }));
-  const stub: StorageStub = {
-    from: vi.fn(() => ({ createSignedUrl, createSignedUrls, createSignedUploadUrl })),
-    createSignedUrl,
-    createSignedUrls,
-    createSignedUploadUrl,
-    reset() {
-      createSignedUrl.mockClear();
-      createSignedUrls.mockClear();
-      createSignedUploadUrl.mockClear();
-      stub.from.mockClear();
-    },
-  };
-  return stub;
-}
-
-// --- i18n -------------------------------------------------------------------
-
-/**
- * Echo klucza i18n: `t("a.b")` -> `"a.b"`, a z opcjami -> `a.b {"count":3}`.
- * Testy asertują KLUCZ, nie polski tekst, więc zmiana copy nie psuje testów,
- * a rozjazd klucza owszem (za parytet PL/EN odpowiada `i18nChat.test.ts`).
- */
-export function translateKey(key: string, options?: Record<string, unknown>): string {
-  if (options === undefined) return key;
-  const entries = Object.entries(options);
-  return entries.length === 0 ? key : `${key} ${JSON.stringify(Object.fromEntries(entries))}`;
-}
-
-/** Ten sam stub `react-i18next` dla wszystkich testów czatu. */
-export function reactI18nextStub(getLanguage: () => string = () => "pl"): {
-  useTranslation: () => { t: typeof translateKey; i18n: { language: string } };
-  initReactI18next: { type: string; init: () => void };
-  Trans: (props: { children?: unknown }) => unknown;
-} {
-  return {
-    useTranslation: () => ({ t: translateKey, i18n: { language: getLanguage() } }),
-    initReactI18next: { type: "3rdParty", init: () => {} },
-    Trans: (props: { children?: unknown }) => props.children ?? null,
-  };
-}
+} from "@/test/supabase";

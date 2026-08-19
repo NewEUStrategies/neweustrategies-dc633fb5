@@ -9,7 +9,7 @@
 //   * anonim              -> wartość klubu + formularz rejestracji inline,
 //   * zalogowany za nisko -> wartość klubu + upsell do wymaganego planu,
 //   * zalogowany, nie-członek -> prośba o dostęp (plan już wystarcza).
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
@@ -46,7 +46,12 @@ import {
 } from "@/lib/auth/registrationFields";
 
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
-import { DEFAULT_CLUB_PLAN_TIER, planTierFromRank, type ClubPlanTier } from "@/lib/clubs/planTiers";
+import {
+  CLUB_GATE_BENEFITS,
+  clubGateView,
+  type ClubGateBenefit,
+  type ClubGateView,
+} from "@/lib/clubs/gateView";
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import "@/lib/i18n-club-gate";
@@ -54,6 +59,16 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { uiLang } from "@/lib/i18n/format";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Ikona przy korzyści. Katalog kluczy żyje w `gateView`, ikony - tutaj. */
+const BENEFIT_ICONS: Record<ClubGateBenefit, LucideIcon> = {
+  threads: MessagesSquare,
+  library: Library,
+  calendar: CalendarDays,
+  network: Users,
+  chatham: ShieldCheck,
+  briefs: BookOpen,
+};
 
 export function ClubAccessGate({ club }: { club: ClubViewRow }) {
   // Etykiety progów mają JEDNO źródło prawdy: `club.planTier.*` w słowniku
@@ -65,26 +80,17 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
   const lang = uiLang(i18n.language);
   const { session, loading } = useAuth();
 
-  const tier = planTierFromRank(club.min_tier_rank ?? 0);
-  // Bramka nigdy nie sprzedaje planu „free" - najniższy sensowny próg to
-  // domyślny próg klubu (PRO), inaczej CTA brzmi jak zaproszenie donikąd.
-  const sellTier: ClubPlanTier = tier === "free" || tier === "plus" ? DEFAULT_CLUB_PLAN_TIER : tier;
-  // Etykieta bierze się ze słownika progów, a NIE z lokalnej mapy: lokalna
-  // mapa znała tylko free/plus/pro/vip, więc po rozszerzeniu katalogu (rangi
-  // 30-60: corporate, partner, partner_general, presidents_circle) klub
-  // o wyższym progu pokazywał w bramce „PRO" albo puste miejsce.
-  const plan = t(`club.planTier.${sellTier}`);
-
   const name = pickLocalized(club, "name", lang) || club.name_pl;
   const tagline = pickLocalized(club, "tagline", lang);
   const signedIn = session !== null && !loading;
-  const tierTooLow = club.reason === "tier_too_low" || !signedIn;
-  // Ekspert to JEDYNA ścieżka wejścia bez planu: odznaka `expert` na profilu
-  // jest nadawana redakcyjnie, więc prośba o dostęp ma wtedy sens. Wszyscy
-  // pozostali bez wymaganego planu widzą wyłącznie upgrade - zgłoszenie bez
-  // planu i tak nie mogłoby zostać zaakceptowane.
   const badgesQ = useUserBadges(session?.user.id);
   const isExpert = (badgesQ.data ?? []).includes("expert");
+
+  // CO bramka pokazuje, rozstrzyga czysty deskryptor (`lib/clubs/gateView`) -
+  // tutaj zostaje wyłącznie JAK to narysować. Reguły dostępu były w tym repo
+  // dowiedzione (capabilityMatrix, hubAccess, pgTAP), ich prezentacja nie.
+  const view = clubGateView({ club, signedIn, isExpert });
+  const plan = t(view.planLabelKey);
 
   return (
     <Card className="overflow-hidden rounded-xl border-border/70">
@@ -111,24 +117,15 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
             </dd>
           </dl>
 
-          <p className="mt-4 max-w-2xl text-sm">
-            {!signedIn
-              ? t("clubGate.anonLead", { plan })
-              : tierTooLow
-                ? t("clubGate.upgradeLead", { plan })
-                : t("clubGate.joinLead")}
-          </p>
+          <p className="mt-4 max-w-2xl text-sm">{t(view.leadKey, { plan })}</p>
 
           <div className="mt-5 rounded-lg border border-border/70 bg-muted/30 p-4 sm:p-5">
             <p className="text-sm font-semibold">{t("clubGate.benefitsTitle", { plan })}</p>
             <p className="mt-1 text-xs text-muted-foreground">{t("clubGate.benefitsLead")}</p>
             <ul className="mt-3.5 grid gap-2.5 sm:grid-cols-2">
-              <Benefit icon={MessagesSquare} k="threads" />
-              <Benefit icon={Library} k="library" />
-              <Benefit icon={CalendarDays} k="calendar" />
-              <Benefit icon={Users} k="network" />
-              <Benefit icon={ShieldCheck} k="chatham" />
-              <Benefit icon={BookOpen} k="briefs" />
+              {CLUB_GATE_BENEFITS.map((key) => (
+                <Benefit key={key} icon={BENEFIT_ICONS[key]} k={key} />
+              ))}
             </ul>
           </div>
         </div>
@@ -136,7 +133,7 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
         {/* --- kolumna akcji --------------------------------------------- */}
         <aside className="min-w-0 rounded-lg border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
           {signedIn ? (
-            <MemberActions club={club} plan={plan} tierTooLow={tierTooLow} isExpert={isExpert} />
+            <MemberActions club={club} plan={plan} view={view} />
           ) : (
             <GateSignupForm plan={plan} />
           )}
@@ -169,17 +166,13 @@ function Benefit({ icon: Icon, k }: { icon: LucideIcon; k: string }) {
 function MemberActions({
   club,
   plan,
-  tierTooLow,
-  isExpert,
+  view,
 }: {
   club: ClubViewRow;
   plan: string;
-  tierTooLow: boolean;
-  isExpert: boolean;
+  view: ClubGateView;
 }) {
   const { t } = useTranslation();
-  // Prośbę o dostęp widzi ten, komu plan już wystarcza, albo ekspert.
-  const canRequest = club.join_policy !== "invite" && (!tierTooLow || isExpert);
 
   return (
     <div className="space-y-3">
@@ -188,37 +181,51 @@ function MemberActions({
         {t("clubGate.lockedTitle", { plan })}
       </p>
 
-      {tierTooLow ? (
-        <>
-          <Button asChild className="w-full rounded-lg">
-            <Link to="/pricing">
-              {t("clubGate.upgradeCta", { plan })}
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="w-full rounded-lg">
-            <Link to="/pricing" hash="plans">
-              {t("clubGate.plansCta")}
-            </Link>
-          </Button>
-        </>
-      ) : null}
+      {view.actions.map((action) => {
+        if (action.kind === "upgrade") {
+          return (
+            <Button key={action.kind} asChild className="w-full rounded-lg">
+              <Link to="/pricing">
+                {t(action.ctaKey, { plan })}
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          );
+        }
+        if (action.kind === "plans") {
+          return (
+            <Button key={action.kind} asChild variant="outline" className="w-full rounded-lg">
+              <Link to="/pricing" hash="plans">
+                {t(action.ctaKey)}
+              </Link>
+            </Button>
+          );
+        }
+        if (action.kind === "request") {
+          return (
+            <Fragment key={action.kind}>
+              {view.showExpertNote ? (
+                <p className="rounded-md bg-primary/10 px-2.5 py-2 text-[11px] leading-snug text-foreground">
+                  <span className="font-semibold">{t("clubGate.expertBadge")}</span> -{" "}
+                  {t("clubGate.expertLead")}
+                </p>
+              ) : null}
+              <Button
+                asChild
+                variant={action.muted ? "ghost" : "default"}
+                className="w-full rounded-lg"
+              >
+                <Link to="/club/$clubSlug/about" params={{ clubSlug: club.slug }}>
+                  {t(action.ctaKey)}
+                </Link>
+              </Button>
+            </Fragment>
+          );
+        }
+        return null;
+      })}
 
-      {canRequest ? (
-        <>
-          {tierTooLow && isExpert ? (
-            <p className="rounded-md bg-primary/10 px-2.5 py-2 text-[11px] leading-snug text-foreground">
-              <span className="font-semibold">{t("clubGate.expertBadge")}</span> -{" "}
-              {t("clubGate.expertLead")}
-            </p>
-          ) : null}
-          <Button asChild variant={tierTooLow ? "ghost" : "default"} className="w-full rounded-lg">
-            <Link to="/club/$clubSlug/about" params={{ clubSlug: club.slug }}>
-              {club.join_policy === "open" ? t("clubGate.joinCta") : t("clubGate.requestCta")}
-            </Link>
-          </Button>
-        </>
-      ) : tierTooLow ? (
+      {view.showUpgradeOnlyNote ? (
         <p className="text-[11px] leading-snug text-muted-foreground">
           {t("clubGate.upgradeOnlyNote", { plan })}
         </p>

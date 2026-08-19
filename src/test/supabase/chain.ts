@@ -1,14 +1,22 @@
-// Zgodnościowy re-eksport atrapy łańcucha PostgREST.
+// Atrapa klienta PostgREST - wspólna dla WSZYSTKICH powierzchni testowych.
 //
-// Kanoniczne miejsce to `src/test/supabase/chain.ts` - atom wspólnego harnessu
-// klienta Supabase (`@/test/supabase`), z którego korzystają fixture czatu,
-// klubów, komentarzy i profilu. Ta ścieżka zostaje, bo importuje ją 79 plików
-// testowych rozsianych po całym repo; przepisywanie ich przy okazji rozbicia
-// harnessu wygenerowałoby ogromny diff bez żadnej zmiany zachowania,
-// a `git blame` tych testów przestałby być czytelny.
+// Mieszkała w `src/test/chat/fixtures.ts`, bo czat pierwszy jej potrzebował
+// (PR #250). Nie ma w niej jednak niczego czatowego: to generyczna maszyneria
+// `supabase.from(...)`, a profil potrzebuje jej dokładnie tak samo
+// (`useProfileEditor`, `useProfileIntent`, `badges`, `useHeaderProfile` czytają
+// przez łańcuch, nie przez `rpc()`). Zostały więc dwa wyjścia: skopiować 130
+// linii do drugiego pliku fixture'ów albo zaimportować w profilu z katalogu
+// `test/chat`. Pierwsze daje dwie atrapy rozjeżdżające się przy następnej
+// zmianie kontraktu, drugie - zależność, która nic nie znaczy (usunięcie
+// fixture'ów czatu psułoby testy profilu).
 //
-// Dlatego atrapa stoi tu, a `test/chat/fixtures.ts` re-eksportuje ją dalej -
-// żaden z 33 plików testowych czatu nie zmienia importu.
+// 2026-08-18: plik przeprowadzil sie z `src/test/supabaseChain.ts` do
+// `src/test/supabase/chain.ts`, bo obok stanela DRUGA atrapa tej samej rangi
+// (`./rpc` - rejestrator wywolan RPC). Katalog `src/test/supabase/` trzyma je
+// razem: `chain` dla powierzchni czytajacych tabele (czat, profil,
+// KOMENTARZE), `rpc` dla powierzchni RPC-only (KLUBY, siec kontaktow).
+// `test/chat/fixtures.ts` re-eksportuje calosc dalej - zaden z 17 plikow
+// testowych czatu nie zmienia importu.
 
 /**
  * Błąd PostgREST. `PostgrestError` w supabase-js DZIEDZICZY po `Error`, więc
@@ -125,14 +133,19 @@ const CHAIN_METHODS: readonly string[] = [
   "in",
   "is",
   "not",
-  // Dopasowanie wzorcem. `ilike` (bez rozróżniania wielkości liter) niesie
-  // w tym repo regułę, nie wygodę: adresy e-mail porównujemy właśnie nim,
-  // bo unikalność adresu w bazie też jest bez wielkości litery.
   "like",
   "ilike",
   "or",
   "filter",
   "match",
+  // Dopasowania tekstowe. Dopisane, gdy `fetchAdminComments` (wyszukiwarka
+  // moderatora) trafila na `builder.ilike is not a function`: lista jest
+  // JAWNA z premedytacja, wiec brakujace ogniwo ma sie zglosic bledem testu,
+  // a nie zostac cicho pochloniete - ale ogniwo, ktorego produkcja NAPRAWDE
+  // uzywa, musi tu byc.
+  "ilike",
+  "like",
+  "textSearch",
   "contains",
   "overlaps",
   "order",
