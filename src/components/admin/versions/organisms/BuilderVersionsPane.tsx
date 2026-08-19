@@ -17,59 +17,20 @@ import {
   parsePopupRevision,
   useBuilderRevisions,
   useRestoreBuilderRevision,
-  type BuilderEntityType,
 } from "@/lib/builder/revisions";
-import { newId, type BuilderDocument, type SectionNode } from "@/lib/builder/types";
-import { uiLocale } from "@/lib/i18n/format";
-
-type Tab = BuilderEntityType | "template";
-
-function formatDate(iso: string, lang: "pl" | "en") {
-  try {
-    return new Intl.DateTimeFormat(uiLocale(lang), {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
-/** Owija pojedynczą sekcję w dokument, żeby dało się ją wyrenderować. */
-export function documentForSection(section: SectionNode): BuilderDocument {
-  return { version: 1, sections: [section] };
-}
-
-/** Syntetyczny dokument z jednego widgetu (podgląd widgetu globalnego). */
-export function documentForWidget(data: {
-  type: string;
-  content?: Record<string, unknown>;
-  style?: unknown;
-  advanced?: unknown;
-}): BuilderDocument {
-  const widget = { id: newId(), kind: "widget", ...data } as unknown as SectionNode["children"][0];
-  return {
-    version: 1,
-    sections: [
-      {
-        id: newId(),
-        kind: "section",
-        children: [
-          {
-            id: newId(),
-            kind: "column",
-            span: 12,
-            children: [widget],
-          } as unknown as SectionNode["children"][0],
-        ],
-      },
-    ],
-  };
-}
+import type { BuilderDocument } from "@/lib/builder/types";
+import {
+  builderRevisionsQuery,
+  documentForSection,
+  documentForWidget,
+  formatVersionDate,
+  restoreEntityType,
+  type BuilderVersionsTab,
+} from "../lib/builderVersions";
 
 export function BuilderVersionsPane({ lang }: { lang: "pl" | "en" }) {
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const [tab, setTab] = useState<Tab>("global_widget");
+  const [tab, setTab] = useState<BuilderVersionsTab>("global_widget");
   const [entityId, setEntityId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
 
@@ -89,19 +50,13 @@ export function BuilderVersionsPane({ lang }: { lang: "pl" | "en" }) {
     setRevisionId(null);
   }, [tab, entities.length]);
 
-  const builderRevisions = useBuilderRevisions(
-    tab === "template" ? "global_widget" : tab,
-    tab === "template" ? null : entityId,
-  );
+  const revisionsQuery = builderRevisionsQuery(tab, entityId);
+  const builderRevisions = useBuilderRevisions(revisionsQuery.entityType, revisionsQuery.entityId);
   const templateRevisions = useTemplateRevisions(tab === "template" ? entityId : null);
-  // Typ encji MUSI iść za zakładką: `useRestoreBuilderRevision` wybiera po nim
-  // ZARÓWNO parser migawki, JAK I tabelę docelową. Migawka popupu ma kształt
-  // `{builder_data, settings}`, którego parser widgetu nie rozpoznaje - podanie
-  // tu `global_widget` dla zakładki „Popupy" zabijało przywracanie popupów.
-  // Dla szablonów sekcji ta mutacja nie jest używana (mają własny mechanizm
-  // wersjonowania i nie renderują przycisku przywracania), więc ramię
-  // `template` jest tylko wypełnieniem typu.
-  const restore = useRestoreBuilderRevision(tab === "template" ? "global_widget" : tab);
+  // Typ encji MUSI iść za zakładką - obie gałęzie dawały tu wcześniej
+  // "global_widget", więc przywracanie wersji popupu szło ścieżką widgetu
+  // globalnego i kończyło się ogólnym błędem (patrz `restoreEntityType`).
+  const restore = useRestoreBuilderRevision(restoreEntityType(tab) ?? "global_widget");
 
   const rows =
     tab === "template"
@@ -131,7 +86,7 @@ export function BuilderVersionsPane({ lang }: { lang: "pl" | "en" }) {
   const selectedBuilderRevision =
     tab === "template" ? null : (builderRevisions.data ?? []).find((r) => r.id === revisionId);
 
-  const TABS: Array<{ id: Tab; label: string }> = [
+  const TABS: Array<{ id: BuilderVersionsTab; label: string }> = [
     { id: "global_widget", label: L("Widgety globalne", "Global widgets") },
     { id: "popup", label: L("Popupy", "Popups") },
     { id: "template", label: L("Szablony sekcji", "Section templates") },
@@ -194,7 +149,7 @@ export function BuilderVersionsPane({ lang }: { lang: "pl" | "en" }) {
                   <VersionRow
                     key={r.id}
                     title={r.title}
-                    meta={formatDate(r.created_at, lang)}
+                    meta={formatVersionDate(r.created_at, lang)}
                     active={r.id === revisionId}
                     onSelect={() => setRevisionId(r.id)}
                   />

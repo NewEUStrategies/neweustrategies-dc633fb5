@@ -47,9 +47,12 @@ export function WorkflowStatusSection({
   return (
     <div className="space-y-2">
       <div>
-        <Label>{t("admin.posts.status")}</Label>
+        {/* `htmlFor` + `id`: etykiety były wizualne, bez powiązania z kontrolką,
+            więc czytnik ekranu ogłaszał oba pola bez nazwy - a decydują one
+            o statusie wpisu i o tym, KIEDY wyjdzie na świat. */}
+        <Label htmlFor="workflow-status">{t("admin.posts.status")}</Label>
         <Select value={status} onValueChange={(v) => onStatusChange(v as PostWorkflowStatus)}>
-          <SelectTrigger>
+          <SelectTrigger id="workflow-status">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -68,8 +71,9 @@ export function WorkflowStatusSection({
 
       {status === "scheduled" && (
         <div>
-          <Label>{t("admin.workflow.publishAt")}</Label>
+          <Label htmlFor="workflow-publish-at">{t("admin.workflow.publishAt")}</Label>
           <Input
+            id="workflow-publish-at"
             type="datetime-local"
             value={isoToLocalInput(publishAt)}
             onChange={(e) => onPublishAtChange(localInputToIso(e.target.value))}

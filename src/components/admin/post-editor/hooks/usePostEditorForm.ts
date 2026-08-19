@@ -11,7 +11,11 @@ import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { uploadAndRegisterMedia, IMAGE_MIME } from "@/lib/media/upload";
-import { persistDataUrlImages, type DecodedDataUrl } from "@/lib/blocks/persistImages";
+import {
+  persistDataUrlImages,
+  replaceDataUrlImages,
+  type DecodedDataUrl,
+} from "@/lib/blocks/persistImages";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
@@ -30,20 +34,15 @@ import {
   emitWidgetCacheInvalidate,
 } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
-import type { SeoIssue } from "@/lib/seo/validation";
-// Czyste reguly edytora zyja w ../lib (atomic design: lib = helpery bez Reacta).
-// Hook jest ich cienka obudowa - stan, efekty i toasty zostaja tutaj, decyzje
-// sa podejmowane tam i maja wlasne testy jednostkowe.
+import { type SeoIssue } from "@/lib/seo/validation";
 import {
-  applyPersistedImages,
-  buildPostUpdateFields,
-  nextOptimisticBase,
-  replaceFormImageUrls,
-} from "../lib/savePayload";
-import { resolveCanonicalSlug } from "../lib/slugNavigation";
-import { classifySaveError } from "../lib/saveErrors";
-import { isScheduledInPast, missingRequiredKeys, seoSaveDecision } from "../lib/editorGates";
-import { historyShortcut } from "../lib/historyShortcut";
+  buildPostPatch,
+  isScheduledInPast,
+  nextBaseUpdatedAt,
+  resolveSlugOutcome,
+  saveErrorDescriptor,
+  seoSaveGate,
+} from "../lib/postPatch";
 import type { PostForm } from "../types";
 import type { PostEditorData } from "./usePostEditorData";
 
@@ -173,7 +172,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       const result = await update$({
         data: {
           id,
-          fields: buildPostUpdateFields(snapshot),
+          fields: buildPostPatch(snapshot),
           categories: selectedCats,
           tags: selectedTags,
           programs: selectedPrograms,
@@ -182,20 +181,19 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
           baseUpdatedAt: baseUpdatedAtRef.current ?? undefined,
         },
       }).catch((err: unknown) => {
-        const { conflict, disclosureGaps: gaps } = classifySaveError(err);
-        // Konflikt = ktoś inny zapisał w międzyczasie; pokaż czytelny komunikat
-        // (i18n PL/EN) i przerwij zapis - autosave/flush odrzuci, treść zostaje.
-        if (conflict) {
+        // Klasyfikacja jest regułą (`saveErrorDescriptor`), tekst powstaje tutaj
+        // - tylko klient zna język panelu. Nierozpoznany błąd leci dalej surowy,
+        // zamiast zostać przykryty ogólnikiem.
+        const descriptor = saveErrorDescriptor(err);
+        if (descriptor?.kind === "conflict") {
           toast.error(t("admin.editConflict"), { id: "edit-conflict" });
         }
-        // Serwer odrzucił PUBLIKACJĘ niekompletnej deklaracji komercyjnej i
-        // odpowiedział kodem, nie zdaniem - tłumaczymy go tutaj, bo tylko klient
-        // zna język panelu. Wymieniamy KTÓRE pole brakuje; „zapis odrzucony" bez
-        // wskazania pola kazałoby redaktorowi zgadywać.
-        if (gaps.length > 0) {
+        if (descriptor?.kind === "disclosureGaps") {
           toast.error(
             t("adminPostPanes.sponsored.gapToast", {
-              fields: gaps.map((gap) => t(`adminPostPanes.sponsored.gap.${gap}`)).join(", "),
+              fields: descriptor.gaps
+                .map((gap) => t(`adminPostPanes.sponsored.gap.${gap}`))
+                .join(", "),
             }),
             { id: "sponsored-disclosure-gap" },
           );
@@ -204,16 +202,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       });
       // Przesuń bazę optimistic-locka na updated_at faktycznie zapisany, by
       // kolejny zapis nie zgłaszał fałszywego konfliktu.
-      baseUpdatedAtRef.current = nextOptimisticBase(result?.updatedAt, baseUpdatedAtRef.current);
+      baseUpdatedAtRef.current = nextBaseUpdatedAt(baseUpdatedAtRef.current, result);
       // Serwer mógł znormalizować slug (uniqueSlug dopisuje sufiks przy
       // kolizji). Nawigujemy WYŁĄCZNIE na slug faktycznie zapisany -
       // przejście na slug wpisany w formularzu załadowałoby CUDZY wpis,
       // który go posiada ("podmiana" edytowanego posta).
-      const { canonicalSlug, slugChanged, needsNavigate } = resolveCanonicalSlug({
-        savedSlug: result?.slug,
-        snapshotSlug: snapshot.slug,
-        routeSlug,
-      });
+      const slugOutcome = resolveSlugOutcome(snapshot.slug, result?.slug, routeSlug);
+      const canonicalSlug = slugOutcome.slug;
       // WAZNE: autosave nie moze przebudowywac calego swiata przy kazdym
       // debounced zapisie - to powodowalo "auto-refresh" edytora (loadery
       // route'a znow pobieraly wiersz posta, cache widgetow leciał, a
@@ -224,7 +219,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       // przez explicit "Publikuj/Zapisz i wyjdz" lub przy odmontowaniu edytora.
       void qc.invalidateQueries({ queryKey: ["admin-posts"], refetchType: "none" });
 
-      if (slugChanged) {
+      if (slugOutcome.collided) {
         // Kolizja nie może być cicha: pokaz stan błędu/ostrzeżenia i zsynchronizuj
         // pole formularza z tym, co realnie trafiło do bazy.
         toast.warning(
@@ -234,7 +229,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         );
         setSlug((f) => (f && f.slug === snapshot.slug ? { ...f, slug: canonicalSlug } : f));
       }
-      if (needsNavigate) {
+      if (slugOutcome.mustNavigate) {
         navigate({ to: "/admin/posts/$slug", params: { slug: canonicalSlug }, replace: true });
       }
     },
@@ -304,17 +299,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   );
 
   const save = async () => {
-    const seo = seoSaveDecision(seoIssues);
-    if (seo.blocked) {
+    const gate = seoSaveGate(seoIssues);
+    if (gate.kind === "blocked") {
       toast.error(t("admin.seo.validation.blockToast"));
       return;
     }
-    if (seo.warningCount > 0) {
-      toast.warning(
-        t("admin.seo.validation.warnToast", {
-          count: seo.warningCount,
-        }),
-      );
+    if (gate.kind === "warn") {
+      toast.warning(t("admin.seo.validation.warnToast", { count: gate.count }));
     }
     setBusy(true);
     try {

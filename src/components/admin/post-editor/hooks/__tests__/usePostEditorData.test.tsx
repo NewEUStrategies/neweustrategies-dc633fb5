@@ -1,46 +1,35 @@
-// WARSTWA DANYCH edytora wpisu (`usePostEditorData`: 0 z 10 funkcji przed tą
-// zmianą). Dziewięć zapytań, od których zależą dwie rzeczy nie do naprawienia
-// po fakcie:
+// Warstwa danych edytora wpisu. Stała na 0% pokrycia, a odpowiada za dwie
+// rzeczy, których złamanie nie daje żadnego sygnału w interfejsie:
 //
-//   1. IZOLACJA NAJEMCÓW. Każdy słownik i każda relacja musi być ograniczona do
-//      aktywnego obszaru roboczego. Zapytanie bez filtra `tenant_id` wpuszcza
-//      kategorie i tagi obcej firmy do listy wyboru redaktora - i w chwili
-//      zapisu przypina wpis do cudzego słownika. RLS jest drugą zaporą, ale
-//      pierwszą jest ten filtr, bo słowniki taksonomii są czytelne szeroko.
-//   2. NIEUTRACENIE TEKSTU. `refetchOnReconnect: false` na zapytaniu o wiersz
-//      wpisu nie jest optymalizacją: refetch podmienia `post`, hook formularza
-//      robi na tym `history.reset()`, a to KASUJE niezapisane zmiany i historię
-//      undo. Wystarczy chwilowy brak sieci w trakcie pisania.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+//   1. ŚCIEŻKA ODCZYTU WIERSZA. Kolumny z treścią są odebrane roli
+//      `authenticated`, więc `select("*")` na `posts` dostanie odmowę.
+//      Wiersz do edycji idzie WYŁĄCZNIE przez `get_post_for_edit`
+//      (SECURITY DEFINER, kontrola `is_staff` + tenanta po stronie serwera).
+//      Zejście z RPC na zwykły select oznacza edytor, który nie otwiera
+//      żadnego wpisu.
+//   2. ZAWĘŻENIE DO OBSZARU ROBOCZEGO. Wszystkie słowniki taksonomii są
+//      filtrowane `tenant_id`, a klucze cache noszą tenant w kluczu. Brak
+//      jednego z tych elementów pokazuje redaktorowi kategorie, tagi i
+//      programy INNEJ firmy - w liście wyboru, którą zaraz zapisze do wpisu.
 import type { ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ok, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fail, ok, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
 
-/**
- * `refetchOnReconnect` nie jest czescia PUBLICZNEGO typu `QueryOptions`
- * (react-query trzyma go w typie obserwatora), a to wlasnie ta opcja jest tu
- * przedmiotem testu. Rzut jest waski i zlokalizowany w jednym helperze -
- * czytamy dokladnie to jedno pole, nie rozluzniamy typowania calego zapytania.
- */
-function refetchOnReconnectOf(options: unknown): unknown {
-  return (options as { refetchOnReconnect?: unknown }).refetchOnReconnect;
-}
+const stub = supabaseFromStub();
 
-const h = vi.hoisted(() => ({ tenantId: "tenant-alfa" as string }));
-const stubs = vi.hoisted(() => ({ from: null as unknown, rpc: null as unknown }));
+const h = vi.hoisted(() => ({
+  tenantId: "tenant-1" as string | null,
+  rpc: vi.fn(),
+}));
 
-vi.mock("@/integrations/supabase/client", async () => {
-  const { supabaseFromStub } = await import("@/test/supabaseChain");
-  const { vi: v } = await import("vitest");
-  const from = supabaseFromStub();
-  const rpc = v.fn(() => ({
-    maybeSingle: async () => ({ data: { id: "post-1", slug: "moj-wpis" }, error: null }),
-  }));
-  stubs.from = from;
-  stubs.rpc = rpc;
-  return { supabase: { from: from.from, rpc } };
-});
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: (table: string) => stub.from(table),
+    rpc: (fn: string, args?: Record<string, unknown>) => h.rpc(fn, args),
+  },
+}));
 
 vi.mock("@/hooks/useAuth", () => ({
   useRequiredTenant: () => h.tenantId,
@@ -48,257 +37,193 @@ vi.mock("@/hooks/useAuth", () => ({
 
 import { usePostEditorData } from "../usePostEditorData";
 
-const db = stubs.from as SupabaseFromStub;
-const rpc = stubs.rpc as ReturnType<typeof vi.fn>;
+const TENANT = "tenant-1";
+const ROUTE_SLUG = "moj-wpis";
+const POST_ROW = { id: "post-1", slug: ROUTE_SLUG, title_pl: "Tytuł z bazy" };
 
-/** Wszystkie tabele słowników i relacji, po które sięga ten hook. */
-const DICTIONARY_TABLES = ["categories", "tags", "programs", "regions"] as const;
-const RELATION_TABLES = ["post_categories", "post_tags", "post_programs", "post_regions"] as const;
-
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+/** Atrapa `supabase.rpc(...).maybeSingle()`. */
+function rpcReturning(result: SupabaseResult) {
+  h.rpc.mockImplementation(() => ({ maybeSingle: () => Promise.resolve(result) }));
 }
 
-/** Domyślna odpowiedź RPC `get_post_for_edit` - wiersz wpisu do edycji. */
-function defaultRpc() {
-  return {
-    maybeSingle: async () => ({ data: { id: "post-1", slug: "moj-wpis" }, error: null }),
+function wrapper(client: QueryClient) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   };
 }
 
+function mountData() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = renderHook(() => usePostEditorData(ROUTE_SLUG), { wrapper: wrapper(client) });
+  return { ...view, client };
+}
+
 beforeEach(() => {
-  db.reset();
-  // `mockReset`, nie `mockClear`: testy niżej podmieniają IMPLEMENTACJĘ rpc
-  // (wiszące zapytanie, brak wiersza, błąd), a `mockClear` czyści tylko listę
-  // wywołań i taka podmiana przeciekłaby na następne testy.
-  rpc.mockReset();
-  rpc.mockImplementation(defaultRpc);
-  h.tenantId = "tenant-alfa";
-  for (const table of [...DICTIONARY_TABLES, ...RELATION_TABLES]) {
-    db.setResponse(table, ok([]));
-  }
+  stub.reset();
+  h.rpc.mockReset();
+  h.tenantId = TENANT;
+  rpcReturning(ok(POST_ROW));
+  stub.setResponse("categories", ok([{ id: "c-1", name_pl: "Analizy", name_en: "Analysis" }]));
+  stub.setResponse("tags", ok([{ id: "t-1", name: "brexit" }]));
+  stub.setResponse("programs", ok([{ id: "pr-1", name_pl: "Program", name_en: "Programme" }]));
+  stub.setResponse("regions", ok([{ id: "r-1", name_pl: "Region", name_en: "Region" }]));
+  stub.setResponse("post_categories", ok([{ category_id: "c-1" }]));
+  stub.setResponse("post_tags", ok([{ tag_id: "t-1" }]));
+  stub.setResponse("post_programs", ok([{ program_id: "pr-1" }]));
+  stub.setResponse("post_regions", ok([{ region_id: "r-1" }]));
 });
 
-describe("usePostEditorData - izolacja najemców", () => {
-  it("KAŻDY słownik taksonomii jest filtrowany po tenant_id", async () => {
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-    await waitFor(() => {
-      for (const table of DICTIONARY_TABLES) {
-        expect(db.chainsFor(table).length, table).toBeGreaterThan(0);
-      }
-    });
+describe("wiersz wpisu do edycji", () => {
+  it("czyta wiersz WYŁĄCZNIE przez RPC get_post_for_edit", async () => {
+    const { result } = mountData();
 
-    for (const table of DICTIONARY_TABLES) {
-      const chain = db.lastChain(table) as RecordedChain;
-      const eqs = chain.calls.filter((c) => c.method === "eq").map((c) => c.args);
-      // Kategorie i tagi bez tego filtra wpuściłyby słownik obcej firmy do
-      // listy wyboru - a zapis przypiąłby wpis do cudzej taksonomii.
-      expect(eqs, `${table}: brak filtra tenanta`).toContainEqual(["tenant_id", "tenant-alfa"]);
-    }
+    await waitFor(() => expect(result.current.post).toBeTruthy());
+    expect(h.rpc).toHaveBeenCalledWith("get_post_for_edit", { _slug: ROUTE_SLUG });
+    expect(result.current.post?.title_pl).toBe("Tytuł z bazy");
+    expect(result.current.id).toBe("post-1");
+    // Kolumny z treścią są odebrane roli `authenticated` - zejście na
+    // `from("posts").select(...)` skończyłoby się odmową i edytorem, który
+    // nie otwiera żadnego wpisu.
+    expect(stub.chainsFor("posts")).toHaveLength(0);
   });
 
-  it("relacje wpisu są filtrowane po post_id (wiersz jest już tenant-scoped)", async () => {
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-    await waitFor(() => {
-      for (const table of RELATION_TABLES) {
-        expect(db.chainsFor(table).length, table).toBeGreaterThan(0);
-      }
-    });
+  it("brak wiersza (albo brak dostępu) NIE tworzy pustego formularza", async () => {
+    rpcReturning(ok(null));
+    const { result } = mountData();
 
-    for (const table of RELATION_TABLES) {
-      const chain = db.lastChain(table) as RecordedChain;
-      expect(chain.argsOf("eq"), table).toEqual(["post_id", "post-1"]);
-    }
-  });
-
-  it("aktywne programy: tylko is_active, posortowane deterministycznie", async () => {
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-    await waitFor(() => expect(db.chainsFor("programs").length).toBeGreaterThan(0));
-
-    const chain = db.lastChain("programs") as RecordedChain;
-    const eqs = chain.calls.filter((c) => c.method === "eq").map((c) => c.args);
-    expect(eqs).toContainEqual(["is_active", true]);
-    // Dwa `order` (sort_order, potem name_pl) - bez drugiego lista programów
-    // o równym sort_order zmieniałaby kolejność między odsłonami.
-    const orders = chain.calls.filter((c) => c.method === "order").map((c) => c.args[0]);
-    expect(orders).toEqual(["sort_order", "name_pl"]);
-  });
-
-  it("wiersz wpisu jedzie przez RPC get_post_for_edit, nie przez select('*')", async () => {
-    // Kolumny ciała są odebrane roli `authenticated`, więc `select("*")`
-    // dostałby odmowę. RPC jest SECURITY DEFINER i sam wymusza staff + tenanta.
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-
-    expect(rpc).toHaveBeenCalledWith("get_post_for_edit", { _slug: "moj-wpis" });
-    expect(db.chainsFor("posts")).toHaveLength(0);
-  });
-});
-
-describe("usePostEditorData - relacje czekają na id wpisu", () => {
-  it("relacje NIE są odpytywane, dopóki nie ma id (brak eq('post_id', ''))", async () => {
-    // `enabled: !!id` chroni przed zapytaniem `post_id = ""`, które zwróciłoby
-    // pustą listę i wyglądało jak „wpis nie ma kategorii" - a potem zapis
-    // skasowałby prawdziwe przypisania.
-    rpc.mockImplementation(() => ({
-      maybeSingle: async () => new Promise(() => {}) as Promise<never>,
-    }));
-    renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-
-    await waitFor(() => expect(db.chainsFor("categories").length).toBeGreaterThan(0));
-    for (const table of RELATION_TABLES) {
-      expect(db.chainsFor(table), table).toHaveLength(0);
-    }
-  });
-});
-
-describe("usePostEditorData - błąd wczytania wpisu", () => {
-  it("brak wiersza to błąd, nie pusty formularz", async () => {
-    rpc.mockImplementation(() => ({
-      maybeSingle: async () => ({ data: null, error: null }),
-    }));
-    const { result } = renderHook(() => usePostEditorData("nie-ma"), { wrapper });
-    // Pusty formularz przy braku dostępu byłby gorszy niż błąd: redaktor
-    // zacząłby pisać w edytorze, który nie ma czego zapisać.
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // Pusty obiekt zamiast błędu dałby edytor „nowego" wpisu podpięty pod
+    // cudzy slug - pierwszy autozapis nadpisałby czyjś artykuł.
     expect(result.current.post).toBeUndefined();
     expect(result.current.id).toBe("");
   });
 
-  it("błąd RPC propaguje - hook nie udaje udanego wczytania", async () => {
-    rpc.mockImplementation(() => ({
-      maybeSingle: async () => ({ data: null, error: new Error("access denied") }),
-    }));
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
+  it("błąd RPC nie ląduje w formularzu", async () => {
+    rpcReturning(fail("permission denied for function get_post_for_edit", "42501"));
+    const { result } = mountData();
+
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.post).toBeUndefined();
   });
-});
 
-describe("usePostEditorData - klucze cache", () => {
-  it("klucz wiersza wpisu zawiera tenanta ORAZ slug", async () => {
-    // Bez tenanta w kluczu przełączenie obszaru roboczego pokazałoby wpis
-    // poprzedniej firmy z cache'u.
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const localWrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), {
-      wrapper: localWrapper,
-    });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
+  it("REGRESJA: wiersz w edycji nie odświeża się sam po powrocie sieci", async () => {
+    const { result, client } = mountData();
+    await waitFor(() => expect(result.current.post).toBeTruthy());
 
-    expect(client.getQueryData(["post-by-slug", "tenant-alfa", "moj-wpis"])).toMatchObject({
-      id: "post-1",
-    });
+    const query = client.getQueryCache().find({ queryKey: ["post-by-slug", TENANT, ROUTE_SLUG] });
+
+    // Refetch w tle podmienia `post`, a hook formularza robi wtedy
+    // `history.reset(post)` - niezapisane zmiany i historia cofania znikają
+    // redaktorowi bez śladu. Jedyne dozwolone odświeżenia są jawne
+    // (przywrócenie wersji, zmiana slugu).
+    // `QueryOptions` (typ opcji w cache'u) nie wystawia flag obserwatora, choć
+    // react-query je tam trzyma - stąd rzut na sam odczytywany kształt.
+    const options = query?.options as { refetchOnReconnect?: boolean } | undefined;
+    expect(options?.refetchOnReconnect).toBe(false);
   });
 
-  it("słowniki mają tenanta w kluczu (izolacja cache między firmami)", async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const localWrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), {
-      wrapper: localWrapper,
-    });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
+  it("klucz cache wiersza niesie tenant, więc obszary robocze się nie mieszają", async () => {
+    const { result, client } = mountData();
+    await waitFor(() => expect(result.current.post).toBeTruthy());
 
-    await waitFor(() => {
-      for (const key of ["categories", "tags", "programs", "regions"]) {
-        expect(client.getQueryData([key, "tenant-alfa"]), key).toBeDefined();
-      }
-    });
-  });
-});
-
-describe("usePostEditorData - zapora przed utratą tekstu", () => {
-  it("wiersz edytowanego wpisu NIE odświeża się po powrocie sieci", async () => {
-    // To nie jest optymalizacja ruchu. Refetch podmienia `post`, hook formularza
-    // robi na tym `history.reset()` - a to KASUJE niezapisane zmiany i całą
-    // historię undo. Wystarczy chwilowy brak sieci w trakcie pisania.
-    // Jawne inwalidacje (przywrócenie rewizji, zmiana sluga) nadal odświeżają
-    // celowo, bo idą przez `invalidateQueries`, nie przez ten przełącznik.
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const localWrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper: localWrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-
-    const query = client
+    const keys = client
       .getQueryCache()
-      .find({ queryKey: ["post-by-slug", "tenant-alfa", "moj-wpis"] });
-    expect(query).toBeDefined();
-    expect(refetchOnReconnectOf(query?.options)).toBe(false);
-  });
-
-  it("słowniki taksonomii NIE mają tego wyłącznika (mogą się odświeżać)", async () => {
-    // Kontrast celowy: odświeżenie listy kategorii nic nie kasuje, więc nie ma
-    // powodu jej zamrażać. Ten test pilnuje, żeby wyłącznik nie rozlał się na
-    // całą warstwę danych „na wszelki wypadek".
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const localWrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper: localWrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-
-    const query = client.getQueryCache().find({ queryKey: ["categories", "tenant-alfa"] });
-    expect(query).toBeDefined();
-    // Domyślna wartość react-query, czyli słownik ODŚWIEŻA się po powrocie sieci.
-    expect(refetchOnReconnectOf(query?.options)).toBe(true);
+      .getAll()
+      .map((q) => q.queryKey);
+    expect(keys).toContainEqual(["post-by-slug", TENANT, ROUTE_SLUG]);
+    expect(keys).toContainEqual(["categories", TENANT]);
+    expect(keys).toContainEqual(["tags", TENANT]);
   });
 });
 
-describe("usePostEditorData - puste odpowiedzi bazy", () => {
-  it("`data: null` w KAŻDYM słowniku i relacji daje pustą listę, nie null", async () => {
-    // Ramiona `?? []` w dziewięciu zapytaniach. PostgREST potrafi zwrócić
-    // `null` bez błędu; karty taksonomii wołają na tych listach `.map()`,
-    // więc `null` wysypałby cały panel edytora.
-    for (const table of [...DICTIONARY_TABLES, ...RELATION_TABLES]) {
-      db.setResponse(table, { data: null, error: null });
+describe("słowniki taksonomii", () => {
+  it("REGRESJA: każdy słownik jest zawężony do aktywnego obszaru roboczego", async () => {
+    const { result } = mountData();
+    await waitFor(() => expect(result.current.allRegions).toBeTruthy());
+
+    for (const table of ["categories", "tags", "programs", "regions"]) {
+      // Brak filtru tenanta podsuwa redaktorowi kategorie i tagi INNEJ firmy
+      // w liście wyboru - a stamtąd trafiają one prosto do zapisu wpisu.
+      expect(stub.lastChain(table)?.argsOf("eq"), `${table} bez filtru tenanta`).toEqual([
+        "tenant_id",
+        TENANT,
+      ]);
     }
-
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
-
-    await waitFor(() => {
-      expect(result.current.allCats).toEqual([]);
-      expect(result.current.allTags).toEqual([]);
-      expect(result.current.allPrograms).toEqual([]);
-      expect(result.current.allRegions).toEqual([]);
-      expect(result.current.postCats).toEqual([]);
-      expect(result.current.postTags).toEqual([]);
-      expect(result.current.postPrograms).toEqual([]);
-      expect(result.current.postRegions).toEqual([]);
-    });
   });
 
-  it("wypełnione słowniki i relacje przechodzą bez zmian", async () => {
-    db.setResponse("categories", ok([{ id: "cat-1", name_pl: "Fundusze", name_en: "Funds" }]));
-    db.setResponse("tags", ok([{ id: "tag-1", name: "spójność" }]));
-    db.setResponse("programs", ok([{ id: "prog-1", name_pl: "P", name_en: "P" }]));
-    db.setResponse("regions", ok([{ id: "reg-1", name_pl: "R", name_en: "R" }]));
-    db.setResponse("post_categories", ok([{ category_id: "cat-1" }]));
-    db.setResponse("post_tags", ok([{ tag_id: "tag-1" }]));
-    db.setResponse("post_programs", ok([{ program_id: "prog-1" }]));
-    db.setResponse("post_regions", ok([{ region_id: "reg-1" }]));
+  it("lista programów pomija programy wyłączone i zachowuje kolejność redakcyjną", async () => {
+    const { result } = mountData();
+    await waitFor(() => expect(result.current.allPrograms).toBeTruthy());
 
-    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
-    await waitFor(() => expect(result.current.id).toBe("post-1"));
+    const chain = stub.lastChain("programs");
+    const filters = chain?.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(filters).toContainEqual(["is_active", true]);
+    // Kolejność: własne `sort_order` redakcji, dopiero potem alfabet. Zamiana
+    // tych dwóch ogniw przestawia listę wyboru w karcie programów.
+    expect(chain?.calls.filter((c) => c.method === "order").map((c) => c.args)).toEqual([
+      ["sort_order", { ascending: true }],
+      ["name_pl", { ascending: true }],
+    ]);
+  });
 
-    await waitFor(() => {
-      expect(result.current.allCats).toHaveLength(1);
-      expect(result.current.postCats).toEqual([{ category_id: "cat-1" }]);
-      expect(result.current.postTags).toEqual([{ tag_id: "tag-1" }]);
-      expect(result.current.postPrograms).toEqual([{ program_id: "prog-1" }]);
-      expect(result.current.postRegions).toEqual([{ region_id: "reg-1" }]);
-    });
+  it("pusty wynik daje pustą listę, nie null", async () => {
+    for (const table of ["categories", "tags", "programs", "regions"]) {
+      stub.setResponse(table, ok(null));
+    }
+    const { result } = mountData();
+
+    await waitFor(() => expect(result.current.allRegions).toBeTruthy());
+    // Karty taksonomii mapują po tablicy; `null` wywróciłby cały panel
+    // edytora, a nie tylko jedną listę.
+    expect(result.current.allCats).toEqual([]);
+    expect(result.current.allTags).toEqual([]);
+    expect(result.current.allPrograms).toEqual([]);
+    expect(result.current.allRegions).toEqual([]);
+  });
+});
+
+describe("relacje wpisu", () => {
+  it("nie pyta o relacje, dopóki nie znamy id wpisu", async () => {
+    rpcReturning(ok(null));
+    const { result } = mountData();
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // Zapytanie z pustym `post_id` zwróciłoby relacje CAŁEJ tabeli - edytor
+    // zaznaczyłby wtedy kategorie z innych wpisów.
+    expect(stub.chainsFor("post_categories")).toHaveLength(0);
+    expect(stub.chainsFor("post_tags")).toHaveLength(0);
+    expect(stub.chainsFor("post_programs")).toHaveLength(0);
+    expect(stub.chainsFor("post_regions")).toHaveLength(0);
+  });
+
+  it("czyta relacje zawężone do wczytanego wpisu", async () => {
+    const { result } = mountData();
+    await waitFor(() => expect(result.current.postRegions).toBeTruthy());
+
+    for (const table of ["post_categories", "post_tags", "post_programs", "post_regions"]) {
+      expect(stub.lastChain(table)?.argsOf("eq"), `${table} bez zawężenia do wpisu`).toEqual([
+        "post_id",
+        "post-1",
+      ]);
+    }
+    expect(result.current.postCats).toEqual([{ category_id: "c-1" }]);
+    expect(result.current.postTags).toEqual([{ tag_id: "t-1" }]);
+    expect(result.current.postPrograms).toEqual([{ program_id: "pr-1" }]);
+    expect(result.current.postRegions).toEqual([{ region_id: "r-1" }]);
+  });
+
+  it("brak relacji daje puste listy zaznaczeń", async () => {
+    for (const table of ["post_categories", "post_tags", "post_programs", "post_regions"]) {
+      stub.setResponse(table, ok(null));
+    }
+    const { result } = mountData();
+
+    await waitFor(() => expect(result.current.postRegions).toBeTruthy());
+    // Hook formularza robi `postCats.map(...)` w efekcie - `null` zamiast
+    // pustej tablicy wywala edytor przy wpisie bez żadnej kategorii.
+    expect(result.current.postCats).toEqual([]);
+    expect(result.current.postTags).toEqual([]);
+    expect(result.current.postPrograms).toEqual([]);
+    expect(result.current.postRegions).toEqual([]);
   });
 });

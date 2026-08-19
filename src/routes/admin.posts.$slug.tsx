@@ -34,21 +34,19 @@ import {
   PostLayoutCard,
   type DetailsTab,
 } from "@/components/admin/post-editor";
+import {
+  parsePostEditorSearch,
+  resolveEditorLang,
+  type PostLang,
+} from "@/components/admin/post-editor/lib/postRouteParams";
 import { ensureI18n as ensureAdminPostPanesI18n } from "@/lib/i18n-admin-post-panes";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
   // Lista admina przekazuje `?lang=pl|en` - edytor otwiera się w tej wersji
   // językowej, spójnie z filtrem językowym listy.
-  //
-  // UWAGA: to zawęża TYP, ale nie odsiewa wartości. Router składa
-  // `match.search` jako `{ ...surowe, ...zwalidowane }`, a `useSearch()` czyta
-  // `match.search` - obce `?lang=` dociera więc do komponentu. Zawężenie w
-  // runtime jest niżej, przy `uiLang`.
-  validateSearch: (search: Record<string, unknown>): { lang?: "pl" | "en" } => {
-    const lang = search.lang;
-    return lang === "pl" || lang === "en" ? { lang } : {};
-  },
+  validateSearch: (search: Record<string, unknown>): { lang?: PostLang } =>
+    parsePostEditorSearch(search),
 });
 
 function EditPost() {
@@ -58,10 +56,7 @@ function EditPost() {
   const { slug: routeSlug } = Route.useParams();
   const { lang: langSearch } = Route.useSearch();
   const { i18n } = useTranslation();
-  const panelLang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
-  // Sprawdzenie wartości, nie tylko obecności: adres jest wejściem z zewnątrz,
-  // a `validateSearch` typuje, lecz nie odsiewa (komentarz przy trasie wyżej).
-  const uiLang: "pl" | "en" = langSearch === "pl" || langSearch === "en" ? langSearch : panelLang;
+  const uiLang = resolveEditorLang(langSearch, i18n.language);
   const { data: globalLayout } = usePostLayoutSettings();
 
   const data = usePostEditorData(routeSlug);

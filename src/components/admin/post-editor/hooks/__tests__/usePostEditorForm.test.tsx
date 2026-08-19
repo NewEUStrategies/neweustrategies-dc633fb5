@@ -1,966 +1,1376 @@
-// MASZYNA STANU formularza edytora wpisu - obudowa nad czystymi regułami
-// z `../lib` (te mają własne testy jednostkowe). Tutaj testujemy WYŁĄCZNIE to,
-// czego czyste funkcje nie widzą: sklejenie stanu, efektów, zapisu i toastów.
+// Maszyna stanu edytora wpisu. Hook stał na 0% pokrycia, a przechodzi przez
+// niego KAŻDY zapis artykułu w panelu - łącznie z tymi, których redaktor nie
+// zleca świadomie (autozapis co 1,5 s). Reguły, których złamanie kosztuje
+// TREŚĆ albo pracę redakcji:
 //
-// Dlaczego to ma osobny plik, a nie „jeszcze kilka asercji" w testach reguł:
-// hook nie da się wywołać bez routera, klienta react-query, `useServerFn`,
-// i18n oraz klienta Supabase, więc jego test to inna klasa kosztu. Reguły
-// sprawdzamy tanio i wyczerpująco w `lib/__tests__`, a tutaj dowodzimy, że są
-// PODŁĄCZONE - i że ścieżka błędu nie kłamie użytkownikowi.
-//
-// NAJWAŻNIEJSZE, CZEGO TU PILNUJEMY: nieudany zapis NIE MOŻE zameldować
-// sukcesu. `useAutosave.flush()` celowo ODRZUCA, gdy zapis padł (komentarz
-// w useAutosave.ts opisuje, że kłamstwo w tym miejscu spowodowało kiedyś
-// całkowitą utratę pracy w page builderze). Ten hook jest miejscem, w którym
-// to odrzucenie zamienia się w komunikat dla redaktora.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
+//   1. RESET DOKŁADNIE RAZ NA WPIS. Kolejny refetch wiersza (`post-by-slug`)
+//      przynosi starszy `updated_at` niż ten, który przyszedł z odpowiedzi po
+//      ostatnim zapisie. Ponowny reset nadpisałby edycje redaktora treścią
+//      z cache'u i cofnął bazę optimistic-locka - następny zapis leciałby na
+//      fałszywy EDIT_CONFLICT i redaktor nie miałby jak zapisać niczego.
+//   2. SKRÓTY UNDO/REDO. Ctrl/Cmd+Z, Shift+Ctrl+Z, Ctrl+Y - z `preventDefault`,
+//      bo bez niego natywne cofanie przeglądarki zadziała RÓWNOLEGLE i cofnie
+//      dwa kroki naraz.
+//   3. `applyStatus` JEDNYM SNAPSHOTEM. Zmiana statusu i treść idą w jednym
+//      zapisie; rozbicie na dwa dałoby wyścig z autozapisem i publikację
+//      wersji bez ostatnich poprawek.
+//   4. MIĘKKA BRAMKA CHECKLISTY - pytanie TYLKO przy wejściu w publikację
+//      i tylko przy brakach. Pytanie przy każdym zapisie nauczyłoby redakcję
+//      klikać „mimo to" odruchowo.
+//   5. TWARDA BRAMKA SEO blokuje `save()`, ale NIE `applyStatus`. To asymetria
+//      opisana przy `seoSaveGate` w ../lib/postPatch.ts - test JĄ PRZYPINA,
+//      nie ocenia (zmiana wymaga decyzji produktowej).
+//   6. `discardToSaved` wraca do OSTATNIO ZAPISANEGO stanu, nie do wiersza
+//      z montowania - inaczej „odrzuć zmiany" nadpisałoby autozapisaną pracę
+//      starszą treścią.
+//   7. CIĘŻKIE INWALIDACJE przy odmontowaniu, LEKKIE przy autozapisie. Odwrotny
+//      układ powodował „auto-refresh" edytora w trakcie pisania.
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDIT_CONFLICT_CODE } from "@/lib/content/saveConflict";
 import { DISCLOSURE_ERROR_PREFIX } from "@/lib/content/sponsored";
-import { postEditorData, postForm, seoIssue } from "@/test/post-editor/fixtures";
+import type { SeoIssue } from "@/lib/seo/validation";
+import type { PostForm } from "../../types";
 
 const h = vi.hoisted(() => ({
-  navigate: null as unknown,
-  invalidateRouter: null as unknown,
-  update: null as unknown,
-  del: null as unknown,
-  registerUpload: null as unknown,
-  confirm: null as unknown,
-  toast: null as unknown,
-  canPublish: true,
-  persistResult: {
-    doc: null as unknown,
-    changed: false,
-    failed: 0,
-    replacements: new Map<string, string>(),
-  },
-  invalidateWidgetCaches: null as unknown,
-  emitWidgetCacheInvalidate: null as unknown,
-  invalidateSeoCaches: null as unknown,
-  // Czy atrapa `persistDataUrlImages` ma FAKTYCZNIE wywolac przekazany callback
-  // uploadu. Domyslnie nie - wiekszosc testow nie potrzebuje tej sciezki.
-  runUpload: false,
-  uploadArgs: [] as Array<Record<string, unknown>>,
+  navigate: vi.fn(),
+  router: { invalidate: vi.fn() },
+  blocker: vi.fn(),
+  qc: { invalidateQueries: vi.fn() },
+  updatePost: vi.fn(),
+  deletePost: vi.fn(),
+  registerMediaUpload: vi.fn(),
+  uploadAndRegisterMedia: vi.fn(),
+  confirmDialog: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  toastWarning: vi.fn(),
+  invalidateWidgetCaches: vi.fn(),
+  emitWidgetCacheInvalidate: vi.fn(),
+  invalidateSeoCaches: vi.fn(),
+  auth: { isAdmin: true, user: { id: "user-1" } as { id: string } | null },
 }));
 
-vi.mock("react-i18next", async () =>
-  (await import("@/test/post-editor/fixtures")).reactI18nextStub(),
-);
-vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => h.navigate,
+  useRouter: () => h.router,
+  // Strażnik niezapisanych zmian (useUnsavedChangesGuard) siada na blokerze
+  // routera - atrapa zapisuje, z jakim `disabled` został uzbrojony.
+  useBlocker: (opts: unknown) => h.blocker(opts),
+}));
 
-vi.mock("@tanstack/react-router", async () => {
-  const { vi: v } = await import("vitest");
-  h.navigate = v.fn();
-  h.invalidateRouter = v.fn();
-  return {
-    useNavigate: () => h.navigate,
-    useRouter: () => ({ invalidate: h.invalidateRouter }),
-    // Bloker nawigacji jest tu nieistotny - jego własną logikę pokrywa
-    // src/hooks/__tests__/useUnsavedChangesGuard.test.tsx.
-    useBlocker: () => undefined,
-  };
-});
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => h.qc,
+}));
 
 vi.mock("@tanstack/react-start", () => ({
-  // `useServerFn` w produkcji owija server fn; w teście oddajemy atrapę wprost.
-  useServerFn: (fn: unknown) => fn,
+  // W produkcji `useServerFn` owija funkcję serwerową; w teście tożsamość
+  // wystarcza - asercje idą wprost na atrapę `updatePost`/`deletePost`.
+  useServerFn: <T,>(fn: T) => fn,
 }));
 
-vi.mock("@/lib/content.functions", async () => {
-  const { vi: v } = await import("vitest");
-  h.update = v.fn(async () => ({ ok: true as const, slug: "moj-wpis", updatedAt: "SAVED-1" }));
-  h.del = v.fn(async () => ({ ok: true as const }));
-  return { updatePost: h.update, deletePost: h.del };
-});
-
-vi.mock("@/lib/media.functions", async () => {
-  const { vi: v } = await import("vitest");
-  h.registerUpload = v.fn(async () => ({ id: "media-1" }));
-  return { registerMediaUpload: h.registerUpload };
-});
-
-vi.mock("@/lib/media/upload", () => ({
-  uploadAndRegisterMedia: async (args: Record<string, unknown>) => {
-    h.uploadArgs.push(args);
-    return { publicUrl: "https://storage.example/x.png" };
-  },
-  IMAGE_MIME: ["image/png"],
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, opts?: Record<string, unknown>) =>
+      opts ? `${key}|${JSON.stringify(opts)}` : key,
+  }),
 }));
 
-vi.mock("@/lib/blocks/persistImages", () => ({
-  // Skaner dokumentu jest atrapowany (ma wlasne testy w @/lib/blocks), ale gdy
-  // test tego chce, WYWOLUJEMY przekazany callback uploadu - to jedyny sposob,
-  // zeby sprawdzic, do jakiego najemcy i katalogu ladują wklejone grafiki.
-  persistDataUrlImages: async (
-    _doc: unknown,
-    upload: (decoded: { bytes: Uint8Array; filename: string; mime: string }) => Promise<string>,
-  ) => {
-    if (h.runUpload) {
-      await upload({
-        bytes: new Uint8Array([1, 2, 3]),
-        filename: "wklejka.png",
-        mime: "image/png",
-      });
-    }
-    return h.persistResult;
+vi.mock("sonner", () => ({
+  toast: {
+    success: (m: string, o?: unknown) => h.toastSuccess(m, o),
+    error: (m: string, o?: unknown) => h.toastError(m, o),
+    warning: (m: string, o?: unknown) => h.toastWarning(m, o),
   },
-  replaceDataUrlImages: <T,>(doc: T) => doc,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ isAdmin: h.canPublish, user: { id: "user-1" } }),
+  useAuth: () => ({ isAdmin: h.auth.isAdmin, user: h.auth.user }),
 }));
 
-vi.mock("@/lib/appDialogs", async () => {
-  const { vi: v } = await import("vitest");
-  h.confirm = v.fn(async () => true);
-  return { confirmDialog: h.confirm };
-});
+vi.mock("@/lib/appDialogs", () => ({
+  confirmDialog: (req: unknown) => h.confirmDialog(req),
+}));
 
-vi.mock("sonner", async () => {
-  const { toastStub } = await import("@/test/post-editor/fixtures");
-  const toast = toastStub();
-  h.toast = toast;
-  return { toast, Toaster: () => null };
-});
+vi.mock("@/lib/content.functions", () => ({
+  updatePost: (args: unknown) => h.updatePost(args),
+  deletePost: (args: unknown) => h.deletePost(args),
+}));
 
-vi.mock("@/lib/builder/widgetCacheInvalidation", async () => {
-  const { vi: v } = await import("vitest");
-  h.invalidateWidgetCaches = v.fn();
-  h.emitWidgetCacheInvalidate = v.fn();
-  return {
-    invalidateWidgetCaches: h.invalidateWidgetCaches,
-    emitWidgetCacheInvalidate: h.emitWidgetCacheInvalidate,
-  };
-});
+vi.mock("@/lib/media.functions", () => ({
+  registerMediaUpload: (args: unknown) => h.registerMediaUpload(args),
+}));
 
-vi.mock("@/lib/seo/invalidate", async () => {
-  const { vi: v } = await import("vitest");
-  h.invalidateSeoCaches = v.fn();
-  return { invalidateSeoCaches: h.invalidateSeoCaches };
-});
+vi.mock("@/lib/media/upload", () => ({
+  uploadAndRegisterMedia: (args: unknown) => h.uploadAndRegisterMedia(args),
+  IMAGE_MIME: ["image/png", "image/jpeg"],
+}));
+
+vi.mock("@/lib/builder/widgetCacheInvalidation", () => ({
+  invalidateWidgetCaches: (qc: unknown) => h.invalidateWidgetCaches(qc),
+  emitWidgetCacheInvalidate: () => h.emitWidgetCacheInvalidate(),
+}));
+
+vi.mock("@/lib/seo/invalidate", () => ({
+  invalidateSeoCaches: (qc: unknown, router: unknown) => h.invalidateSeoCaches(qc, router),
+}));
+
+vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
 
 import { usePostEditorForm } from "../usePostEditorForm";
+import type { PostEditorData } from "../usePostEditorData";
 
-type Mock = ReturnType<typeof vi.fn>;
-const update = () => h.update as Mock;
-const del = () => h.del as Mock;
-const navigate = () => h.navigate as Mock;
-const confirmDialog = () => h.confirm as Mock;
-const toast = () => h.toast as Record<string, Mock>;
+const TENANT = "tenant-1";
+const POST_ID = "post-1";
+const ROUTE_SLUG = "moj-wpis";
+const LOADED_UPDATED_AT = "2026-08-01T10:00:00.000Z";
+const SAVED_UPDATED_AT = "2026-08-02T11:22:33.000Z";
+/** Najmniejszy poprawny PNG jako data-URL (1x1, przezroczysty). */
+const PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 /**
- * Domyślny stan to wpis KOMPLETNY z punktu widzenia checklisty publikacji -
- * czyli także z przypisaną kategorią (`category` jest pozycją WYMAGANĄ, a
- * checklista liczy ją z `selectedCats`, nie z wiersza wpisu). Bez tego każdy
- * test „ścieżki szczęśliwej" wpadałby w miękką bramkę i dowodziłby czegoś
- * innego, niż zapowiada jego nazwa.
+ * Formularz KOMPLETNY (typ `PostForm` wymusza komplet), z checklistą publikacji
+ * spełnioną: tytuł, okładka i opis są wypełnione, a wpis nie jest komercyjny.
+ * Dzięki temu miękka bramka nie odzywa się w testach, które jej nie dotyczą -
+ * a testy bramki celowo psują jedno pole.
  */
-function harness(dataOverrides: Parameters<typeof postEditorData>[0] = {}) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-  const data = postEditorData({
-    postCats: [{ category_id: "cat-1" }],
-    ...dataOverrides,
-  }) as unknown as Parameters<typeof usePostEditorForm>[1];
-  const rendered = renderHook(() => usePostEditorForm("moj-wpis", data), { wrapper });
-  return { ...rendered, client };
+function postForm(over: Partial<PostForm> = {}): PostForm {
+  return {
+    id: POST_ID,
+    slug: ROUTE_SLUG,
+    updated_at: LOADED_UPDATED_AT,
+    status: "draft",
+    author_id: "author-1",
+    editor: "blocks",
+    title_pl: "Tytuł z bazy",
+    title_en: "Title from DB",
+    excerpt_pl: "Zajawka PL",
+    excerpt_en: "Excerpt EN",
+    content_pl: "<p>PL</p>",
+    content_en: "<p>EN</p>",
+    cover_image_url: "https://example.test/cover.jpg",
+    audio_url_pl: null,
+    audio_url_en: null,
+    tts_voice_pl: null,
+    tts_voice_en: null,
+    read_minutes: null,
+    published_at: null,
+    publish_at: null,
+    builder_data: null,
+    blocks_data: null,
+    parent_page_id: "",
+    post_format: "standard",
+    layout_overrides: null,
+    takeaways_pl: [],
+    takeaways_en: [],
+    takeaways_variant: null,
+    toc_override: null,
+    custom_meta: null,
+    related_override: null,
+    seo_title_pl: null,
+    seo_title_en: null,
+    seo_description_pl: "Opis SEO PL",
+    seo_description_en: null,
+    seo_canonical_url: null,
+    seo_noindex: false,
+    seo_og_image_url: null,
+    og_image_generated_url: null,
+    organization_id: null,
+    organization_name: null,
+    organization_logo_url: null,
+    organization_website: null,
+    is_sponsored: false,
+    sponsored_kind: null,
+    sponsored_advertiser_name: null,
+    sponsored_advertiser_url: null,
+    sponsored_payer_name: null,
+    sponsored_note_pl: null,
+    sponsored_note_en: null,
+    sponsored_affiliate: false,
+    sponsored_political: false,
+    sponsored_political_process: null,
+    sponsored_sponsor_controller: null,
+    sponsored_order_ref: null,
+    sponsored_marked_at: null,
+    ...over,
+  };
+}
+
+function makeData(over: Partial<PostEditorData> = {}): PostEditorData {
+  return {
+    tenantId: TENANT,
+    post: postForm(),
+    isLoading: false,
+    id: POST_ID,
+    allCats: [],
+    allTags: [],
+    allPrograms: [],
+    allRegions: [],
+    postCats: undefined,
+    postTags: undefined,
+    postPrograms: undefined,
+    postRegions: undefined,
+    ...over,
+  };
+}
+
+type Props = { data: PostEditorData; routeSlug: string };
+
+function mount(over: Partial<PostEditorData> = {}, routeSlug = ROUTE_SLUG) {
+  return renderHook((props: Props) => usePostEditorForm(props.routeSlug, props.data), {
+    initialProps: { data: makeData(over), routeSlug },
+  });
+}
+
+/** Ostatni payload wysłany do `updatePost` (kształt `{ data: {...} }`). */
+function lastPayload(): {
+  id: string;
+  fields: Record<string, unknown>;
+  categories: string[];
+  tags: string[];
+  programs: string[];
+  regions: string[];
+  baseUpdatedAt?: string;
+} {
+  const call = h.updatePost.mock.calls.at(-1);
+  return (call?.[0] as { data: ReturnType<typeof lastPayload> }).data;
+}
+
+/** Wciska klawisz na oknie i zwraca zdarzenie (do sprawdzenia preventDefault). */
+function press(
+  key: string,
+  mods: { ctrl?: boolean; meta?: boolean; shift?: boolean } = {},
+): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", {
+    key,
+    ctrlKey: !!mods.ctrl,
+    metaKey: !!mods.meta,
+    shiftKey: !!mods.shift,
+    cancelable: true,
+    bubbles: true,
+  });
+  act(() => {
+    window.dispatchEvent(event);
+  });
+  return event;
+}
+
+function seoIssue(severity: SeoIssue["severity"]): SeoIssue {
+  return {
+    lang: "pl",
+    kind: "title",
+    severity,
+    chars: 90,
+    charLimit: 60,
+    px: 700,
+    pxLimit: 580,
+  };
 }
 
 beforeEach(() => {
-  h.canPublish = true;
-  h.runUpload = false;
-  h.uploadArgs = [];
-  h.persistResult = { doc: null, changed: false, failed: 0, replacements: new Map() };
-  update().mockReset();
-  update().mockResolvedValue({ ok: true as const, slug: "moj-wpis", updatedAt: "SAVED-1" });
-  del().mockReset();
-  del().mockResolvedValue({ ok: true as const });
-  navigate().mockReset();
-  confirmDialog().mockReset();
-  confirmDialog().mockResolvedValue(true);
-  for (const fn of Object.values(toast())) fn.mockReset();
-  (h.invalidateWidgetCaches as Mock).mockReset();
-  (h.emitWidgetCacheInvalidate as Mock).mockReset();
-  (h.invalidateSeoCaches as Mock).mockReset();
+  vi.clearAllMocks();
+  h.auth.isAdmin = true;
+  h.auth.user = { id: "user-1" };
+  // Serwer domyślnie zapisuje slug tak, jak przyszedł, i odsyła nowy
+  // `updated_at` - to jest kontrakt `updatePost` (patrz content.functions.ts).
+  h.updatePost.mockImplementation(async (args: { data: { fields: { slug: string } } }) => ({
+    ok: true as const,
+    slug: args.data.fields.slug,
+    updatedAt: SAVED_UPDATED_AT,
+  }));
+  h.deletePost.mockResolvedValue({ ok: true });
+  h.confirmDialog.mockResolvedValue(true);
+  h.uploadAndRegisterMedia.mockResolvedValue({ publicUrl: "https://cdn.test/wklejony.png" });
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-// ---------------------------------------------------------------------------
-// Wczytanie wpisu do formularza
-// ---------------------------------------------------------------------------
+describe("wczytanie wpisu do formularza", () => {
+  it("wstawia wiersz z bazy do formularza przy pierwszym wczytaniu", async () => {
+    const { result } = mount();
+    await waitFor(() => expect(result.current.form).not.toBeNull());
+    expect(result.current.form?.title_pl).toBe("Tytuł z bazy");
+    expect(result.current.form?.slug).toBe(ROUTE_SLUG);
+  });
 
-describe("usePostEditorForm - wczytanie", () => {
-  it("wypełnia formularz wierszem wpisu i przenosi wybory taksonomii", async () => {
-    const { result } = harness({
-      postCats: [{ category_id: "cat-1" }],
-      postTags: [{ tag_id: "tag-1" }],
-      postPrograms: [{ program_id: "prog-1" }],
-      postRegions: [{ region_id: "reg-1" }],
+  it("nie stawia formularza, dopóki wiersz się nie wczytał", () => {
+    const { result } = mount({ post: undefined, id: "", isLoading: true });
+    expect(result.current.form).toBeNull();
+    // Checklista bez formularza musi być `null`, a nie „wszystko brakuje" -
+    // karta w sidebarze pokazałaby wtedy komplet czerwonych pozycji dla wpisu,
+    // którego jeszcze nie widać.
+    expect(result.current.publishChecklist).toBeNull();
+  });
+
+  it("edycja pola przed wczytaniem wiersza nie tworzy formularza z powietrza", () => {
+    const { result } = mount({ post: undefined, id: "", isLoading: true });
+
+    act(() => result.current.set("title_pl", "Wpisane za wcześnie"));
+
+    // Gdyby `set` zbudował obiekt z jednego pola, autozapis wysłałby do bazy
+    // wpis bez treści i nadpisał wiersz, który dopiero się wczytywał.
+    expect(result.current.form).toBeNull();
+  });
+
+  it("REGRESJA: kolejny refetch TEGO SAMEGO wpisu nie nadpisuje edycji", async () => {
+    const { result, rerender } = mount();
+    act(() => result.current.set("title_pl", "Wersja redaktora"));
+
+    // Refetch `post-by-slug` (np. po powrocie sieci) przynosi wiersz z cache'u.
+    rerender({
+      data: makeData({ post: postForm({ title_pl: "Stara wersja z cache" }) }),
+      routeSlug: ROUTE_SLUG,
     });
 
-    await waitFor(() => expect(result.current.form?.slug).toBe("moj-wpis"));
-    expect(result.current.selectedCats).toEqual(["cat-1"]);
-    expect(result.current.selectedTags).toEqual(["tag-1"]);
-    expect(result.current.selectedPrograms).toEqual(["prog-1"]);
-    expect(result.current.selectedRegions).toEqual(["reg-1"]);
+    // Gdyby reset odpalił się ponownie, redaktor zobaczyłby, jak jego tekst
+    // znika w trakcie pisania - bez żadnego komunikatu.
+    expect(result.current.form?.title_pl).toBe("Wersja redaktora");
   });
 
-  it("`set` zmienia pojedyncze pole formularza", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+  it("REGRESJA: refetch nie kasuje historii cofania", () => {
+    const { result, rerender } = mount();
+    act(() => result.current.set("title_pl", "Wersja redaktora"));
+    expect(result.current.history.canUndo).toBe(true);
 
-    act(() => result.current.set("title_pl", "Zmieniony tytuł"));
+    rerender({
+      data: makeData({ post: postForm({ title_pl: "Stara wersja z cache" }) }),
+      routeSlug: ROUTE_SLUG,
+    });
 
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Zmieniony tytuł"));
-    // Reszta pól nietknięta - `set` jest punktowy, nie podmienia całej migawki.
-    expect(result.current.form?.title_en).toBe(postForm().title_en);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Bramka publikacji (uprawnienia)
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - bramka publikacji", () => {
-  it("wydawca nie ma zablokowanej żadnej opcji statusu", async () => {
-    h.canPublish = true;
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    expect(result.current.canPublish).toBe(true);
-    expect(result.current.statusOptions.every((o) => !o.publisherOnly)).toBe(true);
+    // `history.reset` czyści stos cofania. Po refetchu Ctrl+Z musi nadal
+    // cofać zmiany redaktora, a nie być martwym skrótem.
+    expect(result.current.history.canUndo).toBe(true);
   });
 
-  it("autor/redaktor ma zablokowane `scheduled` i `published`", async () => {
-    // Ta sama reguła jest lustrzana po stronie serwera i w triggerze bazy;
-    // tutaj pilnujemy, że UI jej nie obchodzi.
-    h.canPublish = false;
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    const gated = result.current.statusOptions.filter((o) => o.publisherOnly).map((o) => o.value);
-    expect(gated).toEqual(["scheduled", "published"]);
-  });
-});
+  it("REGRESJA: refetch ze STARSZYM updated_at nie cofa bazy optimistic-locka", async () => {
+    const { result, rerender } = mount();
 
-// ---------------------------------------------------------------------------
-// Zapis ze zmianą statusu
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - applyStatus", () => {
-  it("zapisuje status i treść JEDNĄ migawką, potem melduje sukces", async () => {
-    // Rozbicie na dwa zapisy (najpierw treść, potem status) dawało wyścig
-    // z autosave'em, który potrafił rozdzielić zmianę na pół.
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
+    act(() => result.current.set("title_pl", "Pierwsza zmiana"));
     await act(async () => {
-      await result.current.applyStatus("published");
+      await result.current.save();
+    });
+    expect(lastPayload().baseUpdatedAt).toBe(LOADED_UPDATED_AT);
+
+    // Cache `post-by-slug` NIE jest bumpowany po autozapisie, więc refetch
+    // przynosi updated_at sprzed zapisu.
+    rerender({
+      data: makeData({ post: postForm({ updated_at: LOADED_UPDATED_AT }) }),
+      routeSlug: ROUTE_SLUG,
     });
 
-    expect(update()).toHaveBeenCalledTimes(1);
-    const payload = update().mock.calls[0][0] as {
-      data: { id: string; fields: Record<string, unknown>; baseUpdatedAt?: string };
-    };
-    expect(payload.data.fields.status).toBe("published");
-    expect(payload.data.fields.title_pl).toBe(postForm().title_pl);
-    // Optimistic-lock jedzie razem z zapisem.
-    expect(payload.data.baseUpdatedAt).toBe(postForm().updated_at);
-    expect(toast().success).toHaveBeenCalled();
+    act(() => result.current.set("title_pl", "Druga zmiana"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Wysłanie starej bazy oznacza EDIT_CONFLICT na każdym kolejnym zapisie -
+    // redaktor zostaje z tekstem, którego nie da się zapisać.
+    expect(lastPayload().baseUpdatedAt).toBe(SAVED_UPDATED_AT);
   });
 
-  it("przesuwa bazę optimistic-locka na updated_at zwrócony przez serwer", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+  it("przełączenie na INNY wpis wczytuje go od nowa razem z jego bazą locka", async () => {
+    const { result, rerender } = mount();
+    act(() => result.current.set("title_pl", "Zmiana w pierwszym wpisie"));
 
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-    await act(async () => {
-      await result.current.applyStatus("draft");
-    });
-
-    const second = update().mock.calls[1][0] as { data: { baseUpdatedAt?: string } };
-    // Bez tego przesunięcia DRUGI zapis zgłaszałby fałszywy konflikt edycji.
-    expect(second.data.baseUpdatedAt).toBe("SAVED-1");
-  });
-
-  it("konflikt edycji: komunikat dla redaktora i BRAK meldunku o sukcesie", async () => {
-    update().mockRejectedValue(new Error(`${EDIT_CONFLICT_CODE}: ktoś inny zapisał`));
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-
-    expect(toast().error).toHaveBeenCalled();
-    // Kluczowe: żadnego „Zapisano" po zapisie, który się nie udał.
-    expect(toast().success).not.toHaveBeenCalled();
-    // I formularz nie jest zablokowany na zawsze.
-    expect(result.current.busy).toBe(false);
-  });
-
-  it("odrzucona deklaracja komercyjna: komunikat WYMIENIA brakujące pola", async () => {
-    // „Zapis odrzucony" bez wskazania pola kazałoby redaktorowi zgadywać,
-    // czego brakuje w ustawowym oznaczeniu materiału komercyjnego.
-    update().mockRejectedValue(new Error(`${DISCLOSURE_ERROR_PREFIX} kind, advertiser`));
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-
-    const messages = toast().error.mock.calls.map((c) => String(c[0]));
-    expect(messages.some((m) => m.includes("gapToast"))).toBe(true);
-    expect(messages.some((m) => m.includes("kind") && m.includes("advertiser"))).toBe(true);
-  });
-
-  it("miękka bramka checklisty: brak wymaganej pozycji pyta, nie blokuje", async () => {
-    // Wpis bez okładki wchodzący w `published` - checklista ma braki, więc
-    // pytamy; potwierdzenie przepuszcza zapis.
-    const { result } = harness({ post: postForm({ cover_image_url: null }) });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    confirmDialog().mockResolvedValue(true);
-
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-
-    expect(confirmDialog()).toHaveBeenCalledTimes(1);
-    expect(update()).toHaveBeenCalledTimes(1);
-  });
-
-  it("odmowa w miękkiej bramce PRZERYWA zapis", async () => {
-    const { result } = harness({ post: postForm({ cover_image_url: null }) });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    confirmDialog().mockResolvedValue(false);
-
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-
-    expect(update()).not.toHaveBeenCalled();
-    expect(toast().success).not.toHaveBeenCalled();
-  });
-
-  it("kompletny wpis przechodzi w published BEZ pytania", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-
-    expect(confirmDialog()).not.toHaveBeenCalled();
-  });
-
-  it("przejście, które NIE jest publikacją, nie dotyka bramki", async () => {
-    // Autosave i zwykłe zapisy nie mogą przechodzić przez bramkę publikacji -
-    // inaczej redaktor dostawałby pytanie przy każdym zapisie szkicu.
-    const { result } = harness({ post: postForm({ cover_image_url: null }) });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    expect(confirmDialog()).not.toHaveBeenCalled();
-    expect(update()).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Normalizacja sluga przez serwer
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - slug znormalizowany przez serwer", () => {
-  it("ostrzega redaktora i nawiguje na slug FAKTYCZNIE zapisany", async () => {
-    // Nawigacja na slug wpisany w formularzu załadowałaby CUDZY wpis, który ten
-    // slug już posiada - i następny autosave zapisałby na tamtym wierszu.
-    update().mockResolvedValue({ ok: true as const, slug: "moj-wpis-2", updatedAt: "SAVED-2" });
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-
-    expect(toast().warning).toHaveBeenCalled();
-    expect(navigate()).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "/admin/posts/$slug",
-        params: { slug: "moj-wpis-2" },
-        replace: true,
+    rerender({
+      data: makeData({
+        post: postForm({
+          id: "post-2",
+          slug: "drugi-wpis",
+          title_pl: "Drugi wpis",
+          updated_at: "2026-08-05T08:00:00.000Z",
+        }),
+        id: "post-2",
       }),
-    );
-    // Pole formularza zsynchronizowane z tym, co realnie trafiło do bazy.
-    await waitFor(() => expect(result.current.form?.slug).toBe("moj-wpis-2"));
+      routeSlug: "drugi-wpis",
+    });
+
+    expect(result.current.form?.title_pl).toBe("Drugi wpis");
+    act(() => result.current.set("excerpt_pl", "cokolwiek"));
+    await act(async () => {
+      await result.current.save();
+    });
+    expect(lastPayload().baseUpdatedAt).toBe("2026-08-05T08:00:00.000Z");
   });
 
-  it("slug niezmieniony: żadnego ostrzeżenia i żadnej nawigacji", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+  it("przenosi relacje wpisu na zaznaczenia i wysyła je w zapisie", async () => {
+    const { result } = mount({
+      postCats: [{ category_id: "c-1" }, { category_id: "c-2" }],
+      postTags: [{ tag_id: "t-1" }],
+      postPrograms: [{ program_id: "pr-1" }],
+      postRegions: [{ region_id: "r-1" }],
+    });
+
+    expect(result.current.selectedCats).toEqual(["c-1", "c-2"]);
+    expect(result.current.selectedTags).toEqual(["t-1"]);
+    expect(result.current.selectedPrograms).toEqual(["pr-1"]);
+    expect(result.current.selectedRegions).toEqual(["r-1"]);
+
+    act(() => result.current.set("title_pl", "Zmiana"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Taksonomie jadą w TYM SAMYM żądaniu co treść - zapis bez nich zerwałby
+    // przypisania wpisu do kategorii przy pierwszym autozapisie.
+    const payload = lastPayload();
+    expect(payload.categories).toEqual(["c-1", "c-2"]);
+    expect(payload.tags).toEqual(["t-1"]);
+    expect(payload.programs).toEqual(["pr-1"]);
+    expect(payload.regions).toEqual(["r-1"]);
+  });
+});
+
+describe("skróty klawiszowe undo/redo", () => {
+  it("Ctrl+Z cofa ostatnią zmianę formularza", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+
+    press("z", { ctrl: true });
+
+    expect(result.current.form?.title_pl).toBe("Tytuł z bazy");
+  });
+
+  it("Cmd+Z (macOS) cofa tak samo jak Ctrl+Z", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+
+    press("Z", { meta: true });
+
+    // Klawisz przychodzi wielką literą przy wciśniętym Shifcie/CapsLocku -
+    // porównanie bez `toLowerCase()` zabiłoby skrót na macOS.
+    expect(result.current.form?.title_pl).toBe("Tytuł z bazy");
+  });
+
+  it("Shift+Ctrl+Z ponawia cofniętą zmianę", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+    press("z", { ctrl: true });
+
+    press("z", { ctrl: true, shift: true });
+
+    expect(result.current.form?.title_pl).toBe("Nowy tytuł");
+  });
+
+  it("Ctrl+Y ponawia cofniętą zmianę (wariant windowsowy)", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+    press("z", { ctrl: true });
+
+    press("y", { ctrl: true });
+
+    expect(result.current.form?.title_pl).toBe("Nowy tytuł");
+  });
+
+  it("blokuje natywne cofanie przeglądarki przy obsłużonym skrócie", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+
+    const event = press("z", { ctrl: true });
+
+    // Bez `preventDefault` przeglądarka cofnęłaby RÓWNOLEGLE własną historię
+    // pola tekstowego - jedno wciśnięcie Ctrl+Z cofałoby dwa kroki.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("samo „z” bez Ctrl/Cmd nie cofa (to zwykłe pisanie)", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+
+    const event = press("z");
+
+    expect(result.current.form?.title_pl).toBe("Nowy tytuł");
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("seria zmian w tym samym polu cofa się JEDNYM Ctrl+Z", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "N"));
+    act(() => result.current.set("title_pl", "No"));
+    act(() => result.current.set("title_pl", "Nowy"));
+
+    press("z", { ctrl: true });
+
+    // Wpis historii jest sklejany kluczem pola: cofanie ma wracać do stanu
+    // sprzed CAŁEJ serii pisania, a nie kasować literę po literze.
+    expect(result.current.form?.title_pl).toBe("Tytuł z bazy");
+  });
+
+  it("nie przechwytuje innych skrótów z Ctrl (np. Ctrl+S)", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+
+    const event = press("s", { ctrl: true });
+
+    // Edytor obsługuje WYŁĄCZNIE cofanie i ponawianie. Połknięcie innych
+    // skrótów odbierałoby przeglądarce i systemowi ich własne funkcje.
+    expect(event.defaultPrevented).toBe(false);
+    expect(result.current.form?.title_pl).toBe("Nowy tytuł");
+  });
+
+  it("po odmontowaniu edytora skrót przestaje być przechwytywany", () => {
+    const { unmount } = mount();
+    unmount();
+
+    const event = press("z", { ctrl: true });
+
+    // Wyciek nasłuchu oznaczałby, że Ctrl+Z na INNYM ekranie panelu nadal
+    // trafia w martwy edytor zamiast w przeglądarkę.
+    expect(event.defaultPrevented).toBe(false);
+  });
+});
+
+describe("zapis jawny (save)", () => {
+  it("wysyła komplet pól, taksonomie i bazę optimistic-locka", async () => {
+    const { result } = mount({ postCats: [{ category_id: "c-1" }] });
+    act(() => result.current.set("title_pl", "Zapisany tytuł"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    const payload = lastPayload();
+    expect(payload.id).toBe(POST_ID);
+    expect(payload.fields.title_pl).toBe("Zapisany tytuł");
+    expect(payload.fields.slug).toBe(ROUTE_SLUG);
+    expect(payload.baseUpdatedAt).toBe(LOADED_UPDATED_AT);
+    expect(h.toastSuccess).toHaveBeenCalledWith("admin.saved", undefined);
+  });
+
+  it("wpis bez znacznika updated_at zapisuje się BEZ pola optimistic-locka", async () => {
+    const { result } = mount({ post: postForm({ updated_at: null }) });
+    act(() => result.current.set("title_pl", "Zmiana"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Walidator `updatePost` przyjmuje `baseUpdatedAt` jako opcjonalny STRING;
+    // wysłanie `null` wywróciłoby cały zapis na walidacji, a nie tylko
+    // pominęło kontrolę konfliktu.
+    expect(lastPayload().baseUpdatedAt).toBeUndefined();
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+  });
+
+  it("nierozpoznany błąd bez klasy Error też dociera do redaktora", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    h.updatePost.mockRejectedValueOnce("serwer zwrócił goły tekst");
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Odrzucenie nie-Errorem (tak potrafi wracać błąd zza granicy server-fn)
+    // nie może skończyć się pustym toastem - redaktor musi wiedzieć, że
+    // zapis NIE przeszedł.
+    expect(h.toastError).toHaveBeenCalledWith("serwer zwrócił goły tekst", undefined);
+  });
+
+  it("REGRESJA: twarda bramka SEO nie dopuszcza zapisu i mówi o tym redaktorowi", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    act(() => result.current.setSeoIssues([seoIssue("error")]));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.updatePost).not.toHaveBeenCalled();
+    expect(h.toastError).toHaveBeenCalledWith("admin.seo.validation.blockToast", undefined);
+    // Cichy brak zapisu byłby gorszy niż błąd: redaktor wyszedłby z edytora
+    // przekonany, że zapisał.
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("ostrzeżenia SEO tylko ostrzegają - zapis idzie dalej", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    act(() => result.current.setSeoIssues([seoIssue("warning"), seoIssue("warning")]));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.toastWarning).toHaveBeenCalledWith(
+      'admin.seo.validation.warnToast|{"count":2}',
+      undefined,
+    );
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+  });
+
+  it("nazywa konflikt edycji osobnym komunikatem", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    h.updatePost.mockRejectedValueOnce(new Error(`${EDIT_CONFLICT_CODE}: ktoś inny zapisał`));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Stały `id` toasta: seria nieudanych autozapisów ma dać JEDEN komunikat,
+    // a nie stos identycznych.
+    expect(h.toastError).toHaveBeenCalledWith("admin.editConflict", { id: "edit-conflict" });
+  });
+
+  it("wymienia BRAKUJĄCE pola ujawnienia komercyjnego, gdy serwer odrzuca publikację", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    h.updatePost.mockRejectedValueOnce(
+      new Error(`${DISCLOSURE_ERROR_PREFIX}advertiser,advertiserUrl`),
+    );
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // „Zapis odrzucony" bez wskazania pól kazałoby redaktorowi zgadywać,
+    // czego brakuje w oznaczeniu materiału.
+    const call = h.toastError.mock.calls.find(([m]) =>
+      String(m).startsWith("adminPostPanes.sponsored.gapToast"),
+    );
+    expect(call?.[0]).toContain("adminPostPanes.sponsored.gap.advertiser");
+    expect(call?.[0]).toContain("adminPostPanes.sponsored.gap.advertiserUrl");
+    expect(call?.[1]).toEqual({ id: "sponsored-disclosure-gap" });
+  });
+
+  it("nierozpoznany błąd zapisu leci do redaktora surowy", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    h.updatePost.mockRejectedValueOnce(new Error("bazy nie ma"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.toastError).toHaveBeenCalledWith("bazy nie ma", undefined);
+    expect(h.toastError).not.toHaveBeenCalledWith("admin.editConflict", expect.anything());
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    // Formularz zostaje w stanie „brudnym", żeby strażnik wyjścia dalej
+    // chronił niezapisany tekst.
+    expect(result.current.autosave.isDirty).toBe(true);
+  });
+
+  it("zwalnia blokadę przycisków także po nieudanym zapisie", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    h.updatePost.mockRejectedValueOnce(new Error("sieć padła"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // `busy` zawieszone na `true` zablokowałoby edytor na stałe - jedyną
+    // drogą naprawy byłoby przeładowanie strony i utrata tekstu.
+    expect(result.current.busy).toBe(false);
+  });
+});
+
+describe("zapis ze zmianą statusu (applyStatus)", () => {
+  it("zapisuje status i treść JEDNYM żądaniem", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Tekst po poprawkach"));
+
+    await act(async () => {
+      await result.current.applyStatus("pending_review");
+    });
+
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+    const payload = lastPayload();
+    // Rozbicie na dwa zapisy dałoby wyścig z autozapisem: recenzent dostałby
+    // wpis ze statusem „do recenzji", ale bez ostatnich poprawek.
+    expect(payload.fields.status).toBe("pending_review");
+    expect(payload.fields.title_pl).toBe("Tekst po poprawkach");
+    expect(result.current.form?.status).toBe("pending_review");
+  });
+
+  it("blokuje przyciski na czas zapisu i zwalnia po jego końcu", async () => {
+    const { result } = mount();
+    let release!: (value: unknown) => void;
+    h.updatePost.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.applyStatus("published");
+      await Promise.resolve();
+    });
+    // Bez blokady dwukrotne kliknięcie „Publikuj" wysłałoby dwa zapisy,
+    // z których drugi poleciałby na nieaktualną bazę locka.
+    expect(result.current.busy).toBe(true);
+
+    await act(async () => {
+      release({ ok: true, slug: ROUTE_SLUG, updatedAt: SAVED_UPDATED_AT });
+      await pending;
+    });
+    expect(result.current.busy).toBe(false);
+  });
+
+  it("REGRESJA: twarda bramka SEO NIE blokuje publikacji (asymetria wobec save)", async () => {
+    const { result } = mount({ postCats: [{ category_id: "c-1" }] });
+    act(() => result.current.setSeoIssues([seoIssue("error")]));
 
     await act(async () => {
       await result.current.applyStatus("published");
     });
 
-    expect(toast().warning).not.toHaveBeenCalled();
-    expect(navigate()).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Jawny zapis i bramka SEO
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - save() i bramka SEO", () => {
-  it("blokujący problem SEO wstrzymuje zapis", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.setSeoIssues([seoIssue({ severity: "error" })]));
-
-    await act(async () => {
-      await result.current.save();
-    });
-
-    expect(update()).not.toHaveBeenCalled();
-    expect(toast().error).toHaveBeenCalled();
-    expect(toast().success).not.toHaveBeenCalled();
+    // ZACHOWANIE ISTNIEJĄCE, przypięte świadomie: ta sama treść, której
+    // „Zapisz" nie przepuści, przechodzi ścieżką „Publikuj". Zmiana wymaga
+    // decyzji produktowej - test ma sprawić, żeby asymetria przestała być
+    // niewidoczna (patrz komentarz przy `seoSaveGate`).
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+    expect(lastPayload().fields.status).toBe("published");
   });
 
-  it("ostrzeżenia pikselowe NIE blokują - ostrzegają i zapisują", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.setSeoIssues([seoIssue({ severity: "warning" })]));
-    // Formularz musi być brudny, żeby flush miał co zapisać.
-    act(() => result.current.set("title_pl", "Zmiana"));
+  it("nie robi nic, dopóki formularz nie jest wczytany", async () => {
+    const { result } = mount({ post: undefined, id: "", isLoading: true });
 
     await act(async () => {
-      await result.current.save();
+      await result.current.applyStatus("published");
     });
 
-    expect(toast().warning).toHaveBeenCalled();
-    expect(toast().success).toHaveBeenCalled();
+    expect(h.updatePost).not.toHaveBeenCalled();
   });
 
-  it("nieudany zapis w save(): błąd, nie meldunek sukcesu", async () => {
-    // `useAutosave.flush()` celowo ODRZUCA, gdy zapis padł. To tutaj odrzucenie
-    // ma zamienić się w komunikat - „Zapisano" po nieudanym zapisie było
-    // przyczyną całkowitej utraty pracy w page builderze.
-    update().mockRejectedValue(new Error("serwer odmówił"));
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.set("title_pl", "Zmiana"));
+  it("pokazuje błąd zapisu i nie kłamie sukcesem", async () => {
+    const { result } = mount();
+    h.updatePost.mockRejectedValueOnce(new Error("odmowa serwera"));
 
     await act(async () => {
-      await result.current.save();
+      await result.current.applyStatus("pending_review");
     });
 
-    expect(toast().error).toHaveBeenCalled();
-    expect(toast().success).not.toHaveBeenCalled();
+    expect(h.toastError).toHaveBeenCalledWith("odmowa serwera", undefined);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(result.current.busy).toBe(false);
   });
+
+  it("błąd bez klasy Error również kończy się komunikatem, a nie ciszą", async () => {
+    const { result } = mount();
+    h.updatePost.mockRejectedValueOnce("odmowa bez klasy Error");
+
+    await act(async () => {
+      await result.current.applyStatus("pending_review");
+    });
+
+    expect(h.toastError).toHaveBeenCalledWith("odmowa bez klasy Error", undefined);
+  });
 });
 
-// ---------------------------------------------------------------------------
-// Porzucenie zmian
-// ---------------------------------------------------------------------------
+describe("miękka bramka checklisty publikacji", () => {
+  const withGap = { cover_image_url: null };
 
-describe("usePostEditorForm - discardToSaved", () => {
-  it("wraca do OSTATNIO ZAPISANEJ migawki, nie do wiersza z montażu", async () => {
-    // Powrót do stanu z montażu kazałby autosave'owi zapisać STARĄ treść na
-    // nowszej, już zapisanej pracy.
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+  it("pyta o zgodę przy wejściu w publikację z brakami i wymienia braki", async () => {
+    const { result } = mount({ post: postForm(withGap) });
 
-    act(() => result.current.set("title_pl", "Roboczy tytuł"));
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Roboczy tytuł"));
+    await act(async () => {
+      await result.current.applyStatus("published");
+    });
+
+    const request = h.confirmDialog.mock.calls[0][0] as { title: string; description: string };
+    expect(request.title).toBe("adminPostPanes.publishChecklist.gateTitle");
+    // Pytanie bez wskazania braków jest bezwartościowe - redaktor musi
+    // wiedzieć, CO pomija, klikając „publikuj mimo to".
+    expect(request.description).toContain("adminPostPanes.publishChecklist.items.cover");
+  });
+
+  it("odmowa w oknie potwierdzenia zostawia wpis w spokoju", async () => {
+    h.confirmDialog.mockResolvedValueOnce(false);
+    const { result } = mount({ post: postForm(withGap) });
+
+    await act(async () => {
+      await result.current.applyStatus("published");
+    });
+
+    expect(h.updatePost).not.toHaveBeenCalled();
+    // Status też nie może „przeskoczyć" mimo rezygnacji - inaczej następny
+    // autozapis dokończyłby publikację, której redaktor nie chciał.
+    expect(result.current.form?.status).toBe("draft");
+  });
+
+  it("zgoda w oknie potwierdzenia publikuje mimo braków", async () => {
+    const { result } = mount({ post: postForm(withGap) });
+
+    await act(async () => {
+      await result.current.applyStatus("published");
+    });
+
+    expect(lastPayload().fields.status).toBe("published");
+  });
+
+  it("nie pyta, gdy checklista jest kompletna", async () => {
+    // Kategoria jest pozycją WYMAGANĄ liczoną z zaznaczeń, nie z formularza -
+    // stąd relacja wpisu w danych wejściowych.
+    const { result } = mount({ postCats: [{ category_id: "c-1" }] });
+
+    await act(async () => {
+      await result.current.applyStatus("published");
+    });
+
+    // Pytanie przy każdej publikacji nauczyłoby redakcję klikać „mimo to"
+    // odruchowo i bramka przestałaby cokolwiek chronić.
+    expect(h.confirmDialog).not.toHaveBeenCalled();
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+  });
+
+  it("nie pyta przy przejściach spoza publikacji, nawet z brakami", async () => {
+    const { result } = mount({ post: postForm(withGap) });
+
+    await act(async () => {
+      await result.current.applyStatus("pending_review");
+    });
+
+    expect(h.confirmDialog).not.toHaveBeenCalled();
+    expect(lastPayload().fields.status).toBe("pending_review");
+  });
+
+  it("nie pyta przy zapisie wpisu JUŻ opublikowanego", async () => {
+    const { result } = mount({ post: postForm({ ...withGap, status: "published" }) });
+
+    await act(async () => {
+      await result.current.applyStatus("scheduled");
+    });
+
+    // Wpis jest już publiczny; bramka pilnuje WEJŚCIA w publikację, a nie
+    // każdej korekty żywego artykułu.
+    expect(h.confirmDialog).not.toHaveBeenCalled();
+  });
+
+  it("liczy brak ujawnienia komercyjnego jako pozycję wymaganą", async () => {
+    const { result } = mount({
+      post: postForm({ is_sponsored: true, sponsored_kind: null }),
+    });
+
+    expect(result.current.publishChecklist?.requiredOk).toBe(false);
+    await act(async () => {
+      await result.current.confirmPublishGaps("published");
+    });
+
+    // Serwer i tak odrzuci taką publikację - redaktor ma się o tym dowiedzieć
+    // w bramce, a nie z komunikatu błędu po kliknięciu.
+    const request = h.confirmDialog.mock.calls[0][0] as { description: string };
+    expect(request.description).toContain(
+      "adminPostPanes.publishChecklist.items.sponsoredDisclosure",
+    );
+  });
+
+  it("przepuszcza bez pytania, gdy formularz nie jest wczytany", async () => {
+    const { result } = mount({ post: undefined, id: "", isLoading: true });
+
+    let decision = false;
+    await act(async () => {
+      decision = await result.current.confirmPublishGaps("published");
+    });
+
+    expect(decision).toBe(true);
+    expect(h.confirmDialog).not.toHaveBeenCalled();
+  });
+});
+
+describe("odrzucenie zmian (discardToSaved)", () => {
+  it("REGRESJA: wraca do OSTATNIO ZAPISANEGO stanu, nie do wiersza z montowania", async () => {
+    const { result } = mount({ postCats: [{ category_id: "c-1" }] });
+
+    act(() => result.current.set("title_pl", "Wersja zapisana"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    act(() => result.current.set("title_pl", "Wersja porzucona"));
+    act(() => result.current.setSelectedCats(["c-9"]));
 
     act(() => result.current.discardToSaved());
 
-    await waitFor(() => expect(result.current.form?.title_pl).toBe(postForm().title_pl));
+    // Powrót do wiersza z montowania nadpisałby autozapisaną pracę treścią
+    // sprzed zapisu - i to autozapis utrwaliłby tę stratę sekundę później.
+    expect(result.current.form?.title_pl).toBe("Wersja zapisana");
+    expect(result.current.form?.title_pl).not.toBe("Tytuł z bazy");
+    expect(result.current.selectedCats).toEqual(["c-1"]);
   });
 
-  it("przywraca też wybory taksonomii z ostatniego zapisu", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await waitFor(() => expect(result.current.selectedCats).toEqual(["cat-1"]));
-    act(() => result.current.setSelectedCats(["cat-nowa"]));
-    await waitFor(() => expect(result.current.selectedCats).toEqual(["cat-nowa"]));
+  it("kliknięcie „odrzuć” przed wczytaniem wpisu nie tworzy formularza", () => {
+    const { result } = mount({ post: undefined, id: "", isLoading: true });
 
     act(() => result.current.discardToSaved());
 
-    // Powrot do stanu OSTATNIEGO ZAPISU, czyli kategorii wczytanej z bazy.
-    await waitFor(() => expect(result.current.selectedCats).toEqual(["cat-1"]));
+    // Ostatni zapisany stan nie istnieje - podstawienie go bezwarunkowo
+    // dałoby formularz `null` w miejscu, gdzie reszta edytora oczekuje wpisu.
+    expect(result.current.form).toBeNull();
+    expect(result.current.selectedCats).toEqual([]);
+  });
+
+  it("po odrzuceniu zmian autozapis nadal uważa formularz za brudny i zapisuje go raz jeszcze", async () => {
+    // ZACHOWANIE ISTNIEJĄCE, przypięte świadomie (zgłoszone w raporcie, kodu
+    // nie ruszam). `useAutosave` porównuje wartości przez `Object.is`, a
+    // `discardToSaved` odtwarza krotkę [formularz, taksonomie] jako NOWY
+    // obiekt - identyczny treścią, inny tożsamością. Skutek dla redaktora:
+    // po kliknięciu „odrzuć zmiany" strażnik wyjścia dalej ostrzega o
+    // niezapisanych zmianach, a sekundę później leci zapis tej samej treści
+    // (podbity `updated_at` i dodatkowy wpis w historii wersji). Naprawa
+    // wymaga porównania po treści - to decyzja produktowa, nie literówka.
+    vi.useFakeTimers();
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Wersja zapisana"));
+    await act(async () => {
+      await result.current.save();
+    });
+    expect(result.current.autosave.isDirty).toBe(false);
+    act(() => result.current.set("title_pl", "Wersja porzucona"));
+
+    act(() => result.current.discardToSaved());
+    expect(result.current.form?.title_pl).toBe("Wersja zapisana");
+    expect(result.current.autosave.isDirty).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
+    expect(h.updatePost).toHaveBeenCalledTimes(2);
+    expect(lastPayload().fields.title_pl).toBe("Wersja zapisana");
   });
 });
 
-// ---------------------------------------------------------------------------
-// Usunięcie wpisu
-// ---------------------------------------------------------------------------
+describe("strażnik niezapisanych zmian", () => {
+  it("uzbraja blokadę nawigacji dopiero przy niezapisanej zmianie", () => {
+    const { result } = mount();
+    expect((h.blocker.mock.calls.at(-1)?.[0] as { disabled: boolean }).disabled).toBe(true);
 
-describe("usePostEditorForm - del()", () => {
-  it("pyta o potwierdzenie, usuwa i wraca na listę", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
 
-    await act(async () => {
-      await result.current.del();
-    });
-
-    expect(confirmDialog()).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }));
-    expect(del()).toHaveBeenCalledWith({ data: { id: postForm().id } });
-    expect(navigate()).toHaveBeenCalledWith({ to: "/admin/posts" });
-    expect(toast().success).toHaveBeenCalled();
-  });
-
-  it("odmowa potwierdzenia NIE usuwa niczego", async () => {
-    confirmDialog().mockResolvedValue(false);
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.del();
-    });
-
-    expect(del()).not.toHaveBeenCalled();
-    expect(navigate()).not.toHaveBeenCalled();
-  });
-
-  it("błąd usunięcia jest pokazany i NIE nawiguje", async () => {
-    del().mockRejectedValue(new Error("nie można usunąć"));
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.del();
-    });
-
-    expect(toast().error).toHaveBeenCalled();
-    // Nawigacja na listę po nieudanym usunięciu wyglądałaby jak sukces.
-    expect(navigate()).not.toHaveBeenCalled();
+    // Bez uzbrojenia blokera zamknięcie karty w trakcie pisania wyrzuca tekst
+    // sprzed ostatniego autozapisu bez żadnego ostrzeżenia.
+    expect((h.blocker.mock.calls.at(-1)?.[0] as { disabled: boolean }).disabled).toBe(false);
   });
 });
 
-// ---------------------------------------------------------------------------
-// Skróty klawiaturowe (podłączenie reguły do okna)
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - skróty historii", () => {
-  it("Ctrl+Z cofa zmianę w formularzu", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.set("title_pl", "Wersja druga"));
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Wersja druga"));
-
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true }));
+describe("normalizacja slugu po zapisie", () => {
+  it("pokazuje kolizję, poprawia pole i przenosi trasę na slug ZAPISANY", async () => {
+    const { result } = mount();
+    act(() => result.current.set("slug", "zajety-slug"));
+    h.updatePost.mockResolvedValueOnce({
+      ok: true,
+      slug: "zajety-slug-2",
+      updatedAt: SAVED_UPDATED_AT,
     });
 
-    await waitFor(() => expect(result.current.form?.title_pl).toBe(postForm().title_pl));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.toastWarning).toHaveBeenCalledWith(
+      'admin.slugTaken|{"slug":"zajety-slug-2"}',
+      undefined,
+    );
+    expect(result.current.form?.slug).toBe("zajety-slug-2");
+    // Nawigacja MUSI iść na slug zapisany: przejście na „zajety-slug"
+    // załadowałoby CUDZY wpis, który ten slug posiada.
+    expect(h.navigate).toHaveBeenCalledWith({
+      to: "/admin/posts/$slug",
+      params: { slug: "zajety-slug-2" },
+      replace: true,
+    });
   });
 
-  it("Shift+Ctrl+Z ponawia cofniętą zmianę", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.set("title_pl", "Wersja druga"));
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Wersja druga"));
+  it("przenosi trasę przy świadomej zmianie slugu, bez ostrzeżenia o kolizji", async () => {
+    const { result } = mount();
+    act(() => result.current.set("slug", "nowy-slug"));
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true }));
-    });
-    await waitFor(() => expect(result.current.form?.title_pl).toBe(postForm().title_pl));
-
-    act(() => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true }),
-      );
+    await act(async () => {
+      await result.current.save();
     });
 
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Wersja druga"));
+    expect(h.toastWarning).not.toHaveBeenCalled();
+    expect(h.navigate).toHaveBeenCalledWith({
+      to: "/admin/posts/$slug",
+      params: { slug: "nowy-slug" },
+      replace: true,
+    });
   });
 
-  it("nasłuch jest zdejmowany przy odmontowaniu", async () => {
-    const remove = vi.spyOn(window, "removeEventListener");
-    const { result, unmount } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+  it("REGRESJA: korekta kolizji nie nadpisuje slugu wpisanego W TRAKCIE zapisu", async () => {
+    const { result } = mount();
+    let release!: (value: unknown) => void;
+    h.updatePost.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    act(() => result.current.set("slug", "zajety-slug"));
+
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.save();
+      await Promise.resolve();
+    });
+    // Redaktor pisze dalej, zanim serwer odpowie na poprzedni zapis.
+    act(() => result.current.set("slug", "trzeci-pomysl"));
+
+    await act(async () => {
+      release({ ok: true, slug: "zajety-slug-2", updatedAt: SAVED_UPDATED_AT });
+      await pending;
+    });
+
+    // Synchronizacja pola z bazą dotyczy TYLKO slugu, który poszedł w tym
+    // żądaniu. Bezwarunkowe podstawienie kasowałoby litery pisane w trakcie
+    // zapisu - pole „skakałoby" redaktorowi pod palcami.
+    expect(result.current.form?.slug).toBe("trzeci-pomysl");
+  });
+
+  it("REGRESJA: zwykły zapis nie przenosi trasy", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana bez slugu"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Nawigacja przy KAŻDYM autozapisie przerysowywałaby trasę co 1,5 s -
+    // to był objaw „auto-refresh" edytora zgłaszany przez redakcję.
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("inwalidacje cache", () => {
+  it("autozapis rusza WYŁĄCZNIE listę wpisów, i to bez pobierania", async () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.qc.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["admin-posts"],
+      refetchType: "none",
+    });
+    // Ciężkie inwalidacje przy każdym zapisie kazały loaderom trasy pobierać
+    // wiersz od nowa - edytor sam się odświeżał redaktorowi pod palcami.
+    expect(h.invalidateWidgetCaches).not.toHaveBeenCalled();
+    expect(h.emitWidgetCacheInvalidate).not.toHaveBeenCalled();
+    expect(h.invalidateSeoCaches).not.toHaveBeenCalled();
+    expect(h.router.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("odmontowanie po zapisie odświeża widoki publiczne i dashboard SEO", async () => {
+    const { result, unmount } = mount();
+    act(() => result.current.set("title_pl", "Zmiana"));
+    await act(async () => {
+      await result.current.save();
+    });
+    h.qc.invalidateQueries.mockClear();
 
     unmount();
 
-    expect(remove).toHaveBeenCalledWith("keydown", expect.any(Function));
-    remove.mockRestore();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Inwalidacje
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - inwalidacje", () => {
-  it("autosave NIE uruchamia ciężkich inwalidacji (to był „auto-refresh” edytora)", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    // Cache widgetów, cache SEO i router.invalidate() przy KAŻDYM zapisie
-    // powodowały ciągłe przeładowywanie edytora w trakcie pisania.
-    expect(h.invalidateWidgetCaches as Mock).not.toHaveBeenCalled();
-    expect(h.invalidateSeoCaches as Mock).not.toHaveBeenCalled();
+    // Bez tego kroku publiczna strona i /admin/seo pokazywałyby starą treść
+    // aż do twardego przeładowania.
+    expect(h.qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["admin-posts"] });
+    expect(h.invalidateWidgetCaches).toHaveBeenCalledWith(h.qc);
+    expect(h.emitWidgetCacheInvalidate).toHaveBeenCalledTimes(1);
+    expect(h.invalidateSeoCaches).toHaveBeenCalledWith(h.qc, h.router);
   });
 
-  it("przywrócenie rewizji odświeża wiersz wpisu i cache widgetów", async () => {
-    const { result, client } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    const spy = vi.spyOn(client, "invalidateQueries");
+  it("wyjście z edytora BEZ zapisu nie unieważnia niczego", () => {
+    const { unmount } = mount();
+
+    unmount();
+
+    // Samo obejrzenie wpisu nie może kasować cache'u całej witryny - to
+    // kosztuje pełne przeładowanie danych każdemu, kto akurat czyta panel.
+    expect(h.invalidateWidgetCaches).not.toHaveBeenCalled();
+    expect(h.emitWidgetCacheInvalidate).not.toHaveBeenCalled();
+    expect(h.invalidateSeoCaches).not.toHaveBeenCalled();
+  });
+
+  it("przywrócenie wersji odświeża wiersz wpisu i cache widgetów", () => {
+    const { result } = mount();
 
     act(() => result.current.onRevisionRestored());
 
-    expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        queryKey: ["post-by-slug", postEditorData().tenantId, "moj-wpis"],
-      }),
+    // Klucz jest zawężony tenantem: bez tego przywrócenie wersji w jednym
+    // obszarze roboczym unieważniałoby wpisy innego.
+    expect(h.qc.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["post-by-slug", TENANT, ROUTE_SLUG],
+    });
+    expect(h.invalidateWidgetCaches).toHaveBeenCalledWith(h.qc);
+    expect(h.emitWidgetCacheInvalidate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("autozapis w tle", () => {
+  it("zapisuje po chwili bezczynności, bez udziału redaktora", async () => {
+    vi.useFakeTimers();
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Pisane w tle"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
+
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+    expect(lastPayload().fields.title_pl).toBe("Pisane w tle");
+  });
+
+  it("REGRESJA: sama zmiana taksonomii też wyzwala autozapis", async () => {
+    vi.useFakeTimers();
+    const { result } = mount({ postCats: [{ category_id: "c-1" }] });
+    act(() => result.current.setSelectedCats(["c-1", "c-2"]));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
+
+    // Autozapis obserwuje krotkę [formularz, kategorie, tagi, programy,
+    // regiony]. Gdyby patrzył tylko na formularz, przypisanie kategorii
+    // ginęłoby przy wyjściu z edytora bez dotknięcia treści.
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+    expect(lastPayload().categories).toEqual(["c-1", "c-2"]);
+  });
+
+  it("samo wczytanie wpisu nie wywołuje zapisu", async () => {
+    vi.useFakeTimers();
+    mount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    // Zapis „z powietrza" przy otwarciu wpisu podbijałby `updated_at` i
+    // fałszował historię wersji dla wpisów, których nikt nie edytował.
+    expect(h.updatePost).not.toHaveBeenCalled();
+  });
+});
+
+describe("wklejone grafiki (data-URL)", () => {
+  const blocksWithImage = () => ({
+    pl: {
+      version: 1 as const,
+      blocks: [{ id: "b1", type: "image" as const, data: { url: PNG_DATA_URL } }],
+    },
+    en: { version: 1 as const, blocks: [] },
+  });
+
+  it("wgrywa wklejoną grafikę do biblioteki mediów i zapisuje publiczny adres", async () => {
+    const { result } = mount({ post: postForm({ blocks_data: blocksWithImage() }) });
+    act(() => result.current.set("title_pl", "Wpis z wklejonym obrazkiem"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.uploadAndRegisterMedia).toHaveBeenCalledTimes(1);
+    const uploadArgs = h.uploadAndRegisterMedia.mock.calls[0][0] as {
+      file: File;
+      tenantId: string;
+      userId: string;
+      subfolder: string;
+    };
+    // Stempel tenanta i użytkownika decyduje o tym, w czyim obszarze roboczym
+    // wyląduje plik - pomyłka wynosi grafikę do cudzej biblioteki.
+    expect(uploadArgs.tenantId).toBe(TENANT);
+    expect(uploadArgs.userId).toBe("user-1");
+    expect(uploadArgs.subfolder).toBe("posts");
+    expect(uploadArgs.file.name).toBe("wklejony-obraz-1.png");
+
+    const saved = JSON.stringify(lastPayload().fields.blocks_data);
+    // Base64 w kolumnie jsonb rozdyma bazę i nie pokazuje się w /admin/media.
+    expect(saved).not.toContain("data:image");
+    expect(saved).toContain("https://cdn.test/wklejony.png");
+  });
+
+  it("podmienia adres także w formularzu, więc kolejny zapis nie wgrywa go ponownie", async () => {
+    const { result } = mount({ post: postForm({ blocks_data: blocksWithImage() }) });
+    act(() => result.current.set("title_pl", "Pierwsza zmiana"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(JSON.stringify(result.current.form?.blocks_data)).toContain(
+      "https://cdn.test/wklejony.png",
     );
-    expect(h.invalidateWidgetCaches as Mock).toHaveBeenCalled();
-    expect(h.emitWidgetCacheInvalidate as Mock).toHaveBeenCalled();
-  });
 
-  it("odmontowanie BEZ zapisu nie odpala ciężkich inwalidacji", async () => {
-    const { result, unmount } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    unmount();
-
-    expect(h.invalidateWidgetCaches as Mock).not.toHaveBeenCalled();
-    expect(h.invalidateSeoCaches as Mock).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Przeterminowany harmonogram
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - scheduledInPast", () => {
-  it("wpis zaplanowany na przeszłość jest oznaczony", async () => {
-    // Taki wpis czeka na najbliższy przebieg schedulera, a redaktor widzi status
-    // „zaplanowany" i zakłada, że wszystko jest w porządku.
-    const { result } = harness({
-      post: postForm({ status: "scheduled", publish_at: "2020-01-01T00:00:00.000Z" }),
-    });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    expect(result.current.scheduledInPast).toBe(true);
-  });
-
-  it("wpis zaplanowany na przyszłość nie jest oznaczony", async () => {
-    const { result } = harness({
-      post: postForm({ status: "scheduled", publish_at: "2099-01-01T00:00:00.000Z" }),
-    });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    expect(result.current.scheduledInPast).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Checklista publikacji
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - publishChecklist", () => {
-  it("kompletny wpis: wymagane pozycje spełnione", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    expect(result.current.publishChecklist?.requiredOk).toBe(true);
-  });
-
-  it("brak okładki: pozycja `cover` na liście brakujących", async () => {
-    const { result } = harness({ post: postForm({ cover_image_url: null }) });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    const missing = result.current.publishChecklist?.missingRequired.map((i) => i.id);
-    expect(missing).toContain("cover");
-  });
-
-  it("braki deklaracji komercyjnej wchodzą do checklisty przez tę samą funkcję domenową", async () => {
-    // Checklista nie liczy tej reguły po swojemu - woła `disclosureGaps`, tę
-    // samą, której używa bramka serwerowa. Inaczej UI i serwer rozjechałyby się.
-    const { result } = harness({
-      post: postForm({ is_sponsored: true, sponsored_kind: null }),
-    });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    const ids = result.current.publishChecklist?.items.map((i) => i.id) ?? [];
-    expect(ids).toContain("sponsoredDisclosure");
-    expect(result.current.publishChecklist?.requiredOk).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Wklejone grafiki (data-URL z Worda / zrzutów ekranu)
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - wklejone grafiki przy zapisie", () => {
-  /** Formularz z dokumentem bloków - bez niego ścieżka grafik nawet nie startuje. */
-  const withBlocks = () =>
-    postForm({
-      blocks_data: {
-        pl: { version: 1, blocks: [{ type: "image", src: "data:image/png;base64,AAAA" }] },
-      } as unknown as ReturnType<typeof postForm>["blocks_data"],
-    });
-
-  it("wgrane grafiki wchodzą do ZAPISYWANEJ migawki, nie tylko do formularza", async () => {
-    // Baza nie przechowuje base64. Gdyby podmiana trafiała wyłącznie do stanu
-    // formularza, do bazy poszedłby dokument z data-URL - i grafika zniknęłaby
-    // po odświeżeniu, a biblioteka mediów nigdy by jej nie zobaczyła.
-    const persisted = {
-      pl: { version: 1, blocks: [{ type: "image", src: "https://storage.example/x.png" }] },
-    };
-    h.persistResult = {
-      doc: persisted,
-      changed: true,
-      failed: 0,
-      replacements: new Map([["data:image/png;base64,AAAA", "https://storage.example/x.png"]]),
-    };
-
-    const { result } = harness({ post: withBlocks() });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
+    act(() => result.current.set("title_pl", "Druga zmiana"));
     await act(async () => {
-      await result.current.applyStatus("pending_review");
+      await result.current.save();
     });
 
-    const payload = update().mock.calls[0][0] as { data: { fields: Record<string, unknown> } };
-    expect(payload.data.fields.blocks_data).toEqual(persisted);
+    expect(h.uploadAndRegisterMedia).toHaveBeenCalledTimes(1);
   });
 
-  it("nieudane wgranie części grafik OSTRZEGA, ale nie przerywa zapisu", async () => {
-    // Redaktor musi wiedzieć, że dwie grafiki nie doszły - ale tekst, który
-    // właśnie napisał, ma się zapisać. Przerwanie zapisu z powodu grafiki
-    // kosztowałoby więcej, niż ratuje.
-    h.persistResult = {
-      doc: null,
-      changed: false,
-      failed: 2,
-      replacements: new Map<string, string>(),
-    };
-
-    const { result } = harness({ post: withBlocks() });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
+  it("tę samą grafikę w blokach i w builderze wgrywa RAZ", async () => {
+    const { result } = mount({
+      post: postForm({
+        blocks_data: blocksWithImage(),
+        builder_data: {
+          version: 1,
+          sections: [{ id: "s1", type: "image", props: { url: PNG_DATA_URL } }],
+        } as unknown as PostForm["builder_data"],
+      }),
     });
-
-    const warnings = toast().warning.mock.calls.map((c) => String(c[0]));
-    expect(warnings.some((m) => m.includes("blocks.clipboard.imagePersistFailed"))).toBe(true);
-    expect(warnings.some((m) => m.includes('"count":2'))).toBe(true);
-    // Zapis mimo wszystko doszedł.
-    expect(update()).toHaveBeenCalledTimes(1);
-    expect(toast().success).toHaveBeenCalled();
-  });
-
-  it("brak grafik: żadnego ostrzeżenia i żadnej podmiany dokumentu", async () => {
-    const { result } = harness({ post: withBlocks() });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    expect(toast().warning).not.toHaveBeenCalled();
-    const payload = update().mock.calls[0][0] as { data: { fields: Record<string, unknown> } };
-    // Dokument przechodzi w postaci, w jakiej był - `changed: false`.
-    expect(payload.data.fields.blocks_data).toEqual(withBlocks().blocks_data);
-  });
-
-  it("dokument pusty pomija całą ścieżkę wgrywania", async () => {
-    // `blocks_data: null` - nie ma czego skanować, więc nie wołamy uploadu ani
-    // nie ruszamy formularza.
-    h.persistResult = {
-      doc: null,
-      changed: true,
-      failed: 3,
-      replacements: new Map<string, string>(),
-    };
-    const { result } = harness({ post: postForm({ blocks_data: null, builder_data: null }) });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    // Gdyby strażnik `!doc` nie działał, zobaczylibyśmy ostrzeżenie o 3 błędach.
-    expect(toast().warning).not.toHaveBeenCalled();
-  });
-});
-
-describe("usePostEditorForm - upload wklejonej grafiki", () => {
-  const withBlocksDoc = () =>
-    postForm({
-      blocks_data: {
-        pl: { version: 1, blocks: [{ type: "image", src: "data:image/png;base64,AAAA" }] },
-      } as unknown as ReturnType<typeof postForm>["blocks_data"],
-    });
-
-  it("grafika ląduje w bibliotece WŁAŚCIWEGO najemcy, w katalogu wpisów", async () => {
-    // Wklejona grafika staje się trwałym plikiem w /admin/media. Zły `tenantId`
-    // wpuściłby ją do biblioteki obcej firmy - i to bez żadnego sygnału dla
-    // redaktora, bo dokument dostałby poprawny adres publiczny.
-    h.runUpload = true;
-    h.persistResult = {
-      doc: null,
-      changed: false,
-      failed: 0,
-      replacements: new Map<string, string>(),
-    };
-
-    const { result } = harness({ post: withBlocksDoc() });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    expect(h.uploadArgs.length).toBeGreaterThan(0);
-    const args = h.uploadArgs[0];
-    expect(args.tenantId).toBe(postEditorData().tenantId);
-    expect(args.userId).toBe("user-1");
-    expect(args.subfolder).toBe("posts");
-    expect(args.allowedMime).toEqual(["image/png"]);
-    // Plik zbudowany z dekodowanych bajtów, z nazwą i typem z data-URL.
-    const file = args.file as File;
-    expect(file.name).toBe("wklejka.png");
-    expect(file.type).toBe("image/png");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Stan „wpis jeszcze się nie wczytał" i błędy nie-Error
-// ---------------------------------------------------------------------------
-
-describe("usePostEditorForm - formularz przed wczytaniem wpisu", () => {
-  const empty = () => ({ post: undefined, id: "", postCats: undefined });
-
-  it("bez wiersza wpisu formularz jest pusty, a checklista nie istnieje", async () => {
-    const { result } = harness(empty() as Parameters<typeof postEditorData>[0]);
-    expect(result.current.form).toBeNull();
-    // Karta checklisty nie ma z czego liczyć - `null`, nie zerowa punktacja
-    // udająca ocenę pustego wpisu.
-    expect(result.current.publishChecklist).toBeNull();
-    expect(result.current.scheduledInPast).toBe(false);
-  });
-
-  it("`set` na pustym formularzu jest bezpieczny (nie tworzy wpisu z powietrza)", async () => {
-    const { result } = harness(empty() as Parameters<typeof postEditorData>[0]);
-    act(() => result.current.set("title_pl", "Tytuł bez wpisu"));
-    expect(result.current.form).toBeNull();
-  });
-
-  it("`applyStatus` na pustym formularzu nic nie zapisuje", async () => {
-    const { result } = harness(empty() as Parameters<typeof postEditorData>[0]);
-    await act(async () => {
-      await result.current.applyStatus("published");
-    });
-    expect(update()).not.toHaveBeenCalled();
-  });
-
-  it("`confirmPublishGaps` bez formularza przepuszcza (nie ma czego pilnować)", async () => {
-    const { result } = harness(empty() as Parameters<typeof postEditorData>[0]);
-    await expect(result.current.confirmPublishGaps("published")).resolves.toBe(true);
-    expect(confirmDialog()).not.toHaveBeenCalled();
-  });
-
-  it("wiersz bez updated_at nie ustawia bazy optimistic-locka", async () => {
-    // Wiersz sprzed dodania kolumny albo odpowiedź bez tego pola: zapis nie może
-    // wysłać `baseUpdatedAt: null`, bo serwer potraktowałby to jak konflikt.
-    const { result } = harness({ post: postForm({ updated_at: null }) });
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    const payload = update().mock.calls[0][0] as { data: { baseUpdatedAt?: string } };
-    expect(payload.data.baseUpdatedAt).toBeUndefined();
-  });
-});
-
-describe("usePostEditorForm - błąd, który nie jest instancją Error", () => {
-  it("applyStatus: surowy string jest pokazany, nie zjedzony", async () => {
-    // Błąd przechodzi granicę server-fn i nie zawsze dociera jako Error.
-    // Bez `String(e)` redaktor zobaczyłby „undefined" zamiast powodu.
-    update().mockRejectedValue("serwer zwrócił goły tekst");
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-
-    await act(async () => {
-      await result.current.applyStatus("pending_review");
-    });
-
-    expect(toast().error).toHaveBeenCalledWith("serwer zwrócił goły tekst");
-  });
-
-  it("save(): surowy obiekt jest zserializowany do komunikatu", async () => {
-    update().mockRejectedValue({ code: 500 });
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
     act(() => result.current.set("title_pl", "Zmiana"));
 
     await act(async () => {
       await result.current.save();
     });
 
-    expect(toast().error).toHaveBeenCalled();
-    expect(toast().success).not.toHaveBeenCalled();
+    // Wspólny cache sesji edycji: bez niego ta sama grafika lądowałaby
+    // w bibliotece mediów w dwóch egzemplarzach przy jednym zapisie.
+    expect(h.uploadAndRegisterMedia).toHaveBeenCalledTimes(1);
   });
 
-  it("del(): surowy string jest pokazany i nie ma nawigacji", async () => {
-    del().mockRejectedValue("brak uprawnień");
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
+  it("grafika wklejona w widoku buildera (bez bloków) też trafia do biblioteki", async () => {
+    const { result } = mount({
+      post: postForm({
+        blocks_data: null,
+        builder_data: {
+          version: 1,
+          sections: [{ id: "s1", type: "image", props: { url: PNG_DATA_URL } }],
+        } as unknown as PostForm["builder_data"],
+      }),
+    });
+    act(() => result.current.set("title_pl", "Zmiana"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.uploadAndRegisterMedia).toHaveBeenCalledTimes(1);
+    const saved = JSON.stringify(lastPayload().fields.builder_data);
+    expect(saved).toContain("https://cdn.test/wklejony.png");
+    // Dokument bloków jest pusty i taki ma zostać - synchronizacja formularza
+    // nie może „ożywić" nieużywanego edytora.
+    expect(lastPayload().fields.blocks_data).toBeNull();
+  });
+
+  it("nieudany upload ostrzega, ale NIE wywraca zapisu wpisu", async () => {
+    h.uploadAndRegisterMedia.mockRejectedValueOnce(new Error("storage padł"));
+    const { result } = mount({ post: postForm({ blocks_data: blocksWithImage() }) });
+    act(() => result.current.set("title_pl", "Zmiana"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(h.toastWarning).toHaveBeenCalledWith('blocks.clipboard.imagePersistFailed|{"count":1}', {
+      id: "blocks-image-persist",
+    });
+    // Tekst redaktora jest ważniejszy niż jedna grafika: zapis idzie dalej,
+    // a data-URL zostaje do ponownej próby przy następnym zapisie.
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(lastPayload().fields.blocks_data)).toContain("data:image");
+  });
+
+  it("bez zalogowanego użytkownika nie próbuje wgrywać niczego", async () => {
+    h.auth.user = null;
+    const { result } = mount({ post: postForm({ blocks_data: blocksWithImage() }) });
+    act(() => result.current.set("title_pl", "Zmiana"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // Upload bez właściciela nie ma jak zarejestrować pliku w bibliotece -
+    // lepiej zapisać treść z data-URL niż wywalić zapis.
+    expect(h.uploadAndRegisterMedia).not.toHaveBeenCalled();
+    expect(h.updatePost).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("usuwanie wpisu", () => {
+  it("nie usuwa, gdy redaktor cofnie potwierdzenie", async () => {
+    h.confirmDialog.mockResolvedValueOnce(false);
+    const { result } = mount();
 
     await act(async () => {
       await result.current.del();
     });
 
-    expect(toast().error).toHaveBeenCalledWith("brak uprawnień");
-    expect(navigate()).not.toHaveBeenCalled();
+    expect(h.deletePost).not.toHaveBeenCalled();
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it("usuwa po potwierdzeniu i wraca na listę wpisów", async () => {
+    const { result } = mount();
+
+    await act(async () => {
+      await result.current.del();
+    });
+
+    expect(h.confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ destructive: true, title: "admin.confirmDelete" }),
+    );
+    expect(h.deletePost).toHaveBeenCalledWith({ data: { id: POST_ID } });
+    expect(h.toastSuccess).toHaveBeenCalledWith("admin.deleted", undefined);
+    expect(h.navigate).toHaveBeenCalledWith({ to: "/admin/posts" });
+  });
+
+  it("przy błędzie usuwania zostaje w edytorze i pokazuje powód", async () => {
+    h.deletePost.mockRejectedValueOnce(new Error("wpis ma powiązania"));
+    const { result } = mount();
+
+    await act(async () => {
+      await result.current.del();
+    });
+
+    // Wyjście na listę po nieudanym usunięciu sugerowałoby, że wpis zniknął.
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(h.toastError).toHaveBeenCalledWith("wpis ma powiązania", undefined);
+  });
+
+  it("odmowa usunięcia bez klasy Error też jest pokazana", async () => {
+    h.deletePost.mockRejectedValueOnce("brak uprawnień");
+    const { result } = mount();
+
+    await act(async () => {
+      await result.current.del();
+    });
+
+    expect(h.toastError).toHaveBeenCalledWith("brak uprawnień", undefined);
+    expect(h.navigate).not.toHaveBeenCalled();
   });
 });
 
-describe("usePostEditorForm - klawisz, który nie jest skrótem historii", () => {
-  it("Ctrl+S nie rusza historii formularza", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.set("title_pl", "Wersja druga"));
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Wersja druga"));
+describe("uprawnienia i terminy", () => {
+  it("autorowi bez prawa publikacji oznacza statusy wydawcy", () => {
+    h.auth.isAdmin = false;
+    const { result } = mount();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true }));
-    });
-
-    // Gdyby `historyShortcut` zwracał akcję dla Ctrl+S, tekst by się cofnął.
-    expect(result.current.form?.title_pl).toBe("Wersja druga");
+    const byValue = Object.fromEntries(
+      result.current.statusOptions.map((o) => [o.value, o.publisherOnly]),
+    );
+    // Lista musi POKAZAĆ te statusy jako niedostępne, a nie je ukryć - autor
+    // ma widzieć, że wpis czeka na publikującego, a nie że opcji nie ma.
+    expect(byValue.published).toBe(true);
+    expect(byValue.scheduled).toBe(true);
+    expect(byValue.draft).toBe(false);
+    expect(result.current.canPublish).toBe(false);
   });
 
-  it("zwykła litera bez modyfikatora też nie rusza historii", async () => {
-    const { result } = harness();
-    await waitFor(() => expect(result.current.form).not.toBeNull());
-    act(() => result.current.set("title_pl", "Wersja druga"));
-    await waitFor(() => expect(result.current.form?.title_pl).toBe("Wersja druga"));
+  it("wydawcy udostępnia wszystkie statusy", () => {
+    const { result } = mount();
+    expect(result.current.statusOptions.every((o) => !o.publisherOnly)).toBe(true);
+  });
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "z" }));
+  it("oznacza zaplanowany wpis z minionym terminem", () => {
+    const { result } = mount({
+      post: postForm({ status: "scheduled", publish_at: "2020-01-01T00:00:00.000Z" }),
     });
 
-    expect(result.current.form?.title_pl).toBe("Wersja druga");
+    // Taki wpis czeka na przebieg `publish_due_posts()` i bez ostrzeżenia
+    // wygląda jak zgubiony.
+    expect(result.current.scheduledInPast).toBe(true);
+  });
+
+  it("nie oznacza wpisu zaplanowanego na przyszłość", () => {
+    const { result } = mount({
+      post: postForm({ status: "scheduled", publish_at: "2099-01-01T00:00:00.000Z" }),
+    });
+    expect(result.current.scheduledInPast).toBe(false);
   });
 });

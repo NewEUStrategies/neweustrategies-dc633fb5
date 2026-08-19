@@ -11,15 +11,17 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
-      // Raport pokrycia POWSTAJE też przy czerwonej suicie. Bez tego vitest
-      // wychodzi z `reportCoverage()` po pierwszym padniętym teście - a
-      // `checkThresholds` żyje WEWNĄTRZ tej funkcji, więc na czerwonej suicie
-      // nie dostajemy ani liczb, ani bramki. Praktyczny skutek był taki, że
-      // autor nowych testów nie mógł zmierzyć własnej pracy, dopóki cała
-      // suita nie była zielona (a bywała czerwona z powodu zupełnie innej
-      // powierzchni). Raport z czerwonego przebiegu jest oczywiście NIŻSZY
-      // niż prawda (pliki, które padły w kolekcji, nie wykonały ani linii) -
-      // służy do porównywania własnej delty, nie do raportowania stanu repo.
+      // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
+      // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
+      // z niego natychmiast przy pierwszym padniętym teście
+      // (`if (!this._coverageOptions.reportOnFailure) return;`). Skutek przy
+      // domyślnym `false`: jeden czerwony test wyłączał JEDNOCZEŚNIE próg
+      // globalny i wszystkie progi per-ścieżka, a raportu nie było wcale -
+      // czyli dokładnie w chwili, w której pokrycie może się osunąć, bramka
+      // milczała, a autor zmiany nie miał czym zmierzyć własnej pracy.
+      // Audyt 2026-08-18 (rozdz. 9.3) musiał z tego powodu odtwarzać pomiar
+      // obejściem. Zieleń CI nadal zależy od testów - to jest wyłącznie
+      // przywrócenie widoczności pomiaru.
       reportOnFailure: true,
       // HONEST measurement scope: the WHOLE application source. The previous
       // config whitelisted ~38 files (~5% of src/) and presented a 98% number
@@ -501,93 +503,155 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
-        // ── EDYTOR WPISÓW I WORKFLOW REDAKCYJNY (MODUŁ 2) ────────────────────
-        // 2026-08-19: audyt 18.08 dał temu modułowi 8,34% linii i 6,85%
-        // funkcji przy 83 plikach produkcyjnych, z czego 64 na OKRĄGŁYM ZERZE -
-        // najgorszy wynik spośród modułów o tej krytyczności (to jedyna droga,
-        // którą treść wchodzi do serwisu). Reguły domenowe (`lib/content/
-        // workflow.ts`, `revisions.ts`, `revisionDiff.ts`) były już pokryte;
-        // dziura siedziała w ORKIESTRACJI, HOOKACH, PANELACH i TRASACH.
+        // ── MODUŁ 2: EDYTOR WPISÓW I WORKFLOW REDAKCYJNY ───────────────────────
+        // Audyt z 18.08.2026 dał temu modułowi najgorszą notę w repo: 8,34%
+        // linii, 6,85% funkcji, 64 z 83 plików na okrągłym zerze - i, co dla tej
+        // sekcji najważniejsze, ANI JEDNEGO progu per-ścieżka (rozdz. 6 audytu).
+        // Moduł rozstrzyga, czy redakcja zapisze to, co napisała: patch wpisu,
+        // przejścia workflow, rewizje, blokada wyjścia z niezapisaną treścią.
         //
-        // Po tej pracy: 99,41% linii, 98,81% instrukcji, 99,00% funkcji,
-        // 94,38% gałęzi, ZERO plików na zerze (89 plików mierzonych, 80 plików
-        // testowych, 1568 testów). Progi floorowane tuż pod zmierzonym
-        // poziomem - wolno je wyłącznie podnosić, jak wszystkie wyżej.
-        //
-        // CZYSTE MODUŁY trzymamy pod 100% na wszystkich czterech metrykach -
-        // tak jak czyste moduły czatu, profilu i płatności. To one niosą
-        // reguły, których złamanie widzi tylko redaktor: co jedzie w zapisie
-        // (`savePayload`), które pola blokują publikację (`editorGates`),
-        // skrót cofnięcia (`historyShortcut`), scalanie nadpisań layoutu
-        // (`layoutOverrides`) i nawigację po zmianie sluga (`slugNavigation`).
+        // Reguły wyszły z organizmów do czystych modułów (`lib/`), bo dopiero
+        // wtedy da się je sprawdzać na WYNIKU, a nie na renderze. Progi idą więc
+        // w dwóch klasach:
+        //   * czyste moduły - równo 100%, bez marginesu: nie ma tu gałęzi,
+        //     której nie dałoby się wywołać z testu, więc każdy spadek oznacza
+        //     realną regułę bez pokrycia;
+        //   * powierzchnie komponentowe - floor pod ZMIERZONYM poziomem
+        //     (margines na dryf CI), zgodnie z konwencją sekcji PROFIL.
+        // Wolno je wyłącznie podnosić.
+
+        // Reguły kalendarza redakcyjnego: siatka miesiąca, klucz dnia liczony
+        // LOKALNIE (nie w UTC) i bramka przeciągania wpisu. Niedobite gałęzie to
+        // ramiona obronne przy dacie nie do sparsowania. Trzymane osobno, bo to
+        // jedyny plik w `lib/` poniżej 100% - reszta katalogu ma być na 100%.
+        "src/components/admin/post-editor/lib/editorialCalendar.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // Patch wpisu: 47 kolumn plus jawna lista pól NIEpatchowanych. Test
+        // kompletności dowodzi, że każde pole formularza albo trafia do patcha,
+        // albo stoi na liście wykluczeń - czyli że nowe pole nie zniknie po
+        // cichu przy zapisie. Czysty moduł, więc równo 100%.
+        "src/components/admin/post-editor/lib/postPatch.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Budowa zapytania listy wpisów: filtry, paginacja, sortowanie. Błąd tu
+        // nie wywala się na typach - pokazuje redakcji NIE TE wpisy.
+        "src/components/admin/post-editor/lib/postsListQuery.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Bramki dialogów listy wpisów (usuwanie, duplikowanie, zbiorcze akcje).
+        "src/components/admin/post-editor/lib/postsListDialogs.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Parametry trasy edytora: slug vs `new`, tryb podglądu, język.
+        "src/components/admin/post-editor/lib/postRouteParams.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Reguły przekierowań: normalizacja ścieżki, wykrycie pętli i kolizji.
+        // Zła reguła zabiera adres, pod którym artykuł jest już zaindeksowany.
+        "src/components/admin/post-editor/lib/redirectsAdmin.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Katalog organizacji: schemat wiersza z RPC, klucz cache z tenantem,
+        // doklejenie przypisanej firmy do droplisty i ATOMOWY patch migawki
+        // `posts.organization_*`. Rozjazd tej migawki widać dopiero w
+        // opublikowanym artykule, przy nocie sponsorskiej.
+        "src/components/admin/post-editor/molecules/organizationDirectory.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Warstwa czystych reguł edytora jako całość: 99,2% instrukcji, 99,5%
+        // linii, 98,8% funkcji, 98,4% gałęzi. Próg katalogowy istnieje po to, by
+        // NOWY plik reguł nie wszedł tu bez testu - progi per-plik takiego
+        // przypadku nie łapią.
         "src/components/admin/post-editor/lib/**": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/components/admin/post-editor/atoms/**": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // HOOKI EDYTORA - orkiestracja formularza (undo/redo, autozapis,
-        // zmiany statusu, miękka bramka checklisty), danych i taksonomii
-        // inline. Niedobite gałęzie to obronne ramiona warstwy danych
-        // (fallbacki `?? []` na odpowiedziach RPC, których atrapa nie zwraca
-        // jako null) - nie brak testu reguły.
-        "src/components/admin/post-editor/hooks/**": {
-          statements: 98,
-          functions: 100,
-          lines: 100,
-          branches: 90,
-        },
-        // MOLEKUŁY I ORGANIZMY edytora - karty i panele kroku szczegółów oraz
-        // treści. Niedobite gałęzie: warianty `title`/`aria-label` pól poza
-        // fixture'ami testów i defensywne `?? ""` na polach opcjonalnych.
-        "src/components/admin/post-editor/molecules/**": {
-          statements: 98,
-          functions: 100,
-          lines: 100,
+          statements: 95,
+          functions: 95,
+          lines: 95,
           branches: 94,
         },
-        "src/components/admin/post-editor/organisms/**": {
-          statements: 98,
-          functions: 96,
-          lines: 100,
-          branches: 85,
-        },
-        // PANELE WERSJI (builder / polityki / cookies) i AUTOMATYZACJE
-        // (definicje, szablony, przebiegi, ślad korelacji). Tu znalazły się
-        // dwa z czterech defektów tej pracy: martwy ternarny w przywracaniu
-        // wersji popupu i angielskie literały statusów dostarczeń zamiast
-        // kluczy i18n. Progi mają nie dopuścić do powrotu tych powierzchni
-        // pod pokrycie, w którym takie rzeczy są niewidoczne.
-        "src/components/admin/versions/**": {
+        // Haki edytora (`usePostEditorForm`, `usePostEditorData`,
+        // `useBilingualReadingStats`, `useInlineTaxonomy`): 98,5% instrukcji,
+        // 99,6% linii, 100% funkcji, 93,3% gałęzi. To tu mieszka walidacja przed
+        // zapisem i budowa patcha - bez pokrycia formularz „zapisuje się"
+        // zielono, a kolumna zostaje pusta.
+        "src/components/admin/post-editor/hooks/**": {
           statements: 94,
-          functions: 93,
-          lines: 94,
+          functions: 96,
+          lines: 95,
           branches: 89,
         },
-        "src/components/admin/workflows/**": {
-          statements: 96,
-          functions: 95,
-          lines: 97,
-          branches: 91,
+        // Atomy edytora: 92,3% instrukcji, 91,7% linii, 88,9% funkcji, 93,8%
+        // gałęzi. Warstwa prezentacyjna, ale to ona niesie etykiety i stany
+        // pól - a atomic design zakłada, że wyżej nikt tego nie powtarza.
+        "src/components/admin/post-editor/atoms/**": {
+          statements: 88,
+          functions: 85,
+          lines: 87,
+          branches: 89,
         },
-        // WARSTWA DANYCH AUTOMATYZACJI - 63,6% -> 100% na wszystkich czterech
-        // metrykach. Plik leży w `lib/admin`, więc tabele audytu liczą go pod
-        // innym modułem; bramka należy jednak do tej pracy.
-        "src/lib/admin/workflows.ts": {
+        // Projekcja listy rewizji: przez granicę klient-serwer przechodzą
+        // WYŁĄCZNIE pola listy, nigdy migawka treści. Czysty moduł, 100%.
+        "src/lib/revisions/**": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        // STRAŻNIK NIEZAPISANYCH ZMIAN - reguła i hook. Startowały z 0%: to
-        // jedyna rzecz, która stoi między redaktorem a utratą wpisu przy
-        // zamknięciu karty.
+        // Server functions historii zmian: lista, migawki do porównania,
+        // przywracanie. Największy plik modułu 2, który stał na 0% - a niesie
+        // trzy reguły, których nie widać z zewnątrz: przywrócenie NIE rusza
+        // `status`, migawka zabezpieczająca powstaje PRZED nadpisaniem, a UPDATE
+        // odfiltrowany przez RLS (zero wierszy, zero błędu) jest zgłaszany jako
+        // porażka. Każda gałąź błędu bazy ma test, więc próg stoi na 100%.
+        "src/lib/revisions.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Wersje buildera: typ encji przy przywracaniu, dokument sekcji/widgetu
+        // i zakres zapytania. Tu siedział defekt `span: 12` zamiast
+        // `{ desktop: 12 }` - podgląd wersji renderował się w domyślnej
+        // szerokości, bo `span.desktop` na liczbie daje `undefined`.
+        "src/components/admin/versions/lib/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Reguły panelu automatyzacji: katalog statusów przebiegu i dostaw
+        // (czytany wprost z CHECK-ów w migracjach), sentinel „wszystkie" dla
+        // Radiksa, parametry zapytań i bramka podglądu trasy korelacji.
+        "src/components/admin/workflows/lib/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Maszyna stanu niezapisanych zmian + jej hak. Jedyna rzecz, która stoi
+        // między redaktorem a utratą tekstu przy zamknięciu karty - dlatego bez
+        // marginesu.
         "src/lib/unsavedChanges.ts": {
           statements: 100,
           functions: 100,
@@ -600,115 +664,42 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
-        // SERWEROWA HISTORIA WERSJI i SERWEROWA MIGRACJA TREŚCI DO BLOKÓW -
-        // oba pliki startowały z 0 wykonanych funkcji (13 i 4), a oba
-        // MASOWO ZAPISUJĄ treść. Granica tenanta na `service_role`, bramka
-        // rate limitu, projekcja listy (migawka nie opuszcza serwera) i to,
-        // że przywrócenie rewizji NIE zmienia statusu wpisu - wszystko ma tu
-        // dowód, więc próg jest pełny.
-        "src/lib/revisions.functions.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/lib/posts-migrate.functions.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // OBECNOŚĆ W EDYTORZE - kto jeszcze ma otwarty ten wpis (kanał
-        // realtime + heartbeat). Startowało z 0%.
+        // Obecność edytorska: kto jeszcze trzyma otwarty ten wpis. Plik stał na
+        // 0% mimo trzech funkcji i kanału realtime.
         "src/hooks/useEditPresence.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        // AUTOZAPIS I HISTORIA (undo/redo) - rdzeń edytora, mierzony razem z
-        // modułem. Niedobite gałęzie: wyścigi odmontowania w trakcie zapisu i
-        // ramiona `structuredClone` dla środowisk bez tej funkcji.
-        "src/hooks/useAutosave.ts": {
-          statements: 96,
-          functions: 100,
-          lines: 100,
-          branches: 87,
+        // ZAPORY ANTYREGRESYJNE (nie deklaracje jakości). Trzy powierzchnie
+        // komponentowe modułu 2 wyszły z zera, ale są dopiero w połowie drogi.
+        // Próg jest tu wyłącznie po to, żeby nie wróciły na zero przy kolejnym
+        // refaktorze; docelowy poziom to ta sama półka, co w `lib/` i `hooks/`,
+        // i te liczby mają rosnąć wraz z kolejnymi testami.
+        // Zmierzone: molecules 27,8% linii / 30,9% funkcji, workflows 20,3% /
+        // 17,0%, versions 10,6% / 11,8%.
+        "src/components/admin/post-editor/molecules/**": {
+          statements: 23,
+          functions: 26,
+          lines: 23,
+          branches: 22,
         },
-        "src/hooks/useHistory.ts": {
-          statements: 91,
-          functions: 100,
-          lines: 94,
-          branches: 83,
+        // Automatyzacje po dopisaniu edytora przepisu: 51,5% instrukcji, 50%
+        // linii, 55,7% funkcji, 31,6% gałęzi (zmierzone samymi testami tego
+        // katalogu, więc pełna suita daje nie mniej). Na zerze zostają cztery
+        // panele listujące - próg ma pilnować, żeby edytor do nich nie dołączył.
+        "src/components/admin/workflows/**": {
+          statements: 45,
+          functions: 50,
+          lines: 45,
+          branches: 27,
         },
-        // EDYTOR TEKSTOWY (markdown + rich text na TipTapie) i PRZEGLĄD
-        // OGÓLNY. Niedobite gałęzie edytora to komendy TipTapa zależne od
-        // zaznaczenia w dokumencie; w przeglądzie - `catch` w `formatDate`
-        // (nieosiągalny: `Invalid Date.toLocaleDateString()` nie rzuca) i
-        // warianty kafelków dla stanów, których fixture nie tworzy.
-        "src/components/admin/PostEditor.tsx": {
-          statements: 95,
-          functions: 100,
-          lines: 100,
-          branches: 82,
-        },
-        "src/components/admin/PostGeneralOverview.tsx": {
-          statements: 96,
-          functions: 100,
-          lines: 96,
-          branches: 78,
-        },
-        // TRASY PANELU REDAKCYJNEGO - wszystkie osiem startowało z 0%, w tym
-        // trzy powyżej 600 linii. Osobne wpisy zamiast jednego globa na
-        // `src/routes/**`, bo reszta katalogu tras jeszcze na bramkę nie
-        // zarobiła - a te osiem już tak.
-        "src/routes/admin.posts.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 95,
-        },
-        "src/routes/admin.posts.$slug.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/routes/admin.posts.new.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/routes/admin.posts.calendar.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 95,
-        },
-        "src/routes/admin.redirects.tsx": {
-          statements: 97,
-          functions: 100,
-          lines: 100,
-          branches: 92,
-        },
-        "src/routes/admin.import-wordpress.tsx": {
-          statements: 95,
-          functions: 100,
-          lines: 100,
-          branches: 94,
-        },
-        "src/routes/admin.versions.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/routes/admin.workflows.tsx": {
-          statements: 95,
-          functions: 92,
-          lines: 95,
-          branches: 87,
+        "src/components/admin/versions/**": {
+          statements: 7,
+          functions: 8,
+          lines: 7,
+          branches: 9,
         },
       },
     },

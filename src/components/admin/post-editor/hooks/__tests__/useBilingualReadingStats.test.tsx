@@ -1,162 +1,157 @@
-// Symultaniczny podgląd czasu czytania PL i EN (`useBilingualReadingStats`,
-// 0 z 2 funkcji przed tą zmianą).
+// Podgląd czasu czytania PL/EN obok pola `read_minutes`. Hook stał na 0%,
+// a odpowiada za MAPOWANIE źródeł treści na dwie wersje językowe:
 //
-// Hook liczy to, co czytelnik zobaczy pod tytułem, gdy redaktor NIE nadpisze
-// czasu ręcznie. Trzy rzeczy są tu warte testu:
+//   PL  <- content_pl + builder_data + blocks_data.pl + excerpt_pl
+//   EN  <- content_en + builder_data + blocks_data.en + excerpt_en
 //
-//   1. ROZDZIAŁ JĘZYKÓW. Wpis ma osobną treść PL i EN o różnej długości.
-//      Policzenie obu z tej samej strony pokazałoby redaktorowi jedną liczbę
-//      dwa razy i ukryło, że wersja angielska jest o połowę krótsza.
-//   2. WSZYSTKIE ŹRÓDŁA TREŚCI. Wpis może być pisany w HTML, w blokach albo
-//      w builderze; pominięcie któregokolwiek daje „1 minuta" dla długiego
-//      artykułu.
-//   3. TE SAME USTAWIENIA, CO STRONA PUBLICZNA. Podgląd liczony innym rdzeniem
-//      niż strona publiczna byłby gorszy niż brak podglądu - kłamałby.
-import { describe, expect, it, vi } from "vitest";
+// Pomyłka w tym przypisaniu nie wywraca niczego na ekranie - po prostu
+// pokazuje redakcji nieprawdziwą liczbę minut, którą ta przepisuje do
+// `read_minutes` i która trafia na stronę publiczną oraz do JSON-LD.
 import { renderHook } from "@testing-library/react";
-import { postForm } from "@/test/post-editor/fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_READING_TIME_SETTINGS, type ReadingTimeSettings } from "@/lib/readingTime";
+import type { PostForm } from "../../types";
 
-// Ustawienia trzymamy w PRAWDZIWYM ksztalcie (`ReadingTimeSettings`) - atrapa
-// z wymyslonymi polami dawalaby NaN i test „dowodzilby" czegokolwiek.
-const h = vi.hoisted(() => ({ calls: [] as unknown[], settings: null as unknown }));
-
-vi.mock("@/hooks/useReadingTimeSettings", () => ({
-  useReadingTimeSettings: () => h.settings,
+const h = vi.hoisted(() => ({
+  settings: null as unknown,
 }));
 
-vi.mock("@/lib/readingTime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/readingTime")>();
-  return {
-    ...actual,
-    computeBilingualReadingStats: (input: unknown, settings: unknown) => {
-      h.calls.push({ input, settings });
-      return actual.computeBilingualReadingStats(
-        input as Parameters<typeof actual.computeBilingualReadingStats>[0],
-        settings as Parameters<typeof actual.computeBilingualReadingStats>[1],
-      );
-    },
-  };
-});
+vi.mock("@/hooks/useReadingTimeSettings", () => ({
+  useReadingTimeSettings: () => h.settings as ReadingTimeSettings,
+}));
 
 import { useBilingualReadingStats } from "../useBilingualReadingStats";
-import { DEFAULT_READING_TIME_SETTINGS } from "@/lib/readingTime";
 
-h.settings = DEFAULT_READING_TIME_SETTINGS;
+/** `n` rozróżnialnych słów - liczbę słów sprawdzamy wprost w asercjach. */
+function words(n: number): string {
+  return Array.from({ length: n }, (_, i) => `slowo${i}`).join(" ");
+}
 
-type Input = {
-  pl: { html: string; docs: unknown[]; extraText?: string };
-  en: { html: string; docs: unknown[]; extraText?: string };
-};
-const lastInput = () => (h.calls.at(-1) as { input: Input }).input;
+/**
+ * Formularz zredukowany do pól, które ten hook czyta. Reszta `PostForm` nie
+ * bierze udziału w obliczeniu, więc rzutowanie jest tu uczciwsze niż
+ * przepisywanie osiemdziesięciu pól bez znaczenia dla reguły.
+ */
+function form(over: Partial<PostForm>): PostForm {
+  return {
+    content_pl: null,
+    content_en: null,
+    excerpt_pl: null,
+    excerpt_en: null,
+    builder_data: null,
+    blocks_data: null,
+    ...over,
+  } as PostForm;
+}
 
-describe("useBilingualReadingStats - rozdział języków", () => {
-  it("każda strona językowa dostaje SWÓJ HTML i SWOJĄ zajawkę", () => {
-    // Policzenie obu z tej samej strony ukryłoby, że wersja EN jest krótsza.
-    h.calls = [];
-    renderHook(() =>
-      useBilingualReadingStats(
-        postForm({
-          content_pl: "<p>Polska treść</p>",
-          content_en: "<p>English body</p>",
-          excerpt_pl: "Zajawka PL",
-          excerpt_en: "Excerpt EN",
-        }),
-      ),
-    );
+function blocksDoc(html: string): PostForm["blocks_data"] {
+  return {
+    pl: { version: 1, blocks: [{ id: "b1", type: "text", data: { html } }] },
+    en: { version: 1, blocks: [{ id: "b1", type: "text", data: { html: "" } }] },
+  } as unknown as PostForm["blocks_data"];
+}
 
-    const input = lastInput();
-    expect(input.pl.html).toBe("<p>Polska treść</p>");
-    expect(input.en.html).toBe("<p>English body</p>");
-    expect(input.pl.extraText).toBe("Zajawka PL");
-    expect(input.en.extraText).toBe("Excerpt EN");
-  });
-
-  it("zwraca osobne statystyki dla obu języków", () => {
-    const { result } = renderHook(() =>
-      useBilingualReadingStats(
-        postForm({
-          content_pl: `<p>${"słowo ".repeat(600)}</p>`,
-          content_en: "<p>short</p>",
-        }),
-      ),
-    );
-
-    expect(result.current.pl.minutes).toBeGreaterThan(result.current.en.minutes);
-  });
+beforeEach(() => {
+  h.settings = DEFAULT_READING_TIME_SETTINGS;
 });
 
-describe("useBilingualReadingStats - źródła treści", () => {
-  it("dokument BUDOWANY wchodzi do obliczeń obu języków", () => {
-    // Builder jest wspólny dla PL i EN (jeden dokument, dwie warstwy tekstu).
-    h.calls = [];
-    const builder = { version: 1, sections: [] };
-    renderHook(() => useBilingualReadingStats(postForm({ builder_data: builder as never })));
-
-    const input = lastInput();
-    expect(input.pl.docs).toContain(builder);
-    expect(input.en.docs).toContain(builder);
-  });
-
-  it("dokument BLOKÓW wchodzi do WŁAŚCIWEJ strony językowej", () => {
-    // Dokument bloków jest rozdzielony per język - podstawienie polskiego pod
-    // angielski pokazałoby czytelnikowi EN czas polskiej wersji.
-    h.calls = [];
-    const pl = { version: 1, blocks: [{ type: "paragraph", text: "PL" }] };
-    const en = { version: 1, blocks: [{ type: "paragraph", text: "EN" }] };
-    renderHook(() => useBilingualReadingStats(postForm({ blocks_data: { pl, en } as never })));
-
-    const input = lastInput();
-    expect(input.pl.docs).toContain(pl);
-    expect(input.pl.docs).not.toContain(en);
-    expect(input.en.docs).toContain(en);
-    expect(input.en.docs).not.toContain(pl);
-  });
-
-  it("brak treści nie wysypuje obliczeń - puste wejście, nie undefined", () => {
-    h.calls = [];
+describe("czas czytania osobno dla każdej wersji językowej", () => {
+  it("liczy PL i EN według prędkości właściwej dla języka", () => {
     const { result } = renderHook(() =>
       useBilingualReadingStats(
-        postForm({ content_pl: null, content_en: null, excerpt_pl: null, excerpt_en: null }),
+        form({ content_pl: `<p>${words(440)}</p>`, content_en: `<p>${words(238)}</p>` }),
       ),
     );
 
-    const input = lastInput();
-    expect(input.pl.html).toBe("");
-    expect(input.en.html).toBe("");
-    expect(input.pl.extraText).toBeUndefined();
-    expect(result.current.pl.minutes).toBeGreaterThanOrEqual(0);
+    // 440 słów / 220 wpm (PL) i 238 słów / 238 wpm (EN). Wspólne wpm dla obu
+    // języków zaniżałoby polski tekst - polska fleksja daje dłuższe słowa.
+    expect(result.current.pl).toEqual({ minutes: 2, words: 440, images: 0 });
+    expect(result.current.en).toEqual({ minutes: 1, words: 238, images: 0 });
   });
 
-  it("BRAK formularza (wpis się wczytuje) daje zerowe statystyki, nie wyjątek", () => {
-    // Karta ustawień renderuje tę podpowiedź, zanim wiersz wpisu dojdzie.
+  it("REGRESJA: bloki polskie nie wliczają się do wersji angielskiej", () => {
+    const { result } = renderHook(() =>
+      useBilingualReadingStats(form({ blocks_data: blocksDoc(words(660)) })),
+    );
+
+    // Podanie obu wersji bloków do obu języków pokazałoby przy angielskim
+    // tekście czas polskiego - redakcja wpisałaby tę liczbę do `read_minutes`
+    // i trafiłaby ona na stronę publiczną oraz do JSON-LD.
+    expect(result.current.pl.minutes).toBe(3);
+    expect(result.current.pl.words).toBeGreaterThan(660);
+    expect(result.current.en.words).toBeLessThan(10);
+  });
+
+  it("dokument buildera liczy się do OBU wersji", () => {
+    const builder = {
+      version: 1,
+      sections: [{ id: "s1", type: "text", props: { html: words(440) } }],
+    } as unknown as PostForm["builder_data"];
+
+    const { result } = renderHook(() => useBilingualReadingStats(form({ builder_data: builder })));
+
+    // Strona zbudowana builderem jest JEDNA dla obu języków - pominięcie jej
+    // w którejkolwiek wersji pokazałoby „0 min" dla pełnego artykułu.
+    expect(result.current.pl.words).toBe(result.current.en.words);
+    expect(result.current.pl.words).toBeGreaterThan(440);
+  });
+
+  it("dolicza zajawkę do treści właściwego języka", () => {
+    const { result } = renderHook(() =>
+      useBilingualReadingStats(form({ excerpt_pl: words(220), excerpt_en: words(119) })),
+    );
+
+    expect(result.current.pl.words).toBe(220);
+    expect(result.current.en.words).toBe(119);
+  });
+
+  it("bez wczytanego wpisu pokazuje zero, zamiast się wywracać", () => {
     const { result } = renderHook(() => useBilingualReadingStats(null));
-    expect(result.current.pl).toBeDefined();
-    expect(result.current.en).toBeDefined();
+
+    // Hook liczy przy KAŻDYM renderze edytora, także zanim wiersz przyjdzie
+    // z bazy - wyjątek tutaj wywala cały panel edycji.
+    expect(result.current.pl).toEqual({ minutes: 0, words: 0, images: 0 });
+    expect(result.current.en).toEqual({ minutes: 0, words: 0, images: 0 });
+  });
+
+  it("przelicza wynik według ustawień z panelu /admin/reading-time", () => {
+    h.settings = { ...DEFAULT_READING_TIME_SETTINGS, wpm_pl: 110 } satisfies ReadingTimeSettings;
+    const { result } = renderHook(() =>
+      useBilingualReadingStats(form({ content_pl: `<p>${words(440)}</p>` })),
+    );
+
+    // Ta sama treść, dwa razy wolniejsze czytanie: podgląd w edytorze MUSI
+    // pokazywać to samo, co strona publiczna, bo obie liczą tym samym rdzeniem
+    // i tymi samymi ustawieniami.
+    expect(result.current.pl.minutes).toBe(4);
   });
 });
 
-describe("useBilingualReadingStats - ustawienia serwisu", () => {
-  it("liczy TYMI SAMYMI ustawieniami, co strona publiczna", () => {
-    // Podgląd liczony innym rdzeniem niż strona publiczna kłamałby redaktorowi.
-    h.calls = [];
-    const custom = { ...DEFAULT_READING_TIME_SETTINGS, wpm_pl: 123, wpm_en: 456 };
-    h.settings = custom;
-    renderHook(() => useBilingualReadingStats(postForm()));
+describe("stabilność wyniku między renderami", () => {
+  it("nie przelicza wyniku, gdy zmienia się pole spoza treści", () => {
+    const shared = { content_pl: `<p>${words(440)}</p>` };
+    const { result, rerender } = renderHook(
+      (props: { value: PostForm }) => useBilingualReadingStats(props.value),
+      { initialProps: { value: form({ ...shared, title_pl: "Tytuł" } as Partial<PostForm>) } },
+    );
+    const first = result.current;
 
-    expect((h.calls.at(-1) as { settings: unknown }).settings).toEqual(custom);
-    h.settings = DEFAULT_READING_TIME_SETTINGS;
+    rerender({ value: form({ ...shared, title_pl: "Tytuł po zmianie" } as Partial<PostForm>) });
+
+    // Nowy obiekt wyniku przy każdym naciśnięciu klawisza w polu tytułu
+    // przerysowywałby karty edytora, które go dostają w propsach - podgląd
+    // migałby przez cały czas pisania.
+    expect(result.current).toBe(first);
   });
 
-  it("wynik jest memoizowany - ten sam formularz nie przelicza w kółko", () => {
-    // Podgląd renderuje się przy każdym naciśnięciu klawisza w edytorze.
-    h.calls = [];
-    const form = postForm();
-    const { rerender } = renderHook(() => useBilingualReadingStats(form));
-    const afterFirst = h.calls.length;
+  it("przelicza wynik, gdy zmieni się treść", () => {
+    const { result, rerender } = renderHook(
+      (props: { value: PostForm }) => useBilingualReadingStats(props.value),
+      { initialProps: { value: form({ content_pl: `<p>${words(440)}</p>` }) } },
+    );
 
-    rerender();
-    rerender();
+    rerender({ value: form({ content_pl: `<p>${words(880)}</p>` }) });
 
-    expect(h.calls.length).toBe(afterFirst);
+    expect(result.current.pl).toEqual({ minutes: 4, words: 880, images: 0 });
   });
 });

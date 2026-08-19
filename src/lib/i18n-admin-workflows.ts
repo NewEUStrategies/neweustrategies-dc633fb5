@@ -146,11 +146,13 @@ export const workflowsPl = {
       allStatuses: "Wszystkie statusy",
       statusSucceeded: "Udane",
       statusFailed: "Nieudane",
-      // Statusy DOSTAW webhooków outboxu - ta sama paleta plakietek co przy
-      // przebiegach, bo ślad korelacji pokazuje jedne i drugie obok siebie.
+      // Statusy dostaw outboxu (`integration_deliveries.status`). Cztery z nich
+      // były dotąd angielskimi literałami wprost w komponencie odznaki, a dwa
+      // ('queued', 'delivering') nie miały etykiety wcale - polski panel
+      // pokazywał w tych miejscach surową wartość z bazy.
+      statusQueued: "W kolejce",
+      statusDelivering: "Wysyłanie",
       statusDelivered: "Dostarczone",
-      statusPending: "Oczekuje",
-      statusRetry: "Ponawianie",
       statusDead: "Porzucone",
       colWhen: "Kiedy",
       colWorkflow: "Przepis",
@@ -336,10 +338,10 @@ export const workflowsEn = {
       allStatuses: "All statuses",
       statusSucceeded: "Succeeded",
       statusFailed: "Failed",
+      statusQueued: "Queued",
+      statusDelivering: "Delivering",
       statusDelivered: "Delivered",
-      statusPending: "Pending",
-      statusRetry: "Retrying",
-      statusDead: "Dead-lettered",
+      statusDead: "Dead",
       colWhen: "When",
       colWorkflow: "Recipe",
       colEvent: "Event",
