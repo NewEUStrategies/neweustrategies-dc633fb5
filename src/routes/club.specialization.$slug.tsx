@@ -8,8 +8,14 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CLUB_SPECIALIZATIONS, findClubSpecialization } from "@/lib/clubs/specializations";
+import { findClubSpecialization } from "@/lib/clubs/specializations";
 import { buildSpecializationHead } from "@/lib/clubs/specializationHead";
+import {
+  SPECIALIZATION_PILLARS,
+  otherClubSpecializations,
+  specializationApplySearch,
+  specializationClubsEmptyKey,
+} from "@/lib/clubs/specializationPage";
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
 import { useClubsBySpecialization } from "@/lib/clubs/useClubSpecializations";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,12 +33,6 @@ export const Route = createFileRoute("/club/specialization/$slug")({
   head: ({ params }) => buildSpecializationHead(params.slug),
   component: ClubSpecializationPage,
 });
-
-const PILLARS = [
-  { title: "club.spec.pillarAccess", desc: "club.spec.pillarAccessDesc" },
-  { title: "club.spec.pillarIntel", desc: "club.spec.pillarIntelDesc" },
-  { title: "club.spec.pillarNetwork", desc: "club.spec.pillarNetworkDesc" },
-] as const;
 
 function ClubSpecializationPage() {
   ensureClubI18n();
@@ -107,7 +107,7 @@ function ClubSpecializationPage() {
               className="border-0"
               style={{ background: "var(--cp-gold)", color: "var(--cp-gold-ink)" }}
             >
-              <Link to="/club/apply" search={{ spec: spec.slug }}>
+              <Link to="/club/apply" search={specializationApplySearch(spec.slug)}>
                 {t("club.spec.applyCta")}
                 <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
               </Link>
@@ -124,9 +124,9 @@ function ClubSpecializationPage() {
           {t("club.spec.pillarsTitle")}
         </h2>
         <ul className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {PILLARS.map((pillar) => (
+          {SPECIALIZATION_PILLARS.map((pillar) => (
             <li
-              key={pillar.title}
+              key={pillar.titleKey}
               className="rounded-md border p-5"
               style={{ borderColor: "var(--cp-line)", background: "var(--cp-panel)" }}
             >
@@ -135,10 +135,10 @@ function ClubSpecializationPage() {
                 style={{ color: "var(--cp-ink)" }}
               >
                 <Check className="h-4 w-4" style={{ color: "var(--cp-gold)" }} aria-hidden="true" />
-                {t(pillar.title)}
+                {t(pillar.titleKey)}
               </p>
               <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--cp-muted)" }}>
-                {t(pillar.desc)}
+                {t(pillar.descKey)}
               </p>
             </li>
           ))}
@@ -148,7 +148,7 @@ function ClubSpecializationPage() {
       <section className="mt-10">
         <ClubDirectory
           title={t("club.spec.clubsTitle")}
-          empty={signedIn ? t("club.spec.clubsEmpty") : t("club.spec.clubsAnon")}
+          empty={t(specializationClubsEmptyKey(signedIn))}
           clubs={clubs}
           loading={clubsQ.isPending}
           layout="editorial"
@@ -163,7 +163,7 @@ function ClubSpecializationPage() {
           {t("club.spec.sectionTitle")}
         </h2>
         <ul className="mt-4 flex flex-wrap gap-2">
-          {CLUB_SPECIALIZATIONS.filter((other) => other.slug !== spec.slug).map((other) => (
+          {otherClubSpecializations(spec.slug).map((other) => (
             <li key={other.slug}>
               <Link
                 to="/club/specialization/$slug"
