@@ -111,6 +111,8 @@ export interface TopicsDroplistProps {
   picked: Set<string>;
   onToggle: (id: string) => void;
   onClear: () => void;
+  /** Maksymalna liczba zaznaczeń. Brak wartości zachowuje wybór bez limitu. */
+  maxSelections?: number;
   display?: "chips" | "droplist";
   labelSize?: number;
   placeholderSize?: number;
@@ -118,6 +120,15 @@ export interface TopicsDroplistProps {
   editTargets?: boolean;
   iconStyle?: CSSProperties;
   iconTargetProps?: Record<string, unknown>;
+}
+
+export function canToggleInterestSelection(
+  picked: ReadonlySet<string>,
+  id: string,
+  maxSelections?: number,
+): boolean {
+  if (picked.has(id) || maxSelections === undefined) return true;
+  return picked.size < Math.max(0, Math.floor(maxSelections));
 }
 
 export function TopicsDroplist({
@@ -128,6 +139,7 @@ export function TopicsDroplist({
   picked,
   onToggle,
   onClear,
+  maxSelections,
   display = "droplist",
   labelSize,
   placeholderSize,
@@ -209,6 +221,9 @@ export function TopicsDroplist({
     ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
     : undefined;
   const headingText = heading?.trim() || topicLabel("heading", lang);
+  const toggleIfAllowed = (id: string) => {
+    if (canToggleInterestSelection(picked, id, maxSelections)) onToggle(id);
+  };
 
   return (
     <div>
@@ -238,7 +253,7 @@ export function TopicsDroplist({
                     {it.label}
                     <button
                       type="button"
-                      onClick={() => onToggle(it.id)}
+                      onClick={() => toggleIfAllowed(it.id)}
                       aria-label={lang === "en" ? `Remove ${it.label}` : `Usuń ${it.label}`}
                       className="inline-flex items-center justify-center rounded-full hover:opacity-80"
                       style={{ width: "1em", height: "1em" }}
@@ -322,13 +337,20 @@ export function TopicsDroplist({
                           <div className="grid grid-cols-1 gap-0.5 p-1.5 sm:grid-cols-2">
                             {g.items.map((it) => {
                               const active = picked.has(it.id);
+                              const disabled = !canToggleInterestSelection(
+                                picked,
+                                it.id,
+                                maxSelections,
+                              );
                               return (
                                 <button
                                   key={`opt:${it.type}:${it.id}`}
                                   type="button"
                                   role="option"
                                   aria-selected={active}
-                                  onClick={() => onToggle(it.id)}
+                                  aria-disabled={disabled || undefined}
+                                  disabled={disabled}
+                                  onClick={() => toggleIfAllowed(it.id)}
                                   className={cn(
                                     "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition min-w-0",
                                     active ? "bg-brand/10 text-brand" : "hover:bg-accent",
@@ -390,12 +412,14 @@ export function TopicsDroplist({
               <div className="flex flex-wrap gap-1.5">
                 {g.items.map((it) => {
                   const active = picked.has(it.id);
+                  const disabled = !canToggleInterestSelection(picked, it.id, maxSelections);
                   return (
                     <button
                       key={`${it.type}:${it.id}`}
                       type="button"
-                      onClick={() => onToggle(it.id)}
+                      onClick={() => toggleIfAllowed(it.id)}
                       aria-pressed={active}
+                      disabled={disabled}
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-xs transition",
                         active

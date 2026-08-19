@@ -55,18 +55,19 @@ const FLAG_WIDTH = "1.5em";
 const FLAG_HEIGHT = "1.125em";
 const TEXT_PADDING_WITH_FLAG = `calc(${FLAG_GUTTER} + 2.5em + 1px)`;
 
-function useCountryList(lang: "pl" | "en"): string[] {
+export function useCountryList(lang: "pl" | "en"): string[] {
   return useMemo(() => {
     const map = getNames(lang);
     return Object.values(map).sort((a, b) => a.localeCompare(b, lang));
   }, [lang]);
 }
 
-function normalize(s: string): string {
+export function normalizeCountrySearch(s: string): string {
   return s
     .toLocaleLowerCase()
     .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "");
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/ł/g, "l");
 }
 
 export function CountryCombobox({
@@ -92,9 +93,9 @@ export function CountryCombobox({
   const inputId = useId();
 
   const filtered = useMemo(() => {
-    const q = normalize(value.trim());
+    const q = normalizeCountrySearch(value.trim());
     if (!q) return list.slice(0, 200);
-    return list.filter((n) => normalize(n).includes(q)).slice(0, 200);
+    return list.filter((n) => normalizeCountrySearch(n).includes(q)).slice(0, 200);
   }, [value, list]);
 
   const updatePosition = useCallback(() => {
