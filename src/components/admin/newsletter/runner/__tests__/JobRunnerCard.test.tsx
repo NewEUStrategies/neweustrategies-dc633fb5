@@ -191,7 +191,9 @@ describe("kolejki poczty", () => {
       screen.getByText(i18n.t("adminRunner.queues.backlogWarning", { count: 40 })),
     ).toBeTruthy();
     // Ostrzeżenie sumuje OBIE kolejki - 20 + 20, nie jedną z nich.
-    expect(screen.queryByText(i18n.t("adminRunner.queues.backlogWarning", { count: 20 }))).toBeNull();
+    expect(
+      screen.queryByText(i18n.t("adminRunner.queues.backlogWarning", { count: 20 })),
+    ).toBeNull();
   });
 
   it("kolejka poniżej progu nie straszy ostrzeżeniem", async () => {

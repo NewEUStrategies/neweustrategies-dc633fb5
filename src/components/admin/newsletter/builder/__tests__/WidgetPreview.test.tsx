@@ -307,7 +307,11 @@ describe("widgety popupowe", () => {
   });
 
   it("wariant ikonowy pokazuje glif, nie tekst", () => {
-    const widget = { ...makeWidget("close-button"), variant: "icon-x", label: { pl: "Nie teraz", en: "Not now" } };
+    const widget = {
+      ...makeWidget("close-button"),
+      variant: "icon-x",
+      label: { pl: "Nie teraz", en: "Not now" },
+    };
     const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("✕")).toBeTruthy();

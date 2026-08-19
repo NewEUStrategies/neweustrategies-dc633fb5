@@ -63,13 +63,7 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
 
   it("pusta kanwa zaprasza do upuszczenia widgetu", () => {
     const { container } = inDnd(
-      <BuilderCanvas
-        sectionId="sec-1"
-        widgets={[]}
-        lang="pl"
-        selectedId={null}
-        {...handlers()}
-      />,
+      <BuilderCanvas sectionId="sec-1" widgets={[]} lang="pl" selectedId={null} {...handlers()} />,
     );
 
     expect(screen.getByText("Upusc widget tutaj")).toBeTruthy();

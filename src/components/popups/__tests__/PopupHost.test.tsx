@@ -442,9 +442,9 @@ describe("okno popupu", () => {
     expect(dialog.style.backgroundColor).toBe("rgba(1, 2, 3, 0.5)");
     // Przysłona jest na nadrzędnym elemencie, nie na panelu z treścią - inaczej
     // przyciemniłaby sam dokument.
-    expect((screen.getByTestId("dokument").parentElement as HTMLElement).style.backgroundColor).toBe(
-      "",
-    );
+    expect(
+      (screen.getByTestId("dokument").parentElement as HTMLElement).style.backgroundColor,
+    ).toBe("");
   });
 });
 
