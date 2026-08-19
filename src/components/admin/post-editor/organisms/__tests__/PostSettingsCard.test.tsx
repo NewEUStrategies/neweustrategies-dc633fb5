@@ -218,26 +218,22 @@ describe("PostSettingsCard - slug", () => {
   });
 
   // -------------------------------------------------------------------------
-  // ŚWIADEK DEFEKTU: slug ZJADA literę „ł".
+  // REGRESJA: slug transliteruje „ł" na „l", zamiast ją zjadać.
   //
-  // `normalizeSlugInput` opiera transliterację wyłącznie na `normalize("NFD")`,
-  // które rozkłada ą/ć/ę/ń/ó/ś/ź/ż na „podstawa + znak diakrytyczny" — ale NIE
-  // „ł" (U+0142). To osobna litera z przekreśleniem, nie złożenie, więc NFD
-  // zostawia ją bez zmian, a następny krok (`[^a-z0-9]+`) zamienia ją na dywiz.
+  // Do 18.08 `normalizeSlugInput` opierał transliterację wyłącznie na
+  // `normalize("NFD")`, które rozkłada ą/ć/ę/ń/ó/ś/ź/ż na „podstawa + znak
+  // diakrytyczny" — ale NIE „ł" (U+0142). To osobna litera z przekreśleniem,
+  // nie złożenie, więc NFD zostawiała ją bez zmian, a następny krok
+  // (`[^a-z0-9]+`) zamieniał ją na dywiz.
   //
-  // Skutek: wpis „Łódź — miasto" dostaje adres `odz-miasto`, a „Miłość" →
+  // Skutek: wpis „Łódź Miasto" dostawał adres `odz-miasto`, a „Miłość" →
   // `mio-c`. Adres wpisu jest trwały (linkowany, indeksowany), więc pomyłka
-  // zostaje na stałe.
-  //
-  // To ZNANY dług: commit 592a99a naprawił dokładnie ten defekt w propozycji
-  // adresu profilu i w opisie wprost wymienił `taxonomySlug` jako powierzchnię
-  // nietkniętą. Naprawa idzie osobnym commitem.
+  // zostawała na stałe.
   // -------------------------------------------------------------------------
-  it("DEFEKT: litera l z przekresleniem jest ZJADANA zamiast transliterowana", () => {
+  it("litera ze skreśleniem jest TRANSLITEROWANA, nie zjadana", () => {
     const { formApi } = renderCard();
     fireEvent.change(slugInput(), { target: { value: "ŁÓDŹ Miasto" } });
-    // Docelowo: "lodz-miasto".
-    expect(formApi.set).toHaveBeenCalledWith("slug", "odz-miasto");
+    expect(formApi.set).toHaveBeenCalledWith("slug", "lodz-miasto");
   });
 });
 
