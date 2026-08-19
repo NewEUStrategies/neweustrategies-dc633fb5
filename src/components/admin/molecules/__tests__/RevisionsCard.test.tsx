@@ -27,6 +27,11 @@ const h = vi.hoisted(() => ({
   toastError: null as unknown,
   authors: [] as Array<{ id: string; display_name: string | null; slug: string | null }>,
   confirmState: null as unknown,
+  // Przechwycone callbacki dialogow - test wywoluje je tak, jak zrobilby to
+  // uzytkownik klikajac w zamkniecie.
+  confirmOnOpenChange: null as ((open: boolean) => void) | null,
+  diffRequest: null as { ids: string[]; withCurrent: boolean; beforeLabel: string } | null,
+  diffOnClose: null as (() => void) | null,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -91,7 +96,13 @@ vi.mock("@/components/admin/atoms/StatusBadge", () => ({
 // Dialog diffa ma wlasny plik testowy; tutaj przechwytujemy PROP, bo to on jest
 // kontraktem wzorca dwoch klikniec.
 vi.mock("@/components/admin/molecules/RevisionDiffDialog", () => ({
-  RevisionDiffDialog: ({ request, onClose }: { request: unknown; onClose: () => void }) => {
+  RevisionDiffDialog: ({
+    request,
+    onClose,
+  }: {
+    request: { ids: string[]; withCurrent: boolean; beforeLabel: string } | null;
+    onClose: () => void;
+  }) => {
     h.diffRequest = request;
     h.diffOnClose = onClose;
     return null;
@@ -106,9 +117,7 @@ const restore = () => h.restore as Mock;
 const toast = () => h.toast as Record<string, Mock>;
 const confirmState = () =>
   h.confirmState as { title: string; onConfirm: () => Promise<void> } | null;
-const diffRequest = () =>
-  (h as { diffRequest?: { ids: string[]; withCurrent: boolean; beforeLabel: string } | null })
-    .diffRequest ?? null;
+const diffRequest = () => h.diffRequest;
 
 const OLDER = revisionListItem({ id: "rev-older", created_at: BASE_ISO });
 const NEWER = revisionListItem({ id: "rev-newer", created_at: isoOffset(60) });
@@ -128,7 +137,9 @@ beforeEach(() => {
   for (const fn of Object.values(toast())) fn.mockReset();
   h.authors = [{ id: revisionListItem().author_id as string, display_name: "Anna", slug: "anna" }];
   h.confirmState = null;
-  (h as { diffRequest?: unknown }).diffRequest = null;
+  h.diffRequest = null;
+  h.confirmOnOpenChange = null;
+  h.diffOnClose = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -389,7 +400,7 @@ describe("RevisionsCard - zamykanie dialogów", () => {
     fireEvent.click(buttons[1]);
     await waitFor(() => expect(diffRequest()).not.toBeNull());
 
-    const onClose = (h as { diffOnClose?: () => void }).diffOnClose!;
+    const onClose = h.diffOnClose!;
     act(() => onClose());
 
     // Bez wyzerowania dialog otwierałby się ponownie przy każdym renderze karty.

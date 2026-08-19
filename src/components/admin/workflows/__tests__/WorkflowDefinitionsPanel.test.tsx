@@ -11,7 +11,7 @@
 //   3. WARUNEK PUSTY ZNACZY „ZAWSZE" i musi to być napisane wprost. Puste pole
 //      wygląda jak brak danych, a znaczy „ten przepis odpala się przy KAŻDYM
 //      zdarzeniu tego typu" - czyli dokładnie odwrotnie niż „nic nie robi".
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach, type Mock } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import { workflowDefinition, workflowRunStats, BASE_ISO } from "@/test/post-editor/fixtures";
 import type { WorkflowDefinitionRow, WorkflowRunStats } from "@/lib/admin/workflows";
@@ -25,12 +25,18 @@ import { WorkflowDefinitionsPanel } from "@/components/admin/workflows/WorkflowD
 
 afterEach(cleanup);
 
+/**
+ * Atrapy typowane SYGNATURA PROPU, nie golym `vi.fn()`. Goly `vi.fn()` ma typ
+ * `Mock<Procedure | Constructable>`, ktorego TypeScript nie przyjmuje w miejsce
+ * `(row: WorkflowDefinitionRow) => void` - a to wlasnie zgodnosc z ta sygnatura
+ * chcemy tu dowiesc.
+ */
 interface Handlers {
-  onCreate: ReturnType<typeof vi.fn>;
-  onEdit: ReturnType<typeof vi.fn>;
-  onDelete: ReturnType<typeof vi.fn>;
-  onToggle: ReturnType<typeof vi.fn>;
-  onShowRuns: ReturnType<typeof vi.fn>;
+  onCreate: Mock<() => void>;
+  onEdit: Mock<(row: WorkflowDefinitionRow) => void>;
+  onDelete: Mock<(row: WorkflowDefinitionRow) => void>;
+  onToggle: Mock<(row: WorkflowDefinitionRow, enabled: boolean) => void>;
+  onShowRuns: Mock<(row: WorkflowDefinitionRow) => void>;
 }
 
 function renderPanel(
@@ -41,11 +47,11 @@ function renderPanel(
   } = {},
 ): Handlers {
   const handlers: Handlers = {
-    onCreate: vi.fn(),
-    onEdit: vi.fn(),
-    onDelete: vi.fn(),
-    onToggle: vi.fn(),
-    onShowRuns: vi.fn(),
+    onCreate: vi.fn<() => void>(),
+    onEdit: vi.fn<(row: WorkflowDefinitionRow) => void>(),
+    onDelete: vi.fn<(row: WorkflowDefinitionRow) => void>(),
+    onToggle: vi.fn<(row: WorkflowDefinitionRow, enabled: boolean) => void>(),
+    onShowRuns: vi.fn<(row: WorkflowDefinitionRow) => void>(),
   };
   render(
     <WorkflowDefinitionsPanel

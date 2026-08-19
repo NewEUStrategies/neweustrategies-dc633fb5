@@ -94,7 +94,14 @@ export function BuilderVersionsPane({ lang }: { lang: "pl" | "en" }) {
     tab === "template" ? null : entityId,
   );
   const templateRevisions = useTemplateRevisions(tab === "template" ? entityId : null);
-  const restore = useRestoreBuilderRevision(tab === "template" ? "global_widget" : "global_widget");
+  // Typ encji MUSI iść za zakładką: `useRestoreBuilderRevision` wybiera po nim
+  // ZARÓWNO parser migawki, JAK I tabelę docelową. Migawka popupu ma kształt
+  // `{builder_data, settings}`, którego parser widgetu nie rozpoznaje - podanie
+  // tu `global_widget` dla zakładki „Popupy" zabijało przywracanie popupów.
+  // Dla szablonów sekcji ta mutacja nie jest używana (mają własny mechanizm
+  // wersjonowania i nie renderują przycisku przywracania), więc ramię
+  // `template` jest tylko wypełnieniem typu.
+  const restore = useRestoreBuilderRevision(tab === "template" ? "global_widget" : tab);
 
   const rows =
     tab === "template"

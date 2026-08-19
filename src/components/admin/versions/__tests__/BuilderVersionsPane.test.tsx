@@ -313,31 +313,55 @@ describe("BuilderVersionsPane - przywracanie", () => {
   });
 
   // -------------------------------------------------------------------------
-  // ŚWIADEK DEFEKTU: przywracanie wersji POPUPU idzie ścieżką WIDGETU.
+  // REGRESJA: ścieżka przywracania idzie ZA ZAKŁADKĄ.
   //
-  // `BuilderVersionsPane.tsx:97` tworzy mutację jako
+  // Do 18.08 `BuilderVersionsPane.tsx:97` tworzył mutację jako
   //     useRestoreBuilderRevision(tab === "template" ? "global_widget" : "global_widget")
-  // — OBA RAMIONA ternarnego są identyczne, więc dla zakładki „Popupy" typ
-  // encji też wychodzi `global_widget`.
+  // — OBA RAMIONA ternarnego były identyczne, więc dla zakładki „Popupy" typ
+  // encji też wychodził `global_widget`.
   //
-  // Skutek dla użytkownika: `useRestoreBuilderRevision` wybiera po tym typie
-  // ZARÓWNO parser, JAK I tabelę. Migawka popupu ma kształt
-  // `{builder_data, settings}`, którego `parseGlobalWidgetRevision` nie
-  // rozpoznaje (brak klucza `type`), więc mutacja rzuca
-  // „invalid_revision_payload" ZANIM cokolwiek zapisze. Przywracanie wersji
-  // popupu jest więc MARTWE: redaktor za każdym razem dostaje „Nie udało się
-  // przywrócić", niezależnie od tego, którą wersję wybierze.
-  //
-  // Ten test opisuje stan OBECNY. Naprawa idzie osobnym commitem.
+  // `useRestoreBuilderRevision` wybiera po tym typie ZARÓWNO parser, JAK
+  // I tabelę docelową. Migawka popupu ma kształt `{builder_data, settings}`,
+  // którego `parseGlobalWidgetRevision` nie rozpoznaje (brak klucza `type`),
+  // więc mutacja rzucała „invalid_revision_payload" ZANIM cokolwiek zapisała.
+  // Przywracanie wersji popupu było MARTWE: redaktor za każdym razem dostawał
+  // „Nie udało się przywrócić", niezależnie od tego, którą wersję wybrał.
   // -------------------------------------------------------------------------
-  it("DEFEKT: zakładka popupów tworzy mutację z typem `global_widget`", () => {
+  it("zakładka popupów tworzy mutację z typem `popup`", () => {
     renderWithQueryClient(<BuilderVersionsPane lang="pl" />);
     h.restoreEntityTypes = [];
 
     fireEvent.click(screen.getByText("Popupy"));
 
-    // Docelowo w tej tablicy ma się pojawić "popup".
     expect(h.restoreEntityTypes.length).toBeGreaterThan(0);
+    expect(new Set(h.restoreEntityTypes)).toEqual(new Set(["popup"]));
+  });
+
+  it("zakładka widgetów globalnych zostaje przy typie `global_widget`", () => {
+    renderWithQueryClient(<BuilderVersionsPane lang="pl" />);
     expect(new Set(h.restoreEntityTypes)).toEqual(new Set(["global_widget"]));
+  });
+
+  it("przywrócenie POPUPU realnie dochodzi do mutacji", () => {
+    // Przed naprawą ta ścieżka kończyła się wyjątkiem parsera zanim mutacja
+    // cokolwiek zapisała.
+    const popupRevision = {
+      id: "prev-1",
+      entity_type: "popup",
+      entity_id: "p1",
+      name: "Popup v1",
+      data: { builder_data: { version: 1, sections: [] }, settings: { trigger: "delay" } },
+      note: null,
+      created_by: null,
+      created_at: "2026-08-18T10:00:00.000Z",
+    };
+    h.revisions = [popupRevision];
+    renderWithQueryClient(<BuilderVersionsPane lang="pl" />);
+    fireEvent.click(screen.getByText("Popupy"));
+
+    fireEvent.click(screen.getByText("Popup v1"));
+    fireEvent.click(screen.getByText("Przywróć tę wersję"));
+
+    return waitFor(() => expect(restoreMutate()).toHaveBeenCalledWith(popupRevision));
   });
 });
