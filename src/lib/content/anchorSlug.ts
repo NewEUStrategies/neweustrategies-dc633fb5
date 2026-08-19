@@ -153,19 +153,6 @@ function legacyAsciiSlug(input: string): string {
 }
 
 /**
- * Transliteracja liter atomowych (`ł` → `l`, `ø` → `o`, `ß` → `ss`, ...) -
- * WSPÓŁDZIELONY prymityw slugujący. Wejście musi być już małymi literami
- * (klucze mapy są małe), więc funkcja robi `toLowerCase()` sama.
- *
- * Wydzielone, bo slug tokenu marki (`lib/builder/designTokens.ts`) miał własny
- * rdzeń bez transliteracji i psuł nazwy z polskimi literami dokładnie tak, jak
- * kotwice przed unifikacją. Jedna mapa liter, jedno miejsce do rozszerzania.
- */
-export function transliterateAtomicLetters(input: string): string {
-  return input.toLowerCase().replace(ATOMIC_LETTERS_RE, (c) => ATOMIC_LETTERS[c] ?? c);
-}
-
-/**
  * Kanoniczna kotwica nagłówka. Deterministyczna, ASCII-only, stabilna między
  * silnikami (bloki / richtext / builder) i między serwerem a przeglądarką.
  *
