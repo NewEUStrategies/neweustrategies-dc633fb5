@@ -29,7 +29,7 @@ import { ClubNoticeKindPill } from "@/components/clubs/atoms/ClubNetworkPrimitiv
 import { ClubTopicChip, ClubTopicFilterChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubBoardComposer } from "@/components/clubs/molecules/ClubBoardPanel";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useCloseClubBoardNotice, useClubBoardNotices } from "@/lib/clubs/useClubNetwork";
 import type { ClubBoardScope } from "@/lib/clubs/useClubNetwork";

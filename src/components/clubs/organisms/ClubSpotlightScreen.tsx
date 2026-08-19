@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubExpertiseChip } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubMembers } from "@/lib/clubs/useClubs";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import {

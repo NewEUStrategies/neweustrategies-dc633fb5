@@ -36,7 +36,7 @@ import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubNoticeKindPill } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import {
   useCloseClubBoardNotice,

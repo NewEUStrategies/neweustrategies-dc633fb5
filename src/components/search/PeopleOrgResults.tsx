@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { BadgeCheck, Building2 } from "lucide-react";
 import { FileText, User, Users } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import type { PeopleOrgItem } from "@/lib/queries/archives";
 
 interface Props {
