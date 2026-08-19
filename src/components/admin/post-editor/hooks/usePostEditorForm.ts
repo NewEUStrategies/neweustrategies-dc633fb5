@@ -164,11 +164,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   );
 
   const saveFn = useCallback(
-    async (snapshot: PostForm | null) => {
-      if (!snapshot) return;
-      const persistedBlocks = await persistPastedImages(snapshot.blocks_data);
-      const persistedBuilder = await persistPastedImages(snapshot.builder_data);
-      snapshot = applyPersistedImages(snapshot, persistedBlocks, persistedBuilder);
+    async (input: PostForm | null) => {
+      if (!input) return;
+      const persistedBlocks = await persistPastedImages(input.blocks_data);
+      const persistedBuilder = await persistPastedImages(input.builder_data);
+      // Osobna, niemutowalna referencja: parametr po podmianie gubi zawężenie
+      // typu (`PostForm | null`), a dalej korzystamy z niego po `await`.
+      const snapshot: PostForm = applyPersistedImages(input, persistedBlocks, persistedBuilder);
       const result = await update$({
         data: {
           id,
