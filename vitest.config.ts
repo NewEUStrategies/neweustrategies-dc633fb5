@@ -680,6 +680,21 @@ export default defineConfig({
           lines: 91,
           branches: 80,
         },
+        // Renderer huba eksperta: 1134 linie, jeden plik obsługujący DWIE
+        // powierzchnie (podgląd w adminie i publiczną stronę /author/$slug).
+        // Trzymamy 100% linii i funkcji, bo najgroźniejsza regresja tego pliku
+        // nie wywala testu typów ani lintu: to WYCIEK TREŚCI PRZYKŁADOWEJ na
+        // stronę realnego eksperta. Każda gałąź `showPlaceholders` ma parę
+        // asercji „w podglądzie jest / publicznie nie ma" i bez bramki taka
+        // para po cichu zniknie przy pierwszym refaktorze presetów.
+        // Gałęzie poniżej 100%, bo część wariantów układu (sidebar po prawej,
+        // centrowanie w karcie) różni się wyłącznie klasą CSS.
+        "src/components/experts/ExpertLayoutRenderer.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
         // ── MODUŁ 7: WYDARZENIA - dokument biletu i atomy prelegenta ──────────
         // `ticketDocument` skleja HTML z danych z bazy i formularza, a plik ląduje
         // na dysku człowieka i otwiera się BEZ naszego CSP. Ucieczka znaków jest
