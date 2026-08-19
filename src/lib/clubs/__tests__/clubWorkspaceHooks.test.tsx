@@ -223,8 +223,9 @@ describe("mutacje przestrzeni roboczej klubu", () => {
     await del.result.current.mutateAsync("d1");
 
     await waitFor(() => expect(invalidated).toContainEqual(clubKeys.club(CLUB)));
-    expect(invalidated.filter((k) => JSON.stringify(k) === JSON.stringify(clubKeys.club(CLUB))))
-      .toHaveLength(2);
+    expect(
+      invalidated.filter((k) => JSON.stringify(k) === JSON.stringify(clubKeys.club(CLUB))),
+    ).toHaveLength(2);
   });
 
   it("wydarzenie i kamień milowy dopełniają id klubu", async () => {
