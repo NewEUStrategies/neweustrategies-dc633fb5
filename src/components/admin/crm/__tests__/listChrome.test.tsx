@@ -4,8 +4,8 @@
 // Te panele nie mają własnych zapytań: dostają wartość i oddają zmianę, więc
 // test sprawdza dokładnie to, co jest ich zadaniem - że klik zmienia STAN
 // FILTRA/KOLUMN zgodnie z regułą, a nie że coś się wyrenderowało.
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { DEFAULT_LEAD_FILTER, DEFAULT_LEAD_VIEW_CONFIG } from "@/lib/crm/leadViews";
 import { DEFAULT_COMPANY_FILTER, DEFAULT_COMPANY_VIEW_CONFIG } from "@/lib/crm/companyViews";
 
@@ -541,5 +541,333 @@ describe("zakładki widoków firm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zapisz" }));
     expect(onRename).toHaveBeenCalledWith("cview-1", "Inna nazwa");
     view.unmount();
+  });
+});
+
+describe("chipy filtrów - kompletność reguł", () => {
+  /** Otwiera dymek chipa i zwraca jego zawartość (Radix renderuje ją w portalu). */
+  const openChip = async (name: RegExp) => {
+    fireEvent.click(screen.getAllByRole("button", { name })[0]);
+    return (await waitFor(() => {
+      const el = document.querySelector("[data-radix-popper-content-wrapper]");
+      expect(el).not.toBeNull();
+      return el;
+    })) as HTMLElement;
+  };
+
+  const pickOption = async (popover: HTMLElement, name: string) => {
+    fireEvent.keyDown(within(popover).getByRole("combobox"), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name }));
+  };
+
+  afterEach(() => cleanup());
+
+  it("czyszczenie KAŻDEGO chipa leadów zeruje dokładnie jeden filtr", () => {
+    const full = {
+      stage: "won" as const,
+      band: "hot" as const,
+      source: "form" as const,
+      country: "Poland",
+      company: "Acme",
+      createdRange: "30d" as const,
+      activityRange: "7d" as const,
+      consentOnly: true,
+    };
+    const expected: Array<[string, Record<string, unknown>]> = [
+      ["Wygrany", { stage: "any" }],
+      ["Gorący", { band: "any" }],
+      ["Poland", { country: null }],
+      ["Acme", { company: null }],
+      ["Tylko ze zgodą", { consentOnly: false }],
+    ];
+    for (const [chipValue, patch] of expected) {
+      const onChange = vi.fn();
+      render(
+        <LeadFilterChips
+          lang="pl"
+          value={full}
+          onChange={onChange}
+          stageLabels={STAGE_LABELS}
+          countries={["Poland"]}
+        />,
+      );
+      const chip = screen.getByText(chipValue).closest("button") as HTMLElement;
+      fireEvent.click(within(chip).getByLabelText("Clear"));
+      expect(onChange).toHaveBeenCalledWith({ ...full, ...patch });
+      cleanup();
+    }
+  });
+
+  it("zakresy dat leadów czyszczą się osobno", () => {
+    const full = {
+      stage: "any" as const,
+      band: "any" as const,
+      source: "any" as const,
+      country: null,
+      company: null,
+      createdRange: "30d" as const,
+      activityRange: "7d" as const,
+      consentOnly: false,
+    };
+    const onChange = vi.fn();
+    render(
+      <LeadFilterChips
+        lang="pl"
+        value={full}
+        onChange={onChange}
+        stageLabels={STAGE_LABELS}
+        countries={[]}
+      />,
+    );
+    const created = screen.getByText("Ostatnie 30 dni").closest("button") as HTMLElement;
+    fireEvent.click(within(created).getByLabelText("Clear"));
+    expect(onChange).toHaveBeenLastCalledWith({ ...full, createdRange: "any" });
+    const activity = screen.getByText("Ostatnie 7 dni").closest("button") as HTMLElement;
+    fireEvent.click(within(activity).getByLabelText("Clear"));
+    expect(onChange).toHaveBeenLastCalledWith({ ...full, activityRange: "any" });
+  });
+
+  it("każdy chip leadów ustawia swój filtr i nie rusza pozostałych", async () => {
+    // Każdy chip w osobnym renderze: Radix trzyma otwarty dymek w portalu,
+    // więc dwa chipy naraz czytałyby się nawzajem.
+    const cases: Array<[RegExp, string, Record<string, unknown>]> = [
+      [/^Poziom/, "Gorący", { band: "hot" }],
+      [/^Źródło/, "Formularz", { source: "form" }],
+      [/^Kraj/, "Belgium", { country: "Belgium" }],
+      [/^Utworzono/, "Ostatnie 7 dni", { createdRange: "7d" }],
+      [/^Aktywność/, "Ostatnie 30 dni", { activityRange: "30d" }],
+    ];
+    for (const [chip, option, patch] of cases) {
+      const onChange = vi.fn();
+      render(
+        <LeadFilterChips
+          lang="pl"
+          value={DEFAULT_LEAD_FILTER}
+          onChange={onChange}
+          stageLabels={STAGE_LABELS}
+          countries={["Poland", "Belgium"]}
+        />,
+      );
+      await pickOption(await openChip(chip), option);
+      expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_LEAD_FILTER, ...patch });
+      cleanup();
+    }
+  });
+
+  it("chip firmy i chip zgody leadów sterują swoimi polami", async () => {
+    const onChange = vi.fn();
+    render(
+      <LeadFilterChips
+        lang="pl"
+        value={DEFAULT_LEAD_FILTER}
+        onChange={onChange}
+        stageLabels={STAGE_LABELS}
+        countries={[]}
+      />,
+    );
+    const companyChip = await openChip(/^Firma/);
+    fireEvent.change(within(companyChip).getByRole("textbox"), { target: { value: "Acme" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_LEAD_FILTER, company: "Acme" });
+    cleanup();
+
+    const onChange2 = vi.fn();
+    render(
+      <LeadFilterChips
+        lang="pl"
+        value={DEFAULT_LEAD_FILTER}
+        onChange={onChange2}
+        stageLabels={STAGE_LABELS}
+        countries={[]}
+      />,
+    );
+    const consentChip = await openChip(/Zgoda mkt\./);
+    fireEvent.click(within(consentChip).getByRole("switch"));
+    expect(onChange2).toHaveBeenLastCalledWith({ ...DEFAULT_LEAD_FILTER, consentOnly: true });
+  });
+
+  it("czyszczenie KAŻDEGO chipa firm zeruje dokładnie jeden filtr", () => {
+    const full = {
+      country: "Poland",
+      branch: "Energetyka",
+      hasLeads: "with" as const,
+      createdRange: "30d" as const,
+      activityRange: "7d" as const,
+      minLeads: 5,
+    };
+    const expected: Array<[string, Record<string, unknown>]> = [
+      ["Poland", { country: null }],
+      ["Energetyka", { branch: null }],
+      ["Z leadami", { hasLeads: "any" }],
+      ["Ostatnie 30 dni", { createdRange: "any" }],
+      ["Ostatnie 7 dni", { activityRange: "any" }],
+      ["5", { minLeads: null }],
+    ];
+    for (const [chipValue, patch] of expected) {
+      const onChange = vi.fn();
+      render(
+        <CompanyFilterChips
+          lang="pl"
+          value={full}
+          onChange={onChange}
+          countries={["Poland"]}
+          branches={["Energetyka"]}
+        />,
+      );
+      const chip = screen.getByText(chipValue).closest("button") as HTMLElement;
+      fireEvent.click(within(chip).getByLabelText("Clear"));
+      expect(onChange).toHaveBeenCalledWith({ ...full, ...patch });
+      cleanup();
+    }
+  });
+
+  it("każdy chip firm ustawia swój filtr", async () => {
+    const cases: Array<[RegExp, string, Record<string, unknown>]> = [
+      [/^Kraj/, "Belgium", { country: "Belgium" }],
+      [/^Branża/, "Transport", { branch: "Transport" }],
+      [/^Leady/, "Bez leadów", { hasLeads: "without" }],
+      [/^Utworzono/, "Ostatnie 90 dni", { createdRange: "90d" }],
+      [/^Aktywność/, "Ostatnie 90 dni", { activityRange: "90d" }],
+    ];
+    for (const [chip, option, patch] of cases) {
+      const onChange = vi.fn();
+      render(
+        <CompanyFilterChips
+          lang="pl"
+          value={DEFAULT_COMPANY_FILTER}
+          onChange={onChange}
+          countries={["Poland", "Belgium"]}
+          branches={["Energetyka", "Transport"]}
+        />,
+      );
+      await pickOption(await openChip(chip), option);
+      expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_COMPANY_FILTER, ...patch });
+      cleanup();
+    }
+  });
+
+  it("minimalna liczba leadów przyjmuje tylko wartość dodatnią", async () => {
+    const onChange = vi.fn();
+    render(
+      <CompanyFilterChips
+        lang="pl"
+        value={DEFAULT_COMPANY_FILTER}
+        onChange={onChange}
+        countries={[]}
+        branches={[]}
+      />,
+    );
+    const minChip = await openChip(/Min\. leadów/);
+    const input = within(minChip).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_COMPANY_FILTER, minLeads: 3 });
+    // Zero i wartość niepoprawna to BRAK filtra, nie „co najmniej 0”.
+    fireEvent.change(input, { target: { value: "0" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_COMPANY_FILTER, minLeads: null });
+  });
+});
+
+describe("zakładki widoków - anulowanie i stan przełącznika", () => {
+  const savedLead = {
+    id: "v1",
+    name: "Moi klienci",
+    entity: "lead",
+    is_shared: true,
+    config: { columns: ["name"], filter: {}, sort: { key: "created", dir: "desc" } },
+  };
+
+  afterEach(() => cleanup());
+
+  it("anulowanie zapisu widoku leadów nie woła serwera", async () => {
+    const onCreate = vi.fn();
+    render(
+      <LeadViewTabs
+        lang="pl"
+        activeId="builtin:all"
+        saved={[]}
+        currentConfig={DEFAULT_LEAD_VIEW_CONFIG}
+        onSelect={() => {}}
+        onCreate={onCreate}
+        onRename={async () => {}}
+        onDelete={async () => {}}
+        onToggleShared={async () => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Zapisz widok/ }));
+    fireEvent.change(await screen.findByPlaceholderText(/np\./), { target: { value: "X" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+    await waitFor(() => expect(screen.queryByPlaceholderText(/np\./)).toBeNull());
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("anulowanie zmiany nazwy widoku leadów nie woła serwera", async () => {
+    const onRename = vi.fn();
+    render(
+      <LeadViewTabs
+        lang="pl"
+        activeId="v1"
+        saved={[savedLead]}
+        currentConfig={DEFAULT_LEAD_VIEW_CONFIG}
+        onSelect={() => {}}
+        onCreate={async () => {}}
+        onRename={onRename}
+        onDelete={async () => {}}
+        onToggleShared={async () => {}}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Opcje widoku"));
+    fireEvent.click(await screen.findByRole("button", { name: "Zmień nazwę" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Anuluj" }));
+    await waitFor(() => expect(screen.queryByDisplayValue("Moi klienci")).toBeNull());
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it("widok udostępniony ma przełącznik w pozycji włączonej", async () => {
+    render(
+      <LeadViewTabs
+        lang="pl"
+        activeId="v1"
+        saved={[savedLead]}
+        currentConfig={DEFAULT_LEAD_VIEW_CONFIG}
+        onSelect={() => {}}
+        onCreate={async () => {}}
+        onRename={async () => {}}
+        onDelete={async () => {}}
+        onToggleShared={async () => {}}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Opcje widoku"));
+    const toggle = await screen.findByRole("switch");
+    expect(toggle).toBeChecked();
+    // Sam przełącznik nie jest osobnym sterowaniem - klik idzie do wiersza menu.
+    fireEvent.click(toggle);
+  });
+
+  it("anulowanie zapisu i zmiany nazwy widoku firm też nie woła serwera", async () => {
+    const onCreate = vi.fn();
+    const onRename = vi.fn();
+    render(
+      <CompanyViewTabs
+        lang="pl"
+        activeId="v1"
+        saved={[{ ...savedLead, entity: "company" }]}
+        currentConfig={DEFAULT_COMPANY_VIEW_CONFIG}
+        onSelect={() => {}}
+        onCreate={onCreate}
+        onRename={onRename}
+        onDelete={async () => {}}
+        onToggleShared={async () => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Zapisz widok/ }));
+    fireEvent.change(await screen.findByPlaceholderText(/np\./), { target: { value: "X" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+    await waitFor(() => expect(screen.queryByPlaceholderText(/np\./)).toBeNull());
+
+    fireEvent.click(screen.getByLabelText("Opcje widoku"));
+    fireEvent.click(await screen.findByRole("button", { name: "Zmień nazwę" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Anuluj" }));
+    await waitFor(() => expect(screen.queryByDisplayValue("Moi klienci")).toBeNull());
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(onRename).not.toHaveBeenCalled();
   });
 });

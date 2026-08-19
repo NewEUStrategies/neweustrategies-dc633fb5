@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   created: [] as unknown[],
   deleted: [] as unknown[],
   createThrows: false,
+  updateThrows: false,
+  deleteThrows: false,
   toastError: [] as string[],
   toastSuccess: [] as string[],
 }));
@@ -22,6 +24,7 @@ vi.mock("@/lib/crm-tasks.functions", () => ({
   listCrmLeadTasks: async () => ({ json: JSON.stringify(h.leadTasks) }),
   updateCrmTask: async (input: unknown) => {
     h.updated.push(input);
+    if (h.updateThrows) throw new Error("zmiana odrzucona");
     return { ok: true };
   },
   createCrmTask: async (input: unknown) => {
@@ -31,6 +34,7 @@ vi.mock("@/lib/crm-tasks.functions", () => ({
   },
   deleteCrmTask: async (input: unknown) => {
     h.deleted.push(input);
+    if (h.deleteThrows) throw new Error("kasowanie odrzucone");
     return { ok: true };
   },
 }));
@@ -56,6 +60,8 @@ beforeEach(() => {
   h.created = [];
   h.deleted = [];
   h.createThrows = false;
+  h.updateThrows = false;
+  h.deleteThrows = false;
   h.toastError = [];
   h.toastSuccess = [];
 });
@@ -204,6 +210,80 @@ describe("LeadTasksPanel", () => {
     h.leadTasks = [task()];
     renderWithQueryClient(<LeadTasksPanel leadId={LEAD_ID} lang="pl" />);
     fireEvent.click(await screen.findByTitle("Usuń"));
+    await waitFor(() => expect(h.deleted).toEqual([{ data: { id: "t1" } }]));
+  });
+});
+
+describe("panele follow-upów - wersja angielska i odmowy", () => {
+  const task = (over: Record<string, unknown> = {}) => ({
+    id: "t1",
+    tenant_id: "t",
+    lead_id: LEAD_ID,
+    title: "Oddzwonić",
+    note: null,
+    due_at: FUTURE,
+    status: "open",
+    assignee_id: null,
+    created_by: null,
+    reminded_at: null,
+    completed_at: null,
+    created_at: PAST,
+    updated_at: PAST,
+    ...over,
+  });
+
+  it("pasek follow-upów po angielsku liczy zaległe i nadchodzące", async () => {
+    h.dueTasks = [
+      { id: "t1", lead_id: LEAD_ID, title: "Call back", due_at: PAST, status: "open", lead: null },
+      { id: "t2", lead_id: LEAD_ID, title: "Send offer", due_at: FUTURE, status: "open", lead: null },
+    ];
+    renderWithQueryClient(<FollowUpsPanel lang="en" onOpenLead={() => {}} />);
+    expect(await screen.findByText("1 overdue")).toBeInTheDocument();
+    expect(screen.getByText("1 upcoming")).toBeInTheDocument();
+  });
+
+  it("odmowa oznaczenia wykonania na pasku pokazuje komunikat", async () => {
+    h.dueTasks = [
+      { id: "t1", lead_id: LEAD_ID, title: "Zadanie", due_at: FUTURE, status: "open", lead: null },
+    ];
+    h.updateThrows = true;
+    renderWithQueryClient(<FollowUpsPanel lang="pl" onOpenLead={() => {}} />);
+    fireEvent.click(await screen.findByTitle("Wykonane"));
+    await waitFor(() => expect(h.toastError).toContain("zmiana odrzucona"));
+  });
+
+  it("odmowa zmiany statusu i kasowania zadania w karcie mówi wprost", async () => {
+    h.leadTasks = [task()];
+    h.updateThrows = true;
+    h.deleteThrows = true;
+    renderWithQueryClient(<LeadTasksPanel leadId={LEAD_ID} lang="pl" />);
+    fireEvent.click(await screen.findByTitle("Oznacz jako wykonane"));
+    await waitFor(() => expect(h.toastError).toContain("zmiana odrzucona"));
+    fireEvent.click(screen.getByTitle("Usuń"));
+    await waitFor(() => expect(h.toastError).toContain("kasowanie odrzucone"));
+  });
+
+  it("notatka przy follow-upie idzie na serwer razem z zadaniem", async () => {
+    renderWithQueryClient(<LeadTasksPanel leadId={LEAD_ID} lang="pl" />);
+    fireEvent.change(await screen.findByPlaceholderText(/Co jest do zrobienia/), {
+      target: { value: "Umówić spotkanie" },
+    });
+    const note = screen.getAllByRole("textbox").at(-1) as HTMLElement;
+    fireEvent.change(note, { target: { value: "Po webinarze o CBAM" } });
+    fireEvent.click(screen.getByRole("button", { name: "Dodaj" }));
+    await waitFor(() => expect(h.created).toHaveLength(1));
+    expect((h.created[0] as { data: Record<string, unknown> }).data).toMatchObject({
+      title: "Umówić spotkanie",
+      note: "Po webinarze o CBAM",
+    });
+  });
+
+  it("zakończone zadanie da się przywrócić i usunąć", async () => {
+    h.leadTasks = [task({ status: "done", completed_at: PAST })];
+    renderWithQueryClient(<LeadTasksPanel leadId={LEAD_ID} lang="pl" />);
+    fireEvent.click(await screen.findByTitle("Przywróć jako otwarte"));
+    await waitFor(() => expect(h.updated).toEqual([{ data: { id: "t1", status: "open" } }]));
+    fireEvent.click(screen.getByTitle("Usuń"));
     await waitFor(() => expect(h.deleted).toEqual([{ data: { id: "t1" } }]));
   });
 });

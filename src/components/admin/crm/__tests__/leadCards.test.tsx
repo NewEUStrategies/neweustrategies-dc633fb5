@@ -238,4 +238,44 @@ describe("ProfileSyncCard", () => {
     expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument();
     expect(screen.getByText(/2019/)).toBeInTheDocument();
   });
+
+  it("wykształcenie i wyróżnienia pojawiają się, gdy profil je ma", async () => {
+    h.profileSync = {
+      matched: true,
+      profile: {
+        id: "u1",
+        display_name: "Anna Kowalska",
+        job_title: null,
+        location: null,
+        slug: null,
+      },
+      experiences: [],
+      skills: [],
+      cv: null,
+      education: [
+        {
+          id: "ed1",
+          school: "Uniwersytet Warszawski",
+          degree: "magister",
+          field: "stosunki międzynarodowe",
+          start_year: 2010,
+          end_year: 2015,
+        },
+      ],
+      awards: [
+        { id: "aw1", title: "Nagroda Roku", issuer: "NES", year: 2024 },
+        { id: "aw2", title: "Wyróżnienie", issuer: null, year: null },
+      ],
+    };
+    renderWithQueryClient(<ProfileSyncCard leadId={LEAD_ID} lang="pl" />);
+    expect(await screen.findByText("Uniwersytet Warszawski")).toBeInTheDocument();
+    expect(screen.getByText("Nagroda Roku")).toBeInTheDocument();
+    expect(screen.getByText("Wyróżnienie")).toBeInTheDocument();
+  });
+
+  it("po angielsku karta profilu też nazywa swoje sekcje", async () => {
+    h.profileSync = { matched: false };
+    renderWithQueryClient(<ProfileSyncCard leadId={LEAD_ID} lang="en" />);
+    expect(await screen.findByText(/No matching in-system profile/i)).toBeInTheDocument();
+  });
 });

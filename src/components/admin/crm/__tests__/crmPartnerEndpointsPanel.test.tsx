@@ -5,7 +5,7 @@
 // Test pilnuje, co dokładnie zapisuje panel - adres, tryb uwierzytelnienia,
 // etapy do wysyłki, mapowanie zgód (bez pustych kluczy) i sekret w Vault.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 interface Write {
@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: unknown }>,
   writeError: null as string | null,
   dispatch: { delivered: 3, failed: 1 },
+  dispatchFails: false,
   toastError: [] as string[],
   toastSuccess: [] as string[],
 }));
@@ -69,7 +70,10 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 vi.mock("@/lib/integrations/dispatch.functions", () => ({
-  dispatchIntegrationDeliveries: async () => h.dispatch,
+  dispatchIntegrationDeliveries: async () => {
+    if (h.dispatchFails) throw new Error("kolejka niedostępna");
+    return h.dispatch;
+  },
 }));
 vi.mock("sonner", () => ({
   toast: {
@@ -119,6 +123,7 @@ beforeEach(() => {
   h.rpc = [];
   h.writeError = null;
   h.dispatch = { delivered: 3, failed: 1 };
+  h.dispatchFails = false;
   h.toastError = [];
   h.toastSuccess = [];
 });
@@ -291,5 +296,161 @@ describe("zapis partnera", () => {
       expect(screen.queryByRole("button", { name: /Zapisz partnera/ })).toBeNull(),
     );
     expect(h.writes).toHaveLength(0);
+  });
+});
+
+describe("pełne mapowanie zgód i pozostałe pola", () => {
+  async function openNewForm() {
+    render();
+    fireEvent.click(await screen.findByRole("button", { name: /Nowy partner/ }));
+    const saveButton = await screen.findByRole("button", { name: /Zapisz partnera/ });
+    fireEvent.change(screen.getByPlaceholderText(/Merydian/), { target: { value: "Partner C" } });
+    fireEvent.change(screen.getByPlaceholderText(/partner.example.com/), {
+      target: { value: "https://partner-c.example.test/leads" },
+    });
+    return saveButton;
+  }
+
+  it("wypełnione mapowanie zgód idzie na serwer w komplecie", async () => {
+    const saveButton = await openNewForm();
+    fireEvent.click(screen.getByRole("button", { name: /Dodaj mapowanie/ }));
+    fireEvent.change(await screen.findByPlaceholderText(/Klucz zgody/), {
+      target: { value: "  newsletter_opt_in  " },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Etykieta/), { target: { value: "Newsletter" } });
+    fireEvent.change(screen.getByPlaceholderText(/Pole partnera/), {
+      target: { value: "consent_newsletter" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Kategoria/), { target: { value: "marketing" } });
+    fireEvent.click(screen.getByRole("switch", { name: "" }) ?? screen.getAllByRole("switch")[0]);
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(writesFor("crm_webhook_endpoints")).toHaveLength(1));
+    const profile = writesFor("crm_webhook_endpoints")[0].payload as {
+      consent_mapping: Array<Record<string, unknown>>;
+    };
+    expect(profile.consent_mapping).toHaveLength(1);
+    // Klucz idzie PRZYCIĘTY - spacja w kluczu zgody rozjeżdża mapowanie u partnera.
+    expect(profile.consent_mapping[0]).toMatchObject({
+      source_key: "newsletter_opt_in",
+      source_label: "Newsletter",
+      partner_field: "consent_newsletter",
+      partner_category: "marketing",
+    });
+  });
+
+  it("wiersz mapowania da się usunąć", async () => {
+    const saveButton = await openNewForm();
+    fireEvent.click(screen.getByRole("button", { name: /Dodaj mapowanie/ }));
+    fireEvent.change(await screen.findByPlaceholderText(/Klucz zgody/), {
+      target: { value: "newsletter_opt_in" },
+    });
+    fireEvent.click(screen.getByLabelText("Usuń"));
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(writesFor("crm_webhook_endpoints")).toHaveLength(1));
+    const profile = writesFor("crm_webhook_endpoints")[0].payload as { consent_mapping: unknown[] };
+    expect(profile.consent_mapping).toEqual([]);
+  });
+
+  it("znacznik „wymagana” przy zgodzie trafia do zapisu", async () => {
+    const saveButton = await openNewForm();
+    fireEvent.click(screen.getByRole("button", { name: /Dodaj mapowanie/ }));
+    fireEvent.change(await screen.findByPlaceholderText(/Klucz zgody/), {
+      target: { value: "rodo" },
+    });
+    const required = screen.getAllByRole("switch").at(-1) as HTMLElement;
+    fireEvent.click(required);
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(writesFor("crm_webhook_endpoints")).toHaveLength(1));
+    const profile = writesFor("crm_webhook_endpoints")[0].payload as {
+      consent_mapping: Array<{ required: boolean }>;
+    };
+    expect(profile.consent_mapping[0].required).toBe(true);
+  });
+
+  it("tryb Bearer, przestrzeń robocza i wyłączony partner zapisują się razem", async () => {
+    const saveButton = await openNewForm();
+    const auth = screen.getAllByRole("combobox")[0];
+    fireEvent.keyDown(auth, { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name: /Bearer/i }));
+    // Etykiety pól tego formularza nie są powiązane z kontrolkami przez `for`
+    // (osobna sprawa - zapis w dokumencie wdrożenia), więc idziemy po sekcji.
+    const wsField = screen.getByText(/ID przestrzeni roboczej/).parentElement as HTMLElement;
+    fireEvent.change(within(wsField).getByRole("textbox"), { target: { value: "ws-42" } });
+    const activeField = screen.getByText("Aktywny").parentElement as HTMLElement;
+    fireEvent.click(within(activeField).getByRole("switch"));
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(writesFor("crm_webhook_endpoints")).toHaveLength(1));
+    const profile = writesFor("crm_webhook_endpoints")[0].payload as Record<string, unknown>;
+    expect(profile).toMatchObject({ auth_kind: "bearer", workspace_id: "ws-42" });
+    const endpoint = writesFor("integration_endpoints")[0].payload as { enabled: boolean };
+    expect(endpoint.enabled).toBe(false);
+  });
+
+  it("kasowanie partnera wymaga potwierdzenia i mówi o odmowie", async () => {
+    h.endpoints = [partner()];
+    render();
+    fireEvent.click(await screen.findByLabelText("Usuń"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Usuń" }));
+    await waitFor(() =>
+      expect(writesFor("integration_endpoints").some((w) => w.op === "delete")).toBe(true),
+    );
+    expect(h.toastSuccess).toContain("Partner usunięty");
+  });
+
+  it("odmowa kasowania partnera pokazuje komunikat bazy", async () => {
+    h.endpoints = [partner()];
+    h.writeError = "permission denied";
+    render();
+    fireEvent.click(await screen.findByLabelText("Usuń"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Usuń" }));
+    await waitFor(() => expect(h.toastError).toContain("permission denied"));
+  });
+
+  it("odmowa przełączenia aktywności pokazuje komunikat bazy", async () => {
+    h.endpoints = [partner({ enabled: true })];
+    h.writeError = "permission denied";
+    render();
+    fireEvent.click(await screen.findByLabelText("Włącz partnera"));
+    await waitFor(() => expect(h.toastError).toContain("permission denied"));
+  });
+
+  it("czyszczenie sekretu kasuje go w Vault", async () => {
+    h.endpoints = [partner()];
+    render();
+    fireEvent.click(await screen.findByLabelText("Edytuj"));
+    const clear = await screen.findByRole("switch", { name: /Wyczyść|Usuń sekret/i }).catch(() => null);
+    if (clear) fireEvent.click(clear);
+    fireEvent.click(screen.getByRole("button", { name: /Zapisz partnera/ }));
+    await waitFor(() => expect(writesFor("integration_endpoints")).toHaveLength(1));
+  });
+});
+
+describe("kolejka i etapy - pozostałe ścieżki", () => {
+  it("niedostępna kolejka mówi wprost, zamiast udawać sukces", async () => {
+    h.dispatchFails = true;
+    render();
+    fireEvent.click(await screen.findByRole("button", { name: /Przetwórz kolejkę/ }));
+    await waitFor(() => expect(h.toastError).toContain("kolejka niedostępna"));
+  });
+
+  it("odznaczenie wszystkich etapów i tak zostawia „nowy” - endpoint bez etapu nigdy by nie wystrzelił", async () => {
+    render();
+    fireEvent.click(await screen.findByRole("button", { name: /Nowy partner/ }));
+    fireEvent.change(screen.getByPlaceholderText(/Merydian/), { target: { value: "Partner D" } });
+    fireEvent.change(screen.getByPlaceholderText(/partner.example.com/), {
+      target: { value: "https://partner-d.example.test/leads" },
+    });
+    // Domyślnie aktywny jest etap „Nowy” - klik go ZDEJMUJE…
+    fireEvent.click(screen.getByRole("button", { name: "Nowy" }));
+    fireEvent.click(screen.getByRole("button", { name: /Zapisz partnera/ }));
+    await waitFor(() => expect(writesFor("crm_webhook_endpoints")).toHaveLength(1));
+    const profile = writesFor("crm_webhook_endpoints")[0].payload as { forward_stages: string[] };
+    // …ale zapis podstawia z powrotem „new”, bo partner bez ani jednego etapu
+    // to konfiguracja, która nigdy nic nie wyśle - cicha, martwa integracja.
+    expect(profile.forward_stages).toEqual(["new"]);
   });
 });

@@ -421,3 +421,116 @@ describe("ImportLeadsCsvDialog - pozostałe ścieżki", () => {
     await waitFor(() => expect(h.toastError.some((m) => m.includes("Błędy: 1"))).toBe(true));
   });
 });
+
+describe("dialogi CRM - wersja angielska i wyjścia awaryjne", () => {
+  function csvFile(content: string): File {
+    const file = new File([content], "leads.csv", { type: "text/csv" });
+    Object.defineProperty(file, "text", { value: async () => content });
+    return file;
+  }
+
+  it("import CSV po angielsku opisuje wiersze, duplikaty i wynik", async () => {
+    h.importSummary = { imported: 2, merged: 1, skipped: 3, errors: [] };
+    renderWithQueryClient(<ImportLeadsCsvDialog open onOpenChange={() => {}} lang="en" />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", {
+      value: [
+        csvFile("Email,First name\nanna@example.test,Anna\nanna@example.test,Anna\n"),
+      ],
+    });
+    fireEvent.change(input);
+    expect(await screen.findByText(/2 rows, .* with a valid e-mail/)).toBeInTheDocument();
+    expect(screen.getByText(/1 in-file duplicates/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Import 1$/ }));
+    await waitFor(() =>
+      expect(h.toastSuccess.some((m) => m.includes("New: 2") && m.includes("merged: 1"))).toBe(true),
+    );
+  });
+
+  it("import CSV po angielsku zgłasza błędy bazy osobno", async () => {
+    h.importSummary = { imported: 0, merged: 0, skipped: 0, errors: [{ message: "x" }] };
+    renderWithQueryClient(<ImportLeadsCsvDialog open onOpenChange={() => {}} lang="en" />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", {
+      value: [csvFile("Email\nanna@example.test\n")],
+    });
+    fireEvent.change(input);
+    fireEvent.click(await screen.findByRole("button", { name: /^Import 1$/ }));
+    await waitFor(() => expect(h.toastError.some((m) => m.includes("Errors: 1"))).toBe(true));
+  });
+
+  it("anulowanie importu zamyka okno bez wysyłki", async () => {
+    const onOpenChange = vi.fn();
+    renderWithQueryClient(<ImportLeadsCsvDialog open onOpenChange={onOpenChange} lang="pl" />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", {
+      value: [csvFile("E-mail\nanna@example.test\n")],
+    });
+    fireEvent.change(input);
+    await screen.findByText(/1 wierszy/);
+    fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(h.imported).toHaveLength(0);
+  });
+
+  it("zamknięcie okna importu klawiszem czyści wgrany plik", async () => {
+    const onOpenChange = vi.fn();
+    renderWithQueryClient(<ImportLeadsCsvDialog open onOpenChange={onOpenChange} lang="pl" />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", {
+      value: [csvFile("E-mail\nanna@example.test\n")],
+    });
+    fireEvent.change(input);
+    await screen.findByText(/1 wierszy/);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("ustawienia scoringu po angielsku mają komplet etykiet", async () => {
+    h.scoringSettings = {
+      enabled: true,
+      half_life_days: 30,
+      horizon_days: 200,
+      hot_threshold: 80,
+      warm_threshold: 45,
+      cool_threshold: 20,
+      weights: {},
+    };
+    renderWithQueryClient(<ScoringSettingsDialog lang="en" />);
+    fireEvent.click(screen.getByRole("button", { name: /Scoring/ }));
+    expect(await screen.findByText("Signal weights")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Recompute all leads/ })).toBeInTheDocument();
+  });
+
+  it("zmiana horyzontu i limitu wagi trafia do zapisu", async () => {
+    h.scoringSettings = {
+      enabled: true,
+      half_life_days: 30,
+      horizon_days: 200,
+      hot_threshold: 80,
+      warm_threshold: 45,
+      cool_threshold: 20,
+      weights: {},
+    };
+    renderWithQueryClient(<ScoringSettingsDialog lang="pl" />);
+    fireEvent.click(screen.getByRole("button", { name: /Scoring/ }));
+    await screen.findByText("Wagi sygnałów");
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("spinbutton").map((el) => (el as HTMLInputElement).value),
+      ).toContain("200"),
+    );
+    const horizon = screen
+      .getAllByRole("spinbutton")
+      .find((el) => (el as HTMLInputElement).value === "200") as HTMLInputElement;
+    fireEvent.change(horizon, { target: { value: "365" } });
+    // Limit punktów sygnału stoi w tabeli wag - bierzemy ostatnie pole liczbowe.
+    const caps = screen.getAllByRole("spinbutton");
+    fireEvent.change(caps[caps.length - 1], { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Zapisz" }));
+    await waitFor(() => expect(h.savedScoring).toHaveLength(1));
+    const payload = (h.savedScoring[0] as { data: Record<string, unknown> }).data;
+    expect(payload.horizon_days).toBe(365);
+  });
+});
