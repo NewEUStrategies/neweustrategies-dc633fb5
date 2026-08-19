@@ -17,8 +17,9 @@ więc liczby da się wprost podłożyć pod tamte tabele ocen.
 | Plików produkcyjnych w mianowniku  | 2 538                                                                                                                                                     |
 | Plików testowych zmierzonych       | 778 z 817 (95,2%)                                                                                                                                         |
 | Przypadków testowych w pomiarze    | 7 810 z 8 274                                                                                                                                             |
-| Testy poza pomiarem                | 39 plików / 464 testów — zawieszają się w tym sandboksie (rozdział 9.2)                                                                                   |
+| Testy poza pomiarem                | **0 — przyczyna ustalona i NAPRAWIONA 2026-08-18 wieczorem (rozdział 9.2)**                                                                               |
 | Data pomiaru                       | 2026-08-18, HEAD `e83570c`                                                                                                                                |
+| Pomiar POPRAWIONY                  | 2026-08-18 (po naprawie), całe `src/`: **36,84% instr. / 32,02% gał. / 28,90% fn / 37,46% linii** — 833 pliki, 10 269 testów                              |
 
 **Cztery zastrzeżenia, bez których te procenty można źle odczytać:**
 
@@ -33,13 +34,23 @@ więc liczby da się wprost podłożyć pod tamte tabele ocen.
    2 538 plików do 21 modułów zrobiłem regułami po ścieżkach (rozdział 9.1). Pliki graniczne
    (np. `gifting` — „podaruj artykuł” jest funkcją MODUŁU 1, a kod leży w powierzchni MODUŁU 14)
    zaznaczam w tabelach.
-4. **Pomiar wykonany w sandboksie CI-podobnym, nie na maszynie repo.** 39 plików testowych
-   zawiesza się tu w fazie kolekcji — również uruchamiane POJEDYNCZO i przy jednym workerze, więc nie jest to
-   kwestia równoległości. Prawdopodobna przyczyna: `bun.lock` wskazuje prywatny rejestr Lovable, odcięty tu
-   polityką egress, więc zależności zainstalowano z publicznego npm i wersje nie są tymi z pinów; pliki, które
-   padają, to najcięższe importy w repo. Te pliki zostały z pomiaru wyłączone, a powierzchnie, których
-   dotyczą, są w tabelach oznaczone ⚠ — ich realne pokrycie jest WYŻSZE niż podana liczba.
-   Pełna lista i skutki w rozdziale 9.2.
+4. ~~**Pomiar wykonany w sandboksie CI-podobnym, nie na maszynie repo.**~~ **NIEAKTUALNE —
+   PRZYCZYNA USTALONA I NAPRAWIONA (2026-08-18, wieczorem).** Pierwotne brzmienie tego
+   zastrzeżenia zgadywało, że 39 plików testowych zawiesza się z powodu ciężkich importów
+   i zależności z publicznego npm zamiast pinów z `bun.lock`. **Obie hipotezy były fałszywe.**
+   Weryfikacja: przy KOMPLETNYM `bun install` (806 paczek zgodnych z pinami, zero dryfu wersji)
+   zawieszenie było identyczne, a same importy są szybkie — `WidgetView` ładuje się w 1,8 s,
+   lustro `eagerWidgetChunks` w 3,9 s.
+   Prawdziwa przyczyna to ZAKLESZCZENIE CYKLU pod fabryką `vi.mock`:
+   `vi.mock(".../lazyWidgets", () => import("@/test/eagerWidgetChunks"))` → lustro importuje
+   `PostsSliderWidget` → ten importował `SliderRender` z `./lazyWidgets`, czyli z modułu,
+   którego fabryka WŁAŚNIE trwała. Fabryka czekała na import, który czekał na tę samą fabrykę.
+   Limity `testTimeout`/`hookTimeout` nie dotyczą fazy ładowania modułu, więc przebieg stał
+   bez końca zamiast paść — dlatego wyglądało to na „ciężki import".
+   Skutek dla czytelnika tabel: **`bun run test` nie dawał się dokończyć na tym HEAD-zie w ŻADNYM
+   środowisku, także w CI repo.** Naprawa (rozdział 9.2) odblokowała 18 plików / 1 026 testów.
+   Liczby w tabelach niżej pochodzą z pomiaru PRZED naprawą; wiersz „Pomiar POPRAWIONY" w tabeli
+   metodologii i rozdział 9.2 podają wartości po niej.
 
 ---
 
@@ -100,6 +111,11 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | —   | PRZEKROJOWE: design system (components/ui)            |          43 |     61,75% |  53,31% |  56,14% | **63,13%** |        11 | 0,047 |     17 |      37 |
 | 10  | Sieć / networking                                     |          31 |     78,03% |  66,52% |  80,79% | **81,68%** |         3 | 0,710 |    327 |     609 |
 | —   | PRZEKROJOWE: słowniki i18n                            |         116 |     87,65% |  64,51% |  51,32% | **91,78%** |         1 | 0,052 |     60 |     141 |
+| 2†  | Edytor wpisów i workflow redakcyjny                   |          83 |     98,81% |  94,38% |  99,00% | **99,41%** |         0 | 0,964 |  1 568 |   3 150 |
+
+**†** MODUŁ 2 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_POKRYCIE_MODUL_2_EDYTOR_WPISOW_2026-08-18.md`) — pozostałe wiersze pochodzą
+z pomiaru 18.08. Wiersz stoi na końcu, bo tabela jest sortowana rosnąco po pokryciu linii.
 
 ### 2.1 Wymiar „funkcje”: ile funkcji w module zostało kiedykolwiek wywołane
 
@@ -133,6 +149,7 @@ nigdy nie uruchomione w teście.
 | —   | PRZEKROJOWE: design system (components/ui)            |           228 |        128 | **56,14%** |
 | 9   | Czat / komunikator                                    |         1 051 |        605 | **57,56%** |
 | 10  | Sieć / networking                                     |           302 |        244 | **80,79%** |
+| 2†  | Edytor wpisów i workflow redakcyjny                   |           802 |        794 | **99,00%** |
 
 ---
 
@@ -186,6 +203,20 @@ obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jedn
 
 ### MODUŁ 3 — Silniki treści: bloki + page builder ⚠ · linie 39,99% · funkcje 29,04%
 
+> **⚠ ZNACZNIK „POMIAR ZANIŻONY” ZDJĘTY (2026-08-18, wieczorem).** Liczby w tabeli poniżej
+> pochodzą z przebiegu, w którym 38 plików testowych tego modułu nie startowało z powodu
+> zakleszczenia opisanego w rozdziale 9.2 — **nie** z powodu ciężkich importów ani dryfu
+> zależności, jak zgadywało pierwotne zastrzeżenie nr 4. Po naprawie ZMIERZONE:
+>
+> | Funkcjonalność                           | W tabeli (zaniżone) |                    Zmierzone po naprawie |
+> | ---------------------------------------- | ------------------: | ---------------------------------------: |
+> | CMS: widgety buildera — render publiczny |         68,8% linii | **97,65% linii** · 95,12% fn (1326/1394) |
+> | CMS: panele właściwości widgetów         |         13,6% linii |  **29,14% linii** · 17,53% fn (364/2077) |
+>
+> Pozostałe wiersze tabeli pozostają aktualne. Powierzchnia „design tokens / kolory globalne /
+> typografia” (32,3% linii) została w tej samej sesji podniesiona pracą testową — patrz
+> `docs/WDROZENIE_MODUL3_ODBLOKOWANIE_SUITY_I_TOKENY_2026-08-18.md`.
+
 | Funkcjonalność                                         | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------------------------------ | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
 | CMS: panele właściwości widgetów                       |    112 |      4 687 |  13,5% | 11,4% |    8,0% | **13,6%** |  166/2077 |
@@ -227,7 +258,19 @@ obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jedn
 | Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  25,0% | 20,8% |   28,8% | **26,6%** |    38/132 |
 | Wyszukiwarka: indeks i zapytania             |     10 |        500 |  49,6% | 52,2% |   55,9% | **50,8%** |    57/102 |
 
-### MODUŁ 7 — Typy treści specjalne · linie 16,47% · funkcje 14,60%
+### MODUŁ 7 — Typy treści specjalne · linie 16,47% → **100%** · funkcje 14,60% → **100%**
+
+> **ZAKTUALIZOWANE 19.08.2026** (branch `claude/module-7-test-coverage-jbe28y`, PR #257). Liczby
+> w tabeli poniżej to STAN Z AUDYTU, zachowany jako punkt odniesienia. Stan po pracy testowej i
+> pełne uzasadnienie każdego przypadku: `docs/WDROZENIE_MODUL7_TESTY_2026-08-18.md`.
+>
+> Skrót: **moduł jest domknięty - 100% linii i 100% funkcji na wszystkich 67 plikach**
+> (99,02% instrukcji, 93,13% gałęzi, 1 238 testów). Żadna funkcjonalność nie stoi na zerze i żaden
+> plik nie ma zerowego pokrycia. Tura I zdjęła warstwę reguł, loaderów i serwerową (moduł na
+> 70,83%); tura II domknęła sześć dużych plików interfejsu - `ExpertLayoutRenderer` (1134 linie),
+> `ExpertLayoutInlineEditor` (565), `PolicyPositionsMap` (289), `SpeakerProfileDialog` (278),
+> `ExpertMaterialsExplorer` (276), `QuizBackground` (180) - oraz trzy pliki-deklaracje server
+> functions. Moduł ma 31 własnych progów per-ścieżka w `vitest.config.ts`.
 
 | Funkcjonalność                   | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
@@ -1041,7 +1084,7 @@ obejmują **229 plików / 49 002 linii**.
 ## 6. Które powierzchnie mają BRAMKĘ pokrycia (a które tylko liczbę)
 
 Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mierzy. Repo ma
-**1 próg globalny + 37 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
+**1 próg globalny + 61 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
 `Test + coverage gate` (`.github/workflows/ci.yml`).
 
 | Ścieżka objęta bramką                             | Instr. | Gał. | Funkcje | Linie | Moduł |
@@ -1083,13 +1126,38 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 | `src/components/chat/**`                          |     40 |   34 |      36 |    41 | M9    |
 | `src/components/chat/ChatWindow.tsx`              |     78 |   70 |      60 |    84 | M9    |
 | `src/lib/ci/ftsConfigSymmetry.ts`                 |     93 |   81 |     100 |    98 | M20   |
+| `src/components/admin/post-editor/lib/**`         |    100 |  100 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/atoms/**`       |    100 |  100 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/hooks/**`       |     98 |   90 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/molecules/**`   |     98 |   94 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/organisms/**`   |     98 |   85 |      96 |   100 | M2    |
+| `src/components/admin/versions/**`                |     94 |   89 |      93 |    94 | M2    |
+| `src/components/admin/workflows/**`               |     96 |   91 |      95 |    97 | M2    |
+| `src/lib/admin/workflows.ts`                      |    100 |  100 |     100 |   100 | M19   |
+| `src/lib/unsavedChanges.ts`                       |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useUnsavedChangesGuard.ts`             |    100 |  100 |     100 |   100 | M2    |
+| `src/lib/revisions.functions.ts`                  |    100 |  100 |     100 |   100 | M2    |
+| `src/lib/posts-migrate.functions.ts`              |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useEditPresence.ts`                    |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useAutosave.ts`                        |     96 |   87 |     100 |   100 | M2    |
+| `src/hooks/useHistory.ts`                         |     91 |   83 |     100 |    94 | M2    |
+| `src/components/admin/PostEditor.tsx`             |     95 |   82 |     100 |   100 | M2    |
+| `src/components/admin/PostGeneralOverview.tsx`    |     96 |   78 |     100 |    96 | M2    |
+| `src/routes/admin.posts.tsx`                      |    100 |   95 |     100 |   100 | M2    |
+| `src/routes/admin.posts.$slug.tsx`                |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.posts.new.tsx`                  |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.posts.calendar.tsx`             |    100 |   95 |     100 |   100 | M2    |
+| `src/routes/admin.redirects.tsx`                  |     97 |   92 |     100 |   100 | M2    |
+| `src/routes/admin.import-wordpress.tsx`           |     95 |   94 |     100 |   100 | M2    |
+| `src/routes/admin.versions.tsx`                   |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.workflows.tsx`                  |     95 |   87 |      92 |    95 | M2    |
 
 **Czego bramka NIE pilnuje** — moduły bez ani jednego progu per-ścieżka:
 
 - **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
 - **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
-- **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
+- ~~**MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109~~ → **100% / 100%**, plików 0%: **0** (19.08.2026, `WDROZENIE_MODUL7_TESTY_2026-08-18.md`)
 - **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 44,12%, funkcje 41,02%, plików 0%: 13/28
 - **MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy**: linie 22,55%, funkcje 15,28%, plików 0%: 19/38
@@ -1295,19 +1363,57 @@ modułów zostają w wartościach z 18.08, więc porównuj kolumnę „Pliki”,
 
 ### 9.2 Pliki testowe wyłączone z pomiaru (zawieszają się w tym środowisku)
 
-39 plików / 464 testów / 950 asercji. Wszystkie oprócz jednego dotyczą
-DWÓCH powierzchni MODUŁU 3: `components/admin/builder/**` (panele właściwości, w tym bramka
-`settingsFidelity.gate` z 537 testami) oraz `components/builder/organisms/widget-view/**` (render widgetów).
-Zawieszają się w fazie kolekcji także uruchamiane pojedynczo, przy jednym workerze — to najcięższe
-importy w repo (komplet 99 typów widgetów, echarts, tiptap) na czterordzeniowym sandboksie z zależnościami
-z publicznego npm zamiast pinów z `bun.lock`. Wniosek dla czytelnika tabel: pokrycie obu tych powierzchni
-jest w tym dokumencie ZANIŻONE. O ile — mówi własny próg repo: `widget-view/**` ma bramkę
-**94,5% linii / 90% funkcji**, a komentarz w `vitest.config.ts` opisuje ją jako floor wpisany TUŻ PONIŻEJ
-poziomu, który pełna suita realnie osiąga. Czytaj więc tę powierzchnię jako ~95% linii, nie jak zmierzone
-tu 68,8%; panele właściwości (`admin/builder/**`) nie mają własnego progu, więc dla nich górnego
-oszacowania nie ma — wiadomo tylko, że 13,6% to za mało.
+| Hipoteza pierwotna             | Weryfikacja                                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| dryf wersji zależności         | komplet `bun install`: 806 paczek zgodnych z pinami, **zero** dryfu → zawieszenie identyczne |
+| ciężar importów (99 widgetów)  | `WidgetView` importuje się w **1,8 s**, lustro `eagerWidgetChunks` w **3,9 s** → to nie to   |
+| równoległość / liczba workerów | pojedynczy plik, `--pool=threads` i `--pool=forks` — zawieszenie w każdej konfiguracji       |
 
-Lista:
+**Prawdziwa przyczyna: zakleszczenie cyklu pod fabryką `vi.mock`.**
+
+```
+vi.mock(".../widget-view/lazyWidgets", () => import("@/test/eagerWidgetChunks"))
+    → eagerWidgetChunks importuje PostsSliderWidget
+    → PostsSliderWidget importował { SliderRender } z "./lazyWidgets"
+    → czyli z modułu, którego fabryka WŁAŚNIE trwa          ⇒ DEADLOCK
+```
+
+Fabryka czekała na import, który czekał na tę samą fabrykę. Ani `testTimeout`, ani `hookTimeout`
+nie dotyczą fazy ładowania modułu, więc przebieg stał **bez końca**, zamiast paść — i to właśnie
+upodabniało objaw do „bardzo ciężkiego importu". W produkcji ten sam cykl rozwiązywał się po
+ESM-owemu, dlatego nikt go nie widział.
+
+**Wniosek poważniejszy niż zaniżony pomiar:** `bun run test` **nie dawał się dokończyć na tym
+HEAD-zie w żadnym środowisku**, także w CI repo (wersja vitest jest przypięta, więc zachowanie
+jest deterministyczne). Powierzchnie MODUŁU 3 nie były „słabo przetestowane" — ich testy po prostu
+nigdy nie dobiegały.
+
+**Naprawa** (osobne commity): krawędź `PostsSliderWidget → lazyWidgets` rozerwana przez wydzielenie
+`widget-view/lazySuspense.tsx` (wspólne `withSuspense` + shimmer) i `widget-view/lazySliderRender.tsx`
+(sam `SliderRender`, z DOKŁADNIE tą samą granicą `lazy(() => import(...))`, więc bundle bez zmian).
+Do tego trzy klasy dryfu, które wyszły dopiero wtedy, gdy bramki zaczęły dobiegać: brak dwóch
+eksportów w lustrze `eagerWidgetChunks` (`AccordionWidget`, `SectionLabelWidgetView` — przeniesione
+do rejestru leniwego tego samego dnia), niepełne zaślepki `supabase.channel` oraz strażnicy
+pilnujący nieaktualnego stanu (`SPLIT_WIDGETS`, ścieżka pliku w teście granicy chunka).
+
+**Efekt — ZMIERZONE po naprawie:**
+
+| Powierzchnia                                  | Audyt (zaniżony) |                             Po naprawie |
+| --------------------------------------------- | ---------------: | --------------------------------------: |
+| `components/builder/organisms/widget-view/**` |      68,8% linii |            **97,65% linii** · 95,12% fn |
+| `components/admin/builder/**`                 |      13,6% linii | **29,14% linii** · 17,53% fn (364/2077) |
+| całe `src/` — linie                           |           33,19% |                              **37,46%** |
+| całe `src/` — funkcje                         |           25,33% |                              **28,90%** |
+| suita                                         |   778/817 plików |   **833 pliki, 10 269 testów, zielono** |
+
+Panele właściwości nadal są najsłabszą dużą powierzchnią MODUŁU 3 — ale ich liczba wzrosła
+z 166 na 364 wykonane funkcje **bez ani jednego nowego testu**, wyłącznie dlatego, że istniejące
+testy wreszcie się uruchamiają. Od tej naprawy powierzchnia ma też własny próg per-ścieżka
+w `vitest.config.ts` (wcześniej była jedyną dużą powierzchnią modułu bez progu — i jedyną, która
+osunęła się do 13,6%).
+
+Lista plików, które NIE startowały (18 z nich to zakleszczenie opisane wyżej — dziś wszystkie
+przechodzą; pozostałe pozycje tej listy padały na dryfie lustra i zaślepek, opisanym wyżej):
 
 - `src/components/admin/builder/__tests__/buttonFullWidth.test.tsx`
 - `src/components/admin/builder/__tests__/fidelityGateFindings.test.tsx`
@@ -1348,6 +1454,9 @@ Lista:
 - `src/components/builder/organisms/widget-view/__tests__/widgetViewEditable.test.tsx`
 - `src/components/builder/organisms/widget-view/__tests__/worldMapWidget.test.tsx`
 - `src/components/mobile/bottomBar/__tests__/MobileBottomBarView.test.tsx`
+
+**Status: wszystkie powyższe pliki przechodzą.** Cały MODUŁ 3 uruchomiony w jednym przebiegu:
+90 plików / 1 832 testy / 64 s (wcześniej: przebieg nie kończył się nigdy).
 
 ### 9.3 Odtworzenie pomiaru
 

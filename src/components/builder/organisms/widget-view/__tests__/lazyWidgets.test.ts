@@ -16,6 +16,7 @@ const SPLIT_WIDGETS = [
   "PodcastLatestView",
   "WebStoriesCarouselView",
   "NewsTickerView",
+  "TrendingNowView",
   // Kluby dyskusyjne (spec §5.5)
   "ClubCardView",
   "ClubThreadsView",
@@ -81,7 +82,6 @@ const SPLIT_WIDGETS = [
   //  * TrendingNowView - widok listy „na czasie" spod WidgetView.
   "AccordionWidget",
   "SectionLabelWidgetView",
-  "TrendingNowView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

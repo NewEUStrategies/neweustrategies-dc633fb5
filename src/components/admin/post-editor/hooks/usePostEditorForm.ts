@@ -11,11 +11,13 @@ import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { uploadAndRegisterMedia, IMAGE_MIME } from "@/lib/media/upload";
+import { persistDataUrlImages, type DecodedDataUrl } from "@/lib/blocks/persistImages";
 import {
-  persistDataUrlImages,
-  replaceDataUrlImages,
-  type DecodedDataUrl,
-} from "@/lib/blocks/persistImages";
+  applyPersistedImages,
+  historyShortcut,
+  missingRequiredKeys,
+  replaceFormImageUrls,
+} from "../lib";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
@@ -107,16 +109,11 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Shift+Ctrl/Cmd+Z (or Ctrl+Y) = redo
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const meta = e.ctrlKey || e.metaKey;
-      if (!meta) return;
-      const k = e.key.toLowerCase();
-      if (k === "z" && !e.shiftKey) {
-        e.preventDefault();
-        history.undo();
-      } else if ((k === "z" && e.shiftKey) || k === "y") {
-        e.preventDefault();
-        history.redo();
-      }
+      const action = historyShortcut(e);
+      if (!action) return;
+      e.preventDefault();
+      if (action === "undo") history.undo();
+      else history.redo();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -161,23 +158,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         // storage i kolejny autosave nie wgrywa grafik ponownie.
         // `replaceDataUrlImages` zachowuje referencję przy braku trafień,
         // więc niezmieniony formularz nie generuje dodatkowego autosave'u.
-        setSlug((f) => {
-          if (!f) return f;
-          const blocksJson = f.blocks_data;
-          const builderJson = f.builder_data;
-          const nextBlocks = blocksJson
-            ? replaceDataUrlImages(blocksJson, result.replacements)
-            : blocksJson;
-          const nextBuilder = builderJson
-            ? replaceDataUrlImages(builderJson, result.replacements)
-            : builderJson;
-          if (nextBlocks === blocksJson && nextBuilder === builderJson) return f;
-          return {
-            ...f,
-            blocks_data: nextBlocks,
-            builder_data: nextBuilder,
-          };
-        });
+        setSlug((f) => replaceFormImageUrls(f, result.replacements));
       }
       return { doc: result.doc, changed: result.changed };
     },
@@ -185,22 +166,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   );
 
   const saveFn = useCallback(
-    async (snapshot: PostForm | null) => {
-      if (!snapshot) return;
-      const persistedBlocks = await persistPastedImages(snapshot.blocks_data);
-      const persistedBuilder = await persistPastedImages(snapshot.builder_data);
-      if (persistedBlocks.changed) {
-        snapshot = {
-          ...snapshot,
-          blocks_data: persistedBlocks.doc,
-        };
-      }
-      if (persistedBuilder.changed) {
-        snapshot = {
-          ...snapshot,
-          builder_data: persistedBuilder.doc,
-        };
-      }
+    async (input: PostForm | null) => {
+      if (!input) return;
+      const persistedBlocks = await persistPastedImages(input.blocks_data);
+      const persistedBuilder = await persistPastedImages(input.builder_data);
+      // Osobna, niemutowalna referencja: parametr po podmianie gubi zawężenie
+      // typu (`PostForm | null`), a dalej korzystamy z niego po `await`.
+      const snapshot: PostForm = applyPersistedImages(input, persistedBlocks, persistedBuilder);
       const result = await update$({
         data: {
           id,
@@ -407,8 +379,8 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     if (!form || !publishChecklist) return true;
     if (!isPublishTransition(form.status, nextStatus)) return true;
     if (publishChecklist.requiredOk) return true;
-    const missing = publishChecklist.missingRequired
-      .map((i) => t(`adminPostPanes.publishChecklist.items.${i.id}`))
+    const missing = missingRequiredKeys(publishChecklist)
+      .map((key) => t(key))
       .join(", ");
     return confirmDialog({
       title: t("adminPostPanes.publishChecklist.gateTitle"),

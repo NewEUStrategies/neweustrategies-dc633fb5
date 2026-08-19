@@ -68,21 +68,65 @@ export default defineConfig({
         // Podnosimy próg do poziomu „zmierzone minus ~4 pp marginesu na dryf
         // środowiska CI", żeby bramka znów łapała REGRESJE, a nie tylko
         // katastrofę. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
-        statements: 29,
-        functions: 22,
-        lines: 29,
-        branches: 25,
+        //
+        // 2026-08-18: RATCHET W GÓRĘ — i tym razem nie dzięki nowym testom, a dzięki
+        // NAPRAWIE. `bun run test` nie dawał się dokończyć na tym HEAD-zie w żadnym
+        // środowisku: 18 plików testowych wisiało bez końca na zakleszczeniu cyklu
+        // pod fabryką `vi.mock` (szczegóły w `widget-view/lazySuspense.tsx` i w
+        // rozdziale 9.2 audytu). Odblokowanie odzyskało 1 026 testów, które wcześniej
+        // nie wnosiły do pomiaru NIC, a praca testowa nad tokenami marki dołożyła 211.
+        // Pomiar całego src/ na tym HEAD: 37,19% instrukcji / 32,41% gałęzi /
+        // 29,13% funkcji / 37,78% linii (838 plików, 10 475 testów, zielono).
+        // Próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła co
+        // 2026-08-06. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
+        statements: 33,
+        functions: 25,
+        lines: 33,
+        branches: 28,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
         // Lines re-floored 95 -> 94.5: the gate was already red on main
         // (94.81% after the #43 merge); removing dead-but-imported code in
         // this layer moved it to 94.96%, still under the stale floor.
+        // 2026-08-18: RATCHET W GÓRĘ po odblokowaniu suity. Ten próg był wpisany
+        // „tuż poniżej poziomu, który pełna suita realnie osiąga" - i to była
+        // prawda, tylko nikt nie mógł jej ZMIERZYĆ: 18 plików testowych MODUŁU 3
+        // wisiało w nieskończoność na zakleszczeniu rejestru leniwych widgetów
+        // (patrz `widget-view/lazySuspense.tsx`), więc audyt 2026-08-18 raportował
+        // dla tej powierzchni 68,8% linii i sam oznaczał liczbę jako zaniżoną.
+        // Po naprawie ZMIERZONE: 95,86% instrukcji / 88,83% gałęzi /
+        // 95,12% funkcji / 97,65% linii. Podnoszę floor tuż pod ten poziom.
         "src/components/builder/organisms/widget-view/**": {
-          statements: 93,
-          functions: 90,
-          lines: 94.5,
-          branches: 83,
+          statements: 95,
+          functions: 94,
+          lines: 97,
+          branches: 87,
+        },
+        // ── PANELE WŁAŚCIWOŚCI WIDGETÓW ───────────────────────────────────────
+        // Audyt 2026-08-18: „jedyna duża powierzchnia MODUŁU 3 BEZ ŻADNEGO progu
+        // per-ścieżka - i dlatego jako jedyna osunęła się do 13,6%".
+        // `check:widget-fidelity` dowodzi, że panel i renderer zgadzają się co do
+        // ustawień, ale NIE wykonuje kodu paneli, więc walidacja pól, konwersje
+        // jednostek i obsługa błędu wejścia nie mają żadnego dowodu.
+        //
+        // Ten wpis zamyka lukę „brak progu". Poziom jest ZMIERZONY, nie życzeniowy:
+        // 28,66% instrukcji / 27,60% gałęzi / 17,53% funkcji / 29,14% linii
+        // (364 z 2077 funkcji) po odblokowaniu suity - samo odblokowanie podniosło
+        // tę powierzchnię z 166 na 364 wykonane funkcje, bez ani jednego nowego
+        // testu. Floor wpisany ~1 pp niżej, żeby łapał REGRESJĘ.
+        //
+        // TO NIE JEST poziom docelowy. 112 plików / 2 077 funkcji tej powierzchni
+        // wymaga własnej pracy testowej (wyprowadzenie warstwy dostępu do wartości
+        // pól ze `WidgetProperties.tsx` - readDesktopHeight, writeDesktopHeight,
+        // klasyfikacja trybu szerokości, klampy rozmiarów, `unhandledSchemaFields`)
+        // i to jest następny krok, nie regresja tego. Zasada bez zmian: ten próg
+        // wolno wyłącznie PODNOSIĆ.
+        "src/components/admin/builder/**": {
+          statements: 27,
+          functions: 16,
+          lines: 28,
+          branches: 26,
         },
         // Per-file bars for the newly-guarded public-pipeline modules. Floored a
         // touch below the achieved coverage to catch regressions without being
@@ -100,6 +144,75 @@ export default defineConfig({
           branches: 95,
         },
         "src/lib/builder/schema.ts": { statements: 98, functions: 100, lines: 100, branches: 95 },
+        // ── DESIGN TOKENS / KOLORY GLOBALNE / TYPOGRAFIA ─────────────────────
+        // Audyt 2026-08-18 wskazał tę powierzchnię jako „najtańsze pokrycie
+        // o największym zasięgu": czyste funkcje bez Reacta, których wynik idzie
+        // do <style> na :root montowanego w `__root.tsx`, czyli na KAŻDEJ trasie
+        // publicznej. Startowała z 32,3% linii, a najsłabsze pliki z 0-15%.
+        // Progi floorowane tuż pod ZMIERZONYM poziomem po dopisaniu testów.
+        //
+        // globalColors.ts - katalog 65 slotów w 20 grupach + emiter CSS. Gałęzie
+        // < 100%, bo fałszywe ramiona `if (rootLines.length)` /
+        // `if (darkLines.length)` są nieosiągalne: katalog ZAWSZE produkuje
+        // deklaracje dla obu trybów.
+        "src/lib/builder/globalColors.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 94,
+        },
+        "src/lib/builder/hoverCss.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // sectionStyles.tsx - jedyny plik tej powierzchni z JSX (`ShapeDivider`),
+        // renderowany przez `renderToStaticMarkup`.
+        "src/lib/builder/sectionStyles.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 99,
+          branches: 95,
+        },
+        // designTokens.ts - niedobita jedna linia: `.catch(() => null)` na
+        // `edgeTtlCache`, nieosiągalna pod happy-dom (jest `window`, więc cache
+        // woła fetcher wprost, a ten sam obsługuje błąd).
+        "src/lib/builder/designTokens.ts": {
+          statements: 95,
+          functions: 90,
+          lines: 96,
+          branches: 95,
+        },
+        // dynamicText.ts - 15 tokenów dynamicznych; niedobite gałęzie to
+        // kombinacje języka i braku wartości, których nie da się osiągnąć
+        // jednocześnie.
+        "src/lib/builder/dynamicText.ts": {
+          statements: 95,
+          functions: 95,
+          lines: 97,
+          branches: 85,
+        },
+        // chromeDefaults.ts - gałąź `inner-section` w `withStableIds` jest
+        // NIEOSIĄGALNA przez `defaultDocFor` (żaden domyślny dokument chrome'u
+        // nie ma sekcji wewnętrznej), a helper nie jest eksportowany. Stąd 84%,
+        // a nie 100% - uczciwy sufit przez API publiczne, nie obniżony próg.
+        "src/lib/builder/chromeDefaults.ts": {
+          statements: 85,
+          functions: 84,
+          lines: 83,
+          branches: 52,
+        },
+        // Detektor skrótów markdown w bloku akapitu - każde pisanie w edytorze
+        // bloków przechodzi przez te dziewięć wzorców. Niedobita linia to
+        // gałąź SSR `typeof document === "undefined"` w `htmlToPlain`,
+        // nieosiągalna pod happy-dom.
+        "src/lib/blocks/markdown.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
         // report.ts line 14 is the defensive `catch` around import.meta.env,
         // which cannot be exercised from a test - hence < 100 here.
         "src/lib/observability/report.ts": {
