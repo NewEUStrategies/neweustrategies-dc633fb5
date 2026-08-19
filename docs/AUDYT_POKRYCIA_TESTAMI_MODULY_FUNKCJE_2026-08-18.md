@@ -5,6 +5,16 @@ Dokument podaje ZMIERZONE liczby (nie oceny), z jawną metodologią i jawnymi og
 pomiaru. Taksonomia modułów jest ta sama, co w `docs/OCENA_FUNKCJI_TABELE_2026-08-14.md`,
 więc liczby da się wprost podłożyć pod tamte tabele ocen.
 
+> **AKTUALIZACJA 2026-08-19 — MODUŁ 11 (newsletter i e-mail) zamknięty.**
+> Liczby modułu 11 w tym dokumencie to **stan zastany na dzień audytu** (HEAD
+> `e83570c`). Moduł został od tego czasu domknięty: **26,70% → 81,74% linii**,
+> **20,74% → 84,79% funkcji**, plików na zerze **70 → 22**, panel administracyjny
+> z **1,4% → 99,19%**. Wiersze modułu 11 w tabelach niżej NIE zostały przeliczone
+> ani przesortowane - są punktem odniesienia, do którego odsyła dokument
+> wdrożenia. Pomiar po zmianie, rozbicie per panel, sześć defektów znalezionych
+> testami i lista tego, co świadomie zostaje nieprzetestowane:
+> `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md`.
+
 ---
 
 ## 0. Jak to zmierzono (i czego te liczby NIE znaczą)
@@ -349,6 +359,10 @@ importował komponentu ani razu, jego asercje zasilały `facetModel.ts`.
 | Sieć kontaktów (zaproszenia, obserwowanie) |     29 |        694 |  92,2% | 84,8% |   96,8% | **96,4%** |   244/252 |
 
 ### MODUŁ 11 — Newsletter i e-mail · linie 26,70% · funkcje 20,74%
+
+> **STAN ZASTANY (2026-08-18).** Po domknięciu modułu 2026-08-19: **81,74% linii /
+> 84,79% funkcji**. Tabela niżej jest punktem wyjścia - kolumna „po" per
+> funkcjonalność stoi w `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md` §4.
 
 | Funkcjonalność                                     | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | -------------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
