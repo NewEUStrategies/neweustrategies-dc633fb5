@@ -874,6 +874,46 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── ENDPOINTY PUBLICZNE: TELEMETRIA MAILA I POPUPU ───────────────────
+        // Adresy tych endpointów trafiają do KAŻDEJ wysłanej wiadomości i do
+        // przeglądarki każdego odwiedzającego, więc obrona jest w walidacji
+        // wejścia, nie w sesji:
+        //  * nl-click pilnuje CELU przekierowania podpisem HMAC per link. Bez
+        //    tego byłby otwartym przekierowaniem na zaufanej domenie redakcji -
+        //    gotowym narzędziem phishingowym, roznoszonym w mailu z prawidłowym
+        //    SPF i DKIM. Testy liczą prawdziwe podpisy, nie atrapę weryfikacji.
+        //  * nl-open ZAWSZE oddaje przezroczysty GIF; piksel zwracający 500
+        //    pokazuje się w kliencie pocztowym jako złamana grafika w treści.
+        //  * popup-event odrzuca `kind` spoza słownika i `popup_id` nie-UUID -
+        //    inaczej tabela statystyk zbiera śmieci, których nikt nie odczyści -
+        //    a każda ścieżka oddaje 204, bo beacon nie ma jak obsłużyć błędu.
+        //  * telemetria popupu zapisuje się WYŁĄCZNIE serwerem, z tenantem
+        //    rozwiązanym z HOSTA i limitem per sesja; tenant z ładunku dałby się
+        //    podstawić i zatruć raport obcej instalacji.
+        "src/routes/api/public/nl-open.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        "src/routes/api/public/nl-click.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/routes/api/public/popup-event.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/lib/newsletter-popup-events.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
         // ── POPUP PUBLICZNY: HOST I TELEMETRIA ───────────────────────────────
         // PopupHost decyduje, czy odwiedzający dostanie modal na środku ekranu -
         // pomyłki widzi KAŻDY odwiedzający, a operator nie ma jak ich zauważyć w
