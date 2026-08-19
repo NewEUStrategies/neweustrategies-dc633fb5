@@ -821,6 +821,70 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── MODUŁ 15: PROFIL I KONTO ────────────────────────────────────────
+        // Brute force pilnuje, aby żadna ścieżka logowania nie omijała
+        // kubełka zależnego od skrótu IP i loginu.
+        "src/lib/auth/bruteforce.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 90,
+        },
+        // Scalanie gościa chroni zainteresowania i zakładki przed utratą,
+        // duplikacją oraz przyjęciem przeterminowanych danych.
+        "src/lib/personalization/anonMerge.ts": {
+          statements: 96,
+          functions: 99,
+          lines: 99,
+          branches: 95,
+        },
+        // Normalizacja ustawień logowania nie może przepuścić błędnego typu
+        // ani wartości pozycji spoza obsługiwanego zakresu.
+        "src/lib/authSettings.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 91,
+        },
+        // Panel admina zachowuje podział atoms/molecules/organisms oraz pełną
+        // obsługę edycji, zapisu, wycofania błędu i stanu niezapisanych zmian.
+        "src/components/admin/loginSettings/**": {
+          statements: 95,
+          functions: 99,
+          lines: 95,
+          branches: 97,
+        },
+        // Cienka trasa ma pozostać wyłącznie kompozycją testowanego organizmu.
+        "src/routes/admin.login-settings.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Maszyna onboardingu pilnuje pierwszego startu, wznowienia i trwałego
+        // pominięcia wycieczki bez regresji zapisu postępu.
+        "src/lib/onboarding/**": {
+          statements: 90,
+          functions: 99,
+          lines: 97,
+          branches: 80,
+        },
+        // Retencja chroni własność subskrypcji, zapytania kontroferty i reguły
+        // kuponu; wysoki próg queries.ts powyżej nadal obowiązuje równolegle.
+        "src/lib/retention/**": {
+          statements: 42,
+          functions: 72,
+          lines: 44,
+          branches: 40,
+        },
+        // Kontrolki zainteresowań muszą zachować wyszukiwanie bez diakrytyków,
+        // obsługę klawiatury, limity wyboru i komunikaty formularza.
+        "src/components/interests/**": {
+          statements: 94,
+          functions: 93,
+          lines: 98,
+          branches: 83,
+        },
         // ── NEWSLETTER: DORĘCZALNOŚĆ ─────────────────────────────────────────
         // Audyt 18.08 dał tej powierzchni najgorszą możliwą ocenę: 0,0% linii
         // i 0 z 23 funkcji - przy tym, że to ONA decyduje, czy mail w ogóle
