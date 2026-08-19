@@ -48,6 +48,11 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/newsletter/builder/WidgetPreview.tsx", 1],
   ["src/components/admin/newsletter/SubscribersPanel.tsx", 1],
   ["src/components/admin/post-editor/hooks/usePostEditorData.ts", 1],
+  // 2026-08-19: rzutowanie na kolumnę jsonb `blocks_data` przeniosło się z
+  // `usePostEditorData.ts` do wyodrębnionego `lib/savePayload.ts` (moduł 3,
+  // PR #256). NIE jest to nowy dług - ta sama linia, nowa lokalizacja - ale
+  // wpis nie pojechał razem z kodem, więc bramka widziała ją jako nową.
+  ["src/components/admin/post-editor/lib/savePayload.ts", 1],
   ["src/components/admin/settings/fields.tsx", 1],
   ["src/components/admin/sidebarBuilder/SidebarBuilderPane.tsx", 2],
   ["src/components/admin/ThemeOptionsPane.tsx", 1],
