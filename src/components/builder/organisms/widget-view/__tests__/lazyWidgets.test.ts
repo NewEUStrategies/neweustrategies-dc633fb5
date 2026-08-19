@@ -69,6 +69,12 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
+  // Dopisane 19.08.2026: oba widgety były w rejestrze `lazyWidgets`, a nie na tej
+  // liście ANI w lustrze eager - obie bramki wierności ustawień były czerwone
+  // jeszcze przed pracą nad monetyzacją (sprawdzone na commicie bazowym gałęzi).
+  "AccordionWidget",
+  "SectionLabelWidgetView",
+  "TrendingNowView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

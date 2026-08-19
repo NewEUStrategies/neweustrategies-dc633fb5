@@ -554,7 +554,10 @@ describe("ResendPortalLinkButton - link idzie do WŁAŚCICIELA subskrypcji", () 
     fireEvent.click(screen.getByText("Wyślij link"));
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    expect(h.toastError.mock.calls[0]?.[0]).toContain("Brak konta płatnika");
+    // Komunikaty przeniesione do słownika (`adminBilling.resendPortal`) -
+    // asercja idzie po KLUCZU, więc zmiana copy jej nie psuje, a rozjazd
+    // klucza owszem.
+    expect(h.toastError.mock.calls[0]?.[0]).toContain("resendPortal.noCustomer");
   });
 
   it("brak adresu e-mail użytkownika ma osobny komunikat", async () => {
@@ -564,7 +567,7 @@ describe("ResendPortalLinkButton - link idzie do WŁAŚCICIELA subskrypcji", () 
     fireEvent.click(screen.getByText("Wyślij link"));
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    expect(h.toastError.mock.calls[0]?.[0]).toContain("Brak adresu e-mail");
+    expect(h.toastError.mock.calls[0]?.[0]).toContain("resendPortal.noRecipient");
   });
 
   it("NIEZNANY powód odmowy schodzi na komunikat wysyłki, nie na pustkę", async () => {
@@ -574,10 +577,13 @@ describe("ResendPortalLinkButton - link idzie do WŁAŚCICIELA subskrypcji", () 
     fireEvent.click(screen.getByText("Wyślij link"));
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    expect(h.toastError.mock.calls[0]?.[0]).toContain("Nie udało się wysłać");
+    expect(h.toastError.mock.calls[0]?.[0]).toContain("resendPortal.sendFailed");
   });
 
-  it("komunikaty idą za językiem interfejsu", async () => {
+  it("komunikaty idą przez SŁOWNIK, nie przez parę napisów w kodzie", async () => {
+    // Do 19.08.2026 przycisk trzymał pięć par `pl ? "..." : "..."` wprost
+    // w kodzie - poza bramką parytetu PL/EN i poza zasięgiem tłumacza. Teraz
+    // wołany jest klucz, a wybór języka należy do i18next.
     h.lang.current = "en";
     h.resend.mockResolvedValue({ ok: false, error: "no_customer" });
     renderButton();
@@ -585,7 +591,7 @@ describe("ResendPortalLinkButton - link idzie do WŁAŚCICIELA subskrypcji", () 
     fireEvent.click(screen.getByText("Wyślij link"));
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    expect(h.toastError.mock.calls[0]?.[0]).toContain("no billing customer");
+    expect(h.toastError.mock.calls[0]?.[0]).toBe("adminBilling.resendPortal.noCustomer");
   });
 
   it("awaria transportu też kończy się komunikatem", async () => {
