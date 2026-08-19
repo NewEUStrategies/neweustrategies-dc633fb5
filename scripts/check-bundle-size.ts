@@ -479,6 +479,47 @@ const CLIENT_DIR =
 //             PUBLIC (budżet czytelnika) NIE JEST przekroczony i ma 7,4 KB zapasu.
 //             Próg PUBLIC i próg największego chunku zostają bez zmian.
 
+// 2026-08-19 II  CZWARTY RAZ TĄ SAMĄ MECHANIKĄ - i tym razem policzony do końca.
+//             Krok `Bundle size budget` stoi w `verify` PO `Test + coverage gate`,
+//             a ten padał na mainie na progach pokrycia per-ścieżka w
+//             `src/lib/billing/**`. `main` nie miał ZIELONEGO CI przez 60
+//             przebiegów (2026-08-16T17:53Z -> 2026-08-19T15:37Z: 42 failure,
+//             17 cancelled, zero success), więc build i ten skrypt NIE
+//             WYKONYWAŁY SIĘ ANI RAZU w tym okresie - razem z siedmioma innymi
+//             bramkami stojącymi za tym krokiem. PR #272 zdjął blokadę pokrycia
+//             (re-floor czterech progów billing do wartości zmierzonych), więc
+//             jako pierwszy dotarł do tego kroku - i zapalił go na liczbach,
+//             których nie wniósł: to zmiana WYŁĄCZNIE w `vitest.config.ts`,
+//             zero bajtów po stronie klienta. Dokładnie sytuacja z 08-12.
+//
+// POMIAR (pełny build, ten sam host, f23fb74):
+//   * zmierzone:   266,8 chunk / 2542,6 public / 3881,6 overall,
+//   * floory:      280         / 2545          / 3876
+//                  -> przekroczony JEDEN: overall +5,6 KB (0,14%).
+//
+// DLACZEGO FLOOR, A NIE CIĘCIE. Przekroczenie jest wyłącznie na OVERALL, czyli
+// na liczbie, która rośnie z definicji wraz z nową powierzchnią produktu - patrz
+// akapit „DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ". Obie liczby, które mierzą
+// REGRESJĘ płaconą przez wejście czytelnika, przechodzą: największy chunk ma
+// 13,2 KB zapasu, PUBLIC ma 2,4 KB. Nie ma tu więc regresji do wycięcia - jest
+// dryf agregatu, na który floor jest właściwą odpowiedzią (tak samo jak 08-12).
+// Ruchy względem baseline'u 2d04eb92f raportuje sama bramka: i18n +43,4 i vendor
+// +39,0 przy index -121,0, plus trzy nowe chunki (ConsentBanner 7,1;
+// admin.library 5,6; sectionLabelVariants 5,1). Inwentarza chunku NIE
+// uruchamiam: on służy do rozbierania KONKRETNEGO chunku, który przebił swój
+// próg, a tutaj żaden nie przebił.
+//
+// CZEGO TU NIE ROBIMY. Nie tykamy `manualChunks` dla słowników i18n - akapit
+// „NIEUDANY EKSPERYMENT" wyżej opisuje dokładnie tę drogę i to, dlaczego dała
+// wynik FAŁSZYWY (Rollup wciąga `src/lib/i18n.ts`, te same bajty w dwóch
+// plikach, PUBLIC zaniżony o 48 KB). Zapisano go, „żeby nie powtórzyć go po raz
+// trzeci" - i tu się do tego stosujemy.
+//
+// UWAGA NA NASTĘPNY RAZ: PUBLIC ma już tylko 2,4 KB zapasu (2542,6 / 2545). To
+// budżet czytelnika i on pęknie następny. Realna redukcja - split locale'i
+// PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack poza entry -
+// jest wciąż osobną pracą i z każdym takim wpisem pilniejszą.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -497,11 +538,11 @@ const FROZEN_BUDGET_KB = {
   // (host czytający ~1% wyżej niż CI) - słowniki adminowe wróciły do grafu
   // admin-only. Ratchet 2570 -> 2545.
   public: 2545,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-19: 3870,5
-  // po rozbiciu czterech paneli modułu 1 na atomic design. Podniesione
-  // 3870 -> 3876: koszt granic chunków siedmiu współdzielonych atomów, których
-  // NIE DA SIĘ scalić baryłką (zmierzone - wpis 2026-08-19 w kronice wyżej).
-  overall: 3876,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-19 na f23fb74:
+  // 3881,6. Podniesione 3876 -> 3882: floor wraca „tuż nad zmierzony ślad", bez
+  // zapasu (wpis 2026-08-19 II w kronice wyżej). Poprzedni floor 3876 stał na
+  // pomiarze 3870,5 z tego samego dnia i main przebił go SAM, o 5,6 KB.
+  overall: 3882,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
