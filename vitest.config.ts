@@ -634,6 +634,72 @@ export default defineConfig({
           lines: 95,
           branches: 85,
         },
+        // UKŁADY WPISU I RENDER + AUDIO: powierzchnie komponentowe modułu.
+        // Stan wyjściowy: `components/post` 21 z 26 plików na ZERZE (19,0% linii
+        // całej funkcjonalności), `components/audio` 4 z 4 na zerze. Po pracy
+        // ŻADEN plik nie stoi na zerze - i to jest tu ważniejsze niż sam procent,
+        // bo plik bez ani jednej asercji nie ma jak zauważyć regresji.
+        //
+        // Progi są floorowane PER METRYKA pod pomiarem, dlatego `statements`
+        // stoi niżej niż `lines`: w JSX jeden wiersz nosi kilka instrukcji
+        // (skróty `&&`, wartości domyślne propsów), więc mianownik instrukcji
+        // jest większy niż mianownik wierszy.
+        //
+        // Niedobita reszta w `components/post` to `RelatedPosts.tsx`: sześć
+        // układów rekomendacji (siatka, lista, slider, karty, magazyn, os czasu)
+        // z autoplayem i obsługą gestów. Pokryte są stan pusty, wyłączenie,
+        // nadpisanie per wpis i dwa układy; pozostałe cztery to kolejny krok,
+        // nie regresja tego.
+        //
+        // W `components/audio` niedobite są gałęzie dolnego paska i karty, które
+        // wymagają PRAWDZIWEGO `HTMLAudioElement` (przewijanie gestem, pobieranie
+        // blobu, Web Share API) - te ścieżki dowodzi e2e, nie test jednostkowy.
+        "src/components/post/**": {
+          statements: 80,
+          functions: 72,
+          lines: 84,
+          branches: 66,
+        },
+        "src/components/audio/**": {
+          statements: 62,
+          functions: 48,
+          lines: 64,
+          branches: 77,
+        },
+        // Atomy modułu 1 trzymamy pod 100%: test atomu jest tani i wielokrotnie
+        // użyty, a każdy z nich scala kopie, w których kontrakt a11y był pisany
+        // od nowa (i za każdym razem inaczej).
+        "src/components/post/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/components/audio/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // Reguły wyprowadzone z organizmów artykułu - czyste moduły, więc pod 100%.
+        "src/lib/post/badgeContrast.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/post/quoteSelection.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/post/autoLoadChain.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
       },
     },
   },
