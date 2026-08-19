@@ -79,17 +79,30 @@ export function readStoredValue(
   }
 }
 
-/** Zapis pod nazwę kanoniczną. Nigdy nie rzuca. */
+/**
+ * Zapis pod nazwę kanoniczną. Nigdy nie rzuca - ale ZWRACA, czy się udał.
+ *
+ * Brak wartości zwracanej był przyczyną defektu w „Zapisz na później": hook
+ * owijał to wywołanie we WŁASNE `try/catch`, licząc na wyjątek, który nigdy tu
+ * nie wychodzi. `catch` był więc martwy, a wykonanie leciało dalej do
+ * „zapisano" - w trybie prywatnym Safari i przy wyczerpanym limicie użytkownik
+ * widział potwierdzenie zapisu, którego w magazynie nie było.
+ *
+ * Wywołujący, którym wynik jest obojętny (np. odświeżenie klucza sesji), mogą
+ * go dalej ignorować - dla nich kontrakt się nie zmienia.
+ */
 export function writeStoredValue(
   storage: Storage | undefined,
   { key }: StorageKey,
   value: string,
-): void {
-  if (!storage) return;
+): boolean {
+  if (!storage) return false;
   try {
     storage.setItem(key, value);
+    return true;
   } catch {
     /* brak miejsca / zablokowany magazyn - stan pozostaje w pamięci */
+    return false;
   }
 }
 

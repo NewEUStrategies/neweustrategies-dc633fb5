@@ -16,6 +16,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { getCrmLeadProfileSync } from "@/lib/crm.functions";
+import { formatBytes, formatYear } from "@/lib/crm/profileSyncView";
 
 type Experience = {
   id: string;
@@ -277,15 +278,4 @@ function Section({
       {children}
     </div>
   );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-function formatYear(d: string | null): string {
-  if (!d) return "";
-  const y = new Date(d).getFullYear();
-  return Number.isFinite(y) ? String(y) : "";
 }

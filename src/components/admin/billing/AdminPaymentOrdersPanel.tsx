@@ -9,6 +9,7 @@ import "@/lib/i18n-admin-billing";
 import { AlertTriangle, Loader2, Receipt, RefreshCcw } from "lucide-react";
 
 import { listPaymentOrders } from "@/lib/billing/paymentOrders.functions";
+import { planName } from "@/lib/billing/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,7 +144,13 @@ export function AdminPaymentOrdersPanel() {
                     </td>
                     <td className="py-2 pr-3">
                       <span className="block">
-                        {row.planName ??
+                        {/* Wybór języka robi ta sama reguła, co przy nazwach
+                            planów dla klienta - warstwa danych oddaje obie
+                            nazwy, panel wybiera jedną. */}
+                        {planName(
+                          { name_pl: row.planNamePl ?? "", name_en: row.planNameEn ?? "" },
+                          lang,
+                        ) ||
                           (row.kind === "subscription"
                             ? t("adminBilling.subscription")
                             : t("adminBilling.oneTimePayment"))}

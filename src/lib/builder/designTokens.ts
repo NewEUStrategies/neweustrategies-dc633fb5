@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyError, notifySuccess } from "@/lib/notify";
 import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { transliterateAtomicLetters } from "@/lib/content/anchorSlug";
 
 export interface BrandColor {
   /** Stable slug used to build the CSS variable (`--brand-primary`). */
@@ -149,15 +150,55 @@ export function useSaveDesignTokens() {
   });
 }
 
-/** Sanitize a token name into a CSS-safe slug (lowercase letters, digits, dash). */
+const TOKEN_SLUG_MAX_LENGTH = 32;
+const TOKEN_SLUG_FALLBACK = "token";
+
+/**
+ * Sanitize a token name into a CSS-safe slug (lowercase letters, digits, dash).
+ *
+ * TRANSLITERACJA liter atomowych jest tu OBOWIĄZKOWA: `normalize("NFKD")` nie
+ * rozkłada `ł`, `ø`, `ß`, `đ` na „litera bazowa + znak łączący", więc bez mapy
+ * każda z nich degradowała do myślnika ALBO wypadała z krawędzi sluga:
+ *   „Główny" → `g-owny`,  „Żółty" → `zo-ty`,  „Łączny" → `aczny`,
+ *   „Kolor Ł" → `kolor`  (litera zjedzona razem z myślnikiem końcowym).
+ * Nazwy różniące się tylko taką literą mogły dać JEDEN slug, czyli dwie próbki
+ * koloru walczące o tę samą zmienną `--brand-<slug>` (ostatnia wygrywa).
+ * Ten sam błąd repo naprawiło już dla kotwic nagłówków i dla adresu profilu -
+ * korzystamy z TEJ SAMEJ mapy liter (`lib/content/anchorSlug`), zamiast
+ * zakładać trzecią.
+ */
 export const slugifyToken = (raw: string): string =>
-  raw
+  transliterateAtomicLetters(raw)
+    // `.toLowerCase()` JAWNIE, bo wspólny prymityw ZACHOWUJE wielkość liter,
+    // a filtr niżej (`[^a-z0-9]`) nie ma flagi `i` - bez tego kroku każda wielka
+    // litera zamieniałaby się w łącznik i „Łódź" dałoby `odz` zamiast `lodz`.
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 32) || "token";
+    .slice(0, TOKEN_SLUG_MAX_LENGTH) || TOKEN_SLUG_FALLBACK;
+
+/**
+ * Slug, jaki dana nazwa dostawała PRZED dołożeniem transliteracji.
+ *
+ * Zwraca wartość tylko wtedy, gdy RÓŻNI się od kanonicznej - dla nazw bez liter
+ * atomowych (czyli dla większości) jest to `null` i nic nie dokładamy do CSS.
+ * Po co: autorski CSS tenanta mógł już odwoływać się do `var(--brand-g-owny)`.
+ * Emitujemy więc oba aliasy, żeby poprawka nazwy nie zgasiła koloru na stronie,
+ * która działa. Dokładnie ten sam zabieg co `legacyAnchorVariants` dla kotwic.
+ */
+export const legacyTokenSlug = (raw: string): string | null => {
+  const legacy =
+    raw
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, TOKEN_SLUG_MAX_LENGTH) || TOKEN_SLUG_FALLBACK;
+  return legacy === slugifyToken(raw) ? null : legacy;
+};
 
 /** Build the CSS rule string applied at :root for the given tokens. */
 export function tokensToCss(t: DesignTokens): string {
@@ -166,6 +207,11 @@ export function tokensToCss(t: DesignTokens): string {
     const slug = slugifyToken(c.name);
     if (!slug || !c.value) continue;
     lines.push(`--brand-${slug}: ${c.value};`);
+    // Alias wstecznej zgodności dla nazw z literami atomowymi (patrz
+    // `legacyTokenSlug`) - autorski CSS z poprzednią, uszkodzoną nazwą dalej
+    // działa.
+    const legacy = legacyTokenSlug(c.name);
+    if (legacy) lines.push(`--brand-${legacy}: ${c.value};`);
   }
   if (t.fonts.heading) lines.push(`--brand-font-heading: ${t.fonts.heading};`);
   if (t.fonts.body) lines.push(`--brand-font-body: ${t.fonts.body};`);

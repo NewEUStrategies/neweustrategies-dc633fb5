@@ -11,57 +11,34 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { AppLink } from "@/components/atoms/AppLink";
-import { safeUrl } from "@/lib/sanitizePure";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
 import { MegaPanelView } from "@/components/menu/MegaPanelView";
-import type { MegaColumn } from "@/lib/menus/types";
-import type { MenuItemRow } from "@/lib/menus/types";
+// Reguły menu (drzewo, etykiety, wariant panelu, źródło kolumn, geometria
+// panelu) mieszkają w `lib/menus/siteMenu.ts` i mają tam własne asercje -
+// ten plik jest kompozycją nagłówka, nie miejscem na logikę.
+import {
+  buildPublicMenuTree,
+  hasPanel,
+  megaColumnsFor,
+  megaPanelHasContent,
+  menuItemHref as itemHref,
+  menuItemRel,
+  menuItemTarget as itemTarget,
+  mobileMegaLinks,
+  panelGeometry,
+  panelKindFor,
+  pickMenuLabel as pickLabel,
+  type SiteMenuLang,
+  type SiteMenuNode as TreeNode,
+} from "@/lib/menus/siteMenu";
 
-export type SiteMenuLang = "pl" | "en";
+export type { SiteMenuLang };
 
 interface Props {
   menuKey: string;
   lang: SiteMenuLang;
   mobile?: boolean;
-}
-
-interface TreeNode extends MenuItemRow {
-  children: TreeNode[];
-}
-
-function pickLabel(item: MenuItemRow, lang: SiteMenuLang): string {
-  const primary = lang === "en" ? item.label_en : item.label_pl;
-  return (primary || item.label_pl || item.label_en || "").trim();
-}
-
-function buildTree(items: MenuItemRow[]): TreeNode[] {
-  const byId = new Map<string, TreeNode>();
-  for (const it of items) byId.set(it.id, { ...it, children: [] });
-  const roots: TreeNode[] = [];
-  for (const it of items) {
-    const node = byId.get(it.id);
-    if (!node) continue;
-    if (it.parent_id && byId.has(it.parent_id)) {
-      byId.get(it.parent_id)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-  const sortRec = (arr: TreeNode[]) => {
-    arr.sort((a, b) => a.position - b.position);
-    for (const n of arr) sortRec(n.children);
-  };
-  sortRec(roots);
-  return roots;
-}
-
-function itemHref(item: MenuItemRow): string {
-  return safeUrl(item.href || "#") || "#";
-}
-
-function itemTarget(item: MenuItemRow): "_self" | "_blank" {
-  return item.target === "_blank" ? "_blank" : "_self";
 }
 
 /* -------------------------------- Desktop -------------------------------- */
@@ -75,13 +52,9 @@ function DropdownPanel({
   lang: SiteMenuLang;
   onRequestClose: () => void;
 }) {
-  // Auto-promote nested menus (top-level item whose children have their own
-  // children) to the editorial mega layout, even if the admin did not tick
-  // `mega_enabled`. A flat single-level dropdown keeps the compact list style.
-  const hasNestedChildren =
-    node.children.length > 0 && node.children.some((c) => c.children.length > 0);
-  const useMega = node.mega_enabled || hasNestedChildren;
-  if (useMega) {
+  // Wariant panelu (link / dropdown / mega, razem z auto-promocją menu
+  // zagnieżdżonego) rozstrzyga `panelKindFor` - patrz lib/menus/siteMenu.ts.
+  if (panelKindFor(node) === "mega") {
     return <MegaPanel node={node} lang={lang} onRequestClose={onRequestClose} />;
   }
   const parentLabel = pickLabel(node, lang);
@@ -98,7 +71,7 @@ function DropdownPanel({
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
-          rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+          rel={menuItemRel(node)}
           className="group flex items-center gap-2 border-b border-border/50 bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/50"
         >
           <span
@@ -125,7 +98,7 @@ function DropdownPanel({
             <AppLink
               href={itemHref(node)}
               target={itemTarget(node)}
-              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              rel={menuItemRel(node)}
               className="menu-card-item menu-card-item--primary group"
               role="menuitem"
             >
@@ -160,37 +133,13 @@ function MegaPanel({
   lang: SiteMenuLang;
   onRequestClose: () => void;
 }) {
-  const cfg = node.mega_config;
-  const configuredCols = cfg.columns ?? [];
-  const cols: MegaColumn[] =
-    configuredCols.length > 0
-      ? configuredCols.map((col) => ({
-          title_pl: col.title_pl,
-          title_en: col.title_en,
-          href: col.href,
-          links: (col.links ?? []).map((l) => ({
-            label_pl: l.label_pl,
-            label_en: l.label_en,
-            href: l.href,
-            icon: l.icon ?? "",
-          })),
-        }))
-      : node.children.map((child) => ({
-          title_pl: child.label_pl,
-          title_en: child.label_en,
-          href: child.href,
-          links: child.children.map((gc) => ({
-            label_pl: gc.label_pl,
-            label_en: gc.label_en,
-            href: gc.href,
-            icon: "",
-          })),
-        }));
-
-  const featuredQuery = useQuery(megaFeaturedPostQueryOptions(cfg.featured_post_id ?? null));
+  const cols = megaColumnsFor(node);
+  const featuredQuery = useQuery(
+    megaFeaturedPostQueryOptions(node.mega_config.featured_post_id ?? null),
+  );
   const featured = featuredQuery.data ?? null;
 
-  if (cols.length === 0 && node.children.length === 0) return null;
+  if (!megaPanelHasContent(node)) return null;
 
   return (
     <MegaPanelView
@@ -205,46 +154,29 @@ function MegaPanel({
   );
 }
 
+/**
+ * Pozycja płaskiej listy dropdownu.
+ *
+ * NIE MA tu gałęzi „pozycja z własnymi dziećmi" i nie może jej być: dropdown
+ * renderuje się wyłącznie wtedy, gdy ŻADNE dziecko nie ma dzieci - inaczej
+ * `panelKindFor` promuje całą pozycję do panelu redakcyjnego (mega), który
+ * pokazuje drugi poziom jako kolumny. Do 18.08.2026 mieszkał tu drugi,
+ * nieosiągalny wariant z własnym `useState` i zagnieżdżonym `<ul role="menu">`
+ * wysuwanym w bok - martwy kod w chunku wejściowym KAŻDEJ strony.
+ * Inwariant pilnuje `lib/menus/__tests__/siteMenu.test.ts`.
+ */
 function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
-  const [open, setOpen] = useState(false);
-  const hasChildren = node.children.length > 0;
   const label = pickLabel(node, lang);
   if (!label) return null;
 
-  if (!hasChildren) {
-    return (
-      <li>
-        <AppLink
-          href={itemHref(node)}
-          target={itemTarget(node)}
-          rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="menu-card-item group"
-          role="menuitem"
-        >
-          <span aria-hidden className="menu-card-item__icon">
-            {node.icon ? (
-              <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} />
-            ) : (
-              <ChevronRight size={13} strokeWidth={2} />
-            )}
-          </span>
-          <span className="menu-card-item__label">{label}</span>
-          <ChevronRight size={13} aria-hidden className="menu-card-item__chevron" />
-        </AppLink>
-      </li>
-    );
-  }
-
   return (
-    <li className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <li>
       <AppLink
         href={itemHref(node)}
         target={itemTarget(node)}
-        rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+        rel={menuItemRel(node)}
         className="menu-card-item group"
         role="menuitem"
-        aria-haspopup="menu"
-        aria-expanded={open}
       >
         <span aria-hidden className="menu-card-item__icon">
           {node.icon ? (
@@ -256,22 +188,12 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         <span className="menu-card-item__label">{label}</span>
         <ChevronRight size={13} aria-hidden className="menu-card-item__chevron" />
       </AppLink>
-      {open ? (
-        <ul
-          role="menu"
-          className="menu-card-list absolute left-full top-0 z-50 ml-2 flex min-w-[240px] flex-col gap-1 rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-2xl ring-1 ring-black/5"
-        >
-          {node.children.map((child) => (
-            <SubmenuItem key={child.id} node={child} lang={lang} />
-          ))}
-        </ul>
-      ) : null}
     </li>
   );
 }
 
 function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
-  const hasPanel = node.mega_enabled || node.children.length > 0;
+  const withPanel = hasPanel(node);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -341,13 +263,13 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const label = pickLabel(node, lang);
   if (!label) return null;
 
-  if (!hasPanel) {
+  if (!withPanel) {
     return (
       <li className={node.css_class || undefined}>
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
-          rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+          rel={menuItemRel(node)}
           className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground"
         >
           {node.icon ? (
@@ -392,14 +314,12 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
             (() => {
               // Mega panels: wyśrodkuj poziomo względem viewportu.
               // Zwykłe dropdowny: dokotwicz do triggera z clampem do krawędzi.
-              const hasNested =
-                node.children.length > 0 && node.children.some((c) => c.children.length > 0);
-              const isMega = node.mega_enabled || hasNested;
-              const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
-              const panelWidth = isMega ? Math.min(1120, vw - 32) : Math.min(360, vw - 32);
-              const clampedLeft = isMega
-                ? Math.round((vw - panelWidth) / 2)
-                : Math.max(16, Math.min(anchor.left, vw - panelWidth - 16));
+              // Arytmetyka siedzi w `panelGeometry` (lib/menus/siteMenu.ts).
+              const { left: clampedLeft } = panelGeometry({
+                isMega: panelKindFor(node) === "mega",
+                anchorLeft: anchor.left,
+                viewportWidth: typeof window !== "undefined" ? window.innerWidth : 1440,
+              });
               return (
                 <div
                   ref={panelRef}
@@ -437,15 +357,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const goToPage = lang === "en" ? "Go to page" : "Przejdź do strony";
   if (!label) return null;
   const hasChildren = node.children.length > 0;
-  const megaLinks =
-    node.mega_enabled && (node.mega_config.columns ?? []).length > 0
-      ? (node.mega_config.columns ?? []).flatMap((col) =>
-          (col.links ?? []).map((lnk) => ({
-            label: (lang === "en" ? lnk.label_en : lnk.label_pl) || lnk.label_pl || "",
-            href: safeUrl(lnk.href) || "#",
-          })),
-        )
-      : [];
+  const megaLinks = mobileMegaLinks(node, lang);
   const hasMega = megaLinks.length > 0;
 
   if (!hasChildren && !hasMega) {
@@ -485,7 +397,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
             <AppLink
               href={itemHref(node)}
               target={itemTarget(node)}
-              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              rel={menuItemRel(node)}
               className="flex min-h-11 items-center gap-2 px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-brand"
             >
               {node.icon ? (
@@ -513,7 +425,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
             <AppLink
               href={itemHref(node)}
               target={itemTarget(node)}
-              rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
+              rel={menuItemRel(node)}
               className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-brand"
             >
               {goToPage}: <span className="font-black uppercase tracking-[0.08em]">{label}</span>
@@ -531,7 +443,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 function SiteMenuImpl({ menuKey, lang, mobile }: Props) {
   const { data, isPending } = useQuery(menuWithItemsQueryOptions(menuKey || "main"));
   const items = data?.items ?? [];
-  const tree = buildTree(items);
+  const tree = buildPublicMenuTree(items);
 
   if (tree.length === 0) {
     // Dopóki zapytanie trwa (brak SSR-owego warm-upu, np. w podglądzie

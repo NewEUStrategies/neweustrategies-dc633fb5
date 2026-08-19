@@ -12,8 +12,8 @@
 //
 // Świadomie BEZ JSX i bez importu komponentów - moduł jest wciągany także
 // z wnętrza fabryk `vi.mock` (przez dynamiczny import, patrz
-// `reactI18nextStub`), więc musi być tani i wolny od side-effectów.
-import { vi, type Mock } from "vitest";
+// `reactI18nextStub` w `src/test/reactStubs.ts`), więc musi być tani
+// i wolny od side-effectów.
 import type { ProfileCompletenessInput } from "@/lib/profile/completeness";
 import type { PersonalityQuestion } from "@/lib/profile/personality";
 import type { ProfileEditorRow } from "@/lib/profile/useProfileEditor";
@@ -448,140 +448,19 @@ export function fileOfSize(bytes: number, name = "avatar.png", type = "image/png
   return new File([new Uint8Array(bytes)], name, { type });
 }
 
-// --- i18n -------------------------------------------------------------------
+// --- atrapy warstwy reactowej ----------------------------------------------
 
-/**
- * Echo klucza i18n: `t("a.b")` -> `"a.b"`, a z opcjami -> `a.b {"count":3}`.
- * Testy asertują KLUCZ, nie polski tekst, więc zmiana copy nie psuje testów,
- * a rozjazd klucza owszem (za parytet PL/EN odpowiadają bramki słownikowe).
- */
-export function translateKey(key: string, options?: Record<string, unknown>): string {
-  if (options === undefined) return key;
-  const entries = Object.entries(options).filter(([k]) => k !== "defaultValue");
-  return entries.length === 0 ? key : `${key} ${JSON.stringify(Object.fromEntries(entries))}`;
-}
-
-/** Ten sam stub `react-i18next` dla wszystkich testów profilu. */
-export function reactI18nextStub(getLanguage: () => string = () => "pl"): {
-  useTranslation: () => {
-    t: typeof translateKey;
-    i18n: { language: string; t: typeof translateKey };
-  };
-  initReactI18next: { type: string; init: () => void };
-  Trans: (props: { children?: unknown }) => unknown;
-} {
-  // `i18n` jest JEDNYM STABILNYM obiektem (getter na `language`, nie nowy
-  // literał na każde wywołanie) - dokładnie jak realna instancja i18next.
-  // Kod produkcyjny (np. `AuthorProfileEditor`) opiera się na tej stabilności
-  // wprost: woła `i18n.t(...)` zamiast `t` z `useTranslation()` i wpina `i18n`
-  // do tablicy zależności efektu ładującego, żeby przełączenie języka NIE
-  // przeładowywało formularza w trakcie edycji. Nowy obiekt `i18n` przy każdym
-  // renderze zmieniałby tę tablicę na każdy render - efekt odpalałby w kółko
-  // i formularz nigdy nie ustabilizowałby stanu (`exists`, wczytane pola).
-  const i18n = {
-    get language() {
-      return getLanguage();
-    },
-    t: translateKey,
-  };
-  return {
-    useTranslation: () => ({ t: translateKey, i18n }),
-    initReactI18next: { type: "3rdParty", init: () => {} },
-    Trans: (props: { children?: unknown }) => props.children ?? null,
-  };
-}
-
-// --- atrapy hooków ----------------------------------------------------------
-
-/** Kształt, jakiego molekuły profilu oczekują od `useQuery`. */
-export interface QueryStub<T> {
-  data: T | undefined;
-  isLoading: boolean;
-  isSuccess: boolean;
-  isError: boolean;
-  error: Error | null;
-  refetch: Mock;
-}
-
-export function queryStub<T>(data: T, overrides: Partial<QueryStub<T>> = {}): QueryStub<T> {
-  return {
-    data,
-    isLoading: false,
-    isSuccess: true,
-    isError: false,
-    error: null,
-    refetch: vi.fn(),
-    ...overrides,
-  };
-}
-
-export function pendingQueryStub<T>(): QueryStub<T> {
-  return {
-    data: undefined,
-    isLoading: true,
-    isSuccess: false,
-    isError: false,
-    error: null,
-    refetch: vi.fn(),
-  };
-}
-
-// --- atrapa Radix Select ----------------------------------------------------
-
-/**
- * Natywny `<select>` w miejsce Radixowego. Radix nie otwiera listy w happy-dom
- * (potrzebuje realnego wskaźnika i pomiarów układu), więc test nie miałby jak
- * wybrać opcji - a wybór opcji jest tu całą treścią zachowania: KTÓRE pole
- * dostaje nową wartość.
- *
- * Atrapa jest wierna w tym, na czym stoją asercje: `SelectItem` staje się
- * `<option>` (więc widać PEŁNĄ listę dostępnych opcji), a `aria-label`/`id`
- * z `SelectTrigger` ląduje na `<select>` (więc pole da się znaleźć etykietą,
- * dokładnie jak w produkcji). Nie odwzorowuje warstwy rozwijanej, bo żadna
- * asercja jej nie dotyczy.
- *
- * Bez JSX (jak cały ten moduł) - wołane z wnętrza fabryki `vi.mock`.
- */
-export function radixSelectStub(react: typeof import("react")): Record<string, unknown> {
-  interface TriggerProps {
-    "aria-label"?: string;
-    id?: string;
-  }
-  const isTrigger = (node: { props?: TriggerProps }): boolean =>
-    !!node.props && ("aria-label" in node.props || "id" in node.props);
-
-  return {
-    Select: ({
-      value,
-      onValueChange,
-      disabled,
-      children,
-    }: {
-      value?: string;
-      onValueChange?: (next: string) => void;
-      disabled?: boolean;
-      children?: unknown;
-    }) => {
-      const parts = react.Children.toArray(children as never) as Array<{ props?: TriggerProps }>;
-      const trigger = parts.find(isTrigger);
-      const content = parts.filter((part) => part !== trigger);
-      return react.createElement(
-        "select",
-        {
-          "aria-label": trigger?.props?.["aria-label"],
-          id: trigger?.props?.id,
-          value,
-          disabled,
-          onChange: (event: { target: { value: string } }) => onValueChange?.(event.target.value),
-        },
-        content as never,
-      );
-    },
-    SelectTrigger: () => null,
-    SelectValue: () => null,
-    SelectContent: ({ children }: { children?: unknown }) =>
-      react.createElement(react.Fragment, null, children as never),
-    SelectItem: ({ value, children }: { value: string; children?: unknown }) =>
-      react.createElement("option", { value }, children as never),
-  };
-}
+// Echo klucza i18n, atrapa `useTranslation`, kształt wyniku `useQuery` i
+// natywny `<select>` za Radixa mieszkają teraz w `src/test/reactStubs.ts` -
+// nie ma w nich niczego profilowego, a monetyzacja potrzebuje ich identycznie
+// (ten sam ruch, którym atrapa łańcucha PostgREST przeniosła się do
+// `src/test/supabaseChain.ts`). Re-eksport, żeby żaden test profilu nie
+// zmieniał importu.
+export {
+  pendingQueryStub,
+  queryStub,
+  radixSelectStub,
+  reactI18nextStub,
+  translateKey,
+  type QueryStub,
+} from "@/test/reactStubs";

@@ -3,8 +3,9 @@
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, Download, Headphones } from "@/lib/lucide-shim";
-import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
+import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -12,6 +13,9 @@ import {
   useGlobalAudioPlayer,
   type AudioTrackMeta,
 } from "@/lib/audio/global-player";
+import { downloadKey, transportLabelKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
+import { AUDIO_FOCUS_RING } from "@/components/audio/atoms/AudioIconButton";
+import "@/lib/i18n-tts-player";
 
 interface SidebarListenCardProps {
   postId: string;
@@ -30,49 +34,10 @@ interface SidebarListenCardProps {
   audioUrl?: string | null;
 }
 
-const COPY = {
-  pl: {
-    label: "Posłuchaj artykułu",
-    play: "Odtwórz",
-    pause: "Pauza",
-    download: "Pobierz MP3",
-    downloading: "Pobieram audio…",
-    downloadFailed: "Nie udało się pobrać audio",
-    retry: "Spróbuj ponownie",
-    error: "Nie udało się wygenerować audio",
-    aiNarration: "Narracja generowana automatycznie (AI) na podstawie treści artykułu.",
-    seek: "Przewiń materiał",
-    approx: "ok. {min} min",
-    loading: "Generuję audio…",
-    stagePreparing: "Przygotowuję tekst",
-    stageSynthesizing: "ElevenLabs syntezuje głos",
-    stageStreaming: "Pobieram audio",
-    stageReady: "Gotowe",
-    stageCached: "Z pamięci podręcznej",
-  },
-  en: {
-    label: "Listen to this article",
-    play: "Play",
-    pause: "Pause",
-    download: "Download MP3",
-    downloading: "Downloading audio…",
-    downloadFailed: "Download failed",
-    retry: "Try again",
-    error: "Could not generate audio",
-    aiNarration: "Narration is generated automatically (AI) from the article text.",
-    seek: "Seek audio",
-    approx: "~{min} min",
-    loading: "Generating audio…",
-    stagePreparing: "Preparing text",
-    stageSynthesizing: "ElevenLabs synthesizing voice",
-    stageStreaming: "Streaming audio",
-    stageReady: "Ready",
-    stageCached: "From cache",
-  },
-} as const;
-
-const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+// Pierścień fokusu przychodzi z atomu. Tu i w `GlobalAudioBar` stała była
+// ZADEKLAROWANA OSOBNO - dwie kopie jedynej rzeczy, która odpowiada za
+// widoczność fokusu klawiatury w całym odtwarzaczu.
+const FOCUS_RING = AUDIO_FOCUS_RING;
 
 export function SidebarListenCard({
   postId,
@@ -84,30 +49,24 @@ export function SidebarListenCard({
   readMinutes,
   audioUrl,
 }: SidebarListenCardProps) {
-  const t = COPY[lang];
+  // Komunikaty idą w języku ARTYKUŁU, nie interfejsu (audio jest w języku treści).
+  const { t } = useTranslation();
+  const copy = (key: string, params?: Record<string, unknown>) =>
+    t(`ttsPlayer.card.${key}`, { lng: lang, ...params });
+  // Napisy WSPÓLNE z dolnym paskiem - jedna sekcja słownika, jedno źródło prawdy.
+  const shared = (key: string) => t(`ttsPlayer.transport.${key}`, { lng: lang });
   const player = useGlobalAudioPlayer();
   const isThis = player.isActive(postId, lang);
   const loading = isThis && player.status === "loading";
   const playing = isThis && player.status === "playing";
   const errored = isThis && player.status === "error";
   const tts = player.tts;
-  const stageLabel = (() => {
-    switch (tts.stage) {
-      case "preparing":
-        return t.stagePreparing;
-      case "synthesizing":
-        return t.stageSynthesizing;
-      case "streaming":
-        return t.stageStreaming;
-      case "ready":
-        return t.stageReady;
-      case "cached":
-        return t.stageCached;
-      default:
-        return t.loading;
-    }
-  })();
-  const stagePct = tts.stage === "streaming" && tts.percent > 0 ? tts.percent : null;
+  // Reguła etapu i próg wiarygodności procentu żyją w `lib/audio/ttsStage`
+  // i zwracają KLUCZ, nie napis - ten sam `switch` stał wcześniej w DWÓCH
+  // kopiach (tu i w drugim odtwarzaczu) nad dwoma osobnymi słownikami `COPY`,
+  // więc dodanie etapu rozjeżdżało oba paski.
+  const stageLabel = t(`ttsPlayer.stage.${ttsStageKey(tts.stage)}`, { lng: lang });
+  const stagePct = ttsStagePercent(tts);
 
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -121,9 +80,10 @@ export function SidebarListenCard({
     const prev = prevStatusRef.current;
     prevStatusRef.current = player.status;
     if (prev !== "error" && player.status === "error") {
-      toast.error(player.error ?? t.error, { id: "tts-error" });
+      toast.error(player.error ?? shared("error"), { id: "tts-error" });
     }
-  }, [player.status, player.error, t.error]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.status, player.error, lang]);
 
   const meta: AudioTrackMeta = useMemo(
     () => ({
@@ -194,7 +154,7 @@ export function SidebarListenCard({
     try {
       await player.download(meta);
     } catch {
-      toast.error(t.downloadFailed);
+      toast.error(shared("downloadFailed"));
     } finally {
       setDownloading(false);
     }
@@ -207,18 +167,18 @@ export function SidebarListenCard({
       : prefetchedDuration && prefetchedDuration > 0
         ? formatAudioTime(prefetchedDuration)
         : approxMin
-          ? t.approx.replace("{min}", String(approxMin))
+          ? copy("approx", { min: approxMin })
           : "--:--";
 
   return (
     <aside
-      aria-label={t.label}
+      aria-label={copy("label")}
       className="group/card relative rounded-[6px] border border-border/60 bg-card/60 p-4"
     >
       {/* Section label */}
       <div className="flex items-center gap-2 mb-3">
         <h3 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
-          {t.label}
+          {copy("label")}
         </h3>
         <div className="h-px flex-1 bg-border/60" />
         {/* Headphones informują o możliwości odsłuchu / narracji AI - ukrywamy
@@ -229,7 +189,7 @@ export function SidebarListenCard({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  aria-label={t.aiNarration}
+                  aria-label={copy("aiNarration")}
                   className={[
                     "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full",
                     "text-muted-foreground/70 hover:text-brand transition-colors",
@@ -240,7 +200,7 @@ export function SidebarListenCard({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
-                {t.aiNarration}
+                {copy("aiNarration")}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -254,7 +214,7 @@ export function SidebarListenCard({
           type="button"
           onClick={onPrimary}
           disabled={loading}
-          aria-label={playing ? t.pause : t.play}
+          aria-label={shared(transportLabelKey({ loading, playing, paused: !playing && isThis }))}
           aria-pressed={playing}
           data-playing={playing ? "true" : "false"}
           className={[
@@ -309,7 +269,7 @@ export function SidebarListenCard({
               onBlur={(e) => {
                 if (scrub !== null) commitSeek(Number(e.target.value));
               }}
-              aria-label={t.seek}
+              aria-label={shared("seek")}
               aria-valuemin={0}
               aria-valuemax={Math.max(duration, 0)}
               aria-valuenow={Math.floor(displayTime)}
@@ -326,8 +286,8 @@ export function SidebarListenCard({
           type="button"
           onClick={() => void onDownload()}
           disabled={downloading || loading}
-          aria-label={downloading ? t.downloading : t.download}
-          title={t.download}
+          aria-label={shared(downloadKey(downloading))}
+          title={shared("download")}
           className={[
             "inline-flex items-center gap-1.5 rounded-[6px] text-muted-foreground",
             "hover:text-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
@@ -340,7 +300,7 @@ export function SidebarListenCard({
             <Download className="h-3 w-3" aria-hidden />
           )}
           <span className="cms-widget-note font-semibold tracking-[0.15em] uppercase">
-            {t.download}
+            {shared("download")}
           </span>
         </button>
 
@@ -350,7 +310,7 @@ export function SidebarListenCard({
             onClick={() => void player.loadAndPlay(meta)}
             className={`cms-widget-kicker font-semibold text-brand underline hover:no-underline rounded-[6px] ${FOCUS_RING}`}
           >
-            {t.retry}
+            {copy("retry")}
           </button>
         ) : loading ? (
           <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">

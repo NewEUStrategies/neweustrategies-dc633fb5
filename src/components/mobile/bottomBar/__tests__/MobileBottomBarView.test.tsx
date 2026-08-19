@@ -10,8 +10,8 @@
 //   5. akcent podany na OBA motywy naraz (light + dark), bo wybór należy do
 //      kaskady CSS, a nie do JS - inaczej SSR i klient mogłyby się rozjechać,
 //   6. brak liczników dla gościa (żadnego zapytania do czatu/sieci).
-import { describe, it, expect, afterEach, beforeAll } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "@/lib/i18n";
 import { MobileBottomBarView } from "../MobileBottomBarView";
 import {
@@ -247,5 +247,142 @@ describe("MobileBottomBarView - płynność przejścia", () => {
     const nav = container.querySelector<HTMLElement>(".mbb");
     expect(nav).not.toBeNull();
     expect(nav?.style.getPropertyValue("--timeOut")).toBe("");
+  });
+});
+
+describe("MobileBottomBarView - reakcja na zmianę wymiaru", () => {
+  // Pasek jest `position: fixed` i publikuje swoją wysokość w górę (rezerwacja
+  // miejsca na dole strony). happy-dom nie ma obserwatora rozmiaru, więc
+  // podstawiamy minimalną implementację i wywołujemy ją ręcznie - inaczej cała
+  // ta ścieżka (razem z wyłączeniem przejścia na czas zmiany) zostaje poza
+  // pomiarem, choć odgrywa się przy każdym obrocie ekranu.
+  const originalObserver = globalThis.ResizeObserver;
+  const originalHeight = Object.getOwnPropertyDescriptor(
+    window.HTMLElement.prototype,
+    "offsetHeight",
+  );
+  let trigger: (() => void) | null = null;
+
+  beforeEach(() => {
+    trigger = null;
+    globalThis.ResizeObserver = class {
+      constructor(callback: () => void) {
+        trigger = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  });
+
+  afterEach(() => {
+    globalThis.ResizeObserver = originalObserver;
+    if (originalHeight) {
+      Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", originalHeight);
+    }
+  });
+
+  function stubHeight(px: number) {
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).classList?.contains("mbb") ? px : 0;
+      },
+    });
+  }
+
+  it("zgłasza zmierzoną wysokość w górę - z niej powstaje rezerwacja miejsca", () => {
+    stubHeight(56);
+    const onMeasure = vi.fn();
+    render(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={0}
+        lang="pl"
+        onMeasure={onMeasure}
+      />,
+    );
+    expect(onMeasure).toHaveBeenCalledWith(56);
+  });
+
+  it("zmiana wymiaru zgłasza NOWĄ wysokość i wyłącza przejście na czas ruchu", () => {
+    stubHeight(56);
+    const onMeasure = vi.fn();
+    const { container } = render(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={0}
+        lang="pl"
+        onMeasure={onMeasure}
+      />,
+    );
+    onMeasure.mockClear();
+
+    stubHeight(72);
+    act(() => {
+      trigger?.();
+    });
+    expect(onMeasure).toHaveBeenCalledWith(72);
+    // Garb nie może gonić okna animacją w trakcie zmiany rozmiaru.
+    expect(container.querySelector<HTMLElement>(".mbb")?.style.getPropertyValue("--timeOut")).toBe(
+      "none",
+    );
+  });
+
+  it("zgłoszenie BEZ zmiany wymiaru nie robi nic", () => {
+    // Obserwator odzywa się także wtedy, gdy wymiar został ten sam - reakcja
+    // na każde zgłoszenie ucinałaby przejście garbu w losowych momentach.
+    stubHeight(56);
+    const onMeasure = vi.fn();
+    const { container } = render(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={0}
+        lang="pl"
+        onMeasure={onMeasure}
+      />,
+    );
+    onMeasure.mockClear();
+
+    act(() => {
+      trigger?.();
+    });
+    expect(onMeasure).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLElement>(".mbb")?.style.getPropertyValue("--timeOut")).toBe(
+      "",
+    );
+  });
+});
+
+describe("MobileBottomBarView - wybór pozycji", () => {
+  it("kliknięcie zgłasza INDEKS pozycji (podgląd w panelu admina)", () => {
+    const onSelect = vi.fn();
+    render(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={0}
+        lang="pl"
+        onSelect={onSelect}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("link")[2]);
+    expect(onSelect).toHaveBeenCalledWith(2);
+  });
+
+  it("bez `onSelect` kliknięcie nie wywołuje niczego dodatkowego", () => {
+    render(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={0}
+        lang="pl"
+      />,
+    );
+    // Sam link zostaje linkiem - brak handlera nie może go zepsuć.
+    expect(screen.getAllByRole("link")[2]).toHaveAttribute("href", "/");
   });
 });

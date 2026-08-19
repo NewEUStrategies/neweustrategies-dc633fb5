@@ -22,7 +22,7 @@ import {
   type PaletteCommand,
   type CommandSection,
 } from "@/lib/search/registry";
-import { rankItems } from "@/lib/search/fuzzy";
+import { foldDiacritics, rankItems } from "@/lib/search/fuzzy";
 import { globalSearch, type SearchHit } from "@/lib/search/search.functions";
 import { FileText, Newspaper } from "@/lib/lucide-shim";
 import { HighlightedText } from "@/components/search/HighlightedText";
@@ -192,10 +192,22 @@ export function CommandPalette() {
             <CommandGroup heading={t(`palette.sections.${g.section}`)}>
               {g.items.map((cmd) => {
                 const label = lang === "pl" ? cmd.label_pl : cmd.label_en;
+                const haystack = buildHaystack({ cmd, lang });
                 return (
                   <CommandItem
                     key={cmd.id}
-                    value={`${cmd.id} ${buildHaystack({ cmd, lang })}`}
+                    // Wariant BEZ OGONKÓW dopisany do wartości, bo cmdk filtruje
+                    // wiersze własnym matcherem po `value` - `rankItems` składa
+                    // diakrytyki, ale cmdk nie, więc bez tego „platnosci" nadal
+                    // nie pokazałoby „Płatności".
+                    //
+                    // Kopia ROZŁOŻONA KANONICZNIE (NFD) z tego samego powodu:
+                    // wklejona fraza bywa rozłożona („s” + U+0301 zamiast „ś”),
+                    // a cmdk porównuje napisy bez normalizacji. `fuzzyMatch`
+                    // radzi sobie sam (`foldQuery`), ale filtr cmdk stoi PRZED
+                    // nim i bez tej kopii schowałby wiersz mimo trafienia.
+                    // Wejścia nie normalizujemy - to zaburzyłoby składanie IME.
+                    value={`${cmd.id} ${haystack} ${foldDiacritics(haystack)} ${haystack.normalize("NFD")}`}
                     onSelect={() => onSelect(cmd)}
                     className="gap-2"
                   >
@@ -245,7 +257,7 @@ export function CommandPalette() {
                 return (
                   <CommandItem
                     key={`${hit.kind}:${hit.id}`}
-                    value={`${hit.kind}:${hit.id} ${title} ${hit.slug}`}
+                    value={`${hit.kind}:${hit.id} ${title} ${foldDiacritics(title)} ${title.normalize("NFD")} ${hit.slug}`}
                     onSelect={() => onSelectHit(hit)}
                     className="gap-2"
                   >

@@ -54,6 +54,13 @@ function isWildcardSource(sourcePath: string): boolean {
 /** Lowercase a pathname and drop the trailing slash (except for the root). */
 function cleanPathname(pathname: string): string {
   let p = pathname.trim().toLowerCase();
+  // A backslash IS a slash to every browser's URL parser (WHATWG, "special"
+  // schemes), so "/\evil.example" in a Location header resolves to
+  // https://evil.example - an open redirect straight through the allowlist
+  // below, which only inspects inputs that LOOK absolute. Folding it into "/"
+  // before the duplicate-slash collapse turns that input back into the
+  // same-site path it pretends to be ("/evil.example").
+  if (p.includes("\\")) p = p.replace(/\\/g, "/");
   if (!p.startsWith("/")) p = `/${p}`;
   p = p.replace(/\/{2,}/g, "/");
   if (p.length > 1 && p.endsWith("/") && !p.endsWith(WILDCARD_SUFFIX)) p = p.slice(0, -1);

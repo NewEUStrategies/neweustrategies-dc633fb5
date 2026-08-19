@@ -176,6 +176,20 @@ describe("buildTrackerFeedItems - lokalizacja PL/EN", () => {
     expect(noStage?.title).toContain("aktualizacja");
   });
 
+  it("kwalifikator „tylko nowy etap” ma też wersję ANGIELSKĄ", () => {
+    // Tablica napisów kanału jest zduplikowana per język, a testy dotykały
+    // angielskiej gałęzi tylko dla zmiany „z -> do". Wpis z samym `stage_to`
+    // (pierwszy etap dossier) leciał w EN bez pokrycia, więc literówka albo
+    // brakujący klucz byłyby widoczne dopiero w czytniku RSS użytkownika.
+    const [onlyToEn] = buildTrackerFeedItems({
+      ...base,
+      lang: "en",
+      items: [item()],
+      updates: [update({ stage_from: null, stage_to: "adopted" })],
+    });
+    expect(onlyToEn?.title).toContain("stage: Adopted");
+  });
+
   it("kategorie niosą obszar polityki i etap w aktywnym języku", () => {
     const [updateEntry] = buildTrackerFeedItems({ ...base, items: [item()], updates: [update()] });
     expect(updateEntry?.categories).toEqual(["Cyfryzacja", "Rada"]);
@@ -196,6 +210,23 @@ describe("buildTrackerFeedItems - lokalizacja PL/EN", () => {
       updates: [update({ created_at: "nie-data", happened_on: "2026-08-09" })],
     });
     expect(entry?.publishedAt).toBe("2026-08-09");
+  });
+});
+
+describe("buildTrackerFeedItems - porządek przy brakującej dacie", () => {
+  it("dossier bez użytecznej daty zostaje w kanale i NIE ląduje na górze", () => {
+    // Kolumna jest w typach nie-nullowalna, ale w kanale publicznym wolimy
+    // pozycję bez daty niż brak pozycji: czytelnik i tak dostaje tytuł oraz
+    // odnośnik. Kluczowe jest to, że taki wpis nie wypycha świeżych zmian.
+    const entries = buildTrackerFeedItems({
+      ...base,
+      items: [
+        item({ id: "bez-daty", slug: "bez-daty", created_at: "" }),
+        item({ id: "swieze", slug: "swieze", created_at: "2026-08-10T10:00:00.000Z" }),
+      ],
+      updates: [],
+    });
+    expect(entries.map((e) => e.guid)).toEqual(["tracker:item:swieze", "tracker:item:bez-daty"]);
   });
 });
 

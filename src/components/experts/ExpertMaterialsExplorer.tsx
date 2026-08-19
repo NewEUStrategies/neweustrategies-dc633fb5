@@ -11,14 +11,9 @@ import { useTranslation } from "react-i18next";
 import { getRouteApi } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, RotateCcw, X } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { FacetSelect } from "./atoms/FacetSelect";
+import { MaterialCardSkeleton } from "./atoms/MaterialCardSkeleton";
 import { ArchivePagination } from "@/components/archive/layouts/ArchivePagination";
 import { ExpertMaterialCard } from "./ExpertMaterialCard";
 import { availableYears, kindCounts } from "@/lib/experts/filter";
@@ -31,63 +26,11 @@ import {
 } from "@/lib/experts/materialsSearch";
 import type { ExpertHubData, MaterialKind } from "@/lib/experts/types";
 
-const ALL = "__all__";
 const KIND_ORDER: MaterialKind[] = ["article", "report", "video", "podcast", "event"];
 
 // Typowany dostęp do search params trasy bez prop-drillingu - eksplorator
 // jest organizmem strony /author/$slug i to jej URL jest źródłem prawdy.
 const routeApi = getRouteApi("/author/$slug");
-
-function FacetSelect({
-  value,
-  onChange,
-  options,
-  allLabel,
-  ariaLabel,
-  alwaysShow = false,
-}: {
-  value: string | null;
-  onChange: (next: string | null) => void;
-  options: { value: string; label: string; count?: number }[];
-  allLabel: string;
-  ariaLabel: string;
-  alwaysShow?: boolean;
-}) {
-  if (options.length === 0 && !alwaysShow) return null;
-  return (
-    <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? null : next)}>
-      <SelectTrigger
-        aria-label={ariaLabel}
-        className="h-9 w-auto min-w-[150px] max-w-[240px] rounded-[6px] bg-muted/30 text-xs"
-      >
-        <SelectValue placeholder={allLabel} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            {opt.label}
-            {typeof opt.count === "number" ? ` (${opt.count})` : ""}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-/** Szkielet karty na czas pierwszego ładowania strony wyników (bez SSR-seedu). */
-function MaterialCardSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-[8px] border border-border/60" aria-hidden>
-      <div className="aspect-[16/9] animate-pulse bg-muted/50" />
-      <div className="space-y-2 p-4">
-        <div className="h-3 w-1/3 animate-pulse rounded bg-muted/50" />
-        <div className="h-4 w-full animate-pulse rounded bg-muted/50" />
-        <div className="h-4 w-2/3 animate-pulse rounded bg-muted/50" />
-      </div>
-    </div>
-  );
-}
 
 export function ExpertMaterialsExplorer({
   data,

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { adminToast } from "@/lib/adminToasts";
 import { toJson } from "@/lib/builder/types";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
@@ -196,8 +197,12 @@ export function useSaveTocDefaults() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
-      toast.success("Zapisano ustawienia spisu treści");
+      // Komunikat ze WSPÓLNEGO słownika toastów panelu. Wcześniej stały tu
+      // polskie napisy wpisane wprost w kod, więc administrator z interfejsem
+      // po angielsku dostawał po zapisie zdanie po polsku - i żadna bramka tego
+      // nie widziała, bo tekst jednojęzyczny to nie rozgałęzienie po języku.
+      toast.success(adminToast.settingsSaved());
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => toast.error(e.message || adminToast.error()),
   });
 }

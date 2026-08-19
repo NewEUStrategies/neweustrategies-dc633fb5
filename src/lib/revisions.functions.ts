@@ -10,20 +10,10 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { pickRestorableFields, pickRevisionSnapshot } from "./content/revisions";
+import { PRE_RESTORE_NOTE, projectRevisionList } from "./revisions/listProjection";
 
 const UUID = z.string().uuid();
 const EntityType = z.enum(["post", "page"]);
-
-interface RevisionListItem {
-  id: string;
-  created_at: string;
-  author_id: string | null;
-  note: string | null;
-  title_pl: string | null;
-  title_en: string | null;
-  status: string | null;
-  editor: string | null;
-}
 
 async function resolveTenant(supabase: SupabaseClient<Database>, userId: string): Promise<string> {
   const { data, error } = await supabase
@@ -77,23 +67,8 @@ export const listRevisions = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       // Project snapshot -> lightweight list items on the server to keep the
       // wire payload small (list may hold up to 50 rows of large snapshots).
-      return (rows ?? []).map((r) => {
-        const s = (r.snapshot ?? {}) as Record<string, unknown>;
-        const pick = (k: string): string | null => {
-          const v = s[k];
-          return typeof v === "string" ? v : null;
-        };
-        return {
-          id: r.id,
-          created_at: r.created_at,
-          author_id: r.author_id,
-          note: r.note,
-          title_pl: pick("title_pl"),
-          title_en: pick("title_en"),
-          status: pick("status"),
-          editor: pick("editor"),
-        } satisfies RevisionListItem;
-      });
+      // Sama projekcja jest czystą regułą i mieszka w `revisions/listProjection`.
+      return projectRevisionList(rows);
     });
   });
 
@@ -233,7 +208,7 @@ export const restoreRevision = createServerFn({ method: "POST" })
         entity_id: revision.entity_id,
         author_id: userId,
         snapshot: pickRevisionSnapshot(current) as Json,
-        note: "pre_restore",
+        note: PRE_RESTORE_NOTE,
       });
       if (backupErr) throw new Error(backupErr.message);
 
