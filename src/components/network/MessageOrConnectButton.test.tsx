@@ -21,7 +21,7 @@ const NO_CONNECTION: useConnections.ConnectionState = {
   connectionId: null,
   mutualCount: 0,
   canInvite: true,
-  degree: null,
+  degree: 0,
   bridge: null,
 };
 
