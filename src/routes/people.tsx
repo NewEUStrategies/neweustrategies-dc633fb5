@@ -313,6 +313,7 @@ function PersonCard({
             displayName={person.display_name}
             displayAvatar={person.avatar_url}
             compact
+            connectionState={connection}
           />
         </div>
       </div>

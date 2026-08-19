@@ -380,6 +380,13 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                   displayAvatar={c.avatar_url}
                   compact
                   iconOnly
+                  connectionState={{
+                    ...NO_CONNECTION,
+                    status: "connected",
+                    connectionId: c.connection_id,
+                    canInvite: false,
+                    degree: 1,
+                  }}
                 />
                 <ConnectButton
                   userId={c.user_id}
