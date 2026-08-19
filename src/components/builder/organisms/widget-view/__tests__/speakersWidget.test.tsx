@@ -8,11 +8,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 
-// Podział kodu (React.lazy) zamieniony na importy statyczne. Bez tego pierwszy
-// render widgetu z rejestru pokazuje fallback Suspense, który na stronie
-// publicznej jest `null` - test widzi PUSTKĘ i uznaje każde ustawienie za
-// martwe. Ten sam mock mają siostrzane pliki (np. `widgetBehavior.test.tsx`);
-// tutaj zabrakło go po przeniesieniu widgetów do rejestru leniwego (01253dc).
+// Rejestr leniwych widgetow -> lustro eager. Od 2026-08-15 `speakers` jedzie
+// przez React.lazy, wiec bez tej podmiany pierwszy render pokazuje fallback
+// Suspense i kazda asercja o tresci widgetu pada na pustym drzewie.
 vi.mock(
   "@/components/builder/organisms/widget-view/lazyWidgets",
   () => import("@/test/eagerWidgetChunks"),

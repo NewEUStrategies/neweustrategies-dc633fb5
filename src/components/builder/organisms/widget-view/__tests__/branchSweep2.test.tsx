@@ -40,19 +40,20 @@ vi.mock("@/integrations/supabase/client", () => {
     b.then = (r: (v: unknown) => unknown) => r({ data: db.tables[table] ?? [], error: null });
     return b;
   };
-  // Realtime no-op: NewsletterForm ciągnie `TopicsDroplist` -> `useInterests`,
-  // który subskrybuje `postgres_changes` na katalog zainteresowań przy montażu.
-  // Bez tej zaślepki każdy render newslettera wywraca się na
-  // `supabase.channel is not a function` (ten sam stub ma `allWidgets.smoke`).
+  // Realtime no-op: widgety zainteresowań (JoinUsForm / InterestsCustomizer
+  // przez useInterests) subskrybują postgres_changes przy montowaniu i usuwają
+  // kanał przy odmontowaniu. Bez tej zaślepki efekt wywalał się na
+  // `supabase.channel is not a function` - niewidoczne, dopóki cały plik wisiał
+  // na zakleszczeniu rejestru leniwych widgetów.
   const channel: Record<string, unknown> = {};
-  channel.on = () => channel;
-  channel.subscribe = () => channel;
+  channel.on = vi.fn(() => channel);
+  channel.subscribe = vi.fn(() => channel);
   return {
     supabase: {
       from: (t: string) => mk(t),
       rpc: async () => ({ data: [], error: null }),
-      channel: () => channel,
-      removeChannel: async () => "ok",
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(async () => "ok"),
     },
   };
 });

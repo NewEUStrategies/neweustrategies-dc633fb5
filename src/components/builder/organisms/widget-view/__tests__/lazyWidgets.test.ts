@@ -16,6 +16,7 @@ const SPLIT_WIDGETS = [
   "PodcastLatestView",
   "WebStoriesCarouselView",
   "NewsTickerView",
+  "TrendingNowView",
   // Kluby dyskusyjne (spec §5.5)
   "ClubCardView",
   "ClubThreadsView",
@@ -69,12 +70,19 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
-  // Dołożone przy cięciu chunku wejściowego (01253dc, 374 -> 253 KB gz), bez
-  // aktualizacji tej listy - stąd czerwony strażnik „does not leak unexpected
-  // exports" na mainie. Wszystkie trzy są prawdziwymi, konsumowanymi widgetami:
-  // TrendingNowView renderuje `WidgetView.tsx:856`, a AccordionWidget
-  // i SectionLabelWidgetView - `SimpleWidgets.tsx` (odpowiednio 1307 i 1624).
-  "TrendingNowView",
+  // Cięcie ścieżki bootowania (01253dc, chunk wejściowy 374 -> 253 KB gz).
+  // Trzy widgety zeszły wtedy na leniwą krawędź, ale lista tutaj nie została
+  // dopisana - a druga asercja tego pliku jest SYMETRYCZNA, więc bramka
+  // czerwieniła się na eksporty, które są poprawne i realnie konsumowane
+  // (WidgetView -> TrendingNowView; SimpleWidgets -> AccordionWidget,
+  // SectionLabelWidgetView). Powód leniwości każdego z nich:
+  //  * AccordionWidget - jedyny konsument sanitizeHtml/DOMPurify w SimpleWidgets;
+  //    statyczna krawędź trzymała DOMPurify w chunku wejściowym,
+  //  * SectionLabelWidgetView - wariantownia z lib/builder/sectionLabelVariants,
+  //  * TrendingNowView - widok listy „na czasie" spod WidgetView; jego wpis stoi
+  //    wyżej, przy `NewsTickerView` - dopisanie go PONOWNIE tutaj (scalenie
+  //    c145e2f) czerwieniło strażnika, bo lista miała 59 pozycji wobec 58
+  //    eksportów rejestru.
   "AccordionWidget",
   "SectionLabelWidgetView",
 ] as const;

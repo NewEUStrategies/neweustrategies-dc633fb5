@@ -15,6 +15,7 @@
 //   3. PREFILL ZAPISUJE SIĘ TYLKO WTEDY, GDY COŚ UZUPEŁNIŁ. Bezwarunkowy UPDATE
 //      przy każdym montażu formularza to zapis na `profiles` przy każdym wejściu
 //      na stronę - i stempel `updated_at`, przez który profil udaje świeży.
+import { createElement } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PROFILE_IDS, xhrStub } from "@/test/profile/fixtures";
@@ -82,16 +83,13 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-// Fabryka jest asynchroniczna, bo `vi.mock` jest hoistowany ponad importy -
-// `require()` obchodziło to kiedyś kosztem błędu reguły
-// `@typescript-eslint/no-require-imports` (blokująca bramka `bun run lint`).
-vi.mock("@tanstack/react-router", async () => {
-  const { createElement } = await import("react");
-  return {
-    Link: ({ to, children }: { to: string; children?: unknown }) =>
-      createElement("a", { href: to }, children as never),
-  };
-});
+vi.mock("@tanstack/react-router", () => ({
+  // `createElement` z importu modułowego, nie z `require()`. Fabryka `vi.mock`
+  // jest hoistowana ponad importy, ale CIAŁO tego komponentu wykonuje się
+  // dopiero przy renderze - wtedy wiązanie jest już zainicjalizowane.
+  Link: ({ to, children }: { to: string; children?: unknown }) =>
+    createElement("a", { href: to }, children as never),
+}));
 
 vi.mock("sonner", () => ({
   toast: {

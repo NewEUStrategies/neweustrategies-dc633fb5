@@ -209,12 +209,17 @@ podświetlenia. Cele w tym repo (słownik i18n, rejestr komend, tytuły z bazy) 
 | ----------------- | -----: | -----: | ------- |
 | Linie             | 33,21% | 97,38% | ≥ 95% ✔ |
 | Instrukcje        | 32,65% | 96,66% | —       |
-| Funkcje           | 32,65% | 95,21% | ≥ 95% ✔ |
-| Gałęzie           | 28,89% | 90,00% | ≥ 90% ✔ |
+| Funkcje           | 32,65% | 95,22% | ≥ 95% ✔ |
+| Gałęzie           | 28,89% | 90,09% | ≥ 90% ✔ |
 | Plików na 0%      |     16 |      0 | 0 ✔     |
-| Funkcji pokrytych |     95 |    278 | z 292   |
-| Plików testowych  |      8 |     18 | —       |
-| Przypadków        |     63 |    589 | —       |
+| Funkcji pokrytych |     95 |    279 | z 293   |
+| Plików testowych  |      8 |     21 | —       |
+| Przypadków        |     63 |    528 | —       |
+
+Liczby po scaleniu `main` i po naprawie z §4.1.1 (`foldQuery` to jedna funkcja więcej:
+292 → 293). Przypadki liczone ŚCIŚLE po ścieżkach modułu z rozdz. 21 audytu
+(`lib/search/`, `components/search/`, `hooks/useSavedSearches`, `routes/search`) - wcześniejsza
+liczba 589 pochodziła z szerszego wyboru plików i była zawyżona.
 
 Per plik, od najniższego:
 
@@ -355,7 +360,7 @@ bunx vitest run src/lib/search src/components/search src/hooks \
   src/components/builder/organisms/widget-view/__tests__/SearchButtonWidget.test.tsx \
   src/components/builder/organisms/widget-view/__tests__/searchButtonWidgetRouterSync.test.tsx \
   --coverage
-# 30 plików testowych, 589 testów
+# 33 pliki testowe, 619 testów (wybór szerszy niż moduł - patrz §5)
 ```
 
 ### 10.1 Pomiar potwierdzony na pełnej suicie
@@ -378,9 +383,14 @@ lazyWidgets (mock) → eagerWidgetChunks → PostsSliderWidget → lazyWidgets (
 `PostsSliderWidget.tsx` jest ładowany PRZEZ rejestr `lazyWidgets`, a jednocześnie brał z niego
 `SliderRender`. W produkcji cykl jest nieszkodliwy (bundler go rozplątuje, oba wiązania są
 leniwe), ale w testach podmieniających rejestr na lustro eager fabryka `vi.mock` czeka na
-moduł, którego rozwiązanie czeka na nią. Rozwiązanie: wydzielenie `lazyBoundary.tsx`
-(wspólna granica Suspense) i `sliderRenderLazy.tsx` (samo wiązanie `React.lazy`) - dwóch
-modułów bez zależności od rejestru. Granica podziału kodu, chunk i fallback bez zmian.
+moduł, którego rozwiązanie czeka na nią. Rozwiązanie: wydzielenie dwóch modułów bez
+zależności od rejestru - wspólnej granicy Suspense i samego wiązania `React.lazy` slidera.
+Granica podziału kodu, chunk i fallback bez zmian.
+
+**Ta sama diagnoza powstała niezależnie w PR #256** (moduł 3), z tym samym rozwiązaniem
+i innymi nazwami plików. Przy scalaniu `main` wersja stamtąd została przyjęta jako
+kanoniczna (`lazySuspense.tsx`, `lazySliderRender.tsx`), a moja para plików usunięta -
+jedna implementacja zamiast dwóch. Pełny opis: `docs/WDROZENIE_ZAKLESZCZENIE_LAZYWIDGETS_2026-08-18.md`.
 
 Zawieszenie **zasłaniało 39 czerwonych asercji w module buildera**, wszystkie zastane.
 Sprawdzone na commicie bazowym `39a9efd`: padają tak samo. Naprawione (szczegóły w opisach
@@ -390,8 +400,12 @@ w trzech zaślepkach klienta Supabase oraz asercja typografii czytająca `style`
 `span` zamiast z nagłówka. Osobno naprawiony został jedyny błąd blokującej bramki
 `bun run lint` (`require()` w mocku routera w `AccountIdentityPanel.test.tsx`).
 
-**Kod produkcyjny wyszukiwarki nie był przy tym ruszany.** Jedyna zmiana produkcyjna poza
-modułem to wydzielenie dwóch plików granicy leniwego ładowania opisane wyżej.
+Każdą z tych napraw PR #256 zrobił równolegle. Przy scalaniu wybrana została wersja z `main`
+
+- co do jednej - żeby w repo została jedna wersja każdego wyjaśnienia, a nie dwie różniące
+  się komentarzem.
+
+**Kod produkcyjny wyszukiwarki nie był przy tym ruszany.**
 
 ---
 

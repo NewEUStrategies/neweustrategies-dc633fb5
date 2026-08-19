@@ -23,11 +23,11 @@ import { cn } from "@/lib/utils";
 import { eventPayload } from "@/lib/realtime/domainEvents";
 import {
   fetchCorrelationTrace,
-  isUuid,
   type CorrelationTrace,
   type CorrelationTraceDelivery,
   type WorkflowRunWithDefinition,
 } from "@/lib/admin/workflows";
+import { traceQueryEnabled, traceSubmission } from "./lib/panelRules";
 import { DateTimeText, EventTypeChip, RunStatusBadge } from "./atoms";
 
 interface CorrelationTracePanelProps {
@@ -46,18 +46,21 @@ export function CorrelationTracePanel({
   const traceQuery = useQuery({
     queryKey: ["admin", "correlation-trace", correlationId],
     queryFn: () => fetchCorrelationTrace(correlationId ?? ""),
-    enabled: correlationId !== null && isUuid(correlationId),
+    enabled: traceQueryEnabled(correlationId),
     staleTime: 30_000,
   });
 
   const submit = () => {
-    const trimmed = input.trim();
-    if (!isUuid(trimmed)) {
+    // Walidacja stoi PRZED zapytaniem - `fetchCorrelationTrace` z byle napisem
+    // kończy się błędem PostgREST-a o niepoprawnym typie, z którego nie widać,
+    // że administrator wkleił po prostu nie to pole (patrz `traceSubmission`).
+    const outcome = traceSubmission(input);
+    if (outcome.kind === "invalid") {
       setInvalid(true);
       return;
     }
     setInvalid(false);
-    onCorrelationIdChange(trimmed);
+    onCorrelationIdChange(outcome.correlationId);
   };
 
   // Deep-link (klik „Ślad" w historii / parametr URL) nadpisuje lokalny input.

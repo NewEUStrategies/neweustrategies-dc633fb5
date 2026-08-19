@@ -13,11 +13,9 @@ import { WIDGETS } from "@/lib/builder/registry";
 import { AccordionEditor } from "../AccordionEditor";
 import { renderSimpleWidget } from "@/components/builder/organisms/widget-view/SimpleWidgets";
 
-// Podział kodu (React.lazy) zamieniony na importy statyczne. Bez tego pierwszy
-// render widgetu z rejestru pokazuje fallback Suspense, który na stronie
-// publicznej jest `null` - test widzi PUSTKĘ i uznaje każde ustawienie za
-// martwe. Ten sam mock mają siostrzane pliki (np. `widgetBehavior.test.tsx`);
-// tutaj zabrakło go po przeniesieniu widgetów do rejestru leniwego (01253dc).
+// Rejestr leniwych widgetow -> lustro eager: od 2026-08-18 `accordion` jedzie
+// przez React.lazy (byl jedynym eager konsumentem DOMPurify), wiec bez podmiany
+// `container.firstElementChild` jest nullem zamiast ramka wariantu.
 vi.mock(
   "@/components/builder/organisms/widget-view/lazyWidgets",
   () => import("@/test/eagerWidgetChunks"),

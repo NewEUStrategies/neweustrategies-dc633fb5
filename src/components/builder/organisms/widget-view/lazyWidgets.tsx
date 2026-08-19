@@ -47,7 +47,7 @@
 // Suspense na serwerze, więc HTML i LCP są identyczne - odroczony jest
 // wyłącznie transfer JS na kliencie.
 import { lazy, type ComponentProps, type ComponentType } from "react";
-import { withSuspense } from "./lazyBoundary";
+import { withSuspense } from "./lazySuspense";
 
 import type { Editable as EditableImpl } from "../../molecules/Editable";
 
@@ -114,9 +114,9 @@ import type { AccordionWidget as AccordionWidgetImpl } from "./AccordionWidget";
 import type { SectionLabelWidgetView as SectionLabelWidgetViewImpl } from "@/lib/builder/sectionLabelVariants";
 import type { PostsSliderWidget as PostsSliderWidgetImpl } from "./PostsSliderWidget";
 
-// Granica Suspense mieszka w `lazyBoundary.tsx`, żeby `sliderRenderLazy.tsx`
-// mógł jej użyć bez importowania tego rejestru (patrz nagłówek tamtego pliku:
-// import zwrotny z `PostsSliderWidget` zakleszczał testy z lustrem eager).
+// `LazyFallback` i `withSuspense` żyją w `./lazySuspense`, żeby pojedynczy
+// leniwy komponent dał się skonsumować bez importu całego rejestru (patrz
+// nagłówek tamtego pliku - to naprawa zakleszczenia w testach).
 
 // --- form / interaction widgets -------------------------------------------
 const NewsletterFormLazy = lazy(() =>
@@ -259,10 +259,10 @@ const RichTextViewLazy = lazy(() =>
 export const RichTextView = withSuspense(RichTextViewLazy);
 
 // --- heavy visual widgets --------------------------------------------------
-// Wiązanie slidera mieszka w osobnym module - `PostsSliderWidget` importuje je
-// STAMTĄD, więc rejestr przestał być węzłem cyklu. Tu tylko re-eksport, żeby
-// dotychczasowi konsumenci (`WidgetView`, `SimpleWidgets`) nic nie zmieniali.
-export { SliderRender } from "./sliderRenderLazy";
+// `SliderRender` mieszka w osobnym module, bo importuje go też
+// `PostsSliderWidget` (sam ładowany leniwie z tego rejestru) - import całego
+// rejestru zamykał tam cykl. Re-eksport trzyma kontrakt eksportów bez zmian.
+export { SliderRender } from "./lazySliderRender";
 
 const AnimatedHeadingRenderLazy = lazy(() =>
   import("@/lib/builder/animatedHeadingVariants").then((m) => ({
