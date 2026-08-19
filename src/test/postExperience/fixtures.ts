@@ -226,3 +226,72 @@ export interface QueryStub<T> {
   error: Error | null;
   refetch: Mock;
 }
+
+// --- atrapy prymitywów UI ---------------------------------------------------
+
+/**
+ * Atrapa `@/components/ui/select` sprowadzająca listę Radiksa do NATYWNEGO
+ * `<select>`.
+ *
+ * DLACZEGO W OGÓLE. Radix Select otwiera zawartość dopiero po zdarzeniu
+ * wskaźnika i wymaga `hasPointerCapture` oraz pomiarów układu, których happy-dom
+ * nie ma - w środowisku testowym opcje nigdy nie trafiają do drzewa, więc
+ * wyboru nie da się ani zobaczyć, ani wywołać. Atrapa stoi na GRANICY MODUŁU
+ * prymitywu: reguła (jakie opcje, która wyłączona) zostaje prawdziwa, atrapa
+ * podmienia wyłącznie sposób ich pokazania.
+ *
+ * W przeciwieństwie do wariantu z `test/profile/fixtures` ta atrapa PRZENOSI
+ * `disabled` na `<option>` - panele modułu 1 wyłączają poziomy nagłówka, żeby
+ * dolna granica nie przeskoczyła górnej, i bez tego reguła nie miałaby jak być
+ * sprawdzona przez interfejs.
+ */
+export function selectPrimitiveStub(react: typeof import("react")): Record<string, unknown> {
+  interface TriggerProps {
+    readonly "aria-label"?: string;
+    readonly id?: string;
+  }
+  const hasTriggerProps = (node: { props?: TriggerProps }): boolean =>
+    !!node.props && ("aria-label" in node.props || "id" in node.props);
+
+  return {
+    Select: ({
+      value,
+      onValueChange,
+      disabled,
+      children,
+    }: {
+      value?: string;
+      onValueChange?: (next: string) => void;
+      disabled?: boolean;
+      children?: unknown;
+    }) => {
+      const parts = react.Children.toArray(children as never) as Array<{ props?: TriggerProps }>;
+      const trigger = parts.find(hasTriggerProps);
+      const content = parts.filter((part) => part !== trigger);
+      return react.createElement(
+        "select",
+        {
+          "aria-label": trigger?.props?.["aria-label"],
+          id: trigger?.props?.id,
+          value,
+          disabled,
+          onChange: (event: { target: { value: string } }) => onValueChange?.(event.target.value),
+        },
+        content as never,
+      );
+    },
+    SelectTrigger: () => null,
+    SelectValue: () => null,
+    SelectContent: ({ children }: { children?: unknown }) =>
+      react.createElement(react.Fragment, null, children as never),
+    SelectItem: ({
+      value,
+      disabled,
+      children,
+    }: {
+      value: string;
+      disabled?: boolean;
+      children?: unknown;
+    }) => react.createElement("option", { value, disabled }, children as never),
+  };
+}

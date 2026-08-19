@@ -523,6 +523,38 @@ export default defineConfig({
         // (fallback kotwicy, gdy derywacja dokumentu nie zna bloku - przy
         // spójnym dokumencie nieosiągalny) i `b.data.level ?? 2` w wariancie,
         // który ma już własny test przez brak pola.
+        // PANELE „DOŚWIADCZENIA CZYTELNIKA" (krok 6 planu). Cztery panele modułu
+        // były wpisane w pliki tras, więc nie miały jak dostać testu
+        // komponentowego bez stawiania routera - stąd 0 z 32 funkcji w
+        // `admin.toc.tsx`, 0 z 42 w `admin.key-takeaways.tsx`, 0 z 36 w
+        // `admin.related-posts.tsx` i 0 z 34 w `admin.post-layouts.tsx`.
+        //
+        // Po wyprowadzeniu do `components/admin/postExperience` (atoms /
+        // molecules / organisms) plik trasy zostaje przy rejestracji, a panel
+        // stoi na 100% we wszystkich metrykach. Próg jest tu WYSOKI świadomie:
+        // to ma być bariera dla kolejnego panelu wchodzącego do tego katalogu,
+        // a nie zapis stanu faktycznego. Gałęzie floorowane na 95%, bo warunek
+        // w nowym JSX zdarza się dopisać przed jego testem.
+        "src/components/admin/postExperience/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Reguły paneli: deskryptory i klucze i18n zamiast tekstu w JSX oraz
+        // wspólne przycięcie pól liczbowych. Czyste moduły, więc pod 100%.
+        "src/lib/admin/panelDraft.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/toc/panelRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         "src/lib/toc/settings.ts": {
           statements: 100,
           functions: 100,
