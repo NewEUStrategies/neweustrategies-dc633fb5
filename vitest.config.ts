@@ -559,6 +559,22 @@ export default defineConfig({
           lines: 90,
           branches: 80,
         },
+        // Server fns ścieżki rezygnacji + czyste helpery kuponu. Do 19.08.2026
+        // `functions.ts` stał na 0% (0 z 5 funkcji), mimo że to on ZAKŁADA
+        // KUPON RABATOWY na koncie odchodzącego klienta. Próg pilnuje czterech
+        // reguł, których pgTAP nie widzi, bo są w orkiestracji handlera:
+        // własności subskrypcji (kupon leci na subskrypcję wołającego, nie na
+        // dowolne id z klienta), wyłącznika redakcyjnego `enabled`, okna 180
+        // dni na jedną przyjętą ofertę oraz PONAWIANIA przy kolizji kodu
+        // (23505) zamiast wywalenia przepływu. Floor tuż pod zmierzonym
+        // 100/96,07/100/100. Niedobita gałąź w `coupon.ts` to zacisk długości
+        // sufiksu, nieosiągalny z produkcyjnych wywołań.
+        "src/lib/retention/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
         // Sieć kontaktów - warstwa danych RPC-only. Do 2026-08-06 CAŁY moduł
         // miał 0% (audyt: „pokrycie modułu 15,4%, src/lib/network na 0%"),
         // mimo że decyduje o prywatności odmów zaproszeń, izolacji kont w
