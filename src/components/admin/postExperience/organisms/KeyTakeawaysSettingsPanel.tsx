@@ -38,6 +38,7 @@ export function KeyTakeawaysSettingsPanel() {
   const save = useSaveKeyTakeawaysSettings();
 
   const dirty = draftDirty(draft, persisted);
+  const resettable = draftDirty(draft, KEY_TAKEAWAYS_DEFAULTS);
 
   const update = <K extends keyof KeyTakeawaysSettings>(key: K, value: KeyTakeawaysSettings[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -63,12 +64,9 @@ export function KeyTakeawaysSettingsPanel() {
         </div>
         <PanelSaveBar
           canSave={dirty}
-          // ZACHOWANE ZACHOWANIE: poprzednia wersja panelu miała „przywróć
-          // domyślne" CZYNNE zawsze, więc kliknięcie przy czystym szkicu
-          // podmieniało zapisany stan bez żadnej zmiany po stronie użytkownika.
-          // Ujednolicenie z pozostałymi panelami idzie tu za jedną umową paska;
-          // poprawka pytania („różnica wobec DOMYŚLNYCH") osobnym commitem.
-          canReset={dirty}
+          // Jak w panelu spisu treści: reset pyta o różnicę wobec DOMYŚLNYCH,
+          // a zapis o różnicę wobec bazy.
+          canReset={resettable}
           pending={save.isPending}
           saveLabel={t("adminPostPanes.keyTakeaways.save")}
           savingLabel={t("adminPostPanes.keyTakeaways.saving")}

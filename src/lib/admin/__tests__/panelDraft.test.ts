@@ -101,10 +101,19 @@ describe("clampNumber - przycięcie pola liczbowego do granic", () => {
     expect(String(clampNumber("1.45", scale, 0.05))).toBe("1.45");
   });
 
-  it("krok zerowy albo ujemny nie dociąga wcale (zostaje samo przycięcie)", () => {
+  it("krok w ZAPISIE WYKŁADNICZYM nie gubi miejsc po przecinku", () => {
+    // `String(1e-7)` nie ma kropki, więc liczenie znaków po kropce dałoby zero
+    // miejsc i dociąganie zaokrągliłoby taki krok do całych - suwak zgasłby.
+    expect(clampNumber("0.30000004", { min: 0, max: 1 }, 1e-7)).toBe(0.3);
+    expect(clampNumber("0.1234567", { min: 0, max: 1 }, 1e-7)).toBe(0.1234567);
+  });
+
+  it("krok zerowy, ujemny albo nieliczbowy nie dociąga wcale (zostaje przycięcie)", () => {
     const scale = { min: 0.5, max: 3 };
     expect(clampNumber("1.234", scale, 0)).toBe(1.234);
     expect(clampNumber("9.9", scale, 0)).toBe(3);
+    expect(clampNumber("1.234", scale, Number.NaN)).toBe(1.234);
+    expect(clampNumber("1.234", scale, -0.5)).toBe(1.234);
   });
 
   it("dociąganie do kroku NIE wypycha wartości poza granice", () => {

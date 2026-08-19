@@ -70,7 +70,13 @@ export function PostLayoutGroup({ group, settings, onPatch }: PostLayoutGroupPro
                     <SelectableOptionCard
                       key={String(withSidebar)}
                       label={preset.label}
-                      ariaLabel={`${preset.label} - ${
+                      // NAZWA ZAWIERA GRUPĘ FORMATÓW. Ten sam preset stoi
+                      // w kilku katalogach z identyczną etykietą wariantu, więc
+                      // bez przedrostka na stronie stały cztery przyciski o tej
+                      // samej nazwie dostępnej i użytkownik czytnika ekranu nie
+                      // wiedział, czy ustawia wpis standardowy, wideo, audio czy
+                      // galerię.
+                      ariaLabel={`${t(group.titleKey)}: ${preset.label} - ${
                         withSidebar
                           ? t("adminLayouts.postLayouts.withSidebar")
                           : t("adminLayouts.postLayouts.withoutSidebar")

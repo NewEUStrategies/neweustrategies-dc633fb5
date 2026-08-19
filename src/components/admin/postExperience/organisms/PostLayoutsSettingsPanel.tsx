@@ -82,6 +82,10 @@ export function PostLayoutsSettingsPanel() {
           </div>
           <PanelSaveBar
             canSave={dirty}
+            // TU reset znaczy „porzuć moje zmiany", nie „wróć do domyślnych":
+            // ten panel nie ma zestawu wartości domyślnych do przywrócenia -
+            // układy przychodzą z katalogu presetów, nie ze schematu ustawień.
+            // Dlatego oba przyciski dzielą warunek, i to jest świadome.
             canReset={dirty}
             pending={save.isPending}
             saveLabel={t("common.save")}

@@ -50,7 +50,7 @@ export function draftDirty<T>(draft: T, persisted: T): boolean {
 export function clampNumber(raw: string | number, bounds: NumberBounds, step = 1): number {
   const n = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(n)) return bounds.min;
-  const snapped = step > 0 ? roundToStep(n, step) : n;
+  const snapped = Number.isFinite(step) && step > 0 ? roundToStep(n, step) : n;
   return Math.min(bounds.max, Math.max(bounds.min, snapped));
 }
 
@@ -61,12 +61,23 @@ function roundToStep(value: number, step: number): number {
   return decimals === 0 ? snapped : Number(snapped.toFixed(decimals));
 }
 
-/** Liczba miejsc po przecinku w kroku (0 dla kroku całkowitego). */
+/**
+ * Liczba miejsc po przecinku w kroku (0 dla kroku całkowitego).
+ *
+ * ZAPIS WYKŁADNICZY MA WŁASNĄ GAŁĄŹ. `String(0.0000001)` to `"1e-7"` - bez
+ * kropki, więc liczenie znaków po kropce dałoby ZERO miejsc i dociąganie
+ * zaokrągliłoby taki krok do całych, czyli zgasiłoby suwak. Wykładnik mówi
+ * dokładnie tyle, ile trzeba.
+ */
 function decimalPlaces(step: number): number {
   if (Number.isInteger(step)) return 0;
   const text = String(step);
-  const dot = text.indexOf(".");
-  return dot === -1 ? 0 : text.length - dot - 1;
+  const exponent = text.match(/e-(\d+)$/);
+  if (exponent) return Number(exponent[1]);
+  // Krok niecałkowity, skończony i bez wykładnika MA kropkę - to nie jest
+  // założenie na wiarę, tylko warunek wejścia pilnowany przez `clampNumber`
+  // (`Number.isFinite(step) && step > 0`) i wcześniejsze `Number.isInteger`.
+  return text.length - text.indexOf(".") - 1;
 }
 
 /**

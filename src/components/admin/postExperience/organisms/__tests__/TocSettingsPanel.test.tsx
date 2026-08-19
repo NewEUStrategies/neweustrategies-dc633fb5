@@ -314,14 +314,23 @@ describe("TocSettingsPanel - co idzie do bazy", () => {
     expect(writeChains()).toHaveLength(0);
   });
 
-  it("PRZYPIĘTE ZACHOWANIE: przywrócenie domyślnych jest martwe, gdy baza różni się od domyślnych", () => {
-    // Panel wyłącza reset tym samym warunkiem co zapis („czy szkic różni się od
-    // BAZY"), więc administrator z zapisanym `position: 9` nie ma jak wrócić do
-    // domyślnej trójki: szkic jest czysty, a przycisk wyłączony. Zachowanie
-    // przeniesione 1:1 z pliku trasy; poprawka pytania idzie osobnym commitem.
+  it("PRZYWRÓCENIE DOMYŚLNYCH działa, gdy baza różni się od domyślnych", () => {
+    // Reset pyta o różnicę wobec WARTOŚCI DOMYŚLNYCH, zapis - wobec bazy.
+    // Wcześniej oba dzieliły warunek zapisu, więc administrator z zapisanym
+    // `position: 9` nie miał jak wrócić do domyślnej trójki: szkic był czysty,
+    // a przycisk wyłączony.
     renderPanel(tocDefaults({ position: 9 }));
+    expect(saveButton()).toBeDisabled();
+    expect(resetButton()).not.toBeDisabled();
+    fireEvent.click(resetButton());
+    expect(numberField("position")).toHaveValue(TOC_DEFAULTS.position);
+    expect(saveButton()).not.toBeDisabled();
+  });
+
+  it("szkic RÓWNY domyślnym wyłącza reset - nie ma czego przywracać", () => {
+    renderPanel(tocDefaults());
     expect(resetButton()).toBeDisabled();
-    expect(numberField("position")).toHaveValue(9);
+    expect(saveButton()).toBeDisabled();
   });
 
   it("przełącznik oddaje intencję do szkicu (widoczność globalna spisu treści)", () => {

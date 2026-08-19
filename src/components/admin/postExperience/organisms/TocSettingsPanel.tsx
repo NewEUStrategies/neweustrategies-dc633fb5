@@ -32,6 +32,7 @@ export function TocSettingsPanel() {
   const save = useSaveTocDefaults();
 
   const dirty = draftDirty(draft, persisted);
+  const resettable = draftDirty(draft, TOC_DEFAULTS);
 
   const update = <K extends keyof TocDefaults>(key: K, value: TocDefaults[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -47,13 +48,11 @@ export function TocSettingsPanel() {
         </div>
         <PanelSaveBar
           canSave={dirty}
-          // ZACHOWANE ZACHOWANIE, NIE PRZEOCZENIE. Poprzednia wersja panelu
-          // wyłączała „przywróć domyślne" tym samym warunkiem co zapis, więc
-          // przy zapisanym wierszu różnym od domyślnych przycisk był martwy.
-          // Wyprowadzenie panelu nie zmienia zachowania - poprawka pytania
-          // („różnica wobec DOMYŚLNYCH", nie wobec bazy) idzie osobnym commitem,
-          // bo to defekt, nie refaktor.
-          canReset={dirty}
+          // „Przywróć domyślne" pyta o różnicę wobec WARTOŚCI DOMYŚLNYCH, a nie
+          // wobec bazy. Wcześniej oba przyciski dzieliły warunek zapisu, więc
+          // administrator z zapisanym wierszem różnym od domyślnych nie miał jak
+          // wrócić do domyślnych: szkic był czysty, a przycisk wyłączony.
+          canReset={resettable}
           pending={save.isPending}
           saveLabel={t("common.save")}
           savingLabel={t("admin.toc.saving")}

@@ -193,17 +193,27 @@ describe("RelatedPostsSettingsPanel - co widać", () => {
     }
   });
 
-  it("PRZYPIĘTA USTERKA: suwak wagi nie ma nazwy dostępnej", () => {
-    // `WeightSlider` wiąże podpis przez `aria-labelledby` na KORZENIU Radiksa,
-    // a `role="slider"` siedzi na uchwycie - atrybut nie schodzi tam sam.
-    // Czytnik ekranu ogłasza więc „suwak, 4", bez informacji, którego sygnału
-    // dotyczy. Atom jest wspólny dla panelu i innych ekranów, więc naprawa
-    // (`aria-label` na uchwycie) idzie osobnym commitem.
+  it("KAŻDY suwak wagi ma NAZWĘ DOSTĘPNĄ na uchwycie, nie na korzeniu", () => {
+    // Radix stawia `role="slider"` na uchwycie, więc `aria-labelledby` podany
+    // na korzeniu był atrybutem, którego czytnik ekranu nigdy nie czytał -
+    // użytkownik słyszał „suwak, 4" bez informacji, którego z siedmiu sygnałów
+    // dotyczy.
     renderPanel();
     fireEvent.mouseDown(tab("engine"));
-    const thumbs = screen.getAllByRole("slider");
-    expect(thumbs.every((t) => !t.getAttribute("aria-label"))).toBe(true);
-    expect(thumbs.every((t) => !t.getAttribute("aria-labelledby"))).toBe(true);
+    for (const slug of [
+      "categories",
+      "tags",
+      "author",
+      "recency",
+      "popularity",
+      "dwell",
+      "personalization",
+    ]) {
+      expect(
+        screen.getByRole("slider", { name: `adminRelatedPosts.engine.${slug}` }),
+      ).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("slider")).toHaveLength(7);
   });
 
   it("widok nieznalezionej trasy czyta ze słownika panelu, nie z tekstu w kodzie", () => {

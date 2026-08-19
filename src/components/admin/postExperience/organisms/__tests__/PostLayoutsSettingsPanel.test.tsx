@@ -95,11 +95,9 @@ const savedRow = () => writeChains()[0]?.calls[0]?.args[0] as Record<string, unk
 /**
  * Sekcja JEDNEJ grupy formatów.
  *
- * NAZWY OPCJI POWTARZAJĄ SIĘ MIĘDZY GRUPAMI: ten sam preset stoi w katalogu
- * standardowym i wideo, a etykieta wariantu jest identyczna, więc na stronie
- * bywają cztery przyciski o tej samej nazwie dostępnej. Zachowanie przeniesione
- * 1:1 z pliku trasy - przypięte niżej osobnym przypadkiem, poprawka (grupa
- * w nazwie opcji) idzie osobnym commitem. Testy scopują więc zapytania.
+ * Nazwa opcji zawiera już grupę, więc scopowanie nie jest tu konieczne dla
+ * jednoznaczności - zostaje, bo test „ile opcji ma ta grupa" i tak potrzebuje
+ * granicy sekcji.
  */
 function groupSection(slug: "standard" | "video" | "audio" | "gallery"): HTMLElement {
   const heading = screen.getByRole("heading", {
@@ -117,7 +115,9 @@ const variantButton = (
   withSidebar: boolean,
 ) =>
   within(groupSection(slug)).getByRole("button", {
-    name: `${label} - adminLayouts.postLayouts.${withSidebar ? "withSidebar" : "withoutSidebar"}`,
+    name: `adminLayouts.postLayouts.group.${slug}: ${label} - adminLayouts.postLayouts.${
+      withSidebar ? "withSidebar" : "withoutSidebar"
+    }`,
   });
 
 const saveButton = () => screen.getByRole("button", { name: /common\.(save)/ });
@@ -162,18 +162,17 @@ describe("PostLayoutsSettingsPanel - co widać", () => {
     );
   });
 
-  it("PRZYPIĘTE ZACHOWANIE: nazwa opcji nie mówi, której GRUPY formatów dotyczy", () => {
-    // Ten sam preset stoi w kilku katalogach, a etykieta wariantu jest
-    // identyczna - użytkownik czytnika ekranu słyszy „Layout 1 - bez sidebara"
-    // i nie wie, czy ustawia wpis standardowy, wideo, audio czy galerię.
-    // Zachowanie przeniesione 1:1; poprawka osobnym commitem.
+  it("nazwa opcji mówi, której GRUPY formatów dotyczy - nazwy są UNIKALNE", () => {
+    // Ten sam preset stoi w kilku katalogach z identyczną etykietą wariantu.
+    // Bez przedrostka grupy użytkownik czytnika ekranu słyszał cztery razy
+    // „Layout 1 - bez sidebara" i nie wiedział, który format ustawia.
     renderPanel();
-    const first = STANDARD_LAYOUTS[0];
-    const all = screen.getAllByRole("button", {
-      name: `${first.label} - adminLayouts.postLayouts.withoutSidebar`,
-    });
-    expect(all.length).toBeGreaterThan(1);
-    expect(new Set(all.map((b) => b.getAttribute("aria-label"))).size).toBe(1);
+    const names = screen
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+      .filter((n): n is string => n !== null && n.includes("adminLayouts.postLayouts.group."));
+    expect(names.length).toBeGreaterThan(1);
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it("WYBRANY wariant ogłasza `aria-pressed`, drugi wariant tego samego presetu nie", () => {
