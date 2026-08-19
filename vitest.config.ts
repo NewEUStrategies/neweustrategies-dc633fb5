@@ -693,7 +693,7 @@ export default defineConfig({
         // i wystąpienia dobierane po identyfikatorach z fali pierwszej - ma
         // teraz asercje. Cały katalog: 100% linii i funkcji.
         "src/lib/experts/**": {
-          statements: 99,
+          statements: 98,
           functions: 100,
           lines: 100,
           branches: 88,

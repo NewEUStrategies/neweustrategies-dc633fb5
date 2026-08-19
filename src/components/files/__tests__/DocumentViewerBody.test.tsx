@@ -284,6 +284,15 @@ describe("czytnik prezentacji", () => {
     );
   });
 
+  it("odrzucenie przez parser prezentacji pokazuje błąd, a nie pustą ramkę", async () => {
+    // Trzy czytniki (docx, xlsx, pptx) mają OSOBNE kopie tej samej obsługi
+    // odrzucenia. Kopia bez testu to kopia, którą refaktor cicho zgubi -
+    // a wtedy uszkodzona prezentacja wygląda jak prezentacja pusta.
+    h.slides = () => Promise.reject(new Error("zepsuty"));
+    render(<DocumentViewerBody source={pptxSource} />);
+    await waitFor(() => expect(screen.getByText(t("fileViewer.error"))).toBeInTheDocument());
+  });
+
   it("stary format .ppt nie jest pobierany", () => {
     const fetchMock = stubFetch();
     render(<DocumentViewerBody source={{ url: "/a.ppt", name: "deck.ppt", mime: "" }} />);
