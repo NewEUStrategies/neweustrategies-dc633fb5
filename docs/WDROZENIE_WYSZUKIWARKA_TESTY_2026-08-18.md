@@ -149,6 +149,42 @@ rozjeżdżając podświetlenie o dwie pozycje.
 Zachowanie zmienione świadomie i tylko w tę stronę: zbiór dopasowań się POWIĘKSZA, żadne
 wcześniejsze trafienie nie znika. Cztery testy sprzed tej pracy przechodzą bez zmian.
 
+#### 4.1.1 Domknięcie po recenzji: fraza rozłożona kanonicznie (NFD)
+
+Zgłoszone przez recenzję automatyczną na PR #258. Pierwsza naprawa zakładała, że wejście jest
+złożone (NFC). Nie zawsze jest: „ś" da się zapisać jednym punktem kodowym albo jako „s" plus
+znak łączący U+0301. **Renderuje się identycznie**, więc użytkownik nie ma jak zobaczyć
+różnicy - a wklejka potrafi przynieść NFD (nazwy plików HFS+, część aplikacji macOS).
+
+Składanie zachowujące długość zostawiało wtedy osierocony znak łączący we frazie, a matcher
+musi skonsumować KAŻDY jej znak - trafienia nie było.
+
+Zakres okazał się węższy, niż wskazywała recenzja. Zmierzone wprost, cztery kombinacje:
+
+| fraza | cel | przed naprawą |                                    |
+| ----- | --- | ------------- | ---------------------------------- |
+| NFC   | NFC | trafia        | score 57                           |
+| NFD   | NFC | **null**      | jedyny realny błąd                 |
+| NFC   | NFD | trafia        | score 51,95, indeksy `[0-6, 8, 9]` |
+| NFD   | NFD | trafia        | score 63                           |
+
+Cel w NFD działał już wcześniej, bo dopasowanie jest PODCIĄGIEM - zbłąkany znak łączący
+zostaje po prostu pominięty, a `indexes` nadal wskazują właściwe litery. Recenzja sugerowała
+mapę indeksów wstecz do celu; byłaby to praca nad przypadkiem, który nie jest zepsuty.
+
+Naprawa siedzi więc TYLKO po stronie frazy, gdzie długości zachowywać nie trzeba - `indexes`
+opisują pozycje w CELU, nie w zapytaniu. Nowe `foldQuery` robi NFC plus usunięcie znaków
+łączących bez formy złożonej; `foldDiacritics` (cel) zostaje bez zmian, z niezmienionym
+inwariantem długości. Ten sam podwójny filtr co w §4.1: do wartości wiersza cmdk dopisana
+została kopia NFD celu - samo `foldQuery` by nie wystarczyło, bo filtr cmdk stoi PRZED
+`fuzzyMatch`. Sprawdzone przez wycofanie każdej z dwóch połówek osobno: bez pierwszej padają
+4 testy, bez drugiej 1.
+
+Wejścia NIE normalizujemy w polu tekstowym - to zaburzyłoby składanie IME.
+
+Jedyny pozostały efekt uboczny celu w NFD jest KOSMETYCZNY: kreska wypada poza zakres
+podświetlenia. Cele w tym repo (słownik i18n, rejestr komend, tytuły z bazy) są w NFC.
+
 ### 4.2 Ustalenia, które NIE są defektami, ale zostały przypięte testem
 
 - **`buildHaystack({cmd, lang})` ignoruje `lang`** - funkcja destrukturyzuje samo `cmd`.

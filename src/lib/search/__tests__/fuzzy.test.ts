@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fuzzyMatch, rankItems } from "../fuzzy";
+import { foldDiacritics, foldQuery, fuzzyMatch, rankItems } from "../fuzzy";
 
 describe("fuzzyMatch", () => {
   it("returns null when characters not in order", () => {
@@ -111,5 +111,77 @@ describe("rankItems - diakrytyki", () => {
       { id: "media", haystack: "Media Media /admin/media" },
     ];
     expect(rankItems(items, "platnosci").map((i) => i.id)).toEqual(["platnosci"]);
+  });
+});
+
+// Postać kanoniczna. „ś” da się zapisać dwojako: jednym punktem kodowym (NFC)
+// albo „s” plus znak łączący U+0301 (NFD). Renderują się IDENTYCZNIE, więc
+// użytkownik nie ma jak zobaczyć różnicy - a wklejka potrafi przynieść NFD
+// (nazwy plików HFS+, część aplikacji macOS). Zgłoszone w recenzji PR #258.
+describe("fuzzyMatch - postać kanoniczna frazy (NFC/NFD)", () => {
+  const NFC = "Płatności";
+  const NFD = NFC.normalize("NFD");
+
+  it("NFD i NFC to naprawdę różne napisy, mimo identycznego wyglądu", () => {
+    expect(NFD).not.toBe(NFC);
+    expect(NFD.length).toBe(NFC.length + 1);
+  });
+
+  it("fraza ROZŁOŻONA trafia w cel ZŁOŻONY (regresja: zwracało null)", () => {
+    expect(fuzzyMatch(NFD, NFC)).not.toBeNull();
+  });
+
+  it("pozostałe trzy kombinacje NFC/NFD nadal trafiają", () => {
+    expect(fuzzyMatch(NFC, NFC)).not.toBeNull();
+    expect(fuzzyMatch(NFC, NFD)).not.toBeNull();
+    expect(fuzzyMatch(NFD, NFD)).not.toBeNull();
+  });
+
+  it("cel ROZŁOŻONY podświetla właściwe litery - indeksy omijają znak łączący", () => {
+    // U+0301 stoi w celu pod indeksem 7; dopasowanie jest podciągiem, więc
+    // zostaje pominięte, a `indexes` dalej wskazują litery oryginału - trafiony
+    // jest goły „s”, nie kreska nad nim. To jedyny efekt uboczny celu w NFD
+    // i jest KOSMETYCZNY: kreska wypada poza zakres podświetlenia. Cele w tym
+    // repo (słownik i18n, rejestr komend, tytuły z bazy) są zapisane w NFC.
+    const m = fuzzyMatch("platnosci", NFD);
+    expect(m?.indexes).toEqual([0, 1, 2, 3, 4, 5, 6, 8, 9]);
+    expect(m!.indexes.map((i) => NFD[i]).join("")).toBe("Płatnosci");
+  });
+
+  it("osierocony znak łączący nie blokuje frazy", () => {
+    // Kreska bez litery, której mogłaby dotyczyć - po NFC nie ma formy złożonej.
+    expect(fuzzyMatch("platnosci\u0301", NFC)).not.toBeNull();
+  });
+});
+
+describe("foldQuery vs foldDiacritics - dwie różne umowy", () => {
+  it("foldDiacritics ZACHOWUJE długość, bo indeksy celu muszą się zgadzać", () => {
+    const decomposed = "Płatności".normalize("NFD");
+    expect(foldDiacritics(decomposed)).toHaveLength(decomposed.length);
+    expect(foldDiacritics("Płatności")).toHaveLength("Płatności".length);
+  });
+
+  it("foldQuery NIE musi - i dlatego usuwa znaki łączące", () => {
+    expect(foldQuery("Płatności".normalize("NFD"))).toBe("Platnosci");
+    expect(foldQuery("Płatności")).toBe("Platnosci");
+  });
+
+  it("foldQuery jest idempotentne", () => {
+    const once = foldQuery("Płatności".normalize("NFD"));
+    expect(foldQuery(once)).toBe(once);
+  });
+
+  it("nie zjada znaków spoza łaciny", () => {
+    expect(foldQuery("Мир 東京")).toBe("Мир 東京");
+  });
+});
+
+describe("rankItems - fraza rozłożona kanonicznie", () => {
+  it("wklejone NFD rankinguje cel zapisany w NFC", () => {
+    const items = [
+      { id: "platnosci", haystack: "Płatności Billing /profile/billing" },
+      { id: "media", haystack: "Media Media /admin/media" },
+    ];
+    expect(rankItems(items, "Płatności".normalize("NFD")).map((i) => i.id)).toEqual(["platnosci"]);
   });
 });

@@ -252,6 +252,21 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
     expect(hasRow("Płatności")).toBe(true);
   });
 
+  it("znajduje komendę WKLEJONĄ w postaci rozłożonej kanonicznie (NFD)", async () => {
+    // Zgłoszone w recenzji PR #258. „ś” da się zapisać jako jeden punkt kodowy
+    // (NFC) albo jako „s” + U+0301 (NFD) - wygląda IDENTYCZNIE, a to inny
+    // napis. Wklejka potrafi przynieść NFD (nazwy plików HFS+, część aplikacji
+    // macOS). Bramki są DWIE i obie muszą przepuścić: `fuzzyMatch` (przez
+    // `foldQuery`) oraz własny matcher cmdk po `value` - stąd kopia NFD celu
+    // dopisana do wartości wiersza. Test jedzie przez cały komponent, więc
+    // sprawdza obie naraz.
+    h.auth.current = { isAdmin: true, user: { id: "u-1" } };
+    render(<CommandPalette />);
+    open();
+    await type("Płatności".normalize("NFD"));
+    expect(hasRow("Płatności")).toBe(true);
+  });
+
   it("znajduje komendę po fragmencie ŚCIEŻKI", async () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
     render(<CommandPalette />);

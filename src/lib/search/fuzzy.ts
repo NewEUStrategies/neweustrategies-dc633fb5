@@ -50,6 +50,26 @@ export function foldDiacritics(s: string): string {
 }
 
 /**
+ * Składa FRAZĘ WYSZUKIWANĄ. W odróżnieniu od `foldDiacritics` NIE musi
+ * zachowywać długości: `indexes` opisują pozycje w CELU, nie w zapytaniu,
+ * więc skrócenie frazy niczego nie rozjeżdża. To pozwala zrobić dwie rzeczy,
+ * na które po stronie celu miejsca nie ma:
+ *
+ *   1. złożyć wejście do NFC - wklejka bywa rozłożona kanonicznie („s” + U+0301
+ *      zamiast „ś”; tak trzyma nazwy plików HFS+, tak potrafi oddać schowek),
+ *   2. usunąć znaki łączące, które po NFC nie mają formy złożonej.
+ *
+ * Bez tego zapytanie rozłożone NIE TRAFIA w cel złożony: matcher musi
+ * skonsumować KAŻDY znak frazy, a osieroconej kreski w celu nie ma. Odwrotny
+ * przypadek (cel rozłożony, fraza złożona) działa i bez tego - dopasowanie jest
+ * podciągiem, więc zbłąkany znak łączący w celu zostaje po prostu pominięty,
+ * a `indexes` nadal wskazują właściwe litery.
+ */
+export function foldQuery(s: string): string {
+  return foldDiacritics(s.normalize("NFC")).replace(/\p{M}/gu, "");
+}
+
+/**
  * Match `query` against `target` (case-insensitive, diacritics-insensitive).
  * Returns null if any character of the query is not present in order.
  *
@@ -57,9 +77,13 @@ export function foldDiacritics(s: string): string {
  * znajduje „Płatności", a „płatności" nadal znajduje „Platnosci". Zwracane
  * `indexes` wskazują pozycje w oryginalnym `target` - podświetlenie zaznacza
  * literę z ogonkiem, nie jej złożony odpowiednik.
+ *
+ * Fraza idzie przez `foldQuery` (dodatkowo NFC + usunięcie znaków łączących),
+ * cel przez `foldDiacritics` (zachowujące długość) - powód rozdziału opisany
+ * przy `foldQuery`.
  */
 export function fuzzyMatch(query: string, target: string): FuzzyMatch | null {
-  const q = foldDiacritics(query.trim().toLowerCase());
+  const q = foldQuery(query.trim().toLowerCase());
   if (!q) return { score: 0, indexes: [] };
   const t = foldDiacritics(target.toLowerCase());
   const indexes: number[] = [];

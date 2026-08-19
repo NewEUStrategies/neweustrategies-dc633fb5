@@ -200,7 +200,14 @@ export function CommandPalette() {
                     // wiersze własnym matcherem po `value` - `rankItems` składa
                     // diakrytyki, ale cmdk nie, więc bez tego „platnosci" nadal
                     // nie pokazałoby „Płatności".
-                    value={`${cmd.id} ${haystack} ${foldDiacritics(haystack)}`}
+                    //
+                    // Kopia ROZŁOŻONA KANONICZNIE (NFD) z tego samego powodu:
+                    // wklejona fraza bywa rozłożona („s” + U+0301 zamiast „ś”),
+                    // a cmdk porównuje napisy bez normalizacji. `fuzzyMatch`
+                    // radzi sobie sam (`foldQuery`), ale filtr cmdk stoi PRZED
+                    // nim i bez tej kopii schowałby wiersz mimo trafienia.
+                    // Wejścia nie normalizujemy - to zaburzyłoby składanie IME.
+                    value={`${cmd.id} ${haystack} ${foldDiacritics(haystack)} ${haystack.normalize("NFD")}`}
                     onSelect={() => onSelect(cmd)}
                     className="gap-2"
                   >
@@ -250,7 +257,7 @@ export function CommandPalette() {
                 return (
                   <CommandItem
                     key={`${hit.kind}:${hit.id}`}
-                    value={`${hit.kind}:${hit.id} ${title} ${foldDiacritics(title)} ${hit.slug}`}
+                    value={`${hit.kind}:${hit.id} ${title} ${foldDiacritics(title)} ${title.normalize("NFD")} ${hit.slug}`}
                     onSelect={() => onSelectHit(hit)}
                     className="gap-2"
                   >
