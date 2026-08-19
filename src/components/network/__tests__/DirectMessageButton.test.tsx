@@ -9,6 +9,8 @@ import {
   NETWORK_IDS,
   PEER_NAME,
   errorQueryStub,
+  stateFor,
+  statusMap,
   failingMutation,
   idleMutation,
   pendingMutation,
@@ -25,7 +27,11 @@ type StartChatVars = { peerId: string; peerName?: string | null; peerAvatar?: st
 
 const h = vi.hoisted(() => ({
   user: { id: "user-me" } as { id: string } | null,
-  modules: { chat_enabled: true },
+  modules: { chat_enabled: true, connections_enabled: true },
+  /** Wynik `useConnectionStatuses` - koperta pokazuje się TYLKO dla „connected". */
+  statuses: null as unknown,
+  /** Identyfikatory, o które komponent faktycznie zapytał (albo nie zapytał). */
+  requestedIds: [] as ReadonlyArray<string>[],
   tier: null as unknown,
   startChat: null as unknown,
   openChatWindow: vi.fn(),
@@ -40,6 +46,16 @@ vi.mock("@/lib/community/useCommunityModules", () => ({ useCommunityModules: () 
 vi.mock("@/lib/billing/tiers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/billing/tiers")>()),
   useCurrentTier: () => h.tier,
+}));
+// Stan relacji rozstrzyga o samym ISTNIENIU przycisku, więc musi być sterowalny.
+// `importOriginal` zostawia resztę modułu prawdziwą - atrapa podmienia wyłącznie
+// odczyt statusów.
+vi.mock("@/lib/network/useConnections", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/network/useConnections")>()),
+  useConnectionStatuses: (ids: ReadonlyArray<string>) => {
+    h.requestedIds.push(ids);
+    return h.statuses;
+  },
 }));
 vi.mock("@/lib/chat/useConversations", () => ({ useStartConversation: () => h.startChat }));
 vi.mock("@/lib/chat/chatDockBus", () => ({ openChatWindow: h.openChatWindow }));
@@ -91,7 +107,9 @@ function tooltipTextFor(name: string): string {
 
 beforeEach(() => {
   h.user = { id: NETWORK_IDS.me };
-  h.modules = { chat_enabled: true };
+  h.modules = { chat_enabled: true, connections_enabled: true };
+  h.statuses = queryStub(statusMap({ [NETWORK_IDS.peer]: stateFor("connected") }));
+  h.requestedIds = [];
   h.tier = queryStub<CurrentTier | null>(tierWith(true));
   h.startChat = idleMutation<StartChatVars, string>();
   h.openChatWindow.mockClear();
@@ -100,7 +118,7 @@ beforeEach(() => {
 
 describe("DirectMessageButton - bramki widoczności", () => {
   it("moduł czatu wyłączony w tenancie: przycisk nie istnieje", () => {
-    h.modules = { chat_enabled: false };
+    h.modules = { chat_enabled: false, connections_enabled: true };
     const { container } = renderButton();
     expect(container).toBeEmptyDOMElement();
   });
@@ -115,6 +133,85 @@ describe("DirectMessageButton - bramki widoczności", () => {
     h.user = { id: NETWORK_IDS.peer };
     const { container } = renderButton();
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("DirectMessageButton - bramka RELACJI (koperta tylko dla kontaktu)", () => {
+  // Wiadomość bezpośrednia wymaga zaakceptowanego kontaktu. W pozostałych
+  // stanach komponent MUSI zniknąć, bo to samo miejsce zajmuje wtedy
+  // `ConnectButton` (patrz `MessageOrConnectButton`) - dwie kontrolki naraz
+  // albo koperta prowadząca do odmowy z bazy to defekt widoczny na każdej
+  // karcie osoby.
+  it.each(["none", "pending_out", "pending_in"] as const)(
+    "relacja „%s” - koperty nie ma, miejsce zostaje dla zaproszenia",
+    (status) => {
+      h.statuses = queryStub(statusMap({ [NETWORK_IDS.peer]: stateFor(status) }));
+
+      const { container } = renderButton();
+
+      expect(container).toBeEmptyDOMElement();
+    },
+  );
+
+  it("brak wpisu o relacji w mapie: koperty nie ma", () => {
+    // Odbiorca spoza zasięgu sieci nie pojawia się w mapie statusów wcale.
+    h.statuses = queryStub(statusMap({}));
+
+    expect(renderButton().container).toBeEmptyDOMElement();
+  });
+
+  it("ŁADOWANIE statusu: stabilny placeholder zamiast skoku układu", () => {
+    // Bez placeholdera lista osób przeskakiwałaby przy każdym rozstrzygnięciu
+    // statusu - koperta pojawia się i znika w trakcie przewijania.
+    h.statuses = pendingQueryStub();
+
+    renderButton();
+
+    const placeholder = screen.getByRole("button", { hidden: true });
+    expect(placeholder).toBeDisabled();
+    expect(placeholder.className).toContain("cursor-not-allowed");
+  });
+
+  it("placeholder trzyma ten sam rozmiar co docelowy przycisk (h-9, compact h-8)", () => {
+    h.statuses = pendingQueryStub();
+    const { unmount } = renderButton();
+    expect(screen.getByRole("button", { hidden: true }).className).toContain("h-9");
+    unmount();
+
+    renderButton({ compact: true });
+    expect(screen.getByRole("button", { hidden: true }).className).toContain("h-8");
+  });
+
+  it("STATUS PODANY Z GÓRY (batch RPC) nie generuje drugiego zapytania", () => {
+    // Listy osób czytają statusy jednym RPC. Gdyby każdy przycisk dopytywał
+    // osobno, karta z dwudziestoma osobami wysyłałaby dwadzieścia zapytań.
+    render(
+      <DirectMessageButton
+        userId={NETWORK_IDS.peer}
+        displayName={PEER_NAME}
+        displayAvatar={null}
+        connectionState={stateFor("connected")}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: activeAria() })).toBeInTheDocument();
+    expect(h.requestedIds.every((ids) => ids.length === 0)).toBe(true);
+  });
+
+  it("moduł kontaktów WYŁĄCZONY: nie pytamy o status wcale", () => {
+    h.modules = { chat_enabled: true, connections_enabled: false };
+
+    renderButton();
+
+    expect(h.requestedIds.every((ids) => ids.length === 0)).toBe(true);
+  });
+
+  it("WŁASNY profil: nie pytamy o status wcale", () => {
+    h.user = { id: NETWORK_IDS.peer };
+
+    renderButton();
+
+    expect(h.requestedIds.every((ids) => ids.length === 0)).toBe(true);
   });
 });
 

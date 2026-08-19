@@ -26,8 +26,10 @@ const h = vi.hoisted(() => {
     configured: { current: true },
     hasRole: { current: true as unknown },
     rpc: vi.fn(),
-    coupons: { current: [] as Array<Record<string, unknown>> },
-    webhookRows: { current: [] as Array<Record<string, unknown>> },
+    // `null` jest tu równie prawdziwym kształtem co pusta tablica: PostgREST
+    // oddaje `data: null` przy zerowym wyniku, a diagnostyka MUSI to przeżyć.
+    coupons: { current: [] as Array<Record<string, unknown>> | null },
+    webhookRows: { current: [] as Array<Record<string, unknown>> | null },
     endpoints: { current: [] as Array<Record<string, unknown>> },
     endpointsThrow: { current: false },
     prices: { current: new Map<string, { id: string }>() },
@@ -684,5 +686,89 @@ describe("syncCouponDiscounts - IDEMPOTENCJA", () => {
       failed: 0,
     });
     expect(h.createdPromos).toHaveLength(0);
+  });
+});
+
+describe("PUSTA odpowiedź bazy - `null` zamiast tablicy", () => {
+  // Diagnostyka to narzędzie, którym gasi się pożar. Jeżeli sama wywali się
+  // na `null` z PostgREST-a, administrator zostaje bez jedynej kontrolki w
+  // chwili, w której naprawdę jej potrzebuje. Kontrolka ma pokazać ZERO,
+  // nie zniknąć.
+  it("brak wierszy dziennika zdarzeń daje zerową kondycję, nie wyjątek", async () => {
+    h.webhookRows.current = null;
+
+    const diag = await buildPaymentsDiagnostics("sandbox");
+
+    expect(diag.webhooks.total).toBe(0);
+    expect(diag.webhooks.lastEventAt).toBeNull();
+  });
+
+  it("brak kuponów w bazie daje pustą listę porównania z operatorem", async () => {
+    h.coupons.current = null;
+
+    const diag = await buildPaymentsDiagnostics("sandbox");
+
+    expect(diag.coupons).toEqual([]);
+  });
+
+  it("synchronizacja przy `null` z bazy nie próbuje niczego tworzyć", async () => {
+    h.coupons.current = null;
+
+    expect(await syncCouponDiscounts("sandbox")).toEqual({
+      created: 0,
+      existing: 0,
+      failed: 0,
+    });
+    expect(h.createdCoupons).toHaveLength(0);
+  });
+});
+
+describe("KUPON Z DZIURAMI - kolumny, które przyszły puste", () => {
+  it("kupon BEZ KODU nie jest wysyłany operatorowi", async () => {
+    // Kod jest kluczem naturalnym po obu stronach. Rabat utworzony pod pustym
+    // kodem byłby nie do odnalezienia i nie do wycofania.
+    h.coupons.current = [
+      { code: null, discount_kind: "percent", discount_percent: 10 },
+      { code: "PRAWIDLOWY", discount_kind: "percent", discount_percent: 10 },
+    ];
+
+    const result = await syncCouponDiscounts("sandbox");
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0 });
+    expect(h.createdPromos).toHaveLength(1);
+    expect(h.createdPromos[0]).toMatchObject({ code: "PRAWIDLOWY" });
+  });
+
+  it("kupon bez kodu pokazuje się w kontrolce jako PUSTY, nie jako „null”", async () => {
+    // Kontrolka ma pokazać, że taki wiersz w bazie jest - to defekt do
+    // naprawienia, a nie coś do ukrycia przed administratorem.
+    h.coupons.current = [{ code: null, discount_kind: "percent", discount_percent: 10 }];
+
+    const diag = await buildPaymentsDiagnostics("sandbox");
+
+    expect(diag.coupons).toHaveLength(1);
+    expect(diag.coupons[0].code).toBe("");
+    expect(diag.coupons[0].providerDiscountId).toBeNull();
+  });
+
+  it("kupon PROCENTOWY bez procentu jedzie jako zero, nie jako `undefined`", async () => {
+    // `percent_off: undefined` operator odrzuca błędem walidacji - cała
+    // synchronizacja liczyłaby wtedy porażkę zamiast utworzyć rabat zerowy,
+    // który administrator od razu widzi i poprawia.
+    h.coupons.current = [{ code: "BEZPROCENTU", discount_kind: "percent", discount_percent: null }];
+
+    await syncCouponDiscounts("sandbox");
+
+    expect(h.createdCoupons[0]).toMatchObject({ percent_off: 0 });
+  });
+
+  it("kupon KWOTOWY bez kwoty i waluty schodzi na zero i PLN", async () => {
+    h.coupons.current = [
+      { code: "BEZKWOTY", discount_kind: "fixed", discount_cents: null, currency: null },
+    ];
+
+    await syncCouponDiscounts("sandbox");
+
+    expect(h.createdCoupons[0]).toMatchObject({ amount_off: 0, currency: "pln" });
   });
 });

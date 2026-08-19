@@ -13,7 +13,7 @@
 // płacącemu klientowi.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
+import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import { BILLING_IDS } from "@/test/billing/fixtures";
 
 let chain: SupabaseFromStub;
@@ -380,5 +380,133 @@ describe("zmiana, rezygnacja i wznowienie - WYŁĄCZNIE przez funkcje serwerowe"
     cancelFn.mockRejectedValue(new Error("provider_cancel_failed"));
 
     await expect(q.cancelMySubscription("sub-1")).rejects.toThrow("provider_cancel_failed");
+  });
+});
+
+describe("kształt wiersza planu - to, co widzi klient, gdy baza ma dziury", () => {
+  // `rowToPlan` jest jedynym miejscem, w którym wiersz z bazy staje się planem
+  // pokazywanym w cenniku. Każdy `??` w tej funkcji broni ekranu przed
+  // kolumną, która przyszła pusta - a pusta kolumna w cenniku to albo
+  // „undefined zł", albo wywalony render.
+  it("lista korzyści przepuszcza WYŁĄCZNIE napisy", async () => {
+    // Kolumna jest `jsonb` - nic nie gwarantuje, że w środku są same napisy.
+    // Liczba albo `null` w tej liście trafiłaby prosto do `key`/tekstu w liście
+    // korzyści.
+    chain.setResponse(
+      "access_plans",
+      ok([planRow({ features_pl: ["Archiwum", 42, null, "Newsletter", { a: 1 }] })]),
+    );
+
+    expect((await q.fetchActivePlans())[0].features_pl).toEqual(["Archiwum", "Newsletter"]);
+  });
+
+  it("korzyści zapisane NIE jako lista dają pustą listę, nie wyjątek", async () => {
+    chain.setResponse("access_plans", ok([planRow({ features_en: "Archive, newsletter" })]));
+
+    expect((await q.fetchActivePlans())[0].features_en).toEqual([]);
+  });
+
+  it("puste kolumny schodzą na wartości domyślne, nie na `undefined`", async () => {
+    // Waluta jest tu najważniejsza: `undefined` zamiast „PLN" oznacza cenę
+    // wyświetloną bez waluty albo formatowanie, które rzuca.
+    chain.setResponse(
+      "access_plans",
+      ok([
+        planRow({
+          name_pl: null,
+          name_en: null,
+          price_cents: null,
+          currency: null,
+          interval: null,
+          sort_order: null,
+          tier_key: null,
+        }),
+      ]),
+    );
+
+    const plan = (await q.fetchActivePlans())[0];
+
+    expect(plan.name_pl).toBe("");
+    expect(plan.name_en).toBe("");
+    expect(plan.price_cents).toBe(0);
+    expect(plan.currency).toBe("PLN");
+    expect(plan.interval).toBe("month");
+    expect(plan.sort_order).toBe(0);
+    expect(plan.tier_key).toBeNull();
+  });
+});
+
+describe("BŁĘDY ODCZYTU nie mogą udawać pustki", () => {
+  // Wspólna reguła całego modułu: brak danych i BŁĄD odczytu to dwa różne
+  // stany. Zamiana błędu na pustą listę pokazuje płacącemu klientowi ekran
+  // „nie masz jeszcze nic", zamiast komunikatu o awarii - i generuje zgłoszenia
+  // o „zniknięciu faktur".
+  it("błąd odczytu POJEDYNCZEGO planu jest zgłaszany, nie zamieniany na `null`", async () => {
+    // `null` znaczy „takiego planu nie ma" i prowadzi do 404. Błąd odczytu ma
+    // dać awarię, a nie skasować istniejącą stronę planu.
+    chain.setResponse("access_plans", fail("statement timeout"));
+
+    await expect(q.fetchPlanById("plan-1")).rejects.toThrow("statement timeout");
+  });
+
+  it("błąd odczytu profilu rozliczeniowego jest zgłaszany", async () => {
+    chain.setResponse("billing_profiles", fail("permission denied"));
+
+    await expect(q.fetchMyBillingProfile()).rejects.toThrow("permission denied");
+  });
+
+  it("błąd odczytu zamówień jest zgłaszany, nie zamieniany na brak historii", async () => {
+    chain.setResponse("payment_orders", fail("connection reset"));
+
+    await expect(q.fetchMyOrders()).rejects.toThrow("connection reset");
+  });
+});
+
+describe("PUSTE odpowiedzi PostgREST - `null` zamiast tablicy", () => {
+  // PostgREST przy zerowym wyniku oddaje `data: null` równie chętnie co `[]`.
+  // Każde miejsce, które przekazałoby `null` dalej, wywala ekran na `.map()`
+  // - i to u klienta, który po prostu jeszcze niczego nie kupił.
+  it("brak zamówień daje pustą listę", async () => {
+    chain.setResponse("payment_orders", { data: null, error: null });
+
+    expect(await q.fetchMyOrders()).toEqual([]);
+  });
+
+  it("brak dokumentów rozliczeniowych daje pustą listę", async () => {
+    chain.setResponse("billing_documents", { data: null, error: null });
+
+    expect(await q.fetchMyBillingDocuments()).toEqual([]);
+  });
+
+  it("brak profilu rozliczeniowego daje `null`, nie `undefined`", async () => {
+    chain.setResponse("billing_profiles", ok(undefined));
+
+    expect(await q.fetchMyBillingProfile()).toBeNull();
+  });
+});
+
+describe("fetchMySubscription - odpowiedź NIE-tablicowa i puste pola okresu", () => {
+  it("pojedynczy obiekt zamiast tablicy czyta się tak samo", async () => {
+    // Odczyt idzie przez `.limit(1)`, ale kształt odpowiedzi zależy od tego,
+    // czy w łańcuchu stanie `maybeSingle()`. Gdyby ta gałąź padła, zmiana
+    // zapytania na pojedynczy wiersz wygaszałaby stronę subskrypcji bez
+    // żadnego błędu - po prostu „brak subskrypcji" u płacącego klienta.
+    chain.setResponse("user_subscriptions", ok(subscriptionRow({ id: "sub-single" })));
+
+    expect((await q.fetchMySubscription())?.id).toBe("sub-single");
+  });
+
+  it("subskrypcja BEZ daty końca okresu nie wywraca odczytu", async () => {
+    // Wiersz świeżo wstawiony przez webhooka bywa bez `current_period_end`
+    // do pierwszego rozliczenia.
+    chain.setResponse(
+      "user_subscriptions",
+      ok([subscriptionRow({ current_period_end: undefined, canceled_at: undefined })]),
+    );
+
+    const sub = await q.fetchMySubscription();
+
+    expect(sub?.current_period_end).toBeNull();
+    expect(sub?.canceled_at).toBeNull();
   });
 });
