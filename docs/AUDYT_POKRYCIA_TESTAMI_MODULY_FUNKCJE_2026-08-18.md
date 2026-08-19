@@ -1358,6 +1358,107 @@ KAŻDĄ funkcję, w tym każdy handler i callback, i odpowiada na pytanie „ile
 kiedykolwiek uruchomił”. Przy planowaniu kolejnych podejść to on, a nie procent linii, mówi, ile
 naprawdę zostało do zrobienia.
 
+### 8.2 Ocena: dobre, złe, beznadziejne — z argumentem, nie z widzimisię
+
+Rozdziały 1–8 podają liczby. Ten podaje MOJĄ ocenę tych liczb, bo o to zapytano — z jawną rubryką,
+żeby dała się sprawdzić i podważyć.
+
+**Rubryka.** Baza oceny = **0,4 × linie% + 0,6 × funkcje%**. Funkcje ważą więcej, bo to metryka
+ostrzejsza: liczy każdy handler i callback, więc trudniej ją ugrać renderem bez interakcji. Progi:
+**wzorowo** ≥ 90, **dobrze** 75–90, **przeciętnie** 55–75, **źle** 35–55, **beznadziejnie** < 35.
+Rubryka nie jest jednak wyrokiem — pod tabelą jest kolumna zastrzeżeń, w których sama liczba wprowadza
+w błąd (słowniki i18n, kluby, monetyzacja), i tam ocenę koryguję z podaniem powodu.
+
+| Ocena             | Baza | Moduł                                                     | Linie | Funkcje | Progów | Rodzajów testów | Plików 0% |
+| ----------------- | ---: | --------------------------------------------------------- | ----: | ------: | -----: | --------------: | --------: |
+| **wzorowo**       | 98,9 | 2. Edytor wpisów i workflow redakcyjny                    | 99,2% |   98,7% |     21 |               6 |     0/103 |
+| **wzorowo**       | 98,7 | 18. CRM                                                   | 99,0% |   98,5% |      1 |               6 |      0/57 |
+| **wzorowo**       | 96,1 | 6. Wyszukiwarka                                           | 97,4% |   95,2% |      8 |               5 |      0/24 |
+| **wzorowo**       | 94,4 | 5. Strona główna, archiwa, chrome                         | 96,1% |   93,2% |      0 |               5 |      1/54 |
+| **wzorowo**       | 90,2 | 4. Strony, wygląd, motyw, media, import                   | 92,3% |   88,9% |      0 |               6 |     6/132 |
+| **dobrze**        | 82,2 | 11. Newsletter i e-mail                                   | 81,5% |   82,7% |     65 |               4 |    29/147 |
+| **dobrze**        | 81,3 | 10. Sieć / networking                                     | 82,0% |   80,9% |      2 |               4 |      3/32 |
+| **dobrze**        | 78,6 | 1. Wpisy: doświadczenie czytelnika                        | 80,9% |   77,1% |     26 |               4 |     13/86 |
+| **przeciętnie**   | 73,8 | design system (components/ui)                             | 78,5% |   70,6% |      0 |               1 |      6/43 |
+| **przeciętnie**   | 72,3 | 13. Monetyzacja: checkout / subskrypcje / billing         | 66,3% |   76,4% |     18 |               6 |    35/185 |
+| **przeciętnie**   | 70,0 | słowniki i18n                                             | 92,5% |   55,0% |      0 |               2 |     1/118 |
+| **przeciętnie**   | 59,5 | 9. Czat / komunikator                                     | 62,2% |   57,7% |      9 |               3 |     15/81 |
+| **źle**           | 54,4 | 8. SEO, feedy, dane strukturalne                          | 56,1% |   53,3% |      2 |               3 |     23/74 |
+| **źle**           | 53,6 | 15. Profil i konto                                        | 56,0% |   51,9% |     15 |               6 |     28/81 |
+| **źle**           | 50,3 | 21. Rekrutacja / kariera                                  | 55,1% |   47,1% |      0 |               2 |     12/29 |
+| **źle**           | 47,2 | 20. Platforma / backend / infrastruktura / SSR            | 54,6% |   42,3% |     11 |               6 |    66/184 |
+| **źle**           | 45,6 | 12. Realtime / powiadomienia / web-push                   | 48,0% |   44,0% |      0 |               3 |     13/28 |
+| **źle**           | 44,2 | 3. Silniki treści: bloki + page builder                   | 52,3% |   38,7% |     11 |               7 |   120/453 |
+| **źle**           | 40,4 | 7. Typy treści specjalne                                  | 44,2% |   37,9% |      1 |               6 |    42/115 |
+| **źle**           | 38,4 | powłoka panelu admin + atomy/molekuły                     | 40,5% |   36,9% |      0 |               4 |    38/172 |
+| **beznadziejnie** | 31,5 | 16. Społeczność: kluby, komentarze, moderacja             | 33,8% |   29,9% |      0 |               7 |   154/252 |
+| **beznadziejnie** | 26,7 | 17. Analityka i BI                                        | 29,9% |   24,5% |      8 |               3 |     49/85 |
+| **beznadziejnie** | 24,6 | 19. Ustawienia / integracje / users / multi-tenant / RODO | 27,5% |   22,7% |      8 |               6 |    56/130 |
+| **beznadziejnie** | 20,9 | 14. Monetyzacja: kupony / darowizny / prezenty / reklamy  | 26,2% |   17,5% |      0 |               2 |     16/38 |
+
+Rozkład: **5** wzorowo · **3** dobrze · **4** przeciętnie · **8** źle · **4** beznadziejnie.
+
+**Ocena całości: PRZECIĘTNIE — z bardzo nietypowym rozkładem i bardzo dobrą infrastrukturą.**
+Rozbijam to na pięć osobnych ocen, bo jedna liczba tego nie opisuje:
+
+1. **Poziom pokrycia — przeciętnie.** 57,42% linii i 50,76% funkcji na aplikacji
+   o 2 703 plikach produkcyjnych to poziom, na którym duży refaktor jest nadal hazardem.
+   Nie katastrofa i nie powód do dumy. Za „dobrze” uznałbym 75%+ linii przy żadnym module poniżej 60%.
+2. **Rozkład — źle.** To najpoważniejszy zarzut w całym dokumencie. Połowa powierzchni (12 z 24) ma
+   ocenę „źle” albo „beznadziejnie”, a rozkład jest bimodalny: pięć modułów powyżej 90 i cztery poniżej 35. Pokryto to, co tanie (czyste reguły w `lib/`), pominięto to, co trudne (komponenty, trasy,
+   formularze) — czyli warstwę, w której użytkownik faktycznie spotyka błąd.
+3. **Uczciwość pomiaru — dobrze, miejscami wzorowo.** `all: true` na całym `src/`, pliki bez testów
+   w mianowniku, zero whitelistu. To repo ma za sobą epizod raportowania **98%** z 38 plików
+   z pętlami renderującymi bez asercji — i sam ten epizod usunęło. Gęstość asercji
+   1,98 na test, stabilna w każdym rodzaju testu, potwierdza, że dzisiejsze liczby nie są farmione.
+4. **Infrastruktura dowodu — wzorowo.** 208 progów per-ścieżka, 33 bramek `check:*`
+   (w tym META-bramka „bramka, która istnieje, musi się uruchamiać”), 97 plików pgTAP
+   z 1 812 asercjami na RLS i RPC, klasyfikacja testów na jedenaście rodzajów. Większość projektów
+   tej wielkości nie ma nawet połowy tego aparatu. To jest realny atut i on nie wynika z procentu.
+5. **Zabezpieczenie dorobku — źle.** Próg globalny stoi
+   24,4 pp pod pomiarem na liniach — tyle pokrycia można dziś stracić przy zielonym CI.
+   Bez ANI JEDNEGO progu per-ścieżka jest 9 z 24 powierzchni, w tym 2
+   z oceną „wzorowo”: MODUŁ 5 (96,1%), MODUŁ 4 (92,3%).
+   Tam dorobek jest pożyczony: jeden PR bez testów zdejmie go, nie łamiąc żadnej bramki.
+
+**Trajektoria zasługuje na osobne zdanie: super.** 32,71% → 57,42% linii w dwa dni, przy suicie rosnącej
+z 817 do 1 237 plików i z ~8,3 tys. do 22 052 testów, to nie jest normalne tempo. Pięć
+modułów przeszło z kilkunastu procent do ponad 90 (edytor +90,9 pp, CRM +86,9, chrome +79,4,
+wygląd/media +69,5, wyszukiwarka +64,2). Ocena „przeciętnie” dotyczy STANU, nie pracy — i gdyby to tempo
+utrzymać na czterech najgorszych modułach, ten dokument w kolejnym wydaniu wyglądałby inaczej.
+
+**Zastrzeżenia per moduł — tam, gdzie sama liczba kłamie albo jest niepełna:**
+
+- **MODUŁ 2** (wzorowo, baza 98,9) — wzorowo i UTRWALONE: 21 progów per-ścieżka pilnuje tego poziomu, więc jedna zmiana go nie zdejmie. Wzorzec do kopiowania w pozostałych modułach.
+- **MODUŁ 18** (wzorowo, baza 98,7) — wzorowo, ale BEZ ZAPORY: 98,98% linii chroni jeden próg per-ścieżka. Ten poziom powstał w ciągu dwóch dni i jeden PR bez testów może go zdjąć, nie łamiąc żadnej bramki.
+- **MODUŁ 6** (wzorowo, baza 96,1) — wzorowo, przy czym ranking i operatory dowodzi pgTAP (9 plików) — to przykład powierzchni, na której wysoki procent jednostkowy i mocna warstwa bazy zgadzają się co do wniosku.
+- **MODUŁ 5** (wzorowo, baza 94,4) — wzorowo DZIŚ, bez gwarancji na jutro: ani jednego progu per-ścieżka na powierzchni obecnej na każdej stronie serwisu. Chrome z 96,15% i bez zapory to dorobek pożyczony.
+- **MODUŁ 4** (wzorowo, baza 90,2) — wzorowo bez zapory (zero progów). Połowa tego pokrycia to czysta matematyka kadrowania i tokenów motywu — najtańszy dowód o największym zasięgu, i najłatwiejszy do utracenia bez progu.
+- **MODUŁ 11** (dobrze, baza 82,2) — dobrze i najlepiej utrwalone w całym repo: 65 progów per-ścieżka, najwięcej z wszystkich modułów. 29 z 147 plików nadal na zerze, więc jest co domykać, ale osunąć się to nie może.
+- **MODUŁ 10** (dobrze, baza 81,3) — dobrze i spójnie: warstwa danych jest RPC-only i objęta progiem 95/98, więc moduł nie dryfuje między wydaniami. 3 pliki na zerze z 32 to najlepszy wynik w tej klasie.
+- **MODUŁ 1** (dobrze, baza 78,6) — dobrze, z zastrzeżeniem rodzaju: reguły paywalla i meteringu mają testy i progi, ale to, co czytelnik widzi, dowodzi się renderem — a 13 z 86 plików nie wykonuje ani jednej linii.
+- **design system (components/ui)** (przeciętnie, baza 73,8) — procent zaniża wartość tej powierzchni: jeden test kontraktu atomu (rola, etykieta, stan wyłączony) chroni każde jego użycie w repo. Ale rodzajów testów jest tu tylko JEDEN i zero progów.
+- **MODUŁ 13** (przeciętnie, baza 72,3) — CZYTAĆ ODWROTNIE, NIŻ WYGLĄDA: funkcje (76,36%) są wyżej niż linie (66,32%), co znaczy, że ścieżka płatność → dostęp ma testy funkcji serwerowych z wysokimi progami, a nietestowana jest powłoka UI. To właściwa kolejność priorytetów — dowód jest tam, gdzie idą pieniądze. Ale rezygnacja i zmiana planu to interfejs: UI może pokazać „anulowano”, gdy żądanie padło, i żaden test serwerowy tego nie zauważy.
+- **słowniki i18n** (przeciętnie, baza 70,0) — TA LICZBA NIE PODLEGA OCENIE PROCENTEM. 92,49% linii przy 55,03% funkcji to artefakt zaimportowania obiektu — słowniki nie mają logiki, więc „pokryta linia” nic tu nie dowodzi. Jedynym sensownym dowodem jest bramka parytetu PL/EN i cztery `check:i18n-*`. Te istnieją i działają, więc powierzchnia jest zabezpieczona DOBRZE, mimo że jej procent jest bez treści.
+- **MODUŁ 9** (przeciętnie, baza 59,5) — przeciętnie, ale to najlepszy przykład skutecznej metody w tym repo: mieszanka testu warstwy danych z atrapą łańcucha PostgREST, testu hooka i testu reguł wątku wyciągnęła moduł z 17% na obecny poziom. Nie liczba testów to zrobiła, a dobór rodzaju.
+- **MODUŁ 8** (źle, baza 54,4) — źle wobec konsekwencji: JSON-LD, hreflang i sitemapy dowodzi się bajtami z SSR, a nie wywołaniem funkcji budującej `<head>`. Moduł ruszył o +4,4 pp (reguły zero-click) i to jedyny wyraźny ruch w tym wydaniu, ale 23 z 74 plików nadal nie wykonuje ani jednej linii.
+- **MODUŁ 15** (źle, baza 53,6) — źle wobec konsekwencji: konto, RODO i eksport danych. Ruszył +2,7 pp dzięki testom ochrony przed brute force i scalania danych gościa — i to była dokładnie właściwa kolejność, bo scalanie to jedyna ścieżka, na której użytkownik może NIEODWRACALNIE stracić dane. Zostaje 28 z 81 plików na zerze.
+- **MODUŁ 21** (źle, baza 50,3) — źle i bez zapory, przy najczęściej wypełnianym formularzu przez osoby z zewnątrz. Jedyna pociecha: bramka `check:careers-harness` istnieje, bo złamany CHECK w bazie już raz przeszedł przy zielonym CI.
+- **MODUŁ 20** (źle, baza 47,2) — źle w liczbach, lepiej w rzeczywistości: ta powierzchnia utrzymuje meta-inwarianty („bramka, która istnieje, musi się uruchamiać”), które skalują się z repozytorium, nie z liczbą przypadków. Ale 66 z 184 plików na zerze przy 3 897 niepokrytych liniach to nie jest stan do obrony.
+- **MODUŁ 12** (źle, baza 45,6) — źle i mylące: bez atrapy kanału test dowodzi tylko, że subskrypcja została utworzona, i przechodzi przy PUSTYM handlerze zdarzenia. Na tej powierzchni procent może rosnąć bez wzrostu dowodu — zero progów per-ścieżka tego nie wyłapie.
+- **MODUŁ 3** (źle, baza 44,2) — źle i NAJDROŻSZE: 10 173 niepokryte linie, największa bezwzględna dziura systemu. Rozjazd linie ⇄ funkcje o 14 pp jest sygnaturą: testy renderują komplet widgetów, ale nie wchodzą w gałęzie ustawień. Na plus: siedem rodzajów testów, w tym parytet panel ⇄ renderer, czyli jedyny rodzaj wykrywający dryf.
+- **MODUŁ 7** (źle, baza 40,4) — źle przy ośmiu różnych typach treści dzielących jeden wzorzec: reguły domenowe mają testy, funkcje serwerowe i loadery nie. Rezerwacja miejsc jest tu przypadkiem skrajnym — baza pilnuje kolejki, aplikacja może nigdy o wolne miejsce nie zapytać.
+- **powłoka panelu admin + atomy/molekuły** (źle, baza 38,4) — źle i to jest dług architektoniczny, nie testowy: 38 z 172 plików na zerze, bo powłoka panelu jest powtórzonym JSX-em, którego nikt nie scalił w atomy. Wartość pracy tutaj mierzy się nie procentem, a tym, ile powtórzeń udało się zamknąć w jednym testowanym atomie.
+- **MODUŁ 16** (beznadziejnie, baza 31,5) — OCENA JEST DWUMODALNA I ŚREDNIA JĄ UKRYWA. Reguły klubów są zrobione WZOROWO: `lib/clubs/**` ma 51 plików testowych na 69 źródłowych, `api.ts` 100% (69 z 69 funkcji), a polityki dowodzi 19 plików pgTAP. Prezentacja jest na zerze: trasy publiczne 0 z 261 funkcji, UI 8,4%, panel admina 8,6%, 154 z 252 plików bez ani jednej wykonanej linii. To nie moduł „nietestowany” — to moduł, w którym przetestowano wszystko OPRÓCZ tego, co widzi użytkownik.
+- **MODUŁ 17** (beznadziejnie, baza 26,7) — beznadziejnie z jednym wyjątkiem, który ratuje sens: warstwa semantyczna analityki jest pokryta w 100% i objęta progiem — a od niej zależy KAŻDA liczba w raporcie zarządczym. Reszta (49 z 85 plików na zerze) to widoki i wykresy, gdzie brakuje testów a11y: wykres bez alternatywy tekstowej jest dla części odbiorców pustym prostokątem.
+- **MODUŁ 19** (beznadziejnie, baza 24,6) — BEZNADZIEJNIE I NAJGROŹNIEJ: 27,50% linii, 22,65% funkcji, 56 z 130 plików na zerze — przy macierzy uprawnień, zgodach, cookie bannerze, izolacji tenanta i eksporcie danych. Tu defekt jest zdarzeniem PRAWNYM, nie usterką, więc tę samą liczbę trzeba czytać surowiej niż w module 14. Rodzaj testu, który decyduje, jest inny niż wszędzie: inwariant i parytet, bo zawężenia kręgu uprawnionych nie widzi żaden test pojedynczej funkcji — każda z nich osobno działa poprawnie.
+- **MODUŁ 14** (beznadziejnie, baza 20,9) — BEZNADZIEJNIE BEZ WYMÓWKI: najniższy wymiar funkcyjny w repo (17,47%), zero ruchu we wszystkich trzech wydaniach, zero progów per-ścieżka, dwa rodzaje testów. Argument „duża powierzchnia” tu nie działa: to 38 plików i 1 022 niepokryte linie, czyli jedna dziesiąta długu modułu 3. Kupon i darowizna to transakcja — kwota, waluta, limit wykorzystań.
+
+**Jedno zdanie, gdyby trzeba było wybrać jedno.** To nie jest projekt bez testów ani projekt dobrze
+przetestowany — to projekt z mocnym aparatem dowodowym, uczciwym pomiarem, świetną trajektorią
+i połową powierzchni, na której nikt jeszcze nie zaczął. Ryzyko nie leży w średniej, leży
+w tych czterech „beznadziejnie” — a jedno z nich (MODUŁ 19) obejmuje uprawnienia i RODO.
+
 ---
 
 ## 9. Załączniki
