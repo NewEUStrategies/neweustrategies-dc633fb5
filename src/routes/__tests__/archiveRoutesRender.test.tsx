@@ -167,6 +167,12 @@ async function mount(route: unknown, path: string, entry: string) {
   return view;
 }
 
+// Dane trasy przychodzą z loadera (czekał na nie `router.load()`), ale dane
+// BIBLIOTEKI PUBLIKACJI z `useQuery` w ciele komponentu startują dopiero po
+// montażu. `isFetching() === 0` tuż po renderze nie znaczy „już jest" - znaczy
+// „jeszcze się nie zaczęło". Dlatego asercje zależne od tego zapytania czekają
+// przez `findBy*`, a nie przez zgadywanie momentu.
+
 beforeEach(() => {
   data.blog = { posts: posts(2), total: 2, page: 1, pageSize: 2 };
   data.settings = {};
@@ -415,25 +421,28 @@ describe("/publications", () => {
   it("wyniki renderują się jako karty publikacji", async () => {
     data.search = { posts: posts(3), facets: [], total: 3 };
     await mount(PublicationsRoute, "/publications", "/publications");
-    expect(screen.getByRole("link", { name: /Wpis p1/ })).toBeTruthy();
+    expect(await screen.findByRole("link", { name: /Wpis p1/ })).toBeTruthy();
     expect(screen.getAllByRole("link", { name: /Wpis/ })).toHaveLength(3);
   });
 
   it("awaria silnika wyszukiwania mówi o niej wprost", async () => {
     data.searchError = true;
     await mount(PublicationsRoute, "/publications", "/publications");
-    expect(screen.getByText(/nie udało się|failed/i)).toBeTruthy();
+    expect(await screen.findByText(/nie udało się|failed/i)).toBeTruthy();
   });
 
   it("„pokaż więcej” pojawia się dopiero, gdy jest co pokazać", async () => {
     data.search = { posts: posts(2), facets: [], total: 2 };
     const { unmount } = await mount(PublicationsRoute, "/publications", "/publications");
+    // Najpierw dowód, że wynik JEST na ekranie - inaczej brak przycisku
+    // dowodziłby tylko tego, że zapytanie jeszcze nie wróciło.
+    await screen.findByText("2 publikacje");
     expect(screen.queryByRole("button", { name: /więcej|more/i })).toBeNull();
     unmount();
 
     data.search = { posts: posts(2), facets: [], total: 50 };
     await mount(PublicationsRoute, "/publications", "/publications");
-    expect(screen.getByRole("button", { name: /więcej|more/i })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /więcej|more/i })).toBeTruthy();
   });
 
   it("fraza z formularza ląduje w ADRESIE, nie w stanie komponentu", async () => {
@@ -470,24 +479,24 @@ describe("/publications", () => {
     ] as const) {
       data.search = { posts: [], facets: [], total };
       const { unmount } = await mount(PublicationsRoute, "/publications", "/publications");
-      expect(screen.getByText(expected)).toBeTruthy();
+      expect(await screen.findByText(expected)).toBeTruthy();
       unmount();
     }
 
     await act(async () => void (await i18n.changeLanguage("en")));
     data.search = { posts: [], facets: [], total: 1 };
     const one = await mount(PublicationsRoute, "/publications", "/publications");
-    expect(screen.getByText("1 publication")).toBeTruthy();
+    expect(await screen.findByText("1 publication")).toBeTruthy();
     one.unmount();
 
     data.search = { posts: [], facets: [], total: 4 };
     await mount(PublicationsRoute, "/publications", "/publications");
-    expect(screen.getByText("4 publications")).toBeTruthy();
+    expect(await screen.findByText("4 publications")).toBeTruthy();
   });
 
   it("zmiana sortowania ląduje w ADRESIE i czyści puste parametry", async () => {
     const view = await mount(PublicationsRoute, "/publications", "/publications");
-    const trigger = screen.getByRole("combobox", { name: /Sortowanie/i });
+    const trigger = await screen.findByRole("combobox", { name: /Sortowanie/i });
     await act(async () => {
       fireEvent.keyDown(trigger, { key: "Enter" });
     });
@@ -502,14 +511,16 @@ describe("/publications", () => {
   it("pusty wynik z filtrem daje przycisk czyszczenia, który kasuje filtry z adresu", async () => {
     const view = await mount(PublicationsRoute, "/publications", "/publications?type=raport");
     expect(view.search()).toMatchObject({ type: "raport" });
+    const clear = await screen.findByRole("button", { name: /Wyczyść filtry/i });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Wyczyść filtry/i }));
+      fireEvent.click(clear);
     });
     expect(view.search().type).toBeUndefined();
   });
 
   it("pusty wynik BEZ filtrów nie proponuje czyszczenia niczego", async () => {
     await mount(PublicationsRoute, "/publications", "/publications");
+    await screen.findByText(/Brak publikacji spełniających kryteria/i);
     expect(screen.queryByRole("button", { name: /Wyczyść filtry/i })).toBeNull();
   });
 
@@ -518,11 +529,12 @@ describe("/publications", () => {
     // przewijania czytelnika zostaje tam, gdzie była.
     data.search = { posts: posts(3), facets: [], total: 500 };
     await mount(PublicationsRoute, "/publications", "/publications");
+    const more = await screen.findByRole("button", { name: /Pokaż więcej/i });
     expect(data.limits.at(-1)).toBe(SEARCH_PAGE_SIZE);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Pokaż więcej/i }));
+      fireEvent.click(more);
     });
-    expect(data.limits.at(-1)).toBe(SEARCH_PAGE_SIZE * 2);
+    await vi.waitFor(() => expect(data.limits.at(-1)).toBe(SEARCH_PAGE_SIZE * 2));
   });
 });
 describe("stany przejściowe tras archiwum", () => {
