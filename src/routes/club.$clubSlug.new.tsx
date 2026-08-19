@@ -19,7 +19,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubIconPicker } from "@/components/clubs/molecules/ClubIconPicker";
-import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { normalizeClubTopic } from "@/lib/clubs/policyAreas";
 import {
@@ -42,12 +41,37 @@ import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
 import {
-  CLUB_ATTRIBUTION_MODES,
   CLUB_THREAD_KINDS,
-  isClubAttributionMode,
   type ClubAttributionMode,
   type ClubThreadKind,
 } from "@/lib/clubs/types";
+// Reguły kompozytora (progi pól, dziedziczenie atrybucji, widoczność pól,
+// payload mutacji) mieszkają w czystym module - patrz jego nagłówek.
+import {
+  CLUB_THREAD_BODY_MAX,
+  CLUB_THREAD_TITLE_MAX,
+  NEW_THREAD_ATTRIBUTION_INHERIT,
+  attributionHintKey,
+  attributionInheritLabel,
+  attributionOverrideChoices,
+  attributionSelectValue,
+  baseAttributionMode,
+  buildNewThreadPayload,
+  canComposeThread,
+  canPostAnonymously,
+  defaultLockReplies,
+  effectiveAttributionMode,
+  isAttributionOverrideAllowed,
+  newThreadDenialKey,
+  newThreadFieldVisibility,
+  newThreadFormReady,
+  newThreadOutcome,
+  postableThreadGroups,
+  readAttributionSelection,
+  resolveThreadGroupId,
+  resolveThreadKind,
+  threadKindChoices,
+} from "@/lib/clubs/newThreadForm";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
@@ -93,11 +117,6 @@ export const Route = createFileRoute("/club/$clubSlug/new")({
     }),
   component: ClubNewThread,
 });
-
-const TITLE_MIN = 5;
-const TITLE_MAX = 200;
-const BODY_MIN = 10;
-const BODY_MAX = 20000;
 
 function ClubNewThread() {
   ensureClubI18n();
@@ -145,14 +164,12 @@ function ClubNewThread() {
   // Grupa domyślna: pierwsza, w której wolno założyć temat. Bez tego
   // użytkownik z dostępem do jednej grupy i tak musiałby ją wybrać ręcznie.
   const groups = groupsQ.data ?? [];
-  const postable = groups.filter((g) => g.can_post_thread);
+  const postable = postableThreadGroups(groups);
   useEffect(() => {
-    if (postable.length === 0) return;
     // Dział z adresu obowiązuje TYLKO gdy wolno w nim założyć temat - inaczej
     // formularz startowałby z wyborem, którego zapis i tak by odrzucił.
-    if (groupId === "" || !postable.some((g) => g.id === groupId)) {
-      setGroupId(postable[0]!.id);
-    }
+    const next = resolveThreadGroupId(groupId, postable);
+    if (next !== null) setGroupId(next);
   }, [groupId, postable]);
 
   // Rodzaje, których RPC i tak nie przepuści, nie mają prawa stać na dropliście.
@@ -168,11 +185,7 @@ function ClubNewThread() {
   // sprawiało, że dział prowadzony w regule Chatham House pokazywał ustawienia
   // klubu: przełącznik anonimowości pojawiał się tam, gdzie RPC go odrzuca,
   // i znikał tam, gdzie jest jedynym sposobem na zabranie głosu.
-  const rawAttribution =
-    groups.find((g) => g.id === groupId)?.attribution_mode ?? club?.attribution_mode ?? null;
-  const baseAttribution: ClubAttributionMode | null = isClubAttributionMode(rawAttribution)
-    ? rawAttribution
-    : null;
+  const baseAttribution = baseAttributionMode(groups, groupId, club?.attribution_mode ?? null);
 
   // Nadpisanie na poziomie WATKU: `null` = dziedzicz dział. Autor może zasadę
   // wyłącznie ZAOSTRZYĆ (zwykle: zamknąć rozmowę w regule Chatham House),
@@ -180,22 +193,21 @@ function ClubNewThread() {
   // dokładnie tak samo waliduje to RPC, więc droplista nie oferuje wyborów,
   // które i tak skończyłyby się odmową po napisaniu całego tekstu.
   const [attributionOverride, setAttributionOverride] = useState<ClubAttributionMode | null>(null);
-  const attributionChoices = useMemo<ClubAttributionMode[]>(() => {
-    if (canModerate) return [...CLUB_ATTRIBUTION_MODES];
-    if (baseAttribution === null || baseAttribution === "chatham") return [];
-    return ["chatham"];
-  }, [canModerate, baseAttribution]);
+  const attributionChoices = useMemo(
+    () => attributionOverrideChoices(canModerate, baseAttribution),
+    [canModerate, baseAttribution],
+  );
 
   // Zmiana działu może unieważnić wybór (inna zasada bazowa) - wtedy wracamy
   // do dziedziczenia zamiast wysyłać wartość, której RPC już nie przyjmie.
   useEffect(() => {
-    if (attributionOverride !== null && !attributionChoices.includes(attributionOverride)) {
+    if (!isAttributionOverrideAllowed(attributionOverride, attributionChoices)) {
       setAttributionOverride(null);
     }
   }, [attributionChoices, attributionOverride]);
 
-  const effectiveAttribution = attributionOverride ?? baseAttribution;
-  const canGoAnonymous = effectiveAttribution === "anonymous_allowed";
+  const effectiveAttribution = effectiveAttributionMode(attributionOverride, baseAttribution);
+  const canGoAnonymous = canPostAnonymously(effectiveAttribution);
 
   // Zmiana działu może odebrać prawo do anonimowości. Zostawiony włączony
   // przełącznik kończyłby się odmową 'clubs: anonymous posting disabled'
@@ -204,12 +216,10 @@ function ClubNewThread() {
     if (!canGoAnonymous) setAnonymous(false);
   }, [canGoAnonymous]);
 
-  const kinds = useMemo(
-    () => (canModerate ? CLUB_THREAD_KINDS : CLUB_THREAD_KINDS.filter((k) => k !== "announcement")),
-    [canModerate],
-  );
+  const kinds = useMemo(() => threadKindChoices(canModerate), [canModerate]);
   useEffect(() => {
-    if (!canModerate && kind === "announcement") setKind("discussion");
+    const allowed = resolveThreadKind(kind, canModerate);
+    if (allowed !== kind) setKind(allowed);
   }, [canModerate, kind]);
 
   // Obszar klubu jest tylko DOMYSLNA podpowiedzia: raz dotknieta droplista
@@ -225,7 +235,7 @@ function ClubNewThread() {
   // ogłoszeniem, przestawia przełącznik i tak zostaje.
   const lockTouched = useRef(false);
   useEffect(() => {
-    if (!lockTouched.current) setLockReplies(kind === "announcement");
+    if (!lockTouched.current) setLockReplies(defaultLockReplies(kind));
   }, [kind]);
 
   // Autozapis szkicu. Klucz per KLUB, więc równolegle rozpoczęte teksty w dwóch
@@ -240,14 +250,12 @@ function ClubNewThread() {
     );
   }
 
-  if (!club || !club.can_post_thread) {
+  if (!canComposeThread(club)) {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {club?.reason ? t(`club.reason.${club.reason}`) : t("club.cannotPost")}
-            </p>
+            <p className="text-sm text-muted-foreground">{t(newThreadDenialKey(club))}</p>
             <Button asChild variant="outline" size="sm">
               <Link to="/club/$clubSlug" params={{ clubSlug }}>
                 {t("club.backToClub")}
@@ -259,47 +267,49 @@ function ClubNewThread() {
     );
   }
 
-  const titleOk = title.trim().length >= TITLE_MIN && title.trim().length <= TITLE_MAX;
-  const bodyOk = body.trim().length >= BODY_MIN && body.trim().length <= BODY_MAX;
+  const formReady = newThreadFormReady({ title, body, groupId });
+  const fields = newThreadFieldVisibility({
+    kind,
+    canModerate,
+    effectiveAttribution,
+    attributionChoiceCount: attributionChoices.length,
+  });
+  const inheritLabel = attributionInheritLabel(baseAttribution);
 
   const submit = () => {
-    if (!titleOk || !bodyOk || groupId === "") return;
+    if (!formReady) return;
     createM.mutate(
-      {
+      buildNewThreadPayload({
         groupId,
-        title: title.trim(),
-        body: body.trim(),
+        title,
+        body,
         kind,
         anonymous,
-        anchorType: anchor?.anchorType ?? null,
-        anchorId: anchor?.anchorId ?? null,
-        idempotencyKey,
-        // Wysyłamy tylko tam, gdzie RPC to przyjmie - bez tego zwykły członek
-        // dostałby odmowę za pole, którego nawet nie widział.
-        lockReplies: canModerate ? lockReplies : false,
+        lockReplies,
+        canModerate,
         topic,
-        icon: normalizeClubThreadIcon(icon),
-        // Anonimowosc UCZESTNIKOW watku. `null` = dziedzicz dzial, wiec nie
-        // wysylamy wartosci, ktorej autor swiadomie nie wybral.
-        attributionMode: attributionOverride,
-      },
+        icon,
+        anchor,
+        attributionOverride,
+        idempotencyKey,
+      }),
       {
-        onSuccess: ({ slug, status }) => {
+        onSuccess: (result) => {
           // Tekst jest już w bazie, więc kopia w przeglądarce przestaje cokolwiek
           // chronić - a zostawiona podpowiadałaby "wróć do niedokończonego"
           // przy następnym wejściu na formularz.
           draft.clear();
           // Wpis w kolejce premoderacji nie prowadzi do wątku, którego
           // jeszcze nie widać - mówimy o tym wprost i wracamy na listę.
-          if (status === "pending") {
-            toast.success(t("club.threadPending"));
+          const outcome = newThreadOutcome(result);
+          toast.success(t(outcome.toastKey));
+          if (outcome.threadSlug === null) {
             void navigate({ to: "/club/$clubSlug", params: { clubSlug } });
             return;
           }
-          toast.success(t("club.threadCreated"));
           void navigate({
             to: "/club/$clubSlug/t/$threadSlug",
-            params: { clubSlug, threadSlug: slug },
+            params: { clubSlug, threadSlug: outcome.threadSlug },
           });
         },
         onError: () => toast.error(t("adminClubs.saveFailed")),
@@ -405,12 +415,12 @@ function ClubNewThread() {
             <Input
               id="thread-title"
               value={title}
-              maxLength={TITLE_MAX}
+              maxLength={CLUB_THREAD_TITLE_MAX}
               disabled={createM.isPending}
               onChange={(e) => setTitle(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              {title.trim().length} / {TITLE_MAX}
+              {title.trim().length} / {CLUB_THREAD_TITLE_MAX}
             </p>
           </div>
 
@@ -426,10 +436,10 @@ function ClubNewThread() {
               onChange={setBody}
               lang={lang}
               rows={12}
-              maxLength={BODY_MAX}
+              maxLength={CLUB_THREAD_BODY_MAX}
             />
             <p className="text-xs text-muted-foreground">
-              {body.trim().length} / {BODY_MAX}
+              {body.trim().length} / {CLUB_THREAD_BODY_MAX}
             </p>
           </div>
 
@@ -440,7 +450,7 @@ function ClubNewThread() {
               wychodzi pod pseudonimem, a autor - jeśli się tego nie spodziewał -
               pisze inaczej, niż by chciał. Wartość jest efektywna dla WYBRANEGO
               działu, więc zmienia się razem z dropListą wyżej. */}
-          {effectiveAttribution !== null ? (
+          {fields.attributionNote ? (
             <p className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">
                 {t(`club.attribution.${effectiveAttribution}`)}
@@ -453,28 +463,24 @@ function ClubNewThread() {
               podpisie. Droplista pokazuje wylacznie zaostrzenia dozwolone dla
               tej osoby, bo RPC waliduje to samo i odmowa po napisaniu tekstu
               byla bledem interfejsu, a nie ostrzezeniem serwera. */}
-          {attributionChoices.length > 0 ? (
+          {fields.attributionOverride ? (
             <div className="space-y-1.5">
               <Label htmlFor="thread-attribution" className="text-sm">
                 {t("club.composer.participantAnonymity")}
               </Label>
               <Select
-                value={attributionOverride ?? "inherit"}
+                value={attributionSelectValue(attributionOverride)}
                 disabled={createM.isPending}
-                onValueChange={(next) =>
-                  setAttributionOverride(isClubAttributionMode(next) ? next : null)
-                }
+                onValueChange={(next) => setAttributionOverride(readAttributionSelection(next))}
               >
                 <SelectTrigger id="thread-attribution">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="inherit">
-                    {baseAttribution === null
-                      ? t("club.attribution.attributed")
-                      : t("club.composer.participantAnonymityInherit", {
-                          mode: t(`club.attribution.${baseAttribution}`),
-                        })}
+                  <SelectItem value={NEW_THREAD_ATTRIBUTION_INHERIT}>
+                    {inheritLabel.modeKey === null
+                      ? t(inheritLabel.key)
+                      : t(inheritLabel.key, { mode: t(inheritLabel.modeKey) })}
                   </SelectItem>
                   {attributionChoices.map((mode) => (
                     <SelectItem key={mode} value={mode}>
@@ -484,9 +490,7 @@ function ClubNewThread() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {effectiveAttribution === "chatham"
-                  ? t("club.composer.participantAnonymityChatham")
-                  : t("club.composer.participantAnonymityHint")}
+                {t(attributionHintKey(effectiveAttribution))}
               </p>
             </div>
           ) : null}
@@ -494,13 +498,13 @@ function ClubNewThread() {
           {/* Ogłoszenie przypina się z definicji rodzaju (migracja A25), więc
               autor musi o tym wiedzieć PRZED publikacją - przypięty wpis widzą
               wszyscy członkowie klubu na górze listy. */}
-          {kind === "announcement" ? (
+          {fields.announcementPinnedNote ? (
             <p className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               {t("club.composer.announcementPinned")}
             </p>
           ) : null}
 
-          {canModerate ? (
+          {fields.lockReplies ? (
             <div className="space-y-1.5 border-t border-border/60 pt-4">
               <div className="flex items-center gap-2">
                 <Switch
@@ -521,7 +525,7 @@ function ClubNewThread() {
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
-            {canGoAnonymous ? (
+            {fields.anonymousToggle ? (
               <div className="flex items-center gap-2">
                 <Switch
                   id="thread-anon"
@@ -547,10 +551,7 @@ function ClubNewThread() {
                   })}
                 </span>
               ) : null}
-              <Button
-                onClick={submit}
-                disabled={createM.isPending || !titleOk || !bodyOk || groupId === ""}
-              >
+              <Button onClick={submit} disabled={createM.isPending || !formReady}>
                 {t("club.publishThread")}
               </Button>
             </div>
