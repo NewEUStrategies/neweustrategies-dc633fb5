@@ -73,6 +73,8 @@ export interface RenderedRoute extends RenderResult {
   search: () => Record<string, unknown>;
   /** `meta` z `head()` dopasowanej trasy - to, co trafiłoby do `<HeadContent/>`. */
   meta: () => RouteMetaEntry[];
+  /** `links` z `head()` - m.in. kanoniczny adres i preload obrazu LCP. */
+  links: () => RouteMetaEntry[];
   /** Nawigacja w obrębie zamontowanego drzewa (np. na trasę rodzeństwa). */
   navigate: (href: string) => Promise<void>;
 }
@@ -121,6 +123,7 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     currentPath: () => router.state.location.pathname,
     search: () => (router.state.matches.at(-1)?.search ?? {}) as Record<string, unknown>,
     meta: () => (router.state.matches.at(-1)?.meta ?? []) as RouteMetaEntry[],
+    links: () => (router.state.matches.at(-1)?.links ?? []) as RouteMetaEntry[],
     navigate: async (href: string) => {
       await router.navigate({ href });
       await router.invalidate();
