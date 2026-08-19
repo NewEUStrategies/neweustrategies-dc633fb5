@@ -280,6 +280,17 @@ moduł ma 25 takich par („Audio", „Layout", „Lead").
 
 ## 8. Pomiar końcowy
 
+> **Uwaga o aktualności liczb.** Tabele w tym rozdziale pochodzą z przebiegu
+> zrobionego zaraz po commicie z progami. Po nim weszły jeszcze dwa commity,
+> których te liczby NIE obejmują: `revisions.functions.ts` (61 linii, 11 funkcji)
+> poszedł z 0% na 100% instrukcji, linii, funkcji i gałęzi, a
+> `WorkflowEditorDialog.tsx` (70 linii, 39 funkcji) z 0% na 79,3% linii i 73,5%
+> funkcji — razem z ekstrakcją `workflows/lib/editorDraft.ts` na 100%. Moduł jako
+> całość jest więc wyżej niż podane niżej 35,87% linii; dokładnej wartości nie
+> podaję, bo nie zmierzyłem jej pełnym przebiegiem, a zgadywanie liczby
+> w dokumencie pomiarowym byłoby gorsze od jej braku. Liczba plików na zerze
+> spadła z 43 do 41.
+
 Ta sama komenda, co przy pomiarze bazowym (§2.2): `bun run test:coverage` z pominięciem
 dwóch powierzchni wieszających ten sandboks (rozdz. 9.2 audytu). Suita: **8 900 testów
 zielonych, 0 czerwonych**.
