@@ -293,10 +293,7 @@ describe("dane do faktury - odczyt i zapis", () => {
 
     await q.fetchMyBillingProfile();
 
-    expect(chain.lastChain("billing_profiles")!.argsOf("eq")).toEqual([
-      "user_id",
-      BILLING_IDS.me,
-    ]);
+    expect(chain.lastChain("billing_profiles")!.argsOf("eq")).toEqual(["user_id", BILLING_IDS.me]);
   });
 
   it("BEZ SESJI profil to `null`", async () => {
