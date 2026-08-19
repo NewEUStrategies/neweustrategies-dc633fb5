@@ -34,6 +34,15 @@
 // - ORGANIZMÓW: `ClubHubHero`, `ClubDirectory`, `MyClubsTabs`,
 //   `ClubSpecializationGrid`, `ClubInvitationInbox`, `ClubGlobalSearch*` to
 //   atrapy-markery; ich zachowanie należy do etapu organizmów.
+//
+// JEDNA GAŁĄŹ NIEOSIĄGALNA. Linia 118 trasy - `club.policy_area === null ? null
+// : topicLabel(...)` w domykaniu etykiety obszaru dla rankingu nazw - nie ma
+// wejścia dla lewego ramienia: `club_list` typuje `policy_area` jako `string`
+// (nie `string | null`), więc wiersz bez przypisanego obszaru przychodzi
+// z PUSTYM NAPISEM, a nie z `null`. Testy jadą pustym napisem, bo to jest
+// realna reprezentacja pustki w tej kolumnie; wymuszenie `null` wymagałoby
+// rzutowania, którego reguły repozytorium zabraniają. Obrona zostaje w kodzie
+// na wypadek zmiany kontraktu RPC - tylko nie da się jej wywołać z TypeScriptu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -367,7 +376,7 @@ describe("zalogowany - katalog ze sterowaniem", () => {
   it("„Odkryj” pojawia się DOPIERO po wybraniu obszaru", async () => {
     // Katalog nie stoi już płasko na hubie: zalogowany wybiera najpierw
     // specjalizację, a kluby wypisuje jej strona.
-    catalog(clubListRow({ my_status: null, policy_area: "energy" }));
+    catalog(clubListRow({ my_status: "", policy_area: "energy" }));
     await mount();
     expect(directoryCalls()).toHaveLength(0);
 
@@ -381,8 +390,8 @@ describe("zalogowany - katalog ze sterowaniem", () => {
   it("wybrany obszar zawęża „Odkryj”, ale nie „Moje kluby”", async () => {
     catalog(
       clubListRow({ id: "moj", my_status: "active", policy_area: "transport" }),
-      clubListRow({ id: "pasuje", my_status: null, policy_area: "energy" }),
-      clubListRow({ id: "nie", my_status: null, policy_area: "transport" }),
+      clubListRow({ id: "pasuje", my_status: "", policy_area: "energy" }),
+      clubListRow({ id: "nie", my_status: "", policy_area: "transport" }),
     );
     await mount();
     fireEvent.click(screen.getByTestId("ClubTopicNav"));
@@ -493,7 +502,7 @@ describe("wyszukiwanie - ZASTĘPUJE katalog", () => {
     // z `policy_area = null` nie ma jej wcale - i to nie może wywalić
     // dopasowania po samej nazwie.
     catalog(
-      clubListRow({ name_pl: "Klub energetyczny", name_en: "Energy club", policy_area: null }),
+      clubListRow({ name_pl: "Klub energetyczny", name_en: "Energy club", policy_area: "" }),
     );
     await mount();
     search("energ");
