@@ -275,3 +275,103 @@ moduł ma 25 takich par („Audio", „Layout", „Lead").
   ustawia `published_at = COALESCE(publish_at, now())` przy każdym przebiegu, podczas
   gdy `isFirstPublish` w TS-ie pilnuje, żeby znacznik pierwszej publikacji był
   niezmienny. To wymaga decyzji, która warstwa ma rację.
+
+---
+
+## 8. Pomiar końcowy
+
+Ta sama komenda, co przy pomiarze bazowym (§2.2): `bun run test:coverage` z pominięciem
+dwóch powierzchni wieszających ten sandboks (rozdz. 9.2 audytu). Suita: **8 900 testów
+zielonych, 0 czerwonych**.
+
+### 8.1 Moduł 2 jako całość
+
+| Metryka    | Audyt 18.08 | Po tej pracy |          Δ |
+| ---------- | ----------: | -----------: | ---------: |
+| Linie      |       8,34% |   **35,87%** | +27,5 pkt. |
+| Instrukcje |       7,75% |   **35,83%** | +28,1 pkt. |
+| Gałęzie    |       6,82% |   **30,30%** | +23,5 pkt. |
+| Funkcje    |       6,85% |   **32,13%** | +25,3 pkt. |
+
+| Licznik             | Audyt 18.08 | Po tej pracy |
+| ------------------- | ----------: | -----------: |
+| Pliki produkcyjne   |          83 |           93 |
+| Pliki **na 0%**     |          64 |           43 |
+| Pliki testowe       |          11 |           33 |
+| Przypadki testowe   |          65 |          539 |
+| Asercje (`expect`)  |         120 |        1 053 |
+| T/P (testowe/prod.) |       0,133 |        0,355 |
+
+Mianownik urósł z 2 128 do 2 208 mierzonych linii — ekstrakcja reguł do `lib/` dołożyła
+10 plików. To celowe: liczby liczone są wobec **większego** mianownika, więc wzrost nie
+bierze się z przesunięcia kodu poza pomiar.
+
+### 8.2 Rozbicie na funkcjonalności
+
+| Funkcjonalność                           | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
+| ---------------------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
+| Listy, kalendarz, przekierowania, import |      6 |        483 |   0,0% |   0,0% |    0,0% |   **0,0%** |     0/153 |
+| Rewizje i przywracanie                   |     12 |        247 |   8,0% |  11,4% |   13,0% |   **9,3%** |     12/92 |
+| Workflow draft→review→published          |     10 |        276 |  15,4% |  10,2% |   12,2% |  **15,2%** |    15/123 |
+| Edytor wpisu (panele)                    |     60 |      1 044 |  54,9% |  44,6% |   47,6% |  **54,8%** |   204/429 |
+| Autozapis i niezapisane zmiany           |      4 |        157 |  96,4% |  88,5% |  100,0% |  **98,1%** |     36/36 |
+| Obecność edytorska (presence)            |      1 |          1 | 100,0% | 100,0% |  100,0% | **100,0%** |       1/1 |
+
+Wzorce ścieżek dla tych sześciu wierszy są wypisane w audycie (rozdz. 3, nota pod
+tabelą modułu 2). Audyt z 18.08 podawał pięć wierszy obejmujących 75 z 83 plików —
+tabela wyżej obejmuje **wszystkie 93**, więc wiersze nie są porównywalne jeden do
+jednego z poprzednią wersją.
+
+### 8.3 Progi per-ścieżka
+
+Moduł wchodził w tę pracę bez **ani jednego** progu (rozdz. 6 audytu). Wychodzi z
+osiemnastoma, w dwóch klasach:
+
+**Czyste moduły — równo 100%, bez marginesu.** Nie ma tu gałęzi, której nie dałoby się
+wywołać z testu, więc każdy spadek to realna reguła bez pokrycia:
+`postPatch.ts`, `postsListQuery.ts`, `postsListDialogs.ts`, `postRouteParams.ts`,
+`redirectsAdmin.ts`, `organizationDirectory.ts`, `versions/lib/**`, `workflows/lib/**`,
+`lib/revisions/**`, `unsavedChanges.ts`, `useUnsavedChangesGuard.ts`, `useEditPresence.ts`.
+
+**Powierzchnie z marginesem** (floor pod zmierzonym poziomem, na dryf CI):
+`editorialCalendar.ts` 98/100/100/92, `post-editor/lib/**` 95/95/95/94,
+`post-editor/hooks/**` 94/96/95/89, `post-editor/atoms/**` 88/85/87/89.
+
+**Zapory antyregresyjne, nie deklaracje jakości.** Trzy katalogi komponentowe wyszły z
+zera, ale są w połowie drogi: `post-editor/molecules/**` (23/26/23/22),
+`workflows/**` (16/13/16/8), `versions/**` (7/8/7/9). Próg jest tam wyłącznie po to,
+żeby nie wróciły na zero przy kolejnym refaktorze — i ma rosnąć.
+
+Progi katalogowe (`**`) istnieją obok progów per-plik świadomie: per-plik nie łapie
+przypadku „nowy plik reguł wszedł do `lib/` bez testu”, katalogowy łapie.
+
+### 8.4 Czego NIE udało się osiągnąć
+
+Cel podniesiony w trakcie pracy do **95%** linii **nie został osiągnięty** — jest
+35,87%. Powód jest jeden i nie jest techniczny: równoległe pokrycie dwunastu grup
+plików padło na limicie sesji po ukończeniu jednej grupy, a reszta powstawała
+pojedynczo. Nic z tego, co zostało, nie jest zablokowane merytorycznie.
+
+43 pliki wciąż stoją na zerze. Największe, w kolejności kosztu:
+
+| Plik                                                                    | Linii mierz. | Funkcji |
+| ----------------------------------------------------------------------- | -----------: | ------: |
+| `src/routes/admin.posts.tsx`                                            |          162 |      50 |
+| `src/routes/admin.import-wordpress.tsx`                                 |          108 |      36 |
+| `src/routes/admin.redirects.tsx`                                        |          102 |      34 |
+| `src/components/admin/workflows/WorkflowEditorDialog.tsx`               |           70 |      39 |
+| `src/routes/admin.workflows.tsx`                                        |           69 |      35 |
+| `src/routes/admin.posts.calendar.tsx`                                   |           67 |      22 |
+| `src/lib/revisions.functions.ts`                                        |           61 |      11 |
+| `src/components/admin/post-editor/molecules/OrganizationCreateForm.tsx` |           53 |      12 |
+| `src/components/admin/workflows/CorrelationTracePanel.tsx`              |           53 |      13 |
+| `src/components/admin/PostGeneralOverview.tsx`                          |           46 |      28 |
+
+Trasy panelu (`admin.posts.tsx`, `admin.redirects.tsx`, `admin.posts.calendar.tsx`,
+`admin.workflows.tsx`) mają już wyekstrahowane reguły — `postsListQuery`,
+`redirectsAdmin`, `editorialCalendar`, `panelRules` — na 100%. To, co w nich zostało,
+to kompozycja i podpięcie zapytań; pokrycie tych plików to głównie koszt fixture'ów
+routera, nie nowa wiedza o regułach. Kolejnością o najlepszym stosunku wartości do
+kosztu jest więc: `revisions.functions.ts` (server fn rewizji — reguły limitu 50,
+throttle 5 min i pominięcia `status` przy przywracaniu wciąż nie mają pokrycia
+runtime'owego), potem `WorkflowEditorDialog.tsx` i `CorrelationTracePanel.tsx`.
