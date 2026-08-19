@@ -14,6 +14,7 @@
 //   * `nextOptimisticBase` - baza optimistic-locka. Za stara wartość powoduje
 //     fałszywy EDIT_CONFLICT przy następnym zapisie.
 import { replaceDataUrlImages } from "@/lib/blocks/persistImages";
+import { toJson } from "@/lib/content-model/json";
 import type { PostForm } from "../types";
 
 /**
@@ -44,7 +45,7 @@ export function buildPostUpdateFields(snapshot: PostForm) {
     tts_voice_en: snapshot.tts_voice_en,
     read_minutes: snapshot.read_minutes,
     builder_data: snapshot.builder_data,
-    blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
+    blocks_data: toJson(snapshot.blocks_data),
     parent_page_id: snapshot.parent_page_id,
     post_format: snapshot.post_format,
     layout_overrides: snapshot.layout_overrides,
