@@ -146,6 +146,12 @@ export const workflowsPl = {
       allStatuses: "Wszystkie statusy",
       statusSucceeded: "Udane",
       statusFailed: "Nieudane",
+      // Statusy DOSTAW webhooków outboxu - ta sama paleta plakietek co przy
+      // przebiegach, bo ślad korelacji pokazuje jedne i drugie obok siebie.
+      statusDelivered: "Dostarczone",
+      statusPending: "Oczekuje",
+      statusRetry: "Ponawianie",
+      statusDead: "Porzucone",
       colWhen: "Kiedy",
       colWorkflow: "Przepis",
       colEvent: "Zdarzenie",
@@ -330,6 +336,10 @@ export const workflowsEn = {
       allStatuses: "All statuses",
       statusSucceeded: "Succeeded",
       statusFailed: "Failed",
+      statusDelivered: "Delivered",
+      statusPending: "Pending",
+      statusRetry: "Retrying",
+      statusDead: "Dead-lettered",
       colWhen: "When",
       colWorkflow: "Recipe",
       colEvent: "Event",

@@ -21,7 +21,7 @@ export function RunStatusBadge({ status }: { status: string }) {
     delivered: {
       icon: CheckCircle2,
       className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-      label: "delivered",
+      label: t("adminWorkflows.runs.statusDelivered"),
     },
     failed: {
       icon: XCircle,
@@ -31,17 +31,17 @@ export function RunStatusBadge({ status }: { status: string }) {
     pending: {
       icon: Clock3,
       className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
-      label: "pending",
+      label: t("adminWorkflows.runs.statusPending"),
     },
     retry: {
       icon: Clock3,
       className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
-      label: "retry",
+      label: t("adminWorkflows.runs.statusRetry"),
     },
     dead: {
       icon: Skull,
       className: "bg-muted text-muted-foreground border-border",
-      label: "dead",
+      label: t("adminWorkflows.runs.statusDead"),
     },
   };
   const entry = map[status] ?? {

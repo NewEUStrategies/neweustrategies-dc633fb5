@@ -73,27 +73,37 @@ describe("RunStatusBadge - statusy przebiegów", () => {
   });
 
   // -------------------------------------------------------------------------
-  // ŚWIADEK DEFEKTU: cztery statusy dostaw są ZASZYTE PO ANGIELSKU.
+  // REGRESJA: statusy DOSTAW też czytają etykietę ze słownika.
   //
-  // `succeeded` i `failed` czytają etykietę ze słownika, ale `delivered`,
-  // `pending`, `retry` i `dead` mają w `atoms.tsx` (linie 21-46) angielskie
-  // literały. Te cztery statusy opisują DOSTAWY WEBHOOKÓW i pojawiają się
-  // w śladzie korelacji — czyli dokładnie tam, gdzie polski redaktor diagnozuje
-  // integrację, która nie zadziałała.
-  //
-  // Bramka i18n tego nie łapie, bo nie ma tu wywołania `t()` z kluczem do
-  // sprawdzenia — jest goły string. Ten test opisuje stan OBECNY, żeby naprawa
-  // miała punkt odniesienia; idzie ona osobnym commitem.
+  // Do 18.08 `delivered`, `pending`, `retry` i `dead` miały tu ZASZYTE
+  // angielskie literały — mimo że opisują dostawy webhooków i pojawiają się
+  // w śladzie korelacji, czyli dokładnie tam, gdzie polski redaktor diagnozuje
+  // integrację, która nie zadziałała. Bramka i18n tego nie łapała, bo nie było
+  // wywołania `t()` z kluczem do sprawdzenia — był goły string.
   // -------------------------------------------------------------------------
-  it("DEFEKT: statusy dostaw outboxu są po angielsku niezależnie od języka panelu", () => {
-    for (const language of ["pl", "en"]) {
-      h.language = language;
-      for (const status of ["delivered", "pending", "retry", "dead"]) {
-        render(<RunStatusBadge status={status} />);
-        // Docelowo: `adminWorkflows.runs.status<Nazwa>` z tłumaczeniem PL/EN.
-        expect(screen.getByText(status), `${language}/${status}`).toBeInTheDocument();
-        cleanup();
-      }
+  it("statusy dostaw outboxu czytają etykietę ze słownika, jak przebiegi", () => {
+    const expected: Record<string, string> = {
+      delivered: "adminWorkflows.runs.statusDelivered",
+      pending: "adminWorkflows.runs.statusPending",
+      retry: "adminWorkflows.runs.statusRetry",
+      dead: "adminWorkflows.runs.statusDead",
+    };
+    for (const [status, key] of Object.entries(expected)) {
+      render(<RunStatusBadge status={status} />);
+      expect(screen.getByText(key), status).toBeInTheDocument();
+      // Goły angielski literał zniknął z plakietki.
+      expect(screen.queryByText(status), status).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("ŻADEN status z palety nie renderuje gołego literału zamiast klucza", () => {
+    // Bramka na przyszłość: nowy status dopisany do mapy bez klucza i18n
+    // pokazałby polskiemu redaktorowi angielskie słowo.
+    for (const status of ["succeeded", "failed", "delivered", "pending", "retry", "dead"]) {
+      const { container } = render(<RunStatusBadge status={status} />);
+      expect(container.textContent, status).toContain("adminWorkflows.runs.status");
+      cleanup();
     }
   });
 });
