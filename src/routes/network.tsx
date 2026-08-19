@@ -27,7 +27,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
 import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
 import { useAuth } from "@/hooks/useAuth";
@@ -374,12 +374,19 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                 degree={1}
                 highlighted={highlightId === c.connection_id}
               >
-                <DirectMessageButton
+                <MessageOrConnectButton
                   userId={c.user_id}
                   displayName={c.display_name}
                   displayAvatar={c.avatar_url}
                   compact
                   iconOnly
+                  connectionState={{
+                    ...NO_CONNECTION,
+                    status: "connected",
+                    connectionId: c.connection_id,
+                    canInvite: false,
+                    degree: 1,
+                  }}
                 />
                 <ConnectButton
                   userId={c.user_id}
@@ -656,7 +663,7 @@ function SuggestionsTab() {
                 .join(" \u00b7 ") || undefined
             }
           >
-            <DirectMessageButton
+            <MessageOrConnectButton
               userId={s.user_id}
               displayName={s.display_name}
               displayAvatar={s.avatar_url}

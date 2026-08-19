@@ -28,7 +28,7 @@ import {
   ClubEventKindIcon,
   clubEventToneClass,
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubEvent, useClubEventAttendees } from "@/lib/clubs/useClubNetwork";
 import { useClubEventRsvp } from "@/lib/clubs/useClubWorkspace";
 import { toEventKind, type ClubRsvpState } from "@/lib/clubs/workspaceTypes";
@@ -284,7 +284,7 @@ export function ClubMeetingScreen({
                         meta={row.is_me ? t("club.network.meeting.you") : undefined}
                         actions={
                           row.is_me ? undefined : (
-                            <DirectMessageButton
+                            <MessageOrConnectButton
                               userId={row.user_id}
                               displayName={row.display_name}
                               displayAvatar={row.avatar_url}

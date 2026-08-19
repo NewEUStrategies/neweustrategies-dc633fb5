@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubExpertiseChip } from "@/components/clubs/atoms/ClubNetworkPrimitives";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubThreadExperts, usePingClubThreadExpert } from "@/lib/clubs/useClubNetwork";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
@@ -150,7 +150,7 @@ export function ClubThreadExpertsPanel({
                       {t("club.network.experts.ask")}
                     </Button>
                   )}
-                  <DirectMessageButton
+                  <MessageOrConnectButton
                     userId={row.user_id}
                     displayName={row.display_name}
                     displayAvatar={row.avatar_url}

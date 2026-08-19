@@ -1,5 +1,8 @@
 // Direct Message: uniwersalny przycisk na profilach ekspertów i użytkowników.
 // - Ukryty dla anonów oraz dla własnego profilu.
+// - Widoczny wyłącznie gdy relacja z odbiorcą jest zaakceptowana (status
+//   "connected" w user_connections). W pozostałych stanach komponent zwraca
+//   null - wtedy miejsce zapełnia ConnectButton (patrz MessageOrConnectButton).
 // - Miękka bramka po `features.chat_enabled` bieżącej warstwy członkostwa:
 //   Essential (chat_enabled=false) -> otwiera dialog z zachętą do upgrade'u
 //   (Plus i wyżej). Twarda bramka i tak siedzi w
@@ -29,6 +32,7 @@ import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import { useStartConversation } from "@/lib/chat/useConversations";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { useConnectionStatuses, type ConnectionState } from "@/lib/network/useConnections";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-direct-message";
 
@@ -41,6 +45,11 @@ export interface DirectMessageButtonProps {
   /** Tylko ikona - do wąskich pigułek i kart w gridzie. */
   iconOnly?: boolean;
   className?: string;
+  /**
+   * Opcjonalny, znany z góry status relacji (np. z batchowanego RPC).
+   * Gdy pominięty, komponent pobiera status samodzielnie.
+   */
+  connectionState?: ConnectionState;
 }
 
 export function DirectMessageButton({
@@ -48,7 +57,9 @@ export function DirectMessageButton({
   displayName,
   displayAvatar,
   compact,
+  iconOnly,
   className,
+  connectionState,
 }: DirectMessageButtonProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -57,8 +68,42 @@ export function DirectMessageButton({
   const startChat = useStartConversation();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
+  const selfFetch = connectionState === undefined;
+  const statusQ = useConnectionStatuses(
+    selfFetch && modules.connections_enabled && user && user.id !== userId ? [userId] : [],
+  );
+  const resolved = connectionState ?? statusQ.data?.get(userId) ?? null;
+  const isLoading = selfFetch && statusQ.isLoading;
+
+  // Sieć kontaktów dotyczy wyłącznie zalogowanych i cudzych profili,
+  // z włączonym modułem (toggle admina w community_modules).
   if (!modules.chat_enabled) return null;
   if (!user || user.id === userId) return null;
+
+  // Dopóki nie znamy statusu relacji, pokazujemy stabilny placeholder,
+  // żeby nie powodować layout shiftu na listach i profilach.
+  if (isLoading) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        disabled
+        aria-hidden
+        className={cn(
+          "rounded-[6px] shrink-0 opacity-60 cursor-not-allowed",
+          compact || iconOnly ? "h-8 w-8" : "h-9 w-9",
+          className,
+        )}
+      >
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      </Button>
+    );
+  }
+
+  // Wiadomość bezpośrednia wymaga zaakceptowanego kontaktu (connected).
+  // Inne stany (none / pending_out / pending_in) pozostawiamy ConnectButton.
+  if (resolved?.status !== "connected") return null;
 
   const canDm =
     tierQ.data && tierQ.data.features ? tierHasFeature(tierQ.data.features, "chat_enabled") : false;
@@ -129,7 +174,7 @@ export function DirectMessageButton({
               aria-label={aria}
               className={cn(
                 "rounded-[6px] shrink-0 transition-colors",
-                compact ? "h-8 w-8" : "h-9 w-9",
+                compact || iconOnly ? "h-8 w-8" : "h-9 w-9",
                 !locked && !isBusy && "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
                 locked && !isBusy && "text-muted-foreground hover:bg-muted/60",
                 isBusy && "cursor-wait opacity-80",

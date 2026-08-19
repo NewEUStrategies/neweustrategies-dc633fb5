@@ -42,8 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
-import { ConnectButton } from "@/components/network/ConnectButton";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { ProfileLinkButton } from "@/components/network/ProfileLinkButton";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
 import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
@@ -301,19 +300,14 @@ function PersonCard({
           {/* Status z batchowanego RPC - bez mapy nie renderujemy przycisku,
               żeby każda karta nie odpytywała o status osobno. */}
           {connection && (
-            <ConnectButton
+            <MessageOrConnectButton
               userId={person.id}
               displayName={person.display_name}
-              state={connection}
+              displayAvatar={person.avatar_url}
               compact
+              connectionState={connection}
             />
           )}
-          <DirectMessageButton
-            userId={person.id}
-            displayName={person.display_name}
-            displayAvatar={person.avatar_url}
-            compact
-          />
         </div>
       </div>
       {intents.length > 0 && (

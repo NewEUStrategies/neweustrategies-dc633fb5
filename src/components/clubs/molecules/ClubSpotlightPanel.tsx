@@ -24,7 +24,7 @@ import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { MoreLink } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubExpertiseChip } from "@/components/clubs/atoms/ClubNetworkPrimitives";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { useClubSpotlight } from "@/lib/clubs/useClubNetwork";
 import { spotlightBlurb } from "@/lib/clubs/networkTypes";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
@@ -74,7 +74,7 @@ export function ClubSpotlightPanel({ clubSlug, clubId }: { clubSlug: string; clu
             </p>
           ) : null}
         </div>
-        <DirectMessageButton
+        <MessageOrConnectButton
           userId={row.user_id}
           displayName={name}
           displayAvatar={row.avatar_url}
