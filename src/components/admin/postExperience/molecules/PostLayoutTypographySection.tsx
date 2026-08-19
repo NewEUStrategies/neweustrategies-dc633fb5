@@ -1,8 +1,10 @@
+import {
+  PanelNumberField,
+  PanelRangeField,
+  PanelSectionHeading,
+} from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-layouts";
-import { PanelNumberField } from "@/components/admin/postExperience/atoms/PanelNumberField";
-import { PanelRangeField } from "@/components/admin/postExperience/atoms/PanelRangeField";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { numericSetting, typographyGroups } from "@/lib/post/layoutPanelRules";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
 

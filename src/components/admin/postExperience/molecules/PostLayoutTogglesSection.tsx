@@ -1,6 +1,6 @@
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-layouts";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { SettingToggle } from "@/components/admin/atoms/SettingToggle";
 import { footerToggles, headerToggles } from "@/lib/post/layoutPanelRules";
 import type { PostLayoutSettings } from "@/lib/postLayouts";

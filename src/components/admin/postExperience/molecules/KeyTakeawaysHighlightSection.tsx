@@ -1,9 +1,11 @@
+import {
+  PanelColorField,
+  PanelRangeField,
+  PanelSectionHeading,
+  SelectableOptionCard,
+} from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-post-panes";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
-import { PanelColorField } from "@/components/admin/postExperience/atoms/PanelColorField";
-import { PanelRangeField } from "@/components/admin/postExperience/atoms/PanelRangeField";
-import { SelectableOptionCard } from "@/components/admin/postExperience/atoms/SelectableOptionCard";
 import { toggleIndex } from "@/lib/admin/panelDraft";
 import {
   HIGHLIGHT_OFFSET_BOUNDS,

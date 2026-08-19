@@ -1,8 +1,7 @@
+import { PanelSectionHeading, SelectableOptionCard } from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-post-panes";
 import { Input } from "@/components/ui/input";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
-import { SelectableOptionCard } from "@/components/admin/postExperience/atoms/SelectableOptionCard";
 import { DynamicIcon, type IconName } from "@/lib/icons/DynamicIcon";
 import { KEY_TAKEAWAYS_ICON_CHOICES, iconMatches } from "@/lib/keyTakeaways/panelRules";
 

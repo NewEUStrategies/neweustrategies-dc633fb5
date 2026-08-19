@@ -78,7 +78,7 @@ export function GlobalAudioBar() {
       // sklejała OBA języki w jeden komunikat („… / Could not generate audio"),
       // czyli każdy czytelnik dostawał połowę zdania w obcym języku.
       const lang = player.track?.lang ?? uiLang(i18n.language);
-      toast.error(player.error ?? t("ttsPlayer.bar.error", { lng: lang }), {
+      toast.error(player.error ?? t("ttsPlayer.transport.error", { lng: lang }), {
         id: "tts-error",
       });
     }
@@ -89,6 +89,10 @@ export function GlobalAudioBar() {
 
   const { track } = player;
   const copy = (key: string) => t(`ttsPlayer.bar.${key}`, { lng: track.lang });
+  // Napisy WSPÓLNE z kartą w sidebarze (transport, pobieranie, błąd) mają jedną
+  // sekcję słownika - dwie kopie tego samego zdania rozjeżdżają się przy
+  // pierwszej korekcie jednej z nich.
+  const shared = (key: string) => t(`ttsPlayer.transport.${key}`, { lng: track.lang });
   const loading = player.status === "loading";
   const playing = player.status === "playing";
   const tts = player.tts;
@@ -113,7 +117,7 @@ export function GlobalAudioBar() {
     try {
       await player.download();
     } catch {
-      toast.error(copy("downloadFailed"));
+      toast.error(shared("downloadFailed"));
     } finally {
       setDownloading(false);
     }
@@ -177,7 +181,7 @@ export function GlobalAudioBar() {
                 variant="outline"
               />
               <AudioIconButton
-                label={copy(transportLabelKey({ loading, playing, paused: false }))}
+                label={shared(transportLabelKey({ loading, playing, paused: false }))}
                 onClick={() => void player.toggle()}
                 disabled={loading}
                 pressed={playing}
@@ -287,7 +291,7 @@ export function GlobalAudioBar() {
                       onBlur={(e) => {
                         if (scrub !== null) commitSeek(Number(e.target.value));
                       }}
-                      aria-label={copy("seek")}
+                      aria-label={shared("seek")}
                       aria-valuemin={0}
                       aria-valuemax={Math.max(duration, 0)}
                       aria-valuenow={Math.floor(displayTime)}
@@ -324,9 +328,9 @@ export function GlobalAudioBar() {
                     {formatPlaybackRate(player.playbackRate)}
                   </button>
                 </ActionTip>
-                <ActionTip label={copy(downloadKey(downloading))}>
+                <ActionTip label={shared(downloadKey(downloading))}>
                   <AudioIconButton
-                    label={copy(downloadKey(downloading))}
+                    label={shared(downloadKey(downloading))}
                     onClick={() => void onDownload()}
                     disabled={downloading || loading}
                     busy={downloading}

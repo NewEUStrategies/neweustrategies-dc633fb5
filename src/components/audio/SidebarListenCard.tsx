@@ -53,6 +53,8 @@ export function SidebarListenCard({
   const { t } = useTranslation();
   const copy = (key: string, params?: Record<string, unknown>) =>
     t(`ttsPlayer.card.${key}`, { lng: lang, ...params });
+  // Napisy WSPÓLNE z dolnym paskiem - jedna sekcja słownika, jedno źródło prawdy.
+  const shared = (key: string) => t(`ttsPlayer.transport.${key}`, { lng: lang });
   const player = useGlobalAudioPlayer();
   const isThis = player.isActive(postId, lang);
   const loading = isThis && player.status === "loading";
@@ -78,7 +80,7 @@ export function SidebarListenCard({
     const prev = prevStatusRef.current;
     prevStatusRef.current = player.status;
     if (prev !== "error" && player.status === "error") {
-      toast.error(player.error ?? copy("error"), { id: "tts-error" });
+      toast.error(player.error ?? shared("error"), { id: "tts-error" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.status, player.error, lang]);
@@ -152,7 +154,7 @@ export function SidebarListenCard({
     try {
       await player.download(meta);
     } catch {
-      toast.error(copy("downloadFailed"));
+      toast.error(shared("downloadFailed"));
     } finally {
       setDownloading(false);
     }
@@ -212,7 +214,7 @@ export function SidebarListenCard({
           type="button"
           onClick={onPrimary}
           disabled={loading}
-          aria-label={copy(transportLabelKey({ loading, playing, paused: !playing && isThis }))}
+          aria-label={shared(transportLabelKey({ loading, playing, paused: !playing && isThis }))}
           aria-pressed={playing}
           data-playing={playing ? "true" : "false"}
           className={[
@@ -267,7 +269,7 @@ export function SidebarListenCard({
               onBlur={(e) => {
                 if (scrub !== null) commitSeek(Number(e.target.value));
               }}
-              aria-label={copy("seek")}
+              aria-label={shared("seek")}
               aria-valuemin={0}
               aria-valuemax={Math.max(duration, 0)}
               aria-valuenow={Math.floor(displayTime)}
@@ -284,8 +286,8 @@ export function SidebarListenCard({
           type="button"
           onClick={() => void onDownload()}
           disabled={downloading || loading}
-          aria-label={copy(downloadKey(downloading))}
-          title={copy("download")}
+          aria-label={shared(downloadKey(downloading))}
+          title={shared("download")}
           className={[
             "inline-flex items-center gap-1.5 rounded-[6px] text-muted-foreground",
             "hover:text-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
@@ -298,7 +300,7 @@ export function SidebarListenCard({
             <Download className="h-3 w-3" aria-hidden />
           )}
           <span className="cms-widget-note font-semibold tracking-[0.15em] uppercase">
-            {copy("download")}
+            {shared("download")}
           </span>
         </button>
 

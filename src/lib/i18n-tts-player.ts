@@ -34,35 +34,32 @@ const pl = {
       loading: "Generuję audio…",
       error: "Nie udało się wygenerować audio",
     },
-    bar: {
-      region: "Odtwarzacz audio",
+    // WSPÓLNE dla dolnego paska i karty w sidebarze. Osiem napisów stało
+    // wcześniej w DWÓCH identycznych kopiach - a dwie kopie tego samego
+    // zdania rozjeżdżają się przy pierwszej korekcie jednej z nich.
+    transport: {
       play: "Odtwórz",
       pause: "Pauza",
       loading: "Generuję audio…",
       download: "Pobierz MP3",
       downloading: "Pobieram audio…",
       downloadFailed: "Nie udało się pobrać audio",
+      error: "Nie udało się wygenerować audio",
+      seek: "Przewiń materiał",
+    },
+    bar: {
+      region: "Odtwarzacz audio",
       share: "Udostępnij link do artykułu",
       copied: "Skopiowano link do artykułu",
       close: "Zamknij odtwarzacz",
-      seek: "Przewiń materiał",
       back15: "Cofnij 15 sekund",
       fwd15: "Do przodu 15 sekund",
       speed: "Tempo odtwarzania",
-      error: "Nie udało się wygenerować audio",
     },
     card: {
       label: "Posłuchaj artykułu",
-      play: "Odtwórz",
-      pause: "Pauza",
-      loading: "Generuję audio…",
-      download: "Pobierz MP3",
-      downloading: "Pobieram audio…",
-      downloadFailed: "Nie udało się pobrać audio",
       retry: "Spróbuj ponownie",
-      error: "Nie udało się wygenerować audio",
       aiNarration: "Narracja generowana automatycznie (AI) na podstawie treści artykułu.",
-      seek: "Przewiń materiał",
       approx: "ok. {{min}} min",
     },
     errors: {
@@ -89,35 +86,32 @@ const en = {
       loading: "Generating audio…",
       error: "Could not generate audio",
     },
-    bar: {
-      region: "Audio player",
+    // WSPÓLNE dla dolnego paska i karty w sidebarze. Osiem napisów stało
+    // wcześniej w DWÓCH identycznych kopiach - a dwie kopie tego samego
+    // zdania rozjeżdżają się przy pierwszej korekcie jednej z nich.
+    transport: {
       play: "Play",
       pause: "Pause",
       loading: "Generating audio…",
       download: "Download MP3",
       downloading: "Downloading audio…",
       downloadFailed: "Download failed",
+      error: "Could not generate audio",
+      seek: "Seek audio",
+    },
+    bar: {
+      region: "Audio player",
       share: "Share article link",
       copied: "Article link copied",
       close: "Close player",
-      seek: "Seek audio",
       back15: "Back 15 seconds",
       fwd15: "Forward 15 seconds",
       speed: "Playback speed",
-      error: "Could not generate audio",
     },
     card: {
       label: "Listen to this article",
-      play: "Play",
-      pause: "Pause",
-      loading: "Generating audio…",
-      download: "Download MP3",
-      downloading: "Downloading audio…",
-      downloadFailed: "Download failed",
       retry: "Try again",
-      error: "Could not generate audio",
       aiNarration: "Narration is generated automatically (AI) from the article text.",
-      seek: "Seek audio",
       approx: "~{{min}} min",
     },
     errors: {

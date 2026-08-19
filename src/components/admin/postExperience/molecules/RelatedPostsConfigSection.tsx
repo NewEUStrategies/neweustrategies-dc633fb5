@@ -1,10 +1,12 @@
+import {
+  PanelNumberField,
+  PanelSectionHeading,
+  PanelSelectField,
+} from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-related-posts";
 import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
-import { PanelNumberField } from "@/components/admin/postExperience/atoms/PanelNumberField";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
-import { PanelSelectField } from "@/components/admin/postExperience/atoms/PanelSelectField";
 import { SettingToggle } from "@/components/admin/atoms/SettingToggle";
 import { RelatedLayoutPreview } from "@/components/admin/RelatedLayoutPreview";
 import {

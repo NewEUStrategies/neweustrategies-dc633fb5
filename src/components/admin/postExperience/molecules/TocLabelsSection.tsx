@@ -1,6 +1,5 @@
+import { PanelSectionHeading, PanelTextField } from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
-import { PanelTextField } from "@/components/admin/postExperience/atoms/PanelTextField";
 import type { TocDefaults } from "@/lib/toc/settings";
 
 interface TocLabelsSectionProps {

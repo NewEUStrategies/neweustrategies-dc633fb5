@@ -1,8 +1,7 @@
+import { PanelNumberField, PanelSectionHeading } from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-related-posts";
 import { Button } from "@/components/ui/button";
-import { PanelNumberField } from "@/components/admin/postExperience/atoms/PanelNumberField";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { SettingToggle } from "@/components/admin/atoms/SettingToggle";
 import { WeightSlider } from "@/components/admin/atoms/WeightSlider";
 import { weightSignals } from "@/lib/relatedPosts/panelRules";

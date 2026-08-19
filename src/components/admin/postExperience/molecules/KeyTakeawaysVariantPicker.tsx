@@ -1,7 +1,6 @@
+import { PanelSectionHeading, SelectableOptionCard } from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-post-panes";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
-import { SelectableOptionCard } from "@/components/admin/postExperience/atoms/SelectableOptionCard";
 import { keyTakeawaysVariantDescriptors } from "@/lib/keyTakeaways/panelRules";
 import type { KeyTakeawaysVariant } from "@/lib/keyTakeaways/settings";
 

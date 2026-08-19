@@ -1,6 +1,6 @@
+import { SelectableOptionCard } from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { SelectableOptionCard } from "@/components/admin/postExperience/atoms/SelectableOptionCard";
 import { tocColumnDescriptors } from "@/lib/toc/panelRules";
 import type { TocColumns } from "@/lib/toc/settings";
 

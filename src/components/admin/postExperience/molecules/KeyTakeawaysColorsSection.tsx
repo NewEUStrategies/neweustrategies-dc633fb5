@@ -1,8 +1,10 @@
+import {
+  PanelColorField,
+  PanelRangeField,
+  PanelSectionHeading,
+} from "@/components/admin/postExperience/atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-post-panes";
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
-import { PanelColorField } from "@/components/admin/postExperience/atoms/PanelColorField";
-import { PanelRangeField } from "@/components/admin/postExperience/atoms/PanelRangeField";
 import {
   BORDER_WIDTH_BOUNDS,
   borderWidthValue,
