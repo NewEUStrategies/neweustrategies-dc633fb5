@@ -299,46 +299,63 @@ sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-n
 bun install
 git checkout -- bun.lock   # CI-only, nie commitować
 
+bun run test:coverage
+# 846 plików testowych, 10 723 testy, zero błędów, zero błędów progu
+
+bun run typecheck
+bun run format:check
+bun run lint
+bun run check:i18n-default-value
+bun run check:i18n-parity
+bun run check:gate-coverage
+```
+
+Przebieg zawężony do modułu (szybsza pętla przy pracy nad tymi plikami) daje te same liczby:
+
+```bash
 bunx vitest run src/lib/search src/components/search src/hooks \
   src/routes/__tests__/searchRoute.test.tsx \
   src/components/__tests__/SearchOverlay.a11y.test.tsx \
   src/components/builder/organisms/widget-view/__tests__/SearchButtonWidget.test.tsx \
   src/components/builder/organisms/widget-view/__tests__/searchButtonWidgetRouterSync.test.tsx \
   --coverage
-# 30 plików testowych, 589 testów, zero błędów progu na ścieżkach wyszukiwarki
-
-bun run typecheck
-bunx eslint src/lib/search src/components/search src/hooks/__tests__ src/routes/__tests__ src/test
-bunx prettier --check src/lib/search src/components/search src/hooks src/routes/__tests__ \
-  src/test/serverFnChain.ts vitest.config.ts docs/WDROZENIE_WYSZUKIWARKA_TESTY_2026-08-18.md
+# 30 plików testowych, 589 testów
 ```
 
-### 10.1 Ograniczenie środowiska sesji (nie dotyczy CI)
+### 10.1 Pomiar potwierdzony na pełnej suicie
 
-Pełnej suity **nie udało się w tej sesji doprowadzić do końca** i nie ma to związku
-z wyszukiwarką. Vitest zawiesza się na etapie zamykania workerów po testach panelu buildera:
+Liczby w §5 i §9 pochodzą z **pełnego** `bun run test:coverage` i zgadzają się co do
+przypadku z przebiegiem zawężonym do modułu - dla tych plików nie ma różnicy, bo żaden
+test spoza wyszukiwarki ich nie dotyka. Progi z §9 są w CI spełnione, `EXIT=0`.
+
+### 10.2 Zawieszenie suity i zastane czerwone testy - naprawione po drodze
+
+Pełna suita **nie kończyła się w ogóle** - ani przed tą pracą, ani po niej - i nie miało to
+związku z wyszukiwarką. Vitest stawał na etapie zamykania workerów po testach panelu buildera
+(`Timeout terminating forks worker`), bez ani jednej czerwonej asercji, więc bez wskazówki,
+gdzie szukać. Przyczyną był cykl w grafie importów:
 
 ```
-[vitest-pool]: Timeout terminating forks worker for test files
-  src/components/admin/builder/__tests__/buttonFullWidth.test.tsx
-  src/components/admin/builder/__tests__/headingGlobalFontFallback.test.tsx
-  src/components/admin/builder/__tests__/fidelityGateFindings.test.tsx
+lazyWidgets (mock) → eagerWidgetChunks → PostsSliderWidget → lazyWidgets (mock)
 ```
 
-Przyczyna jest widoczna w logu wyżej: happy-dom próbuje REALNEJ nawigacji sieciowej
-(`BrowserFrameNavigator.navigate` → `Fetch.sendRequest`), która w piaskownicy sieciowej tej
-sesji nie ma dokąd pójść i nie kończy się. Żaden z tych plików nie zawiera słowa „search".
+`PostsSliderWidget.tsx` jest ładowany PRZEZ rejestr `lazyWidgets`, a jednocześnie brał z niego
+`SliderRender`. W produkcji cykl jest nieszkodliwy (bundler go rozplątuje, oba wiązania są
+leniwe), ale w testach podmieniających rejestr na lustro eager fabryka `vi.mock` czeka na
+moduł, którego rozwiązanie czeka na nią. Rozwiązanie: wydzielenie `lazyBoundary.tsx`
+(wspólna granica Suspense) i `sliderRenderLazy.tsx` (samo wiązanie `React.lazy`) - dwóch
+modułów bez zależności od rejestru. Granica podziału kodu, chunk i fallback bez zmian.
 
-Niezależnie od tego czerwony jest jeden test sprzed tej pracy -
-`widget-view/__tests__/lazyWidgets.test.ts > does not leak unexpected exports`. Zweryfikowane
-przez `git checkout 39a9efd` i uruchomienie tego samego pliku: pada tak samo na commicie
-bazowym, więc jest to stan zastany, nie regresja tego PR-a.
+Zawieszenie **zasłaniało 39 czerwonych asercji w module buildera**, wszystkie zastane.
+Sprawdzone na commicie bazowym `39a9efd`: padają tak samo. Naprawione (szczegóły w opisach
+commitów): brak lustra eager w czterech plikach, synchroniczny `renderToStaticMarkup` wobec
+leniwego `RichHtmlView`, bramka strukturalna wskazująca plik bez slidera, brak `channel`
+w trzech zaślepkach klienta Supabase oraz asercja typografii czytająca `style` z wewnętrznego
+`span` zamiast z nagłówka. Osobno naprawiony został jedyny błąd blokującej bramki
+`bun run lint` (`require()` w mocku routera w `AccountIdentityPanel.test.tsx`).
 
-**Konsekwencja dla progów:** liczby w §5 i §9 pochodzą z przebiegu ZAWĘŻONEGO do testów
-modułu. To pomiar KONSERWATYWNY - pokrycie pliku w pełnej suicie może być wyłącznie WYŻSZE
-(więcej testów dotyka tych samych plików, żaden nie odejmuje pokrycia), więc progi floorowane
-pod tymi liczbami są w CI spełnione z zapasem. Zweryfikowane wprost: przebieg z docelową
-konfiguracją daje ZERO błędów `ERROR: Coverage … does not meet` na ścieżkach wyszukiwarki.
+**Kod produkcyjny wyszukiwarki nie był przy tym ruszany.** Jedyna zmiana produkcyjna poza
+modułem to wydzielenie dwóch plików granicy leniwego ładowania opisane wyżej.
 
 ---
 
