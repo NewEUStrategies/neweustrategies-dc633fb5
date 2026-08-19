@@ -177,8 +177,9 @@ describe("preAuthGuard", () => {
 
     const error = await rejected;
     expect(error).toBeInstanceOf(Error);
-    expect(error.code).toBe("invalid_input");
-    expect(error.issues).toBeTruthy();
+    const validationError = error as Error & { code?: string; issues?: unknown };
+    expect(validationError.code).toBe("invalid_input");
+    expect(validationError.issues).toBeTruthy();
     expect(h.rpc).not.toHaveBeenCalled();
   });
 
