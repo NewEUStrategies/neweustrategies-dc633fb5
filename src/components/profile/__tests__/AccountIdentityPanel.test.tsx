@@ -17,6 +17,7 @@
 //      na stronę - i stempel `updated_at`, przez który profil udaje świeży.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement } from "react";
 import { PROFILE_IDS, xhrStub } from "@/test/profile/fixtures";
 
 type Rpc = { data: unknown; error: unknown };
@@ -83,10 +84,13 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: unknown }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href: to }, children as never);
-  },
+  // `createElement` z importu na górze pliku, a nie `require("react")` w ciele:
+  // fabryka `vi.mock` jest hoistowana, ale JEJ WNĘTRZE wykonuje się dopiero
+  // przy pierwszym imporcie modułu, a ta referencja - dopiero przy renderze,
+  // więc wiązanie ESM jest już zainicjalizowane. `require()` w module ESM
+  // odpala bramkę lintera (`@typescript-eslint/no-require-imports`).
+  Link: ({ to, children }: { to: string; children?: unknown }) =>
+    createElement("a", { href: to }, children as never),
 }));
 
 vi.mock("sonner", () => ({
