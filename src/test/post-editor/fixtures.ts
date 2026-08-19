@@ -299,6 +299,9 @@ export function workflowRun(
     tenant_id: EDITOR_IDS.tenant,
     workflow_id: EDITOR_IDS.workflow,
     event_id: "event-1",
+    // Typ zdarzenia, ktore wyzwolilo przebieg - tabela historii renderuje go
+    // jako chip, wiec bez tego pola wiersz pokazywalby pusty identyfikator.
+    event_type: "post.published.v1",
     correlation_id: EDITOR_IDS.correlation,
     status: "succeeded",
     steps_completed: 1,
