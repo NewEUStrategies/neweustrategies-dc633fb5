@@ -171,6 +171,11 @@ describe("przełączanie zakładek", () => {
 
     const pressed = TAB_IDS.filter((id) => tabButton(id).getAttribute("aria-pressed") === "true");
     expect(pressed).toEqual(["colors"]);
+    // Przełączenie na inną zakładkę GASI poprzednią, a nie dokłada drugiej.
+    clickTab("layout");
+    expect(TAB_IDS.filter((id) => tabButton(id).getAttribute("aria-pressed") === "true")).toEqual([
+      "layout",
+    ]);
   });
 
   it("samo przełączanie zakładek NIE zapisuje niczego", () => {
@@ -269,6 +274,9 @@ describe("podgląd na żywo", () => {
     expect(screen.getByText("adminPopupSignup.preview.dark").getAttribute("aria-pressed")).toBe(
       "true",
     );
+    expect(screen.getByText("adminPopupSignup.preview.light").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
   });
 
   it("przełącznik języka nie rusza ustawień", () => {
@@ -323,6 +331,8 @@ describe("rozdział warstw zapisu", () => {
     fireEvent.change(swatches[0]!, { target: { value: "#123456" } });
 
     expect(lastPatch()).toEqual({ popup_accent_color: "#123456" });
+    // Kolumna, nie JSON: `popup_design` nie może się pojawić w tym samym patchu.
+    expect(Object.keys(lastPatch())).not.toContain("popup_design");
   });
 
   it("paleta JASNA idzie do JSON-a prezentacji, nie do kolumn", () => {
@@ -378,6 +388,8 @@ describe("sekcje warunkowe", () => {
     fireEvent.change(field, { target: { value: "75" } });
 
     expect(lastPatch()).toEqual({ popup_scroll_percent: 75 });
+    // Liczba, nie napis - inaczej kolumna integer w bazie odrzuca zapis.
+    expect(typeof lastPatch().popup_scroll_percent).toBe("number");
   });
 
   it("szerokość panelu ma WŁASNY zakres i patchuje prezentację", () => {
@@ -407,6 +419,8 @@ describe("sekcje warunkowe", () => {
     mount(settings({ popup_layout: "stacked" }));
     clickTab("gallery");
 
+    // Oba pola muszą być dostępne w układzie innym niż showcase.
+    expect(screen.getByLabelText("adminPopupSignup.gallery.coverImage")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("adminPopupSignup.gallery.sideImage"), {
       target: { value: "https://example.test/bok.png" },
     });
@@ -425,6 +439,8 @@ describe("sekcje warunkowe", () => {
     });
 
     expect(lastPatch()).toEqual({ popup_side_image_url: null });
+    // Pusty napis przeszedłby walidację kolumny i zostałby w bazie jako "".
+    expect(lastPatch().popup_side_image_url).not.toBe("");
   });
 
   it("okładka poza showcase też patchuje się na NULL po wyczyszczeniu", () => {
@@ -436,6 +452,7 @@ describe("sekcje warunkowe", () => {
     });
 
     expect(lastPatch()).toEqual({ popup_cover_url: null });
+    expect(lastPatch().popup_cover_url).not.toBe("");
   });
 
   it("OSTRZEŻENIE O KONTRAŚCIE zapala się dla obu palet", () => {
@@ -453,7 +470,10 @@ describe("sekcje warunkowe", () => {
     );
     clickTab("colors");
 
-    expect(screen.getAllByText(/adminPopupSignup\.colors\.contrastWarn/).length).toBeGreaterThan(1);
+    const warns = screen.getAllByText(/adminPopupSignup\.colors\.contrastWarn/);
+    // Jedno ostrzeżenie znaczyłoby, że druga paleta jest sprawdzana wybiórczo.
+    expect(warns.length).toBeGreaterThan(1);
+    expect(warns.every((w) => w.textContent?.includes("contrastWarn"))).toBe(true);
   });
 
   it("czytelne kolory NIE zapalają ostrzeżenia", () => {
@@ -471,6 +491,8 @@ describe("sekcje warunkowe", () => {
     clickTab("colors");
 
     expect(screen.queryByText(/adminPopupSignup\.colors\.contrastWarn/)).toBeNull();
+    // Zakładka jednak się wyrenderowała - brak ostrzeżenia to nie brak panelu.
+    expect(screen.getAllByLabelText("adminPopupSignup.colors.accent").length).toBeGreaterThan(0);
   });
 
   it("RESET nadpisań kontrolek czyści je dla WSKAZANEJ palety", () => {

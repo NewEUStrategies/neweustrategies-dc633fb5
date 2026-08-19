@@ -78,6 +78,7 @@ vi.mock("@/lib/overlayCoordinator", () => ({
 }));
 vi.mock("@/lib/a11y/useFocusTrap", () => ({ useFocusTrap: () => {} }));
 
+import i18n from "@/lib/i18n";
 import { PopupHost } from "@/components/popups/PopupHost";
 import { defaultPopupSettings } from "@/lib/builder/popups";
 
@@ -140,6 +141,9 @@ describe("kiedy host MILCZY", () => {
     const { container } = await mountAndFire();
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("na LOGOWANIU też nie pokazuje popupu", async () => {
@@ -148,6 +152,9 @@ describe("kiedy host MILCZY", () => {
     const { container } = await mountAndFire();
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("popup z PUSTYM dokumentem jest pomijany, nie renderowany jako puste okno", async () => {
@@ -158,6 +165,9 @@ describe("kiedy host MILCZY", () => {
     const { container } = await mountAndFire();
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("popup ZAMKNIĘTY w tej wizycie nie wraca po nawigacji", async () => {
@@ -179,6 +189,9 @@ describe("kiedy host MILCZY", () => {
     const { container } = await mountAndFire([popup({ frequencyDays: 7 })]);
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("częstotliwość 0 dni znaczy „pokazuj zawsze”, także po zamknięciu", async () => {
@@ -187,6 +200,7 @@ describe("kiedy host MILCZY", () => {
     await mountAndFire([popup({ frequencyDays: 0 })]);
 
     expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(env.beacons).toEqual([{ kind: "view", id: "popup-1" }]);
   });
 });
 
@@ -198,6 +212,9 @@ describe("targetowanie", () => {
     const { container } = await mountAndFire([popup({ audience: "guest" })]);
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("popup dla ZALOGOWANYCH nie pokazuje się gościowi", async () => {
@@ -206,6 +223,9 @@ describe("targetowanie", () => {
     const { container } = await mountAndFire([popup({ audience: "user" })]);
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("popup wyłączony na TYM urządzeniu jest pomijany", async () => {
@@ -216,6 +236,9 @@ describe("targetowanie", () => {
     ]);
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("popup ograniczony do innej ŚCIEŻKI jest pomijany", async () => {
@@ -224,6 +247,9 @@ describe("targetowanie", () => {
     const { container } = await mountAndFire([popup({ includePaths: ["/pricing"] })]);
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("ścieżka WYKLUCZONA wygrywa nad dozwoloną", async () => {
@@ -234,6 +260,9 @@ describe("targetowanie", () => {
     ]);
 
     expect(container.innerHTML).toBe("");
+    // ...i nie zgłasza WYŚWIETLENIA. Popup pominięty warunkiem, ale zliczony
+    // jako pokaz, rozcieńcza konwersję w panelu pokazami, których nikt nie widział.
+    expect(env.beacons).toEqual([]);
   });
 
   it("PIERWSZY pasujący popup wygrywa - dwa modale naraz to pułapka", async () => {
@@ -338,6 +367,8 @@ describe("wyzwalacze", () => {
     });
 
     expect(screen.queryByRole("dialog")).toBeNull();
+    // Dzielenie przez zero nie może też ZGŁOSIĆ pokazu, którego nie było.
+    expect(env.beacons).toEqual([]);
   });
 
   it("EXIT-INTENT otwiera popup przy wyjściu kursora GÓRĄ okna", async () => {
@@ -364,6 +395,9 @@ describe("wyzwalacze", () => {
     unmount();
 
     expect(env.cancelled).toContain("builder-popup:popup-1");
+    // Anulowanie to nie to samo co zwolnienie: miejsca nigdy nie dostaliśmy,
+    // więc `release` nie ma prawa się wykonać.
+    expect(env.released).toBe(0);
   });
 });
 
@@ -404,7 +438,13 @@ describe("okno popupu", () => {
   it("kolor przysłony pochodzi z ustawień", async () => {
     await mountAndFire([popup({ overlayColor: "rgba(1, 2, 3, 0.5)" })]);
 
-    expect(screen.getByRole("dialog").style.backgroundColor).toBe("rgba(1, 2, 3, 0.5)");
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.style.backgroundColor).toBe("rgba(1, 2, 3, 0.5)");
+    // Przysłona jest na nadrzędnym elemencie, nie na panelu z treścią - inaczej
+    // przyciemniłaby sam dokument.
+    expect((screen.getByTestId("dokument").parentElement as HTMLElement).style.backgroundColor).toBe(
+      "",
+    );
   });
 });
 
@@ -418,6 +458,8 @@ describe("zamykanie", () => {
     });
 
     expect(screen.queryByRole("dialog")).toBeNull();
+    // Zamknięcie klawiszem musi ZWOLNIĆ miejsce na nakładkę tak samo jak klik.
+    expect(env.released).toBe(1);
   });
 
   it("inny klawisz NIE zamyka popupu", async () => {
@@ -428,6 +470,7 @@ describe("zamykanie", () => {
     });
 
     expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(env.released).toBe(0);
   });
 
   it("kliknięcie TŁA zamyka, gdy ustawienia na to pozwalają", async () => {
@@ -436,6 +479,7 @@ describe("zamykanie", () => {
     fireEvent.click(screen.getByRole("dialog"));
 
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(env.released).toBe(1);
   });
 
   it("kliknięcie w PANEL nie zamyka popupu", async () => {
@@ -445,6 +489,7 @@ describe("zamykanie", () => {
     fireEvent.click(screen.getByTestId("dokument").parentElement!);
 
     expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(env.released).toBe(0);
   });
 
   it("z wyłączonym zamykaniem tłem klik w tło NIE zamyka", async () => {
@@ -453,6 +498,7 @@ describe("zamykanie", () => {
     fireEvent.click(screen.getByRole("dialog"));
 
     expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(env.released).toBe(0);
   });
 
   it("PUŁAPKA A11Y: bez zamykania tłem przycisk zamknięcia jest WYMUSZANY", async () => {
@@ -460,7 +506,11 @@ describe("zamykanie", () => {
     // blokuje stronę na dobre.
     await mountAndFire([popup({ closeOnOverlay: false, showCloseButton: false })]);
 
-    expect(screen.getByLabelText("Zamknij")).toBeTruthy();
+    const btn = screen.getByLabelText("Zamknij");
+    expect(btn.tagName).toBe("BUTTON");
+    // Wymuszony przycisk musi DZIAŁAĆ, nie tylko istnieć.
+    fireEvent.click(btn);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("przy zamykaniu tłem przycisk można ukryć", async () => {
@@ -476,6 +526,7 @@ describe("zamykanie", () => {
     fireEvent.click(screen.getByLabelText("Zamknij"));
 
     expect(env.released).toBe(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
@@ -485,6 +536,11 @@ describe("telemetria wzrostu", () => {
     await mountAndFire();
 
     expect(env.beacons).toEqual([{ kind: "view", id: "popup-1" }]);
+    // Jedno pokazanie to JEDEN pokaz, nawet gdy host się przerenderuje.
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(env.beacons.filter((b) => b.kind === "view")).toHaveLength(1);
   });
 
   it("klik w link w treści zgłasza KONWERSJĘ", async () => {
@@ -493,6 +549,8 @@ describe("telemetria wzrostu", () => {
     fireEvent.click(screen.getByText("przejdz-do-oferty"));
 
     expect(env.beacons).toContainEqual({ kind: "conversion", id: "popup-1" });
+    // Konwersja nie zamyka okna - odwiedzający sam decyduje.
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("klik w ZAMKNIĘCIE nie jest konwersją", async () => {
@@ -502,6 +560,8 @@ describe("telemetria wzrostu", () => {
     fireEvent.click(screen.getByLabelText("Zamknij"));
 
     expect(env.beacons.filter((b) => b.kind === "conversion")).toHaveLength(0);
+    // Samo wyświetlenie zostaje zgłoszone - inaczej mianownik wskaźnika byłby zerem.
+    expect(env.beacons.filter((b) => b.kind === "view")).toHaveLength(1);
   });
 
   it("konwersja liczy się RAZ na pokazanie, nie na każdy klik", async () => {
@@ -511,6 +571,7 @@ describe("telemetria wzrostu", () => {
     fireEvent.click(screen.getByText("przejdz-do-oferty"));
 
     expect(env.beacons.filter((b) => b.kind === "conversion")).toHaveLength(1);
+    expect(env.beacons.map((b) => b.kind)).toEqual(["view", "conversion"]);
   });
 
   it("klik w tło (poza panelem) nie jest konwersją", async () => {
@@ -519,6 +580,7 @@ describe("telemetria wzrostu", () => {
     fireEvent.click(screen.getByRole("dialog"));
 
     expect(env.beacons.filter((b) => b.kind === "conversion")).toHaveLength(0);
+    expect(env.beacons.filter((b) => b.kind === "view")).toHaveLength(1);
   });
 });
 
@@ -528,11 +590,26 @@ describe("język", () => {
     await mountAndFire();
 
     await waitFor(() => expect(screen.getByTestId("dokument").textContent).toContain("pl"));
+    expect(screen.getByTestId("dokument").textContent).not.toContain("en");
   });
 
   it("etykieta zamknięcia jest tłumaczona", async () => {
     await mountAndFire();
 
     expect(screen.getByLabelText("Zamknij")).toBeTruthy();
+    expect(screen.queryByLabelText("Close")).toBeNull();
+  });
+
+  it("po przełączeniu na ANGIELSKI zmienia się i etykieta, i język dokumentu", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      await mountAndFire();
+
+      expect(screen.getByLabelText("Close")).toBeTruthy();
+      expect(screen.queryByLabelText("Zamknij")).toBeNull();
+      expect(screen.getByTestId("dokument").textContent).toContain("en");
+    } finally {
+      await i18n.changeLanguage("pl");
+    }
   });
 });

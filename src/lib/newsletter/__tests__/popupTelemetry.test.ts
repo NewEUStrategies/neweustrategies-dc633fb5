@@ -30,6 +30,27 @@ import {
 
 const SESSION_KEY = "nes:nl-popup-session";
 
+/**
+ * Podmienia `window.sessionStorage` na atrapę na czas jednego przypadku.
+ *
+ * `vi.spyOn(window.sessionStorage, ...)` nie daje się tu odkręcić - magazyn
+ * happy-dom jest Proxy i `restoreAllMocks()` zostawia atrapę na miejscu, więc
+ * jeden test zatruwał następny (i przechodził z niewłaściwego powodu).
+ */
+function withStorage(fake: Partial<Storage>, body: () => void): void {
+  const original = Object.getOwnPropertyDescriptor(window, "sessionStorage");
+  Object.defineProperty(window, "sessionStorage", {
+    value: { getItem: () => null, setItem: () => {}, clear: () => {}, ...fake },
+    configurable: true,
+  });
+  try {
+    body();
+  } finally {
+    if (original) Object.defineProperty(window, "sessionStorage", original);
+    else delete (window as unknown as Record<string, unknown>).sessionStorage;
+  }
+}
+
 beforeEach(() => {
   h.calls = [];
   h.reject = false;
@@ -66,6 +87,8 @@ describe("identyfikator sesji", () => {
     window.sessionStorage.setItem(SESSION_KEY, "sesja-z-wczesniej");
 
     expect(newsletterPopupSessionId()).toBe("sesja-z-wczesniej");
+    // ...a w magazynie nadal stoi ta sama wartość, nie świeżo wygenerowana.
+    expect(window.sessionStorage.getItem(SESSION_KEY)).toBe("sesja-z-wczesniej");
   });
 
   it("bez `crypto.randomUUID` nadal daje identyfikator", () => {
@@ -87,19 +110,41 @@ describe("identyfikator sesji", () => {
   it("ZABLOKOWANY sessionStorage nie wywala się - oddaje wartość zastępczą", () => {
     // Prywatny tryb przeglądarki i polityki firmowe potrafią rzucić na sam
     // dostęp do magazynu; wyjątek tutaj przewróciłby cały popup.
-    vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
-      throw new Error("brak dostepu");
-    });
-
-    expect(newsletterPopupSessionId()).toBe("no-storage");
+    const proby: string[] = [];
+    withStorage(
+      {
+        getItem: () => {
+          proby.push("getItem");
+          throw new Error("brak dostepu");
+        },
+      },
+      () => {
+        expect(newsletterPopupSessionId()).toBe("no-storage");
+        // Wartość zastępcza jest STAŁA - inaczej każde zdarzenie jednej wizyty
+        // miałoby inną sesję i raport rozsypałby się tak samo jak bez magazynu.
+        expect(newsletterPopupSessionId()).toBe("no-storage");
+        expect(proby).toEqual(["getItem", "getItem"]);
+      },
+    );
   });
 
   it("awaria ZAPISU do magazynu też schodzi na wartość zastępczą", () => {
-    vi.spyOn(window.sessionStorage, "setItem").mockImplementation(() => {
-      throw new Error("quota");
-    });
-
-    expect(newsletterPopupSessionId()).toBe("no-storage");
+    // Odczyt DZIAŁA, wywraca się dopiero zapis - inaczej test przechodziłby,
+    // nawet gdyby moduł w ogóle nie próbował nic zapisać.
+    const zapisy: string[] = [];
+    withStorage(
+      {
+        getItem: () => null,
+        setItem: (key: string) => {
+          zapisy.push(key);
+          throw new Error("quota");
+        },
+      },
+      () => {
+        expect(newsletterPopupSessionId()).toBe("no-storage");
+        expect(zapisy).toEqual([SESSION_KEY]);
+      },
+    );
   });
 });
 
@@ -110,6 +155,8 @@ describe("render po stronie serwera", () => {
     vi.stubGlobal("window", undefined);
     try {
       expect(newsletterPopupSessionId()).toBe("ssr");
+      // „ssr" to nie to samo co „no-storage" - rozróżnienie widać w raporcie.
+      expect(newsletterPopupSessionId()).not.toBe("no-storage");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -120,8 +167,10 @@ describe("render po stronie serwera", () => {
     vi.stubGlobal("window", undefined);
     try {
       trackNewsletterPopupEvent({ event: "impression", lang: "pl" });
+      trackNewsletterPopupEvent({ event: "success", lang: "pl" });
 
       expect(h.calls).toHaveLength(0);
+      expect(h.calls).toEqual([]);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -157,6 +206,8 @@ describe("wysyłka zdarzenia", () => {
       errorCode: "rate-limited",
       meta: { plan: "pro" },
     });
+    // Identyfikator sesji jest DOKŁADANY przez moduł, nie przez wywołującego.
+    expect(h.calls[0]!.sessionId).toBe(newsletterPopupSessionId());
   });
 
   it("kolejne zdarzenia jednej wizyty mają TĘ SAMĄ sesję", () => {

@@ -65,6 +65,10 @@ describe("szkielet obowiązkowy", () => {
     const b = buildDefaultDoc("inline");
 
     expect(a.sections[0]?.id).not.toBe(b.sections[0]?.id);
+    // Widgety też - inaczej patch jednego dokumentu trafiałby w drugi.
+    const idsA = a.sections[0]!.widgets.map((w) => w.id);
+    const idsB = b.sections[0]!.widgets.map((w) => w.id);
+    expect(idsA.filter((id) => idsB.includes(id))).toEqual([]);
   });
 });
 
@@ -81,18 +85,27 @@ describe("zaczepy treści z ustawień tenanta", () => {
     const doc = buildDefaultDoc("inline", { description: TEXT });
 
     expect(types(doc)).toEqual(["heading", "paragraph", "field.email", "submit"]);
+    const paragraph = doc.sections[0]!.widgets[1] as { html?: unknown };
+    expect(paragraph.html).toEqual(TEXT);
   });
 
   it("opis PUSTY w obu językach nie dokłada pustego akapitu", () => {
     const doc = buildDefaultDoc("inline", { description: { pl: "", en: "" } });
 
     expect(types(doc)).not.toContain("paragraph");
+    // Szkielet obowiązkowy zostaje nietknięty.
+    expect(types(doc)).toEqual(["heading", "field.email", "submit"]);
   });
 
   it("opis w JEDNYM języku wystarcza, żeby akapit powstał", () => {
     const doc = buildDefaultDoc("inline", { description: { pl: "Tylko polski", en: "" } });
 
     expect(types(doc)).toContain("paragraph");
+    // Pusta strona językowa zostaje pusta, a nie kopiuje polskiej treści.
+    const paragraph = doc.sections[0]!.widgets.find((w) => w.type === "paragraph") as {
+      html?: { pl?: string; en?: string };
+    };
+    expect(paragraph.html).toEqual({ pl: "Tylko polski", en: "" });
   });
 
   it("etykieta przycisku z ustawień trafia do przycisku", () => {
@@ -100,12 +113,18 @@ describe("zaczepy treści z ustawień tenanta", () => {
     const submit = doc.sections[0]?.widgets.find((w) => w.type === "submit") as { label?: unknown };
 
     expect(submit.label).toEqual(TEXT);
+    // Etykieta nie dokłada widgetu - podmienia treść istniejącego przycisku.
+    expect(types(doc)).toEqual(["heading", "field.email", "submit"]);
   });
 
   it("komunikat sukcesu dokłada własny widget", () => {
     const doc = buildDefaultDoc("inline", { successMsg: TEXT });
 
     expect(types(doc)).toContain("success-message");
+    const msg = doc.sections[0]!.widgets.find((w) => w.type === "success-message") as {
+      text?: unknown;
+    };
+    expect(msg.text).toEqual(TEXT);
   });
 });
 
@@ -117,6 +136,14 @@ describe("zgody i klauzula RODO", () => {
     });
 
     expect(types(doc)).toContain("field.checkbox");
+    // Treść zgody idzie do widgetu w OBU językach - checkbox bez treści to
+    // pole, którego nikt nie potrafi świadomie zaznaczyć.
+    const chk = doc.sections[0]!.widgets.find((w) => w.type === "field.checkbox") as {
+      html?: unknown;
+      required?: boolean;
+    };
+    expect(chk.html).toEqual({ pl: "<p>Zgoda</p>", en: "<p>Consent</p>" });
+    expect(chk.required).toBe(true);
   });
 
   it("wymagana zgoda BEZ treści nie tworzy pustego checkboxa", () => {
@@ -126,12 +153,15 @@ describe("zgody i klauzula RODO", () => {
     });
 
     expect(types(doc)).not.toContain("field.checkbox");
+    expect(types(doc)).toEqual(["heading", "field.email", "submit"]);
   });
 
   it("treść zgody BEZ flagi wymagania nie dokłada checkboxa", () => {
     const doc = buildDefaultDoc("popup", { termsHtml: { pl: "<p>Zgoda</p>", en: null } });
 
     expect(types(doc)).not.toContain("field.checkbox");
+    // Sama treść nie tworzy pola - decyduje flaga `requireTerms`.
+    expect(types(doc)).toEqual(["heading", "field.email", "submit"]);
   });
 
   it("brakujący język zgody schodzi na pusty napis, nie na `null`", () => {
@@ -163,6 +193,7 @@ describe("zgody i klauzula RODO", () => {
     const doc = buildDefaultDoc("inline", { policyHtml: { pl: null, en: null } });
 
     expect(types(doc)).not.toContain("paragraph");
+    expect(types(doc)).toEqual(["heading", "field.email", "submit"]);
   });
 
   it("checkbox zgody stoi ZA przyciskiem, klauzula RODO za nim", () => {
@@ -191,6 +222,8 @@ describe("popup - okładka i styl", () => {
     const doc = buildDefaultDoc("popup", { coverUrl: "https://example.test/cover.png" });
 
     expect(types(doc)[0]).toBe("image");
+    const image = doc.sections[0]!.widgets[0] as { url?: string };
+    expect(image.url).toBe("https://example.test/cover.png");
   });
 
   it("obraz dostaje adres i proporcje okładki", () => {
@@ -205,12 +238,16 @@ describe("popup - okładka i styl", () => {
     const doc = buildDefaultDoc("inline", { coverUrl: "https://example.test/cover.png" });
 
     expect(types(doc)).not.toContain("image");
+    expect(types(doc)[0]).toBe("heading");
   });
 
   it("popup dostaje blok stylu z domyślnym układem i promieniem", () => {
     const doc = buildDefaultDoc("popup");
 
     expect(doc.popup).toMatchObject({ layout: "stacked", radius: 16 });
+    // Wariant inline NIE dostaje bloku popupu - inaczej mail dziedziczyłby
+    // promień i układ okna modalnego.
+    expect(buildDefaultDoc("inline").popup).toBeUndefined();
   });
 
   it("wariant inline NIE dostaje bloku stylu popupu", () => {
@@ -224,6 +261,7 @@ describe("popup - okładka i styl", () => {
     const doc = buildDefaultDoc("popup", { popupStyle: { layout: "split", radius: 4 } });
 
     expect(doc.popup).toMatchObject({ layout: "split", radius: 4 });
+    expect(NlDocSchema.safeParse(doc).success).toBe(true);
   });
 
   it("kolory są przenoszone tylko wtedy, gdy naprawdę są", () => {

@@ -57,14 +57,20 @@ describe("csvCell - wspólna reguła dla całego repo", () => {
   it("przecinek w DIAGNOSTYCE dostawcy wymusza cytowanie", () => {
     // Realny przykład: „550, mailbox full" bez cytowania przesuwa cały wiersz.
     expect(csvCell("550, mailbox full")).toBe('"550, mailbox full"');
+    // Średnik NIE jest separatorem w tym pliku, więc nie wymusza cytowania.
+    expect(csvCell("550; mailbox full")).toBe("550; mailbox full");
   });
 
   it("cudzysłów jest podwajany, nie usuwany", () => {
     expect(csvCell('powód "nieznany"')).toBe('"powód ""nieznany"""');
+    // Podwojenie działa też, gdy cudzysłów jest jedynym znakiem wartości.
+    expect(csvCell('"')).toBe('""""');
   });
 
   it("nowa linia w wartości wymusza cytowanie", () => {
     expect(csvCell("linia1\nlinia2")).toBe('"linia1\nlinia2"');
+    // Powrót karetki (Windows) liczy się tak samo.
+    expect(csvCell("linia1\r\nlinia2")).toBe('"linia1\r\nlinia2"');
   });
 
   it("brak wartości daje pustą komórkę", () => {
@@ -89,10 +95,14 @@ describe("toCsv", () => {
 
   it("bez wierszy zostaje sam nagłówek", () => {
     expect(toCsv(["a", "b"], [])).toBe("a,b");
+    // Bez zbędnej pustej linii na końcu - Excel czyta ją jako puste rekordy.
+    expect(toCsv(["a", "b"], []).endsWith("\n")).toBe(false);
   });
 
   it("liczby i braki są zapisywane bez rzutowania na „null”", () => {
     expect(toCsv(["n", "x"], [[3, null]])).toBe("n,x\n3,");
+    // `undefined` schodzi na to samo - inaczej w pliku pojawia się słowo.
+    expect(toCsv(["n", "x"], [[3, undefined]])).toBe("n,x\n3,");
   });
 });
 
@@ -101,10 +111,15 @@ describe("csvFileNameFor", () => {
     expect(csvFileNameFor("suppressions", "2026-08-18T15:30:00.000Z")).toBe(
       "suppressions-2026-08-18.csv",
     );
+    // Prefiks jest częścią nazwy, nie ozdobą - inny prefiks daje inny plik.
+    expect(csvFileNameFor("newsletter", "2026-08-18T15:30:00.000Z")).toBe(
+      "newsletter-2026-08-18.csv",
+    );
   });
 
   it("godzina nie trafia do nazwy pliku", () => {
-    expect(csvFileNameFor("newsletter", "2026-08-18T15:30:00.000Z")).not.toContain("15");
+    expect(csvFileNameFor("newsletter", "2026-08-18T15:30:00.000Z")).not.toContain("15:");
+    expect(csvFileNameFor("newsletter", "2026-08-18T15:30:00.000Z")).not.toContain("T");
   });
 });
 
@@ -114,6 +129,8 @@ describe("csvFileNameFor", () => {
 describe("filterSuppressions", () => {
   it("zawęża po fragmencie adresu, bez wielkości liter", () => {
     expect(filterSuppressions(LIST, "BORYS").map((r) => r.id)).toEqual(["b"]);
+    // Wielkość liter we WZORCU i w danych nie ma znaczenia w żadną stronę.
+    expect(filterSuppressions(LIST, "borys").map((r) => r.id)).toEqual(["b"]);
   });
 
   it("pusta fraza nie filtruje", () => {
@@ -123,10 +140,13 @@ describe("filterSuppressions", () => {
 
   it("fraza bez trafień daje pustą listę, nie całą", () => {
     expect(filterSuppressions(LIST, "nie-ma")).toEqual([]);
+    // Wejście zostaje nietknięte - filtr nie mutuje listy.
+    expect(LIST).toHaveLength(2);
   });
 
   it("dopasowanie po domenie łapie wszystkich z tej domeny", () => {
     expect(filterSuppressions(LIST, "example.test")).toHaveLength(2);
+    expect(filterSuppressions(LIST, "example.test").map((r) => r.id)).toEqual(["a", "b"]);
   });
 });
 
@@ -155,6 +175,7 @@ describe("canAddSuppression", () => {
 
   it("odrzuca wartość bez małpy", () => {
     expect(canAddSuppression("martwy")).toBe(false);
+    expect(canAddSuppression("example.test")).toBe(false);
   });
 
   it("warunek jest LUŹNY z rozmysłu - twarda walidacja stoi po stronie serwera", () => {
@@ -168,10 +189,14 @@ describe("canAddSuppression", () => {
 describe("normalizeSuppressionEmail", () => {
   it("sprowadza adres do małych liter i obcina białe znaki", () => {
     expect(normalizeSuppressionEmail("  Martwy@Example.TEST ")).toBe("martwy@example.test");
+    // Tabulator i nowa linia też są białymi znakami.
+    expect(normalizeSuppressionEmail("\tMartwy@Example.test\n")).toBe("martwy@example.test");
   });
 
   it("adres już znormalizowany zostaje bez zmian", () => {
     expect(normalizeSuppressionEmail("martwy@example.test")).toBe("martwy@example.test");
+    // Funkcja jest idempotentna - drugie przejście nic nie zmienia.
+    expect(normalizeSuppressionEmail(normalizeSuppressionEmail("  A@B.TEST "))).toBe("a@b.test");
   });
 });
 
@@ -206,19 +231,24 @@ describe("suppressionsToCsv", () => {
     ]);
 
     expect(csv.split("\n")[1]?.endsWith(",,")).toBe(true);
+    // Puste komórki, a nie słowo „null" w pliku dla działu prawnego.
+    expect(csv).not.toContain("null");
   });
 
   it("pusta lista daje sam nagłówek", () => {
     expect(suppressionsToCsv([])).toBe(SUPPRESSION_CSV_COLUMNS.join(","));
+    expect(suppressionsToCsv([]).split("\n")).toHaveLength(1);
   });
 });
 
 describe("suppressionCsvFileName", () => {
   it("plik nazywa się od listy wykluczeń, nie od newslettera", () => {
     expect(suppressionCsvFileName("2026-08-18T00:00:00.000Z")).toBe("suppressions-2026-08-18.csv");
+    expect(suppressionCsvFileName("2026-12-31T23:59:59.000Z")).toBe("suppressions-2026-12-31.csv");
   });
 
   it("nazwa nie myli się z eksportem subskrybentów", () => {
     expect(suppressionCsvFileName("2026-08-18T00:00:00.000Z")).not.toContain("newsletter");
+    expect(suppressionCsvFileName("2026-08-18T00:00:00.000Z")).toContain("suppressions");
   });
 });

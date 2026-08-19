@@ -184,6 +184,9 @@ describe("ochrona niezapisanej pracy", () => {
     await mount();
 
     expect(guardActive()).toBe(false);
+    // Blokada została ZAREJESTROWANA, tylko wyłączona - inaczej test przechodziłby
+    // też wtedy, gdyby edytor wcale o nią nie poprosił.
+    expect(env.guardWith.length).toBeGreaterThan(0);
   });
 
   it("zmiana nazwy WŁĄCZA ostrzeżenie o niezapisanych zmianach", async () => {
@@ -192,6 +195,8 @@ describe("ochrona niezapisanej pracy", () => {
     fireEvent.change(nameInput(), { target: { value: "Inny" } });
 
     expect(guardActive()).toBe(true);
+    // Pole trzyma nową wartość - ostrzeżenie bez zmiany w polu byłoby fałszywe.
+    expect(nameInput().value).toBe("Inny");
   });
 
   it("zmiana dokumentu w builderze też włącza ostrzeżenie", async () => {
@@ -200,6 +205,8 @@ describe("ochrona niezapisanej pracy", () => {
     fireEvent.click(screen.getByText("zmien-dokument"));
 
     expect(guardActive()).toBe(true);
+    // Zmiana idzie z buildera, nie z pola nazwy.
+    expect(nameInput().value).toBe("Powitalny");
   });
 
   it("UDANY zapis odświeża migawkę i gasi ostrzeżenie", async () => {
@@ -235,6 +242,7 @@ describe("ochrona niezapisanej pracy", () => {
     await mount(popupRecord({ name: "Powitalny" }));
 
     fireEvent.change(nameInput(), { target: { value: "Inny" } });
+    expect(guardActive()).toBe(true);
     fireEvent.change(nameInput(), { target: { value: "Powitalny" } });
 
     expect(guardActive()).toBe(false);
@@ -268,6 +276,8 @@ describe("zapis", () => {
     });
 
     expect(env.saved[0]!.name).toBe("Popup");
+    // Nie pusty napis i nie same spacje - inaczej lista pokazuje puste wiersze.
+    expect(env.saved[0]!.name).not.toBe("");
   });
 
   it("nazwa jest przycinana z brzegowych spacji", async () => {
@@ -279,6 +289,8 @@ describe("zapis", () => {
     });
 
     expect(env.saved[0]!.name).toBe("Powitalny 2");
+    // Spacja W ŚRODKU nazwy zostaje - przycinamy tylko brzegi.
+    expect(env.saved[0]!.name).toContain(" ");
   });
 
   it("zmieniony status jedzie w zapisie", async () => {
@@ -291,6 +303,8 @@ describe("zapis", () => {
     });
 
     expect(env.saved[0]!.status).toBe("active");
+    // Zmiana statusu nie gubi po drodze dokumentu ani nazwy.
+    expect(env.saved[0]!.name).toBe("Powitalny");
   });
 
   it("zmieniony dokument jedzie w zapisie", async () => {
@@ -302,6 +316,8 @@ describe("zapis", () => {
     });
 
     expect(JSON.stringify(env.saved[0]!.builder_data)).toContain("nowa");
+    // Zapis idzie RAZ, nie raz na każdą zmianę dokumentu.
+    expect(env.saved).toHaveLength(1);
   });
 
   it("przycisk zapisu jest ZABLOKOWANY w trakcie zapisywania", async () => {
@@ -309,6 +325,11 @@ describe("zapis", () => {
 
     fireEvent.click(screen.getByText(P("save")));
 
+    // Etykieta przechodzi na „zapisywanie", a przycisk jest zablokowany, więc
+    // podwójny klik nie wysyła drugiego żądania.
+    const button = screen.getByText(P("saving")).closest("button")!;
+    expect(button.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(button);
     await waitFor(() => expect(env.saved.length).toBe(1));
   });
 });
@@ -319,12 +340,15 @@ describe("zakładki i builder", () => {
     await mount();
 
     expect(screen.getByTestId("builder").getAttribute("data-scope")).toBe("popup");
+    expect(screen.getByTestId("builder").getAttribute("data-scope")).not.toBe("page");
   });
 
   it("język kanwy startuje od języka panelu", async () => {
     await mount();
 
     expect(screen.getByTestId("builder").getAttribute("data-lang")).toBe("pl");
+    // Kanwa dostaje język, a nie pełny kod lokalizacji („pl-PL").
+    expect(screen.getByTestId("builder").getAttribute("data-lang")).not.toContain("-");
   });
 
   it("zakładka ustawień pokazuje formularz wyświetlania", async () => {
@@ -344,5 +368,7 @@ describe("zakładki i builder", () => {
 
     const back = screen.getByText(P("title")).closest("a");
     expect(back?.getAttribute("href")).toBe("/admin/popups");
+    // To link, nie przycisk - operator może otworzyć listę w nowej karcie.
+    expect(back?.tagName).toBe("A");
   });
 });

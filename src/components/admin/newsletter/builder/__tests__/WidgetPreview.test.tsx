@@ -42,26 +42,33 @@ describe("kontrakt z rejestrem", () => {
 
   it("każdy typ renderuje się też w wersji angielskiej", () => {
     const puste: string[] = [];
+    const zPolskim: string[] = [];
 
     for (const item of WIDGET_REGISTRY) {
       const { container, unmount } = show(makeWidget(item.type), "en");
       if (container.innerHTML.trim() === "") puste.push(item.type);
+      // Podgląd angielski nie może pokazywać polskich domyślnych etykiet.
+      if (/Wybierz|Dolacz|Zamknij|Twoj kod/.test(container.textContent ?? ""))
+        zPolskim.push(item.type);
       unmount();
     }
 
     expect(puste).toEqual([]);
+    expect(zPolskim).toEqual([]);
   });
 
   it("brak widgetu nie renderuje niczego, zamiast wywalać kanwę", () => {
     const { container } = show(null);
 
     expect(container.innerHTML).toBe("");
+    expect(container.childElementCount).toBe(0);
   });
 
   it("typ nieznany podglądowi renderuje pustkę, a nie wyjątek", () => {
     const { container } = show({ id: "x", type: "nie-ma-takiego" } as unknown as NlWidget);
 
     expect(container.innerHTML).toBe("");
+    expect(container.textContent).toBe("");
   });
 });
 
@@ -72,13 +79,16 @@ describe("nagłówek", () => {
 
     const heading = screen.getByText("Tytuł");
     expect(heading.tagName).toBe("H2");
+    // Poziom 2 to NIE H1 - hierarchia w mailu ma znaczenie dla czytników.
+    expect(document.querySelector("h1")).toBeNull();
   });
 
   it("pusty tekst pokazuje kreskę - element nie znika bez śladu", () => {
     const widget = { ...makeWidget("heading"), text: { pl: "", en: "" } };
-    show(widget as NlWidget);
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("-")).toBeTruthy();
+    expect(container.querySelector("h1,h2,h3")?.textContent).toBe("-");
   });
 
   it("wyrównanie i kolor trafiają do stylu", () => {
@@ -99,10 +109,12 @@ describe("nagłówek", () => {
     const widget = { ...makeWidget("heading"), text: { pl: "Tytuł", en: "Title" } };
     const { unmount } = show(widget as NlWidget, "pl");
     expect(screen.getByText("Tytuł")).toBeTruthy();
+    expect(screen.queryByText("Title")).toBeNull();
     unmount();
 
     show(widget as NlWidget, "en");
     expect(screen.getByText("Title")).toBeTruthy();
+    expect(screen.queryByText("Tytuł")).toBeNull();
   });
 });
 
@@ -126,6 +138,7 @@ describe("akapit", () => {
     const { container } = show(small as NlWidget);
 
     expect(container.querySelector("p")?.className).toContain("text-xs");
+    expect(container.querySelector("p")?.textContent).toBe("mały");
   });
 });
 
@@ -140,6 +153,7 @@ describe("obraz", () => {
 
     const img = screen.getByAltText("Opis obrazu") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("https://example.test/a.png");
+    expect(img.getAttribute("alt")).toBe("Opis obrazu");
   });
 
   it("BEZ adresu pokazuje zastępczy placeholder, nie pustą dziurę", () => {
@@ -147,7 +161,9 @@ describe("obraz", () => {
     const { container } = show(widget as NlWidget);
 
     expect(container.querySelector("img")).toBeNull();
-    expect(container.innerHTML.trim()).not.toBe("");
+    // Placeholder musi być WIDOCZNYM prostokątem, nie pustym div-em bez wymiaru.
+    expect(container.firstElementChild?.className).toContain("border-dashed");
+    expect(container.textContent?.trim()).not.toBe("");
   });
 });
 
@@ -173,17 +189,20 @@ describe("separator i odstęp", () => {
 
 describe("pola formularza", () => {
   it("pole e-mail jest oznaczone jako WYMAGANE", () => {
-    show(makeWidget("field.email"));
+    const { container } = show(makeWidget("field.email"));
 
     // Gwiazdka to jedyny sygnał wymagalności w podglądzie.
     expect(screen.getByText("*")).toBeTruthy();
+    expect(container.querySelector("input")?.getAttribute("type")).toBe("email");
   });
 
   it("pole tekstowe pokazuje swoją etykietę", () => {
     const widget = { ...makeWidget("field.text"), label: { pl: "Imię", en: "First name" } };
-    show(widget as NlWidget);
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText(/Imię/)).toBeTruthy();
+    // Pole nieobowiązkowe nie dostaje gwiazdki.
+    expect(container.textContent).not.toContain("*");
   });
 
   it("checkbox zgody renderuje swoją treść jako HTML", () => {
@@ -191,43 +210,80 @@ describe("pola formularza", () => {
       ...makeWidget("field.checkbox"),
       html: { pl: "<span>Zgoda marketingowa</span>", en: "<span>Consent</span>" },
     };
-    show(widget as NlWidget);
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("Zgoda marketingowa")).toBeTruthy();
+    // Treść zgody idzie przez sanityzację - znacznik ma zostać, skryptu nie ma.
+    expect(container.querySelector("span")).toBeTruthy();
   });
 
-  it("lista wyboru renderuje się z etykietą", () => {
+  it("lista wyboru pokazuje etykietę, podpowiedź i WSZYSTKIE opcje", () => {
     const { container } = show(makeWidget("field.select"));
 
-    expect(container.innerHTML.trim()).not.toBe("");
+    expect(screen.getByText("Wybierz")).toBeTruthy();
+    const opcje = [...container.querySelectorAll("option")].map((o) => o.textContent);
+    expect(opcje).toEqual(["Wybierz opcje...", "Opcja 1", "Opcja 2"]);
+    // Podgląd nie może być klikalny - to atrapa, nie działający formularz.
+    expect(container.querySelector("select")?.hasAttribute("disabled")).toBe(true);
   });
 
-  it("wybór list mailingowych renderuje się z etykietą", () => {
+  it("wybór list mailingowych mówi, SKĄD wezmą się listy i jak je pokaże", () => {
     const { container } = show(makeWidget("field.mailing-lists"));
 
-    expect(container.innerHTML.trim()).not.toBe("");
+    expect(screen.getByText("Interesuja mnie tematy")).toBeTruthy();
+    // Domyślnie checkboxy - operator musi to widzieć bez wchodzenia w ustawienia.
+    expect(container.textContent).toContain("(checkboxes)");
+    expect(container.textContent).toContain("Listy z ustawien newslettera");
+  });
+
+  it("wybór list w trybie listy rozwijanej mówi to wprost", () => {
+    const widget = { ...makeWidget("field.mailing-lists"), display: "select" };
+    const { container } = show(widget as NlWidget);
+
+    expect(container.textContent).toContain("(dropdown)");
+    expect(container.textContent).not.toContain("(checkboxes)");
   });
 });
 
 describe("akcje", () => {
   it("przycisk wysyłki pokazuje swoją etykietę", () => {
     const widget = { ...makeWidget("submit"), label: { pl: "Zapisz się", en: "Subscribe" } };
-    show(widget as NlWidget);
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("Zapisz się")).toBeTruthy();
+    expect(container.querySelector("button")).toBeTruthy();
   });
 
   it("komunikat sukcesu pokazuje swoją treść", () => {
     const widget = { ...makeWidget("success-message"), text: { pl: "Gotowe", en: "Done" } };
-    show(widget as NlWidget);
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("Gotowe")).toBeTruthy();
+    // Komunikat sukcesu jest zielony - inaczej wygląda jak zwykły akapit.
+    expect(container.firstElementChild?.className).toContain("emerald");
   });
 
-  it("przycisk CTA pokazuje etykietę", () => {
+  it("przycisk CTA pokazuje etykietę i domyślnie jest wyśrodkowany", () => {
     const { container } = show(makeWidget("cta-button"));
 
-    expect(container.innerHTML.trim()).not.toBe("");
+    expect(screen.getByText("Dowiedz sie wiecej")).toBeTruthy();
+    expect(container.firstElementChild?.className).toContain("justify-center");
+  });
+
+  it("CTA na pełną szerokość dostaje klasę pełnej szerokości", () => {
+    const widget = { ...makeWidget("cta-button"), fullWidth: true, align: "left" };
+    const { container } = show(widget as NlWidget);
+
+    expect(container.querySelector("span")?.className).toContain("w-full");
+    expect(container.firstElementChild?.className).toContain("justify-start");
+  });
+
+  it("CTA BEZ etykiety pokazuje kreskę, a nie puste pudełko", () => {
+    const widget = { ...makeWidget("cta-button"), label: { pl: "", en: "" } };
+    const { container } = show(widget as NlWidget);
+
+    expect(screen.getByText("-")).toBeTruthy();
+    expect(container.querySelector("span")?.textContent).toBe("-");
   });
 });
 
@@ -235,20 +291,28 @@ describe("widgety popupowe", () => {
   it("przycisk zamknięcia ma etykietę dla czytnika ekranu", () => {
     show(makeWidget("close-button"));
 
-    expect(screen.getByLabelText("Zamknij popup")).toBeTruthy();
+    const btn = screen.getByLabelText("Zamknij popup");
+    expect(btn.getAttribute("aria-label")).toBe("Zamknij popup");
+    // W kanwie to CELOWO atrapa (span), nie przycisk - podgląd jest nieklikalny.
+    // Prawdziwe zamknięcie w PopupHost i SignupPopupPanel to <button>, co
+    // sprawdzają ich własne testy.
+    expect(btn.tagName).toBe("SPAN");
   });
 
   it("etykieta zamknięcia jest tłumaczona", () => {
     show(makeWidget("close-button"), "en");
 
     expect(screen.getByLabelText("Close popup")).toBeTruthy();
+    expect(screen.queryByLabelText("Zamknij popup")).toBeNull();
   });
 
   it("wariant ikonowy pokazuje glif, nie tekst", () => {
-    const widget = { ...makeWidget("close-button"), variant: "icon-x" };
-    show(widget as NlWidget);
+    const widget = { ...makeWidget("close-button"), variant: "icon-x", label: { pl: "Nie teraz", en: "Not now" } };
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("✕")).toBeTruthy();
+    // Wariant ikonowy nie pokazuje etykiety tekstowej obok glifu.
+    expect(container.textContent).not.toContain("Nie teraz");
   });
 
   it("wariant tekstowy pokazuje etykietę", () => {
@@ -257,9 +321,10 @@ describe("widgety popupowe", () => {
       variant: "text",
       label: { pl: "Nie teraz", en: "Not now" },
     };
-    show(widget as NlWidget);
+    const { container } = show(widget as NlWidget);
 
     expect(screen.getByText("Nie teraz")).toBeTruthy();
+    expect(container.textContent).not.toContain("✕");
   });
 
   it("pozycja w narożniku zmienia wyrównanie", () => {
@@ -267,23 +332,58 @@ describe("widgety popupowe", () => {
     const { container } = show(corner as NlWidget);
 
     expect(container.firstElementChild?.className).toContain("justify-end");
+    expect(container.firstElementChild?.className).not.toContain("justify-start");
   });
 
-  it("licznik czasu renderuje się z jednostkami", () => {
+  it("licznik czasu pokazuje CZTERY pola z jednostkami, dwucyfrowo", () => {
     const { container } = show(makeWidget("countdown"));
 
-    expect(container.innerHTML.trim()).not.toBe("");
+    // Domyślny termin to 7 dni od teraz, więc pole dni ma pokazać 06 albo 07.
+    const jednostki = [...container.querySelectorAll(".uppercase")].map((n) => n.textContent);
+    expect(jednostki).toEqual(["dni", "godz.", "min", "sek"]);
+    const liczby = [...container.querySelectorAll(".font-bold")].map((n) => n.textContent ?? "");
+    expect(liczby).toHaveLength(4);
+    expect(liczby.every((n) => /^\d{2}$/.test(n))).toBe(true);
   });
 
-  it("dowód społeczny renderuje treść", () => {
+  it("jednostki licznika są tłumaczone", () => {
+    const { container } = show(makeWidget("countdown"), "en");
+
+    const jednostki = [...container.querySelectorAll(".uppercase")].map((n) => n.textContent);
+    expect(jednostki).toEqual(["days", "hrs", "min", "sec"]);
+    expect(container.textContent).not.toContain("godz.");
+  });
+
+  it("termin w PRZESZŁOŚCI pokazuje zera, nie liczby ujemne", () => {
+    const widget = { ...makeWidget("countdown"), deadline: "2020-01-01T00:00:00.000Z" };
+    const { container } = show(widget as NlWidget);
+
+    const liczby = [...container.querySelectorAll(".font-bold")].map((n) => n.textContent);
+    expect(liczby).toEqual(["00", "00", "00", "00"]);
+    expect(container.textContent).not.toContain("-");
+  });
+
+  it("dowód społeczny WSTAWIA liczbę w miejsce znacznika {count}", () => {
     const { container } = show(makeWidget("social-proof"));
 
-    expect(container.innerHTML.trim()).not.toBe("");
+    expect(container.textContent).toBe("Dolacz do 1200+ subskrybentow");
+    // Znacznik nie może wyciec do treści widocznej dla odbiorcy.
+    expect(container.textContent).not.toContain("{count}");
   });
 
-  it("kod rabatowy pokazuje przycisk kopiowania", () => {
+  it("brak liczby zastępczej daje zero, a nie „undefined”", () => {
+    const widget = { ...makeWidget("social-proof"), fallbackCount: undefined };
+    const { container } = show(widget as NlWidget);
+
+    expect(container.textContent).toBe("Dolacz do 0+ subskrybentow");
+    expect(container.textContent).not.toContain("undefined");
+  });
+
+  it("kod rabatowy pokazuje etykietę, SAM KOD i przycisk kopiowania", () => {
     show(makeWidget("coupon"));
 
+    expect(screen.getByText("Twoj kod rabatowy")).toBeTruthy();
+    expect(screen.getByText("PROMO10")).toBeTruthy();
     expect(screen.getByText("Kopiuj")).toBeTruthy();
   });
 
@@ -291,5 +391,17 @@ describe("widgety popupowe", () => {
     show(makeWidget("coupon"), "en");
 
     expect(screen.getByText("Copy")).toBeTruthy();
+    expect(screen.queryByText("Kopiuj")).toBeNull();
+  });
+
+  it("styl „boxed” daje pełną ramkę, domyślny - przerywaną", () => {
+    const { container: dashed, unmount } = show(makeWidget("coupon"));
+    expect(dashed.firstElementChild?.className).toContain("border-dashed");
+    unmount();
+
+    const boxed = { ...makeWidget("coupon"), style: "boxed" };
+    const { container } = show(boxed as NlWidget);
+    expect(container.firstElementChild?.className).not.toContain("border-dashed");
+    expect(container.firstElementChild?.className).toContain("border-2");
   });
 });
