@@ -269,13 +269,18 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 ### MODUŁ 13 — Monetyzacja: checkout / subskrypcje / billing · linie 32,71% · funkcje 26,68%
 
-| Funkcjonalność                              | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
-| ------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Dołączenie do członkostwa (membership join) |      9 |         65 |   0,0% |  0,0% |    0,0% |  **0,0%** |      0/32 |
-| Subskrypcje / plany / cennik                |     16 |        401 |  23,2% | 22,1% |   25,5% | **20,0%** |    39/153 |
-| Billing: rekoncyliacja i panel              |    106 |      3 650 |  36,9% | 33,5% |   36,1% | **37,9%** |   276/765 |
-| Checkout (Stripe) + intencja                |     15 |        200 |  62,1% | 55,3% |   58,2% | **65,0%** |     32/55 |
-| Webhook płatności                           |      1 |         37 |  68,4% | 63,3% |   40,0% | **67,6%** |       2/5 |
+> **ZAMKNIĘTE 19.08.2026** — patrz `WDROZENIE_POKRYCIE_MONETYZACJI_MODUL_13_2026-08-19.md`.
+> Moduł (bez plików tras) stoi teraz na **65,5% linii i 80,8% funkcji**; osiem defektów
+> naprawionych, w tym odmowa operatora raportowana jako udana REZYGNACJA. Kolumny „po"
+> niżej dotyczą powierzchni, które ta praca objęła.
+
+| Funkcjonalność                              | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |      linie PO 19.08 |
+| ------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: | ------------------: |
+| Dołączenie do członkostwa (membership join) |      9 |         65 |   0,0% |  0,0% |    0,0% |  **0,0%** |      0/32 |           **96,9%** |
+| Subskrypcje / plany / cennik                |     16 |        401 |  23,2% | 22,1% |   25,5% | **20,0%** |    39/153 |           **98,0%** |
+| Billing: rekoncyliacja i panel              |    106 |      3 650 |  36,9% | 33,5% |   36,1% | **37,9%** |   276/765 | 95-98% (komponenty) |
+| Checkout (Stripe) + intencja                |     15 |        200 |  62,1% | 55,3% |   58,2% | **65,0%** |     32/55 |           bez zmian |
+| Webhook płatności                           |      1 |         37 |  68,4% | 63,3% |   40,0% | **67,6%** |       2/5 |           bez zmian |
 
 ### MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy · linie 22,55% · funkcje 15,28%
 
@@ -1105,6 +1110,10 @@ linii to większa dziura niż 20% na module o 5 tys.
 | 15  | Profil i konto                                        |          **2 791** |  19,12% |    18,00% |    187 |
 | 4   | Strony, wygląd, motyw, media, import                  |          **2 590** |  22,76% |    16,18% |    219 |
 | 18  | CRM                                                   |          **2 463** |  12,04% |     9,30% |    170 |
+
+> **Moduł 13 zamknięty 19.08.2026**: 32,71% → **65,5% linii** i 26,68% → **80,8% funkcji**
+> (bez plików tras), osiem defektów naprawionych. Patrz
+> `WDROZENIE_POKRYCIE_MONETYZACJI_MODUL_13_2026-08-19.md`.
 
 ### 8.1 Rekomendacje — kolejność, nie lista życzeń
 
