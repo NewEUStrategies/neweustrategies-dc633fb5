@@ -40,6 +40,7 @@ import { ExpertRequestQuotaEditor } from "@/components/admin/pricing/ExpertReque
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
 import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
 import { TIER_CAPABILITIES } from "@/lib/billing/capabilities";
+import { shiftExpandedAfterRemove, swapExpanded } from "@/lib/ui/expandedRows";
 
 beforeEach(() => {
   h.lang.current = "pl";
@@ -104,7 +105,7 @@ describe("TierBenefitsEditor - lista benefitów", () => {
       benefit({ pl: "Trzeci" }),
     ]);
 
-    fireEvent.click(screen.getAllByTitle("adminPricing.benefits.remove")[1]);
+    fireEvent.click(screen.getByLabelText("adminPricing.benefits.remove #2"));
 
     expect(latest().map((b) => b.pl)).toEqual(["Pierwszy", "Trzeci"]);
     expect(latest()).toHaveLength(2);
@@ -113,7 +114,7 @@ describe("TierBenefitsEditor - lista benefitów", () => {
   it("KOLEJNOŚĆ da się zmienić W DÓŁ", () => {
     const { latest } = renderBenefits([benefit({ pl: "Pierwszy" }), benefit({ pl: "Drugi" })]);
 
-    fireEvent.click(screen.getAllByTitle("adminPricing.benefits.moveDown")[0]);
+    fireEvent.click(screen.getByLabelText("adminPricing.benefits.moveDown #1"));
 
     expect(latest().map((b) => b.pl)).toEqual(["Drugi", "Pierwszy"]);
     expect(latest()).toHaveLength(2);
@@ -126,7 +127,7 @@ describe("TierBenefitsEditor - lista benefitów", () => {
       benefit({ pl: "Trzeci" }),
     ]);
 
-    fireEvent.click(screen.getAllByTitle("adminPricing.benefits.moveUp")[2]);
+    fireEvent.click(screen.getByLabelText("adminPricing.benefits.moveUp #3"));
 
     expect(latest().map((b) => b.pl)).toEqual(["Pierwszy", "Trzeci", "Drugi"]);
     expect(latest()).toHaveLength(3);
@@ -135,17 +136,23 @@ describe("TierBenefitsEditor - lista benefitów", () => {
   it("przesunięcie w górę pierwszego i w dół ostatniego jest ZABLOKOWANE", () => {
     renderBenefits([benefit({ pl: "Pierwszy" }), benefit({ pl: "Drugi" })]);
 
-    const up = screen.getAllByTitle("adminPricing.benefits.moveUp");
-    const down = screen.getAllByTitle("adminPricing.benefits.moveDown");
-    expect(up[0].hasAttribute("disabled")).toBe(true);
-    expect(down[1].hasAttribute("disabled")).toBe(true);
+    expect(screen.getByLabelText("adminPricing.benefits.moveUp #1").hasAttribute("disabled")).toBe(
+      true,
+    );
+    expect(
+      screen.getByLabelText("adminPricing.benefits.moveDown #2").hasAttribute("disabled"),
+    ).toBe(true);
   });
 
   it("pojedynczy benefit ma zablokowane oba przesunięcia", () => {
     renderBenefits([benefit()]);
 
-    expect(screen.getByTitle("adminPricing.benefits.moveUp").hasAttribute("disabled")).toBe(true);
-    expect(screen.getByTitle("adminPricing.benefits.moveDown").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByLabelText("adminPricing.benefits.moveUp #1").hasAttribute("disabled")).toBe(
+      true,
+    );
+    expect(
+      screen.getByLabelText("adminPricing.benefits.moveDown #1").hasAttribute("disabled"),
+    ).toBe(true);
   });
 });
 
@@ -267,6 +274,76 @@ describe("TierBenefitsEditor - BRAK WALIDACJI (stan zgłoszony)", () => {
     fireEvent.click(screen.getByText("adminPricing.benefits.add"));
 
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("TierBenefitsEditor - ETYKIETY DOSTĘPNE (bramka po defekcie)", () => {
+  // DEFEKT NAPRAWIONY 19.08.2026. Pola treści benefitu miały wyłącznie
+  // `placeholder="PL"` / `"EN"`, a `placeholder` ZNIKA po pierwszym znaku:
+  // czytnik ekranu (i osoba wracająca do wypełnionego formularza) nie miał jak
+  // odróżnić pola polskiego od angielskiego. To ta sama klasa defektu, którą
+  // repo naprawiło wcześniej w formularzu tworzenia firmy („osiem nienazwanych
+  // pól dla czytnika ekranu").
+  it("pola treści benefitu MAJĄ etykietę dostępną z numerem wiersza", () => {
+    renderBenefits([benefit(), benefit({ pl: "Drugi", en: "Second" })]);
+
+    expect(screen.getByLabelText("adminPricing.benefits.labelPl #1")).toBeTruthy();
+    expect(screen.getByLabelText("adminPricing.benefits.labelEn #2")).toBeTruthy();
+  });
+
+  it("etykieta zostaje przy WYPEŁNIONYM polu (inaczej niż podpowiedź)", () => {
+    // Pole wypełnione od startu: `placeholder` w takim stanie już nie jest
+    // widoczny, więc etykieta jest jedyną nazwą, jaką ma czytnik ekranu.
+    renderBenefits([benefit({ pl: "Dostęp do analiz" })]);
+
+    const field = screen.getByLabelText("adminPricing.benefits.labelPl #1") as HTMLInputElement;
+    expect(field.value).toBe("Dostęp do analiz");
+    expect(field.getAttribute("aria-label")).toBe("adminPricing.benefits.labelPl #1");
+  });
+
+  it("pola dodatkowe też są nazwane", () => {
+    renderBenefits([benefit({ detail_pl: "Pełne archiwum" })]);
+
+    expect(screen.getByLabelText("adminPricing.benefits.detailPl #1")).toBeTruthy();
+    expect(screen.getByLabelText("adminPricing.benefits.groupEn #1")).toBeTruthy();
+  });
+
+  it("przyciski ikonowe mają nazwę dostępną, nie tylko podpowiedź", () => {
+    renderBenefits([benefit(), benefit({ pl: "Drugi" })]);
+
+    expect(screen.getByLabelText("adminPricing.benefits.remove #1")).toBeTruthy();
+    expect(screen.getByLabelText("adminPricing.benefits.moveDown #1")).toBeTruthy();
+  });
+});
+
+describe("swapExpanded / shiftExpandedAfterRemove - rozwinięcie idzie ZA WIERSZEM", () => {
+  // DEFEKT NAPRAWIONY 19.08.2026. Stan rozwinięcia był kluczowany POZYCJĄ
+  // i nie ruszał się przy zmianie kolejności ani przy usuwaniu: redakcja
+  // przesuwała otwarty wiersz w dół, a otwierał się ten, który wskoczył na jego
+  // miejsce - razem z polami, których nikt nie chciał widzieć.
+  it("zamiana pozycji przenosi rozwinięcie razem z wierszem", () => {
+    expect(swapExpanded({ 0: true }, 0, 1)).toEqual({ 1: true });
+  });
+
+  it("zamiana dwóch różnych stanów zamienia je wzajemnie", () => {
+    expect(swapExpanded({ 0: true, 1: false }, 0, 1)).toEqual({ 0: false, 1: true });
+  });
+
+  it("zamiana nie dorabia wpisów dla wierszy, których nikt nie rozwijał", () => {
+    expect(swapExpanded({}, 0, 1)).toEqual({});
+    expect(swapExpanded({ 2: true }, 0, 1)).toEqual({ 2: true });
+  });
+
+  it("usunięcie wiersza zsuwa rozwinięcia LEŻĄCE NIŻEJ", () => {
+    expect(shiftExpandedAfterRemove({ 0: true, 2: true }, 1)).toEqual({ 0: true, 1: true });
+  });
+
+  it("usunięcie rozwiniętego wiersza usuwa jego stan", () => {
+    expect(shiftExpandedAfterRemove({ 1: true }, 1)).toEqual({});
+  });
+
+  it("usunięcie wiersza NIŻEJ nie rusza rozwinięć wyżej", () => {
+    expect(shiftExpandedAfterRemove({ 0: true }, 2)).toEqual({ 0: true });
   });
 });
 
