@@ -4,6 +4,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight, Pause, Play } from "@/lib/lucide-shim";
 import type { StoryPage } from "@/lib/web-stories/types";
 import { pageCaption, pageCtaLabel, pageTitle, safeStoryHref } from "@/lib/web-stories/types";
+import {
+  advance,
+  backgroundKind,
+  clampStartIndex,
+  keyAction,
+  pageDurationMs,
+  progressWidth,
+  rewind,
+} from "@/lib/web-stories/viewerNav";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Props {
@@ -14,7 +23,7 @@ interface Props {
 }
 
 export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
-  const [idx, setIdx] = useState(Math.min(Math.max(0, startIndex), Math.max(0, pages.length - 1)));
+  const [idx, setIdx] = useState(clampStartIndex(startIndex, pages.length));
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const rafRef = useRef<number | null>(null);
@@ -24,18 +33,19 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
   useFocusTrap(dialogRef, true);
 
   const cur = pages[idx];
-  const durationMs = Math.max(2, cur?.duration_seconds ?? 6) * 1000;
+  const durationMs = pageDurationMs(cur?.duration_seconds);
 
   const next = useCallback(() => {
-    if (idx >= pages.length - 1) {
+    const step = advance(idx, pages.length);
+    if (step.ended) {
       onClose?.();
       return;
     }
-    setIdx((i) => i + 1);
+    setIdx(step.index);
   }, [idx, pages.length, onClose]);
 
   const prev = useCallback(() => {
-    setIdx((i) => Math.max(0, i - 1));
+    setIdx(rewind);
   }, []);
 
   // autoplay loop
@@ -69,10 +79,12 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
   // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose?.();
-      else if (e.key === "ArrowRight") next();
-      else if (e.key === "ArrowLeft") prev();
-      else if (e.key === " ") {
+      const action = keyAction(e.key);
+      if (action === "close") onClose?.();
+      else if (action === "next") next();
+      else if (action === "prev") prev();
+      else if (action === "togglePause") {
+        // Bez tego przeglądarka przewinęłaby stronę pod pełnoekranową historią.
         e.preventDefault();
         setPaused((p) => !p);
       }
@@ -99,6 +111,7 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
   // Obrona w glab: sanityzuj href CTA takze przy renderze (na wypadek strony
   // nieprzepuszczonej przez StoryPageSchema). Blokuje javascript:/data:.
   const ctaHref = safeStoryHref(cur.cta_href);
+  const background = backgroundKind(cur);
   const posClass =
     cur.text_position === "top"
       ? "top-16 bottom-auto"
@@ -122,7 +135,7 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
     >
       {/* Background */}
       <div className="absolute inset-0">
-        {cur.background === "video" && cur.media_url ? (
+        {background === "video" ? (
           <video
             key={cur.id}
             src={cur.media_url}
@@ -132,9 +145,9 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
             playsInline
             className="w-full h-full object-cover"
           />
-        ) : cur.background === "color" ? (
+        ) : background === "color" ? (
           <div className="w-full h-full" style={{ background: cur.color }} />
-        ) : cur.media_url ? (
+        ) : background === "image" ? (
           <img src={cur.media_url} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full bg-neutral-900" />
@@ -146,10 +159,7 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
       <div className="absolute top-3 left-3 right-3 flex gap-1 z-10">
         {pages.map((_, i) => (
           <div key={i} className="flex-1 h-0.5 bg-white/25 rounded overflow-hidden">
-            <div
-              className="h-full bg-white"
-              style={{ width: i < idx ? "100%" : i === idx ? `${progress * 100}%` : "0%" }}
-            />
+            <div className="h-full bg-white" style={{ width: progressWidth(i, idx, progress) }} />
           </div>
         ))}
       </div>

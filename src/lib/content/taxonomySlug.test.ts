@@ -12,11 +12,33 @@ describe("slugifyTaxonomy", () => {
     expect(slugifyTaxonomy("Gęślą jaźń")).toBe("gesla-jazn");
   });
 
-  it("treats the atomic 'ł' (no NFD decomposition) as a separator, matching prior behavior", () => {
-    // U+0142 has no canonical decomposition, so it is not a base+mark pair and
-    // falls through to the non-alphanumeric -> dash rule. This documents the
-    // exact behavior the inline helper had before extraction.
-    expect(slugifyTaxonomy("Łódź")).toBe("odz");
+  it("transliterates the atomic 'ł' to 'l' instead of dropping it", () => {
+    // U+0142 has no canonical decomposition, so NFD leaves it untouched and the
+    // non-alphanumeric -> dash rule used to eat it: "Łódź" produced `odz`.
+    //
+    // DLACZEGO TA ASERCJA SIĘ ZMIENIŁA. Poprzednia wersja tego testu
+    // („matching prior behavior") była testem CHARAKTERYZUJĄCYM: zapisywała
+    // zachowanie inline'owego helpera z `admin.posts.$slug.tsx`, żeby jego
+    // wyodrębnienie do tego pliku było neutralne. Dokumentowała więc defekt, a
+    // nie decyzję produktową - `odz` nigdy nie było poprawnym adresem dla
+    // „Łódź" w polskim serwisie, a adres wpisu jest trwały (linkowany
+    // i indeksowany).
+    //
+    // Ten sam defekt naprawiono wcześniej w propozycji adresu profilu (commit
+    // 592a99a), którego opis wprost wymienił `taxonomySlug` jako powierzchnię
+    // nietkniętą. Mapa transliteracji mieszka teraz w `@/lib/text/strokeLetters`
+    // i jest wspólna dla obu powierzchni.
+    expect(slugifyTaxonomy("Łódź")).toBe("lodz");
+    expect(slugifyTaxonomy("Miłość i Przyjaźń")).toBe("milosc-i-przyjazn");
+    expect(slugifyTaxonomy("Paweł Wójcik")).toBe("pawel-wojcik");
+  });
+
+  it("transliterates other non-decomposable letters and ligatures", () => {
+    // Katalog treści jest ogólnoeuropejski - te litery pojawiają się w nazwach
+    // programów i regionów, nie tylko w polskich.
+    expect(slugifyTaxonomy("Ærø")).toBe("aero");
+    expect(slugifyTaxonomy("Straße")).toBe("strasse");
+    expect(slugifyTaxonomy("Đakovo")).toBe("dakovo");
   });
 
   it("collapses any run of non-alphanumerics into a single dash", () => {

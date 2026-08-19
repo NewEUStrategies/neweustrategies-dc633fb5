@@ -70,8 +70,13 @@ async function renderPostsSlider(content: WidgetContent, lang: "pl" | "en" = "pl
     </QueryClientProvider>,
   );
   // SliderRender jest ładowany leniwie (lazyWidgets), a autorzy dociągani
-  // osobnym zapytaniem - czekamy na w pełni złożony slajd.
-  await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull());
+  // osobnym zapytaniem - czekamy na w pełni złożony slajd. Limit podniesiony
+  // ponad domyślne 1000 ms: pierwszy render w pliku płaci za dynamiczny import
+  // chunku slidera, co przy równoległym przebiegu całej suity potrafi przekroczyć
+  // domyślny budżet i czerwienić test, który w izolacji przechodzi.
+  await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull(), {
+    timeout: 15_000,
+  });
   return view;
 }
 
@@ -213,7 +218,9 @@ describe("PostsSliderWidget - granica leniwego chunka", () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const src = readFileSync(
-      resolve(process.cwd(), "src/components/builder/organisms/widget-view/mediaWidgets.tsx"),
+      // PostsSlider wyjechal z `mediaWidgets.tsx` do wlasnego leniwego chunka -
+      // straznik musi czytac plik, ktory FAKTYCZNIE zawiera zawezanie wariantow.
+      resolve(process.cwd(), "src/components/builder/organisms/widget-view/PostsSliderWidget.tsx"),
       "utf8",
     );
     expect(src).toContain('from "@/lib/builder/sliderOptions"');

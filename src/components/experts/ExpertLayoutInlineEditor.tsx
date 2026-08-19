@@ -34,26 +34,14 @@ import {
   type ExpertLayoutSettings,
   type ExpertSectionKey,
 } from "@/lib/expertLayouts";
+// Sygnatura nadpisań (dirty-check) mieszka w czystym module razem z resztą
+// reguł układu - to ona decyduje, czy przycisk „Zapisz" jest aktywny.
+import { overridesSignature } from "@/lib/experts/layoutRules";
 
 type TriState = "inherit" | "on" | "off";
 
 const TRI_FROM_BOOL = (value: boolean | undefined): TriState =>
   value === undefined ? "inherit" : value ? "on" : "off";
-
-/** Kanoniczna sygnatura nadpisań - stabilny dirty-check niezależny od
- *  kolejności wstawiania kluczy (delete/add w setterach). */
-function overridesSignature(overrides: ExpertLayoutOverrides | null): string {
-  if (!overrides) return "null";
-  return JSON.stringify({
-    preset: overrides.preset ?? null,
-    section_order: overrides.section_order ?? null,
-    center_hero: overrides.center_hero ?? null,
-    center_details: overrides.center_details ?? null,
-    accent_color: overrides.accent_color ?? null,
-    accent_color_dark: overrides.accent_color_dark ?? null,
-    visibility: Object.entries(overrides.visibility ?? {}).sort(([a], [b]) => a.localeCompare(b)),
-  });
-}
 
 export interface ExpertLayoutInlineEditorProps {
   /** Ekspert, którego stronę edytujemy (author_profiles.user_id). */

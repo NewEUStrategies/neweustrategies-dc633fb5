@@ -13,6 +13,14 @@ import { WIDGETS } from "@/lib/builder/registry";
 import { AccordionEditor } from "../AccordionEditor";
 import { renderSimpleWidget } from "@/components/builder/organisms/widget-view/SimpleWidgets";
 
+// Rejestr leniwych widgetow -> lustro eager: od 2026-08-18 `accordion` jedzie
+// przez React.lazy (byl jedynym eager konsumentem DOMPurify), wiec bez podmiany
+// `container.firstElementChild` jest nullem zamiast ramka wariantu.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 type Recorded = Array<[string, Json]>;
 
 function renderEditor(content: WidgetContent, lang: "pl" | "en" = "pl") {
