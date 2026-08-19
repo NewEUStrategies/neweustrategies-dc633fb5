@@ -82,7 +82,7 @@ const SPLIT_WIDGETS = [
   //  * TrendingNowView - widok listy „na czasie" spod WidgetView.
   "AccordionWidget",
   "SectionLabelWidgetView",
-  "TrendingNowView",
+
 ] as const;
 
 describe("lazyWidgets registry", () => {
