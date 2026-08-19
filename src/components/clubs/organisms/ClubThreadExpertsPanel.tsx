@@ -150,7 +150,7 @@ export function ClubThreadExpertsPanel({
                       {t("club.network.experts.ask")}
                     </Button>
                   )}
-                  <DirectMessageButton
+                  <MessageOrConnectButton
                     userId={row.user_id}
                     displayName={row.display_name}
                     displayAvatar={row.avatar_url}

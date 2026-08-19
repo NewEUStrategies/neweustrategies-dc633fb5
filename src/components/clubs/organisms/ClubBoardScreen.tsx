@@ -256,7 +256,7 @@ export function ClubBoardScreen({ clubId, canPost }: { clubId: string; canPost: 
                         sprawa jest załatwiona i pisanie do autora jest tylko
                         kosztem dla niego. */}
                     {outcome === "open" && !row.is_mine ? (
-                      <DirectMessageButton
+                      <MessageOrConnectButton
                         userId={row.author_id}
                         displayName={row.author_name}
                         displayAvatar={row.author_avatar}

@@ -358,7 +358,7 @@ export function ClubBoardPanel({
                         {t("club.network.board.resolve")}
                       </Button>
                     ) : (
-                      <DirectMessageButton
+                      <MessageOrConnectButton
                         userId={row.author_id}
                         displayName={row.author_name}
                         displayAvatar={row.author_avatar}

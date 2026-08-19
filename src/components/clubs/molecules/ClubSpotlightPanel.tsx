@@ -74,7 +74,7 @@ export function ClubSpotlightPanel({ clubSlug, clubId }: { clubSlug: string; clu
             </p>
           ) : null}
         </div>
-        <DirectMessageButton
+        <MessageOrConnectButton
           userId={row.user_id}
           displayName={name}
           displayAvatar={row.avatar_url}

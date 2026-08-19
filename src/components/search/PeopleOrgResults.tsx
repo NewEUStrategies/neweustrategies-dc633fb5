@@ -114,7 +114,7 @@ function Card({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
       </AppLink>
       {it.kind === "person" && (
         <div className="absolute right-3 top-3">
-          <DirectMessageButton
+          <MessageOrConnectButton
             userId={it.id}
             displayName={itemLabel(it, lang)}
             displayAvatar={it.avatarUrl}

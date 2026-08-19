@@ -180,7 +180,7 @@ export function ClubExpertsScreen({
                       </span>
                     }
                     actions={
-                      <DirectMessageButton
+                      <MessageOrConnectButton
                         userId={row.user_id}
                         displayName={row.display_name}
                         displayAvatar={row.avatar_url}

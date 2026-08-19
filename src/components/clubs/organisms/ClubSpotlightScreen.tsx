@@ -256,7 +256,7 @@ export function ClubSpotlightScreen({
               ) : null}
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <DirectMessageButton
+                <MessageOrConnectButton
                   userId={current.user_id}
                   displayName={current.display_name}
                   displayAvatar={current.avatar_url}

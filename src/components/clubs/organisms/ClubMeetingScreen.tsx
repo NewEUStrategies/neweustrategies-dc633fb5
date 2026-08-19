@@ -284,7 +284,7 @@ export function ClubMeetingScreen({
                         meta={row.is_me ? t("club.network.meeting.you") : undefined}
                         actions={
                           row.is_me ? undefined : (
-                            <DirectMessageButton
+                            <MessageOrConnectButton
                               userId={row.user_id}
                               displayName={row.display_name}
                               displayAvatar={row.avatar_url}
