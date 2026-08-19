@@ -100,6 +100,11 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | —   | PRZEKROJOWE: design system (components/ui)            |          43 |     61,75% |  53,31% |  56,14% | **63,13%** |        11 | 0,047 |     17 |      37 |
 | 10  | Sieć / networking                                     |          31 |     78,03% |  66,52% |  80,79% | **81,68%** |         3 | 0,710 |    327 |     609 |
 | —   | PRZEKROJOWE: słowniki i18n                            |         116 |     87,65% |  64,51% |  51,32% | **91,78%** |         1 | 0,052 |     60 |     141 |
+| 2†  | Edytor wpisów i workflow redakcyjny                   |          83 |     98,81% |  94,38% |  99,00% | **99,41%** |         0 | 0,964 |  1 568 |   3 150 |
+
+**†** MODUŁ 2 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_POKRYCIE_MODUL_2_EDYTOR_WPISOW_2026-08-18.md`) — pozostałe wiersze pochodzą
+z pomiaru 18.08. Wiersz stoi na końcu, bo tabela jest sortowana rosnąco po pokryciu linii.
 
 ### 2.1 Wymiar „funkcje”: ile funkcji w module zostało kiedykolwiek wywołane
 
@@ -133,6 +138,7 @@ nigdy nie uruchomione w teście.
 | —   | PRZEKROJOWE: design system (components/ui)            |           228 |        128 | **56,14%** |
 | 9   | Czat / komunikator                                    |         1 051 |        605 | **57,56%** |
 | 10  | Sieć / networking                                     |           302 |        244 | **80,79%** |
+| 2†  | Edytor wpisów i workflow redakcyjny                   |           802 |        794 | **99,00%** |
 
 ---
 
@@ -1036,7 +1042,7 @@ obejmują **229 plików / 49 002 linii**.
 ## 6. Które powierzchnie mają BRAMKĘ pokrycia (a które tylko liczbę)
 
 Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mierzy. Repo ma
-**1 próg globalny + 37 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
+**1 próg globalny + 61 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
 `Test + coverage gate` (`.github/workflows/ci.yml`).
 
 | Ścieżka objęta bramką                             | Instr. | Gał. | Funkcje | Linie | Moduł |
@@ -1078,6 +1084,31 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 | `src/components/chat/**`                          |     40 |   34 |      36 |    41 | M9    |
 | `src/components/chat/ChatWindow.tsx`              |     78 |   70 |      60 |    84 | M9    |
 | `src/lib/ci/ftsConfigSymmetry.ts`                 |     93 |   81 |     100 |    98 | M20   |
+| `src/components/admin/post-editor/lib/**`         |    100 |  100 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/atoms/**`       |    100 |  100 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/hooks/**`       |     98 |   90 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/molecules/**`   |     98 |   94 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/organisms/**`   |     98 |   85 |      96 |   100 | M2    |
+| `src/components/admin/versions/**`                |     94 |   89 |      93 |    94 | M2    |
+| `src/components/admin/workflows/**`               |     96 |   91 |      95 |    97 | M2    |
+| `src/lib/admin/workflows.ts`                      |    100 |  100 |     100 |   100 | M19   |
+| `src/lib/unsavedChanges.ts`                       |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useUnsavedChangesGuard.ts`             |    100 |  100 |     100 |   100 | M2    |
+| `src/lib/revisions.functions.ts`                  |    100 |  100 |     100 |   100 | M2    |
+| `src/lib/posts-migrate.functions.ts`              |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useEditPresence.ts`                    |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useAutosave.ts`                        |     96 |   87 |     100 |   100 | M2    |
+| `src/hooks/useHistory.ts`                         |     91 |   83 |     100 |    94 | M2    |
+| `src/components/admin/PostEditor.tsx`             |     95 |   82 |     100 |   100 | M2    |
+| `src/components/admin/PostGeneralOverview.tsx`    |     96 |   78 |     100 |    96 | M2    |
+| `src/routes/admin.posts.tsx`                      |    100 |   95 |     100 |   100 | M2    |
+| `src/routes/admin.posts.$slug.tsx`                |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.posts.new.tsx`                  |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.posts.calendar.tsx`             |    100 |   95 |     100 |   100 | M2    |
+| `src/routes/admin.redirects.tsx`                  |     97 |   92 |     100 |   100 | M2    |
+| `src/routes/admin.import-wordpress.tsx`           |     95 |   94 |     100 |   100 | M2    |
+| `src/routes/admin.versions.tsx`                   |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.workflows.tsx`                  |     95 |   87 |      92 |    95 | M2    |
 
 **Czego bramka NIE pilnuje** — moduły bez ani jednego progu per-ścieżka:
 
