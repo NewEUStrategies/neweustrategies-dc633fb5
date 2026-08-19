@@ -188,6 +188,43 @@ describe("CorrelationTracePanel - deep-link z historii przebiegów", () => {
     expect(input).toHaveValue("wpisuję ręcznie");
   });
 
+  it("ZMIANA propa (deep-link ze historii) NADPISUJE pole", async () => {
+    // Klik „Ślad" w historii przebiegów zmienia parametr URL, a nie pole -
+    // panel musi za tym pójść, inaczej użytkownik widzi ślad jednego zdarzenia
+    // z identyfikatorem drugiego w polu obok.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const panel = (id: string | null) => (
+      <QueryClientProvider client={client}>
+        <CorrelationTracePanel correlationId={id} onCorrelationIdChange={vi.fn()} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(panel(null));
+    const input = screen.getByLabelText("adminWorkflows.trace.inputLabel");
+    fireEvent.change(input, { target: { value: "coś swojego" } });
+
+    rerender(panel(CORR));
+
+    expect(screen.getByLabelText("adminWorkflows.trace.inputLabel")).toHaveValue(CORR);
+    await waitFor(() => expect(fetchTrace()).toHaveBeenCalledWith(CORR));
+  });
+
+  it("WYCZYSZCZENIE propa nie kasuje tego, co użytkownik ma w polu", async () => {
+    // Powrót na zakładkę bez parametru URL nie może wymazać wklejonego
+    // identyfikatora - to jedyna rzecz, którą użytkownik tu wpisuje ręcznie.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const panel = (id: string | null) => (
+      <QueryClientProvider client={client}>
+        <CorrelationTracePanel correlationId={id} onCorrelationIdChange={vi.fn()} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(panel(CORR));
+    await waitFor(() => expect(fetchTrace()).toHaveBeenCalledWith(CORR));
+
+    rerender(panel(null));
+
+    expect(screen.getByLabelText("adminWorkflows.trace.inputLabel")).toHaveValue(CORR);
+  });
+
   it("brak identyfikatora NIE odpytuje serwera", () => {
     renderPanel(null);
     expect(fetchTrace()).not.toHaveBeenCalled();

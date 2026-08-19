@@ -369,6 +369,26 @@ describe("PostGeneralOverview - kafelek prowadzi do SWOJEJ zakładki", () => {
     }
   });
 
+  it("DATY publikacji są SFORMATOWANE, a brak daty to kreska", () => {
+    // Surowy ISO („2026-08-19T07:15:00.000Z") w kafelku przeglądu jest nie do
+    // odczytania rzutem oka, a to jedyne miejsce, gdzie redaktor sprawdza, czy
+    // wpis już wyszedł i kiedy wyjdzie zaplanowany.
+    renderOverview({ publishedAt: "2026-08-19T07:15:00.000Z", publishAt: "2026-09-01T06:00:00Z" });
+
+    expect(screen.getByText("adminPostPanes.general.publishedRow")).toBeInTheDocument();
+    expect(screen.getByText("adminPostPanes.general.scheduledRow")).toBeInTheDocument();
+    // Format `pl-PL` z krótkim miesiącem - nie ISO i nie „Invalid Date".
+    const formatted = screen.getAllByText(/2026/);
+    expect(formatted.length).toBeGreaterThanOrEqual(2);
+    for (const node of formatted) expect(node.textContent).not.toContain("T07:15");
+
+    cleanup();
+    renderOverview({ publishedAt: null, publishAt: null });
+    // Brak daty publikacji ma pokazać kreskę, nie puste miejsce.
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.queryByText("adminPostPanes.general.scheduledRow")).toBeNull();
+  });
+
   it("kafelki są PRZYCISKAMI, nie klikalnymi diwami", () => {
     // Klikalny `div` jest nieosiągalny z klawiatury i niewidoczny dla czytnika
     // ekranu jako element interaktywny.
