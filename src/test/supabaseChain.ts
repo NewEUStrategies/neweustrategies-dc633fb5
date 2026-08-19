@@ -128,6 +128,9 @@ const CHAIN_METHODS: readonly string[] = [
   "in",
   "is",
   "not",
+  // Dopasowanie wzorcem. `ilike` (bez rozróżniania wielkości liter) niesie
+  // w tym repo regułę, nie wygodę: adresy e-mail porównujemy właśnie nim,
+  // bo unikalność adresu w bazie też jest bez wielkości litery.
   "like",
   "ilike",
   "or",

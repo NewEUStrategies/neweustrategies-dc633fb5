@@ -375,9 +375,15 @@ export function deviceLabel(device: Device): string {
   return device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Mobile";
 }
 
-export function canvasSizeLabel(canvasWidth: number | "100%", lang: "pl" | "en"): string {
-  if (typeof canvasWidth === "number") return `${canvasWidth}px`;
-  return lang === "pl" ? "pelna szerokosc" : "full width";
+/**
+ * Podpis rozmiaru kanwy. Szerokość liczbowa ma gotowy pomiar - liczba z
+ * jednostką nie jest tłumaczeniem. Dla „100%" reguła oddaje `null`, bo podpis
+ * jest wtedy TEKSTEM dla operatora, a reguła nie trzyma treści w dwóch
+ * językach: ternary po języku omija bramkę parytetu PL/EN i zamyka drogę do
+ * trzeciego języka. Napis dokłada warstwa widoku, która ma dostęp do języka.
+ */
+export function canvasSizeLabel(canvasWidth: number | "100%"): string | null {
+  return typeof canvasWidth === "number" ? `${canvasWidth}px` : null;
 }
 
 // ---------------------------------------------------------------------------

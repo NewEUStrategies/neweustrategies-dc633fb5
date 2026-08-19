@@ -616,10 +616,15 @@ describe("szerokość podglądu i podpisy", () => {
     expect(rules.deviceLabel("mobile")).toBe("Mobile");
   });
 
-  it("podpis szerokości podaje piksele albo mówi, że to pełna szerokość", () => {
-    expect(rules.canvasSizeLabel(520, "pl")).toBe("520px");
-    expect(rules.canvasSizeLabel("100%", "pl")).toBe("pelna szerokosc");
-    expect(rules.canvasSizeLabel("100%", "en")).toBe("full width");
+  it("podpis szerokości podaje piksele, a dla pełnej szerokości oddaje NULL", () => {
+    // `null` znaczy „to jest tekst dla operatora, nie pomiar" - reguła nie
+    // trzyma treści w dwóch językach, bo ternary po języku omija bramkę
+    // parytetu PL/EN (`check:i18n-hardcoded`) i zamyka drogę do trzeciego
+    // języka. Napis dokłada widok.
+    expect(rules.canvasSizeLabel(520)).toBe("520px");
+    expect(rules.canvasSizeLabel("100%")).toBeNull();
+    // Pomiar niesie jednostkę - sama liczba nie mówi operatorowi nic.
+    expect(rules.canvasSizeLabel(880)).toBe("880px");
   });
 });
 

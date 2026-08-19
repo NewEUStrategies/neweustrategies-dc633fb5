@@ -78,7 +78,13 @@ export function isFetchCapped(rowCount: number): boolean {
   return rowCount >= SUBSCRIBER_FETCH_CAP;
 }
 
-/** Kolumny eksportu, w kolejności zapisu do pliku. */
+/**
+ * Kolumny eksportu, w kolejności zapisu do pliku.
+ *
+ * `satisfies` zamiast rzutowania: literały MUSZĄ być kluczami `SubscriberRow`,
+ * więc zmiana nazwy kolumny w typie wiersza zapala tu błąd kompilacji, zamiast
+ * dawać po cichu kolumnę z samymi pustymi komórkami.
+ */
 export const CSV_COLUMNS = [
   "email",
   "display_name",
@@ -87,14 +93,13 @@ export const CSV_COLUMNS = [
   "source",
   "created_at",
   "confirmed_at",
-] as const;
+] as const satisfies readonly (keyof SubscriberRow)[];
 
 /** Cała tabela jako tekst CSV z wierszem nagłówka. */
 export function subscribersToCsv(rows: readonly SubscriberRow[]): string {
-  const asRecord = (row: SubscriberRow) => row as unknown as Record<string, string | null>;
   return toCsv(
     CSV_COLUMNS,
-    rows.map((row) => CSV_COLUMNS.map((key) => asRecord(row)[key])),
+    rows.map((row) => CSV_COLUMNS.map((key) => row[key])),
   );
 }
 

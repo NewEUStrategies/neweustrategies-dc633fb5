@@ -145,14 +145,29 @@ export async function routeMeta(route: AnyRoute): Promise<RouteMetaEntry[]> {
 /** Handler serwerowy trasy (`server.handlers.GET/POST`) w kształcie testowym. */
 export type RouteServerHandler = (args: { request: Request }) => Promise<Response>;
 
+/** Opcje trasy w części, której framework nie wystawia w typie publicznym. */
+interface RouteOptionsWithServer {
+  server?: { handlers?: Record<string, RouteServerHandler> };
+}
+
 /**
- * Handlery serwerowe trasy pliku - JEDYNE miejsce z rzutowaniem `Route.options`.
+ * Czy opcje trasy niosą blok serwerowy. STRAŻNIK, nie rzutowanie: `as unknown
+ * as` przepuściłby też kształt, którego tam nie ma, a ten warunek sprawdza to
+ * w runtime i dopiero wtedy zawęża typ.
+ */
+function hasServerBlock(options: object): options is RouteOptionsWithServer {
+  return "server" in options;
+}
+
+/**
+ * Handlery serwerowe trasy pliku - JEDNO miejsce, które czyta `Route.options`
+ * głębiej, niż framework opisuje w typach.
  *
  * PO CO. Trasy API (`createFileRoute(...)({ server: { handlers } })` ) nie
  * wystawiają handlerów w typie publicznym: `RouteOptions` jest sparametryzowane
- * kontekstem routera i ścieżką, więc odczyt „daj mi POST" wymaga rzutowania.
- * Zamiast powtarzać je w każdym pliku testowym trasy, mieszka tu raz - z
- * wyjaśnieniem, i z jednym miejscem do poprawienia, gdyby framework zaczął
+ * kontekstem routera i ścieżką, więc odczyt „daj mi POST" trzeba zawęzić
+ * samemu. Zamiast powtarzać to w każdym pliku testowym trasy, mieszka tu raz -
+ * z wyjaśnieniem, i z jednym miejscem do poprawienia, gdyby framework zaczął
  * ten kształt eksportować.
  *
  * Handler wołamy WPROST, bez runtime'u routera: to on niesie całą logikę
@@ -160,10 +175,7 @@ export type RouteServerHandler = (args: { request: Request }) => Promise<Respons
  * nie dowiodło.
  */
 export function routeServerHandlers(route: AnyRoute): Record<string, RouteServerHandler> {
-  const options = route.options as unknown as {
-    server?: { handlers?: Record<string, RouteServerHandler> };
-  };
-  const handlers = options.server?.handlers;
+  const handlers = hasServerBlock(route.options) ? route.options.server?.handlers : undefined;
   if (!handlers) throw new Error("test: trasa nie ma handlerów serwerowych");
   return handlers;
 }

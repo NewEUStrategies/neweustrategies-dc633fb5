@@ -46,7 +46,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/menu/MenuManager.tsx", 1],
   ["src/components/admin/newsletter/builder/NewsletterBuilder.tsx", 1],
   ["src/components/admin/newsletter/builder/WidgetPreview.tsx", 1],
-  ["src/components/admin/newsletter/SubscribersPanel.tsx", 1],
   ["src/components/admin/post-editor/hooks/usePostEditorData.ts", 1],
   ["src/components/admin/settings/fields.tsx", 1],
   ["src/components/admin/sidebarBuilder/SidebarBuilderPane.tsx", 2],
