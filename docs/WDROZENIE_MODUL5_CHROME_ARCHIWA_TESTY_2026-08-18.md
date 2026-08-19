@@ -264,16 +264,20 @@ pokazuje, jak łatwo taka asymetria wraca.
 | `bun run check:i18n-default-value`   | ✅ zero zapasowych tekstów przy `t()`                             |
 | `bun run check:i18n-parity`          | ✅ 594 przypadki — nowy klucz `admin.menu.untitledItem` w PL i EN |
 | `bun run check:i18n-overlay-imports` | ⚠ ratchet sprzed tej pracy (niżej)                                |
-| `bun run lint`                       | ⚠ jeden błąd sprzed tej pracy (niżej)                             |
+| `bun run lint`                       | ✅ 0 błędów (jeden sprzed tej pracy naprawiony — niżej)           |
 | `bun run check:bundle`               | ⚠ budżet przekroczony sprzed tej pracy (niżej)                    |
 | `bun run test`                       | ⚠ 8 plików czerwonych sprzed tej pracy (niżej)                    |
 
-Cztery ostrzeżenia zostały zweryfikowane na commicie bazowym `39a9efd` (przed pierwszym
-commitem tej gałęzi), w tym samym środowisku:
+Wszystkie cztery zostały zweryfikowane na commicie bazowym `39a9efd` (przed pierwszym
+commitem tej gałęzi), w tym samym środowisku — żadnego nie wprowadziła ta praca:
 
-- **lint** — `AccountIdentityPanel.test.tsx:87` używa `require()`
-  (`@typescript-eslint/no-require-imports`). Plik należy do modułu profilu, ta gałąź go nie
-  dotyka. Błąd występuje identycznie na `39a9efd`.
+- **lint** — `AccountIdentityPanel.test.tsx:87` wołał `require("react")` wewnątrz fabryki
+  `vi.mock` (`@typescript-eslint/no-require-imports`). Błąd jest starszy niż ta gałąź
+  (występuje identycznie na `39a9efd`), ale zatrzymywał zadanie `verify` na tym PR — a więc
+  i wszystko, co po nim: testy, pokrycie i progi. Naprawiony tutaj po decyzji autora:
+  `createElement` ze statycznego importu, atrapa renderuje to samo `<a href>`. Jedyna zmiana
+  tej gałęzi poza modułem 5 — wchodzi wyłącznie dlatego, że inaczej gałąź nie ma jak dojść
+  do zieleni.
 - **check:bundle** — budżet 3870 KB. Na `39a9efd`: **3870,7 KB**. Na tej gałęzi:
   **3870,5 KB**, czyli o 0,2 KB **mniej** — usunięcie nieosiągalnej gałęzi `SubmenuItem`
   z chunku wejściowego (sekcja 3.6) odjęło więcej, niż dodały wyprowadzone moduły. Ta praca
