@@ -77,7 +77,6 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | 2   | Edytor wpisów i workflow redakcyjny                   |          83 |      7,75% |   6,82% |   6,85% |  **8,34%** |        64 | 0,133 |     65 |     120 |
 | 18  | CRM                                                   |          47 |     12,43% |  12,18% |   9,30% | **12,04%** |        33 | 0,319 |    170 |     331 |
 | 7   | Typy treści specjalne                                 |         109 |     16,73% |  13,26% |  14,60% | **16,47%** |        75 | 0,183 |    203 |     484 |
-| 5   | Strona główna, archiwa, chrome ⚠                      |          51 |     16,00% |  11,90% |  11,80% | **16,71%** |        34 | 0,176 |     79 |     206 |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         242 |     18,26% |  14,88% |  13,32% | **17,56%** |       177 | 0,244 |    586 |   1 047 |
 | 15  | Profil i konto                                        |          81 |     18,41% |  16,07% |  18,00% | **19,12%** |        45 | 0,247 |    187 |     378 |
 | 19  | Ustawienia / integracje / users / multi-tenant / RODO |         122 |     21,70% |  16,97% |  17,43% | **22,00%** |        62 | 0,197 |    289 |     557 |
@@ -98,6 +97,12 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | —   | PRZEKROJOWE: design system (components/ui)            |          43 |     61,75% |  53,31% |  56,14% | **63,13%** |        11 | 0,047 |     17 |      37 |
 | 10  | Sieć / networking                                     |          31 |     78,03% |  66,52% |  80,79% | **81,68%** |         3 | 0,710 |    327 |     609 |
 | —   | PRZEKROJOWE: słowniki i18n                            |         116 |     87,65% |  64,51% |  51,32% | **91,78%** |         1 | 0,052 |     60 |     141 |
+| 5   | Strona główna, archiwa, chrome ✅                     |          52 |     95,72% |  83,53% |  94,35% | **97,43%** |         0 | 0,442 |    593 |     981 |
+
+> **Moduł 5 zamknięty 19.08.2026** (był na czwartym miejscu od dołu: 16,71% linii,
+> 34 pliki na zerze). Wiersz stoi teraz na końcu tabeli, bo tabela jest sortowana rosnąco po
+> liniach. Szczegóły: `WDROZENIE_MODUL5_CHROME_ARCHIWA_TESTY_2026-08-18.md`.
+> Asercje policzone jako wystąpienia `expect(` w 23 plikach testowych modułu.
 
 ### 2.1 Wymiar „funkcje”: ile funkcji w module zostało kiedykolwiek wywołane
 
@@ -189,14 +194,23 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Ikony / marka                   |      7 |        149 |  23,2% | 12,7% |   32,4% | **25,5%** |     12/37 |
 | Motyw / wygląd / global colors  |     51 |        629 |  47,8% | 34,6% |   28,3% | **47,9%** |    56/198 |
 
-### MODUŁ 5 — Strona główna, archiwa, chrome ⚠ · linie 16,71% · funkcje 11,80%
+### MODUŁ 5 — Strona główna, archiwa, chrome ✅ · linie 97,43% · funkcje 94,35%
 
-| Funkcjonalność                       | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
-| ------------------------------------ | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Nagłówek / stopka / menu             |     16 |        831 |   1,8% |  0,0% |    0,3% |  **2,0%** |     1/324 |
-| Archiwa kategorii/tagów              |     16 |        194 |  19,1% | 11,6% |   11,9% | **17,5%** |      8/67 |
-| Chrome mobilny (drawer, dolny pasek) |     11 |        219 |  41,5% | 36,5% |   41,1% | **44,3%** |     23/56 |
-| Mega menu                            |      3 |        135 |  80,9% | 64,2% |   79,5% | **88,1%** |     31/39 |
+**Zamknięty 2026‑08‑19** — wdrożenie opisane w
+`WDROZENIE_MODUL5_CHROME_ARCHIWA_TESTY_2026-08-18.md`. Liczby poniżej to stan PO; wartości
+z audytu (18.08) zostawione w kolumnach „przed", żeby skala pracy była widoczna.
+
+| Funkcjonalność                       | Plików | Linie przed |    Linie po | fn przed |       fn po |
+| ------------------------------------ | -----: | ----------: | ----------: | -------: | ----------: |
+| Nagłówek / stopka / menu             |     19 |        2,0% |  **97,87%** |    1/324 | **325/343** |
+| Archiwa kategorii/tagów              |     19 |       17,5% | **100,00%** |     8/67 | **110/110** |
+| Chrome mobilny (drawer, dolny pasek) |     11 |       44,3% |  **98,18%** |    23/56 |   **53/58** |
+| Mega menu                            |      3 |       88,1% |  **88,70%** |    31/39 |   **46/55** |
+
+Plików bez ani jednej wykonanej linii: **34 z 51 → 0 z 52**. Liczba plików rośnie, bo reguły
+zostały wyprowadzone z organizmów do czystych modułów (`lib/menus/tree.ts`, `siteMenu.ts`,
+`megaColumns.ts`, `lib/archive/bodyPlan.ts`), a pomiar objął cztery trasy archiwum.
+Cała powierzchnia jest pod progami per‑ścieżka w `vitest.config.ts`.
 
 ### MODUŁ 6 — Wyszukiwarka · linie 33,21% · funkcje 32,65%
 
@@ -1061,7 +1075,6 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 
 - **MODUŁ 2 — Edytor wpisów i workflow redakcyjny**: linie 8,34%, funkcje 6,85%, plików 0%: 64/83
 - **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
-- **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
 - **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
 - **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135
@@ -1304,6 +1317,11 @@ Lista:
 - `src/components/builder/organisms/widget-view/__tests__/widgetViewEditable.test.tsx`
 - `src/components/builder/organisms/widget-view/__tests__/worldMapWidget.test.tsx`
 - `src/components/mobile/bottomBar/__tests__/MobileBottomBarView.test.tsx`
+  — **AKTUALIZACJA 19.08.2026**: ten JEDEN plik spoza modułu 3 przechodzi w komplecie
+  (15 przypadków, 1,7 s) w przebiegu, w którym mierzono zamknięcie modułu 5. Jego obecność na
+  liście była artefaktem konkretnego przebiegu, nie właściwością pliku — a to znaczy, że
+  adnotacja „pomiar zaniżony" nie dotyczyła chrome mobilnego. Reszta listy (38 plików
+  buildera i widgetów) wisi nadal.
 
 ### 9.3 Odtworzenie pomiaru
 
