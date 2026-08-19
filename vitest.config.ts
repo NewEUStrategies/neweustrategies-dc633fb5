@@ -874,6 +874,54 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── POPUPY W PANELU (rejestracja + popupy buildera) ──────────────────
+        // Te dwa edytory decydują o tym, ile razy odwiedzający zobaczy modal na
+        // środku ekranu i co w nim jest - a popup rejestracji ZAKŁADA REALNE
+        // KONTO, więc jego pola to nie dekoracja.
+        //
+        // Reguły pod progiem:
+        //  * KOMPLETNY `popup_design` w każdym patchu - częściowy JSON cofa
+        //    resztę ustawień do domyślnych, a operator nie widzi tego na ekranie;
+        //  * pole liczbowe trzyma SUROWY TEKST w trakcie pisania (klamrowanie na
+        //    każdym znaku uniemożliwiało wpisanie „9" w polu o minimum 12) i
+        //    normalizuje przy opuszczeniu;
+        //  * ostrzeżenie o kontraście zapala się poniżej WCAG AA i podaje
+        //    wyliczony współczynnik - to jedyna bariera przed wypuszczeniem
+        //    popupu z tekstem nieczytelnym dla części odwiedzających;
+        //  * migawka „ostatniego zapisu" gaśnie tylko po UDANYM zapisie -
+        //    zgaszona po nieudanym oznacza operatora, który traci pracę;
+        //  * pola wyzwalacza są widoczne tylko dla swojego wyzwalacza, a puste
+        //    linie w ścieżkach nie tworzą wzorca pasującego do wszystkiego.
+        "src/components/admin/popups/**": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 85,
+        },
+        "src/components/admin/popups/signup/controls.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/components/admin/popups/PopupSettingsPane.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/popups/PopupEditorPane.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 97,
+          branches: 88,
+        },
+        "src/components/admin/popups/SignupPopupContentSection.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
         // ── CAŁY PANEL NEWSLETTERA ───────────────────────────────────────────
         // Próg katalogowy jest siatką bezpieczeństwa pod progami plikowymi:
         // nowy panel dołożony bez testu obniża ten wskaźnik i zatrzymuje
