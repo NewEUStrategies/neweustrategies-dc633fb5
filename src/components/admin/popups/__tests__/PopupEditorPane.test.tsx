@@ -144,20 +144,29 @@ describe("stany wczytywania", () => {
     expect(screen.queryByTestId("builder")).toBeNull();
   });
 
-  it("UWAGA: brak rekordu pokazuje WIECZNE „ładowanie”, nie komunikat o braku", () => {
-    // CHARAKTERYSTYKA STANU OBECNEGO, nie zatwierdzenie. Gałąź „nie znaleziono"
-    // jest NIEOSIĄGALNA: pierwszy warunek (`!popup && !doc`) łapie ten sam
-    // przypadek i oddaje ekran ładowania, a `doc` zapełnia się wyłącznie z
-    // wczytanego rekordu. Skutek: operator wchodzący w usunięty albo obcy popup
-    // patrzy na „Ładowanie..." bez końca i bez drogi powrotu.
-    // Poprawka (odwrócenie kolejności warunków) idzie osobnym commitem.
+  it("BRAK rekordu mówi to wprost i daje drogę powrotu", () => {
+    // Wcześniej ta gałąź była NIEOSIĄGALNA: warunek ładowania łapał też
+    // `!popup && !doc`, więc operator wchodzący w usunięty albo obcy popup
+    // patrzył na „Ładowanie..." bez końca i bez drogi powrotu.
     env.loading = false;
     env.popup = null;
     render(<PopupEditorPane popupId="nie-ma" />);
 
+    expect(screen.getByText(P("notFound"))).toBeTruthy();
+    expect(screen.getByText(P("backToList")).closest("a")?.getAttribute("href")).toBe(
+      "/admin/popups",
+    );
+  });
+
+  it("„ładowanie” pokazuje się TYLKO w trakcie wczytywania", () => {
+    // Rozdzielenie obu stanów jest sedno poprawki: „nie wiem jeszcze" i „nie ma"
+    // wymagają od operatora różnych rzeczy.
+    env.loading = true;
+    env.popup = null;
+    render(<PopupEditorPane popupId="popup-1" />);
+
     expect(screen.getByText(P("loading"))).toBeTruthy();
     expect(screen.queryByText(P("notFound"))).toBeNull();
-    expect(screen.queryByText(P("backToList"))).toBeNull();
   });
 
   it("wczytany rekord zasila nazwę, status i dokument", async () => {

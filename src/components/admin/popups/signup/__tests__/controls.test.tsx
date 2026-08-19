@@ -41,14 +41,7 @@ import {
   ToggleRow,
 } from "@/components/admin/popups/signup/controls";
 
-/**
- * Pole tekstowe kontrolki.
- *
- * UWAGA: etykiety `TextRow`, `NumberRow` i `BilingualRow` NIE są powiązane z
- * polami (`<Label>` bez `htmlFor`), więc `getByLabelText` ich nie znajdzie -
- * czytnik ekranu też nie ogłosi nazwy pola. Zapisane jako zastane; poprawka
- * idzie osobnym commitem.
- */
+/** Pole tekstowe kontrolki (pole koloru ma osobny próbnik obok napisu). */
 function textInput(container: HTMLElement): HTMLInputElement {
   const input = container.querySelector<HTMLInputElement>('input:not([type="color"])');
   expect(input, "kontrolka bez pola tekstowego").toBeTruthy();
@@ -60,6 +53,45 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
+describe("etykiety są POWIĄZANE z polami", () => {
+  // Bez powiązania czytnik ekranu ogłasza „pole edycji" i operator musi zgadywać,
+  // które to z kilkunastu pokrętek zakładki.
+  it("pole tekstowe da się znaleźć po etykiecie", () => {
+    render(<TextRow label="Nagłówek" value="" onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText("Nagłówek")).toBeTruthy();
+    expect(screen.getByLabelText("Nagłówek").tagName).toBe("INPUT");
+  });
+
+  it("pole liczbowe da się znaleźć po etykiecie", () => {
+    render(<NumberRow label="Szerokość" value={20} onChange={vi.fn()} min={12} max={60} />);
+
+    expect(screen.getByLabelText("Szerokość")).toBeTruthy();
+    expect(screen.getByLabelText("Szerokość").getAttribute("type")).toBe("number");
+  });
+
+  it("para PL/EN ma DWIE różne, rozróżnialne etykiety", () => {
+    render(<BilingualRow label="Tytuł" pl="Polski" en="English" onPl={vi.fn()} onEn={vi.fn()} />);
+
+    expect((screen.getByLabelText("Tytuł (PL)") as HTMLInputElement).value).toBe("Polski");
+    expect((screen.getByLabelText("Tytuł (EN)") as HTMLInputElement).value).toBe("English");
+  });
+
+  it("DWIE instancje tej samej kontrolki nie kolidują identyfikatorami", () => {
+    // Paleta ciemna i jasna stoją obok siebie w tej samej zakładce.
+    render(
+      <>
+        <TextRow label="Tło" value="a" onChange={vi.fn()} />
+        <TextRow label="Tło" value="b" onChange={vi.fn()} />
+      </>,
+    );
+
+    const ids = screen.getAllByLabelText("Tło").map((el) => el.getAttribute("id"));
+    expect(ids.filter(Boolean)).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+});
+
 describe("karta sekcji", () => {
   it("pokazuje tytuł, podpowiedź i zawartość", () => {
     render(

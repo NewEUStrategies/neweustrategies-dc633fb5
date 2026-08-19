@@ -911,10 +911,10 @@ export default defineConfig({
           branches: 100,
         },
         "src/components/admin/popups/PopupEditorPane.tsx": {
-          statements: 95,
+          statements: 97,
           functions: 100,
-          lines: 97,
-          branches: 88,
+          lines: 100,
+          branches: 95,
         },
         "src/components/admin/popups/SignupPopupContentSection.tsx": {
           statements: 100,

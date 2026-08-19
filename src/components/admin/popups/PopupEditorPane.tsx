@@ -79,10 +79,15 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
     }
   }, [doc, settings, name, status, save, t]);
 
-  if (loading || (!popup && !doc)) {
+  // Kolejność warunków jest tu zachowaniem: „ładowanie" MUSI być sprawdzone
+  // tylko na `loading`. Wcześniej pierwszy warunek łapał też `!popup && !doc`,
+  // przez co gałąź „nie znaleziono" była NIEOSIĄGALNA (dokument zapełnia się
+  // wyłącznie z wczytanego rekordu) - operator wchodzący w usunięty albo obcy
+  // popup patrzył na „Ładowanie..." bez końca i bez drogi powrotu.
+  if (loading) {
     return <p className="p-6 text-sm text-muted-foreground">{t("admin.popups.loading")}</p>;
   }
-  if (!popup && !loading) {
+  if (!popup) {
     return (
       <div className="p-6 space-y-3">
         <p className="text-sm text-muted-foreground">{t("admin.popups.notFound")}</p>
