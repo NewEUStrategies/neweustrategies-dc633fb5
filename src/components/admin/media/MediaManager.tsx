@@ -21,25 +21,9 @@ import "@/lib/i18n-admin-media";
 import { toast } from "sonner";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import {
-  Pencil,
-  Info,
-  Copy,
-  Scissors,
-  Download,
-  Trash2,
-  FolderPlus,
-  Upload,
-  ClipboardPaste,
-} from "@/lib/lucide-shim";
-import type {
-  ConfirmDeleteState,
-  ContextMenuItem,
-  ContextMenuState,
-  MediaRow,
-  ViewMode,
-} from "./types";
+import type { ConfirmDeleteState, ContextMenuState, MediaRow, ViewMode } from "./types";
 import { directChildFolders, folderName } from "./lib/mediaPaths";
+import { buildContextMenuItems, type ContextMenuDeps } from "./lib/contextMenuItems";
 import { useMediaData } from "./hooks/useMediaData";
 import { useMediaSelection } from "./hooks/useMediaSelection";
 import { useMediaMutations } from "./hooks/useMediaMutations";
@@ -145,6 +129,44 @@ export function MediaManager() {
       setRenamingId(id);
       setRenameDraft(row.filename);
     }
+  };
+
+  // Reguła dostępności akcji mieszka w `lib/contextMenuItems` (czysta,
+  // testowalna); tutaj zostaje wyłącznie spięcie jej ze stanem organizmu.
+  const contextMenuDeps: ContextMenuDeps = {
+    t,
+    media,
+    selectedIds,
+    canPaste: mutations.canPaste,
+    openFile: (row) => window.open(row.public_url, "_blank"),
+    copyUrl: (row) => {
+      void navigator.clipboard.writeText(row.public_url);
+      toast.success(t("admin.media.urlCopied"));
+    },
+    download: (row) => {
+      const a = document.createElement("a");
+      a.href = row.public_url;
+      a.download = row.filename;
+      a.click();
+    },
+    beginRename,
+    showInfo: (id) => {
+      selectOnly(id);
+      setInfoOpen(true);
+    },
+    requestDeleteFiles: (ids) => setConfirmDelete({ kind: "files", ids }),
+    copy: mutations.copy,
+    cut: mutations.cut,
+    openFolder: setCurrentPath,
+    beginRenameFolder: (path, suggestedName) => {
+      setRenamingFolder(path);
+      setRenamingFolderDraft(suggestedName);
+    },
+    requestDeleteFolder: (folder) => setConfirmDelete({ kind: "folder", folder }),
+    newFolder: () => setNewFolderOpen(true),
+    uploadFiles: () => fileInputRef.current?.click(),
+    paste: () => void mutations.doPaste(),
+    selectAll,
   };
 
   useMediaKeyboardShortcuts({
@@ -357,7 +379,7 @@ export function MediaManager() {
         <MediaContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          items={buildContextMenuItems(contextMenu)}
+          items={buildContextMenuItems(contextMenu, contextMenuDeps)}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -381,130 +403,4 @@ export function MediaManager() {
       <MediaPreviewDialog file={previewFile} onClose={() => setPreviewFile(null)} />
     </div>
   );
-
-  // ---------- Context menu builder ----------
-  function buildContextMenuItems(cm: ContextMenuState): ContextMenuItem[] {
-    if (cm.target === "file" && cm.targetId) {
-      const id = cm.targetId;
-      const row = media.find((m) => m.id === id);
-      const many = selectedIds.size > 1 && selectedIds.has(id);
-      const idsForBatch = many ? Array.from(selectedIds) : [id];
-      return [
-        {
-          label: t("admin.media.open"),
-          onSelect: () => {
-            if (row) window.open(row.public_url, "_blank");
-          },
-        },
-        {
-          label: t("admin.media.rename"),
-          icon: <Pencil className="w-3.5 h-3.5" />,
-          disabled: many,
-          onSelect: () => beginRename(id),
-        },
-        {
-          label: t("admin.media.getInfo"),
-          icon: <Info className="w-3.5 h-3.5" />,
-          onSelect: () => {
-            selectOnly(id);
-            setInfoOpen(true);
-          },
-        },
-        { separator: true },
-        {
-          label: t("admin.media.copyUrl"),
-          icon: <Copy className="w-3.5 h-3.5" />,
-          onSelect: () => {
-            if (row) {
-              void navigator.clipboard.writeText(row.public_url);
-              toast.success(t("admin.media.urlCopied"));
-            }
-          },
-        },
-        {
-          label: t("admin.media.download"),
-          icon: <Download className="w-3.5 h-3.5" />,
-          onSelect: () => {
-            if (row) {
-              const a = document.createElement("a");
-              a.href = row.public_url;
-              a.download = row.filename;
-              a.click();
-            }
-          },
-        },
-        { separator: true },
-        {
-          label: t("admin.media.copy"),
-          shortcut: "⌘C",
-          onSelect: () => mutations.copy(idsForBatch),
-        },
-        {
-          label: t("admin.media.cutAction"),
-          icon: <Scissors className="w-3.5 h-3.5" />,
-          shortcut: "⌘X",
-          onSelect: () => mutations.cut(idsForBatch),
-        },
-        { separator: true },
-        {
-          label: t("admin.delete"),
-          icon: <Trash2 className="w-3.5 h-3.5" />,
-          danger: true,
-          onSelect: () => setConfirmDelete({ kind: "files", ids: idsForBatch }),
-        },
-      ];
-    }
-
-    if (cm.target === "folder" && cm.targetId) {
-      const path = cm.targetId;
-      return [
-        {
-          label: t("admin.media.open"),
-          onSelect: () => setCurrentPath(path),
-        },
-        {
-          label: t("admin.media.rename"),
-          icon: <Pencil className="w-3.5 h-3.5" />,
-          onSelect: () => {
-            setRenamingFolder(path);
-            setRenamingFolderDraft(folderName(path));
-          },
-        },
-        { separator: true },
-        {
-          label: t("admin.delete"),
-          icon: <Trash2 className="w-3.5 h-3.5" />,
-          danger: true,
-          onSelect: () => setConfirmDelete({ kind: "folder", folder: path }),
-        },
-      ];
-    }
-
-    // Empty canvas
-    return [
-      {
-        label: t("admin.media.newFolder"),
-        icon: <FolderPlus className="w-3.5 h-3.5" />,
-        onSelect: () => setNewFolderOpen(true),
-      },
-      {
-        label: t("admin.media.uploadFiles"),
-        icon: <Upload className="w-3.5 h-3.5" />,
-        onSelect: () => fileInputRef.current?.click(),
-      },
-      { separator: true },
-      {
-        label: t("admin.media.paste"),
-        icon: <ClipboardPaste className="w-3.5 h-3.5" />,
-        shortcut: "⌘V",
-        disabled: !mutations.canPaste,
-        onSelect: () => void mutations.doPaste(),
-      },
-      {
-        label: t("admin.media.selectAll"),
-        shortcut: "⌘A",
-        onSelect: selectAll,
-      },
-    ];
-  }
 }

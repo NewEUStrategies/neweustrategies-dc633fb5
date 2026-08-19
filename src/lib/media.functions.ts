@@ -397,7 +397,14 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
 // eslint-disable-next-line no-control-regex
 const FOLDER_PATH_RE = /^\/(?:[^/\\<>:"|?*\x00-\x1f]{1,64}\/)*$/u;
 
-function normalizeFolderPath(input: string): string {
+/**
+ * Bramka ścieżki folderu. Eksportowana WYŁĄCZNIE po to, żeby dało się ją
+ * przetestować tabelą granic - to ona decyduje, czy da się wyjść poza katalog
+ * tenanta, więc dowód musi być tani i wyczerpujący, a nie przeciskany przez
+ * osiem osobnych handlerów server fn.
+ * @internal
+ */
+export function normalizeFolderPath(input: string): string {
   let p = (input || "/").trim();
   if (!p.startsWith("/")) p = "/" + p;
   if (!p.endsWith("/")) p = p + "/";
@@ -412,7 +419,8 @@ function normalizeFolderPath(input: string): string {
 // (LIKE-injection); przy deleteMediaFolder(recursive) groziloby to kasowaniem
 // lub przenoszeniem cudzych mediow w obrebie tenanta. Domyslny escape LIKE w
 // PostgreSQL to backslash, a PostgREST przekazuje wartosc jako parametr.
-function likePrefix(prefix: string): string {
+/** @internal - eksport wyłącznie na potrzeby testu escapowania LIKE. */
+export function likePrefix(prefix: string): string {
   return prefix.replace(/[\\%_]/g, (ch) => `\\${ch}`) + "%";
 }
 

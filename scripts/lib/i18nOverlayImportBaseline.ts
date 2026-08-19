@@ -23,7 +23,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/media/molecules/MediaToolbar.tsx", 4],
   ["src/components/admin/media/molecules/MediaUsageList.tsx", 9],
   ["src/components/admin/media/organisms/MediaFolderTree.tsx", 1],
-  ["src/components/admin/media/organisms/MediaInfoPanel.tsx", 10],
   ["src/components/admin/media/organisms/MediaListView.tsx", 5],
   ["src/components/admin/media/organisms/MediaPreviewDialog.tsx", 6],
   ["src/components/admin/molecules/RevisionDiffDialog.tsx", 6],

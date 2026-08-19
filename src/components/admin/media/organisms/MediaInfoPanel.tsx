@@ -6,6 +6,7 @@ import { MoreVertical } from "@/lib/lucide-shim";
 import type { ImageSize, MediaRow } from "../types";
 import { formatBytes } from "../lib/mediaFormat";
 import { InfoRow } from "../atoms/InfoRow";
+import "@/lib/i18n-admin-media";
 
 interface MediaInfoPanelProps {
   target: MediaRow | null;
@@ -90,6 +91,12 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
                 try {
                   await onSaveAlt(target.id, altDraft.trim());
                   toast.success(t("admin.saved"));
+                } catch {
+                  // Bez tej gałęzi odrzucenie wypływało poza komponent jako
+                  // nieobsłużone, a redaktor widział wyłącznie odblokowany
+                  // przycisk - bez potwierdzenia i bez błędu, więc uznawał opis
+                  // za zapisany.
+                  toast.error(t("admin.saveFailed"));
                 } finally {
                   setSavingAlt(false);
                 }

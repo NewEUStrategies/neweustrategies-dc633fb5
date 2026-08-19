@@ -266,6 +266,16 @@ obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jedn
 
 ### MODUŁ 4 — Strony, wygląd, motyw, media, import · linie 22,76% · funkcje 16,18%
 
+> **AKTUALIZACJA 2026-08-19** — moduł został domknięty testami; szczegóły w
+> `docs/WDROZENIE_POKRYCIE_MODUL_4_2026-08-19.md`. Liczby w tabeli niżej to
+> pomiar z 2026-08-18 (stan zastany), zachowany jako punkt odniesienia. Stan po
+> zmianie, tymi samymi globami: **97,3% instrukcji · 88,0% gałęzi · 97,5%
+> funkcji (906/929) · 98,65% linii**, ZERO plików bez wykonania (było 72).
+> Per funkcjonalność: szablony stron i archiwów 3,7% → **99,2%**, media
+> 22,9% → **97,5%**, motyw 47,9% → **98,2%**, ikony 25,5% → **92,0%**,
+> a dziewiętnaście tras administracyjnych modułu 0% → **96,9%**. Powierzchnia
+> jest od tej pory chroniona 27 progami per ścieżka w `vitest.config.ts`.
+
 | Funkcjonalność                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
 | Szablony stron i archiwów       |      5 |        108 |   3,3% |  6,3% |    5,1% |  **3,7%** |      3/59 |

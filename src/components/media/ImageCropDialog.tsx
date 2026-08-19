@@ -19,6 +19,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { getCroppedBlob, getImageDimensions, readFileAsDataUrl } from "@/lib/media/imageCrop";
+import {
+  ROTATION_MAX,
+  ROTATION_MIN,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  aspectRatioLabel,
+  quantizeRotation,
+  quantizeZoom,
+  sourceAspectWarning,
+  stepRotation,
+  stepZoom,
+} from "@/lib/media/cropGeometry";
 
 export type CropKind = "avatar" | "cover";
 
@@ -64,6 +76,7 @@ const L = {
       "Proporcje zdjęcia mocno odbiegają od zalecanych - efekt może być mocno przycięty. Popraw kadr poniżej lub wgraj inne zdjęcie.",
     target: "Zapis: ",
     ratio: "Wymagany format: ",
+    cropFailed: "Nie udało się przygotować kadru. Spróbuj ponownie lub wgraj inne zdjęcie.",
   },
   en: {
     title: "Crop image",
@@ -81,6 +94,7 @@ const L = {
       "Source aspect ratio differs significantly from the recommended one - the result may be heavily cropped. Adjust the frame below or upload another image.",
     target: "Saved as: ",
     ratio: "Required aspect: ",
+    cropFailed: "Could not prepare the crop. Try again or upload a different image.",
   },
 } as const;
 
@@ -101,18 +115,14 @@ export function ImageCropDialog({
   const [rotation, setRotation] = useState(0);
   const [pixelCrop, setPixelCrop] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cropFailed, setCropFailed] = useState(false);
 
   const tolerance = preset.tolerance ?? 0.35;
 
-  const ratioLabel = useMemo(() => {
-    if (Math.abs(preset.aspect - 1) < 0.01) return "1:1";
-    // Reduce a/b using GCD approximation
-    const w = preset.targetWidth;
-    const h = preset.targetHeight;
-    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-    const g = gcd(w, h);
-    return `${w / g}:${h / g}`;
-  }, [preset]);
+  const ratioLabel = useMemo(
+    () => aspectRatioLabel(preset.aspect, preset.targetWidth, preset.targetHeight),
+    [preset],
+  );
 
   // Load file into a data URL + validate source aspect ratio.
   useEffect(() => {
@@ -132,9 +142,7 @@ export function ImageCropDialog({
       setSrc(url);
       try {
         const { width, height } = await getImageDimensions(url);
-        const sourceRatio = width / height;
-        const diff = Math.abs(sourceRatio - preset.aspect) / preset.aspect;
-        setAspectWarn(diff > tolerance);
+        setAspectWarn(sourceAspectWarning(width, height, preset.aspect, tolerance));
       } catch {
         setAspectWarn(false);
       }
@@ -157,6 +165,7 @@ export function ImageCropDialog({
   const handleConfirm = async () => {
     if (!src || !pixelCrop) return;
     setBusy(true);
+    setCropFailed(false);
     try {
       const blob = await getCroppedBlob(
         src,
@@ -170,6 +179,12 @@ export function ImageCropDialog({
       const previewUrl = URL.createObjectURL(blob);
       onConfirm(blob, previewUrl);
       onOpenChange(false);
+    } catch {
+      // Kadrowanie idzie przez canvas i potrafi się nie udać (brak kontekstu 2d,
+      // obraz z obcej domeny „skażony" CORS-em). Bez tej gałęzi odrzucenie
+      // wypływało poza komponent jako nieobsłużone, a użytkownik widział tylko
+      // odblokowany przycisk - klikał drugi raz i znowu nic.
+      setCropFailed(true);
     } finally {
       setBusy(false);
     }
@@ -195,6 +210,16 @@ export function ImageCropDialog({
             </b>
           </span>
         </div>
+
+        {cropFailed && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-[6px] border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
+          >
+            <ImageOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>{t.cropFailed}</span>
+          </div>
+        )}
 
         {aspectWarn && (
           <div className="flex items-start gap-2 rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
@@ -238,19 +263,18 @@ export function ImageCropDialog({
             </span>
             <Slider
               value={[zoom]}
-              min={1}
-              max={6}
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
               step={0.01}
-              onValueChange={(v) => setZoom(Math.round((v[0] ?? 1) * 100) / 100)}
+              onValueChange={(v) => setZoom(quantizeZoom(v[0] ?? ZOOM_MIN))}
               onKeyDown={(e) => {
                 // Precyzyjny krok: Shift = 0.01, domyślny 0.05
-                const fine = e.shiftKey ? 0.01 : 0.05;
                 if (e.key === "ArrowRight" || e.key === "ArrowUp") {
                   e.preventDefault();
-                  setZoom((z) => Math.min(6, Math.round((z + fine) * 100) / 100));
+                  setZoom((z) => stepZoom(z, 1, e.shiftKey));
                 } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
                   e.preventDefault();
-                  setZoom((z) => Math.max(1, Math.round((z - fine) * 100) / 100));
+                  setZoom((z) => stepZoom(z, -1, e.shiftKey));
                 }
               }}
               aria-label={t.zoom}
@@ -267,19 +291,19 @@ export function ImageCropDialog({
             </span>
             <Slider
               value={[rotation]}
-              min={-180}
-              max={180}
+              min={ROTATION_MIN}
+              max={ROTATION_MAX}
               step={0.5}
-              onValueChange={(v) => setRotation(Math.round((v[0] ?? 0) * 10) / 10)}
+              onValueChange={(v) => setRotation(quantizeRotation(v[0] ?? 0))}
               onKeyDown={(e) => {
                 // Shift = 0.1°, domyślny 1°, snap co 15° z Alt
-                const fine = e.altKey ? 15 : e.shiftKey ? 0.1 : 1;
+                const mods = { alt: e.altKey, shift: e.shiftKey };
                 if (e.key === "ArrowRight" || e.key === "ArrowUp") {
                   e.preventDefault();
-                  setRotation((r) => Math.min(180, Math.round((r + fine) * 10) / 10));
+                  setRotation((r) => stepRotation(r, 1, mods));
                 } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
                   e.preventDefault();
-                  setRotation((r) => Math.max(-180, Math.round((r - fine) * 10) / 10));
+                  setRotation((r) => stepRotation(r, -1, mods));
                 }
               }}
               aria-label={t.rotate}
