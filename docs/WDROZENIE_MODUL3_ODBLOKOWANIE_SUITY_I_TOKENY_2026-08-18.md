@@ -128,7 +128,7 @@ trasie publicznej.
 | `lib/builder/chromeDefaults.ts` |  0,0% |  **84,2%** | 0/13 → **11/13** |
 | `lib/blocks/markdown.ts`        |  0,0% |   **100%** | 0/12 → **12/12** |
 
-Razem **211 nowych przypadków testowych**. Żaden nie jest renderem bez asercji — repo raz już
+Razem **269 nowych przypadków testowych** (211 na powierzchni tokenów + 58 na warstwie wartości pól z §3.3). Żaden nie jest renderem bez asercji — repo raz już
 zdjęło taką warstwę i zapisało to w komentarzu przy progu globalnym.
 
 ### 3.1 Co te testy faktycznie pilnują
@@ -159,6 +159,44 @@ Kotwice, nie asercje o wyglądzie — gdy ktoś je „naprawi”, test przypomni
 - gałąź `inner-section` w `withStableIds` jest nieosiągalna z `defaultDocFor` (żaden domyślny
   dokument chrome'u nie ma sekcji wewnętrznej) — stąd 84%, a nie 100%: uczciwy sufit przez API
   publiczne, nie obniżony próg.
+
+---
+
+## 3.3 Warstwa wartości pól panelu wyprowadzona z `WidgetProperties.tsx`
+
+Audyt wskazał ten zabieg wprost: „powtórz to, co dało `lib/builder/schema.ts` 100% funkcji —
+wyprowadź z paneli warstwę schematu i walidacji”. Diagnoza była trafna co do PRZYCZYNY: reguły
+odczytu i zapisu wartości siedziały jako domknięcia **wewnątrz** komponentu (1 800 linii), więc
+jedynym sposobem przetestowania klampa było wyrenderowanie 99 typów widgetów, i18n, Radiksa
+i rejestru leniwych chunków.
+
+**Korekta założenia zadania:** warstwa DESKRYPTORÓW pól już istnieje i jest duża —
+`lib/builder/schemas.ts` (3 659 linii) z `SchemaField` (typ pola, `min`/`max`/`step`, `default`,
+`options`, `legacyKeys`, `visibleWhen`, `inheritedValue`, `group`). Nie było czego projektować.
+Brakowało warstwy DOSTĘPU — funkcji, które czytają i zapisują wartość zgodnie z tym opisem.
+
+`src/lib/builder/widgetPanelValues.ts` (nowy, czysty — zero Reacta, zero DOM-u): wysokość
+(`readDesktopHeight`, `writeDesktopHeight`, `clampWidgetHeight`), szerokość
+(`readActiveWidgetWidth`, `widgetWidthMode`, `widgetWidthValue`, `seedWidthForMode`,
+`writeWidgetWidth`) i rozmiary pól (`clampFormElementSize`, `commitSizeInput`, `bumpSize`).
+**58 testów, 100% pokrycia modułu.** Bez zmiany zachowania — `check:widget-fidelity` (542 testy)
+i cała powierzchnia `admin/builder` (23 pliki / 769 testów) zielone przed i po.
+
+Pilnowane reguły, których złamanie widzi WYŁĄCZNIE redaktor:
+
+- edycja desktopu nie depcze nadpisań tabletu/mobile, a usunięcie OSTATNIEJ warstwy zwija zapis
+  do `undefined` (inaczej w JSONB zostaje martwy `height: {}`);
+- `"100%"` to PEŁNA szerokość, nie procent — gdyby wpadło w tryb procentowy, przełącznik
+  pokazywałby suwak na 100 zamiast zaznaczonego trybu i redaktor nie miałby jak wrócić;
+- każda wartość startowa trybu wraca do TEGO SAMEGO trybu (pętla domknięta) — seed `100%` dla
+  trybu procentowego uczyniłby ten tryb nieklikalnym;
+- pusty wpis znaczy „wróć do auto” (klucz USUNIĘTY), a nie „ustaw zero”;
+- wpis nieliczbowy jest IGNOROWANY, nie zapisywany jako `NaN` (doszłoby do CSS jako `NaNpx`);
+- krok +/− z „auto” startuje od ZMIERZONEGO rozmiaru, nie od `min`.
+
+**Bundle:** moduł jest importowany wyłącznie z panelu administracyjnego, nie ze ścieżki
+bootowania — `check:bundle` w budżecie, `check:entry-purity` czysta (9 chunków statycznie
+osiągalnych), `check:chunks` acykliczny.
 
 ---
 
