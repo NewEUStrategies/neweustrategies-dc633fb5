@@ -8,7 +8,6 @@ import { ArrowLeft, BadgeCheck, MapPin, Users, UsersRound } from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
-import { NO_CONNECTION } from "@/lib/network/useConnections";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
 import { NetworkDistance } from "@/components/network/organisms/NetworkDistance";
 import { supabase } from "@/integrations/supabase/client";
