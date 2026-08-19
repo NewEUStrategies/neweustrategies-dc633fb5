@@ -93,7 +93,29 @@ describe("lazyWidgets registry", () => {
     }
   });
 
+  // Rozjazd ma DWA kierunki i do 2026-08-19 oba wpadały w jedną surową
+  // asercję `toEqual` dwóch tablic, więc diagnoza zaczynała się od czytania
+  // diffa 58 nazw. Rozdzielone: duplikat łapie test niżej, a tutaj różnica
+  // zbiorów nazywa kierunek i winowajcę wprost.
   it("does not leak unexpected exports", () => {
-    expect(Object.keys(registry).sort()).toEqual([...SPLIT_WIDGETS].sort());
+    const exported = Object.keys(registry);
+    // `string[]`, nie krotka literalna - inaczej `includes(name: string)` nie typuje się.
+    const listed: string[] = [...SPLIT_WIDGETS];
+    // brakuje na liście: rejestr eksportuje, lista milczy (nowy widget bez wpisu)
+    const missing = exported.filter((name) => !listed.includes(name));
+    // nadmiar na liście: lista trzyma nazwę, której rejestr już nie eksportuje
+    const extra = listed.filter((name) => !exported.includes(name));
+    expect(
+      { missing, extra },
+      `brakuje na liście: ${missing.join(", ") || "(nic)"}; nadmiar na liście: ${extra.join(", ") || "(nic)"}`,
+    ).toEqual({ missing: [], extra: [] });
+  });
+
+  // Zamyka kierunek „duplikat" na zawsze: różnica zbiorów wyżej jest liczona
+  // przez `includes`, więc sama dwukrotnego wpisu NIE zobaczy.
+  it("lists every widget exactly once", () => {
+    const duplicates = [...new Set(SPLIT_WIDGETS.filter((n, i) => SPLIT_WIDGETS.indexOf(n) !== i))];
+    expect(duplicates, `zdublowane wpisy na liście: ${duplicates.join(", ")}`).toEqual([]);
+    expect(new Set(SPLIT_WIDGETS).size).toBe(SPLIT_WIDGETS.length);
   });
 });
