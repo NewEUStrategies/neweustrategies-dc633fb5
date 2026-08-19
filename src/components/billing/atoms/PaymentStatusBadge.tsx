@@ -26,7 +26,16 @@ export function PaymentStatusBadge({
   const { t } = useTranslation();
   return (
     <Badge variant={paymentStatusTone(status)} className={className} data-status={status}>
-      {t(`${labelPrefix}.${status}`)}
+      {/*
+       * Zapasowo SUROWY stan od operatora, nie klucz słownika. Stan przychodzi
+       * jako `string`, a operator dokłada nowe wartości (`disputed`,
+       * `requires_action`) bez naszego udziału - bez tego zapasu klient
+       * widziałby w tabeli „profile.planPage.history.status.disputed" zamiast
+       * „disputed". Ten sam zapas ma eksport historii do PDF i CSV, więc obie
+       * drogi pokazują ten sam stan tej samej płatności - o to właśnie ten atom
+       * powstał (patrz nagłówek i `lib/billing/statusTone`).
+       */}
+      {t(`${labelPrefix}.${status}`, { defaultValue: status })}
     </Badge>
   );
 }

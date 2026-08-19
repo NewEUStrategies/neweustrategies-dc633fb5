@@ -7,13 +7,39 @@
 //
 // Kontrakt każdego z nich dotyczy tego, co klient MOŻE ODCZYTAĆ ze strony,
 // na której sprawdza, czy zapłacił - i co ze zrzutu tej strony odczyta wsparcie.
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { reactI18nextStub, translateKey } from "@/test/billing/fixtures";
 
 let lang = "pl";
-vi.mock("react-i18next", () => reactI18nextStub(() => lang));
+
+/**
+ * Wspólna atrapa i18n świadomie POMIJA `defaultValue`, żeby testy asertowały
+ * KLUCZE, nie polskie copy. Zapas jest jednak zachowaniem widocznym dla klienta
+ * (stan dołożony przez operatora musi być czytelny), więc dwa przypadki niżej
+ * potrzebują atrapy zachowującej się jak PRAWDZIWY i18next przy BRAKUJĄCYM
+ * kluczu: zwraca `defaultValue`. Przełącznik jest domyślnie wyłączony, żeby
+ * pozostałe asercje na klucze działały bez zmian.
+ */
+let missingKeys = false;
+
+vi.mock("react-i18next", () => {
+  const base = reactI18nextStub(() => lang);
+  const t = (key: string, options?: Record<string, unknown>): string => {
+    if (missingKeys && typeof options?.defaultValue === "string") return options.defaultValue;
+    return translateKey(key, options);
+  };
+  return {
+    ...base,
+    useTranslation: () => ({ t, i18n: { language: lang, t } }),
+  };
+});
+
+beforeEach(() => {
+  lang = "pl";
+  missingKeys = false;
+});
 
 const { PaymentStatusBadge } = await import("@/components/billing/atoms/PaymentStatusBadge");
 const { BillingEmptyState } = await import("@/components/billing/atoms/BillingEmptyState");
@@ -34,6 +60,26 @@ describe("PaymentStatusBadge - kolor NIE jest jedynym nośnikiem informacji", ()
       "data-status",
       "processing",
     );
+  });
+
+  it("NIEZNANY stan pokazuje SUROWĄ wartość operatora, nie klucz słownika", () => {
+    // Regresja wychwycona w przeglądzie PR #261. Poprzedni renderer historii
+    // wołał `t(klucz, { defaultValue: status })`; atom początkowo tego zapasu
+    // nie miał, więc stan dołożony przez operatora (`disputed`,
+    // `requires_action`) wyświetlałby się klientowi jako
+    // „profile.planPage.history.status.disputed".
+    missingKeys = true;
+    render(<PaymentStatusBadge status="disputed" />);
+
+    expect(screen.getByText("disputed")).toBeInTheDocument();
+    expect(screen.queryByText(/^profile\.status\./)).not.toBeInTheDocument();
+  });
+
+  it("nieznany stan zachowuje surową wartość także w `data-status`", () => {
+    missingKeys = true;
+    render(<PaymentStatusBadge status="requires_action" labelPrefix="profile.orders.status" />);
+
+    expect(screen.getByText("requires_action")).toHaveAttribute("data-status", "requires_action");
   });
 
   it("prefiks klucza da się zmienić na słownik danej karty", () => {
