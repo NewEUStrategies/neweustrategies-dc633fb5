@@ -336,6 +336,26 @@ describe("ArchiveToolbar - licznik i sortowanie", () => {
     expect(screen.getByRole("combobox", { name: /Sortuj/ })).toBeDisabled();
   });
 
+  it("wybór innego porządku zgłasza go trasie", () => {
+    // To jedyna droga zmiany porządku wyników - jej zerwanie zamraża archiwum
+    // na „najnowszych" niezależnie od tego, co wybierze czytelnik.
+    const onSortChange = vi.fn();
+    render(
+      <ArchiveToolbar
+        lang="pl"
+        total={3}
+        page={1}
+        pageSize={20}
+        sort="newest"
+        onSortChange={onSortChange}
+        isPending={false}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("combobox", { name: /Sortuj/ }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "Najpopularniejsze" }));
+    expect(onSortChange).toHaveBeenCalledWith("popular");
+  });
+
   it("etykieta sortowania idzie za językiem strony", () => {
     render(
       <ArchiveToolbar
