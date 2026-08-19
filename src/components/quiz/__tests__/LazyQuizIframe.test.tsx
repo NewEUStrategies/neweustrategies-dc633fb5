@@ -1,5 +1,11 @@
 // Leniwe osadzenie quizu.
 //
+// UWAGA NA HAPPY-DOM: bez `disableIframePageLoading` środowisko NAPRAWDĘ
+// nawiguje osadzoną ramkę pod podany adres, więc każdy przebieg strzelał
+// w sieć do `https://quiz.example/q` i sypał w logi `AbortError`/`NetworkError`
+// przy odmontowaniu. Test jednostkowy nie ma prawa dotykać sieci - to ta sama
+// zasada, dla której `vitest.setup.ts` wycisza `navigator.sendBeacon`.
+//
 // Cały sens tego komponentu jest WYDAJNOŚCIOWY i niewidoczny na ekranie:
 // ciężki, zewnętrzny bundel quizu nie ma się pobierać przed pierwszym paintem,
 // a mimo to strona nie może skakać, gdy iframe wreszcie wjedzie. Stąd trzy
@@ -12,6 +18,12 @@ import { realT } from "@/test/i18nReal";
 import { LazyQuizIframe } from "@/components/quiz/LazyQuizIframe";
 
 const t = realT("pl");
+
+/** Ustawienia środowiska happy-dom dostępne w czasie wykonania. */
+function happyDomSettings(): { disableIframePageLoading: boolean } {
+  return (window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } })
+    .happyDOM.settings;
+}
 
 /** Przejmuje IntersectionObserver, żeby test sam decydował o wejściu w viewport. */
 function captureObserver() {
@@ -62,6 +74,11 @@ function captureObserver() {
 }
 
 beforeEach(() => {
+  // happy-dom NAPRAWDĘ nawiguje osadzoną ramkę pod podany adres, więc bez tego
+  // każdy przebieg strzelał w sieć i sypał w logi `AbortError`/`NetworkError`
+  // przy odmontowaniu. Test jednostkowy nie ma prawa dotykać sieci - ta sama
+  // zasada, dla której `vitest.setup.ts` wycisza `navigator.sendBeacon`.
+  happyDomSettings().disableIframePageLoading = true;
   // Bez `requestIdleCallback` komponent schodzi na `setTimeout` - sterujemy
   // nim zegarem, zamiast czekać realnych 250 ms w każdym teście.
   vi.stubGlobal("requestIdleCallback", undefined);
