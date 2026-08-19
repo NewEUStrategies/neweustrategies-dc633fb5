@@ -583,8 +583,9 @@ describe("uruchomienie importu", () => {
     // `run` jest odpalane bez czekania; nieobsłużone odrzucenie zabiłoby
     // render, a zadanie i tak raportuje swój błąd wierszem w bazie.
     h.runError = new Error("timeout funkcji");
-    h.job = jobRow({ status: "failed", error: "timeout funkcji" });
-    await startImport(h.job as Record<string, unknown>);
+    const failedJob = jobRow({ status: "failed", error: "timeout funkcji" });
+    h.job = failedJob;
+    await startImport(failedJob);
 
     await waitFor(() => expect(screen.getByText("Import nieudany")).toBeInTheDocument());
     expect(screen.getByText("timeout funkcji")).toBeInTheDocument();

@@ -69,11 +69,11 @@ vi.mock("@/lib/builder/revisions", async (importOriginal) => {
   };
 });
 
+import { BuilderVersionsPane } from "@/components/admin/versions/organisms/BuilderVersionsPane";
 import {
-  BuilderVersionsPane,
   documentForSection,
   documentForWidget,
-} from "@/components/admin/versions/organisms/BuilderVersionsPane";
+} from "@/components/admin/versions/lib/builderVersions";
 
 type Mock = ReturnType<typeof vi.fn>;
 const toast = () => h.toast as Record<string, Mock>;
