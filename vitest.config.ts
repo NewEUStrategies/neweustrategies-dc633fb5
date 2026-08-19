@@ -874,6 +874,102 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── CAŁY PANEL NEWSLETTERA ───────────────────────────────────────────
+        // Próg katalogowy jest siatką bezpieczeństwa pod progami plikowymi:
+        // nowy panel dołożony bez testu obniża ten wskaźnik i zatrzymuje
+        // bramkę, nawet jeśli nikt nie dopisze mu progu własnego. Osiągnięte
+        // 99,2% linii i funkcji zostawia ~4 pkt zapasu na refaktory.
+        "src/components/admin/newsletter/**": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 85,
+        },
+        // ── PODSUMOWANIE, LOGI I POZOSTAŁE KAFLE ─────────────────────────────
+        // logFilters: JEDNA reguła filtrów dla obu logów (systemowego i
+        // webhooka maili autoryzacyjnych). Skopiowana rozjechałaby się cicho -
+        // jeden panel poprawiony, drugi nie. Test dowodzi też, że oba panele
+        // trzymają tę samą referencję funkcji, a nie jej kopię.
+        "src/components/admin/newsletter/logFilters.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // overviewKpis: cztery liczby, których nikt nie ma z czym porównać.
+        // Błąd nie wywala panelu - podaje inną liczbę. Pod progiem: okna 30/60
+        // dni NIE zachodzą na siebie (inaczej wzrost liczy się sam ze siebie),
+        // wskaźnik potwierdzeń przy pustej liście to 100% (nie NaN i nie 0%),
+        // a subskrybentem jest TYLKO potwierdzony adres.
+        "src/components/admin/newsletter/overviewKpis.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // authLogsView: diagnostyka „nie dostałem maila" i „dostałem w złym
+        // języku". „Odrzucony" (webhook odmówił) i „nieudany" (webhook się
+        // wywalił) muszą różnić się na oczy, a brak języka być KRESKĄ - puste
+        // pole czyta się jako „polski", czyli dokładnie to, o czym jest zgłoszenie.
+        "src/components/admin/newsletter/auth-logs/authLogsView.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/components/admin/newsletter/auth-logs/AuthEmailLogsPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // OverviewPanel: decyduje, czy formularz w ogóle pojawia się na stronie
+        // (`mode`) i czy zapis wymaga potwierdzenia adresu (`double_opt_in`).
+        // Próg pilnuje też tego, że zapis ustawień logiki NIE wysyła dokumentów
+        // builderów - nadpisałby pracę wykonaną w /inline i /popup.
+        "src/components/admin/newsletter/OverviewPanel.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // PopupEventsPanel: jedyne miejsce, w którym widać, czy popup DZIAŁA -
+        // sam przełącznik „włączony" nie mówi nic o skuteczności ani o błędach.
+        "src/components/admin/newsletter/PopupEventsPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // PopupPreview: wariant „showcase" MUSI iść tym samym komponentem co
+        // strona publiczna, a dokument z buildera tym samym rendererem - drugi,
+        // uproszczony markup rozjechałby się z produkcją bez żadnego sygnału.
+        "src/components/admin/newsletter/PopupPreview.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // NewsletterSubNav: aktywna zakładka wynika z PREFIKSU ścieżki, więc
+        // ścieżka jednej zakładki nie może być prefiksem innej - zapaliłyby się
+        // dwie naraz. Test przypina ten warunek na całym zestawie.
+        "src/components/admin/newsletter/NewsletterSubNav.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // JobRunnerCard: kafel powstał po awarii, w której runner startował
+        // wyłączony i z pustym adresem - świeże wdrożenie nie wysyłało w tle
+        // NICZEGO, a jedynym śladem była rosnąca kolejka, której panel nie
+        // pokazywał. Próg pilnuje rozstrzygniętego stanu, ostrzeżenia o
+        // zaległości i alarmu o martwych listach od PIERWSZEJ wiadomości.
+        "src/components/admin/newsletter/runner/JobRunnerCard.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
         // ── MAILE SYSTEMOWE: LOG, TREŚCI, PODGLĄD ────────────────────────────
         // Te trzy panele są ostatnim miejscem, w którym widać, co poszło (albo
         // pójdzie) do prawdziwego adresata - i każdy z nich ZAWSZE coś pokazuje,

@@ -4,15 +4,27 @@
 // systemowe (potwierdzenia, przypomnienia, zaproszenia) faktycznie wyszły.
 // Pomyłki są tu ciche, bo panel zawsze coś pokazuje:
 //
-//   * WARTOŚĆ „wszystkie" w filtrze. Radix wywala się na `SelectItem value=""`,
-//     więc sentynela musi być napisem - a przy zapisie MUSI wrócić na `null`.
-//     Sentynela puszczona dalej jako nazwa szablonu filtruje log do zera i
-//     operator widzi „brak wysyłek" tam, gdzie wysyłek są tysiące.
-//   * LICZBA STRON. Zero wierszy musi dać JEDNĄ stronę, nie zero - inaczej
-//     przycisk „następna" jest aktywny w pustym logu i prowadzi w nicość.
 //   * WSKAŹNIK DORĘCZENIA. `null` (brak danych) to nie to samo co 0% - „0%"
 //     w pustym logu czyta się jako awarię wysyłki.
+//   * TON ODZNAKI STATUSU. DLQ to jedyny status wymagający reakcji operatora;
+//     wspólny ton z „wysłane" schowałby awarię w tłumie zielonych wierszy.
+//   * SERIE WYKRESU. Wysłane, nieudane i wstrzymane to trzy różne rzeczy;
+//     zlepienie ich pokazuje wzrost tam, gdzie rosną same błędy.
+//
+// Sentynela „wszystkie", fraza wyszukiwania, liczba stron i znacznik czasu są
+// WSPÓLNE z logiem webhooka maili autoryzacyjnych (`../logFilters`) - skopiowane
+// rozjechałyby się cicho: jeden panel poprawiony, drugi nie.
 import type { SystemEmailDayPoint, SystemEmailStatus } from "@/lib/email/system-log.server";
+import { DEFAULT_PAGE_SIZE } from "../logFilters";
+
+export {
+  ALL_OPTION,
+  filterOption,
+  filterValue,
+  rowTimestamp,
+  searchValue,
+  totalPages,
+} from "../logFilters";
 
 /** Okna czasowe raportu (dni). */
 export const RANGES = [1, 7, 30] as const;
@@ -21,39 +33,7 @@ export type Range = (typeof RANGES)[number];
 /** Statusy pokazywane w filtrze - kolejność jest kolejnością listy. */
 export const STATUSES: readonly SystemEmailStatus[] = ["sent", "pending", "dlq", "suppressed"];
 
-export const PAGE_SIZE = 50;
-
-/**
- * Sentynela „wszystkie" w filtrach.
- *
- * Radix wywala się na `SelectItem value=""`, więc opcja „wszystkie" musi mieć
- * NIEPUSTĄ wartość. Nazwy szablonów przychodzą z bazy, więc sentynela nie może
- * być czymś, co da się pomylić z nazwą.
- */
-export const ALL_OPTION = "all";
-
-/** Wartość filtra z listy -> wartość do zapytania (`null` = bez filtra). */
-export function filterValue(raw: string): string | null {
-  return raw === ALL_OPTION ? null : raw;
-}
-
-/** Wartość do wyświetlenia w liście (`null` -> sentynela „wszystkie"). */
-export function filterOption(value: string | null): string {
-  return value ?? ALL_OPTION;
-}
-
-/** Fraza wyszukiwania do zapytania: puste i same spacje znaczą „bez filtra". */
-export function searchValue(raw: string): string | null {
-  return raw.trim() ? raw.trim() : null;
-}
-
-/**
- * Liczba stron. Pusty log ma JEDNĄ stronę - zero stron zapaliłoby „następna"
- * w pustym widoku.
- */
-export function totalPages(rowsTotal: number, pageSize: number = PAGE_SIZE): number {
-  return Math.max(1, Math.ceil(rowsTotal / pageSize));
-}
+export const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 /** Wskaźnik doręczenia jako procent; brak danych to KRESKA, nie „0%". */
 export function deliveryRateLabel(rate: number | null | undefined): string {
@@ -88,13 +68,4 @@ export function chartValues(series: readonly SystemEmailDayPoint[]): {
     failed: series.map((p) => p.failed),
     suppressed: series.map((p) => p.suppressed),
   };
-}
-
-/** Znacznik czasu wiersza; brak daty to KRESKA, nie „Invalid Date". */
-export function rowTimestamp(createdAt: string | null | undefined, locale: string): string {
-  if (!createdAt) return "-";
-  return new Date(createdAt).toLocaleString(locale, {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
 }
