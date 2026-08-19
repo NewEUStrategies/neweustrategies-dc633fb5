@@ -11,11 +11,13 @@ import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { uploadAndRegisterMedia, IMAGE_MIME } from "@/lib/media/upload";
+import { persistDataUrlImages, type DecodedDataUrl } from "@/lib/blocks/persistImages";
 import {
-  persistDataUrlImages,
-  replaceDataUrlImages,
-  type DecodedDataUrl,
-} from "@/lib/blocks/persistImages";
+  applyPersistedImages,
+  historyShortcut,
+  missingRequiredKeys,
+  replaceFormImageUrls,
+} from "../lib";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
