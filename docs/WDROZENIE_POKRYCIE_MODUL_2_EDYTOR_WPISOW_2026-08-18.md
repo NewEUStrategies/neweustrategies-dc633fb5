@@ -243,8 +243,66 @@ samym id — czyli pokazałoby nazwiska osób pracujących nad innym dokumentem.
 
 ## 6. Defekty znalezione PRZY PISANIU testów
 
-Trzy defekty produkcyjne wyszły w trakcie tej pracy. Zgodnie z zasadą repo każdy
-ma osobny commit z opisem, co dokładnie było złe.
+Pięć defektów produkcyjnych wyszło w trakcie tej pracy. Zgodnie z zasadą repo
+każdy ma osobny commit z opisem, co dokładnie było złe — i w każdym przypadku
+blok testowy, który w commicie pokrywającym był ŚWIADKIEM defektu, jest po
+naprawie testem REGRESJI.
+
+### D1 — przywracanie wersji popupu było MARTWE
+
+`BuilderVersionsPane` woła `useRestoreBuilderRevision(...)` z zakresem
+wynikającym z aktywnej zakładki. Ternarny wybór miał po obu stronach **tę samą
+wartość** (`"page"`), więc zakładka „Popupy/szablony" przywracała rewizję jak
+zwykłą stronę. Skutek: przywrócenie wersji globalnego widgetu albo nie robiło
+nic, albo trafiało w niewłaściwy byt — a redaktor widział komunikat sukcesu.
+
+Naprawa: gałąź `template` przekazuje `"global_widget"`. Test pilnuje obu
+zakładek osobno, bo to jedyna asercja, która odróżnia te dwa wywołania.
+
+### D3 — statusy dostarczeń automatyzacji były po ANGIELSKU na sztywno
+
+Cztery etykiety w `components/admin/workflows/atoms.tsx` (`delivered`,
+`pending`, `retry`, `dead`) były literałami angielskimi w kodzie, mimo że cały
+panel jest dwujęzyczny. Polski redaktor patrzący na historię przebiegów widział
+„Dead-lettered" bez żadnego kontekstu — a to jest dokładnie ten stan, w którym
+musi zrozumieć, że zdarzenie NIE dojdzie i wymaga ręcznej interwencji.
+
+Naprawa: cztery klucze w `lib/i18n-admin-workflows.ts`, w PL i EN (bramki
+parytetu i18n są blokujące, więc jedno bez drugiego nie przechodzi CI).
+
+### D4 — adres wpisu i taksonomii ZJADAŁ literę „ł"
+
+`slugifyTaxonomy` normalizowało tekst przez `normalize("NFD")` + usunięcie
+znaków diakrytycznych. To rozkłada `ą ć ę ń ó ś ź ż`, ale **nie** `ł` (U+0142 to
+osobny znak, nie „l" + diakryt), więc litera wypadała razem z resztą
+niealfanumerycznych: `Łódź → odz`, `Miłość i Przyjaźń → mio-i-przyjazn`.
+
+Najgorsze w tym defekcie było to, że repo miało już test, który tę usterkę
+**dokumentował jako decyzję**: asercja `slugifyTaxonomy("Łódź") === "odz"`
+z komentarzem „matching prior behavior". Charakteryzacja utrwaliła błąd.
+
+Naprawa: wspólny moduł `src/lib/text/strokeLetters.ts` (litery z przekreśleniem
+i ligatury: `ł ø đ ð æ œ ß þ ħ ŀ ı`) użyty PRZED normalizacją NFD. Ten sam
+słownik miał już prywatną kopię w panelu profilu — teraz jest jeden, więc adres
+proponowany w profilu i adres taksonomii nie mogą się rozjechać. Test
+charakteryzacyjny zamienił się w test poprawności, z komentarzem, dlaczego stara
+asercja była błędna.
+
+### D5 — obce `?lang=` w adresie edytora PRZECHODZIŁO jako język UI
+
+Trasa `/admin/posts/$slug` deklaruje `validateSearch` zwracające `{}` dla
+wartości innej niż `pl`/`en`. To wygląda na odsiew, ale nim nie jest: router
+składa `match.search` jako `{ ...surowe, ...zwalidowane }`, a `Route.useSearch()`
+czyta właśnie `match.search`. Zwrócenie `{}` niczego nie usuwa — klucz zostaje
+z surową wartością, a deklarowany typ `{ lang?: "pl" | "en" }` jest obietnicą
+wyłącznie kompilacyjną.
+
+Skutek: `?lang=cokolwiek` przyklejało edytor do polszczyzny (panele porównują
+`uiLang === "en"`), więc redaktor pracujący w panelu EN dostawał polskie nazwy
+kategorii i polski wariant karty patrona — zamiast powrotu do języka panelu.
+
+Naprawa: `uiLang` zawęża wartość w runtime, a nie tylko sprawdza jej obecność.
+Komentarz przy `validateSearch` mówi wprost, że zawęża TYP, nie odsiewa wartości.
 
 ### D2 — otwarcie i zapis przepisu cicho zmieniało typ warunku
 
@@ -279,6 +337,177 @@ dotąd; osobny test tego pilnuje.
 
 Blok testowy, który w commicie pokrywającym był ŚWIADKIEM DEFEKTU, jest teraz
 testem REGRESJI: 23 wartości przechodzą rundę bez straty.
+
+---
+
+## 7. Panele automatyzacji i wersji: reguła, nie render
+
+Zlecenie stawiało tu warunek metodyczny: **wyciągnąć regułę, którą panel
+prezentuje, i asertować DANE albo KLUCZ i18n — nie renderować całości bez
+asercji.** Repo raz już usunęło warstwę testów renderujących bez asercji
+(historia zapisana przy globalnym progu w `vitest.config.ts`), więc powtórka
+byłaby regresją metody, nie postępem.
+
+| Katalog                       |  Linie | Funkcje | Instrukcje | Gałęzie |
+| ----------------------------- | -----: | ------: | ---------: | ------: |
+| `components/admin/workflows/` | 98,93% |  97,56% |     98,01% |  94,27% |
+| `components/admin/versions/`  | 96,35% |  95,45% |     96,79% |  92,09% |
+
+Reguły, które dostały dowód (a nie „komponent się wyrenderował"):
+
+- **KPI liczone z okna przebiegów.** Liczba awarii jest jedynym miejscem, gdzie
+  redaktor widzi, że automatyzacje się psują — zły licznik UKRYWA awarię.
+  Czysty `aggregateRunStats` został w testach PRAWDZIWY; atrapowana jest tylko
+  warstwa zapytań.
+- **Nieudane przełączenie przepisu musi się COFNĄĆ NA EKRANIE.** Przełącznik
+  jest optymistyczny wobec oka użytkownika: bez unieważnienia po błędzie
+  pokazuje stan, którego baza nie przyjęła.
+- **Każda mutacja unieważnia OBA zapytania** (definicje + okno przebiegów) —
+  inaczej lista pokazuje stan sprzed zmiany, a KPI liczy ze starego okna.
+- **Ślad korelacji reaguje na deep-link, ale nie kasuje ręcznego wpisu**
+  (wzorzec „adjust state during render": reakcja na ZMIANĘ propa, nie na każdy
+  render).
+- **Przywracanie wersji celuje we właściwy byt** — patrz D1.
+
+## 8. Atomy, molekuły i organizmy edytora
+
+| Katalog                  |    Linie |  Funkcje | Instrukcje |  Gałęzie |
+| ------------------------ | -------: | -------: | ---------: | -------: |
+| `post-editor/lib/`       | **100%** | **100%** |   **100%** | **100%** |
+| `post-editor/atoms/`     | **100%** | **100%** |   **100%** | **100%** |
+| `post-editor/hooks/`     | **100%** | **100%** |     99,23% |   92,25% |
+| `post-editor/molecules/` | **100%** | **100%** |     99,13% |   96,83% |
+| `post-editor/organisms/` | **100%** |   98,41% |     99,26% |   88,21% |
+
+Trzy rzeczy warte wyróżnienia, bo są regułami, a nie „widokiem":
+
+1. **Wielopolowe zmiany idą JEDNĄ pozycją historii.** Karty organizacji
+   i sponsoringu zmieniają po kilka pól naraz. Osobne `set()` na każde pole
+   dałoby tyle samo wpisów undo i tyle samo szans, żeby autozapis utrwalił stan
+   pośredni — czyli wpis oznaczony jako komercyjny bez reszty deklaracji.
+2. **Jedna zakładka szczegółów na raz.** Sekcje montują ciężkie panele (SEO
+   z analizą treści, dostęp, historia wersji); zamontowanie kilku naraz to
+   kilka kompletów zapytań przy każdym wejściu w edytor.
+3. **Przypisy z podglądu piszą do SWOJEGO języka.** `AutoFootnotesPreview`
+   oddaje poprawiony dokument jednego języka; zapis bez scalenia
+   (`{ ...cur, [lang]: nextDoc }`) wymazałby dokument DRUGIEGO języka —
+   redaktor tracił by całą wersję EN przy pierwszym przypisie dodanym po
+   polsku. Test montuje kadr layoutu, bo sam `canvasWrap()` zwraca element,
+   którego nikt nie renderuje.
+
+## 9. Osiem tras panelu redakcyjnego: wszystkie z zera
+
+Zlecenie początkowo wykluczało trasy („nie goń pokrycia na trasach admina");
+druga instrukcja zdjęła to ograniczenie z warunkiem „z dużą ostrożnością
+i uwagą do detalu". Trasy okazały się miejscem, w którym mieszka **sklejenie** —
+warstwa niewidoczna dla testów komponentów.
+
+| Trasa                        | Linii kodu |    Linie |  Funkcje |  Gałęzie |
+| ---------------------------- | ---------: | -------: | -------: | -------: |
+| `admin.posts.tsx`            |        768 | **100%** | **100%** |   97,64% |
+| `admin.redirects.tsx`        |        668 | **100%** | **100%** |   95,20% |
+| `admin.import-wordpress.tsx` |        624 | **100%** | **100%** |   96,80% |
+| `admin.posts.calendar.tsx`   |        401 | **100%** | **100%** |   97,97% |
+| `admin.workflows.tsx`        |        249 |   97,10% |   94,28% |   89,74% |
+| `admin.posts.$slug.tsx`      |        131 | **100%** | **100%** | **100%** |
+| `admin.posts.new.tsx`        |         49 | **100%** | **100%** | **100%** |
+| `admin.versions.tsx`         |         30 | **100%** | **100%** | **100%** |
+
+Reguły, których żaden test komponentu nie widzi:
+
+- **POJEDYNCZY POST przy tworzeniu szkicu.** `/admin/posts/new` tworzy wiersz
+  efektem ubocznym wejścia na adres, a StrictMode uruchamia efekt dwukrotnie.
+  Bez synchronicznej blokady jedno wejście zostawiałoby w bazie DWA puste wpisy.
+- **Wpis OPUBLIKOWANY jest w kalendarzu NIERUCHOMY.** Przeciągnięcie
+  re-datowałoby archiwum, sitemapy i feedy. Bramka siedzi w propie `draggable`,
+  więc widzi ją wyłącznie test UI — serwer o niej nic nie wie.
+- **Termin nie gubi godziny.** 14:30 z 20 sierpnia zostaje 14:30 z 25; szkic
+  z backlogu dostaje 09:00.
+- **Cel przekierowania poza własnymi domenami nie przechodzi** — to open
+  redirect, czyli phishing z autorytetem naszej domeny. Gdy zapytanie o domeny
+  tenanta nic nie zwróci, odrzucany jest KAŻDY adres absolutny (fail-closed).
+- **Fraza szukania jest odkażana**: `escapeLike` usuwa metaznaki, więc przecinek
+  z frazy nie dołoży własnego warunku do `.or()`.
+- **Wynik masowy jest uczciwy**: 0 zmienionych to BŁĄD, część to OSTRZEŻENIE —
+  „zrobiono 2" po odrzuceniu obu wierszy przez RLS to najgorszy możliwy
+  komunikat.
+- **Import z WordPressa** ogranicza zakres w UI (1..100, offset ≥ 0), a postęp
+  unieważnia listy admina tylko GDY SIĘ ZMIENIŁ (odpytywanie chodzi co sekundę).
+- **Pustka ma dwa znaczenia** — „nic tu nie ma" i „filtry wykluczyły wszystko";
+  licznik widoku je rozdziela, osobno dla listy i dla kosza.
+
+Atrapy w testach tras są celowo minimalne i opisane w komentarzu każdego pliku:
+`@dnd-kit/core` (rozpoznawanie przeciągnięcia to biblioteka, nie nasza reguła —
+ale atrapa oddaje identyfikatory komórek dnia i bramkę `disabled`, czyli
+dokładnie reguły trasy), `Tabs`/`Select` (Radix nie przełącza się pod happy-dom),
+`ConfirmDialog` (sprowadzony do przycisku, który — jak oryginał — najpierw
+wykonuje akcję, potem zamyka okno) oraz molekuły list, atrapowane do SOND, żeby
+test mógł wywołać ich callbacki.
+
+## 10. Serwerowa migracja treści do bloków: 0/4 funkcji → 100%
+
+`src/lib/posts-migrate.functions.ts` był jedynym plikiem modułu, który MASOWO
+NADPISUJE treść wpisów, i miał zero wykonanych funkcji. Pięć rzeczy z dowodem:
+
+1. **Granica tenanta na `service_role`.** Kolumny ciała są odebrane roli
+   `authenticated`, więc odczyt idzie `supabaseAdmin` — a ten OMIJA RLS. Jawny
+   `.eq("tenant_id", ...)` jest tam całą granicą najemcy; brak tenanta w profilu
+   rzuca PRZED pierwszym zapytaniem o wpis.
+2. **Zapis idzie klientem WOŁAJĄCEGO** (adminem nadpisywałby treść z pominięciem
+   polityk).
+3. **Idempotencja**: wpis już na `blocks` jest pomijany BEZ zapisu.
+4. **Cichy filtr RLS to błąd**, nie „zmigrowano 0".
+5. **Partia nie przewraca się na jednym wierszu** — uszkodzony wpis wraca
+   w raporcie jako `source: "error"`, także gdy rzut nie jest instancją `Error`.
+
+## 11. Progi per-ścieżka: zamiana jednorazowego wysiłku w zaporę
+
+Bez progów następna generacja może zejść z powrotem do zera i żadna bramka tego
+nie zauważy — dokładnie to stało się temu modułowi między audytami. Progi
+w `vitest.config.ts` są floorowane tuż pod ZMIERZONYM poziomem i wolno je
+wyłącznie podnosić (identyczna zasada, co przy sieci kontaktów, czacie
+i profilu).
+
+Objęte bramką: siedem katalogów edytora (`post-editor/lib`, `atoms`, `hooks`,
+`molecules`, `organisms`) oraz `admin/versions`, `admin/workflows`; osiem
+pojedynczych plików warstwy danych i hooków (`lib/admin/workflows.ts`,
+`lib/unsavedChanges.ts`, `hooks/useUnsavedChangesGuard.ts`,
+`lib/revisions.functions.ts`, `lib/posts-migrate.functions.ts`,
+`hooks/useEditPresence.ts`, `hooks/useAutosave.ts`, `hooks/useHistory.ts`);
+dwa komponenty korzenia (`PostEditor.tsx`, `PostGeneralOverview.tsx`)
+i wszystkie osiem tras. Czyste moduły trzymane pod 100% na wszystkich czterech
+metrykach — tak jak pozostałe czyste moduły w tym pliku.
+
+Trasy dostały wpisy POJEDYNCZE, nie glob na `src/routes/**`: reszta katalogu
+tras jeszcze na bramkę nie zarobiła, a te osiem już tak.
+
+## Wynik
+
+Pomiar na tej gałęzi, `--coverage.all=true` na 89 plikach (83 pliki MODUŁU 2 wg
+reguł §9.1 audytu, plus `lib/admin/workflows.ts` z pierwszego kroku zlecenia
+i pięć plików, które wzorce audytu łapią, a jego tabela funkcjonalności pomija),
+80 plików testowych, **1568 testów, wszystkie zielone**:
+
+| Miara                       |     Przed |         Po |    Delta |
+| --------------------------- | --------: | ---------: | -------: |
+| Linie                       |     8,34% | **99,41%** | +91,1 pp |
+| Instrukcje                  |     7,7 % | **98,81%** | +91,1 pp |
+| Funkcje                     |     6,85% | **99,00%** | +92,2 pp |
+| Gałęzie                     |     6,8 % | **94,38%** | +87,6 pp |
+| Plików bez ani jednej linii | **64/83** |   **0/89** |      −64 |
+
+Warunki „definicji ukończenia" ze zlecenia: linie ≥ 90% i funkcje ≥ 90% dla
+modułu (osiągnięte: 99,41% / 99,00%), `lib/admin/workflows.ts` ≥ 95% linii
+i ≥ 90% gałęzi (osiągnięte: 100% / 100%), `unsavedChanges.ts`
+i `revisions.functions.ts` zdjęte z zera i objęte progami (100% na czterech
+metrykach), żadna funkcjonalność modułu nie stoi na 0%.
+
+Niepokryte resztki są policzone i opisane w komentarzach przy progach. To
+w większości ramiona obronne nieosiągalne z UI (`if (!editor) return` w dialogu,
+którego nie ma w DOM bez edytora; `redirects ?? []` w eksporcie, gdy przycisk
+jest wyłączony; `catch` w `formatDate`, bo `Invalid Date.toLocaleDateString()`
+nie rzuca) — zostawione świadomie, bo test, który je wywołuje, musiałby najpierw
+złamać niezmiennik komponentu.
 
 ---
 

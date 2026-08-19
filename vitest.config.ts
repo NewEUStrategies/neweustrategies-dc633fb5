@@ -501,6 +501,215 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── EDYTOR WPISÓW I WORKFLOW REDAKCYJNY (MODUŁ 2) ────────────────────
+        // 2026-08-19: audyt 18.08 dał temu modułowi 8,34% linii i 6,85%
+        // funkcji przy 83 plikach produkcyjnych, z czego 64 na OKRĄGŁYM ZERZE -
+        // najgorszy wynik spośród modułów o tej krytyczności (to jedyna droga,
+        // którą treść wchodzi do serwisu). Reguły domenowe (`lib/content/
+        // workflow.ts`, `revisions.ts`, `revisionDiff.ts`) były już pokryte;
+        // dziura siedziała w ORKIESTRACJI, HOOKACH, PANELACH i TRASACH.
+        //
+        // Po tej pracy: 99,41% linii, 98,81% instrukcji, 99,00% funkcji,
+        // 94,38% gałęzi, ZERO plików na zerze (89 plików mierzonych, 80 plików
+        // testowych, 1568 testów). Progi floorowane tuż pod zmierzonym
+        // poziomem - wolno je wyłącznie podnosić, jak wszystkie wyżej.
+        //
+        // CZYSTE MODUŁY trzymamy pod 100% na wszystkich czterech metrykach -
+        // tak jak czyste moduły czatu, profilu i płatności. To one niosą
+        // reguły, których złamanie widzi tylko redaktor: co jedzie w zapisie
+        // (`savePayload`), które pola blokują publikację (`editorGates`),
+        // skrót cofnięcia (`historyShortcut`), scalanie nadpisań layoutu
+        // (`layoutOverrides`) i nawigację po zmianie sluga (`slugNavigation`).
+        "src/components/admin/post-editor/lib/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/post-editor/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // HOOKI EDYTORA - orkiestracja formularza (undo/redo, autozapis,
+        // zmiany statusu, miękka bramka checklisty), danych i taksonomii
+        // inline. Niedobite gałęzie to obronne ramiona warstwy danych
+        // (fallbacki `?? []` na odpowiedziach RPC, których atrapa nie zwraca
+        // jako null) - nie brak testu reguły.
+        "src/components/admin/post-editor/hooks/**": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // MOLEKUŁY I ORGANIZMY edytora - karty i panele kroku szczegółów oraz
+        // treści. Niedobite gałęzie: warianty `title`/`aria-label` pól poza
+        // fixture'ami testów i defensywne `?? ""` na polach opcjonalnych.
+        "src/components/admin/post-editor/molecules/**": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
+        "src/components/admin/post-editor/organisms/**": {
+          statements: 98,
+          functions: 96,
+          lines: 100,
+          branches: 85,
+        },
+        // PANELE WERSJI (builder / polityki / cookies) i AUTOMATYZACJE
+        // (definicje, szablony, przebiegi, ślad korelacji). Tu znalazły się
+        // dwa z czterech defektów tej pracy: martwy ternarny w przywracaniu
+        // wersji popupu i angielskie literały statusów dostarczeń zamiast
+        // kluczy i18n. Progi mają nie dopuścić do powrotu tych powierzchni
+        // pod pokrycie, w którym takie rzeczy są niewidoczne.
+        "src/components/admin/versions/**": {
+          statements: 94,
+          functions: 93,
+          lines: 94,
+          branches: 89,
+        },
+        "src/components/admin/workflows/**": {
+          statements: 96,
+          functions: 95,
+          lines: 97,
+          branches: 91,
+        },
+        // WARSTWA DANYCH AUTOMATYZACJI - 63,6% -> 100% na wszystkich czterech
+        // metrykach. Plik leży w `lib/admin`, więc tabele audytu liczą go pod
+        // innym modułem; bramka należy jednak do tej pracy.
+        "src/lib/admin/workflows.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // STRAŻNIK NIEZAPISANYCH ZMIAN - reguła i hook. Startowały z 0%: to
+        // jedyna rzecz, która stoi między redaktorem a utratą wpisu przy
+        // zamknięciu karty.
+        "src/lib/unsavedChanges.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useUnsavedChangesGuard.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // SERWEROWA HISTORIA WERSJI i SERWEROWA MIGRACJA TREŚCI DO BLOKÓW -
+        // oba pliki startowały z 0 wykonanych funkcji (13 i 4), a oba
+        // MASOWO ZAPISUJĄ treść. Granica tenanta na `service_role`, bramka
+        // rate limitu, projekcja listy (migawka nie opuszcza serwera) i to,
+        // że przywrócenie rewizji NIE zmienia statusu wpisu - wszystko ma tu
+        // dowód, więc próg jest pełny.
+        "src/lib/revisions.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/posts-migrate.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // OBECNOŚĆ W EDYTORZE - kto jeszcze ma otwarty ten wpis (kanał
+        // realtime + heartbeat). Startowało z 0%.
+        "src/hooks/useEditPresence.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // AUTOZAPIS I HISTORIA (undo/redo) - rdzeń edytora, mierzony razem z
+        // modułem. Niedobite gałęzie: wyścigi odmontowania w trakcie zapisu i
+        // ramiona `structuredClone` dla środowisk bez tej funkcji.
+        "src/hooks/useAutosave.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 87,
+        },
+        "src/hooks/useHistory.ts": {
+          statements: 91,
+          functions: 100,
+          lines: 94,
+          branches: 83,
+        },
+        // EDYTOR TEKSTOWY (markdown + rich text na TipTapie) i PRZEGLĄD
+        // OGÓLNY. Niedobite gałęzie edytora to komendy TipTapa zależne od
+        // zaznaczenia w dokumencie; w przeglądzie - `catch` w `formatDate`
+        // (nieosiągalny: `Invalid Date.toLocaleDateString()` nie rzuca) i
+        // warianty kafelków dla stanów, których fixture nie tworzy.
+        "src/components/admin/PostEditor.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 82,
+        },
+        "src/components/admin/PostGeneralOverview.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 78,
+        },
+        // TRASY PANELU REDAKCYJNEGO - wszystkie osiem startowało z 0%, w tym
+        // trzy powyżej 600 linii. Osobne wpisy zamiast jednego globa na
+        // `src/routes/**`, bo reszta katalogu tras jeszcze na bramkę nie
+        // zarobiła - a te osiem już tak.
+        "src/routes/admin.posts.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/routes/admin.posts.$slug.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.posts.new.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.posts.calendar.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/routes/admin.redirects.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        "src/routes/admin.import-wordpress.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
+        "src/routes/admin.versions.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.workflows.tsx": {
+          statements: 95,
+          functions: 92,
+          lines: 95,
+          branches: 87,
+        },
       },
     },
   },
