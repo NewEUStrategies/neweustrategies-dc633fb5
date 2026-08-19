@@ -11,11 +11,13 @@ import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { uploadAndRegisterMedia, IMAGE_MIME } from "@/lib/media/upload";
+import { persistDataUrlImages, type DecodedDataUrl } from "@/lib/blocks/persistImages";
 import {
-  persistDataUrlImages,
-  replaceDataUrlImages,
-  type DecodedDataUrl,
-} from "@/lib/blocks/persistImages";
+  applyPersistedImages,
+  historyShortcut,
+  missingRequiredKeys,
+  replaceFormImageUrls,
+} from "../lib";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
@@ -164,11 +166,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   );
 
   const saveFn = useCallback(
-    async (snapshot: PostForm | null) => {
-      if (!snapshot) return;
-      const persistedBlocks = await persistPastedImages(snapshot.blocks_data);
-      const persistedBuilder = await persistPastedImages(snapshot.builder_data);
-      snapshot = applyPersistedImages(snapshot, persistedBlocks, persistedBuilder);
+    async (input: PostForm | null) => {
+      if (!input) return;
+      const persistedBlocks = await persistPastedImages(input.blocks_data);
+      const persistedBuilder = await persistPastedImages(input.builder_data);
+      // Osobna, niemutowalna referencja: parametr po podmianie gubi zawężenie
+      // typu (`PostForm | null`), a dalej korzystamy z niego po `await`.
+      const snapshot: PostForm = applyPersistedImages(input, persistedBlocks, persistedBuilder);
       const result = await update$({
         data: {
           id,

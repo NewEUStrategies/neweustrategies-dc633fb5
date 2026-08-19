@@ -13,6 +13,7 @@
 //      i sponsoringu zmieniają po kilka pól naraz; osobne `set()` na każde dałyby
 //      tyle samo wpisów undo i tyle samo szans, żeby autozapis utrwalił stan
 //      pośredni — czyli wpis oznaczony jako komercyjny bez reszty deklaracji.
+import type { ReactElement } from "react";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { postEditorData, postEditorFormApi, postForm } from "@/test/post-editor/fixtures";
@@ -868,7 +869,7 @@ describe("PostContentEditor - obudowa kanwy layoutem wpisu", () => {
         } as never,
       }),
     );
-    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => JSX.Element;
+    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => ReactElement;
 
     // Kadr trzeba ZAMONTOWAĆ - dopiero wtedy istnieje podgląd przypisów.
     render(wrap(<div data-testid="canvas" />, "pl"));
@@ -888,7 +889,7 @@ describe("PostContentEditor - obudowa kanwy layoutem wpisu", () => {
     // `blocks_data: null` to stan nowego wpisu; bez domyślnej pary zapis
     // przypisu poleciałby na `undefined`.
     const formApi = renderWithLayout(postForm({ editor: "blocks", blocks_data: null }));
-    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => JSX.Element;
+    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => ReactElement;
 
     render(wrap(<div />, "en"));
     (props("AutoFootnotesPreview").onChange as (d: unknown) => void)({ version: 1, blocks: [] });
