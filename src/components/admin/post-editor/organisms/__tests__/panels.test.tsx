@@ -868,7 +868,7 @@ describe("PostContentEditor - obudowa kanwy layoutem wpisu", () => {
         } as never,
       }),
     );
-    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => JSX.Element;
+    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => React.JSX.Element;
 
     // Kadr trzeba ZAMONTOWAĆ - dopiero wtedy istnieje podgląd przypisów.
     render(wrap(<div data-testid="canvas" />, "pl"));
@@ -888,7 +888,7 @@ describe("PostContentEditor - obudowa kanwy layoutem wpisu", () => {
     // `blocks_data: null` to stan nowego wpisu; bez domyślnej pary zapis
     // przypisu poleciałby na `undefined`.
     const formApi = renderWithLayout(postForm({ editor: "blocks", blocks_data: null }));
-    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => JSX.Element;
+    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => React.JSX.Element;
 
     render(wrap(<div />, "en"));
     (props("AutoFootnotesPreview").onChange as (d: unknown) => void)({ version: 1, blocks: [] });
