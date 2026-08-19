@@ -9,9 +9,11 @@
 // Bez tego filtru wyłączony powód wracałby na ekran rezygnacji, mimo że
 // redakcja świadomie go zdjęła.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
 
-import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
+import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/chat/fixtures";
 import { retentionReason, retentionSettings } from "@/test/billing/fixtures";
+import { createQueryClientWrapper } from "@/test/renderWithQueryClient";
 
 let chain: SupabaseFromStub;
 
@@ -19,8 +21,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (table: string) => chain.from(table) },
 }));
 
-const { retentionReasonsQueryOptions, retentionSettingsQueryOptions, reasonLabel } =
-  await import("@/lib/retention/queries");
+const {
+  retentionReasonsQueryOptions,
+  retentionSettingsQueryOptions,
+  reasonLabel,
+  useRetentionReasons,
+  useRetentionSettings,
+} = await import("@/lib/retention/queries");
 
 /** Uruchamia `queryFn` opcji tak, jak zrobiłby to react-query. */
 async function run<T>(options: { queryFn?: unknown }): Promise<T> {
@@ -72,6 +79,44 @@ describe("retentionSettingsQueryOptions - parametry kontroferty", () => {
   });
 });
 
+describe("useRetentionSettings - kontrakt hooka", () => {
+  it("udostępnia zapisane ustawienia przez retry-free QueryClient", async () => {
+    chain.setResponse("retention_settings", ok(retentionSettings({ discount_pct: 27 })));
+    const { wrapper, queryClient } = createQueryClientWrapper();
+
+    const { result } = renderHook(() => useRetentionSettings(true), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.discount_pct).toBe(27);
+    expect(queryClient.getQueryData(["retention-settings"])).toEqual(result.current.data);
+  });
+
+  it("brak wiersza pozostaje bezpiecznym `null`, a nie domyślną ofertą", async () => {
+    chain.setResponse("retention_settings", ok(null));
+    const { wrapper } = createQueryClientWrapper();
+
+    const { result } = renderHook(() => useRetentionSettings(true), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+    expect(chain.chainsFor("retention_settings")).toHaveLength(1);
+  });
+
+  it("błąd zapytania trafia do stanu hooka i nie jest rzucany do drzewa Reacta", async () => {
+    chain.setResponse("retention_settings", {
+      data: null,
+      error: Object.assign(new Error("permission denied"), { name: "PostgrestError" }),
+    });
+    const { wrapper } = createQueryClientWrapper();
+
+    const { result } = renderHook(() => useRetentionSettings(true), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.error?.message).toBe("permission denied");
+  });
+});
+
 describe("retentionReasonsQueryOptions - katalog powodów odejścia", () => {
   it("czyta WYŁĄCZNIE powody aktywne", async () => {
     // Wyłączony powód nie może wrócić na ekran rezygnacji.
@@ -106,6 +151,29 @@ describe("retentionReasonsQueryOptions - katalog powodów odejścia", () => {
 
   it("klucz zapytania jest wspólny z panelem admina (jedno unieważnienie)", () => {
     expect(retentionReasonsQueryOptions().queryKey).toEqual(["retention-reasons"]);
+  });
+});
+
+describe("useRetentionReasons - kontrakt hooka", () => {
+  it("udostępnia pusty katalog jako pustą listę", async () => {
+    chain.setResponse("retention_reasons", ok([]));
+    const { wrapper } = createQueryClientWrapper();
+
+    const { result } = renderHook(() => useRetentionReasons(true), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+    expect(chain.lastChain("retention_reasons")?.argsOf("eq")).toEqual(["active", true]);
+  });
+
+  it("wyłączony hook nie wykonuje odczytu", async () => {
+    const { wrapper } = createQueryClientWrapper();
+
+    const { result } = renderHook(() => useRetentionReasons(false), { wrapper });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.data).toBeUndefined();
+    expect(chain.chainsFor("retention_reasons")).toHaveLength(0);
   });
 });
 

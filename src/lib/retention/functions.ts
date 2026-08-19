@@ -37,7 +37,7 @@ interface OwnedSubscription {
   tenant_id: string;
 }
 
-async function loadOwnedSubscription(
+export async function loadOwnedSubscription(
   userId: string,
   subscriptionId: string,
 ): Promise<OwnedSubscription | null> {
