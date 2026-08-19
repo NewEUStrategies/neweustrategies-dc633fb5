@@ -874,6 +874,38 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── POPUP PUBLICZNY: HOST I TELEMETRIA ───────────────────────────────
+        // PopupHost decyduje, czy odwiedzający dostanie modal na środku ekranu -
+        // pomyłki widzi KAŻDY odwiedzający, a operator nie ma jak ich zauważyć w
+        // panelu. Pod progiem:
+        //  * host MILCZY na powierzchniach roboczych (/admin, /login), przy
+        //    PUSTYM dokumencie (puste okno z samym „zamknij"), po zamknięciu w
+        //    tej wizycie i przy wyciszeniu częstotliwością;
+        //  * PUŁAPKA A11Y: przy wyłączonym zamykaniu tłem przycisk zamknięcia
+        //    jest WYMUSZANY - na urządzeniu dotykowym nie ma klawisza Escape,
+        //    więc popup bez wyjścia blokuje stronę na dobre;
+        //  * strona bez pasków przewijania nie otwiera popupu przewinięciem
+        //    (dzielenie przez zero dałoby „nieskończony procent" i modal na
+        //    wejściu);
+        //  * konwersja liczy się RAZ na pokazanie i NIE liczy kliknięcia w
+        //    „zamknij" - inaczej każdy popup miałby 100% konwersji.
+        "src/components/popups/**": {
+          statements: 94,
+          functions: 100,
+          lines: 97,
+          branches: 80,
+        },
+        // popupTelemetry: identyfikator sesji spina wyświetlenie -> wysłanie ->
+        // sukces w obrębie jednej wizyty. Nowy identyfikator przy każdym
+        // zdarzeniu rozsypuje raport (skuteczność spada do zera, choć popup
+        // działa). Wysyłka jest fire-and-forget: wyjątek stąd zabrałby
+        // odwiedzającemu subskrypcję, po którą przyszedł.
+        "src/lib/newsletter/popupTelemetry.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
         // ── POPUPY W PANELU (rejestracja + popupy buildera) ──────────────────
         // Te dwa edytory decydują o tym, ile razy odwiedzający zobaczy modal na
         // środku ekranu i co w nim jest - a popup rejestracji ZAKŁADA REALNE
