@@ -38,7 +38,12 @@ export function buildPostPatch(snapshot: PostForm) {
     tts_voice_en: snapshot.tts_voice_en,
     read_minutes: snapshot.read_minutes,
     builder_data: snapshot.builder_data,
-    blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
+    // Bez rzutowania: walidator `updatePost` opisuje tę kolumnę jako
+    // `BuilderJsonValue` (`z.ZodType<unknown>`), więc dokument bloków
+    // przypisuje się wprost. Wersja przeniesiona z hooka miała tu
+    // `as unknown as Record<string, unknown>` - rzut był nadmiarowy,
+    // bo celował w typ WĘŻSZY niż ten, którego serwer faktycznie oczekuje.
+    blocks_data: snapshot.blocks_data,
     parent_page_id: snapshot.parent_page_id,
     post_format: snapshot.post_format,
     layout_overrides: snapshot.layout_overrides,

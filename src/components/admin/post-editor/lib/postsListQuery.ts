@@ -1,6 +1,7 @@
 // Czyste reguły LISTY wpisów (/admin/posts) - zapytanie, filtry, zaznaczenie.
 //
-// Wyniesione 1:1 z `src/routes/admin.posts.tsx`, gdzie mieszkały w ciele
+// Wyniesione z `src/routes/admin.posts.tsx` bez zmiany zachowania (jedyny
+// wyjątek opisany jest przy `POSTS_LIST_INVALIDATE_KEYS`), gdzie mieszkały w ciele
 // komponentu: wewnątrz `queryFn`, w ternary w JSX-ie i w handlerach `setState`.
 // Sprawdzenie ich wymagało dotąd wyrenderowania całej trasy razem z routerem,
 // react-query, i18n i klientem Supabase - czyli w praktyce nie były sprawdzane
@@ -66,9 +67,6 @@ export interface PostsListQueryBuilder<Self> {
   range(from: number, to: number): Self;
 }
 
-/** Skrót na builder spełniający kontrakt listy. */
-type Chain<B> = PostsListQueryBuilder<B>;
-
 /** Klucz cache listy. Kolejność elementów = zakres unieważnienia. */
 export function postsListQueryKey(
   tenantId: string | null | undefined,
@@ -92,6 +90,10 @@ export function postsListQueryKey(
 /**
  * Klucze unieważniane po KAŻDEJ mutacji listy (kosz, przywrócenie, status,
  * konwersja, duplikat).
+ *
+ * NAPRAWA wobec stanu zastanego: czwarty klucz (licznik parytetu) nie był
+ * unieważniany wcale, więc pasek „X wpisów bez wersji EN” zostawał po masowej
+ * publikacji na liczbie sprzed zmiany i wołał o wersje, które już powstały.
  *
  * Cztery, nie jeden: liczniki kosza, widoku i luki parytetu to OSOBNE
  * zapytania po tej samej tabeli, a `invalidateQueries` dopasowuje po prefiksie
@@ -145,7 +147,10 @@ export function sortColumnFor(view: PostsListView): "deleted_at" | "updated_at" 
  * widok aktywny = wyłącznie bez stempla. Bez tego ogniwa usunięte wpisy
  * wracałyby na listę główną (miękkie usuwanie nie kasuje wiersza).
  */
-export function applyDeletedScope<B extends Chain<B>>(q: B, view: PostsListView): B {
+export function applyDeletedScope<B extends PostsListQueryBuilder<B>>(
+  q: B,
+  view: PostsListView,
+): B {
   return view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
 }
 
@@ -168,7 +173,7 @@ export function searchOrExpression(rawTerm: string): string | null {
  * - sam `not is null` przepuściłby wpisy z pustym stringiem, czyli dokładnie te,
  * których redaktor szuka jako brakujące.
  */
-export function applyLangFilter<B extends Chain<B>>(q: B, lang: LangFilter): B {
+export function applyLangFilter<B extends PostsListQueryBuilder<B>>(q: B, lang: LangFilter): B {
   if (lang === "complete") {
     return q
       .not("title_pl", "is", null)
@@ -211,7 +216,10 @@ export function deletedAtRange(trashFrom: string, trashTo: string): { gte?: stri
  * ZALEŻNE OD ZAKŁADKI: kosz chowa selektor statusu (więc nie wolno go dokładać
  * z pamięci widoku aktywnego), a zakres dat kosza nie ma sensu poza koszem.
  */
-export function applyPostsListFilters<B extends Chain<B>>(q: B, f: PostsListFilters): B {
+export function applyPostsListFilters<B extends PostsListQueryBuilder<B>>(
+  q: B,
+  f: PostsListFilters,
+): B {
   const isTrash = f.view === "trash";
   let out = applyDeletedScope(q, f.view);
 
@@ -238,7 +246,7 @@ export function applyPostsListFilters<B extends Chain<B>>(q: B, f: PostsListFilt
  * tytułu angielskiego. Dwujęzyczność jest wyróżnikiem serwisu, więc licznik
  * pilnuje dryfu na widoku listy.
  */
-export function applyMissingEnCountFilters<B extends Chain<B>>(q: B): B {
+export function applyMissingEnCountFilters<B extends PostsListQueryBuilder<B>>(q: B): B {
   return q.eq("status", "published").is("deleted_at", null).or("title_en.is.null,title_en.eq.");
 }
 
@@ -335,6 +343,44 @@ export function authorOf(
 ): TenantAuthor | null {
   if (!row.author_id) return null;
   return authors.get(row.author_id) ?? null;
+}
+
+/**
+ * Czy pod tą ścieżką trasa-rodzic rysuje LISTĘ, czy oddaje miejsce dziecku.
+ *
+ * `/admin/posts` jest trasą układu dla `new`, `$slug` i `calendar`. Dopasowanie
+ * musi być DOKŁADNE: warunek „zaczyna się od” wyrenderowałby listę razem
+ * z edytorem pod nim, a dwie tabele naraz to nie tylko bałagan - to drugi
+ * komplet zapytań i drugi stan zaznaczenia.
+ */
+export function showsPostsList(pathname: string): boolean {
+  return pathname === "/admin/posts";
+}
+
+/**
+ * Termin publikacji do pokazania przy statusie - TYLKO dla wpisu
+ * zaplanowanego. `publish_at` bywa niepustą pozostałością po wpisie, który
+ * wrócił do szkicu; pokazanie go przy szkicu obiecywałoby publikację, której
+ * nikt nie zaplanował.
+ */
+export function scheduledPublishAt(p: {
+  status: string;
+  publish_at: string | null;
+}): string | null {
+  return p.status === "scheduled" && p.publish_at ? p.publish_at : null;
+}
+
+/**
+ * Znacznik czasu w kolumnie daty: w koszu moment USUNIĘCIA, poza koszem
+ * ostatnia EDYCJA. To ta sama kolumna, po której zakładka filtruje i sortuje -
+ * pokazanie innej sprawiłoby, że zakres dat kosza wygląda na zepsuty (wiersze
+ * z datami spoza zakresu), choć filtruje poprawnie.
+ */
+export function rowTimestampOf(
+  p: { updated_at: string; deleted_at: string | null },
+  view: PostsListView,
+): string {
+  return view === "trash" && p.deleted_at ? p.deleted_at : p.updated_at;
 }
 
 /** Stan pola „zaznacz wszystkie” - dokładnie to, co przyjmuje `Checkbox`. */

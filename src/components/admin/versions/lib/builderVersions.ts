@@ -6,9 +6,19 @@
 // mutacja przywracania - żyła w wyrażeniu warunkowym wewnątrz ciała
 // komponentu, gdzie nie dało się jej sprawdzić bez wyrenderowania całego
 // panelu razem z trzema zapytaniami i rendererem buildera.
-import { newId, type BuilderDocument, type SectionNode } from "@/lib/builder/types";
+import {
+  newId,
+  type BuilderDocument,
+  type ColumnNode,
+  type SectionNode,
+  type WidgetNode,
+} from "@/lib/builder/types";
+import type { GlobalWidgetData } from "@/lib/builder/globalWidgets";
 import type { BuilderEntityType } from "@/lib/builder/revisions";
 import { uiLocale } from "@/lib/i18n/format";
+
+/** Pełna szerokość siatki buildera (12 kolumn). */
+export const FULL_WIDTH_SPAN = 12;
 
 /** Zakładki panelu: dwa typy encji buildera + szablony sekcji. */
 export type BuilderVersionsTab = BuilderEntityType | "template";
@@ -55,30 +65,38 @@ export function documentForSection(section: SectionNode): BuilderDocument {
   return { version: 1, sections: [section] };
 }
 
-/** Syntetyczny dokument z jednego widgetu (podgląd widgetu globalnego). */
-export function documentForWidget(data: {
-  type: string;
-  content?: Record<string, unknown>;
-  style?: unknown;
-  advanced?: unknown;
-}): BuilderDocument {
-  const widget = { id: newId(), kind: "widget", ...data } as unknown as SectionNode["children"][0];
+/**
+ * Syntetyczny dokument z jednego widgetu (podgląd widgetu globalnego).
+ *
+ * Renderer buildera nie umie wyrenderować GOŁEGO widgetu - potrzebuje pełnej
+ * ścieżki sekcja -> kolumna -> widget, więc podgląd wersji buduje ją tutaj.
+ *
+ * Wejście jest typowane `GlobalWidgetData`, czyli `Pick<WidgetNode, "type" |
+ * "content" | "style" | "advanced">` - dokładnie te pola, których `WidgetNode`
+ * wymaga. Dzięki temu składanie węzłów obywa się BEZ rzutowań: wersja
+ * przeniesiona z organizmu miała tu dwa `as unknown as`, bo parametr był
+ * opisany luźnymi typami (`string`, `Record<string, unknown>`, `unknown`)
+ * i nic się do niczego nie przypisywało.
+ */
+export function documentForWidget(data: GlobalWidgetData): BuilderDocument {
+  const widget: WidgetNode = { id: newId(), kind: "widget", ...data };
+  // `span` jest RESPONSYWNE (`{desktop, tablet, mobile}`), nie gołą liczbą -
+  // tak buduje kolumny każde inne miejsce w repo (`chromeDefaults`,
+  // `homepageTemplate`, `operations`). Wersja przeniesiona z organizmu
+  // podawała tu `span: 12`, co ukrywał właśnie usunięty rzut: renderer czytał
+  // wtedy `span.desktop` z LICZBY, dostawał `undefined` i układał podgląd na
+  // szerokości domyślnej. Podgląd wersji pokazywał więc widget w innej
+  // szerokości niż ta, w której realnie stoi na stronie - przy funkcji, której
+  // cały sens to „zobacz, jak wyglądała ta wersja".
+  const column: ColumnNode = {
+    id: newId(),
+    kind: "column",
+    span: { desktop: FULL_WIDTH_SPAN },
+    children: [widget],
+  };
   return {
     version: 1,
-    sections: [
-      {
-        id: newId(),
-        kind: "section",
-        children: [
-          {
-            id: newId(),
-            kind: "column",
-            span: 12,
-            children: [widget],
-          } as unknown as SectionNode["children"][0],
-        ],
-      },
-    ],
+    sections: [{ id: newId(), kind: "section", children: [column] }],
   };
 }
 

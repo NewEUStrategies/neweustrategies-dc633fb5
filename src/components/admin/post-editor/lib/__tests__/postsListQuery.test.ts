@@ -19,9 +19,12 @@ import {
   isAllSelected,
   pageRange,
   postsListQueryKey,
+  rowTimestampOf,
   rowTitleOf,
   searchOrExpression,
+  scheduledPublishAt,
   selectAllState,
+  showsPostsList,
   shouldShowParityGap,
   sortColumnFor,
   toggleAllSelected,
@@ -592,6 +595,73 @@ describe("mapa autorów", () => {
   it("znaleziony autor daje etykietę z nazwy widocznej", () => {
     const map = authorMapOf([ania]);
     expect(authorLabel(authorOf({ author_id: "u-1" }, map))).toBe("Ania Nowak");
+  });
+});
+
+describe("showsPostsList", () => {
+  it("lista rysuje się wyłącznie pod dokładną ścieżką listy", () => {
+    // `/admin/posts` jest trasą układu dla edytora, kreatora i kalendarza.
+    // Dopasowanie po prefiksie wyrenderowałoby tabelę POD otwartym edytorem -
+    // z własnym zaznaczeniem i własnym kompletem zapytań.
+    expect(showsPostsList("/admin/posts")).toBe(true);
+    expect(showsPostsList("/admin/posts/new")).toBe(false);
+    expect(showsPostsList("/admin/posts/calendar")).toBe(false);
+    expect(showsPostsList("/admin/posts/moj-wpis")).toBe(false);
+    expect(showsPostsList("/admin/pages")).toBe(false);
+  });
+
+  it("stan zastany: ścieżka z ukośnikiem na końcu NIE rysuje listy", () => {
+    // Router normalizuje adresy, więc w praktyce nie dociera tu wariant
+    // z ukośnikiem - przypięte, żeby ewentualna zmiana normalizacji
+    // objawiła się testem, a nie pustym ekranem listy.
+    expect(showsPostsList("/admin/posts/")).toBe(false);
+  });
+});
+
+describe("scheduledPublishAt", () => {
+  it("wpis zaplanowany pokazuje swój termin", () => {
+    expect(
+      scheduledPublishAt({ status: "scheduled", publish_at: "2026-09-01T08:00:00.000Z" }),
+    ).toBe("2026-09-01T08:00:00.000Z");
+  });
+
+  it("REGRESJA: termin z innego statusu NIE jest pokazywany", () => {
+    // `publish_at` zostaje w wierszu po cofnięciu wpisu do szkicu. Pokazany
+    // przy szkicu obiecywałby publikację, której nikt nie zaplanował - a data
+    // minęłaby bez skutku i wpis wyglądałby na zagubiony.
+    expect(
+      scheduledPublishAt({ status: "draft", publish_at: "2026-09-01T08:00:00.000Z" }),
+    ).toBeNull();
+    expect(
+      scheduledPublishAt({ status: "published", publish_at: "2026-09-01T08:00:00.000Z" }),
+    ).toBeNull();
+  });
+
+  it("zaplanowany bez terminu nie rysuje pustej daty", () => {
+    expect(scheduledPublishAt({ status: "scheduled", publish_at: null })).toBeNull();
+    expect(scheduledPublishAt({ status: "scheduled", publish_at: "" })).toBeNull();
+  });
+});
+
+describe("rowTimestampOf", () => {
+  const row = { updated_at: "2026-08-10T10:00:00.000Z", deleted_at: "2026-08-17T22:15:00.000Z" };
+
+  it("lista aktywna pokazuje datę ostatniej edycji", () => {
+    expect(rowTimestampOf(row, "active")).toBe("2026-08-10T10:00:00.000Z");
+  });
+
+  it("REGRESJA: kosz pokazuje datę USUNIĘCIA, nie edycji", () => {
+    // Kosz filtruje i sortuje po `deleted_at`. Kolumna pokazująca `updated_at`
+    // sprawiłaby, że zakres dat wygląda na zepsuty: redaktor zawęża do
+    // 17 sierpnia, a w wierszach widzi 10 sierpnia i przestaje ufać filtrowi.
+    expect(rowTimestampOf(row, "trash")).toBe("2026-08-17T22:15:00.000Z");
+    expect(sortColumnFor("trash")).toBe("deleted_at");
+  });
+
+  it("wiersz w koszu bez stempla usunięcia spada na datę edycji", () => {
+    expect(rowTimestampOf({ updated_at: row.updated_at, deleted_at: null }, "trash")).toBe(
+      "2026-08-10T10:00:00.000Z",
+    );
   });
 });
 

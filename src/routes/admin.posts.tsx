@@ -48,8 +48,11 @@ import {
   emptyStateKey,
   filtersSignature,
   postsListQueryKey,
+  rowTimestampOf,
   rowTitleOf,
+  scheduledPublishAt,
   selectAllState,
+  showsPostsList,
   shouldShowParityGap,
   toggleAllSelected,
   toggleSelected,
@@ -72,7 +75,7 @@ export const Route = createFileRoute("/admin/posts")({
 
 function PostsLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  if (path !== "/admin/posts") return <Outlet />;
+  if (!showsPostsList(path)) return <Outlet />;
   return <PostsList />;
 }
 
@@ -549,6 +552,7 @@ function PostsList() {
                 {pagedPosts.map((p) => {
                   const cov = coverageOf(p);
                   const author = authorOf(p, authorMap);
+                  const scheduledAt = scheduledPublishAt(p);
                   return (
                     <tr
                       key={p.id}
@@ -614,23 +618,21 @@ function PostsList() {
                           status={p.status}
                           label={t(`admin.status.${p.status}`)}
                           title={
-                            p.status === "scheduled" && p.publish_at
+                            scheduledAt
                               ? t("admin.workflow.scheduledFor", {
-                                  date: new Date(p.publish_at).toLocaleString(lang),
+                                  date: new Date(scheduledAt).toLocaleString(lang),
                                 })
                               : undefined
                           }
                         />
-                        {p.status === "scheduled" && p.publish_at ? (
+                        {scheduledAt ? (
                           <div className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">
-                            {new Date(p.publish_at).toLocaleString(lang)}
+                            {new Date(scheduledAt).toLocaleString(lang)}
                           </div>
                         ) : null}
                       </td>
                       <td className="p-2 hidden md:table-cell text-muted-foreground text-[11px] tabular-nums">
-                        {new Date(
-                          isTrash && p.deleted_at ? p.deleted_at : p.updated_at,
-                        ).toLocaleString(lang)}
+                        {new Date(rowTimestampOf(p, view)).toLocaleString(lang)}
                       </td>
                       <td className="p-2 text-right">
                         <div className="flex justify-end gap-0.5">
