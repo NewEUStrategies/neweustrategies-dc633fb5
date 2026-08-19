@@ -1,4 +1,4 @@
-import { PanelSectionHeading } from "@/components/admin/postExperience/atoms";
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-layouts";
 import { SettingToggle } from "@/components/admin/atoms/SettingToggle";

@@ -1,8 +1,6 @@
-import {
-  PanelNumberField,
-  PanelSectionHeading,
-  PanelSelectField,
-} from "@/components/admin/postExperience/atoms";
+import { PanelNumberField } from "@/components/admin/postExperience/atoms/PanelNumberField";
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
+import { PanelSelectField } from "@/components/admin/postExperience/atoms/PanelSelectField";
 import { useTranslation } from "react-i18next";
 import { SettingToggle } from "@/components/admin/atoms/SettingToggle";
 import { TocColumnsPicker } from "@/components/admin/postExperience/molecules/TocColumnsPicker";

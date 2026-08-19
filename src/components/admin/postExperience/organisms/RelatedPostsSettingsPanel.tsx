@@ -99,10 +99,3 @@ export function RelatedPostsSettingsPanel() {
     </div>
   );
 }
-
-/** Widok „nie znaleziono" dla tej trasy - też czyta ze słownika panelu. */
-export function RelatedPostsNotFound() {
-  ensureI18n();
-  const { t } = useTranslation();
-  return <div className="p-8">{t("adminRelatedPosts.notFound")}</div>;
-}

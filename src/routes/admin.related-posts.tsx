@@ -5,10 +5,8 @@
 // a reguły w `lib/relatedPosts/panelRules` oraz `lib/admin/panelDraft`.
 import { createFileRoute } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import {
-  RelatedPostsNotFound,
-  RelatedPostsSettingsPanel,
-} from "@/components/admin/postExperience/organisms/RelatedPostsSettingsPanel";
+import { RelatedPostsNotFound } from "@/components/admin/postExperience/molecules/RelatedPostsNotFound";
+import { RelatedPostsSettingsPanel } from "@/components/admin/postExperience/organisms/RelatedPostsSettingsPanel";
 
 export const Route = createFileRoute("/admin/related-posts")({
   component: RelatedPostsSettingsPanel,

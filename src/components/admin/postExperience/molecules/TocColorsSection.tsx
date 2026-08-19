@@ -1,4 +1,5 @@
-import { PanelColorField, PanelSectionHeading } from "@/components/admin/postExperience/atoms";
+import { PanelColorField } from "@/components/admin/postExperience/atoms/PanelColorField";
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { useTranslation } from "react-i18next";
 import { tocColorFields } from "@/lib/toc/panelRules";
 import type { TocDefaults } from "@/lib/toc/settings";

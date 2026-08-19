@@ -59,10 +59,8 @@ vi.mock("@/components/admin/RelatedLayoutPreview", () => ({
   ),
 }));
 
-import {
-  RelatedPostsSettingsPanel,
-  RelatedPostsNotFound,
-} from "@/components/admin/postExperience/organisms/RelatedPostsSettingsPanel";
+import { RelatedPostsNotFound } from "@/components/admin/postExperience/molecules/RelatedPostsNotFound";
+import { RelatedPostsSettingsPanel } from "@/components/admin/postExperience/organisms/RelatedPostsSettingsPanel";
 import { RELATED_POSTS_DEFAULTS, type RelatedPostsConfig } from "@/lib/relatedPosts";
 import { RELATED_POSTS_ADMIN_QUERY_KEY } from "@/lib/relatedPosts/adminConfig";
 import { ok, fail, type SupabaseFromStub } from "@/test/postExperience/fixtures";

@@ -1,8 +1,6 @@
-import {
-  PanelColorField,
-  PanelRangeField,
-  PanelSectionHeading,
-} from "@/components/admin/postExperience/atoms";
+import { PanelColorField } from "@/components/admin/postExperience/atoms/PanelColorField";
+import { PanelRangeField } from "@/components/admin/postExperience/atoms/PanelRangeField";
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-post-panes";
 import {

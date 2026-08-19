@@ -1,4 +1,5 @@
-import { PanelNumberField, PanelSectionHeading } from "@/components/admin/postExperience/atoms";
+import { PanelNumberField } from "@/components/admin/postExperience/atoms/PanelNumberField";
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-related-posts";
 import { Button } from "@/components/ui/button";

@@ -1,4 +1,5 @@
-import { PanelSectionHeading, SelectableOptionCard } from "@/components/admin/postExperience/atoms";
+import { PanelSectionHeading } from "@/components/admin/postExperience/atoms/PanelSectionHeading";
+import { SelectableOptionCard } from "@/components/admin/postExperience/atoms/SelectableOptionCard";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-layouts";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
