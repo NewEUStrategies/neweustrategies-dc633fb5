@@ -251,48 +251,90 @@ pokazuje, jak łatwo taka asymetria wraca.
 
 ---
 
-## 8. Bramki: co przechodzi, a co było czerwone jeszcze przed tą pracą
+## 8. Bramki: stan na CI (a nie w sandboksie)
 
-| Bramka                               | Wynik                                                             |
-| ------------------------------------ | ----------------------------------------------------------------- |
-| `bun run typecheck`                  | ✅ czysto                                                         |
-| `bun run check:unknown-casts`        | ✅ 200 znanych rzutowań, ratchet trzyma kierunek                  |
-| `bun run check:entry-purity`         | ✅ ścieżka bootowania czysta (9 z 770 chunków)                    |
-| `bun run build`                      | ✅                                                                |
-| `bun run format:check`               | ✅ (dotyczy też `docs/*.md`)                                      |
-| `bun run check:i18n-hardcoded`       | ✅ ratchet trzyma kierunek                                        |
-| `bun run check:i18n-default-value`   | ✅ zero zapasowych tekstów przy `t()`                             |
-| `bun run check:i18n-parity`          | ✅ 594 przypadki — nowy klucz `admin.menu.untitledItem` w PL i EN |
-| `bun run check:i18n-overlay-imports` | ⚠ ratchet sprzed tej pracy (niżej)                                |
-| `bun run lint`                       | ✅ 0 błędów (jeden sprzed tej pracy naprawiony — niżej)           |
-| `bun run check:bundle`               | ⚠ budżet przekroczony sprzed tej pracy (niżej)                    |
-| `bun run test`                       | ⚠ 8 plików czerwonych sprzed tej pracy (niżej)                    |
+Sekcja pisana najpierw z lokalnego przebiegu, potem POPRAWIONA tym, co pokazało CI na
+PR #260. Różnice między jednym a drugim są tu wypisane wprost, bo część „ostrzeżeń"
+z sandboksa okazała się artefaktem środowiska, a jedno realne zjawisko wyszło dopiero na CI.
 
-Wszystkie cztery zostały zweryfikowane na commicie bazowym `39a9efd` (przed pierwszym
-commitem tej gałęzi), w tym samym środowisku — żadnego nie wprowadziła ta praca:
+### 8.1 Zielone na CI
 
-- **lint** — `AccountIdentityPanel.test.tsx:87` wołał `require("react")` wewnątrz fabryki
-  `vi.mock` (`@typescript-eslint/no-require-imports`). Błąd jest starszy niż ta gałąź
-  (występuje identycznie na `39a9efd`), ale zatrzymywał zadanie `verify` na tym PR — a więc
-  i wszystko, co po nim: testy, pokrycie i progi. Naprawiony tutaj po decyzji autora:
-  `createElement` ze statycznego importu, atrapa renderuje to samo `<a href>`. Jedyna zmiana
-  tej gałęzi poza modułem 5 — wchodzi wyłącznie dlatego, że inaczej gałąź nie ma jak dojść
-  do zieleni.
-- **check:bundle** — budżet 3870 KB. Na `39a9efd`: **3870,7 KB**. Na tej gałęzi:
-  **3870,5 KB**, czyli o 0,2 KB **mniej** — usunięcie nieosiągalnej gałęzi `SubmenuItem`
-  z chunku wejściowego (sekcja 3.6) odjęło więcej, niż dodały wyprowadzone moduły. Ta praca
-  budżetu nie przekroczyła; przekroczony był wcześniej (kronika w `check-bundle-size.ts`
-  wskazuje ruchy `vendor +43,9 KB`, `i18n +27,6 KB`, `ConsentBanner NOWY` — nie z tej gałęzi).
-- **check:i18n-overlay-imports** — ratchet prosi o obniżenie baseline'u dla
-  `AdminShell.tsx` (2 → 0) i `usePostEditorForm.ts` (0 → 0), czyli skarży się „w dobrą
-  stronę". Oba pliki należą do panelu admina i tej gałęzi nie dotyczą; na `39a9efd`
-  komunikat jest identyczny.
-- **test** — 8 plików / 16 przypadków czerwonych, wszystkie w buildera i widgetach
-  (`lazyWidgets`, `eagerWidgetChunks`, `accordionEditor`, `speakersWidget`,
-  `teamMemberEditableFlag`, `postListVariants2`, `postsSliderDisplaySettings`,
-  `widgetViewI18nFallback`). Uruchomione na `39a9efd` dają **dokładnie ten sam** zestaw
-  8 plików i 16 przypadków. Poza modułem 5, poza tą gałęzią.
+`format:check` (prettier, także `docs/*.md`), `typecheck`, `lint`, wszystkie bramki SQL
+i RPC, `check:unknown-casts`, `check:i18n-hardcoded`, `check:i18n-default-value`,
+`check:i18n-overlay-imports`, snapshot autoryzacji, parzystość konfiguracji chunków —
+29 kroków `verify` z rzędu bez ani jednego czerwonego. Poza `verify`: **`e2e`,
+`e2e-seeded`, `pgtap`, `pg-harness`, `lighthouse` — wszystkie zielone.**
 
-Wszystkie 593 przypadki w plikach testowych tej gałęzi przechodzą, a nowe progi per‑ścieżka
-zostały zweryfikowane wprost z raportu `coverage-final.json` tą samą arytmetyką, której używa
-vitest (sumy per plik w obrębie wzorca) — 17 z 17 spełnionych z marżą.
+Dwie rzeczy, w których sandboks KŁAMAŁ i CI to wyprostowało:
+
+- **`check:i18n-overlay-imports`** — lokalnie ratchet skarżył się „w dobrą stronę"
+  (`AdminShell.tsx` 2 → 0). Na CI krok przechodzi. To był dryf zależności w tym
+  kontenerze (instalacja z publicznego npm bez pinów), nie stan repo.
+- **8 czerwonych plików testowych** (`lazyWidgets`, `eagerWidgetChunks`, `accordionEditor`,
+  `speakersWidget`, `teamMemberEditableFlag`, `postListVariants2`,
+  `postsSliderDisplaySettings`, `widgetViewI18nFallback`) — lokalnie czerwone identycznie
+  na `39a9efd` i na tej gałęzi. Na CI **nie da się tego potwierdzić ani zaprzeczyć**, bo
+  przebieg nie dochodzi do końca (patrz 8.3). Nie twierdzę więc, że są czerwone na CI —
+  twierdzę tylko, że w tym sandboksie są, i że tak samo na commicie bazowym.
+
+### 8.2 Lint: jedyna zmiana tej gałęzi poza modułem 5
+
+`AccountIdentityPanel.test.tsx:87` wołał `require("react")` wewnątrz fabryki `vi.mock`
+(`@typescript-eslint/no-require-imports`). Błąd jest starszy niż ta gałąź — występuje
+identycznie na `39a9efd` — ale miał skutek, którego nikt nie widział: **na main `verify`
+padał na lincie, więc krok „Test + coverage gate" był POMIJANY** (status `skipped`).
+Testy, pokrycie i wszystkie progi nie wykonywały się w ogóle.
+
+Naprawione tutaj po decyzji autora (`createElement` ze statycznego importu, atrapa renderuje
+to samo `<a href>`). Skutek uboczny jest ważniejszy niż sama poprawka: ten PR jest
+**pierwszym, który krok testowy w ogóle uruchamia**.
+
+### 8.3 Co przez to wyszło: pełna suita wiesza się na CI
+
+Krok „Test + coverage gate" nie kończy się i zadanie ginie na `timeout-minutes: 20`.
+Dwa przebiegi, sygnatura co do pliku identyczna:
+
+| Przebieg | Ostatnia linia postępu             | Cisza    | Koniec              |
+| -------- | ---------------------------------- | -------- | ------------------- |
+| 1        | `migrationReplay.test.ts` 08:07:51 | 16 min   | `canceled` 08:24:24 |
+| 2        | `migrationReplay.test.ts` 08:41:33 | 14,5 min | `canceled` 08:56:15 |
+
+W obu przy sprzątaniu runner ubijał wciąż żywe procesy `bun`, `esbuild` i cztery `node` —
+to zawieszenie transformacji, nie powolne testy. Podniesienie limitu czasu nic by nie dało.
+
+**To nie jest defekt tej gałęzi.** Test A/B na tej samej maszynie, z tymi samymi
+`node_modules`:
+
+| Rewizja                           | `settingsFidelity.gate.test.tsx` |
+| --------------------------------- | -------------------------------- |
+| `39a9efd` (main, baza tej gałęzi) | wisi > 200 s                     |
+| ta gałąź                          | wisi > 200 s                     |
+| gałąź PR #256 (moduł 3)           | kończy się w 5 s                 |
+
+PR #256 przebudowuje dokładnie tę powierzchnię (`lazyWidgets.tsx` → `lazySuspense.tsx`
+
+- `lazySliderRender.tsx`) i jego `verify` przechodzi na CI **całą** suitę w 17 min 07 s.
+  Ślad przyczyny: esbuild dławi się na transformacji `src/test/eagerWidgetChunks.tsx` —
+  gorliwego lustra rejestru wszystkich 99 widgetów.
+
+Decyzja (autora): **nic tu nie naprawiamy**. #256 wchodzi do main, potem ta gałąź wciąga
+main i CI powinno przejść bez żadnej ingerencji w kod modułu 5. Alternatywy — obejście
+w konfiguracji vitest albo własna naprawa w module 3 — dublowałyby cudzą pracę na tej samej
+powierzchni.
+
+### 8.4 `check:bundle`
+
+Na CI ten krok **nie został osiągnięty** (stoi za krokiem testowym). Lokalnie: budżet
+3870 KB, na `39a9efd` **3870,7 KB**, na tej gałęzi **3870,5 KB** — o 0,2 KB **mniej**.
+Usunięcie nieosiągalnej gałęzi `SubmenuItem` z chunku wejściowego (sekcja 3.6) odjęło
+więcej, niż dodały wyprowadzone moduły. Budżet był przekroczony przed tą pracą; kronika
+w `check-bundle-size.ts` wskazuje ruchy `vendor +43,9 KB`, `i18n +27,6 KB`,
+`ConsentBanner NOWY` — nie z tej gałęzi.
+
+### 8.5 Czym stoi pomiar tej pracy
+
+Wszystkie 631 przypadków w 24 plikach testowych tej gałęzi przechodzi (17,6 s razem —
+to nie one są kosztem przebiegu CI), a nowe progi per‑ścieżka zostały zweryfikowane wprost
+z raportu `coverage-final.json` tą samą arytmetyką, której używa vitest (sumy per plik
+w obrębie wzorca) — **17 z 17 spełnionych z marżą**. Do czasu, aż zawieszenie z 8.3 zniknie
+z main, jest to jedyny dostępny dowód na progi: bramka CI po prostu do nich nie dochodzi.
