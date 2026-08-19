@@ -874,6 +874,40 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── BUILDER MAILA: KANWA, BIBLIOTEKA, PODGLĄD ────────────────────────
+        // WidgetPreview: JEDEN test na typ widgetu, plus przejście po CAŁYM
+        // rejestrze. Typ, który renderuje się jako `null`, nie wywala
+        // aplikacji - po prostu ZNIKA z kanwy, a operator dodaje to samo pole
+        // drugi raz albo rezygnuje, uznając, że builder tego nie umie.
+        // Osobno przybita sanityzacja HTML akapitu i oznaczenie pola
+        // wymaganego (gwiazdka to jedyny sygnał wymagalności w podglądzie).
+        "src/components/admin/newsletter/builder/WidgetPreview.tsx": {
+          statements: 90,
+          functions: 85,
+          lines: 94,
+          branches: 70,
+        },
+        // BuilderCanvas: akcje na widgecie (duplikuj/usuń/przenieś) MUSZĄ
+        // zatrzymywać propagację - inaczej każde „usuń" najpierw zaznacza
+        // widget i panel właściwości pokazuje coś, czego już nie ma. Plus
+        // przypisanie do kolumny w układzie dwukolumnowym (decyduje o wyglądzie
+        // maila u odbiorcy) i pomijanie widgetów kolumnowych w układzie
+        // jednokolumnowym.
+        "src/components/admin/newsletter/builder/BuilderCanvas.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        // WidgetLibrary: różne zestawy widgetów dla maila i popupu
+        // (widget popupowy w mailu jest martwym elementem) oraz karty PRESETÓW,
+        // które dodają widget razem z gotowym ustawieniem pola.
+        "src/components/admin/newsletter/builder/WidgetLibrary.tsx": {
+          statements: 90,
+          functions: 98,
+          lines: 98,
+          branches: 70,
+        },
       },
     },
   },
