@@ -120,7 +120,17 @@ vi.mock("@/components/billing/organisms/RetentionDialog", () => ({
     h.retentionProps.push({ open: props.open, subscriptionId: props.subscriptionId });
     h.confirmCancel.current = props.onConfirmCancel;
     return props.open ? (
-      <button type="button" onClick={() => void props.onConfirmCancel()}>
+      <button
+        type="button"
+        onClick={() => {
+          // PRAWDZIWY dialog robi `await onConfirmCancel()` w `try/catch` (po to,
+          // żeby przy odmowie operatora zostać otwartym z komunikatem). Atrapa
+          // musi odzwierciedlać ten kontrakt - samo `void promise` zostawiałoby
+          // odrzucenie bez obsługi, a vitest zgłaszałby błąd, którego
+          // w produkcji nie ma.
+          void Promise.resolve(props.onConfirmCancel()).catch(() => {});
+        }}
+      >
         potwierdz-rezygnacje
       </button>
     ) : null;
