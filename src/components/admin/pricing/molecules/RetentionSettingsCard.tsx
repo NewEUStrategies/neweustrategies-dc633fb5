@@ -13,8 +13,8 @@ import { HeartHandshake, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import type { RetentionSettingsDraft } from "@/lib/admin/pricingDrafts";
 
 export function RetentionSettingsCard({
@@ -45,36 +45,42 @@ export function RetentionSettingsCard({
             <Switch checked={draft.enabled} onCheckedChange={(v) => onChange({ enabled: v })} />
             <span className="text-xs">{ta("retention.enabled")}</span>
           </div>
-          <div>
-            <Label className="text-xs">{ta("retention.discountPct")}</Label>
-            <Input
-              type="number"
-              min={1}
-              max={90}
-              value={draft.discount_pct}
-              onChange={(e) => onChange({ discount_pct: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">{ta("retention.discountPeriods")}</Label>
-            <Input
-              type="number"
-              min={1}
-              max={24}
-              value={draft.discount_periods}
-              onChange={(e) => onChange({ discount_periods: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">{ta("retention.validDays")}</Label>
-            <Input
-              type="number"
-              min={1}
-              max={90}
-              value={draft.coupon_valid_days}
-              onChange={(e) => onChange({ coupon_valid_days: e.target.value })}
-            />
-          </div>
+          <LabeledField label={ta("retention.discountPct")}>
+            {(field) => (
+              <Input
+                {...field}
+                type="number"
+                min={1}
+                max={90}
+                value={draft.discount_pct}
+                onChange={(e) => onChange({ discount_pct: e.target.value })}
+              />
+            )}
+          </LabeledField>
+          <LabeledField label={ta("retention.discountPeriods")}>
+            {(field) => (
+              <Input
+                {...field}
+                type="number"
+                min={1}
+                max={24}
+                value={draft.discount_periods}
+                onChange={(e) => onChange({ discount_periods: e.target.value })}
+              />
+            )}
+          </LabeledField>
+          <LabeledField label={ta("retention.validDays")}>
+            {(field) => (
+              <Input
+                {...field}
+                type="number"
+                min={1}
+                max={90}
+                value={draft.coupon_valid_days}
+                onChange={(e) => onChange({ coupon_valid_days: e.target.value })}
+              />
+            )}
+          </LabeledField>
           <Button size="sm" disabled={saving} onClick={onSave}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {ta("retention.save")}

@@ -10,7 +10,7 @@
 //   Zapis wymaga nazwy w OBU językach - segment bez nazwy angielskiej jest
 //   pustą zakładką dla połowy odbiorców.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import {
   membershipTier,
@@ -358,5 +358,46 @@ describe("AudiencesTab - nowy segment", () => {
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("adminPricing.toast.noTenant"));
     expect(chain.chainsFor("pricing_audiences")).toHaveLength(0);
+  });
+});
+
+describe("AudiencesTab - DOSTĘPNOŚĆ pól (bramka po defekcie)", () => {
+  // Do 19.08.2026 żadne z tych pól nie miało dostępnej nazwy: etykieta stała
+  // obok, bez `htmlFor`. Czytnik ekranu ogłaszał sześć bezimiennych pól w
+  // formularzu decydującym o tym, jakie zakładki widzi klient na cenniku.
+  it("wszystkie pola segmentu dają się znaleźć PO ETYKIECIE", () => {
+    renderTab([AUDIENCES[0]]);
+
+    for (const key of [
+      "audiences.namePl",
+      "audiences.nameEn",
+      "audiences.taglinePl",
+      "audiences.taglineEn",
+      "audiences.trustPl",
+      "audiences.trustEn",
+      "audiences.icon",
+    ]) {
+      expect(screen.getByLabelText(`adminPricing.${key}`)).toBeInTheDocument();
+    }
+  });
+
+  it("podpowiedź przy zdaniu zaufania jest OPISEM pola, nie luźnym akapitem", () => {
+    renderTab([AUDIENCES[0]]);
+
+    expect(screen.getByLabelText("adminPricing.audiences.trustPl")).toHaveAccessibleDescription(
+      "adminPricing.audiences.trustHint",
+    );
+  });
+
+  it("pola nowego segmentu też mają dostępne nazwy", () => {
+    renderTab();
+
+    fireEvent.click(screen.getByRole("button", { name: /audiences\.new/ }));
+
+    // Etykieta „nazwa po polsku" jest i w karcie segmentu, i w oknie - stąd
+    // zawężenie do okna, a nie szukanie po całym dokumencie.
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByLabelText("adminPricing.audiences.key")).toBeInTheDocument();
+    expect(dialog.getByLabelText("adminPricing.audiences.namePl")).toBeInTheDocument();
   });
 });

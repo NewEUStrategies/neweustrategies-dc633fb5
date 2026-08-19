@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroup } from "@/components/admin/pricing/atoms/FieldGroup";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
 import type { MembershipTierRow } from "@/lib/billing/tiers";
@@ -112,41 +113,47 @@ export function TierMarketingCard({
       <CardContent className="flex flex-col gap-4 pt-4">
         <FieldGroup icon={Users} title={ta("tiers.audience")} accent={rankTone.dot}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="sm:col-span-1">
-              <Label className="text-xs">{ta("tiers.audience")}</Label>
-              <Select
-                value={draft.audience_key}
-                onValueChange={(v) => onChange({ audience_key: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_AUDIENCE}>{ta("tiers.none")}</SelectItem>
-                  {audiences.map((audience) => (
-                    <SelectItem key={audience.key} value={audience.key}>
-                      {audience.key} ({lang === "en" ? audience.name_en : audience.name_pl})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">{ta("tiers.badgePl")}</Label>
-              <Input
-                value={draft.badge_pl}
-                onChange={(e) => onChange({ badge_pl: e.target.value })}
-                placeholder="Najpopularniejszy"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">{ta("tiers.badgeEn")}</Label>
-              <Input
-                value={draft.badge_en}
-                onChange={(e) => onChange({ badge_en: e.target.value })}
-                placeholder="Most popular"
-              />
-            </div>
+            <LabeledField label={ta("tiers.audience")} className="sm:col-span-1">
+              {(field) => (
+                <Select
+                  {...field}
+                  value={draft.audience_key}
+                  onValueChange={(v) => onChange({ audience_key: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_AUDIENCE}>{ta("tiers.none")}</SelectItem>
+                    {audiences.map((audience) => (
+                      <SelectItem key={audience.key} value={audience.key}>
+                        {audience.key} ({lang === "en" ? audience.name_en : audience.name_pl})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </LabeledField>
+            <LabeledField label={ta("tiers.badgePl")}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.badge_pl}
+                  onChange={(e) => onChange({ badge_pl: e.target.value })}
+                  placeholder="Najpopularniejszy"
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={ta("tiers.badgeEn")}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.badge_en}
+                  onChange={(e) => onChange({ badge_en: e.target.value })}
+                  placeholder="Most popular"
+                />
+              )}
+            </LabeledField>
           </div>
           <label className="mt-2 flex items-start gap-2 rounded-[6px] border border-border/60 bg-muted/30 px-2.5 py-2">
             <Switch checked={draft.highlight} onCheckedChange={(v) => onChange({ highlight: v })} />
@@ -159,22 +166,26 @@ export function TierMarketingCard({
 
         <FieldGroup icon={MessageSquare} title={ta("tiers.ctaMode")} accent={rankTone.dot}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs">{ta("tiers.ctaMode")}</Label>
-              <Select value={draft.cta_mode} onValueChange={(v) => onChange({ cta_mode: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CTA_MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {ta(`tiers.ctaModes.${mode}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.ctaModeHint")}</p>
-            </div>
+            <LabeledField label={ta("tiers.ctaMode")} hint={ta("tiers.ctaModeHint")}>
+              {(field) => (
+                <Select
+                  {...field}
+                  value={draft.cta_mode}
+                  onValueChange={(v) => onChange({ cta_mode: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CTA_MODES.map((mode) => (
+                      <SelectItem key={mode} value={mode}>
+                        {ta(`tiers.ctaModes.${mode}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </LabeledField>
             <div>
               <Label className="flex items-center gap-1 text-xs">
                 <Link2 className="h-3 w-3" aria-hidden="true" />
@@ -199,22 +210,26 @@ export function TierMarketingCard({
             </span>
           </label>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs">{ta("tiers.priceNotePl")}</Label>
-              <Input
-                value={draft.price_note_pl}
-                onChange={(e) => onChange({ price_note_pl: e.target.value })}
-                placeholder="2-20 miejsc"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">{ta("tiers.priceNoteEn")}</Label>
-              <Input
-                value={draft.price_note_en}
-                onChange={(e) => onChange({ price_note_en: e.target.value })}
-                placeholder="2-20 seats"
-              />
-            </div>
+            <LabeledField label={ta("tiers.priceNotePl")}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.price_note_pl}
+                  onChange={(e) => onChange({ price_note_pl: e.target.value })}
+                  placeholder="2-20 miejsc"
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={ta("tiers.priceNoteEn")}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.price_note_en}
+                  onChange={(e) => onChange({ price_note_en: e.target.value })}
+                  placeholder="2-20 seats"
+                />
+              )}
+            </LabeledField>
           </div>
         </FieldGroup>
 

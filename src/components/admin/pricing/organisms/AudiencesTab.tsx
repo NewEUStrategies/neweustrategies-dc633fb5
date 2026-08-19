@@ -17,7 +17,6 @@ import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { EmptyHint } from "@/components/admin/pricing/atoms/EmptyHint";
 import { RowOrderControls } from "@/components/admin/pricing/atoms/RowOrderControls";
 import { NewAudienceDialog } from "@/components/admin/pricing/molecules/NewAudienceDialog";
@@ -198,72 +198,82 @@ export function AudiencesTab({
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <div>
-                    <Label className="text-xs">{ta("audiences.namePl")}</Label>
-                    <Input
-                      value={draft.name_pl}
-                      onChange={(e) => set({ name_pl: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{ta("audiences.nameEn")}</Label>
-                    <Input
-                      value={draft.name_en}
-                      onChange={(e) => set({ name_en: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{ta("audiences.taglinePl")}</Label>
-                    <Textarea
-                      rows={2}
-                      value={draft.tagline_pl}
-                      onChange={(e) => set({ tagline_pl: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{ta("audiences.taglineEn")}</Label>
-                    <Textarea
-                      rows={2}
-                      value={draft.tagline_en}
-                      onChange={(e) => set({ tagline_en: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{ta("audiences.trustPl")}</Label>
-                    <Input
-                      value={draft.trust_pl}
-                      onChange={(e) => set({ trust_pl: e.target.value })}
-                      placeholder="Faktura · Umowa roczna · Wdrożenie z opiekunem"
-                    />
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {ta("audiences.trustHint")}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs">{ta("audiences.trustEn")}</Label>
-                    <Input
-                      value={draft.trust_en}
-                      onChange={(e) => set({ trust_en: e.target.value })}
-                      placeholder="Invoice · Annual agreement · Guided onboarding"
-                    />
-                  </div>
+                  <LabeledField label={ta("audiences.namePl")}>
+                    {(field) => (
+                      <Input
+                        {...field}
+                        value={draft.name_pl}
+                        onChange={(e) => set({ name_pl: e.target.value })}
+                      />
+                    )}
+                  </LabeledField>
+                  <LabeledField label={ta("audiences.nameEn")}>
+                    {(field) => (
+                      <Input
+                        {...field}
+                        value={draft.name_en}
+                        onChange={(e) => set({ name_en: e.target.value })}
+                      />
+                    )}
+                  </LabeledField>
+                  <LabeledField label={ta("audiences.taglinePl")}>
+                    {(field) => (
+                      <Textarea
+                        {...field}
+                        rows={2}
+                        value={draft.tagline_pl}
+                        onChange={(e) => set({ tagline_pl: e.target.value })}
+                      />
+                    )}
+                  </LabeledField>
+                  <LabeledField label={ta("audiences.taglineEn")}>
+                    {(field) => (
+                      <Textarea
+                        {...field}
+                        rows={2}
+                        value={draft.tagline_en}
+                        onChange={(e) => set({ tagline_en: e.target.value })}
+                      />
+                    )}
+                  </LabeledField>
+                  <LabeledField label={ta("audiences.trustPl")} hint={ta("audiences.trustHint")}>
+                    {(field) => (
+                      <Input
+                        {...field}
+                        value={draft.trust_pl}
+                        onChange={(e) => set({ trust_pl: e.target.value })}
+                        placeholder="Faktura · Umowa roczna · Wdrożenie z opiekunem"
+                      />
+                    )}
+                  </LabeledField>
+                  <LabeledField label={ta("audiences.trustEn")}>
+                    {(field) => (
+                      <Input
+                        {...field}
+                        value={draft.trust_en}
+                        onChange={(e) => set({ trust_en: e.target.value })}
+                        placeholder="Invoice · Annual agreement · Guided onboarding"
+                      />
+                    )}
+                  </LabeledField>
                 </div>
                 <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3">
-                  <div>
-                    <Label className="text-xs">{ta("audiences.icon")}</Label>
-                    <Select value={draft.icon} onValueChange={(v) => set({ icon: v })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ICON_OPTIONS.map((slug) => (
-                          <SelectItem key={slug} value={slug}>
-                            {ta(`icons.${slug}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <LabeledField label={ta("audiences.icon")}>
+                    {(field) => (
+                      <Select value={draft.icon} onValueChange={(v) => set({ icon: v })}>
+                        <SelectTrigger {...field}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ICON_OPTIONS.map((slug) => (
+                            <SelectItem key={slug} value={slug}>
+                              {ta(`icons.${slug}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </LabeledField>
                   <div className="flex items-center gap-2 pb-2">
                     <Switch checked={draft.active} onCheckedChange={(v) => set({ active: v })} />
                     <span className="text-xs">{ta("audiences.active")}</span>

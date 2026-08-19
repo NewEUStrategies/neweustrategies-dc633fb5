@@ -438,3 +438,65 @@ describe("NewTierDialog - klucz wchodzący do mapowania planów", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
+  // Do 19.08.2026 pola karty warstwy nie miały dostępnych nazw, a etykiety
+  // czterech z nich były TWARDYMI polskimi napisami - wersja angielska panelu
+  // pokazywała „Nazwa PL" i „Opis PL". Klucze słownika istniały od początku;
+  // komponent ich nie używał.
+  it("nazwy i opisy warstwy dają się znaleźć po etykiecie ZE SŁOWNIKA", () => {
+    const tier = membershipTier();
+    render(
+      <TierEditorCard
+        tier={tier}
+        draft={draftFromTier(tier)}
+        saving={false}
+        deleting={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    for (const key of [
+      "fields.namePl",
+      "fields.nameEn",
+      "fields.descriptionPl",
+      "fields.descriptionEn",
+      "fields.rank",
+      "fields.featuresJson",
+    ]) {
+      expect(screen.getByLabelText(`adminMembership.${key}`)).toBeInTheDocument();
+    }
+  });
+
+  it("podpowiedź przy surowym JSON-ie bramek jest OPISEM pola", () => {
+    const tier = membershipTier();
+    render(
+      <TierEditorCard
+        tier={tier}
+        draft={draftFromTier(tier)}
+        saving={false}
+        deleting={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText("adminMembership.fields.featuresJson"),
+    ).toHaveAccessibleDescription("adminMembership.fields.featuresHint");
+  });
+
+  it("pola okna nowej warstwy mają dostępne nazwy", () => {
+    render(
+      <NewTierDialog existingKeys={[]} suggestedRank={10} onCreate={vi.fn()} isPending={false} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.title/ }));
+
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByLabelText("adminMembership.newTierDialog.key")).toBeInTheDocument();
+    expect(dialog.getByLabelText("adminMembership.fields.rank")).toBeInTheDocument();
+  });
+});

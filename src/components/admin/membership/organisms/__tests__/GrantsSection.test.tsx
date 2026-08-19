@@ -364,3 +364,27 @@ describe("GrantsSection - lista nadań", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("GrantsSection - DOSTĘPNOŚĆ pól (bramka po defekcie)", () => {
+  // Do 19.08.2026 pole adresu miało twardy napis „Email" i nie było powiązane
+  // z żadną etykietą. To formularz, w którym puste pole „miesiące" znaczy dostęp
+  // BEZ KOŃCA - najgorsze możliwe miejsce na pole bez nazwy.
+  it("adres, warstwa i liczba miesięcy mają dostępne nazwy ze słownika", async () => {
+    renderSection();
+    await waitFor(() => expect(h.fetch).toHaveBeenCalled());
+
+    expect(screen.getByLabelText("adminMembership.grants.email")).toBeInTheDocument();
+    expect(screen.getByLabelText("adminMembership.grants.tier")).toBeInTheDocument();
+    expect(screen.getByLabelText("adminMembership.grants.months")).toBeInTheDocument();
+  });
+
+  it("pole miesięcy mówi WPROST, że puste znaczy bezterminowo", async () => {
+    renderSection();
+    await waitFor(() => expect(h.fetch).toHaveBeenCalled());
+
+    expect(screen.getByLabelText("adminMembership.grants.months")).toHaveAttribute(
+      "placeholder",
+      "∞",
+    );
+  });
+});

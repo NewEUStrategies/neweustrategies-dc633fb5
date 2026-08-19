@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
 import { ExpertRequestQuotaEditor } from "@/components/admin/pricing/ExpertRequestQuotaEditor";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
@@ -86,44 +87,60 @@ export function TierEditorCard({
       <div className="flex flex-1 flex-col gap-5 p-4">
         <FieldGroupRule label={tm("groups.naming")}>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Nazwa PL</Label>
-              <Input value={draft.name_pl} onChange={(e) => set({ name_pl: e.target.value })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Name EN</Label>
-              <Input value={draft.name_en} onChange={(e) => set({ name_en: e.target.value })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Opis PL</Label>
-              <Textarea
-                rows={2}
-                value={draft.description_pl}
-                onChange={(e) => set({ description_pl: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Description EN</Label>
-              <Textarea
-                rows={2}
-                value={draft.description_en}
-                onChange={(e) => set({ description_en: e.target.value })}
-              />
-            </div>
+            <LabeledField label={tm("fields.namePl")} className="space-y-1">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.name_pl}
+                  onChange={(e) => set({ name_pl: e.target.value })}
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={tm("fields.nameEn")} className="space-y-1">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.name_en}
+                  onChange={(e) => set({ name_en: e.target.value })}
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={tm("fields.descriptionPl")} className="space-y-1">
+              {(field) => (
+                <Textarea
+                  {...field}
+                  rows={2}
+                  value={draft.description_pl}
+                  onChange={(e) => set({ description_pl: e.target.value })}
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={tm("fields.descriptionEn")} className="space-y-1">
+              {(field) => (
+                <Textarea
+                  {...field}
+                  rows={2}
+                  value={draft.description_en}
+                  onChange={(e) => set({ description_en: e.target.value })}
+                />
+              )}
+            </LabeledField>
           </div>
         </FieldGroupRule>
 
         <FieldGroupRule label={tm("groups.status")}>
           <div className="grid grid-cols-3 items-end gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">{tm("fields.rank")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={draft.rank}
-                onChange={(e) => set({ rank: Number(e.target.value) || 0 })}
-              />
-            </div>
+            <LabeledField label={tm("fields.rank")} className="space-y-1">
+              {(field) => (
+                <Input
+                  {...field}
+                  type="number"
+                  min={0}
+                  value={draft.rank}
+                  onChange={(e) => set({ rank: Number(e.target.value) || 0 })}
+                />
+              )}
+            </LabeledField>
             <label className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-2 text-xs">
               <Switch checked={draft.active} onCheckedChange={(v) => set({ active: v })} />
               {tm("fields.active")}
@@ -152,18 +169,25 @@ export function TierEditorCard({
               value={draft.features}
               onChange={(features) => set({ features })}
             />
-            <div className="space-y-1">
-              <Label className="flex items-center gap-1.5 text-xs">
-                <FileJson className="h-3 w-3" aria-hidden />
-                {tm("fields.featuresJson")}
-              </Label>
-              <Input
-                value={draft.features}
-                onChange={(e) => set({ features: e.target.value })}
-                className="font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground">{tm("fields.featuresHint")}</p>
-            </div>
+            <LabeledField
+              className="space-y-1"
+              label={
+                <span className="flex items-center gap-1.5">
+                  <FileJson className="h-3 w-3" aria-hidden />
+                  {tm("fields.featuresJson")}
+                </span>
+              }
+              hint={tm("fields.featuresHint")}
+            >
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.features}
+                  onChange={(e) => set({ features: e.target.value })}
+                  className="font-mono text-xs"
+                />
+              )}
+            </LabeledField>
           </div>
         </FieldGroupRule>
 

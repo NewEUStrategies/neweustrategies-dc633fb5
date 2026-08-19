@@ -22,7 +22,6 @@ import { Plus, Settings2, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -30,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
 import { SectionCard } from "@/components/admin/membership/atoms/SectionCard";
 import {
@@ -143,41 +143,46 @@ export function GrantsSection({
       <SectionCard icon={Plus} title={tm("grants.newHeading")} description={tm("grants.hint")}>
         <FieldGroupRule label={tm("groups.grantForm")}>
           <div className="grid gap-3 sm:grid-cols-[1fr_10rem_7rem_auto] sm:items-end">
-            <div className="space-y-1">
-              <Label className="text-xs">Email</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="osoba@instytucja.eu"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">{tm("grants.tier")}</Label>
-              <Select value={tierKey} onValueChange={setTierKey}>
-                <SelectTrigger>
-                  <SelectValue placeholder={tm("grants.tierSelect")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tierOptions.map((tier) => (
-                    <SelectItem key={tier.key} value={tier.key}>
-                      {tier.key} ({lang === "pl" ? tier.name_pl : tier.name_en})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">{tm("grants.months")}</Label>
-              <Input
-                type="number"
-                min={1}
-                max={120}
-                value={months}
-                onChange={(e) => setMonths(e.target.value)}
-                placeholder="∞"
-              />
-            </div>
+            <LabeledField label={tm("grants.email")} className="space-y-1">
+              {(field) => (
+                <Input
+                  {...field}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="osoba@instytucja.eu"
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={tm("grants.tier")} className="space-y-1">
+              {(field) => (
+                <Select value={tierKey} onValueChange={setTierKey}>
+                  <SelectTrigger {...field}>
+                    <SelectValue placeholder={tm("grants.tierSelect")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tierOptions.map((tier) => (
+                      <SelectItem key={tier.key} value={tier.key}>
+                        {tier.key} ({lang === "pl" ? tier.name_pl : tier.name_en})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </LabeledField>
+            <LabeledField label={tm("grants.months")} className="space-y-1">
+              {(field) => (
+                <Input
+                  {...field}
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={months}
+                  onChange={(e) => setMonths(e.target.value)}
+                  placeholder="∞"
+                />
+              )}
+            </LabeledField>
             <Button disabled={!canGrant || grantM.isPending} onClick={() => grantM.mutate()}>
               <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
               {tm("grants.grant")}

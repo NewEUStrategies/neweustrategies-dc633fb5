@@ -18,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { audienceKeyValid } from "@/lib/admin/pricingDrafts";
 
 export function NewAudienceDialog({
@@ -62,25 +62,28 @@ export function NewAudienceDialog({
           <DialogTitle>{ta("audiences.new")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div>
-            <Label className="text-xs">{ta("audiences.key")}</Label>
-            <Input
-              value={key}
-              onChange={(e) => setKey(e.target.value.toLowerCase())}
-              placeholder="media"
-              className="font-mono"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">{ta("audiences.keyHint")}</p>
-          </div>
+          <LabeledField label={ta("audiences.key")} hint={ta("audiences.keyHint")}>
+            {(field) => (
+              <Input
+                {...field}
+                value={key}
+                onChange={(e) => setKey(e.target.value.toLowerCase())}
+                placeholder="media"
+                className="font-mono"
+              />
+            )}
+          </LabeledField>
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">{ta("audiences.namePl")}</Label>
-              <Input value={namePl} onChange={(e) => setNamePl(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs">{ta("audiences.nameEn")}</Label>
-              <Input value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
-            </div>
+            <LabeledField label={ta("audiences.namePl")}>
+              {(field) => (
+                <Input {...field} value={namePl} onChange={(e) => setNamePl(e.target.value)} />
+              )}
+            </LabeledField>
+            <LabeledField label={ta("audiences.nameEn")}>
+              {(field) => (
+                <Input {...field} value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
+              )}
+            </LabeledField>
           </div>
         </div>
         <DialogFooter>

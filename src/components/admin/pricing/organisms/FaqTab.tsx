@@ -15,7 +15,6 @@ import { Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { EmptyHint } from "@/components/admin/pricing/atoms/EmptyHint";
 import { RowOrderControls } from "@/components/admin/pricing/atoms/RowOrderControls";
 import { supabase } from "@/integrations/supabase/client";
@@ -133,9 +133,15 @@ export function FaqTab({
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const audienceSelect = (value: string, onChange: (v: string) => void) => (
+  // Propsy pola (`id`, `aria-describedby`) wstrzykuje `LabeledField`; muszą
+  // wylądować na WYZWALACZU Radiksa, bo korzeń `Select` nie renderuje elementu.
+  const audienceSelect = (
+    value: string,
+    onChange: (v: string) => void,
+    field: { id: string; "aria-describedby"?: string },
+  ) => (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
+      <SelectTrigger {...field}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -151,30 +157,44 @@ export function FaqTab({
 
   const faqFields = (draft: FaqDraft, set: (patch: Partial<FaqDraft>) => void) => (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <div>
-        <Label className="text-xs">{ta("faq.questionPl")}</Label>
-        <Input value={draft.question_pl} onChange={(e) => set({ question_pl: e.target.value })} />
-      </div>
-      <div>
-        <Label className="text-xs">{ta("faq.questionEn")}</Label>
-        <Input value={draft.question_en} onChange={(e) => set({ question_en: e.target.value })} />
-      </div>
-      <div>
-        <Label className="text-xs">{ta("faq.answerPl")}</Label>
-        <Textarea
-          rows={3}
-          value={draft.answer_pl}
-          onChange={(e) => set({ answer_pl: e.target.value })}
-        />
-      </div>
-      <div>
-        <Label className="text-xs">{ta("faq.answerEn")}</Label>
-        <Textarea
-          rows={3}
-          value={draft.answer_en}
-          onChange={(e) => set({ answer_en: e.target.value })}
-        />
-      </div>
+      <LabeledField label={ta("faq.questionPl")}>
+        {(field) => (
+          <Input
+            {...field}
+            value={draft.question_pl}
+            onChange={(e) => set({ question_pl: e.target.value })}
+          />
+        )}
+      </LabeledField>
+      <LabeledField label={ta("faq.questionEn")}>
+        {(field) => (
+          <Input
+            {...field}
+            value={draft.question_en}
+            onChange={(e) => set({ question_en: e.target.value })}
+          />
+        )}
+      </LabeledField>
+      <LabeledField label={ta("faq.answerPl")}>
+        {(field) => (
+          <Textarea
+            {...field}
+            rows={3}
+            value={draft.answer_pl}
+            onChange={(e) => set({ answer_pl: e.target.value })}
+          />
+        )}
+      </LabeledField>
+      <LabeledField label={ta("faq.answerEn")}>
+        {(field) => (
+          <Textarea
+            {...field}
+            rows={3}
+            value={draft.answer_en}
+            onChange={(e) => set({ answer_en: e.target.value })}
+          />
+        )}
+      </LabeledField>
     </div>
   );
 
@@ -187,12 +207,15 @@ export function FaqTab({
         <CardContent className="flex flex-col gap-3">
           {faqFields(newDraft, (patch) => setNewDraft((d) => ({ ...d, ...patch })))}
           <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-3">
-            <div>
-              <Label className="text-xs">{ta("faq.audience")}</Label>
-              {audienceSelect(newDraft.audience_key, (v) =>
-                setNewDraft((d) => ({ ...d, audience_key: v })),
-              )}
-            </div>
+            <LabeledField label={ta("faq.audience")}>
+              {(field) =>
+                audienceSelect(
+                  newDraft.audience_key,
+                  (v) => setNewDraft((d) => ({ ...d, audience_key: v })),
+                  field,
+                )
+              }
+            </LabeledField>
             <div className="sm:col-span-2">
               <Button
                 size="sm"
@@ -242,10 +265,11 @@ export function FaqTab({
               <CardContent className="flex flex-col gap-3">
                 {faqFields(draft, set)}
                 <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-3">
-                  <div>
-                    <Label className="text-xs">{ta("faq.audience")}</Label>
-                    {audienceSelect(draft.audience_key, (v) => set({ audience_key: v }))}
-                  </div>
+                  <LabeledField label={ta("faq.audience")}>
+                    {(field) =>
+                      audienceSelect(draft.audience_key, (v) => set({ audience_key: v }), field)
+                    }
+                  </LabeledField>
                   <div className="flex items-center gap-2 pb-2">
                     <Switch checked={draft.active} onCheckedChange={(v) => set({ active: v })} />
                     <span className="text-xs">{ta("faq.active")}</span>

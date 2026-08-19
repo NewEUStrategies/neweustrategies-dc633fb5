@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { slugKeyValid } from "@/lib/keyFormat";
 
 export function NewTierDialog({
@@ -74,26 +74,28 @@ export function NewTierDialog({
           <DialogTitle>{tm("newTierDialog.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div>
-            <Label className="text-xs">{tm("newTierDialog.key")}</Label>
-            <Input
-              value={key}
-              onChange={(e) => setKey(e.target.value.toLowerCase())}
-              placeholder="patron"
-              className="font-mono"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">{tm("newTierDialog.keyHint")}</p>
-          </div>
-          <div>
-            <Label className="text-xs">{tm("fields.rank")}</Label>
-            <Input
-              type="number"
-              min={0}
-              value={rank}
-              onChange={(e) => setRank(Number(e.target.value) || 0)}
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">{tm("newTierDialog.rankHint")}</p>
-          </div>
+          <LabeledField label={tm("newTierDialog.key")} hint={tm("newTierDialog.keyHint")}>
+            {(field) => (
+              <Input
+                {...field}
+                value={key}
+                onChange={(e) => setKey(e.target.value.toLowerCase())}
+                placeholder="patron"
+                className="font-mono"
+              />
+            )}
+          </LabeledField>
+          <LabeledField label={tm("fields.rank")} hint={tm("newTierDialog.rankHint")}>
+            {(field) => (
+              <Input
+                {...field}
+                type="number"
+                min={0}
+                value={rank}
+                onChange={(e) => setRank(Number(e.target.value) || 0)}
+              />
+            )}
+          </LabeledField>
           <div className="grid grid-cols-2 gap-2">
             <FloatingInput
               label="Nazwa PL"

@@ -313,3 +313,29 @@ describe("FaqTab - usunięcie i kolejność", () => {
     expect(ids).toEqual(["f2", "f1"]);
   });
 });
+
+describe("FaqTab - DOSTĘPNOŚĆ pól (bramka po defekcie)", () => {
+  // Do 19.08.2026 pytania i odpowiedzi nie miały dostępnych nazw - w formularzu,
+  // który odpowiada klientowi na pytania zadawane PRZED zakupem.
+  it("cztery pola treści i wybór segmentu mają dostępne nazwy", () => {
+    renderTab([pricingFaqItem()]);
+
+    for (const key of [
+      "faq.questionPl",
+      "faq.questionEn",
+      "faq.answerPl",
+      "faq.answerEn",
+      "faq.audience",
+    ]) {
+      expect(screen.getAllByLabelText(`adminPricing.${key}`).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("pola nowego pytania i pola pytania istniejącego to OSOBNE pola", () => {
+    renderTab([pricingFaqItem()]);
+
+    const questions = screen.getAllByLabelText("adminPricing.faq.questionPl");
+    expect(questions).toHaveLength(2);
+    expect(questions[0].id).not.toBe(questions[1].id);
+  });
+});
