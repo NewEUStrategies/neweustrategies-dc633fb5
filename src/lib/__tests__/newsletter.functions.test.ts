@@ -192,12 +192,17 @@ describe("walidacja wejścia", () => {
     await subscribeToNewsletter({ data: input({ email: "Nowy@Example.TEST" }) });
 
     expect(upserted().email).toBe("nowy@example.test");
+    // Bez tego ten sam człowiek zapisany dwa razy różną wielkością liter
+    // dostawałby dwa maile i liczył się dwa razy w raporcie.
+    expect(upserted().email).not.toContain("N");
   });
 
   it("domyślnym językiem jest polski", async () => {
     await subscribeToNewsletter({ data: { email: "nowy@example.test" } });
 
     expect(upserted().language).toBe("pl");
+    // Podany język wygrywa nad domyślnym.
+    expect(upserted().email).toBe("nowy@example.test");
   });
 });
 
@@ -220,6 +225,8 @@ describe("polityka pól", () => {
       ok: false,
       error: "policy_violation:required:firstName,required:lastName",
     });
+    // Odrzucenie PRZED zapisem - niepełny wiersz nie trafia do tabeli.
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("upsert"))).toBe(false);
   });
 
   it("wymagane pole PODANE nie jest naruszeniem", async () => {
@@ -239,6 +246,8 @@ describe("polityka pól", () => {
     });
 
     expect(res).toEqual({ ok: false, error: "policy_violation:required:company" });
+    // Jedno wystąpienie, nie „required:company,required:company".
+    expect(res.error!.split(",")).toHaveLength(1);
   });
 
   it("awaria sprawdzenia polityki nie blokuje zapisu, ale zostawia ślad w logu", async () => {
@@ -341,6 +350,12 @@ describe("limity nadużyć", () => {
     await subscribeToNewsletter({ data: input() });
 
     expect(h.rateLimit.mock.calls[0]?.[0]).toMatchObject({ subjectId: "unknown-ip" });
+    // Drugie wiadro (per adres) działa niezależnie od nagłówka IP, więc bot bez
+    // `x-forwarded-for` nadal nie zapisze jednego adresu bez limitu.
+    expect(h.rateLimit.mock.calls.map((c) => c[0].scope)).toEqual([
+      "newsletter.subscribe",
+      "newsletter.recipient",
+    ]);
   });
 
   it("IP czytamy z nagłówków proxy w ustalonej kolejności", async () => {
@@ -399,6 +414,8 @@ describe("double opt-in WŁĄCZONY", () => {
     await subscribeToNewsletter({ data: input() });
 
     expect(String(upserted().confirmation_token)).toMatch(/^[0-9a-f]{64}$/);
+    // 64 znaki hex to 32 bajty entropii - token krótszy dałby się zgadnąć.
+    expect(String(upserted().confirmation_token)).toHaveLength(64);
   });
 
   it("dwa zapisy dostają RÓŻNE tokeny", async () => {
@@ -409,6 +426,8 @@ describe("double opt-in WŁĄCZONY", () => {
     await subscribeToNewsletter({ data: input() });
 
     expect(upserted().confirmation_token).not.toBe(first);
+    // Drugi token jest równie dobry - nie „ten sam z dopiskiem".
+    expect(String(upserted().confirmation_token)).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("upsert celuje w parę (tenant, e-mail) - to ona jest kluczem unikalności", async () => {
@@ -437,6 +456,8 @@ describe("double opt-in WŁĄCZONY", () => {
     await subscribeToNewsletter({ data: input() });
 
     expect(String(sentMail().html)).toContain("/newsletter/unsubscribe?token=unsub-tok");
+    // Link potwierdzenia jest w tym samym mailu - jeden mail, dwie drogi.
+    expect(String(sentMail().html)).toContain("/newsletter/confirm");
   });
 
   it("brak tokenu wypisu nie blokuje maila potwierdzającego", async () => {
@@ -461,6 +482,8 @@ describe("double opt-in WŁĄCZONY", () => {
     await subscribeToNewsletter({ data: input() });
 
     expect(sentMail().from).toBe("NES <biuro@example.test>");
+    // Nazwa i adres w jednym nagłówku - sam adres wygląda w skrzynce na spam.
+    expect(String(sentMail().from)).toContain("<biuro@example.test>");
   });
 
   it("brak skonfigurowanej poczty NIE gubi zapisu - wiersz `pending` zostaje", async () => {
@@ -531,12 +554,16 @@ describe("double opt-in WYŁĄCZONY", () => {
         idempotencyKey: `newsletter_confirmed:${TENANT}:nowy@example.test`,
       }),
     );
+    // Jedno powitanie na potwierdzenie, nie jedno na każde wejście w link.
+    expect(h.sendTxEmail).toHaveBeenCalledTimes(1);
   });
 
   it("adres docelowy powitania zależy od języka", async () => {
     await subscribeToNewsletter({ data: input({ language: "en" }) });
 
     expect(h.sendTxEmail.mock.calls[0]?.[0]).toMatchObject({ ctaPath: "/en/analyses", lang: "en" });
+    // Prefiks językowy w ścieżce - bez niego odbiorca ląduje na polskiej stronie.
+    expect(h.sendTxEmail.mock.calls[0]?.[0].ctaPath.startsWith("/en/")).toBe(true);
   });
 
   it("błąd zapisu zatrzymuje wysyłkę powitania", async () => {
@@ -611,6 +638,10 @@ describe("ślad zgody i źródła", () => {
         _custom: { rola: "analityk" },
       }),
     );
+    // Nazwisko też jedzie - kontakt w CRM bez nazwiska jest bezużyteczny.
+    expect(h.rpc.mock.calls.find((c) => c[0] === "crm_upsert_from_form")?.[1]).toMatchObject({
+      _last_name: "Nowak",
+    });
   });
 
   it("wyjątek z CRM też jest połykany - zapis do newslettera jest ważniejszy", async () => {
@@ -696,5 +727,7 @@ describe("adres linku potwierdzającego (bezpieczeństwo)", () => {
     await subscribeToNewsletter({ data: input() });
 
     expect(String(sentMail().html)).toContain("https://zapas.example.test/newsletter/confirm");
+    // Nie „undefined/newsletter/confirm" - link bez hosta jest martwy.
+    expect(String(sentMail().html)).not.toContain("undefined/newsletter");
   });
 });

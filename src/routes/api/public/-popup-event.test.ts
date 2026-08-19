@@ -83,6 +83,8 @@ describe("zapis beaconu", () => {
     await post({ kind: "conversion", popup_id: POPUP_ID });
 
     expect(h.insert.mock.calls[0]![0]).toMatchObject({ kind: "conversion" });
+    // Konwersja jest przypisana do TEGO popupu, nie do pierwszego z bazy.
+    expect(h.insert.mock.calls[0]![0]).toMatchObject({ popup_id: POPUP_ID });
   });
 
   it("BRAK tenanta zostawia kolumnę pustą - domyślna wartość kolumny wchodzi w grę", async () => {
@@ -93,6 +95,8 @@ describe("zapis beaconu", () => {
     await post({ kind: "view", popup_id: POPUP_ID });
 
     expect(Object.keys(h.insert.mock.calls[0]![0] as object)).not.toContain("tenant_id");
+    // Wiersz JEST zapisywany - brak tenanta nie gubi zdarzenia.
+    expect(h.insert).toHaveBeenCalledTimes(1);
   });
 
   it("AWARIA rozwiązania tenanta nie blokuje zapisu", async () => {
@@ -132,15 +136,18 @@ describe("walidacja wejścia", () => {
   });
 
   it("brak identyfikatora jest odrzucany", async () => {
-    await post({ kind: "view" });
+    const res = await post({ kind: "view" });
 
     expect(h.insert).not.toHaveBeenCalled();
+    // Beacon nie może dostać błędu 5xx - przeglądarka ponawiałaby wysyłkę.
+    expect(res.status).toBeLessThan(500);
   });
 
   it("identyfikator innego typu niż napis jest odrzucany", async () => {
-    await post({ kind: "view", popup_id: 12345 });
+    const res = await post({ kind: "view", popup_id: 12345 });
 
     expect(h.insert).not.toHaveBeenCalled();
+    expect(res.status).toBeLessThan(500);
   });
 
   it("PUSTE body nie wywala endpointu", async () => {

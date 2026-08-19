@@ -86,6 +86,8 @@ describe("piksel otwarcia", () => {
       url: null,
       source: "first_party",
     });
+    // Jedno wejście w piksel to JEDNO otwarcie.
+    expect(h.recordCampaignEvent).toHaveBeenCalledTimes(1);
   });
 
   it("PODROBIONY podpis nie zapisuje niczego, ale obrazek nadal wychodzi", async () => {
@@ -102,9 +104,14 @@ describe("piksel otwarcia", () => {
     // wszystkich wysyłek.
     const inna = "99999999-8888-7777-6666-555555555555";
 
-    await openHandler({ request: request(`/api/public/nl-open?c=${inna}&s=${token()}`) });
+    const res = await openHandler({
+      request: request(`/api/public/nl-open?c=${inna}&s=${token()}`),
+    });
 
     expect(h.recordCampaignEvent).not.toHaveBeenCalled();
+    // Piksel nadal się zwraca - inaczej w mailu widniałby połamany obrazek,
+    // który sam jest sygnałem dla odbiorcy, że coś jest nie tak.
+    expect(res.status).toBe(200);
   });
 
   it("BRAK parametrów oddaje obrazek i nic nie zapisuje", async () => {
@@ -189,6 +196,8 @@ describe("przekierowanie kliknięcia - ochrona przed otwartym przekierowaniem", 
     });
 
     expect(res.headers.get("Location")).not.toBe(TARGET);
+    // Kliknięcie z obcym podpisem nie liczy się też w statystykach.
+    expect(h.recordCampaignEvent).not.toHaveBeenCalled();
   });
 
   it("adres w schemacie NIE-HTTP odpada, nawet z prawidłowym podpisem", async () => {
@@ -231,6 +240,7 @@ describe("przekierowanie kliknięcia - zapis zdarzenia", () => {
       url: TARGET,
       source: "first_party",
     });
+    expect(h.recordCampaignEvent).toHaveBeenCalledTimes(1);
   });
 
   it("AWARIA zapisu nie blokuje przekierowania - link w mailu musi działać", async () => {

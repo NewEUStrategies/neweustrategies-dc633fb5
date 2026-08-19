@@ -188,6 +188,8 @@ describe("obudowa i bramki przed wysyłką", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID, acknowledgeReputation: true } });
 
     expect(h.evaluateSendGate).toHaveBeenCalledWith(expect.anything(), TENANT, true);
+    // Bramka jest pytana RAZ na wysyłkę, nie raz na odbiorcę.
+    expect(h.evaluateSendGate).toHaveBeenCalledTimes(1);
   });
 
   it("WZNOWIENIE kampanii już w locie omija bramkę reputacji", async () => {
@@ -229,6 +231,9 @@ describe("wybór odbiorców", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(db.lastChain(SUBSCRIBERS)?.argsOf("in")).toEqual(["status", ["subscribed"]]);
+    // Filtr statusu JEST nakładany - bez niego kampania poszłaby też do
+    // wypisanych i niepotwierdzonych.
+    expect(db.lastChain(SUBSCRIBERS)?.has("in")).toBe(true);
   });
 
   it("filtr statusów z kampanii nadpisuje domyślny", async () => {
@@ -237,6 +242,8 @@ describe("wybór odbiorców", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(db.lastChain(SUBSCRIBERS)?.argsOf("in")).toEqual(["status", ["subscribed", "pending"]]);
+    // Filtr z kampanii ZASTĘPUJE domyślny, nie sumuje się z nim.
+    expect(db.lastChain(SUBSCRIBERS)?.calls.filter((c) => c.method === "in")).toHaveLength(1);
   });
 
   it("filtr języka i źródła zawęża audiencję", async () => {
@@ -262,6 +269,8 @@ describe("wybór odbiorców", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(db.lastChain(SUBSCRIBERS)?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
+    // Bez tego warunku kampania jednego najemcy poszłaby do listy innego.
+    expect(db.lastChain(SUBSCRIBERS)?.has("eq")).toBe(true);
   });
 
   it("błąd odczytu audiencji oznacza kampanię jako nieudaną", async () => {
@@ -346,6 +355,9 @@ describe("wznowienie bez podwójnej wysyłki", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(campaignUpdates()[1]).toMatchObject({ recipient_count: 1 });
+    // Ten sam adres w innej wielkości liter to TA SAMA osoba - dwa wysłałyby
+    // maila dwa razy i zawyżyły mianownik postępu.
+    expect(h.sendEmail).toHaveBeenCalledTimes(0);
   });
 
   it("błąd odczytu logu odbiorców zatrzymuje wysyłkę", async () => {
@@ -388,6 +400,8 @@ describe("higiena listy - blokady", () => {
       status: "suppressed",
       error: "suppressed:complaint",
     });
+    // Pominięty adres NIE dostaje maila - to jest sens listy wykluczeń.
+    expect(h.sendEmail).not.toHaveBeenCalled();
   });
 
   it("pominięcie logujemy RAZ, nie przy każdej porcji", async () => {
@@ -493,6 +507,8 @@ describe("błąd dostawcy w połowie partii", () => {
       error: "mailbox full",
       delivery_state: "failed",
     });
+    // Nieudany odbiorca nie ląduje jednocześnie w logu jako wysłany.
+    expect(logsWithStatus("sent")).toHaveLength(0);
   });
 
   it("bez treści błędu zapisujemy kod odpowiedzi", async () => {
@@ -501,6 +517,8 @@ describe("błąd dostawcy w połowie partii", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(logsWithStatus("failed")[0]).toMatchObject({ error: "http_502" });
+    // Puste pole powodu zostawiłoby operatora bez śladu, dlaczego nie doszło.
+    expect(logsWithStatus("failed")[0]!.error).toBeTruthy();
   });
 
   it("SAME porażki dają kampanii status `failed`", async () => {
@@ -526,6 +544,8 @@ describe("błąd dostawcy w połowie partii", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(campaignUpdates().at(-1)).toMatchObject({ status: "sent", failed_count: 1 });
+    // Nie „failed" - jedna odmowa dostawcy nie unieważnia całej wysyłki.
+    expect(campaignUpdates().at(-1)!.status).not.toBe("failed");
   });
 
   it("identyfikator wiadomości od dostawcy trafia do logu (korelacja odbić)", async () => {
@@ -535,6 +555,8 @@ describe("błąd dostawcy w połowie partii", () => {
       provider_message_id: "prov-1",
       delivery_state: "sent",
     });
+    // Bez identyfikatora odbicie z webhooka nie da się przypisać do wysyłki.
+    expect(logsWithStatus("sent")[0]!.provider_message_id).toBeTruthy();
   });
 });
 
@@ -545,6 +567,12 @@ describe("treść wiadomości", () => {
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({
       tags: { tenant: TENANT, campaign: CAMPAIGN_ID, subscriber: "sub-1" },
     });
+    // Wszystkie trzy tagi - brak któregokolwiek urywa ścieżkę korelacji odbicia.
+    expect(Object.keys(h.sendEmail.mock.calls[0]![0].tags).sort()).toEqual([
+      "campaign",
+      "subscriber",
+      "tenant",
+    ]);
   });
 
   it("mail niesie adres wypisu w nagłówku RFC 8058", async () => {
@@ -552,12 +580,16 @@ describe("treść wiadomości", () => {
 
     const input = h.sendEmail.mock.calls[0]?.[0] as { listUnsubscribeUrl: string };
     expect(input.listUnsubscribeUrl).toContain("/newsletter/unsubscribe?token=unsub-1");
+    // Adres absolutny - względny w nagłówku RFC 8058 jest nieużywalny.
+    expect(input.listUnsubscribeUrl.startsWith("http")).toBe(true);
   });
 
   it("nadawca składa się z nazwy i adresu kampanii", async () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({ from: "NES <biuro@example.test>" });
+    // Nazwa I adres razem - sam adres w skrzynce odbiorcy wygląda na spam.
+    expect(h.sendEmail.mock.calls[0]?.[0].from).toContain("<");
   });
 
   it("bez adresu nadawcy zostawiamy wybór dostawcy", async () => {
@@ -566,6 +598,8 @@ describe("treść wiadomości", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({ from: undefined });
+    // `undefined`, a nie sklejka z samą nazwą - „NES <>" byłoby odrzucone.
+    expect(h.sendEmail.mock.calls[0]?.[0].from).toBeUndefined();
   });
 
   it("odbiorca anglojęzyczny dostaje wersję angielską", async () => {
@@ -574,6 +608,8 @@ describe("treść wiadomości", () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({ subject: "Subject EN" });
+    // Bez prefiksu [TEST] - to prawdziwa wysyłka, nie próba.
+    expect(h.sendEmail.mock.calls[0]?.[0].subject).not.toContain("[TEST]");
   });
 
   it("brak treści w JĘZYKU odbiorcy pomija go z jasnym powodem", async () => {

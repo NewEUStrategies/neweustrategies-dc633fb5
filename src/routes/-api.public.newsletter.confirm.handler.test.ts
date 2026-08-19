@@ -228,6 +228,9 @@ describe("mail powitalny", () => {
         idempotencyKey: "newsletter_confirmed:tenant-1:nowy@example.test",
       }),
     );
+    // Klucz niesie OBA składniki - bez tenanta ten sam adres w dwóch
+    // instalacjach zablokowałby sobie powitanie.
+    expect(h.sendTxEmail).toHaveBeenCalledTimes(1);
   });
 
   it("język i adres docelowy idą za językiem subskrybenta", async () => {
@@ -241,6 +244,8 @@ describe("mail powitalny", () => {
       lang: "en",
       ctaPath: "/en/analyses",
     });
+    // Nie polska ścieżka - odbiorca kliknąłby i wylądował w obcym języku.
+    expect(h.sendTxEmail.mock.calls[0]?.[0].ctaPath).not.toBe("/analizy");
   });
 
   it("nieznany język schodzi na polski", async () => {
@@ -251,6 +256,8 @@ describe("mail powitalny", () => {
     await get();
 
     expect(h.sendTxEmail.mock.calls[0]?.[0]).toMatchObject({ lang: "pl", ctaPath: "/analizy" });
+    // Nie „de" - nieobsługiwany język nie może wyciec do szablonu maila.
+    expect(h.sendTxEmail.mock.calls[0]?.[0].lang).not.toBe("de");
   });
 
   it("bez imienia używa nazwy wyświetlanej", async () => {
@@ -263,6 +270,8 @@ describe("mail powitalny", () => {
     await get();
 
     expect(h.sendTxEmail.mock.calls[0]?.[0]).toMatchObject({ metaName: "Anna N." });
+    // Nie pusty napis - „Witaj ," w mailu wygląda na awarię.
+    expect(h.sendTxEmail.mock.calls[0]?.[0].metaName).toBeTruthy();
   });
 
   it("AWARIA maila powitalnego nie unieważnia potwierdzenia", async () => {

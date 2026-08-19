@@ -148,13 +148,17 @@ describe("lista i odczyt", () => {
   it("pusta lista to pusta tablica, nie null", async () => {
     db.setResponse(CAMPAIGNS, ok(null));
 
+    // `null` wywróciłby `.map()` w panelu na pustej instalacji.
     await expect(listCampaigns()).resolves.toEqual([]);
+    await expect(listCampaigns()).resolves.toBeInstanceOf(Array);
   });
 
   it("błąd odczytu listy leci w górę", async () => {
     db.setResponse(CAMPAIGNS, fail("list failed"));
 
+    // Nie pusta lista - inaczej operator zobaczyłby „brak kampanii" przy awarii.
     await expect(listCampaigns()).rejects.toThrow("list failed");
+    expect(db.chainsFor(CAMPAIGNS).length).toBeGreaterThan(0);
   });
 
   it("odczyt pojedynczej kampanii filtruje po identyfikatorze", async () => {
@@ -168,12 +172,17 @@ describe("lista i odczyt", () => {
     db.setResponse(CAMPAIGNS, ok(null));
 
     await expect(getCampaign({ data: { id: CAMPAIGN_ID } })).resolves.toBeNull();
+    // Zapytanie POSZŁO - `null` to odpowiedź bazy, nie wyjście na skróty.
+    expect(db.chainsFor(CAMPAIGNS).length).toBeGreaterThan(0);
   });
 
   it("błąd odczytu kampanii leci w górę", async () => {
     db.setResponse(CAMPAIGNS, fail("read failed"));
 
+    // Nie `null` - „nie ma takiej kampanii" i „baza nie odpowiada" to dwie
+    // różne rzeczy dla operatora.
     await expect(getCampaign({ data: { id: CAMPAIGN_ID } })).rejects.toThrow("read failed");
+    await expect(getCampaign({ data: { id: CAMPAIGN_ID } })).rejects.toThrow();
   });
 
   it("odrzuca identyfikator, który nie jest UUID", async () => {
@@ -218,6 +227,8 @@ describe("zaangażowanie kampanii", () => {
     const engagement = await getCampaignEngagement({ data: { id: CAMPAIGN_ID } });
 
     expect(engagement).toEqual({ opens: 0, clicks: 0, uniqueOpens: 0, uniqueClicks: 0 });
+    // Same liczby - „abc" albo `NaN` w panelu to widoczna awaria raportu.
+    expect(Object.values(engagement).every((v) => Number.isFinite(v))).toBe(true);
   });
 
   it("BŁĄD odczytu czyta się jako zera - kafelek nie wywala edytora", async () => {
@@ -238,6 +249,8 @@ describe("zaangażowanie kampanii", () => {
       uniqueOpens: 0,
       uniqueClicks: 0,
     });
+    // Zera, a nie wyjątek - raport ma się wyrenderować.
+    await expect(getCampaignEngagement({ data: { id: CAMPAIGN_ID } })).resolves.toBeTruthy();
   });
 });
 
@@ -260,6 +273,8 @@ describe("zapis kampanii", () => {
       status: "scheduled",
       scheduled_at: "2026-09-01T10:00:00.000Z",
     });
+    // Nie „draft" - inaczej zaplanowana kampania nigdy nie zostałaby podjęta.
+    expect(inserted.status).not.toBe("draft");
   });
 
   it("EDYCJA jest możliwa tylko dla kampanii, która NIE jest w locie", async () => {
@@ -284,6 +299,8 @@ describe("zapis kampanii", () => {
     await expect(upsertCampaign({ data: upsertInput({ id: CAMPAIGN_ID }) })).rejects.toThrow(
       "update rejected",
     );
+    // Edycja idzie UPDATE-em, nie INSERT-em - inaczej powstałby duplikat.
+    expect(db.lastChain(CAMPAIGNS)?.has("insert")).toBe(false);
   });
 
   it("nieudane wstawienie daje czytelny błąd", async () => {
@@ -292,6 +309,8 @@ describe("zapis kampanii", () => {
     );
 
     await expect(upsertCampaign({ data: upsertInput() })).rejects.toThrow("insert rejected");
+    // Nowa kampania idzie INSERT-em - to jego odmowa wraca do operatora.
+    expect(db.lastChain(CAMPAIGNS)?.has("insert")).toBe(true);
   });
 
   it("dokument kreatora jest NORMALIZOWANY parserem przed zapisem", async () => {
@@ -318,6 +337,8 @@ describe("zapis kampanii", () => {
     await expect(upsertCampaign({ data: upsertInput({ editor: "doc" }) })).rejects.toThrow(
       "invalid_content_doc",
     );
+    // Odrzucenie PRZED zapisem - puste ciało kampanii nie trafia do bazy.
+    expect(db.chainsFor(CAMPAIGNS).some((c) => c.has("insert"))).toBe(false);
   });
 
   it("dokument ponad limit rozmiaru jest odrzucany", async () => {
@@ -329,12 +350,15 @@ describe("zapis kampanii", () => {
     await expect(
       upsertCampaign({ data: upsertInput({ editor: "doc", content_doc: huge }) }),
     ).rejects.toThrow("doc_too_large");
+    expect(db.chainsFor(CAMPAIGNS).some((c) => c.has("insert"))).toBe(false);
   });
 
   it("bez tenanta nie da się nic zapisać", async () => {
     db.setResponse(PROFILES, ok(null));
 
     await expect(upsertCampaign({ data: upsertInput() })).rejects.toThrow("no_tenant");
+    // Zapis nie dochodzi do tabeli kampanii - inaczej wiersz byłby bez najemcy.
+    expect(db.chainsFor(CAMPAIGNS).some((c) => c.has("insert"))).toBe(false);
   });
 });
 
@@ -350,7 +374,9 @@ describe("kasowanie kampanii", () => {
   it("błąd kasowania leci w górę", async () => {
     db.setResponse(CAMPAIGNS, fail("delete rejected"));
 
+    // Cicha porażka kasowania to kampania, którą operator uznał za usuniętą.
     await expect(deleteCampaign({ data: { id: CAMPAIGN_ID } })).rejects.toThrow("delete rejected");
+    expect(db.lastChain(CAMPAIGNS)?.has("delete")).toBe(true);
   });
 
   it("odrzuca identyfikator, który nie jest UUID", async () => {
@@ -381,12 +407,16 @@ describe("licznik audiencji", () => {
     db.setResponse(SUBSCRIBERS, ok(null));
 
     await expect(countCampaignAudience({ data: {} })).resolves.toEqual({ count: 0 });
+    // Liczba, nie `null` - panel pokazuje „0 odbiorców", nie puste miejsce.
+    expect(typeof (await countCampaignAudience({ data: {} })).count).toBe("number");
   });
 
   it("błąd liczenia leci w górę", async () => {
     db.setResponse(SUBSCRIBERS, fail("count failed"));
 
+    // Nie zero - „0 odbiorców" przy awarii wstrzymałoby wysyłkę bez powodu.
     await expect(countCampaignAudience({ data: {} })).rejects.toThrow("count failed");
+    expect(db.chainsFor(SUBSCRIBERS).length).toBeGreaterThan(0);
   });
 
   it("segment po warstwie członkowskiej liczy CZĘŚĆ WSPÓLNĄ, nie sam status", async () => {
@@ -428,12 +458,17 @@ describe("wysyłka testowa", () => {
     });
 
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({ subject: "[TEST] Subject EN" });
+    // Nie polski temat - wariant językowy dotyczy CAŁEGO maila.
+    expect(h.sendEmail.mock.calls[0]?.[0].subject).not.toContain("Temat PL");
   });
 
   it("domyślnym językiem testu jest polski", async () => {
     await sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "redakcja@example.test" } });
 
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({ subject: "[TEST] Temat PL" });
+    // Prefiks [TEST] jest obowiązkowy - inaczej redakcja nie odróżni próby od
+    // prawdziwej wysyłki.
+    expect(h.sendEmail.mock.calls[0]?.[0].subject.startsWith("[TEST]")).toBe(true);
   });
 
   it("kampania jest przypięta do tenanta wywołującego", async () => {
@@ -441,6 +476,9 @@ describe("wysyłka testowa", () => {
 
     const eqs = db.lastChain(CAMPAIGNS)?.calls.filter((c) => c.method === "eq");
     expect(eqs?.map((c) => c.args[0])).toEqual(["id", "tenant_id"]);
+    // Sam identyfikator nie wystarcza - bez `tenant_id` obcy najemca mógłby
+    // wysłać test z cudzej kampanii.
+    expect(eqs).toHaveLength(2);
   });
 
   it("nieistniejąca kampania to jasny błąd", async () => {
@@ -458,6 +496,8 @@ describe("wysyłka testowa", () => {
     await expect(
       sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "redakcja@example.test" } }),
     ).rejects.toThrow("mailbox full");
+    // Próba wysyłki NASTĄPIŁA - błąd pochodzi od dostawcy, nie z walidacji.
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("odmowa bez treści też daje czytelny błąd", async () => {
@@ -466,6 +506,7 @@ describe("wysyłka testowa", () => {
     await expect(
       sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "redakcja@example.test" } }),
     ).rejects.toThrow("send_failed");
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("odrzuca adres, który nie jest adresem", async () => {

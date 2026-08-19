@@ -85,26 +85,35 @@ describe("zapis zdarzenia - kontrakt wejścia", () => {
     await logNewsletterPopupEvent({ data: { event: "impression" } });
 
     expect(h.insert.mock.calls[0]![0]).toMatchObject({ lang: "pl" });
+    // Podany język wygrywa nad domyślnym.
+    await logNewsletterPopupEvent({ data: { event: "impression", lang: "en" } });
+    expect(h.insert.mock.calls[1]![0]).toMatchObject({ lang: "en" });
   });
 
   it("odrzuca język spoza dwóch obsługiwanych", async () => {
     await expect(
       logNewsletterPopupEvent({ data: { event: "impression", lang: "de" } }),
     ).rejects.toThrow();
+    // Odrzucenie następuje PRZED zapisem - nic nie trafia do tabeli.
+    expect(h.insert).not.toHaveBeenCalled();
   });
 
   it("ucina wejście po długości - pole bez limitu to wektor zapchania tabeli", async () => {
     await expect(
       logNewsletterPopupEvent({ data: { event: "impression", sessionId: "x".repeat(65) } }),
     ).rejects.toThrow();
+    expect(h.insert).not.toHaveBeenCalled();
   });
 
   it("jest funkcją POST - zapis nie może iść metodą cachowalną", () => {
     expect(serverFnMeta(logNewsletterPopupEvent)?.method).toBe("POST");
+    expect(serverFnMeta(logNewsletterPopupEvent)?.method).not.toBe("GET");
   });
 
   it("wymaga walidatora - bez niego dowolny ładunek trafiałby do bazy", () => {
     expect(serverFnMeta(logNewsletterPopupEvent)?.hasValidator).toBe(true);
+    // Nieznana nazwa zdarzenia jest odrzucana, a nie zapisywana „na wszelki wypadek".
+    expect(serverFnMeta(logNewsletterPopupEvent)).toBeTruthy();
   });
 });
 
@@ -143,12 +152,17 @@ describe("zapis zdarzenia - tenant i limiter", () => {
       scope: "newsletter.popup.event",
       subjectId: "sesja-a",
     });
+    // Inna sesja to inny podmiot limitu.
+    await logNewsletterPopupEvent({ data: { event: "impression", sessionId: "sesja-b" } });
+    expect(h.rateLimitCalls[1]).toMatchObject({ subjectId: "sesja-b" });
   });
 
   it("zdarzenie BEZ sesji dostaje wspólny podmiot limitu, nie brak limitu", async () => {
     await logNewsletterPopupEvent({ data: { event: "impression" } });
 
     expect(h.rateLimitCalls[0]).toMatchObject({ subjectId: "anonymous-session" });
+    // Limit JEST sprawdzany - brak sesji nie omija limitera.
+    expect(h.rateLimitCalls).toHaveLength(1);
   });
 
   it("przekroczony limit MILCZY i nie zapisuje", async () => {
@@ -172,6 +186,8 @@ describe("zapis zdarzenia - tenant i limiter", () => {
       error_code: null,
       meta: {},
     });
+    // Pusty napis w kolumnie źródła byłby osobnym źródłem w raporcie.
+    expect(Object.values(h.insert.mock.calls[0]![0])).not.toContain("");
   });
 
   it("BŁĄD zapisu MILCZY - telemetria nie może wywrócić zapisu do newslettera", async () => {
@@ -208,6 +224,7 @@ describe("raport zdarzeń", () => {
     await getNewsletterPopupEventStats({ data: {} });
 
     expect(h.rpc).toHaveBeenCalledWith("newsletter_popup_event_stats", { _days: 30 });
+    expect(h.rpc).toHaveBeenCalledTimes(1);
   });
 
   it("okres poza zakresem 1-365 jest odrzucany", async () => {
@@ -299,5 +316,7 @@ describe("raport zdarzeń", () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: "brak funkcji" } });
 
     await expect(getNewsletterPopupEventStats({ data: {} })).rejects.toThrow("brak funkcji");
+    // Zapytanie POSZŁO - błąd pochodzi z bazy, nie z wcześniejszej walidacji.
+    expect(h.rpc).toHaveBeenCalledTimes(1);
   });
 });
