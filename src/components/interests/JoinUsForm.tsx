@@ -32,6 +32,7 @@ import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
+import { requiredJoinUsFields, validateJoinUsSubmission } from "@/lib/interests/joinUsValidation";
 
 import { ensureI18n as ensureInterestsI18n } from "@/lib/i18n-interests";
 
@@ -294,19 +295,23 @@ export function JoinUsForm({
   const updateExtra = (k: ExtraKey, v: string) => setExtra((prev) => ({ ...prev, [k]: v }));
 
   // Client-side "wymagane" enforcement — mirror of the server-side policy.
-  const requiredMap: Record<string, boolean> = {
-    firstName: showFirstName && requireFirstName,
-    lastName: showLastName && requireLastName,
-    email: requireEmail,
-    position: showPosition && requirePosition,
-    linkedin: showLinkedin && requireLinkedin,
-    phone: showPhone && requirePhone,
-    company: showCompany && requireCompany,
-    country: showCountry && requireCountry,
-  };
-  const requiredFields = Object.entries(requiredMap)
-    .filter(([, v]) => v)
-    .map(([k]) => k);
+  const requiredFields = requiredJoinUsFields({
+    showFirstName,
+    showLastName,
+    requireEmail,
+    showPosition,
+    showLinkedin,
+    showPhone,
+    showCompany,
+    showCountry,
+    requireFirstName,
+    requireLastName,
+    requirePosition,
+    requireLinkedin,
+    requirePhone,
+    requireCompany,
+    requireCountry,
+  });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,12 +319,6 @@ export function JoinUsForm({
     setErrMsg(null);
 
     const trimmed = email.trim().toLowerCase();
-    if (requireEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setErrMsg(t("joinUs.errorEmail"));
-      setState("err");
-      return;
-    }
-
     const firstName = showFirstName ? extra.firstName.trim() : "";
     const lastName = showLastName ? extra.lastName.trim() : "";
 
@@ -334,35 +333,22 @@ export function JoinUsForm({
       company: extra.company.trim(),
       country: extra.country.trim(),
     };
-    const missing = requiredFields.filter((k) => !values[k]);
-    if (missing.length) {
+    const validationError = validateJoinUsSubmission({
+      email: trimmed,
+      requireEmail,
+      values,
+      requiredFields,
+      showInterests,
+      requireInterests,
+      availableInterestCount: allItems.length,
+      selectedInterestCount: picked.size,
+      missingCustomFields: validateCustomFields(cfList, customValues),
+      consentAccepted,
+    });
+    if (validationError) {
       setErrMsg(
-        lang === "en"
-          ? `Please fill in required fields: ${missing.join(", ")}`
-          : `Uzupełnij wymagane pola: ${missing.join(", ")}`,
+        t(validationError.key, "values" in validationError ? validationError.values : undefined),
       );
-      setState("err");
-      return;
-    }
-    if (showInterests && requireInterests && allItems.length > 0 && picked.size === 0) {
-      setErrMsg(
-        lang === "en" ? "Please pick at least one topic." : "Wybierz co najmniej jeden temat.",
-      );
-      setState("err");
-      return;
-    }
-    const missingCustom = validateCustomFields(cfList, customValues);
-    if (missingCustom.length) {
-      setErrMsg(
-        lang === "en"
-          ? `Please fill in required fields: ${missingCustom.join(", ")}`
-          : `Uzupełnij wymagane pola: ${missingCustom.join(", ")}`,
-      );
-      setState("err");
-      return;
-    }
-    if (!consentAccepted) {
-      setErrMsg(t("joinUs.consentRequired"));
       setState("err");
       return;
     }
