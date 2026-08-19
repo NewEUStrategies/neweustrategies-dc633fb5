@@ -51,11 +51,12 @@ vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => submitContact }));
 vi.mock("@/lib/contact.functions", () => ({ submitContactMessage: vi.fn() }));
 
-const { TierBenefitList } = await import("@/components/pricing/TierBenefitList");
-const { SupporterStrip } = await import("@/components/pricing/SupporterStrip");
-const { PricingFaq } = await import("@/components/pricing/PricingFaq");
-const { PricingComparisonMatrix } = await import("@/components/pricing/PricingComparisonMatrix");
-const { ContactSalesDialog } = await import("@/components/pricing/ContactSalesDialog");
+const { TierBenefitList } = await import("@/components/pricing/atoms/TierBenefitList");
+const { SupporterStrip } = await import("@/components/pricing/molecules/SupporterStrip");
+const { PricingFaq } = await import("@/components/pricing/organisms/PricingFaq");
+const { PricingComparisonMatrix } =
+  await import("@/components/pricing/organisms/PricingComparisonMatrix");
+const { ContactSalesDialog } = await import("@/components/pricing/organisms/ContactSalesDialog");
 
 beforeEach(() => {
   lang = "pl";

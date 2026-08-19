@@ -74,7 +74,7 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { SubscriptionCard } from "@/components/billing/SubscriptionCard";
+import { SubscriptionCard } from "@/components/billing/organisms/SubscriptionCard";
 
 /** Kształt odmowy, jaki server fn operatora naprawdę zwracają. */
 const refusal = { error: "subscription_update_failed" } as const;

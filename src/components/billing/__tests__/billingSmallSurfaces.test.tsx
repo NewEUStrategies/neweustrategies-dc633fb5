@@ -97,10 +97,10 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { HowPaymentsWorkCard } from "@/components/billing/HowPaymentsWorkCard";
-import { PlanCard } from "@/components/billing/PlanCard";
-import { SubscriptionStatusCard } from "@/components/billing/SubscriptionStatusCard";
-import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
+import { HowPaymentsWorkCard } from "@/components/billing/molecules/HowPaymentsWorkCard";
+import { PlanCard } from "@/components/billing/molecules/PlanCard";
+import { SubscriptionStatusCard } from "@/components/billing/organisms/SubscriptionStatusCard";
+import { SyncBillingButton } from "@/components/billing/molecules/SyncBillingButton";
 
 const renderStatus = (subscription: UserSubscriptionRow | null) =>
   renderWithQueryClient(<SubscriptionStatusCard subscription={subscription} />);

@@ -49,7 +49,7 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { ChangePlanCard } from "@/components/billing/ChangePlanCard";
+import { ChangePlanCard } from "@/components/billing/molecules/ChangePlanCard";
 
 function renderCard(overrides: Partial<UserSubscriptionRow> = {}) {
   return renderWithQueryClient(<ChangePlanCard subscription={userSubscription(overrides)} />);

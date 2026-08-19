@@ -23,7 +23,7 @@ import { intervalLabel } from "@/lib/billing/intervalLabel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
+import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";

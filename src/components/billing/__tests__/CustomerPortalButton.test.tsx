@@ -36,7 +36,7 @@ vi.mock("sonner", () => ({
   toast: { success: () => {}, error: (m: string) => h.toastError(m) },
 }));
 
-import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
+import { CustomerPortalButton } from "@/components/billing/molecules/CustomerPortalButton";
 
 const sentReturnPath = (): unknown =>
   (h.portal.mock.calls[0]?.[0] as { data: { returnPath: unknown } } | undefined)?.data.returnPath;

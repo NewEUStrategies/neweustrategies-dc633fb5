@@ -85,7 +85,7 @@ vi.mock("sonner", () => ({
   toast: { success: () => {}, error: (m: string) => h.toastError(m) },
 }));
 
-import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
+import { PaymentHistoryCard } from "@/components/billing/organisms/PaymentHistoryCard";
 
 const renderCard = (props: Parameters<typeof PaymentHistoryCard>[0] = {}) =>
   renderWithQueryClient(<PaymentHistoryCard {...props} />);

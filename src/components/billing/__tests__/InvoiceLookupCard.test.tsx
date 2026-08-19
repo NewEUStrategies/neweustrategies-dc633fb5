@@ -45,7 +45,7 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
+import { InvoiceLookupCard } from "@/components/billing/molecules/InvoiceLookupCard";
 
 /** Numer transakcji o kształcie, jaki naprawdę wystawia Stripe (syntetyczny). */
 const VALID_ID = "in_1SyntetycznyTestowy00";

@@ -7,6 +7,7 @@ import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeGrants, isLifetimeGrant, useMyGrants } from "@/lib/billing/membership";
+import { formatDateShort } from "@/lib/i18n/format";
 import { useCurrentTier } from "@/lib/billing/tiers";
 
 export function LifetimeAccessCard() {
@@ -39,9 +40,7 @@ export function LifetimeAccessCard() {
             <Badge variant="secondary">
               {isLifetimeGrant(grant)
                 ? t("profile.planPage.grantLifetime")
-                : new Date(grant.expires_at as string).toLocaleDateString(
-                    lang === "en" ? "en-GB" : "pl-PL",
-                  )}
+                : formatDateShort(grant.expires_at as string, lang)}
             </Badge>
             <span className="text-xs text-muted-foreground">
               {grant.source === "expert"

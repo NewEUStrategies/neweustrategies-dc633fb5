@@ -14,11 +14,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
-import { OrdersTableCard } from "@/components/billing/OrdersTableCard";
-import { BillingDocumentsCard } from "@/components/billing/BillingDocumentsCard";
-import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
-import { HowPaymentsWorkCard } from "@/components/billing/HowPaymentsWorkCard";
+import { PaymentHistoryCard } from "@/components/billing/organisms/PaymentHistoryCard";
+import { OrdersTableCard } from "@/components/billing/organisms/OrdersTableCard";
+import { BillingDocumentsCard } from "@/components/billing/organisms/BillingDocumentsCard";
+import { InvoiceLookupCard } from "@/components/billing/molecules/InvoiceLookupCard";
+import { HowPaymentsWorkCard } from "@/components/billing/molecules/HowPaymentsWorkCard";
 
 export const Route = createFileRoute("/profile/payments")({
   component: PaymentsHistoryPage,

@@ -30,7 +30,7 @@ import {
   priceDisplay,
   splitBenefits,
 } from "@/lib/pricing/tierCardModel";
-import { TierBenefitList } from "./TierBenefitList";
+import { TierBenefitList } from "@/components/pricing/atoms/TierBenefitList";
 import { trackCta } from "@/lib/analytics/track";
 
 // Konwersja PLN -> EUR dla wersji EN żyje w shared helperze (displayCurrency),

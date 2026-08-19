@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
+import { formatDateShort } from "@/lib/i18n/format";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import {
   canResumeStripeSubscription,
@@ -210,8 +211,11 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const perSeat = !!entry?.perSeat;
   const currentSeats = Math.max(1, subscription.quantity ?? 1);
 
-  const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL") : "-";
+  // Formatowanie daty przez wspólny `formatDate`/`formatDateShort` - do
+  // 19.08.2026 osiem miejsc w rozliczeniach liczyło ją własnym
+  // `toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL")`, bez zabezpieczenia
+  // przed wartością niepoprawną (klient widział „Invalid Date" w miejscu daty).
+  const fmtDate = (iso: string | null) => (iso ? formatDateShort(iso, lang) || "-" : "-");
 
   const direction = targetPriceId
     ? planChangeDirection(subscription.price_id, targetPriceId)

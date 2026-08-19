@@ -5,7 +5,7 @@ import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { PricingAudienceRow } from "@/lib/pricing/queries";
 import { audienceName } from "@/lib/pricing/selectors";
-import { audienceIcon, audiencePanelId, audienceTabId } from "./audienceMeta";
+import { audienceIcon, audiencePanelId, audienceTabId } from "@/components/pricing/audienceMeta";
 
 export function AudienceSwitcher({
   audiences,

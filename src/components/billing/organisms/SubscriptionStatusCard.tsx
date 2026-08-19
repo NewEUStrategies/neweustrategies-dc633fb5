@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
+import { formatDate } from "@/lib/i18n/format";
 import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
 import { deriveSubscriptionStatus, type SubscriptionTone } from "@/lib/billing/subscriptionStatus";
 import type { UserSubscriptionRow } from "@/lib/billing/types";
@@ -68,12 +69,11 @@ export function SubscriptionStatusCard({ subscription }: Props) {
       .map((g) => ({ tierKey: g.tier_key, expiresAt: g.expires_at, source: g.source })),
   });
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+  // Formatowanie daty przez wspólny `formatDate`/`formatDateShort` - do
+  // 19.08.2026 osiem miejsc w rozliczeniach liczyło ją własnym
+  // `toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL")`, bez zabezpieczenia
+  // przed wartością niepoprawną (klient widział „Invalid Date" w miejscu daty).
+  const fmtDate = (iso: string) => formatDate(iso, lang);
 
   const method = methodQ.data ?? null;
 

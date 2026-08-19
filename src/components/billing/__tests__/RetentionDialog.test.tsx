@@ -78,7 +78,7 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { RetentionDialog } from "@/components/billing/RetentionDialog";
+import { RetentionDialog } from "@/components/billing/organisms/RetentionDialog";
 
 const acceptedOffer: OfferResult = {
   ok: true,

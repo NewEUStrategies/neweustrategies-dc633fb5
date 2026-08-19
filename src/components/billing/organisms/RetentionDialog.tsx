@@ -29,6 +29,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { formatDateShort } from "@/lib/i18n/format";
 import { reasonLabel, useRetentionReasons, useRetentionSettings } from "@/lib/retention/queries";
 import { acceptRetentionOffer, submitRetentionFeedback } from "@/lib/retention/functions";
 import { ensureI18n as ensureRetentionI18n } from "@/lib/i18n-retention";
@@ -176,8 +177,11 @@ export function RetentionDialog({
     }
   };
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL");
+  // Formatowanie daty przez wspólny `formatDate`/`formatDateShort` - do
+  // 19.08.2026 osiem miejsc w rozliczeniach liczyło ją własnym
+  // `toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL")`, bez zabezpieczenia
+  // przed wartością niepoprawną (klient widział „Invalid Date" w miejscu daty).
+  const fmtDate = (iso: string) => formatDateShort(iso, lang);
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>

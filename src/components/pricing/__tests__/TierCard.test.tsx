@@ -19,7 +19,7 @@ vi.mock("react-i18next", () => reactI18nextStub(() => lang));
 vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub }));
 vi.mock("@/lib/analytics/track", () => ({ trackCta: (...args: unknown[]) => trackCta(...args) }));
 
-const { TierCard } = await import("@/components/pricing/TierCard");
+const { TierCard } = await import("@/components/pricing/organisms/TierCard");
 
 const monthly = accessPlan({
   id: "plan-month",

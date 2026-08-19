@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
+import { BillingProfileForm } from "@/components/billing/molecules/BillingProfileForm";
 
 export const Route = createFileRoute("/profile/billing")({
   component: BillingPage,

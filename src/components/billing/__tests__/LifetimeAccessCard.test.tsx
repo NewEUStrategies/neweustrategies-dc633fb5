@@ -38,7 +38,7 @@ vi.mock("@/lib/billing/tiers", () => ({
   useCurrentTier: () => ({ data: h.tier.current }),
 }));
 
-import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
+import { LifetimeAccessCard } from "@/components/billing/molecules/LifetimeAccessCard";
 
 const render = () => renderWithQueryClient(<LifetimeAccessCard />);
 

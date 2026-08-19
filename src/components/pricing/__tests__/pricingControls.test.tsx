@@ -17,8 +17,8 @@ let lang = "pl";
 vi.mock("react-i18next", () => reactI18nextStub(() => lang));
 vi.mock("@/lib/analytics/track", () => ({ trackCta: (...args: unknown[]) => trackCta(...args) }));
 
-const { AudienceSwitcher } = await import("@/components/pricing/AudienceSwitcher");
-const { IntervalToggle } = await import("@/components/pricing/IntervalToggle");
+const { AudienceSwitcher } = await import("@/components/pricing/molecules/AudienceSwitcher");
+const { IntervalToggle } = await import("@/components/pricing/molecules/IntervalToggle");
 
 const AUDIENCES = [
   pricingAudience({ id: "a1", key: "individual", name_pl: "Dla Ciebie", name_en: "For you" }),

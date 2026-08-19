@@ -51,7 +51,7 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
+import { BillingProfileForm } from "@/components/billing/molecules/BillingProfileForm";
 
 /** NIP-y SYNTETYCZNE. `1234563218` ma poprawną sumę kontrolną PL. */
 const NIP_OK = "1234563218";

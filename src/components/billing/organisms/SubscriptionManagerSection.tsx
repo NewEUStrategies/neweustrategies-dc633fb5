@@ -13,6 +13,7 @@ import { CreditCard } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
+import { formatDateShort } from "@/lib/i18n/format";
 import {
   cancelMySubscription,
   fetchMyOrders,
@@ -24,12 +25,15 @@ import { tierName, useCurrentTier } from "@/lib/billing/tiers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChangePlanCard } from "@/components/billing/ChangePlanCard";
-import { SubscriptionCard, useMySubscriptionProvider } from "@/components/billing/SubscriptionCard";
-import { RetentionDialog } from "@/components/billing/RetentionDialog";
-import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
-import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
-import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
+import { ChangePlanCard } from "@/components/billing/molecules/ChangePlanCard";
+import {
+  SubscriptionCard,
+  useMySubscriptionProvider,
+} from "@/components/billing/organisms/SubscriptionCard";
+import { RetentionDialog } from "@/components/billing/organisms/RetentionDialog";
+import { CustomerPortalButton } from "@/components/billing/molecules/CustomerPortalButton";
+import { SyncBillingButton } from "@/components/billing/molecules/SyncBillingButton";
+import { LifetimeAccessCard } from "@/components/billing/molecules/LifetimeAccessCard";
 import { primaryGrant, useMyGrants } from "@/lib/billing/membership";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
@@ -112,8 +116,7 @@ export function SubscriptionManagerSection() {
     }
   };
 
-  const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-GB" : "pl-PL") : "-";
+  const fmtDate = (iso: string | null) => (iso ? formatDateShort(iso, i18n.language) || "-" : "-");
 
   // Wznowienie ma sens tylko dopóki opłacony okres trwa - po jego końcu
   // subskrypcję trzeba kupić od nowa (nowy checkout).

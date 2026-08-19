@@ -9,8 +9,10 @@ import { ExternalLink, FileText, Receipt } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyBillingDocuments } from "@/lib/billing/queries";
-import { formatMoney, type BillingDocument } from "@/lib/billing/types";
-import { Badge } from "@/components/ui/badge";
+import { BillingDate } from "@/components/billing/atoms/BillingDate";
+import { BillingEmptyState } from "@/components/billing/atoms/BillingEmptyState";
+import { MoneyText } from "@/components/billing/atoms/MoneyText";
+import { PaymentStatusBadge } from "@/components/billing/atoms/PaymentStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -21,16 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-function statusVariant(
-  status: BillingDocument["status"],
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "paid") return "default";
-  if (status === "refunded" || status === "void") return "destructive";
-  return "secondary";
-}
-
 export function BillingDocumentsCard() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { session } = useAuth();
   const { data } = useQuery({
     queryKey: billingKeys.myBillingDocuments(session?.user?.id),
@@ -38,13 +32,6 @@ export function BillingDocumentsCard() {
     enabled: !!session,
   });
   const documents = data ?? [];
-
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-GB" : "pl-PL", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
 
   return (
     <Card>
@@ -57,7 +44,7 @@ export function BillingDocumentsCard() {
       </CardHeader>
       <CardContent>
         {documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("profile.orders.documents.empty")}</p>
+          <BillingEmptyState>{t("profile.orders.documents.empty")}</BillingEmptyState>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -77,7 +64,9 @@ export function BillingDocumentsCard() {
               <TableBody>
                 {documents.map((doc) => (
                   <TableRow key={doc.id}>
-                    <TableCell className="whitespace-nowrap">{fmtDate(doc.issued_at)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <BillingDate iso={doc.issued_at} variant="short" />
+                    </TableCell>
                     <TableCell className="text-xs">{doc.number ?? "-"}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5">
@@ -96,12 +85,13 @@ export function BillingDocumentsCard() {
                       </span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">
-                      {formatMoney(doc.amount_cents, doc.currency, i18n.language)}
+                      <MoneyText cents={doc.amount_cents} currency={doc.currency} />
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(doc.status)}>
-                        {t(`profile.orders.documents.status.${doc.status}`)}
-                      </Badge>
+                      <PaymentStatusBadge
+                        status={doc.status}
+                        labelPrefix="profile.orders.documents.status"
+                      />
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right">
                       <span className="inline-flex items-center gap-3">

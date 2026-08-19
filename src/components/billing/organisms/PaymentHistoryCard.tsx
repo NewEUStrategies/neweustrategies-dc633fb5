@@ -10,6 +10,10 @@ import { Download, ExternalLink, FileText, Gift, Printer, Tag } from "lucide-rea
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import { BillingDate } from "@/components/billing/atoms/BillingDate";
+import { BillingEmptyState } from "@/components/billing/atoms/BillingEmptyState";
+import { MoneyText } from "@/components/billing/atoms/MoneyText";
+import { PaymentStatusBadge } from "@/components/billing/atoms/PaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -42,12 +46,6 @@ interface Props {
   limit?: number;
   showExport?: boolean;
   showAllLink?: boolean;
-}
-
-function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "paid") return "default";
-  if (["failed", "refunded", "canceled", "void"].includes(status)) return "destructive";
-  return "secondary";
 }
 
 export function PaymentHistoryCard({ limit, showExport = false, showAllLink = false }: Props) {
@@ -90,13 +88,6 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
     [ordersQ.data, docsQ.data, grantsQ.data],
   );
   const rows = typeof limit === "number" ? all.slice(0, limit) : all;
-
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
 
   const kindLabel = (kind: PaymentHistoryRow["kind"]) => t(`profile.planPage.history.kind.${kind}`);
   const statusLabel = (status: string) =>
@@ -167,7 +158,7 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("profile.planPage.history.empty")}</p>
+          <BillingEmptyState>{t("profile.planPage.history.empty")}</BillingEmptyState>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -187,15 +178,17 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
                 {rows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="text-xs">{row.number}</TableCell>
-                    <TableCell className="whitespace-nowrap">{fmtDate(row.date)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <BillingDate iso={row.date} variant="short" />
+                    </TableCell>
                     <TableCell>{kindLabel(row.kind)}</TableCell>
                     <TableCell className="whitespace-nowrap text-right">
                       {row.originalAmountCents && row.discountCents ? (
                         <span className="mr-1 text-xs text-muted-foreground line-through">
-                          {formatMoney(row.originalAmountCents, row.currency, lang)}
+                          <MoneyText cents={row.originalAmountCents} currency={row.currency} />
                         </span>
                       ) : null}
-                      {formatMoney(row.amountCents, row.currency, lang)}{" "}
+                      <MoneyText cents={row.amountCents} currency={row.currency} />{" "}
                       <span className="text-xs uppercase text-muted-foreground">
                         {row.currency}
                       </span>
@@ -224,7 +217,10 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                      <PaymentStatusBadge
+                        status={row.status}
+                        labelPrefix="profile.planPage.history.status"
+                      />
                     </TableCell>
                     <TableCell>
                       {row.detailsUrl || row.pdfUrl ? (

@@ -39,8 +39,8 @@ vi.mock("@/lib/billing/queries", () => ({
   fetchMyOrders: () => Promise.resolve(h.orders.current),
 }));
 
-import { BillingDocumentsCard } from "@/components/billing/BillingDocumentsCard";
-import { OrdersTableCard } from "@/components/billing/OrdersTableCard";
+import { BillingDocumentsCard } from "@/components/billing/organisms/BillingDocumentsCard";
+import { OrdersTableCard } from "@/components/billing/organisms/OrdersTableCard";
 
 const awaitRows = () => waitFor(() => expect(screen.getAllByRole("row").length).toBeGreaterThan(1));
 

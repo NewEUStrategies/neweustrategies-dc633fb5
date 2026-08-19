@@ -8,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyOrders } from "@/lib/billing/queries";
-import { formatMoney } from "@/lib/billing/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -18,31 +17,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-
-type StatusVariant = "default" | "secondary" | "destructive" | "outline";
-
-function statusVariant(status: string): StatusVariant {
-  if (status === "paid") return "default";
-  if (status === "failed" || status === "refunded" || status === "canceled") return "destructive";
-  return "secondary";
-}
+import { BillingDate } from "@/components/billing/atoms/BillingDate";
+import { BillingEmptyState } from "@/components/billing/atoms/BillingEmptyState";
+import { MoneyText } from "@/components/billing/atoms/MoneyText";
+import { PaymentStatusBadge } from "@/components/billing/atoms/PaymentStatusBadge";
 
 export function OrdersTableCard() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { session } = useAuth();
   const { data } = useQuery({
     queryKey: billingKeys.myOrders(session?.user?.id),
     queryFn: fetchMyOrders,
     enabled: !!session,
   });
-
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-GB" : "pl-PL", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
 
   return (
     <Card>
@@ -51,7 +38,7 @@ export function OrdersTableCard() {
       </CardHeader>
       <CardContent>
         {!data || data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("profile.orders.empty")}</p>
+          <BillingEmptyState>{t("profile.orders.empty")}</BillingEmptyState>
         ) : (
           // Tabela szersza niż kolumna profilu na wąskich ekranach przewija się
           // WEWNĄTRZ karty - strona nigdy nie jedzie w poziomie.
@@ -77,15 +64,15 @@ export function OrdersTableCard() {
                       : t("profile.orders.kindOneTime"));
                   return (
                     <TableRow key={o.id}>
-                      <TableCell>{fmtDate(o.created_at)}</TableCell>
+                      <TableCell>
+                        <BillingDate iso={o.created_at} variant="short" />
+                      </TableCell>
                       <TableCell>{label}</TableCell>
                       <TableCell className="text-right">
-                        {formatMoney(o.amount_cents, o.currency, i18n.language)}
+                        <MoneyText cents={o.amount_cents} currency={o.currency} />
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(o.status)}>
-                          {t(`profile.status.${o.status}`)}
-                        </Badge>
+                        <PaymentStatusBadge status={o.status} />
                       </TableCell>
                       <TableCell>
                         {o.invoice_url ? (

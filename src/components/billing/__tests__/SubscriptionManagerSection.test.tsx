@@ -86,24 +86,24 @@ vi.mock("sonner", () => ({
 
 // --- atrapy kart potomnych ---------------------------------------------------
 
-vi.mock("@/components/billing/SubscriptionCard", () => ({
+vi.mock("@/components/billing/organisms/SubscriptionCard", () => ({
   useMySubscriptionProvider: () => ({ data: h.providerSub.current }),
   SubscriptionCard: () => <div data-testid="karta-operatora" />,
 }));
 
-vi.mock("@/components/billing/ChangePlanCard", () => ({
+vi.mock("@/components/billing/molecules/ChangePlanCard", () => ({
   ChangePlanCard: () => <div data-testid="karta-zmiany-planu" />,
 }));
 
-vi.mock("@/components/billing/CustomerPortalButton", () => ({
+vi.mock("@/components/billing/molecules/CustomerPortalButton", () => ({
   CustomerPortalButton: () => <button type="button">portal</button>,
 }));
 
-vi.mock("@/components/billing/SyncBillingButton", () => ({
+vi.mock("@/components/billing/molecules/SyncBillingButton", () => ({
   SyncBillingButton: () => <button type="button">synchronizacja</button>,
 }));
 
-vi.mock("@/components/billing/LifetimeAccessCard", () => ({
+vi.mock("@/components/billing/molecules/LifetimeAccessCard", () => ({
   LifetimeAccessCard: () => <div data-testid="karta-dozywotnia" />,
 }));
 
@@ -111,7 +111,7 @@ vi.mock("@/components/billing/LifetimeAccessCard", () => ({
 // identyfikatorem, oraz przycisk odpalający `onConfirmCancel` - dzięki temu
 // test dochodzi do skutku rezygnacji bez przechodzenia przez trzy kroki UI
 // (te ma własny plik testowy).
-vi.mock("@/components/billing/RetentionDialog", () => ({
+vi.mock("@/components/billing/organisms/RetentionDialog", () => ({
   RetentionDialog: (props: {
     open: boolean;
     subscriptionId: string;
@@ -127,7 +127,7 @@ vi.mock("@/components/billing/RetentionDialog", () => ({
   },
 }));
 
-import { SubscriptionManagerSection } from "@/components/billing/SubscriptionManagerSection";
+import { SubscriptionManagerSection } from "@/components/billing/organisms/SubscriptionManagerSection";
 
 const render = () => renderWithQueryClient(<SubscriptionManagerSection />);
 const lastRetention = () => h.retentionProps.at(-1);

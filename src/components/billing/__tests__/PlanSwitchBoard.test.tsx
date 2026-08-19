@@ -47,7 +47,7 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
-import { PlanSwitchBoard } from "@/components/billing/PlanSwitchBoard";
+import { PlanSwitchBoard } from "@/components/billing/molecules/PlanSwitchBoard";
 
 /** Subskrypcja na planie `member` (ranga 30) - w górę pro, w dół student. */
 function memberSubscription(overrides: Partial<UserSubscriptionRow> = {}): UserSubscriptionRow {
