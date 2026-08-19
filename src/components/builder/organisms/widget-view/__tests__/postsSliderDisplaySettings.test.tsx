@@ -70,8 +70,13 @@ async function renderPostsSlider(content: WidgetContent, lang: "pl" | "en" = "pl
     </QueryClientProvider>,
   );
   // SliderRender jest ładowany leniwie (lazyWidgets), a autorzy dociągani
-  // osobnym zapytaniem - czekamy na w pełni złożony slajd.
-  await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull());
+  // osobnym zapytaniem - czekamy na w pełni złożony slajd. Limit podniesiony
+  // ponad domyślne 1000 ms: pierwszy render w pliku płaci za dynamiczny import
+  // chunku slidera, co przy równoległym przebiegu całej suity potrafi przekroczyć
+  // domyślny budżet i czerwienić test, który w izolacji przechodzi.
+  await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull(), {
+    timeout: 15_000,
+  });
   return view;
 }
 
