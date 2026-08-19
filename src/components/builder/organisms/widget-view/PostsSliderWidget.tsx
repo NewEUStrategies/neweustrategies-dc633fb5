@@ -19,7 +19,7 @@ import {
 } from "@/lib/builder/sliderOptions";
 import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
-import { SliderRender } from "./lazyWidgets";
+import { SliderRender } from "./sliderRenderLazy";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
 
