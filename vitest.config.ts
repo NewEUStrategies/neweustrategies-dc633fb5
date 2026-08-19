@@ -750,6 +750,52 @@ export default defineConfig({
           lines: 90,
           branches: 85,
         },
+        // ── PANEL ADMINA: SUBSKRYBENCI ───────────────────────────────────────
+        // Jedyne miejsce, w którym CZŁOWIEK zmienia cudzą zgodę marketingową
+        // pojedynczym kliknięciem. Progi pilnują trzech rzeczy niewidocznych
+        // na ekranie: wypisanie jest MIĘKKIE (status + znacznik czasu, nigdy
+        // DELETE - dowód zgody i jej cofnięcia musi zostać), usunięcie wymaga
+        // potwierdzenia i NIE wykonuje się po jego odrzuceniu, a klik w ikonę
+        // akcji nie otwiera przy okazji okna szczegółów (akcje żyją w klikalnym
+        // wierszu).
+        //
+        // Ścieżka „lista MOŻE być niepełna" jest dowodzona REGUŁĄ
+        // (`isFetchCapped` w subscriberTable), nie renderem: wyrenderowanie
+        // 5000 wierszy tabeli kosztowało w pomiarze ponad minutę CI za jedną
+        // asercję.
+        "src/components/admin/newsletter/SubscribersPanel.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 96,
+          branches: 85,
+        },
+        // Okno, w którym operator czyta DOWÓD ZGODY. Kolumny `consents`/`meta`
+        // są typu `jsonb` i wpisują je także integracje, więc okno musi
+        // rozróżniać „nie ma zgody" od „nie umiem odczytać ładunku" - puste
+        // pole odpowiadałoby po cichu „nie". Zgoda liczy się WYŁĄCZNIE przy
+        // jawnym `true`, a treść zgody jest sanityzowana przed wyświetleniem.
+        "src/components/admin/newsletter/subscribers/SubscriberDetailDialog.tsx": {
+          statements: 84,
+          functions: 98,
+          lines: 98,
+          branches: 80,
+        },
+        // Czyste reguły listy: filtr (decyduje, kogo operator widzi - a więc
+        // komu zmienia zgodę) i eksport CSV (wynosi dane osobowe do pliku;
+        // błąd w cytowaniu rozjeżdża kolumny u odbiorcy i przypisuje komuś
+        // cudzą zgodę). Oraz odczyt `jsonb` szczegółów. Trzymane pod 100%.
+        "src/components/admin/newsletter/subscribers/subscriberTable.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        "src/components/admin/newsletter/subscribers/subscriberDetail.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 90,
+        },
       },
     },
   },
