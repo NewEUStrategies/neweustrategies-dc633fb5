@@ -6,7 +6,7 @@
 // która w bazie jest tablicą. Każda z nich da się złamać bez błędu typów
 // i bez zmiany wyglądu - dlatego mieszkają tutaj, gdzie sprawdza się je
 // na WYNIKU, a nie na renderze.
-import type { WorkflowStep } from "@/lib/admin/workflows";
+import type { WorkflowStep, WorkflowStepParamValue } from "@/lib/admin/workflows";
 import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 
 /** Wartość wybieraka oznaczająca „typ zdarzenia spoza katalogu”. */
@@ -117,6 +117,10 @@ export function paramInputValue(raw: unknown): string {
 }
 
 /** Zmiana jednego parametru kroku; pozostałe parametry zostają. */
-export function stepWithParam(step: WorkflowStep, key: string, value: unknown): WorkflowStep {
+export function stepWithParam(
+  step: WorkflowStep,
+  key: string,
+  value: WorkflowStepParamValue,
+): WorkflowStep {
   return { ...step, params: { ...step.params, [key]: value } };
 }
