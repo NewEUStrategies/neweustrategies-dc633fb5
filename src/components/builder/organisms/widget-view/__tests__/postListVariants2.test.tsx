@@ -18,6 +18,16 @@ vi.mock(
 
 const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 
+// Podział kodu (React.lazy) zamieniony na importy statyczne. Bez tego pierwszy
+// render widgetu z rejestru pokazuje fallback Suspense, który na stronie
+// publicznej jest `null` - test widzi PUSTKĘ i uznaje każde ustawienie za
+// martwe. Ten sam mock mają siostrzane pliki (np. `widgetBehavior.test.tsx`);
+// tutaj zabrakło go po przeniesieniu widgetów do rejestru leniwego (01253dc).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   const makeBuilder = (table: string) => {
     const b: Record<string, unknown> = {};
@@ -216,7 +226,7 @@ describe("PostListView - globalne przełączniki i typografia", () => {
     expect(title.style.fontStyle).toBe("italic");
     expect(title.style.textTransform).toBe("uppercase");
     // Waga per-part wygrywa nad typografią współdzieloną.
-    expect(title.style.fontWeight).toBe("900");
+    expect(title!.style.fontWeight).toBe("900");
     const excerpt = screen.getByText("Zajawka PL");
     expect(excerpt.style.fontWeight).toBe("300");
     expect(excerpt.style.marginTop).toBe("12px");

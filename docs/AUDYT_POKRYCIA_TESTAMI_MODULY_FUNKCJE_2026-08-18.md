@@ -100,7 +100,6 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | 17  | Analityka i BI                                        |          85 |     27,36% |  21,74% |  22,58% | **28,00%** |        51 | 0,224 |    199 |     442 |
 | 1   | Wpisy: doświadczenie czytelnika                       |          74 |     31,75% |  32,89% |  26,93% | **31,81%** |        43 | 0,405 |    321 |     697 |
 | 13  | Monetyzacja: checkout / subskrypcje / billing         |         162 |     31,97% |  29,71% |  26,68% | **32,71%** |        87 | 0,302 |    542 |   1 252 |
-| 6   | Wyszukiwarka                                          |          24 |     32,65% |  28,89% |  32,65% | **33,21%** |        11 | 0,333 |     63 |     117 |
 | 2   | Edytor wpisów i workflow redakcyjny ↻                 |          93 |     35,83% |  30,30% |  32,13% | **35,87%** |        43 | 0,355 |    539 |   1 053 |
 | 3   | Silniki treści: bloki + page builder ⚠                |         448 |     39,10% |  33,89% |  29,04% | **39,99%** |       205 | 0,448 |  2 048 |   4 507 |
 | 12  | Realtime / powiadomienia / web-push                   |          28 |     41,64% |  26,10% |  41,02% | **44,12%** |        13 | 0,464 |     93 |     223 |
@@ -111,7 +110,11 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | —   | PRZEKROJOWE: design system (components/ui)            |          43 |     61,75% |  53,31% |  56,14% | **63,13%** |        11 | 0,047 |     17 |      37 |
 | 10  | Sieć / networking                                     |          31 |     78,03% |  66,52% |  80,79% | **81,68%** |         3 | 0,710 |    327 |     609 |
 | —   | PRZEKROJOWE: słowniki i18n                            |         116 |     87,65% |  64,51% |  51,32% | **91,78%** |         1 | 0,052 |     60 |     141 |
+| 6‡  | Wyszukiwarka                                          |          24 |     96,66% |  90,09% |  95,22% | **97,38%** |         0 | 0,875 |    528 |     117 |
 | 2†  | Edytor wpisów i workflow redakcyjny                   |          83 |     98,81% |  94,38% |  99,00% | **99,41%** |         0 | 0,964 |  1 568 |   3 150 |
+
+**‡** MODUŁ 6 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_WYSZUKIWARKA_TESTY_2026-08-18.md`) — pomiar z pełnego `bun run test:coverage`.
 
 **†** MODUŁ 2 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
 (`docs/WDROZENIE_POKRYCIE_MODUL_2_EDYTOR_WPISOW_2026-08-18.md`) — pozostałe wiersze pochodzą
@@ -140,7 +143,6 @@ nigdy nie uruchomione w teście.
 | 1   | Wpisy: doświadczenie czytelnika                       |           698 |        188 | **26,93%** |
 | 3   | Silniki treści: bloki + page builder ⚠                |         6 828 |      1 983 | **29,04%** |
 | 2   | Edytor wpisów i workflow redakcyjny ↻                 |           834 |        268 | **32,13%** |
-| 6   | Wyszukiwarka                                          |           291 |         95 | **32,65%** |
 | 20  | Platforma / backend / infrastruktura / SSR            |         1 930 |        775 | **40,16%** |
 | 12  | Realtime / powiadomienia / web-push                   |           373 |        153 | **41,02%** |
 | 21  | Rekrutacja / kariera                                  |           348 |        164 | **47,13%** |
@@ -149,6 +151,7 @@ nigdy nie uruchomione w teście.
 | —   | PRZEKROJOWE: design system (components/ui)            |           228 |        128 | **56,14%** |
 | 9   | Czat / komunikator                                    |         1 051 |        605 | **57,56%** |
 | 10  | Sieć / networking                                     |           302 |        244 | **80,79%** |
+| 6‡  | Wyszukiwarka                                          |           293 |        279 | **95,22%** |
 | 2†  | Edytor wpisów i workflow redakcyjny                   |           802 |        794 | **99,00%** |
 
 ---
@@ -251,12 +254,23 @@ obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jedn
 | Chrome mobilny (drawer, dolny pasek) |     11 |        219 |  41,5% | 36,5% |   41,1% | **44,3%** |     23/56 |
 | Mega menu                            |      3 |        135 |  80,9% | 64,2% |   79,5% | **88,1%** |     31/39 |
 
-### MODUŁ 6 — Wyszukiwarka · linie 33,21% · funkcje 32,65%
+### MODUŁ 6 — Wyszukiwarka · linie 97,38% · funkcje 95,22% ✅ ZAMKNIĘTY
+
+Domknięty 2026-08-18 - `docs/WDROZENIE_WYSZUKIWARKA_TESTY_2026-08-18.md`. Zero plików na 0%
+(było 16 z 24 w pomiarze pełnym audytu: 11). Moduł ma teraz własne progi per-ścieżka
+w `vitest.config.ts`, których wcześniej nie miał wcale.
 
 | Funkcjonalność                               | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  25,0% | 20,8% |   28,8% | **26,6%** |    38/132 |
-| Wyszukiwarka: indeks i zapytania             |     10 |        500 |  49,6% | 52,2% |   55,9% | **50,8%** |    57/102 |
+| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  96,5% | 90,4% |   93,1% | **96,4%** |   161/173 |
+| Wyszukiwarka: indeks i zapytania             |     10 |        500 |  96,6% | 88,5% |   98,1% | **98,2%** |   101/103 |
+| Zapisane wyszukiwania i alerty (hook)        |      1 |         40 |   100% |  100% |    100% |  **100%** |     16/16 |
+
+Przy okazji naprawiony defekt wyszukiwarki komend: fraza bez ogonków („platnosci") nie
+znajdowała polskich etykiet („Płatności"), mimo że baza składa diakrytyki od dawna
+(`unaccent` w `search_quick`). Rozstrzygnięta też anomalia z tego audytu -
+`SearchAutosuggest.test.tsx` istniał, a komponent miał 0 z 19 funkcji: ten plik testowy nie
+importował komponentu ani razu, jego asercje zasilały `facetModel.ts`.
 
 ### MODUŁ 7 — Typy treści specjalne · linie 16,47% → **100%** · funkcje 14,60% → **100%**
 
@@ -1326,7 +1340,7 @@ Rozbicie liczby plików produkcyjnych:
 | 3   | Silniki treści: bloki + page builder                  |   449 |      110 202 |           201 |     32 901 |
 | 4   | Strony, wygląd, motyw, media, import                  |   130 |       16 555 |            35 |      2 481 |
 | 5   | Strona główna, archiwa, chrome                        |    51 |        9 150 |             9 |      1 073 |
-| 6   | Wyszukiwarka                                          |    24 |        4 582 |             8 |        680 |
+| 6‡  | Wyszukiwarka                                          |    24 |        4 582 |            21 |      6 098 |
 | 7   | Typy treści specjalne                                 |   109 |       25 083 |            20 |      2 742 |
 | 8   | SEO, feedy, dane strukturalne                         |    73 |       10 265 |            38 |      3 850 |
 | 9   | Czat / komunikator                                    |    80 |       15 462 |            36 |      9 164 |
