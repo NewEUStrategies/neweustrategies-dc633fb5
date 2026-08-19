@@ -509,6 +509,33 @@ export default defineConfig({
         // podnosić. Pilnują rzeczy, których złamanie NIE wywala się głośno,
         // tylko cicho psuje dostarczalność.
         //
+        // SIATKA KATALOGOWA POD PROGAMI PLIKOWYMI. Progi plikowe niżej pilnują
+        // tego, co zostało napisane; ten próg pilnuje tego, co ktoś DOŁOŻY.
+        // Nowy plik poczty bez ani jednej asercji obniża wskaźnik katalogu i
+        // zatrzymuje bramkę, nawet jeśli nikt nie dopisze mu progu własnego.
+        //
+        // Poziom jest niższy niż w panelach z rozmysłu: w tym katalogu zostają
+        // trzy powierzchnie świadomie nietknięte w tej warstwie
+        // (`transactional.server.ts` 8,3%, `tx-preview.server.ts` 0%,
+        // `platformCompat.server.ts` 0%) - uzasadnienie w
+        // `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md` §6.
+        // Zmierzone: 78,15% instr. / 65,74% gał. / 83,89% fn / 78,99% linii.
+        "src/lib/email/**": {
+          statements: 74,
+          functions: 79,
+          lines: 74,
+          branches: 61,
+        },
+        // Ta sama siatka dla reguł newslettera. Zmierzone: 83,55% instr. /
+        // 79,90% gał. / 89,09% fn / 84,95% linii. Poniżej progu zostają
+        // `emailDocResolve.ts` (34,1%) i `newsletterFieldLabels.ts` (31,6%) -
+        // oba są rozstrzygane w testach warstwy wyżej, patrz §6 wdrożenia.
+        "src/lib/newsletter/**": {
+          statements: 79,
+          functions: 84,
+          lines: 80,
+          branches: 75,
+        },
         // provider.server.ts: trzy pola wyniku sterują całą pętlą ponowień -
         // `rateLimited` (wstrzymaj CAŁĄ wysyłkę), `permanent` (prosto do DLQ,
         // bez mielenia martwego adresu) i `messageId` (JEDYNY klucz korelacji

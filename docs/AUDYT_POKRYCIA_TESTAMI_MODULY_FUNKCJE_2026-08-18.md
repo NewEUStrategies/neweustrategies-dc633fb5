@@ -5,6 +5,16 @@ Dokument podaje ZMIERZONE liczby (nie oceny), z jawną metodologią i jawnymi og
 pomiaru. Taksonomia modułów jest ta sama, co w `docs/OCENA_FUNKCJI_TABELE_2026-08-14.md`,
 więc liczby da się wprost podłożyć pod tamte tabele ocen.
 
+> **AKTUALIZACJA 2026-08-19 — MODUŁ 11 (newsletter i e-mail) zamknięty.**
+> Liczby modułu 11 w tym dokumencie to **stan zastany na dzień audytu** (HEAD
+> `e83570c`). Moduł został od tego czasu domknięty: **26,70% → 81,74% linii**,
+> **20,74% → 84,79% funkcji**, plików na zerze **70 → 22**, panel administracyjny
+> z **1,4% → 99,19%**. Wiersze modułu 11 w tabelach niżej NIE zostały przeliczone
+> ani przesortowane - są punktem odniesienia, do którego odsyła dokument
+> wdrożenia. Pomiar po zmianie, rozbicie per panel, sześć defektów znalezionych
+> testami i lista tego, co świadomie zostaje nieprzetestowane:
+> `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md`.
+
 ---
 
 ## 0. Jak to zmierzono (i czego te liczby NIE znaczą)
@@ -243,6 +253,10 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Sieć kontaktów (zaproszenia, obserwowanie) |     29 |        694 |  92,2% | 84,8% |   96,8% | **96,4%** |   244/252 |
 
 ### MODUŁ 11 — Newsletter i e-mail · linie 26,70% · funkcje 20,74%
+
+> **STAN ZASTANY (2026-08-18).** Po domknięciu modułu 2026-08-19: **81,74% linii /
+> 84,79% funkcji**. Tabela niżej jest punktem wyjścia - kolumna „po" per
+> funkcjonalność stoi w `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md` §4.
 
 | Funkcjonalność                                     | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | -------------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
@@ -1064,7 +1078,7 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 - **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
 - **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
-- **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135
+- **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135 — **ZAMKNIĘTY 2026-08-19: 81,74% / 84,79%, plików 0%: 22/135**
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 44,12%, funkcje 41,02%, plików 0%: 13/28
 - **MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy**: linie 22,55%, funkcje 15,28%, plików 0%: 19/38
 - **MODUŁ 16 — Społeczność: kluby, komentarze, moderacja**: linie 17,56%, funkcje 13,32%, plików 0%: 177/242
