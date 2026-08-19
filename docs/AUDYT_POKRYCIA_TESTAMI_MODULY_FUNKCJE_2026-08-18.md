@@ -82,10 +82,11 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 **⚠** = pomiar tego modułu jest ZANIŻONY, bo część jego plików testowych nie dała się uruchomić w tym
 środowisku (rozdział 9.2).
 `T/P` = pliki testowe / pliki produkcyjne w module. `0%` = pliki produkcyjne bez ani jednej wykonanej linii.
+**↻** = wiersz zmierzony PONOWNIE 19.08.2026, po wdrożeniu opisanym w
+`docs/WDROZENIE_MODUL2_TESTY_REFAKTOR_2026-08-18.md`. Pozostałe wiersze to pomiar z 18.08.
 
 | #   | Moduł                                                 | Pliki prod. | Instrukcje | Gałęzie | Funkcje |      Linie | Plików 0% |   T/P | Testów | Asercji |
 | --- | ----------------------------------------------------- | ----------: | ---------: | ------: | ------: | ---------: | --------: | ----: | -----: | ------: |
-| 2   | Edytor wpisów i workflow redakcyjny                   |          83 |      7,75% |   6,82% |   6,85% |  **8,34%** |        64 | 0,133 |     65 |     120 |
 | 18  | CRM                                                   |          47 |     12,43% |  12,18% |   9,30% | **12,04%** |        33 | 0,319 |    170 |     331 |
 | 7   | Typy treści specjalne                                 |         109 |     16,73% |  13,26% |  14,60% | **16,47%** |        75 | 0,183 |    203 |     484 |
 | 5   | Strona główna, archiwa, chrome ⚠                      |          51 |     16,00% |  11,90% |  11,80% | **16,71%** |        34 | 0,176 |     79 |     206 |
@@ -100,6 +101,7 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | 1   | Wpisy: doświadczenie czytelnika                       |          74 |     31,75% |  32,89% |  26,93% | **31,81%** |        43 | 0,405 |    321 |     697 |
 | 13  | Monetyzacja: checkout / subskrypcje / billing         |         162 |     31,97% |  29,71% |  26,68% | **32,71%** |        87 | 0,302 |    542 |   1 252 |
 | 6   | Wyszukiwarka                                          |          24 |     32,65% |  28,89% |  32,65% | **33,21%** |        11 | 0,333 |     63 |     117 |
+| 2   | Edytor wpisów i workflow redakcyjny ↻                 |          93 |     35,83% |  30,30% |  32,13% | **35,87%** |        43 | 0,355 |    539 |   1 053 |
 | 3   | Silniki treści: bloki + page builder ⚠                |         448 |     39,10% |  33,89% |  29,04% | **39,99%** |       205 | 0,448 |  2 048 |   4 507 |
 | 12  | Realtime / powiadomienia / web-push                   |          28 |     41,64% |  26,10% |  41,02% | **44,12%** |        13 | 0,464 |     93 |     223 |
 | 8   | SEO, feedy, dane strukturalne                         |          73 |     50,75% |  43,58% |  48,94% | **50,31%** |        32 | 0,521 |    314 |     724 |
@@ -109,6 +111,11 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | —   | PRZEKROJOWE: design system (components/ui)            |          43 |     61,75% |  53,31% |  56,14% | **63,13%** |        11 | 0,047 |     17 |      37 |
 | 10  | Sieć / networking                                     |          31 |     78,03% |  66,52% |  80,79% | **81,68%** |         3 | 0,710 |    327 |     609 |
 | —   | PRZEKROJOWE: słowniki i18n                            |         116 |     87,65% |  64,51% |  51,32% | **91,78%** |         1 | 0,052 |     60 |     141 |
+| 2†  | Edytor wpisów i workflow redakcyjny                   |          83 |     98,81% |  94,38% |  99,00% | **99,41%** |         0 | 0,964 |  1 568 |   3 150 |
+
+**†** MODUŁ 2 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_POKRYCIE_MODUL_2_EDYTOR_WPISOW_2026-08-18.md`) — pozostałe wiersze pochodzą
+z pomiaru 18.08. Wiersz stoi na końcu, bo tabela jest sortowana rosnąco po pokryciu linii.
 
 ### 2.1 Wymiar „funkcje”: ile funkcji w module zostało kiedykolwiek wywołane
 
@@ -118,7 +125,6 @@ nigdy nie uruchomione w teście.
 
 | #   | Moduł                                                 | Funkcji razem | Wywołanych |  % funkcji |
 | --- | ----------------------------------------------------- | ------------: | ---------: | ---------: |
-| 2   | Edytor wpisów i workflow redakcyjny                   |           759 |         52 |  **6,85%** |
 | 18  | CRM                                                   |         1 000 |         93 |  **9,30%** |
 | 5   | Strona główna, archiwa, chrome ⚠                      |           534 |         63 | **11,80%** |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         3 139 |        418 | **13,32%** |
@@ -133,6 +139,7 @@ nigdy nie uruchomione w teście.
 | 13  | Monetyzacja: checkout / subskrypcje / billing         |         1 387 |        370 | **26,68%** |
 | 1   | Wpisy: doświadczenie czytelnika                       |           698 |        188 | **26,93%** |
 | 3   | Silniki treści: bloki + page builder ⚠                |         6 828 |      1 983 | **29,04%** |
+| 2   | Edytor wpisów i workflow redakcyjny ↻                 |           834 |        268 | **32,13%** |
 | 6   | Wyszukiwarka                                          |           291 |         95 | **32,65%** |
 | 20  | Platforma / backend / infrastruktura / SSR            |         1 930 |        775 | **40,16%** |
 | 12  | Realtime / powiadomienia / web-push                   |           373 |        153 | **41,02%** |
@@ -142,6 +149,7 @@ nigdy nie uruchomione w teście.
 | —   | PRZEKROJOWE: design system (components/ui)            |           228 |        128 | **56,14%** |
 | 9   | Czat / komunikator                                    |         1 051 |        605 | **57,56%** |
 | 10  | Sieć / networking                                     |           302 |        244 | **80,79%** |
+| 2†  | Edytor wpisów i workflow redakcyjny                   |           802 |        794 | **99,00%** |
 
 ---
 
@@ -163,15 +171,35 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Key takeaways + cytowania          |      4 |        152 |  89,0% | 84,4% |   82,8% |  **88,8%** |     24/29 |
 | Metering „N darmowych/mies.”       |      3 |         85 |  98,0% | 96,1% |  100,0% | **100,0%** |     23/23 |
 
-### MODUŁ 2 — Edytor wpisów i workflow redakcyjny · linie 8,34% · funkcje 6,85%
+### MODUŁ 2 ↻ — Edytor wpisów i workflow redakcyjny · linie 35,87% · funkcje 32,13%
 
-| Funkcjonalność                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
-| ------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Rewizje i przywracanie          |     10 |        278 |   0,0% |  0,0% |    0,0% |  **0,0%** |     0/105 |
-| Workflow draft→review→published |      7 |        187 |   0,0% |  0,0% |    0,0% |  **0,0%** |      0/82 |
-| Obecność edytorska (presence)   |      2 |          6 |   0,0% |  0,0% |    0,0% |  **0,0%** |       0/3 |
-| Edytor wpisu (panele)           |     53 |        812 |   5,1% | 11,0% |    8,0% |  **5,5%** |    26/325 |
-| Autozapis wpisu                 |      3 |         85 |  67,0% | 64,0% |   50,0% | **69,4%** |     10/20 |
+Pomiar z **19.08.2026**, po wdrożeniu opisanym w
+`docs/WDROZENIE_MODUL2_TESTY_REFAKTOR_2026-08-18.md`. Stan z 18.08 dla porównania:
+linie 8,34%, instrukcje 7,75%, gałęzie 6,82%, funkcje 6,85%, 64 z 83 plików na zerze.
+
+| Funkcjonalność                           | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
+| ---------------------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
+| Listy, kalendarz, przekierowania, import |      6 |        483 |   0,0% |   0,0% |    0,0% |   **0,0%** |     0/153 |
+| Rewizje i przywracanie                   |     12 |        247 |   8,0% |  11,4% |   13,0% |   **9,3%** |     12/92 |
+| Workflow draft→review→published          |     10 |        276 |  15,4% |  10,2% |   12,2% |  **15,2%** |    15/123 |
+| Edytor wpisu (panele)                    |     60 |      1 044 |  54,9% |  44,6% |   47,6% |  **54,8%** |   204/429 |
+| Autozapis i niezapisane zmiany           |      4 |        157 |  96,4% |  88,5% |  100,0% |  **98,1%** |     36/36 |
+| Obecność edytorska (presence)            |      1 |          1 | 100,0% | 100,0% |  100,0% | **100,0%** |       1/1 |
+
+**Wzorce ścieżek tych wierszy** (pierwsze trafienie wygrywa; przebieg z 18.08 ich nie
+zapisał, więc od teraz są utrwalone i pomiar da się odtworzyć):
+
+| Funkcjonalność                           | Wzorce                                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Rewizje i przywracanie                   | `src/components/admin/versions/`, `src/lib/revisions`, `src/lib/posts-migrate`, `src/routes/admin\.versions`       |
+| Workflow draft→review→published          | `src/components/admin/workflows/`, `src/routes/admin\.workflows`                                                   |
+| Obecność edytorska (presence)            | `src/hooks/useEditPresence`                                                                                        |
+| Edytor wpisu (panele)                    | `src/components/admin/post-editor/`, `src/components/admin/PostEditor`, `src/components/admin/PostGeneralOverview` |
+| Autozapis i niezapisane zmiany           | `src/hooks/useAutosave`, `src/hooks/useHistory`, `src/hooks/useUnsavedChangesGuard`, `src/lib/unsavedChanges`      |
+| Listy, kalendarz, przekierowania, import | `src/routes/admin\.(posts\|scheduler\|calendar\|redirects\|import-wordpress\|contributors)`                        |
+
+Sześć wierszy pokrywa **wszystkie 93** pliki modułu; tabela z 18.08 miała pięć wierszy
+obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jednego.
 
 ### MODUŁ 3 — Silniki treści: bloki + page builder ⚠ · linie 39,99% · funkcje 29,04%
 
@@ -1039,7 +1067,7 @@ obejmują **229 plików / 49 002 linii**.
 ## 6. Które powierzchnie mają BRAMKĘ pokrycia (a które tylko liczbę)
 
 Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mierzy. Repo ma
-**1 próg globalny + 37 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
+**1 próg globalny + 61 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
 `Test + coverage gate` (`.github/workflows/ci.yml`).
 
 | Ścieżka objęta bramką                             | Instr. | Gał. | Funkcje | Linie | Moduł |
@@ -1081,10 +1109,34 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 | `src/components/chat/**`                          |     40 |   34 |      36 |    41 | M9    |
 | `src/components/chat/ChatWindow.tsx`              |     78 |   70 |      60 |    84 | M9    |
 | `src/lib/ci/ftsConfigSymmetry.ts`                 |     93 |   81 |     100 |    98 | M20   |
+| `src/components/admin/post-editor/lib/**`         |    100 |  100 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/atoms/**`       |    100 |  100 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/hooks/**`       |     98 |   90 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/molecules/**`   |     98 |   94 |     100 |   100 | M2    |
+| `src/components/admin/post-editor/organisms/**`   |     98 |   85 |      96 |   100 | M2    |
+| `src/components/admin/versions/**`                |     94 |   89 |      93 |    94 | M2    |
+| `src/components/admin/workflows/**`               |     96 |   91 |      95 |    97 | M2    |
+| `src/lib/admin/workflows.ts`                      |    100 |  100 |     100 |   100 | M19   |
+| `src/lib/unsavedChanges.ts`                       |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useUnsavedChangesGuard.ts`             |    100 |  100 |     100 |   100 | M2    |
+| `src/lib/revisions.functions.ts`                  |    100 |  100 |     100 |   100 | M2    |
+| `src/lib/posts-migrate.functions.ts`              |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useEditPresence.ts`                    |    100 |  100 |     100 |   100 | M2    |
+| `src/hooks/useAutosave.ts`                        |     96 |   87 |     100 |   100 | M2    |
+| `src/hooks/useHistory.ts`                         |     91 |   83 |     100 |    94 | M2    |
+| `src/components/admin/PostEditor.tsx`             |     95 |   82 |     100 |   100 | M2    |
+| `src/components/admin/PostGeneralOverview.tsx`    |     96 |   78 |     100 |    96 | M2    |
+| `src/routes/admin.posts.tsx`                      |    100 |   95 |     100 |   100 | M2    |
+| `src/routes/admin.posts.$slug.tsx`                |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.posts.new.tsx`                  |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.posts.calendar.tsx`             |    100 |   95 |     100 |   100 | M2    |
+| `src/routes/admin.redirects.tsx`                  |     97 |   92 |     100 |   100 | M2    |
+| `src/routes/admin.import-wordpress.tsx`           |     95 |   94 |     100 |   100 | M2    |
+| `src/routes/admin.versions.tsx`                   |    100 |  100 |     100 |   100 | M2    |
+| `src/routes/admin.workflows.tsx`                  |     95 |   87 |      92 |    95 | M2    |
 
 **Czego bramka NIE pilnuje** — moduły bez ani jednego progu per-ścieżka:
 
-- **MODUŁ 2 — Edytor wpisów i workflow redakcyjny**: linie 8,34%, funkcje 6,85%, plików 0%: 64/83
 - **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
 - **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
@@ -1096,6 +1148,15 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 - **MODUŁ 18 — CRM**: linie 12,04%, funkcje 9,30%, plików 0%: 33/47
 - **MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO**: linie 22,00%, funkcje 17,43%, plików 0%: 62/122
 - **MODUŁ 21 — Rekrutacja / kariera**: linie 55,12%, funkcje 47,13%, plików 0%: 12/29
+
+↻ **MODUŁ 2 wyszedł z tej listy 19.08.2026.** Ma teraz 18 progów per-ścieżka:
+dwanaście czystych modułów reguł na równych 100% (m.in. `postPatch.ts`,
+`postsListQuery.ts`, `redirectsAdmin.ts`, `workflows/lib/**`, `unsavedChanges.ts`),
+cztery powierzchnie z floorem pod zmierzonym poziomem (`post-editor/lib/**`,
+`hooks/**`, `atoms/**`, `editorialCalendar.ts`) i trzy zapory antyregresyjne na
+katalogach, które dopiero wyszły z zera (`post-editor/molecules/**`, `workflows/**`,
+`versions/**`). Szczegóły i uzasadnienie każdego poziomu:
+`docs/WDROZENIE_MODUL2_TESTY_REFAKTOR_2026-08-18.md`, rozdz. 8.3.
 
 ---
 
@@ -1249,7 +1310,7 @@ Rozbicie liczby plików produkcyjnych:
 | #   | Moduł                                                 | Pliki | LOC (surowe) | Pliki testowe | LOC testów |
 | --- | ----------------------------------------------------- | ----: | -----------: | ------------: | ---------: |
 | 1   | Wpisy: doświadczenie czytelnika                       |    74 |       13 632 |            30 |      4 155 |
-| 2   | Edytor wpisów i workflow redakcyjny                   |    83 |       12 317 |            11 |        794 |
+| 2   | Edytor wpisów i workflow redakcyjny ↻                 |    93 |       13 774 |            33 |      7 022 |
 | 3   | Silniki treści: bloki + page builder                  |   449 |      110 202 |           201 |     32 901 |
 | 4   | Strony, wygląd, motyw, media, import                  |   130 |       16 555 |            35 |      2 481 |
 | 5   | Strona główna, archiwa, chrome                        |    51 |        9 150 |             9 |      1 073 |
@@ -1274,16 +1335,12 @@ Rozbicie liczby plików produkcyjnych:
 | —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |   134 |       25 083 |            19 |      1 962 |
 | —   | PRZEKROJOWE: design system (components/ui)            |    43 |        4 229 |             2 |        195 |
 
-### 9.2 Pliki testowe wyłączone z pomiaru — PRZYCZYNA I NAPRAWA
+**↻** Wiersz przeliczony 19.08.2026 (`wc -l` po plikach `.ts`/`.tsx` pasujących do wzorców
+modułu 2). Ta sama metoda uruchomiona na stanie z 18.08 daje 12 234 LOC produkcyjnych zamiast
+12 317 — różnica 0,7% bierze się z innego liczenia ostatniej linii pliku. Wiersze pozostałych
+modułów zostają w wartościach z 18.08, więc porównuj kolumnę „Pliki”, nie samo LOC.
 
-**Stan pierwotny (rano 2026-08-18):** 39 plików / 464 testów / 950 asercji poza pomiarem.
-Wszystkie oprócz jednego dotyczyły DWÓCH powierzchni MODUŁU 3:
-`components/admin/builder/**` (panele właściwości, w tym bramka `settingsFidelity.gate`
-z 537 testami) oraz `components/builder/organisms/widget-view/**` (render widgetów).
-
-**Diagnoza pierwotna była błędna.** Zakładała „najcięższe importy w repo na czterordzeniowym
-sandboksie z zależnościami z publicznego npm zamiast pinów z `bun.lock`". Sprawdzone
-i odrzucone — oba założenia:
+### 9.2 Pliki testowe wyłączone z pomiaru (zawieszają się w tym środowisku)
 
 | Hipoteza pierwotna             | Weryfikacja                                                                                  |
 | ------------------------------ | -------------------------------------------------------------------------------------------- |

@@ -21,6 +21,7 @@ import {
   type WorkflowDefinitionRow,
   type WorkflowTemplateRow,
 } from "@/lib/admin/workflows";
+import { installedTemplateKeys } from "./lib/panelRules";
 import { EventTypeChip, StepChips } from "./atoms";
 
 interface WorkflowTemplatesPanelProps {
@@ -40,9 +41,8 @@ export function WorkflowTemplatesPanel({
 
   // Szablon uznajemy za zainstalowany, gdy w tenancie istnieje definicja
   // z tym template_key (niezależnie od enabled - instalacja re-aktywuje).
-  const installedKeys = new Set(
-    definitions.map((d) => d.template_key).filter((key): key is string => key !== null),
-  );
+  // Reguła i jej uzasadnienie: `lib/panelRules.installedTemplateKeys`.
+  const installedKeys = installedTemplateKeys(definitions);
 
   const install = useMutation({
     mutationFn: (key: string) => installWorkflowTemplate(key),

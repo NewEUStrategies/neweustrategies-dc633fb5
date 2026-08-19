@@ -89,3 +89,11 @@ export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/
 export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
 export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
 export { Editable } from "@/components/builder/molecules/Editable";
+// Dwa widgety, które zeszły na leniwą krawędź razem z cięciem chunku
+// wejściowego (01253dc), ale nie zostały dopisane do tego lustra. Skutek jest
+// dokładnie ten opisany w nagłówku pliku: `WidgetView` dostaje `undefined`,
+// widget renderuje pustkę, a bramka wierności ustawień uznaje KAŻDE jego
+// ustawienie za martwe - czyli zgłasza defekt tam, gdzie go nie ma, i kusi
+// wpisaniem odstępstwa zamiast naprawy.
+export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
+export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
