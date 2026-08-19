@@ -18,6 +18,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { postEditorData, postEditorFormApi, postForm } from "@/test/post-editor/fixtures";
 
 const h = vi.hoisted(() => ({
+  prompt: null as unknown,
   captured: {} as Record<string, unknown>,
   // Lista WSZYSTKICH instancji danego znacznika - `captured` trzyma tylko
   // ostatnia, a niektore organizmy renderuja ten sam komponent dwa razy
@@ -81,6 +82,25 @@ vi.mock("@/components/ui/tabs", () => ({
 }));
 
 vi.mock("@/components/admin/builder/Builder", () => ({ Builder: probe("Builder") }));
+/** Sonda RENDERUJĄCA dzieci - dla obudów (kadr layoutu wokół kanwy). */
+function wrapProbe(name: string) {
+  return ({ children, ...rest }: { children?: unknown } & Record<string, unknown>) => {
+    h.captured[name] = rest;
+    (h.all[name] ??= []).push(rest);
+    return <div data-testid={name}>{children as never}</div>;
+  };
+}
+vi.mock("@/components/admin/blocks/LayoutScaffold", () => ({
+  LayoutScaffold: wrapProbe("LayoutScaffold"),
+}));
+vi.mock("@/components/admin/blocks/AutoFootnotesPreview", () => ({
+  AutoFootnotesPreview: probe("AutoFootnotesPreview"),
+}));
+vi.mock("@/lib/appDialogs", async () => {
+  const { vi: v } = await import("vitest");
+  h.prompt = v.fn(async () => "https://cdn.tenant/obraz.png");
+  return { promptDialog: h.prompt };
+});
 vi.mock("@/lib/builder/labelsEn", () => ({ useAdminLang: () => "pl" }));
 vi.mock("../PostSidebarBundle", () => ({ PostSidebarBundle: probe("PostSidebarBundle") }));
 vi.mock("../PostSettingsCard", () => ({ PostSettingsCard: probe("PostSettingsCard") }));
@@ -834,6 +854,50 @@ describe("PostContentEditor - obudowa kanwy layoutem wpisu", () => {
     });
   });
 
+  it("PRZYPISY z podglądu piszą do SWOJEGO języka, nie kasują drugiego", () => {
+    // `AutoFootnotesPreview` numeruje przypisy w dokumencie i oddaje poprawioną
+    // wersję. Zapis `set("blocks_data", nextDoc)` zamiast scalenia wymazałby
+    // dokument DRUGIEGO języka - i redaktor traciłby całą wersję EN przy
+    // pierwszym przypisie dodanym po polsku.
+    const formApi = renderWithLayout(
+      postForm({
+        editor: "blocks",
+        blocks_data: {
+          pl: { version: 1, blocks: [] },
+          en: { version: 1, blocks: [{ id: "en-1" }] },
+        } as never,
+      }),
+    );
+    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => JSX.Element;
+
+    // Kadr trzeba ZAMONTOWAĆ - dopiero wtedy istnieje podgląd przypisów.
+    render(wrap(<div data-testid="canvas" />, "pl"));
+    expect(screen.getByTestId("canvas")).toBeInTheDocument();
+    (props("AutoFootnotesPreview").onChange as (d: unknown) => void)({
+      version: 1,
+      blocks: [{ id: "pl-1" }],
+    });
+
+    expect(formApi.set).toHaveBeenCalledWith("blocks_data", {
+      pl: { version: 1, blocks: [{ id: "pl-1" }] },
+      en: { version: 1, blocks: [{ id: "en-1" }] },
+    });
+  });
+
+  it("podgląd przypisów na PUSTYM dokumencie startuje od pustej pary", () => {
+    // `blocks_data: null` to stan nowego wpisu; bez domyślnej pary zapis
+    // przypisu poleciałby na `undefined`.
+    const formApi = renderWithLayout(postForm({ editor: "blocks", blocks_data: null }));
+    const wrap = props("PostBlockEditor").canvasWrap as (c: unknown, l: string) => JSX.Element;
+
+    render(wrap(<div />, "en"));
+    (props("AutoFootnotesPreview").onChange as (d: unknown) => void)({ version: 1, blocks: [] });
+
+    const [, value] = formApi.set.mock.calls.at(-1) as [string, Record<string, unknown>];
+    expect(Object.keys(value)).toEqual(["pl", "en"]);
+    expect(value.en).toEqual({ version: 1, blocks: [] });
+  });
+
   it("brakujący tytuł w jednym języku podstawia tytuł z drugiego", () => {
     // Pusty nagłówek w kadrze podglądu wyglądałby jak usterka układu, a jest
     // tylko brakiem tłumaczenia.
@@ -843,5 +907,53 @@ describe("PostContentEditor - obudowa kanwy layoutem wpisu", () => {
       l: string,
     ) => { props: Record<string, unknown> };
     expect(wrap(<div />, "en").props).toMatchObject({ title: "Tylko polski" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PostContentEditor - reszta kontraktu kroku treści
+// ---------------------------------------------------------------------------
+
+describe("PostContentEditor - brak formularza i wybór obrazka", () => {
+  const renderEditor = (form: unknown, editor = "richtext") => {
+    const formApi = api({ form: form as never });
+    const view = render(
+      <PostContentEditor
+        formApi={formApi}
+        data={data()}
+        routeSlug="moj-wpis"
+        uiLang="pl"
+        autoReadMinutes={autoReadMinutes}
+        taxonomy={taxonomy}
+        globalLayout={undefined}
+        ov={{} as never}
+        currentFormat={"standard" as never}
+        layoutCard={null}
+      />,
+    );
+    void editor;
+    return view;
+  };
+
+  it("BEZ formularza krok treści nie renderuje NICZEGO", () => {
+    // Wpis jeszcze się wczytuje. Zamontowany edytor bloków na pustym stanie
+    // odpalałby własne zapytania i mógłby zapisać pusty dokument.
+    const view = renderEditor(null);
+    expect(view.container).toBeEmptyDOMElement();
+  });
+
+  it("WYBÓR OBRAZKA idzie przez pytanie o adres z podpisami z i18n", () => {
+    // To awaryjna ścieżka trybów tekstowych (bloki mają własną bibliotekę
+    // mediów). Bez podpisów z i18n redaktor EN dostałby polski komunikat.
+    renderEditor(postForm({ editor: "richtext" }));
+
+    const pick = props("PostEditor").onPickImage as () => Promise<string | null>;
+    void pick();
+
+    expect(h.prompt as ReturnType<typeof vi.fn>).toHaveBeenCalledWith({
+      title: "admin.imageUrlTitle",
+      placeholder: "https://…",
+      confirmLabel: "admin.insert",
+    });
   });
 });
