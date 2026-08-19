@@ -20,6 +20,7 @@ import {
   updateCrmTask,
   type CrmTaskRow,
 } from "@/lib/crm-tasks.functions";
+import { defaultDueDate, formatDue as formatDueAt, isOverdue } from "@/lib/crm/tasksView";
 
 const TXT = {
   pl: {
@@ -56,21 +57,6 @@ const TXT = {
   },
 };
 
-/** Domyślny termin: jutro o 9:00 lokalnie. */
-function defaultDueValue(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(9, 0, 0, 0);
-  return d;
-}
-
-function formatDue(iso: string, lang: "pl" | "en"): string {
-  return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
 export function LeadTasksPanel({
   leadId,
   lang,
@@ -84,7 +70,7 @@ export function LeadTasksPanel({
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [due, setDue] = useState(defaultDueValue);
+  const [due, setDue] = useState(defaultDueDate);
 
   const tasksQ = useQuery({
     queryKey: ["crm-tasks", "lead", leadId],
@@ -115,7 +101,7 @@ export function LeadTasksPanel({
       toast.success(t.added);
       setTitle("");
       setNote("");
-      setDue(defaultDueValue());
+      setDue(defaultDueDate());
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -261,7 +247,7 @@ function TaskGroup({
       <h3 className="text-[11px] uppercase tracking-wider text-muted-foreground">{heading}</h3>
       <ul className="space-y-1.5">
         {tasks.map((task) => {
-          const overdue = task.status === "open" && new Date(task.due_at).getTime() < now;
+          const overdue = task.status === "open" && isOverdue(task.due_at, now);
           return (
             <li
               key={task.id}
@@ -289,7 +275,7 @@ function TaskGroup({
                       }
                     >
                       <AlarmClock className="w-3 h-3" aria-hidden />
-                      {formatDue(task.due_at, lang)}
+                      {formatDueAt(task.due_at, lang, "medium")}
                       {overdue ? ` · ${overdueLabel}` : ""}
                     </span>
                     {task.reminded_at && <span>· {remindedLabel}</span>}

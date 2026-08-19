@@ -35,6 +35,7 @@ import { getCrmLead, updateCrmLead, getCrmLeadTimeline } from "@/lib/crm.functio
 import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
 import type { ConsentLogRow } from "@/lib/crm/consentLog";
 import { parseLeadTimelinePayload } from "@/lib/crm/leadTimeline";
+import { nullIfBlank } from "@/lib/crm/text";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
@@ -251,8 +252,12 @@ function AdminCrmDetailPage() {
         "linkedin_url",
       ] as const
     ).forEach((k) => {
-      if (form[k] !== undefined && form[k] !== (lead ? lead[k] : undefined))
-        patch[k] = form[k] ?? null;
+      // Wyczyszczone pole to BRAK wartości, nie pusty napis: bez tego kontakt
+      // z wykasowanym telefonem miał w bazie '' zamiast NULL, więc pokazywał
+      // pustkę zamiast myślnika i psuł zliczanie „ilu leadów ma telefon".
+      const next = nullIfBlank(form[k] as string | null | undefined);
+      const current = nullIfBlank(lead ? (lead[k] as string | null | undefined) : null);
+      if (next !== current) patch[k] = next;
     });
     if (Object.keys(patch).length === 0) {
       setEditing(false);

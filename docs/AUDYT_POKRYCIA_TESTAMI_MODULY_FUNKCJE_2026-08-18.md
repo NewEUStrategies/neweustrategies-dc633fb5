@@ -87,7 +87,6 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 
 | #   | Moduł                                                 | Pliki prod. | Instrukcje | Gałęzie | Funkcje |      Linie | Plików 0% |   T/P | Testów | Asercji |
 | --- | ----------------------------------------------------- | ----------: | ---------: | ------: | ------: | ---------: | --------: | ----: | -----: | ------: |
-| 18  | CRM                                                   |          47 |     12,43% |  12,18% |   9,30% | **12,04%** |        33 | 0,319 |    170 |     331 |
 | 7   | Typy treści specjalne                                 |         109 |     16,73% |  13,26% |  14,60% | **16,47%** |        75 | 0,183 |    203 |     484 |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         242 |     18,26% |  14,88% |  13,32% | **17,56%** |       177 | 0,244 |    586 |   1 047 |
 | 15  | Profil i konto                                        |          81 |     18,41% |  16,07% |  18,00% | **19,12%** |        45 | 0,247 |    187 |     378 |
@@ -134,7 +133,6 @@ nigdy nie uruchomione w teście.
 
 | #   | Moduł                                                 | Funkcji razem | Wywołanych |  % funkcji |
 | --- | ----------------------------------------------------- | ------------: | ---------: | ---------: |
-| 18  | CRM                                                   |         1 000 |         93 |  **9,30%** |
 | 5   | Strona główna, archiwa, chrome ⚠                      |           534 |         63 | **11,80%** |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         3 139 |        418 | **13,32%** |
 | 7   | Typy treści specjalne                                 |         1 637 |        239 | **14,60%** |
@@ -435,13 +433,22 @@ importował komponentu ani razu, jego asercje zasilały `facetModel.ts`.
 | Observability / RUM / web vitals        |     11 |        409 |  54,6% | 48,6% |   61,7% | **54,0%** |     37/60 |
 | Analityka: warstwa semantyczna          |      7 |        239 |  70,4% | 60,2% |   69,4% | **71,5%** |     43/62 |
 
-### MODUŁ 18 — CRM · linie 12,04% · funkcje 9,30%
+### MODUŁ 18† — CRM · ~~linie 12,04% · funkcje 9,30%~~ → linie 98,98% · funkcje 98,48%
 
-| Funkcjonalność                        | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
-| ------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| CRM: UI panelu                        |     19 |        634 |   3,6% |  5,5% |    3,0% |  **3,6%** |     9/302 |
-| CRM: import/eksport CSV + organizacje |      6 |        352 |  24,0% | 16,0% |   30,8% | **23,3%** |     24/78 |
-| CRM: kontakty, firmy, lejek, zadania  |     14 |        876 |  26,4% | 28,7% |   30,8% | **26,5%** |    60/195 |
+> **Zamknięte 19.08.2026.** Rozbicie niżej to stan Z AUDYTU (18.08); kolumna
+> „po” pokazuje pomiar na gałęzi domykającej. Opis pracy, znalezione defekty
+> i progi bramek: `docs/WDROZENIE_CRM_POKRYCIE_TESTAMI_2026-08-19.md`.
+
+| Funkcjonalność                        | Plików | LOC mierz. | Linie (18.08) | Linie (po) | fn 18.08 | fn (po) |
+| ------------------------------------- | -----: | ---------: | ------------: | ---------: | -------: | ------: |
+| CRM: UI panelu                        |     19 |        634 |      **3,6%** | **95,95%** |    9/302 | 279/289 |
+| CRM: import/eksport CSV + organizacje |      6 |        352 |     **23,3%** | **99,36%** |    24/78 |   35/37 |
+| CRM: kontakty, firmy, lejek, zadania  |     14 |        876 |     **26,5%** | **99,68%** |   60/195 | 414/415 |
+
+Trzy wskazania z tego audytu zostały zamknięte imiennie: duplikat reguł filtra
+i sortu leadów (jedno źródło prawdy + bramka parytetu SQL⇄JS), warstwa serwerowa
+CRM (0% → 100% funkcji) oraz `autoMap`/`mapRows` importu CSV (czysty moduł, 100%,
+z inwariantem „kolumny zgód nigdy nie są mapowane”).
 
 ### MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO · linie 22,00% · funkcje 17,43%
 
@@ -1199,7 +1206,7 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 44,12%, funkcje 41,02%, plików 0%: 13/28
 - **MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy**: linie 22,55%, funkcje 15,28%, plików 0%: 19/38
 - **MODUŁ 16 — Społeczność: kluby, komentarze, moderacja**: linie 17,56%, funkcje 13,32%, plików 0%: 177/242
-- **MODUŁ 18 — CRM**: linie 12,04%, funkcje 9,30%, plików 0%: 33/47
+- **MODUŁ 18 — CRM**: ~~linie 12,04%, funkcje 9,30%, plików 0%: 33/47~~ → **linie 98,98%, funkcje 98,48%, plików 0%: 0/56** (patrz `docs/WDROZENIE_CRM_POKRYCIE_TESTAMI_2026-08-19.md`)
 - **MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO**: linie 22,00%, funkcje 17,43%, plików 0%: 62/122
 - **MODUŁ 21 — Rekrutacja / kariera**: linie 55,12%, funkcje 47,13%, plików 0%: 12/29
 
