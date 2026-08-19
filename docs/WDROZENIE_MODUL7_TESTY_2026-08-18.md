@@ -1,4 +1,4 @@
-# Moduł 7 „Typy treści specjalne": z 16,5% na PLACEHOLDER_MODUL_LINIE, cztery funkcjonalności zdjęte z zera i trzy naprawione defekty (2026-08-18)
+# Moduł 7 „Typy treści specjalne": z 16,5% na 70,8%, cztery funkcjonalności zdjęte z zera i trzy naprawione defekty (2026-08-18)
 
 Ten sam ruch, który PR #250 zrobił dla czatu (`docs/WDROZENIE_CZAT_TESTY_REFAKTOR_2026-08-18.md`),
 a PR #252 dla profilu (`docs/WDROZENIE_PROFIL_TESTY_2026-08-18.md`), zastosowany do **modułu 7**,
@@ -55,11 +55,11 @@ Dziura była w **warstwie loaderów, serwerowej i widoków** - i miała jedną w
 **Trzy czyste moduły wyprowadzone z komponentów** - nie po to, żeby podbić liczbę, tylko dlatego,
 że reguła w złym miejscu jest regułą bez testu:
 
-| Nowy moduł                        | Co wyszło z komponentu                                                                 |
-| --------------------------------- | -------------------------------------------------------------------------------------- |
-| `src/lib/files/viewerState.ts`    | jedna reguła stanu czytnika zamiast trzech kopii w JSX-ie                                 |
-| `src/lib/web-stories/viewerNav.ts`| maszyna przewijania historii (koniec serii, podłoga 2 s, pasek postępu)                   |
-| `src/lib/experts/layoutRules.ts`  | tokeny CSS układu, budowa reguły `.dark`, sygnatura nadpisań (dirty-check edytora)        |
+| Nowy moduł                         | Co wyszło z komponentu                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/lib/files/viewerState.ts`     | jedna reguła stanu czytnika zamiast trzech kopii w JSX-ie                          |
+| `src/lib/web-stories/viewerNav.ts` | maszyna przewijania historii (koniec serii, podłoga 2 s, pasek postępu)            |
+| `src/lib/experts/layoutRules.ts`   | tokeny CSS układu, budowa reguły `.dark`, sygnatura nadpisań (dirty-check edytora) |
 
 **Jeden atom** w duchu atomic design: `src/components/files/atoms/ViewerNotice.tsx` - trzy
 warianty komunikatu (zajętość / błąd / pusty dokument) sterowane **deskryptorem**, zamiast trzech
@@ -143,32 +143,59 @@ w happy-dom i słusznie zgasła - została przepisana tak, by przypinać właśn
 
 ### 5.1 Moduł jako całość
 
-PLACEHOLDER_TABELA_MODUL
+| Metryka     |  Przed |         Po | Delta    |
+| ----------- | -----: | ---------: | -------- |
+| **Linie**   | 16,47% | **70,83%** | +54,4 pp |
+| **Funkcje** | 14,60% | **71,19%** | +56,6 pp |
+| Instrukcje  | 16,70% |     71,26% | +54,6 pp |
+| Gałęzie     | 13,30% |     61,89% | +48,6 pp |
+
+Cel z zadania (linie ≥ 35%, funkcje ≥ 30%) jest przekroczony dwukrotnie.
+
+Rozkład po katalogach - **warstwa `lib/*` jest domknięta**, reszta to trzy duże
+pliki interfejsu wymienione w §6:
+
+| Katalog                  |  Linie | Co zostaje na zerze                                 |
+| ------------------------ | -----: | --------------------------------------------------- |
+| `lib/files`              |   100% | —                                                   |
+| `lib/podcast`            |   100% | —                                                   |
+| `lib/tracker`            | 99,43% | —                                                   |
+| `lib/web-stories`        | 96,96% | —                                                   |
+| `lib/experts`            | 95,18% | `refreshOg.functions.ts` (server fn)                |
+| `lib/programs`           |  93,1% | `icons.ts`                                          |
+| `lib/events`             | 82,75% | `ticket.functions.ts`, `rsvp-email.functions.ts`    |
+| `components/web-stories` |   100% | —                                                   |
+| `components/podcast`     |   100% | —                                                   |
+| `components/files`       | 99,15% | —                                                   |
+| `components/events`      | 52,38% | `SpeakerProfileDialog.tsx` (254)                    |
+| `components/quiz`        | 43,47% | `QuizBackground.tsx` (171)                          |
+| `components/experts`     | 14,39% | Renderer (1133), InlineEditor (555), Explorer (314) |
+| `components/tracker`     | 11,86% | `PolicyPositionsMap.tsx` (217)                      |
 
 ### 5.2 Per plik / powierzchnia
 
-| Ścieżka                                       |    Przed |          Po (linie / funkcje) |
-| --------------------------------------------- | -------: | ----------------------------: |
-| `src/lib/events/ticket.server.ts`             |     0,0% |            **100% / 100%**    |
-| `src/lib/events/ticketCode.ts`                |     0,0% |            **100% / 100%**    |
-| `src/lib/events/kinds.ts`                     |     0,0% |            **100% / 100%**    |
-| `src/components/community/ticketDocument.ts`  |     0,0% |            **100% / 100%**    |
-| `src/lib/files/fileKinds.ts`                  |     0,0% |            **100% / 100%**    |
-| `src/lib/files/officeParse.ts`                |     0,0% |            **100% / 100%**    |
-| `src/lib/files/viewerState.ts` *(nowy)*       |        — |            **100% / 100%**    |
-| `src/components/files/**`                     |     0,0% |         **99,15% / 97,72%**   |
-| `src/lib/tracker/queries.ts`                  |     0,0% |            **100% / 100%**    |
-| `src/lib/tracker/feed.server.ts`              |     0,0% |            **100% / 100%**    |
-| `src/lib/experts/queries.ts`                  |     9,3% |         **97,67% / 72,72%**   |
-| `src/lib/experts/**` (cały katalog)           |    ~34%  |         **95,18% / 95,08%**   |
-| `src/lib/experts/layoutRules.ts` *(nowy)*     |        — |            **100% / 100%**    |
-| `src/lib/podcast/types.ts`                    |    56,4% |            **100% / 100%**    |
-| `src/components/podcast/**`                   |     0,0% |            **100% / 100%**    |
-| `src/lib/web-stories/viewerNav.ts` *(nowy)*   |        — |            **100% / 100%**    |
-| `src/components/web-stories/StoryViewer.tsx`  |     0,0% |            **100% / 100%**    |
-| `src/components/events/**` (bez dialogu)      |     0,0% |            **100% / 100%**    |
+| Ścieżka                                      | Przed | Po (linie / funkcje) |
+| -------------------------------------------- | ----: | -------------------: |
+| `src/lib/events/ticket.server.ts`            |  0,0% |      **100% / 100%** |
+| `src/lib/events/ticketCode.ts`               |  0,0% |      **100% / 100%** |
+| `src/lib/events/kinds.ts`                    |  0,0% |      **100% / 100%** |
+| `src/components/community/ticketDocument.ts` |  0,0% |      **100% / 100%** |
+| `src/lib/files/fileKinds.ts`                 |  0,0% |      **100% / 100%** |
+| `src/lib/files/officeParse.ts`               |  0,0% |      **100% / 100%** |
+| `src/lib/files/viewerState.ts` _(nowy)_      |     — |      **100% / 100%** |
+| `src/components/files/**`                    |  0,0% |  **99,15% / 97,72%** |
+| `src/lib/tracker/queries.ts`                 |  0,0% |      **100% / 100%** |
+| `src/lib/tracker/feed.server.ts`             |  0,0% |      **100% / 100%** |
+| `src/lib/experts/queries.ts`                 |  9,3% |  **97,67% / 72,72%** |
+| `src/lib/experts/**` (cały katalog)          |  ~34% |  **95,18% / 95,08%** |
+| `src/lib/experts/layoutRules.ts` _(nowy)_    |     — |      **100% / 100%** |
+| `src/lib/podcast/types.ts`                   | 56,4% |      **100% / 100%** |
+| `src/components/podcast/**`                  |  0,0% |      **100% / 100%** |
+| `src/lib/web-stories/viewerNav.ts` _(nowy)_  |     — |      **100% / 100%** |
+| `src/components/web-stories/StoryViewer.tsx` |  0,0% |      **100% / 100%** |
+| `src/components/events/**` (bez dialogu)     |  0,0% |      **100% / 100%** |
 
-Dodane: **PLACEHOLDER_LICZBA_TESTOW przypadków testowych w 20 plikach**.
+Dodane: **842 przypadki testowe w 43 plikach (24 pliki nowe) przypadków testowych w 20 plikach**.
 
 ---
 
@@ -195,7 +222,7 @@ Dodane: **PLACEHOLDER_LICZBA_TESTOW przypadków testowych w 20 plikach**.
 
 ## 7. Bramki pokrycia (`vitest.config.ts`)
 
-Moduł 7 nie miał **ani jednego** progu per-ścieżka. Doszło PLACEHOLDER_LICZBA_PROGOW wpisów,
+Moduł 7 nie miał **ani jednego** progu per-ścieżka. Doszło 22 wpisów,
 floorowanych tuż pod zmierzonym poziomem (zasada bez zmian: wolno je wyłącznie podnosić):
 
 `lib/events/ticket.server.ts`, `lib/events/ticketCode.ts`, `lib/tracker/queries.ts`,
