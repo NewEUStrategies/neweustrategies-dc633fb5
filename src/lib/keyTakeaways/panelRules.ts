@@ -122,14 +122,23 @@ export function keyTakeawaysColorFields(): ColorFieldDescriptor[] {
   ).map((key) => ({ key, labelKey: `adminPostPanes.keyTakeaways.colorField.${key}` }));
 }
 
+type KeyTakeawaysColors = KeyTakeawaysSettings["colors"];
+
 /**
  * Wartość pola koloru gotowa dla selektora barwy.
  *
  * Pola ramki mogą stać puste w starszych wierszach, a selektor bez wartości
  * pokazuje puste okienko zamiast „przezroczysty" - stąd jawny domyślny zapis.
+ *
+ * KLUCZ JEST TYPOWANY, nie `string`: mapa kolorów trzyma też `borderWidth`,
+ * czyli LICZBĘ, więc indeksowanie zwraca `string | number` i strażnik
+ * `typeof raw === "string"` musi to zwężić. Pierwsza wersja obchodziła to
+ * rzutowaniem `as unknown as Record<string, unknown>` - a to omija kontrolę
+ * typów dokładnie tak jak `as any`, tylko bez zapalenia lintera (bramka
+ * `check:unknown-casts` złapała to na CI).
  */
-export function colorFieldValue(colors: KeyTakeawaysSettings["colors"], key: string): string {
-  const raw = (colors as unknown as Record<string, unknown>)[key];
+export function colorFieldValue(colors: KeyTakeawaysColors, key: keyof KeyTakeawaysColors): string {
+  const raw: KeyTakeawaysColors[keyof KeyTakeawaysColors] | undefined = colors[key];
   return typeof raw === "string" && raw.length > 0 ? raw : "transparent";
 }
 
