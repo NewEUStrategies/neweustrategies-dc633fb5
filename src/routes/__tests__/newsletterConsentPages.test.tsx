@@ -103,6 +103,8 @@ describe("strona potwierdzenia zapisu", () => {
 
     await screen.findByText("newsletter.confirmPage.okTitle");
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("token=a%2Bb%20c");
+    // Podwójnego kodowania nie ma - „%252B" trafiłby do bazy jako inny token.
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("%252B");
   });
 
   it("ponowne kliknięcie pokazuje „już potwierdzone”, nie błąd", async () => {
@@ -216,6 +218,8 @@ describe("strona wypisu z newslettera", () => {
     await mount();
 
     expect(await screen.findByText("newsletter.unsubscribePage.body")).toBeTruthy();
+    // Bez „undefined" w miejscu adresu.
+    expect(screen.queryByText(/undefined/)).toBeNull();
   });
 
   it("adres już wypisany pomija przycisk potwierdzenia", async () => {
@@ -307,6 +311,8 @@ describe("strona wypisu z newslettera", () => {
     const { meta } = await mount();
 
     expect(meta().find((m) => m.name === "robots")?.content).toContain("noindex");
+    // ...i nofollow: link wypisu w indeksie to wypisanie kogoś przez robota.
+    expect(meta().find((m) => m.name === "robots")?.content).toContain("nofollow");
   });
 
   it("tytuł strony wypisu też ma wariant angielski", async () => {
@@ -388,6 +394,8 @@ describe("strona wypisu z poczty systemowej", () => {
     fireEvent.click(await screen.findByRole("button"));
 
     expect(await screen.findByText("Preferencje zostały zapisane")).toBeTruthy();
+    // Nie komunikat o nieprawidłowym linku - 200 znaczy, że serwer zrozumiał.
+    expect(screen.queryByText("Link jest nieprawidłowy lub wygasł")).toBeNull();
   });
 
   it("odmowa serwera przy potwierdzaniu wraca do stanu nieprawidłowego linku", async () => {
@@ -399,6 +407,8 @@ describe("strona wypisu z poczty systemowej", () => {
     fireEvent.click(await screen.findByRole("button"));
 
     expect(await screen.findByText("Link jest nieprawidłowy lub wygasł")).toBeTruthy();
+    // Nie fałszywe potwierdzenie - odbiorca musi wiedzieć, że NIE został wypisany.
+    expect(screen.queryByText("Preferencje zostały zapisane")).toBeNull();
   });
 
   it("awaria sieci przy potwierdzaniu nie udaje sukcesu", async () => {

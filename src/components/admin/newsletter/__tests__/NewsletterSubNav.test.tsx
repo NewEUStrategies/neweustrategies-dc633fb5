@@ -70,6 +70,8 @@ describe("zestaw zakładek", () => {
 
     const hrefs = tabs(container).map((t) => t.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
+    // Zakładki w ogóle są - unikalność pustego zbioru nic nie znaczy.
+    expect(hrefs.length).toBeGreaterThan(1);
   });
 
   it("ŻADNA ścieżka nie jest prefiksem innej - inaczej świecą się DWIE zakładki", () => {
@@ -81,6 +83,7 @@ describe("zestaw zakładek", () => {
     const kolizje = hrefs.filter((a) => hrefs.some((b) => b !== a && b.startsWith(a)));
 
     expect(kolizje).toEqual([]);
+    expect(hrefs.length).toBeGreaterThan(1);
   });
 
   it("obejmuje wszystkie ekrany modułu, w tym doręczalność i logi webhooka", () => {

@@ -104,6 +104,8 @@ describe("lista szablonów", () => {
     renderWithQueryClient(<AuthEmailPreviewPanel />);
 
     expect(await screen.findByText("cos_nowego_z_serwera")).toBeTruthy();
+    // Podpis to sama nazwa typu, nie surowy klucz i18n z kropkami.
+    expect(screen.queryByText(/adminNewsletter\.emailPreview\.types\./)).toBeNull();
   });
 
   it("dopóki dane nie doszły, lista pokazuje szkielet, a nie pustkę", () => {
@@ -120,6 +122,8 @@ describe("lista szablonów", () => {
 
     const frame = screen.getByTitle("email-preview-recovery-pl") as HTMLIFrameElement;
     expect(frame.getAttribute("srcdoc")).toContain("tresc recovery");
+    // Poprzedni szablon zniknął z okna - inaczej operator patrzyłby na stary mail.
+    expect(screen.queryByTitle("email-preview-signup-pl")).toBeNull();
   });
 
   it("temat wybranego szablonu jest w nagłówku podglądu", async () => {
@@ -168,6 +172,8 @@ describe("zakres szablonów", () => {
       "email-preview-subscription_confirmed-pl",
     )) as HTMLIFrameElement;
     expect(frame.getAttribute("srcdoc")).toContain("tresc subscription_confirmed");
+    // Szablon z poprzedniego zakresu nie zostaje w oknie.
+    expect(screen.queryByTitle("email-preview-signup-pl")).toBeNull();
   });
 
   it("powrót na zakres autoryzacyjny wraca do rejestracji - bez ponownego pytania serwera", async () => {
@@ -193,6 +199,8 @@ describe("parametry personalizacji", () => {
     fireEvent.change(screen.getByLabelText(P("firstName")), { target: { value: "  Anna  " } });
 
     await waitFor(() => expect(lastCall().data.firstName).toBe("Anna"));
+    // Pole nadal pokazuje to, co operator wpisał - obcięcie dotyczy zapytania.
+    expect((screen.getByLabelText(P("firstName")) as HTMLInputElement).value).toBe("  Anna  ");
   });
 
   it("PUSTE imię znaczy „bez imienia”, a nie pusty napis w powitaniu", async () => {
@@ -202,6 +210,8 @@ describe("parametry personalizacji", () => {
     fireEvent.change(screen.getByLabelText(P("firstName")), { target: { value: "   " } });
 
     await waitFor(() => expect(lastCall().data.firstName).toBeNull());
+    // `null`, nie pusty napis - to różnica między „bez imienia" i „imię puste".
+    expect(lastCall().data.firstName).not.toBe("");
   });
 
   it("rodzaj gramatyczny trafia do zapytania", async () => {
@@ -210,6 +220,8 @@ describe("parametry personalizacji", () => {
     fireEvent.click(screen.getByText(P("genderFemale")));
 
     await waitFor(() => expect(lastCall().data.gender).toBe("female"));
+    // Wybór jest widoczny w panelu, nie tylko w zapytaniu.
+    expect(screen.getByText(P("genderFemale")).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("język podglądu trafia do zapytania niezależnie od języka panelu", async () => {
@@ -251,6 +263,10 @@ describe("ramka podglądu", () => {
     expect((screen.getByTitle("email-preview-signup-pl") as HTMLIFrameElement).style.maxWidth).toBe(
       "720px",
     );
+    // Szerokość telefonu zniknęła - przełącznik działa w obie strony.
+    expect(
+      (screen.getByTitle("email-preview-signup-pl") as HTMLIFrameElement).style.maxWidth,
+    ).not.toBe("390px");
   });
 
   it("przełącznik szerokości ma NAZWY dostępne - to same ikony", async () => {

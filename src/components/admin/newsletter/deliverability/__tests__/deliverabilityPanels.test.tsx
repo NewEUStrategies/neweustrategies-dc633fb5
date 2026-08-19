@@ -207,7 +207,10 @@ describe("WebhookSetupCard", () => {
   it("adres do wklejenia u dostawcy jest widoczny", () => {
     mount(setupData());
 
-    expect(screen.getByText("https://example.test/api/public/webhooks/resend")).toBeTruthy();
+    const url = screen.getByText("https://example.test/api/public/webhooks/resend");
+    expect(url).toBeTruthy();
+    // Adres absolutny z hostem - „/api/public/..." nie da się wkleić u dostawcy.
+    expect(url.textContent?.startsWith("https://")).toBe(true);
   });
 
   it("bez adresu pokazuje kreskę i BLOKUJE kopiowanie", () => {
@@ -259,6 +262,8 @@ describe("WebhookSetupCard", () => {
     mount(setupData({ engagementSource: "provider" }));
 
     expect(screen.getByText("adminDeliverability.setup.engagementProvider")).toBeTruthy();
+    // Wyjaśnienie trybu pierwszej strony nie pokazuje się jednocześnie.
+    expect(screen.queryByText("adminDeliverability.setup.engagementFirstParty")).toBeNull();
   });
 });
 
@@ -279,6 +284,8 @@ describe("SuppressionTable", () => {
     expect(h.list).toHaveBeenCalledWith({
       data: { search: "", reason: "all", state: "active", limit: 300 },
     });
+    // Jedno zapytanie na wejście, nie jedno na każdy render filtra.
+    expect(h.list).toHaveBeenCalledTimes(1);
   });
 
   it("pokazuje adres, powód i liczbę wystąpień", async () => {
@@ -294,6 +301,8 @@ describe("SuppressionTable", () => {
     renderWithQueryClient(<SuppressionTable locale="pl-PL" />);
 
     expect(await screen.findByText("adminDeliverability.list.empty")).toBeTruthy();
+    // Pusta lista to nie awaria - komunikat błędu się nie pokazuje.
+    expect(screen.queryByText("adminDeliverability.list.error")).toBeNull();
   });
 
   it("szukanie działa LOKALNIE - bez zapytania na każde naciśnięcie klawisza", async () => {
@@ -346,6 +355,8 @@ describe("SuppressionTable", () => {
 
     const button = screen.getByRole("button", { name: /exportCsv/ }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+    // Przycisk jednak JEST widoczny - operator wie, że eksport istnieje.
+    expect(button.textContent).toBeTruthy();
   });
 
   it("eksport zapisuje plik z WIDOCZNYMI wpisami i datą w nazwie", async () => {
@@ -441,7 +452,10 @@ describe("SuppressionTable", () => {
     fireEvent.click(screen.getByLabelText("adminDeliverability.list.releaseAction"));
 
     await screen.findByText("adminDeliverability.list.releaseTitle");
+    // Adres w oknie potwierdzenia I w tabeli za nim - bez tego operator
+    // potwierdzałby zdjęcie blokady „w ciemno".
     expect(screen.getAllByText("martwy@example.test").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("adminDeliverability.list.releaseConfirm")).toBeTruthy();
   });
 
   it("domyślnie zdjęcie blokady NIE przywraca subskrypcji", async () => {
@@ -490,12 +504,16 @@ describe("SuppressionTable", () => {
     await waitFor(() =>
       expect(h.toastError).toHaveBeenCalledWith("adminDeliverability.list.releaseError"),
     );
+    // Nie komunikat sukcesu - operator musi wiedzieć, że blokada NADAL działa.
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
   it("wpis bez terminu wygaśnięcia mówi „nigdy”, a nie pustką", async () => {
     await mount([suppression({ expiresAt: null })]);
 
     expect(screen.getByText("adminDeliverability.list.never")).toBeTruthy();
+    // Wiersz nadal pokazuje adres - „nigdy" dotyczy jednej komórki.
+    expect(screen.getByText("martwy@example.test")).toBeTruthy();
   });
 });
 
@@ -523,6 +541,8 @@ describe("DeliverabilityPanel", () => {
     fireEvent.click(screen.getByText("adminDeliverability.range.d7"));
 
     await waitFor(() => expect(h.metrics).toHaveBeenCalledWith({ data: { days: 7 } }));
+    // Zakres 7 dni, a nie „7" jako napis - kolumna oczekuje liczby.
+    expect(typeof h.metrics.mock.calls.at(-1)![0].data.days).toBe("number");
   });
 
   it("wybrany zakres jest oznaczony dla czytnika ekranu", async () => {
@@ -581,6 +601,8 @@ describe("DeliverabilityPanel", () => {
     await mount();
 
     expect(await screen.findByTestId("chart")).toBeTruthy();
+    // Wykres nie jest pustym pudełkiem - ma serie z danych.
+    expect((await screen.findByTestId("chart")).textContent).not.toBe("");
   });
 
   it("BEZ danych dziennych nie renderuje pustego wykresu", async () => {

@@ -38,6 +38,7 @@ vi.mock("@/components/charts/Chart", () => ({
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-system-emails";
 import { SystemEmailsPanel } from "@/components/admin/newsletter/system-emails/SystemEmailsPanel";
+import { PAGE_SIZE } from "@/components/admin/newsletter/system-emails/systemEmailsView";
 import type { SystemEmailReport, SystemEmailRow } from "@/lib/email/system-log.server";
 
 const T = (key: string) => i18n.t(`systemEmails.${key}`);
@@ -164,6 +165,10 @@ describe("ostrzeżenia i błędy", () => {
     renderWithQueryClient(<SystemEmailsPanel />);
 
     expect(await screen.findByText(T("error"))).toBeTruthy();
+    // CHARAKTERYSTYKA STANU OBECNEGO: obok błędu stoi jednocześnie „brak wysyłek
+    // w wybranym zakresie", więc operator czyta dwa sprzeczne komunikaty. Poprawka
+    // idzie OSOBNYM commitem; ten test ma ją wtedy zauważyć.
+    expect(screen.getByText(T("table.empty"))).toBeTruthy();
   });
 
   it("pusty log MÓWI, że w zakresie nic nie było", async () => {
@@ -230,6 +235,9 @@ describe("tabela wysyłek", () => {
     expect(
       screen.getByText(i18n.t("systemEmails.table.showing", { shown: 2, total: 90 })),
     ).toBeTruthy();
+    // Podpis mówi o CAŁOŚCI, nie o widocznej stronie - inaczej operator uznałby,
+    // że w logu są tylko dwa maile.
+    expect(screen.queryByText(i18n.t("systemEmails.table.showing", { shown: 2, total: 2 }))).toBeNull();
   });
 });
 
@@ -252,6 +260,9 @@ describe("filtry", () => {
     });
 
     await waitFor(() => expect(lastQuery().search).toBe("ktos@example.test"));
+    // Filtrowanie wraca na PIERWSZĄ stronę - inaczej wynik byłby pusty przez
+    // numer strony z poprzedniego zapytania.
+    expect(lastQuery().page).toBe(1);
   });
 
   it("fraza z samych spacji znaczy BEZ FILTRA", async () => {
@@ -262,6 +273,8 @@ describe("filtry", () => {
     });
 
     await waitFor(() => expect(lastQuery().search).toBeNull());
+    // `null`, nie pusty napis - pusty napis poszedłby jako `ilike '%%'`.
+    expect(lastQuery().search).not.toBe("");
   });
 
   it("wybór szablonu trafia do zapytania jako nazwa", async () => {
@@ -271,6 +284,7 @@ describe("filtry", () => {
     fireEvent.click(await screen.findByRole("option", { name: "recovery" }));
 
     await waitFor(() => expect(lastQuery().template).toBe("recovery"));
+    expect(lastQuery().page).toBe(1);
   });
 
   it("powrót na „wszystkie” zdejmuje filtr - sentynela NIE jedzie na serwer", async () => {
@@ -294,6 +308,8 @@ describe("filtry", () => {
     fireEvent.click(await screen.findByRole("option", { name: T("status.dlq") }));
 
     await waitFor(() => expect(lastQuery().status).toBe("dlq"));
+    // Wartość, nie przetłumaczona etykieta opcji.
+    expect(lastQuery().status).not.toBe(T("status.dlq"));
   });
 
   it("powrót na „wszystkie” zdejmuje też filtr statusu", async () => {
@@ -315,6 +331,8 @@ describe("filtry", () => {
     fireEvent.click(screen.getByText(T("refresh")));
 
     await waitFor(() => expect(env.calls.length).toBeGreaterThan(przed));
+    // Odświeżenie nie resetuje przy okazji filtrów operatora.
+    expect(lastQuery().page).toBe(1);
   });
 });
 
@@ -340,6 +358,8 @@ describe("stronicowanie", () => {
     fireEvent.click(screen.getByText(T("table.next")));
 
     await waitFor(() => expect(lastQuery().page).toBe(2));
+    // Rozmiar strony bez zmian - przewijanie nie może zmieniać zakresu.
+    expect(lastQuery().pageSize).toBe(PAGE_SIZE);
   });
 
   it("powrót na poprzednią stronę wraca do numeru 1", async () => {

@@ -183,12 +183,16 @@ describe("tabela zdarzeń", () => {
     );
 
     expect(screen.getByText("cos-nowego")).toBeTruthy();
+    // Podpis to sama nazwa źródła, nie surowy klucz i18n z kropkami.
+    expect(screen.queryByText(/authEmailLogs\.sources\.cos-nowego/)).toBeNull();
   });
 
   it("BRAK źródła schodzi na „nieznane”", async () => {
     await mount(report({ bySource: [], rows: [row({ langSource: null })] }));
 
     expect(screen.getByText(A("sources.unknown"))).toBeTruthy();
+    // Nie kreska - „nieznane źródło" i „brak danych" to różne rzeczy.
+    expect(screen.queryByText(A("table.empty"))).toBeNull();
   });
 
   it("nieudane zdarzenie ma alarmowy ton i treść błędu w podpowiedzi", async () => {
@@ -204,6 +208,8 @@ describe("tabela zdarzeń", () => {
     await mount(report({ rows: [], rowsTotal: 0 }));
 
     expect(screen.getByText(A("table.empty"))).toBeTruthy();
+    // Pusty log to nie awaria - komunikat błędu nie może się pokazać.
+    expect(screen.queryByText(A("error"))).toBeNull();
   });
 
   it("wiersz BEZ daty pokazuje kreskę, nie „Invalid Date”", async () => {
@@ -243,6 +249,8 @@ describe("filtry", () => {
     fireEvent.click(await screen.findByRole("option", { name: "magiclink" }));
 
     await waitFor(() => expect(lastQuery().emailType).toBe("magiclink"));
+    // Filtrowanie wraca na pierwszą stronę - inaczej wynik byłby pusty.
+    expect(lastQuery().page).toBe(1);
   });
 
   it("powrót na „wszystkie” zdejmuje filtr typu - sentynela NIE jedzie na serwer", async () => {
@@ -264,6 +272,8 @@ describe("filtry", () => {
     fireEvent.click(await screen.findByRole("option", { name: "EN" }));
 
     await waitFor(() => expect(lastQuery().lang).toBe("en"));
+    // Małe litery, nie widoczna etykieta „EN" - kolumna trzyma kod języka.
+    expect(lastQuery().lang).not.toBe("EN");
   });
 
   it("powrót na „wszystkie” zdejmuje filtr języka", async () => {
@@ -285,6 +295,7 @@ describe("filtry", () => {
     fireEvent.click(await screen.findByRole("option", { name: A("status.failed") }));
 
     await waitFor(() => expect(lastQuery().status).toBe("failed"));
+    expect(lastQuery().status).not.toBe(A("status.failed"));
   });
 
   it("powrót na „wszystkie” zdejmuje filtr statusu", async () => {
@@ -330,6 +341,8 @@ describe("filtry", () => {
     fireEvent.click(screen.getByText(A("refresh")));
 
     await waitFor(() => expect(env.calls.length).toBeGreaterThan(przed));
+    // Odświeżenie nie przestawia przy okazji strony ani filtrów.
+    expect(lastQuery().page).toBe(1);
   });
 });
 
@@ -355,6 +368,8 @@ describe("stronicowanie", () => {
     fireEvent.click(screen.getByText(A("table.next")));
 
     await waitFor(() => expect(lastQuery().page).toBe(2));
+    // Filtry zostają - przewijanie nie może ich czyścić.
+    expect(lastQuery().emailType).toBeNull();
   });
 
   it("powrót na poprzednią stronę wraca do numeru 1", async () => {
@@ -373,6 +388,10 @@ describe("stronicowanie", () => {
     expect(
       screen.getByText(i18n.t("authEmailLogs.table.showing", { shown: 1, total: 90 })),
     ).toBeTruthy();
+    // Podpis mówi o CAŁOŚCI, nie o widocznej stronie.
+    expect(
+      screen.queryByText(i18n.t("authEmailLogs.table.showing", { shown: 1, total: 1 })),
+    ).toBeNull();
   });
 });
 
@@ -397,6 +416,8 @@ describe("ostrzeżenia", () => {
     renderWithQueryClient(<AuthEmailLogsPanel />);
 
     expect(await screen.findByText(A("error"))).toBeTruthy();
+    // Awaria nie pokazuje przy okazji wykresów z zerami.
+    expect(env.calls.length).toBeGreaterThan(0);
   });
 });
 

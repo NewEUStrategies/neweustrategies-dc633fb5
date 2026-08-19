@@ -105,18 +105,24 @@ describe("dane podstawowe", () => {
     await mount(subscriber({ source: null, source_form_name: null }));
 
     expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
+    // Kreska, nie słowo „null" ani pusta komórka bez wysokości.
+    expect(screen.queryByText("null")).toBeNull();
   });
 
   it("nazwa wyświetlana trafia do podtytułu", async () => {
     await mount();
 
     expect(screen.getByText("Anna Nowak")).toBeTruthy();
+    // Adres też jest widoczny - nazwa go nie zastępuje.
+    expect(screen.getByText("anna@example.test")).toBeTruthy();
   });
 
   it("bez nazwy wyświetlanej podtytuł składa się z imienia i nazwiska", async () => {
     await mount(subscriber({ display_name: null }));
 
     expect(screen.getByText("Anna Nowak")).toBeTruthy();
+    // Sklejka z imienia i nazwiska, bez podwójnej spacji w środku.
+    expect(screen.queryByText("Anna  Nowak")).toBeNull();
   });
 });
 
@@ -143,12 +149,15 @@ describe("zgody - dowód zgody marketingowej", () => {
     await mount(subscriber({ consents: null }));
 
     expect(screen.getByText("Brak zapisanych zgod.")).toBeTruthy();
+    // Sekcja zgód jednak jest - komunikat stoi w niej, nie zamiast niej.
+    expect(screen.getByText("Zgody")).toBeTruthy();
   });
 
   it("pusta tablica zgód też daje jasny komunikat", async () => {
     await mount(subscriber({ consents: [] }));
 
     expect(screen.getByText("Brak zapisanych zgod.")).toBeTruthy();
+    expect(screen.getByText("Zgody")).toBeTruthy();
   });
 
   it("zgoda UDZIELONA jest oznaczona jako udzielona", async () => {
@@ -227,6 +236,7 @@ describe("metadane", () => {
     await mount(subscriber({ meta: null }));
 
     expect(screen.getByText("Brak metadanych.")).toBeTruthy();
+    expect(screen.getByText("Metadane")).toBeTruthy();
   });
 
   it("pary klucz-wartość są wypisane", async () => {
@@ -241,6 +251,8 @@ describe("metadane", () => {
     await mount(subscriber({ meta: "to nie obiekt" }));
 
     expect(screen.getByText("Brak metadanych.")).toBeTruthy();
+    // Wartość nie wycieka do panelu jako treść.
+    expect(screen.queryByText("to nie obiekt")).toBeNull();
   });
 });
 
@@ -249,6 +261,8 @@ describe("klient (user agent)", () => {
     await mount(subscriber({ user_agent: null }));
 
     expect(screen.queryByText("Klient")).toBeNull();
+    // Reszta okna nadal jest - brak sekcji to nie brak okna.
+    expect(screen.getByText("anna@example.test")).toBeTruthy();
   });
 
   it("zapisany user agent jest widoczny - to część śladu zgody", async () => {

@@ -152,6 +152,9 @@ describe("nagłówek", () => {
     fireEvent.change(screen.getByDisplayValue("Tytuł"), { target: { value: "Nowy" } });
 
     expect(lastPatch(onChange).text).toEqual({ pl: "Nowy", en: "Title" });
+    // Identyfikator i typ bloku zostają - inaczej edycja treści tworzyłaby
+    // nowy blok, a zaznaczenie w kreatorze wskazywałoby w pustkę.
+    expect(lastPatch(onChange)).toMatchObject({ id: block.id, type: "heading" });
   });
 
   it("zmiana wersji ANGIELSKIEJ zachowuje polską", () => {
@@ -161,6 +164,7 @@ describe("nagłówek", () => {
     fireEvent.change(screen.getByDisplayValue("Title"), { target: { value: "New" } });
 
     expect(lastPatch(onChange).text).toEqual({ pl: "Tytuł", en: "New" });
+    expect(lastPatch(onChange)).toMatchObject({ id: block.id, type: "heading" });
   });
 
   it("oba języki mają WIDOCZNE, opisane pola", () => {
@@ -265,6 +269,9 @@ describe("obraz", () => {
     fireEvent.click(screen.getByText(L("remove")));
 
     expect(lastPatch(onChange).url).toBeNull();
+    // Pusty napis dałby w mailu <img src=""> - przeglądarka pobiera wtedy
+    // samą stronę i pokazuje ikonę błędu.
+    expect(lastPatch(onChange).url).not.toBe("");
   });
 
   it("tekst alternatywny patchuje się - obraz bez opisu jest niedostępny", () => {
@@ -284,6 +291,8 @@ describe("obraz", () => {
     });
 
     expect(lastPatch(onChange).href).toBeNull();
+    // Opis alternatywny ZOSTAJE - czyszczenie linku nie rusza dostępności.
+    expect(lastPatch(onChange).alt).toBe("Opis");
   });
 });
 
@@ -382,6 +391,8 @@ describe("blok najnowszych wpisów", () => {
     fireEvent.click(await screen.findByRole("option", { name: L("layoutCards") }));
 
     expect(lastPatch(onChange).layout).toBe("cards");
+    // Wartość, nie przetłumaczona etykieta opcji.
+    expect(lastPatch(onChange).layout).not.toBe(L("layoutCards"));
   });
 
   it("liczba wpisów jest PRZYCINANA do 1-10", () => {
@@ -401,6 +412,8 @@ describe("blok najnowszych wpisów", () => {
     fireEvent.change(container.querySelector('input[type="number"]')!, { target: { value: "" } });
 
     expect(lastPatch(onChange).count).toBe(3);
+    // Liczba, nie NaN - NaN w dokumencie wywala renderer maila.
+    expect(Number.isFinite(lastPatch(onChange).count)).toBe(true);
   });
 
   it("wyczyszczona kategoria zapisuje NULL - pusty slug nie filtruje niczego", () => {
@@ -409,6 +422,7 @@ describe("blok najnowszych wpisów", () => {
     fireEvent.change(screen.getByDisplayValue("eu"), { target: { value: "" } });
 
     expect(lastPatch(onChange).categorySlug).toBeNull();
+    expect(lastPatch(onChange).categorySlug).not.toBe("");
   });
 
   it("przełącznik zajawek patchuje BOOLEAN", () => {
@@ -426,6 +440,8 @@ describe("blok najnowszych wpisów", () => {
     fireEvent.change(screen.getByDisplayValue("Ostatnio"), { target: { value: "Nowości" } });
 
     expect(lastPatch(onChange).heading).toEqual({ pl: "Nowości", en: "Recently" });
+    // Angielska wersja zostaje - dwujęzyczność jest tu warunkiem, nie dodatkiem.
+    expect(lastPatch(onChange).heading!.en).toBe("Recently");
   });
 });
 
@@ -468,6 +484,8 @@ describe("ręczny wybór wpisów", () => {
     fireEvent.click(screen.getAllByRole("checkbox")[0]!);
 
     expect(lastPatch(onChange).postIds).toEqual(["p1"]);
+    // Identyfikator, nie slug ani tytuł - to on wiąże blok z wpisem.
+    expect(lastPatch(onChange).postIds).not.toContain("pierwszy");
   });
 
   it("odznaczenie ZDEJMUJE wpis, zostawiając pozostałe", async () => {
@@ -478,6 +496,8 @@ describe("ręczny wybór wpisów", () => {
     fireEvent.click(screen.getAllByRole("checkbox")[0]!);
 
     expect(lastPatch(onChange).postIds).toEqual(["p2"]);
+    // Odznaczenie zdejmuje JEDEN wpis, nie czyści całego wyboru.
+    expect(lastPatch(onChange).postIds).toHaveLength(1);
   });
 
   it("licznik pokazuje, ILE z dziesięciu jest wybranych", async () => {

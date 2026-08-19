@@ -135,6 +135,9 @@ describe("wskaźniki listy", () => {
     });
 
     await waitFor(() => expect(kpi("Wzrost 30d")).toBe("100%"));
+    // Licznik to ostatnie 30 dni (dwa zapisy), mianownik poprzednie (jeden) -
+    // podpowiedź kafla subskrybentów mówi to wprost.
+    expect(screen.getByText("+2 w 30 dni")).toBeTruthy();
   });
 
   it("wypisania liczą się po DACIE wypisania", async () => {
@@ -143,12 +146,15 @@ describe("wskaźniki listy", () => {
     });
 
     await waitFor(() => expect(kpi("Wypisania 30d")).toBe("1"));
+    // Data ZAPISU obu wierszy jest starsza niż 30 dni, więc nowych nie ma.
+    expect(screen.getByText("+0 w 30 dni")).toBeTruthy();
   });
 
   it("podpowiedź opt-in mówi, czy double opt-in jest aktywny", async () => {
     await mounted({ settings: { double_opt_in: true } });
 
     expect(screen.getByText("Double opt-in aktywny")).toBeTruthy();
+    expect(screen.queryByText("Bez double opt-in")).toBeNull();
   });
 
   it("wyłączony double opt-in jest podpisany wprost", async () => {
@@ -156,6 +162,7 @@ describe("wskaźniki listy", () => {
     await mounted({ settings: { double_opt_in: false } });
 
     expect(screen.getByText("Bez double opt-in")).toBeTruthy();
+    expect(screen.queryByText("Double opt-in aktywny")).toBeNull();
   });
 });
 
@@ -229,6 +236,8 @@ describe("ustawienia logiki", () => {
     fireEvent.click(screen.getAllByRole("checkbox")[0]!);
 
     expect(saveButton()).toHaveProperty("disabled", false);
+    // Przełącznik naprawdę zmienił stan - odblokowanie bez zmiany byłoby fałszywe.
+    expect(screen.getAllByRole("checkbox")[0]!.getAttribute("aria-checked")).toBe("false");
   });
 
   it("double opt-in daje się ZDJĄĆ i wraca w zapisie jako false", async () => {
@@ -431,6 +440,8 @@ describe("podgląd i raport zdarzeń", () => {
     await mounted();
 
     expect(screen.getByTestId("zdarzenia-popupu")).toBeTruthy();
+    // Kafel jest w podsumowaniu, nie zamiast niego - wskaźniki nadal są.
+    expect(screen.getByText("Subskrybenci")).toBeTruthy();
   });
 
   it("pokazuje OBA podglądy obok siebie", async () => {

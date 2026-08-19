@@ -155,6 +155,10 @@ describe("zapis", () => {
     });
 
     expect(saveButton()).toHaveProperty("disabled", false);
+    // Pole trzyma nową wartość - odblokowany zapis bez zmiany byłby fałszywy.
+    expect((screen.getByLabelText(fieldLabel("subject")) as HTMLInputElement).value).toBe(
+      "Nowy temat",
+    );
   });
 
   it("zapisana treść trafia do POLA i TYPU, który operator edytował", async () => {
@@ -166,6 +170,8 @@ describe("zapis", () => {
 
     const value = await saved();
     expect(value.team_seat_grace.pl.subject).toBe("Temat karencji");
+    // Angielska wersja tego samego pola zostaje pusta - edytowaliśmy polską.
+    expect(value.team_seat_grace.en.subject).toBe("");
   });
 
   it("zapis NIE wyciera nadpisań pozostałych typów maili", async () => {
@@ -199,6 +205,8 @@ describe("zapis", () => {
 
     const value = await saved();
     expect(value.team_seat_grace.pl).toMatchObject({ heading: "Nagłówek", subject: "Temat" });
+    // Druga wersja językowa też nie została wytarta.
+    expect(value.team_seat_grace.en).toBeTruthy();
   });
 
   it("pole WIELOLINIJKOWE też patchuje - wstęp maila to najdłuższa treść", async () => {
@@ -225,6 +233,8 @@ describe("zapis", () => {
       const chain = stub.chainsFor("site_settings").find((c) => c.has("upsert"));
       expect((chain?.argsOf("upsert")?.[0] as { key: string }).key).toBe(TX_OVERRIDES_SETTING_KEY);
     });
+    // Zapis idzie UPSERT-em, nie zwykłym insertem - drugi zapis nadpisuje pierwszy.
+    expect(stub.chainsFor("site_settings").some((c) => c.has("insert"))).toBe(false);
   });
 
   it("udany zapis potwierdza się komunikatem", async () => {
@@ -234,6 +244,8 @@ describe("zapis", () => {
     await saved();
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    // Udany zapis nie pokazuje przy okazji błędu.
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("BŁĄD zapisu jest widoczny - cicha porażka to utracona treść", async () => {

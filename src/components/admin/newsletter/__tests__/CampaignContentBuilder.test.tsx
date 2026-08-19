@@ -235,6 +235,8 @@ describe("lista bloków", () => {
     mount(docOf(trzy()));
 
     expect(screen.getByText(`${B("properties")}: ${blockLabel("heading")}`)).toBeTruthy();
+    // Nie komunikat „wybierz blok" - operator ma od razu co edytować.
+    expect(screen.queryByText(B("selectBlock"))).toBeNull();
   });
 
   it("kliknięcie podpisu przestawia panel na ten blok", () => {
@@ -290,6 +292,8 @@ describe("lista bloków", () => {
 
     const heading = lastDoc(onDoc).blocks[0] as { text: { pl: string; en: string } };
     expect(heading.text).toEqual({ pl: "Nowy tytuł", en: "Title" });
+    // Pozostałe bloki dokumentu zostają nietknięte.
+    expect(lastDoc(onDoc).blocks).toHaveLength(3);
   });
 
   it("podpisy bloków idą za językiem interfejsu", async () => {
@@ -478,6 +482,8 @@ describe("przestawianie bloków przeciąganiem", () => {
       blockLabel("heading"),
       blockLabel("paragraph"),
     ]);
+    // Trzy bloki, nie cztery - przeniesienie nie kopiuje.
+    expect(screen.getAllByLabelText(B("remove"))).toHaveLength(3);
   });
 
   it("upuszczenie POZA listą nie zapisuje nowego stanu formularza", () => {
