@@ -35,7 +35,11 @@ function captureObserver() {
   class Stub implements IntersectionObserver {
     readonly root = null;
     readonly rootMargin = "";
+    // `scrollMargin` doszedł do lib.dom w nowszym TS - stub musi mieć komplet
+    // pól interfejsu, inaczej typecheck (TS2420) blokuje CI.
+    readonly scrollMargin = "";
     readonly thresholds: readonly number[] = [];
+
     constructor(cb: IntersectionObserverCallback) {
       state.callbacks.push(cb);
     }
