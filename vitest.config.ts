@@ -874,6 +874,62 @@ export default defineConfig({
           lines: 96,
           branches: 90,
         },
+        // ── MAILE SYSTEMOWE: LOG, TREŚCI, PODGLĄD ────────────────────────────
+        // Te trzy panele są ostatnim miejscem, w którym widać, co poszło (albo
+        // pójdzie) do prawdziwego adresata - i każdy z nich ZAWSZE coś pokazuje,
+        // więc pomyłka jest cicha: pusta tabela wygląda jak „nic nie
+        // wysłaliśmy", kreska jak „brak danych", puste okno jak awaria panelu.
+        //
+        // Reguły pod progiem:
+        //  * sentynela „wszystkie" w filtrach jest NIEPUSTA (Radix wywala się na
+        //    `SelectItem value=""` - ten sam defekt zdjął już raz wybór kolumn w
+        //    imporcie CSV) i przy zapytaniu MUSI wrócić na `null`; puszczona
+        //    dalej jako nazwa szablonu filtruje log do zera;
+        //  * pusty log ma JEDNĄ stronę, nie zero - inaczej „następna" prowadzi
+        //    w nicość;
+        //  * brak wskaźnika doręczenia to KRESKA, nie „0%";
+        //  * nadpisanie treści maila trafia w jeden typ, jeden język i jedno
+        //    pole - zapis nadpisujący cały obiekt wyciera nadpisania innych
+        //    typów, a zauważy to dopiero odbiorca;
+        //  * reset dotyczy JEDNEGO języka - reset obu wyciera pracę tłumacza;
+        //  * zmiana zakresu podglądu przestawia typ na należący do tego zakresu,
+        //    inaczej okno zostaje puste.
+        "src/components/admin/newsletter/system-emails/systemEmailsView.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/newsletter/system-emails/txContentRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/newsletter/system-emails/authPreviewRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/newsletter/system-emails/SystemEmailsPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/components/admin/newsletter/system-emails/TxEmailContentPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        "src/components/admin/newsletter/system-emails/AuthEmailPreviewPanel.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
         // ── KREATOR TREŚCI KAMPANII ──────────────────────────────────────────
         // Kampania jedzie do CAŁEJ listy i nie da się jej odwołać, więc reguły
         // edytora bloków są tu przybite osobno:

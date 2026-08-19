@@ -26,20 +26,22 @@ import {
 } from "@/lib/system-emails.functions";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-system-emails";
-
-const RANGES = [1, 7, 30] as const;
-type Range = (typeof RANGES)[number];
-
-const STATUSES: readonly SystemEmailStatus[] = ["sent", "pending", "dlq", "suppressed"];
-
-const PAGE_SIZE = 50;
-
-function statusTone(status: SystemEmailStatus): string {
-  if (status === "sent") return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-  if (status === "pending") return "bg-amber-500/10 text-amber-600 border-amber-500/20";
-  if (status === "suppressed") return "bg-muted text-muted-foreground border-border";
-  return "bg-destructive/10 text-destructive border-destructive/20";
-}
+import {
+  ALL_OPTION,
+  PAGE_SIZE,
+  RANGES,
+  STATUSES,
+  chartValues,
+  dayLabel,
+  deliveryRateLabel,
+  filterOption,
+  filterValue,
+  rowTimestamp,
+  searchValue,
+  statusTone,
+  totalPages as totalPagesFor,
+  type Range,
+} from "./systemEmailsView";
 
 export function SystemEmailsPanel() {
   const { t, i18n } = useTranslation();
@@ -60,7 +62,7 @@ export function SystemEmailsPanel() {
           days,
           template,
           status,
-          search: search.trim() ? search.trim() : null,
+          search: searchValue(search),
           page,
           pageSize: PAGE_SIZE,
         },
@@ -72,22 +74,18 @@ export function SystemEmailsPanel() {
   const chart: ChartConfig | null = useMemo(() => {
     const series = data?.series ?? [];
     if (series.length === 0) return null;
-    const label = (day: string) =>
-      new Date(`${day}T00:00:00Z`).toLocaleDateString(locale, {
-        day: "numeric",
-        month: "short",
-      });
+    const values = chartValues(series);
     return {
       kind: "line",
       title: t("systemEmails.chart.title"),
       description: "",
-      categories: series.map((p) => label(p.day)),
+      categories: series.map((p) => dayLabel(p.day, locale)),
       series: [
-        { name: t("systemEmails.chart.sent"), values: series.map((p) => p.sent), colorSlot: 1 },
-        { name: t("systemEmails.chart.failed"), values: series.map((p) => p.failed), colorSlot: 2 },
+        { name: t("systemEmails.chart.sent"), values: values.sent, colorSlot: 1 },
+        { name: t("systemEmails.chart.failed"), values: values.failed, colorSlot: 2 },
         {
           name: t("systemEmails.chart.suppressed"),
-          values: series.map((p) => p.suppressed),
+          values: values.suppressed,
           colorSlot: 3,
         },
       ],
@@ -103,7 +101,7 @@ export function SystemEmailsPanel() {
   }, [data?.series, locale, t]);
 
   const rows: SystemEmailRow[] = data?.rows ?? [];
-  const totalPages = Math.max(1, Math.ceil((data?.rowsTotal ?? 0) / PAGE_SIZE));
+  const totalPages = totalPagesFor(data?.rowsTotal ?? 0);
 
   const kpis = [
     { key: "total", value: data?.totals.total ?? 0 },
@@ -181,9 +179,7 @@ export function SystemEmailsPanel() {
         <div className="rounded-[6px] border border-border bg-card p-4">
           <p className="text-[0.75rem] text-muted-foreground">{t("systemEmails.kpi.rate")}</p>
           <p className="font-display text-2xl mt-1 tabular-nums">
-            {data?.deliveryRate === null || data?.deliveryRate === undefined
-              ? "-"
-              : `${(data.deliveryRate * 100).toFixed(1)}%`}
+            {deliveryRateLabel(data?.deliveryRate)}
           </p>
         </div>
       </div>
@@ -211,9 +207,9 @@ export function SystemEmailsPanel() {
           />
         </div>
         <Select
-          value={template ?? "all"}
+          value={filterOption(template)}
           onValueChange={(value) => {
-            setTemplate(value === "all" ? null : value);
+            setTemplate(filterValue(value));
             setPage(1);
           }}
         >
@@ -221,7 +217,7 @@ export function SystemEmailsPanel() {
             <SelectValue placeholder={t("systemEmails.filters.template")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("systemEmails.filters.all")}</SelectItem>
+            <SelectItem value={ALL_OPTION}>{t("systemEmails.filters.all")}</SelectItem>
             {(data?.templates ?? []).map((name) => (
               <SelectItem key={name} value={name}>
                 {name}
@@ -230,9 +226,9 @@ export function SystemEmailsPanel() {
           </SelectContent>
         </Select>
         <Select
-          value={status ?? "all"}
+          value={filterOption(status)}
           onValueChange={(value) => {
-            setStatus(value === "all" ? null : (value as SystemEmailStatus));
+            setStatus(filterValue(value) as SystemEmailStatus | null);
             setPage(1);
           }}
         >
@@ -240,7 +236,7 @@ export function SystemEmailsPanel() {
             <SelectValue placeholder={t("systemEmails.filters.status")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("systemEmails.filters.all")}</SelectItem>
+            <SelectItem value={ALL_OPTION}>{t("systemEmails.filters.all")}</SelectItem>
             {STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {t(`systemEmails.status.${s}`)}
@@ -291,12 +287,7 @@ export function SystemEmailsPanel() {
                     </span>
                   </td>
                   <td className="px-4 py-2 tabular-nums text-muted-foreground">
-                    {row.createdAt
-                      ? new Date(row.createdAt).toLocaleString(locale, {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })
-                      : "-"}
+                    {rowTimestamp(row.createdAt, locale)}
                   </td>
                   <td className="px-4 py-2 text-destructive max-w-[280px] truncate">
                     {row.errorMessage ?? ""}
