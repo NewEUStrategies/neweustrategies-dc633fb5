@@ -82,12 +82,13 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: unknown }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href: to }, children as never);
-  },
-}));
+// Wspólna atrapa `<Link>` z `@/test/routerLinkStub` - lokalna wersja sięgała po
+// `require("react")`, co jest zakazane przez `@typescript-eslint/no-require-imports`
+// (jedyny BŁĄD lintu w repo, resztę stanowią ostrzeżenia).
+vi.mock("@tanstack/react-router", async () => {
+  const { RouterLinkStub } = await import("@/test/routerLinkStub");
+  return { Link: RouterLinkStub };
+});
 
 vi.mock("sonner", () => ({
   toast: {

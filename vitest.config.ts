@@ -776,6 +776,33 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // Deklaracje server functions wydarzeń. Repo trzyma w nich WYŁĄCZNIE
+        // deklarację (wymóg tss-serverfn-split), ale niosą dwie rzeczy, których
+        // nie ma nigdzie indziej: walidator wejścia - jedyną barierę między
+        // publicznym POST-em a kolumną `uuid` - oraz granicę uprawnień
+        // (`getMyEventTicket` czyta klientem WOŁAJĄCEGO, `getEventSeatState`
+        // jest świadomie publiczny, bo licznik miejsc działa przed logowaniem).
+        "src/lib/events/{ticket,rsvp-email}.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Rejestr ikon programów: ikony importowane PO NAZWIE, nie przez
+        // `import * as LucideIcons` - namespace zaciąga całą bibliotekę do
+        // publicznego bundla i nie widać tego ani w testach, ani w recenzji.
+        "src/lib/programs/icons.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/programs/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         "src/lib/events/kinds.ts": {
           statements: 100,
           functions: 100,
