@@ -11,39 +11,30 @@
 //   - pointerdown na pasku NIE czyści zaznaczenia (preventDefault) - klik
 //     w akcję działa na żywym zaznaczeniu,
 //   - czysto kliencki (document.getSelection) - SSR renderuje null.
+//
+// Reguły (limity długości, budżet znaków dla X, adresy udostępnień, treść
+// schowka) żyją w czystym module `lib/post/quoteSelection`. Powód jest twardy:
+// bez PRAWDZIWEGO zaznaczenia w prawdziwym DOM-ie ten komponent nie renderuje
+// niczego (`if (!state) return null`), więc dowód poprawności tekstu, który
+// czytelnik wkleja w imieniu redakcji, wymagałby sterowania
+// `window.getSelection()`. Trzy identyczne przyciski ikonowe scala atom
+// `atoms/PostIconButton`.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Copy, Check, Quote, Linkedin } from "@/lib/lucide-shim";
 import { SITE_NAME } from "@/lib/seo/meta";
-
-const COPY_TEXTS = {
-  pl: {
-    shareX: "Udostępnij cytat na X",
-    shareLinkedin: "Udostępnij na LinkedIn",
-    copy: "Kopiuj cytat",
-    copied: "Skopiowano cytat",
-    region: "Udostępnij zaznaczony cytat",
-  },
-  en: {
-    shareX: "Share quote on X",
-    shareLinkedin: "Share on LinkedIn",
-    copy: "Copy quote",
-    copied: "Quote copied",
-    region: "Share selected quote",
-  },
-} as const;
-
-const MIN_QUOTE_LEN = 8;
-const MAX_QUOTE_LEN = 600;
-/** X liczy każdy URL jako 23 znaki; zostawiamy też cudzysłowy i separator. */
-const X_TEXT_BUDGET = 280 - 23 - 6;
-
-interface BarState {
-  quote: string;
-  top: number;
-  left: number;
-}
+import { PostIconButton } from "@/components/post/atoms/PostIconButton";
+import {
+  attributedQuote,
+  clipboardQuote,
+  linkedinShareUrl,
+  quoteBarState,
+  xShareUrl,
+  type QuoteBarState,
+} from "@/lib/post/quoteSelection";
+import "@/lib/i18n-post-experience";
 
 export function QuoteShareBar({
   containerRef,
@@ -54,13 +45,15 @@ export function QuoteShareBar({
   url: string;
   lang: "pl" | "en";
 }) {
-  const t = COPY_TEXTS[lang];
-  const [state, setState] = useState<BarState | null>(null);
+  // Napisy idą w języku ARTYKUŁU, nie interfejsu - dotyczą TEJ treści.
+  const { t: translate } = useTranslation();
+  const t = (key: string) => translate(`postExperience.quoteShare.${key}`, { lng: lang });
+  const [state, setState] = useState<QuoteBarState | null>(null);
   const [copied, setCopied] = useState(false);
   const barRef = useRef<HTMLDivElement | null>(null);
   const copyTimer = useRef<number | null>(null);
 
-  const readSelection = useCallback((): BarState | null => {
+  const readSelection = useCallback((): QuoteBarState | null => {
     const sel = typeof window !== "undefined" ? window.getSelection() : null;
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
     const container = containerRef.current;
@@ -70,16 +63,8 @@ export function QuoteShareBar({
     if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
       return null;
     }
-    const quote = sel.toString().replace(/\s+/g, " ").trim();
-    if (quote.length < MIN_QUOTE_LEN || quote.length > MAX_QUOTE_LEN) return null;
-    const rect = range.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return null;
-    return {
-      quote,
-      // Pozycja fixed: nad zaznaczeniem, wyśrodkowana; clamp do viewportu.
-      top: Math.max(8, rect.top - 44),
-      left: Math.min(Math.max(rect.left + rect.width / 2, 90), window.innerWidth - 90),
-    };
+    // Limity długości i pozycję paska rozstrzyga reguła, nie komponent.
+    return quoteBarState(sel.toString(), range.getBoundingClientRect(), window.innerWidth);
   }, [containerRef]);
 
   useEffect(() => {
@@ -112,26 +97,19 @@ export function QuoteShareBar({
   };
 
   const onShareX = () => {
-    const quote =
-      state.quote.length > X_TEXT_BUDGET
-        ? `${state.quote.slice(0, X_TEXT_BUDGET - 1).trimEnd()}…`
-        : state.quote;
-    const text = `„${quote}”`;
-    openShare(
-      `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
-    );
+    openShare(xShareUrl(state.quote, url));
   };
 
   const onShareLinkedin = () => {
     // LinkedIn share-offsite przyjmuje tylko URL; cytat kopiujemy do schowka,
     // żeby dało się go wkleić w okno posta.
-    void navigator.clipboard.writeText(`„${state.quote}”`).catch(() => undefined);
-    openShare(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
+    void navigator.clipboard.writeText(clipboardQuote(state.quote)).catch(() => undefined);
+    openShare(linkedinShareUrl(url));
   };
 
   const onCopy = async () => {
     try {
-      await navigator.clipboard.writeText(`„${state.quote}” - ${SITE_NAME}, ${url}`);
+      await navigator.clipboard.writeText(attributedQuote(state.quote, SITE_NAME, url));
       setCopied(true);
       if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 1600);
@@ -144,7 +122,7 @@ export function QuoteShareBar({
     <div
       ref={barRef}
       role="toolbar"
-      aria-label={t.region}
+      aria-label={t("region")}
       // preventDefault na pointerdown: klik w pasek nie może zdjąć zaznaczenia
       // zanim odpali się akcja.
       onPointerDown={(e) => e.preventDefault()}
@@ -154,33 +132,15 @@ export function QuoteShareBar({
       <span className="px-1.5 text-muted-foreground" aria-hidden="true">
         <Quote className="h-3.5 w-3.5" />
       </span>
-      <button
-        type="button"
-        onClick={onShareX}
-        aria-label={t.shareX}
-        title={t.shareX}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition"
-      >
+      <PostIconButton label={t("shareX")} onClick={onShareX}>
         <XIcon className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        onClick={onShareLinkedin}
-        aria-label={t.shareLinkedin}
-        title={t.shareLinkedin}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition"
-      >
+      </PostIconButton>
+      <PostIconButton label={t("shareLinkedin")} onClick={onShareLinkedin}>
         <BrandIcon name="linkedin" fallback={Linkedin} className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        onClick={() => void onCopy()}
-        aria-label={copied ? t.copied : t.copy}
-        title={copied ? t.copied : t.copy}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition"
-      >
+      </PostIconButton>
+      <PostIconButton label={copied ? t("copied") : t("copy")} onClick={() => void onCopy()}>
         {copied ? <Check className="h-3.5 w-3.5 text-brand" /> : <Copy className="h-3.5 w-3.5" />}
-      </button>
+      </PostIconButton>
     </div>
   );
 }

@@ -3,6 +3,68 @@ import i18n from "@/lib/i18n";
 
 const pl = {
   adminPostPanes: {
+    keyTakeaways: {
+      pageTitle: "Sekcja: Z tego artykułu dowiesz się…",
+      pageIntro:
+        "Globalne ustawienia sekcji wyświetlanej nad treścią każdego wpisu. Punkty listy autor uzupełnia w edytorze wpisu (per PL/EN).",
+      save: "Zapisz",
+      saving: "Zapisywanie…",
+      reset: "Przywróć domyślne",
+      enabled: "Widoczna globalnie",
+      enabledHint:
+        "Wyłączenie ukrywa sekcję na wszystkich wpisach niezależnie od uzupełnionych punktów.",
+      variantHeading: "Wariant wizualny",
+      variant: {
+        card: { badge: "Wariant A", desc: "Karta z ikoną + numeracja" },
+        heading: { badge: "Wariant B", desc: "Duży nagłówek + kropki" },
+        ghost: { badge: "Wariant C", desc: "Nagłówek za tekstem (ghost)" },
+      },
+      labelHeading: "Etykieta (nagłówek sekcji)",
+      labelPl: "Etykieta (PL)",
+      labelEn: "Etykieta (EN)",
+      highlightHeading: "Podświetlenie słów (wariant ghost)",
+      highlightHint:
+        "Kliknij słowa etykiety, które mają być pokolorowane. Wszystkie zachowują ten sam rozmiar i transparentność - zmienia się tylko kolor.",
+      highlightWords: {
+        pl: "Słowa do podświetlenia (PL)",
+        en: "Słowa do podświetlenia (EN)",
+      },
+      highlightColor: "Kolor podświetlenia",
+      highlightSize: "Rozmiar napisu ghost",
+      highlightOffset: "Przesunięcie etykiety w pionie",
+      highlightOffsetReset: "Wyzeruj przesunięcie",
+      iconHeading: "Ikona (Lucide)",
+      iconNameLabel: "Nazwa ikony Lucide",
+      iconHint: "Dowolna nazwa z lucide.dev (kebab-case, np. book-open).",
+      colorsHeading: "Kolory",
+      colorField: {
+        bg: "Tło (jasny motyw)",
+        bgDark: "Tło (ciemny motyw)",
+        accent: "Akcent",
+        iconBg: "Tło ikony",
+        icon: "Ikona",
+        title: "Tytuł (jasny motyw)",
+        titleDark: "Tytuł (ciemny motyw)",
+        text: "Tekst (jasny motyw)",
+        textDark: "Tekst (ciemny motyw)",
+        border: "Obramowanie (jasny motyw)",
+        borderDark: "Obramowanie (ciemny motyw)",
+      },
+      borderWidth: "Grubość obramowania",
+      previewHeading: "Podgląd na żywo",
+      previewLang: "Język podglądu",
+      previewVariant: "Wariant podglądu",
+      previewNote:
+        "Podgląd renderuje ten sam komponent co publiczna strona wpisu (nad treścią). Punkty listy pochodzą z pól sekcji w edytorze konkretnego wpisu (PL / EN).",
+      sample: {
+        first:
+          "Jak Orbit Capital zebrał ponad 100 mln euro na fundusz venture debt i dlaczego udział PFR Ventures może być ważnym sygnałem.",
+        second:
+          "Dlaczego coraz więcej dojrzałych spółek technologicznych może szukać finansowania innego niż klasyczne rundy VC.",
+        third:
+          "Jak działa model venture debt, który pozwala firmom zdobywać kapitał na wzrost bez oddawania dużych pakietów udziałów.",
+      },
+    },
     access: {
       saveContentFirst: "Najpierw zapisz treść, aby ustawić dostęp.",
       setPasswordForMode: "Ustaw hasło dla trybu „Hasło”.",
@@ -452,6 +514,66 @@ const pl = {
 
 const en = {
   adminPostPanes: {
+    keyTakeaways: {
+      pageTitle: "Section: From this article you will learn…",
+      pageIntro:
+        "Global settings for the section shown above every post's content. Bullet points are entered per post (PL/EN) in the post editor.",
+      save: "Save",
+      saving: "Saving…",
+      reset: "Restore defaults",
+      enabled: "Globally visible",
+      enabledHint: "Disabling hides the section on every post, regardless of filled items.",
+      variantHeading: "Visual variant",
+      variant: {
+        card: { badge: "Variant A", desc: "Card with icon + numbered" },
+        heading: { badge: "Variant B", desc: "Bold heading + bullets" },
+        ghost: { badge: "Variant C", desc: "Ghost heading behind text" },
+      },
+      labelHeading: "Label (section heading)",
+      labelPl: "Label (PL)",
+      labelEn: "Label (EN)",
+      highlightHeading: "Word highlight (ghost variant)",
+      highlightHint:
+        "Click the label words that should be tinted. All words keep the same size and transparency - only the color changes.",
+      highlightWords: {
+        pl: "Words to highlight (PL)",
+        en: "Words to highlight (EN)",
+      },
+      highlightColor: "Highlight color",
+      highlightSize: "Ghost text size",
+      highlightOffset: "Label vertical offset",
+      highlightOffsetReset: "Reset offset",
+      iconHeading: "Icon (Lucide)",
+      iconNameLabel: "Lucide icon name",
+      iconHint: "Any Lucide icon name (kebab-case, e.g. book-open).",
+      colorsHeading: "Colors",
+      colorField: {
+        bg: "Background (light theme)",
+        bgDark: "Background (dark theme)",
+        accent: "Accent",
+        iconBg: "Icon background",
+        icon: "Icon",
+        title: "Title (light theme)",
+        titleDark: "Title (dark theme)",
+        text: "Text (light theme)",
+        textDark: "Text (dark theme)",
+        border: "Border (light theme)",
+        borderDark: "Border (dark theme)",
+      },
+      borderWidth: "Border width",
+      previewHeading: "Live preview",
+      previewLang: "Preview language",
+      previewVariant: "Preview variant",
+      previewNote:
+        "The preview renders the exact same component used on public posts (above the content). Bullet points come from the section fields in each post's editor (PL / EN).",
+      sample: {
+        first:
+          "How Orbit Capital raised over 100M EUR for a venture-debt fund and why PFR Ventures' participation matters.",
+        second: "Why more mature tech companies look for financing beyond classic VC rounds.",
+        third:
+          "How the venture-debt model lets firms raise growth capital without giving up large equity stakes.",
+      },
+    },
     access: {
       saveContentFirst: "Save the content first to set access.",
       setPasswordForMode: 'Set a password for "Password" mode.',

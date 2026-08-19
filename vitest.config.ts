@@ -918,159 +918,275 @@ export default defineConfig({
           lines: 7,
           branches: 9,
         },
-        // ── MODUŁ 5: STRONA GŁÓWNA, ARCHIWA, CHROME ──────────────────────────
-        // Audyt 18.08 nazwał ten moduł chrome CAŁEGO serwisu: nagłówek, stopka,
-        // menu i mega menu są na ścieżce KAŻDEJ strony i renderują się po
-        // stronie serwera, a archiwa kategorii i tagów to druga najczęściej
-        // odwiedzana powierzchnia po wpisach. Awaria tutaj nie dotyczy jednej
-        // funkcji - dotyczy każdego wejścia. Pomiar wyjściowy: 16,7% linii,
-        // 11,8% funkcji (63 z 534), 34 z 51 plików BEZ ANI JEDNEJ wykonanej
-        // linii - w tym `SiteMenu.tsx` (0 z 47 funkcji w nagłówku każdej
-        // strony) i `MenuManager.tsx` (największy plik modułu).
+        // ── MODUŁ 1: WPISY - DOŚWIADCZENIE CZYTELNIKA ────────────────────────
+        // Audyt 18.08 dał temu modułowi 31,8% linii i 26,9% funkcji przy 74
+        // plikach produkcyjnych, z których 43 nie miały ANI JEDNEJ wykonanej
+        // linii. Progi poniżej są floorowane tuż pod ZMIERZONYM pokryciem -
+        // zasada bez zmian: wolno je wyłącznie podnosić.
         //
-        // Dlaczego progi, a nie sam jednorazowy wysiłek: mega menu miało 88%
-        // linii na tej samej klasie kodu, na której sąsiedni `SiteMenu` miał
-        // 0,3% - różnica brała się WYŁĄCZNIE z tego, że ktoś wydzielił helpery
-        // i napisał do nich asercje. Bez zapory ta asymetria wraca przy
-        // pierwszym większym refaktorze.
+        // REGUŁA GLOSARIUSZA. Chodzi po węzłach tekstowych opublikowanego
+        // artykułu i je podmienia, więc jej defekt psuje TREŚĆ, nie panel.
+        // Trzymamy 100% linii i funkcji; niedobite gałęzie to obronne ramiona
+        // przeniesione 1:1 z komponentu (`node.textContent ?? ""`,
+        // `range.parentNode?.`), nieosiągalne przy poprawnym DOM-ie.
+        "src/lib/post/glossaryHighlight.ts": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // WARSTWA USTAWIEŃ MODUŁU. Cztery pliki, które startowały odpowiednio z
+        // 51,2% (1 z 10 funkcji), 0 z 5, 0 z 8 i 0 z 8 - a decydują o tym, co
+        // czytelnik widzi na KAŻDYM wpisie tenanta i czy zapis w panelu
+        // faktycznie dotarł do bazy. Wszystkie cztery są teraz na 100% linii
+        // i funkcji, więc trzymamy je jak pozostałe czyste moduły w tym pliku.
         //
-        // Wszystkie progi są floorowane pod ZMIERZONYM poziomem (marża na dryf
-        // CI) i wolno je wyłącznie podnosić.
+        // toc/settings.ts - niedobite gałęzie to `?? slugifyHeading(text)`
+        // (fallback kotwicy, gdy derywacja dokumentu nie zna bloku - przy
+        // spójnym dokumencie nieosiągalny) i `b.data.level ?? 2` w wariancie,
+        // który ma już własny test przez brak pola.
+        // PANELE „DOŚWIADCZENIA CZYTELNIKA" (krok 6 planu). Cztery panele modułu
+        // były wpisane w pliki tras, więc nie miały jak dostać testu
+        // komponentowego bez stawiania routera - stąd 0 z 32 funkcji w
+        // `admin.toc.tsx`, 0 z 42 w `admin.key-takeaways.tsx`, 0 z 36 w
+        // `admin.related-posts.tsx` i 0 z 34 w `admin.post-layouts.tsx`.
         //
-        // CZYSTE MODUŁY wyprowadzone z organizmów trzymamy pod 100% linii
-        // i funkcji - tak jak pozostałe czyste moduły w tym pliku. Niosą reguły,
-        // których złamanie widzi wyłącznie użytkownik: hierarchię menu
-        // (`tree.ts`), wybór wariantu panelu i geometrię (`siteMenu.ts`), układ
-        // kolumn mega (`megaColumns.ts`) oraz podział wpisów archiwum
-        // (`bodyPlan.ts`). Niedobite gałęzie to obronne ramiona wejść, których
-        // typy już nie dopuszczają.
-        "src/lib/menus/tree.ts": {
+        // Po wyprowadzeniu do `components/admin/postExperience` (atoms /
+        // molecules / organisms) plik trasy zostaje przy rejestracji, a panel
+        // stoi na 100% we wszystkich metrykach. Próg jest tu WYSOKI świadomie:
+        // to ma być bariera dla kolejnego panelu wchodzącego do tego katalogu,
+        // a nie zapis stanu faktycznego. Gałęzie floorowane na 95%, bo warunek
+        // w nowym JSX zdarza się dopisać przed jego testem.
+        "src/components/admin/postExperience/**": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 95,
         },
-        "src/lib/menus/siteMenu.ts": {
-          statements: 98,
-          functions: 100,
-          lines: 100,
-          branches: 84,
-        },
-        "src/lib/menus/megaColumns.ts": {
+        // Reguły paneli: deskryptory i klucze i18n zamiast tekstu w JSX oraz
+        // wspólne przycięcie pól liczbowych. Czyste moduły, więc pod 100%.
+        "src/lib/admin/panelDraft.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 88,
+          branches: 100,
         },
-        "src/lib/archive/bodyPlan.ts": {
+        "src/lib/toc/panelRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/keyTakeaways/panelRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/relatedPosts/panelRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/post/layoutPanelRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/toc/settings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/lib/keyTakeaways/settings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/relatedPosts/adminConfig.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/usePostLayoutSettings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // SILNIK REKOMENDACJI. `buildIdf` i `normalizeMap` stały na zerze, choć
+        // decydują, KTÓRE trzy artykuły czytelnik zobaczy pod tekstem, a
+        // `use_idf` jest przełącznikiem w panelu - redakcja może je włączyć bez
+        // wiedzy o zachowaniu na brzegach (termin w każdym dokumencie, unikat
+        // w korpusie 10 000 wpisów, korpus bez sygnału). Cały plik jest teraz na
+        // 100% linii i funkcji; niedobita gałąź to `cand.authorId && current.authorId`
+        // w kombinacji, której nie da się osiągnąć bez obu wartości null naraz.
+        "src/lib/relatedPosts.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 95,
         },
-        // Warstwa danych menu. Niedobite funkcje to obwoluty `createServerFn`
-        // i `serverPublicClient()` - nieosiągalne bez kontekstu żądania
-        // frameworka (ten sam wyjątek, co przy `webhooks.stripe` wyżej).
-        "src/lib/menus/**": {
-          statements: 93,
-          functions: 89,
-          lines: 94,
+        // ZAPISANE ARTYKUŁY. `useBookmarks` startował z 0 z 2 funkcji, a
+        // `useSaveArticle` z pamięcią lokalną gościa i wygasaniem (`readLocal`,
+        // `pruneExpired`) czyta dane Z URZĄDZENIA użytkownika - uszkodzony JSON,
+        // wpis bez znacznika czasu i zablokowany magazyn to stany, które w
+        // produkcji WYSTĘPUJĄ (tryb prywatny Safari).
+        "src/hooks/useBookmarks.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useSaveArticle.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Beacon kliknięcia w rekomendację: telemetria opcjonalna, klik NIE -
+        // każda ścieżka błędu (brak `sendBeacon`, tryb offline, wyjątek
+        // z rozszerzenia przeglądarki) musi kończyć się cicho. Niedobite gałęzie
+        // to `typeof navigator === "undefined"` (pod happy-dom zawsze fałszywe)
+        // i puste ciało `.catch(() => undefined)`.
+        "src/lib/relatedClickBeacon.ts": {
+          statements: 90,
+          functions: 100,
+          lines: 100,
+          branches: 70,
+        },
+        // ── AUDIO / TTS ──────────────────────────────────────────────────────
+        // Najsłabsza funkcjonalność modułu 1 w audycie: 11,4% linii przy 743
+        // liniach i 136 funkcjach, 7 z 12 plików na okrągłym zerze. Reguły
+        // wyprowadzone z 752-linijkowego `global-player.tsx` do czystych modułów
+        // trzymamy pod 100% linii - one decydują o WYCIEKU PAMIĘCI w długiej
+        // sesji czytania (blobCache) i o tym, czy czytelnik wróci tam, gdzie
+        // skończył (positionMemory).
+        //
+        // positionMemory: niedobite gałęzie to strażniki `typeof window ===
+        // "undefined"` (pod happy-dom zawsze fałszywe - ścieżka SSR jest
+        // nieosiągalna z testu jednostkowego).
+        "src/lib/audio/positionMemory.ts": {
+          statements: 88,
+          functions: 100,
+          lines: 100,
           branches: 84,
         },
-        // Nawigacja publiczna: `SiteMenu` (0 z 47 funkcji) + wspólny widok
-        // panelu mega, którego używa i front, i podgląd w adminie.
-        "src/components/menu/**": {
-          statements: 92,
-          functions: 96,
-          lines: 96,
-          branches: 77,
+        // blobCache: niedobita gałąź to `typeof URL !== "undefined"` -
+        // środowisko bez globalnego `URL` nie istnieje ani w przeglądarce, ani
+        // pod happy-dom.
+        "src/lib/audio/blobCache.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 94,
         },
-        // MEGA MENU BYŁO WZOREM tego modułu (88,1% linii przy 0,3% sąsiada) -
-        // próg jest tu po to, żeby ten poziom nie zjechał, a nie po to, żeby go
-        // dopiero osiągnąć. Floor tuż pod stanem z audytu.
-        "src/components/megaMenu/**": {
-          statements: 78,
-          functions: 76,
-          lines: 85,
-          branches: 60,
+        // ttsStage: reguła etapu syntezy i etykiet transportu - zwraca KLUCZ
+        // i18n, nie napis, więc jest w pełni pokrywalna bez renderu.
+        // GLOBALNY ODTWARZACZ: 4,8% -> 100% linii. Jedyny plik modułu, przez
+        // który przechodzi KAŻDE kliknięcie „odsłuchaj": woła płatną syntezę,
+        // trzyma cache blobów i pamięta pozycję odsłuchu. Czyste moduły
+        // wyprowadzone z niego wcześniej miały po 100%, ale SKŁAD - kolejność
+        // etapów, anulowanie starego pobrania, zapis pozycji przy podmianie
+        // źródła, arbitraż z innymi odtwarzaczami - żył bez ani jednego testu.
+        //
+        // Niedobite gałęzie to obronne `catch`-e wokół API przeglądarki
+        // (nieudany `seek` na nietypowym źródle, brak `MediaMetadata`) oraz
+        // ścieżka SSR, w której `window` nie istnieje.
+        "src/lib/audio/global-player.tsx": {
+          statements: 97,
+          functions: 79,
+          lines: 100,
+          branches: 87,
         },
-        // Archiwa kategorii i tagów - 13 z 16 plików startowało z zera.
-        "src/components/archive/**": {
-          statements: 93,
-          functions: 91,
-          lines: 94,
-          branches: 80,
+        "src/lib/audio/ttsStage.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
         },
-        // Edytor menu w adminie. Zapis jest DESTRUKCYJNY (delete-all +
-        // insert-all), więc regresja w spięciu stanu z regułami przepisuje
-        // nawigację całego serwisu.
-        "src/components/admin/menu/**": {
-          statements: 91,
-          functions: 90,
-          lines: 93,
-          branches: 74,
-        },
-        // Stopka i szkielet nagłówka: tanie powierzchnie, które przez trzy
-        // pomiary stały na zerze mimo obecności na każdej stronie.
-        "src/components/footer/**": {
+        // TRASA SYNTEZY: 0% -> 95,41% linii. Wejście do PŁATNEGO dostawcy i
+        // jednocześnie potencjalny objazd wokół paywalla (treść płatnego
+        // artykułu dałoby się usłyszeć bez uprawnienia). Niedobite: obronny
+        // `catch` wokół `getRequestIP`, gałąź `blocks[lang] ?? blocks.pl ??
+        // blocks.en` dla dokumentu bez żadnego języka oraz puste ciała
+        // `.catch()` przy zapisie cache w tle.
+        "src/routes/api/public/post-tts.ts": {
           statements: 95,
-          functions: 95,
-          lines: 96,
+          functions: 83,
+          lines: 95,
           branches: 85,
         },
-        // Nagłówek: pasek „Na czasie" (0 z 34 funkcji) + mobilna szuflada.
-        // Niedobite linie to wywołania zwrotne obserwatora rozmiaru w silnikach
-        // marquee - happy-dom nie liczy układu, więc nie zgłasza zmiany wymiaru.
-        "src/components/header/**": {
-          statements: 92,
-          functions: 88,
-          lines: 94,
-          branches: 80,
+        // UKŁADY WPISU I RENDER + AUDIO: powierzchnie komponentowe modułu.
+        // Stan wyjściowy: `components/post` 21 z 26 plików na ZERZE (19,0% linii
+        // całej funkcjonalności), `components/audio` 4 z 4 na zerze. Po pracy
+        // ŻADEN plik nie stoi na zerze - i to jest tu ważniejsze niż sam procent,
+        // bo plik bez ani jednej asercji nie ma jak zauważyć regresji.
+        //
+        // Progi są floorowane PER METRYKA pod pomiarem, dlatego `statements`
+        // stoi niżej niż `lines`: w JSX jeden wiersz nosi kilka instrukcji
+        // (skróty `&&`, wartości domyślne propsów), więc mianownik instrukcji
+        // jest większy niż mianownik wierszy.
+        //
+        // Niedobita reszta w `components/post` to `RelatedPosts.tsx`: sześć
+        // układów rekomendacji (siatka, lista, slider, karty, magazyn, os czasu)
+        // z autoplayem i obsługą gestów. Pokryte są stan pusty, wyłączenie,
+        // nadpisanie per wpis i dwa układy; pozostałe cztery to kolejny krok,
+        // nie regresja tego.
+        //
+        // W `components/audio` niedobite są gałęzie dolnego paska i karty, które
+        // wymagają PRAWDZIWEGO `HTMLAudioElement` (przewijanie gestem, pobieranie
+        // blobu, Web Share API) - te ścieżki dowodzi e2e, nie test jednostkowy.
+        "src/components/post/**": {
+          statements: 80,
+          functions: 72,
+          lines: 84,
+          branches: 66,
         },
-        // Mobilny pasek dolny: odznaki liczników i rezerwacja miejsca na dole
-        // strony (bez niej pasek zasłania stopkę i ostatni akapit artykułu).
-        "src/components/mobile/**": {
-          statements: 90,
-          functions: 92,
-          lines: 93,
-          branches: 78,
-        },
-        "src/lib/mobileBottomBar/**": {
-          statements: 95,
-          functions: 93,
-          lines: 97,
-          branches: 84,
-        },
-        // CZTERY TRASY ARCHIWUM. Audyt świadomie ich nie ścigał („cienka
-        // kompozycja loadera"), ale zamontowane w harnessie trasy okazały się
-        // czymś innym niż kompozycja: to tam mieszka wybór wariantu layoutu,
-        // 404 dla nieistniejącej taksonomii, zdegradowana powłoka przy blipie
-        // backendu i preload okładki LCP. Zmierzone 100% linii i funkcji -
-        // progi trzymają ten stan, gałęzie zostają niżej (warianty językowe
-        // `head()` zależne od adresu żądania, nie od `i18n.language`).
-        "src/routes/blog.index.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 84,
-        },
-        "src/routes/category.$slug.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 79,
-        },
-        "src/routes/tag.$slug.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
+        "src/components/audio/**": {
+          statements: 62,
+          functions: 48,
+          lines: 64,
           branches: 77,
         },
-        "src/routes/publications.tsx": {
+        // Atomy modułu 1 trzymamy pod 100%: test atomu jest tani i wielokrotnie
+        // użyty, a każdy z nich scala kopie, w których kontrakt a11y był pisany
+        // od nowa (i za każdym razem inaczej).
+        "src/components/post/atoms/**": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 98,
+          branches: 90,
+        },
+        "src/components/audio/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // Reguły wyprowadzone z organizmów artykułu - czyste moduły, więc pod 100%.
+        "src/lib/post/badgeContrast.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/post/quoteSelection.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/post/autoLoadChain.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
         },
       },
     },

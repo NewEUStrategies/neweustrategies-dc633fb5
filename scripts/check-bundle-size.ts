@@ -440,6 +440,44 @@ const CLIENT_DIR =
 // flapping od pierwszego cudzego merge'a; ~1% zapasu wg lekcji z 08-01),
 // chunk 385 -> 280 RATCHET W DÓŁ (zmierzone 266,8 - entry zszedł do 253,2,
 // próg schodzi za śladem i dalej łapie regresję rzędu 5%).
+//
+// 2026-08-19  OVERALL 3870 -> 3876 (+6 KB). ROZBICIE CZTERECH PANELI MODUŁU 1
+//             NA ATOMIC DESIGN. Wpis jest tu dlatego, że bramka wprost tego
+//             wymaga („najpierw zmierz przyczynę, potem dopisz do kroniki"),
+//             a nie dlatego, że podniesienie progu jest wygodne.
+//
+//             POMIAR NA DWÓCH BUILDACH TEGO SAMEGO DRZEWA (jeden host, jedna
+//             wersja zależności) - bez tego nie da się odpowiedzieć, czyj to koszt:
+//               * przed pracą (39a9efd): 2534,2 public / 1331,0 admin / 3865,2 overall
+//               * po pracy:              2537,6 public / 1332,9 admin / 3870,5 overall
+//             Czyli +3,4 public / +1,9 admin / +5,3 overall. Zapas OVERALL PRZED
+//             tą pracą wynosił 4,8 KB (0,12%) i bramka SAMA to zgłaszała
+//             ostrzeżeniem „ZAPAS BUDŻETU PONIŻEJ 2%" - ta gałąź go domknęła.
+//
+//             ROZKŁAD, z porównania chunków obu buildów:
+//               * +3,7 KB - siedem mikro-chunków atomów paneli. Vite wydziela
+//                 współdzielony moduł aplikacji do własnego chunku, a przy ~1 KB
+//                 rzeczywistej treści narzut opakowania jest większy niż sam kod.
+//               * +1,6 KB - dwa słowniki i18n: 164 klucze przeniesione z map
+//                 `COPY = { pl, en }` wpisanych w komponenty. Tego kosztu nie da
+//                 się uniknąć - to ten sam tekst, tylko wreszcie widoczny dla
+//                 bramek parytetu.
+//
+//             CO ODZYSKANO, ZANIM PRÓG RUSZYŁ (zmierzone, nie „próbowaliśmy"):
+//               * BARYŁKA ATOMÓW NIE DZIAŁA i została wycofana. Rollup przechodzi
+//                 przez re-eksport do modułów docelowych, więc siedem chunków
+//                 zostało siedmioma (0,0 KB różnicy). Wycofana także dlatego, że
+//                 baryłka zaciemnia PRAWDZIWE krawędzie importu, których pilnuje
+//                 check:chunks.
+//               * PANEL REKOMENDACJI wychodził jako osobny chunk (+9,9 KB) tylko
+//                 dlatego, że plik trasy importował z modułu organizmu DWIE rzeczy
+//                 (panel i widok „nie znaleziono"). Rozdzielenie plików zwinęło go
+//                 do chunku trasy: `admin.related` 8,23 -> 8,05 KB, czyli MNIEJ
+//                 niż przed tą pracą, przy panelu z 0% na 100% pokrycia.
+//                 Odzyskane ~2 KB.
+//
+//             PUBLIC (budżet czytelnika) NIE JEST przekroczony i ma 7,4 KB zapasu.
+//             Próg PUBLIC i próg największego chunku zostają bez zmian.
 
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
@@ -459,11 +497,11 @@ const FROZEN_BUDGET_KB = {
   // (host czytający ~1% wyżej niż CI) - słowniki adminowe wróciły do grafu
   // admin-only. Ratchet 2570 -> 2545.
   public: 2545,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-18: 3866,4
-  // (na CI przewidywane ~3833). Podniesione 3835 -> 3870: koszt ~30 nowych
-  // granic chunków po zejściu ~700 kB źródeł ze ścieżki bootowania - pełne
-  // uzasadnienie we wpisie 2026-08-18 w kronice wyżej.
-  overall: 3870,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-19: 3870,5
+  // po rozbiciu czterech paneli modułu 1 na atomic design. Podniesione
+  // 3870 -> 3876: koszt granic chunków siedmiu współdzielonych atomów, których
+  // NIE DA SIĘ scalić baryłką (zmierzone - wpis 2026-08-19 w kronice wyżej).
+  overall: 3876,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */

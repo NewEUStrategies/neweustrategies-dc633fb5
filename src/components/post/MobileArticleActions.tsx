@@ -16,16 +16,16 @@
 // komponent w entry (0,65 KB). Cały jego graf zależności (globalny player,
 // MorphPlayPause, sonner) i tak jest już w entry, bo provider montuje się w
 // `__root`, więc nie ma tu czego odłożyć na później.
+//
+// Oba przyciski rzędu składa JEDEN atom (`post/atoms/ArticleActionButton`).
+// Wcześniej ten plik trzymał lokalną stałą `ACTION_CLASS` - dokładną kopię
+// łańcucha klas z `ArticleListenButton`, która zgubiła `disabled:opacity-60`,
+// więc przycisk pobierania nie miał stanu wyłączonego.
 import { Download } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
 import { ArticleListenButton } from "@/components/audio/ArticleListenButton";
-
-const COPY = {
-  pl: { download: "Pobierz artykuł" },
-  en: { download: "Download article" },
-} as const;
-
-const ACTION_CLASS =
-  "cms-widget-label inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] border border-border bg-background px-3 font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98]";
+import { ArticleActionButton } from "@/components/post/atoms/ArticleActionButton";
+import "@/lib/i18n-post-experience";
 
 interface Props {
   lang: "pl" | "en";
@@ -38,7 +38,9 @@ interface Props {
 }
 
 export function MobileArticleActions({ lang, postId, title, author, audioUrl }: Props) {
-  const t = COPY[lang];
+  // Napisy idą w języku ARTYKUŁU, nie interfejsu - dotyczą TEJ treści.
+  const { t: translate } = useTranslation();
+  const t = (key: string) => translate(`postExperience.actions.${key}`, { lng: lang });
 
   return (
     <div
@@ -52,10 +54,7 @@ export function MobileArticleActions({ lang, postId, title, author, audioUrl }: 
         author={author ?? null}
         audioUrl={audioUrl ?? null}
       />
-      <button type="button" onClick={() => window.print()} className={ACTION_CLASS}>
-        <Download className="h-[14px] w-[14px] text-brand" aria-hidden />
-        <span>{t.download}</span>
-      </button>
+      <ArticleActionButton icon={Download} label={t("download")} onClick={() => window.print()} />
     </div>
   );
 }

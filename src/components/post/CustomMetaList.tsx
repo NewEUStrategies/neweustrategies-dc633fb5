@@ -1,5 +1,11 @@
-// Renders the post's custom meta items (icon + label + value).
-// Uses lucide icons by name (`def.icon`). Unknown icon names fall back to Info.
+// Pola własne wpisu (ikona + etykieta + wartość). Ikony z lucide po nazwie
+// (`def.icon`); nieznana nazwa degraduje do neutralnego globusa.
+//
+// Oba warianty listy składa teraz JEDEN atom `atoms/MetaValueItem`. Wcześniej
+// były to dwie kopie JSX o RÓŻNYM kontrakcie dostępności: wariant `stacked`
+// wiązał nazwę z wartością przez `<dt>/<dd>`, a `inline` używał `sr-only`
+// z dwukropkiem - czytnik ekranu dostawał w jednym miejscu listę definicji,
+// w drugim ciąg tekstu.
 import type { ComponentType, SVGProps } from "react";
 import { Clock, Tags, Star, BookOpen, MapPin, Globe, Bookmark } from "@/lib/lucide-shim";
 import {
@@ -8,6 +14,7 @@ import {
   type CustomMetaDef,
   type CustomMetaValues,
 } from "@/lib/customMeta";
+import { MetaValueItem } from "@/components/post/atoms/MetaValueItem";
 
 type IconCmp = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
 
@@ -42,20 +49,15 @@ export function CustomMetaList({ defs, values, lang, variant = "inline", classNa
           .filter(Boolean)
           .join(" ")}
       >
-        {items.map(({ def, value }) => {
-          const Icon = ICONS[def.icon] ?? Globe;
-          return (
-            <div key={def.id} className="flex items-start gap-2">
-              <Icon className="w-4 h-4 mt-0.5 text-brand shrink-0" aria-hidden />
-              <div className="min-w-0">
-                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                  {metaLabel(def, lang)}
-                </dt>
-                <dd className="font-semibold text-foreground truncate">{value}</dd>
-              </div>
-            </div>
-          );
-        })}
+        {items.map(({ def, value }) => (
+          <MetaValueItem
+            key={def.id}
+            icon={ICONS[def.icon] ?? Globe}
+            label={metaLabel(def, lang)}
+            value={value}
+            variant="stacked"
+          />
+        ))}
       </dl>
     );
   }
@@ -65,17 +67,15 @@ export function CustomMetaList({ defs, values, lang, variant = "inline", classNa
         .filter(Boolean)
         .join(" ")}
     >
-      {items.map(({ def, value }) => {
-        const Icon = ICONS[def.icon] ?? Globe;
-        return (
-          <li key={def.id} className="inline-flex items-center gap-1.5">
-            <Icon className="w-3.5 h-3.5 text-brand" aria-hidden />
-            <span className="sr-only">{metaLabel(def, lang)}: </span>
-            <span className="font-semibold text-foreground">{value}</span>
-            <span className="text-muted-foreground">{metaLabel(def, lang)}</span>
-          </li>
-        );
-      })}
+      {items.map(({ def, value }) => (
+        <MetaValueItem
+          key={def.id}
+          icon={ICONS[def.icon] ?? Globe}
+          label={metaLabel(def, lang)}
+          value={value}
+          variant="inline"
+        />
+      ))}
     </ul>
   );
 }
