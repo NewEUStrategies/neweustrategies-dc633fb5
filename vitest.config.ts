@@ -499,6 +499,167 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+
+        // ============================================================
+        // MODUŁ 4 - Strony, wygląd, motyw, media, import
+        // ============================================================
+        // Audyt 2026-08-18 zastał ten moduł na 22,76% linii i 16,18% funkcji
+        // przy 72 plikach na czystym zerze - najgorszy stosunek w repozytorium
+        // poza modułami czysto serwerowymi. Po pracy z 2026-08-19: 97,3%
+        // instrukcji, 97,5% funkcji, ZERO plików bez wykonania.
+        //
+        // Progi niżej są floorowane 2-4 pp pod zmierzonym pokryciem (margines
+        // na dryf środowiska CI) i obowiązuje na nich ta sama zasada, co na
+        // pozostałych: wolno je wyłącznie PODNOSIĆ. Gałęzie mają luźniejsze
+        // floory od instrukcji, bo w tej warstwie zostają ramiona obronne
+        // nieosiągalne z interfejsu (fallbacki `?? null` na polach z bazy,
+        // strażniki sesji przy operacjach, które i tak są za nią bramkowane).
+
+        // Czyste reguły mediów: geometria kadru, budowa adresów wariantów,
+        // walidacja uploadu, przygotowanie og:image. Cała warstwa bez ani
+        // jednej gałęzi bez pokrycia - trzymamy ją pod 100.
+        "src/lib/media/**": { statements: 98, functions: 100, lines: 98, branches: 95 },
+        // Presety kadru: katalog + operacje CRUD na nich. Z tych wartości
+        // `buildTransformedImageUrl` buduje adresy serwowane czytelnikom.
+        "src/lib/cropSizes.ts": { statements: 98, functions: 100, lines: 98, branches: 95 },
+        // Serwerowe operacje na plikach - jedyne miejsce w module, które KASUJE
+        // i PRZENOSI dane. Gałęzie niżej niż reszta: ramiona obronne serwera
+        // (brak sesji, brak tenanta, odmowa RLS) są bramkowane wcześniej przez
+        // middleware, więc z testu widać je tylko częściowo.
+        "src/lib/media.functions.ts": { statements: 94, functions: 95, lines: 98, branches: 78 },
+        // Model motywu: schemat Zod, wartości domyślne, mapowanie na tokeny CSS
+        // i nadpisania trybu ciemnego. Zasila arkusz serwowany na KAŻDEJ stronie.
+        "src/lib/theme/**": { statements: 97, functions: 98, lines: 98, branches: 88 },
+        // Biblioteka ikon i marka: rozwiązywanie nazw, warianty, rejestr marek.
+        "src/lib/iconLibrary.ts": { statements: 98, functions: 100, lines: 98, branches: 95 },
+        "src/lib/brandIconRegistry.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/icons/DynamicIcon.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // Szablony stron i ustawienia archiwum - dwa najmniejsze pliki modułu,
+        // które audyt policzył w funkcjonalności stojącej na 3,7% linii.
+        "src/lib/pageTemplates.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/lib/archive-layout-settings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+
+        // Panel mediów: orkiestrator, hooki (zaznaczanie prostokątem,
+        // przeciąganie, skróty, mutacje) i drzewo organizmów.
+        "src/components/admin/media/**": {
+          statements: 95,
+          functions: 93,
+          lines: 96,
+          branches: 87,
+        },
+        // Kadrownik i podgląd zdjęcia po stronie publicznej części panelu.
+        "src/components/media/**": { statements: 92, functions: 88, lines: 94, branches: 80 },
+        // Edytor Theme Design: dwanaście sekcji, podgląd na żywo, korzeń
+        // kompozycji i warstwa zapisu.
+        "src/components/admin/theme-design/**": {
+          statements: 94,
+          functions: 93,
+          lines: 95,
+          branches: 87,
+        },
+        // Wstrzykiwanie tokenów motywu do dokumentu - jedyne miejsce z bramką
+        // `hardenStyleCss` przed wyjściem poza blok `<style>`.
+        "src/components/theme/**": { statements: 98, functions: 100, lines: 98, branches: 83 },
+        // Ustawienia układu archiwum kategorii i tagów wraz z podglądem.
+        "src/components/admin/archiveLayout/**": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 87,
+        },
+
+        // Trasy modułu. Do 2026-08-19 wszystkie na zerze - żaden test nie
+        // dotykał warstwy spinającej adres z panelem. Progi per plik, bo glob
+        // `src/routes/admin.*` objąłby też trasy innych modułów.
+        "src/routes/admin.pages.tsx": {
+          statements: 90,
+          functions: 95,
+          lines: 93,
+          branches: 70,
+        },
+        "src/routes/admin.pages.$slug.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 96,
+          branches: 75,
+        },
+        "src/routes/admin.pages.new.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 78,
+        },
+        "src/routes/admin.icons.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 97,
+          branches: 83,
+        },
+        "src/routes/admin.categories.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 98,
+          branches: 89,
+        },
+        "src/routes/admin.category-colors.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 98,
+          branches: 78,
+        },
+        "src/routes/admin.crop-sizes.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 85,
+        },
+        "src/routes/admin.import-wordpress.tsx": {
+          statements: 94,
+          functions: 95,
+          lines: 97,
+          branches: 78,
+        },
+        // Cienkie trasy wyglądu (media, motyw, pod-zakładki wyglądu) - każda to
+        // wybór panelu i jego argumentów, w całości pokryty.
+        "src/routes/admin.appearance*": {
+          statements: 96,
+          functions: 95,
+          lines: 96,
+          branches: 90,
+        },
+        "src/routes/admin.media.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.theme-design.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.theme-options.tsx": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 95,
+        },
       },
     },
   },
