@@ -459,6 +459,19 @@ export default defineConfig({
         // 98,82/98,24/100/100. Niedobita linia to gałąź `writeJson` dla braku
         // `window`, nieosiągalna z produkcji: bez `window` odczyt zwraca pustkę,
         // więc do zapisu nigdy nie dochodzi.
+        // SZYNA ZDARZEŃ POPUPU LOGOWANIA - do 19.08.2026 8,33% instrukcji i 0
+        // z 2 funkcji. Jedyna droga, którą „akcja zastrzeżona" (zapis artykułu,
+        // obserwowanie autora) prosi o zalogowanie. Awaria tego modułu jest
+        // NIEMA: przyciski w całym serwisie przestają cokolwiek robić, bez
+        // błędu w konsoli i bez czerwonego testu. Próg pilnuje też odpinania
+        // nasłuchu - handler, który przeżyje odmontowanie komponentu, otwiera
+        // popup nad nieistniejącym drzewem Reacta. Osiągnięte 100/100/100/100.
+        "src/lib/loginPopupBus.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
         "src/lib/personalization/anonMerge.ts": {
           statements: 97,
           functions: 100,

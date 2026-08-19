@@ -393,6 +393,38 @@ describe("AuthProvider - signOut()", () => {
     expect(screen.getByTestId("roles")).toHaveTextContent("");
   });
 
+  it("po wylogowaniu w cache NIE MA już danych poprzedniego użytkownika", async () => {
+    // Istniejący test wyżej szpieguje WYWOŁANIE `clear()`. To nie to samo, co
+    // dowód, że dane zniknęły: szpieg przeszedłby też wtedy, gdyby `clear()`
+    // zamieniono na wybiórcze `removeQueries` po kilku kluczach, a reszta
+    // (zamówienia, subskrypcja, zakładki - wszystkie na kluczach NIEZALEŻNYCH
+    // od użytkownika) została w pamięci. Na współdzielonym urządzeniu następna
+    // osoba zobaczyłaby wtedy cudze faktury, dopóki zapytanie się nie odświeży.
+    // Ten test patrzy na ZAWARTOŚĆ cache, nie na to, że metodę zawołano.
+    const { qc } = renderProbe();
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+
+    h.rolesRows = [{ role: "editor" }];
+    await act(async () => {
+      h.authCb!("SIGNED_IN", makeSession("u9"));
+    });
+    await waitFor(() => expect(screen.getByTestId("uid")).toHaveTextContent("u9"));
+
+    // Dane poprzedniego konta - klucze statyczne, bez uid w środku.
+    qc.setQueryData(["billing", "orders"], [{ id: "faktura-1", total: 4200 }]);
+    qc.setQueryData(["bookmarks"], [{ id: "zakladka-1" }]);
+    qc.setQueryData(["profile-counts"], { follows: 7 });
+    expect(qc.getQueryData(["billing", "orders"])).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "wyloguj" }));
+    await waitFor(() => expect(window.location.assign).toHaveBeenCalled());
+
+    expect(qc.getQueryData(["billing", "orders"])).toBeUndefined();
+    expect(qc.getQueryData(["bookmarks"])).toBeUndefined();
+    expect(qc.getQueryData(["profile-counts"])).toBeUndefined();
+    expect(qc.getQueryCache().getAll()).toHaveLength(0);
+  });
+
   it.each(["//evil.example", "https://evil.example"])(
     "adres przekierowania '%s' nie jest wewnętrzny -> spada na '/'",
     async (badUrl) => {
