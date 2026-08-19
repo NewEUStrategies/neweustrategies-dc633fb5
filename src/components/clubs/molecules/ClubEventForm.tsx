@@ -45,8 +45,19 @@ import {
   type ClubEventStatus,
   type ClubEventUpsertInput,
 } from "@/lib/clubs/workspaceTypes";
+import {
+  buildClubEventUpsert,
+  clubAllDayFieldValue,
+  clubEventDurationLabelKey,
+  clubEventEndValue,
+  clubEventFormInvalid,
+  clubEventPreviewTitle,
+  clubEventRangeLabel,
+  clubEventShowsSlug,
+  clubEventStartPreset,
+  toLocalInputValue,
+} from "@/lib/clubs/workspaceForms";
 import { clubEventSlug } from "@/lib/clubs/eventSlug";
-import { toIsoValue, toLocalInputValue } from "@/components/clubs/molecules/ClubMilestoneForm";
 
 export function ClubEventForm({
   open,
@@ -87,60 +98,44 @@ export function ClubEventForm({
 
   // Tytuł w drugim języku nie jest wymagany od kuratora - baza wymaga obu
   // (CHECK na długość), więc pusty przepisujemy z tego, który wpisano.
-  const pl = titlePl.trim();
-  const en = titleEn.trim();
-  const invalid = (pl.length < 2 && en.length < 2) || startsAt.length === 0;
+  // Reguły składania payloadu i przeliczania terminu mieszkają w
+  // `lib/clubs/workspaceForms` - tutaj zostaje wyłącznie stan i układ.
+  const draft = {
+    titlePl,
+    titleEn,
+    descriptionPl: descPl,
+    descriptionEn: descEn,
+    kind,
+    status,
+    allDay,
+    startsAt,
+    endsAt,
+    location,
+    meetingUrl,
+    rsvpEnabled,
+    capacity,
+  };
+  const invalid = clubEventFormInvalid(draft);
 
   const submit = () => {
     if (invalid) return;
-    const finalPl = pl.length >= 2 ? pl : en;
-    const finalEn = en.length >= 2 ? en : pl;
-    const capacityValue = capacity.trim().length > 0 ? Number.parseInt(capacity, 10) : null;
-
-    onSubmit({
-      ...(editing ? { id: initial.id } : { slug: clubEventSlug(finalPl) }),
-      title_pl: finalPl,
-      title_en: finalEn,
-      description_pl: descPl.trim().length > 0 ? descPl.trim() : null,
-      description_en: descEn.trim().length > 0 ? descEn.trim() : null,
-      kind,
-      status,
-      all_day: allDay,
-      starts_at: toIsoValue(startsAt, allDay) ?? new Date().toISOString(),
-      ends_at: endsAt.length > 0 ? toIsoValue(endsAt, allDay) : null,
-      location: location.trim().length > 0 ? location.trim() : null,
-      meeting_url: meetingUrl.trim().length > 0 ? meetingUrl.trim() : null,
-      rsvp_enabled: rsvpEnabled,
-      capacity:
-        capacityValue !== null && Number.isFinite(capacityValue) && capacityValue > 0
-          ? capacityValue
-          : null,
-    });
+    onSubmit(buildClubEventUpsert(draft, editing ? initial.id : null, Date.now()));
   };
 
   // Presety terminu: kurator najczęściej ustawia "dziś/jutro 18:00" i domyka
   // koniec po godzinie - klikanie w natywny kalendarz przy każdym wydarzeniu
   // jest wolniejsze niż jeden guzik.
   const setStartPreset = (offsetDays: number) => {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    if (allDay) {
-      setStartsAt(localDate(date));
-      return;
-    }
-    date.setHours(18, 0, 0, 0);
-    setStartsAt(localDateTime(date));
+    setStartsAt(clubEventStartPreset(new Date(), offsetDays, allDay));
   };
 
   const setDuration = (minutes: number) => {
-    if (allDay || startsAt.length === 0) return;
-    const start = new Date(startsAt);
-    if (Number.isNaN(start.getTime())) return;
-    setEndsAt(localDateTime(new Date(start.getTime() + minutes * 60_000)));
+    setEndsAt((current) => clubEventEndValue(current, startsAt, minutes, allDay));
   };
 
-  const previewTitle = pl.length > 0 ? pl : en;
+  const previewTitle = clubEventPreviewTitle(titlePl, titleEn);
   const previewSlug = previewTitle.length > 0 ? clubEventSlug(previewTitle) : "";
+  const showsSlug = clubEventShowsSlug(editing, previewSlug);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -233,8 +228,8 @@ export function ClubEventForm({
                     // Zmiana typu pola musi przyciąć wartości, inaczej "2026-08-10T18:00"
                     // zostaje w polu typu `date` i przeglądarka je czyści po cichu.
                     setAllDay(value);
-                    setStartsAt((current) => (value ? current.slice(0, 10) : current));
-                    setEndsAt((current) => (value ? current.slice(0, 10) : current));
+                    setStartsAt((current) => clubAllDayFieldValue(current, value));
+                    setEndsAt((current) => clubAllDayFieldValue(current, value));
                   }}
                 />
               </div>
@@ -270,25 +265,15 @@ export function ClubEventForm({
                   <span className="text-xs text-muted-foreground">
                     {t("club.eventForm.durationLabel")}
                   </span>
-                  {[30, 60, 90, 120].map((minutes) => {
-                    const labelKey =
-                      minutes === 30
-                        ? "club.eventForm.duration30"
-                        : minutes === 60
-                          ? "club.eventForm.duration60"
-                          : minutes === 90
-                            ? "club.eventForm.duration90"
-                            : "club.eventForm.duration120";
-                    return (
-                      <Chip
-                        key={minutes}
-                        disabled={startsAt.length === 0}
-                        onClick={() => setDuration(minutes)}
-                      >
-                        {t(labelKey)}
-                      </Chip>
-                    );
-                  })}
+                  {[30, 60, 90, 120].map((minutes) => (
+                    <Chip
+                      key={minutes}
+                      disabled={startsAt.length === 0}
+                      onClick={() => setDuration(minutes)}
+                    >
+                      {t(clubEventDurationLabelKey(minutes))}
+                    </Chip>
+                  ))}
                 </div>
               )}
             </Section>
@@ -388,7 +373,7 @@ export function ClubEventForm({
                 <div className="mt-3 space-y-3 text-sm">
                   <p className="font-semibold leading-snug">{previewTitle}</p>
                   <SummaryRow icon={<Clock className="h-3.5 w-3.5" aria-hidden />}>
-                    {formatRange(startsAt, endsAt, allDay)}
+                    {clubEventRangeLabel(startsAt, endsAt, allDay)}
                   </SummaryRow>
                   {location.trim().length > 0 && (
                     <SummaryRow icon={<MapPin className="h-3.5 w-3.5" aria-hidden />}>
@@ -405,7 +390,7 @@ export function ClubEventForm({
                       ? `${t("club.eventForm.rsvpEnabled")}${capacity.trim().length > 0 ? ` - ${capacity.trim()}` : ""}`
                       : "-"}
                   </SummaryRow>
-                  {!editing && previewSlug.length > 0 && (
+                  {showsSlug && (
                     <p className="pt-1 text-xs text-muted-foreground">
                       {t("club.eventForm.slugLabel")}:{" "}
                       <code className="rounded bg-muted px-1 py-0.5">{previewSlug}</code>
@@ -503,23 +488,4 @@ function SummaryRow({ icon, children }: { icon: ReactNode; children: ReactNode }
       <span className="min-w-0">{children}</span>
     </p>
   );
-}
-
-/** `datetime-local` oczekuje czasu lokalnego bez strefy - `toISOString()` da UTC. */
-function localDateTime(date: Date): string {
-  return `${localDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function localDate(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-function formatRange(start: string, end: string, allDay: boolean): string {
-  const label = (value: string) => value.replace("T", ", ");
-  if (end.length === 0) return allDay ? start : label(start);
-  return `${allDay ? start : label(start)} - ${allDay ? end : label(end)}`;
 }
