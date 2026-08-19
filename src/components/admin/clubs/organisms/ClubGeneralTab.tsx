@@ -1,23 +1,32 @@
-// Organizm: zakładka "Ogólne" edytora klubu.
+// Organizm: zakładka „Ogólne" edytora klubu - KOMPOZYCJA, nie formularz.
+//
+// Reguły tej zakładki mieszkają poza nią i mają własne testy:
+//   - tabela pól (klucz łatki, `id`, klucz etykiety, limit znaków, wiersze)
+//     oraz wybór „przepisz albo znormalizuj" - `lib/clubs/adminClubFormFields`;
+//   - normalizacja sluga i wykrycie jego zmiany - `lib/clubs/adminClubEditor`.
 //
 // Slug ma osobne ostrzeżenie przy zmianie, bo to jedyne pole w tym formularzu,
 // którego edycja psuje coś poza formularzem - istniejące linki do klubu.
+//
+// Zostaje tu WYŁĄCZNIE sklejenie: która grupa pól w której karcie, co trafia
+// do `onChange` z kontrolek nietekstowych (obszar, status, okładka, układ)
+// i kiedy pod slugiem zapala się ostrzeżenie.
 import { useTranslation } from "react-i18next";
-import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
+import { ClubFormTextField } from "../molecules/ClubFormTextField";
 import { CLUB_STATUSES } from "@/lib/clubs/types";
+import { isClubSlugChanged, type ClubGeneralDraftValues } from "@/lib/clubs/adminClubEditor";
 import {
-  isClubSlugChanged,
-  normalizeClubSlugInput,
-  type ClubGeneralDraftValues,
-} from "@/lib/clubs/adminClubEditor";
+  CLUB_SLUG_CHANGED_WARNING_KEY,
+  clubGeneralFieldsIn,
+  clubGeneralTextPatch,
+  type ClubGeneralTextField,
+} from "@/lib/clubs/adminClubFormFields";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 /**
@@ -41,75 +50,30 @@ export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: Clu
   const { t } = useTranslation();
   const slugChanged = isClubSlugChanged(draft.slug, persistedSlug);
 
+  /** Pole tekstowe z deskryptora. Ostrzeżenie dostaje wyłącznie slug. */
+  const textField = (field: ClubGeneralTextField) => (
+    <ClubFormTextField
+      key={field.key}
+      field={field}
+      value={draft[field.key]}
+      disabled={disabled}
+      warningKey={field.key === "slug" && slugChanged ? CLUB_SLUG_CHANGED_WARNING_KEY : undefined}
+      onValueChange={(value) => onChange(clubGeneralTextPatch(field.key, value))}
+    />
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card>
         <CardContent className="space-y-4 p-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="club-name-pl">{t("adminClubs.fields.namePl")}</Label>
-              <Input
-                id="club-name-pl"
-                value={draft.namePl}
-                disabled={disabled}
-                maxLength={120}
-                onChange={(e) => onChange({ namePl: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="club-name-en">{t("adminClubs.fields.nameEn")}</Label>
-              <Input
-                id="club-name-en"
-                value={draft.nameEn}
-                disabled={disabled}
-                maxLength={120}
-                onChange={(e) => onChange({ nameEn: e.target.value })}
-              />
-            </div>
+            {clubGeneralFieldsIn("identity").map(textField)}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="club-slug">{t("adminClubs.fields.slug")}</Label>
-            <Input
-              id="club-slug"
-              value={draft.slug}
-              disabled={disabled}
-              // Normalizujemy w locie zamiast walidować po zapisie: CHECK w bazie
-              // odrzuca wszystko poza [a-z0-9-], więc lepiej nie pozwolić wpisać
-              // czegoś, co i tak zostanie odrzucone. Reguła mieszka
-              // w `lib/clubs/adminClubEditor` i ma tabelę przypadków.
-              onChange={(e) => onChange({ slug: normalizeClubSlugInput(e.target.value) })}
-            />
-            <p className="text-xs text-muted-foreground">{t("adminClubs.fields.slugHint")}</p>
-            {slugChanged ? (
-              <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {t("adminClubs.fields.slugHint")}
-              </p>
-            ) : null}
-          </div>
+          {clubGeneralFieldsIn("slug").map(textField)}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="club-tagline-pl">{t("adminClubs.fields.taglinePl")}</Label>
-              <Input
-                id="club-tagline-pl"
-                value={draft.taglinePl}
-                disabled={disabled}
-                maxLength={200}
-                onChange={(e) => onChange({ taglinePl: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="club-tagline-en">{t("adminClubs.fields.taglineEn")}</Label>
-              <Input
-                id="club-tagline-en"
-                value={draft.taglineEn}
-                disabled={disabled}
-                maxLength={200}
-                onChange={(e) => onChange({ taglineEn: e.target.value })}
-              />
-            </div>
+            {clubGeneralFieldsIn("tagline").map(textField)}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -136,47 +100,7 @@ export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: Clu
 
       <Card>
         <CardContent className="space-y-4 p-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="club-desc-pl">{t("adminClubs.fields.descriptionPl")}</Label>
-            <Textarea
-              id="club-desc-pl"
-              rows={4}
-              value={draft.descriptionPl}
-              disabled={disabled}
-              onChange={(e) => onChange({ descriptionPl: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="club-desc-en">{t("adminClubs.fields.descriptionEn")}</Label>
-            <Textarea
-              id="club-desc-en"
-              rows={4}
-              value={draft.descriptionEn}
-              disabled={disabled}
-              onChange={(e) => onChange({ descriptionEn: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="club-rules-pl">{t("adminClubs.fields.rulesPl")}</Label>
-            <Textarea
-              id="club-rules-pl"
-              rows={3}
-              value={draft.rulesPl}
-              disabled={disabled}
-              onChange={(e) => onChange({ rulesPl: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="club-rules-en">{t("adminClubs.fields.rulesEn")}</Label>
-            <Textarea
-              id="club-rules-en"
-              rows={3}
-              value={draft.rulesEn}
-              disabled={disabled}
-              onChange={(e) => onChange({ rulesEn: e.target.value })}
-            />
-            <p className="text-xs text-muted-foreground">{t("adminClubs.fields.rulesHint")}</p>
-          </div>
+          {clubGeneralFieldsIn("body").map(textField)}
         </CardContent>
       </Card>
 

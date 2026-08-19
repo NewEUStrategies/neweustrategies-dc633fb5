@@ -5,9 +5,15 @@
 //   * PODGLĄD pyta bazę o konkretną osobę (club_capabilities) - jest prawdą.
 // Gdyby się rozjechały, prawdą jest baza. Dlatego podgląd nie renderuje się
 // z macierzy, tylko z RPC, i pokazuje także `reason`.
+//
+// CO STĄD WYSZŁO I GDZIE JEST. Składanie macierzy na wiersze, czterostanowy
+// podgląd (brak wyboru / w locie / gotowe / awaria RPC) i odczyt zdolności
+// z odpowiedzi są w `lib/clubs/adminClubPermissions.ts`; ikona komórki jest
+// w molekule `ClubTableCapabilityCell`. Tutaj zostaje sklejenie: co jedzie do
+// zapytania podglądu i co się rysuje dla którego stanu.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Minus, Settings2, UserSearch } from "lucide-react";
+import { Check, Minus, UserSearch } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -18,50 +24,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
+import { ClubTableCapabilityCell } from "../molecules/ClubTableCapabilityCell";
+import { CAPABILITY_ROLES } from "@/lib/clubs/capabilityMatrix";
 import {
-  CAPABILITY_KEYS,
-  CAPABILITY_ROLES,
-  capabilityValue,
-  readCapability,
-  type CapabilityValue,
-} from "@/lib/clubs/capabilityMatrix";
+  capabilityPreviewState,
+  capabilityPreviewUserId,
+  clubCapabilityMatrixRows,
+} from "@/lib/clubs/adminClubPermissions";
 import { useClubCapabilitiesPreview } from "@/lib/clubs/useClubs";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
-
-function CapabilityCell({ value }: { value: CapabilityValue }) {
-  const { t } = useTranslation();
-  if (value === "yes") {
-    return (
-      <span
-        className="inline-flex items-center justify-center"
-        title={t("adminClubs.permissions.value.yes")}
-      >
-        <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <span className="sr-only">{t("adminClubs.permissions.value.yes")}</span>
-      </span>
-    );
-  }
-  if (value === "cond") {
-    return (
-      <span
-        className="inline-flex items-center justify-center"
-        title={t("adminClubs.permissions.value.conditional")}
-      >
-        <Settings2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-        <span className="sr-only">{t("adminClubs.permissions.value.conditional")}</span>
-      </span>
-    );
-  }
-  return (
-    <span
-      className="inline-flex items-center justify-center"
-      title={t("adminClubs.permissions.value.no")}
-    >
-      <Minus className="h-4 w-4 text-muted-foreground/60" />
-      <span className="sr-only">{t("adminClubs.permissions.value.no")}</span>
-    </span>
-  );
-}
 
 export function ClubPermissionsTab({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
@@ -70,7 +41,13 @@ export function ClubPermissionsTab({ clubId }: { clubId: string }) {
 
   const previewQ = useClubCapabilitiesPreview({
     clubId,
-    userId: previewUserId.length > 0 ? previewUserId : undefined,
+    userId: capabilityPreviewUserId(previewUserId),
+  });
+  const matrixRows = clubCapabilityMatrixRows();
+  const preview = capabilityPreviewState({
+    userId: previewUserId,
+    isPending: previewQ.isPending,
+    caps: previewQ.data,
   });
 
   return (
@@ -98,14 +75,14 @@ export function ClubPermissionsTab({ clubId }: { clubId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {CAPABILITY_KEYS.map((key) => (
-                  <TableRow key={key}>
+                {matrixRows.map((row) => (
+                  <TableRow key={row.key}>
                     <TableCell className="sticky left-0 z-10 bg-background text-sm font-medium">
-                      {t(`adminClubs.permissions.caps.${key}`)}
+                      {t(`adminClubs.permissions.caps.${row.key}`)}
                     </TableCell>
-                    {CAPABILITY_ROLES.map((role) => (
-                      <TableCell key={role} className="text-center">
-                        <CapabilityCell value={capabilityValue(key, role)} />
+                    {row.cells.map((cell) => (
+                      <TableCell key={cell.role} className="text-center">
+                        <ClubTableCapabilityCell value={cell.value} />
                       </TableCell>
                     ))}
                   </TableRow>
@@ -140,52 +117,51 @@ export function ClubPermissionsTab({ clubId }: { clubId: string }) {
             />
           </div>
 
-          {previewUserId.length === 0 ? (
+          {preview.kind === "empty" ? (
             <p className="text-sm text-muted-foreground">
               {t("adminClubs.permissions.previewEmpty")}
             </p>
-          ) : previewQ.isPending ? (
+          ) : null}
+
+          {preview.kind === "pending" ? (
             <div className="h-24 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-          ) : previewQ.data ? (
+          ) : null}
+
+          {preview.kind === "ready" ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                 <span>
                   <span className="text-muted-foreground">
                     {t("adminClubs.permissions.effectiveRole")}:{" "}
                   </span>
-                  <span className="font-medium">
-                    {t(`club.role.${previewQ.data.effectiveRole}`)}
-                  </span>
+                  <span className="font-medium">{t(preview.summary.roleKey)}</span>
                 </span>
                 <span>
                   <span className="text-muted-foreground">
                     {t("adminClubs.permissions.reasonLabel")}:{" "}
                   </span>
                   <span className="font-medium">
-                    {previewQ.data.reason
-                      ? t(`club.reason.${previewQ.data.reason}`)
-                      : t("adminClubs.permissions.reasonNone")}
+                    {preview.summary.reasonKey === null
+                      ? t("adminClubs.permissions.reasonNone")
+                      : t(preview.summary.reasonKey)}
                   </span>
                 </span>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {CAPABILITY_KEYS.map((key) => {
-                  const granted = readCapability(previewQ.data, key);
-                  return (
-                    <div
-                      key={key}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm"
-                    >
-                      <span>{t(`adminClubs.permissions.caps.${key}`)}</span>
-                      {granted ? (
-                        <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                      ) : (
-                        <Minus className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                      )}
-                    </div>
-                  );
-                })}
+                {preview.rows.map((row) => (
+                  <div
+                    key={row.key}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm"
+                  >
+                    <span>{t(`adminClubs.permissions.caps.${row.key}`)}</span>
+                    {row.granted ? (
+                      <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <Minus className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}
