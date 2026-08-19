@@ -8,7 +8,7 @@
 //   tenantów są nietykalne).
 import { createServerFn } from "@tanstack/react-start";
 import { edgeTtlCache } from "@/lib/ssrCache";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
@@ -130,10 +130,13 @@ export async function fetchMenuWithItems(
  * Kształt jest zawężony strukturalnie, żeby test mógł podać atrapę bez
  * odtwarzania całego `SupabaseClient`.
  */
-export interface MenuWriteClient {
-  from: (table: string) => never;
-  rpc: (fn: string, args: Record<string, unknown>) => never;
-}
+/**
+ * Klient użytkownika (z sesją) - `from` do tabel i `rpc` do bramek ról.
+ * Zawężenie do dwóch metod, a nie własny opis łańcucha PostgREST: dzięki temu
+ * kontrakt jest TEN SAM co w produkcji (wygenerowane typy `Database` pilnują
+ * nazw tabel i kolumn), a test nadal może podać atrapę zamiast całego klienta.
+ */
+export type MenuWriteClient = Pick<SupabaseClient<Database>, "from" | "rpc">;
 
 /**
  * Zapis menu: bramka roli, wyczyszczenie starych pozycji, wstawienie nowych
@@ -156,29 +159,7 @@ export async function saveMenuItems(
   data: SaveMenuInput,
   makeId: () => string = () => crypto.randomUUID(),
 ): Promise<{ ok: true }> {
-  const client = supabase as unknown as {
-    from: (table: string) => {
-      select: (cols: string) => {
-        eq: (
-          col: string,
-          val: unknown,
-        ) => {
-          maybeSingle: () => Promise<{
-            data: { id: string; tenant_id: string } | null;
-            error: { message: string } | null;
-          }>;
-        };
-      };
-      delete: () => {
-        eq: (col: string, val: unknown) => Promise<{ error: { message: string } | null }>;
-      };
-      insert: (rows: unknown[]) => Promise<{ error: { message: string } | null }>;
-    };
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
-  };
+  const client = supabase;
 
   // Twarda bramka staff (admin/editor). RLS też to wymusi, ale komunikat
   // „Forbidden" jest czytelniejszy niż 42501 z bazy.
@@ -246,9 +227,5 @@ export const saveMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveMenuInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> =>
-    saveMenuItems(
-      context.supabase as unknown as MenuWriteClient,
-      context.userId,
-      data as SaveMenuInput,
-    ),
+    saveMenuItems(context.supabase, context.userId, data as SaveMenuInput),
   );

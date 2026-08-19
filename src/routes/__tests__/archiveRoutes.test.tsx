@@ -276,9 +276,8 @@ describe("nagłówek /publications", () => {
 describe("spięcie tras", () => {
   it("każda trasa archiwum ma szkielet ładowania i obsługę błędu", () => {
     for (const route of [BlogRoute, CategoryRoute, TagRoute]) {
-      const options = (route as { options: Record<string, unknown> }).options;
-      expect(typeof options.pendingComponent).toBe("function");
-      expect(typeof options.errorComponent).toBe("function");
+      expect(typeof route.options.pendingComponent).toBe("function");
+      expect(typeof route.options.errorComponent).toBe("function");
     }
   });
 
@@ -286,8 +285,7 @@ describe("spięcie tras", () => {
     // Nieistniejąca kategoria ma dać stronę „nie znaleziono", a nie pusty
     // layout archiwum z zerem wyników.
     for (const route of [CategoryRoute, TagRoute]) {
-      const options = (route as { options: Record<string, unknown> }).options;
-      expect(options.notFoundComponent).toBeTruthy();
+      expect(route.options.notFoundComponent).toBeTruthy();
     }
   });
 

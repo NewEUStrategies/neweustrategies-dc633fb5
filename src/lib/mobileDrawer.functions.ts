@@ -7,7 +7,7 @@
 //   dodatkowy hard-guard sprawdza `is_super_admin` (RLS też to wymusza,
 //   ale wolimy jasny błąd zamiast enigmatycznego 42501).
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
@@ -64,10 +64,12 @@ export const getMobileDrawerConfig = createServerFn({ method: "GET" }).handler(
 );
 
 /** Klient użytkownika: tabele + RPC bramki `is_super_admin`. */
-export interface DrawerWriteClient {
-  from: (table: string) => never;
-  rpc: (fn: string, args: Record<string, unknown>) => never;
-}
+/**
+ * Klient użytkownika: tabele + RPC bramki `is_super_admin`. Zawężony do dwóch
+ * metod - kontrakt zostaje ten sam co w produkcji (wygenerowane typy pilnują
+ * nazw tabel i kolumn), a test podaje atrapę zamiast całego klienta.
+ */
+export type DrawerWriteClient = Pick<SupabaseClient<Database>, "from" | "rpc">;
 
 /**
  * Zapis konfiguracji szuflady. Bramka `is_super_admin` jest tu PONAD RLS-em -
@@ -80,33 +82,7 @@ export async function writeMobileDrawerConfig(
   userId: string,
   data: DrawerConfig,
 ): Promise<DrawerConfig> {
-  const client = supabase as unknown as {
-    from: (table: string) => {
-      select: (cols: string) => {
-        eq: (
-          col: string,
-          val: unknown,
-        ) => {
-          maybeSingle: () => Promise<{
-            data: { tenant_id: string | null } | null;
-            error: { message: string } | null;
-          }>;
-        };
-      };
-      upsert: (
-        row: Record<string, unknown>,
-        options: { onConflict: string },
-      ) => {
-        select: (cols: string) => {
-          single: () => Promise<{ data: unknown; error: { message: string } | null }>;
-        };
-      };
-    };
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
-  };
+  const client = supabase;
 
   const { data: isSuper, error: rpcErr } = await client.rpc("is_super_admin", {
     _user_id: userId,
@@ -144,9 +120,5 @@ export const upsertMobileDrawerConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => drawerConfigSchema.parse(input))
   .handler(async ({ data, context }): Promise<DrawerConfig> =>
-    writeMobileDrawerConfig(
-      context.supabase as unknown as DrawerWriteClient,
-      context.userId,
-      data as DrawerConfig,
-    ),
+    writeMobileDrawerConfig(context.supabase, context.userId, data as DrawerConfig),
   );
