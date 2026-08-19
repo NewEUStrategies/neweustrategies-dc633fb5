@@ -122,15 +122,15 @@ describe("documentForWidget", () => {
   });
 
   it("kolumna zajmuje pełną szerokość (podgląd nie ma być ścieśniony)", () => {
-    const doc = documentForWidget({ type: "heading" });
+    const doc = documentForWidget({ type: "heading", content: {} });
     expect(doc.sections[0].children[0]).toMatchObject({ span: 12 });
   });
 
   it("nadaje ŚWIEŻE identyfikatory przy każdym wywołaniu", () => {
     // Powtórzone id w dokumencie podglądu myliłoby React-a przy przełączaniu
     // wersji (dwa węzły o tym samym kluczu).
-    const a = documentForWidget({ type: "heading" });
-    const b = documentForWidget({ type: "heading" });
+    const a = documentForWidget({ type: "heading", content: {} });
+    const b = documentForWidget({ type: "heading", content: {} });
     expect(a.sections[0].id).not.toBe(b.sections[0].id);
   });
 
@@ -139,14 +139,14 @@ describe("documentForWidget", () => {
       type: "heading",
       content: { text_pl: "x" },
       style: { align: "center" },
-      advanced: { anchor: "top" },
+      advanced: { cssClass: "top" },
     });
     const column = doc.sections[0].children[0] as unknown as {
       children: Record<string, unknown>[];
     };
     expect(column.children[0]).toMatchObject({
       style: { align: "center" },
-      advanced: { anchor: "top" },
+      advanced: { cssClass: "top" },
     });
   });
 });
