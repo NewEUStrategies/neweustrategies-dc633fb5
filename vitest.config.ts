@@ -837,6 +837,23 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // OCHRONA PRZED BRUTE FORCE - do 19.08.2026 11,1% linii i 0 z 9 funkcji,
+        // czyli jedyna zapora przed upychaniem wykradzionych haseł stała bez
+        // testu. Próg pilnuje trzech rzeczy, których nie widać z zewnątrz:
+        //   * FAIL-CLOSED - błąd RPC ma zamykać bramę, nie ją otwierać (inaczej
+        //     wystarczy przeciążyć bazę, żeby wyłączyć ochronę),
+        //   * RODO - w `rate_limits` nie może wylądować surowy IP ani e-mail;
+        //     testy asercjonują wprost na `_subject` idącym do bazy,
+        //   * rozdział kubełków - IP i e-mail liczą się niezależnie, a ten sam
+        //     e-mail w różnych trybach ma osobne liczniki.
+        // Osiągnięte 100/100/100/100 (9 z 9 funkcji); floor niżej, bo gałęzie
+        // obronne łatwo przypadkiem uzależnić od kolejności testów.
+        "src/lib/auth/bruteforce.functions.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
         // ── NEWSLETTER: DORĘCZALNOŚĆ ─────────────────────────────────────────
         // Audyt 18.08 dał tej powierzchni najgorszą możliwą ocenę: 0,0% linii
         // i 0 z 23 funkcji - przy tym, że to ONA decyduje, czy mail w ogóle

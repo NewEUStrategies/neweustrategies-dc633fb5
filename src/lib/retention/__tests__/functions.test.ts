@@ -268,7 +268,15 @@ describe("acceptRetentionOffer - kontrofertka z kuponem", () => {
 
     expect(res.ok).toBe(true);
     expect(attempts).toBe(2);
-    expect(res.code).toMatch(/^SAVE30-/);
+    // Ponowienie MUSI wylosować nowy kod. Gdyby pętla wstawiała ten sam,
+    // constraint odrzucałby go przy każdej próbie i akceptacja oferty byłaby
+    // trwale zepsuta - a sam licznik prób tego nie wykryje.
+    const codes = chain
+      .chainsFor("b2b_coupons")
+      .map((c) => (c.argsOf("insert")![0] as Record<string, unknown>).code as string);
+    expect(codes).toHaveLength(2);
+    expect(codes[0]).not.toBe(codes[1]);
+    expect(res.code).toBe(codes[1]);
   });
 
   it("PIĘĆ kolizji z rzędu kończy się jawnym błędem, nie cichym brakiem kuponu", async () => {
