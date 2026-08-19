@@ -9,6 +9,16 @@ vi.mock("react-i18next", async () => {
   return fixtures.reactI18nextStub();
 });
 
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  const { selectPrimitiveStub } = await import("@/test/postExperience/fixtures");
+  return selectPrimitiveStub(React);
+});
+
+vi.mock("@/components/admin/RelatedLayoutPreview", () => ({
+  RelatedLayoutPreview: ({ value }: { value: string }) => <div data-testid="preview">{value}</div>,
+}));
+
 vi.mock("@/components/admin/blocks/AdminColorPicker", () => ({
   AdminColorPicker: ({
     value,
@@ -33,6 +43,9 @@ vi.mock("@/components/admin/blocks/AdminColorPicker", () => ({
 import { PanelSaveBar } from "@/components/admin/postExperience/molecules/PanelSaveBar";
 import { PreviewLangTabs } from "@/components/admin/postExperience/molecules/PreviewLangTabs";
 import { KeyTakeawaysHighlightSection } from "@/components/admin/postExperience/molecules/KeyTakeawaysHighlightSection";
+import { RelatedPostsConfigSection } from "@/components/admin/postExperience/molecules/RelatedPostsConfigSection";
+import { RelatedPostsEngineSection } from "@/components/admin/postExperience/molecules/RelatedPostsEngineSection";
+import { RELATED_POSTS_DEFAULTS } from "@/lib/relatedPosts";
 import type { KeyTakeawaysSettings } from "@/lib/keyTakeaways/settings";
 
 const labels = {
@@ -223,5 +236,38 @@ describe("KeyTakeawaysHighlightSection - STARSZY wiersz bez pól podświetlenia"
     );
     expect(screen.getByRole("slider", { name: /highlightOffset/ })).toHaveValue("0");
     expect(screen.getByText("0px")).toBeInTheDocument();
+  });
+});
+
+describe("sekcje rekomendacji - stan zapisu w toku", () => {
+  // Napis „zapisuję" jest jedynym sygnałem, że kliknięcie zadziałało: panel nie
+  // ma osobnego wskaźnika postępu, a zapis idzie przez sieć.
+  it("konfiguracja podstawowa ogłasza stan zapisu i blokuje przycisk", () => {
+    render(
+      <RelatedPostsConfigSection
+        form={RELATED_POSTS_DEFAULTS}
+        onChange={() => {}}
+        onSave={() => {}}
+        pending
+      />,
+    );
+    const button = screen.getByRole("button", { name: "adminRelatedPosts.actions.saving" });
+    expect(button).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "adminRelatedPosts.actions.save" })).toBeNull();
+  });
+
+  it("zakładka silnika ogłasza ten sam stan pod własnym napisem zapisu", () => {
+    render(
+      <RelatedPostsEngineSection
+        form={RELATED_POSTS_DEFAULTS}
+        onChange={() => {}}
+        onSave={() => {}}
+        pending
+      />,
+    );
+    expect(screen.getByRole("button", { name: "adminRelatedPosts.actions.saving" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "adminRelatedPosts.actions.saveWeights" }),
+    ).toBeNull();
   });
 });
