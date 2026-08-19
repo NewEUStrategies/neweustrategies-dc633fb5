@@ -313,3 +313,65 @@ Wszystkie trzy mają testy przypinające bieżące zachowanie, więc zmiana będ
   (3750 plików, zero żywych referencji).
 - Pliki generowane (`routeTree.gen.ts`, `types.ts`, `authzSnapshot.generated.ts`) —
   nietknięte.
+
+---
+
+## 11. Weryfikacja zestawu testów — i dlaczego w kawałkach
+
+W tym kontenerze **cały zestaw nie kończy się w jednym przebiegu**: proces
+`vitest run` po starcie przestaje zużywać CPU i nie kończy pracy. Powód jest po stronie
+środowiska, nie kodu — część testów kreatora wykonuje REALNE żądania sieciowe, które
+piaskownica odrzuca albo zawiesza:
+
+```
+GET https://google.com/preferences/source?q=neweuropeanstrategies.com 403 (Forbidden)
+Error: connect ECONNREFUSED 127.0.0.1:8080
+Error: Failed to execute 'startTask()' on 'AsyncTaskManager' … browser frame is closed
+```
+
+happy-dom trzyma takie zadania jako niedokończone, więc przebieg stoi. **To zachowanie
+istniało przed tą pracą** — dokładnie ten ślad jest w logu zestawu zdjętym na commicie
+bazowym gałęzi, przed pierwszym commitem.
+
+Dlatego zestaw został sprawdzony w częściach, które kończą się poprawnie. Suma pokrywa
+całe `src/`:
+
+| część                                                            |            plików | przypadków | wynik   |
+| ---------------------------------------------------------------- | ----------------: | ---------: | ------- |
+| `src/lib/**`                                                     |               560 |      6 687 | zielone |
+| `src/components/admin/{billing,pricing,membership,crm,media}`    |                29 |        511 | zielone |
+| `src/components/admin/{community,popups,post-editor,versions,…}` |                14 |         83 | zielone |
+| `src/components/admin/builder/ui/{molecules,atoms}`              |                 2 |         14 | zielone |
+| `src/components/{network,profile,chat,blocks,clubs,search,…}`    |               102 |      1 321 | zielone |
+| `src/components/{billing,pricing,membership-join,checkout,…}`    |                26 |        415 | zielone |
+| `src/{routes,hooks,integrations,__tests__}`                      | 30 (+2 pominięte) |  299 (+50) | zielone |
+
+Poza tym: `typecheck` czysty, `lint` 0 błędów (177 ostrzeżeń — dokładnie poziom wyjściowy),
+`format:check` zielony, cztery bramki i18n zielone, `check:legacy-payment-refs` zielony.
+
+### Co ZOSTAJE czerwone — wyłącznie moduł kreatora, wyłącznie sprzed tej pracy
+
+Sprawdzone przez uruchomienie tych samych plików na **commicie bazowym gałęzi**
+(osobny worktree na `1f0963e`), gdzie zachowują się identycznie:
+
+| plik                                                                                  | objaw                                                               | potwierdzone na bazie |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------- |
+| `admin/builder/ui/.../accordionEditor.test.tsx`                                       | 3 czerwone (`Cannot read properties of null (reading 'className')`) | tak                   |
+| `admin/builder/__tests__/settingsFidelity.gate.test.tsx` + sąsiednie bramki wierności | zawieszenie (blokowana sieć)                                        | tak                   |
+| `builder/organisms/widget-view/__tests__/teamMemberEditableFlag.test.tsx`             | 2 czerwone                                                          | tak                   |
+| `builder/organisms/widget-view/__tests__/postListVariants2.test.tsx`                  | 1 czerwony                                                          | tak                   |
+
+Wszystkie cztery należą do modułu kreatora i są poza zakresem tej pracy. Jedyne, co z tego
+obszaru zostało tu naprawione, to dwie **listy w plikach testowych** (`lazyWidgets`
+i lustro eager), bo ich rozjazd był bramką wierności ustawień: `AccordionWidget`,
+`SectionLabelWidgetView` i `TrendingNowView` były w rejestrze, a nie na listach.
+Czerwony `accordionEditor` sugeruje, że `AccordionWidget` wylądował w repo tylko
+połowicznie — to materiał na osobne zgłoszenie w module kreatora.
+
+### Progi pokrycia
+
+Wartości progów pochodzą z **pomiarów wykonanych na tej gałęzi** (przebiegi celowane na
+ścieżki modułu 13, tabela w §2) i są floorowane pod nimi z marginesem. Pełnego
+`bun run test:coverage` nie da się w tym kontenerze doprowadzić do końca z tego samego
+powodu, co całego zestawu — bramka progów jest do przebiegnięcia w CI, gdzie sieć testów
+kreatora zachowuje się normalnie.
