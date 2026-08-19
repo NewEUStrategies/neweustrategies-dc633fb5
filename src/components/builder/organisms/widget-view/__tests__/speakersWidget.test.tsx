@@ -8,6 +8,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 
+// Podział kodu (React.lazy) zamieniony na importy statyczne. Bez tego pierwszy
+// render widgetu z rejestru pokazuje fallback Suspense, który na stronie
+// publicznej jest `null` - test widzi PUSTKĘ i uznaje każde ustawienie za
+// martwe. Ten sam mock mają siostrzane pliki (np. `widgetBehavior.test.tsx`);
+// tutaj zabrakło go po przeniesieniu widgetów do rejestru leniwego (01253dc).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   type Builder = Record<string, unknown> & { then: (r: (v: unknown) => unknown) => unknown };
   const builder = {} as Builder;

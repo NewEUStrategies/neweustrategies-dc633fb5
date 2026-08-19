@@ -9,6 +9,16 @@ import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
 import { renderSimpleWidget } from "../SimpleWidgets";
 
 // BrandIcon czyta bibliotekę ikon przez Supabase - thenable stub wystarczy.
+// Podział kodu (React.lazy) zamieniony na importy statyczne. Bez tego pierwszy
+// render widgetu z rejestru pokazuje fallback Suspense, który na stronie
+// publicznej jest `null` - test widzi PUSTKĘ i uznaje każde ustawienie za
+// martwe. Ten sam mock mają siostrzane pliki (np. `widgetBehavior.test.tsx`);
+// tutaj zabrakło go po przeniesieniu widgetów do rejestru leniwego (01253dc).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   const chain: Record<string, unknown> = {};
   for (const m of ["from", "select", "eq", "in", "is", "order", "limit"]) {

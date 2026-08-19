@@ -44,8 +44,20 @@ vi.mock("@/integrations/supabase/client", () => {
     (builder as Record<string, unknown>)[m] = vi.fn(() => builder);
   }
   builder.then = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
+  // Realtime no-op: NewsletterForm ciągnie `TopicsDroplist` -> `useInterests`,
+  // który subskrybuje `postgres_changes` na katalog zainteresowań przy montażu.
+  // Bez tej zaślepki każdy render newslettera wywraca się na
+  // `supabase.channel is not a function` (ten sam stub ma `allWidgets.smoke`).
+  const channel: Record<string, unknown> = {};
+  channel.on = () => channel;
+  channel.subscribe = () => channel;
   return {
-    supabase: { from: vi.fn(() => builder), rpc: vi.fn(async () => ({ data: [], error: null })) },
+    supabase: {
+      from: vi.fn(() => builder),
+      rpc: vi.fn(async () => ({ data: [], error: null })),
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(async () => "ok"),
+    },
   };
 });
 

@@ -26,11 +26,16 @@ vi.mock("react-i18next", () => ({
 }));
 // TTS renderuje odtwarzacz leniwie i nie pokazuje surowego tekstu w DOM -
 // podstawiamy sondę, żeby sprawdzić, co widget faktycznie do niego przekazuje.
-vi.mock("@/components/builder/organisms/widget-view/lazyWidgets", async (orig) => {
-  const actual =
-    await orig<typeof import("@/components/builder/organisms/widget-view/lazyWidgets")>();
+// Podstawiamy LUSTRO EAGER, nie oryginał: `renderToStaticMarkup` jest
+// synchroniczne, więc każda granica `React.lazy` oddaje fallback Suspense
+// (na stronie publicznej `null`). Po przeniesieniu widgetów do rejestru
+// leniwego (01253dc) widget „text" jedzie przez `RichHtmlView`, czyli przez
+// taką granicę - asercja o fallbacku EN dostawała pusty `<div>` i padała,
+// choć sam łańcuch `pickI18n` działa. Sonda TTS zostaje nałożona na wierzch.
+vi.mock("@/components/builder/organisms/widget-view/lazyWidgets", async () => {
+  const eager = await import("@/test/eagerWidgetChunks");
   return {
-    ...actual,
+    ...eager,
     TtsPlayerHost: (props: { customText: string; label: string }) => (
       <div data-tts-text={props.customText} data-tts-label={props.label} />
     ),
