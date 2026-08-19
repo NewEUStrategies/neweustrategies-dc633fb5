@@ -139,18 +139,32 @@ nigdy nie uruchomione w teście.
 Każdy wiersz to FUNKCJA PRODUKTU, nie katalog: lista plików ją realizujących jest zdefiniowana
 wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w plikach tej funkcjonalności.
 
-### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 31,81% · funkcje 26,93%
+### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 31,81% → **81,43%** · funkcje 26,93% → **80,94%**
 
-| Funkcjonalność                     | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
-| ---------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| Audio wpisu (TTS)                  |     12 |        743 |  11,6% |  9,2% |   15,4% |  **11,4%** |    21/136 |
-| Układy wpisu + render              |     24 |        567 |  18,4% | 27,5% |   18,2% |  **19,0%** |    29/159 |
-| Licznik odsłon / zapisane artykuły |      3 |        101 |  23,3% | 14,6% |   17,9% |  **25,7%** |      5/28 |
-| Powiązane wpisy / rekomendacje     |      6 |        149 |  47,1% | 51,9% |   48,6% |  **50,3%** |     18/37 |
-| Paywall / bramka dostępu           |      5 |        152 |  70,9% | 73,4% |   78,8% |  **71,7%** |     26/33 |
-| Spis treści (TOC) + przypisy       |      4 |        165 |  83,9% | 72,0% |   73,0% |  **87,3%** |     27/37 |
-| Key takeaways + cytowania          |      4 |        152 |  89,0% | 84,4% |   82,8% |  **88,8%** |     24/29 |
-| Metering „N darmowych/mies.”       |      3 |         85 |  98,0% | 96,1% |  100,0% | **100,0%** |     23/23 |
+> **AKTUALIZACJA 2026-08-19.** Moduł został domknięty: linie **81,43%**, instrukcje **79,89%**,
+> funkcje **80,94%**, gałęzie **71,47%**. Plików 74 → **122** (48 nowych z wyprowadzenia reguł
+> i paneli), plików na zerze **43 → 16** (z czego 4 to pliki tras panelowych zredukowane
+> do samej rejestracji, a 2 to publiczne trasy wpisu jawnie poza zakresem).
+> Wdrożenie i metodologia pomiaru: `docs/WDROZENIE_MODUL_1_TESTY_PANELE_2026-08-19.md`.
+> Pomiar „po" ma mianownik zawężony do plików modułu (reguły z rozdziału 9.1 plus trzy
+> katalogi dopisane niżej) i numerator z 83 plików testowych; pełny przebieg z pokryciem
+> nie kończy się w tym sandboksie (rozdział 9.2), więc numerator jest DOLNYM ograniczeniem.
+
+| Funkcjonalność                         | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) | Linie 2026-08-19 |
+| -------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: | ---------------: |
+| Audio wpisu (TTS)                      |     12 |        743 |  11,6% |  9,2% |   15,4% |  **11,4%** |    21/136 |        **78,2%** |
+| Układy wpisu + render                  |     24 |        567 |  18,4% | 27,5% |   18,2% |  **19,0%** |    29/159 |        **89,0%** |
+| Licznik odsłon / zapisane artykuły     |      3 |        101 |  23,3% | 14,6% |   17,9% |  **25,7%** |      5/28 |       **100,0%** |
+| Powiązane wpisy / rekomendacje         |      6 |        149 |  47,1% | 51,9% |   48,6% |  **50,3%** |     18/37 |        **87,7%** |
+| Paywall / bramka dostępu               |      5 |        152 |  70,9% | 73,4% |   78,8% |  **71,7%** |     26/33 |        **79,4%** |
+| Spis treści (TOC) + przypisy           |      4 |        165 |  83,9% | 72,0% |   73,0% |  **87,3%** |     27/37 |      **83,1%**\* |
+| Key takeaways + cytowania              |      4 |        152 |  89,0% | 84,4% |   82,8% |  **88,8%** |     24/29 |        **99,4%** |
+| Metering „N darmowych/mies.”           |      3 |         85 |  98,0% | 96,1% |  100,0% | **100,0%** |     23/23 |       **100,0%** |
+| PANELE ADMINA (`admin/postExperience`) |      — |          — |      — |     — |       — |          — |         — |       **100,0%** |
+
+\* TOC „spadł" wyłącznie przez zmianę mianownika: doszedł `lib/toc/panelRules.ts` (100%),
+ale też `lib/toc/manualItems.ts`, którego audyt nie liczył w tej grupie. Sam
+`lib/toc/settings.ts` poszedł z 51,2% na 100% linii i funkcji.
 
 ### MODUŁ 2 — Edytor wpisów i workflow redakcyjny · linie 8,34% · funkcje 6,85%
 
@@ -1191,6 +1205,19 @@ i zapisało to w komentarzu do progu globalnego w `vitest.config.ts`. Wskaźnik 
 
 Mapowanie jest deterministyczne (pierwsze trafienie wygrywa) i w całości oparte na ścieżkach.
 Wzorce w kolejności stosowania, per moduł:
+
+> **AKTUALIZACJA 2026-08-19 — trzy wzorce dopisane do MODUŁU 1.** Wyprowadzenie reguł
+> i paneli z plików tras przeniosło kod modułu 1 do katalogów, których reguły niżej nie
+> przypisywały do tego modułu. Bez tych trzech wzorców kolejny pomiar pokazałby SPADEK
+> liczby plików modułu 1 i przeniósł jego pokrycie do modułów 19 i 20, choć kod jest ten sam:
+>
+> | Wzorzec                                | Co tam jest                   | Bez wzorca wpada do   |
+> | -------------------------------------- | ----------------------------- | --------------------- |
+> | `src/components/admin/postExperience/` | cztery panele modułu          | PRZEKROJOWE: panel    |
+> | `src/lib/post/`                        | reguły renderu i paneli wpisu | MODUŁ 20 (`src/lib/`) |
+> | `src/lib/admin/panelDraft`             | reguły wspólne paneli modułu  | MODUŁ 19              |
+>
+> Wzorce wchodzą PRZED regułami modułów 19 i 20 (pierwsze trafienie wygrywa).
 
 | #   | Moduł                                                 | Wzorce ścieżek                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | --- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
