@@ -32,13 +32,7 @@ describe("ttsStageKey - etap konwersji tekst -> mowa", () => {
     const keys = (["preparing", "synthesizing", "streaming", "ready", "cached"] as TtsStage[]).map(
       ttsStageKey,
     );
-    expect(keys).toEqual([
-      "stagePreparing",
-      "stageSynthesizing",
-      "stageStreaming",
-      "stageReady",
-      "stageCached",
-    ]);
+    expect(keys).toEqual(["preparing", "synthesizing", "streaming", "ready", "cached"]);
     expect(new Set(keys).size).toBe(5);
   });
 
@@ -56,7 +50,7 @@ describe("ttsStageKey - etap konwersji tekst -> mowa", () => {
 
   it("cache i synteza to DWA RÓŻNE komunikaty (czytelnik widzi, czy płacimy za TTS)", () => {
     expect(ttsStageKey("cached")).not.toBe(ttsStageKey("synthesizing"));
-    expect(ttsStageKey("cached")).toBe("stageCached");
+    expect(ttsStageKey("cached")).toBe("cached");
   });
 
   it("funkcja jest czysta - to samo wejście daje ten sam klucz", () => {

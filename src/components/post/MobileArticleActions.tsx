@@ -22,13 +22,10 @@
 // łańcucha klas z `ArticleListenButton`, która zgubiła `disabled:opacity-60`,
 // więc przycisk pobierania nie miał stanu wyłączonego.
 import { Download } from "@/lib/lucide-shim";
+import { useTranslation } from "react-i18next";
 import { ArticleListenButton } from "@/components/audio/ArticleListenButton";
 import { ArticleActionButton } from "@/components/post/atoms/ArticleActionButton";
-
-const COPY = {
-  pl: { download: "Pobierz artykuł" },
-  en: { download: "Download article" },
-} as const;
+import "@/lib/i18n-post-experience";
 
 interface Props {
   lang: "pl" | "en";
@@ -41,7 +38,9 @@ interface Props {
 }
 
 export function MobileArticleActions({ lang, postId, title, author, audioUrl }: Props) {
-  const t = COPY[lang];
+  // Napisy idą w języku ARTYKUŁU, nie interfejsu - dotyczą TEJ treści.
+  const { t: translate } = useTranslation();
+  const t = (key: string) => translate(`postExperience.actions.${key}`, { lng: lang });
 
   return (
     <div
@@ -55,7 +54,7 @@ export function MobileArticleActions({ lang, postId, title, author, audioUrl }: 
         author={author ?? null}
         audioUrl={audioUrl ?? null}
       />
-      <ArticleActionButton icon={Download} label={t.download} onClick={() => window.print()} />
+      <ArticleActionButton icon={Download} label={t("download")} onClick={() => window.print()} />
     </div>
   );
 }

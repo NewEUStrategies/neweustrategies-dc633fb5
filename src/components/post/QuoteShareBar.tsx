@@ -20,6 +20,7 @@
 // `window.getSelection()`. Trzy identyczne przyciski ikonowe scala atom
 // `atoms/PostIconButton`.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { XIcon } from "@/components/atoms/XIcon";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Copy, Check, Quote, Linkedin } from "@/lib/lucide-shim";
@@ -33,23 +34,7 @@ import {
   xShareUrl,
   type QuoteBarState,
 } from "@/lib/post/quoteSelection";
-
-const COPY_TEXTS = {
-  pl: {
-    shareX: "Udostępnij cytat na X",
-    shareLinkedin: "Udostępnij na LinkedIn",
-    copy: "Kopiuj cytat",
-    copied: "Skopiowano cytat",
-    region: "Udostępnij zaznaczony cytat",
-  },
-  en: {
-    shareX: "Share quote on X",
-    shareLinkedin: "Share on LinkedIn",
-    copy: "Copy quote",
-    copied: "Quote copied",
-    region: "Share selected quote",
-  },
-} as const;
+import "@/lib/i18n-post-experience";
 
 export function QuoteShareBar({
   containerRef,
@@ -60,7 +45,9 @@ export function QuoteShareBar({
   url: string;
   lang: "pl" | "en";
 }) {
-  const t = COPY_TEXTS[lang];
+  // Napisy idą w języku ARTYKUŁU, nie interfejsu - dotyczą TEJ treści.
+  const { t: translate } = useTranslation();
+  const t = (key: string) => translate(`postExperience.quoteShare.${key}`, { lng: lang });
   const [state, setState] = useState<QuoteBarState | null>(null);
   const [copied, setCopied] = useState(false);
   const barRef = useRef<HTMLDivElement | null>(null);
@@ -135,7 +122,7 @@ export function QuoteShareBar({
     <div
       ref={barRef}
       role="toolbar"
-      aria-label={t.region}
+      aria-label={t("region")}
       // preventDefault na pointerdown: klik w pasek nie może zdjąć zaznaczenia
       // zanim odpali się akcja.
       onPointerDown={(e) => e.preventDefault()}
@@ -145,13 +132,13 @@ export function QuoteShareBar({
       <span className="px-1.5 text-muted-foreground" aria-hidden="true">
         <Quote className="h-3.5 w-3.5" />
       </span>
-      <PostIconButton label={t.shareX} onClick={onShareX}>
+      <PostIconButton label={t("shareX")} onClick={onShareX}>
         <XIcon className="h-3.5 w-3.5" />
       </PostIconButton>
-      <PostIconButton label={t.shareLinkedin} onClick={onShareLinkedin}>
+      <PostIconButton label={t("shareLinkedin")} onClick={onShareLinkedin}>
         <BrandIcon name="linkedin" fallback={Linkedin} className="h-3.5 w-3.5" />
       </PostIconButton>
-      <PostIconButton label={copied ? t.copied : t.copy} onClick={() => void onCopy()}>
+      <PostIconButton label={copied ? t("copied") : t("copy")} onClick={() => void onCopy()}>
         {copied ? <Check className="h-3.5 w-3.5 text-brand" /> : <Copy className="h-3.5 w-3.5" />}
       </PostIconButton>
     </div>

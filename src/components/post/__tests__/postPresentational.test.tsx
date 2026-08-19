@@ -12,9 +12,12 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   useRouter: () => ({ preloadRoute: vi.fn(), navigate: vi.fn() }),
 }));
 
+// Fabryka importuje `@/test/i18nStub` - moduł BEZ importów z produkcji.
+// Sięgnięcie tu po fixture'y obszaru domyka cykl inicjalizacji (fixture'y ->
+// warstwa ustawień -> lib/i18n -> react-i18next -> ta fabryka) i ZAWIESZA plik.
 vi.mock("react-i18next", async () => {
-  const fixtures = await import("@/test/postExperience/fixtures");
-  return fixtures.reactI18nextStub();
+  const { reactI18nextStub } = await import("@/test/i18nStub");
+  return reactI18nextStub();
 });
 
 import { CategoryBadges } from "@/components/post/CategoryBadges";
@@ -316,7 +319,9 @@ describe("MobileArticleActions", () => {
     const { MobileArticleActions } = await import("@/components/post/MobileArticleActions");
     render(<MobileArticleActions lang="pl" postId="p1" title="Analiza" audioUrl={null} />);
     expect(screen.getByRole("button", { name: "Odsłuchaj artykuł" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Pobierz artykuł" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "postExperience.actions.download(lng=pl)" }),
+    ).toBeInTheDocument();
   });
 
   it("przycisk pobierania woła druk przeglądarki (ścieżka Zapisz jako PDF)", async () => {
@@ -329,11 +334,13 @@ describe("MobileArticleActions", () => {
     render(<MobileArticleActions lang="pl" postId="p1" title="Analiza" />);
 
     await act(async () => {
-      screen.getByRole("button", { name: "Pobierz artykuł" }).click();
+      screen.getByRole("button", { name: "postExperience.actions.download(lng=pl)" }).click();
     });
 
     expect(print).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Pobierz artykuł" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "postExperience.actions.download(lng=pl)" }),
+    ).toBeEnabled();
   });
 
   it("pasek jest UKRYTY W DRUKU i ograniczony do mobile", async () => {
@@ -353,8 +360,12 @@ describe("MobileArticleActions", () => {
     }));
     const { MobileArticleActions } = await import("@/components/post/MobileArticleActions");
     render(<MobileArticleActions lang="en" postId="p1" title="Analysis" />);
-    expect(screen.getByRole("button", { name: "Download article" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pobierz artykuł" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "postExperience.actions.download(lng=en)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "postExperience.actions.download(lng=pl)" }),
+    ).toBeNull();
   });
 });
 
@@ -369,7 +380,14 @@ describe("PostFeedback", () => {
   });
 
   async function mount(lang: "pl" | "en" = "pl") {
-    vi.doMock("@tanstack/react-start", () => ({ useServerFn: () => submit }));
+    // PARTIAL, nie pełny: komponent wciąga teraz słownik nakładki, a ten idzie
+    // przez `lib/i18n` -> `createIsomorphicFn` z tej samej paczki. Podmiana
+    // całego modułu urywała ten eksport i plik padał na imporcie, nie na
+    // asercji.
+    vi.doMock("@tanstack/react-start", async (importOriginal) => ({
+      ...(await importOriginal<Record<string, unknown>>()),
+      useServerFn: () => submit,
+    }));
     vi.doMock("@/lib/content/feedback.functions", () => ({ submitPostFeedback: {} }));
     const { PostFeedback } = await import("@/components/post/PostFeedback");
     return render(<PostFeedback postId="p1" lang={lang} />);
@@ -377,23 +395,25 @@ describe("PostFeedback", () => {
 
   it("pyta o przydatność i daje DWIE odpowiedzi", async () => {
     await mount();
-    expect(screen.getByText("Czy ta analiza była przydatna?")).toBeInTheDocument();
+    expect(screen.getByText("postExperience.feedback.question(lng=pl)")).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(2);
   });
 
   it("głos ZA wysyła `helpful: true` i przechodzi w podziękowanie", async () => {
     await mount();
     await act(async () => {
-      screen.getByRole("button", { name: /Tak, przydatna/ }).click();
+      screen.getByRole("button", { name: /postExperience\.feedback\.yes/ }).click();
     });
     expect(submit).toHaveBeenCalledWith({ data: { postId: "p1", helpful: true } });
-    await waitFor(() => expect(screen.getByText("Dziękujemy za opinię.")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("postExperience.feedback.thanks(lng=pl)")).toBeInTheDocument(),
+    );
   });
 
   it("głos PRZECIW wysyła `helpful: false`", async () => {
     await mount();
     await act(async () => {
-      screen.getByRole("button", { name: /Nie/ }).click();
+      screen.getByRole("button", { name: "postExperience.feedback.no(lng=pl)" }).click();
     });
     expect(submit).toHaveBeenCalledWith({ data: { postId: "p1", helpful: false } });
     expect(submit).toHaveBeenCalledTimes(1);
@@ -402,7 +422,7 @@ describe("PostFeedback", () => {
   it("po głosie zapisuje blokadę w magazynie, więc drugi głos nie idzie", async () => {
     await mount();
     await act(async () => {
-      screen.getByRole("button", { name: /Tak, przydatna/ }).click();
+      screen.getByRole("button", { name: /postExperience\.feedback\.yes/ }).click();
     });
     await waitFor(() => expect(window.localStorage.getItem("post-feedback:p1")).toBe("up"));
     expect(screen.queryByRole("button")).toBeNull();
@@ -411,7 +431,9 @@ describe("PostFeedback", () => {
   it("ZAPISANY głos z poprzedniej wizyty od razu pokazuje podziękowanie", async () => {
     window.localStorage.setItem("post-feedback:p1", "down");
     await mount();
-    await waitFor(() => expect(screen.getByText("Dziękujemy za opinię.")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("postExperience.feedback.thanks(lng=pl)")).toBeInTheDocument(),
+    );
     expect(submit).not.toHaveBeenCalled();
   });
 
@@ -419,10 +441,10 @@ describe("PostFeedback", () => {
     submit.mockRejectedValue(new Error("network"));
     await mount();
     await act(async () => {
-      screen.getByRole("button", { name: /Tak, przydatna/ }).click();
+      screen.getByRole("button", { name: /postExperience\.feedback\.yes/ }).click();
     });
     await waitFor(() =>
-      expect(screen.getByText("Czy ta analiza była przydatna?")).toBeInTheDocument(),
+      expect(screen.getByText("postExperience.feedback.question(lng=pl)")).toBeInTheDocument(),
     );
     expect(window.localStorage.getItem("post-feedback:p1")).toBeNull();
   });
@@ -436,7 +458,9 @@ describe("PostFeedback", () => {
 
   it("wariant angielski używa angielskich pytań i odpowiedzi", async () => {
     await mount("en");
-    expect(screen.getByText("Was this analysis useful?")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Yes, useful/ })).toBeInTheDocument();
+    expect(screen.getByText("postExperience.feedback.question(lng=en)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "postExperience.feedback.yes(lng=en)" }),
+    ).toBeInTheDocument();
   });
 });

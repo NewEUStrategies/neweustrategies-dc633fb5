@@ -10,29 +10,14 @@
 // samej kanonicznej ścieżki co desktop: `/api/public/post-tts` z payloadem
 // `{ postId, lang }`, jeden głos na wpis i jeden plik w cache.
 import { useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Loader2 } from "@/lib/lucide-shim";
 import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
 import { ArticleActionButton } from "@/components/post/atoms/ArticleActionButton";
 import { playPauseKey } from "@/lib/audio/ttsStage";
 import { useGlobalAudioPlayer, type AudioTrackMeta } from "@/lib/audio/global-player";
-
-const COPY = {
-  pl: {
-    listen: "Odsłuchaj artykuł",
-    pause: "Pauza",
-    resume: "Wznów",
-    loading: "Generuję audio…",
-    error: "Nie udało się wygenerować audio",
-  },
-  en: {
-    listen: "Listen to article",
-    pause: "Pause",
-    resume: "Resume",
-    loading: "Generating audio…",
-    error: "Could not generate audio",
-  },
-} as const;
+import "@/lib/i18n-tts-player";
 
 interface ArticleListenButtonProps {
   postId: string;
@@ -52,7 +37,10 @@ export function ArticleListenButton({
   audioUrl,
   className,
 }: ArticleListenButtonProps) {
-  const t = COPY[lang];
+  // Komunikaty idą w języku ARTYKUŁU, nie interfejsu: audio jest w języku
+  // treści, więc etykieta przycisku musi się z nim zgadzać.
+  const { t } = useTranslation();
+  const copy = (key: string) => t(`ttsPlayer.listen.${key}`, { lng: lang });
   const player = useGlobalAudioPlayer();
   const isThis = player.isActive(postId, lang);
   const loading = isThis && player.status === "loading";
@@ -66,9 +54,12 @@ export function ArticleListenButton({
     const prev = prevStatusRef.current;
     prevStatusRef.current = player.status;
     if (prev !== "error" && player.status === "error") {
-      toast.error(player.error ?? t.error, { id: "tts-error" });
+      toast.error(player.error ?? copy("error"), { id: "tts-error" });
     }
-  }, [player.status, player.error, t.error]);
+    // `copy` zmienia się przy każdym renderze (domknięcie po `t`), więc
+    // zależnością jest język, nie funkcja - inaczej efekt biłby w pętli.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.status, player.error, lang]);
 
   const meta: AudioTrackMeta = useMemo(
     () => ({
@@ -85,7 +76,7 @@ export function ArticleListenButton({
 
   // Etykieta wybierana REGUŁĄ zwracającą klucz, nie łańcuchem ternary w JSX -
   // ta sama reguła obsługuje kartę w sidebarze i dolny pasek.
-  const label = t[playPauseKey({ loading, playing, paused })];
+  const label = copy(playPauseKey({ loading, playing, paused }));
 
   return (
     <ArticleActionButton

@@ -163,45 +163,14 @@ export function withStorage<T>(storage: Storage, run: () => T): T {
   }
 }
 
-// --- atrapa i18n ------------------------------------------------------------
+// --- atrapa i18n (re-eksport) ---------------------------------------------
 
-/**
- * Echo klucza zamiast tłumaczenia. Test asertuje na KLUCZU, więc zmiana copy
- * w słowniku nie łamie testu, a brak klucza w drzewie widać natychmiast.
- * Interpolacja jest dopisywana jawnie, żeby test odmiany liczebników mógł
- * sprawdzić, jakie DANE poszły do słownika.
- */
-export function translateKey(key: string, options?: Record<string, unknown>): string {
-  if (!options) return key;
-  const params = Object.entries(options)
-    .filter(([name]) => name !== "defaultValue")
-    .map(([name, value]) => `${name}=${String(value)}`)
-    .sort();
-  return params.length > 0 ? `${key}(${params.join(",")})` : key;
-}
-
-export function reactI18nextStub(getLanguage: () => string = () => "pl"): {
-  useTranslation: () => {
-    t: typeof translateKey;
-    i18n: { language: string; t: typeof translateKey };
-  };
-  initReactI18next: { type: string; init: () => void };
-  Trans: (props: { children?: unknown }) => unknown;
-} {
-  // Jeden STABILNY obiekt `i18n` (getter na `language`), jak realna instancja
-  // i18next - panele wpinają go do tablic zależności efektów.
-  const i18n = {
-    get language() {
-      return getLanguage();
-    },
-    t: translateKey,
-  };
-  return {
-    useTranslation: () => ({ t: translateKey, i18n }),
-    initReactI18next: { type: "3rdParty", init: () => {} },
-    Trans: (props: { children?: unknown }) => props.children ?? null,
-  };
-}
+// Atrapa mieszka w `@/test/i18nStub` - module BEZ ANI JEDNEGO importu
+// z produkcji. To warunek konieczny: fabryka `vi.mock("react-i18next")`
+// importująca cokolwiek, co dochodzi do `react-i18next`, zawiesza plik testowy
+// na zamkniętym cyklu inicjalizacji. Tutaj tylko re-eksport dla wygody
+// konsumentów, którzy NIE są fabrykami mocka.
+export { reactI18nextStub, translateKey } from "@/test/i18nStub";
 
 // --- atrapy hooków ----------------------------------------------------------
 

@@ -2,6 +2,7 @@
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, Download, X, Share2 } from "@/lib/lucide-shim";
 import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
 import { Rewind, FastForward } from "lucide-react";
@@ -13,6 +14,8 @@ import { toast } from "sonner";
 import { promptDialog } from "@/lib/appDialogs";
 import { downloadKey, transportLabelKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
 import { AUDIO_FOCUS_RING, AudioIconButton } from "@/components/audio/atoms/AudioIconButton";
+import { uiLang } from "@/lib/i18n/format";
+import "@/lib/i18n-tts-player";
 function ActionTip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Tooltip>
@@ -23,53 +26,6 @@ function ActionTip({ label, children }: { label: string; children: ReactNode }) 
     </Tooltip>
   );
 }
-
-const COPY = {
-  pl: {
-    play: "Odtwórz",
-    pause: "Pauza",
-    download: "Pobierz MP3",
-    downloading: "Pobieram audio…",
-    downloadFailed: "Nie udało się pobrać audio",
-    share: "Udostępnij link do artykułu",
-    close: "Zamknij odtwarzacz",
-    seek: "Przewiń materiał",
-    back15: "Cofnij 15 sekund",
-    fwd15: "Do przodu 15 sekund",
-    speed: "Tempo odtwarzania",
-    copied: "Skopiowano link do artykułu",
-    region: "Odtwarzacz audio",
-    error: "Nie udało się wygenerować audio",
-    loading: "Generuję audio…",
-    stagePreparing: "Przygotowuję tekst",
-    stageSynthesizing: "ElevenLabs syntezuje głos",
-    stageStreaming: "Pobieram audio",
-    stageReady: "Gotowe",
-    stageCached: "Z pamięci podręcznej",
-  },
-  en: {
-    play: "Play",
-    pause: "Pause",
-    download: "Download MP3",
-    downloading: "Downloading audio…",
-    downloadFailed: "Download failed",
-    share: "Share article link",
-    close: "Close player",
-    seek: "Seek audio",
-    back15: "Back 15 seconds",
-    fwd15: "Forward 15 seconds",
-    speed: "Playback speed",
-    copied: "Article link copied",
-    region: "Audio player",
-    error: "Could not generate audio",
-    loading: "Generating audio…",
-    stagePreparing: "Preparing text",
-    stageSynthesizing: "ElevenLabs synthesizing voice",
-    stageStreaming: "Streaming audio",
-    stageReady: "Ready",
-    stageCached: "From cache",
-  },
-} as const;
 
 const HeadphonesIcon = ({ className }: { className?: string }) => (
   <svg
@@ -93,6 +49,8 @@ const HeadphonesIcon = ({ className }: { className?: string }) => (
 const FOCUS_RING = AUDIO_FOCUS_RING;
 
 export function GlobalAudioBar() {
+  // Komunikaty paska idą w języku ODTWARZANEGO materiału, nie interfejsu.
+  const { t, i18n } = useTranslation();
   const player = useGlobalAudioPlayer();
   const [mounted, setMounted] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
@@ -115,16 +73,22 @@ export function GlobalAudioBar() {
     const prev = prevStatusRef.current;
     prevStatusRef.current = player.status;
     if (prev !== "error" && player.status === "error") {
-      toast.error(player.error ?? "Nie udało się wygenerować audio / Could not generate audio", {
+      // Efekt stoi PRZED strażnikiem `player.track`, więc język bierzemy
+      // z bieżącej ścieżki, a gdy jej nie ma - z interfejsu. Poprzednia wersja
+      // sklejała OBA języki w jeden komunikat („… / Could not generate audio"),
+      // czyli każdy czytelnik dostawał połowę zdania w obcym języku.
+      const lang = player.track?.lang ?? uiLang(i18n.language);
+      toast.error(player.error ?? t("ttsPlayer.bar.error", { lng: lang }), {
         id: "tts-error",
       });
     }
-  }, [player.status, player.error]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.status, player.error, player.track?.lang]);
 
   if (!mounted || !player.track) return null;
 
   const { track } = player;
-  const t = COPY[track.lang];
+  const copy = (key: string) => t(`ttsPlayer.bar.${key}`, { lng: track.lang });
   const loading = player.status === "loading";
   const playing = player.status === "playing";
   const tts = player.tts;
@@ -132,7 +96,7 @@ export function GlobalAudioBar() {
   // i zwracają KLUCZ, nie napis - ten sam `switch` stał wcześniej w DWÓCH
   // kopiach (tu i w drugim odtwarzaczu) nad dwoma osobnymi słownikami `COPY`,
   // więc dodanie etapu rozjeżdżało oba paski.
-  const stageLabel = t[ttsStageKey(tts.stage)];
+  const stageLabel = t(`ttsPlayer.stage.${ttsStageKey(tts.stage)}`, { lng: track.lang });
   const stagePct = ttsStagePercent(tts);
   const duration = player.duration || 0;
   const displayTime = scrub ?? player.currentTime;
@@ -149,7 +113,7 @@ export function GlobalAudioBar() {
     try {
       await player.download();
     } catch {
-      toast.error(t.downloadFailed);
+      toast.error(copy("downloadFailed"));
     } finally {
       setDownloading(false);
     }
@@ -170,17 +134,17 @@ export function GlobalAudioBar() {
     }
     try {
       await navigator.clipboard.writeText(url);
-      toast.success(t.copied);
+      toast.success(copy("copied"));
     } catch {
       // Ostateczny fallback: dialog z adresem do skopiowania.
-      void promptDialog({ title: t.share, defaultValue: url, confirmLabel: "OK" });
+      void promptDialog({ title: copy("share"), defaultValue: url, confirmLabel: "OK" });
     }
   };
 
   return (
     <div
       role="region"
-      aria-label={t.region}
+      aria-label={copy("region")}
       className="fixed inset-x-0 bottom-0 z-[70] pointer-events-none"
     >
       <div className="pointer-events-auto mx-auto max-w-[1400px] px-3 pb-3 sm:px-5 sm:pb-4">
@@ -206,14 +170,14 @@ export function GlobalAudioBar() {
                 ma oś czasu (nie w trakcie syntezy TTS). */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <AudioIconButton
-                label={t.back15}
+                label={copy("back15")}
                 onClick={() => player.skip(-15)}
                 disabled={loading || duration <= 0}
                 icon={Rewind}
                 variant="outline"
               />
               <AudioIconButton
-                label={t[transportLabelKey({ loading, playing, paused: false })]}
+                label={copy(transportLabelKey({ loading, playing, paused: false }))}
                 onClick={() => void player.toggle()}
                 disabled={loading}
                 pressed={playing}
@@ -227,7 +191,7 @@ export function GlobalAudioBar() {
                 )}
               </AudioIconButton>
               <AudioIconButton
-                label={t.fwd15}
+                label={copy("fwd15")}
                 onClick={() => player.skip(15)}
                 disabled={loading || duration <= 0}
                 icon={FastForward}
@@ -323,7 +287,7 @@ export function GlobalAudioBar() {
                       onBlur={(e) => {
                         if (scrub !== null) commitSeek(Number(e.target.value));
                       }}
-                      aria-label={t.seek}
+                      aria-label={copy("seek")}
                       aria-valuemin={0}
                       aria-valuemax={Math.max(duration, 0)}
                       aria-valuenow={Math.floor(displayTime)}
@@ -345,11 +309,11 @@ export function GlobalAudioBar() {
             {/* Actions */}
             <div className="flex items-center gap-1 shrink-0">
               <TooltipProvider delayDuration={200}>
-                <ActionTip label={t.speed}>
+                <ActionTip label={copy("speed")}>
                   <button
                     type="button"
                     onClick={() => player.setPlaybackRate(nextPlaybackRate(player.playbackRate))}
-                    aria-label={`${t.speed}: ${formatPlaybackRate(player.playbackRate)}`}
+                    aria-label={`${copy("speed")}: ${formatPlaybackRate(player.playbackRate)}`}
                     className={[
                       "inline-flex h-9 min-w-9 items-center justify-center rounded-[6px] px-1.5",
                       "cms-widget-label font-semibold tabular-nums",
@@ -360,9 +324,9 @@ export function GlobalAudioBar() {
                     {formatPlaybackRate(player.playbackRate)}
                   </button>
                 </ActionTip>
-                <ActionTip label={t[downloadKey(downloading)]}>
+                <ActionTip label={copy(downloadKey(downloading))}>
                   <AudioIconButton
-                    label={t[downloadKey(downloading)]}
+                    label={copy(downloadKey(downloading))}
                     onClick={() => void onDownload()}
                     disabled={downloading || loading}
                     busy={downloading}
@@ -375,12 +339,16 @@ export function GlobalAudioBar() {
                     )}
                   </AudioIconButton>
                 </ActionTip>
-                <ActionTip label={t.share}>
-                  <AudioIconButton label={t.share} onClick={() => void onShare()} icon={Share2} />
-                </ActionTip>
-                <ActionTip label={t.close}>
+                <ActionTip label={copy("share")}>
                   <AudioIconButton
-                    label={t.close}
+                    label={copy("share")}
+                    onClick={() => void onShare()}
+                    icon={Share2}
+                  />
+                </ActionTip>
+                <ActionTip label={copy("close")}>
+                  <AudioIconButton
+                    label={copy("close")}
                     onClick={() => player.close()}
                     icon={X}
                     variant="danger"

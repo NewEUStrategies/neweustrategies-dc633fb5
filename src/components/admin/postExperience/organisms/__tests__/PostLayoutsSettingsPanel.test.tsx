@@ -25,9 +25,12 @@ vi.mock("@/integrations/supabase/client", async () => {
   return { supabase: { from: from.from, rpc } };
 });
 
+// Fabryka importuje `@/test/i18nStub` - moduł BEZ importów z produkcji.
+// Sięgnięcie tu po fixture'y obszaru domyka cykl inicjalizacji (fixture'y ->
+// warstwa ustawień -> lib/i18n -> react-i18next -> ta fabryka) i ZAWIESZA plik.
 vi.mock("react-i18next", async () => {
-  const fixtures = await import("@/test/postExperience/fixtures");
-  return fixtures.reactI18nextStub();
+  const { reactI18nextStub } = await import("@/test/i18nStub");
+  return reactI18nextStub();
 });
 
 // Powłoka admina ciągnie nawigację, uprawnienia i sesję - tutaj liczy się

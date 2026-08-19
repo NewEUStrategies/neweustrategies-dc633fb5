@@ -14,12 +14,7 @@ import type { TtsStage } from "@/lib/audio/global-player";
 
 /** Klucz etykiety etapu w słowniku odtwarzacza (bez prefiksu przestrzeni). */
 export type TtsStageKey =
-  | "stagePreparing"
-  | "stageSynthesizing"
-  | "stageStreaming"
-  | "stageReady"
-  | "stageCached"
-  | "loading";
+  "preparing" | "synthesizing" | "streaming" | "ready" | "cached" | "loading";
 
 /**
  * Etykieta etapu konwersji. `idle` i `error` degradują do generycznego
@@ -29,15 +24,15 @@ export type TtsStageKey =
 export function ttsStageKey(stage: TtsStage): TtsStageKey {
   switch (stage) {
     case "preparing":
-      return "stagePreparing";
+      return "preparing";
     case "synthesizing":
-      return "stageSynthesizing";
+      return "synthesizing";
     case "streaming":
-      return "stageStreaming";
+      return "streaming";
     case "ready":
-      return "stageReady";
+      return "ready";
     case "cached":
-      return "stageCached";
+      return "cached";
     default:
       return "loading";
   }
