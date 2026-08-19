@@ -415,9 +415,10 @@ describe("ostrzeżenia", () => {
     env.fail = true;
     renderWithQueryClient(<AuthEmailLogsPanel />);
 
-    expect(await screen.findByText(A("error"))).toBeTruthy();
-    // Awaria nie pokazuje przy okazji wykresów z zerami.
-    expect(env.calls.length).toBeGreaterThan(0);
+    // Komunikat błędu stoi nad tabelą I w jej pustym wierszu - „brak wpisów w
+    // zakresie" przy nieodczytanym logu byłoby nieprawdą.
+    expect(await screen.findAllByText(A("error"))).toHaveLength(2);
+    expect(screen.queryByText(A("table.empty"))).toBeNull();
   });
 });
 

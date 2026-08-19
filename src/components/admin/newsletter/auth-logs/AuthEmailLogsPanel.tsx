@@ -297,7 +297,9 @@ export function AuthEmailLogsPanel() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
-                    {t("authEmailLogs.table.empty")}
+                    {/* Przy awarii zapytania „brak wpisow w zakresie" klamie:
+                        log moze byc pelny, tylko nieodczytany. */}
+                    {report.isError ? t("authEmailLogs.error") : t("authEmailLogs.table.empty")}
                   </td>
                 </tr>
               )}

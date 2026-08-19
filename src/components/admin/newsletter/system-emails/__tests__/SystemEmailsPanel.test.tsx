@@ -164,11 +164,11 @@ describe("ostrzeżenia i błędy", () => {
     env.fail = true;
     renderWithQueryClient(<SystemEmailsPanel />);
 
-    expect(await screen.findByText(T("error"))).toBeTruthy();
-    // CHARAKTERYSTYKA STANU OBECNEGO: obok błędu stoi jednocześnie „brak wysyłek
-    // w wybranym zakresie", więc operator czyta dwa sprzeczne komunikaty. Poprawka
-    // idzie OSOBNYM commitem; ten test ma ją wtedy zauważyć.
-    expect(screen.getByText(T("table.empty"))).toBeTruthy();
+    // Komunikat błędu ZAMIAST „brak wysyłek w wybranym zakresie": log może być
+    // pełny, tylko nieodczytany, a dwa sprzeczne komunikaty naraz zostawiały
+    // operatora bez odpowiedzi, co się właściwie stało.
+    expect(await screen.findAllByText(T("error"))).toHaveLength(2);
+    expect(screen.queryByText(T("table.empty"))).toBeNull();
   });
 
   it("pusty log MÓWI, że w zakresie nic nie było", async () => {
@@ -237,7 +237,9 @@ describe("tabela wysyłek", () => {
     ).toBeTruthy();
     // Podpis mówi o CAŁOŚCI, nie o widocznej stronie - inaczej operator uznałby,
     // że w logu są tylko dwa maile.
-    expect(screen.queryByText(i18n.t("systemEmails.table.showing", { shown: 2, total: 2 }))).toBeNull();
+    expect(
+      screen.queryByText(i18n.t("systemEmails.table.showing", { shown: 2, total: 2 })),
+    ).toBeNull();
   });
 });
 

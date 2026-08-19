@@ -268,7 +268,9 @@ export function SystemEmailsPanel() {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  {t("systemEmails.table.empty")}
+                  {/* Przy awarii zapytania „brak wysylek w zakresie" klamie:
+                      log moze byc pelny, tylko nieodczytany. */}
+                  {report.isError ? t("systemEmails.error") : t("systemEmails.table.empty")}
                 </td>
               </tr>
             ) : (
