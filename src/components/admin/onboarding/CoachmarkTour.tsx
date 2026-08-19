@@ -13,14 +13,14 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import type { TourController, TourPlacement } from "@/lib/onboarding/types";
 import { Button } from "@/components/ui/button";
 
-type Rect = { top: number; left: number; width: number; height: number };
+export type CoachmarkRect = { top: number; left: number; width: number; height: number };
 
 const CARD_W = 300;
 const GAP = 12;
 const MARGIN = 12;
 
-function computeCardPos(
-  rect: Rect | null,
+export function computeCardPos(
+  rect: CoachmarkRect | null,
   placement: TourPlacement | undefined,
   cardH: number,
   vw: number,
@@ -69,7 +69,7 @@ export function CoachmarkTour({ controller }: { controller: TourController }) {
   const { active, currentStep, stepIndex, totalSteps, next, prev, skip, finish } = controller;
   const { t } = useTranslation();
   const reduced = usePrefersReducedMotion();
-  const [rect, setRect] = useState<Rect | null>(null);
+  const [rect, setRect] = useState<CoachmarkRect | null>(null);
   const [cardH, setCardH] = useState(180);
   const cardRef = useRef<HTMLDivElement>(null);
   const isLast = stepIndex + 1 >= totalSteps;
