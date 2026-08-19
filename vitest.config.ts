@@ -498,6 +498,160 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── MODUŁ 5: STRONA GŁÓWNA, ARCHIWA, CHROME ──────────────────────────
+        // Audyt 18.08 nazwał ten moduł chrome CAŁEGO serwisu: nagłówek, stopka,
+        // menu i mega menu są na ścieżce KAŻDEJ strony i renderują się po
+        // stronie serwera, a archiwa kategorii i tagów to druga najczęściej
+        // odwiedzana powierzchnia po wpisach. Awaria tutaj nie dotyczy jednej
+        // funkcji - dotyczy każdego wejścia. Pomiar wyjściowy: 16,7% linii,
+        // 11,8% funkcji (63 z 534), 34 z 51 plików BEZ ANI JEDNEJ wykonanej
+        // linii - w tym `SiteMenu.tsx` (0 z 47 funkcji w nagłówku każdej
+        // strony) i `MenuManager.tsx` (największy plik modułu).
+        //
+        // Dlaczego progi, a nie sam jednorazowy wysiłek: mega menu miało 88%
+        // linii na tej samej klasie kodu, na której sąsiedni `SiteMenu` miał
+        // 0,3% - różnica brała się WYŁĄCZNIE z tego, że ktoś wydzielił helpery
+        // i napisał do nich asercje. Bez zapory ta asymetria wraca przy
+        // pierwszym większym refaktorze.
+        //
+        // Wszystkie progi są floorowane pod ZMIERZONYM poziomem (marża na dryf
+        // CI) i wolno je wyłącznie podnosić.
+        //
+        // CZYSTE MODUŁY wyprowadzone z organizmów trzymamy pod 100% linii
+        // i funkcji - tak jak pozostałe czyste moduły w tym pliku. Niosą reguły,
+        // których złamanie widzi wyłącznie użytkownik: hierarchię menu
+        // (`tree.ts`), wybór wariantu panelu i geometrię (`siteMenu.ts`), układ
+        // kolumn mega (`megaColumns.ts`) oraz podział wpisów archiwum
+        // (`bodyPlan.ts`). Niedobite gałęzie to obronne ramiona wejść, których
+        // typy już nie dopuszczają.
+        "src/lib/menus/tree.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/lib/menus/siteMenu.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 84,
+        },
+        "src/lib/menus/megaColumns.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
+        "src/lib/archive/bodyPlan.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Warstwa danych menu. Niedobite funkcje to obwoluty `createServerFn`
+        // i `serverPublicClient()` - nieosiągalne bez kontekstu żądania
+        // frameworka (ten sam wyjątek, co przy `webhooks.stripe` wyżej).
+        "src/lib/menus/**": {
+          statements: 93,
+          functions: 89,
+          lines: 94,
+          branches: 84,
+        },
+        // Nawigacja publiczna: `SiteMenu` (0 z 47 funkcji) + wspólny widok
+        // panelu mega, którego używa i front, i podgląd w adminie.
+        "src/components/menu/**": {
+          statements: 92,
+          functions: 96,
+          lines: 96,
+          branches: 77,
+        },
+        // MEGA MENU BYŁO WZOREM tego modułu (88,1% linii przy 0,3% sąsiada) -
+        // próg jest tu po to, żeby ten poziom nie zjechał, a nie po to, żeby go
+        // dopiero osiągnąć. Floor tuż pod stanem z audytu.
+        "src/components/megaMenu/**": {
+          statements: 78,
+          functions: 76,
+          lines: 85,
+          branches: 60,
+        },
+        // Archiwa kategorii i tagów - 13 z 16 plików startowało z zera.
+        "src/components/archive/**": {
+          statements: 93,
+          functions: 91,
+          lines: 94,
+          branches: 80,
+        },
+        // Edytor menu w adminie. Zapis jest DESTRUKCYJNY (delete-all +
+        // insert-all), więc regresja w spięciu stanu z regułami przepisuje
+        // nawigację całego serwisu.
+        "src/components/admin/menu/**": {
+          statements: 91,
+          functions: 90,
+          lines: 93,
+          branches: 74,
+        },
+        // Stopka i szkielet nagłówka: tanie powierzchnie, które przez trzy
+        // pomiary stały na zerze mimo obecności na każdej stronie.
+        "src/components/footer/**": {
+          statements: 95,
+          functions: 95,
+          lines: 96,
+          branches: 85,
+        },
+        // Nagłówek: pasek „Na czasie" (0 z 34 funkcji) + mobilna szuflada.
+        // Niedobite linie to wywołania zwrotne obserwatora rozmiaru w silnikach
+        // marquee - happy-dom nie liczy układu, więc nie zgłasza zmiany wymiaru.
+        "src/components/header/**": {
+          statements: 92,
+          functions: 88,
+          lines: 94,
+          branches: 80,
+        },
+        // Mobilny pasek dolny: odznaki liczników i rezerwacja miejsca na dole
+        // strony (bez niej pasek zasłania stopkę i ostatni akapit artykułu).
+        "src/components/mobile/**": {
+          statements: 90,
+          functions: 92,
+          lines: 93,
+          branches: 78,
+        },
+        "src/lib/mobileBottomBar/**": {
+          statements: 95,
+          functions: 93,
+          lines: 97,
+          branches: 84,
+        },
+        // CZTERY TRASY ARCHIWUM. Audyt świadomie ich nie ścigał („cienka
+        // kompozycja loadera"), ale zamontowane w harnessie trasy okazały się
+        // czymś innym niż kompozycja: to tam mieszka wybór wariantu layoutu,
+        // 404 dla nieistniejącej taksonomii, zdegradowana powłoka przy blipie
+        // backendu i preload okładki LCP. Zmierzone 100% linii i funkcji -
+        // progi trzymają ten stan, gałęzie zostają niżej (warianty językowe
+        // `head()` zależne od adresu żądania, nie od `i18n.language`).
+        "src/routes/blog.index.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 84,
+        },
+        "src/routes/category.$slug.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 79,
+        },
+        "src/routes/tag.$slug.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 77,
+        },
+        "src/routes/publications.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
       },
     },
   },
