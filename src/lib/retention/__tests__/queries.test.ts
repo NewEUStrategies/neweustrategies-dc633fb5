@@ -10,8 +10,11 @@
 // redakcja świadomie go zdjęła.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { waitFor } from "@testing-library/react";
+
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import { retentionReason, retentionSettings } from "@/test/billing/fixtures";
+import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 
 let chain: SupabaseFromStub;
 
@@ -19,8 +22,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (table: string) => chain.from(table) },
 }));
 
-const { retentionReasonsQueryOptions, retentionSettingsQueryOptions, reasonLabel } =
-  await import("@/lib/retention/queries");
+const {
+  retentionReasonsQueryOptions,
+  retentionSettingsQueryOptions,
+  reasonLabel,
+  useRetentionSettings,
+  useRetentionReasons,
+} = await import("@/lib/retention/queries");
 
 /** Uruchamia `queryFn` opcji tak, jak zrobiłby to react-query. */
 async function run<T>(options: { queryFn?: unknown }): Promise<T> {
@@ -130,5 +138,108 @@ describe("reasonLabel - powód w języku klienta", () => {
     const reason = retentionReason({ label_pl: "Za drogo", label_en: "Too expensive" });
 
     expect(reasonLabel(reason, "de")).toBe("Za drogo");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HOOKI. Do 19.08.2026 obie funkcje stały na zerze, mimo że to one - a nie same
+// `queryOptions` - decydują, KIEDY ekran rezygnacji sięga do bazy. Cała ich
+// treść to flaga `enabled`, więc test, który jej nie sprawdza, nie sprawdza
+// niczego: modal anulowania subskrypcji jest zamontowany na stronie konta
+// stale, a odczyt ma ruszyć dopiero po jego otwarciu.
+// ---------------------------------------------------------------------------
+
+describe("useRetentionSettings - odczyt parametrów kontroferty", () => {
+  it("WYŁĄCZONY hook nie dotyka bazy - zamknięty modal nie generuje zapytań", async () => {
+    const { result } = renderHookWithQueryClient(() => useRetentionSettings(false));
+
+    // Nie ma czego „poczekać" - dowodem jest BRAK łańcucha zapytania.
+    expect(chain.lastChain("retention_settings")).toBeUndefined();
+    expect(result.current.fetchStatus).toBe("idle");
+  });
+
+  it("WŁĄCZONY hook zwraca zapisane ustawienia", async () => {
+    chain.setResponse("retention_settings", ok(retentionSettings({ discount_pct: 25 })));
+
+    const { result } = renderHookWithQueryClient(() => useRetentionSettings(true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.discount_pct).toBe(25);
+  });
+
+  it("BRAK wiersza ustawień daje `null`, a nie błąd - kontroferta zejdzie na domyślne", async () => {
+    chain.setResponse("retention_settings", ok(null));
+
+    const { result } = renderHookWithQueryClient(() => useRetentionSettings(true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+  });
+
+  it("BŁĄD odczytu ląduje w stanie błędu, nie w danych", async () => {
+    chain.setResponse("retention_settings", {
+      data: null,
+      error: Object.assign(new Error("permission denied"), { name: "PostgrestError" }),
+    });
+
+    const { result } = renderHookWithQueryClient(() => useRetentionSettings(true));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe("useRetentionReasons - odczyt katalogu powodów", () => {
+  it("WYŁĄCZONY hook nie dotyka bazy", async () => {
+    const { result } = renderHookWithQueryClient(() => useRetentionReasons(false));
+
+    expect(chain.lastChain("retention_reasons")).toBeUndefined();
+    expect(result.current.fetchStatus).toBe("idle");
+  });
+
+  it("WŁĄCZONY hook czyta wyłącznie powody aktywne, w kolejności redakcyjnej", async () => {
+    const { result } = renderHookWithQueryClient(() => useRetentionReasons(true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(chain.lastChain("retention_reasons")!.argsOf("eq")).toEqual(["active", true]);
+    expect(chain.lastChain("retention_reasons")!.argsOf("order")).toEqual([
+      "sort_order",
+      { ascending: true },
+    ]);
+  });
+
+  it("pusty katalog daje pustą listę - ekran rezygnacji renderuje się bez powodów", async () => {
+    chain.setResponse("retention_reasons", { data: null, error: null });
+
+    const { result } = renderHookWithQueryClient(() => useRetentionReasons(true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+  });
+
+  it("BŁĄD odczytu ląduje w stanie błędu", async () => {
+    chain.setResponse("retention_reasons", {
+      data: null,
+      error: Object.assign(new Error("row level security"), { name: "PostgrestError" }),
+    });
+
+    const { result } = renderHookWithQueryClient(() => useRetentionReasons(true));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("hook i opcje dzielą KLUCZ - zapis w panelu admina unieważnia oba odczyty", async () => {
+    // Gdyby hook budował własny klucz, panel admina zapisywałby powody, a
+    // ekran rezygnacji pokazywałby stare aż do przeładowania strony.
+    const { result, queryClient } = renderHookWithQueryClient(() => useRetentionReasons(true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((q) => q.queryKey);
+    expect(keys).toContainEqual(retentionReasonsQueryOptions().queryKey);
+    expect(keys).toHaveLength(1);
   });
 });
