@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   unsubscribed: [] as unknown[],
   converted: [] as unknown[],
   listThrows: false,
+  bulkFails: false,
   toastError: [] as string[],
   toastSuccess: [] as string[],
 }));
@@ -30,10 +31,12 @@ vi.mock("@/lib/crm-funnel.functions", () => ({
   funnelStats: async () => h.stats,
   bulkUnsubscribeFunnel: async (input: unknown) => {
     h.unsubscribed.push(input);
+    if (h.bulkFails) throw new Error("operacja odrzucona");
     return { ok: true, count: 1 };
   },
   convertFunnelToContacts: async (input: unknown) => {
     h.converted.push(input);
+    if (h.bulkFails) throw new Error("konwersja odrzucona");
     return { ok: true, count: 1 };
   },
 }));
@@ -83,6 +86,7 @@ beforeEach(() => {
   h.unsubscribed = [];
   h.converted = [];
   h.listThrows = false;
+  h.bulkFails = false;
   h.toastError = [];
   h.toastSuccess = [];
 });
@@ -157,5 +161,79 @@ describe("trasa lejka marketingowego", () => {
     await mountFunnel();
     // Strona zostaje na miejscu (nagłówek + pusty stan), zamiast białego ekranu.
     expect(await screen.findByRole("heading", { name: "Lejek marketingowy" })).toBeInTheDocument();
+  });
+
+  it("zaznaczenie wszystkich obejmuje listę i da się cofnąć", async () => {
+    h.rows = [subscriber(), subscriber({ id: "sub-2", email: "bartek@example.test" })];
+    await mountFunnel();
+    await screen.findByText("anna@example.test");
+    const all = screen.getByLabelText(/Zaznacz wszystk|Select all/i);
+    fireEvent.click(all);
+    expect(await screen.findByRole("region", { name: /Akcje zbiorcze/ })).toBeInTheDocument();
+    fireEvent.click(all);
+    await waitFor(() => expect(screen.queryByRole("region", { name: /Akcje zbiorcze/ })).toBeNull());
+  });
+
+  it("odznaczenie pojedynczego wiersza zdejmuje go z zaznaczenia", async () => {
+    h.rows = [subscriber(), subscriber({ id: "sub-2", email: "bartek@example.test" })];
+    await mountFunnel();
+    fireEvent.click(await screen.findByLabelText("Select anna@example.test"));
+    fireEvent.click(screen.getByLabelText("Select bartek@example.test"));
+    const bar = await screen.findByRole("region", { name: /Akcje zbiorcze/ });
+    expect(bar).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Select bartek@example.test"));
+    fireEvent.click(screen.getByLabelText("Select anna@example.test"));
+    await waitFor(() => expect(screen.queryByRole("region", { name: /Akcje zbiorcze/ })).toBeNull());
+  });
+
+  it("odrzucone wypisanie i odrzucona konwersja mówią o błędzie", async () => {
+    h.rows = [subscriber()];
+    h.bulkFails = true;
+    await mountFunnel();
+    fireEvent.click(await screen.findByLabelText("Select anna@example.test"));
+    fireEvent.click(await screen.findByRole("button", { name: "Wypisz" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Potwierdź" }));
+    await waitFor(() => expect(h.toastError.some((m) => m.includes("operacja odrzucona"))).toBe(true));
+
+    h.toastError = [];
+    fireEvent.click(await screen.findByRole("button", { name: "Utwórz Kontakty" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Potwierdź" }));
+    await waitFor(() => expect(h.toastError.some((m) => m.includes("konwersja odrzucona"))).toBe(true));
+  });
+
+  it("filtry odbiorców i statusu trafiają do zapytania serwerowego", async () => {
+    await mountFunnel();
+    const combos = await screen.findAllByRole("combobox");
+    fireEvent.keyDown(combos[0], { key: "Enter" });
+    const audience = (await screen.findAllByRole("option"))[1];
+    fireEvent.click(audience);
+    await waitFor(() => expect(h.listArgs.length).toBeGreaterThan(1));
+
+    const combos2 = screen.getAllByRole("combobox");
+    fireEvent.keyDown(combos2[1], { key: "Enter" });
+    const status = (await screen.findAllByRole("option"))[1];
+    fireEvent.click(status);
+    await waitFor(() =>
+      expect((h.listArgs.at(-1) as { data: Record<string, unknown> }).data).toBeTruthy(),
+    );
+  });
+
+  it("odświeżenie ponawia zapytanie listy", async () => {
+    await mountFunnel();
+    // Przycisk jest zablokowany w trakcie pobierania - czekamy na wynik.
+    await screen.findByText(/Brak subskrybentów/i);
+    const refresh = screen.getByRole("button", { name: /Odśwież/ });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
+    await waitFor(() => expect(h.listArgs.length).toBeGreaterThan(1));
+  });
+
+  it("subskrybent będący już kontaktem prowadzi do jego karty", async () => {
+    h.rows = [subscriber({ is_contact: true, contact_id: "33333333-3333-4333-8333-333333333333" })];
+    const view = await mountFunnel();
+    fireEvent.click(await screen.findByRole("button", { name: /Otwórz|Kontakt/ }));
+    await waitFor(() =>
+      expect(view.currentPath()).toBe("/admin/crm/33333333-3333-4333-8333-333333333333"),
+    );
   });
 });
