@@ -8,7 +8,11 @@
 // Autoryzacja: pgTAP (crm_tasks_followups_test.sql). Tutaj kształt i ścieżki.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
-import { callServerFn, type ServerFnContext } from "@/test/serverFnHarness";
+import {
+  callServerFn,
+  type ServerFnContext,
+  serverFnMiddlewareNames,
+} from "@/test/serverFnHarness";
 
 vi.mock("@tanstack/react-start", async () => {
   const { serverFnStubModule } = await import("@/test/serverFnHarness");
@@ -323,11 +327,7 @@ describe("bramka uprawnień - test strukturalny", () => {
     );
     expect(fns.length).toBeGreaterThan(4);
     for (const [name, value] of fns) {
-      const middleware = (value as { middleware: Array<{ name?: string }> }).middleware;
-      expect(
-        middleware.map((m) => m?.name),
-        `${name} bez bramki`,
-      ).toContain("requireCrmStaff");
+      expect(serverFnMiddlewareNames(value), `${name} bez bramki`).toContain("requireCrmStaff");
     }
   });
 });

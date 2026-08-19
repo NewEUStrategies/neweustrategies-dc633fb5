@@ -116,3 +116,17 @@ export function validateServerFnInput<TData = unknown>(value: unknown, input: un
   if (!spec.validator) throw new Error("test: ta funkcja serwerowa nie ma walidatora");
   return spec.validator(input);
 }
+
+/**
+ * Nazwy middleware zadeklarowanych przez serwerową funkcję.
+ *
+ * `createServerFn()` zwraca WYWOŁYWALNY `OptionalFetcher` z doklejonymi polami
+ * konfiguracji, więc rzutowanie go na `{ middleware: … }` TypeScript odrzuca
+ * jako brak pokrycia typów (a `as unknown as` jest w tym repo pod ratchetem).
+ * `Reflect.get` czyta pole bez udawania, że znamy pełny kształt tego typu.
+ */
+export function serverFnMiddlewareNames(value: unknown): string[] {
+  const middleware = Reflect.get(value as object, "middleware") as
+    Array<{ name?: string } | undefined> | undefined;
+  return (middleware ?? []).map((m) => m?.name ?? "");
+}

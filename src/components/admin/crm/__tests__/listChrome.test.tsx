@@ -4,6 +4,7 @@
 // Te panele nie mają własnych zapytań: dostają wartość i oddają zmianę, więc
 // test sprawdza dokładnie to, co jest ich zadaniem - że klik zmienia STAN
 // FILTRA/KOLUMN zgodnie z regułą, a nie że coś się wyrenderowało.
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { DEFAULT_LEAD_FILTER, DEFAULT_LEAD_VIEW_CONFIG } from "@/lib/crm/leadViews";
@@ -426,7 +427,7 @@ describe("zarządzanie zapisanym widokiem", () => {
     },
   ];
 
-  function renderTabs(handlers: Record<string, ReturnType<typeof vi.fn>>) {
+  function renderTabs(handlers: Partial<ComponentProps<typeof LeadViewTabs>>) {
     render(
       <LeadViewTabs
         lang="pl"
@@ -480,7 +481,7 @@ describe("zakładki widoków firm", () => {
     },
   ];
 
-  function renderCompanyTabs(handlers: Record<string, ReturnType<typeof vi.fn>> = {}) {
+  function renderCompanyTabs(handlers: Partial<ComponentProps<typeof CompanyViewTabs>> = {}) {
     return render(
       <CompanyViewTabs
         lang="pl"
@@ -770,7 +771,7 @@ describe("zakładki widoków - anulowanie i stan przełącznika", () => {
   const savedLead = {
     id: "v1",
     name: "Moi klienci",
-    entity: "lead",
+    user_id: "u1",
     is_shared: true,
     config: { columns: ["name"], filter: {}, sort: { key: "created", dir: "desc" } },
   };
@@ -778,7 +779,7 @@ describe("zakładki widoków - anulowanie i stan przełącznika", () => {
   afterEach(() => cleanup());
 
   it("anulowanie zapisu widoku leadów nie woła serwera", async () => {
-    const onCreate = vi.fn();
+    const onCreate = vi.fn<(name: string, isShared: boolean) => Promise<void>>();
     render(
       <LeadViewTabs
         lang="pl"
@@ -800,7 +801,7 @@ describe("zakładki widoków - anulowanie i stan przełącznika", () => {
   });
 
   it("anulowanie zmiany nazwy widoku leadów nie woła serwera", async () => {
-    const onRename = vi.fn();
+    const onRename = vi.fn<(id: string, name: string) => Promise<void>>();
     render(
       <LeadViewTabs
         lang="pl"
@@ -843,13 +844,13 @@ describe("zakładki widoków - anulowanie i stan przełącznika", () => {
   });
 
   it("anulowanie zapisu i zmiany nazwy widoku firm też nie woła serwera", async () => {
-    const onCreate = vi.fn();
-    const onRename = vi.fn();
+    const onCreate = vi.fn<(name: string, isShared: boolean) => Promise<void>>();
+    const onRename = vi.fn<(id: string, name: string) => Promise<void>>();
     render(
       <CompanyViewTabs
         lang="pl"
         activeId="v1"
-        saved={[{ ...savedLead, entity: "company" }]}
+        saved={[savedLead]}
         currentConfig={DEFAULT_COMPANY_VIEW_CONFIG}
         onSelect={() => {}}
         onCreate={onCreate}

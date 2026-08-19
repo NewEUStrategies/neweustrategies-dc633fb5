@@ -9,7 +9,11 @@
 // Autoryzacja i RLS: pgTAP. Tutaj kształt, zgoda, audyt, ścieżka błędu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
-import { callServerFn, type ServerFnContext } from "@/test/serverFnHarness";
+import {
+  callServerFn,
+  type ServerFnContext,
+  serverFnMiddlewareNames,
+} from "@/test/serverFnHarness";
 
 vi.mock("@tanstack/react-start", async () => {
   const { serverFnStubModule } = await import("@/test/serverFnHarness");
@@ -285,7 +289,7 @@ describe("convertFunnelToContacts", () => {
       .map((c) => c.argsOf("upsert"));
     expect(upserts).toHaveLength(2);
 
-    const [withConsent] = upserts[0] as [Array<Record<string, unknown>>, unknown];
+    const [withConsent, upsertOptions] = upserts[0] as [Array<Record<string, unknown>>, unknown];
     const [withoutConsent] = upserts[1] as [Array<Record<string, unknown>>, unknown];
     expect(withConsent[0]).toMatchObject({
       email: "Anna@Example.test",
@@ -296,7 +300,7 @@ describe("convertFunnelToContacts", () => {
     // KLUCZOWE: brak klucza `marketing_consent` w payloadzie - upsert nie może
     // zdjąć zgody udowodnionej z innego źródła.
     expect(Object.keys(withoutConsent[0])).not.toContain("marketing_consent");
-    expect(upserts[0][1]).toEqual({ onConflict: "tenant_id,email_norm" });
+    expect(upsertOptions).toEqual({ onConflict: "tenant_id,email_norm" });
   });
 
   it("sami subskrybenci bez dowodu = jeden upsert, bez kolumny zgody", async () => {
@@ -535,11 +539,7 @@ describe("bramka uprawnień - test strukturalny", () => {
     );
     expect(fns.length).toBeGreaterThan(6);
     for (const [name, value] of fns) {
-      const middleware = (value as { middleware: Array<{ name?: string }> }).middleware;
-      expect(
-        middleware.map((m) => m?.name),
-        `${name} bez bramki`,
-      ).toContain("requireCrmStaff");
+      expect(serverFnMiddlewareNames(value), `${name} bez bramki`).toContain("requireCrmStaff");
     }
   });
 });

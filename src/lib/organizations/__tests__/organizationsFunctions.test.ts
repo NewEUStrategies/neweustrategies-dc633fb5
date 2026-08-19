@@ -10,7 +10,11 @@
 // Autoryzację i RLS sprawdza pgTAP; tutaj kształt wyników i orkiestracja.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
-import { callServerFn, type ServerFnContext } from "@/test/serverFnHarness";
+import {
+  callServerFn,
+  type ServerFnContext,
+  serverFnMiddlewareNames,
+} from "@/test/serverFnHarness";
 
 vi.mock("@tanstack/react-start", async () => {
   const { serverFnStubModule } = await import("@/test/serverFnHarness");
@@ -543,11 +547,7 @@ describe("bramka uwierzytelnienia - test strukturalny", () => {
     );
     expect(fns.length).toBeGreaterThan(6);
     for (const [name, value] of fns) {
-      const middleware = (value as { middleware: Array<{ name?: string }> }).middleware;
-      expect(
-        middleware.map((m) => m?.name),
-        `${name} bez bramki`,
-      ).toContain("requireSupabaseAuth");
+      expect(serverFnMiddlewareNames(value), `${name} bez bramki`).toContain("requireSupabaseAuth");
     }
   });
 });

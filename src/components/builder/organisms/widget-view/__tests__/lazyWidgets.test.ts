@@ -16,7 +16,6 @@ const SPLIT_WIDGETS = [
   "PodcastLatestView",
   "WebStoriesCarouselView",
   "NewsTickerView",
-  "TrendingNowView",
   // Kluby dyskusyjne (spec §5.5)
   "ClubCardView",
   "ClubThreadsView",
@@ -70,6 +69,11 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
+  // 2026-08-19: `TrendingNowView` figurował na tej liście DWA razy - dwie
+  // gałęzie dopisały go niezależnie, a scalenie zostawiło obie kopie. Druga
+  // asercja porównuje listę z kluczami modułu, więc duplikat czerwienił bramkę
+  // na eksport, który jest poprawny. Każdy widget stoi na liście RAZ.
+  //
   // Cięcie ścieżki bootowania (01253dc, chunk wejściowy 374 -> 253 KB gz).
   // Trzy widgety zeszły wtedy na leniwą krawędź, ale lista tutaj nie została
   // dopisana - a druga asercja tego pliku jest SYMETRYCZNA, więc bramka

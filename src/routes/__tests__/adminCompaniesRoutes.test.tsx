@@ -6,6 +6,7 @@
 // Zamockowana jest granica sieci - serwerowe funkcje CRM.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ErrorRouteComponent, NotFoundRouteComponent } from "@tanstack/react-router";
 import { renderRoute } from "@/test/routeHarness";
 
 const h = vi.hoisted(() => ({
@@ -1059,14 +1060,12 @@ describe("karta firmy", () => {
   it("trasa ma własne ekrany błędu i braku firmy", () => {
     // To są opcje TRASY (błąd/404 loadera), więc nie da się ich wywołać
     // zapytaniem w komponencie - renderujemy je wprost.
-    const opts = CompanyRoute.options as {
-      errorComponent: (p: { error: Error }) => JSX.Element;
-      notFoundComponent: () => JSX.Element;
-    };
-    const { container } = render(opts.errorComponent({ error: new Error("padło") }));
+    const ErrorScreen = CompanyRoute.options.errorComponent as ErrorRouteComponent;
+    const NotFoundScreen = CompanyRoute.options.notFoundComponent as NotFoundRouteComponent;
+    const { container } = render(<ErrorScreen error={new Error("padło")} reset={() => {}} />);
     expect(container.textContent).toContain("padło");
     cleanup();
-    const nf = render(opts.notFoundComponent());
+    const nf = render(<NotFoundScreen isNotFound routeId="/admin/companies/$id" />);
     expect(nf.container.textContent).toContain("Nie znaleziono firmy.");
   });
 
