@@ -172,7 +172,7 @@ export function makeSection(widgets: NlWidget[] = []): NlSection {
   return { id: uid(), widgets, style: { paddingY: 24, gap: 12, align: "left" } };
 }
 
-interface DocSeed {
+export interface DocSeed {
   heading?: { pl: string; en: string };
   description?: { pl: string; en: string };
   policyHtml?: { pl: string | null; en: string | null };

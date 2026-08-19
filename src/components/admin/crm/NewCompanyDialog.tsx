@@ -13,6 +13,13 @@ import { toast } from "sonner";
 import { Loader2, Plus } from "lucide-react";
 
 import { createCrmCompany } from "@/lib/crm-companies.functions";
+import {
+  EMPTY_COMPANY_FORM,
+  canSubmitCompanyForm,
+  companyFormErrorKey,
+  companyFormPayload,
+  type CompanyFormValues,
+} from "@/lib/crm/companyForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,29 +41,11 @@ interface NewCompanyDialogProps {
   onCreated?: (id: string) => void;
 }
 
-interface FieldForm {
-  name: string;
-  domain: string;
-  country: string;
-  branch: string;
-  city: string;
-  address: string;
-  postal_code: string;
-  website: string;
-  phone: string;
-}
+// Kształt formularza i reguły (co można wysłać, jak brzmi błąd) mieszkają
+// w lib/crm/companyForm - panel dokłada tylko etykiety PL/EN.
+type FieldForm = CompanyFormValues;
 
-const EMPTY: FieldForm = {
-  name: "",
-  domain: "",
-  country: "",
-  branch: "",
-  city: "",
-  address: "",
-  postal_code: "",
-  website: "",
-  phone: "",
-};
+const EMPTY = EMPTY_COMPANY_FORM;
 
 export function NewCompanyDialog({ lang, onCreated }: NewCompanyDialogProps) {
   const t = (pl: string, en: string): string => (lang === "pl" ? pl : en);
@@ -69,20 +58,7 @@ export function NewCompanyDialog({ lang, onCreated }: NewCompanyDialogProps) {
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createFn({
-        data: {
-          name: form.name.trim(),
-          domain: form.domain.trim() || undefined,
-          country: form.country.trim() || undefined,
-          branch: form.branch.trim() || undefined,
-          city: form.city.trim() || undefined,
-          address: form.address.trim() || undefined,
-          postal_code: form.postal_code.trim() || undefined,
-          website: form.website.trim() || undefined,
-          phone: form.phone.trim() || undefined,
-        },
-      }),
+    mutationFn: () => createFn({ data: companyFormPayload(form) }),
     onSuccess: async (res) => {
       toast.success(t("Firma utworzona", "Company created"));
       await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
@@ -91,20 +67,18 @@ export function NewCompanyDialog({ lang, onCreated }: NewCompanyDialogProps) {
       if (res?.id) onCreated?.(res.id);
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("duplicate_name")) {
-        toast.error(
-          t("Firma o tej nazwie już istnieje.", "A company with this name already exists."),
-        );
-      } else {
-        toast.error(t("Nie udało się utworzyć firmy.", "Failed to create the company."));
-      }
+      const key = companyFormErrorKey(err);
+      toast.error(
+        key === "duplicate_name"
+          ? t("Firma o tej nazwie już istnieje.", "A company with this name already exists.")
+          : t("Nie udało się utworzyć firmy.", "Failed to create the company."),
+      );
     },
   });
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || mutation.isPending) return;
+    if (!canSubmitCompanyForm(form, mutation.isPending)) return;
     mutation.mutate();
   };
 
@@ -209,7 +183,7 @@ export function NewCompanyDialog({ lang, onCreated }: NewCompanyDialogProps) {
             >
               {t("Anuluj", "Cancel")}
             </Button>
-            <Button type="submit" disabled={!form.name.trim() || mutation.isPending}>
+            <Button type="submit" disabled={!canSubmitCompanyForm(form, mutation.isPending)}>
               {mutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               {t("Utwórz firmę", "Create company")}
             </Button>

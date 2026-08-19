@@ -152,7 +152,12 @@ export async function syncCrmSubscriptionState(
         first_name: profile.first_name ?? null,
         last_name: profile.last_name ?? null,
         stage: CRM_STAGE_BY_STATE[state],
-        source_type: "import",
+        // ZBIÓR DOZWOLONYCH WARTOŚCI PILNUJE BAZA (crm_leads_source_type_check).
+        // Było tu "import", którego CHECK nie zna - INSERT leciał na 23514,
+        // błąd lądował w `catch` niżej (log, bez rzutu), więc klient PŁACĄCY
+        // BEZ WCZEŚNIEJSZEGO LEADA nie dostawał go wcale. Kontrakt pilnuje
+        // teraz test `lib/crm/__tests__/leadSourceTypeContract.test.ts`.
+        source_type: "paid_subscriber",
         tags: stateTags[state],
       });
     }

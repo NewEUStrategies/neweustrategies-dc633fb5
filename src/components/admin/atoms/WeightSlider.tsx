@@ -15,9 +15,16 @@ interface WeightSliderProps {
 /**
  * Atom: waga sygnału w skali 0-10 (suwak + odczyt liczbowy).
  *
- * A11y: suwak jest podpisany przez `aria-labelledby`, a nie samą wizualną
- * etykietą - Radix renderuje `role="slider"` na elemencie, którego `<Label>` nie
- * obejmuje, więc bez tego czytnik ekranu odczytałby wyłącznie liczbę.
+ * A11y: nazwa idzie na UCHWYT, nie na korzeń.
+ *
+ * Radix stawia `role="slider"` na uchwycie, a wszystko, co przekażemy do
+ * `Slider`, ląduje na korzeniu - elemencie BEZ roli. `aria-labelledby` na
+ * korzeniu było więc atrybutem, którego czytnik ekranu nigdy nie czytał:
+ * użytkownik słyszał „suwak, 4", bez informacji, którego sygnału dotyczy.
+ * `aria-label` przekazany przez `thumbProps` schodzi na uchwyt i nazwa wreszcie
+ * dochodzi tam, gdzie stoi rola. Widoczna etykieta zostaje powiązana przez
+ * `aria-labelledby` na uchwycie, żeby jej treść i nazwa dostępna nie mogły się
+ * rozejść.
  */
 export function WeightSlider({
   label,
@@ -41,7 +48,7 @@ export function WeightSlider({
         <span className="w-8 shrink-0 text-right font-mono text-sm tabular-nums">{value}</span>
       </div>
       <Slider
-        aria-labelledby={labelId}
+        thumbProps={{ "aria-labelledby": labelId }}
         min={min}
         max={max}
         step={step}

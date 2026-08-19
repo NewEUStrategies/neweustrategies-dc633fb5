@@ -20,41 +20,22 @@ import { getTxEmailPreviews } from "@/lib/tx-email-preview.functions";
 import {
   EDITABLE_TX_TYPES,
   TX_OVERRIDE_TOKENS,
-  TxOverridesSchema,
   useSaveTxOverrides,
   useTxOverrides,
   type EditableTxType,
   type TxCopyOverride,
   type TxOverrides,
 } from "@/lib/email/txOverrides";
+import {
+  FIELDS,
+  TYPE_LABEL_KEYS,
+  hasUnsavedChanges,
+  resetOverrideLang,
+  setOverrideField,
+  tokensHint,
+} from "./txContentRules";
 
 type Lang = "pl" | "en";
-
-/**
- * Nazwy zakladek edytora. Klucze, nie napisy - inaczej powstaje drugi slownik
- * poza zasiegiem bramki parytetu. Wypisane literalnie (a nie skladane z
- * `EditableTxType`), zeby bramka pokrycia kluczy widziala kazdy z nich.
- */
-const TYPE_LABEL_KEYS: Record<EditableTxType, string> = {
-  team_seat_grace: "adminNewsletter.emailContent.types.team_seat_grace",
-  team_seat_grace_reminder: "adminNewsletter.emailContent.types.team_seat_grace_reminder",
-  team_seat_access_ended: "adminNewsletter.emailContent.types.team_seat_access_ended",
-};
-
-const FIELDS: Array<{
-  key: keyof TxCopyOverride;
-  labelKey: string;
-  multiline?: boolean;
-}> = [
-  { key: "subject", labelKey: "adminNewsletter.emailContent.fields.subject" },
-  { key: "preview", labelKey: "adminNewsletter.emailContent.fields.preview" },
-  { key: "eyebrow", labelKey: "adminNewsletter.emailContent.fields.eyebrow" },
-  { key: "heading", labelKey: "adminNewsletter.emailContent.fields.heading" },
-  { key: "intro", labelKey: "adminNewsletter.emailContent.fields.intro", multiline: true },
-  { key: "extra", labelKey: "adminNewsletter.emailContent.fields.extra", multiline: true },
-  { key: "cta", labelKey: "adminNewsletter.emailContent.fields.cta" },
-  { key: "note", labelKey: "adminNewsletter.emailContent.fields.note", multiline: true },
-];
 
 export function TxEmailContentPanel() {
   ensureNewsletterAdminI18n();
@@ -78,19 +59,12 @@ export function TxEmailContentPanel() {
   }, [JSON.stringify(saved)]);
 
   const current = draft[type][lang];
-  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
+  const dirty = useMemo(() => hasUnsavedChanges(draft, saved), [draft, saved]);
 
   const setField = (key: keyof TxCopyOverride, value: string) =>
-    setDraft((prev) => ({
-      ...prev,
-      [type]: { ...prev[type], [lang]: { ...prev[type][lang], [key]: value } },
-    }));
+    setDraft((prev) => setOverrideField(prev, type, lang, key, value));
 
-  const resetLang = () =>
-    setDraft((prev) => ({
-      ...prev,
-      [type]: { ...prev[type], [lang]: TxOverridesSchema.parse({})[type][lang] },
-    }));
+  const resetLang = () => setDraft((prev) => resetOverrideLang(prev, type, lang));
 
   const fetchPreviews = useServerFn(getTxEmailPreviews);
   const { data: previews, isFetching } = useQuery({
@@ -166,8 +140,7 @@ export function TxEmailContentPanel() {
             ))}
           </nav>
           <p className="mt-3 px-2 pb-1 text-[0.6875rem] leading-relaxed text-muted-foreground">
-            {t("adminNewsletter.emailContent.tokensLabel")}{" "}
-            {TX_OVERRIDE_TOKENS.map((token) => `{${token}}`).join(", ")}
+            {t("adminNewsletter.emailContent.tokensLabel")} {tokensHint(TX_OVERRIDE_TOKENS)}
           </p>
         </Card>
 

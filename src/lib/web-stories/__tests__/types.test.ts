@@ -5,6 +5,7 @@ import {
   newStoryPage,
   safeParsePages,
   storyTitle,
+  storyDescription,
   pageCaption,
   pageCtaLabel,
   safeStoryHref,
@@ -31,6 +32,23 @@ describe("web-stories types", () => {
   it("locale fallbacks return non-empty when one locale is filled", () => {
     expect(storyTitle({ title_pl: "PL", title_en: "" }, "en")).toBe("PL");
     expect(storyTitle({ title_pl: "", title_en: "EN" }, "pl")).toBe("EN");
+  });
+
+  it("storyDescription fallback jest SYMETRYCZNY, jak w tytule", () => {
+    // Opis jedzie do `<meta name="description">` i do karty udostępnienia.
+    // Pusty ciąg zamiast wersji z drugiego języka to story bez zajawki w
+    // wynikach wyszukiwania - a to jedyny powód, dla którego web stories
+    // w ogóle powstają.
+    expect(storyDescription({ description_pl: "Opis", description_en: "" }, "en")).toBe("Opis");
+    expect(storyDescription({ description_pl: "", description_en: "Desc" }, "pl")).toBe("Desc");
+    expect(storyDescription({ description_pl: "Opis", description_en: "Desc" }, "pl")).toBe("Opis");
+  });
+
+  it("storyDescription bez ANI JEDNEJ wersji zwraca pusty ciąg", () => {
+    // Wynik jedzie do `<meta content>`, więc musi być napisem - `undefined`
+    // renderuje się tam jako słowo „undefined".
+    expect(storyDescription({ description_pl: "", description_en: "" }, "pl")).toBe("");
+    expect(storyDescription({ description_pl: "", description_en: "" }, "en")).toBe("");
   });
 
   it("page accessors fall back across locales", () => {

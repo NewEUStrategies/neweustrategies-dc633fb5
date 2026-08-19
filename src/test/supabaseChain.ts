@@ -1,14 +1,11 @@
-// Atrapa klienta PostgREST - wspólna dla WSZYSTKICH powierzchni testowych.
+// Zgodnościowy re-eksport atrapy łańcucha PostgREST.
 //
-// Mieszkała w `src/test/chat/fixtures.ts`, bo czat pierwszy jej potrzebował
-// (PR #250). Nie ma w niej jednak niczego czatowego: to generyczna maszyneria
-// `supabase.from(...)`, a profil potrzebuje jej dokładnie tak samo
-// (`useProfileEditor`, `useProfileIntent`, `badges`, `useHeaderProfile` czytają
-// przez łańcuch, nie przez `rpc()`). Zostały więc dwa wyjścia: skopiować 130
-// linii do drugiego pliku fixture'ów albo zaimportować w profilu z katalogu
-// `test/chat`. Pierwsze daje dwie atrapy rozjeżdżające się przy następnej
-// zmianie kontraktu, drugie - zależność, która nic nie znaczy (usunięcie
-// fixture'ów czatu psułoby testy profilu).
+// Kanoniczne miejsce to `src/test/supabase/chain.ts` - atom wspólnego harnessu
+// klienta Supabase (`@/test/supabase`), z którego korzystają fixture czatu,
+// klubów, komentarzy i profilu. Ta ścieżka zostaje, bo importuje ją 79 plików
+// testowych rozsianych po całym repo; przepisywanie ich przy okazji rozbicia
+// harnessu wygenerowałoby ogromny diff bez żadnej zmiany zachowania,
+// a `git blame` tych testów przestałby być czytelny.
 //
 // Dlatego atrapa stoi tu, a `test/chat/fixtures.ts` re-eksportuje ją dalej -
 // żaden z 33 plików testowych czatu nie zmienia importu.
@@ -128,10 +125,9 @@ const CHAIN_METHODS: readonly string[] = [
   "in",
   "is",
   "not",
-  // Filtry wzorcem. Bez nich atrapa milczy o warstwie danych, która ADRESUJE
-  // OPERACJE NIEODWRACALNE po prefiksie (kasowanie i przenoszenie folderu
-  // mediów idzie przez `.like("folder_path", …)`), a literówka w nazwie ogniwa
-  // ma być błędem testu, nie cichym pominięciem.
+  // Dopasowanie wzorcem. `ilike` (bez rozróżniania wielkości liter) niesie
+  // w tym repo regułę, nie wygodę: adresy e-mail porównujemy właśnie nim,
+  // bo unikalność adresu w bazie też jest bez wielkości litery.
   "like",
   "ilike",
   "or",

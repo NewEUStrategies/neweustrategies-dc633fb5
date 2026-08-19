@@ -23,7 +23,7 @@ import { intervalLabel } from "@/lib/billing/intervalLabel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
+import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
@@ -140,7 +140,7 @@ function PlanDetailsPage() {
           <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
         </div>
         {plan.trial_days > 0 && (
-          <p className="text-sm text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>
+          <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">
           <Button asChild size="lg">

@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GuestCheckoutGate } from "@/components/checkout/GuestCheckoutGate";
 import { CheckoutAssurances } from "@/components/checkout/CheckoutAssurances";
-import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
+import { BillingProfileForm } from "@/components/billing/molecules/BillingProfileForm";
 import { CouponInput } from "@/components/checkout/CouponInput";
 import { FxRateNotice } from "@/components/checkout/FxRateNotice";
 import { Lock, ShieldCheck } from "lucide-react";

@@ -36,8 +36,20 @@ import {
   type WorkflowStep,
 } from "@/lib/admin/workflows";
 import { useActionName } from "./useActionName";
-
-const CUSTOM_TRIGGER = "__custom__";
+import {
+  CUSTOM_TRIGGER,
+  applyTriggerSelection,
+  defaultStep,
+  emptyConditionPair,
+  isCustomTriggerType,
+  moveStep as moveStepIn,
+  paramInputValue,
+  patchConditionPair,
+  removeAt,
+  replaceAt,
+  stepWithParam,
+  triggerSelectValue,
+} from "./lib/editorDraft";
 
 interface WorkflowEditorDialogProps {
   open: boolean;
@@ -67,10 +79,7 @@ export function WorkflowEditorDialog({
     if (open) {
       setDraft(initial);
       setShowErrors(false);
-      setCustomTrigger(
-        initial.triggerEventType !== "" &&
-          !(DOMAIN_EVENT_TYPES as readonly string[]).includes(initial.triggerEventType),
-      );
+      setCustomTrigger(isCustomTriggerType(initial.triggerEventType));
     }
   }, [open, initial]);
 
@@ -80,19 +89,12 @@ export function WorkflowEditorDialog({
   const patch = (partial: Partial<WorkflowDraft>) => setDraft((d) => ({ ...d, ...partial }));
 
   const patchStep = (index: number, step: WorkflowStep) =>
-    setDraft((d) => ({
-      ...d,
-      steps: d.steps.map((s, i) => (i === index ? step : s)),
-    }));
+    setDraft((d) => ({ ...d, steps: replaceAt(d.steps, index, step) }));
 
   const moveStep = (index: number, delta: -1 | 1) =>
     setDraft((d) => {
-      const target = index + delta;
-      if (target < 0 || target >= d.steps.length) return d;
-      const steps = [...d.steps];
-      const [removed] = steps.splice(index, 1);
-      steps.splice(target, 0, removed);
-      return { ...d, steps };
+      const steps = moveStepIn(d.steps, index, delta);
+      return steps === d.steps ? d : { ...d, steps: [...steps] };
     });
 
   const submit = () => {
@@ -143,15 +145,11 @@ export function WorkflowEditorDialog({
           <div className="space-y-1.5">
             <Label>{t("adminWorkflows.editor.trigger")}</Label>
             <Select
-              value={customTrigger ? CUSTOM_TRIGGER : draft.triggerEventType || undefined}
+              value={triggerSelectValue(customTrigger, draft.triggerEventType)}
               onValueChange={(value) => {
-                if (value === CUSTOM_TRIGGER) {
-                  setCustomTrigger(true);
-                  patch({ triggerEventType: "" });
-                } else {
-                  setCustomTrigger(false);
-                  patch({ triggerEventType: value });
-                }
+                const next = applyTriggerSelection(value);
+                setCustomTrigger(next.customTrigger);
+                patch({ triggerEventType: next.triggerEventType });
               }}
             >
               <SelectTrigger aria-invalid={errorSet.has("trigger")}>
@@ -197,9 +195,9 @@ export function WorkflowEditorDialog({
                   value={pair.key}
                   onChange={(e) =>
                     patch({
-                      conditionPairs: draft.conditionPairs.map((p, i) =>
-                        i === index ? { ...p, key: e.target.value } : p,
-                      ),
+                      conditionPairs: patchConditionPair(draft.conditionPairs, index, {
+                        key: e.target.value,
+                      }),
                     })
                   }
                   placeholder={t("adminWorkflows.editor.conditionKey")}
@@ -209,9 +207,9 @@ export function WorkflowEditorDialog({
                   value={pair.value}
                   onChange={(e) =>
                     patch({
-                      conditionPairs: draft.conditionPairs.map((p, i) =>
-                        i === index ? { ...p, value: e.target.value } : p,
-                      ),
+                      conditionPairs: patchConditionPair(draft.conditionPairs, index, {
+                        value: e.target.value,
+                      }),
                     })
                   }
                   placeholder={t("adminWorkflows.editor.conditionValue")}
@@ -222,11 +220,7 @@ export function WorkflowEditorDialog({
                   variant="ghost"
                   size="icon"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() =>
-                    patch({
-                      conditionPairs: draft.conditionPairs.filter((_, i) => i !== index),
-                    })
-                  }
+                  onClick={() => patch({ conditionPairs: removeAt(draft.conditionPairs, index) })}
                   aria-label={t("adminWorkflows.editor.removeCondition")}
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
@@ -243,7 +237,7 @@ export function WorkflowEditorDialog({
               variant="outline"
               size="sm"
               onClick={() =>
-                patch({ conditionPairs: [...draft.conditionPairs, { key: "", value: "" }] })
+                patch({ conditionPairs: [...draft.conditionPairs, emptyConditionPair()] })
               }
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -264,7 +258,7 @@ export function WorkflowEditorDialog({
                 step={step}
                 onChange={(next) => patchStep(index, next)}
                 onMove={(delta) => moveStep(index, delta)}
-                onRemove={() => patch({ steps: draft.steps.filter((_, i) => i !== index) })}
+                onRemove={() => patch({ steps: removeAt(draft.steps, index) })}
               />
             ))}
             {errorSet.has("steps") && (
@@ -276,11 +270,7 @@ export function WorkflowEditorDialog({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() =>
-                patch({
-                  steps: [...draft.steps, { action: "notify_staff", params: {} }],
-                })
-              }
+              onClick={() => patch({ steps: [...draft.steps, defaultStep()] })}
             >
               <ListPlus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               {t("adminWorkflows.editor.addStep")}
@@ -395,12 +385,7 @@ function StepEditor({
               <label key={spec.key} className="flex items-center gap-2 text-sm">
                 <Switch
                   checked={step.params[spec.key] === true}
-                  onCheckedChange={(checked) =>
-                    onChange({
-                      ...step,
-                      params: { ...step.params, [spec.key]: checked },
-                    })
-                  }
+                  onCheckedChange={(checked) => onChange(stepWithParam(step, spec.key, checked))}
                   aria-label={label}
                 />
                 {label}
@@ -410,20 +395,14 @@ function StepEditor({
           // Roles: z bazy przychodzi string[], ale podczas edycji trzymamy
           // surowy CSV (string) - podział robi dopiero serializeWorkflowSteps,
           // inaczej wpisywany przecinek znikałby przy każdym renderze.
-          const raw = step.params[spec.key];
-          const value = Array.isArray(raw) ? raw.join(", ") : typeof raw === "string" ? raw : "";
+          const value = paramInputValue(step.params[spec.key]);
           return (
             <div key={spec.key} className="space-y-1">
               <Label className="text-xs text-muted-foreground">{label}</Label>
               <Input
                 value={value}
                 placeholder={spec.example}
-                onChange={(e) =>
-                  onChange({
-                    ...step,
-                    params: { ...step.params, [spec.key]: e.target.value },
-                  })
-                }
+                onChange={(e) => onChange(stepWithParam(step, spec.key, e.target.value))}
                 className="h-8 text-sm"
               />
             </div>

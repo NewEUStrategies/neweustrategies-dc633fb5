@@ -21,7 +21,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
   sortableKeyboardCoordinates,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -44,31 +43,27 @@ import {
   type EmailBlock,
   type EmailBlockType,
   type EmailDoc,
-  type EmailPostListBlock,
 } from "@/lib/newsletter/emailDoc";
 import { renderEmailHtml, type EmailPostRef } from "@/lib/newsletter/renderEmailHtml";
 import { postRefsForLang, type EmailPostRow } from "@/lib/newsletter/emailDocResolve";
 import { resolveCampaignDocPosts } from "@/lib/newsletter-campaigns.functions";
 import { CampaignBlockProperties } from "./CampaignBlockProperties";
+import * as rules from "./campaignBlocks";
 
 // Paleta WSKAZUJE KLUCZE, nie napisy: pary `{ pl, en }` w tablicy byly kolejnym
-// rownoleglym slownikiem poza zasiegiem bramki parytetu.
-const PALETTE: { type: EmailBlockType; icon: typeof Heading; labelKey: string }[] = [
-  { type: "heading", icon: Heading, labelKey: "adminNewsletter.blocks.heading" },
-  { type: "paragraph", icon: Type, labelKey: "adminNewsletter.blocks.paragraph" },
-  { type: "image", icon: ImageIcon, labelKey: "adminNewsletter.blocks.image" },
-  { type: "button", icon: MousePointerClick, labelKey: "adminNewsletter.blocks.button" },
-  { type: "post-list", icon: Newspaper, labelKey: "adminNewsletter.blocks.postList" },
-  { type: "quote", icon: Quote, labelKey: "adminNewsletter.blocks.quote" },
-  { type: "divider", icon: Minus, labelKey: "adminNewsletter.blocks.divider" },
-  { type: "spacer", icon: MoveVertical, labelKey: "adminNewsletter.blocks.spacer" },
-  { type: "footer-note", icon: Info, labelKey: "adminNewsletter.blocks.footerNote" },
+// rownoleglym slownikiem poza zasiegiem bramki parytetu. Same klucze zyja w
+// `campaignBlocks.ts` razem z regulami edytora.
+const PALETTE: { type: EmailBlockType; icon: typeof Heading }[] = [
+  { type: "heading", icon: Heading },
+  { type: "paragraph", icon: Type },
+  { type: "image", icon: ImageIcon },
+  { type: "button", icon: MousePointerClick },
+  { type: "post-list", icon: Newspaper },
+  { type: "quote", icon: Quote },
+  { type: "divider", icon: Minus },
+  { type: "spacer", icon: MoveVertical },
+  { type: "footer-note", icon: Info },
 ];
-
-/** Klucz etykiety bloku; nieznany typ degraduje sie do wlasnej nazwy. */
-function blockLabelKey(type: EmailBlockType): string | null {
-  return PALETTE.find((p) => p.type === type)?.labelKey ?? null;
-}
 
 /** Zwraca wartość opóźnioną o `delay` ms - stabilizuje kosztowny podgląd. */
 function useDebouncedValue<T>(value: T, delay: number): T {
@@ -95,7 +90,7 @@ export function CampaignContentBuilder({
   const { t } = useTranslation();
   /** Etykieta bloku ze slownika; nieznany typ degraduje sie do wlasnej nazwy. */
   const blockLabelFor = (type: EmailBlockType): string => {
-    const key = blockLabelKey(type);
+    const key = rules.blockLabelKey(type);
     return key === null ? type : t(key);
   };
   const [selectedId, setSelectedId] = useState<string | null>(doc.blocks[0]?.id ?? null);
@@ -108,41 +103,28 @@ export function CampaignContentBuilder({
 
   const addBlock = (type: EmailBlockType) => {
     const block = createEmailBlock(type);
-    setBlocks([...doc.blocks, block]);
+    setBlocks(rules.appendBlock(doc.blocks, block));
     setSelectedId(block.id);
   };
 
-  const updateBlock = (updated: EmailBlock) =>
-    setBlocks(doc.blocks.map((b) => (b.id === updated.id ? updated : b)));
+  const updateBlock = (updated: EmailBlock) => setBlocks(rules.updateBlock(doc.blocks, updated));
 
   const removeBlock = (id: string) => {
-    setBlocks(doc.blocks.filter((b) => b.id !== id));
+    setBlocks(rules.removeBlock(doc.blocks, id));
     if (selectedId === id) setSelectedId(null);
   };
 
   const duplicateBlock = (id: string) => {
-    const idx = doc.blocks.findIndex((b) => b.id === id);
-    if (idx < 0) return;
-    const source = doc.blocks[idx];
-    // EmailBlock to czysty JSON - klon przez round-trip (bez zależności od
-    // structuredClone, nieużywanego nigdzie indziej w repo).
-    const copy = {
-      ...(JSON.parse(JSON.stringify(source)) as EmailBlock),
-      id: createEmailBlock(source.type).id,
-    };
-    const next = [...doc.blocks];
-    next.splice(idx + 1, 0, copy);
-    setBlocks(next);
-    setSelectedId(copy.id);
+    const result = rules.duplicateBlock(doc.blocks, id);
+    if (!result) return;
+    setBlocks(result.blocks);
+    setSelectedId(result.copyId);
   };
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const from = doc.blocks.findIndex((b) => b.id === active.id);
-    const to = doc.blocks.findIndex((b) => b.id === over.id);
-    if (from < 0 || to < 0) return;
-    setBlocks(arrayMove(doc.blocks, from, to));
+    const next = rules.reorderBlocks(doc.blocks, String(active.id), over ? String(over.id) : null);
+    if (next) setBlocks(next);
   };
 
   const selected = doc.blocks.find((b) => b.id === selectedId) ?? null;
@@ -162,7 +144,7 @@ export function CampaignContentBuilder({
               onClick={() => addBlock(p.type)}
             >
               <p.icon className="w-3.5 h-3.5 mr-1" />
-              {t(p.labelKey)}
+              {blockLabelFor(p.type)}
             </Button>
           ))}
         </div>
@@ -320,19 +302,7 @@ function CampaignPreview({ doc, lang }: { doc: EmailDoc; lang: "pl" | "en" }) {
   // Klucz zapytania obejmuje TYLKO pola wpływające na dobór wpisów (mode,
   // count, kategoria, ręczne id), więc edycja nagłówka sekcji czy układu nie
   // powoduje ponownego pobrania z serwera.
-  const postListKey = useMemo(
-    () =>
-      debouncedDoc.blocks
-        .filter((b): b is EmailPostListBlock => b.type === "post-list")
-        .map((b) => ({
-          id: b.id,
-          mode: b.mode,
-          count: b.count,
-          categorySlug: b.categorySlug,
-          postIds: b.postIds,
-        })),
-    [debouncedDoc],
-  );
+  const postListKey = useMemo(() => rules.postListSelectors(debouncedDoc), [debouncedDoc]);
   const hasPostList = postListKey.length > 0;
   const postsQ = useQuery({
     queryKey: ["campaign-doc-posts", JSON.stringify(postListKey)],

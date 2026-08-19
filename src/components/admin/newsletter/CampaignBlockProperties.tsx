@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/select";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { searchCampaignPosts } from "@/lib/newsletter-campaigns.functions";
+import {
+  clampPostCount,
+  MAX_POST_LIST_ITEMS,
+  nullIfEmpty,
+  spacerSize,
+  togglePostId,
+} from "./campaignBlocks";
 import type { EmailBlock, EmailI18n, EmailPostListBlock } from "@/lib/newsletter/emailDoc";
 
 type PostOption = { id: string; slug: string; title_pl: string | null; title_en: string | null };
@@ -115,7 +122,7 @@ export function CampaignBlockProperties({
             min={4}
             max={96}
             value={block.size}
-            onChange={(e) => onChange({ ...block, size: Number(e.target.value) || 24 })}
+            onChange={(e) => onChange({ ...block, size: spacerSize(e.target.value) })}
             className="h-8 mt-1"
           />
         </div>
@@ -297,7 +304,7 @@ function ImageProps({
         label={t("adminNewsletter.blockProps.linkOptional")}
         value={block.href ?? ""}
         placeholder="https://…"
-        onChange={(href) => onChange({ ...block, href: href || null })}
+        onChange={(href) => onChange({ ...block, href: nullIfEmpty(href) })}
       />
       <MediaPickerDialog
         open={pickerOpen}
@@ -355,21 +362,16 @@ function PostListProps({
             <Input
               type="number"
               min={1}
-              max={10}
+              max={MAX_POST_LIST_ITEMS}
               value={block.count}
-              onChange={(e) =>
-                onChange({
-                  ...block,
-                  count: Math.min(10, Math.max(1, Number(e.target.value) || 3)),
-                })
-              }
+              onChange={(e) => onChange({ ...block, count: clampPostCount(e.target.value) })}
               className="h-8 mt-1 text-[12px]"
             />
           </div>
           <TextField
             label={t("adminNewsletter.blockProps.categorySlug")}
             value={block.categorySlug ?? ""}
-            onChange={(v) => onChange({ ...block, categorySlug: v || null })}
+            onChange={(v) => onChange({ ...block, categorySlug: nullIfEmpty(v) })}
           />
         </div>
       ) : (
@@ -408,12 +410,7 @@ function ManualPostPicker({
   const titleOf = (p: PostOption) => pickLocalized(p, "title", lang) || p.title_pl || p.slug;
   const selected = block.postIds;
 
-  const toggle = (id: string) => {
-    const next = selected.includes(id)
-      ? selected.filter((x) => x !== id)
-      : [...selected, id].slice(0, 10);
-    onChange({ ...block, postIds: next });
-  };
+  const toggle = (id: string) => onChange({ ...block, postIds: togglePostId(selected, id) });
 
   return (
     <div className="space-y-2">
@@ -427,7 +424,7 @@ function ManualPostPicker({
         />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        {t("adminNewsletter.blockProps.selected")}: {selected.length}/10
+        {t("adminNewsletter.blockProps.selected")}: {selected.length}/{MAX_POST_LIST_ITEMS}
       </p>
       <div className="max-h-48 overflow-y-auto rounded border divide-y">
         {(resultsQ.data ?? []).map((p) => (

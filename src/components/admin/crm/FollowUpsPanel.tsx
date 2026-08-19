@@ -9,6 +9,7 @@ import { AlarmClock, Check, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listCrmDueTasks, updateCrmTask, type CrmDueTaskRow } from "@/lib/crm-tasks.functions";
+import { formatDue, isOverdue, leadLabel, splitDueTasks } from "@/lib/crm/tasksView";
 
 const TXT = {
   pl: {
@@ -26,19 +27,6 @@ const TXT = {
     openLead: "Open lead",
   },
 };
-
-function leadLabel(task: CrmDueTaskRow): string {
-  const lead = task.lead;
-  if (!lead) return "";
-  return [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
-}
-
-function formatDue(iso: string, lang: "pl" | "en"): string {
-  return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
 
 export function FollowUpsPanel({
   lang,
@@ -72,8 +60,7 @@ export function FollowUpsPanel({
   if (tasks.length === 0) return null;
 
   const now = Date.now();
-  const overdueCount = tasks.filter((task) => new Date(task.due_at).getTime() < now).length;
-  const upcomingCount = tasks.length - overdueCount;
+  const { overdue: overdueCount, upcoming: upcomingCount } = splitDueTasks(tasks, now);
 
   return (
     <section
@@ -96,7 +83,7 @@ export function FollowUpsPanel({
       </div>
       <ul className="divide-y divide-border/60">
         {tasks.map((task) => {
-          const overdue = new Date(task.due_at).getTime() < now;
+          const overdue = isOverdue(task.due_at, now);
           return (
             <li key={task.id} className="flex items-center gap-2 py-1.5">
               <span
@@ -109,7 +96,9 @@ export function FollowUpsPanel({
               </span>
               <span className="min-w-0 flex-1 truncate text-[13px]">
                 <span className="font-medium">{task.title}</span>
-                {task.lead && <span className="text-muted-foreground"> · {leadLabel(task)}</span>}
+                {task.lead && (
+                  <span className="text-muted-foreground"> · {leadLabel(task.lead)}</span>
+                )}
               </span>
               <Button
                 variant="outline"

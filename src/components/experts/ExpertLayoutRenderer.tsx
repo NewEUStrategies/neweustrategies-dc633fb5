@@ -21,11 +21,11 @@ import type { ExpertHubData } from "@/lib/experts/types";
 import {
   findExpertPreset,
   isSectionVisible,
-  sanitizeCssColor,
   DEFAULT_EXPERT_SECTION_ORDER,
   type ExpertLayoutSettings,
   type ExpertSectionKey,
 } from "@/lib/expertLayouts";
+import { expertLayoutScopeCss } from "@/lib/experts/layoutRules";
 
 export type Lang = "pl" | "en";
 
@@ -1109,43 +1109,11 @@ export function ContactInline({
  * `theme` dobiera warianty *_dark. Dla trybu automatycznego (public site)
  * użyj też `<ExpertLayoutStyleScope />` który emituje styl `.dark [scope]`.
  */
-export function expertLayoutCssVars(
-  settings: ExpertLayoutSettings,
-  theme: "light" | "dark" = "light",
-): CSSProperties {
-  // Sanityzacja NA WYJŚCIU (nie tylko przy zapisie): wartości trafiają do
-  // scoped `<style>` przez dangerouslySetInnerHTML, a z inline-edytorem
-  // pochodzą też od ekspertów. Zły kolor degraduje się do tokenów motywu.
-  const accent = sanitizeCssColor(
-    theme === "dark" ? settings.accent_color_dark : settings.accent_color,
-  );
-  const bioBullet = sanitizeCssColor(
-    theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color,
-  );
-  const heroBg = sanitizeCssColor(
-    theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color,
-  );
-  const heroText = sanitizeCssColor(
-    theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color,
-  );
-
-  const nameBase = Math.max(12, settings.name_size_base || 28);
-  const nameLg = Math.max(nameBase, settings.name_size_lg || 44);
-  const roleBase = Math.max(10, settings.role_size_base || 14);
-  const roleLg = Math.max(roleBase, settings.role_size_lg || 18);
-
-  return {
-    "--pv-accent": accent ?? "hsl(var(--brand))",
-    "--pv-bio-bullet": bioBullet ?? accent ?? "hsl(var(--brand))",
-    "--pv-hero-bg": heroBg ?? "transparent",
-    "--pv-hero-text": heroText ?? "inherit",
-    "--pv-name-size-base": `${nameBase}px`,
-    "--pv-name-size-lg": `${nameLg}px`,
-    "--pv-name-size": `clamp(${nameBase}px, calc(${nameBase}px + (${nameLg} - ${nameBase}) * ((100vw - 375px) / (1200 - 375))), ${nameLg}px)`,
-    "--pv-role-size": `clamp(${roleBase}px, calc(${roleBase}px + (${roleLg} - ${roleBase}) * ((100vw - 375px) / (1200 - 375))), ${roleLg}px)`,
-    "--pv-max-width": `${settings.max_width}px`,
-  } as CSSProperties;
-}
+// Reguła tokenów `--pv-*` mieszka teraz w `lib/experts/layoutRules.ts`
+// (czysty moduł, 100% pokrycia). Re-eksport zostaje, żeby `author.$slug.tsx`
+// i `ExpertLayoutPreview.tsx` nie musiały zmieniać importu - a przy okazji
+// żeby sanityzacja koloru miała JEDNO miejsce, nie dwa.
+export { expertLayoutCssVars } from "@/lib/experts/layoutRules";
 
 /**
  * Wpina scoped `<style>` z dark-mode override tokenów `--pv-*`. Wywoływać
@@ -1159,14 +1127,8 @@ export function ExpertLayoutStyleScope({
   scopeId: string;
   settings: ExpertLayoutSettings;
 }) {
-  // Scope-id wchodzi do selektora w surowym CSS - przycinamy do bezpiecznego
-  // alfabetu, żeby żadna wartość (dziś uuid/tenant, jutro dowolny caller)
-  // nie mogła domknąć atrybutu ani bloku reguły.
-  const safeScopeId = scopeId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const dark = expertLayoutCssVars(settings, "dark") as Record<string, string>;
-  const decls = Object.entries(dark)
-    .map(([k, v]) => `${k}: ${v};`)
-    .join(" ");
-  const css = `.dark [data-pv-scope="${safeScopeId}"]{${decls}}`;
-  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+  // Przycięcie scope-id i budowa reguły żyją w `lib/experts/layoutRules.ts` -
+  // to zapora przed domknięciem atrybutu i bloku reguły przez wartość
+  // wywołującego, więc ma własne testy zamiast komentarza.
+  return <style dangerouslySetInnerHTML={{ __html: expertLayoutScopeCss(scopeId, settings) }} />;
 }

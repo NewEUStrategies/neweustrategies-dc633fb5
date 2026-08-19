@@ -21,7 +21,13 @@ export interface PaymentOrderRow {
   amountCents: number;
   currency: string;
   planId: string | null;
-  planName: string | null;
+  /**
+   * Nazwa planu w OBU językach - warstwa danych nie zna języka interfejsu
+   * administratora, a panel jest dwujęzyczny. Wybór robi UI regułą `planName`
+   * z `lib/billing/types`, tą samą, którą wybiera nazwy planów dla klienta.
+   */
+  planNamePl: string | null;
+  planNameEn: string | null;
   buyerId: string | null;
   buyerEmail: string | null;
 }
@@ -65,6 +71,9 @@ type OrderRecord = Pick<
   | "receipt_email"
 >;
 
+/** Nazwy planu do kolumny „pozycja" - też wyprowadzone z typów generowanych. */
+type PlanNameRecord = Pick<Tables<"access_plans">, "id" | "name_pl" | "name_en">;
+
 const SELECT =
   "id, created_at, paid_at, status, kind, provider, environment, provider_session_id, amount_cents, currency, plan_id, user_id, receipt_email";
 
@@ -84,14 +93,22 @@ export async function loadPaymentOrders(
   const records = (data ?? []) as OrderRecord[];
 
   const planIds = [...new Set(records.map((r) => r.plan_id).filter((v): v is string => !!v))];
-  const planNames = new Map<string, string>();
+  const planNames = new Map<string, { pl: string | null; en: string | null }>();
   if (planIds.length > 0) {
-    const { data: plans } = await supabase
+    // Kolumny WYPROWADZONE z wygenerowanych typów, dokładnie jak `OrderRecord`
+    // wyżej. Poprzednia wersja pytała o kolumnę `name`, której w `access_plans`
+    // NIE MA (są `name_pl` i `name_en`), a błąd zapytania był odrzucany bez
+    // sprawdzenia - mapa zostawała pusta i nazwa planu NIGDY nie docierała do
+    // panelu. `Pick<Tables<...>>` zamienia taki rozjazd w błąd kompilacji.
+    const { data: plans, error: plansError } = await supabase
       .from("access_plans")
-      .select("id, name")
+      .select("id, name_pl, name_en")
       .in("id", planIds);
-    for (const plan of (plans ?? []) as { id: string; name: string | null }[]) {
-      if (plan.name) planNames.set(plan.id, plan.name);
+    // Błąd odczytu planów NIE może cicho zniknąć: zamówienia i tak pokażemy,
+    // ale operator musi wiedzieć, że kolumna „pozycja" jest niekompletna.
+    if (plansError) throw plansError;
+    for (const plan of (plans ?? []) as PlanNameRecord[]) {
+      planNames.set(plan.id, { pl: plan.name_pl ?? null, en: plan.name_en ?? null });
     }
   }
 
@@ -107,7 +124,8 @@ export async function loadPaymentOrders(
     amountCents: r.amount_cents,
     currency: r.currency,
     planId: r.plan_id,
-    planName: r.plan_id ? (planNames.get(r.plan_id) ?? null) : null,
+    planNamePl: r.plan_id ? (planNames.get(r.plan_id)?.pl ?? null) : null,
+    planNameEn: r.plan_id ? (planNames.get(r.plan_id)?.en ?? null) : null,
     buyerId: r.user_id,
     buyerEmail: r.receipt_email,
   }));

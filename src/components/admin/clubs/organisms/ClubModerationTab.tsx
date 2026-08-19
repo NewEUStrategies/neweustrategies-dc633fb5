@@ -81,11 +81,16 @@ import {
   CLUB_LOG_TARGETS,
   type AdminClubModerationItem,
 } from "@/lib/clubs/types";
+import {
+  MIN_REVEAL_REASON,
+  isAllSelected,
+  isKnownModerationTarget,
+  revealReasonAccepted,
+  splitModerationBatch,
+  toggleSelection,
+} from "@/lib/clubs/moderationRules";
 
 const ANY = "__any__";
-
-/** Powód ujawnienia autora poniżej tej długości to nie powód, tylko klik. */
-const MIN_REVEAL_REASON = 10;
 
 // Słowniki dziennika mieszkają w types.ts razem z resztą kontraktu bazy:
 // dopisanie akcji w migracji ma mieć DOKŁADNIE JEDNO miejsce do poprawienia
@@ -100,7 +105,10 @@ const LOG_TARGETS: readonly string[] = CLUB_LOG_TARGETS;
  * Wartość spoza słownika (wpis historyczny) pokazujemy taką, jaka jest.
  */
 function targetLabel(value: string, t: (key: string) => string): string {
-  return LOG_TARGETS.includes(value) ? t(`adminClubs.moderation.target.${value}`) : value;
+  // Prefiks klucza budujemy TUTAJ, a nie w module reguł: sekcja
+  // `adminClubs.moderation.*` żyje w słowniku panelu, który ten plik
+  // dociąga przez `ensureAdminClubsI18n()`.
+  return isKnownModerationTarget(value) ? t(`adminClubs.moderation.target.${value}`) : value;
 }
 
 interface RevealTarget {
@@ -127,13 +135,7 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
   // widzialby "50" przy kolejce liczacej trzysta pozycji.
   const queueTotal = queueQ.data?.total ?? 0;
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggle = (id: string) => setSelected((prev) => new Set(toggleSelection(prev, id)));
 
   const act = (item: AdminClubModerationItem, action: "approve" | "hide" | "delete") => {
     const targetType = item.target_type === "reply" ? "reply" : "thread";
@@ -161,10 +163,7 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
    */
   const bulkAct = async (action: "approve" | "delete") => {
     if (selected.size === 0) return;
-    const chosen = queue.filter((item) => selected.has(item.target_id));
-    const threadIds = chosen.filter((i) => i.target_type === "thread").map((i) => i.target_id);
-    const replyIds = chosen.filter((i) => i.target_type === "reply").map((i) => i.target_id);
-    const total = threadIds.length + replyIds.length;
+    const { threadIds, replyIds, total } = splitModerationBatch(queue, selected);
     if (total === 0) return;
 
     try {
@@ -202,7 +201,7 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
             {queue.length > 0 ? (
               <Checkbox
                 aria-label={t("adminClubs.moderation.selectAll")}
-                checked={selected.size === queue.length}
+                checked={isAllSelected(queue, selected)}
                 onCheckedChange={(v) =>
                   setSelected(v === true ? new Set(queue.map((i) => i.target_id)) : new Set())
                 }
@@ -785,7 +784,7 @@ function RevealAuthorDialog({
     null,
   );
 
-  const tooShort = reason.trim().length < MIN_REVEAL_REASON;
+  const tooShort = !revealReasonAccepted(reason);
 
   const close = (open: boolean) => {
     if (!open) {

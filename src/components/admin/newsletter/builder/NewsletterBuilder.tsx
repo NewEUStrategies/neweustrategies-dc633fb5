@@ -41,6 +41,8 @@ import type {
   NlSectionLayout,
 } from "@/lib/newsletter-builder/types";
 import { buildDefaultDoc, makeSection, makeWidget } from "@/lib/newsletter-builder/defaults";
+import * as rules from "./builderDoc";
+import type { Device, DropTarget } from "./builderDoc";
 import { useHistory } from "@/hooks/useHistory";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { Button } from "@/components/ui/button";
@@ -62,8 +64,6 @@ import { BuilderCanvas } from "./BuilderCanvas";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { WidgetPreview } from "./WidgetPreview";
 
-type Device = "desktop" | "tablet" | "mobile";
-
 const uid = (): string => {
   try {
     return crypto.randomUUID();
@@ -71,12 +71,6 @@ const uid = (): string => {
     return `id-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
   }
 };
-
-interface DropTarget {
-  sectionId: string | null;
-  col: 0 | 1 | null;
-  overWidgetIdx: number | null; // index within the section
-}
 
 export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) {
   const { data: settings } = useNewsletterSettings();
@@ -94,36 +88,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     if (!settings) return null;
     const stored = variant === "inline" ? settings.inline_doc : settings.popup_doc;
     if (stored) return stored;
-    return buildDefaultDoc(variant, {
-      heading: { pl: settings.heading_pl, en: settings.heading_en },
-      description: { pl: settings.description_pl, en: settings.description_en },
-      policyHtml: { pl: settings.policy_html_pl, en: settings.policy_html_en },
-      successMsg: { pl: settings.success_message_pl, en: settings.success_message_en },
-      submitLabel:
-        variant === "popup"
-          ? { pl: settings.popup_cta_pl, en: settings.popup_cta_en }
-          : { pl: "Zapisz sie", en: "Subscribe" },
-      coverUrl: variant === "popup" ? settings.popup_cover_url : null,
-      requireTerms: variant === "popup" && settings.popup_require_terms,
-      termsHtml:
-        variant === "popup"
-          ? { pl: settings.popup_terms_html_pl, en: settings.popup_terms_html_en }
-          : { pl: null, en: null },
-      popupStyle:
-        variant === "popup"
-          ? {
-              bg: settings.popup_bg_color,
-              fg: settings.popup_text_color,
-              muted: settings.popup_muted_color,
-              accent: settings.popup_accent_color,
-              accentFg: settings.popup_accent_text_color,
-              overlay: settings.popup_overlay_color,
-              radius: settings.popup_border_radius_px,
-              layout: settings.popup_layout,
-              sideImage: settings.popup_side_image_url,
-            }
-          : undefined,
-    });
+    return buildDefaultDoc(variant, rules.docSeedFromSettings(variant, settings));
   }, [settings, variant]);
 
   const history = useHistory<NlDoc>({
@@ -153,127 +118,53 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     if (selectedId || selectedSectionId) setSideTab("settings");
   }, [selectedId, selectedSectionId]);
 
-  // ------------- lookup helpers -------------
-  const findWidgetLocation = (
-    widgetId: string,
-  ): { sectionIdx: number; widgetIdx: number } | null => {
-    for (let s = 0; s < doc.sections.length; s++) {
-      const idx = doc.sections[s]!.widgets.findIndex((w) => w.id === widgetId);
-      if (idx >= 0) return { sectionIdx: s, widgetIdx: idx };
-    }
-    return null;
-  };
-  const findSectionIdx = (sectionId: string): number =>
-    doc.sections.findIndex((s) => s.id === sectionId);
-
-  const selectedWidget = selectedId
-    ? (() => {
-        const loc = findWidgetLocation(selectedId);
-        return loc ? doc.sections[loc.sectionIdx]!.widgets[loc.widgetIdx]! : null;
-      })()
-    : null;
-  const selectedSection = selectedSectionId
-    ? (doc.sections[findSectionIdx(selectedSectionId)] ?? null)
-    : null;
+  // ------------- lookup -------------
+  const selectedWidget = rules.widgetById(doc, selectedId);
+  const selectedSection = rules.sectionById(doc, selectedSectionId);
 
   // ------------- section mutators -------------
-  const patchSectionById = (sectionId: string, fn: (section: NlSection) => NlSection) => {
-    history.set((prev) => ({
-      ...prev,
-      sections: prev.sections.map((s) => (s.id === sectionId ? fn(s) : s)),
-    }));
-  };
-
   const patchSectionStyle = (sectionId: string, patch: Partial<NlSectionStyle>) => {
-    patchSectionById(sectionId, (s) => ({ ...s, style: { ...(s.style ?? {}), ...patch } }));
+    history.set((prev) => rules.applySectionStyle(prev, sectionId, patch));
   };
 
   const patchSectionMedia = (
     sectionId: string,
     patch: Partial<NonNullable<NlSection["media"]>> | null,
   ) => {
-    patchSectionById(sectionId, (s) => {
-      if (patch === null) return { ...s, media: null };
-      const current = s.media ?? { url: "", position: "left" as const };
-      return { ...s, media: { ...current, ...patch } };
-    });
+    history.set((prev) => rules.applySectionMedia(prev, sectionId, patch));
   };
 
   const setSectionLayout = (sectionId: string, layout: NlSectionLayout) => {
-    patchSectionById(sectionId, (s) => {
-      if (layout === "single") {
-        return {
-          ...s,
-          layout: "single",
-          widgets: s.widgets.map((w) => ({ ...w, col: undefined })),
-        };
-      }
-      return {
-        ...s,
-        layout,
-        widgets: s.widgets.map((w) => ({ ...w, col: (w.col ?? 0) as 0 | 1 })),
-      };
-    });
+    history.set((prev) => rules.applySectionLayout(prev, sectionId, layout));
   };
 
   const addSection = (afterSectionId?: string) => {
     const newSec = makeSection();
-    history.set((prev) => {
-      const next = [...prev.sections];
-      const idx = afterSectionId ? next.findIndex((s) => s.id === afterSectionId) : -1;
-      const at = idx >= 0 ? idx + 1 : next.length;
-      next.splice(at, 0, newSec);
-      return { ...prev, sections: next };
-    });
+    history.set((prev) => rules.insertSection(prev, newSec, afterSectionId));
     setSelectedSectionId(newSec.id);
     setSelectedId(null);
   };
 
   const removeSection = (sectionId: string) => {
-    if (doc.sections.length <= 1) {
+    if (!rules.canRemoveSection(doc)) {
       toast.error(
         lang === "pl" ? "Musi zostac co najmniej jedna sekcja" : "At least one section required",
       );
       return;
     }
-    history.set((prev) => ({ ...prev, sections: prev.sections.filter((s) => s.id !== sectionId) }));
+    history.set((prev) => rules.removeSection(prev, sectionId));
     if (selectedSectionId === sectionId) setSelectedSectionId(null);
   };
 
   const duplicateSection = (sectionId: string) => {
-    history.set((prev) => {
-      const idx = prev.sections.findIndex((s) => s.id === sectionId);
-      if (idx < 0) return prev;
-      const src = prev.sections[idx]!;
-      const copy: NlSection = {
-        ...src,
-        id: uid(),
-        widgets: src.widgets.map((w) => ({ ...w, id: uid() })),
-      };
-      const next = [...prev.sections];
-      next.splice(idx + 1, 0, copy);
-      return { ...prev, sections: next };
-    });
+    history.set((prev) => rules.duplicateSection(prev, sectionId, uid));
   };
 
   const moveSection = (sectionId: string, dir: -1 | 1) => {
-    history.set((prev) => {
-      const idx = prev.sections.findIndex((s) => s.id === sectionId);
-      if (idx < 0) return prev;
-      const to = idx + dir;
-      if (to < 0 || to >= prev.sections.length) return prev;
-      const next = [...prev.sections];
-      const [item] = next.splice(idx, 1);
-      next.splice(to, 0, item!);
-      return { ...prev, sections: next };
-    });
+    history.set((prev) => rules.moveSection(prev, sectionId, dir));
   };
 
   // ------------- widget mutators -------------
-  const updateSectionWidgets = (sectionId: string, fn: (list: NlWidget[]) => NlWidget[]) => {
-    patchSectionById(sectionId, (s) => ({ ...s, widgets: fn(s.widgets) }));
-  };
-
   const addWidget = (
     type: NlWidgetType,
     sectionId: string,
@@ -281,57 +172,29 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     col: 0 | 1 = 0,
     preset?: Partial<NlWidget>,
   ) => {
-    const section = doc.sections[findSectionIdx(sectionId)];
+    const section = rules.sectionById(doc, sectionId);
     if (!section) return;
-    const base = makeWidget(type);
-    // Preset (np. wariant field.text: firstName/lastName/phone/company/position/linkedin)
-    // nadpisuje wartosci domyslne, ale zachowuje `id` i `type` z makeWidget.
-    const w = (preset ? { ...base, ...preset, id: base.id, type: base.type } : base) as NlWidget;
-    if ((section.layout ?? "single") !== "single") w.col = col;
-    updateSectionWidgets(sectionId, (list) => {
-      const next = [...list];
-      const idx =
-        typeof atIndex === "number" ? Math.max(0, Math.min(atIndex, next.length)) : next.length;
-      next.splice(idx, 0, w);
-      return next;
-    });
-    setSelectedId(w.id);
+    const widget = rules.buildWidget(section, makeWidget(type), { col, preset });
+    history.set((prev) => rules.insertWidget(prev, sectionId, widget, atIndex));
+    setSelectedId(widget.id);
     setSelectedSectionId(null);
   };
 
   const removeWidget = (id: string) => {
-    const loc = findWidgetLocation(id);
-    if (!loc) return;
-    const sectionId = doc.sections[loc.sectionIdx]!.id;
-    updateSectionWidgets(sectionId, (list) => list.filter((w) => w.id !== id));
+    history.set((prev) => rules.removeWidget(prev, id));
     if (selectedId === id) setSelectedId(null);
   };
 
   const duplicateWidget = (id: string) => {
-    const loc = findWidgetLocation(id);
-    if (!loc) return;
-    const sectionId = doc.sections[loc.sectionIdx]!.id;
-    updateSectionWidgets(sectionId, (list) => {
-      const idx = list.findIndex((w) => w.id === id);
-      if (idx < 0) return list;
-      const copy: NlWidget = { ...list[idx]!, id: uid() };
-      const next = [...list];
-      next.splice(idx + 1, 0, copy);
-      return next;
-    });
+    history.set((prev) => rules.duplicateWidget(prev, id, uid));
   };
 
   const patchWidget = (id: string, patch: Partial<NlWidget>) => {
-    const loc = findWidgetLocation(id);
-    if (!loc) return;
-    const sectionId = doc.sections[loc.sectionIdx]!.id;
-    updateSectionWidgets(sectionId, (list) =>
-      list.map((w) => (w.id === id ? ({ ...w, ...patch } as NlWidget) : w)),
-    );
+    history.set((prev) => rules.patchWidget(prev, id, patch));
   };
 
   const patchPopupStyle = (patch: Partial<NonNullable<NlDoc["popup"]>>) => {
-    history.set((prev) => ({ ...prev, popup: { ...(prev.popup ?? {}), ...patch } }));
+    history.set((prev) => rules.applyPopupStyle(prev, patch));
   };
 
   // ------------- DnD -------------
@@ -339,35 +202,6 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-
-  const resolveDropTarget = (overId: string): DropTarget => {
-    // "sec-{sectionId}-drop" | "sec-{sectionId}-col-0" | "sec-{sectionId}-col-1"
-    if (overId.startsWith("sec-")) {
-      const rest = overId.slice(4);
-      const m = rest.match(/^(.+)-(drop|col-0|col-1)$/);
-      if (m) {
-        const sid = m[1]!;
-        const kind = m[2]!;
-        return {
-          sectionId: sid,
-          col: kind === "col-0" ? 0 : kind === "col-1" ? 1 : null,
-          overWidgetIdx: null,
-        };
-      }
-    }
-    // over widget id -> find location
-    const loc = findWidgetLocation(overId);
-    if (loc) {
-      const section = doc.sections[loc.sectionIdx]!;
-      const target = section.widgets[loc.widgetIdx]!;
-      return {
-        sectionId: section.id,
-        col: (target.col ?? 0) as 0 | 1,
-        overWidgetIdx: loc.widgetIdx,
-      };
-    }
-    return { sectionId: null, col: null, overWidgetIdx: null };
-  };
 
   const onDragStart = (e: DragStartEvent) => {
     const data = e.active.data.current as { kind?: string; type?: NlWidgetType } | undefined;
@@ -382,53 +216,20 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     if (!over) return;
     const data = active.data.current as
       { kind?: string; type?: NlWidgetType; preset?: Partial<NlWidget> } | undefined;
-    const target = resolveDropTarget(String(over.id));
+    const target: DropTarget = rules.resolveDropTarget(doc, String(over.id));
     if (!target.sectionId) return;
-
-    const targetSection = doc.sections[findSectionIdx(target.sectionId)]!;
-    const targetLayout: NlSectionLayout = targetSection.layout ?? "single";
 
     // Drop from library
     if (data?.kind === "library" && data.type) {
-      const col = targetLayout === "single" ? 0 : (target.col ?? 0);
+      const targetSection = rules.sectionById(doc, target.sectionId)!;
+      const col = (targetSection.layout ?? "single") === "single" ? 0 : (target.col ?? 0);
       addWidget(data.type, target.sectionId, target.overWidgetIdx ?? undefined, col, data.preset);
       return;
     }
 
     // Reorder / cross-section move
     if (active.id === over.id) return;
-    const activeLoc = findWidgetLocation(String(active.id));
-    if (!activeLoc) return;
-    const sourceSection = doc.sections[activeLoc.sectionIdx]!;
-    const activeWidget = sourceSection.widgets[activeLoc.widgetIdx]!;
-    const newCol =
-      targetLayout === "single" ? undefined : ((target.col ?? activeWidget.col ?? 0) as 0 | 1);
-
-    history.set((prev) => {
-      // remove from source
-      const withoutSource = prev.sections.map((s) =>
-        s.id === sourceSection.id
-          ? { ...s, widgets: s.widgets.filter((w) => w.id !== activeWidget.id) }
-          : s,
-      );
-      // insert into target
-      const nextSections = withoutSource.map((s) => {
-        if (s.id !== target.sectionId) return s;
-        const list = [...s.widgets];
-        const moved: NlWidget = { ...activeWidget, col: newCol } as NlWidget;
-        let insertAt: number;
-        if (target.overWidgetIdx == null) {
-          insertAt = list.length;
-        } else {
-          const overWidget = targetSection.widgets[target.overWidgetIdx]!;
-          const idx = list.findIndex((w) => w.id === overWidget.id);
-          insertAt = idx >= 0 ? idx : list.length;
-        }
-        list.splice(insertAt, 0, moved);
-        return { ...s, widgets: list };
-      });
-      return { ...prev, sections: nextSections };
-    });
+    history.set((prev) => rules.moveWidget(prev, String(active.id), target));
   };
 
   // ------------- save -------------
@@ -476,14 +277,13 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     : null;
 
   // Nazwy urządzeń są takie same w obu językach - ternary po języku był
-  // martwym warunkiem, nie tłumaczeniem.
-  const deviceLabel = device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Mobile";
+  // martwym warunkiem, nie tłumaczeniem. Oba podpisy idą przez reguły, żeby
+  // nie stała tu druga kopia formatowania obok tej z `builderDoc`.
+  const deviceLabel = rules.deviceLabel(device);
+  // Reguła oddaje `null` dla „100%", bo to jedyny wariant, który jest TEKSTEM
+  // dla operatora - napis dokłada widok, który ma dostęp do języka.
   const canvasPxLabel =
-    typeof canvasWidth === "number"
-      ? `${canvasWidth}px`
-      : lang === "pl"
-        ? "pelna szerokosc"
-        : "full width";
+    rules.canvasSizeLabel(canvasWidth) ?? (lang === "pl" ? "pelna szerokosc" : "full width");
 
   return (
     <DndContext

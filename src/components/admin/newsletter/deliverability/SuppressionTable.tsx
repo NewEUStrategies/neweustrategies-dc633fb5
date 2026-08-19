@@ -38,6 +38,15 @@ import {
   type SuppressionRow,
 } from "@/lib/newsletter-deliverability.functions";
 import type { SuppressionReason } from "@/lib/email/suppressionPolicy";
+import {
+  canAddSuppression,
+  filterSuppressions,
+  isSuppressionListCapped,
+  normalizeSuppressionEmail,
+  suppressionCsvFileName,
+  suppressionsToCsv,
+  SUPPRESSION_LIST_LIMIT,
+} from "./suppressionTable";
 import "@/lib/i18n-newsletter-deliverability";
 
 const REASONS: readonly SuppressionReason[] = [
@@ -53,8 +62,6 @@ const REASONS: readonly SuppressionReason[] = [
 /** Ręcznie da się dodać tylko blokadę, której nie da się wywnioskować z webhooka. */
 const MANUAL_REASONS = ["manual", "blocked", "complaint", "hard_bounce", "invalid"] as const;
 type ManualReason = (typeof MANUAL_REASONS)[number];
-
-const LIST_LIMIT = 300;
 
 type StateFilter = "active" | "released" | "all";
 
@@ -79,16 +86,12 @@ export function SuppressionTable({ locale }: SuppressionTableProps) {
 
   const query = useQuery({
     queryKey: ["email-suppressions", reason, state],
-    queryFn: () => list({ data: { search: "", reason, state, limit: LIST_LIMIT } }),
+    queryFn: () => list({ data: { search: "", reason, state, limit: SUPPRESSION_LIST_LIMIT } }),
   });
 
   // Filtr tekstowy działa lokalnie na pobranej paczce - reakcja jest
   // natychmiastowa, a serwer nie dostaje zapytania na każde naciśnięcie klawisza.
-  const rows = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const all = query.data ?? [];
-    return term ? all.filter((r) => r.email.toLowerCase().includes(term)) : all;
-  }, [query.data, search]);
+  const rows = useMemo(() => filterSuppressions(query.data ?? [], search), [query.data, search]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["email-suppressions"] });
@@ -118,56 +121,19 @@ export function SuppressionTable({ locale }: SuppressionTableProps) {
   });
 
   const exportCsv = () => {
-    const head = [
-      "email",
-      "reason",
-      "scope",
-      "source",
-      "occurrences",
-      "first_seen_at",
-      "last_seen_at",
-      "expires_at",
-      "released_at",
-      "diagnostic",
-    ] as const;
-    const cell = (value: string | number | null) => {
-      const v = String(value ?? "");
-      return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-    };
-    const csv = [head.join(",")]
-      .concat(
-        rows.map((r) =>
-          [
-            r.email,
-            r.reason,
-            r.scope,
-            r.source,
-            r.occurrences,
-            r.firstSeenAt,
-            r.lastSeenAt,
-            r.expiresAt,
-            r.releasedAt,
-            r.diagnostic,
-          ]
-            .map(cell)
-            .join(","),
-        ),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([suppressionsToCsv(rows)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `suppressions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = suppressionCsvFileName(new Date().toISOString());
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const submitAdd = (event: React.FormEvent) => {
     event.preventDefault();
-    const email = newEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) return;
-    addMutation.mutate({ email, reason: newReason });
+    if (!canAddSuppression(newEmail)) return;
+    addMutation.mutate({ email: normalizeSuppressionEmail(newEmail), reason: newReason });
   };
 
   return (
@@ -251,10 +217,10 @@ export function SuppressionTable({ locale }: SuppressionTableProps) {
         </Select>
       </div>
 
-      {(query.data?.length ?? 0) >= LIST_LIMIT && (
+      {isSuppressionListCapped(query.data?.length ?? 0) && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
           {t("adminDeliverability.list.capWarning", {
-            count: LIST_LIMIT.toLocaleString(locale),
+            count: SUPPRESSION_LIST_LIMIT.toLocaleString(locale),
           })}
         </div>
       )}

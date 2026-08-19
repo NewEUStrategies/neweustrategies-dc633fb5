@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Gauge } from "lucide-react";
 import { getCrmLeadMonthlyMetering } from "@/lib/crm.functions";
+import { meteringUsageView } from "@/lib/crm/meteringUsage";
 
 type Props = { leadId: string; lang: "pl" | "en" };
 
@@ -52,8 +53,7 @@ export function MeteringUsageCard({ leadId, lang }: Props) {
 }
 
 function UsageBar({ used, limit, lang }: { used: number; limit: number; lang: "pl" | "en" }) {
-  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const remaining = Math.max(limit - used, 0);
+  const { percent: pct, remaining } = meteringUsageView(used, limit);
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
   return (
     <div className="space-y-1.5">

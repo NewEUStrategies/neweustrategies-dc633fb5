@@ -69,6 +69,20 @@ import { WidgetLivePreview } from "./ui/organisms/WidgetLivePreview";
 import { LinkPicker } from "./ui/molecules/LinkPicker";
 
 import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
+import {
+  readDesktopHeight,
+  writeDesktopHeight,
+  clampWidgetHeight,
+  readActiveWidgetWidth,
+  widgetWidthMode as widgetWidthModeOf,
+  widgetWidthValue as widgetWidthValueOf,
+  seedWidthForMode,
+  writeWidgetWidth,
+  commitSizeInput,
+  bumpSize,
+  type WidgetWidthMode,
+  type DesktopHeight,
+} from "@/lib/builder/widgetPanelValues";
 import { useAdminLang, useBuilderLabel } from "@/lib/builder/labelsEn";
 import {
   EDIT_TARGET_META,
@@ -156,44 +170,17 @@ export function WidgetProperties({
       mut(w.advanced);
     });
 
-  type WidgetWidthMode = "full" | "percent" | "px" | "wrapped";
-  const responsiveWidgetWidth = widget.advanced?.width;
-  const activeWidgetWidth =
-    responsiveWidgetWidth && typeof responsiveWidgetWidth === "object"
-      ? (responsiveWidgetWidth[device] ?? responsiveWidgetWidth.desktop)
-      : responsiveWidgetWidth;
-  const widgetWidthMode: WidgetWidthMode =
-    activeWidgetWidth === "auto"
-      ? "wrapped"
-      : typeof activeWidgetWidth === "string" && activeWidgetWidth.endsWith("%")
-        ? activeWidgetWidth === "100%"
-          ? "full"
-          : "percent"
-        : typeof activeWidgetWidth === "number"
-          ? "px"
-          : "full";
-  const widgetWidthValue =
-    widgetWidthMode === "percent"
-      ? Number.parseFloat(String(activeWidgetWidth)) || 50
-      : widgetWidthMode === "px"
-        ? Number(activeWidgetWidth) || 320
-        : widgetWidthMode === "full"
-          ? 100
-          : 0;
+  // Reguły odczytu/zapisu szerokości żyją w `lib/builder/widgetPanelValues` -
+  // czystym module, który da się przetestować bez renderu całego panelu.
+  const activeWidgetWidth = readActiveWidgetWidth(widget.advanced?.width, device);
+  const widgetWidthMode = widgetWidthModeOf(activeWidgetWidth);
+  const widgetWidthValue = widgetWidthValueOf(activeWidgetWidth, widgetWidthMode);
   const setWidgetWidth = (value: number | "auto" | `${number}%` | undefined) =>
     setAdvanced((a) => {
-      const previous = a.width;
-      const responsive = previous && typeof previous === "object" ? { ...previous } : {};
-      if (value === undefined) delete responsive[device];
-      else responsive[device] = value;
-      a.width = Object.keys(responsive).length > 0 ? responsive : undefined;
+      a.width = writeWidgetWidth(a.width, device, value);
     });
-  const setWidgetWidthMode = (nextMode: WidgetWidthMode) => {
-    if (nextMode === "full") setWidgetWidth("100%");
-    else if (nextMode === "percent") setWidgetWidth("50%");
-    else if (nextMode === "px") setWidgetWidth(320);
-    else setWidgetWidth("auto");
-  };
+  const setWidgetWidthMode = (nextMode: WidgetWidthMode) =>
+    setWidgetWidth(seedWidthForMode(nextMode));
 
   // ---- Themed (light/dark) helpers for color-style fields ----
   type ColorKey =
@@ -1078,37 +1065,8 @@ export function WidgetProperties({
   );
 }
 
-// ---- Widget desktop-height helpers ---------------------------------------
-// Storage kept per-breakpoint so an existing tablet/mobile override is
-// preserved when the user only edits desktop. `null` (from the input) means
-// "auto" - explicit hug-content mode. `undefined` clears the desktop override
-// entirely so the widget falls back to its intrinsic height.
-type HeightResponsive = {
-  desktop?: number | "auto";
-  tablet?: number | "auto";
-  mobile?: number | "auto";
-};
-type HeightValue = number | HeightResponsive | undefined;
-type DesktopHeight = number | "auto" | undefined;
-
-function readDesktopHeight(value: HeightValue): DesktopHeight {
-  if (value === undefined) return undefined;
-  if (typeof value === "number") return value;
-  return value.desktop;
-}
-
-function writeDesktopHeight(prev: HeightValue, next: DesktopHeight): HeightResponsive | undefined {
-  const base: HeightResponsive = prev && typeof prev === "object" ? { ...prev } : {};
-
-  if (next === undefined) {
-    delete base.desktop;
-  } else {
-    base.desktop = next;
-  }
-  const hasAny =
-    base.desktop !== undefined || base.tablet !== undefined || base.mobile !== undefined;
-  return hasAny ? base : undefined;
-}
+// Helpery wysokości desktopowej mieszkają w `lib/builder/widgetPanelValues`
+// (czysty modul, testowany bez renderu panelu).
 
 function WidgetHeightControl({
   value,
@@ -1122,7 +1080,7 @@ function WidgetHeightControl({
   const { t } = useTranslation();
   const isAuto = value === "auto";
   const numeric = typeof value === "number" ? value : "";
-  const setFixedHeight = (next: number) => onChange(Math.max(40, Math.min(2400, next)));
+  const setFixedHeight = (next: number) => onChange(clampWidgetHeight(next));
   const disabled = !!disabledReason;
   return (
     <>
@@ -1311,21 +1269,14 @@ function FormElementSizeField({
   onPreview: () => void;
 }) {
   const { t } = useTranslation();
-  const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next)));
   const numericValue = typeof value === "number" ? value : null;
   const isAuto = numericValue === null;
   const commit = (raw: string) => {
-    if (raw.trim() === "") {
-      onChange(null);
-      return;
-    }
-    const next = Number(raw);
-    if (Number.isNaN(next)) return;
-    onChange(clamp(next));
+    const outcome = commitSizeInput(raw, min, max);
+    if (outcome.kind === "ignore") return;
+    onChange(outcome.kind === "clear" ? null : outcome.value);
   };
-  // Stepping from "auto" starts at the CURRENT rendered size, not at `min` -
-  // otherwise the first click visibly snapped tiny text sizes onto the form.
-  const bump = (delta: number) => onChange(clamp((numericValue ?? effectivePx) + delta));
+  const bump = (delta: number) => onChange(bumpSize(numericValue, effectivePx, delta, min, max));
 
   return (
     <PropField

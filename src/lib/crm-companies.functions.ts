@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, type LooseQuery } from "@/lib/supabase/looseQuery";
+import { nullIfBlank } from "@/lib/crm/text";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
@@ -200,11 +201,6 @@ const CreateCompanyInput = z.object({
   phone: z.string().trim().max(60).optional(),
 });
 
-const nullIfEmpty = (v: string | undefined): string | null => {
-  const s = (v ?? "").trim();
-  return s.length > 0 ? s : null;
-};
-
 export const createCrmCompany = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => CreateCompanyInput.parse(d))
@@ -224,14 +220,14 @@ export const createCrmCompany = createServerFn({ method: "POST" })
         tenant_id: tenantId,
         created_by: userId,
         name: data.name,
-        domain: nullIfEmpty(data.domain),
-        country: nullIfEmpty(data.country),
-        branch: nullIfEmpty(data.branch),
-        city: nullIfEmpty(data.city),
-        address: nullIfEmpty(data.address),
-        postal_code: nullIfEmpty(data.postal_code),
-        website: nullIfEmpty(data.website),
-        phone: nullIfEmpty(data.phone),
+        domain: nullIfBlank(data.domain),
+        country: nullIfBlank(data.country),
+        branch: nullIfBlank(data.branch),
+        city: nullIfBlank(data.city),
+        address: nullIfBlank(data.address),
+        postal_code: nullIfBlank(data.postal_code),
+        website: nullIfBlank(data.website),
+        phone: nullIfBlank(data.phone),
       })
       .select("id")
       .single();

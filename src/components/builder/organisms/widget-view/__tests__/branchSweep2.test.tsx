@@ -40,7 +40,22 @@ vi.mock("@/integrations/supabase/client", () => {
     b.then = (r: (v: unknown) => unknown) => r({ data: db.tables[table] ?? [], error: null });
     return b;
   };
-  return { supabase: { from: (t: string) => mk(t), rpc: async () => ({ data: [], error: null }) } };
+  // Realtime no-op: widgety zainteresowań (JoinUsForm / InterestsCustomizer
+  // przez useInterests) subskrybują postgres_changes przy montowaniu i usuwają
+  // kanał przy odmontowaniu. Bez tej zaślepki efekt wywalał się na
+  // `supabase.channel is not a function` - niewidoczne, dopóki cały plik wisiał
+  // na zakleszczeniu rejestru leniwych widgetów.
+  const channel: Record<string, unknown> = {};
+  channel.on = vi.fn(() => channel);
+  channel.subscribe = vi.fn(() => channel);
+  return {
+    supabase: {
+      from: (t: string) => mk(t),
+      rpc: async () => ({ data: [], error: null }),
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(async () => "ok"),
+    },
+  };
 });
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({

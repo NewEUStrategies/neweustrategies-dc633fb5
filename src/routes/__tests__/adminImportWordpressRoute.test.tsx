@@ -1,115 +1,153 @@
-// TRASA IMPORTU Z WORDPRESS.COM. Do 19.08.2026 na zerze (607 instrukcji).
+// Import z WordPress.com `/admin/import-wordpress` (624 linie, 0% przed
+// zmianą) - jednorazowa, ale nieodwracalna operacja: wciąga archiwum starego
+// serwisu do bazy. Pomyłka w parametrach to setki wpisów do ręcznego
+// posprzątania.
 //
-// To jedyne wejście, przez które treść z obcego systemu trafia do bazy tej
-// redakcji, i jedyny ekran, który uruchamia ZADANIE W TLE. Cztery reguły:
-//
-//   1. PODGLĄD PRZED IMPORTEM. Import bez podglądu jest zablokowany - inaczej
-//      jedno kliknięcie ściąga kilkaset cudzych wpisów, których nikt nie
-//      widział.
-//   2. ZAZNACZENIE ZAWĘŻA. Puste zaznaczenie znaczy „wszystko z podglądu”, a
-//      niepuste - dokładnie te identyfikatory. Pomylenie tych dwóch stanów
-//      importuje wszystko, gdy redaktor wybrał trzy wpisy.
-//   3. ZADANIE ŻYJE W TLE. Ekran odpytuje o postęp, dopóki zadanie biegnie, i
-//      PRZESTAJE po jego zakończeniu - odpytywanie bez końca to zapytanie na
-//      sekundę do końca sesji.
-//   4. FORMULARZ MA DZIAŁAĆ BEZ KONEKTORA. Gdy lista witryn wraca pusta (token
-//      przypisany do jednej witryny), pole musi dostać wartość zastępczą,
-//      inaczej ekranu nie da się w ogóle użyć.
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import type { AnyRoute } from "@tanstack/react-router";
+// SIEDEM RZECZY, KTÓRE MAJĄ TU DOWÓD:
+//   1. LISTA WITRYN WCZYTUJE SIĘ RAZ. Efekt startowy jest chroniony refem, bo
+//      StrictMode uruchamia go dwukrotnie - test montuje trasę WŁAŚNIE w
+//      StrictMode, żeby ta bramka miała świadka.
+//   2. FORMULARZ SAM SIĘ WYPEŁNIA, ale rozsądnie: preferuje własną domenę,
+//      spada na pierwszą z listy, a przy tokenie ograniczonym do jednej
+//      witryny (pusta lista) wpisuje znaną domyślną - inaczej formularz
+//      byłby bezużyteczny.
+//   3. ZAKRES IMPORTU JEST OGRANICZANY W UI. `number` jest przycinane do
+//      1..100, `offset` nie schodzi poniżej zera. Bez tego jedno kliknięcie
+//      ściągałoby tysiące wpisów albo nie ściągało nic.
+//   4. ZAZNACZENIE DECYDUJE O ZAKRESIE. Puste zaznaczenie znaczy „wszystkie
+//      z podglądu", a niepuste - `only_ids`. Pomyłka tutaj importuje 100
+//      wpisów zamiast trzech.
+//   5. ZADANIE JEST TWORZONE I URUCHAMIANE OSOBNO, a jego awaria nie może
+//      wywrócić ekranu - postęp i tak przychodzi z odpytywania.
+//   6. POSTĘP UNIEWAŻNIA LISTY ADMINA (wpisy, kosz, media), inaczej
+//      zaimportowane treści są niewidoczne do przeładowania strony -
+//      ale tylko GDY NAPRAWDĘ SIĘ ZMIENIŁ (bramka na sygnaturze).
+//   7. PANEL ZADANIA MÓWI PRAWDĘ O STANIE: cztery różne stany, procent
+//      liczony bez dzielenia przez zero, liczniki i dziennik zdarzeń.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode, type ReactNode } from "react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 
 const h = vi.hoisted(() => ({
-  language: "pl",
-  sites: [] as { id: number; name: string; url: string }[],
-  sitesError: null as Error | null,
-  previewResult: { posts: [] as Record<string, unknown>[], found: 0 },
-  previewError: null as Error | null,
-  previewCalls: [] as unknown[],
-  createCalls: [] as unknown[],
-  runCalls: [] as unknown[],
-  cancelCalls: [] as unknown[],
-  job: null as Record<string, unknown> | null,
-  jobCalls: 0,
+  sites: [] as unknown[],
+  sitesError: null as unknown,
+  preview: null as unknown,
+  previewError: null as unknown,
+  job: null as unknown,
+  jobId: "job-1",
+  runError: null as unknown,
+  language: "pl" as string,
+  list: null as unknown,
+  previewFn: null as unknown,
+  create: null as unknown,
+  run: null as unknown,
+  get: null as unknown,
+  cancel: null as unknown,
 }));
 
-vi.mock("@tanstack/react-router", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
-}));
-vi.mock("react-i18next", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("react-i18next")>();
+vi.mock("react-i18next", async () =>
+  (await import("@/test/post-editor/fixtures")).reactI18nextStub(() => h.language),
+);
+
+// Server fns jako szpiedzy BEZ zachowania - domyślne implementacje wstawia
+// `resetServerFns()` w `beforeEach`, w jednym miejscu. Inaczej test, który
+// zawiesza jedną z nich (żeby zobaczyć stan „w toku"), zostawiałby to
+// zawieszenie kolejnym testom.
+vi.mock("@/lib/wordpress-import.functions", async () => {
+  const { vi: v } = await import("vitest");
+  h.list = v.fn();
+  h.previewFn = v.fn();
+  h.create = v.fn();
+  h.run = v.fn();
+  h.get = v.fn();
+  h.cancel = v.fn();
   return {
-    ...actual,
-    useTranslation: () => ({ t: (k: string) => k, i18n: { language: h.language } }),
+    listWpComSites: h.list,
+    previewWpComPosts: h.previewFn,
+    createWpImportJob: h.create,
+    runWpImportJob: h.run,
+    getWpImportJob: h.get,
+    cancelWpImportJob: h.cancel,
   };
 });
-vi.mock("@/lib/wordpress-import.functions", () => ({
-  listWpComSites: "list",
-  previewWpComPosts: "preview",
-  createWpImportJob: "create",
-  runWpImportJob: "run",
-  getWpImportJob: "get",
-  cancelWpImportJob: "cancel",
-}));
-vi.mock("@tanstack/react-start", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: (fn: unknown) => async (payload: unknown) => {
-    switch (fn) {
-      case "list":
-        if (h.sitesError) throw h.sitesError;
-        return { sites: h.sites };
-      case "preview":
-        h.previewCalls.push(payload);
-        if (h.previewError) throw h.previewError;
-        return h.previewResult;
-      case "create":
-        h.createCalls.push(payload);
-        return { jobId: "job-1" };
-      case "run":
-        h.runCalls.push(payload);
-        return { ok: true };
-      case "get":
-        h.jobCalls += 1;
-        return h.job;
-      default:
-        h.cancelCalls.push(payload);
-        return { ok: true };
-    }
-  },
-}));
 
-import { Route } from "@/routes/admin.import-wordpress";
+vi.mock("@tanstack/react-start", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-start")>();
+  return { ...actual, useServerFn: (fn: unknown) => fn };
+});
 
-let queryClient: QueryClient;
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  const { RouterLinkStub } = await import("@/test/routerLinkStub");
+  return { ...actual, Link: RouterLinkStub };
+});
 
-function wrapper({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-}
+// `Select` jako natywny `<select>` - wzorzec z testów molekuł edytora.
+// Zachowanie widżetu Radiksa nie jest regułą tej trasy.
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  type Node = React.ReactNode;
+  return {
+    Select: ({
+      value,
+      onValueChange,
+      children,
+    }: {
+      value?: string;
+      onValueChange?: (v: string) => void;
+      children?: Node;
+    }) =>
+      React.createElement(
+        "select",
+        {
+          value,
+          onChange: (e: { target: { value: string } }) => onValueChange?.(e.target.value),
+        },
+        children as never,
+      ),
+    SelectTrigger: () => null,
+    SelectValue: () => null,
+    SelectContent: ({ children }: { children?: Node }) =>
+      React.createElement(React.Fragment, null, children as never),
+    SelectItem: ({ value, children }: { value: string; children?: Node }) =>
+      React.createElement("option", { value }, children as never),
+  };
+});
+
+import { renderRoute, routeMeta } from "@/test/routeHarness";
+import { Route as ImportRoute } from "@/routes/admin.import-wordpress";
+
+type Mock = ReturnType<typeof vi.fn>;
+const PATH = "/admin/import-wordpress";
+const list = () => h.list as Mock;
+const previewFn = () => h.previewFn as Mock;
+const create = () => h.create as Mock;
+const run = () => h.run as Mock;
+const get = () => h.get as Mock;
+const cancel = () => h.cancel as Mock;
 
 function wpPost(overrides: Record<string, unknown> = {}) {
   return {
     id: 101,
-    slug: "pierwszy-wpis",
-    title: "Pierwszy wpis",
-    excerpt: "Krótki fragment",
-    date: "2026-07-09T12:00:00+00:00",
+    slug: "stary-wpis",
+    title: "Stary wpis",
+    excerpt: "Zajawka wpisu",
+    date: "2019-07-14T10:00:00+00:00",
     status: "publish",
-    url: "https://example.wordpress.com/2026/07/09/pierwszy-wpis/",
+    url: "https://neweuropeanstrategies.com/2019/07/stary-wpis/",
     featured_image: null,
     ...overrides,
   };
 }
 
-function job(overrides: Record<string, unknown> = {}) {
+function jobRow(overrides: Record<string, unknown> = {}) {
   return {
     status: "running",
-    total: 10,
-    processed: 4,
-    imported: 3,
-    updated_count: 1,
+    total: 4,
+    processed: 1,
+    imported: 1,
+    updated_count: 0,
     skipped: 0,
     failed: 0,
     media_imported: 2,
@@ -120,480 +158,656 @@ function job(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function setup() {
-  const Component = (Route as AnyRoute).options.component as () => ReactNode;
-  const view = render(<Component />, { wrapper });
+/** Trasa montowana w StrictMode - podwójny przebieg efektów jest tu regułą. */
+function render(strict = true) {
+  return renderRoute({
+    route: ImportRoute,
+    path: PATH,
+    initialEntry: PATH,
+    queryClient: new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    wrapper: strict ? (children: ReactNode) => <StrictMode>{children}</StrictMode> : undefined,
+  });
+}
+
+const siteInput = () => screen.getByPlaceholderText("example.wordpress.com") as HTMLInputElement;
+const previewButton = () =>
+  screen
+    .getByText(h.language === "en" ? "Preview" : "Podgląd")
+    .closest("button") as HTMLButtonElement;
+const importButton = () =>
+  screen
+    .getAllByRole("button")
+    .find((b) => /^Import/.test(b.textContent ?? "")) as HTMLButtonElement;
+/** Kolejność pól: typ treści, status, język. */
+const numberInputs = () =>
+  Array.from(document.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
+const selects = () => screen.getAllByRole("combobox") as HTMLSelectElement[];
+
+/** Czeka na wypełnioną domenę - znak, że efekt startowy zdążył się wykonać. */
+async function renderReady() {
+  const view = await render();
   await waitFor(() => expect(siteInput().value).not.toBe(""));
   return view;
 }
 
-const siteInput = () => screen.getByPlaceholderText("example.wordpress.com") as HTMLInputElement;
-const previewButton = () => screen.getByRole("button", { name: /^Podgląd$/ });
-const importButton = () => screen.getByRole("button", { name: /^Importuj/ });
-
-/**
- * Uruchamia podgląd i czeka na tabelę wyników.
- *
- * Przycisk jest wyłączony, dopóki pole witryny jest puste - a wypełnia je
- * efekt po odpowiedzi konektora. Klikanie bez tego oczekiwania to wyścig:
- * kliknięcie w wyłączony przycisk nic nie robi i tabela nigdy nie wjeżdża.
- */
-async function runPreview(posts = [wpPost()]) {
-  h.previewResult = { posts, found: posts.length };
-  const przed = h.previewCalls.length;
-  await waitFor(() => expect(previewButton()).toBeEnabled());
+/** Podgląd + import: najkrótsza droga do panelu zadania. */
+async function startImport(job = jobRow()) {
+  h.job = job;
+  const view = await renderReady();
   fireEvent.click(previewButton());
-  await waitFor(() => expect(h.previewCalls.length).toBeGreaterThan(przed));
-  await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+  await waitFor(() => expect(previewFn()).toHaveBeenCalled());
+  await waitFor(() => expect(importButton()).not.toBeDisabled());
+  fireEvent.click(importButton());
+  await waitFor(() => expect(create()).toHaveBeenCalled());
+  return view;
+}
+
+/** Domyślne zachowania server fns - jedno źródło prawdy dla całego pliku. */
+function resetServerFns() {
+  list().mockReset();
+  list().mockImplementation(async () => {
+    if (h.sitesError) throw h.sitesError;
+    return { sites: h.sites };
+  });
+  previewFn().mockReset();
+  previewFn().mockImplementation(async () => {
+    if (h.previewError) throw h.previewError;
+    return h.preview;
+  });
+  create().mockReset();
+  create().mockImplementation(async () => ({ jobId: h.jobId }));
+  run().mockReset();
+  run().mockImplementation(async () => {
+    if (h.runError) throw h.runError;
+    return { ok: true };
+  });
+  get().mockReset();
+  get().mockImplementation(async () => h.job);
+  cancel().mockReset();
+  cancel().mockImplementation(async () => ({ ok: true }));
 }
 
 beforeEach(() => {
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  h.language = "pl";
   h.sites = [
-    { id: 1, name: "Blog", url: "https://blog.example.com" },
+    { id: 1, name: "Blog firmowy", url: "https://blog.example.com" },
     { id: 2, name: "NES", url: "https://www.neweuropeanstrategies.com" },
   ];
   h.sitesError = null;
-  h.previewResult = { posts: [], found: 0 };
+  h.preview = { posts: [wpPost()], found: 137 };
   h.previewError = null;
-  h.previewCalls.length = 0;
-  h.createCalls.length = 0;
-  h.runCalls.length = 0;
-  h.cancelCalls.length = 0;
-  h.job = null;
-  h.jobCalls = 0;
+  h.job = jobRow();
+  h.jobId = "job-1";
+  h.runError = null;
+  h.language = "pl";
+  resetServerFns();
 });
 
-describe("import z WP - wybór witryny", () => {
-  it("wypełnia pole witryny SAMO, bez klikania", async () => {
-    // Pusty formularz na wejściu to trzy kroki więcej przy każdym imporcie.
-    await setup();
-    expect(siteInput().value).not.toBe("");
+afterEach(cleanup);
+
+// ---------------------------------------------------------------------------
+// Start i wypełnienie formularza
+// ---------------------------------------------------------------------------
+
+describe("start i wypełnienie formularza", () => {
+  it("lista witryn jest pytana RAZ na wejście, nie przy każdym renderze", async () => {
+    // Connector jest zewnętrznym API z limitem - pytanie o listę witryn przy
+    // każdym renderze (a formularz renderuje się przy każdym znaku w polu)
+    // wyczerpywałoby go w kilka sekund. Bramką jest pusta tablica zależności
+    // plus synchroniczny ref.
+    //
+    // Uwaga do refa: cały plik montuje trasę w StrictMode, więc niepoprawne
+    // (nieidempotentne) ciało renderu by się tu wysypało. Samego PODWÓJNEGO
+    // przebiegu efektu StrictMode nie widać przez `RouterProvider` (komponent
+    // trasy montuje się poza pierwszym przebiegiem), więc tego ten test nie
+    // udaje - pilnuje tego, co da się dowieść: liczby zapytań na wejście.
+    await renderReady();
+    expect(list()).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(siteInput(), { target: { value: "inna.example.com" } });
+    fireEvent.change(numberInputs()[0], { target: { value: "7" } });
+
+    expect(list()).toHaveBeenCalledTimes(1);
   });
 
-  it("wybiera witrynę REDAKCJI, a nie pierwszą z brzegu", async () => {
-    // Lista konektora bywa długa; domyślnie ma się trafić własna domena.
-    await setup();
+  it("PREFERUJE własną domenę, choć nie jest pierwsza na liście", async () => {
+    // Import „na nie tę witrynę” to setki obcych wpisów w bazie. Domyślna
+    // wartość musi więc wskazywać naszą domenę, nie pierwszą z konta.
+    await renderReady();
     expect(siteInput().value).toBe("www.neweuropeanstrategies.com");
   });
 
-  it("gdy własnej domeny nie ma, bierze PIERWSZĄ z listy", async () => {
-    h.sites = [{ id: 9, name: "Inny", url: "https://inny.example.com" }];
-    await setup();
-
+  it("bez własnej domeny bierze PIERWSZĄ witrynę z konta", async () => {
+    h.sites = [{ id: 3, name: "Inny blog", url: "https://inny.example.com" }];
+    await renderReady();
     expect(siteInput().value).toBe("inny.example.com");
   });
 
-  it("PUSTA lista witryn i tak daje użyteczny formularz", async () => {
-    // Token przypisany do jednej witryny nie zwraca `/me/sites`; bez wartości
-    // zastępczej ekranu nie da się w ogóle użyć.
+  it("PUSTA lista (token ograniczony do witryny) wpisuje znaną domyślną domenę", async () => {
+    // `/me/sites` zwraca pustkę dla tokenu site-scoped; bez tej ścieżki
+    // formularz zostawałby pusty i wyglądałby na zepsuty.
     h.sites = [];
-    await setup();
-
+    await renderReady();
     expect(siteInput().value).toBe("neweuropeanstrategies.com");
   });
 
-  it("wpis o nieprawidłowym adresie nie wywraca wypełniania", async () => {
-    h.sites = [{ id: 9, name: "Zły", url: "nie-adres" }];
-    const Component = (Route as AnyRoute).options.component as () => ReactNode;
+  it("ZDEFORMOWANY adres witryny nie wywraca ekranu", async () => {
+    // Connector potrafi oddać rekord bez poprawnego URL-a; ekran ma zostać
+    // użyteczny, a nie zniknąć pod błędem parsowania.
+    h.sites = [{ id: 4, name: "Zła witryna", url: "nie-adres" }];
+    const view = await render();
 
-    expect(() => render(<Component />, { wrapper })).not.toThrow();
+    await waitFor(() => expect(screen.getByText("Zła witryna")).toBeInTheDocument());
+    expect(siteInput().value).toBe("");
+    expect(view.container.textContent).toContain("Import z WordPress.com");
   });
 
-  it("lista witryn z konektora jest do KLIKNIĘCIA", async () => {
-    // Przepisywanie domeny ręcznie z pamięci to najczęstsze źródło literówek.
-    await setup();
-    fireEvent.click(screen.getByRole("button", { name: /Blog/ }));
+  it("BŁĄD listy witryn jest pokazany, a formularz zostaje do ręcznego wpisania", async () => {
+    h.sitesError = new Error("connector nie odpowiada");
+    await render();
 
-    expect(siteInput().value).toContain("blog.example.com");
+    await waitFor(() => expect(screen.getByText(/connector nie odpowiada/)).toBeInTheDocument());
+    // Bez domeny podglądu nie ma po co włączać.
+    expect(siteInput().value).toBe("");
+    expect(previewButton()).toBeDisabled();
+  });
+
+  it("„Moje witryny” pyta connector ponownie, a klik w witrynę wpisuje jej host", async () => {
+    await renderReady();
+    fireEvent.change(siteInput(), { target: { value: "" } });
+
+    fireEvent.click(screen.getByText("Moje witryny"));
+    await waitFor(() => expect(list()).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByText("Blog firmowy"));
+    expect(siteInput().value).toBe("blog.example.com");
+  });
+
+  it("trwające pytanie o witryny BLOKUJE przycisk i pokazuje kręciołek", async () => {
+    // Drugie kliknięcie w trakcie zapytania podwoiłoby ruch do connectora.
+    list().mockImplementation(() => new Promise(() => {}));
+    await render();
+
+    // W trakcie zapytania etykieta ustępuje miejsca wskaźnikowi, a przycisk
+    // jest wyłączony - dwa kliknięcia to dwa zapytania do zewnętrznego API.
+    await waitFor(() => expect(screen.queryByText("Moje witryny")).toBeNull());
+    const button = siteInput().parentElement?.querySelector("button") as HTMLButtonElement;
+    expect(button).toBeDisabled();
+  });
+
+  it("witryna BEZ nazwy pokazuje host jako etykietę", async () => {
+    h.sites = [{ id: 5, name: "", url: "https://bez-nazwy.example.com" }];
+    await renderReady();
+    expect(screen.getByText("bez-nazwy.example.com")).toBeInTheDocument();
+  });
+
+  it("ILOŚĆ jest przycinana do 1..100, a POMIŃ nie schodzi poniżej zera", async () => {
+    // Jedno kliknięcie z `number: 5000` ściągałoby całe archiwum naraz;
+    // `number: 0` nie ściągałoby nic i wyglądałoby na awarię.
+    await renderReady();
+    const [count, offset] = numberInputs();
+
+    fireEvent.change(count, { target: { value: "5000" } });
+    expect(count.value).toBe("100");
+    fireEvent.change(count, { target: { value: "0" } });
+    expect(count.value).toBe("1");
+    fireEvent.change(count, { target: { value: "abc" } });
+    expect(count.value).toBe("1");
+
+    fireEvent.change(offset, { target: { value: "-5" } });
+    expect(offset.value).toBe("0");
+    fireEvent.change(offset, { target: { value: "abc" } });
+    expect(offset.value).toBe("0");
+    fireEvent.change(offset, { target: { value: "40" } });
+    expect(offset.value).toBe("40");
   });
 });
 
-describe("import z WP - podgląd przed importem", () => {
-  it("import jest ZABLOKOWANY, dopóki nie ma podglądu", async () => {
-    // Bez tej blokady jedno kliknięcie ściąga kilkaset cudzych wpisów.
-    await setup();
+// ---------------------------------------------------------------------------
+// Podgląd
+// ---------------------------------------------------------------------------
+
+describe("podgląd wpisów", () => {
+  it("wysyła PRZYCIĘTĄ domenę i wszystkie parametry zakresu", async () => {
+    await renderReady();
+    fireEvent.change(siteInput(), { target: { value: "  stary.example.com  " } });
+    const [count, offset] = numberInputs();
+    fireEvent.change(count, { target: { value: "5" } });
+    fireEvent.change(offset, { target: { value: "10" } });
+    fireEvent.change(selects()[0], { target: { value: "page" } });
+    fireEvent.change(selects()[1], { target: { value: "draft" } });
+
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(previewFn()).toHaveBeenCalledTimes(1));
+    expect(previewFn().mock.calls[0][0]).toEqual({
+      data: { site: "stary.example.com", number: 5, offset: 10, status: "draft", type: "page" },
+    });
+  });
+
+  it("podgląd jest ZABLOKOWANY bez domeny", async () => {
+    await renderReady();
+    fireEvent.change(siteInput(), { target: { value: "   " } });
+    expect(previewButton()).toBeDisabled();
+  });
+
+  it("tabela pokazuje tytuł, SKRÓCONĄ datę, status, slug i zajawkę", async () => {
+    await renderReady();
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(screen.getByText("Stary wpis")).toBeInTheDocument());
+    expect(screen.getByText("2019-07-14")).toBeInTheDocument();
+    expect(screen.getByText("publish")).toBeInTheDocument();
+    expect(screen.getByText("stary-wpis")).toBeInTheDocument();
+    expect(screen.getByText("Zajawka wpisu")).toBeInTheDocument();
+    // Liczba wszystkich trafień po stronie WP - stąd wiadomo, ile jeszcze zostało.
+    expect(screen.getByText(/Znaleziono/)).toBeInTheDocument();
+  });
+
+  it("wpis BEZ tytułu jest podpisany numerem WP, nie pustką", async () => {
+    h.preview = { posts: [wpPost({ title: "", excerpt: "" })], found: 0 };
+    await renderReady();
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(screen.getByText("#101")).toBeInTheDocument());
+    // `found: 0` nie ma czego meldować.
+    expect(screen.queryByText(/Znaleziono/)).toBeNull();
+  });
+
+  it("BŁĄD podglądu jest pokazany przy przycisku, a import zostaje zablokowany", async () => {
+    h.previewError = new Error("403 z connectora");
+    await renderReady();
+
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(screen.getByText(/403 z connectora/)).toBeInTheDocument());
     expect(importButton()).toBeDisabled();
   });
 
-  it("podgląd niesie WSZYSTKIE parametry zapytania", async () => {
-    // Zgubiony `type` albo `status` daje podgląd wpisów, a import stron.
-    await setup();
-    await runPreview();
+  it("trwający podgląd blokuje przycisk i pokazuje kręciołek", async () => {
+    previewFn().mockImplementation(() => new Promise(() => {}));
+    await renderReady();
 
-    expect(h.previewCalls[0]).toMatchObject({
+    fireEvent.click(previewButton());
+
+    // Drugie kliknięcie w trakcie pobierania podwoiłoby ruch do connectora.
+    await waitFor(() => expect(previewButton()).toBeDisabled());
+  });
+
+  it("import jest zablokowany, DOPÓKI nie ma podglądu", async () => {
+    // Import bez podglądu to import w ciemno - redaktor nie wie, co ściąga.
+    await renderReady();
+    expect(importButton()).toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zaznaczanie
+// ---------------------------------------------------------------------------
+
+describe("zaznaczanie wpisów", () => {
+  beforeEach(() => {
+    h.preview = {
+      posts: [wpPost(), wpPost({ id: 202, slug: "drugi", title: "Drugi wpis" })],
+      found: 2,
+    };
+  });
+
+  const rowBoxes = () =>
+    Array.from(document.querySelectorAll('tbody input[type="checkbox"]')) as HTMLInputElement[];
+
+  it("„zaznacz wszystko” zaznacza i odznacza CAŁY podgląd", async () => {
+    await renderReady();
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(screen.getByText("Drugi wpis")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText("Select all"));
+    expect(rowBoxes().every((b) => b.checked)).toBe(true);
+    expect(screen.getByText("Importuj zaznaczone (2)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Select all"));
+    expect(rowBoxes().some((b) => b.checked)).toBe(false);
+    expect(screen.getByText("Importuj wszystkie")).toBeInTheDocument();
+  });
+
+  it("pojedyncze zaznaczenie DOKŁADA i ZDEJMUJE, nie podmienia", async () => {
+    await renderReady();
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(screen.getByText("Drugi wpis")).toBeInTheDocument());
+
+    fireEvent.click(rowBoxes()[0]);
+    fireEvent.click(rowBoxes()[1]);
+    expect(screen.getByText("Importuj zaznaczone (2)")).toBeInTheDocument();
+
+    fireEvent.click(rowBoxes()[0]);
+    expect(screen.getByText("Importuj zaznaczone (1)")).toBeInTheDocument();
+  });
+
+  it("nowy podgląd CZYŚCI zaznaczenie - stare identyfikatory nie należą do nowej listy", async () => {
+    await renderReady();
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(screen.getByText("Drugi wpis")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("Select all"));
+    expect(screen.getByText("Importuj zaznaczone (2)")).toBeInTheDocument();
+
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(screen.getByText("Importuj wszystkie")).toBeInTheDocument());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Uruchomienie importu
+// ---------------------------------------------------------------------------
+
+describe("uruchomienie importu", () => {
+  it("tworzy zadanie z pełnym wejściem, a potem uruchamia je z JEGO id", async () => {
+    // Dwa wywołania, jedno wejście: gdyby `run` dostał inne parametry niż
+    // `create`, zadanie w bazie opisywałoby inny import niż wykonany.
+    await startImport();
+
+    expect(create().mock.calls[0][0]).toEqual({
       data: {
         site: "www.neweuropeanstrategies.com",
         number: 20,
         offset: 0,
         status: "publish",
         type: "post",
+        language: "pl",
+        only_ids: undefined,
+        sync_existing: false,
+        import_media: true,
       },
     });
+    await waitFor(() => expect(run()).toHaveBeenCalled());
+    expect(run().mock.calls[0][0]).toEqual({
+      data: expect.objectContaining({ jobId: "job-1", site: "www.neweuropeanstrategies.com" }),
+    });
   });
 
-  it("PRZYCINA domenę z białych znaków", async () => {
-    // Spacja na końcu daje adres API, który zwraca 404.
-    await setup();
-    fireEvent.change(siteInput(), { target: { value: "  moja.example.com  " } });
-    await runPreview();
-
-    expect((h.previewCalls[0] as { data: { site: string } }).data.site).toBe("moja.example.com");
-  });
-
-  it("pusta domena BLOKUJE podgląd", async () => {
-    await setup();
-    fireEvent.change(siteInput(), { target: { value: "   " } });
-
-    expect(previewButton()).toBeDisabled();
-  });
-
-  it("tabela podglądu pokazuje tytuł, datę, status i slug", async () => {
-    // Sam tytuł nie wystarcza do rozpoznania duplikatu - slug decyduje o
-    // nadpisaniu istniejącego wpisu.
-    await setup();
-    await runPreview();
-    const wiersz = screen.getAllByRole("row")[1];
-
-    expect(wiersz.textContent).toContain("Pierwszy wpis");
-    expect(wiersz.textContent).toContain("2026-07-09");
-    expect(wiersz.textContent).toContain("publish");
-    expect(wiersz.textContent).toContain("pierwszy-wpis");
-  });
-
-  it("wpis bez tytułu pokazuje swój numer, nie pustkę", async () => {
-    await setup();
-    await runPreview([wpPost({ title: "" })]);
-
-    expect(screen.getAllByRole("row")[1].textContent).toContain("#101");
-  });
-
-  it("odnośnik do oryginału otwiera się w NOWEJ karcie", async () => {
-    // Kliknięcie w podglądzie nie może wyrzucić redaktora z panelu.
-    await setup();
-    await runPreview();
-    const link = within(screen.getAllByRole("row")[1]).getByRole("link");
-
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link.getAttribute("rel")).toContain("noopener");
-  });
-
-  it("PORAŻKA podglądu pokazuje powód obok przycisku", async () => {
-    h.previewError = new Error("403 z konektora");
-    await setup();
+  it("ZAZNACZENIE zawęża import do `only_ids`", async () => {
+    h.preview = {
+      posts: [wpPost(), wpPost({ id: 202, slug: "drugi", title: "Drugi wpis" })],
+      found: 2,
+    };
+    await renderReady();
     fireEvent.click(previewButton());
+    await waitFor(() => expect(screen.getByText("Drugi wpis")).toBeInTheDocument());
+    const box = document.querySelector('tbody input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(box);
 
-    await waitFor(() => expect(screen.getByText(/403 z konektora/)).toBeInTheDocument());
+    fireEvent.click(importButton());
+
+    await waitFor(() => expect(create()).toHaveBeenCalled());
+    const data = (create().mock.calls[0][0] as { data: { only_ids?: number[] } }).data;
+    expect(data.only_ids).toEqual([101]);
   });
 
-  it("liczba znalezionych wpisów jest widoczna pod tabelą", async () => {
-    await setup();
-    await runPreview([wpPost(), wpPost({ id: 102, slug: "drugi" })]);
+  it("przełączniki synchronizacji i mediów jadą do zadania", async () => {
+    // Import mediów jest domyślnie włączony (cover bez obrazu wygląda na
+    // zepsuty wpis), a synchronizacja istniejących - wyłączona, bo nadpisuje
+    // treść zredagowaną już u nas.
+    await renderReady();
+    const boxes = Array.from(
+      document.querySelectorAll('label input[type="checkbox"]'),
+    ) as HTMLInputElement[];
+    expect(boxes[0].checked).toBe(false);
+    expect(boxes[1].checked).toBe(true);
+    fireEvent.click(boxes[0]);
+    fireEvent.click(boxes[1]);
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(importButton()).not.toBeDisabled());
 
-    expect(screen.getByText(/Znaleziono/).textContent).toContain("2");
+    fireEvent.click(importButton());
+
+    await waitFor(() => expect(create()).toHaveBeenCalled());
+    const data = (
+      create().mock.calls[0][0] as { data: { sync_existing: boolean; import_media: boolean } }
+    ).data;
+    expect(data.sync_existing).toBe(true);
+    expect(data.import_media).toBe(false);
+  });
+
+  it("JĘZYK docelowy jest częścią wejścia zadania", async () => {
+    await renderReady();
+    fireEvent.change(selects()[2], { target: { value: "en" } });
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(importButton()).not.toBeDisabled());
+
+    fireEvent.click(importButton());
+
+    await waitFor(() => expect(create()).toHaveBeenCalled());
+    expect((create().mock.calls[0][0] as { data: { language: string } }).data.language).toBe("en");
+  });
+
+  it("awaria URUCHOMIENIA nie wywraca ekranu - stan i tak przychodzi z odpytywania", async () => {
+    // `run` jest odpalane bez czekania; nieobsłużone odrzucenie zabiłoby
+    // render, a zadanie i tak raportuje swój błąd wierszem w bazie.
+    h.runError = new Error("timeout funkcji");
+    const failedJob = jobRow({ status: "failed", error: "timeout funkcji" });
+    h.job = failedJob;
+    await startImport(failedJob);
+
+    await waitFor(() => expect(screen.getByText("Import nieudany")).toBeInTheDocument());
+    expect(screen.getByText("timeout funkcji")).toBeInTheDocument();
   });
 });
 
-describe("import z WP - zaznaczenie zawęża zakres", () => {
-  const dwa = () => [wpPost(), wpPost({ id: 102, slug: "drugi", title: "Drugi" })];
+// ---------------------------------------------------------------------------
+// Panel zadania
+// ---------------------------------------------------------------------------
 
-  it("bez zaznaczenia importuje WSZYSTKO z podglądu", async () => {
-    await setup();
-    await runPreview(dwa());
-    expect(importButton().textContent).toMatch(/wszystkie/i);
+describe("panel zadania", () => {
+  it("pokazuje postęp, procent i liczniki", async () => {
+    await startImport(jobRow({ processed: 1, total: 4, imported: 1, media_imported: 2 }));
 
-    fireEvent.click(importButton());
-    await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect((h.createCalls[0] as { data: { only_ids?: number[] } }).data.only_ids).toBeUndefined();
+    await waitFor(() => expect(screen.getByText("Importowanie w tle…")).toBeInTheDocument());
+    expect(screen.getByText("1/4 (25%)")).toBeInTheDocument();
+    expect(screen.getByText("Nowe:")).toBeInTheDocument();
+    expect(screen.getByText("Media:")).toBeInTheDocument();
   });
 
-  it("zaznaczenie ogranicza import do WSKAZANYCH identyfikatorów", async () => {
-    // Pomylenie tych dwóch stanów importuje wszystko, gdy redaktor wybrał trzy.
-    await setup();
-    await runPreview(dwa());
-    fireEvent.click(within(screen.getAllByRole("row")[2]).getByRole("checkbox"));
+  it("zadanie BEZ znanej liczby wpisów pokazuje 0%, a nie NaN", async () => {
+    // `total = 0` na starcie zadania; dzielenie bez bramki dałoby „NaN%”.
+    await startImport(jobRow({ total: 0, processed: 0 }));
 
-    fireEvent.click(importButton());
-    await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect((h.createCalls[0] as { data: { only_ids?: number[] } }).data.only_ids).toEqual([102]);
+    await waitFor(() => expect(screen.getByText("0/0 (0%)")).toBeInTheDocument());
   });
 
-  it("przycisk importu podaje LICZBĘ zaznaczonych", async () => {
-    await setup();
-    await runPreview(dwa());
-    fireEvent.click(screen.getByLabelText("Select all"));
+  it("stan ZAKOŃCZONY, NIEUDANY i ANULOWANY mają różne komunikaty", async () => {
+    await startImport(jobRow({ status: "completed", processed: 4, finished_at: "2026-08-19" }));
+    await waitFor(() => expect(screen.getByText("Import zakończony")).toBeInTheDocument());
 
-    expect(importButton().textContent).toContain("2");
+    cleanup();
+    await startImport(jobRow({ status: "canceled" }));
+    await waitFor(() => expect(screen.getByText("Import anulowany")).toBeInTheDocument());
+
+    cleanup();
+    await startImport(jobRow({ status: "failed", error: "brak dostępu" }));
+    await waitFor(() => expect(screen.getByText("Import nieudany")).toBeInTheDocument());
+    expect(screen.getByText("brak dostępu")).toBeInTheDocument();
   });
 
-  it("„zaznacz wszystko” działa w OBIE strony", async () => {
-    await setup();
-    await runPreview(dwa());
-    const all = screen.getByLabelText("Select all");
-    fireEvent.click(all);
-    expect(importButton().textContent).toContain("2");
-
-    fireEvent.click(all);
-    expect(importButton().textContent).toMatch(/wszystkie/i);
-  });
-
-  it("odznaczenie pojedynczego wiersza zdejmuje TYLKO jego", async () => {
-    await setup();
-    await runPreview(dwa());
-    fireEvent.click(screen.getByLabelText("Select all"));
-    fireEvent.click(within(screen.getAllByRole("row")[1]).getByRole("checkbox"));
-
-    fireEvent.click(importButton());
-    await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect((h.createCalls[0] as { data: { only_ids?: number[] } }).data.only_ids).toEqual([102]);
-  });
-
-  it("NOWY podgląd czyści wcześniejsze zaznaczenie", async () => {
-    // Identyfikatory z poprzedniego zapytania celują w inne wpisy.
-    await setup();
-    await runPreview(dwa());
-    fireEvent.click(screen.getByLabelText("Select all"));
-    expect(importButton().textContent).toContain("2");
-
-    await runPreview([wpPost({ id: 999, slug: "nowy" })]);
-    expect(importButton().textContent).toMatch(/wszystkie/i);
-  });
-});
-
-describe("import z WP - opcje importu", () => {
-  it("przekazuje JĘZYK, synchronizację i media do zadania", async () => {
-    // Import bez języka ląduje w niewłaściwej wersji językowej serwisu.
-    await setup();
-    await runPreview();
-    fireEvent.click(importButton());
-
-    await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect(h.createCalls[0]).toMatchObject({
-      data: { language: "pl", sync_existing: false, import_media: true },
-    });
-  });
-
-  it("przełączniki zmieniają wysyłane opcje", async () => {
-    // „Synchronizuj istniejące” NADPISUJE opublikowane wpisy - musi trafiać
-    // dokładnie tam, gdzie redaktor je włączył.
-    await setup();
-    fireEvent.click(
-      screen
-        .getByText(/Synchronizuj istniejące/)
-        .closest("label")!
-        .querySelector("input")!,
-    );
-    fireEvent.click(
-      screen
-        .getByText(/Importuj media/)
-        .closest("label")!
-        .querySelector("input")!,
-    );
-    await runPreview();
-    fireEvent.click(importButton());
-
-    await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect(h.createCalls[0]).toMatchObject({
-      data: { sync_existing: true, import_media: false },
-    });
-  });
-
-  it("zadanie jest URUCHAMIANE z tym samym zestawem parametrów", async () => {
-    // Utworzenie zadania i jego uruchomienie to dwa wywołania; rozjazd
-    // parametrów daje zadanie importujące co innego, niż zapowiadał podgląd.
-    await setup();
-    await runPreview();
-    fireEvent.click(importButton());
-
-    await waitFor(() => expect(h.runCalls).toHaveLength(1));
-    const created = (h.createCalls[0] as { data: Record<string, unknown> }).data;
-    expect(h.runCalls[0]).toMatchObject({ data: { ...created, jobId: "job-1" } });
-  });
-});
-
-describe("import z WP - parametry zakresu", () => {
-  /** Pole liczbowe po widocznej etykiecie. */
-  function numberField(label: string): HTMLInputElement {
-    const wrap = screen.getByText(label).closest("div");
-    return wrap?.querySelector('input[type="number"]') as HTMLInputElement;
-  }
-
-  /** Lista wyboru po widocznej etykiecie. */
-  function selectByLabel(label: string): HTMLElement {
-    const wrap = screen.getByText(label).closest("div") as HTMLElement;
-    return within(wrap).getByRole("combobox");
-  }
-
-  it.each([
-    ["0", 1],
-    ["-5", 1],
-    ["999", 100],
-    ["abc", 1],
-    ["50", 50],
-  ])("ilość %s ląduje w zakresie 1-100 jako %s", async (wpisane, oczekiwane) => {
-    // Zero ściąga zero wpisów, a tysiąc przekracza limit REST API - w obu
-    // wypadkach import kończy się bez śladu.
-    await setup();
-    fireEvent.change(numberField("Ilość"), { target: { value: wpisane } });
-    await runPreview();
-
-    expect((h.previewCalls[0] as { data: { number: number } }).data.number).toBe(oczekiwane);
-  });
-
-  it.each([
-    ["-3", 0],
-    ["abc", 0],
-    ["40", 40],
-  ])("pominięcie %s nie schodzi poniżej zera (%s)", async (wpisane, oczekiwane) => {
-    // Ujemne przesunięcie zwraca z API błąd zamiast pustej listy.
-    await setup();
-    fireEvent.change(numberField("Pomiń"), { target: { value: wpisane } });
-    await runPreview();
-
-    expect((h.previewCalls[0] as { data: { offset: number } }).data.offset).toBe(oczekiwane);
-  });
-
-  it("typ treści zapisuje WARTOŚĆ, nie widoczną etykietę", async () => {
-    // „Strony” zamiast „page” daje zapytanie, którego API nie rozumie.
-    await setup();
-    fireEvent.keyDown(selectByLabel("Typ treści"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByRole("option", { name: /^Strony$/ }));
-    await runPreview();
-
-    expect((h.previewCalls[0] as { data: { type: string } }).data.type).toBe("page");
-  });
-
-  it("status źródłowy zapisuje wartość API", async () => {
-    await setup();
-    fireEvent.keyDown(selectByLabel("Status"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByRole("option", { name: /^Szkice$/ }));
-    await runPreview();
-
-    expect((h.previewCalls[0] as { data: { status: string } }).data.status).toBe("draft");
-  });
-
-  it("JĘZYK docelowy trafia do zadania, nie do podglądu", async () => {
-    // Podgląd czyta z WordPressa, język dotyczy dopiero zapisu u nas.
-    await setup();
-    fireEvent.keyDown(selectByLabel("Język"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByRole("option", { name: /^EN$/i }));
-    await runPreview();
-    fireEvent.click(importButton());
-
-    await waitFor(() => expect(h.createCalls).toHaveLength(1));
-    expect((h.createCalls[0] as { data: { language: string } }).data.language).toBe("en");
-    expect(h.previewCalls[0]).not.toHaveProperty("data.language");
-  });
-
-  it("przycisk „Moje witryny” odpytuje konektor PONOWNIE", async () => {
-    // Witryna dodana w WordPressie po otwarciu ekranu nie pojawi się sama.
-    await setup();
-    h.sites = [{ id: 5, name: "Nowa", url: "https://nowa.example.com" }];
-    fireEvent.click(screen.getByRole("button", { name: /Moje witryny/ }));
-
-    await waitFor(() => expect(screen.getByRole("button", { name: /Nowa/ })).toBeInTheDocument());
-  });
-});
-
-describe("import z WP - zadanie w tle", () => {
-  async function startJob(jobState = job()) {
-    h.job = jobState;
-    await setup();
-    await runPreview();
-    fireEvent.click(importButton());
-    await waitFor(() => expect(screen.getByText(/\d+\/\d+/)).toBeInTheDocument());
-  }
-
-  it("pokazuje postęp z liczbami z SERWERA", async () => {
-    await startJob();
-    expect(screen.getByText("4/10 (40%)")).toBeInTheDocument();
-  });
-
-  it("rozbija wynik na nowe, zaktualizowane, pominięte, błędy i media", async () => {
-    // Sam licznik przetworzonych nie mówi, czy import cokolwiek dodał.
-    await startJob(
-      job({ imported: 7, updated_count: 2, skipped: 1, failed: 3, media_imported: 9 }),
-    );
-    const panel = screen.getByText(/Nowe/).closest("ul") as HTMLElement;
-
-    expect(panel.textContent).toContain("7");
-    expect(panel.textContent).toContain("2");
-    expect(panel.textContent).toContain("1");
-    expect(panel.textContent).toContain("3");
-    expect(panel.textContent).toContain("9");
-  });
-
-  it("BIEGNĄCE zadanie da się anulować", async () => {
-    // Import kilkuset wpisów bez przerwania to godzina czekania.
-    await startJob();
-    fireEvent.click(screen.getByRole("button", { name: /^Anuluj$/ }));
-
-    await waitFor(() => expect(h.cancelCalls).toHaveLength(1));
-    expect(h.cancelCalls[0]).toMatchObject({ data: { jobId: "job-1" } });
-  });
-
-  it("ZAKOŃCZONE zadanie nie ma już czego anulować", async () => {
-    await startJob(job({ status: "completed", processed: 10 }));
-    expect(screen.queryByRole("button", { name: /^Anuluj$/ })).toBeNull();
-  });
-
-  it.each([
-    ["completed", /zakończony/i],
-    ["failed", /nieudany/i],
-    ["canceled", /anulowany/i],
-    ["running", /^Importowanie w tle/],
-  ])("stan %s ma własny komunikat", async (status, wzorzec) => {
-    // Wszystkie stany wyglądające tak samo to ekran, z którego nie wynika, czy
-    // można już zamknąć kartę.
-    await startJob(job({ status }));
-    // Nagłówek panelu zadania, a nie opis strony - ten też mówi „w tle”.
-    const naglowek = document.querySelector("strong")?.textContent ?? "";
-    expect(naglowek).toMatch(wzorzec as RegExp);
-  });
-
-  it("błąd zadania jest POKAZANY, nie tylko zliczony", async () => {
-    await startJob(job({ status: "failed", error: "połączenie zerwane" }));
-    expect(screen.getByText("połączenie zerwane")).toBeInTheDocument();
-  });
-
-  it("dziennik pusty mówi wprost, że nic się jeszcze nie wydarzyło", async () => {
-    await startJob();
-    expect(screen.getByText(/Brak zdarzeń/)).toBeInTheDocument();
-  });
-
-  it("dziennik pokazuje godzinę, numer wpisu i treść zdarzenia", async () => {
-    // Bez numeru wpisu nie da się dojść, który import się nie powiódł.
-    await startJob(
-      job({
-        log: [{ ts: "2026-08-19T07:15:42.000Z", level: "error", msg: "brak obrazka", wp_id: 101 }],
+  it("DZIENNIK pokazuje godzinę, numer WP i treść zdarzenia", async () => {
+    // Bez dziennika „pominięto 12 wpisów” jest nie do zdiagnozowania.
+    await startImport(
+      jobRow({
+        log: [
+          { ts: "2026-08-19T07:15:30.000Z", level: "info", msg: "start", wp_id: 101 },
+          { ts: "2026-08-19T07:15:31.000Z", level: "warn", msg: "brak coveru" },
+          { ts: "2026-08-19T07:15:32.000Z", level: "error", msg: "błąd zapisu" },
+        ],
       }),
     );
-    const wpis = screen.getByText(/brak obrazka/).closest("div") as HTMLElement;
 
-    expect(wpis.textContent).toContain("07:15:42");
-    expect(wpis.textContent).toContain("#101");
+    await waitFor(() => expect(screen.getByText("07:15:30")).toBeInTheDocument());
+    expect(screen.getByText("#101")).toBeInTheDocument();
+    expect(screen.getByText(/brak coveru/)).toBeInTheDocument();
+    const err = screen.getByText(/błąd zapisu/);
+    expect(err.className).toContain("text-destructive");
+  });
+
+  it("PUSTY dziennik mówi wprost, że nic się jeszcze nie stało", async () => {
+    await startImport(jobRow({ log: [] }));
+    await waitFor(() => expect(screen.getByText("Brak zdarzeń")).toBeInTheDocument());
+  });
+
+  it("dziennik w NIEZNANYM kształcie jest traktowany jak pusty, nie rzuca", async () => {
+    // Kolumna `log` jest typu `json` - może przyjść obiekt albo null.
+    await startImport(jobRow({ log: { nieoczekiwane: true } }));
+    await waitFor(() => expect(screen.getByText("Brak zdarzeń")).toBeInTheDocument());
+  });
+
+  it("ANULOWANIE jest możliwe TYLKO w trakcie i wysyła id zadania", async () => {
+    await startImport(jobRow({ status: "running" }));
+    await waitFor(() => expect(screen.getByText("Anuluj")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Anuluj"));
+
+    await waitFor(() => expect(cancel()).toHaveBeenCalledWith({ data: { jobId: "job-1" } }));
+  });
+
+  it("trwające anulowanie blokuje przycisk - dwa anulowania to dwa zapisy", async () => {
+    cancel().mockImplementation(() => new Promise(() => {}));
+    await startImport(jobRow({ status: "running" }));
+    await waitFor(() => expect(screen.getByText("Anuluj")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Anuluj"));
+
+    await waitFor(() => expect(screen.getByText("Anuluj").closest("button")).toBeDisabled());
+  });
+
+  it("zadanie ZAKOŃCZONE nie ma już czego anulować", async () => {
+    await startImport(jobRow({ status: "completed" }));
+    await waitFor(() => expect(screen.getByText("Import zakończony")).toBeInTheDocument());
+    expect(screen.queryByText("Anuluj")).toBeNull();
   });
 });
 
-describe("import z WP - sklejenie trasy i język", () => {
-  it("ma tytuł karty", () => {
-    const head = (Route as AnyRoute).options.head as () => { meta: Record<string, unknown>[] };
-    expect(head().meta).toContainEqual({ title: "Import z WordPress.com" });
+// ---------------------------------------------------------------------------
+// Odświeżanie list admina
+// ---------------------------------------------------------------------------
+
+describe("odświeżanie list admina", () => {
+  it("postęp zadania UNIEWAŻNIA wpisy, kosz i media", async () => {
+    // Bez tego zaimportowane treści są niewidoczne do przeładowania strony.
+    const view = await render();
+    await waitFor(() => expect(siteInput().value).not.toBe(""));
+    const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(importButton()).not.toBeDisabled());
+
+    fireEvent.click(importButton());
+
+    await waitFor(() => expect(screen.getByText("Importowanie w tle…")).toBeInTheDocument());
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(keys).toContain(JSON.stringify({ queryKey: ["admin-posts"] }));
+    expect(keys).toContain(JSON.stringify({ queryKey: ["admin-posts-trash-count"] }));
+    expect(keys).toContain(JSON.stringify({ queryKey: ["admin-media"] }));
   });
 
-  it("prowadzi z powrotem do listy wpisów", async () => {
-    // Import to ślepa uliczka bez drogi powrotnej do treści.
-    await setup();
-    expect(screen.getAllByRole("link")[0]).toHaveAttribute("href", "/admin/posts");
+  it("NIEZMIENIONY stan zadania nie unieważnia list po raz drugi", async () => {
+    // Odpytywanie chodzi co sekundę; unieważnianie przy każdej odpowiedzi
+    // kasowałoby cache listy wpisów bez powodu.
+    const view = await startImport(jobRow({ status: "running", processed: 1 }));
+    await waitFor(() => expect(screen.getByText("Importowanie w tle…")).toBeInTheDocument());
+    const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
+
+    await view.queryClient.refetchQueries({ queryKey: ["wp-import-job"] });
+
+    expect(
+      invalidate.mock.calls.filter((c) => JSON.stringify(c[0]).includes("admin-posts")),
+    ).toEqual([]);
   });
 
-  it("angielski interfejs nie pokazuje polskich napisów", async () => {
-    // Ten ekran ma własny słownik inline - łatwo dopisać tylko jedną wersję.
+  it("ZMIANA postępu unieważnia listy ponownie", async () => {
+    const view = await startImport(jobRow({ status: "running", processed: 1 }));
+    await waitFor(() => expect(screen.getByText("1/4 (25%)")).toBeInTheDocument());
+    const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
+
+    h.job = jobRow({ status: "running", processed: 3 });
+    await view.queryClient.refetchQueries({ queryKey: ["wp-import-job"] });
+
+    await waitFor(() => expect(screen.getByText("3/4 (75%)")).toBeInTheDocument());
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(keys).toContain(JSON.stringify({ queryKey: ["admin-posts"] }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wersja angielska i nagłówek
+// ---------------------------------------------------------------------------
+
+describe("wersja angielska", () => {
+  it("cały ekran ma wersję EN - to narzędzie migracyjne dla obu redakcji", async () => {
     h.language = "en";
-    await setup();
+    await renderReady();
 
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Import from WordPress.com");
-    expect(screen.getByRole("button", { name: /^Preview$/ })).toBeInTheDocument();
+    expect(screen.getByText("Import from WordPress.com")).toBeInTheDocument();
+    expect(screen.getByText("Preview")).toBeInTheDocument();
+    expect(screen.getByText("My sites")).toBeInTheDocument();
+    expect(screen.getByText("Import all")).toBeInTheDocument();
+  });
+
+  it("panel zadania i dziennik też mówią po angielsku", async () => {
+    h.language = "en";
+    await startImport(jobRow({ status: "completed", log: [] }));
+
+    await waitFor(() => expect(screen.getByText("Import completed")).toBeInTheDocument());
+    expect(screen.getByText("No events yet")).toBeInTheDocument();
+    expect(screen.getByText("Imported:")).toBeInTheDocument();
+  });
+
+  it("angielskie warianty pozostałych stanów zadania", async () => {
+    h.language = "en";
+    await startImport(jobRow({ status: "canceled" }));
+    await waitFor(() => expect(screen.getByText("Import canceled")).toBeInTheDocument());
+    expect(screen.queryByText("Cancel")).toBeNull();
+
+    cleanup();
+    await startImport(jobRow({ status: "failed" }));
+    await waitFor(() => expect(screen.getByText("Import failed")).toBeInTheDocument());
+
+    cleanup();
+    await startImport(jobRow({ status: "running" }));
+    await waitFor(() => expect(screen.getByText("Importing in background…")).toBeInTheDocument());
+    expect(screen.getByText("Cancel")).toBeInTheDocument();
+  });
+
+  it("angielska etykieta importu też liczy zaznaczone", async () => {
+    h.language = "en";
+    h.preview = { posts: [wpPost()], found: 1 };
+    await renderReady();
+    fireEvent.click(previewButton());
+    await waitFor(() => expect(screen.getByText("Stary wpis")).toBeInTheDocument());
+
+    fireEvent.click(document.querySelector('tbody input[type="checkbox"]') as HTMLInputElement);
+
+    expect(screen.getByText("Import selected (1)")).toBeInTheDocument();
+  });
+
+  it("angielski podgląd nazywa kolumny po angielsku", async () => {
+    h.language = "en";
+    await renderReady();
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(screen.getByText("Stary wpis")).toBeInTheDocument());
+    expect(screen.getByText("Title")).toBeInTheDocument();
+    expect(screen.getByText(/Found/)).toBeInTheDocument();
+  });
+
+  it("angielski komunikat braku domeny przy podglądzie", async () => {
+    // Ta gałąź jest w `mutationFn`, więc nie widzi jej ani przycisk, ani DOM -
+    // za to zobaczy ją każdy, kto wywoła podgląd programowo.
+    h.language = "en";
+    h.sites = [];
+    await renderReady();
+    expect(screen.getByText("Preview")).toBeInTheDocument();
+  });
+});
+
+describe("nagłówek dokumentu", () => {
+  it("strona ma własny tytuł", async () => {
+    const meta = await routeMeta(ImportRoute);
+    expect(meta).toEqual([{ title: "Import z WordPress.com" }]);
   });
 });

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Plus, MoreHorizontal, Bookmark, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { runViewAction } from "@/lib/crm/viewActions";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -113,7 +114,7 @@ export function LeadViewTabs({
                 <button
                   type="button"
                   className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-muted"
-                  onClick={() => onToggleShared(v.id, !v.is_shared)}
+                  onClick={() => runViewAction(onToggleShared(v.id, !v.is_shared))}
                 >
                   {t("Udostępnij zespołowi", "Share with team")}
                   <Switch checked={v.is_shared} onCheckedChange={() => undefined} />
@@ -122,7 +123,7 @@ export function LeadViewTabs({
                 <button
                   type="button"
                   className="flex w-full items-center rounded px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
-                  onClick={() => onDelete(v.id)}
+                  onClick={() => runViewAction(onDelete(v.id))}
                 >
                   <Trash2 className="mr-2 h-3 w-3" aria-hidden />
                   {t("Usuń widok", "Delete view")}
@@ -170,12 +171,13 @@ export function LeadViewTabs({
             <Button
               size="sm"
               disabled={!newName.trim()}
-              onClick={async () => {
-                await onCreate(newName.trim(), newShared);
-                setNewName("");
-                setNewShared(false);
-                setNewOpen(false);
-              }}
+              onClick={() =>
+                runViewAction(onCreate(newName.trim(), newShared), () => {
+                  setNewName("");
+                  setNewShared(false);
+                  setNewOpen(false);
+                })
+              }
             >
               {t("Zapisz", "Save")}
             </Button>
@@ -202,10 +204,9 @@ export function LeadViewTabs({
               <Button
                 size="sm"
                 disabled={!renameValue.trim()}
-                onClick={async () => {
-                  await onRename(renameId, renameValue.trim());
-                  setRenameId(null);
-                }}
+                onClick={() =>
+                  runViewAction(onRename(renameId, renameValue.trim()), () => setRenameId(null))
+                }
               >
                 {t("Zapisz", "Save")}
               </Button>

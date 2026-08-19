@@ -45,20 +45,11 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { PopupPreview } from "@/components/admin/newsletter/PopupPreview";
 import { PopupEventsPanel } from "@/components/admin/newsletter/PopupEventsPanel";
-
-interface KpiRow {
-  status: string;
-  created_at: string;
-  confirmed_at: string | null;
-  unsubscribed_at: string | null;
-}
-
-const DAY_MS = 86_400_000;
-
-function pctDelta(recent: number, previous: number): number {
-  if (previous === 0) return recent > 0 ? 100 : 0;
-  return Math.round(((recent - previous) / previous) * 100);
-}
+import {
+  SUBSCRIBER_KPI_LIMIT,
+  computeKpis,
+  type SubscriberKpiRow,
+} from "@/components/admin/newsletter/overviewKpis";
 
 function useKpis() {
   return useQuery({
@@ -71,33 +62,9 @@ function useKpis() {
       const { data, error } = await supabase
         .from("newsletter_subscribers")
         .select("status, created_at, confirmed_at, unsubscribed_at")
-        .limit(50000);
+        .limit(SUBSCRIBER_KPI_LIMIT);
       if (error) throw error;
-      const rows = (data ?? []) as KpiRow[];
-      const now = Date.now();
-      const in30 = (iso: string | null) => (iso ? now - Date.parse(iso) <= 30 * DAY_MS : false);
-      const in60 = (iso: string | null) =>
-        iso ? now - Date.parse(iso) > 30 * DAY_MS && now - Date.parse(iso) <= 60 * DAY_MS : false;
-
-      const total = rows.filter((r) => r.status === "subscribed").length;
-      const pending = rows.filter((r) => r.status === "pending").length;
-      const unsub30 = rows.filter((r) => in30(r.unsubscribed_at)).length;
-      const unsub60 = rows.filter((r) => in60(r.unsubscribed_at)).length;
-      const new30 = rows.filter((r) => in30(r.created_at)).length;
-      const new60 = rows.filter((r) => in60(r.created_at)).length;
-      const confirmed = rows.filter((r) => r.status === "subscribed").length;
-      const attempted = confirmed + pending;
-      const optInRate = attempted > 0 ? Math.round((confirmed / attempted) * 100) : 100;
-
-      return {
-        total,
-        pending,
-        new30,
-        growthPct: pctDelta(new30, new60),
-        unsub30,
-        unsubDeltaPct: pctDelta(unsub30, unsub60),
-        optInRate,
-      };
+      return computeKpis((data ?? []) as SubscriberKpiRow[], Date.now());
     },
   });
 }

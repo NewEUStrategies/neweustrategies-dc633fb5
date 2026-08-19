@@ -2,6 +2,10 @@
 //
 // Administrator nigdy nie widzi samego linku (jest jednorazowy i wrażliwy) -
 // mail trafia wyłącznie na adres właściciela subskrypcji.
+//
+// Komunikaty pochodzą ze słownika (`adminBilling.resendPortal`). Do 19.08.2026
+// istniały wyłącznie w kodzie tego pliku, jako pary `pl ? "..." : "..."` - poza
+// bramką parytetu PL/EN i poza zasięgiem tłumacza.
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
@@ -17,39 +21,37 @@ export interface ResendPortalLinkButtonProps {
   label: string;
 }
 
+/**
+ * Kod odmowy z serwera na klucz komunikatu. Nieznany kod schodzi na „nie udało
+ * się wysłać" - operator ma zobaczyć, że coś nie przeszło, a nie surowy kod.
+ */
+const ERROR_KEY: Record<string, string> = {
+  no_customer: "noCustomer",
+  portal_failed: "portalFailed",
+  no_recipient: "noRecipient",
+  send_failed: "sendFailed",
+};
+
 export function ResendPortalLinkButton({
   userId,
   environment,
   label,
 }: ResendPortalLinkButtonProps) {
-  const { i18n } = useTranslation();
-  const pl = i18n.language !== "en";
+  const { t } = useTranslation();
+  const tp = (key: string, opts?: Record<string, unknown>) =>
+    t(`adminBilling.resendPortal.${key}`, opts);
   const send = useServerFn(resendPortalLinkForUser);
 
   const mutation = useMutation({
     mutationFn: () => send({ data: { userId, environment } }),
     onSuccess: (res) => {
       if (res.ok) {
-        toast.success(pl ? `Link wysłany na ${res.email}` : `Link sent to ${res.email}`);
+        toast.success(tp("sent", { email: res.email }));
         return;
       }
-      const messages: Record<string, [string, string]> = {
-        no_customer: [
-          "Brak konta płatnika dla tego użytkownika.",
-          "This user has no billing customer yet.",
-        ],
-        portal_failed: [
-          "Nie udało się utworzyć linku do portalu.",
-          "Could not create the portal link.",
-        ],
-        no_recipient: ["Brak adresu e-mail użytkownika.", "The user has no email address."],
-        send_failed: ["Nie udało się wysłać wiadomości.", "Could not send the message."],
-      };
-      const pair = messages[res.error] ?? messages.send_failed;
-      toast.error(pl ? pair[0] : pair[1]);
+      toast.error(tp(ERROR_KEY[res.error] ?? "sendFailed"));
     },
-    onError: () =>
-      toast.error(pl ? "Nie udało się wysłać wiadomości." : "Could not send the message."),
+    onError: () => toast.error(tp("sendFailed")),
   });
 
   return (

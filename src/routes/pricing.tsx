@@ -47,16 +47,16 @@ import {
   tiersForAudience,
   type BillingInterval,
 } from "@/lib/pricing/selectors";
-import { AudienceSwitcher } from "@/components/pricing/AudienceSwitcher";
+import { AudienceSwitcher } from "@/components/pricing/molecules/AudienceSwitcher";
 import { audiencePanelId, audienceTabId } from "@/components/pricing/audienceMeta";
-import { IntervalToggle } from "@/components/pricing/IntervalToggle";
-import { TierCard } from "@/components/pricing/TierCard";
-import { SupporterStrip } from "@/components/pricing/SupporterStrip";
-import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
+import { IntervalToggle } from "@/components/pricing/molecules/IntervalToggle";
+import { TierCard } from "@/components/pricing/organisms/TierCard";
+import { SupporterStrip } from "@/components/pricing/molecules/SupporterStrip";
+import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
 
-import { PricingFaq } from "@/components/pricing/PricingFaq";
-import { ContactSalesDialog } from "@/components/pricing/ContactSalesDialog";
-import { PlanCard } from "@/components/billing/PlanCard";
+import { PricingFaq } from "@/components/pricing/organisms/PricingFaq";
+import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
+import { PlanCard } from "@/components/billing/molecules/PlanCard";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";

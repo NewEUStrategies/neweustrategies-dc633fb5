@@ -648,7 +648,13 @@ const pl = {
     perOnce: "jednorazowo",
     choose: "Wybierz plan",
     current: "Aktualny plan",
-    trial: "{{days}} dni za darmo",
+    // LICZEBNIKI: „1 dni za darmo" na karcie planu to błąd widoczny dokładnie
+    // w chwili, gdy klient decyduje o zakupie. Zmienna nazywa się `count`, bo po
+    // niej i18next wybiera formę; polski ma trzy istotne (1 / 2-4 / 5+).
+    trial_one: "{{count}} dzień za darmo",
+    trial_few: "{{count}} dni za darmo",
+    trial_many: "{{count}} dni za darmo",
+    trial_other: "{{count}} dni za darmo",
     popular: "Najpopularniejszy",
     empty: "Brak dostępnych planów.",
     intervalTwoWeeks: "Co 2 tygodnie",
@@ -753,7 +759,17 @@ const pl = {
   },
 };
 
-const en: typeof pl = {
+/**
+ * Angielski nie powtarza polskich form `_few`/`_many` liczebnika okresu
+ * próbnego - i18next dla `en` ich nie użyje. Typ jest rozluźniony wyłącznie
+ * o te dwa klucze; parytet pozostałych dalej pilnuje `Omit` i bramka
+ * `check:i18n-parity`.
+ */
+type ProfileEn = Omit<typeof pl, "pricing"> & {
+  pricing: Omit<(typeof pl)["pricing"], "trial_few" | "trial_many">;
+};
+
+const en: ProfileEn = {
   profile: {
     title: "My profile",
     subtitle: "Management centre",
@@ -1392,7 +1408,9 @@ const en: typeof pl = {
     perOnce: "one-time",
     choose: "Choose plan",
     current: "Current plan",
-    trial: "{{days}}-day free trial",
+    // Angielski ma dwie formy - `_few`/`_many` świadomie pominięte.
+    trial_one: "{{count}}-day free trial",
+    trial_other: "{{count}}-day free trial",
     popular: "Most popular",
     empty: "No plans available.",
     intervalTwoWeeks: "Every 2 weeks",

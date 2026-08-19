@@ -209,10 +209,34 @@ export function parseConditionValue(raw: string): Json {
   return trimmed;
 }
 
-/** Reprezentacja wartości JSON w inpucie tekstowym (odwrotność parsowania). */
+/**
+ * Reprezentacja wartości JSON w inpucie tekstowym - ODWROTNOŚĆ parsowania,
+ * i to dosłownie: string, który po ponownym sparsowaniu przestałby być
+ * stringiem, wraca do inputu W CUDZYSŁOWACH.
+ *
+ * DLACZEGO TO NIE JEST KOSMETYKA. Bez cudzysłowów runda
+ * `conditionToPairs -> (edytor) -> pairsToCondition` była STRATNA: wartość, która
+ * w bazie jest STRINGIEM wyglądającym jak inny typ JSON ("true", "42", "null",
+ * '{"a":1}'), wracała z niej jako TEN INNY TYP. Skutek produkcyjny był cichy
+ * i kosztowny - redaktor otwierał istniejący przepis, zapisywał BEZ TKNIĘCIA
+ * warunku, a `payload @> condition` przestawał pasować, bo containment na jsonb
+ * rozróżnia typy. Przepis po prostu przestawał się odpalać, bez ani jednego
+ * komunikatu.
+ *
+ * Cudzysłów nie jest nową składnią dla redaktora: jawny literał JSON
+ * ('{"a":1}', '"tekst"', '[1,2]') był w tym polu akceptowany od początku
+ * (patrz `parseConditionValue`) - teraz jest też WYPISYWANY, gdy inaczej
+ * zmieniłby typ. Zwykłe wartości ("won", "pending", "") wyglądają jak dotąd.
+ *
+ * Porównanie idzie przez `parseConditionValue`, a nie przez skopiowaną listę
+ * wzorców - dzięki temu obie funkcje nie mogą się rozjechać przy zmianie reguł
+ * parsowania.
+ */
 export function conditionValueToInput(value: Json): string {
   if (value === null) return "null";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    return parseConditionValue(value) === value ? value : JSON.stringify(value);
+  }
   return JSON.stringify(value);
 }
 

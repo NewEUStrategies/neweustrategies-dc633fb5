@@ -3,6 +3,14 @@
 // jako JSONB, tutaj mieszka walidacja (Zod), defaulty i helpery client-side.
 import { z } from "zod";
 import type { ScoreBand } from "@/lib/crm/scoring";
+import {
+  filterLeadRows,
+  inferLeadSource,
+  sortLeadRows,
+  type LeadListFilterParams,
+  type LeadSortDir,
+  type LeadSortKey,
+} from "@/lib/crm/leadListSpec";
 
 /* ---------- Filtry ---------- */
 
@@ -252,23 +260,24 @@ export const BUILTIN_LEAD_VIEWS: readonly BuiltinLeadView[] = [
 
 /* ---------- Mapowanie widoku na parametry serwera ---------- */
 
-const RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
+// Każda wartość zakresu z LeadFilterSchema ma tu swój odpowiednik - typ jest
+// TOTALNY, więc nie ma obronnego „a jeśli nie ma?", którego nikt nie wykona.
+const RANGE_DAYS: Record<
+  Exclude<LeadFilter["createdRange"] | LeadFilter["activityRange"], "any">,
+  number
+> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
 
-/** Parametry listy leadów rozumiane przez listCrmLeads (crm.functions.ts). */
-export interface LeadListServerParams {
-  stage?: Exclude<LeadFilter["stage"], "any">;
-  band?: Exclude<LeadFilter["band"], "any">;
-  source?: Exclude<LeadFilter["source"], "any">;
-  country?: string;
-  company?: string;
-  consent_only?: boolean;
-  created_from?: string;
-  activity_from?: string;
-  sort: "activity" | "score" | "created" | "followUp" | "company" | "country" | "stage" | "name";
-  sort_dir: "asc" | "desc";
-}
+/**
+ * Parametry listy leadów rozumiane przez listCrmLeads (crm.functions.ts).
+ * Filtry są dokładnie tym, co opisuje `LeadListFilterSchema` - panel ustawia
+ * ich podzbiór, ale KSZTAŁT jest jeden, wspólny z serwerem.
+ */
+export type LeadListServerParams = LeadListFilterParams & {
+  sort: LeadSortKey;
+  sort_dir: LeadSortDir;
+};
 
-const SORT_KEY_TO_SERVER: Record<LeadSort["key"], LeadListServerParams["sort"]> = {
+const SORT_KEY_TO_SERVER: Record<LeadSort["key"], LeadSortKey> = {
   name: "name",
   company: "company",
   country: "country",
@@ -280,6 +289,28 @@ const SORT_KEY_TO_SERVER: Record<LeadSort["key"], LeadListServerParams["sort"]> 
 };
 
 /**
+ * Filtr widoku -> parametry filtra listy. Jedyne miejsce, które tłumaczy
+ * „ostatnie 7 dni" na konkretną datę graniczną; klient i serwer dostają tę samą
+ * datę, więc `applyLeadFilter` i SQL nie mogą się rozjechać na granicy zakresu.
+ */
+export function leadFilterToListParams(f: LeadFilter, now = Date.now()): LeadListFilterParams {
+  const params: LeadListFilterParams = {};
+  if (f.stage !== "any") params.stage = f.stage;
+  if (f.band !== "any") params.band = f.band;
+  if (f.source !== "any") params.source = f.source;
+  if (f.country) params.country = f.country;
+  if (f.company) params.company = f.company;
+  if (f.consentOnly) params.consent_only = true;
+  if (f.createdRange !== "any") {
+    params.created_from = new Date(now - RANGE_DAYS[f.createdRange] * 86_400_000).toISOString();
+  }
+  if (f.activityRange !== "any") {
+    params.activity_from = new Date(now - RANGE_DAYS[f.activityRange] * 86_400_000).toISOString();
+  }
+  return params;
+}
+
+/**
  * Tłumaczy konfigurację widoku (filtr + sort) na parametry listCrmLeads.
  * Przy paginacji serwerowej filtrowanie/sortowanie MUSI liczyć się w SQL -
  * inaczej strona i total kłamałyby o globalnym zbiorze.
@@ -288,26 +319,11 @@ export function leadViewToServerParams(
   config: LeadViewConfig,
   now = Date.now(),
 ): LeadListServerParams {
-  const f = config.filter;
-  const params: LeadListServerParams = {
+  return {
+    ...leadFilterToListParams(config.filter, now),
     sort: SORT_KEY_TO_SERVER[config.sort.key],
     sort_dir: config.sort.dir,
   };
-  if (f.stage !== "any") params.stage = f.stage;
-  if (f.band !== "any") params.band = f.band;
-  if (f.source !== "any") params.source = f.source;
-  if (f.country) params.country = f.country;
-  if (f.company) params.company = f.company;
-  if (f.consentOnly) params.consent_only = true;
-  if (f.createdRange !== "any") {
-    const days = RANGE_DAYS[f.createdRange];
-    if (days) params.created_from = new Date(now - days * 86_400_000).toISOString();
-  }
-  if (f.activityRange !== "any") {
-    const days = RANGE_DAYS[f.activityRange];
-    if (days) params.activity_from = new Date(now - days * 86_400_000).toISOString();
-  }
-  return params;
 }
 
 /* ---------- Klientowa aplikacja filtrów ---------- */
@@ -333,75 +349,25 @@ export interface LeadRowShape {
   follow_up_at: string | null;
 }
 
-function inferSource(r: LeadRowShape): "form" | "newsletter" | "import" {
-  if (r.newsletter_status) return "newsletter";
-  if ((r.source_count ?? 0) > 0) return "form";
-  return "import";
+/**
+ * Filtr widoku na TABLICY wierszy. To ta sama reguła, którą serwer zamienia na
+ * SQL - różni się wyłącznie wykonaniem (predykat zamiast zapytania). Wcześniej
+ * była tu druga, niezależna implementacja; patrz nagłówek `leadListSpec.ts`.
+ */
+export function applyLeadFilter<T extends LeadRowShape>(
+  rows: T[],
+  filter: LeadFilter,
+  now = Date.now(),
+): T[] {
+  return filterLeadRows(rows, leadFilterToListParams(filter, now));
 }
 
-export function applyLeadFilter<T extends LeadRowShape>(rows: T[], filter: LeadFilter): T[] {
-  const now = Date.now();
-  return rows.filter((r) => {
-    if (filter.stage !== "any" && r.stage !== filter.stage) return false;
-    if (filter.band !== "any" && r.score_band !== filter.band) return false;
-    if (filter.source !== "any" && inferSource(r) !== filter.source) return false;
-    if (filter.country && (r.country ?? "") !== filter.country) return false;
-    if (filter.company && (r.company ?? "") !== filter.company) return false;
-    if (filter.consentOnly && !r.marketing_consent) return false;
-    if (filter.createdRange !== "any") {
-      const d = RANGE_DAYS[filter.createdRange];
-      if (d && now - new Date(r.created_at).getTime() > d * 86_400_000) return false;
-    }
-    if (filter.activityRange !== "any") {
-      const d = RANGE_DAYS[filter.activityRange];
-      if (d && now - new Date(r.last_activity_at).getTime() > d * 86_400_000) return false;
-    }
-    return true;
-  });
-}
-
-const STAGE_ORDER: Record<LeadRowShape["stage"], number> = {
-  new: 0,
-  contacted: 1,
-  qualified: 2,
-  proposal: 3,
-  won: 4,
-  lost: 5,
-  archived: 6,
-};
-
+/**
+ * Sort widoku na TABLICY wierszy - kolumny, kierunek, miejsce NULL-i
+ * i tiebreaker bierze z tego samego opisu, co `ORDER BY` w SQL.
+ */
 export function applyLeadSort<T extends LeadRowShape>(rows: T[], sort: LeadSort): T[] {
-  const dir = sort.dir === "asc" ? 1 : -1;
-  const displayName = (r: T) =>
-    [r.first_name, r.last_name].filter(Boolean).join(" ").trim() || r.email;
-  const out = [...rows];
-  out.sort((a, b) => {
-    switch (sort.key) {
-      case "name":
-        return displayName(a).localeCompare(displayName(b)) * dir;
-      case "company":
-        return (a.company ?? "").localeCompare(b.company ?? "") * dir;
-      case "country":
-        return (a.country ?? "").localeCompare(b.country ?? "") * dir;
-      case "stage":
-        return (STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage]) * dir;
-      case "score":
-        return ((a.score ?? 0) - (b.score ?? 0)) * dir;
-      case "created":
-        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
-      case "followUp": {
-        const fa = a.follow_up_at ? new Date(a.follow_up_at).getTime() : Number.POSITIVE_INFINITY;
-        const fb = b.follow_up_at ? new Date(b.follow_up_at).getTime() : Number.POSITIVE_INFINITY;
-        return (fa - fb) * dir;
-      }
-      case "lastActivity":
-      default:
-        return (
-          (new Date(a.last_activity_at).getTime() - new Date(b.last_activity_at).getTime()) * dir
-        );
-    }
-  });
-  return out;
+  return sortLeadRows(rows, SORT_KEY_TO_SERVER[sort.key], sort.dir);
 }
 
 /* ---------- Export CSV ---------- */
@@ -437,11 +403,13 @@ export function leadRowsToCsv<T extends LeadRowShape>(
           case "stage":
             return escape(r.stage);
           case "score":
-            return escape(r.score ?? 0);
+            // `crm_leads.score` jest NOT NULL DEFAULT 0 (migracja 20260718130000),
+            // więc nie ma tu czego domykać `?? 0`.
+            return escape(r.score);
           case "band":
             return escape(r.score_band);
           case "source":
-            return escape(inferSource(r));
+            return escape(inferLeadSource(r));
           case "tags":
             return escape((r.tags ?? []).join(" | "));
           case "consent":
@@ -452,8 +420,6 @@ export function leadRowsToCsv<T extends LeadRowShape>(
             return escape(r.created_at);
           case "followUp":
             return escape(r.follow_up_at);
-          default:
-            return "";
         }
       })
       .join(","),

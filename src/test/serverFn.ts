@@ -1,99 +1,126 @@
-// Atrapa `createServerFn` z @tanstack/react-start - wspólna dla wszystkich
-// powierzchni testowych.
+// Atrapa `createServerFn` - jedyna droga do CIAŁA handlera server fn w vitest.
 //
-// DLACZEGO W OGÓLE. Server fn nie da się wywołać bez kontekstu żądania
-// frameworka, więc handler zadeklarowany przez `createServerFn().middleware(…)
-// .validator(…).handler(…)` jest z punktu widzenia testu jednostkowego
-// niedostępny. Ta atrapa ODDAJE walidator i handler zamiast budować wywoływalną
-// funkcję - dzięki temu test może podać własny `context` (klienta Supabase,
-// userId) i sprawdzić ORKIESTRACJĘ: kolejność zapytań, bramki, obsługę błędów.
+// DLACZEGO w ogóle: prawdziwa funkcja zbudowana przez `createServerFn` nie
+// daje się wywołać poza runtime'em TanStack Start. Sprawdzone, nie założone -
+// wywołanie kończy się `Error: No Start context found in AsyncLocalStorage`,
+// a obiekt nie wystawia ani `options`, ani handlera (jedyna własna właściwość
+// to `__executeServer`). Dlatego CAŁA warstwa serwerowa newslettera stała na
+// zerze: doręczalność 0/19 funkcji, zapis 0/11, panel admina 0/10 - nie było
+// jak jej dotknąć testem.
 //
-// CZEGO TA ATRAPA NIE DOWODZI. Nie dowodzi RLS-u, polityk bucketu ani
-// triggerów - te reguły egzekwuje baza i mają własne testy pgTAP w
-// `supabase/tests`. Odtwarzanie ich atrapą dałoby zieleń bez pokrycia.
-//
-// Wzorzec pochodzi z `src/lib/__tests__/categoryColorSave.test.ts` (defekt K10);
-// tu jest wyprowadzony do jednego miejsca, żeby kolejne powierzchnie nie
-// kopiowały go po raz trzeci.
+// CO ATRAPA ZASTĘPUJE, A CZEGO NIE: odtwarza łańcuch budujący
+// (`middleware -> validator -> handler`) i wywołuje handler z wstrzykniętym
+// kontekstem, więc test przechodzi przez PRAWDZIWY kod handlera - mapowanie
+// wiersza, gałęzie błędu, kształt odpowiedzi. NIE wykonuje middleware, czyli
+// nie dowodzi autoryzacji. To jest świadomy podział, nie luka:
+//   * zestaw middleware KAŻDEJ server fn pilnuje bramka statyczna
+//     `check:authz-snapshot` (src/lib/authz/authzSnapshot.generated.ts),
+//   * a `serverFnMeta()` niżej pozwala dodatkowo dowieść w teście, że dana
+//     funkcja deklaruje `requireAdminEditor`, a nie samo uwierzytelnienie.
+// Test handlera odpowiada więc na pytanie „czy logika jest poprawna", a nie
+// „czy ktoś obcy się dostanie" - i tylko tak wolno czytać jego zieleń.
+import { vi } from "vitest";
 
-export type ServerFnValidator<TData = unknown> = (input: unknown) => TData;
-export type ServerFnHandler<TData = unknown, TResult = unknown, TContext = unknown> = (ctx: {
-  data: TData;
-  context: TContext;
-}) => Promise<TResult>;
-
-export interface ServerFnSpec<TData = unknown, TResult = unknown, TContext = unknown> {
-  validator?: ServerFnValidator<TData>;
-  handler?: ServerFnHandler<TData, TResult, TContext>;
-  /** Middleware zapisane w kolejności deklaracji - do asercji, że bramka wisi. */
-  middlewares: unknown[];
+/** Kontekst, jaki middleware wstrzyknęłoby handlerowi w produkcji. */
+export interface ServerFnContext {
+  supabase: unknown;
+  userId?: string;
+  claims?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
-interface ServerFnChain {
-  middleware: (middleware: unknown[]) => ServerFnChain;
-  validator: (validator: ServerFnValidator) => ServerFnChain;
-  /** Nowsza nazwa tego samego ogniwa - część modułów już jej używa. */
-  inputValidator: (validator: ServerFnValidator) => ServerFnChain;
-  handler: (handler: ServerFnHandler) => ServerFnSpec;
+/** Metadane zapisane przez atrapę - do asercji o obudowie funkcji. */
+export interface ServerFnMeta {
+  method: string;
+  middleware: unknown[];
+  hasValidator: boolean;
+}
+
+const META = new WeakMap<object, ServerFnMeta>();
+
+let currentContext: ServerFnContext | null = null;
+
+/**
+ * Ustaw kontekst dla kolejnych wywołań server fn. Wołane w `beforeEach`.
+ * Brak kontekstu to BŁĄD testu, nie „pusty kontekst" - handler czytający
+ * `context.supabase` z `undefined` wywaliłby się komunikatem o niczym.
+ */
+export function setServerFnContext(context: ServerFnContext): void {
+  currentContext = context;
+}
+
+export function resetServerFnContext(): void {
+  currentContext = null;
+}
+
+/** Metadane server fn (method, middleware, obecność walidatora). */
+export function serverFnMeta(fn: unknown): ServerFnMeta | undefined {
+  return typeof fn === "object" || typeof fn === "function" ? META.get(fn as object) : undefined;
+}
+
+interface Builder {
+  middleware(list: unknown[]): Builder;
+  validator(fn: (data: unknown) => unknown): Builder;
+  handler(fn: (args: { data: unknown; context: ServerFnContext }) => unknown): unknown;
 }
 
 /**
- * Moduł zastępczy dla `@tanstack/react-start`. Użycie:
- *
- *   vi.mock("@tanstack/react-start", async () =>
- *     (await import("@/test/serverFn")).reactStartStub());
+ * Podmiennik `createServerFn`. Zwrócona funkcja przyjmuje `{ data }` dokładnie
+ * jak prawdziwa server fn wołana z klienta, więc test wygląda jak użycie
+ * produkcyjne - i tak samo przechodzi przez walidator (zod rzuca na złym
+ * wejściu, co jest osobnym przypadkiem testowym, nie przypadkiem brzegowym).
  */
-export function reactStartStub(): Record<string, unknown> {
-  const createServerFn = (): ServerFnChain => {
-    const spec: ServerFnSpec = { middlewares: [] };
-    const chain: ServerFnChain = {
-      middleware: (middleware) => {
-        spec.middlewares.push(...(Array.isArray(middleware) ? middleware : [middleware]));
-        return chain;
-      },
-      validator: (validator) => {
-        spec.validator = validator;
-        return chain;
-      },
-      inputValidator: (validator) => {
-        spec.validator = validator;
-        return chain;
-      },
-      handler: (handler) => {
-        spec.handler = handler;
-        return spec;
-      },
-    };
-    return chain;
+export function createServerFnMock(options?: { method?: string }): Builder {
+  const meta: ServerFnMeta = {
+    method: options?.method ?? "GET",
+    middleware: [],
+    hasValidator: false,
   };
-  return {
-    createServerFn,
-    createMiddleware: () => ({}),
-    useServerFn: <T>(fn: T) => fn,
-  };
-}
+  let validate: ((data: unknown) => unknown) | null = null;
 
-/** Rzutowanie eksportu server fn na oddany przez atrapę kształt. */
-export function asSpec<TData = unknown, TResult = unknown, TContext = unknown>(
-  exported: unknown,
-): ServerFnSpec<TData, TResult, TContext> {
-  return exported as ServerFnSpec<TData, TResult, TContext>;
+  const builder: Builder = {
+    middleware(list) {
+      meta.middleware.push(...list);
+      return builder;
+    },
+    validator(fn) {
+      validate = fn;
+      meta.hasValidator = true;
+      return builder;
+    },
+    handler(fn) {
+      const callable = async (input?: { data?: unknown }) => {
+        if (!currentContext) {
+          throw new Error(
+            "test: brak kontekstu server fn - wywołaj setServerFnContext() w beforeEach",
+          );
+        }
+        const data = validate ? validate(input?.data) : input?.data;
+        return fn({ data, context: currentContext });
+      };
+      META.set(callable, meta);
+      return callable;
+    },
+  };
+  return builder;
 }
 
 /**
- * Przejście PEŁNEJ drogi server fn: walidacja wejścia, potem handler.
+ * Gotowa fabryka modułu. Zachowuje resztę pakietu (hooki routera,
+ * `useServerFn`), podmienia wyłącznie `createServerFn` - test panelu i test
+ * server fn mogą więc współistnieć.
  *
- * Wywołanie samego handlera z gotowymi danymi omijałoby schemat Zoda, czyli
- * pierwszą bramkę - a to w niej siedzi połowa reguł (limity długości, typy
- * UUID, pułapy rozmiaru). Test ma iść tą samą drogą co żądanie.
+ * UŻYCIE (dokładnie tak - `vi.mock` jest hoistowane NAD importy, więc fabryki
+ * nie wolno podać jako zaimportowanej referencji; to kończy się
+ * `Cannot access '__vi_import_1__' before initialization`):
+ *
+ * ```ts
+ * vi.mock("@tanstack/react-start", async () =>
+ *   (await import("@/test/serverFn")).serverFnModuleMock(),
+ * );
+ * ```
  */
-export async function callServerFn<TResult = unknown, TContext = unknown>(
-  exported: unknown,
-  input: unknown,
-  context: TContext,
-): Promise<TResult> {
-  const spec = asSpec<unknown, TResult, TContext>(exported);
-  if (!spec.handler) throw new Error("test: server fn nie ma handlera");
-  const data = spec.validator ? spec.validator(input) : input;
-  return spec.handler({ data, context });
+export async function serverFnModuleMock(): Promise<Record<string, unknown>> {
+  const actual = await vi.importActual<Record<string, unknown>>("@tanstack/react-start");
+  return { ...actual, createServerFn: createServerFnMock };
 }

@@ -1,6 +1,12 @@
 // Atomy edytora popupu rejestracji. Wszystkie etykiety przychodzą z zewnątrz
 // (i18n po stronie zakładek), więc te komponenty są czysto prezentacyjne.
-import { useEffect, useState, type ReactNode } from "react";
+//
+// Etykiety są POWIĄZANE z polami przez `htmlFor`/`id`. Bez powiązania czytnik
+// ekranu nie ogłasza nazwy pola - operator korzystający z czytnika słyszy
+// „pole edycji" i musi zgadywać, które to z kilkunastu pokrętek zakładki.
+// Identyfikatory pochodzą z `useId`, więc dwie instancje tej samej kontrolki na
+// jednym ekranie (np. paleta ciemna i jasna) nie kolidują.
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,10 +56,12 @@ export function TextRow({
   hint?: string;
   maxLength?: number;
 }) {
+  const id = useId();
   return (
     <div className="min-w-0">
-      <Label>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       <Input
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -139,6 +147,7 @@ export function BilingualRow({
   multiline?: boolean;
   rows?: number;
 }) {
+  const groupId = useId();
   return (
     <div className="space-y-1">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -149,11 +158,12 @@ export function BilingualRow({
           ] as const
         ).map((f) => (
           <div key={f.code} className="min-w-0">
-            <Label>
+            <Label htmlFor={`${groupId}-${f.code}`}>
               {label} ({f.code})
             </Label>
             {multiline ? (
               <Textarea
+                id={`${groupId}-${f.code}`}
                 rows={rows}
                 value={f.value}
                 onChange={(e) => f.onChange(e.target.value)}
@@ -161,6 +171,7 @@ export function BilingualRow({
               />
             ) : (
               <Input
+                id={`${groupId}-${f.code}`}
                 value={f.value}
                 onChange={(e) => f.onChange(e.target.value)}
                 placeholder={f.placeholder}
@@ -203,10 +214,12 @@ export function NumberRow({
 
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
 
+  const id = useId();
   return (
     <div className="min-w-0">
-      <Label>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       <Input
+        id={id}
         type="number"
         inputMode="numeric"
         min={min}

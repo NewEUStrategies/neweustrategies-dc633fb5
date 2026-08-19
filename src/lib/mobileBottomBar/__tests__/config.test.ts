@@ -9,6 +9,7 @@ import {
   clampOffset,
   clampRadius,
   itemAccent,
+  newBottomBarItem,
   normalizeBadgeSource,
   safeBarColor,
   visibleBottomBarItems,
@@ -206,5 +207,40 @@ describe("mobileBottomBar - kontrakt domyślnego paska", () => {
     expect(byId.chats).toBe("chat");
     expect(byId.network).toBe("network");
     expect(byId.home).toBe("none");
+  });
+});
+
+describe("newBottomBarItem - pozycja dodawana w panelu", () => {
+  it("dostaje UNIKALNY identyfikator w tej samej milisekundzie", () => {
+    // Administrator klika „+" kilka razy pod rząd. Identyfikator wchodzi do
+    // klucza Reacta i do dopasowania aktywnej pozycji, więc duplikat oznaczałby
+    // dwie pozycje nie do rozróżnienia i podświetlenie na złej ikonie.
+    const a = newBottomBarItem(0);
+    const b = newBottomBarItem(1);
+    expect(a.id).not.toBe(b.id);
+    expect(a.id.startsWith("item-")).toBe(true);
+  });
+
+  it("nowa pozycja jest OD RAZU poprawna: włączona, z adresem i kolorami", () => {
+    const item = newBottomBarItem(0);
+    expect(item).toMatchObject({ enabled: true, href: "/", icon: "circle", badge: "none" });
+    // Kolory na oba motywy - wybór należy do kaskady CSS, nie do JS.
+    expect(safeBarColor(item.color, "#000")).toBe(item.color);
+    expect(safeBarColor(item.color_dark, "#000")).toBe(item.color_dark);
+  });
+
+  it("nowa pozycja przechodzi przez filtr widoczności paska", () => {
+    // Gdyby nie przechodziła, dodanie pozycji w panelu nie dawałoby żadnego
+    // efektu na telefonie - a panel pokazywałby ją jako dodaną.
+    const item = newBottomBarItem(0);
+    const visible = visibleBottomBarItems({ ...MOBILE_BOTTOM_BAR_DEFAULTS, items: [item] });
+    expect(visible).toHaveLength(1);
+    expect(visible[0].href).toBe("/");
+  });
+
+  it("ma etykiety w obu językach - żaden telefon nie zobaczy pustej pozycji", () => {
+    const item = newBottomBarItem(0);
+    expect(bottomBarLabel(item, "pl")).toBe("Nowa pozycja");
+    expect(bottomBarLabel(item, "en")).toBe("New item");
   });
 });

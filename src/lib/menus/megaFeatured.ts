@@ -45,7 +45,7 @@ const EMPTY_AUTHOR: Pick<
   author_avatar_url: null,
 };
 
-async function fetchMegaFeatured(postId: string | null): Promise<MegaFeaturedPost | null> {
+export async function fetchMegaFeatured(postId: string | null): Promise<MegaFeaturedPost | null> {
   const raw = await fetchRawMegaFeatured(postId);
   if (!raw) return null;
   const author = raw.author_id ? await fetchAuthor(raw.author_id) : EMPTY_AUTHOR;

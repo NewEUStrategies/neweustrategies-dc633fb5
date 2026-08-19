@@ -19,25 +19,19 @@ import { formatNumber } from "@/lib/i18n/format";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
+import {
+  csvFileName,
+  filterSubscribers,
+  isFetchCapped,
+  subscribersToCsv,
+  SUBSCRIBER_FETCH_CAP,
+  type LanguageFilter,
+  type StatusFilter,
+  type SubscriberRow,
+} from "./subscribers/subscriberTable";
 
 import { confirmDialog } from "@/lib/appDialogs";
-interface SubRow {
-  id: string;
-  email: string;
-  display_name: string | null;
-  language: string;
-  status: string;
-  source: string | null;
-  created_at: string;
-  confirmed_at: string | null;
-}
-
-type StatusFilter = "all" | "subscribed" | "pending" | "unsubscribed";
-
-// Newest N rows are fetched client-side for the table, filters and CSV export.
-// When the cap is hit the list/export may be incomplete, so we warn instead of
-// truncating silently (full server-side pagination is a larger follow-up).
-const SUBSCRIBER_FETCH_CAP = 5000;
+type SubRow = SubscriberRow;
 
 export function SubscribersPanel() {
   const qc = useQueryClient();
@@ -45,7 +39,7 @@ export function SubscribersPanel() {
   ensureNewsletterAdminI18n();
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [lang, setLang] = useState<"all" | "pl" | "en">("all");
+  const [lang, setLang] = useState<LanguageFilter>("all");
   const [importOpen, setImportOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
@@ -62,49 +56,17 @@ export function SubscribersPanel() {
     },
   });
 
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return (subs ?? []).filter((s) => {
-      if (status !== "all" && s.status !== status) return false;
-      if (lang !== "all" && s.language !== lang) return false;
-      if (
-        term &&
-        !s.email.toLowerCase().includes(term) &&
-        !(s.display_name ?? "").toLowerCase().includes(term)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [subs, q, status, lang]);
+  const filtered = useMemo(
+    () => filterSubscribers(subs ?? [], { q, status, lang }),
+    [subs, q, status, lang],
+  );
 
   const exportCsv = () => {
-    const head = [
-      "email",
-      "display_name",
-      "language",
-      "status",
-      "source",
-      "created_at",
-      "confirmed_at",
-    ] as const;
-    const csv = [head.join(",")]
-      .concat(
-        filtered.map((r) =>
-          head
-            .map((k) => {
-              const v = String((r as unknown as Record<string, string | null>)[k] ?? "");
-              return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-            })
-            .join(","),
-        ),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([subscribersToCsv(filtered)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `newsletter-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = csvFileName(new Date().toISOString());
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -176,7 +138,7 @@ export function SubscribersPanel() {
       </header>
       <ImportCsvDialog open={importOpen} onOpenChange={setImportOpen} />
 
-      {subs && subs.length >= SUBSCRIBER_FETCH_CAP && (
+      {subs && isFetchCapped(subs.length) && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
           {t("adminNewsletter.subscribers.capWarning", {
             count: formatNumber(SUBSCRIBER_FETCH_CAP, i18n.language),

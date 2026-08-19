@@ -40,8 +40,8 @@ import {
   type MyOrganization,
 } from "@/lib/billing/membership";
 import { formatMoney } from "@/lib/billing/types";
-import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
-import { SubscriptionManagerSection } from "@/components/billing/SubscriptionManagerSection";
+import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
+import { SubscriptionManagerSection } from "@/components/billing/organisms/SubscriptionManagerSection";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensureMembershipI18n } from "@/lib/i18n-membership";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";

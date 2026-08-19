@@ -6,6 +6,7 @@ import { Columns3, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { requiredColumns, toggleColumn } from "@/lib/crm/columnSelection";
 import { LEAD_COLUMNS, DEFAULT_LEAD_VIEW_CONFIG } from "@/lib/crm/leadViews";
 import type { LeadColumnKey } from "@/lib/crm/leadViews";
 
@@ -18,12 +19,10 @@ interface Props {
 export function LeadColumnManager({ lang, active, onChange }: Props) {
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const set = new Set(active);
+  // Reguła przełączania (kolejność semantyczna, kolumna wymagana, brak pustej
+  // tabeli) jest wspólna z drugim menedżerem kolumn - lib/crm/columnSelection.
   const toggle = (key: LeadColumnKey) => {
-    if (key === "name") return; // required
-    const next = LEAD_COLUMNS.filter((c) => (c.key === key ? !set.has(key) : set.has(c.key))).map(
-      (c) => c.key,
-    );
-    onChange(next.length ? next : ["name"]);
+    onChange(toggleColumn(LEAD_COLUMNS, active, key, requiredColumns(LEAD_COLUMNS)));
   };
   return (
     <Popover>
