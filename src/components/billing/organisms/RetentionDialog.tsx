@@ -275,13 +275,15 @@ export function RetentionDialog({
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 text-center">
               <BadgePercent className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
               <p className="mt-2 text-lg font-semibold">
+                {/* `count` (nie `periods`) - po tej zmiennej i18next wybiera
+                    formę liczebnika, a polski ma ich trzy. */}
                 {t("retention.offer.body", {
                   pct: settings.discount_pct,
-                  periods: settings.discount_periods,
+                  count: settings.discount_periods,
                 })}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {t("retention.offer.hint", { days: settings.coupon_valid_days })}
+                {t("retention.offer.hint", { count: settings.coupon_valid_days })}
               </p>
             </div>
             {offerBlocked && (
@@ -329,7 +331,7 @@ export function RetentionDialog({
               <DialogDescription>
                 {t("retention.accepted.body", {
                   pct: accepted.discountPct,
-                  periods: accepted.discountPeriods,
+                  count: accepted.discountPeriods,
                   date: fmtDate(accepted.validUntil),
                 })}
               </DialogDescription>

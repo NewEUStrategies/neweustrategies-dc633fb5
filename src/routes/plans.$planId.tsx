@@ -140,7 +140,7 @@ function PlanDetailsPage() {
           <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
         </div>
         {plan.trial_days > 0 && (
-          <p className="text-sm text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>
+          <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">
           <Button asChild size="lg">

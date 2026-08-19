@@ -184,9 +184,10 @@ describe("RetentionDialog - kontrofertka na drodze wyjścia", () => {
     clickKey("retention.continue");
 
     await waitFor(() =>
-      expect(screen.getByText('retention.offer.body {"pct":25,"periods":2}')).toBeTruthy(),
+      expect(screen.getByText('retention.offer.body {"pct":25,"count":2}')).toBeTruthy(),
     );
-    expect(screen.getByText('retention.offer.hint {"days":7}')).toBeTruthy();
+    // `count`, nie `days` - po tej zmiennej i18next wybiera formę liczebnika.
+    expect(screen.getByText('retention.offer.hint {"count":7}')).toBeTruthy();
   });
 
   // TO JEST TEST Z DEFINICJI UKOŃCZENIA.

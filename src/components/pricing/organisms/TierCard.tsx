@@ -351,7 +351,7 @@ export function TierCard({
           <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
           {plan && plan.trial_days > 0 && (
             <p className="mt-1 text-xs text-primary">
-              {t("pricing.trial", { days: plan.trial_days })}
+              {t("pricing.trial", { count: plan.trial_days })}
             </p>
           )}
         </div>

@@ -150,7 +150,7 @@ describe("TierCard - CENA, którą widzi klient", () => {
   it("OKRES PRÓBNY planu jest ogłoszony z liczbą dni", () => {
     renderCard({ plans: [accessPlan({ id: "p", interval: "month", trial_days: 14 })] });
 
-    expect(screen.getByText(/pricing\.trial/)).toHaveTextContent('"days":14');
+    expect(screen.getByText(/pricing\.trial/)).toHaveTextContent('"count":14');
   });
 
   it("plan bez okresu próbnego nie pokazuje pustej obietnicy", () => {

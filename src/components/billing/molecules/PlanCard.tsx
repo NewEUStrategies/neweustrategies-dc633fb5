@@ -61,7 +61,7 @@ export function PlanCard({
           </span>
         </div>
         {plan.trial_days > 0 && (
-          <p className="text-xs text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>
+          <p className="text-xs text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
       </CardHeader>
       <CardContent className="flex-1">

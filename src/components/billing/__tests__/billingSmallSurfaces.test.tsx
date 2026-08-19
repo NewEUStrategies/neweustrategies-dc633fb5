@@ -368,8 +368,8 @@ describe("PlanCard", () => {
   it("okres próbny jest komunikowany liczbą dni z planu", () => {
     renderWithQueryClient(<PlanCard plan={accessPlan({ trial_days: 14 })} />);
 
-    expect(screen.getByText('pricing.trial {"days":14}')).toBeTruthy();
-    expect(screen.queryByText('pricing.trial {"days":0}')).toBeNull();
+    expect(screen.getByText('pricing.trial {"count":14}')).toBeTruthy();
+    expect(screen.queryByText('pricing.trial {"count":0}')).toBeNull();
   });
 
   it("PLAN JUŻ POSIADANY nie proponuje kupna - przycisk jest wyłączony", () => {

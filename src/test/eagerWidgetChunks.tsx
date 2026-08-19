@@ -83,3 +83,10 @@ export { PricingPlansView } from "@/components/builder/organisms/widget-view/Pri
 export { DynamicTagWidget } from "@/components/builder/organisms/widget-view/DynamicTagWidgets";
 export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/GalleryLightbox";
 export { Editable } from "@/components/builder/molecules/Editable";
+// Dodane 19.08.2026: oba widgety były w `lazyWidgets`, a nie w tym lustrze, więc
+// bramka wierności ustawień (`eagerWidgetChunks.test.ts`) była CZERWONA jeszcze
+// przed pracą nad monetyzacją - sprawdzone na commicie bazowym gałęzi. Defekt
+// należy do modułu kreatora, nie do monetyzacji; uzupełnienie jest tu wyłącznie
+// dlatego, że bez niego cały zestaw testów nie może być zielony.
+export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
+export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";

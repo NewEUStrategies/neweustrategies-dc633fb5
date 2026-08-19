@@ -15,6 +15,7 @@
 // formatowanie kwoty i odmiana okresu należą do warstwy prezentacji i do
 // słownika (patrz `lib/i18n/format`). Dzięki temu ta reguła jest jedna dla obu
 // języków, a testy nie zależą od ICU.
+import { intervalLabelKey } from "@/lib/billing/intervalLabel";
 import type { AccessPlan } from "@/lib/billing/types";
 import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
 import {
@@ -29,20 +30,14 @@ import {
 
 // --- BLOK CENY --------------------------------------------------------------
 
-/** Klucz sufiksu okresu w słowniku cennika (`pricing.perMonth` itd.). */
-const INTERVAL_SUFFIX_KEY: Record<AccessPlan["interval"], string> = {
-  day: "pricing.perDay",
-  week: "pricing.perWeek",
-  two_weeks: "pricing.perTwoWeeks",
-  month: "pricing.perMonth",
-  quarter: "pricing.perQuarter",
-  year: "pricing.perYear",
-  one_time: "pricing.perOnce",
-};
-
-/** Sufiks okresu jako KLUCZ, nie napis - odmiana należy do słownika. */
+/**
+ * Sufiks okresu jako KLUCZ, nie napis - odmiana należy do słownika. Mapa jest
+ * jedna dla całego serwisu (`lib/billing/intervalLabel`): karta planu, strona
+ * szczegółów planu i checkout czytają tę samą, więc cykl nie może się nazywać
+ * inaczej w cenniku niż w podsumowaniu zakupu.
+ */
 export function intervalSuffixKey(interval: AccessPlan["interval"]): string {
-  return INTERVAL_SUFFIX_KEY[interval];
+  return intervalLabelKey(interval);
 }
 
 export type PriceDisplay =
