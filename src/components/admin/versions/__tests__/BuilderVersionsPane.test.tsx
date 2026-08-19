@@ -138,14 +138,14 @@ describe("documentForWidget", () => {
     const doc = documentForWidget({
       type: "heading",
       content: { text_pl: "x" },
-      style: { align: "center" },
+      style: { align: { desktop: "center" } },
       advanced: { cssClass: "top" },
     });
     const column = doc.sections[0].children[0] as unknown as {
       children: Record<string, unknown>[];
     };
     expect(column.children[0]).toMatchObject({
-      style: { align: "center" },
+      style: { align: { desktop: "center" } },
       advanced: { cssClass: "top" },
     });
   });
