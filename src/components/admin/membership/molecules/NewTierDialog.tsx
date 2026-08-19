@@ -119,7 +119,3 @@ export function NewTierDialog({
     </Dialog>
   );
 }
-
-// ---------------------------------------------------------------------------
-// UI primitives lokalne dla tej strony - spójne z /admin/paywall (KPI, sekcje,
-// grupy pól). Nie eksportowane - używane wyłącznie tutaj.

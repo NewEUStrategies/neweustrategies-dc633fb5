@@ -227,20 +227,33 @@ export function radixTabsStub(react: typeof import("react")): Record<string, unk
   }>({ value: "" });
 
   return {
+    // Radix obsługuje OBA tryby: sterowany (`value` + `onValueChange`) i
+    // niesterowany (`defaultValue` i stan wewnątrz). Panele monetyzacji używają
+    // obu - panel rozliczeń trzyma zakładkę w stanie strony, panele cennika
+    // i członkostwa zostawiają ją komponentowi - więc atrapa musi umieć oba.
     Tabs: ({
       value,
+      defaultValue,
       onValueChange,
       children,
     }: {
-      value: string;
+      value?: string;
+      defaultValue?: string;
       onValueChange?: (next: string) => void;
       children?: unknown;
-    }) =>
-      react.createElement(
+    }) => {
+      const [internal, setInternal] = react.useState(defaultValue ?? "");
+      const active = value ?? internal;
+      const change = (next: string) => {
+        if (value === undefined) setInternal(next);
+        onValueChange?.(next);
+      };
+      return react.createElement(
         TabsContext.Provider,
-        { value: { value, onValueChange } },
+        { value: { value: active, onValueChange: change } },
         children as never,
-      ),
+      );
+    },
     TabsList: ({ children }: { children?: unknown }) =>
       react.createElement("div", { role: "tablist" }, children as never),
     TabsTrigger: ({ value, children }: { value: string; children?: unknown }) => {
