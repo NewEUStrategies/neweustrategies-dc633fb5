@@ -82,12 +82,16 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: unknown }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href: to }, children as never);
-  },
-}));
+// Fabryka jest asynchroniczna, bo `vi.mock` jest hoistowany ponad importy -
+// `require()` obchodziło to kiedyś kosztem błędu reguły
+// `@typescript-eslint/no-require-imports` (blokująca bramka `bun run lint`).
+vi.mock("@tanstack/react-router", async () => {
+  const { createElement } = await import("react");
+  return {
+    Link: ({ to, children }: { to: string; children?: unknown }) =>
+      createElement("a", { href: to }, children as never),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: {
