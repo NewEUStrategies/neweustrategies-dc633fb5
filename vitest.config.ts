@@ -563,6 +563,20 @@ export default defineConfig({
         // zbiorczego, bo `PolicyPositionsMap.tsx` (217 linii, mapa stanowisk
         // państw) jest poza tą porcją - wspólny próg musiałby być floorowany
         // pod jego zerem i nie pilnowałby niczego.
+        // Mapa stanowisk państw w dossier. Jedyny wykres modułu kodujący dane
+        // KOLOREM, więc pod bramką stoi reguła z nagłówka pliku: tooltip nigdy
+        // nie jest jedyną drogą do danych - pełne wartości niesie przełączana
+        // tabela, a kraje ze stanowiskiem są osiągalne z klawiatury. Druga
+        // rzecz: porządek tabeli (za -> przeciw -> podzielone -> brak, dalej
+        // alfabetycznie W JĘZYKU STRONY) niesie sens polityczny, a `localeCompare`
+        // bez locale stawia „Łotwę" za „Węgrami". Instrukcje poniżej 100% to dwa
+        // obronne `return` przy braku geometrii SVG.
+        "src/components/tracker/PolicyPositionsMap.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
         "src/components/tracker/TrackerFeedLink.tsx": {
           statements: 100,
           functions: 100,
