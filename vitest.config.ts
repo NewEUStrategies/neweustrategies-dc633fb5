@@ -740,6 +740,18 @@ export default defineConfig({
         // `ticketDocument` skleja HTML z danych z bazy i formularza, a plik ląduje
         // na dysku człowieka i otwiera się BEZ naszego CSP. Ucieczka znaków jest
         // jedyną barierą, więc trzymamy go pod 100% na wszystkich metrykach.
+        // Dialog profilu prelegenta. Dwie reguły pod bramką: okno NIGDY nie jest
+        // puste (dane awaryjne z kafelka, gdy profilu w bazie brak) oraz oba
+        // zapytania ŚPIĄ przy zamkniętym oknie - agenda montuje ten dialog raz
+        // na prelegenta, więc bez `enabled` wydarzenie z 30 nazwiskami odpalałoby
+        // 60 równoległych zapytań. Instrukcje poniżej 100% to gałęzie formatowania
+        // daty dla ustawień regionalnych, których happy-dom nie odtwarza.
+        "src/components/events/SpeakerProfileDialog.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
         "src/components/community/ticketDocument.ts": {
           statements: 100,
           functions: 100,
@@ -786,6 +798,20 @@ export default defineConfig({
         // paintem, a strona nie może skakać, gdy iframe wreszcie wjedzie. Takich
         // własności nie sprawdzi się okiem, więc próg pilnuje ich zamiast
         // przeglądu kodu.
+        // Tło strony /quiz. Cała wartość tego pliku to jedna oszczędność: wariant
+        // PRZECIWNEGO motywu nigdy nie trafia do DOM (cztery pliki po kilkaset kB
+        // w trzech formatach). Zamiana warunku na dwa `<picture>` z `dark:opacity-0`
+        // wygląda identycznie i podwaja transfer na wejściu w quiz - a to jest
+        // ruch kampanijny, w większości mobilny. Pod bramką jest też ustąpienie
+        // parallaxu przy `prefers-reduced-motion`: ruchome tło przy przewijaniu
+        // wywołuje mdłości u części osób. Instrukcje poniżej 100% to dwa obronne
+        // `return` (brak `document` w SSR, brak `ref`), nieosiągalne z testu DOM.
+        "src/components/quiz/QuizBackground.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
         "src/components/quiz/LazyQuizIframe.tsx": {
           statements: 92,
           functions: 100,
