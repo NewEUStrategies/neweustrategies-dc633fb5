@@ -258,7 +258,19 @@ obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jedn
 | Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  25,0% | 20,8% |   28,8% | **26,6%** |    38/132 |
 | Wyszukiwarka: indeks i zapytania             |     10 |        500 |  49,6% | 52,2% |   55,9% | **50,8%** |    57/102 |
 
-### MODUŁ 7 — Typy treści specjalne · linie 16,47% · funkcje 14,60%
+### MODUŁ 7 — Typy treści specjalne · linie 16,47% → **100%** · funkcje 14,60% → **100%**
+
+> **ZAKTUALIZOWANE 19.08.2026** (branch `claude/module-7-test-coverage-jbe28y`, PR #257). Liczby
+> w tabeli poniżej to STAN Z AUDYTU, zachowany jako punkt odniesienia. Stan po pracy testowej i
+> pełne uzasadnienie każdego przypadku: `docs/WDROZENIE_MODUL7_TESTY_2026-08-18.md`.
+>
+> Skrót: **moduł jest domknięty - 100% linii i 100% funkcji na wszystkich 67 plikach**
+> (99,02% instrukcji, 93,13% gałęzi, 1 238 testów). Żadna funkcjonalność nie stoi na zerze i żaden
+> plik nie ma zerowego pokrycia. Tura I zdjęła warstwę reguł, loaderów i serwerową (moduł na
+> 70,83%); tura II domknęła sześć dużych plików interfejsu - `ExpertLayoutRenderer` (1134 linie),
+> `ExpertLayoutInlineEditor` (565), `PolicyPositionsMap` (289), `SpeakerProfileDialog` (278),
+> `ExpertMaterialsExplorer` (276), `QuizBackground` (180) - oraz trzy pliki-deklaracje server
+> functions. Moduł ma 31 własnych progów per-ścieżka w `vitest.config.ts`.
 
 | Funkcjonalność                   | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
@@ -1140,7 +1152,7 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 - **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
 - **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
-- **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
+- ~~**MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109~~ → **100% / 100%**, plików 0%: **0** (19.08.2026, `WDROZENIE_MODUL7_TESTY_2026-08-18.md`)
 - **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 44,12%, funkcje 41,02%, plików 0%: 13/28
 - **MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy**: linie 22,55%, funkcje 15,28%, plików 0%: 19/38

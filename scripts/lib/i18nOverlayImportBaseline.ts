@@ -67,7 +67,11 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/experts/ExpertInTheNews.tsx", 1],
   ["src/components/experts/ExpertMaterialCard.tsx", 1],
   ["src/components/experts/ExpertMaterialsExplorer.tsx", 18],
-  ["src/components/files/DocumentViewerBody.tsx", 11],
+  // 18.08.2026: 11 -> 4. Komunikaty podglądu przeniosły się do atomu
+  // `components/files/atoms/ViewerNotice.tsx` (klucze przychodzą deskryptorem
+  // z `lib/files/viewerState`), więc organizm sięga po własnym kluczu już
+  // tylko w czterech miejscach. Ratchet wolno wyłącznie obniżać.
+  ["src/components/files/DocumentViewerBody.tsx", 4],
   ["src/components/mobile/bottomBar/MobileBottomBarView.tsx", 1],
   ["src/components/molecules/LegalRetentionNotice.tsx", 3],
   ["src/components/newsletter/NewsletterSubscribedPanel.tsx", 14],

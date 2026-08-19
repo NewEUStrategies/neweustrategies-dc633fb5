@@ -65,8 +65,20 @@ export async function parseSpreadsheet(buffer: ArrayBuffer): Promise<SheetResult
   });
 }
 
-function textOf(node: Element, selector: string): string[] {
-  return Array.from(node.querySelectorAll(selector))
+/**
+ * Przebiegi tekstu w węźle, po NAZWIE KWALIFIKOWANEJ.
+ *
+ * Było tu `querySelectorAll(selector)` z gołą nazwą lokalną („t"), co jest
+ * niespójne z resztą pliku - `parsePptx` i `slideNotes` sięgają po
+ * `getElementsByTagName("a:p")` / `("a:t")`. Selektor typu bez prefiksu
+ * dopasowuje po nazwie lokalnej tylko w implementacji zgodnej ze specyfikacją
+ * Selectors; przeglądarki to robią, ale nie każdy silnik DOM (np. happy-dom
+ * zwraca zero trafień), więc funkcja po cichu spadała na `textContent` całego
+ * akapitu. Dla prostych slajdów wynik jest ten sam, ale przy akapicie
+ * z tekstem spoza przebiegów `a:t` - już nie.
+ */
+function textOf(node: Element, tagName: string): string[] {
+  return Array.from(node.getElementsByTagName(tagName))
     .map((el) => el.textContent ?? "")
     .filter((value) => value.trim() !== "");
 }
@@ -94,7 +106,7 @@ export async function parsePptx(buffer: ArrayBuffer): Promise<SlideResult[]> {
     const doc = parser.parseFromString(xml, "application/xml");
 
     const paragraphs = Array.from(doc.getElementsByTagName("a:p"))
-      .map((p) => textOf(p, "t").join("") || (p.textContent ?? ""))
+      .map((p) => textOf(p, "a:t").join("") || (p.textContent ?? ""))
       .map((line) => line.replace(/\s+/g, " ").trim())
       .filter((line) => line !== "");
 

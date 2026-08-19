@@ -157,4 +157,34 @@ describe("ExpertRequestButton - macierz", () => {
     );
     expect(screen.getByText("expertRequest.ctaShort")).toBeInTheDocument();
   });
+
+  it("wariant ikonowy: bez etykiety i bez licznika w tresci przycisku", () => {
+    // Gesty pasek akcji na profilu - pelna informacja o puli przenosi sie do
+    // tooltipa, zeby przycisk nie rozpychal wiersza.
+    h.quota = { data: quotaFor({ quota: 3, remaining: 2 }), isPending: false };
+    renderWithQueryClient(
+      <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
+    );
+    const button = screen.getByRole("button", { name: /expertRequest.cta/ });
+    expect(button).toHaveTextContent("");
+    expect(screen.queryByText("2/3")).not.toBeInTheDocument();
+  });
+
+  it("wariant ikonowy z WYCZERPANA pula dostaje kropke ostrzegawcza", () => {
+    // Jedyny sygnal wyczerpania w tym wariancie: bez niej uzytkownik klika
+    // i dopiero dialog mowi mu, ze puli nie ma.
+    h.quota = { data: quotaFor({ quota: 3, remaining: 0 }), isPending: false };
+    const { container } = renderWithQueryClient(
+      <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
+    );
+    expect(container.querySelector("span.bg-amber-500")).toBeInTheDocument();
+  });
+
+  it("wariant ikonowy z wolna pula NIE pokazuje kropki", () => {
+    h.quota = { data: quotaFor({ quota: 3, remaining: 1 }), isPending: false };
+    const { container } = renderWithQueryClient(
+      <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
+    );
+    expect(container.querySelector("span.bg-amber-500")).toBeNull();
+  });
 });
