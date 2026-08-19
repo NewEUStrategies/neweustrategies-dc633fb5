@@ -66,6 +66,8 @@ describe("libraryItemId - stabilny identyfikator karty", () => {
     const item = { type: "heading", icon: "Heading", labelPl: "a", labelEn: "b", group: "content" };
 
     expect(libraryItemId(item as WidgetLibraryItem)).toBe("heading");
+    // Identyfikator nie może być pusty - to on jest kluczem karty w bibliotece.
+    expect(libraryItemId(item as WidgetLibraryItem)).toBeTruthy();
   });
 
   it("własny identyfikator wygrywa - to on rozróżnia PRESETY tego samego typu", () => {
@@ -79,6 +81,9 @@ describe("libraryItemId - stabilny identyfikator karty", () => {
     };
 
     expect(libraryItemId(item as WidgetLibraryItem)).toBe("field.firstName");
+    // Bez tego dwa presety `field.text` miałyby ten sam klucz i React
+    // pokazywałby jedną kartę zamiast dwóch.
+    expect(libraryItemId(item as WidgetLibraryItem)).not.toBe(item.type);
   });
 
   it("identyfikatory kart są UNIKALNE - duplikat gubi kartę w bibliotece", () => {
@@ -154,10 +159,12 @@ describe("widgetsForContext - co widać w której bibliotece", () => {
 
   it("filtrowanie nie mutuje rejestru", () => {
     const before = WIDGET_REGISTRY.length;
+    const snapshot = WIDGET_REGISTRY.map((i) => i.type);
 
     widgetsForContext("popup");
     widgetsForContext("newsletter");
 
     expect(WIDGET_REGISTRY).toHaveLength(before);
+    expect(WIDGET_REGISTRY.map((i) => i.type)).toEqual(snapshot);
   });
 });

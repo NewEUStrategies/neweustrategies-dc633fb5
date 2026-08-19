@@ -55,7 +55,10 @@ describe("etykiety bloków", () => {
   });
 
   it("typ nieznany palecie oddaje NULL, a nie pusty napis", () => {
+    // Pusty napis trafiłby do `t()` i wyrenderował się jako pusta etykieta,
+    // zamiast dać panelowi szansę na własny opis awaryjny.
     expect(rules.blockLabelKey("nie-ma-takiego" as never)).toBeNull();
+    expect(rules.blockLabelKey("nie-ma-takiego" as never)).not.toBe("");
   });
 });
 
@@ -101,6 +104,8 @@ describe("dodawanie, aktualizacja i usuwanie bloków", () => {
     const blocks = [block("heading", "a")];
 
     expect(rules.removeBlock(blocks, "nie-ma").map((b) => b.id)).toEqual(["a"]);
+    // Wejście zostaje nietknięte - reguła oddaje nową tablicę.
+    expect(blocks).toHaveLength(1);
   });
 });
 
@@ -167,10 +172,13 @@ describe("przestawianie bloków", () => {
 
   it("blok przenoszony w dół zajmuje pozycję celu", () => {
     expect(rules.reorderBlocks(blocks, "a", "c")!.map((b) => b.id)).toEqual(["b", "c", "a"]);
+    // Liczba bloków się nie zmienia - przeniesienie to nie kopiowanie.
+    expect(rules.reorderBlocks(blocks, "a", "c")).toHaveLength(blocks.length);
   });
 
   it("blok przenoszony w górę też trafia na pozycję celu", () => {
     expect(rules.reorderBlocks(blocks, "c", "a")!.map((b) => b.id)).toEqual(["c", "a", "b"]);
+    expect(blocks.map((b) => b.id)).toEqual(["a", "b", "c"]);
   });
 
   it("upuszczenie POZA listą oddaje NULL - nie zapisujemy nowego stanu bez zmiany", () => {
@@ -179,7 +187,10 @@ describe("przestawianie bloków", () => {
   });
 
   it("upuszczenie NA SIEBIE oddaje NULL", () => {
+    // `null` znaczy „nie ma czego zapisywać" - nowa tablica o tej samej treści
+    // wywołałaby zapis dokumentu i oznaczyłaby kampanię jako zmienioną.
     expect(rules.reorderBlocks(blocks, "a", "a")).toBeNull();
+    expect(rules.reorderBlocks(blocks, "a", "a")).not.toEqual([]);
   });
 
   it("nieznany blok źródłowy lub docelowy oddaje NULL", () => {
@@ -208,6 +219,7 @@ describe("klucz doboru wpisów dla podglądu", () => {
     const doc = docWith([block("heading", "h")]);
 
     expect(rules.postListSelectors(doc)).toEqual([]);
+    expect(rules.postListSelectors(doc)).toHaveLength(0);
   });
 
   it("zmiana KATEGORII zmienia klucz - inaczej podgląd pokazywałby stare wpisy", () => {
@@ -217,6 +229,8 @@ describe("klucz doboru wpisów dla podglądu", () => {
     expect(JSON.stringify(rules.postListSelectors(a))).not.toBe(
       JSON.stringify(rules.postListSelectors(b)),
     );
+    // Oba dokumenty mają JEDEN blok listy - różni je tylko kategoria.
+    expect(rules.postListSelectors(a)).toHaveLength(1);
   });
 
   it("zmiana LICZBY, TRYBU i ręcznych identyfikatorów też zmienia klucz", () => {
@@ -233,6 +247,8 @@ describe("klucz doboru wpisów dla podglądu", () => {
     const b = docWith([postList({ id: "p", heading: { pl: "Zupełnie inny", en: "Different" } })]);
 
     expect(rules.postListSelectors(a)).toEqual(rules.postListSelectors(b));
+    // Klucz nie jest pusty - inaczej równość nic by nie znaczyła.
+    expect(rules.postListSelectors(a)).toHaveLength(1);
   });
 
   it("zmiana UKŁADU i zapowiedzi też nie zmienia klucza", () => {
@@ -240,6 +256,7 @@ describe("klucz doboru wpisów dla podglądu", () => {
     const b = docWith([postList({ id: "p", layout: "cards", showExcerpt: false })]);
 
     expect(rules.postListSelectors(a)).toEqual(rules.postListSelectors(b));
+    expect(rules.postListSelectors(a)).toHaveLength(1);
   });
 });
 
@@ -268,10 +285,14 @@ describe("limity liczbowe", () => {
 describe("ręczny wybór wpisów", () => {
   it("wpis nieobecny na liście jest DOKŁADANY", () => {
     expect(rules.togglePostId(["a"], "b")).toEqual(["a", "b"]);
+    // Na końcu, nie na początku - kolejność zaznaczania jest kolejnością w mailu.
+    expect(rules.togglePostId([], "b")).toEqual(["b"]);
   });
 
   it("wpis obecny jest ZDEJMOWANY", () => {
     expect(rules.togglePostId(["a", "b"], "a")).toEqual(["b"]);
+    // Zdjęcie ostatniego daje pustą listę, a nie listę z pustym wpisem.
+    expect(rules.togglePostId(["a"], "a")).toEqual([]);
   });
 
   it("ponad limit 10 lista jest UCINANA, a nie odrzucana po cichu przy zapisie", () => {
@@ -295,9 +316,10 @@ describe("ręczny wybór wpisów", () => {
   it("przełączanie nie mutuje wejścia", () => {
     const selected = ["a"];
 
-    rules.togglePostId(selected, "b");
+    const next = rules.togglePostId(selected, "b");
 
     expect(selected).toEqual(["a"]);
+    expect(next).not.toBe(selected);
   });
 });
 

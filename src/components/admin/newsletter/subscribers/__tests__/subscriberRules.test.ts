@@ -94,10 +94,13 @@ describe("filterSubscribers - język", () => {
 describe("filterSubscribers - szukanie", () => {
   it("szuka po adresie, bez wielkości liter", () => {
     expect(filterSubscribers(LIST, { ...ALL, q: "BORYS" }).map((r) => r.id)).toEqual(["b"]);
+    expect(filterSubscribers(LIST, { ...ALL, q: "borys" }).map((r) => r.id)).toEqual(["b"]);
   });
 
   it("szuka też po nazwie wyświetlanej - operator wpisuje jedno albo drugie", () => {
     expect(filterSubscribers(LIST, { ...ALL, q: "Kowal" }).map((r) => r.id)).toEqual(["b"]);
+    // Nazwa działa niezależnie od wielkości liter, tak jak adres.
+    expect(filterSubscribers(LIST, { ...ALL, q: "kowal" }).map((r) => r.id)).toEqual(["b"]);
   });
 
   it("wiersz BEZ nazwy nie wywraca szukania", () => {
@@ -109,18 +112,26 @@ describe("filterSubscribers - szukanie", () => {
 
   it("białe znaki wokół frazy są ignorowane", () => {
     expect(filterSubscribers(LIST, { ...ALL, q: "   anna   " }).map((r) => r.id)).toEqual(["a"]);
+    // Ten sam wynik co bez spacji - inaczej operator kopiujący adres z maila
+    // dostawałby pustą listę.
+    expect(filterSubscribers(LIST, { ...ALL, q: "anna" }).map((r) => r.id)).toEqual(["a"]);
   });
 
   it("fraza złożona z samych białych znaków nie filtruje", () => {
     expect(filterSubscribers(LIST, { ...ALL, q: "    " })).toHaveLength(3);
+    expect(filterSubscribers(LIST, { ...ALL, q: "" })).toHaveLength(3);
   });
 
   it("fraza bez trafień daje pustą listę, nie całą", () => {
     expect(filterSubscribers(LIST, { ...ALL, q: "nie-ma-takiego" })).toEqual([]);
+    // Lista wejściowa zostaje nietknięta.
+    expect(LIST).toHaveLength(3);
   });
 
   it("dopasowanie jest po FRAGMENCIE, nie po całości", () => {
     expect(filterSubscribers(LIST, { ...ALL, q: "example.test" })).toHaveLength(3);
+    // Fragment ze środka adresu, nie tylko z początku.
+    expect(filterSubscribers(LIST, { ...ALL, q: "@example" })).toHaveLength(3);
   });
 });
 
@@ -135,6 +146,8 @@ describe("filterSubscribers - filtry składane", () => {
 
   it("pusta lista wejściowa daje pustą wyjściową", () => {
     expect(filterSubscribers([], { q: "anna", status: "subscribed", lang: "pl" })).toEqual([]);
+    // Także bez żadnych filtrów - nie ma z czego zrobić wiersza.
+    expect(filterSubscribers([], ALL)).toEqual([]);
   });
 });
 
@@ -158,14 +171,19 @@ describe("csvCell - cytowanie RFC 4180", () => {
 
   it("PRZECINEK w wartości wymusza cytowanie - inaczej rozjeżdża kolumny", () => {
     expect(csvCell("Nowak, Anna")).toBe('"Nowak, Anna"');
+    // Bez przecinka nie ma cytowania - plik zostaje czytelny.
+    expect(csvCell("Nowak Anna")).toBe("Nowak Anna");
   });
 
   it("CUDZYSŁÓW jest podwajany wewnątrz cytowanej wartości", () => {
     expect(csvCell('Anna "Ania" Nowak')).toBe('"Anna ""Ania"" Nowak"');
+    // Sam cudzysłów wymusza cytowanie także bez przecinka.
+    expect(csvCell('Anna"')).toBe('"Anna"""');
   });
 
   it("nowa linia w wartości też wymusza cytowanie", () => {
     expect(csvCell("Anna\nNowak")).toBe('"Anna\nNowak"');
+    expect(csvCell("Anna\r\nNowak")).toBe('"Anna\r\nNowak"');
   });
 
   it("brak wartości daje pustą komórkę, nie „null”", () => {
@@ -193,6 +211,8 @@ describe("subscribersToCsv", () => {
     const csv = subscribersToCsv([row({ display_name: null, source: null, confirmed_at: null })]);
 
     expect(csv.split("\n")[1]).toBe("anna@example.test,,pl,subscribed,,2026-08-01T10:00:00.000Z,");
+    // Puste komórki, nie słowo „null" w pliku, który idzie do arkusza.
+    expect(csv).not.toContain("null");
   });
 
   it("wartość z przecinkiem NIE psuje układu kolumn", () => {
@@ -206,16 +226,20 @@ describe("subscribersToCsv", () => {
 
   it("pusta lista daje sam nagłówek", () => {
     expect(subscribersToCsv([])).toBe(CSV_COLUMNS.join(","));
+    expect(subscribersToCsv([]).split("\n")).toHaveLength(1);
   });
 });
 
 describe("csvFileName", () => {
   it("nazwa pliku niesie datę eksportu", () => {
     expect(csvFileName("2026-08-18T15:30:00.000Z")).toBe("newsletter-2026-08-18.csv");
+    // Inna data daje inny plik - eksporty z dwóch dni się nie nadpisują.
+    expect(csvFileName("2026-08-19T15:30:00.000Z")).toBe("newsletter-2026-08-19.csv");
   });
 
   it("bez godziny w nazwie - eksport dzienny", () => {
     expect(csvFileName("2026-01-02T00:00:00.000Z")).not.toContain(":");
+    expect(csvFileName("2026-01-02T00:00:00.000Z")).toBe("newsletter-2026-01-02.csv");
   });
 });
 
@@ -294,6 +318,8 @@ describe("readMeta - odczyt metadanych z jsonb", () => {
       ["company", "ACME"],
       ["phone", "+48 111"],
     ]);
+    // Kolejność odwrotna daje odwrotny wynik - to nie sortowanie alfabetyczne.
+    expect(readMeta({ phone: "+48 111", company: "ACME" })[0]![0]).toBe("phone");
   });
 
   it("wartości nietekstowe są sprowadzane do tekstu", () => {
@@ -302,6 +328,8 @@ describe("readMeta - odczyt metadanych z jsonb", () => {
       ["flaga", "true"],
       ["nic", "null"],
     ]);
+    // Każda wartość jest napisem - panel renderuje je bez własnego rzutowania.
+    expect(readMeta({ liczba: 42 }).every(([, v]) => typeof v === "string")).toBe(true);
   });
 
   it("kolumna, która nie jest obiektem, daje brak metadanych", () => {

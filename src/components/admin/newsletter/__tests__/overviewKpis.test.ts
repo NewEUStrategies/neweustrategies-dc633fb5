@@ -39,6 +39,8 @@ describe("zmiana procentowa", () => {
   it("ze zera na zero to 0%, nie 100%", () => {
     // „100% wzrostu" przy braku zapisów w obu okresach byłoby kłamstwem.
     expect(pctDelta(0, 0)).toBe(0);
+    // Spadek do zera z niezerowej bazy to -100%, a nie też 0%.
+    expect(pctDelta(0, 4)).toBe(-100);
   });
 
   it("podwojenie to +100%, połowa to -50%", () => {
@@ -53,6 +55,8 @@ describe("zmiana procentowa", () => {
 
   it("brak zmiany to 0%", () => {
     expect(pctDelta(7, 7)).toBe(0);
+    // Zero bez znaku - „-0%" w panelu czyta się jak spadek.
+    expect(Object.is(pctDelta(7, 7), -0)).toBe(false);
   });
 });
 
@@ -64,10 +68,14 @@ describe("okna czasowe", () => {
 
   it("45 dni temu NIE wpada w ostatnie 30 dni", () => {
     expect(within30Days(daysAgo(45), NOW)).toBe(false);
+    // Granica: 31 dni też jest poza oknem.
+    expect(within30Days(daysAgo(31), NOW)).toBe(false);
   });
 
   it("45 dni temu wpada w POPRZEDNIE 30 dni", () => {
     expect(withinPrevious30Days(daysAgo(45), NOW)).toBe(true);
+    // Okna się NIE zachodzą - inaczej ten sam zapis liczyłby się dwa razy.
+    expect(within30Days(daysAgo(45), NOW)).toBe(false);
   });
 
   it("okna NIE ZACHODZĄ na siebie - inaczej wzrost liczy się sam ze siebie", () => {
@@ -115,6 +123,8 @@ describe("wskaźniki z listy subskrybentów", () => {
     );
 
     expect(kpis.new30).toBe(2);
+    // Trzeci zapis nie znika z sumy całkowitej, tylko z okna 30 dni.
+    expect(kpis.total).toBe(3);
   });
 
   it("wzrost porównuje ostatnie 30 dni z POPRZEDNIMI 30", () => {
@@ -163,6 +173,8 @@ describe("wskaźniki z listy subskrybentów", () => {
     const kpis = computeKpis([row(), row(), row(), row({ status: "pending" })], NOW);
 
     expect(kpis.optInRate).toBe(75);
+    // Oczekujący nie wchodzi do licznika potwierdzonych.
+    expect(kpis.total).toBe(3);
   });
 
   it("PUSTA lista daje 100%, nie NaN i nie 0%", () => {
@@ -201,5 +213,6 @@ describe("wskaźniki z listy subskrybentów", () => {
     // Agregacja idzie po stronie przeglądarki: powyżej limitu wskaźniki byłyby
     // liczone z URWANEJ próbki i cicho zaniżone.
     expect(SUBSCRIBER_KPI_LIMIT).toBe(50_000);
+    expect(Number.isInteger(SUBSCRIBER_KPI_LIMIT)).toBe(true);
   });
 });

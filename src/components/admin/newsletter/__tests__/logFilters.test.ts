@@ -42,6 +42,9 @@ describe("fraza wyszukiwania", () => {
 
   it("jest obcinana z brzegowych spacji", () => {
     expect(f.searchValue("  ktos@example.test ")).toBe("ktos@example.test");
+    // Same spacje to BRAK frazy (`null`), nie pusty napis - pusty napis
+    // poszedłby do zapytania jako `ilike '%%'` i nic by nie filtrował.
+    expect(f.searchValue("   ")).toBeNull();
   });
 });
 
@@ -53,6 +56,8 @@ describe("liczba stron", () => {
 
   it("dokładnie jedna strona danych to jedna strona", () => {
     expect(f.totalPages(f.DEFAULT_PAGE_SIZE)).toBe(1);
+    // Jeden wiersz PONAD stronę to już dwie strony.
+    expect(f.totalPages(f.DEFAULT_PAGE_SIZE + 1)).toBe(2);
   });
 
   it("jeden wiersz ponad stronę daje dwie strony", () => {
@@ -136,10 +141,19 @@ describe("log webhooka - własne reguły", () => {
       key: "authEmailLogs.sources.header",
       fallbackText: "header",
     });
+    // Inne źródło daje inny klucz - to nie stała.
+    expect(auth.langSourceKey("profile").key).toBe("authEmailLogs.sources.profile");
   });
 
   it("BRAK źródła schodzi na „unknown”, a podpis na kreskę", () => {
     expect(auth.langSourceKey(null)).toEqual({
+      key: "authEmailLogs.sources.unknown",
+      fallbackText: "-",
+    });
+    // `undefined` idzie tą samą drogą co `null`. Pustego napisu tu nie ma:
+    // warstwa danych (`str()` w auth-events.server.ts) sprowadza go do `null`
+    // jeszcze przed panelem.
+    expect(auth.langSourceKey(undefined)).toEqual({
       key: "authEmailLogs.sources.unknown",
       fallbackText: "-",
     });
@@ -153,5 +167,7 @@ describe("log webhooka - własne reguły", () => {
 
   it("okna czasowe to doba, tydzień i miesiąc", () => {
     expect(auth.RANGES).toEqual([1, 7, 30]);
+    // Rosnąco - kolejność decyduje o układzie przycisków w panelu.
+    expect([...auth.RANGES].sort((a, b) => a - b)).toEqual([...auth.RANGES]);
   });
 });

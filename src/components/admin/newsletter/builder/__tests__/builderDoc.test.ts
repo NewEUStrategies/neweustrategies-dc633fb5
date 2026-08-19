@@ -81,6 +81,8 @@ describe("rozwiązywanie celu upuszczenia", () => {
       col: null,
       overWidgetIdx: null,
     });
+    // Myślniki UUID-a nie mogą się zjeść z sufiksem „-drop".
+    expect(rules.resolveDropTarget(d, "sec-sec-uuid-1-drop")!.sectionId).toContain("uuid-1");
   });
 
   it("obszar PIERWSZEJ i DRUGIEJ kolumny", () => {
@@ -102,6 +104,14 @@ describe("rozwiązywanie celu upuszczenia", () => {
       sectionId: "sec-uuid-1",
       col: 1,
       overWidgetIdx: 1,
+    });
+    // Widget bez przypisania to kolumna 0, nie „brak kolumny" - upuszczenie na
+    // niego musi wskazać PIERWSZĄ kolumnę, inaczej element wróciłby do wspólnej
+    // puli i w układzie dwukolumnowym zniknął z kanwy.
+    expect(rules.resolveDropTarget(d, "a")).toEqual({
+      sectionId: "sec-uuid-1",
+      col: 0,
+      overWidgetIdx: 0,
     });
   });
 
@@ -128,6 +138,8 @@ describe("styl i obraz sekcji", () => {
     const next = rules.applySectionStyle(d, "s1", { paddingY: 40 });
 
     expect(next.sections[0]!.style).toEqual({ bg: "#000", paddingY: 40 });
+    // Wejście zostaje nietknięte - patch oddaje nowy dokument.
+    expect(d.sections[0]!.style).toEqual({ bg: "#000", paddingY: 20 });
   });
 
   it("styl da się ustawić sekcji, która go jeszcze nie miała", () => {
@@ -157,6 +169,8 @@ describe("styl i obraz sekcji", () => {
       url: "https://example.test/a.png",
       position: "left",
     });
+    // Bez pozycji renderer nie wiedziałby, z której strony ustawić grafikę.
+    expect(next.sections[0]!.media!.position).toBeDefined();
   });
 
   it("patch obrazu zachowuje adres, gdy zmienia się tylko opis", () => {
@@ -171,6 +185,8 @@ describe("styl i obraz sekcji", () => {
       position: "right",
       alt: "Opis",
     });
+    // Pozycja NIE wraca do domyślnej „left" tylko dlatego, że patch jej nie nosi.
+    expect(next.sections[0]!.media!.position).toBe("right");
   });
 
   it("NULL usuwa obraz sekcji", () => {
@@ -333,7 +349,10 @@ describe("budowanie widgetu do wstawienia", () => {
   it("w JEDNEJ kolumnie widget NIE dostaje przypisania kolumny", () => {
     const built = rules.buildWidget(section("s1"), makeWidget("heading"), { col: 1 });
 
+    // Zostawione „col: 1" sprawia, że kanwa jednokolumnowa POMIJA widget i
+    // operator widzi, że dodany element zniknął.
     expect(built.col).toBeUndefined();
+    expect("col" in built).toBe(false);
   });
 
   it("w dwóch kolumnach widget dostaje wskazaną kolumnę", () => {
@@ -352,6 +371,7 @@ describe("wstawianie, usuwanie i duplikowanie widgetów", () => {
     const next = rules.insertWidget(d, "s1", w("nowy"));
 
     expect(layout(next)).toEqual({ s1: ["a", "nowy"] });
+    expect(layout(d)).toEqual({ s1: ["a"] });
   });
 
   it("indeks wskazuje pozycję wstawienia", () => {
@@ -359,6 +379,10 @@ describe("wstawianie, usuwanie i duplikowanie widgetów", () => {
 
     expect(layout(rules.insertWidget(d, "s1", w("nowy"), 1))).toEqual({
       s1: ["a", "nowy", "b"],
+    });
+    // Indeks 0 wstawia na sam początek.
+    expect(layout(rules.insertWidget(d, "s1", w("nowy"), 0))).toEqual({
+      s1: ["nowy", "a", "b"],
     });
   });
 
@@ -398,6 +422,8 @@ describe("wstawianie, usuwanie i duplikowanie widgetów", () => {
     const next = rules.duplicateWidget(d, "a", ids());
 
     expect(layout(next)).toEqual({ s1: ["a", "new-1", "b"] });
+    // Kopia niesie treść oryginału, nie świeży widget domyślny.
+    expect(rules.widgetById(next, "new-1")!.type).toBe(rules.widgetById(d, "a")!.type);
   });
 
   it("kopia zachowuje treść oryginału", () => {
@@ -447,6 +473,8 @@ describe("przenoszenie widgetu", () => {
     const next = rules.moveWidget(d, "c", { sectionId: "s1", col: null, overWidgetIdx: 1 });
 
     expect(layout(next)).toEqual({ s1: ["a", "c", "b"] });
+    // Liczba widgetów bez zmian - przeniesienie nie kopiuje i nie gubi.
+    expect(next.sections[0]!.widgets).toHaveLength(3);
   });
 
   it("przeniesienie w obrębie sekcji NIE gubi ani nie dubluje widgetu", () => {
@@ -464,6 +492,7 @@ describe("przenoszenie widgetu", () => {
     const next = rules.moveWidget(d, "a", { sectionId: "s1", col: null, overWidgetIdx: null });
 
     expect(layout(next)).toEqual({ s1: ["b", "a"] });
+    expect(next.sections[0]!.widgets).toHaveLength(2);
   });
 
   it("przeniesienie do INNEJ sekcji zabiera widget ze źródła", () => {
@@ -472,6 +501,8 @@ describe("przenoszenie widgetu", () => {
     const next = rules.moveWidget(d, "a", { sectionId: "s2", col: null, overWidgetIdx: null });
 
     expect(layout(next)).toEqual({ s1: ["b"], s2: ["c", "a"] });
+    // Suma widgetów w całym dokumencie zostaje ta sama.
+    expect(next.sections.flatMap((x) => x.widgets)).toHaveLength(3);
   });
 
   it("przeniesienie do sekcji dwukolumnowej ustawia WSKAZANĄ kolumnę", () => {
@@ -480,6 +511,7 @@ describe("przenoszenie widgetu", () => {
     const next = rules.moveWidget(d, "a", { sectionId: "s2", col: 1, overWidgetIdx: null });
 
     expect(next.sections[1]!.widgets[0]!.col).toBe(1);
+    expect(layout(next)).toEqual({ s1: [], s2: ["a"] });
   });
 
   it("bez wskazanej kolumny widget zachowuje swoją poprzednią", () => {
@@ -491,6 +523,7 @@ describe("przenoszenie widgetu", () => {
     const next = rules.moveWidget(d, "a", { sectionId: "s2", col: null, overWidgetIdx: null });
 
     expect(next.sections[1]!.widgets[0]!.col).toBe(1);
+    expect(layout(next)).toEqual({ s1: [], s2: ["a"] });
   });
 
   it("przeniesienie do sekcji JEDNOKOLUMNOWEJ czyści przypisanie kolumny", () => {
@@ -545,6 +578,7 @@ describe("styl okna popupu", () => {
     const next = rules.applyPopupStyle(d, { radius: 4 });
 
     expect(next.popup).toEqual({ layout: "stacked", radius: 4 });
+    expect(d.popup).toEqual({ layout: "stacked", radius: 16 });
   });
 
   it("dokument BEZ bloku stylu dostaje go przy pierwszym patchu", () => {
@@ -633,6 +667,8 @@ describe("zaczep pierwszego dokumentu z ustawień", () => {
     });
 
     expect(seed.submitLabel).toEqual({ pl: "Zapisz sie", en: "Subscribe" });
+    // Wariant inline nie dostaje też stylu okna popupu.
+    expect(seed.popupStyle).toBeUndefined();
   });
 
   it("wariant POPUP bierze etykietę przycisku z ustawień popupu", () => {
@@ -714,6 +750,8 @@ describe("zaczep pierwszego dokumentu z ustawień", () => {
       layout: "split",
       sideImage: "https://example.test/side.png",
     });
+    // Promień jest liczbą, nie napisem z „px" - renderer dokłada jednostkę sam.
+    expect(typeof seed.popupStyle!.radius).toBe("number");
   });
 
   it("zaczep składa się w dokument, który przechodzi walidację", () => {

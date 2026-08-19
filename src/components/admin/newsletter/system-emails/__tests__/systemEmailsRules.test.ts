@@ -46,6 +46,8 @@ describe("filtry logu - sentynela „wszystkie”", () => {
 
   it("fraza jest obcinana z brzegowych spacji", () => {
     expect(view.searchValue("  ktos@example.test  ")).toBe("ktos@example.test");
+    // Same spacje to BRAK frazy (`null`) - pusty napis filtrowałby po `%%`.
+    expect(view.searchValue("   ")).toBeNull();
   });
 });
 
@@ -57,10 +59,13 @@ describe("stronicowanie logu", () => {
 
   it("dokładnie jedna strona danych to jedna strona", () => {
     expect(view.totalPages(view.PAGE_SIZE)).toBe(1);
+    // O jeden wiersz mniej to nadal jedna strona.
+    expect(view.totalPages(view.PAGE_SIZE - 1)).toBe(1);
   });
 
   it("jeden wiersz ponad stronę daje DWIE strony", () => {
     expect(view.totalPages(view.PAGE_SIZE + 1)).toBe(2);
+    expect(view.totalPages(view.PAGE_SIZE * 2)).toBe(2);
   });
 
   it("strona domyślna ma 50 wierszy", () => {
@@ -77,11 +82,16 @@ describe("wskaźnik doręczenia", () => {
   });
 
   it("zero doręczeń to jawne 0,0%", () => {
+    // Jawne zero, a nie pusta komórka - operator musi widzieć różnicę między
+    // „nic nie doszło" i „nie ma jeszcze danych".
     expect(view.deliveryRateLabel(0)).toBe("0.0%");
+    expect(view.deliveryRateLabel(0)).not.toBe("");
   });
 
   it("pełne doręczenie to 100,0%", () => {
     expect(view.deliveryRateLabel(1)).toBe("100.0%");
+    // Jedno miejsce po przecinku, nie zaokrąglenie do całości.
+    expect(view.deliveryRateLabel(0.955)).toBe("95.5%");
   });
 
   it("wartość jest zaokrąglana do jednej cyfry po przecinku", () => {
@@ -97,6 +107,8 @@ describe("ton odznaki statusu", () => {
     );
 
     expect(new Set(tony).size).toBe(4);
+    // Żaden ton nie jest pusty - pusty daje wiersz bez oznaczenia.
+    expect(tony.every((t) => Boolean(t))).toBe(true);
   });
 
   it("DLQ jest alarmowe - to jedyny status, który wymaga reakcji operatora", () => {
@@ -134,6 +146,8 @@ describe("wykres i znaczniki czasu", () => {
 
   it("pusta seria daje puste tablice, a nie wyjątek", () => {
     expect(view.chartValues([])).toEqual({ sent: [], failed: [], suppressed: [] });
+    // Wszystkie trzy serie są obecne - wykres nie gubi legendy.
+    expect(Object.keys(view.chartValues([])).sort()).toEqual(["failed", "sent", "suppressed"]);
   });
 
   it("dzień jest czytany jako UTC - lokalna strefa nie przesuwa słupka na wykresie", () => {
@@ -158,6 +172,7 @@ describe("wykres i znaczniki czasu", () => {
 
   it("okna czasowe raportu to doba, tydzień i miesiąc", () => {
     expect(view.RANGES).toEqual([1, 7, 30]);
+    expect([...view.RANGES].sort((a, b) => a - b)).toEqual([...view.RANGES]);
   });
 });
 
@@ -226,15 +241,18 @@ describe("nadpisania treści maili transakcyjnych", () => {
     const next = tx.setOverrideField(start, type, "pl", "subject", "Temat");
 
     expect(next[type].pl).toMatchObject({ heading: "Nagłówek", subject: "Temat" });
+    // Druga wersja językowa też zostaje nietknięta.
+    expect(next[type].en.subject).toBe("");
   });
 
   it("patch nie mutuje szkicu wejściowego - cofnięcie edycji musi działać", () => {
     const type = EDITABLE_TX_TYPES[0]!;
     const start = puste();
 
-    tx.setOverrideField(start, type, "pl", "subject", "Nowy");
+    const next = tx.setOverrideField(start, type, "pl", "subject", "Nowy");
 
     expect(start[type].pl.subject).toBe("");
+    expect(next[type].pl.subject).toBe("Nowy");
   });
 
   it("RESET przywraca domyślne tylko dla JEDNEGO języka", () => {
@@ -267,12 +285,16 @@ describe("nadpisania treści maili transakcyjnych", () => {
     const draft = tx.setOverrideField(saved, type, "pl", "subject", "Zmiana");
 
     expect(tx.hasUnsavedChanges(draft, saved)).toBe(true);
+    // Porównanie jest symetryczne - kolejność argumentów nie zmienia odpowiedzi.
+    expect(tx.hasUnsavedChanges(saved, draft)).toBe(true);
   });
 
   it("identyczny szkic to BRAK zmian - fałszywe „są zmiany” zapala zapis bez powodu", () => {
     const saved = puste();
 
     expect(tx.hasUnsavedChanges(puste(), saved)).toBe(false);
+    // Ten sam obiekt też nie jest zmianą.
+    expect(tx.hasUnsavedChanges(saved, saved)).toBe(false);
   });
 
   it("powrót do zapisanej wartości gasi znacznik zmian", () => {
@@ -281,6 +303,10 @@ describe("nadpisania treści maili transakcyjnych", () => {
     const draft = tx.setOverrideField(saved, type, "pl", "subject", "Temat");
 
     expect(tx.hasUnsavedChanges(draft, saved)).toBe(false);
+    // ...a zmiana na COKOLWIEK innego znów zapala znacznik.
+    expect(
+      tx.hasUnsavedChanges(tx.setOverrideField(saved, type, "pl", "subject", "Inny"), saved),
+    ).toBe(true);
   });
 
   it("podpowiedź tokenów pokazuje je w formie, w jakiej się je wpisuje", () => {
@@ -301,6 +327,7 @@ describe("nadpisania treści maili transakcyjnych", () => {
 
   it("pusta lista tokenów daje pusty napis, a nie „{}”", () => {
     expect(tx.tokensHint([])).toBe("");
+    expect(tx.tokensHint([])).not.toContain("{");
   });
 });
 
@@ -310,11 +337,16 @@ describe("nadpisania treści maili transakcyjnych", () => {
 describe("podgląd maili - etykiety typów", () => {
   it("znany typ ma klucz etykiety", () => {
     expect(preview.previewTypeLabelKey("signup")).toBe("adminNewsletter.emailPreview.types.signup");
+    // Inny typ daje inny klucz - to mapa, nie jedna stała.
+    expect(preview.previewTypeLabelKey("recovery")).toBe(
+      "adminNewsletter.emailPreview.types.recovery",
+    );
   });
 
   it("nieznany typ oddaje NULL, więc podpis schodzi na sam typ", () => {
     // Pusta pozycja na liście to szablon, którego operator nie potrafi wybrać.
     expect(preview.previewTypeLabelKey("cos_nowego_z_serwera")).toBeNull();
+    expect(preview.previewTypeLabelKey("cos_nowego_z_serwera")).not.toBe("");
   });
 
   it("klucz magic linku nazywa się tak, jak typ z serwera", () => {
@@ -353,6 +385,8 @@ describe("podgląd maili - zakres i wybór szablonu", () => {
     const rows = [{ type: "signup" }, { type: "recovery" }];
 
     expect(preview.activePreview(rows, "recovery")?.type).toBe("recovery");
+    // Nie „pierwszy z listy" - wybór operatora ma znaczenie.
+    expect(preview.activePreview(rows, "recovery")?.type).not.toBe("signup");
   });
 
   it("wybrany szablon NIEOBECNY na liście schodzi na pierwszy", () => {
@@ -360,6 +394,8 @@ describe("podgląd maili - zakres i wybór szablonu", () => {
     const rows = [{ type: "subscription_confirmed" }, { type: "subscription_renewed" }];
 
     expect(preview.activePreview(rows, "signup")?.type).toBe("subscription_confirmed");
+    // Zwrot jest wierszem z listy, nie sztucznym obiektem o wybranym typie.
+    expect(rows).toContain(preview.activePreview(rows, "signup"));
   });
 
   it("pusta lista i brak danych nie dają nic do pokazania", () => {
@@ -383,5 +419,7 @@ describe("podgląd maili - ramka i imię", () => {
 
   it("imię jest obcinane z brzegowych spacji", () => {
     expect(preview.previewFirstName("  Marek  ")).toBe("Marek");
+    // Spacja w środku zostaje - imiona dwuczłonowe są normalne.
+    expect(preview.previewFirstName("  Anna Maria  ")).toBe("Anna Maria");
   });
 });
