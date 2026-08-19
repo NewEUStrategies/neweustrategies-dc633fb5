@@ -98,17 +98,28 @@ działającego kodu.
 
 | Miara                        |          Przed |                               Po |
 | ---------------------------- | -------------: | -------------------------------: |
-| `bun run test`               | nie kończy się |     **833 pliki, 10 269 testów** |
+| `bun run test`               | nie kończy się |     **841 plików, 10 583 testy** |
 | `check:widget-fidelity`      | wisi bez końca |   **542 testy, 34,7 s, zielono** |
 | MODUŁ 3 w jednym przebiegu   | nie kończy się | **90 plików, 1 832 testy, 64 s** |
 | `widget-view/**` — linie     |          68,8% |                       **97,65%** |
-| `admin/builder/**` — funkcje |  166/2077 (8%) |            **364/2077 (17,53%)** |
-| całe `src/` — linie          |         33,19% |                       **37,46%** |
-| całe `src/` — funkcje        |         25,33% |                       **28,90%** |
+| `admin/builder/**` — funkcje |  166/2077 (8%) |            **363/2074 (17,50%)** |
+| całe `src/` — linie          |         33,19% |                       **37,81%** |
+| całe `src/` — funkcje        |         25,33% |                       **29,15%** |
 
 Odblokowanie 18 plików odzyskało **1 026 testów**, które wcześniej nie wnosiły do pomiaru nic.
 Podniosło to całe repo o ~4 pp na każdej metryce — a panelom właściwości podwoiło liczbę wykonanych
 funkcji, **bez pisania testów**.
+
+Jak czytać kolumnę „Po”: to stan KOŃCOWY całej gałęzi (przebieg z 07:49, 414 s), nie stan zaraz po
+naprawie cyklu. Rozdzielenie zasług jest jednak jednoznaczne, bo powierzchnie się nie pokrywają:
+dwie powierzchnie panelowe (`widget-view/**`, `admin/builder/**`) wzrosły **wyłącznie dzięki
+odblokowaniu suity** — nie napisałem tam ani jednego testu. Nowe przypadki z §3 leżą
+w `lib/builder/*` i `lib/blocks/markdown.ts`, więc odpowiadają za ruch w wierszach „całe `src/`”
+(linie 37,46% → 37,81%, funkcje 28,90% → 29,15%).
+
+Mianownik funkcji w `admin/builder/**` spadł z 2 077 na 2 074, bo ekstrakcja z §3.3 **wyprowadziła
+definicje funkcji z tego poddrzewa** do `lib/builder/widgetPanelValues.ts`. To nie błąd pomiaru —
+licznik i mianownik dotyczą tego samego, węższego zbioru plików.
 
 ---
 
@@ -286,13 +297,67 @@ Uczciwie, bo definicja ukończenia zadania stawiała poprzeczkę wyżej niż to,
 ## 7. Weryfikacja
 
 ```
-bun run typecheck            # zielono
-bun run test:coverage        # 833 pliki / 10 269 testów, wszystkie progi spełnione
-bun run check:widget-fidelity # 542 testy, 34,7 s
-bun run check:content-layering # 2 562 pliki, 17 krawędzi builder -> bloki, 0 naruszeń
-bunx prettier --check         # zielono na wszystkich zmienionych plikach
+bun run typecheck              # zielono
+bun run lint                   # zielono (0 błędów)
+bun run test:coverage          # 841 plików / 10 583 testy, wszystkie progi spełnione
+bun run check:widget-fidelity  # 542 testy, 34,7 s
+bun run check:content-layering # 2 563 pliki, 17 krawędzi builder -> bloki, 0 naruszeń
+bun run check:bundle           # w budżecie (patrz 7.2)
+bunx prettier --check          # zielono na wszystkich zmienionych plikach
 ```
 
-`bun run lint` ma jeden błąd **zastany** (`@typescript-eslint/no-require-imports`
-w `src/components/profile/__tests__/AccountIdentityPanel.test.tsx`) — plik nietykany w tej pracy,
-inny moduł.
+### 7.1 Bramka `verify` w CI: dlaczego suita nie uruchamiała się TAM ani razu
+
+Zastany błąd `@typescript-eslint/no-require-imports`
+(`src/components/profile/__tests__/AccountIdentityPanel.test.tsx:87`, z commita `7fecd12` na `main`)
+nie był tylko kosmetyczny. `verify:blocking` to łańcuch
+`verify:static && typecheck && lint && test`, więc **`lint` zwierał obwód przed `test`** — log joba
+CI kończył się na `✖ 179 problems (1 error, 178 warnings)` i `script "lint" exited with code 1`,
+a `bun run test` **nie startował w CI ani razu**. Wszystkie liczby pokrycia z tej pracy pochodziły
+z przebiegów lokalnych; CI ich nie potwierdzało, bo do nich nie dochodziło.
+
+Naprawa (fabryka `async` + `await import("react")`, dokładnie tak, jak dwie inne fabryki `vi.mock`
+w tym samym pliku) odblokowała łańcuch. Pierwszy przebieg, w którym krok **„Test + coverage gate”**
+faktycznie się wykonał, to job `95989480279`: krok 32 zielony, 07:23:59 → 07:31:41. Zielone są też
+`Permissions matrix parity`, `i18n PL/EN parity gate`, `Widget settings fidelity gate`,
+`SEO head + schema contract`, `Bundle size budget`, `Chunk graph acyclicity`
+i `Client boot path free of payment SDKs`.
+
+Dla porządku: na `main` (`a9455128`) `verify` jest **czerwone na kroku `Format (prettier)`**, czyli
+przed lintem, typecheckiem i testami. Ta gałąź jest pod tym względem w lepszym stanie niż baza.
+
+### 7.2 Zmierzony wpływ na bundel: `39a9efd` → `fafb30f`
+
+Reguła zadania („ekstrakcja warstwy nie może dołożyć nic do chunku publicznego”) wymaga liczby,
+nie zielonej bramki, bo zapas budżetu to dziś 10,6 KB (0,41%). Zmierzone dwoma pełnymi buildami —
+baza w osobnym `git worktree`, ten sam `node_modules`:
+
+| pomiar               | `39a9efd` (baza) | `fafb30f` (HEAD) |     różnica |
+| -------------------- | ---------------: | ---------------: | ----------: |
+| public total (gzip)  |        2534,2 KB |        2534,4 KB | **+0,2 KB** |
+| overall total (gzip) |        3865,2 KB |        3865,8 KB | **+0,6 KB** |
+
+Po chunkach różnica jest tylko w trzech miejscach (resztę stanowi szum rehashowania ±0,01 KB):
+
+| chunk        |      baza |      HEAD |  różnica | skąd                                             |
+| ------------ | --------: | --------: | -------: | ------------------------------------------------ |
+| `index`      | 354,47 KB | 355,04 KB | +0,56 KB | wchłonął `anchorSlug`                            |
+| `anchorSlug` |   0,55 KB |         — | −0,55 KB | przestał być osobnym chunkiem                    |
+| `Builder`    | 132,20 KB | 132,32 KB | +0,12 KB | `widgetPanelValues` — chunk **wyłącznie admina** |
+
+Czytanie tego wyniku:
+
+- **Ekstrakcja warstwy dokłada do chunku publicznego 0 KB.** `lib/builder/widgetPanelValues.ts` ma
+  dokładnie JEDNEGO importera — `components/admin/builder/WidgetProperties.tsx` — więc siedzi
+  w `Builder`, po stronie admina. Reguła zadania spełniona.
+- **+0,2 KB w public bierze się z naprawy defektu 4.2, nie z ekstrakcji.** `lib/builder/designTokens.ts`
+  jest na ścieżce bootowania (importuje go `src/routes/__root.tsx`) i od tej naprawy sięga po
+  `transliterateAtomicLetters` z `lib/content/anchorSlug`. Skutek: `anchorSlug` (0,55 KB) przestał
+  być osobnym leniwym chunkiem i wszedł do `index`. To **przeniesienie, nie duplikacja** — dlatego
+  suma publiczna rośnie o 0,2 KB, a nie o 0,55 KB.
+- Alternatywę — skopiowanie mapy liter atomowych do `designTokens.ts` — **odrzuciłem świadomie**:
+  odtworzyłaby dokładnie ten rozjazd dwóch implementacji slugowania, który defekt 4.2 usuwa.
+  Rozdzielenie sluga tokenu marki od sluga kotwicy to nie oszczędność 0,2 KB, to dwa źródła prawdy.
+
+Nie da się dziś udostępnić tej mapy inaczej: `designTokens` jest na ścieżce bootowania, więc każdy
+wspólny liść trafi do `index` niezależnie od tego, w którym pliku go położymy.
