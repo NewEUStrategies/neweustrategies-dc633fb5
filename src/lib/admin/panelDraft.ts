@@ -39,13 +39,34 @@ export function draftDirty<T>(draft: T, persisted: T): boolean {
  *   wyczyszczenie pola nie może ukryć spisu treści.
  * - ŚMIECI (`abc`, `1,5`) schodzą do `min`, a nie do `NaN` - inaczej zapis
  *   posłałby do bazy `NaN`, który po stronie PostgREST jest `null`.
- * Wartość jest zaokrąglana, bo wszystkie te pola są całkowite (pozycja
- * akapitu, liczba nagłówków, liczba dni).
+ * ZAOKRĄGLENIE IDZIE DO KROKU, NIE DO CAŁYCH. Większość pól panelu jest
+ * całkowita (pozycja akapitu, liczba nagłówków, liczba dni) i dla nich krok
+ * wynosi 1, czyli zachowanie jest takie jak zwykłe zaokrąglenie. Ale mnożnik
+ * rozmiaru napisu ghost chodzi po 0,05 - zaokrąglenie do całych zamieniłoby ten
+ * suwak w przełącznik „1 albo 2". Wynik jest dodatkowo docinany do liczby
+ * miejsc po przecinku kroku, bo `Math.round(x / 0.05) * 0.05` daje w binarnym
+ * zapisie wartości typu 1,4500000000000002.
  */
-export function clampNumber(raw: string | number, bounds: NumberBounds): number {
+export function clampNumber(raw: string | number, bounds: NumberBounds, step = 1): number {
   const n = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(n)) return bounds.min;
-  return Math.min(bounds.max, Math.max(bounds.min, Math.round(n)));
+  const snapped = step > 0 ? roundToStep(n, step) : n;
+  return Math.min(bounds.max, Math.max(bounds.min, snapped));
+}
+
+/** Zaokrąglenie do wielokrotności kroku, bez śmieci z zapisu binarnego. */
+function roundToStep(value: number, step: number): number {
+  const decimals = decimalPlaces(step);
+  const snapped = Math.round(value / step) * step;
+  return decimals === 0 ? snapped : Number(snapped.toFixed(decimals));
+}
+
+/** Liczba miejsc po przecinku w kroku (0 dla kroku całkowitego). */
+function decimalPlaces(step: number): number {
+  if (Number.isInteger(step)) return 0;
+  const text = String(step);
+  const dot = text.indexOf(".");
+  return dot === -1 ? 0 : text.length - dot - 1;
 }
 
 /**

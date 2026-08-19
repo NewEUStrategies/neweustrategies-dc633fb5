@@ -44,6 +44,7 @@ import { PanelNumberField } from "@/components/admin/postExperience/atoms/PanelN
 import { PanelTextField } from "@/components/admin/postExperience/atoms/PanelTextField";
 import { PanelColorField } from "@/components/admin/postExperience/atoms/PanelColorField";
 import { PanelSelectField } from "@/components/admin/postExperience/atoms/PanelSelectField";
+import { PanelRangeField } from "@/components/admin/postExperience/atoms/PanelRangeField";
 
 describe("PanelSectionHeading - nagłówek sekcji panelu", () => {
   it("renderuje PRAWDZIWY nagłówek, nie `<label>` bez kontrolki", () => {
@@ -353,5 +354,86 @@ describe("PanelSelectField - lista rozwijana z powiązaną etykietą", () => {
     );
     expect(screen.getByRole("combobox", { name: "Układ" })).toBeDisabled();
     expect(screen.getAllByRole("option")).toHaveLength(2);
+  });
+});
+
+describe("PanelRangeField - suwak z odczytem wartości", () => {
+  it("etykieta jest STAŁA i powiązana z suwakiem, wartość idzie OSOBNYM odczytem", () => {
+    // Kopie wpisywały wartość w tekst etykiety, więc nazwa kontrolki zmieniała
+    // się przy każdym ruchu suwaka - czytnik ekranu ogłaszał nową nazwę pola
+    // zamiast nowej wartości.
+    render(
+      <PanelRangeField
+        label="Rozmiar napisu"
+        readout="1.25×"
+        value={1.25}
+        bounds={{ min: 0.5, max: 3 }}
+        step={0.05}
+        onChange={() => {}}
+      />,
+    );
+    const slider = screen.getByRole("slider", { name: "Rozmiar napisu" });
+    expect(slider).toHaveValue("1.25");
+    expect(screen.getByText("1.25×")).toBeInTheDocument();
+  });
+
+  it("BEZ odczytu suwak nadal ma nazwę i wartość", () => {
+    render(
+      <PanelRangeField label="Grubość" value={2} bounds={{ min: 0, max: 8 }} onChange={() => {}} />,
+    );
+    const slider = screen.getByRole("slider", { name: "Grubość" });
+    expect(slider).toHaveValue("2");
+    expect(slider).toHaveAttribute("max", "8");
+  });
+
+  it("ruch suwaka dociąga wartość do KROKU, nie do całych", () => {
+    const onChange = vi.fn();
+    render(
+      <PanelRangeField
+        label="Rozmiar"
+        value={1}
+        bounds={{ min: 0.5, max: 3 }}
+        step={0.05}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.change(screen.getByRole("slider", { name: "Rozmiar" }), {
+      target: { value: "1.35" },
+    });
+    expect(onChange).toHaveBeenCalledWith(1.35);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("podpisy skrajne BEZ skrótu wyzerowania nie rysują dodatkowego przycisku", () => {
+    render(
+      <PanelRangeField
+        label="Przesunięcie"
+        value={0}
+        bounds={{ min: -200, max: 200 }}
+        scaleLabels={["-200", "+200"]}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText("-200")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("skrót wyzerowania jest przyciskiem i zgłasza własną intencję", () => {
+    const onReset = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <PanelRangeField
+        label="Przesunięcie"
+        value={-80}
+        bounds={{ min: -200, max: 200 }}
+        scaleLabels={["-200", "+200"]}
+        resetLabel="Wyzeruj"
+        onReset={onReset}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wyzeruj" }));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

@@ -16,11 +16,25 @@ interface SelectableOptionCardProps {
   ariaLabel?: string;
   className?: string;
   disabled?: boolean;
+  /**
+   * Kształt opcji. `card` to kafel z opisem, `chip` - wąski przycisk słowa
+   * (podświetlenia etykiety). Kontrakt dostępności jest w obu identyczny,
+   * różni się wyłącznie rozmiar.
+   */
+  variant?: OptionCardVariant;
 }
+
+export type OptionCardVariant = "card" | "chip";
 
 /** Wspólne klasy stanu wybranego i niewybranego - jeden pierścień, jedno tło. */
 export const OPTION_CARD_CLASS =
-  "text-left rounded-md border px-2 py-2.5 transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+  "text-left rounded-md border transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+// Nieeksportowana: kształt jest wewnętrzną sprawą atomu, a eksport obiektu
+// z pliku komponentu psuje wymianę modułu na gorąco (react-refresh).
+const OPTION_CARD_SHAPE: Readonly<Record<OptionCardVariant, string>> = {
+  card: "px-2 py-2.5",
+  chip: "h-8 px-3 text-xs font-medium",
+};
 export const OPTION_CARD_SELECTED = "border-brand bg-brand/10 text-brand ring-1 ring-brand/40";
 export const OPTION_CARD_IDLE = "border-border bg-background hover:border-brand/50";
 
@@ -44,6 +58,7 @@ export function SelectableOptionCard({
   ariaLabel,
   className,
   disabled = false,
+  variant = "card",
 }: SelectableOptionCardProps) {
   return (
     <button
@@ -54,6 +69,7 @@ export function SelectableOptionCard({
       disabled={disabled}
       className={cn(
         OPTION_CARD_CLASS,
+        OPTION_CARD_SHAPE[variant],
         selected ? OPTION_CARD_SELECTED : OPTION_CARD_IDLE,
         className,
       )}

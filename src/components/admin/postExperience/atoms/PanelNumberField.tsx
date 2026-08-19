@@ -10,6 +10,13 @@ interface PanelNumberFieldProps {
   onChange: (value: number) => void;
   /** Podpowiedź pod polem. Wiązana z kontrolką przez `aria-describedby`. */
   hint?: string;
+  /**
+   * Krok strzałek pola. Trafia WYŁĄCZNIE na atrybut DOM - przycięcie zostaje
+   * całkowite. Wpisywanie w pole liczbowe idzie znak po znaku, więc doklejanie
+   * wartości do wielokrotności kroku walczyłoby z użytkownikiem: przy
+   * `step=500` wpisanie „3" zeszłoby natychmiast do zera. Do wielokrotności
+   * kroku dociąga suwak (`PanelRangeField`), który innych wartości nie oddaje.
+   */
   step?: number;
   disabled?: boolean;
   className?: string;

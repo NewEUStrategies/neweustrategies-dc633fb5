@@ -3,8 +3,37 @@
 // test opisuje tu umowę, a nie wygląd.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+
+vi.mock("react-i18next", async () => {
+  const fixtures = await import("@/test/postExperience/fixtures");
+  return fixtures.reactI18nextStub();
+});
+
+vi.mock("@/components/admin/blocks/AdminColorPicker", () => ({
+  AdminColorPicker: ({
+    value,
+    onChange,
+    ariaLabel,
+  }: {
+    value: string | undefined;
+    onChange: (v: string | undefined) => void;
+    ariaLabel?: string;
+  }) => (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      data-color={value}
+      onClick={() => onChange(undefined)}
+    >
+      {value}
+    </button>
+  ),
+}));
+
 import { PanelSaveBar } from "@/components/admin/postExperience/molecules/PanelSaveBar";
 import { PreviewLangTabs } from "@/components/admin/postExperience/molecules/PreviewLangTabs";
+import { KeyTakeawaysHighlightSection } from "@/components/admin/postExperience/molecules/KeyTakeawaysHighlightSection";
+import type { KeyTakeawaysSettings } from "@/lib/keyTakeaways/settings";
 
 const labels = {
   saveLabel: "Zapisz",
@@ -121,5 +150,78 @@ describe("PreviewLangTabs - przełącznik języka podglądu", () => {
     const names = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(names).toEqual(["PL", "EN"]);
     expect(names.join("")).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+});
+
+describe("KeyTakeawaysHighlightSection - STARSZY wiersz bez pól podświetlenia", () => {
+  // Pola `indicesEn`, `color`, `sizeScale` i `offsetY` doszły do schematu
+  // później. Wiersz zapisany wcześniej ich nie ma, a molekuła musi wtedy podać
+  // wartości domyślne - inaczej suwak dostaje `undefined` i staje się
+  // kontrolką niekontrolowaną, a selektor barwy pokazuje puste okienko.
+  const legacy = { indicesPl: [0] } as unknown as KeyTakeawaysSettings["highlight"];
+
+  it("BRAK listy indeksów dla języka czyta się jako pusta lista", () => {
+    const onChange = vi.fn();
+    render(
+      <KeyTakeawaysHighlightSection
+        labelPl="Z tego"
+        labelEn="From this"
+        highlight={legacy}
+        accent="#fa9346"
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "From" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "this" }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ indicesEn: [1] }));
+  });
+
+  it("BRAK koloru podświetlenia schodzi do koloru akcentu sekcji", () => {
+    render(
+      <KeyTakeawaysHighlightSection
+        labelPl="Z tego"
+        labelEn=""
+        highlight={legacy}
+        accent="#fa9346"
+        onChange={() => {}}
+      />,
+    );
+    const picker = screen.getByRole("button", {
+      name: "adminPostPanes.keyTakeaways.highlightColor",
+    });
+    expect(picker).toHaveAttribute("data-color", "#fa9346");
+    expect(screen.getByRole("slider", { name: /highlightSize/ })).toHaveValue("1");
+  });
+
+  it("WYCZYSZCZENIE koloru wraca do akcentu, a nie do pustej wartości", () => {
+    const onChange = vi.fn();
+    render(
+      <KeyTakeawaysHighlightSection
+        labelPl="Z tego"
+        labelEn=""
+        highlight={legacy}
+        accent="#fa9346"
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminPostPanes.keyTakeaways.highlightColor" }),
+    );
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ color: "#fa9346" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("BRAK przesunięcia czyta się jako zero i suwak zostaje kontrolowany", () => {
+    render(
+      <KeyTakeawaysHighlightSection
+        labelPl="Z tego"
+        labelEn=""
+        highlight={legacy}
+        accent="#fa9346"
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByRole("slider", { name: /highlightOffset/ })).toHaveValue("0");
+    expect(screen.getByText("0px")).toBeInTheDocument();
   });
 });

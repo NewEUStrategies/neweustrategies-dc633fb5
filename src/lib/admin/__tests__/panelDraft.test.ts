@@ -82,6 +82,38 @@ describe("clampNumber - przycięcie pola liczbowego do granic", () => {
     expect(clampNumber("3.6", bounds)).toBe(4);
   });
 
+  it("KROK CAŁKOWITY (domyślny) zaokrągla do całych", () => {
+    expect(clampNumber("3.4", bounds, 1)).toBe(3);
+    expect(clampNumber("3.6", bounds, 1)).toBe(4);
+  });
+
+  it("KROK UŁAMKOWY dociąga do wielokrotności, nie do całych", () => {
+    // Mnożnik rozmiaru napisu ghost chodzi po 0,05. Zaokrąglenie do całych
+    // zamieniłoby ten suwak w przełącznik „1 albo 2".
+    const scale = { min: 0.5, max: 3 };
+    expect(clampNumber("1.23", scale, 0.05)).toBe(1.25);
+    expect(clampNumber("1.21", scale, 0.05)).toBe(1.2);
+  });
+
+  it("krok ułamkowy nie zostawia śmieci z zapisu binarnego", () => {
+    const scale = { min: 0.5, max: 3 };
+    expect(clampNumber("1.45", scale, 0.05)).toBe(1.45);
+    expect(String(clampNumber("1.45", scale, 0.05))).toBe("1.45");
+  });
+
+  it("krok zerowy albo ujemny nie dociąga wcale (zostaje samo przycięcie)", () => {
+    const scale = { min: 0.5, max: 3 };
+    expect(clampNumber("1.234", scale, 0)).toBe(1.234);
+    expect(clampNumber("9.9", scale, 0)).toBe(3);
+  });
+
+  it("dociąganie do kroku NIE wypycha wartości poza granice", () => {
+    // 19,95 przy kroku 0,3 dociąga się do 20,1 - czyli PONAD górną granicę.
+    // Przycięcie idzie PO dociąganiu, więc wynik nigdy z granic nie wychodzi.
+    expect(clampNumber("19.95", { min: 0, max: 20 }, 0.3)).toBe(20);
+    expect(clampNumber("0.04", { min: 0.5, max: 3 }, 0.05)).toBe(0.5);
+  });
+
   it("granice są ZAMKNIĘTE - min i max są dozwolonymi wartościami", () => {
     expect(clampNumber(-1, bounds)).toBe(-1);
     expect(clampNumber(20, bounds)).toBe(20);
