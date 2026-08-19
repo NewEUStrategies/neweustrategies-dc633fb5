@@ -9,7 +9,6 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
@@ -119,68 +118,6 @@ export function IconRow({
         </Button>
       </div>
       {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-/** Para pól PL/EN - najczęstszy wzorzec w tym edytorze. */
-export function BilingualRow({
-  label,
-  pl,
-  en,
-  onPl,
-  onEn,
-  placeholderPl,
-  placeholderEn,
-  hint,
-  multiline,
-  rows = 3,
-}: {
-  label: string;
-  pl: string;
-  en: string;
-  onPl: (v: string) => void;
-  onEn: (v: string) => void;
-  placeholderPl?: string;
-  placeholderEn?: string;
-  hint?: string;
-  multiline?: boolean;
-  rows?: number;
-}) {
-  const groupId = useId();
-  return (
-    <div className="space-y-1">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {(
-          [
-            { code: "PL", value: pl, onChange: onPl, placeholder: placeholderPl },
-            { code: "EN", value: en, onChange: onEn, placeholder: placeholderEn },
-          ] as const
-        ).map((f) => (
-          <div key={f.code} className="min-w-0">
-            <Label htmlFor={`${groupId}-${f.code}`}>
-              {label} ({f.code})
-            </Label>
-            {multiline ? (
-              <Textarea
-                id={`${groupId}-${f.code}`}
-                rows={rows}
-                value={f.value}
-                onChange={(e) => f.onChange(e.target.value)}
-                placeholder={f.placeholder}
-              />
-            ) : (
-              <Input
-                id={`${groupId}-${f.code}`}
-                value={f.value}
-                onChange={(e) => f.onChange(e.target.value)}
-                placeholder={f.placeholder}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

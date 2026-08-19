@@ -3,7 +3,8 @@
 // a HTML treści jest sanityzowany przed wyświetleniem.
 import { useTranslation } from "react-i18next";
 import { ShieldCheck } from "lucide-react";
-import { BilingualRow, SectionCard, ToggleRow } from "./controls";
+import { BilingualRow } from "@/components/admin/atoms/BilingualRow";
+import { SectionCard, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
 
 export function ConsentsTab({ value, onChange }: SignupPopupTabProps) {

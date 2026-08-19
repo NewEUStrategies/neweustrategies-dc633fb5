@@ -4,14 +4,8 @@
 import { useTranslation } from "react-i18next";
 import { Image as ImageIcon, LayoutGrid, ListOrdered, SlidersHorizontal } from "lucide-react";
 import { ImageSlot } from "@/components/admin/builder/ui/organisms/widget-properties/ImageSlot";
-import {
-  BilingualRow,
-  NumberRow,
-  OrderRow,
-  SectionCard,
-  SegmentedRow,
-  ToggleRow,
-} from "./controls";
+import { BilingualRow } from "@/components/admin/atoms/BilingualRow";
+import { NumberRow, OrderRow, SectionCard, SegmentedRow, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
 import type { NewsletterShowcaseImage } from "@/hooks/useNewsletterSettings";
 import {

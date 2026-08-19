@@ -29,7 +29,6 @@ vi.mock("@/lib/icons/DynamicIcon", () => ({
 }));
 
 import {
-  BilingualRow,
   ColorRow,
   ContrastNote,
   IconRow,
@@ -40,6 +39,7 @@ import {
   TextRow,
   ToggleRow,
 } from "@/components/admin/popups/signup/controls";
+import { BilingualRow } from "@/components/admin/atoms/BilingualRow";
 
 /** Pole tekstowe kontrolki (pole koloru ma osobny próbnik obok napisu). */
 function textInput(container: HTMLElement): HTMLInputElement {

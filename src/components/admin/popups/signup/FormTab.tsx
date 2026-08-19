@@ -4,15 +4,8 @@
 // kontaktowych (platformowa etykieta pływająca), więc nie ma tu wyboru stylu.
 import { useTranslation } from "react-i18next";
 import { Type, SlidersHorizontal, LogIn } from "lucide-react";
-import {
-  BilingualRow,
-  IconRow,
-  NumberRow,
-  SectionCard,
-  SegmentedRow,
-  TextRow,
-  ToggleRow,
-} from "./controls";
+import { BilingualRow } from "@/components/admin/atoms/BilingualRow";
+import { IconRow, NumberRow, SectionCard, SegmentedRow, TextRow, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
 
 export function FormTab({ value, design, onChange, patchForm }: SignupPopupTabProps) {

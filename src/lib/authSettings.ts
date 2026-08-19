@@ -77,3 +77,35 @@ export const AUTH_DEFAULTS: AuthSettings = {
 };
 
 export const AUTH_SETTINGS_KEY = "auth_branding";
+
+export function isLoginPosition(value: unknown): value is LoginPosition {
+  return value === "left" || value === "center" || value === "right";
+}
+
+export function normalizeAuthSettings(value: unknown): AuthSettings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...AUTH_DEFAULTS };
+  }
+
+  const source = value as Record<string, unknown>;
+  const normalized = { ...AUTH_DEFAULTS };
+  const writable = normalized as unknown as Record<keyof AuthSettings, string | boolean>;
+
+  for (const key of Object.keys(AUTH_DEFAULTS) as Array<keyof AuthSettings>) {
+    const candidate = source[key];
+    if (typeof candidate === typeof AUTH_DEFAULTS[key])
+      writable[key] = candidate as string | boolean;
+  }
+
+  if (!isLoginPosition(source.login_position)) {
+    normalized.login_position = AUTH_DEFAULTS.login_position;
+  }
+
+  return normalized;
+}
+
+export function authSettingsEqual(left: AuthSettings, right: AuthSettings): boolean {
+  return (Object.keys(AUTH_DEFAULTS) as Array<keyof AuthSettings>).every(
+    (key) => left[key] === right[key],
+  );
+}
