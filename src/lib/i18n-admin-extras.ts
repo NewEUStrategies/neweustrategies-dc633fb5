@@ -243,6 +243,7 @@ export const adminExtrasPl = {
       typePage: "Strona",
       typePost: "Wpis",
       typeTag: "Tag",
+      untitledItem: "Pozycja bez nazwy",
     },
     metabox: {
       subtitle: "Nadpisania globalnych opcji tylko dla tego wpisu.",
@@ -934,6 +935,7 @@ export const adminExtrasEn = {
       typePage: "Page",
       typePost: "Post",
       typeTag: "Tag",
+      untitledItem: "Untitled item",
     },
     metabox: {
       subtitle: "Overrides of global options for this post only.",
