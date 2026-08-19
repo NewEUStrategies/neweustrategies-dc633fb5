@@ -99,20 +99,25 @@ export const preAuthGuard = createServerFn({ method: "POST" })
     const ipHash = currentIpHash();
     const emailSubject = hashSubject(`email:${data.kind}`, data.email);
 
+    // Brak zaufanego adresu oznacza brak możliwości przypisania próby do
+    // kubełka. Przepuszczenie takiego żądania omijałoby najważniejszy limit,
+    // dlatego warstwa uwierzytelniania działa tutaj fail-closed.
+    if (!ipHash) {
+      throw new Error("auth: rate_limited");
+    }
+
     // login is the most sensitive - stricter caps than reset/signup.
     const perIp = data.kind === "login" ? { max: 15, window: 5 } : { max: 10, window: 15 };
     const perEmail = data.kind === "login" ? { max: 8, window: 15 } : { max: 5, window: 30 };
 
-    if (ipHash) {
-      const ip = await hitBucket({
-        scope: `auth_${data.kind}_ip`,
-        subject: ipHash,
-        max: perIp.max,
-        windowMinutes: perIp.window,
-      });
-      if (!ip.allowed) {
-        throw new Error("auth: rate_limited");
-      }
+    const ip = await hitBucket({
+      scope: `auth_${data.kind}_ip`,
+      subject: ipHash,
+      max: perIp.max,
+      windowMinutes: perIp.window,
+    });
+    if (!ip.allowed) {
+      throw new Error("auth: rate_limited");
     }
 
     const email = await hitBucket({
@@ -143,12 +148,15 @@ export const unlockContentPassword = createServerFn({ method: "POST" })
   .validator((raw: unknown) => unlockSchema.parse(raw))
   .handler(async ({ data }) => {
     const ipHash = currentIpHash();
+    if (!ipHash) {
+      throw new Error("content_password: rate_limited");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin.rpc("verify_content_password", {
       _entity_type: data.entityType,
       _entity_id: data.entityId,
       _password: data.password,
-      _ip_hash: ipHash ?? undefined,
+      _ip_hash: ipHash,
     });
     if (error) {
       const msg = error.message?.includes("too many attempts")
