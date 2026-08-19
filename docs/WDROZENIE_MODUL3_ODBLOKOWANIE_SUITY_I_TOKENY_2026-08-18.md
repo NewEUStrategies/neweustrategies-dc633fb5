@@ -118,15 +118,17 @@ Audyt wskazał tę powierzchnię jako „najtańsze pokrycie o największym zasi
 Reacta, których wynik idzie do `<style>` na `:root` montowanego w `__root.tsx` — czyli na **każdej**
 trasie publicznej.
 
-| Plik                            | Przed | Po (linie) |          Funkcje |
-| ------------------------------- | ----: | ---------: | ---------------: |
-| `lib/builder/globalColors.ts`   |  6,8% |   **100%** |    0/3 → **3/3** |
-| `lib/builder/hoverCss.ts`       | 15,6% |   **100%** |    1/3 → **3/3** |
-| `lib/builder/sectionStyles.tsx` |  6,0% |   **100%** | 0/13 → **13/13** |
-| `lib/builder/designTokens.ts`   | 15,0% |  **97,8%** | 0/12 → **12/13** |
-| `lib/builder/dynamicText.ts`    |  5,9% |  **94,1%** |    0/9 → **8/9** |
-| `lib/builder/chromeDefaults.ts` |  0,0% |  **84,2%** | 0/13 → **11/13** |
-| `lib/blocks/markdown.ts`        |  0,0% |   **100%** | 0/12 → **12/12** |
+| Plik                               | Przed | Po (linie) |          Funkcje |
+| ---------------------------------- | ----: | ---------: | ---------------: |
+| `lib/builder/globalColors.ts`      |  6,8% |   **100%** |    0/3 → **3/3** |
+| `lib/builder/hoverCss.ts`          | 15,6% |   **100%** |    1/3 → **3/3** |
+| `lib/builder/sectionStyles.tsx`    |  6,0% |   **100%** | 0/13 → **13/13** |
+| `lib/builder/designTokens.ts`      | 15,0% |  **97,8%** | 0/12 → **12/13** |
+| `lib/builder/dynamicText.ts`       |  5,9% |   **100%** |    0/9 → **9/9** |
+| `lib/builder/chromeDefaults.ts`    |  0,0% |  **84,2%** | 0/13 → **11/13** |
+| `lib/blocks/markdown.ts`           |  0,0% |   **100%** | 0/12 → **12/12** |
+| `lib/builder/homepageTemplate.ts`  |  0,0% |   **100%** |    0/4 → **4/4** |
+| `lib/builder/widgetPanelValues.ts` |  nowy |   **100%** |        **11/11** |
 
 Razem **269 nowych przypadków testowych** (211 na powierzchni tokenów + 58 na warstwie wartości pól z §3.3). Żaden nie jest renderem bez asercji — repo raz już
 zdjęło taką warstwę i zapisało to w komentarzu przy progu globalnym.
