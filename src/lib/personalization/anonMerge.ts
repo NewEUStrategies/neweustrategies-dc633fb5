@@ -32,6 +32,7 @@ import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 const ANON_INTERESTS_KEY = "nes.interests.anon.v1";
 const DAY_MS = 86_400_000;
+export const MAX_ANON_MERGE_ITEMS = 200;
 
 interface AnonInterests {
   categoryIds: string[];
@@ -75,9 +76,17 @@ function writeJson(key: string, value: unknown): void {
 
 function readAnonInterests(): AnonInterests {
   const parsed = readJson<AnonInterests>(ANON_INTERESTS_KEY);
+  const uniqueCategories = Array.isArray(parsed?.categoryIds)
+    ? Array.from(new Set(parsed.categoryIds.filter((id): id is string => typeof id === "string")))
+    : [];
+  const uniqueTags = Array.isArray(parsed?.tagIds)
+    ? Array.from(new Set(parsed.tagIds.filter((id): id is string => typeof id === "string")))
+    : [];
+  const categoryIds = uniqueCategories.slice(0, MAX_ANON_MERGE_ITEMS);
+  const remaining = Math.max(0, MAX_ANON_MERGE_ITEMS - categoryIds.length);
   return {
-    categoryIds: Array.isArray(parsed?.categoryIds) ? parsed.categoryIds : [],
-    tagIds: Array.isArray(parsed?.tagIds) ? parsed.tagIds : [],
+    categoryIds,
+    tagIds: uniqueTags.slice(0, remaining),
   };
 }
 
@@ -89,7 +98,14 @@ export function readAnonInterestIds(): AnonInterests {
 
 function readGuestSaved(): GuestSavedItem[] {
   const parsed = readJson<GuestSavedItem[]>(GUEST_SAVED_ARTICLES_KEY.key);
-  return Array.isArray(parsed) ? parsed.filter((s) => typeof s?.url === "string") : [];
+  if (!Array.isArray(parsed)) return [];
+  const unique = new Map<string, GuestSavedItem>();
+  for (const item of parsed) {
+    if (typeof item?.url !== "string" || unique.has(item.url)) continue;
+    unique.set(item.url, item);
+    if (unique.size >= MAX_ANON_MERGE_ITEMS) break;
+  }
+  return Array.from(unique.values());
 }
 
 async function mergeInterests(userId: string): Promise<number> {
