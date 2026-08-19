@@ -124,3 +124,34 @@ export async function serverFnModuleMock(): Promise<Record<string, unknown>> {
   const actual = await vi.importActual<Record<string, unknown>>("@tanstack/react-start");
   return { ...actual, createServerFn: createServerFnMock };
 }
+
+// ---------------------------------------------------------------------------
+// Zgodność wsteczna z drugą, SPECYFIKACYJNĄ atrapą (`@/test/serverFnHarness`).
+//
+// Dwie generacje testów wołają warstwę serwerową dwoma stylami: starszy
+// (ten plik) buduje z handlera funkcję wywoływalną i czyta kontekst z modułu,
+// nowszy (harness) oddaje SPECYFIKACJĘ `{ validator, handler, middleware }`
+// i podaje kontekst przy wywołaniu. Poniższe trzy re-eksporty pozwalają
+// używać stylu specyfikacyjnego, importując z `@/test/serverFn` - bez
+// przepisywania testów i bez duplikowania atrapy.
+// ---------------------------------------------------------------------------
+export {
+  asServerFn as asSpec,
+  serverFnStubModule as reactStartStub,
+  type ServerFnSpec,
+} from "./serverFnHarness";
+
+/**
+ * Wywołanie w stylu specyfikacyjnym: `(fn, data, context)`. Przechodzi przez
+ * walidator (błędne wejście MA rzucać), potem przez handler.
+ */
+export async function callServerFn<TResult = unknown>(
+  fn: unknown,
+  data: unknown,
+  context: ServerFnContext,
+): Promise<TResult> {
+  const { asServerFn } = await import("./serverFnHarness");
+  const spec = asServerFn(fn);
+  const parsed = spec.validator ? spec.validator(data) : data;
+  return (await spec.handler?.({ data: parsed, context })) as TResult;
+}
