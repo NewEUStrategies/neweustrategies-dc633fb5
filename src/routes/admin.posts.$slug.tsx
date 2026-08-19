@@ -40,6 +40,11 @@ export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
   // Lista admina przekazuje `?lang=pl|en` - edytor otwiera się w tej wersji
   // językowej, spójnie z filtrem językowym listy.
+  //
+  // UWAGA: to zawęża TYP, ale nie odsiewa wartości. Router składa
+  // `match.search` jako `{ ...surowe, ...zwalidowane }`, a `useSearch()` czyta
+  // `match.search` - obce `?lang=` dociera więc do komponentu. Zawężenie w
+  // runtime jest niżej, przy `uiLang`.
   validateSearch: (search: Record<string, unknown>): { lang?: "pl" | "en" } => {
     const lang = search.lang;
     return lang === "pl" || lang === "en" ? { lang } : {};
@@ -53,8 +58,10 @@ function EditPost() {
   const { slug: routeSlug } = Route.useParams();
   const { lang: langSearch } = Route.useSearch();
   const { i18n } = useTranslation();
-  const uiLang: "pl" | "en" =
-    langSearch ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
+  const panelLang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  // Sprawdzenie wartości, nie tylko obecności: adres jest wejściem z zewnątrz,
+  // a `validateSearch` typuje, lecz nie odsiewa (komentarz przy trasie wyżej).
+  const uiLang: "pl" | "en" = langSearch === "pl" || langSearch === "en" ? langSearch : panelLang;
   const { data: globalLayout } = usePostLayoutSettings();
 
   const data = usePostEditorData(routeSlug);

@@ -264,22 +264,19 @@ describe("/admin/posts/$slug - korzeń kompozycji edytora", () => {
     expect(props("details").uiLang).toBe("en");
   });
 
-  it("OBCA wartość `lang` PRZECIEKA do `uiLang` - `validateSearch` jej nie odsiewa", async () => {
-    // Świadek usterki, nie decyzja projektowa. `validateSearch` trasy zwraca
-    // `{}` dla nieznanej wartości, ale to NIE usuwa jej z tego, co widzi
-    // komponent: router składa `match.search` jako
-    // `{ ...parentSearch, ...zwalidowane }` (router-core/router.js ~870), a
-    // `Route.useSearch()` czyta właśnie `match.search`, nie `_strictSearch`.
-    // Deklarowany typ `{ lang?: "pl" | "en" }` jest więc obietnicą wyłącznie
-    // KOMPILACYJNĄ - w runtime `langSearch` bywa dowolnym stringiem i leci
-    // dalej jako `uiLang`. Konsekwencja: `?lang=cokolwiek` przykleja edytor do
-    // polszczyzny (panele traktują wszystko poza "en" jak PL) zamiast wrócić do
-    // języka panelu. Naprawa w osobnym commicie zamienia tę asercję na "pl".
-    h.language = "pl";
+  it("OBCA wartość `lang` wypada i wraca język panelu", async () => {
+    // Test regresji. `validateSearch` trasy zwraca `{}` dla nieznanej wartości,
+    // ale to NIE usuwa jej z tego, co widzi komponent: router składa
+    // `match.search` jako `{ ...parentSearch, ...zwalidowane }`
+    // (router-core/router.js ~870), a `Route.useSearch()` czyta właśnie
+    // `match.search`, nie `_strictSearch`. Obca wartość dociera więc do
+    // komponentu i to on musi ją odrzucić - dlatego asercja pilnuje OBU rzeczy:
+    // że w search params dalej siedzi śmieć, i że edytor go nie uznał.
+    h.language = "en";
     const view = await render("/admin/posts/moj-wpis?lang=klingon");
     await waitFor(() => expect(screen.getByTestId("details")).toBeInTheDocument());
     expect(view.search()).toEqual({ lang: "klingon" });
-    expect(props("details").uiLang).toBe("klingon");
+    expect(props("details").uiLang).toBe("en");
   });
 
   it("bez `lang` w adresie edytor idzie za językiem panelu", async () => {
