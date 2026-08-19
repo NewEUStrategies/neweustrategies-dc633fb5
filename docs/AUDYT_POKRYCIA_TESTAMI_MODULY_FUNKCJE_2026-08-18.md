@@ -182,6 +182,16 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 ### MODUŁ 4 — Strony, wygląd, motyw, media, import · linie 22,76% · funkcje 16,18%
 
+> **AKTUALIZACJA 2026-08-19** — moduł został domknięty testami; szczegóły w
+> `docs/WDROZENIE_POKRYCIE_MODUL_4_2026-08-19.md`. Liczby w tabeli niżej to
+> pomiar z 2026-08-18 (stan zastany), zachowany jako punkt odniesienia. Stan po
+> zmianie, tymi samymi globami: **97,3% instrukcji · 88,0% gałęzi · 97,5%
+> funkcji (906/929) · 98,65% linii**, ZERO plików bez wykonania (było 72).
+> Per funkcjonalność: szablony stron i archiwów 3,7% → **99,2%**, media
+> 22,9% → **97,5%**, motyw 47,9% → **98,2%**, ikony 25,5% → **92,0%**,
+> a dziewiętnaście tras administracyjnych modułu 0% → **96,9%**. Powierzchnia
+> jest od tej pory chroniona 27 progami per ścieżka w `vitest.config.ts`.
+
 | Funkcjonalność                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
 | Szablony stron i archiwów       |      5 |        108 |   3,3% |  6,3% |    5,1% |  **3,7%** |      3/59 |
@@ -1060,7 +1070,7 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 **Czego bramka NIE pilnuje** — moduły bez ani jednego progu per-ścieżka:
 
 - **MODUŁ 2 — Edytor wpisów i workflow redakcyjny**: linie 8,34%, funkcje 6,85%, plików 0%: 64/83
-- **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
+- **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129 — _2026-08-19: linie 98,65%, funkcje 97,60%, plików 0%: 0 (patrz `WDROZENIE_POKRYCIE_MODUL_4_2026-08-19.md`)_
 - **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
 - **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
