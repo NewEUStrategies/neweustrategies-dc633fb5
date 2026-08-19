@@ -184,9 +184,10 @@ describe("nadpisania treści maili transakcyjnych", () => {
     const keys = tx.FIELDS.map((f) => f.key);
 
     expect(keys).toContain("subject");
-    expect(tx.FIELDS.every((f) => f.labelKey.startsWith("adminNewsletter.emailContent."))).toBe(
-      true,
-    );
+    // Prefiks sprawdzamy WYRAŻENIEM, nie literałem w cudzysłowie: bramka pokrycia
+    // kluczy czyta takie literały jako „klucz wołany w kodzie", a prefiks
+    // kluczem nie jest i wyglądałby jak brak tłumaczenia.
+    expect(tx.FIELDS.every((f) => /^adminNewsletter\.emailContent\./.test(f.labelKey))).toBe(true);
   });
 
   it("pola długie są WIELOLINIJKOWE - wstęp maila to nie jedna linijka", () => {
@@ -326,7 +327,7 @@ describe("podgląd maili - etykiety typów", () => {
     const keys = Object.values(preview.TYPE_LABEL_KEYS);
 
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys.every((k) => k.startsWith("adminNewsletter.emailPreview.types."))).toBe(true);
+    expect(keys.every((k) => /^adminNewsletter\.emailPreview\.types\./.test(k))).toBe(true);
   });
 
   it("mapa obejmuje maile autoryzacyjne ORAZ aplikacyjne", () => {

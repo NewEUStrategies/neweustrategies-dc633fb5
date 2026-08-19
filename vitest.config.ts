@@ -904,7 +904,7 @@ export default defineConfig({
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 90,
+          branches: 100,
         },
         // ── POPUPY W PANELU (rejestracja + popupy buildera) ──────────────────
         // Te dwa edytory decydują o tym, ile razy odwiedzający zobaczy modal na

@@ -69,23 +69,18 @@ describe("identyfikator sesji", () => {
   });
 
   it("bez `crypto.randomUUID` nadal daje identyfikator", () => {
-    // `randomUUID` nie istnieje w kontekście bez HTTPS - telemetria nie może
-    // wtedy przestać działać.
-    const original = globalThis.crypto.randomUUID;
-    Object.defineProperty(globalThis.crypto, "randomUUID", {
-      value: undefined,
-      configurable: true,
-    });
+    // W kontekście bez HTTPS `randomUUID` NIE ISTNIEJE - podmieniamy więc cały
+    // obiekt `crypto` bez tej metody, a nie samą wartość na `undefined`
+    // (własność nadal by istniała i warunek `"randomUUID" in crypto` przepuścił
+    // wywołanie, czyli test sprawdzałby zupełnie inną ścieżkę).
+    vi.stubGlobal("crypto", {});
     try {
       const id = newsletterPopupSessionId();
 
       expect(id).toMatch(/^s-\d+-/);
       expect(window.sessionStorage.getItem(SESSION_KEY)).toBe(id);
     } finally {
-      Object.defineProperty(globalThis.crypto, "randomUUID", {
-        value: original,
-        configurable: true,
-      });
+      vi.unstubAllGlobals();
     }
   });
 
