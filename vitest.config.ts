@@ -354,6 +354,211 @@ export default defineConfig({
           lines: 100,
           branches: 95,
         },
+        // ————— MODUŁ 13: MONETYZACJA PO ZAKUPIE (praca z 19.08.2026) —————
+        //
+        // Audyt 18.08 opisał ten moduł jednym zdaniem: „KUPNO JEST DOWIEDZIONE,
+        // OBSŁUGA PO KUPNIE - NIE". Checkout 65% linii i webhook 67,6% wobec
+        // 87 plików produkcyjnych z ZEREM wykonanych linii, w tym cała ścieżka
+        // rezygnacji. Progi niżej są zaporą przed powrotem do tego stanu -
+        // floorowane tuż pod osiągniętym pokryciem, per ścieżka, żeby regresja
+        // w JEDNYM katalogu nie chowała się w średniej całego modułu.
+        //
+        // Atomy rozliczeń: znacznik stanu płatności, kwota, data i pusty stan.
+        // Powstały ze scalenia kopii (trzy różne zestawy stanów „czerwonych",
+        // osiem kopii formatowania daty) - jeśli kiedykolwiek zejdą pod 100%,
+        // znaczy to, że ktoś dołożył do nich nieobsłużoną gałąź.
+        "src/components/billing/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Molekuły rozliczeń: karta planu, przyciski portalu i synchronizacji,
+        // formularz danych do faktury, tablica zmiany planu. Niedobite gałęzie
+        // to obronne ramiona pól opcjonalnych (NIP tylko dla firmy, notatka bez
+        // treści) - patrz komentarze w testach.
+        "src/components/billing/molecules/**": {
+          statements: 95,
+          functions: 98,
+          lines: 96,
+          branches: 82,
+        },
+        // Organizmy rozliczeń - tu mieszka ŚCIEŻKA REZYGNACJI i zmiana planu.
+        // Do 18.08 cały katalog stał na zerze, w tym `RetentionDialog`
+        // i `SubscriptionCard` (0 z 39 funkcji). Cztery defekty naprawione tą
+        // pracą (odmowa operatora raportowana jako sukces przy anulowaniu,
+        // wznowieniu, zmianie planu i miejscach) miały tu swoje źródło.
+        "src/components/billing/organisms/**": {
+          statements: 89,
+          functions: 89,
+          lines: 91,
+          branches: 85,
+        },
+        // Cennik publiczny: atomy, przełączniki i karta warstwy. Ekran, na
+        // którym klient NIEZALOGOWANY decyduje o zakupie.
+        "src/components/pricing/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 80,
+        },
+        "src/components/pricing/molecules/**": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
+        "src/components/pricing/organisms/**": {
+          statements: 92,
+          functions: 88,
+          lines: 95,
+          branches: 90,
+        },
+        // Strona „Dołącz do nas" - do 18.08 OKRĄGŁE ZERO przy dziewięciu
+        // plikach, najgorszy wynik w module. Pierwsza rzecz, jaką widzi osoba,
+        // która jeszcze nic nie kupiła.
+        "src/components/membership-join/**": {
+          statements: 94,
+          functions: 92,
+          lines: 95,
+          branches: 82,
+        },
+        // Panele redakcyjne monetyzacji. Tu redakcja definiuje, CO widzi klient
+        // na cenniku i CO dostaje po zakupie - błąd nie wywala aplikacji,
+        // po cichu zmienia ofertę. Wszystkie trzy katalogi startowały z zera.
+        "src/components/admin/billing/**": {
+          statements: 95,
+          functions: 96,
+          lines: 97,
+          branches: 87,
+        },
+        "src/components/admin/pricing/**": {
+          statements: 94,
+          functions: 95,
+          lines: 96,
+          branches: 89,
+        },
+        "src/components/admin/membership/**": {
+          statements: 91,
+          functions: 90,
+          lines: 94,
+          branches: 85,
+        },
+        // Selektory i model karty cennika: drabinka warstw, framing ceny
+        // rocznej, wybór planu do checkoutu. Czysta warstwa reguł - trzymana
+        // wysoko, bo tu rozstrzyga się, ILE klient widzi i CZY może kupić.
+        "src/lib/pricing/**": {
+          statements: 96,
+          functions: 92,
+          lines: 95,
+          branches: 89,
+        },
+        // Reguły paneli redakcyjnych wyniesione z plików tras (1821 + 898
+        // linii). Czyste moduły, więc próg pełny.
+        "src/lib/admin/pricingDrafts.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/admin/membershipDrafts.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/admin/rankTone.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/admin/retentionStats.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/admin/sortOrder.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/admin/tierGroups.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Format klucza technicznego - jedna reguła zamiast trzech kopii
+        // (segmenty cennika, warstwy członkostwa, filtr `?audience=` z adresu).
+        "src/lib/keyFormat.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Tonacja stanu płatności - scalone TRZY kopie z różnymi zestawami
+        // stanów „czerwonych" (ta sama płatność miała inny kolor na różnych
+        // kartach). Reguła musi zostać jedna.
+        "src/lib/billing/statusTone.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Odmowa operatora jako WYJĄTEK, nie jako zwykły wynik - fundament
+        // naprawy „sukces po odmowie" w karcie subskrypcji.
+        "src/lib/billing/providerResult.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Co członek FAKTYCZNIE ma: aktywne nadania, nadanie dożywotnie,
+        // nadanie wiodące. Reguła decyduje o dostępie bez płatności.
+        "src/lib/billing/membership.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Diagnostyka płatności - narzędzie, którym gasi się pożary. Kontrola
+        // świecąca zielono przy zepsutej integracji jest GORSZA niż jej brak.
+        "src/lib/billing/diagnostics.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // Jednorazowy link do portalu operatora - jedyne miejsce, w którym
+        // klient zmienia metodę płatności i pobiera faktury u operatora.
+        // Obie funkcje NIGDY nie rzucają; próg pilnuje wszystkich czterech
+        // kodów odmowy.
+        "src/lib/billing/portalLink.server.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 96,
+          branches: 85,
+        },
+        // Warstwa odczytu rozliczeń klienta: plany, subskrypcja, zamówienia,
+        // faktury, dane do faktury. Odczyty per-użytkownik zawężają po sesji,
+        // nie po argumencie.
+        "src/lib/billing/queries.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 88,
+        },
+        // Warstwa danych ścieżki rezygnacji: parametry kontroferty i katalog
+        // powodów odejścia (filtr `active` decyduje, co klient wybierze).
+        "src/lib/retention/queries.ts": {
+          statements: 90,
+          functions: 85,
+          lines: 90,
+          branches: 80,
+        },
         // Sieć kontaktów - warstwa danych RPC-only. Do 2026-08-06 CAŁY moduł
         // miał 0% (audyt: „pokrycie modułu 15,4%, src/lib/network na 0%"),
         // mimo że decyduje o prywatności odmów zaproszeń, izolacji kont w

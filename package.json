@@ -15,7 +15,7 @@
     "build:dev": "NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "NODE_OPTIONS=\"--max-old-space-size=8192\" tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:static": "bun run scripts/verify-static.ts",

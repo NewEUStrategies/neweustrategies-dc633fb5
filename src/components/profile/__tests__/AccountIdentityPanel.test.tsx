@@ -15,7 +15,6 @@
 //   3. PREFILL ZAPISUJE SIĘ TYLKO WTEDY, GDY COŚ UZUPEŁNIŁ. Bezwarunkowy UPDATE
 //      przy każdym montażu formularza to zapis na `profiles` przy każdym wejściu
 //      na stronę - i stempel `updated_at`, przez który profil udaje świeży.
-import { createElement } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PROFILE_IDS, xhrStub } from "@/test/profile/fixtures";
@@ -83,12 +82,15 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  // `createElement` z importu modułowego, nie z `require()`. Fabryka `vi.mock`
-  // jest hoistowana ponad importy, ale CIAŁO tego komponentu wykonuje się
-  // dopiero przy renderze - wtedy wiązanie jest już zainicjalizowane.
-  Link: ({ to, children }: { to: string; children?: unknown }) =>
-    createElement("a", { href: to }, children as never),
+// Wspólna atrapa `<Link>` (`src/test/routerLinkStub`), nie lokalna kopia:
+// poprzednia wersja budowała własny anchor przez `require("react")` wewnątrz
+// fabryki `vi.mock` - a `require()` jest w tym repo zabroniony regułą
+// `@typescript-eslint/no-require-imports`, więc `bun run lint` był czerwony.
+// Fabryka `vi.mock` jest hoistowana nad importy, dlatego stub wchodzi
+// dynamicznym `await import` - dokładnie jak w pozostałych suitach profilu
+// i sieci.
+vi.mock("@tanstack/react-router", async () => ({
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 
 vi.mock("sonner", () => ({

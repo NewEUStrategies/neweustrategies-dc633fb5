@@ -28,12 +28,12 @@ import {
   tiersForAudience,
   type BillingInterval,
 } from "@/lib/pricing/selectors";
-import { AudienceSwitcher } from "@/components/pricing/AudienceSwitcher";
+import { AudienceSwitcher } from "@/components/pricing/molecules/AudienceSwitcher";
 import { audiencePanelId, audienceTabId } from "@/components/pricing/audienceMeta";
-import { IntervalToggle } from "@/components/pricing/IntervalToggle";
-import { TierCard } from "@/components/pricing/TierCard";
-import { SupporterStrip } from "@/components/pricing/SupporterStrip";
-import { ContactSalesDialog } from "@/components/pricing/ContactSalesDialog";
+import { IntervalToggle } from "@/components/pricing/molecules/IntervalToggle";
+import { TierCard } from "@/components/pricing/organisms/TierCard";
+import { SupporterStrip } from "@/components/pricing/molecules/SupporterStrip";
+import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
 
 export function JoinTiers({ isAuthenticated }: { isAuthenticated: boolean }) {
   const { t, i18n } = useTranslation();
