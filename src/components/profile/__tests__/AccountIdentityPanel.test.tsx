@@ -82,12 +82,18 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: unknown }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href: to }, children as never);
-  },
-}));
+// Fabryka jest ASYNCHRONICZNA, bo `vi.mock` hoistuje ją nad importy pliku, więc
+// nie wolno w niej sięgnąć po `React` z góry. Wcześniej obchodziło to `require()`,
+// co łamało `@typescript-eslint/no-require-imports` i trzymało `bun run lint`
+// (a przez to całą bramkę `verify`) na czerwono. `await import` daje ten sam
+// efekt bez CommonJS - tak samo jak podmiana Radixowego Selecta niżej w tym pliku.
+vi.mock("@tanstack/react-router", async () => {
+  const React = await import("react");
+  return {
+    Link: ({ to, children }: { to: string; children?: unknown }) =>
+      React.createElement("a", { href: to }, children as never),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: {
