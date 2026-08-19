@@ -34,16 +34,19 @@ import {
   PostLayoutCard,
   type DetailsTab,
 } from "@/components/admin/post-editor";
+import {
+  parsePostEditorSearch,
+  resolveEditorLang,
+  type PostLang,
+} from "@/components/admin/post-editor/lib/postRouteParams";
 import { ensureI18n as ensureAdminPostPanesI18n } from "@/lib/i18n-admin-post-panes";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
   // Lista admina przekazuje `?lang=pl|en` - edytor otwiera się w tej wersji
   // językowej, spójnie z filtrem językowym listy.
-  validateSearch: (search: Record<string, unknown>): { lang?: "pl" | "en" } => {
-    const lang = search.lang;
-    return lang === "pl" || lang === "en" ? { lang } : {};
-  },
+  validateSearch: (search: Record<string, unknown>): { lang?: PostLang } =>
+    parsePostEditorSearch(search),
 });
 
 function EditPost() {
@@ -53,8 +56,7 @@ function EditPost() {
   const { slug: routeSlug } = Route.useParams();
   const { lang: langSearch } = Route.useSearch();
   const { i18n } = useTranslation();
-  const uiLang: "pl" | "en" =
-    langSearch ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
+  const uiLang = resolveEditorLang(langSearch, i18n.language);
   const { data: globalLayout } = usePostLayoutSettings();
 
   const data = usePostEditorData(routeSlug);
