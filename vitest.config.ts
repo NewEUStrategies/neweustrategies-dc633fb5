@@ -447,6 +447,24 @@ export default defineConfig({
         // Selektory i model karty cennika: drabinka warstw, framing ceny
         // rocznej, wybór planu do checkoutu. Czysta warstwa reguł - trzymana
         // wysoko, bo tu rozstrzyga się, ILE klient widzi i CZY może kupić.
+        // SCALANIE DANYCH GOŚCIA PO ZALOGOWANIU - do 19.08.2026 3,52% linii
+        // i 0 z 8 funkcji. To jedyna ścieżka, na której użytkownik może STRACIĆ
+        // DANE: zainteresowania wybrane przed rejestracją i artykuły zapisane
+        // jako gość żyją wyłącznie w localStorage tej przeglądarki, więc
+        // skasowanie ich przed potwierdzonym zapisem jest nieodwracalne.
+        // Próg pilnuje trzech defektów wymienionych w komentarzu modułu jako
+        // naprawione - bez testu nic nie broni przed ich powrotem: upsertu
+        // odpornego na duplikaty, czyszczenia urządzenia WYŁĄCZNIE po sukcesie
+        // oraz pozostawiania pozycji nierozwiązanych na miejscu. Osiągnięte
+        // 98,82/98,24/100/100. Niedobita linia to gałąź `writeJson` dla braku
+        // `window`, nieosiągalna z produkcji: bez `window` odczyt zwraca pustkę,
+        // więc do zapisu nigdy nie dochodzi.
+        "src/lib/personalization/anonMerge.ts": {
+          statements: 97,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
         "src/lib/pricing/**": {
           statements: 96,
           functions: 92,
