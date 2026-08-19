@@ -223,6 +223,22 @@ describe("ArchiveLayoutAdmin - panel boczny", () => {
       new Set(DEFAULT_ARCHIVE_LAYOUT.sidebar_widgets),
     );
   });
+
+  it("strzałka W DÓŁ przesuwa w przeciwną stronę niż strzałka W GÓRĘ", async () => {
+    // Dwie strzałki obok siebie o identycznej budowie - podmiana kierunku nie
+    // daje błędu typów i objawia się dopiero jako lista, która „ucieka” w złą
+    // stronę pod palcem operatora.
+    const domyslne = [...DEFAULT_ARCHIVE_LAYOUT.sidebar_widgets];
+    await setup();
+    const pierwszy = screen.getAllByRole("listitem")[0];
+    fireEvent.click(within(pierwszy).getByRole("button", { name: /w dół|down/i }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    const zapisane = h.upserts[0].sidebar_widgets as string[];
+    expect(zapisane[0]).toBe(domyslne[1]);
+    expect(zapisane[1]).toBe(domyslne[0]);
+  });
 });
 
 describe("ArchiveLayoutAdmin - zapis", () => {
@@ -277,5 +293,112 @@ describe("ArchiveLayoutAdmin - zapis", () => {
     await setup("tag");
     fireEvent.click(saveButton());
     await waitFor(() => expect(h.upserts[0]).toMatchObject({ archive_type: "tag" }));
+  });
+});
+
+// PEŁNY PRZEGLĄD PÓL FORMULARZA. Dotychczasowe przypadki brały panel boczny,
+// wariant układu i zapis; siedem przełączników i cztery listy wyboru nie miały
+// ani jednego wykonania.
+//
+// To ten sam rodzaj kodu co w edytorze motywu: jednolinijkowe `set("klucz", v)`
+// o identycznej sygnaturze. Podpięcie „Pokaż opis” pod `show_follow` nie daje
+// błędu typów (oba to `boolean`), nie wywraca renderu i wychodzi dopiero na
+// publicznym archiwum - u czytelnika, nie u redaktora.
+describe("ArchiveLayoutAdmin - każde pole pisze do WŁASNEGO ustawienia", () => {
+  /**
+   * Przełącznik w wierszu o danej etykiecie. Wiersz to `<label>` - nie `<div>`,
+   * bo najbliższy div obejmuje całą siatkę pól i zwróciłby cudzy przełącznik.
+   */
+  function toggleByLabel(label: string): HTMLElement {
+    const row = screen.getByText(label).closest("label");
+    const control = row?.querySelector('[role="switch"]');
+    if (!control) throw new Error(`brak przełącznika ${label}`);
+    return control as HTMLElement;
+  }
+
+  /** Ostatnia wysłana wersja ustawień. */
+  const lastSaved = () => h.upserts.at(-1) as Record<string, unknown>;
+
+  it.each([
+    ["Pokaż okruszki", "show_breadcrumbs"],
+    ["Pokaż nagłówek hero", "show_hero"],
+    ["Pokaż opis", "show_description"],
+    ["Pokaż przycisk obserwuj", "show_follow"],
+    ["Pokaż sidebar", "show_sidebar"],
+    ["Pokaż wyróżniony wpis na górze", "show_featured_top"],
+    ["Pokaż powiązane kategorie/tagi", "show_related_taxonomies"],
+    ["Pokaż powiązane podcasty", "show_podcasts"],
+  ])("przełącznik %s zmienia WYŁĄCZNIE %s", async (etykieta, klucz) => {
+    await setup();
+    const przed = { ...DEFAULT_ARCHIVE_LAYOUT } as Record<string, unknown>;
+    fireEvent.click(toggleByLabel(etykieta));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    const zmienione = Object.keys(przed).filter((k) => lastSaved()[k] !== przed[k]);
+    expect(zmienione).toEqual([klucz]);
+    expect(lastSaved()[klucz]).toBe(!przed[klucz]);
+  });
+
+  it.each([
+    ["Tło nagłówka", "Zdjęcie", "hero_bg_style", "image"],
+    ["Styl listy", "Lista", "list_style", "list"],
+    ["Liczba kolumn", "4", "columns", 4],
+  ])("lista %s zapisuje wartość, nie etykietę", async (etykieta, opcja, klucz, wartosc) => {
+    // Etykieta („Zdjęcie”) i wartość („image”) to dwie różne rzeczy; zapisanie
+    // etykiety daje wariant, którego publiczny układ nie zna.
+    await setup();
+    fireEvent.keyDown(selectByLabel(etykieta), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("option", { name: opcja }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved()[klucz]).toBe(wartosc);
+  });
+
+  it("liczba wpisów na stronie zapisuje się jako LICZBA, nie napis", async () => {
+    // Napis „30” przeszedłby do zapytania i wywrócił paginację po stronie bazy.
+    await setup();
+    const pole = screen.getByText("Wpisy na stronie").closest("div")?.querySelector("input");
+    fireEvent.change(pole as HTMLInputElement, { target: { value: "30" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved().posts_per_page).toBe(30);
+  });
+
+  it("pozycja panelu bocznego zapisuje stronę, po której panel stoi", async () => {
+    await setup();
+    fireEvent.click(toggleByLabel("Pokaż sidebar"));
+    fireEvent.keyDown(selectByLabel(/pozycj|position/i), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("option", { name: "Lewa" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved().sidebar_position).toBe("left");
+  });
+
+  it("Reset przywraca WSZYSTKIE domyślne wartości naraz", async () => {
+    // Reset zostawiający choć jedno pole po staremu daje układ, którego nie ma
+    // ani w domyślnych, ani w zapisanych ustawieniach.
+    await setup();
+    fireEvent.click(toggleByLabel("Pokaż okruszki"));
+    fireEvent.click(toggleByLabel("Pokaż opis"));
+    fireEvent.click(screen.getByRole("button", { name: /^Reset$/ }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    for (const [klucz, wartosc] of Object.entries(DEFAULT_ARCHIVE_LAYOUT)) {
+      expect(lastSaved()[klucz], klucz).toEqual(wartosc);
+    }
+  });
+
+  it("Reset zachowuje identyfikator wiersza, nie tworzy drugiego", async () => {
+    await setup();
+    fireEvent.click(screen.getByRole("button", { name: /^Reset$/ }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved().archive_type).toBe("category");
   });
 });

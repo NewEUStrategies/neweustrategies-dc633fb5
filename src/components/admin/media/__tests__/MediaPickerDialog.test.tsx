@@ -360,3 +360,100 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
     );
   });
 });
+
+// SPIĘCIA OKNA, które zostały poza zasięgiem dotychczasowych przypadków:
+// przeciągnij-i-upuść, przycisk wgrywania sięgający po ukryte pole, podwójne
+// kliknięcie w kafel i anulowanie. Każde z nich to osobna droga do tego samego
+// skutku - a przynajmniej powinna nią być.
+describe("MediaPickerDialog - wgrywanie przeciągnięciem", () => {
+  beforeEach(() => {
+    stub().setResponse("media", ok([pickerRow("a")]));
+  });
+
+  /** Obszar listy - to on nasłuchuje upuszczenia, nie całe okno. */
+  const dropZone = () =>
+    document.querySelector<HTMLElement>("[class*='overflow-y-auto'][class*='max-h-']")!;
+
+  function dropEvent(files: File[]) {
+    return { dataTransfer: { files } };
+  }
+
+  it("upuszczenie pliku wgrywa go tą samą ścieżką co wybór z dysku", async () => {
+    // Druga ścieżka wgrywania nie może omijać walidacji i sprzątania.
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.drop(dropZone(), dropEvent([new File(["x"], "z-dysku.png", { type: "image/png" })]));
+
+    await waitFor(() => expect(h.uploadAndRegisterMedia).toHaveBeenCalledTimes(1));
+    expect(h.uploadAndRegisterMedia.mock.calls[0][0]).toMatchObject({
+      file: expect.objectContaining({ name: "z-dysku.png" }),
+    });
+  });
+
+  it("upuszczenie BEZ plików niczego nie wgrywa", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.drop(dropZone(), dropEvent([]));
+
+    expect(h.uploadAndRegisterMedia).not.toHaveBeenCalled();
+  });
+
+  it("przeciągnięcie nad obszar podświetla go, opuszczenie gasi", async () => {
+    // Bez tej podpowiedzi użytkownik nie wie, że okno w ogóle przyjmuje pliki.
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+
+    fireEvent.dragOver(dropZone());
+    expect(dropZone().className).toContain("outline-dashed");
+
+    fireEvent.dragLeave(dropZone());
+    expect(dropZone().className).not.toContain("outline-dashed");
+  });
+
+  it("przycisk wgrywania sięga po ukryte pole wyboru plików", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const click = vi.fn();
+    input.click = click;
+    fireEvent.click(screen.getByRole("button", { name: /wgraj|upload/i }));
+
+    expect(click).toHaveBeenCalled();
+  });
+
+  it("wybór z ukrytego pola BEZ plików niczego nie wgrywa", async () => {
+    // Anulowanie okna systemowego zgłasza zdarzenie z pustą listą.
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(input, { target: { files: [] } });
+
+    expect(h.uploadAndRegisterMedia).not.toHaveBeenCalled();
+  });
+});
+
+describe("MediaPickerDialog - skróty wyboru", () => {
+  beforeEach(() => {
+    stub().setResponse("media", ok([pickerRow("a"), pickerRow("b")]));
+  });
+
+  it("PODWÓJNE kliknięcie w kafel wybiera i zamyka okno jednym ruchem", async () => {
+    // Pojedynczy klik tylko zaznacza; bez skrótu każdy wybór to dwa kliknięcia.
+    const { onPick, onOpenChange } = setup();
+    await waitFor(() => expect(screen.getByText("b.png")).toBeInTheDocument());
+    fireEvent.doubleClick(screen.getByText("b.png"));
+
+    expect(onPick).toHaveBeenCalledWith("https://cdn.example/b.png");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("anulowanie zamyka okno BEZ oddawania adresu", async () => {
+    const { onPick, onOpenChange } = setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("a.png"));
+    fireEvent.click(screen.getByRole("button", { name: /anuluj|cancel/i }));
+
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});

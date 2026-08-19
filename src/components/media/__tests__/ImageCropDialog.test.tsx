@@ -351,3 +351,119 @@ describe("CROP_PRESETS - niezmienniki katalogu", () => {
     }
   });
 });
+
+// SUWAKI ZOOMU I OBROTU - klawiaturowe kroki. Do 19.08.2026 obie obsługi
+// klawiszy (linie 269-306) bez wykonania.
+//
+// Reguła kroków jest tu jedyną drogą do PRECYZYJNEGO kadru: bez niej zostaje
+// przeciąganie myszą, którym nie da się trafić w 0,1 stopnia. Trzy modyfikatory
+// (bez, Shift, Alt) i dwa kierunki dają sześć ścieżek o identycznym kształcie -
+// pomylenie znaku albo modyfikatora daje suwak, który „ucieka” pod palcem.
+describe("ImageCropDialog - klawiaturowe kroki suwaków", () => {
+  /** Korzeń suwaka o danej etykiecie - `onKeyDown` siedzi właśnie tam. */
+  function slider(label: string): HTMLElement {
+    const root = document.querySelector<HTMLElement>(`[aria-label="${label}"]`);
+    if (!root) throw new Error(`brak suwaka ${label}`);
+    return root;
+  }
+
+  /** Odczyt wartości z etykiety suwaka - to jedyny widoczny ślad kroku. */
+  const zoomValue = () => screen.getByText(/×$/).textContent ?? "";
+  const rotationValue = () => screen.getByText(/°$/).textContent ?? "";
+
+  it("zoom: strzałka w prawo powiększa o krok zgrubny", () => {
+    setup();
+    expect(zoomValue()).toBe("1.00×");
+    fireEvent.keyDown(slider("Zoom"), { key: "ArrowRight" });
+
+    expect(zoomValue()).toBe("1.05×");
+  });
+
+  it("zoom: Shift daje krok DROBNY, pięć razy mniejszy", () => {
+    setup();
+    fireEvent.keyDown(slider("Zoom"), { key: "ArrowRight", shiftKey: true });
+
+    expect(zoomValue()).toBe("1.01×");
+  });
+
+  it("zoom: strzałka w lewo nie schodzi poniżej pełnego kadru", () => {
+    // Zoom mniejszy niż 1 odsłoniłby tło poza zdjęciem.
+    setup();
+    fireEvent.keyDown(slider("Zoom"), { key: "ArrowLeft" });
+
+    expect(zoomValue()).toBe("1.00×");
+  });
+
+  it("zoom: strzałka w górę działa jak w prawo, w dół jak w lewo", () => {
+    setup();
+    fireEvent.keyDown(slider("Zoom"), { key: "ArrowUp" });
+    expect(zoomValue()).toBe("1.05×");
+    fireEvent.keyDown(slider("Zoom"), { key: "ArrowDown" });
+    expect(zoomValue()).toBe("1.00×");
+  });
+
+  it("zoom: klawisz spoza obsługiwanych niczego nie zmienia", () => {
+    setup();
+    fireEvent.keyDown(slider("Zoom"), { key: "Home" });
+
+    expect(zoomValue()).toBe("1.00×");
+  });
+
+  it("obrót: krok zgrubny to jeden stopień", () => {
+    setup();
+    expect(rotationValue()).toBe("0.0°");
+    fireEvent.keyDown(slider("Obrót"), { key: "ArrowRight" });
+
+    expect(rotationValue()).toBe("1.0°");
+  });
+
+  it("obrót: Shift daje dziesiątą część stopnia", () => {
+    // Bez tego kroku nie da się wyprostować horyzontu.
+    setup();
+    fireEvent.keyDown(slider("Obrót"), { key: "ArrowRight", shiftKey: true });
+
+    expect(rotationValue()).toBe("0.1°");
+  });
+
+  it("obrót: Alt przeskakuje do pełnych piętnastu stopni", () => {
+    setup();
+    fireEvent.keyDown(slider("Obrót"), { key: "ArrowRight", altKey: true });
+
+    expect(rotationValue()).toBe("15.0°");
+  });
+
+  it("obrót: strzałka w lewo idzie w przeciwną stronę", () => {
+    setup();
+    fireEvent.keyDown(slider("Obrót"), { key: "ArrowLeft" });
+
+    expect(rotationValue()).toBe("-1.0°");
+  });
+
+  it("obrót: klawisz spoza obsługiwanych niczego nie zmienia", () => {
+    setup();
+    fireEvent.keyDown(slider("Obrót"), { key: "Enter" });
+
+    expect(rotationValue()).toBe("0.0°");
+  });
+
+  it("kadrowanie tnie z kątem USTAWIONYM Z KLAWIATURY", async () => {
+    // Dowód, że krok klawiaturowy trafia do tej samej wartości, którą dostaje
+    // kadrownik - a nie tylko do napisu obok suwaka.
+    setup();
+    fireEvent.keyDown(slider("Obrót"), { key: "ArrowRight", altKey: true });
+    await reportCropArea();
+    fireEvent.click(screen.getByRole("button", { name: /zastosuj|apply/i }));
+
+    await waitFor(() =>
+      expect(h.getCroppedBlob).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        15,
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+  });
+});
