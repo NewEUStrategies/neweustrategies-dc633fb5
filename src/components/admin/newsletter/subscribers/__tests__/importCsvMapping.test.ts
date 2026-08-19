@@ -59,14 +59,29 @@ describe("autoMapHeader - rozpoznanie kolumn", () => {
     expect(autoMapHeader(["FIRMA"])).toEqual(["company"]);
   });
 
-  it("UWAGA: nagłówek firmy ZAWIERAJĄCY słowo „nazwa”/„name” trafia do nazwy osoby", () => {
-    // Zachowanie zastane, przeniesione bez zmiany. Reguła `(name|nazwa)` stoi
-    // PRZED regułą `(company|firma)`, więc „Nazwa firmy" - najczęstszy nagłówek
-    // w polskich eksportach CRM - mapuje się na pełną nazwę SUBSKRYBENTA.
-    // Skutek: w bazie ląduje firma jako imię i nazwisko odbiorcy, a kolumna
-    // firmy przepada. Naprawa idzie osobnym commitem.
-    expect(autoMapHeader(["Nazwa firmy"])).toEqual(["displayName"]);
-    expect(autoMapHeader(["company name"])).toEqual(["displayName"]);
+  it("nagłówek firmy ZAWIERAJĄCY słowo „nazwa”/„name” nadal jest firmą", () => {
+    // „Nazwa firmy" i „company name" to najczęstsze nagłówki w eksportach CRM,
+    // a pasują do OBU wzorców. Przy odwrotnej kolejności firma lądowała w bazie
+    // jako imię i nazwisko odbiorcy, a kolumna firmy przepadała.
+    expect(autoMapHeader(["Nazwa firmy"])).toEqual(["company"]);
+    expect(autoMapHeader(["company name"])).toEqual(["company"]);
+    expect(autoMapHeader(["Nazwa organizacji", "Firma"])).toEqual(["displayName", "company"]);
+    // Polska odmiana też: „firmy", „firmie".
+    expect(autoMapHeader(["firmy", "W firmie"])).toEqual(["company", "company"]);
+  });
+
+  it("„confirmed” NIE jest firmą - granica słowa wyklucza fałszywe dopasowanie", () => {
+    // Bez granicy słowa nagłówek daty potwierdzenia mapowałby się na firmę.
+    expect(autoMapHeader(["confirmed_at"])).toEqual([""]);
+  });
+
+  it("nazwa OSOBY nadal trafia do nazwy wyświetlanej", () => {
+    // Pierwszeństwo firmy nie może zabrać nagłówków, które firmy nie dotyczą.
+    expect(autoMapHeader(["Nazwa", "Full name", "display name"])).toEqual([
+      "displayName",
+      "displayName",
+      "displayName",
+    ]);
   });
 
   it("ignoruje białe znaki i wielkość liter nagłówka", () => {
@@ -197,12 +212,18 @@ describe("buildImportRow - język", () => {
     expect(buildImportRow(["a@example.test"], ["email"]).language).toBe("pl");
   });
 
-  it("UWAGA: wariant zapisany WIELKĄ literą schodzi na polski", () => {
-    // Zachowanie zastane i przeniesione bez zmiany. Plik wyeksportowany
-    // z innego systemu ma zwykle „EN"/„En" - taki wiersz dostanie polski
-    // szablon wiadomości mimo jawnej deklaracji w pliku.
-    expect(buildImportRow(["a@example.test", "EN"], mapping).language).toBe("pl");
-    expect(buildImportRow(["a@example.test", "en-GB"], mapping).language).toBe("pl");
+  it("wariant WIELKĄ literą i regionalny też daje angielski", () => {
+    // Pliki z innych systemów mają zwykle „EN", „En" albo „en-GB". Wcześniej
+    // taki wiersz dostawał polski szablon wiadomości mimo jawnej deklaracji.
+    expect(buildImportRow(["a@example.test", "EN"], mapping).language).toBe("en");
+    expect(buildImportRow(["a@example.test", "En"], mapping).language).toBe("en");
+    expect(buildImportRow(["a@example.test", "en-GB"], mapping).language).toBe("en");
+    expect(buildImportRow(["a@example.test", " english "], mapping).language).toBe("en");
+  });
+
+  it("język nierozpoznany schodzi na polski - to nie jest zgoda, więc domyślna jest bezpieczna", () => {
+    expect(buildImportRow(["a@example.test", "de"], mapping).language).toBe("pl");
+    expect(buildImportRow(["a@example.test", ""], mapping).language).toBe("pl");
   });
 });
 
@@ -215,14 +236,44 @@ describe("buildImportRow - status zgody", () => {
     expect(buildImportRow(["a@example.test", "subscribed"], mapping).status).toBe("subscribed");
   });
 
-  it("UWAGA: wartość SPOZA słownika staje się `subscribed`", () => {
-    // Zachowanie zastane i przeniesione bez zmiany. Konsekwencja jest
-    // poważna: plik z kolumną status = „unsub" / „wypisany" / pustą zapisuje
-    // ZGODĘ MARKETINGOWĄ, której nikt nie wyraził.
-    expect(buildImportRow(["a@example.test", "unsub"], mapping).status).toBe("subscribed");
-    expect(buildImportRow(["a@example.test", "wypisany"], mapping).status).toBe("subscribed");
-    expect(buildImportRow(["a@example.test", ""], mapping).status).toBe("subscribed");
+  it("rozpoznaje polskie i angielskie WARIANTY wypisania", () => {
+    // Gdyby „unsub" schodził na `pending`, import wysłałby potwierdzenie zapisu
+    // komuś, kto się wypisał.
+    for (const word of ["unsub", "wypisany", "opt-out", "optout", "NIE", "0", "false"]) {
+      expect(buildImportRow(["a@example.test", word], mapping).status, word).toBe("unsubscribed");
+    }
+  });
+
+  it("rozpoznaje warianty zapisania i oczekiwania", () => {
+    for (const word of ["Aktywny", "confirmed", "TAK", "1"]) {
+      expect(buildImportRow(["a@example.test", word], mapping).status, word).toBe("subscribed");
+    }
+    for (const word of ["oczekujacy", "unconfirmed"]) {
+      expect(buildImportRow(["a@example.test", word], mapping).status, word).toBe("pending");
+    }
+  });
+
+  it("wartość NIEROZPOZNANA daje `pending` - nigdy zgody, której nikt nie wyraził", () => {
+    // Wcześniej każda nierozpoznana wartość zapisywała ZGODĘ MARKETINGOWĄ,
+    // a import nie miał jak tego zgłosić.
+    expect(buildImportRow(["a@example.test", "cos-dziwnego"], mapping).status).toBe("pending");
+    expect(buildImportRow(["a@example.test", "???"], mapping).status).toBe("pending");
+  });
+
+  it("PUSTA komórka w zmapowanej kolumnie statusu też daje `pending`", () => {
+    // Brak wartości w kolumnie, którą operator zmapował, znaczy „nie wiem" -
+    // a „nie wiem" nie jest zgodą.
+    expect(buildImportRow(["a@example.test", ""], mapping).status).toBe("pending");
+    expect(buildImportRow(["a@example.test", "   "], mapping).status).toBe("pending");
+  });
+
+  it("BRAK kolumny statusu to deklaracja operatora - lista wgrywana jako zapisana", () => {
+    // Inna sytuacja niż nieczytelna wartość: operator wgrywa listę, którą
+    // deklaruje jako swoją, i nie ma tu żadnej wartości do zignorowania.
     expect(buildImportRow(["a@example.test"], ["email"]).status).toBe("subscribed");
+    expect(buildImportRow(["a@example.test", "Anna"], ["email", "firstName"]).status).toBe(
+      "subscribed",
+    );
   });
 });
 
