@@ -27,7 +27,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
-import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
 import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
 import { useAuth } from "@/hooks/useAuth";
@@ -663,7 +663,7 @@ function SuggestionsTab() {
                 .join(" \u00b7 ") || undefined
             }
           >
-            <DirectMessageButton
+            <MessageOrConnectButton
               userId={s.user_id}
               displayName={s.display_name}
               displayAvatar={s.avatar_url}
