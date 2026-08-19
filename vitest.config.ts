@@ -849,6 +849,31 @@ export default defineConfig({
           lines: 98,
           branches: 95,
         },
+        // ── BUILDER MAILA: REJESTR I FABRYKA DOKUMENTU ───────────────────────
+        // Rejestr jest kontraktem między BIBLIOTEKĄ (co operator widzi do
+        // przeciągnięcia), FABRYKĄ widgetów i SCHEMATEM dokumentu. Rozjazd nie
+        // wywala się na budowie - wywala się pod palcem operatora, w połowie
+        // układania kampanii. Testy przechodzą po CAŁYM rejestrze i sprawdzają,
+        // że każdy wpis ma fabrykę, przechodzi walidację (także z presetem) i ma
+        // etykiety w obu językach.
+        "src/lib/newsletter-builder/registry.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // `buildDefaultDoc` uruchamia się RAZ na instalację: buduje pierwszy
+        // formularz z ustawień tenanta. Jeśli któryś element wypadnie po cichu,
+        // operator zaczyna od formularza BEZ POLA ZGODY albo bez klauzuli RODO -
+        // i nie zauważy tego, bo nie wie, że coś miało tam być. Próg pilnuje
+        // każdego zaczepu w wariancie „jest" i „nie ma" oraz KOLEJNOŚCI
+        // widgetów (to ona decyduje, czy zgoda stoi przed przyciskiem).
+        "src/lib/newsletter-builder/defaults.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 90,
+        },
       },
     },
   },
