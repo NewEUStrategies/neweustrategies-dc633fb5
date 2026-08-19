@@ -69,6 +69,14 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
+  // Dołożone przy cięciu chunku wejściowego (01253dc, 374 -> 253 KB gz), bez
+  // aktualizacji tej listy - stąd czerwony strażnik „does not leak unexpected
+  // exports" na mainie. Wszystkie trzy są prawdziwymi, konsumowanymi widgetami:
+  // TrendingNowView renderuje `WidgetView.tsx:856`, a AccordionWidget
+  // i SectionLabelWidgetView - `SimpleWidgets.tsx` (odpowiednio 1307 i 1624).
+  "TrendingNowView",
+  "AccordionWidget",
+  "SectionLabelWidgetView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

@@ -83,3 +83,9 @@ export { PricingPlansView } from "@/components/builder/organisms/widget-view/Pri
 export { DynamicTagWidget } from "@/components/builder/organisms/widget-view/DynamicTagWidgets";
 export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/GalleryLightbox";
 export { Editable } from "@/components/builder/molecules/Editable";
+// Dołożone przy cięciu chunku wejściowego (01253dc) do `lazyWidgets.tsx`, ale
+// NIE do tego lustra - stąd czerwona bramka `eagerWidgetChunks.test.ts`
+// („exports exactly the same component names") i wysypka testów renderera,
+// które przez lustro dostawały `undefined` zamiast komponentu.
+export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
+export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
