@@ -136,6 +136,14 @@ const CHAIN_METHODS: readonly string[] = [
   "or",
   "filter",
   "match",
+  // Dopasowania tekstowe. Dopisane, gdy `fetchAdminComments` (wyszukiwarka
+  // moderatora) trafila na `builder.ilike is not a function`: lista jest
+  // JAWNA z premedytacja, wiec brakujace ogniwo ma sie zglosic bledem testu,
+  // a nie zostac cicho pochloniete - ale ogniwo, ktorego produkcja NAPRAWDE
+  // uzywa, musi tu byc.
+  "ilike",
+  "like",
+  "textSearch",
   "contains",
   "overlaps",
   "order",
