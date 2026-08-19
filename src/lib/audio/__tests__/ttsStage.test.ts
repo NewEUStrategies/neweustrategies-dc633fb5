@@ -9,7 +9,13 @@
 // a tłumaczenie EN i odmiana zostają w słowniku.
 import { describe, it, expect } from "vitest";
 import type { TtsStage } from "@/lib/audio/global-player";
-import { downloadKey, playPauseKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
+import {
+  downloadKey,
+  playPauseKey,
+  transportLabelKey,
+  ttsStageKey,
+  ttsStagePercent,
+} from "@/lib/audio/ttsStage";
 
 const ALL_STAGES: TtsStage[] = [
   "idle",
@@ -88,38 +94,47 @@ describe("ttsStagePercent - kiedy pasek postępu jest wiarygodny", () => {
   });
 });
 
-describe("playPauseKey - etykieta głównego przycisku", () => {
+describe("playPauseKey - etykieta przycisku odsłuchu", () => {
   it("GENERUJĘ wygrywa nad pauzą - w trakcie syntezy przycisk nie pauzuje", () => {
     expect(playPauseKey({ loading: true, playing: true, paused: false })).toBe("loading");
     expect(playPauseKey({ loading: true, playing: false, paused: true })).toBe("loading");
   });
 
-  it("odtwarzanie daje `pause` w obu wariantach", () => {
+  it("odtwarzanie daje `pause`", () => {
     expect(playPauseKey({ loading: false, playing: true, paused: false })).toBe("pause");
-    expect(
-      playPauseKey({ loading: false, playing: true, paused: false, variant: "transport" }),
-    ).toBe("pause");
+    expect(playPauseKey({ loading: false, playing: true, paused: true })).toBe("pause");
   });
 
-  it("wariant `listen` (karta, przycisk w treści) rozróżnia WZNÓW i ODSŁUCHAJ", () => {
+  it("rozróżnia WZNÓW i ODSŁUCHAJ - karta pokazuje pozycję, więc to różne obietnice", () => {
     expect(playPauseKey({ loading: false, playing: false, paused: true })).toBe("resume");
     expect(playPauseKey({ loading: false, playing: false, paused: false })).toBe("listen");
   });
 
-  it("wariant `transport` (dolny pasek) ma jedną etykietę startu", () => {
-    expect(
-      playPauseKey({ loading: false, playing: false, paused: true, variant: "transport" }),
-    ).toBe("play");
-    expect(
-      playPauseKey({ loading: false, playing: false, paused: false, variant: "transport" }),
-    ).toBe("play");
-  });
-
-  it("stan spoczynku NIE jest tym samym kluczem co pauza (a11y: różne akcje)", () => {
+  it("stan spoczynku NIE jest tym samym kluczem co odtwarzanie (a11y: różne akcje)", () => {
     const idle = playPauseKey({ loading: false, playing: false, paused: false });
     const playing = playPauseKey({ loading: false, playing: true, paused: false });
     expect(idle).not.toBe(playing);
     expect(idle).toBe("listen");
+  });
+});
+
+describe("transportLabelKey - etykieta dolnego paska", () => {
+  it("pasek NIE rozróżnia wznów/odtwórz - stoi zawsze przy aktywnym materiale", () => {
+    expect(transportLabelKey({ loading: false, playing: false, paused: true })).toBe("play");
+    expect(transportLabelKey({ loading: false, playing: false, paused: false })).toBe("play");
+  });
+
+  it("odtwarzanie daje `pause`, generowanie `loading`", () => {
+    expect(transportLabelKey({ loading: false, playing: true, paused: false })).toBe("pause");
+    expect(transportLabelKey({ loading: true, playing: true, paused: false })).toBe("loading");
+  });
+
+  it("oba warianty zgadzają się co do pauzy i generowania, różnią się startem", () => {
+    const state = { loading: false, playing: false, paused: true };
+    expect(transportLabelKey(state)).not.toBe(playPauseKey(state));
+    expect(transportLabelKey({ ...state, playing: true })).toBe(
+      playPauseKey({ ...state, playing: true }),
+    );
   });
 });
 

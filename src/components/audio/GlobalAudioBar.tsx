@@ -3,7 +3,7 @@
 // user uruchomi odsłuch, przetrwa zmiany stron.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, Download, X, Share2 } from "@/lib/lucide-shim";
-import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
+import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
 import { Rewind, FastForward } from "lucide-react";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
 import { formatPlaybackRate, nextPlaybackRate } from "@/lib/audio/playbackRate";
@@ -11,7 +11,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 
 import { promptDialog } from "@/lib/appDialogs";
-import { ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
+import { downloadKey, transportLabelKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
+import { AUDIO_FOCUS_RING, AudioIconButton } from "@/components/audio/atoms/AudioIconButton";
 function ActionTip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Tooltip>
@@ -87,8 +88,9 @@ const HeadphonesIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+// Pierścień fokusu przychodzi z atomu - był tu ZADEKLAROWANY DRUGI RAZ,
+// obok identycznej kopii w `SidebarListenCard`.
+const FOCUS_RING = AUDIO_FOCUS_RING;
 
 export function GlobalAudioBar() {
   const player = useGlobalAudioPlayer();
@@ -203,54 +205,34 @@ export function GlobalAudioBar() {
                 jak w aplikacjach podcastowych. Skoki aktywne dopiero gdy audio
                 ma oś czasu (nie w trakcie syntezy TTS). */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <button
-                type="button"
+              <AudioIconButton
+                label={t.back15}
                 onClick={() => player.skip(-15)}
                 disabled={loading || duration <= 0}
-                aria-label={t.back15}
-                className={[
-                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
-                  "border border-border text-muted-foreground",
-                  "hover:text-brand hover:bg-muted transition disabled:opacity-50",
-                  FOCUS_RING,
-                ].join(" ")}
-              >
-                <Rewind className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
+                icon={Rewind}
+                variant="outline"
+              />
+              <AudioIconButton
+                label={t[transportLabelKey({ loading, playing, paused: false })]}
                 onClick={() => void player.toggle()}
                 disabled={loading}
-                aria-label={playing ? t.pause : t.play}
-                aria-pressed={playing}
-                data-playing={playing ? "true" : "false"}
-                className={[
-                  "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px]",
-                  "bg-brand text-brand-foreground shadow-md overflow-hidden",
-                  "hover:brightness-110 active:scale-95 transition disabled:opacity-70",
-                  FOCUS_RING,
-                ].join(" ")}
+                pressed={playing}
+                variant="primary"
+                busy={loading}
               >
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
                 ) : (
                   <MorphPlayPause playing={playing} />
                 )}
-              </button>
-              <button
-                type="button"
+              </AudioIconButton>
+              <AudioIconButton
+                label={t.fwd15}
                 onClick={() => player.skip(15)}
                 disabled={loading || duration <= 0}
-                aria-label={t.fwd15}
-                className={[
-                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
-                  "border border-border text-muted-foreground",
-                  "hover:text-brand hover:bg-muted transition disabled:opacity-50",
-                  FOCUS_RING,
-                ].join(" ")}
-              >
-                <FastForward className="h-4 w-4" aria-hidden />
-              </button>
+                icon={FastForward}
+                variant="outline"
+              />
             </div>
 
             {/* Info + progress */}
@@ -378,45 +360,31 @@ export function GlobalAudioBar() {
                     {formatPlaybackRate(player.playbackRate)}
                   </button>
                 </ActionTip>
-                <ActionTip label={downloading ? t.downloading : t.download}>
-                  <button
-                    type="button"
+                <ActionTip label={t[downloadKey(downloading)]}>
+                  <AudioIconButton
+                    label={t[downloadKey(downloading)]}
                     onClick={() => void onDownload()}
                     disabled={downloading || loading}
-                    aria-label={downloading ? t.downloading : t.download}
-                    className={[
-                      "hidden xs:inline-flex h-9 w-9 items-center justify-center rounded-[6px]",
-                      "text-muted-foreground hover:text-brand hover:bg-muted transition",
-                      "disabled:opacity-60 disabled:cursor-not-allowed",
-                      FOCUS_RING,
-                    ].join(" ")}
+                    busy={downloading}
+                    className="hidden xs:inline-flex disabled:cursor-not-allowed"
                   >
                     {downloading ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                     ) : (
                       <Download className="h-4 w-4" aria-hidden />
                     )}
-                  </button>
+                  </AudioIconButton>
                 </ActionTip>
                 <ActionTip label={t.share}>
-                  <button
-                    type="button"
-                    onClick={() => void onShare()}
-                    aria-label={t.share}
-                    className={`inline-flex h-9 w-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-brand hover:bg-muted transition ${FOCUS_RING}`}
-                  >
-                    <Share2 className="h-4 w-4" aria-hidden />
-                  </button>
+                  <AudioIconButton label={t.share} onClick={() => void onShare()} icon={Share2} />
                 </ActionTip>
                 <ActionTip label={t.close}>
-                  <button
-                    type="button"
+                  <AudioIconButton
+                    label={t.close}
                     onClick={() => player.close()}
-                    aria-label={t.close}
-                    className={`inline-flex h-9 w-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-destructive hover:bg-muted transition ${FOCUS_RING}`}
-                  >
-                    <X className="h-4 w-4" aria-hidden />
-                  </button>
+                    icon={X}
+                    variant="danger"
+                  />
                 </ActionTip>
               </TooltipProvider>
             </div>

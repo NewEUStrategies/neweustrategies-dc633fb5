@@ -56,25 +56,41 @@ export function ttsStagePercent(progress: { stage: TtsStage; percent: number }):
   return progress.stage === "streaming" && progress.percent > 0 ? progress.percent : null;
 }
 
-/** Klucz etykiety przycisku odtwarzania/pauzy. */
-export type PlayPauseKey = "loading" | "pause" | "resume" | "listen" | "play";
-
-/**
- * Etykieta głównego przycisku. Kolejność warunków jest istotna: „generuję"
- * wygrywa nad „pauza", bo w trakcie syntezy przycisk NIE pauzuje - jest
- * zablokowany, a etykieta musi mówić, na co czytelnik czeka.
- */
-export function playPauseKey(state: {
+/** Stan przycisku odtwarzania - wspólny dla obu wariantów etykiety. */
+export interface PlayPauseState {
   loading: boolean;
   playing: boolean;
   paused: boolean;
-  /** Warianty „wznów/odsłuchaj" (karta, przycisk) vs „pauza/odtwórz" (pasek). */
-  variant?: "listen" | "transport";
-}): PlayPauseKey {
+}
+
+/** Klucze wariantu „odsłuchaj/wznów" - karta w sidebarze i przycisk w treści. */
+export type ListenLabelKey = "loading" | "pause" | "resume" | "listen";
+
+/** Klucze wariantu transportowego - dolny pasek odtwarzacza. */
+export type TransportLabelKey = "loading" | "pause" | "play";
+
+/**
+ * Etykieta przycisku w wariancie „odsłuchaj". Kolejność warunków jest istotna:
+ * „generuję" wygrywa nad „pauza", bo w trakcie syntezy przycisk NIE pauzuje -
+ * jest zablokowany, a etykieta musi mówić, na co czytelnik czeka.
+ *
+ * Rozróżnienie „wznów" i „odsłuchaj" jest tu potrzebne, bo karta pokazuje pozycję
+ * odtwarzania: czytelnik musi wiedzieć, czy wróci w miejsce, w którym przerwał.
+ */
+export function playPauseKey(state: PlayPauseState): ListenLabelKey {
   if (state.loading) return "loading";
   if (state.playing) return "pause";
-  if (state.variant === "transport") return "play";
   return state.paused ? "resume" : "listen";
+}
+
+/**
+ * Etykieta przycisku w wariancie transportowym (dolny pasek). Pasek nie
+ * rozróżnia „wznów" od „odtwórz" - stoi zawsze przy AKTYWNYM materiale, więc
+ * druga etykieta niosłaby tę samą informację co widoczna pozycja odtwarzania.
+ */
+export function transportLabelKey(state: PlayPauseState): TransportLabelKey {
+  if (state.loading) return "loading";
+  return state.playing ? "pause" : "play";
 }
 
 /** Klucz etykiety przycisku pobierania - stan trwającego pobrania ma własny. */

@@ -4,7 +4,7 @@
 // przejmuje kontrolę bez utraty ciągłości.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Download, Headphones } from "@/lib/lucide-shim";
-import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
+import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -12,7 +12,8 @@ import {
   useGlobalAudioPlayer,
   type AudioTrackMeta,
 } from "@/lib/audio/global-player";
-import { ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
+import { downloadKey, transportLabelKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
+import { AUDIO_FOCUS_RING } from "@/components/audio/atoms/AudioIconButton";
 
 interface SidebarListenCardProps {
   postId: string;
@@ -72,8 +73,10 @@ const COPY = {
   },
 } as const;
 
-const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+// Pierścień fokusu przychodzi z atomu. Tu i w `GlobalAudioBar` stała była
+// ZADEKLAROWANA OSOBNO - dwie kopie jedynej rzeczy, która odpowiada za
+// widoczność fokusu klawiatury w całym odtwarzaczu.
+const FOCUS_RING = AUDIO_FOCUS_RING;
 
 export function SidebarListenCard({
   postId,
@@ -244,7 +247,7 @@ export function SidebarListenCard({
           type="button"
           onClick={onPrimary}
           disabled={loading}
-          aria-label={playing ? t.pause : t.play}
+          aria-label={t[transportLabelKey({ loading, playing, paused: !playing && isThis })]}
           aria-pressed={playing}
           data-playing={playing ? "true" : "false"}
           className={[
@@ -316,7 +319,7 @@ export function SidebarListenCard({
           type="button"
           onClick={() => void onDownload()}
           disabled={downloading || loading}
-          aria-label={downloading ? t.downloading : t.download}
+          aria-label={t[downloadKey(downloading)]}
           title={t.download}
           className={[
             "inline-flex items-center gap-1.5 rounded-[6px] text-muted-foreground",

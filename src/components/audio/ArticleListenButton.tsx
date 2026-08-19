@@ -12,7 +12,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "@/lib/lucide-shim";
-import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
+import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
+import { ArticleActionButton } from "@/components/post/atoms/ArticleActionButton";
+import { playPauseKey } from "@/lib/audio/ttsStage";
 import { useGlobalAudioPlayer, type AudioTrackMeta } from "@/lib/audio/global-player";
 
 const COPY = {
@@ -81,29 +83,28 @@ export function ArticleListenButton({
     [postId, lang, title, author, audioUrl],
   );
 
-  const label = loading ? t.loading : playing ? t.pause : paused ? t.resume : t.listen;
+  // Etykieta wybierana REGUŁĄ zwracającą klucz, nie łańcuchem ternary w JSX -
+  // ta sama reguła obsługuje kartę w sidebarze i dolny pasek.
+  const label = t[playPauseKey({ loading, playing, paused })];
 
   return (
-    <button
-      type="button"
+    <ArticleActionButton
+      icon={Loader2}
+      label={label}
+      busy={loading}
       onClick={() => {
         if (loading) return;
         if (isThis) void player.toggle();
         else void player.loadAndPlay(meta);
       }}
-      aria-label={label}
-      aria-busy={loading || undefined}
-      className={
-        className ??
-        "cms-widget-label inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] border border-border bg-background px-3 font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98] disabled:opacity-60"
+      leading={
+        loading ? (
+          <Loader2 className="h-[14px] w-[14px] animate-spin text-brand" aria-hidden />
+        ) : (
+          <MorphPlayPause playing={playing} className="h-[14px] w-[14px] text-brand" />
+        )
       }
-    >
-      {loading ? (
-        <Loader2 className="h-[14px] w-[14px] animate-spin text-brand" aria-hidden />
-      ) : (
-        <MorphPlayPause playing={playing} className="h-[14px] w-[14px] text-brand" />
-      )}
-      <span>{label}</span>
-    </button>
+      className={className}
+    />
   );
 }

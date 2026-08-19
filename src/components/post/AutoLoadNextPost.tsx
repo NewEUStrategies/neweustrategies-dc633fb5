@@ -3,6 +3,12 @@
 // samej strony nadrzędnej. Po dołączeniu - aktualizuje URL przez
 // history.replaceState aby zachować shareability i poprawnie zliczać
 // analitykę kolejnych odsłon. SSR-safe (cała logika w useEffect).
+//
+// Warunki doładowania (koniec artykułu, limit łańcucha, strażnik podwójnego
+// wywołania) i wybór kursora żyją w czystym module `lib/post/autoLoadChain`.
+// Wcześniej siedziały w callbacku `IntersectionObserver`, więc ich sprawdzenie
+// wymagało atrapy obserwatora - a atrapa, która „widzi" sentinel w niewłaściwym
+// momencie, dowodzi czegoś innego niż reguła.
 import { useEffect, useRef, useState } from "react";
 import { fetchNextPost, type NextPostSummary } from "@/lib/queries/nextPost";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -10,6 +16,13 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
+import { SectionEyebrow } from "@/components/post/atoms/SectionEyebrow";
+import {
+  DEFAULT_MAX_CHAIN,
+  chainHeadingId,
+  nextCursor,
+  shouldRequestNext,
+} from "@/lib/post/autoLoadChain";
 
 interface Props {
   currentPostId: string;
@@ -39,7 +52,7 @@ export function AutoLoadNextPost({
   parentPageId,
   currentPublishedAt,
   lang,
-  maxChain = 5,
+  maxChain = DEFAULT_MAX_CHAIN,
 }: Props) {
   const L = LABELS[lang] ?? LABELS.pl;
   const [chain, setChain] = useState<Loaded[]>([]);
@@ -49,13 +62,7 @@ export function AutoLoadNextPost({
   const requestedRef = useRef(false);
 
   // current "cursor" = last loaded post or starting point
-  const cursor =
-    chain.length > 0
-      ? {
-          id: chain[chain.length - 1].post.id,
-          publishedAt: chain[chain.length - 1].post.published_at,
-        }
-      : { id: currentPostId, publishedAt: currentPublishedAt };
+  const cursor = nextCursor(chain, { id: currentPostId, publishedAt: currentPublishedAt });
 
   useEffect(() => {
     if (done || chain.length >= maxChain) return;
@@ -63,8 +70,15 @@ export function AutoLoadNextPost({
     if (!el) return;
     const io = new IntersectionObserver(
       async (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        if (requestedRef.current || loading) return;
+        const allowed = shouldRequestNext({
+          done,
+          chainLength: chain.length,
+          maxChain,
+          loading,
+          requested: requestedRef.current,
+          intersecting: entries.some((e) => e.isIntersecting),
+        });
+        if (!allowed) return;
         requestedRef.current = true;
         setLoading(true);
         try {
@@ -93,7 +107,7 @@ export function AutoLoadNextPost({
   useEffect(() => {
     if (chain.length === 0) return;
     const last = chain[chain.length - 1];
-    const headingId = `nextpost-${last.post.id}`;
+    const headingId = chainHeadingId(last.post.id);
     const heading = typeof document !== "undefined" ? document.getElementById(headingId) : null;
     if (!heading) return;
     const io = new IntersectionObserver(
@@ -133,8 +147,8 @@ export function AutoLoadNextPost({
             : c.post.content_pl || c.post.content_en) ?? "";
         return (
           <article key={c.post.id} className="border-t-2 border-border pt-10 mt-10">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">{L.next}</p>
-            <h2 id={`nextpost-${c.post.id}`} className="font-display text-3xl lg:text-4xl mb-4">
+            <SectionEyebrow className="mb-3">{L.next}</SectionEyebrow>
+            <h2 id={chainHeadingId(c.post.id)} className="font-display text-3xl lg:text-4xl mb-4">
               <AppLink href={c.post.href} className="hover:text-primary">
                 {title}
               </AppLink>
