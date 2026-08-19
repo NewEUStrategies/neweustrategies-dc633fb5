@@ -645,6 +645,81 @@ export default defineConfig({
           lines: 100,
           branches: 90,
         },
+        "src/components/podcast/PodcastEpisodeStrip.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // ── MODUŁ 7: HUBY EKSPERTÓW ───────────────────────────────────────────
+        // Największa funkcjonalność modułu (808 linii, 11 z 23 plików na zerze).
+        // Warstwa REGUŁ miała testy od dawna - dziura była w warstwie, która te
+        // reguły karmi, czyli w tej, która decyduje, KOGO widać na /experts.
+        // Próg obejmuje CAŁY katalog razem z `refreshOg.functions.ts` (server fn,
+        // świadomie pominięta), więc jest floorowany poniżej średniej katalogu,
+        // a nie poniżej najlepszego pliku.
+        "src/lib/experts/**": {
+          statements: 89,
+          functions: 91,
+          lines: 91,
+          branches: 80,
+        },
+        // ── MODUŁ 7: WYDARZENIA - dokument biletu i atomy prelegenta ──────────
+        // `ticketDocument` skleja HTML z danych z bazy i formularza, a plik ląduje
+        // na dysku człowieka i otwiera się BEZ naszego CSP. Ucieczka znaków jest
+        // jedyną barierą, więc trzymamy go pod 100% na wszystkich metrykach.
+        "src/components/community/ticketDocument.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/events/kinds.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Katalog `components/events` NIE dostaje progu zbiorczego, bo
+        // `SpeakerProfileDialog.tsx` (254 linie) jest świadomie poza tą porcją -
+        // wspólny próg musiałby być floorowany pod jego zerem i nie pilnowałby
+        // niczego. Zamiast tego bramkujemy pliki, które faktycznie pokryto.
+        "src/components/events/EventSpeakersSection.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        "src/components/events/SpeakerChip.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/events/SpeakerAvatar.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/components/events/SpeakerStars.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ── MODUŁ 7: QUIZ ─────────────────────────────────────────────────────
+        // Cały sens `LazyQuizIframe` jest WYDAJNOŚCIOWY i niewidoczny na ekranie:
+        // ciężki, zewnętrzny bundel quizu nie ma się pobierać przed pierwszym
+        // paintem, a strona nie może skakać, gdy iframe wreszcie wjedzie. Takich
+        // własności nie sprawdzi się okiem, więc próg pilnuje ich zamiast
+        // przeglądu kodu.
+        "src/components/quiz/LazyQuizIframe.tsx": {
+          statements: 92,
+          functions: 100,
+          lines: 100,
+          branches: 88,
+        },
       },
     },
   },
