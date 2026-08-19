@@ -374,7 +374,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                 degree={1}
                 highlighted={highlightId === c.connection_id}
               >
-                <DirectMessageButton
+                <MessageOrConnectButton
                   userId={c.user_id}
                   displayName={c.display_name}
                   displayAvatar={c.avatar_url}
