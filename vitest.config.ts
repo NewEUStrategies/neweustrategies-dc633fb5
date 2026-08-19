@@ -447,6 +447,24 @@ export default defineConfig({
         // Selektory i model karty cennika: drabinka warstw, framing ceny
         // rocznej, wybór planu do checkoutu. Czysta warstwa reguł - trzymana
         // wysoko, bo tu rozstrzyga się, ILE klient widzi i CZY może kupić.
+        // SCALANIE DANYCH GOŚCIA PO ZALOGOWANIU - do 19.08.2026 3,52% linii
+        // i 0 z 8 funkcji. To jedyna ścieżka, na której użytkownik może STRACIĆ
+        // DANE: zainteresowania wybrane przed rejestracją i artykuły zapisane
+        // jako gość żyją wyłącznie w localStorage tej przeglądarki, więc
+        // skasowanie ich przed potwierdzonym zapisem jest nieodwracalne.
+        // Próg pilnuje trzech defektów wymienionych w komentarzu modułu jako
+        // naprawione - bez testu nic nie broni przed ich powrotem: upsertu
+        // odpornego na duplikaty, czyszczenia urządzenia WYŁĄCZNIE po sukcesie
+        // oraz pozostawiania pozycji nierozwiązanych na miejscu. Osiągnięte
+        // 98,82/98,24/100/100. Niedobita linia to gałąź `writeJson` dla braku
+        // `window`, nieosiągalna z produkcji: bez `window` odczyt zwraca pustkę,
+        // więc do zapisu nigdy nie dochodzi.
+        "src/lib/personalization/anonMerge.ts": {
+          statements: 97,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
         "src/lib/pricing/**": {
           statements: 96,
           functions: 92,
@@ -558,6 +576,22 @@ export default defineConfig({
           functions: 85,
           lines: 90,
           branches: 80,
+        },
+        // Server fns ścieżki rezygnacji + czyste helpery kuponu. Do 19.08.2026
+        // `functions.ts` stał na 0% (0 z 5 funkcji), mimo że to on ZAKŁADA
+        // KUPON RABATOWY na koncie odchodzącego klienta. Próg pilnuje czterech
+        // reguł, których pgTAP nie widzi, bo są w orkiestracji handlera:
+        // własności subskrypcji (kupon leci na subskrypcję wołającego, nie na
+        // dowolne id z klienta), wyłącznika redakcyjnego `enabled`, okna 180
+        // dni na jedną przyjętą ofertę oraz PONAWIANIA przy kolizji kodu
+        // (23505) zamiast wywalenia przepływu. Floor tuż pod zmierzonym
+        // 100/96,07/100/100. Niedobita gałąź w `coupon.ts` to zacisk długości
+        // sufiksu, nieosiągalny z produkcyjnych wywołań.
+        "src/lib/retention/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
         },
         // Sieć kontaktów - warstwa danych RPC-only. Do 2026-08-06 CAŁY moduł
         // miał 0% (audyt: „pokrycie modułu 15,4%, src/lib/network na 0%"),
@@ -820,6 +854,23 @@ export default defineConfig({
           functions: 100,
           lines: 100,
           branches: 100,
+        },
+        // OCHRONA PRZED BRUTE FORCE - do 19.08.2026 11,1% linii i 0 z 9 funkcji,
+        // czyli jedyna zapora przed upychaniem wykradzionych haseł stała bez
+        // testu. Próg pilnuje trzech rzeczy, których nie widać z zewnątrz:
+        //   * FAIL-CLOSED - błąd RPC ma zamykać bramę, nie ją otwierać (inaczej
+        //     wystarczy przeciążyć bazę, żeby wyłączyć ochronę),
+        //   * RODO - w `rate_limits` nie może wylądować surowy IP ani e-mail;
+        //     testy asercjonują wprost na `_subject` idącym do bazy,
+        //   * rozdział kubełków - IP i e-mail liczą się niezależnie, a ten sam
+        //     e-mail w różnych trybach ma osobne liczniki.
+        // Osiągnięte 100/100/100/100 (9 z 9 funkcji); floor niżej, bo gałęzie
+        // obronne łatwo przypadkiem uzależnić od kolejności testów.
+        "src/lib/auth/bruteforce.functions.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
         },
         // ── NEWSLETTER: DORĘCZALNOŚĆ ─────────────────────────────────────────
         // Audyt 18.08 dał tej powierzchni najgorszą możliwą ocenę: 0,0% linii
