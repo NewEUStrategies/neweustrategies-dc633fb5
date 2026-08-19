@@ -14,7 +14,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 vi.spyOn(useAuth, "useAuth").mockReturnValue({ user: { id: "viewer" } } as ReturnType<typeof useAuth.useAuth>);
-vi.spyOn(useCommunity, "useCommunityModules").mockReturnValue({ connections_enabled: true } as ReturnType<typeof useCommunity.useCommunityModules>);
+vi.spyOn(useCommunity, "useCommunityModules").mockReturnValue({ connections_enabled: true, chat_enabled: true } as ReturnType<typeof useCommunity.useCommunityModules>);
 
 const NO_CONNECTION: useConnections.ConnectionState = {
   status: "none",
