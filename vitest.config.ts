@@ -466,6 +466,21 @@ export default defineConfig({
         // błędu w konsoli i bez czerwonego testu. Próg pilnuje też odpinania
         // nasłuchu - handler, który przeżyje odmontowanie komponentu, otwiera
         // popup nad nieistniejącym drzewem Reacta. Osiągnięte 100/100/100/100.
+        // POPUP LOGOWANIA - do 19.08.2026 0% linii, mimo że otwiera się z
+        // KAŻDEJ „akcji zastrzeżonej" w serwisie. Skleja cztery rzeczy, z
+        // których każda psuje logowanie po cichu: zaporę brute force (jej błąd
+        // ma być ZAMIENIONY na klucz i18n, a nie wyciec jako surowy komunikat
+        // serwera), przekierowanie na własną stronę logowania (tylko adres
+        // wewnętrzny idzie routerem - "//evil.example" wygląda jak ścieżka,
+        // a jest cudzym hostem), wyścig `mfaPending` (sesja aal1 pojawia się
+        // natychmiast po haśle i nie może zamknąć okna przed drugim składnikiem)
+        // oraz wyłącznik publicznej rejestracji. Osiągnięte 100/97,7/100/100.
+        "src/components/LoginPopup.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
         "src/lib/loginPopupBus.ts": {
           statements: 100,
           functions: 100,
