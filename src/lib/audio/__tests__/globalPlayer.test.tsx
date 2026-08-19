@@ -429,20 +429,32 @@ describe("błędy dostawcy - komunikat musi coś znaczyć", () => {
     expect(at("error")).toBe("");
   });
 
-  it("PRZYPIĘTA USTERKA: blokada autoplay przy PIERWSZYM załadowaniu czyta się jako błąd", async () => {
-    // `await audio.play()` stoi w tym samym `try` co pobranie, więc odrzucone
-    // odtwarzanie (iOS/Safari bez gestu użytkownika) ustawia stan „error"
-    // i pokazuje czytelnikowi komunikat o niepowodzeniu - mimo że nagranie JEST
-    // gotowe i wystarczy kliknąć jeszcze raz. Pozostałe ścieżki (`toggle`, to
-    // samo nagranie drugi raz) tę odmowę świadomie POCHŁANIAJĄ, więc zachowanie
-    // jest tu niespójne. Naprawa osobnym commitem.
+  it("ODMOWA AUTOPLAY nie jest błędem - nagranie zostaje gotowe do kliknięcia", async () => {
+    // iOS i Safari odrzucają `play()` bez gestu użytkownika. Wcześniej ta odmowa
+    // wpadała do tego samego `catch` co padnięta sieć, więc czytelnik dostawał
+    // komunikat o niepowodzeniu przy SPRAWNYM audio.
     await mount();
     audio().rejectPlay = new Error("NotAllowedError");
     await act(async () => {
       await api?.loadAndPlay(META);
     });
     expect(at("stage")).toBe("ready");
-    expect(at("status")).toBe("error");
+    expect(at("status")).toBe("paused");
+    expect(at("error")).toBe("");
+  });
+
+  it("po odmowie autoplay DRUGIE kliknięcie odtwarza, bez ponownej syntezy", async () => {
+    await mount();
+    audio().rejectPlay = new Error("NotAllowedError");
+    await act(async () => {
+      await api?.loadAndPlay(META);
+    });
+    audio().rejectPlay = null;
+    await act(async () => {
+      await api?.toggle();
+    });
+    expect(at("status")).toBe("playing");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

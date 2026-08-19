@@ -439,7 +439,18 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         setTrack({ ...meta, blobUrl });
         setCurrentTime(0);
         setDuration(0);
-        await audio.play();
+        // ODMOWA AUTOPLAY NIE JEST BŁĘDEM POBIERANIA. Odtwarzanie stoi POZA
+        // `try` pobrania, bo iOS i Safari odrzucają `play()` bez gestu
+        // użytkownika - a wtedy nagranie JEST gotowe i wystarczy kliknąć drugi
+        // raz. Wcześniej odmowa wpadała do tego samego `catch` co padnięta sieć
+        // i czytelnik dostawał komunikat o niepowodzeniu przy sprawnym audio.
+        // Pozostałe ścieżki (`toggle`, to samo nagranie drugi raz) pochłaniały
+        // ją od początku - teraz zachowanie jest jednakowe wszędzie.
+        try {
+          await audio.play();
+        } catch {
+          setStatus("paused");
+        }
       } catch (e) {
         // Przerwane przez nowszy loadAndPlay - nie pokazujemy błędu.
         if (e instanceof Error && e.name === "AbortError") return;
