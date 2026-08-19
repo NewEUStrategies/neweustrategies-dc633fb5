@@ -113,6 +113,8 @@ describe("karta sekcji", () => {
     );
 
     expect(container.querySelectorAll("p")).toHaveLength(0);
+    // Sam tytuł karty jednak jest - brak podpowiedzi to nie brak nagłówka.
+    expect(screen.getByText("Układ")).toBeTruthy();
   });
 });
 
@@ -233,6 +235,8 @@ describe("pole liczbowe", () => {
     fireEvent.change(input, { target: { value: "35" } });
 
     expect(onChange).toHaveBeenCalledWith(35);
+    // Liczba, nie napis - kolumna integer odrzuciłaby "35".
+    expect(typeof onChange.mock.calls[0]![0]).toBe("number");
   });
 
   it("CYFRA PONIŻEJ minimum jest przyjmowana w polu, ale NIE leci do dokumentu", () => {
@@ -352,6 +356,8 @@ describe("pole koloru", () => {
     fireEvent.change(textInput(container), { target: { value: "var(--brand)" } });
 
     expect(onChange).toHaveBeenCalledWith("var(--brand)");
+    // Token CSS nie jest „naprawiany" na hex - operator ma prawo użyć zmiennej.
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 
   it("wybór z próbnika też patchuje dokument", () => {
@@ -363,6 +369,7 @@ describe("pole koloru", () => {
     });
 
     expect(onChange).toHaveBeenCalledWith("#445566");
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 
   it("wartość NIE-HEX nie wywala próbnika - schodzi na czerń", () => {
@@ -382,6 +389,8 @@ describe("pole koloru", () => {
     expect((container.querySelector('input[type="color"]') as HTMLInputElement).value).toBe(
       "#000000",
     );
+    // Pole tekstowe nadal pokazuje to, co operator wpisał - wartość nie ginie.
+    expect(textInput(container).value).toBe("#abc");
   });
 });
 
@@ -430,6 +439,8 @@ describe("wybór segmentowany", () => {
     fireEvent.click(screen.getByText("Prawa"));
 
     expect(onChange).toHaveBeenCalledWith("right");
+    // Etykieta „Prawa" nie może wyciec do dokumentu jako wartość.
+    expect(onChange).not.toHaveBeenCalledWith("Prawa");
   });
 
   it("opis opcji jest pokazany, gdy podany", () => {
@@ -489,6 +500,8 @@ describe("kolejność bloków", () => {
     fireEvent.click(screen.getByLabelText("W dół: Pierwszy"));
 
     expect(onChange).toHaveBeenCalledWith(["b", "a", "c"]);
+    // Cała kolejność, nie sam przesunięty element - trzy pozycje na wyjściu.
+    expect(onChange.mock.calls[0]![0]).toHaveLength(3);
   });
 
   it("przesunięcie w górę też oddaje całą kolejność", () => {
@@ -497,6 +510,7 @@ describe("kolejność bloków", () => {
     fireEvent.click(screen.getByLabelText("W górę: Trzeci"));
 
     expect(onChange).toHaveBeenCalledWith(["a", "c", "b"]);
+    expect(onChange.mock.calls[0]![0]).toHaveLength(3);
   });
 
   it("na KRAŃCACH przyciski są zablokowane - blok nie wypada z listy", () => {
@@ -523,6 +537,8 @@ describe("kolejność bloków", () => {
     fireEvent.click(screen.getByLabelText("W dół: Pierwszy"));
 
     expect(items).toEqual(["a", "b", "c"]);
+    // Nowa kolejność jednak POWSTAŁA - to nie jest brak reakcji.
+    expect(onChange).toHaveBeenCalledWith(["b", "a", "c"]);
   });
 
   it("podpowiedź jest pokazana, gdy podana", () => {
@@ -540,6 +556,8 @@ describe("kolejność bloków", () => {
     );
 
     expect(screen.getByText("Przeciągnij strzałkami")).toBeTruthy();
+    // Podpowiedź nie zastępuje etykiety.
+    expect(screen.getByText("Kolejność")).toBeTruthy();
   });
 });
 
@@ -550,22 +568,27 @@ describe("ostrzeżenie o kontraście", () => {
   it("ZAPALA SIĘ przy kontraście poniżej progu WCAG AA", () => {
     // To jedyna bariera przed wypuszczeniem popupu z tekstem nieczytelnym dla
     // części odwiedzających.
-    render(<ContrastNote bg="#777777" fg="#888888" message={message} />);
+    const { container } = render(<ContrastNote bg="#777777" fg="#888888" message={message} />);
 
     expect(screen.getByText(/jest za niski/)).toBeTruthy();
+    expect(container.textContent).toContain("Kontrast");
   });
 
   it("MILCZY przy kontraście spełniającym próg", () => {
-    render(<ContrastNote bg="#ffffff" fg="#000000" message={message} />);
+    const { container } = render(<ContrastNote bg="#ffffff" fg="#000000" message={message} />);
 
     expect(screen.queryByText(/jest za niski/)).toBeNull();
+    // Nic, a nie „Kontrast 21:1 jest w porządku" - komunikat tylko przy problemie.
+    expect(container.innerHTML).toBe("");
   });
 
   it("podaje wyliczony współczynnik, nie sam komunikat", () => {
     // Bez liczby operator nie wie, o ile musi poprawić kolor.
-    render(<ContrastNote bg="#777777" fg="#888888" message={message} />);
+    const { container } = render(<ContrastNote bg="#777777" fg="#888888" message={message} />);
 
     expect(screen.getByText(/Kontrast \d+\.\d+:1/)).toBeTruthy();
+    // Jedno miejsce po przecinku - „1:1" nie wystarcza do decyzji.
+    expect(container.textContent).toMatch(/\d\.\d/);
   });
 
   it("kolor NIEROZPOZNANY (token CSS) nie daje fałszywego ostrzeżenia", () => {
@@ -574,6 +597,7 @@ describe("ostrzeżenie o kontraście", () => {
     const { container } = render(<ContrastNote bg="var(--brand)" fg="#000000" message={message} />);
 
     expect(container.innerHTML).toBe("");
+    expect(screen.queryByText(/jest za niski/)).toBeNull();
   });
 
   it("kolejność argumentów nie ma znaczenia - liczy się sam stosunek", () => {
@@ -581,6 +605,8 @@ describe("ostrzeżenie o kontraście", () => {
     const { container: b } = render(<ContrastNote bg="#ffffff" fg="#000000" message={message} />);
 
     expect(a.innerHTML).toBe(b.innerHTML);
+    // Oba milczą - biel na czerni spełnia próg w każdej kolejności.
+    expect(a.innerHTML).toBe("");
   });
 });
 
@@ -606,12 +632,18 @@ describe("wybór ikony", () => {
     fireEvent.click(screen.getByLabelText("picker-ikon"));
 
     expect(onChange).toHaveBeenCalledWith("Star");
+    // Nazwa ikony, nie cały obiekt z biblioteki.
+    expect(typeof onChange.mock.calls[0]![0]).toBe("string");
   });
 
   it("„bez ikony” jest ZABLOKOWANE, gdy ikony nie ma", () => {
     mount();
 
     expect(screen.getByText("Bez ikony").closest("button")).toHaveProperty("disabled", true);
+    // Z wybraną ikoną przycisk działa - blokada zależy od stanu, nie jest stała.
+    cleanup();
+    mount("Star");
+    expect(screen.getByText("Bez ikony").closest("button")).toHaveProperty("disabled", false);
   });
 
   it("„bez ikony” CZYŚCI wybór - inaczej nie dałoby się go cofnąć", () => {
@@ -620,6 +652,8 @@ describe("wybór ikony", () => {
     fireEvent.click(screen.getByText("Bez ikony"));
 
     expect(onChange).toHaveBeenCalledWith("");
+    // Pusty napis, nie `null` - kolumna trzyma tekst, nie wartość opcjonalną.
+    expect(onChange.mock.calls[0]![0]).not.toBeNull();
   });
 
   it("podgląd pokazuje wybraną ikonę, a bez wyboru kreskę", () => {
@@ -646,5 +680,6 @@ describe("wybór ikony", () => {
     );
 
     expect(screen.getByText("Z biblioteki platformy")).toBeTruthy();
+    expect(screen.getByText("Ikona")).toBeTruthy();
   });
 });

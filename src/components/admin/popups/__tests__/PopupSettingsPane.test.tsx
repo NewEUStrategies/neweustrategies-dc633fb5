@@ -99,6 +99,8 @@ describe("wyzwalacz", () => {
     fireEvent.change(under(S("delaySeconds")), { target: { value: "-10" } });
 
     expect(next().delaySeconds).toBe(0);
+    // Zero, nie -10 z minusem obciętym w prezentacji.
+    expect(next().delaySeconds).toBeGreaterThanOrEqual(0);
   });
 
   it("wyczyszczone opóźnienie schodzi na zero, nie na NaN", () => {
@@ -140,6 +142,8 @@ describe("częstotliwość", () => {
     fireEvent.change(under(S("frequencyDays")), { target: { value: "0" } });
 
     expect(next().frequencyDays).toBe(0);
+    // Liczba, nie napis „0" - inaczej `frequencyDays || 7` w hoście dałoby 7.
+    expect(typeof next().frequencyDays).toBe("number");
   });
 
   it("wartość ujemna schodzi na zero", () => {
@@ -148,6 +152,7 @@ describe("częstotliwość", () => {
     fireEvent.change(under(S("frequencyDays")), { target: { value: "-3" } });
 
     expect(next().frequencyDays).toBe(0);
+    expect(next().frequencyDays).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -178,6 +183,8 @@ describe("targetowanie", () => {
     fireEvent.click(screen.getAllByRole("switch")[0]!);
 
     expect(next().devices).toEqual({ desktop: false, tablet: true, mobile: true });
+    // Wszystkie trzy klucze zostają - brakujący klucz host czyta jako „wyłączone".
+    expect(Object.keys(next().devices!).sort()).toEqual(["desktop", "mobile", "tablet"]);
   });
 
   it("ścieżki są rozbijane po LINIACH i przycinane", () => {
@@ -188,6 +195,8 @@ describe("targetowanie", () => {
     });
 
     expect(next().includePaths).toEqual(["/", "/post/*", "/pricing"]);
+    // Trzy wzorce, nie cztery ani pięć - puste linie nie liczą się jako wzorce.
+    expect(next().includePaths).toHaveLength(3);
   });
 
   it("puste linie NIE tworzą pustych wzorców - pusty wzorzec pasuje do wszystkiego", () => {
@@ -196,6 +205,8 @@ describe("targetowanie", () => {
     fireEvent.change(under(S("includePaths"), "textarea"), { target: { value: "\n\n   \n" } });
 
     expect(next().includePaths).toEqual([]);
+    // Pusta tablica, nie tablica z pustym napisem - `[""]` pasowałoby wszędzie.
+    expect(next().includePaths).not.toContain("");
   });
 
   it("ścieżki wykluczone są osobną listą", () => {
@@ -212,7 +223,10 @@ describe("targetowanie", () => {
   it("istniejące ścieżki są pokazane po jednej na linię", () => {
     mount({ includePaths: ["/", "/post/*"] });
 
-    expect((under(S("includePaths"), "textarea") as HTMLTextAreaElement).value).toBe("/\n/post/*");
+    const ta = under(S("includePaths"), "textarea") as HTMLTextAreaElement;
+    expect(ta.value).toBe("/\n/post/*");
+    // Bez przecinków - lista sklejona `join(",")` byłaby nieedytowalna.
+    expect(ta.value).not.toContain(",");
   });
 });
 
@@ -235,6 +249,8 @@ describe("wygląd", () => {
     fireEvent.click(screen.getByRole("option", { name: S("positionBottom") }));
 
     expect(next().position).toBe("bottom");
+    // Wartość, nie widoczna etykieta opcji.
+    expect(next().position).not.toBe(S("positionBottom"));
   });
 
   it("kolor przysłony jest DOWOLNYM napisem - to może być rgba albo token", () => {
@@ -243,6 +259,8 @@ describe("wygląd", () => {
     fireEvent.change(under(S("overlayColor")), { target: { value: "rgba(1,2,3,0.4)" } });
 
     expect(next().overlayColor).toBe("rgba(1,2,3,0.4)");
+    // Bez „naprawiania" na hex - rgba i tokeny CSS są tu poprawne.
+    expect(next().overlayColor).not.toMatch(/^#/);
   });
 
   it("zaokrąglenie nie jest ujemne i nie jest NaN", () => {
@@ -289,6 +307,8 @@ describe("kontrakt formularza", () => {
     fireEvent.change(under(S("overlayColor")), { target: { value: "rgba(0,0,0,0.2)" } });
 
     expect(Object.keys(next()).sort()).toEqual(klucze);
+    // Zmienione pole niesie nową wartość - komplet kluczy to nie kopia domyślnych.
+    expect(next().overlayColor).toBe("rgba(0,0,0,0.2)");
   });
 
   it("formularz nie zapisuje niczego, dopóki operator nic nie ruszy", () => {

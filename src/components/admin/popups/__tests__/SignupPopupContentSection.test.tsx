@@ -106,6 +106,9 @@ describe("wczytywanie i szkic", () => {
     await mounted({ popup_title_pl: "Dołącz do nas" });
 
     expect(screen.getByTestId("tytul").textContent).toBe("Dołącz do nas");
+    // Nie domyślny tytuł - edytor nie może startować od pustej treści, gdy
+    // w bazie coś już jest.
+    expect(screen.getByTestId("tytul").textContent).not.toBe("");
   });
 
   it("dopóki dane nie doszły, edytor pracuje na domyślnych - nie na pustce", async () => {
@@ -202,6 +205,8 @@ describe("zapis", () => {
 
     await act(async () => {});
     expect(stub.chainsFor("newsletter_settings").some((c) => c.has("update"))).toBe(false);
+    // Przycisk jest ZABLOKOWANY - to on jest barierą, nie milczenie zapisu.
+    expect(screen.getByText(G("save")).closest("button")?.hasAttribute("disabled")).toBe(true);
   });
 });
 
@@ -217,6 +222,10 @@ describe("przywracanie domyślnych", () => {
       fireEvent.click(screen.getByText(G("save")));
     });
     expect(sentBody().popup_design).toEqual(defaultPopupDesign());
+    // Komplet gałęzi, nie jedna - częściowy obiekt zostawiłby mieszankę.
+    expect(Object.keys(sentBody().popup_design as object).sort()).toEqual(
+      Object.keys(defaultPopupDesign()).sort(),
+    );
   });
 
   it("reset jest ZMIANĄ - zapala znacznik, żeby dało się go zapisać", async () => {
@@ -234,6 +243,8 @@ describe("przywracanie domyślnych", () => {
     fireEvent.click(screen.getByText(G("reset")));
 
     expect(toast.success).toHaveBeenCalledWith(G("resetDone"));
+    // Reset to jeszcze nie zapis - komunikat nie może mówić „zapisano".
+    expect(toast.success).not.toHaveBeenCalledWith(G("saved"));
   });
 
   it("reset NIE rusza treści popupu - tylko warstwę prezentacji", async () => {
@@ -242,6 +253,8 @@ describe("przywracanie domyślnych", () => {
     fireEvent.click(screen.getByText(G("reset")));
 
     expect(screen.getByTestId("tytul").textContent).toBe("Dołącz do nas");
+    // Reset JEST zauważony - zapis staje się możliwy.
+    expect(screen.getByText(G("save")).closest("button")?.hasAttribute("disabled")).toBe(false);
   });
 });
 

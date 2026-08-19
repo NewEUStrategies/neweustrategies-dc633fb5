@@ -62,9 +62,20 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
   }
 
   it("pusta kanwa zaprasza do upuszczenia widgetu", () => {
-    mount([]);
+    const { container } = inDnd(
+      <BuilderCanvas
+        sectionId="sec-1"
+        widgets={[]}
+        lang="pl"
+        selectedId={null}
+        {...handlers()}
+      />,
+    );
 
     expect(screen.getByText("Upusc widget tutaj")).toBeTruthy();
+    // Zaproszenie stoi w obszarze o minimalnej wysokości - inaczej pusta sekcja
+    // nie miałaby gdzie przyjąć upuszczonego widgetu.
+    expect(container.querySelector('[class*="min-h-"]')).toBeTruthy();
   });
 
   it("zaproszenie jest tłumaczone", () => {
@@ -72,6 +83,7 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
     inDnd(<BuilderCanvas sectionId="sec-1" widgets={[]} lang="en" selectedId={null} {...cb} />);
 
     expect(screen.getByText("Drop widget here")).toBeTruthy();
+    expect(screen.queryByText("Upusc widget tutaj")).toBeNull();
   });
 
   it("renderuje podgląd każdego widgetu sekcji", () => {
@@ -90,6 +102,8 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
     fireEvent.click(screen.getByLabelText("Przenies").closest("div")!);
 
     expect(cb.onSelect).toHaveBeenCalledWith("w1");
+    // Zaznaczenie to NIE usunięcie ani duplikat.
+    expect(cb.onRemove).not.toHaveBeenCalled();
   });
 
   it("DUPLIKOWANIE nie zaznacza przy okazji widgetu", () => {
@@ -117,6 +131,8 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
     fireEvent.click(screen.getByLabelText("Przenies"));
 
     expect(cb.onSelect).not.toHaveBeenCalled();
+    // ...i tym bardziej niczego nie usuwa.
+    expect(cb.onRemove).not.toHaveBeenCalled();
   });
 
   it("etykiety akcji są tłumaczone", () => {
@@ -149,6 +165,8 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
     );
 
     expect(container.innerHTML).toContain("ring-primary");
+    // Zaznaczony jest DOKŁADNIE jeden widget.
+    expect(container.querySelectorAll('[class*="ring-primary"]')).toHaveLength(1);
   });
 
   it("niezaznaczony widget nie ma pierścienia zaznaczenia", () => {
@@ -165,6 +183,8 @@ describe("BuilderCanvas - układ jednokolumnowy", () => {
     );
 
     expect(container.innerHTML).not.toContain("ring-primary");
+    // Widget nadal jest w kanwie - brak pierścienia to nie brak elementu.
+    expect(screen.getByLabelText("Przenies")).toBeTruthy();
   });
 
   it("w układzie jednokolumnowym widgety przypisane do kolumny są POMIJANE", () => {
@@ -199,10 +219,12 @@ describe("BuilderCanvas - układ dwukolumnowy", () => {
   }
 
   it("pokazuje dwie nazwane kolumny", () => {
-    mountTwoCols([]);
+    const { container } = mountTwoCols([]);
 
     expect(screen.getByText("Kolumna 1")).toBeTruthy();
     expect(screen.getByText("Kolumna 2")).toBeTruthy();
+    // Dokładnie dwa obszary upuszczania, nie trzeci „wspólny".
+    expect(container.querySelectorAll(".border-dashed")).toHaveLength(2);
   });
 
   it("widget BEZ przypisania trafia do pierwszej kolumny", () => {
@@ -230,9 +252,10 @@ describe("BuilderCanvas - układ dwukolumnowy", () => {
   });
 
   it("puste kolumny zapraszają do upuszczenia niezależnie", () => {
-    mountTwoCols([]);
+    const { container } = mountTwoCols([]);
 
     expect(screen.getAllByText("Upusc widget tutaj")).toHaveLength(2);
+    expect(container.querySelectorAll(".border-dashed")).toHaveLength(2);
   });
 
   it("nazwy kolumn są tłumaczone", () => {
@@ -251,6 +274,7 @@ describe("BuilderCanvas - układ dwukolumnowy", () => {
 
     expect(screen.getByText("Column 1")).toBeTruthy();
     expect(screen.getByText("Column 2")).toBeTruthy();
+    expect(screen.queryByText("Kolumna 1")).toBeNull();
   });
 });
 
@@ -278,6 +302,8 @@ describe("WidgetLibrary", () => {
 
     expect(screen.getByText("Tresc")).toBeTruthy();
     expect(screen.getByText("Pola formularza")).toBeTruthy();
+    // Nagłówki grup NIE są przyciskami - klik w nagłówek nie dodaje widgetu.
+    expect(screen.getByText("Tresc").closest("button")).toBeNull();
   });
 
   it("nazwy grup są tłumaczone", () => {
@@ -285,6 +311,7 @@ describe("WidgetLibrary", () => {
 
     expect(screen.getByText("Content")).toBeTruthy();
     expect(screen.getByText("Form fields")).toBeTruthy();
+    expect(screen.queryByText("Pola formularza")).toBeNull();
   });
 
   it("renderuje kartę dla KAŻDEGO widgetu dostępnego w kontekście", () => {
@@ -293,6 +320,7 @@ describe("WidgetLibrary", () => {
     const expected = widgetsForContext("newsletter");
     // Karty to przyciski; nagłówki grup nie są przyciskami.
     expect(screen.getAllByRole("button")).toHaveLength(expected.length);
+    expect(expected.length).toBeGreaterThan(0);
   });
 
   it("KONTEKST POPUPU pokazuje inny zestaw niż mail", () => {
@@ -311,6 +339,8 @@ describe("WidgetLibrary", () => {
     mount();
 
     expect(screen.getAllByRole("button")).toHaveLength(widgetsForContext("newsletter").length);
+    // Widget wyłącznie popupowy nie może się pokazać w domyślnym kontekście.
+    expect(screen.queryByText("Licznik czasu")).toBeNull();
   });
 
   it("klik w kartę dodaje widget jej TYPU", () => {
@@ -320,6 +350,8 @@ describe("WidgetLibrary", () => {
     fireEvent.click(screen.getByText(heading!.labelPl).closest("button")!);
 
     expect(onAdd).toHaveBeenCalledWith("heading", undefined);
+    // Jedno kliknięcie to jeden widget.
+    expect(onAdd).toHaveBeenCalledTimes(1);
   });
 
   it("karta PRESETU dodaje widget razem z presetem", () => {

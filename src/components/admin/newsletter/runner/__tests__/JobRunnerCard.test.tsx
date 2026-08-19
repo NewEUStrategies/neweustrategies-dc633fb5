@@ -164,7 +164,10 @@ describe("rozstrzygnięty stan automatu", () => {
     // Hint jest treścią, nie dekoracją - po zapisaniu adresu ma być usłyszany.
     await mount(settings({ enabled: false }));
 
-    expect(screen.getByRole("status")).toBeTruthy();
+    const status = screen.getByRole("status");
+    expect(status).toBeTruthy();
+    // Rola bez treści nic nie ogłasza.
+    expect(status.textContent?.trim()).not.toBe("");
   });
 });
 
@@ -187,6 +190,8 @@ describe("kolejki poczty", () => {
     expect(
       screen.getByText(i18n.t("adminRunner.queues.backlogWarning", { count: 40 })),
     ).toBeTruthy();
+    // Ostrzeżenie sumuje OBIE kolejki - 20 + 20, nie jedną z nich.
+    expect(screen.queryByText(i18n.t("adminRunner.queues.backlogWarning", { count: 20 }))).toBeNull();
   });
 
   it("kolejka poniżej progu nie straszy ostrzeżeniem", async () => {
@@ -207,6 +212,11 @@ describe("kolejki poczty", () => {
     );
 
     expect(screen.getByText(i18n.t("adminRunner.queues.dlqWarning", { count: 1 }))).toBeTruthy();
+    // Zaległość zerowa nie zapala drugiego ostrzeżenia - operator ma widzieć
+    // jeden problem, nie dwa.
+    expect(
+      screen.queryByText(i18n.t("adminRunner.queues.backlogWarning", { count: 0 })),
+    ).toBeNull();
   });
 
   it("martwe listy sumują OBIE kolejki", async () => {
@@ -215,6 +225,8 @@ describe("kolejki poczty", () => {
     );
 
     expect(screen.getByText(i18n.t("adminRunner.queues.dlqWarning", { count: 5 }))).toBeTruthy();
+    // Nie 2 i nie 3 osobno - jedno ostrzeżenie o łącznej liczbie.
+    expect(screen.queryByText(i18n.t("adminRunner.queues.dlqWarning", { count: 2 }))).toBeNull();
   });
 
   it("BRAK danych o kolejkach mówi to wprost, zamiast pokazywać zera", async () => {
@@ -291,6 +303,8 @@ describe("konfiguracja", () => {
     fireEvent.click(screen.getByText(R("fields.save")));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith(R("fields.saved")));
+    // Udany zapis nie pokazuje przy okazji błędu.
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("BŁĄD zapisu jest widoczny - cicha porażka zostawia automat wyłączony", async () => {
@@ -311,12 +325,16 @@ describe("konfiguracja", () => {
     expect((screen.getByLabelText(R("fields.urlLabel")) as HTMLInputElement).value).toBe(
       window.location.origin,
     );
+    // Po wypełnieniu propozycja znika - inaczej klik drugi raz nic nie znaczy.
+    expect(screen.queryByText(R("fields.useCurrentDomain"))).toBeNull();
   });
 
   it("wypełniony adres nie proponuje bieżącej domeny", async () => {
     await mount();
 
     expect(screen.queryByText(R("fields.useCurrentDomain"))).toBeNull();
+    // Pole jednak jest i niesie zapisany adres.
+    expect((screen.getByLabelText(R("fields.urlLabel")) as HTMLInputElement).value).not.toBe("");
   });
 
   it("puste pole adresu MÓWI, skąd cron weźmie adres", async () => {
@@ -327,12 +345,16 @@ describe("konfiguracja", () => {
         i18n.t("adminRunner.fields.urlHint", { url: "https://tenant.example.test" }),
       ),
     ).toBeTruthy();
+    // Nie komunikat „brak domeny" - te dwa stany wymagają różnych reakcji.
+    expect(screen.queryByText(R("fields.urlHintMissing"))).toBeNull();
   });
 
   it("puste pole i BRAK domeny tenanta mówi, że automat nie ma gdzie zapukać", async () => {
     await mount(settings({ base_url: "", effective_base_url: "" }));
 
     expect(screen.getByText(R("fields.urlHintMissing"))).toBeTruthy();
+    // ...i od razu daje wyjście: wpisanie bieżącej domeny jednym klikiem.
+    expect(screen.getByText(R("fields.useCurrentDomain"))).toBeTruthy();
   });
 });
 

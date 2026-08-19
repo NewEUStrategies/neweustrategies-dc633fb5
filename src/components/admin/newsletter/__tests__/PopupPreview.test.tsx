@@ -93,6 +93,9 @@ describe("popup wyłączony", () => {
     const { container: en } = mount({ settings: settings({ popup_enabled: false }), lang: "en" });
 
     expect(en.textContent).toBe(polski);
+    // Zapis wprost, co dziś widzi angielski operator - żeby poprawka i18n
+    // wywróciła TEN test, a nie została przeoczona.
+    expect(en.textContent).toMatch(/[ąćęłńóśźż]/);
   });
 });
 
@@ -110,12 +113,17 @@ describe("wariant showcase", () => {
     mount({ settings: settings({ popup_layout: "showcase" }), lang: "en" });
 
     expect(screen.getByTestId("panel-publiczny").textContent).toBe("en/dark/admin-preview");
+    // Bez tego źródła podgląd operatora liczyłby się jako wyświetlenie popupu.
+    expect(screen.getByTestId("panel-publiczny").textContent).toContain("admin-preview");
   });
 
   it("wymuszony wariant jasny jest honorowany 1:1", () => {
     mount({ settings: settings({ popup_layout: "showcase" }), mode: "light" });
 
     expect(screen.getByTestId("panel-publiczny").textContent).toContain("light");
+    // Wymuszenie wygrywa nad domyślnym „dark" - inaczej przełącznik palety
+    // w panelu byłby ozdobą.
+    expect(screen.getByTestId("panel-publiczny").textContent).not.toContain("dark");
   });
 
   it("showcase wygrywa nad dokumentem z buildera", () => {
@@ -138,6 +146,8 @@ describe("dokument z buildera", () => {
     mount({ settings: settings({ popup_doc: popupDoc() }), lang: "en" });
 
     expect(screen.getByTestId("renderer-dokumentu").textContent).toBe("en/admin-preview");
+    // Dokument wygrywa nad starym układem - oba naraz to podwójny podgląd.
+    expect(screen.queryByTestId("panel-publiczny")).toBeNull();
   });
 
   it("styl okna z DOKUMENTU nadpisuje ustawienia tenanta", () => {
@@ -162,6 +172,8 @@ describe("dokument z buildera", () => {
     });
 
     expect(container.querySelector('[style*="border-radius: 12px"]')).toBeTruthy();
+    // Renderer dokumentu nadal jest tym, co się rysuje.
+    expect(screen.getByTestId("renderer-dokumentu")).toBeTruthy();
   });
 });
 
@@ -182,9 +194,11 @@ describe("stary układ (tenanci bez dokumentu)", () => {
   });
 
   it("BRAK tytułu pokazuje kreskę - pusty nagłówek wygląda jak awaria", () => {
-    mount({ settings: settings({ popup_title_pl: "", popup_title_en: "" }) });
+    const { container } = mount({ settings: settings({ popup_title_pl: "", popup_title_en: "" }) });
 
     expect(screen.getByText("-")).toBeTruthy();
+    // Kreska stoi w nagłówku, nie zamiast całego podglądu.
+    expect(container.querySelector("input")).toBeTruthy();
   });
 
   it("brak opisu nie zostawia pustego akapitu", () => {
@@ -229,12 +243,16 @@ describe("stary układ (tenanci bez dokumentu)", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
       "https://example.test/cover.png",
     );
+    // Jedna okładka, nie duplikat w obu wariantach układu.
+    expect(container.querySelectorAll("img")).toHaveLength(1);
   });
 
   it("bez okładki nie ma pustego obrazka", () => {
     const { container } = mount({ settings: settings({ popup_cover_url: null }) });
 
     expect(container.querySelector("img")).toBeNull();
+    // Reszta podglądu nadal jest - brak okładki nie gasi formularza.
+    expect(container.querySelector("input")).toBeTruthy();
   });
 
   it("klauzula RODO jest SANITYZOWANA - podgląd nie wykonuje skryptu", () => {
@@ -252,6 +270,7 @@ describe("stary układ (tenanci bez dokumentu)", () => {
     const { container } = mount({ settings: settings({ policy_html_pl: null }) });
 
     expect(container.querySelector("[class*='text-[10px]']")).toBeNull();
+    expect(container.querySelector("input")).toBeTruthy();
   });
 
   it("ZAOKRĄGLENIE pola i przycisku jest ograniczone - popup o promieniu 40 px nie daje owalnych pól", () => {
@@ -259,6 +278,8 @@ describe("stary układ (tenanci bez dokumentu)", () => {
 
     const input = container.querySelector("input") as HTMLElement;
     expect(input.style.borderRadius).toBe("8px");
+    // Samo OKNO bierze pełne 40 px - ograniczenie dotyczy tylko pól i przycisku.
+    expect(container.querySelector('[style*="border-radius: 40px"]')).toBeTruthy();
   });
 
   it("ujemne zaokrąglenie schodzi na zero, a nie na wartość ujemną w stylu", () => {
