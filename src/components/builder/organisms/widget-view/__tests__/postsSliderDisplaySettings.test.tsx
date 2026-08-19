@@ -70,8 +70,13 @@ async function renderPostsSlider(content: WidgetContent, lang: "pl" | "en" = "pl
     </QueryClientProvider>,
   );
   // SliderRender jest ładowany leniwie (lazyWidgets), a autorzy dociągani
-  // osobnym zapytaniem - czekamy na w pełni złożony slajd.
-  await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull());
+  // osobnym zapytaniem - czekamy na w pełni złożony slajd. Limit podniesiony
+  // ponad domyślne 1000 ms: pierwszy render w pliku płaci za dynamiczny import
+  // chunku slidera, co przy równoległym przebiegu całej suity potrafi przekroczyć
+  // domyślny budżet i czerwienić test, który w izolacji przechodzi.
+  await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull(), {
+    timeout: 15_000,
+  });
   return view;
 }
 
@@ -210,6 +215,11 @@ describe("PostsSliderWidget - granica leniwego chunka", () => {
     // Renderer slidera (~53 KB) jedzie leniwie przez lazyWidgets. Import stałych
     // wprost z `sliderVariants` wciągnąłby go z powrotem do głównego bundla,
     // więc zawężanie wariantów korzysta z lekkiego `sliderOptions`.
+    //
+    // Bramka pilnowała `mediaWidgets.tsx`, ale slider wyprowadzono stamtąd do
+    // osobnego modułu (podział po typie, 01253dc) - plik nie ma już ani jednego
+    // z tych importów, więc asercja przestała cokolwiek chronić i padała na
+    // mainie. Sprawdzamy plik, w którym slider faktycznie jest.
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const src = readFileSync(

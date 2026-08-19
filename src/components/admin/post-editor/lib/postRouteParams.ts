@@ -27,12 +27,21 @@ export function parsePostEditorSearch(search: Record<string, unknown>): { lang?:
  * który zawęził listę do wersji angielskiej i kliknął wiersz, ma dostać
  * edytor po stronie EN, choćby panel miał UI po polsku - inaczej pisałby
  * poprawki do niewłaściwej wersji.
+ *
+ * WARTOŚĆ JEST SPRAWDZANA TUTAJ PONOWNIE, mimo `parsePostEditorSearch` wyżej.
+ * `validateSearch` trasy odrzuca śmieć, ale router składa `match.search` jako
+ * `{ ...parentSearch, ...zwalidowane }`, a `Route.useSearch()` czyta właśnie
+ * `match.search` - obca wartość dociera więc do komponentu mimo walidacji,
+ * z typem `PostLang`, którego nie ma. Samo `??` przepuszczało ją dalej (odrzuca
+ * wyłącznie `undefined`), więc `?lang=klingon` otwierał edytor w trzecim,
+ * nieistniejącym języku i szedł po pola `title_klingon`.
  */
 export function resolveEditorLang(
   searchLang: PostLang | undefined,
   uiLang: string | null | undefined,
 ): PostLang {
-  return searchLang ?? ((uiLang ?? "pl").startsWith("en") ? "en" : "pl");
+  if (searchLang === "pl" || searchLang === "en") return searchLang;
+  return (uiLang ?? "pl").startsWith("en") ? "en" : "pl";
 }
 
 /** Wejście bramki tworzenia szkicu na `/admin/posts/new`. */

@@ -83,10 +83,12 @@ const SPLIT_WIDGETS = [
   //  * AccordionWidget - jedyny konsument sanitizeHtml/DOMPurify w SimpleWidgets;
   //    statyczna krawędź trzymała DOMPurify w chunku wejściowym,
   //  * SectionLabelWidgetView - wariantownia z lib/builder/sectionLabelVariants,
-  //  * TrendingNowView - widok listy „na czasie" spod WidgetView.
+  //  * TrendingNowView - widok listy „na czasie" spod WidgetView; jego wpis stoi
+  //    wyżej, przy `NewsTickerView` - dopisanie go PONOWNIE tutaj (scalenie
+  //    c145e2f) czerwieniło strażnika, bo lista miała 59 pozycji wobec 58
+  //    eksportów rejestru.
   "AccordionWidget",
   "SectionLabelWidgetView",
-  "TrendingNowView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

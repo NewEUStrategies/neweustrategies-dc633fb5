@@ -117,6 +117,15 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "adminNewsletter.nav.popup",
   // Wykrywanie płci "z automatu" - to samo słowo w obu językach.
   "adminNewsletter.emailPreview.genderAuto",
+  // Nazwa punktu załamania w panelu układów wpisu. Sąsiedzi SĄ tłumaczeni
+  // ("mobile" -> "Telefon", "desktop" -> "Komputer"), więc identyczność nie
+  // wynika tu z pominięcia: "tablet" to po polsku to samo słowo i przekład
+  // musiałby je wymyślić.
+  "adminLayouts.postLayouts.breakpoint.tablet",
+  // Nazwa sekcji cyklu artykułów. Reszta gałęzi jest tłumaczona ("part" ->
+  // "część", "Previous part" -> "Poprzednia część"), a samo "Dossier" jest
+  // zapożyczeniem używanym po polsku bez zmiany - jak "Newsletter" wyżej.
+  "postExperience.series.series",
 ];
 
 function loadOverlays(): void {

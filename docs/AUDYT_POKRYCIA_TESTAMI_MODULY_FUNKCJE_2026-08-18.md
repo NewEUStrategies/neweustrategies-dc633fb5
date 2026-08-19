@@ -88,7 +88,6 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | #   | Moduł                                                 | Pliki prod. | Instrukcje | Gałęzie | Funkcje |      Linie | Plików 0% |   T/P | Testów | Asercji |
 | --- | ----------------------------------------------------- | ----------: | ---------: | ------: | ------: | ---------: | --------: | ----: | -----: | ------: |
 | 7   | Typy treści specjalne                                 |         109 |     16,73% |  13,26% |  14,60% | **16,47%** |        75 | 0,183 |    203 |     484 |
-| 5   | Strona główna, archiwa, chrome ⚠                      |          51 |     16,00% |  11,90% |  11,80% | **16,71%** |        34 | 0,176 |     79 |     206 |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         242 |     18,26% |  14,88% |  13,32% | **17,56%** |       177 | 0,244 |    586 |   1 047 |
 | 15  | Profil i konto                                        |          81 |     18,41% |  16,07% |  18,00% | **19,12%** |        45 | 0,247 |    187 |     378 |
 | 19  | Ustawienia / integracje / users / multi-tenant / RODO |         122 |     21,70% |  16,97% |  17,43% | **22,00%** |        62 | 0,197 |    289 |     557 |
@@ -99,7 +98,6 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | 17  | Analityka i BI                                        |          85 |     27,36% |  21,74% |  22,58% | **28,00%** |        51 | 0,224 |    199 |     442 |
 | 1   | Wpisy: doświadczenie czytelnika                       |          74 |     31,75% |  32,89% |  26,93% | **31,81%** |        43 | 0,405 |    321 |     697 |
 | 13  | Monetyzacja: checkout / subskrypcje / billing         |         162 |     31,97% |  29,71% |  26,68% | **32,71%** |        87 | 0,302 |    542 |   1 252 |
-| 6   | Wyszukiwarka                                          |          24 |     32,65% |  28,89% |  32,65% | **33,21%** |        11 | 0,333 |     63 |     117 |
 | 2   | Edytor wpisów i workflow redakcyjny ↻                 |          93 |     35,83% |  30,30% |  32,13% | **35,87%** |        43 | 0,355 |    539 |   1 053 |
 | 3   | Silniki treści: bloki + page builder ⚠                |         448 |     39,10% |  33,89% |  29,04% | **39,99%** |       205 | 0,448 |  2 048 |   4 507 |
 | 12  | Realtime / powiadomienia / web-push                   |          28 |     41,64% |  26,10% |  41,02% | **44,12%** |        13 | 0,464 |     93 |     223 |
@@ -110,13 +108,22 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | —   | PRZEKROJOWE: design system (components/ui)            |          43 |     61,75% |  53,31% |  56,14% | **63,13%** |        11 | 0,047 |     17 |      37 |
 | 10  | Sieć / networking                                     |          31 |     78,03% |  66,52% |  80,79% | **81,68%** |         3 | 0,710 |    327 |     609 |
 | —   | PRZEKROJOWE: słowniki i18n                            |         116 |     87,65% |  64,51% |  51,32% | **91,78%** |         1 | 0,052 |     60 |     141 |
-| 18† | CRM                                                   |          56 |     98,16% |  86,44% |  98,48% | **98,98%** |         0 | 0,786 |  1 326 |   3 104 |
+| 6‡  | Wyszukiwarka                                          |          24 |     96,66% |  90,09% |  95,22% | **97,38%** |         0 | 0,875 |    528 |     117 |
+| 5§  | Strona główna, archiwa, chrome                        |          52 |     95,72% |  83,53% |  94,35% | **97,43%** |         0 | 0,462 |    631 |   1 057 |
 | 2†  | Edytor wpisów i workflow redakcyjny                   |          83 |     98,81% |  94,38% |  99,00% | **99,41%** |         0 | 0,964 |  1 568 |   3 150 |
 
-**†** MODUŁY 2 i 18 zmierzone ponownie 19.08.2026 po wdrożeniach pokrycia
-(`docs/WDROZENIE_POKRYCIE_MODUL_2_EDYTOR_WPISOW_2026-08-18.md`,
-`docs/WDROZENIE_CRM_POKRYCIE_TESTAMI_2026-08-19.md`) — pozostałe wiersze pochodzą
-z pomiaru 18.08. Wiersze stoją na końcu, bo tabela jest sortowana rosnąco po pokryciu linii.
+**‡** MODUŁ 6 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_WYSZUKIWARKA_TESTY_2026-08-18.md`) — pomiar z pełnego `bun run test:coverage`.
+
+**§** MODUŁ 5 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_MODUL5_CHROME_ARCHIWA_TESTY_2026-08-18.md`). Był na czwartym miejscu od
+dołu: 16,71% linii, 34 z 51 plików na zerze. Asercje policzone jako wystąpienia `expect(`
+w 24 plikach testowych modułu.
+
+**†** MODUŁ 2 zmierzony ponownie 19.08.2026 po wdrożeniu pokrycia
+(`docs/WDROZENIE_POKRYCIE_MODUL_2_EDYTOR_WPISOW_2026-08-18.md`) — pozostałe wiersze pochodzą
+z pomiaru 18.08. Wiersze zmierzone ponownie stoją na końcu, bo tabela jest sortowana rosnąco
+po pokryciu linii.
 
 ### 2.1 Wymiar „funkcje”: ile funkcji w module zostało kiedykolwiek wywołane
 
@@ -140,7 +147,6 @@ nigdy nie uruchomione w teście.
 | 1   | Wpisy: doświadczenie czytelnika                       |           698 |        188 | **26,93%** |
 | 3   | Silniki treści: bloki + page builder ⚠                |         6 828 |      1 983 | **29,04%** |
 | 2   | Edytor wpisów i workflow redakcyjny ↻                 |           834 |        268 | **32,13%** |
-| 6   | Wyszukiwarka                                          |           291 |         95 | **32,65%** |
 | 20  | Platforma / backend / infrastruktura / SSR            |         1 930 |        775 | **40,16%** |
 | 12  | Realtime / powiadomienia / web-push                   |           373 |        153 | **41,02%** |
 | 21  | Rekrutacja / kariera                                  |           348 |        164 | **47,13%** |
@@ -149,7 +155,7 @@ nigdy nie uruchomione w teście.
 | —   | PRZEKROJOWE: design system (components/ui)            |           228 |        128 | **56,14%** |
 | 9   | Czat / komunikator                                    |         1 051 |        605 | **57,56%** |
 | 10  | Sieć / networking                                     |           302 |        244 | **80,79%** |
-| 18† | CRM                                                   |         1 054 |      1 038 | **98,48%** |
+| 6‡  | Wyszukiwarka                                          |           293 |        279 | **95,22%** |
 | 2†  | Edytor wpisów i workflow redakcyjny                   |           802 |        794 | **99,00%** |
 
 ---
@@ -159,18 +165,32 @@ nigdy nie uruchomione w teście.
 Każdy wiersz to FUNKCJA PRODUKTU, nie katalog: lista plików ją realizujących jest zdefiniowana
 wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w plikach tej funkcjonalności.
 
-### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 31,81% · funkcje 26,93%
+### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 31,81% → **81,43%** · funkcje 26,93% → **80,94%**
 
-| Funkcjonalność                     | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
-| ---------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| Audio wpisu (TTS)                  |     12 |        743 |  11,6% |  9,2% |   15,4% |  **11,4%** |    21/136 |
-| Układy wpisu + render              |     24 |        567 |  18,4% | 27,5% |   18,2% |  **19,0%** |    29/159 |
-| Licznik odsłon / zapisane artykuły |      3 |        101 |  23,3% | 14,6% |   17,9% |  **25,7%** |      5/28 |
-| Powiązane wpisy / rekomendacje     |      6 |        149 |  47,1% | 51,9% |   48,6% |  **50,3%** |     18/37 |
-| Paywall / bramka dostępu           |      5 |        152 |  70,9% | 73,4% |   78,8% |  **71,7%** |     26/33 |
-| Spis treści (TOC) + przypisy       |      4 |        165 |  83,9% | 72,0% |   73,0% |  **87,3%** |     27/37 |
-| Key takeaways + cytowania          |      4 |        152 |  89,0% | 84,4% |   82,8% |  **88,8%** |     24/29 |
-| Metering „N darmowych/mies.”       |      3 |         85 |  98,0% | 96,1% |  100,0% | **100,0%** |     23/23 |
+> **AKTUALIZACJA 2026-08-19.** Moduł został domknięty: linie **81,43%**, instrukcje **79,89%**,
+> funkcje **80,94%**, gałęzie **71,47%**. Plików 74 → **122** (48 nowych z wyprowadzenia reguł
+> i paneli), plików na zerze **43 → 16** (z czego 4 to pliki tras panelowych zredukowane
+> do samej rejestracji, a 2 to publiczne trasy wpisu jawnie poza zakresem).
+> Wdrożenie i metodologia pomiaru: `docs/WDROZENIE_MODUL_1_TESTY_PANELE_2026-08-19.md`.
+> Pomiar „po" ma mianownik zawężony do plików modułu (reguły z rozdziału 9.1 plus trzy
+> katalogi dopisane niżej) i numerator z 83 plików testowych; pełny przebieg z pokryciem
+> nie kończy się w tym sandboksie (rozdział 9.2), więc numerator jest DOLNYM ograniczeniem.
+
+| Funkcjonalność                         | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) | Linie 2026-08-19 |
+| -------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: | ---------------: |
+| Audio wpisu (TTS)                      |     12 |        743 |  11,6% |  9,2% |   15,4% |  **11,4%** |    21/136 |        **78,2%** |
+| Układy wpisu + render                  |     24 |        567 |  18,4% | 27,5% |   18,2% |  **19,0%** |    29/159 |        **89,0%** |
+| Licznik odsłon / zapisane artykuły     |      3 |        101 |  23,3% | 14,6% |   17,9% |  **25,7%** |      5/28 |       **100,0%** |
+| Powiązane wpisy / rekomendacje         |      6 |        149 |  47,1% | 51,9% |   48,6% |  **50,3%** |     18/37 |        **87,7%** |
+| Paywall / bramka dostępu               |      5 |        152 |  70,9% | 73,4% |   78,8% |  **71,7%** |     26/33 |        **79,4%** |
+| Spis treści (TOC) + przypisy           |      4 |        165 |  83,9% | 72,0% |   73,0% |  **87,3%** |     27/37 |      **83,1%**\* |
+| Key takeaways + cytowania              |      4 |        152 |  89,0% | 84,4% |   82,8% |  **88,8%** |     24/29 |        **99,4%** |
+| Metering „N darmowych/mies.”           |      3 |         85 |  98,0% | 96,1% |  100,0% | **100,0%** |     23/23 |       **100,0%** |
+| PANELE ADMINA (`admin/postExperience`) |      — |          — |      — |     — |       — |          — |         — |       **100,0%** |
+
+\* TOC „spadł" wyłącznie przez zmianę mianownika: doszedł `lib/toc/panelRules.ts` (100%),
+ale też `lib/toc/manualItems.ts`, którego audyt nie liczył w tej grupie. Sam
+`lib/toc/settings.ts` poszedł z 51,2% na 100% linii i funkcji.
 
 ### MODUŁ 2 ↻ — Edytor wpisów i workflow redakcyjny · linie 35,87% · funkcje 32,13%
 
@@ -243,23 +263,55 @@ obejmujących 75 z 83 plików, więc wiersze nie są porównywalne jeden do jedn
 | Ikony / marka                   |      7 |        149 |  23,2% | 12,7% |   32,4% | **25,5%** |     12/37 |
 | Motyw / wygląd / global colors  |     51 |        629 |  47,8% | 34,6% |   28,3% | **47,9%** |    56/198 |
 
-### MODUŁ 5 — Strona główna, archiwa, chrome ⚠ · linie 16,71% · funkcje 11,80%
+### MODUŁ 5 — Strona główna, archiwa, chrome ✅ · linie 97,43% · funkcje 94,35%
 
-| Funkcjonalność                       | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
-| ------------------------------------ | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Nagłówek / stopka / menu             |     16 |        831 |   1,8% |  0,0% |    0,3% |  **2,0%** |     1/324 |
-| Archiwa kategorii/tagów              |     16 |        194 |  19,1% | 11,6% |   11,9% | **17,5%** |      8/67 |
-| Chrome mobilny (drawer, dolny pasek) |     11 |        219 |  41,5% | 36,5% |   41,1% | **44,3%** |     23/56 |
-| Mega menu                            |      3 |        135 |  80,9% | 64,2% |   79,5% | **88,1%** |     31/39 |
+**Zamknięty 2026‑08‑19** — wdrożenie opisane w
+`WDROZENIE_MODUL5_CHROME_ARCHIWA_TESTY_2026-08-18.md`. Liczby poniżej to stan PO; wartości
+z audytu (18.08) zostawione w kolumnach „przed", żeby skala pracy była widoczna.
 
-### MODUŁ 6 — Wyszukiwarka · linie 33,21% · funkcje 32,65%
+| Funkcjonalność                       | Plików | Linie przed |    Linie po | fn przed |       fn po |
+| ------------------------------------ | -----: | ----------: | ----------: | -------: | ----------: |
+| Nagłówek / stopka / menu             |     19 |        2,0% |  **97,87%** |    1/324 | **325/343** |
+| Archiwa kategorii/tagów              |     19 |       17,5% | **100,00%** |     8/67 | **110/110** |
+| Chrome mobilny (drawer, dolny pasek) |     11 |       44,3% |  **98,18%** |    23/56 |   **53/58** |
+| Mega menu                            |      3 |       88,1% |  **88,70%** |    31/39 |   **46/55** |
+
+Plików bez ani jednej wykonanej linii: **34 z 51 → 0 z 52**. Liczba plików rośnie, bo reguły
+zostały wyprowadzone z organizmów do czystych modułów (`lib/menus/tree.ts`, `siteMenu.ts`,
+`megaColumns.ts`, `lib/archive/bodyPlan.ts`), a pomiar objął cztery trasy archiwum.
+Cała powierzchnia jest pod progami per‑ścieżka w `vitest.config.ts`.
+
+### MODUŁ 6 — Wyszukiwarka · linie 97,38% · funkcje 95,22% ✅ ZAMKNIĘTY
+
+Domknięty 2026-08-18 - `docs/WDROZENIE_WYSZUKIWARKA_TESTY_2026-08-18.md`. Zero plików na 0%
+(było 16 z 24 w pomiarze pełnym audytu: 11). Moduł ma teraz własne progi per-ścieżka
+w `vitest.config.ts`, których wcześniej nie miał wcale.
 
 | Funkcjonalność                               | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  25,0% | 20,8% |   28,8% | **26,6%** |    38/132 |
-| Wyszukiwarka: indeks i zapytania             |     10 |        500 |  49,6% | 52,2% |   55,9% | **50,8%** |    57/102 |
+| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  96,5% | 90,4% |   93,1% | **96,4%** |   161/173 |
+| Wyszukiwarka: indeks i zapytania             |     10 |        500 |  96,6% | 88,5% |   98,1% | **98,2%** |   101/103 |
+| Zapisane wyszukiwania i alerty (hook)        |      1 |         40 |   100% |  100% |    100% |  **100%** |     16/16 |
 
-### MODUŁ 7 — Typy treści specjalne · linie 16,47% · funkcje 14,60%
+Przy okazji naprawiony defekt wyszukiwarki komend: fraza bez ogonków („platnosci") nie
+znajdowała polskich etykiet („Płatności"), mimo że baza składa diakrytyki od dawna
+(`unaccent` w `search_quick`). Rozstrzygnięta też anomalia z tego audytu -
+`SearchAutosuggest.test.tsx` istniał, a komponent miał 0 z 19 funkcji: ten plik testowy nie
+importował komponentu ani razu, jego asercje zasilały `facetModel.ts`.
+
+### MODUŁ 7 — Typy treści specjalne · linie 16,47% → **100%** · funkcje 14,60% → **100%**
+
+> **ZAKTUALIZOWANE 19.08.2026** (branch `claude/module-7-test-coverage-jbe28y`, PR #257). Liczby
+> w tabeli poniżej to STAN Z AUDYTU, zachowany jako punkt odniesienia. Stan po pracy testowej i
+> pełne uzasadnienie każdego przypadku: `docs/WDROZENIE_MODUL7_TESTY_2026-08-18.md`.
+>
+> Skrót: **moduł jest domknięty - 100% linii i 100% funkcji na wszystkich 67 plikach**
+> (99,02% instrukcji, 93,13% gałęzi, 1 238 testów). Żadna funkcjonalność nie stoi na zerze i żaden
+> plik nie ma zerowego pokrycia. Tura I zdjęła warstwę reguł, loaderów i serwerową (moduł na
+> 70,83%); tura II domknęła sześć dużych plików interfejsu - `ExpertLayoutRenderer` (1134 linie),
+> `ExpertLayoutInlineEditor` (565), `PolicyPositionsMap` (289), `SpeakerProfileDialog` (278),
+> `ExpertMaterialsExplorer` (276), `QuizBackground` (180) - oraz trzy pliki-deklaracje server
+> functions. Moduł ma 31 własnych progów per-ścieżka w `vitest.config.ts`.
 
 | Funkcjonalność                   | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
@@ -1148,9 +1200,8 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 **Czego bramka NIE pilnuje** — moduły bez ani jednego progu per-ścieżka:
 
 - **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
-- **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
 - **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
-- **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
+- ~~**MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109~~ → **100% / 100%**, plików 0%: **0** (19.08.2026, `WDROZENIE_MODUL7_TESTY_2026-08-18.md`)
 - **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 44,12%, funkcje 41,02%, plików 0%: 13/28
 - **MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy**: linie 22,55%, funkcje 15,28%, plików 0%: 19/38
@@ -1288,6 +1339,19 @@ i zapisało to w komentarzu do progu globalnego w `vitest.config.ts`. Wskaźnik 
 Mapowanie jest deterministyczne (pierwsze trafienie wygrywa) i w całości oparte na ścieżkach.
 Wzorce w kolejności stosowania, per moduł:
 
+> **AKTUALIZACJA 2026-08-19 — trzy wzorce dopisane do MODUŁU 1.** Wyprowadzenie reguł
+> i paneli z plików tras przeniosło kod modułu 1 do katalogów, których reguły niżej nie
+> przypisywały do tego modułu. Bez tych trzech wzorców kolejny pomiar pokazałby SPADEK
+> liczby plików modułu 1 i przeniósł jego pokrycie do modułów 19 i 20, choć kod jest ten sam:
+>
+> | Wzorzec                                | Co tam jest                   | Bez wzorca wpada do   |
+> | -------------------------------------- | ----------------------------- | --------------------- |
+> | `src/components/admin/postExperience/` | cztery panele modułu          | PRZEKROJOWE: panel    |
+> | `src/lib/post/`                        | reguły renderu i paneli wpisu | MODUŁ 20 (`src/lib/`) |
+> | `src/lib/admin/panelDraft`             | reguły wspólne paneli modułu  | MODUŁ 19              |
+>
+> Wzorce wchodzą PRZED regułami modułów 19 i 20 (pierwsze trafienie wygrywa).
+
 | #   | Moduł                                                 | Wzorce ścieżek                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | --- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Wpisy: doświadczenie czytelnika                       | `src/lib/access/`, `src/lib/toc/`, `src/lib/footnotes`, `src/lib/manualToc`, `src/lib/keyTakeaways/`, `src/lib/citations/`, `src/lib/audio/`, `src/lib/readingTime`, `src/lib/postLayouts`, `src/lib/relatedPosts`, `src/lib/relatedInsights`, `src/lib/relatedClickBeacon`, `src/components/post/`, `src/components/PostLayoutRenderer`, `src/components/Paywall`, `src/components/author/`, `src/components/audio/`, `src/components/molecules/MeterBanner`, `src/components/atoms/QuotaMeter`, `src/hooks/(useContentAccess                                                                                                                                                                                                   | useUnlockedContent                                        | usePasswordUnlock                                  | useRecordPostView                                | useSaveArticle                     | useBookmarks                 | useReadingTimeSettings                                             | usePostLayoutSettings                     | useRecommendedPosts)`, `src/routes/post\.`, `src/routes/preview\.`, `src/routes/admin\.(key-takeaways | toc           | post-layouts | related-posts)`, `src/routes/api/public/(post-tts | related-click)`, `src/routes/api/(tts | stt)` |
@@ -1324,7 +1388,7 @@ Rozbicie liczby plików produkcyjnych:
 | 3   | Silniki treści: bloki + page builder                  |   449 |      110 202 |           201 |     32 901 |
 | 4   | Strony, wygląd, motyw, media, import                  |   130 |       16 555 |            35 |      2 481 |
 | 5   | Strona główna, archiwa, chrome                        |    51 |        9 150 |             9 |      1 073 |
-| 6   | Wyszukiwarka                                          |    24 |        4 582 |             8 |        680 |
+| 6‡  | Wyszukiwarka                                          |    24 |        4 582 |            21 |      6 098 |
 | 7   | Typy treści specjalne                                 |   109 |       25 083 |            20 |      2 742 |
 | 8   | SEO, feedy, dane strukturalne                         |    73 |       10 265 |            38 |      3 850 |
 | 9   | Czat / komunikator                                    |    80 |       15 462 |            36 |      9 164 |
@@ -1443,6 +1507,11 @@ przechodzą; pozostałe pozycje tej listy padały na dryfie lustra i zaślepek, 
 - `src/components/builder/organisms/widget-view/__tests__/widgetViewEditable.test.tsx`
 - `src/components/builder/organisms/widget-view/__tests__/worldMapWidget.test.tsx`
 - `src/components/mobile/bottomBar/__tests__/MobileBottomBarView.test.tsx`
+  — **AKTUALIZACJA 19.08.2026**: ten JEDEN plik spoza modułu 3 przechodzi w komplecie
+  (15 przypadków, 1,7 s) w przebiegu, w którym mierzono zamknięcie modułu 5. Jego obecność na
+  liście była artefaktem konkretnego przebiegu, nie właściwością pliku — a to znaczy, że
+  adnotacja „pomiar zaniżony" nie dotyczyła chrome mobilnego. Reszta listy (38 plików
+  buildera i widgetów) wisi nadal.
 
 **Status: wszystkie powyższe pliki przechodzą.** Cały MODUŁ 3 uruchomiony w jednym przebiegu:
 90 plików / 1 832 testy / 64 s (wcześniej: przebieg nie kończył się nigdy).

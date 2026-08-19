@@ -83,16 +83,10 @@ export { PricingPlansView } from "@/components/builder/organisms/widget-view/Pri
 export { DynamicTagWidget } from "@/components/builder/organisms/widget-view/DynamicTagWidgets";
 export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/GalleryLightbox";
 // 2026-08-18: `accordion` i `section-label` przeszły z eager do `lazyWidgets`
-// razem z cięciem chunku wejściowego (01253dc), ale lustro nie dostało tych
-// dwóch eksportów - każdy test podmieniający rejestr wywalał się na
-// „No \"AccordionWidget\" export is defined on the mock", a `WidgetView`
-// dostawał `undefined`, więc bramka wierności ustawień uznawała KAŻDE ustawienie
-// takiego widgetu za martwe. Bramka parytetu tego nie złapała, bo sama nie
-// dawała się skolekcjonować.
-//
-// 2026-08-19: para eksportów była tu DWA razy - dwie gałęzie naprawiły to samo
-// niezależnie, a scalenie zostawiło obie kopie. Duplikat wywracał `typecheck`
-// (TS2300) i obie bramki lustra naraz. Każdy widget mirroruje się RAZ.
+// razem z cięciem chunku wejściowego, ale lustro nie dostało tych dwóch
+// eksportów - każdy test podmieniający rejestr wywalał się na
+// „No \"AccordionWidget\" export is defined on the mock", a bramka wierności
+// ustawień uznawała KAŻDE ustawienie tych widgetów za martwe.
 export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
 export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
 export { Editable } from "@/components/builder/molecules/Editable";

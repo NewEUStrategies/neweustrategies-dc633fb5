@@ -169,6 +169,10 @@ const TOKEN_SLUG_FALLBACK = "token";
  */
 export const slugifyToken = (raw: string): string =>
   transliterateAtomicLetters(raw)
+    // `.toLowerCase()` JAWNIE, bo wspólny prymityw ZACHOWUJE wielkość liter,
+    // a filtr niżej (`[^a-z0-9]`) nie ma flagi `i` - bez tego kroku każda wielka
+    // litera zamieniałaby się w łącznik i „Łódź" dałoby `odz` zamiast `lodz`.
+    .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")

@@ -70,6 +70,46 @@ const ATOMIC_LETTERS: Readonly<Record<string, string>> = {
 const ATOMIC_LETTERS_RE = new RegExp(`[${Object.keys(ATOMIC_LETTERS).join("")}]`, "gu");
 
 /**
+ * Ten sam zbiór liter, ale w OBU wielkościach - dla konsumentów, którzy (inaczej
+ * niż slug) muszą zachować wielkość liter, np. nazwa pobieranego pliku.
+ * `ß`.toUpperCase() daje dwuznak „SS", więc do klasy znaków wchodzą wyłącznie
+ * jednoznakowe warianty.
+ */
+const ATOMIC_LETTERS_ANY_CASE_RE = new RegExp(
+  `[${[
+    ...new Set([
+      ...Object.keys(ATOMIC_LETTERS),
+      ...Object.keys(ATOMIC_LETTERS)
+        .map((c) => c.toUpperCase())
+        .filter((c) => c.length === 1),
+    ]),
+  ].join("")}]`,
+  "gu",
+);
+
+/**
+ * Transliteracja LITER ATOMOWYCH z zachowaniem wielkości.
+ *
+ *   transliterateAtomicLetters("Łódź")  → "Lódź"   (dalsze diakrytyki zdejmuje NFKD)
+ *   transliterateAtomicLetters("Straße") → "Strasse"
+ *
+ * Wyprowadzone z `slugifyAnchor`, bo `normalize("NFKD")` NIE rozkłada tych liter
+ * (nie mają rozkładu kanonicznego), więc każdy konsument, który po NFKD wycina
+ * znaki poza ASCII, GUBI je bezgłośnie. Ten moduł jest JEDNYM miejscem, w którym
+ * ta mapa żyje - dokładnie po to, żeby nie powstała druga i nie rozjechała się
+ * z pierwszą.
+ */
+export function transliterateAtomicLetters(input: string): string {
+  return input.replace(ATOMIC_LETTERS_ANY_CASE_RE, (char) => {
+    const mapped = ATOMIC_LETTERS[char.toLowerCase()];
+    if (mapped === undefined) return char;
+    // Wejście małą literą zostaje małe; wielką - podnosimy pierwszy znak, żeby
+    // „Þ" dało „Th", a nie „TH".
+    return char === char.toLowerCase() ? mapped : mapped.charAt(0).toUpperCase() + mapped.slice(1);
+  });
+}
+
+/**
  * Znaki łączące, które `NFKD` odkleja od litery bazowej. Historyczne
  * implementacje używały surowego zakresu `̀-ͯ`; `\p{Mn}` obejmuje ten
  * zakres i rozszerzenia (Latin Extended Additional, wietnamski), a przy okazji
@@ -110,19 +150,6 @@ function legacyAsciiSlug(input: string): string {
     .replace(COMBINING_MARKS_RE, "")
     .replace(NON_SLUG_RE, "-")
     .replace(EDGE_DASHES_RE, "");
-}
-
-/**
- * Transliteracja liter atomowych (`ł` → `l`, `ø` → `o`, `ß` → `ss`, ...) -
- * WSPÓŁDZIELONY prymityw slugujący. Wejście musi być już małymi literami
- * (klucze mapy są małe), więc funkcja robi `toLowerCase()` sama.
- *
- * Wydzielone, bo slug tokenu marki (`lib/builder/designTokens.ts`) miał własny
- * rdzeń bez transliteracji i psuł nazwy z polskimi literami dokładnie tak, jak
- * kotwice przed unifikacją. Jedna mapa liter, jedno miejsce do rozszerzania.
- */
-export function transliterateAtomicLetters(input: string): string {
-  return input.toLowerCase().replace(ATOMIC_LETTERS_RE, (c) => ATOMIC_LETTERS[c] ?? c);
 }
 
 /**
