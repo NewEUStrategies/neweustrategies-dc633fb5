@@ -10,7 +10,8 @@
 // roboczej), a nie sam fakt, że sekcja się wyrenderowała. Osobno pilnowany jest
 // PODGLĄD: sekcja pokazuje wartości z bieżącej wersji roboczej, a nie zapisane.
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "@/lib/i18n-admin-theme-design";
 import {
   BlockHeadingSection,
@@ -29,7 +30,7 @@ import { THEME_DESIGN_DEFAULTS, type ThemeDesign } from "@/lib/theme/themeDesign
 import { CAROUSEL_DEFAULTS } from "@/lib/theme/carouselDefaults";
 import type { SectionEditorProps } from "../../../types";
 
-type SectionComponent = (props: SectionEditorProps) => JSX.Element;
+type SectionComponent = (props: SectionEditorProps) => ReactElement;
 
 function renderSection(Component: SectionComponent, draft: ThemeDesign = THEME_DESIGN_DEFAULTS) {
   const set = vi.fn();
@@ -135,6 +136,41 @@ describe("ReadMoreSection - przycisk czytaj więcej", () => {
 
     const patch = set.mock.calls.at(-1)?.[1] as Record<string, unknown>;
     expect(typeof Object.values(patch)[0]).toBe("boolean");
+  });
+});
+
+describe("ReadMoreSection - podgląd przycisku", () => {
+  it("strzałka w podglądzie ZNIKA po wyłączeniu opcji", () => {
+    // Podgląd pokazujący strzałkę mimo wyłączonej opcji kłamałby o tym, jak
+    // przycisk wygląda na stronie.
+    const zeStrzalka: ThemeDesign = {
+      ...THEME_DESIGN_DEFAULTS,
+      readMoreButton: { ...THEME_DESIGN_DEFAULTS.readMoreButton, arrow: true },
+    };
+    const { view } = renderSection(ReadMoreSection, zeStrzalka);
+    expect(view.container.querySelector(".cms-read-more")?.textContent).toContain("→");
+    view.unmount();
+
+    const bezStrzalki: ThemeDesign = {
+      ...THEME_DESIGN_DEFAULTS,
+      readMoreButton: { ...THEME_DESIGN_DEFAULTS.readMoreButton, arrow: false },
+    };
+    const drugi = renderSection(ReadMoreSection, bezStrzalki);
+    expect(drugi.view.container.querySelector(".cms-read-more")?.textContent).not.toContain("→");
+  });
+
+  it.each([
+    [true, "uppercase"],
+    [false, "none"],
+  ])("wersaliki %s dają w podglądzie transformację %s", (uppercase, oczekiwane) => {
+    const draft: ThemeDesign = {
+      ...THEME_DESIGN_DEFAULTS,
+      readMoreButton: { ...THEME_DESIGN_DEFAULTS.readMoreButton, uppercase },
+    };
+    const { view } = renderSection(ReadMoreSection, draft);
+    const przycisk = view.container.querySelector<HTMLElement>(".cms-read-more");
+
+    expect(przycisk?.style.textTransform).toBe(oczekiwane);
   });
 });
 
@@ -271,5 +307,298 @@ describe("CarouselSection - domyślne ustawienia karuzeli", () => {
     expect(
       screen.getAllByRole("spinbutton").some((i) => (i as HTMLInputElement).value === "9000"),
     ).toBe(true);
+  });
+
+  it.each([
+    ["Pętla", "loop"],
+    ["Pauza na hover", "pauseOnHover"],
+  ])("przełącznik %s zmienia WYŁĄCZNIE własne pole", (etykieta, klucz) => {
+    // Trzy przełączniki obok siebie o identycznej budowie - podpięcie pod cudze
+    // pole nie daje błędu typów i objawia się dopiero na slajderze na stronie.
+    const { onChange } = renderCarousel();
+    const wiersz = screen.getByText(etykieta).closest("div");
+    fireEvent.click(wiersz?.querySelector('[role="switch"]') as HTMLElement);
+
+    const next = onChange.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    const zmienione = Object.keys(next).filter(
+      (k) => next[k] !== (CAROUSEL_DEFAULTS as Record<string, unknown>)[k],
+    );
+    expect(zmienione).toEqual([klucz]);
+  });
+
+  it("zmiana czasu przejścia zachowuje czas slajdu", () => {
+    // Dwa pola liczbowe obok siebie, oba w milisekundach - zamiana miejscami
+    // dałaby slajdy zmieniające się co 300 ms.
+    const { onChange } = renderCarousel();
+    fireEvent.change(screen.getAllByRole("spinbutton")[1], { target: { value: "300" } });
+
+    const next = onChange.mock.calls.at(-1)?.[0] as typeof CAROUSEL_DEFAULTS;
+    expect(next.speedMs).toBe(300);
+    expect(next.intervalMs).toBe(CAROUSEL_DEFAULTS.intervalMs);
+  });
+
+  it.each([
+    [0, "intervalMs", 1000],
+    [1, "speedMs", 100],
+  ])("wyczyszczenie pola %# wraca do wartości minimalnej", (indeks, klucz, minimum) => {
+    // Puste pole daje `null`; bez zabezpieczenia karuzela dostałaby `undefined`
+    // i przestała się przewijać.
+    const { onChange } = renderCarousel();
+    fireEvent.change(screen.getAllByRole("spinbutton")[indeks as number], {
+      target: { value: "" },
+    });
+
+    const next = onChange.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(next[klucz as string]).toBe(minimum);
+  });
+});
+
+// PEŁNY PRZEGLĄD PAR (kontrolka -> token). Dotychczasowe przypadki wyżej brały
+// z każdej sekcji po jednym-dwóch polach; reszta wywołań zwrotnych - kilkadziesiąt
+// jednolinijkowych `set(...)` - nie miała ani jednego wykonania, choć to
+// DOKŁADNIE ten rodzaj kodu, w którym pomyłka jest niewidoczna: obie wartości
+// mają ten sam typ, render się nie wywraca, a redaktor zmienia padding poziomy
+// i widzi, jak przesuwa się pionowy.
+//
+// Tabela niżej przechodzi po wszystkich pozostałych polach tekstowych i
+// liczbowych, po jednym wierszu na parę.
+describe("sekcje - każde pole tekstowe pisze do WŁASNEGO tokenu", () => {
+  it.each([
+    // opis, komponent, sekcja, etykieta pola, klucz tokenu, wpisane, oczekiwane
+    [
+      "miniatura / proporcje",
+      ThumbnailSection,
+      "thumbnail",
+      "Proporcje (np. 16/9)",
+      "aspectRatio",
+      "4/3",
+      "4/3",
+    ],
+    [
+      "czytaj więcej / padding X",
+      ReadMoreSection,
+      "readMoreButton",
+      "Padding X (px)",
+      "paddingX",
+      "18px",
+      "18px",
+    ],
+    [
+      "czytaj więcej / padding Y",
+      ReadMoreSection,
+      "readMoreButton",
+      "Padding Y (px)",
+      "paddingY",
+      "9px",
+      "9px",
+    ],
+    [
+      "czytaj więcej / grubość",
+      ReadMoreSection,
+      "readMoreButton",
+      "Grubość",
+      "fontWeight",
+      "700",
+      700,
+    ],
+    ["meta / odstęp", MetaSection, "metaInfo", "Odstęp między (px)", "gap", "7px", "7px"],
+    [
+      "pasek / padding X",
+      ToolbarSection,
+      "toolbarButton",
+      "Padding X (px)",
+      "paddingX",
+      "11px",
+      "11px",
+    ],
+    [
+      "pasek / padding Y",
+      ToolbarSection,
+      "toolbarButton",
+      "Padding Y (px)",
+      "paddingY",
+      "5px",
+      "5px",
+    ],
+    [
+      "pasek / rozmiar ikony",
+      ToolbarSection,
+      "toolbarButton",
+      "Rozmiar ikony (px)",
+      "size",
+      "17px",
+      "17px",
+    ],
+    [
+      "social / padding X",
+      SocialSection,
+      "socialIcons",
+      "Padding X (px)",
+      "paddingX",
+      "13px",
+      "13px",
+    ],
+    [
+      "social / padding Y",
+      SocialSection,
+      "socialIcons",
+      "Padding Y (px)",
+      "paddingY",
+      "3px",
+      "3px",
+    ],
+    [
+      "tytuł / krój",
+      PostTitleSection,
+      "postTitle",
+      "Krój pisma (CSS font-family)",
+      "fontFamily",
+      "Lora",
+      "Lora",
+    ],
+    ["tytuł / grubość", PostTitleSection, "postTitle", "Grubość", "fontWeight", "650", 650],
+    [
+      "tytuł / interlinia",
+      PostTitleSection,
+      "postTitle",
+      "Interlinia (line-height)",
+      "lineHeight",
+      "1.35",
+      "1.35",
+    ],
+    [
+      "tytuł / odstęp liter",
+      PostTitleSection,
+      "postTitle",
+      "Odstęp liter (px)",
+      "letterSpacing",
+      "0.5px",
+      "0.5px",
+    ],
+    [
+      "zajawka / krój",
+      PostExcerptSection,
+      "postExcerpt",
+      "Krój pisma (CSS font-family)",
+      "fontFamily",
+      "Inter",
+      "Inter",
+    ],
+    ["zajawka / grubość", PostExcerptSection, "postExcerpt", "Grubość", "fontWeight", "300", 300],
+    [
+      "zajawka / interlinia",
+      PostExcerptSection,
+      "postExcerpt",
+      "Interlinia",
+      "lineHeight",
+      "1.8",
+      "1.8",
+    ],
+    [
+      "zajawka / margines górny",
+      PostExcerptSection,
+      "postExcerpt",
+      "Margines górny (px)",
+      "marginTop",
+      "7px",
+      "7px",
+    ],
+  ])("%s", (_opis, Component, sekcja, etykieta, klucz, wpisane, oczekiwane) => {
+    // Wpisywane wartości celowo RÓŻNIĄ się od domyślnych - kontrolka sterowana
+    // nie zgłasza zmiany, gdy nowa wartość jest identyczna z bieżącą.
+    const { set } = renderSection(Component as SectionComponent);
+    typeInField(etykieta as string, wpisane as string);
+
+    expect(set).toHaveBeenCalledWith(sekcja, { [klucz as string]: oczekiwane });
+  });
+});
+
+/** Otwiera listę wyboru w polu o danej etykiecie i klika opcję po nazwie. */
+function chooseOption(fieldLabel: string, optionName: string | RegExp): void {
+  const container = screen.getByText(fieldLabel).closest("div");
+  if (!container) throw new Error(`brak pola ${fieldLabel}`);
+  fireEvent.keyDown(within(container).getByRole("combobox"), { key: "ArrowDown" });
+  fireEvent.click(screen.getByRole("option", { name: optionName }));
+}
+
+describe("sekcje - listy wyboru zapisują WARTOŚĆ, nie widoczną etykietę", () => {
+  // Etykieta („WIELKIE") i wartość („uppercase") to dwie różne rzeczy; zapisanie
+  // etykiety dałoby w CSS-ie `text-transform: WIELKIE`, czyli nic.
+  it("transformacja nagłówka bloku", () => {
+    const { set } = renderSection(BlockHeadingSection);
+    chooseOption("Transformacja", "WIELKIE");
+    expect(set).toHaveBeenCalledWith("blockHeading", { textTransform: "uppercase" });
+  });
+
+  it("transformacja tytułu wpisu", () => {
+    const { set } = renderSection(PostTitleSection);
+    chooseOption("Transformacja", "małe");
+    expect(set).toHaveBeenCalledWith("postTitle", { textTransform: "lowercase" });
+  });
+
+  it("efekt hover miniatury", () => {
+    const { set } = renderSection(ThumbnailSection);
+    // „Zoom" jest wartością domyślną - wybór tej samej opcji nie zgłasza zmiany.
+    chooseOption("Efekt hover", "Slide");
+    expect(set).toHaveBeenCalledWith("thumbnail", { hoverEffect: "slide" });
+  });
+
+  it("cień miniatury", () => {
+    const { set } = renderSection(ThumbnailSection);
+    chooseOption("Cień", "Duży");
+    expect(set).toHaveBeenCalledWith("thumbnail", { shadow: "lg" });
+  });
+
+  it("separator informacji meta", () => {
+    const { set } = renderSection(MetaSection);
+    chooseOption("Separator", "/");
+    expect(set).toHaveBeenCalledWith("metaInfo", { separator: "slash" });
+  });
+});
+
+describe("sekcje - przełączniki oddają wartość LOGICZNĄ", () => {
+  it.each([
+    ["czytaj więcej / strzałka", ReadMoreSection, "Strzałka →", "arrow"],
+    ["meta / wersaliki", MetaSection, "WIELKIE LITERY", "uppercase"],
+  ])("%s", (_opis, Component, etykieta, klucz) => {
+    // Napis „true" przeszedłby typowanie w wielu miejscach i zawsze byłby prawdziwy.
+    const { set } = renderSection(Component as SectionComponent);
+    const wiersz = screen.getByText(etykieta as string).closest("div");
+    const przelacznik = wiersz?.querySelector('[role="switch"]');
+    if (!przelacznik) throw new Error(`brak przełącznika w wierszu ${String(etykieta)}`);
+    fireEvent.click(przelacznik);
+
+    const wartosc = (set.mock.calls.at(-1)?.[1] as Record<string, unknown>)[klucz as string];
+    expect(typeof wartosc).toBe("boolean");
+  });
+});
+
+describe("ListIndexSection - granice przezroczystości", () => {
+  it.each([
+    ["2", 1],
+    ["-1", 0],
+    ["0.35", 0.35],
+  ])("wartość %s ląduje w zakresie 0-1 jako %s", (wpisane, oczekiwane) => {
+    // Przezroczystość poza zakresem 0-1 jest w CSS-ie ignorowana w ciszy -
+    // numeracja znikałaby albo świeciła pełną mocą bez śladu w interfejsie.
+    const { set } = renderSection(ListIndexSection);
+    typeInField("Przezroczystość (0 - 1)", wpisane);
+
+    expect(set).toHaveBeenCalledWith("listIndex", { opacity: oczekiwane });
+  });
+
+  it("wyczyszczenie pola przezroczystości daje 0, nie NaN", () => {
+    const { set } = renderSection(ListIndexSection);
+    typeInField("Przezroczystość (0 - 1)", "");
+
+    expect(set).toHaveBeenCalledWith("listIndex", { opacity: 0 });
+  });
+
+  it("wyczyszczenie pola grubości wraca do domyślnej wartości", () => {
+    // Pusta grubość w CSS-ie to brak deklaracji - numeracja traciłaby wagę.
+    const { set } = renderSection(ListIndexSection);
+    typeInField("Grubość", "");
+
+    expect(set).toHaveBeenCalledWith("listIndex", { weight: 800 });
   });
 });
