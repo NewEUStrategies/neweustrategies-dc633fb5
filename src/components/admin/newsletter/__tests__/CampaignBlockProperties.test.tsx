@@ -441,7 +441,7 @@ describe("blok najnowszych wpisów", () => {
 
     expect(lastPatch(onChange).heading).toEqual({ pl: "Nowości", en: "Recently" });
     // Angielska wersja zostaje - dwujęzyczność jest tu warunkiem, nie dodatkiem.
-    const heading = lastPatch(onChange).heading as { pl?: string; en?: string };
+    const heading = lastPatch(onChange).heading as { pl: string; en: string };
     expect(heading.en).toBe("Recently");
   });
 });
