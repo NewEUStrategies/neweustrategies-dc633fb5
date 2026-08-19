@@ -298,6 +298,31 @@ describe("expertsDirectoryQueryOptions", () => {
     expect(facets.areas.map((a) => a.name_pl)).toEqual(["Energia", "Obrona"]);
   });
 
+  it("fasety PROGRAMÓW też są odduplikowane i sortowane alfabetycznie", async () => {
+    // Fasety obszarów i programów budują się dwiema bliźniaczymi pętlami;
+    // łatwo poprawić jedną i zapomnieć o drugiej. Wtedy panel filtrów pokazuje
+    // program dwa razy albo w kolejności przypadkowej (czyli w kolejności
+    // wierszy z bazy, która zależy od `sort_order` członkostwa, nie od nazwy).
+    planDirectory({
+      profile_badges: ok([{ user_id: ANNA }, { user_id: BOGDAN }]),
+      profiles_public: ok([
+        { id: ANNA, slug: "anna", display_name: "Anna" },
+        { id: BOGDAN, slug: "bogdan", display_name: "Bogdan" },
+      ]),
+      author_profiles_public: ok([
+        { user_id: ANNA, job_title: null, company: null, is_public: true },
+        { user_id: BOGDAN, job_title: null, company: null, is_public: true },
+      ]),
+      program_members: ok([
+        { user_id: ANNA, sort_order: 1, program: { id: "p2", name_pl: "Obronność", name_en: "B" } },
+        { user_id: BOGDAN, sort_order: 2, program: { id: "p1", name_pl: "Klimat", name_en: "A" } },
+        { user_id: ANNA, sort_order: 3, program: { id: "p1", name_pl: "Klimat", name_en: "A" } },
+      ]),
+    });
+    const { facets } = await run();
+    expect(facets.programs.map((p) => p.name_pl)).toEqual(["Klimat", "Obronność"]);
+  });
+
   it("błąd profili albo profili autorskich leci dalej", async () => {
     planDirectory({ profile_badges: ok([{ user_id: ANNA }]), profiles_public: fail("profile") });
     await expect(run()).rejects.toMatchObject({ message: "profile" });

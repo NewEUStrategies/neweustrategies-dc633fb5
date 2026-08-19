@@ -688,11 +688,15 @@ export default defineConfig({
         // Próg obejmuje CAŁY katalog razem z `refreshOg.functions.ts` (server fn,
         // świadomie pominięta), więc jest floorowany poniżej średniej katalogu,
         // a nie poniżej najlepszego pliku.
+        // 2026-08-19: RATCHET. `refreshOg.functions.ts` (ostatni plik katalogu
+        // bez testu) dostał własny, a druga fala zapytań huba - współautorstwa
+        // i wystąpienia dobierane po identyfikatorach z fali pierwszej - ma
+        // teraz asercje. Cały katalog: 100% linii i funkcji.
         "src/lib/experts/**": {
-          statements: 89,
-          functions: 91,
-          lines: 91,
-          branches: 80,
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 88,
         },
         // Renderer huba eksperta: 1134 linie, jeden plik obsługujący DWIE
         // powierzchnie (podgląd w adminie i publiczną stronę /author/$slug).

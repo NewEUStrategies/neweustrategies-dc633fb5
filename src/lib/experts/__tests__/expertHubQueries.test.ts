@@ -278,6 +278,80 @@ describe("ścieżka legacy - składanie huba", () => {
     expect(db().chainsFor("event_speakers")[0]?.argsOf("eq")).toEqual(["user_id", ANNA]);
   });
 
+  it("współautorstwa i wystąpienia idą DRUGĄ falą, po identyfikatorach z pierwszej", async () => {
+    // Pivot `post_authors` niesie same identyfikatory, więc rekordy trzeba
+    // dobrać osobno. Gdyby druga fala nie ruszała, hub gubiłby wszystko, przy
+    // czym ekspert jest współautorem - a to często najważniejsze publikacje
+    // (raporty zespołowe), nie te podpisane solo.
+    planLegacy({ profiles_public: ok(PROFILE) });
+    // Odpowiedzi ustawiamy PO `planLegacy` - ostatnie ustawienie wygrywa, a
+    // plan domyślny odpowiada pustką na wszystkie tabele ścieżki legacy.
+    db().setResponse("post_authors", ok([{ post_id: "post-wspolny" }]));
+    db().setResponse("event_speakers", ok([{ event_id: "event-wystapienie" }]));
+    db().setResponse("posts", (chain) =>
+      chain.has("in")
+        ? ok([
+            {
+              id: "post-wspolny",
+              slug: "raport-zespolowy",
+              title_pl: "Raport zespołowy",
+              title_en: "Team report",
+              post_format: "article",
+              published_at: "2026-06-01T00:00:00Z",
+            },
+          ])
+        : ok([
+            {
+              id: "post-solo",
+              slug: "analiza",
+              title_pl: "Analiza",
+              title_en: "Analysis",
+              post_format: "article",
+              published_at: "2026-07-01T00:00:00Z",
+            },
+          ]),
+    );
+    db().setResponse("events", (chain) =>
+      chain.has("in")
+        ? ok([
+            {
+              id: "event-wystapienie",
+              slug: "szczyt",
+              title_pl: "Szczyt",
+              title_en: "Summit",
+              starts_at: "2026-09-01T00:00:00Z",
+            },
+          ])
+        : ok([]),
+    );
+
+    const hub = await fetchExpertHubCached("anna-kowalska");
+
+    const secondWavePosts = db()
+      .chainsFor("posts")
+      .find((c) => c.has("in"));
+    expect(secondWavePosts?.argsOf("in")).toEqual(["id", ["post-wspolny"]]);
+    const secondWaveEvents = db()
+      .chainsFor("events")
+      .find((c) => c.has("in"));
+    expect(secondWaveEvents?.argsOf("in")).toEqual(["id", ["event-wystapienie"]]);
+
+    const ids = hub?.materials.map((m) => m.id) ?? [];
+    expect(ids).toContain("post-solo");
+    expect(ids).toContain("post-wspolny");
+    expect(hub?.materials.find((m) => m.id === "post-wspolny")?.isCoauthor).toBe(true);
+    expect(hub?.materials.find((m) => m.id === "post-solo")?.isCoauthor).toBe(false);
+  });
+
+  it("mając publikacje, PYTA o taksonomie po pełnym zbiorze identyfikatorów", async () => {
+    planLegacy({
+      profiles_public: ok(PROFILE),
+      posts: ok([{ id: "post-solo", slug: "a", post_format: "article" }]),
+    });
+    await fetchExpertHubCached("anna-kowalska");
+    expect(db().chainsFor("post_categories")[0]?.argsOf("in")).toEqual(["post_id", ["post-solo"]]);
+  });
+
   it("bez ani jednej publikacji NIE pyta o taksonomie postów", async () => {
     // Cztery zapytania `in (...)` z pustą listą nic by nie zwróciły, a
     // kosztowałyby round-trip każde.

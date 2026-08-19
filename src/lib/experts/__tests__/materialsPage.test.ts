@@ -94,6 +94,34 @@ describe("resolveFilterSlugs / filterMaterialsBySlugs", () => {
     expect(out.map((m) => m.id)).toEqual(["b"]);
   });
 
+  it("rozwiązuje KAŻDY wymiar osobno - region też, nie tylko program i temat", () => {
+    // Trzy wyszukiwania po fasetach mają identyczny kształt, więc łatwo
+    // przepiąć jedno z nich na złą listę: filtr regionu zacząłby wtedy szukać
+    // wśród programów i cicho zwracał pustkę dla poprawnego sluga.
+    expect(resolveFilterSlugs(FACETS, { ...EMPTY_MATERIAL_FILTER_SLUGS, region: "cee" })).toEqual({
+      ...EMPTY_MATERIAL_FILTERS,
+      regionId: "r1",
+    });
+    expect(
+      resolveFilterSlugs(FACETS, { ...EMPTY_MATERIAL_FILTER_SLUGS, topic: "energia" }),
+    ).toEqual({ ...EMPTY_MATERIAL_FILTERS, tagId: "t1" });
+    expect(
+      filterMaterialsBySlugs(MATERIALS, FACETS, {
+        ...EMPTY_MATERIAL_FILTER_SLUGS,
+        region: "cee",
+      }).map((m) => m.id),
+    ).toEqual(["b"]);
+  });
+
+  it("nieznany slug REGIONU też daje zbiór pusty, nie pełny", () => {
+    expect(
+      resolveFilterSlugs(FACETS, { ...EMPTY_MATERIAL_FILTER_SLUGS, region: "nope" }),
+    ).toBeNull();
+    expect(
+      resolveFilterSlugs(FACETS, { ...EMPTY_MATERIAL_FILTER_SLUGS, program: "nope" }),
+    ).toBeNull();
+  });
+
   it("returns an empty set for an unknown slug (parity with the RPC)", () => {
     expect(
       resolveFilterSlugs(FACETS, { ...EMPTY_MATERIAL_FILTER_SLUGS, topic: "nope" }),
