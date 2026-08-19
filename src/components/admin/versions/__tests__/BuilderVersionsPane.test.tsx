@@ -123,7 +123,7 @@ describe("documentForWidget", () => {
 
   it("kolumna zajmuje pełną szerokość (podgląd nie ma być ścieśniony)", () => {
     const doc = documentForWidget({ type: "heading", content: {} });
-    expect(doc.sections[0].children[0]).toMatchObject({ span: 12 });
+    expect(doc.sections[0].children[0]).toMatchObject({ span: { desktop: 12 } });
   });
 
   it("nadaje ŚWIEŻE identyfikatory przy każdym wywołaniu", () => {
