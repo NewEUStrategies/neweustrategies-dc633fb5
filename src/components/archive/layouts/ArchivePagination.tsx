@@ -12,7 +12,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
 
-function buildRange(page: number, totalPages: number): Array<number | "ellipsis"> {
+/**
+ * Numery stron do pokazania: pierwsza, okno wokół bieżącej, ostatnia, a między
+ * nimi wielokropki. Eksport jest po to, żeby GRANICE (jedna strona, dwie, skok
+ * z początku na koniec) dało się sprawdzić bez renderowania paska - to one
+ * decydują, czy crawler dostanie komplet linków do stron wyników.
+ */
+export function buildRange(page: number, totalPages: number): Array<number | "ellipsis"> {
   const out: Array<number | "ellipsis"> = [];
   const push = (v: number | "ellipsis") => out.push(v);
   const window = 1;

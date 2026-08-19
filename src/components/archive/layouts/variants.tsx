@@ -4,6 +4,7 @@ import { ArchiveHeader } from "./ArchiveHeader";
 import { ArchiveBody } from "./ArchiveBody";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
+import { magazineSplit } from "@/lib/archive/bodyPlan";
 import type { ArchiveLayoutProps } from "./types";
 
 function name(props: ArchiveLayoutProps) {
@@ -61,8 +62,12 @@ export function LayoutClassic(props: ArchiveLayoutProps) {
 
 // 3) Magazine - featured big on the left, grid on the right
 export function LayoutMagazine(props: ArchiveLayoutProps) {
-  const [featured, ...rest] = props.posts;
-  const showFeatured = props.settings.show_featured_top && featured;
+  // Podział „lead + cztery karty obok + reszta" jest regułą, nie układem -
+  // mieszka w `lib/archive/bodyPlan.ts` razem z resztą decyzji archiwum.
+  const { featured, secondary, rest, showFeatured } = magazineSplit(
+    props.posts,
+    props.settings.show_featured_top,
+  );
   return (
     <div className="min-h-screen bg-background text-foreground">
       <ArchiveHeader
@@ -75,7 +80,7 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
         variant="wide"
       />
       <section className="max-w-[1200px] mx-auto px-4 lg:px-8 pb-16">
-        {showFeatured && (
+        {showFeatured && featured && (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] mb-10">
             <div className="rounded-2xl overflow-hidden border border-border bg-card">
               {/* Lead magazynowy = kandydat LCP: eager + high priority i sizes
@@ -90,7 +95,7 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {rest.slice(0, 4).map((p) => (
+              {secondary.map((p) => (
                 <PostListCard
                   key={p.id}
                   post={p}
@@ -102,11 +107,7 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
             </div>
           </div>
         )}
-        <ArchiveBody
-          {...props}
-          posts={showFeatured ? rest.slice(4) : props.posts}
-          hasCustomFeaturedTop
-        />
+        <ArchiveBody {...props} posts={rest} hasCustomFeaturedTop />
       </section>
     </div>
   );

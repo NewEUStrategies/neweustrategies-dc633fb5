@@ -11,6 +11,7 @@ import { ArchivePosts } from "./ArchivePosts";
 import { ArchiveSidebar } from "./ArchiveSidebar";
 import { ArchiveToolbar } from "./ArchiveToolbar";
 import { ArchivePagination } from "./ArchivePagination";
+import { archiveBodyPlan } from "@/lib/archive/bodyPlan";
 import type { ArchiveLayoutProps } from "./types";
 
 export function ArchiveBody(props: ArchiveLayoutProps) {
@@ -34,23 +35,33 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
     hasCustomFeaturedTop,
   } = props;
   const { t } = useTranslation();
-  const withSidebar = settings.show_sidebar;
-  const sidebarLeft = settings.sidebar_position === "left";
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // Decyzje układu (karta wyróżniona, podział wpisów, liczba stron, sidebar)
+  // mieszkają w `lib/archive/bodyPlan.ts` i mają tam własne asercje.
+  const plan = archiveBodyPlan({
+    settings,
+    posts,
+    total,
+    pageSize,
+    hasCustomFeaturedTop,
+    previewMode,
+  });
+  const {
+    featured,
+    showFeaturedTop: showGenericFeatured,
+    gridPosts,
+    totalPages,
+    withSidebar,
+    sidebarLeft,
+  } = plan;
 
   // Reklamy in-feed dla archiwów taksonomii (typ strony = kind: category/tag).
   // W podglądzie admina nie emitujemy niczego - zero beaconów i fetchy reklam.
   const inFeed = useInFeedAds(kind, taxonomy.id);
-  const renderAfterCard = previewMode ? undefined : inFeed;
-
-  // Generic featured-top card, used by all layouts except Magazine (which renders its own).
-  const featured = posts[0];
-  const showGenericFeatured = settings.show_featured_top && !hasCustomFeaturedTop && !!featured;
-  const gridPosts = showGenericFeatured ? posts.slice(1) : posts;
+  const renderAfterCard = plan.withAds ? inFeed : undefined;
 
   const grid = (
     <div className="min-w-0 flex-1">
-      {showGenericFeatured && (
+      {showGenericFeatured && featured && (
         <div className="mb-8 rounded-2xl overflow-hidden border border-border bg-card">
           {/* Karta wyróżniona to kandydat LCP archiwum: eager + high priority
               oraz `sizes` odpowiadające realnej (~800 px) szerokości renderu -
@@ -83,9 +94,9 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
         renderAfterCard={renderAfterCard}
         // Bez karty wyróżnionej (tu ani w wariancie Magazine) kandydatem LCP
         // jest pierwsza karta siatki - wtedy to ona dostaje eager + high.
-        firstCardPriority={!showGenericFeatured && !hasCustomFeaturedTop}
+        firstCardPriority={plan.firstCardPriority}
       />
-      {totalPages > 1 && (
+      {plan.showPagination && (
         <div className="pt-8">
           <ArchivePagination
             page={page}
@@ -99,7 +110,7 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
           />
         </div>
       )}
-      {settings.show_related_taxonomies && (
+      {plan.showRelated && (
         <RelatedTaxonomiesBlock
           kind={kind}
           taxonomyId={taxonomy.id}
@@ -124,7 +135,7 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
   ) : null;
 
   // Slide-up stopki dla archiwów taksonomii - poza podglądem admina.
-  const slideup = previewMode ? null : <FooterSlideup pageType={kind} pageId={taxonomy.id} />;
+  const slideup = plan.withAds ? <FooterSlideup pageType={kind} pageId={taxonomy.id} /> : null;
 
   if (!withSidebar)
     return (
