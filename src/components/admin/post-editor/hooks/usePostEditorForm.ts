@@ -16,12 +16,11 @@ import {
   replaceDataUrlImages,
   type DecodedDataUrl,
 } from "@/lib/blocks/persistImages";
-import { isEditConflict } from "@/lib/content/saveConflict";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
-import { disclosureGaps, parseDisclosureError } from "@/lib/content/sponsored";
+import { disclosureGaps } from "@/lib/content/sponsored";
 // Nakładka rejestruje klucze EFEKTEM UBOCZNYM importu, a ten hook woła
 // `adminPostPanes.sponsored.*` w obsłudze odrzuconej publikacji. Bez tej linijki
 // redaktor zobaczyłby w toaście goły klucz zamiast komunikatu - i to dokładnie
@@ -35,7 +34,15 @@ import {
   emitWidgetCacheInvalidate,
 } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
-import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
+import { type SeoIssue } from "@/lib/seo/validation";
+import {
+  buildPostPatch,
+  isScheduledInPast,
+  nextBaseUpdatedAt,
+  resolveSlugOutcome,
+  saveErrorDescriptor,
+  seoSaveGate,
+} from "../lib/postPatch";
 import type { PostForm } from "../types";
 import type { PostEditorData } from "./usePostEditorData";
 
@@ -197,59 +204,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       const result = await update$({
         data: {
           id,
-          fields: {
-            slug: snapshot.slug,
-            status: snapshot.status,
-            publish_at: snapshot.publish_at,
-            editor: snapshot.editor,
-            title_pl: snapshot.title_pl,
-            title_en: snapshot.title_en,
-            excerpt_pl: snapshot.excerpt_pl,
-            excerpt_en: snapshot.excerpt_en,
-            content_pl: snapshot.content_pl,
-            content_en: snapshot.content_en,
-            cover_image_url: snapshot.cover_image_url,
-            audio_url_pl: snapshot.audio_url_pl,
-            audio_url_en: snapshot.audio_url_en,
-            tts_voice_pl: snapshot.tts_voice_pl,
-            tts_voice_en: snapshot.tts_voice_en,
-            read_minutes: snapshot.read_minutes,
-            builder_data: snapshot.builder_data,
-            blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
-            parent_page_id: snapshot.parent_page_id,
-            post_format: snapshot.post_format,
-            layout_overrides: snapshot.layout_overrides,
-            takeaways_pl: snapshot.takeaways_pl ?? [],
-            takeaways_en: snapshot.takeaways_en ?? [],
-            takeaways_variant: snapshot.takeaways_variant ?? null,
-            toc_override: snapshot.toc_override ?? null,
-            custom_meta: snapshot.custom_meta ?? null,
-            related_override: snapshot.related_override ?? null,
-            seo_title_pl: snapshot.seo_title_pl,
-            seo_title_en: snapshot.seo_title_en,
-            seo_description_pl: snapshot.seo_description_pl,
-            seo_description_en: snapshot.seo_description_en,
-            seo_canonical_url: snapshot.seo_canonical_url,
-            seo_noindex: snapshot.seo_noindex ?? false,
-            seo_og_image_url: snapshot.seo_og_image_url,
-            og_image_generated_url: snapshot.og_image_generated_url,
-            organization_id: snapshot.organization_id,
-            organization_name: snapshot.organization_name,
-            organization_logo_url: snapshot.organization_logo_url,
-            organization_website: snapshot.organization_website,
-            is_sponsored: snapshot.is_sponsored ?? false,
-            sponsored_kind: snapshot.sponsored_kind,
-            sponsored_advertiser_name: snapshot.sponsored_advertiser_name,
-            sponsored_advertiser_url: snapshot.sponsored_advertiser_url,
-            sponsored_payer_name: snapshot.sponsored_payer_name,
-            sponsored_note_pl: snapshot.sponsored_note_pl,
-            sponsored_note_en: snapshot.sponsored_note_en,
-            sponsored_affiliate: snapshot.sponsored_affiliate ?? false,
-            sponsored_political: snapshot.sponsored_political ?? false,
-            sponsored_political_process: snapshot.sponsored_political_process,
-            sponsored_sponsor_controller: snapshot.sponsored_sponsor_controller,
-            sponsored_order_ref: snapshot.sponsored_order_ref,
-          },
+          fields: buildPostPatch(snapshot),
           categories: selectedCats,
           tags: selectedTags,
           programs: selectedPrograms,
@@ -258,20 +213,19 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
           baseUpdatedAt: baseUpdatedAtRef.current ?? undefined,
         },
       }).catch((err: unknown) => {
-        // Konflikt = ktoś inny zapisał w międzyczasie; pokaż czytelny komunikat
-        // (i18n PL/EN) i przerwij zapis - autosave/flush odrzuci, treść zostaje.
-        if (isEditConflict(err)) {
+        // Klasyfikacja jest regułą (`saveErrorDescriptor`), tekst powstaje tutaj
+        // - tylko klient zna język panelu. Nierozpoznany błąd leci dalej surowy,
+        // zamiast zostać przykryty ogólnikiem.
+        const descriptor = saveErrorDescriptor(err);
+        if (descriptor?.kind === "conflict") {
           toast.error(t("admin.editConflict"), { id: "edit-conflict" });
         }
-        // Serwer odrzucił PUBLIKACJĘ niekompletnej deklaracji komercyjnej i
-        // odpowiedział kodem, nie zdaniem - tłumaczymy go tutaj, bo tylko klient
-        // zna język panelu. Wymieniamy KTÓRE pole brakuje; „zapis odrzucony" bez
-        // wskazania pola kazałoby redaktorowi zgadywać.
-        const gaps = parseDisclosureError(err);
-        if (gaps.length > 0) {
+        if (descriptor?.kind === "disclosureGaps") {
           toast.error(
             t("adminPostPanes.sponsored.gapToast", {
-              fields: gaps.map((gap) => t(`adminPostPanes.sponsored.gap.${gap}`)).join(", "),
+              fields: descriptor.gaps
+                .map((gap) => t(`adminPostPanes.sponsored.gap.${gap}`))
+                .join(", "),
             }),
             { id: "sponsored-disclosure-gap" },
           );
@@ -280,12 +234,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       });
       // Przesuń bazę optimistic-locka na updated_at faktycznie zapisany, by
       // kolejny zapis nie zgłaszał fałszywego konfliktu.
-      baseUpdatedAtRef.current = result?.updatedAt ?? baseUpdatedAtRef.current;
+      baseUpdatedAtRef.current = nextBaseUpdatedAt(baseUpdatedAtRef.current, result);
       // Serwer mógł znormalizować slug (uniqueSlug dopisuje sufiks przy
       // kolizji). Nawigujemy WYŁĄCZNIE na slug faktycznie zapisany -
       // przejście na slug wpisany w formularzu załadowałoby CUDZY wpis,
       // który go posiada ("podmiana" edytowanego posta).
-      const canonicalSlug = result?.slug ?? snapshot.slug;
+      const slugOutcome = resolveSlugOutcome(snapshot.slug, result?.slug, routeSlug);
+      const canonicalSlug = slugOutcome.slug;
       // WAZNE: autosave nie moze przebudowywac calego swiata przy kazdym
       // debounced zapisie - to powodowalo "auto-refresh" edytora (loadery
       // route'a znow pobieraly wiersz posta, cache widgetow leciał, a
@@ -296,7 +251,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       // przez explicit "Publikuj/Zapisz i wyjdz" lub przy odmontowaniu edytora.
       void qc.invalidateQueries({ queryKey: ["admin-posts"], refetchType: "none" });
 
-      if (canonicalSlug !== snapshot.slug) {
+      if (slugOutcome.collided) {
         // Kolizja nie może być cicha: pokaz stan błędu/ostrzeżenia i zsynchronizuj
         // pole formularza z tym, co realnie trafiło do bazy.
         toast.warning(
@@ -306,7 +261,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         );
         setSlug((f) => (f && f.slug === snapshot.slug ? { ...f, slug: canonicalSlug } : f));
       }
-      if (canonicalSlug !== routeSlug) {
+      if (slugOutcome.mustNavigate) {
         navigate({ to: "/admin/posts/$slug", params: { slug: canonicalSlug }, replace: true });
       }
     },
@@ -376,17 +331,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   );
 
   const save = async () => {
-    if (hasBlockingSeoIssues(seoIssues)) {
+    const gate = seoSaveGate(seoIssues);
+    if (gate.kind === "blocked") {
       toast.error(t("admin.seo.validation.blockToast"));
       return;
     }
-    const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
-    if (pixelWarnings.length > 0) {
-      toast.warning(
-        t("admin.seo.validation.warnToast", {
-          count: pixelWarnings.length,
-        }),
-      );
+    if (gate.kind === "warn") {
+      toast.warning(t("admin.seo.validation.warnToast", { count: gate.count }));
     }
     setBusy(true);
     try {
@@ -492,11 +443,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   };
 
   const statusOptions = statusOptionsFor({ canPublish });
-  const scheduledInPast =
-    !!form &&
-    form.status === "scheduled" &&
-    !!form.publish_at &&
-    new Date(form.publish_at).getTime() <= Date.now();
+  const scheduledInPast = isScheduledInPast(form, Date.now());
 
   return {
     form,

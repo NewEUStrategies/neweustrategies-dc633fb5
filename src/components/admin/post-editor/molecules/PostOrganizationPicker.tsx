@@ -32,14 +32,17 @@ import type { PostForm } from "../types";
 import { OrganizationPickerDialog } from "./OrganizationPickerDialog";
 import {
   ORGANIZATION_DROPLIST_LIMIT,
+  ORGANIZATION_NONE_VALUE,
+  organizationPatch,
   organizationRowSchema,
+  organizationSelectRows,
   organizationSearchKey,
   type OrganizationSelection,
 } from "./organizationDirectory";
 import "@/lib/i18n-admin-post-panes";
 
 /** Wartość „brak organizacji" w <Select> - Radix nie przyjmuje pustego stringa. */
-const NONE_VALUE = "__none__";
+const NONE_VALUE = ORGANIZATION_NONE_VALUE;
 
 export function PostOrganizationPicker({
   form,
@@ -80,19 +83,7 @@ export function PostOrganizationPicker({
   // Zależność to `options.data`, nie `options.data ?? []`: fallback tworzy nową
   // tablicę przy każdym renderze i memo przestałoby cokolwiek zapamiętywać.
   const selectRows = useMemo(() => {
-    const rows = options.data ?? [];
-    const id = form.organization_id;
-    if (!id) return rows;
-    if (rows.some((r) => r.id === id)) return rows;
-    return [
-      {
-        id,
-        name: form.organization_name ?? id,
-        website: form.organization_website,
-        logo_url: form.organization_logo_url,
-      },
-      ...rows,
-    ];
+    return organizationSelectRows(options.data ?? [], form);
   }, [
     options.data,
     form.organization_id,
@@ -101,22 +92,9 @@ export function PostOrganizationPicker({
     form.organization_logo_url,
   ]);
 
+  // Patch jest ATOMOWY - uzasadnienie przy `organizationPatch`.
   const apply = (selection: OrganizationSelection | null) => {
-    onPatch(
-      selection
-        ? {
-            organization_id: selection.id,
-            organization_name: selection.name,
-            organization_logo_url: selection.logoUrl,
-            organization_website: selection.website,
-          }
-        : {
-            organization_id: null,
-            organization_name: null,
-            organization_logo_url: null,
-            organization_website: null,
-          },
-    );
+    onPatch(organizationPatch(selection));
   };
 
   // Odświeżenie migawki: przepisuje AKTUALNE dane firmy z CRM na wpis. Świadoma

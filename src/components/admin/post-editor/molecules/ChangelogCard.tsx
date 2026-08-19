@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Trash2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { dayKey } from "../lib/editorialCalendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import "@/lib/i18n-admin-post-panes";
@@ -22,7 +23,12 @@ interface ChangelogRow {
 export function ChangelogCard({ postId }: { postId: string }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Data LOKALNA, nie UTC. `toISOString().slice(0,10)` dawało redaktorowi
+  // pracującemu po północy czasu polskiego datę WCZORAJSZĄ - a ten wpis idzie
+  // do PUBLICZNEJ historii zmian artykułu, więc pomyłka jest widoczna dla
+  // czytelnika i wygląda jak zmiana sprzed doby. `dayKey` to ta sama reguła
+  // dnia lokalnego, której używa kalendarz redakcyjny.
+  const [entryDate, setEntryDate] = useState(() => dayKey(new Date()));
   const [notePl, setNotePl] = useState("");
   const [noteEn, setNoteEn] = useState("");
 

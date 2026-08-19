@@ -69,9 +69,16 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
-  // Dopisane 19.08.2026: oba widgety były w rejestrze `lazyWidgets`, a nie na tej
-  // liście ANI w lustrze eager - obie bramki wierności ustawień były czerwone
-  // jeszcze przed pracą nad monetyzacją (sprawdzone na commicie bazowym gałęzi).
+  // Cięcie ścieżki bootowania (01253dc, chunk wejściowy 374 -> 253 KB gz).
+  // Trzy widgety zeszły wtedy na leniwą krawędź, ale lista tutaj nie została
+  // dopisana - a druga asercja tego pliku jest SYMETRYCZNA, więc bramka
+  // czerwieniła się na eksporty, które są poprawne i realnie konsumowane
+  // (WidgetView -> TrendingNowView; SimpleWidgets -> AccordionWidget,
+  // SectionLabelWidgetView). Powód leniwości każdego z nich:
+  //  * AccordionWidget - jedyny konsument sanitizeHtml/DOMPurify w SimpleWidgets;
+  //    statyczna krawędź trzymała DOMPurify w chunku wejściowym,
+  //  * SectionLabelWidgetView - wariantownia z lib/builder/sectionLabelVariants,
+  //  * TrendingNowView - widok listy „na czasie" spod WidgetView.
   "AccordionWidget",
   "SectionLabelWidgetView",
   "TrendingNowView",
