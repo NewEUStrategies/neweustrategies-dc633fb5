@@ -685,11 +685,15 @@ export default defineConfig({
           lines: 23,
           branches: 22,
         },
+        // Automatyzacje po dopisaniu edytora przepisu: 51,5% instrukcji, 50%
+        // linii, 55,7% funkcji, 31,6% gałęzi (zmierzone samymi testami tego
+        // katalogu, więc pełna suita daje nie mniej). Na zerze zostają cztery
+        // panele listujące - próg ma pilnować, żeby edytor do nich nie dołączył.
         "src/components/admin/workflows/**": {
-          statements: 16,
-          functions: 13,
-          lines: 16,
-          branches: 8,
+          statements: 45,
+          functions: 50,
+          lines: 45,
+          branches: 27,
         },
         "src/components/admin/versions/**": {
           statements: 7,
