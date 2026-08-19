@@ -8,6 +8,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 
+// Rejestr leniwych widgetow -> lustro eager. Od 2026-08-15 `speakers` jedzie
+// przez React.lazy, wiec bez tej podmiany pierwszy render pokazuje fallback
+// Suspense i kazda asercja o tresci widgetu pada na pustym drzewie.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   type Builder = Record<string, unknown> & { then: (r: (v: unknown) => unknown) => unknown };
   const builder = {} as Builder;

@@ -19,7 +19,15 @@ export function VersionRow({
   return (
     <li className={active ? "bg-muted" : "hover:bg-muted/60"}>
       <div className="flex items-start gap-2 px-3 py-2">
-        <button type="button" onClick={onSelect} className="flex-1 text-left">
+        {/* `aria-current` obok klasy tła: wybraną wersję sygnalizowało dotąd
+            WYŁĄCZNIE podświetlenie, więc czytnik ekranu czytał listę wersji
+            jako identyczne przyciski bez wskazania, którą właśnie oglądamy. */}
+        <button
+          type="button"
+          onClick={onSelect}
+          aria-current={active ? "true" : undefined}
+          className="flex-1 text-left"
+        >
           <span className="flex items-center gap-2">
             <span className="text-sm font-medium">{title}</span>
             {badge}

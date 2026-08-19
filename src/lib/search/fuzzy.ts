@@ -11,13 +11,81 @@ export interface FuzzyMatch {
 }
 
 /**
- * Match `query` against `target` (case-insensitive). Returns null if any
- * character of the query is not present in order.
+ * Litery, których rozkład kanoniczny (NFD) NIE oddziela znaku diakrytycznego -
+ * „ł" jest osobnym punktem kodowym, nie „l" plus kreska. To ta sama pułapka,
+ * która zjadła literę „ł" w propozycji adresu profilu (naprawa z 18.08.2026).
+ *
+ * Mapa trzyma WYŁĄCZNIE odwzorowania jeden-do-jednego. Ligatury (ß→ss, æ→ae)
+ * są świadomie pominięte: składanie MUSI zachować długość napisu, bo `indexes`
+ * wskazuje pozycje w ORYGINALNYM tekście i służy do podświetlania trafień.
+ */
+const FOLD_SINGLE: Readonly<Record<string, string>> = {
+  ł: "l",
+  Ł: "L",
+  đ: "d",
+  Đ: "D",
+  ø: "o",
+  Ø: "O",
+};
+
+/**
+ * Składa znaki diakrytyczne, ZACHOWUJĄC DŁUGOŚĆ (jeden znak → jeden znak).
+ * Iteracja po jednostkach UTF-16, nie po punktach kodowych: para zastępcza
+ * (emoji) przeszłaby wtedy jako jeden krok i skróciła wynik, rozjeżdżając
+ * indeksy podświetlenia.
+ */
+export function foldDiacritics(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const single = FOLD_SINGLE[ch];
+    if (single !== undefined) {
+      out += single;
+      continue;
+    }
+    const stripped = ch.normalize("NFD").replace(/\p{M}/gu, "");
+    out += stripped.length === 1 ? stripped : ch;
+  }
+  return out;
+}
+
+/**
+ * Składa FRAZĘ WYSZUKIWANĄ. W odróżnieniu od `foldDiacritics` NIE musi
+ * zachowywać długości: `indexes` opisują pozycje w CELU, nie w zapytaniu,
+ * więc skrócenie frazy niczego nie rozjeżdża. To pozwala zrobić dwie rzeczy,
+ * na które po stronie celu miejsca nie ma:
+ *
+ *   1. złożyć wejście do NFC - wklejka bywa rozłożona kanonicznie („s” + U+0301
+ *      zamiast „ś”; tak trzyma nazwy plików HFS+, tak potrafi oddać schowek),
+ *   2. usunąć znaki łączące, które po NFC nie mają formy złożonej.
+ *
+ * Bez tego zapytanie rozłożone NIE TRAFIA w cel złożony: matcher musi
+ * skonsumować KAŻDY znak frazy, a osieroconej kreski w celu nie ma. Odwrotny
+ * przypadek (cel rozłożony, fraza złożona) działa i bez tego - dopasowanie jest
+ * podciągiem, więc zbłąkany znak łączący w celu zostaje po prostu pominięty,
+ * a `indexes` nadal wskazują właściwe litery.
+ */
+export function foldQuery(s: string): string {
+  return foldDiacritics(s.normalize("NFC")).replace(/\p{M}/gu, "");
+}
+
+/**
+ * Match `query` against `target` (case-insensitive, diacritics-insensitive).
+ * Returns null if any character of the query is not present in order.
+ *
+ * Składanie diakrytyków jest SYMETRYCZNE (fraza i cel), więc „platnosci"
+ * znajduje „Płatności", a „płatności" nadal znajduje „Platnosci". Zwracane
+ * `indexes` wskazują pozycje w oryginalnym `target` - podświetlenie zaznacza
+ * literę z ogonkiem, nie jej złożony odpowiednik.
+ *
+ * Fraza idzie przez `foldQuery` (dodatkowo NFC + usunięcie znaków łączących),
+ * cel przez `foldDiacritics` (zachowujące długość) - powód rozdziału opisany
+ * przy `foldQuery`.
  */
 export function fuzzyMatch(query: string, target: string): FuzzyMatch | null {
-  const q = query.trim().toLowerCase();
+  const q = foldQuery(query.trim().toLowerCase());
   if (!q) return { score: 0, indexes: [] };
-  const t = target.toLowerCase();
+  const t = foldDiacritics(target.toLowerCase());
   const indexes: number[] = [];
   let score = 0;
   let qi = 0;
