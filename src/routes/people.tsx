@@ -301,20 +301,14 @@ function PersonCard({
           {/* Status z batchowanego RPC - bez mapy nie renderujemy przycisku,
               żeby każda karta nie odpytywała o status osobno. */}
           {connection && (
-            <ConnectButton
+            <MessageOrConnectButton
               userId={person.id}
               displayName={person.display_name}
-              state={connection}
+              displayAvatar={person.avatar_url}
               compact
+              connectionState={connection}
             />
           )}
-          <DirectMessageButton
-            userId={person.id}
-            displayName={person.display_name}
-            displayAvatar={person.avatar_url}
-            compact
-            connectionState={connection}
-          />
         </div>
       </div>
       {intents.length > 0 && (
