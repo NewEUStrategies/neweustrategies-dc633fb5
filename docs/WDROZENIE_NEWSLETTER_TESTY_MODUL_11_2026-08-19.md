@@ -410,7 +410,7 @@ Dwie ostatnie są niżej z rozmysłu - w tych katalogach zostają powierzchnie z
 Nie są zaniżone „na zapas": trzymają się tuż pod pomiarem, więc dołożenie pliku
 bez testu je zapali.
 
-Do tego progi plikowe - **66 wpisów modułu 11 razem z siatkami wyżej**: cztery
+Do tego progi plikowe - **68 wpisów modułu 11 razem z siatkami wyżej**: cztery
 pliki doręczalności (100% linii), trasy pocztowe, funkcje zapisu i wypisu,
 wszystkie panele newslettera, wszystkie edytory popupów i dwanaście modułów
 reguł z §2 (większość na 100% na wszystkich czterech metrykach - to czysta
@@ -423,6 +423,14 @@ powierzchni POZA modułem 11 zapalają się w tym przebiegu z oczywistego powodu
 ich testy nie są w nim uruchamiane - więc weryfikacja jest zawężona do progów,
 których ta zmiana dotyczy. Pełnego przebiegu z progami nie da się tu wykonać
 (§6.5).
+
+**PRZYWRÓCENIE PO SCALENIU PR #264.** Scalenie `main` do gałęzi (commit
+`c9d3983`, wykonane poza tą sesją) rozstrzygnęło konflikt w `vitest.config.ts`
+na korzyść `main` i **wyrzuciło wszystkie 68 progów modułu 11** - testy zostały,
+zapora zniknęła. Ponieważ w tym samym oknie scaliło się osiem innych modułów, na
+`main` przybyło 88 własnych wpisów, więc konflikt był realny, nie do
+zautomatyzowania. Progi wróciły jako suma obu stron (204 wpisy, zero
+zdublowanych kluczy) - żaden wpis `main` nie został ruszony ani obniżony.
 
 `reportOnFailure: true` zostało włączone w pierwszym commicie gałęzi: bez tego
 raport pokrycia nie powstaje przy czerwonej suicie, a przy 8 tysiącach testów i

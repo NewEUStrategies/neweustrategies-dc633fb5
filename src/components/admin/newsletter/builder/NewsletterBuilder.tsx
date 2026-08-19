@@ -277,14 +277,13 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     : null;
 
   // Nazwy urządzeń są takie same w obu językach - ternary po języku był
-  // martwym warunkiem, nie tłumaczeniem.
-  const deviceLabel = device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Mobile";
+  // martwym warunkiem, nie tłumaczeniem. Oba podpisy idą przez reguły, żeby
+  // nie stała tu druga kopia formatowania obok tej z `builderDoc`.
+  const deviceLabel = rules.deviceLabel(device);
+  // Reguła oddaje `null` dla „100%", bo to jedyny wariant, który jest TEKSTEM
+  // dla operatora - napis dokłada widok, który ma dostęp do języka.
   const canvasPxLabel =
-    typeof canvasWidth === "number"
-      ? `${canvasWidth}px`
-      : lang === "pl"
-        ? "pelna szerokosc"
-        : "full width";
+    rules.canvasSizeLabel(canvasWidth) ?? (lang === "pl" ? "pelna szerokosc" : "full width");
 
   return (
     <DndContext

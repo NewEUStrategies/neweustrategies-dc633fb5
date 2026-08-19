@@ -821,117 +821,803 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
-        // ── SPOŁECZNOŚĆ: KLUBY, KOMENTARZE, MODERACJA (MODUŁ 16) ─────────────
-        // 2026-08-19: audyt z 18.08 dał temu modułowi 17,56% linii przy 242
-        // plikach produkcyjnych - najgorszy stosunek rozmiaru do pokrycia
-        // w repo. Bez progu ta praca zjedzie w kwartał, bo warstwa danych
-        // klubów to WYŁĄCZNIE wywołania SECURITY DEFINER RPC: literówka
-        // w nazwie funkcji albo w nazwie parametru nie jest błędem typów,
-        // tylko błędem 404/42883 dopiero na produkcji. Progi floorowane tuż
-        // pod zmierzonym pokryciem, wzorem wpisów dla lib/chat/**.
+        // ── NEWSLETTER: DORĘCZALNOŚĆ ─────────────────────────────────────────
+        // Audyt 18.08 dał tej powierzchni najgorszą możliwą ocenę: 0,0% linii
+        // i 0 z 23 funkcji - przy tym, że to ONA decyduje, czy mail w ogóle
+        // dojdzie i czy odbicie trafi na listę wykluczeń. Powód zera był
+        // techniczny, nie ambicjonalny: handlery `createServerFn` nie dają się
+        // wywołać poza runtime'em TanStack Start (patrz src/test/serverFn.ts),
+        // więc nie było czym ich dotknąć.
         //
-        // WARSTWA DANYCH - te pliki są pod 100% linii i tam mają zostać:
-        // każda funkcja ma ścieżkę happy path oraz ścieżkę błędu, a testy
-        // pilnują nazwy RPC i KOMPLETU nazw parametrów (te dwie rzeczy łamią
-        // się cicho). Niedobite gałęzie to wyłącznie ramiona obronne dla
-        // danych, których wygenerowany typ `Returns` nie pozwala zbudować.
-        "src/lib/clubs/api.ts": { statements: 100, functions: 100, lines: 100, branches: 98 },
-        "src/lib/clubs/workspaceApi.ts": {
+        // Progi floorowane tuż pod ZMIERZONYM poziomem - wolno je wyłącznie
+        // podnosić. Pilnują rzeczy, których złamanie NIE wywala się głośno,
+        // tylko cicho psuje dostarczalność.
+        //
+        // SIATKA KATALOGOWA POD PROGAMI PLIKOWYMI. Progi plikowe niżej pilnują
+        // tego, co zostało napisane; ten próg pilnuje tego, co ktoś DOŁOŻY.
+        // Nowy plik poczty bez ani jednej asercji obniża wskaźnik katalogu i
+        // zatrzymuje bramkę, nawet jeśli nikt nie dopisze mu progu własnego.
+        //
+        // Poziom jest niższy niż w panelach z rozmysłu: w tym katalogu zostają
+        // trzy powierzchnie świadomie nietknięte w tej warstwie
+        // (`transactional.server.ts` 8,3%, `tx-preview.server.ts` 0%,
+        // `platformCompat.server.ts` 0%) - uzasadnienie w
+        // `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md` §6.
+        // Zmierzone: 78,15% instr. / 65,74% gał. / 83,89% fn / 78,99% linii.
+        "src/lib/email/**": {
+          statements: 74,
+          functions: 79,
+          lines: 74,
+          branches: 61,
+        },
+        // Ta sama siatka dla reguł newslettera. Zmierzone: 83,55% instr. /
+        // 79,90% gał. / 89,09% fn / 84,95% linii. Poniżej progu zostają
+        // `emailDocResolve.ts` (34,1%) i `newsletterFieldLabels.ts` (31,6%) -
+        // oba są rozstrzygane w testach warstwy wyżej, patrz §6 wdrożenia.
+        "src/lib/newsletter/**": {
+          statements: 79,
+          functions: 84,
+          lines: 80,
+          branches: 75,
+        },
+        // provider.server.ts: trzy pola wyniku sterują całą pętlą ponowień -
+        // `rateLimited` (wstrzymaj CAŁĄ wysyłkę), `permanent` (prosto do DLQ,
+        // bez mielenia martwego adresu) i `messageId` (JEDYNY klucz korelacji
+        // webhooka odbicia z odbiorcą). Niedobita funkcja to `.catch(() => "")`
+        // przy odczycie ciała błędu - `Response.text()` nie odrzuca w teście.
+        "src/lib/email/provider.server.ts": {
+          statements: 96,
+          functions: 90,
+          lines: 98,
+          branches: 98,
+        },
+        // reputationGate.server.ts: bramka broniąca CAŁEJ domeny (nie
+        // pojedynczych adresów) przed przekroczeniem progu skarg Google.
+        // Trzymana pod 100%, bo fail-open przy awarii liczników i zachowanie
+        // werdyktu mimo potwierdzenia operatora to reguły, na których stoi
+        // decyzja „wysyłać albo nie".
+        "src/lib/email/reputationGate.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 98,
+        },
+        // system-log.server.ts: DEDUPLIKACJA po message_id. Jeden e-mail
+        // zostawia w logu wiele wierszy (pending -> sent/dlq); bez sprowadzenia
+        // ich do najnowszego stanu raport pokazuje wielokrotność wysyłki, a
+        // wskaźnik dostarczalności liczy tę samą wiadomość kilka razy.
+        "src/lib/email/system-log.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // auth-events.server.ts: sumy liczone po CAŁYM oknie (nie po
+        // przefiltrowanej stronie) oraz rozróżnienie „brak tabeli" od „błąd" -
+        // cicha pustka udawałaby, że maile logowania wychodzą.
+        "src/lib/email/auth-events.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // recipient-name.server.ts: pierwsza linijka KAŻDEJ wiadomości.
+        // Niedobite gałęzie to ramiona obronne po `split()` i po pustej
+        // odmianie, nieosiągalne z prawdziwego wejścia.
+        "src/lib/email/recipient-name.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 88,
+        },
+        // txOverrides.server.ts: fail-soft. Awaria panelu redakcyjnego nie
+        // może zatrzymać maila z resetem hasła - każda ścieżka błędu kończy
+        // się kompletem treści domyślnych.
+        "src/lib/email/txOverrides.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // newsletter-deliverability.functions.ts: 0 z 19 funkcji -> 19 z 19.
+        // Pilnuje mapowania liczników (na nich stoi bramka reputacji),
+        // sanityzacji frazy szukania wstawianej do wzorca `ilike` oraz reguły,
+        // że w trybie `first_party` instrukcja webhooka NIE zawiera
+        // email.opened/email.clicked (inaczej podwójne zliczanie otwarć).
+        // Niedobite gałęzie: fallbacki `?? ""` dla pól, które walidator zod
+        // i tak wymusza jako tekst.
+        "src/lib/newsletter-deliverability.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        // TRASY POCZTOWE - trzy powierzchnie, które audyt zastał na 0%, a
+        // które przyjmują ruch Z ZEWNĄTRZ albo wysyłają ze zweryfikowanej
+        // domeny nadawczej. Handlery są wołane wprost przez
+        // `Route.options.server.handlers.POST` - bez runtime'u routera i bez
+        // zmian w kodzie produkcyjnym.
+        //
+        // transactional/send.ts: trzy bramki decydują, czy to funkcja produktu,
+        // czy OTWARTY PRZEKAŹNIK - uwierzytelnienie, autoryzacja (sam ważny
+        // token to dowolne konto czytelnika; bez drugiej bramki każdy zalogowany
+        // wysłałby z naszej domeny dowolną treść na dowolny adres) oraz
+        // allowlista hostów w linkach. Do tego cykl życia tokenu wypisu: mail
+        // MUSI wyjść z DZIAŁAJĄCYM linkiem (RFC 8058), także gdy poprzedni
+        // token był już zużyty.
+        "src/routes/platform/email/transactional/send.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // auth/webhook.ts: jedyna droga, którą mail z linkiem do logowania
+        // trafia do kolejki. Pilnowane: 401 dla KAŻDEGO błędu podpisu (a nie
+        // 400), wiersz `pending` zapisany PRZED kolejkowaniem oraz ślad
+        // porażki w logu i w diagnostyce.
+        "src/routes/platform/email/auth/webhook.ts": {
+          statements: 93,
+          functions: 98,
+          lines: 96,
+          branches: 82,
+        },
+        // webhooks.resend.ts: endpoint PUBLICZNY. Bez weryfikacji podpisu byłby
+        // otwartym sposobem na wpisanie dowolnego adresu na listę wykluczeń.
+        // Testy liczą HMAC tak jak dostawca (prawdziwa weryfikacja, nie atrapa).
+        // Niedobita funkcja to ramka trasy `POST: ({request}) => handle(request)`
+        // - handle() jest testowany wprost, dokładnie jak przy webhooku Stripe.
+        "src/routes/api/public/webhooks.resend.ts": {
+          statements: 94,
+          functions: 70,
+          lines: 94,
+          branches: 95,
+        },
+        // ── NEWSLETTER: ZAPIS, DOUBLE OPT-IN, WYPIS ──────────────────────────
+        // Ścieżka RODO i lejka naraz. Audyt zastał ją na 14,3% (zapis) i 38,5%
+        // (wypis), mimo że to jedyne miejsce, w którym powstaje i znika ZGODA
+        // marketingowa.
+        //
+        // newsletter.functions.ts: endpoint PUBLICZNY i nieuwierzytelniony,
+        // który wysyła mail na adres podany przez wywołującego - czyli zarazem
+        // brama zgody, kanał do bombardowania cudzej skrzynki i sposób na
+        // spalenie limitu dostawcy. Próg pilnuje przypadków „kiedy NIE WOLNO
+        // zapisać": trwała blokada na liście wykluczeń (bez wiersza `pending`
+        // i bez maila), dwa niezależne limity (na IP i na ODBIORCĘ - sam limit
+        // na IP obchodzi się rotacją), brak resetu potwierdzonego subskrybenta
+        // oraz nadrzędność polityki pól tenanta nad deklaracją widgetu.
+        // Osobno przybite: adres linku DOI bierze się z konfiguracji, NIE
+        // z nagłówków żądania (podstawiony `x-forwarded-host` wyprowadzałby
+        // token na domenę atakującego).
+        "src/lib/newsletter.functions.ts": {
+          statements: 96,
+          functions: 88,
+          lines: 98,
+          branches: 88,
+        },
+        // Potwierdzenie zapisu - handler trasy. Kluczowa własność to
+        // IDEMPOTENCJA: token zostaje w rekordzie po potwierdzeniu, więc
+        // ponowne kliknięcie (klienty pocztowe i skanery klikają linki same)
+        // trafia w gałąź „już potwierdzone" zamiast w 404 albo w drugą wysyłkę
+        // powitania. Brak maila powitalnego NIE unieważnia potwierdzenia.
+        "src/routes/api.public.newsletter.confirm.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Wypis jednym kliknięciem (RFC 8058). Wytyczne Google/Yahoo wymagają,
+        // by zadziałał bezwarunkowo. Próg pilnuje: token czytany z każdego
+        // z trzech miejsc (query / formularz / JSON), ponowne kliknięcie to
+        // sukces a nie błąd, a odpowiedź i log NIE zdradzają adresu ani tokenu.
+        "src/routes/email/unsubscribe.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // STRONY ZGODY - jedyne ekrany, jakie widzi odbiorca po kliknięciu
+        // w link z maila. Wszystkie trzy startowały z 0%.
+        //
+        // Reguła, której złamanie kosztuje zgodność: WYPIS NIE MOŻE WYKONAĆ
+        // SIĘ SAM. Klienty pocztowe i skanery antywirusowe pobierają linki
+        // z wiadomości w tle, więc wejście na stronę tylko SPRAWDZA token,
+        // a wypis następuje dopiero po kliknięciu przycisku - test asertuje to
+        // wprost (po montażu leci dokładnie jedno żądanie i nie jest to POST).
+        "src/routes/newsletter.confirm.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/routes/newsletter.unsubscribe.tsx": {
+          statements: 92,
+          functions: 72,
+          lines: 98,
+          branches: 85,
+        },
+        "src/routes/unsubscribe.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        // ── NEWSLETTER: KAMPANIE I WYSYŁKA ───────────────────────────────────
+        // Audyt: 17,9% linii przy 7,7% GAŁĘZI - czyli praktycznie bez pokrycia
+        // tam, gdzie mieszkają decyzje. A decyzje są tu NIEODWRACALNE: raz
+        // wysłanej wiadomości nie da się cofnąć, a każda wysłana dwa razy to
+        // skarga na spam, po której obniżana jest reputacja CAŁEJ domeny.
+        //
+        // Zmierzone po tej pracy: 88,35% linii, 80,29% gałęzi, 83% funkcji.
+        // Próg floorowany tuż pod osiągniętym poziomem pilnuje reguł, których
+        // złamania nie widać w kodzie, tylko w skrzynkach odbiorców:
+        //   * WZNOWIENIE nie wysyła nikomu drugi raz, a porównanie „już
+        //     wysłano" idzie po adresie ZNORMALIZOWANYM (adres wchodzi na
+        //     listę trzema drogami i tylko część z nich normalizuje wielkość
+        //     liter - to ta strona porównania, po której idzie sygnał skargi),
+        //   * adresy z aktywną blokadą wypadają ZANIM powstanie pierwszy
+        //     request do dostawcy i zostają w logu jako `suppressed`,
+        //   * błąd dostawcy w połowie partii nie zatrzymuje reszty paczki
+        //     i nie liczy wysłanych dwa razy,
+        //   * mail bez mechanizmu wypisu NIE WYCHODZI (brak origin zatrzymuje
+        //     kampanię) - wymóg prawny i warunek pozostania poza czarną listą,
+        //   * kampanii W LOCIE nie da się edytować ani skasować (filtr statusu
+        //     przy UPDATE/DELETE jest tu jedyną zaporą - RLS nie zna pojęcia
+        //     „kampania w trakcie wysyłki"),
+        //   * tick działa bez człowieka przy klawiaturze, więc przy
+        //     przekroczonym progu skarg zatrzymuje kampanię ze statusem
+        //     `failed` i powodem, zamiast wysłać ją po cichu.
+        // Niedobita reszta to podgląd wpisów w kreatorze treści
+        // (resolveCampaignDocPosts / searchCampaignPosts) - powierzchnia
+        // edytora, nie wysyłki.
+        "src/lib/newsletter-campaigns.functions.ts": {
+          statements: 84,
+          functions: 80,
+          lines: 86,
+          branches: 76,
+        },
+        // ── PANEL ADMINA: IMPORT CSV ─────────────────────────────────────────
+        // Reguły importu wyprowadzone z dialogu do czystego modułu. Import
+        // wprowadza na listę DANE OSOBOWE wraz ze statusem zgody
+        // marketingowej, a decydują o tym ciche reguły: regexy nagłówków
+        // i słowniki dopuszczalnych wartości. Ich pomyłka nie wywala się
+        // głośno - zapisuje po prostu inne dane niż w pliku. Czysty moduł
+        // trzymamy pod 100%, jak pozostałe czyste moduły w tym pliku.
+        "src/components/admin/newsletter/subscribers/importCsvMapping.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // Dialog importu - najbardziej ryzykowna operacja panelu (wprowadza
+        // cudze dane osobowe wraz ze statusem zgody). Próg pilnuje sklejenia:
+        // plik -> mapowanie -> podgląd -> wysyłka, w tym blokady przycisku bez
+        // zmapowanego adresu i tego, że przy błędzie importu dialog NIE
+        // zamyka się „na sukces". Niedobite linie to dwa ramiona obronne
+        // nieosiągalne z UI: `onChange` bez pliku i guard w `doImport`, który
+        // chroni ścieżkę z już zablokowanym przyciskiem.
+        "src/components/admin/newsletter/subscribers/ImportCsvDialog.tsx": {
+          statements: 88,
+          functions: 90,
+          lines: 90,
+          branches: 85,
+        },
+        // ── PANEL ADMINA: SUBSKRYBENCI ───────────────────────────────────────
+        // Jedyne miejsce, w którym CZŁOWIEK zmienia cudzą zgodę marketingową
+        // pojedynczym kliknięciem. Progi pilnują trzech rzeczy niewidocznych
+        // na ekranie: wypisanie jest MIĘKKIE (status + znacznik czasu, nigdy
+        // DELETE - dowód zgody i jej cofnięcia musi zostać), usunięcie wymaga
+        // potwierdzenia i NIE wykonuje się po jego odrzuceniu, a klik w ikonę
+        // akcji nie otwiera przy okazji okna szczegółów (akcje żyją w klikalnym
+        // wierszu).
+        //
+        // Ścieżka „lista MOŻE być niepełna" jest dowodzona REGUŁĄ
+        // (`isFetchCapped` w subscriberTable), nie renderem: wyrenderowanie
+        // 5000 wierszy tabeli kosztowało w pomiarze ponad minutę CI za jedną
+        // asercję.
+        "src/components/admin/newsletter/SubscribersPanel.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 96,
+          branches: 85,
+        },
+        // Okno, w którym operator czyta DOWÓD ZGODY. Kolumny `consents`/`meta`
+        // są typu `jsonb` i wpisują je także integracje, więc okno musi
+        // rozróżniać „nie ma zgody" od „nie umiem odczytać ładunku" - puste
+        // pole odpowiadałoby po cichu „nie". Zgoda liczy się WYŁĄCZNIE przy
+        // jawnym `true`, a treść zgody jest sanityzowana przed wyświetleniem.
+        "src/components/admin/newsletter/subscribers/SubscriberDetailDialog.tsx": {
+          statements: 84,
+          functions: 98,
+          lines: 98,
+          branches: 80,
+        },
+        // Czyste reguły listy: filtr (decyduje, kogo operator widzi - a więc
+        // komu zmienia zgodę) i eksport CSV (wynosi dane osobowe do pliku;
+        // błąd w cytowaniu rozjeżdża kolumny u odbiorcy i przypisuje komuś
+        // cudzą zgodę). Oraz odczyt `jsonb` szczegółów. Trzymane pod 100%.
+        "src/components/admin/newsletter/subscribers/subscriberTable.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        "src/components/admin/newsletter/subscribers/subscriberDetail.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 90,
+        },
+        // ── PANEL ADMINA: DORĘCZALNOŚĆ ───────────────────────────────────────
+        // Trzy ekrany, na których operator decyduje, czy wolno jeszcze wysyłać.
+        //
+        // WebhookSetupCard musi rozróżniać SKONFIGUROWANY od DZIAŁAJĄCEGO
+        // (sekret jest, ale nie przyszło ani jedno zdarzenie) - to dwie różne
+        // awarie, a najczęstszy powód pustej listy wykluczeń mimo odbić to
+        // właśnie niepodłączony webhook. Kafel tłumaczy też, czemu w trybie
+        // `first_party` NIE ma tu otwarć: bez tego zdania operator dopisuje
+        // `email.opened` „na wszelki wypadek" i wraca podwójne zliczanie.
+        //
+        // SuppressionTable: jedyne miejsce, w którym operator ZDEJMUJE blokadę.
+        // Próg pilnuje, że przywrócenie subskrypcji jest OSOBNĄ, jawną decyzją
+        // (domyślnie `resubscribe: false`) - zdjęcie blokady po skardze bez
+        // zgody odbiorcy wraca prosto pod próg skarg Google. Plus: filtr
+        // tekstowy działa lokalnie (bez zapytania na każdy klawisz), a zmiana
+        // filtru powodu/stanu odpytuje serwer na nowo.
+        //
+        // DeliverabilityPanel: ostrzeżenie o zablokowanej wysyłce musi się
+        // pokazać i WYMIENIĆ powody - inaczej operator nie wie, co naprawić.
+        "src/components/admin/newsletter/deliverability/WebhookSetupCard.tsx": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 90,
+        },
+        "src/components/admin/newsletter/deliverability/SuppressionTable.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 96,
+          branches: 76,
+        },
+        "src/components/admin/newsletter/deliverability/DeliverabilityPanel.tsx": {
+          statements: 94,
+          functions: 90,
+          lines: 94,
+          branches: 75,
+        },
+        // Czyste reguły listy wykluczeń + WSPÓLNE cytowanie CSV dla całego repo.
+        // Cytowanie było skopiowane w dwóch panelach; diagnostyka dostawcy
+        // zawiera przecinki („550, mailbox full"), więc bez cytowania plik
+        // rozjeżdża się o kolumnę i przypisuje komuś cudzy powód blokady.
+        "src/components/admin/newsletter/deliverability/suppressionTable.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/csv/formatCsv.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // ── BUILDER MAILA: REJESTR I FABRYKA DOKUMENTU ───────────────────────
+        // Rejestr jest kontraktem między BIBLIOTEKĄ (co operator widzi do
+        // przeciągnięcia), FABRYKĄ widgetów i SCHEMATEM dokumentu. Rozjazd nie
+        // wywala się na budowie - wywala się pod palcem operatora, w połowie
+        // układania kampanii. Testy przechodzą po CAŁYM rejestrze i sprawdzają,
+        // że każdy wpis ma fabrykę, przechodzi walidację (także z presetem) i ma
+        // etykiety w obu językach.
+        "src/lib/newsletter-builder/registry.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // `buildDefaultDoc` uruchamia się RAZ na instalację: buduje pierwszy
+        // formularz z ustawień tenanta. Jeśli któryś element wypadnie po cichu,
+        // operator zaczyna od formularza BEZ POLA ZGODY albo bez klauzuli RODO -
+        // i nie zauważy tego, bo nie wie, że coś miało tam być. Próg pilnuje
+        // każdego zaczepu w wariancie „jest" i „nie ma" oraz KOLEJNOŚCI
+        // widgetów (to ona decyduje, czy zgoda stoi przed przyciskiem).
+        "src/lib/newsletter-builder/defaults.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 90,
+        },
+        // ── ENDPOINTY PUBLICZNE: TELEMETRIA MAILA I POPUPU ───────────────────
+        // Adresy tych endpointów trafiają do KAŻDEJ wysłanej wiadomości i do
+        // przeglądarki każdego odwiedzającego, więc obrona jest w walidacji
+        // wejścia, nie w sesji:
+        //  * nl-click pilnuje CELU przekierowania podpisem HMAC per link. Bez
+        //    tego byłby otwartym przekierowaniem na zaufanej domenie redakcji -
+        //    gotowym narzędziem phishingowym, roznoszonym w mailu z prawidłowym
+        //    SPF i DKIM. Testy liczą prawdziwe podpisy, nie atrapę weryfikacji.
+        //  * nl-open ZAWSZE oddaje przezroczysty GIF; piksel zwracający 500
+        //    pokazuje się w kliencie pocztowym jako złamana grafika w treści.
+        //  * popup-event odrzuca `kind` spoza słownika i `popup_id` nie-UUID -
+        //    inaczej tabela statystyk zbiera śmieci, których nikt nie odczyści -
+        //    a każda ścieżka oddaje 204, bo beacon nie ma jak obsłużyć błędu.
+        //  * telemetria popupu zapisuje się WYŁĄCZNIE serwerem, z tenantem
+        //    rozwiązanym z HOSTA i limitem per sesja; tenant z ładunku dałby się
+        //    podstawić i zatruć raport obcej instalacji.
+        "src/routes/api/public/nl-open.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 100,
+          branches: 85,
         },
-        "src/lib/clubs/threadWorkspaceApi.ts": {
+        "src/routes/api/public/nl-click.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 95,
         },
-        "src/lib/clubs/networkApi.ts": {
+        "src/routes/api/public/popup-event.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 98,
+          branches: 90,
         },
-        "src/lib/clubs/topicsApi.ts": { statements: 95, functions: 100, lines: 100, branches: 92 },
-        "src/lib/clubs/specializationsApi.ts": {
+        "src/lib/newsletter-popup-events.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // ── POPUP PUBLICZNY: HOST I TELEMETRIA ───────────────────────────────
+        // PopupHost decyduje, czy odwiedzający dostanie modal na środku ekranu -
+        // pomyłki widzi KAŻDY odwiedzający, a operator nie ma jak ich zauważyć w
+        // panelu. Pod progiem:
+        //  * host MILCZY na powierzchniach roboczych (/admin, /login), przy
+        //    PUSTYM dokumencie (puste okno z samym „zamknij"), po zamknięciu w
+        //    tej wizycie i przy wyciszeniu częstotliwością;
+        //  * PUŁAPKA A11Y: przy wyłączonym zamykaniu tłem przycisk zamknięcia
+        //    jest WYMUSZANY - na urządzeniu dotykowym nie ma klawisza Escape,
+        //    więc popup bez wyjścia blokuje stronę na dobre;
+        //  * strona bez pasków przewijania nie otwiera popupu przewinięciem
+        //    (dzielenie przez zero dałoby „nieskończony procent" i modal na
+        //    wejściu);
+        //  * konwersja liczy się RAZ na pokazanie i NIE liczy kliknięcia w
+        //    „zamknij" - inaczej każdy popup miałby 100% konwersji.
+        "src/components/popups/**": {
+          statements: 94,
+          functions: 100,
+          lines: 97,
+          branches: 80,
+        },
+        // popupTelemetry: identyfikator sesji spina wyświetlenie -> wysłanie ->
+        // sukces w obrębie jednej wizyty. Nowy identyfikator przy każdym
+        // zdarzeniu rozsypuje raport (skuteczność spada do zera, choć popup
+        // działa). Wysyłka jest fire-and-forget: wyjątek stąd zabrałby
+        // odwiedzającemu subskrypcję, po którą przyszedł.
+        "src/lib/newsletter/popupTelemetry.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ── POPUPY W PANELU (rejestracja + popupy buildera) ──────────────────
+        // Te dwa edytory decydują o tym, ile razy odwiedzający zobaczy modal na
+        // środku ekranu i co w nim jest - a popup rejestracji ZAKŁADA REALNE
+        // KONTO, więc jego pola to nie dekoracja.
+        //
+        // Reguły pod progiem:
+        //  * KOMPLETNY `popup_design` w każdym patchu - częściowy JSON cofa
+        //    resztę ustawień do domyślnych, a operator nie widzi tego na ekranie;
+        //  * pole liczbowe trzyma SUROWY TEKST w trakcie pisania (klamrowanie na
+        //    każdym znaku uniemożliwiało wpisanie „9" w polu o minimum 12) i
+        //    normalizuje przy opuszczeniu;
+        //  * ostrzeżenie o kontraście zapala się poniżej WCAG AA i podaje
+        //    wyliczony współczynnik - to jedyna bariera przed wypuszczeniem
+        //    popupu z tekstem nieczytelnym dla części odwiedzających;
+        //  * migawka „ostatniego zapisu" gaśnie tylko po UDANYM zapisie -
+        //    zgaszona po nieudanym oznacza operatora, który traci pracę;
+        //  * pola wyzwalacza są widoczne tylko dla swojego wyzwalacza, a puste
+        //    linie w ścieżkach nie tworzą wzorca pasującego do wszystkiego.
+        "src/components/admin/popups/**": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 85,
+        },
+        "src/components/admin/popups/signup/controls.tsx": {
           statements: 96,
-          functions: 87,
+          functions: 100,
           lines: 100,
-          branches: 100,
+          branches: 90,
         },
-        // CZYSTE MODUŁY WYDZIELONE Z ORGANIZMÓW I Z useClubs.ts - pod 100% na
-        // wszystkich czterech metrykach, tak jak pozostałe czyste moduły w tym
-        // pliku. Niosą reguły, których złamanie widzi wyłącznie użytkownik:
-        // komplet kluczy unieważnianych po mutacji (`clubInvalidations`),
-        // deskryptor bramki dostępu (`gateView`) i reguły operacji
-        // NIEODWRACALNYCH w moderacji (`moderationRules`).
-        "src/lib/clubs/clubInvalidations.ts": {
+        "src/components/admin/popups/PopupSettingsPane.tsx": {
           statements: 100,
           functions: 100,
           lines: 100,
           branches: 100,
         },
-        "src/lib/clubs/gateView.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        "src/lib/clubs/moderationRules.ts": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 100,
-        },
-        // Zbiorczy próg warstwy: 24,6% -> 87,3% linii, 86,5% funkcji. Niżej niż
-        // per-plik i to jest uczciwe - `linkPreview.functions`,
-        // `clubSemantic.functions` i `applyPrefill.functions` (funkcje brzegowe
-        // Supabase) oraz `postTypes` nadal stoją nisko albo na zerze.
-        "src/lib/clubs/**": {
-          statements: 85,
-          functions: 85,
-          lines: 86,
-          branches: 79,
-        },
-        // KOMENTARZE - warstwa danych z 17,2% na 100% linii. Tu bramka jest
-        // ostra, bo `canEditComment` to JEDYNE miejsce, w którym o prawie do
-        // edycji decyduje okno czasowe, a `fetchPostComments` odpytuje bazę
-        // łańcuchem PostgREST (nie RPC), więc kształt zapytania jest częścią
-        // kontraktu bezpieczeństwa, nie detalem implementacji.
-        "src/lib/comments/**": {
+        "src/components/admin/popups/PopupEditorPane.tsx": {
           statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/components/admin/popups/SignupPopupContentSection.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        // ── CAŁY PANEL NEWSLETTERA ───────────────────────────────────────────
+        // Próg katalogowy jest siatką bezpieczeństwa pod progami plikowymi:
+        // nowy panel dołożony bez testu obniża ten wskaźnik i zatrzymuje
+        // bramkę, nawet jeśli nikt nie dopisze mu progu własnego. Osiągnięte
+        // 99,2% linii i funkcji zostawia ~4 pkt zapasu na refaktory.
+        "src/components/admin/newsletter/**": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 85,
+        },
+        // ── PODSUMOWANIE, LOGI I POZOSTAŁE KAFLE ─────────────────────────────
+        // logFilters: JEDNA reguła filtrów dla obu logów (systemowego i
+        // webhooka maili autoryzacyjnych). Skopiowana rozjechałaby się cicho -
+        // jeden panel poprawiony, drugi nie. Test dowodzi też, że oba panele
+        // trzymają tę samą referencję funkcji, a nie jej kopię.
+        "src/components/admin/newsletter/logFilters.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // overviewKpis: cztery liczby, których nikt nie ma z czym porównać.
+        // Błąd nie wywala panelu - podaje inną liczbę. Pod progiem: okna 30/60
+        // dni NIE zachodzą na siebie (inaczej wzrost liczy się sam ze siebie),
+        // wskaźnik potwierdzeń przy pustej liście to 100% (nie NaN i nie 0%),
+        // a subskrybentem jest TYLKO potwierdzony adres.
+        "src/components/admin/newsletter/overviewKpis.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // authLogsView: diagnostyka „nie dostałem maila" i „dostałem w złym
+        // języku". „Odrzucony" (webhook odmówił) i „nieudany" (webhook się
+        // wywalił) muszą różnić się na oczy, a brak języka być KRESKĄ - puste
+        // pole czyta się jako „polski", czyli dokładnie to, o czym jest zgłoszenie.
+        "src/components/admin/newsletter/auth-logs/authLogsView.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/components/admin/newsletter/auth-logs/AuthEmailLogsPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // OverviewPanel: decyduje, czy formularz w ogóle pojawia się na stronie
+        // (`mode`) i czy zapis wymaga potwierdzenia adresu (`double_opt_in`).
+        // Próg pilnuje też tego, że zapis ustawień logiki NIE wysyła dokumentów
+        // builderów - nadpisałby pracę wykonaną w /inline i /popup.
+        "src/components/admin/newsletter/OverviewPanel.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // PopupEventsPanel: jedyne miejsce, w którym widać, czy popup DZIAŁA -
+        // sam przełącznik „włączony" nie mówi nic o skuteczności ani o błędach.
+        "src/components/admin/newsletter/PopupEventsPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // PopupPreview: wariant „showcase" MUSI iść tym samym komponentem co
+        // strona publiczna, a dokument z buildera tym samym rendererem - drugi,
+        // uproszczony markup rozjechałby się z produkcją bez żadnego sygnału.
+        "src/components/admin/newsletter/PopupPreview.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // NewsletterSubNav: aktywna zakładka wynika z PREFIKSU ścieżki, więc
+        // ścieżka jednej zakładki nie może być prefiksem innej - zapaliłyby się
+        // dwie naraz. Test przypina ten warunek na całym zestawie.
+        "src/components/admin/newsletter/NewsletterSubNav.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // JobRunnerCard: kafel powstał po awarii, w której runner startował
+        // wyłączony i z pustym adresem - świeże wdrożenie nie wysyłało w tle
+        // NICZEGO, a jedynym śladem była rosnąca kolejka, której panel nie
+        // pokazywał. Próg pilnuje rozstrzygniętego stanu, ostrzeżenia o
+        // zaległości i alarmu o martwych listach od PIERWSZEJ wiadomości.
+        "src/components/admin/newsletter/runner/JobRunnerCard.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // ── MAILE SYSTEMOWE: LOG, TREŚCI, PODGLĄD ────────────────────────────
+        // Te trzy panele są ostatnim miejscem, w którym widać, co poszło (albo
+        // pójdzie) do prawdziwego adresata - i każdy z nich ZAWSZE coś pokazuje,
+        // więc pomyłka jest cicha: pusta tabela wygląda jak „nic nie
+        // wysłaliśmy", kreska jak „brak danych", puste okno jak awaria panelu.
+        //
+        // Reguły pod progiem:
+        //  * sentynela „wszystkie" w filtrach jest NIEPUSTA (Radix wywala się na
+        //    `SelectItem value=""` - ten sam defekt zdjął już raz wybór kolumn w
+        //    imporcie CSV) i przy zapytaniu MUSI wrócić na `null`; puszczona
+        //    dalej jako nazwa szablonu filtruje log do zera;
+        //  * pusty log ma JEDNĄ stronę, nie zero - inaczej „następna" prowadzi
+        //    w nicość;
+        //  * brak wskaźnika doręczenia to KRESKA, nie „0%";
+        //  * nadpisanie treści maila trafia w jeden typ, jeden język i jedno
+        //    pole - zapis nadpisujący cały obiekt wyciera nadpisania innych
+        //    typów, a zauważy to dopiero odbiorca;
+        //  * reset dotyczy JEDNEGO języka - reset obu wyciera pracę tłumacza;
+        //  * zmiana zakresu podglądu przestawia typ na należący do tego zakresu,
+        //    inaczej okno zostaje puste.
+        "src/components/admin/newsletter/system-emails/systemEmailsView.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/newsletter/system-emails/txContentRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/newsletter/system-emails/authPreviewRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/newsletter/system-emails/SystemEmailsPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/components/admin/newsletter/system-emails/TxEmailContentPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        "src/components/admin/newsletter/system-emails/AuthEmailPreviewPanel.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // ── KREATOR TREŚCI KAMPANII ──────────────────────────────────────────
+        // Kampania jedzie do CAŁEJ listy i nie da się jej odwołać, więc reguły
+        // edytora bloków są tu przybite osobno:
+        //  * duplikat bloku musi być GŁĘBOKĄ kopią z nowym identyfikatorem -
+        //    kopia płytka dzieli obiekty `{ pl, en }` z oryginałem, więc edycja
+        //    jednego bloku po cichu zmienia drugi;
+        //  * klucz doboru wpisów bierze TYLKO pola zmieniające dobór (tryb,
+        //    liczba, kategoria, ręczne id). Za wąski - podgląd pokazuje stare
+        //    wpisy; za szeroki - każdy klawisz w nagłówku strzela do bazy;
+        //  * limity 1-10 wpisów i 10 ręcznie wybranych trzymają się zakresu
+        //    także przy śmieciach - mail z pustą listą wychodzi po cichu.
+        "src/components/admin/newsletter/campaignBlocks.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // CampaignContentBuilder: podgląd używa DOKŁADNIE tego samego
+        // `renderEmailHtml` co wysyłka - test czyta `srcDoc` ramki i porównuje z
+        // wynikiem prawdziwego renderera. Rozjazd znaczyłby, że redaktor
+        // zatwierdza treść, której odbiorca nie zobaczy. Próg pilnuje też
+        // opóźnienia podglądu (300 ms), komunikatu o braku treści w danym języku
+        // i tego, że serwer o wpisy jest pytany tylko wtedy, gdy dokument ma
+        // blok „najnowsze wpisy".
+        "src/components/admin/newsletter/CampaignContentBuilder.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 85,
+        },
+        // CampaignBlockProperties: jedyne miejsce, w którym redaktor wpisuje
+        // treść wychodzącego maila. 100% funkcji, bo każda funkcja tego pliku to
+        // handler edycji: patch gubiący drugi język wysyła połowie listy maila
+        // z pustym nagłówkiem, a pole bez podłączonego `onChange` przyjmuje
+        // treść i ją gubi.
+        "src/components/admin/newsletter/CampaignBlockProperties.tsx": {
+          statements: 100,
           functions: 100,
           lines: 100,
           branches: 88,
         },
-        // ORGANIZMY: bramka dostępu do klubu i panel moderacji. Oba startowały
-        // z 0%. Próg pilnuje tego, co faktycznie zostało pokryte - warianty
-        // stanu bramki i wsad moderacyjny - a nie całej powierzchni panelu.
-        "src/components/clubs/organisms/ClubAccessGate.tsx": {
-          statements: 82,
-          functions: 64,
-          lines: 82,
-          branches: 65,
+        // ── BUILDER MAILA: KANWA, BIBLIOTEKA, PODGLĄD ────────────────────────
+        // WidgetPreview: JEDEN test na typ widgetu, plus przejście po CAŁYM
+        // rejestrze. Typ, który renderuje się jako `null`, nie wywala
+        // aplikacji - po prostu ZNIKA z kanwy, a operator dodaje to samo pole
+        // drugi raz albo rezygnuje, uznając, że builder tego nie umie.
+        // Osobno przybita sanityzacja HTML akapitu i oznaczenie pola
+        // wymaganego (gwiazdka to jedyny sygnał wymagalności w podglądzie).
+        "src/components/admin/newsletter/builder/WidgetPreview.tsx": {
+          statements: 90,
+          functions: 85,
+          lines: 94,
+          branches: 70,
         },
-        "src/components/admin/clubs/organisms/ClubModerationTab.tsx": {
-          statements: 56,
-          functions: 41,
-          lines: 58,
-          branches: 41,
+        // BuilderCanvas: akcje na widgecie (duplikuj/usuń/przenieś) MUSZĄ
+        // zatrzymywać propagację - inaczej każde „usuń" najpierw zaznacza
+        // widget i panel właściwości pokazuje coś, czego już nie ma. Plus
+        // przypisanie do kolumny w układzie dwukolumnowym (decyduje o wyglądzie
+        // maila u odbiorcy) i pomijanie widgetów kolumnowych w układzie
+        // jednokolumnowym.
+        "src/components/admin/newsletter/builder/BuilderCanvas.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
         },
-        "src/components/comments/CommentsSection.tsx": {
-          statements: 64,
-          functions: 45,
-          lines: 67,
-          branches: 65,
+        // WidgetLibrary: różne zestawy widgetów dla maila i popupu
+        // (widget popupowy w mailu jest martwym elementem) oraz karty PRESETÓW,
+        // które dodają widget razem z gotowym ustawieniem pola.
+        "src/components/admin/newsletter/builder/WidgetLibrary.tsx": {
+          statements: 90,
+          functions: 98,
+          lines: 98,
+          branches: 70,
         },
-        "src/components/comments/CommentComposerShell.tsx": {
+        // PropertiesPanel: prawa kolumna buildera - JEDYNA droga, którą treść
+        // trafia do dokumentu. Próg pilnuje trzech rzeczy:
+        //  1. KAŻDA kontrolka jest podłączona (przemiał po całym rejestrze
+        //     widgetów: pola tekstowe, listy wyboru, przełączniki). Kontrolka
+        //     bez `onChange` przyjmuje wpisaną wartość i ją gubi - operator
+        //     wychodzi przekonany, że zapisał.
+        //  2. patch NIE GUBI DRUGIEGO JĘZYKA. Edycja PL musi zachować EN,
+        //     inaczej połowa listy dostaje maila z pustym nagłówkiem.
+        //  3. pole obrazu ma trzy ścieżki: sukces, awaria magazynu i awaria
+        //     rejestracji w bibliotece mediów. Trzecia jest podstępna - upload
+        //     się udał, więc adresu NIE WOLNO zgubić.
+        // 100% funkcji jest tu wymagane właśnie dlatego, że każda funkcja tego
+        // pliku to jeden handler edycji.
+        "src/components/admin/newsletter/builder/PropertiesPanel.tsx": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 100,
+          branches: 85,
+        },
+        // builderDoc: reguły dokumentu wyjęte z 900-linijkowej powłoki buildera.
+        // Pilnują pomyłek, które NIE wywalają aplikacji: przeniesienie widgetu,
+        // które gubi element albo wstawia go o jedno miejsce dalej; wyjście z
+        // dwóch kolumn, które zostawia „col: 1" (kanwa pomija taki widget, więc
+        // operator widzi, że element zniknął); duplikat sekcji z powtórzonymi
+        // identyfikatorami (dwa elementy zaznaczają się i patchują razem);
+        // wreszcie mapowanie ustawień na pierwszy dokument - pole, które tu
+        // wypadnie, znika z formularza bez śladu (np. klauzula RODO).
+        "src/components/admin/newsletter/builder/builderDoc.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // NewsletterBuilder: powłoka spinająca bibliotekę, kanwę, panel
+        // właściwości, historię zmian i zapis. Próg pilnuje tego, czego czysta
+        // funkcja nie pokaże: ZAPIS zablokowany bez zmian i odblokowany po
+        // pierwszej edycji, WIDOCZNY błąd zapisu (cichy = utracony dokument),
+        // przełączanie kontekstu prawej kolumny (widget / sekcja / dokument),
+        // szerokość podglądu zgodna z produkcją oraz wiązanie identyfikatorów
+        // obszarów @dnd-kit z dokumentem (zły identyfikator wstawia widget w
+        // innym miejscu, niż operator go upuścił).
+        "src/components/admin/newsletter/builder/NewsletterBuilder.tsx": {
+          statements: 96,
+          functions: 98,
+          lines: 97,
+          branches: 88,
         },
         // ── WYSZUKIWARKA ──────────────────────────────────────────────────────
         // 2026-08-18: moduł NIE MIAŁ ANI JEDNEGO progu per-ścieżka, mimo że
