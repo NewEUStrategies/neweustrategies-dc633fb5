@@ -240,6 +240,14 @@ describe("ExpertPresetThumb", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
+  it("nieznany preset daje pustą ramkę zamiast wywalić panel wyboru", () => {
+    // Kolumna `default_preset` jest tekstem; wiersz sprzed usunięcia wariantu
+    // dalej niesie jego identyfikator, a panel wyboru musi się wyrenderować.
+    const { container } = render(<ExpertPresetThumb id={"nieistniejacy" as never} />);
+    expect(container.firstElementChild).toBeInTheDocument();
+    expect(container.querySelectorAll("div")).toHaveLength(1);
+  });
+
   it("domyślnie ma wysokość siatki admina, a klasa jest nadpisywalna", () => {
     const { container: def } = render(<ExpertPresetThumb id="classic" />);
     expect(def.firstElementChild).toHaveClass("h-20");

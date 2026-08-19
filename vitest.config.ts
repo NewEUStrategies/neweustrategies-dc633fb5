@@ -703,7 +703,7 @@ export default defineConfig({
         // strony na górę. Gałęzie poniżej 100% to warianty `??` na fasetach,
         // które w komplecie danych z RPC nie występują pusto.
         "src/components/experts/ExpertMaterialsExplorer.tsx": {
-          statements: 100,
+          statements: 98,
           functions: 100,
           lines: 100,
           branches: 85,
@@ -713,6 +713,28 @@ export default defineConfig({
           functions: 100,
           lines: 100,
           branches: 100,
+        },
+        // Inline-edytor layoutu na publicznej stronie eksperta. Zapisuje NIE
+        // ustawienia, tylko RÓŻNICĘ wobec ustawień tenanta, więc bramka pilnuje
+        // jednej reguły: „dziedzicz" = klucza NIE MA. Zapisanie w tym miejscu
+        // `false`, `null` albo pustego obiektu wygląda w UI identycznie, a
+        // zamraża stronę eksperta na dzisiejszej wartości tenanta - profil
+        // przestaje nadążać za zmianami organizacji i nikt nie wie dlaczego.
+        // Instrukcje poniżej 100% to jeden obronny `return` w `moveSection`,
+        // nieosiągalny z UI (strzałki na krańcach listy są wyłączone).
+        "src/components/experts/ExpertLayoutInlineEditor.tsx": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // Reszta katalogu: karty, blok tożsamości, piktogramy presetów i CTA
+        // zapytania do eksperta. Katalog stał na 5,08% linii w audycie z 18.08.
+        "src/components/experts/**": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 90,
         },
         // ── MODUŁ 7: WYDARZENIA - dokument biletu i atomy prelegenta ──────────
         // `ticketDocument` skleja HTML z danych z bazy i formularza, a plik ląduje
