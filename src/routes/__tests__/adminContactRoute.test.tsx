@@ -132,7 +132,9 @@ describe("centrum kontaktu - skrzynka", () => {
 
   it("domyślnie pyta o nieprzeczytane i niearchiwalne", async () => {
     await mount();
-    await waitFor(() => expect(chainStub().chainsFor("contact_messages").length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(chainStub().chainsFor("contact_messages").length).toBeGreaterThan(0),
+    );
     const chain = lastMessagesChain();
     expect(chain.calls.filter((c) => c.method === "is").map((c) => c.args)).toEqual([
       ["read_at", null],
@@ -176,7 +178,10 @@ describe("centrum kontaktu - skrzynka", () => {
   });
 
   it("wyszukiwarka filtruje po nadawcy, temacie i treści - lokalnie", async () => {
-    h.messages = [message(), message({ id: "m2", name: "Jan Nowak", email: "jan@example.test", subject: "Faktura" })];
+    h.messages = [
+      message(),
+      message({ id: "m2", name: "Jan Nowak", email: "jan@example.test", subject: "Faktura" }),
+    ];
     await mount();
     expect(await screen.findByText("Faktura")).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText("Szukaj..."), { target: { value: "nowak" } });
@@ -210,11 +215,20 @@ describe("centrum kontaktu - skrzynka", () => {
     fireEvent.click(await screen.findByText("Zapytanie o współpracę"));
     // Treść jest i w zajawce listy, i w szczegółach - obie pochodzą z bazy.
     expect((await screen.findAllByText(/Proszę o kontakt w sprawie projektu./)).length).toBe(2);
-    expect(chainStub().chainsFor("contact_messages").some((c) => c.has("update"))).toBe(false);
+    expect(
+      chainStub()
+        .chainsFor("contact_messages")
+        .some((c) => c.has("update")),
+    ).toBe(false);
   });
 
   it("szczegóły pokazują metadane zgłoszenia i zgodę na newsletter", async () => {
-    h.messages = [message({ read_at: "2026-08-11T10:00:00.000Z", confirmation_sent_at: "2026-08-11T11:00:00.000Z" })];
+    h.messages = [
+      message({
+        read_at: "2026-08-11T10:00:00.000Z",
+        confirmation_sent_at: "2026-08-11T11:00:00.000Z",
+      }),
+    ];
     await mount();
     fireEvent.click(await screen.findByText("Zapytanie o współpracę"));
     expect(await screen.findByText(/Acme/)).toBeInTheDocument();
@@ -230,23 +244,39 @@ describe("centrum kontaktu - skrzynka", () => {
     fireEvent.click(await screen.findByText("Zapytanie o współpracę"));
     fireEvent.click(await screen.findByRole("button", { name: /Archiwizuj/ }));
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_messages").some((c) => c.has("update"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_messages")
+          .some((c) => c.has("update")),
+      ).toBe(true),
     );
-    const first = chainStub().chainsFor("contact_messages").find((c) => c.has("update")) as RecordedChain;
-    expect(typeof (first.argsOf("update") as [Record<string, unknown>])[0].archived_at).toBe("string");
+    const first = chainStub()
+      .chainsFor("contact_messages")
+      .find((c) => c.has("update")) as RecordedChain;
+    expect(typeof (first.argsOf("update") as [Record<string, unknown>])[0].archived_at).toBe(
+      "string",
+    );
 
     cleanup();
     chainStub().reset();
     chainStub().setResponse("contact_messages", (chain) =>
-      chain.has("update") ? ok(null) : ok([message({ read_at: "x", archived_at: "2026-08-12T10:00:00.000Z" })]),
+      chain.has("update")
+        ? ok(null)
+        : ok([message({ read_at: "x", archived_at: "2026-08-12T10:00:00.000Z" })]),
     );
     await mount();
     fireEvent.click(await screen.findByText("Zapytanie o współpracę"));
     fireEvent.click(await screen.findByRole("button", { name: /Przywróć/ }));
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_messages").some((c) => c.has("update"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_messages")
+          .some((c) => c.has("update")),
+      ).toBe(true),
     );
-    const back = chainStub().chainsFor("contact_messages").find((c) => c.has("update")) as RecordedChain;
+    const back = chainStub()
+      .chainsFor("contact_messages")
+      .find((c) => c.has("update")) as RecordedChain;
     expect((back.argsOf("update") as [Record<string, unknown>])[0].archived_at).toBeNull();
   });
 
@@ -256,9 +286,15 @@ describe("centrum kontaktu - skrzynka", () => {
     fireEvent.click(await screen.findByText("Zapytanie o współpracę"));
     fireEvent.click(await screen.findByRole("button", { name: /Zamknij/ }));
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_messages").some((c) => c.has("update"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_messages")
+          .some((c) => c.has("update")),
+      ).toBe(true),
     );
-    const chain = chainStub().chainsFor("contact_messages").find((c) => c.has("update")) as RecordedChain;
+    const chain = chainStub()
+      .chainsFor("contact_messages")
+      .find((c) => c.has("update")) as RecordedChain;
     expect((chain.argsOf("update") as [Record<string, unknown>])[0]).toEqual({ status: "done" });
   });
 
@@ -271,12 +307,20 @@ describe("centrum kontaktu - skrzynka", () => {
     const buttons = screen.getAllByRole("button");
     fireEvent.click(buttons[buttons.length - 1]);
     expect(confirmSpy).toHaveBeenCalledWith("Usunąć tę wiadomość?");
-    expect(chainStub().chainsFor("contact_messages").some((c) => c.has("delete"))).toBe(false);
+    expect(
+      chainStub()
+        .chainsFor("contact_messages")
+        .some((c) => c.has("delete")),
+    ).toBe(false);
 
     confirmSpy.mockReturnValue(true as never);
     fireEvent.click(buttons[buttons.length - 1]);
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_messages").some((c) => c.has("delete"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_messages")
+          .some((c) => c.has("delete")),
+      ).toBe(true),
     );
     expect(h.toastSuccess).toContain("Wiadomość usunięta.");
     vi.unstubAllGlobals();
@@ -319,12 +363,19 @@ describe("centrum kontaktu - ustawienia", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Zapisz ustawienia" }));
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_form_settings").some((c) => c.has("upsert"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_form_settings")
+          .some((c) => c.has("upsert")),
+      ).toBe(true),
     );
     const chain = chainStub()
       .chainsFor("contact_form_settings")
       .find((c) => c.has("upsert")) as RecordedChain;
-    const [payload, opts] = chain.argsOf("upsert") as [Record<string, unknown>, { onConflict: string }];
+    const [payload, opts] = chain.argsOf("upsert") as [
+      Record<string, unknown>,
+      { onConflict: string },
+    ];
     expect(payload).toMatchObject({
       tenant_id: "tenant-1",
       default_recipient: "kontakt@example.test",
@@ -343,7 +394,11 @@ describe("centrum kontaktu - ustawienia", () => {
     fireEvent.click(switches[2]);
     fireEvent.click(screen.getByRole("button", { name: "Zapisz ustawienia" }));
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_form_settings").some((c) => c.has("upsert"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_form_settings")
+          .some((c) => c.has("upsert")),
+      ).toBe(true),
     );
     const chain = chainStub()
       .chainsFor("contact_form_settings")
@@ -371,7 +426,11 @@ describe("centrum kontaktu - ustawienia", () => {
     fireEvent.click(screen.getAllByRole("switch")[0]);
     fireEvent.click(screen.getByRole("button", { name: "Zapisz ustawienia" }));
     await waitFor(() =>
-      expect(chainStub().chainsFor("contact_form_settings").some((c) => c.has("upsert"))).toBe(true),
+      expect(
+        chainStub()
+          .chainsFor("contact_form_settings")
+          .some((c) => c.has("upsert")),
+      ).toBe(true),
     );
     const chain = chainStub()
       .chainsFor("contact_form_settings")
@@ -405,7 +464,11 @@ describe("centrum kontaktu - ustawienia", () => {
     await openTab("Ustawienia");
     fireEvent.click(await screen.findByRole("button", { name: "Zapisz ustawienia" }));
     await waitFor(() => expect(h.toastError).toContain("Not signed in"));
-    expect(chainStub().chainsFor("contact_form_settings").some((c) => c.has("upsert"))).toBe(false);
+    expect(
+      chainStub()
+        .chainsFor("contact_form_settings")
+        .some((c) => c.has("upsert")),
+    ).toBe(false);
   });
 
   it("konto bez tenanta nie zapisuje ustawień w cudzej przestrzeni", async () => {
@@ -415,7 +478,11 @@ describe("centrum kontaktu - ustawienia", () => {
     await openTab("Ustawienia");
     fireEvent.click(await screen.findByRole("button", { name: "Zapisz ustawienia" }));
     await waitFor(() => expect(h.toastError).toContain("No tenant"));
-    expect(chainStub().chainsFor("contact_form_settings").some((c) => c.has("upsert"))).toBe(false);
+    expect(
+      chainStub()
+        .chainsFor("contact_form_settings")
+        .some((c) => c.has("upsert")),
+    ).toBe(false);
   });
 
   it("wersja angielska ma komplet etykiet skrzynki i ustawień", async () => {

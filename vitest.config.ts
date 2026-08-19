@@ -498,6 +498,171 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── CRM (MODUŁ 18) ────────────────────────────────────────────────────
+        // Audyt 18.08 dał temu modułowi NAJNIŻSZE pokrycie w repo: 12,04% linii,
+        // 9,30% funkcji (93 z 1000), 33 z 47 plików na okrągłym zerze przy
+        // stosunku plików testowych do produkcyjnych 0,32. To moduł, przez który
+        // przechodzą DANE OSOBOWE: import z CSV, zgody marketingowe, konwersja
+        // subskrybentów na kontakty, wysyłka leada do partnerów zewnętrznych
+        // i kasowanie rekordów hurtem.
+        //
+        // Po tej pracy: 98,98% linii / 98,48% funkcji / 98,16% instrukcji /
+        // 86,44% gałęzi na 56 plikach modułu. Progi są floorowane ~3-4 pp pod
+        // ZMIERZONYM poziomem (marża na dryf CI) i wolno je wyłącznie podnosić -
+        // ta sama zasada, co przy sieci kontaktów, czacie i profilu wyżej.
+        //
+        // CZYSTE MODUŁY REGUŁ trzymamy pod 100% na wszystkich czterech metrykach.
+        // To one niosą reguły, których złamania nie widać w kodzie wywołującego:
+        // jedno źródło prawdy filtra i sortu leadów (`leadListSpec`, konsumowane
+        // ZARAZEM przez SQL i przez JS, z bramką parytetu), mapowanie kolumn
+        // importu CSV wraz z inwariantem „kolumny zgód NIGDY nie są mapowane”
+        // (`importMapping`), widoki list (`leadViews`, `companyViews`) oraz
+        // drobne reguły paneli wyprowadzone z komponentów.
+        "src/lib/crm/leadListSpec.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/crm/importMapping.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/crm/leadViews.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/crm/viewActions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Reszta czystych modułów CRM (widoki firm, oś czasu, punktacja, zgody,
+        // reguły paneli). Niedobite gałęzie to ramiona obronne dla danych,
+        // których baza nie dopuszcza (NOT NULL, CHECK) - zostawiamy je, zamiast
+        // usuwać kod, który chroni przed rozjazdem kontraktu.
+        "src/lib/crm/**": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 93,
+        },
+        // Warstwa serwerowa CRM: kontakty, firmy, zadania, lejek, zapisane
+        // widoki. Startowała z 0% - wszystkie handlery `createServerFn` były
+        // poza zasięgiem testu, bo nie dało się ich wywołać bez atrapy
+        // `@tanstack/react-start` (stąd `src/test/serverFnHarness.ts`).
+        // AUTORYZACJI I RLS TU NIE TESTUJEMY - to warstwa pgTAP; te progi
+        // pilnują kształtu zapytania i ładunku, nie uprawnień.
+        "src/lib/crm.functions.ts": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 76,
+        },
+        "src/lib/crm-companies.functions.ts": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 78,
+        },
+        "src/lib/crm-tasks.functions.ts": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 88,
+        },
+        "src/lib/crm-funnel.functions.ts": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 90,
+        },
+        "src/lib/crm-saved-views.functions.ts": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 90,
+        },
+        // Parser CSV importu - czysty moduł na ścieżce danych osobowych.
+        "src/lib/csv/**": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 93,
+        },
+        // Miejsca w organizacjach: karencja po zmniejszeniu planu i przypomnienia.
+        // `teamSeats.server.ts` startował z 4,2% linii, mimo że decyduje o tym,
+        // KOMU i KIEDY odbierany jest dostęp - z testem idempotencji przypomnień
+        // (drugi przebieg tego samego dnia nie wysyła drugiego maila).
+        "src/lib/organizations/teamSeats.server.ts": {
+          statements: 95,
+          functions: 90,
+          lines: 96,
+          branches: 86,
+        },
+        "src/lib/organizations/**": {
+          statements: 94,
+          functions: 90,
+          lines: 95,
+          branches: 86,
+        },
+        // Panele CRM. 19 plików startowało z 3,6% linii i 9 z 302 funkcji.
+        // Próg jest niższy niż w czystych modułach i to jest uczciwe: część
+        // gałęzi to warianty prezentacji (skróty dat, kadrowanie awatara),
+        // których nie warto domykać kosztem testów bez wartości. Reguły paneli
+        // mieszkają w `src/lib/crm/*` i mają wyższą poprzeczkę wyżej.
+        "src/components/admin/crm/**": {
+          statements: 91,
+          functions: 92,
+          lines: 92,
+          branches: 79,
+        },
+        // Trasy panelu CRM. Testowane na PRAWDZIWYM routerze (`renderRoute`),
+        // więc bramka obejmuje też sklejenie trasy: walidację query, `head()`
+        // z `noindex` i deep-linki. Gałęzie stoją niżej, bo każde wywołanie
+        // `t(pl, en)` liczy się jako dwa ramiona, a nie każdy ekran jest
+        // renderowany w obu językach.
+        "src/routes/admin.crm.index.tsx": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 75,
+        },
+        "src/routes/admin.crm.$id.tsx": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 73,
+        },
+        "src/routes/admin.crm.funnel.index.tsx": {
+          statements: 95,
+          functions: 93,
+          lines: 95,
+          branches: 82,
+        },
+        "src/routes/admin.companies.index.tsx": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 83,
+        },
+        "src/routes/admin.companies.$id.tsx": {
+          statements: 95,
+          functions: 96,
+          lines: 96,
+          branches: 72,
+        },
+        "src/routes/admin.contact.tsx": {
+          statements: 92,
+          functions: 96,
+          lines: 96,
+          branches: 85,
+        },
       },
     },
   },

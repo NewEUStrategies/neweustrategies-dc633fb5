@@ -174,12 +174,12 @@ export function CompanyViewTabs({
               size="sm"
               disabled={!newName.trim()}
               onClick={() =>
-                  runViewAction(onCreate(newName.trim(), newShared), () => {
-                    setNewName("");
-                    setNewShared(false);
-                    setNewOpen(false);
-                  })
-                }
+                runViewAction(onCreate(newName.trim(), newShared), () => {
+                  setNewName("");
+                  setNewShared(false);
+                  setNewOpen(false);
+                })
+              }
             >
               {t("Zapisz", "Save")}
             </Button>
@@ -207,8 +207,8 @@ export function CompanyViewTabs({
                 size="sm"
                 disabled={!renameValue.trim()}
                 onClick={() =>
-                    runViewAction(onRename(renameId, renameValue.trim()), () => setRenameId(null))
-                  }
+                  runViewAction(onRename(renameId, renameValue.trim()), () => setRenameId(null))
+                }
               >
                 {t("Zapisz", "Save")}
               </Button>

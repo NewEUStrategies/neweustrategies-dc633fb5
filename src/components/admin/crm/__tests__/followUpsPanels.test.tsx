@@ -235,7 +235,14 @@ describe("panele follow-upów - wersja angielska i odmowy", () => {
   it("pasek follow-upów po angielsku liczy zaległe i nadchodzące", async () => {
     h.dueTasks = [
       { id: "t1", lead_id: LEAD_ID, title: "Call back", due_at: PAST, status: "open", lead: null },
-      { id: "t2", lead_id: LEAD_ID, title: "Send offer", due_at: FUTURE, status: "open", lead: null },
+      {
+        id: "t2",
+        lead_id: LEAD_ID,
+        title: "Send offer",
+        due_at: FUTURE,
+        status: "open",
+        lead: null,
+      },
     ];
     renderWithQueryClient(<FollowUpsPanel lang="en" onOpenLead={() => {}} />);
     expect(await screen.findByText("1 overdue")).toBeInTheDocument();

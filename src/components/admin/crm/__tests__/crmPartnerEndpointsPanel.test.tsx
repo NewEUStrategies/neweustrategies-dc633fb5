@@ -422,7 +422,9 @@ describe("pełne mapowanie zgód i pozostałe pola", () => {
     h.endpoints = [partner()];
     render();
     fireEvent.click(await screen.findByLabelText("Edytuj"));
-    const clear = await screen.findByRole("switch", { name: /Wyczyść|Usuń sekret/i }).catch(() => null);
+    const clear = await screen
+      .findByRole("switch", { name: /Wyczyść|Usuń sekret/i })
+      .catch(() => null);
     if (clear) fireEvent.click(clear);
     fireEvent.click(screen.getByRole("button", { name: /Zapisz partnera/ }));
     await waitFor(() => expect(writesFor("integration_endpoints")).toHaveLength(1));

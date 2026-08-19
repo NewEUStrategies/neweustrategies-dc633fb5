@@ -434,16 +434,16 @@ describe("dialogi CRM - wersja angielska i wyjścia awaryjne", () => {
     renderWithQueryClient(<ImportLeadsCsvDialog open onOpenChange={() => {}} lang="en" />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     Object.defineProperty(input, "files", {
-      value: [
-        csvFile("Email,First name\nanna@example.test,Anna\nanna@example.test,Anna\n"),
-      ],
+      value: [csvFile("Email,First name\nanna@example.test,Anna\nanna@example.test,Anna\n")],
     });
     fireEvent.change(input);
     expect(await screen.findByText(/2 rows, .* with a valid e-mail/)).toBeInTheDocument();
     expect(screen.getByText(/1 in-file duplicates/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Import 1$/ }));
     await waitFor(() =>
-      expect(h.toastSuccess.some((m) => m.includes("New: 2") && m.includes("merged: 1"))).toBe(true),
+      expect(h.toastSuccess.some((m) => m.includes("New: 2") && m.includes("merged: 1"))).toBe(
+        true,
+      ),
     );
   });
 

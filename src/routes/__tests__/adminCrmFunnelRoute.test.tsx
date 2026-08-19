@@ -96,11 +96,20 @@ afterEach(() => cleanup());
 describe("trasa lejka marketingowego", () => {
   it("nagłówek strony jest oznaczony jako panel (tytuł z head())", async () => {
     const view = await mountFunnel();
-    expect(view.meta().some((m) => String(m.title ?? "").includes("Lejek marketingowy"))).toBe(true);
+    expect(view.meta().some((m) => String(m.title ?? "").includes("Lejek marketingowy"))).toBe(
+      true,
+    );
   });
 
   it("pokazuje statystyki lejka z bazy", async () => {
-    h.stats = { total: 120, subscribed: 90, pending: 10, unsubscribed: 20, registered: 40, contacts: 25 };
+    h.stats = {
+      total: 120,
+      subscribed: 90,
+      pending: 10,
+      unsubscribed: 20,
+      registered: 40,
+      contacts: 25,
+    };
     await mountFunnel();
     expect(await screen.findByText("120")).toBeInTheDocument();
     expect(screen.getByText("90")).toBeInTheDocument();
@@ -171,7 +180,9 @@ describe("trasa lejka marketingowego", () => {
     fireEvent.click(all);
     expect(await screen.findByRole("region", { name: /Akcje zbiorcze/ })).toBeInTheDocument();
     fireEvent.click(all);
-    await waitFor(() => expect(screen.queryByRole("region", { name: /Akcje zbiorcze/ })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: /Akcje zbiorcze/ })).toBeNull(),
+    );
   });
 
   it("odznaczenie pojedynczego wiersza zdejmuje go z zaznaczenia", async () => {
@@ -183,7 +194,9 @@ describe("trasa lejka marketingowego", () => {
     expect(bar).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Select bartek@example.test"));
     fireEvent.click(screen.getByLabelText("Select anna@example.test"));
-    await waitFor(() => expect(screen.queryByRole("region", { name: /Akcje zbiorcze/ })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: /Akcje zbiorcze/ })).toBeNull(),
+    );
   });
 
   it("odrzucone wypisanie i odrzucona konwersja mówią o błędzie", async () => {
@@ -193,12 +206,16 @@ describe("trasa lejka marketingowego", () => {
     fireEvent.click(await screen.findByLabelText("Select anna@example.test"));
     fireEvent.click(await screen.findByRole("button", { name: "Wypisz" }));
     fireEvent.click(await screen.findByRole("button", { name: "Potwierdź" }));
-    await waitFor(() => expect(h.toastError.some((m) => m.includes("operacja odrzucona"))).toBe(true));
+    await waitFor(() =>
+      expect(h.toastError.some((m) => m.includes("operacja odrzucona"))).toBe(true),
+    );
 
     h.toastError = [];
     fireEvent.click(await screen.findByRole("button", { name: "Utwórz Kontakty" }));
     fireEvent.click(await screen.findByRole("button", { name: "Potwierdź" }));
-    await waitFor(() => expect(h.toastError.some((m) => m.includes("konwersja odrzucona"))).toBe(true));
+    await waitFor(() =>
+      expect(h.toastError.some((m) => m.includes("konwersja odrzucona"))).toBe(true),
+    );
   });
 
   it("filtry odbiorców i statusu trafiają do zapytania serwerowego", async () => {

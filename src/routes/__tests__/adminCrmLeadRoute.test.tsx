@@ -227,7 +227,9 @@ describe("karta osoby CRM", () => {
   });
 
   it("brak danych opisowych pokazuje myślniki zamiast pustych pól", async () => {
-    h.detail = detail({ lead: { phone: null, position: null, company: null, country: null, tags: [] } });
+    h.detail = detail({
+      lead: { phone: null, position: null, company: null, country: null, tags: [] },
+    });
     await mount();
     expect(await screen.findByText("Brak tagów")).toBeInTheDocument();
     expect(screen.getByText("Brak stanowiska")).toBeInTheDocument();
@@ -285,15 +287,18 @@ describe("karta osoby CRM", () => {
     const trigger = await screen.findByRole("combobox");
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(await screen.findByRole("option", { name: "Kwalifikowany" }));
-    await waitFor(() =>
-      expect(h.updated).toEqual([{ data: { id: LEAD_ID, stage: "qualified" } }]),
-    );
+    await waitFor(() => expect(h.updated).toEqual([{ data: { id: LEAD_ID, stage: "qualified" } }]));
   });
 
   it("notatka idzie z kluczem idempotencji, a kasowanie z identyfikatorem", async () => {
     h.detail = detail({
       notes: [
-        { id: "n1", body: "Rozmowa o ofercie", author_id: "u1", created_at: "2026-08-05T10:00:00.000Z" },
+        {
+          id: "n1",
+          body: "Rozmowa o ofercie",
+          author_id: "u1",
+          created_at: "2026-08-05T10:00:00.000Z",
+        },
       ],
     });
     await mount();
@@ -368,7 +373,9 @@ describe("karta osoby CRM", () => {
           created_at: "2026-08-03T10:00:00.000Z",
         },
       ],
-      notes: [{ id: "n1", body: "Notatka", author_id: null, created_at: "2026-08-04T10:00:00.000Z" }],
+      notes: [
+        { id: "n1", body: "Notatka", author_id: null, created_at: "2026-08-04T10:00:00.000Z" },
+      ],
     });
     await mount();
     // Przegląd pokazuje wiadomość z formularza…
@@ -444,10 +451,9 @@ describe("karta osoby CRM", () => {
     const copies = await screen.findAllByLabelText("Copy");
     fireEvent.click(copies[0]);
     fireEvent.click(copies[1]);
-    await waitFor(() => expect(writeText.mock.calls.flat()).toEqual([
-      "anna@example.test",
-      "+48 500 100 200",
-    ]));
+    await waitFor(() =>
+      expect(writeText.mock.calls.flat()).toEqual(["anna@example.test", "+48 500 100 200"]),
+    );
   });
 
   it("kontakt bez telefonu nie oferuje kopiowania pustej wartości", async () => {

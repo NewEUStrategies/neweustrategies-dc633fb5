@@ -265,9 +265,11 @@ describe("skrzynka CRM - lista", () => {
   });
 
   it("walidator adresu przycina deep-linki notyfikacji i widoku", () => {
-    const validate = Route.options.validateSearch as (
-      raw: Record<string, unknown>,
-    ) => { lead?: string; task?: string; view?: string };
+    const validate = Route.options.validateSearch as (raw: Record<string, unknown>) => {
+      lead?: string;
+      task?: string;
+      view?: string;
+    };
     expect(validate({ lead: LEAD_ID, task: "t1" })).toMatchObject({ lead: LEAD_ID, task: "t1" });
     expect(validate({ lead: "", view: "" })).toEqual({
       lead: undefined,
@@ -392,14 +394,16 @@ describe("skrzynka CRM - operacje zbiorcze", () => {
     const bar = await selectFirst();
     fireEvent.click(within(bar).getByRole("button", { name: "Zgoda: TAK" }));
     await waitFor(() => expect(h.bulkUpdated).toHaveLength(1));
-    expect((h.bulkUpdated[0] as { data: { marketing_consent: boolean } }).data.marketing_consent)
-      .toBe(true);
+    expect(
+      (h.bulkUpdated[0] as { data: { marketing_consent: boolean } }).data.marketing_consent,
+    ).toBe(true);
 
     const bar2 = await selectFirst();
     fireEvent.click(within(bar2).getByRole("button", { name: "Zgoda: NIE" }));
     await waitFor(() => expect(h.bulkUpdated).toHaveLength(2));
-    expect((h.bulkUpdated[1] as { data: { marketing_consent: boolean } }).data.marketing_consent)
-      .toBe(false);
+    expect(
+      (h.bulkUpdated[1] as { data: { marketing_consent: boolean } }).data.marketing_consent,
+    ).toBe(false);
   });
 
   it("tagi zbiorcze rozdzielają dodawane od usuwanych i ignorują puste", async () => {
@@ -513,7 +517,12 @@ describe("skrzynka CRM - karta kontaktu (drawer)", () => {
   it("notatka zespołowa idzie na serwer, a kasowanie woła jej identyfikator", async () => {
     h.detail = detail({
       notes: [
-        { id: "n1", body: "Rozmowa telefoniczna", author_id: "u1", created_at: "2026-08-04T10:00:00.000Z" },
+        {
+          id: "n1",
+          body: "Rozmowa telefoniczna",
+          author_id: "u1",
+          created_at: "2026-08-04T10:00:00.000Z",
+        },
       ],
     });
     await mount();
@@ -614,7 +623,9 @@ describe("skrzynka CRM - obudowa listy", () => {
     h.savedViews = [savedView()];
     await mount();
     fireEvent.click(await screen.findByRole("button", { name: /Moi klienci/ }));
-    await waitFor(() => expect(lastListArgs()).toMatchObject({ sort: "created", sort_dir: "desc" }));
+    await waitFor(() =>
+      expect(lastListArgs()).toMatchObject({ sort: "created", sort_dir: "desc" }),
+    );
   });
 
   it("zapisany widok z adresu podnosi się po dociągnięciu listy widoków", async () => {
@@ -626,7 +637,9 @@ describe("skrzynka CRM - obudowa listy", () => {
   it("zapisanie bieżącej konfiguracji wysyła kolumny i filtr", async () => {
     await mount();
     fireEvent.click(await screen.findByRole("button", { name: /Zapisz widok/ }));
-    fireEvent.change(await screen.findByPlaceholderText(/np\./), { target: { value: "Gorące PL" } });
+    fireEvent.change(await screen.findByPlaceholderText(/np\./), {
+      target: { value: "Gorące PL" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Zapisz" }));
     await waitFor(() => expect(h.savedUpserts).toHaveLength(1));
     expect((h.savedUpserts[0] as { data: Record<string, unknown> }).data).toMatchObject({
@@ -720,13 +733,29 @@ describe("skrzynka CRM - obudowa listy", () => {
         source_count: 0,
         follow_up_at: null,
       }),
-      lead({ id: "lead-3", email: "nl@example.test", newsletter_status: "subscribed", tags: ["a", "b", "c", "d", "e"], follow_up_at: "2026-09-01T10:00:00.000Z" }),
+      lead({
+        id: "lead-3",
+        email: "nl@example.test",
+        newsletter_status: "subscribed",
+        tags: ["a", "b", "c", "d", "e"],
+        follow_up_at: "2026-09-01T10:00:00.000Z",
+      }),
     ];
     h.total = 3;
     await mount();
     await screen.findAllByText("Anna Kowalska");
     fireEvent.click(screen.getByRole("button", { name: /Kolumny/ }));
-    for (const label of ["Telefon", "Stanowisko", "Kraj", "Poziom", "Źródło", "Tagi", "Zgoda", "Utworzono", "Follow-up"]) {
+    for (const label of [
+      "Telefon",
+      "Stanowisko",
+      "Kraj",
+      "Poziom",
+      "Źródło",
+      "Tagi",
+      "Zgoda",
+      "Utworzono",
+      "Follow-up",
+    ]) {
       fireEvent.click(await screen.findByRole("checkbox", { name: label }));
     }
     fireEvent.keyDown(document.body, { key: "Escape" });
@@ -844,7 +873,9 @@ describe("skrzynka CRM - obudowa listy", () => {
     fireEvent.click(await screen.findByLabelText("anna@example.test"));
     const bar = await screen.findByRole("region", { name: "Akcje zbiorcze" });
     fireEvent.click(within(bar).getByRole("button", { name: /Wyczyść/ }));
-    await waitFor(() => expect(screen.queryByRole("region", { name: "Akcje zbiorcze" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Akcje zbiorcze" })).toBeNull(),
+    );
   });
 
   it("zaznaczenie wszystkich da się cofnąć jednym kliknięciem", async () => {
@@ -1004,7 +1035,12 @@ describe("skrzynka CRM - ścieżki wyjątkowe", () => {
         title: "Oddzwonić",
         due_at: new Date(Date.now() + 3_600_000).toISOString(),
         status: "open",
-        lead: { id: LEAD_ID, email: "anna@example.test", first_name: "Anna", last_name: "Kowalska" },
+        lead: {
+          id: LEAD_ID,
+          email: "anna@example.test",
+          first_name: "Anna",
+          last_name: "Kowalska",
+        },
       },
     ];
     await mount();
@@ -1073,7 +1109,14 @@ describe("skrzynka CRM - ścieżki wyjątkowe", () => {
     h.timeline = {
       lead: { id: LEAD_ID, email: "anna@example.test" },
       events: [
-        { id: "e1", type: "note", at: "2026-08-01T10:00:00.000Z", title: "Notatka zespołu", detail: null, meta: null },
+        {
+          id: "e1",
+          type: "note",
+          at: "2026-08-01T10:00:00.000Z",
+          title: "Notatka zespołu",
+          detail: null,
+          meta: null,
+        },
       ],
     };
     await mount();
@@ -1091,7 +1134,14 @@ describe("skrzynka CRM - ścieżki wyjątkowe", () => {
     h.timeline = {
       lead: { id: LEAD_ID, email: "anna@example.test", first_name: "Anna", last_name: "Kowalska" },
       events: [
-        { id: "e1", type: "note", at: "2026-08-01T10:00:00.000Z", title: "Notatka zespołu", detail: null, meta: null },
+        {
+          id: "e1",
+          type: "note",
+          at: "2026-08-01T10:00:00.000Z",
+          title: "Notatka zespołu",
+          detail: null,
+          meta: null,
+        },
       ],
     };
     const written: string[] = [];

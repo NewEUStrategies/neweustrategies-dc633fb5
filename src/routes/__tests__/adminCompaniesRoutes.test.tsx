@@ -99,7 +99,8 @@ vi.mock("@/integrations/supabase/client", () => ({
       for (const m of ["select", "eq", "order", "in", "is", "not", "limit"]) {
         chain[m] = () => chain;
       }
-      chain.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(res);
+      chain.then = (res: (v: unknown) => unknown) =>
+        Promise.resolve({ data: rows, error: null }).then(res);
       return chain;
     },
     storage: {
@@ -244,9 +245,10 @@ describe("lista firm", () => {
     // Trasa montowana w harnessie dziedziczy surowy query po korzeniu, więc
     // regułę sprawdzamy na samym walidatorze trasy - to on chroni zapytanie
     // serwerowe przed wstrzyknięciem dowolnego ciągu w miejsce identyfikatora.
-    const validate = CompaniesRoute.options.validateSearch as (
-      raw: Record<string, unknown>,
-    ) => { company?: string; view?: string };
+    const validate = CompaniesRoute.options.validateSearch as (raw: Record<string, unknown>) => {
+      company?: string;
+      view?: string;
+    };
     expect(validate({ company: "nie-uuid" }).company).toBeUndefined();
     expect(validate({ company: COMPANY_ID }).company).toBe(COMPANY_ID);
     expect(validate({ view: "x".repeat(200) }).view).toBeUndefined();
@@ -299,10 +301,7 @@ describe("lista firm", () => {
   });
 
   it("sortowanie po kolumnie odwraca kierunek przy drugim kliknięciu", async () => {
-    h.companies = [
-      company({ id: "c1", name: "Beta" }),
-      company({ id: "c2", name: "Acme" }),
-    ];
+    h.companies = [company({ id: "c1", name: "Beta" }), company({ id: "c2", name: "Acme" })];
     await mountList();
     const thead = document.querySelector("thead") as HTMLElement;
     const header = within(thead).getByRole("button", { name: /Firma/ });
@@ -376,7 +375,9 @@ describe("lista firm", () => {
     fireEvent.click(await screen.findByLabelText("Acme"));
     const bar = await screen.findByRole("region", { name: "Akcje zbiorcze" });
     fireEvent.click(within(bar).getByRole("button", { name: "Wyczyść" }));
-    await waitFor(() => expect(screen.queryByRole("region", { name: "Akcje zbiorcze" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Akcje zbiorcze" })).toBeNull(),
+    );
   });
 
   it("eksport CSV bierze przefiltrowane wiersze i widoczne kolumny", async () => {
@@ -473,7 +474,6 @@ describe("lista firm", () => {
     expect(screen.getByRole("button", { name: /Export CSV/ })).toBeInTheDocument();
   });
 
-
   it("chip filtru zawęża listę lokalnie, bez nowego zapytania", async () => {
     h.companies = [
       company(),
@@ -495,10 +495,28 @@ describe("lista firm", () => {
   it("data aktywności jest opisana po ludzku, a jej brak myślnikiem", async () => {
     const now = Date.now();
     h.companies = [
-      company({ id: "c1", name: "Dzis", last_lead_activity_at: new Date(now - 3600_000).toISOString() }),
-      company({ id: "c2", name: "Wczoraj", last_lead_activity_at: new Date(now - 30 * 3600_000).toISOString() }),
-      company({ id: "c3", name: "Dawno", last_lead_activity_at: new Date(now - 200 * 86_400_000).toISOString() }),
-      company({ id: "c4", name: "   ", domain: null, last_lead_activity_at: null, updated_at: null }),
+      company({
+        id: "c1",
+        name: "Dzis",
+        last_lead_activity_at: new Date(now - 3600_000).toISOString(),
+      }),
+      company({
+        id: "c2",
+        name: "Wczoraj",
+        last_lead_activity_at: new Date(now - 30 * 3600_000).toISOString(),
+      }),
+      company({
+        id: "c3",
+        name: "Dawno",
+        last_lead_activity_at: new Date(now - 200 * 86_400_000).toISOString(),
+      }),
+      company({
+        id: "c4",
+        name: "   ",
+        domain: null,
+        last_lead_activity_at: null,
+        updated_at: null,
+      }),
     ];
     await mountList();
     expect(await screen.findByText("dzisiaj")).toBeInTheDocument();
@@ -612,7 +630,9 @@ describe("lista firm", () => {
     fireEvent.click(checkbox);
     expect(view.currentPath()).toBe("/admin/companies");
     fireEvent.click(checkbox);
-    await waitFor(() => expect(screen.queryByRole("region", { name: "Akcje zbiorcze" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Akcje zbiorcze" })).toBeNull(),
+    );
     fireEvent.click(screen.getByText("Acme"));
     await waitFor(() => expect(view.currentPath()).toBe(`/admin/companies/${COMPANY_ID}`));
   });
@@ -640,8 +660,6 @@ describe("lista firm", () => {
     await waitFor(() => expect(h.toastError).toContain("kasowanie odrzucone"));
   });
 });
-
-
 
 describe("karta firmy", () => {
   it("brak firmy pokazuje komunikat zamiast pustego ekranu", async () => {
@@ -829,9 +847,42 @@ describe("karta firmy", () => {
       company: company(),
       profiles: [],
       leads: [
-        { id: "l1", email: "a@example.test", first_name: "A", last_name: null, stage: "new", score: 10, score_band: "cold", tags: [], last_activity_at: null, created_at: "2026-08-01T10:00:00.000Z" },
-        { id: "l2", email: "b@example.test", first_name: "B", last_name: null, stage: "new", score: 80, score_band: "hot", tags: [], last_activity_at: null, created_at: "2026-08-01T10:00:00.000Z" },
-        { id: "l3", email: "c@example.test", first_name: "C", last_name: null, stage: "won", score: 50, score_band: "hot", tags: [], last_activity_at: null, created_at: "2026-08-01T10:00:00.000Z" },
+        {
+          id: "l1",
+          email: "a@example.test",
+          first_name: "A",
+          last_name: null,
+          stage: "new",
+          score: 10,
+          score_band: "cold",
+          tags: [],
+          last_activity_at: null,
+          created_at: "2026-08-01T10:00:00.000Z",
+        },
+        {
+          id: "l2",
+          email: "b@example.test",
+          first_name: "B",
+          last_name: null,
+          stage: "new",
+          score: 80,
+          score_band: "hot",
+          tags: [],
+          last_activity_at: null,
+          created_at: "2026-08-01T10:00:00.000Z",
+        },
+        {
+          id: "l3",
+          email: "c@example.test",
+          first_name: "C",
+          last_name: null,
+          stage: "won",
+          score: 50,
+          score_band: "hot",
+          tags: [],
+          last_activity_at: null,
+          created_at: "2026-08-01T10:00:00.000Z",
+        },
       ],
     };
     await mountCard("?tab=analytics");
@@ -850,9 +901,36 @@ describe("karta firmy", () => {
   it("feed aktywności rozróżnia notatkę, nowego leada i inne zdarzenie", async () => {
     h.company = { company: company(), profiles: [], leads: [] };
     h.activity = [
-      { id: "a1", kind: "note", action: "crm.company.note", created_at: "2026-08-06T10:00:00.000Z", actor_id: "u1", lead_id: null, lead_label: null, body: "Notatka wewnętrzna" },
-      { id: "a2", kind: "lead_created", action: "crm.lead.created", created_at: "2026-08-05T10:00:00.000Z", actor_id: null, lead_id: "l1", lead_label: "Anna Kowalska", body: null },
-      { id: "a3", kind: "other", action: "crm.company.updated", created_at: "2026-08-04T10:00:00.000Z", actor_id: "u1", lead_id: null, lead_label: null, body: null },
+      {
+        id: "a1",
+        kind: "note",
+        action: "crm.company.note",
+        created_at: "2026-08-06T10:00:00.000Z",
+        actor_id: "u1",
+        lead_id: null,
+        lead_label: null,
+        body: "Notatka wewnętrzna",
+      },
+      {
+        id: "a2",
+        kind: "lead_created",
+        action: "crm.lead.created",
+        created_at: "2026-08-05T10:00:00.000Z",
+        actor_id: null,
+        lead_id: "l1",
+        lead_label: "Anna Kowalska",
+        body: null,
+      },
+      {
+        id: "a3",
+        kind: "other",
+        action: "crm.company.updated",
+        created_at: "2026-08-04T10:00:00.000Z",
+        actor_id: "u1",
+        lead_id: null,
+        lead_label: null,
+        body: null,
+      },
     ];
     await mountCard("?tab=activity");
     expect(await screen.findByText("Notatka")).toBeInTheDocument();
@@ -863,9 +941,18 @@ describe("karta firmy", () => {
   it("członkostwo B2B pokazuje organizację z warstwą i miejscami", async () => {
     h.company = { company: company(), profiles: [], leads: [] };
     h.memberOrgs = [
-      { id: "org-1", name: "Acme Group", tier_key: "pro", status: "active", seats_limit: 25, expires_at: null },
+      {
+        id: "org-1",
+        name: "Acme Group",
+        tier_key: "pro",
+        status: "active",
+        seats_limit: 25,
+        expires_at: null,
+      },
     ];
-    h.tiers = [{ key: "pro", rank: 30, name_pl: "Pro", name_en: "Pro", is_default: false, active: true }];
+    h.tiers = [
+      { key: "pro", rank: 30, name_pl: "Pro", name_en: "Pro", is_default: false, active: true },
+    ];
     await mountCard();
     expect(await screen.findByText("Acme Group")).toBeInTheDocument();
     expect(screen.getByText(/miejsca/)).toBeInTheDocument();
@@ -874,9 +961,7 @@ describe("karta firmy", () => {
   it("brak organizacji członkowskiej jest powiedziany wprost", async () => {
     h.company = { company: company(), profiles: [], leads: [] };
     await mountCard();
-    expect(
-      await screen.findByText("Firma nie ma organizacji członkowskiej."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Firma nie ma organizacji członkowskiej.")).toBeInTheDocument();
   });
 
   it("szybka akcja „Dodaj kontakt” prowadzi na listę z identyfikatorem firmy", async () => {
@@ -891,7 +976,18 @@ describe("karta firmy", () => {
       company: company(),
       profiles: [],
       leads: [
-        { id: LEAD_ID, email: "anna@example.test", first_name: "Anna", last_name: "Kowalska", stage: "new", score: 40, score_band: "warm", tags: [], last_activity_at: null, created_at: "2026-08-01T10:00:00.000Z" },
+        {
+          id: LEAD_ID,
+          email: "anna@example.test",
+          first_name: "Anna",
+          last_name: "Kowalska",
+          stage: "new",
+          score: 40,
+          score_band: "warm",
+          tags: [],
+          last_activity_at: null,
+          created_at: "2026-08-01T10:00:00.000Z",
+        },
       ],
     };
     const view = await mountCard();
@@ -943,7 +1039,11 @@ describe("karta firmy", () => {
   });
 
   it("usunięcie logo zapisuje pustą wartość", async () => {
-    h.company = { company: company({ logo_url: "https://cdn.test/logo.png" }), profiles: [], leads: [] };
+    h.company = {
+      company: company({ logo_url: "https://cdn.test/logo.png" }),
+      profiles: [],
+      leads: [],
+    };
     await mountCard();
     fireEvent.click(await screen.findByLabelText("Usuń logo"));
     await waitFor(() => expect(h.updated).toHaveLength(1));
