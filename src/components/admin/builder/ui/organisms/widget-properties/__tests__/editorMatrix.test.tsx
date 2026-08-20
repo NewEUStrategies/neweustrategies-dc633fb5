@@ -670,6 +670,68 @@ describe("edytory treści - pozycje bez pól opcjonalnych", () => {
   });
 });
 
+describe("edytory treści - wartości FAŁSZYWE, ale poprawne", () => {
+  // Najczęstszy prawdziwy błąd w tej warstwie: `Number(x) || 12`
+  // i `value ?? ""`. Zero i pusty łańcuch są POPRAWNYMI wartościami, a taki
+  // zapis podmienia je na wartość domyślną - redaktor ustawia odstęp 0 px
+  // i dostaje 12 px, kasuje kolor i dostaje stary. Ten przejazd wpisuje
+  // wszędzie zero i pustkę i pilnuje, żeby nic nie wyciekło do panelu ani do
+  // dokumentu jako `undefined`.
+  it.each(CONTENT_EDITORS)("%s: zero i pustka nie psują panelu", (name, Editor) => {
+    const { container, written } = renderEditor(Editor, RICH_CONTENT);
+    const toggles = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    );
+    for (const toggle of toggles) fireEvent.click(toggle);
+    const fields = Array.from(
+      container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
+    );
+    for (const field of fields) {
+      if (field instanceof HTMLInputElement && field.type === "file") continue;
+      if (
+        field instanceof HTMLInputElement &&
+        (field.type === "checkbox" || field.type === "radio")
+      ) {
+        continue;
+      }
+      const next = field instanceof HTMLInputElement && field.type === "number" ? "0" : "";
+      fireEvent.change(field, { target: { value: next } });
+      assertNoLeak(
+        container,
+        `${name} (po wyzerowaniu ${field.getAttribute("placeholder") ?? ""})`,
+      );
+    }
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+
+  it.each(CONTENT_EDITORS)("%s: zero i pustka na pozycjach bez pól", (name, Editor) => {
+    const { container, written } = renderEditor(Editor, BARE_CONTENT);
+    const toggles = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    );
+    for (const toggle of toggles) fireEvent.click(toggle);
+    for (const field of container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+      "input, textarea",
+    )) {
+      if (field instanceof HTMLInputElement && field.type === "file") continue;
+      if (
+        field instanceof HTMLInputElement &&
+        (field.type === "checkbox" || field.type === "radio")
+      ) {
+        continue;
+      }
+      const next = field instanceof HTMLInputElement && field.type === "number" ? "0" : "";
+      fireEvent.change(field, { target: { value: next } });
+    }
+    assertNoLeak(container, name);
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+});
+
 describe("edytory treści - sekcje zwinięte", () => {
   // `PostListEditor` i `RatedListEditor` grupują ustawienia w sekcjach
   // ZWINIĘTYCH domyślnie - i to jest zamierzone (panel nie odpytuje bazy
