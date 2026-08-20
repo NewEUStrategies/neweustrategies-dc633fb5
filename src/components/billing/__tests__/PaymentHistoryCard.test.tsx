@@ -21,6 +21,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import {
   billingDocument,
+  isoPast,
   membershipGrant,
   moneyPattern,
   paymentOrder,
@@ -146,17 +147,41 @@ describe("PaymentHistoryCard - pusta i niepusta historia", () => {
     expect(screen.queryByText("PLN")).toBeNull();
   });
 
+  // DATY MUSZĄ BYĆ JAWNE I RÓŻNE. `mergePaymentHistory` sortuje MALEJĄCO po
+  // `issued_at`, a `limit` bierze wycinek Z GÓRY - więc o tym, który dokument
+  // wypada z widoku, decyduje data. Domyślne `isoPast(1)` z fixture'a liczy
+  // `Date.now()` przy KAŻDYM wywołaniu: gdy trzy wywołania zmieszczą się w tej
+  // samej milisekundzie, sort jest stabilny i wypada FV/3, ale gdy przekroczą
+  // granicę milisekundy (wolniejszy host, instrumentacja coverage, runner CI),
+  // najnowszy staje się FV/3 i to ON zostaje w wycinku. Test padał wtedy na
+  // asercji niżej - nie z powodu błędu w `limit`, tylko z powodu zegara.
   it("`limit` skraca WIDOK do zadanej liczby wierszy", async () => {
     h.docs.current = [
-      billingDocument({ id: "d1", provider_document_id: "in_1", number: "FV/1" }),
-      billingDocument({ id: "d2", provider_document_id: "in_2", number: "FV/2" }),
-      billingDocument({ id: "d3", provider_document_id: "in_3", number: "FV/3" }),
+      billingDocument({
+        id: "d1",
+        provider_document_id: "in_1",
+        number: "FV/1",
+        issued_at: isoPast(1),
+      }),
+      billingDocument({
+        id: "d2",
+        provider_document_id: "in_2",
+        number: "FV/2",
+        issued_at: isoPast(2),
+      }),
+      billingDocument({
+        id: "d3",
+        provider_document_id: "in_3",
+        number: "FV/3",
+        issued_at: isoPast(3),
+      }),
     ];
     renderCard({ limit: 2 });
 
     await awaitRows();
     // Wiersz nagłówka + dwa wiersze danych.
     expect(screen.getAllByRole("row")).toHaveLength(3);
+    // FV/3 jest NAJSTARSZY, więc przy sortowaniu malejącym wypada jako pierwszy.
     expect(screen.queryByText("FV/3")).toBeNull();
   });
 
