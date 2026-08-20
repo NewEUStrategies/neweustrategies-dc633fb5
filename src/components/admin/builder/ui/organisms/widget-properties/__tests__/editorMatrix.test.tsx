@@ -95,6 +95,15 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => {
 /** Wyciek, którego nie wolno pokazać redakcji w polu formularza. */
 const LEAKS = ["undefined", "NaN", "[object Object]"];
 
+/**
+ * Jawny limit czasu dla najdroższych przejazdów. Przy oprawie ze stanem każdy
+ * znak przerysowuje cały edytor, a pod PEŁNĄ suitą (osiem procesów na tym
+ * samym CPU) najbogatsze edytory przekraczały domyślne 5 s. Wydłużenie limitu
+ * jest tu właściwe, bo to te przejazdy niosą pokrycie walidacji i pól
+ * zależnych - skrócenie ich oddałoby pokrycie za zieloną liczbę w logu.
+ */
+const SLOW_SWEEP_TIMEOUT_MS = 30_000;
+
 function assertNoLeak(root: HTMLElement, label: string): void {
   const text = root.textContent ?? "";
   for (const leak of LEAKS) {
@@ -698,19 +707,23 @@ describe("edytory treści - pozycje bez pól opcjonalnych", () => {
     }
   });
 
-  it.each(CONTENT_EDITORS)("%s: przyciski wierszy bez pól nie psują treści", (name, Editor) => {
-    const { container, written } = renderEditor(Editor, BARE_CONTENT);
-    for (let i = 0; i < 60; i += 1) {
-      const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
-      if (i >= buttons.length) break;
-      fireEvent.click(buttons[i]);
-      assertNoLeak(container, `${name} (po kliknięciu ${i})`);
-    }
-    for (const [key, value] of written) {
-      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
-      expect(() => JSON.stringify(value)).not.toThrow();
-    }
-  });
+  it.each(CONTENT_EDITORS)(
+    "%s: przyciski wierszy bez pól nie psują treści",
+    (name, Editor) => {
+      const { container, written } = renderEditor(Editor, BARE_CONTENT);
+      for (let i = 0; i < 60; i += 1) {
+        const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
+        if (i >= buttons.length) break;
+        fireEvent.click(buttons[i]);
+        assertNoLeak(container, `${name} (po kliknięciu ${i})`);
+      }
+      for (const [key, value] of written) {
+        expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+        expect(() => JSON.stringify(value)).not.toThrow();
+      }
+    },
+    SLOW_SWEEP_TIMEOUT_MS,
+  );
 });
 
 describe("edytory treści - wartości FAŁSZYWE, ale poprawne", () => {
@@ -816,90 +829,102 @@ describe("edytory treści - przejazd ze stanem", () => {
   // więc tutaj jest pominięty ŚWIADOMIE, a nie przez przypadek.
   const STATEFUL_EDITORS = CONTENT_EDITORS.filter(([name]) => name !== "InteractiveCircleEditor");
 
-  it.each(STATEFUL_EDITORS)("%s: zły wpis pokazuje błąd i nie psuje panelu", (name, Editor) => {
-    const { container, written } = renderStateful(Editor, RICH_CONTENT);
-    for (const toggle of Array.from(
-      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
-    )) {
-      fireEvent.click(toggle);
-    }
-    // Limit pól na przejazd: przy stanie każdy znak przerysowuje cały edytor,
-    // a najbogatsze z nich mają ponad sto pól - bez limitu jeden test biegnie
-    // dłużej niż cała reszta pliku.
-    const fields = Array.from(
-      container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
-    ).slice(0, FIELD_LIMIT);
-    for (const field of fields) {
-      if (field instanceof HTMLInputElement && field.type === "file") continue;
-      if (
-        field instanceof HTMLInputElement &&
-        (field.type === "checkbox" || field.type === "radio")
-      ) {
-        continue;
+  it.each(STATEFUL_EDITORS)(
+    "%s: zły wpis pokazuje błąd i nie psuje panelu",
+    (name, Editor) => {
+      const { container, written } = renderStateful(Editor, RICH_CONTENT);
+      for (const toggle of Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+      )) {
+        fireEvent.click(toggle);
       }
-      const isNumber = field instanceof HTMLInputElement && field.type === "number";
-      fireEvent.change(field, { target: { value: isNumber ? "-9" : BAD_TEXT } });
-    }
-    // Kontrola wycieku RAZ po całej rundzie: sprawdzanie po każdym znaku daje
-    // koszt kwadratowy i przy edytorach o stu polach test przestaje się kończyć.
-    assertNoLeak(container, `${name} (zły wpis)`);
-    for (const [key, value] of written) {
-      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
-    }
-  });
+      // Limit pól na przejazd: przy stanie każdy znak przerysowuje cały edytor,
+      // a najbogatsze z nich mają ponad sto pól - bez limitu jeden test biegnie
+      // dłużej niż cała reszta pliku.
+      const fields = Array.from(
+        container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
+      ).slice(0, FIELD_LIMIT);
+      for (const field of fields) {
+        if (field instanceof HTMLInputElement && field.type === "file") continue;
+        if (
+          field instanceof HTMLInputElement &&
+          (field.type === "checkbox" || field.type === "radio")
+        ) {
+          continue;
+        }
+        const isNumber = field instanceof HTMLInputElement && field.type === "number";
+        fireEvent.change(field, { target: { value: isNumber ? "-9" : BAD_TEXT } });
+      }
+      // Kontrola wycieku RAZ po całej rundzie: sprawdzanie po każdym znaku daje
+      // koszt kwadratowy i przy edytorach o stu polach test przestaje się kończyć.
+      assertNoLeak(container, `${name} (zły wpis)`);
+      for (const [key, value] of written) {
+        expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+      }
+    },
+    SLOW_SWEEP_TIMEOUT_MS,
+  );
 
-  it.each(STATEFUL_EDITORS)("%s: zero i pustka ze stanem", (name, Editor) => {
-    const { container, written } = renderStateful(Editor, RICH_CONTENT);
-    for (const toggle of Array.from(
-      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
-    )) {
-      fireEvent.click(toggle);
-    }
-    for (const field of Array.from(
-      container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
-    ).slice(0, FIELD_LIMIT)) {
-      if (field instanceof HTMLInputElement && field.type === "file") continue;
-      if (
-        field instanceof HTMLInputElement &&
-        (field.type === "checkbox" || field.type === "radio")
-      ) {
-        fireEvent.click(field);
-        continue;
+  it.each(STATEFUL_EDITORS)(
+    "%s: zero i pustka ze stanem",
+    (name, Editor) => {
+      const { container, written } = renderStateful(Editor, RICH_CONTENT);
+      for (const toggle of Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+      )) {
+        fireEvent.click(toggle);
       }
-      const isNumber = field instanceof HTMLInputElement && field.type === "number";
-      // NAJPIERW wartość, POTEM pustka - w tej kolejności obie strony
-      // `Number(x) || domyślne` i `v ?? ""` idą przez handler w jednym
-      // przejeździe, a pola zależne od wartości zdążą się pojawić.
-      fireEvent.change(field, { target: { value: isNumber ? "24" : "wartość" } });
-      fireEvent.change(field, { target: { value: isNumber ? "0" : "" } });
-    }
-    assertNoLeak(container, `${name} (zero i pustka)`);
-    for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
-      const options = Array.from(select.querySelectorAll("option"));
-      if (options.length > 1) fireEvent.change(select, { target: { value: options[1].value } });
-    }
-    assertNoLeak(container, `${name} (po zmianie listy)`);
-    for (const [key, value] of written) {
-      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
-    }
-  });
+      for (const field of Array.from(
+        container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
+      ).slice(0, FIELD_LIMIT)) {
+        if (field instanceof HTMLInputElement && field.type === "file") continue;
+        if (
+          field instanceof HTMLInputElement &&
+          (field.type === "checkbox" || field.type === "radio")
+        ) {
+          fireEvent.click(field);
+          continue;
+        }
+        const isNumber = field instanceof HTMLInputElement && field.type === "number";
+        // NAJPIERW wartość, POTEM pustka - w tej kolejności obie strony
+        // `Number(x) || domyślne` i `v ?? ""` idą przez handler w jednym
+        // przejeździe, a pola zależne od wartości zdążą się pojawić.
+        fireEvent.change(field, { target: { value: isNumber ? "24" : "wartość" } });
+        fireEvent.change(field, { target: { value: isNumber ? "0" : "" } });
+      }
+      assertNoLeak(container, `${name} (zero i pustka)`);
+      for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+        const options = Array.from(select.querySelectorAll("option"));
+        if (options.length > 1) fireEvent.change(select, { target: { value: options[1].value } });
+      }
+      assertNoLeak(container, `${name} (po zmianie listy)`);
+      for (const [key, value] of written) {
+        expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+      }
+    },
+    SLOW_SWEEP_TIMEOUT_MS,
+  );
 
-  it.each(STATEFUL_EDITORS)("%s: operacje na liście działają po kolei", (name, Editor) => {
-    const { container, written } = renderStateful(Editor, RICH_CONTENT);
-    // Dodaj, potem przenieś, potem usuń - każda operacja na WYNIKU poprzedniej.
-    for (let round = 0; round < 3; round += 1) {
-      const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
-      for (const button of buttons.slice(0, 12)) {
-        if (!button.isConnected || button.disabled) continue;
-        fireEvent.click(button);
+  it.each(STATEFUL_EDITORS)(
+    "%s: operacje na liście działają po kolei",
+    (name, Editor) => {
+      const { container, written } = renderStateful(Editor, RICH_CONTENT);
+      // Dodaj, potem przenieś, potem usuń - każda operacja na WYNIKU poprzedniej.
+      for (let round = 0; round < 3; round += 1) {
+        const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
+        for (const button of buttons.slice(0, 12)) {
+          if (!button.isConnected || button.disabled) continue;
+          fireEvent.click(button);
+        }
+        assertNoLeak(container, `${name} (runda ${round})`);
       }
-      assertNoLeak(container, `${name} (runda ${round})`);
-    }
-    for (const [key, value] of written) {
-      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
-      expect(() => JSON.stringify(value)).not.toThrow();
-    }
-  });
+      for (const [key, value] of written) {
+        expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+        expect(() => JSON.stringify(value)).not.toThrow();
+      }
+    },
+    SLOW_SWEEP_TIMEOUT_MS,
+  );
 });
 
 describe("edytory treści - baza oddaje PUSTKĘ", () => {

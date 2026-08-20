@@ -1114,5 +1114,7 @@ describe("WidgetProperties - wpisy odrzucane i angielski panel", () => {
       return found;
     }).map((w) => w.type);
     expect(withLeftovers).toEqual(["world-map"]);
-  });
+    // Jawny limit: ten jeden test montuje panel treści dla KAŻDEGO typu
+    // widgetu (ponad sto renderów). Pod pełną suitą przekraczał domyślne 5 s.
+  }, 30_000);
 });
