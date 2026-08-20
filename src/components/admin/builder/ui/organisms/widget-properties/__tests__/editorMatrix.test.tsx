@@ -895,6 +895,60 @@ describe("edytory treści - przejazd ze stanem", () => {
   });
 });
 
+describe("edytory treści - baza oddaje PUSTKĘ", () => {
+  // Wiele edytorów podpowiada dane z bazy (autorzy, strony, wpisy, kategorie,
+  // tagi, wydarzenia). PostgREST na pustym wyniku oddaje `data: null`, nie
+  // `[]` - i właśnie dlatego w tych plikach stoi wszędzie `data ?? []`.
+  // Bez tego przejazdu ta straż nie jest ani razu wykonana, a jej brak
+  // oznacza wywalony panel na świeżej instalacji (żadnego wpisu, żadnego
+  // autora), czyli dokładnie u nowego klienta.
+  const TABLES = [
+    "pages",
+    "posts",
+    "profiles",
+    "events",
+    "categories",
+    "tags",
+    "media",
+    "post_categories",
+    "post_tags",
+    "ad_slots",
+    "access_plans",
+  ];
+
+  const withNullData = () => {
+    for (const table of TABLES) db.current.setResponse(table, ok(null));
+  };
+
+  it.each(CONTENT_EDITORS)("%s znosi puste odpowiedzi bazy", (name, Editor) => {
+    withNullData();
+    const { container } = renderEditor(Editor, RICH_CONTENT);
+    for (const toggle of Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    )) {
+      fireEvent.click(toggle);
+    }
+    expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
+    assertNoLeak(container, name);
+  });
+
+  it.each(CONTENT_EDITORS)("%s znosi puste odpowiedzi bazy ze stanem", (name, Editor) => {
+    withNullData();
+    const { container, written } = renderEditor(Editor, BARE_CONTENT);
+    for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+      const options = Array.from(select.querySelectorAll("option"));
+      // PIERWSZA opcja to zwykle wartość-wartownik („wszystkie", „dziedzicz",
+      // „bez zmian"), którą kod zamienia na pusty łańcuch - inna gałąź niż
+      // wybór konkretnej pozycji.
+      if (options.length > 0) fireEvent.change(select, { target: { value: options[0].value } });
+    }
+    assertNoLeak(container, name);
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+});
+
 describe("edytory treści - sekcje zwinięte", () => {
   // `PostListEditor` i `RatedListEditor` grupują ustawienia w sekcjach
   // ZWINIĘTYCH domyślnie - i to jest zamierzone (panel nie odpytuje bazy
