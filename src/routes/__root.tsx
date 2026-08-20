@@ -576,7 +576,6 @@ function RootComponent() {
       stopCacheBusting?.();
       stopPreviewHeartbeat?.();
     };
-
   }, [router]);
 
   // Per-request i18next instance on the server (isolates the render language

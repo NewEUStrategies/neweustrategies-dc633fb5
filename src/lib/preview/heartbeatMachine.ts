@@ -83,7 +83,8 @@ function recoveryAllowed(state: HeartbeatState, atMs: number): boolean {
 export function heartbeatStep(state: HeartbeatState, action: HeartbeatAction): HeartbeatTransition {
   if (action.type === "ok") {
     const recovered = state.phase !== "online" || state.consecutiveFailures > 0;
-    const buildChanged = state.buildId !== null && action.buildId !== null && action.buildId !== state.buildId;
+    const buildChanged =
+      state.buildId !== null && action.buildId !== null && action.buildId !== state.buildId;
     const next: HeartbeatState = {
       phase: "online",
       consecutiveFailures: 0,
@@ -118,7 +119,11 @@ export function heartbeatStep(state: HeartbeatState, action: HeartbeatAction): H
   }
 
   const attempt = state.recoveryAttempts + 1;
-  const next: HeartbeatState = { ...base, recoveryAttempts: attempt, lastRecoveryAtMs: action.atMs };
+  const next: HeartbeatState = {
+    ...base,
+    recoveryAttempts: attempt,
+    lastRecoveryAtMs: action.atMs,
+  };
   // Pierwsza próba jest nieinwazyjna: powłoka podglądu może przebudować
   // iframe sama, bez gubienia stanu aplikacji. Dopiero gdy to nie pomoże,
   // przeładowujemy dokument (stan odtwarzamy ze snapshotu).
