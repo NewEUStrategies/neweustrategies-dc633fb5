@@ -6,14 +6,17 @@
 // które lista już ma (`last_reply_at`, `created_at`), więc pasek nie kosztuje
 // ani jednego dodatkowego zapytania.
 //
-// Świadomie liczymy z ZAŁADOWANEJ strony wątków, nie z całego klubu - to jest
-// obraz tego, co użytkownik widzi pod paskiem, i podpis mówi to wprost.
+// Sam RACHUNEK mieszka w `lib/clubs/activityStrip.ts` - okno, znaczniki czasu
+// z przyszłości i podział na żywe/uśpione to reguła odczytu danych, nie sposób
+// rysowania słupków. Tutaj zostaje wyłącznie widok.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { computeThreadPulse, type ThreadPulseInput } from "@/lib/clubs/threadPulse";
-
-const DAY = 86_400_000;
-const SPAN = 14;
+import {
+  clubActivityBarHeight,
+  computeClubActivity,
+  CLUB_ACTIVITY_SPAN_DAYS,
+} from "@/lib/clubs/activityStrip";
+import type { ThreadPulseInput } from "@/lib/clubs/threadPulse";
 
 export function ClubActivityStrip({
   threads,
@@ -24,32 +27,7 @@ export function ClubActivityStrip({
 }) {
   const { t } = useTranslation();
 
-  const model = useMemo(() => {
-    const now = Date.now();
-    const today = Math.floor(now / DAY);
-    const days = new Array<number>(SPAN).fill(0);
-
-    let live = 0;
-    let dormant = 0;
-    for (const thread of threads) {
-      const stamp = Date.parse(thread.last_reply_at ?? thread.created_at);
-      if (Number.isFinite(stamp)) {
-        const index = SPAN - 1 - (today - Math.floor(stamp / DAY));
-        if (index >= 0 && index < SPAN) days[index] = (days[index] ?? 0) + 1;
-      }
-      const pulse = computeThreadPulse(thread, now);
-      if (pulse.level >= 2) live += 1;
-      if (pulse.level === 0) dormant += 1;
-    }
-
-    return {
-      days,
-      peak: days.reduce((max, value) => Math.max(max, value), 0),
-      week: days.slice(SPAN - 7).reduce((sum, value) => sum + value, 0),
-      live,
-      dormant,
-    };
-  }, [threads]);
+  const model = useMemo(() => computeClubActivity(threads, Date.now()), [threads]);
 
   if (threads.length === 0) return null;
 
@@ -61,15 +39,13 @@ export function ClubActivityStrip({
       <div
         className="flex h-7 items-end gap-[3px]"
         role="img"
-        aria-label={t("club.activity.chartLabel", { days: SPAN })}
+        aria-label={t("club.activity.chartLabel", { days: CLUB_ACTIVITY_SPAN_DAYS })}
       >
         {model.days.map((count, index) => (
           <span
             key={index}
             className={`w-[6px] rounded-[2px] ${count === 0 ? "bg-muted" : "bg-primary/70"}`}
-            style={{
-              height: `${model.peak === 0 ? 12 : Math.max(12, Math.round((count / model.peak) * 100))}%`,
-            }}
+            style={{ height: `${clubActivityBarHeight(count, model.peak)}%` }}
           />
         ))}
       </div>

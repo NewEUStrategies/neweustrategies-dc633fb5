@@ -702,11 +702,14 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
   it("przycisk wysyłki jest ODCINANY na czas rejestracji i zmienia etykietę", async () => {
     // Bez tego podwójne kliknięcie zakłada konto dwa razy, a druga próba
     // wraca błędem „użytkownik istnieje” na koncie, które właśnie powstało.
-    let zwolnij: (() => void) | null = null;
+    // Uchwyt w OBIEKCIE, nie w zmiennej: analiza przepływu TypeScriptu zawęża
+    // `let x = null` do `null` i nie widzi przypisania z wnętrza wykonawcy
+    // obietnicy, więc odczyt przestaje być wywoływalny.
+    const held: { zwolnij: (() => void) | null } = { zwolnij: null };
     h.signUp.mockImplementation(
       () =>
         new Promise((resolve) => {
-          zwolnij = () => resolve({ error: null });
+          held.zwolnij = () => resolve({ error: null });
         }),
     );
     h.enabled = ["email", "password"];
@@ -728,7 +731,7 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
     expect(przycisk.hasAttribute("disabled")).toBe(true);
     wyslij();
     expect(h.signUp).toHaveBeenCalledTimes(1);
-    if (zwolnij !== null) zwolnij();
+    if (held.zwolnij !== null) held.zwolnij();
     await waitFor(() => {
       expect(hasKey("clubGate.sentTitle")).toBe(true);
     });

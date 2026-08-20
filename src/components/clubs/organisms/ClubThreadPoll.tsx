@@ -40,12 +40,18 @@ export function ClubThreadPoll({
   const pollsQ = useQuery(publicPollsQueryOptions());
   const resultsQ = useQuery(pollResultsQueryOptions([pollId], userId));
 
+  // JEDNO miejsce, w którym brak odpowiedzi zamienia się w pustą listę - nad
+  // bramkami stanu, a nie pod nimi. Wcześniej `?? []` stało w wyrażeniu
+  // szukającym ankiety, czyli w gałęzi osiągalnej wyłącznie po odpowiedzi:
+  // fallback nie miał jak się wykonać i nie miał jak zostać sprawdzony.
+  const polls = pollsQ.data ?? [];
+
   if (pollsQ.isError || resultsQ.isError) return <ClubErrorNotice compact />;
   if (pollsQ.isPending) {
     return <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />;
   }
 
-  const poll = (pollsQ.data ?? []).find((row) => row.id === pollId);
+  const poll = polls.find((row) => row.id === pollId);
   // Ankieta zamknięta i usunięta z listy publicznej nie jest błędem - wątek
   // zostaje, głosowanie się skończyło. Mówimy to wprost zamiast rysować pustkę.
   if (!poll) {

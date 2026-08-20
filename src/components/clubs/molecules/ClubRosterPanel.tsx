@@ -37,7 +37,8 @@ import {
   useMyClubExpertise,
   useSetMyClubExpertise,
 } from "@/lib/clubs/useClubNetwork";
-import { hasRosterContent, CLUB_EXPERTISE_MAX } from "@/lib/clubs/networkTypes";
+import { hasRosterContent } from "@/lib/clubs/networkTypes";
+import { isExpertiseDraftFull, toggleExpertiseDraft } from "@/lib/clubs/expertiseDraft";
 import { sortTopics, topicLabel } from "@/lib/clubs/topicCatalog";
 import { formatNumber, uiLang } from "@/lib/i18n/format";
 
@@ -72,16 +73,12 @@ export function ClubExpertiseEditor({
   }, [mineQ.data]);
 
   const options = useMemo(() => sortTopics(topics), [topics]);
-  const atLimit = draft.length >= CLUB_EXPERTISE_MAX;
+  // Limit deklaracji i samo przełączanie stoją w `expertiseDraft` - reguła
+  // z górną granicą ma własną tabelę przypadków, a handler zostaje jednolinijkowy.
+  const atLimit = isExpertiseDraftFull(draft);
 
   const toggle = (key: string): void => {
-    setDraft((current) =>
-      current.includes(key)
-        ? current.filter((entry) => entry !== key)
-        : atLimit
-          ? current
-          : [...current, key],
-    );
+    setDraft((current) => toggleExpertiseDraft(current, key, atLimit));
   };
 
   return (

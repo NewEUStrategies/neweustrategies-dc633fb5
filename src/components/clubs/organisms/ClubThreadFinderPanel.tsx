@@ -28,7 +28,11 @@ export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; la
   const deferred = useDeferredValue(query);
   const search = useClubThreadSearch({ threadId, query: deferred });
 
-  const groups = useMemo(() => groupSearchResults(search.data ?? []), [search.data]);
+  // JEDNO miejsce, w którym brak odpowiedzi zamienia się w pustą listę.
+  // Wcześniej `?? []` stało tu, a `?? 0` drugi raz pod licznikiem wyników -
+  // dwie odpowiedzi na to samo pytanie, które mogły się rozjechać.
+  const rows = useMemo(() => search.data ?? [], [search.data]);
+  const groups = useMemo(() => groupSearchResults(rows), [rows]);
   const tooShort = deferred.trim().length > 0 && deferred.trim().length < 2;
   const hasResults = groups.length > 0;
 
@@ -60,9 +64,7 @@ export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; la
       {/* Wynik ogłaszany grzecznie: `aria-live="polite"` mówi, ile znaleziono,
           bez przerywania pisania. */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {hasResults
-          ? t("club.workspace.search.resultsCount", { count: search.data?.length ?? 0 })
-          : ""}
+        {hasResults ? t("club.workspace.search.resultsCount", { count: rows.length }) : ""}
       </div>
 
       {search.isError ? (

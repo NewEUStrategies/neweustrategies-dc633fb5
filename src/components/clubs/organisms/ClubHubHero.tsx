@@ -199,8 +199,13 @@ function StatCard({
   value: number | string;
   label: string;
   highlight?: boolean;
-  /** Kotwica w katalogu; gdy podana, panel jest realnym linkiem (a nie dekoracją). */
-  href?: string;
+  /**
+   * Kotwica w katalogu - panel jest realnym linkiem, nie dekoracją. WYMAGANA:
+   * wszystkie sześć wywołań w szynie podaje kotwicę, a wariant „panel bez
+   * adresu” nie miał ani jednego wołającego, więc został usunięty razem
+   * z gałęzią, której żaden test nie mógł dosięgnąć.
+   */
+  href: string;
 }) {
   const body = (
     <>
@@ -224,14 +229,6 @@ function StatCard({
     ["--cp-hover-ink" as string]: highlight ? "var(--cp-gold)" : "var(--cp-gold-ink)",
   };
   const shell = "relative flex flex-col justify-between gap-6 overflow-hidden p-5 md:p-7";
-
-  if (href === undefined) {
-    return (
-      <div className={shell} style={surface}>
-        {body}
-      </div>
-    );
-  }
 
   return (
     <a
