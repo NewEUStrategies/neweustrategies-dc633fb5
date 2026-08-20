@@ -27,15 +27,27 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { allSidebarLayoutsQueryOptions } from "@/lib/queries/sidebarLayouts";
 import {
-  DEFAULT_READING_PANEL_SETTINGS,
   SOCIAL_KEYS,
   type ReadingPanelSettings,
   type SidebarLayout,
-  type SidebarWidget,
   type SidebarWidgetType,
   type SocialKey,
   widgetsArraySchema,
 } from "@/lib/sidebarBuilder/types";
+import {
+  addWidget as addWidgetToLayout,
+  deleteWidget as deleteWidgetFromLayout,
+  draftFromLayout,
+  initialSelection,
+  moveWidget as moveWidgetInLayout,
+  newWidget,
+  pickDefaultLayout,
+  resolveReadingPanelSettings,
+  selectionAfterDelete,
+  toggleHidden as toggleHiddenInLayout,
+  updateWidgetSettings,
+  type MoveDirection,
+} from "@/lib/sidebarBuilder/draft";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 
 import { promptDialog } from "@/lib/appDialogs";
@@ -110,20 +122,6 @@ const SOCIAL_LABEL: Record<SocialKey, string> = {
   reddit: "Reddit",
 };
 
-function defaultSettingsFor(type: SidebarWidgetType): Record<string, unknown> {
-  if (type === "reading-panel") return { ...DEFAULT_READING_PANEL_SETTINGS };
-  return {};
-}
-
-function newWidget(type: SidebarWidgetType): SidebarWidget {
-  return {
-    id: crypto.randomUUID(),
-    type,
-    hidden: false,
-    settings: defaultSettingsFor(type),
-  };
-}
-
 export function SidebarBuilderPane() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
@@ -136,14 +134,14 @@ export function SidebarBuilderPane() {
   // Pick default layout when data arrives.
   useEffect(() => {
     if (!layoutsQuery.data || activeId) return;
-    const def = layoutsQuery.data.find((l) => l.is_default) ?? layoutsQuery.data[0];
+    const def = pickDefaultLayout(layoutsQuery.data);
     if (def) setActiveId(def.id);
   }, [layoutsQuery.data, activeId]);
 
   useEffect(() => {
     const found = layoutsQuery.data?.find((l) => l.id === activeId);
-    setDraft(found ? { ...found, widgets: [...found.widgets] } : null);
-    setSelectedWidgetId(found?.widgets[0]?.id ?? null);
+    setDraft(draftFromLayout(found));
+    setSelectedWidgetId(initialSelection(found));
   }, [activeId, layoutsQuery.data]);
 
   const saveMutation = useMutation({
@@ -207,6 +205,11 @@ export function SidebarBuilderPane() {
     [draft, selectedWidgetId],
   );
 
+  // Poniższe funkcje są WYŁĄCZNIE spinaczami: decyzje siedzą w czystym
+  // reduktorze `@/lib/sidebarBuilder/draft`, tutaj zostaje `setState(next)`
+  // i synchronizacja zaznaczenia. Dzięki temu każda reguła („ruch w górę
+  // z pozycji 0 to no-op", „patch częściowy nie gubi pól") ma test tabelaryczny,
+  // a nie test klikający w strzałkę.
   function patchDraft(mut: (d: SidebarLayout) => SidebarLayout) {
     setDraft((d) => (d ? mut(d) : d));
   }
@@ -214,41 +217,25 @@ export function SidebarBuilderPane() {
   function addWidget(type: SidebarWidgetType) {
     if (!draft) return;
     const w = newWidget(type);
-    patchDraft((d) => ({ ...d, widgets: [...d.widgets, w] }));
+    patchDraft((d) => addWidgetToLayout(d, w));
     setSelectedWidgetId(w.id);
   }
 
-  function moveWidget(id: string, dir: -1 | 1) {
-    patchDraft((d) => {
-      const idx = d.widgets.findIndex((w) => w.id === id);
-      if (idx < 0) return d;
-      const next = [...d.widgets];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return d;
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return { ...d, widgets: next };
-    });
+  function moveWidget(id: string, dir: MoveDirection) {
+    patchDraft((d) => moveWidgetInLayout(d, id, dir));
   }
 
   function deleteWidget(id: string) {
-    patchDraft((d) => ({ ...d, widgets: d.widgets.filter((w) => w.id !== id) }));
-    setSelectedWidgetId((cur) => (cur === id ? null : cur));
+    patchDraft((d) => deleteWidgetFromLayout(d, id));
+    setSelectedWidgetId((cur) => selectionAfterDelete(cur, id));
   }
 
   function toggleHidden(id: string) {
-    patchDraft((d) => ({
-      ...d,
-      widgets: d.widgets.map((w) => (w.id === id ? { ...w, hidden: !w.hidden } : w)),
-    }));
+    patchDraft((d) => toggleHiddenInLayout(d, id));
   }
 
   function updateSettings(id: string, partial: Record<string, unknown>) {
-    patchDraft((d) => ({
-      ...d,
-      widgets: d.widgets.map((w) =>
-        w.id === id ? { ...w, settings: { ...w.settings, ...partial } } : w,
-      ),
-    }));
+    patchDraft((d) => updateWidgetSettings(d, id, partial));
   }
 
   return (
@@ -484,16 +471,7 @@ export function SidebarBuilderPane() {
         {selectedWidget?.type === "reading-panel" && (
           <ReadingPanelSettingsForm
             lang={lang}
-            settings={
-              {
-                ...DEFAULT_READING_PANEL_SETTINGS,
-                ...(selectedWidget.settings as Partial<ReadingPanelSettings>),
-                social: {
-                  ...DEFAULT_READING_PANEL_SETTINGS.social,
-                  ...((selectedWidget.settings as Partial<ReadingPanelSettings>)?.social ?? {}),
-                },
-              } as ReadingPanelSettings
-            }
+            settings={resolveReadingPanelSettings(selectedWidget.settings)}
             onChange={(patch) => updateSettings(selectedWidget.id, patch)}
           />
         )}

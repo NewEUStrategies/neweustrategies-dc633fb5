@@ -79,10 +79,19 @@ export default defineConfig({
         // 29,13% funkcji / 37,78% linii (838 plików, 10 475 testów, zielono).
         // Próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła co
         // 2026-08-06. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
-        statements: 33,
-        functions: 25,
-        lines: 33,
-        branches: 28,
+        //
+        // 2026-08-20: RATCHET W GÓRĘ. Pomiar CAŁEGO src/ na tym HEAD (pełna
+        // suita, 1 293 pliki, 29 312 testów zielonych, 24 `it.fails`):
+        // 62,03% instrukcji / 56,37% gałęzi / 58,31% funkcji / 62,93% linii.
+        // Poprzedni próg (33/25/33/28) przepuszczał ~28 pp swobodnego spadku,
+        // czyli nie łapał już żadnej realnej regresji - tylko katastrofę.
+        // Nowy próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama
+        // reguła co wpisy z 2026-08-06 i 2026-08-18.
+        // Zasada bez zmian: ten próg wolno wyłącznie PODNOSIĆ.
+        statements: 58,
+        functions: 54,
+        lines: 58,
+        branches: 52,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
@@ -122,11 +131,86 @@ export default defineConfig({
         // klasyfikacja trybu szerokości, klampy rozmiarów, `unhandledSchemaFields`)
         // i to jest następny krok, nie regresja tego. Zasada bez zmian: ten próg
         // wolno wyłącznie PODNOSIĆ.
+        //
+        // 2026-08-20: RATCHET W GÓRĘ, tym razem faktyczną pracą testową (patrz
+        // seria commitów `test(builder): ...` z tego dnia). Powierzchnia
+        // dostała: oprawę kanwy (upuszczanie, prostokąt zaznaczenia, znaczniki
+        // przeciągania, nakładkę rozmiaru), powłokę `Builder.tsx` (panele,
+        // historia, menu kontekstowe, akcje zbiorcze), panel właściwości
+        // widgetu (pomiary z DOM kanwy, hover per tryb, wymiary), zakładki
+        // sekcji i przejazdy po edytorach treści ze STANEM (walidacja, zero
+        // i pustka, pusta odpowiedź bazy).
+        // ZMIERZONE na tym HEAD (testy tej powierzchni, 3 998 testów):
+        // 96,46% instrukcji / 93,22% gałęzi / 95,03% funkcji / 97,34% linii.
+        // Cel zadania (95% linii, 93% gałęzi, instrukcje >= 95%,
+        // funkcje >= 93%) osiągnięty. Floor = zmierzone minus ~2 pp.
+        // Zasada bez zmian: ten próg wolno wyłącznie PODNOSIĆ.
         "src/components/admin/builder/**": {
-          statements: 27,
-          functions: 16,
-          lines: 28,
-          branches: 26,
+          statements: 94,
+          functions: 93,
+          lines: 95,
+          branches: 91,
+        },
+        // ── SILNIK BLOKÓW (Gutenberg) ────────────────────────────────────────
+        // Rdzeń edytora bloków: schematy, migracje, wklejanie z Worda,
+        // markdown, konwersje. Czyste funkcje - wynik idzie do dokumentu wpisu,
+        // więc błąd tutaj psuje TREŚĆ, nie wygląd.
+        // ZMIERZONE 2026-08-20: 98,15% instrukcji / 93,34% gałęzi /
+        // 99,52% funkcji / 99,41% linii. Floor = zmierzone minus ~2 pp.
+        "src/lib/blocks/**": {
+          statements: 96,
+          functions: 97,
+          lines: 97,
+          branches: 91,
+        },
+        // ── PUBLICZNY RENDER BLOKÓW ──────────────────────────────────────────
+        // To, co widzi czytelnik: 40+ widoków bloków plus dyspozytor rejestru.
+        // ZMIERZONE 2026-08-20: 96,75% instrukcji / 93,03% gałęzi /
+        // 94,57% funkcji / 97,85% linii.
+        "src/components/blocks/**": {
+          statements: 95,
+          functions: 92,
+          lines: 96,
+          branches: 91,
+        },
+        // ── IMPORT WORDPRESS ─────────────────────────────────────────────────
+        // Jednorazowa migracja treści klienta: mapowanie autorów, kategorii,
+        // mediów i bloków. Startowała z 0% (żadnego testu).
+        // ZMIERZONE 2026-08-20: 99,06% instrukcji / 96,84% gałęzi /
+        // 100% funkcji / 99,28% linii.
+        "src/lib/wordpress-import.functions.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 97,
+          branches: 94,
+        },
+        // ── SIDEBAR (reduktor draftu + panel) ────────────────────────────────
+        // Reduktor draftu sidebara i jego panel. Też startowały z 0%.
+        // ZMIERZONE 2026-08-20: reduktor 100/100/100/100,
+        // panel 99,01% instrukcji / 97,05% gałęzi / 100% funkcji / 100% linii.
+        "src/lib/sidebarBuilder/**": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 96,
+        },
+        "src/components/admin/sidebarBuilder/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Warstwa dostępu do wartości pól panelu widgetu, wyprowadzona z
+        // `WidgetProperties.tsx` jako czysty modul (odczyt/zapis szerokości
+        // i wysokości per breakpoint, klasyfikacja trybu, klampy rozmiarów).
+        // To jest dokładnie ten "następny krok", o którym mówił wpis
+        // `src/components/admin/builder/**` z 2026-08-18.
+        // ZMIERZONE 2026-08-20: 100% we wszystkich czterech miarach.
+        "src/lib/builder/widgetPanelValues.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 97,
         },
         // Per-file bars for the newly-guarded public-pipeline modules. Floored a
         // touch below the achieved coverage to catch regressions without being

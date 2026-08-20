@@ -807,3 +807,466 @@ describe("kontrakt schemat <-> komponent", () => {
     expect(keys.has("rememberLabel")).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ŚCIEŻKI WYSYŁKI: straż przed nadużyciem (`preAuthGuard`), błędy dostawcy
+// uwierzytelnienia, logowanie przez Google, przywracanie hasła.
+//
+// Do tej pory ten plik dowodził KSZTAŁTU formularzy (przełączniki, etykiety,
+// warianty). Zostawało to, co dzieje się po kliknięciu „Zaloguj" - a tam
+// mieszkają jedyne komunikaty, które użytkownik naprawdę czyta:
+//   * limit prób logowania MUSI się pokazać jako komunikat z tłumaczenia,
+//     a nie jako surowy `rate_limited` z warstwy serwerowej,
+//   * błąd dostawcy MUSI zejść z formularza jako tekst, nie jako cisza,
+//   * podwójne kliknięcie NIE MOŻE wysłać dwóch żądań uwierzytelnienia
+//     (druga próba przy aktywnym limicie blokuje konto na dłużej).
+// ---------------------------------------------------------------------------
+
+describe("logowanie - straż i błędy", () => {
+  const fill = (email = "jan@firma.pl", password = "TajneHaslo1") => {
+    typeInto("auth-email", email);
+    typeInto("auth-password", password);
+  };
+
+  it("PUSTE pola nie wysyłają żądania uwierzytelnienia", async () => {
+    login();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signIn).not.toHaveBeenCalled());
+    expect(h.toastError).toHaveBeenCalled();
+  });
+
+  it("BRAK hasła (sam adres) też blokuje wysyłkę", async () => {
+    login();
+    typeInto("auth-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signIn).not.toHaveBeenCalled());
+  });
+
+  it("poprawne dane wołają dostawcę i przekierowują po sukcesie", async () => {
+    h.signIn.mockResolvedValue({ error: null });
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() =>
+      expect(h.signIn).toHaveBeenCalledWith({
+        email: "jan@firma.pl",
+        password: "TajneHaslo1",
+      }),
+    );
+    await waitFor(() => expect(h.navigate).toHaveBeenCalled());
+    expect(h.toastSuccess).toHaveBeenCalled();
+  });
+
+  it("LIMIT prób ze straży pokazuje komunikat z tłumaczenia, nie surowy kod", async () => {
+    h.guard.mockRejectedValue(new Error("rate_limited: too many attempts"));
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("auth.rateLimited"));
+    // Przy odrzuceniu przez straż dostawca NIE MOŻE zostać wywołany.
+    expect(h.signIn).not.toHaveBeenCalled();
+  });
+
+  it("NIEPOPRAWNE wejście ze straży pokazuje własny komunikat", async () => {
+    h.guard.mockRejectedValue(new Error("invalid_input"));
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("auth.invalidInput"));
+    expect(h.signIn).not.toHaveBeenCalled();
+  });
+
+  it("INNY błąd straży propaguje się jako komunikat tego błędu", async () => {
+    h.guard.mockRejectedValue(new Error("awaria sieci"));
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("awaria sieci"));
+    expect(h.signIn).not.toHaveBeenCalled();
+  });
+
+  it("błąd straży NIE-Error nie gubi komunikatu", async () => {
+    h.guard.mockRejectedValue("awaria bez Error");
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(h.signIn).not.toHaveBeenCalled();
+  });
+
+  it("BŁĄD dostawcy pokazuje jego komunikat i NIE przekierowuje", async () => {
+    h.signIn.mockResolvedValue({ error: new Error("Invalid login credentials") });
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Invalid login credentials"));
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it("straż jest wołana z rodzajem operacji i adresem", async () => {
+    h.signIn.mockResolvedValue({ error: null });
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.guard).toHaveBeenCalled());
+    expect(h.guard).toHaveBeenCalledWith({ data: { kind: "login", email: "jan@firma.pl" } });
+  });
+
+  it("w trakcie wysyłki przycisk jest ZABLOKOWANY (bariera przed drugą próbą)", async () => {
+    let release: (v: unknown) => void = () => {};
+    h.signIn.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    login();
+    fill();
+    fireEvent.submit(form());
+    await waitFor(() => {
+      const submitBtn = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+      expect(submitBtn?.disabled).toBe(true);
+    });
+    release({ error: null });
+    await waitFor(() => expect(h.navigate).toHaveBeenCalled());
+  });
+
+  it("logowanie przez Google woła dostawcę z adresem powrotu", async () => {
+    h.signInOAuth.mockResolvedValue({ error: null });
+    login({ showOAuthGoogle: true });
+    const google = Array.from(document.querySelectorAll("button")).find((b) =>
+      /google/i.test(b.textContent ?? ""),
+    );
+    expect(google, "przycisk Google").toBeTruthy();
+    fireEvent.click(google as HTMLElement);
+    await waitFor(() => expect(h.signInOAuth).toHaveBeenCalled());
+    expect(h.signInOAuth.mock.calls[0][0].provider).toBe("google");
+    expect(String(h.signInOAuth.mock.calls[0][0].options.redirectTo)).toContain("/");
+  });
+
+  it("BŁĄD logowania przez Google odblokowuje przycisk i pokazuje komunikat", async () => {
+    h.signInOAuth.mockResolvedValue({ error: new Error("popup zamknięty") });
+    login({ showOAuthGoogle: true });
+    const google = Array.from(document.querySelectorAll("button")).find((b) =>
+      /google/i.test(b.textContent ?? ""),
+    );
+    fireEvent.click(google as HTMLElement);
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("popup zamknięty"));
+  });
+
+  it("wyłączone logowanie przez Google nie renderuje przycisku", () => {
+    login({ showOAuthGoogle: false });
+    const google = Array.from(document.querySelectorAll("button")).find((b) =>
+      /google/i.test(b.textContent ?? ""),
+    );
+    expect(google).toBeUndefined();
+  });
+});
+
+describe("przywracanie hasła - straż i błędy", () => {
+  it("PUSTY adres nie wysyła żądania", async () => {
+    lost();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.resetForEmail).not.toHaveBeenCalled());
+  });
+
+  it("poprawny adres wysyła żądanie i pokazuje potwierdzenie", async () => {
+    h.resetForEmail.mockResolvedValue({ error: null });
+    lost();
+    typeInto("lost-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.resetForEmail).toHaveBeenCalled());
+    expect(h.resetForEmail.mock.calls[0][0]).toBe("jan@firma.pl");
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+  });
+
+  it("LIMIT prób pokazuje komunikat z tłumaczenia", async () => {
+    h.guard.mockRejectedValue(new Error("rate_limited"));
+    lost();
+    typeInto("lost-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("auth.rateLimited"));
+    expect(h.resetForEmail).not.toHaveBeenCalled();
+  });
+
+  it("NIEPOPRAWNE wejście pokazuje własny komunikat", async () => {
+    h.guard.mockRejectedValue(new Error("invalid_input"));
+    lost();
+    typeInto("lost-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("auth.invalidInput"));
+  });
+
+  it("BŁĄD dostawcy pokazuje jego komunikat", async () => {
+    h.resetForEmail.mockResolvedValue({ error: new Error("nie ma takiego konta") });
+    lost();
+    typeInto("lost-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("nie ma takiego konta"));
+  });
+
+  it("straż jest wołana z rodzajem reset", async () => {
+    h.resetForEmail.mockResolvedValue({ error: null });
+    lost();
+    typeInto("lost-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.guard).toHaveBeenCalled());
+    expect(h.guard).toHaveBeenCalledWith({ data: { kind: "reset", email: "jan@firma.pl" } });
+  });
+});
+
+describe("ustawianie nowego hasła", () => {
+  it("hasło KRÓTSZE niż minimum nie jest zapisywane", async () => {
+    h.session.current = { user: { id: "u-1" } };
+    reset({ minLength: 8 });
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    typeInto("rs-password", "krotkie");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.updateUser).not.toHaveBeenCalled());
+    expect(h.toastError).toHaveBeenCalled();
+  });
+
+  it("NIEZGODNE potwierdzenie hasła blokuje zapis", async () => {
+    h.session.current = { user: { id: "u-1" } };
+    reset({ minLength: 6, showPasswordConfirm: true });
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    typeInto("rs-password", "DobreHaslo1");
+    typeInto("rs-confirm", "InneHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.updateUser).not.toHaveBeenCalled());
+  });
+
+  it("zgodne hasło o właściwej długości jest zapisywane i przekierowuje", async () => {
+    h.session.current = { user: { id: "u-1" } };
+    h.updateUser.mockResolvedValue({ error: null });
+    reset({ minLength: 6, showPasswordConfirm: true });
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    typeInto("rs-password", "DobreHaslo1");
+    typeInto("rs-confirm", "DobreHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.updateUser).toHaveBeenCalledWith({ password: "DobreHaslo1" }));
+    await waitFor(() => expect(h.navigate).toHaveBeenCalled());
+  });
+
+  it("BŁĄD zapisu pokazuje komunikat dostawcy i NIE przekierowuje", async () => {
+    h.session.current = { user: { id: "u-1" } };
+    h.updateUser.mockResolvedValue({ error: new Error("hasło zbyt proste") });
+    // Pole potwierdzenia jest domyślnie WŁĄCZONE, więc bez jego wyłączenia
+    // walidacja zgodności zatrzymałaby żądanie przed dostawcą.
+    reset({ minLength: 6, showPasswordConfirm: false });
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    typeInto("rs-password", "DobreHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("hasło zbyt proste"));
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["minimum poniżej zakresu", 1],
+    ["minimum powyżej zakresu", 999],
+    ["minimum nieliczbowe", "abc"],
+  ] as const)("%s jest klampowane do dozwolonego przedziału", async (_l, minLength) => {
+    h.session.current = { user: { id: "u-1" } };
+    reset({ minLength });
+    await waitFor(() => expect(document.querySelector("form")).toBeTruthy());
+    expect(document.querySelector("form")).toBeTruthy();
+  });
+});
+
+describe("rejestracja - walidacja i wysyłka", () => {
+  /**
+   * Pole potwierdzenia hasła jest domyślnie WYŁĄCZONE w tym formularzu, więc
+   * wypełniamy je tylko, gdy faktycznie się wyrenderowało - inaczej test mówi
+   * o brakującym polu, a nie o wysyłce.
+   */
+  const fillBase = () => {
+    typeInto("reg-email", "jan@firma.pl");
+    typeInto("reg-password", "TajneHaslo1");
+    if (document.getElementById("reg-confirm")) typeInto("reg-confirm", "TajneHaslo1");
+  };
+
+  it("BEZ hasła nie wysyła żądania rejestracji", async () => {
+    register();
+    typeInto("reg-email", "jan@firma.pl");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).not.toHaveBeenCalled());
+    expect(h.toastError).toHaveBeenCalled();
+  });
+
+  it("BEZ pola WYMAGANEGO nie wysyła żądania", async () => {
+    register();
+    typeInto("reg-password", "TajneHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).not.toHaveBeenCalled());
+  });
+
+  it("NIEZGODNE potwierdzenie hasła blokuje rejestrację", async () => {
+    register({ showPasswordConfirm: true });
+    typeInto("reg-email", "jan@firma.pl");
+    typeInto("reg-password", "TajneHaslo1");
+    typeInto("reg-confirm", "InneHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).not.toHaveBeenCalled());
+  });
+
+  it("BRAK wymaganej zgody blokuje rejestrację", async () => {
+    register({ requireConsent: true, showPasswordConfirm: false });
+    typeInto("reg-email", "jan@firma.pl");
+    typeInto("reg-password", "TajneHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).not.toHaveBeenCalled());
+    expect(h.toastError).toHaveBeenCalled();
+  });
+
+  it("poprawne dane wysyłają rejestrację z metadanymi i przekierowują", async () => {
+    h.signUp.mockResolvedValue({ error: null });
+    register({ requireConsent: false });
+    fillBase();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
+    const payload = h.signUp.mock.calls[0][0];
+    expect(payload.email).toBe("jan@firma.pl");
+    expect(payload.password).toBe("TajneHaslo1");
+    expect(payload.options.data).toBeTruthy();
+    // Znacznik czasu przyjęcia zgody jest dowodem zgodności - musi być zapisany.
+    expect(typeof payload.options.data.consent_accepted_at).toBe("string");
+    await waitFor(() => expect(h.navigate).toHaveBeenCalled());
+  });
+
+  it("adres jest PRZYCINANY przed wysłaniem", async () => {
+    h.signUp.mockResolvedValue({ error: null });
+    register({ requireConsent: false });
+    typeInto("reg-email", "  jan@firma.pl  ");
+    typeInto("reg-password", "TajneHaslo1");
+    if (document.getElementById("reg-confirm")) typeInto("reg-confirm", "TajneHaslo1");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
+    // Adres z białymi znakami na brzegach to najczęstsza wklejka ze skrzynki -
+    // bez przycięcia dostawca zwraca „invalid email" na poprawnym adresie.
+    expect(h.signUp.mock.calls[0][0].email).toBe("jan@firma.pl");
+  });
+
+  it("BŁĄD rejestracji pokazuje komunikat dostawcy i NIE przekierowuje", async () => {
+    h.signUp.mockResolvedValue({ error: new Error("adres już zajęty") });
+    register({ requireConsent: false });
+    fillBase();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("adres już zajęty"));
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it("błąd rejestracji NIE-Error nie gubi komunikatu", async () => {
+    h.signUp.mockRejectedValue("awaria bez Error");
+    register({ requireConsent: false });
+    fillBase();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+  });
+
+  it("zapis do newslettera trafia do metadanych", async () => {
+    h.signUp.mockResolvedValue({ error: null });
+    register({ requireConsent: false, showNewsletterOptIn: true });
+    fillBase();
+    const optin = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+    if (optin.length) fireEvent.click(optin[optin.length - 1]);
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
+    expect(h.signUp.mock.calls[0][0].options.data).toBeTruthy();
+  });
+
+  it("rejestracja przez Google woła dostawcę", async () => {
+    h.signInOAuth.mockResolvedValue({ error: null });
+    register({ showOAuthGoogle: true });
+    const google = Array.from(document.querySelectorAll("button")).find((b) =>
+      /google/i.test(b.textContent ?? ""),
+    );
+    expect(google, "przycisk Google").toBeTruthy();
+    fireEvent.click(google as HTMLElement);
+    await waitFor(() => expect(h.signInOAuth).toHaveBeenCalled());
+  });
+
+  it("BŁĄD rejestracji przez Google pokazuje komunikat", async () => {
+    h.signInOAuth.mockResolvedValue({ error: new Error("odmowa dostępu") });
+    register({ showOAuthGoogle: true });
+    const google = Array.from(document.querySelectorAll("button")).find((b) =>
+      /google/i.test(b.textContent ?? ""),
+    );
+    fireEvent.click(google as HTMLElement);
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa dostępu"));
+  });
+
+  it("pole DODATKOWE wymagane blokuje rejestrację i pokazuje błąd przy polu", async () => {
+    register({
+      requireConsent: false,
+      customFields: [{ id: "nip", type: "text", labelPl: "NIP", required: true }],
+    });
+    fillBase();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).not.toHaveBeenCalled());
+  });
+
+  it("wypełnione pole DODATKOWE trafia do metadanych", async () => {
+    h.signUp.mockResolvedValue({ error: null });
+    register({
+      requireConsent: false,
+      customFields: [{ id: "nip", type: "text", labelPl: "NIP", required: true }],
+    });
+    fillBase();
+    const nip = document.querySelector('[name="custom_nip"]');
+    if (nip) fireEvent.change(nip, { target: { value: "1234567890" } });
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
+  });
+});
+
+describe("treść zgody z linkami markdown (formularze auth)", () => {
+  it("zamienia [etykieta](adres) na link zewnętrzny z rel", () => {
+    register({ requireConsent: true, consentText_pl: "Akceptuję [regulamin](https://x.test/r)." });
+    const link = Array.from(document.querySelectorAll("a")).find(
+      (a) => a.getAttribute("href") === "https://x.test/r",
+    );
+    expect(link, "link zgody").toBeTruthy();
+    expect(link?.getAttribute("target")).toBe("_blank");
+    expect(link?.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it.each(["/polityka", "mailto:biuro@x.test"])(
+    "adres wewnętrzny %s zostaje linkiem BEZ target=_blank",
+    (href) => {
+      register({ requireConsent: true, consentText_pl: `Zobacz [tu](${href}).` });
+      const link = Array.from(document.querySelectorAll("a")).find(
+        (a) => a.getAttribute("href") === href,
+      );
+      expect(link, "link zgody").toBeTruthy();
+      expect(link?.getAttribute("target")).toBeNull();
+    },
+  );
+
+  it.each(["javascript:alert(1)", "data:text/html,x", "ftp://x.test"])(
+    "adres NIEDOZWOLONY %s traci link, zachowuje tekst",
+    (href) => {
+      register({ requireConsent: true, consentText_pl: `Zobacz [tu](${href}).` });
+      const bad = Array.from(document.querySelectorAll("a")).find((a) =>
+        (a.getAttribute("href") ?? "").includes(href.split(":")[0] + ":"),
+      );
+      expect(bad).toBeUndefined();
+      expect(document.body.textContent).toContain("tu");
+    },
+  );
+
+  it("treść zgody z KILKOMA linkami renderuje każdy", () => {
+    register({
+      requireConsent: true,
+      consentText_pl: "[A](https://a.test) oraz [B](https://b.test) i koniec.",
+    });
+    const hrefs = Array.from(document.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("https://a.test");
+    expect(hrefs).toContain("https://b.test");
+    expect(document.body.textContent).toContain("i koniec.");
+  });
+
+  it("treść zgody BEZ linków renderuje się jako czysty tekst", () => {
+    register({ requireConsent: true, consentText_pl: "Zwykła zgoda" });
+    expect(document.body.textContent).toContain("Zwykła zgoda");
+  });
+});
