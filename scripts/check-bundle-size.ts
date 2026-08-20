@@ -594,8 +594,6 @@ const CLIENT_DIR =
 //             (2544,7 przy florze 2545), największy chunk się nie ruszył, cała
 //             delta siedzi w kodzie admin-only.
 
-
-
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -623,7 +621,9 @@ const FROZEN_BUDGET_KB = {
   // bramka padła na `3892.0 KB > 3892 KB` - komunikat wyglądał jak sprzeczność
   // sam ze sobą. Floor stawiany z WYDRUKU musi więc być o 1 KB wyżej od
   // wydrukowanej wartości, albo trzeba czytać liczbę bez zaokrąglenia.
-  overall: 3893,
+  // Ratchet 3893 -> 3894 (wpis 2026-08-20 V): pomiar hosta 3893,7 przy zdeterminizowanej
+  // instalacji (--frozen-lockfile), plus 1 KB wyłącznie na granicę zaokrąglenia.
+  overall: 3894,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
