@@ -38,12 +38,39 @@ vi.mock("@/components/ui/switch", async () => {
   const { radixSwitchStub } = await import("@/test/reactStubs");
   return radixSwitchStub(React);
 });
+// Sesja jest sterowana z testu: wysyłka pliku ma trzy różne wyniki w
+// zależności od tego, kto (i czy w ogóle) jest zalogowany.
+const auth = vi.hoisted(() => ({
+  session: { user: { id: "u-1" } } as { user: { id: string } } | null,
+  error: null as { message: string } | null,
+}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (table: string) => db.current.from(table),
     // Wysyłka pliku czyta sesję (identyfikator autora wysyłki idzie do audytu).
-    auth: { getSession: async () => ({ data: { session: { user: { id: "u-1" } } }, error: null }) },
+    auth: { getSession: async () => ({ data: { session: auth.session }, error: auth.error }) },
   },
+}));
+// Biblioteka mediów ma własny test (wyszukiwanie, paginacja, podgląd) - tutaj
+// liczy się tylko to, że slot przyjmuje wybrany z niej adres.
+vi.mock("@/components/admin/media/MediaPickerDialog", () => ({
+  MediaPickerDialog: ({
+    open,
+    onPick,
+  }: {
+    open: boolean;
+    onPick: (url: string) => void;
+    onOpenChange: (v: boolean) => void;
+    title: string;
+  }) =>
+    open ? (
+      <button
+        type="button"
+        data-testid="wybierz-z-biblioteki"
+        onClick={() => onPick("https://cdn.test/z-biblioteki.png")}
+      />
+    ) : null,
 }));
 vi.mock("@tanstack/react-start", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -94,6 +121,12 @@ beforeEach(() => {
     ok([{ id: "p1", slug: "o-nas", title_pl: "O nas", title_en: "About" }]),
   );
   uploadMedia.mockClear();
+  uploadMedia.mockImplementation(async () => ({
+    publicUrl: "https://cdn.test/wyslany.png",
+    mediaId: "m-1",
+  }));
+  auth.session = { user: { id: "u-1" } };
+  auth.error = null;
 });
 
 const LINK_COLUMN = {
@@ -495,5 +528,153 @@ describe("ImageSlot - adres i wysyłka", () => {
     fireEvent.change(file, { target: { files: [big] } });
     await waitFor(() => expect(uploadMedia).not.toHaveBeenCalled());
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("ImageSlot - walidacja adresu i ścieżki błędu wysyłki", () => {
+  function renderSlot(value = "", maxSizeMb?: number) {
+    const onChange = vi.fn();
+    const view = renderWithQueryClient(
+      <ImageSlot
+        label="Zdjęcie"
+        icon={<span data-testid="ikona-slotu" />}
+        value={value}
+        onChange={onChange}
+        {...(maxSizeMb === undefined ? {} : { maxSizeMb })}
+      />,
+    );
+    return { ...view, onChange };
+  }
+
+  const urlInput = (): HTMLInputElement => {
+    const input = document.querySelector<HTMLInputElement>('input[type="text"], input:not([type])');
+    if (!input) throw new Error("test: brak pola adresu");
+    return input;
+  };
+  const fileInput = (container: HTMLElement): HTMLInputElement => {
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error("test: brak pola pliku");
+    return input;
+  };
+
+  it.each([
+    ["adres bez protokołu", "cdn.test/a.png", "builder.imageSlot.urlInvalid"],
+    ["zły protokół", "ftp://cdn.test/a.png", "builder.imageSlot.urlProtocol"],
+  ])("%s jest zgłoszony jako błąd", (_label, value, key) => {
+    const { container } = renderSlot(value);
+    // Adres wpisany ręcznie trafia wprost do atrybutu `src` na stronie -
+    // niepoprawny nie da żadnego obrazka, a redakcja nie wie dlaczego.
+    expect(container.textContent).toContain(key);
+    expect(urlInput().getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it.each([
+    ["obraz w treści strony (data:)", "data:image/png;base64,AAA"],
+    ["adres względny w projekcie", "/media/a.png"],
+    ["pełny adres https", "https://cdn.test/a.png"],
+    ["pusty adres", ""],
+  ])("%s jest przyjęty bez błędu", (_label, value) => {
+    const { container } = renderSlot(value);
+    expect(container.textContent).not.toContain("builder.imageSlot.urlInvalid");
+    expect(container.textContent).not.toContain("builder.imageSlot.urlProtocol");
+    expect(urlInput().getAttribute("aria-invalid")).toBeNull();
+  });
+
+  it("krzyżyk czyści adres, a pojawia się tylko gdy jest co czyścić", () => {
+    const puste = renderSlot();
+    expect(screen.queryByTitle("builder.common.delete")).toBeNull();
+    puste.unmount();
+    const { onChange } = renderSlot("https://cdn.test/a.png");
+    fireEvent.click(screen.getByTitle("builder.common.delete"));
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("adres z biblioteki mediów wchodzi do dokumentu", () => {
+    const { onChange } = renderSlot();
+    fireEvent.click(screen.getByText("builder.imageSlot.mediaLibrary"));
+    fireEvent.click(screen.getByTestId("wybierz-z-biblioteki"));
+    expect(onChange).toHaveBeenCalledWith("https://cdn.test/z-biblioteki.png");
+  });
+
+  it("plik o niedozwolonym typie nie jest wysyłany", async () => {
+    const { container } = renderSlot();
+    const svg = new File(["<svg/>"], "logo.svg", { type: "image/svg+xml" });
+    fireEvent.change(fileInput(container), { target: { files: [svg] } });
+    // SVG jest odrzucany świadomie: bucket jest publiczny i serwuje bajty,
+    // więc osadzony `<script>` wykonałby się w kontekście domeny.
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.badType"));
+    expect(uploadMedia).not.toHaveBeenCalled();
+  });
+
+  it("plik bez rozpoznanego typu jest opisany jako nieznany", async () => {
+    const { container } = renderSlot();
+    const dziwny = new File(["x"], "plik.bin", { type: "" });
+    fireEvent.change(fileInput(container), { target: { files: [dziwny] } });
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.unknownType"));
+  });
+
+  it("brak zalogowanego użytkownika przerywa wysyłkę z komunikatem", async () => {
+    auth.session = null;
+    const { container } = renderSlot();
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    fireEvent.change(fileInput(container), { target: { files: [png] } });
+    // Identyfikator autora wysyłki idzie do audytu mediów - bez sesji nie ma
+    // czego zapisać, więc wysyłka musi się zatrzymać PRZED storage.
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.uploadError"));
+    expect(uploadMedia).not.toHaveBeenCalled();
+  });
+
+  it("błąd odczytu sesji jest pokazany, a nie zignorowany", async () => {
+    auth.error = { message: "sesja wygasła" };
+    const { container } = renderSlot();
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    fireEvent.change(fileInput(container), { target: { files: [png] } });
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.uploadError"));
+    expect(uploadMedia).not.toHaveBeenCalled();
+  });
+
+  it("odrzucona wysyłka pokazuje komunikat i zwalnia przycisk", async () => {
+    uploadMedia.mockImplementation(async () => {
+      throw new Error("magazyn odrzucił plik");
+    });
+    const { container } = renderSlot();
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    fireEvent.change(fileInput(container), { target: { files: [png] } });
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.uploadError"));
+    // Po nieudanej wysyłce przycisk musi wrócić do stanu klikalnego - inaczej
+    // redakcja nie może spróbować ponownie bez przeładowania panelu.
+    await waitFor(() =>
+      expect(screen.getByText("builder.imageSlot.uploadFile").closest("button")).not.toBeDisabled(),
+    );
+  });
+
+  it("wpisanie adresu gasi poprzedni błąd wysyłki", async () => {
+    uploadMedia.mockImplementation(async () => {
+      throw new Error("magazyn odrzucił plik");
+    });
+    const { container, onChange } = renderSlot();
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    fireEvent.change(fileInput(container), { target: { files: [png] } });
+    await waitFor(() => expect(container.textContent).toContain("builder.imageSlot.uploadError"));
+    fireEvent.change(urlInput(), { target: { value: "https://cdn.test/b.png" } });
+    expect(onChange).toHaveBeenLastCalledWith("https://cdn.test/b.png");
+    expect(container.textContent).not.toContain("builder.imageSlot.uploadError");
+  });
+
+  it("podpowiedź ustępuje komunikatowi błędu", () => {
+    const { container } = renderSlot("ftp://cdn.test/a.png");
+    const onChange = vi.fn();
+    const zHintem = renderWithQueryClient(
+      <ImageSlot
+        label="Zdjęcie"
+        icon={<span />}
+        value="https://cdn.test/a.png"
+        onChange={onChange}
+        hint="16:9"
+      />,
+    );
+    // Dwa napisy w jednym miejscu byłyby nieczytelne: błąd wypiera podpowiedź.
+    expect(container.textContent).toContain("builder.imageSlot.urlProtocol");
+    expect(zHintem.container.textContent).toContain("16:9");
   });
 });

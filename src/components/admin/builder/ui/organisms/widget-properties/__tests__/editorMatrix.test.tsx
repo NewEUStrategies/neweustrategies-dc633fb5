@@ -864,6 +864,10 @@ describe("edytory treści - przejazd ze stanem", () => {
         continue;
       }
       const isNumber = field instanceof HTMLInputElement && field.type === "number";
+      // NAJPIERW wartość, POTEM pustka - w tej kolejności obie strony
+      // `Number(x) || domyślne` i `v ?? ""` idą przez handler w jednym
+      // przejeździe, a pola zależne od wartości zdążą się pojawić.
+      fireEvent.change(field, { target: { value: isNumber ? "24" : "wartość" } });
       fireEvent.change(field, { target: { value: isNumber ? "0" : "" } });
     }
     assertNoLeak(container, `${name} (zero i pustka)`);
