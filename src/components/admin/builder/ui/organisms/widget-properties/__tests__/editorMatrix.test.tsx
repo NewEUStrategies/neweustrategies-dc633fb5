@@ -542,6 +542,100 @@ describe("edytory treści - drugi zestaw wartości wyliczeniowych", () => {
   );
 });
 
+/**
+ * Nakładki na pełną treść, każda przestawiająca JEDNĄ decyzję, od której
+ * edytory uzależniają zestaw pól: źródło danych, wariant prezentacji, tryb
+ * animacji, rodzaj pozycji menu. Klucze są wspólne dla wielu edytorów (każdy
+ * czyta swój), więc jedna nakładka odsłania gałęzie w kilku plikach naraz.
+ */
+const VARIANT_OVERLAYS: ReadonlyArray<readonly [string, WidgetNode["content"]]> = [
+  ["źródło: katalog ekspertów", { source: "directory" }],
+  ["źródło: prelegenci wydarzenia", { source: "event", eventId: "ev-1" }],
+  ["źródło: dynamiczne", { source: "dynamic" }],
+  ["źródło: wpisy", { source: "posts" }],
+  ["źródło: eksperci", { source: "experts" }],
+  ["wariant: ranking", { variant: "ranked" }],
+  ["wariant: numerowany", { variant: "numbered" }],
+  ["wariant: wielokartowy", { variant: "multi-card" }],
+  ["wariant: minimalny", { variant: "minimal" }],
+  ["tryb: rotacja", { mode: "rotate" }],
+  ["tryb: podkreślenie na hover", { mode: "hover-underline", shape: "underline" }],
+  ["tryb: obwódka na hover", { mode: "hover-allsides", shape: "underline" }],
+  ["tryb: własna data", { mode: "custom", targetAt: "2026-12-31T23:59:00Z" }],
+  ["doładowanie: przewijanie", { pagination: "scroll", loadMode: "scroll" }],
+  ["doładowanie: przycisk", { pagination: "loadmore", loadMode: "loadmore" }],
+  [
+    "pozycje menu konta we wszystkich rodzajach",
+    {
+      items: [
+        { id: "i1", kind: "preset", preset: "profile", label_pl: "Profil", label_en: "Profile" },
+        { id: "i2", kind: "page", slug: "o-nas", label_pl: "O nas", label_en: "About" },
+        { id: "i3", kind: "custom", href: "/x", label_pl: "Własny", label_en: "Custom" },
+        { id: "i4", kind: "separator" },
+        { id: "i5", kind: "logout", label_pl: "Wyloguj", label_en: "Log out" },
+      ],
+      section: "user",
+    },
+  ],
+  ["etykieta sekcji: kolor marki", { tone: "brand", labelTone: "brand" }],
+  ["etykieta sekcji: kolor neutralny", { tone: "neutral", labelTone: "neutral" }],
+  ["indeks po lewej, wyśrodkowany", { indexSide: "left", indexVAlign: "middle", indexSizePx: 120 }],
+  ["indeks na dole", { indexSide: "right", indexVAlign: "bottom" }],
+];
+
+describe("edytory treści - sekcje zwinięte", () => {
+  // `PostListEditor` i `RatedListEditor` grupują ustawienia w sekcjach
+  // ZWINIĘTYCH domyślnie - i to jest zamierzone (panel nie odpytuje bazy
+  // o wszystko na wejściu). Skutek dla testu: bez otwarcia sekcji połowa pól
+  // tych edytorów nie istnieje w DOM. Tabela otwiera więc KAŻDĄ sekcję
+  // i dopiero wtedy sprawdza kontrolki w środku.
+  it.each(CONTENT_EDITORS)("%s: otwarcie wszystkich sekcji odsłania pola", (name, Editor) => {
+    const { container, written } = renderEditor(Editor, RICH_CONTENT);
+    const toggles = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    );
+    for (const toggle of toggles) fireEvent.click(toggle);
+    assertNoLeak(container, `${name} (sekcje otwarte)`);
+    for (const field of container.querySelectorAll<HTMLInputElement>("input, textarea")) {
+      if (field.type === "file") continue;
+      if (field.type === "checkbox" || field.type === "radio") {
+        fireEvent.click(field);
+        continue;
+      }
+      fireEvent.change(field, { target: { value: field.type === "number" ? "5" : "wartość" } });
+    }
+    for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+      const options = Array.from(select.querySelectorAll("option"));
+      if (options.length > 1) fireEvent.change(select, { target: { value: options[1].value } });
+    }
+    assertNoLeak(container, `${name} (po edycji w sekcjach)`);
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+});
+
+describe("edytory treści - nakładki decyzji", () => {
+  const cases = CONTENT_EDITORS.flatMap(([name, Editor]) =>
+    VARIANT_OVERLAYS.map(([label, overlay]) => [`${name} / ${label}`, Editor, overlay] as const),
+  );
+
+  it.each(cases)("%s", (label, Editor, overlay) => {
+    const { container, written } = renderEditor(Editor, { ...RICH_CONTENT, ...overlay });
+    expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
+    assertNoLeak(container, label);
+    for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+      const options = Array.from(select.querySelectorAll("option"));
+      if (options.length > 1)
+        fireEvent.change(select, { target: { value: options.at(-1)!.value } });
+    }
+    assertNoLeak(container, `${label} (po zmianie list)`);
+    for (const [key, value] of written) {
+      expect(value, `${label}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+});
+
 describe("edytory treści - podglądy pomocnicze", () => {
   it("podgląd prezentacji wpisu renderuje się dla pustej i uszkodzonej treści", () => {
     const first = renderWithQueryClient(<DisplayLivePreview c={{}} lang="pl" />);
