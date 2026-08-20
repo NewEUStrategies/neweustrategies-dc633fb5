@@ -259,6 +259,104 @@ const RICH_CONTENT: WidgetNode["content"] = {
   regions: [{ code: "PL", value: 10 }],
 };
 
+/**
+ * Ta sama pełna treść, ale z DRUGIM zestawem wartości wyliczeniowych i ze
+ * WSZYSTKIMI przełącznikami wyłączonymi. Edytory zmieniają zestaw widocznych
+ * pól w zależności od trybu (`mode`), rodzaju kolumny (`kind`), układu
+ * (`layout`) czy źródła danych (`source`) - bez drugiego przejazdu połowa tych
+ * gałęzi nie jest w ogóle renderowana, a to w nich mieszkają pola, które
+ * redaktor faktycznie wypełnia.
+ */
+const RICH_ALT: WidgetNode["content"] = {
+  ...RICH_CONTENT,
+  columns: [{ ...RICH_ITEM, kind: "category", categorySlug: "gospodarka", postCount: 4 }],
+  tiers: [
+    {
+      id: "tier-1",
+      name_pl: "Główni",
+      name_en: "Main",
+      size: "lg",
+      sponsors: [
+        {
+          id: "s-1",
+          name: "Alfa",
+          logo: "https://cdn.test/alfa.png",
+          url: "https://alfa.test",
+          description_pl: "Opis",
+          description_en: "Description",
+        },
+      ],
+    },
+  ],
+  mode: "custom",
+  layout: "showcase",
+  variant: "minimal",
+  source: "manual",
+  kind: "category",
+  size: "lg",
+  align: "center",
+  tag: "h3",
+  shape: "circle",
+  splitBy: "words",
+  staggerFrom: "center",
+  width: "fixed",
+  widthPx: 1200,
+  maxWidthPx: 900,
+  heightPx: 400,
+  panelWidth: 720,
+  panelRadius: 12,
+  triggerOn: "click",
+  tabAlign: "end",
+  orderBy: "views",
+  uniqueOnPage: true,
+  targetAt: "2026-12-31T23:59:00Z",
+  hostUserId: "u-1",
+  slug: "o-nas",
+  accentColor: "#ff8800",
+  bgColor: "#101010",
+  pointColor: "#ff0000",
+  lineColor: "#00ff00",
+  dotColor: "#0000ff",
+  color: "#123456",
+  src: "https://cdn.test/a.png",
+  srcDark: "https://cdn.test/b.png",
+  alt_pl: "Opis obrazka",
+  alt_en: "Image alt",
+  speedSeconds: 30,
+  intervalMs: 4000,
+  rotationInterval: 3000,
+  autoPlayInterval: 5000,
+  transitionMs: 400,
+  durationMs: 600,
+  duration: 5,
+  delayMs: 120,
+  staggerDurationMs: 80,
+  // Wszystkie przełączniki JAWNIE wyłączone - domyślnie są włączone
+  // (`!== false`), więc dopiero to przechodzi ich drugą gałąź.
+  allowHostManage: false,
+  auto: false,
+  autoplay: false,
+  autoPlay: false,
+  enableAnimations: false,
+  fadeEdges: false,
+  grayscale: false,
+  loop: false,
+  openProfile: false,
+  pauseOnHover: false,
+  showAction: false,
+  showArrows: false,
+  showAttendees: false,
+  showCountdown: false,
+  showCounter: false,
+  showDayTabs: false,
+  showDesc: false,
+  showDots: false,
+  showHost: false,
+  showLocation: false,
+  showSeconds: false,
+  showAuthor: false,
+};
+
 function renderEditor(Editor: ContentEditor, c: WidgetNode["content"], lang: "pl" | "en" = "pl") {
   const written: Array<[string, Json]> = [];
   const view = renderWithQueryClient(
@@ -393,6 +491,48 @@ describe("edytory treści - treść pełna", () => {
       for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
         const options = Array.from(select.querySelectorAll("option"));
         if (options.length > 1) fireEvent.change(select, { target: { value: options[1].value } });
+      }
+      assertNoLeak(container, name);
+      for (const [key, value] of written) {
+        expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+      }
+    },
+  );
+});
+
+describe("edytory treści - drugi zestaw wartości wyliczeniowych", () => {
+  it.each(CONTENT_EDITORS)("%s renderuje się w trybie alternatywnym", (name, Editor) => {
+    const { container } = renderEditor(Editor, RICH_ALT);
+    expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
+    assertNoLeak(container, name);
+  });
+
+  it.each(CONTENT_EDITORS)("%s w trybie alternatywnym po angielsku", (name, Editor) => {
+    const { container } = renderEditor(Editor, RICH_ALT, "en");
+    assertNoLeak(container, name);
+  });
+
+  it.each(CONTENT_EDITORS)(
+    "%s w trybie alternatywnym: wszystkie kontrolki zapisują wartości zdefiniowane",
+    (name, Editor) => {
+      const { container, written } = renderEditor(Editor, RICH_ALT);
+      for (let i = 0; i < 80; i += 1) {
+        const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
+        if (i >= buttons.length) break;
+        fireEvent.click(buttons[i]);
+      }
+      for (const field of container.querySelectorAll<HTMLInputElement>("input, textarea")) {
+        if (field.type === "file") continue;
+        if (field.type === "checkbox" || field.type === "radio") {
+          fireEvent.click(field);
+          continue;
+        }
+        fireEvent.change(field, { target: { value: field.type === "number" ? "7" : "tekst" } });
+      }
+      for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+        const options = Array.from(select.querySelectorAll("option"));
+        if (options.length > 1)
+          fireEvent.change(select, { target: { value: options.at(-1)!.value } });
       }
       assertNoLeak(container, name);
       for (const [key, value] of written) {
