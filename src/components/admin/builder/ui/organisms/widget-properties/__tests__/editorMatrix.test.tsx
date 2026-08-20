@@ -553,6 +553,12 @@ const VARIANT_OVERLAYS: ReadonlyArray<readonly [string, WidgetNode["content"]]> 
   ["źródło: katalog ekspertów", { source: "directory" }],
   ["źródło: prelegenci wydarzenia", { source: "event", eventId: "ev-1" }],
   ["źródło: dynamiczne", { source: "dynamic" }],
+  [
+    "źródło: katalog planów",
+    { source: "plans", planInterval: "month", tierKeysCsv: "plus,pro", planLimit: 3 },
+  ],
+  ["źródło: ręczne", { source: "manual" }],
+  ["przełączniki harmonogramu wyłączone", { showDayTabs: false, openProfile: false }],
   ["źródło: wpisy", { source: "posts" }],
   ["źródło: eksperci", { source: "experts" }],
   ["wariant: ranking", { variant: "ranked" }],
@@ -583,6 +589,86 @@ const VARIANT_OVERLAYS: ReadonlyArray<readonly [string, WidgetNode["content"]]> 
   ["indeks po lewej, wyśrodkowany", { indexSide: "left", indexVAlign: "middle", indexSizePx: 120 }],
   ["indeks na dole", { indexSide: "right", indexVAlign: "bottom" }],
 ];
+
+/**
+ * Pozycje list ISTNIEJĄ, ale nie mają ani jednego pola opcjonalnego - tylko
+ * identyfikator. To jest realny stan dokumentu: redakcja klika "dodaj", a pola
+ * wypełnia później (albo nigdy). Dla testu ta treść jest ważna z innego
+ * powodu: wiersz pozycji renderuje się w całości, więc KAŻDA wartość domyślna
+ * (`x ?? ""`, `?? 0`, `?? "auto"`) idzie ścieżką braku - a w pełnej treści
+ * wszystkie te gałęzie brane są od drugiej strony.
+ */
+const BARE_LIST_KEYS = [
+  "items",
+  "columns",
+  "connections",
+  "entries",
+  "logos",
+  "plans",
+  "speakers",
+  "tabs",
+  "days",
+  "sessions",
+  "tiers",
+  "regions",
+  "slides",
+  "features",
+  "links",
+  "socials",
+] as const;
+
+const BARE_CONTENT: WidgetNode["content"] = Object.fromEntries(
+  BARE_LIST_KEYS.map((key) => [key, [{ id: `${key}-1` }, { id: `${key}-2` }]]),
+);
+
+describe("edytory treści - pozycje bez pól opcjonalnych", () => {
+  it.each(CONTENT_EDITORS)("%s renderuje wiersze samych identyfikatorów", (name, Editor) => {
+    const { container } = renderEditor(Editor, BARE_CONTENT);
+    expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
+    // Puste pole nie może pokazać się redakcji jako „undefined" ani „NaN".
+    assertNoLeak(container, name);
+  });
+
+  it.each(CONTENT_EDITORS)("%s: wiersze bez pól są edytowalne", (name, Editor) => {
+    const { container, written } = renderEditor(Editor, BARE_CONTENT);
+    const toggles = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    );
+    for (const toggle of toggles) fireEvent.click(toggle);
+    for (const field of container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+      "input, textarea",
+    )) {
+      if (field.type === "file") continue;
+      if (field.type === "checkbox" || field.type === "radio") {
+        fireEvent.click(field);
+        continue;
+      }
+      fireEvent.change(field, { target: { value: field.type === "number" ? "7" : "wartość" } });
+    }
+    for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+      const options = Array.from(select.querySelectorAll("option"));
+      if (options.length > 1) fireEvent.change(select, { target: { value: options[1].value } });
+    }
+    assertNoLeak(container, `${name} (po edycji pustych wierszy)`);
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+
+  it.each(CONTENT_EDITORS)("%s: przyciski wierszy bez pól nie psują treści", (name, Editor) => {
+    const { container, written } = renderEditor(Editor, BARE_CONTENT);
+    for (let i = 0; i < 60; i += 1) {
+      const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
+      if (i >= buttons.length) break;
+      fireEvent.click(buttons[i]);
+      assertNoLeak(container, `${name} (po kliknięciu ${i})`);
+    }
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+      expect(() => JSON.stringify(value)).not.toThrow();
+    }
+  });
+});
 
 describe("edytory treści - sekcje zwinięte", () => {
   // `PostListEditor` i `RatedListEditor` grupują ustawienia w sekcjach
@@ -631,6 +717,31 @@ describe("edytory treści - nakładki decyzji", () => {
         fireEvent.change(select, { target: { value: options.at(-1)!.value } });
     }
     assertNoLeak(container, `${label} (po zmianie list)`);
+    for (const [key, value] of written) {
+      expect(value, `${label}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+});
+
+/**
+ * Nakładki ŹRÓDŁA DANYCH po angielsku. Panele źródeł (katalog ekspertów,
+ * prelegenci wydarzenia, katalog planów, dane dynamiczne) mają etykiety
+ * wpisane wprost jako `lang === "pl" ? ... : ...`, a nie przez słownik - więc
+ * druga strona każdego z tych warunków nie wykonuje się w polskim przejeździe.
+ * Odwrócony warunek pokazywałby polski tekst w angielskim panelu i nikt by
+ * tego nie zauważył.
+ */
+const SOURCE_OVERLAYS = VARIANT_OVERLAYS.filter(([label]) => label.startsWith("źródło"));
+
+describe("edytory treści - panele źródeł po angielsku", () => {
+  const cases = CONTENT_EDITORS.flatMap(([name, Editor]) =>
+    SOURCE_OVERLAYS.map(([label, overlay]) => [`${name} / ${label}`, Editor, overlay] as const),
+  );
+
+  it.each(cases)("%s", (label, Editor, overlay) => {
+    const { container, written } = renderEditor(Editor, { ...RICH_CONTENT, ...overlay }, "en");
+    expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
+    assertNoLeak(container, label);
     for (const [key, value] of written) {
       expect(value, `${label}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
     }
