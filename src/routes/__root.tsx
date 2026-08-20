@@ -555,12 +555,28 @@ function RootComponent() {
       });
     }, 3000);
 
+    // Heartbeat sesji podglądu: iframe podglądu potrafi stracić połączenie z
+    // sandboxem (uśpienie, przebudowa po merge, restart dev servera) i zostaje
+    // biały aż do ręcznego „Reload preview". Ten moduł wykrywa milczenie pulsu
+    // > 30 s, sam prosi powłokę o wznowienie, a w ostateczności przeładowuje
+    // dokument z odtworzeniem trasy i pozycji scrolla. Poza kontekstem podglądu
+    // (produkcyjna domena, nie w iframie) nie startuje w ogóle.
+    let stopPreviewHeartbeat: (() => void) | undefined;
+    const cancelHeartbeatIdle = whenIdle(() => {
+      void import("../lib/preview/sessionHeartbeat").then((m) => {
+        stopPreviewHeartbeat = m.startPreviewHeartbeat(router);
+      });
+    }, 3000);
+
     return () => {
       unsub();
       cancelCacheBustingIdle();
+      cancelHeartbeatIdle();
       stopWatchdog?.();
       stopCacheBusting?.();
+      stopPreviewHeartbeat?.();
     };
+
   }, [router]);
 
   // Per-request i18next instance on the server (isolates the render language
