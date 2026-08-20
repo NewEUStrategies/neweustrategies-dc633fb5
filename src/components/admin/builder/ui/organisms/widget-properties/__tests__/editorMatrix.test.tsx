@@ -597,8 +597,11 @@ const VARIANT_OVERLAYS: ReadonlyArray<readonly [string, WidgetNode["content"]]> 
       // JSON-a albo po imporcie.
       const badItem: Record<string, Json> = {
         id: "bad-1",
+        // Adres poprawny jako URL, ale bez rozszerzenia obrazu - osobna
+        // gałąź walidacji niż adres, który nie jest URL-em wcale.
+        photoAlt: "https://neweu.test/zdjecie-bez-rozszerzenia",
         name: "Zła pozycja",
-        photo: "nie-adres",
+        photo: "https://neweu.test/zdjecie-bez-rozszerzenia",
         image: "https://neweu.test/bez-rozszerzenia",
         url: "javascript:alert(1)",
         href: "gdzieś",
