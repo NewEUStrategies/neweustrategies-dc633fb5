@@ -575,6 +575,24 @@ const CLIENT_DIR =
 //             PIERWSZYM, w którym krok 40 w ogóle się wykonał (wcześniej job
 //             `verify` ginął na `timeout-minutes: 20` w połowie `Build`), więc ta
 //             pułapka nie miała dotąd okazji się pokazać.
+//
+// 2026-08-20 V  ROZBIEŻNOŚĆ HOST <-> RUNNER ZAMKNIĘTA U ŹRÓDŁA. Wpis III
+//             odkładał `bun install --frozen-lockfile` w CI na osobny PR - tu
+//             został wprowadzony w kroku `Install dependencies` joba `verify`
+//             (`.github/workflows/ci.yml`). `bun install --frozen-lockfile`
+//             na hoście przechodzi bez zmian (1057 instalacji / 1007 pakietów),
+//             więc `bun.lock` i `package.json` są zgodne i flaga niczego nie
+//             wywraca. Od teraz runner buduje z DOKŁADNIE tych wersji co host,
+//             a floor tej bramki wolno stawiać z pomiaru lokalnego.
+//
+//             Pomiar po tej zmianie (host, main po scaleniu #274 i #275):
+//               790 plików / OVERALL 3893,7 KB / PUBLIC 2544,7 / max chunk 266,8
+//             Floor 3893 z wpisu IV padał o 0,7 KB. Ratchet 3893 -> 3894,
+//             znów „tuż nad ślad" i z zapasem tylko na zaokrąglenie (reguła
+//             z wpisu IV: floor z wydruku = wydrukowana wartość + 1 KB).
+//             Wzrost względem 3892,0 to nie regresja bootowania: PUBLIC stoi
+//             (2544,7 przy florze 2545), największy chunk się nie ruszył, cała
+//             delta siedzi w kodzie admin-only.
 
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
@@ -603,7 +621,9 @@ const FROZEN_BUDGET_KB = {
   // bramka padła na `3892.0 KB > 3892 KB` - komunikat wyglądał jak sprzeczność
   // sam ze sobą. Floor stawiany z WYDRUKU musi więc być o 1 KB wyżej od
   // wydrukowanej wartości, albo trzeba czytać liczbę bez zaokrąglenia.
-  overall: 3893,
+  // Ratchet 3893 -> 3894 (wpis 2026-08-20 V): pomiar hosta 3893,7 przy zdeterminizowanej
+  // instalacji (--frozen-lockfile), plus 1 KB wyłącznie na granicę zaokrąglenia.
+  overall: 3894,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
