@@ -20,17 +20,21 @@ import { WidgetLibrary } from "../WidgetLibrary";
 
 const templates = vi.hoisted(() => ({
   items: [] as Array<{ id: string; name: string; data: unknown; created_at: string }>,
+  loading: false,
   update: vi.fn(async () => undefined),
   remove: vi.fn(async () => undefined),
 }));
 const globals = vi.hoisted(() => ({
   items: [] as Array<{ id: string; name: string; data: { type: string } }>,
+  loading: false,
   remove: vi.fn(async () => undefined),
 }));
+/** Język panelu - biblioteka czyta go z instancji i18n, nie z propsów. */
+const adminLang = vi.hoisted(() => ({ value: "pl" }));
 
 vi.mock("react-i18next", async () => {
   const { reactI18nextStub } = await import("@/test/i18nStub");
-  return reactI18nextStub();
+  return reactI18nextStub(() => adminLang.value);
 });
 vi.mock("@/lib/builder/templates", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -38,7 +42,7 @@ vi.mock("@/lib/builder/templates", async (importOriginal) => {
     ...actual,
     useSectionTemplates: () => ({
       items: templates.items,
-      loading: false,
+      loading: templates.loading,
       reload: vi.fn(),
       save: vi.fn(),
       update: templates.update,
@@ -48,7 +52,14 @@ vi.mock("@/lib/builder/templates", async (importOriginal) => {
 });
 vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, useGlobalWidgets: () => ({ items: globals.items, remove: globals.remove }) };
+  return {
+    ...actual,
+    useGlobalWidgets: () => ({
+      items: globals.items,
+      loading: globals.loading,
+      remove: globals.remove,
+    }),
+  };
 });
 // Historia szablonu to osobny dialog z własnym zapytaniem - tu liczy się tylko
 // to, że biblioteka otwiera go dla WŁAŚCIWEGO szablonu.
@@ -131,8 +142,11 @@ const buttonByText = (fragment: string): HTMLElement => {
 
 beforeEach(() => {
   localStorage.clear();
+  adminLang.value = "pl";
   templates.items = [];
+  templates.loading = false;
   globals.items = [];
+  globals.loading = false;
   templates.update.mockClear();
   templates.remove.mockClear();
   globals.remove.mockClear();
@@ -432,5 +446,71 @@ describe("WidgetLibrary - zwijanie kategorii", () => {
     const afterCollapse = document.querySelectorAll("[draggable=true]").length;
     fireEvent.click(cat);
     expect(document.querySelectorAll("[draggable=true]").length).toBeGreaterThan(afterCollapse);
+  });
+});
+
+describe("WidgetLibrary - stany wczytywania, nieznany typ i język panelu", () => {
+  it.each([
+    ["szablony sekcji", "templates"],
+    ["widgety globalne", "globals"],
+  ] as const)("nagłówek %s pokazuje, że lista się wczytuje", (_label, which) => {
+    if (which === "templates") templates.loading = true;
+    else globals.loading = true;
+    const { container } = renderLibrary();
+    // Bez tego znaku redakcja widzi pustą sekcję i myśli, że nic nie zapisała.
+    expect(container.textContent).toContain("…");
+  });
+
+  it("widget globalny o NIEZNANYM typie ma zapasową ikonę i nazwę", () => {
+    globals.items = [{ id: "g1", name: "Stopka klienta", data: { type: "typ-ktorego-nie-ma" } }];
+    const { h } = renderLibrary();
+    // Typ mógł zostać usunięty z rejestru po zapisaniu widgetu globalnego -
+    // wtedy pozycja MUSI dalej dać się kliknąć (choćby po to, żeby ją usunąć),
+    // a nie zniknąć albo wywalić paletę.
+    const item = screen.getByText("Stopka klienta");
+    fireEvent.click(item);
+    expect(h.onPickGlobal).toHaveBeenCalled();
+  });
+
+  it("zwinięcie sekcji zamienia strzałkę w dół na strzałkę w prawo", () => {
+    const { container } = renderLibrary();
+    const chevrons = () => ({
+      down: container.querySelectorAll("svg.lucide-chevron-down").length,
+      right: container.querySelectorAll("svg.lucide-chevron-right").length,
+    });
+    const before = chevrons();
+    expect(before.down).toBeGreaterThan(0);
+    // Nagłówki sekcji to przyciski ze strzałką - klikamy pierwszy rozwinięty.
+    const header = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((b) =>
+      b.querySelector("svg.lucide-chevron-down"),
+    );
+    if (!header) throw new Error("test: brak rozwiniętej sekcji");
+    fireEvent.click(header);
+    const after = chevrons();
+    // Kierunek strzałki jest jedyną informacją o stanie sekcji - bez tego
+    // redakcja nie wie, czy paleta jest pusta, czy zwinięta.
+    expect(after.right).toBe(before.right + 1);
+    expect(after.down).toBe(before.down - 1);
+  });
+
+  it("angielski język panelu nie psuje palety", () => {
+    adminLang.value = "en";
+    const { container } = renderLibrary();
+    // Etykiety widgetów mają własne tłumaczenia (labelsEn) - paleta po
+    // angielsku musi nadal mieć wszystkie pozycje przeciągalne.
+    expect(container.querySelectorAll("[draggable=true]").length).toBeGreaterThan(20);
+  });
+
+  it("zamknięcie historii szablonu czyści wybrany szablon", () => {
+    templates.items = [
+      { id: "t1", name: "Hero", data: { id: "s1", kind: "section", children: [] }, created_at: "" },
+    ];
+    renderLibrary();
+    fireEvent.click(buttonByText("builder.widgetLibrary.versionHistory"));
+    expect(screen.getByTestId("historia")).toBeTruthy();
+    fireEvent.click(screen.getByText("zamknij historię"));
+    // Dialog zamknięty musi też zapomnieć szablon - inaczej kolejne otwarcie
+    // pokazuje historię POPRZEDNIEGO.
+    expect(screen.queryByTestId("historia")).toBeNull();
   });
 });

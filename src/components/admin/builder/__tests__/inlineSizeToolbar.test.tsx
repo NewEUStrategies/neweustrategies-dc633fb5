@@ -477,3 +477,118 @@ describe("InlineSizeToolbar - klawiatura, czyszczenie i umiejscowienie", () => {
     expect(screen.queryByRole("toolbar")).toBeNull();
   });
 });
+
+describe("InlineSizeToolbar - cele, których nie wolno otwierać, i pomiar bez wyniku", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+  afterEach(() => {
+    cleanup();
+    document.body.innerHTML = "";
+  });
+
+  function mountToolbar(content: Record<string, unknown> = {}) {
+    const setSelection = vi.fn();
+    const updateWidget = vi.fn();
+    render(
+      <InlineSizeToolbar
+        doc={makeDoc(content)}
+        selection={{ kind: "widget", id: WIDGET_ID }}
+        setSelection={setSelection}
+        updateWidget={updateWidget}
+      />,
+    );
+    return { setSelection, updateWidget };
+  }
+
+  it("klik w pole edycji POZA kanwą nie otwiera belki", async () => {
+    const stray = document.createElement("p");
+    stray.setAttribute("data-edit-target", "descriptionSize");
+    document.body.appendChild(stray);
+    mountToolbar();
+    fireEvent.click(stray);
+    await pumpFrames();
+    // Ten sam atrybut nosi podgląd w panelu właściwości - belka jest wyłącznie
+    // dla kanwy, inaczej wyskakiwałaby nad polami panelu.
+    expect(screen.queryByRole("toolbar")).toBeNull();
+  });
+
+  it("klik w pole edycji bez identyfikatora widgetu nie otwiera belki", async () => {
+    const canvas = document.createElement("div");
+    canvas.setAttribute("data-visual-canvas", "");
+    const widget = document.createElement("div");
+    widget.setAttribute("data-widget-id", "");
+    const el = document.createElement("p");
+    el.setAttribute("data-edit-target", "descriptionSize");
+    widget.appendChild(el);
+    canvas.appendChild(widget);
+    document.body.appendChild(canvas);
+    mountToolbar();
+    fireEvent.click(el);
+    await pumpFrames();
+    // Bez identyfikatora nie ma czego zapisać w dokumencie.
+    expect(screen.queryByRole("toolbar")).toBeNull();
+  });
+
+  it("element bez wpisanego rozmiaru pokazuje rozmiar ODZIEDZICZONY", async () => {
+    const { el } = mountCanvasDom();
+    // Bez `font-size` w stylu wprost element dziedziczy rozmiar z kaskady
+    // (tu: 16 px). Belka pokazuje właśnie tę wartość - to jest cały sens
+    // „widocznej wartości": redaktor widzi, co DZIAŁA, a nie pustkę.
+    el.style.removeProperty("font-size");
+    mountToolbar();
+    fireEvent.click(el);
+    await pumpFrames();
+    const input = screen.getByLabelText(/Rozmiar w px/i) as HTMLInputElement;
+    expect(input.value).toBe("16");
+    expect(input.value).not.toContain("NaN");
+  });
+
+  it("strzałka bez nadpisania liczy od rozmiaru odziedziczonego", async () => {
+    const { el } = mountCanvasDom();
+    el.style.removeProperty("font-size");
+    const { updateWidget } = mountToolbar();
+    fireEvent.click(el);
+    await pumpFrames();
+    fireEvent.click(screen.getByLabelText("Zwiększ rozmiar"));
+    const w = { content: {} } as unknown as WidgetNode;
+    updateWidget.mock.calls.at(-1)![1](w);
+    // 16 odziedziczone + 1, a nie wartość domyślna pola z metadanych.
+    expect((w.content as Record<string, unknown>).descriptionSize).toBe(17);
+  });
+
+  it("wejście w pole ustawia szkic z widocznej wartości", async () => {
+    const { el } = mountCanvasDom();
+    mountToolbar({ descriptionSize: 19 });
+    fireEvent.click(el);
+    await pumpFrames();
+    const input = screen.getByLabelText(/Rozmiar w px/i) as HTMLInputElement;
+    fireEvent.focus(input);
+    // Szkic startuje od wartości POKAZANEJ, więc pierwsza strzałka w polu nie
+    // przeskakuje na inną liczbę.
+    expect(input.value).toBe("19");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getByLabelText(/Rozmiar w px/i)).toBeTruthy();
+  });
+
+  it("klawisz inny niż strzałki i Enter nie zmienia rozmiaru", async () => {
+    const { el } = mountCanvasDom();
+    const { updateWidget } = mountToolbar({ descriptionSize: 19 });
+    fireEvent.click(el);
+    await pumpFrames();
+    fireEvent.keyDown(screen.getByLabelText(/Rozmiar w px/i), { key: "a" });
+    expect(updateWidget).not.toHaveBeenCalled();
+  });
+
+  it("gdy nie ma miejsca ani nad, ani pod widgetem, belka staje przy krawędzi", async () => {
+    const dom = mountCanvasDom();
+    // Widget wyższy niż okno: nad nim nie ma miejsca (góra 4), a pod nim
+    // belka wyjechałaby poza ekran.
+    dom.widget.getBoundingClientRect = () =>
+      ({ top: 4, left: 150, width: 600, height: 4000, right: 750, bottom: 4004 }) as DOMRect;
+    mountToolbar();
+    fireEvent.click(dom.el);
+    await pumpFrames();
+    expect(parseFloat(screen.getByRole("toolbar").style.top)).toBeLessThanOrEqual(8);
+  });
+});
