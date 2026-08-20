@@ -33,6 +33,72 @@ export function optionValues(select: HTMLSelectElement): string[] {
   return Array.from(select.querySelectorAll("option")).map((o) => o.value);
 }
 
+/**
+ * Natywne zakładki w miejsce Radixowych.
+ *
+ * Radix `Tabs` NIE przełącza się od samego `fireEvent.click` w happy-dom
+ * (potrzebuje zdarzeń wskaźnika i pomiarów), a panel właściwości widgetu ma
+ * całą treść rozłożoną na trzech zakładkach - bez przełączania dwie trzecie
+ * panelu nie istnieje w DOM. Atrapa jest wierna w tym, na czym stoją asercje:
+ * `TabsTrigger` ma rolę `tab` i `data-state`, a `TabsContent` montuje treść
+ * WYŁĄCZNIE dla aktywnej zakładki (tak jak Radix) - więc test dalej wykrywa
+ * przypadkowe renderowanie wszystkich zakładek naraz.
+ *
+ * Bez JSX - wołane z wnętrza fabryki `vi.mock`.
+ */
+export function radixTabsStub(react: typeof import("react")): Record<string, unknown> {
+  const Ctx = react.createContext<{ value: string; setValue: (v: string) => void }>({
+    value: "",
+    setValue: () => {},
+  });
+  return {
+    Tabs: ({
+      value,
+      defaultValue,
+      onValueChange,
+      children,
+    }: {
+      value?: string;
+      defaultValue?: string;
+      onValueChange?: (v: string) => void;
+      children?: unknown;
+    }) => {
+      const [local, setLocal] = react.useState(value ?? defaultValue ?? "");
+      const current = value ?? local;
+      const setValue = (next: string): void => {
+        setLocal(next);
+        onValueChange?.(next);
+      };
+      return react.createElement(
+        Ctx.Provider,
+        { value: { value: current, setValue } },
+        children as never,
+      );
+    },
+    TabsList: ({ children }: { children?: unknown }) =>
+      react.createElement("div", { role: "tablist" }, children as never),
+    TabsTrigger: ({ value, children }: { value: string; children?: unknown }) => {
+      const ctx = react.useContext(Ctx);
+      return react.createElement(
+        "button",
+        {
+          type: "button",
+          role: "tab",
+          "data-state": ctx.value === value ? "active" : "inactive",
+          "aria-selected": ctx.value === value,
+          onClick: () => ctx.setValue(value),
+        },
+        children as never,
+      );
+    },
+    TabsContent: ({ value, children }: { value: string; children?: unknown }) => {
+      const ctx = react.useContext(Ctx);
+      if (ctx.value !== value) return null;
+      return react.createElement("div", { role: "tabpanel" }, children as never);
+    },
+  };
+}
+
 interface MutableHostProps<T extends object> {
   initial: T;
   /** Dostaje aktualną wartość i funkcję zapisu w kształcie panelu. */
