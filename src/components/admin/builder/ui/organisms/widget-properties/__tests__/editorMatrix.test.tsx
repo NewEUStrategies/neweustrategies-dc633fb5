@@ -24,6 +24,7 @@
 // w osobnych plikach obok - ta tabela jest podłogą, nie sufitem.
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
@@ -584,6 +585,45 @@ const VARIANT_OVERLAYS: ReadonlyArray<readonly [string, WidgetNode["content"]]> 
       section: "user",
     },
   ],
+  [
+    "pozycje z danymi ODRZUCANYMI przez walidację",
+    (() => {
+      // Edytory walidują wpisy POZYCJI (adres zdjęcia musi wyglądać jak obraz,
+      // link musi zaczynać się od / albo http, ocena mieści się w 0-5, liczby
+      // nie mogą być ujemne) i pokazują komunikat w slocie błędu pola.
+      // Oprawa testowa nie wprowadza zapisów z powrotem do treści, więc samo
+      // wpisywanie złej wartości NIE dotarłoby do walidatora - błędne dane
+      // muszą przyjść w treści, tak jak przychodzą z bazy po ręcznej edycji
+      // JSON-a albo po imporcie.
+      const badItem: Record<string, Json> = {
+        id: "bad-1",
+        name: "Zła pozycja",
+        photo: "nie-adres",
+        image: "https://neweu.test/bez-rozszerzenia",
+        url: "javascript:alert(1)",
+        href: "gdzieś",
+        rating: 9,
+        gigs: -3,
+        reviews: -7,
+        value: -1,
+        percent: 250,
+        price: "-99",
+      };
+      return Object.fromEntries(
+        [
+          "items",
+          "columns",
+          "connections",
+          "entries",
+          "logos",
+          "plans",
+          "speakers",
+          "tabs",
+          "slides",
+        ].map((key) => [key, [{ ...badItem, id: `${key}-bad` }]]),
+      );
+    })(),
+  ],
   ["etykieta sekcji: kolor marki", { tone: "brand", labelTone: "brand" }],
   ["etykieta sekcji: kolor neutralny", { tone: "neutral", labelTone: "neutral" }],
   ["indeks po lewej, wyśrodkowany", { indexSide: "left", indexVAlign: "middle", indexSizePx: 120 }],
@@ -728,6 +768,129 @@ describe("edytory treści - wartości FAŁSZYWE, ale poprawne", () => {
     assertNoLeak(container, name);
     for (const [key, value] of written) {
       expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+});
+
+/**
+ * Oprawa ZE STANEM. Pozostałe przejazdy tylko notują zapisy - edytor nigdy nie
+ * dostaje z powrotem tego, co sam zapisał. To wystarcza do sprawdzenia „co
+ * zapisuje kontrolka", ale NIE dotyka trzech rzeczy, które w tych plikach
+ * naprawdę są:
+ *   1. WALIDACJI wpisu (komunikat liczy się z wartości W TREŚCI, więc dopóki
+ *      wpis nie wróci do edytora, walidator dostaje stare dane);
+ *   2. operacji na LIŚCIE (dodaj -> usuń -> przenieś działają na kolejnych
+ *      stanach, a nie na treści początkowej);
+ *   3. pól, które pojawiają się dopiero po zmianie innego pola (źródło,
+ *      wariant, tryb).
+ */
+function renderStateful(Editor: ContentEditor, initial: WidgetNode["content"]) {
+  const written: Array<[string, Json]> = [];
+  function Host() {
+    const [content, setContent] = useState<WidgetNode["content"]>(initial);
+    return (
+      <Editor
+        c={content}
+        lang="pl"
+        setContent={(k, v) => {
+          written.push([k, v]);
+          setContent((prev) => ({ ...prev, [k]: v }));
+        }}
+      />
+    );
+  }
+  const view = renderWithQueryClient(<Host />);
+  return { ...view, written };
+}
+
+describe("edytory treści - przejazd ze stanem", () => {
+  const BAD_TEXT = "to nie jest adres";
+  const FIELD_LIMIT = 45;
+  // `InteractiveCircleEditor` przerysowuje przy KAŻDYM znaku cały podgląd
+  // koła (SVG z pozycjami wszystkich pozycji), co przy stanie kosztuje ponad
+  // 150 ms na wpis - jeden przejazd tego edytora trwa dłużej niż cała reszta
+  // pliku i wchodzi w limit czasu. Ma własny plik testowy i 97% instrukcji,
+  // więc tutaj jest pominięty ŚWIADOMIE, a nie przez przypadek.
+  const STATEFUL_EDITORS = CONTENT_EDITORS.filter(([name]) => name !== "InteractiveCircleEditor");
+
+  it.each(STATEFUL_EDITORS)("%s: zły wpis pokazuje błąd i nie psuje panelu", (name, Editor) => {
+    const { container, written } = renderStateful(Editor, RICH_CONTENT);
+    for (const toggle of Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    )) {
+      fireEvent.click(toggle);
+    }
+    // Limit pól na przejazd: przy stanie każdy znak przerysowuje cały edytor,
+    // a najbogatsze z nich mają ponad sto pól - bez limitu jeden test biegnie
+    // dłużej niż cała reszta pliku.
+    const fields = Array.from(
+      container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
+    ).slice(0, FIELD_LIMIT);
+    for (const field of fields) {
+      if (field instanceof HTMLInputElement && field.type === "file") continue;
+      if (
+        field instanceof HTMLInputElement &&
+        (field.type === "checkbox" || field.type === "radio")
+      ) {
+        continue;
+      }
+      const isNumber = field instanceof HTMLInputElement && field.type === "number";
+      fireEvent.change(field, { target: { value: isNumber ? "-9" : BAD_TEXT } });
+    }
+    // Kontrola wycieku RAZ po całej rundzie: sprawdzanie po każdym znaku daje
+    // koszt kwadratowy i przy edytorach o stu polach test przestaje się kończyć.
+    assertNoLeak(container, `${name} (zły wpis)`);
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+
+  it.each(STATEFUL_EDITORS)("%s: zero i pustka ze stanem", (name, Editor) => {
+    const { container, written } = renderStateful(Editor, RICH_CONTENT);
+    for (const toggle of Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button[aria-expanded="false"]'),
+    )) {
+      fireEvent.click(toggle);
+    }
+    for (const field of Array.from(
+      container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"),
+    ).slice(0, FIELD_LIMIT)) {
+      if (field instanceof HTMLInputElement && field.type === "file") continue;
+      if (
+        field instanceof HTMLInputElement &&
+        (field.type === "checkbox" || field.type === "radio")
+      ) {
+        fireEvent.click(field);
+        continue;
+      }
+      const isNumber = field instanceof HTMLInputElement && field.type === "number";
+      fireEvent.change(field, { target: { value: isNumber ? "0" : "" } });
+    }
+    assertNoLeak(container, `${name} (zero i pustka)`);
+    for (const select of container.querySelectorAll<HTMLSelectElement>("select")) {
+      const options = Array.from(select.querySelectorAll("option"));
+      if (options.length > 1) fireEvent.change(select, { target: { value: options[1].value } });
+    }
+    assertNoLeak(container, `${name} (po zmianie listy)`);
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+    }
+  });
+
+  it.each(STATEFUL_EDITORS)("%s: operacje na liście działają po kolei", (name, Editor) => {
+    const { container, written } = renderStateful(Editor, RICH_CONTENT);
+    // Dodaj, potem przenieś, potem usuń - każda operacja na WYNIKU poprzedniej.
+    for (let round = 0; round < 3; round += 1) {
+      const buttons = Array.from(container.querySelectorAll("button")).filter((b) => !b.disabled);
+      for (const button of buttons.slice(0, 12)) {
+        if (!button.isConnected || button.disabled) continue;
+        fireEvent.click(button);
+      }
+      assertNoLeak(container, `${name} (runda ${round})`);
+    }
+    for (const [key, value] of written) {
+      expect(value, `${name}: klucz ${key} zapisany jako undefined`).not.toBeUndefined();
+      expect(() => JSON.stringify(value)).not.toThrow();
     }
   });
 });
