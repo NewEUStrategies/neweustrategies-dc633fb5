@@ -16,10 +16,14 @@ import { renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { BuilderDocument, WidgetNode } from "@/lib/builder/types";
-import { globalWidgetKey } from "@/lib/builder/globalWidgets";
+import { globalWidgetKey, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
 import { useGlobalWidgetSync } from "../useGlobalWidgetSync";
 
-const push = vi.hoisted(() => vi.fn(async () => true));
+// Atrapa z JAWNĄ sygnaturą - inaczej `push.mock.calls[0][1]` jest typu
+// „krotka pusta" i asercje na ładunku nie dają się napisać bez rzutowania.
+const push = vi.hoisted(() =>
+  vi.fn<(id: string, data: GlobalWidgetData) => Promise<boolean>>(async () => true),
+);
 
 vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/builder/globalWidgets")>();
@@ -115,7 +119,7 @@ describe("useGlobalWidgetSync - zmiana instancji", () => {
     const { rerender } = setup(docWith(widget("w1", "g1", "przed")));
     rerender({ doc: docWith(widget("w1", "g1", "po")) });
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1), { timeout: 3000 });
-    expect(push.mock.calls[0][0]).toBe("g1");
+    expect(push.mock.calls[0]?.[0]).toBe("g1");
   });
 
   it("seria szybkich zmian wypycha JEDEN raz, z ostatnią wartością", async () => {
@@ -126,8 +130,8 @@ describe("useGlobalWidgetSync - zmiana instancji", () => {
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1), { timeout: 3000 });
     // Pisanie w panelu to dziesiątki renderów - bez zwijania każdy znak byłby
     // osobnym zapisem do bazy i rozsyłką na wszystkie strony.
-    const payload = push.mock.calls[0][1] as { content: Record<string, unknown> };
-    expect(payload.content.html_pl).toBe("krok 3");
+    const payload = push.mock.calls[0]?.[1];
+    expect(payload?.content.html_pl).toBe("krok 3");
   });
 
   it("dwa różne globalne widgety wypychają się osobno", async () => {
@@ -149,8 +153,8 @@ describe("useGlobalWidgetSync - zmiana instancji", () => {
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1), { timeout: 3000 });
     rerender({ doc: docWith(widget("w1", "g1", "a")) });
     await waitFor(() => expect(push).toHaveBeenCalledTimes(2), { timeout: 3000 });
-    const payload = push.mock.calls[1][1] as { content: Record<string, unknown> };
-    expect(payload.content.html_pl).toBe("a");
+    const payload = push.mock.calls[1]?.[1];
+    expect(payload?.content.html_pl).toBe("a");
   });
 });
 
@@ -171,8 +175,8 @@ describe("useGlobalWidgetSync - usuwanie i odmontowanie", () => {
     unmount();
     // Szybka edycja i natychmiastowe wyjście ze strony nie może zgubić zmiany.
     expect(push).toHaveBeenCalledTimes(1);
-    const payload = push.mock.calls[0][1] as { content: Record<string, unknown> };
-    expect(payload.content.html_pl).toBe("po");
+    const payload = push.mock.calls[0]?.[1];
+    expect(payload?.content.html_pl).toBe("po");
   });
 
   it("odmontowanie bez zmian nie wypycha niczego", () => {

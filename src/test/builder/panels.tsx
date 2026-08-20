@@ -14,6 +14,7 @@
 //     stan tak, jak robi to kanwa: świeży, płaski klon i mutacja na nim.
 //  3. Panele dopisują wartości per breakpoint - `deviceValue` skraca odczyt.
 import { useState, type ReactElement } from "react";
+import type { CommonStyle, Themed, ThemedValue } from "@/lib/builder/types";
 
 /**
  * Lista wyboru rozpoznana po tym, że MA opcję o danej wartości. Panele mają na
@@ -128,4 +129,24 @@ export function MutableHost<T extends object>({
     });
   };
   return children(value, apply);
+}
+
+/**
+ * Styl z kolorem rozbitym na tryby (`{light, dark}`) w polu, które w typach
+ * jest zwykłym `string`em.
+ *
+ * To nie jest obejście typów na potrzeby testu: dokument przychodzi z bazy jako
+ * JSON i naprawdę trzyma w tych polach obiekt `Themed<string>`, a produkcja
+ * czyta je przez `pickMode(style.bgColor as Themed<string>)`. Fixture musi więc
+ * przejść tą samą furtką - inaczej sprawdzałby zapis, którego w aplikacji nie
+ * ma.
+ */
+export function themedColorStyle(values: {
+  bgColor?: ThemedValue<string>;
+  textColor?: ThemedValue<string>;
+}): CommonStyle {
+  const style: CommonStyle = {};
+  if (values.bgColor) (style.bgColor as Themed<string> | undefined) = values.bgColor;
+  if (values.textColor) (style.textColor as Themed<string> | undefined) = values.textColor;
+  return style;
 }

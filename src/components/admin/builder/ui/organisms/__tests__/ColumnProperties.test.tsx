@@ -13,6 +13,7 @@ import { describe, it, expect, vi } from "vitest";
 import { useState } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ColumnNode, Mode } from "@/lib/builder/types";
+import { themedColorStyle } from "@/test/builder/panels";
 import { ColumnProperties } from "../ColumnProperties";
 
 vi.mock("react-i18next", async () => {
@@ -167,7 +168,7 @@ describe("ColumnProperties - zakładki i tryb", () => {
 
   it("kolory zapisują się per tryb", () => {
     const { node } = renderPanel(
-      columnOf({ style: { bgColor: { light: "#ffffff" } } as ColumnNode["style"] }),
+      columnOf({ style: themedColorStyle({ bgColor: { light: "#ffffff" } }) }),
     );
     fireEvent.click(tab("builder.columnProps.tabStyle"));
     const dark = screen.getByRole("button", { name: "builder.columnProps.modeDark" });
@@ -181,7 +182,7 @@ describe("ColumnProperties - zakładki i tryb", () => {
   it("reset koloru zdejmuje nadpisanie bieżącego trybu", () => {
     const { node } = renderPanel(
       columnOf({
-        style: { bgColor: { light: "#ffffff", dark: "#000000" } } as ColumnNode["style"],
+        style: themedColorStyle({ bgColor: { light: "#ffffff", dark: "#000000" } }),
       }),
     );
     fireEvent.click(tab("builder.columnProps.tabStyle"));

@@ -15,7 +15,7 @@
 //  4. BŁĄD I BRAK PROFILU kończą się komunikatem, nie cichym niczym.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { Json } from "@/lib/builder/types";
+import type { Json, WidgetContent } from "@/lib/builder/types";
 import type { ExpertHydration } from "@/lib/experts/hydration";
 import { ExpertLinkPanel } from "../ExpertLinkPanel";
 import { TeamMemberEditor } from "../TeamMemberEditor";
@@ -101,7 +101,7 @@ const EMPTY: ExpertHydration = {
 
 function renderEditor(
   Editor: typeof TeamMemberEditor | typeof AuthorProfileCardEditor,
-  c: Record<string, unknown> = {},
+  c: WidgetContent = {},
   lang: "pl" | "en" = "pl",
 ) {
   const written: Array<[string, Json]> = [];

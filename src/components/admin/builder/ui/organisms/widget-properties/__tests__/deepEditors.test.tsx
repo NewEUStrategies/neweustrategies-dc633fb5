@@ -8,6 +8,7 @@
 //  * przenoszenie na krańcach listy nie może gubić pozycji,
 //  * przełączenie rodzaju kolumny wymienia zestaw pól, a nie dokłada go,
 //  * usunięcie karty wyróżnionej zapisuje `null`, nie brak klucza.
+import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -74,7 +75,7 @@ function renderEditor(
     c: WidgetNode["content"];
     lang: "pl" | "en";
     setContent: (k: string, v: Json) => void;
-  }) => unknown,
+  }) => ReactNode,
   c: WidgetNode["content"],
   lang: "pl" | "en" = "pl",
 ) {
@@ -441,7 +442,13 @@ describe("ImageSlot - adres i wysyłka", () => {
   function renderSlot(value = "") {
     const onChange = vi.fn();
     const view = renderWithQueryClient(
-      <ImageSlot label="Zdjęcie" value={value} onChange={onChange} hint="16:9" />,
+      <ImageSlot
+        label="Zdjęcie"
+        icon={<span data-testid="ikona-slotu" />}
+        value={value}
+        onChange={onChange}
+        hint="16:9"
+      />,
     );
     return { ...view, onChange };
   }
@@ -474,7 +481,13 @@ describe("ImageSlot - adres i wysyłka", () => {
   it("plik ponad limit nie jest wysyłany", async () => {
     const onChange = vi.fn();
     const { container } = renderWithQueryClient(
-      <ImageSlot label="Zdjęcie" value="" onChange={onChange} maxSizeMb={0} />,
+      <ImageSlot
+        label="Zdjęcie"
+        icon={<span data-testid="ikona-slotu" />}
+        value=""
+        onChange={onChange}
+        maxSizeMb={0}
+      />,
     );
     const file = container.querySelector<HTMLInputElement>('input[type="file"]');
     if (!file) throw new Error("test: brak pola pliku");

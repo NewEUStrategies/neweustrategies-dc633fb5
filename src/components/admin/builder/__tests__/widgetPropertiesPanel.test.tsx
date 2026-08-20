@@ -24,6 +24,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import type { WidgetNode } from "@/lib/builder/types";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
+import { themedColorStyle } from "@/test/builder/panels";
 import { WidgetProperties } from "../WidgetProperties";
 
 const db: { current: SupabaseFromStub } = { current: supabaseFromStub() };
@@ -240,7 +241,7 @@ describe("WidgetProperties - kolory tematyczne", () => {
 
   it("edycja w trybie ciemnym zachowuje wartość jasną", () => {
     const { node } = renderPanel(
-      widgetOf({ style: { bgColor: { light: "#ffffff" } } as WidgetNode["style"] }),
+      widgetOf({ style: themedColorStyle({ bgColor: { light: "#ffffff" } }) }),
     );
     openStyle();
     fireEvent.click(screen.getByRole("button", { name: "builder.chrome.dark" }));
@@ -252,7 +253,7 @@ describe("WidgetProperties - kolory tematyczne", () => {
   it("reset koloru zdejmuje nadpisanie tylko bieżącego trybu", () => {
     const { node } = renderPanel(
       widgetOf({
-        style: { bgColor: { light: "#ffffff", dark: "#000000" } } as WidgetNode["style"],
+        style: themedColorStyle({ bgColor: { light: "#ffffff", dark: "#000000" } }),
       }),
     );
     openStyle();
@@ -262,7 +263,7 @@ describe("WidgetProperties - kolory tematyczne", () => {
 
   it("reset ostatniego nadpisania usuwa klucz z dokumentu", () => {
     const { node } = renderPanel(
-      widgetOf({ style: { bgColor: { light: "#ffffff" } } as WidgetNode["style"] }),
+      widgetOf({ style: themedColorStyle({ bgColor: { light: "#ffffff" } }) }),
     );
     openStyle();
     fireEvent.click(resetButtons()[0]);
@@ -270,9 +271,7 @@ describe("WidgetProperties - kolory tematyczne", () => {
   });
 
   it("reset wartości płaskiej (historycznej) usuwa ją dla obu trybów", () => {
-    const { node } = renderPanel(
-      widgetOf({ style: { bgColor: "#123456" } as unknown as WidgetNode["style"] }),
-    );
+    const { node } = renderPanel(widgetOf({ style: { bgColor: "#123456" } }));
     openStyle();
     fireEvent.click(resetButtons()[0]);
     // Wartość płaska obowiązywała w obu trybach, więc reset musi ją usunąć

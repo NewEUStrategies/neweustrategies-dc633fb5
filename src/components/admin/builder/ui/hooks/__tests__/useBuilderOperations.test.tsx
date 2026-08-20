@@ -293,9 +293,12 @@ describe("useBuilderOperations - operacje strukturalne", () => {
     act(() =>
       s.result.current.insertStarterTemplate({
         id: "t1",
-        name: "Trzy sekcje",
+        name_pl: "Trzy sekcje",
+        name_en: "Three sections",
+        description_pl: "opis",
+        description_en: "description",
         build: () => [sec("n1", []), sec("n2", []), sec("n3", [])],
-      } as Parameters<typeof s.result.current.insertStarterTemplate>[0]),
+      }),
     );
     // Jeden krok, nie trzy - inaczej cofanie szablonu trzeba by klikać
     // tyle razy, ile miał sekcji.
@@ -433,8 +436,8 @@ describe("useBuilderOperations - dodawanie widgetów", () => {
       sections: [
         {
           ...sec("s1", [col("c1", [])]),
-          tabs: { items: [{ id: "tab-1", labelPl: "Jeden", labelEn: "One" }] },
-        } as SectionNode,
+          tabs: { enabled: true, items: [{ id: "tab-1", label_pl: "Jeden", label_en: "One" }] },
+        },
       ],
     };
     const s = setup({ kind: null, id: null }, withTabs);

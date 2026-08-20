@@ -22,6 +22,7 @@
 // Testy zachowań specyficznych dla poszczególnych edytorów (kolejność
 // przenoszenia, dwujęzyczne seedowanie, warunki widoczności pól) siedzą
 // w osobnych plikach obok - ta tabela jest podłogą, nie sufitem.
+import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -109,7 +110,7 @@ type ContentEditor = (props: {
   c: WidgetNode["content"];
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
-}) => unknown;
+}) => ReactNode;
 
 /** Edytory o wspólnym kontrakcie `{ c, lang, setContent }`. */
 const CONTENT_EDITORS: ReadonlyArray<readonly [string, ContentEditor]> = [
@@ -156,7 +157,7 @@ const BROKEN_CONTENT: WidgetNode["content"] = {
   variant: 7,
   mode: null,
   title_pl: null,
-  title_en: undefined,
+  title_en: null,
   speakers: [null, "x", 7],
   days: {},
   regions: "PL",
@@ -647,13 +648,18 @@ describe("edytory treści - podglądy pomocnicze", () => {
     assertNoLeak(second.container, "DisplayLivePreview (uszkodzona)");
   });
 
-  it("podgląd nagłówka zapasowego renderuje się na wartościach skrajnych", () => {
+  it.each([
+    ["wartości w pikselach", { sizePx: 64, subtitleSizePx: 18, sizePreset: "" }],
+    ["dziedziczenie z tokenów", { sizePx: 0, subtitleSizePx: 0, sizePreset: "" }],
+    ["gotowy rozmiar (klasa)", { sizePx: 0, subtitleSizePx: 0, sizePreset: "text-4xl" }],
+  ])("podgląd nagłówka zapasowego renderuje się: %s", (_label, sizes) => {
     const { container } = renderWithQueryClient(
       <editors.HeadingFallbackPreview
-        titleWeight={900}
-        subtitleWeight={300}
-        sizePx={64}
-        lang="pl"
+        titleWeight="900"
+        subtitleWeight="300"
+        titleSample="Tytuł"
+        subtitleSample="Podtytuł"
+        {...sizes}
       />,
     );
     expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
