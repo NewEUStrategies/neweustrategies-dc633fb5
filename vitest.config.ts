@@ -8,6 +8,12 @@ export default defineConfig({
     globals: true,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
+    // Ciężkie przejazdy paneli buildera (PR #275) przechodzą pojedynczo w
+    // ~1-2 s na test, ale pod pełną równoległością suity przekraczały domyślne
+    // 5 s i raportowały fałszywe porażki. Limit globalny 20 s zostawia margines
+    // na kontencję CPU, nie maskując realnych zawieszeń.
+    testTimeout: 20000,
+    hookTimeout: 20000,
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
