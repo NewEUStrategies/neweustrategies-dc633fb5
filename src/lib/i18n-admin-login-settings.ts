@@ -5,6 +5,26 @@ import i18n from "@/lib/i18n";
 const pl = {
   adminLoginSettings: {
     errGeneric: "Błąd",
+    loadFailed:
+      "Nie udało się odczytać ustawień logowania. Odśwież stronę - zapis na tym ekranie nadpisałby wartości, których nie widzimy.",
+    errNoPermission: "Nie masz uprawnień do zmiany ustawień logowania.",
+    errConflict:
+      "Ktoś zapisał te ustawienia w tym samym momencie. Odśwież stronę i powtórz zmianę.",
+    errInconsistent: "Ta kombinacja ustawień zamknęłaby wejście na serwis - zapis wstrzymany.",
+    issue: {
+      loggedInRedirectLoopsToLogin:
+        "Przekierowanie po zalogowaniu wskazuje na stronę logowania. Użytkownik zaloguje się i wróci do formularza - w interfejsie wygląda to jak nieprawidłowe hasło.",
+      onlyEntryPointIsExternal:
+        "Popup logowania jest wyłączony, a własny adres logowania prowadzi poza serwis. To jedyne wejście, jakie widzi użytkownik - awaria tamtej strony odcina wszystkich.",
+      customLoginUrlIgnored:
+        'Własny adres logowania nie jest ani ścieżką wewnętrzną ("/..."), ani pełnym adresem https - zostanie zignorowany, a logowanie pójdzie na /login.',
+      logoutRedirectIgnored:
+        'Przekierowanie po wylogowaniu musi być ścieżką wewnętrzną zaczynającą się od "/". Ta wartość zostanie zignorowana, a użytkownik wróci na stronę główną.',
+      signinLabelEmpty:
+        "Etykieta przycisku logowania jest pusta w co najmniej jednym języku - przycisk wejścia będzie bez napisu.",
+      publicSignupClosed:
+        "Rejestracja publiczna jest wyłączona. Nowa osoba wejdzie wyłącznie z zaproszenia wystawionego z panelu.",
+    },
     pageTitle: "Logowanie i rejestracja",
     reset: "Resetuj",
     saving: "Zapisywanie…",
@@ -85,6 +105,27 @@ const pl = {
 const en = {
   adminLoginSettings: {
     errGeneric: "Error",
+    loadFailed:
+      "The login settings could not be read. Refresh the page - saving from this screen would overwrite values we cannot see.",
+    errNoPermission: "You do not have permission to change the login settings.",
+    errConflict:
+      "Someone saved these settings at the same moment. Refresh the page and repeat your change.",
+    errInconsistent:
+      "This combination of settings would close off access to the site - the save was withheld.",
+    issue: {
+      loggedInRedirectLoopsToLogin:
+        "The post-login redirect points back at the login page. The user signs in and lands on the form again - in the interface this looks like a wrong password.",
+      onlyEntryPointIsExternal:
+        "The login popup is disabled and the custom login address leads off-site. That is the only entry point users can see - an outage there locks everyone out.",
+      customLoginUrlIgnored:
+        'The custom login address is neither an internal path ("/...") nor a full https address - it will be ignored and login will go to /login.',
+      logoutRedirectIgnored:
+        'The post-logout redirect must be an internal path starting with "/". This value will be ignored and the user will land on the homepage.',
+      signinLabelEmpty:
+        "The sign-in button label is empty in at least one language - the entry button will render with no text.",
+      publicSignupClosed:
+        "Public registration is disabled. A new person can only get in through an invitation issued from the panel.",
+    },
     pageTitle: "Login and registration",
     reset: "Reset",
     saving: "Saving…",

@@ -1,15 +1,26 @@
+// USTAWIENIA LOGOWANIA I REJESTRACJI (/admin/login-settings).
+//
+// Ten panel decyduje o tym, czy da się wejść na serwis - dlatego DECYZJE nie
+// mieszkają już w ciele komponentu. Odczyt z domyślnymi, reguły spójności
+// kombinacji, prawo do zapisu i mapowanie błędu bazy na komunikat są czystymi
+// funkcjami w `lib/authSettingsRules.ts`; powłoka niżej wyłącznie je woła
+// i pokazuje wynik. Pola (para PL/EN, obraz z podglądem, wiersz przełącznika)
+// są w `components/admin/auth/{atoms,molecules,organisms}`.
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { useAuthSettings, useSaveAuthSettings } from "@/hooks/useAuthSettings";
+import { useState, useEffect, useMemo } from "react";
+import { useAuthSettingsQuery, useSaveAuthSettings } from "@/hooks/useAuthSettings";
 import { AUTH_DEFAULTS, type AuthSettings } from "@/lib/authSettings";
+import {
+  authSettingsSaveErrorKey,
+  decideAuthSettingsSave,
+  authSettingsIssues,
+  isLoginPosition,
+} from "@/lib/authSettingsRules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
-import { Image as ImageIcon, Upload, X, Sun, Moon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import defaultLoginLight from "@/assets/login-illustration-light.jpg";
 import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
@@ -18,7 +29,16 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { ensureI18n as ensureAdminLoginSettingsI18n } from "@/lib/i18n-admin-login-settings";
 import { RegistrationFieldsSection } from "@/components/admin/auth/RegistrationFieldsSection";
+import { SettingToggleCard } from "@/components/admin/auth/atoms/SettingToggleCard";
+import { AuthSettingsIssueList } from "@/components/admin/auth/atoms/AuthSettingsIssueList";
+import { BilingualTextField } from "@/components/admin/auth/molecules/BilingualTextField";
+import { ImageUrlField } from "@/components/admin/auth/organisms/ImageUrlField";
 import { ensureI18n as ensureAdminPopupSignupI18n } from "@/lib/i18n-admin-popup-signup";
+/** Klucze `AuthSettings` o wartości tekstowej - jedyne, które wiąże `bindText`. */
+type TextField = {
+  [K in keyof AuthSettings]: AuthSettings[K] extends string ? K : never;
+}[keyof AuthSettings];
+
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
 });
@@ -33,7 +53,7 @@ function LoginSettingsPage() {
   // Ukrycie pozycji w nawigacji niczego nie chroni - adres wpisuje się z ręki,
   // więc trasa sama pilnuje roli super_admina.
   const { isSuperAdmin, loading } = useAuth();
-  const remote = useAuthSettings();
+  const { settings: remote, isPending, isError } = useAuthSettingsQuery();
   const save = useSaveAuthSettings();
   const [s, setS] = useState<AuthSettings>(remote);
 
@@ -44,17 +64,63 @@ function LoginSettingsPage() {
   const update = <K extends keyof AuthSettings>(k: K, v: AuthSettings[K]) =>
     setS((prev) => ({ ...prev, [k]: v }));
 
+  // DWA WIĄZANIA ZAMIAST PIĘĆDZIESIĘCIU DOMKNIĘĆ. Panel ma trzydzieści kilka
+  // pól i każde miało własne `(v) => update("klucz", v)` - trzydzieści kilka
+  // kopii tego samego kształtu, w których literówka w nazwie klucza jest
+  // niewidoczna w review (zapisuje inne pole, nic nie protestuje). Tutaj klucz
+  // jest ARGUMENTEM sparametryzowanego typem wiązania, więc pomyłka jest błędem
+  // kompilacji, a nie cichym zapisem do sąsiedniego pola.
+  const bind =
+    <K extends keyof AuthSettings>(k: K) =>
+    (v: AuthSettings[K]) =>
+      update(k, v);
+  const bindText =
+    (k: TextField) =>
+    (event: React.ChangeEvent<HTMLInputElement>): void =>
+      update(k, event.target.value);
+
+  // Zastrzeżenia liczą się z BIEŻĄCEJ wersji roboczej, nie z zapisanej - blokada
+  // ma się pokazać w chwili wpisania wartości, a nie po nieudanym zapisie.
+  const issues = useMemo(() => authSettingsIssues(s), [s]);
+
   const submit = async () => {
+    // Odmowa PRZED zapytaniem do bazy: bez uprawnienia albo z kombinacją, która
+    // zamyka wejście na serwis. Wersja robocza zostaje BEZ ZMIAN - odrzucony
+    // zapis nie może wyglądać jak wykonany.
+    const decision = decideAuthSettingsSave(s, { isSuperAdmin });
+    if (!decision.allowed) {
+      toast.error(t(decision.reasonKey));
+      return;
+    }
     try {
       await save.mutateAsync(s);
       toast.success(adminToast.saved());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("adminLoginSettings.errGeneric"));
+      // Surowy komunikat Postgresa wystawiłby nazwy tabel i polityk osobie,
+      // która właśnie nie miała do nich prawa - stąd klucz, nie `e.message`.
+      toast.error(t(authSettingsSaveErrorKey(e)));
     }
   };
 
   if (loading) return null;
   if (!isSuperAdmin) return <Navigate to="/admin" />;
+  // AWARIA ODCZYTU NIE MOŻE WYGLĄDAĆ JAK „nic nie ustawiono". Panel pokazujący
+  // wtedy domyślne zaprasza administratora do zapisania ich na wierzch wartości,
+  // których po prostu nie zdołał odczytać - i to jest zapis nieodwracalny.
+  if (isError) {
+    return (
+      <div className="w-full space-y-4">
+        <h1 className="font-display text-2xl font-bold">{t("adminLoginSettings.pageTitle")}</h1>
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          {t("adminLoginSettings.loadFailed")}
+        </p>
+      </div>
+    );
+  }
+  if (isPending) return null;
 
   return (
     <div className="w-full space-y-4">
@@ -70,6 +136,8 @@ function LoginSettingsPage() {
         </div>
       </div>
 
+      <AuthSettingsIssueList issues={issues} />
+
       <Tabs defaultValue="page" className="w-full">
         <TabsList>
           <TabsTrigger value="page">{t("adminLoginSettings.tabPage")}</TabsTrigger>
@@ -78,43 +146,43 @@ function LoginSettingsPage() {
         </TabsList>
 
         <TabsContent value="popup" className="space-y-4 mt-4">
-          <Card
+          <SettingToggleCard
             title={t("adminLoginSettings.popupEnableTitle")}
             description={t("adminLoginSettings.popupEnableDesc")}
           >
-            <Switch checked={s.popup_enabled} onCheckedChange={(v) => update("popup_enabled", v)} />
-          </Card>
-          <BiField
+            <Switch checked={s.popup_enabled} onCheckedChange={bind("popup_enabled")} />
+          </SettingToggleCard>
+          <BilingualTextField
             label={t("adminLoginSettings.heading")}
-            valPl={s.popup_heading_pl}
-            valEn={s.popup_heading_en}
-            onPl={(v) => update("popup_heading_pl", v)}
-            onEn={(v) => update("popup_heading_en", v)}
+            valuePl={s.popup_heading_pl}
+            valueEn={s.popup_heading_en}
+            onChangePl={bind("popup_heading_pl")}
+            onChangeEn={bind("popup_heading_en")}
           />
-          <BiField
+          <BilingualTextField
             label={t("adminLoginSettings.description")}
-            textarea
-            valPl={s.popup_description_pl}
-            valEn={s.popup_description_en}
-            onPl={(v) => update("popup_description_pl", v)}
-            onEn={(v) => update("popup_description_en", v)}
+            multiline
+            valuePl={s.popup_description_pl}
+            valueEn={s.popup_description_en}
+            onChangePl={bind("popup_description_pl")}
+            onChangeEn={bind("popup_description_en")}
           />
           <div className="grid md:grid-cols-2 gap-4">
-            <ImageField
+            <ImageUrlField
               label={t("adminLoginSettings.formLogoLight")}
               icon="light"
               previewBg="light"
               value={s.form_logo_url}
-              onChange={(v) => update("form_logo_url", v)}
+              onChange={bind("form_logo_url")}
               hint={t("adminLoginSettings.formLogoLightHint")}
               aspect="240 / 80"
             />
-            <ImageField
+            <ImageUrlField
               label={t("adminLoginSettings.formLogoDark")}
               icon="dark"
               previewBg="dark"
               value={s.form_logo_url_dark}
-              onChange={(v) => update("form_logo_url_dark", v)}
+              onChange={bind("form_logo_url_dark")}
               hint={t("adminLoginSettings.formLogoDarkHint")}
               aspect="240 / 80"
             />
@@ -122,20 +190,20 @@ function LoginSettingsPage() {
         </TabsContent>
 
         <TabsContent value="page" className="space-y-6 mt-4">
-          <BiField
+          <BilingualTextField
             label={t("adminLoginSettings.heroTitle")}
-            valPl={s.hero_title_pl}
-            valEn={s.hero_title_en}
-            onPl={(v) => update("hero_title_pl", v)}
-            onEn={(v) => update("hero_title_en", v)}
+            valuePl={s.hero_title_pl}
+            valueEn={s.hero_title_en}
+            onChangePl={bind("hero_title_pl")}
+            onChangeEn={bind("hero_title_en")}
           />
-          <BiField
+          <BilingualTextField
             label={t("adminLoginSettings.heroSubtitle")}
-            textarea
-            valPl={s.hero_subtitle_pl}
-            valEn={s.hero_subtitle_en}
-            onPl={(v) => update("hero_subtitle_pl", v)}
-            onEn={(v) => update("hero_subtitle_en", v)}
+            multiline
+            valuePl={s.hero_subtitle_pl}
+            valueEn={s.hero_subtitle_en}
+            onChangePl={bind("hero_subtitle_pl")}
+            onChangeEn={bind("hero_subtitle_en")}
           />
 
           <section className="rounded-lg border border-border bg-card/50 p-5 space-y-4">
@@ -149,21 +217,21 @@ function LoginSettingsPage() {
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
-              <ImageField
+              <ImageUrlField
                 label={t("adminLoginSettings.themeLight")}
                 icon="light"
                 value={s.hero_image_url_light}
-                onChange={(v) => update("hero_image_url_light", v)}
+                onChange={bind("hero_image_url_light")}
                 aspect="4 / 3"
                 previewBg="light"
                 fallbackUrl={defaultLoginLight}
                 hint={t("adminLoginSettings.hintLoginLight")}
               />
-              <ImageField
+              <ImageUrlField
                 label={t("adminLoginSettings.themeDark")}
                 icon="dark"
                 value={s.hero_image_url_dark}
-                onChange={(v) => update("hero_image_url_dark", v)}
+                onChange={bind("hero_image_url_dark")}
                 aspect="4 / 3"
                 previewBg="dark"
                 fallbackUrl={defaultLoginDark}
@@ -183,20 +251,20 @@ function LoginSettingsPage() {
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
-              <ImageField
+              <ImageUrlField
                 label={t("adminLoginSettings.themeLight")}
                 icon="light"
                 value={s.reset_image_url_light}
-                onChange={(v) => update("reset_image_url_light", v)}
+                onChange={bind("reset_image_url_light")}
                 aspect="4 / 3"
                 previewBg="light"
                 hint={t("adminLoginSettings.hintOptFallback")}
               />
-              <ImageField
+              <ImageUrlField
                 label={t("adminLoginSettings.themeDark")}
                 icon="dark"
                 value={s.reset_image_url_dark}
-                onChange={(v) => update("reset_image_url_dark", v)}
+                onChange={bind("reset_image_url_dark")}
                 aspect="4 / 3"
                 previewBg="dark"
                 hint={t("adminLoginSettings.hintOptFallback")}
@@ -214,10 +282,10 @@ function LoginSettingsPage() {
                 {t("adminLoginSettings.fullscreenDesc2")}
               </p>
             </header>
-            <ImageField
+            <ImageUrlField
               label={t("adminLoginSettings.loginBgLabel")}
               value={s.login_bg_url}
-              onChange={(v) => update("login_bg_url", v)}
+              onChange={bind("login_bg_url")}
               aspect="16 / 9"
               hint={t("adminLoginSettings.loginBgHint")}
             />
@@ -225,7 +293,7 @@ function LoginSettingsPage() {
               <Label>{t("adminLoginSettings.bgColorLabel")}</Label>
               <Input
                 value={s.login_bg_color}
-                onChange={(e) => update("login_bg_color", e.target.value)}
+                onChange={bindText("login_bg_color")}
                 placeholder="#0a0a0a"
               />
             </div>
@@ -236,7 +304,7 @@ function LoginSettingsPage() {
               <Label>{t("adminLoginSettings.privacyLink")}</Label>
               <Input
                 value={s.privacy_url}
-                onChange={(e) => update("privacy_url", e.target.value)}
+                onChange={bindText("privacy_url")}
                 placeholder="/polityka-prywatnosci"
               />
             </div>
@@ -244,28 +312,31 @@ function LoginSettingsPage() {
               <Label>{t("adminLoginSettings.termsLink")}</Label>
               <Input
                 value={s.terms_url}
-                onChange={(e) => update("terms_url", e.target.value)}
+                onChange={bindText("terms_url")}
                 placeholder="/regulamin"
               />
             </div>
           </div>
-          <Card
+          <SettingToggleCard
             title={t("adminLoginSettings.langSwitchTitle")}
             description={t("adminLoginSettings.langSwitchDesc")}
           >
             <Switch
               checked={s.show_language_switcher}
-              onCheckedChange={(v) => update("show_language_switcher", v)}
+              onCheckedChange={bind("show_language_switcher")}
             />
-          </Card>
+          </SettingToggleCard>
           <div>
             <Label>{t("adminLoginSettings.formPosition")}</Label>
             <select
               className="w-full mt-1 border rounded p-2 bg-background"
               value={s.login_position}
-              onChange={(e) =>
-                update("login_position", e.target.value as AuthSettings["login_position"])
-              }
+              // Straznik zamiast rzutowania: `e.target.value` jest `string`,
+              // a `as` przepuscilby wartosc spoza enuma prosto do zapisu.
+              onChange={(event) => {
+                if (isLoginPosition(event.target.value))
+                  update("login_position", event.target.value);
+              }}
             >
               <option value="left">{t("adminLoginSettings.posLeft")}</option>
               <option value="center">{t("adminLoginSettings.posCenter")}</option>
@@ -275,18 +346,15 @@ function LoginSettingsPage() {
               {t("adminLoginSettings.formPositionHint")}
             </p>
           </div>
-          <Card title={t("adminLoginSettings.backHomeTitle")} description="">
-            <Switch
-              checked={s.show_back_to_home}
-              onCheckedChange={(v) => update("show_back_to_home", v)}
-            />
-          </Card>
+          <SettingToggleCard title={t("adminLoginSettings.backHomeTitle")} description="">
+            <Switch checked={s.show_back_to_home} onCheckedChange={bind("show_back_to_home")} />
+          </SettingToggleCard>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{t("adminLoginSettings.customLoginUrl")}</Label>
               <Input
                 value={s.custom_login_url}
-                onChange={(e) => update("custom_login_url", e.target.value)}
+                onChange={bindText("custom_login_url")}
                 placeholder="/membership/login"
               />
               <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
@@ -297,7 +365,7 @@ function LoginSettingsPage() {
               <Label>{t("adminLoginSettings.logoutRedirect")}</Label>
               <Input
                 value={s.logout_redirect_url}
-                onChange={(e) => update("logout_redirect_url", e.target.value)}
+                onChange={bindText("logout_redirect_url")}
                 placeholder="/"
               />
               <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
@@ -308,28 +376,25 @@ function LoginSettingsPage() {
         </TabsContent>
 
         <TabsContent value="signup" className="space-y-4 mt-4">
-          <Card
+          <SettingToggleCard
             title={t("adminLoginSettings.publicSignupTitle")}
             description={t("adminLoginSettings.publicSignupDesc")}
           >
-            <Switch
-              checked={s.allow_public_signup}
-              onCheckedChange={(v) => update("allow_public_signup", v)}
-            />
-          </Card>
-          <BiField
+            <Switch checked={s.allow_public_signup} onCheckedChange={bind("allow_public_signup")} />
+          </SettingToggleCard>
+          <BilingualTextField
             label={t("adminLoginSettings.signinLabel")}
-            valPl={s.signin_label_pl}
-            valEn={s.signin_label_en}
-            onPl={(v) => update("signin_label_pl", v)}
-            onEn={(v) => update("signin_label_en", v)}
+            valuePl={s.signin_label_pl}
+            valueEn={s.signin_label_en}
+            onChangePl={bind("signin_label_pl")}
+            onChangeEn={bind("signin_label_en")}
           />
-          <BiField
+          <BilingualTextField
             label={t("adminLoginSettings.signupLabel")}
-            valPl={s.signup_label_pl}
-            valEn={s.signup_label_en}
-            onPl={(v) => update("signup_label_pl", v)}
-            onEn={(v) => update("signup_label_en", v)}
+            valuePl={s.signup_label_pl}
+            valueEn={s.signup_label_en}
+            onChangePl={bind("signup_label_pl")}
+            onChangeEn={bind("signup_label_en")}
           />
 
           <section className="rounded-lg border border-border bg-card/50 p-5 space-y-4">
@@ -343,20 +408,20 @@ function LoginSettingsPage() {
               </p>
             </header>
             <div className="grid md:grid-cols-2 gap-4">
-              <ImageField
+              <ImageUrlField
                 label={t("adminLoginSettings.themeLight")}
                 icon="light"
                 value={s.signup_image_url_light}
-                onChange={(v) => update("signup_image_url_light", v)}
+                onChange={bind("signup_image_url_light")}
                 aspect="4 / 3"
                 previewBg="light"
                 hint={t("adminLoginSettings.hintOptFallback")}
               />
-              <ImageField
+              <ImageUrlField
                 label={t("adminLoginSettings.themeDark")}
                 icon="dark"
                 value={s.signup_image_url_dark}
-                onChange={(v) => update("signup_image_url_dark", v)}
+                onChange={bind("signup_image_url_dark")}
                 aspect="4 / 3"
                 previewBg="dark"
                 hint={t("adminLoginSettings.hintOptFallback")}
@@ -370,164 +435,6 @@ function LoginSettingsPage() {
           <RegistrationFieldsSection />
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function ImageField({
-  label,
-  value,
-  onChange,
-  hint,
-  aspect = "16 / 9",
-  previewBg,
-  icon,
-  fallbackUrl,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  hint?: string;
-  aspect?: string;
-  previewBg?: "light" | "dark";
-  icon?: "light" | "dark";
-  fallbackUrl?: string;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const bgClass =
-    previewBg === "dark"
-      ? "bg-neutral-900 border-neutral-800"
-      : previewBg === "light"
-        ? "bg-neutral-50 border-neutral-200"
-        : "bg-muted border-border";
-  const IconEl = icon === "dark" ? Moon : icon === "light" ? Sun : null;
-  const displayUrl = value || fallbackUrl || "";
-  const isFallback = !value && Boolean(fallbackUrl);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="flex items-center gap-1.5">
-          {IconEl ? <IconEl className="w-3.5 h-3.5" aria-hidden /> : null}
-          {label}
-        </Label>
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-xs text-muted-foreground hover:text-destructive inline-flex items-center gap-1"
-          >
-            <X className="w-3 h-3" /> {t("adminLoginSettings.clear")}
-          </button>
-        )}
-      </div>
-      <div
-        className={`relative w-full rounded-lg border overflow-hidden ${bgClass} flex items-center justify-center`}
-        style={{ aspectRatio: aspect }}
-      >
-        {displayUrl ? (
-          <>
-            <img
-              src={displayUrl}
-              alt={label}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            {isFallback && (
-              <span className="absolute top-2 left-2 z-10 rounded-full bg-black/70 text-white text-[10px] px-2 py-0.5 uppercase tracking-wider backdrop-blur">
-                {t("adminLoginSettings.defaultBadge")}
-              </span>
-            )}
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-muted-foreground text-xs">
-            <ImageIcon className="w-6 h-6 opacity-60" />
-            <span>{t("adminLoginSettings.noImage")}</span>
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={t("adminLoginSettings.imgUrlPlaceholder")}
-          className="flex-1"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-          <Upload className="w-3.5 h-3.5 mr-1.5" /> {t("adminLoginSettings.pick")}
-        </Button>
-      </div>
-      {hint && <p className="text-[11px] text-muted-foreground leading-snug">{hint}</p>}
-      <MediaPickerDialog
-        open={open}
-        onOpenChange={setOpen}
-        onPick={(url) => {
-          onChange(url);
-          setOpen(false);
-        }}
-        accept="image"
-        title={t("adminLoginSettings.pickImage", { label })}
-      />
-    </div>
-  );
-}
-
-function Card({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between border border-border rounded-lg p-4">
-      <div>
-        <div className="font-medium">{title}</div>
-        {description && <div className="text-xs text-muted-foreground mt-0.5">{description}</div>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function BiField({
-  label,
-  valPl,
-  valEn,
-  onPl,
-  onEn,
-  textarea,
-}: {
-  label: string;
-  valPl: string;
-  valEn: string;
-  onPl: (v: string) => void;
-  onEn: (v: string) => void;
-  textarea?: boolean;
-}) {
-  const C = textarea ? Textarea : Input;
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <Label>{label} (PL)</Label>
-        <C
-          value={valPl}
-          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-            onPl(e.target.value)
-          }
-        />
-      </div>
-      <div>
-        <Label>{label} (EN)</Label>
-        <C
-          value={valEn}
-          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-            onEn(e.target.value)
-          }
-        />
-      </div>
     </div>
   );
 }
