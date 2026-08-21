@@ -33,6 +33,19 @@ import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Factor } from "@supabase/supabase-js";
 import { toQrDataUri } from "@/lib/auth/mfa";
+import {
+  emailChangeProblem,
+  emailProblemKey,
+  factorRemovalProblem,
+  factorsView,
+  isCompleteMfaCode,
+  isLastFactor,
+  mfaStatusKey,
+  normalizeEmail,
+  normalizeMfaCode,
+  passwordChangeProblem,
+  passwordProblemKey,
+} from "@/lib/auth/securityPanel";
 
 export const Route = createFileRoute("/profile/security")({
   component: SecurityPage,
@@ -55,6 +68,9 @@ function SecurityPage() {
   // Two-factor (TOTP): enrolled factors + in-progress enrollment + removal.
   const [factors, setFactors] = useState<Factor[]>([]);
   const [factorsLoading, setFactorsLoading] = useState(true);
+  // Odczyt listy czynników może się NIE UDAĆ, a wtedy pusta lista znaczy
+  // „nie wiem", nie „nie masz drugiego składnika" - patrz `factorsView`.
+  const [factorsFailed, setFactorsFailed] = useState(false);
   const [enroll, setEnroll] = useState<{ factorId: string; qr: string; secret: string } | null>(
     null,
   );
@@ -67,14 +83,21 @@ function SecurityPage() {
 
   const updatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pw.length < 8) return toast.error(t("profile.security.tooShort"));
-    if (pw !== pw2) return toast.error(t("profile.security.mismatch"));
-    if (!user?.email) return;
+    const problem = passwordChangeProblem({
+      current,
+      next: pw,
+      confirm: pw2,
+      email: user?.email,
+    });
+    if (problem !== null) return toast.error(t(passwordProblemKey(problem)));
+    // `problem === null` gwarantuje adres z sesji; strażnik zamiast rzutowania.
+    const email = user?.email;
+    if (!email) return;
     setBusy(true);
     try {
       // Re-uwierzytelnienie: potwierdź obecne hasło zanim je zmienimy.
       const { error: reauthErr } = await supabase.auth.signInWithPassword({
-        email: user.email,
+        email,
         password: current,
       });
       if (reauthErr) {
@@ -99,13 +122,13 @@ function SecurityPage() {
 
   const updateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    const value = newEmail.trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
-      return toast.error(t("profile.security.email.invalid"));
-    }
-    if (!emailPw) {
-      return toast.error(t("profile.security.email.needPassword"));
-    }
+    const value = normalizeEmail(newEmail);
+    const problem = emailChangeProblem({
+      next: value,
+      password: emailPw,
+      current: user?.email,
+    });
+    if (problem !== null) return toast.error(t(emailProblemKey(problem)));
     setEmailBusy(true);
     try {
       await changeMyEmail({ data: { email: value, password: emailPw } });
@@ -140,15 +163,25 @@ function SecurityPage() {
     try {
       const { data, error } = await supabase.auth.mfa.listFactors();
       if (error) {
+        // Awaria odczytu NIE zeruje listy i NIE udaje pustki: użytkownik
+        // z aktywnym 2FA miał tu do dziś napis „Wyłączone".
+        setFactorsFailed(true);
         toast.error(error.message);
         return;
       }
+      setFactorsFailed(false);
       // Only TOTP is offered here; listFactors().totp is the verified subset.
       setFactors(data?.totp ?? []);
     } finally {
       setFactorsLoading(false);
     }
   };
+
+  const view = factorsView({
+    loading: factorsLoading,
+    failed: factorsFailed,
+    factors,
+  });
 
   useEffect(() => {
     void refreshFactors();
@@ -180,7 +213,7 @@ function SecurityPage() {
 
   const activateEnroll = async () => {
     if (!enroll) return;
-    if (!/^\d{6}$/.test(enrollCode)) return toast.error(t("profile.security.mfa.invalidCode"));
+    if (!isCompleteMfaCode(enrollCode)) return toast.error(t("profile.security.mfa.invalidCode"));
     setEnrollBusy(true);
     try {
       const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -209,12 +242,20 @@ function SecurityPage() {
   };
 
   const confirmRemove = async () => {
-    if (!removeId || !removePw || !user?.email) return;
+    const problem = factorRemovalProblem({
+      factorId: removeId,
+      password: removePw,
+      email: user?.email,
+      factorCount: factors.length,
+    });
+    if (problem !== null) return;
+    const email = user?.email;
+    if (!removeId || !email) return;
     setRemoveBusy(true);
     try {
       // Re-uwierzytelnienie hasłem (spójnie ze zmianą hasła / usuwaniem konta).
       const { error: reauthErr } = await supabase.auth.signInWithPassword({
-        email: user.email,
+        email,
         password: removePw,
       });
       if (reauthErr) {
@@ -377,17 +418,22 @@ function SecurityPage() {
           </CardHeader>
           <CardContent className="grid gap-4 max-w-md">
             <p className="text-sm">
-              <span className="text-muted-foreground">Status: </span>
-              <span className="font-medium">
-                {factors.length > 0
-                  ? t("profile.security.mfa.statusEnabled")
-                  : t("profile.security.mfa.statusDisabled")}
+              <span className="text-muted-foreground">{t("profile.security.mfa.statusLabel")}</span>
+              <span className="font-medium" data-testid="mfa-status">
+                {t(mfaStatusKey(view))}
               </span>
             </p>
 
-            {factorsLoading ? (
+            {view.kind === "loading" ? (
               <p className="text-sm text-muted-foreground">{t("profile.security.mfa.loading")}</p>
-            ) : factors.length === 0 ? (
+            ) : view.kind === "unknown" ? (
+              // Trzeci stan, dotąd nieistniejący: odczyt się nie udał. Bez niego
+              // napis brzmiał „Wyłączone" i mówił użytkownikowi coś nieprawdziwego
+              // o ochronie jego konta.
+              <p role="alert" className="text-sm text-destructive">
+                {t("profile.security.mfa.loadFailed")}
+              </p>
+            ) : view.kind === "empty" ? (
               <p className="text-sm text-muted-foreground">{t("profile.security.mfa.none")}</p>
             ) : (
               <div className="grid gap-2">
@@ -395,7 +441,7 @@ function SecurityPage() {
                   {t("profile.security.mfa.enrolledTitle")}
                 </p>
                 <ul className="grid gap-2">
-                  {factors.map((f) => (
+                  {view.factors.map((f) => (
                     <li
                       key={f.id}
                       className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
@@ -454,7 +500,7 @@ function SecurityPage() {
                     autoComplete="one-time-code"
                     maxLength={6}
                     value={enrollCode}
-                    onChange={(e) => setEnrollCode(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) => setEnrollCode(normalizeMfaCode(e.target.value))}
                     placeholder={t("profile.security.mfa.codePlaceholder")}
                   />
                 </div>
@@ -493,7 +539,9 @@ function SecurityPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>{t("profile.security.mfa.removeTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
-                {t("profile.security.mfa.removeBody")}
+                {isLastFactor({ factorCount: factors.length })
+                  ? t("profile.security.mfa.removeLastBody")
+                  : t("profile.security.mfa.removeBody")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="grid gap-2 py-2">
