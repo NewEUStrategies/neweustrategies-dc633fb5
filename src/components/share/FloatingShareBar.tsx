@@ -18,6 +18,10 @@ import {
   BookOpen,
 } from "@/lib/lucide-shim";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { useTranslation } from "react-i18next";
+// Słownik paska udostępniania - import jako efekt uboczny trzyma go w chunku,
+// który go czyta (wzorzec `i18n-post-experience.ts`).
+import "@/lib/i18n-share";
 import { toast } from "sonner";
 import { SaveArticleButton } from "@/components/atoms/SaveArticleButton";
 import type { BookmarkEntityType } from "@/hooks/useBookmarks";
@@ -83,39 +87,6 @@ interface Props {
 /** Pozycja pływającego spisu treści - kształt zwracany przez `scanHeadings`. */
 type TocItem = ScannedHeading;
 
-const COPY = {
-  pl: {
-    share: "Udostępnij",
-    copy: "Skopiuj link",
-    copied: "Skopiowano link!",
-    x: "X",
-    fb: "Facebook",
-    li: "LinkedIn",
-    mail: "E-mail",
-    toc: "Spis treści",
-    progress: "Postęp czytania",
-    printPdf: "Drukuj / PDF",
-    actions: "Akcje",
-    tocTitle: "SPIS TREŚCI",
-    read: "przeczytano",
-  },
-  en: {
-    share: "Share",
-    copy: "Copy link",
-    copied: "Link copied!",
-    x: "X",
-    fb: "Facebook",
-    li: "LinkedIn",
-    mail: "Email",
-    toc: "On this page",
-    progress: "Reading progress",
-    printPdf: "Print / PDF",
-    actions: "Actions",
-    tocTitle: "ON THIS PAGE",
-    read: "read",
-  },
-} as const;
-
 export function FloatingShareBar({
   title,
   url,
@@ -154,7 +125,13 @@ export function FloatingShareBar({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [mobileOpen]);
-  const t = COPY[lang];
+  // Napisy w języku ARTYKUŁU (`lang`), nie interfejsu - udostępniany jest TEN
+  // tekst, więc etykieta kanału musi mówić jego językiem. Stąd jawne `lng`.
+  const { t: translate } = useTranslation();
+  const t = useMemo(
+    () => (key: string) => translate(`share.${key}`, { lng: lang }),
+    [translate, lang],
+  );
 
   // Re-read the URL when the article changes (entityId/title), not only on
   // mount - the post subtree is reused on client-side post->post navigation, so
@@ -238,43 +215,43 @@ export function FloatingShareBar({
     }[] = [
       {
         id: "x",
-        label: t.x,
+        label: t("channel.x"),
         icon: XIcon,
         href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}`,
       },
       {
         id: "facebook",
-        label: t.fb,
+        label: t("channel.facebook"),
         icon: Facebook,
         href: `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}`,
       },
       {
         id: "linkedin",
-        label: t.li,
+        label: t("channel.linkedin"),
         icon: Linkedin,
         href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}`,
       },
       {
         id: "mail",
-        label: t.mail,
+        label: t("channel.mail"),
         icon: Mail,
         href: `mailto:?subject=${enc(title)}&body=${enc(u)}`,
       },
       {
         id: "whatsapp",
-        label: "WhatsApp",
+        label: t("channel.whatsapp"),
         icon: Share2,
         href: `https://wa.me/?text=${enc(title + " " + u)}`,
       },
       {
         id: "telegram",
-        label: "Telegram",
+        label: t("channel.telegram"),
         icon: Share2,
         href: `https://t.me/share/url?url=${enc(u)}&text=${enc(title)}`,
       },
       {
         id: "reddit",
-        label: "Reddit",
+        label: t("channel.reddit"),
         icon: Share2,
         href: `https://www.reddit.com/submit?url=${enc(u)}&title=${enc(title)}`,
       },
@@ -285,7 +262,7 @@ export function FloatingShareBar({
   const onCopy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(u);
-      toast.success(t.copied);
+      toast.success(t("bar.copied"));
     } catch {
       // Clipboard may be blocked (insecure context, permission); fall back silently.
     }
@@ -371,7 +348,7 @@ export function FloatingShareBar({
         ref={railRef}
         data-floating-share
         data-variant={variant}
-        aria-label={t.share}
+        aria-label={t("bar.share")}
         className={[
           "hidden lg:flex flex-col",
           isSidebar
@@ -403,7 +380,7 @@ export function FloatingShareBar({
             <BookOpen className="w-4 h-4 text-brand" />
           </span>
           <span className="cms-widget-kicker font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
-            {t.tocTitle}
+            {t("bar.tocTitle")}
           </span>
           {hasToc && (
             <span className="cms-toc-index font-semibold text-muted-foreground tabular-nums shrink-0">
@@ -414,7 +391,7 @@ export function FloatingShareBar({
 
         {/* Interactive ToC list */}
         {hasToc && (
-          <nav aria-label={t.toc} className="overflow-y-auto flex-1 min-h-0 px-2 pb-2">
+          <nav aria-label={t("bar.toc")} className="overflow-y-auto flex-1 min-h-0 px-2 pb-2">
             <ul className="flex flex-col gap-0.5">
               {items.map((it) => {
                 const isActive = active === it.id;
@@ -467,7 +444,7 @@ export function FloatingShareBar({
         {/* Share + Actions card - visually distinct, premium */}
         <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 m-3 mt-2">
           <span className="cms-widget-note font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
-            <Share2 className="w-3 h-3" /> {t.share}
+            <Share2 className="w-3 h-3" /> {t("bar.share")}
           </span>
 
           {/* Social row */}
@@ -497,8 +474,8 @@ export function FloatingShareBar({
               <button
                 type="button"
                 onClick={onCopy}
-                aria-label={t.copy}
-                title={t.copy}
+                aria-label={t("bar.copy")}
+                title={t("bar.copy")}
                 className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
               >
                 <Copy className="w-[15px] h-[15px]" />
@@ -526,15 +503,15 @@ export function FloatingShareBar({
               <button
                 type="button"
                 onClick={onPrintPdf}
-                aria-label={t.printPdf}
-                title={t.printPdf}
+                aria-label={t("bar.printPdf")}
+                title={t("bar.printPdf")}
                 className="cms-widget-kicker inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
               >
                 <Printer
                   className="w-[14px] h-[14px] [&_*]:stroke-current"
                   style={{ color: "currentColor" }}
                 />
-                {t.printPdf}
+                {t("bar.printPdf")}
               </button>
             </div>
           )}
@@ -545,7 +522,7 @@ export function FloatingShareBar({
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        aria-label={t.toc}
+        aria-label={t("bar.toc")}
         aria-expanded={mobileOpen}
         data-floating-share-fab
         className={[
@@ -607,7 +584,7 @@ export function FloatingShareBar({
           ref={sheetRef}
           role="dialog"
           aria-modal={mobileOpen}
-          aria-label={t.toc}
+          aria-label={t("bar.toc")}
           className={[
             "absolute left-0 right-0 bottom-0",
             "max-h-[85vh] flex flex-col",
@@ -637,7 +614,7 @@ export function FloatingShareBar({
               <BookOpen className="w-[18px] h-[18px] text-brand" />
             </span>
             <span className="cms-widget-label font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
-              {t.tocTitle}
+              {t("bar.tocTitle")}
             </span>
             {hasToc && (
               <span className="cms-widget-label font-semibold text-muted-foreground tabular-nums shrink-0">
@@ -647,7 +624,7 @@ export function FloatingShareBar({
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              aria-label={lang === "pl" ? "Zamknij" : "Close"}
+              aria-label={translate("common.close", { lng: lang })}
               className="shrink-0 h-9 w-9 rounded-[5px] grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition"
             >
               <X className="w-4 h-4" />
@@ -656,7 +633,7 @@ export function FloatingShareBar({
 
           {/* ToC */}
           {hasToc && (
-            <nav aria-label={t.toc} className="overflow-y-auto px-2 py-1 flex-1 min-h-0">
+            <nav aria-label={t("bar.toc")} className="overflow-y-auto px-2 py-1 flex-1 min-h-0">
               <ul className="flex flex-col gap-0.5">
                 {items.map((it) => {
                   const isActive = active === it.id;
@@ -709,7 +686,7 @@ export function FloatingShareBar({
             <div className="border-t border-border/60 px-4 py-2.5 bg-muted/30">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
                 <span className="cms-widget-label font-semibold text-foreground tabular-nums shrink-0">
-                  {pct}% <span className="text-muted-foreground font-normal">{t.read}</span>
+                  {pct}% <span className="text-muted-foreground font-normal">{t("bar.read")}</span>
                 </span>
                 <span className="cms-widget-label text-muted-foreground truncate text-right min-w-0">
                   {currentTitle}
@@ -727,7 +704,7 @@ export function FloatingShareBar({
           {/* Share + actions */}
           <div className="px-4 pt-3 border-t border-border/60">
             <span className="cms-widget-note font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2">
-              <Share2 className="w-3 h-3" /> {t.share}
+              <Share2 className="w-3 h-3" /> {t("bar.share")}
             </span>
             <div className="grid grid-cols-5 gap-1.5">
               {links.map((l) => {
@@ -754,8 +731,8 @@ export function FloatingShareBar({
                 <button
                   type="button"
                   onClick={onCopy}
-                  aria-label={t.copy}
-                  title={t.copy}
+                  aria-label={t("bar.copy")}
+                  title={t("bar.copy")}
                   className="inline-flex items-center justify-center h-11 rounded-[5px] border border-border/60 text-muted-foreground active:text-brand active:bg-muted transition"
                 >
                   <Copy className="w-[17px] h-[17px]" />
@@ -780,12 +757,12 @@ export function FloatingShareBar({
                 <button
                   type="button"
                   onClick={onPrintPdf}
-                  aria-label={t.printPdf}
-                  title={t.printPdf}
+                  aria-label={t("bar.printPdf")}
+                  title={t("bar.printPdf")}
                   className="cms-widget-label inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] bg-brand text-brand-foreground font-semibold tracking-tight active:scale-[0.98] transition shadow-sm"
                 >
                   <Printer className="w-[15px] h-[15px]" />
-                  {t.printPdf}
+                  {t("bar.printPdf")}
                 </button>
               </div>
             )}
