@@ -281,10 +281,10 @@ describe("clubGroupSavePayload", () => {
   it("próg planu ZERO nadpisany jedzie jako 0, nie jako null", () => {
     // Granica, która łatwo ginie na `||`: 0 jest poprawnym progiem („każdy"),
     // a `null` znaczy „dziedzicz".
-    const payload = clubGroupSavePayload(
-      robocza({ minTierRank: 0, minTierRankInherit: false }),
-      { id: DZIAL, clubId: KLUB },
-    );
+    const payload = clubGroupSavePayload(robocza({ minTierRank: 0, minTierRankInherit: false }), {
+      id: DZIAL,
+      clubId: KLUB,
+    });
     expect(payload.min_tier_rank).toBe(0);
   });
 
@@ -307,10 +307,10 @@ describe("clubGroupSavePayload", () => {
   });
 
   it("wyczyszczony opis jedzie jako null, wypełniony - przycięty", () => {
-    const puste = clubGroupSavePayload(
-      robocza({ descriptionPl: "   ", descriptionEn: "" }),
-      { id: DZIAL, clubId: KLUB },
-    );
+    const puste = clubGroupSavePayload(robocza({ descriptionPl: "   ", descriptionEn: "" }), {
+      id: DZIAL,
+      clubId: KLUB,
+    });
     expect(puste.description_pl).toBeNull();
     expect(puste.description_en).toBeNull();
 

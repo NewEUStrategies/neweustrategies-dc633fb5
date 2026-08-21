@@ -281,9 +281,7 @@ describe("ClubFreshDocsPanel - świeże materiały", () => {
 
   it("tytuł materiału jedzie w języku interfejsu", () => {
     h.lang = "en-GB";
-    render(
-      <ClubFreshDocsPanel clubSlug={SLUG} documents={[clubDocumentRow()]} />,
-    );
+    render(<ClubFreshDocsPanel clubSlug={SLUG} documents={[clubDocumentRow()]} />);
     expect(screen.getByText("Energy report")).toBeInTheDocument();
   });
 

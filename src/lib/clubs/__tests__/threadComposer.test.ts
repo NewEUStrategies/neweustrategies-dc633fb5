@@ -137,9 +137,7 @@ describe("clubComposerKeyIntent - Enter zostaje znakiem nowej linii", () => {
 
 describe("clubComposerKeyIntent - Escape zdejmuje adresata, nie treść", () => {
   it("Escape przy wybranym adresacie zdejmuje adresata", () => {
-    expect(clubComposerKeyIntent(keyEvent({ key: "Escape" }), true)).toBe(
-      "clear-reply-target",
-    );
+    expect(clubComposerKeyIntent(keyEvent({ key: "Escape" }), true)).toBe("clear-reply-target");
   });
 
   it("Escape BEZ adresata jest przepuszczany dalej", () => {

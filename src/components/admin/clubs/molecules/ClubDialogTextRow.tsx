@@ -90,9 +90,7 @@ export function ClubDialogTextRow({
           onChange={(event) => onValueChange(event.target.value)}
         />
       )}
-      {hintKey === undefined ? null : (
-        <p className="text-xs text-muted-foreground">{t(hintKey)}</p>
-      )}
+      {hintKey === undefined ? null : <p className="text-xs text-muted-foreground">{t(hintKey)}</p>}
     </div>
   );
 }

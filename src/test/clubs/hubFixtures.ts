@@ -13,11 +13,7 @@
 // używa, a nie dopiero w przeglądarce.
 import { CLUB_BASE_ISO, CLUB_IDS } from "@/test/clubs/fixtures";
 import type { ClubPostRow } from "@/lib/clubs/postTypes";
-import type {
-  ClubDocumentRow,
-  ClubEventRow,
-  ClubMilestoneRow,
-} from "@/lib/clubs/workspaceTypes";
+import type { ClubDocumentRow, ClubEventRow, ClubMilestoneRow } from "@/lib/clubs/workspaceTypes";
 
 /** Data bez strefy (`YYYY-MM-DD`) wyliczona z `CLUB_BASE_ISO` - `due_on` nie ma godziny. */
 export const CLUB_BASE_DAY = CLUB_BASE_ISO.slice(0, 10);

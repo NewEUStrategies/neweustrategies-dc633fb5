@@ -24,11 +24,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
-import {
-  CLUB_PLAN_TIERS,
-  DEFAULT_CLUB_PLAN_TIER,
-  type ClubPlanTier,
-} from "@/lib/clubs/planTiers";
+import { CLUB_PLAN_TIERS, DEFAULT_CLUB_PLAN_TIER, type ClubPlanTier } from "@/lib/clubs/planTiers";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";

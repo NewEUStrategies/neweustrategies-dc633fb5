@@ -174,7 +174,11 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({
             onOpenChange(false);
           }}
         />
-        <button type="button" data-testid="anuluj-potwierdzenie" onClick={() => onOpenChange(false)} />
+        <button
+          type="button"
+          data-testid="anuluj-potwierdzenie"
+          onClick={() => onOpenChange(false)}
+        />
       </div>
     ),
 }));
@@ -373,9 +377,7 @@ describe("ClubGroupEditorDialog - walidacja", () => {
 describe("ClubGroupEditorDialog - dziedziczenie ustawień", () => {
   it("pole DZIEDZICZONE mówi, skąd bierze wartość, i jest nieczynne", () => {
     renderuj({});
-    expect(przelacznik("adminClubs.fields.visibility")).toHaveTextContent(
-      "club.inheritedFromClub",
-    );
+    expect(przelacznik("adminClubs.fields.visibility")).toHaveTextContent("club.inheritedFromClub");
     expect(droplista("club.visibility")).toBeDisabled();
     expect(droplista("club.whoCanPost")).toBeDisabled();
     expect(screen.getByRole("spinbutton")).toBeDisabled();
@@ -397,7 +399,9 @@ describe("ClubGroupEditorDialog - dziedziczenie ustawień", () => {
     const pole = droplista("club.visibility");
     expect(pole).toBeEnabled();
     expect(pole.value).toBe("members");
-    expect(screen.queryByRole("option", { name: "club.visibility.public" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "club.visibility.public" }),
+    ).not.toBeInTheDocument();
     expect(przelacznik("adminClubs.fields.visibility")).toHaveTextContent(
       "adminClubs.groups.override",
     );
@@ -410,26 +414,21 @@ describe("ClubGroupEditorDialog - dziedziczenie ustawień", () => {
 
     fireEvent.click(przelacznik("adminClubs.fields.visibility"));
     expect(droplista("club.visibility")).toBeDisabled();
-    expect(przelacznik("adminClubs.fields.visibility")).toHaveTextContent(
-      "club.inheritedFromClub",
-    );
+    expect(przelacznik("adminClubs.fields.visibility")).toHaveTextContent("club.inheritedFromClub");
   });
 
   it.each([
     ["adminClubs.fields.whoCanPost", "club.whoCanPost", "staff_only"],
     ["adminClubs.fields.moderationMode", "club.moderation", "pre"],
     ["adminClubs.fields.attributionMode", "club.attribution", "chatham"],
-  ])(
-    "nadpisanie pola %s odblokowuje droplistę i przepuszcza wybór",
-    (labelKey, prefix, wybor) => {
-      renderuj({});
-      fireEvent.click(przelacznik(labelKey));
-      const pole = droplista(prefix);
-      expect(pole).toBeEnabled();
-      fireEvent.change(pole, { target: { value: wybor } });
-      expect(droplista(prefix).value).toBe(wybor);
-    },
-  );
+  ])("nadpisanie pola %s odblokowuje droplistę i przepuszcza wybór", (labelKey, prefix, wybor) => {
+    renderuj({});
+    fireEvent.click(przelacznik(labelKey));
+    const pole = droplista(prefix);
+    expect(pole).toBeEnabled();
+    fireEvent.change(pole, { target: { value: wybor } });
+    expect(droplista(prefix).value).toBe(wybor);
+  });
 
   it("nadpisany próg planu przyjmuje liczbę, a śmieć schodzi do zera", () => {
     renderuj({});

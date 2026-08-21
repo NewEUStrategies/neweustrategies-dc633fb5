@@ -64,13 +64,22 @@ import {
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { CLUB_ROSTER_FACE_SLOTS, type ClubRosterFace } from "@/lib/clubs/networkTypes";
 import type { ClubTopicOption } from "@/lib/clubs/topicCatalog";
-import { threadParticipantRow, WS_BASE_ISO, wsIsoOffset } from "@/test/clubs/threadWorkspaceFixtures";
+import {
+  threadParticipantRow,
+  WS_BASE_ISO,
+  wsIsoOffset,
+} from "@/test/clubs/threadWorkspaceFixtures";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 /** Katalog organizacji - jedna pozycja nazwana INACZEJ niż lista awaryjna,
  *  żeby było widać, które źródło etykiety wygrało. */
 const KATALOG: readonly ClubTopicOption[] = [
-  { key: "energy", label_pl: "Energetyka i klimat", label_en: "Energy and climate", sort_order: 10 },
+  {
+    key: "energy",
+    label_pl: "Energetyka i klimat",
+    label_en: "Energy and climate",
+    sort_order: 10,
+  },
 ];
 
 function face(overrides: Partial<ClubRosterFace> = {}): ClubRosterFace {
@@ -181,7 +190,9 @@ describe("ClubRosterFaces - rząd twarzy składu", () => {
     // Ani plakietki roli, ani linijki o obecności - zostaje sama nazwa.
     expect(screen.getByText("Anna Nowak")).toBeInTheDocument();
     expect(screen.queryByText(/club\.role\./)).not.toBeInTheDocument();
-    expect(screen.queryByText(/club\.network\.roster\.(activeToday|newHere|memberSince)/)).toBeNull();
+    expect(
+      screen.queryByText(/club\.network\.roster\.(activeToday|newHere|memberSince)/),
+    ).toBeNull();
   });
 
   it("pula większa niż liczba miejsc pokazuje dokładnie tyle twarzy, ile miejsc, i przypina aktywnych", () => {
@@ -272,12 +283,12 @@ describe("ClubPersonCard - karta osoby na pełnym ekranie", () => {
 
   it.each([
     ["puste kompetencje", [], null],
-    ["dokładnie cztery - jeszcze bez nadwyżki", ["energy", "transport", "finance", "culture"], null],
     [
-      "pięć - nadwyżka jeden",
-      ["energy", "transport", "finance", "culture", "economy"],
-      "+1",
+      "dokładnie cztery - jeszcze bez nadwyżki",
+      ["energy", "transport", "finance", "culture"],
+      null,
     ],
+    ["pięć - nadwyżka jeden", ["energy", "transport", "finance", "culture", "economy"], "+1"],
   ])("%s", (_nazwa, topics: string[], nadwyzka: string | null) => {
     render(
       <ClubPersonCard
@@ -294,9 +305,9 @@ describe("ClubPersonCard - karta osoby na pełnym ekranie", () => {
       expect(screen.getByText(nadwyzka)).toBeInTheDocument();
     }
     // Nigdy więcej niż cztery chipy - reszta zwija się do licznika.
-    expect(screen.queryAllByText(/^(Energetyka|Transport|Finanse|Kultura|Gospodarka)$/).length).toBe(
-      Math.min(topics.length, 4),
-    );
+    expect(
+      screen.queryAllByText(/^(Energetyka|Transport|Finanse|Kultura|Gospodarka)$/).length,
+    ).toBe(Math.min(topics.length, 4));
   });
 });
 
@@ -312,13 +323,21 @@ describe("participantName - nazwa gotowa do renderu", () => {
       { display_name: null, alias: "Uczestnik 3" },
       "anonim Uczestnik 3",
     ],
-    ["nazwa pusta traktowana jak brak", { display_name: "", alias: "Uczestnik 3" }, "anonim Uczestnik 3"],
-    ["alias pusty schodzi do konta usuniętego", { display_name: null, alias: "" }, "konto usunięte"],
+    [
+      "nazwa pusta traktowana jak brak",
+      { display_name: "", alias: "Uczestnik 3" },
+      "anonim Uczestnik 3",
+    ],
+    [
+      "alias pusty schodzi do konta usuniętego",
+      { display_name: null, alias: "" },
+      "konto usunięte",
+    ],
     ["brak jednego i drugiego", { display_name: null, alias: null }, "konto usunięte"],
   ])("%s", (_nazwa, patch: Partial<Parameters<typeof participantName>[0]>, oczekiwane: string) => {
-    expect(
-      participantName(threadParticipantRow(patch), "anonim {{alias}}", "konto usunięte"),
-    ).toBe(oczekiwane);
+    expect(participantName(threadParticipantRow(patch), "anonim {{alias}}", "konto usunięte")).toBe(
+      oczekiwane,
+    );
   });
 });
 
@@ -347,7 +366,9 @@ describe("ClubParticipantRow - jedna osoba w wątku", () => {
     expect(screen.getByText("club.workspace.participants.questions(count=2)")).toBeInTheDocument();
     expect(screen.getByText("club.workspace.participants.documents(count=1)")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText(/club\.workspace\.participants\.lastActive\(date=.*2026/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/club\.workspace\.participants\.lastActive\(date=.*2026/),
+    ).toBeInTheDocument();
   });
 
   it("tryb poufny: alias zamiast nazwy, bez roli i bez stanowiska", () => {
@@ -383,7 +404,9 @@ describe("ClubParticipantRow - jedna osoba w wątku", () => {
         lang="pl"
       />,
     );
-    expect(screen.queryByText(/club\.workspace\.participants\.(replies|questions|documents)/)).toBeNull();
+    expect(
+      screen.queryByText(/club\.workspace\.participants\.(replies|questions|documents)/),
+    ).toBeNull();
     expect(screen.queryByText("club.workspace.participants.reactions")).not.toBeInTheDocument();
     expect(screen.queryByText(/club\.workspace\.participants\.lastActive/)).toBeNull();
     expect(screen.queryByText("club.workspace.participants.author")).not.toBeInTheDocument();
@@ -421,7 +444,9 @@ describe("ClubTopicNav - wejście w klub „per tematyka”", () => {
     );
     const nav = screen.getByRole("navigation", { name: "club.hub.topicsLabel" });
     // „Wszystkie” liczy WSZYSTKIE kluby, także te bez obszaru.
-    expect(within(nav).getByRole("button", { name: /club\.hub\.allTopics/ })).toHaveTextContent("4");
+    expect(within(nav).getByRole("button", { name: /club\.hub\.allTopics/ })).toHaveTextContent(
+      "4",
+    );
     expect(within(nav).getByRole("button", { name: /^Energetyka 2$/ })).toHaveTextContent("2");
     expect(within(nav).getByRole("button", { name: /Transport/ })).toHaveTextContent("1");
     expect(within(nav).getByRole("button", { name: /club\.hub\.allTopics/ })).toHaveAttribute(

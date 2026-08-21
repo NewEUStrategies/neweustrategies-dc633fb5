@@ -145,11 +145,7 @@ vi.mock("@/components/admin/CoverImagePicker", () => ({
   }) => (
     <div data-testid="okladka" data-folder={folder}>
       <label htmlFor="pole-okladki">{label}</label>
-      <input
-        id="pole-okladki"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <input id="pole-okladki" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   ),
 }));

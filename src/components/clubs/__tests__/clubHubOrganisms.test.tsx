@@ -135,7 +135,12 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ session: h.session, user: h.session?.user ?? null, isStaff: false, loading: false }),
+  useAuth: () => ({
+    session: h.session,
+    user: h.session?.user ?? null,
+    isStaff: false,
+    loading: false,
+  }),
 }));
 
 // Odbicie wartości bez opóźnienia: produkcja używa `setTimeout`, a test
@@ -279,7 +284,10 @@ vi.mock("@/components/clubs/molecules/ClubGroupTree", () => ({
 }));
 
 vi.mock("@/components/clubs/molecules/ClubGroupPanel", () => ({
-  ClubGroupPanel: (props: { documentCount: number; onGroupChange: (id: string | null) => void }) => {
+  ClubGroupPanel: (props: {
+    documentCount: number;
+    onGroupChange: (id: string | null) => void;
+  }) => {
     h.groupPanel = { documentCount: props.documentCount };
     return (
       <div data-testid="group-panel">
@@ -329,7 +337,11 @@ vi.mock("@/components/clubs/molecules/ClubStreamFilters", () => ({
         >
           a-
         </button>
-        <button type="button" data-testid="unread-on" onClick={() => props.onUnreadOnlyChange(true)}>
+        <button
+          type="button"
+          data-testid="unread-on"
+          onClick={() => props.onUnreadOnlyChange(true)}
+        >
           u+
         </button>
       </div>
@@ -450,11 +462,7 @@ vi.mock("@/components/clubs/organisms/ClubFeedItem", () => ({
         >
           topic
         </button>
-        <button
-          type="button"
-          data-testid="feed-like"
-          onClick={() => props.onPostLike?.("post-1")}
-        >
+        <button type="button" data-testid="feed-like" onClick={() => props.onPostLike?.("post-1")}>
           like
         </button>
         <button
@@ -696,7 +704,13 @@ describe("ClubHub - kontrakt argumentów sześciu zapytań", () => {
           clubPostRow({
             id: "post-2",
             attachments: [
-              { type: "file", path: "klub/2.pdf", name: "2.pdf", mime: "application/pdf", size: 20 },
+              {
+                type: "file",
+                path: "klub/2.pdf",
+                name: "2.pdf",
+                mime: "application/pdf",
+                size: 20,
+              },
             ],
           }),
         ],
@@ -993,7 +1007,12 @@ describe("ClubHub - wyszukiwanie zastępuje strumień", () => {
     const options = within(screen.getByLabelText("club.sort.label"))
       .getAllByRole("option")
       .map((option) => option.textContent);
-    expect(options).toEqual(["club.sort.hot", "club.sort.new", "club.sort.unanswered", "club.sort.top"]);
+    expect(options).toEqual([
+      "club.sort.hot",
+      "club.sort.new",
+      "club.sort.unanswered",
+      "club.sort.top",
+    ]);
   });
 
   it("porządek z sesją oferuje także „moje” i „obserwowane”", () => {

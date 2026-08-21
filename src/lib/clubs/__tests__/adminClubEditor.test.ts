@@ -91,7 +91,6 @@ function detailRow(overrides: Partial<AdminClubDetailRow> = {}): AdminClubDetail
     member_count: 42,
     group_count: 3,
     thread_count: 12,
-    pending_count: 0,
     created_at: CLUB_BASE_ISO,
     updated_at: CLUB_BASE_ISO,
     last_activity_at: CLUB_BASE_ISO,
@@ -189,10 +188,6 @@ describe("toClubGeneralDraft", () => {
     expect(toClubGeneralDraft(detailRow({ status })).status).toBe("draft");
   });
 
-  it("kolumna `status` równa `null` też degraduje do `draft`", () => {
-    expect(toClubGeneralDraft(detailRow({ status: null })).status).toBe("draft");
-  });
-
   it.each([
     ["nieznany układ", "gallery", "list"],
     ["pusty napis", "", "list"],
@@ -201,8 +196,20 @@ describe("toClubGeneralDraft", () => {
     expect(toClubGeneralDraft(detailRow({ layout })).layout).toBe(expected);
   });
 
-  it("kolumna `layout` równa `null` degraduje do listy", () => {
-    expect(toClubGeneralDraft(detailRow({ layout: null })).layout).toBe("list");
+  it("kolumny enumowe NIE są nullowalne - dowód degradacji `null` należy do `narrowClubEnum`", () => {
+    // `clubs.status`, `clubs.layout`, `clubs.visibility`, `clubs.who_can_post`
+    // i `clubs.moderation_mode` są w tabeli NOT NULL (patrz
+    // `20260808090000_discussion_clubs_a1_structure.sql`), więc `admin_club_get`
+    // nie ma czym zwrócić tam `null` - i typ to teraz odzwierciedla. Ramię
+    // `value !== null` w `narrowClubEnum` obsługuje kolumny, które NAPRAWDĘ są
+    // nullowalne (`club_capabilities.reason`, `club_groups_list.attribution_mode`)
+    // i ma pokrycie w `clubTypes.test.ts`. Ten test pilnuje, że kontrakt się nie
+    // odwrócił bez zauważenia: nullowalne są WYŁĄCZNIE kolumny tekstowe.
+    const draft = toClubGeneralDraft(detailRow({ tagline_pl: null, policy_area: null }));
+    expect(draft.taglinePl).toBe("");
+    expect(draft.policyArea).toBe("");
+    expect(draft.status).toBe("active");
+    expect(draft.layout).toBe("cards");
   });
 });
 
@@ -258,7 +265,7 @@ describe("toClubAccessDraft - fallbacki są WĘŻSZE, nie neutralne", () => {
     // wypuszczałby treść klubu zamkniętego przy pierwszej nieznanej wartości
     // CHECK-a w bazie.
     expect(toClubAccessDraft(detailRow({ visibility: "restricted" })).visibility).toBe("members");
-    expect(toClubAccessDraft(detailRow({ visibility: null })).visibility).toBe("members");
+    expect(toClubAccessDraft(detailRow({ visibility: "" })).visibility).toBe("members");
   });
 
   it("nieznana polityka pisania NIE wpuszcza członków - schodzi na `moderators`", () => {

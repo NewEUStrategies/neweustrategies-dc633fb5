@@ -110,9 +110,9 @@ describe("clubCreateSlugState", () => {
   });
 
   it("adres o minimalnej długości JUŻ jest pytaniem do serwera", () => {
-    expect(
-      clubCreateSlugState(stanAdresu({ effectiveSlug: "abc", debouncedSlug: "abc" })),
-    ).toBe("free");
+    expect(clubCreateSlugState(stanAdresu({ effectiveSlug: "abc", debouncedSlug: "abc" }))).toBe(
+      "free",
+    );
   });
 
   it("kolizja z ZAPISU bije odpowiedź „wolny” leżącą w cache", () => {
@@ -120,9 +120,7 @@ describe("clubCreateSlugState", () => {
     // sprawdzeniem a kliknięciem. Odwrotna kolejność warunków pokazywałaby
     // zieloną fajkę przy adresie odrzuconym sekundę wcześniej.
     expect(
-      clubCreateSlugState(
-        stanAdresu({ available: true, serverConflict: "klub-energetyczny" }),
-      ),
+      clubCreateSlugState(stanAdresu({ available: true, serverConflict: "klub-energetyczny" })),
     ).toBe("taken");
   });
 
@@ -234,9 +232,7 @@ describe("clubCreateSlugMark", () => {
 
 describe("canSubmitClubCreate", () => {
   it("nazwa i adres w porządku, zapis nie leci - wolno wysłać", () => {
-    expect(
-      canSubmitClubCreate({ namePl: "Klub", slugState: "free", isPending: false }),
-    ).toBe(true);
+    expect(canSubmitClubCreate({ namePl: "Klub", slugState: "free", isPending: false })).toBe(true);
   });
 
   it("nazwa krótsza niż minimum blokuje wysyłkę", () => {
@@ -245,9 +241,9 @@ describe("canSubmitClubCreate", () => {
   });
 
   it("nazwa ze spacji to nazwa pusta - spacje nie liczą się do minimum", () => {
-    expect(
-      canSubmitClubCreate({ namePl: "  a  ", slugState: "free", isPending: false }),
-    ).toBe(false);
+    expect(canSubmitClubCreate({ namePl: "  a  ", slugState: "free", isPending: false })).toBe(
+      false,
+    );
   });
 
   it.each<ClubCreateSlugState>(["empty", "short", "checking", "taken"])(
@@ -324,10 +320,12 @@ describe("clubCreatePayload", () => {
   it("próg planu zapisuje się jako RANGA, a nie jako nazwa progu", () => {
     // Kolumna `min_tier_rank` jest liczbą i porównuje się ją nierównością;
     // nazwa progu jest wyłącznie etykietą droplisty.
-    expect(clubCreatePayload(wartosci({ planTier: "free" }), { writesPolish: true }).min_tier_rank)
-      .toBe(0);
-    expect(clubCreatePayload(wartosci({ planTier: "pro" }), { writesPolish: true }).min_tier_rank)
-      .toBe(20);
+    expect(
+      clubCreatePayload(wartosci({ planTier: "free" }), { writesPolish: true }).min_tier_rank,
+    ).toBe(0);
+    expect(
+      clubCreatePayload(wartosci({ planTier: "pro" }), { writesPolish: true }).min_tier_rank,
+    ).toBe(20);
     expect(
       clubCreatePayload(wartosci({ planTier: "presidents_circle" }), { writesPolish: true })
         .min_tier_rank,

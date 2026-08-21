@@ -142,11 +142,7 @@ export function toClubAccessDraft(club: AdminClubDetailRow): ClubAccessDraftValu
       CLUB_ATTRIBUTION_MODES,
       "attributed",
     ),
-    whoCanPost: narrowClubEnum<ClubPostPolicy>(
-      club.who_can_post,
-      CLUB_POST_POLICIES,
-      "moderators",
-    ),
+    whoCanPost: narrowClubEnum<ClubPostPolicy>(club.who_can_post, CLUB_POST_POLICIES, "moderators"),
     moderationMode: narrowClubEnum<ClubModerationMode>(
       club.moderation_mode,
       CLUB_MODERATION_MODES,

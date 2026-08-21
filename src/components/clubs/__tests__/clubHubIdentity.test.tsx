@@ -79,9 +79,7 @@ import type { ClubViewRow } from "@/lib/clubs/types";
 const LOCALE = "pl-PL";
 
 function mount(overrides: Partial<ClubViewRow> = {}) {
-  return renderWithQueryClient(
-    <ClubHubIdentity club={clubViewRow(overrides)} locale={LOCALE} />,
-  );
+  return renderWithQueryClient(<ClubHubIdentity club={clubViewRow(overrides)} locale={LOCALE} />);
 }
 
 /**

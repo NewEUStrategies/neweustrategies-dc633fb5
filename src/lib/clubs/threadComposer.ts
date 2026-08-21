@@ -56,10 +56,7 @@ export function canSubmitClubReply(body: string, pending: boolean): boolean {
 }
 
 /** Czy pokazać licznik znaków. */
-export function showsClubReplyCounter(
-  body: string,
-  max: number = CLUB_REPLY_BODY_MAX,
-): boolean {
+export function showsClubReplyCounter(body: string, max: number = CLUB_REPLY_BODY_MAX): boolean {
   return clubReplyBodyLength(body) > max * CLUB_REPLY_COUNTER_RATIO;
 }
 

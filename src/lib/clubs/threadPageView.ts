@@ -193,9 +193,7 @@ export interface ClubRepliesMeter {
  * DROPLISTA porządków stoi dopiero od DWÓCH odpowiedzi: przy jednej nie ma
  * czego porządkować, a pole wyboru sugerowałoby, że lista jest dłuższa.
  */
-export function clubRepliesMeter(
-  page: ClubRepliesPageShape | null | undefined,
-): ClubRepliesMeter {
+export function clubRepliesMeter(page: ClubRepliesPageShape | null | undefined): ClubRepliesMeter {
   const total = page?.total ?? 0;
   const shown = page?.rows.length ?? 0;
   return { total, shown, truncated: total > shown, sortPickerVisible: total > 1 };
@@ -237,13 +235,12 @@ export function clubResolveAction(input: ClubResolveActionInput): ClubResolveAct
 }
 
 /** Klucze etykiet akcji rozstrzygnięcia. Widok tłumaczy, moduł nazywa. */
-export const CLUB_RESOLVE_LABEL_KEYS: Readonly<
-  Record<Exclude<ClubResolveAction, "none">, string>
-> = {
-  mark: "club.markResolution",
-  move: "club.moveResolution",
-  unmark: "club.unmarkResolution",
-};
+export const CLUB_RESOLVE_LABEL_KEYS: Readonly<Record<Exclude<ClubResolveAction, "none">, string>> =
+  {
+    mark: "club.markResolution",
+    move: "club.moveResolution",
+    unmark: "club.unmarkResolution",
+  };
 
 /**
  * Komunikat po udanym rozstrzygnięciu. `replyId === null` to COFNIĘCIE, więc
@@ -302,8 +299,7 @@ export function clubReplyCapabilities(input: ClubReplyCapabilityInput): ClubRepl
   const isMine = isOwnedBy(input.authorId, input.viewerId);
   return {
     isMine,
-    canEdit:
-      (isMine || input.canModerate) && !input.threadLocked && isClubReplyLive(input.status),
+    canEdit: (isMine || input.canModerate) && !input.threadLocked && isClubReplyLive(input.status),
     canReport: input.viewerId !== null && !isMine,
     canReplyTo: input.depth < CLUB_REPLY_MAX_DEPTH,
     resolveAction: clubResolveAction({

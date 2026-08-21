@@ -36,12 +36,7 @@ import { ClubStatsTab } from "@/components/admin/clubs/organisms/ClubStatsTab";
 import { ClubThreadsTab } from "@/components/admin/clubs/organisms/ClubThreadsTab";
 import { ClubStatusBadge } from "@/components/admin/clubs/atoms/ClubBadges";
 import { useAdminClub, useUpsertClub } from "@/lib/clubs/useClubs";
-import {
-  CLUB_STATUSES,
-  narrowClubEnum,
-  toClubSaveError,
-  type ClubStatus,
-} from "@/lib/clubs/types";
+import { CLUB_STATUSES, narrowClubEnum, toClubSaveError, type ClubStatus } from "@/lib/clubs/types";
 // Wersja robocza, wykrycie zmiany i payload zapisu to REGUŁY - mieszkają
 // w `lib/clubs/adminClubEditor` z tabelą przypadków. W ciele trasy stały jako
 // dwie funkcje przepisujące wiersz RPC i literał dwudziestu pól wewnątrz
@@ -103,7 +98,8 @@ function ClubEditor() {
   }, [clubQ.data, loadedAt]);
 
   const dirty = useMemo(
-    () => (clubQ.data && general && access ? isClubEditorDirty(clubQ.data, general, access) : false),
+    () =>
+      clubQ.data && general && access ? isClubEditorDirty(clubQ.data, general, access) : false,
     [clubQ.data, general, access],
   );
 

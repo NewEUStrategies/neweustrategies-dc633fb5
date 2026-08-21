@@ -204,7 +204,11 @@ describe("ClubThreadPulse - puls jednej dyskusji", () => {
     expect(metryka("club.pulse.participants")).toHaveTextContent("0");
     expect(screen.getByRole("img", { name: "club.pulse.chartLabel(count=0)" })).toBeInTheDocument();
 
-    const bars = [...container.querySelectorAll<HTMLSpanElement>('[data-testid="club-thread-sparkline"] > span')];
+    const bars = [
+      ...container.querySelectorAll<HTMLSpanElement>(
+        '[data-testid="club-thread-sparkline"] > span',
+      ),
+    ];
     expect(bars).toHaveLength(24);
     for (const bar of bars) {
       expect(bar).toHaveStyle({ height: "6%" });
@@ -237,7 +241,11 @@ describe("ClubThreadPulse - puls jednej dyskusji", () => {
     expect(screen.getByText(/club\.pulse\.lastActivity\(date=.*2026/)).toBeInTheDocument();
     expect(container.firstElementChild).toHaveClass("moja-klasa");
 
-    const bars = [...container.querySelectorAll<HTMLSpanElement>('[data-testid="club-thread-sparkline"] > span')];
+    const bars = [
+      ...container.querySelectorAll<HTMLSpanElement>(
+        '[data-testid="club-thread-sparkline"] > span',
+      ),
+    ];
     expect(bars.filter((bar) => bar.className.includes("bg-primary/70"))).toHaveLength(3);
     expect(bars.filter((bar) => bar.className.includes("bg-muted"))).toHaveLength(21);
   });

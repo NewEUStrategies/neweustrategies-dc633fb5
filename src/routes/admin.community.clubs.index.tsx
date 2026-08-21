@@ -30,10 +30,7 @@ import {
   type ClubStatus,
   type ClubVisibility,
 } from "@/lib/clubs/types";
-import {
-  adminClubListFilters,
-  hasAdminClubFilters,
-} from "@/lib/clubs/adminClubEditor";
+import { adminClubListFilters, hasAdminClubFilters } from "@/lib/clubs/adminClubEditor";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";

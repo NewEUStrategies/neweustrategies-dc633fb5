@@ -98,10 +98,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
     // jego utworzeniu i to JEST przedmiotem dowodu (argumenty przejścia).
     // Nawigacja edytora idzie przez `Route.useNavigate()`, którego ten mock nie
     // dotyka, więc `?tab=` nadal jedzie przez prawdziwy router.
-    useNavigate: () => (options: { to: string; params?: Record<string, unknown>; search?: unknown }) => {
-      h.navigations.push(options);
-      return Promise.resolve();
-    },
+    useNavigate:
+      () => (options: { to: string; params?: Record<string, unknown>; search?: unknown }) => {
+        h.navigations.push(options);
+        return Promise.resolve();
+      },
   };
 });
 vi.mock("@/lib/clubs/useClubs", () => ({
@@ -166,15 +167,15 @@ vi.mock("@/components/ui/tabs", () => ({
   }) => {
     h.activeTab = value;
     return (
-    <div data-testid="tabs" data-value={value}>
-      <button type="button" data-testid="tab-change" onClick={() => onValueChange("permissions")}>
-        zmień zakładkę
-      </button>
-      <button type="button" data-testid="tab-bogus" onClick={() => onValueChange("nie-ma")}>
-        zakładka spoza zbioru
-      </button>
-      {children}
-    </div>
+      <div data-testid="tabs" data-value={value}>
+        <button type="button" data-testid="tab-change" onClick={() => onValueChange("permissions")}>
+          zmień zakładkę
+        </button>
+        <button type="button" data-testid="tab-bogus" onClick={() => onValueChange("nie-ma")}>
+          zakładka spoza zbioru
+        </button>
+        {children}
+      </div>
     );
   },
   TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -302,7 +303,6 @@ function detailRow(overrides: Partial<AdminClubDetailRow> = {}): AdminClubDetail
     member_count: 42,
     group_count: 3,
     thread_count: 12,
-    pending_count: 0,
     created_at: CLUB_BASE_ISO,
     updated_at: CLUB_BASE_ISO,
     last_activity_at: CLUB_BASE_ISO,
@@ -760,7 +760,9 @@ describe("edytor klubu - wersja robocza i zapis", () => {
   it("przycisk zapisu jest NIEAKTYWNY, dopóki nic się nie zmieniło", async () => {
     // „Zapisz", które nic nie zapisuje, uczy ignorowania przycisku.
     await mountEditor();
-    expect(screen.getByRole("button", { name: /common\.save/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: /common\.save/ }).hasAttribute("disabled")).toBe(
+      true,
+    );
   });
 
   it("zmiana w zakładce „Ogólne” uaktywnia zapis", async () => {
@@ -882,15 +884,17 @@ describe("edytor klubu - wersja robocza i zapis", () => {
   it("w czasie zapisu przycisk jest ODCINANY, a zakładki wyszarzone", async () => {
     h.savePending = true;
     await mountEditor();
-    expect(screen.getByRole("button", { name: /common\.save/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: /common\.save/ }).hasAttribute("disabled")).toBe(
+      true,
+    );
     expect(h.organism.ClubGeneralTab.disabled).toBe(true);
   });
 
   it("droga powrotna prowadzi na listę klubów", async () => {
     await mountEditor();
-    expect(
-      screen.getByRole("link", { name: /adminClubs\.title/ }).getAttribute("href"),
-    ).toBe("/admin/community/clubs");
+    expect(screen.getByRole("link", { name: /adminClubs\.title/ }).getAttribute("href")).toBe(
+      "/admin/community/clubs",
+    );
   });
 
   it("każda zakładka danych dostaje IDENTYFIKATOR klubu, nie slug", async () => {

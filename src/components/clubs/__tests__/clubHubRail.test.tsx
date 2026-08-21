@@ -98,15 +98,17 @@ const SLUG = "klub-energetyczny";
 /** Nazwy sekcji o LUDZIACH, które milkną przy ukrytym składzie. */
 const PEOPLE = ["members", "experts", "spotlight"] as const;
 
-function railProps(overrides: {
-  canSeeMembers?: boolean;
-  groups?: readonly ClubGroupRow[];
-  policyArea?: string | null;
-  activeGroupId?: string | null;
-  onGroupChange?: (groupId: string | null) => void;
-  counts?: Partial<Record<string, number>>;
-  hasRules?: boolean;
-} = {}) {
+function railProps(
+  overrides: {
+    canSeeMembers?: boolean;
+    groups?: readonly ClubGroupRow[];
+    policyArea?: string | null;
+    activeGroupId?: string | null;
+    onGroupChange?: (groupId: string | null) => void;
+    counts?: Partial<Record<string, number>>;
+    hasRules?: boolean;
+  } = {},
+) {
   return {
     clubSlug: SLUG,
     canSeeMembers: overrides.canSeeMembers ?? true,
@@ -202,9 +204,7 @@ describe("Spis treści klubu - który link jest aktywny", () => {
 
 describe("Spis treści klubu - liczby przy kafelkach", () => {
   it("liczba dodatnia jest widoczna, zero i brak liczby nie rysują plakietki", () => {
-    render(
-      <ClubHubRail {...railProps({ counts: { threads: 12, documents: 0 } })} />,
-    );
+    render(<ClubHubRail {...railProps({ counts: { threads: 12, documents: 0 } })} />);
 
     const threads = screen.getByRole("link", { name: "club.hub.sections.threads" });
     const documents = screen.getByRole("link", { name: "club.hub.sections.documents" });
@@ -217,9 +217,9 @@ describe("Spis treści klubu - liczby przy kafelkach", () => {
 
   it("liczba powyżej dziewięćdziesięciu dziewięciu skraca się do „99+”", () => {
     render(<ClubHubRail {...railProps({ counts: { threads: 250 } })} />);
-    expect(
-      screen.getByRole("link", { name: "club.hub.sections.threads" }).textContent,
-    ).toContain("99+");
+    expect(screen.getByRole("link", { name: "club.hub.sections.threads" }).textContent).toContain(
+      "99+",
+    );
   });
 
   it("liczba NIE wchodzi do nazwy dostępnej linku", () => {
@@ -290,12 +290,12 @@ describe("ClubWorkspaceRail - ta sama kolumna na podstronach", () => {
   it("liczy WYŁĄCZNIE to, co i tak wiezie wiersz klubu - biblioteka nie dostaje plakietki", () => {
     mountWorkspace({ thread_count: 12, member_count: 42 });
 
-    expect(
-      screen.getByRole("link", { name: "club.hub.sections.threads" }).textContent,
-    ).toContain("12");
-    expect(
-      screen.getByRole("link", { name: "club.hub.sections.members" }).textContent,
-    ).toContain("42");
+    expect(screen.getByRole("link", { name: "club.hub.sections.threads" }).textContent).toContain(
+      "12",
+    );
+    expect(screen.getByRole("link", { name: "club.hub.sections.members" }).textContent).toContain(
+      "42",
+    );
     expect(screen.getByRole("link", { name: "club.hub.sections.documents" }).textContent).toBe(
       "club.hub.sections.documents",
     );

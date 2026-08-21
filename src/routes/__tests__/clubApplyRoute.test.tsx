@@ -341,18 +341,15 @@ describe("GateCard - kto widzi formularz", () => {
     ["brak danych warstwy", null],
     ["ranga 0", 0],
     ["ranga o jeden pod progiem", PRO_MIN_RANK - 1],
-  ])(
-    "zalogowany bez PRO+ (%s) dostaje bramkę WARSTWY z CTA do cennika",
-    async (_label, rank) => {
-      h.tier = rank === null ? null : tier(rank);
-      await mount();
-      expect(screen.getByText("club.spec.apply.gate.proTitle")).toBeTruthy();
-      const cta = screen.getByRole("link", { name: "club.spec.apply.gate.proCta" });
-      expect(cta.getAttribute("href")).toBe("/pricing");
-      expect(screen.queryByText("club.spec.apply.gate.signInTitle")).toBeNull();
-      expect(screen.queryByRole("button", { name: /club\.spec\.apply\.submit/ })).toBeNull();
-    },
-  );
+  ])("zalogowany bez PRO+ (%s) dostaje bramkę WARSTWY z CTA do cennika", async (_label, rank) => {
+    h.tier = rank === null ? null : tier(rank);
+    await mount();
+    expect(screen.getByText("club.spec.apply.gate.proTitle")).toBeTruthy();
+    const cta = screen.getByRole("link", { name: "club.spec.apply.gate.proCta" });
+    expect(cta.getAttribute("href")).toBe("/pricing");
+    expect(screen.queryByText("club.spec.apply.gate.signInTitle")).toBeNull();
+    expect(screen.queryByRole("button", { name: /club\.spec\.apply\.submit/ })).toBeNull();
+  });
 
   it("ranga DOKŁADNIE na progu PRO+ przechodzi - granica należy do wpuszczonych", async () => {
     h.tier = tier(PRO_MIN_RANK);
@@ -701,9 +698,9 @@ describe("onSubmit - wysyłka zgłoszenia", () => {
     // Specjalizacja ZOSTAJE - kandydat zwykle składa kolejne zgłoszenie w tej
     // samej dziedzinie, a przepisywanie jej od nowa to strata bez korzyści.
     expect((field("club.spec.apply.firstName") as HTMLInputElement).value).toBe("");
-    expect((screen.getByLabelText("club.spec.apply.specialization") as HTMLSelectElement).value).toBe(
-      "bezpieczenstwo",
-    );
+    expect(
+      (screen.getByLabelText("club.spec.apply.specialization") as HTMLSelectElement).value,
+    ).toBe("bezpieczenstwo");
   });
 
   it("zgoda marketingowa ZAŚWIADCZONA w rejestrze zgód, z tą samą wersją i źródłem", async () => {
@@ -757,21 +754,18 @@ describe("onSubmit - wysyłka zgłoszenia", () => {
     ["pro_required", "pro_required"],
     ["auth_required", "auth_required"],
     ["consent_required", "consent_required"],
-  ])(
-    "błąd API `%s` pokazuje KLUCZ i18n, nie surowy tekst z Postgresa",
-    async (raw, expected) => {
-      h.submit.mockRejectedValue(new Error(`ERROR:  ${raw} (SQLSTATE P0001) at RAISE`));
-      await mount();
-      fillValidForm();
-      fireEvent.click(submitButton());
-      await waitFor(() => {
-        expect(h.toastError).toHaveBeenCalledWith(`club.spec.apply.submitErrors.${expected}`);
-      });
-      const message = String(h.toastError.mock.calls.at(-1)?.[0]);
-      expect(message).not.toContain("SQLSTATE");
-      expect(message).not.toContain("RAISE");
-    },
-  );
+  ])("błąd API `%s` pokazuje KLUCZ i18n, nie surowy tekst z Postgresa", async (raw, expected) => {
+    h.submit.mockRejectedValue(new Error(`ERROR:  ${raw} (SQLSTATE P0001) at RAISE`));
+    await mount();
+    fillValidForm();
+    fireEvent.click(submitButton());
+    await waitFor(() => {
+      expect(h.toastError).toHaveBeenCalledWith(`club.spec.apply.submitErrors.${expected}`);
+    });
+    const message = String(h.toastError.mock.calls.at(-1)?.[0]);
+    expect(message).not.toContain("SQLSTATE");
+    expect(message).not.toContain("RAISE");
+  });
 
   it("błąd nierozpoznany degraduje do `unknown`, a nie do pustego tostu", async () => {
     h.submit.mockRejectedValue(new Error("connection reset by peer"));

@@ -48,9 +48,7 @@ function SlugMark({ state }: { state: ClubCreateSlugState }) {
     );
   }
   if (descriptor.mark === "error") {
-    return (
-      <X className="h-4 w-4 shrink-0 text-destructive" aria-label={t(descriptor.labelKey)} />
-    );
+    return <X className="h-4 w-4 shrink-0 text-destructive" aria-label={t(descriptor.labelKey)} />;
   }
   // Miejsce zarezerwowane: pole nie skacze w poziomie, gdy znacznik się pojawia.
   return <span className="h-4 w-4 shrink-0" aria-hidden="true" />;
@@ -100,9 +98,7 @@ export function ClubDialogSlugRow({
         id={stateId}
         role={message.alert ? "alert" : undefined}
         className={
-          message.alert
-            ? "text-xs font-medium text-destructive"
-            : "text-xs text-muted-foreground"
+          message.alert ? "text-xs font-medium text-destructive" : "text-xs text-muted-foreground"
         }
       >
         {t(message.key)}

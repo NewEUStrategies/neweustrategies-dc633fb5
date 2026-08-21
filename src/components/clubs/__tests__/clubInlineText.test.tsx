@@ -435,7 +435,12 @@ describe("MentionSegment - stany dymka", () => {
     readonly expected: string;
     readonly opis: string;
   }[] = [
-    { jobTitle: "Dyrektor", company: "ACME", expected: "Dyrektor - ACME", opis: "stanowisko i firma" },
+    {
+      jobTitle: "Dyrektor",
+      company: "ACME",
+      expected: "Dyrektor - ACME",
+      opis: "stanowisko i firma",
+    },
     { jobTitle: "Dyrektor", company: null, expected: "Dyrektor", opis: "tylko stanowisko" },
     { jobTitle: null, company: "ACME", expected: "ACME", opis: "tylko firma" },
     { jobTitle: null, company: null, expected: "@anna-nowak", opis: "brak obu - zostaje uchwyt" },

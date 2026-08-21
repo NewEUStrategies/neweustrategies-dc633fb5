@@ -142,12 +142,10 @@ export type ClubCreateSlugMark = "spinner" | "ok" | "error" | "none";
  * pilnuje, żeby wywołujący nie sprawdzał pustki, której nie może dostać.
  */
 export type ClubCreateSlugMarkDescriptor =
-  | { mark: "none" }
-  | { mark: "spinner" | "ok" | "error"; labelKey: string };
+  { mark: "none" } | { mark: "spinner" | "ok" | "error"; labelKey: string };
 
 export function clubCreateSlugMark(state: ClubCreateSlugState): ClubCreateSlugMarkDescriptor {
-  if (state === "checking")
-    return { mark: "spinner", labelKey: "adminClubs.create.slugChecking" };
+  if (state === "checking") return { mark: "spinner", labelKey: "adminClubs.create.slugChecking" };
   if (state === "free") return { mark: "ok", labelKey: "adminClubs.create.slugFree" };
   if (state === "taken") return { mark: "error", labelKey: "adminClubs.create.slugTaken" };
   return { mark: "none" };

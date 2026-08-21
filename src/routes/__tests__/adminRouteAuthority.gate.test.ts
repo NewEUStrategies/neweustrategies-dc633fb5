@@ -239,7 +239,9 @@ describe("panel klubów - autorytet dostępu", () => {
       "admin.community.clubs.applications.tsx",
       "admin.community.clubs.elements.tsx",
     ];
-    const offenders = shells.filter((file) => /\.mutate\(|useMutation\(/.test(read(`${ROUTES_DIR}/${file}`)));
+    const offenders = shells.filter((file) =>
+      /\.mutate\(|useMutation\(/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
     expect(offenders).toEqual([]);
   });
 });

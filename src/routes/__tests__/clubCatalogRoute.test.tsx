@@ -501,9 +501,7 @@ describe("wyszukiwanie - ZASTĘPUJE katalog", () => {
     // Ranking dostaje etykietę obszaru jako dodatkowe pole dopasowania. Klub
     // z `policy_area = null` nie ma jej wcale - i to nie może wywalić
     // dopasowania po samej nazwie.
-    catalog(
-      clubListRow({ name_pl: "Klub energetyczny", name_en: "Energy club", policy_area: "" }),
-    );
+    catalog(clubListRow({ name_pl: "Klub energetyczny", name_en: "Energy club", policy_area: "" }));
     await mount();
     search("energ");
     await waitFor(() => {

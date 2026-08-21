@@ -204,7 +204,11 @@ vi.mock("react-i18next", async () =>
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ session: h.user === null ? null : { user: h.user }, user: h.user, isStaff: false }),
+  useAuth: () => ({
+    session: h.user === null ? null : { user: h.user },
+    user: h.user,
+    isStaff: false,
+  }),
 }));
 vi.mock("@/lib/clubs/publicClub", () => ({
   fetchClubBySlug: () => {
@@ -368,8 +372,21 @@ vi.mock("@/components/clubs/atoms/ClubSkeletons", () => ({
   ),
 }));
 vi.mock("@/components/clubs/atoms/ClubProse", () => ({
-  ClubProse: ({ body, size, clubSlug }: { body: string; size?: string; clubSlug?: string | null }) => (
-    <div data-testid="prose" data-body={body} data-size={size ?? "base"} data-club={clubSlug ?? ""} />
+  ClubProse: ({
+    body,
+    size,
+    clubSlug,
+  }: {
+    body: string;
+    size?: string;
+    clubSlug?: string | null;
+  }) => (
+    <div
+      data-testid="prose"
+      data-body={body}
+      data-size={size ?? "base"}
+      data-club={clubSlug ?? ""}
+    />
   ),
 }));
 vi.mock("@/components/clubs/atoms/ClubAuthorAvatar", () => ({
@@ -420,7 +437,11 @@ vi.mock("@/components/clubs/molecules/ClubReactionAvatars", () => ({
     actors: readonly ClubReactionActor[];
     total?: number;
   }) => (
-    <span data-testid="reaction-avatars" data-total={String(total ?? "")} data-actors={actors.length} />
+    <span
+      data-testid="reaction-avatars"
+      data-total={String(total ?? "")}
+      data-actors={actors.length}
+    />
   ),
 }));
 vi.mock("@/components/clubs/molecules/ClubFollowButton", () => ({
@@ -506,7 +527,9 @@ vi.mock("@/components/clubs/molecules/ClubInlineEditor", () => ({
       <button
         type="button"
         data-testid="editor-save"
-        onClick={() => onSave({ title: "Tytuł po redakcji", body: "Treść po redakcji", reason: "literówka" })}
+        onClick={() =>
+          onSave({ title: "Tytuł po redakcji", body: "Treść po redakcji", reason: "literówka" })
+        }
       />
       <button type="button" data-testid="editor-cancel" onClick={onCancel} />
     </div>
@@ -594,13 +617,7 @@ vi.mock("@/components/ui/alert-dialog", async () => {
         {children}
       </button>
     ),
-    AlertDialogAction: ({
-      children,
-      onClick,
-    }: {
-      children?: ReactNode;
-      onClick?: () => void;
-    }) => (
+    AlertDialogAction: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
       <button type="button" data-testid="unmark-confirm" onClick={onClick}>
         {children}
       </button>
@@ -1481,9 +1498,7 @@ describe("odpowiedzi - lista, porządek i ucięcie strony", () => {
       replyRow({ id: "child", parent_id: "root", depth: 1, body: "Wpis podrzędny." }),
     ]);
     await mount();
-    const bodies = screen
-      .getAllByTestId("prose")
-      .map((node) => node.getAttribute("data-body"));
+    const bodies = screen.getAllByTestId("prose").map((node) => node.getAttribute("data-body"));
     expect(bodies).toContain("Wpis nadrzędny.");
     expect(bodies).toContain("Wpis podrzędny.");
     const nested = document.querySelectorAll("li li");
@@ -1513,9 +1528,9 @@ describe("odpowiedzi - odroczona projekcja („N nowych odpowiedzi”)", () => {
     ).not.toContain("Świeży cudzy wpis.");
 
     fireEvent.click(screen.getByTestId("new-replies"));
-    expect(
-      screen.getAllByTestId("prose").map((node) => node.getAttribute("data-body")),
-    ).toContain("Świeży cudzy wpis.");
+    expect(screen.getAllByTestId("prose").map((node) => node.getAttribute("data-body"))).toContain(
+      "Świeży cudzy wpis.",
+    );
   });
 });
 

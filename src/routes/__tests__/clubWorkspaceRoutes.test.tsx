@@ -313,11 +313,14 @@ describe("loader - dogrzewa cache pod kluczem, z którego czyta komponent", () =
     expect(screen.getByTestId("shell")).toBeTruthy();
   });
 
-  it.each(POWIERZCHNIE)("$nazwa: brak wiersza `club_view` też nie wywala trasy", async (surface) => {
-    h.loaded = null;
-    const rendered = await mount(surface);
-    expect(rendered.currentPath()).toBe(surface.entry);
-  });
+  it.each(POWIERZCHNIE)(
+    "$nazwa: brak wiersza `club_view` też nie wywala trasy",
+    async (surface) => {
+      h.loaded = null;
+      const rendered = await mount(surface);
+      expect(rendered.currentPath()).toBe(surface.entry);
+    },
+  );
 
   it("loader czyta slug Z PARAMETRU, a nie ze stałej", async () => {
     // Przeklejony literał w `queryFn` dawałby kartę INNEGO klubu przy każdym
@@ -398,11 +401,14 @@ describe("head() - indeksowalność liczy się z WIDOCZNOŚCI klubu", () => {
     expect(titleOf(rendered.meta())).not.toBe("");
   });
 
-  it.each(POWIERZCHNIE)("$nazwa niesie NAZWĘ klubu w tytule, gdy loader dowiózł", async (surface) => {
-    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
-    const rendered = await mount(surface);
-    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
-  });
+  it.each(POWIERZCHNIE)(
+    "$nazwa niesie NAZWĘ klubu w tytule, gdy loader dowiózł",
+    async (surface) => {
+      h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+      const rendered = await mount(surface);
+      expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+    },
+  );
 
   it("`fallbackPath` różni się MIĘDZY trasami - to on jest kanonicznym adresem", () => {
     const paths = POWIERZCHNIE.map((surface) => surface.fallbackPath);

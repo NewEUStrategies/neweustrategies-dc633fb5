@@ -124,9 +124,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
         onAnswer={() => undefined}
       />,
     );
-    expect(
-      screen.getByRole("button", { name: "club.workspace.questions.vote" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "club.workspace.questions.vote" })).toBeDisabled();
   });
 
   it("pytanie z autorem anonimowym bierze alias, a bez aliasu - konto usunięte", () => {
@@ -214,9 +212,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
         onAnswer={onAnswer}
       />,
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "club.workspace.questions.answerCta" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "club.workspace.questions.answerCta" }));
     const pole = screen.getByLabelText("club.workspace.questions.answerLabel");
     const publikuj = screen.getByRole("button", {
       name: "club.workspace.questions.publishAnswer",
@@ -232,9 +228,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
     expect(onAnswer).toHaveBeenCalledWith("Odpowiadam wprost.");
 
     fireEvent.click(screen.getByRole("button", { name: "club.workspace.cancel" }));
-    expect(
-      screen.queryByLabelText("club.workspace.questions.answerLabel"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("club.workspace.questions.answerLabel")).not.toBeInTheDocument();
   });
 
   it("odpowiedź już jest, więc przycisk mówi „popraw”, a pole startuje z jej treścią", () => {
@@ -252,9 +246,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
         onAnswer={() => undefined}
       />,
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "club.workspace.questions.editAnswer" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "club.workspace.questions.editAnswer" }));
     expect(screen.getByLabelText("club.workspace.questions.answerLabel")).toHaveValue(
       "Wersja pierwsza.",
     );
@@ -328,12 +320,11 @@ describe("ClubMilestoneRow - jedna pozycja harmonogramu", () => {
     );
     expect(screen.getByText("Uwagi zbieramy do końca miesiąca.")).toBeInTheDocument();
     expect(screen.getByText("Bruksela, Rue de la Loi 200")).toBeInTheDocument();
-    expect(
-      screen.getByText("club.workspace.schedule.owner(name=Jan Lis)"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "club.workspace.schedule.openEvent" }),
-    ).toHaveAttribute("href", "/events/konsultacje-rynek-mocy");
+    expect(screen.getByText("club.workspace.schedule.owner(name=Jan Lis)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "club.workspace.schedule.openEvent" })).toHaveAttribute(
+      "href",
+      "/events/konsultacje-rynek-mocy",
+    );
     const zewnetrzny = screen.getByRole("link", { name: "club.workspace.openLink" });
     expect(zewnetrzny).toHaveAttribute("rel", "noopener noreferrer");
     expect(zewnetrzny).toHaveAttribute("target", "_blank");

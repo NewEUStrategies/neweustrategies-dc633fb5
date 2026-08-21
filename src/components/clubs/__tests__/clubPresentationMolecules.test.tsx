@@ -106,11 +106,7 @@ function actor(overrides: Partial<ClubReactionActor> = {}): ClubReactionActor {
   };
 }
 
-function tally(
-  kind: ClubReactionKind,
-  total: number,
-  mine = false,
-): ClubReactionTally {
+function tally(kind: ClubReactionKind, total: number, mine = false): ClubReactionTally {
   return { kind, total, mine };
 }
 
@@ -331,9 +327,7 @@ describe("ClubNewRepliesBar - informacja o nowej treści nad listą", () => {
     ["zero", 0],
     ["wartość ujemna z wyścigu liczników", -3],
   ])("przy liczbie „%s” pasek nie istnieje", (_nazwa, count: number) => {
-    const { container } = render(
-      <ClubNewRepliesBar count={count} onReveal={() => undefined} />,
-    );
+    const { container } = render(<ClubNewRepliesBar count={count} onReveal={() => undefined} />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -414,18 +408,21 @@ describe("ClubStanceBar - mapa stanowisk, nie ankieta", () => {
   it.each([
     ["bez prawa głosu", true, false, "club.stance.readOnly"],
     ["w trakcie zapisu", false, true, "club.stance.hint"],
-  ])("%s przyciski są zablokowane", (_nazwa, disabled: boolean, pending: boolean, tekst: string) => {
-    render(
-      <ClubStanceBar
-        rows={[stanceRow("support", 1)]}
-        disabled={disabled}
-        pending={pending}
-        onSet={() => undefined}
-      />,
-    );
-    for (const button of screen.getAllByRole("button")) expect(button).toBeDisabled();
-    expect(screen.getByText(tekst)).toBeInTheDocument();
-  });
+  ])(
+    "%s przyciski są zablokowane",
+    (_nazwa, disabled: boolean, pending: boolean, tekst: string) => {
+      render(
+        <ClubStanceBar
+          rows={[stanceRow("support", 1)]}
+          disabled={disabled}
+          pending={pending}
+          onSet={() => undefined}
+        />,
+      );
+      for (const button of screen.getAllByRole("button")) expect(button).toBeDisabled();
+      expect(screen.getByText(tekst)).toBeInTheDocument();
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -458,12 +455,7 @@ describe("ClubFollowButton - trzy stany obserwowania", () => {
     ) => {
       const onChange = vi.fn();
       render(
-        <ClubFollowButton
-          state={state}
-          pending={false}
-          disabled={false}
-          onChange={onChange}
-        />,
+        <ClubFollowButton state={state} pending={false} disabled={false} onChange={onChange} />,
       );
       const button = screen.getByRole("button");
       expect(button).toHaveTextContent(etykieta);
@@ -524,13 +516,7 @@ describe("ClubFollowButton - trzy stany obserwowania", () => {
     // Stan jawny w tym samym wariancie: podpowiedź ustępuje etykiecie, a zapis
     // w toku wyłącza przycisk.
     rerender(
-      <ClubFollowButton
-        state="subscribed"
-        pending
-        disabled={false}
-        onChange={onChange}
-        compact
-      />,
+      <ClubFollowButton state="subscribed" pending disabled={false} onChange={onChange} compact />,
     );
     const wciazTen = screen.getByRole("button", { name: "club.subscription.subscribed" });
     expect(wciazTen).toHaveAttribute("title", "club.subscription.subscribed");

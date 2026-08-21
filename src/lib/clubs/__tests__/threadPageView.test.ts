@@ -92,7 +92,9 @@ describe("resolveClubThreadStage - cztery stany strony wątku", () => {
     // `useQuery` zostaje w `isPending` na zawsze. Sklejenie tych dwóch stanów
     // zamieniało wejście na nieistniejący slug w stronę, która wiruje bez końca.
     expect(
-      resolveClubThreadStage(stage({ clubMissing: true, threadPending: true, threadMissing: true })),
+      resolveClubThreadStage(
+        stage({ clubMissing: true, threadPending: true, threadMissing: true }),
+      ),
     ).toBe("missing");
   });
 
@@ -133,9 +135,7 @@ function threadInput(
 
 describe("clubThreadCapabilities - rozstrzyganie pytania", () => {
   it("autor pytania może wskazać odpowiedź rozstrzygającą", () => {
-    const caps = clubThreadCapabilities(
-      threadInput({ kind: "question", authorId: CLUB_IDS.me }),
-    );
+    const caps = clubThreadCapabilities(threadInput({ kind: "question", authorId: CLUB_IDS.me }));
     expect(caps.canResolve).toBe(true);
   });
 
@@ -306,9 +306,7 @@ describe("clubThreadHasResolution", () => {
   });
 
   it("jedna flaga wśród wielu wpisów wystarczy", () => {
-    expect(
-      clubThreadHasResolution([{ is_resolution: false }, { is_resolution: true }]),
-    ).toBe(true);
+    expect(clubThreadHasResolution([{ is_resolution: false }, { is_resolution: true }])).toBe(true);
   });
 
   it("same wpisy bez flagi dają fałsz", () => {
@@ -321,8 +319,16 @@ describe("clubThreadHasResolution", () => {
 describe("clubResolveAction - trzy postacie tej samej operacji", () => {
   it.each([
     ["brak prawa", { canResolve: false, isResolution: false, hasResolution: false }, "none"],
-    ["brak prawa na wpisie rozstrzygającym", { canResolve: false, isResolution: true, hasResolution: true }, "none"],
-    ["pierwsze oznaczenie", { canResolve: true, isResolution: false, hasResolution: false }, "mark"],
+    [
+      "brak prawa na wpisie rozstrzygającym",
+      { canResolve: false, isResolution: true, hasResolution: true },
+      "none",
+    ],
+    [
+      "pierwsze oznaczenie",
+      { canResolve: true, isResolution: false, hasResolution: false },
+      "mark",
+    ],
     ["przeniesienie", { canResolve: true, isResolution: false, hasResolution: true }, "move"],
     ["cofnięcie", { canResolve: true, isResolution: true, hasResolution: true }, "unmark"],
   ])("%s daje `%s`", (_label, input, expected) => {
@@ -332,9 +338,9 @@ describe("clubResolveAction - trzy postacie tej samej operacji", () => {
   it("wpis rozstrzygający wygrywa nad brakiem flagi w wątku", () => {
     // Stan niespójny (wpis oznaczony, wątek „bez rozstrzygnięcia”) ma prowadzić
     // do COFNIĘCIA tego wpisu, nie do jego powtórnego oznaczenia.
-    expect(
-      clubResolveAction({ canResolve: true, isResolution: true, hasResolution: false }),
-    ).toBe("unmark");
+    expect(clubResolveAction({ canResolve: true, isResolution: true, hasResolution: false })).toBe(
+      "unmark",
+    );
   });
 
   it("etykiety trzech akcji są rozłącznymi kluczami i18n", () => {
@@ -366,9 +372,7 @@ describe("clubResolveToastKey - komunikat mówi PRAWDĘ o tym, co się stało", 
 
 // --- uprawnienia jednej odpowiedzi ----------------------------------------
 
-function replyInput(
-  overrides: Partial<ClubReplyCapabilityInput> = {},
-): ClubReplyCapabilityInput {
+function replyInput(overrides: Partial<ClubReplyCapabilityInput> = {}): ClubReplyCapabilityInput {
   return {
     authorId: CLUB_IDS.member,
     status: "visible",
