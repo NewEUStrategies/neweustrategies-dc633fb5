@@ -564,7 +564,6 @@ describe("ClubGroupIcon", () => {
     expect(shapeOf(container)).not.toBe(shapeOfLucide(Layers));
   }, 15_000);
 
-
   it("rozmiar zostaje po stronie wołającego, szkielet po stronie atomu", () => {
     const { container } = render(<ClubGroupIcon icon={null} className="h-7 w-7" />);
     const svg = svgOf(container);
