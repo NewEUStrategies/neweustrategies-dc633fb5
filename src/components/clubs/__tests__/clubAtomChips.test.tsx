@@ -551,10 +551,19 @@ describe("ClubGroupIcon", () => {
   it("nazwa ikony spoza kurowanego zestawu NIE spada na ikonę głębokości", async () => {
     // Gdyby spadała, dział z egzotyczną ikoną wyglądałby jak dział bez ikony,
     // a redakcja nie miałaby jak zauważyć, że wybór nie działa.
+    //
+    // TIMEOUT 10 s, nie domyślna sekunda: ikona spoza kuracji jedzie przez
+    // `Suspense` + `lazy(() => import("./DynamicIconFull"))`, a ten chunk
+    // wciąga PEŁNY zestaw lucide. Pod pełną równoległością pakietu samo
+    // przetworzenie tego modułu w jsdom potrafi przekroczyć sekundę - i tylko
+    // wtedy ten test padał. To koszt transformacji, nie regresja atomu.
     const { container } = render(<ClubGroupIcon icon="venetian-mask" depth={0} />);
-    await waitFor(() => expect(container.querySelector("svg")).not.toBeNull());
+    await waitFor(() => expect(container.querySelector("svg")).not.toBeNull(), {
+      timeout: 10_000,
+    });
     expect(shapeOf(container)).not.toBe(shapeOfLucide(Layers));
-  });
+  }, 15_000);
+
 
   it("rozmiar zostaje po stronie wołającego, szkielet po stronie atomu", () => {
     const { container } = render(<ClubGroupIcon icon={null} className="h-7 w-7" />);
