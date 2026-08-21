@@ -79,10 +79,20 @@ export default defineConfig({
         // 29,13% funkcji / 37,78% linii (838 plików, 10 475 testów, zielono).
         // Próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła co
         // 2026-08-06. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
-        statements: 33,
-        functions: 25,
-        lines: 33,
-        branches: 28,
+        //
+        // 2026-08-20: RATCHET W GÓRĘ po domknięciu MODUŁU KLUBÓW DYSKUSYJNYCH.
+        // Pomiar całego src/ na tym HEAD (pełna suita, 1 357 plików testowych,
+        // 26 608 testów, zero czerwonych): 60,94% instrukcji / 55,17% gałęzi /
+        // 57,11% funkcji / 61,98% linii. Poprzedni próg (33/25/33/28) stał
+        // ~23 pp pod faktycznym poziomem, czyli przepuszczał ponad dwadzieścia
+        // punktów swobodnego spadku - dokładnie tak, jak zniknęły kiedyś panele
+        // widgetów. Próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama
+        // reguła co 2026-08-06 i 2026-08-18. Zasada bez zmian: ten próg wolno
+        // wyłącznie podnosić.
+        statements: 56,
+        functions: 53,
+        lines: 57,
+        branches: 51,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
@@ -2293,6 +2303,132 @@ export default defineConfig({
           functions: 100,
           lines: 100,
           branches: 100,
+        },
+        // ── KLUBY DYSKUSYJNE ─────────────────────────────────────────────────
+        // Moduł miał PONAD 200 progów per-ścieżka w tym pliku i ani jednego dla
+        // siebie (`grep -i club vitest.config.ts` → pusto), a startował z 25,8%
+        // linii przy 0,0% na dwudziestu trasach publicznych. Bez progu każde
+        // pokrycie tej powierzchni osunęłoby się przy pierwszym niepokrytym
+        // PR-ze - tak samo, jak osunęły się panele widgetów, co ten plik sam
+        // dokumentuje wyżej.
+        //
+        // WSZYSTKIE wartości poniżej są ZMIERZONE jednym przebiegiem pełnej
+        // suity z pokryciem (2026-08-20) i floorowane 1-2 pp pod pomiarem, żeby
+        // bramka łapała REGRESJĘ, a nie przepuszczała połowy pokrycia. Progi
+        // wolno wyłącznie PODNOSIĆ; gdyby któryś trzeba było obniżyć, znaczy to,
+        // że coś się zepsuło - i naprawia się to, a nie próg.
+        //
+        // Trasy publiczne klubu (20 plików). Zmierzone 2026-08-20: 99,72%
+        // instrukcji / 98,41% gałęzi / 100% funkcji / 100% linii - z 0,0%.
+        // Dziewięć niedobitych gałęzi to w całości ścieżki nieosiągalne przez
+        // TYPY kolumn RPC (`?? ""` na kolumnie NOT NULL) albo obrony przed
+        // wyścigiem, którego nie da się wywołać bez sterowania harmonogramem
+        // Reacta - każda opisana w nagłówku swojego pliku testowego.
+        "src/routes/club*.tsx": {
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // Ścieżka zgłoszenia członkowskiego - osobny, WYŻSZY próg niż rodzina
+        // tras, bo to jedyne wejście do modułu i ma incydent produkcyjny
+        // w historii (`source_type='club_application'` złamał CHECK na
+        // `crm_leads`, stąd bramka `check:pg-harness`). Zmierzone: 100% /
+        // 97,5% / 100% / 100%.
+        "src/routes/club.apply.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 96,
+        },
+        // Trasy panelu klubów (6 plików). Zmierzone: 100% / 96,83% / 100% /
+        // 100% - z 0,0%. Dostęp tych tras pilnuje osobno bramka
+        // `adminRouteAuthority.gate.test.ts` (rozszerzona o tę rodzinę), więc
+        // ten próg chroni STAN i sklejenie, nie autorytet.
+        "src/routes/admin.community.clubs*.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 95,
+        },
+        // Atomy publiczne (24 pliki). Zmierzone: 100% / 99,39% / 100% / 100% -
+        // z 8,4%. Dwie niedobite gałęzie to prawe ramiona `?? ""` w `initials`
+        // (`ClubAuthorAvatar`), nieosiągalne po `.split(/\s+/).filter(Boolean)`.
+        "src/components/clubs/atoms/**": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 98,
+        },
+        // Molekuły publiczne (44 pliki). Zmierzone: 99,67% / 99,42% / 100% /
+        // 100%. Wyjątek opisany przy teście: `ClubCoverEditor` ma dwa
+        // `if (busy) return;` nieosiągalne, bo oba przyciski niosą
+        // `disabled={busy}` na tym samym warunku, a React połyka zdarzenia
+        // myszy na wyszarzonych elementach formularza.
+        "src/components/clubs/molecules/**": {
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 98,
+        },
+        // Organizmy publiczne (35 plików). Zmierzone: 99,76% / 99,27% /
+        // 99,80% / 99,82% - z 8,4%. Trzy wejścia czytelnika (`ClubHub`,
+        // `ClubDirectory`, `ClubMinisite`) mają dodatkowo test `axeViolations()`.
+        "src/components/clubs/organisms/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Panel klubów - CAŁA powierzchnia (57 plików po kompozycji: 3 atomy,
+        // 37 molekuł, 17 organizmów). Zmierzone: 99,30% / 97,97% / 100% /
+        // 100% - z 8,6%.
+        "src/components/admin/clubs/**": {
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 96,
+        },
+        // Atomy i molekuły panelu pod 100%: to warstwa BEZ I/O i bez stanu
+        // serwera, więc jej test jest tani i wielokrotnie użyty - ta sama
+        // zasada, co przy `src/components/post/atoms/**` wyżej. Zmierzone:
+        // 100% we wszystkich czterech metrykach na obu katalogach.
+        "src/components/admin/clubs/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/components/admin/clubs/molecules/**": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        // Organizmy panelu (17 plików). Zmierzone: 99,13% / 97,06% / 100% /
+        // 100%. Niedobite gałęzie siedzą w czterech największych zakładkach
+        // (moderacja, wątki, skład, edytor działu) i są opisane przy testach.
+        "src/components/admin/clubs/organisms/**": {
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 96,
+        },
+        // Warstwa REGUŁ modułu (95 modułów w raporcie: było 67, doszło 28
+        // czystych modułów wyprowadzonych z JSX-a tras i organizmów; dwa
+        // `*.test.ts` leżące w tym katalogu poza `__tests__` nie są źródłami).
+        // Zmierzone: 93,08% / 90,11% / 94,71% / 93,96%.
+        //
+        // Ten próg jest NIŻSZY niż na powierzchniach prezentacji i to nie jest
+        // pomyłka: warstwa niesie też moduły, których ta praca nie dotykała
+        // (hooki React Query, klienty RPC, słowniki), a cztery powierzchnie
+        // objęte zadaniem stoją tu na 100%. Podniesienie tego progu to osobna
+        // praca nad resztą warstwy, nie regresja tej.
+        "src/lib/clubs/**": {
+          statements: 92,
+          functions: 93,
+          lines: 92,
+          branches: 89,
         },
       },
     },
