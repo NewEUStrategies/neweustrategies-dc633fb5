@@ -14,9 +14,11 @@ import appCss from "../styles.css?url";
 // references, so the preload is reused (not a second download). See styles.css.
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
-import { fontPreloadLinks, fontPreloadLinkHeaderValues } from "../lib/seo/fontPreload";
 import { appendLinkHeader } from "../lib/http/responseHeaders";
-import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
+import { buildRootHead } from "../lib/seo/meta";
+import { rootDocumentLinks, rootLinkHeaderValues, type RootAssets } from "../lib/seo/rootHead";
+import { showsSiteChrome } from "../lib/routing/siteChrome";
+import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
 import { getOrigin } from "../lib/seo/request";
@@ -181,6 +183,16 @@ function RouteLoadingSkeleton() {
   );
 }
 
+/**
+ * URL-e zasobów krytycznych rozwiązane przez bundler (`?url`). Jeden obiekt dla
+ * `<head>` i dla nagłówka HTTP `Link` - gdyby były dwa, mogłyby się rozjechać.
+ */
+const ROOT_ASSETS: RootAssets = {
+  appCss,
+  fontLatin: redHatDisplayLatin,
+  fontLatinExt: redHatDisplayLatinExt,
+};
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     // One language source for the whole document head, matching the <html lang>
@@ -204,39 +216,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // Red Hat Display is self-hosted via @font-face in styles.css (see there),
       // so no Google Fonts stylesheet / preconnect is needed - one fewer
       // render-blocking third-party request, and no visitor IPs sent to Google.
-      links: [
-        { rel: "stylesheet", href: appCss },
-        // Favicon - jawnie zadeklarowany, żeby crawlery i podglądy linków
-        // (w tym karta "How your site appears") pobrały znak marki NES.
-        { rel: "icon", href: "/favicon.ico", sizes: "any" },
-        { rel: "apple-touch-icon", href: "/favicon.ico" },
-
-        // Preload the critical font subset(s) so heading text (a frequent LCP
-        // element) swaps in without waiting for the CSS to parse first. Latin
-        // backs both languages; Latin-ext (Polish diacritics) only for PL.
-        ...fontPreloadLinks(lang, {
-          latin: redHatDisplayLatin,
-          latinExt: redHatDisplayLatinExt,
-        }),
-        { rel: "dns-prefetch", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
-        {
-          rel: "preconnect",
-          href: "https://unnltowbgszpdzwpawdu.supabase.co",
-          crossOrigin: "anonymous",
-        },
-        // DRUGI preconnect, bez crossOrigin - to nie duplikat: przeglądarka
-        // kluczuje połączenia parą (origin, tryb poświadczeń). Wariant
-        // "anonymous" rozgrzewa wyłącznie pulę CORS (fetch supabase-js),
-        // a KAŻDY <img> okładki/treści i preload LCP idą w trybie no-cors
-        // i płaciły pełny DNS+TCP+TLS na zimnym połączeniu (Lighthouse:
-        // "preconnect found but not used by the browser"). Dwa preconnecty
-        // do jednego originu to standardowy wzorzec dla hostów serwujących
-        // jednocześnie ruch CORS i no-CORS.
-        { rel: "preconnect", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
-        // RSS autodiscovery for both language feeds, on every page - feed
-        // readers and crawlers find the feeds regardless of the entry URL.
-        ...feedDiscoveryLinks(getOrigin()),
-      ],
+      // Zestaw `<link>` korzenia (arkusz, favicon, preload fontów, rozgrzanie
+      // połączenia do hosta obrazów, autodiscovery feedów) żyje w
+      // `lib/seo/rootHead.ts` RAZEM z wartościami nagłówka HTTP `Link` niżej -
+      // oba opisują ten sam plan pobierania i muszą mówić to samo.
+      links: rootDocumentLinks(lang, getOrigin(), ROOT_ASSETS),
       // Speculation Rules API: natywny prefetch (hover) publicznych nawigacji;
       // powierzchnie zalogowane i transakcyjne wykluczone (wspólna lista z NES
       // Edge Cache). Prerender świadomie pominięty - AppLink przechwytuje
@@ -263,15 +247,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // HIT/STALE - to fundament pod 103 Early Hints na Cloudflare. Zestaw jest
     // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
     // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
-    appendLinkHeader(`<${appCss}>; rel="preload"; as="style"`);
-    // Preconnect (tryb z poświadczeniami, jak <img>) także z nagłówka HTTP:
-    // handshake do hosta obrazów startuje z nagłówków odpowiedzi / 103 Early
-    // Hints, zanim parser dojdzie do <head>. Odpowiednik <link> wyżej.
-    appendLinkHeader('<https://unnltowbgszpdzwpawdu.supabase.co>; rel="preconnect"');
-    for (const value of fontPreloadLinkHeaderValues(currentLang(), {
-      latin: redHatDisplayLatin,
-      latinExt: redHatDisplayLatinExt,
-    })) {
+    for (const value of rootLinkHeaderValues(currentLang(), ROOT_ASSETS)) {
       appendLinkHeader(value);
     }
     // Warm site_settings + design tokens / global colors / post-layout so
@@ -299,11 +275,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // dostaje już rozgrzane obietnice i czeka tylko na to, co naprawdę
     // wymagało ustawień.
     const path = location.pathname;
-    const showsChrome =
-      path !== "/admin" &&
-      !path.startsWith("/admin/") &&
-      path !== "/login" &&
-      !path.startsWith("/login/");
+    const showsChrome = showsSiteChrome(path);
     // `.catch(() => null)` przy starcie, nie przy zbieraniu: obietnica leci
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
     // wywróciłoby proces renderu.
@@ -447,10 +419,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
-// No stored choice -> follow the OS preference (prefers-color-scheme); an
-// explicit toggle in ThemeProvider persists to localStorage and wins from then on.
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
-
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
   // SSR -> browser handoff of the PUBLIC Supabase config (anon key + URL).
@@ -469,7 +437,7 @@ function RootShell({ children }: { children: ReactNode }) {
         {supabaseConfigScript ? (
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
         ) : null}
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
