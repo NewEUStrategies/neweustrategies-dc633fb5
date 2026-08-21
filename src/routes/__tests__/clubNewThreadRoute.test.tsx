@@ -591,10 +591,14 @@ describe("zasada autorstwa - dziedziczona z DZIAŁU, nie z klubu", () => {
     h.club = clubViewRow({ can_post_thread: true, attribution_mode: "anonymous_allowed" });
     h.groups = [clubGroupRow({ attribution_mode: "chatham" })];
     await mount();
+    // Etykieta i podpowiedź muszą wejść W TYM SAMYM oczekiwaniu: sprawdzenie
+    // podpowiedzi synchronicznie PO `waitFor` zakłada, że oba napisy trafiają
+    // do DOM-u w jednym zatwierdzeniu Reacta - a przy obciążonej maszynie
+    // drugi z nich potrafi dojść w kolejnym, co daje test migotliwy.
     await waitFor(() => {
       expect(screen.getByText("club.attribution.chatham")).toBeTruthy();
+      expect(screen.getByText("club.attributionHint.chatham")).toBeTruthy();
     });
-    expect(screen.getByText("club.attributionHint.chatham")).toBeTruthy();
     expect(screen.queryByRole("switch", { name: "club.postAnonymously" })).toBeNull();
   });
 

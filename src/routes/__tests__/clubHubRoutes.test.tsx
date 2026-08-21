@@ -127,7 +127,7 @@ vi.mock("@/components/clubs/atoms/ClubSkeletons", () => ({
   ClubDetailSkeleton: () => <div data-testid="ClubDetailSkeleton" />,
 }));
 
-import { renderRoute, type RouteMetaEntry } from "@/test/routeHarness";
+import { renderRoute, routeSearchValidator, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { CLUB_IDS, clubThreadListRow, clubViewRow } from "@/test/clubs/fixtures";
@@ -184,7 +184,7 @@ beforeEach(() => {
 // --- hub: kontrakt adresu --------------------------------------------------
 
 describe("hub klubu - `?tag=` jako kontrakt linkowalnego widoku", () => {
-  const validate = HubRoute.options.validateSearch;
+  const validate = routeSearchValidator(HubRoute);
 
   it("przepuszcza tag i zachowuje go w adresie", async () => {
     const rendered = await mountHub(`/club/${SLUG}?tag=korytarz`);
@@ -194,11 +194,11 @@ describe("hub klubu - `?tag=` jako kontrakt linkowalnego widoku", () => {
   it("brak tagu daje PUSTY obiekt, a nie `{ tag: undefined }`", () => {
     // `{ tag: undefined }` w adresie serializuje się jako `?tag=`, czyli
     // zawężenie do pustej frazy - a to nie to samo, co brak zawężenia.
-    expect(validate?.({})).toEqual({});
+    expect(validate({})).toEqual({});
   });
 
   it("PUSTY tag jest odrzucany - zawężenie do niczego to nie zawężenie", () => {
-    expect(validate?.({ tag: "" })).toEqual({});
+    expect(validate({ tag: "" })).toEqual({});
   });
 
   it.each([
@@ -207,22 +207,22 @@ describe("hub klubu - `?tag=` jako kontrakt linkowalnego widoku", () => {
     ["null", { tag: null }],
     ["obiekt", { tag: { value: "x" } }],
   ])("tag o złym typie (%s) jest odrzucany", (_label, raw) => {
-    expect(validate?.(raw)).toEqual({});
+    expect(validate(raw)).toEqual({});
   });
 
   it("tag jest OBCINANY do 50 znaków - adres nie jest kanałem na kilobajt tekstu", () => {
     const long = "a".repeat(120);
-    const result = validate?.({ tag: long });
+    const result = validate({ tag: long });
     expect(result).toEqual({ tag: "a".repeat(50) });
   });
 
   it("tag o DOKŁADNIE 50 znakach przechodzi bez obcięcia - granica należy do przepuszczonych", () => {
     const exact = "b".repeat(50);
-    expect(validate?.({ tag: exact })).toEqual({ tag: exact });
+    expect(validate({ tag: exact })).toEqual({ tag: exact });
   });
 
   it("parametry nadmiarowe są odcinane", () => {
-    expect(validate?.({ tag: "korytarz", utm_source: "linkedin" })).toEqual({ tag: "korytarz" });
+    expect(validate({ tag: "korytarz", utm_source: "linkedin" })).toEqual({ tag: "korytarz" });
   });
 });
 

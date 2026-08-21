@@ -152,12 +152,28 @@ describe("/club - układ modułu z przełącznikiem tenanta", () => {
 // --- /club/elements (przekierowanie historyczne) ---------------------------
 
 describe("/club/elements - przekierowanie do panelu", () => {
+  /**
+   * `beforeLoad` tej trasy nie czyta ANI JEDNEGO argumentu (przekierowanie jest
+   * bezwarunkowe), więc wolno wywołać je bez argumentów - i to jest sprawdzane
+   * w RUNTIME, a nie zakładane rzutowaniem: `value.length === 0` znaczy, że
+   * funkcja nie deklaruje parametrów. Gdyby ktoś dołożył tam warunek zależny od
+   * kontekstu, strażnik przestanie pasować i test padnie z jasnym komunikatem
+   * zamiast wywalić się na `undefined` w środku frameworka.
+   */
+  type BezargumentowyBeforeLoad = () => unknown;
+
+  function jestBezargumentowa(value: unknown): value is BezargumentowyBeforeLoad {
+    return typeof value === "function" && value.length === 0;
+  }
+
   /** `beforeLoad` trasy rzuca przekierowaniem - zwracamy to, co rzuciło. */
   function thrownByBeforeLoad(): unknown {
     const beforeLoad = ClubElementsRoute.options.beforeLoad;
-    if (typeof beforeLoad !== "function") throw new Error("trasa nie ma `beforeLoad`");
+    if (!jestBezargumentowa(beforeLoad)) {
+      throw new Error("test: `beforeLoad` trasy czyta argumenty - strażnik wymaga aktualizacji");
+    }
     try {
-      beforeLoad({} as Parameters<typeof beforeLoad>[0]);
+      beforeLoad();
     } catch (thrown) {
       return thrown;
     }

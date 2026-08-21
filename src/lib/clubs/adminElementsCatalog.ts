@@ -17,7 +17,7 @@
 //      czy szukanie coś znalazło. Tutaj jest POLICZONY z tych samych stałych,
 //      które renderuje sekcja.
 //   3. SZUKANIE PO SUROWEJ WARTOŚCI I PO TŁUMACZENIU JEDNOCZEŚNIE, bez akcentów
-//      i bez wielkości liter („widocznosc" znajduje „Widoczność", „chatham"
+//      i bez wielkości liter („widocznosc” znajduje „Widoczność”, „chatham”
 //      znajduje tryb atrybucji). Reguła dopasowania jest tu, a nie w wierszu.
 //   4. CO ZNIKA POD FILTREM, A CO ZOSTAJE. Podgląd dostępu, galeria i macierz
 //      NIE są zbiorami wartości - to narzędzia, a narzędzie, które znika przy
@@ -28,6 +28,12 @@
 // KLUCZE i18n (`labelKey`, `prefix`) i deskryptory, nigdy gotowego napisu -
 // tłumaczenie należy do widoku, bo tylko on wie, w jakim języku pracuje
 // operator. Ikony i klasy zostają w organizmie: to jest układ.
+//
+// SŁOWNIK PANELU, A NIE PUBLICZNY. Część kluczy stąd (`adminClubs.moderation.*`)
+// mieszka w `i18n-clubs-admin`, który trzeba jawnie dociągnąć przez
+// `ensureAdminClubsI18n()`. Moduł tego NIE robi i nie może - nie zna Reacta ani
+// i18next - więc jest osiągalny wyłącznie z organizmu panelu, który to woła
+// (granicy pilnuje bramka `adminClubsI18nLoading.gate`).
 import type { ClubAccessDraftValues } from "@/lib/clubs/adminClubEditor";
 import { CAPABILITY_KEYS, type CapabilityKey } from "@/lib/clubs/capabilityMatrix";
 import {
@@ -134,7 +140,11 @@ export const CATALOG_VOCAB_CARDS: Readonly<
         values: CLUB_NOTIFY_LEVELS,
         prefix: "club.notify",
       },
-      { labelKey: "clubElements.vocab.reaction", values: CLUB_REACTION_KINDS, prefix: "club.reaction" },
+      {
+        labelKey: "clubElements.vocab.reaction",
+        values: CLUB_REACTION_KINDS,
+        prefix: "club.reaction",
+      },
       { labelKey: "clubElements.vocab.layout", values: CLUB_LAYOUTS, prefix: "adminClubs.layout" },
     ],
   ],
@@ -233,17 +243,18 @@ export interface CatalogCodeSource {
  * z zaproszeń i `slug_taken` z zapisu mają zdania w INNYCH przestrzeniach
  * kluczy, a pomyłka daje w katalogu goły klucz zamiast wyjaśnienia.
  */
-export const CATALOG_CODE_SOURCES: Readonly<Record<"reasons" | "invite" | "save", CatalogCodeSource>> =
-  {
-    reasons: { codes: CLUB_ACCESS_REASONS, prefix: "club.reason" },
-    invite: { codes: CLUB_INVITE_ERRORS, prefix: "adminClubs.invitations.error" },
-    save: { codes: CLUB_SAVE_ERRORS, prefix: "adminClubs.create.error" },
-  };
+export const CATALOG_CODE_SOURCES: Readonly<
+  Record<"reasons" | "invite" | "save", CatalogCodeSource>
+> = {
+  reasons: { codes: CLUB_ACCESS_REASONS, prefix: "club.reason" },
+  invite: { codes: CLUB_INVITE_ERRORS, prefix: "adminClubs.invitations.error" },
+  save: { codes: CLUB_SAVE_ERRORS, prefix: "adminClubs.create.error" },
+};
 
-/** Pola podglądu dostępu (`ClubAccessTab`) - licznik sekcji „access". */
+/** Pola podglądu dostępu (`ClubAccessTab`) - licznik sekcji „access”. */
 export const CATALOG_ACCESS_FIELDS = 6;
 
-/** Pozycje galerii komponentów publicznych - licznik sekcji „gallery". */
+/** Pozycje galerii komponentów publicznych - licznik sekcji „gallery”. */
 export const CATALOG_GALLERY_ITEMS = 5;
 
 function axesSize(cards: readonly (readonly CatalogVocabAxis[])[]): number {
@@ -302,10 +313,10 @@ export const CATALOG_UNFILTERABLE: ReadonlySet<CatalogSectionId> = new Set<Catal
 ]);
 
 /**
- * Bez akcentów i wielkości liter - „widocznosc" ma znaleźć „Widoczność".
+ * Bez akcentów i wielkości liter - „widocznosc” ma znaleźć „Widoczność”.
  * `ł` osobno, bo NFD go nie rozkłada (to jedna litera z kreską, nie litera
- * plus znak diakrytyczny) - bez tej podmiany „zgloszenie" nie znajduje
- * „zgłoszenie", a to jest najczęstsze słowo w tym panelu.
+ * plus znak diakrytyczny) - bez tej podmiany „zgloszenie” nie znajduje
+ * „zgłoszenie”, a to jest najczęstsze słowo w tym panelu.
  */
 export function normalizeCatalogQuery(value: string): string {
   return value
@@ -323,10 +334,10 @@ export function catalogQuery(raw: string): string {
 /**
  * Które wartości osi zostają pod filtrem.
  *
- * Trafienie w ETYKIETĘ OSI zostawia CAŁĄ oś - kto wpisał „moderacja", chce
+ * Trafienie w ETYKIETĘ OSI zostawia CAŁĄ oś - kto wpisał „moderacja”, chce
  * zobaczyć wszystkie tryby moderacji, a nie tylko ten jeden, który ma słowo
- * „moderacja" w swojej nazwie. Bez tej gałęzi katalog odpowiadałby na pytanie
- * „jakie wartości ma ta kolumna" pustką.
+ * „moderacja” w swojej nazwie. Bez tej gałęzi katalog odpowiadałby na pytanie
+ * „jakie wartości ma ta kolumna” pustką.
  */
 export function visibleVocabValues(
   label: string,
@@ -384,7 +395,7 @@ export function filterCapabilityKeys(query: string): readonly CapabilityKey[] {
 }
 
 /**
- * Czy sekcja jest „pusta pod filtrem", czyli ma zniknąć.
+ * Czy sekcja jest „pusta pod filtrem”, czyli ma zniknąć.
  *
  * Warunek ma TRZY składniki i każdy jest potrzebny: bez filtra nie znika nic,
  * narzędzia (`CATALOG_UNFILTERABLE`) nie znikają nigdy, a sekcja z treścią
@@ -407,7 +418,7 @@ export function catalogBadgesVisible(sectionTitle: string, query: string): boole
   return query === "" || normalizeCatalogQuery(sectionTitle).includes(query);
 }
 
-/** „Nic nie znaleziono" = filtr działa, a WSZYSTKIE zbiory zostały puste. */
+/** „Nic nie znaleziono” = filtr działa, a WSZYSTKIE zbiory zostały puste. */
 export function catalogNothingFound(query: string, counts: readonly number[]): boolean {
   return query !== "" && counts.every((count) => count === 0);
 }
@@ -432,7 +443,7 @@ export function toggleReactionTally(
   );
 }
 
-/** Wersja robocza podglądu dostępu - stan startowy sekcji „reguły". */
+/** Wersja robocza podglądu dostępu - stan startowy sekcji „reguły”. */
 export const CATALOG_INITIAL_DRAFT: ClubAccessDraftValues = {
   visibility: "members",
   joinPolicy: "invite",

@@ -3,20 +3,28 @@
 // CZEGO TU NIE BYŁO. Specyfikacja zna cztery ścieżki zapraszania; trzy miały
 // interfejs, czwarta miała tabelę reguł (`club_segment_rules`) i RPC podglądu
 // (`admin_club_segment_preview`) - i ani jednego wołającego. Podgląd bez
-// wykonania to licznik mówiący „wyślę 137 zaproszeń" bez przycisku, a tabela
-// istniejąca po to, „żeby kampanię dało się powtórzyć", opisywała kampanię,
+// wykonania to licznik mówiący „wyślę 137 zaproszeń” bez przycisku, a tabela
+// istniejąca po to, „żeby kampanię dało się powtórzyć”, opisywała kampanię,
 // której nie dało się przeprowadzić ani raz.
 //
 // PODGLĄD JEST OBOWIĄZKOWY, nie opcjonalny. Zaproszenie masowe jest operacją
 // nieodwracalną wobec cudzych skrzynek, więc przycisk wysyłki włącza się
 // dopiero, gdy baza policzyła, ilu ludzi to realnie dotknie. Cztery liczby
 // sumują się do `matched` (A27 liczy je z jednego odsiewu), więc administrator
-// widzi nie tylko „ile pójdzie", ale i „dlaczego reszta nie".
+// widzi nie tylko „ile pójdzie”, ale i „dlaczego reszta nie”.
 //
-// REGUŁA JEST DANYMI, nie formularzem: `ClubSegmentRule` odpowiada gałęziom
+// ORGANIZM JEST KOMPOZYCJĄ. Budowa segmentu, wybór pola dla rodzaju reguły,
+// bramka wysyłki, stan podglądu i payload mutacji mieszkają w
+// `lib/clubs/adminSegment` (`ClubSegmentRule` odpowiada gałęziom
 // `club_segment_candidate_ids`, a `isClubSegmentRuleComplete` pilnuje, żeby
 // niedokończona reguła nie poszła do bazy jako pusty zbiór z komunikatem
-// o sukcesie.
+// o sukcesie). Cztery liczby podglądu rysuje molekuła
+// `ClubCatalogSegmentPreview`. Tutaj zostaje SKLEJENIE: co idzie do mutacji
+// i co administrator widzi po odpowiedzi.
+//
+// BRAMKA WYSYŁKI JEST W JEDNYM MIEJSCU: `canSendClubSegment` steruje atrybutem
+// `disabled` przycisku, więc nie ma drugiej, rozjeżdżalnej kopii tego warunku
+// w ciele obsługi kliknięcia.
 //
 // RESPONSYWNOŚĆ: jedna kolumna do sm, dwie wyżej - ten sam grid, co w pozostałych
 // panelach zakładki, żeby trzy karty pod sobą nie miały trzech różnych rytmów.
@@ -43,21 +51,25 @@ import {
   ClubAnchorPicker,
   type ClubAnchorValue,
 } from "@/components/clubs/molecules/ClubAnchorPicker";
+import { ClubCatalogSegmentPreview } from "@/components/admin/clubs/molecules/ClubCatalogSegmentPreview";
 import { useAdminClubs, useClubSegmentPreview, useInviteClubSegment } from "@/lib/clubs/useClubs";
+import { CLUB_SEGMENT_KINDS, type ClubSegmentKind } from "@/lib/clubs/types";
 import {
-  CLUB_SEGMENT_KINDS,
-  isClubSegmentRuleComplete,
-  type ClubMemberRole,
-  type ClubSegmentKind,
-  type ClubSegmentRule,
-} from "@/lib/clubs/types";
+  CLUB_SEGMENT_CAMPAIGN_ROLES,
+  canSendClubSegment,
+  clubSegmentAnchorField,
+  clubSegmentField,
+  clubSegmentOtherClubs,
+  clubSegmentPreviewView,
+  clubSegmentRule,
+  clubSegmentSendLabel,
+  clubSegmentSendVars,
+  isClubSegmentDraftComplete,
+  type ClubSegmentCampaignRole,
+  type ClubSegmentDraft,
+} from "@/lib/clubs/adminSegment";
 import { PROFILE_BADGE_CATALOG, PROFILE_BADGE_KINDS } from "@/lib/profile/badgeCatalog";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
-
-/** Role możliwe do nadania kampanią. `lead` celowo poza listą - prowadzącego
- *  wyznacza się imiennie, nie masowo. */
-const CAMPAIGN_ROLES = ["moderator", "member", "observer"] as const;
-type CampaignRole = (typeof CAMPAIGN_ROLES)[number];
 
 export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
@@ -68,49 +80,61 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
   const [specialization, setSpecialization] = useState("");
   const [otherClubId, setOtherClubId] = useState("");
   const [anchor, setAnchor] = useState<ClubAnchorValue | null>(null);
-  const [role, setRole] = useState<CampaignRole>("member");
+  const [role, setRole] = useState<ClubSegmentCampaignRole>("member");
   const [message, setMessage] = useState("");
 
   // Lista klubów do reguły `other_club`. Bez limitu 50 z domyślnego filtra:
-  // reguła „członkowie innego klubu" musi widzieć KAŻDY klub, także pięćdziesiąty
+  // reguła „członkowie innego klubu” musi widzieć KAŻDY klub, także pięćdziesiąty
   // pierwszy - inaczej najstarsze kluby tenanta byłyby nieosiągalne.
   const clubsQ = useAdminClubs({ limit: 200 });
-  const otherClubs = (clubsQ.data?.rows ?? []).filter((c) => c.id !== clubId);
+  const otherClubs = clubSegmentOtherClubs(clubsQ.data?.rows ?? [], clubId);
 
-  const rule = useMemo<ClubSegmentRule>(() => {
-    switch (kind) {
-      case "badge":
-        return { kind, badge };
-      case "specialization":
-        return { kind, value: specialization.trim() };
-      case "other_club":
-        return { kind, club_id: otherClubId };
-      case "policy_follow":
-        return { kind, item_id: anchor?.anchorId ?? "" };
-      case "event_rsvp":
-        return { kind, event_id: anchor?.anchorId ?? "" };
-    }
-  }, [kind, badge, specialization, otherClubId, anchor]);
+  const draft = useMemo<ClubSegmentDraft>(
+    () => ({
+      kind,
+      badge,
+      specialization,
+      otherClubId,
+      // Kotwica jest współdzielona przez dwie reguły o RÓŻNYCH typach encji,
+      // więc jej brak znaczy pustą wartość reguły, a nie brak klucza.
+      anchorId: anchor?.anchorId ?? "",
+    }),
+    [kind, badge, specialization, otherClubId, anchor],
+  );
 
-  const complete = isClubSegmentRuleComplete(rule);
+  const rule = useMemo(() => clubSegmentRule(draft), [draft]);
+  const complete = isClubSegmentDraftComplete(draft);
   const previewQ = useClubSegmentPreview({ clubId, rule, enabled: complete });
   const sendM = useInviteClubSegment(clubId);
 
   const preview = previewQ.data ?? null;
-  const canSend = complete && preview !== null && preview.will_send > 0 && !sendM.isPending;
+  const canSend = canSendClubSegment({ complete, preview, isPending: sendM.isPending });
+  const previewView = clubSegmentPreviewView({
+    complete,
+    isError: previewQ.isError,
+    isPending: previewQ.isPending,
+    preview,
+  });
+  const sendLabel = clubSegmentSendLabel(preview);
+  const field = clubSegmentField(kind);
+  const anchorField = clubSegmentAnchorField(kind);
+
+  const changeKind = (next: ClubSegmentKind) => {
+    setKind(next);
+    // Kotwica jest współdzielona przez dwie reguły o RÓŻNYCH typach encji,
+    // więc przy zmianie rodzaju musi zniknąć - inaczej wybór wydarzenia
+    // zostałby wysłany jako identyfikator aktu prawnego.
+    setAnchor(null);
+  };
 
   const send = () => {
-    if (!canSend) return;
-    sendM.mutate(
-      { rule, role: role as ClubMemberRole, message: message.trim() || null, saveRule: true },
-      {
-        onSuccess: (invited) => {
-          toast.success(t("adminClubs.segment.sent", { count: invited }));
-          setMessage("");
-        },
-        onError: () => toast.error(t("adminClubs.segment.failed")),
+    sendM.mutate(clubSegmentSendVars({ rule, role, message }), {
+      onSuccess: (invited) => {
+        toast.success(t("adminClubs.segment.sent", { count: invited }));
+        setMessage("");
       },
-    );
+      onError: () => toast.error(t("adminClubs.segment.failed")),
+    });
   };
 
   return (
@@ -132,17 +156,11 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
             options={CLUB_SEGMENT_KINDS}
             i18nPrefix="adminClubs.segment.kind"
             hintPrefix="adminClubs.segment.kindHint"
-            onChange={(next) => {
-              setKind(next);
-              // Kotwica jest współdzielona przez dwie reguły o RÓŻNYCH typach
-              // encji, więc przy zmianie rodzaju musi zniknąć - inaczej wybór
-              // wydarzenia zostałby wysłany jako identyfikator aktu prawnego.
-              setAnchor(null);
-            }}
+            onChange={changeKind}
             disabled={sendM.isPending}
           />
 
-          {kind === "badge" ? (
+          {field === "badge" ? (
             <div className="space-y-1.5">
               <Label htmlFor="club-segment-badge">{t("adminClubs.segment.badgeLabel")}</Label>
               <Select value={badge} onValueChange={setBadge} disabled={sendM.isPending}>
@@ -160,7 +178,7 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
             </div>
           ) : null}
 
-          {kind === "specialization" ? (
+          {field === "specialization" ? (
             <div className="space-y-1.5">
               <Label htmlFor="club-segment-spec">{t("adminClubs.segment.specLabel")}</Label>
               <Input
@@ -173,7 +191,7 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
             </div>
           ) : null}
 
-          {kind === "other_club" ? (
+          {field === "other_club" ? (
             <div className="space-y-1.5">
               <Label htmlFor="club-segment-club">{t("adminClubs.segment.clubLabel")}</Label>
               <Select
@@ -195,19 +213,15 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
             </div>
           ) : null}
 
-          {kind === "policy_follow" || kind === "event_rsvp" ? (
+          {anchorField === null ? null : (
             <ClubAnchorPicker
               value={anchor}
               onChange={setAnchor}
               disabled={sendM.isPending}
-              anchorType={kind === "policy_follow" ? "eu_policy_item" : "event"}
-              fieldLabel={
-                kind === "policy_follow"
-                  ? t("adminClubs.segment.policyLabel")
-                  : t("adminClubs.segment.eventLabel")
-              }
+              anchorType={anchorField.anchorType}
+              fieldLabel={t(anchorField.labelKey)}
             />
-          ) : null}
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-[200px_minmax(0,1fr)]">
@@ -215,7 +229,7 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
             id="club-segment-role"
             label={t("adminClubs.columns.role")}
             value={role}
-            options={CAMPAIGN_ROLES}
+            options={CLUB_SEGMENT_CAMPAIGN_ROLES}
             i18nPrefix="club.role"
             onChange={setRole}
             disabled={sendM.isPending}
@@ -235,67 +249,32 @@ export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
 
         {/* Podgląd stoi MIĘDZY regułą a przyciskiem, nie pod nim: liczba, którą
             trzeba przewinąć, żeby zobaczyć, nie chroni przed niczym. */}
-        {complete ? (
-          previewQ.isError ? (
-            <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-              {t("adminClubs.segment.previewFailed")}
-            </p>
-          ) : previewQ.isPending ? (
-            <div className="h-16 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-          ) : preview !== null ? (
-            <div
-              className="grid gap-2 rounded-lg border border-border/60 bg-muted/30 p-3 sm:grid-cols-4"
-              aria-live="polite"
-            >
-              <PreviewCell label={t("adminClubs.segment.matched")} value={preview.matched} />
-              <PreviewCell
-                label={t("adminClubs.segment.alreadyMember")}
-                value={preview.already_member}
-              />
-              <PreviewCell label={t("adminClubs.segment.blocked")} value={preview.blocked} />
-              <PreviewCell
-                label={t("adminClubs.segment.willSend")}
-                value={preview.will_send}
-                emphasis
-              />
-            </div>
-          ) : null
-        ) : (
+        {previewView.state === "incomplete" ? (
           <p className="text-xs text-muted-foreground">{t("adminClubs.segment.incomplete")}</p>
-        )}
+        ) : previewView.state === "failed" ? (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            {t("adminClubs.segment.previewFailed")}
+          </p>
+        ) : previewView.state === "loading" ? (
+          <div className="h-16 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+        ) : previewView.state === "counts" ? (
+          <ClubCatalogSegmentPreview
+            cells={previewView.cells.map((cell) => ({
+              id: cell.id,
+              label: t(cell.labelKey),
+              value: cell.value,
+              emphasis: cell.emphasis,
+            }))}
+          />
+        ) : null}
 
         <Button onClick={send} disabled={!canSend}>
           <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-          {preview !== null && preview.will_send > 0
-            ? t("adminClubs.segment.sendCount", { count: preview.will_send })
-            : t("adminClubs.segment.send")}
+          {sendLabel.count === null
+            ? t(sendLabel.key)
+            : t(sendLabel.key, { count: sendLabel.count })}
         </Button>
       </CardContent>
     </Card>
-  );
-}
-
-function PreviewCell({
-  label,
-  value,
-  emphasis,
-}: {
-  label: string;
-  value: number;
-  emphasis?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={
-          emphasis === true
-            ? "text-lg font-semibold tabular-nums text-primary"
-            : "text-lg font-semibold tabular-nums"
-        }
-      >
-        {value}
-      </p>
-    </div>
   );
 }

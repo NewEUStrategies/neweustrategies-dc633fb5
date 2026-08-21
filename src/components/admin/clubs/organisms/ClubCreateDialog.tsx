@@ -15,21 +15,24 @@
 // układa się z nazwy na oczach piszącego, a dostępność sprawdza się PRZED
 // zapisem. Reszta ustawień zostaje w edytorze - to jest zakładanie, nie
 // konfigurowanie wszystkiego naraz.
+//
+// KOMPOZYCJA, NIE LOGIKA. Reguły tego formularza (stan adresu, warunek
+// wysyłki, kształt payloadu, skutki odmowy) mieszkają w
+// `lib/clubs/adminClubCreateForm`, a powtarzalne wiersze pól - w molekułach
+// `ClubDialogTextRow` i `ClubDialogSlugRow`. Tutaj zostaje SKLEJENIE: stan
+// formularza, wpięcie zapytania o dostępność i to, co leci do mutacji.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import {
   CLUB_PLAN_TIERS,
   DEFAULT_CLUB_PLAN_TIER,
-  rankFromPlanTier,
   type ClubPlanTier,
 } from "@/lib/clubs/planTiers";
 import { toast } from "sonner";
-import { Check, Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -43,14 +46,23 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
+import { ClubDialogSlugRow } from "../molecules/ClubDialogSlugRow";
+import { ClubDialogTextRow } from "../molecules/ClubDialogTextRow";
 import { useClubSlugAvailable, useUpsertClub } from "@/lib/clubs/useClubs";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
+import {
+  canSubmitClubCreate,
+  clubCreateEffectiveSlug,
+  clubCreateFailure,
+  clubCreatePayload,
+  clubCreateSlugState,
+  nextClubSlugConflict,
+} from "@/lib/clubs/adminClubCreateForm";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_JOIN_POLICIES,
   CLUB_VISIBILITIES,
   clubSlugFromName,
-  toClubSaveError,
   type ClubAttributionMode,
   type ClubJoinPolicy,
   type ClubLayout,
@@ -96,7 +108,7 @@ export function ClubCreateDialog({
   // formularz musi zostać z widocznym powodem przy właściwym polu.
   const [slugConflict, setSlugConflict] = useState<string | null>(null);
 
-  const effectiveSlug = slugTouched ? slug : clubSlugFromName(namePl);
+  const effectiveSlug = clubCreateEffectiveSlug({ slugTouched, slug, namePl });
   const debouncedSlug = useDebouncedValue(effectiveSlug, 350);
   const availableQ = useClubSlugAvailable(debouncedSlug);
 
@@ -118,44 +130,50 @@ export function ClubCreateDialog({
 
   // Zajęty adres z serwera unieważnia się sam, gdy tylko adres się zmieni.
   useEffect(() => {
-    setSlugConflict((current) => (current !== null && current !== effectiveSlug ? null : current));
+    setSlugConflict((current) => nextClubSlugConflict(current, effectiveSlug));
   }, [effectiveSlug]);
 
-  const slugState = useMemo(() => {
-    if (effectiveSlug.length === 0) return "empty" as const;
-    if (effectiveSlug.length < 3) return "short" as const;
-    if (slugConflict === effectiveSlug) return "taken" as const;
-    if (debouncedSlug !== effectiveSlug || availableQ.isFetching) return "checking" as const;
-    if (availableQ.data === false) return "taken" as const;
-    if (availableQ.data === true) return "free" as const;
-    return "checking" as const;
-  }, [effectiveSlug, debouncedSlug, availableQ.isFetching, availableQ.data, slugConflict]);
+  const slugState = useMemo(
+    () =>
+      clubCreateSlugState({
+        effectiveSlug,
+        debouncedSlug,
+        isFetching: availableQ.isFetching,
+        available: availableQ.data,
+        serverConflict: slugConflict,
+      }),
+    [effectiveSlug, debouncedSlug, availableQ.isFetching, availableQ.data, slugConflict],
+  );
 
-  const canSubmit = namePl.trim().length >= 3 && slugState === "free" && !createM.isPending;
+  const canSubmit = canSubmitClubCreate({
+    namePl,
+    slugState,
+    isPending: createM.isPending,
+  });
 
+  // JEDNA BRAMKA, NIE DWIE. Warunek wysyłki żyje w `canSubmitClubCreate`
+  // i wyłącza przycisk; drugi warunek wewnątrz `submit` byłby drugim miejscem,
+  // w którym trzeba pamiętać o tej samej regule - i pierwszym, o którym się
+  // zapomni. Stany blokujące (nazwa za krótka, adres inny niż wolny, zapis
+  // w locie) mają dowód w `ClubCreateDialog.test.tsx`: klik nie wysyła nic.
   const submit = () => {
-    if (!canSubmit) return;
     createM.mutate(
-      {
-        slug: effectiveSlug,
-        name_pl: namePl.trim(),
-        name_en: nameEn.trim() !== "" ? nameEn.trim() : namePl.trim(),
-        // Jedno pole tagline'u trafia do kolumny jezyka, w ktorym redaktor
-        // pracuje; druga zostaje pusta CELOWO. Czytelnicy sciagaja te wartosc
-        // przez `pickLocalized`, ktory przy pustej kolumnie siega po drugi
-        // jezyk - wiec zapisanie tu tego samego tekstu w obu kolumnach
-        // udawaloby tlumaczenie, ktorego nie ma.
-        tagline_pl: writesPolish ? tagline.trim() || null : null,
-        tagline_en: writesPolish ? null : tagline.trim() || null,
-        visibility,
-        join_policy: joinPolicy,
-        attribution_mode: attribution,
-        layout,
-        min_tier_rank: rankFromPlanTier(planTier),
-        cover_image_url: cover.trim() || null,
-        policy_area: topic,
-        status: "draft",
-      },
+      clubCreatePayload(
+        {
+          slug: effectiveSlug,
+          namePl,
+          nameEn,
+          tagline,
+          visibility,
+          joinPolicy,
+          attribution,
+          layout,
+          planTier,
+          cover,
+          topic,
+        },
+        { writesPolish },
+      ),
       {
         onSuccess: (clubId) => {
           toast.success(t("adminClubs.create.done"));
@@ -166,13 +184,13 @@ export function ClubCreateDialog({
         // dodatkowo NIE zamyka dialogu - formularz zostaje z wpisaną treścią,
         // żeby dało się poprawić sam adres.
         onError: (error) => {
-          const code = toClubSaveError(error);
           // Dialog zostaje otwarty w KAŻDYM przypadku - wpisana treść jest
           // wartościowsza niż czysty ekran. Przy zajętym adresie dokładamy
           // trwały komunikat przy polu, bo to jedyna odmowa, którą piszący
           // naprawia jednym polem.
-          if (code === "slug_taken") setSlugConflict(effectiveSlug);
-          toast.error(t(`adminClubs.create.error.${code}`));
+          const failure = clubCreateFailure(error);
+          if (failure.blocksSlug) setSlugConflict(effectiveSlug);
+          toast.error(t(failure.key));
         },
       },
     );
@@ -188,75 +206,51 @@ export function ClubCreateDialog({
 
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="club-create-name-pl">{t("adminClubs.fields.namePl")}</Label>
-              <Input
-                id="club-create-name-pl"
-                value={namePl}
-                maxLength={120}
-                autoFocus
-                onChange={(e) => setNamePl(e.target.value)}
-                placeholder={t("adminClubs.create.namePlaceholder")}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="club-create-name-en">{t("adminClubs.fields.nameEn")}</Label>
-              <Input
-                id="club-create-name-en"
-                value={nameEn}
-                maxLength={120}
-                onChange={(e) => setNameEn(e.target.value)}
-                placeholder={namePl.trim() !== "" ? namePl : ""}
-              />
-              <p className="text-xs text-muted-foreground">{t("adminClubs.create.nameEnHint")}</p>
-            </div>
+            <ClubDialogTextRow
+              id="club-create-name-pl"
+              labelKey="adminClubs.fields.namePl"
+              value={namePl}
+              maxLength={120}
+              autoFocus
+              placeholderKey="adminClubs.create.namePlaceholder"
+              onValueChange={setNamePl}
+            />
+            <ClubDialogTextRow
+              id="club-create-name-en"
+              labelKey="adminClubs.fields.nameEn"
+              value={nameEn}
+              maxLength={120}
+              // Zastępcza treść odbija nazwę POLSKĄ, bo puste pole angielskie
+              // zapisze się właśnie nią - i to trzeba widzieć przed zapisem.
+              placeholderText={namePl.trim() !== "" ? namePl : ""}
+              hintKey="adminClubs.create.nameEnHint"
+              onValueChange={setNameEn}
+            />
           </div>
 
           {/* Adres z żywą informacją zwrotną. */}
-          <div className="space-y-1.5">
-            <Label htmlFor="club-create-slug">{t("adminClubs.fields.slug")}</Label>
-            <div className="flex items-center gap-2">
-              <span className="shrink-0 text-sm text-muted-foreground">/club/</span>
-              <Input
-                id="club-create-slug"
-                value={effectiveSlug}
-                maxLength={80}
-                onChange={(e) => {
-                  setSlugTouched(true);
-                  setSlug(clubSlugFromName(e.target.value));
-                }}
-                aria-describedby="club-create-slug-state"
-              />
-              <SlugState state={slugState} />
-            </div>
-            <p
-              id="club-create-slug-state"
-              role={slugState === "taken" ? "alert" : undefined}
-              className={
-                slugState === "taken"
-                  ? "text-xs font-medium text-destructive"
-                  : "text-xs text-muted-foreground"
-              }
-            >
-              {slugState === "taken"
-                ? t("adminClubs.create.slugTaken")
-                : slugState === "free"
-                  ? t("adminClubs.create.slugFree")
-                  : t("adminClubs.fields.slugHint")}
-            </p>
-          </div>
+          <ClubDialogSlugRow
+            id="club-create-slug"
+            labelKey="adminClubs.fields.slug"
+            prefix="/club/"
+            value={effectiveSlug}
+            state={slugState}
+            maxLength={80}
+            onValueChange={(next) => {
+              setSlugTouched(true);
+              setSlug(clubSlugFromName(next));
+            }}
+          />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="club-create-tagline">{t("adminClubs.fields.taglinePl")}</Label>
-            <Textarea
-              id="club-create-tagline"
-              rows={2}
-              maxLength={280}
-              value={tagline}
-              onChange={(e) => setTagline(e.target.value)}
-              placeholder={t("adminClubs.create.taglinePlaceholder")}
-            />
-          </div>
+          <ClubDialogTextRow
+            id="club-create-tagline"
+            labelKey="adminClubs.fields.taglinePl"
+            value={tagline}
+            rows={2}
+            maxLength={280}
+            placeholderKey="adminClubs.create.taglinePlaceholder"
+            onValueChange={setTagline}
+          />
 
           {/* --- układ --- */}
           <div className="space-y-2">
@@ -342,33 +336,4 @@ export function ClubCreateDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function SlugState({ state }: { state: "empty" | "short" | "checking" | "free" | "taken" }) {
-  const { t } = useTranslation();
-  if (state === "checking") {
-    return (
-      <Loader2
-        className="h-4 w-4 shrink-0 animate-spin text-muted-foreground"
-        aria-label={t("adminClubs.create.slugChecking")}
-      />
-    );
-  }
-  if (state === "free") {
-    return (
-      <Check
-        className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-        aria-label={t("adminClubs.create.slugFree")}
-      />
-    );
-  }
-  if (state === "taken") {
-    return (
-      <X
-        className="h-4 w-4 shrink-0 text-destructive"
-        aria-label={t("adminClubs.create.slugTaken")}
-      />
-    );
-  }
-  return <span className="h-4 w-4 shrink-0" aria-hidden="true" />;
 }

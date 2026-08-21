@@ -12,7 +12,7 @@
 //      gość dostaje logowanie, użytkownik bez PRO dostaje cennik. Pomyłka
 //      w tę stronę wysyła kandydata z ważnym kontem na stronę zakupu.
 //   3. PREFILL - wypełnia WYŁĄCZNIE puste pola i JEDEN raz. Regresja wygląda
-//      niewinnie („dane z profilu"), a kosztuje kandydata przepisany tekst,
+//      niewinnie („dane z profilu”), a kosztuje kandydata przepisany tekst,
 //      bo nadpisuje to, co już wpisał.
 //   4. `clubsInReach` - filtr `min_tier_rank <= rank` DOKŁADNIE na granicy.
 //      Klub o progu wyższym niż ranga nie ma prawa być do wyboru: zgłoszenie
@@ -25,12 +25,12 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - REGUŁ walidacji: `applyValidation.ts` ma własne testy na czystym schemacie
 //   Zoda. Tutaj dowodzimy tylko, że trasa je WOŁA i RESPEKTUJE (odmawia
-//   wysyłki, pokazuje listę błędów, przełącza się na walidację „na żywo").
+//   wysyłki, pokazuje listę błędów, przełącza się na walidację „na żywo”).
 // - MAPOWANIA błędów RPC: `clubApplyErrorCode` ma testy w `applyApi`. Tutaj
 //   sprawdzamy, że trasa go używa i że wynik idzie do klucza i18n.
 // - AUTORYTETU: twarda bramka jest w RPC `club_apply_submit` (konto, ranga,
 //   zgoda, limit jednego otwartego zgłoszenia) i w pgTAP. Dwa powody odmowy,
-//   których w tym pliku NIE MA jako bramki - „wniosek już złożony"
+//   których w tym pliku NIE MA jako bramki - „wniosek już złożony”
 //   (`duplicate_open`) i próg konkretnego klubu (`club_tier_too_low`) -
 //   przychodzą Z SERWERA po wysyłce, więc testujemy je jako komunikat błędu
 //   wysyłki, a nie jako `GateCard`.
@@ -167,7 +167,7 @@ vi.mock("@/components/atoms/FormSelect", () => ({
   ),
 }));
 
-import { renderRoute, routeMeta } from "@/test/routeHarness";
+import { renderRoute, routeMeta, routeSearchValidator } from "@/test/routeHarness";
 import { Route as ApplyRoute } from "@/routes/club.apply";
 import { CLUB_BASE_ISO, clubIsoOffset, clubListRow } from "@/test/clubs/fixtures";
 
@@ -273,16 +273,16 @@ beforeEach(() => {
 // --- 1. kontrakt adresu ----------------------------------------------------
 
 describe("validateSearch - kontrakt linku wklejanego do maila", () => {
-  const validate = ApplyRoute.options.validateSearch;
+  const validate = routeSearchValidator(ApplyRoute);
 
   it("przepuszcza preselekcję specjalizacji", () => {
-    expect(validate?.({ spec: "bezpieczenstwo" })).toEqual({ spec: "bezpieczenstwo" });
+    expect(validate({ spec: "bezpieczenstwo" })).toEqual({ spec: "bezpieczenstwo" });
   });
 
   it("brak parametru daje pusty obiekt, nie `undefined`", () => {
     // `search.spec ?? ""` w komponencie musi mieć na czym stanąć; `undefined`
     // zamiast obiektu wywala odczyt pierwszym renderem.
-    expect(validate?.({})).toEqual({});
+    expect(validate({})).toEqual({});
   });
 
   it.each([
@@ -292,17 +292,17 @@ describe("validateSearch - kontrakt linku wklejanego do maila", () => {
     ["obiekt", { spec: { slug: "x" } }],
     ["wartość logiczna", { spec: true }],
   ])("parametr o złym typie (%s) jest ODRZUCANY, a nie przepuszczany dalej", (_label, raw) => {
-    expect(validate?.(raw)).toEqual({});
+    expect(validate(raw)).toEqual({});
   });
 
   it("parametry nadmiarowe są ODCINANE - adres nie jest kanałem na dowolne dane", () => {
-    expect(validate?.({ spec: "bezpieczenstwo", utm_source: "newsletter", ref: "x" })).toEqual({
+    expect(validate({ spec: "bezpieczenstwo", utm_source: "newsletter", ref: "x" })).toEqual({
       spec: "bezpieczenstwo",
     });
   });
 
   it("pusty napis przechodzi jako pusty - trasa musi go potraktować jak brak wyboru", () => {
-    expect(validate?.({ spec: "" })).toEqual({ spec: "" });
+    expect(validate({ spec: "" })).toEqual({ spec: "" });
   });
 
   it("slug nieistniejący przechodzi walidację adresu - o istnieniu decyduje katalog", () => {
@@ -310,7 +310,7 @@ describe("validateSearch - kontrakt linku wklejanego do maila", () => {
     // przychodzi z RPC), więc nieznany slug NIE może odrzucić trasy - inaczej
     // usunięcie specjalizacji zamieniłoby stare linki w błąd zamiast w pusty
     // formularz.
-    expect(validate?.({ spec: "specjalizacja-ktorej-nie-ma" })).toEqual({
+    expect(validate({ spec: "specjalizacja-ktorej-nie-ma" })).toEqual({
       spec: "specjalizacja-ktorej-nie-ma",
     });
   });
@@ -408,7 +408,7 @@ describe("prefill z profilu - wypełnia TYLKO puste pola", () => {
   });
 
   it("NIE nadpisuje tego, co użytkownik już wpisał", async () => {
-    // To jest regresja, która wygląda niewinnie: „dane z profilu" wchodzą
+    // To jest regresja, która wygląda niewinnie: „dane z profilu” wchodzą
     // asynchronicznie i zjadają tekst wpisany w międzyczasie.
     h.prefill = undefined;
     await mount();
@@ -457,7 +457,7 @@ describe("prefill z profilu - wypełnia TYLKO puste pola", () => {
   });
 
   it("prefill nie cofa świadomego WYCZYSZCZENIA pola po wypełnieniu", async () => {
-    // `prefillApplied` to ref, nie warunek „pole puste": bez tego każde
+    // `prefillApplied` to ref, nie warunek „pole puste”: bez tego każde
     // wyczyszczenie pola przez użytkownika było natychmiast cofane.
     h.prefill = PROFILE;
     await mount();
@@ -663,11 +663,14 @@ describe("onSubmit - wysyłka zgłoszenia", () => {
   });
 
   it("PODWÓJNE kliknięcie nie wysyła dwa razy - przycisk jest odcięty w czasie wysyłki", async () => {
-    let release: (() => void) | null = null;
+    // Uchwyt trzymany w OBIEKCIE, nie w zmiennej: analiza przepływu TypeScriptu
+    // zawęża `let x = null` do `null` i nie widzi przypisania z wnętrza
+    // wykonawcy obietnicy, więc odczyt przestaje być wywoływalny.
+    const held: { release: (() => void) | null } = { release: null };
     h.submit.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
-          release = () => resolve();
+          held.release = () => resolve();
         }),
     );
     await mount();
@@ -680,7 +683,7 @@ describe("onSubmit - wysyłka zgłoszenia", () => {
     fireEvent.click(submitButton());
     fireEvent.click(submitButton());
     expect(h.submit).toHaveBeenCalledTimes(1);
-    if (release !== null) release();
+    if (held.release !== null) held.release();
     await waitFor(() => {
       expect(h.toastSuccess).toHaveBeenCalledWith("club.spec.apply.ok");
     });

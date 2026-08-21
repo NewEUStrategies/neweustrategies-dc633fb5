@@ -8,20 +8,20 @@
 //   1. NAZWANIE ODMOWY `duplicate_open`. Cofnięcie decyzji przy drugim OTWARTYM
 //      zgłoszeniu tej samej osoby kończy się w bazie naruszeniem indeksu
 //      częściowego. Operator, który widzi wyłącznie „nie udało się zapisać
-//      statusu", nie ma pojęcia, że przeszkodą jest inne zgłoszenie - i klika
+//      statusu”, nie ma pojęcia, że przeszkodą jest inne zgłoszenie - i klika
 //      trzeci raz. To jest różnica między błędem do zrozumienia a awarią.
 //   2. WIDOCZNY STAN SYNCHRONIZACJI Z CRM. Cicha porażka jest najgorszym
 //      wynikiem: redakcja widzi zgłoszenie w panelu i zakłada, że kartoteka
 //      w CRM istnieje. Deskryptor niesie ton, datę PRÓBY (nie tylko sukcesu)
 //      i to, czy ponowienie ma sens.
 //   3. FILTRY JADĄ DO RPC JAKO `null`, NIE JAKO `""`. Pusty napis w argumencie
-//      `p_status` to filtr po statusie „" - czyli pusta skrzynka wyglądająca
+//      `p_status` to filtr po statusie RÓWNYM PUSTEMU NAPISOWI - czyli pusta
 //      jak brak zgłoszeń.
 //   4. ZAWĘŻENIE STATUSU ZE SELECTA. Wartość z pola wyboru jest `string`;
 //      wcześniej szła do RPC rzutowaniem `as ClubApplicationStatus`. Rzutowanie
 //      przemilcza wartość spoza słownika, zawężenie ją odcina.
 //   5. DWA JĘZYKI NAZW. Klub i specjalizacja mają nazwę PL i EN; przy braku
-//      jednej lepsza jest nazwa „obca" niż puste miejsce w wierszu.
+//      jednej lepsza jest nazwa „obca” niż puste miejsce w wierszu.
 //   6. KTÓRE POLA KARTOTEKI I W JAKIEJ KOLEJNOŚCI, z pominięciem pustych.
 //      Pole opcjonalne, którego kandydat nie wypełnił, nie może pokazać się
 //      jako gołe `undefined` ani jako pusta etykieta.
@@ -30,6 +30,12 @@
 // przychodzą przez `import type`. Moduł oddaje KLUCZE i18n i deskryptory
 // (ton, rodzaj), nigdy gotowego napisu: formatowanie daty zależy od języka
 // operatora, a to wie tylko widok.
+//
+// SŁOWNIK PANELU, A NIE PUBLICZNY. Klucze `adminClubs.applications.*` mieszkają
+// w `i18n-clubs-admin`, który trzeba jawnie dociągnąć przez
+// `ensureAdminClubsI18n()`. Moduł tego NIE robi i nie może - nie zna Reacta ani
+// i18next - więc jest osiągalny wyłącznie z powierzchni panelu, która to woła
+// (granicy pilnuje bramka `adminClubsI18nLoading.gate`).
 import type {
   ClubApplicationAdminRow,
   ClubApplicationCountRow,
@@ -78,7 +84,7 @@ export function applicationStatusActions(
   return APPLICATION_STATUSES.filter((status) => status !== current);
 }
 
-/** Wartość z pola wyboru zawężona do słownika; `""` i śmieć znaczą „bez filtra". */
+/** Wartość z pola wyboru zawężona do słownika; `""` i śmieć znaczą „bez filtra”. */
 export function narrowApplicationStatus(raw: string): ClubApplicationStatus | null {
   return APPLICATION_STATUSES.find((status) => status === raw) ?? null;
 }
@@ -149,7 +155,7 @@ export function crmTone(state: ClubApplicationCrmStatus): InboxTone {
  * Widok stanu CRM dla jednego zgłoszenia.
  *
  * `detailKey` + `detailIso` zamiast gotowego zdania: datę formatuje widok
- * w locale operatora. `never` NIE nosi daty - „ostatnia próba: -" wyglądałoby
+ * w locale operatora. `never` NIE nosi daty - „ostatnia próba: -” wyglądałoby
  * jak próba, której nie było, a to dwa różne stany kartoteki.
  */
 export interface CrmChipView {
@@ -209,14 +215,15 @@ export function applicationMailState(row: ClubApplicationAdminRow): ApplicationM
 
 /**
  * Nazwa klubu w języku operatora, z zejściem na drugi język. Klub może mieć
- * wypełnione tylko jedno pole, a wtedy nazwa „obca" jest lepsza niż puste
+ * wypełnione tylko jedno pole, a wtedy nazwa „obca” jest lepsza niż puste
  * miejsce. `null` znaczy: zgłoszenie bez klubu (sama specjalizacja).
  */
 export function applicationClubName(
   row: Pick<ClubApplicationAdminRow, "club_name_pl" | "club_name_en">,
   lang: "pl" | "en",
 ): string | null {
-  const name = lang === "en" ? row.club_name_en || row.club_name_pl : row.club_name_pl || row.club_name_en;
+  const name =
+    lang === "en" ? row.club_name_en || row.club_name_pl : row.club_name_pl || row.club_name_en;
   return name === null || name === "" ? null : name;
 }
 
@@ -272,7 +279,7 @@ export const APPLICATION_DETAIL_FIELDS: readonly {
 ];
 
 /**
- * Wartość pola kartoteki jako napis albo `null` = „nie pokazuj".
+ * Wartość pola kartoteki jako napis albo `null` = „nie pokazuj”.
  *
  * `null` i `""` znaczą to samo (kandydat nie podał), ale `0` znaczy zero -
  * dlatego porównanie jest z `""`, a nie sprawdzenie prawdziwości. Kandydat
@@ -286,7 +293,7 @@ export function applicationDetailValue(
   return raw === null || raw === "" ? null : String(raw);
 }
 
-/** Zakładka skrzynki: specjalizacja (albo „wszystkie") z licznikiem zaległości. */
+/** Zakładka skrzynki: specjalizacja (albo „wszystkie”) z licznikiem zaległości. */
 export interface InboxTab {
   readonly slug: string;
   readonly label: string;
@@ -302,13 +309,13 @@ export function pendingBySpec(
   return map;
 }
 
-/** Zaległość łączna - licznik zakładki „wszystkie". */
+/** Zaległość łączna - licznik zakładki „wszystkie”. */
 export function totalPending(counts: readonly ClubApplicationCountRow[] | undefined): number {
   return (counts ?? []).reduce((acc, row) => acc + row.pending, 0);
 }
 
 /**
- * Zakładki skrzynki. Pierwsza jest zawsze „wszystkie" (`slug: ""`), bo brak
+ * Zakładki skrzynki. Pierwsza jest zawsze „wszystkie” (`slug: ""`), bo brak
  * filtra to osobny, najczęstszy widok - a nie brak wyboru. Specjalizacja bez
  * wpisu w licznikach ma zero, nie `undefined`: licznik `undefined` renderowałby
  * się jako puste miejsce i wyglądał jak brak danych.

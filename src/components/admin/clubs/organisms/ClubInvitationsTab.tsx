@@ -1,37 +1,40 @@
-// Organizm: zakładka "Zaproszenia" - cztery panele w jednym ekranie (V2 §3).
+// Organizm: zakładka „Zaproszenia” - cztery panele w jednym ekranie (V2 §3).
 //
 //   Wyślij   - przełącznik ścieżki (osoba / e-mail), pod spodem właściwa kontrolka
 //   Segment  - kampania na zbiór wyliczony regułą (ścieżka D). Do 2026-08-08
 //              ta ścieżka miała w bazie tabelę reguł i RPC podglądu, a w panelu
-//              nic - czyli licznik "wyślę 137 zaproszeń" bez przycisku.
+//              nic - czyli licznik „wyślę 137 zaproszeń” bez przycisku.
 //   Linki    - tabela z wykorzystaniem, wygasaniem, kopiowaniem i unieważnianiem
-//   Historia - wszystkie ścieżki w jednej liście, bo administrator pyta "kogo
-//              zaprosiliśmy", a nie "kogo zaprosiliśmy którą tabelą"
+//   Historia - wszystkie ścieżki w jednej liście, bo administrator pyta „kogo
+//              zaprosiliśmy”, a nie „kogo zaprosiliśmy którą tabelą”
 //
 // Token linku pokazujemy RAZ, tuż po utworzeniu. Trzymanie go w widoku listy
 // zamieniałoby tabelę w listę żywych zaproszeń do klubu, którą wystarczy
 // sfotografować przez ramię.
+//
+// PO ROZŁOŻENIU NA WARSTWY ten plik jest KOMPOZYCJĄ:
+//   * REGUŁY (zbiór ról bez `lead`, bramka wysyłki, dwa ładunki wysyłki,
+//     przełożenie wyjątku bazy na klucz komunikatu, parsowanie limitu użyć,
+//     adres zaproszenia, stan wiersza linku, klucze kanału i statusu)
+//     mieszkają w `@/lib/clubs/adminClubInvites`;
+//   * WIERSZE OBU TABEL mieszkają w `molecules/ClubRoster*`;
+//   * tutaj zostaje SKLEJENIE: co jedzie do której mutacji i co widać po
+//     odmowie z bazy.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Copy, Link2, Mail, Send, UserPlus, XCircle } from "lucide-react";
+import { Copy, Link2, Mail, Send, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
+import { ClubRosterInviteHistoryRow } from "../molecules/ClubRosterInviteHistoryRow";
+import { ClubRosterInviteLinkRow } from "../molecules/ClubRosterInviteLinkRow";
 import { ClubSegmentCampaign } from "./ClubSegmentCampaign";
 import {
   useClubInvitations,
@@ -41,24 +44,29 @@ import {
   useInviteClubMemberByEmail,
   useRevokeClubInviteLink,
 } from "@/lib/clubs/useClubs";
-import { toClubInviteError, type ClubMemberRole } from "@/lib/clubs/types";
-import { formatDateShort } from "@/lib/i18n/format";
+import {
+  CLUB_INVITE_REVOKE_PROMPT,
+  INVITABLE_CLUB_ROLES,
+  canSendClubInvite,
+  clubInviteErrorKey,
+  clubInviteJoinUrl,
+  clubInviteLinkPayload,
+  clubInviteSendPayload,
+  toClubInvitationView,
+  toClubInviteLinkView,
+  type ClubInviteMode,
+  type InvitableClubRole,
+} from "@/lib/clubs/adminClubInvites";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
-
-/** Role możliwe do nadania zaproszeniem masowym. `lead` celowo poza listą. */
-const INVITABLE_ROLES = ["moderator", "member", "observer"] as const;
-type InvitableRole = (typeof INVITABLE_ROLES)[number];
-
-type SendMode = "person" | "email";
 
 export function ClubInvitationsTab({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
-  const [mode, setMode] = useState<SendMode>("person");
+  const [mode, setMode] = useState<ClubInviteMode>("person");
   const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
-  const [role, setRole] = useState<InvitableRole>("member");
+  const [role, setRole] = useState<InvitableClubRole>("member");
   const [linkLabel, setLinkLabel] = useState("");
   const [linkMaxUses, setLinkMaxUses] = useState("");
   const [freshToken, setFreshToken] = useState<string | null>(null);
@@ -72,16 +80,16 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
   const revokeM = useRevokeClubInviteLink(clubId);
 
   /** Komunikat błędu bierze się z kodu, nie z tekstu wyjątku bazy. */
-  const reportError = (error: unknown) => {
-    const code = toClubInviteError(error);
-    toast.error(code ? t(`adminClubs.invitations.error.${code}`) : t("adminClubs.saveFailed"));
-  };
+  const reportError = (error: unknown) => toast.error(t(clubInviteErrorKey(error)));
+
+  const draft = { mode, userId, email, role, message };
 
   const handleSend = () => {
-    if (mode === "person") {
-      if (userId.length === 0) return;
+    const payload = clubInviteSendPayload(draft);
+    if (payload === null) return;
+    if (payload.channel === "direct") {
       inviteM.mutate(
-        { userId, role: role as ClubMemberRole, message: message.trim() || null },
+        { userId: payload.userId, role: payload.role, message: payload.message },
         {
           onSuccess: () => {
             toast.success(t("adminClubs.invitations.sent"));
@@ -93,10 +101,8 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
       );
       return;
     }
-    const trimmed = email.trim();
-    if (trimmed.length === 0) return;
     inviteEmailM.mutate(
-      { email: trimmed, role },
+      { email: payload.email, role: payload.role },
       {
         onSuccess: () => {
           toast.success(t("adminClubs.invitations.sent"));
@@ -108,34 +114,43 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
   };
 
   const handleCreateLink = () => {
-    const parsed = Number.parseInt(linkMaxUses, 10);
-    createLinkM.mutate(
-      {
-        label: linkLabel.trim() || null,
-        role,
-        maxUses: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+    createLinkM.mutate(clubInviteLinkPayload({ label: linkLabel, maxUses: linkMaxUses, role }), {
+      onSuccess: ({ token }) => {
+        setFreshToken(token);
+        setLinkLabel("");
+        setLinkMaxUses("");
+        toast.success(t("adminClubs.invitations.linkCreated"));
       },
-      {
-        onSuccess: ({ token }) => {
-          setFreshToken(token);
-          setLinkLabel("");
-          setLinkMaxUses("");
-          toast.success(t("adminClubs.invitations.linkCreated"));
-        },
-        onError: reportError,
-      },
-    );
+      onError: reportError,
+    });
   };
 
-  const copyLink = (token: string) => {
-    const url = `${window.location.origin}/club/join/${token}`;
-    void navigator.clipboard.writeText(url).then(
+  const copyLink = (token: string) =>
+    void navigator.clipboard.writeText(clubInviteJoinUrl(window.location.origin, token)).then(
       () => toast.success(t("adminClubs.invitations.linkCopied")),
       () => toast.error(t("adminClubs.saveFailed")),
     );
-  };
+
+  /** Unieważnienie linku jest NIEODWRACALNE - idzie przez potwierdzenie. */
+  const confirmRevoke = (linkId: string) =>
+    setConfirm({
+      title: t(CLUB_INVITE_REVOKE_PROMPT.titleKey),
+      description: t(CLUB_INVITE_REVOKE_PROMPT.bodyKey),
+      destructive: true,
+      onConfirm: () =>
+        revokeM.mutateAsync(linkId).then(
+          () => {
+            toast.success(t(CLUB_INVITE_REVOKE_PROMPT.successKey));
+          },
+          () => {
+            toast.error(t("adminClubs.saveFailed"));
+          },
+        ),
+    });
 
   const sending = inviteM.isPending || inviteEmailM.isPending;
+  const links = linksQ.data ?? [];
+  const invitations = invitationsQ.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -197,7 +212,7 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                   value={email}
                   disabled={sending}
                   placeholder={t("adminClubs.invitations.emailPlaceholder")}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
                   {t("adminClubs.invitations.emailHint")}
@@ -205,11 +220,13 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
               </div>
             )}
 
+            {/* Rola powyżej `lead` NIE JEST OFEROWANA - patrz nagłówek
+                `adminClubInvites.ts`. Lista powstaje z odsiania słownika. */}
             <ClubEnumSelect
               id="club-invite-role"
               label={t("adminClubs.columns.role")}
               value={role}
-              options={INVITABLE_ROLES}
+              options={INVITABLE_CLUB_ROLES}
               i18nPrefix="club.role"
               onChange={setRole}
               disabled={sending}
@@ -227,17 +244,12 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                 maxLength={500}
                 value={message}
                 disabled={sending}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(event) => setMessage(event.target.value)}
               />
             </div>
           ) : null}
 
-          <Button
-            onClick={handleSend}
-            disabled={
-              sending || (mode === "person" ? userId.length === 0 : email.trim().length === 0)
-            }
-          >
+          <Button onClick={handleSend} disabled={sending || !canSendClubInvite(draft)}>
             <Send className="mr-2 h-4 w-4" />
             {t("adminClubs.invitations.send")}
           </Button>
@@ -264,7 +276,7 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                 value={linkLabel}
                 disabled={createLinkM.isPending}
                 placeholder={t("adminClubs.invitations.linkLabelPlaceholder")}
-                onChange={(e) => setLinkLabel(e.target.value)}
+                onChange={(event) => setLinkLabel(event.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -276,7 +288,7 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                 inputMode="numeric"
                 value={linkMaxUses}
                 disabled={createLinkM.isPending}
-                onChange={(e) => setLinkMaxUses(e.target.value)}
+                onChange={(event) => setLinkMaxUses(event.target.value)}
               />
             </div>
             <Button variant="outline" onClick={handleCreateLink} disabled={createLinkM.isPending}>
@@ -285,10 +297,10 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
           </div>
 
           {/* Token widoczny RAZ - potem tylko etykieta i licznik użyć. */}
-          {freshToken ? (
+          {freshToken === null ? null : (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
               <code className="min-w-0 flex-1 truncate text-xs">
-                {window.location.origin}/club/join/{freshToken}
+                {clubInviteJoinUrl(window.location.origin, freshToken)}
               </code>
               <Button size="sm" variant="outline" onClick={() => copyLink(freshToken)}>
                 <Copy className="mr-1.5 h-3.5 w-3.5" />
@@ -298,11 +310,11 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                 {t("adminClubs.invitations.tokenOnceHint")}
               </p>
             </div>
-          ) : null}
+          )}
 
           {linksQ.isPending ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-          ) : (linksQ.data ?? []).length === 0 ? (
+          ) : links.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               {t("adminClubs.invitations.noLinks")}
             </p>
@@ -322,62 +334,15 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(linksQ.data ?? []).map((link) => {
-                    const revoked = link.revoked_at !== null;
-                    return (
-                      <TableRow key={link.id}>
-                        <TableCell className="font-medium">
-                          {link.label ?? t("adminClubs.invitations.linkUnnamed")}
-                        </TableCell>
-                        <TableCell>{t(`club.role.${link.club_role}`)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {link.used_count}
-                          {link.max_uses !== null ? ` / ${link.max_uses}` : ""}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                          {link.expires_at ? formatDateShort(link.expires_at, i18n.language) : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={revoked ? "outline" : "secondary"}>
-                            {revoked
-                              ? t("adminClubs.invitations.revoked")
-                              : t("adminClubs.invitations.activeLink")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {!revoked ? (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              disabled={revokeM.isPending}
-                              onClick={() =>
-                                setConfirm({
-                                  title: t("adminClubs.invitations.revokeConfirmTitle"),
-                                  description: t("adminClubs.invitations.revokeConfirmBody"),
-                                  destructive: true,
-                                  onConfirm: () =>
-                                    revokeM.mutateAsync(link.id).then(
-                                      () => {
-                                        toast.success(t("adminClubs.invitations.revoked"));
-                                      },
-                                      () => {
-                                        toast.error(t("adminClubs.saveFailed"));
-                                      },
-                                    ),
-                                })
-                              }
-                            >
-                              <XCircle className="h-4 w-4" />
-                              <span className="sr-only">
-                                {t("adminClubs.invitations.revokeLink")}
-                              </span>
-                            </Button>
-                          ) : null}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {links.map((link) => (
+                    <ClubRosterInviteLinkRow
+                      key={link.id}
+                      view={toClubInviteLinkView(link)}
+                      language={i18n.language}
+                      pending={revokeM.isPending}
+                      onRevoke={() => confirmRevoke(link.id)}
+                    />
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -393,7 +358,7 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
         <CardContent>
           {invitationsQ.isPending ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-          ) : (invitationsQ.data ?? []).length === 0 ? (
+          ) : invitations.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               {t("adminClubs.invitations.noHistory")}
             </p>
@@ -411,32 +376,16 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(invitationsQ.data ?? []).map((row) => (
-                    <TableRow key={`${row.channel}-${row.id}`}>
-                      <TableCell className="font-medium">{row.recipient}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {t(`adminClubs.invitations.channelName.${row.channel}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{t(`club.role.${row.club_role}`)}</TableCell>
-                      <TableCell className="text-sm">
-                        {/* Prefiks słownika to `invitations`, nie `invites` -
-                            literówka sprawiała, że t() zawsze schodziło do
-                            defaultValue i wypisywało surowy status z bazy.
-                            defaultValue znika razem z nią: brak klucza ma
-                            oblewać bramkę i18n, a nie cicho pokazywać
-                            angielski identyfikator w polskim interfejsie. */}
-                        {t(`adminClubs.invitations.statusName.${row.status}`)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {row.inviter_name}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {formatDateShort(row.created_at, i18n.language)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {invitations.map((row) => {
+                    const view = toClubInvitationView(row);
+                    return (
+                      <ClubRosterInviteHistoryRow
+                        key={view.key}
+                        view={view}
+                        language={i18n.language}
+                      />
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
