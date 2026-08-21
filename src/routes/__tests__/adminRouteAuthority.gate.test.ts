@@ -245,3 +245,373 @@ describe("panel klubów - autorytet dostępu", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// USTAWIENIA, INTEGRACJE, UŻYTKOWNICY, MULTI-TENANT, RODO
+// rozszerzenie zakresu bramki (2026-08-21, moduł 19)
+// ---------------------------------------------------------------------------
+//
+// PO CO. Bramka wyżej pilnowała rodziny `/admin/users*` (przez jedną trasę),
+// wpisów nawigacji zawężonych `isSuperAdmin` oraz rodziny
+// `admin.community.clubs.*`. Poza jej zasięgiem zostało DWADZIEŚCIA JEDEN tras
+// panelu, przez które przechodzi konfiguracja całego serwisu, nadawanie ról,
+// izolacja najemcy i zgody RODO: `admin.settings.*` (15), `admin.users.*` (4),
+// `admin.organizations.*` (3), `admin.integrations`, `admin.names`,
+// `admin.greetings`, `admin.popups`, `admin.audience`, `admin.personalized`.
+//
+// Ryzyko jest dokładnie tej samej klasy, co defekt, który ta bramka złapała
+// przy wdrożeniu (droplista zmiany roli oferowana redaktorowi): PANEL OFERUJE
+// AKCJĘ, KTÓRĄ BAZA I TAK ODRZUCI. Ta część odpowiada wyłącznie na to pytanie.
+//
+// CZEGO TA CZĘŚĆ NIE ROBI. Nie renderuje tras - to byłaby farma pokrycia,
+// dokładnie tak jak mówi nagłówek pliku. STAN i SKLEJENIE tych rodzin pokrywają
+// osobne pliki (`adminUsersRoutes.test.tsx`, `adminSettingsRoutes.test.tsx`,
+// `adminOrganizationsRoutes.test.tsx`, `adminIntegrationsRoute.test.tsx`,
+// `adminNamesRoute.test.tsx`, `adminAudienceRoutes.test.tsx`), a REGUŁY -
+// testy warstwy `lib/` (`useSettings.test.tsx`, `invitationsFunctions.test.ts`,
+// `namesCsv.test.ts`). Tutaj pilnujemy wyłącznie AUTORYTETU.
+//
+// TRZY WZORCE DOSTĘPU W TYM MODULE - i trzy różne reguły:
+//
+//   A. TRASA SUPERADMINA (`admin.names`). Wpis nawigacji zawężony
+//      `isSuperAdmin`, więc trasa MUSI sprawdzać rolę SAMA i PRZEKIEROWAĆ
+//      (adres wpisuje się z ręki).
+//   B. TRASA ADMINA (`admin.greetings`). Wpis nawigacji zawężony `isAdmin` -
+//      i to jest przypadek, którego bramka DO TEJ PORY NIE WIDZIAŁA, bo jej
+//      wzorzec szukał wyłącznie `isSuperAdmin`.
+//   C. TRASA CAŁEGO PERSONELU (pozostałe). Autorytet leży WYŁĄCZNIE w bazie
+//      (RLS + RPC z zakresem najemcy). Tu reguła jest inna: trasa nie może
+//      pisać WPROST do tabel uprzywilejowanych, a pokrycie pgTAP dla jej
+//      procedur nie może zniknąć.
+
+/** Rodziny tras objęte tym rozszerzeniem. Kanarek zasięgu - patrz test niżej. */
+const MODULE19_ROUTES = [
+  "admin.users.index.tsx",
+  "admin.users.$id.tsx",
+  "admin.users.invitations.tsx",
+  "admin.users.tsx",
+  "admin.organizations.tsx",
+  "admin.organizations.$id.tsx",
+  "admin.organizations.new.tsx",
+  "admin.integrations.tsx",
+  "admin.names.tsx",
+  "admin.greetings.tsx",
+  "admin.popups.tsx",
+  "admin.audience.tsx",
+  "admin.personalized.tsx",
+] as const;
+
+/** Trasy ustawień - piętnaście plików `admin.settings*`. */
+function settingsRoutes(): string[] {
+  return adminRoutes().filter((name) => name.startsWith("admin.settings"));
+}
+
+/**
+ * Wpisy nawigacji zawężone rolą. Zwraca slugi zebrane z JEDNEGO wyrażenia
+ * warunkowego `...(isX ? [ … ] : [])` - blok może nieść KILKA wpisów, więc
+ * czytamy wszystkie adresy w jego wnętrzu, a nie tylko pierwszy.
+ *
+ * PO CO OSOBNA FUNKCJA. Dotychczasowy wzorzec bramki dopasowywał
+ * `isSuperAdmin ? [{ … to: "/admin/<slug>"` - czyli PIERWSZY adres w bloku
+ * i wyłącznie dla `isSuperAdmin`. Wpis zawężony `isAdmin` był dla bramki
+ * niewidzialny, a to właśnie tam siedzi defekt zgłoszony niżej.
+ */
+function navGatedSlugs(role: "isAdmin" | "isSuperAdmin"): string[] {
+  const source = `${read(SHELL)}\n${read(NAV_MAP)}`;
+  const blocks = [...source.matchAll(new RegExp(`\\.\\.\\.\\(${role}\\s*\\?([^]*?)\\)\\s*,`, "g"))];
+  const slugs = new Set<string>();
+  for (const block of blocks) {
+    for (const hit of block[1].matchAll(/to:\s*"\/admin\/([a-z0-9/-]+)"/g)) {
+      slugs.add(hit[1]);
+    }
+  }
+  return [...slugs];
+}
+
+/** Nazwa pliku trasy dla sluga nawigacji (`settings/seo` -> `admin.settings.seo.tsx`). */
+function routeFileForSlug(slug: string): string {
+  return `admin.${slug.split("/").join(".")}.tsx`;
+}
+
+describe("moduł 19 - kanarek zasięgu bramki", () => {
+  it("wszystkie trasy rodzin modułu 19 ISTNIEJĄ pod znanymi nazwami", () => {
+    // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i MILCZAŁA.
+    // To jest ten sam mechanizm, którym zginęła kiedyś bramka
+    // `check:authz-snapshot` (opisane w `src/lib/ci/gateCoverage.ts`).
+    const present = adminRoutes();
+    for (const file of MODULE19_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+  });
+
+  it("rodzina `admin.settings.*` ma co najmniej piętnaście tras", () => {
+    // Liczba jest dolną granicą, nie równością: dołożenie panelu ma być
+    // możliwe bez ruszania bramki, ale ZNIKNIĘCIE połowy rodziny - nie.
+    expect(settingsRoutes().length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("wzorzec wpisów nawigacji zawężonych rolą realnie coś znajduje", () => {
+    // Kanarek samego czytnika: gdyby wyrażenie przestało pasować (refaktor
+    // `adminNav.ts`), wszystkie testy niżej zrobiłyby się puste i zielone.
+    expect(navGatedSlugs("isSuperAdmin").length).toBeGreaterThan(0);
+    expect(navGatedSlugs("isAdmin").length).toBeGreaterThan(0);
+  });
+});
+
+describe("moduł 19 - wzorzec A: trasa superadmina sprawdza rolę SAMA", () => {
+  it("każda trasa zawężona `isSuperAdmin` w nawigacji ma własny warunek", () => {
+    // Ukrycie linku w nawigacji nie chroni niczego: adres wpisuje się z ręki,
+    // a wspólny layout `/admin` przepuszcza każdego `isStaff` (czyli także
+    // redaktora i autora).
+    const offenders = navGatedSlugs("isSuperAdmin").filter((slug) => {
+      const file = routeFileForSlug(slug);
+      if (!adminRoutes().includes(file)) return false;
+      return !/isSuperAdmin/.test(read(`${ROUTES_DIR}/${file}`));
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("`admin.names` nie tylko sprawdza rolę - PRZEKIEROWUJE", () => {
+    // Różnica jest istotna: ukrycie treści przy zachowaniu adresu zostawia
+    // pusty ekran, który wygląda na awarię. Przekierowanie mówi wprost, że
+    // to nie jest miejsce dla tej roli.
+    const source = read(`${ROUTES_DIR}/admin.names.tsx`);
+    expect(source).toMatch(/if \(!isSuperAdmin\) return <Navigate to="\/admin"/);
+  });
+
+  it("`admin.names` NIE PYTA bazy przed sprawdzeniem roli", () => {
+    // Zapytanie wysłane przed bramką zapala liczniki w logach za funkcję,
+    // której wynik nikt nie zobaczy - i wystawia kształt danych komuś, kto
+    // nie ma do nich prawa.
+    const source = read(`${ROUTES_DIR}/admin.names.tsx`);
+    expect(source, "efekty pobierające dane muszą wyjść na `!isSuperAdmin`").toMatch(
+      /if \(!isSuperAdmin\) return;/,
+    );
+  });
+});
+
+describe("moduł 19 - wzorzec C: autorytet w bazie, trasa nie pisze wprost", () => {
+  /**
+   * Tabele, do których panel NIE MOŻE pisać wprost z przeglądarki: zapis musi
+   * iść przez SECURITY DEFINER z zakresem najemcy. Lista jest jawna, bo
+   * „cokolwiek uprzywilejowanego" nie da się sprawdzić wzorcem.
+   */
+  const PRIVILEGED_TABLES = ["user_roles", "tenants", "role_audit_log", "user_consents"] as const;
+
+  it.each(MODULE19_ROUTES)("%s nie pisze WPROST do tabel uprzywilejowanych", (file) => {
+    // `change_user_role` pisze do `user_roles` w definerze i zostawia wpis
+    // w `role_audit_log`; pisanie wprost jest po stronie bazy zamknięte
+    // (dowód: `role_management_test.sql`, asercja „permission denied").
+    // Ten test pilnuje, żeby panel w ogóle nie PRÓBOWAŁ - próba oznacza
+    // ścieżkę, która w produkcji kończy się błędem bez wyjaśnienia.
+    const source = read(`${ROUTES_DIR}/${file}`);
+    const offenders = PRIVILEGED_TABLES.filter((table) =>
+      new RegExp(`from\\("${table}"\\)[\\s\\S]{0,200}?\\.(insert|update|upsert|delete)\\(`).test(
+        source,
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it.each(settingsRoutes())("%s nie pisze WPROST do tabel uprzywilejowanych", (file) => {
+    const source = read(`${ROUTES_DIR}/${file}`);
+    const offenders = PRIVILEGED_TABLES.filter((table) =>
+      new RegExp(`from\\("${table}"\\)[\\s\\S]{0,200}?\\.(insert|update|upsert|delete)\\(`).test(
+        source,
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("izolacja najemcy dla tras multi-tenant jest pokryta pgTAP - i to ona jest ostateczna", () => {
+    // Ten test nie sprawdza bazy (do tego jest pgTAP) - sprawdza, że pokrycie
+    // NIE ZNIKNĘŁO. Pliki pgTAP da się usunąć jednym commitem i nic w TS nie
+    // zapłonie, a to są reguły, na których stoi rozdzielność najemców.
+    const REQUIRED = [
+      "supabase/tests/rls_tenant_isolation_test.sql",
+      "supabase/tests/tenant_isolation_three_tenants_test.sql",
+      "supabase/tests/tenants_update_grants_test.sql",
+      "supabase/tests/security_definer_tenant_scope_test.sql",
+      "supabase/tests/definer_header_tenant_isolation_test.sql",
+      "supabase/tests/host_tenant_resolution_test.sql",
+      "supabase/tests/tenant_host_assertion_test.sql",
+      "supabase/tests/tenant_isolation_billing_storage_test.sql",
+    ] as const;
+    for (const file of REQUIRED) {
+      expect(read(file).length, `pusty albo brakujący plik pgTAP: ${file}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("pgTAP izolacji najemcy realnie wspomina KOLUMNĘ najemcy i próbę zapisu", () => {
+    // Sprawdzamy KAŻDY plik osobno, a nie sklejony tekst: warunek na sumie
+    // przechodziłby, gdyby jeden plik niósł wszystko, a dwa pozostałe zrobiły
+    // się puste. Wielkość liter po stronie SQL jest tu nieistotna - liczy się
+    // obecność pojęcia, więc porównujemy bez rozróżniania.
+    const FILES = [
+      "supabase/tests/rls_tenant_isolation_test.sql",
+      "supabase/tests/tenant_isolation_three_tenants_test.sql",
+      "supabase/tests/security_definer_tenant_scope_test.sql",
+    ] as const;
+    for (const file of FILES) {
+      const sql = read(file).toLowerCase();
+      for (const guarantee of ["tenant_id", "insert"]) {
+        expect(sql, `${file} przestał wspominać: ${guarantee}`).toContain(guarantee);
+      }
+    }
+  });
+
+  it("dowód zgody (RODO) jest pokryty pgTAP - utwardzenie tabel dowodowych", () => {
+    // `set_user_consent` zapisuje IP/UA/wersję i jest jedyną drogą do rejestru;
+    // tabele intake są dla klienta zamknięte (inwariant `check:sql-anon-insert`).
+    const sql = read("supabase/tests/consent_evidence_hardening_test.sql");
+    expect(sql.length).toBeGreaterThan(0);
+    for (const guarantee of ["consent", "tenant"]) {
+      expect(sql, `pgTAP zgód przestał wspominać: ${guarantee}`).toContain(guarantee);
+    }
+  });
+});
+
+describe("moduł 19 - panele ustawień nie obchodzą wspólnego silnika", () => {
+  it("każdy panel czytający konfigurację robi to przez `useSettings`", () => {
+    // Panel czytający `site_settings` własnym zapytaniem omija GŁĘBOKIE
+    // SCALENIE przy zapisie - a to ono chroni gałęzie ustawione w innych
+    // panelach (`theme_options.header`, `theme_options.buttons`, …).
+    // Zapis wąskiego szkicu „jak leci" zdmuchnąłby rodzeństwo bez śladu.
+    const offenders = settingsRoutes().filter((file) => {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      const readsSettingsTable = /from\("site_settings"\)/.test(source);
+      return readsSettingsTable && !/useSettings/.test(source);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("żaden panel ustawień nie zapisuje `site_settings` poza silnikiem", () => {
+    const offenders = settingsRoutes().filter((file) => {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      return /from\("site_settings"\)[\s\S]{0,200}?\.(insert|update|upsert)\(/.test(source);
+    });
+    expect(offenders).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WZORZEC B - i DWA DEFEKTY, KTÓRE TA CZĘŚĆ BRAMKI ZŁAPAŁA (2026-08-21).
+//
+// Oba są zgłoszone `it.fails` z produkcją NIETKNIĘTĄ (rozdz. 6 zlecenia
+// modułu 19: „Nie zmieniasz zachowania produkcyjnego, żeby test przeszedł.
+// Znalazłeś defekt → `it.fails` z opisem"). Konwencja jest w repo przyjęta -
+// są już inne takie zapisy z poprzednich zadań.
+// ---------------------------------------------------------------------------
+
+describe("moduł 19 - wzorzec B: trasa admina i defekty zgłoszone", () => {
+  it.fails(
+    "DEFEKT: trasa zawężona `isAdmin` w nawigacji NIE sprawdza roli sama (`admin.greetings`)",
+    () => {
+      // TO JEST TEN SAM DEFEKT, który ta bramka złapała przy wdrożeniu
+      // (droplista zmiany roli oferowana redaktorowi) - tylko wpuszczony
+      // INNĄ ŚCIEŻKĄ, której bramka DO TEJ PORY NIE WIDZIAŁA.
+      //
+      // Dotychczasowy test bramki („trasa ukryta w nawigacji dla super_admina
+      // SAMA sprawdza rolę") dopasowywał wzorzec
+      //   isSuperAdmin ? [{ … to: "/admin/<slug>"
+      // czyli WYŁĄCZNIE wpisy zawężone `isSuperAdmin`, i tylko PIERWSZY adres
+      // w bloku. Wpis zawężony `isAdmin` był dla niej niewidzialny.
+      //
+      // ZMIERZONY STAN. `src/lib/admin/adminNav.ts:207-209`:
+      //   ...(isAdmin
+      //     ? [{ to: "/admin/greetings", icon: MessageCircle, label: … }]
+      //     : []),
+      // a `src/routes/admin.greetings.tsx` (380 linii) NIE ZAWIERA ANI JEDNEGO
+      // wystąpienia `isAdmin`, `isSuperAdmin`, `isStaff` ani `useAuth`.
+      //
+      // KONSEKWENCJA. Nawigacja ukrywa kafel przed redaktorem i autorem, ale
+      // adres `/admin/greetings` wpisuje się z ręki, a wspólny layout `/admin`
+      // przepuszcza każdego `isStaff` - czyli także `editor` i `author`. Panel
+      // powitań zapisuje do `site_settings` (treści widoczne dla KAŻDEGO
+      // odwiedzającego), więc redaktor dostaje w pełni czynny formularz
+      // zmiany treści serwisu. Jeśli RLS na `site_settings` go zatrzyma,
+      // zobaczy surowy błąd bazy bez wyjaśnienia; jeśli nie zatrzyma - zmieni
+      // treść, do której nawigacja mu odmówiła dostępu. Obie odpowiedzi są
+      // złe, a różnica między nimi nie jest widoczna z kodu trasy.
+      //
+      // NAPRAWA to ten sam jeden warunek, co w `admin.names.tsx:845`
+      // (`if (!isSuperAdmin) return <Navigate to="/admin" />`), tylko na
+      // `isAdmin`. Nie robimy jej tutaj, bo zakresem tego zadania są testy.
+      const offenders = navGatedSlugs("isAdmin").filter((slug) => {
+        const file = routeFileForSlug(slug);
+        if (!adminRoutes().includes(file)) return false;
+        return !/isAdmin/.test(read(`${ROUTES_DIR}/${file}`));
+      });
+      expect(
+        offenders,
+        `trasy zawężone w nawigacji, ale bez własnej bramki: ${offenders.join(", ")}`,
+      ).toEqual([]);
+    },
+  );
+
+  it.fails(
+    "DEFEKT: `admin.users.index` oferuje droplistę zmiany roli KAŻDEMU członkowi personelu",
+    () => {
+      // DRUGI EKRAN TEGO SAMEGO DEFEKTU, który ta bramka opisuje w swoim
+      // nagłówku. Karta użytkownika została naprawiona i bramka to pilnuje
+      // (test „zmianę roli oferuje tylko admin" wyżej sprawdza
+      // `admin.users.$id.tsx` na `!(isAdmin || isSuperAdmin)`). LISTA nie
+      // została naprawiona i nikt tego nie zauważył, bo bramka pytała
+      // o jeden plik.
+      //
+      // ZMIERZONY STAN. `src/routes/admin.users.$id.tsx` zawęża kontrolkę
+      // warunkiem `data.id === user?.id || !(isAdmin || isSuperAdmin)`.
+      // `src/routes/admin.users.index.tsx:799-822` renderuje `<Select>` ze
+      // wszystkimi rolami pod warunkiem WYŁĄCZNIE `u.id === user?.id` - o roli
+      // wywołującego nie pyta wcale. Plik ma sześć wystąpień `isSuperAdmin`
+      // (opcja `super_admin`, impersonacja, akcje zbiorcze) i ZERO wystąpień
+      // `isAdmin`.
+      //
+      // KONSEKWENCJA jest GORSZA niż w karcie. Karta dotyczy jednej osoby;
+      // lista pokazuje wszystkich użytkowników najemcy naraz, więc redaktor
+      // widzi ekran wyglądający jak konsola nadawania uprawnień dla całej
+      // organizacji. Każde użycie kończy się `not_authorized` z RPC
+      // `change_user_role` (autorytet bazy jest szczelny - 11 asercji pgTAP
+      // w `supabase/tests/role_management_test.sql`), a komunikat idzie na
+      // ekran surowym tekstem z Postgresa.
+      //
+      // NAPRAWA to jeden warunek, ten sam co w karcie.
+      const source = read(`${ROUTES_DIR}/admin.users.index.tsx`);
+      expect(source, "lista użytkowników musi zawężać droplistę roli do admina").toMatch(
+        /!\(isAdmin \|\| isSuperAdmin\)/,
+      );
+    },
+  );
+
+  it("naprawiony ekran ZOSTAJE naprawiony - karta użytkownika nadal zawęża droplistę", () => {
+    // Zapadka na regresję: gdyby warunek z karty zniknął przy refaktorze,
+    // defekt wróciłby na OBA ekrany naraz, a `it.fails` wyżej dalej byłby
+    // czerwony-oczekiwany i nikt by nie zauważył różnicy.
+    const source = read(`${ROUTES_DIR}/admin.users.$id.tsx`);
+    expect(source).toMatch(/!\(isAdmin \|\| isSuperAdmin\)/);
+  });
+
+  it("`super_admin` nadaje się WYŁĄCZNIE przez super admina - na OBU ekranach", () => {
+    // RPC jest tu ostrzejsze niż dla pozostałych rol i oba ekrany muszą to
+    // odbijać. Wzorzec znosi zawinięcie JSX w nawias (prettier zawija, gdy
+    // etykieta schodzi z `t()`), bo pilnowany jest WARUNEK.
+    const detail = read(`${ROUTES_DIR}/admin.users.$id.tsx`);
+    expect(detail).toMatch(/isSuperAdmin &&\s*\(?\s*<SelectItem value="super_admin"/);
+    const list = read(`${ROUTES_DIR}/admin.users.index.tsx`);
+    expect(list).toMatch(/isSuperAdmin &&\s*\(?\s*<SelectItem value="super_admin"/);
+  });
+
+  it("akcje ZBIORCZE na rolach też sprawdzają uprawnienie do `super_admin`", () => {
+    // Zbiorcza zmiana roli dotyczy dowolnie wielu osób jednym kliknięciem -
+    // brak tego warunku dawałby redaktorowi narzędzie masowe, nie pojedyncze.
+    const list = read(`${ROUTES_DIR}/admin.users.index.tsx`);
+    expect(list).toMatch(/bulkRole === "super_admin" && !isSuperAdmin/);
+  });
+
+  it("bieżący użytkownik jest NIEZAZNACZALNY w akcjach zbiorczych", () => {
+    // RPC ma osobną odmowę `cannot_change_own_role`; wpuszczenie siebie do
+    // partii wywaliłoby całą operację na jednym rekordzie.
+    const list = read(`${ROUTES_DIR}/admin.users.index.tsx`);
+    expect(list).toMatch(/isSelectable = useCallback\(\(id: string\) => id !== user\?\.id/);
+  });
+});
