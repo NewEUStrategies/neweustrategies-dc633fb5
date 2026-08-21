@@ -2,14 +2,18 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { isPreviewContext, readPreviewSnapshot } from "../sessionHeartbeat";
 
 describe("isPreviewContext", () => {
-  it("obejmuje localhost i hosty podglądu", () => {
-    expect(isPreviewContext({ hostname: "localhost" }, false)).toBe(true);
-    expect(isPreviewContext({ hostname: "127.0.0.1" }, false)).toBe(true);
-    expect(isPreviewContext({ hostname: "id-preview--x.lovable.app" }, false)).toBe(true);
-    expect(isPreviewContext({ hostname: "neweustrategies.lovable.app" }, false)).toBe(true);
+  it("obejmuje localhost i hosty podglądu wyłącznie wewnątrz iframe", () => {
+    expect(isPreviewContext({ hostname: "localhost" }, true)).toBe(true);
+    expect(isPreviewContext({ hostname: "127.0.0.1" }, true)).toBe(true);
+    expect(isPreviewContext({ hostname: "id-preview--x.lovable.app" }, true)).toBe(true);
+    expect(isPreviewContext({ hostname: "neweustrategies.lovable.app" }, true)).toBe(true);
   });
 
-  it("pomija produkcyjną domenę poza iframem, obejmuje ją w iframie", () => {
+  it("pomija każdy host poza iframem, obejmuje własną domenę w iframie", () => {
+    expect(isPreviewContext({ hostname: "localhost" }, false)).toBe(false);
+    expect(isPreviewContext({ hostname: "127.0.0.1" }, false)).toBe(false);
+    expect(isPreviewContext({ hostname: "id-preview--x.lovable.app" }, false)).toBe(false);
+    expect(isPreviewContext({ hostname: "neweustrategies.lovable.app" }, false)).toBe(false);
     expect(isPreviewContext({ hostname: "neweuropeanstrategies.com" }, false)).toBe(false);
     expect(isPreviewContext({ hostname: "neweuropeanstrategies.com" }, true)).toBe(true);
   });
