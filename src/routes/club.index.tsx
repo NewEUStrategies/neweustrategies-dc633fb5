@@ -51,6 +51,12 @@ import {
 } from "@/components/clubs/molecules/ClubHubLayoutSwitch";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { rankClubs } from "@/lib/clubs/clubMatch";
+import {
+  clubHubBuckets,
+  clubHubStats,
+  hasMoreClubs,
+  isClubSearchActive,
+} from "@/lib/clubs/hubCatalog";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { buildClubHead } from "@/lib/clubs/clubHead";
@@ -91,9 +97,10 @@ function ClubHub() {
   const clubsTotal = clubsQ.data?.total ?? 0;
   const invitations = invitationsQ.data ?? [];
 
-  // Wyszukiwanie ZASTĘPUJE katalog, nie stoi obok niego.
+  // Wyszukiwanie ZASTĘPUJE katalog, nie stoi obok niego. Próg frazy jest
+  // regułą, nie stałą w miejscu użycia - patrz `isClubSearchActive`.
   const debouncedQuery = useDebouncedValue(query, 250);
-  const searching = debouncedQuery.trim().length >= 2;
+  const searching = isClubSearchActive(debouncedQuery);
   const searchQ = useClubSearch({
     query: debouncedQuery,
     clubId: null,
@@ -114,27 +121,20 @@ function ClubHub() {
     [searching, clubs, debouncedQuery, lang, topicCatalog],
   );
 
+  // Podział katalogu i liczniki to REGUŁY, nie układ: co znaczy „mój klub",
+  // czy filtr obszaru dotyczy także klubów, w których już jestem, i co liczy
+  // pasek nad katalogiem. Mieszkają w `lib/clubs/hubCatalog` i mają tabelę
+  // przypadków - w JSX-ie były trzema wyrażeniami inline nie do sprawdzenia
+  // bez montowania całego huba.
+  const { mine, discover } = useMemo(() => clubHubBuckets(clubs, topic), [clubs, topic]);
+  const stats = useMemo(() => clubHubStats(clubs), [clubs]);
+
   const access = resolveClubHubAccess({
     tierRank: tierQ.data?.rank ?? null,
-    activeMemberships: clubs.filter((c) => c.my_status === "active").length,
+    activeMemberships: stats.mine,
     pendingInvitations: invitations.length,
     isStaff,
   });
-
-  const mine = clubs.filter((c) => c.my_status === "active");
-  const discover = clubs.filter(
-    (c) => c.my_status !== "active" && (topic === null || c.policy_area === topic),
-  );
-
-  const stats = useMemo(
-    () => ({
-      clubs: clubs.length,
-      threads: clubs.reduce((sum, c) => sum + c.thread_count, 0),
-      seats: clubs.reduce((sum, c) => sum + c.member_count, 0),
-      mine: mine.length,
-    }),
-    [clubs, mine.length],
-  );
 
   const respond = (invitationId: string, accept: boolean) =>
     respondM.mutate(
@@ -242,7 +242,7 @@ function ClubHub() {
           )}
 
           {/* Ucięcie katalogu mówi się WPROST i daje następny krok. */}
-          {signedIn && clubsTotal > clubs.length ? (
+          {signedIn && hasMoreClubs(clubs.length, clubsTotal) ? (
             <div className="-mt-2 mb-8 text-center">
               <Button
                 variant="outline"

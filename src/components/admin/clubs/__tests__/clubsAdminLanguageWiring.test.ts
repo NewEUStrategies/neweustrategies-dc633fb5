@@ -25,9 +25,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ORGANISMS = "src/components/admin/clubs/organisms";
+// WSZYSTKIE szesc tras rodziny, nie dwie. Cztery powloki (`topics`,
+// `specializations`, `applications`, `elements`) renderuja komunikat odmowy
+// i naglowek zakladki - czyli napisy - a bramka ich nie widziala. Zakres
+// rozszerzony 2026-08-19 razem z pokryciem tej powierzchni testami.
 const ROUTES = [
   "src/routes/admin.community.clubs.index.tsx",
   "src/routes/admin.community.clubs.$clubId.tsx",
+  "src/routes/admin.community.clubs.topics.tsx",
+  "src/routes/admin.community.clubs.specializations.tsx",
+  "src/routes/admin.community.clubs.applications.tsx",
+  "src/routes/admin.community.clubs.elements.tsx",
 ] as const;
 
 /** Komponent-molekula wspoldzielona z powierzchnia publiczna - tez odpieta. */

@@ -15,6 +15,20 @@ więc liczby da się wprost podłożyć pod tamte tabele ocen.
 > testami i lista tego, co świadomie zostaje nieprzetestowane:
 > `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md`.
 
+> **AKTUALIZACJA 2026-08-21 — MODUŁ 16, część KLUBY DYSKUSYJNE, domknięty.**
+> Liczby klubów w tym dokumencie to **stan zastany na dzień audytu**. Cztery powierzchnie
+> zostały od tego czasu dowiezione do celu „95% linii / 93% gałęzi”: trasy publiczne klubu
+> **0,0% → 100%** linii (98,41% gałęzi), UI atomy/molekuły/organizmy **5,0% → 99,90%**
+> (99,34%), panel admina - komponenty **0,0% → 100%** (97,96%) i trasy **0,0% → 100%**
+> (96,82%), zgłoszenia członkowskie **18,6% → 100%** (97,50%). Warstwa reguł
+> `src/lib/clubs/**` stoi na **93,95%** linii / 90,10% gałęzi i celu NIE osiąga - powód
+> (hooki React Query, klienty RPC i funkcje serwerowe poza zakresem zadania) jest rozpisany
+> per plik w dokumencie wdrożenia. Wiersze klubowe w tabelach niżej NIE zostały przeliczone
+> ani przesortowane. Komentarze i moderacja oraz odznaki/zaangażowanie/Q&A - czyli pozostała
+> część modułu 16 - zostały bez zmian. Pomiar po zmianie, 28 wyprowadzonych modułów reguł,
+> dwanaście defektów zgłoszonych jako `it.fails` i lista tego, co świadomie zostaje
+> nieprzetestowane: `docs/WDROZENIE_KLUBY_POKRYCIE_95_MODUL_16_2026-08-21.md`.
+
 ---
 
 ## 0. Jak to zmierzono (i czego te liczby NIE znaczą)
@@ -439,6 +453,14 @@ importował komponentu ani razu, jego asercje zasilały `facetModel.ts`.
 | LOGIN: formularze auth w CMS (bloki + widget) |      3 |        363 |  85,9% | 66,7% |   83,5% | **88,7%** |     66/79 |
 
 ### MODUŁ 16 — Społeczność: kluby, komentarze, moderacja · linie 17,56% · funkcje 13,32%
+
+> **AKTUALIZACJA 2026-08-21.** Cztery powierzchnie KLUBÓW domknięte: panel admina **0,0% →
+> 100%** linii (komponenty; trasy panelu też 100%), trasy publiczne klubu **0,0% → 100%**,
+> UI **5,0% → 99,90%**, zgłoszenia członkowskie **18,6% → 100%**. Plików testowych modułu
+> **+122**, nowych czystych modułów reguł **28**, nowych molekuł i organizmów **37**.
+> Warstwa `src/lib/clubs/**`: 93,95% linii / 90,10% gałęzi - pod celem, rozbicie per plik
+> w `docs/WDROZENIE_KLUBY_POKRYCIE_95_MODUL_16_2026-08-21.md`. Wiersze poniżej to stan
+> z dnia audytu.
 
 | Funkcjonalność                                     | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |

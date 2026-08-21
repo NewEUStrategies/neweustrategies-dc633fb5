@@ -30,6 +30,7 @@ import {
   type ClubStatus,
   type ClubVisibility,
 } from "@/lib/clubs/types";
+import { adminClubListFilters, hasAdminClubFilters } from "@/lib/clubs/adminClubEditor";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -69,14 +70,11 @@ function AdminClubsList() {
     setPage(1);
   }, [debouncedSearch, status, visibility, pageSize]);
 
+  // Przeliczenie strony na okno RPC jest REGUŁĄ, nie układem: błąd o jeden gubi
+  // całą stronę wyników bez żadnego komunikatu. Mieszka w
+  // `lib/clubs/adminClubEditor` z tabelą granic.
   const filters = useMemo(
-    () => ({
-      search: debouncedSearch,
-      status,
-      visibility,
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    }),
+    () => adminClubListFilters({ search: debouncedSearch, status, visibility, page, pageSize }),
     [debouncedSearch, status, visibility, page, pageSize],
   );
 
@@ -99,7 +97,10 @@ function AdminClubsList() {
 
   const rows = clubsQ.data?.rows ?? [];
   const total = clubsQ.data?.total ?? 0;
-  const hasFilters = debouncedSearch.trim().length > 0 || status !== null || visibility !== null;
+  // Który komunikat pustki pokazać: „nie ma jeszcze klubów" czy „nic nie pasuje
+  // do filtrów". Pomyłka mówi administratorowi, że baza jest pusta, kiedy jest
+  // tylko zawężona.
+  const hasFilters = hasAdminClubFilters({ search: debouncedSearch, status, visibility });
 
   return (
     <div className="space-y-6">

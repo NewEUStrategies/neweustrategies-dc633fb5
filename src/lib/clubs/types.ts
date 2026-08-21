@@ -210,7 +210,30 @@ export type ClubGroupRow = RowOf<Fn["club_groups_list"]["Returns"]>;
 export type ClubMemberRow = RowOf<Fn["club_members_list"]["Returns"]>;
 export type ClubMembershipRow = RowOf<Fn["club_my_memberships"]["Returns"]>;
 export type AdminClubRow = RowOf<Fn["admin_club_list"]["Returns"]>;
-export type AdminClubDetailRow = RowOf<Fn["admin_club_get"]["Returns"]>;
+/**
+ * Karta klubu dla edytora w panelu.
+ *
+ * KOREKTA NULLOWALNOSCI, nie kosmetyka. `admin_club_get` wybiera kolumny wprost
+ * z `public.clubs`, a tam DZIEWIEC kolumn tekstowych jest nullowalnych
+ * (`tagline_*`, `description_*`, `rules_*`, `accent_color`, `cover_image_url`,
+ * `policy_area` - patrz `20260808090000_discussion_clubs_a1_structure.sql`).
+ * Generator typow Supabase dla `RETURNS TABLE` deklaruje kazda kolumne jako
+ * non-null, wiec bez tej korekty `club.tagline_pl ?? ""` w edytorze wygladalo
+ * na martwa galaz, a atrapy w testach NIE DALO SIE napisac zgodnie z typem -
+ * dokladnie sytuacja, dla ktorej powstal `NullableCols` (patrz komentarz wyzej).
+ */
+export type AdminClubDetailRow = NullableCols<
+  RowOf<Fn["admin_club_get"]["Returns"]>,
+  | "tagline_pl"
+  | "tagline_en"
+  | "description_pl"
+  | "description_en"
+  | "rules_pl"
+  | "rules_en"
+  | "accent_color"
+  | "cover_image_url"
+  | "policy_area"
+>;
 export type AdminClubGroupRow = RowOf<Fn["admin_club_groups"]["Returns"]>;
 export type AdminClubStatsRow = RowOf<Fn["admin_club_stats"]["Returns"]>;
 
@@ -307,9 +330,27 @@ export interface ClubGroupSettings {
   attributionMode: InheritedSetting<ClubAttributionMode>;
 }
 
-function narrow<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+/**
+ * Zawezenie GOLEGO `string` z RPC do slownika, z degradacja do wartosci
+ * domyslnej. Generator Supabase typuje kolumny CHECK-owe jako `string`, wiec
+ * bez tego kazdy konsument robilby wlasne rzutowanie - a rzutowanie nie ma
+ * galezi dla wartosci spoza slownika i cicho przepuszcza kod, ktorego i18n nie
+ * zna (efekt: goly klucz na ekranie).
+ *
+ * EKSPORTOWANE, bo dokladnie ta sama funkcja stala skopiowana w trasie edytora
+ * klubu (`admin.community.clubs.$clubId.tsx`). Dwie kopie tej samej degradacji
+ * znaczyly dwa mozliwe fallbacki dla tej samej kolumny.
+ */
+export function narrowClubEnum<T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+  fallback: T,
+): T {
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
+
+/** Alias wewnetrzny - historyczna nazwa uzywana w tym pliku. */
+const narrow = narrowClubEnum;
 
 /**
  * Zawezenie trybu atrybucji KLUBU. Generator Supabase typuje `attribution_mode`

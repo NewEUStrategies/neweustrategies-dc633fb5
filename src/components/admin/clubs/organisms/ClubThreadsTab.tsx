@@ -6,19 +6,26 @@
 // RESPONSYWNOŚĆ: poniżej lg tabela zamienia się w karty. To nie jest kosmetyka -
 // w tabeli z ośmioma kolumnami na telefonie kolumna "Akcje" wypada poza ekran
 // dokładnie wtedy, gdy jest potrzebna. Karta trzyma akcje przy treści.
+//
+// ORGANIZM JEST KOMPOZYCJĄ. Reguły tej zakładki - przecięcie zaznaczenia
+// z widocznymi wierszami, kierunek każdej akcji moderatorskiej, walidacja
+// i ładunek nowego tematu, ładunek odpowiedzi, lista działów docelowych
+// przeniesienia i zdanie o ucięciu strony odpowiedzi - mieszkają w
+// `lib/clubs/adminThreadsBoard.ts` i mają tam własną tabelę przypadków.
+// Powtarzalne fragmenty widoku (linia autora, cztery akcje wiersza, pasek
+// operacji wsadowych) są molekułami. Tutaj zostaje SKLEJENIE: co jedzie do
+// mutacji, co się dzieje po błędzie i co widać w każdym z trzech stanów
+// zapytania.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import {
   ChevronDown,
-  Eye,
   FolderInput,
   Lock,
-  LockOpen,
   MessageSquarePlus,
   Pin,
-  PinOff,
   Plus,
   RotateCcw,
   Search,
@@ -58,6 +65,12 @@ import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
+import {
+  ClubModerationBulkBar,
+  type ClubModerationBulkAction,
+} from "@/components/admin/clubs/molecules/ClubModerationBulkBar";
+import { ClubModerationThreadActions } from "@/components/admin/clubs/molecules/ClubModerationThreadActions";
+import { ClubModerationThreadAuthor } from "@/components/admin/clubs/molecules/ClubModerationThreadAuthor";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useAdminClubGroups,
@@ -76,10 +89,29 @@ import {
   type AdminClubThreadRow,
   type ClubThreadKind,
 } from "@/lib/clubs/types";
+import {
+  THREAD_FILTER_ANY,
+  adminReplyVars,
+  adminThreadCreateVars,
+  allThreadIds,
+  areAllThreadsSelected,
+  canPostAdminReply,
+  composerGroupId,
+  isRemovedStatus,
+  isRepliesPageTruncated,
+  onBehalfLabel,
+  replyIndentPx,
+  threadFilterSelectValue,
+  threadFilterValue,
+  threadMoveTargets,
+  toggleThreadSelection,
+  visibleThreadIds,
+  visibleThreadSelection,
+  type ThreadBoardAction,
+  type ThreadBulkAction,
+} from "@/lib/clubs/adminThreadsBoard";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
-
-const ANY = "__any__";
 
 export function ClubThreadsTab({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
@@ -111,30 +143,19 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
   const rows = useMemo(() => threadsQ.data?.rows ?? [], [threadsQ.data]);
   const groups = groupsQ.data ?? [];
 
-  // Zaznaczenie jest DERYWOWANE względem tego, co realnie widać. Surowy zbiór
-  // trzymany bez przecięcia znaczył, że zmiana filtra (albo cudze skasowanie
-  // wątku między refetchami) zostawia w partii identyfikatory wierszy, których
-  // administrator nie ma już na ekranie - i "usuń 12" kasuje coś, czego nie
-  // widział. Przecięcie zamiast czyszczenia w useEffect: nie kosztuje dodatkowego
-  // renderu, a łapie też znikanie wierszy BEZ zmiany filtra.
-  const visibleIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  // Zaznaczenie jest DERYWOWANE względem tego, co realnie widać - reguła
+  // i uzasadnienie w `adminThreadsBoard.ts`. Surowy zbiór trzymany bez
+  // przecięcia znaczył, że "usuń 12" kasuje wpisy, których administrator nie
+  // ma już na ekranie.
+  const visibleIds = useMemo(() => visibleThreadIds(rows), [rows]);
   const selectedVisible = useMemo(
-    () => [...selected].filter((id) => visibleIds.has(id)),
+    () => visibleThreadSelection(selected, visibleIds),
     [selected, visibleIds],
   );
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggle = (id: string) => setSelected((prev) => toggleThreadSelection(prev, id));
 
-  const act = (
-    targetId: string,
-    action: "pin" | "unpin" | "lock" | "unlock" | "delete" | "restore",
-  ) =>
+  const act = (targetId: string, action: ThreadBoardAction) =>
     moderateM.mutate(
       { targetType: "thread", targetId, action },
       {
@@ -143,7 +164,7 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
       },
     );
 
-  const bulkAct = (action: "pin" | "unpin" | "lock" | "delete" | "restore") => {
+  const bulkAct = (action: ThreadBulkAction) => {
     if (selectedVisible.length === 0) return;
     const ids = selectedVisible;
     bulkM.mutate(
@@ -159,6 +180,44 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
     );
   };
 
+  const bulkActions: ClubModerationBulkAction[] = [
+    {
+      id: "pin",
+      label: t("adminClubs.threads.pin"),
+      icon: <Pin className="mr-1.5 h-3.5 w-3.5" />,
+      disabled: bulkM.isPending,
+      onSelect: () => bulkAct("pin"),
+    },
+    {
+      id: "lock",
+      label: t("adminClubs.threads.lock"),
+      icon: <Lock className="mr-1.5 h-3.5 w-3.5" />,
+      disabled: bulkM.isPending,
+      onSelect: () => bulkAct("lock"),
+    },
+    {
+      id: "restore",
+      label: t("adminClubs.threads.restore"),
+      icon: <RotateCcw className="mr-1.5 h-3.5 w-3.5" />,
+      disabled: bulkM.isPending,
+      onSelect: () => bulkAct("restore"),
+    },
+    {
+      id: "delete",
+      label: t("adminClubs.threads.delete"),
+      icon: <Trash2 className="mr-1.5 h-3.5 w-3.5" />,
+      destructive: true,
+      disabled: bulkM.isPending,
+      onSelect: () =>
+        setConfirm({
+          title: t("adminClubs.threads.bulkDeleteTitle", { count: selectedVisible.length }),
+          description: t("adminClubs.threads.deleteBody"),
+          destructive: true,
+          onConfirm: () => bulkAct("delete"),
+        }),
+    },
+  ];
+
   return (
     <div className="space-y-5">
       {/* --- pasek filtrów --- */}
@@ -173,12 +232,15 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
             aria-label={t("adminClubs.threads.searchPlaceholder")}
           />
         </div>
-        <Select value={groupId ?? ANY} onValueChange={(v) => setGroupId(v === ANY ? null : v)}>
+        <Select
+          value={threadFilterSelectValue(groupId)}
+          onValueChange={(v) => setGroupId(threadFilterValue(v))}
+        >
           <SelectTrigger aria-label={t("club.group")}>
             <SelectValue placeholder={t("club.group")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ANY}>{t("club.allGroups")}</SelectItem>
+            <SelectItem value={THREAD_FILTER_ANY}>{t("club.allGroups")}</SelectItem>
             {groups.map((g) => (
               <SelectItem key={g.id} value={g.id}>
                 {pickLocalized(g, "name", lang)}
@@ -186,12 +248,15 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={status ?? ANY} onValueChange={(v) => setStatus(v === ANY ? null : v)}>
+        <Select
+          value={threadFilterSelectValue(status)}
+          onValueChange={(v) => setStatus(threadFilterValue(v))}
+        >
           <SelectTrigger aria-label={t("adminClubs.columns.status")}>
             <SelectValue placeholder={t("adminClubs.columns.status")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ANY}>{t("adminClubs.filterAny")}</SelectItem>
+            <SelectItem value={THREAD_FILTER_ANY}>{t("adminClubs.filterAny")}</SelectItem>
             {CLUB_THREAD_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {t(`club.threadStatus.${s}`)}
@@ -199,12 +264,15 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={kind ?? ANY} onValueChange={(v) => setKind(v === ANY ? null : v)}>
+        <Select
+          value={threadFilterSelectValue(kind)}
+          onValueChange={(v) => setKind(threadFilterValue(v))}
+        >
           <SelectTrigger aria-label={t("club.kind.label")}>
             <SelectValue placeholder={t("club.kind.label")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ANY}>{t("club.allKinds")}</SelectItem>
+            <SelectItem value={THREAD_FILTER_ANY}>{t("club.allKinds")}</SelectItem>
             {CLUB_THREAD_KINDS.map((k) => (
               <SelectItem key={k} value={k}>
                 {t(`club.kind.${k}`)}
@@ -220,65 +288,12 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
 
       {/* --- pasek akcji wsadowych: pojawia się tylko przy zaznaczeniu --- */}
       {selectedVisible.length > 0 ? (
-        <div className="sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3 backdrop-blur">
-          <span className="text-sm font-medium">
-            {t("adminClubs.threads.selected", { count: selectedVisible.length })}
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={bulkM.isPending}
-              onClick={() => bulkAct("pin")}
-            >
-              <Pin className="mr-1.5 h-3.5 w-3.5" />
-              {t("adminClubs.threads.pin")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={bulkM.isPending}
-              onClick={() => bulkAct("lock")}
-            >
-              <Lock className="mr-1.5 h-3.5 w-3.5" />
-              {t("adminClubs.threads.lock")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={bulkM.isPending}
-              onClick={() => bulkAct("restore")}
-            >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-              {t("adminClubs.threads.restore")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive"
-              disabled={bulkM.isPending}
-              onClick={() =>
-                setConfirm({
-                  title: t("adminClubs.threads.bulkDeleteTitle", { count: selectedVisible.length }),
-                  description: t("adminClubs.threads.deleteBody"),
-                  destructive: true,
-                  onConfirm: () => bulkAct("delete"),
-                })
-              }
-            >
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-              {t("adminClubs.threads.delete")}
-            </Button>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto"
-            onClick={() => setSelected(new Set())}
-          >
-            {t("adminClubs.threads.clearSelection")}
-          </Button>
-        </div>
+        <ClubModerationBulkBar
+          label={t("adminClubs.threads.selected", { count: selectedVisible.length })}
+          actions={bulkActions}
+          clearLabel={t("adminClubs.threads.clearSelection")}
+          onClear={() => setSelected(new Set())}
+        />
       ) : null}
 
       {threadsQ.isPending ? (
@@ -303,9 +318,9 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
                   <TableHead className="w-10">
                     <Checkbox
                       aria-label={t("adminClubs.threads.selectAll")}
-                      checked={selectedVisible.length === rows.length && rows.length > 0}
+                      checked={areAllThreadsSelected(rows, selectedVisible.length)}
                       onCheckedChange={(v) =>
-                        setSelected(v === true ? new Set(rows.map((r) => r.id)) : new Set())
+                        setSelected(v === true ? allThreadIds(rows) : new Set())
                       }
                     />
                   </TableHead>
@@ -336,7 +351,7 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
                       >
                         {row.title}
                       </button>
-                      <ThreadAuthorLine row={row} />
+                      <ClubModerationThreadAuthor row={row} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {pickLocalized(row, "group_name", lang)}
@@ -356,7 +371,11 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{row.reply_count}</TableCell>
                     <TableCell>
-                      <ThreadActions row={row} onAct={act} onOpen={() => setOpenThread(row)} />
+                      <ClubModerationThreadActions
+                        row={row}
+                        onAct={(action) => act(row.id, action)}
+                        onOpen={() => setOpenThread(row)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -383,7 +402,7 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
                     >
                       {row.title}
                     </button>
-                    <ThreadAuthorLine row={row} />
+                    <ClubModerationThreadAuthor row={row} />
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <Badge variant="outline" className="text-[11px]">
                         {t(`club.kind.${row.kind}`)}
@@ -401,7 +420,12 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1 border-t border-border/60 pt-2">
-                  <ThreadActions row={row} onAct={act} onOpen={() => setOpenThread(row)} compact />
+                  <ClubModerationThreadActions
+                    row={row}
+                    onAct={(action) => act(row.id, action)}
+                    onOpen={() => setOpenThread(row)}
+                    compact
+                  />
                 </div>
               </li>
             ))}
@@ -432,92 +456,6 @@ export function ClubThreadsTab({ clubId }: { clubId: string }) {
   );
 }
 
-/** Linia autora z adnotacją "wprowadzone przez redakcję", gdy dotyczy. */
-function ThreadAuthorLine({ row }: { row: AdminClubThreadRow }) {
-  const { t } = useTranslation();
-  const note = adminAttributionNote(row.posted_by_admin_name, t("club.postedOnBehalf"));
-  return (
-    <div className="text-xs text-muted-foreground">
-      {row.is_anonymous || row.attribution_mode === "chatham" ? (
-        <span className="text-amber-700 dark:text-amber-300">
-          {t("adminClubs.threads.protectedIdentity")} · {row.author_name}
-        </span>
-      ) : (
-        row.author_name
-      )}
-      {note !== null ? <span className="ml-1.5 italic">{note}</span> : null}
-    </div>
-  );
-}
-
-function ThreadActions({
-  row,
-  onAct,
-  onOpen,
-  compact,
-}: {
-  row: AdminClubThreadRow;
-  onAct: (id: string, a: "pin" | "unpin" | "lock" | "unlock" | "delete" | "restore") => void;
-  onOpen: () => void;
-  compact?: boolean;
-}) {
-  const { t } = useTranslation();
-  const deleted = row.status === "deleted" || row.status === "hidden";
-  const size = compact ? "sm" : "icon";
-  const cls = compact ? "h-7 px-2 text-xs" : "h-8 w-8";
-
-  return (
-    <div className="flex flex-wrap gap-1">
-      <Button size={size} variant="ghost" className={cls} onClick={onOpen}>
-        <Eye className="h-3.5 w-3.5" />
-        {compact ? <span className="ml-1.5">{t("adminClubs.threads.open")}</span> : null}
-        {!compact ? <span className="sr-only">{t("adminClubs.threads.open")}</span> : null}
-      </Button>
-      <Button
-        size={size}
-        variant="ghost"
-        className={cls}
-        onClick={() => onAct(row.id, row.pinned_at !== null ? "unpin" : "pin")}
-      >
-        {row.pinned_at !== null ? (
-          <PinOff className="h-3.5 w-3.5" />
-        ) : (
-          <Pin className="h-3.5 w-3.5" />
-        )}
-        <span className={compact ? "ml-1.5" : "sr-only"}>
-          {row.pinned_at !== null ? t("adminClubs.threads.unpin") : t("adminClubs.threads.pin")}
-        </span>
-      </Button>
-      <Button
-        size={size}
-        variant="ghost"
-        className={cls}
-        onClick={() => onAct(row.id, row.locked_at !== null ? "unlock" : "lock")}
-      >
-        {row.locked_at !== null ? (
-          <LockOpen className="h-3.5 w-3.5" />
-        ) : (
-          <Lock className="h-3.5 w-3.5" />
-        )}
-        <span className={compact ? "ml-1.5" : "sr-only"}>
-          {row.locked_at !== null ? t("adminClubs.threads.unlock") : t("adminClubs.threads.lock")}
-        </span>
-      </Button>
-      <Button
-        size={size}
-        variant="ghost"
-        className={`${cls} ${deleted ? "" : "text-muted-foreground hover:text-destructive"}`}
-        onClick={() => onAct(row.id, deleted ? "restore" : "delete")}
-      >
-        {deleted ? <RotateCcw className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
-        <span className={compact ? "ml-1.5" : "sr-only"}>
-          {deleted ? t("adminClubs.threads.restore") : t("adminClubs.threads.delete")}
-        </span>
-      </Button>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Kompozytor: nowy temat, opcjonalnie w imieniu członka
 // ---------------------------------------------------------------------------
@@ -543,33 +481,27 @@ function ThreadComposerDialog({
   const [topic, setTopic] = useState<string | null>(null);
 
   const groups = groupsQ.data ?? [];
-  const effectiveGroup = groupId !== "" ? groupId : (groups[0]?.id ?? "");
+  const effectiveGroup = composerGroupId(groupId, groups);
 
   const submit = () => {
-    if (effectiveGroup === "" || title.trim().length < 5 || body.trim().length < 10) {
+    const vars = adminThreadCreateVars(
+      { groupId, title, body, kind, authorId, topic },
+      effectiveGroup,
+    );
+    if (vars === null) {
       toast.error(t("adminClubs.threads.validation"));
       return;
     }
-    createM.mutate(
-      {
-        groupId: effectiveGroup,
-        title: title.trim(),
-        body: body.trim(),
-        kind,
-        authorId: authorId !== "" ? authorId : null,
-        topic,
+    createM.mutate(vars, {
+      onSuccess: () => {
+        toast.success(t("adminClubs.threads.created"));
+        setTitle("");
+        setBody("");
+        setAuthorId("");
+        onOpenChange(false);
       },
-      {
-        onSuccess: () => {
-          toast.success(t("adminClubs.threads.created"));
-          setTitle("");
-          setBody("");
-          setAuthorId("");
-          onOpenChange(false);
-        },
-        onError: () => toast.error(t("adminClubs.saveFailed")),
-      },
-    );
+      onError: () => toast.error(t("adminClubs.saveFailed")),
+    });
   };
 
   return (
@@ -657,9 +589,7 @@ function ThreadComposerDialog({
               }}
             />
             <p className="text-xs text-amber-800 dark:text-amber-200">
-              {authorId !== ""
-                ? t("adminClubs.threads.onBehalfWarning")
-                : t("adminClubs.threads.onBehalfHint")}
+              {t(`adminClubs.threads.${onBehalfLabel(authorId)}`)}
             </p>
           </div>
         </div>
@@ -705,21 +635,19 @@ function ThreadDetailDialog({
   const replies = repliesQ.data?.rows ?? [];
   // Suma z RPC, nie dlugosc strony: moderator ma wiedziec, ze widzi wycinek.
   const repliesTotal = repliesQ.data?.total ?? 0;
-  const groups = (groupsQ.data ?? []).filter((g) => g.id !== thread?.group_id);
+  const groups = threadMoveTargets(groupsQ.data ?? [], thread?.group_id);
 
   const submitReply = () => {
-    if (!thread || body.trim().length === 0) return;
-    replyM.mutate(
-      { threadId: thread.id, body: body.trim(), authorId: authorId !== "" ? authorId : null },
-      {
-        onSuccess: () => {
-          setBody("");
-          setAuthorId("");
-          toast.success(t("club.replyPosted"));
-        },
-        onError: () => toast.error(t("adminClubs.saveFailed")),
+    const vars = adminReplyVars(thread?.id ?? null, body, authorId);
+    if (vars === null) return;
+    replyM.mutate(vars, {
+      onSuccess: () => {
+        setBody("");
+        setAuthorId("");
+        toast.success(t("club.replyPosted"));
       },
-    );
+      onError: () => toast.error(t("adminClubs.saveFailed")),
+    });
   };
 
   return (
@@ -777,7 +705,7 @@ function ThreadDetailDialog({
           <h3 className="text-sm font-semibold">
             {t("club.repliesCount", { count: repliesTotal })}
           </h3>
-          {repliesTotal > replies.length ? (
+          {isRepliesPageTruncated(repliesTotal, replies.length) ? (
             <p className="text-xs text-muted-foreground">
               {t("club.repliesTruncated", { shown: replies.length, total: repliesTotal })}
             </p>
@@ -790,7 +718,7 @@ function ThreadDetailDialog({
             <ul className="space-y-2">
               {replies.map((r) => {
                 const note = adminAttributionNote(r.posted_by_admin_name, t("club.postedOnBehalf"));
-                const removed = r.status === "deleted" || r.status === "hidden";
+                const removed = isRemovedStatus(r.status);
                 return (
                   <li
                     key={r.id}
@@ -799,7 +727,7 @@ function ThreadDetailDialog({
                         ? "border-destructive/30 bg-destructive/5 opacity-70"
                         : "border-border/60"
                     }`}
-                    style={{ marginLeft: `${r.depth * 12}px` }}
+                    style={{ marginLeft: `${replyIndentPx(r.depth)}px` }}
                   >
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">
@@ -882,7 +810,7 @@ function ThreadDetailDialog({
                 clear: t("adminClubs.filterAny"),
               }}
             />
-            <Button onClick={submitReply} disabled={replyM.isPending || body.trim().length === 0}>
+            <Button onClick={submitReply} disabled={replyM.isPending || !canPostAdminReply(body)}>
               {t("club.postReply")}
             </Button>
           </div>

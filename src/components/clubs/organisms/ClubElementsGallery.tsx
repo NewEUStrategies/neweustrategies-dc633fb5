@@ -26,21 +26,26 @@ import {
 import type { ClubHubAccess } from "@/lib/clubs/hubAccess";
 import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge";
 
-/** Podpis nad przykładem - jeden kształt dla całej galerii. */
+/** Podpis nad przykładem - jeden kształt dla całej galerii.
+ *
+ *  `hint` jest WYMAGANY: okaz bez zdania o tym, czym ten element się różni od
+ *  sąsiedniego, jest samym obrazkiem - a katalog istnieje dla tego zdania,
+ *  nie dla obrazka. Wszystkie okazy tej strony podawały je od początku, więc
+ *  opcjonalność była wyłącznie martwą gałęzią w renderze. */
 function Specimen({
   label,
   hint,
   children,
 }: {
   label: string;
-  hint?: string;
+  hint: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
       <div>
         <p className="text-sm font-medium">{label}</p>
-        {hint !== undefined ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+        <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
       {children}
     </div>

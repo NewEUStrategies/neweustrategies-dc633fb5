@@ -16,15 +16,21 @@
 // pozycja kolejki to cytat treści - tabela ucięłaby to, po czym decyzja
 // zapadałaby na podstawie pierwszych pięciu słów. Dziennik ma tabelę od lg
 // w górę i karty poniżej.
+//
+// ORGANIZM JEST KOMPOZYCJĄ. Reguły mieszkają w DWÓCH czystych modułach:
+// `lib/clubs/moderationRules.ts` (rozbicie wsadu na typy celu, próg powodu
+// ujawnienia, przełączanie zaznaczenia) oraz `lib/clubs/adminModerationDesk.ts`
+// (okno czasu dziennika, liczniki, filtr, ładunki blokady, redakcji
+// i ujawnienia). Karta pozycji kolejki, pasek operacji wsadowych i plakietka
+// dziennika są molekułami. Tutaj zostaje SKLEJENIE: co jedzie do RPC, ile razy
+// i co widać po awarii.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Check,
-  EyeOff,
   History,
   Loader2,
-  PencilLine,
   RotateCcw,
   ShieldAlert,
   ShieldOff,
@@ -63,6 +69,12 @@ import {
 } from "@/components/ui/dialog";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
+import { ClubModerationLogBadge } from "@/components/admin/clubs/molecules/ClubModerationLogBadge";
+import { ClubModerationQueueItem } from "@/components/admin/clubs/molecules/ClubModerationQueueItem";
+import {
+  ClubModerationBulkBar,
+  type ClubModerationBulkAction,
+} from "@/components/admin/clubs/molecules/ClubModerationBulkBar";
 import {
   useBanClubMember,
   useBulkModerateClub,
@@ -89,6 +101,28 @@ import {
   splitModerationBatch,
   toggleSelection,
 } from "@/lib/clubs/moderationRules";
+import {
+  MODERATION_LOG_FILTERS_CLEARED,
+  MODERATION_LOG_PERIODS,
+  MODERATION_LOG_PERIOD_ALL,
+  banMemberVars,
+  bannedMemberSubtitle,
+  filterModerationLog,
+  isModeratorEditBlocked,
+  isModerationLogFiltered,
+  moderationLogCountView,
+  moderationLogCounts,
+  moderationLogInWindow,
+  moderationLogOptions,
+  moderationLogReason,
+  moderationTargetType,
+  moderatorEditInitial,
+  moderatorEditVars,
+  revealAuthorVars,
+  revealProfileHref,
+  unbanMemberVars,
+  type RevealAuthorTarget,
+} from "@/lib/clubs/adminModerationDesk";
 
 const ANY = "__any__";
 
@@ -111,18 +145,12 @@ function targetLabel(value: string, t: (key: string) => string): string {
   return isKnownModerationTarget(value) ? t(`adminClubs.moderation.target.${value}`) : value;
 }
 
-interface RevealTarget {
-  targetType: "thread" | "reply";
-  targetId: string;
-  title: string;
-}
-
 export function ClubModerationTab({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [reveal, setReveal] = useState<RevealTarget | null>(null);
+  const [reveal, setReveal] = useState<RevealAuthorTarget | null>(null);
   const [editing, setEditing] = useState<AdminClubModerationItem | null>(null);
 
   const queueQ = useClubModerationQueue(clubId);
@@ -138,9 +166,8 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
   const toggle = (id: string) => setSelected((prev) => new Set(toggleSelection(prev, id)));
 
   const act = (item: AdminClubModerationItem, action: "approve" | "hide" | "delete") => {
-    const targetType = item.target_type === "reply" ? "reply" : "thread";
     moderateM.mutate(
-      { targetType, targetId: item.target_id, action },
+      { targetType: moderationTargetType(item.target_type), targetId: item.target_id, action },
       {
         onSuccess: () => {
           toast.success(t(`adminClubs.moderation.done.${action}`));
@@ -181,6 +208,30 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
     }
   };
 
+  const bulkActions: ClubModerationBulkAction[] = [
+    {
+      id: "approve",
+      label: t("adminClubs.moderation.approve"),
+      icon: <Check className="mr-1.5 h-3.5 w-3.5" />,
+      disabled: bulkM.isPending,
+      onSelect: () => void bulkAct("approve"),
+    },
+    {
+      id: "delete",
+      label: t("adminClubs.moderation.delete"),
+      icon: <Trash2 className="mr-1.5 h-3.5 w-3.5" />,
+      destructive: true,
+      disabled: bulkM.isPending,
+      onSelect: () =>
+        setConfirm({
+          title: t("adminClubs.moderation.bulkDeleteTitle", { count: selected.size }),
+          description: t("adminClubs.moderation.deleteBody"),
+          destructive: true,
+          onConfirm: () => void bulkAct("delete"),
+        }),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* ---------------------------------------------------------------- */}
@@ -212,45 +263,12 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
         </CardHeader>
         <CardContent className="space-y-3">
           {selected.size > 0 ? (
-            <div className="sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3 backdrop-blur">
-              <span className="text-sm font-medium">
-                {t("adminClubs.moderation.selected", { count: selected.size })}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={bulkM.isPending}
-                onClick={() => void bulkAct("approve")}
-              >
-                <Check className="mr-1.5 h-3.5 w-3.5" />
-                {t("adminClubs.moderation.approve")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-destructive"
-                disabled={bulkM.isPending}
-                onClick={() =>
-                  setConfirm({
-                    title: t("adminClubs.moderation.bulkDeleteTitle", { count: selected.size }),
-                    description: t("adminClubs.moderation.deleteBody"),
-                    destructive: true,
-                    onConfirm: () => void bulkAct("delete"),
-                  })
-                }
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                {t("adminClubs.moderation.delete")}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="ml-auto"
-                onClick={() => setSelected(new Set())}
-              >
-                {t("adminClubs.moderation.clearSelection")}
-              </Button>
-            </div>
+            <ClubModerationBulkBar
+              label={t("adminClubs.moderation.selected", { count: selected.size })}
+              actions={bulkActions}
+              clearLabel={t("adminClubs.moderation.clearSelection")}
+              onClear={() => setSelected(new Set())}
+            />
           ) : null}
 
           {queueQ.isPending ? (
@@ -268,110 +286,32 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
           ) : (
             <ul className="space-y-2">
               {queue.map((item) => (
-                <li
+                <ClubModerationQueueItem
                   key={`${item.target_type}:${item.target_id}`}
-                  className="rounded-lg border border-border/60 bg-card p-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      className="mt-1"
-                      aria-label={item.title}
-                      checked={selected.has(item.target_id)}
-                      onCheckedChange={() => toggle(item.target_id)}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="text-[11px]">
-                          {t(`adminClubs.moderation.target.${item.target_type}`)}
-                        </Badge>
-                        {item.is_anonymous ? (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500/40 text-[11px] text-amber-700 dark:text-amber-300"
-                          >
-                            {t("adminClubs.moderation.anonymous")}
-                          </Badge>
-                        ) : (
-                          <span className="font-medium text-foreground">{item.author_name}</span>
-                        )}
-                        <span>{formatDateTime(item.created_at, i18n.language)}</span>
-                      </div>
-                      <p className="mt-1 truncate text-sm font-medium">{item.title}</p>
-                      {/* line-clamp, nie truncate: moderator musi zobaczyć,
-                          o co chodzi, a nie pierwsze pięć słów. */}
-                      <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
-                        {item.body}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-border/60 pt-2.5">
-                    <Button
-                      size="sm"
-                      className="h-8"
-                      disabled={moderateM.isPending}
-                      onClick={() => act(item, "approve")}
-                    >
-                      <Check className="mr-1.5 h-3.5 w-3.5" />
-                      {t("adminClubs.moderation.approve")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8"
-                      disabled={moderateM.isPending}
-                      onClick={() => act(item, "hide")}
-                    >
-                      <EyeOff className="mr-1.5 h-3.5 w-3.5" />
-                      {t("adminClubs.moderation.hide")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-destructive"
-                      disabled={moderateM.isPending}
-                      onClick={() =>
-                        setConfirm({
-                          title: t("adminClubs.moderation.deleteTitle"),
-                          description: t("adminClubs.moderation.deleteBody"),
-                          destructive: true,
-                          onConfirm: () => act(item, "delete"),
-                        })
-                      }
-                    >
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      {t("adminClubs.moderation.delete")}
-                    </Button>
-                    {/* Redakcja PRZED zatwierdzeniem: wpis z jednym zdaniem
-                        do zaczernienia nie musi wracać do autora. */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8"
-                      onClick={() => setEditing(item)}
-                    >
-                      <PencilLine className="mr-1.5 h-3.5 w-3.5" />
-                      {t("adminClubs.moderation.edit")}
-                    </Button>
-                    {item.is_anonymous ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="ml-auto h-8 text-amber-700 dark:text-amber-300"
-                        onClick={() =>
-                          setReveal({
-                            targetType: item.target_type === "reply" ? "reply" : "thread",
-                            targetId: item.target_id,
-                            title: item.title,
-                          })
-                        }
-                      >
-                        <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
-                        {t("adminClubs.moderation.reveal")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
+                  item={item}
+                  selected={selected.has(item.target_id)}
+                  pending={moderateM.isPending}
+                  language={i18n.language}
+                  onToggle={() => toggle(item.target_id)}
+                  onApprove={() => act(item, "approve")}
+                  onHide={() => act(item, "hide")}
+                  onDelete={() =>
+                    setConfirm({
+                      title: t("adminClubs.moderation.deleteTitle"),
+                      description: t("adminClubs.moderation.deleteBody"),
+                      destructive: true,
+                      onConfirm: () => act(item, "delete"),
+                    })
+                  }
+                  onEdit={() => setEditing(item)}
+                  onReveal={() =>
+                    setReveal({
+                      targetType: moderationTargetType(item.target_type),
+                      targetId: item.target_id,
+                      title: item.title,
+                    })
+                  }
+                />
               ))}
             </ul>
           )}
@@ -407,28 +347,23 @@ function BannedMembersCard({ clubId }: { clubId: string }) {
   const banned = bannedQ.data?.rows ?? [];
 
   const submitBan = () => {
-    if (userId === "") return;
-    banM.mutate(
-      { userId, banned: true, reason: reason.trim() !== "" ? reason.trim() : null },
-      {
-        onSuccess: () => {
-          toast.success(t("adminClubs.moderation.banned"));
-          setUserId("");
-          setReason("");
-        },
-        onError: () => toast.error(t("adminClubs.moderation.banFailed")),
+    const vars = banMemberVars(userId, reason);
+    if (vars === null) return;
+    banM.mutate(vars, {
+      onSuccess: () => {
+        toast.success(t("adminClubs.moderation.banned"));
+        setUserId("");
+        setReason("");
       },
-    );
+      onError: () => toast.error(t("adminClubs.moderation.banFailed")),
+    });
   };
 
   const unban = (id: string) =>
-    banM.mutate(
-      { userId: id, banned: false },
-      {
-        onSuccess: () => toast.success(t("adminClubs.moderation.unbanned")),
-        onError: () => toast.error(t("adminClubs.saveFailed")),
-      },
-    );
+    banM.mutate(unbanMemberVars(id), {
+      onSuccess: () => toast.success(t("adminClubs.moderation.unbanned")),
+      onError: () => toast.error(t("adminClubs.saveFailed")),
+    });
 
   return (
     <Card>
@@ -499,33 +434,34 @@ function BannedMembersCard({ clubId }: { clubId: string }) {
           </p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
-            {banned.map((m) => (
-              <li
-                key={m.user_id}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{m.display_name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {m.job_title !== null && m.job_title !== ""
-                      ? m.job_title
-                      : t(`club.role.${m.role}`)}
-                    {" · "}
-                    {formatDateShort(m.joined_at, i18n.language)}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8"
-                  disabled={banM.isPending}
-                  onClick={() => unban(m.user_id)}
+            {banned.map((m) => {
+              const subtitle = bannedMemberSubtitle(m);
+              return (
+                <li
+                  key={m.user_id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5"
                 >
-                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                  {t("adminClubs.moderation.unban")}
-                </Button>
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{m.display_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {subtitle.kind === "jobTitle" ? subtitle.text : t(subtitle.key)}
+                      {" · "}
+                      {formatDateShort(m.joined_at, i18n.language)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8"
+                    disabled={banM.isPending}
+                    onClick={() => unban(m.user_id)}
+                  >
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                    {t("adminClubs.moderation.unban")}
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>
@@ -537,20 +473,12 @@ function BannedMembersCard({ clubId }: { clubId: string }) {
 // ---------------------------------------------------------------------------
 // Dziennik moderacji
 // ---------------------------------------------------------------------------
-/** Okna czasu dziennika. `null` = bez ograniczenia (cała historia). */
-const LOG_PERIODS: readonly { key: string; days: number | null }[] = [
-  { key: "7", days: 7 },
-  { key: "30", days: 30 },
-  { key: "90", days: 90 },
-  { key: "all", days: null },
-];
-
 function ModerationLogCard({ clubId }: { clubId: string }) {
   const { t, i18n } = useTranslation();
   const logQ = useClubModerationLog(clubId);
   const [action, setAction] = useState<string | null>(null);
   const [target, setTarget] = useState<string | null>(null);
-  const [period, setPeriod] = useState<string>("all");
+  const [period, setPeriod] = useState<string>(MODERATION_LOG_PERIOD_ALL);
   const [query, setQuery] = useState("");
 
   const label = (value: string) => {
@@ -565,51 +493,33 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
   // Okno czasu stosujemy PRZED resztą filtrów, bo liczniki przy akcjach mają
   // mówić o tym, co widać w wybranym oknie - inaczej "30 dni" pokazywałoby
   // liczby z całej historii i moderator zaufałby złej liczbie.
-  const inWindow = useMemo(() => {
-    const days = LOG_PERIODS.find((p) => p.key === period)?.days ?? null;
-    if (days === null) return all;
-    const from = Date.now() - days * 86_400_000;
-    return all.filter((r) => new Date(r.created_at).getTime() >= from);
-  }, [all, period]);
+  const inWindow = useMemo(() => moderationLogInWindow(all, period, Date.now()), [all, period]);
 
   /** Liczniki per akcja i per cel w bieżącym oknie czasu. */
-  const counts = useMemo(() => {
-    const byAction = new Map<string, number>();
-    const byTarget = new Map<string, number>();
-    for (const r of inWindow) {
-      byAction.set(r.action, (byAction.get(r.action) ?? 0) + 1);
-      byTarget.set(r.target_type, (byTarget.get(r.target_type) ?? 0) + 1);
-    }
-    return { byAction, byTarget };
-  }, [inWindow]);
+  const counts = useMemo(() => moderationLogCounts(inWindow), [inWindow]);
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return inWindow.filter((r) => {
-      if (action !== null && r.action !== action) return false;
-      if (target !== null && r.target_type !== target) return false;
-      if (q === "") return true;
-      const haystack = [
-        r.moderator_name,
-        r.reason ?? "",
-        label(r.action),
-        targetLabel(r.target_type, t),
-        r.target_id ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
+  const rows = useMemo(
+    () =>
+      filterModerationLog(
+        inWindow,
+        { action, target, query, period },
+        { action: label, target: (value: string) => targetLabel(value, t) },
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inWindow, action, target, query, t]);
+    [inWindow, action, target, query, period, t],
+  );
 
-  const isFiltered = action !== null || target !== null || query.trim() !== "" || period !== "all";
+  const isFiltered = isModerationLogFiltered({ action, target, query, period });
   const clearFilters = () => {
-    setAction(null);
-    setTarget(null);
-    setQuery("");
-    setPeriod("all");
+    setAction(MODERATION_LOG_FILTERS_CLEARED.action);
+    setTarget(MODERATION_LOG_FILTERS_CLEARED.target);
+    setQuery(MODERATION_LOG_FILTERS_CLEARED.query);
+    setPeriod(MODERATION_LOG_FILTERS_CLEARED.period);
   };
+
+  const countView = moderationLogCountView(rows.length, all.length);
+  const actionOptions = moderationLogOptions(LOG_ACTIONS, counts.byAction);
+  const targetOptions = moderationLogOptions(LOG_TARGETS, counts.byTarget);
 
   return (
     <Card>
@@ -619,9 +529,12 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
             <History className="h-4 w-4" />
             {t("adminClubs.moderation.logTitle")}
             <Badge variant="secondary" className="tabular-nums">
-              {rows.length === all.length
-                ? all.length
-                : t("adminClubs.moderation.logCount", { shown: rows.length, total: all.length })}
+              {countView.kind === "all"
+                ? countView.total
+                : t("adminClubs.moderation.logCount", {
+                    shown: countView.shown,
+                    total: countView.total,
+                  })}
             </Badge>
           </CardTitle>
           {isFiltered ? (
@@ -648,9 +561,9 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
               <SelectItem value={ANY}>
                 {t("adminClubs.filterAny")} ({inWindow.length})
               </SelectItem>
-              {LOG_ACTIONS.filter((a) => (counts.byAction.get(a) ?? 0) > 0).map((a) => (
-                <SelectItem key={a} value={a}>
-                  {t(`adminClubs.moderation.action.${a}`)} ({counts.byAction.get(a) ?? 0})
+              {actionOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(`adminClubs.moderation.action.${option.value}`)} ({option.count})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -661,9 +574,9 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ANY}>{t("adminClubs.filterAny")}</SelectItem>
-              {LOG_TARGETS.filter((x) => (counts.byTarget.get(x) ?? 0) > 0).map((x) => (
-                <SelectItem key={x} value={x}>
-                  {targetLabel(x, t)} ({counts.byTarget.get(x) ?? 0})
+              {targetOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {targetLabel(option.value, t)} ({option.count})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -673,7 +586,7 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
               <SelectValue placeholder={t("adminClubs.moderation.filterPeriod")} />
             </SelectTrigger>
             <SelectContent>
-              {LOG_PERIODS.map((p) => (
+              {MODERATION_LOG_PERIODS.map((p) => (
                 <SelectItem key={p.key} value={p.key}>
                   {t(`adminClubs.moderation.period.${p.key}`)}
                 </SelectItem>
@@ -712,22 +625,13 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
                       </TableCell>
                       <TableCell className="text-sm">{r.moderator_name}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            r.action === "reveal_author"
-                              ? "border-amber-500/40 text-[11px] text-amber-700 dark:text-amber-300"
-                              : "text-[11px]"
-                          }
-                        >
-                          {label(r.action)}
-                        </Badge>
+                        <ClubModerationLogBadge action={r.action} label={label(r.action)} />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {targetLabel(r.target_type, t)}
                       </TableCell>
                       <TableCell className="max-w-[320px] text-xs text-muted-foreground">
-                        {r.reason !== null && r.reason !== "" ? r.reason : "-"}
+                        {moderationLogReason(r.reason) ?? "-"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -739,22 +643,13 @@ function ModerationLogCard({ clubId }: { clubId: string }) {
               {rows.map((r) => (
                 <li key={r.id} className="rounded-lg border border-border/60 p-2.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge
-                      variant="outline"
-                      className={
-                        r.action === "reveal_author"
-                          ? "border-amber-500/40 text-[11px] text-amber-700 dark:text-amber-300"
-                          : "text-[11px]"
-                      }
-                    >
-                      {label(r.action)}
-                    </Badge>
+                    <ClubModerationLogBadge action={r.action} label={label(r.action)} />
                     <span className="text-sm font-medium">{r.moderator_name}</span>
                     <span className="ml-auto text-xs text-muted-foreground">
                       {formatDateTime(r.created_at, i18n.language)}
                     </span>
                   </div>
-                  {r.reason !== null && r.reason !== "" ? (
+                  {moderationLogReason(r.reason) !== null ? (
                     <p className="mt-1 text-xs text-muted-foreground">{r.reason}</p>
                   ) : null}
                 </li>
@@ -774,7 +669,7 @@ function RevealAuthorDialog({
   target,
   onOpenChange,
 }: {
-  target: RevealTarget | null;
+  target: RevealAuthorTarget | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -784,7 +679,7 @@ function RevealAuthorDialog({
     null,
   );
 
-  const tooShort = !revealReasonAccepted(reason);
+  const accepted = revealReasonAccepted(reason);
 
   const close = (open: boolean) => {
     if (!open) {
@@ -795,21 +690,21 @@ function RevealAuthorDialog({
   };
 
   const submit = () => {
-    if (target === null || tooShort) return;
-    revealM.mutate(
-      { targetType: target.targetType, targetId: target.targetId, reason: reason.trim() },
-      {
-        onSuccess: (data) => {
-          if (data === null) {
-            toast.error(t("adminClubs.moderation.revealEmpty"));
-            return;
-          }
-          setResult({ displayName: data.displayName, profileSlug: data.profileSlug });
-        },
-        onError: () => toast.error(t("adminClubs.moderation.revealFailed")),
+    const vars = revealAuthorVars(target, reason, accepted);
+    if (vars === null) return;
+    revealM.mutate(vars, {
+      onSuccess: (data) => {
+        if (data === null) {
+          toast.error(t("adminClubs.moderation.revealEmpty"));
+          return;
+        }
+        setResult({ displayName: data.displayName, profileSlug: data.profileSlug });
       },
-    );
+      onError: () => toast.error(t("adminClubs.moderation.revealFailed")),
+    });
   };
+
+  const profileHref = result === null ? null : revealProfileHref(result.profileSlug);
 
   return (
     <Dialog open={target !== null} onOpenChange={close}>
@@ -858,9 +753,9 @@ function RevealAuthorDialog({
               {t("adminClubs.moderation.revealResult")}
             </p>
             <p className="text-lg font-semibold">{result.displayName}</p>
-            {result.profileSlug !== null && result.profileSlug !== "" ? (
+            {profileHref !== null ? (
               <a
-                href={`/profile/${result.profileSlug}`}
+                href={profileHref}
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm text-primary underline underline-offset-2"
@@ -882,7 +777,7 @@ function RevealAuthorDialog({
             <Button
               variant="outline"
               className="text-amber-700 dark:text-amber-300"
-              disabled={tooShort || revealM.isPending}
+              disabled={!accepted || revealM.isPending}
               onClick={submit}
             >
               {revealM.isPending ? (
@@ -927,13 +822,17 @@ function ModeratorEditDialog({
   // nie kasował poprawki w trakcie pisania.
   const targetId = item?.target_id;
   useEffect(() => {
-    setTitle(item?.title ?? "");
-    setBody(item?.body ?? "");
-    setReason("");
+    const initial = moderatorEditInitial(item);
+    setTitle(initial.title);
+    setBody(initial.body);
+    setReason(initial.reason);
   }, [item, targetId]);
 
+  const blocked = isModeratorEditBlocked({ title, body, reason });
+
   const submit = () => {
-    if (!item || reason.trim().length < 3 || body.trim() === "") return;
+    const payload = moderatorEditVars(item, { title, body, reason });
+    if (payload === null) return;
     const done = {
       onSuccess: () => {
         toast.success(t("adminClubs.moderation.edited"));
@@ -941,14 +840,8 @@ function ModeratorEditDialog({
       },
       onError: () => toast.error(t("adminClubs.saveFailed")),
     };
-    if (isThread) {
-      threadM.mutate(
-        { threadId: item.target_id, title: title.trim(), body: body.trim(), reason: reason.trim() },
-        done,
-      );
-    } else {
-      replyM.mutate({ replyId: item.target_id, body: body.trim(), reason: reason.trim() }, done);
-    }
+    if (payload.kind === "thread") threadM.mutate(payload.vars, done);
+    else replyM.mutate(payload.vars, done);
   };
 
   return (
@@ -1002,10 +895,7 @@ function ModeratorEditDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button
-            disabled={pending || reason.trim().length < 3 || body.trim() === ""}
-            onClick={submit}
-          >
+          <Button disabled={pending || blocked} onClick={submit}>
             {t("common.save")}
           </Button>
         </DialogFooter>

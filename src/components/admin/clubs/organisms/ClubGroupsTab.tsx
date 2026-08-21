@@ -4,10 +4,14 @@
 // listę. Optymistyczna zmiana lokalnej tablicy przed odpowiedzią serwera jest
 // tu konieczna, bo przeciąganie, które "wraca na miejsce" na czas round-tripu,
 // czyta się jak zepsute.
+//
+// CO STĄD WYSZŁO I GDZIE JEST. Nowa kolejność po upuszczeniu (razem z rozpoznaniem
+// przeciągnięcia, którego NIE MA CO zapisywać), projekcja wiersza działu
+// i trzy stany tablicy są w `lib/clubs/adminClubGroupsBoard.ts`; sam wiersz
+// jest molekułą `ClubTableGroupRow`. Tutaj zostaje sklejenie: co jedzie do
+// mutacji, co się dzieje po jej błędzie i co otwiera edytor działu.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -20,109 +24,26 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Layers, Settings2 } from "lucide-react";
+import { Plus, Layers } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ClubGroupStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
+import { ClubTableGroupRow } from "../molecules/ClubTableGroupRow";
 import { ClubGroupEditorDialog } from "./ClubGroupEditorDialog";
 import { useAdminClubGroups, useReorderClubGroups, useUpsertClubGroup } from "@/lib/clubs/useClubs";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
-  CLUB_GROUP_STATUSES,
-  CLUB_VISIBILITIES,
-  toGroupSettings,
-  type AdminClubGroupRow,
-  type ClubGroupStatus,
-  type ClubVisibility,
-} from "@/lib/clubs/types";
-
-function asGroupStatus(value: string): ClubGroupStatus {
-  return (CLUB_GROUP_STATUSES as readonly string[]).includes(value)
-    ? (value as ClubGroupStatus)
-    : "draft";
-}
-
-function asVisibility(value: string): ClubVisibility {
-  return (CLUB_VISIBILITIES as readonly string[]).includes(value)
-    ? (value as ClubVisibility)
-    : "members";
-}
-
-function SortableGroupRow({ group, onEdit }: { group: AdminClubGroupRow; onEdit: () => void }) {
-  const { t, i18n } = useTranslation();
-  const lang = uiLang(i18n.language);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: group.id,
-  });
-  const settings = toGroupSettings(group);
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={
-        "flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card p-3 " +
-        (isDragging ? "opacity-60 shadow-lg" : "")
-      }
-    >
-      <button
-        type="button"
-        className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
-        aria-label={t("adminClubs.groups.reorderHint")}
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-
-      {/* Nazwa jest przyciskiem: kliknięcie w wiersz to najkrótsza droga do
-          ustawień, a ikona obok zostaje dla tych, którzy jej szukają. */}
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={onEdit}
-          className="block w-full truncate text-left font-medium hover:text-primary"
-        >
-          {pickLocalized(group, "name", lang)}
-        </button>
-        <div className="text-xs text-muted-foreground">/{group.slug}</div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <ClubVisibilityBadge visibility={asVisibility(settings.visibility.value)} />
-        {/* Etykieta dziedziczenia jest jawna: bez niej wartość klubu wygląda
-            jak wartość ustawiona na grupie, a pierwsza zmiana klubu przestaje
-            działać "bez powodu". */}
-        {settings.visibility.inherited ? (
-          <span className="text-[11px] text-muted-foreground">{t("club.inheritedFromClub")}</span>
-        ) : null}
-        <ClubGroupStatusBadge status={asGroupStatus(group.status)} />
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {t("club.threadsCount", { count: group.thread_count })}
-        </span>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8"
-          onClick={onEdit}
-          aria-label={t("adminClubs.groups.editTitle")}
-        >
-          <Settings2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </li>
-  );
-}
+  clubGroupReorder,
+  clubGroupRowView,
+  clubGroupsBoardMode,
+} from "@/lib/clubs/adminClubGroupsBoard";
+import type { AdminClubGroupRow } from "@/lib/clubs/types";
 
 export function ClubGroupsTab({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const groupsQ = useAdminClubGroups(clubId);
   const reorderM = useReorderClubGroups(clubId);
   const createM = useUpsertClubGroup(clubId);
@@ -142,25 +63,19 @@ export function ClubGroupsTab({ clubId }: { clubId: string }) {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = order.findIndex((g) => g.id === active.id);
-    const newIndex = order.findIndex((g) => g.id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
+    const next = clubGroupReorder(order, active.id, over ? over.id : null);
+    if (next === null) return;
 
-    const next = arrayMove(order, oldIndex, newIndex);
-    setOrder(next);
-    reorderM.mutate(
-      next.map((g) => g.id),
-      {
-        onSuccess: () => toast.success(t("adminClubs.groups.reordered")),
-        onError: () => {
-          // Cofamy optymistyczną zmianę: lista, która pokazuje kolejność
-          // inną niż zapisana, jest gorsza niż brak przeciągania.
-          setOrder(groupsQ.data ?? []);
-          toast.error(t("adminClubs.saveFailed"));
-        },
+    setOrder(next.rows);
+    reorderM.mutate(next.ids, {
+      onSuccess: () => toast.success(t("adminClubs.groups.reordered")),
+      onError: () => {
+        // Cofamy optymistyczną zmianę: lista, która pokazuje kolejność
+        // inną niż zapisana, jest gorsza niż brak przeciągania.
+        setOrder(groupsQ.data ?? []);
+        toast.error(t("adminClubs.saveFailed"));
       },
-    );
+    });
   };
 
   const handleCreate = () => {
@@ -187,6 +102,8 @@ export function ClubGroupsTab({ clubId }: { clubId: string }) {
     );
   };
 
+  const mode = clubGroupsBoardMode({ isPending: groupsQ.isPending, count: order.length });
+
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 pb-3">
@@ -206,13 +123,13 @@ export function ClubGroupsTab({ clubId }: { clubId: string }) {
       </CardHeader>
 
       <CardContent>
-        {groupsQ.isPending ? (
+        {mode === "pending" ? (
           <div className="space-y-2" aria-busy="true">
             {[0, 1].map((i) => (
               <div key={i} className="h-16 animate-pulse rounded-lg bg-muted/50" />
             ))}
           </div>
-        ) : order.length === 0 ? (
+        ) : mode === "empty" ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             {t("adminClubs.groups.empty")}
           </p>
@@ -232,9 +149,9 @@ export function ClubGroupsTab({ clubId }: { clubId: string }) {
               >
                 <ul className="space-y-2">
                   {order.map((group) => (
-                    <SortableGroupRow
+                    <ClubTableGroupRow
                       key={group.id}
-                      group={group}
+                      view={clubGroupRowView(group, i18n.language)}
                       onEdit={() => setEditing(group)}
                     />
                   ))}

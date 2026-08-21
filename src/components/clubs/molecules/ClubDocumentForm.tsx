@@ -10,6 +10,11 @@
 // z tego samego CHECK-a.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  buildClubDocumentPayload,
+  clubDocumentFormInvalid,
+  clubDocumentUrlMissing,
+} from "@/lib/clubs/workspaceForms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +30,6 @@ import {
 import type { ClubDocumentInput } from "@/lib/clubs/workspaceApi";
 import {
   CLUB_THREAD_DOCUMENT_KINDS as CLUB_DOCUMENT_KINDS,
-  clubDocumentNeedsUrl,
   toClubDocumentKind,
   type ClubThreadDocumentKind as ClubDocumentKind,
   type ClubThreadDocumentRow,
@@ -58,25 +62,30 @@ export function ClubDocumentForm({
   const [publishedOn, setPublishedOn] = useState(initial?.published_on ?? "");
   const [isPrimary, setIsPrimary] = useState(initial?.is_primary ?? false);
 
-  const urlMissing = clubDocumentNeedsUrl(kind) && url.trim().length === 0;
-  const invalid = title.trim().length < 3 || urlMissing;
+  const urlMissing = clubDocumentUrlMissing(kind, url);
+  const invalid = clubDocumentFormInvalid(title, urlMissing);
 
   const submit = () => {
     if (invalid) return;
-    onSubmit({
-      ...(initial !== null ? { id: initial.id } : {}),
-      thread_id: threadId,
-      kind,
-      title: title.trim(),
-      // Pusty tekst jedzie jako `null` = "wyczyść", nie jako pusty string:
-      // pusty string przeszedłby przez CHECK długości i został w bazie jako
-      // pozycja bibliograficzna z wydawcą "".
-      url: url.trim().length > 0 ? url.trim() : null,
-      description: description.trim().length > 0 ? description.trim() : null,
-      source_label: source.trim().length > 0 ? source.trim() : null,
-      published_on: publishedOn.length > 0 ? publishedOn : null,
-      ...(canCurate ? { is_primary: isPrimary } : {}),
-    });
+    // Pusty tekst jedzie jako `null` = "wyczyść", nie jako pusty string: pusty
+    // string przeszedłby przez CHECK długości i został w bazie jako pozycja
+    // bibliograficzna z wydawcą "". Składanie payloadu jest w warstwie `lib`.
+    onSubmit(
+      buildClubDocumentPayload(
+        {
+          kind,
+          title,
+          url,
+          description,
+          sourceLabel: source,
+          publishedOn,
+          isPrimary,
+        },
+        threadId,
+        initial !== null ? initial.id : null,
+        canCurate,
+      ),
+    );
   };
 
   return (

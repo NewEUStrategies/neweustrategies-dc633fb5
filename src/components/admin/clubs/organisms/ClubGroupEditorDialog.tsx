@@ -15,6 +15,14 @@
 // RESPONSYWNOŚĆ: jedna kolumna do sm, dwie wyżej. Dialog scrolluje się w
 // pionie, bo na telefonie piętnaście pól nie mieści się na ekranie i obcięty
 // przycisk zapisu jest gorszy niż scroll.
+//
+// KOMPOZYCJA, NIE LOGIKA. Reguły (przepisanie wiersza na wersję roboczą,
+// kontrakt pustego stringa w payloadzie, zawężenie widoczności przy zdjęciu
+// dziedziczenia, harmonogram <-> `datetime-local`, trzy odmowy kasowania)
+// mieszkają w `lib/clubs/adminClubGroupForm`. Powtarzalne wiersze pól -
+// w molekułach `ClubDialogTextRow` i `ClubDialogInheritedEnum`. Tutaj zostaje
+// SKLEJENIE: stan wersji roboczej, co leci do mutacji i co się dzieje z
+// odpowiedzią.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
@@ -23,8 +31,6 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -42,96 +48,29 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { InheritedField } from "../atoms/InheritedField";
+import { ClubDialogInheritedEnum } from "../molecules/ClubDialogInheritedEnum";
+import { ClubDialogTextRow } from "../molecules/ClubDialogTextRow";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { useDeleteClubGroup, useUpsertClubGroup } from "@/lib/clubs/useClubs";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
-  CLUB_ATTRIBUTION_MODES,
-  CLUB_GROUP_STATUSES,
-  CLUB_GROUP_VISIBILITIES,
-  CLUB_MODERATION_MODES,
-  CLUB_POST_POLICIES,
-  CLUB_VISIBILITIES,
-  toClubGroupVisibility,
-  toGroupSettings,
-  type AdminClubGroupRow,
-  type ClubAttributionMode,
-  type ClubGroupStatus,
-  type ClubModerationMode,
-  type ClubPostPolicy,
-  type ClubVisibility,
-} from "@/lib/clubs/types";
-
-/** Wersja robocza formularza. Pole `*Inherit` steruje tym, czy wartość w ogóle
- *  poleci do RPC - dziedziczenie wysyła pusty string, nie wartość. */
-interface GroupDraft {
-  slug: string;
-  namePl: string;
-  nameEn: string;
-  descriptionPl: string;
-  descriptionEn: string;
-  status: ClubGroupStatus;
-  visibility: ClubVisibility;
-  visibilityInherit: boolean;
-  whoCanPost: ClubPostPolicy;
-  whoCanPostInherit: boolean;
-  moderationMode: ClubModerationMode;
-  moderationModeInherit: boolean;
-  attributionMode: ClubAttributionMode;
-  attributionModeInherit: boolean;
-  minTierRank: number;
-  minTierRankInherit: boolean;
-  opensAt: string;
-  closesAt: string;
-}
-
-function narrow<T extends string>(value: string, allowed: readonly T[], fallback: T): T {
-  return (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
-}
-
-/** timestamptz z bazy -> wartość dla `<input type="datetime-local">`.
- *  Ucinamy strefę i sekundy: pole HTML nie umie ich pokazać, a wysłanie
- *  pełnego ISO z powrotem i tak nastąpi dopiero po edycji. */
-function toLocalInput(value: string | null): string {
-  if (value === null || value === "") return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
-
-function fromLocalInput(value: string): string | null {
-  if (value.trim() === "") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-function toDraft(group: AdminClubGroupRow): GroupDraft {
-  const settings = toGroupSettings(group);
-  return {
-    slug: group.slug,
-    namePl: group.name_pl,
-    nameEn: group.name_en,
-    descriptionPl: group.description_pl ?? "",
-    descriptionEn: group.description_en ?? "",
-    status: narrow<ClubGroupStatus>(group.status, CLUB_GROUP_STATUSES, "draft"),
-    visibility: settings.visibility.value,
-    visibilityInherit: settings.visibility.inherited,
-    whoCanPost: settings.whoCanPost.value,
-    whoCanPostInherit: settings.whoCanPost.inherited,
-    moderationMode: settings.moderationMode.value,
-    moderationModeInherit: settings.moderationMode.inherited,
-    attributionMode: settings.attributionMode.value,
-    attributionModeInherit: settings.attributionMode.inherited,
-    minTierRank: settings.minTierRank.value,
-    minTierRankInherit: settings.minTierRank.inherited,
-    opensAt: toLocalInput(group.opens_at),
-    closesAt: toLocalInput(group.closes_at),
-  };
-}
+  CLUB_GROUP_OVERRIDE_OPTIONS,
+  canDeleteClubGroup,
+  clubGroupDeleteConfirm,
+  clubGroupDeleteErrorKey,
+  clubGroupDeleteNotice,
+  clubGroupDeletedToast,
+  clubGroupHasThreads,
+  clubGroupMinTierFromInput,
+  clubGroupMoveTargets,
+  clubGroupOverridePatch,
+  clubGroupSaveBlockKey,
+  clubGroupSavePayload,
+  clubGroupVisibilityOptions,
+  toClubGroupDraft,
+  type ClubGroupDraft,
+} from "@/lib/clubs/adminClubGroupForm";
+import { CLUB_GROUP_STATUSES, type AdminClubGroupRow } from "@/lib/clubs/types";
 
 export function ClubGroupEditorDialog({
   clubId,
@@ -151,7 +90,7 @@ export function ClubGroupEditorDialog({
   const saveM = useUpsertClubGroup(clubId);
   const deleteM = useDeleteClubGroup(clubId);
 
-  const [draft, setDraft] = useState<GroupDraft | null>(null);
+  const [draft, setDraft] = useState<ClubGroupDraft | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [moveTo, setMoveTo] = useState("");
 
@@ -160,78 +99,52 @@ export function ClubGroupEditorDialog({
   // kasowałoby niezapisane zmiany w otwartym formularzu.
   const groupId = group?.id;
   useEffect(() => {
-    setDraft(group ? toDraft(group) : null);
+    setDraft(group ? toClubGroupDraft(group) : null);
     setMoveTo("");
   }, [group, groupId]);
 
-  const patch = (next: Partial<GroupDraft>) =>
+  const patch = (next: Partial<ClubGroupDraft>) =>
     setDraft((prev) => (prev ? { ...prev, ...next } : prev));
 
-  const others = siblings.filter((g) => g.id !== groupId);
-  const hasThreads = (group?.thread_count ?? 0) > 0;
+  const others = clubGroupMoveTargets(siblings, groupId);
+  const hasThreads = clubGroupHasThreads(group?.thread_count);
+  const notice = clubGroupDeleteNotice(group?.thread_count);
 
-  const submit = () => {
-    if (!draft || !group) return;
-    if (draft.slug.trim() === "" || draft.namePl.trim() === "") {
-      toast.error(t("adminClubs.requiredFields"));
+  // Wiersz i wersja robocza idą W PARZE. Wersja robocza powstaje w efekcie,
+  // więc jest jedna klatka po otwarciu, w której działu już jest, a formularza
+  // jeszcze nie - i dokładnie w tej klatce nie ma czego zapisać ani skasować.
+  // Jedna para zamiast dwóch osobnych sprawdzeń w każdym handlerze: drugie
+  // sprawdzenie tej samej rzeczy jest pierwszym, o którym się zapomni.
+  const ready = group !== null && draft !== null ? { group, draft } : null;
+
+  const submit = (target: AdminClubGroupRow, current: ClubGroupDraft) => {
+    const blockKey = clubGroupSaveBlockKey(current);
+    if (blockKey !== null) {
+      toast.error(t(blockKey));
       return;
     }
-    saveM.mutate(
-      {
-        id: group.id,
-        club_id: clubId,
-        slug: draft.slug.trim(),
-        name_pl: draft.namePl.trim(),
-        name_en: draft.nameEn.trim() !== "" ? draft.nameEn.trim() : draft.namePl.trim(),
-        description_pl: draft.descriptionPl.trim() || null,
-        description_en: draft.descriptionEn.trim() || null,
-        status: draft.status,
-        // Pusty string = "dziedzicz z klubu". To kontrakt RPC, nie skrót:
-        // migracja jawnie traktuje '' tak samo jak NULL.
-        visibility: draft.visibilityInherit ? "" : draft.visibility,
-        who_can_post: draft.whoCanPostInherit ? "" : draft.whoCanPost,
-        moderation_mode: draft.moderationModeInherit ? "" : draft.moderationMode,
-        attribution_mode: draft.attributionModeInherit ? "" : draft.attributionMode,
-        min_tier_rank: draft.minTierRankInherit ? null : draft.minTierRank,
-        opens_at: fromLocalInput(draft.opensAt),
-        closes_at: fromLocalInput(draft.closesAt),
+    saveM.mutate(clubGroupSavePayload(current, { id: target.id, clubId }), {
+      onSuccess: () => {
+        toast.success(t("adminClubs.saved"));
+        onOpenChange(false);
       },
-      {
-        onSuccess: () => {
-          toast.success(t("adminClubs.saved"));
-          onOpenChange(false);
-        },
-        onError: () => toast.error(t("adminClubs.saveFailed")),
-      },
-    );
+      onError: () => toast.error(t("adminClubs.saveFailed")),
+    });
   };
 
-  const remove = () => {
-    if (!group) return;
+  const remove = (target: AdminClubGroupRow) => {
     deleteM.mutate(
-      { groupId: group.id, moveToGroupId: moveTo !== "" ? moveTo : null },
+      { groupId: target.id, moveToGroupId: moveTo !== "" ? moveTo : null },
       {
         onSuccess: (moved) => {
-          toast.success(
-            moved > 0
-              ? t("adminClubs.groups.deletedWithMove", { count: moved })
-              : t("adminClubs.groups.deleted"),
-          );
+          const done = clubGroupDeletedToast(moved);
+          toast.success(done.count === null ? t(done.key) : t(done.key, { count: done.count }));
           onOpenChange(false);
         },
         // Komunikat rozróżnia dwie realne odmowy RPC: "grupa nie jest pusta"
         // i "to ostatnia grupa". Jedno "nie udało się" zostawiałoby
         // administratora bez następnego kroku.
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : "";
-          if (message.includes("group not empty")) {
-            toast.error(t("adminClubs.groups.deleteNeedsTarget"));
-          } else if (message.includes("last group")) {
-            toast.error(t("adminClubs.groups.deleteLast"));
-          } else {
-            toast.error(t("adminClubs.saveFailed"));
-          }
-        },
+        onError: (error) => toast.error(t(clubGroupDeleteErrorKey(error))),
       },
     );
   };
@@ -246,41 +159,35 @@ export function ClubGroupEditorDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {draft === null ? null : (
+        {ready === null ? null : (
           <div className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="club-group-name-pl">{t("adminClubs.fields.namePl")}</Label>
-                <Input
-                  id="club-group-name-pl"
-                  value={draft.namePl}
-                  maxLength={120}
-                  onChange={(e) => patch({ namePl: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="club-group-name-en">{t("adminClubs.fields.nameEn")}</Label>
-                <Input
-                  id="club-group-name-en"
-                  value={draft.nameEn}
-                  maxLength={120}
-                  onChange={(e) => patch({ nameEn: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="club-group-slug">{t("adminClubs.fields.slug")}</Label>
-                <Input
-                  id="club-group-slug"
-                  value={draft.slug}
-                  maxLength={80}
-                  onChange={(e) => patch({ slug: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">{t("adminClubs.fields.slugHint")}</p>
-              </div>
+              <ClubDialogTextRow
+                id="club-group-name-pl"
+                labelKey="adminClubs.fields.namePl"
+                value={ready.draft.namePl}
+                maxLength={120}
+                onValueChange={(namePl) => patch({ namePl })}
+              />
+              <ClubDialogTextRow
+                id="club-group-name-en"
+                labelKey="adminClubs.fields.nameEn"
+                value={ready.draft.nameEn}
+                maxLength={120}
+                onValueChange={(nameEn) => patch({ nameEn })}
+              />
+              <ClubDialogTextRow
+                id="club-group-slug"
+                labelKey="adminClubs.fields.slug"
+                value={ready.draft.slug}
+                maxLength={80}
+                hintKey="adminClubs.fields.slugHint"
+                onValueChange={(slug) => patch({ slug })}
+              />
               <ClubEnumSelect
                 id="club-group-status"
                 label={t("adminClubs.columns.status")}
-                value={draft.status}
+                value={ready.draft.status}
                 options={CLUB_GROUP_STATUSES}
                 i18nPrefix="club.groupStatus"
                 onChange={(status) => patch({ status })}
@@ -289,26 +196,22 @@ export function ClubGroupEditorDialog({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="club-group-desc-pl">{t("adminClubs.fields.descriptionPl")}</Label>
-                <Textarea
-                  id="club-group-desc-pl"
-                  rows={3}
-                  maxLength={2000}
-                  value={draft.descriptionPl}
-                  onChange={(e) => patch({ descriptionPl: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="club-group-desc-en">{t("adminClubs.fields.descriptionEn")}</Label>
-                <Textarea
-                  id="club-group-desc-en"
-                  rows={3}
-                  maxLength={2000}
-                  value={draft.descriptionEn}
-                  onChange={(e) => patch({ descriptionEn: e.target.value })}
-                />
-              </div>
+              <ClubDialogTextRow
+                id="club-group-desc-pl"
+                labelKey="adminClubs.fields.descriptionPl"
+                value={ready.draft.descriptionPl}
+                rows={3}
+                maxLength={2000}
+                onValueChange={(descriptionPl) => patch({ descriptionPl })}
+              />
+              <ClubDialogTextRow
+                id="club-group-desc-en"
+                labelKey="adminClubs.fields.descriptionEn"
+                value={ready.draft.descriptionEn}
+                rows={3}
+                maxLength={2000}
+                onValueChange={(descriptionEn) => patch({ descriptionEn })}
+              />
             </div>
 
             {/* --- ustawienia dziedziczone z klubu --- */}
@@ -328,88 +231,77 @@ export function ClubGroupEditorDialog({
                     może być bardziej otwarty niż klub. Stąd sprowadzenie
                     wartości w momencie zdjęcia dziedziczenia - inaczej
                     administrator zapisywałby wybór, który baza odbija. */}
-                <InheritedField
-                  label={t("adminClubs.fields.visibility")}
-                  inherited={draft.visibilityInherit}
+                <ClubDialogInheritedEnum
+                  labelKey="adminClubs.fields.visibility"
+                  i18nPrefix="club.visibility"
+                  value={ready.draft.visibility}
+                  options={clubGroupVisibilityOptions(ready.draft.visibilityInherit)}
+                  inherited={ready.draft.visibilityInherit}
+                  disabled={saveM.isPending}
                   onToggleInherit={(inherit) =>
-                    patch(
-                      inherit
-                        ? { visibilityInherit: true }
-                        : {
-                            visibilityInherit: false,
-                            visibility: toClubGroupVisibility(draft.visibility),
-                          },
-                    )
+                    patch(clubGroupOverridePatch("visibility", inherit, ready.draft))
                   }
-                  disabled={saveM.isPending}
-                >
-                  <ClubEnumSelect
-                    value={draft.visibility}
-                    options={draft.visibilityInherit ? CLUB_VISIBILITIES : CLUB_GROUP_VISIBILITIES}
-                    i18nPrefix="club.visibility"
-                    onChange={(visibility) => patch({ visibility })}
-                    disabled={saveM.isPending || draft.visibilityInherit}
-                  />
-                </InheritedField>
+                  onValueChange={(visibility) => patch({ visibility })}
+                />
 
-                <InheritedField
-                  label={t("adminClubs.fields.whoCanPost")}
-                  inherited={draft.whoCanPostInherit}
-                  onToggleInherit={(inherit) => patch({ whoCanPostInherit: inherit })}
+                <ClubDialogInheritedEnum
+                  labelKey="adminClubs.fields.whoCanPost"
+                  i18nPrefix="club.whoCanPost"
+                  value={ready.draft.whoCanPost}
+                  options={CLUB_GROUP_OVERRIDE_OPTIONS.whoCanPost}
+                  inherited={ready.draft.whoCanPostInherit}
                   disabled={saveM.isPending}
-                >
-                  <ClubEnumSelect
-                    value={draft.whoCanPost}
-                    options={CLUB_POST_POLICIES}
-                    i18nPrefix="club.whoCanPost"
-                    onChange={(whoCanPost) => patch({ whoCanPost })}
-                    disabled={saveM.isPending || draft.whoCanPostInherit}
-                  />
-                </InheritedField>
+                  onToggleInherit={(inherit) =>
+                    patch(clubGroupOverridePatch("whoCanPost", inherit, ready.draft))
+                  }
+                  onValueChange={(whoCanPost) => patch({ whoCanPost })}
+                />
 
-                <InheritedField
-                  label={t("adminClubs.fields.moderationMode")}
-                  inherited={draft.moderationModeInherit}
-                  onToggleInherit={(inherit) => patch({ moderationModeInherit: inherit })}
+                <ClubDialogInheritedEnum
+                  labelKey="adminClubs.fields.moderationMode"
+                  i18nPrefix="club.moderation"
+                  value={ready.draft.moderationMode}
+                  options={CLUB_GROUP_OVERRIDE_OPTIONS.moderationMode}
+                  inherited={ready.draft.moderationModeInherit}
                   disabled={saveM.isPending}
-                >
-                  <ClubEnumSelect
-                    value={draft.moderationMode}
-                    options={CLUB_MODERATION_MODES}
-                    i18nPrefix="club.moderation"
-                    onChange={(moderationMode) => patch({ moderationMode })}
-                    disabled={saveM.isPending || draft.moderationModeInherit}
-                  />
-                </InheritedField>
+                  onToggleInherit={(inherit) =>
+                    patch(clubGroupOverridePatch("moderationMode", inherit, ready.draft))
+                  }
+                  onValueChange={(moderationMode) => patch({ moderationMode })}
+                />
 
-                <InheritedField
-                  label={t("adminClubs.fields.attributionMode")}
-                  inherited={draft.attributionModeInherit}
-                  onToggleInherit={(inherit) => patch({ attributionModeInherit: inherit })}
+                <ClubDialogInheritedEnum
+                  labelKey="adminClubs.fields.attributionMode"
+                  i18nPrefix="club.attribution"
+                  value={ready.draft.attributionMode}
+                  options={CLUB_GROUP_OVERRIDE_OPTIONS.attributionMode}
+                  inherited={ready.draft.attributionModeInherit}
                   disabled={saveM.isPending}
-                >
-                  <ClubEnumSelect
-                    value={draft.attributionMode}
-                    options={CLUB_ATTRIBUTION_MODES}
-                    i18nPrefix="club.attribution"
-                    onChange={(attributionMode) => patch({ attributionMode })}
-                    disabled={saveM.isPending || draft.attributionModeInherit}
-                  />
-                </InheritedField>
+                  onToggleInherit={(inherit) =>
+                    patch(clubGroupOverridePatch("attributionMode", inherit, ready.draft))
+                  }
+                  onValueChange={(attributionMode) => patch({ attributionMode })}
+                />
 
+                {/* Próg planu jest LICZBĄ, nie słownikiem - jedyne pole tej
+                    sekcji, które nie ma dropListy. */}
                 <InheritedField
                   label={t("adminClubs.fields.minTierRank")}
-                  inherited={draft.minTierRankInherit}
-                  onToggleInherit={(inherit) => patch({ minTierRankInherit: inherit })}
+                  inherited={ready.draft.minTierRankInherit}
+                  onToggleInherit={(inherit) =>
+                    patch(clubGroupOverridePatch("minTierRank", inherit, ready.draft))
+                  }
                   disabled={saveM.isPending}
                 >
                   <Input
                     type="number"
                     min={0}
                     max={10}
-                    value={draft.minTierRank}
-                    disabled={saveM.isPending || draft.minTierRankInherit}
-                    onChange={(e) => patch({ minTierRank: Number(e.target.value) || 0 })}
+                    value={ready.draft.minTierRank}
+                    disabled={saveM.isPending || ready.draft.minTierRankInherit}
+                    onChange={(e) =>
+                      patch({ minTierRank: clubGroupMinTierFromInput(e.target.value) })
+                    }
                   />
                 </InheritedField>
               </div>
@@ -422,24 +314,20 @@ export function ClubGroupEditorDialog({
                 {t("adminClubs.groups.scheduleHint")}
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="club-group-opens">{t("adminClubs.groups.opensAt")}</Label>
-                  <Input
-                    id="club-group-opens"
-                    type="datetime-local"
-                    value={draft.opensAt}
-                    onChange={(e) => patch({ opensAt: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="club-group-closes">{t("adminClubs.groups.closesAt")}</Label>
-                  <Input
-                    id="club-group-closes"
-                    type="datetime-local"
-                    value={draft.closesAt}
-                    onChange={(e) => patch({ closesAt: e.target.value })}
-                  />
-                </div>
+                <ClubDialogTextRow
+                  id="club-group-opens"
+                  labelKey="adminClubs.groups.opensAt"
+                  type="datetime-local"
+                  value={ready.draft.opensAt}
+                  onValueChange={(opensAt) => patch({ opensAt })}
+                />
+                <ClubDialogTextRow
+                  id="club-group-closes"
+                  labelKey="adminClubs.groups.closesAt"
+                  type="datetime-local"
+                  value={ready.draft.closesAt}
+                  onValueChange={(closesAt) => patch({ closesAt })}
+                />
               </div>
             </div>
 
@@ -449,9 +337,7 @@ export function ClubGroupEditorDialog({
                 {t("adminClubs.groups.deleteTitle")}
               </p>
               <p className="text-xs text-muted-foreground">
-                {hasThreads
-                  ? t("adminClubs.groups.deleteWithThreads", { count: group?.thread_count ?? 0 })
-                  : t("adminClubs.groups.deleteEmpty")}
+                {notice.count === null ? t(notice.key) : t(notice.key, { count: notice.count })}
               </p>
               {hasThreads ? (
                 <Select value={moveTo} onValueChange={setMoveTo}>
@@ -473,17 +359,23 @@ export function ClubGroupEditorDialog({
                 className="text-destructive"
                 // Grupa z wątkami bez wskazanego celu = pewna odmowa RPC.
                 // Blokujemy przycisk zamiast pozwolić kliknąć i pokazać błąd.
-                disabled={deleteM.isPending || others.length === 0 || (hasThreads && moveTo === "")}
-                onClick={() =>
-                  setConfirm({
-                    title: t("adminClubs.groups.deleteConfirmTitle"),
-                    description: hasThreads
-                      ? t("adminClubs.groups.deleteConfirmMove")
-                      : t("adminClubs.groups.deleteConfirmBody"),
-                    destructive: true,
-                    onConfirm: remove,
+                disabled={
+                  !canDeleteClubGroup({
+                    isPending: deleteM.isPending,
+                    targetCount: others.length,
+                    hasThreads,
+                    moveTo,
                   })
                 }
+                onClick={() => {
+                  const ask = clubGroupDeleteConfirm(hasThreads);
+                  setConfirm({
+                    title: t(ask.titleKey),
+                    description: t(ask.descriptionKey),
+                    destructive: true,
+                    onConfirm: () => remove(ready.group),
+                  });
+                }}
               >
                 <Trash2 className="mr-1.5 h-4 w-4" />
                 {t("adminClubs.groups.delete")}
@@ -499,7 +391,10 @@ export function ClubGroupEditorDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={submit} disabled={saveM.isPending || draft === null}>
+          <Button
+            onClick={ready === null ? undefined : () => submit(ready.group, ready.draft)}
+            disabled={saveM.isPending || ready === null}
+          >
             {t("common.save")}
           </Button>
         </DialogFooter>

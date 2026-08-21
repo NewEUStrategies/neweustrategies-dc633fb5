@@ -10,6 +10,14 @@
 // wg strefy serwera - a to jest źródło całodobowych przesunięć terminów.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  buildClubMilestonePayload,
+  clubMilestoneFormInvalid,
+  clubMilestoneRangeInvalid,
+  clubModeFieldValue,
+  toIsoValue,
+  toLocalInputValue,
+} from "@/lib/clubs/workspaceForms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,27 +41,10 @@ import {
   type ClubThreadMilestoneRow,
 } from "@/lib/clubs/workspaceTypes";
 
-/** ISO -> wartość pola `datetime-local` (czas LOKALNY, bez strefy i sekund). */
-export function toLocalInputValue(iso: string | null, allDay: boolean): string {
-  if (iso === null || iso.length === 0) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  return allDay ? day : `${day}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-/**
- * Wartość pola -> ISO ze strefą. Termin całodniowy kotwiczymy na POŁUDNIU
- * czasu lokalnego, nie na północy: północ przy przeliczeniu na UTC wypada
- * poprzedniego dnia dla całej Europy Środkowej, więc "14 września" pokazywałby
- * się jako 13 września w kalendarzu liczonym w UTC.
- */
-export function toIsoValue(input: string, allDay: boolean): string | null {
-  if (input.length === 0) return null;
-  const date = allDay ? new Date(`${input}T12:00:00`) : new Date(input);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
+// Przeliczenia czasu mieszkają w `lib/clubs/workspaceForms` (warstwa `lib`:
+// zero Reacta). Re-eksport zostaje, bo ta ścieżka importu jest już w użyciu
+// - podmiana importów byłaby zmianą bez treści.
+export { toIsoValue, toLocalInputValue } from "@/lib/clubs/workspaceForms";
 
 export function ClubMilestoneForm({
   threadId,
@@ -87,19 +78,15 @@ export function ClubMilestoneForm({
   const endIso = toIsoValue(endsAt, allDay);
   // Koniec przed początkiem odrzuca CHECK bazy - blokujemy wcześniej, żeby nie
   // wracać do użytkownika z surowym błędem 23514 po utracie formularza.
-  const rangeInvalid = startIso !== null && endIso !== null && endIso < startIso;
-  const invalid = title.trim().length < 3 || startIso === null || rangeInvalid;
+  const rangeInvalid = clubMilestoneRangeInvalid(startIso, endIso);
+  const invalid = clubMilestoneFormInvalid(title, startIso, rangeInvalid);
 
   /** Zmiana trybu przepisuje wartości pól - inaczej „2026-09-14T17:00" zostaje
    *  w polu typu `date` i przeglądarka po cichu je czyści. */
   const switchAllDay = (next: boolean) => {
     setAllDay(next);
-    setStartsAt((value) =>
-      value.length === 0 ? value : toLocalInputValue(toIsoValue(value, allDay), next),
-    );
-    setEndsAt((value) =>
-      value.length === 0 ? value : toLocalInputValue(toIsoValue(value, allDay), next),
-    );
+    setStartsAt((value) => clubModeFieldValue(value, allDay, next));
+    setEndsAt((value) => clubModeFieldValue(value, allDay, next));
   };
 
   return (
@@ -108,19 +95,15 @@ export function ClubMilestoneForm({
       onSubmit={(event) => {
         event.preventDefault();
         if (invalid || startIso === null) return;
-        onSubmit({
-          ...(initial !== null ? { id: initial.id } : {}),
-          thread_id: threadId,
-          title: title.trim(),
-          description: description.trim().length > 0 ? description.trim() : null,
-          kind,
-          status,
-          starts_at: startIso,
-          ends_at: endIso,
-          all_day: allDay,
-          location: location.trim().length > 0 ? location.trim() : null,
-          url: url.trim().length > 0 ? url.trim() : null,
-        });
+        onSubmit(
+          buildClubMilestonePayload(
+            { title, description, kind, status, allDay, startsAt, endsAt, location, url },
+            threadId,
+            initial !== null ? initial.id : null,
+            startIso,
+            endIso,
+          ),
+        );
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">

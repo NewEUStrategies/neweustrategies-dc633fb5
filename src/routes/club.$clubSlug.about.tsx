@@ -20,7 +20,15 @@ import {
   useSetClubNotifyLevel,
 } from "@/lib/clubs/useClubs";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
-import { CLUB_NOTIFY_LEVELS, toClubInviteError, toClubNotifyLevel } from "@/lib/clubs/types";
+import { CLUB_NOTIFY_LEVELS } from "@/lib/clubs/types";
+import {
+  clubAboutAction,
+  clubAboutErrorKey,
+  clubAboutTermKeys,
+  clubJoinToastKey,
+  clubRulesAcceptVisible,
+  myClubNotifyLevel,
+} from "@/lib/clubs/aboutView";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/publicClub";
@@ -60,15 +68,11 @@ function ClubAbout() {
   const leaveM = useLeaveClub();
   const rulesM = useAcceptClubRules(club?.id ?? "");
   const notifyM = useSetClubNotifyLevel(club?.id ?? "");
-  // `club_view` NIE zwraca poziomu powiadomień - jedynym źródłem jest
-  // `club_my_memberships.notify_level`. Kontrolka miała tu literał "digest",
-  // więc pokazywała ten poziom KAŻDEMU: użytkownik ustawiał "wszystkie",
-  // dostawał zielony toast i natychmiast widział z powrotem "skrót", bez
-  // żadnego sposobu sprawdzenia, co faktycznie ma ustawione.
+  // Poziom powiadomień, panel akcji i lista warunków członkostwa mieszkają
+  // w `lib/clubs/aboutView` - tam jest też zapisane, dlaczego każda z tych
+  // reguł jest regułą (m.in. defekt literału "digest" w tej kontrolce).
   const membershipsQ = useMyClubMemberships(Boolean(session));
-  const myNotifyLevel = toClubNotifyLevel(
-    membershipsQ.data?.find((row) => row.club_id === club?.id)?.notify_level,
-  );
+  const myNotifyLevel = myClubNotifyLevel(membershipsQ.data, club?.id);
 
   if (clubQ.isPending) {
     return (
@@ -96,9 +100,13 @@ function ClubAbout() {
     );
   }
 
-  const isMember = club.my_status === "active";
   const rules = pickLocalized(club, "rules", lang);
   const description = pickLocalized(club, "description", lang);
+  const action = clubAboutAction({
+    signedIn: Boolean(session),
+    myStatus: club.my_status,
+    joinPolicy: club.join_policy,
+  });
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
@@ -112,10 +120,11 @@ function ClubAbout() {
       <h1 className="text-3xl font-semibold">{pickLocalized(club, "name", lang)}</h1>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant="outline">{t(`club.visibility.${club.visibility}`)}</Badge>
-        <Badge variant="outline">{t(`club.joinPolicy.${club.join_policy}`)}</Badge>
-        <Badge variant="outline">{t(`club.attribution.${club.attribution_mode}`)}</Badge>
-        <Badge variant="outline">{t(`club.whoCanPost.${club.who_can_post}`)}</Badge>
+        {clubAboutTermKeys(club).map((key) => (
+          <Badge key={key} variant="outline">
+            {t(key)}
+          </Badge>
+        ))}
       </div>
 
       {description ? (
@@ -132,7 +141,10 @@ function ClubAbout() {
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{rules}</p>
-            {isMember && club.rules_accepted_at === null ? (
+            {clubRulesAcceptVisible({
+              myStatus: club.my_status,
+              rulesAcceptedAt: club.rules_accepted_at,
+            }) ? (
               <Button
                 className="mt-4"
                 size="sm"
@@ -151,10 +163,10 @@ function ClubAbout() {
         </Card>
       ) : null}
 
-      {session ? (
+      {action === null ? null : (
         <Card className="mt-6">
           <CardContent className="space-y-4 p-5">
-            {isMember ? (
+            {action.kind === "membership" ? (
               <>
                 <ClubEnumSelect
                   id="club-notify"
@@ -183,36 +195,24 @@ function ClubAbout() {
                   {t("club.leave")}
                 </Button>
               </>
-            ) : club.join_policy === "invite" ? (
-              <p className="text-sm text-muted-foreground">
-                {t("adminClubs.invitations.error.invitation_required")}
-              </p>
+            ) : action.kind === "inviteOnly" ? (
+              <p className="text-sm text-muted-foreground">{t(action.noticeKey)}</p>
             ) : (
               <Button
                 disabled={joinM.isPending}
                 onClick={() =>
                   joinM.mutate(club.id, {
-                    onSuccess: (status) =>
-                      toast.success(
-                        status === "active" ? t("club.joined") : t("club.joinRequested"),
-                      ),
-                    onError: (error) => {
-                      const code = toClubInviteError(error);
-                      toast.error(
-                        code
-                          ? t(`adminClubs.invitations.error.${code}`)
-                          : t("adminClubs.saveFailed"),
-                      );
-                    },
+                    onSuccess: (status) => toast.success(t(clubJoinToastKey(status))),
+                    onError: (error) => toast.error(t(clubAboutErrorKey(error))),
                   })
                 }
               >
-                {club.join_policy === "open" ? t("club.join") : t("club.requestJoin")}
+                {t(action.labelKey)}
               </Button>
             )}
           </CardContent>
         </Card>
-      ) : null}
+      )}
     </div>
   );
 }

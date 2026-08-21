@@ -16,26 +16,25 @@ import { BarChart3 } from "lucide-react";
 import { ClubWorkspaceEmpty } from "@/components/clubs/atoms/ClubWorkspaceEmpty";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { useClubThreadInsights } from "@/lib/clubs/useClubWorkspace";
-import { toInsightSeries, type InsightBar } from "@/lib/clubs/workspaceTypes";
+import { toInsightSeries } from "@/lib/clubs/workspaceTypes";
+import {
+  INSIGHT_SERIES_KEYS,
+  insightBarPercent,
+  insightRangeLabel,
+  insightSegments,
+  type InsightSeriesKey,
+} from "@/lib/clubs/insightChart";
 import { formatDateShort } from "@/lib/i18n/format";
 
-/** Cztery serie w stałej kolejności i stałych kolorach. Kolejność jest
- *  kolejnością W LEGENDZIE, w słupku i w tabeli - trzy różne porządki dla tych
- *  samych danych zmuszałyby do czytania wykresu za każdym razem od nowa. */
-const SERIES = [
-  { key: "replies", cls: "bg-primary/80" },
-  { key: "questions", cls: "bg-amber-500/80" },
-  { key: "documents", cls: "bg-sky-500/80" },
-  { key: "milestones", cls: "bg-emerald-500/80" },
-] as const;
-
-function segments(bar: InsightBar): { key: string; value: number; cls: string }[] {
-  return SERIES.map((series) => ({
-    key: series.key,
-    value: bar[series.key],
-    cls: series.cls,
-  })).filter((segment) => segment.value > 0);
-}
+/** KOLEJNOŚĆ serii jest regułą i mieszka w `insightChart` (ta sama w legendzie,
+ *  w słupku i w tabeli). Tutaj zostaje wyłącznie KOLOR - to jedyna część tej
+ *  czwórki, która jest układem, a nie decyzją o danych. */
+const SERIES_CLASS: Record<InsightSeriesKey, string> = {
+  replies: "bg-primary/80",
+  questions: "bg-amber-500/80",
+  documents: "bg-sky-500/80",
+  milestones: "bg-emerald-500/80",
+};
 
 export function ClubThreadInsightsPanel({
   threadId,
@@ -63,12 +62,7 @@ export function ClubThreadInsightsPanel({
     );
   }
 
-  const first = series.bars[0];
-  const last = series.bars[series.bars.length - 1];
-  const rangeLabel =
-    first !== undefined && last !== undefined
-      ? `${formatDateShort(first.start, lang)} - ${formatDateShort(last.end, lang)}`
-      : "";
+  const rangeLabel = insightRangeLabel(series.bars, lang);
 
   return (
     <div className="space-y-4">
@@ -76,13 +70,13 @@ export function ClubThreadInsightsPanel({
           czytelników tu przychodzi; wykres jest dla tych, którzy chcą wiedzieć
           KIEDY. */}
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {SERIES.map((entry) => (
-          <div key={entry.key} className="rounded-xl border border-border/60 bg-card p-3">
+        {INSIGHT_SERIES_KEYS.map((key) => (
+          <div key={key} className="rounded-xl border border-border/60 bg-card p-3">
             <dt className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-              <span aria-hidden="true" className={`h-2 w-2 rounded-sm ${entry.cls}`} />
-              {t(`club.workspace.insights.series.${entry.key}`)}
+              <span aria-hidden="true" className={`h-2 w-2 rounded-sm ${SERIES_CLASS[key]}`} />
+              {t(`club.workspace.insights.series.${key}`)}
             </dt>
-            <dd className="mt-1 text-xl font-semibold tabular-nums">{series.totals[entry.key]}</dd>
+            <dd className="mt-1 text-xl font-semibold tabular-nums">{series.totals[key]}</dd>
           </div>
         ))}
       </dl>
@@ -112,15 +106,13 @@ export function ClubThreadInsightsPanel({
               {bar.total === 0 ? (
                 <span className="h-[3px] rounded-[2px] bg-muted" />
               ) : (
-                segments(bar).map((segment) => (
+                insightSegments(bar).map((segment) => (
                   <span
                     key={segment.key}
-                    className={`rounded-[2px] transition-[height] duration-500 ${segment.cls}`}
-                    style={{
-                      // Wysokość liczona wobec SZCZYTU, nie wobec sumy: słupki
-                      // mają porównywać się między sobą.
-                      height: `${Math.max(3, Math.round((segment.value / Math.max(1, series.peak)) * 100))}%`,
-                    }}
+                    className={`rounded-[2px] transition-[height] duration-500 ${SERIES_CLASS[segment.key]}`}
+                    // Wysokość liczona wobec SZCZYTU, nie wobec sumy: słupki
+                    // mają porównywać się między sobą.
+                    style={{ height: `${insightBarPercent(segment.value, series.peak)}%` }}
                   />
                 ))
               )}
@@ -135,9 +127,9 @@ export function ClubThreadInsightsPanel({
           <thead>
             <tr>
               <th scope="col">{t("club.workspace.insights.period")}</th>
-              {SERIES.map((entry) => (
-                <th key={entry.key} scope="col">
-                  {t(`club.workspace.insights.series.${entry.key}`)}
+              {INSIGHT_SERIES_KEYS.map((key) => (
+                <th key={key} scope="col">
+                  {t(`club.workspace.insights.series.${key}`)}
                 </th>
               ))}
             </tr>
@@ -146,8 +138,8 @@ export function ClubThreadInsightsPanel({
             {series.bars.map((bar) => (
               <tr key={bar.index}>
                 <th scope="row">{formatDateShort(bar.start, lang)}</th>
-                {SERIES.map((entry) => (
-                  <td key={entry.key}>{bar[entry.key]}</td>
+                {INSIGHT_SERIES_KEYS.map((key) => (
+                  <td key={key}>{bar[key]}</td>
                 ))}
               </tr>
             ))}

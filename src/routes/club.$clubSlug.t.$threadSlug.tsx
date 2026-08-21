@@ -122,18 +122,37 @@ import { clubKeys } from "@/lib/clubs/queryKeys";
 import { formatDateTime } from "@/lib/i18n/format";
 import {
   buildClubReplyTree,
-  isClubReplyLive,
   toAuthorLabel,
-  CLUB_REPLY_SORTS,
   type ClubReactionKind,
   type ClubReactionActor,
   type ClubReactionTally,
   type ClubReplyNode,
   type ClubReplySort,
 } from "@/lib/clubs/types";
+// Reguły tej trasy (etapy wczytywania, uprawnienia wpisu, licznik strony,
+// rozstrzygnięcie) mieszkają w warstwie `lib` i mają własne tabele przypadków -
+// patrz nagłówek `threadPageView.ts`. Trasa je WOŁA, nie liczy.
+import {
+  clubReactionTotal,
+  clubReplyCapabilities,
+  clubRepliesMeter,
+  clubResolveToastKey,
+  clubThreadCapabilities,
+  clubThreadHasResolution,
+  resolveClubThreadStage,
+  CLUB_RESOLVE_LABEL_KEYS,
+  type ClubResolveAction,
+} from "@/lib/clubs/threadPageView";
+import {
+  canSubmitClubReply,
+  clubBlockedReplyKey,
+  clubComposerHeadingKey,
+  clubComposerKeyIntent,
+  clubReplyBodyLength,
+  showsClubReplyCounter,
+  CLUB_REPLY_BODY_MAX,
+} from "@/lib/clubs/threadComposer";
 import { ensureClubI18n } from "@/lib/i18n-club";
-
-const BODY_MAX = 10000;
 
 /**
  * Sondaż i dialog zgłoszenia są ŁADOWANE LENIWIE - ta sama konwencja, co
@@ -287,7 +306,17 @@ function ClubThreadView() {
   // `useQuery` zostaje w stanie `isPending` na zawsze. Warunek musi więc pytać
   // o wątek tylko wtedy, gdy klub faktycznie jest - inaczej wejście na
   // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
-  if (clubQ.isPending || (club !== null && threadQ.isPending)) {
+  // Etap wczytywania jako JEDNA decyzja - kolejność warunków jest regułą,
+  // nie kosmetyką (patrz `resolveClubThreadStage`).
+  const stage = resolveClubThreadStage({
+    clubPending: clubQ.isPending,
+    clubMissing: club === null,
+    threadPending: threadQ.isPending,
+    threadMissing: thread === null,
+    failed: clubQ.isError || threadQ.isError,
+  });
+
+  if (stage === "loading") {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
         <Shimmer className="mb-4 h-8 w-48" />
@@ -313,7 +342,7 @@ function ClubThreadView() {
   // 404 (klub `secret` nie ma prawa zdradzić, że istnieje), a błąd sieci albo
   // bazy ma powiedzieć, że to problem po naszej stronie i da się spróbować
   // ponownie - inaczej użytkownik kasuje poprawny link jako martwy.
-  if (clubQ.isError || threadQ.isError) {
+  if (stage === "error") {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <ClubErrorNotice
@@ -345,32 +374,27 @@ function ClubThreadView() {
 
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const tree = buildClubReplyTree(deferred.rows);
-  const repliesTotal = repliesQ.data?.total ?? 0;
-  const repliesShown = repliesQ.data?.rows.length ?? 0;
-  // Autor pytania i moderacja mogą wskazać odpowiedź rozstrzygającą.
-  const canResolve =
-    thread.kind === "question" && (thread.can_moderate || thread.author_id === user?.id);
+  // Licznik strony odpowiedzi: `undefined` znaczy ZAPYTANIE W LOCIE, nie zero.
+  const replies = clubRepliesMeter(repliesQ.data);
+  // Uprawnienia postu otwierającego - jedno wejście, jeden wynik. Trasa nie
+  // liczy dostępu, tylko czyta to, co oddało SECURITY DEFINER RPC.
+  const caps = clubThreadCapabilities({
+    kind: thread.kind,
+    authorId: thread.author_id,
+    canModerate: thread.can_moderate,
+    lockedAt: thread.locked_at,
+    attributionMode: thread.attribution_mode,
+    viewerId: user?.id ?? null,
+    signedIn: user !== null && user !== undefined,
+  });
+  const canGoAnonymous = caps.canGoAnonymous;
   // Czy ktoras z ZALADOWANYCH odpowiedzi nosi juz flage rozstrzygniecia -
   // decyduje o tym, czy akcja to "oznacz", czy "przenies".
-  const hasResolution = deferred.rows.some((row) => row.is_resolution);
-  // Anonimowość wolno włączyć wyłącznie tam, gdzie tryb klubu na to pozwala.
-  const canGoAnonymous = thread.attribution_mode === "anonymous_allowed";
-  // Autor poprawia SWÓJ wpis; moderacja - każdy. W klubie pod regułą Chatham
-  // House `author_id` nie wychodzi z RPC, więc porównanie jest tam zawsze
-  // fałszywe - i tak ma być: baza i tak sprawdzi autorstwo przy zapisie, a
-  // interfejs nie ma prawa zdradzić, że to wpis czytającego.
-  const isMyThread = thread.author_id !== null && thread.author_id === user?.id;
-  const canEditThread = (isMyThread || thread.can_moderate) && thread.locked_at === null;
-  // Zgłaszać wolno cudzy wpis i tylko zalogowanemu - własnego RPC i tak nie
-  // przyjmie (22023), więc przycisk, który zawsze kończy się błędem, nie ma po
-  // co stać na ekranie.
-  const canReportThread = Boolean(user) && !isMyThread;
-  // Sort "mapa sporu" ma sens wyłącznie tam, gdzie stanowiska w ogóle istnieją.
-  const replySorts = CLUB_REPLY_SORTS.filter((sort) => sort !== "stance" || isPosition);
+  const hasResolution = clubThreadHasResolution(deferred.rows);
 
   const submitReply = () => {
+    if (!canSubmitClubReply(body, replyM.isPending)) return;
     const trimmed = body.trim();
-    if (trimmed.length === 0 || replyM.isPending) return;
     setQueued(false);
     replyM.mutate(
       { threadId: thread.id, body: trimmed, parentId: replyTo, anonymous },
@@ -413,15 +437,11 @@ function ClubThreadView() {
   // deliberacji, nie okno czatu, a wysłanie akapitu w połowie zdania jest tu
   // kosztowniejsze niż jedno kliknięcie więcej.
   const onComposerKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault();
-      submitReply();
-      return;
-    }
-    if (event.key === "Escape" && replyTo !== null) {
-      event.preventDefault();
-      setReplyTo(null);
-    }
+    const intent = clubComposerKeyIntent(event, replyTo !== null);
+    if (intent === "ignore") return;
+    event.preventDefault();
+    if (intent === "submit") submitReply();
+    else setReplyTo(null);
   };
 
   return (
@@ -518,14 +538,11 @@ function ClubThreadView() {
               />
               <ClubReactionAvatars
                 actors={threadActorsQ.data?.get(thread.id) ?? []}
-                total={(threadReactionsQ.data?.get(thread.id) ?? []).reduce(
-                  (sum, tally) => sum + tally.total,
-                  0,
-                )}
+                total={clubReactionTotal(threadReactionsQ.data?.get(thread.id) ?? [])}
                 size="sm"
               />
               <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                {canEditThread && editing !== "thread" ? (
+                {caps.canEdit && editing !== "thread" ? (
                   <button
                     type="button"
                     onClick={() => setEditing("thread")}
@@ -535,7 +552,7 @@ function ClubThreadView() {
                     <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
                   </button>
                 ) : null}
-                {canReportThread ? (
+                {caps.canReport ? (
                   <ClubReportButton targetType="thread" targetId={thread.id} />
                 ) : null}
                 <ClubFollowButton
@@ -558,7 +575,7 @@ function ClubThreadView() {
               idPrefix="club-thread-edit"
               initialTitle={thread.title}
               initialBody={thread.body}
-              showReason={!isMyThread}
+              showReason={!caps.isMine}
               pending={editThreadM.isPending}
               onCancel={() => setEditing(null)}
               onSave={(patch) =>
@@ -643,7 +660,7 @@ function ClubThreadView() {
               <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
               {t("club.repliesCount", { count: thread.reply_count })}
             </h2>
-            {repliesTotal > 1 ? (
+            {replies.sortPickerVisible ? (
               <Select value={replySort} onValueChange={(v) => setReplySort(v as ClubReplySort)}>
                 <SelectTrigger
                   className="h-8 w-auto min-w-40"
@@ -652,7 +669,7 @@ function ClubThreadView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {replySorts.map((sort) => (
+                  {caps.replySorts.map((sort) => (
                     <SelectItem key={sort} value={sort}>
                       {t(`club.replySort.${sort}`)}
                     </SelectItem>
@@ -681,7 +698,7 @@ function ClubThreadView() {
                   node={node}
                   lang={lang}
                   clubSlug={clubSlug}
-                  canResolve={canResolve}
+                  canResolve={caps.canResolve}
                   canReact={thread.can_reply}
                   canModerate={thread.can_moderate}
                   threadLocked={thread.locked_at !== null}
@@ -713,13 +730,7 @@ function ClubThreadView() {
                       { threadId: thread.id, replyId },
                       {
                         onSuccess: () =>
-                          toast.success(
-                            replyId === null
-                              ? t("club.unresolvedToast")
-                              : hasResolution
-                                ? t("club.movedResolutionToast")
-                                : t("club.resolvedToast"),
-                          ),
+                          toast.success(t(clubResolveToastKey(replyId, hasResolution))),
                         onError: () => toast.error(t("adminClubs.saveFailed")),
                       },
                     )
@@ -732,9 +743,9 @@ function ClubThreadView() {
           {/* Ucięcie strony mówi się WPROST. Nagłówek pokazuje pełny licznik
             z denormalizacji, więc milcząca różnica wyglądałaby jak utrata
             treści, a nie jak paginacja. */}
-          {repliesTotal > repliesShown ? (
+          {replies.truncated ? (
             <p className="mt-3 rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
-              {t("club.repliesTruncated", { shown: repliesShown, total: repliesTotal })}
+              {t("club.repliesTruncated", { shown: replies.shown, total: replies.total })}
             </p>
           ) : null}
         </section>
@@ -789,7 +800,7 @@ function ClubThreadView() {
             <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/25 px-4 py-2">
               <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground">
                 <MessageSquare className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                {replyTo !== null ? t("club.replyingTo") : t("club.postReply")}
+                {t(clubComposerHeadingKey(replyTo))}
               </span>
               {replyTo !== null ? (
                 <Button
@@ -820,7 +831,7 @@ function ClubThreadView() {
                 }}
                 lang={lang}
                 rows={4}
-                maxLength={BODY_MAX}
+                maxLength={CLUB_REPLY_BODY_MAX}
               />
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -838,16 +849,16 @@ function ClubThreadView() {
                       </Label>
                     </div>
                   ) : null}
-                  {body.trim().length > BODY_MAX * 0.7 ? (
+                  {showsClubReplyCounter(body) ? (
                     <span className="text-xs tabular-nums text-muted-foreground">
-                      {body.trim().length} / {BODY_MAX}
+                      {clubReplyBodyLength(body)} / {CLUB_REPLY_BODY_MAX}
                     </span>
                   ) : null}
                 </div>
                 <Button
                   size="sm"
                   onClick={submitReply}
-                  disabled={replyM.isPending || body.trim().length === 0}
+                  disabled={!canSubmitClubReply(body, replyM.isPending)}
                 >
                   {replyM.isPending ? (
                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -861,12 +872,22 @@ function ClubThreadView() {
           </section>
         ) : (
           <p className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-            {thread.reason ? t(`club.reason.${thread.reason}`) : t("club.cannotReply")}
+            {t(clubBlockedReplyKey(thread.reason))}
           </p>
         )}
       </ClubThreadWorkspace>
     </div>
   );
+}
+
+/**
+ * Strażnik zawężający akcję rozstrzygnięcia do tej, która MA etykietę.
+ * `none` (brak prawa) i `unmark` (potwierdzenie w osobnym dialogu) nie stoją
+ * w tym przycisku, a `CLUB_RESOLVE_LABEL_KEYS[resolveAction]` musi dostać klucz
+ * istniejący w mapie - stąd zawężenie w runtime zamiast rzutowania.
+ */
+function isClubMarkAction(action: ClubResolveAction): action is "mark" | "move" {
+  return action === "mark" || action === "move";
 }
 
 interface ReplyBranchProps {
@@ -921,13 +942,20 @@ function ReplyBranch(props: ReplyBranchProps) {
   // W klubie pod regułą Chatham House `author_id` nie wychodzi z RPC, więc
   // porównanie jest tam zawsze fałszywe - i tak ma być. Baza sprawdzi
   // autorstwo przy zapisie, a interfejs nie może zdradzić, czyj to wpis.
-  const isMine = reply.author_id !== null && reply.author_id === myUserId;
-  // `isClubReplyLive` zamiast porównania ze stringiem: poprzednia wersja
-  // sprawdzała `status !== "removed"`, a takiego statusu nie ma w słowniku
-  // (`pending | visible | hidden | deleted`), więc warunek był zawsze prawdziwy
-  // i wpis usunięty przez moderację zachowywał przycisk redakcji.
-  const canEdit = (isMine || canModerate) && !threadLocked && isClubReplyLive(reply.status);
-  const canReport = myUserId !== null && !isMine;
+  // Uprawnienia wpisu liczy `clubReplyCapabilities` - razem z regułą, że
+  // redakcja pyta o STATUS (wpis zdjęty przez moderację jej nie ma) i że
+  // przycisk „Odpowiedz” gaśnie na drugim poziomie przyciętego drzewa.
+  const { isMine, canEdit, canReport, canReplyTo, resolveAction } = clubReplyCapabilities({
+    authorId: reply.author_id,
+    status: reply.status,
+    depth: reply.depth,
+    isResolution: reply.is_resolution,
+    viewerId: myUserId,
+    canModerate,
+    threadLocked,
+    canResolve,
+    hasResolution,
+  });
 
   return (
     <li>
@@ -1006,7 +1034,7 @@ function ReplyBranch(props: ReplyBranchProps) {
             />
             <ClubReactionAvatars
               actors={reactionActors.get(reply.id) ?? []}
-              total={(reactions.get(reply.id) ?? []).reduce((sum, tally) => sum + tally.total, 0)}
+              total={clubReactionTotal(reactions.get(reply.id) ?? [])}
               maxVisible={4}
             />
           </div>
@@ -1019,7 +1047,7 @@ function ReplyBranch(props: ReplyBranchProps) {
           {/* Poziom 2 nie dostaje przycisku "Odpowiedz": drzewo jest przycięte,
               a przycisk, który po cichu przypina odpowiedź gdzie indziej,
               wprowadza w błąd. */}
-          {reply.depth < 2 ? (
+          {canReplyTo ? (
             <Button
               size="sm"
               variant="ghost"
@@ -1034,11 +1062,11 @@ function ReplyBranch(props: ReplyBranchProps) {
               piksele od "Odpowiedz". Nadanie i przeniesienie potwierdzenia nie
               wymagają - one zostawiają rozstrzygnięcie na miejscu i cofa się
               je jednym kliknięciem. */}
-          {canResolve && reply.is_resolution ? (
+          {resolveAction === "unmark" ? (
             <AlertDialog open={unmarkOpen} onOpenChange={setUnmarkOpen}>
               <AlertDialogTrigger asChild>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">
-                  {t("club.unmarkResolution")}
+                  {t(CLUB_RESOLVE_LABEL_KEYS.unmark)}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -1058,14 +1086,14 @@ function ReplyBranch(props: ReplyBranchProps) {
             </AlertDialog>
           ) : null}
 
-          {canResolve && !reply.is_resolution ? (
+          {isClubMarkAction(resolveAction) ? (
             <Button
               size="sm"
               variant="ghost"
               className="h-7 px-2 text-xs"
               onClick={() => onResolve(reply.id)}
             >
-              {hasResolution ? t("club.moveResolution") : t("club.markResolution")}
+              {t(CLUB_RESOLVE_LABEL_KEYS[resolveAction])}
             </Button>
           ) : null}
           {canEdit && editing !== reply.id ? (
