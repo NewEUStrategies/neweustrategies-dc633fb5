@@ -44,8 +44,26 @@ function attr(tag: string, name: string): string | null {
 
 // Capture the most common top-level block tags. Anything outside these
 // boundaries becomes an inline paragraph chunk.
+//
+// WZORZEC ŹRÓDŁOWY - nie iterować po tym obiekcie wprost. `htmlToBlocks`
+// wywołuje SIEBIE w środku pętli `exec` (rozwijanie `<div>`), a `lastIndex`
+// wyrażenia z flagą `g` jest stanem WSPÓŁDZIELONYM. Wywołanie zagnieżdżone
+// kończyło iterację i zerowało `lastIndex`, więc pętla nadrzędna startowała od
+// nowa od pozycji 0: dla KAŻDEGO dokumentu z `<div>` niosącym treść blokową
+// dawało to pętlę nieskończoną, rosnącą tablicę bloków i wyczerpanie pamięci.
+// Ścieżka jest osiągalna z importu WordPressa (`lib/wp-import/convert.ts`,
+// `lib/wp-import/elementor.ts`), z `parseGutenberg` (fallback na surowy HTML)
+// i z `posts-migrate.functions.ts`, czyli wszędzie tam, gdzie migracja czyta
+// treść zewnętrzną - a `<div>` jest w niej regułą, nie wyjątkiem. Gałąź
+// rozwijania `<div>` nie była wcześniej wykonana ANI RAZU (0 pokrycia), więc
+// defekt nie miał jak się ujawnić przed dopisaniem testów.
 const BLOCK_RE =
   /<(p|h1|h2|h3|h4|h5|h6|ul|ol|blockquote|pre|hr|figure|img|iframe|div)\b([^>]*)>([\s\S]*?)<\/\1>|<(hr|img|iframe)\b([^>]*)\/?>/gi;
+
+/** Świeża instancja wzorca na KAŻDE wywołanie - patrz komentarz nad BLOCK_RE. */
+function blockMatcher(): RegExp {
+  return new RegExp(BLOCK_RE.source, BLOCK_RE.flags);
+}
 
 function pushParagraph(out: Block[], html: string): void {
   const trimmed = html.trim();
@@ -181,9 +199,9 @@ export function htmlToBlocks(input: string | null | undefined): BlocksDoc {
 
   const out: Block[] = [];
   let cursor = 0;
-  BLOCK_RE.lastIndex = 0;
+  const re = blockMatcher();
   let m: RegExpExecArray | null;
-  while ((m = BLOCK_RE.exec(html)) !== null) {
+  while ((m = re.exec(html)) !== null) {
     if (m.index > cursor) {
       pushParagraph(out, html.slice(cursor, m.index));
     }

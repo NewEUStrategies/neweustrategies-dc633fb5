@@ -25,9 +25,14 @@ import type { Json, WidgetContent } from "@/lib/builder/types";
 
 import { AuthorDisplayControl } from "../AuthorDisplayControl";
 
-function renderControl(c: WidgetContent = {}) {
+function renderControl(
+  c: WidgetContent = {},
+  defaults?: Parameters<typeof AuthorDisplayControl>[0]["defaults"],
+) {
   const setContent = vi.fn<(k: string, v: Json) => void>();
-  const view = render(<AuthorDisplayControl c={c} lang="pl" setContent={setContent} />);
+  const view = render(
+    <AuthorDisplayControl c={c} lang="pl" setContent={setContent} defaults={defaults} />,
+  );
   const written = (): Record<string, Json> =>
     Object.fromEntries(setContent.mock.calls.map(([k, v]) => [k, v]));
   return { ...view, setContent, written };
@@ -120,5 +125,103 @@ describe("AuthorDisplayControl - przywracanie domyślnych", () => {
       authorSizePx: 12,
       authorAvatarSizePx: 20,
     });
+  });
+});
+
+describe("AuthorDisplayControl - zapis rozmiarów", () => {
+  it.each([
+    ["rozmiar czcionki", "Rozmiar czcionki autora (px)", "18", "authorSizePx", 18],
+    ["rozmiar zdjęcia", "Rozmiar zdjęcia autora (px)", "48", "authorAvatarSizePx", 48],
+  ])("zapisuje %s", (_label, field, typed, key, expected) => {
+    const { written } = renderControl();
+    fireEvent.change(screen.getByLabelText(field), { target: { value: typed } });
+    expect(written()[key]).toBe(expected);
+  });
+
+  it.each([
+    ["rozmiar czcionki", "Rozmiar czcionki autora (px)", "authorSizePx", 12],
+    ["rozmiar zdjęcia", "Rozmiar zdjęcia autora (px)", "authorAvatarSizePx", 20],
+  ])("wyczyszczenie pola wraca do wartości domyślnej: %s", (_label, field, key, fallback) => {
+    const { written } = renderControl({ authorSizePx: 22, authorAvatarSizePx: 60 });
+    fireEvent.change(screen.getByLabelText(field), { target: { value: "" } });
+    // Pusty rozmiar autora nie może zostać w dokumencie jako `undefined`:
+    // renderer wstawiłby wtedy `undefinedpx` do arkusza instancji. Zamiast tego
+    // wracamy do wartości bazowej.
+    expect(written()[key]).toBe(fallback);
+  });
+
+  it("baseline widgetu nadpisuje wartości globalne w polach i w resecie", () => {
+    const { written } = renderControl({}, { nameSizePx: 16, avatarSizePx: 40 });
+    expect(screen.getByLabelText("Rozmiar czcionki autora (px)")).toHaveValue(16);
+    expect(screen.getByLabelText("Rozmiar zdjęcia autora (px)")).toHaveValue(40);
+    fireEvent.click(screen.getByRole("button", { name: /Przywróć domyślne/ }));
+    // „Przywróć” musi wrócić do baseline WIDGETU (np. slider ma większe
+    // zdjęcie), a nie do globalnych 12/20.
+    expect(written()).toMatchObject({ authorSizePx: 16, authorAvatarSizePx: 40 });
+  });
+
+  it("baseline widgetu z ukrytymi osiami też jest respektowany przez reset", () => {
+    const { written } = renderControl(
+      { showAuthorName: true, showAuthorAvatar: true },
+      { showName: false, showAvatar: false },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Przywróć domyślne/ }));
+    expect(written()).toMatchObject({ showAuthorName: false, showAuthorAvatar: false });
+  });
+});
+
+describe("AuthorDisplayControl - etykieta autora", () => {
+  it("zapisuje etykietę pod klucz języka treści", () => {
+    const { written } = renderControl({ showAuthorAvatar: false });
+    fireEvent.change(screen.getByLabelText("Etykieta autora (i18n)"), {
+      target: { value: "Tekst" },
+    });
+    expect(written().authorLabel_pl).toBe("Tekst");
+  });
+
+  it("dla treści angielskiej zapisuje klucz angielski", () => {
+    const setContent = vi.fn<(k: string, v: Json) => void>();
+    render(
+      <AuthorDisplayControl c={{ showAuthorAvatar: false }} lang="en" setContent={setContent} />,
+    );
+    fireEvent.change(screen.getByLabelText("Etykieta autora (i18n)"), {
+      target: { value: "Written by" },
+    });
+    expect(setContent).toHaveBeenCalledWith("authorLabel_en", "Written by");
+  });
+
+  it("czyta zapisaną etykietę i podpowiada domyślną", () => {
+    renderControl({ showAuthorAvatar: false, authorLabel_pl: "Redakcja" });
+    const field = screen.getByLabelText("Etykieta autora (i18n)") as HTMLInputElement;
+    expect(field.value).toBe("Redakcja");
+    expect(field.placeholder).toBe("Autor");
+  });
+
+  it("etykieta nietekstowa w dokumencie daje puste pole", () => {
+    renderControl({ showAuthorAvatar: false, authorLabel_pl: 7 });
+    expect((screen.getByLabelText("Etykieta autora (i18n)") as HTMLInputElement).value).toBe("");
+  });
+
+  it("wyczyszczenie etykiety zapisuje pusty napis", () => {
+    const { written } = renderControl({ showAuthorAvatar: false, authorLabel_pl: "Redakcja" });
+    fireEvent.change(screen.getByLabelText("Etykieta autora (i18n)"), { target: { value: "" } });
+    // Pusty napis, nie brak klucza - renderer rozumie to jako „użyj domyślnej”.
+    expect(written().authorLabel_pl).toBe("");
+  });
+
+  it("znacznik trybu prezentacji jedzie w atrybucie danych", () => {
+    const { container } = renderControl({ showAuthorAvatar: false });
+    // Bramka wierności ustawień czyta ten atrybut, żeby porównać obietnicę
+    // panelu z tym, co renderuje widget.
+    expect(container.querySelector("[data-author-display-control]")).toHaveAttribute(
+      "data-author-display-control",
+      "label",
+    );
+  });
+
+  it("bez nazwy autora nie ma ani rozmiaru, ani etykiety", () => {
+    renderControl({ showAuthorName: false, showAuthorAvatar: false });
+    expect(screen.queryByLabelText("Rozmiar czcionki autora (px)")).toBeNull();
+    expect(screen.queryByLabelText("Etykieta autora (i18n)")).toBeNull();
   });
 });

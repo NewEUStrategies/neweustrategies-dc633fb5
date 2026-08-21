@@ -37,7 +37,22 @@ jobs:
   # z czerwonym CI dlatego, że przed wypchnięciem nikt ich nie uruchomił.
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 2026-08-19: 20 -> 35. Job PRZESTAŁ SIĘ MIEŚCIĆ w dwudziestu minutach, a
+    # GitHub raportuje job ubity limitem jako `cancelled`, nie `failure` - więc
+    # przez kilka przebiegów wyglądało to na tajemnicze wywłaszczenie w połowie
+    # kroku `Build`, a nie na wyczerpany budżet czasu. Zmierzone na przebiegu
+    # 2400 (eb5155b): setup+install+prettier ~68 s, ~20 bramek statycznych ~12 s,
+    # Typecheck 2:04, Lint 1:30, `Test + coverage gate` 12:39, bramki 33-38
+    # ~64 s, `Build` ~2:20 - razem ~22 min. Build ginął kilkadziesiąt sekund
+    # przed metą, a `Bundle size budget`, `Chunk graph acyclicity` i `Client boot
+    # path free of payment SDKs` NIE URUCHAMIAŁY SIĘ ANI RAZU: nie dlatego, że
+    # coś w nich pada, tylko dlatego, że job nie dożywał do ich kroku.
+    # Dominującą pozycją jest suita (12:39 z instrumentacją coverage) i to ona
+    # rośnie z każdym nowym testem - 35 minut daje ~1,5x zapasu na dzisiejszy
+    # ślad, zamiast kolejnego podnoszenia progu za pół tygodnia. Docelowo
+    # `Build` i bramki artefaktu powinny jechać w OSOBNYM jobie: wtedy zegar
+    # suity przestaje decydować o tym, czy budżet bundla w ogóle się zmierzy.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -54,8 +69,15 @@ jobs:
         run: |
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
+      # `--frozen-lockfile`: bez tego runner może rozwiązać w zakresach semver
+      # nowsze wersje niż `bun.lock`, a build z innych wersji daje inny podział
+      # chunków - stąd udokumentowana w `scripts/check-bundle-size.ts` (wpis
+      # 2026-08-19 III) rozbieżność host <-> runner rzędu +10 KB na OVERALL,
+      # przez którą floor bramki bundla nie dawał się postawić z pomiaru
+      # lokalnego. Krok „Repoint lockfile" podmienia wyłącznie URL rejestru,
+      # więc nie narusza spójności lock <-> package.json, której pilnuje ta flaga.
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 
