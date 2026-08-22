@@ -87,7 +87,10 @@ export function precomputeFootnotes(
       // (molecules.tsx::renderSpoiler), więc należy do tej samej rodziny.
       out.set(
         b.id,
-        replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""), wpTexts)), fn),
+        replaceFootnotes(
+          sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""), wpTexts)),
+          fn,
+        ),
       );
     } else if (b.type === "heading") {
       const v = process(b.data.text);

@@ -102,16 +102,15 @@ export function normalizeWpFootnoteHtml(html: string, texts?: Map<string, string
     .replace(WP_FN_SCRIPT_RE, "")
     .replace(WP_CONTINUE_RE, "")
     .replace(WP_FN_RE, (m: string, inner: string) => {
-    const key = WP_TOOLTIP_ID_RE.exec(m)?.[1];
-    const full = key ? texts?.get(key) : undefined;
-    const text = (full ?? String(inner ?? ""))
-      .replace(WP_CONTINUE_RE, "")
-      .replace(/(?:&nbsp;|\s)*(?:&#x2026;|&hellip;|…)\s*$/i, "")
-      .trim();
-    return text ? `[fn]${text}[/fn]` : "";
-  });
+      const key = WP_TOOLTIP_ID_RE.exec(m)?.[1];
+      const full = key ? texts?.get(key) : undefined;
+      const text = (full ?? String(inner ?? ""))
+        .replace(WP_CONTINUE_RE, "")
+        .replace(/(?:&nbsp;|\s)*(?:&#x2026;|&hellip;|…)\s*$/i, "")
+        .trim();
+      return text ? `[fn]${text}[/fn]` : "";
+    });
 }
-
 
 // --- Przypisy z edytorów biurowych (MS Word, LibreOffice, Google Docs, pandoc) ---
 //
@@ -210,7 +209,6 @@ export function normalizeOfficeFootnoteHtml(html: string): string {
 export function normalizeLegacyFootnoteHtml(html: string, texts?: Map<string, string>): string {
   return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html, texts));
 }
-
 
 /** Czy string zawiera jakikolwiek rozpoznawany zapis przypisu. */
 export function containsFootnoteMarkup(v: string): boolean {

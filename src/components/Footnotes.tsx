@@ -141,7 +141,6 @@ export function FootnoteTooltips({
       data-footnote-tooltip
       className="pointer-events-none fixed z-50 max-w-[280px] rounded-[6px] border border-brand bg-popover text-popover-foreground text-[9px] leading-[1.35] px-2 py-1.5 shadow-lg -translate-x-1/2 -translate-y-full"
       style={{ left: state.x, top: state.y - 8, fontSize: "9px", lineHeight: 1.35 }}
-
     >
       <span className="font-medium mr-1">[{state.id}]</span>
       <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.html) }} />
