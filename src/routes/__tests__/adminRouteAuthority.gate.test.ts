@@ -534,7 +534,7 @@ describe("moduł 19 - wzorzec B: trasa admina i defekty zgłoszone", () => {
       // treść, do której nawigacja mu odmówiła dostępu. Obie odpowiedzi są
       // złe, a różnica między nimi nie jest widoczna z kodu trasy.
       //
-      // NAPRAWA to ten sam jeden warunek, co w `admin.names.tsx:845`
+      // NAPRAWA to ten sam jeden warunek, co w `admin.names.tsx:385`
       // (`if (!isSuperAdmin) return <Navigate to="/admin" />`), tylko na
       // `isAdmin`. Nie robimy jej tutaj, bo zakresem tego zadania są testy.
       const offenders = navGatedSlugs("isAdmin").filter((slug) => {

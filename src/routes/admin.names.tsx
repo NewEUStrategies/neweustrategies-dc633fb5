@@ -3,6 +3,14 @@
 // english_form, gender, is_compound, origin, notes.
 // Funkcje: import/eksport CSV (dedupe po `key` z uzupełnianiem brakujących pól),
 // nasłuch zmian w czasie rzeczywistym, filtry (gender, origin, search).
+//
+// CAŁA LOGIKA CSV MIESZKA W `@/lib/admin/namesCsv` - parsowanie, serializacja,
+// normalizacja kraju, klasyfikacja duplikatu i budowa ładunków zapisu. Tutaj
+// zostało wyłącznie SKLEJENIE: stan Reacta, rozmowa z bazą, komunikaty
+// i nasłuch realtime. Powód jest praktyczny: reguły mapowania kolumn są
+// funkcjami i sprawdza je tabela `it.each`
+// (`src/lib/admin/__tests__/namesCsv.test.ts`), a nie klikanie po tabeli
+// podglądu.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
@@ -42,6 +50,20 @@ import {
 } from "@/lib/lucide-shim";
 
 import { normalize, type Gender } from "@/lib/greetings/greetings";
+import {
+  NAME_ORIGIN_COUNTRIES,
+  buildNameInsertPayload,
+  buildNameMergePatch,
+  classifyNameImportRow,
+  indexNamesByKey,
+  nameRowKey,
+  parseNamesCsv,
+  planNamesImport,
+  resolveCountry,
+  serializeNamesCsv,
+  type NameImportAction,
+  type ParsedNameCsvRow,
+} from "@/lib/admin/namesCsv";
 
 export const Route = createFileRoute("/admin/names")({
   component: AdminNamesPage,
@@ -80,422 +102,6 @@ type RowPatch = Partial<Omit<NameRow, "id">>;
 const SELECT_COLS =
   "id, name, name_normalized, key, display_name, gender, origin_country, origin, vocative_pl, instrumental_pl, genitive_pl, dative_pl, vocative_en, english_form, is_compound, notes";
 
-const COUNTRIES: { code: string; pl: string; en: string; aliases?: string[] }[] = [
-  {
-    code: "PL",
-    pl: "Polska",
-    en: "Poland",
-    aliases: ["polish", "polski", "polskie", "pl", "polonia", "pologne", "polen"],
-  },
-  {
-    code: "US",
-    pl: "USA",
-    en: "United States",
-    aliases: [
-      "usa",
-      "us",
-      "u.s.",
-      "u.s.a.",
-      "united states of america",
-      "america",
-      "american",
-      "stany zjednoczone",
-      "stany",
-      "estados unidos",
-    ],
-  },
-  {
-    code: "GB",
-    pl: "Wielka Brytania",
-    en: "United Kingdom",
-    aliases: [
-      "english",
-      "angielski",
-      "british",
-      "britain",
-      "great britain",
-      "uk",
-      "u.k.",
-      "gb",
-      "england",
-      "anglia",
-      "brytyjski",
-    ],
-  },
-  {
-    code: "DE",
-    pl: "Niemcy",
-    en: "Germany",
-    aliases: ["german", "niemiecki", "de", "deutschland", "allemagne"],
-  },
-  {
-    code: "FR",
-    pl: "Francja",
-    en: "France",
-    aliases: ["french", "francuski", "fr", "francais", "français"],
-  },
-  {
-    code: "IT",
-    pl: "Włochy",
-    en: "Italy",
-    aliases: ["italian", "włoski", "wloski", "it", "italia", "italie"],
-  },
-  {
-    code: "ES",
-    pl: "Hiszpania",
-    en: "Spain",
-    aliases: ["spanish", "hiszpański", "hiszpanski", "es", "espana", "españa", "espagne"],
-  },
-  { code: "PT", pl: "Portugalia", en: "Portugal", aliases: ["portuguese", "portugalski", "pt"] },
-  {
-    code: "UA",
-    pl: "Ukraina",
-    en: "Ukraine",
-    aliases: ["ukrainian", "ukraiński", "ukrainski", "ua"],
-  },
-  { code: "CZ", pl: "Czechy", en: "Czechia", aliases: ["czech", "czech republic", "czeski", "cz"] },
-  { code: "SK", pl: "Słowacja", en: "Slovakia", aliases: ["slovak", "słowacki", "slowacki", "sk"] },
-  { code: "LT", pl: "Litwa", en: "Lithuania", aliases: ["lithuanian", "litewski", "lt"] },
-  {
-    code: "BY",
-    pl: "Białoruś",
-    en: "Belarus",
-    aliases: ["belarusian", "białoruski", "bialoruski", "by"],
-  },
-  {
-    code: "RU",
-    pl: "Rosja",
-    en: "Russia",
-    aliases: ["russian", "rosyjski", "ru", "russian federation"],
-  },
-  { code: "GR", pl: "Grecja", en: "Greece", aliases: ["greek", "grecki", "gr", "hellas"] },
-  {
-    code: "TR",
-    pl: "Turcja",
-    en: "Turkey",
-    aliases: ["turkish", "turecki", "tr", "türkiye", "turkiye"],
-  },
-  {
-    code: "JP",
-    pl: "Japonia",
-    en: "Japan",
-    aliases: ["japanese", "japoński", "japonski", "jp", "nippon"],
-  },
-  { code: "CN", pl: "Chiny", en: "China", aliases: ["chinese", "chiński", "chinski", "cn", "prc"] },
-  { code: "IN", pl: "Indie", en: "India", aliases: ["hindi", "indian", "indyjski", "in"] },
-  {
-    code: "SA",
-    pl: "Arabia Saudyjska",
-    en: "Saudi Arabia",
-    aliases: ["arabic", "arabski", "arab", "sa"],
-  },
-  {
-    code: "SE",
-    pl: "Szwecja",
-    en: "Sweden",
-    aliases: ["swedish", "szwedzki", "scandinavian", "skandynawski", "se", "sverige"],
-  },
-  { code: "NO", pl: "Norwegia", en: "Norway", aliases: ["norwegian", "norweski", "no", "norge"] },
-  {
-    code: "FI",
-    pl: "Finlandia",
-    en: "Finland",
-    aliases: ["finnish", "fiński", "finski", "fi", "suomi"],
-  },
-  {
-    code: "DK",
-    pl: "Dania",
-    en: "Denmark",
-    aliases: ["danish", "duński", "dunski", "dk", "danmark"],
-  },
-  {
-    code: "NL",
-    pl: "Holandia",
-    en: "Netherlands",
-    aliases: ["dutch", "holenderski", "nl", "holland", "the netherlands", "nederland"],
-  },
-  {
-    code: "IE",
-    pl: "Irlandia",
-    en: "Ireland",
-    aliases: ["irish", "irlandzki", "ie", "eire", "éire"],
-  },
-  { code: "RO", pl: "Rumunia", en: "Romania", aliases: ["romanian", "rumuński", "rumunski", "ro"] },
-  {
-    code: "HU",
-    pl: "Węgry",
-    en: "Hungary",
-    aliases: ["hungarian", "węgierski", "wegierski", "hu", "magyarorszag", "magyarország"],
-  },
-  {
-    code: "BG",
-    pl: "Bułgaria",
-    en: "Bulgaria",
-    aliases: ["bulgarian", "bułgarski", "bulgarski", "bg"],
-  },
-  {
-    code: "AT",
-    pl: "Austria",
-    en: "Austria",
-    aliases: ["austrian", "austriacki", "at", "österreich", "osterreich"],
-  },
-  {
-    code: "CH",
-    pl: "Szwajcaria",
-    en: "Switzerland",
-    aliases: ["swiss", "szwajcarski", "ch", "schweiz", "suisse"],
-  },
-  {
-    code: "BE",
-    pl: "Belgia",
-    en: "Belgium",
-    aliases: ["belgian", "belgijski", "be", "belgique", "belgie", "belgië"],
-  },
-  { code: "CA", pl: "Kanada", en: "Canada", aliases: ["canadian", "kanadyjski", "ca"] },
-  { code: "AU", pl: "Australia", en: "Australia", aliases: ["australian", "australijski", "au"] },
-  {
-    code: "BR",
-    pl: "Brazylia",
-    en: "Brazil",
-    aliases: ["brazilian", "brazylijski", "br", "brasil"],
-  },
-  {
-    code: "MX",
-    pl: "Meksyk",
-    en: "Mexico",
-    aliases: ["mexican", "meksykański", "meksykanski", "mx", "mejico", "méjico"],
-  },
-  {
-    code: "AR",
-    pl: "Argentyna",
-    en: "Argentina",
-    aliases: ["argentinian", "argentyński", "argentynski", "ar"],
-  },
-  {
-    code: "KR",
-    pl: "Korea Południowa",
-    en: "South Korea",
-    aliases: ["korean", "koreański", "koreanski", "kr", "korea", "republic of korea"],
-  },
-  {
-    code: "VN",
-    pl: "Wietnam",
-    en: "Vietnam",
-    aliases: ["vietnamese", "wietnamski", "vn", "viet nam"],
-  },
-  { code: "TH", pl: "Tajlandia", en: "Thailand", aliases: ["thai", "tajski", "th"] },
-  { code: "ID", pl: "Indonezja", en: "Indonesia", aliases: ["indonesian", "indonezyjski", "id"] },
-  {
-    code: "PH",
-    pl: "Filipiny",
-    en: "Philippines",
-    aliases: ["filipino", "filipiński", "filipinski", "ph"],
-  },
-  {
-    code: "ZA",
-    pl: "RPA",
-    en: "South Africa",
-    aliases: ["south african", "południowoafrykański", "za", "rpa"],
-  },
-  { code: "EG", pl: "Egipt", en: "Egypt", aliases: ["egyptian", "egipski", "eg"] },
-  {
-    code: "IL",
-    pl: "Izrael",
-    en: "Israel",
-    aliases: ["israeli", "izraelski", "hebrew", "hebrajski", "il"],
-  },
-  { code: "IR", pl: "Iran", en: "Iran", aliases: ["iranian", "persian", "perski", "ir"] },
-  {
-    code: "PK",
-    pl: "Pakistan",
-    en: "Pakistan",
-    aliases: ["pakistani", "pakistański", "pakistanski", "pk", "urdu"],
-  },
-  {
-    code: "RS",
-    pl: "Serbia",
-    en: "Serbia",
-    aliases: [
-      "serbian",
-      "serbski",
-      "rs",
-      "srbija",
-      "balkan",
-      "bałkany",
-      "balkany",
-      "balkański",
-      "balkanski",
-    ],
-  },
-  { code: "OTHER", pl: "Inny", en: "Other", aliases: ["other", "inny"] },
-];
-
-// Diacritic + punctuation insensitive normalization for matching.
-function normCountry(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[._]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// Normalize any user/CSV input (country name PL/EN, ISO code, language adjective)
-// to canonical { code, label }. Returns null when no match.
-function resolveCountry(
-  input: string | null | undefined,
-): { code: string; pl: string; en: string } | null {
-  if (!input) return null;
-  const q = normCountry(input);
-  if (!q) return null;
-  for (const c of COUNTRIES) {
-    if (normCountry(c.code) === q) return c;
-    if (normCountry(c.pl) === q) return c;
-    if (normCountry(c.en) === q) return c;
-    if (c.aliases?.some((a) => normCountry(a) === q)) return c;
-  }
-  return null;
-}
-
-// CSV columns in canonical order (used for import + export).
-const CSV_COLS = [
-  "key",
-  "display_name",
-  "vocative",
-  "instrumental",
-  "genitive",
-  "dative",
-  "english_form",
-  "gender",
-  "is_compound",
-  "origin",
-  "notes",
-] as const;
-
-function csvEscape(v: string): string {
-  if (v === "") return "";
-  if (/[",\n\r;]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
-  return v;
-}
-
-function toCSV(rows: NameRow[]): string {
-  const head = CSV_COLS.join(",");
-  const body = rows.map((r) =>
-    [
-      r.key ?? r.name_normalized,
-      r.display_name ?? r.name,
-      r.vocative_pl ?? "",
-      r.instrumental_pl ?? "",
-      r.genitive_pl ?? "",
-      r.dative_pl ?? "",
-      r.english_form ?? r.vocative_en ?? "",
-      r.gender,
-      r.is_compound ? "true" : "false",
-      r.origin ?? r.origin_country ?? "",
-      r.notes ?? "",
-    ]
-      .map((v) => csvEscape(String(v)))
-      .join(","),
-  );
-  return [head, ...body].join("\n");
-}
-
-// Minimal CSV parser supporting quoted fields and embedded commas/newlines.
-function parseCSV(text: string): string[][] {
-  const out: string[][] = [];
-  let row: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"' && text[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else if (ch === '"') {
-        inQuotes = false;
-      } else {
-        cur += ch;
-      }
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-      } else if (ch === ",") {
-        row.push(cur);
-        cur = "";
-      } else if (ch === "\n" || ch === "\r") {
-        if (ch === "\r" && text[i + 1] === "\n") i++;
-        row.push(cur);
-        cur = "";
-        out.push(row);
-        row = [];
-      } else {
-        cur += ch;
-      }
-    }
-  }
-  if (cur.length || row.length) {
-    row.push(cur);
-    out.push(row);
-  }
-  return out.filter((r) => r.some((c) => c.trim() !== ""));
-}
-
-interface CsvParsedRow {
-  key: string;
-  display_name: string;
-  vocative_pl: string | null;
-  instrumental_pl: string | null;
-  genitive_pl: string | null;
-  dative_pl: string | null;
-  english_form: string | null;
-  gender: Gender;
-  is_compound: boolean;
-  origin: string | null;
-  notes: string | null;
-}
-
-function rowFromCsv(headers: string[], cells: string[]): CsvParsedRow | null {
-  const get = (h: string) => {
-    const idx = headers.indexOf(h);
-    return idx >= 0 ? (cells[idx] ?? "").trim() : "";
-  };
-  const display = get("display_name") || get("name");
-  if (!display) return null;
-  const rawGender = get("gender").toLowerCase();
-  const gender: Gender =
-    rawGender === "female" || rawGender === "f" || rawGender === "ż" || rawGender === "z"
-      ? "female"
-      : rawGender === "neutral" || rawGender === "n"
-        ? "neutral"
-        : "male";
-  const key = (get("key") || normalize(display)).toLowerCase();
-  const truthy = (s: string) => /^(1|true|tak|yes|y|t)$/i.test(s);
-  const rawOrigin = get("origin") || get("origin_country") || get("country") || get("kraj") || null;
-  const resolved = resolveCountry(rawOrigin);
-  return {
-    key,
-    display_name: display,
-    vocative_pl: get("vocative") || get("vocative_pl") || get("wolacz") || get("wołacz") || null,
-    instrumental_pl:
-      get("instrumental") || get("instrumental_pl") || get("narzednik") || get("narzędnik") || null,
-    genitive_pl:
-      get("genitive") || get("genitive_pl") || get("dopelniacz") || get("dopełniacz") || null,
-    dative_pl: get("dative") || get("dative_pl") || get("celownik") || null,
-    english_form: get("english_form") || get("vocative_en") || get("english") || null,
-    gender,
-    is_compound:
-      truthy(get("is_compound")) ||
-      truthy(get("compound")) ||
-      truthy(get("zlozone")) ||
-      truthy(get("złożone")),
-    origin: resolved?.code ?? (rawOrigin || null),
-    notes: get("notes") || null,
-  };
-}
-
 function AdminNamesPage() {
   const { isSuperAdmin, loading } = useAuth();
   const { i18n, t } = useTranslation();
@@ -517,8 +123,9 @@ function AdminNamesPage() {
     skipped: number;
   } | null>(null);
   const [preview, setPreview] = useState<{
-    rows: CsvParsedRow[];
-    headers: string[];
+    rows: readonly ParsedNameCsvRow[];
+    headers: readonly string[];
+    actions: readonly NameImportAction[];
     willAdd: number;
     willMerge: number;
     willSkip: number;
@@ -701,7 +308,7 @@ function AdminNamesPage() {
 
   // Export current (filtered) view as CSV so the user can backup or share.
   const exportCsv = () => {
-    const csv = toCSV(filtered.length ? filtered : rows);
+    const csv = serializeNamesCsv(filtered.length ? filtered : rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -716,50 +323,19 @@ function AdminNamesPage() {
   // we touch the database.
   const onImportFile = async (file: File) => {
     const text = await file.text();
-    const matrix = parseCSV(text);
-    if (!matrix.length) {
+    // Puste `headers` znaczy „ani jednego niepustego wiersza” - patrz
+    // `parseNamesCsv`. To jedyny sygnał pustego pliku, jaki ten parser daje.
+    const { headers, rows: dataRows } = parseNamesCsv(text);
+    if (!headers.length) {
       toast.error(L ? "Pusty plik" : "Empty file");
       return;
     }
-    const headers = matrix[0].map((h) => h.trim().toLowerCase());
-    const dataRows = matrix
-      .slice(1)
-      .map((cells) => rowFromCsv(headers, cells))
-      .filter((x): x is CsvParsedRow => !!x);
     if (!dataRows.length) {
       toast.error(L ? "Brak prawidłowych wierszy" : "No valid rows");
       return;
     }
-
-    const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
-    let willAdd = 0,
-      willMerge = 0,
-      willSkip = 0;
-    for (const row of dataRows) {
-      const existing = byKey.get(row.key);
-      if (!existing) {
-        willAdd += 1;
-        continue;
-      }
-      const fields: (keyof CsvParsedRow)[] = [
-        "vocative_pl",
-        "instrumental_pl",
-        "genitive_pl",
-        "dative_pl",
-        "english_form",
-        "origin",
-        "notes",
-      ];
-      const hasNew = fields.some((k) => {
-        const v = row[k];
-        if (v === null || v === undefined || v === "") return false;
-        const ex = (existing as unknown as Record<string, unknown>)[k as string];
-        return ex === null || ex === undefined || ex === "";
-      });
-      if (hasNew) willMerge += 1;
-      else willSkip += 1;
-    }
-    setPreview({ rows: dataRows, headers, willAdd, willMerge, willSkip });
+    const plan = planNamesImport(dataRows, indexNamesByKey(rows));
+    setPreview({ rows: dataRows, headers, ...plan });
   };
 
   // Apply the staged import. Country values are written as canonical ISO codes
@@ -768,57 +344,21 @@ function AdminNamesPage() {
   const commitImport = async () => {
     if (!preview) return;
     const { rows: dataRows } = preview;
-    const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
+    const byKey = indexNamesByKey(rows);
     const prog = { total: dataRows.length, done: 0, added: 0, merged: 0, skipped: 0 };
     setPreview(null);
     setImportProgress({ ...prog });
 
     for (const row of dataRows) {
-      const resolved = resolveCountry(row.origin);
-      const iso = resolved?.code ?? row.origin ?? null;
       const existing = byKey.get(row.key);
       if (!existing) {
-        const insertPayload = {
-          name: row.display_name,
-          name_normalized: normalize(row.display_name),
-          key: row.key,
-          display_name: row.display_name,
-          gender: row.gender,
-          origin_country: iso,
-          origin: iso,
-          vocative_pl: row.vocative_pl,
-          instrumental_pl: row.instrumental_pl,
-          genitive_pl: row.genitive_pl,
-          dative_pl: row.dative_pl,
-          english_form: row.english_form,
-          vocative_en: row.english_form,
-          is_compound: row.is_compound,
-          notes: row.notes,
-        };
-        const { error } = await supabase.from("name_dictionary").insert(insertPayload as never);
+        const { error } = await supabase
+          .from("name_dictionary")
+          .insert(buildNameInsertPayload(row) as never);
         if (error) prog.skipped += 1;
         else prog.added += 1;
       } else {
-        const patch: RowPatch = {};
-        const setIfMissing = <K extends keyof NameRow>(
-          key: K,
-          val: NameRow[K] | null | undefined,
-        ) => {
-          if (val === null || val === undefined || val === "") return;
-          if (existing[key] === null || existing[key] === undefined || existing[key] === "") {
-            (patch as Record<string, unknown>)[key as string] = val;
-          }
-        };
-        setIfMissing("vocative_pl", row.vocative_pl);
-        setIfMissing("instrumental_pl", row.instrumental_pl);
-        setIfMissing("genitive_pl", row.genitive_pl);
-        setIfMissing("dative_pl", row.dative_pl);
-        setIfMissing("english_form", row.english_form);
-        setIfMissing("vocative_en", row.english_form);
-        setIfMissing("origin", iso);
-        setIfMissing("origin_country", iso);
-        setIfMissing("is_compound", row.is_compound ? true : null);
-        setIfMissing("notes", row.notes);
+        const patch = buildNameMergePatch(existing, row);
         if (Object.keys(patch).length === 0) {
           prog.skipped += 1;
         } else {
@@ -960,31 +500,22 @@ function AdminNamesPage() {
                     {preview.rows.slice(0, 200).map((r, i) => {
                       const c = resolveCountry(r.origin);
                       const label = c ? `${c.code} · ${L ? c.pl : c.en}` : (r.origin ?? "-");
-                      const existing = rows.find((x) => (x.key ?? x.name_normalized) === r.key);
-                      const action = !existing
-                        ? L
-                          ? "Dodaj"
-                          : "Add"
-                        : [
-                              "vocative_pl",
-                              "instrumental_pl",
-                              "genitive_pl",
-                              "dative_pl",
-                              "english_form",
-                              "origin",
-                              "notes",
-                            ].some((k) => {
-                              const v = (r as unknown as Record<string, unknown>)[k];
-                              if (v === null || v === undefined || v === "") return false;
-                              const ex = (existing as unknown as Record<string, unknown>)[k];
-                              return ex === null || ex === undefined || ex === "";
-                            })
+                      // `find`, nie indeks po kluczu: przy duplikacie klucza
+                      // W BAZIE podgląd porównuje się z wierszem PIERWSZYM.
+                      const existing = rows.find((x) => nameRowKey(x) === r.key);
+                      const decision = classifyNameImportRow(existing, r);
+                      const action =
+                        decision === "add"
                           ? L
-                            ? "Scal"
-                            : "Merge"
-                          : L
-                            ? "Pomiń"
-                            : "Skip";
+                            ? "Dodaj"
+                            : "Add"
+                          : decision === "merge"
+                            ? L
+                              ? "Scal"
+                              : "Merge"
+                            : L
+                              ? "Pomiń"
+                              : "Skip";
                       return (
                         <tr key={i} className="border-t">
                           <td className="p-2 font-medium">{r.display_name}</td>
@@ -999,9 +530,9 @@ function AdminNamesPage() {
                           <td className="p-2">
                             <Badge
                               variant={
-                                action === (L ? "Dodaj" : "Add")
+                                decision === "add"
                                   ? "default"
-                                  : action === (L ? "Scal" : "Merge")
+                                  : decision === "merge"
                                     ? "secondary"
                                     : "outline"
                               }
@@ -1076,7 +607,7 @@ function AdminNamesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {COUNTRIES.map((c) => (
+                  {NAME_ORIGIN_COUNTRIES.map((c) => (
                     <SelectItem key={c.code} value={c.code}>
                       {L ? c.pl : c.en}
                     </SelectItem>
@@ -1143,7 +674,7 @@ function AdminNamesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{L ? "Wszystkie kraje" : "All countries"}</SelectItem>
-                {COUNTRIES.map((c) => (
+                {NAME_ORIGIN_COUNTRIES.map((c) => (
                   <SelectItem key={c.code} value={c.code}>
                     {L ? c.pl : c.en}
                   </SelectItem>
@@ -1246,7 +777,7 @@ function AdminNamesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {COUNTRIES.map((c) => (
+                        {NAME_ORIGIN_COUNTRIES.map((c) => (
                           <SelectItem key={c.code} value={c.code}>
                             {L ? c.pl : c.en}
                           </SelectItem>
