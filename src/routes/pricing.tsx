@@ -356,7 +356,9 @@ function PricingPage() {
             </div>
           )}
 
-          {supporterTier && <SupporterStrip tier={supporterTier} lang={lang} />}
+          {/* Bez warunku na warstwę: darowizna jest osobną ścieżką obok
+              cennika, a nie progiem w drabince - patrz nagłówek SupporterStrip. */}
+          <SupporterStrip tier={supporterTier} lang={lang} />
 
           {/* Cross-sell między segmentami zespołowym a korporacyjnym - miękka
               nawigacja zamiast ślepej uliczki, gdy potrzeby są większe/mniejsze. */}

@@ -12,8 +12,25 @@
 // komu baza odmówiła odczytu - dokłada tylko drugi warunek na wierzchu.
 import { TIER_RANKS } from "@/lib/billing/tierRanks";
 
-/** Próg planu, od którego minisite jest częścią oferty (Pro). */
-export const CLUB_MINISITE_TIER_RANK = TIER_RANKS.pro;
+/**
+ * Próg planu, od którego minisite jest częścią oferty.
+ *
+ * RANGA 50 (Partner Strategiczny), nie 20 (Pro). Audyt katalogu członkostw
+ * v6.1, rozdział 2.2: katalog sprzedaje „prywatny mikroserwis klubowy dla
+ * organizacji" jako składnik progu Partner Strategiczny za 60 000 zł rocznie
+ * i wskazuje TĘ stałą jako punkt egzekwowania. Stała wskazywała `TIER_RANKS.pro`,
+ * czyli 20 - a więc każdy członek progu Pro za 119 zł miesięcznie był
+ * uprawniony do funkcji wycenionej pięćsetkrotnie wyżej.
+ *
+ * UWAGA PRZY PODNOSZENIU PROGU: to jest bramka MIĘKKA (patrz nagłówek pliku).
+ * Podniesienie stałej NIE zabiera dostępu członkom klubu ani osobom
+ * zaproszonym - `resolveClubMinisiteAccess` rozstrzyga członkostwo i zaproszenie
+ * PRZED planem. Zmienia się wyłącznie to, co widzi osoba bez członkostwa
+ * w klubie: zamiast treści minisite dostaje panel z zachętą. Kluby, których
+ * własny `min_tier_rank` jest niższy, działają dalej - ich członkowie wchodzą
+ * członkostwem, nie planem.
+ */
+export const CLUB_MINISITE_TIER_RANK = TIER_RANKS.partner_general;
 
 export type ClubMinisiteAccess =
   /** Członek klubu albo staff - pełny widok. */

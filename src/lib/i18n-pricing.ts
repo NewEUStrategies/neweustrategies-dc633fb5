@@ -42,7 +42,7 @@ const pricingPl = {
       yourPlan: "Twój plan",
       expertRequestDirect: "Bezpośrednio",
       perMonth: "{{n}} / mies.",
-      note: "Artykuły i analizy są dostępne bez limitu w każdej subskrypcji. Limit 5 miesięcznie w planie Essential dotyczy wyłącznie pogłębionych materiałów analitycznych za paywallem.",
+      note: "Artykuły i analizy są dostępne bez limitu w każdym członkostwie. Limit 5 miesięcznie w progu Czytelnik dotyczy wyłącznie pogłębionych materiałów analitycznych za paywallem.",
       rows: [
         {
           id: "articles",
@@ -443,11 +443,13 @@ const pricingPl = {
 
     tiers: {
       heading: "Poziomy członkostwa",
-      current: "Twoja subskrypcja",
+      current: "Twoje członkostwo",
       supporterCta: "Wesprzyj fundację",
     },
     supporterStrip: {
+      title: "Darowizna",
       body: "Jednorazowa lub cykliczna darowizna wspiera niezależne analizy - bez formalności.",
+      note: "Darowizna nie jest progiem członkostwa i nie daje pakietu benefitów.",
     },
     crossSell: {
       toBusiness: "Ponad 20 miejsc, procurement lub dedykowany analityk?",
@@ -917,7 +919,9 @@ const pricingEn: typeof pricingPl = {
       supporterCta: "Support the foundation",
     },
     supporterStrip: {
+      title: "Donation",
       body: "A one-off or recurring donation supports independent analysis - no strings attached.",
+      note: "A donation is not a membership tier and comes with no benefit package.",
     },
     crossSell: {
       toBusiness: "More than 20 seats, procurement or a dedicated analyst?",

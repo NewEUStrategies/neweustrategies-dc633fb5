@@ -3,6 +3,7 @@
 // z wygasla subskrypcja i osoba z zaproszeniem.
 import { describe, expect, it } from "vitest";
 import {
+  CLUB_OBSERVER_TIER_RANK,
   CLUB_TIER_RANK,
   resolveClubHubAccess,
   showsUpgradePanel,
@@ -25,8 +26,17 @@ describe("resolveClubHubAccess", () => {
     expect(resolveClubHubAccess({ ...base, tierRank: CLUB_TIER_RANK })).toBe("entitled");
   });
 
-  it("plan ponizej progu nie wystarcza", () => {
-    expect(resolveClubHubAccess({ ...base, tierRank: CLUB_TIER_RANK - 1 })).toBe("locked");
+  it("plan ponizej progu OBSERWATORA nie wystarcza", () => {
+    expect(resolveClubHubAccess({ ...base, tierRank: CLUB_OBSERVER_TIER_RANK - 1 })).toBe("locked");
+  });
+
+  // Katalog v6.1 daje progowi Czlonek obserwatora w jednym klubie otwartym.
+  // Panel nie moze z gory zakladac braku oferty tylko dlatego, ze ranga jest
+  // nizsza niz prog PELNEGO czlonkostwa w klubie - KTORE kluby sa otwarte,
+  // rozstrzyga `clubs.min_tier_rank` po stronie bazy.
+  it("prog Czlonek (obserwator) widzi oferte klubow, nie cennik", () => {
+    expect(resolveClubHubAccess({ ...base, tierRank: CLUB_OBSERVER_TIER_RANK })).toBe("entitled");
+    expect(CLUB_OBSERVER_TIER_RANK).toBeLessThan(CLUB_TIER_RANK);
   });
 
   it("zaproszenie wpuszcza mimo braku planu", () => {

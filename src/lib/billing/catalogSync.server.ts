@@ -44,6 +44,8 @@ interface PlanRow {
   description_pl: string | null;
   trial_days: number | null;
   active: boolean | null;
+  volume_threshold_seats: number | null;
+  volume_price_cents: number | null;
 }
 
 /** Kod podatkowy dla treści cyfrowych/oprogramowania SaaS - wspólny dla całego katalogu. */
@@ -57,7 +59,11 @@ const DIGITAL_SERVICE_TAX_CODE = "txcd_10103000";
 function billingCycle(entry: CatalogPriceEntry): {
   interval: Stripe.PriceCreateParams.Recurring.Interval;
   interval_count: number;
-} {
+} | null {
+  // Cena jednorazowa NIE MA cyklu. Bez tej gałęzi `one_time` wpadało w
+  // `default` i lądowało u operatora jako subskrypcja miesięczna - miejsce
+  // w Decision Labie odnawiałoby się co miesiąc.
+  if (entry.oneTime || entry.interval === "one_time") return null;
   switch (entry.interval) {
     case "two_weeks":
       return { interval: "week", interval_count: 2 };
@@ -68,6 +74,51 @@ function billingCycle(entry: CatalogPriceEntry): {
     default:
       return { interval: "month", interval_count: 1 };
   }
+}
+
+/**
+ * Progi wolumenowe ceny. Zwraca `null`, gdy plan ich nie ma - wtedy cena jest
+ * płaska (`unit_amount`).
+ *
+ * `tiers_mode: "volume"` znaczy u operatora: WSZYSTKIE jednostki liczą się po
+ * stawce progu, który zamówienie osiągnęło. Dokładnie to obiecuje katalog
+ * („rabat wolumenowy od 11 miejsc: 79 zł za miejsce"), w odróżnieniu od
+ * `graduated`, gdzie po niższej stawce szłaby wyłącznie nadwyżka ponad próg.
+ */
+function volumeTiersFor(
+  entry: CatalogPriceEntry,
+  plan: PlanRow,
+  amount: number,
+): Stripe.PriceCreateParams.Tier[] | null {
+  if (!entry.volumeTiered) return null;
+  const threshold = plan.volume_threshold_seats;
+  const tierAmount = plan.volume_price_cents;
+  if (
+    typeof threshold !== "number" ||
+    typeof tierAmount !== "number" ||
+    threshold < 2 ||
+    tierAmount < 0
+  ) {
+    return null;
+  }
+  return [
+    { up_to: threshold - 1, unit_amount: amount },
+    { up_to: "inf", unit_amount: Math.max(0, Math.round(tierAmount)) },
+  ];
+}
+
+/** Czy zdalna cena schodkowa odpowiada progom wyliczonym z katalogu. */
+function tiersMatch(
+  remote: Stripe.Price.Tier[] | undefined,
+  expected: Stripe.PriceCreateParams.Tier[],
+): boolean {
+  if (!remote || remote.length !== expected.length) return false;
+  return expected.every((want, i) => {
+    const got = remote[i];
+    if (!got) return false;
+    const wantUpTo = want.up_to === "inf" ? null : Number(want.up_to);
+    return (got.up_to ?? null) === wantUpTo && (got.unit_amount ?? null) === want.unit_amount;
+  });
 }
 
 /** Okres próbny z `access_plans.trial_days` - `null` oznacza plan bez triala. */
@@ -98,7 +149,14 @@ async function findPriceByLookupKey(
   stripe: Stripe,
   lookupKey: string,
 ): Promise<Stripe.Price | null> {
-  const res = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
+  // `tiers` NIE przychodzi domyślnie - bez rozwinięcia cena schodkowa
+  // wyglądałaby jak cena bez progów i sync odtwarzałby ją w kółko.
+  const res = await stripe.prices.list({
+    lookup_keys: [lookupKey],
+    active: true,
+    limit: 1,
+    expand: ["data.tiers"],
+  });
   return res.data[0] ?? null;
 }
 
@@ -149,13 +207,21 @@ async function syncOne(
   }
 
   // 2. Cena
+  const recurring = billingCycle(entry);
+  const tiers = volumeTiersFor(entry, plan, amount);
+  // Kształt ceny jest jeden dla założenia i dla korekty - inaczej cena
+  // odtworzona po dryfie kwoty gubiłaby progi wolumenowe.
+  const shape: Stripe.PriceCreateParams = tiers
+    ? { billing_scheme: "tiered", tiers_mode: "volume", tiers }
+    : { unit_amount: amount };
+
   const price = await findPriceByLookupKey(stripe, entry.priceId);
   if (!price) {
     await stripe.prices.create({
       product: product.id,
       currency,
-      unit_amount: amount,
-      recurring: billingCycle(entry),
+      ...shape,
+      ...(recurring ? { recurring } : {}),
       lookup_key: entry.priceId,
       nickname: `${name} (${entry.interval})`,
       metadata: metadataFor(entry.priceId, trialDays),
@@ -168,19 +234,24 @@ async function syncOne(
   // ile pokazuje cennik w aplikacji.
   const remoteTrialRaw = price.metadata?.["trial_days"];
   const remoteTrialDays = remoteTrialRaw ? Number(remoteTrialRaw) : null;
-  const amountDrifted =
-    (price.unit_amount ?? 0) !== amount || (price.currency ?? "").toLowerCase() !== currency;
+  const currencyDrifted = (price.currency ?? "").toLowerCase() !== currency;
+  // Cena schodkowa nie ma `unit_amount` - porównujemy progi. Zmiana kształtu
+  // (płaska <-> schodkowa) też jest dryfem: przejście progu wolumenowego
+  // z konfiguracji do katalogu musi przełożyć się na cenę u operatora.
+  const amountDrifted = tiers
+    ? price.billing_scheme !== "tiered" || !tiersMatch(price.tiers ?? undefined, tiers)
+    : price.billing_scheme === "tiered" || (price.unit_amount ?? 0) !== amount;
   const trialDrifted = (trialDays ?? null) !== (remoteTrialDays ?? null);
 
-  if (amountDrifted) {
+  if (amountDrifted || currencyDrifted) {
     // Stripe nie pozwala zmienić kwoty istniejącej ceny - zakładamy nową
     // z tym samym `lookup_key` (przenoszonym automatycznie), a starą
     // archiwizujemy zamiast kasować (zachowanie historii transakcji).
     await stripe.prices.create({
       product: product.id,
       currency,
-      unit_amount: amount,
-      recurring: billingCycle(entry),
+      ...shape,
+      ...(recurring ? { recurring } : {}),
       lookup_key: entry.priceId,
       transfer_lookup_key: true,
       nickname: `${name} (${entry.interval})`,
@@ -208,7 +279,7 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
   const { data } = await supabaseAdmin
     .from("access_plans")
     .select(
-      "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active",
+      "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active, volume_threshold_seats, volume_price_cents",
     );
   const plans = (data ?? []) as PlanRow[];
 

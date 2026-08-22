@@ -38,6 +38,9 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
   const [requireConfirmed, setRequireConfirmed] = useState(true);
   // Domyślnie VIP: zespół NES ma pełny dostęp do materiałów bez zakupu.
   const [tierKey, setTierKey] = useState("vip");
+  // Domena uczelni: zwalnia z RĘCZNEJ weryfikacji stawki studenckiej
+  // i akademickiej (katalog v6.1 - automat tam, gdzie domena jest na liście).
+  const [academic, setAcademic] = useState(false);
 
   const tiersQ = useQuery({
     queryKey: ["admin-membership-tiers", tenantId ?? "none"],
@@ -76,10 +79,12 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         note: note || undefined,
         requireEmailConfirmed: requireConfirmed,
         grantsTierKey: tierKey === "none" ? null : tierKey,
+        academic,
       }),
     onSuccess: () => {
       setDomain("");
       setNote("");
+      setAcademic(false);
       invalidate();
       toast.success(t("adminCommunity.verificationDomains.domainSaved"));
     },
@@ -92,6 +97,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
       active: boolean;
       requireEmailConfirmed: boolean;
       grantsTierKey: string | null;
+      academic: boolean;
     }) =>
       upsertVerificationDomain({
         domain: input.domain,
@@ -99,6 +105,10 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         active: input.active,
         requireEmailConfirmed: input.requireEmailConfirmed,
         grantsTierKey: input.grantsTierKey,
+        // Przełącznik aktywności NIE MOŻE gubić pozostałych pól - upsert
+        // nadpisuje cały wiersz, więc pominięcie `academic` skasowałoby
+        // oznaczenie uczelni przy pierwszym kliknięciu w suwak.
+        academic: input.academic,
       }),
     onSuccess: () => invalidate(),
     onError: () => toast.error(t("adminCommunity.verificationDomains.couldNotUpdateDomain")),
@@ -187,6 +197,16 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
               aria-label={t("adminCommunity.verificationDomains.requireEmailConfirmation")}
             />
           </div>
+          <div className="flex items-center justify-between gap-3 rounded-[6px] border border-border px-3">
+            <span className="text-xs text-muted-foreground">
+              {t("adminCommunity.verificationDomains.academicDomain")}
+            </span>
+            <Switch
+              checked={academic}
+              onCheckedChange={setAcademic}
+              aria-label={t("adminCommunity.verificationDomains.academicDomain")}
+            />
+          </div>
         </div>
         <Button onClick={() => addM.mutate()} disabled={!canAdd}>
           <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
@@ -211,6 +231,11 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                         {tierLabel(row.grants_tier_key)}
                       </Badge>
                     )}
+                    {row.academic && (
+                      <Badge variant="secondary">
+                        {t("adminCommunity.verificationDomains.academicBadge")}
+                      </Badge>
+                    )}
                     {!row.require_email_confirmed && (
                       <Badge variant="outline">
                         {t("adminCommunity.verificationDomains.noEmailConfirmation")}
@@ -230,6 +255,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                         active,
                         requireEmailConfirmed: row.require_email_confirmed,
                         grantsTierKey: row.grants_tier_key,
+                        academic: row.academic,
                       })
                     }
                     aria-label={t("adminCommunity.verificationDomains.domainActive", {

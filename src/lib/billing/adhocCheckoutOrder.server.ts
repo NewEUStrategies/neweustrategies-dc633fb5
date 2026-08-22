@@ -27,7 +27,8 @@ export interface BuildAdhocOrderArgs {
 }
 
 export type BuildAdhocOrderResult =
-  { ok: true; clientSecret: string; orderId: string } | { ok: false; error: string };
+  | { ok: true; clientSecret: string; orderId: string }
+  | { ok: false; error: string };
 
 interface ResolvedAmount {
   amountCents: number;
@@ -65,8 +66,15 @@ async function resolveAmount(
     }
     const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
     await assertSeatAvailable(supabase, String(ev.id), userId);
+    // Benefity planu liczone TĄ SAMĄ regułą, co w kasie biletowej
+    // (`checkout.functions`): stawki ulgowe płacą mniej, a nieużyta pula
+    // pokrywa bilet w całości. Kwota zero oznacza, że płatność jest w ogóle
+    // niepotrzebna - bilet odstępuje `rsvp_event`, konsumując pulę.
+    const { ticketPriceForCaller } = await import("@/lib/events/ticketAllowance.server");
+    const priced = await ticketPriceForCaller(supabase, Number(ev.ticket_price_cents));
+    if (priced.amountCents <= 0) return { error: "ticket_included_in_plan" };
     return {
-      amountCents: Number(ev.ticket_price_cents),
+      amountCents: priced.amountCents,
       currency: String(ev.ticket_currency ?? "PLN"),
       name: String(ev.title_pl || ev.title_en || "Bilet"),
       metadata: { event_id: String(ev.id) },

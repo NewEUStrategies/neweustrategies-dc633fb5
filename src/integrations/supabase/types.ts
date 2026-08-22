@@ -36,6 +36,8 @@ export type Database = {
           tier_key: string | null
           trial_days: number
           updated_at: string
+          volume_price_cents: number | null
+          volume_threshold_seats: number | null
         }
         Insert: {
           active?: boolean
@@ -58,6 +60,8 @@ export type Database = {
           tier_key?: string | null
           trial_days?: number
           updated_at?: string
+          volume_price_cents?: number | null
+          volume_threshold_seats?: number | null
         }
         Update: {
           active?: boolean
@@ -80,6 +84,8 @@ export type Database = {
           tier_key?: string | null
           trial_days?: number
           updated_at?: string
+          volume_price_cents?: number | null
+          volume_threshold_seats?: number | null
         }
         Relationships: []
       }
@@ -9573,6 +9579,73 @@ export type Database = {
           },
         ]
       }
+      plan_ticket_claims: {
+        Row: {
+          claimed_at: string
+          currency: string
+          event_id: string
+          face_value_cents: number
+          id: string
+          org_id: string | null
+          period_end: string
+          period_start: string
+          released_at: string | null
+          tenant_id: string
+          tier_key: string
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          currency?: string
+          event_id: string
+          face_value_cents?: number
+          id?: string
+          org_id?: string | null
+          period_end: string
+          period_start: string
+          released_at?: string | null
+          tenant_id: string
+          tier_key: string
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string
+          currency?: string
+          event_id?: string
+          face_value_cents?: number
+          id?: string
+          org_id?: string | null
+          period_end?: string
+          period_start?: string
+          released_at?: string | null
+          tenant_id?: string
+          tier_key?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_ticket_claims_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_ticket_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_ticket_claims_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcast_episode_people: {
         Row: {
           created_at: string
@@ -14083,6 +14156,7 @@ export type Database = {
       }
       verification_domains: {
         Row: {
+          academic: boolean
           active: boolean
           badge: string
           created_at: string
@@ -14096,6 +14170,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          academic?: boolean
           active?: boolean
           badge?: string
           created_at?: string
@@ -14109,6 +14184,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          academic?: boolean
           active?: boolean
           badge?: string
           created_at?: string
@@ -16198,6 +16274,7 @@ export type Database = {
           }
         | {
             Args: {
+              p_academic?: boolean
               p_active?: boolean
               p_badge?: string
               p_domain: string
@@ -16384,6 +16461,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      claim_included_event_ticket: { Args: { p_event_id: string }; Returns: boolean }
       claim_integration_deliveries: {
         Args: { p_limit?: number }
         Returns: {
@@ -18104,6 +18182,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      early_access_window: { Args: never; Returns: unknown }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
@@ -19060,6 +19139,13 @@ export type Database = {
         Returns: undefined
       }
       member_conversation_ids: { Args: never; Returns: string[] }
+      membership_year_window: {
+        Args: { p_user: string }
+        Returns: {
+          period_end: string
+          period_start: string
+        }[]
+      }
       metering_impact_preview: {
         Args: { _proposed_member_limit: number }
         Returns: {
@@ -19117,6 +19203,7 @@ export type Database = {
           verified: boolean
         }[]
       }
+      my_academic_domain_verification: { Args: never; Returns: Json }
       my_connection_requests: {
         Args: { p_direction?: string; p_limit?: number; p_offset?: number }
         Returns: {
@@ -19234,6 +19321,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      my_ticket_allowance: { Args: never; Returns: Json }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
         Args: {
@@ -19723,6 +19811,10 @@ export type Database = {
       related_posts_signals: { Args: { _since_days?: number }; Returns: Json }
       release_b2b_coupon: {
         Args: { _coupon_id: string; _order_id: string }
+        Returns: boolean
+      }
+      release_included_event_ticket: {
+        Args: { p_event_id: string; p_user?: string }
         Returns: boolean
       }
       rename_group_conversation: {

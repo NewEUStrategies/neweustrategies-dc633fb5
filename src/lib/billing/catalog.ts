@@ -6,7 +6,7 @@
 // Moduł jest czysty (bez zależności serwerowych), więc korzysta z niego zarówno
 // przeglądarka (checkout), jak i handler webhooka.
 
-export type PlanBillingInterval = "two_weeks" | "month" | "quarter" | "year";
+export type PlanBillingInterval = "two_weeks" | "month" | "quarter" | "year" | "one_time";
 
 export interface CatalogPriceEntry {
   /** external_id ceny u dostawcy. */
@@ -19,6 +19,21 @@ export interface CatalogPriceEntry {
   rank: number;
   /** Rozliczenie za miejsce (seat) - checkout pozwala wybrać ilość. */
   perSeat?: boolean;
+  /**
+   * Cena jednorazowa (bez cyklu rozliczeniowego). Sesja checkoutu wybiera tryb
+   * po `price.type`, więc pozycja jednorazowa nie zakłada subskrypcji ani
+   * zdarzeń `customer.subscription.*` - patrz `createPlanCheckoutSession`.
+   */
+  oneTime?: boolean;
+  /**
+   * Cena rośnie schodkowo z liczbą miejsc: po osiągnięciu progu WSZYSTKIE
+   * miejsca liczą się po niższej stawce (`tiers_mode: "volume"` u operatora),
+   * nie tylko nadwyżka ponad próg. Wartości progu i stawki są w
+   * `access_plans.volume_threshold_seats` / `volume_price_cents`, bo to katalog
+   * aplikacji jest źródłem prawdy o kwotach - tutaj stoi wyłącznie deklaracja,
+   * że dana cena ma być u operatora założona jako schodkowa.
+   */
+  volumeTiered?: boolean;
 }
 
 export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
@@ -53,6 +68,21 @@ export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
     interval: "month",
     rank: 50,
     perSeat: true,
+    // Katalog v6.1: rabat wolumenowy od 11 miejsc. Bez tej flagi operator
+    // liczyłby każde miejsce po stawce podstawowej, a rabat z cennika byłby
+    // obietnicą bez mechanizmu.
+    volumeTiered: true,
+  },
+  // Decision Lab: miejsce w cyklu dla podmiotu spoza partnerstwa. Produkt
+  // jednorazowy, nie próg w drabince - zakup nie nadaje żadnej rangi
+  // (`decision_lab` świadomie nie ma odpowiednika w `membership_tiers`).
+  {
+    priceId: "decision_lab_seat",
+    productId: "product_decision_lab",
+    tierKey: "decision_lab",
+    interval: "one_time",
+    rank: 0,
+    oneTime: true,
   },
   // Partner Biznesowy: subskrypcja dla firm (zamiast sprzedaży reklam - AUP
   // operatora). Trzy cykle; dłuższy cykl = wyższa ranga (jak plus/pro yearly).
@@ -80,7 +110,14 @@ export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
 ] as const;
 
 function normalizeInterval(interval: string | null | undefined): PlanBillingInterval {
-  if (interval === "two_weeks" || interval === "quarter" || interval === "year") return interval;
+  if (
+    interval === "two_weeks" ||
+    interval === "quarter" ||
+    interval === "year" ||
+    interval === "one_time"
+  ) {
+    return interval;
+  }
   return "month";
 }
 

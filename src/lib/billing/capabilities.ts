@@ -126,10 +126,21 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
   },
   {
     key: "early_access",
-    enforced: false,
-    gate: "none",
-    where_pl: "Brak bramki. Wczesny RSVP działa osobno na randze (early_rsvp_rank).",
-    where_en: "No gate. Early RSVP works separately on rank (early_rsvp_rank).",
+    enforced: true,
+    gate: "content",
+    where_pl:
+      "Wczesny dostęp do wpisów zaplanowanych: polityka „Early access reads scheduled posts” na posts.publish_at, w oknie early_access_window() (72 godziny). Wczesny RSVP to osobny mechanizm na randze (early_rsvp_rank).",
+    where_en:
+      'Early access to scheduled posts: the "Early access reads scheduled posts" policy on posts.publish_at, within early_access_window() (72 hours). Early RSVP is a separate rank mechanism (early_rsvp_rank).',
+  },
+  {
+    key: "chatham_house_events",
+    enforced: true,
+    gate: "events",
+    where_pl:
+      "Wejście i nagranie ze spotkania prowadzonego w regule Chatham House (rsvp_event, get_event_access na events.chatham_house).",
+    where_en:
+      "Entry to and recording of a meeting held under the Chatham House Rule (rsvp_event, get_event_access on events.chatham_house).",
   },
   {
     key: "working_groups",
@@ -205,7 +216,15 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
  * była albo w `TIER_CAPABILITIES`, albo tutaj - nowa bramka nie przemknie bez
  * decyzji, gdzie jej miejsce.
  */
-export const NUMERIC_FEATURE_KEYS: readonly string[] = ["expert_request_quota"];
+export const NUMERIC_FEATURE_KEYS: readonly string[] = [
+  "expert_request_quota",
+  /** Bilety wliczone w plan NA CZŁONKA na rok członkowski (my_ticket_allowance). */
+  "included_event_tickets",
+  /** Bilety wliczone w plan NA ORGANIZACJĘ na rok - próg Zespół, pula wspólna. */
+  "included_event_tickets_org",
+  /** Zniżka procentowa na wydarzenia biletowane zamiast biletu (stawki ulgowe). */
+  "event_ticket_discount_pct",
+];
 
 const CAPABILITY_BY_KEY: ReadonlyMap<string, CapabilityMeta> = new Map(
   TIER_CAPABILITIES.map((c) => [c.key, c]),

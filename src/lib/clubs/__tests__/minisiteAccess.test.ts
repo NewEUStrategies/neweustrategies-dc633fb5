@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TIER_RANKS } from "@/lib/billing/tierRanks";
 import {
   CLUB_MINISITE_TIER_RANK,
   resolveClubMinisiteAccess,
@@ -38,10 +39,19 @@ describe("resolveClubMinisiteAccess", () => {
     expect(resolveClubMinisiteAccess({ ...base, hasInvitation: true })).toBe("invited");
   });
 
-  it("plan Pro+ wystarcza", () => {
+  it("plan od progu mikroserwisu wystarcza", () => {
     expect(resolveClubMinisiteAccess({ ...base, tierRank: CLUB_MINISITE_TIER_RANK })).toBe(
       "entitled",
     );
+  });
+
+  // Audyt katalogu v6.1, rozdzial 2.2: mikroserwis klubowy jest sprzedawany
+  // w progu Partner Strategiczny za 60 000 zl rocznie, a stala wskazywala
+  // range 20 - czyli kazdy Pro za 119 zl mial do niego prawo. Ten test jest
+  // zapadka: obnizenie progu z powrotem do Pro oblewa CI.
+  it("prog Pro (20) NIE otwiera mikroserwisu", () => {
+    expect(CLUB_MINISITE_TIER_RANK).toBe(TIER_RANKS.partner_general);
+    expect(resolveClubMinisiteAccess({ ...base, tierRank: TIER_RANKS.pro })).toBe("locked");
   });
 
   it("ponizej progu i bez zaproszenia - locked", () => {
