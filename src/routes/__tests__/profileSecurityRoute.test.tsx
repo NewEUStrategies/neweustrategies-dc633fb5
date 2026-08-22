@@ -50,6 +50,24 @@
 // Radiksa nigdy nie leci. Obrona zostaje w kodzie na wypadek przestawienia tych
 // warunków - tylko nie da się jej wywołać bez rozmontowania gwarancji, która ją
 // czyni zbędną.
+// PIĘĆ GAŁĘZI, KTÓRYCH TU NIE DOMKNIĘTO - z numerami linii i powodem, żeby
+// nikt ich nie szukał drugi raz. Wszystkie to STRAŻNIKI OBRONNE, które stały
+// się nieosiągalne wtedy, gdy reguły panelu wyjechały do czystego modułu
+// `lib/auth/securityPanel.ts` (ten jest na 100%):
+// - `profile.security.tsx:95`  `if (!email) return` w zmianie hasła. Linia
+//   wyżej `passwordChangeProblem` zwraca już `noEmail`, więc do tego strażnika
+//   dochodzi wyłącznie stan, który przed nim wypadł.
+// - `profile.security.tsx:253` ten sam wzorzec przy usuwaniu czynnika:
+//   `factorRemovalProblem` odsiewa brak adresu wcześniej.
+// - `profile.security.tsx:215` `if (!enroll) return` w aktywacji czynnika oraz
+//   `:207` `if (enroll)` w anulowaniu - obie funkcje są wołane WYŁĄCZNIE
+//   z dialogu, który nie istnieje bez `enroll`.
+// - `profile.security.tsx:532` `onOpenChange(true)` dialogu usuwania. Dialog
+//   jest sterowany przez `removeId`, nie ma wyzwalacza, więc Radix nie ma skąd
+//   zgłosić otwarcia.
+// Domknięcie którejkolwiek z nich wymagałoby wywołania handlera OBOK
+// interfejsu - a taki test dowodzi tylko tego, że umie ominąć przycisk.
+// Zmierzone: 98,12% instrukcji, 92,18% gałęzi, 100% funkcji, 100% linii.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -67,6 +85,12 @@ const h = vi.hoisted(() => ({
   updateUserError: null as unknown,
   signOutScopeError: null as unknown,
   listFactorsError: null as unknown,
+  /**
+   * Czy udana odpowiedź `listFactors()` ma PRZYJŚĆ BEZ pola `totp`. Kształt
+   * odpowiedzi zależy od typów czynników włączonych w projekcie Supabase, więc
+   * brak tego pola nie jest awarią - jest brakiem czynników TOTP.
+   */
+  listFactorsTotpMissing: false,
   factors: [] as Factor[],
   enrollResult: null as unknown,
   enrollError: null as unknown,
@@ -112,7 +136,12 @@ vi.mock("@/integrations/supabase/client", () => ({
         listFactors: () => {
           h.calls.push("listFactors");
           return Promise.resolve({
-            data: h.listFactorsError === null ? { totp: h.factors } : null,
+            data:
+              h.listFactorsError !== null
+                ? null
+                : h.listFactorsTotpMissing
+                  ? {}
+                  : { totp: h.factors },
             error: h.listFactorsError,
           });
         },
@@ -249,6 +278,7 @@ beforeEach(() => {
   h.updateUserError = null;
   h.signOutScopeError = null;
   h.listFactorsError = null;
+  h.listFactorsTotpMissing = false;
   h.factors = [];
   h.enrollResult = { id: "factor-1", totp: { qr_code: "otpauth://x", secret: "SEKRET" } };
   h.enrollError = null;
@@ -497,6 +527,20 @@ describe("drugi składnik: awaria kontra pustka", () => {
     await waitFor(() => expect(status()).toBe("profile.security.mfa.statusUnknown"));
     expect(screen.getByRole("alert").textContent).toBe("profile.security.mfa.loadFailed");
     expect(screen.queryByText("profile.security.mfa.none")).toBeNull();
+  });
+
+  it("ODPOWIEDŹ BEZ POLA `totp` to BRAK czynników, nie awaria", async () => {
+    // Kształt odpowiedzi `listFactors()` zależy od typów czynników włączonych
+    // w projekcie Supabase - pole `totp` może w niej nie wystąpić. Odczyt SIĘ
+    // UDAŁ, więc panel ma powiedzieć „wyłączone", a nie „nieznany": alarm przy
+    // poprawnym odczycie uczy ignorować alarmy. Bez `?? []` na tym polu trasa
+    // wywaliłaby się na `factors.length` i cały panel bezpieczeństwa zniknąłby
+    // z ekranu - razem ze zmianą hasła i wylogowaniem urządzeń.
+    h.listFactorsTotpMissing = true;
+    await mount();
+    await waitFor(() => expect(status()).toBe("profile.security.mfa.statusDisabled"));
+    expect(screen.getByText("profile.security.mfa.none")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("LISTA CZYNNIKÓW: status „włączone” i wpis na każdy czynnik", async () => {

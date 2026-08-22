@@ -26,6 +26,9 @@ const h = vi.hoisted(() => ({
   resetForEmail: vi.fn(),
   updateUser: vi.fn(),
   session: { current: null as unknown },
+  /** Nasłuch zdarzeń auth widgetu ustawiania hasła - test odpala go wprost. */
+  authCb: null as null | ((event: string) => void),
+  unsubscribe: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -65,7 +68,10 @@ vi.mock("@/integrations/supabase/client", () => ({
       resetPasswordForEmail: (...args: unknown[]) => h.resetForEmail(...args),
       updateUser: (...args: unknown[]) => h.updateUser(...args),
       getSession: async () => ({ data: { session: h.session.current }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      onAuthStateChange: (cb: (event: string) => void) => {
+        h.authCb = cb;
+        return { data: { subscription: { unsubscribe: h.unsubscribe } } };
+      },
     },
   },
 }));
@@ -122,6 +128,8 @@ beforeEach(() => {
   h.resetForEmail.mockReset().mockResolvedValue({ error: null });
   h.updateUser.mockReset().mockResolvedValue({ error: null });
   h.session.current = { user: { id: "u1" } };
+  h.authCb = null;
+  h.unsubscribe.mockReset();
 });
 
 afterEach(() => cleanup());
@@ -1268,5 +1276,277 @@ describe("treść zgody z linkami markdown (formularze auth)", () => {
   it("treść zgody BEZ linków renderuje się jako czysty tekst", () => {
     register({ requireConsent: true, consentText_pl: "Zwykła zgoda" });
     expect(document.body.textContent).toContain("Zwykła zgoda");
+  });
+});
+
+/* ------------------------------------------------------------------ etap 7b */
+// DOBICIE GAŁĘZI I FUNKCJI. Cztery grupy rzeczy, których wcześniejsze testy nie
+// dotykały, a każda z nich jest widoczna dla człowieka zakładającego konto:
+//   * PODTYTUŁ nagłówka - jedyne miejsce, w którym redakcja tłumaczy, po co ten
+//     formularz jest; do tej pory żaden test nie renderował go ani razu,
+//   * ODSŁONIĘCIE HASŁA - przycisk „pokaż hasło" był renderowany, ale nigdy
+//     KLIKNIĘTY, więc nikt nie sprawdził, czy pola faktycznie się odsłaniają
+//     (przy wpisywaniu hasła z menedżera to jedyna kontrola literówki),
+//   * POLA DODATKOWE w typach innych niż tekst i lista z opcjami,
+//   * AWARIE ODRZUCONE WARTOŚCIĄ, KTÓRA NIE JEST `Error` - server fn i klient
+//     Supabase potrafią odrzucić napisem albo obiektem; ścieżka „nie-Error"
+//     musi nadal pokazać komunikat, a nie zostawić przycisk w bezruchu.
+
+describe("nagłówek widgetu: podtytuł z ustawień", () => {
+  it("podtytuł renderuje się pod tytułem w wariancie karty", () => {
+    login({ subtitle_pl: "Zaloguj się, aby czytać analizy." });
+    const p = document.querySelector("header p");
+    expect(p?.textContent).toBe("Zaloguj się, aby czytać analizy.");
+    // Wariant szeroki: podtytuł w rozmiarze podstawowym.
+    expect(p?.className).toContain("text-sm");
+  });
+
+  it("wariant inline zmniejsza podtytuł, żeby zmieścił się w pasku", () => {
+    login({ variant: "inline", subtitle_pl: "Krótko i na temat." });
+    const p = document.querySelector("header p");
+    expect(p?.textContent).toBe("Krótko i na temat.");
+    expect(p?.className).toContain("text-xs");
+  });
+
+  it("bez podtytułu nagłówek nie zostawia pustego akapitu", () => {
+    login();
+    expect(document.querySelector("header p")).toBeNull();
+    // Tytuł zostaje - jest budowany z tłumaczenia, nie z ustawień.
+    expect(document.querySelector("header h2")?.textContent).toBe("authForms.signinTitle");
+  });
+
+  it("podtytuł działa w każdym z czterech widgetów", async () => {
+    for (const view of [login, register, lost] as const) {
+      view({ subtitle_pl: "Podtytuł" });
+      expect(document.querySelector("header p")?.textContent).toBe("Podtytuł");
+      cleanup();
+    }
+    reset({ subtitle_pl: "Podtytuł" });
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    expect(document.querySelector("header p")?.textContent).toBe("Podtytuł");
+  });
+});
+
+describe("odsłonięcie hasła: logowanie", () => {
+  const toggle = () => screen.getByRole("button", { name: "authForms.showPassword" });
+
+  it("klik odsłania hasło, zmienia etykietę przycisku i ikonę", () => {
+    // Bez tego przycisku człowiek nie ma jak sprawdzić hasła wklejonego
+    // z menedżera - a literówka w haśle wygląda jak „złe dane logowania".
+    login();
+    expect(byId("auth-password").type).toBe("password");
+
+    fireEvent.click(toggle());
+    expect(byId("auth-password").type).toBe("text");
+    const hideBtn = screen.getByRole("button", { name: "authForms.hidePassword" });
+    expect(hideBtn).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "authForms.showPassword" })).toBeNull();
+
+    fireEvent.click(hideBtn);
+    expect(byId("auth-password").type).toBe("password");
+    expect(toggle()).toBeTruthy();
+  });
+
+  it("odsłonięte hasło nie gubi wpisanej treści", () => {
+    login();
+    typeInto("auth-password", "haslo12345");
+    fireEvent.click(toggle());
+    expect(byId("auth-password").value).toBe("haslo12345");
+  });
+});
+
+describe("checkbox „zapamiętaj mnie”", () => {
+  it("klik przestawia zaznaczenie, bo domyślnie jest włączony", () => {
+    login();
+    const box = screen.getByRole("checkbox");
+    expect(box).toHaveAttribute("data-state", "checked");
+    fireEvent.click(box);
+    expect(box).toHaveAttribute("data-state", "unchecked");
+  });
+});
+
+describe("odsłonięcie hasła: rejestracja", () => {
+  it("odsłania OBA pola naraz - hasło i jego powtórkę", () => {
+    // Powtórka hasła istnieje po to, żeby wyłapać literówkę. Gdyby odsłaniało
+    // się tylko pierwsze pole, człowiek nadal nie widziałby, gdzie się pomylił.
+    register({ showPasswordConfirm: true });
+    expect(byId("reg-password").type).toBe("password");
+    expect(byId("reg-confirm").type).toBe("password");
+
+    fireEvent.click(screen.getByRole("button", { name: "authForms.showPassword" }));
+    expect(byId("reg-password").type).toBe("text");
+    expect(byId("reg-confirm").type).toBe("text");
+  });
+});
+
+describe("odsłonięcie hasła: ustawianie nowego hasła", () => {
+  it("odsłania oba pola nowego hasła", async () => {
+    reset();
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    expect(byId("rs-password").type).toBe("password");
+    expect(byId("rs-confirm").type).toBe("password");
+
+    fireEvent.click(screen.getByRole("button", { name: "authForms.showPassword" }));
+    expect(byId("rs-password").type).toBe("text");
+    expect(byId("rs-confirm").type).toBe("text");
+  });
+});
+
+describe("treść zgody: link na samym końcu", () => {
+  it("nie gubi ogona treści, gdy zgoda kończy się linkiem", () => {
+    // Granica pętli: po ostatnim dopasowaniu nie zostaje już żaden tekst.
+    // Błąd tutaj albo urywa treść zgody, albo dubluje jej fragment - a treść
+    // zgody jest tym, na co człowiek klika „akceptuję" (rejestr RODO).
+    register({
+      requireConsent: true,
+      consentText_pl: "Akceptuję [regulamin](https://example.org/regulamin)",
+    });
+    const link = Array.from(document.querySelectorAll("a")).find(
+      (a) => a.getAttribute("href") === "https://example.org/regulamin",
+    );
+    expect(link?.textContent).toBe("regulamin");
+    const row = link?.closest("label");
+    expect(row?.textContent).toBe("Akceptuję regulamin");
+  });
+});
+
+describe("pola dodatkowe: pozostałe typy", () => {
+  it("pole typu checkbox renderuje się jako wiersz zgody z własną etykietą", () => {
+    register({
+      customFields: [
+        '{"id":"zgoda_szkolenia","type":"checkbox","labelPl":"Chcę zaproszenia na szkolenia","required":true}',
+      ],
+    });
+    const row = screen.getByText("Chcę zaproszenia na szkolenia").closest("label");
+    expect(row).toBeTruthy();
+    const box = row?.querySelector('[role="checkbox"]');
+    expect(box).toBeTruthy();
+    // Pole wymagane musi to zgłosić kontrolce, nie tylko walidacji na submicie.
+    expect(box).toHaveAttribute("aria-required", "true");
+  });
+
+  it("lista BEZ opcji renderuje samą podpowiedź, a nie puste pozycje", () => {
+    // Redakcja potrafi zapisać listę, zanim doda do niej opcje. Wtedy pole ma
+    // zostać puste i wybieralne dopiero po uzupełnieniu, a nie wysypać render.
+    register({ customFields: ['{"id":"branza","type":"select","labelPl":"Branża"}'] });
+    const select = document.getElementById("custom_branza") as HTMLSelectElement | null;
+    expect(select).toBeTruthy();
+    expect(select?.options).toHaveLength(1);
+    expect(select?.options[0].textContent).toBe("newsletterForm.selectPlaceholder");
+    expect(select?.options[0].disabled).toBe(true);
+  });
+
+  it("lista w wersji angielskiej bierze etykiety EN, nie polskie", () => {
+    register(
+      {
+        customFields: [
+          '{"id":"branza","type":"select","labelEn":"Sector","options":[{"value":"fintech","labelPl":"Finanse","labelEn":"Finance"}]}',
+        ],
+      },
+      "en",
+    );
+    const select = document.getElementById("custom_branza") as HTMLSelectElement | null;
+    expect(Array.from(select?.options ?? []).map((o) => o.textContent)).toContain("Finance");
+    expect(document.body.textContent).not.toContain("Finanse");
+  });
+
+  it("opcja bez etykiety w bieżącym języku pokazuje swoją wartość, nie pustkę", () => {
+    // Pusta pozycja listy jest nieklikalna wzrokiem - człowiek nie wie, co
+    // wybiera. Wartość techniczna jest brzydka, ale wybieralna.
+    register({
+      customFields: [
+        '{"id":"branza","type":"select","labelPl":"Branża","options":[{"value":"fintech","labelEn":"Finance"}]}',
+      ],
+    });
+    const select = document.getElementById("custom_branza") as HTMLSelectElement | null;
+    expect(Array.from(select?.options ?? []).map((o) => o.textContent)).toContain("fintech");
+  });
+});
+
+describe("awarie odrzucone wartością, która nie jest Error", () => {
+  it("logowanie przez Google: odrzucenie napisem nadal pokazuje komunikat", async () => {
+    h.signInOAuth.mockRejectedValue("network down");
+    login();
+    fireEvent.click(screen.getByRole("button", { name: "authForms.google" }));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Error"));
+    // Przycisk musi wrócić do stanu klikalnego - inaczej jedna awaria sieci
+    // zamyka logowanie przez Google do przeładowania strony.
+    expect(screen.getByRole("button", { name: "authForms.google" })).not.toBeDisabled();
+  });
+
+  it("rejestracja przez Google: odrzucenie napisem nadal pokazuje komunikat", async () => {
+    h.signInOAuth.mockRejectedValue("network down");
+    register();
+    fireEvent.click(screen.getByRole("button", { name: "authForms.google" }));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Error"));
+    expect(screen.getByRole("button", { name: "authForms.google" })).not.toBeDisabled();
+  });
+
+  it("straż przy odzyskiwaniu hasła odrzucona napisem: komunikat zamiast ciszy", async () => {
+    // Odrzucenie napisem nie zawiera ani `rate_limited`, ani `invalid_input`,
+    // więc straż przepuszcza je dalej jako własny wyjątek. Bez tej ścieżki
+    // człowiek klika „wyślij link" i nie dowiaduje się NICZEGO.
+    h.guard.mockRejectedValue("boom");
+    lost();
+    typeInto("lost-email", "osoba@example.com");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Error"));
+    expect(h.resetForEmail).not.toHaveBeenCalled();
+  });
+
+  it("zapis nowego hasła odrzucony napisem: komunikat i formularz wraca do pracy", async () => {
+    h.updateUser.mockRejectedValue("boom");
+    reset();
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    typeInto("rs-password", "haslo123456");
+    typeInto("rs-confirm", "haslo123456");
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Error"));
+    expect(h.navigate).not.toHaveBeenCalled();
+    // Formularz zostaje na ekranie: człowiek ma gdzie spróbować jeszcze raz.
+    expect(document.getElementById("rs-password")).toBeTruthy();
+  });
+});
+
+describe("sesja odzyskiwania, która dojechała po renderze", () => {
+  /** Widget startuje bez sesji - dokładnie tak, jak przy wejściu z e-maila. */
+  const mountWithoutSession = async (data: Data = {}) => {
+    h.session.current = null;
+    reset(data);
+    await waitFor(() => expect(screen.getByText("authForms.noToken")).toBeTruthy());
+  };
+
+  it("zdarzenie PASSWORD_RECOVERY odsłania formularz mimo braku sesji na starcie", async () => {
+    // To jest ścieżka z e-maila: klient Supabase parsuje token z hasha PO
+    // pierwszym renderze. Gdyby widget nie nasłuchiwał, człowiek zostałby na
+    // komunikacie „brak tokenu" z poprawnym linkiem w ręku.
+    await mountWithoutSession();
+    expect(h.authCb).not.toBeNull();
+
+    await waitFor(() => expect(h.authCb).toBeTruthy());
+    h.authCb?.("PASSWORD_RECOVERY");
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+    expect(screen.queryByText("authForms.noToken")).toBeNull();
+  });
+
+  it("zdarzenie SIGNED_IN także odsłania formularz", async () => {
+    await mountWithoutSession();
+    h.authCb?.("SIGNED_IN");
+    await waitFor(() => expect(document.getElementById("rs-password")).toBeTruthy());
+  });
+
+  it("zdarzenie niezwiązane z odzyskiwaniem NIE odsłania formularza", async () => {
+    // Wylogowanie w innej karcie nie jest zgodą na ustawienie nowego hasła.
+    await mountWithoutSession();
+    h.authCb?.("SIGNED_OUT");
+    await waitFor(() => expect(screen.getByText("authForms.noToken")).toBeTruthy());
+    expect(document.getElementById("rs-password")).toBeNull();
+  });
+
+  it("odmontowanie odpina nasłuch zdarzeń auth", async () => {
+    await mountWithoutSession();
+    expect(h.unsubscribe).not.toHaveBeenCalled();
+    cleanup();
+    expect(h.unsubscribe).toHaveBeenCalledTimes(1);
   });
 });
