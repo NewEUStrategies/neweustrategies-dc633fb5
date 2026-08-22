@@ -2638,6 +2638,19 @@ export default defineConfig({
           lines: 96,
           branches: 93,
         },
+        // Organizacje członkowskie - lista, tworzenie i KARTA. Zmierzone razem:
+        // 99,42% instrukcji / 100% funkcji / 99,67% linii / 98,65% gałęzi -
+        // z 37,17/32,51/39,80/30,30 (sama karta `$id` startowała z 2,13% linii
+        // i 0% gałęzi). Cztery niedobite gałęzie to strażniki zdublowane
+        // z warunkiem renderu formularza, martwy prop `hint` w trasie
+        // tworzenia i JEDNA gałąź w kodzie MARTWYM, zgłoszonym `it.fails`
+        // (stan „organizacji nie ma" nigdy się nie renderuje).
+        "src/routes/admin.organizations*.tsx": {
+          statements: 97,
+          functions: 99,
+          lines: 98,
+          branches: 96,
+        },
         // Warstwa danych panelu. Zmierzone (kolejno instrukcje/funkcje/linie/
         // gałęzie): community.ts 100/100/100/99,63 - z ~7%;
         // membership-admin.ts 100/100/100/100 - z 0,0%;
