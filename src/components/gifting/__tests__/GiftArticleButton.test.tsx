@@ -4,7 +4,7 @@
 // (lib/gifting/hooks) jest mockowana - macierz faz ma wlasne testy w
 // lib/gifting/__tests__/model.test.ts.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { giftClickBudget } from "@/lib/gifting/model";
 import type { GiftArticleState, GiftLinkResult, GiftSettings } from "@/lib/gifting/model";
@@ -251,6 +251,9 @@ describe("GiftArticleButton", () => {
     expect(screen.queryByRole("button", { name: "common.retry" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "gifting.copyLink" }));
-    expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
+      expect(screen.getByRole("button", { name: "gifting.copied" })).toBeInTheDocument();
+    });
   });
 });
