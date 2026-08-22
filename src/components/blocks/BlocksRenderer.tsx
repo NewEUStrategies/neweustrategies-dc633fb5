@@ -12,7 +12,11 @@ import { useTranslation } from "react-i18next";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import "@/lib/i18n-public";
 import { FootnoteTooltips } from "@/components/Footnotes";
-import { createCounter, type Footnote } from "@/lib/footnotes";
+import {
+  createCounter,
+  isLegacyFootnoteReferenceHtml,
+  type Footnote,
+} from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import {
@@ -44,6 +48,12 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
+  // Importowane wpisy WordPress mogą nadal zawierać dawną, rozwijaną listę
+  // przypisów rozbitą na kilka bloków HTML. Jedynym źródłem listy końcowej jest
+  // sekcja generowana niżej z `fn.notes`, więc stare fragmenty pomijamy.
+  const contentBlocks = safe.blocks.filter(
+    (block) => !(block.type === "html" && isLegacyFootnoteReferenceHtml(block.data.html)),
+  );
   // Pre-pass: zbierz przypisy (i przekształcony HTML) PRZED renderem, żeby
   // sekcja przypisów była znana od pierwszego malowania / w SSR. Wcześniej
   // kolektor był mutowany podczas renderu dziecka, więc rodzic widział
@@ -53,7 +63,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
   // z indeksu tablicy w widoku.
   const fn: FootnoteCollector = createCounter(1);
   const fnHtml = new Map<string, string>();
-  precomputeFootnotes(safe.blocks, fn, fnHtml);
+  precomputeFootnotes(contentBlocks, fn, fnHtml);
   const tooltipNotes: Footnote[] = fn.notes;
   const L = { title: t("blocksUi.footnotesTitle"), back: t("blocksUi.footnotesBack") };
   return (
@@ -64,7 +74,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
         lang={lang}
         data-tenant-scope={tenantHost ?? undefined}
       >
-        {safe.blocks.map((b) => {
+        {contentBlocks.map((b) => {
           // Flaga widoczności z inspektora bloku: ukryte bloki znikają z publikacji
           // (nadal edytowalne w kanwie admina).
           if (b.style?.hidden) return null;
@@ -92,7 +102,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
                     fnHtml={fnHtml}
                     lang={lang}
                     postId={postId}
-                    allBlocks={safe.blocks}
+                    allBlocks={contentBlocks}
                   />
                 </div>
               ) : (
@@ -101,7 +111,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
                   fnHtml={fnHtml}
                   lang={lang}
                   postId={postId}
-                  allBlocks={safe.blocks}
+                  allBlocks={contentBlocks}
                 />
               )}
             </RenderErrorBoundary>

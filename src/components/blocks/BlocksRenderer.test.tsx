@@ -92,6 +92,47 @@ describe("BlocksRenderer", () => {
     expect(items[1].textContent).toContain("second");
   });
 
+  it("removes the legacy WordPress source list and keeps one canonical footnotes section", () => {
+    const { container } = render(
+      <BlocksRenderer
+        doc={doc([
+          {
+            id: "body",
+            type: "paragraph",
+            data: { html: "Teza[fn]Kanoniczne źródło[/fn]" },
+          },
+          {
+            id: "legacy-heading",
+            type: "html",
+            data: {
+              html: '<div class="footnotes_reference_container">Przypisy źródłowe:[+]',
+            },
+          },
+          {
+            id: "legacy-table",
+            type: "html",
+            data: {
+              html: '<table class="footnotes_table"><tr class="footnotes_plugin_reference_row"><td>Stare źródło</td></tr></table>',
+            },
+          },
+          {
+            id: "legacy-script",
+            type: "html",
+            data: {
+              html: '<script>function footnote_expand_reference_container_1(){}</script></div>',
+            },
+          },
+        ])}
+        lang="pl"
+      />,
+    );
+
+    expect(container.querySelectorAll("[data-footnotes-list]")).toHaveLength(1);
+    expect(container.textContent).toContain("Kanoniczne źródło");
+    expect(container.textContent).not.toContain("Przypisy źródłowe:[+]");
+    expect(container.textContent).not.toContain("Stare źródło");
+  });
+
   it("renders a table with a header row", () => {
     const { container } = render(
       <BlocksRenderer
