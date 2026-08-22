@@ -891,6 +891,31 @@ describe("cykl życia modułu", () => {
     expect(stub).toHaveBeenCalledTimes(1);
   });
 
+  it("wejście spoza harmonogramu ANULUJE zaplanowany puls, a nie dubluje go", async () => {
+    // USTALENIE NIEOSIĄGALNOŚCI (nie farmimy jej, tylko nazywamy).
+    // `schedule()` (sessionHeartbeat.ts:254) leci synchronicznie, jeszcze przed
+    // zwróceniem sprzątaczki, a `timer` nigdy nie wraca do `null`. Dlatego
+    // gałęzie „nie ma czego anulować" w `if (timer) clearTimeout(timer)`
+    // (linie 244, 249, 259) są NIEOSIĄGALNE - licznik istnieje od pierwszej
+    // chwili życia modułu do końca. Tu sprawdzamy to, co da się zaobserwować:
+    // wejście spoza harmonogramu KASUJE zaplanowany puls, czyli licznik był.
+    const atrapa = atrapaRoutera();
+    const stub = pulsWersji("build-1");
+    stop = startPreviewHeartbeat(atrapa.router);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stub).toHaveBeenCalledTimes(1);
+
+    // Gdyby stary licznik przeżył, tu byłby drugi puls na jedno zdarzenie.
+    await vi.advanceTimersByTimeAsync(HEALTHY_INTERVAL_MS - 1_000 + 100);
+    expect(stub).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(stub).toHaveBeenCalledTimes(2);
+  });
+
   it("późna odpowiedź nie wznawia harmonogramu pulsu", async () => {
     const zawieszony = zawieszonyPuls();
     const atrapa = atrapaRoutera();
