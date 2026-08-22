@@ -996,11 +996,44 @@ export default defineConfig({
         // już bramkę statyczną (`__tests__/exportOwnerScope.gate.test.ts`),
         // a pokrycie runtime'owe server fn zostało świadomie pominięte
         // (koszt/zysk nieopłacalny na tym etapie - patrz dokument wdrożenia).
+        //
+        // 2026-08-22 (MODUŁ 15, etap 8): RATCHET W GÓRĘ. Zmierzone na tym HEAD
+        // 86,06% instrukcji / 80,40% gałęzi / 85,57% funkcji / 86,26% linii.
+        // Próg = zmierzone minus ~3 pp marginesu na dryf CI.
         "src/lib/profile/**": {
-          statements: 81,
-          functions: 81,
-          lines: 81,
-          branches: 75,
+          statements: 83,
+          functions: 82,
+          lines: 83,
+          branches: 77,
+        },
+        // SERVER FN EKSPORTU RODO - OSOBNY WPIS, ŻEBY PRZESTAŁA SIĘ UKRYWAĆ ZA
+        // ŚREDNIĄ KATALOGU. `export.functions.ts` to 391 linii na okrągłym
+        // zerze pokrycia runtime'owego i sam jeden ciągnie średnią
+        // `src/lib/profile/**` w dół o kilkanaście punktów - dopóki nie miała
+        // własnego progu, nie było widać, że jest to JEDEN plik, a nie ogólna
+        // słabość warstwy (pozostałe pliki tego katalogu stoją na 95-100%).
+        //
+        // ZERO NIE JEST TU ZANIEDBANIEM, JEST DECYZJĄ, i ma dwie bramki
+        // zamiast pokrycia:
+        //   * `__tests__/exportOwnerScope.gate.test.ts` - statyczna bramka
+        //     zakresu właściciela: żadna sekcja paczki nie może czytać danych
+        //     bez filtra po `auth.uid()`,
+        //   * `__tests__/exportManifestParity.gate.test.ts` - parytet
+        //     manifestu z emiterami: sekcja dopisana do eksportu bez wpisu
+        //     w rejestrze (albo odwrotnie) zapala bramkę.
+        // Obie czytają KOD ŹRÓDŁOWY, więc łapią rozjazd bez uruchamiania
+        // server fn - a uruchomienie jej w vitest wymagałoby atrapy całego
+        // klienta Supabase razem z 20 sekcjami paczki i RPC, czyli testu,
+        // który dowodziłby głównie poprawności własnych atrap.
+        //
+        // Próg zero jest CELOWO wpisany zamiast pominięcia: to jawny wyjątek
+        // w miejscu, w którym go widać, a nie cicha dziura w średniej. Gdy
+        // pokrycie runtime'owe kiedyś powstanie, ten wpis się podnosi.
+        "src/lib/profile/export.functions.ts": {
+          statements: 0,
+          functions: 0,
+          lines: 0,
+          branches: 0,
         },
         // CZYSTE MODUŁY profilu trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak czyste moduły czatu i płatności wyżej. Niosą
@@ -1044,11 +1077,235 @@ export default defineConfig({
         // nowej firmy w CRM ignorowało błąd DRUGIEGO kroku (powiązania z
         // profilem) - firma lądowała w bazie, użytkownik widział fałszywy
         // sukces. Szczegóły w dokumencie wdrożenia.
+        //
+        // 2026-08-22 (MODUŁ 15, etap 8): RATCHET W GÓRĘ po domknięciu dwóch
+        // największych plików tej powierzchni. `AuthorProfileEditor.tsx`
+        // (995 linii) poszedł z 84,01/79,85/69,23/86,15 na
+        // 99,54/98,56/100/100, a `sections/ProfileExtraSections.tsx`
+        // (1015 linii) z 84,23/79,51/77,92/88,43 na 99,50/99,51/100/100.
+        // Zmierzone dla całego katalogu: 95,00% instrukcji / 92,32% gałęzi /
+        // 89,86% funkcji / 96,28% linii. Próg = minus ~3 pp na dryf CI.
+        // Najsłabsze pozostałe pliki (następny krok, nie regresja tego):
+        // `CompanyPickerDialog.tsx` (64,86% funkcji) i
+        // `MediaMentionsSection.tsx` (71,27% gałęzi).
         "src/components/profile/**": {
-          statements: 85,
-          functions: 74,
-          lines: 87,
-          branches: 82,
+          statements: 92,
+          functions: 87,
+          lines: 93,
+          branches: 89,
+        },
+        // ── MODUŁ 15: PROFIL I KONTO ─────────────────────────────────────────
+        // Audyt postawił temu modułowi ten sam zarzut, co czatowi i profilowi
+        // wcześniej: 56,03% linii i 51,95% funkcji, z panelem ustawień
+        // logowania na 2,5% i dwunastoma plikami na okrągłym zerze - w tym
+        // trasą PUBLICZNĄ `/author/$slug` (589 linii) i pulpitem konta
+        // `/profile` (1232 linie, największy plik modułu).
+        //
+        // Progi poniżej są floorowane 1-2 pp pod ZMIERZONYM poziomem (dla
+        // katalogów ~3 pp na dryf CI) i wolno je wyłącznie PODNOSIĆ. Bez nich
+        // jednorazowy wysiłek testowy nie zamienia się w zaporę: pomiar sam
+        // z siebie niczego nie pilnuje.
+        //
+        // CZYSTE MODUŁY DECYZYJNE - pod 100%, tak jak pozostałe czyste moduły
+        // w tym pliku. Niosą reguły, których złamania użytkownik nie zobaczy
+        // od razu: spójność ustawień logowania (przekierowanie po zalogowaniu
+        // wskazujące na formularz = pętla logowania), kolejność problemów przy
+        // zmianie hasła, rejestr kroków wycieczki onboardingowej, ważność
+        // kuponu retencyjnego oraz tożsamość wołającego w funkcjach konta.
+        "src/lib/authSettingsRules.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useAuthSettings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/auth/securityPanel.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/onboarding/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/retention/coupon.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // FUNKCJE SERWEROWE KONTA I KONTEKST SESJI - startowały z zera.
+        // Od nich zależy, czy operacja działa na koncie WOŁAJĄCEGO, a nie na
+        // identyfikatorze podanym z klienta.
+        "src/lib/account.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/auth/optionalUser.server.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/auth/currentUser.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // REJESTR PÓL REJESTRACJI. Dwie niedobite gałęzie (`:54`, `:58`) to
+        // ramiona zapasowe dla klucza spoza mapy - `resolvePopupFields()`
+        // zawsze zwraca wszystkie klucze, a typ argumentu je zawęża, więc
+        // osiągalne byłyby tylko rzutowaniem.
+        "src/lib/auth/registrationFields.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // PANEL ADMINA USTAWIEŃ LOGOWANIA + wyprowadzone z niego atomy,
+        // molekuła i organizm (atomic design). Trasa decyduje o tym, czy da
+        // się wejść na serwis, a stała na 2,5% linii i 0 z 51 funkcji.
+        "src/routes/admin.login-settings.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/auth/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // PRZEWODNIK ONBOARDINGOWY. Dwie niedobite gałęzie (`:136-137`) siedzą
+        // za strażnikiem nieosiągalnym z interfejsu.
+        "src/components/admin/onboarding/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // ZAINTERESOWANIA I PERSONALIZACJA. Najsłabszy plik tej powierzchni to
+        // `TopicsDroplist.tsx` (89,33% gałęzi) - lista wyboru tematów
+        // z semantyką `listbox`, poprawioną przy okazji trzech naruszeń ARIA.
+        "src/components/interests/**": {
+          statements: 95,
+          functions: 96,
+          lines: 97,
+          branches: 91,
+        },
+        // TRASA PUBLICZNA HUBA AUTORA - jedyna w tym module, którą widzi świat:
+        // indeksowana, udostępniana odnośnikiem, scrapowana przez podglądy
+        // społecznościowe. Trzy rozłączne stany loadera (wiersz / `null` / 200
+        // z komunikatem, NIGDY sfabrykowany 404), indeksacja warunkowa i adres
+        // kanoniczny bez parametrów eksploratora.
+        "src/routes/author.$slug.tsx": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 97,
+        },
+        // PULPIT KONTA. Pięć niedobitych gałęzi to martwy kod pod warunkiem
+        // nadrzędnym `activeTab === "settings" && editable` - opisany
+        // w nagłówku pliku testowego, żeby jego usunięcie było widocznym
+        // uproszczeniem, a nie utratą pokrycia.
+        "src/routes/profile.index.tsx": {
+          statements: 98,
+          functions: 97,
+          lines: 98,
+          branches: 96,
+        },
+        "src/routes/profile.membership.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/routes/profile.organization.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 97,
+        },
+        "src/routes/profile.expert-requests.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/profile.bookmarks.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // LISTY OBSERWOWANYCH. Cztery niedobite gałęzie to martwe `?? []`
+        // w trzeciej gałęzi zagnieżdżonego trójargumentowca, do której wchodzi
+        // się wyłącznie wtedy, gdy dane SĄ - czyste sprzątanie, nie luka.
+        "src/routes/profile.follows.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
+        // PANEL BEZPIECZEŃSTWA. Pięć niedobitych gałęzi (`:95`, `:207`, `:215`,
+        // `:253`, `:532`) to strażniki obronne, które stały się nieosiągalne
+        // wtedy, gdy reguły panelu wyjechały do `lib/auth/securityPanel.ts`:
+        // przed każdym z nich stoi wcześniejsze `return` z tego modułu.
+        "src/routes/profile.security.tsx": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 91,
+        },
+        "src/routes/profile.personality.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        // EKRAN PO REJESTRACJI I WYZWANIE MFA. `MfaChallenge.tsx` stoi na
+        // 91,66% gałęzi i to SUFIT tego pliku: jedenaście z dwunastu. Dwunasta
+        // to ramię `o === true` w `onOpenChange`, a Radix woła je wyłącznie
+        // z `DialogPrimitive.Trigger` - którego ten komponent nie renderuje.
+        "src/components/auth/SignupSuccessPanel.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/auth/MfaChallenge.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // DWA NAJWIĘKSZE KOMPONENTY PROFILU - osobne wpisy obok progu
+        // katalogowego, bo to one niosą ZAPIS profilu publicznego i kolejność
+        // sekcji. Każda ścieżka zapisu ma dwa końce, a nieudany nie może
+        // pokazywać sukcesu ani zostawiać stanu połowicznego.
+        "src/components/profile/AuthorProfileEditor.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 97,
+        },
+        "src/components/profile/sections/ProfileExtraSections.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 98,
         },
         // ── CZAT / KOMUNIKATOR ────────────────────────────────────────────────
         // Audyt 14.08 (MODUŁ 9) postawił temu modułowi jeden zarzut i był to
