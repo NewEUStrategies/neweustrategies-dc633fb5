@@ -34,9 +34,9 @@ export function replaceFootnotes(html: string, fn: FootnoteCollector): string {
   return expandFootnotes(html, fn);
 }
 
-/** Czy dany string zawiera choć jeden shortcode [fn]…[/fn]. */
+/** Czy string zawiera shortcode [fn]…[/fn] albo stary markup przypisu z WP. */
 export function hasFn(v: unknown): v is string {
-  return typeof v === "string" && v.includes("[fn]");
+  return typeof v === "string" && (v.includes("[fn]") || v.includes("footnote_referrer"));
 }
 
 /** Zamienia treść przypisu z plain/markdown na czysty HTML dla listy końcowej. */

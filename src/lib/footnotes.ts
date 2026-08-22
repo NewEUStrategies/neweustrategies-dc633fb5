@@ -167,7 +167,7 @@ function processStringField(
   col: FootnoteCounter,
   opts?: ExpandOptions,
 ): Json | undefined {
-  if (typeof v !== "string" || !v.includes("[fn]")) return v;
+  if (typeof v !== "string" || !(v.includes("[fn]") || v.includes("footnote_"))) return v;
   return expandFootnotes(v, col, opts);
 }
 
