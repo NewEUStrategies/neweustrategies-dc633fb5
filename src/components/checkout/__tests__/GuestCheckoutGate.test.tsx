@@ -124,14 +124,31 @@ const EN = {
 
 const CHILD_TEXT = "PŁATNOŚĆ-W-ŚRODKU";
 
+// Adres, pod którym „stoi" bramka w testach. MUSI być inny od domyślnego
+// adresu happy-dom (`http://localhost:3000/`), bo `emailRedirectTo` bierze
+// się z `window.location.href`: gdyby test biegł pod adresem domyślnym,
+// asercja `toBe(window.location.href)` porównywałaby wyrażenie produkcyjne
+// z tym samym wyrażeniem w teście i przepuszczała mutację
+// `origin + "/"` (dla adresu "/" oba dają ten sam ciąg). Pełny, DOSŁOWNY
+// adres w asercji jest jedyną wersją, która wywala taką zmianę.
+const CHECKOUT_PATH = "/checkout/pro-annual?ref=nl";
+const CHECKOUT_HREF = `http://localhost:3000${CHECKOUT_PATH}`;
+
 beforeEach(() => {
   cleanup();
+  // Adres jest stanem GLOBALNYM okna i przecieka między plikami testowymi,
+  // dlatego ustawiamy go tu, a `afterEach` przywraca korzeń.
+  window.history.pushState({}, "", CHECKOUT_PATH);
   h.session = null;
   h.loading = false;
   h.lang = "pl";
   h.signInWithOtp.mockReset().mockResolvedValue({ error: null });
   h.toastError.mockReset();
   h.linkProps.length = 0;
+});
+
+afterEach(() => {
+  window.history.pushState({}, "", "/");
 });
 
 /** Odpal mikrozadania po interakcji - `submit()` jest asynchroniczne. */
@@ -276,7 +293,14 @@ describe("GuestCheckoutGate - ścieżka magic linka", () => {
     expect(args.options?.shouldCreateUser).toBe(true);
     // Bez `emailRedirectTo` kliknięcie linku ląduje na stronie startowej,
     // nie w koszyku - czyli zakup porzucony po poprawnym logowaniu.
-    expect(args.options?.emailRedirectTo).toBe(window.location.href);
+    // Asercja na DOSŁOWNYM adresie, nie na `window.location.href`: to drugie
+    // powtarzałoby wyrażenie z produkcji i przechodziło także wtedy, gdyby
+    // bramka odsyłała gościa na `origin + "/"` (stronę główną) zamiast do
+    // koszyka. Adres testowy zawiera ścieżkę ORAZ query, więc obcięcie
+    // któregokolwiek z nich też wywala ten test.
+    expect(args.options?.emailRedirectTo).toBe(CHECKOUT_HREF);
+    expect(args.options?.emailRedirectTo).toContain("/checkout/pro-annual");
+    expect(args.options?.emailRedirectTo).toContain("ref=nl");
     expect(args.options?.data).toEqual({ full_name: "Jan Kowalski" });
   });
 
@@ -386,6 +410,13 @@ describe("GuestCheckoutGate - druga ścieżka: konto już istnieje", () => {
     await submitWith("jan@example.pl");
     expect(await screen.findByText(PL.sent)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: PL.signIn })).toHaveAttribute("href", "/login");
+    // `search` też musi przetrwać przerysowanie na ekran potwierdzenia -
+    // refaktor renderujący przy `sent === true` sam `<Link to="/login">` bez
+    // `search` przeszedłby asercję na `href`, a wysłałby gościa z kontem na
+    // formularz REJESTRACJI.
+    expect(h.linkProps.filter((p) => p.to === "/login").at(-1)?.search).toEqual({
+      mode: "signin",
+    });
   });
 });
 
@@ -415,18 +446,22 @@ describe("GuestCheckoutGate - dwujęzyczność", () => {
     expect(await screen.findByText(EN.sent)).toBeInTheDocument();
   });
 
-  it("lang=pl: napisy po polsku", () => {
-    renderGate();
-    expect(screen.getByText(PL.title)).toBeInTheDocument();
-    expect(screen.queryByText(EN.title)).not.toBeInTheDocument();
-  });
-
-  it("lang inny niż en spada na polski", () => {
-    // Gałąź `lang === "en" ? "en" : "pl"` - domyślnie polski, nigdy pusty
-    // ekran, także dla locale, którego dziś nie ma w typie.
+  it("nieznany locale nie daje pustego ekranu - obrona przed rozszerzeniem AppLang", () => {
+    // UWAGA NA TO, CO TEN TEST DOWODZI, A CZEGO NIE. Gałąź false w
+    // `lang === "en" ? "en" : "pl"` jest już pokryta przez KAŻDY test z
+    // `lang = "pl"`, więc tutaj nie chodzi o pokrycie. `"de"` jest w ogóle
+    // osiągalne tylko dlatego, że atrapa deklaruje `lang` jako `string`, a
+    // produkcyjny `useLang()` zwraca zawężony `AppLang` - czyli dziś to
+    // zachowanie ATRAPY, nie produkcji.
+    // Test zostaje jako zabezpieczenie na moment, w którym `AppLang` urośnie
+    // o trzeci język: wtedy `COPY[...]` musi nadal trafiać w istniejący klucz,
+    // bo `COPY[undefined]` to `undefined` i cała bramka checkoutu renderuje
+    // się bez ani jednego napisu - pusta karta przed płatnością.
     h.lang = "de";
     renderGate();
     expect(screen.getByText(PL.title)).toBeInTheDocument();
+    expect(screen.getByText(PL.lead)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: PL.send })).toBeInTheDocument();
     expect(screen.queryByText(EN.title)).not.toBeInTheDocument();
   });
 });
@@ -461,20 +496,41 @@ describe("GuestCheckoutGate - defekty zgłoszone", () => {
     // ani w którym z dwóch pól.
     renderGate();
     await submitWith("jan@example");
+    // Kotwica: bez niej `it.fails` zzieleniałby także wtedy, gdyby
+    // `emailInput()` zaczęło rzucać (np. po zmianie etykiety pola) - czyli
+    // zgłoszenie defektu zamieniłoby się w detektor własnej pomyłki.
+    expect(emailInput()).toBeInTheDocument();
     expect(emailInput()).toHaveAttribute("aria-invalid", "true");
   });
 
-  it.fails("Enter w polu adresu powinien wysyłać link", async () => {
+  it.fails("pola powinny stać w <form> z przyciskiem submit (obsługa Entera)", () => {
     // CO JEST ZEPSUTE: pola i przycisk nie są opakowane w `<form>`, a przycisk
     // nie jest `type="submit"` - nie ma żadnej obsługi klawisza Enter.
     // CO WIDZI UŻYTKOWNIK: wpisuje adres, naciska Enter (odruch przy każdym
     // formularzu w sieci) i NIC się nie dzieje - żaden list, żaden komunikat.
     // W tym miejscu ścieżki, tuż przed płatnością, cisza jest najgorszą
     // z możliwych odpowiedzi: wygląda jak zepsuta strona sklepu.
+    //
+    // DLACZEGO ASERCJA IDZIE PO STRUKTURZE, A NIE PO `keyDown`. Pierwsza wersja
+    // tego zgłoszenia wysyłała `fireEvent.keyDown(..., { key: "Enter" })`
+    // i oczekiwała wywołania `signInWithOtp`. Taki test jest MARTWY: `fireEvent`
+    // nie realizuje niejawnego submitu formularza (robi to dopiero
+    // `user-event` v14), więc pozostawał czerwony także po naprawie produkcji -
+    // czyli nikt nigdy nie dowiedziałby się, że defekt został zamknięty.
+    // Asercja na `<form>` i `type="submit"` celuje w to, co jest REALNYM
+    // nośnikiem defektu, i zzielenieje dokładnie w chwili naprawy.
+    //
+    // UWAGA NA KOSZT NAPRAWY (zmierzony, nie przewidywany): dodanie `<form>`
+    // włącza natywną walidację `type="email"`, która zablokuje submit PRZED
+    // wejściem w `submit()`. Cztery testy walidacji w tym pliku ("bez @",
+    // "@ bez domeny", "spacja w środku", "podwójna małpa") sprawdzają toast
+    // z `c.invalid` i wtedy przestaną przechodzić - nie dlatego, że coś się
+    // zepsuje, ale dlatego, że walidacja przeniesie się z JavaScriptu do
+    // przeglądarki. Naprawa musi objąć obie rzeczy naraz.
     renderGate();
-    fireEvent.change(emailInput(), { target: { value: "jan@example.pl" } });
-    fireEvent.keyDown(emailInput(), { key: "Enter", code: "Enter" });
-    await flush();
-    expect(h.signInWithOtp).toHaveBeenCalledTimes(1);
+
+    expect(emailInput()).toBeInTheDocument();
+    expect(emailInput().closest("form")).not.toBeNull();
+    expect(sendButton()).toHaveAttribute("type", "submit");
   });
 });
