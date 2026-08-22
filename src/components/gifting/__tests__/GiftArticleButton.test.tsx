@@ -32,6 +32,8 @@ const h = vi.hoisted(() => ({
   refetch: vi.fn(),
   mutate: vi.fn(),
   mutationData: null as GiftLinkResult | null,
+  mutationError: false,
+  errorKey: null as "notGated" | null,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -77,10 +79,11 @@ vi.mock("@/lib/gifting/hooks", () => ({
     mutation: {
       data: h.mutationData,
       isPending: false,
-      isError: false,
+      isError: h.mutationError,
       mutate: h.mutate,
+      reset: vi.fn(),
     },
-    errorKey: null,
+    errorKey: h.errorKey,
   }),
 }));
 
@@ -126,6 +129,8 @@ beforeEach(() => {
   h.state = null;
   h.stateLoading = false;
   h.stateError = false;
+  h.mutationError = false;
+  h.errorKey = null;
   h.refetch.mockClear();
   h.mutate.mockClear();
 });
@@ -228,5 +233,24 @@ describe("GiftArticleButton", () => {
     expect(screen.getByText("gifting.limitTitle")).toBeInTheDocument();
     expect(screen.getByText(/gifting.limitDesc/)).toBeInTheDocument();
     expect(h.mutate).not.toHaveBeenCalled();
+  });
+
+  it("artykuł bez paywalla pozwala skopiować zwykły link zamiast ponawiać", async () => {
+    h.session = { user: { id: "u1" } };
+    h.state = makeState({});
+    h.mutationError = true;
+    h.errorKey = "notGated";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderButton();
+    openPopover();
+    expect(screen.queryByRole("button", { name: "common.retry" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "gifting.copyLink" }));
+    expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
   });
 });

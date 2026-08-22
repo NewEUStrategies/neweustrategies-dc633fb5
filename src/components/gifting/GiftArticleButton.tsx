@@ -99,9 +99,10 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
   }, [giftUrl, title, t]);
 
   const onCopy = async (): Promise<void> => {
-    if (!giftUrl) return;
+    const linkToCopy = errorKey === "notGated" ? url : giftUrl;
+    if (!linkToCopy) return;
     try {
-      await navigator.clipboard.writeText(giftUrl);
+      await navigator.clipboard.writeText(linkToCopy);
       setJustCopied(true);
       toast.success(t("gifting.copied"));
       window.setTimeout(() => setJustCopied(false), 2000);
@@ -264,19 +265,30 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
 
         {phase === "ready" && mutation.isError && (
           <div className="border-t border-border/60 px-4 py-3.5" role="alert">
-            <p className="text-[12px] leading-snug text-destructive mb-2">
+            <p
+              className={`text-[12px] leading-snug mb-2 ${errorKey === "notGated" ? "text-muted-foreground" : "text-destructive"}`}
+            >
               {t(`gifting.errors.${errorKey ?? "unknown"}`)}
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                mutation.reset();
-                mutation.mutate();
-              }}
-              className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
-            >
-              {t("common.retry")}
-            </button>
+            {errorKey === "notGated" ? (
+              <GiftCopyButton
+                copied={justCopied}
+                label={t("gifting.copyLink")}
+                copiedLabel={t("gifting.copied")}
+                onClick={() => void onCopy()}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  mutation.reset();
+                  mutation.mutate();
+                }}
+                className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
+              >
+                {t("common.retry")}
+              </button>
+            )}
           </div>
         )}
 
