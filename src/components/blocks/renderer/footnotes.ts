@@ -17,6 +17,7 @@
 import type { Block } from "@/lib/blocks/types";
 import {
   expandFootnotes,
+  collectWpFootnoteTexts,
   normalizeLegacyFootnoteHtml,
   containsFootnoteMarkup,
   type FootnoteCounter,
@@ -73,9 +74,12 @@ export function precomputeFootnotes(
   fn: FootnoteCollector,
   out: Map<string, string>,
 ): void {
+  // Pełne treści przypisów WP żyją w końcowej tabeli źródeł - zbieramy je z
+  // CAŁEGO dokumentu, zanim znormalizujemy pojedynczy blok (skrót "Czytaj dalej").
+  const wpTexts = collectWpFootnoteTexts(blocks.map((b) => b.data.html));
   const process = (raw: unknown): string | null => {
     if (!hasFn(raw)) return null;
-    return replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(raw)), fn);
+    return replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(raw, wpTexts)), fn);
   };
   for (const b of blocks) {
     if (b.type === "paragraph" || b.type === "html" || b.type === "spoiler") {
@@ -83,7 +87,7 @@ export function precomputeFootnotes(
       // (molecules.tsx::renderSpoiler), więc należy do tej samej rodziny.
       out.set(
         b.id,
-        replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""))), fn),
+        replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""), wpTexts)), fn),
       );
     } else if (b.type === "heading") {
       const v = process(b.data.text);

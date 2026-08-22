@@ -30,12 +30,12 @@ const FN_LIST_LABELS = {
   pl: {
     title: "Przypisy źródłowe:",
     back: (id: number) => `Wróć do odsyłacza ${id}`,
-    backTitle: "Wróć do odsyłacza",
+    backTitle: "Wróć do czytanego fragmentu",
   },
   en: {
     title: "Source notes:",
     back: (id: number) => `Back to reference ${id}`,
-    backTitle: "Back to reference",
+    backTitle: "Back to the passage you were reading",
   },
 } as const;
 
