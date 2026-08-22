@@ -81,7 +81,10 @@ export function ReadingHeader({
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   // Napisy powłoki idą w języku, w którym czytelnik ma interfejs - `lang` jest
   // rozwiązany z instancji i18n wyżej, więc `lng` trzyma je zgodne z resztą.
-  const t = (key: string) => translate(`share.header.${key}`, { lng: lang });
+  //
+  // KLUCZ W CAŁOŚCI przy wywołaniu - patrz komentarz w `FloatingShareBar.tsx`:
+  // wrapper doklejający prefiks oślepia bramkę `i18nKeyDrift`.
+  const t = (key: string) => translate(key, { lng: lang });
   const mounted = useHasMounted();
   const { session, user, signOut } = useAuth();
   const { data: profile } = useHeaderProfile(user?.id);
@@ -294,9 +297,9 @@ export function ReadingHeader({
             )}
             <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
               <SearchButtonWidget
-                label={t("search")}
+                label={t("share.header.search")}
                 mode="dropdown"
-                heading={t("search")}
+                heading={t("share.header.search")}
                 liveResults
                 limit={8}
                 lang={lang}
@@ -315,8 +318,8 @@ export function ReadingHeader({
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("neus:open-mobile-search"))}
-              aria-label={t("search")}
-              title={t("search")}
+              aria-label={t("share.header.search")}
+              title={t("share.header.search")}
               className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             >
               <Search className="w-4 h-4" />
@@ -324,8 +327,8 @@ export function ReadingHeader({
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("neus:open-mobile-menu"))}
-              aria-label={t("menu")}
-              title={t("menu")}
+              aria-label={t("share.header.menu")}
+              title={t("share.header.menu")}
               className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             >
               <Menu className="w-4 h-4" />
@@ -334,11 +337,11 @@ export function ReadingHeader({
                 drawerze i profilu - w pasku czytania poszerzały wiersz ponad
                 szerokość viewportu. Język i konto zostają: pasek czytania jest
                 na wpisie JEDYNYM chrome'em, więc musi je udostępniać. */}
-            <LangReelSwitcher label={t("lang")} className="[--ls-h:28px]" />
+            <LangReelSwitcher label={t("share.header.lang")} className="[--ls-h:28px]" />
             <Link
               to={isAuthed ? "/profile" : "/login"}
-              aria-label={t("profile")}
-              title={t("profile")}
+              aria-label={t("share.header.profile")}
+              title={t("share.header.profile")}
               className="hidden min-[400px]:grid h-7 w-7 place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             >
               {profile?.avatar_url ? (
@@ -383,7 +386,7 @@ export function ReadingHeader({
                 data-reading-label
                 className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0"
               >
-                {t("reading")}:
+                {t("share.header.reading")}:
               </span>
               <span
                 data-reading-title
@@ -432,7 +435,7 @@ export function ReadingHeader({
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
-                  aria-label={t("menu")}
+                  aria-label={t("share.header.menu")}
                   onClick={() => setMenuOpen((s) => !s)}
                   className="inline-flex items-center gap-1.5 rounded-md pl-1 pr-2 py-1 text-foreground hover:bg-muted transition"
                   title={displayName}
@@ -473,7 +476,7 @@ export function ReadingHeader({
                       className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"
                     >
                       <User className="w-3.5 h-3.5 opacity-70" />
-                      {t("profile")}
+                      {t("share.header.profile")}
                     </Link>
                     <Link
                       to="/profile/bookmarks"
@@ -482,7 +485,7 @@ export function ReadingHeader({
                       className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"
                     >
                       <Bookmark className="w-3.5 h-3.5 opacity-70" />
-                      {t("bookmarks")}
+                      {t("share.header.bookmarks")}
                     </Link>
                     <Link
                       to="/profile/edit"
@@ -491,7 +494,7 @@ export function ReadingHeader({
                       className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"
                     >
                       <Settings className="w-3.5 h-3.5 opacity-70" />
-                      {t("settings")}
+                      {t("share.header.settings")}
                     </Link>
                     <div className="my-1 border-t border-border/70" aria-hidden />
                     <button
@@ -504,7 +507,7 @@ export function ReadingHeader({
                       className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted transition text-muted-foreground hover:text-brand"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      {t("logout")}
+                      {t("share.header.logout")}
                     </button>
                   </div>
                 )}
@@ -516,7 +519,7 @@ export function ReadingHeader({
                   className="inline-flex items-center gap-1 text-foreground hover:text-brand transition"
                 >
                   <LogIn className="w-3.5 h-3.5" />
-                  {t("login")}
+                  {t("share.header.login")}
                 </Link>
                 <span className="text-muted-foreground/60" aria-hidden>
                   |
@@ -526,14 +529,14 @@ export function ReadingHeader({
                   className="inline-flex items-center gap-1 text-brand hover:opacity-80 transition"
                 >
                   <User className="w-3.5 h-3.5" />
-                  {t("register")}
+                  {t("share.header.register")}
                 </Link>
               </>
             )}
           </div>
           <span className="hidden md:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden sm:flex h-7 sm:h-8 items-center">
-            <LangSwitcherDropdown label={t("lang")} />
+            <LangSwitcherDropdown label={t("share.header.lang")} />
           </div>
         </div>
       </div>
