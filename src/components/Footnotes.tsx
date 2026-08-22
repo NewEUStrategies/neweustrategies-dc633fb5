@@ -139,7 +139,7 @@ export function FootnoteTooltips({
     <div
       role="tooltip"
       data-footnote-tooltip
-      className="pointer-events-none fixed z-50 max-w-md rounded-md border border-border bg-popover text-popover-foreground text-[11px] leading-snug px-3 py-2 shadow-lg -translate-x-1/2 -translate-y-full"
+      className="pointer-events-none fixed z-50 max-w-md rounded-[6px] border border-brand bg-popover text-popover-foreground text-[10px] leading-snug px-3 py-2 shadow-lg -translate-x-1/2 -translate-y-full"
       style={{ left: state.x, top: state.y - 8 }}
     >
       <span className="font-medium mr-1">[{state.id}]</span>

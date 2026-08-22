@@ -24,9 +24,11 @@ describe("RichHtmlView - przypisy live ([fn]...[/fn])", () => {
     fireEvent.focusIn(marker as Element);
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent("Źródło: raport NES");
-    // Tooltip powinien być szerszy i mieć mniejszy tekst niż wcześniej.
+    // Jeden spójny tooltip: szeroki, 10 px, pomarańczowa linia 1 px i 6 px radius.
     expect(tooltip.className).toContain("max-w-md");
-    expect(tooltip.className).toContain("text-[11px]");
+    expect(tooltip.className).toContain("text-[10px]");
+    expect(tooltip.className).toContain("border-brand");
+    expect(tooltip.className).toContain("rounded-[6px]");
   });
 });
 
