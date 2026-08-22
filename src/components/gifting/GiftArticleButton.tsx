@@ -44,9 +44,11 @@ interface Props {
   url: string;
   lang: GiftLang;
   className?: string;
+  /** Czy wpis jest zabramkowany (paywall). Przy false pokazujemy czyste kopiowanie zwykłego linku bez gift-mechaniki. */
+  gated?: boolean;
 }
 
-export function GiftArticleButton({ postId, title, url, lang, className }: Props) {
+export function GiftArticleButton({ postId, title, url, lang, className, gated = true }: Props) {
   const { t } = useTranslation();
   const { session } = useAuth();
   const isLoggedIn = !!session;
