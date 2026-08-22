@@ -36,6 +36,31 @@ export type Footnote = { id: number; html: string };
 
 const FN_RE = /\[fn\]([\s\S]*?)\[\/fn\]/g;
 
+// --- Legacy WordPress (plugin "Footnotes Made Easy" / footnote_referrer) ---
+//
+// Zaimportowane wpisy niosą taki markup:
+//   <span class="footnote_referrer"><a …><sup …>[12]</sup></a>
+//     <span class="footnote_tooltip">A. Legucka, <em>…</em>, str. 33-34</span>
+//   </span><script>…jQuery tooltip…</script>
+//
+// Bez normalizacji treść dymka renderuje się DOSŁOWNIE w akapicie (zaraz za
+// numerem przypisu) - dokładnie ten defekt widać na produkcji. Zamieniamy więc
+// całość na nasz shortcode `[fn]…[/fn]`, dzięki czemu dalsza część potoku
+// (marker + tooltip + sekcja "Przypisy źródłowe") działa identycznie jak dla
+// treści pisanej w edytorze - łącznie z kursywą tytułu w dymku.
+const WP_FN_RE =
+  /<span[^>]*class="[^"]*footnote_referrer[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*footnote_tooltip[^"]*"[^>]*>([\s\S]*?)<\/span>\s*<\/span>/gi;
+const WP_FN_SCRIPT_RE = /<script[^>]*>[\s\S]*?footnote_plugin[\s\S]*?<\/script>/gi;
+
+/** Zamienia stary markup przypisów WP na kanoniczne `[fn]…[/fn]`. */
+export function normalizeLegacyFootnoteHtml(html: string): string {
+  if (!html.includes("footnote_")) return html;
+  return html.replace(WP_FN_SCRIPT_RE, "").replace(WP_FN_RE, (_m, inner: string) => {
+    const text = String(inner ?? "").trim();
+    return text ? `[fn]${text}[/fn]` : "";
+  });
+}
+
 /** Escape HTML dla atrybutu `title` i (opcjonalnie) sekcji końcowej. */
 export function escapeAttr(s: string): string {
   return s
@@ -88,7 +113,7 @@ export function expandFootnotes(
   opts: ExpandOptions = {},
 ): string {
   const anchored = opts.anchored ?? true;
-  return html.replace(FN_RE, (_m, inner: string) => {
+  return normalizeLegacyFootnoteHtml(html).replace(FN_RE, (_m, inner: string) => {
     const text = String(inner ?? "").trim();
     if (!text) return "";
     const id = col.counter++;
