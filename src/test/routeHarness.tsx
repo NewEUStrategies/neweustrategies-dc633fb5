@@ -114,6 +114,14 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     // Testy asertują stan końcowy, nie migotanie stanów oczekiwania.
     defaultPendingMs: 0,
     defaultPendingMinMs: 0,
+    // Loader biegnie DOKŁADNIE RAZ na montowanie. Bez tego `router.load()`
+    // poniżej rozgrzewa trasę, a montowanie `RouterProvider` uznaje świeżo
+    // pobrany match za nieświeży (domyślny `staleTime` = 0) i woła loader po
+    // raz drugi. Testy liczące skutki uboczne loadera (rozgrzewki, nagłówki
+    // odpowiedzi) widziały wtedy podwojone wywołania - artefakt harnessu, nie
+    // zachowanie produkcyjne. `router.invalidate()` (patrz `navigate`) i tak
+    // wymusza ponowny bieg, więc dowody o odświeżaniu zostają nienaruszone.
+    defaultStaleTime: Infinity,
   });
 
   // Loader biegnie PRZED renderem - tak samo jak w nawigacji produkcyjnej,
