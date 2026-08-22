@@ -22,6 +22,7 @@ import {
   type DonationsConfig,
 } from "@/lib/billing/donationsConfig";
 import { ensureI18n as ensureDonateI18n } from "@/lib/i18n-donate";
+import { ensureDonationsAdminI18n } from "@/lib/i18n-donations-admin";
 
 export const Route = createFileRoute("/admin/donations")({
   head: () => ({
@@ -34,6 +35,7 @@ function AdminDonations() {
   // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
   // komentarz przy ensureI18n w lib/i18n-donate.ts.
   ensureDonateI18n();
+  ensureDonationsAdminI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { query, save } = useSettings<DonationsConfig>(DONATIONS_SETTINGS_KEY, DONATIONS_DEFAULTS);
@@ -65,17 +67,15 @@ function AdminDonations() {
 
   return (
     <div>
-      <h2 className="font-display text-xl">Darowizny</h2>
+      <h2 className="font-display text-xl">{t("adminDonations.title")}</h2>
       <p className="mb-5 mt-1 text-sm text-muted-foreground">
-        Własny checkout darowizn (jednorazowych i miesięcznych) obsługiwany przez naszego operatora
-        płatności. Publiczny formularz:{" "}
-        <code className="rounded bg-muted px-1 py-0.5">/donate</code>.
+        {t("adminDonations.intro")} <code className="rounded bg-muted px-1 py-0.5">/donate</code>.
       </p>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         {[
-          { label: "Suma wpłat", value: stats.data?.totalCents ?? 0 },
-          { label: "W tym miesiącu", value: stats.data?.monthCents ?? 0 },
+          { label: t("adminDonations.stats.total"), value: stats.data?.totalCents ?? 0 },
+          { label: t("adminDonations.stats.month"), value: stats.data?.monthCents ?? 0 },
         ].map((card) => (
           <div key={card.label} className="rounded-md border p-4">
             <p className="text-xs text-muted-foreground">{card.label}</p>
@@ -85,21 +85,27 @@ function AdminDonations() {
           </div>
         ))}
         <div className="rounded-md border p-4">
-          <p className="text-xs text-muted-foreground">Liczba wpłat</p>
+          <p className="text-xs text-muted-foreground">{t("adminDonations.stats.count")}</p>
           <p className="mt-1 text-lg font-medium">{stats.data?.count ?? 0}</p>
         </div>
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold">Silnik wpłat</h3>
-        <Field label="Moduł aktywny" hint="Wyłączenie ukrywa formularz i CTA darowizn.">
+        <h3 className="mb-2 text-sm font-semibold">{t("adminDonations.engine.title")}</h3>
+        <Field
+          label={t("adminDonations.engine.enabledLabel")}
+          hint={t("adminDonations.engine.enabledHint")}
+        >
           <Checkbox
-            label="Zbieraj darowizny"
+            label={t("adminDonations.engine.enabledCheckbox")}
             checked={draft.enabled}
             onChange={(enabled) => setDraft({ ...draft, enabled })}
           />
         </Field>
-        <Field label="Tryb" hint="Własny checkout albo przekierowanie do zewnętrznej zbiórki.">
+        <Field
+          label={t("adminDonations.engine.modeLabel")}
+          hint={t("adminDonations.engine.modeHint")}
+        >
           <select
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.provider}
@@ -110,19 +116,19 @@ function AdminDonations() {
               })
             }
           >
-            <option value="stripe">Nasz checkout (karta, BLIK, Apple/Google Pay)</option>
-            <option value="external">Zewnętrzna zbiórka (link)</option>
+            <option value="stripe">{t("adminDonations.engine.modeStripe")}</option>
+            <option value="external">{t("adminDonations.engine.modeExternal")}</option>
           </select>
         </Field>
         {draft.provider === "external" && (
-          <Field label="Adres zbiórki">
+          <Field label={t("adminDonations.engine.externalUrl")}>
             <Text
               value={draft.externalUrl}
               onChange={(e) => setDraft({ ...draft, externalUrl: e.target.value })}
             />
           </Field>
         )}
-        <Field label="Waluta">
+        <Field label={t("adminDonations.engine.currency")}>
           <select
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.currency}
@@ -137,10 +143,10 @@ function AdminDonations() {
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold">Kwoty</h3>
+        <h3 className="mb-2 text-sm font-semibold">{t("adminDonations.amounts.title")}</h3>
         <Field
-          label="Kwoty sugerowane"
-          hint="Lista kwot w walucie zbiórki, rozdzielona przecinkami (np. 25, 50, 100, 250)."
+          label={t("adminDonations.amounts.presets")}
+          hint={t("adminDonations.amounts.presetsHint")}
         >
           <Text
             value={draft.presetsCents.map((cents) => String(cents / 100)).join(", ")}
@@ -158,7 +164,7 @@ function AdminDonations() {
             }
           />
         </Field>
-        <Field label="Kwota minimalna (grosze)">
+        <Field label={t("adminDonations.amounts.min")}>
           <NumberInput
             value={draft.minCents}
             onChange={(e) => setDraft({ ...draft, minCents: Number(e.target.value) || 0 })}
@@ -166,7 +172,7 @@ function AdminDonations() {
             max={5_000_000}
           />
         </Field>
-        <Field label="Kwota maksymalna (grosze)">
+        <Field label={t("adminDonations.amounts.max")}>
           <NumberInput
             value={draft.maxCents}
             onChange={(e) => setDraft({ ...draft, maxCents: Number(e.target.value) || 0 })}
@@ -174,7 +180,7 @@ function AdminDonations() {
             max={5_000_000}
           />
         </Field>
-        <Field label="Cel zbiórki (grosze)" hint="0 wyłącza pasek postępu.">
+        <Field label={t("adminDonations.amounts.goal")} hint={t("adminDonations.amounts.goalHint")}>
           <NumberInput
             value={draft.goalCents}
             onChange={(e) => setDraft({ ...draft, goalCents: Number(e.target.value) || 0 })}
@@ -185,50 +191,50 @@ function AdminDonations() {
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold">Formularz</h3>
+        <h3 className="mb-2 text-sm font-semibold">{t("adminDonations.form.title")}</h3>
         <Checkbox
-          label="Pozwól wpisać własną kwotę"
+          label={t("adminDonations.form.allowCustom")}
           checked={draft.allowCustom}
           onChange={(allowCustom) => setDraft({ ...draft, allowCustom })}
         />
         <Checkbox
-          label="Pozwól na wsparcie miesięczne"
+          label={t("adminDonations.form.allowRecurring")}
           checked={draft.allowRecurring}
           onChange={(allowRecurring) => setDraft({ ...draft, allowRecurring })}
         />
         <Checkbox
-          label="Pole wiadomości od darczyńcy"
+          label={t("adminDonations.form.allowMessage")}
           checked={draft.allowMessage}
           onChange={(allowMessage) => setDraft({ ...draft, allowMessage })}
         />
         <Checkbox
-          label="Pokazuj ostatnie wpłaty"
+          label={t("adminDonations.form.showRecent")}
           checked={draft.showRecent}
           onChange={(showRecent) => setDraft({ ...draft, showRecent })}
         />
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold">Treści</h3>
-        <Field label="Nagłówek (PL)">
+        <h3 className="mb-2 text-sm font-semibold">{t("adminDonations.content.title")}</h3>
+        <Field label={t("adminDonations.content.headlinePl")}>
           <Text
             value={draft.headlinePl}
             onChange={(e) => setDraft({ ...draft, headlinePl: e.target.value })}
           />
         </Field>
-        <Field label="Nagłówek (EN)">
+        <Field label={t("adminDonations.content.headlineEn")}>
           <Text
             value={draft.headlineEn}
             onChange={(e) => setDraft({ ...draft, headlineEn: e.target.value })}
           />
         </Field>
-        <Field label="Opis (PL)">
+        <Field label={t("adminDonations.content.descriptionPl")}>
           <Text
             value={draft.descriptionPl}
             onChange={(e) => setDraft({ ...draft, descriptionPl: e.target.value })}
           />
         </Field>
-        <Field label="Opis (EN)">
+        <Field label={t("adminDonations.content.descriptionEn")}>
           <Text
             value={draft.descriptionEn}
             onChange={(e) => setDraft({ ...draft, descriptionEn: e.target.value })}
@@ -237,10 +243,9 @@ function AdminDonations() {
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold">Synchronizacja ze Stripe</h3>
+        <h3 className="mb-2 text-sm font-semibold">{t("adminDonations.sync.title")}</h3>
         <p className="mb-3 max-w-3xl text-sm text-muted-foreground">
-          Uzgadnia rejestr wpłat ze Stripe (ostatnie 7 dni): domyka wpłaty oczekujące, importuje
-          brakujące opłacone sesje i oznacza zwroty. Operacja jest idempotentna.
+          {t("adminDonations.sync.intro")}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <select
@@ -248,44 +253,50 @@ function AdminDonations() {
             value={environment}
             onChange={(e) => setEnvironment(e.target.value === "live" ? "live" : "sandbox")}
           >
-            <option value="sandbox">Środowisko testowe</option>
-            <option value="live">Środowisko produkcyjne</option>
+            <option value="sandbox">{t("adminDonations.sync.envSandbox")}</option>
+            <option value="live">{t("adminDonations.sync.envLive")}</option>
           </select>
           <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
-            {sync.isPending ? "Synchronizuję..." : "Synchronizuj ze Stripe"}
+            {sync.isPending ? t("adminDonations.sync.running") : t("adminDonations.sync.run")}
           </Button>
         </div>
         {sync.isError && (
           <p className="mt-2 text-sm text-destructive">
-            {sync.error instanceof Error ? sync.error.message : "Synchronizacja nie powiodła się."}
+            {sync.error instanceof Error ? sync.error.message : t("adminDonations.sync.failed")}
           </p>
         )}
         {syncReport && (
           <p className="mt-2 text-sm text-muted-foreground">
-            Zaksięgowane: {syncReport.settled} · zaimportowane: {syncReport.imported} · zwroty:{" "}
-            {syncReport.refunded} · wygasłe: {syncReport.expired} · przejrzane sesje:{" "}
-            {syncReport.scannedSessions}
-            {syncReport.warnings.length > 0 ? ` · ostrzeżenia: ${syncReport.warnings.length}` : ""}
+            {t("adminDonations.sync.report", {
+              settled: syncReport.settled,
+              imported: syncReport.imported,
+              refunded: syncReport.refunded,
+              expired: syncReport.expired,
+              scanned: syncReport.scannedSessions,
+            })}
+            {syncReport.warnings.length > 0
+              ? t("adminDonations.sync.reportWarnings", { count: syncReport.warnings.length })
+              : ""}
           </p>
         )}
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold">Ostatnie wpłaty</h3>
+        <h3 className="mb-2 text-sm font-semibold">{t("adminDonations.records.title")}</h3>
         {records.isPending ? (
           <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>
         ) : (records.data?.length ?? 0) === 0 ? (
-          <p className="text-sm text-muted-foreground">Brak zarejestrowanych wpłat.</p>
+          <p className="text-sm text-muted-foreground">{t("adminDonations.records.empty")}</p>
         ) : (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2">Data</th>
-                  <th className="px-3 py-2">Kwota</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Typ</th>
-                  <th className="px-3 py-2">Darczyńca</th>
+                  <th className="px-3 py-2">{t("adminDonations.records.date")}</th>
+                  <th className="px-3 py-2">{t("adminDonations.records.amount")}</th>
+                  <th className="px-3 py-2">{t("adminDonations.records.status")}</th>
+                  <th className="px-3 py-2">{t("adminDonations.records.type")}</th>
+                  <th className="px-3 py-2">{t("adminDonations.records.donor")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -298,7 +309,11 @@ function AdminDonations() {
                       {formatDonationAmount(row.amountCents, row.currency, lang)}
                     </td>
                     <td className="px-3 py-2">{row.status}</td>
-                    <td className="px-3 py-2">{row.recurring ? "miesięczna" : "jednorazowa"}</td>
+                    <td className="px-3 py-2">
+                      {row.recurring
+                        ? t("adminDonations.records.recurring")
+                        : t("adminDonations.records.oneTime")}
+                    </td>
                     <td className="px-3 py-2">{row.donorEmail ?? "-"}</td>
                   </tr>
                 ))}
