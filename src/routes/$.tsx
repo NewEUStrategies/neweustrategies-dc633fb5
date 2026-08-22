@@ -985,7 +985,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     // materiał komercyjny bez kategorii nadal potrzebuje oznaczenia.
     const sponsoredInMeta = post.is_sponsored === true || post.sponsored_affiliate === true;
     const giftButton = shareableArticle ? (
-      <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
+      <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} gated={isGatedMode(accessRule?.mode)} />
     ) : null;
     // Obok akcji podarunkowej stoi badge „Preferowane zrodlo w Google".
     const articleActions = (
