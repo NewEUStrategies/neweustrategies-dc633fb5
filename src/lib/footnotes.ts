@@ -53,13 +53,117 @@ const WP_FN_RE =
 const WP_FN_SCRIPT_RE = /<script[^>]*>[\s\S]*?footnote_plugin[\s\S]*?<\/script>/gi;
 
 /** Zamienia stary markup przypisów WP na kanoniczne `[fn]…[/fn]`. */
-export function normalizeLegacyFootnoteHtml(html: string): string {
+export function normalizeWpFootnoteHtml(html: string): string {
   if (!html.includes("footnote_")) return html;
   return html.replace(WP_FN_SCRIPT_RE, "").replace(WP_FN_RE, (_m, inner: string) => {
     const text = String(inner ?? "").trim();
     return text ? `[fn]${text}[/fn]` : "";
   });
 }
+
+// --- Przypisy z edytorów biurowych (MS Word, LibreOffice, Google Docs, pandoc) ---
+//
+// Wszystkie te eksporty dzielą jeden wzorzec: w treści jest odsyłacz-kotwica do
+// bloku definicji na końcu dokumentu. Różnią się tylko nazwami identyfikatorów:
+//
+//   MS Word        <a href="#_ftn1" name="_ftnref1">…</a>  +  <div id="ftn1">…</div>
+//   LibreOffice    <a class="sdfootnoteanc" href="#sdfootnote1sym">…</a>
+//                                                          +  <div id="sdfootnote1">…</div>
+//   Google Docs    <sup><a href="#ftnt1" id="ftnt_ref1">…</a></sup>
+//                                                          +  <p><a id="ftnt1">…</a> treść</p>
+//   pandoc/docx    <a class="footnote-ref" href="#fn1">…</a> +  <li id="fn1">…</li>
+//
+// Normalizujemy KAŻDY z nich do `[fn]…[/fn]` w miejscu odsyłacza i usuwamy blok
+// definicji - dzięki temu w jednym wklejonym dokumencie mogą współistnieć różne
+// rodzaje przypisów (także obok WP i naszego shortcode'u), a wyjście jest jedno.
+
+type FnKind = "ftnt" | "ftn" | "sd" | "fn";
+
+function normalizeKind(raw: string): FnKind {
+  const k = raw.toLowerCase();
+  if (k === "ftnt") return "ftnt";
+  if (k === "sdfootnote") return "sd";
+  if (k === "fn") return "fn";
+  return "ftn"; // "ftn" oraz "_ftn"
+}
+
+const OFFICE_HINT_RE = /(_ftnref|_ftn\d|id=["']?ftn|sdfootnote|footnote-ref|ftnt_ref|ftnt\d)/i;
+
+// Bloki definicji na końcu dokumentu (jeden wzorzec na eksporter).
+const DEF_BLOCK_RES: RegExp[] = [
+  /<div[^>]*\bid=["']?(_?ftn|sdfootnote|ftnt)(\d+)["']?[^>]*>([\s\S]*?)<\/div>/gi,
+  /<li[^>]*\bid=["']?(fn)(\d+)["']?[^>]*>([\s\S]*?)<\/li>/gi,
+  /<p[^>]*>\s*<a[^>]*\bid=["']?(ftnt|_?ftn)(\d+)["']?[^>]*>[\s\S]*?<\/a>([\s\S]*?)<\/p>/gi,
+];
+
+// Backlinki w bloku definicji ("↩", "[1]", symbol) - nie są treścią przypisu.
+const DEF_BACKLINK_RE =
+  /<a\b[^>]*href=["']#(?:_?ftnref|fnref|ftnt_ref|sdfootnote\d+anc)[^"']*["'][^>]*>[\s\S]*?<\/a>/gi;
+const DEF_NAMED_ANCHOR_RE =
+  /<a\b[^>]*\b(?:name|id)=["']?(?:_?ftn|ftnt|sdfootnote)\d+[^"'>\s]*["']?[^>]*>[\s\S]*?<\/a>/gi;
+const DEF_STRIP_TAGS_RE = /<\/?(?:p|div|li|ol|ul|section|span|font|sup|hr|br)\b[^>]*>/gi;
+
+function cleanDefinition(inner: string): string {
+  return inner
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(DEF_BACKLINK_RE, "")
+    .replace(DEF_NAMED_ANCHOR_RE, "")
+    .replace(DEF_STRIP_TAGS_RE, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^\s*(?:\[\d+\]|\d+[.)]?|[*†‡])\s*/, "")
+    .trim();
+}
+
+// Odsyłacz w treści; opcjonalnie owinięty w <sup> (Google Docs, pandoc).
+const REF_RE =
+  /(?:<sup\b[^>]*>\s*)?<a\b[^>]*href=["']#(ftnt|_?ftn|sdfootnote|fn)(\d+)[^"']*["'][^>]*>[\s\S]*?<\/a>(?:\s*<\/sup>)?/gi;
+
+/** Zamienia przypisy z Worda/LibreOffice/Google Docs/pandoc na `[fn]…[/fn]`. */
+export function normalizeOfficeFootnoteHtml(html: string): string {
+  if (!OFFICE_HINT_RE.test(html)) return html;
+
+  const defs = new Map<string, string>();
+  let out = html;
+  for (const re of DEF_BLOCK_RES) {
+    re.lastIndex = 0;
+    out = out.replace(re, (match, kind: string, num: string, inner: string) => {
+      const text = cleanDefinition(inner ?? "");
+      if (!text) return match;
+      defs.set(`${normalizeKind(kind)}:${num}`, text);
+      return "";
+    });
+  }
+  if (defs.size === 0) return html;
+
+  REF_RE.lastIndex = 0;
+  out = out.replace(REF_RE, (match, kind: string, num: string) => {
+    const text = defs.get(`${normalizeKind(kind)}:${num}`);
+    return text ? `[fn]${text}[/fn]` : match;
+  });
+
+  // Puste kontenery po usuniętych definicjach (Word: mso-element:footnote-list,
+  // pandoc: <section class="footnotes">) - żeby nie zostawiać sierot w treści.
+  return out
+    .replace(/<section[^>]*class=["'][^"']*footnotes[^"']*["'][^>]*>[\s\S]*?<\/section>/gi, "")
+    .replace(/<div[^>]*mso-element:\s*footnote-list[^>]*>\s*(?:<hr[^>]*>)?\s*<\/div>/gi, "")
+    .replace(/<(div|ol|ul)[^>]*>\s*<\/\1>/gi, "");
+}
+
+/**
+ * Jedno wejście dla wszystkich odmian obcych przypisów. Kolejność ma znaczenie
+ * tylko o tyle, że każdy krok jest no-op dla markupu, którego nie dotyczy -
+ * dlatego jeden dokument może mieszać WP, Worda i nasz `[fn]`.
+ */
+export function normalizeLegacyFootnoteHtml(html: string): string {
+  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html));
+}
+
+/** Czy string zawiera jakikolwiek rozpoznawany zapis przypisu. */
+export function containsFootnoteMarkup(v: string): boolean {
+  return v.includes("[fn]") || v.includes("footnote_") || OFFICE_HINT_RE.test(v);
+}
+
 
 /** Escape HTML dla atrybutu `title` i (opcjonalnie) sekcji końcowej. */
 export function escapeAttr(s: string): string {
