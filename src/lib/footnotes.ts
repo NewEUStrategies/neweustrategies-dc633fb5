@@ -164,7 +164,6 @@ export function containsFootnoteMarkup(v: string): boolean {
   return v.includes("[fn]") || v.includes("footnote_") || OFFICE_HINT_RE.test(v);
 }
 
-
 /** Escape HTML dla atrybutu `title` i (opcjonalnie) sekcji końcowej. */
 export function escapeAttr(s: string): string {
   return s
