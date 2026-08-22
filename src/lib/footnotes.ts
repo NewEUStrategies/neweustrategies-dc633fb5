@@ -67,13 +67,49 @@ export function isLegacyFootnoteReferenceHtml(html: unknown): boolean {
   return typeof html === "string" && WP_REFERENCE_BLOCK_HINT_RE.test(html);
 }
 
+// Stary plugin skracał treść dymka ("… Czytaj dalej"), a PEŁNY tekst trzymał
+// dopiero w końcowej tabeli źródeł (którą ukrywamy). Dlatego przed normalizacją
+// zbieramy z tej tabeli mapę `id odsyłacza -> pełna treść` i to ona wygrywa.
+const WP_REF_ROW_RE =
+  /<a[^>]*\bid=["']footnote_plugin_reference_([\w-]+)["'][^>]*>[\s\S]*?<\/a>\s*<\/th>\s*<td[^>]*class=["'][^"']*footnote_plugin_text[^"']*["'][^>]*>([\s\S]*?)<\/td>/gi;
+const WP_TOOLTIP_ID_RE = /id=["']footnote_plugin_tooltip(?:_text)?_([\w-]+)["']/i;
+const WP_CONTINUE_RE =
+  /<span[^>]*class=["'][^"']*footnote_tooltip_continue[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
+
+/** Buduje mapę pełnych treści przypisów z końcowej tabeli źródeł WordPressa. */
+export function collectWpFootnoteTexts(sources: Iterable<unknown>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const src of sources) {
+    if (typeof src !== "string" || !src.includes("footnote_plugin_reference_")) continue;
+    WP_REF_ROW_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = WP_REF_ROW_RE.exec(src)) !== null) {
+      const text = String(m[2] ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (m[1] && text) map.set(m[1], text);
+    }
+  }
+  return map;
+}
+
 /** Zamienia stary markup przypisów WP na kanoniczne `[fn]…[/fn]`. */
-export function normalizeWpFootnoteHtml(html: string): string {
+export function normalizeWpFootnoteHtml(html: string, texts?: Map<string, string>): string {
   if (!html.includes("footnote_")) return html;
-  return html.replace(WP_FN_SCRIPT_RE, "").replace(WP_FN_RE, (_m, inner: string) => {
-    const text = String(inner ?? "").trim();
-    return text ? `[fn]${text}[/fn]` : "";
-  });
+  // Najpierw wycinamy przycisk "Czytaj dalej" - jego zagniezdzony <span>
+  // przedwczesnie zamykalby dopasowanie tresci dymka.
+  return html
+    .replace(WP_FN_SCRIPT_RE, "")
+    .replace(WP_CONTINUE_RE, "")
+    .replace(WP_FN_RE, (m: string, inner: string) => {
+      const key = WP_TOOLTIP_ID_RE.exec(m)?.[1];
+      const full = key ? texts?.get(key) : undefined;
+      const text = (full ?? String(inner ?? ""))
+        .replace(WP_CONTINUE_RE, "")
+        .replace(/(?:&nbsp;|\s)*(?:&#x2026;|&hellip;|…)\s*$/i, "")
+        .trim();
+      return text ? `[fn]${text}[/fn]` : "";
+    });
 }
 
 // --- Przypisy z edytorów biurowych (MS Word, LibreOffice, Google Docs, pandoc) ---
@@ -170,8 +206,8 @@ export function normalizeOfficeFootnoteHtml(html: string): string {
  * tylko o tyle, że każdy krok jest no-op dla markupu, którego nie dotyczy -
  * dlatego jeden dokument może mieszać WP, Worda i nasz `[fn]`.
  */
-export function normalizeLegacyFootnoteHtml(html: string): string {
-  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html));
+export function normalizeLegacyFootnoteHtml(html: string, texts?: Map<string, string>): string {
+  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html, texts));
 }
 
 /** Czy string zawiera jakikolwiek rozpoznawany zapis przypisu. */
