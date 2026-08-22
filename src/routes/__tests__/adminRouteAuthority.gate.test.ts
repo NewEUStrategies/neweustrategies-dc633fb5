@@ -245,3 +245,107 @@ describe("panel klubów - autorytet dostępu", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// PANEL SEO - rozszerzenie zakresu bramki (2026-08-22, moduł 8)
+// ---------------------------------------------------------------------------
+//
+// PO CO. Rodzina `admin.seo*` i `admin.settings.seo` nie miała w tej bramce ANI
+// JEDNEGO trafienia. `e2e/seo.spec.ts` ma już test „/admin/seo is auth-gated
+// (redirects to /auth or /login)", więc UWIERZYTELNIENIE jest dowiedzione i tu
+// go NIE POWTARZAMY renderem. Bramka autorytetu odpowiada na inne pytanie:
+// czy panel oferuje akcję, którą BAZA odrzuci.
+//
+// I odpowiedź jest twierdząca - patrz `it.fails` niżej. `site_settings` ma
+// polityki `INSERT`/`UPDATE` wymagające `has_role(auth.uid(), 'admin')`,
+// a wspólny layout `/admin` przepuszcza cały personel (także `editor`
+// i `author`). `/admin/settings/seo` renderuje pełny formularz z `SaveBar`
+// i NIE sprawdza roli - czyli dokładnie ten defekt, który ta bramka złapała
+// przy wdrożeniu na droplistcie zmiany roli.
+//
+// CZEGO TA CZĘŚĆ NIE ROBI. Nie renderuje tras (to robi
+// `adminSeoRoutes.test.tsx`) i nie sprawdza bazy (to robią polityki RLS,
+// czytane tu wyłącznie jako TEKST migracji - żeby ciche rozluźnienie polityki
+// nie zostało niezauważone).
+const SEO_ROUTES = ["admin.seo.tsx", "admin.seo.search-console.tsx", "admin.settings.seo.tsx"];
+/** Migracja, która nadała `site_settings` politykę „tylko admin pisze". */
+const SITE_SETTINGS_POLICY_MIGRATION =
+  "supabase/migrations/20260626162717_fe6d7498-55f7-4850-b07e-7accc7013cb5.sql";
+
+describe("panel SEO - autorytet dostępu", () => {
+  it("wszystkie trzy trasy rodziny SEO istnieją - kanarek zasięgu", () => {
+    // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i milczała.
+    const present = adminRoutes();
+    for (const file of SEO_ROUTES) {
+      expect(present, `brak trasy panelu SEO: ${file}`).toContain(file);
+    }
+  });
+
+  it("autorytet zapisu ustawień SEO to `admin` w RLS - i ta polityka nadal istnieje", () => {
+    // To jest źródło prawdy dla testu niżej. Gdyby polityka została
+    // rozluźniona (albo migracja usunięta), `it.fails` przestałby opisywać
+    // realny defekt, a nikt by tego nie zauważył - stąd czytamy ją wprost.
+    const sql = read(SITE_SETTINGS_POLICY_MIGRATION);
+    expect(sql).toContain('CREATE POLICY "site_settings admin insert"');
+    expect(sql).toContain('CREATE POLICY "site_settings admin update"');
+    const adminChecks = sql.match(/public\.has_role\(auth\.uid\(\), 'admin'::app_role\)/g) ?? [];
+    expect(
+      adminChecks.length,
+      "zapis site_settings musi wymagać roli `admin` w INSERT i UPDATE",
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("przeglądy SEO są TYLKO DO CZYTANIA - nie oferują zapisu, którego baza mogłaby odrzucić", () => {
+    // `/admin/seo` i `/admin/seo/search-console` czytają treść i dane GSC.
+    // Dopóki nie mają mutacji, brak własnego sprawdzenia roli jest POPRAWNY:
+    // layout `/admin` odsiewa osoby z zewnątrz, a personel ma prawo czytać.
+    // Gdyby dowolna z nich dostała zapis, ten test padnie i wymusi decyzję
+    // o roli - zamiast wypuścić formularz, który odrzuci RLS.
+    const offenders = ["admin.seo.tsx", "admin.seo.search-console.tsx"].filter((file) =>
+      /useMutation\(|\.mutate\(|\.upsert\(|\.insert\(|\.update\(|\.delete\(/.test(
+        read(`${ROUTES_DIR}/${file}`),
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("panel SEO nie mówi redaktorowi po polsku w kodzie - komunikaty idą przez klucze", () => {
+    // Ta sama zasada, co przy odmowach klubów: literał w JSX-ie omija bramkę
+    // parytetu PL/EN, więc angielski panel wyświetlałby polszczyznę.
+    for (const file of SEO_ROUTES) {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      expect(source, `${file} nie woła t() ani razu`).toMatch(/\bt\("/);
+    }
+  });
+
+  it.fails(
+    "DEFEKT: /admin/settings/seo oferuje ZAPIS każdemu członkowi personelu, a baza go odrzuci",
+    () => {
+      // KONSEKWENCJA. `site_settings` INSERT/UPDATE wymaga `has_role(..., 'admin')`
+      // (asercja wyżej czyta tę politykę wprost), a layout `/admin` przepuszcza
+      // też `editor` i `author`. Redaktor wchodzi na zakładkę SEO, wypełnia
+      // sufiks tytułu, politykę crawlerów AI, liczbę wpisów w RSS - i klika
+      // „Zapisz". Zapis wraca błędem RLS. Interfejs wygląda, jakby redaktor
+      // zarządzał SEO całego serwisu; autorytet bazy jest szczelny, kłamie
+      // panel. To ta sama klasa defektu, którą ta bramka złapała przy wdrożeniu
+      // na `admin.users.$id` (droplista zmiany roli dla całego personelu).
+      //
+      // NAPRAWA (poza zakresem tego zadania - nie zmieniamy produkcji, żeby
+      // test przeszedł): trasa powinna czytać `isAdmin` z `useAuth()` i albo
+      // odmawiać treści, albo renderować formularz w trybie tylko do czytania.
+      const source = read(`${ROUTES_DIR}/admin.settings.seo.tsx`);
+      expect(source, "trasa zapisująca site_settings musi sama sprawdzać rolę `admin`").toMatch(
+        /isAdmin/,
+      );
+    },
+  );
+
+  it("kontrola dodatnia: /admin/settings/seo FAKTYCZNIE oferuje dziś zapis bez sprawdzenia roli", () => {
+    // Bez tego testu `it.fails` wyżej mógłby zzielenieć z niewłaściwego
+    // powodu - np. gdyby ktoś usunął `SaveBar` zamiast dodać warunek roli.
+    // Te dwie asercje opisują stan FAKTYCZNY: zapis jest, kontroli roli nie ma.
+    const source = read(`${ROUTES_DIR}/admin.settings.seo.tsx`);
+    expect(source, "zapis istnieje").toMatch(/save\.mutate\(/);
+    expect(source, "kontroli roli nie ma").not.toMatch(/isAdmin|isSuperAdmin/);
+  });
+});
