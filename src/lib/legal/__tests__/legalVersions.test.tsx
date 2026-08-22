@@ -41,7 +41,8 @@ import type { ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/supabaseChain";
-import type { LegalDocContent } from "@/lib/legal/types";
+import type { LegalDocContent, LegalDocCopy } from "@/lib/legal/types";
+import type { ResolvedLegalCopy } from "@/lib/legal/resolve";
 
 const h = vi.hoisted(() => ({
   db: null as SupabaseFromStub | null,
@@ -375,8 +376,20 @@ describe("pickLegalCopy - wybór wersji językowej", () => {
   it("brak wersji językowej w treści z bazy schodzi na baseline TEGO języka", () => {
     // To jest gałąź `source[lang] ?? fallback[lang]`: dokument opublikowany
     // tylko po polsku nie może dać pustej strony na `/en/`.
-    const onlyPolish = { pl: content().pl } as unknown as LegalDocContent;
-    const resolved = pickLegalCopy(onlyPolish, LEGAL_DOCS.terms.baseline, "en");
+    // BEZ RZUTOWANIA. `LegalDocContent` wymaga OBU języków, a przedmiotem testu
+    // jest wiersz z bazy, w którym brakuje jednego - czyli kształt, którego typ
+    // zabrania, a `safeParseLegalContent` przepuszcza. Wywołanie idzie przez
+    // interfejs z metodą (składnia metodowa jest w TS biwariantna), więc typy
+    // pozostają włączone wszędzie poza tym jednym, opisanym miejscem.
+    interface LoosePick {
+      call(
+        published: { pl?: LegalDocCopy; en?: LegalDocCopy } | null,
+        fallback: LegalDocContent,
+        lang: "pl" | "en",
+      ): ResolvedLegalCopy;
+    }
+    const loose: LoosePick = { call: pickLegalCopy };
+    const resolved = loose.call({ pl: content().pl }, LEGAL_DOCS.terms.baseline, "en");
     expect(resolved.title).toBe(LEGAL_DOCS.terms.baseline.en.title);
   });
 

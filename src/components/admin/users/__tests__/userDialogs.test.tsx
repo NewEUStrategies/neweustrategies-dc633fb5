@@ -198,7 +198,10 @@ import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
 
 function candidate(overrides: Partial<TeamImportCandidate> = {}): TeamImportCandidate {
-  return {
+  // Pełny kształt jako ADNOTACJA (a nie rzutowanie na końcu): brak pola w tym
+  // literale jest wtedy błędem kompilacji dokładnie tutaj, a nie cichym
+  // `undefined` w atrapie kandydata importu.
+  const base: TeamImportCandidate = {
     email: "nowa@example.org",
     name: "Nowa Osoba",
     widgetId: "w-1",
@@ -216,8 +219,8 @@ function candidate(overrides: Partial<TeamImportCandidate> = {}): TeamImportCand
     website: null,
     existingUserId: null,
     existingInvitationId: null,
-    ...overrides,
-  } as TeamImportCandidate;
+  };
+  return { ...base, ...overrides };
 }
 
 function selects(): HTMLSelectElement[] {

@@ -245,8 +245,16 @@ describe("syncCmpDecisionToRegistry - wycofanie i udzielenie zgody", () => {
     // `acceptAll`/`rejectAll` bywają podpinane wprost pod `onClick`, więc
     // pierwszym argumentem może być zdarzenie. Nieznane źródło w kolumnie
     // audytu byłoby wartością, której nikt nie potrafi zinterpretować.
-    const notASource = { type: "click" } as unknown as "cmp_banner";
-    await syncCmpDecisionToRegistry(null, state({ analytics: true }), notASource);
+    // BEZ RZUTOWANIA. Typ parametru zabrania tu obiektu zdarzenia, ale runtime
+    // nie - a to właśnie ta różnica jest przedmiotem testu. Wywołanie idzie
+    // więc przez interfejs z metodą (składnia metodowa jest w TS biwariantna,
+    // więc przypisanie funkcji o WĘŻSZYM parametrze jest legalne), a nie przez
+    // `as unknown as`, które kasowałoby kontrolę typów w całym wyrażeniu.
+    interface LooseSync {
+      call(prev: null, next: ConsentState, source: unknown): Promise<void>;
+    }
+    const loose: LooseSync = { call: syncCmpDecisionToRegistry };
+    await loose.call(null, state({ analytics: true }), { type: "click" });
     expect(entryFor("cookies_analytics")).toMatchObject({ source: "cmp_banner" });
   });
 

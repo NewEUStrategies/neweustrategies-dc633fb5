@@ -154,6 +154,27 @@ afterEach(cleanup);
 // 1. PRZED DECYZJĄ: modalu szczegółów NIE DA SIĘ porzucić.
 // ---------------------------------------------------------------------------
 
+/**
+ * Ładunek zapisu zgód - STRAŻNIK, nie rzutowanie. `mock.calls` jest typowany
+ * luźno, a rzutowanie na `Record<string, boolean>` przepuściłoby też ładunek,
+ * w którym kategoria przyszła jako napis („true") - czyli dokładnie ten defekt,
+ * którego te testy szukają.
+ */
+function savedCategories(): Record<string, boolean> {
+  const payload: unknown = h.save.mock.calls[0]?.[0];
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new Error("test: zapis zgód bez ładunku kategorii");
+  }
+  const out: Record<string, boolean> = {};
+  for (const [name, value] of Object.entries(payload)) {
+    if (typeof value !== "boolean") {
+      throw new Error(`test: kategoria ${name} nie jest wartością logiczną`);
+    }
+    out[name] = value;
+  }
+  return out;
+}
+
 describe("integralność zgody - PRZED decyzją nie ma drogi porzucenia", () => {
   it("`Escape` w modalu szczegółów NIE zamyka go i NIE zapisuje niczego", () => {
     // Nasłuch klawisza jest zarejestrowany warunkowo (`detailsOpen && decided`),
@@ -389,7 +410,7 @@ describe("panel preferencji - zapis wyłącznie zaznaczonego zestawu", () => {
     fireEvent.click(boxes[1]);
     fireEvent.click(screen.getByRole("button", { name: PL.saveSelection }));
     expect(h.save).toHaveBeenCalledTimes(1);
-    const saved = h.save.mock.calls[0][0] as Record<string, boolean>;
+    const saved = savedCategories();
     expect(saved.necessary).toBe(true);
     expect(saved.functional).toBe(true);
     expect(saved.analytics).toBe(false);
@@ -403,7 +424,7 @@ describe("panel preferencji - zapis wyłącznie zaznaczonego zestawu", () => {
     fireEvent.click(boxes[1]);
     fireEvent.click(boxes[1]);
     fireEvent.click(screen.getByRole("button", { name: PL.saveSelection }));
-    const saved = h.save.mock.calls[0][0] as Record<string, boolean>;
+    const saved = savedCategories();
     expect(saved.functional).toBe(false);
   });
 
