@@ -2,8 +2,7 @@
 // numer w sekcji -> powrót do markera. Oba skoki przechwycone (preventDefault)
 // i wykonane płynnym scrollem z offsetem pod sticky header.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { FootnotesList } from "@/components/Footnotes";
 import { FootnoteTooltips } from "@/components/Footnotes";
 import { useRef } from "react";
@@ -33,18 +32,18 @@ describe("nawigacja przypisów", () => {
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
   });
 
-  it("klik w marker przewija do wpisu w sekcji przypisów", async () => {
+  it("klik w marker przewija do wpisu w sekcji przypisów", () => {
     render(<Harness />);
     const marker = screen.getByRole("link", { name: "[1]" });
-    await userEvent.click(marker);
+    fireEvent.click(marker);
     expect(window.scrollTo).toHaveBeenCalled();
     expect(document.getElementById("fn-1")).not.toBeNull();
   });
 
-  it("klik w numer w sekcji wraca do markera w treści", async () => {
+  it("klik w numer w sekcji wraca do markera w treści", () => {
     render(<Harness />);
     const back = screen.getAllByTitle("Wróć do odsyłacza")[0];
-    await userEvent.click(back);
+    fireEvent.click(back);
     expect(window.scrollTo).toHaveBeenCalled();
     expect(document.getElementById("fnref-1")).not.toBeNull();
   });
