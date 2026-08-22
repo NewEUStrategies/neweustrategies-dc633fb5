@@ -55,3 +55,10 @@ reports/*
 !reports/i18n-parity.json
 !reports/bundle-baseline.json
 .audit-findings.json
+
+# Lockfile menedżera, którego ten projekt NIE używa. Kanoniczny lockfile to
+# `bun.lock`; `npm install` jest tu wyłącznie obejściem na czas testów, gdy
+# prywatny rejestr odrzuca `bun install --frozen-lockfile` bez tokena (403).
+# Drugi lockfile w repo rozjeżdża rozwiązywanie zależności między CI i lokalnie,
+# a jest generowany przy każdym takim obejściu - stąd wykluczenie, nie dyscyplina.
+package-lock.json

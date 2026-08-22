@@ -114,3 +114,156 @@ describe("buildRssXml - jawny guid (kanały wielopozycyjne per URL)", () => {
     expect(xml).not.toContain(`<guid isPermaLink="false">  </guid>`);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ETAP 4: gałęzie kanału na wejściach NIEPEŁNYCH (rss.ts:89 - pusta kategoria,
+// rss.ts:107 - brak jakiejkolwiek poprawnej daty w kanale).
+// NIE DUBLUJE `e2e/seo.spec.ts` - test "rss.xml returns a well-formed feed"
+// dowodzi tam na żywym SSR trasy, typu treści i poprawności dokumentu; tutaj
+// dowodzimy CZYSTEGO buildera na danych, których redakcja nie powinna, ale może
+// wypuścić (tag bez nazwy, wpisy bez daty publikacji).
+// ---------------------------------------------------------------------------
+describe("buildRssXml - wejścia niepełne", () => {
+  it("pomija <lastBuildDate>, gdy żadna pozycja nie ma poprawnej daty", () => {
+    // Czytnik traktuje <lastBuildDate> jako znacznik świeżości. Pusty albo
+    // wyliczony "na teraz" węzeł kazałby mu odpytywać kanał w kółko, a data
+    // wzięta z niczego byłaby kłamstwem o treści.
+    const xml = buildRssXml({
+      title: "NES",
+      description: "Analizy",
+      siteUrl: "https://nes.example",
+      feedUrl: "https://nes.example/rss.xml",
+      language: "pl",
+      items: [
+        { url: "https://nes.example/a", title: "A", description: null, publishedAt: null },
+        { url: "https://nes.example/b", title: "B", description: null, publishedAt: "nie-data" },
+        { url: "https://nes.example/c", title: "C", description: null, publishedAt: "" },
+      ],
+    });
+    expect(xml).not.toContain("<lastBuildDate>");
+    expect(xml).not.toContain("<pubDate>");
+    // Kanał nadal jest poprawnym dokumentem z trzema pozycjami.
+    expect(xml.match(/<item>/g)).toHaveLength(3);
+    expect(xml.trimEnd().endsWith("</rss>")).toBe(true);
+  });
+
+  it("pomija copyright pusty i null (bez pustego węzła w kanale)", () => {
+    for (const copyright of [undefined, null, ""]) {
+      const xml = buildRssXml({
+        title: "NES",
+        description: "Analizy",
+        siteUrl: "https://nes.example",
+        feedUrl: "https://nes.example/rss.xml",
+        language: "pl",
+        copyright,
+        items: [],
+      });
+      expect(xml).not.toContain("<copyright>");
+      expect(xml).not.toContain("<item>");
+      expect(xml).toContain("<ttl>60</ttl>");
+    }
+  });
+
+  it("pomija kategorie puste i z samych spacji, zachowując te realne", () => {
+    // Tag bez nazwy trafiał do <category></category> - agregatory czytają to
+    // jako kategorię o pustej nazwie i tworzą w indeksie śmieciowy wpis.
+    const xml = buildRssXml({
+      title: "NES",
+      description: "Analizy",
+      siteUrl: "https://nes.example",
+      feedUrl: "https://nes.example/rss.xml",
+      language: "pl",
+      items: [
+        {
+          url: "https://nes.example/a",
+          title: "A",
+          description: null,
+          publishedAt: null,
+          categories: ["", "   ", "  Geopolityka  ", "\n"],
+        },
+      ],
+    });
+    expect(xml.match(/<category>/g)).toHaveLength(1);
+    expect(xml).toContain("<category>Geopolityka</category>");
+    expect(xml).not.toContain("<category></category>");
+  });
+
+  const blankCases: readonly { label: string; value: string | null | undefined }[] = [
+    { label: "pominięte pole", value: undefined },
+    { label: "null", value: null },
+    { label: "pusty łańcuch", value: "" },
+    { label: "same spacje", value: "   " },
+  ];
+
+  it.each(blankCases)("pomija autora i okładkę, gdy pole to $label", ({ value }) => {
+    const xml = buildRssXml({
+      title: "NES",
+      description: "Analizy",
+      siteUrl: "https://nes.example",
+      feedUrl: "https://nes.example/rss.xml",
+      language: "pl",
+      items: [
+        {
+          url: "https://nes.example/a",
+          title: "A",
+          description: value ?? null,
+          publishedAt: null,
+          authorName: value,
+          imageUrl: value,
+          categories: undefined,
+        },
+      ],
+    });
+    // Kroimy od `<item>`, bo opis KANAŁU jest osobnym, zawsze obecnym węzłem.
+    const item = xml.slice(xml.indexOf("<item>"));
+    expect(item).not.toContain("<dc:creator>");
+    expect(item).not.toContain("<media:content");
+    expect(item).not.toContain("<description>");
+    expect(item).not.toContain("<category>");
+    expect(item).toContain('<guid isPermaLink="true">https://nes.example/a</guid>');
+  });
+
+  it("kanał bez pozycji jest poprawnym, pustym dokumentem RSS", () => {
+    const xml = buildRssXml({
+      title: "NES",
+      description: "Analizy",
+      siteUrl: "https://nes.example",
+      feedUrl: "https://nes.example/rss.xml",
+      language: "en",
+      items: [],
+    });
+    expect(xml).not.toContain("<item>");
+    expect(xml).not.toContain("<lastBuildDate>");
+    expect(xml).toContain("<language>en</language>");
+    expect(xml.trimEnd().endsWith("</rss>")).toBe(true);
+  });
+});
+
+describe("plainText / rfc822Date - wartości brzegowe", () => {
+  it.each([
+    { label: "undefined", value: undefined },
+    { label: "null", value: null },
+    { label: "pusty łańcuch", value: "" },
+    { label: "same tagi", value: "<p></p><br>" },
+    { label: "same spacje i encje białych znaków", value: " \n\t " },
+  ])("plainText zwraca pusty łańcuch dla $label", ({ value }) => {
+    expect(plainText(value)).toBe("");
+  });
+
+  it("plainText przycina dokładnie do limitu i dokleja elipsę", () => {
+    const out = plainText("a".repeat(50), 10);
+    expect(out).toHaveLength(10);
+    expect(out.endsWith("…")).toBe(true);
+    // Tekst DOKŁADNIE na granicy nie jest ruszany (brak zbędnej elipsy).
+    expect(plainText("a".repeat(10), 10)).toBe("a".repeat(10));
+  });
+
+  it.each([
+    { label: "pusty łańcuch", value: "" },
+    { label: "undefined", value: undefined },
+    { label: "data poza kalendarzem", value: "2026-02-30T99:00:00Z" },
+    { label: "sam tekst", value: "wczoraj" },
+  ])("rfc822Date zwraca null dla $label", ({ value }) => {
+    expect(rfc822Date(value)).toBeNull();
+  });
+});

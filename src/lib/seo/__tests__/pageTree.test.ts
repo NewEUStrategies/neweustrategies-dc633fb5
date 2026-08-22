@@ -38,3 +38,26 @@ describe("buildPageTree", () => {
     expect(tree[0]?.path).toBe("/podstrona");
   });
 });
+
+// Gałąź `a.title_pl || a.title_en` (pageTree.ts:25) - obie strony komparatora.
+// Strona bez tytułu PL istnieje w bazie realnie: redakcja zakłada wpis od wersji
+// EN. Bez prawej strony `||` takie rodzeństwo sortowałoby się po pustym stringu,
+// czyli w praktyce losowo - a /sitemap jest dokumentem, po którym crawler
+// odkrywa hierarchię serwisu.
+describe("buildPageTree - rodzeństwo bez tytułu w języku domyślnym", () => {
+  it("sortuje po tytule EN, gdy tytuł PL jest pusty po obu stronach porównania", () => {
+    const tree = buildPageTree([
+      row({ id: "1", slug: "b-zeta", title_pl: "", title_en: "Zeta" }),
+      row({ id: "2", slug: "a-alfa", title_pl: "", title_en: "Alfa" }),
+    ]);
+    expect(tree.map((n) => n.slug)).toEqual(["a-alfa", "b-zeta"]);
+  });
+
+  it("porównuje tytuł EN strony bez tłumaczenia PL z tytułem PL strony przetłumaczonej", () => {
+    const tree = buildPageTree([
+      row({ id: "1", slug: "bez-pl", title_pl: "", title_en: "Zeta" }),
+      row({ id: "2", slug: "z-pl", title_pl: "Alfa", title_en: "Alpha" }),
+    ]);
+    expect(tree.map((n) => n.slug)).toEqual(["z-pl", "bez-pl"]);
+  });
+});
