@@ -2728,6 +2728,256 @@ export default defineConfig({
           lines: 92,
           branches: 89,
         },
+        // ── MODUŁ 19: USTAWIENIA, INTEGRACJE, UŻYTKOWNICY, MULTI-TENANT, RODO ─
+        //
+        // Stan wyjściowy powierzchni (audyt 2026-08-21, HEAD 6426bd0): 130 plików,
+        // 28,0% linii, 23,2% GAŁĘZI, 56 plików z zerem wykonanych linii. Gałęzie
+        // były tu trudniejsze niż linie i takie zostały: panele ustawień czytają
+        // wartości przez `??`/`||`/`?:`, a najczęstszym realnym błędem jest
+        // wartość FAŁSZYWA ALE PRAWIDŁOWA (`0` dni karencji, `""` tytułu),
+        // którą `||` podmienia na domyślną. Progi gałęzi są więc floorowane
+        // ostrożniej niż progi linii.
+        //
+        // UWAGA NA PODZIAŁ ODPOWIEDZIALNOŚCI, ten sam co przy klubach:
+        // próg per-ścieżka = STAN I SKLEJENIE. Bramka autorytetu = DOSTĘP.
+        // Dostępu tras panelu pilnuje `src/routes/__tests__/adminRouteAuthority.gate.test.ts`
+        // (rozszerzona w tym module z 21 do 58 przypadków o rodziny
+        // `admin.users.*`, `admin.settings.*`, `admin.organizations.*`,
+        // `admin.integrations`, `admin.names`), a nie te progi - render trasy
+        // nie widzi ani wspólnego layoutu `/admin`, ani RLS.
+        //
+        // Wszystkie liczby w komentarzach to POMIAR v8 z 2026-08-22, plik po
+        // pliku; progi stoją 1-2 p.p. pod pomiarem (zapas na dryf w CI).
+
+        // Użytkownicy i role. Zmierzone: 98,30% instrukcji / 99,17% funkcji /
+        // 99,78% linii / 95,09% gałęzi - z 0,0%.
+        "src/routes/admin.users*.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // Okna zaproszeń i importu zespołu. Zmierzone: 97,27% / 100% / 98,09% /
+        // 96,77% - z 0,0%.
+        "src/components/admin/users/**": {
+          statements: 96,
+          functions: 99,
+          lines: 97,
+          branches: 95,
+        },
+        // System zaproszeń (9 funkcji serwerowych). Zmierzone: 99,65% / 100% /
+        // 100% / 97,61% - z 0,0%. Bramki roli i najemcy są tu DEKLARACJĄ
+        // middleware (harness go nie uruchamia), a nie zachowaniem handlera.
+        "src/lib/admin/invitations.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 96,
+        },
+        // Silnik wszystkich paneli ustawień. Zmierzone: 100% w czterech
+        // metrykach - z 0,0%. Dwanaście z piętnastu tras `admin.settings.*`
+        // czyta i zapisuje konfigurację WYŁĄCZNIE przez ten hook.
+        "src/lib/admin/useSettings.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        // Piętnaście tras ustawień. Zmierzone: 97,47% / 95,29% / 97,25% /
+        // 95,08% - z 0,0%. Najwyższą wartość dowodową ma tu bramka POLA
+        // MARTWEGO (zmiana każdej kontrolki musi zmienić ładunek zapisu).
+        "src/routes/admin.settings*.tsx": {
+          statements: 96,
+          functions: 94,
+          lines: 96,
+          branches: 93,
+        },
+        // Integracje wychodzące: panel endpointów. Zmierzone: 98,44% / 97,82% /
+        // 99,15% / 95,04% - z 0,0%. Sekret podpisu nie jest odczytywany do
+        // panelu; panel widzi wyłącznie „ustawiony / nieustawiony".
+        "src/routes/admin.integrations.tsx": {
+          statements: 97,
+          functions: 96,
+          lines: 98,
+          branches: 93,
+        },
+        // Dispatcher dostaw. Zmierzone: 98,55% / 85,71% / 100% / 100% - z 0,0%.
+        // Próg FUNKCJI jest niższy świadomie: jedna funkcja jest osiągalna
+        // tylko przez uruchomienie middleware, czego harness funkcji
+        // serwerowych z założenia nie robi (patrz `src/test/serverFnHarness.ts`).
+        "src/lib/integrations/dispatch.functions.ts": {
+          statements: 97,
+          functions: 85,
+          lines: 99,
+          branches: 99,
+        },
+        // Słownik imion - trasa (sklejenie: stan, zapytania, realtime).
+        // Zmierzone: 99,11% / 100% / 100% / 98,83% - z 0,0%. Cztery niedobite
+        // gałęzie są wypisane z numerami linii w nagłówku pliku testowego.
+        "src/routes/admin.names.tsx": {
+          statements: 98,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // Słownik imion - REGUŁY CSV wyprowadzone z trasy do czystych funkcji.
+        // Zmierzone: 100% / 100% / 100% / 99,35%.
+        "src/lib/admin/namesCsv.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        // Cztery panele treści widocznych dla KAŻDEGO odwiedzającego. Wspólny
+        // kształt ryzyka: awaria odczytu pokazana jako stan domyślny, po której
+        // pierwszy „Zapisz" nadpisuje konfigurację najemcy wartościami z kodu.
+        // Zmierzone razem: 98,63% / 100% / 99,24% / 96,90% - z 0,0%.
+        "src/routes/admin.audience.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        "src/routes/admin.personalized.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        "src/routes/admin.popups.tsx": {
+          statements: 96,
+          functions: 99,
+          lines: 99,
+          branches: 93,
+        },
+        "src/routes/admin.greetings.tsx": {
+          statements: 97,
+          functions: 99,
+          lines: 96,
+          branches: 93,
+        },
+        // Organizacje członkowskie - lista, tworzenie i KARTA. Zmierzone razem:
+        // 99,42% instrukcji / 100% funkcji / 99,67% linii / 98,65% gałęzi -
+        // z 37,17/32,51/39,80/30,30 (sama karta `$id` startowała z 2,13% linii
+        // i 0% gałęzi). Cztery niedobite gałęzie to strażniki zdublowane
+        // z warunkiem renderu formularza, martwy prop `hint` w trasie
+        // tworzenia i JEDNA gałąź w kodzie MARTWYM, zgłoszonym `it.fails`
+        // (stan „organizacji nie ma" nigdy się nie renderuje).
+        "src/routes/admin.organizations*.tsx": {
+          statements: 97,
+          functions: 99,
+          lines: 98,
+          branches: 96,
+        },
+        // Warstwa danych panelu. Zmierzone (kolejno instrukcje/funkcje/linie/
+        // gałęzie): community.ts 100/100/100/99,63 - z ~7%;
+        // membership-admin.ts 100/100/100/100 - z 0,0%;
+        // pageTopics.ts 100/100/100/100 - z 90/100/100/79,16;
+        // impersonation.functions.ts, network.ts, bulkToast.ts,
+        // consentAudit.functions.ts - wszystkie 100% w czterech metrykach.
+        "src/lib/admin/community.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/admin/membership-admin.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/admin/pageTopics.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/admin/impersonation.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/admin/network.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/admin/bulkToast.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/admin/consentAudit.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        // `consentAudit.server.ts` ma dla v8 DWIE instrukcje wykonywalne (dwa
+        // schematy Zod; `interface` nie emituje JS-a), więc próg dotyczy tylko
+        // linii i instrukcji - treść widełek dowodzi tabela w teście.
+        "src/lib/admin/consentAudit.server.ts": {
+          statements: 99,
+          lines: 99,
+        },
+        // Synchronizacja zgłoszenia „dołącz do nas" - tożsamość z sesji,
+        // nie z ładunku. Zmierzone: 100% w czterech metrykach - z 0,0%.
+        "src/lib/joinUsSync.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        // Formularz kontaktowy: zapis zgłoszenia, autoodpowiedź, powiadomienie,
+        // double opt-in. Zmierzone: 100% / 100% / 100% / 98,96% - z ~4%.
+        // Dwie niedobite gałęzie są strukturalnie nieosiągalne (opisane
+        // w nagłówku testu): `?? c` w `esc()` i `?? null` po `split(",")[0]`.
+        "src/lib/contact.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 97,
+        },
+        // Role systemowe, ich etykiety i warstwa danych macierzy uprawnień.
+        // Zmierzone: 100% w czterech metrykach na każdym z trzech plików -
+        // z 60% (roles.ts) i 0,0% (dwa pozostałe). Etykiety są asertowane na
+        // PRAWDZIWYM słowniku (`realT()`), bo incydent, który je stworzył,
+        // polegał na renderowaniu angielskiego `defaultValue` w polskim panelu.
+        "src/lib/authz/roles.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/authz/roleLabels.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        "src/lib/authz/permissionMatrixQuery.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 99,
+        },
+        // Reguły macierzy uprawnień. Zmierzone: 100% w czterech metrykach -
+        // z 93,95% instrukcji / 97,91% funkcji / 95,86% linii / 82,30% GAŁĘZI.
+        // Gałęzie były tu najsłabsze w całym obszarze i domknęła je tabela po
+        // kształtach kolumny `features` (JSON z panelu cen: `null`, tablica,
+        // liczba, napis, `"3"`, `""`, `0`, `NaN`) oraz po czterech ramionach
+        // trybu bramki. Snapshot autoryzacji jest w tych testach WSTRZYKIWANY,
+        // więc dowodzą reguły, a nie stanu bazy.
+        "src/lib/authz/permissionMatrix.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
       },
     },
   },
