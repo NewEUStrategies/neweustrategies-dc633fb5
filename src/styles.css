@@ -8135,3 +8135,8 @@ html.dark.club-navy body {
     opacity: 1;
   }
 }
+
+/* Przypisy: skok do markera w treści nie może chować się pod sticky headerem. */
+sup.fn-ref > a[id^="fnref-"] {
+  scroll-margin-top: 7rem;
+}
