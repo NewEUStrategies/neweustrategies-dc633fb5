@@ -432,7 +432,7 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
         </span>
       ) : null}
       {name ? (
-        <span className="tt-live-name hidden sm:inline whitespace-nowrap text-[12px] font-semibold">
+        <span className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold">
           {name}
         </span>
       ) : null}
