@@ -132,7 +132,8 @@ describe("trasa /membership-registration - head: język brany z adresu", () => {
     expect(head.meta).toContainEqual({ title: "Załóż konto - New European Strategies" });
     expect(head.meta).toContainEqual({
       name: "description",
-      content: "Załóż konto w New European Strategies: strategia, wiedza i wpływ - jeden ekosystem.",
+      content:
+        "Załóż konto w New European Strategies: strategia, wiedza i wpływ - jeden ekosystem.",
     });
     expect(head.meta).toContainEqual({ httpEquiv: "content-language", content: "pl" });
   });

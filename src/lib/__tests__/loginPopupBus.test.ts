@@ -83,7 +83,6 @@ describe("openLoginPopup - pełne opcje", () => {
     const { received, off } = recordViaBus();
     openLoginPopup({ title: "authForms.restrictedTitle" });
     expect(received).toEqual([{ title: "authForms.restrictedTitle" }]);
-    expect(received[0].mode).toBeUndefined();
     off();
   });
 });
@@ -95,7 +94,6 @@ describe("openLoginPopup - brak argumentu", () => {
     // Gałąź `arg ?? {}`. Gdyby przeszło `undefined`, odbiorcy sięgający po
     // `detail.mode` bez zabezpieczenia dostaliby wyjątek w listenerze.
     expect(raw.details).toEqual([{}]);
-    expect(raw.details[0]).not.toBeUndefined();
     raw.off();
   });
 
@@ -216,16 +214,18 @@ describe("wspólna nazwa zdarzenia", () => {
   });
 
   it("openLoginPopup emituje POD TĄ nazwą i pod żadną inną", () => {
-    const raw = recordRawDetails();
-    const other = vi.fn();
-    window.addEventListener("nes:open-login-x", other);
+    // Podglądamy REALNY typ wysłanego zdarzenia, a nie brak reakcji jednego
+    // strażnika-atrapy: nasłuch na zmyśloną nazwę broniłby wyłącznie przed
+    // dispatchem dokładnie pod tą zmyśloną nazwą, więc przy `"nes:login"`
+    // czy `"nes:open-login2"` w produkcji nadal byłby zielony - a nazwa testu
+    // obiecuje „i pod żadną inną".
+    // `vi.restoreAllMocks()` w `afterEach` zdejmuje ten szpieg.
+    const spy = vi.spyOn(window, "dispatchEvent");
 
     openLoginPopup("signup");
 
-    expect(raw.details).toEqual([{ mode: "signup" }]);
-    expect(other).not.toHaveBeenCalled();
-    window.removeEventListener("nes:open-login-x", other);
-    raw.off();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].type).toBe(EVENT_NAME);
   });
 });
 
@@ -246,12 +246,17 @@ describe("strażniki SSR (brak window)", () => {
 
   it("onOpenLoginPopup zwraca WYWOŁYWALNY cleanup zamiast undefined", () => {
     vi.stubGlobal("window", undefined);
+    // Strażnik symetryczny do testu wyżej i NIEZBĘDNY: gdyby `stubGlobal`
+    // przestało działać, `onOpenLoginPopup` zarejestrowałoby prawdziwy nasłuch,
+    // `typeof cleanup` nadal byłoby "function", `cleanup()` nadal by nie
+    // rzuciło - i test przeszedłby na zielono, NIE badając strażnika SSR
+    // w ogóle. Bez tej linii nie wiadomo, czy testujemy tę gałąź, co trzeba.
+    expect(typeof window).toBe("undefined");
     const handler = vi.fn();
     const cleanup = onOpenLoginPopup(handler);
     expect(typeof cleanup).toBe("function");
     // useEffect wywoła to przy odmontowaniu - `undefined()` wysypałoby aplikację.
     expect(() => cleanup()).not.toThrow();
-    expect(handler).not.toHaveBeenCalled();
   });
 
   it("po przywróceniu window magistrala znów działa (stub nie jest trwały)", () => {

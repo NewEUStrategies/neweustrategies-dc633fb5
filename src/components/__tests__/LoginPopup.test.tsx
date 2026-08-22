@@ -530,6 +530,14 @@ describe("LoginPopup - błąd serwera ODRĘBNY od pustego formularza", () => {
     expect(emailInput()).toHaveValue("czytelnik@example.com");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(h.toastSuccess).not.toHaveBeenCalled();
+    // DA SIĘ PONOWIĆ PRÓBĘ. To jest właściwa treść tej grupy: bez
+    // `setBusy(false)` w `finally` (LoginPopup.tsx:161-163) przycisk zostaje
+    // NA ZAWSZE wyłączony z etykietą "…", więc jedna literówka w haśle
+    // zamyka człowiekowi wejście do konta do przeładowania strony. Sam
+    // komunikat błędu nie jest wtedy wart nic, bo nie ma czym po nim
+    // spróbować - a testy mierzące WEJŚCIE w stan pracy tego nie łapią.
+    await waitFor(() => expect(submitButton()).toBeEnabled());
+    expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signin_label_pl);
   });
 
   it("puste pola: natywne `required` blokuje wysłanie - żadnego żądania i żadnego komunikatu serwera", () => {
@@ -571,7 +579,13 @@ describe("LoginPopup - błąd serwera ODRĘBNY od pustego formularza", () => {
       fillSignin();
       fireEvent.click(submitButton());
       await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-      expect(h.toastError).toHaveBeenCalledWith(t("auth.invalidInput"));
+      // FORMA ODPORNA NA WYBÓR KLUCZA. Asercja `toHaveBeenCalledWith(
+      // t("auth.invalidInput"))` przypięłaby zgłoszenie do JEDNEGO konkretnego
+      // klucza: gdyby ktoś naprawił defekt, ale użył trafniejszego klucza
+      // (np. `auth.signinFailed`), asercja NADAL by rzucała, `it.fails` NADAL
+      // byłby zielony i nikt nie dowiedziałby się, że defekt zniknął.
+      // Sformułowanie negatywne gaśnie po DOWOLNEJ naprawie.
+      expect(h.toastError).not.toHaveBeenCalledWith("Invalid login credentials");
     },
   );
 
@@ -765,8 +779,18 @@ describe("LoginPopup - dostępność", () => {
     expect(container).toHaveAttribute("aria-hidden", "true");
     expect(container).toHaveAttribute("data-aria-hidden", "true");
     expect(document.querySelectorAll("[data-radix-focus-guard]")).toHaveLength(2);
-    expect(dialog).toHaveAttribute("role", "dialog");
-    expect(dialog).not.toHaveAttribute("aria-hidden");
+    // POWIĄZANIE NAGŁÓWKA I OPISU Z DIALOGIEM. Wcześniej stały tu dwie
+    // asercje bez wartości (`role === "dialog"` na węźle wziętym z
+    // `findByRole("dialog")` oraz brak `aria-hidden`, który `getByRole` i tak
+    // pomija) - nie istniał stan świata, w którym mogłyby paść.
+    // To poniżej jest realny kontrakt, którego nikt inny nie trzyma: bez
+    // `aria-labelledby`/`aria-describedby` czytnik ekranu ogłasza samo
+    // "okno dialogowe", bez powodu, dla którego się otworzyło - a przy popupie
+    // akcji zastrzeżonej właśnie ten powód jest całą treścią komunikatu.
+    const title = document.getElementById(dialog.getAttribute("aria-labelledby") ?? "");
+    const description = document.getElementById(dialog.getAttribute("aria-describedby") ?? "");
+    expect(title).toHaveTextContent(AUTH_DEFAULTS.popup_heading_pl);
+    expect(description).toHaveTextContent(AUTH_DEFAULTS.popup_description_pl);
   });
 
   // Radix renderuje dialog w PORTALU (bezpośrednio w <body>), więc `container`
@@ -851,6 +875,34 @@ describe("LoginPopup - sesja i step-up MFA", () => {
     };
     h.authState = identity;
     rerender(<LoginPopup />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("po odmowie logowania blokada mfaPending jest ZWOLNIONA - sesja znów zamyka popup", async () => {
+    // `submit()` ustawia `setMfaPending(true)` PRZED wywołaniem Supabase, żeby
+    // efekt sesji nie zamknął popupu w trakcie step-upu aal1 -> aal2. Na
+    // ścieżce błędu musi to zwolnić (LoginPopup.tsx:148) - inaczej blokada
+    // zostaje na stałe i popup NIGDY już się sam nie zamknie: człowiek loguje
+    // się w drugiej karcie, wraca, a okno logowania wisi nad zalogowaną sesją
+    // i zasłania stronę.
+    // Ta linia jest w 100% pokrycia instrukcji, ale bez tego testu nie jest
+    // ASERTOWANA - jej usunięcie z produkcji zostawia całą suitę zieloną.
+    h.signIn.mockResolvedValue({ error: new Error("Invalid login credentials") });
+    const { rerender } = render(<LoginPopup />);
+    openPopup();
+    fillSignin();
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    const identity: TestIdentity = {
+      session: { user: { id: "u1" } },
+      user: { id: "u1" },
+      loading: false,
+    };
+    h.authState = identity;
+    rerender(<LoginPopup />);
+
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 

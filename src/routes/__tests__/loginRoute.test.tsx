@@ -93,15 +93,19 @@ afterEach(() => {
   cleanup();
 });
 
-// USTALENIE O HARNESSIE (kosztowało jeden przebieg, więc zapisane na przyszłość):
+// USTALENIE O ROUTERZE (zweryfikowane w źródle, nie zgadnięte):
 // `renderRoute(...).search()` czyta `match.search`, a to w TanStack Router jest
-// search LUŹNY - surowe parametry lokalizacji scalone z wynikiem walidatora, więc
-// `?mode=magic` widać w nim nadal jako `{ mode: "magic" }`. Wynik samego
-// walidatora router trzyma w `match._strictSearch` (pole prywatne, poza typem
-// publicznym) i TO jego czyta `Route.useSearch()` w komponencie. Kontrakt adresu
-// czytamy więc przez `routeSearchValidator()` - narzędzie harnessu dokładnie do
-// tego (walidator jest czystą funkcją) - a SKUTEK dla człowieka dowodzimy na
-// zamontowanej trasie: trybem, z jakim startuje portal (grupa niżej).
+// search LUŹNY - `router-core/dist/esm/router.js` buduje go jako
+// `preMatchSearch = { ...parentSearch, ...strictSearch }`, czyli surowe
+// parametry adresu SCALONE z wynikiem walidatora. Wynik samego walidatora leży
+// osobno, w `match._strictSearch` - i NIKT GO NIE CZYTA: `useSearch.js` to
+// `useMatch({ select: (match) => match.search })`.
+// Skutek: `validateSearch` zawęża TYLKO TYPY, a `Route.useSearch()` w
+// komponencie widzi surową wartość z adresu. To jest właśnie defekt zgłoszony
+// dwoma `it.fails` niżej, a nie ciekawostka o harnessie.
+// Dlatego KONTRAKT WALIDATORA czytamy przez `routeSearchValidator()` (walidator
+// jest czystą funkcją, więc da się go sprawdzić w izolacji), a SKUTEK dla
+// człowieka - na zamontowanej trasie, trybem, z jakim startuje portal.
 describe("trasa /login - kontrakt wklejanego adresu (validateSearch)", () => {
   const validate = routeSearchValidator(LoginRoute);
 
@@ -137,21 +141,30 @@ describe("trasa /login - kontrakt wklejanego adresu (validateSearch)", () => {
     ["liczba", "/login?mode=1"],
     ["parametr kampanijny", "/login?mode=magic&utm_source=x"],
   ])("%s w adresie: strona logowania otwiera się mimo wszystko", async (_label, entry) => {
-    // Kluczowe jest to, że zły `mode` z linku w mailu nie kończy się ekranem
-    // błędu routera - trasa się rozwiązuje i portal jest na ekranie.
+    // Zły `mode` z linku w mailu nie kończy się ekranem błędu routera: trasa
+    // się rozwiązuje i portal jest na ekranie. Asercja idzie na `initialModes`,
+    // a nie tylko na obecność atrapy w drzewie - inaczej ten test przechodzi
+    // także po USUNIĘCIU `validateSearch` z produkcji, czyli nie odróżnia
+    // działającej trasy od trasy bez kontraktu adresu.
     const view = await mount(entry);
 
     expect(screen.getByTestId("auth-portal-stub")).toBeInTheDocument();
     expect(view.currentPath()).toBe(PATH);
+    expect(h.initialModes).toHaveLength(1);
   });
 
-  it("luźny search lokalizacji niesie surową wartość mode, mimo odrzucenia jej walidatorem", async () => {
-    // Opis stanu faktycznego, nie życzenie: `match.search` to search LUŹNY.
-    // Ta asercja jest podstawą dwóch `it.fails` poniżej - gdyby router zaczął
-    // oddawać komponentowi search ZAWĘŻONY, ten test zgaśnie pierwszy
-    // i od razu wskaże, że defekt poniżej został naprawiony.
+  it("walidator odrzuca zły tryb, a komponent i tak go widzi - sprzężenie obu faktów", async () => {
+    // Te dwie asercje MUSZĄ stać w jednym teście, bo dopiero razem opisują
+    // defekt: walidator mówi „odrzucone", a komponent dostaje surową wartość.
+    // Osobno pierwsza jest testem czystej funkcji, a druga - testem
+    // TanStack Routera, nie tej trasy.
+    // UWAGA na zasięg tego kanarka: gaśnie tylko wtedy, gdy ROUTER zacznie
+    // oddawać komponentowi search zawężony. Naprawa rekomendowana niżej
+    // (własny strażnik w `LoginPage`) go NIE ruszy - po niej zmienią stan
+    // wyłącznie dwa `it.fails`.
     const view = await mount("/login?mode=magic");
 
+    expect(routeSearchValidator(LoginRoute)({ mode: "magic" })).toEqual({});
     expect(view.search()).toEqual({ mode: "magic" });
   });
 
@@ -201,14 +214,27 @@ describe("trasa /login - head: strona logowania poza indeksem", () => {
     expect(robots).toContain("nofollow");
   });
 
-  it.each([["/login?mode=signup"], ["/login?mode=reset"]])(
-    "wariant %s nie jest osobnym, indeksowalnym adresem",
-    async (entry) => {
-      const view = await mount(entry);
-      const robots = metaContent(view.meta(), "name", "robots");
+  it.each([["signup"], ["reset"]])(
+    "wariant ?mode=%s nie dostaje własnego adresu kanonicznego",
+    (mode) => {
+      // POPRZEDNIA WERSJA TEGO TESTU NIC NIE MIERZYŁA. Montowała trasę pod
+      // `/login?mode=signup` i sprawdzała `robots` - ale `head()` nie
+      // przyjmuje argumentów i czyta WYŁĄCZNIE zamockowany `getRequestUrl()`,
+      // więc query z `initialEntry` nie miało żadnego kanału wpływu na wynik.
+      // Nagłówek był bajtowo identyczny z tym z testu wyżej, czyli były to dwie
+      // dosłowne kopie pod inną nazwą.
+      // Teraz query wchodzi TĄ DROGĄ, KTÓRĄ WCHODZI W PRODUKCJI - przez adres
+      // żądania - a asercja dotyczy tego, co nazwa testu obiecuje: warianty
+      // trybu NIE stają się osobnymi adresami w indeksie. Gdyby
+      // `buildContentHead` przestało zawężać adres do `pathname`
+      // (`src/lib/seo/meta.ts`), każdy wariant `?mode=` dostałby własny
+      // kanoniczny - czyli dokładnie tę duplikację, przed którą to broni.
+      h.requestUrl = `https://example.org/login?mode=${mode}`;
+      const head = routeHead(LoginRoute);
 
-      expect(robots).toContain("noindex");
-      expect(robots).toContain("nofollow");
+      expect(linkHref(head.links, "canonical")).toBe("https://example.org/login");
+      expect(metaContent(head.meta, "property", "og:url")).toBe("https://example.org/login");
+      expect(metaContent(head.meta, "name", "robots")).toContain("noindex");
     },
   );
 });
@@ -229,6 +255,18 @@ describe("trasa /login - head: język brany z adresu", () => {
   });
 
   it("adres bez prefiksu językowego daje nagłówek polski", () => {
+    // ZMIERZONE, NIE ZGADNIĘTE (sonda, żeby nie badać tego po raz drugi):
+    // gdy w adresie nie ma prefiksu, `activeLang` spada na `currentLang()`,
+    // a to jest `createIsomorphicFn` - pod vitestem aktywna jest gałąź
+    // SERWEROWA, w której `getRequest()` rzuca (nie ma kontekstu żądania)
+    // i `catch` zwraca `DEFAULT_LANG`. Wynik jest więc DETERMINISTYCZNY i nie
+    // zależy ani od startowego adresu happy-dom, ani od modułowej zmiennej
+    // `clientLocale`: `setClientLang("en")` NIE zmienia tu niczego
+    // (sprawdzone - `currentLang()` nadal zwraca "pl").
+    // Konsekwencja dla następnej osoby: wariantu ANGIELSKIEGO bez prefiksu
+    // NIE DA SIĘ dowieść z tego poziomu - potrzebny byłby mock
+    // `@/lib/i18n/localeRuntime`. Wariant EN jest tu dowodzony prefiksem
+    // `/en/login` (test wyżej), czyli tą ścieżką, którą realnie chodzi ruch.
     h.requestUrl = "https://example.org/login";
     const head = routeHead(LoginRoute);
 
@@ -259,7 +297,6 @@ describe("trasa /login - head: adres kanoniczny", () => {
 
     const canonical = linkHref(head.links, "canonical");
     expect(canonical).toBe("/login");
-    expect(canonical).not.toBe("");
     expect(metaContent(head.meta, "property", "og:url")).toBe("/login");
     // Adres bez prefiksu = wariant polski, więc nagłówek jest polski.
     expect(head.meta).toContainEqual({ title: "Zaloguj się - New European Strategies" });
@@ -274,7 +311,10 @@ describe("trasa /login - domyślny tryb portalu", () => {
   ])("tryb '%s' z adresu trafia do AuthPortal jako initialMode", async (mode, entry) => {
     await mount(entry);
 
-    expect(h.initialModes).toContain(mode);
+    // `toEqual([mode])`, nie `toContain`: `toContain` przechodzi także wtedy,
+    // gdy trasa zamontowała portal WIELOKROTNIE, dokładając przy okazji zły
+    // tryb z poprzedniego adresu.
+    expect(h.initialModes).toEqual([mode]);
     expect(screen.getByTestId("auth-portal-stub")).toHaveTextContent(mode);
   });
 
@@ -284,7 +324,7 @@ describe("trasa /login - domyślny tryb portalu", () => {
     // domyślnego stanu portalu, a nie w logowaniu.
     await mount("/login");
 
-    expect(h.initialModes).toContain("signin");
+    expect(h.initialModes).toEqual(["signin"]);
     expect(screen.getByTestId("auth-portal-stub")).toHaveTextContent("signin");
   });
 });
