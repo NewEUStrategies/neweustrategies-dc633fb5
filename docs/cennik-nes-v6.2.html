@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architektura cennika NES v6.2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E4E7E5;
+  --board:#F3F5F3;
+  --ink:#161C1A;
+  --muted:#5D6864;
+  --rule:#C6CCC7;
+  --rule-soft:#DDE2DE;
+  --inst:#1F4D3A;
+  --st-b:#2E6B52;
+  --st-bq:#9A5A14;
+  --st-p:#41567A;
+  --st-n:#7A3F6B;
+  --shadow:0 1px 0 rgba(22,28,26,.06), 0 8px 24px -18px rgba(22,28,26,.5);
+  --f-disp:"Newsreader",Georgia,"Times New Roman",serif;
+  --f-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px 80px}
+
+.masthead{padding:34px 0 0}
+.mast-rule{height:3px;background:var(--ink);margin-bottom:14px}
+.mast-rule.thin{height:1px;background:var(--rule);margin:12px 0 0}
+.mast-top{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:baseline;justify-content:space-between}
+.mast-org{font-family:var(--f-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--inst);font-weight:600}
+.mast-meta{font-family:var(--f-mono);font-size:11px;letter-spacing:.05em;color:var(--muted)}
+h1{font-family:var(--f-disp);font-weight:500;font-size:clamp(30px,5.2vw,50px);line-height:1.06;letter-spacing:-.015em;margin:18px 0 10px;max-width:20ch}
+h1 em{font-style:italic;color:var(--inst)}
+.deck{max-width:66ch;color:var(--muted);font-size:16px;margin:0 0 4px}
+
+.ledger{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin:26px 0 4px}
+.ledger-cell{background:var(--board);padding:14px 15px 15px}
+.ledger-mark{font-family:var(--f-mono);font-weight:600;font-size:11.5px;letter-spacing:.03em}
+.ledger-n{font-family:var(--f-disp);font-size:32px;line-height:1;font-weight:500;margin:8px 0 5px}
+.ledger-l{font-size:12px;color:var(--muted);line-height:1.4}
+.m-b{color:var(--st-b)} .m-bq{color:var(--st-bq)} .m-p{color:var(--st-p)} .m-n{color:var(--st-n)}
+.ledger-note{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+
+.tabbar{margin:34px 0 0;display:flex;gap:3px;overflow-x:auto;scrollbar-width:none;border-bottom:2px solid var(--ink)}
+.tabbar::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;appearance:none;cursor:pointer;background:transparent;border:1px solid var(--rule);border-bottom:none;border-radius:2px 8px 0 0;padding:9px 17px 8px;margin-bottom:-2px;font-family:var(--f-body);font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.01em;white-space:nowrap;position:relative;top:2px;transition:background .12s,color .12s,top .12s}
+.tab:hover{background:rgba(255,255,255,.55);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--board);color:var(--ink);font-weight:600;border-color:var(--ink);border-bottom:2px solid var(--board);top:0;box-shadow:inset 0 3px 0 var(--inst)}
+.tab:focus-visible{outline:2px solid var(--inst);outline-offset:2px}
+.tab .tnum{font-family:var(--f-mono);font-size:10.5px;color:var(--inst);margin-right:7px;opacity:.75}
+
+.panel{background:var(--board);border:1px solid var(--rule);border-top:none;padding:30px 26px 34px;box-shadow:var(--shadow)}
+.panel[hidden]{display:none}
+@media (prefers-reduced-motion:no-preference){
+  .panel:not([hidden]){animation:fade .22s ease-out}
+  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+}
+
+.eyebrow{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--inst);font-weight:600;margin:0 0 8px}
+h2{font-family:var(--f-disp);font-weight:500;font-size:27px;line-height:1.15;margin:0 0 10px;letter-spacing:-.01em}
+h3{font-family:var(--f-disp);font-weight:600;font-size:20px;margin:0 0 4px;line-height:1.25}
+p{margin:0 0 13px;max-width:74ch}
+.lede{font-family:var(--f-disp);font-size:17.5px;font-style:italic;color:var(--muted);max-width:62ch;margin:0 0 20px}
+.sec{margin:0 0 34px}
+.sec:last-child{margin-bottom:0}
+.divider{height:1px;background:var(--rule);margin:32px 0}
+a{color:var(--inst);text-underline-offset:2px}
+code{font-family:var(--f-mono);font-size:.88em}
+
+.tier{margin:0 0 30px;padding:0 0 0 18px;border-left:3px solid var(--rule)}
+.tier.k1{border-left-color:#9AA6A0}
+.tier.k2{border-left-color:#6E8C7C}
+.tier.k3{border-left-color:var(--inst)}
+.tier.k4{border-left-color:#123528}
+.tier-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin:0 0 4px}
+.tier-price{font-family:var(--f-mono);font-size:14px;font-weight:600;color:var(--inst);white-space:nowrap}
+.tier-rank{font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.tier-sub{font-family:var(--f-disp);font-style:italic;color:var(--muted);margin:0 0 12px;max-width:62ch}
+
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 8px;border:1px solid var(--rule);background:#fff}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:13.5px}
+caption{text-align:left;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);padding:10px 14px 9px;border-bottom:1px solid var(--rule);background:var(--board)}
+th{text-align:left;font-weight:600;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:bottom;white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#F7F9F7}
+td.c{text-align:center;white-space:nowrap}
+td.num{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap}
+td.code{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+td strong{font-weight:600}
+.dash{color:var(--rule);font-family:var(--f-mono)}
+.new{display:inline-block;font-family:var(--f-mono);font-size:9.5px;font-weight:600;letter-spacing:.1em;color:var(--inst);border:1px solid var(--inst);border-radius:2px;padding:0 4px;margin-left:7px;vertical-align:1px}
+
+.chip{display:inline-block;font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.02em;padding:1px 6px 2px;border:1px solid currentColor;border-radius:2px;line-height:1.45}
+.chip.b{color:var(--st-b)} .chip.bq{color:var(--st-bq)} .chip.p{color:var(--st-p)} .chip.n{color:var(--st-n)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 22px;font-size:12.5px;color:var(--muted)}
+.legend span{display:flex;gap:8px;align-items:baseline}
+
+.note{border-left:2px solid var(--st-bq);background:rgba(154,90,20,.05);padding:13px 16px;margin:0 0 18px;font-size:13.5px}
+.note.open{border-left-color:var(--st-p);background:rgba(65,86,122,.055)}
+.note.chg{border-left-color:var(--inst);background:rgba(31,77,58,.055)}
+.note-t{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:600;color:var(--st-bq);margin:0 0 5px}
+.note.open .note-t{color:var(--st-p)}
+.note.chg .note-t{color:var(--inst)}
+.note p{margin:0;max-width:none}
+.note p + p{margin-top:9px}
+
+ol.steps{list-style:none;counter-reset:s;margin:0;padding:0}
+ol.steps li{counter-increment:s;padding:0 0 15px 42px;position:relative;max-width:74ch}
+ol.steps li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:1px;font-family:var(--f-mono);font-size:12px;font-weight:600;color:var(--inst);border:1px solid var(--rule);padding:1px 6px;background:#fff}
+ul.plain{margin:0 0 14px;padding-left:19px}
+ul.plain li{margin:0 0 6px;max-width:72ch}
+
+.foot{margin:26px 0 0;font-size:12px;color:var(--muted);font-family:var(--f-mono);line-height:1.7}
+
+@media(max-width:860px){.ledger{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){
+  .wrap{padding:0 14px 60px}
+  .panel{padding:24px 16px 28px}
+  .ledger{grid-template-columns:1fr}
+  h1{font-size:30px}
+  .tier{padding-left:13px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="mast-rule"></div>
+  <div class="mast-top">
+    <div class="mast-org">New European Strategies &middot; dokument programowy</div>
+    <div class="mast-meta">v6.2 &middot; 22.08.2026 &middot; korekty audytu wdrożone w platformie</div>
+  </div>
+  <h1>Architektura członkostwa: wydarzenia w centrum, każda obietnica <em>wyrażona liczbą</em></h1>
+  <p class="deck">Struktura progów, ceny i rangi bez zmian wobec v6.1. Ta wersja nie dodaje obietnic - <strong>zamyka je kodem</strong>. Audyt z 21 sierpnia wykazał pięć błędów merytorycznych, jeden arytmetyczny i cztery luki produktowe; wszystkie korekty są wdrożone, wszystkie siedem bramek <span class="chip bq">B?</span> dopisanych, a dwie dziury odsłonięte przy okazji - zamknięte. Do zbudowania zostaje jedna funkcja: warstwa odpowiedzi na archiwum.</p>
+
+  <div class="ledger">
+    <div class="ledger-cell">
+      <div class="ledger-mark m-b">[B] &nbsp;bramka działa</div>
+      <div class="ledger-n">47</div>
+      <div class="ledger-l">Działający punkt egzekwowania w platformie. Sprawdzony odczytem repozytorium, nie deklaracją.</div>
+    </div>
+    <div class="ledger-cell">
+      <div class="ledger-mark m-bq">[B?] &nbsp;bramka do dopisania</div>
+      <div class="ledger-n">0</div>
+      <div class="ledger-l">Wszystkie siedem dopisane. Kategoria zostaje w legendzie jako miejsce dla przyszłych pozycji.</div>
+    </div>
+    <div class="ledger-cell">
+      <div class="ledger-mark m-p">[P] &nbsp;zobowiązanie procesowe</div>
+      <div class="ledger-n">21</div>
+      <div class="ledger-l">Pilnuje tego kalendarz i redakcja, nie kod. Każde ma liczbę lub termin.</div>
+    </div>
+    <div class="ledger-cell">
+      <div class="ledger-mark m-n">[N] &nbsp;funkcja do zbudowania</div>
+      <div class="ledger-n">3</div>
+      <div class="ledger-l">Warstwa odpowiedzi na archiwum - trzy wiersze, jedna funkcja. Jedyna pozycja katalogu bez kodu.</div>
+    </div>
+  </div>
+  <p class="ledger-note">71 pozycji wobec 69 w v6.1. Dwie nowe to reguła Chatham House i limit miejsc - funkcje zbudowane w platformie, których katalog dotąd nie sprzedawał. Bilans v6.1 (38 / 7 / 21 / 3) był nieprawdziwy w trzech miejscach: audyt skorygował go do 37 / 6 / 21 / 5, wdrożenie doprowadziło do 47 / 0 / 21 / 3.</p>
+  <div class="mast-rule thin"></div>
+</header>
+
+<div class="tabbar" role="tablist" aria-label="Sekcje dokumentu">
+  <button class="tab" role="tab" id="t-1" aria-controls="p-1" aria-selected="true"><span class="tnum">01</span>Zmiany i korekty</button>
+  <button class="tab" role="tab" id="t-2" aria-controls="p-2" aria-selected="false" tabindex="-1"><span class="tnum">02</span>Osoby</button>
+  <button class="tab" role="tab" id="t-3" aria-controls="p-3" aria-selected="false" tabindex="-1"><span class="tnum">03</span>Zespoły</button>
+  <button class="tab" role="tab" id="t-4" aria-controls="p-4" aria-selected="false" tabindex="-1"><span class="tnum">04</span>Instytucje</button>
+  <button class="tab" role="tab" id="t-5" aria-controls="p-5" aria-selected="false" tabindex="-1"><span class="tnum">05</span>Kluby i eksperci</button>
+  <button class="tab" role="tab" id="t-6" aria-controls="p-6" aria-selected="false" tabindex="-1"><span class="tnum">06</span>Kalendarz konwenignu</button>
+  <button class="tab" role="tab" id="t-7" aria-controls="p-7" aria-selected="false" tabindex="-1"><span class="tnum">07</span>Wdrożenie</button>
+</div>
+
+<!-- ============ 01 ZMIANY ============ -->
+<section class="panel" role="tabpanel" id="p-1" aria-labelledby="t-1" tabindex="0">
+  <div class="sec">
+    <p class="eyebrow">Rejestr zmian</p>
+    <h2>Co się zmieniło i dlaczego</h2>
+    <p class="lede">Struktura, ceny i rangi bez zmian. Tabela niżej opisuje zawartość benefitów po v6.1 <strong>wraz z korektami audytu</strong>; wiersze, które audyt poprawił, są w niej oznaczone.</p>
+
+    <div class="tw">
+      <table>
+        <caption>Zmiany wdrożone w v6.1, skorygowane audytem i wdrożone w platformie</caption>
+        <thead><tr><th>Próg</th><th>Dodane</th><th>Usunięte lub przeformułowane</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Czytelnik</strong></td>
+            <td>Konto NES jako właściwy benefit progu. 3 pytania do archiwum miesięcznie. <em>Korekta:</em> licznik już działał w modelu rejestracyjnym (0 / 5) - v6.1 opisała stan jako zmianę.</td>
+            <td>„3 analizy miesięcznie" jako główna obietnica progu. Fałszywe oznaczenie „ZMIANA" przy liczniku.</td>
+          </tr>
+          <tr>
+            <td><strong>Członek</strong></td>
+            <td>1 wliczony bilet na wydarzenie biletowane rocznie. Wszystkie briefingi członkowskie online. 20 pytań do archiwum. Digest wyrażony liczbą 44 wydań rocznie.</td>
+            <td>Zniżka 30% na konferencję. Zastąpiona wliczonym biletem.</td>
+          </tr>
+          <tr>
+            <td><strong>Członek Pro</strong></td>
+            <td>Onboarding klubowy w 48 godzin. 4 zamknięte briefingi rocznie z miesiącami. 4 noty foresightowe z terminami. Pytania do archiwum bez limitu.</td>
+            <td>„Zamknięte briefingi Pro" i „kwartalna nota foresightowa" bez liczby i bez daty.</td>
+          </tr>
+          <tr>
+            <td><strong>Rada Instytutu</strong></td>
+            <td>Rola <em>sounding board</em> z jawną granicą wpływu. 2 Decision Laby rocznie. Zjazd i 2 kolacje z liczbą. Zgłoszenie tematu z terminami naboru i rozstrzygnięcia.</td>
+            <td>„Prawo zgłoszenia tematu badawczego" bez procedury. „Roczny Zjazd i kolacje" bez liczby.</td>
+          </tr>
+          <tr>
+            <td><strong>Zespół</strong></td>
+            <td>Onboarding zespołowy w 7 dni. 3 wliczone bilety rocznie na organizację (v6.1: jeden na każde miejsce - korekta audytu). Ranga 25 zapisana jawnie.</td>
+            <td>Rabat wolumenowy jako jedyny argument za progiem. Bilet na każde miejsce - ekspozycja sięgająca połowy przychodu progu.</td>
+          </tr>
+          <tr>
+            <td><strong>Partner Instytucjonalny</strong></td>
+            <td>Decision Lab z wyceną alternatywną: 16 000 zł za miejsce dla podmiotu spoza partnerstwa (v6.1: 12 000 zł - korekta arytmetyczna). <em>Sounding board</em> dla osób nominowanych. Briefing kwartalny wyrażony liczbą 4.</td>
+            <td>„Wyróżnienie jako partner na stronie" jako pozycja katalogowa. Przeniesione do noty o jawności finansowania.</td>
+          </tr>
+          <tr>
+            <td><strong>Partner Strategiczny</strong></td>
+            <td>Własna grupa zadaniowa: cykl 4 spotkań zakończony raportem sygnowanym wspólnie. Liczby przy briefingach, godzinach, slocie i kolacjach.</td>
+            <td>„Kolacje eksperckie" i „dedykowane briefingi" bez liczby w roku.</td>
+          </tr>
+          <tr>
+            <td><strong>Krąg Założycieli</strong></td>
+            <td>Jawna granica wpływu na agendę, opisana w katalogu.</td>
+            <td>„Współtworzenie agendy strategicznej" bez określenia, co to znaczy.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <p class="eyebrow">Podstawa</p>
+    <h3>Trzy ustalenia, które wymusiły te zmiany</h3>
+    <p><strong>Konwening jest rdzeniem przychodu, nie dodatkiem.</strong> W Time wydarzenia wraz z powiązanym przychodem cyfrowym mają w 2026 roku odpowiadać za połowę całkowitego przychodu wobec 28% w 2023, przy wzroście liczby wydarzeń z jedenastu do czterdziestu siedmiu. Axios Live urósł o ponad 30%. W badaniu Digiday wydarzenia wyprzedziły <em>affiliate commerce</em> jako obszar priorytetowy. Konferencja i Decision Laby są najcenniejszym składnikiem oferty NES i katalog musi je tak traktować.</p>
+    <p><strong>Członkostwo utrzymuje lepiej niż subskrypcja, ale rozstrzygają pierwsze dwa tygodnie.</strong> Daily Maverick raportuje wyraźnie wyższą retencję modelu członkowskiego, ponieważ członkowie postrzegają siebie jako część wspólnoty, a nie klientów produktu. Jednocześnie churn społeczności członkowskich wynosi około 5,8% miesięcznie, a nowy członek, który nie zabierze głosu w ciągu czternastu dni, statystycznie nie zostaje na dłużej. Stąd onboarding klubowy jako jawna pozycja katalogu.</p>
+    <p><strong>Pozycja bez liczby nie jest zobowiązaniem.</strong> Dwadzieścia jeden pozycji katalogu to zobowiązania procesowe, których platforma nie pilnuje. Jedynym mechanizmem ich egzekwowania jest liczba w katalogu i wpis w kalendarzu. W v6.1 nie ma pozycji procesowej bez liczby albo terminu.</p>
+  </div>
+</section>
+
+<!-- ============ 02 OSOBY ============ -->
+<section class="panel" role="tabpanel" id="p-2" aria-labelledby="t-2" tabindex="0" hidden>
+  <p class="eyebrow">Segment 1</p>
+  <h2>Osoby</h2>
+  <div class="legend">
+    <span><span class="chip b">B</span> bramka istnieje i działa</span>
+    <span><span class="chip bq">B?</span> bramka wymaga dopisania</span>
+    <span><span class="chip p">P</span> zobowiązanie procesowe</span>
+    <span><span class="chip n">N</span> funkcja do zbudowania</span>
+  </div>
+
+  <div class="tier k1">
+    <div class="tier-head"><h3>1. Czytelnik</h3><span class="tier-price">0 zł</span><span class="tier-rank">ranga 0</span></div>
+    <p class="tier-sub">Konto w ekosystemie NES. Bez karty płatniczej, bez zobowiązania.</p>
+    <p>Benefitem tego progu nie jest liczba artykułów, tylko konto. <strong>Twarda bramka rejestracyjna działa od pierwszej analizy i działała już w chwili pisania v6.1</strong> - migracja <code>20260722231619</code> ustawiła <code>enabled = true</code> i limit 5 dla zalogowanych, a limit anonimowy wynosi 0 od migracji założycielskiej licznika. Oznaczenie „ZMIANA" przy tym wierszu w v6.1 było nieprawdziwe: opisywało stan istniejący jako nowość, a w części o jednej darmowej analizie proponowało <em>poluzowanie</em> bramki z zera do jednego, nie jej zaostrzenie.</p>
+    <div class="note open">
+      <p class="note-t">Rozstrzygnięcie otwarte &middot; jedna darmowa analiza</p>
+      <p>To nie jest wybór między lepszym a gorszym, tylko kompromis między dwiema wielkościami. Zero darmowych analiz maksymalizuje odsetek zatrzymanych czytelników - wskaźnik, który wg Shorenstein Center odróżnia zdrowe biznesy subskrypcyjne od słabych. Jedna darmowa analiza poprawia próbkowanie i zgodność z wytycznymi Google o elastycznym udostępnianiu treści wyszukiwarce, kosztem tego wskaźnika. <strong>Decyzja: zostaje zero, dopóki pomiar ruchu z wyszukiwarki nie wykaże realnego kosztu SEO.</strong> Zmiana jest odwracalna jednym zapytaniem, więc nie ma powodu robić jej w ciemno.</p>
+    </div>
+    <div class="tw">
+      <table>
+        <caption>Czytelnik &middot; benefity i punkty egzekwowania</caption>
+        <thead><tr><th>Benefit</th><th>Status</th><th>Punkt egzekwowania</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Konto NES: obserwowane tematy, zapisane analizy, historia lektury</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip b">B</span></td><td class="code">user_bookmarks, user_follows</td></tr>
+          <tr><td><strong>0 analiz bez konta, 5 analiz miesięcznie po rejestracji</strong><span class="new">STAN</span></td><td class="c"><span class="chip b">B</span></td><td class="code">metering_settings: enabled = true, anon_monthly_limit = 0, member_monthly_limit = 5</td></tr>
+          <tr><td>Policy papers we fragmentach z kluczowymi wnioskami</td><td class="c"><span class="chip b">B</span></td><td class="code">has_content_access</td></tr>
+          <tr><td>Cotygodniowy przegląd geopolityczny: 52 wydania rocznie</td><td class="c"><span class="chip b">B</span></td><td class="code">newsletter, podwójna zgoda</td></tr>
+          <tr><td><strong>3 pytania do archiwum miesięcznie</strong><span class="new">NOWE</span></td><td class="c"><span class="chip n">N</span></td><td class="code">warstwa odpowiedzi &ndash; funkcja nie istnieje</td></tr>
+          <tr><td>Otwarte dyskusje społeczności</td><td class="c"><span class="chip b">B</span></td><td class="code">RLS komentarzy</td></tr>
+          <tr><td>Wydarzenia</td><td class="c"><span class="dash">&ndash;</span></td><td class="code">zaproszenia na wydarzenia otwarte, bez wstępu na członkowskie</td></tr>
+          <tr><td>Kluby dyskusyjne</td><td class="c"><span class="dash">&ndash;</span></td><td class="code">widzi katalog, panel zaproszenia do członkostwa</td></tr>
+          <tr><td>Korespondencja z ekspertami</td><td class="c"><span class="dash">&ndash;</span></td><td class="code">brak</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tier k2">
+    <div class="tier-head"><h3>2. Członek</h3><span class="tier-price">39 zł/mies. lub 390 zł/rok</span><span class="tier-rank">ranga 10 &middot; oszczędność 17%</span></div>
+    <p class="tier-sub">Pełne archiwum, wszystkie wydarzenia członkowskie i jedno wydarzenie biletowane w roku.</p>
+    <p>Zniżka procentowa zniknęła z tego progu. Zniżka jest obietnicą warunkową, którą członek musi aktywować, i przy odnowieniu nie ma jej w bilansie, jeżeli nie została użyta. Wliczony bilet ma tę samą wartość księgową i nieporównanie wyższą wartość w momencie decyzji o przedłużeniu.</p>
+    <div class="tw">
+      <table>
+        <caption>Członek &middot; benefity i punkty egzekwowania</caption>
+        <thead><tr><th>Benefit</th><th>Status</th><th>Punkt egzekwowania</th></tr></thead>
+        <tbody>
+          <tr><td>Pełne archiwum analiz i policy papers, bez limitu</td><td class="c"><span class="chip b">B</span></td><td class="code">has_content_access</td></tr>
+          <tr><td><strong>Wszystkie briefingi członkowskie online w roku, wraz z nagraniami</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip b">B</span></td><td class="code">rsvp_event, get_event_access</td></tr>
+          <tr><td><strong>1 wliczony bilet rocznie na wydarzenie biletowane, w tym „Geopolityczna Gra Mocarstw"</strong><span class="new">ZBUDOWANE</span></td><td class="c"><span class="chip b">B</span></td><td class="code">features.included_event_tickets = 1, my_ticket_allowance, claim_included_event_ticket, plan_ticket_claims; bramka w rsvp_event</td></tr>
+          <tr><td><strong>Pogłębiony digest członkowski: 44 wydania rocznie</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip p">P</span></td><td class="code">cykl redakcyjny, tygodniowo poza sierpniem i przełomem roku</td></tr>
+          <tr><td>1 zapytanie do eksperta miesięcznie</td><td class="c"><span class="chip b">B</span></td><td class="code">my_expert_request_quota, flaga chat_inmail_quota_2 obniżona do 1</td></tr>
+          <tr><td><strong>20 pytań do archiwum miesięcznie</strong><span class="new">NOWE</span></td><td class="c"><span class="chip n">N</span></td><td class="code">warstwa odpowiedzi &ndash; funkcja nie istnieje</td></tr>
+          <tr><td>Czat i wiadomości z innymi członkami</td><td class="c"><span class="chip b">B</span></td><td class="code">get_or_create_direct_conversation, flaga chat_enabled</td></tr>
+          <tr><td>Kluby: obserwator w jednym klubie otwartym</td><td class="c"><span class="chip b">B</span></td><td class="code">CLUB_OBSERVER_TIER_RANK = 10 (hubAccess), clubs.min_tier_rank per klub</td></tr>
+          <tr><td>Narzędzia cytowania: Chicago, APA, BibTeX</td><td class="c"><span class="chip b">B</span></td><td class="code">komponent cytowań</td></tr>
+          <tr><td>Panel „Analiza Tygodnia": mapy, wykresy, dane</td><td class="c"><span class="chip b">B</span></td><td class="code">treść bramkowana rangą</td></tr>
+          <tr><td>Podcast „Depesza Dyplomaty" w całości, wywiady i materiały wideo</td><td class="c"><span class="chip b">B</span></td><td class="code">treść bramkowana rangą</td></tr>
+          <tr><td><strong>Rezygnacja w każdej chwili, bez okresu wypowiedzenia</strong><span class="new">JĘZYK</span></td><td class="c"><span class="chip b">B</span></td><td class="code">changeSubscriptionPlan</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Stawka studencka <strong>19 zł/mies.</strong> i akademicka <strong>29 zł/mies.</strong> obejmują ten sam zakres treściowy, ale <strong>zamiast wliczonego biletu dają zniżkę 50% na wydarzenia biletowane</strong> <span class="chip b">B</span> (<code>features.event_ticket_discount_pct = 50</code>). Powód jest arytmetyczny, nie uznaniowy: przy składce studenckiej 190 zł rocznie bilet o cenie katalogowej 300 zł to sprzedaż poniżej kosztu krańcowego uczestnictwa, a student jest jednocześnie grupą, która skorzysta z niego najchętniej.</p>
+    <p><strong>Weryfikacja jest AUTOMATYCZNA</strong> tam, gdzie domena uczelni figuruje na liście <code>verification_domains</code> z oznaczeniem akademickim <span class="chip b">B</span> (<code>my_academic_domain_verification</code>). Legitymacja albo dokument afiliacyjny są wyjątkiem dla domen spoza listy, a nie regułą - platforma ma weryfikację domenową zbudowaną od migracji <code>20260806094104</code> i katalog nie ma powodu udawać, że jej nie ma. Kadra akademicka otrzymuje dodatkowo prawo wykorzystania analiz na zajęciach: to jest <span class="chip p">P</span>, licencja umowna, nie bramka.</p>
+  </div>
+
+  <div class="tier k3">
+    <div class="tier-head"><h3>3. Członek Pro</h3><span class="tier-price">119 zł/mies. lub 1 190 zł/rok</span><span class="tier-rank">ranga 20 &middot; oszczędność 17%</span></div>
+    <p class="tier-sub">Klub dyskusyjny, monitoring regulacyjny i cztery zamknięte briefingi w roku.</p>
+    <p>Klub jest głównym argumentem tego progu, ale członkostwo w klubie nie ma wartości bez zaprojektowanego pierwszego tygodnia. Dlatego onboarding jest pozycją katalogową z terminem w godzinach, a nie domyślną uprzejmością.</p>
+    <div class="tw">
+      <table>
+        <caption>Członek Pro &middot; benefity i punkty egzekwowania</caption>
+        <thead><tr><th>Benefit</th><th>Status</th><th>Punkt egzekwowania</th></tr></thead>
+        <tbody>
+          <tr><td>Wszystko z progu Członek, w tym <strong>ten sam jeden bilet rocznie - nie drugi</strong></td><td class="c"><span class="chip b">B</span></td><td class="code">dziedziczenie rangi; pula liczy MAKSIMUM z warstw, nie sumę (my_ticket_allowance)</td></tr>
+          <tr><td><strong>Kluby: pełne członkostwo w jednym klubie do wyboru</strong></td><td class="c"><span class="chip b">B</span></td><td class="code">club_list, CLUB_TIER_RANK = 20, club_members</td></tr>
+          <tr><td><strong>Onboarding klubowy: przypisanie w 48 godzin od zakupu, imienne powitanie w wątku, pytanie otwierające od moderatora</strong><span class="new">NOWE</span></td><td class="c"><span class="chip p">P</span></td><td class="code">mierzone odsetkiem członków aktywnych w pierwszych 14 dniach</td></tr>
+          <tr><td>Kluby: wątki, dokumenty, ankiety, kalendarz klubu</td><td class="c"><span class="chip b">B</span></td><td class="code">RLS club_threads, club_documents, club_thread_polls</td></tr>
+          <tr><td><strong>4 zamknięte briefingi Pro rocznie: marzec, czerwiec, wrzesień, grudzień</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip b">B</span></td><td class="code">flaga pro_briefings, get_event_access</td></tr>
+          <tr><td><strong>4 noty foresightowe rocznie, publikowane w ostatnim tygodniu kwartału</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip p">P</span></td><td class="code">cykl wydawniczy z datami w kalendarzu redakcyjnym</td></tr>
+          <tr><td>3 zapytania do eksperta miesięcznie</td><td class="c"><span class="chip b">B</span></td><td class="code">my_expert_request_quota, flaga chat_inmail_quota_5 obniżona do 3</td></tr>
+          <tr><td><strong>Pytania do archiwum bez limitu</strong><span class="new">NOWE</span></td><td class="c"><span class="chip n">N</span></td><td class="code">warstwa odpowiedzi &ndash; funkcja nie istnieje</td></tr>
+          <tr><td>Monitoring regulacyjny: tracker legislacyjny UE z alertami</td><td class="c"><span class="chip b">B</span></td><td class="code">RLS eu_policy_follows</td></tr>
+          <tr><td>Priorytet pytań w sesjach Q&amp;A z ekspertami</td><td class="c"><span class="chip b">B</span></td><td class="code">list_qa_questions</td></tr>
+          <tr><td>Linki podarunkowe: 3 pełne analizy miesięcznie dla osób spoza platformy</td><td class="c"><span class="chip b">B</span></td><td class="code">can_gift_articles, create_gift_link</td></tr>
+          <tr><td>Wczesny dostęp do raportów: 72 godziny przed publikacją otwartą</td><td class="c"><span class="chip b">B</span></td><td class="code">polityka „Early access reads scheduled posts" na posts.publish_at, okno early_access_window(), flaga early_access</td></tr>
+           <tr><td><strong>Spotkania prowadzone w regule Chatham House</strong><span class="new">NOWE</span></td><td class="c"><span class="chip b">B</span></td><td class="code">events.chatham_house + flaga chatham_house_events (rsvp_event, get_event_access)</td></tr>
+           <tr><td><strong>Wydarzenia o ograniczonej liczbie miejsc, z kolejką rezerwową</strong><span class="new">NOWE</span></td><td class="c"><span class="chip b">B</span></td><td class="code">events.capacity, rsvp_event (degradacja do waitlist), assertSeatAvailable</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note chg">
+      <p class="note-t">Komunikacja karty</p>
+      <p>Na karcie <code>/pricing</code> różnicę wobec progu Członek komunikują trzy pozycje: klub dyskusyjny, monitoring regulacyjny, cztery zamknięte briefingi. Pozostałe dziewięć trafia do rozwijanej listy szczegółowej. Powód: <em>fence</em> zbudowany z dwunastu elementów nie jest czytelny i nikt go nie zapamięta.</p>
+    </div>
+  </div>
+
+  <div class="tier k4">
+    <div class="tier-head"><h3>4. Rada Instytutu</h3><span class="tier-price">od 6 000 zł/rok</span><span class="tier-rank">ranga 25 &middot; rozmowa</span></div>
+    <p class="tier-sub">Dwa Decision Laby, Zjazd Rady i prawo głosu wobec rekomendacji przed publikacją.</p>
+    <div class="tw">
+      <table>
+        <caption>Rada Instytutu &middot; benefity i punkty egzekwowania</caption>
+        <thead><tr><th>Benefit</th><th>Status</th><th>Punkt egzekwowania</th></tr></thead>
+        <tbody>
+          <tr><td>Wszystko z progu Członek Pro</td><td class="c"><span class="chip b">B</span></td><td class="code">dziedziczenie rangi</td></tr>
+          <tr><td><strong>2 Decision Laby rocznie w roli obserwatora</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip b">B</span></td><td class="code">club_events.min_tier_rank = 25 (club_events_list, club_event_rsvp)</td></tr>
+          <tr><td><strong>Zjazd Rady raz w roku oraz 2 kolacje eksperckie</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip p">P</span></td><td class="code">kalendarz konwenignu, trzy pozycje w roku</td></tr>
+          <tr><td><strong><em>Sounding board</em>: rekomendacje udostępniane 10 dni roboczych przed publikacją, z prawem komentarza</strong><span class="new">NOWE</span></td><td class="c"><span class="chip p">P</span></td><td class="code">rejestr komentarzy, procedura programowa</td></tr>
+          <tr><td><strong>Zgłoszenie tematu badawczego: nabór do 30 września, rozstrzygnięcie rady programowej do 31 października, jeden temat rocznie wchodzi do agendy</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip p">P</span></td><td class="code">procedura z terminami</td></tr>
+          <tr><td>Korespondencja z ekspertami bez limitu, kanałem bezpośrednim</td><td class="c"><span class="chip b">B</span></td><td class="code">flaga chat_direct_gated</td></tr>
+          <tr><td>Kluby: członkostwo we wszystkich klubach otwartych dla Rady</td><td class="c"><span class="chip b">B</span></td><td class="code">clubs.min_tier_rank = 25</td></tr>
+          <tr><td><strong>4 godziny konsultacji analitycznych rocznie, jednostka 30 minut, reakcja 5 dni roboczych</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip p">P</span></td><td class="code">rejestr godzin, niewykorzystane nie przechodzą na kolejny rok</td></tr>
+          <tr><td><strong>Osobisty opiekun i onboarding w 7 dni od przystąpienia</strong><span class="new">ZMIANA</span></td><td class="c"><span class="chip p">P</span></td><td class="code">obsługa relacyjna</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p class="note-t">Granica wpływu &middot; treść wiążąca, do umieszczenia w katalogu</p>
+      <p>Komentarz członka Rady do rekomendacji jest rejestrowany i rozpatrywany przez zespół badawczy. <strong>Nie daje prawa do zmiany treści, usunięcia wniosku ani wstrzymania publikacji.</strong> Autorstwo, metodyka i wnioski pozostają wyłączną kompetencją NES. Zgłoszenie tematu badawczego jest wnioskiem, nie zleceniem: rada programowa rozstrzyga o przyjęciu i może odmówić bez uzasadnienia.</p>
+      <p>Ta granica musi być opisana w katalogu, nie tylko w regulaminie wewnętrznym. Powód jest zewnętrzny: brukselskie think tanki są od lat krytykowane za to, że poziom uczestnictwa członków korporacyjnych rośnie wraz z wysokością składki. Jawnie opisany i ograniczony wpływ jest jedyną odpowiedzią na ten zarzut, jaka wytrzymuje kontakt z dziennikarzem.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 ZESPOŁY ============ -->
+<section class="panel" role="tabpanel" id="p-3" aria-labelledby="t-3" tabindex="0" hidden>
+  <p class="eyebrow">Segment 2</p>
+  <h2>Zespoły</h2>
+  <div class="legend">
+    <span><span class="chip b">B</span> bramka istnieje i działa</span>
+    <span><span class="chip bq">B?</span> bramka wymaga dopisania</span>
+    <span><span class="chip p">P</span> zobowiązanie procesowe</span>
+  </div>
+
+  <div class="tier k3">
+    <div class="tier-head"><h3>5. Zespół</h3><span class="tier-price">89 zł/mies. za miejsce, 3&ndash;20 miejsc</span><span class="tier-rank">ranga 25 &middot; rozmowa</span></div>
+    <p class="tier-sub">Pełny zakres Pro dla każdego miejsca, jedna faktura, wspólne wejście do klubów.</p>
+    <p>Rabat nie jest argumentem za tym progiem, tylko jego skutkiem. Argumentem jest to, że zespół wchodzi do klubów razem i w jednym terminie, co według danych o retencji społeczności jest jedynym momentem, w którym rozstrzyga się los tego członkostwa.</p>
+    <div class="note chg">
+      <p class="note-t">Korekta wobec v6.1 &middot; bilet na organizację, nie na miejsce</p>
+      <p>v6.1 dawała jeden bilet rocznie na KAŻDE miejsce. Przy dwudziestu miejscach po 89 zł przychód roczny wynosi 21 360 zł, a ekspozycja to dwadzieścia biletów: <strong>6 000 zł przy bilecie za 300 zł (28% przychodu progu) i 10 000 zł przy 500 zł - blisko połowy</strong>. Pula jest więc organizacyjna: trzy bilety rocznie niezależnie od wielkości zespołu, konsumowane w kolejności zgłoszeń.</p>
+    </div>
+    <div class="note">
+      <p class="note-t">Ranga Zespołu &middot; rozstrzygnięcie zamknięte</p>
+      <p>Ranga zostaje 25 i przestaje być niezapisaną konsekwencją seedu. Katalog mówi wprost: Zespół daje zakres Pro <em>plus</em> wejścia rangi 25. Zejście do rangi 20 zgadzałoby się z hasłem „pełny zakres Pro", ale zabrałoby miejscom zespołowym kluby i treści bramkowane rangą 25 - kosztowałoby więcej niż rozjazd, który usuwa.</p>
+    </div>
+    <div class="tw">
+      <table>
+        <caption>Zespół &middot; benefity i punkty egzekwowania</caption>
+        <thead><tr><th>Benefit</th><th>Status</th><th>Punkt egzekwowania</th></tr></thead>
+        <tbody>
+          <tr><td>Pełny zakres Członka Pro dla każdego miejsca</td><td class="c"><span class="chip b">B</span></td><td class="code">organization_seats, ranga per miejsce</td></tr>
+          <tr><td><strong>Onboarding zespołowy: przypisanie wszystkich miejsc do klubów w 7 dni od zakupu</strong><span class="new">NOWE</span></td><td class="c"><span class="chip p">P</span></td><td class="code">mierzone odsetkiem miejsc aktywnych w pierwszych 14 dniach</td></tr>
+          <tr><td><strong>3 wliczone bilety rocznie na organizację, niezależnie od liczby miejsc</strong><span class="new">KOREKTA</span></td><td class="c"><span class="chip b">B</span></td><td class="code">features.included_event_tickets_org = 3, pula wspólna liczona per organizacja</td></tr>
+           <tr><td><strong>Wejścia rangi 25: kluby i treści otwarte dla Rady Instytutu</strong><span class="new">ZAPIS</span></td><td class="c"><span class="chip b">B</span></td><td class="code">membership_tiers.rank = 25 dla progu team</td></tr>
+          <tr><td>Korespondencja z ekspertami: 3 zapytania miesięcznie na miejsce</td><td class="c"><span class="chip b">B</span></td><td class="code">my_expert_request_quota per użytkownik</td></tr>
+          <tr><td>Kluby: jedno członkostwo klubowe na miejsce</td><td class="c"><span class="chip b">B</span></td><td class="code">club_members, ranga miejsca</td></tr>
+          <tr><td>Panel miejsc: zapraszanie, odbieranie, przenoszenie między osobami</td><td class="c"><span class="chip b">B</span></td><td class="code">member_organizations, organization_seats</td></tr>
+          <tr><td>Wspólna biblioteka i archiwum organizacji</td><td class="c"><span class="chip b">B</span></td><td class="code">member_resources</td></tr>
+          <tr><td>Jedna zbiorcza faktura dla całego zespołu</td><td class="c"><span class="chip b">B</span></td><td class="code">billing_documents</td></tr>
+          <tr><td>Rabat wolumenowy od 11 miejsc: 79 zł za miejsce</td><td class="c"><span class="chip b">B</span></td><td class="code">access_plans.volume_threshold_seats = 11 / volume_price_cents = 7900; cena schodkowa u operatora (tiers_mode volume)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 INSTYTUCJE ============ -->
+<section class="panel" role="tabpanel" id="p-4" aria-labelledby="t-4" tabindex="0" hidden>
+  <p class="eyebrow">Segment 3 &middot; strona /partnerstwo, bez cen na karcie</p>
+  <h2>Instytucje</h2>
+  <p class="lede">Składka partnerska przestaje być deklaracją, a staje się arytmetyką: partner widzi, ile zapłaciłby za te same rzeczy osobno.</p>
+  <p>Zmiana konstrukcyjna wobec v6 polega na wprowadzeniu wyceny alternatywnej. Wzorzec pochodzi z instytutu ECRI zarządzanego przez CEPS, gdzie członkowie mają bezpłatny dostęp do grup zadaniowych wycenionych dla podmiotów spoza członkostwa na 5 000 euro. Grupa zadaniowa to cykl spotkań kończący się raportem z uzgodnionymi rekomendacjami. Decision Lab NES jest dokładnie takim produktem i od tej wersji ma cenę własną.</p>
+  <div class="legend">
+    <span><span class="chip b">B</span> bramka istnieje i działa</span>
+    <span><span class="chip bq">B?</span> bramka wymaga dopisania</span>
+    <span><span class="chip p">P</span> zobowiązanie procesowe</span>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption>Progi instytucjonalne &middot; zakres, liczby, egzekwowalność</caption>
+      <thead><tr><th>Próg</th><th>Cena wywoławcza</th><th>Zakres</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>6. Partner Instytucjonalny</strong><br><span class="tier-rank">ranga 40</span></td>
+          <td class="code">od 24 000 zł/rok</td>
+          <td>
+            Do 10 osób nominowanych z pełnym zakresem Pro <span class="chip b">B</span>.<br>
+            <strong>1 Decision Lab rocznie z dwoma miejscami dla osób nominowanych. Cena dla podmiotu spoza partnerstwa: 16 000 zł za miejsce w cyklu</strong> <span class="chip b">B</span> <span class="new">KOREKTA</span> (<code>access_plans.tier_key = decision_lab</code>, produkt jednorazowy w katalogu operatora).<br>
+            <strong><em>Sounding board</em> dla osób nominowanych, na zasadach identycznych jak dla Rady, z tą samą granicą wpływu</strong> <span class="chip p">P</span> <span class="new">NOWE</span>.<br>
+            4 briefingi zamknięte dla organizacji w roku <span class="chip p">P</span>.<br>
+            Wszystkie kluby dyskusyjne dla osób nominowanych <span class="chip b">B</span> (<code>clubs.min_tier_rank = 40</code>).<br>
+            Korespondencja z ekspertami bez limitu dla osób nominowanych <span class="chip b">B</span>.<br>
+            8 godzin konsultacji analitycznych rocznie, jednostka 30 minut, reakcja 5 dni roboczych <span class="chip p">P</span>.<br>
+            Faktura, umowa roczna, opiekun wdrożenia <span class="chip b">B</span>.<br>
+            Organizacje pozarządowe i think-tanki non-profit: stawka preferencyjna minus 50%, po weryfikacji KRS lub statutu.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>7. Partner Strategiczny</strong><br><span class="tier-rank">ranga 50</span></td>
+          <td class="code">od 60 000 zł/rok</td>
+          <td>
+            Do 25 osób nominowanych. Wszystko z progu Partnera Instytucjonalnego <span class="chip b">B</span>, a ponadto:<br>
+            <strong>1 własna grupa zadaniowa rocznie: cykl 4 spotkań zakończony raportem sygnowanym wspólnie przez NES i partnera</strong> <span class="chip p">P</span> <span class="new">NOWE</span>.<br>
+            2 dedykowane briefingi szyte na miarę w roku <span class="chip p">P</span>.<br>
+            20 godzin dostępu do analityka rocznie <span class="chip p">P</span>.<br>
+            Prywatny mikroserwis klubowy dla organizacji <span class="chip b">B</span> <span class="new">KOREKTA</span> (<code>CLUB_MINISITE_TIER_RANK = 50</code>; do 22.08 stała wskazywała rangę 20, więc funkcja sprzedawana w tym progu przysługiwała każdemu Pro za 119 zł miesięcznie).<br>
+            1 slot prelegencki na konferencji NES w roku <span class="chip p">P</span>.<br>
+            2 kolacje eksperckie na poziomie zarządu w roku <span class="chip p">P</span>.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>8. Krąg Założycieli</strong><br><span class="tier-rank">ranga 60 &middot; na zaproszenie</span></td>
+          <td class="code">od 120 000 zł/rok</td>
+          <td>
+            Bez limitu osób <span class="chip b">B</span>.<br>
+            Dedykowany analityk prowadzący <span class="chip p">P</span>.<br>
+            Współsygnowane badania i publikacje <span class="chip p">P</span>.<br>
+            Miejsce w panelu recenzenckim publikacji <span class="chip p">P</span>.<br>
+            <strong>Udział w dorocznym posiedzeniu agendy strategicznej instytutu</strong> <span class="chip p">P</span> <span class="new">ZMIANA</span>.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p class="note-t">Granica wpływu na agendę &middot; Krąg Założycieli</p>
+    <p>Fundatorzy zgłaszają obszary i priorytety badawcze na dorocznym posiedzeniu. <strong>Wybór tematów, metodyka i wnioski pozostają wyłączną kompetencją zespołu badawczego i rady programowej.</strong> Żaden fundator nie ma wglądu w tekst przed publikacją poza trybem <em>sounding board</em>, który sam w sobie nie daje prawa do zmiany treści. Zapis obowiązuje niezależnie od wysokości składki i nie podlega negocjacji w umowie indywidualnej.</p>
+  </div>
+
+  <div class="note chg">
+    <p class="note-t">Jawność finansowania &middot; nie jest benefitem</p>
+    <p>Wymienienie partnera na liście finansujących nie jest korzyścią z tytułu składki, tylko wymogiem jawności. Lista jest publikowana niezależnie od woli partnera i przystąpienie do partnerstwa oznacza zgodę na jej publikację. W v6 pozycja ta figurowała w katalogu jako benefit; usunięcie jej stamtąd podnosi wiarygodność oferty u odbiorcy instytucjonalnego, który tę różnicę rozpoznaje.</p>
+  </div>
+</section>
+
+<!-- ============ 05 KLUBY I EKSPERCI ============ -->
+<section class="panel" role="tabpanel" id="p-5" aria-labelledby="t-5" tabindex="0" hidden>
+  <p class="eyebrow">Trzy benefity rozstrzygające</p>
+  <h2>Kluby, eksperci, archiwum</h2>
+  <p class="lede">Tych trzech rzeczy nie da się odtworzyć newsletterem ani modelem ogólnym. Dlatego one, a nie archiwum, niosą różnicowanie progów.</p>
+
+  <div class="tw">
+    <table>
+      <caption>Macierz progów &middot; kluby, korespondencja, warstwa odpowiedzi</caption>
+      <thead><tr><th>Próg</th><th>Kluby dyskusyjne</th><th>Korespondencja z ekspertami</th><th>Pytania do archiwum</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Czytelnik</strong></td><td>katalog widoczny, wejście zablokowane</td><td>brak</td><td>3 miesięcznie</td></tr>
+        <tr><td><strong>Członek</strong></td><td>obserwator w jednym klubie otwartym</td><td>1 zapytanie miesięcznie</td><td>20 miesięcznie</td></tr>
+        <tr><td><strong>Członek Pro</strong></td><td>pełne członkostwo w jednym klubie, onboarding w 48 godzin</td><td>3 zapytania miesięcznie</td><td>bez limitu</td></tr>
+        <tr><td><strong>Rada Instytutu</strong></td><td>wszystkie kluby otwarte dla Rady, 2 Decision Laby rocznie jako obserwator</td><td>kanał bezpośredni, bez limitu</td><td>bez limitu</td></tr>
+        <tr><td><strong>Zespół</strong></td><td>jedno członkostwo na miejsce, onboarding zespołowy w 7 dni</td><td>3 zapytania miesięcznie na miejsce</td><td>bez limitu</td></tr>
+        <tr><td><strong>Partner Instytucjonalny</strong></td><td>wszystkie kluby dla nominowanych, 1 Decision Lab z dwoma miejscami</td><td>bez limitu dla nominowanych</td><td>bez limitu</td></tr>
+        <tr><td><strong>Partner Strategiczny</strong></td><td>prywatny mikroserwis klubowy, 1 własna grupa zadaniowa rocznie</td><td>bez limitu plus 20 godzin analityka</td><td>bez limitu</td></tr>
+        <tr><td><strong>Krąg Założycieli</strong></td><td>udział w kształtowaniu agendy klubów, w granicach opisanych w zakładce Instytucje</td><td>dedykowany analityk prowadzący</td><td>bez limitu</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption>Konwening &middot; bilet, reguła Chatham House, limit miejsc <span class="new">NOWE</span></caption>
+      <thead><tr><th>Próg</th><th>Bilet wliczony w plan</th><th>Reguła Chatham House</th><th>Wydarzenia limitowane</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Czytelnik</strong></td><td>brak</td><td>brak</td><td>tylko otwarte</td></tr>
+        <tr><td><strong>Członek</strong></td><td>1 rocznie</td><td>brak</td><td>bez pierwszeństwa</td></tr>
+        <tr><td><strong>Stawki ulgowe</strong></td><td>zniżka 50% zamiast biletu</td><td>brak</td><td>bez pierwszeństwa</td></tr>
+        <tr><td><strong>Członek Pro</strong></td><td>ten sam 1 rocznie, nie drugi</td><td>tak</td><td>tak, z kolejką rezerwową</td></tr>
+        <tr><td><strong>Rada Instytutu</strong></td><td>1 rocznie</td><td>tak</td><td>tak, wraz z Decision Labami</td></tr>
+        <tr><td><strong>Zespół</strong></td><td>3 rocznie na organizację</td><td>tak</td><td>tak</td></tr>
+        <tr><td><strong>Partnerzy i Krąg</strong></td><td>1 rocznie na osobę nominowaną</td><td>tak</td><td>tak</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note chg">
+    <p class="note-t">Chatham House i limit miejsc &middot; dlaczego dopiero teraz</p>
+    <p>Obie funkcje były w platformie od modułu wydarzeń i żadna nie była sprzedawana. <code>events.chatham_house</code> była kolumną bez bramki - czystą etykietą redakcyjną, mimo że reguła Chatham House jest głównym argumentem za wartością klubów i Decision Labów, a instytut buduje na niej tożsamość. <code>events.capacity</code> działała w pełni (kolejka rezerwowa, blokada sprzedaży biletu ponad stan), tylko katalog jej nie wymieniał - a wydarzenie o dwudziestu miejscach dostępne od progu Pro jest silniejszym argumentem sprzedażowym niż briefing bez limitu.</p>
+    <p>Uzasadnienie bramki dla Chatham House nie jest handlowe, tylko wynika z tego, czym ta reguła jest: <strong>uczestnik może cytować treść, ale nie autora, i to zobowiązanie ma sens wyłącznie w kręgu, który zna swój skład</strong>. Wpuszczanie tam każdego, kto spełnia próg rangi wydarzenia otwartego, było sprzeczne z samą regułą, nie tylko z cennikiem.</p>
+  </div>
+
+  <div class="note chg">
+    <p class="note-t">Warstwa odpowiedzi &middot; uzasadnienie nowej kolumny</p>
+    <p>Według Digital News Report 2026 tylko 4% użytkowników chatbotów AI zawsze lub często przechodzi do źródła, wobec 19% przy wyszukiwarce. Cloudflare podał, że na 28 400 stron pobranych przez czołowego crawlera przypada jedno odesłanie zwrotne. Skoro zdecydowana większość pytań o Europę Środkową i tak nie przyniesie wizyty na stronie, jedynym sposobem, by trafiły do NES, jest warstwa odpowiedzi na własnym archiwum, z obowiązkowym wskazaniem źródeł.</p>
+    <p>Bramka odmierza <strong>odpowiedzi, nie artykuły</strong>, i pokazuje propozycję członkostwa dopiero po dostarczeniu wartości, czyli w momencie wyższej intencji niż klasyczny <em>paywall</em>. To jedyna pozycja w całym katalogu wymagająca istotnej pracy inżynierskiej.</p>
+  </div>
+
+  <div class="note open">
+    <p class="note-t">Mechanika do zachowania przy migracji</p>
+    <p>Bramka klubowa jest miękka na liście i twarda w bazie. Osoba, której wygasło członkostwo, ale która należy do klubu, widzi swój klub, a nie cennik (<code>resolveClubHubAccess</code>: członkostwo bije plan). Nie należy tego zmieniać.</p>
+  </div>
+
+  <div class="note open">
+    <p class="note-t">Rozstrzygnięcie otwarte</p>
+    <p>Obserwator z progu Członek wchodzi na razie do jednego klubu tematycznego, w trybie testu. Argument za szerszym otwarciem: społeczność utrzymuje najlepiej ze wszystkich benefitów. Argument przeciw: dyskusja prowadzona w regule Chatham House czerpie wartość z zamknięcia kręgu. Test na jednym klubie rozstrzyga to taniej niż debata.</p>
+    <p><strong>Od v6.2 ten argument przeciw ma własną bramkę i nie musi już być pilnowany doborem klubów.</strong> Spotkanie oznaczone <code>chatham_house</code> wymaga flagi <code>chatham_house_events</code> (od progu Pro), więc obserwator z progu Członek może wejść do klubu, nie wchodząc na spotkania prowadzone w tej regule. Otwarcie klubu przestało być decyzją „wszystko albo nic".</p>
+  </div>
+</section>
+
+<!-- ============ 06 KALENDARZ ============ -->
+<section class="panel" role="tabpanel" id="p-6" aria-labelledby="t-6" tabindex="0" hidden>
+  <p class="eyebrow">Konwening</p>
+  <h2>Kalendarz zobowiązań rocznych</h2>
+  <p class="lede">Dwadzieścia jeden pozycji katalogu to zobowiązania, których system nie pilnuje. Pilnuje ich ten kalendarz.</p>
+  <p>Tabela poniżej jest jedynym mechanizmem egzekwowania pozycji oznaczonych <span class="chip p">P</span>. Jeżeli pozycja nie ma tu wpisu, nie powinna znaleźć się w katalogu.</p>
+
+  <div class="tw">
+    <table>
+      <caption>Zobowiązania konwenignowe i wydawnicze w cyklu rocznym</caption>
+      <thead><tr><th>Zobowiązanie</th><th>Częstotliwość</th><th>Termin</th><th>Progi objęte</th></tr></thead>
+      <tbody>
+        <tr><td>Przegląd geopolityczny na e-mail</td><td class="num">52 / rok</td><td>co tydzień</td><td>od Czytelnika</td></tr>
+        <tr><td>Digest członkowski</td><td class="num">44 / rok</td><td>co tydzień poza sierpniem i przełomem roku</td><td>od Członka</td></tr>
+        <tr><td>Briefingi członkowskie online</td><td class="num">wszystkie</td><td>kalendarz wydarzeń</td><td>od Członka</td></tr>
+        <tr><td>Wydarzenie biletowane z wliczonym biletem</td><td class="num">1 / rok</td><td>rok członkowski (rocznicowy), nie kalendarzowy</td><td>od Członka, poza stawkami ulgowymi</td></tr>
+        <tr><td>Bilety wliczone dla organizacji</td><td class="num">3 / rok</td><td>pula wspólna, kolejność zgłoszeń</td><td>Zespół</td></tr>
+        <tr><td>Zamknięte briefingi Pro</td><td class="num">4 / rok</td><td>marzec, czerwiec, wrzesień, grudzień</td><td>od Pro</td></tr>
+        <tr><td>Nota foresightowa</td><td class="num">4 / rok</td><td>ostatni tydzień kwartału</td><td>od Pro</td></tr>
+        <tr><td>Onboarding klubowy</td><td class="num">ciągle</td><td>48 godzin od zakupu</td><td>od Pro</td></tr>
+        <tr><td>Onboarding zespołowy</td><td class="num">ciągle</td><td>7 dni od zakupu</td><td>Zespół</td></tr>
+        <tr><td>Decision Lab jako obserwator</td><td class="num">2 / rok</td><td>kalendarz Decision Labs</td><td>Rada</td></tr>
+        <tr><td>Zjazd Rady</td><td class="num">1 / rok</td><td>termin ustalany w I kwartale</td><td>Rada</td></tr>
+        <tr><td>Kolacje eksperckie</td><td class="num">2 / rok</td><td>wiosna, jesień</td><td>Rada</td></tr>
+        <tr><td>Udostępnienie rekomendacji do komentarza</td><td class="num">każda publikacja</td><td>10 dni roboczych przed publikacją</td><td>Rada, Partner Instytucjonalny i wyżej</td></tr>
+        <tr><td>Nabór tematów badawczych</td><td class="num">1 / rok</td><td>zgłoszenia do 30 września, rozstrzygnięcie do 31 października</td><td>Rada i wyżej</td></tr>
+        <tr><td>Briefing zamknięty dla organizacji</td><td class="num">4 / rok</td><td>kwartalnie</td><td>Partner Instytucjonalny i wyżej</td></tr>
+        <tr><td>Decision Lab z miejscami dla partnera</td><td class="num">1 / rok</td><td>kalendarz Decision Labs</td><td>Partner Instytucjonalny i wyżej</td></tr>
+        <tr><td>Własna grupa zadaniowa partnera</td><td class="num">1 / rok, 4 spotkania</td><td>cykl uzgadniany indywidualnie</td><td>Partner Strategiczny i wyżej</td></tr>
+        <tr><td>Dedykowane briefingi partnera</td><td class="num">2 / rok</td><td>terminy uzgadniane</td><td>Partner Strategiczny i wyżej</td></tr>
+        <tr><td>Slot prelegencki na konferencji</td><td class="num">1 / rok</td><td>konferencja roczna</td><td>Partner Strategiczny i wyżej</td></tr>
+        <tr><td>Kolacje na poziomie zarządu</td><td class="num">2 / rok</td><td>wiosna, jesień</td><td>Partner Strategiczny i wyżej</td></tr>
+        <tr><td>Posiedzenie agendy strategicznej</td><td class="num">1 / rok</td><td>IV kwartał</td><td>Krąg Założycieli</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p class="note-t">Rachunek obciążenia</p>
+    <p>Kalendarz zawiera dwadzieścia pozycji cyklicznych, w tym co najmniej piętnaście wydarzeń na żywo lub online w roku oraz dwie serie wydawnicze o stałym rytmie. Przy jednej osobie operacyjnej to jest górna granica wykonalności, a nie punkt wyjścia do rozbudowy. Każda nowa pozycja katalogu musi odtąd wskazać, którą pozycję z tej tabeli zastępuje.</p>
+  </div>
+</section>
+
+<!-- ============ 07 WDROŻENIE ============ -->
+<section class="panel" role="tabpanel" id="p-7" aria-labelledby="t-7" tabindex="0" hidden>
+  <div class="sec">
+    <p class="eyebrow">Kolejność prac</p>
+    <h2>Wdrożenie v6.2 &middot; stan na 22.08.2026</h2>
+    <p class="deck">Lista v6.1 miała osiem pozycji. Siedem jest zamkniętych, jedna została - i to ta jedna, którą v6.1 słusznie nazwała jedyną wymagającą istotnej pracy inżynierskiej.</p>
+    <ol class="steps">
+      <li><strong>Licznik treści: nic do przestawienia.</strong> <span class="new">ZAMKNIĘTE</span> Model rejestracyjny działał już wtedy: <code>enabled = true</code>, <code>anon_monthly_limit = 0</code>, <code>member_monthly_limit = 5</code>. Pozycja v6.1 opisywała stan istniejący jako zmianę, a proponowana „1 analiza bez konta" była w istocie poluzowaniem bramki. Przeniesiona do rozstrzygnięć otwartych jako kompromis SEO wobec odsetka zatrzymanych czytelników.</li>
+      <li><strong>Nadać liczbę każdej pozycji procesowej i wpisać ją do kalendarza konwenignu.</strong> Praca redakcyjna na jeden dzień. Podnosi egzekwowalność dwudziestu jeden pozycji bez pisania kodu.</li>
+      <li><strong>Opisać granicę wpływu</strong> dla <em>sounding board</em> i dla agendy strategicznej, w katalogu i w umowie wzorcowej. Zapis nienegocjowalny w umowach indywidualnych.</li>
+      <li><strong>Siedem bramek <span class="chip bq">B?</span> dopisanych.</strong> <span class="new">ZAMKNIĘTE</span> Pula biletów (dwa miejsca użycia - i to nie było [B?], tylko [N]: tabela <code>event_tickets</code>, do której odsyłał katalog, nie istniała), klub obserwatora dla rangi 10, wczesny dostęp na <code>posts.publish_at</code>, Decision Lab na <code>club_events.min_tier_rank</code>, próg wolumenowy Zespołu, miejsce Decision Labu dla partnera.</li>
+      <li><strong>Dwie dziury zamknięte przy okazji.</strong> <span class="new">NOWE</span> Po pierwsze: <code>rsvp_event</code> NIE PYTAŁO o bilet - wydarzenie płatne było dostępne za darmo każdemu, kto spełniał próg rangi i wywołał RPC bezpośrednio, a przycisk „kup bilet" był jedyną przeszkodą. Bez zamknięcia tego benefit „wliczonego biletu" nie miałby czego sprzedawać. Po drugie: ta sama funkcja zgubiła kontrolę <code>rsvp_opens_at</code> / <code>early_rsvp_rank</code> przy przepisaniu na kolejkę rezerwową w lipcu; okno rejestracji było od tamtej pory blokadą wyłącznie kliencką. Przywrócona.</li>
+      <li><strong>Decision Lab wyceniony jako produkt samodzielny.</strong> <span class="new">ZAMKNIĘTE</span> 16 000 zł za miejsce w cyklu (korekta arytmetyczna wobec 12 000 zł z v6.1), wiersz w <code>access_plans</code> z interwałem <code>one_time</code> i pozycja w katalogu operatora płatności. Bez ceny własnej wartość składki partnerskiej pozostaje deklaracją.</li>
+      <li><strong>Zaprojektować onboarding klubowy</strong> i uruchomić pomiar odsetka członków aktywnych w pierwszych czternastu dniach. To jest wskaźnik przewidujący churn dziewięćdziesięciodniowy.</li>
+      <li><strong>Zbudować warstwę odpowiedzi na archiwum</strong> z bramką odmierzającą odpowiedzi. Jedyna pozycja wymagająca istotnej pracy inżynierskiej i jedyna adresująca trend zagrażający całemu modelowi.</li>
+      <li><strong>Słowo „subskrypcja" usunięte</strong> z komunikacji progów indywidualnych. <span class="new">ZAMKNIĘTE</span> Zostaje wyłącznie tam, gdzie opisuje MECHANIZM u operatora płatności (portal, anulowanie, odnowienia, faktury) - tam jest terminem właściwym, a nie językiem relacji. Członkostwo utrzymuje lepiej przez sam fakt tożsamości; język katalogu za tym nadążył.</li>
+      <li><strong>Darowizna wróciła na własną ścieżkę.</strong> <span class="new">ZAMKNIĘTE</span> Osiem zbudowanych modułów obsługi wpłat miało jedyne stałe wejście uwarunkowane istnieniem wycofanego progu „Wspierający" - pasek na <code>/pricing</code> renderował się tylko wtedy, gdy taki wiersz był w bazie. Pasek jest teraz bezwarunkowy, prowadzi tam, gdzie wskazuje konfiguracja darowizn, i mówi wprost, że wpłata <strong>nie jest progiem członkostwa i nie daje pakietu benefitów</strong>.</li>
+      <li><strong>Reguła Chatham House i limit miejsc weszły do katalogu.</strong> <span class="new">ZAMKNIĘTE</span> Jedyne dwie pozycje tego wdrożenia, które DODAJĄ wartość zamiast naprawiać. Obie funkcje były zbudowane, przetestowane i nieużywane w sprzedaży: <code>events.chatham_house</code> była etykietą bez bramki, <code>events.capacity</code> działającym mechanizmem ekskluzywności, którego katalog nie wymieniał.</li>
+    </ol>
+    <div class="note open">
+      <p class="note-t">Co zostaje &middot; jedna pozycja</p>
+      <p><strong>Warstwa odpowiedzi na archiwum</strong> - trzy wiersze katalogu (3 pytania miesięcznie dla Czytelnika, 20 dla Członka, bez limitu od Pro), jedna funkcja, zero linii kodu. Jedyna pozycja <span class="chip n">N</span> i jedyna adresująca trend, który zagraża całemu modelowi: wg Digital News Report 2026 tylko 4% użytkowników chatbotów przechodzi do źródła, wobec 19% przy wyszukiwarce.</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <p class="eyebrow">Pomiar</p>
+    <h3>Pięć wskaźników, bez których ten katalog jest hipotezą</h3>
+    <div class="tw">
+      <table>
+        <caption>Wskaźniki i wartości docelowe</caption>
+        <thead><tr><th>Wskaźnik</th><th>Cel</th><th>Punkt odniesienia</th></tr></thead>
+        <tbody>
+          <tr><td>Odsetek odwiedzających, którzy zobaczyli bramkę</td><td class="num">&gt; 6%</td><td>mediana rynkowa 1,8%; próg zdrowia wg Shorenstein Center</td></tr>
+          <tr><td>Udział progu Członek Pro wśród płacących</td><td class="num">50&ndash;70%</td><td>rozkład docelowy w literaturze <em>good-better-best</em></td></tr>
+          <tr><td>Udział progów najwyższych</td><td class="num">10&ndash;30%</td><td>tamże</td></tr>
+          <tr><td>Retencja roczna progów indywidualnych</td><td class="num">80&ndash;85%</td><td>poziom uznawany za zdrowy w sektorze stowarzyszeniowym</td></tr>
+          <tr><td>Członkowie klubu aktywni w pierwszych 14 dniach</td><td class="num">mierzyć</td><td>brak wartości docelowej; wskaźnik przewiduje churn 90-dniowy</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <p class="eyebrow">Do decyzji</p>
+    <h3>Cztery rozstrzygnięcia przed wejściem do panelu</h3>
+    <div class="note open">
+      <p class="note-t">01 &middot; Cena progu Członek</p>
+      <p>Dane polskie pokazują dwie kotwice: przynależność do niezależnej instytucji wyceniana jest na około 20 zł miesięcznie, narzędzie pracy na sto kilkanaście, a 70% Polaków wydaje na wszystkie subskrypcje łącznie do 100 zł. Próg Członek za 39 zł leży między tymi pozycjami. Albo schodzi do 25&ndash;29 zł jako próg masowej przynależności, albo zostaje i wliczony bilet oraz warstwa odpowiedzi muszą tę różnicę udźwignąć.</p>
+    </div>
+    <div class="note open">
+      <p class="note-t">02 &middot; Wartość wliczonego biletu</p>
+      <p>Bilet wliczony w członkostwo za 390 zł rocznie musi mieć cenę katalogową niższą niż ta kwota, inaczej próg Członek sprzedaje się poniżej kosztu. Wymaga ustalenia ceny biletu konferencyjnego przed publikacją katalogu. <strong>Mechanizm jest gotowy i obojętny na tę liczbę</strong>: pula liczy sztuki, nie złotówki, a wartość odstąpionego biletu zapisuje się na wierszu konsumpcji (<code>plan_ticket_claims.face_value_cents</code>) - rachunek ekspozycji zrobi się z danych, nie z szacunku.</p>
+    </div>
+    <div class="note open">
+      <p class="note-t">03 &middot; Cena miejsca w Decision Labie <span class="new">ROZSTRZYGNIĘTE</span></p>
+      <p>v6.1 podawała 12 000 zł jako „trzy czwarte odpowiednika ECRI (5 000 euro)". Przy kursie NBP 4,3122 zł/EUR 5 000 euro to <strong>21 561 zł</strong>, więc 12 000 zł stanowiło 55,7% - nieco ponad połowę, nie trzy czwarte. Relacja trzech czwartych zostaje utrzymana, cena idzie do <strong>16 000 zł</strong> (74,2%). Liczba jest wywoławcza i wymaga potwierdzenia w rozmowie z pierwszym realnym nabywcą spoza partnerstwa.</p>
+    </div>
+    <div class="note open">
+      <p class="note-t">04 &middot; Ranga Zespołu <span class="new">ROZSTRZYGNIĘTE</span></p>
+      <p>Zostaje 25 - ale nie „z powodu seedu", tylko jako zapisana obietnica: zakres Pro plus wejścia rangi 25. Przy okazji uporządkowana ranga 28 (wycofany próg Partner Biznesowy), która osierocona wisiała w klubach, wydarzeniach i regułach treści: przemapowana na 30, bez zmiany dostępu dla kogokolwiek.</p>
+    </div>
+  </div>
+
+  <p class="foot">
+    Podstawa techniczna: <code>src/lib/billing/capabilities.ts</code>, <code>tierRanks.ts</code>, <code>clubs/hubAccess.ts</code>, <code>clubs/planTiers.ts</code>,<br>
+    funkcje <code>my_expert_request_quota</code>, <code>has_content_access</code>, <code>get_event_access</code>, <code>club_list</code>, tabele <code>metering_settings</code>, <code>access_plans</code>.<br>
+    Bilet wliczony w plan: <code>plan_ticket_claims</code>, <code>my_ticket_allowance</code>, <code>claim_included_event_ticket</code>, <code>membership_year_window</code>.<br>
+    Reguła Chatham House: <code>events.chatham_house</code> + flaga <code>chatham_house_events</code>. Wczesny dostęp: polityka na <code>posts.publish_at</code>, <code>early_access_window()</code>.<br>
+    Wersja katalogu: v6.2, zastępuje v6.1 z 21.08.2026. Korekty pochodzą z audytu z 21.08 i są wdrożone w platformie 22.08.2026.
+  </p>
+</section>
+
+</div>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+
+  function select(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+    tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { select(tab, false); });
+    tab.addEventListener('keydown', function (e) {
+      var next = null;
+      if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+      else if (e.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+      else if (e.key === 'Home') next = tabs[0];
+      else if (e.key === 'End') next = tabs[tabs.length - 1];
+      if (next) { e.preventDefault(); select(next, true); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -228,10 +228,14 @@ const adminPermissionsPl = {
       presidents_circle: "President's Circle",
       supporter_updates: "Aktualizacje dla wspierających",
       gift_links: "Linki podarunkowe",
+      chatham_house_events: "Spotkania w regule Chatham House",
     },
 
     quotas: {
       expert_request_quota: "Zapytania do eksperta - pula miesięczna",
+      included_event_tickets: "Bilety wliczone w plan - pula roczna na członka",
+      included_event_tickets_org: "Bilety wliczone w plan - pula roczna na organizację",
+      event_ticket_discount_pct: "Zniżka na wydarzenia biletowane (%)",
     },
   },
 };
@@ -452,10 +456,14 @@ const adminPermissionsEn = {
       presidents_circle: "President's Circle",
       supporter_updates: "Supporter updates",
       gift_links: "Gift links",
+      chatham_house_events: "Chatham House Rule meetings",
     },
 
     quotas: {
       expert_request_quota: "Expert requests - monthly pool",
+      included_event_tickets: "Included tickets - yearly pool per member",
+      included_event_tickets_org: "Included tickets - yearly pool per organisation",
+      event_ticket_discount_pct: "Ticketed event discount (%)",
     },
   },
 };

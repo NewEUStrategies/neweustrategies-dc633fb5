@@ -22,6 +22,12 @@ import {
 // `chat_inmail_quota_2` / `chat_inmail_quota_5` dopisane po audycie: były
 // egzekwowane przez my_inmail_quota / send_expert_inmail, ale rejestr o nich
 // milczał - dokładnie ten rodzaj rozjazdu, który wykryła bramka parytetu.
+// `early_access` i `chatham_house_events` dopisane przy wdrożeniu korekt audytu
+// katalogu v6.1. Obie były wcześniej po przeciwnych stronach tego samego długu:
+// `early_access` figurowała w rejestrze jako dekoracja, choć katalog ją
+// sprzedawał, a `chatham_house_events` nie istniała mimo kolumny
+// `events.chatham_house` w bazie. Dziś obie mają bramkę - odpowiednio politykę
+// „Early access reads scheduled posts" i rsvp_event/get_event_access.
 const EXPECTED_ENFORCED = [
   "premium_content",
   "regulatory_monitoring",
@@ -32,6 +38,8 @@ const EXPECTED_ENFORCED = [
   "chat_direct_gated",
   "chat_inmail_quota_2",
   "chat_inmail_quota_5",
+  "early_access",
+  "chatham_house_events",
   "gift_links",
 ].sort();
 

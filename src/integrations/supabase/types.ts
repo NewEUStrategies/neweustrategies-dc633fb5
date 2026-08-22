@@ -2220,6 +2220,7 @@ export type Database = {
           kind: string
           location: string | null
           meeting_url: string | null
+          min_tier_rank: number
           rsvp_enabled: boolean
           slug: string
           starts_at: string
@@ -2246,6 +2247,7 @@ export type Database = {
           kind?: string
           location?: string | null
           meeting_url?: string | null
+          min_tier_rank?: number
           rsvp_enabled?: boolean
           slug: string
           starts_at: string
@@ -2272,6 +2274,7 @@ export type Database = {
           kind?: string
           location?: string | null
           meeting_url?: string | null
+          min_tier_rank?: number
           rsvp_enabled?: boolean
           slug?: string
           starts_at?: string
@@ -16809,6 +16812,7 @@ export type Database = {
           kind: string
           location: string
           meeting_url: string
+          min_tier_rank: number
           my_rsvp: string
           rsvp_enabled: boolean
           slug: string

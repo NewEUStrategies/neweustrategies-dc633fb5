@@ -18,6 +18,8 @@ interface PlanRow {
   description_pl: string | null;
   trial_days: number | null;
   active: boolean | null;
+  volume_threshold_seats: number | null;
+  volume_price_cents: number | null;
 }
 
 const h = vi.hoisted(() => ({
@@ -89,6 +91,8 @@ const plan = (over: Partial<PlanRow> = {}): PlanRow => ({
   description_pl: "Opis planu",
   trial_days: null,
   active: true,
+  volume_threshold_seats: null,
+  volume_price_cents: null,
   ...over,
 });
 
@@ -530,10 +534,13 @@ describe("trialDaysForPrice", () => {
     h.remotePrices["plus_monthly"] = remotePlusMonthly({ metadata: { trial_days: "14" } });
 
     expect(await trialDaysForPrice("sandbox", "plus_monthly")).toBe(14);
+    // `data.tiers` rozwijamy zawsze: bez tego cena schodkowa (próg wolumenowy
+    // Zespołu) wyglądałaby jak cena bez progów i sync odtwarzałby ją w kółko.
     expect(h.priceList).toHaveBeenCalledWith({
       lookup_keys: ["plus_monthly"],
       active: true,
       limit: 1,
+      expand: ["data.tiers"],
     });
   });
 
@@ -558,5 +565,162 @@ describe("healCatalogOnce", () => {
 
     await healCatalogOnce("sandbox");
     expect(h.selects).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Katalog v6.1: cena jednorazowa (Decision Lab) i cena schodkowa (Zespół).
+//
+// Obie klasy weszły do katalogu przy wdrożeniu korekt audytu i obie łamią
+// milczące założenie poprzedniej wersji synchronizacji: „każda cena jest
+// cykliczna i płaska". Pierwsza zakładałaby u operatora subskrypcję miesięczną
+// na miejsce w Decision Labie, druga - jedną stawkę bez rabatu wolumenowego.
+// ---------------------------------------------------------------------------
+describe("cena jednorazowa (interval one_time)", () => {
+  const decisionLabPlan = (): PlanRow =>
+    plan({
+      tier_key: "decision_lab",
+      interval: "one_time",
+      price_cents: 1_600_000,
+      name_pl: "Decision Lab - miejsce w cyklu",
+      name_en: "Decision Lab - seat in the cycle",
+    });
+
+  it("zakłada cenę BEZ cyklu rozliczeniowego", async () => {
+    h.plans = [decisionLabPlan()];
+
+    await syncBillingCatalog("sandbox");
+
+    const created = priceCreateFor("decision_lab_seat");
+    expect(created).toBeDefined();
+    expect(created?.["unit_amount"]).toBe(1_600_000);
+    // Kluczowa asercja całego bloku: brak `recurring`. Z nim miejsce w cyklu
+    // odnawiałoby się co miesiąc po 16 000 zł.
+    expect(created).not.toHaveProperty("recurring");
+  });
+
+  it("korekta kwoty też nie dokłada cyklu", async () => {
+    h.plans = [decisionLabPlan()];
+    h.remotePrices["decision_lab_seat"] = {
+      id: "price_dl",
+      lookup_key: "decision_lab_seat",
+      unit_amount: 1_200_000,
+      currency: "pln",
+      metadata: {},
+    };
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(itemFor(report, "decision_lab_seat")?.price).toBe("updated");
+    const created = priceCreateFor("decision_lab_seat");
+    expect(created?.["unit_amount"]).toBe(1_600_000);
+    expect(created?.["transfer_lookup_key"]).toBe(true);
+    expect(created).not.toHaveProperty("recurring");
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_dl", { active: false });
+  });
+});
+
+describe("cena schodkowa (próg wolumenowy Zespołu)", () => {
+  const teamPlan = (over: Partial<PlanRow> = {}): PlanRow =>
+    plan({
+      tier_key: "team",
+      interval: "month",
+      price_cents: 8900,
+      name_pl: "Zespół",
+      name_en: "Team",
+      volume_threshold_seats: 11,
+      volume_price_cents: 7900,
+      ...over,
+    });
+
+  it("zakłada cenę w trybie volume z dwoma progami", async () => {
+    h.plans = [teamPlan()];
+
+    await syncBillingCatalog("sandbox");
+
+    const created = priceCreateFor("team_monthly_seat");
+    expect(created?.["billing_scheme"]).toBe("tiered");
+    expect(created?.["tiers_mode"]).toBe("volume");
+    // `up_to: 10` to OSTATNIE miejsce w stawce podstawowej - próg 11 oznacza
+    // „od jedenastego wszystkie po 79 zł", nie „jedenaste i kolejne".
+    expect(created?.["tiers"]).toEqual([
+      { up_to: 10, unit_amount: 8900 },
+      { up_to: "inf", unit_amount: 7900 },
+    ]);
+    expect(created).not.toHaveProperty("unit_amount");
+  });
+
+  it("plan bez progu zostaje ceną płaską", async () => {
+    h.plans = [teamPlan({ volume_threshold_seats: null, volume_price_cents: null })];
+
+    await syncBillingCatalog("sandbox");
+
+    const created = priceCreateFor("team_monthly_seat");
+    expect(created?.["unit_amount"]).toBe(8900);
+    expect(created).not.toHaveProperty("billing_scheme");
+  });
+
+  it("rozjazd progów u operatora jest korygowany nową ceną", async () => {
+    h.plans = [teamPlan()];
+    h.remotePrices["team_monthly_seat"] = {
+      id: "price_team",
+      lookup_key: "team_monthly_seat",
+      currency: "pln",
+      billing_scheme: "tiered",
+      tiers_mode: "volume",
+      tiers: [
+        { up_to: 10, unit_amount: 8900 },
+        { up_to: null, unit_amount: 8900 },
+      ],
+      recurring: { interval: "month", interval_count: 1 },
+      metadata: {},
+    };
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(itemFor(report, "team_monthly_seat")?.price).toBe("updated");
+    expect(priceCreateFor("team_monthly_seat")?.["tiers"]).toEqual([
+      { up_to: 10, unit_amount: 8900 },
+      { up_to: "inf", unit_amount: 7900 },
+    ]);
+  });
+
+  it("zgodne progi nie powodują żadnej zmiany", async () => {
+    h.plans = [teamPlan()];
+    h.remotePrices["team_monthly_seat"] = {
+      id: "price_team",
+      lookup_key: "team_monthly_seat",
+      currency: "pln",
+      billing_scheme: "tiered",
+      tiers_mode: "volume",
+      tiers: [
+        { up_to: 10, unit_amount: 8900 },
+        { up_to: null, unit_amount: 7900 },
+      ],
+      recurring: { interval: "month", interval_count: 1 },
+      metadata: {},
+    };
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(itemFor(report, "team_monthly_seat")?.price).toBe("ok");
+    expect(priceCreateFor("team_monthly_seat")).toBeUndefined();
+  });
+
+  it("przejście z ceny płaskiej na schodkową jest wykrywane jako dryf", async () => {
+    h.plans = [teamPlan()];
+    h.remotePrices["team_monthly_seat"] = {
+      id: "price_team_flat",
+      lookup_key: "team_monthly_seat",
+      unit_amount: 8900,
+      currency: "pln",
+      recurring: { interval: "month", interval_count: 1 },
+      metadata: {},
+    };
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(itemFor(report, "team_monthly_seat")?.price).toBe("updated");
+    expect(priceCreateFor("team_monthly_seat")?.["billing_scheme"]).toBe("tiered");
   });
 });
