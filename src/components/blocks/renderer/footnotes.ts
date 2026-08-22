@@ -15,7 +15,11 @@
 // w trakcie renderu dziecka, więc rodzic czytał `notes.length === 0`).
 
 import type { Block } from "@/lib/blocks/types";
-import { expandFootnotes, type FootnoteCounter } from "@/lib/footnotes";
+import {
+  expandFootnotes,
+  normalizeLegacyFootnoteHtml,
+  type FootnoteCounter,
+} from "@/lib/footnotes";
 import { readBlocksArray, sanitize } from "./data";
 
 /**
@@ -34,9 +38,9 @@ export function replaceFootnotes(html: string, fn: FootnoteCollector): string {
   return expandFootnotes(html, fn);
 }
 
-/** Czy dany string zawiera choć jeden shortcode [fn]…[/fn]. */
+/** Czy string zawiera shortcode [fn]…[/fn] albo stary markup przypisu z WP. */
 export function hasFn(v: unknown): v is string {
-  return typeof v === "string" && v.includes("[fn]");
+  return typeof v === "string" && (v.includes("[fn]") || v.includes("footnote_referrer"));
 }
 
 /** Zamienia treść przypisu z plain/markdown na czysty HTML dla listy końcowej. */
@@ -70,13 +74,16 @@ export function precomputeFootnotes(
 ): void {
   const process = (raw: unknown): string | null => {
     if (!hasFn(raw)) return null;
-    return replaceFootnotes(sanitize(raw), fn);
+    return replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(raw)), fn);
   };
   for (const b of blocks) {
     if (b.type === "paragraph" || b.type === "html" || b.type === "spoiler") {
       // `spoiler` też wstawia `data.html` przez dangerouslySetInnerHTML
       // (molecules.tsx::renderSpoiler), więc należy do tej samej rodziny.
-      out.set(b.id, replaceFootnotes(sanitize(String(b.data.html ?? "")), fn));
+      out.set(
+        b.id,
+        replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""))), fn),
+      );
     } else if (b.type === "heading") {
       const v = process(b.data.text);
       if (v !== null) out.set(`${b.id}:text`, v);
