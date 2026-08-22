@@ -108,13 +108,14 @@ function makeState(partial: Partial<GiftArticleState>): GiftArticleState {
   };
 }
 
-function renderButton() {
+function renderButton(props: { gated?: boolean } = {}) {
   return renderWithQueryClient(
     <GiftArticleButton
       postId="post-1"
       title="Tytuł wpisu"
       url="https://example.org/analizy/wpis"
       lang="pl"
+      gated={props.gated ?? true}
     />,
   );
 }
@@ -235,7 +236,39 @@ describe("GiftArticleButton", () => {
     expect(h.mutate).not.toHaveBeenCalled();
   });
 
-  it("artykuł bez paywalla pozwala skopiować zwykły link zamiast ponawiać", async () => {
+  it("artykuł niezabramkowany: tylko zwykły link bez gift-mechaniki", async () => {
+    h.session = { user: { id: "u1" } };
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderButton({ gated: false });
+    openPopover();
+    // Nie generujemy linku podarunkowego - nawet dla zalogowanego.
+    expect(h.mutate).not.toHaveBeenCalled();
+    // Lead mówi, że artykuł jest bez paywalla.
+    expect(screen.getByText("gifting.leadFree")).toBeInTheDocument();
+    // Nie pokazujemy budżetu kliknięć ani komunikatu firstNCanRead.
+    expect(screen.queryByTestId("gift-budget")).not.toBeInTheDocument();
+    expect(screen.queryByText(/gifting.firstNCanRead/)).not.toBeInTheDocument();
+    // Kopiowanie zwykłego URL, bez parametrów gift.
+    fireEvent.click(screen.getByRole("button", { name: "gifting.copyLink" }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
+      expect(screen.getByRole("button", { name: "gifting.copied" })).toBeInTheDocument();
+    });
+    // Kanały udostępniania prowadzą do zwykłego linku publicznego.
+    const fb = screen.getByRole("link", { name: "gifting.channels.facebook" });
+    expect(fb).toHaveAttribute(
+      "href",
+      expect.stringContaining(encodeURIComponent("https://example.org/analizy/wpis")),
+    );
+    expect(fb).not.toHaveAttribute("href", expect.stringContaining("?gift="));
+  });
+
+  it("zabramkowany artykuł z błędem notGated: fallback pozwala skopiować zwykły link", async () => {
     h.session = { user: { id: "u1" } };
     h.state = makeState({});
     h.mutationError = true;
