@@ -69,3 +69,81 @@ describe("llms.txt - zasoby maszynowe trackera", () => {
     expect(txt).toContain("https://nes.example/en/tracker/rss.xml");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ETAP 4: gałąź opisu sekcji (llms.ts:65) - `section.description?.trim()`.
+// Sekcje przychodzą z drzewa treści redakcji, więc opis bywa nieustawiony,
+// wyzerowany albo złożony z samych spacji. Puste `": "` w llms.txt to śmieć,
+// który model przepisuje do odpowiedzi razem z nazwą sekcji.
+// (Trasa /llms.txt jako CAŁOŚĆ jest dowiedziona bajtami w `e2e/seo.spec.ts`,
+// test "llms.txt is text/plain and lists sections" - tutaj tylko builder.)
+// ---------------------------------------------------------------------------
+describe("buildLlmsTxt - sekcje z niepełnym opisem", () => {
+  const txt = buildLlmsTxt({
+    siteName: "NES",
+    origin: "https://nes.example",
+    descriptionPl: "Opis",
+    descriptionEn: "Description",
+    sections: [
+      { name: "Brak pola opisu", url: "https://nes.example/a" },
+      { name: "Opis null", url: "https://nes.example/b", description: null },
+      { name: "Opis pusty", url: "https://nes.example/c", description: "" },
+      { name: "Opis z samych spacji", url: "https://nes.example/d", description: "   \n  " },
+      { name: "Opis w spacjach", url: "https://nes.example/e", description: "  Analizy  " },
+    ],
+    latestPl: [],
+    latestEn: [],
+    resources: [],
+  });
+
+  it.each([
+    { label: "brakiem pola", expected: "- [Brak pola opisu](https://nes.example/a)" },
+    { label: "opisem null", expected: "- [Opis null](https://nes.example/b)" },
+    { label: "opisem pustym", expected: "- [Opis pusty](https://nes.example/c)" },
+    {
+      label: "opisem z samych spacji",
+      expected: "- [Opis z samych spacji](https://nes.example/d)",
+    },
+  ])("emituje sam link (bez wiszącego dwukropka) dla sekcji z $label", ({ expected }) => {
+    expect(txt).toContain(`${expected}\n`);
+  });
+
+  it("przycina opis, gdy jest realny", () => {
+    expect(txt).toContain("- [Opis w spacjach](https://nes.example/e): Analizy\n");
+  });
+
+  it("nie zostawia w pliku ani jednego pustego dwukropka po nawiasie", () => {
+    expect(txt).not.toMatch(/\): *$/m);
+    expect(txt).not.toContain("): \n");
+  });
+
+  it("pomija nagłówki list, których nie ma czym wypełnić", () => {
+    // Puste `latestPl`/`latestEn`/`resources` nie mogą zostawić nagłówka bez
+    // treści - model przepisałby "Najnowsze artykuły" jako fakt o serwisie.
+    expect(txt).not.toContain("## Najnowsze artykuły (PL)");
+    expect(txt).not.toContain("## Latest articles (EN)");
+    // Sekcja zasobów maszynowych jest ogłaszana ZAWSZE (kontrakt llmstxt.org),
+    // nawet gdy rejestr nic nie zwrócił - patrz machineSurfaces.contract.test.ts.
+    expect(txt).toContain("## Zasoby maszynowe / Machine-readable resources");
+    expect(txt).toContain("## Zasady cytowania / Citation policy");
+  });
+
+  it("pomija linię kontaktu, gdy adres jest pusty albo z samych spacji", () => {
+    for (const contactEmail of [undefined, null, "", "   "]) {
+      const out = buildLlmsTxt({
+        siteName: "NES",
+        origin: "https://nes.example",
+        descriptionPl: "Opis",
+        descriptionEn: "Description",
+        sections: [],
+        latestPl: [],
+        latestEn: [],
+        resources: [],
+        contactEmail,
+      });
+      expect(out).not.toContain("Kontakt / Contact:");
+      expect(out).not.toContain("## Sekcje / Sections");
+      expect(out.endsWith("\n")).toBe(true);
+    }
+  });
+});

@@ -4,10 +4,11 @@
 // snippets before they ship. Blocking rows (hard character caps) are styled
 // as errors; pixel-budget overflows render as warnings.
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Check } from "@/lib/lucide-shim";
+import { Check } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { SeoIssue } from "@/lib/seo/validation";
 import type { HeadingIssue } from "@/lib/seo/headingValidation";
+import { SeverityBadge, severityLiveRole } from "@/components/admin/seo/atoms/SeverityBadge";
 
 const LANG_LABEL: Record<SeoIssue["lang"], string> = { pl: "PL", en: "EN" };
 
@@ -95,7 +96,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
   const hasError = all.some((i) => i.severity === "error");
   return (
     <div
-      role={hasError ? "alert" : "status"}
+      role={severityLiveRole(hasError ? "error" : "warning")}
       className={cn(
         "space-y-1 rounded-md border px-3 py-2 text-[11px]",
         hasError
@@ -103,14 +104,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
           : "border-amber-500/50 bg-amber-500/5 text-amber-700 dark:text-amber-300",
       )}
     >
-      <div className="flex items-center gap-2 font-medium">
-        <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-        <span>
-          {hasError
-            ? t("admin.seo.validation.errorHeading")
-            : t("admin.seo.validation.warnHeading")}
-        </span>
-      </div>
+      <SeverityBadge severity={hasError ? "error" : "warning"} />
       <ul className="space-y-0.5 pl-5 list-disc">
         {all.map((row) => (
           <li key={row.key}>

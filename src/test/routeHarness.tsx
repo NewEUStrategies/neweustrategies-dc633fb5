@@ -173,8 +173,19 @@ export async function routeMeta(route: AnyRoute): Promise<RouteMetaEntry[]> {
   return (result?.meta ?? []) as RouteMetaEntry[];
 }
 
-/** Handler serwerowy trasy (`server.handlers.GET/POST`) w kształcie testowym. */
-export type RouteServerHandler = (args: { request: Request }) => Promise<Response>;
+/**
+ * Handler serwerowy trasy (`server.handlers.GET/POST`) w kształcie testowym.
+ *
+ * `params` jest OPCJONALNE i celowo obecne w typie: trasy z parametrem
+ * (`sitemaps.$section.ts`) czytają wyłącznie `params`, a nie `request`, więc bez
+ * tego pola test takiej trasy nie skompilowałby się bez rzutowania - a rzutowań
+ * w tym repo nie ma. Poszerzenie jest zgodne wstecz: wołający, którzy podają
+ * samo `{ request }`, kompilują się dalej.
+ */
+export type RouteServerHandler = (args: {
+  request?: Request;
+  params?: Record<string, string>;
+}) => Promise<Response>;
 
 /** Opcje trasy w części, której framework nie wystawia w typie publicznym. */
 interface RouteOptionsWithServer {

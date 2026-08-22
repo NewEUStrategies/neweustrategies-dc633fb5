@@ -5,8 +5,6 @@ import {
   type PodcastRssChannelInput,
   type PodcastRssItem,
 } from "@/lib/seo/podcastRss";
-import { podcastFeedReadiness, summarizeEpisodes } from "@/lib/seo/podcastFeedReadiness";
-import { normalizeAppleCategory } from "@/lib/seo/applePodcastCategories";
 
 const baseItem: PodcastRssItem = {
   url: "https://example.org/podcast/odc-1",
@@ -157,60 +155,8 @@ describe("Apple Podcasts Connect item requirements", () => {
   });
 });
 
-describe("podcastFeedReadiness", () => {
-  const full = {
-    title: "Feed",
-    description: "Desc",
-    language: "pl",
-    imageUrl: "https://cdn/cover.jpg",
-    author: "NES",
-    ownerName: "NES",
-    ownerEmail: "podcast@example.org",
-    copyright: "© 2026 NES",
-    episodes: { total: 3, withoutByteLength: 0, withoutDuration: 0 },
-  };
-
-  it("reports a fully configured feed as ready", () => {
-    expect(podcastFeedReadiness(full)).toEqual({ ready: true, blocking: [], warnings: [] });
-  });
-
-  it("blocks on a missing owner e-mail (ownership cannot be verified)", () => {
-    const r = podcastFeedReadiness({ ...full, ownerEmail: "" });
-    expect(r.ready).toBe(false);
-    expect(r.blocking).toContain("ownerEmail");
-  });
-
-  it("blocks on missing artwork and on an empty feed", () => {
-    const r = podcastFeedReadiness({
-      ...full,
-      imageUrl: null,
-      episodes: { total: 0, withoutByteLength: 0, withoutDuration: 0 },
-    });
-    expect(r.blocking).toContain("image");
-    expect(r.blocking).toContain("episodes");
-  });
-
-  it("warns (but does not block) on enclosure length=0 and missing duration", () => {
-    const r = podcastFeedReadiness({
-      ...full,
-      episodes: { total: 2, withoutByteLength: 1, withoutDuration: 2 },
-    });
-    expect(r.ready).toBe(true);
-    expect(r.warnings).toEqual(expect.arrayContaining(["enclosureLength", "duration"]));
-  });
-});
-
-describe("summarizeEpisodes", () => {
-  it("counts episodes lacking a real byte length or duration", () => {
-    expect(
-      summarizeEpisodes([
-        { audioBytes: 1000, durationSeconds: 60 },
-        { audioBytes: null, durationSeconds: 0 },
-        { audioBytes: 0, durationSeconds: 30 },
-      ]),
-    ).toEqual({ total: 3, withoutByteLength: 2, withoutDuration: 1 });
-  });
-});
+// Gotowość kanału (`podcastFeedReadiness`) i `summarizeEpisodes` mają własną,
+// pełną powierzchnię w `podcastFeedReadiness.test.ts` - regula po regule.
 
 describe("podcast RSS guid", () => {
   it("uses the language-neutral guid for both language channels", () => {
@@ -248,25 +194,218 @@ describe("podcast RSS guid", () => {
   });
 });
 
-describe("normalizeAppleCategory", () => {
-  it("keeps a valid pair", () => {
-    expect(normalizeAppleCategory("Science", "Social Sciences")).toEqual({
-      category: "Science",
-      subcategory: "Social Sciences",
-    });
+// Normalizacja pary (kategoria, podkategoria) ma własną powierzchnię w
+// `applePodcastCategories.test.ts` - tam też wejścia niepełne i defekty.
+
+// ── Odcinek z NIEPEŁNYMI danymi ─────────────────────────────────────────────
+// Kanał to kontrakt z Apple Podcasts i Spotify: brakujące pole musi ZNIKNĄĆ
+// z dokumentu, a nie wyjść jako pusty tag - pusty <pubDate> albo
+// <itunes:duration> to dla walidatora Apple błąd całego kanału, nie odcinka.
+describe("odcinek z brakującymi polami", () => {
+  it.each<[string, Partial<PodcastRssItem>]>([
+    ["description = null", { description: null }],
+    ["description = pusty string", { description: "" }],
+    ["description = same białe znaki", { description: "   " }],
+    ["description = znaczniki HTML bez tekstu", { description: "<p></p><br/>" }],
+  ])("%s -> <item> bez <description> i <itunes:summary>", (_opis, brak) => {
+    const xml = build([{ ...baseItem, ...brak }]);
+    // Kanał ma WŁASNY <description>/<itunes:summary> (wymagane przez Apple),
+    // więc liczymy wystąpienia: dokładnie jedno = tylko kanał.
+    expect(xml.match(/<description>/g)).toHaveLength(1);
+    expect(xml.match(/<itunes:summary>/g)).toHaveLength(1);
+    // Odcinek nadal jest w kanale - brak opisu go nie usuwa z katalogu.
+    expect(xml).toContain("<itunes:title>Odcinek 1</itunes:title>");
   });
 
-  it("falls back for an unknown category", () => {
-    expect(normalizeAppleCategory("Polityka", "UE")).toEqual({
-      category: "News",
-      subcategory: "Politics",
-    });
+  it.each<[string, Partial<PodcastRssItem>]>([
+    ["publishedAt = null", { publishedAt: null }],
+    ["publishedAt = pusty string", { publishedAt: "" }],
+    ["publishedAt = data nieparsowalna", { publishedAt: "kiedyś w lipcu" }],
+  ])("%s -> ani <pubDate> odcinka, ani <lastBuildDate> kanału", (_opis, brak) => {
+    const xml = build([{ ...baseItem, ...brak }]);
+    expect(xml).not.toContain("<pubDate>");
+    // `newest` bierze pierwszą PARSOWALNĄ datę z listy - gdy jej nie ma, kanał
+    // nie może udawać, że został zbudowany o godzinie zero.
+    expect(xml).not.toContain("<lastBuildDate>");
+    expect(xml).toContain("<itunes:title>Odcinek 1</itunes:title>");
   });
 
-  it("drops a foreign subcategory but keeps the category", () => {
-    expect(normalizeAppleCategory("Technology", "Politics")).toEqual({
-      category: "Technology",
-      subcategory: null,
+  it("odcinek bez czasu trwania nie emituje <itunes:duration>", () => {
+    const xml = build([{ ...baseItem, durationSeconds: 0 }]);
+    expect(xml).not.toContain("<itunes:duration>");
+    expect(xml).toContain("<enclosure ");
+  });
+
+  it("odcinek bez okładki nie emituje <itunes:image>, a kanał degraduje do braku", () => {
+    // Feed BEZ okładki kanału jest w Podcasts Connect nieprzyjmowany - ten stan
+    // raportuje `podcastFeedReadiness` (kod "image") jeszcze w panelu.
+    const xml = build([{ ...baseItem, imageUrl: null }]);
+    expect(xml).not.toContain("<itunes:image");
+  });
+
+  it.each<[string, Partial<PodcastRssItem>]>([
+    ["audioUrl bez rozszerzenia", { audioUrl: "https://cdn.example.org/strumien" }],
+    ["audioMime = null", { audioMime: null }],
+    ["audioMime = same białe znaki", { audioMime: "   " }],
+  ])("%s -> MIME z rozszerzenia, length=0", (_opis, brak) => {
+    const xml = build([{ ...baseItem, ...brak }]);
+    expect(xml).toContain('length="0" type="audio/mpeg"/>');
+  });
+
+  it("odcinek bez pliku audio emituje <enclosure> z pustym url zamiast pomijać tag", () => {
+    // PRZYPIĘTY STAN: builder nie waliduje audioUrl - RSS 2.0 wymaga
+    // <enclosure> w każdym <item>, więc odcinek bez pliku wychodzi jako pusty
+    // enclosure. Trasa NIE POWINNA podawać takich odcinków (filtruje je
+    // zapytanie), a panel widzi je jako brak "enclosureLength".
+    const xml = build([{ ...baseItem, audioUrl: "" }]);
+    expect(xml).toContain('<enclosure url="" length="0" type="audio/mpeg"/>');
+  });
+});
+
+describe("numeracja odcinka i typ", () => {
+  it("emituje <itunes:season> i <itunes:episode>, gdy odcinek ma numerację", () => {
+    const xml = build([{ ...baseItem, season: 2, episodeNumber: 14 }]);
+    expect(xml).toContain("<itunes:season>2</itunes:season>");
+    expect(xml).toContain("<itunes:episode>14</itunes:episode>");
+  });
+
+  it("sezon 0 i odcinek 0 też wychodzą - to numeracja, nie brak wartości", () => {
+    // Reguła to `!= null`, nie prawdziwość: sezon 0 (materiał przedpremierowy)
+    // musi trafić do kanału, inaczej Apple ustawi go poza serią.
+    const xml = build([{ ...baseItem, season: 0, episodeNumber: 0 }]);
+    expect(xml).toContain("<itunes:season>0</itunes:season>");
+    expect(xml).toContain("<itunes:episode>0</itunes:episode>");
+  });
+
+  it.each<[string, Partial<PodcastRssItem>]>([
+    ["oba pola undefined", {}],
+    ["oba pola null", { season: null, episodeNumber: null }],
+  ])("odcinek bez numeracji (%s) nie emituje pustych tagów", (_opis, brak) => {
+    const xml = build([{ ...baseItem, ...brak }]);
+    expect(xml).not.toContain("<itunes:season>");
+    expect(xml).not.toContain("<itunes:episode>");
+  });
+
+  // Apple przyjmuje w <itunes:episodeType> WYŁĄCZNIE te trzy wartości.
+  it.each<["full" | "trailer" | "bonus"]>([["full"], ["trailer"], ["bonus"]])(
+    "episodeType '%s' wychodzi verbatim",
+    (typ) => {
+      const xml = build([{ ...baseItem, episodeType: typ }]);
+      expect(xml).toContain(`<itunes:episodeType>${typ}</itunes:episodeType>`);
+    },
+  );
+
+  it.each<[string, Partial<PodcastRssItem>]>([
+    ["undefined", {}],
+    ["null", { episodeType: null }],
+  ])("episodeType %s degraduje do 'full'", (_opis, brak) => {
+    const xml = build([{ ...baseItem, ...brak }]);
+    expect(xml).toContain("<itunes:episodeType>full</itunes:episodeType>");
+  });
+
+  it.each<[boolean, boolean, string]>([
+    [true, false, "yes"],
+    [false, true, "no"],
+  ])("explicit odcinka (%s) wygrywa z explicit kanału (%s)", (odcinek, kanal, oczekiwane) => {
+    const xml = build([{ ...baseItem, explicit: odcinek }], { explicit: kanal });
+    expect(xml).toContain(`      <itunes:explicit>${oczekiwane}</itunes:explicit>`);
+  });
+
+  it("explicit = null na odcinku dziedziczy wartość kanału", () => {
+    const xml = build([{ ...baseItem, explicit: null }], { explicit: true });
+    expect(xml.match(/<itunes:explicit>yes<\/itunes:explicit>/g)).toHaveLength(2);
+  });
+});
+
+describe("itunes:duration ponad godzinę", () => {
+  it.each<[number, string]>([
+    [3725, "1:02:05"],
+    [3600, "1:00:00"],
+    [86_399, "23:59:59"],
+    [59, "00:59"],
+    [60, "01:00"],
+  ])("%i s -> %s", (sekundy, oczekiwane) => {
+    const xml = build([{ ...baseItem, durationSeconds: sekundy }]);
+    expect(xml).toContain(`<itunes:duration>${oczekiwane}</itunes:duration>`);
+  });
+});
+
+describe("enclosureMimeType - pełna tablica rozszerzeń", () => {
+  it.each<[string, string]>([
+    ["https://cdn/a.webm", "audio/webm"],
+    ["https://cdn/a.oga", "audio/ogg"],
+    ["https://cdn/a.mp4", "audio/mp4"],
+    ["https://cdn/a.aac", "audio/mp4"],
+    ["https://cdn/a.M4A?token=1", "audio/mp4"],
+    ["https://cdn/a.WEBM#t=0", "audio/webm"],
+    ["https://cdn/a.flac", "audio/mpeg"],
+    ["https://cdn/a", "audio/mpeg"],
+    ["", "audio/mpeg"],
+  ])("%s -> %s", (url, mime) => {
+    expect(enclosureMimeType(url)).toBe(mime);
+  });
+});
+
+// ── Kanał z niepełną konfiguracją właściciela ───────────────────────────────
+describe("itunes:owner przy niepełnych danych", () => {
+  it("bez autora i bez nazwy właściciela emituje owner z samym e-mailem", () => {
+    // Weryfikacja własności w Podcasts Connect potrzebuje TYLKO <itunes:email>;
+    // pusty <itunes:name> byłby błędem walidacji, a "e-mail ()" w
+    // <managingEditor> - śmieciem w katalogach czytających RSS 2.0.
+    const xml = build([baseItem], {
+      author: null,
+      ownerName: "   ",
+      ownerEmail: "podcast@example.org",
     });
+    expect(xml).toContain("<itunes:owner>");
+    expect(xml).toContain("<itunes:email>podcast@example.org</itunes:email>");
+    expect(xml).not.toContain("<itunes:name>");
+    expect(xml).toContain("<managingEditor>podcast@example.org</managingEditor>");
+    expect(xml).not.toContain("<itunes:author>");
+  });
+
+  it.each<[string, Partial<PodcastRssChannelInput>]>([
+    ["wszystko puste", { author: null, ownerName: null, ownerEmail: null }],
+    ["same białe znaki", { author: " ", ownerName: " ", ownerEmail: " " }],
+  ])("%s -> brak bloku <itunes:owner> i brak <managingEditor>", (_opis, kanal) => {
+    const xml = build([baseItem], kanal);
+    expect(xml).not.toContain("<itunes:owner>");
+    expect(xml).not.toContain("<managingEditor>");
+  });
+
+  it("nazwa właściciela bez e-maila nadal daje blok owner (bez managingEditor)", () => {
+    const xml = build([baseItem], { ownerName: "NES Media", ownerEmail: null });
+    expect(xml).toContain("<itunes:name>NES Media</itunes:name>");
+    expect(xml).not.toContain("<itunes:email>");
+    expect(xml).not.toContain("<managingEditor>");
+  });
+});
+
+describe("copyright kanału", () => {
+  it("emituje <copyright>, gdy tenant ma ustawioną notę prawną", () => {
+    const xml = build([baseItem], { copyright: "© 2026 New European Strategies" });
+    expect(xml).toContain("<copyright>© 2026 New European Strategies</copyright>");
+  });
+
+  it.each<[string, Partial<PodcastRssChannelInput>]>([
+    ["undefined", {}],
+    ["null", { copyright: null }],
+    ["pusty string", { copyright: "" }],
+  ])("copyright %s -> brak tagu <copyright>", (_opis, kanal) => {
+    const xml = build([baseItem], kanal);
+    expect(xml).not.toContain("<copyright>");
+  });
+});
+
+describe("kanał bez odcinków", () => {
+  it("emituje poprawny, pusty kanał z wymaganymi tagami Apple", () => {
+    // Program założony w panelu, jeszcze bez publikacji: feed MUSI się
+    // zwalidować, żeby redakcja mogła zgłosić kanał przed pierwszym odcinkiem.
+    const xml = build([]);
+    expect(xml).toContain("<itunes:explicit>no</itunes:explicit>");
+    expect(xml).toContain('<itunes:category text="News">');
+    expect(xml).not.toContain("<item>");
+    expect(xml).not.toContain("<lastBuildDate>");
+    expect(xml).toContain("</channel>");
   });
 });
