@@ -17,7 +17,6 @@
 // host *.lovable.app z prefiksem podglądu, localhost). Na produkcyjnej domenie
 // nie startuje - tam od nieaktualnego bundla jest `cacheBusting.ts`.
 
-import type { AnyRouter } from "@tanstack/react-router";
 import {
   heartbeatStep,
   initialHeartbeatState,
@@ -25,6 +24,19 @@ import {
   type HeartbeatEffect,
   type HeartbeatState,
 } from "./heartbeatMachine";
+
+/**
+ * Ten moduł potrzebuje z routera DOKŁADNIE dwóch rzeczy: powiadomienia o
+ * rozwiązanej nawigacji (moment zapisu snapshotu) i miękkiego odświeżenia.
+ * Parametr zawężony do tych dwóch metod (a nie `AnyRouter`) - `AnyRouter`
+ * spełnia ten kształt, więc wywołania się nie zmieniają, a moduł daje się
+ * przetestować bez stawiania całego routera i bez rzutowań. Ta sama konwencja
+ * co `SoftRefreshable` w `cacheBusting.ts` i `RouterLike` w `seo/invalidate.ts`.
+ */
+export interface PreviewHeartbeatRouter {
+  subscribe: (event: "onResolved", listener: () => void) => () => void;
+  invalidate: () => unknown;
+}
 
 const SNAPSHOT_KEY = "__lov_preview_snapshot";
 const RELOAD_GUARD_KEY = "__lov_preview_reloads";
@@ -172,7 +184,7 @@ let started = false;
  * Startuje heartbeat podglądu. Wielokrotne wywołanie jest no-opem.
  * Zwraca funkcję czyszczącą.
  */
-export function startPreviewHeartbeat(router: AnyRouter): () => void {
+export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => void {
   if (typeof window === "undefined" || started) return () => {};
   if (!isPreviewContext(window.location, window.parent !== window)) return () => {};
   started = true;

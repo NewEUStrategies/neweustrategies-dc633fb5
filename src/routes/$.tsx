@@ -147,6 +147,14 @@ import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHead
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
+import {
+  legacyLookupSlug,
+  needsTaxonomyLookup,
+  planPublicPath,
+  resolveMissingContent,
+  resolveTaxonomyFallback,
+  type TaxonomyRedirect,
+} from "@/lib/routing/resolvePublicPath";
 
 import { withBudget } from "@/lib/asyncBudget";
 
@@ -186,25 +194,44 @@ function buildCoverPreload(item: PostData, settings: PostLayoutSettings): CoverP
   };
 }
 
+/**
+ * Deskryptor decyzji -> `redirect()` routera.
+ *
+ * Jawny `if` na taksonomii, a nie `TAXONOMY_ROUTE[taxonomy]`: `redirect({ to })`
+ * jest typowane literałem ścieżki z drzewa tras, więc odczyt z mapy zwęża się
+ * do `string` i przewraca sprawdzanie parametrów trasy. Ta funkcja jest jedynym
+ * miejscem, które tłumaczy deskryptor na wywołanie routera.
+ */
+function taxonomyRedirect(decision: TaxonomyRedirect): never {
+  if (decision.taxonomy === "category") {
+    throw redirect({
+      to: "/category/$slug",
+      params: { slug: decision.slug },
+      replace: decision.replace,
+    });
+  }
+  throw redirect({ to: "/tag/$slug", params: { slug: decision.slug }, replace: decision.replace });
+}
+
 export const Route = createFileRoute("/$")({
   // Chrome (Header/Footer) is centralized in SiteChrome at the root - never
   // opt out here, or navigations remount the whole header/menu.
   loader: async ({ params, context }) => {
+    // Gramatyka adresów (404 / archiwum taksonomii / 301 kanoniczny / treść)
+    // mieszka w `lib/routing/resolvePublicPath` jako czyste funkcje - tu zostaje
+    // I/O, nagłówki cache i rzucanie. Tabela przypadków tej gramatyki:
+    // `src/lib/routing/__tests__/resolvePublicPath.test.ts`.
     const splat = (params as { _splat?: string })._splat ?? "";
-    const segments = splatToSegments(splat);
-    if (segments.length === 0) {
+    const plan = planPublicPath(splat);
+    if (plan.kind === "not-found") {
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }
-    // Legacy hierarchical taxonomy URLs like `/category/region/afryka` or
-    // `/tag/foo/bar`. Category/tag slugs are globally unique, so the last
-    // segment always resolves the correct archive - collapse to the flat form.
-    if (segments.length >= 2 && (segments[0] === "category" || segments[0] === "tag")) {
-      const last = segments[segments.length - 1];
-      const to = segments[0] === "category" ? "/category/$slug" : "/tag/$slug";
+    if (plan.kind === "taxonomy-redirect") {
       setCacheControlHeader(NO_STORE);
-      throw redirect({ to, params: { slug: last }, replace: true });
+      throw taxonomyRedirect(plan);
     }
+    const segments = [...plan.segments];
     const contentOptions = resolvedContentQueryOptions(segments);
     await withBudget(
       context.queryClient.ensureQueryData(contentOptions).catch(() => undefined),
@@ -216,32 +243,39 @@ export const Route = createFileRoute("/$")({
       // Taxonomy fallback: /<slug> may point at a category or tag archive.
       // Categories/tags live at /category/<slug> and /tag/<slug>; if the bare
       // slug matches one, redirect there instead of 404-ing.
-      if (segments.length === 1) {
+      let categorySlug: string | null = null;
+      let tagSlug: string | null = null;
+      if (needsTaxonomyLookup(segments)) {
         const slug = segments[0];
         const [{ data: cat }, { data: tag }] = await Promise.all([
           supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
           supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
         ]);
-        if (cat?.slug) {
-          setCacheControlHeader(NO_STORE);
-          throw redirect({ to: "/category/$slug", params: { slug: cat.slug }, replace: true });
-        }
-        if (tag?.slug) {
-          setCacheControlHeader(NO_STORE);
-          throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
-        }
+        categorySlug = cat?.slug ?? null;
+        tagSlug = tag?.slug ?? null;
+      }
+      // Taksonomia ma pierwszeństwo, więc rozstrzygamy ją PRZED round-tripem
+      // po starym adresie wpisu - inaczej trafiony archiwum płaciłoby
+      // zapytanie, którego wynik i tak zostałby zignorowany.
+      const taxonomy = resolveTaxonomyFallback({ segments, categorySlug, tagSlug });
+      if (taxonomy) {
+        setCacheControlHeader(NO_STORE);
+        throw taxonomyRedirect(taxonomy);
       }
       // Stare adresy wpisów: płaskie poWordPressowe (/<slug>) oraz takie z
       // nieaktualnym rodzicem (/stara-sekcja/<slug>). Slug wpisu jest globalnie
       // unikalny, więc ostatni segment wystarcza, by wskazać nową, kanoniczną
       // ścieżkę (pełna ścieżka rodzica + slug) - 301, żeby przekazać link juice.
-      const lastSegment = segments[segments.length - 1];
-      const canonicalPath = await resolveLegacyPostPath(lastSegment);
-      if (canonicalPath && canonicalPath !== segments.join("/")) {
-        setCacheControlHeader(NO_STORE);
-        throw redirect({ to: "/$", params: { _splat: canonicalPath }, statusCode: 301 });
-      }
+      const legacyPostPath = await resolveLegacyPostPath(legacyLookupSlug(segments));
+      const decision = resolveMissingContent({ segments, categorySlug, tagSlug, legacyPostPath });
       setCacheControlHeader(NO_STORE);
+      if (decision.kind === "canonical-redirect") {
+        throw redirect({
+          to: "/$",
+          params: { _splat: decision.splat },
+          statusCode: decision.statusCode,
+        });
+      }
       throw notFound();
     }
 

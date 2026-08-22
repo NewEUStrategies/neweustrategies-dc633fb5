@@ -75,6 +75,16 @@ export interface RenderedRoute extends RenderResult {
   meta: () => RouteMetaEntry[];
   /** `links` z `head()` - m.in. kanoniczny adres i preload obrazu LCP. */
   links: () => RouteMetaEntry[];
+  /**
+   * `scripts` z `head()` - m.in. warstwa encji JSON-LD strony głównej.
+   *
+   * UWAGA NA POLE: router odkłada `head().scripts` w `match.headScripts`, a
+   * `match.scripts` to LISTA ZASOBÓW bundlera (manifest), która w teście jest
+   * zawsze pusta. Odczyt z tego drugiego pola daje test, który „przechodzi"
+   * na pustej tablicy i nie dowodzi niczego - stąd to zawężenie mieszka tutaj
+   * raz, a nie w każdym pliku testowym trasy.
+   */
+  headScripts: () => RouteMetaEntry[];
   /** Nawigacja w obrębie zamontowanego drzewa (np. na trasę rodzeństwa). */
   navigate: (href: string) => Promise<void>;
 }
@@ -124,6 +134,7 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     search: () => (router.state.matches.at(-1)?.search ?? {}) as Record<string, unknown>,
     meta: () => (router.state.matches.at(-1)?.meta ?? []) as RouteMetaEntry[],
     links: () => (router.state.matches.at(-1)?.links ?? []) as RouteMetaEntry[],
+    headScripts: () => (router.state.matches.at(-1)?.headScripts ?? []) as RouteMetaEntry[],
     navigate: async (href: string) => {
       await router.navigate({ href });
       await router.invalidate();

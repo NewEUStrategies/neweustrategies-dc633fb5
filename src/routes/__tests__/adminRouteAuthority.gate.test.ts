@@ -88,22 +88,54 @@ describe("panel admina - warstwa dostępu", () => {
     // Ukrycie linku w `AdminShell` nie chroni niczego: adres wpisuje się z ręki.
     // Dla każdej trasy, której wpis nawigacji jest zawężony `isSuperAdmin`,
     // wymagamy własnego sprawdzenia w pliku trasy.
+    //
+    // POPRAWKA WZORCA 2026-08-21. Poprzednia wersja szukała `isSuperAdmin ? [{`
+    // z nawiasem i klamrą PRZYLEGŁYMI oraz ścieżki JEDNOSEGMENTOWEJ
+    // (`"/admin/([a-z0-9-]+)"`). Oba założenia są w tym repo nieprawdziwe:
+    // `adminNav.ts` formatuje bloki wieloelementowe z klamrą w następnej linii,
+    // a wpisy super-admina zawierają ścieżkę dwusegmentową
+    // (`/admin/super/mobile-drawer`). Skutek: bramka znajdowała JEDNĄ trasę
+    // (`login-settings`) z trzech, a kanarek `gated.length > 0` przechodził na
+    // tym jednym trafieniu - czyli bramka wyglądała na zdrową, pilnując
+    // jednej trzeciej swojego przedmiotu. `names` i `super/mobile-drawer`
+    // sprawdzają rolę poprawnie, ale usunięcie tego sprawdzenia przeszłoby
+    // bez sygnału.
     const shell = `${read(SHELL)}\n${read(NAV_MAP)}`;
-    const gated = [
-      ...shell.matchAll(/isSuperAdmin\s*\?\s*\[\{[^]]*?to:\s*"\/admin\/([a-z0-9-]+)"/g),
-    ]
+    const gated = [...shell.matchAll(/isSuperAdmin\s*\?\s*\[([^\]]*)\]/g)]
+      .flatMap((block) => [...block[1].matchAll(/to:\s*"\/admin\/([a-z0-9/-]+)"/g)])
       .map((match) => match[1])
-      .filter((slug, index, all) => all.indexOf(slug) === index);
+      .filter((path, index, all) => all.indexOf(path) === index);
     // Kanarek: gdyby wzorzec przestał pasować, bramka zrobiłaby się pusta.
-    expect(gated.length).toBeGreaterThan(0);
+    // Progiem jest LICZBA znanych tras, nie zero - dokładnie dlatego, że
+    // poprzednia wersja przechodziła na jednym trafieniu z trzech.
+    expect(gated.length).toBeGreaterThanOrEqual(3);
+    // Wpisy WIELOSEGMENTOWE muszą być widziane - to była ślepa plama wzorca.
+    expect(gated.some((path) => path.includes("/"))).toBe(true);
 
-    const offenders = gated.filter((slug) => {
-      const file = `admin.${slug}.tsx`;
+    const offenders = gated.filter((path) => {
+      // Konwencja tras plikowych: `/admin/super/mobile-drawer` ->
+      // `admin.super.mobile-drawer.tsx`.
+      const file = `admin.${path.split("/").join(".")}.tsx`;
       if (!adminRoutes().includes(file)) return false;
       const source = read(`${ROUTES_DIR}/${file}`);
       return !/isSuperAdmin/.test(source);
     });
     expect(offenders).toEqual([]);
+  });
+
+  it("każda trasa super-admina z nawigacji ISTNIEJE jako plik trasy", () => {
+    // Wpis nawigacji celujący w nieistniejącą trasę daje super-adminowi link
+    // do 404 - a poprzedni wzorzec cicho pomijał każdą trasę, której nie
+    // znalazł (`if (!adminRoutes().includes(file)) return false`), więc literówka
+    // w ścieżce nawigacji przechodziła jako „brak trasy do sprawdzenia".
+    const shell = `${read(SHELL)}\n${read(NAV_MAP)}`;
+    const gated = [...shell.matchAll(/isSuperAdmin\s*\?\s*\[([^\]]*)\]/g)]
+      .flatMap((block) => [...block[1].matchAll(/to:\s*"\/admin\/([a-z0-9/-]+)"/g)])
+      .map((match) => match[1]);
+    const brakujace = gated.filter(
+      (path) => !adminRoutes().includes(`admin.${path.split("/").join(".")}.tsx`),
+    );
+    expect(brakujace).toEqual([]);
   });
 
   it("zmianę roli oferuje tylko admin - panel nie proponuje akcji, którą baza odrzuci", () => {

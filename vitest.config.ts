@@ -94,10 +94,22 @@ export default defineConfig({
         // Nowy próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama
         // reguła co wpisy z 2026-08-06 i 2026-08-18.
         // Zasada bez zmian: ten próg wolno wyłącznie PODNOSIĆ.
-        statements: 58,
-        functions: 54,
-        lines: 58,
-        branches: 52,
+        // 2026-08-22: RATCHET W GÓRĘ. Pomiar CAŁEGO src/ na tym HEAD (pełna
+        // suita, 1 459 plików, 35 240 testów zielonych, 74 `it.fails`):
+        // 68,27% instrukcji / 62,80% gałęzi / 66,25% funkcji / 69,28% linii.
+        // Poprzedni próg (58/54/58/52) był ustawiony pod pomiar z 2026-08-20
+        // (62,03 / 56,37 / 58,31 / 62,93) i przepuszczał już ~11 pp swobodnego
+        // spadku. Nowy próg = zmierzone minus ~4 pp marginesu na dryf CI,
+        // ta sama reguła co wpisy z 2026-08-06, 2026-08-18 i 2026-08-20.
+        //
+        // UCZCIWIE O ŹRÓDLE TYCH PUNKTÓW: z 67,42% na 69,28% linii (+1,86 pp)
+        // dowiozła praca nad MODUŁEM 20 (platforma/backend/SSR) - mierzone na
+        // tym samym zbiorze plików PRZED (`6426bd039`) i PO. Reszta odjechania
+        // od 62,93% to praca nad klubami, która weszła na maina wcześniej.
+        statements: 64,
+        functions: 62,
+        lines: 65,
+        branches: 58,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
@@ -3230,6 +3242,277 @@ export default defineConfig({
         // trybu bramki. Snapshot autoryzacji jest w tych testach WSTRZYKIWANY,
         // więc dowodzą reguły, a nie stanu bazy.
         "src/lib/authz/permissionMatrix.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // ── MODUŁ 20: PLATFORMA / BACKEND / INFRASTRUKTURA / SSR ───────────
+        // Wszystkie progi niżej: pomiar 2026-08-22, floor 1-2 pp pod pomiarem
+        // (dryf remapowania v8 między wersjami). Progi wolno WYŁĄCZNIE podnosić.
+        //
+        // Gramatyka adresów publicznych + rozwiązywanie starych adresów wpisów.
+        // Zmierzone: 100 / 100 / 100 / 100 (73 przypadki). Ta powierzchnia
+        // rozstrzyga KAŻDY publiczny adres, który nie trafił w trasę statyczną,
+        // więc próg jest tu maksymalny - spadek znaczy nową, nieprzetestowaną
+        // gałąź w rezolucji adresu.
+        "src/lib/routing/**": { statements: 99, functions: 100, lines: 99, branches: 98 },
+
+        // Czytniki service-role dla powierzchni crawlera. Zmierzone: 100 na
+        // wszystkich czterech wymiarach dla każdego z pięciu plików. Zakresu
+        // NAJEMCY pilnuje osobno bramka statyczna
+        // `src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts` - ten
+        // próg chroni ZACHOWANIE (parytet adresów kanonicznych, cache, ścieżki
+        // degradacji), nie izolację najemcy.
+        "src/lib/server/publishedContent.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/sitemapEntries.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/wp-media.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/linkCheck.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/server/embeddings.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        // Analizator bramki zakresu najemcy - czysty, w pełni przechodzony.
+        // Zmierzone: 100 / 100 / 100 / 100.
+        "src/lib/ci/serviceRoleTenantScope.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+
+        // Watchdog strumienia SSR - OBEJŚCIE BŁĘDU router-core 1.171 - oraz
+        // strażnik czasu pojedynczego zapytania. Zmierzone:
+        // queryStreamGuard 95,94 / 85,36 / 100 / 98,5;
+        // queryTimeout     93,18 / 84,21 / 100 / 97,43.
+        // Gałęzie są NIŻSZE niż na innych powierzchniach i to nie pomyłka:
+        // dziewięć gałęzi w obu plikach jest nieosiągalnych przez publiczne API
+        // klienta zapytań (`catch` na `JSON.stringify` klucza, którego
+        // react-query haszuje wcześniej; `error instanceof Error` na wpisach,
+        // którym react-query czyści błąd przy starcie ponowienia; strażniki
+        // liczników zerowanych w `close()`). Każda jest przypięta testem, który
+        // to USTALA. Szczegóły w nagłówkach obu plików testowych.
+        "src/lib/ssr/queryStreamGuard.ts": {
+          statements: 94,
+          functions: 100,
+          lines: 97,
+          branches: 83,
+        },
+        "src/lib/ssr/queryTimeout.ts": {
+          statements: 92,
+          functions: 100,
+          lines: 96,
+          branches: 82,
+        },
+
+        // Menedżer przekierowań: cztery warstwy kontraktu (requireStaff, Zod,
+        // audit_log, limit) i parytet normalizacji z `lib/seo/redirects`.
+        // Zmierzone: 95,5 / 89,47 / 100 / 100.
+        "src/lib/redirects.functions.ts": {
+          statements: 94,
+          functions: 100,
+          lines: 99,
+          branches: 88,
+        },
+
+        // Sesja podglądu wersji roboczych: maszyna stanu odzyskiwania i
+        // strażnik przeładowań (heartbeat). Zmierzone CAŁYM katalogiem PO
+        // scaleniu z mainem: 98,84 / 95,09 / 100 / 99,32;
+        // `sessionHeartbeat.ts` osobno 98,56 / 93,15 / 100 / 99,14
+        // (niepokryta linia 143).
+        //
+        // Linia 143 to `return` w strażniku braku powłoki w
+        // `askParentToReconnect` - NIEOSIĄGALNY od zmiany kontraktu
+        // 2026-08-22: moduł, który jako jedyny woła tę funkcję, odmawia
+        // startu w dokładnie tym samym warunku (`isPreviewContext` wymaga
+        // iframe'a). Przypięte testem „USTALENIE: strażnik braku powłoki
+        // w askParentToReconnect jest nieosiągalny".
+        //
+        // Gałęzie są niższe od reszty etapu, bo dwie z nich domykają wyścig,
+        // do którego nie ma drogi wywołania z publicznego API routera:
+        // `subscribe` zwraca funkcję odpinającą, więc drugie odpięcie tego
+        // samego nasłuchu nie zachodzi. Przypięte testem, który to USTALA.
+        "src/lib/preview/**": {
+          statements: 97,
+          functions: 100,
+          lines: 98,
+          branches: 94,
+        },
+
+        // Powłoka aplikacji: odzyskiwanie po deployu, kotwice, `<link>` korzenia,
+        // skrypt anty-FOUC, predykat chrome'u.
+        // Zmierzone: cacheBusting 100 / 93,87 / 100 / 100;
+        //            smoothAnchorScroll 96,22 / 89,47 / 100 / 100.
+        // Gałęzie `smoothAnchorScroll` są niższe, bo sześć z nich jest
+        // nieosiągalnych: dwa martwe strażniki SSR (każdy wołający strażnikuje
+        // wcześniej) i dwa strażniki podwójnego sprzątania, do których nie ma
+        // drogi wywołania. Wypisane z numerami linii w commicie etapu.
+        "src/lib/cacheBusting.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 92,
+        },
+        "src/lib/smoothAnchorScroll.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 99,
+          branches: 88,
+        },
+        "src/lib/seo/rootHead.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/theme/themeInitScript.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        // Próg KATALOGOWY dla `src/lib/theme/**` jest osobny i NIŻSZY, bo ta
+        // praca dotknęła tu jednego pliku, a katalog niesie siedem zastanych
+        // (`themeDesign`, `fontSizes`, `customFonts`, `typographyApply`...).
+        // Zmierzone całym katalogiem: 99,72 / 92,14 / 100 / 100 - linie
+        // i funkcje są już pełne, siedzą tylko gałęzie. Wpis jest tu jako
+        // ZAPADKA na to, co katalog już osiągnął; podniesienie gałęzi
+        // do 98 to osobna praca nad tymi siedmioma plikami, nie ta.
+        //
+        // PIERWOTNIE BYŁ TU JEDEN PRÓG KATALOGOWY Z GAŁĘZIAMI 98 - i to była
+        // pomyłka pomiarowa: liczba pochodziła z przebiegu na samym
+        // `themeInitScript.ts` (100 na czterech wymiarach), a nie z katalogu.
+        // Pełna suita to złapała, bo tak ma działać zapadka.
+        "src/lib/theme/**": { statements: 98, functions: 99, lines: 99, branches: 90 },
+
+        // Lista czytelnicza gościa i deduplikacja rekordów - wyprowadzone
+        // z tras jako logika domenowa. Zmierzone: 100 / 100 / 100 / 100.
+        "src/lib/readingList/**": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/collections/**": { statements: 99, functions: 100, lines: 99, branches: 98 },
+
+        // Komponenty wyprowadzone z tras publicznych (atomic design): atomy
+        // (czysta prezentacja, bez I/O), molecules (kompozycja + jedna
+        // odpowiedzialność) i organisms (sklejenie z danymi). Zmierzone
+        // CAŁYMI katalogami: 99,72 / 99,23 / 100 / 100.
+        //
+        // TEN PRÓG CHRONI STAN I SKLEJENIE, A DOSTĘPU PILNUJE OSOBNO
+        // `src/routes/__tests__/adminRouteAuthority.gate.test.ts` - to tam
+        // mieszka dowód, że trasa panelu sprawdza rolę, a nie tylko chowa
+        // przyciski. Próg na warstwie prezentacji nie mówi nic o autoryzacji
+        // i nie wolno go tak czytać.
+        "src/components/readingList/**": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 94,
+        },
+        "src/components/home/**": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/components/people/**": {
+          statements: 97,
+          functions: 100,
+          lines: 99,
+          branches: 96,
+        },
+
+        // Trasy publiczne. Zmierzone: `index.tsx` i `reading-list.tsx`
+        // 100 / 100 / 100 / 100; `people.tsx` 98,91 / 98,48 / 100 / 100
+        // (niepokryte gałęzie: 250, 394).
+        //
+        // TEN PRÓG CHRONI STAN I SKLEJENIE, A DOSTĘPU PILNUJE OSOBNO
+        // `adminRouteAuthority.gate.test.ts`.
+        // `index.tsx`: floor z POMIARU CI, nie z lokalnego. Lokalnie ten plik
+        // stoi na 100 na czterech wymiarach, więc wpisałem 99 - jeden punkt
+        // marginesu. CI zmierzyło 98,79 instrukcji / 98,75 linii i bramka
+        // zapłonęła. To był MÓJ błąd metody: próg wolno stawiać 1-2 pp pod
+        // pomiarem ze ŚRODOWISKA, KTÓRE BRAMKUJE, a nie pod lokalnym.
+        //
+        // Skąd rozjazd: CI wykonuje mniej testów tej powierzchni niż przebieg
+        // lokalny - ten sam objaw, przez który na tym HEAD-zie (i na mainie)
+        // czerwieni się `src/components/admin/builder/**` (lokalnie
+        // 96,46/93,23/95,03/97,34, w CI 87,82/84,02/75,74/88,74). Przyczyna
+        // jest wspólna i NIE leży w tym module; diagnoza to osobna praca.
+        // Dlatego tu jest floor, który trzyma w CI, a nie życzenie.
+        "src/routes/index.tsx": { statements: 97, functions: 100, lines: 97, branches: 98 },
+        "src/routes/reading-list.tsx": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/routes/people.tsx": { statements: 97, functions: 100, lines: 99, branches: 96 },
+
+        // Warstwa zapytań publicznych. Dwanaście plików objętych tą pracą stoi
+        // na 100 we wszystkich czterech wymiarach (`archives.ts` na
+        // 99,35 / 98,13 / 100 / 100). Próg jest PER PLIK, nie na katalog,
+        // bo `blocks.ts`, `liveBlogs.ts`, `podcasts.ts` i `relatedPosts.ts`
+        // były poza nazwanym zakresem i nadal stoją nisko - katalogowy próg
+        // byłby albo fałszywie niski dla dwunastu, albo czerwony dla czterech.
+        "src/lib/queries/archives.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 99,
+          branches: 96,
+        },
+        "src/lib/queries/public.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/programs.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/adjacentPosts.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/authorCv.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/glossary.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/megaMenu.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/mobileDrawer.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/nextPost.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/series.ts": { statements: 99, functions: 100, lines: 99, branches: 98 },
+        "src/lib/queries/sidebarLayouts.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/staticPageSeo.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        "src/lib/queries/webStories.ts": {
           statements: 99,
           functions: 100,
           lines: 99,

@@ -236,3 +236,220 @@ test.describe("SEO surfaces", () => {
     await expect.poll(() => page.url(), { timeout: 30_000 }).toMatch(/\/(auth|login)/);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SITEMAPA JAKO KONTRAKT: adresy, które publikujemy, muszą działać i należeć
+// do TEGO serwisu.
+//
+// PO CO TO W E2E, A NIE W VITEST. Poprawności sitemapy dowodzi się BAJTAMI,
+// które wyszły z SSR - nie wywołaniem funkcji, która buduje listę. Test
+// jednostkowy sprawdza, co zwróciła funkcja; tu sprawdzamy, co dostał crawler
+// po przejściu przez routing, nagłówki, cache brzegowy i serializację XML.
+//
+// SPINA SIĘ Z BRAMKĄ ZAKRESU NAJEMCY
+// (`src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts`): tamta
+// bramka czyta KOD i wymaga filtru najemcy w każdym zapytaniu; ta asercja
+// sprawdza SKUTEK - czy w wyemitowanej mapie nie ma adresu z cudzej domeny.
+// Dwa niezależne dowody tej samej własności, na dwóch różnych poziomach.
+//
+// BACKEND-AGNOSTYCZNIE: w CI baza jedzie na poświadczeniach zastępczych, więc
+// shardy treści są puste, a indeks - statyczny. Próbka poniżej sprawdza to, co
+// jest; pusty shard jest poprawnym wynikiem, a nie powodem do czerwieni.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Wszystkie `<loc>` z dokumentu XML. */
+function locsOf(xml: string): string[] {
+  return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+}
+
+test.describe("sitemapa - adresy, które publikujemy", () => {
+  test("każdy adres z sitemapy jest na TYM origin - żaden nie należy do innego najemcy", async ({
+    request,
+    baseURL,
+  }) => {
+    // Service role omija RLS, więc jedyną zaporą przed wyciekiem treści między
+    // najemcami do publicznej mapy jest jawny filtr w kodzie. Gdyby zapytanie
+    // zgubiło `.eq("tenant_id", ...)`, adresy drugiego serwisu pojawiłyby się
+    // TUTAJ - na powierzchni, którą czyta Google i cache'uje na długo po
+    // naprawie.
+    // HOSTNAME, nie `host`: mapa publikuje origin kanoniczny
+    // (`crawlerPublishOrigin`) bez portu, a `baseURL` suity ma port lokalny.
+    // Port jest artefaktem środowiska; przedmiotem kontraktu jest DOMENA.
+    const own = new URL(baseURL ?? "http://127.0.0.1:4173").hostname;
+    const index = await request.get("/sitemap.xml");
+    expect(index.status()).toBe(200);
+
+    const shardPaths = locsOf(await index.text()).map((loc) => new URL(loc).pathname);
+    expect(shardPaths.length, "indeks sitemapy nie może być pusty").toBeGreaterThan(0);
+
+    const obce: string[] = [];
+    for (const path of shardPaths) {
+      const shard = await request.get(path);
+      expect(shard.status(), `${path} status`).toBe(200);
+      for (const loc of locsOf(await shard.text())) {
+        // Adresy MUSZĄ być absolutne (wymóg protokołu sitemap) i na naszym
+        // origin - inaczej publikujemy cudzą domenę pod własną mapą.
+        expect(loc, `${path}: adres musi być absolutny`).toMatch(/^https?:\/\//);
+        if (new URL(loc).hostname !== own) obce.push(`${path} -> ${loc}`);
+      }
+    }
+    expect(obce, "adresy z obcego hosta w sitemapie").toEqual([]);
+  });
+
+  test("próbka adresów z sitemapy odpowiada 200 i NIE jest przekierowaniem", async ({
+    request,
+  }) => {
+    // Adres, który w mapie jest, a odpowiada 301, marnuje budżet crawlowania
+    // i rozmywa ranking na dwa adresy tej samej treści. Adres 404 w mapie to
+    // gotowy błąd w Search Console.
+    // BUDŻET, NIE DOMYSŁ. W CI nie ma backendu, więc każdy render publicznej
+    // strony płaci podatek 5 s na anulowanych zapytaniach SSR
+    // (`[ssr-query-timeout]` w logu). Ten test padał w CI na domyślnym
+    // budżecie 30 s, i to nie na konkretnym adresie: raz na `/en/live`, raz na
+    // `/en/sitemap` - czyli wyczerpywał czas w środku pętli, a nie potykał się
+    // o zły adres. Stąd trzy zmiany: jawny budżet, próbka mniejsza i pobrania
+    // RÓWNOLEGŁE, bo one nie zależą od siebie.
+    test.setTimeout(120_000);
+
+    const index = await request.get("/sitemap.xml");
+    const shardPaths = locsOf(await index.text()).map((loc) => new URL(loc).pathname);
+
+    const szardy = await Promise.all(
+      shardPaths.map(async (path) => locsOf(await (await request.get(path)).text())),
+    );
+    const adresy = szardy.flat();
+
+    // Próbka, nie całość: mapa może mieć dziesiątki tysięcy wpisów, a bramka
+    // ma pilnować kontraktu, nie mierzyć całego serwisu.
+    const ROZMIAR_PROBKI = 8;
+    const probka = adresy.slice(0, ROZMIAR_PROBKI);
+
+    const wyniki = await Promise.all(
+      probka.map(async (loc) => {
+        const { pathname, search } = new URL(loc);
+        const res = await request.get(`${pathname}${search}`, { maxRedirects: 0 });
+        // 200 = adres kanoniczny. 3xx = mapa publikuje adres, który zaraz
+        // przekieruje - powinna publikować cel.
+        return { pathname, status: res.status() };
+      }),
+    );
+    const zle = wyniki.filter((w) => w.status !== 200).map((w) => `${w.pathname} -> ${w.status}`);
+
+    // PRÓBKA JEST NAZWANA W KOMUNIKACIE, nie ukryta: „zielono" z tego testu
+    // znaczy „sprawdzono 8 z N", a nie „cała mapa jest zdrowa".
+    expect(
+      zle,
+      `adresy z sitemapy, które nie odpowiadają 200 ` +
+        `(próbka ${probka.length} z ${adresy.length} adresów w ${shardPaths.length} szardach)`,
+    ).toEqual([]);
+  });
+
+  test("sitemapa nie publikuje adresów panelu ani API", async ({ request }) => {
+    // Zaindeksowany `/admin/*` to publiczna mapa powierzchni administracyjnej.
+    const index = await request.get("/sitemap.xml");
+    const shardPaths = locsOf(await index.text()).map((loc) => new URL(loc).pathname);
+    const zakazane: string[] = [];
+    for (const path of shardPaths) {
+      for (const loc of locsOf(await (await request.get(path)).text())) {
+        const p = new URL(loc).pathname;
+        if (/^\/(admin|api|login|checkout)(\/|$)/.test(p)) zakazane.push(`${path} -> ${p}`);
+      }
+    }
+    expect(zakazane, "prywatne powierzchnie w sitemapie").toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KANONICZNY I HREFLANG: adres w HTML-u musi się zgadzać z adresem żądania.
+//
+// Rozjazd tutaj jest najdroższym cichym defektem SEO: kanoniczny wskazujący
+// inny adres każe wyszukiwarce zignorować stronę, na której stoi, i policzyć
+// ranking gdzie indziej. Nie widać go w przeglądarce i nie łapie go żaden test
+// jednostkowy funkcji budującej `<head>` - bo tam adres jest ARGUMENTEM.
+// ═══════════════════════════════════════════════════════════════════════════
+
+test.describe("kanoniczny i hreflang", () => {
+  // Trasy plikowe, które renderują się bez bazy (patrz `ssr-completeness`).
+  //
+  // PORÓWNUJEMY Z ADRESEM KOŃCOWYM, nie z żądanym. Na `/` działa negocjacja
+  // języka: przeglądarka z `Accept-Language: en-US` ląduje na `/en` (zmierzone:
+  // `page.goto("/")` -> `http://127.0.0.1:4173/en`, `html lang="en"`), podczas
+  // gdy samo `request.get("/")` bez nagłówka języka oddaje 200 bez
+  // przekierowania. Kanoniczny MA wskazywać wersję, która się wyrenderowała -
+  // asercja na ścieżce ŻĄDANEJ zgłaszałaby poprawne zachowanie jako defekt.
+  for (const path of ["/", "/en", "/blog", "/cookies"]) {
+    test(`kanoniczny na ${path} zgadza się z adresem po negocjacji języka`, async ({
+      page,
+      baseURL,
+    }) => {
+      const res = await page.goto(path);
+      expect(res?.status(), "status").toBeLessThan(400);
+      const canonical = await page.locator('link[rel="canonical"]').first().getAttribute("href");
+      expect(canonical, `${path}: brak kanonicznego`).toBeTruthy();
+
+      const kan = new URL(canonical ?? "", baseURL);
+      const finalny = new URL(page.url());
+      // Normalizacja: bez ukośnika na końcu (poza korzeniem).
+      const bezUkosnika = (p: string) => (p.length > 1 ? p.replace(/\/$/, "") : p);
+      expect(bezUkosnika(kan.pathname), `${path}: ścieżka kanoniczna`).toBe(
+        bezUkosnika(finalny.pathname),
+      );
+      // Kanoniczny NIE MOŻE nieść parametrów - inaczej każdy wariant `?utm_*`
+      // staje się osobnym adresem treści i rozmywa ranking.
+      expect(kan.search, `${path}: kanoniczny z parametrami`).toBe("");
+      expect(kan.hash, `${path}: kanoniczny z fragmentem`).toBe("");
+      expect(kan.protocol, `${path}: kanoniczny musi być absolutny`).toMatch(/^https?:$/);
+      expect(kan.hostname, `${path}: kanoniczny na innym hoście`).toBe(finalny.hostname);
+    });
+  }
+
+  test("kanoniczny ignoruje parametry śledzące", async ({ page, baseURL }) => {
+    // `?utm_source=...` nie tworzy nowego adresu treści; kanoniczny musi
+    // konsolidować ranking na wersji bez parametrów.
+    await page.goto("/blog?utm_source=newsletter&utm_medium=email");
+    const canonical = await page.locator('link[rel="canonical"]').first().getAttribute("href");
+    const kan = new URL(canonical ?? "", baseURL);
+    expect(kan.search).toBe("");
+    expect(kan.pathname).toBe("/blog");
+  });
+
+  test("hreflang wskazuje ISTNIEJĄCE wersje językowe", async ({ page, request }) => {
+    // Hreflang celujący w 404 jest ignorowany przez wyszukiwarki, więc obie
+    // wersje tracą powiązanie - a defekt nie daje żadnego objawu.
+    await page.goto("/");
+    const alternates = page.locator('link[rel="alternate"][hreflang]');
+    const count = await alternates.count();
+    expect(count, "brak hreflang na stronie głównej").toBeGreaterThan(0);
+
+    const wpisy = await alternates.evaluateAll((els) =>
+      els.map((el) => ({
+        lang: el.getAttribute("hreflang") ?? "",
+        href: el.getAttribute("href") ?? "",
+      })),
+    );
+    const martwe: string[] = [];
+    for (const { lang, href } of wpisy) {
+      expect(lang, "hreflang musi mieć kod języka").toMatch(/^(pl|en|x-default)$/);
+      expect(href, `hreflang ${lang} musi być adresem absolutnym`).toMatch(/^https?:\/\//);
+      const { pathname } = new URL(href);
+      const res = await request.get(pathname, { maxRedirects: 0 });
+      if (res.status() !== 200) martwe.push(`${lang} -> ${pathname} (${res.status()})`);
+    }
+    expect(martwe, "hreflang wskazujący adres, który nie odpowiada 200").toEqual([]);
+
+    // Wzajemność: skoro PL wskazuje EN, to EN musi wskazywać PL. Jednostronny
+    // hreflang jest przez wyszukiwarki odrzucany w całości.
+    const jezyki = wpisy.map((w) => w.lang);
+    expect(jezyki).toContain("pl");
+    expect(jezyki).toContain("en");
+  });
+
+  test("wersja EN wskazuje z powrotem na PL", async ({ page }) => {
+    await page.goto("/en");
+    const wpisy = await page
+      .locator('link[rel="alternate"][hreflang]')
+      .evaluateAll((els) => els.map((el) => el.getAttribute("hreflang") ?? ""));
+    expect(wpisy).toContain("pl");
+    expect(wpisy).toContain("en");
+  });
+});

@@ -19,7 +19,15 @@
 // Wszystko jest opt-in i uruchamiane po hydratacji: żadnego wpływu na SSR
 // ani na FCP.
 
-import type { AnyRouter } from "@tanstack/react-router";
+/**
+ * Ten moduł potrzebuje z routera DOKŁADNIE jednej rzeczy: miękkiego
+ * odświeżenia. Parametr zawężony do tej jednej metody (a nie `AnyRouter`) -
+ * `AnyRouter` spełnia ten kształt, więc wywołania się nie zmieniają, a moduł
+ * daje się przetestować bez stawiania całego routera i bez rzutowań.
+ */
+export interface SoftRefreshable {
+  invalidate: () => unknown;
+}
 
 const RELOAD_GUARD_KEY = "__lov_cb_reload";
 const RELOAD_GUARD_TTL_MS = 15_000;
@@ -85,7 +93,7 @@ async function fetchVersion(): Promise<string | null> {
  * Bezpieczne do wielokrotnego wywołania - kolejne wywołania są no-opem.
  */
 let started = false;
-export function startCacheBusting(router: AnyRouter): () => void {
+export function startCacheBusting(router: SoftRefreshable): () => void {
   if (typeof window === "undefined" || started) return () => {};
   started = true;
 
