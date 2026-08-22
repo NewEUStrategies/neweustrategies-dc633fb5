@@ -202,9 +202,10 @@ export function normalizeOfficeFootnoteHtml(html: string): string {
  * tylko o tyle, że każdy krok jest no-op dla markupu, którego nie dotyczy -
  * dlatego jeden dokument może mieszać WP, Worda i nasz `[fn]`.
  */
-export function normalizeLegacyFootnoteHtml(html: string): string {
-  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html));
+export function normalizeLegacyFootnoteHtml(html: string, texts?: Map<string, string>): string {
+  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html, texts));
 }
+
 
 /** Czy string zawiera jakikolwiek rozpoznawany zapis przypisu. */
 export function containsFootnoteMarkup(v: string): boolean {
