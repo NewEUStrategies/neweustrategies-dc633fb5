@@ -29,7 +29,9 @@ describe("marker kotwiczony (treść dokumentu)", () => {
     expect(out).toContain('id="fnref-1"');
     expect(out).toContain('data-fn="1"');
     expect(out).toContain('role="doc-noteref"');
-    expect(out).toContain('title="nota"');
+    // Treść pokazuje wyłącznie wspólny tooltip aplikacji - bez drugiego,
+    // natywnego dymka generowanego przez atrybut `title`.
+    expect(out).not.toContain("title=");
   });
 
   it("widgety w dokumencie buildera są kotwiczone (domyślnie)", () => {
@@ -109,13 +111,12 @@ describe("wspólne reguły obu wariantów", () => {
     expect(standalone).not.toContain("[2]");
   });
 
-  it("title jest escapowany i pozbawiony tagów w obu wariantach", () => {
+  it("title jest dostępny tylko w wariancie samodzielnym i jest bezpieczny", () => {
     const anchored = expandFootnotes('A[fn]<b>x</b> & "y"[/fn]', createCounter(1));
     const standalone = html_pl(
       processWidgetFootnotes(textWidget('A[fn]<b>x</b> & "y"[/fn]'), "pl").widget,
     );
-    for (const out of [anchored, standalone]) {
-      expect(out).toContain('title="x &amp; &quot;y&quot;"');
-    }
+    expect(anchored).not.toContain("title=");
+    expect(standalone).toContain('title="x &amp; &quot;y&quot;"');
   });
 });

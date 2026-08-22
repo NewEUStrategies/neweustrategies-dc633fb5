@@ -36,13 +36,13 @@ describe("renderer/footnotes engine", () => {
     expect(out).not.toContain("text-primary");
   });
 
-  it("replaceFootnotes drops empty notes and escapes the title attribute", () => {
+  it("replaceFootnotes drops empty notes and leaves tooltip content to the shared overlay", () => {
     const fn: FootnoteCollector = createCounter(1);
     const out = replaceFootnotes("A[fn]  [/fn]B[fn]<b>x</b> & y[/fn]", fn);
     // The empty note is dropped; only the real one is collected.
     expect(fn.notes).toEqual([{ id: 1, html: "<b>x</b> & y" }]);
-    // Title strips inner tags then HTML-escapes.
-    expect(out).toContain('title="x &amp; y"');
+    // Brak `title` zapobiega pokazaniu drugiego, natywnego tooltipa przeglądarki.
+    expect(out).not.toContain("title=");
   });
 
   it("precomputeFootnotes walks every text-bearing field with stable keys", () => {

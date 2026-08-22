@@ -5,7 +5,7 @@
 //
 //   KOTWICZONY (domyślny; treść dokumentu, która MA sekcję końcową):
 //     <sup class="fn-ref"><a href="#fn-N" id="fnref-N" data-fn="N"
-//          title="…" aria-describedby="footnotes-heading" role="doc-noteref">[N]</a></sup>
+//          aria-describedby="footnotes-heading" role="doc-noteref">[N]</a></sup>
 //
 //   SAMODZIELNY (`anchored: false`; treść BEZ dokumentowej sekcji końcowej -
 //   dziś globalne widgety, numerowane per-widget):
@@ -19,7 +19,9 @@
 // - jeden kolektor = jedna ciągła numeracja; osobny kolektor = numeracja od nowa.
 //   `prepareContentForRender` daje builderowi i HTML-owi OSOBNE kolektory, bo
 //   renderowany jest zawsze dokładnie jeden silnik.
-// - `title` zawiera treść przypisu bez tagów, HTML-escapowaną.
+// - marker kotwiczony nie ma `title`: treść pokazuje wyłącznie wspólny tooltip
+//   aplikacji, bez konkurującego natywnego dymka przeglądarki.
+// - samodzielny marker zachowuje `title`, bo nie montuje warstwy tooltipów.
 // - sanityzacja treści przypisu happens przy renderze `<FootnotesList>`, nie tu.
 
 import type {
@@ -225,7 +227,7 @@ export function expandFootnotes(
     if (!anchored) {
       return `<sup class="fn-ref"><span title="${title}" role="note">[${id}]</span></sup>`;
     }
-    return `<sup class="fn-ref"><a href="#fn-${id}" id="fnref-${id}" data-fn="${id}" title="${title}" aria-describedby="footnotes-heading" role="doc-noteref">[${id}]</a></sup>`;
+    return `<sup class="fn-ref"><a href="#fn-${id}" id="fnref-${id}" data-fn="${id}" aria-describedby="footnotes-heading" role="doc-noteref">[${id}]</a></sup>`;
   });
 }
 
