@@ -1382,3 +1382,466 @@ describe("dostępność pulpitu", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 });
+
+/* ======================================================================
+   NAGŁÓWEK: TŁO I AWATAR - jedyne miejsce w produkcie, w którym człowiek
+   wysyła plik ze swojego dysku na własny profil.
+   ====================================================================== */
+
+/** Pudełko tła w nagłówku - nosi obsługę wskaźnika (`hoverCover`). */
+function coverBox(): HTMLElement {
+  const node = document.querySelector(".h-40");
+  if (!(node instanceof HTMLElement)) throw new Error("test: brak pudełka tła w nagłówku");
+  return node;
+}
+
+/** Pudełko awatara - nosi obsługę wskaźnika (`hoverAvatar`). */
+function avatarBox(): HTMLElement {
+  const node = document.querySelector(".z-20");
+  if (!(node instanceof HTMLElement)) throw new Error("test: brak pudełka awatara");
+  return node;
+}
+
+/**
+ * Ukryte wejścia plików w KOLEJNOŚCI ŹRÓDŁOWEJ: [tło, awatar]. Oba mają tę
+ * samą listę `accept`, więc nie da się ich rozróżnić atrybutem - dlatego
+ * kolejność jest przedmiotem asercji w testach wysyłki (rodzaj przekazany do
+ * `upload()` MUSI zgadzać się z wejściem, na którym zmieniono plik).
+ */
+function fileInputs(): HTMLInputElement[] {
+  return [...document.querySelectorAll("input[type='file']")].filter(
+    (node): node is HTMLInputElement => node instanceof HTMLInputElement,
+  );
+}
+
+/**
+ * Postęp wysyłki tak, jak go NAPRAWDĘ widać: przez przesunięcie wskaźnika.
+ *
+ * ŚWIADOMY OPIS RZECZYWISTOŚCI, nie życzenie. Naturalną asercją byłoby
+ * `aria-valuenow`, ale wspólna otoczka `src/components/ui/progress.tsx:10-14`
+ * WYŁUSKUJE `value` z propsów i przekazuje go WYŁĄCZNIE do stylu wskaźnika -
+ * korzeń Radiksa nigdy go nie dostaje, więc `aria-valuenow` nie istnieje.
+ * Postęp jest tu informacją czysto wizualną (konsekwencję zgłasza `it.fails`
+ * niżej), a jedyny dowód, że trasa podaje WŁAŚCIWĄ liczbę WŁAŚCIWEMU paskowi,
+ * siedzi w tym przesunięciu.
+ */
+function progressTransform(): string {
+  const indicator = screen.getByRole("progressbar").firstElementChild;
+  if (!(indicator instanceof HTMLElement)) {
+    throw new Error("test: pasek postępu bez wskaźnika");
+  }
+  return indicator.style.transform;
+}
+
+/** Plik obrazu o ustalonej nazwie - żadnych losowych bajtów. */
+function imageFile(name: string): File {
+  return new File(["pojedynczy-piksel"], name, { type: "image/png" });
+}
+
+describe("wysyłka tła - trwa kontra gotowe", () => {
+  it("przycisk wysyłki tła prowadzi do wejścia pliku o ZAWĘŻONEJ liście typów", async () => {
+    // Lista `accept` jest tu regułą bezpieczeństwa, nie wygodą: `image/svg+xml`
+    // na awatarze albo tle to wektor XSS (SVG niesie skrypt), a plik podpisany
+    // URL-em ze Storage trafia potem pod domenę produktu.
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "profile.account.uploadCover" }));
+    const [cover] = fileInputs();
+    expect(cover?.getAttribute("accept")).toBe("image/jpeg,image/png,image/webp,image/avif");
+    expect(cover?.hasAttribute("hidden")).toBe(true);
+    expect(cover?.getAttribute("accept")).not.toContain("svg");
+  });
+
+  it("wskazanie pliku na wejściu TŁA wysyła go jako tło, nie jako awatar", async () => {
+    // Pomyłka rodzaju podmienia awatar na obraz 1600x400 - i odwrotnie:
+    // tło na kwadrat 400x400 rozciągnięty na całą szerokość.
+    await mount();
+    fireEvent.change(fileInputs()[0], { target: { files: [imageFile("tlo.png")] } });
+    expect(h.uploads).toEqual([{ name: "tlo.png", kind: "cover" }]);
+  });
+
+  it("wskazanie pliku na wejściu AWATARA wysyła go jako awatar", async () => {
+    await mount();
+    fireEvent.change(fileInputs()[1], { target: { files: [imageFile("awatar.png")] } });
+    expect(h.uploads).toEqual([{ name: "awatar.png", kind: "avatar" }]);
+  });
+
+  it("ANULOWANIE okna wyboru pliku nie wysyła niczego", async () => {
+    // Zamknięcie systemowego okna wyboru daje zdarzenie `change` z PUSTĄ listą
+    // plików. Wysyłka `undefined` skończyłaby się awarią Storage i toastem
+    // o błędzie przy czynności, której człowiek świadomie NIE wykonał.
+    await mount();
+    fireEvent.change(fileInputs()[0], { target: { files: [] } });
+    fireEvent.change(fileInputs()[1], { target: { files: [] } });
+    expect(h.uploads).toEqual([]);
+  });
+
+  it("TEN SAM plik da się wskazać dwa razy pod rząd", async () => {
+    // Wejście pliku jest zerowane po każdym wyborze. Bez tego druga próba
+    // wysłania tego samego pliku (po nieudanej pierwszej) nie daje zdarzenia
+    // `change` w ogóle - przycisk wygląda na zepsuty.
+    await mount();
+    const [cover] = fileInputs();
+    if (!cover) throw new Error("test: brak wejścia pliku tła");
+    fireEvent.change(cover, { target: { files: [imageFile("tlo.png")] } });
+    expect(cover.value).toBe("");
+    fireEvent.change(cover, { target: { files: [imageFile("tlo.png")] } });
+    expect(h.uploads).toHaveLength(2);
+  });
+
+  it("WYSYŁKA W TOKU blokuje przycisk, nazywa się inaczej i pokazuje postęp", async () => {
+    // Trzy sygnały naraz, bo każdy z nich osobno bywa przeoczony: nazwa
+    // („Wysyłanie"), blokada (drugi klik nie zaczyna drugiej wysyłki tego
+    // samego pola) i pasek postępu (wiadomo, że coś się dzieje).
+    h.status = { avatar: "idle", cover: "uploading" };
+    h.progress = { avatar: 0, cover: 42 };
+    await mount();
+    const button = screen.getByRole("button", { name: "profile.account.uploading" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.className).toContain("opacity-100");
+    expect(screen.queryByRole("button", { name: "profile.account.uploadCover" })).toBeNull();
+    // 42% postępu = wskaźnik cofnięty o 58% swojej szerokości.
+    expect(progressTransform()).toBe("translateX(-58%)");
+    expect(button.querySelector(".animate-spin")).toBeTruthy();
+  });
+
+  it("wysyłka AWATARA pokazuje własny postęp na nakładce awatara", async () => {
+    // Osobny pasek, bo tło i awatar wysyłają się niezależnie - wspólny
+    // wskaźnik kłamałby o tym, KTÓRE zdjęcie jest w drodze.
+    h.status = { avatar: "uploading", cover: "idle" };
+    h.progress = { avatar: 77, cover: 0 };
+    await mount();
+    const overlay = screen.getByRole("button", { name: "profile.inline.changeAvatar" });
+    expect(overlay.hasAttribute("disabled")).toBe(true);
+    expect(overlay.className).toContain("opacity-100");
+    expect(progressTransform()).toBe("translateX(-23%)");
+  });
+
+  it("wysyłka PIERWSZEGO awatara kręci się na kafelku zastępczym", async () => {
+    // Konto bez awatara nie ma nakładki - wskaźnik musi trafić na sam kafelek,
+    // inaczej pierwsza wysyłka nie daje żadnego znaku życia.
+    h.profile = filledRow({ avatar_url: null });
+    h.status = { avatar: "uploading", cover: "idle" };
+    h.progress = { avatar: 5, cover: 0 };
+    await mount();
+    const placeholder = screen.getByRole("button", { name: /profile\.inline\.addAvatar/ });
+    expect(placeholder.hasAttribute("disabled")).toBe(true);
+    expect(placeholder.querySelector(".animate-spin")).toBeTruthy();
+    expect(progressTransform()).toBe("translateX(-95%)");
+  });
+
+  it.fails("DEFEKT: postęp wysyłki nie dociera do czytnika ekranu", async () => {
+    // CO JEST NIE TAK. Trasa montuje pasek postępu (`<Progress value=...>`,
+    // src/routes/profile.index.tsx:879-881 i 983-985), ale wspólna otoczka
+    // `src/components/ui/progress.tsx:10-14` wyłuskuje `value` z propsów
+    // i przekazuje je TYLKO do stylu wskaźnika - korzeń Radiksa nie dostaje
+    // ani `value`, ani `max`, więc na wyjściu jest `role="progressbar"` BEZ
+    // `aria-valuenow`. Rola obiecuje asystującemu odczyt postępu, którego nie
+    // ma czym podać.
+    //
+    // KONSEKWENCJA DLA UŻYTKOWNIKA. Osoba korzystająca z czytnika ekranu
+    // słyszy „pasek postępu" i nic więcej: przez całą wysyłkę nie wie, czy
+    // przesyłanie stoi, czy idzie. Przy 5 MB tła na wolnym łączu to minuta
+    // ciszy, po której naturalnym odruchem jest wysłać plik jeszcze raz.
+    //
+    // NAPRAWA JEST POZA TĄ TRASĄ: `ui/progress` musi przekazać `value` do
+    // korzenia (jedna linia), a nagłówek dołożyć `aria-label` z klucza i18n.
+    // Zgłoszone tutaj, bo tu widać skutek.
+    h.status = { avatar: "idle", cover: "uploading" };
+    h.progress = { avatar: 0, cover: 42 };
+    await mount();
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("42");
+  });
+
+  it.fails("DEFEKT: NIEUDANA wysyłka wygląda dokładnie jak brak wysyłki", async () => {
+    // CO JEST NIE TAK. `useProfileEditor` liczy cztery stany wysyłki
+    // (`idle` / `uploading` / `success` / `failed`), a nagłówek trasy
+    // (src/routes/profile.index.tsx:820-821) czyta z nich TYLKO jeden:
+    // `status.cover === "uploading"`. Stan `failed` nie zmienia w nagłówku
+    // ani jednego piksela - przycisk wraca do „Wyślij tło", tak jakby nikt
+    // nigdy nic nie wysyłał.
+    //
+    // KONSEKWENCJA DLA UŻYTKOWNIKA. Jedynym śladem awarii jest toast, który
+    // po kilku sekundach znika. Osoba, która w tym czasie patrzyła na
+    // podgląd zdjęcia, nie wie, czy wysyłka przeszła - i wysyła ten sam plik
+    // trzeci raz, za każdym razem płacąc pełnym transferem. Naprawa: stan
+    // `failed` z komunikatem z klucza i18n i wyraźnym ponowieniem.
+    h.status = { avatar: "idle", cover: "failed" };
+    await mount();
+    const poNiepowodzeniu = screen.getByRole("button", {
+      name: "profile.account.uploadCover",
+    }).outerHTML;
+    cleanup();
+
+    h.status = { avatar: "idle", cover: "idle" };
+    await mount();
+    const bezProby = screen.getByRole("button", { name: "profile.account.uploadCover" }).outerHTML;
+    expect(poNiepowodzeniu).not.toBe(bezProby);
+  });
+});
+
+describe("nagłówek - odsłanianie akcji wskaźnikiem", () => {
+  it("przycisk wysyłki tła wychodzi z półprzejrzystości po najechaniu", async () => {
+    // Przycisk stoi na zdjęciu, więc domyślnie jest przygaszony, żeby nie
+    // zasłaniał tła. Bez reakcji na wskaźnik zostaje słabo widoczny na stałe.
+    await mount();
+    const button = screen.getByRole("button", { name: "profile.account.uploadCover" });
+    expect(button.className).toContain("opacity-80");
+    fireEvent.mouseEnter(coverBox());
+    expect(screen.getByRole("button", { name: "profile.account.uploadCover" }).className).toContain(
+      "opacity-100",
+    );
+    fireEvent.mouseLeave(coverBox());
+    expect(screen.getByRole("button", { name: "profile.account.uploadCover" }).className).toContain(
+      "opacity-80",
+    );
+  });
+
+  it("nakładka „Zmień awatar” pojawia się dopiero po najechaniu na awatar", async () => {
+    // To JEDYNA droga do podmiany istniejącego awatara. Nakładka, która nie
+    // wychodzi z `opacity-0`, znaczy zdjęcie, którego nie da się zmienić.
+    await mount();
+    const overlay = screen.getByRole("button", { name: "profile.inline.changeAvatar" });
+    expect(overlay.className).toContain("opacity-0");
+    fireEvent.mouseEnter(avatarBox());
+    expect(screen.getByRole("button", { name: "profile.inline.changeAvatar" }).className).toContain(
+      "opacity-100",
+    );
+    fireEvent.mouseLeave(avatarBox());
+    expect(screen.getByRole("button", { name: "profile.inline.changeAvatar" }).className).toContain(
+      "opacity-0",
+    );
+  });
+
+  it("kliknięcie nakładki otwiera wybór pliku awatara, nie tła", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "profile.inline.changeAvatar" }));
+    fireEvent.change(fileInputs()[1], { target: { files: [imageFile("nowy.png")] } });
+    expect(h.uploads).toEqual([{ name: "nowy.png", kind: "avatar" }]);
+  });
+
+  it("kafelek zastępczy awatara sam jest przyciskiem wyboru pliku", async () => {
+    // Konto bez zdjęcia: kafelek MUSI być klikalny, bo nie ma nad nim nakładki.
+    // Podpowiedź rozmiaru stoi na kafelku, żeby nikt nie wysyłał 5 MB panoramy.
+    h.profile = filledRow({ avatar_url: null });
+    await mount();
+    const placeholder = screen.getByRole("button", { name: /profile\.inline\.addAvatar/ });
+    expect(placeholder.textContent).toContain("profile.inline.avatarSize");
+    fireEvent.click(placeholder);
+    fireEvent.change(fileInputs()[1], { target: { files: [imageFile("pierwszy.png")] } });
+    expect(h.uploads).toEqual([{ name: "pierwszy.png", kind: "avatar" }]);
+  });
+
+  it("w podglądzie gościa kafelek zastępczy jest MARTWY i bez podpowiedzi", async () => {
+    // Gość nie wysyła zdjęć na cudzy profil, a podpowiedź o rozmiarze pliku
+    // jest instrukcją dla właściciela - w podglądzie nie ma czego instruować.
+    h.profile = filledRow({ avatar_url: null });
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "profile.inline.viewAsGuest" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "profile.inline.editMode" })).toBeTruthy(),
+    );
+    expect(screen.queryByText("profile.inline.addAvatar")).toBeNull();
+    expect(screen.queryByText("profile.inline.avatarSize")).toBeNull();
+    expect(screen.queryByRole("button", { name: "profile.account.uploadCover" })).toBeNull();
+  });
+
+  it("odnośniki społecznościowe przy awatarze otwierają się w nowej karcie", async () => {
+    // Wyjście z panelu konta w tej samej karcie gubi kontekst pracy;
+    // `rel="noopener"` zamyka dostęp obcej strony do `window.opener`.
+    await mount();
+    const linkedin = screen.getByRole("link", { name: "LinkedIn" });
+    expect(linkedin.getAttribute("target")).toBe("_blank");
+    expect(linkedin.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(screen.getByRole("link", { name: "X" }).getAttribute("href")).toBe(
+      "https://example.org/anna",
+    );
+  });
+});
+
+describe("profil oczami gościa - wyłącznie do czytania", () => {
+  /** Wchodzi w podgląd gościa na już zamontowanej trasie. */
+  async function asGuest() {
+    const view = await mount();
+    fireEvent.click(screen.getByRole("button", { name: "profile.inline.viewAsGuest" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "profile.inline.editMode" })).toBeTruthy(),
+    );
+    return view;
+  }
+
+  it("bio jest ODHTMLOWANE - gość nie widzi znaczników", async () => {
+    // Bio jedzie do bazy jako HTML (edytor `/profile/social`), a tu ma być
+    // czytane jako tekst. Wyświetlenie `<p>` gościowi to raz brzydota,
+    // dwa - sygnał, że gdzieś indziej ten sam napis wstrzykuje się jako HTML.
+    await asGuest();
+    expect(screen.getByText("Zajmuję się polityką energetyczną UE.")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("<p>");
+  });
+
+  it("telefon staje się odnośnikiem `tel:`, a adresy - skróconymi adresami", async () => {
+    // Skrócenie adresu zdejmuje `https://` i `www.`, zostawiając to, co
+    // człowiek rozpoznaje. Pełny adres w wierszu kontaktu łamie układ.
+    await asGuest();
+    expect(screen.getByRole("link", { name: "+32 2 000 00 00" }).getAttribute("href")).toBe(
+      "tel:+32 2 000 00 00",
+    );
+    expect(screen.getByText("example.org/in/anna-nowak")).toBeTruthy();
+    expect(screen.getByText("example.org/anna")).toBeTruthy();
+  });
+
+  it("adres, którego NIE DA SIĘ sparsować, pokazuje się w całości", async () => {
+    // Kolumna niesie to, co człowiek wpisał; `new URL` na napisie bez schematu
+    // rzuca wyjątkiem. Skracanie „na siłę" pokazałoby pustkę zamiast danych -
+    // a to wygląda jak utrata wpisanego odnośnika.
+    h.profile = filledRow({ linkedin_url: "linkedin.example.org/in/anna" });
+    await asGuest();
+    expect(screen.getByText("linkedin.example.org/in/anna")).toBeTruthy();
+  });
+
+  it("PUSTY profil gościa to same kreski, ani jednego zaproszenia do edycji", async () => {
+    // Najważniejszy test tego bloku. Zaproszenie „Dodaj telefon" na cudzym
+    // profilu obiecuje gościowi uprawnienie, którego nie ma - a przy tym
+    // sugeruje, że właściciel czegoś nie zrobił.
+    h.profile = EMPTY_ROW;
+    await asGuest();
+    expect(screen.queryByText("profile.inline.addCompany")).toBeNull();
+    expect(screen.queryByText("profile.inline.addJobTitle")).toBeNull();
+    expect(screen.queryByText("profile.inline.addSpecialization")).toBeNull();
+    expect(screen.queryByText("profile.inline.addLocation")).toBeNull();
+    expect(screen.queryByText("profile.inline.addPhone")).toBeNull();
+    expect(screen.queryByText("profile.inline.addLinkedin")).toBeNull();
+    expect(screen.queryByText("profile.inline.addTwitter")).toBeNull();
+    // Puste pola dostają kreskę - wiersz bez treści wygląda na zepsuty render.
+    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("PUSTY profil gościa nie pokazuje ani jednej pastylki meta", async () => {
+    // Pastylki (specjalizacja, miejsce, adres e-mail) to jedyna warstwa, która
+    // w podglądzie może zostać po kimś innym - pusta ramka bez treści.
+    h.profile = EMPTY_ROW;
+    h.user = { id: "user-me" };
+    await asGuest();
+    expect(screen.queryByRole("link", { name: /mailto/ })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1 })?.textContent).toBe(
+      "profile.account.unnamed",
+    );
+  });
+
+  it("CV zostaje widoczne - to część publicznej wizytówki", async () => {
+    // Podgląd gościa nie ma prawa ukryć dorobku: właściciel sprawdza właśnie
+    // to, co świat zobaczy na jego hubie.
+    await asGuest();
+    expect(screen.getByTestId("CvSection")).toBeTruthy();
+    expect(h.organism.CvSection).toMatchObject({ editable: false });
+  });
+});
+
+describe("zapis pustej wartości - każde pole czyści się do `null`", () => {
+  it("wszystkie pola zakładki „O mnie” zapisują `null`, nie pusty napis", async () => {
+    // `""` w kolumnie przechodzi przez każdy warunek „jest wypełnione":
+    // miernik kompletności profilu liczy pole jako gotowe, a na ekranie pusto.
+    // Tu przejeżdżamy CAŁĄ zakładkę, bo regresja dotknęłaby jednego pola.
+    h.inlineDraft = "";
+    await mount();
+    for (const testId of [
+      "inline:profile.account.displayName",
+      "inline:profile.account.jobTitle",
+      "area:profile.account.bio",
+      "inline:profile.account.phone",
+      "inline:profile.account.location",
+      "inline:LinkedIn",
+      "inline:X",
+    ]) {
+      fireEvent.click(screen.getByTestId(testId));
+    }
+    expect(h.saved).toEqual([
+      { field: "display_name", value: null },
+      { field: "job_title", value: null },
+      { field: "bio", value: null },
+      { field: "phone", value: null },
+      { field: "location", value: null },
+      { field: "linkedin_url", value: null },
+      { field: "twitter_url", value: null },
+    ]);
+  });
+
+  it("stanowisko PUSTE też czyści się do `null`", async () => {
+    // Osobna gałąź renderu: pole bez wartości ma własny egzemplarz edytora
+    // (bez kropki rozdzielającej), więc własny `onSave`.
+    h.profile = filledRow({ job_title: null });
+    h.inlineDraft = "";
+    await mount();
+    fireEvent.click(screen.getByTestId("inline:profile.account.jobTitle"));
+    expect(h.saved).toEqual([{ field: "job_title", value: null }]);
+  });
+
+  it("specjalizacja z samych spacji czyści się do `null`", async () => {
+    // Dialog oddaje napis dosłownie; bez `trim() || null` w kolumnie zostaje
+    // „   ", czyli pole „wypełnione" spacjami.
+    h.promptAnswer = "   ";
+    h.profile = filledRow({ specialization: null });
+    await mount();
+    fireEvent.click(metaPill("profile.inline.addSpecialization"));
+    await waitFor(() => expect(h.saved).toEqual([{ field: "specialization", value: null }]));
+  });
+
+  it("miejsce zamieszkania w USTAWIENIACH zapisuje wartość i czyści ją do `null`", async () => {
+    // To DRUGI egzemplarz tego samego pola (pierwszy jest w sekcji kontaktu)
+    // z inną etykietą pustki. Rozjazd między nimi znaczy, że jedna z dwóch
+    // ścieżek zapisu przestała działać, a użytkownik widzi to jako
+    // „zapisuje się tylko z jednego miejsca".
+    await mount("?tab=settings");
+    fireEvent.click(screen.getByTestId("inline:profile.account.location"));
+    expect(h.saved).toEqual([{ field: "location", value: "nowa wartość" }]);
+
+    h.inlineDraft = "";
+    fireEvent.click(screen.getByTestId("inline:profile.account.location"));
+    expect(h.saved.at(-1)).toEqual({ field: "location", value: null });
+  });
+});
+
+/* ======================================================================
+   MARTWY KOD TEJ TRASY. Cztery gałęzie i jedna funkcja w
+   `src/routes/profile.index.tsx` są NIEOSIĄGALNE - nie dlatego, że testy ich
+   nie dotknęły, ale dlatego, że warunek nadrzędny wyklucza je z definicji.
+   Ten blok dowodzi warunku nadrzędnego, żeby następna osoba nie szukała
+   scenariusza, którego nie ma - i żeby usunięcie tego kodu było widocznym
+   uproszczeniem, a nie utratą pokrycia.
+   ====================================================================== */
+describe("nieosiągalne gałęzie zakładki „Ustawienia” - świadomy opis stanu", () => {
+  it("karta ustawień NIE ISTNIEJE bez prawa edycji, także z linku", async () => {
+    // WARUNEK NADRZĘDNY: `{activeTab === "settings" && editable && (...)}`
+    // (src/routes/profile.index.tsx:726). Wewnątrz karty stoją jeszcze DWA
+    // warunki `editable ? ... : ...` (linie 730-753 i 756-768) - i ich gałęzie
+    // „bez edycji" są z tego powodu nieosiągalne, razem z jedyną w pliku
+    // konsumentką funkcji `cap()` (linia 751). To nie luka w testach, to
+    // martwy kod: warto go usunąć przy najbliższym dotknięciu pliku.
+    //
+    // Dowód dwustronny: (1) właściciel widzi kartę, (2) podgląd gościa
+    // ZDEJMUJE ją całkowicie, a nie zamienia na wersję do czytania.
+    await mount("?tab=settings");
+    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(screen.getByTestId("inline:profile.account.location")).toBeTruthy();
+    cleanup();
+
+    await mount("?tab=settings");
+    fireEvent.click(screen.getByRole("button", { name: "profile.inline.viewAsGuest" }));
+    await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull());
+    // Ani listy wyboru, ani jej odpowiednika „do czytania" - karty nie ma.
+    expect(screen.queryByText("profile.account.genderFemale")).toBeNull();
+    expect(screen.queryByText("profile.tabs.settings")).toBeNull();
+  });
+
+  it("każda karta pulpitu niesie ikonę - wariant bez ikony jest nieużywany", async () => {
+    // WARUNEK NADRZĘDNY: lokalny komponent `Card` ma opcjonalny prop `icon`
+    // (src/routes/profile.index.tsx:1040), ale wszystkie SIEDEM wywołań w tym
+    // pliku go podaje - a `Card` nie jest eksportowany, więc innych wywołań być
+    // nie może. Gałąź „bez ikony" jest nieosiągalna z tej trasy.
+    await mount("?tab=activity");
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings.length).toBeGreaterThanOrEqual(4);
+    for (const heading of headings) {
+      expect(heading.querySelector("span.text-primary svg")).toBeTruthy();
+    }
+  });
+});
