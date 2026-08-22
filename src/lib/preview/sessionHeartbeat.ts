@@ -103,11 +103,16 @@ function writeSnapshot(): void {
  * potrzebuje tego mechanizmu (i nie chcemy tam dodatkowego ruchu).
  */
 export function isPreviewContext(loc: { hostname: string }, inIframe: boolean): boolean {
+  // Heartbeat odzyskuje SESJĘ osadzonego podglądu. Sam host deweloperski nie
+  // wystarcza: top-level localhost / *.lovable.app nie ma powłoki, która może
+  // wznowić iframe, a traktowanie go jak preview kończyło się serią twardych
+  // reloadów i dokładało kolejne równoległe renderowania SSR.
+  if (!inIframe) return false;
   const host = loc.hostname;
   if (host === "localhost" || host === "127.0.0.1") return true;
   if (/(^|\.)lovable\.(app|dev)$/.test(host)) return true;
   // Własna domena osadzona w iframe = podgląd w panelu.
-  return inIframe;
+  return true;
 }
 
 function reloadCount(): number {
@@ -132,8 +137,9 @@ function reloadRestoringState(reason: string): void {
 /** Prośba do powłoki podglądu o wznowienie sesji/przebudowę iframe'a. */
 function askParentToReconnect(reason: string): void {
   if (window.parent === window) {
-    // Brak powłoki - od razu przechodzimy do planu B.
-    reloadRestoringState(reason);
+    // Brak powłoki oznacza zwykłą kartę, nie sesję osadzonego preview. Nie
+    // przeładowujemy jej: przy chwilowo zajętym dev-serverze utworzyłoby to
+    // samonapędzającą się lawinę nowych renderów SSR.
     return;
   }
   try {
@@ -186,6 +192,7 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
   let state: HeartbeatState = initialHeartbeatState;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+  let probeInFlight = false;
 
   restoreScroll();
 
@@ -211,7 +218,8 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
   };
 
   const run = async () => {
-    if (disposed) return;
+    if (disposed || probeInFlight) return;
+    probeInFlight = true;
     const controller = new AbortController();
     const abort = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
     try {
@@ -224,6 +232,7 @@ export function startPreviewHeartbeat(router: PreviewHeartbeatRouter): () => voi
       state = step.state;
       applyEffect(step.effect);
     } finally {
+      probeInFlight = false;
       clearTimeout(abort);
       schedule();
     }

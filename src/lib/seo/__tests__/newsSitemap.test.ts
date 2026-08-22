@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildNewsSitemapXml,
   freshNewsEntries,
@@ -48,6 +48,57 @@ describe("buildNewsSitemapXml", () => {
   it("produces a valid empty urlset on a quiet news day", () => {
     const xml = buildNewsSitemapXml({ publicationName: "NES", entries: [entry(100)], now: NOW });
     expect(xml).toContain("<urlset");
+    expect(xml).not.toContain("<url>");
+  });
+});
+
+// Gałąź `input.now ?? Date.now()` (newsSitemap.ts:44). Bez podanego `now`
+// builder czyta zegar SYSTEMOWY - to jest ścieżka produkcyjna trasy
+// /news-sitemap.xml. Zamrażamy tylko `Date`; pełne `vi.useFakeTimers()`
+// zabiera `setTimeout`, na którym stoi `waitFor`, i wiesza plik bez komunikatu.
+describe("buildNewsSitemapXml - zegar systemowy", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("bez pola `now` liczy okno 48h od bieżącego czasu", () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-02-03T10:15:00Z") });
+    const xml = buildNewsSitemapXml({
+      publicationName: "NES",
+      entries: [
+        {
+          url: "https://nes.example/a",
+          title: "Wewnątrz okna",
+          publishedAt: "2026-02-02T10:15:00Z",
+          language: "pl",
+        },
+        {
+          url: "https://nes.example/b",
+          title: "Poza oknem",
+          publishedAt: "2026-01-30T10:15:00Z",
+          language: "pl",
+        },
+      ],
+    });
+    expect(xml).toContain("<news:title>Wewnątrz okna</news:title>");
+    expect(xml).not.toContain("Poza oknem");
+  });
+
+  it("bez pola `now` odrzuca wpis z przyszłości względem zegara systemowego", () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-02-03T10:15:00Z") });
+    const xml = buildNewsSitemapXml({
+      publicationName: "NES",
+      entries: [
+        {
+          url: "https://nes.example/c",
+          title: "Zaplanowany",
+          publishedAt: "2026-02-03T11:00:00Z",
+          language: "pl",
+        },
+      ],
+    });
+    // Google News odrzuca kanał z datą publikacji w przyszłości - lepiej pusty
+    // urlset niż wpis, który psuje walidację całego pliku.
     expect(xml).not.toContain("<url>");
   });
 });
