@@ -48,7 +48,11 @@ export function FootnotesList({ notes, lang = "pl" }: { notes: Footnote[]; lang?
       aria-labelledby="footnotes-heading"
       lang={lang}
     >
-      <h2 id="footnotes-heading" data-footnotes-title className="font-display text-xl mb-4">
+      <h2
+        id="footnotes-heading"
+        data-footnotes-title
+        className="font-display text-xl mb-4 scroll-mt-28"
+      >
         {L.title}
       </h2>
       <ol data-footnotes-list className="space-y-2 text-sm text-muted-foreground">
@@ -95,6 +99,7 @@ export function FootnoteTooltips({
 }) {
   const [state, setState] = useState<{ id: number; x: number; y: number } | null>(null);
   const hideTimer = useRef<number | null>(null);
+  useFootnoteNavigation();
 
   useEffect(() => {
     const root = containerRef.current;
