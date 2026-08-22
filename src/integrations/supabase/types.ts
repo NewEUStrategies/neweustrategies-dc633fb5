@@ -16454,7 +16454,10 @@ export type Database = {
           user_id: string
         }[]
       }
-      claim_included_event_ticket: { Args: { p_event_id: string }; Returns: boolean }
+      claim_included_event_ticket: {
+        Args: { p_event_id: string }
+        Returns: boolean
+      }
       claim_integration_deliveries: {
         Args: { p_limit?: number }
         Returns: {
@@ -18176,7 +18179,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
-      early_access_window: { Args: never; Returns: unknown }
+      early_access_window: { Args: never; Returns: string }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
