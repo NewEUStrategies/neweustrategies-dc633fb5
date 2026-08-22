@@ -54,6 +54,19 @@ const WP_FN_RE =
   /<span[^>]*class="[^"]*footnote_referrer[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*footnote_tooltip[^"]*"[^>]*>([\s\S]*?)<\/span>\s*<\/span>/gi;
 const WP_FN_SCRIPT_RE = /<script[^>]*>[\s\S]*?footnote_plugin[\s\S]*?<\/script>/gi;
 
+// Stary plugin WP dopisywał na końcu wpisu osobny, rozwijany kontener źródeł.
+// Po migracji jego fragmenty mogą znajdować się w kilku kolejnych blokach HTML
+// (nagłówek, tabela i skrypt zamykający). Kanoniczną listę generuje renderer,
+// dlatego każdy z tych fragmentów musi zostać pominięty, inaczej użytkownik
+// widzi dwie sekcje przypisów.
+const WP_REFERENCE_BLOCK_HINT_RE =
+  /(?:footnotes_reference_container|footnote_references_container|footnotes_table|footnote-reference-container|footnotes_plugin_reference_row|footnote_plugin_reference_|footnote_(?:expand|collapse|moveToAnchor)_reference_container)/i;
+
+/** Rozpoznaje wyłącznie stary, końcowy kontener listy przypisów WordPress. */
+export function isLegacyFootnoteReferenceHtml(html: unknown): boolean {
+  return typeof html === "string" && WP_REFERENCE_BLOCK_HINT_RE.test(html);
+}
+
 /** Zamienia stary markup przypisów WP na kanoniczne `[fn]…[/fn]`. */
 export function normalizeWpFootnoteHtml(html: string): string {
   if (!html.includes("footnote_")) return html;
