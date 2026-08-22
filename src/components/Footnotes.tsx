@@ -53,10 +53,19 @@ export function FootnotesList({ notes, lang = "pl" }: { notes: Footnote[]; lang?
       </h2>
       <ol data-footnotes-list className="space-y-2 text-sm text-muted-foreground">
         {notes.map((n) => (
-          <li key={n.id} id={`fn-${n.id}`} className="leading-relaxed">
-            <span data-fn-marker className="text-foreground/80 font-medium mr-1">
+          <li key={n.id} id={`fn-${n.id}`} className="leading-relaxed scroll-mt-28">
+            {/* Numer jest klikalny i wraca do markera w treści - to najbardziej
+                naturalny cel kliknięcia, strzałka ↩ zostaje jako duplikat. */}
+            <a
+              href={`#fnref-${n.id}`}
+              data-fn-marker
+              data-footnote-backlink
+              className="text-foreground/80 font-medium mr-1 hover:underline"
+              aria-label={L.back(n.id)}
+              title={L.backTitle}
+            >
               [{n.id}]
-            </span>
+            </a>
             <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.html) }} />{" "}
             <a
               href={`#fnref-${n.id}`}
