@@ -95,6 +95,8 @@ interface PlanFingerprintRow {
   description_pl: string | null;
   trial_days: number | null;
   active: boolean | null;
+  volume_threshold_seats: number | null;
+  volume_price_cents: number | null;
 }
 
 /**
@@ -110,7 +112,7 @@ export async function catalogFingerprint(): Promise<string | null> {
     const { data, error } = await supabase
       .from("access_plans")
       .select(
-        "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active",
+        "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active, volume_threshold_seats, volume_price_cents",
       );
     if (error) return null;
     const plans = (data ?? []) as PlanFingerprintRow[];
@@ -131,6 +133,8 @@ export async function catalogFingerprint(): Promise<string | null> {
         description: plan?.description_pl ?? null,
         trialDays: plan?.trial_days ?? null,
         active: plan?.active !== false && plan !== undefined,
+        volumeThresholdSeats: plan?.volume_threshold_seats ?? null,
+        volumePriceCents: plan?.volume_price_cents ?? null,
       };
     });
 

@@ -94,7 +94,7 @@ const pl = {
       membership: "Członkostwo",
       organization: "Organizacja",
       billing: "Dane rozliczeniowe",
-      plan: "Plan i subskrypcja",
+      plan: "Plan i członkostwo",
       subscription: "Subskrypcja",
       orders: "Zamówienia",
       payments: "Płatności i faktury",
@@ -126,7 +126,7 @@ const pl = {
       memberLabel: "Członek",
       memberSince: "Z nami od {{date}}",
       planActive: "Aktywny plan",
-      planNone: "Brak aktywnej subskrypcji",
+      planNone: "Brak aktywnego członkostwa",
       seePlans: "Zobacz plany",
       manageBilling: "Zarządzaj subskrypcją",
     },
@@ -399,7 +399,7 @@ const pl = {
       historyTitle: "Ostatnie płatności",
       historyAll: "Wszystkie płatności",
       statusCard: {
-        title: "Status subskrypcji",
+        title: "Status członkostwa",
         status: "Status",
         renewsAt: "Kolejne odnowienie",
         endsAt: "Dostęp do",
@@ -417,7 +417,7 @@ const pl = {
         canceled: "Anulowana",
         grantLifetime: "Dostęp dożywotni (nadanie)",
         grantActive: "Dostęp z nadania",
-        none: "Brak subskrypcji",
+        none: "Brak członkostwa",
       },
       howPayments: {
         title: "Jak działają płatności",
@@ -508,8 +508,8 @@ const pl = {
     },
 
     subscription: {
-      title: "Twoja subskrypcja",
-      none: "Nie masz aktywnej subskrypcji.",
+      title: "Twoje członkostwo",
+      none: "Nie masz aktywnego członkostwa.",
       paymentStatus: "Status ostatniej płatności",
       plan: "Plan",
       status: "Status",

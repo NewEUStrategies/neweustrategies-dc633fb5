@@ -174,7 +174,7 @@ export const ACCOUNT_PRESETS: Array<{
     // w kanoniczną trasę po konsolidacji IA finansów (§11).
     key: "subscription",
     href: "/profile/plan",
-    label_pl: "Plan i subskrypcja",
+    label_pl: "Plan i członkostwo",
     label_en: "Plan & subscription",
     icon: "Crown",
   },

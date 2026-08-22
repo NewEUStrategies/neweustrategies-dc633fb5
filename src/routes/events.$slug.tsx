@@ -426,6 +426,7 @@ function EventDetail() {
             hasTicket={rsvpQ.data?.status === "going"}
             isPast={isPast}
             isFull={isFull}
+            onClaimed={invalidate}
           />
         ) : !isPast && user ? (
           <RsvpControls

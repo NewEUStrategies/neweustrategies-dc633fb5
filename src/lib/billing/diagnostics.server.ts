@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
-import { BILLING_CATALOG } from "@/lib/billing/catalog";
+import { BILLING_CATALOG, type PlanBillingInterval } from "@/lib/billing/catalog";
 import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface DiagnosticCheck {
@@ -26,7 +26,13 @@ export interface CatalogPriceStatus {
   priceId: string;
   productId: string;
   tierKey: string;
-  interval: "two_weeks" | "month" | "quarter" | "year";
+  /**
+   * Cykl wprost z katalogu (`PlanBillingInterval`), nie własne wyliczenie
+   * literałów. Lista rozjechała się przy dołożeniu `one_time` (miejsce
+   * w Decision Labie): diagnostyka pokazywałaby wtedy katalog niepełny wobec
+   * tego, co naprawdę synchronizuje `catalogSync`.
+   */
+  interval: PlanBillingInterval;
   providerPriceId: string | null;
 }
 

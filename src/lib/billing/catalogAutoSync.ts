@@ -48,6 +48,15 @@ export interface CatalogFingerprintEntry {
   description: string | null;
   trialDays: number | null;
   active: boolean;
+  /**
+   * Próg wolumenowy planu (`access_plans.volume_threshold_seats` /
+   * `volume_price_cents`). MUSI być w odcisku: cena schodkowa jest cechą ceny
+   * u operatora, a nie tylko podsumowania zamówienia. Bez tych dwóch pól
+   * podniesienie rabatu wolumenowego w bazie nie zmieniłoby odcisku, więc
+   * automat nigdy by go nie zsynchronizował - w cenniku 79 zł, u operatora 89.
+   */
+  volumeThresholdSeats: number | null;
+  volumePriceCents: number | null;
 }
 
 export function catalogFingerprintSource(entries: readonly CatalogFingerprintEntry[]): string {
@@ -64,6 +73,8 @@ export function catalogFingerprintSource(entries: readonly CatalogFingerprintEnt
         e.description ?? "",
         e.trialDays ?? "",
         e.active ? "1" : "0",
+        e.volumeThresholdSeats ?? "",
+        e.volumePriceCents ?? "",
       ].join("|"),
     )
     .sort()

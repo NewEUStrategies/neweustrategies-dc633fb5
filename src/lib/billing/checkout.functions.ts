@@ -84,7 +84,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       if (!data.plan_id) throw new Error("plan_id_required");
       const { data: plan, error } = await supabase
         .from("access_plans")
-        .select("price_cents, currency, name_pl, name_en, active, interval, trial_days, tier_key")
+        .select(
+          "price_cents, currency, name_pl, name_en, active, interval, trial_days, tier_key, volume_threshold_seats, volume_price_cents",
+        )
         .eq("id", data.plan_id)
         .maybeSingle();
       if (error) throw error;
@@ -106,7 +108,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         if (!entry) throw new Error("plan_price_missing");
         catalogPriceId = entry.priceId;
         catalogQuantity = entry.perSeat ? Math.min(Math.max(data.seats ?? 1, 1), 100) : 1;
-        amountCents = amountCents * catalogQuantity;
+        // Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po 79 zł). Cena
+        // u operatora jest schodkowa w trybie `volume`, czyli po osiągnięciu
+        // progu WSZYSTKIE miejsca liczą się niżej - podsumowanie zamówienia
+        // musi liczyć tak samo, inaczej klient zobaczy w kasie inną kwotę niż
+        // na fakturze.
+        const volumeThreshold = Number(plan.volume_threshold_seats ?? 0);
+        const volumeUnit = Number(plan.volume_price_cents ?? 0);
+        const unitCents =
+          entry.perSeat && volumeThreshold >= 2 && catalogQuantity >= volumeThreshold
+            ? volumeUnit
+            : amountCents;
+        amountCents = unitCents * catalogQuantity;
       }
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
@@ -128,7 +141,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // przycisk w UI jest tylko podpowiedzią, autorytetem jest backend.
       const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
       await assertSeatAvailable(supabase, String(ev.id), userId);
-      amountCents = Number(ev.ticket_price_cents);
+      // Kwota po benefitach planu: stawki ulgowe płacą mniej, a członek
+      // z nieużytą pulą nie płaci wcale - i wtedy kasa jest ZŁĄ ścieżką.
+      // Bilet z puli konsumuje `rsvp_event` (bramka biletowa, 20260822091000),
+      // więc odsyłamy tam zamiast zakładać zamówienie na zero złotych.
+      const { ticketPriceForCaller } = await import("@/lib/events/ticketAllowance.server");
+      const ticketPrice = await ticketPriceForCaller(supabase, Number(ev.ticket_price_cents));
+      if (ticketPrice.amountCents <= 0) throw new Error("ticket_included_in_plan");
+      amountCents = ticketPrice.amountCents;
       currency = String(ev.ticket_currency ?? "PLN");
       label = String(ev.title_pl || ev.title_en || "");
     } else {

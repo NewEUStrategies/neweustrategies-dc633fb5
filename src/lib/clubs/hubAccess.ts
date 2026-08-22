@@ -12,8 +12,23 @@
 // panel z zaproszeniem do planu i tyle.
 import { TIER_RANKS } from "@/lib/billing/tierRanks";
 
-/** Prog planu, od ktorego kluby sa czescia oferty (Pro). */
+/** Prog planu, od ktorego PELNE czlonkostwo w klubie jest czescia oferty (Pro). */
 export const CLUB_TIER_RANK = TIER_RANKS.pro;
+
+/**
+ * Prog planu, od ktorego kluby sa czescia oferty w roli OBSERWATORA.
+ *
+ * Katalog v6.1 daje progowi Czlonek (ranga 10) „obserwatora w jednym klubie
+ * otwartym" i oznacza te pozycje jako [B?] - bramka do dopisania. Bramka
+ * brakowala wlasnie tutaj: panel klubow porownywal range wylacznie z
+ * `CLUB_TIER_RANK` (20), wiec czlonek za 39 zl widzial „kup Pro" nawet wtedy,
+ * gdy klub testowy miał `min_tier_rank = 10` i baza by go wpuscila.
+ *
+ * KTORE kluby sa otwarte dla obserwatora, rozstrzyga nadal WYLACZNIE
+ * `clubs.min_tier_rank` po stronie bazy - ta stala mowi tylko tyle, ze panel
+ * nie ma z gory zakladac braku oferty.
+ */
+export const CLUB_OBSERVER_TIER_RANK = TIER_RANKS.member;
 
 export type ClubHubAccess =
   /** Nalezy do co najmniej jednego klubu - albo jest staffem. */
@@ -41,7 +56,7 @@ export interface ClubHubAccessInput {
 export function resolveClubHubAccess(input: ClubHubAccessInput): ClubHubAccess {
   if (input.isStaff || input.activeMemberships > 0) return "member";
   if (input.pendingInvitations > 0) return "invited";
-  if (input.tierRank !== null && input.tierRank >= CLUB_TIER_RANK) return "entitled";
+  if (input.tierRank !== null && input.tierRank >= CLUB_OBSERVER_TIER_RANK) return "entitled";
   return "locked";
 }
 

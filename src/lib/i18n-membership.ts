@@ -16,7 +16,7 @@ export const membershipPl = {
     // Źródła poziomu
     sources: {
       heading: "Skąd wynika Twój poziom",
-      subscription: "Aktywna subskrypcja",
+      subscription: "Aktywne członkostwo",
       grant_manual: "Nadanie przez zespół New European Strategies",
       grant_donation: "Status wspierającego (darowizna)",
       grant_import: "Nadanie (import)",

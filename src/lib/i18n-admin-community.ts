@@ -173,6 +173,10 @@ export const adminCommunityPl = {
       domainNote: "Notatka do domeny",
       grantedMembershipPlan: "Nadawany plan członkostwa",
       requireEmailConfirmation: "Wymagaj potwierdzenia e-mail",
+      // Domena uczelni: adres w niej zwalnia z RĘCZNEJ weryfikacji stawki
+      // studenckiej i akademickiej (katalog v6.2, korekta audytu).
+      academicDomain: "Domena uczelni",
+      academicBadge: "Uczelnia",
       addDomain: "Dodaj domenę",
       noTrustedDomains: "Brak zaufanych domen",
       plan: "Plan: ",
@@ -509,6 +513,8 @@ export const adminCommunityEn = {
       domainNote: "Domain note",
       grantedMembershipPlan: "Granted membership plan",
       requireEmailConfirmation: "Require email confirmation",
+      academicDomain: "University domain",
+      academicBadge: "University",
       addDomain: "Add domain",
       noTrustedDomains: "No trusted domains",
       plan: "Plan: ",

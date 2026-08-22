@@ -22,7 +22,13 @@ import {
 } from "@/lib/lucide-shim";
 
 export type CommandSection =
-  "navigation" | "admin" | "settings" | "appearance" | "account" | "actions" | "content";
+  | "navigation"
+  | "admin"
+  | "settings"
+  | "appearance"
+  | "account"
+  | "actions"
+  | "content";
 
 export interface PaletteCommand {
   id: string;
@@ -143,7 +149,7 @@ const STATIC_COMMANDS: PaletteCommand[] = [
   {
     id: "acc:subscription",
     section: "account",
-    label_pl: "Plan i subskrypcja",
+    label_pl: "Plan i członkostwo",
     label_en: "Plan & subscription",
     to: "/profile/plan",
     icon: Icon(ListOrdered),

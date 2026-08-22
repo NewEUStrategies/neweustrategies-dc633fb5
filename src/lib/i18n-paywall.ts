@@ -13,7 +13,7 @@ export const paywallPl = {
     membersOnly: "Treść tylko dla zalogowanych",
     membersDesc: "Zaloguj się lub załóż darmowe konto, aby kontynuować czytanie.",
     paidOnly: "Treść premium",
-    paidDesc: "Wykup dostęp jednorazowy lub subskrypcję, aby przeczytać cały materiał.",
+    paidDesc: "Wykup dostęp jednorazowy albo członkostwo, aby przeczytać cały materiał.",
     passwordOnly: "Treść zabezpieczona hasłem",
     passwordDesc: "Wpisz hasło otrzymane od autora, aby odblokować pełny materiał.",
     passwordPlaceholder: "Wprowadź hasło",

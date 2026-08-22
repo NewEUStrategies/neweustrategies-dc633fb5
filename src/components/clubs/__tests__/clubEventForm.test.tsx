@@ -117,6 +117,7 @@ function eventRow(overrides: Partial<ClubEventRow> = {}): ClubEventRow {
     rsvp_enabled: true,
     capacity: null,
     going_count: 0,
+    min_tier_rank: 0,
     my_rsvp: null,
     can_manage: true,
     group_id: null,

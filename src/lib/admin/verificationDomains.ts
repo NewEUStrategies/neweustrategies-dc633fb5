@@ -14,6 +14,13 @@ export interface VerificationDomainRow {
   require_email_confirmed: boolean;
   /** Warstwa członkostwa nadawana automatycznie kontom z tej domeny (np. "vip"). */
   grants_tier_key: string | null;
+  /**
+   * Domena uczelni. Adres w niej zwalnia z RĘCZNEJ weryfikacji stawki
+   * studenckiej i akademickiej - katalog v6.1 opisuje ten proces jako
+   * automatyczny tam, gdzie domena jest na liście, i ręczny wyłącznie jako
+   * wyjątek (audyt, rozdział 4).
+   */
+  academic: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +71,7 @@ export async function upsertVerificationDomain(input: {
   active?: boolean;
   requireEmailConfirmed?: boolean;
   grantsTierKey?: string | null;
+  academic?: boolean;
 }): Promise<string> {
   const domain = normalizeDomainInput(input.domain);
   if (!isValidVerificationDomain(domain)) {
@@ -79,6 +87,7 @@ export async function upsertVerificationDomain(input: {
     p_active: input.active ?? true,
     p_require_email_confirmed: input.requireEmailConfirmed ?? true,
     p_grants_tier_key: input.grantsTierKey ?? undefined,
+    p_academic: input.academic ?? false,
   });
   if (error) throw error;
   return data as string;

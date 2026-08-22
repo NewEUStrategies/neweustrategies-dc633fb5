@@ -153,6 +153,8 @@ describe("catalogFingerprintSource", () => {
     description: null,
     trialDays: 7,
     active: true,
+    volumeThresholdSeats: null,
+    volumePriceCents: null,
   };
 
   it("kolejność pozycji nie zmienia odcisku", () => {
@@ -172,6 +174,21 @@ describe("catalogFingerprintSource", () => {
     );
     expect(catalogFingerprintSource([entry])).not.toBe(
       catalogFingerprintSource([{ ...entry, active: false }]),
+    );
+  });
+
+  // Próg wolumenowy jest cechą CENY u operatora (`tiers_mode: "volume"`), a nie
+  // tylko podsumowania zamówienia. Gdyby nie wchodził do odcisku, podniesienie
+  // rabatu w bazie nie uruchomiłoby synchronizacji: cennik pokazywałby 79 zł
+  // za miejsce, a operator dalej pobierałby 89.
+  it("zmiana progu wolumenowego zmienia źródło odcisku", () => {
+    expect(catalogFingerprintSource([entry])).not.toBe(
+      catalogFingerprintSource([{ ...entry, volumeThresholdSeats: 11, volumePriceCents: 7900 }]),
+    );
+    expect(
+      catalogFingerprintSource([{ ...entry, volumeThresholdSeats: 11, volumePriceCents: 7900 }]),
+    ).not.toBe(
+      catalogFingerprintSource([{ ...entry, volumeThresholdSeats: 11, volumePriceCents: 6900 }]),
     );
   });
 });
