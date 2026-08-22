@@ -82,11 +82,12 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
   // Auto-generowanie po otwarciu popovera: create_gift_link jest idempotentne
   // per (wpis, darczynca), wiec link jest gotowy zanim czytelnik kliknie
   // pierwszy kanal - bez osobnego przycisku "wygeneruj".
+  // Dla niegated wpisow nie tworzymy linku podarunkowego - kopiujemy zwykly URL.
   useEffect(() => {
-    if (!open || phase !== "ready" || code) return;
+    if (!gated || !open || phase !== "ready" || code) return;
     if (mutation.isPending || mutation.isError) return;
     mutation.mutate();
-  }, [open, phase, code, mutation]);
+  }, [gated, open, phase, code, mutation]);
 
   const giftUrl = code ? buildGiftUrl(url, code) : null;
 
