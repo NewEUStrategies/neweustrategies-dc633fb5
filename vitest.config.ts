@@ -2747,6 +2747,19 @@ export default defineConfig({
           lines: 100,
           branches: 99,
         },
+        // Reguły macierzy uprawnień. Zmierzone: 100% w czterech metrykach -
+        // z 93,95% instrukcji / 97,91% funkcji / 95,86% linii / 82,30% GAŁĘZI.
+        // Gałęzie były tu najsłabsze w całym obszarze i domknęła je tabela po
+        // kształtach kolumny `features` (JSON z panelu cen: `null`, tablica,
+        // liczba, napis, `"3"`, `""`, `0`, `NaN`) oraz po czterech ramionach
+        // trybu bramki. Snapshot autoryzacji jest w tych testach WSTRZYKIWANY,
+        // więc dowodzą reguły, a nie stanu bazy.
+        "src/lib/authz/permissionMatrix.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
       },
     },
   },
