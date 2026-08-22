@@ -1,17 +1,19 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { isServer } from "@tanstack/router-core/isServer";
-import { useEffect, useMemo, useRef, useTransition } from "react";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
-import { useInFeedAds } from "@/components/ads/useInFeedAds";
-import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
-import { PaginatedPostGrid } from "@/components/archive/PaginatedPostGrid";
+import { HomeSrHeading } from "@/components/home/atoms/HomeSrHeading";
+import { homeBuilderSource, homeContent } from "@/components/home/atoms/homeRenderMode";
+import { HomeBuilderContent } from "@/components/home/molecules/HomeBuilderContent";
+import { HomeEmptyNotice } from "@/components/home/molecules/HomeEmptyNotice";
+import { HomeErrorNotice } from "@/components/home/molecules/HomeErrorNotice";
+import { HomeNotFoundNotice } from "@/components/home/molecules/HomeNotFoundNotice";
+import { LatestPostsHome } from "@/components/home/organisms/LatestPostsHome";
 import { parseBuilderDoc } from "@/lib/builder/parse";
-import { builderDocHasTopHeading } from "@/lib/builder/headings";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
-import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { prefetchAboveFoldQueries, prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import {
   blogArchiveQueryOptions,
@@ -56,62 +58,32 @@ import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
-import { errorCopy } from "@/lib/errorCopy";
 
 // Keep route boundary declarations above createFileRoute. The production route
 // splitter evaluates route options separately and a later declaration can be in
 // the temporal dead zone while the generated route module is initialized.
+//
+// Sama TREŚĆ obu powierzchni awaryjnych mieszka w molekułach
+// (`components/home/molecules/*Notice`), które czytają dwujęzyczny słownik
+// `lib/errorCopy.ts`. Tutaj zostaje wyłącznie to, co wymaga kontekstu trasy:
+// zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
 function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
-  const copy = errorCopy();
   useEffect(() => {
     console.error(error);
   }, [error]);
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            {copy.tryAgain}
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            {copy.goHome}
-          </a>
-        </div>
-      </div>
-    </div>
+    <HomeErrorNotice
+      onRetry={() => {
+        router.invalidate();
+        reset();
+      }}
+    />
   );
 }
 
 function HomeNotFoundComponent() {
-  const copy = errorCopy();
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          {copy.notFoundTitle}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{copy.notFoundBody}</p>
-        <a
-          href="/"
-          className="mt-6 inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          {copy.goHome}
-        </a>
-      </div>
-    </div>
-  );
+  return <HomeNotFoundNotice />;
 }
 
 export const Route = createFileRoute("/")({
@@ -362,12 +334,9 @@ function Index() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { data: homePage } = useSuspenseQuery(homePageQueryOptions());
   const { data: homeMode } = useSuspenseQuery(homepageModeQueryOptions());
+  const { page = 1 } = Route.useSearch();
 
-  const articleRef = useRef<HTMLDivElement>(null);
-
-  const isLatestPosts = homeMode === "latest_posts";
-  const isBuilderHome = !isLatestPosts && homePage?.editor === "builder";
-  const builderData = isBuilderHome ? homePage.builder_data : null;
+  const builderData = homeBuilderSource(homeMode, homePage);
 
   // Strona główna to zwykły dokument buildera, więc przypisy `[fn]…[/fn]`
   // przechodzą przez TEN SAM helper co wpis i podgląd roboczy. Bez tego
@@ -393,103 +362,21 @@ function Index() {
   );
   const doc = prepared?.builderDoc ?? null;
   const footnotes = prepared?.footnotes ?? [];
+  const content = homeContent(homeMode, doc);
 
   return (
     <div data-theme-typography className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 w-full">
-        {/* Screen-reader-only H1: strona główna MUSI eksponować opisowy nagłówek
-            poziomu 1 - ale tylko wtedy, gdy dokument buildera sam żadnego nie
-            renderuje. Bezwarunkowy `h1` dawał DWA nagłówki poziomu 1 na kanwie
-            z własnym nagłówkiem (ten sam defekt, co na stronach buildera -
-            audyt 2026-08-06, korekta 2). Inwariant jest jeden dla obu tras:
-            dokładnie jeden `h1` (patrz `builderDocHasTopHeading`). */}
-        {!builderDocHasTopHeading(doc) && (
-          <h1 className="sr-only">
-            {lang === "en"
-              ? "New European Strategies - Strategic thinking, new perspectives"
-              : "New European Strategies - Strategiczne myślenie, nowe perspektywy"}
-          </h1>
-        )}
-        {isLatestPosts ? (
-          <LatestPostsHome lang={lang} />
-        ) : doc && doc.sections.length > 0 ? (
-          // Streaming is deliberately DISABLED here: the loader already settles
-          // every widget query before dehydration (see prefetchCachedRouteQueries),
-          // and any streaming Suspense/Await boundary that rejects mid-flush can
-          // corrupt the inline $_TSR.router bootstrap script and force React to
-          // rebuild the whole page client-side (visible SSR flash + refetch).
-          // Rendering eagerly keeps SSR HTML and client hydration in lockstep.
-          <div ref={articleRef}>
-            <BuilderRenderer doc={doc} lang={lang} />
-            {footnotes.length > 0 && (
-              <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
-                <FootnotesList notes={footnotes} lang={lang} />
-                <FootnoteTooltips notes={footnotes} containerRef={articleRef} />
-              </div>
-            )}
-          </div>
+        <HomeSrHeading doc={doc} lang={lang} />
+        {content.kind === "latest_posts" ? (
+          <LatestPostsHome lang={lang} page={page} />
+        ) : content.kind === "builder" ? (
+          <HomeBuilderContent doc={content.doc} footnotes={footnotes} lang={lang} />
         ) : (
-          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
-            <p className="text-sm">
-              {lang === "en"
-                ? "There's nothing here yet - please check back soon."
-                : "Nie ma tu jeszcze treści - zajrzyj wkrótce."}
-            </p>
-          </div>
+          <HomeEmptyNotice lang={lang} />
         )}
       </div>
       <FooterSlideup pageType="home" />
-    </div>
-  );
-}
-
-function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
-  // Ten sam odczyt posts_per_page i ta sama parametryzacja archiwum co loader
-  // - klucz zapytania musi być identyczny, inaczej hydracja robiłaby drugi
-  // fetch na najczęściej odwiedzanej trasie serwisu.
-  const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
-  const pageSize = resolvePostsPerPage(settingsMap);
-  const { page = 1 } = Route.useSearch();
-  const {
-    data: { posts, total },
-  } = useSuspenseQuery(blogArchiveQueryOptions({ page, pageSize }));
-  const navigate = useNavigate();
-  const router = useRouter();
-  // Zmiana strony biegnie w transition - obecna siatka zostaje na ekranie
-  // (bez pustego fallbacku), a isPending steruje stanem kontrolek paginacji.
-  const [isPending, startTransition] = useTransition();
-  const { t } = useTranslation();
-  // Strona główna w trybie "najnowsze wpisy" honoruje placementy in_feed
-  // zadeklarowane dla typu "Strona główna" (dotąd emitowały się tylko na /blog).
-  const inFeed = useInFeedAds("home");
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  // SEO: realne adresy stron wyników (linkowa paginacja). publicHref przechodzi
-  // przez rewrite routera, więc niesie właściwy prefiks języka (/en?page=2).
-  const searchFor = (nextPage: number) => ({ page: nextPage > 1 ? nextPage : undefined });
-  const hrefFor = (nextPage: number) =>
-    router.buildLocation({ to: "/", search: searchFor(nextPage) }).publicHref;
-  const onPageChange = (nextPage: number) =>
-    startTransition(() => {
-      void navigate({ to: "/", search: searchFor(nextPage) });
-    });
-
-  return (
-    <div className="max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
-      {/* Pusty stan bierzemy z `blog.empty`: korzeń `home` nie istnieje w
-          słowniku, a strona główna w trybie „najnowsze wpisy” renderuje tę samą
-          siatkę co /blog - jeden klucz zamiast dwóch kopii tego samego zdania. */}
-      <PaginatedPostGrid
-        posts={posts}
-        page={page}
-        totalPages={totalPages}
-        lang={lang}
-        emptyText={t("blog.empty")}
-        isPending={isPending}
-        onPageChange={onPageChange}
-        hrefFor={hrefFor}
-        renderAfterCard={inFeed}
-      />
     </div>
   );
 }

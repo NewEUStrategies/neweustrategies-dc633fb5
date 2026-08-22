@@ -16,6 +16,9 @@
 // bramki embeddingów per fraza i zmienia semantykę filtra (dopasowanie po
 // znaczeniu, nie po podciągu), więc nie może się włączać po cichu.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { peopleEmptyKey } from "@/components/people/atoms/peopleEmptyKey";
+import { peopleFiltersFromSearch } from "@/components/people/atoms/peopleFilters";
+import { seekingText } from "@/components/people/atoms/seekingText";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -196,14 +199,6 @@ function FacetSelect({
   );
 }
 
-/** Fragment "czego szukam" w języku interfejsu, z fallbackiem na drugi. */
-function seekingText(person: PersonHit, lang: string): string | null {
-  const primary = lang === "en" ? person.seeking_en : person.seeking_pl;
-  const secondary = lang === "en" ? person.seeking_pl : person.seeking_en;
-  const value = (primary ?? "").trim() || (secondary ?? "").trim();
-  return value.length > 0 ? value : null;
-}
-
 function PersonCard({
   person,
   online,
@@ -355,18 +350,7 @@ function PeopleInner() {
   }, [input, search.q, navigate]);
 
   const query = search.q ?? "";
-  const filters: PeopleFilters = useMemo(
-    () => ({
-      specialization: search.specialization ?? null,
-      company: search.company ?? null,
-      location: search.location ?? null,
-      jobTitle: search.role ?? null,
-      verifiedOnly: search.verified === "1",
-      openTo: normalizeProfileIntents(search.open ?? ""),
-      semantic: search.sem === "1",
-    }),
-    [search],
-  );
+  const filters: PeopleFilters = useMemo(() => peopleFiltersFromSearch(search), [search]);
 
   const patch = (next: Partial<PeopleSearchParams>) => {
     void navigate({ search: (prev: PeopleSearchParams) => ({ ...prev, ...next }), replace: true });
@@ -611,11 +595,7 @@ function PeopleInner() {
         <div className="flex flex-col items-center gap-2 rounded-[6px] border border-dashed border-border/70 p-10 text-center">
           <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
           <p className="text-sm text-muted-foreground">
-            {hasActiveFilters
-              ? t("people.emptyFiltered")
-              : query
-                ? t("people.empty")
-                : t("people.emptyDirectory")}
+            {t(peopleEmptyKey({ hasActiveFilters, hasQuery: Boolean(query) }))}
           </p>
           {hasActiveFilters && (
             <Button
