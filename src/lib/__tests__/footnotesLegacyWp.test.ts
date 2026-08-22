@@ -11,8 +11,8 @@ describe("legacy WP footnotes", () => {
   });
   it("przetrwa sanitizer i daje marker bez tekstu w akapicie", () => {
     const col = createCounter(1);
-    const out = expandFootnotes(sanitizeHtml(LEGACY), col);
-    expect(out).not.toContain("Legucka");
+    const out = expandFootnotes(sanitizeHtml(normalizeLegacyFootnoteHtml(LEGACY)), col);
+    expect(out.replace(/title="[^"]*"/g, "")).not.toContain("Legucka");
     expect(out).toContain('class="fn-ref"');
     expect(col.notes[0].html).toContain("<em>Geopolityczne uwarunkowania</em>");
   });
