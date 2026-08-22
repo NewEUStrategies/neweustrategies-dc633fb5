@@ -285,8 +285,12 @@ describe("walidacja wejścia - każda ścieżka przez BRAK insertu", () => {
   });
 
   it("body PONAD 2000 znaków jest odrzucane BEZ parsowania", async () => {
-    // Gdyby limit działał po `JSON.parse`, jedno żądanie zapchałoby pamięć
-    // workera. Ładunek jest tu POPRAWNY - odrzuca go wyłącznie długość.
+    // Limit chroni przed `JSON.parse` dużego ładunku i przed zapisem śmieci -
+    // NIE przed odczytem samego body. `await req.text()` wciąga całe żądanie do
+    // pamięci PRZED pomiarem (`ad-event.ts:31-32`), więc komentarz „ochrona
+    // pamięci workera" byłby nadużyciem: przed dużym ciałem broni dopiero
+    // limit ustawiony wyżej (proxy/runtime), nie ten warunek.
+    // Ładunek jest tu POPRAWNY - odrzuca go wyłącznie długość.
     const raw = JSON.stringify({ kind: "impression", slot_id: SLOT, pad: "x".repeat(2100) });
     expect(raw.length).toBeGreaterThan(2000);
     await post(null, { raw });
@@ -397,9 +401,19 @@ describe("`path`: czyszczenie PII i obcięcie", () => {
 
 // ---------------------------------------------------------------------------
 describe("limiter: zalew z jednego adresu przestaje zapisywać", () => {
-  it("61. żądanie z tego samego adresu nie dokłada wiersza", async () => {
+  it("61. żądanie z tego samego adresu nie dokłada wiersza - a 60 pierwszych TAK", async () => {
     // Kubełek: 60 żetonów, uzupełnianie 1/s. Seria bez przerwy musi urwać się
-    // na 60 zapisach - inaczej jedno źródło zatruwa raport przychodu.
+    // DOKŁADNIE na 60 zapisach - inaczej jedno źródło zatruwa raport przychodu.
+    //
+    // Asercja jest OBUSTRONNA z premedytacją. Samo `<= 60` przechodziłoby
+    // również dla `capacity: 1`, czyli każde ZANIŻENIE limitu (literówka
+    // w konfiguracji, przypadkowe `capacity: 6`) byłoby dla testu niewidoczne -
+    // a znaczy „strona z sześcioma slotami gubi impresje przy pierwszym
+    // przewinięciu". Dolna granica jest więc równie ważna jak górna.
+    //
+    // Uzupełnianie 1/s przy prawdziwym `Date.now()`: 61 iteracji w tym środowisku
+    // biegnie w kilkanaście milisekund, więc żeton nie zdąży wrócić. Gdyby seria
+    // kiedyś zwolniła powyżej sekundy, dolna granica dopuszcza jeden zwrot.
     const ip = "10.77.77.77";
     for (let i = 0; i < 61; i += 1) {
       await post({ kind: "impression", slot_id: SLOT }, { ip });
@@ -408,8 +422,8 @@ describe("limiter: zalew z jednego adresu przestaje zapisywać", () => {
       .chainsFor("ad_events")
       .filter((c) => c.has("insert")).length;
 
-    expect(inserts).toBeLessThanOrEqual(60);
-    expect(inserts).toBeGreaterThan(0);
+    expect(inserts).toBeLessThanOrEqual(61);
+    expect(inserts).toBeGreaterThanOrEqual(60);
   });
 
   it("wyciszenie NIE zwraca błędu - beacon dostaje 204 jak każde inne żądanie", async () => {
