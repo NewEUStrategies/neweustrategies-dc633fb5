@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { clearSocialDefaults, rememberSocialDefaults } from "@/lib/seo/socialDefaults";
 import {
+  defaultSocialImage,
   splitUrl,
   absoluteUrl,
   hreflangLinks,
@@ -361,5 +363,308 @@ describe("feed discovery", () => {
       lang: "pl",
     });
     expect(link.href).toMatch(/^https:\/\//);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ETAP 4: ramiona `??` / `||` / `if` builderów <head>, których nie dotykał
+// żaden test. Uzupełnienia, nie duplikaty: headContract.test.ts pilnuje
+// kontraktu kompletnego <head> i klastra hreflang (w tym canonicalOverride),
+// socialDefaults.test.ts i socialPreviewSources.test.ts - karty per host,
+// siteIdentity.test.ts - redakcyjnych nadpisań tytułu/opisu, a e2e/seo.spec.ts
+// dowodzi tych samych pól BAJTAMI na żywym SSR. Tutaj są wyłącznie wejścia
+// NIEPEŁNE: undefined / null / "" / 0 / spacje / brak originu.
+// ---------------------------------------------------------------------------
+
+describe("splitUrl - wejścia zdegradowane", () => {
+  it.each([
+    { url: "foo/bar", expected: { origin: "", path: "/foo/bar" } },
+    // FAKT PRZYPIĘTY: w ścieżce awaryjnej (wejście nie parsuje się jako URL)
+    // query NIE jest odsiewane - odsiewa je tylko `new URL()` wyżej.
+    { url: "analizy/post?lang=en", expected: { origin: "", path: "/analizy/post?lang=en" } },
+  ])("nie-URL '$url' dostaje wiodący ukośnik", ({ url, expected }) => {
+    expect(splitUrl(url)).toEqual(expected);
+  });
+
+  it("adres o schemacie nieprzezroczystym degraduje ścieżkę do '/'", () => {
+    // FAKT PRZYPIĘTY: `new URL("x:")` PARSUJE się, a jego `pathname` jest pusty
+    // - to jedyne wejście domykające ramię `|| "/"`. `origin` jest wtedy
+    // ŁAŃCUCHEM "null" (tak stanowi WHATWG URL), więc canonical byłby bezsensem
+    // - ale takie wejście nie powstaje w SSR: `url` pochodzi z żądania HTTP,
+    // więc zawsze ma schemat http(s).
+    expect(splitUrl("x:")).toEqual({ origin: "null", path: "/" });
+  });
+});
+
+describe("defaultSocialImage - wszystkie źródła karty", () => {
+  afterEach(() => {
+    clearSocialDefaults();
+  });
+
+  it("bez ustawienia i bez originu rozwija plik marki do domeny kanonicznej", () => {
+    // Dokument błędu / render kliencki nie zna originu, a scrapery ignorują
+    // względne og:image - dlatego pusty origin MUSI spaść na domenę kanoniczną.
+    expect(defaultSocialImage("")).toBe(`${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`);
+  });
+
+  it("bez originu rozwija TAKŻE ustawioną ścieżkę względną do domeny kanonicznej", () => {
+    // Store kluczuje po hoście, a "" mapuje się na klucz "no-host".
+    rememberSocialDefaults("", { imageUrl: "/karta-redakcyjna.jpg", imageAlt: "" });
+    expect(defaultSocialImage("")).toBe(`${SITE_CANONICAL_ORIGIN}/karta-redakcyjna.jpg`);
+  });
+
+  it("head treści bez originu i tak emituje absolutny og:image, a canonical zostaje względny", () => {
+    const { meta, links } = buildContentHead({
+      url: "/analizy/post",
+      lang: "pl",
+      type: "article",
+      title: "Tytuł",
+      description: "Opis",
+      image: null,
+    });
+    expect(find(meta, "property", "og:image")?.content).toBe(
+      `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`,
+    );
+    expect(links.find((l) => l.rel === "canonical")?.href).toBe("/analizy/post");
+    expect(find(meta, "property", "og:url")?.content).toBe("/analizy/post");
+  });
+});
+
+describe("buildContentHead - pola opcjonalne, każde ramię osobno", () => {
+  const base = {
+    url: "https://nes.eu/analizy/post",
+    lang: "pl" as const,
+    type: "article" as const,
+    title: "Tytuł",
+    description: "Opis",
+    image: "https://nes.eu/c.jpg",
+  };
+
+  it.each([
+    { label: "podany handle", twitterSite: "@nes", expected: "@nes" },
+    { label: "handle w spacjach jest przycinany", twitterSite: "  @nes  ", expected: "@nes" },
+    { label: "same spacje = brak handle'a", twitterSite: "   ", expected: undefined },
+    { label: "null = brak handle'a", twitterSite: null, expected: undefined },
+    { label: "brak pola = brak handle'a", twitterSite: undefined, expected: undefined },
+  ])("twitter:site - $label", ({ twitterSite, expected }) => {
+    const { meta } = buildContentHead({ ...base, twitterSite });
+    expect(find(meta, "name", "twitter:site")?.content).toBe(expected);
+  });
+
+  it.each([
+    {
+      label: "documentTitle nadpisuje <title>",
+      documentTitle: "Tytuł - NES",
+      expected: "Tytuł - NES",
+    },
+    // Sufiks marki jest sklejany wyżej (settings.ts / effectiveTitleSuffix,
+    // pokryty w settings.test.ts); tu liczy się tylko ramię fallbacku.
+    { label: "pusty documentTitle spada na czysty tytuł", documentTitle: "", expected: "Tytuł" },
+    {
+      label: "brak documentTitle spada na czysty tytuł",
+      documentTitle: undefined,
+      expected: "Tytuł",
+    },
+  ])("<title> - $label", ({ documentTitle, expected }) => {
+    const { meta } = buildContentHead({ ...base, documentTitle });
+    expect(meta[0]?.title).toBe(expected);
+    // og:title / twitter:title zawsze noszą CZYSTY nagłówek, bez sufiksu.
+    expect(find(meta, "property", "og:title")?.content).toBe("Tytuł");
+    expect(find(meta, "name", "twitter:title")?.content).toBe("Tytuł");
+  });
+
+  it("emituje wymiary i alt karty dla wygenerowanego obrazka", () => {
+    const { meta } = buildContentHead({
+      ...base,
+      imageWidth: 1200,
+      imageHeight: 630,
+      imageAlt: "  Karta OG wpisu  ",
+    });
+    expect(find(meta, "property", "og:image:width")?.content).toBe("1200");
+    expect(find(meta, "property", "og:image:height")?.content).toBe("630");
+    expect(find(meta, "property", "og:image:alt")?.content).toBe("Karta OG wpisu");
+  });
+
+  it.each([
+    { label: "zero nie jest wymiarem, a same spacje nie są altem", w: 0, h: 0, alt: "   " },
+    { label: "brak wartości", w: undefined, h: undefined, alt: null },
+  ])("pomija metadane obrazka: $label", ({ w, h, alt }) => {
+    const { meta } = buildContentHead({ ...base, imageWidth: w, imageHeight: h, imageAlt: alt });
+    expect(meta.filter((m) => (m.property ?? "").startsWith("og:image:"))).toEqual([]);
+    // Sam og:image zostaje - karta bez wymiarów jest poprawna, karta bez
+    // obrazka nie.
+    expect(find(meta, "property", "og:image")?.content).toBe(base.image);
+  });
+
+  it.each([
+    {
+      label: "jawny robots wygrywa z flagą noindex",
+      robots: "index, follow, max-snippet:-1",
+      noindex: true,
+      expected: "index, follow, max-snippet:-1",
+    },
+    {
+      label: "jawny robots jest przycinany",
+      robots: "  noindex  ",
+      noindex: false,
+      expected: "noindex",
+    },
+    {
+      label: "same spacje oddają pole starej fladze",
+      robots: "   ",
+      noindex: true,
+      expected: "noindex, nofollow",
+    },
+    { label: "null + noindex", robots: null, noindex: true, expected: "noindex, nofollow" },
+    { label: "brak obu = brak meta robots", robots: null, noindex: false, expected: undefined },
+    {
+      label: "brak obu pól = brak meta robots",
+      robots: undefined,
+      noindex: undefined,
+      expected: undefined,
+    },
+  ])("robots - $label", ({ robots, noindex, expected }) => {
+    const { meta } = buildContentHead({ ...base, robots, noindex });
+    expect(find(meta, "name", "robots")?.content).toBe(expected);
+  });
+});
+
+describe("buildRootHead - origin pusty vs kanoniczny", () => {
+  it("origin '' rozwija kartę do domeny kanonicznej, nie do adresu względnego", () => {
+    const meta = buildRootHead("pl", "");
+    const expected = `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`;
+    expect(find(meta, "property", "og:image")?.content).toBe(expected);
+    expect(find(meta, "name", "twitter:image")?.content).toBe(expected);
+  });
+
+  it("podany origin hostingu wygrywa nad domeną kanoniczną", () => {
+    const meta = buildRootHead("pl", "https://preview.nes.eu");
+    expect(find(meta, "property", "og:image")?.content).toBe(
+      `https://preview.nes.eu${SITE_DEFAULT_OG_IMAGE}`,
+    );
+  });
+});
+
+describe("imagePreloadLinkHeaderValue - domyślne sizes", () => {
+  it("srcSet bez jawnych sizes daje imagesizes=100vw (parytet z imagePreloadLink)", () => {
+    // Rozbieżność sizes między preloadem a <img> to podwójne pobranie obrazka
+    // LCP, więc domyślna wartość MUSI być ta sama w obu builderach.
+    expect(
+      imagePreloadLinkHeaderValue({
+        href: "https://cdn/img.jpg",
+        imageSrcSet: "https://cdn/img.jpg?width=320 320w",
+      }),
+    ).toBe(
+      '<https://cdn/img.jpg>; rel="preload"; as="image"; fetchpriority=high; ' +
+        'imagesrcset="https://cdn/img.jpg?width=320 320w"; imagesizes="100vw"',
+    );
+  });
+});
+
+describe("buildArticleJsonLd - ramiona pól opcjonalnych", () => {
+  const base = {
+    url: "https://nes.eu/analizy/post",
+    lang: "pl" as const,
+    isArticle: true,
+    title: "Tytuł",
+    description: "Opis",
+  };
+
+  it("bez originu (render kliencki) publisher nie dostaje url, a canonical zostaje względny", () => {
+    const ld = buildArticleJsonLd({ ...base, url: "/analizy/post" });
+    const publisher = ld.publisher as Record<string, unknown>;
+    expect(ld.url).toBe("/analizy/post");
+    expect(publisher.name).toBe(SITE_NAME);
+    expect(publisher).not.toHaveProperty("url");
+  });
+
+  it("logo wydawcy trafia do publisher.logo jako ImageObject (wymóg Google News)", () => {
+    const ld = buildArticleJsonLd({ ...base, publisherLogoUrl: "https://nes.eu/logo.png" });
+    expect((ld.publisher as Record<string, unknown>).logo).toEqual({
+      "@type": "ImageObject",
+      url: "https://nes.eu/logo.png",
+    });
+  });
+
+  it("encja bez obrazka i bez dat nie emituje pustych kluczy", () => {
+    // Pusty `image: []` albo `datePublished: null` to błąd walidacji rich
+    // results - brak klucza jest poprawny, pusty klucz nie.
+    const ld = buildArticleJsonLd({ ...base, image: null, publishedAt: null, modifiedAt: null });
+    expect("image" in ld).toBe(false);
+    expect("datePublished" in ld).toBe(false);
+    expect("dateModified" in ld).toBe(false);
+    expect(ld.headline).toBe("Tytuł");
+  });
+
+  it("sekcja i tagi: articleSection + keywords po przecinku", () => {
+    const ld = buildArticleJsonLd({ ...base, section: "Geopolityka", tags: ["nato", "ue"] });
+    expect(ld.articleSection).toBe("Geopolityka");
+    expect(ld.keywords).toBe("nato, ue");
+  });
+
+  it.each([
+    { label: "pusta lista tagów i null w sekcji", section: null, tags: [] },
+    { label: "brak obu pól", section: undefined, tags: undefined },
+  ])("bez sekcji i tagów nie ma kluczy: $label", ({ section, tags }) => {
+    const ld = buildArticleJsonLd({ ...base, section, tags });
+    expect("articleSection" in ld).toBe(false);
+    expect("keywords" in ld).toBe(false);
+  });
+
+  it("ujawnienie komercyjne: sponsor + nadpisany @type dla treści reklamodawcy", () => {
+    const ld = buildArticleJsonLd({
+      ...base,
+      sponsorName: "ACME",
+      articleTypeOverride: "AdvertiserContentArticle",
+    });
+    expect(ld["@type"]).toBe("AdvertiserContentArticle");
+    expect(ld.sponsor).toEqual({ "@type": "Organization", name: "ACME" });
+  });
+
+  it("STRONA (nie artykuł) nie dostaje autora, sekcji, tagów ani sponsora", () => {
+    // FAKT PRZYPIĘTY: nadpisanie @type dotyczy tylko artykułów - strona zostaje
+    // WebPage nawet z articleTypeOverride, a warstwa ujawnienia komercyjnego
+    // (sponsor) NIE jest wtedy emitowana wcale.
+    const ld = buildArticleJsonLd({
+      ...base,
+      isArticle: false,
+      section: "Geopolityka",
+      tags: ["nato"],
+      sponsorName: "ACME",
+      articleTypeOverride: "AdvertiserContentArticle",
+    });
+    expect(ld["@type"]).toBe("WebPage");
+    expect("author" in ld).toBe(false);
+    expect("articleSection" in ld).toBe(false);
+    expect("keywords" in ld).toBe(false);
+    expect("sponsor" in ld).toBe(false);
+  });
+
+  it.each([
+    {
+      label: "tezy są przycinane i sklejane spacją",
+      takeaways: ["  Europa zwiększa wydatki.  ", "Budżet UE stoi.", ""],
+      expected: "Europa zwiększa wydatki. Budżet UE stoi.",
+    },
+    { label: "same puste tezy nie tworzą abstract", takeaways: ["   ", ""], expected: undefined },
+    { label: "pusta lista", takeaways: [], expected: undefined },
+    { label: "brak pola", takeaways: undefined, expected: undefined },
+  ])("abstract z key takeaways - $label", ({ takeaways, expected }) => {
+    expect(buildArticleJsonLd({ ...base, takeaways }).abstract).toBe(expected);
+  });
+
+  it.each([
+    { label: "włączony", speakable: true, expected: true },
+    { label: "wyłączony", speakable: false, expected: false },
+    { label: "brak pola", speakable: undefined, expected: false },
+  ])("speakable - $label", ({ speakable, expected }) => {
+    const ld = buildArticleJsonLd({ ...base, speakable });
+    expect("speakable" in ld).toBe(expected);
+    if (expected) {
+      expect(ld.speakable).toEqual({
+        "@type": "SpeakableSpecification",
+        cssSelector: ["h1", ".key-takeaways", ".article-body > p:first-of-type"],
+      });
+    }
   });
 });
