@@ -4,6 +4,27 @@
 import { useEffect, useRef, useState } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { Footnote } from "@/lib/footnotes";
+import { resolveFootnoteTargetId, scrollToFootnoteId } from "@/lib/footnotes/navigation";
+
+/**
+ * Przechwytuje kliknięcia w odsyłacze przypisów w całym dokumencie i zamienia
+ * natywny skok kotwicy na płynne przewinięcie z offsetem pod sticky header.
+ * Działa w obie strony: marker w treści -> sekcja "Przypisy źródłowe",
+ * numer/strzałka w sekcji -> miejsce w treści.
+ */
+export function useFootnoteNavigation(): void {
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+        return;
+      const id = resolveFootnoteTargetId(e.target as Element | null);
+      if (!id) return;
+      if (scrollToFootnoteId(id)) e.preventDefault();
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+}
 
 const FN_LIST_LABELS = {
   pl: {
@@ -27,15 +48,28 @@ export function FootnotesList({ notes, lang = "pl" }: { notes: Footnote[]; lang?
       aria-labelledby="footnotes-heading"
       lang={lang}
     >
-      <h2 id="footnotes-heading" data-footnotes-title className="font-display text-xl mb-4">
+      <h2
+        id="footnotes-heading"
+        data-footnotes-title
+        className="font-display text-xl mb-4 scroll-mt-28"
+      >
         {L.title}
       </h2>
       <ol data-footnotes-list className="space-y-2 text-sm text-muted-foreground">
         {notes.map((n) => (
-          <li key={n.id} id={`fn-${n.id}`} className="leading-relaxed">
-            <span data-fn-marker className="text-foreground/80 font-medium mr-1">
+          <li key={n.id} id={`fn-${n.id}`} className="leading-relaxed scroll-mt-28">
+            {/* Numer jest klikalny i wraca do markera w treści - to najbardziej
+                naturalny cel kliknięcia, strzałka ↩ zostaje jako duplikat. */}
+            <a
+              href={`#fnref-${n.id}`}
+              data-fn-marker
+              data-footnote-backlink
+              className="text-foreground/80 font-medium mr-1 hover:underline"
+              aria-label={L.back(n.id)}
+              title={L.backTitle}
+            >
               [{n.id}]
-            </span>
+            </a>
             <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.html) }} />{" "}
             <a
               href={`#fnref-${n.id}`}
@@ -65,6 +99,7 @@ export function FootnoteTooltips({
 }) {
   const [state, setState] = useState<{ id: number; x: number; y: number } | null>(null);
   const hideTimer = useRef<number | null>(null);
+  useFootnoteNavigation();
 
   useEffect(() => {
     const root = containerRef.current;
