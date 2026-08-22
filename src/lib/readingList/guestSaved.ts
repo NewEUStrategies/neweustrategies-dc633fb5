@@ -81,17 +81,10 @@ export function readGuestSaved(): GuestSavedItem[] {
  * w `src/routes/__tests__/readingListRoute.test.tsx`.
  */
 export function writeGuestSaved(items: readonly GuestSavedItem[]): boolean {
-  return writeStoredValue(
-    browserStorage("local"),
-    GUEST_SAVED_ARTICLES_KEY,
-    JSON.stringify(items),
-  );
+  return writeStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY, JSON.stringify(items));
 }
 
 /** Usunięcie pozycji po adresie. Czysta funkcja - zapis robi wywołujący. */
-export function withoutGuestSaved(
-  items: readonly GuestSavedItem[],
-  url: string,
-): GuestSavedItem[] {
+export function withoutGuestSaved(items: readonly GuestSavedItem[], url: string): GuestSavedItem[] {
   return items.filter((item) => item.url !== url);
 }

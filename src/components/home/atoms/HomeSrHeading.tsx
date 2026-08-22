@@ -15,13 +15,7 @@
 import { builderDocHasTopHeading } from "@/lib/builder/headings";
 import type { BuilderDocument } from "@/lib/builder/types";
 
-export function HomeSrHeading({
-  doc,
-  lang,
-}: {
-  doc: BuilderDocument | null;
-  lang: "pl" | "en";
-}) {
+export function HomeSrHeading({ doc, lang }: { doc: BuilderDocument | null; lang: "pl" | "en" }) {
   if (builderDocHasTopHeading(doc)) return null;
   return (
     <h1 className="sr-only">

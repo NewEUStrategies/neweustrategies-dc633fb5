@@ -63,9 +63,13 @@ type Loader = (args: {
 }) => Promise<unknown>;
 
 function loader(): Loader {
-  const fn = Route.options.loader;
+  // `unknown` W DEKLARACJI, NIE `as unknown as` W ZWROCIE. Wygenerowane typy
+  // trasy opisują loader pełnym kontekstem routera, którego test nie stawia -
+  // ale zejście przez `unknown` z JAWNYM strażnikiem `typeof` jest zwykłym
+  // zawężeniem, a nie przepchnięciem typu obok kontroli.
+  const fn: unknown = Route.options.loader;
   if (typeof fn !== "function") throw new Error("test: trasa `/$` nie ma loadera");
-  return fn as unknown as Loader;
+  return fn as Loader;
 }
 
 /** Uruchamia loader i zwraca to, CO RZUCIŁ - decyzje resolvera są wyjątkami. */
@@ -221,9 +225,10 @@ describe("head() trasy `/$`", () => {
   };
 
   function head(ctx: Parameters<HeadFn>[0]): ReturnType<HeadFn> {
-    const fn = Route.options.head;
+    // To samo zejście przez `unknown` co przy loaderze - patrz komentarz wyżej.
+    const fn: unknown = Route.options.head;
     if (typeof fn !== "function") throw new Error("test: trasa `/$` nie ma head()");
-    return (fn as unknown as HeadFn)(ctx);
+    return (fn as HeadFn)(ctx);
   }
 
   it("bez danych loadera nie emituje żadnych metadanych", async () => {

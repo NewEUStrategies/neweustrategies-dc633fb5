@@ -91,11 +91,7 @@ function ReadingListPage() {
           <p className="text-muted-foreground">{currentSection.description}</p>
         </header>
 
-        <ReadingListTabs
-          tabs={readingListTabs(settings.sections)}
-          active={tab}
-          onSelect={setTab}
-        />
+        <ReadingListTabs tabs={readingListTabs(settings.sections)} active={tab} onSelect={setTab} />
 
         {tab === "saved" &&
           (user ? (
