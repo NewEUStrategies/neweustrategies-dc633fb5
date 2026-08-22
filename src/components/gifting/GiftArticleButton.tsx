@@ -197,6 +197,19 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
           </p>
         </div>
 
+        {/* Niezabramkowany artykul: tylko zwykle kopiowanie linku - bez gift-mechaniki. */}
+        {!gated && (
+          <div className="border-t border-border/60 px-4 py-3.5">
+            <GiftCopyButton
+              copied={justCopied}
+              label={t("gifting.copyLink")}
+              copiedLabel={t("gifting.copied")}
+              onClick={() => void onCopyPlain()}
+            />
+            <GiftShareChannels targets={plainTargets} />
+          </div>
+        )}
+
         {phase === "requiresAuth" && (
           <div className="border-t border-border/60 px-4 py-3.5">
             <p className="text-[12.5px] font-semibold text-foreground mb-1">
