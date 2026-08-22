@@ -10,13 +10,19 @@
 // „Zbudowana funkcja, która nie ma wejścia w interfejsie, jest czystą stratą".
 //
 // Warstwa, jeżeli istnieje, dostarcza wyłącznie NAZWĘ i OPIS. Bez niej strip
-// mówi własnym głosem ze słownika i prowadzi tam, gdzie wskazuje konfiguracja
-// darowizn (`resolveDonationTarget`), a nie na sztywno wpisany adres.
+// mówi własnym głosem ze słownika.
+//
+// DLACZEGO LINK DO `/support`, A NIE OD RAZU DO CELU WPŁATY. Cel rozstrzyga
+// `resolveDonationTarget` z konfiguracji (`site_settings.donations`), ale
+// odczyt tej konfiguracji idzie przez server function - a `/pricing` jest
+// stroną renderowaną serwerowo, w której pasek o wysokości pięciu linijek nie
+// ma prawa ciągnąć za sobą modułu `donations.functions`. `/support` i tak
+// rozstrzyga cel u siebie i sam degraduje się przy wyłączonym module, więc
+// jedno przekierowanie kupuje tu czystą granicę.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { HandHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useDonationTarget } from "@/lib/billing/donationsConfigQuery";
 import { tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 
 export function SupporterStrip({
@@ -28,11 +34,6 @@ export function SupporterStrip({
   lang: string;
 }) {
   const { t } = useTranslation();
-  const target = useDonationTarget();
-
-  // Moduł darowizn wyłączony w panelu = powierzchnia nie ma prawa zapraszać
-  // do wpłaty. Ta sama reguła co w CTA widgetu i na `/support`.
-  if (target.kind === "disabled") return null;
 
   const description = tier ? (lang === "en" ? tier.description_en : tier.description_pl) : null;
   const label = tier ? tierName(tier, lang) : t("pricing.supporterStrip.title");

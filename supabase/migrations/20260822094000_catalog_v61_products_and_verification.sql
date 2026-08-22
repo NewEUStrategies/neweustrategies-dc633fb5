@@ -83,7 +83,35 @@ UPDATE public.access_plans
 
 -- ----------------------------------------------------------------------------
 -- 2) Decision Lab: miejsce w cyklu dla podmiotu spoza partnerstwa.
+--
+--    NAJPIERW WARSTWA, POTEM PLAN. `access_plans.tier_key` nie ma klucza obcego,
+--    ale ma trigger walidujący (`tg_access_plans_validate_tier_key`,
+--    20260723120000): klucz bez odpowiednika w `membership_tiers` kończy się
+--    `23503 unknown_tier_key`. Trigger jest tam po to, żeby literówka nie
+--    oznaczała cichej utraty uprawnień - i słusznie nie robi wyjątku dla
+--    produktów, które warstwą nie są.
+--
+--    Warstwa `decision_lab` jest więc WPISEM TECHNICZNYM, nie progiem drabinki:
+--    `rank = 0` (nie daje nic ponad Czytelnika), `features = {}` (nie niesie
+--    żadnej flagi), `active = false` (nie renderuje karty na /pricing i wypada
+--    z `user_has_tier_feature`, które łączy po `mt.active`), `cta_mode = 'none'`.
+--    Nie ma jej też w `TIER_RANKS` ani w `pricing_catalog_v3_rows()` - zakup
+--    miejsca w cyklu nie nadaje rangi i nie może jej nadawać.
 -- ----------------------------------------------------------------------------
+INSERT INTO public.membership_tiers
+  (tenant_id, key, rank, name_pl, name_en, description_pl, description_en,
+   benefits, features, is_default, active, sort_order, audience_key, cta_mode)
+SELECT t.id, 'decision_lab', 0,
+       'Decision Lab', 'Decision Lab',
+       'Wpis techniczny mostka plan -> warstwa dla produktu jednorazowego. Nie jest progiem członkostwa i nie nadaje żadnych uprawnień.',
+       'Technical bridge row between the plan and the tier ladder for a one-off product. Not a membership tier; grants nothing.',
+       '[]'::jsonb, '{}'::jsonb, false, false, 900, NULL, 'none'
+  FROM public.tenants t
+ WHERE NOT EXISTS (
+   SELECT 1 FROM public.membership_tiers mt
+    WHERE mt.tenant_id = t.id AND mt.key = 'decision_lab'
+ );
+
 INSERT INTO public.access_plans
   (tenant_id, name_pl, name_en, description_pl, description_en,
    price_cents, currency, interval, active, sort_order, tier_key)

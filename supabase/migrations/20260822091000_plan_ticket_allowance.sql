@@ -254,19 +254,26 @@ BEGIN
   INTO v_personal, v_discount
   FROM keys k
   JOIN public.membership_tiers mt
-    ON mt.tenant_id = v_tenant AND mt.key = k.tier_key;
+    ON mt.tenant_id = v_tenant AND mt.key = k.tier_key AND mt.active;
 
   -- Pula organizacyjna: miejsce w organizacji, której próg ją przyznaje
   -- (Zespół = 3 bilety na organizację rocznie, niezależnie od liczby miejsc).
+  -- DOKŁADNIE ten sam predykat uprawnienia miejsca, co w
+  -- `current_membership_tier` (20260729210625): miejsce zawieszone nie daje
+  -- nic, miejsce w karencji daje do końca karencji. Pominięcie statusu było
+  -- błędem złapanym na odtworzonej bazie - odebranie komuś miejsca zostawiało
+  -- mu prawo do biletu z puli firmy.
   SELECT mo.id, mo.tier_key,
          COALESCE(NULLIF(mt.features ->> 'included_event_tickets_org', '')::integer, 0)
     INTO v_org, v_org_tier, v_org_quota
     FROM public.organization_seats os
     JOIN public.member_organizations mo ON mo.id = os.org_id
     JOIN public.membership_tiers mt
-      ON mt.tenant_id = mo.tenant_id AND mt.key = mo.tier_key
+      ON mt.tenant_id = mo.tenant_id AND mt.key = mo.tier_key AND mt.active
    WHERE os.user_id = v_uid
-     AND os.tenant_id = v_tenant
+     AND mo.tenant_id = v_tenant
+     AND (os.status = 'active'
+          OR (os.status = 'grace' AND (os.grace_until IS NULL OR os.grace_until > now())))
      AND mo.status = 'active'
      AND mo.starts_at <= now()
      AND (mo.expires_at IS NULL OR mo.expires_at > now())
@@ -349,6 +356,16 @@ BEGIN
     RETURN false;
   END IF;
 
+  -- BLOKADA NA PULI, NIE NA WYDARZENIU. `rsvp_event` trzyma `FOR UPDATE` na
+  -- wierszu wydarzenia, więc dwa zapisy na TO SAMO wydarzenie i tak się
+  -- serializują - ale pula jest wspólna dla RÓŻNYCH wydarzeń. Bez tej blokady
+  -- trzech członków zespołu zapisujących się równolegle na trzy różne
+  -- konferencje mogłoby przeczytać `remaining = 1` naraz i wyjąć z puli
+  -- czwarty bilet. Klucz to WŁAŚCICIEL PULI: organizacja albo członek.
+  PERFORM pg_advisory_xact_lock(
+    hashtext('plan_ticket_pool:' || v_tenant::text || ':' || v_uid::text)
+  );
+
   -- Bilet już odstąpiony na to wydarzenie (np. ponowny zapis po rezygnacji)
   -- wraca do posiadacza bez ruszania licznika.
   UPDATE public.plan_ticket_claims
@@ -370,6 +387,19 @@ BEGIN
   END IF;
 
   v_org := NULLIF(v_state ->> 'org_id', '')::uuid;
+
+  -- Pula organizacyjna: blokada na kluczu organizacji i PONOWNY odczyt stanu
+  -- już pod nią. Blokada per użytkownik wyżej nie wystarcza, bo współdzielą ją
+  -- różne konta.
+  IF v_org IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(
+      hashtext('plan_ticket_pool_org:' || v_tenant::text || ':' || v_org::text)
+    );
+    v_state := public.my_ticket_allowance();
+    IF COALESCE((v_state ->> 'remaining')::integer, 0) <= 0 THEN
+      RETURN false;
+    END IF;
+  END IF;
 
   SELECT k.tier_key INTO v_tier
     FROM (
@@ -412,8 +442,13 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.claim_included_event_ticket(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.claim_included_event_ticket(uuid) TO authenticated, service_role;
+-- NIE dla roli `authenticated`. Konsumpcja puli jest skutkiem ubocznym zapisu
+-- na wydarzenie, a nie czynnością samą w sobie: bezpośrednie wywołanie spaliłoby
+-- roczny benefit bez przyznania miejsca. Jedynym wołającym jest `rsvp_event`,
+-- które jako SECURITY DEFINER wykonuje się z uprawnieniami właściciela funkcji,
+-- więc odebranie prawa klientowi niczego nie psuje.
+REVOKE EXECUTE ON FUNCTION public.claim_included_event_ticket(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_included_event_ticket(uuid) TO service_role;
 
 COMMENT ON FUNCTION public.claim_included_event_ticket(uuid) IS
   'Odstępuje jeden bilet z puli wliczonej w plan na wskazane wydarzenie biletowane. Zwraca false, gdy puli brak - wołający musi wtedy kupić bilet.';

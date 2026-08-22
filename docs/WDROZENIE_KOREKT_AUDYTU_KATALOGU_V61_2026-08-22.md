@@ -332,6 +332,8 @@ istniejących płatników — nie audytowa** i audyt jej nie zlecał. Do rozstrz
 | `check:authz-snapshot`               | ✅ po regeneracji (20 bramek flag dla 16 flag)  |
 | `typecheck`                          | ✅ dla zmienionych plików                       |
 
+Pakiet testowy Vitest: **38 364 testy przechodzą, zero nieudanych** (1 477 plików).
+
 Nowe testy jednostkowe:
 
 - `src/lib/events/__tests__/ticketAllowance.test.ts` — 21 przypadków: kolejność benefitów
@@ -343,13 +345,49 @@ Nowe testy jednostkowe:
 - `src/lib/billing/__tests__/catalogAutoSync.test.ts` — próg wolumenowy w odcisku cennika.
 - `src/lib/clubs/__tests__/minisiteAccess.test.ts` — **zapadka**: obniżenie
   `CLUB_MINISITE_TIER_RANK` z powrotem do Pro oblewa CI.
+- `supabase/tests/plan_ticket_allowance_test.sql` — **22 asercje pgTAP** na warstwie danych:
+  kształt rejestru puli, pula osobowa i organizacyjna, stan miejsca, bramka biletowa,
+  zwrot do puli i reguła Chatham House w obu kierunkach.
+
+### 11.1 Odtworzenie bazy z migracji wykryło dwa defekty, których nie widać w kodzie
+
+Testy jednostkowe nie dotykają Postgresa, a `check:sql-*` czyta SQL jako tekst. Żadne
+z nich nie odpowiada na pytanie „czy ta migracja się wykona i czy funkcja robi to, co
+mówi". Odpowiedź wymagała postawienia Postgresa 16 i nałożenia **wszystkich 795 migracji**
+(740 przeszło; 55 padło na brakach środowiska — publikacje realtime, rozszerzenia
+`vector`/`pg_net`, klasy operatorów — żadna na treści repozytorium).
+
+Dwa defekty wyszły dopiero tam:
+
+**1. `unknown_tier_key: decision_lab`.** `access_plans.tier_key` nie ma klucza obcego, więc
+z lektury schematu wyglądał na wolne pole tekstowe. Ma jednak **trigger walidujący**
+(`tg_access_plans_validate_tier_key`, 20260723120000), który odrzuca klucz bez
+odpowiednika w `membership_tiers` błędem `23503`. Migracja z produktem Decision Lab
+wywracała się na wdrożeniu. Naprawa: techniczny wiersz warstwy `decision_lab`
+(`rank = 0`, `features = {}`, `active = false`) zakładany PRZED planem — mostek dla
+triggera, nigdy próg drabinki.
+
+**2. Zawieszone miejsce w organizacji czerpało z puli biletów.** `my_ticket_allowance`
+sprawdzało status ORGANIZACJI, ale nie status MIEJSCA. Odebranie komuś miejsca zostawiało
+mu prawo do biletu z puli firmy. Naprawa: ten sam predykat, co w `current_membership_tier`
+(20260729210625) — `active` albo `grace` w oknie karencji, plus `mt.active` na warstwie.
+
+Przy okazji, z przeglądu własnego kodu przed testem: konsumpcja puli brała blokadę na
+wierszu WYDARZENIA (przez `rsvp_event`), a pula jest wspólna dla RÓŻNYCH wydarzeń — trzech
+członków zespołu zapisujących się równolegle na trzy konferencje mogło wyjąć czwarty
+bilet. Blokada idzie teraz na WŁAŚCICIELA PULI (`pg_advisory_xact_lock`), a `claim_included_event_ticket`
+straciło grant dla roli `authenticated`: konsumpcja puli jest skutkiem zapisu na
+wydarzenie, nie czynnością samą w sobie.
 
 ### Ograniczenie środowiska
 
 Instalacja zależności w tym środowisku jest niepełna: prywatny rejestr
 `europe-west*-npm.pkg.dev` odpowiada `403` przez politykę sieciową, więc
-`@lovable.dev/vite-tanstack-config` nie jest dostępny. Skutek widoczny w `typecheck`
-(`vite.config.ts` i pochodne `src/test/*`, `src/utils/payments.functions.ts` — pliki
-nietknięte tą zmianą) i w części plików testowych, które nie startują z powodu
-nierozwiązanego importu. **Żaden z tych błędów nie dotyczy plików zmienionych w tej
-pracy** — to trzeba zweryfikować ponownie w CI z pełnym rejestrem.
+`@lovable.dev/vite-tanstack-config` nie jest dostępny. Skutek widoczny wyłącznie
+w `typecheck` (`vite.config.ts` i pochodne `src/test/*`,
+`src/utils/payments.functions.ts` — pliki nietknięte tą zmianą). Brakujące
+`@tanstack/react-start`, `@testing-library/dom` i `jsdom` doinstalowano z publicznego
+rejestru **bez dotykania `package.json` ani `bun.lock`**, dzięki czemu pakiet testowy
+przeszedł w całości. `supabase test db` nie był uruchamiany (brak Dockera i rozszerzenia
+pgTAP); plik pgTAP wykonano przez `psql` na odtworzonej bazie z minimalnym shimem
+asercji — 22/22.
