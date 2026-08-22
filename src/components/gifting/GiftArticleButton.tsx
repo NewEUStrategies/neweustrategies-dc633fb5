@@ -167,9 +167,11 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
             {t("gifting.popoverTitle")}
           </p>
           <p className="text-[12px] leading-snug text-muted-foreground">
-            {settings.max_redemptions_per_link > 0
-              ? t("gifting.leadCapped", { count: settings.max_redemptions_per_link })
-              : t("gifting.lead")}
+            {gated
+              ? settings.max_redemptions_per_link > 0
+                ? t("gifting.leadCapped", { count: settings.max_redemptions_per_link })
+                : t("gifting.lead")
+              : t("gifting.leadFree")}
           </p>
         </div>
 
