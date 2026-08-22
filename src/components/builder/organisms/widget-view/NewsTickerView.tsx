@@ -140,7 +140,7 @@ function NewsTickerVerticalItem({
             />
           ) : null}
           {displayName ? (
-            <span className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+            <span className="hidden sm:inline whitespace-nowrap text-[10px] font-medium text-muted-foreground">
               {displayName}
             </span>
           ) : null}
