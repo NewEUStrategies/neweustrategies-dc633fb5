@@ -210,3 +210,44 @@ export function routeServerHandlers(route: AnyRoute): Record<string, RouteServer
   if (!handlers) throw new Error("test: trasa nie ma handlerów serwerowych");
   return handlers;
 }
+
+/** Wynik `head()` trasy w kształcie, którego dotykają testy nagłówka. */
+export interface RouteHeadResult {
+  meta?: RouteMetaEntry[];
+  links?: Record<string, unknown>[];
+  scripts?: { type?: string; children?: string }[];
+}
+
+/**
+ * Kontekst, z którego `head()` faktycznie korzysta: dane loadera i parametry
+ * ścieżki. Framework wstrzykuje tam znacznie więcej (match, kontekst routera),
+ * ale test opisuje WEJŚCIE, którego dotyczy dowód.
+ */
+export interface RouteHeadContext {
+  loaderData?: unknown;
+  params?: Record<string, string>;
+}
+
+type RouteHeadFn = (ctx: RouteHeadContext) => RouteHeadResult;
+
+/** STRAŻNIK, nie rzutowanie - warunek sprawdza w runtime, że to funkcja. */
+function isHeadFn(value: unknown): value is RouteHeadFn {
+  return typeof value === "function";
+}
+
+/**
+ * `head()` trasy wołany WPROST, z podanym kontekstem - do dowodów o meta,
+ * `robots`, adresie kanonicznym i danych strukturalnych.
+ *
+ * PO CO OSOBNO OD `routeMeta`. `routeMeta` woła `head()` na pustym kontekście
+ * i oddaje same `meta` - to wystarcza trasom, których nagłówek nie zależy od
+ * danych. Nagłówek profilu publicznego zależy od WSZYSTKIEGO: od ładunku
+ * loadera (tożsamość, dorobek, strona eksploratora) i od parametru ścieżki,
+ * a dowód dotyczy też `links` (kanoniczny) i `scripts` (JSON-LD). Zawężenie
+ * typu mieszka tu raz, zamiast w każdym pliku testowym trasy publicznej.
+ */
+export function routeHead(route: AnyRoute, ctx: RouteHeadContext = {}): RouteHeadResult {
+  const head: unknown = route.options.head;
+  if (!isHeadFn(head)) throw new Error("test: trasa nie ma `head()` w postaci funkcji");
+  return head(ctx);
+}

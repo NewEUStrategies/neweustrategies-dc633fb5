@@ -978,3 +978,267 @@ describe("/profile/follows - kategorie, tagi, programy", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// DOMKNIĘCIE GAŁĘZI: JĘZYK WIERSZA I ODPOWIEDŹ BAZY BEZ TREŚCI.
+//
+// Bloki niżej dowodzą dwóch rzeczy, których wcześniejsze testy tego pliku nie
+// ruszały, a które użytkownik widzi natychmiast:
+//
+//   A. NAZWA W WIERSZU MA SPADEK NA DRUGI JĘZYK W OBIE STRONY. Wcześniej
+//      udowodniony był tylko kierunek EN -> PL (angielski interfejs, brak
+//      nazwy EN). Brakowało kierunku PL -> EN: konferencja albo program
+//      wprowadzony przez redakcję tylko po angielsku ma dla polskiego
+//      użytkownika pokazać nazwę angielską, a NIE pusty chip. Pusty wiersz na
+//      liście obserwowanych jest defektem widocznym gołym okiem: użytkownik
+//      widzi klikalny pasek bez ani jednego słowa i nie wie, co odsubskrybowuje.
+//      Ta sama reguła dotyczy obserwowanego autora bez sluga I bez nazwy -
+//      taki wiersz miałby sam przycisk.
+//
+//   B. PUSTE CIAŁO ODPOWIEDZI (`data: null`, `error: null`) NIE JEST PUSTĄ
+//      LISTĄ. PostgREST potrafi odpowiedzieć bez treści przy zerowym błędzie.
+//      Gdyby trasa przepuściła takie `null` dalej, `missing` policzyłoby się
+//      na `null` (fałsz) i wyszłaby MILCZĄCA pustka pod niezerowym licznikiem -
+//      dokładnie ten defekt, który ten plik już raz łapał dla awarii hydracji.
+//      Ochroną jest `?? []` w każdym `queryFn`: null zamienia się w brak
+//      wierszy, więc każda pozycja dostaje wiersz „niedostępne”, a licznik
+//      nadal zgadza się z listą.
+//
+// CZEGO TE BLOKI NIE DUBLUJĄ: kierunku EN -> PL (jest wyżej, w blokach
+// „KATEGORIE po angielsku” i „PROGRAMY po angielsku”), awarii hydracji
+// (`fail(...)`, bloki o `ListHydrationNotice`) ani warstwy danych hooków.
+// ---------------------------------------------------------------------------
+
+describe("/profile/follows - spadek nazwy na drugi język i wiersz bez nazwy", () => {
+  it("KATEGORIA bez nazwy polskiej pokazuje polskiemu użytkownikowi nazwę angielską, nie pusty chip", async () => {
+    // Symetria do bloku „KATEGORIE po angielsku”: tam brakowało EN, tu PL.
+    h.language = "pl";
+    h.follows = [follow("category", "cat-tylko-en")];
+    chain().setResponse(
+      "categories",
+      ok([{ id: "cat-tylko-en", slug: "green-deal", name_pl: null, name_en: "Green Deal" }]),
+    );
+    await mountFollows();
+
+    clickTab("category");
+    await waitFor(() => expect(rowCount("category")).toBe(1));
+    const label = (node('[data-tab-content="category"] a').textContent ?? "").trim();
+    expect(label).toBe("Green Deal");
+    // Ani pustka, ani kreska - kreska znaczy „nazwy nie ma wcale”, a tu jest.
+    expect(label).not.toBe("");
+    expect(label).not.toBe("-");
+    expect(hrefs("category")).toEqual(["/category/green-deal"]);
+  });
+
+  it("KATEGORIA bez OBU nazw dostaje kreskę, nie klikalny pasek bez treści", async () => {
+    h.follows = [follow("category", "cat-bez-nazw")];
+    chain().setResponse(
+      "categories",
+      ok([{ id: "cat-bez-nazw", slug: "bez-nazwy", name_pl: null, name_en: null }]),
+    );
+    await mountFollows();
+
+    clickTab("category");
+    await waitFor(() => expect(rowCount("category")).toBe(1));
+    // Kreska jest tu JEDYNĄ informacją, że wiersz istnieje i da się go kliknąć.
+    expect((node('[data-tab-content="category"] a').textContent ?? "").trim()).toBe("-");
+    expect(hrefs("category")).toEqual(["/category/bez-nazwy"]);
+  });
+
+  it("PROGRAM bez nazwy polskiej pokazuje polskiemu użytkownikowi nazwę angielską", async () => {
+    // Program prowadzony po angielsku (nazwa własna inicjatywy) - polski
+    // użytkownik ma zobaczyć tę nazwę, a nie puste miejsce nad przyciskiem.
+    h.language = "pl";
+    h.follows = [follow("program", "prog-tylko-en")];
+    chain().setResponse(
+      "programs",
+      ok([{ id: "prog-tylko-en", slug: "horizon", name_pl: null, name_en: "Horizon Europe" }]),
+    );
+    await mountFollows();
+
+    clickTab("program");
+    await waitFor(() => expect(rowCount("program")).toBe(1));
+    const label = (node('[data-tab-content="program"] a').textContent ?? "").trim();
+    expect(label).toBe("Horizon Europe");
+    expect(label).not.toBe("");
+    expect(hrefs("program")).toEqual(["/programs/horizon"]);
+  });
+
+  it("OBSERWOWANY bez sluga I bez nazwy dostaje kreskę, nie wiersz z samym przyciskiem", async () => {
+    // Profil ukryty z listy autorów (brak sluga) i bez nazwy wyświetlanej:
+    // bez kreski zostałby pasek, na którym widać wyłącznie „przestań obserwować”.
+    h.follows = [follow("author", "author-anonim")];
+    chain().setResponse(
+      "profiles",
+      ok([{ id: "author-anonim", display_name: null, slug: null, avatar_url: null }]),
+    );
+    await mountFollows();
+
+    await waitFor(() => expect(rowCount("author")).toBe(1));
+    const label = screen.getByText("-");
+    expect(label.tagName).toBe("SPAN");
+    // Brak sluga = brak odnośnika w nikąd, ale nazwa nadal musi być widoczna.
+    expect(hrefs("author")).toEqual([]);
+    expect(buttonsIn("author").length).toBe(1);
+  });
+
+  // DEFEKT. Program bez ŻADNEJ nazwy renderuje się jako PUSTY odnośnik.
+  //
+  // CO: `src/routes/profile.follows.tsx:325` liczy nazwę programu inline
+  //     (`lang === "en" ? pr.name_en || pr.name_pl : pr.name_pl || pr.name_en`)
+  //     i nie ma ostatniego ogniwa `|| "-"`. Gdy obie kolumny są puste,
+  //     wyrażenie daje `null`, a `<Link>` renderuje się bez treści.
+  // GDZIE: profile.follows.tsx:325 (wiersz programu). Kategorie w tej samej
+  //     liście przechodzą przez `localize()` (linia 36), które kończy się na
+  //     `|| "-"`, więc bliźniacza zakładka zachowuje się INACZEJ.
+  // KONSEKWENCJA: w zakładce „Programy” użytkownik widzi klikalny pasek bez ani
+  //     jednego słowa - sam przycisk „przestań obserwować” po prawej. Nie wie,
+  //     co obserwuje ani czego się pozbywa, a licznik nad listą twierdzi, że
+  //     pozycja jest. Wygląda to na zepsuty render, nie na brak danych,
+  //     więc zgłoszenie idzie na aplikację, a nie na redakcję.
+  it.fails(
+    "DEFEKT: program bez OBU nazw daje PUSTY odnośnik, choć kategoria w tej samej liście daje kreskę",
+    async () => {
+      h.follows = [follow("program", "prog-bez-nazw")];
+      chain().setResponse(
+        "programs",
+        ok([{ id: "prog-bez-nazw", slug: "bez-nazwy", name_pl: null, name_en: null }]),
+      );
+      await mountFollows();
+
+      clickTab("program");
+      await waitFor(() => expect(rowCount("program")).toBe(1));
+      // Oczekiwanie zgodne z kategoriami: brak obu nazw = kreska, nie pustka.
+      expect((node('[data-tab-content="program"] a').textContent ?? "").trim()).toBe("-");
+    },
+  );
+
+  it("opis stanu faktycznego: pusty odnośnik programu ma jednak poprawny CEL", async () => {
+    // To NIE jest życzenie, tylko zapis rzeczywistości obok defektu wyżej:
+    // wiersz jest pusty wizualnie, ale odnośnik prowadzi tam, gdzie powinien,
+    // więc naprawa polega na dołożeniu kreski, a nie na przebudowie wiersza.
+    h.follows = [follow("program", "prog-bez-nazw")];
+    chain().setResponse(
+      "programs",
+      ok([{ id: "prog-bez-nazw", slug: "bez-nazwy", name_pl: null, name_en: null }]),
+    );
+    await mountFollows();
+
+    clickTab("program");
+    await waitFor(() => expect(rowCount("program")).toBe(1));
+    expect((node('[data-tab-content="program"] a').textContent ?? "").trim()).toBe("");
+    expect(hrefs("program")).toEqual(["/programs/bez-nazwy"]);
+  });
+});
+
+// Tabela przypadków TYPOWANA na wejściu - dzięki temu `kind` jest już
+// `FollowTargetType` i nie trzeba go rzutować w treści testu.
+const FOLLOW_TABLES: ReadonlyArray<readonly [FollowTargetType, string]> = [
+  ["author", "profiles"],
+  ["category", "categories"],
+  ["tag", "tags"],
+  ["program", "programs"],
+];
+
+describe("/profile/follows - odpowiedź bazy BEZ TREŚCI i lista obserwacji w locie", () => {
+  it.each(FOLLOW_TABLES)(
+    "zakładka %s: odpowiedź `data: null` bez błędu daje wiersze „niedostępne”, nie milczącą pustkę",
+    async (kind, table) => {
+      // PostgREST potrafi odpowiedzieć pustym ciałem przy `error: null`.
+      // Bez `?? []` w `queryFn` `missing` policzyłoby się na `null` i pod
+      // licznikiem „(2)” stanęłaby pusta lista - ten sam defekt, który ten plik
+      // łapie dla awarii hydracji, tylko wywołany inaczej.
+      h.follows = [follow(kind, `${kind}-1`), follow(kind, `${kind}-2`)];
+      chain().setResponse(table, ok(null));
+      await mountFollows();
+
+      clickTab(kind);
+      await waitFor(() => expect(rowCount(kind)).toBe(2));
+      expect(tabCount(kind)).toBe(2);
+      expect(screen.getAllByText("profile.follows.unavailable").length).toBe(2);
+      // To nie jest stan awarii ani oczekiwania - komunikaty muszą zostać rozłączne.
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(tabText(kind)).not.toContain("profile.lists.loadFailed");
+      expect(tabText(kind)).not.toContain("profile.follows.empty");
+    },
+  );
+
+  it("każdy martwy wiersz z pustej odpowiedzi da się sprzątnąć POD WŁASNYM identyfikatorem", async () => {
+    // Wiersze „niedostępne” z pustej odpowiedzi nie mogą być klonami: kliknięcie
+    // drugiego musi usunąć drugą obserwację, nie pierwszą.
+    h.follows = [follow("tag", "tag-1"), follow("tag", "tag-2")];
+    chain().setResponse("tags", ok(null));
+    await mountFollows();
+
+    clickTab("tag");
+    await waitFor(() => expect(rowCount("tag")).toBe(2));
+    fireEvent.click(buttonsIn("tag")[1]);
+    expect(h.followPayloads).toEqual([{ targetType: "tag", targetId: "tag-2", on: false }]);
+  });
+
+  it("LISTA OBSERWACJI JESZCZE NIE WCZYTANA: zero zapytań hydracji i zero liczników", async () => {
+    // `useFollows()` bez danych (pierwszy odczyt w locie). Trasa nie może
+    // wywalić się na `undefined` ani ruszyć hydracji bez identyfikatorów -
+    // inaczej każde wejście w panel wysyłałoby zapytanie `in ("id", [])`.
+    // OPIS STANU FAKTYCZNEGO, NIE ŻYCZENIE: w tym momencie zakładka pokazuje
+    // komunikat pustki, choć poprawniejsze byłoby oczekiwanie. Trasa nie
+    // odróżnia tych dwóch stanów dla PIERWSZEGO kroku odczytu (odróżnia dla
+    // drugiego - patrz `ListHydrationNotice`), więc tak to tu zapisujemy.
+    h.follows = undefined;
+    await mountFollows();
+
+    expect(chain().chains.length).toBe(0);
+    expect(tabCount("author")).toBe(0);
+    expect(tabCount("category")).toBe(0);
+    expect(tabCount("tag")).toBe(0);
+    expect(tabCount("program")).toBe(0);
+    expect(tabText("author")).toBe("profile.follows.empty");
+  });
+});
+
+const BOOKMARK_TABLES: ReadonlyArray<readonly [BookmarkEntityType, string]> = [
+  ["post", "posts"],
+  ["page", "pages"],
+];
+
+describe("/profile/bookmarks - odpowiedź bazy BEZ TREŚCI i lista zakładek w locie", () => {
+  it.each(BOOKMARK_TABLES)(
+    "zakładka %s: odpowiedź `data: null` bez błędu daje wiersze „niedostępne”, a licznik zgadza się z listą",
+    async (kind, table) => {
+      h.bookmarks = [bookmark(kind, `${kind}-1`), bookmark(kind, `${kind}-2`)];
+      chain().setResponse(table, ok(null));
+      await mountBookmarks();
+
+      clickTab(kind);
+      await waitFor(() => expect(rowCount(kind)).toBe(2));
+      expect(tabCount(kind)).toBe(2);
+      expect(screen.getAllByText("profile.bookmarks.unavailable").length).toBe(2);
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(tabText(kind)).not.toContain("profile.bookmarks.empty");
+    },
+  );
+
+  it("pusta odpowiedź o STRONY nie woła `page_full_path` dla nieistniejącego wiersza", async () => {
+    // RPC ścieżki biegnie PER wiersz. Gdyby `null` przeszło dalej, poleciałoby
+    // wywołanie z `_page_id: undefined` - śmieciowe zapytanie na każde wejście.
+    h.bookmarks = [bookmark("page", "page-1")];
+    chain().setResponse("pages", ok(null));
+    await mountBookmarks();
+
+    clickTab("page");
+    await waitFor(() => expect(rowCount("page")).toBe(1));
+    expect(h.rpcCalls).toEqual([]);
+  });
+
+  it("LISTA ZAKŁADEK JESZCZE NIE WCZYTANA: zero zapytań hydracji i zero liczników", async () => {
+    // Bliźniacza reguła do `/profile/follows` - i ten sam świadomy opis stanu
+    // faktycznego: pierwszy krok odczytu nie ma własnego komunikatu oczekiwania.
+    h.bookmarks = undefined;
+    await mountBookmarks();
+
+    expect(chain().chains.length).toBe(0);
+    expect(tabCount("post")).toBe(0);
+    expect(tabCount("page")).toBe(0);
+    expect(tabText("post")).toBe("profile.bookmarks.empty");
+  });
+});
