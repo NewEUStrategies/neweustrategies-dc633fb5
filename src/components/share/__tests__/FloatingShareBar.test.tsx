@@ -288,6 +288,9 @@ function intersectionEntry(
 class FakeIntersectionObserver implements IntersectionObserver {
   readonly root: Element | null = null;
   readonly rootMargin: string;
+  // lib.dom (TS 5.9+) dopisało `scrollMargin` do IntersectionObserver -
+  // atrapa musi je mieć, żeby dalej spełniała interfejs.
+  readonly scrollMargin: string = "";
   readonly thresholds: ReadonlyArray<number>;
   readonly observed: Element[] = [];
   disconnected = false;
