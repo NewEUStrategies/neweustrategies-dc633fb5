@@ -4,6 +4,27 @@
 import { useEffect, useRef, useState } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { Footnote } from "@/lib/footnotes";
+import { resolveFootnoteTargetId, scrollToFootnoteId } from "@/lib/footnotes/navigation";
+
+/**
+ * Przechwytuje kliknięcia w odsyłacze przypisów w całym dokumencie i zamienia
+ * natywny skok kotwicy na płynne przewinięcie z offsetem pod sticky header.
+ * Działa w obie strony: marker w treści -> sekcja "Przypisy źródłowe",
+ * numer/strzałka w sekcji -> miejsce w treści.
+ */
+export function useFootnoteNavigation(): void {
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+        return;
+      const id = resolveFootnoteTargetId(e.target as Element | null);
+      if (!id) return;
+      if (scrollToFootnoteId(id)) e.preventDefault();
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+}
 
 const FN_LIST_LABELS = {
   pl: {
