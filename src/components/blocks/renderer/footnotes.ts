@@ -18,6 +18,7 @@ import type { Block } from "@/lib/blocks/types";
 import {
   expandFootnotes,
   normalizeLegacyFootnoteHtml,
+  containsFootnoteMarkup,
   type FootnoteCounter,
 } from "@/lib/footnotes";
 import { readBlocksArray, sanitize } from "./data";
@@ -40,7 +41,7 @@ export function replaceFootnotes(html: string, fn: FootnoteCollector): string {
 
 /** Czy string zawiera shortcode [fn]…[/fn] albo stary markup przypisu z WP. */
 export function hasFn(v: unknown): v is string {
-  return typeof v === "string" && (v.includes("[fn]") || v.includes("footnote_referrer"));
+  return typeof v === "string" && containsFootnoteMarkup(v);
 }
 
 /** Zamienia treść przypisu z plain/markdown na czysty HTML dla listy końcowej. */
