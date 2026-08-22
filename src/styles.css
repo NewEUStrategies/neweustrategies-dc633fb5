@@ -8140,3 +8140,10 @@ html.dark.club-navy body {
 sup.fn-ref > a[id^="fnref-"] {
   scroll-margin-top: 7rem;
 }
+
+/* Przypisy: dymek zawsze 9px - style treści (.cms-post-*) nie mogą go powiększać. */
+[data-footnote-tooltip],
+[data-footnote-tooltip] * {
+  font-size: 9px !important;
+  line-height: 1.35 !important;
+}
