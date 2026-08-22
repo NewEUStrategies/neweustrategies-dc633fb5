@@ -30,8 +30,10 @@
 //      PLIK, który dostaje osoba - nie wpis w logach serwera. Manifest i rozjazd
 //      (`drift`) muszą być w zwracanym payloadzie.
 //
-//   D. UCIĘCIE PACZKI NIE JEST NIGDZIE ZAPISANE. Osiem sekcji ma sufit wierszy.
-//      Paczka ucięta wygląda dokładnie jak kompletna - patrz `it.fails` na końcu.
+//   D. UCIĘCIE PACZKI NIE BYŁO NIGDZIE ZAPISANE. Dwadzieścia sekcji ma sufit
+//      wierszy, a paczka ucięta wyglądała dokładnie jak kompletna. NAPRAWIONE
+//      w v3 formatu: manifest niesie `truncated`, sufity są rejestrem, a bramka
+//      pilnuje, żeby sekcja ucinana w emiterze miała w nim wpis.
 //
 // DLACZEGO BRAMKA JEST STATYCZNA, A NIE INTEGRACYJNA. Ten sam argument, co
 // w nagłówku `exportOwnerScope.gate.test.ts` i `exportManifest.test.ts`: budowa
@@ -51,10 +53,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   EXPORT_EXCLUSIONS,
+  EXPORT_MESSAGE_LIMIT,
+  EXPORT_PROFILE_VIEWERS_LIMIT,
+  EXPORT_ROW_LIMIT,
   EXPORT_SECTION_GROUPS,
   EXPORT_SECTION_GROUP_OF,
   EXPORT_SECTION_IDS,
+  EXPORT_SECTION_LIMITS,
   buildExportManifest,
+  detectTruncatedSections,
 } from "../exportManifest";
 
 const SOURCE = "src/lib/profile/export.functions.ts";
@@ -276,7 +283,7 @@ describe("C. manifest jedzie w PLIKU, nie w logu", () => {
   it("lista sekcji poległych pochodzi z REALNYCH błędów przebiegu", () => {
     // `buildExportManifest([])` na sztywno dałby paczkę, która twierdzi, że
     // wszystko się udało, także wtedy, gdy RLS odmówił połowy sekcji.
-    expect(src).toMatch(/buildExportManifest\(Object\.keys\(errors\)\)/);
+    expect(src).toMatch(/buildExportManifest\(Object\.keys\(errors\)/);
   });
 
   it("sekcja, która poległa, jest w manifeście wymieniona jako nieudana", () => {
@@ -295,33 +302,120 @@ describe("C. manifest jedzie w PLIKU, nie w logu", () => {
 });
 
 describe("D. sufit wierszy - ucięcie paczki", () => {
-  it("osiem sekcji ma sufit wierszy i to jest świadoma decyzja", () => {
-    // Eksport ma być plikiem, nie zrzutem bazy - sufit sam w sobie jest w porządku.
-    expect([...src.matchAll(/\.limit\((ROW_LIMIT|MESSAGE_LIMIT)\)/g)]).toHaveLength(8);
+  it("sufity wierszy mieszkają w REJESTRZE, nie w ciele server fn", () => {
+    // To była przyczyna defektu: liczby siedziały jako lokalne stałe emitera,
+    // więc nikt nie zestawiał ich z zawartością pliku. Teraz emiter czyta
+    // rejestr, a manifest liczy z niego ucięcie.
+    expect(src).toContain("EXPORT_ROW_LIMIT");
+    expect(src).toContain("detectTruncatedSections(");
+    // Żadnej surowej liczby SUFITU z powrotem w emiterze. `p_limit: 50` przy
+    // RPC sieci kontaktów to ROZMIAR STRONY, nie sufit sekcji (pętla i tak
+    // zatrzymuje się na `ROW_LIMIT`), więc jego obecność jest w porządku -
+    // sprawdzamy wartości, które są sufitami.
+    for (const cap of [EXPORT_ROW_LIMIT, EXPORT_MESSAGE_LIMIT, EXPORT_PROFILE_VIEWERS_LIMIT]) {
+      expect(code, `surowy sufit ${cap} w emiterze`).not.toMatch(
+        new RegExp(`(?<![A-Za-z0-9_])${cap}(?![A-Za-z0-9_])`),
+      );
+    }
+    // `.limit(...)` bierze WYŁĄCZNIE nazwane sufity, nigdy liczbę.
+    const rawLimits = [...code.matchAll(/\.limit\(([^)]*)\)/g)]
+      .map((match) => match[1].trim())
+      .filter((argument) => !["ROW_LIMIT", "MESSAGE_LIMIT"].includes(argument));
+    expect(rawLimits).toEqual([]);
   });
 
-  // DEFEKT ZGŁOSZONY, NIE NAPRAWIONY (§7: nie zmieniamy zachowania produkcyjnego,
-  // żeby test przeszedł).
-  //
-  // Osiem sekcji ucina się na 2000 wierszach (wiadomości na 5000), sieć kontaktów
-  // przestaje stronicować na 2000, a `club_export_my_data` dostaje `p_limit`.
-  // Paczka ucięta jest w pliku NIEROZRÓŻNIALNA od kompletnej: `ExportManifest`
-  // niesie `format`, `sections`, `groups`, `failed` i `excluded` - i ani jednego
-  // pola mówiącego „tej sekcji jest więcej, niż tu widzisz".
-  //
-  // KONSEKWENCJA. Osoba z 2500 zakładkami dostaje plik podpisany jako komplet
-  // z 2000 pozycjami i nie ma jak zauważyć braku - dokładnie ta klasa defektu,
-  // dla której ten manifest powstał (rozjazd deklaracji z zawartością), tylko
-  // przesunięta z osi „które sekcje" na oś „ile wierszy". Art. 15 ust. 3 mówi
-  // o kopii danych, nie o pierwszych dwóch tysiącach.
-  //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka jest projektowa, nie redakcyjna: albo
-  // manifest zyskuje pole `truncated` z licznikami (zmiana kontraktu, czyli
-  // bump `PERSONAL_DATA_EXPORT_FORMAT` do v3), albo eksport przestaje ucinać
-  // i przechodzi na paczkowanie asynchroniczne. Wybór należy do inspektora
-  // ochrony danych, nie do testu.
-  it.fails("manifest MÓWI, gdy sekcja została ucięta na sufcie wierszy", () => {
-    const manifest = buildExportManifest([]);
+  it("każda sekcja z `.limit(...)` w emiterze ma wpis w rejestrze sufitów", () => {
+    // Sekcja ucinana bez wpisu w rejestrze znów milczałaby o ucięciu.
+    const missing = sections()
+      .filter((section) => /\.limit\(/.test(section.expression))
+      .filter((section) => EXPORT_SECTION_LIMITS[section.id] === undefined)
+      .map((section) => `${SOURCE}:${section.line} ${section.id} - sufit bez wpisu w rejestrze`);
+    expect(missing).toEqual([]);
+  });
+
+  it("rejestr sufitów nie zawiera sekcji, których nie ma w zakresie eksportu", () => {
+    const declared = new Set<string>(EXPORT_SECTION_IDS);
+    const stale = Object.keys(EXPORT_SECTION_LIMITS).filter((id) => !declared.has(id));
+    expect(stale).toEqual([]);
+  });
+
+  it("MANIFEST MÓWI, gdy sekcja została ucięta na sufcie wierszy", () => {
+    // NAPRAWIONE. Do v2 `ExportManifest` niósł `format`, `sections`, `groups`,
+    // `failed` i `excluded` - i ANI JEDNEGO pola mówiącego „tej sekcji jest
+    // więcej, niż tu widzisz". Osoba z 2500 zakładkami dostawała plik podpisany
+    // jako komplet z 2000 pozycjami i nie miała jak zauważyć braku. Art. 15
+    // ust. 3 RODO mówi o kopii danych, nie o pierwszych dwóch tysiącach.
+    const manifest = buildExportManifest(
+      [],
+      [{ id: "reading_history", limit: 2000, returned: 2000 }],
+    );
     expect(Object.keys(manifest)).toContain("truncated");
+    expect(manifest.truncated).toEqual([{ id: "reading_history", limit: 2000, returned: 2000 }]);
+  });
+
+  it("ucięcie liczy się z ZAWARTOŚCI paczki, nie z intencji", () => {
+    // Sekcja wypełniona do sufitu jest podejrzana; sekcja o jeden wiersz krótsza
+    // nie jest. `>=`, nie `===`: z liczby równej sufitowi nie da się odczytać,
+    // czy w bazie było dokładnie tyle, czy więcej - a fałszywy alarm przy
+    // dokładnie 2000 wierszach jest tańszy niż milczenie przy 2500.
+    const atLimit = detectTruncatedSections({
+      reading_history: Array.from({ length: EXPORT_ROW_LIMIT }, () => ({})),
+    });
+    expect(atLimit).toEqual([
+      { id: "reading_history", limit: EXPORT_ROW_LIMIT, returned: EXPORT_ROW_LIMIT },
+    ]);
+
+    const belowLimit = detectTruncatedSections({
+      reading_history: Array.from({ length: EXPORT_ROW_LIMIT - 1 }, () => ({})),
+    });
+    expect(belowLimit).toEqual([]);
+  });
+
+  it("wiadomości mają WŁASNY, wyższy sufit i on obowiązuje", () => {
+    // Wspólny sufit dla wiadomości i reszty ucinałby czat na 2000 pozycjach,
+    // a manifest twierdziłby, że to sufit tej sekcji.
+    expect(EXPORT_MESSAGE_LIMIT).toBeGreaterThan(EXPORT_ROW_LIMIT);
+    const rows = Array.from({ length: EXPORT_ROW_LIMIT }, () => ({}));
+    expect(detectTruncatedSections({ chat_messages_sent: rows })).toEqual([]);
+    expect(
+      detectTruncatedSections({
+        chat_messages_sent: Array.from({ length: EXPORT_MESSAGE_LIMIT }, () => ({})),
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("sekcja BEZ sufitu nigdy nie jest zgłaszana jako ucięta", () => {
+    // `profile` to jeden wiersz, `roles` garść - fałszywy alarm na nich
+    // podważyłby zaufanie do całej listy.
+    expect(detectTruncatedSections({ roles: Array.from({ length: 9_999 }, () => ({})) })).toEqual(
+      [],
+    );
+  });
+
+  it("sekcja, która NIE jest listą, nie jest zgłaszana jako ucięta", () => {
+    // `profile` przychodzi jako pojedynczy obiekt albo `null`.
+    expect(detectTruncatedSections({ reading_history: null })).toEqual([]);
+    expect(detectTruncatedSections({})).toEqual([]);
+  });
+
+  it("kolejność `truncated` idzie za rejestrem, nie za kolejnością wykrycia", () => {
+    // Plik dla tych samych danych ma wyglądać identycznie przy każdym pobraniu.
+    const manifest = buildExportManifest(
+      [],
+      [
+        { id: "notifications", limit: 2000, returned: 2000 },
+        { id: "comments", limit: 2000, returned: 2000 },
+      ],
+    );
+    const order = manifest.truncated.map((entry) => entry.id);
+    const declaredOrder = EXPORT_SECTION_IDS.filter((id) => order.includes(id));
+    expect(order).toEqual([...declaredOrder]);
+  });
+
+  it("wpis o sekcji spoza rejestru nie trafia do manifestu", () => {
+    // Awaria ani błąd nie mogą wymyślić nowej sekcji w pliku użytkownika.
+    expect(
+      buildExportManifest([], [{ id: "nie_ma_takiej", limit: 10, returned: 10 }]).truncated,
+    ).toEqual([]);
   });
 });

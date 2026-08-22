@@ -15,6 +15,18 @@ const pl = {
     historyTitle: "Historia podejść",
     historyEmpty: "To Twoje pierwsze podejście - historia pojawi się po kolejnych.",
     draftRestored: "Przywrócono zapisane odpowiedzi z poprzedniej sesji.",
+    readFailedTitle: "Nie udało się odczytać Twojego wyniku",
+    readFailedBody:
+      "To NIE znaczy, że go nie masz. Nie otwieramy tu quizu, bo jego wypełnienie nadpisałoby zapisany wynik i dopisało do historii podejście, którego nie było. Spróbuj ponownie.",
+    readFailedRetry: "Spróbuj ponownie",
+    questionsFailedTitle: "Nie udało się wczytać pytań",
+    questionsFailedBody:
+      "Bez pytań nie da się policzyć wyniku. Odśwież albo spróbuj ponownie za chwilę - Twój dotychczasowy wynik i odpowiedzi w toku są bezpieczne.",
+    questionsEmptyTitle: "Kwestionariusz nie jest jeszcze gotowy",
+    questionsEmptyBody:
+      "W tej instalacji nie ma jeszcze ani jednego pytania. Wróć tu, kiedy redakcja opublikuje kwestionariusz.",
+    saveUnavailable:
+      "Nie możemy teraz zapisać wyniku, bo nie udało się odczytać danych Twojego konta. Twoje odpowiedzi są zachowane - spróbuj ponownie za chwilę.",
     bands: {
       low: "Wynik niski",
       medium: "Wynik umiarkowany",
@@ -61,6 +73,18 @@ const en: typeof pl = {
     historyTitle: "Attempt history",
     historyEmpty: "This is your first attempt - history will appear after the next ones.",
     draftRestored: "Restored answers saved from a previous session.",
+    readFailedTitle: "We could not read your result",
+    readFailedBody:
+      "This does NOT mean you do not have one. We are not opening the quiz here, because filling it in would overwrite your saved result and add an attempt that never happened to your history. Please try again.",
+    readFailedRetry: "Try again",
+    questionsFailedTitle: "We could not load the questions",
+    questionsFailedBody:
+      "Without the questions there is no way to compute a result. Refresh or try again in a moment - your existing result and any answers in progress are safe.",
+    questionsEmptyTitle: "The questionnaire is not ready yet",
+    questionsEmptyBody:
+      "This installation does not have a single question yet. Come back once the editorial team publishes the questionnaire.",
+    saveUnavailable:
+      "We cannot save your result right now, because your account details could not be read. Your answers are kept - please try again in a moment.",
     bands: {
       low: "Low score",
       medium: "Moderate score",

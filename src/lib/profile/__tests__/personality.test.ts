@@ -162,8 +162,23 @@ describe("isComplete", () => {
     expect(isComplete(answers, questions)).toBe(false);
   });
 
-  it("pusty kwestionariusz jest kompletny - nie ma czego brakować", () => {
-    expect(isComplete({}, [])).toBe(true);
+  it("PUSTY kwestionariusz NIE jest kompletny - i to jest cała treść testu", () => {
+    // Poprzednia wersja tego testu utrwalała `[].every(...) === true`, czyli
+    // „nie ma czego brakować". Brzmi logicznie i było DEFEKTEM: quiz bez ani
+    // jednego pytania (a taki powstaje przy nieudanym odczycie
+    // `personality_questions`) uznawał się za wypełniony, przycisk „Zapisz"
+    // był aktywny, a `scoreAnswers({}, [])` zwracało zera na wszystkich osiach.
+    // Jedno kliknięcie zapisywało profil osobowości 0/0/0/0/0 do
+    // `personality_results` ORAZ do append-only historii - sfabrykowany wynik,
+    // którego użytkownik nigdy nie wypełnił i którego nie da się z historii
+    // usunąć z interfejsu.
+    expect(isComplete({}, [])).toBe(false);
+  });
+
+  it("pusty kwestionariusz nie staje się kompletny przez odpowiedzi z innego zestawu", () => {
+    // Odpowiedzi w szkicu przeżywają zmianę kwestionariusza (localStorage), więc
+    // ten przypadek jest osiągalny: pytania zniknęły, odpowiedzi zostały.
+    expect(isComplete({ 1: 5, 2: 3 }, [])).toBe(false);
   });
 });
 

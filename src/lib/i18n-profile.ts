@@ -1583,6 +1583,13 @@ type ProfileExtras = {
       };
     };
 
+    /** Wspólne stany list panelu konta (zakładki, obserwacje). */
+    lists: {
+      loading: string;
+      loadFailed: string;
+      retry: string;
+    };
+
     bookmarks: {
       title: string;
       subtitle: string;
@@ -1658,6 +1665,12 @@ const extrasPl: ProfileExtras = {
         save: "Zapisuje sekcję mediów społecznościowych i profil publiczny.",
       },
     },
+    lists: {
+      loading: "Wczytywanie…",
+      loadFailed:
+        "Nie udało się wczytać szczegółów tych pozycji. To NIE znaczy, że ich nie masz - licznik obok nazwy zakładki pokazuje, ile ich jest. Spróbuj ponownie.",
+      retry: "Spróbuj ponownie",
+    },
     bookmarks: {
       title: "Zapisane materiały",
       subtitle: "Wpisy i strony, które dodałeś do listy do przeczytania później.",
@@ -1732,6 +1745,12 @@ const extrasEn: ProfileExtras = {
         email: "Public contact email shown on your author page.",
         save: "Saves the social media & public profile section.",
       },
+    },
+    lists: {
+      loading: "Loading…",
+      loadFailed:
+        "We could not load the details of these items. This does NOT mean you have none - the number next to the tab name shows how many there are. Please try again.",
+      retry: "Try again",
     },
     bookmarks: {
       title: "Saved items",

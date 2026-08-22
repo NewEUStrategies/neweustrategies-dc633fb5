@@ -99,8 +99,11 @@ describe("kompletność zakresu (finding 2026-08-06)", () => {
     expect(EXPORT_SECTION_IDS).toContain(id);
   });
 
-  it("format nosi wersję v2 - zmiana zakresu jest zmianą kontraktu", () => {
-    expect(PERSONAL_DATA_EXPORT_FORMAT).toBe("nes.personal-data-export.v2");
+  it("format nosi wersję v3 - zmiana zakresu jest zmianą kontraktu", () => {
+    // v3 dodało `truncated` do manifestu. Nowe POLE manifestu jest zmianą
+    // kontraktu przenoszalności (art. 20), więc wersja musiała się ruszyć -
+    // konsument czyta ten napis, żeby wiedzieć, czego się spodziewać.
+    expect(PERSONAL_DATA_EXPORT_FORMAT).toBe("nes.personal-data-export.v3");
   });
 });
 
@@ -200,6 +203,8 @@ describe("buildExportManifest", () => {
     expect(manifest.sections).toEqual(EXPORT_SECTION_IDS);
     expect(manifest.excluded).toEqual(EXPORT_EXCLUSIONS);
     expect(manifest.failed).toEqual([]);
+    // Pusta lista znaczy „nic nie zostało ucięte", nie „nie sprawdzaliśmy".
+    expect(manifest.truncated).toEqual([]);
   });
 
   it("wymienia sekcje, które w tym przebiegu poległy", () => {

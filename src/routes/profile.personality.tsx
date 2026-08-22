@@ -180,6 +180,58 @@ function HistoryList({ rows, lang }: { rows: HistoryRow[]; lang: "pl" | "en" }) 
   );
 }
 
+/**
+ * Panel „nie udało się" - JEDEN kształt dla trzech nieszczęść odczytu.
+ *
+ * PO CO OSOBNY WIDOK. Do dziś każda z tych awarii kończyła się CZYSTYM QUIZEM,
+ * czyli ekranem nieodróżnialnym od pierwszej wizyty. Osoba z zapisanym profilem
+ * widziała „wypełnij test", wypełniała go i NADPISYWAŁA swój wynik - a historia
+ * jest append-only i wypełniana triggerem, więc zostawało w niej podejście
+ * wykonane wyłącznie dlatego, że baza chwilowo nie odpowiedziała.
+ */
+function ReadFailurePanel({
+  title,
+  body,
+  onRetry,
+  retryLabel,
+}: {
+  title: string;
+  body: string;
+  onRetry?: () => void;
+  retryLabel: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="mx-auto max-w-3xl space-y-5 p-4">
+      <header className="space-y-2">
+        <Link
+          to="/profile"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("profile.personality.back")}
+        </Link>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          <Brain className="h-5 w-5 text-primary" />
+          {t("profile.personality.title")}
+        </h1>
+      </header>
+      <div
+        role="alert"
+        className="space-y-3 rounded-[6px] border border-destructive/50 bg-destructive/10 p-4"
+      >
+        <p className="text-sm font-semibold text-destructive">{title}</p>
+        <p className="text-sm text-muted-foreground">{body}</p>
+        {onRetry ? (
+          <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            {retryLabel}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function PersonalityRoute() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProfileI18n();
@@ -275,8 +327,14 @@ function PersonalityRoute() {
   const complete = useMemo(() => isComplete(answers, questions), [answers, questions]);
 
   async function onSubmit() {
-    if (!user || !profileQ.data?.tenant_id) return;
     if (!complete) return toast.error(t("profile.personality.requireAll"));
+    // ZAPIS, KTÓRY NIC NIE ROBI, MUSI TO POWIEDZIEĆ. Do dziś brak odczytanego
+    // `tenant_id` (awaria zapytania o profil, odmowa RLS) kończył się cichym
+    // `return`: trzydzieści odpowiedzi, klik i ZERO reakcji. Użytkownik klikał
+    // w kółko, nie wiedząc, że zapis nie ma dokąd trafić.
+    if (!user || !profileQ.data?.tenant_id) {
+      return toast.error(t("personality.saveUnavailable"));
+    }
     setSubmitting(true);
     try {
       const scores = scoreAnswers(answers, questions);
@@ -314,6 +372,43 @@ function PersonalityRoute() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
+    );
+  }
+
+  // TRZY AWARIE ODCZYTU, KTÓRE DO DZIŚ KOŃCZYŁY SIĘ CZYSTYM QUIZEM.
+  // Kolejność jest częścią kontraktu: nieczytelny WYNIK wychodzi pierwszy, bo
+  // jego nadpisanie jest jedyną nieodwracalną konsekwencją w tym zestawie
+  // (historia podejść jest append-only).
+  if (qPrev.isError) {
+    return (
+      <ReadFailurePanel
+        title={t("personality.readFailedTitle")}
+        body={t("personality.readFailedBody")}
+        retryLabel={t("personality.readFailedRetry")}
+        onRetry={() => void qPrev.refetch()}
+      />
+    );
+  }
+  if (qQ.isError) {
+    return (
+      <ReadFailurePanel
+        title={t("personality.questionsFailedTitle")}
+        body={t("personality.questionsFailedBody")}
+        retryLabel={t("personality.readFailedRetry")}
+        onRetry={() => void qQ.refetch()}
+      />
+    );
+  }
+  // Odczyt się udał, a pytań nie ma. To nie awaria, więc bez ponawiania - ale
+  // i nie quiz: kwestionariusz bez pytań uznawał się za wypełniony i pozwalał
+  // zapisać wynik 0/0/0/0/0 (patrz `isComplete` w `lib/profile/personality.ts`).
+  if (questions.length === 0 && !qPrev.data) {
+    return (
+      <ReadFailurePanel
+        title={t("personality.questionsEmptyTitle")}
+        body={t("personality.questionsEmptyBody")}
+        retryLabel={t("personality.readFailedRetry")}
+      />
     );
   }
 

@@ -40,6 +40,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -312,8 +313,8 @@ describe("TopicsDroplist - tryb droplisty", () => {
     // a to jest karta widgetu.
     const { container } = mountDroplist();
     await openDroplist();
-    expect(container.querySelector('[role="listbox"]')).toBeNull();
-    expect(document.body.querySelector('[role="listbox"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="topics-popup"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="topics-popup"]')).toBeTruthy();
   });
 
   it("okno jest listą wielokrotnego wyboru i wystawia każdą pozycję jako opcję", async () => {
@@ -449,7 +450,7 @@ describe("TopicsDroplist - tryb droplisty", () => {
 
     mountDroplist();
     await openDroplist();
-    const popup = screen.getByRole("listbox");
+    const popup = screen.getByTestId("topics-popup");
     expect(popup.style.bottom).not.toBe("");
     expect(popup.style.top).toBe("");
 
@@ -460,53 +461,88 @@ describe("TopicsDroplist - tryb droplisty", () => {
   it("przeliczenie pozycji jedzie przy przewijaniu i zmianie rozmiaru okna", async () => {
     mountDroplist();
     await openDroplist();
-    const before = screen.getByRole("listbox").style.left;
+    const before = screen.getByTestId("topics-popup").style.left;
     const rect = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
       .mockReturnValue({ left: 123, width: 300, top: 10, bottom: 50 } as DOMRect);
     fireEvent.scroll(window);
-    await waitFor(() => expect(screen.getByRole("listbox").style.left).toBe("123px"));
-    expect(screen.getByRole("listbox").style.left).not.toBe(before);
+    await waitFor(() => expect(screen.getByTestId("topics-popup").style.left).toBe("123px"));
+    expect(screen.getByTestId("topics-popup").style.left).not.toBe(before);
     fireEvent(window, new Event("resize"));
     rect.mockRestore();
   });
 
-  // DEFEKT ZGŁOSZONY, NIE NAPRAWIONY (§7: nie zmieniamy zachowania produkcyjnego,
-  // żeby test przeszedł).
-  //
-  // Otwarte okno droplisty łamie trzy reguły ARIA:
-  //   - `aria-required-children`: `role="listbox"` ma jako dzieci `<section>`
-  //     z nagłówkami grup, a nie `role="option"` - czytnik ekranu nie ogłasza
-  //     liczby opcji i część z nich w ogóle pomija (potrzebne `role="group"`
-  //     na sekcjach albo `role="presentation"` na opakowaniach);
-  //   - `aria-input-field-name` i `nested-interactive`: `Checkbox` w każdej opcji
-  //     jest polem wyboru BEZ NAZWY, zagnieżdżonym w przycisku opcji. Ma
-  //     `aria-hidden` i `tabIndex={-1}`, więc miał być dekoracją - ale Radix
-  //     renderuje go jako `role="checkbox"`, czyli kontrolkę w kontrolce, i axe
-  //     słusznie tego nie przepuszcza.
-  //
-  // KONSEKWENCJA. Wybór tematów jest głównym krokiem zapisu do newslettera na
-  // czterech powierzchniach; osoba korzystająca z czytnika ekranu nie dowie się,
-  // ile jest opcji ani w której grupie się znajduje.
-  //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka zmienia strukturę ARIA komponentu wspólnego
-  // dla czterech widgetów (role sekcji, opakowania, sposób renderowania
-  // Checkboksa) - to zmiana zachowania, a nie test. Zgłoszone do decyzji.
-  it.fails("otwarte okno droplisty nie ma naruszeń dostępności", async () => {
+  it("otwarte okno droplisty NIE MA naruszeń dostępności", async () => {
+    // NAPRAWIONE. Okno łamało trzy reguły ARIA:
+    //   - `aria-required-children`: `role="listbox"` siedziało na POWŁOCE okna,
+    //     więc obejmowało pasek zakładek grup (`role="tablist"`), sekcje
+    //     z nagłówkami i stopkę z przyciskami. Lista wyboru może zawierać
+    //     wyłącznie opcje i grupy, więc czytnik ekranu nie ogłaszał liczby opcji
+    //     i część z nich w ogóle pomijał.
+    //   - `aria-input-field-name` i `nested-interactive`: w każdej opcji stał
+    //     `Checkbox` z Radiksa - pole wyboru BEZ NAZWY, zagnieżdżone w przycisku
+    //     opcji. `aria-hidden` i `tabIndex={-1}` tego nie naprawiały, bo Radix
+    //     i tak renderował `role="checkbox"`, czyli kontrolkę w kontrolce.
+    //
+    // Poprawka: rola listy przeniesiona na kontener przewijany (zawiera SAME
+    // grupy), sekcje grup dostały `role="group"` z nazwą, opakowania układu
+    // `role="presentation"`, a kwadracik zaznaczenia jest już tylko obrazkiem -
+    // stan niesie `aria-selected` na samej opcji.
+    //
+    // Wybór tematów jest głównym krokiem zapisu do newslettera na czterech
+    // powierzchniach, więc to nie była kosmetyka.
     mountDroplist({}, ["afryka"]);
     fireEvent.click(screen.getByRole("button", { name: topicsTriggerText(1, "pl") }));
     await waitFor(() => expect(screen.getByRole("listbox")).toBeTruthy());
     expect(await axeViolations(document.body).then(summarize)).toBe("");
   });
 
-  it("otwarte okno nie ma naruszeń dostępności POZA trzema zgłoszonymi wyżej", async () => {
-    // Zapora na regresje: nowe naruszenie w tym oknie ma zapalić test, a trzy
-    // znane (opisane w `it.fails` wyżej) są wypisane jawnie.
+  it("grupy są OGŁASZANE jako grupy z nazwą, a opcje należą do nich", async () => {
+    // To jest treść poprawki widziana przez czytnik ekranu: „Region, grupa,
+    // 2 elementy" zamiast płaskiej listy pięćdziesięciu przycisków.
+    mountDroplist();
+    await openDroplist();
+    const groups = screen.getAllByRole("group");
+    expect(groups.map((g) => g.getAttribute("aria-label"))).toEqual(["Region", "Tematy"]);
+    expect(within(groups[0]).getAllByRole("option")).toHaveLength(2);
+    expect(within(groups[1]).getAllByRole("option")).toHaveLength(1);
+  });
+
+  it("lista wyboru ma NAZWĘ - czytnik mówi, czego dotyczy", async () => {
+    mountDroplist();
+    await openDroplist();
+    expect(screen.getByRole("listbox").getAttribute("aria-label")).toBe(
+      topicLabel("heading", "pl"),
+    );
+  });
+
+  it("w opcji nie ma DRUGIEJ kontrolki - kwadracik zaznaczenia jest obrazkiem", async () => {
     mountDroplist({}, ["afryka"]);
     fireEvent.click(screen.getByRole("button", { name: topicsTriggerText(1, "pl") }));
     await waitFor(() => expect(screen.getByRole("listbox")).toBeTruthy());
-    const ids = (await axeViolations(document.body)).map((v) => v.id).sort();
-    expect(ids).toEqual(["aria-input-field-name", "aria-required-children", "nested-interactive"]);
+    const option = screen.getByRole("option", { name: "Afryka" });
+    expect(option.querySelector('[role="checkbox"]')).toBeNull();
+    expect(within(option).queryAllByRole("button")).toHaveLength(0);
+    // Stan zaznaczenia niesie sama opcja.
+    expect(option.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("pasek zakładek grup stoi POZA listą wyboru", async () => {
+    // Zakładki nawigują po liście, ale nie są jej elementami - wewnątrz listy
+    // łamałyby regułę dozwolonych dzieci.
+    mountDroplist();
+    await openDroplist();
+    expect(screen.getByRole("listbox").querySelector('[role="tablist"]')).toBeNull();
+    expect(screen.getByRole("tablist")).toBeTruthy();
+  });
+
+  it("stopka z „Wyczyść” i „Gotowe” też stoi poza listą wyboru", async () => {
+    mountDroplist({}, ["afryka"]);
+    fireEvent.click(screen.getByRole("button", { name: topicsTriggerText(1, "pl") }));
+    await waitFor(() => expect(screen.getByRole("listbox")).toBeTruthy());
+    const listbox = screen.getByRole("listbox");
+    expect(listbox.textContent).not.toContain(topicLabel("done", "pl"));
+    expect(screen.getByText(topicLabel("done", "pl"))).toBeTruthy();
   });
 });
 

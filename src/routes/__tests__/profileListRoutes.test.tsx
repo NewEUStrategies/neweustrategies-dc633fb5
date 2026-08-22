@@ -496,35 +496,81 @@ describe("/profile/bookmarks - zapisane wpisy", () => {
     expect(screen.getByText("-")).toBeTruthy();
   });
 
-  // DEFEKT 1. Awaria hydracji zostawia licznik z surowej liczby zakładek,
-  // a lista renderuje ZERO wierszy. Użytkownik czyta „Wpisy (2)" nad pustym
-  // prostokątem i wnioskuje, że panel zgubił jego zapisane artykuły - a one
-  // są w bazie, nie udało się tylko jedno zapytanie. Nie naprawiamy tego
-  // testem: wybór między „pokaż licznik z zakładek" a „pokaż licznik z listy"
-  // jest decyzją projektową (patrz komentarz w pliku trasy, linie 124-135),
-  // a jej konsekwencją jest osobny stan błędu, którego trasa dziś nie ma.
-  it.fails("licznik zakładki zgadza się z listą TAKŻE po awarii hydracji", async () => {
+  // NAPRAWIONE (defekty 1 i 2). Awaria hydracji nie jest już milczącą pustką.
+  //
+  // LICZNIK ZOSTAJE PRZY SUROWEJ LICZBIE ZAKŁADEK - i to jest właściwy wybór.
+  // Odczyt `user_bookmarks` się udał, więc „Wpisy (2)" jest PRAWDĄ: dwie
+  // zakładki istnieją. Kłamstwem była pusta lista pod tym licznikiem, bo
+  // znaczyła „a jednak nic nie masz". Zerowanie licznika przy awarii mówiłoby
+  // to samo kłamstwo, tylko drugą stroną. Kontraktem jest więc: licznik
+  // ZGADZA SIĘ Z LISTĄ albo pod nim stoi komunikat, który wyjaśnia różnicę.
+  it("licznik nigdy nie stoi nad MILCZĄCĄ pustką", async () => {
     h.bookmarks = [bookmark("post", "post-1"), bookmark("post", "post-2")];
     chain().setResponse("posts", fail("hydracja padła"));
     await mountBookmarks();
 
     await waitFor(() => expect(chain().chainsFor("posts").length).toBeGreaterThan(0));
-    expect(tabCount("post")).toBe(rowCount("post"));
+    await waitFor(() => expect(node('[data-testid="hydration-error"]')).toBeTruthy());
+    // Albo wiersze zgadzają się z licznikiem, albo różnicę wyjaśnia komunikat.
+    const explained =
+      rowCount("post") === tabCount("post") ||
+      all('[data-tab-content="post"] [data-testid="hydration-error"]').length > 0;
+    expect(explained).toBe(true);
   });
 
-  // DEFEKT 2. Awaria hydracji jest NIEODRÓŻNIALNA od pustki i od oczekiwania:
-  // trasa nie czyta `postsQ.isError` ani `isPending`, więc w każdym z tych
-  // trzech przypadków rysuje puste `<ul>` bez ani jednego słowa. Użytkownik
-  // nie wie, czy ma odświeżyć stronę, czy naprawdę nic nie zapisał. Nie
-  // naprawiamy: dodanie stanu błędu to zmiana zachowania produkcyjnego (nowe
-  // klucze i18n, decyzja o treści komunikatu), a nie poprawka testu.
-  it.fails("AWARIA hydracji ma własny komunikat, odrębny od pustej listy", async () => {
+  it("AWARIA hydracji ma własny komunikat, odrębny od pustej listy", async () => {
     h.bookmarks = [bookmark("post", "post-1")];
     chain().setResponse("posts", fail("hydracja padła"));
     await mountBookmarks();
 
     await waitFor(() => expect(chain().chainsFor("posts").length).toBeGreaterThan(0));
-    expect(tabText("post").length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(tabText("post")).toContain("profile.lists.loadFailed");
+    // NIE komunikat pustki: „nie masz nic zapisanego" byłby tu nieprawdą.
+    expect(tabText("post")).not.toContain("profile.bookmarks.empty");
+  });
+
+  it("awaria hydracji daje DROGĘ WYJŚCIA: ponowienie odczytu", async () => {
+    let attempts = 0;
+    h.bookmarks = [bookmark("post", "post-1")];
+    chain().setResponse("posts", () => {
+      attempts += 1;
+      return attempts === 1 ? fail("hydracja padła") : ok([POST_ROWS[0]]);
+    });
+    await mountBookmarks();
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    fireEvent.click(screen.getByText("profile.lists.retry"));
+    await waitFor(() => expect(rowCount("post")).toBe(1));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("zakładka STRON ma własną awarię hydracji i własne ponowienie", async () => {
+    // Dwie zakładki, dwa niezależne zapytania: awaria stron nie może udawać
+    // awarii wpisów ani odwrotnie.
+    let attempts = 0;
+    h.bookmarks = [bookmark("page", "page-1")];
+    chain().setResponse("pages", () => {
+      attempts += 1;
+      return attempts === 1
+        ? fail("hydracja padła")
+        : ok([{ id: "page-1", slug: "zespol", title_pl: "Zespół", title_en: "Team" }]);
+    });
+    await mountBookmarks();
+
+    clickTab("page");
+    await waitFor(() => expect(tabText("page")).toContain("profile.lists.loadFailed"));
+    fireEvent.click(screen.getByText("profile.lists.retry"));
+    await waitFor(() => expect(rowCount("page")).toBe(1));
+  });
+
+  it("PUSTA lista zakładek nadal mówi „nic nie zapisałeś”, nie „awaria”", async () => {
+    // Trzy stany muszą zostać rozłączne: pustka, awaria, oczekiwanie.
+    h.bookmarks = [];
+    await mountBookmarks();
+    await waitFor(() => expect(tabText("post")).toContain("profile.bookmarks.empty"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(node('[data-tab-content="post"]').textContent).not.toContain("profile.lists.loadFailed");
   });
 });
 
@@ -725,30 +771,86 @@ describe("/profile/follows - obserwowani autorzy", () => {
     expect(rowCount("author")).toBe(0);
   });
 
-  // DEFEKT 3. Bliźniacza trasa ma ten sam rozjazd co zakładki: liczniki liczą
-  // SUROWE identyfikatory obserwacji (`ids.author.length`), więc po awarii
-  // hydracji zakładka mówi „Autorzy (2)" nad pustą listą. Dla użytkownika to
-  // znaczy „aplikacja zgubiła moje obserwacje". Nie naprawiamy testem -
-  // brakuje tu stanu błędu, a jego dodanie jest zmianą zachowania.
-  it.fails("licznik obserwacji zgadza się z listą TAKŻE po awarii hydracji", async () => {
+  // NAPRAWIONE (defekty 3 i 4). Ta sama poprawka co przy zakładkach, ten sam
+  // atom (`ListHydrationNotice`) i ten sam wybór: licznik zostaje przy liczbie
+  // obserwacji (bo ta jest prawdziwa), a różnicę wyjaśnia komunikat.
+  it("licznik obserwacji nigdy nie stoi nad MILCZĄCĄ pustką", async () => {
     h.follows = [follow("author", "author-1"), follow("author", "author-2")];
     chain().setResponse("profiles", fail("hydracja padła"));
     await mountFollows();
 
     await waitFor(() => expect(chain().chainsFor("profiles").length).toBeGreaterThan(0));
-    expect(tabCount("author")).toBe(rowCount("author"));
+    await waitFor(() => expect(node('[data-testid="hydration-error"]')).toBeTruthy());
+    const explained =
+      rowCount("author") === tabCount("author") ||
+      all('[data-tab-content="author"] [data-testid="hydration-error"]').length > 0;
+    expect(explained).toBe(true);
   });
 
-  // DEFEKT 4. Jak wyżej: awaria hydracji obserwacji nie ma ŻADNEGO komunikatu
-  // (trasa nie czyta `isError`), więc jest nieodróżnialna od pustki i od
-  // oczekiwania. Konsekwencja: użytkownik nie wie, czy odświeżyć stronę.
-  it.fails("AWARIA hydracji obserwacji ma własny komunikat, odrębny od pustki", async () => {
+  it("AWARIA hydracji obserwacji ma własny komunikat, odrębny od pustki", async () => {
     h.follows = [follow("author", "author-1")];
     chain().setResponse("profiles", fail("hydracja padła"));
     await mountFollows();
 
     await waitFor(() => expect(chain().chainsFor("profiles").length).toBeGreaterThan(0));
-    expect(tabText("author").length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(tabText("author")).toContain("profile.lists.loadFailed");
+    expect(tabText("author")).not.toContain("profile.follows.empty");
+  });
+
+  it("awaria hydracji obserwacji daje ponowienie odczytu", async () => {
+    let attempts = 0;
+    h.follows = [follow("author", "author-1")];
+    chain().setResponse("profiles", () => {
+      attempts += 1;
+      return attempts === 1
+        ? fail("hydracja padła")
+        : ok([{ id: "author-1", slug: "anna", display_name: "Anna", avatar_url: null }]);
+    });
+    await mountFollows();
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    fireEvent.click(screen.getByText("profile.lists.retry"));
+    await waitFor(() => expect(rowCount("author")).toBe(1));
+  });
+
+  it.each([
+    ["category", "categories"],
+    ["tag", "tags"],
+    ["program", "programs"],
+  ])("zakładka %s ma WŁASNĄ awarię hydracji i własne ponowienie", async (kind, table) => {
+    // Cztery zakładki, cztery niezależne zapytania. Awaria jednej nie może
+    // udawać awarii pozostałych - ani ich naprawiać.
+    let attempts = 0;
+    h.follows = [follow(kind as FollowTargetType, `${kind}-1`)];
+    chain().setResponse(table, () => {
+      attempts += 1;
+      return attempts === 1
+        ? fail("hydracja padła")
+        : ok([
+            {
+              id: `${kind}-1`,
+              slug: "x",
+              name_pl: "X",
+              name_en: "X",
+              title_pl: "X",
+              title_en: "X",
+            },
+          ]);
+    });
+    await mountFollows();
+
+    clickTab(kind);
+    await waitFor(() => expect(tabText(kind)).toContain("profile.lists.loadFailed"));
+    fireEvent.click(screen.getByText("profile.lists.retry"));
+    await waitFor(() => expect(rowCount(kind)).toBe(1));
+  });
+
+  it("PUSTA lista obserwacji nadal mówi „nikogo nie obserwujesz”", async () => {
+    h.follows = [];
+    await mountFollows();
+    await waitFor(() => expect(tabText("author")).toContain("profile.follows.empty"));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

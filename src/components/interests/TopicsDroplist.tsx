@@ -14,8 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, X } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Check, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInterestCatalog, type InterestItem } from "@/hooks/useInterests";
 import { topicLabel, topicsTriggerText } from "@/lib/newsletter/newsletterFieldLabels";
@@ -276,10 +275,16 @@ export function TopicsDroplist({
               popupStyle &&
               typeof document !== "undefined" &&
               createPortal(
+                // POWŁOKA OKNA NIE JEST LISTĄ. `role="listbox"` siedziało tu,
+                // czyli obejmowało też pasek zakładek grup (`role="tablist"`)
+                // i stopkę z przyciskami - a lista wyboru może zawierać
+                // wyłącznie opcje i grupy (axe: `aria-required-children`).
+                // Czytnik ekranu nie ogłaszał wtedy liczby opcji i część z nich
+                // pomijał. Rola przeniosła się na kontener przewijany niżej,
+                // który zawiera SAME grupy opcji.
                 <div
                   ref={popupRef}
-                  role="listbox"
-                  aria-multiselectable="true"
+                  data-testid="topics-popup"
                   style={popupStyle}
                   className="flex flex-col rounded-lg border border-border bg-popover shadow-2xl overflow-hidden"
                 >
@@ -297,7 +302,13 @@ export function TopicsDroplist({
                       )}
                     />
                   )}
-                  <div id={`${uid}-drop-scroll`} className="flex-1 overflow-auto">
+                  <div
+                    id={`${uid}-drop-scroll`}
+                    role="listbox"
+                    aria-multiselectable="true"
+                    aria-label={headingText}
+                    className="flex-1 overflow-auto"
+                  >
                     {groups.map((g) => {
                       const selectedInGroup = g.items.reduce(
                         (n, it) => n + (picked.has(it.id) ? 1 : 0),
@@ -307,9 +318,17 @@ export function TopicsDroplist({
                         <section
                           key={`grp:${g.key}`}
                           id={`${uid}-drop-grp-${g.key}`}
+                          // `group` to jedno z dwóch dzieci dozwolonych w liście
+                          // wyboru (obok `option`). Nazwa idzie `aria-label`,
+                          // bo nagłówek niżej jest już tylko wizualny.
+                          role="group"
+                          aria-label={g.title}
                           className="scroll-mt-0"
                         >
-                          <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border/60 bg-popover/95 px-3 py-1.5 backdrop-blur">
+                          <header
+                            aria-hidden
+                            className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border/60 bg-popover/95 px-3 py-1.5 backdrop-blur"
+                          >
                             <span className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                               {g.title}
                             </span>
@@ -319,7 +338,13 @@ export function TopicsDroplist({
                                 : g.items.length}
                             </span>
                           </header>
-                          <div className="grid grid-cols-1 gap-0.5 p-1.5 sm:grid-cols-2">
+                          {/* `presentation`: siatka jest układem, nie treścią -
+                              bez tego opcje nie są WŁASNOŚCIĄ grupy i axe
+                              zgłasza `aria-required-children`. */}
+                          <div
+                            role="presentation"
+                            className="grid grid-cols-1 gap-0.5 p-1.5 sm:grid-cols-2"
+                          >
                             {g.items.map((it) => {
                               const active = picked.has(it.id);
                               return (
@@ -334,12 +359,28 @@ export function TopicsDroplist({
                                     active ? "bg-brand/10 text-brand" : "hover:bg-accent",
                                   )}
                                 >
-                                  <Checkbox
-                                    checked={active}
-                                    tabIndex={-1}
-                                    aria-hidden="true"
-                                    className="pointer-events-none h-[16px] w-[16px]"
-                                  />
+                                  {/* WSKAŹNIK, NIE KONTROLKA. Wcześniej stał tu
+                                      `Checkbox` z Radiksa: pole wyboru BEZ NAZWY
+                                      zagnieżdżone w przycisku opcji, czyli
+                                      kontrolka w kontrolce (axe:
+                                      `nested-interactive` oraz
+                                      `aria-input-field-name`). `aria-hidden`
+                                      i `tabIndex={-1}` tego nie naprawiały, bo
+                                      Radix i tak renderował `role="checkbox"`.
+                                      Stan zaznaczenia niesie `aria-selected`
+                                      na samej opcji - ten kwadracik jest już
+                                      wyłącznie obrazkiem. */}
+                                  <span
+                                    aria-hidden
+                                    className={cn(
+                                      "flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-[4px] border",
+                                      active
+                                        ? "border-brand bg-brand text-brand-foreground"
+                                        : "border-border",
+                                    )}
+                                  >
+                                    {active ? <Check className="h-3 w-3" /> : null}
+                                  </span>
                                   <span className="min-w-0 flex-1 truncate">{it.label}</span>
                                 </button>
                               );

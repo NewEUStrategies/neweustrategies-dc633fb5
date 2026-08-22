@@ -10,23 +10,22 @@
 // jeszcze nie ma".
 //
 //   1. WYNIK, KTÓREGO NIE MA, TO NIE WYNIK, KTÓREGO NIE UDAŁO SIĘ ODCZYTAĆ.
-//      Awaria odczytu `personality_results` przenosi użytkownika na CZYSTY
-//      quiz - dokładnie tak, jakby nigdy go nie wypełnił. Konsekwencja: osoba
-//      z zapisanym profilem osobowości widzi „wypełnij test", wypełnia go
-//      ponownie i NADPISUJE swój wynik (historia jest append-only, więc zostaje
-//      w niej podejście wykonane wyłącznie dlatego, że baza chwilowo nie
-//      odpowiedziała). Zgłoszone jako `it.fails`.
-//   2. PUSTA LISTA PYTAŃ NIE MOŻE DAWAĆ AKTYWNEGO ZAPISU. `isComplete` na
-//      pustej liście pytań jest prawdziwe (`[].every` = true), więc awaria
-//      odczytu `personality_questions` daje quiz bez pytań, AKTYWNY przycisk
-//      „Zapisz" i wynik 0/0/0/0/0 w bazie oraz w append-only historii.
-//      Konsekwencja: sfabrykowany profil osobowości, którego użytkownik nigdy
-//      nie wypełnił. Zgłoszone jako `it.fails`.
-//   3. ZAPIS, KTÓRY NIC NIE ROBI, MUSI TO POWIEDZIEĆ. Gdy odczyt `tenant_id`
-//      z `profiles` padnie, `onSubmit` wychodzi cichym `return` - trzydzieści
-//      odpowiedzi, klik i ZERO reakcji. Konsekwencja: użytkownik klika
-//      w kółko, nie wiedząc, że zapis nie ma dokąd trafić. Zgłoszone jako
-//      `it.fails`.
+//      Awaria odczytu `personality_results` przenosiła użytkownika na CZYSTY
+//      quiz - dokładnie tak, jakby nigdy go nie wypełnił. Osoba z zapisanym
+//      profilem widziała „wypełnij test", wypełniała go i NADPISYWAŁA swój
+//      wynik; historia jest append-only, więc zostawało w niej podejście
+//      wykonane wyłącznie dlatego, że baza chwilowo nie odpowiedziała.
+//      NAPRAWIONE: awaria odczytu wyniku zamyka quiz i daje ponowienie.
+//   2. PUSTA LISTA PYTAŃ NIE DAJE AKTYWNEGO ZAPISU. `isComplete` na pustej
+//      liście było prawdziwe (`[].every` = true), więc awaria odczytu
+//      `personality_questions` dawała quiz bez pytań, AKTYWNY przycisk
+//      „Zapisz" i wynik 0/0/0/0/0 w bazie oraz w append-only historii -
+//      sfabrykowany profil, którego użytkownik nigdy nie wypełnił.
+//      NAPRAWIONE w czystym module (`isComplete`) i w trasie (osobny stan).
+//   3. ZAPIS, KTÓRY NIC NIE ROBI, MÓWI TO WPROST. Gdy odczyt `tenant_id`
+//      z `profiles` padał, `onSubmit` wychodził cichym `return` - trzydzieści
+//      odpowiedzi, klik i ZERO reakcji. NAPRAWIONE: komunikat z klucza i18n,
+//      odpowiedzi zachowane.
 //   4. SZKIC PRZEŻYWA PRZEŁADOWANIE, ALE NIE PRZEŻYWA UŚMIECHU AWARII.
 //      Odpowiedzi lecą do `localStorage` po każdej zmianie; uszkodzony wpis
 //      (nie-JSON, nie-obiekt, wartości poza 1..5) MUSI dać pusty quiz, a nie
@@ -376,49 +375,100 @@ describe("/profile/personality - trzy rozłączne stany odczytu", () => {
     expect(h.toastError).not.toHaveBeenCalled();
   });
 
-  it.fails(
-    "DEFEKT: awaria odczytu wyniku wygląda IDENTYCZNIE jak „nie wypełniłeś testu”",
-    async () => {
-      // CO JEST ZŁAMANE. `qPrev` rzuca na błędzie innym niż PGRST116, ale trasa
-      // czyta wyłącznie `qPrev.data`. Brak danych = tryb „quiz", więc awaria
-      // odczytu (RLS, timeout, 500) daje ten sam ekran co pierwsza wizyta.
-      //
-      // JAKA KONSEKWENCJA DLA UŻYTKOWNIKA. Osoba z zapisanym profilem widzi
-      // „wypełnij test", wypełnia go i NADPISUJE swój wynik. Historia jest
-      // append-only i wypełniana triggerem, więc zostaje w niej podejście
-      // wykonane tylko dlatego, że baza chwilowo nie odpowiedziała - a wykres
-      // zmian osobowości w czasie pokazuje skok, którego nie było.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Wybór zachowania przy nieczytelnym wyniku jest
-      // decyzją produktową (zablokować quiz? pokazać wynik z cache? pozwolić
-      // wypełnić, ale nie nadpisywać?), a nie brakiem w teście.
-      db().setResponse("personality_results", fail("permission denied", "42501"));
-      await mount();
-      await waitFor(() => expect(screen.getByText("profile.personality.title")).toBeTruthy());
-      // Czegokolwiek, co mówi „nie udało się odczytać" - dziś nie ma nic.
-      expect(screen.queryByText(/error|failed|blad|błąd/i)).not.toBeNull();
-    },
-  );
+  it("AWARIA ODCZYTU WYNIKU nie otwiera quizu - nie da się nadpisać wyniku", async () => {
+    // NAPRAWIONE. Wcześniej `qPrev` rzucał na błędzie innym niż PGRST116, a
+    // trasa czytała wyłącznie `qPrev.data`: brak danych = tryb „quiz", więc
+    // awaria odczytu (RLS, timeout, 500) dawała ten sam ekran co pierwsza
+    // wizyta. Osoba z zapisanym profilem widziała „wypełnij test", wypełniała
+    // go i NADPISYWAŁA swój wynik - a historia jest append-only i wypełniana
+    // triggerem, więc zostawało w niej podejście wykonane wyłącznie dlatego,
+    // że baza chwilowo nie odpowiedziała.
+    //
+    // Wybrane zachowanie: quiz ZOSTAJE ZAMKNIĘTY. To jedyny wariant, w którym
+    // zapisany wynik nie może zniknąć - „pozwól wypełnić, ale nie nadpisuj"
+    // wymagałoby drugiego trybu zapisu, a „pokaż wynik z cache" pokazywałby
+    // dane, o których nie wiemy, czy są aktualne.
+    db().setResponse("personality_results", fail("permission denied", "42501"));
+    await mount();
+    await waitFor(() => expect(screen.getByText("personality.readFailedTitle")).toBeTruthy());
+    expect(screen.getByRole("alert")).toBeTruthy();
+    // Ani jednego pytania: nie ma czego wypełnić, więc nie ma czym nadpisać.
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByText("personality.dashboardTitle")).toBeNull();
+  });
 
-  it.fails("DEFEKT: awaria odczytu PYTAŃ daje aktywny zapis wyniku 0/0/0/0/0", async () => {
-    // CO JEST ZŁAMANE. `isComplete(answers, [])` to `[].every(...)`, czyli
-    // PRAWDA. Gdy odczyt `personality_questions` padnie (albo tabela wróci
-    // pusta), quiz renderuje się bez ani jednego pytania, przycisk „Zapisz"
-    // jest AKTYWNY, a `scoreAnswers({}, [])` zwraca zera na wszystkich osiach.
-    //
-    // JAKA KONSEKWENCJA DLA UŻYTKOWNIKA. Jedno kliknięcie zapisuje profil
-    // osobowości 0/0/0/0/0 - wynik, którego nikt nie wypełnił - do
-    // `personality_results` ORAZ do append-only historii. Pulpit pokaże go
-    // jako „niski" na wszystkich pięciu osiach i tego wpisu nie da się już
-    // z historii usunąć z interfejsu.
-    //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka dotyka kontraktu `isComplete` dla
-    // pustej listy (biblioteka na progu 100% z własnym plikiem testowym) albo
-    // wymaga w trasie osobnego stanu „brak pytań" - to decyzja projektowa.
+  it("awaria odczytu wyniku daje DROGĘ WYJŚCIA: ponowienie odczytu", async () => {
+    // Ekran błędu bez ponowienia zmusza do przeładowania całej strony -
+    // a przy odczycie, który padł raz, ponowienie zwykle wystarcza.
+    let attempts = 0;
+    db().setResponse("personality_results", () => {
+      attempts += 1;
+      return attempts === 1 ? fail("timeout", "57014") : ok(RESULT);
+    });
+    await mount();
+    await waitFor(() => expect(screen.getByText("personality.readFailedTitle")).toBeTruthy());
+    fireEvent.click(screen.getByText("personality.readFailedRetry"));
+    await waitFor(() => expect(screen.getByText("personality.dashboardTitle")).toBeTruthy());
+  });
+
+  it("AWARIA ODCZYTU PYTAŃ ma własny komunikat, odrębny od awarii wyniku", async () => {
+    // Dwie różne awarie, dwa różne zdania: przy nieczytelnych pytaniach wynik
+    // jest bezpieczny, a przy nieczytelnym wyniku - nie.
     db().setResponse("personality_questions", fail("relation missing", "42P01"));
     await mount();
-    await waitForQuiz(0);
-    expect(submitButton()).toBeDisabled();
+    await waitFor(() => expect(screen.getByText("personality.questionsFailedTitle")).toBeTruthy());
+    expect(screen.queryByText("personality.readFailedTitle")).toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+  });
+
+  it("awaria odczytu PYTAŃ też daje ponowienie odczytu", async () => {
+    let attempts = 0;
+    db().setResponse("personality_questions", () => {
+      attempts += 1;
+      return attempts === 1 ? fail("relation missing", "42P01") : ok(QUESTIONS);
+    });
+    await mount();
+    await waitFor(() => expect(screen.getByText("personality.questionsFailedTitle")).toBeTruthy());
+    fireEvent.click(screen.getByText("personality.readFailedRetry"));
+    await waitForQuiz();
+  });
+
+  it("nieczytelny WYNIK wychodzi PRZED nieczytelnymi pytaniami", async () => {
+    // Kolejność jest częścią kontraktu: nadpisanie wyniku jest jedyną
+    // nieodwracalną konsekwencją w tym zestawie, więc mówimy o nim pierwsi.
+    db().setResponse("personality_results", fail("permission denied", "42501"));
+    db().setResponse("personality_questions", fail("relation missing", "42P01"));
+    await mount();
+    await waitFor(() => expect(screen.getByText("personality.readFailedTitle")).toBeTruthy());
+    expect(screen.queryByText("personality.questionsFailedTitle")).toBeNull();
+  });
+
+  it("PUSTA lista pytań po UDANYM odczycie to nie awaria, ale i nie quiz", async () => {
+    // Instalacja bez opublikowanego kwestionariusza: żadnego alarmu o błędzie,
+    // ale też żadnego przycisku zapisu (patrz test niżej - wynik 0/0/0/0/0).
+    db().setResponse("personality_questions", ok([]));
+    await mount();
+    await waitFor(() => expect(screen.getByText("personality.questionsEmptyTitle")).toBeTruthy());
+    expect(screen.queryByText("personality.questionsFailedTitle")).toBeNull();
+    expect(h.toastError).not.toHaveBeenCalled();
+  });
+
+  it("PYTAŃ NIE MA, więc NIE MA CZEGO ZAPISAĆ - żadnego wyniku 0/0/0/0/0", async () => {
+    // NAPRAWIONE w dwóch miejscach. `isComplete(answers, [])` było
+    // `[].every(...)`, czyli PRAWDĄ: quiz bez ani jednego pytania uznawał się
+    // za wypełniony, przycisk „Zapisz" był AKTYWNY, a `scoreAnswers({}, [])`
+    // zwracało zera na wszystkich osiach. Jedno kliknięcie zapisywało profil
+    // osobowości 0/0/0/0/0 - wynik, którego nikt nie wypełnił - do
+    // `personality_results` ORAZ do append-only historii, skąd nie da się go
+    // usunąć z interfejsu.
+    //
+    // Teraz `isComplete` odrzuca pustą listę pytań (czysty moduł, własna tabela
+    // przypadków), a trasa w ogóle nie renderuje quizu bez pytań.
+    db().setResponse("personality_questions", fail("relation missing", "42P01"));
+    await mount();
+    await waitFor(() => expect(screen.getByText("personality.questionsFailedTitle")).toBeTruthy());
+    // Nie ma przycisku zapisu, więc nie ma jak sfabrykować wyniku.
+    expect(screen.queryByText("profile.personality.submit")).toBeNull();
   });
 
   it("AWARIA ODCZYTU HISTORII nie zabiera pulpitu - paski cech zostają", async () => {
@@ -773,30 +823,48 @@ describe("/profile/personality - zapis wyniku", () => {
     expect(screen.queryByText("personality.dashboardTitle")).toBeNull();
   });
 
-  it.fails(
-    "DEFEKT: bez odczytanego `tenant_id` klik „Zapisz” nic nie robi i NIC nie mówi",
-    async () => {
-      // CO JEST ZŁAMANE. `onSubmit` zaczyna się od `if (!user ||
-      // !profileQ.data?.tenant_id) return;` - CICHEGO wyjścia. Gdy odczyt
-      // `profiles` padnie (RLS, timeout, brak wiersza profilu), przycisk jest
-      // aktywny, bo `complete` liczy się z odpowiedzi, nie z gotowości zapisu.
-      //
-      // JAKA KONSEKWENCJA DLA UŻYTKOWNIKA. Wypełnia cały test, klika „Zapisz"
-      // i NIC się nie dzieje: żadnego komunikatu, żadnej zmiany ekranu, żadnego
-      // zapytania do bazy. Klika drugi i trzeci raz, po czym zamyka kartę
-      // z przekonaniem, że aplikacja jest zepsuta - i ma rację, tylko nie ma
-      // z czego tego wyczytać.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Wybór między „zablokuj przycisk", „powiedz
-      // o awarii" i „spróbuj odczytać tenanta ponownie" jest decyzją
-      // projektową; test ma ten stan opisać, a nie przesądzić.
-      db().setResponse("profiles", fail("permission denied", "42501"));
-      await mount();
-      await fillAll(5);
-      fireEvent.click(submitButton());
-      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    },
-  );
+  it("bez odczytanego `tenant_id` klik „Zapisz” MÓWI, że zapis się nie udał", async () => {
+    // NAPRAWIONE. `onSubmit` zaczynał się od `if (!user ||
+    // !profileQ.data?.tenant_id) return;` - CICHEGO wyjścia. Gdy odczyt
+    // `profiles` padał (RLS, timeout, brak wiersza profilu), przycisk był
+    // aktywny, bo `complete` liczy się z odpowiedzi, nie z gotowości zapisu.
+    // Użytkownik wypełniał cały test, klikał „Zapisz" i NIC się nie działo:
+    // żadnego komunikatu, żadnej zmiany ekranu, żadnego zapytania do bazy.
+    db().setResponse("profiles", fail("permission denied", "42501"));
+    await mount();
+    await fillAll(5);
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("personality.saveUnavailable"));
+  });
+
+  it("nieudany zapis z braku tenanta NIE KASUJE odpowiedzi", async () => {
+    // Komunikat bez zachowanych odpowiedzi byłby tylko uprzejmiejszą wersją
+    // tej samej straty: trzydzieści decyzji do wpisania od nowa.
+    db().setResponse("profiles", fail("permission denied", "42501"));
+    await mount();
+    await fillAll(5);
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(window.localStorage.getItem(DRAFT_KEY)).toBe(
+      JSON.stringify({ 1: 5, 2: 5, 3: 5, 4: 5, 5: 5 }),
+    );
+    expect(screen.getByText("profile.personality.progress(done=5,total=5)")).toBeTruthy();
+  });
+
+  it("niekompletne odpowiedzi NIE dają komunikatu o braku tenanta", async () => {
+    // Zaporą przy niekompletnym zestawie jest WYŁĄCZONY przycisk (`!complete`),
+    // nie komunikat - i to jest właściwa kolejność: użytkownik, który po prostu
+    // nie skończył, nie może usłyszeć „nie możemy zapisać Twojego wyniku".
+    // Strażnik `requireAll` w `onSubmit` zostaje jako obrona na wypadek
+    // przestawienia tego warunku, ale wejścia z interfejsu nie ma.
+    db().setResponse("profiles", fail("permission denied", "42501"));
+    await mount();
+    await waitForQuiz();
+    for (const index of [1, 2, 3]) answer(index, 5);
+    expect(submitButton()).toBeDisabled();
+    fireEvent.click(submitButton());
+    expect(h.toastError).not.toHaveBeenCalled();
+  });
 
   it("zapytanie o wynik i o tenanta jest ZAWĘŻONE do zalogowanego użytkownika", async () => {
     // Payload odczytu: bez `.eq(user_id)` pulpit czytałby cudzy profil (RLS by

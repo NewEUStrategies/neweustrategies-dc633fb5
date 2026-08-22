@@ -79,10 +79,21 @@ export function scoreAnswers(
   };
 }
 
+/**
+ * Czy zestaw odpowiedzi pozwala policzyć wynik.
+ *
+ * PUSTA LISTA PYTAŃ NIE JEST KOMPLETNA. `[].every(...)` jest prawdziwe, więc
+ * bez tego warunku kwestionariusz BEZ PYTAŃ - a taki powstaje przy nieudanym
+ * odczycie `personality_questions` - uznawał się za wypełniony. Konsekwencją
+ * był aktywny przycisk zapisu i wynik 0/0/0/0/0 wpisany do bazy ORAZ do
+ * append-only historii: sfabrykowany profil osobowości, którego użytkownik
+ * nigdy nie wypełnił i którego nie da się z historii usunąć.
+ */
 export function isComplete(
   answers: Record<number, number>,
   questions: ReadonlyArray<PersonalityQuestion>,
 ): boolean {
+  if (questions.length === 0) return false;
   return questions.every((q) => {
     const v = answers[q.id];
     return typeof v === "number" && v >= 1 && v <= 5;
