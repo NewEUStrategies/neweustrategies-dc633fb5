@@ -91,18 +91,18 @@ z dwóch punktów widzenia: bramki statycznej i zamontowanej trasy). Każdy ma
 To najczęstszy defekt tego obszaru i jednocześnie najgroźniejszy, bo w panelu
 ustawień **pustka jest zaproszeniem do zapisu**:
 
-| miejsce | skutek |
-| --- | --- |
-| `admin.greetings.tsx:73-95` | awaria odczytu wygląda jak słownik domyślny; pierwszy „Zapisz" wysyła dokładnie `DEFAULT_GREETINGS` i nadpisuje słownik najemcy |
-| `admin.personalized.tsx:29-43` | to samo, z `allowGuests: false` w komplecie - personalizacja gościom zostaje wyłączona |
-| `admin.organizations.$id.tsx:1085` | odmowa RLS na miejscach wygląda jak organizacja BEZ KONT („dodaj pierwsze konto", licznik `0/5`); administrator zaprasza ludzi od nowa |
-| `admin.organizations.$id.tsx:154,157` | gałąź „organizacji nie ma" jest KODEM MARTWYM - karta cudzej organizacji stoi na „wczytywanie" na zawsze |
-| `admin.users.index.tsx` | awaria `admin_list_users` renderuje się jako lista pusta (czytane jest tylko `data`) |
-| `admin.integrations` (odczyt endpointów) | „brak endpointów" zamiast błędu |
-| `admin.integrations` (odczyt kolejki) | czwórka zer zamiast błędu |
-| `lib/builder/popups.ts:220-238` + `admin.popups.tsx:226-228` | odmowa RLS wygląda jak „brak popupów"; kampanie lecą czytelnikom, a ekran do ich wyłączenia milczy |
-| `admin.audience.tsx:102,286` | odmowa RPC serii i retencji renderuje „brak danych" - fałszywe twierdzenie w raporcie, uwiarygodnione poprawnym lejkiem obok |
-| `admin.users.index.tsx` | jeden komunikat na „brak użytkowników" i „brak trafień filtra" |
+| miejsce                                                      | skutek                                                                                                                                 |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin.greetings.tsx:73-95`                                  | awaria odczytu wygląda jak słownik domyślny; pierwszy „Zapisz" wysyła dokładnie `DEFAULT_GREETINGS` i nadpisuje słownik najemcy        |
+| `admin.personalized.tsx:29-43`                               | to samo, z `allowGuests: false` w komplecie - personalizacja gościom zostaje wyłączona                                                 |
+| `admin.organizations.$id.tsx:1085`                           | odmowa RLS na miejscach wygląda jak organizacja BEZ KONT („dodaj pierwsze konto", licznik `0/5`); administrator zaprasza ludzi od nowa |
+| `admin.organizations.$id.tsx:154,157`                        | gałąź „organizacji nie ma" jest KODEM MARTWYM - karta cudzej organizacji stoi na „wczytywanie" na zawsze                               |
+| `admin.users.index.tsx`                                      | awaria `admin_list_users` renderuje się jako lista pusta (czytane jest tylko `data`)                                                   |
+| `admin.integrations` (odczyt endpointów)                     | „brak endpointów" zamiast błędu                                                                                                        |
+| `admin.integrations` (odczyt kolejki)                        | czwórka zer zamiast błędu                                                                                                              |
+| `lib/builder/popups.ts:220-238` + `admin.popups.tsx:226-228` | odmowa RLS wygląda jak „brak popupów"; kampanie lecą czytelnikom, a ekran do ich wyłączenia milczy                                     |
+| `admin.audience.tsx:102,286`                                 | odmowa RPC serii i retencji renderuje „brak danych" - fałszywe twierdzenie w raporcie, uwiarygodnione poprawnym lejkiem obok           |
+| `admin.users.index.tsx`                                      | jeden komunikat na „brak użytkowników" i „brak trafień filtra"                                                                         |
 
 W rodzinie organizacji ta klasa występuje **cztery** razy; zgłoszone są dwa
 wystąpienia (oba na karcie), bo dwóch odczytów listy zadanie nie obejmowało -
@@ -110,53 +110,53 @@ nagłówek pliku testowego mówi to wprost, żeby naprawa objęła wszystkie czt
 
 ### 3.2 Izolacja najemcy i zakres operacji (2)
 
-| miejsce | skutek |
-| --- | --- |
+| miejsce                                                                           | skutek                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `admin.organizations.$id.tsx:1008-1025` + `lib/organizations/teamSeats.server.ts` | „domknij zaległe" i „wyślij przypomnienia" w karcie organizacji A działają na `organization_seats` klientem serwisowym BEZ zawężenia do organizacji ani najemcy: gaszą dostęp i wysyłają maile także w organizacjach B i C, **u innych najemców** - a komunikat sugeruje zasięg jednej organizacji |
-| `lib/authz/permissionMatrix.ts:394,404` | kafel KPI „Bramki bez `current_tenant_id()`" liczy WIERSZE, nie BRAMKI: na żywym snapshocie bez odniesienia do tenanta jest 25 bramek, a audytor widzi 23 - `pro_briefings` (3 bramki) i `chat_direct_gated` (2) zwijają się do jednej pozycji każda |
+| `lib/authz/permissionMatrix.ts:394,404`                                           | kafel KPI „Bramki bez `current_tenant_id()`" liczy WIERSZE, nie BRAMKI: na żywym snapshocie bez odniesienia do tenanta jest 25 bramek, a audytor widzi 23 - `pro_briefings` (3 bramki) i `chat_direct_gated` (2) zwijają się do jednej pozycji każda                                               |
 
 ### 3.3 Rola i dostęp (3)
 
-| miejsce | skutek |
-| --- | --- |
-| `admin.users.index.tsx:799-822` | droplista zmiany roli renderuje się KAŻDEMU członkowi personelu (sprawdzane jest tylko `u.id === user?.id`); ten sam defekt bramka wyłapała wcześniej na karcie `$id` |
-| `admin.greetings.tsx` | trasa zawężona w nawigacji do `isAdmin` (`lib/admin/adminNav.ts:207-209`) nie sprawdza roli w ogóle: redaktor dostaje w pełni czynny formularz zmiany treści serwisu |
-| `admin.settings.seo.tsx:21`, `site-identity.tsx:22`, `social-preview.tsx:32` | `head()` z tytułem, ale bez `robots: noindex`, choć reszta rodziny go ma - a `head()` renderuje się serwerowo, PRZED klientowym przekierowaniem z `/admin` |
+| miejsce                                                                      | skutek                                                                                                                                                                |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin.users.index.tsx:799-822`                                              | droplista zmiany roli renderuje się KAŻDEMU członkowi personelu (sprawdzane jest tylko `u.id === user?.id`); ten sam defekt bramka wyłapała wcześniej na karcie `$id` |
+| `admin.greetings.tsx`                                                        | trasa zawężona w nawigacji do `isAdmin` (`lib/admin/adminNav.ts:207-209`) nie sprawdza roli w ogóle: redaktor dostaje w pełni czynny formularz zmiany treści serwisu  |
+| `admin.settings.seo.tsx:21`, `site-identity.tsx:22`, `social-preview.tsx:32` | `head()` z tytułem, ale bez `robots: noindex`, choć reszta rodziny go ma - a `head()` renderuje się serwerowo, PRZED klientowym przekierowaniem z `/admin`            |
 
 ### 3.4 Cicha utrata danych i cisza po odmowie (9)
 
-| miejsce | skutek |
-| --- | --- |
-| `admin.organizations.$id.tsx:107` | łatka zapisu niesie CAŁY draft: klient dopłaca do 8 miejsc, a zapis poprawki miasta wpisuje z powrotem 5, omijając `org_set_seats_limit`; przycisk zapisu aktywuje się sam |
-| `admin.personalized.tsx:36-40,185` | częściowy `sections` w bazie WYWALA panel (płaskie scalanie), choć czytelnik publiczny to przeżywa (`deepMerge`) - konfiguracji nie da się naprawić z interfejsu |
-| `admin.names.tsx:352-372` | odmowa bazy w trakcie importu liczy się jako „pominięto" i kończy komunikatem SUKCESU („dodano 0, pominięto 120") |
-| `admin.names.tsx:390-395` | udane usunięcie nie zdejmuje wiersza ze stanu ani nie potwierdza niczego; wiersz znika tylko zdarzeniem realtime, więc przy plakietce „Offline" nie znika nigdy |
-| `admin.names.tsx:305` | eksport po filtrze BEZ wyników oddaje CAŁY słownik (`filtered.length ? filtered : rows` skleja „nie filtrowano" z „nic nie znaleziono") |
-| `admin.integrations` (przełącznik) | nieudane przełączenie MILCZY - mutacja nie ma `onError` |
-| `admin.greetings.tsx:111-116`, `admin.personalized.tsx:47-56` | zapis nie unieważnia cache czytelnika ustawień (`staleTime` 5 min): administrator zapisuje i przez pięć minut widzi stare wartości |
-| `impersonation.functions.ts:63` | `??` na komunikacie błędu przepuszcza `message: ""` - toast po nieudanym podszyciu jest PUSTY; ten sam wzorzec siedzi w `crm.functions.ts:631`, `invitations.functions.ts:257`, `wp-media.server.ts:214` |
-| `contact.functions.ts:441-446` | `confirmation_sent_at` stawia się, gdy wyszło POWIADOMIENIE DLA REDAKCJI, więc panel pokazuje „Potwierdzenie wysłane" przy zgłoszeniu, do którego nadawca nic nie dostał |
+| miejsce                                                       | skutek                                                                                                                                                                                                   |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin.organizations.$id.tsx:107`                             | łatka zapisu niesie CAŁY draft: klient dopłaca do 8 miejsc, a zapis poprawki miasta wpisuje z powrotem 5, omijając `org_set_seats_limit`; przycisk zapisu aktywuje się sam                               |
+| `admin.personalized.tsx:36-40,185`                            | częściowy `sections` w bazie WYWALA panel (płaskie scalanie), choć czytelnik publiczny to przeżywa (`deepMerge`) - konfiguracji nie da się naprawić z interfejsu                                         |
+| `admin.names.tsx:352-372`                                     | odmowa bazy w trakcie importu liczy się jako „pominięto" i kończy komunikatem SUKCESU („dodano 0, pominięto 120")                                                                                        |
+| `admin.names.tsx:390-395`                                     | udane usunięcie nie zdejmuje wiersza ze stanu ani nie potwierdza niczego; wiersz znika tylko zdarzeniem realtime, więc przy plakietce „Offline" nie znika nigdy                                          |
+| `admin.names.tsx:305`                                         | eksport po filtrze BEZ wyników oddaje CAŁY słownik (`filtered.length ? filtered : rows` skleja „nie filtrowano" z „nic nie znaleziono")                                                                  |
+| `admin.integrations` (przełącznik)                            | nieudane przełączenie MILCZY - mutacja nie ma `onError`                                                                                                                                                  |
+| `admin.greetings.tsx:111-116`, `admin.personalized.tsx:47-56` | zapis nie unieważnia cache czytelnika ustawień (`staleTime` 5 min): administrator zapisuje i przez pięć minut widzi stare wartości                                                                       |
+| `impersonation.functions.ts:63`                               | `??` na komunikacie błędu przepuszcza `message: ""` - toast po nieudanym podszyciu jest PUSTY; ten sam wzorzec siedzi w `crm.functions.ts:631`, `invitations.functions.ts:257`, `wp-media.server.ts:214` |
+| `contact.functions.ts:441-446`                                | `confirmation_sent_at` stawia się, gdy wyszło POWIADOMIENIE DLA REDAKCJI, więc panel pokazuje „Potwierdzenie wysłane" przy zgłoszeniu, do którego nadawca nic nie dostał                                 |
 
 ### 3.5 Reguły tekstu, sluga i wyszukiwania (7)
 
-| miejsce | skutek |
-| --- | --- |
-| `invitations.functions.ts:36-44` | `slugify` zamienia `ł`/`Ł` na myślnik: „Michał Kowalski" → `micha-kowalski`, „Łukasz Dąbrowski" → `ukasz-dabrowski`; slug jest publicznym adresem autora, a funkcja biegnie na OBU ścieżkach tworzenia konta |
-| `admin.organizations.new.tsx` vs `invitations.functions.ts` | dwie różne reguły sluga w jednym panelu: ten sam napis daje dwa różne adresy publiczne |
-| `namesCsv.ts` (separator) | plik z `;` jest odrzucany w całości, mimo że eksport tego samego panelu cytuje `;` |
-| `namesCsv.ts` (dedupe) | duplikat `key` W JEDNYM PLIKU nie jest scalany, tylko liczony dwa razy |
-| `namesCsv.ts` (flaga złożenia) | sama flaga złożenia rozjeżdża podgląd z zapisem |
-| `lib/admin/community.ts` | fraza z panelu nie przechodzi przez `escapeLike`: `%` z wejścia działa jak wildcard |
-| `lib/admin/pageTopics.ts:154,172,173,191,261-268` | filtr serwera i plakietka wiersza liczą temat dwiema drogami; na zachodzących wzorcach zakładka zwraca stronę, której plakietka wskazuje inny temat, a licznik nie zgadza się z liczbą wierszy |
+| miejsce                                                     | skutek                                                                                                                                                                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `invitations.functions.ts:36-44`                            | `slugify` zamienia `ł`/`Ł` na myślnik: „Michał Kowalski" → `micha-kowalski`, „Łukasz Dąbrowski" → `ukasz-dabrowski`; slug jest publicznym adresem autora, a funkcja biegnie na OBU ścieżkach tworzenia konta |
+| `admin.organizations.new.tsx` vs `invitations.functions.ts` | dwie różne reguły sluga w jednym panelu: ten sam napis daje dwa różne adresy publiczne                                                                                                                       |
+| `namesCsv.ts` (separator)                                   | plik z `;` jest odrzucany w całości, mimo że eksport tego samego panelu cytuje `;`                                                                                                                           |
+| `namesCsv.ts` (dedupe)                                      | duplikat `key` W JEDNYM PLIKU nie jest scalany, tylko liczony dwa razy                                                                                                                                       |
+| `namesCsv.ts` (flaga złożenia)                              | sama flaga złożenia rozjeżdża podgląd z zapisem                                                                                                                                                              |
+| `lib/admin/community.ts`                                    | fraza z panelu nie przechodzi przez `escapeLike`: `%` z wejścia działa jak wildcard                                                                                                                          |
+| `lib/admin/pageTopics.ts:154,172,173,191,261-268`           | filtr serwera i plakietka wiersza liczą temat dwiema drogami; na zachodzących wzorcach zakładka zwraca stronę, której plakietka wskazuje inny temat, a licznik nie zgadza się z liczbą wierszy               |
 
 ### 3.6 Komunikaty i i18n (4)
 
-| miejsce | skutek |
-| --- | --- |
-| `admin.users.*` (`changeRole`) | surowy komunikat Postgresa na ekranie zamiast klucza tłumaczenia |
-| `admin.names.tsx` (`load`, `addOne`, `updateRow`, `deleteRow`) | to samo: tekst PostgreSQL-a z nazwą polityki i tabeli w panelu, który cały jest dwujęzyczny |
+| miejsce                                                                  | skutek                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `admin.users.*` (`changeRole`)                                           | surowy komunikat Postgresa na ekranie zamiast klucza tłumaczenia                                                                                                                           |
+| `admin.names.tsx` (`load`, `addOne`, `updateRow`, `deleteRow`)           | to samo: tekst PostgreSQL-a z nazwą polityki i tabeli w panelu, który cały jest dwujęzyczny                                                                                                |
 | `admin.greetings.tsx:151-177` + `lib/greetings/greetings.ts:203,259-261` | podgląd pokazuje „Anna" tam, gdzie panel obiecuje wołacz „Anno"; administrator „naprawia" to wpisując wołacz na sztywno we wzorzec i od tej pory KAŻDY czytelnik jest witany imieniem Anna |
-| `admin.greetings.tsx:47-62` vs `281,293-295` | pora dnia z samych białych znaków blokuje zapis, ale żadna sekcja nie jest oznaczona - jedyne wyjście to „Przywróć domyślne", czyli utrata całego słownika |
+| `admin.greetings.tsx:47-62` vs `281,293-295`                             | pora dnia z samych białych znaków blokuje zapis, ale żadna sekcja nie jest oznaczona - jedyne wyjście to „Przywróć domyślne", czyli utrata całego słownika                                 |
 
 ### 3.7 Kontrakt wyniku (1)
 
@@ -177,48 +177,48 @@ nieosiągalna" i „brak skonfigurowanego adresata". Ścieżka newslettera pole
 
 ### 4.1 Powierzchnie (pomiar v8, plik po pliku, 2026-08-22)
 
-| powierzchnia | linie przed | linie po | gałęzie przed | gałęzie po |
-| --- | ---: | ---: | ---: | ---: |
-| `routes/admin.users*` | 0% | **99,78%** | 0% | **95,09%** |
-| `components/admin/users/**` | 0% | **98,09%** | 0% | **96,77%** |
-| `lib/admin/invitations.functions.ts` | 0% | **100%** | 0% | **97,61%** |
-| `lib/consent*` + `lib/legal/**` | 45,87% | **99,69%** | 44% | **95,31%** |
-| `routes/admin.settings*` (15 tras) | 0% | **97,25%** | 24,5% | **95,08%** |
-| `lib/admin/useSettings.ts` | 0% | **100%** | 0% | **100%** |
-| `routes/admin.integrations.tsx` | 0% | **99,15%** | 0% | **95,04%** |
-| `lib/integrations/dispatch.functions.ts` | 0% | **100%** | 0% | **100%** |
-| `routes/admin.names.tsx` | 0% | **100%** | 0% | **98,83%** |
-| `lib/admin/namesCsv.ts` | (nowy) | **100%** | — | **99,35%** |
-| `routes/admin.organizations*` (3 trasy) | 39,80% | **99,67%** | 30,30% | **98,65%** |
-| — w tym `admin.organizations.$id.tsx` | 2,13% | **99,46%** | 0% | **98,53%** |
-| `routes/admin.audience/personalized/popups/greetings` | 0% | **99,24%** | 0% | **96,90%** |
-| `lib/admin/community.ts` | ~7% | **100%** | ~7% | **99,63%** |
-| `lib/admin/membership-admin.ts` | 0% | **100%** | 0% | **100%** |
-| `lib/admin/pageTopics.ts` | 100% | **100%** | 79,16% | **100%** |
-| `lib/admin/impersonation.functions.ts` | 0% | **100%** | 0% | **100%** |
-| `lib/admin/consentAudit.{functions,server}.ts` | 0% | **100%** | 0% | **100%** |
-| `lib/admin/network.ts` | 0% | **100%** | 0% | **100%** |
-| `lib/joinUsSync.functions.ts` | 0% | **100%** | 0% | **100%** |
-| `lib/contact.functions.ts` | ~4% | **100%** | ~4% | **98,96%** |
-| `lib/authz/**` | 86,80% | **100%** | 77,14% | **100%** |
-| — w tym `permissionMatrix.ts` | 95,86% | **100%** | 82,30% | **100%** |
+| powierzchnia                                          | linie przed |   linie po | gałęzie przed | gałęzie po |
+| ----------------------------------------------------- | ----------: | ---------: | ------------: | ---------: |
+| `routes/admin.users*`                                 |          0% | **99,78%** |            0% | **95,09%** |
+| `components/admin/users/**`                           |          0% | **98,09%** |            0% | **96,77%** |
+| `lib/admin/invitations.functions.ts`                  |          0% |   **100%** |            0% | **97,61%** |
+| `lib/consent*` + `lib/legal/**`                       |      45,87% | **99,69%** |           44% | **95,31%** |
+| `routes/admin.settings*` (15 tras)                    |          0% | **97,25%** |         24,5% | **95,08%** |
+| `lib/admin/useSettings.ts`                            |          0% |   **100%** |            0% |   **100%** |
+| `routes/admin.integrations.tsx`                       |          0% | **99,15%** |            0% | **95,04%** |
+| `lib/integrations/dispatch.functions.ts`              |          0% |   **100%** |            0% |   **100%** |
+| `routes/admin.names.tsx`                              |          0% |   **100%** |            0% | **98,83%** |
+| `lib/admin/namesCsv.ts`                               |      (nowy) |   **100%** |             — | **99,35%** |
+| `routes/admin.organizations*` (3 trasy)               |      39,80% | **99,67%** |        30,30% | **98,65%** |
+| — w tym `admin.organizations.$id.tsx`                 |       2,13% | **99,46%** |            0% | **98,53%** |
+| `routes/admin.audience/personalized/popups/greetings` |          0% | **99,24%** |            0% | **96,90%** |
+| `lib/admin/community.ts`                              |         ~7% |   **100%** |           ~7% | **99,63%** |
+| `lib/admin/membership-admin.ts`                       |          0% |   **100%** |            0% |   **100%** |
+| `lib/admin/pageTopics.ts`                             |        100% |   **100%** |        79,16% |   **100%** |
+| `lib/admin/impersonation.functions.ts`                |          0% |   **100%** |            0% |   **100%** |
+| `lib/admin/consentAudit.{functions,server}.ts`        |          0% |   **100%** |            0% |   **100%** |
+| `lib/admin/network.ts`                                |          0% |   **100%** |            0% |   **100%** |
+| `lib/joinUsSync.functions.ts`                         |          0% |   **100%** |            0% |   **100%** |
+| `lib/contact.functions.ts`                            |         ~4% |   **100%** |           ~4% | **98,96%** |
+| `lib/authz/**`                                        |      86,80% |   **100%** |        77,14% |   **100%** |
+| — w tym `permissionMatrix.ts`                         |      95,86% |   **100%** |        82,30% |   **100%** |
 
 ### 4.2 Testy
 
-| plik testowy | przypadki |
-| --- | ---: |
-| `routes/__tests__/adminUsersRoutes.test.tsx` | 151 |
-| `routes/__tests__/adminSettingsRoutes.test.tsx` | 225 |
-| `routes/__tests__/adminOrganizationsRoutes.test.tsx` | 210 |
-| `routes/__tests__/adminIntegrationsRoute.test.tsx` | ~120 |
-| `routes/__tests__/adminNamesRoute.test.tsx` | 120 |
-| `routes/__tests__/adminAudienceRoutes.test.tsx` | 133 |
-| `routes/__tests__/adminRouteAuthority.gate.test.ts` | 58 (było 21) |
-| `lib/admin/__tests__/invitationsFunctions.test.ts` | 204 |
-| `lib/__tests__/contactFunctions.test.ts` | 141 |
-| `lib/admin/__tests__/pageTopics.test.ts` | 321 |
-| `lib/authz/__tests__/*` | 184 |
-| pozostałe pliki modułu | ~700 |
+| plik testowy                                         |    przypadki |
+| ---------------------------------------------------- | -----------: |
+| `routes/__tests__/adminUsersRoutes.test.tsx`         |          151 |
+| `routes/__tests__/adminSettingsRoutes.test.tsx`      |          225 |
+| `routes/__tests__/adminOrganizationsRoutes.test.tsx` |          210 |
+| `routes/__tests__/adminIntegrationsRoute.test.tsx`   |         ~120 |
+| `routes/__tests__/adminNamesRoute.test.tsx`          |          120 |
+| `routes/__tests__/adminAudienceRoutes.test.tsx`      |          133 |
+| `routes/__tests__/adminRouteAuthority.gate.test.ts`  | 58 (było 21) |
+| `lib/admin/__tests__/invitationsFunctions.test.ts`   |          204 |
+| `lib/__tests__/contactFunctions.test.ts`             |          141 |
+| `lib/admin/__tests__/pageTopics.test.ts`             |          321 |
+| `lib/authz/__tests__/*`                              |          184 |
+| pozostałe pliki modułu                               |         ~700 |
 
 ---
 
