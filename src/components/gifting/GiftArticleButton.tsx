@@ -314,7 +314,7 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
                 copied={justCopied}
                 label={t("gifting.copyLink")}
                 copiedLabel={t("gifting.copied")}
-                onClick={() => void onCopy()}
+                onClick={() => void onCopyPlain()}
               />
             ) : (
               <button
