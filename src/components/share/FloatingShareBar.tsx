@@ -135,10 +135,7 @@ export function FloatingShareBar({
   // pilnować rozjazdu kod <-> słownik dla całej tej powierzchni. Sprawdzone:
   // wrapper wywalił bramkę na 28 kluczach.
   const { t: translate } = useTranslation();
-  const t = useMemo(
-    () => (key: string) => translate(key, { lng: lang }),
-    [translate, lang],
-  );
+  const t = useMemo(() => (key: string) => translate(key, { lng: lang }), [translate, lang]);
 
   // Re-read the URL when the article changes (entityId/title), not only on
   // mount - the post subtree is reused on client-side post->post navigation, so
@@ -640,7 +637,10 @@ export function FloatingShareBar({
 
           {/* ToC */}
           {hasToc && (
-            <nav aria-label={t("share.bar.toc")} className="overflow-y-auto px-2 py-1 flex-1 min-h-0">
+            <nav
+              aria-label={t("share.bar.toc")}
+              className="overflow-y-auto px-2 py-1 flex-1 min-h-0"
+            >
               <ul className="flex flex-col gap-0.5">
                 {items.map((it) => {
                   const isActive = active === it.id;
@@ -693,7 +693,8 @@ export function FloatingShareBar({
             <div className="border-t border-border/60 px-4 py-2.5 bg-muted/30">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
                 <span className="cms-widget-label font-semibold text-foreground tabular-nums shrink-0">
-                  {pct}% <span className="text-muted-foreground font-normal">{t("share.bar.read")}</span>
+                  {pct}%{" "}
+                  <span className="text-muted-foreground font-normal">{t("share.bar.read")}</span>
                 </span>
                 <span className="cms-widget-label text-muted-foreground truncate text-right min-w-0">
                   {currentTitle}
