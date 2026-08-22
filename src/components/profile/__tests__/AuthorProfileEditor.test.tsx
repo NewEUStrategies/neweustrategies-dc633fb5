@@ -21,6 +21,21 @@
 //   4. ZAPIS JEST TRZEMA OPERACJAMI RAPORTOWANYMI JAKO JEDNA. `author_profiles`
 //      (upsert), `profiles.bio_*` (update) i obszary ekspertyzy (diff) - błąd
 //      KTÓREJKOLWIEK musi dać komunikat błędu, nie częściowy sukces.
+//
+// DOPISANE W ETAPIE 7c (blok na końcu pliku): drugi koniec KAŻDEJ ścieżki
+// zapisu i wysyłki - odmowa podpisu URL-a, podpis bez danych, odrzucenie HTTP,
+// awaria sieci, błąd INSERT/DELETE powiązania z obszarem ekspertyzy - plus
+// komplet pól formularza (żadne nie nadpisuje sąsiada), podpowiedź o presecie
+// layoutu w obu językach i dostępność formularza (axe).
+//
+// CZEGO ŚWIADOMIE NIE DUBLUJE:
+// - WNĘTRZA sekcji wzmianek medialnych - `MediaMentionsSection.test.tsx`;
+//   tutaj liczy się tylko to, KIEDY się pojawia.
+// - kadrowania i skalowania obrazu - `ImageCropDialog` jest zaatrapowany,
+//   jego własne testy stoją przy komponencie.
+// - wyboru kanonicznego bio jako funkcji - `preferCanonicalBio` ma testy
+//   w `src/lib/profile/__tests__/`.
+// - RLS i uprawnień RPC - to warstwa pgTAP, nie vitest.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -29,10 +44,13 @@ import {
   ok,
   PROFILE_IDS,
   queryStub,
+  storageStub,
   supabaseFromStub,
   xhrStub,
   type SupabaseResult,
 } from "@/test/profile/fixtures";
+import { axeViolations, summarize } from "@/test/axe";
+import type { Result } from "axe-core";
 
 type RpcResult = SupabaseResult;
 
@@ -43,13 +61,16 @@ const h = vi.hoisted(() => ({
   layoutSettings: { current: null as unknown },
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  // Język WIDOKU. Edytor wybiera po nim etykietę presetu layoutu i nazwę
+  // obszaru ekspertyzy - obie gałęzie muszą dać się przełączyć z testu.
+  language: "pl",
 }));
 
-const stubs = vi.hoisted(() => ({ from: null as unknown }));
+const stubs = vi.hoisted(() => ({ from: null as unknown, storage: null as unknown }));
 
 vi.mock("react-i18next", async () => {
   const fixtures = await import("@/test/profile/fixtures");
-  return fixtures.reactI18nextStub();
+  return fixtures.reactI18nextStub(() => h.language);
 });
 
 vi.mock("@/lib/i18n-experts", () => ({}));
@@ -57,7 +78,16 @@ vi.mock("@/lib/i18n-experts", () => ({}));
 vi.mock("@/integrations/supabase/client", async () => {
   const fixtures = await import("@/test/profile/fixtures");
   const from = fixtures.supabaseFromStub();
+  // Storage bierzemy z fixture'ów zamiast lepić doraźnie w tym pliku: atrapa
+  // z `src/test/profile/fixtures.ts` zwraca DOKŁADNIE te same adresy
+  // (`https://upload.example/...`, `https://cdn.example/...`), ale dodatkowo
+  // umie ODMÓWIĆ podpisu (`failSign`) i odpowiedzieć „bez błędu i bez danych"
+  // (`signWithoutData`). Bez tego gałąź `if (signErr || !signed)` w wysyłce
+  // avatara nie ma jak się wykonać, a to ona decyduje, czy nieudany upload
+  // pokaże komunikat, czy podmieni avatar na `undefined`.
+  const storage = fixtures.storageStub();
   stubs.from = from;
+  stubs.storage = storage;
   return {
     supabase: {
       from: from.from,
@@ -68,16 +98,7 @@ vi.mock("@/integrations/supabase/client", async () => {
         const result = h.rpc(fn, args) as RpcResult;
         return { maybeSingle: () => Promise.resolve(result) };
       },
-      storage: {
-        from: () => ({
-          createSignedUploadUrl: (path: string) =>
-            Promise.resolve({
-              data: { signedUrl: `https://upload.example/${path}` },
-              error: null,
-            }),
-          getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.example/${path}` } }),
-        }),
-      },
+      storage: storage.storage,
     },
   };
 });
@@ -121,20 +142,39 @@ vi.mock("@/components/media/ImageCropDialog", async () => {
       open: boolean;
       file: File | null;
       onConfirm: (blob: Blob) => void;
+      onOpenChange: (open: boolean) => void;
     }) => {
       if (!props.open) return null;
-      return React.createElement(
-        "button",
-        {
-          type: "button",
-          "data-testid": "crop-confirm",
-          // Odgrywa `file` NIEZMIENIONY jako "wykadrowany" blob - kadrowanie
-          // realnie zmienia rozmiar, ale test bramki rozmiaru potrzebuje
-          // rozmiaru pliku wybranego przez użytkownika, nie sztywnej wartości.
-          onClick: () => props.onConfirm(props.file ?? new Blob([new Uint8Array(10)])),
-        },
-        "confirm crop",
-      );
+      return React.createElement("div", null, [
+        React.createElement(
+          "button",
+          {
+            key: "confirm",
+            type: "button",
+            "data-testid": "crop-confirm",
+            // Odgrywa `file` NIEZMIENIONY jako "wykadrowany" blob - kadrowanie
+            // realnie zmienia rozmiar, ale test bramki rozmiaru potrzebuje
+            // rozmiaru pliku wybranego przez użytkownika, nie sztywnej wartości.
+            onClick: () => props.onConfirm(props.file ?? new Blob([new Uint8Array(10)])),
+          },
+          "confirm crop",
+        ),
+        // Rezygnacja z kadrowania. Prawdziwy dialog woła `onOpenChange(false)`
+        // z trzech miejsc (Escape, kliknięcie tła, przycisk „Anuluj") i to
+        // JEDYNY sposób, w jaki edytor dowiaduje się, że ma wyrzucić wybrany
+        // plik - bez tego przycisku gałąź czyszczenia `pendingFile` jest
+        // nieosiągalna z testu.
+        React.createElement(
+          "button",
+          {
+            key: "cancel",
+            type: "button",
+            "data-testid": "crop-cancel",
+            onClick: () => props.onOpenChange(false),
+          },
+          "cancel crop",
+        ),
+      ]);
     },
   };
 });
@@ -150,6 +190,9 @@ import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
 
 type FromStub = ReturnType<typeof supabaseFromStub>;
 const db = () => stubs.from as FromStub;
+
+type StorageStubShape = ReturnType<typeof storageStub>;
+const files = () => stubs.storage as StorageStubShape;
 
 /** Wiersz `author_profiles` (kształt zwracany przez oba RPC odczytu). */
 function authorRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -239,7 +282,9 @@ beforeEach(() => {
   h.layoutSettings.current = queryStub(null);
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
+  h.language = "pl";
   db().reset();
+  files().reset();
   planLoad({ row: null });
 });
 
@@ -752,5 +797,707 @@ describe("linki społecznościowe niestandardowe", () => {
     expect(payload.custom_socials).toEqual([
       { label: "Substack", url: "https://example.substack.com" },
     ]);
+  });
+});
+
+/* ==================================================================== */
+/* ETAP 7c - domknięcie ścieżek awaryjnych i pól formularza             */
+/* ==================================================================== */
+
+/** Wpisuje wartość w pole o podanej etykiecie (etykieta = klucz i18n albo
+ *  dosłowna nazwa serwisu, jak w sekcji socialowej). */
+function fillField(label: string, value: string): void {
+  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+}
+
+/**
+ * Podglądany avatar. Rozpoznajemy go po `object-cover` - ikony linków
+ * niestandardowych to też `<img>`, ale z `object-contain`, więc samo
+ * „pierwsze img w dokumencie" byłoby asercją o kolejności w DOM, nie o avatarze.
+ */
+function avatarImg(): HTMLImageElement {
+  const img = document.querySelector("img.object-cover");
+  if (!(img instanceof HTMLImageElement)) throw new Error("test: brak podglądu avatara");
+  return img;
+}
+
+/** Ukryte wejście pliku avatara - jedyne `input[type=file]` w tym formularzu. */
+function avatarFileInput(): HTMLInputElement {
+  const input = document.querySelector('input[type="file"]');
+  if (!(input instanceof HTMLInputElement)) throw new Error("test: brak wejścia pliku avatara");
+  return input;
+}
+
+/** Wybiera plik avatara i potwierdza kadrowanie (dwa kroki, jak użytkownik). */
+async function pickAvatar(file: File): Promise<void> {
+  fireEvent.click(screen.getByRole("button", { name: "profile.account.uploadAvatar" }));
+  fireEvent.change(avatarFileInput(), { target: { files: [file] } });
+  fireEvent.click(await screen.findByTestId("crop-confirm"));
+}
+
+/**
+ * Naruszenia dostępności BEZ artefaktu środowiska. Formularz trzyma ukryte
+ * wejście pliku (`<input type="file" hidden>`) pod przyciskiem zmiany awatara.
+ * W przeglądarce `hidden` znaczy `display: none`, więc tego pola nie ma
+ * w drzewie dostępności - happy-dom nie stosuje arkusza UA, więc axe widzi je
+ * jako WIDOCZNE pole formularza bez etykiety. Odsiewamy dokładnie ten jeden
+ * kształt, a nie całą regułę `label`: brakująca etykieta przy polu, które
+ * użytkownik naprawdę widzi, ma dalej wywalać test. Ten sam wzorzec co
+ * `realAxeViolations` w `src/routes/__tests__/profileDashboardRoute.test.tsx`.
+ */
+async function realAxeViolations(container: Element): Promise<Result[]> {
+  const found = await axeViolations(container);
+  return found.filter(
+    (violation) =>
+      !violation.nodes.every(
+        (node) => node.html.includes('type="file"') && node.html.includes("hidden"),
+      ),
+  );
+}
+
+describe("podpowiedź o presetach layoutu strony autora", () => {
+  it("BEZ ustawień tenanta podpowiedzi nie ma wcale", async () => {
+    // Domyślny stan `beforeEach` - `useExpertLayoutSettings` bez danych.
+    planLoad({ row: authorRow() });
+    await renderEditor();
+    expect(screen.queryByText(/expert\.layoutHint/)).not.toBeInTheDocument();
+  });
+
+  it("pokazuje NAZWĘ presetu tenanta w języku widoku (pl)", async () => {
+    h.layoutSettings.current = queryStub({ default_preset: "classic" });
+    planLoad({ row: authorRow() });
+    await renderEditor();
+    // Autor musi wiedzieć, KTÓRY układ zobaczy gość - podpowiedź z surowym
+    // identyfikatorem („classic") nie mówi mu tego w jego języku. Cała
+    // podpowiedź to JEDEN `<span>` z kilkoma węzłami tekstowymi (klucz, nazwa
+    // presetu, domknięcie zdania), więc asertujemy na jego treści.
+    expect(screen.getByText(/expert\.layoutHintPreset/).textContent).toContain(
+      '{"label":"Klasyczny"}',
+    );
+  });
+
+  it("ta sama podpowiedź po angielsku bierze etykietę EN", async () => {
+    h.language = "en";
+    h.layoutSettings.current = queryStub({ default_preset: "classic" });
+    planLoad({ row: authorRow() });
+    await renderEditor();
+    expect(screen.getByText(/expert\.layoutHintPreset/).textContent).toContain(
+      '{"label":"Classic"}',
+    );
+  });
+
+  it("preset NIEZNANY w kodzie spada na jego identyfikator, nie na pustkę", async () => {
+    // Baza dopuszcza wartość spoza `EXPERT_LAYOUT_PRESETS` (np. preset dodany
+    // migracją przed wdrożeniem frontu) - podpowiedź ma wtedy pokazać surowy
+    // identyfikator, bo to jedyna informacja, jaką ma.
+    h.layoutSettings.current = queryStub({ default_preset: "preset-z-przyszłości" });
+    planLoad({ row: authorRow() });
+    await renderEditor();
+    expect(screen.getByText(/expert\.layoutHintPreset/).textContent).toContain(
+      '{"label":"preset-z-przyszłości"}',
+    );
+  });
+
+  it("PUSTY preset zostawia samą podpowiedź, bez fragmentu o nazwie układu", async () => {
+    // Opis stanu FAKTYCZNEGO: `default_preset: ""` daje `presetLabel === ""`,
+    // czyli wartość fałszywą - fragment z nazwą się nie renderuje. Zdanie nadal
+    // ma sens („zmień układ w ustawieniach"), więc to nie defekt.
+    h.layoutSettings.current = queryStub({ default_preset: "" });
+    planLoad({ row: authorRow() });
+    await renderEditor();
+    expect(screen.getByText(/expert\.layoutHint/)).toBeInTheDocument();
+    expect(screen.queryByText(/expert\.layoutHintPreset/)).not.toBeInTheDocument();
+  });
+});
+
+describe("hydratacja - dane w kształcie, którego formularz nie zakłada", () => {
+  it("BEZ identyfikatora użytkownika nie czyta NICZEGO", async () => {
+    // Trasa admina montuje edytor, gdy parametr `$id` jeszcze nie jest znany.
+    // Odczyt z pustym `user_id` byłby zapytaniem o cudzy (albo żaden) wiersz.
+    await renderEditor({ userId: "" });
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(db().chainsFor("profiles")).toHaveLength(0);
+    expect(db().chainsFor("expertise_areas")).toHaveLength(0);
+  });
+
+  it("`custom_socials` NIE będące tablicą czyta jako brak linków", async () => {
+    // Kolumna jest `jsonb` - wiersz zapisany przed walidacją kształtu może
+    // trzymać obiekt albo `null`. Iteracja po tym wysypałaby cały formularz,
+    // więc autor stracił by dostęp do edycji profilu.
+    planLoad({ row: authorRow({ custom_socials: { substack: "https://example.com" } }) });
+    await renderEditor();
+    expect(screen.getByText("profile.author.noCustomSocials")).toBeInTheDocument();
+  });
+
+  it("`org_functions` NIE będące tablicą czyta jako brak funkcji", async () => {
+    planLoad({ row: authorRow({ org_functions: null }) });
+    await renderEditor();
+    expect(screen.queryByPlaceholderText("expert.orgFunctionPl")).not.toBeInTheDocument();
+  });
+
+  it("PUSTE odpowiedzi słownika obszarów nie wywalają formularza", async () => {
+    // `data: null` bez błędu to legalna odpowiedź PostgREST. Sekcja obszarów
+    // ma się wtedy nie pokazać, a nie pokazać się bez treści.
+    planLoad({ row: authorRow() });
+    db().setResponse("expertise_areas", ok(null));
+    db().setResponse("expert_expertise_areas", ok(null));
+    await renderEditor();
+    expect(screen.queryByText("expert.expertiseHeading")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("profile.account.jobTitle")).toBeInTheDocument();
+  });
+
+  it("chip obszaru po angielsku bierze nazwę EN", async () => {
+    h.language = "en";
+    planLoad({
+      row: authorRow(),
+      areas: [{ id: "area-1", name_pl: "Energia", name_en: "Energy" }],
+    });
+    await renderEditor();
+    expect(screen.getByRole("button", { name: "Energy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Energia" })).not.toBeInTheDocument();
+  });
+});
+
+describe("synchronizacja obszarów ekspertyzy - końce nieudane", () => {
+  const AREAS = [
+    { id: "area-1", name_pl: "Energia", name_en: "Energy" },
+    { id: "area-2", name_pl: "Klimat", name_en: "Climate" },
+  ];
+
+  it("błąd INSERT-u powiązania daje komunikat błędu, nie fałszywy sukces", async () => {
+    planLoad({ areas: AREAS, myAreaIds: [], row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    db().setResponse("expert_expertise_areas", (chain) =>
+      chain.has("insert") ? fail("insert denied") : ok([]),
+    );
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Klimat" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.saveError"));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("błąd DELETE powiązania daje komunikat błędu, nie fałszywy sukces", async () => {
+    planLoad({ areas: AREAS, myAreaIds: ["area-1"], row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    db().setResponse("expert_expertise_areas", (chain) =>
+      chain.has("delete") ? fail("delete denied") : ok([{ area_id: "area-1" }]),
+    );
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Energia" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.saveError"));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("PUSTY odczyt stanu bieżącego traktuje zaznaczenia jako nowe powiązania", async () => {
+    // `data: null` przy odczycie różnicy nie może oznaczać „nic nie dodawaj" -
+    // wtedy obszar wybrany przez autora nigdy nie trafiłby do bazy, a formularz
+    // po przeładowaniu pokazałby go jako niezaznaczony.
+    planLoad({ areas: AREAS, row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    db().setResponse("expert_expertise_areas", ok(null));
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Energia" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const insertChain = db()
+      .chainsFor("expert_expertise_areas")
+      .find((c) => c.has("insert"));
+    expect(insertChain?.argsOf("insert")).toEqual([
+      [{ user_id: PROFILE_IDS.me, area_id: "area-1" }],
+    ]);
+  });
+});
+
+describe("wysyłka avatara - każdy koniec nieudany ma komunikat", () => {
+  it("odmowa podpisu URL-a nie wysyła bajtów i pokazuje błąd", async () => {
+    xhr = xhrStub(200);
+    files().failSign("storage quota exceeded");
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    await pickAvatar(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.uploadError"));
+    expect(xhr.requests).toHaveLength(0);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("podpis BEZ błędu i BEZ danych też jest awarią, nie uploadem w pustkę", async () => {
+    // Odpowiedź `{ data: null, error: null }` jest legalna po stronie SDK.
+    // Bez tej gałęzi kod wysłałby PUT na `undefined`.
+    xhr = xhrStub(200);
+    files().signWithoutData();
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    await pickAvatar(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.uploadError"));
+    expect(xhr.requests).toHaveLength(0);
+  });
+
+  it("odrzucenie HTTP przez Storage NIE podmienia avatara", async () => {
+    xhr = xhrStub(500);
+    planLoad({ row: authorRow({ avatar_url: "https://cdn.example/stary.jpg" }) });
+    await renderEditor();
+
+    await pickAvatar(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.uploadError"));
+    expect(avatarImg().getAttribute("src")).toBe("https://cdn.example/stary.jpg");
+  });
+
+  it("awaria sieci w trakcie wysyłki pokazuje błąd, nie zawiesza przycisku", async () => {
+    xhr = xhrStub("error");
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    await pickAvatar(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.uploadError"));
+    // Przycisk wraca do stanu gotowego - `finally` zdjął blokadę.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "profile.account.uploadAvatar" })).toBeEnabled(),
+    );
+  });
+
+  it("blob BEZ typu MIME jedzie jako obraz JPEG, nie bez nagłówka", async () => {
+    // Kadrowanie zwraca blob, którego `type` bywa pusty. Storage bez
+    // `Content-Type` zapisuje plik jako `application/octet-stream` i przeglądarka
+    // pokazuje go jako pobieranie, nie jako avatar.
+    xhr = xhrStub(200);
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    await pickAvatar(new File([new Uint8Array(10)], "a.png"));
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("profile.account.uploadSuccess"),
+    );
+    expect(xhr.requests[0].headers["Content-Type"]).toBe("image/jpeg");
+    expect(xhr.requests[0].headers["x-upsert"]).toBe("true");
+  });
+
+  it("udany upload wstawia adres PUBLICZNY pliku jako podglądany avatar", async () => {
+    xhr = xhrStub(200);
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    await pickAvatar(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("profile.account.uploadSuccess"),
+    );
+    expect(files().publicPaths).toHaveLength(1);
+    expect(avatarImg().getAttribute("src")).toBe(`https://cdn.example/${files().publicPaths[0]}`);
+  });
+
+  it("wejście pliku BEZ wybranego pliku nie otwiera kadrowania", async () => {
+    // Anulowanie systemowego okna wyboru daje zdarzenie `change` z pustą listą.
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "profile.account.uploadAvatar" }));
+    fireEvent.change(avatarFileInput(), { target: { files: [] } });
+
+    expect(screen.queryByTestId("crop-confirm")).not.toBeInTheDocument();
+  });
+
+  it("rezygnacja z kadrowania WYRZUCA wybrany plik", async () => {
+    // Gdyby `pendingFile` przetrwał zamknięcie, kolejne otwarcie kadrowania
+    // pokazałoby STARY plik - autor wykadrowałby i zapisał zdjęcie, którego
+    // właśnie nie chciał.
+    xhr = xhrStub(200);
+    planLoad({ row: authorRow() });
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "profile.account.uploadAvatar" }));
+    fireEvent.change(avatarFileInput(), {
+      target: { files: [new File([new Uint8Array(10)], "a.png", { type: "image/png" })] },
+    });
+    fireEvent.click(await screen.findByTestId("crop-cancel"));
+
+    expect(screen.queryByTestId("crop-confirm")).not.toBeInTheDocument();
+    expect(xhr.requests).toHaveLength(0);
+  });
+});
+
+describe("pola formularza - żadne nie gubi się i nie nadpisuje sąsiada", () => {
+  it("wszystkie pola tekstowe trafiają do zapisu pod WŁASNYM kluczem", async () => {
+    // Klasyczny defekt formularza z dwudziestoma polami: dwa `onChange` wpięte
+    // w ten sam klucz stanu. Test wpisuje w KAŻDE pole inną wartość i sprawdza
+    // cały payload, bo tylko to wyłapuje podmianę pary pól.
+    planLoad({ row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fillField("profile.account.jobTitle", "Dyrektor ds. polityki UE");
+    fillField("profile.account.currentCompany", "Example Institute");
+    fillField("expert.fullBioPl", "Pełne bio po polsku.");
+    fillField("expert.fullBioEn", "Full bio in English.");
+    fillField("profile.author.contactEmail", "kontakt@example.com");
+    fillField("profile.account.phone", "+32 000 000 001");
+    fillField("profile.author.website", "https://www.example.org");
+    fillField("X (x.com)", "https://x.example.com/konto");
+    fillField("LinkedIn", "https://linkedin.example.com/konto");
+    fillField("Facebook", "https://facebook.example.com/konto");
+    fillField("Instagram", "https://instagram.example.com/konto");
+    fillField("Spotify", "https://spotify.example.com/konto");
+    fillField("expert.mediaContactName", "Biuro prasowe");
+    fillField("expert.mediaContactEmail", "prasa@example.org");
+    fillField("expert.mediaContactPhone", "+32 000 000 002");
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const payload = db().lastChain("author_profiles")?.argsOf("upsert")?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect({
+      job_title: payload.job_title,
+      company: payload.company,
+      full_bio_pl: payload.full_bio_pl,
+      full_bio_en: payload.full_bio_en,
+      contact_email: payload.contact_email,
+      phone: payload.phone,
+      website_url: payload.website_url,
+      x_url: payload.x_url,
+      linkedin_url: payload.linkedin_url,
+      facebook_url: payload.facebook_url,
+      instagram_url: payload.instagram_url,
+      spotify_url: payload.spotify_url,
+      media_contact_name: payload.media_contact_name,
+      media_contact_email: payload.media_contact_email,
+      media_contact_phone: payload.media_contact_phone,
+    }).toEqual({
+      job_title: "Dyrektor ds. polityki UE",
+      company: "Example Institute",
+      full_bio_pl: "Pełne bio po polsku.",
+      full_bio_en: "Full bio in English.",
+      contact_email: "kontakt@example.com",
+      phone: "+32 000 000 001",
+      website_url: "https://www.example.org",
+      x_url: "https://x.example.com/konto",
+      linkedin_url: "https://linkedin.example.com/konto",
+      facebook_url: "https://facebook.example.com/konto",
+      instagram_url: "https://instagram.example.com/konto",
+      spotify_url: "https://spotify.example.com/konto",
+      media_contact_name: "Biuro prasowe",
+      media_contact_email: "prasa@example.org",
+      media_contact_phone: "+32 000 000 002",
+    });
+  });
+
+  it("przełącznik widoczności zmienia to, co idzie do kolumny `is_public`", async () => {
+    // Profil startuje jako UKRYTY (privacy by default). Autor publikuje go
+    // świadomie - i to musi dojechać do bazy, bo inaczej strona publiczna
+    // zostaje wyłączona mimo włączonego przełącznika.
+    planLoad({ row: authorRow({ is_public: false }) });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const payload = db().lastChain("author_profiles")?.argsOf("upsert")?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(payload.is_public).toBe(true);
+  });
+
+  it("funkcja organizacyjna zapisuje OBA języki, nie tylko polski", async () => {
+    planLoad({ row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fireEvent.click(addButtonIn("expert.orgFunctions"));
+    fireEvent.change(screen.getByPlaceholderText("expert.orgFunctionPl"), {
+      target: { value: "Przewodniczący rady" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("expert.orgFunctionEn"), {
+      target: { value: "Chair of the board" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const payload = db().lastChain("author_profiles")?.argsOf("upsert")?.[0] as {
+      org_functions: unknown[];
+    };
+    expect(payload.org_functions).toEqual([
+      { pl: "Przewodniczący rady", en: "Chair of the board" },
+    ]);
+  });
+
+  it("OPIS STANU FAKTYCZNEGO: pola tekstowe idą do bazy BEZ przycięcia", async () => {
+    // To NIE jest życzenie, tylko zapis rzeczywistości. Ten formularz nie ma
+    // ani jednego pola WYMAGANEGO (pusty profil zapisuje się bez protestu, co
+    // pokazuje test „po pierwszym udanym zapisie BEZ wiersza…") i nie przycina
+    // białych znaków w polach zwykłych. Przycinane są WYŁĄCZNIE punktory bio
+    // (`bulletsToBio`), a `org_functions` mają `trim()` tylko w warunku
+    // odsiewania pustego wiersza - sama wartość leci nieprzycięta.
+    //
+    // Poprawność składni adresu i e-maila stoi na natywnej walidacji
+    // przeglądarki (`type="url"`, `type="email"` w formularzu bez `noValidate`),
+    // której happy-dom nie odtwarza - dlatego test tego NIE asertuje. Gdyby
+    // trzeba było kiedyś przycinać, miejsce jest jedno: `payload` w `save`.
+    planLoad({ row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fillField("profile.account.jobTitle", "   Dyrektor   ");
+    fireEvent.click(addButtonIn("expert.orgFunctions"));
+    fireEvent.change(screen.getByPlaceholderText("expert.orgFunctionPl"), {
+      target: { value: "   Przewodniczący   " },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const payload = db().lastChain("author_profiles")?.argsOf("upsert")?.[0] as {
+      job_title: unknown;
+      org_functions: unknown[];
+    };
+    expect(payload.job_title).toBe("   Dyrektor   ");
+    expect(payload.org_functions).toEqual([{ pl: "   Przewodniczący   ", en: "" }]);
+  });
+
+  it("link niestandardowy z WŁASNĄ ikoną pokazuje ją zamiast ikony zastępczej", async () => {
+    planLoad({
+      row: authorRow({
+        custom_socials: [
+          {
+            label: "Substack",
+            url: "https://example.substack.com",
+            iconUrl: "https://cdn.example/ikona.svg",
+          },
+        ],
+      }),
+    });
+    await renderEditor();
+
+    const icon = document.querySelector('img[src="https://cdn.example/ikona.svg"]');
+    expect(icon).not.toBeNull();
+    // Ikona dekoracyjna: bez tekstu alternatywnego i bez przeciągania.
+    expect(icon?.getAttribute("alt")).toBe("");
+  });
+
+  it("adres ikony linku niestandardowego trafia do zapisu", async () => {
+    planLoad({ row: authorRow() });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fireEvent.click(addButtonIn("profile.author.customSocials"));
+    fireEvent.change(screen.getByPlaceholderText("profile.author.iconUrl"), {
+      target: { value: "https://cdn.example/ikona.svg" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const payload = db().lastChain("author_profiles")?.argsOf("upsert")?.[0] as {
+      custom_socials: Array<Record<string, unknown>>;
+    };
+    expect(payload.custom_socials).toEqual([
+      { label: "", url: "", iconUrl: "https://cdn.example/ikona.svg" },
+    ]);
+  });
+
+  it("usunięcie linku niestandardowego zdejmuje TEN wiersz, nie wszystkie", async () => {
+    planLoad({
+      row: authorRow({
+        custom_socials: [
+          { label: "Substack", url: "https://example.substack.com" },
+          { label: "Newsletter", url: "https://newsletter.example.org" },
+        ],
+      }),
+    });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    const rows = screen.getAllByPlaceholderText("profile.author.socialLabel");
+    expect(rows).toHaveLength(2);
+    const removeFirst = rows[0].closest("div")?.querySelector('button[aria-label="remove"]');
+    expect(removeFirst).not.toBeNull();
+    fireEvent.click(removeFirst!);
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const payload = db().lastChain("author_profiles")?.argsOf("upsert")?.[0] as {
+      custom_socials: Array<Record<string, unknown>>;
+    };
+    expect(payload.custom_socials).toEqual([
+      { label: "Newsletter", url: "https://newsletter.example.org" },
+    ]);
+  });
+});
+
+describe("punktory bio - dodawanie i edycja", () => {
+  it("dodaje PUSTY punktor gotowy do wpisania treści", async () => {
+    planLoad({ row: authorRow({ bio_pl: "Jeden" }) });
+    await renderEditor();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Dodaj punktor/ })[0]);
+
+    // Licznik przy etykiecie pokazuje 2/5 - punktor istnieje, choć jest pusty.
+    expect(screen.getByText("2/5")).toBeInTheDocument();
+  });
+
+  it("edycja punktora zmienia to, co idzie do `profiles.bio_pl`", async () => {
+    planLoad({ row: authorRow({ bio_pl: "Stara treść" }) });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fireEvent.change(screen.getByDisplayValue("Stara treść"), {
+      target: { value: "Nowa treść" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const patch = db().lastChain("profiles")?.argsOf("update")?.[0] as Record<string, unknown>;
+    expect(patch.bio_pl).toBe("Nowa treść");
+  });
+
+  it("punktor PUSTY nie trafia do zapisanego bio", async () => {
+    // Puste punktory są odsiewane przy składaniu bio - inaczej karta autora
+    // pokazywałaby wypunktowanie z pustym wierszem.
+    planLoad({ row: authorRow({ bio_pl: "Jeden" }) });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Dodaj punktor/ })[0]);
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const patch = db().lastChain("profiles")?.argsOf("update")?.[0] as Record<string, unknown>;
+    expect(patch.bio_pl).toBe("Jeden");
+  });
+
+  it("bio z myślnikami na początku wierszy traci sam znacznik, nie treść", async () => {
+    planLoad({ row: authorRow({ bio_pl: "- Pierwszy\n• Drugi\n* Trzeci" }) });
+    await renderEditor();
+
+    expect(screen.getByDisplayValue("Pierwszy")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Drugi")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Trzeci")).toBeInTheDocument();
+  });
+});
+
+describe("dostępność formularza", () => {
+  it("pełny formularz nie ma naruszeń axe", async () => {
+    // W tym pliku poprawiono już raz osiem nienazwanych pól - regresja wraca
+    // przy każdym nowym polu dopisanym bez `FieldLabel`/`htmlFor`.
+    planLoad({
+      row: authorRow({
+        avatar_url: "https://cdn.example/avatar.jpg",
+        org_functions: [{ pl: "Przewodniczący", en: "Chair" }],
+        custom_socials: [{ label: "Substack", url: "https://example.substack.com" }],
+        bio_pl: "Jeden\nDwa",
+      }),
+      areas: [{ id: "area-1", name_pl: "Energia", name_en: "Energy" }],
+      myAreaIds: ["area-1"],
+    });
+    h.layoutSettings.current = queryStub({ default_preset: "classic" });
+    const view = await renderEditor();
+
+    const violations = await realAxeViolations(view.container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("formularz PUSTY (nowy profil) też nie ma naruszeń axe", async () => {
+    planLoad({ row: null });
+    const view = await renderEditor();
+
+    const violations = await realAxeViolations(view.container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("defekty zapisu profilu publicznego", () => {
+  it.fails("DEFEKT: bio dłuższe niż pięć punktów TRACI nadmiar przy zwykłym zapisie", async () => {
+    // CO: `bioToBullets` (AuthorProfileEditor.tsx:140) obcina bio do pięciu
+    // punktów przy WCZYTANIU formularza, a `save` (linia 369) skleja z powrotem
+    // to, co zostało, i nadpisuje `profiles.bio_pl` ORAZ
+    // `author_profiles.bio_pl`.
+    // GDZIE: src/components/profile/AuthorProfileEditor.tsx:140 (slice) +
+    // 369-375 (zapis obu kolumn).
+    // KONSEKWENCJA: autor, którego bio zaimportowano z sześciu wierszy (albo
+    // wpisano przez inny ekran), wchodzi na formularz, poprawia numer telefonu,
+    // zapisuje - i BEZ OSTRZEŻENIA traci szósty punkt bio na stronie
+    // publicznej. Formularz nie mówi, że coś obciął; wygląda to jak zjedzenie
+    // treści przez system.
+    planLoad({
+      row: authorRow(),
+      canonicalBio: { bio_pl: "Jeden\nDwa\nTrzy\nCztery\nPięć\nSześć", bio_en: null },
+    });
+    db().setResponse("author_profiles", ok(null));
+    await renderEditor();
+
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const patch = db().lastChain("profiles")?.argsOf("update")?.[0] as Record<string, unknown>;
+    expect(patch.bio_pl).toBe("Jeden\nDwa\nTrzy\nCztery\nPięć\nSześć");
+  });
+
+  it.fails("DEFEKT: zapis bez tenanta kończy się CISZĄ - ani zapisu, ani komunikatu", async () => {
+    // CO: `save` (AuthorProfileEditor.tsx:342) wychodzi na `if (!tenantId)
+    // return;` PRZED `setBusy(true)` i bez żadnego `toast`. To samo robi
+    // `upload` (linia 303).
+    // GDZIE: src/components/profile/AuthorProfileEditor.tsx:342 i :303.
+    // KONSEKWENCJA: konto bez przypisanego tenanta (świeża rejestracja, konto
+    // przenoszone między obszarami) wypełnia cały formularz, klika „Zapisz"
+    // i NIC się nie dzieje - przycisk nie mruga, nie ma błędu. Użytkownik
+    // odchodzi ze strony w przekonaniu, że profil jest zapisany, i traci całą
+    // wpisaną treść.
+    planLoad({ row: authorRow() });
+    await renderEditor({ tenantId: null });
+
+    fireEvent.click(saveButton());
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(h.toastError).toHaveBeenCalled();
+  });
+
+  it.fails("DEFEKT: nieudany zapis profilu NIE wstrzymuje zapisu obszarów ekspertyzy", async () => {
+    // CO: `save` wykonuje `syncExpertiseAreas` (linia 378) BEZWARUNKOWO, już po
+    // tym, jak `Promise.all` z upsertem profilu zwrócił błąd. Sprawdzenie
+    // `error || bioError` przychodzi dopiero w linii 381.
+    // GDZIE: src/components/profile/AuthorProfileEditor.tsx:371-384.
+    // KONSEKWENCJA: upsert `author_profiles` odbija się o RLS, a powiązania
+    // z obszarami ekspertyzy zostają ZAPISANE. Użytkownik widzi „nie udało się
+    // zapisać", odświeża stronę - i widzi nowe obszary ekspertyzy przy starych
+    // pozostałych polach. Te powiązania są czytane przez katalog ekspertów
+    // (src/lib/experts/directory.ts:81) i stronę eksperta
+    // (src/lib/experts/queries.ts:206), więc profil PUBLICZNY zostaje w stanie,
+    // którego autor nigdy nie zatwierdził.
+    planLoad({
+      areas: [
+        { id: "area-1", name_pl: "Energia", name_en: "Energy" },
+        { id: "area-2", name_pl: "Klimat", name_en: "Climate" },
+      ],
+      myAreaIds: [],
+      row: authorRow(),
+    });
+    db().setResponse("author_profiles", fail("new row violates row-level security policy"));
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Klimat" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("profile.account.saveError"));
+    const insertChain = db()
+      .chainsFor("expert_expertise_areas")
+      .find((c) => c.has("insert"));
+    expect(insertChain).toBeUndefined();
   });
 });

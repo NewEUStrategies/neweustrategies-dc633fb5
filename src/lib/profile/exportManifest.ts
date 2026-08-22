@@ -23,8 +23,60 @@
 export type JsonValue =
   null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-/** Wersja formatu. Zmiana ZAKRESU sekcji = zmiana wersji (konsument to czyta). */
-export const PERSONAL_DATA_EXPORT_FORMAT = "nes.personal-data-export.v2" as const;
+/**
+ * Wersja formatu. Zmiana ZAKRESU sekcji = zmiana wersji (konsument to czyta).
+ *
+ * v3 (2026-08-22): manifest niesie `truncated`. Do v2 paczka ucięta na sufcie
+ * wierszy była w pliku NIEROZRÓŻNIALNA od kompletnej: osoba z 2500 zakładkami
+ * dostawała 2000 pozycji pod podpisem „komplet danych" i nie miała jak zauważyć
+ * braku. Art. 15 ust. 3 RODO mówi o kopii danych, nie o pierwszych dwóch
+ * tysiącach, więc brak tej informacji był defektem kompletności - a nie
+ * szczegółem implementacyjnym.
+ */
+export const PERSONAL_DATA_EXPORT_FORMAT = "nes.personal-data-export.v3" as const;
+
+/** Sufit wierszy sekcji strumieniowej - eksport ma być plikiem, nie zrzutem bazy. */
+export const EXPORT_ROW_LIMIT = 2000;
+/** Wiadomości bywają najliczniejsze, więc mają własny, wyższy sufit. */
+export const EXPORT_MESSAGE_LIMIT = 5000;
+/** Lista odwiedzających profil jest zawężona mocniej - to dane o INNYCH osobach. */
+export const EXPORT_PROFILE_VIEWERS_LIMIT = 200;
+
+/**
+ * Sekcje z sufitem wierszy i jego wysokość.
+ *
+ * PO CO TO JEST DANYMI. Sufit sam w sobie jest w porządku: eksport ma być
+ * plikiem do pobrania, nie zrzutem bazy. Nie w porządku było MILCZENIE o nim -
+ * a milczenie brało się stąd, że liczby siedziały wyłącznie w ciele server fn,
+ * gdzie nikt ich nie zestawiał z zawartością pliku. Tutaj są rejestrem, więc
+ * emiter i manifest czytają JEDNO źródło, a bramka statyczna umie sprawdzić,
+ * czy rejestr zgadza się z kodem.
+ */
+export const EXPORT_SECTION_LIMITS: Readonly<Record<string, number>> = Object.freeze({
+  // Zapytania PostgREST z jawnym `.limit(...)`.
+  consent_events: EXPORT_ROW_LIMIT,
+  reading_history: EXPORT_ROW_LIMIT,
+  comments: EXPORT_ROW_LIMIT,
+  user_reports_filed: EXPORT_ROW_LIMIT,
+  chat_conversations: EXPORT_ROW_LIMIT,
+  chat_messages_sent: EXPORT_MESSAGE_LIMIT,
+  notifications: EXPORT_ROW_LIMIT,
+  invitations_sent: EXPORT_ROW_LIMIT,
+  // Sieć kontaktów: RPC stronicujące, sklejane do tego samego sufitu.
+  network_connections: EXPORT_ROW_LIMIT,
+  network_invitations_sent: EXPORT_ROW_LIMIT,
+  network_invitations_received: EXPORT_ROW_LIMIT,
+  profile_viewers: EXPORT_PROFILE_VIEWERS_LIMIT,
+  // Kluby: jedno RPC z `p_limit`, rozbite na osiem zadeklarowanych sekcji.
+  club_memberships: EXPORT_ROW_LIMIT,
+  club_applications: EXPORT_ROW_LIMIT,
+  club_threads_authored: EXPORT_ROW_LIMIT,
+  club_replies_authored: EXPORT_ROW_LIMIT,
+  club_stances: EXPORT_ROW_LIMIT,
+  club_reactions: EXPORT_ROW_LIMIT,
+  club_thread_subscriptions: EXPORT_ROW_LIMIT,
+  club_invitations_received: EXPORT_ROW_LIMIT,
+});
 
 /**
  * Sekcje pogrupowane dziedzinowo. Grupa jest częścią kontraktu - konsument
@@ -191,6 +243,15 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
   },
 ];
 
+/** Sekcja, która mogła zostać UCIĘTA na sufcie wierszy. */
+export interface ExportTruncation {
+  id: string;
+  /** Sufit obowiązujący dla tej sekcji. */
+  limit: number;
+  /** Ile wierszy realnie znalazło się w pliku. */
+  returned: number;
+}
+
 export interface ExportManifest {
   format: typeof PERSONAL_DATA_EXPORT_FORMAT;
   /** Sekcje, które eksport ZADEKLAROWAŁ - w kolejności grup. */
@@ -199,18 +260,55 @@ export interface ExportManifest {
   groups: Readonly<Record<string, string>>;
   /** Sekcje, które w tym przebiegu skończyły się błędem (odmowa RLS, grant). */
   failed: readonly string[];
+  /**
+   * Sekcje, w których wierszy było CO NAJMNIEJ tyle, ile pozwala sufit - czyli
+   * takie, w których część danych mogła nie trafić do pliku. Pusta lista znaczy
+   * „nic nie zostało ucięte", a nie „nie sprawdzaliśmy".
+   */
+  truncated: readonly ExportTruncation[];
   /** Świadome wyłączenia zakresu wraz z uzasadnieniem. */
   excluded: readonly ExportExclusion[];
 }
 
+/**
+ * Które sekcje mogły zostać ucięte - liczone z ZAWARTOŚCI pliku, nie z intencji.
+ *
+ * Warunek jest `>=`, nie `===`: liczba wierszy równa sufitowi znaczy „tyle,
+ * ile wolno było wziąć", więc nie da się z niej odczytać, czy w bazie było
+ * dokładnie tyle, czy więcej. Zgłaszamy więc podejrzenie ucięcia - fałszywy
+ * alarm przy dokładnie 2000 wierszach jest nieporównanie tańszy niż milczenie
+ * przy 2500.
+ */
+export function detectTruncatedSections(
+  sections: Readonly<Record<string, JsonValue>>,
+): ExportTruncation[] {
+  const out: ExportTruncation[] = [];
+  for (const id of EXPORT_SECTION_IDS) {
+    const limit = EXPORT_SECTION_LIMITS[id];
+    if (limit === undefined) continue;
+    const rows = sections[id];
+    if (!Array.isArray(rows)) continue;
+    if (rows.length >= limit) out.push({ id, limit, returned: rows.length });
+  }
+  return out;
+}
+
 /** Manifest dołączany do payloadu - „co miało być, co się nie udało, czego nie ma". */
-export function buildExportManifest(failedSectionIds: readonly string[]): ExportManifest {
+export function buildExportManifest(
+  failedSectionIds: readonly string[],
+  truncatedSections: readonly ExportTruncation[] = [],
+): ExportManifest {
   const failed = EXPORT_SECTION_IDS.filter((id) => failedSectionIds.includes(id));
+  const declared = new Set<string>(EXPORT_SECTION_IDS);
   return {
     format: PERSONAL_DATA_EXPORT_FORMAT,
     sections: EXPORT_SECTION_IDS,
     groups: EXPORT_SECTION_GROUP_OF,
     failed,
+    // Kolejność rejestru, nie kolejność wykrycia - plik ma być powtarzalny.
+    truncated: EXPORT_SECTION_IDS.map((id) =>
+      truncatedSections.find((entry) => entry.id === id),
+    ).filter((entry): entry is ExportTruncation => entry !== undefined && declared.has(entry.id)),
     excluded: EXPORT_EXCLUSIONS,
   };
 }

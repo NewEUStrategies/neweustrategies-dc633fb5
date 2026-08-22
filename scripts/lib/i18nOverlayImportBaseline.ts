@@ -90,5 +90,5 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/routes/profile.payments.tsx", 2],
   ["src/routes/profile.plan.tsx", 12],
   ["src/routes/profile.privacy.tsx", 7],
-  ["src/routes/profile.security.tsx", 57],
+  ["src/routes/profile.security.tsx", 55],
 ];

@@ -14,6 +14,7 @@ import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hook
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ListHydrationNotice } from "@/components/profile/atoms/ListHydrationNotice";
 
 export const Route = createFileRoute("/profile/bookmarks")({
   component: BookmarksPage,
@@ -130,9 +131,25 @@ function BookmarksPage() {
   const missingPageIds = pagesQ.data
     ? ids.page.filter((id) => !pagesQ.data.some((p) => p.id === id))
     : [];
-  // Licznik = wszystkie renderowane wiersze (widoczne + "niedostępne").
+  // Licznik = wszystkie renderowane wiersze (widoczne + "niedostępne"), a przed
+  // hydracją - surowa liczba zakładek. Ta druga wartość NIE jest kłamstwem:
+  // odczyt `user_bookmarks` się udał, więc wiemy, ile zakładek istnieje.
+  // Kłamstwem była MILCZĄCA pustka pod licznikiem, gdy hydracja padła - i to ona
+  // dostaje teraz własny komunikat (`ListHydrationNotice`).
   const postCount = postsQ.data ? visiblePosts.length + missingPostIds.length : ids.post.length;
   const pageCount = pagesQ.data ? visiblePages.length + missingPageIds.length : ids.page.length;
+
+  /** Stan hydracji zakładki albo `null`, gdy jest co pokazać. */
+  const hydration = (
+    ids: readonly string[],
+    query: { isError: boolean; data: unknown },
+  ): "pending" | "error" | null => {
+    if (ids.length === 0) return null;
+    if (query.isError) return "error";
+    return query.data === undefined ? "pending" : null;
+  };
+  const postHydration = hydration(ids.post, postsQ);
+  const pageHydration = hydration(ids.page, pagesQ);
 
   return (
     <Card>
@@ -154,6 +171,8 @@ function BookmarksPage() {
           <TabsContent value="post" className="mt-4">
             {ids.post.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("profile.bookmarks.empty")}</p>
+            ) : postHydration ? (
+              <ListHydrationNotice state={postHydration} onRetry={() => void postsQ.refetch()} />
             ) : (
               <ul className="divide-y divide-border">
                 {visiblePosts.map((p) => (
@@ -205,6 +224,8 @@ function BookmarksPage() {
           <TabsContent value="page" className="mt-4">
             {ids.page.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("profile.bookmarks.empty")}</p>
+            ) : pageHydration ? (
+              <ListHydrationNotice state={pageHydration} onRetry={() => void pagesQ.refetch()} />
             ) : (
               <ul className="divide-y divide-border">
                 {visiblePages.map((p) => (

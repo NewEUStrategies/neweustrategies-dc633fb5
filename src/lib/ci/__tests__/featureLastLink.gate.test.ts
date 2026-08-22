@@ -21,7 +21,7 @@
 // wartość, a pytanie jest proste: czy OGNIWO jest w kodzie. Asercja
 // „przycisk woła `sendQuickEmoji`" nie zależy od DOM-u.
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { maskComments } from "@/lib/ci/i18nKeyUsage";
 
@@ -122,11 +122,30 @@ describe("przewodniki onboardingu - każdy krok ma kotwicę i render", () => {
   it("każdy kontroler przewodnika ma swój render `<CoachmarkTour>`", () => {
     // Ogólniej niż wyżej: gdziekolwiek ktoś zawoła hak, musi też wyrenderować
     // nakładkę - inaczej powtarza ten sam błąd w nowym miejscu.
+    //
+    // PLIKI TESTOWE SĄ POZA ZAKRESEM i to nie jest osłabienie bramki. Reguła
+    // mówi o SKLEJENIU PRODUKCYJNYM: panel, który liczy kroki przewodnika, a
+    // nie rysuje nakładki, nie pokaże jej użytkownikowi ani razu. Test
+    // jednostkowy haka wywołuje go z zamysłem - bez nakładki, bo przedmiotem
+    // dowodu jest sam hak (`src/lib/onboarding/__tests__/useOnboardingTour.test.tsx`).
+    // Wciągnięcie go na listę winnych zmuszałoby do renderowania organizmu w
+    // teście modułu, czyli do zepsucia testu, żeby zadowolić skaner.
     const offenders = tsxFiles("src")
+      .filter((file) => !file.includes(`${sep}__tests__${sep}`))
       .map((file) => ({ file, source: read(file) }))
       .filter(({ source }) => /useOnboardingTour\(/.test(source))
       .filter(({ source }) => !/<CoachmarkTour\b/.test(source))
       .map(({ file }) => file);
     expect(offenders).toEqual([]);
+  });
+
+  it("kanarek: bramka NADAL łapie plik produkcyjny bez nakładki", () => {
+    // Bez tego kanarka zawężenie zakresu wyżej mogłoby po cichu wyłączyć całą
+    // regułę (np. gdyby ktoś rozszerzył filtr na cały `src`).
+    const scanned = tsxFiles("src").filter((file) => !file.includes(`${sep}__tests__${sep}`));
+    expect(scanned.some((file) => file.includes("content-model"))).toBe(true);
+    expect(scanned.filter((file) => /useOnboardingTour\(/.test(read(file))).length).toBeGreaterThan(
+      0,
+    );
   });
 });

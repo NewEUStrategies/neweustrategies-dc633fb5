@@ -8,6 +8,7 @@ import { useFollows, useToggleFollow, type FollowTargetType } from "@/hooks/useF
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ListHydrationNotice } from "@/components/profile/atoms/ListHydrationNotice";
 
 export const Route = createFileRoute("/profile/follows")({
   component: FollowsPage,
@@ -122,6 +123,35 @@ function FollowsPage() {
       : [],
   };
 
+  /**
+   * Stan hydracji zakładki albo `null`, gdy jest co pokazać.
+   *
+   * Do dziś awaria hydracji była nieodróżnialna od pustki i od oczekiwania:
+   * trasa rysowała puste `<ul>` bez ani jednego słowa, a licznik nadal pokazywał
+   * liczbę obserwacji z pierwszego odczytu. Licznik był prawdziwy - milcząca
+   * pustka pod nim nie.
+   */
+  const hydration = (
+    idList: readonly string[],
+    query: { isError: boolean; data: unknown },
+  ): "pending" | "error" | null => {
+    if (idList.length === 0) return null;
+    if (query.isError) return "error";
+    return query.data === undefined ? "pending" : null;
+  };
+  const state = {
+    author: hydration(ids.author, authorsQ),
+    category: hydration(ids.category, categoriesQ),
+    tag: hydration(ids.tag, tagsQ),
+    program: hydration(ids.program, programsQ),
+  };
+  const refetch = {
+    author: () => void authorsQ.refetch(),
+    category: () => void categoriesQ.refetch(),
+    tag: () => void tagsQ.refetch(),
+    program: () => void programsQ.refetch(),
+  };
+
   const UnresolvedRow = ({ type, id }: { type: FollowTargetType; id: string }) => (
     <li className="flex items-center gap-3 py-3">
       <span className="flex-1 truncate text-sm italic text-muted-foreground">
@@ -164,6 +194,8 @@ function FollowsPage() {
           <TabsContent value="author" className="mt-4">
             {ids.author.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("profile.follows.empty")}</p>
+            ) : state.author ? (
+              <ListHydrationNotice state={state.author} onRetry={refetch.author} />
             ) : (
               <ul className="divide-y divide-border">
                 {(authorsQ.data ?? []).map((a) => (
@@ -211,6 +243,8 @@ function FollowsPage() {
           <TabsContent value="category" className="mt-4">
             {ids.category.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("profile.follows.empty")}</p>
+            ) : state.category ? (
+              <ListHydrationNotice state={state.category} onRetry={refetch.category} />
             ) : (
               <ul className="divide-y divide-border">
                 {(categoriesQ.data ?? []).map((c) => (
@@ -243,6 +277,8 @@ function FollowsPage() {
           <TabsContent value="tag" className="mt-4">
             {ids.tag.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("profile.follows.empty")}</p>
+            ) : state.tag ? (
+              <ListHydrationNotice state={state.tag} onRetry={refetch.tag} />
             ) : (
               <ul className="divide-y divide-border">
                 {(tagsQ.data ?? []).map((tg) => (
@@ -275,6 +311,8 @@ function FollowsPage() {
           <TabsContent value="program" className="mt-4">
             {ids.program.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("profile.follows.empty")}</p>
+            ) : state.program ? (
+              <ListHydrationNotice state={state.program} onRetry={refetch.program} />
             ) : (
               <ul className="divide-y divide-border">
                 {(programsQ.data ?? []).map((pr) => (

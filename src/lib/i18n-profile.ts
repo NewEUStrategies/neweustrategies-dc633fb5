@@ -236,6 +236,9 @@ const pl = {
       lastSignIn: "Ostatnie logowanie",
       signOutOthers: "Wyloguj pozostałe sesje",
       signedOutOthers: "Wylogowano pozostałe sesje.",
+      currentRequired: "Podaj obecne hasło, aby potwierdzić, że to Ty.",
+      sameAsCurrent: "Nowe hasło jest takie samo jak obecne. Wpisz inne.",
+      sessionExpired: "Twoja sesja wygasła. Zaloguj się ponownie i powtórz zmianę.",
       exportFailed: "Nie udało się przygotować eksportu. Spróbuj ponownie.",
       export: {
         title: "Twoje dane (RODO)",
@@ -255,6 +258,7 @@ const pl = {
         sent: "Wysłaliśmy link potwierdzający na nowy adres.",
         invalid: "Podaj poprawny adres e-mail.",
         needPassword: "Podaj obecne hasło, aby potwierdzić.",
+        sameAsCurrent: "To jest Twój obecny adres e-mail - nie ma czego zmieniać.",
       },
       danger: {
         title: "Usuń konto",
@@ -295,8 +299,12 @@ const pl = {
         title: "Uwierzytelnianie dwuskładnikowe (TOTP)",
         subtitle:
           "Dodatkowa warstwa ochrony: przy logowaniu poprosimy o kod z aplikacji uwierzytelniającej.",
+        statusLabel: "Status: ",
         statusEnabled: "Włączone",
         statusDisabled: "Wyłączone",
+        statusUnknown: "Nieznany",
+        loadFailed:
+          "Nie udało się sprawdzić drugiego składnika. To NIE znaczy, że jest wyłączony - odśwież stronę.",
         enroll: "Skonfiguruj aplikację uwierzytelniającą",
         scanInstruction:
           "Zeskanuj ten kod QR w aplikacji uwierzytelniającej (Google Authenticator, 1Password, Authy…).",
@@ -318,6 +326,8 @@ const pl = {
         removeTitle: "Usunąć tę metodę?",
         removeBody:
           "Po usunięciu logowanie nie będzie już wymagało kodu z tej aplikacji. Potwierdź hasłem.",
+        removeLastBody:
+          "To Twoja OSTATNIA metoda dwuskładnikowa. Po usunięciu konto będzie chronione wyłącznie hasłem. Potwierdź hasłem.",
         removePasswordLabel: "Potwierdź hasłem",
         removeConfirm: "Usuń metodę",
         removed: "Metoda została usunięta.",
@@ -993,6 +1003,9 @@ const en: ProfileEn = {
       lastSignIn: "Last sign-in",
       signOutOthers: "Sign out other sessions",
       signedOutOthers: "Signed out other sessions.",
+      currentRequired: "Enter your current password to confirm it is you.",
+      sameAsCurrent: "The new password is the same as the current one. Choose a different one.",
+      sessionExpired: "Your session has expired. Sign in again and repeat the change.",
       exportFailed: "Could not prepare the export. Please try again.",
       export: {
         title: "Your data (GDPR)",
@@ -1012,6 +1025,7 @@ const en: ProfileEn = {
         sent: "We've sent a confirmation link to the new address.",
         invalid: "Enter a valid email address.",
         needPassword: "Enter your current password to confirm.",
+        sameAsCurrent: "That is already your email address - there is nothing to change.",
       },
       danger: {
         title: "Delete account",
@@ -1056,8 +1070,12 @@ const en: ProfileEn = {
         title: "Two-factor authentication (TOTP)",
         subtitle:
           "An extra layer of protection: we'll ask for a code from your authenticator app when you sign in.",
+        statusLabel: "Status: ",
         statusEnabled: "Enabled",
         statusDisabled: "Disabled",
+        statusUnknown: "Unknown",
+        loadFailed:
+          "We could not check your second factor. This does NOT mean it is off - please refresh the page.",
         enroll: "Set up an authenticator app",
         scanInstruction:
           "Scan this QR code with your authenticator app (Google Authenticator, 1Password, Authy…).",
@@ -1079,6 +1097,8 @@ const en: ProfileEn = {
         removeTitle: "Remove this method?",
         removeBody:
           "After removal, signing in will no longer require a code from this app. Confirm with your password.",
+        removeLastBody:
+          "This is your LAST two-factor method. After removal the account will be protected by its password alone. Confirm with your password.",
         removePasswordLabel: "Confirm with password",
         removeConfirm: "Remove method",
         removed: "The method has been removed.",
@@ -1563,6 +1583,13 @@ type ProfileExtras = {
       };
     };
 
+    /** Wspólne stany list panelu konta (zakładki, obserwacje). */
+    lists: {
+      loading: string;
+      loadFailed: string;
+      retry: string;
+    };
+
     bookmarks: {
       title: string;
       subtitle: string;
@@ -1638,6 +1665,12 @@ const extrasPl: ProfileExtras = {
         save: "Zapisuje sekcję mediów społecznościowych i profil publiczny.",
       },
     },
+    lists: {
+      loading: "Wczytywanie…",
+      loadFailed:
+        "Nie udało się wczytać szczegółów tych pozycji. To NIE znaczy, że ich nie masz - licznik obok nazwy zakładki pokazuje, ile ich jest. Spróbuj ponownie.",
+      retry: "Spróbuj ponownie",
+    },
     bookmarks: {
       title: "Zapisane materiały",
       subtitle: "Wpisy i strony, które dodałeś do listy do przeczytania później.",
@@ -1712,6 +1745,12 @@ const extrasEn: ProfileExtras = {
         email: "Public contact email shown on your author page.",
         save: "Saves the social media & public profile section.",
       },
+    },
+    lists: {
+      loading: "Loading…",
+      loadFailed:
+        "We could not load the details of these items. This does NOT mean you have none - the number next to the tab name shows how many there are. Please try again.",
+      retry: "Try again",
     },
     bookmarks: {
       title: "Saved items",

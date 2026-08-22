@@ -191,3 +191,72 @@ describe("MfaChallenge - ponowne otwarcie", () => {
     expect(codeInput()).toHaveValue("");
   });
 });
+
+// ─── DOBICIE GAŁĘZI (etap 7b) ────────────────────────────────────────────────
+// Dwie ścieżki, które w normalnym przebiegu są niewidoczne, a decydują o tym,
+// czy człowiek z włączonym drugim składnikiem wróci do formularza logowania:
+//   * ODPOWIEDŹ, KTÓRA DOJECHAŁA PO ZAMKNIĘCIU OKNA - strażnik `active`
+//     (MfaChallenge.tsx:48) chroni przed osadzeniem czynnika z poprzedniej,
+//     zamkniętej próby,
+//   * AWARIA WYLOGOWANIA PRZY ANULOWANIU - `signOut().catch(() => {})`
+//     (MfaChallenge.tsx:74) nie może zablokować powrotu do formularza.
+
+describe("MfaChallenge - wyścig odpytania o czynnik", () => {
+  it("odpowiedź o czynniku, która dojechała po zamknięciu okna, nie jest osadzana", async () => {
+    // Bez strażnika `active` czynnik z ZAMKNIĘTEJ próby zostałby zapamiętany
+    // i kolejne otwarcie weryfikowałoby kod względem nieaktualnego czynnika -
+    // czyli wysłałoby do Supabase żądanie, o którym nikt nie prosił.
+    let release: (id: string | null) => void = () => {};
+    h.getFactorId.mockImplementationOnce(
+      () =>
+        new Promise<string | null>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const { rerender } = render(
+      <MfaChallenge open={true} onVerified={vi.fn()} onCancel={vi.fn()} />,
+    );
+    await flush();
+
+    // Człowiek zamyka okno, zanim lista czynników wróci z serwera.
+    rerender(<MfaChallenge open={false} onVerified={vi.fn()} onCancel={vi.fn()} />);
+    await act(async () => {
+      release("factor-z-zamknietej-proby");
+      await Promise.resolve();
+    });
+
+    // Kolejne otwarcie: nowe odpytanie jest jeszcze w locie, więc czynnika
+    // NIE MA. Gdyby spóźniona odpowiedź się osadziła, byłby.
+    h.getFactorId.mockImplementationOnce(() => new Promise<string | null>(() => {}));
+    rerender(<MfaChallenge open={true} onVerified={vi.fn()} onCancel={vi.fn()} />);
+    await flush();
+
+    fireEvent.change(codeInput(), { target: { value: "123456" } });
+    fireEvent.click(verifyButton());
+
+    expect(h.toastError).toHaveBeenCalledWith(t("profile.security.mfa.challenge.noFactor"));
+    expect(h.verify).not.toHaveBeenCalled();
+  });
+});
+
+describe("MfaChallenge - anulowanie przy awarii wylogowania", () => {
+  it("nieudane wylogowanie NIE blokuje powrotu do formularza logowania", async () => {
+    // Anulowanie step-upu ma wylogować sesję aal1. Jeśli to wylogowanie padnie
+    // (brak sieci), człowiek MUSI i tak wrócić do formularza - inaczej zostaje
+    // w modalu bez wyjścia, z kodem, którego nie ma skąd wziąć.
+    h.signOutMock.mockRejectedValue(new Error("brak połączenia"));
+    const onCancel = vi.fn();
+    render(<MfaChallenge open={true} onVerified={vi.fn()} onCancel={onCancel} />);
+    const input = codeInput();
+    fireEvent.change(input, { target: { value: "444444" } });
+
+    fireEvent.click(cancelButton());
+
+    await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1));
+    expect(h.signOutMock).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("");
+    // Awaria wylogowania nie jest problemem człowieka - nie zasypujemy go
+    // komunikatem o czymś, czego nie może naprawić.
+    expect(h.toastError).not.toHaveBeenCalled();
+  });
+});

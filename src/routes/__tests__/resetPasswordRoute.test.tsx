@@ -8,6 +8,16 @@ import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react
 const h = vi.hoisted(() => ({
   authCb: null as null | ((event: string, session: unknown) => void),
   getSessionResult: { data: { session: null as unknown } },
+  /** Gdy ustawione, `getSession()` czeka, aż test je zwolni (bez timerów). */
+  getSessionDeferred: null as null | Promise<{ data: { session: unknown } }>,
+  /** Wspólna atrapa odpięcia nasłuchu - dowód na sprzątanie po odmontowaniu. */
+  unsubscribe: vi.fn(),
+  /**
+   * Adres żądania widziany przez `head()`. Pusty ciąg = zachowanie domyślne
+   * (`head()` bierze wtedy własny fallback `/reset-password`, czyli wariant PL),
+   * bo pod vitestem `getRequestUrl()` nie ma ani żądania serwera, ani okna.
+   */
+  requestUrl: "",
   updateUser: vi.fn().mockResolvedValue({ error: null }),
   signOutMock: vi.fn().mockResolvedValue({ error: null }),
   settingsOverrides: {} as Record<string, unknown>,
@@ -21,13 +31,17 @@ vi.mock("@/integrations/supabase/client", () => ({
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
         h.authCb = cb;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
+        return { data: { subscription: { unsubscribe: h.unsubscribe } } };
       },
-      getSession: () => Promise.resolve(h.getSessionResult),
+      getSession: () => h.getSessionDeferred ?? Promise.resolve(h.getSessionResult),
       updateUser: (...a: unknown[]) => h.updateUser(...a),
       signOut: (...a: unknown[]) => h.signOutMock(...a),
     },
   },
+}));
+vi.mock("@/lib/seo/request", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/seo/request")>()),
+  getRequestUrl: () => h.requestUrl,
 }));
 vi.mock("@/hooks/useAuthSettings", async () => {
   const { AUTH_DEFAULTS } = await import("@/lib/authSettings");
@@ -40,7 +54,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 }));
 
 import i18n from "@/lib/i18n";
-import { renderRoute } from "@/test/routeHarness";
+import { renderRoute, routeHead } from "@/test/routeHarness";
 import { Route as ResetPasswordRoute } from "@/routes/reset-password";
 
 const PATH = "/reset-password";
@@ -73,6 +87,9 @@ beforeAll(async () => {
 beforeEach(() => {
   h.authCb = null;
   h.getSessionResult = { data: { session: null } };
+  h.getSessionDeferred = null;
+  h.unsubscribe.mockClear();
+  h.requestUrl = "";
   h.updateUser.mockReset().mockResolvedValue({ error: null });
   h.signOutMock.mockReset().mockResolvedValue({ error: null });
   h.settingsOverrides = {};
@@ -319,5 +336,208 @@ describe("trasa /reset-password - i18n", () => {
       await vi.advanceTimersByTimeAsync(4_001);
     });
     expect(screen.getByText("This link is invalid or has expired")).toBeInTheDocument();
+  });
+});
+
+// ─── DOBICIE GAŁĘZI (etap 7b) ────────────────────────────────────────────────
+// Poniższe grupy dotyczą trzech rzeczy, których wcześniejsze testy nie ruszały,
+// a każda z nich zostawia człowieka bez konta, jeśli się zepsuje:
+//   * nagłówek strony w wersji angielskiej (`head()` czyta JĘZYK Z ADRESU, nie
+//     z i18n, więc wariant EN to osobna ścieżka kodu),
+//   * ROZRÓŻNIENIE zdarzeń nasłuchu: formularz nowego hasła wolno odsłonić
+//     WYŁĄCZNIE przy sesji odzyskiwania, nie przy dowolnym zdarzeniu auth,
+//   * wyścigi domknięcia: odpowiedź, która dojechała po opuszczeniu strony albo
+//     po odsłonięciu formularza, nie może przestawić fazy pod palcami.
+
+describe("trasa /reset-password - nagłówek w wersji angielskiej", () => {
+  it("prefiks /en w adresie daje angielski tytuł, opis i znacznik języka", () => {
+    // `head()` NIE czyta `i18n.language` - bierze język z adresu żądania
+    // (`activeLang`). Gdyby ta gałąź się zepsuła, użytkownik EN dostałby
+    // w zakładce i w podglądzie linku polski tytuł strony resetu hasła.
+    h.requestUrl = "https://example.org/en/reset-password";
+    const head = routeHead(ResetPasswordRoute);
+
+    expect(head.meta).toContainEqual({ title: "Reset password - New European Strategies" });
+    expect(head.meta).toContainEqual({
+      name: "description",
+      content: "Set a new password for your New European Strategies account.",
+    });
+    expect(head.meta).toContainEqual({ httpEquiv: "content-language", content: "en" });
+    // Strona odzyskiwania konta nie wchodzi do wyszukiwarek w ŻADNYM języku.
+    expect(head.meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+  });
+
+  it("bez prefiksu językowego nagłówek jest polski", () => {
+    h.requestUrl = "https://example.org/reset-password";
+    const head = routeHead(ResetPasswordRoute);
+
+    expect(head.meta).toContainEqual({ title: "Reset hasła - New European Strategies" });
+    expect(head.meta).toContainEqual({ httpEquiv: "content-language", content: "pl" });
+  });
+});
+
+describe("trasa /reset-password - które zdarzenie odsłania formularz", () => {
+  it("zdarzenie odzyskiwania BEZ sesji nie odsłania formularza nowego hasła", async () => {
+    // Formularz zmiany hasła wolno pokazać tylko przy realnej sesji z linku.
+    // Odsłonięcie go bez sesji kończy się „nie udało się zapisać" po wpisaniu
+    // nowego hasła - człowiek myśli, że zmienił hasło, a nie zmienił.
+    h.getSessionResult = { data: { session: null } };
+    await mount();
+
+    await act(async () => {
+      h.authCb?.("PASSWORD_RECOVERY", null);
+    });
+
+    expect(screen.getByText("Weryfikujemy link resetujący…")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Ustaw nowe hasło" })).not.toBeInTheDocument();
+  });
+
+  it("zdarzenie niezwiązane z odzyskiwaniem nie odsłania formularza, choć ma sesję", async () => {
+    // Odświeżenie tokenu zalogowanej osoby (inna karta) nie jest zgodą na
+    // zmianę hasła bez linku z e-maila.
+    h.getSessionResult = { data: { session: null } };
+    await mount();
+
+    await act(async () => {
+      h.authCb?.("TOKEN_REFRESHED", { user: { id: "u1" } });
+    });
+
+    expect(screen.getByText("Weryfikujemy link resetujący…")).toBeInTheDocument();
+  });
+
+  it("powtórne zdarzenie nie kasuje hasła wpisanego w odsłonięty formularz", async () => {
+    // supabase-js potrafi wysłać SIGNED_IN kilka razy (odświeżenie tokenu tuż
+    // po wymianie). Gdyby faza wracała do „checking", formularz zniknąłby
+    // z ekranu razem z wpisanym hasłem.
+    h.getSessionResult = { data: { session: { user: { id: "u1" } } } };
+    await mount();
+    await screen.findByRole("heading", { name: "Ustaw nowe hasło" });
+
+    const { password } = passwordFields();
+    fireEvent.change(password, { target: { value: "haslo1234" } });
+
+    await act(async () => {
+      h.authCb?.("SIGNED_IN", { user: { id: "u1" } });
+    });
+
+    expect(screen.getByRole("heading", { name: "Ustaw nowe hasło" })).toBeInTheDocument();
+    expect(passwordFields().password).toHaveValue("haslo1234");
+  });
+});
+
+describe("trasa /reset-password - wyścigi po opuszczeniu strony", () => {
+  it("odmontowanie odpina nasłuch sesji", async () => {
+    h.getSessionResult = { data: { session: null } };
+    const view = await mount();
+
+    expect(h.unsubscribe).not.toHaveBeenCalled();
+    view.unmount();
+    expect(h.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("zdarzenie sesji, które dojechało po opuszczeniu strony, nie wskrzesza formularza", async () => {
+    h.getSessionResult = { data: { session: null } };
+    const view = await mount();
+    view.unmount();
+
+    await act(async () => {
+      h.authCb?.("PASSWORD_RECOVERY", { user: { id: "u1" } });
+    });
+
+    expect(document.body.textContent).not.toContain("Ustaw nowe hasło");
+  });
+
+  it("getSession rozstrzygnięty po opuszczeniu strony nie wskrzesza formularza", async () => {
+    // Realny przypadek: wolna odpowiedź /auth/v1/user, a człowiek w tym czasie
+    // wraca na stronę logowania. Sesja dojeżdża do już odmontowanego widoku.
+    let release: (value: { data: { session: unknown } }) => void = () => {};
+    h.getSessionDeferred = new Promise((resolve) => {
+      release = resolve;
+    });
+    const view = await mount();
+    expect(screen.getByText("Weryfikujemy link resetujący…")).toBeInTheDocument();
+
+    view.unmount();
+    await act(async () => {
+      release({ data: { session: { user: { id: "u1" } } } });
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).not.toContain("Ustaw nowe hasło");
+  });
+
+  it("getSession rozstrzygnięty PO odsłonięciu formularza nie przestawia fazy", async () => {
+    // Kolejność w produkcji bywa odwrotna do oczekiwanej: nasłuch dostaje
+    // PASSWORD_RECOVERY szybciej niż rozstrzyga się getSession(). Późniejsza
+    // odpowiedź nie może przerysować ekranu pod palcami.
+    let release: (value: { data: { session: unknown } }) => void = () => {};
+    h.getSessionDeferred = new Promise((resolve) => {
+      release = resolve;
+    });
+    await mount();
+
+    await act(async () => {
+      h.authCb?.("PASSWORD_RECOVERY", { user: { id: "u1" } });
+    });
+    const { password } = passwordFields();
+    fireEvent.change(password, { target: { value: "haslo1234" } });
+
+    await act(async () => {
+      release({ data: { session: { user: { id: "u1" } } } });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("heading", { name: "Ustaw nowe hasło" })).toBeInTheDocument();
+    expect(passwordFields().password).toHaveValue("haslo1234");
+  });
+});
+
+describe("trasa /reset-password - deadline kontra formularz na ekranie", () => {
+  it("deadline nie zamienia odsłoniętego formularza w komunikat o wygaśnięciu", async () => {
+    // To jest najważniejszy test tej grupy: deadline (4 s / 20 s) NIE jest
+    // czyszczony po odsłonięciu formularza, tylko dojeżdża w tle. Gdyby
+    // przestawiał fazę bezwarunkowo, człowiek wpisujący hasło zobaczyłby po
+    // czterech sekundach „link wygasł" - i musiałby zamawiać nowy link, mimo
+    // że sesja odzyskiwania była poprawna.
+    vi.useFakeTimers();
+    h.getSessionResult = { data: { session: { user: { id: "u1" } } } };
+    await mount();
+    expect(screen.getByRole("heading", { name: "Ustaw nowe hasło" })).toBeInTheDocument();
+
+    const { password, confirm } = passwordFields();
+    fireEvent.change(password, { target: { value: "haslo1234" } });
+    fireEvent.change(confirm, { target: { value: "haslo1234" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_001);
+    });
+
+    expect(screen.getByRole("heading", { name: "Ustaw nowe hasło" })).toBeInTheDocument();
+    expect(screen.queryByText("Link wygasł lub jest nieprawidłowy")).not.toBeInTheDocument();
+    expect(passwordFields().password).toHaveValue("haslo1234");
+  });
+
+  it("sesja po deadline nie odsłania już formularza - OPIS STANU FAKTYCZNEGO", async () => {
+    // To nie jest życzenie, tylko zapis rzeczywistości: po przejściu w fazę
+    // „invalid" `setPhase` zwraca poprzednią fazę, więc spóźniona sesja NIE
+    // przywraca formularza. Zachowanie jest świadome (deadline jest ostateczny)
+    // i wyjście dla człowieka istnieje - przycisk „Wyślij nowy link" zostaje na
+    // ekranie. Asercja pilnuje, żeby ta reguła nie zmieniła się przypadkiem.
+    vi.useFakeTimers();
+    h.getSessionResult = { data: { session: null } };
+    await mount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_001);
+    });
+    expect(screen.getByText("Link wygasł lub jest nieprawidłowy")).toBeInTheDocument();
+
+    await act(async () => {
+      h.authCb?.("PASSWORD_RECOVERY", { user: { id: "u1" } });
+    });
+
+    expect(screen.getByText("Link wygasł lub jest nieprawidłowy")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Ustaw nowe hasło" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Wyślij nowy link" })).toBeInTheDocument();
   });
 });

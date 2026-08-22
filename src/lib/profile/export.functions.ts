@@ -18,16 +18,23 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  EXPORT_MESSAGE_LIMIT,
+  EXPORT_PROFILE_VIEWERS_LIMIT,
+  EXPORT_ROW_LIMIT,
   PERSONAL_DATA_EXPORT_FORMAT,
   buildExportManifest,
+  detectTruncatedSections,
   diffExportManifest,
   type JsonValue,
 } from "./exportManifest";
 
-/** Sufit wierszy dla sekcji strumieniowych - eksport ma być plikiem, nie zrzutem bazy. */
-const ROW_LIMIT = 2000;
-/** Wiadomości bywają najliczniejsze, więc mają własny, wyższy sufit. */
-const MESSAGE_LIMIT = 5000;
+// Sufity wierszy mieszkają w REJESTRZE (`exportManifest.ts`), nie tutaj. Do
+// v2 były lokalnymi stałymi tego pliku i nikt nie zestawiał ich z zawartością
+// paczki - dlatego ucięcie eksportu było w pliku niewidoczne. Teraz emiter
+// i manifest czytają jedno źródło, a `detectTruncatedSections` liczy ucięcie
+// z tego, co realnie znalazło się w pliku.
+const ROW_LIMIT = EXPORT_ROW_LIMIT;
+const MESSAGE_LIMIT = EXPORT_MESSAGE_LIMIT;
 
 type SectionResult = { data: unknown; error: { message: string } | null };
 
@@ -253,7 +260,9 @@ export const exportMyData = createServerFn({ method: "POST" })
         .eq("recipient_id", userId),
       // Kto oglądał profil - RPC honoruje tryb prywatności KAŻDEGO viewera, więc
       // eksport nie odsłania osób ukrytych (art. 15 ust. 4 RODO).
-      profile_viewers: supabase.rpc("my_profile_viewers", { p_limit: 200 }),
+      profile_viewers: supabase.rpc("my_profile_viewers", {
+        p_limit: EXPORT_PROFILE_VIEWERS_LIMIT,
+      }),
       profile_view_stats: supabase.rpc("profile_view_stats").then((r) => ({
         data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data,
         error: r.error,
@@ -374,7 +383,10 @@ export const exportMyData = createServerFn({ method: "POST" })
     // Rozjazd deklaracja ⇄ implementacja nie może przejść w ciszy: trafia do
     // pliku (nie tylko do logu), bo to plik jest dowodem wykonania art. 15.
     const drift = diffExportManifest(keys);
-    const manifest = buildExportManifest(Object.keys(errors));
+    // Ucięcie liczone z ZAWARTOŚCI paczki: sekcja, w której wierszy jest tyle,
+    // ile pozwala sufit, mogła nie zmieścić wszystkiego. Bez tego pola paczka
+    // ucięta była w pliku nierozróżnialna od kompletnej.
+    const manifest = buildExportManifest(Object.keys(errors), detectTruncatedSections(out));
 
     return {
       format: PERSONAL_DATA_EXPORT_FORMAT,
