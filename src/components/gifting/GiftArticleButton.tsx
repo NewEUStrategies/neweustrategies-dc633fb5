@@ -91,6 +91,16 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
 
   const giftUrl = code ? buildGiftUrl(url, code) : null;
 
+  // Kanaly dla zwyklego linku publicznego - uzywane gdy wpis nie jest gated.
+  const plainTargets = useMemo(() => {
+    return buildGiftShareTargets({
+      url,
+      title,
+      emailSubject: t("gifting.emailSubject", { title }),
+      emailBody: t("gifting.emailBody", { title, url }),
+    });
+  }, [url, title, t]);
+
   const targets = useMemo(() => {
     if (!giftUrl) return [];
     return buildGiftShareTargets({
@@ -102,10 +112,21 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
   }, [giftUrl, title, t]);
 
   const onCopy = async (): Promise<void> => {
-    const linkToCopy = errorKey === "notGated" ? url : giftUrl;
-    if (!linkToCopy) return;
+    if (!giftUrl) return;
     try {
-      await navigator.clipboard.writeText(linkToCopy);
+      await navigator.clipboard.writeText(giftUrl);
+      setJustCopied(true);
+      toast.success(t("gifting.copied"));
+      window.setTimeout(() => setJustCopied(false), 2000);
+    } catch {
+      // Schowek bywa zablokowany (kontekst niezabezpieczony / brak zgody).
+      toast.error(t("gifting.copyFailed"));
+    }
+  };
+
+  const onCopyPlain = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(url);
       setJustCopied(true);
       toast.success(t("gifting.copied"));
       window.setTimeout(() => setJustCopied(false), 2000);
