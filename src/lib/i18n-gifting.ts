@@ -111,6 +111,7 @@ const en: typeof pl = {
     button: "Share full article",
     popoverTitle: "Share full article",
     lead: "Give paywall-free access to the full text of this article.",
+    leadFree: "This article is already paywall-free - a plain page link is enough.",
     leadCapped_one: "Your link opens the full article for the first person who clicks it.",
     leadCapped_few: "Your link opens the full article for the first {{count}} people who click it.",
     leadCapped_many:
