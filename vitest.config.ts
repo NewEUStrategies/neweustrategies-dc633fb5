@@ -311,11 +311,229 @@ export default defineConfig({
           lines: 93,
           branches: 90,
         },
-        // meta.ts: the head builders used by route head() functions are
-        // covered; the root-head/font-preload helpers consumed only by
-        // __root.tsx keep the totals below 100 (honest floor, raise with new
-        // tests rather than trimming the measurement).
-        "src/lib/seo/meta.ts": { statements: 84, functions: 72, lines: 90, branches: 66 },
+        // ── MODUŁ 8: SEO, FEEDY, DANE STRUKTURALNE (2026-08-22) ─────────────
+        //
+        // meta.ts buduje <head> KAŻDEJ strony i do 22.08 miał gałęzie 66 -
+        // najniższy próg per-ścieżka w całym repozytorium. Poprzedni komentarz
+        // tłumaczył to „trudno dosięgalnymi" builderami root-head i
+        // font-preload. SPRAWDZONE: `buildRootHead` JEST eksportowane i jest
+        // teraz pokryte w 100% (dopisane ramię `origin: ""` -> domena
+        // kanoniczna), a font-preload nie mieszka w meta.ts wcale - żyje
+        // w `lib/seo/fontPreload.ts` i ma własny plik testowy. Uzasadnienie
+        // starego progu było więc nieprawdziwe, nie tylko przestarzałe.
+        //
+        // ZMIERZONE 2026-08-22: 100% instrukcji / 100% funkcji / 100% linii /
+        // 96,58% gałęzi. Floor 1-2 pp pod pomiarem.
+        //
+        // Sufit gałęzi to 96,58%, nie 100%, i to jest uczciwy sufit: sześć
+        // ramion jest NIEOSIĄGALNYCH przez publiczne API i zostaje w kodzie
+        // jako obrona (numery z pomiaru):
+        //   * meta.ts:189 i :213 - ramię `else` przy `if (canonical)`.
+        //     `absoluteUrl` zwraca `origin ? origin+p : p`, a `p` zawsze
+        //     zaczyna się od "/", więc łańcuch NIGDY nie jest pusty.
+        //   * meta.ts:448-450 - ramię fałszywe `canonical ? {...} : {}`
+        //     w `buildArticleJsonLd`, ten sam powód.
+        //   * meta.ts:377 - `codePointAt(0) ?? 0` w `sanitizeHeaderText`;
+        //     `for (const ch of value)` nigdy nie oddaje pustego znaku.
+        "src/lib/seo/meta.ts": { statements: 98, functions: 100, lines: 98, branches: 94 },
+        // Cała powierzchnia `lib/seo`: 43 pliki źródłowe, 50 plików testowych.
+        // Audyt 08.2026 opisywał ją jako „powierzchnię z niedobitymi gałęziami
+        // (70-84%)" przy DWÓCH progach per-ścieżka na 74 pliki.
+        // ZMIERZONE 2026-08-22 (`npx vitest run src/lib/seo --coverage
+        // --coverage.include='src/lib/seo/**'`): 99,62% instrukcji / 100%
+        // funkcji / 100% linii / 97,46% gałęzi; 33 z 43 plików na 100/100.
+        // Punkt wyjścia był 74,18% linii / 69,27% gałęzi.
+        "src/lib/seo/**": { statements: 98, functions: 98, lines: 98, branches: 95 },
+        // Middleware przekierowań na ścieżce ŻĄDANIA. Do 22.08 gałęzie 17,30%
+        // przy 41,26% linii - a to warstwa, bez której panel /admin/redirects
+        // jest martwą metadaną i 301-ki po migracji z WP nie docierają do
+        // przeglądarki. Cztery bramki wejściowe muszą odciąć się BEZ odczytu
+        // bazy (middleware stoi przed cache dokumentów), a degradacja loadera
+        // nie może nigdy rzucić na ścieżce SSR.
+        // ZMIERZONE 2026-08-22: 100% / 100% / 100% / 100%.
+        "src/lib/seo/redirects.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 98,
+        },
+        // Walidator struktury nagłówków zasilający panel SEO: osiem rodzajów
+        // uwagi, a `severity` decyduje, czy panel ZABLOKUJE zapis - fałszywy
+        // `error` kosztuje tu tyle samo, co przegapiony. Do 22.08 gałęzie
+        // 36,95% przy 41,46% linii (niepokryte 117-256).
+        // ZMIERZONE 2026-08-22: 100% / 100% / 100% / 98,91%.
+        "src/lib/seo/headingValidation.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 96,
+        },
+        // Panel, w którym redakcja ustawia tytuł, opis i indeksowanie KAŻDEJ
+        // strony. Do 22.08: 3,88% linii / 2,24% gałęzi przy jednym pliku
+        // testowym na dziewięć źródłowych - największa realna dziura modułu.
+        // Błąd tutaj jest niewidoczny do pierwszego audytu widoczności: nie ma
+        // komunikatu ani wyjątku, jest zła etykieta w wynikach wyszukiwania.
+        // ZMIERZONE 2026-08-22: 99,09% instrukcji / 100% funkcji / 100% linii /
+        // 97,80% gałęzi.
+        "src/components/admin/seo/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Udostępnianie: jedyna ścieżka wzrostu organicznego poza wyszukiwarką.
+        // Oba pliki startowały z 0%; `FloatingShareBar` to 797 linii, w tym
+        // kodowanie adresu dla siedmiu kanałów (nieescape'owany `&` w tytule
+        // rozrywa query string i daje polamany link na Facebooku).
+        // ZMIERZONE 2026-08-22: 100% / 100% / 100% / 100%.
+        "src/components/share/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Graf powiązań między modułami - 18 LOC, dwa pliki, oba startowały
+        // z 0%. Panele „Powiązane" w CRM, komentarzach i newsletterze czytają
+        // wyłącznie przez tę warstwę.
+        // ZMIERZONE 2026-08-22: 100% / 100% / 100% / 100%.
+        "src/lib/links/**": { statements: 98, functions: 98, lines: 98, branches: 98 },
+        // Trasy panelu SEO (przegląd treści + Search Console). Startowały z 0%.
+        // DOSTĘPU te progi nie pilnują - robi to
+        // `src/routes/__tests__/adminRouteAuthority.gate.test.ts` (sekcja
+        // „panel SEO - autorytet dostępu"), a uwierzytelnienia dowodzi
+        // `e2e/seo.spec.ts` testem „/admin/seo is auth-gated".
+        // ZMIERZONE 2026-08-22: admin.seo.tsx 96,55/100/100/94,18,
+        // admin.seo.search-console.tsx 100/100/100/97,82.
+        "src/routes/admin.seo*.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // Zakładka ustawień SEO serwisu: jeden blob `site_settings["seo"]`
+        // czytany przez publiczne head(), JSON-LD strony głównej, feedy, news
+        // sitemap i politykę crawlerów AI w robots.txt.
+        // ZMIERZONE 2026-08-22: 96,55% instrukcji / 94,44% funkcji /
+        // 96,42% linii / 100% gałęzi. Funkcje nie dobijają 100, bo część
+        // domknięć `onChange` pól, których żaden test nie przestawia, nie ma
+        // własnego przypadku - uczciwy sufit, nie obniżony próg.
+        "src/routes/admin.settings.seo.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 94,
+          branches: 96,
+        },
+        // ── TRASY FEEDÓW I SITEMAP: PRÓG STANU FAKTYCZNEGO ──────────────────
+        //
+        // Te progi NIE mają gonić 95%. Osiem cienkich tras (14-24 linie każda)
+        // jest DOWIEDZIONE w `e2e/seo.spec.ts` - 238 linii, 15 testów,
+        // największa specyfikacja e2e w repo - i to dowód BAJTAMI z SSR:
+        // `sitemap.xml` jako `sitemapindex`, każdy shard z indeksu rozwiązujący
+        // się do `urlset`, 404 dla nieznanego sharda, 301 z `sitemap-index.xml`,
+        // `llms.txt` jako `text/plain`, poprawnie sformowany `rss.xml`,
+        // pochodzenie `robots.txt` Z TRASY (trzy osobne testy, w tym nagłówek
+        // `X-Robots-Tag` i sfałszowany `x-forwarded-host`), feedy trackera
+        // i relacji na żywo, odnajdywalność kanału podcastu.
+        //
+        // v8 tego nie liczy - e2e to osobny proces. Dobijanie tych linii
+        // testami jednostkowymi byłoby DUBLOWANIEM `e2e/seo.spec.ts`, czyli
+        // dokładnie tym, co audyt nazywa farmieniem pokrycia: liczba by
+        // wzrosła, dowód nie.
+        //
+        // Dlatego te pliki NIE SĄ wykluczone z pomiaru (liczba ma przestać
+        // kłamać, nie zniknąć), a próg odpowiada STANOWI FAKTYCZNEMU i chroni
+        // wyłącznie przed usunięciem testów DEGRADACJI z etapu 5
+        // (`src/routes/__tests__/feedRoutesDegradation.test.ts`): awaria
+        // czytnika nie może wyemitować uciętego XML-a, nagłówki odpowiedzi
+        // zdegradowanej, kontrakt shardów.
+        //
+        // ZMIERZONE 2026-08-22 dla ośmiu cienkich tras (bez `sitemap.tsx`,
+        // która jest stroną HTML): 74,34% instrukcji / 60,00% funkcji /
+        // 75,47% linii / 56,31% gałęzi. Punkt wyjścia: 0,8% linii / 0,0%
+        // gałęzi / 0 z 24 funkcji.
+        // UWAGA NA NAZWY PLIKÓW: trasy feedów nazywają się `rss[.]xml.ts`,
+        // `sitemap[.]xml.ts` itd. - nawiasy kwadratowe są CZĘŚCIĄ nazwy (tak
+        // generator tras TanStack zapisuje kropkę w segmencie). W globie nawias
+        // jest klasą znaków, więc wzorzec `src/routes/rss[.]xml.ts` NIE
+        // dopasowuje niczego i próg jest martwy - sprawdzone picomatchem, tym
+        // samym matcherem, którego używa vitest. Dlatego nawiasy są tu
+        // ESCAPE'OWANE (`\\[.\\]`): każdy wzorzec dopasowuje DOKŁADNIE jeden
+        // plik. Nie zamieniać na `sitemap*xml.ts` - taki wzorzec łapie też
+        // `sitemap-index[.]xml.ts` i nakłada się na jego własny, ostrzejszy próg.
+        //
+        // Shard sekcji i alias indeksu mają pełne progi: shard jest dowiedziony
+        // jednostkowo (kontrakt sekcji nieznanej/pustej/poza paginacją), a alias
+        // to trzy linie z 301.
+        "src/routes/sitemaps.$section.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/sitemap-index\\[.\\]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/sitemap\\[.\\]xml.ts": {
+          statements: 50,
+          functions: 98,
+          lines: 50,
+          branches: 48,
+        },
+        "src/routes/rss\\[.\\]xml.ts": {
+          statements: 93,
+          functions: 64,
+          lines: 98,
+          branches: 59,
+        },
+        "src/routes/news-sitemap\\[.\\]xml.ts": {
+          statements: 71,
+          functions: 98,
+          lines: 75,
+          branches: 61,
+        },
+        "src/routes/llms\\[.\\]txt.ts": {
+          statements: 69,
+          functions: 31,
+          lines: 69,
+          branches: 29,
+        },
+        // HTML-owa mapa strony `/sitemap` (211 linii). NIE jest jedną z ośmiu
+        // cienkich tras feedów - to pełna strona dla CZŁOWIEKA, nie dla robota -
+        // ale należy do tej samej powierzchni i nie może zniknąć z pomiaru.
+        // Dowodzi jej `e2e/seo.spec.ts` testem „HTML sitemap /sitemap renders
+        // navigable page": H1 widoczny, sekcje `h2` obecne, ZERO błędów strony.
+        // Render jednostkowy powtarzałby to samo na atrapie danych, więc próg
+        // jest stanem faktycznym.
+        // ZMIERZONE 2026-08-22: 0% / 0% / 0% / 0%.
+        "src/routes/sitemap.tsx": { statements: 0, functions: 0, lines: 0, branches: 0 },
+        // robots.txt: PIĘĆ linii wiązania żądania z odpowiedzią. Cała logika
+        // (klasyfikacja hosta, tenant, ustawienia, nagłówki) mieszka w
+        // `lib/server/robotsRequest.server.ts` i `lib/seo/robots.ts` - ten
+        // drugi jest na 100% gałęzi. Sama trasa jest dowiedziona TRZEMA testami
+        // `e2e/seo.spec.ts`, w tym nagłówkiem `X-Robots-Tag` (którego warstwa
+        // assetów nie dokłada, więc jest dowodem POCHODZENIA odpowiedzi) i
+        // sfałszowanym `x-forwarded-host`. Atrapa tego nie podrobi w sposób
+        // dowodzący czegokolwiek, więc próg jest stanem faktycznym: 0% linii.
+        // ZMIERZONE 2026-08-22: 0% instrukcji / 0% funkcji / 0% linii /
+        // 100% gałęzi (jedyna gałąź to `??` w nagłówkach).
+        "src/routes/robots\\[.\\]txt.ts": {
+          statements: 0,
+          functions: 0,
+          lines: 0,
+          branches: 98,
+        },
+        // Webhook regeneracji og:image: jedyna trasa tej grupy, która NIE ma
+        // odpowiednika w e2e (wymaga sekretu HMAC), więc jej próg jest pełny.
+        // ZMIERZONE 2026-08-22: 100% / 100% / 100% / 100%.
+        "src/routes/api/public/hooks.refresh-og-image.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         // Reguły zero-click: czysty analizator kształtu wpisu (lead 40-70 słów,
         // nagłówki pytaniowe, FAQ jako blok, długość odpowiedzi). Zasila
         // checklistę redakcyjną, więc fałszywe „OK" jest tu kosztowniejsze niż
