@@ -598,3 +598,289 @@ describe("AuthPortal - reset hasła", () => {
     expect(screen.getByText(t("authPortal.resetSub"))).toBeInTheDocument();
   });
 });
+
+// ============================================================================
+// DOBICIE GAŁĘZI - kontrakt pojedynczego pola rejestracji
+// ----------------------------------------------------------------------------
+// Fixture `makeReg()` wyżej wystawia tylko e-mail, hasła i imię/nazwisko, więc
+// łańcuchy ternary wybierające `type` i `autoComplete` dla POZOSTAŁYCH pól
+// (telefon, LinkedIn, firma, stanowisko) nigdy nie były wykonane. To nie
+// kosmetyka:
+//   * `type="tel"` na numerze telefonu decyduje o tym, czy telefon pokaże
+//     klawiaturę numeryczną - przy `type="text"` użytkownik mobilny wstukuje
+//     numer na klawiaturze QWERTY;
+//   * `autoComplete` (given-name / family-name / organization /
+//     organization-title / tel) decyduje o tym, czy menedżer haseł i
+//     autouzupełnianie przeglądarki umieją wypełnić formularz jednym
+//     kliknięciem. Zły token to ręczne przepisywanie ośmiu pól, a w formularzu
+//     rejestracji przekłada się to wprost na porzucenie rejestracji.
+// Dlatego asercja idzie po KONTRAKCIE KAŻDEGO POLA, a nie po jednym przykładzie.
+// Klucze pochodzą z POPUP_FIELD_KEYS (`@/lib/newsletter/popupFields`) - to
+// prawdziwy, zamknięty rejestr pól rejestracji, nie wymyślone nazwy.
+
+/** Pełny rejestr pól rejestracji - wszystkie prawdziwe klucze włączone. */
+function makeWideReg() {
+  const visible: Array<{ key: string; enabled: boolean; required: boolean }> = [
+    { key: "email", enabled: true, required: true },
+    { key: "password", enabled: true, required: true },
+    { key: "password_confirm", enabled: true, required: true },
+    { key: "first_name", enabled: true, required: true },
+    { key: "last_name", enabled: true, required: false },
+    { key: "job", enabled: true, required: false },
+    { key: "company", enabled: true, required: false },
+    { key: "phone", enabled: true, required: false },
+    { key: "linkedin", enabled: true, required: false },
+    // Te dwa klucze siatka rejestracji ODFILTROWUJE (lista newslettera i zgoda
+    // marketingowa nie są polami tekstowymi) - trzymamy je w fixture właśnie,
+    // żeby dowieść, że filtr działa.
+    { key: "list", enabled: true, required: false },
+    { key: "newsletter_optin", enabled: true, required: false },
+  ];
+  const get = (key: string) => visible.find((f) => f.key === key);
+  return {
+    fields: visible,
+    visible,
+    get,
+    isEnabled: (key: string) => get(key)?.enabled === true,
+    isRequired: (key: string) => get(key)?.required === true,
+    label: (key: string, fallback?: string) => fallback ?? key,
+    placeholder: () => "",
+  };
+}
+
+/** Pole rejestracji po etykiecie z fixture (`reg.label` zwraca sam klucz). */
+function regInput(key: string): HTMLInputElement {
+  return screen.getByLabelText(startsWith(key)) as HTMLInputElement;
+}
+
+describe("AuthPortal - kontrakt pól rejestracji (klawiatura i autouzupełnianie)", () => {
+  beforeEach(() => {
+    h.reg = makeWideReg();
+  });
+
+  it("type pola odpowiada treści: tel dla telefonu, url dla LinkedIn, email dla e-maila, text dla reszty", () => {
+    renderPortal();
+    switchTo(t("authPortal.signup"));
+
+    const expected: Array<[string, string]> = [
+      ["email", "email"],
+      ["phone", "tel"],
+      ["linkedin", "url"],
+      ["first_name", "text"],
+      ["last_name", "text"],
+      ["job", "text"],
+      ["company", "text"],
+    ];
+    for (const [key, type] of expected) {
+      expect(regInput(key)).toHaveAttribute("type", type);
+    }
+    // Oba pola haseł są maskowane, dopóki użytkownik nie kliknie "pokaż".
+    for (const pw of screen.getAllByLabelText(startsWith(t("authPortal.password")))) {
+      expect(pw).toHaveAttribute("type", "password");
+    }
+  });
+
+  it("autoComplete pola jest tokenem WHATWG właściwym dla tego pola (spadek: off)", () => {
+    renderPortal();
+    switchTo(t("authPortal.signup"));
+
+    const expected: Array<[string, string]> = [
+      ["email", "email"],
+      ["first_name", "given-name"],
+      ["last_name", "family-name"],
+      ["company", "organization"],
+      ["job", "organization-title"],
+      ["phone", "tel"],
+      // LinkedIn nie ma standardowego tokenu autouzupełniania - łańcuch spada
+      // na "off", żeby przeglądarka nie wstrzykiwała tu adresu ani firmy.
+      ["linkedin", "off"],
+    ];
+    for (const [key, token] of expected) {
+      expect(regInput(key)).toHaveAttribute("autocomplete", token);
+    }
+    for (const pw of screen.getAllByLabelText(startsWith(t("authPortal.password")))) {
+      expect(pw).toHaveAttribute("autocomplete", "new-password");
+    }
+  });
+
+  it("pola 'list' i 'newsletter_optin' nie trafiają do siatki jako pola tekstowe", () => {
+    renderPortal();
+    switchTo(t("authPortal.signup"));
+    expect(screen.queryByLabelText(startsWith("list"))).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(startsWith("newsletter_optin"))).not.toBeInTheDocument();
+  });
+
+  it("e-mail i LinkedIn zajmują całą szerokość siatki, krótkie pola po pół", () => {
+    renderPortal();
+    switchTo(t("authPortal.signup"));
+    // Klasa siedzi na kontenerze pola (input-group), nie na samym <input>.
+    expect(regInput("email").parentElement).toHaveClass("sm:col-span-2");
+    expect(regInput("linkedin").parentElement).toHaveClass("sm:col-span-2");
+    expect(regInput("first_name").parentElement).not.toHaveClass("sm:col-span-2");
+  });
+
+  it("szerszy zestaw pól trafia do metadanych rejestracji (stanowisko, firma, telefon, LinkedIn)", async () => {
+    const { container } = renderPortal();
+    switchTo(t("authPortal.signup"));
+    fireEvent.change(regInput("email"), { target: { value: "anna@example.com" } });
+    const [pw, pwConfirm] = screen.getAllByLabelText(startsWith(t("authPortal.password")));
+    fireEvent.change(pw, { target: { value: "s3cret123" } });
+    fireEvent.change(pwConfirm, { target: { value: "s3cret123" } });
+    fireEvent.change(regInput("first_name"), { target: { value: "Anna" } });
+    fireEvent.change(regInput("last_name"), { target: { value: "Kowalska" } });
+    fireEvent.change(regInput("job"), { target: { value: "Analityk" } });
+    fireEvent.change(regInput("company"), { target: { value: "NES" } });
+    fireEvent.change(regInput("phone"), { target: { value: "+48600000000" } });
+    fireEvent.change(regInput("linkedin"), {
+      target: { value: "https://linkedin.com/in/anna" },
+    });
+    submitForm(container);
+
+    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
+    expect(h.signUp.mock.calls[0][0].options.data).toEqual(
+      buildSignupMetadata(
+        {
+          email: "anna@example.com",
+          firstName: "Anna",
+          lastName: "Kowalska",
+          job: "Analityk",
+          company: "NES",
+          phone: "+48600000000",
+          linkedin: "https://linkedin.com/in/anna",
+        },
+        { lang: "pl", source: "auth_page" },
+      ),
+    );
+  });
+});
+
+// ============================================================================
+// DOBICIE GAŁĘZI - odnośniki prawne pod formularzem
+// ----------------------------------------------------------------------------
+// `settings.privacy_url || "/polityka-prywatnosci"` i analogiczny regulamin
+// mają ramię FALLBACKU, którego nie dotykał żaden test, bo AUTH_DEFAULTS zawsze
+// podaje adres. Tenant, który wyczyści te pola w Admin → Strona logowania,
+// dostałby pod formularzem `<a href="">`: klik = przeładowanie tej samej strony
+// i utrata wpisanych danych rejestracji, dokładnie w miejscu, w którym prawo
+// wymaga DZIAŁAJĄCEGO odnośnika do polityki prywatności i regulaminu.
+describe("AuthPortal - odnośniki prawne", () => {
+  it("puste privacy_url/terms_url spadają na wbudowane ścieżki, nie na href=''", () => {
+    h.settings = { ...AUTH_DEFAULTS, privacy_url: "", terms_url: "" };
+    renderPortal();
+    const privacy = screen.getByRole("link", { name: t("authPortal.legalPrivacy") });
+    const terms = screen.getByRole("link", { name: t("authPortal.legalTerms") });
+    expect(privacy).toHaveAttribute("href", "/polityka-prywatnosci");
+    expect(terms).toHaveAttribute("href", "/regulamin");
+    expect(privacy.getAttribute("href")).not.toBe("");
+    expect(terms.getAttribute("href")).not.toBe("");
+  });
+
+  it("skonfigurowane adresy z ustawień wygrywają z wbudowanymi ścieżkami", () => {
+    h.settings = {
+      ...AUTH_DEFAULTS,
+      privacy_url: "https://example.org/privacy",
+      terms_url: "https://example.org/terms",
+    };
+    renderPortal();
+    expect(screen.getByRole("link", { name: t("authPortal.legalPrivacy") })).toHaveAttribute(
+      "href",
+      "https://example.org/privacy",
+    );
+    expect(screen.getByRole("link", { name: t("authPortal.legalTerms") })).toHaveAttribute(
+      "href",
+      "https://example.org/terms",
+    );
+  });
+});
+
+// ============================================================================
+// ŚCIEŻKI ADRESU E-MAIL W TRYBIE RESETU
+// ----------------------------------------------------------------------------
+// UWAGA: AuthPortal NIE MA magic linka ani OTP (brak `signInWithOtp`, brak
+// licznika odstępu między wysyłkami). Tryby to signin / signup / reset, gdzie
+// reset wysyła link do zmiany hasła przez `resetPasswordForEmail`. Poniższe
+// testy dowodzą tych zachowań na trybie, który w tym komponencie ISTNIEJE.
+describe("AuthPortal - adres e-mail przy wysyłce linku resetującego", () => {
+  it("adres bez @ nie przechodzi natywnej walidacji - przeglądarka blokuje wysyłkę", () => {
+    const { container } = renderPortal();
+    switchTo(t("authPortal.reset"));
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "bezmalpy.example.com" } });
+    // `type="email"` + `required` to jedyna bramka po stronie klienta; formularz
+    // nie da się wysłać, więc do Supabase nie leci śmieciowy adres, a
+    // użytkownik widzi natywną podpowiedź przy polu.
+    expect(input).toHaveAttribute("type", "email");
+    expect(input.validity.typeMismatch).toBe(true);
+    expect((container.querySelector("form") as HTMLFormElement).checkValidity()).toBe(false);
+  });
+
+  it("puste pole e-maila blokuje wysyłkę jako wymagane", () => {
+    const { container } = renderPortal();
+    switchTo(t("authPortal.reset"));
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    expect(input.validity.valueMissing).toBe(true);
+    expect((container.querySelector("form") as HTMLFormElement).checkValidity()).toBe(false);
+  });
+
+  it("poprawny adres przechodzi walidację pola", () => {
+    const { container } = renderPortal();
+    switchTo(t("authPortal.reset"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "reader@example.com" } });
+    expect((container.querySelector("form") as HTMLFormElement).checkValidity()).toBe(true);
+  });
+
+  it("adres z wielkimi literami trafia do Supabase w formie wpisanej przez użytkownika", async () => {
+    const { container } = renderPortal();
+    switchTo(t("authPortal.reset"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Reader@Example.COM" } });
+    submitForm(container);
+
+    // Stan faktyczny, NIE defekt: klient nie normalizuje wielkości liter i nie
+    // musi - Supabase Auth traktuje adresy bez rozróżniania wielkości liter po
+    // swojej stronie, więc link resetujący trafia do tego samego konta.
+    // Test pilnuje, żeby nikt nie wstawił tu "ulepszenia" w postaci
+    // toLowerCase() bez zmiany guardu brute-force, który liczy koszyki po
+    // dokładnie tym samym stringu.
+    await waitFor(() => expect(h.resetPwd).toHaveBeenCalled());
+    expect(h.resetPwd).toHaveBeenCalledWith("Reader@Example.COM", {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    expect(h.guard).toHaveBeenCalledWith({
+      data: { kind: "reset", email: "Reader@Example.COM" },
+    });
+  });
+
+  it("ponowna wysyłka linku nie jest blokowana w kliencie, ale każda idzie przez guard", async () => {
+    const { container } = renderPortal();
+    switchTo(t("authPortal.reset"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "reader@example.com" } });
+    submitForm(container);
+    // Po sukcesie portal wraca na logowanie - użytkownik, który chce ponowić
+    // wysyłkę, wchodzi w reset jeszcze raz (adres pozostaje wpisany).
+    await waitFor(() =>
+      expect(container.querySelectorAll('input[type="password"]')).toHaveLength(1),
+    );
+    switchTo(t("authPortal.reset"));
+    submitForm(container);
+
+    // Brak odstępu między wysyłkami po stronie klienta to świadomy podział
+    // odpowiedzialności: limit stoi na serwerze (preAuthGuard + limity
+    // Supabase), a KAŻDA próba przechodzi przez guard, więc powtarzanie
+    // wysyłki nie jest otwartą furtką.
+    await waitFor(() => expect(h.resetPwd).toHaveBeenCalledTimes(2));
+    expect(h.guard).toHaveBeenCalledTimes(2);
+    expect(h.guard.mock.calls.every((c) => c[0].data.kind === "reset")).toBe(true);
+  });
+
+  it("przejście signin -> reset -> signup zachowuje wpisany adres e-mail", () => {
+    renderPortal();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "reader@example.com" } });
+    switchTo(t("authPortal.reset"));
+    expect(screen.getByRole("textbox")).toHaveValue("reader@example.com");
+    switchTo(t("authPortal.signup"));
+    // W rejestracji e-mail to pole z siatki (FieldBox), a nie jedyny textbox.
+    expect(screen.getByLabelText(startsWith("email"))).toHaveValue("reader@example.com");
+    switchTo(t("authPortal.signin"));
+    expect(screen.getByRole("textbox")).toHaveValue("reader@example.com");
+  });
+});
