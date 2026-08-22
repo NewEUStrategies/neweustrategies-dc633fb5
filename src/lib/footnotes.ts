@@ -96,7 +96,12 @@ export function collectWpFootnoteTexts(sources: Iterable<unknown>): Map<string, 
 /** Zamienia stary markup przypisów WP na kanoniczne `[fn]…[/fn]`. */
 export function normalizeWpFootnoteHtml(html: string, texts?: Map<string, string>): string {
   if (!html.includes("footnote_")) return html;
-  return html.replace(WP_FN_SCRIPT_RE, "").replace(WP_FN_RE, (m: string, inner: string) => {
+  // Najpierw wycinamy przycisk "Czytaj dalej" - jego zagniezdzony <span>
+  // przedwczesnie zamykalby dopasowanie tresci dymka.
+  return html
+    .replace(WP_FN_SCRIPT_RE, "")
+    .replace(WP_CONTINUE_RE, "")
+    .replace(WP_FN_RE, (m: string, inner: string) => {
     const key = WP_TOOLTIP_ID_RE.exec(m)?.[1];
     const full = key ? texts?.get(key) : undefined;
     const text = (full ?? String(inner ?? ""))
