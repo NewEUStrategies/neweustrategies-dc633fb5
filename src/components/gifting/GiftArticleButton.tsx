@@ -210,155 +210,161 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
           </div>
         )}
 
-        {phase === "requiresAuth" && (
-          <div className="border-t border-border/60 px-4 py-3.5">
-            <p className="text-[12.5px] font-semibold text-foreground mb-1">
-              {t("gifting.authTitle")}
-            </p>
-            <p className="text-[12px] leading-snug text-muted-foreground mb-3">{t(authDescKey)}</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <Link
-                to="/login"
-                className="inline-flex items-center justify-center h-9 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold hover:opacity-90 transition"
-              >
-                {t("gifting.signIn")}
-              </Link>
-              <Link
-                to="/login"
-                search={{ mode: "signup" }}
-                className="inline-flex items-center justify-center h-9 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
-              >
-                {t("gifting.signUp")}
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {phase === "requiresSubscription" && (
-          <div className="border-t border-border/60 px-4 py-3.5">
-            <p className="text-[12.5px] font-semibold text-foreground mb-1">
-              {t("gifting.subscriptionTitle")}
-            </p>
-            <p className="text-[12px] leading-snug text-muted-foreground mb-3">
-              {t("gifting.subscriptionDesc")}
-            </p>
-            <Link
-              to="/pricing"
-              className="w-full inline-flex items-center justify-center h-9 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold hover:opacity-90 transition"
-            >
-              {t("gifting.seePlans")}
-            </Link>
-          </div>
-        )}
-
-        {phase === "limitReached" && state && (
-          <div className="border-t border-border/60 px-4 py-3.5">
-            <p className="text-[12.5px] font-semibold text-foreground mb-1">
-              {t("gifting.limitTitle")}
-            </p>
-            <p className="text-[12px] leading-snug text-muted-foreground">
-              {t("gifting.limitDesc", { used: state.used, limit: state.monthlyLimit })}
-            </p>
-          </div>
-        )}
-
-        {/* Budzet klikniec wyczerpany: stan TERMINALNY do przelomu miesiaca -
-          rotacja linku dziedziczy zuzycie, wiec nie obiecujemy nowego kodu. */}
-        {phase === "budgetExhausted" && budget && (
-          <div className="border-t border-border/60 px-4 py-3.5" data-testid="gift-budget-spent">
-            <p className="text-[12.5px] font-semibold text-foreground mb-1">
-              {t("gifting.budget.spentTitle")}
-            </p>
-            <p className="text-[12px] leading-snug text-muted-foreground mb-3">
-              {t("gifting.budget.spentDesc", { limit: budget.limit })}
-            </p>
-            <GiftClickBudgetMeter budget={budget} className="mb-3" />
-            <p className="text-[11px] leading-snug text-muted-foreground">
-              {t("gifting.budget.resetsOn", { date: formatMeterResetDate(lang) })}
-            </p>
-          </div>
-        )}
-
-        {stateFailed && (
-          <div className="border-t border-border/60 px-4 py-3.5" role="alert">
-            <p className="text-[12px] leading-snug text-destructive mb-2">
-              {t("gifting.errors.unknown")}
-            </p>
-            <button
-              type="button"
-              onClick={() => void stateQuery.refetch()}
-              className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
-            >
-              {t("common.retry")}
-            </button>
-          </div>
-        )}
-
-        {((phase === "loading" && !stateFailed) || preparing) && (
-          <div className="border-t border-border/60 px-4 py-3.5" aria-busy="true">
-            <p className="text-[12px] text-muted-foreground animate-pulse">
-              {t("gifting.preparing")}
-            </p>
-          </div>
-        )}
-
-        {phase === "ready" && mutation.isError && (
-          <div className="border-t border-border/60 px-4 py-3.5" role="alert">
-            <p
-              className={`text-[12px] leading-snug mb-2 ${errorKey === "notGated" ? "text-muted-foreground" : "text-destructive"}`}
-            >
-              {t(`gifting.errors.${errorKey ?? "unknown"}`)}
-            </p>
-            {errorKey === "notGated" ? (
-              <GiftCopyButton
-                copied={justCopied}
-                label={t("gifting.copyLink")}
-                copiedLabel={t("gifting.copied")}
-                onClick={() => void onCopyPlain()}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  mutation.reset();
-                  mutation.mutate();
-                }}
-                className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
-              >
-                {t("common.retry")}
-              </button>
+        {gated && (
+          <>
+            {phase === "requiresAuth" && (
+              <div className="border-t border-border/60 px-4 py-3.5">
+                <p className="text-[12.5px] font-semibold text-foreground mb-1">
+                  {t("gifting.authTitle")}
+                </p>
+                <p className="text-[12px] leading-snug text-muted-foreground mb-3">
+                  {t(authDescKey)}
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center justify-center h-9 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold hover:opacity-90 transition"
+                  >
+                    {t("gifting.signIn")}
+                  </Link>
+                  <Link
+                    to="/login"
+                    search={{ mode: "signup" }}
+                    className="inline-flex items-center justify-center h-9 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
+                  >
+                    {t("gifting.signUp")}
+                  </Link>
+                </div>
+              </div>
             )}
-          </div>
-        )}
 
-        {phase === "ready" && giftUrl && (
-          <div className="border-t border-border/60 px-4 py-3.5">
-            {/* Budzet klikniec przed akcjami: nadawca widzi, ILU odbiorcow
-              jeszcze przeczyta, zanim wysle link kolejnej osobie. */}
-            {budget && <GiftClickBudgetMeter budget={budget} className="mb-3" />}
-            <p className="text-[12px] font-semibold text-foreground mb-2.5">{usageNote}</p>
+            {phase === "requiresSubscription" && (
+              <div className="border-t border-border/60 px-4 py-3.5">
+                <p className="text-[12.5px] font-semibold text-foreground mb-1">
+                  {t("gifting.subscriptionTitle")}
+                </p>
+                <p className="text-[12px] leading-snug text-muted-foreground mb-3">
+                  {t("gifting.subscriptionDesc")}
+                </p>
+                <Link
+                  to="/pricing"
+                  className="w-full inline-flex items-center justify-center h-9 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold hover:opacity-90 transition"
+                >
+                  {t("gifting.seePlans")}
+                </Link>
+              </div>
+            )}
 
-            <GiftCopyButton
-              copied={justCopied}
-              label={t("gifting.copyLink")}
-              copiedLabel={t("gifting.copied")}
-              onClick={() => void onCopy()}
-            />
+            {phase === "limitReached" && state && (
+              <div className="border-t border-border/60 px-4 py-3.5">
+                <p className="text-[12.5px] font-semibold text-foreground mb-1">
+                  {t("gifting.limitTitle")}
+                </p>
+                <p className="text-[12px] leading-snug text-muted-foreground">
+                  {t("gifting.limitDesc", { used: state.used, limit: state.monthlyLimit })}
+                </p>
+              </div>
+            )}
 
-            <GiftShareChannels targets={targets} />
-          </div>
-        )}
+            {/* Budzet klikniec wyczerpany: stan TERMINALNY do przelomu miesiaca -
+              rotacja linku dziedziczy zuzycie, wiec nie obiecujemy nowego kodu. */}
+            {phase === "budgetExhausted" && budget && (
+              <div className="border-t border-border/60 px-4 py-3.5" data-testid="gift-budget-spent">
+                <p className="text-[12.5px] font-semibold text-foreground mb-1">
+                  {t("gifting.budget.spentTitle")}
+                </p>
+                <p className="text-[12px] leading-snug text-muted-foreground mb-3">
+                  {t("gifting.budget.spentDesc", { limit: budget.limit })}
+                </p>
+                <GiftClickBudgetMeter budget={budget} className="mb-3" />
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {t("gifting.budget.resetsOn", { date: formatMeterResetDate(lang) })}
+                </p>
+              </div>
+            )}
 
-        {/* Stopka informacyjna - widoczna, gdy link istnieje. */}
-        {phase === "ready" && giftUrl && (
-          <div className="border-t border-border/60 bg-muted/30 px-4 py-2.5">
-            <p className="text-[11px] leading-snug text-muted-foreground">
-              {budget && !budget.unlimited
-                ? t("gifting.firstNCanRead", { count: budget.limit })
-                : t("gifting.anyoneCanRead")}
-              {expiresAt ? ` ${t("gifting.expiresOn", { date: formatDate(expiresAt, lang) })}` : ""}
-            </p>
-          </div>
+            {stateFailed && (
+              <div className="border-t border-border/60 px-4 py-3.5" role="alert">
+                <p className="text-[12px] leading-snug text-destructive mb-2">
+                  {t("gifting.errors.unknown")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void stateQuery.refetch()}
+                  className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
+                >
+                  {t("common.retry")}
+                </button>
+              </div>
+            )}
+
+            {((phase === "loading" && !stateFailed) || preparing) && (
+              <div className="border-t border-border/60 px-4 py-3.5" aria-busy="true">
+                <p className="text-[12px] text-muted-foreground animate-pulse">
+                  {t("gifting.preparing")}
+                </p>
+              </div>
+            )}
+
+            {phase === "ready" && mutation.isError && (
+              <div className="border-t border-border/60 px-4 py-3.5" role="alert">
+                <p
+                  className={`text-[12px] leading-snug mb-2 ${errorKey === "notGated" ? "text-muted-foreground" : "text-destructive"}`}
+                >
+                  {t(`gifting.errors.${errorKey ?? "unknown"}`)}
+                </p>
+                {errorKey === "notGated" ? (
+                  <GiftCopyButton
+                    copied={justCopied}
+                    label={t("gifting.copyLink")}
+                    copiedLabel={t("gifting.copied")}
+                    onClick={() => void onCopyPlain()}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      mutation.reset();
+                      mutation.mutate();
+                    }}
+                    className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
+                  >
+                    {t("common.retry")}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {phase === "ready" && giftUrl && (
+              <div className="border-t border-border/60 px-4 py-3.5">
+                {/* Budzet klikniec przed akcjami: nadawca widzi, ILU odbiorcow
+                  jeszcze przeczyta, zanim wysle link kolejnej osobie. */}
+                {budget && <GiftClickBudgetMeter budget={budget} className="mb-3" />}
+                <p className="text-[12px] font-semibold text-foreground mb-2.5">{usageNote}</p>
+
+                <GiftCopyButton
+                  copied={justCopied}
+                  label={t("gifting.copyLink")}
+                  copiedLabel={t("gifting.copied")}
+                  onClick={() => void onCopy()}
+                />
+
+                <GiftShareChannels targets={targets} />
+              </div>
+            )}
+
+            {/* Stopka informacyjna - widoczna, gdy link istnieje. */}
+            {phase === "ready" && giftUrl && (
+              <div className="border-t border-border/60 bg-muted/30 px-4 py-2.5">
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {budget && !budget.unlimited
+                    ? t("gifting.firstNCanRead", { count: budget.limit })
+                    : t("gifting.anyoneCanRead")}
+                  {expiresAt ? ` ${t("gifting.expiresOn", { date: formatDate(expiresAt, lang) })}` : ""}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </PopoverContent>
     </Popover>
