@@ -49,3 +49,39 @@ describe("RobotsTxtPreview", () => {
     expect(screen.getByRole("link").getAttribute("href")).toBe("/robots.txt");
   });
 });
+
+// Dopisane 22.08 w module 8: gałąź hosta INDEKSOWALNEGO (linia 32 w
+// `previewOrigin`) stała niepokryta, bo happy-dom serwuje suitę z `localhost`,
+// a `localhost` nigdy nie jest indeksowalny - więc każdy test trafiał wyłącznie
+// w spadek na origin marki. To jest ta połowa funkcji, która działa na
+// PRODUKCJI: gdyby zwracała zły origin, redakcja widziałaby w podglądzie
+// `Sitemap:` z cudzego hosta i nie miała powodu tego kwestionować.
+describe("RobotsTxtPreview - host indeksowalny", () => {
+  it("na hoście publikacji pokazuje politykę TEGO hosta, nie spadek na origin marki", () => {
+    // Ustawiamy adres okna na domenę publikacji - `classifyCrawlHost` uznaje ją
+    // za indeksowalną, więc `previewOrigin` idzie drugą gałęzią i liczy origin
+    // z hosta żądania (`crawlHostOrigin`), a nie ze stałej marki.
+    const original = window.location.href;
+    window.happyDOM?.setURL(`${CANONICAL_SITE_ORIGIN}/admin/settings/seo`);
+    try {
+      const text = previewText();
+      // Dowód, że gałąź została wykonana: polityka jest OTWARTA (host
+      // indeksowalny), a nie zamknięta jak na hoście podglądu.
+      expect(text).toContain("Allow: /");
+      expect(text).toContain(`Sitemap: ${CANONICAL_SITE_ORIGIN}/sitemap.xml`);
+      // I że origin pochodzi z hosta, nie z fallbacku - oba są tu równe, więc
+      // asercją rozstrzygającą jest zgodność z builderem wywołanym dla TEGO
+      // hosta, tą samą drogą, którą liczy trasa.
+      expect(text).toBe(
+        buildRobotsTxt({
+          mode: "canonical",
+          origin: CANONICAL_SITE_ORIGIN,
+          sitemapPaths: ["/sitemap.xml", "/news-sitemap.xml"],
+          groups: [],
+        }),
+      );
+    } finally {
+      window.happyDOM?.setURL(original);
+    }
+  });
+});

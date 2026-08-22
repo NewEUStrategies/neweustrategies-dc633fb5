@@ -8,10 +8,7 @@ import { Check } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { SeoIssue } from "@/lib/seo/validation";
 import type { HeadingIssue } from "@/lib/seo/headingValidation";
-import {
-  SeverityBadge,
-  severityLiveRole,
-} from "@/components/admin/seo/atoms/SeverityBadge";
+import { SeverityBadge, severityLiveRole } from "@/components/admin/seo/atoms/SeverityBadge";
 
 const LANG_LABEL: Record<SeoIssue["lang"], string> = { pl: "PL", en: "EN" };
 
