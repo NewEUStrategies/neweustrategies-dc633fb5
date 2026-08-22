@@ -94,10 +94,23 @@ export default defineConfig({
         // Nowy próg = zmierzone minus ~4 pp marginesu na dryf CI, ta sama
         // reguła co wpisy z 2026-08-06 i 2026-08-18.
         // Zasada bez zmian: ten próg wolno wyłącznie PODNOSIĆ.
-        statements: 58,
-        functions: 54,
-        lines: 58,
-        branches: 52,
+        //
+        // 2026-08-22: RATCHET W GÓRĘ. Pomiar CAŁEGO src/ na tym HEAD (pełna
+        // suita, 1 459 plików, 35 240 testów zielonych, 74 `it.fails`):
+        // 68,27% instrukcji / 62,80% gałęzi / 66,25% funkcji / 69,28% linii.
+        // Poprzedni próg (58/54/58/52) był ustawiony pod pomiar z 2026-08-20
+        // (62,03 / 56,37 / 58,31 / 62,93) i przepuszczał już ~11 pp swobodnego
+        // spadku. Nowy próg = zmierzone minus ~4 pp marginesu na dryf CI,
+        // ta sama reguła co wpisy z 2026-08-06, 2026-08-18 i 2026-08-20.
+        //
+        // UCZCIWIE O ŹRÓDLE TYCH PUNKTÓW: z 67,42% na 69,28% linii (+1,86 pp)
+        // dowiozła praca nad MODUŁEM 20 (platforma/backend/SSR) - mierzone na
+        // tym samym zbiorze plików PRZED (`6426bd039`) i PO. Reszta odjechania
+        // od 62,93% to praca nad klubami, która weszła na maina wcześniej.
+        statements: 64,
+        functions: 62,
+        lines: 65,
+        branches: 58,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
@@ -2602,9 +2615,9 @@ export default defineConfig({
         },
 
         // Sesja podglądu wersji roboczych: maszyna stanu odzyskiwania i
-        // strażnik przeładowań (heartbeat). Zmierzone CAŁYM katalogiem:
-        // 98,81 / 95,91 / 100 / 99,31; `sessionHeartbeat.ts` osobno
-        // 98,51 / 94,2 / 100 / 99,12 (niepokryta linia 58).
+        // strażnik przeładowań (heartbeat). Zmierzone CAŁYM katalogiem
+        // na pełnej suicie: 99,41 / 95,92 / 100 / 100;
+        // `sessionHeartbeat.ts` osobno 99,25 / 94,2 / 100 / 100.
         //
         // Gałęzie są niższe od reszty etapu, bo dwie z nich domykają wyścig,
         // do którego nie ma drogi wywołania z publicznego API routera:
