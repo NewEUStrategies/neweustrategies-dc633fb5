@@ -1434,17 +1434,13 @@ export default defineConfig({
           lines: 100,
           branches: 90,
         },
-        // MfaChallenge.tsx - niedobite: puste ciało `.catch(() => {})` na
-        // signOut() podczas anulowania (mock nigdy nie odrzuca, więc callback
-        // się nie odpala) i strażnik `active` chroniący przed osadzeniem
-        // odpowiedzi factorId po zamknięciu/odmontowaniu (wyścig wymagający
-        // sterowanego opóźnionego promise).
-        "src/components/auth/MfaChallenge.tsx": {
-          statements: 100,
-          functions: 90,
-          lines: 100,
-          branches: 83,
-        },
+        // MfaChallenge.tsx MA SWÓJ WPIS WYŻEJ (100/100/100/90) i NIE POWTARZA
+        // GO TUTAJ. Do 2026-08-22 ten sam klucz stał w tym pliku DWA RAZY,
+        // a ponieważ w literale obiektu wygrywa wpis PÓŹNIEJSZY, obowiązywała
+        // ta słabsza kopia (funkcje 90, gałęzie 83) - czyli 10 pp i 8,66 pp
+        // PONIŻEJ pomiaru (100% funkcji, 91,66% gałęzi). Ratchet wpisany wyżej
+        // był martwy: regresja z 100% na 90% funkcji przeszłaby przez bramkę
+        // niezauważona. Duplikat usunięty; obowiązuje wpis wyżej.
         // useAuth.tsx - niedobite: fallback `?? []` dla `rolesData` (RPC nigdy
         // nie zwraca null/undefined w testach) i strażnik `typeof window !==
         // "undefined"` w signOut() - zawsze prawdziwy pod happy-dom, więc
