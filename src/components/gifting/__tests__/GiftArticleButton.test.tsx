@@ -108,13 +108,14 @@ function makeState(partial: Partial<GiftArticleState>): GiftArticleState {
   };
 }
 
-function renderButton() {
+function renderButton(props: { gated?: boolean } = {}) {
   return renderWithQueryClient(
     <GiftArticleButton
       postId="post-1"
       title="Tytuł wpisu"
       url="https://example.org/analizy/wpis"
       lang="pl"
+      gated={props.gated ?? true}
     />,
   );
 }
