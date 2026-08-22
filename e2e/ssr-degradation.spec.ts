@@ -43,6 +43,11 @@ const ROUTES: readonly PublicRoute[] = [
   { path: "/programs", label: "programy badawcze" },
   { path: "/web-stories", label: "web stories" },
   { path: "/tracker", label: "tracker legislacyjny" },
+  // Dołączony 2026-08-22, zgodnie z tym, co nakazywał komentarz osobnego testu
+  // resolvera („po naprawie ten test powinien przejść do tamtej listy").
+  // `$.tsx` obsługuje szerszą powierzchnię niż wszystkie pozostałe pozycje tej
+  // listy razem, a od naprawy degraduje tak samo jak one.
+  { path: "/dowolna-strona-cms", label: "resolver adresów CMS (`$.tsx`)" },
 ];
 
 for (const route of ROUTES) {
@@ -139,20 +144,50 @@ test("profil eksperta przy martwym backendzie nie fabrykuje 404", async ({ reque
 // dowolne warianty pustej strony, konkurując z realnymi adresami. Google
 // raportuje to jako „Soft 404" i sam wypycha adresy z wyników.
 //
-// DLACZEGO `test.fail()`, A NIE POPRAWKA. Naprawa to osłonięcie dwóch odczytów
-// w loaderze i decyzja, CZYM ma być degradacja na tej powierzchni: 404
-// (spójne z „nie ma takiej strony") czy 200 z komunikatem (spójne z kontraktem
-// `/author/$slug` niżej, który WYMAGA 200, bo „fałszywy 404 = deindeksacja").
-// Te dwa kontrakty są dziś sprzeczne, a rozstrzygnięcie jest decyzją
-// produktową - nie skutkiem ubocznym testu. Testy zostają, oznaczone jako
-// oczekiwana porażka: w dniu naprawy zapalą się na zielono i wymuszą zdjęcie
-// `test.fail()`, więc nikt nie przeoczy, że kontrakt się domknął.
+// DEFEKT NAPRAWIONY 2026-08-22 - I TO TEN MECHANIZM GO WYKRYŁ. Testy niżej
+// były oznaczone `test.fail()` z komentarzem „w dniu naprawy zapalą się na
+// zielono i wymuszą zdjęcie `test.fail()`, więc nikt nie przeoczy, że kontrakt
+// się domknął". Dokładnie to się stało: po przepisaniu loadera `$.tsx` na
+// gramatykę z `src/lib/routing/resolvePublicPath.ts` (dwie fazy, decyzja jako
+// wartość, `notFound()` zamiast nieosłoniętego odczytu) CI zgłosiło
+// „Expected to fail, but passed" dla dziewięciu przypadków. `test.fail()`
+// zdjęte, testy zostają jako zwykłe asercje - i od teraz pilnują, żeby 404
+// nie wróciło do bycia 500.
+//
+// ROZSTRZYGNIĘCIE SPRZECZNOŚCI, KTÓRĄ TEN NAGŁÓWEK ZGŁASZAŁ: degradacja na tej
+// powierzchni to 404, a nie 200 z komunikatem. Kontrakt `/author/$slug` niżej
+// (WYMAGA 200, bo „fałszywy 404 = deindeksacja") dotyczy adresu, który
+// ISTNIEJE, a któremu nie dojechały dane - i pozostaje bez zmian. Tu chodzi
+// o adres, którego NIE MA, więc 404 jest odpowiedzią prawdziwą.
 //
 // KOMUNIKAT IDZIE Z JEDNEGO ŹRÓDŁA. Warstwa awaryjna (404, error boundary)
 // renderuje się poza dostawcą i18next - `src/lib/errorCopy.ts` jest świadomym,
 // udokumentowanym wyjątkiem od reguły „tekst z klucza": jeden dwujęzyczny
 // słownik `Record<"pl" | "en", ErrorCopy>`, którego parytet wymusza TypeScript.
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Dekoduje encje HTML, które React emituje w strumieniu SSR.
+ *
+ * PO CO. Asercje na kopii 404 porównują ZDANIA ze `src/lib/errorCopy.ts`,
+ * a React escapuje apostrof do `&#x27;`. Kopia polska apostrofu nie ma, więc
+ * przechodziła; angielskie „The page you're looking for doesn't exist…" ma dwa
+ * i wywalało się jako „brak treści komunikatu 404" - choć treść BYŁA na
+ * stronie, tylko w formie encji. Porównanie na odkodowanym dokumencie trzyma
+ * pełne zdanie w asercji, zamiast skracać je do fragmentu bez apostrofu.
+ *
+ * `&amp;` rozwijane NA KOŃCU - inaczej `&amp;#x27;` zamieniłoby się w apostrof.
+ */
+function odkodujEncje(html: string): string {
+  return html
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
 
 /** Kopia strony 404 z `src/lib/errorCopy.ts` - jedno źródło dla obu języków. */
 const NOT_FOUND_COPY = {
@@ -181,9 +216,8 @@ const NIEISTNIEJACE: ReadonlyArray<{ path: string; lang: "pl" | "en"; label: str
 
 for (const { path, lang, label } of NIEISTNIEJACE) {
   test(`nieistniejąca ścieżka daje status 404, nie 500 (${label})`, async ({ request }) => {
-    // ZMIERZONE: 500. Patrz nagłówek sekcji - dwa nieosłonięte odczyty
-    // w loaderze `$.tsx` po nieudanej rezolucji treści.
-    test.fail();
+    // BYŁO 500 (nieosłonięte odczyty w loaderze `$.tsx` po nieudanej rezolucji
+    // treści), JEST 404. Asercja pilnuje teraz, żeby nie wróciło.
     const res = await request.get(path, { maxRedirects: 0 });
     expect(
       res.status(),
@@ -193,11 +227,11 @@ for (const { path, lang, label } of NIEISTNIEJACE) {
   });
 
   test(`strona 404 renderuje pełny dokument z komunikatem (${label})`, async ({ request }) => {
-    // Blokuje ten sam defekt: przy 500 nie ma szablonu 404, więc czytelnik ze
-    // starego linku dostaje stronę błędu zamiast podpowiedzi, gdzie szukać.
-    test.fail();
+    // Druga połowa tego samego kontraktu: przy 500 nie było szablonu 404, więc
+    // czytelnik ze starego linku dostawał stronę błędu zamiast podpowiedzi,
+    // gdzie szukać. Sam status 404 bez szablonu byłby połową naprawy.
     const res = await request.get(path, { maxRedirects: 0 });
-    const body = await res.text();
+    const body = odkodujEncje(await res.text());
     const copy = NOT_FOUND_COPY[lang];
     expect(body, `${path}: brak tytułu 404 w języku ${lang}`).toContain(copy.title);
     expect(body, `${path}: brak treści komunikatu 404`).toContain(copy.body);
@@ -207,9 +241,8 @@ for (const { path, lang, label } of NIEISTNIEJACE) {
 }
 
 test("nieistniejąca ścieżka nie jest zwracana jako 5xx", async ({ request }) => {
-  // Ta asercja jest sednem defektu w jednym zdaniu: rozróżnienie „tego nie ma"
-  // od „wróć później" jest tym, co decyduje, czy adres wypadnie z indeksu.
-  test.fail();
+  // Ta asercja jest sednem naprawionego defektu w jednym zdaniu: rozróżnienie
+  // „tego nie ma" od „wróć później" decyduje, czy adres wypadnie z indeksu.
   const res = await request.get("/nie-ma-takiej-strony-9f2a", { maxRedirects: 0 });
   expect(res.status()).toBeLessThan(500);
 });
@@ -217,30 +250,38 @@ test("nieistniejąca ścieżka nie jest zwracana jako 5xx", async ({ request }) 
 test("strona 404 nie zaprasza do indeksowania", async ({ page }) => {
   // Strona „nie znaleziono" z `index,follow` to zaproszenie do zaindeksowania
   // szablonu błędu - i dokładnie tak powstają tysiące soft 404 w indeksie.
-  test.fail();
   const res = await page.goto("/nie-ma-takiej-strony-9f2a");
-  expect(res?.status()).toBe(404);
-  const robots = await page.locator('meta[name="robots"]').first().getAttribute("content");
-  if (robots) expect(robots).not.toMatch(/(^|,)\s*index\b/);
-});
 
-test("resolver adresów nie oddaje 5xx przy martwym backendzie", async ({ request }) => {
-  // `$.tsx` NIE JEST na liście `ROUTES` wyżej, choć obsługuje szerszą
-  // powierzchnię niż wszystkie te jedenaście tras razem. Po naprawie ten test
-  // powinien przejść do tamtej listy.
-  test.fail();
-  const res = await request.get("/dowolna-strona-cms", { maxRedirects: 5 });
-  expect(
-    res.status(),
-    `resolver /$ zwrócił ${res.status()} - loader rzuca zamiast degradować ` +
-      `(dwa nieosłonięte odczyty, patrz nagłówek sekcji).`,
-  ).toBeLessThan(500);
+  // GŁÓWNA GWARANCJA to STATUS, nie meta. 404 jest sygnałem, który wyszukiwarki
+  // respektują same z siebie; `noindex` byłby pasem obok szelek.
+  expect(res?.status()).toBe(404);
+
+  // `locator(...).getAttribute()` CZEKA na element i przy jego braku wisi do
+  // timeoutu testu - tak ten test padał w CI (30 s na `meta[name=robots]`,
+  // którego na stronie 404 po prostu nie ma). `count()` odpowiada od razu,
+  // więc brak metatagu jest odpowiedzią, a nie zawieszeniem.
+  const ile = await page.locator('meta[name="robots"]').count();
+  const robots =
+    ile === 0 ? null : await page.locator('meta[name="robots"]').first().getAttribute("content");
+
+  // Rozstrzygamy JAWNIE oba przypadki, żeby brak metatagu nie dawał testu bez
+  // asercji: albo metatag jest i nie wolno mu mówić `index`, albo go nie ma
+  // i wtedy jedynym sygnałem jest status - już sprawdzony wyżej.
+  if (robots === null) {
+    expect(ile, "brak meta[name=robots] na 404 - sygnałem jest status").toBe(0);
+  } else {
+    expect(robots, "404 z `index` w meta robots zaprasza do indeksowania").not.toMatch(
+      /(^|,)\s*index\b/,
+    );
+  }
 });
 
 test("resolver adresów zawsze oddaje dokument, nigdy pustej odpowiedzi", async ({ request }) => {
-  // Ten kontrakt trzyma się NAWET przy 500: strona błędu jest renderowana
-  // w całości, więc czytelnik nie dostaje białego ekranu. To jedyna dobra
-  // wiadomość w tej sekcji i warto ją przypiąć, żeby nie zniknęła przy naprawie.
+  // Ten test ZOSTAJE obok pozycji resolvera na liście `ROUTES`, bo mierzy coś,
+  // czego tamta pętla nie mierzy: ROZMIAR dokumentu. `<main>` w odpowiedzi
+  // przechodzi też dla szkieletu `<main></main>`, a ten próg łapie strzęp.
+  // Historycznie kontrakt trzymał się NAWET przy 500 - to była jedyna dobra
+  // wiadomość w tej sekcji i została przypięta, żeby nie zniknęła przy naprawie.
   const res = await request.get("/dowolna-strona-cms", { maxRedirects: 5 });
   const body = await res.text();
   expect(body.length, "pusta odpowiedź resolvera").toBeGreaterThan(500);

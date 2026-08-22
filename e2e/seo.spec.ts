@@ -302,25 +302,46 @@ test.describe("sitemapa - adresy, które publikujemy", () => {
     // Adres, który w mapie jest, a odpowiada 301, marnuje budżet crawlowania
     // i rozmywa ranking na dwa adresy tej samej treści. Adres 404 w mapie to
     // gotowy błąd w Search Console.
+    // BUDŻET, NIE DOMYSŁ. W CI nie ma backendu, więc każdy render publicznej
+    // strony płaci podatek 5 s na anulowanych zapytaniach SSR
+    // (`[ssr-query-timeout]` w logu). Ten test padał w CI na domyślnym
+    // budżecie 30 s, i to nie na konkretnym adresie: raz na `/en/live`, raz na
+    // `/en/sitemap` - czyli wyczerpywał czas w środku pętli, a nie potykał się
+    // o zły adres. Stąd trzy zmiany: jawny budżet, próbka mniejsza i pobrania
+    // RÓWNOLEGŁE, bo one nie zależą od siebie.
+    test.setTimeout(120_000);
+
     const index = await request.get("/sitemap.xml");
     const shardPaths = locsOf(await index.text()).map((loc) => new URL(loc).pathname);
 
-    const adresy: string[] = [];
-    for (const path of shardPaths) {
-      adresy.push(...locsOf(await (await request.get(path)).text()));
-    }
+    const szardy = await Promise.all(
+      shardPaths.map(async (path) => locsOf(await (await request.get(path)).text())),
+    );
+    const adresy = szardy.flat();
+
     // Próbka, nie całość: mapa może mieć dziesiątki tysięcy wpisów, a bramka
     // ma pilnować kontraktu, nie mierzyć całego serwisu.
-    const probka = adresy.slice(0, 25);
-    const zle: string[] = [];
-    for (const loc of probka) {
-      const { pathname, search } = new URL(loc);
-      const res = await request.get(`${pathname}${search}`, { maxRedirects: 0 });
-      // 200 = adres kanoniczny. 3xx = mapa publikuje adres, który zaraz
-      // przekieruje - powinna publikować cel.
-      if (res.status() !== 200) zle.push(`${pathname} -> ${res.status()}`);
-    }
-    expect(zle, "adresy z sitemapy, które nie odpowiadają 200").toEqual([]);
+    const ROZMIAR_PROBKI = 8;
+    const probka = adresy.slice(0, ROZMIAR_PROBKI);
+
+    const wyniki = await Promise.all(
+      probka.map(async (loc) => {
+        const { pathname, search } = new URL(loc);
+        const res = await request.get(`${pathname}${search}`, { maxRedirects: 0 });
+        // 200 = adres kanoniczny. 3xx = mapa publikuje adres, który zaraz
+        // przekieruje - powinna publikować cel.
+        return { pathname, status: res.status() };
+      }),
+    );
+    const zle = wyniki.filter((w) => w.status !== 200).map((w) => `${w.pathname} -> ${w.status}`);
+
+    // PRÓBKA JEST NAZWANA W KOMUNIKACIE, nie ukryta: „zielono" z tego testu
+    // znaczy „sprawdzono 8 z N", a nie „cała mapa jest zdrowa".
+    expect(
+      zle,
+      `adresy z sitemapy, które nie odpowiadają 200 ` +
+        `(próbka ${probka.length} z ${adresy.length} adresów w ${shardPaths.length} szardach)`,
+    ).toEqual([]);
   });
 
   test("sitemapa nie publikuje adresów panelu ani API", async ({ request }) => {
