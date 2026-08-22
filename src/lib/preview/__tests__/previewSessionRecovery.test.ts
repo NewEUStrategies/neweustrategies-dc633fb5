@@ -287,6 +287,13 @@ beforeEach(() => {
   // Domyślnie zdrowy, bezskutkowy puls - żaden test nie może wyjść do sieci
   // nawet wtedy, gdy sam nie interesuje się sondowaniem.
   pulsWersji("build-0");
+  // POWŁOKA DOMYŚLNIE, BO TAKI JEST KONTRAKT MODUŁU. `startPreviewHeartbeat`
+  // odmawia startu, gdy `window.parent === window` (sessionHeartbeat.ts:189 →
+  // `isPreviewContext`, które od 2026-08-22 wymaga iframe'a). Bez tego każdy
+  // test poniżej dostawałby no-op zamiast działającego modułu i przechodziłby
+  // NIE DOWODZĄC NICZEGO. Testy, które potrzebują własnej atrapy powłoki albo
+  // powłoki głuchej, nadpisują ją u siebie.
+  podlaczPowloke();
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   stop = () => undefined;
 });
@@ -566,16 +573,44 @@ describe("sesja wygasła: 30 s milczenia pulsu", () => {
     expect(powloka).toHaveBeenCalledTimes(1);
   });
 
-  it("bez powłoki podglądu wygaśnięcie od razu przeładowuje dokument", async () => {
-    // `window.parent === window` (podgląd otwarty jako zwykła karta): nie ma
-    // kogo poprosić o przebudowę, więc plan B jest jedynym planem.
+  it("bez powłoki podglądu moduł NIE startuje i nie przeładowuje nic", async () => {
+    // ZMIANA KONTRAKTU 2026-08-22 (nie regresja testu). Wcześniej brak powłoki
+    // znaczył „plan B jest jedynym planem" i moduł przeładowywał dokument sam.
+    // Teraz `isPreviewContext` wymaga iframe'a, a `askParentToReconnect` przy
+    // `window.parent === window` NIC nie robi - bo zwykła karta z chwilowo
+    // zajętym dev-serverem dostawała lawinę przeładowań, a każde dokładało
+    // kolejne równoległe renderowanie SSR.
+    //
+    // Ten test pilnuje właśnie tej granicy: poza osadzonym podglądem moduł ma
+    // być CAŁKOWICIE bezczynny - żadnej sondy, żadnego przeładowania.
+    podmien(window, "parent", window);
     const atrapa = atrapaRoutera();
     pulsMartwy();
     stop = startPreviewHeartbeat(atrapa.router);
 
     await vi.advanceTimersByTimeAsync(UTRATA_SESJI_MS + 100);
 
-    expect(adresyPrzeladowan()).toHaveLength(1);
+    expect(pulsy).toEqual([]);
+    expect(adresyPrzeladowan()).toEqual([]);
+  });
+
+  it("USTALENIE: strażnik braku powłoki w askParentToReconnect jest nieosiągalny", () => {
+    // Nie farmimy tej gałęzi - nazywamy ją. `askParentToReconnect`
+    // (sessionHeartbeat.ts) ma własne `if (window.parent === window) return`,
+    // ale od zmiany kontraktu NIE MA DO NIEGO DROGI WYWOŁANIA: moduł, który
+    // jako jedyny woła tę funkcję, odmawia startu dokładnie w tym samym
+    // warunku. Dwa strażniki na jeden stan to redundancja, nie luka - i to
+    // ona zjada część gałęzi w pomiarze tego pliku.
+    podmien(window, "parent", window);
+    const atrapa = atrapaRoutera();
+    stop = startPreviewHeartbeat(atrapa.router);
+
+    // Dowód nieosiągalności: moduł nie podpiął się nawet pod nawigacje
+    // routera, więc jego pętla zdarzeń nigdy nie wystartowała - a
+    // `askParentToReconnect` woła WYŁĄCZNIE ta pętla.
+    expect(atrapa.subscribe).not.toHaveBeenCalled();
+    expect(atrapa.podpieci()).toBe(0);
+    expect(pulsy).toEqual([]);
   });
 
   it("głucha powłoka nie blokuje odzyskania - moduł przechodzi do planu B", async () => {
@@ -791,10 +826,18 @@ describe("snapshot i jego termin ważności", () => {
 });
 
 describe("granica kontekstu podglądu", () => {
-  it("na domenie produkcyjnej moduł NIE startuje: zero pulsu, zero listenerów", async () => {
-    // To jest najdroższa granica w tym pliku. Fałszywy start na produkcji
-    // znaczyłby: przeładowania dokumentu u czytelników artykułów. Od starego
-    // bundla jest tam osobny mechanizm (`cacheBusting.ts`).
+  it("u czytelnika produkcyjnej witryny moduł NIE startuje: zero pulsu, zero listenerów", async () => {
+    // To jest najdroższa granica w tym pliku. Fałszywy start u czytelnika
+    // znaczyłby: przeładowania dokumentu w trakcie czytania artykułu. Od
+    // starego bundla jest tam osobny mechanizm (`cacheBusting.ts`).
+    //
+    // WARUNEK ROZSTRZYGAJĄCY ZMIENIŁ SIĘ 2026-08-22 i test to odwzorowuje:
+    // wcześniej decydowała DOMENA, teraz decyduje BRAK POWŁOKI. Karta
+    // czytelnika to `window.parent === window`, więc dokładnie to tu ustawiamy;
+    // domena produkcyjna zostaje, bo tak wygląda realny przypadek, ale to już
+    // nie ona przesądza. (Ta sama domena OSADZONA w iframie panelu jest
+    // podglądem i startuje - dowodzi tego następny test.)
+    podmien(window, "parent", window);
     ustawLokalizacje(`https://${HOST_PRODUKCYJNY}/analizy`);
     const zapisy = sledzZapisy();
     const atrapa = atrapaRoutera();
@@ -816,6 +859,11 @@ describe("granica kontekstu podglądu", () => {
     // Kolejność jak w realnym życiu jednego izolatu: najpierw odmowa, potem
     // ten sam moduł w ramce panelu. Gdyby odmowa zapalała flagę `started`,
     // podgląd na własnej domenie nigdy by już nie wstał.
+    //
+    // Powłokę trzeba tu ODPIĄĆ jawnie, mimo że `beforeEach` ją podłącza:
+    // bez tego pierwsze uruchomienie NIE byłoby odmową i test przechodziłby
+    // nie dowodząc niczego o flagdze.
+    podmien(window, "parent", window);
     ustawLokalizacje(`https://${HOST_PRODUKCYJNY}/analizy`);
     stop = startPreviewHeartbeat(atrapaRoutera().router);
     stop();

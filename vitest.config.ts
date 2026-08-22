@@ -3082,9 +3082,17 @@ export default defineConfig({
         },
 
         // Sesja podglądu wersji roboczych: maszyna stanu odzyskiwania i
-        // strażnik przeładowań (heartbeat). Zmierzone CAŁYM katalogiem
-        // na pełnej suicie: 99,41 / 95,92 / 100 / 100;
-        // `sessionHeartbeat.ts` osobno 99,25 / 94,2 / 100 / 100.
+        // strażnik przeładowań (heartbeat). Zmierzone CAŁYM katalogiem PO
+        // scaleniu z mainem: 98,84 / 95,09 / 100 / 99,32;
+        // `sessionHeartbeat.ts` osobno 98,56 / 93,15 / 100 / 99,14
+        // (niepokryta linia 143).
+        //
+        // Linia 143 to `return` w strażniku braku powłoki w
+        // `askParentToReconnect` - NIEOSIĄGALNY od zmiany kontraktu
+        // 2026-08-22: moduł, który jako jedyny woła tę funkcję, odmawia
+        // startu w dokładnie tym samym warunku (`isPreviewContext` wymaga
+        // iframe'a). Przypięte testem „USTALENIE: strażnik braku powłoki
+        // w askParentToReconnect jest nieosiągalny".
         //
         // Gałęzie są niższe od reszty etapu, bo dwie z nich domykają wyścig,
         // do którego nie ma drogi wywołania z publicznego API routera:
