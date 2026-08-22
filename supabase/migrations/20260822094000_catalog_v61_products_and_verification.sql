@@ -208,9 +208,22 @@ COMMENT ON FUNCTION public.my_academic_domain_verification() IS
 --    zakłada u Postgresa NOWĄ funkcję obok starej (przeciążenie), a wołanie
 --    parametrami nazwanymi trafiłoby wtedy na `42725 function is not unique`.
 --    Stara sygnatura znika, nazwa RPC zostaje - kontrakt klienta bez zmian.
+--
+--    Znika też sygnatura PIĘCIOARGUMENTOWA z 20260806094104. Migracja
+--    20260809102603 dołożyła szóstą (`p_grants_tier_key`) samym
+--    CREATE OR REPLACE, więc pięcioargumentowa została w bazie jako
+--    przeciążenie - widać ją w wygenerowanych typach jako drugi wariant `Args`.
+--    Żaden kod jej nie woła, a każde wywołanie bez `p_academic`
+--    i `p_grants_tier_key` pasowałoby do obu funkcji naraz: dokładnie ten
+--    `42725`, przed którym broni się DROP wyżej. Skoro i tak porządkujemy tę
+--    nazwę, porządkujemy ją do końca.
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.admin_upsert_verification_domain(
   text, text, text, boolean, boolean, text
+);
+
+DROP FUNCTION IF EXISTS public.admin_upsert_verification_domain(
+  text, text, text, boolean, boolean
 );
 
 CREATE OR REPLACE FUNCTION public.admin_upsert_verification_domain(

@@ -201,7 +201,6 @@ DECLARE
   v_org_quota integer := 0;
   v_discount  integer := 0;
   v_org       uuid;
-  v_org_tier  text;
   v_used      integer := 0;
   v_start     date;
   v_end       date;
@@ -263,9 +262,9 @@ BEGIN
   -- nic, miejsce w karencji daje do końca karencji. Pominięcie statusu było
   -- błędem złapanym na odtworzonej bazie - odebranie komuś miejsca zostawiało
   -- mu prawo do biletu z puli firmy.
-  SELECT mo.id, mo.tier_key,
+  SELECT mo.id,
          COALESCE(NULLIF(mt.features ->> 'included_event_tickets_org', '')::integer, 0)
-    INTO v_org, v_org_tier, v_org_quota
+    INTO v_org, v_org_quota
     FROM public.organization_seats os
     JOIN public.member_organizations mo ON mo.id = os.org_id
     JOIN public.membership_tiers mt
@@ -366,17 +365,22 @@ BEGIN
     hashtext('plan_ticket_pool:' || v_tenant::text || ':' || v_uid::text)
   );
 
-  -- Bilet już odstąpiony na to wydarzenie (np. ponowny zapis po rezygnacji)
-  -- wraca do posiadacza bez ruszania licznika.
-  UPDATE public.plan_ticket_claims
-     SET released_at = NULL
-   WHERE user_id = v_uid AND event_id = p_event_id AND released_at IS NOT NULL;
-  IF FOUND THEN
-    RETURN true;
-  END IF;
+  -- Bilet już wyjęty na to wydarzenie i wciąż czynny w BIEŻĄCYM oknie roku
+  -- członkowskiego - ponowne wywołanie niczego nie zmienia.
+  --
+  -- Warunek okna jest tu istotny, a nie ozdobny. `my_ticket_allowance` liczy
+  -- wykorzystanie WYŁĄCZNIE po wierszach, których okno obejmuje dziś, więc
+  -- wiersz sprzed rocznicy jest dla licznika niewidzialny. Pierwsza wersja tego
+  -- bloku zdejmowała `released_at` z dowolnego wiersza i kończyła na `true`:
+  -- ktoś, kto zapisał się i zrezygnował w zeszłym roku, dostawał w tym roku
+  -- wejście, którego pula nie widziała. Wiersz przeterminowany przechodzi więc
+  -- normalną drogą - sprawdzenie puli niżej i przestemplowanie bieżącym oknem.
   IF EXISTS (
-    SELECT 1 FROM public.plan_ticket_claims
-     WHERE user_id = v_uid AND event_id = p_event_id
+    SELECT 1 FROM public.plan_ticket_claims c
+     WHERE c.user_id = v_uid AND c.event_id = p_event_id
+       AND c.released_at IS NULL
+       AND c.period_start <= CURRENT_DATE
+       AND c.period_end > CURRENT_DATE
   ) THEN
     RETURN true;
   END IF;
@@ -436,7 +440,15 @@ BEGIN
     COALESCE(v_event.ticket_price_cents, 0),
     COALESCE(v_event.ticket_currency, 'PLN')
   )
-  ON CONFLICT (user_id, event_id) DO NOTHING;
+  ON CONFLICT (user_id, event_id) DO UPDATE
+    SET released_at   = NULL,
+        org_id        = EXCLUDED.org_id,
+        tier_key      = EXCLUDED.tier_key,
+        period_start  = EXCLUDED.period_start,
+        period_end    = EXCLUDED.period_end,
+        face_value_cents = EXCLUDED.face_value_cents,
+        currency      = EXCLUDED.currency,
+        claimed_at    = now();
 
   RETURN true;
 END;
@@ -627,9 +639,17 @@ BEGIN
     PERFORM public.promote_event_waitlist(p_event_id);
   END IF;
 
-  -- Rezygnacja zwalnia bilet z puli. Trafienie na listę rezerwową też - miejsce
-  -- nie zostało przyznane, więc benefit nie może zostać spalony.
-  IF v_result_status <> 'going' THEN
+  -- Bilet zwalnia REZYGNACJA UCZESTNIKA, nie degradacja serwera.
+  --
+  -- Pierwsza wersja tego bloku patrzyła na `v_result_status`, czyli na wynik PO
+  -- ewentualnym przeniesieniu na listę rezerwową - i przez to zwalniała bilet
+  -- komuś, kto o nic nie prosił. `promote_event_waitlist` awansuje potem taki
+  -- wpis z `waitlist` na `going` BEZ bramki biletowej (bramka stoi w rsvp_event,
+  -- nie w awansie), więc członek wchodził na płatne wydarzenie za darmo,
+  -- z nietkniętą pulą. Miejsce na liście rezerwowej to REZERWACJA opłacona
+  -- biletem, a nie brak miejsca: bilet zostaje przy niej i zwalnia go dopiero
+  -- świadome `cancelled` albo `interested`.
+  IF p_status <> 'going' THEN
     PERFORM public.release_included_event_ticket(p_event_id, v_user);
   END IF;
 

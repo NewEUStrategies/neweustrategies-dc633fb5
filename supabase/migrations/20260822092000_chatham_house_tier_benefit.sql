@@ -177,9 +177,17 @@ BEGIN
     PERFORM public.promote_event_waitlist(p_event_id);
   END IF;
 
-  -- Rezygnacja zwalnia bilet z puli. Trafienie na listę rezerwową też - miejsce
-  -- nie zostało przyznane, więc benefit nie może zostać spalony.
-  IF v_result_status <> 'going' THEN
+  -- Bilet zwalnia REZYGNACJA UCZESTNIKA, nie degradacja serwera.
+  --
+  -- Pierwsza wersja tego bloku patrzyła na `v_result_status`, czyli na wynik PO
+  -- ewentualnym przeniesieniu na listę rezerwową - i przez to zwalniała bilet
+  -- komuś, kto o nic nie prosił. `promote_event_waitlist` awansuje potem taki
+  -- wpis z `waitlist` na `going` BEZ bramki biletowej (bramka stoi w rsvp_event,
+  -- nie w awansie), więc członek wchodził na płatne wydarzenie za darmo,
+  -- z nietkniętą pulą. Miejsce na liście rezerwowej to REZERWACJA opłacona
+  -- biletem, a nie brak miejsca: bilet zostaje przy niej i zwalnia go dopiero
+  -- świadome `cancelled` albo `interested`.
+  IF p_status <> 'going' THEN
     PERFORM public.release_included_event_ticket(p_event_id, v_user);
   END IF;
 

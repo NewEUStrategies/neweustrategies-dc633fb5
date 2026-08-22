@@ -16144,6 +16144,7 @@ export type Database = {
       admin_list_verification_domains: {
         Args: never
         Returns: {
+          academic: boolean
           active: boolean
           badge: string
           created_at: string
@@ -16264,29 +16265,18 @@ export type Database = {
         }
         Returns: Json
       }
-      admin_upsert_verification_domain:
-        | {
-            Args: {
-              p_active?: boolean
-              p_badge?: string
-              p_domain: string
-              p_note?: string
-              p_require_email_confirmed?: boolean
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_academic?: boolean
-              p_active?: boolean
-              p_badge?: string
-              p_domain: string
-              p_grants_tier_key?: string
-              p_note?: string
-              p_require_email_confirmed?: boolean
-            }
-            Returns: string
-          }
+      admin_upsert_verification_domain: {
+        Args: {
+          p_academic?: boolean
+          p_active?: boolean
+          p_badge?: string
+          p_domain: string
+          p_grants_tier_key?: string
+          p_note?: string
+          p_require_email_confirmed?: boolean
+        }
+        Returns: string
+      }
       analytics_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
         Returns: Json

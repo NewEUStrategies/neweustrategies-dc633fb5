@@ -1,13 +1,21 @@
-# Korekty audytu katalogu członkostw v6.1: siedem bramek, dwie dziury i jedna funkcja od zera (2026-08-22)
+# Korekty audytu katalogu członkostw v6.1: sześć bramek, dwie dziury i jedna funkcja od zera (2026-08-22)
 
 Zlecenie: **wdrożyć rekomendacje audytu katalogu v6.1 wraz z powiązaniami, w tym po
 stronie Stripe.** Audyt (21.08, HEAD `6426bd0`) sprawdził 35 punktów egzekwowania
 przywołanych w katalogu i wykazał **pięć błędów merytorycznych, jeden arytmetyczny
-i cztery luki produktowe**, korygując bilans statusów z deklarowanego 38 / 7 / 21 / 3
-na 37 / 6 / 21 / 5.
+i cztery luki produktowe**, korygując bilans statusów na 36 / 6 / 21 / 5.
 
-**Wynik: wszystkie korekty wdrożone, wszystkie siedem bramek `[B?]` dopisanych, dwie
-dziury odsłonięte przy okazji — zamknięte.** Bilans po wdrożeniu: **47 / 0 / 21 / 3**.
+Jedna uwaga do samego punktu wyjścia. Audyt liczył korektę od bilansu, który v6.1
+**deklarował** — 38 / 7 / 21 / 3 — a tabele tego dokumentu zawierały o jedno `[B]`
+mniej, niż deklarowała jego własna nagłówkowa nota: 37 / 7 / 21 / 3, razem 68 pozycji,
+nie 69. Kierunek korekty audytu jest niezależny od tej pomyłki (jedno `[B]` na `[B?]`,
+dwa `[B?]` na `[N]`), więc po nałożeniu jej na liczbę rzeczywistą wychodzi
+36 / 6 / 21 / 5 — i ta liczba domyka się z wynikiem wdrożenia co do jednego wiersza:
+36 + 6 dopisanych bramek + 2 zbudowane funkcje + 3 nowe pozycje = 47.
+
+**Wynik: wszystkie korekty wdrożone, wszystkie sześć bramek `[B?]` z bilansu po
+audycie dopisanych, obie pozycje przeklasyfikowane na `[N]` zbudowane, dwie dziury
+odsłonięte przy okazji — zamknięte.** Bilans po wdrożeniu: **47 / 0 / 21 / 3**.
 Do zbudowania zostaje jedna funkcja — warstwa odpowiedzi na archiwum — i zostaje
 świadomie: to jedyna pozycja katalogu wymagająca istotnej pracy inżynierskiej i jedyna
 poza zakresem tego zlecenia.
@@ -330,9 +338,20 @@ istniejących płatników — nie audytowa** i audyt jej nie zlecał. Do rozstrz
 | `check:rpc-contract`                 | ✅                                              |
 | `check:types-freshness`              | ✅ baseline bez zmian (26 pozycji)              |
 | `check:authz-snapshot`               | ✅ po regeneracji (20 bramek flag dla 16 flag)  |
-| `typecheck`                          | ✅ dla zmienionych plików                       |
+| `check:gate-coverage`                | ✅                                              |
+| `check:db-row-casts`                 | ✅                                              |
+| `check:stale-never-casts`            | ✅                                              |
+| `check:unknown-casts`                | ✅                                              |
+| `check:content-layering`             | ✅                                              |
+| `check:legacy-payment-refs`          | ✅                                              |
+| `check:i18n-hardcoded`               | ✅                                              |
+| `check:i18n-default-value`           | ✅                                              |
+| `check:i18n-overlay-imports`         | ✅                                              |
+| `check-pgtap-plan`                   | ✅ 98 plików, `plan(N)` = liczba asercji        |
+| `typecheck`                          | ✅ `tsc --noEmit` na całym projekcie            |
+| `check:db-contract`                  | ⛔ wymaga `SUPABASE_URL` / klucza — brak w tym środowisku |
 
-Pakiet testowy Vitest: **38 364 testy przechodzą, zero nieudanych** (1 477 plików).
+Pakiet testowy Vitest: **38 402 testy przechodzą, zero nieudanych** (1 480 plików).
 
 Nowe testy jednostkowe:
 
@@ -345,17 +364,23 @@ Nowe testy jednostkowe:
 - `src/lib/billing/__tests__/catalogAutoSync.test.ts` — próg wolumenowy w odcisku cennika.
 - `src/lib/clubs/__tests__/minisiteAccess.test.ts` — **zapadka**: obniżenie
   `CLUB_MINISITE_TIER_RANK` z powrotem do Pro oblewa CI.
-- `supabase/tests/plan_ticket_allowance_test.sql` — **22 asercje pgTAP** na warstwie danych:
+- `supabase/tests/plan_ticket_allowance_test.sql` — **28 asercji pgTAP** na warstwie danych:
   kształt rejestru puli, pula osobowa i organizacyjna, stan miejsca, bramka biletowa,
-  zwrot do puli i reguła Chatham House w obu kierunkach.
+  zwrot do puli, lista rezerwowa, okno roku członkowskiego i reguła Chatham House w obu
+  kierunkach.
 
 ### 11.1 Odtworzenie bazy z migracji wykryło dwa defekty, których nie widać w kodzie
 
 Testy jednostkowe nie dotykają Postgresa, a `check:sql-*` czyta SQL jako tekst. Żadne
 z nich nie odpowiada na pytanie „czy ta migracja się wykona i czy funkcja robi to, co
-mówi". Odpowiedź wymagała postawienia Postgresa 16 i nałożenia **wszystkich 795 migracji**
-(740 przeszło; 55 padło na brakach środowiska — publikacje realtime, rozszerzenia
-`vector`/`pg_net`, klasy operatorów — żadna na treści repozytorium).
+mówi". Odpowiedź wymagała postawienia Postgresa 16 i nałożenia **wszystkich 795 migracji**.
+
+Pierwsze podejście szło przez bootstrap napisany na miejscu i kończyło się wynikiem
+740 / 795 (55 plików padało na brakach środowiska). Repozytorium ma jednak własny runner
+(`scripts/pgtap-local/run.sh`, `bun run test:pgtap-local`), który odtwarza powierzchnię
+Supabase kompletnie — z nim, po doinstalowaniu `postgresql-16-pgtap`
+i `postgresql-16-pgvector`, przechodzi **795 z 795 migracji, zero błędów**, wraz
+z `supabase/seed.sql`. Wszystkie liczby poniżej pochodzą z tego przebiegu.
 
 Dwa defekty wyszły dopiero tam:
 
@@ -379,15 +404,85 @@ bilet. Blokada idzie teraz na WŁAŚCICIELA PULI (`pg_advisory_xact_lock`), a `c
 straciło grant dla roli `authenticated`: konsumpcja puli jest skutkiem zapisu na
 wydarzenie, nie czynnością samą w sobie.
 
+### 11.2 Przegląd na żądanie: trzy dalsze usterki
+
+Po dostarczeniu całości przyszło polecenie „sprawdź poprawność i czy nie ma drobnych
+błędów". Przegląd znalazł trzy rzeczy — dwie z nich to defekty bezpieczeństwa przychodu
+tej samej klasy, co dziura, którą ta zmiana zamykała.
+
+**1. Lista rezerwowa oddawała bilet, a awans go nie żądał z powrotem.** Zwrot biletu do
+puli patrzył na status PO ewentualnym przeniesieniu na listę rezerwową
+(`v_result_status`), a nie na to, o co poprosił uczestnik (`p_status`). Członek z pulą,
+który trafiał na komplet, dostawał bilet z powrotem — a `promote_event_waitlist` awansuje
+z `waitlist` na `going` **bez bramki biletowej**, bo bramka stoi w `rsvp_event`. Efekt:
+darmowe wejście na płatne wydarzenie z nietkniętą pulą, wyzwalane przez cudzą rezygnację.
+Naprawa: bilet zwalnia wyłącznie świadome `cancelled` albo `interested`; miejsce w kolejce
+jest rezerwacją opłaconą biletem. Dwie asercje pgTAP (7a) przybijają obie strony.
+
+**2. Wiersz sprzed rocznicy był darmowym wejściem.** `claim_included_event_ticket` na
+ponowny zapis po rezygnacji zdejmowało `released_at` i kończyło na `true` — bez patrzenia
+na okno. `my_ticket_allowance` liczy wykorzystanie wyłącznie po wierszach, których okno
+obejmuje dziś, więc wiersz z poprzedniego roku członkowskiego był dla licznika
+niewidzialny: kto zapisał się i zrezygnował rok wcześniej, wchodził w tym roku na koszt
+domu, a pula dalej pokazywała komplet. Naprawa: skrót obowiązuje tylko dla wiersza
+czynnego w BIEŻĄCYM oknie, każdy inny przechodzi normalne sprawdzenie puli, a
+`ON CONFLICT` przestemplowuje go bieżącym oknem zamiast milczeć (`DO NOTHING`). Asercje
+pgTAP 7b.
+
+**3. `admin_upsert_verification_domain` istniało w bazie w dwóch wariantach.** Migracja
+20260809102603 dołożyła szósty parametr samym `CREATE OR REPLACE`, więc pięcioargumentowa
+wersja z 20260806094104 została jako przeciążenie — widać ją w wygenerowanych typach jako
+drugi wariant `Args`. Ta zmiana i tak DROP-owała sześcioargumentową (siódmy parametr
+`p_academic`), więc porządkuje nazwę do końca: zostaje jedna funkcja. Żaden kod nie wołał
+starej, ale każde wywołanie bez `p_academic` i `p_grants_tier_key` pasowałoby do obu naraz
+— dokładnie ten `42725`, przed którym broni się DROP.
+
+Przy okazji poprawiony **bilans w nagłówku katalogu**: v6.1 deklarował 38 `[B]`, a jego
+tabele zawierały 37 (68 pozycji, nie 69). Korekta audytu nałożona na liczbę rzeczywistą
+daje 36 / 6 / 21 / 5, a nie 37 / 6 / 21 / 5 — i dopiero ta liczba domyka się z wynikiem
+wdrożenia co do jednego wiersza (36 + 6 + 2 + 3 = 47). Usunięto też nieużywaną zmienną
+`v_org_tier` z `my_ticket_allowance`.
+
+### 11.3 Pełny `typecheck`: cztery błędy typów z tej właśnie zmiany
+
+Poprzednia rura weryfikacyjna zapisała `typecheck` jako „✅ dla zmienionych plików",
+bo pełne `tsc --noEmit` przewracało się w tym środowisku na braku
+`@lovable.dev/vite-tanstack-config`. Po doinstalowaniu brakujących pakietów publicznych
+pełny przebieg dał się wykonać — i pokazał **cztery błędy pochodzące wprost z tej
+zmiany**. Testy jednostkowe ich nie widziały, bo Vitest nie sprawdza typów.
+
+1. **`admin_list_verification_domains` nie zwracało `academic` w typach.** Funkcja jest
+   `RETURNS SETOF public.verification_domains` z `SELECT *`, więc w bazie kolumnę oddaje
+   od razu po jej dodaniu — ale wygenerowany `Returns` w `types.ts` jej nie miał, a
+   `VerificationDomainRow` już tak. Panel weryfikacji nie kompilował się. Uzupełnione.
+2. **`Stripe.PriceCreateParams` jako typ samego kształtu kwoty.** Pełny typ parametrów
+   wymaga `currency`, a `shape` niesie tylko kwotę i jest rozwijany PO `currency` — stąd
+   i brak wymaganego pola, i `TS2783` (nadpisanie waluty). Wprowadzony węższy
+   `StripePriceShape`.
+3. **`CatalogPriceStatus.interval` przepisywało listę cykli z ręki.** Dołożenie
+   `one_time` do `PlanBillingInterval` rozjechało diagnostykę płatności. Pole bierze
+   teraz typ wprost z katalogu, więc następny cykl dojedzie tam sam.
+4. **Fikstury `ClubEventRow` bez `min_tier_rank`.** Kolumna doszła do wyniku
+   `club_events_list`, dwie fikstury testowe jej nie miały.
+
+Po poprawkach `tsc --noEmit` przechodzi **na całym projekcie**, nie tylko na zmienionych
+plikach — ograniczenie opisane niżej już nie obowiązuje.
+
+Weryfikacja po tych poprawkach: pełny pakiet pgTAP przez runner repozytorium —
+**93 pliki OK, 5 z błędem**, i wszystkie pięć to klasy udokumentowane
+w `scripts/pgtap-local/README.md` jako artefakty środowiska (brak `pg_net`, atrapa
+`storage.objects`, locale `C` w `initdb`), żadna nie dotyka tej zmiany.
+
 ### Ograniczenie środowiska
 
-Instalacja zależności w tym środowisku jest niepełna: prywatny rejestr
-`europe-west*-npm.pkg.dev` odpowiada `403` przez politykę sieciową, więc
-`@lovable.dev/vite-tanstack-config` nie jest dostępny. Skutek widoczny wyłącznie
-w `typecheck` (`vite.config.ts` i pochodne `src/test/*`,
-`src/utils/payments.functions.ts` — pliki nietknięte tą zmianą). Brakujące
-`@tanstack/react-start`, `@testing-library/dom` i `jsdom` doinstalowano z publicznego
-rejestru **bez dotykania `package.json` ani `bun.lock`**, dzięki czemu pakiet testowy
-przeszedł w całości. `supabase test db` nie był uruchamiany (brak Dockera i rozszerzenia
-pgTAP); plik pgTAP wykonano przez `psql` na odtworzonej bazie z minimalnym shimem
-asercji — 22/22.
+Prywatny rejestr `europe-west*-npm.pkg.dev` odpowiada `403` przez politykę sieciową,
+więc `bun install` kończy się niepełny. Brakujące pakiety publiczne
+(`@tanstack/react-start`, `@testing-library/dom`, `jsdom` i pochodne) doinstalowano
+z rejestru publicznego **bez dotykania `package.json` ani `bun.lock`**. Po tym zarówno
+pakiet testowy, jak i pełne `tsc --noEmit` wykonują się w całości — wcześniejsze
+zastrzeżenie, że `typecheck` da się sprawdzić tylko na zmienionych plikach, już nie
+obowiązuje (i właśnie ono ukryło cztery błędy typów opisane w 11.3). `supabase test db` nie był uruchamiany (brak Dockera), ale nie było to potrzebne:
+repozytorium ma runner `bun run test:pgtap-local`, który stawia własny klaster
+i odtwarza pełny schemat bez Dockera. Po `apt install postgresql-16-pgtap
+postgresql-16-pgvector` cały pakiet pgTAP wykonuje się na prawdziwym pgTAP —
+`plan_ticket_allowance_test.sql` 28/28.

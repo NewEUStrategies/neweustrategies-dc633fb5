@@ -107,6 +107,16 @@ function volumeTiersFor(
   ];
 }
 
+/**
+ * Kwotowa część parametrów ceny: płaska albo schodkowa. Rozdzielona od reszty,
+ * bo ten sam kształt trafia i do zakładania ceny, i do jej odtwarzania po
+ * dryfie - a wszystko poza kwotą (produkt, waluta, `lookup_key`, cykl) jest
+ * w obu miejscach wspólne.
+ */
+type StripePriceShape =
+  | { billing_scheme: "tiered"; tiers_mode: "volume"; tiers: Stripe.PriceCreateParams.Tier[] }
+  | { unit_amount: number };
+
 /** Czy zdalna cena schodkowa odpowiada progom wyliczonym z katalogu. */
 function tiersMatch(
   remote: Stripe.Price.Tier[] | undefined,
@@ -211,7 +221,12 @@ async function syncOne(
   const tiers = volumeTiersFor(entry, plan, amount);
   // Kształt ceny jest jeden dla założenia i dla korekty - inaczej cena
   // odtworzona po dryfie kwoty gubiłaby progi wolumenowe.
-  const shape: Stripe.PriceCreateParams = tiers
+  //
+  // Typ celowo WĘŻSZY niż `Stripe.PriceCreateParams`: ten obiekt niesie sam
+  // kształt kwoty i jest rozwijany po `currency`, a pełny typ parametrów ma
+  // `currency` w sobie - kompilator zgłaszałby wtedy nadpisanie pola (TS2783)
+  // i brak wymaganej `currency` w samym kształcie.
+  const shape: StripePriceShape = tiers
     ? { billing_scheme: "tiered", tiers_mode: "volume", tiers }
     : { unit_amount: amount };
 

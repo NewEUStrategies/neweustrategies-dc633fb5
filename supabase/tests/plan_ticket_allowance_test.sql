@@ -24,14 +24,20 @@
 --   6. Bramka biletowa: bez puli i bez opłaconego zamówienia zapis odrzucony;
 --      opłacone zamówienie wchodzi i NIE spala puli.
 --   7. Rezygnacja zwraca bilet do puli (`released_at`), wiersz zostaje jako
---      ślad audytowy.
+--      ślad audytowy - ale WYŁĄCZNIE rezygnacja uczestnika. Przeniesienie na
+--      listę rezerwową przez serwer bilet ZATRZYMUJE: `promote_event_waitlist`
+--      awansuje bez bramki biletowej, więc zwolniony tam bilet oznaczałby
+--      darmowe wejście na płatne wydarzenie z nietkniętą pulą.
+--   7b. Wiersz z POPRZEDNIEGO roku członkowskiego nie jest darmowym wejściem:
+--      licznik puli widzi tylko bieżące okno, więc przeterminowany wiersz musi
+--      przejść normalne sprawdzenie puli i zostać przestemplowany.
 --   8. Reguła Chatham House: konto bez flagi `chatham_house_events` nie zapisze
 --      się i nie dostanie dostępu (`get_event_access` -> `tier_required`).
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(22);
+SELECT plan(28);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -284,6 +290,107 @@ SELECT throws_ok(
   'P0001',
   'events: ticket required',
   'czwarty bilet z puli organizacji odrzucony - pula jest NA ORGANIZACJE (3), nie na miejsce'
+);
+
+-- ── 7a. Lista rezerwowa ZATRZYMUJE bilet ────────────────────────────────────
+-- `promote_event_waitlist` awansuje z `waitlist` na `going` BEZ bramki
+-- biletowej - bramka stoi w `rsvp_event`, nie w awansie. Gdyby degradacja na
+-- liste rezerwowa zwalniala bilet, kazdy awans byl by darmowym wejsciem na
+-- platne wydarzenie z nietknieta pula. Miejsce w kolejce to REZERWACJA
+-- oplacona biletem.
+RESET ROLE;
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, kind, starts_at,
+                           visibility, min_tier_rank, status, ticket_price_cents, capacity)
+VALUES ('b1444444-0000-0000-0000-0000000000d1', (SELECT public.public_tenant_id()),
+        'tk-e5', 'Konferencja 5', 'Conference 5', 'in_person', now() + interval '70 days',
+        'public', 0, 'published', 30000, 1);
+
+-- Jedyne miejsce zajmuje konto z oplaconym zamowieniem (stawka studencka nie ma
+-- puli, wiec nie miesza w licznikach).
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+INSERT INTO public.payment_orders (user_id, status, kind, amount_cents, currency, metadata)
+VALUES ('b1000000-0000-0000-0000-0000000000a3', 'paid', 'one_time', 30000, 'PLN',
+        jsonb_build_object('event_id', 'b1444444-0000-0000-0000-0000000000d1'));
+SELECT set_config('request.jwt.claim.role', '', true);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT public.rsvp_event('b1444444-0000-0000-0000-0000000000d1', 'going');
+
+-- Czlonek ma jeden bilet w puli (wykorzystany na e1 wrocil po rezygnacji,
+-- e3 poszlo z oplaconego zamowienia).
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+
+SELECT is(
+  public.rsvp_event('b1444444-0000-0000-0000-0000000000d1', 'going') ->> 'status',
+  'waitlist',
+  'komplet miejsc przenosi na liste rezerwowa'
+);
+
+SELECT is(
+  (public.my_ticket_allowance() ->> 'remaining')::int, 0,
+  'bilet ZOSTAJE przy miejscu w kolejce - degradacja serwera to nie rezygnacja uczestnika'
+);
+
+-- Zwolnienie miejsca uruchamia awans (rsvp_event wola promote_event_waitlist).
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT public.rsvp_event('b1444444-0000-0000-0000-0000000000d1', 'cancelled');
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT er.status FROM public.event_rsvps er
+    WHERE er.event_id = 'b1444444-0000-0000-0000-0000000000d1'
+      AND er.user_id = 'b1000000-0000-0000-0000-0000000000a1'),
+  'going',
+  'awans z listy rezerwowej daje miejsce'
+);
+
+SELECT is(
+  (public.my_ticket_allowance() ->> 'remaining')::int, 0,
+  'awansowany wchodzi na SWOIM bilecie, a nie za darmo z nietknieta pula'
+);
+
+-- ── 7b. Wiersz sprzed rocznicy nie jest darmowym wejsciem ───────────────────
+-- Licznik `my_ticket_allowance` liczy wylacznie wiersze, ktorych okno obejmuje
+-- dzis. Wiersz z poprzedniego roku czlonkowskiego jest dla niego niewidzialny,
+-- wiec samo zdjecie `released_at` dawaloby wejscie, ktorego pula nie widzi.
+RESET ROLE;
+UPDATE public.plan_ticket_claims
+   SET period_start = period_start - interval '1 year',
+       period_end   = period_end   - interval '1 year'
+ WHERE user_id = 'b1000000-0000-0000-0000-0000000000a1'
+   AND event_id = 'b1444444-0000-0000-0000-000000000001';
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$ SELECT public.rsvp_event('b1444444-0000-0000-0000-000000000001', 'going') $$,
+  'P0001',
+  'events: ticket required',
+  'zwolniony wiersz sprzed rocznicy NIE otwiera wejscia przy wyczerpanej puli'
+);
+
+-- Po zwolnieniu biezacego biletu ten sam zapis przechodzi, a wiersz dostaje
+-- stempel BIEZACEGO okna - inaczej pula dalej by go nie liczyla.
+SELECT public.rsvp_event('b1444444-0000-0000-0000-0000000000d1', 'cancelled');
+SELECT public.rsvp_event('b1444444-0000-0000-0000-000000000001', 'going');
+
+SELECT is(
+  (SELECT count(*)::int FROM public.plan_ticket_claims c
+    WHERE c.user_id = 'b1000000-0000-0000-0000-0000000000a1'
+      AND c.event_id = 'b1444444-0000-0000-0000-000000000001'
+      AND c.released_at IS NULL
+      AND c.period_start <= CURRENT_DATE
+      AND c.period_end > CURRENT_DATE),
+  1,
+  'ponowne wyjecie biletu przestemplowuje wiersz biezacym oknem roku czlonkowskiego'
 );
 
 -- ── 8. Regula Chatham House ─────────────────────────────────────────────────

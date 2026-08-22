@@ -74,6 +74,7 @@ export function clubEventRow(overrides: Partial<ClubEventRow> = {}): ClubEventRo
     meeting_url: null,
     capacity: null,
     going_count: 2,
+    min_tier_rank: 0,
     rsvp_enabled: true,
     my_rsvp: null,
     anchor_event_id: null,
