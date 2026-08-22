@@ -174,3 +174,91 @@ describe("robots.txt response headers", () => {
     expect(headers["Cache-Control"]).toBe("private, no-store");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ETAP 4: gałęzie polityki crawlera na wejściach NIEPEŁNYCH (robots.ts: 57, 89,
+// 105). NIE DUBLUJE `e2e/seo.spec.ts` - tam trzy testy ("robots.txt comes from
+// the ROUTE, not a static file in public/", "robots.txt exposes crawl policy",
+// "robots.txt is served by the route, not by a static asset") dowodzą na żywym
+// SSR POCHODZENIA odpowiedzi i nagłówka `X-Robots-Tag`. Tutaj dowodzimy samego
+// buildera na wejściach, których trasa normalnie nie produkuje: brak listy
+// sitemap, lista pusta, origin bez schematu.
+// ---------------------------------------------------------------------------
+describe("buildRobotsTxt - wejścia niepełne", () => {
+  const sitemapCases: readonly { label: string; sitemapPaths?: readonly string[] }[] = [
+    { label: "pominiętej listy sitemap (undefined)" },
+    { label: "pustej listy sitemap", sitemapPaths: [] },
+  ];
+
+  it.each(sitemapCases)("nie emituje dyrektywy Sitemap przy $label", ({ sitemapPaths }) => {
+    const body = buildRobotsTxt({ mode: "canonical", origin: ORIGIN, sitemapPaths });
+    expect(body).not.toContain("Sitemap");
+    // Brak mapy nie może zamknąć indeksowania - polityka `*` zostaje w całości.
+    expect(body).toContain("User-agent: *");
+    expect(body).toContain("Allow: /");
+    for (const path of ROBOTS_DEFAULT_DISALLOW) {
+      expect(body).toContain(`Disallow: ${path}`);
+    }
+    // Bez ostatniego bloku plik nadal kończy się jednym "\n" i nie ma pustego
+    // bloku na końcu (parsery sklejają wtedy grupy).
+    expect(body.endsWith("\n")).toBe(true);
+    expect(body.endsWith("\n\n")).toBe(false);
+  });
+
+  it("nie emituje dyrektywy Sitemap, gdy wszystkie podane ścieżki są duplikatami jednej", () => {
+    // Deduplikacja NIE MOŻE dać pustego bloku `Sitemap:` - blok jest dopisywany
+    // tylko wtedy, gdy po deduplikacji coś zostało.
+    const body = buildRobotsTxt({
+      mode: "canonical",
+      origin: ORIGIN,
+      sitemapPaths: ["/sitemap.xml", "/sitemap.xml", "/sitemap.xml"],
+    });
+    expect(body.split("Sitemap:").length - 1).toBe(1);
+    expect(body).not.toMatch(/\n{3}/);
+  });
+
+  const hostCases: readonly { label: string; origin: string; host: string }[] = [
+    { label: "origin ze schematem", origin: ORIGIN, host: "neweuropeanstrategies.com" },
+    { label: "origin z portem", origin: "http://localhost:5173", host: "localhost:5173" },
+    // Poniżej regexp schematu NIE łapie wejścia, więc host = całe wejście.
+    { label: "origin bez schematu", origin: "tenant.example", host: "tenant.example" },
+    { label: "origin protokołowo-relatywny", origin: "//tenant.example", host: "//tenant.example" },
+    { label: "origin pusty", origin: "", host: "" },
+  ];
+
+  it.each(hostCases)("nazywa host w komentarzu nagłówkowym dla $label", ({ origin, host }) => {
+    const body = buildRobotsTxt({ mode: "canonical", origin });
+    expect(body.split("\n")[0]).toBe(`# robots.txt for ${host} - generated per request.`);
+  });
+
+  it("origin bez schematu daje RELATYWNĄ dyrektywę Sitemap (kontrakt wejścia)", () => {
+    // FAKT ZMIERZONY, nie życzenie: builder nie dokleja schematu. `RobotsInput.origin`
+    // jest udokumentowany jako ABSOLUTNY origin, a spec robots.txt wymaga w
+    // `Sitemap:` pełnego URL - obowiązek podania schematu leży po stronie
+    // wywołującego (`robotsRequest.server.ts`). Test pilnuje, że złamanie tego
+    // kontraktu jest widoczne od razu w treści pliku, a nie dopiero jako
+    // "Sitemap could not be read" w Search Console.
+    const body = buildRobotsTxt({
+      mode: "canonical",
+      origin: "tenant.example",
+      sitemapPaths: ["/sitemap.xml"],
+    });
+    expect(body).toContain("Sitemap: tenant.example/sitemap.xml");
+    expect(body).not.toContain("Sitemap: https://");
+  });
+
+  it("puste listy disallow i groups dają plik z samym Allow", () => {
+    // `disallow: []` to JAWNA decyzja redakcji (nic nie zamykamy), a nie brak
+    // wartości - domyślna lista NIE MOŻE się wtedy podstawić.
+    const body = buildRobotsTxt({
+      mode: "canonical",
+      origin: ORIGIN,
+      sitemapPaths: ["/sitemap.xml"],
+      disallow: [],
+      groups: [],
+    });
+    expect(body).toContain("User-agent: *\nAllow: /");
+    expect(body).not.toContain("Disallow:");
+    expect(body.match(/^User-agent:/gm)).toHaveLength(1);
+  });
+});

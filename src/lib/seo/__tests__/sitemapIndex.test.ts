@@ -90,3 +90,118 @@ describe("buildSitemapIndexXml", () => {
     expect(xml).toContain("<loc>https://nes.example/a?b=1&amp;c=2</loc>");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ETAP 4: gałąź parsera segmentu adresu shardu (sitemapIndex.ts:86 - wejście, na
+// którym regexp nazwy w ogóle NIE łapie). Trasa `/sitemaps/<segment>.xml`
+// przyjmuje dowolny łańcuch od crawlera, więc każdy taki segment musi dać
+// czyste `null` (trasa odpowiada 404), a nie wyjątek albo pusty <urlset>.
+// NIE DUBLUJE `e2e/seo.spec.ts` - tam "an unknown sitemap shard is a 404, not an
+// empty urlset" i "every sitemap listed in the index resolves to a urlset"
+// dowodzą KODU ODPOWIEDZI na żywym SSR; tutaj dowodzimy czystego parsera.
+// ---------------------------------------------------------------------------
+describe("parseSitemapShard - segmenty niepełne i wrogie", () => {
+  it.each([
+    { raw: ".xml", why: "sam sufiks bez nazwy sekcji (regexp nazwy nie łapie)" },
+    { raw: "", why: "pusty segment" },
+    { raw: ".XML", why: "sufiks innej wielkości liter (porównanie jest dokładne)" },
+    { raw: "-2.xml", why: "numer shardu bez sekcji" },
+    { raw: "posts.xml.xml", why: "podwojony sufiks" },
+    { raw: "posts-2-3.xml", why: "dwa numery shardu" },
+    { raw: "posts-2.5.xml", why: "numer niecałkowity" },
+    { raw: "posts-.xml", why: "separator bez numeru" },
+    { raw: "Posts.xml", why: "sekcja innej wielkości liter" },
+    { raw: "../posts.xml", why: "próba wyjścia z katalogu" },
+  ])("zwraca null dla '$raw' ($why)", ({ raw }) => {
+    expect(parseSitemapShard(raw)).toBeNull();
+  });
+
+  it("numer shardu bez górnego ograniczenia nadal się parsuje", () => {
+    // Górny limit pilnuje trasa (liczbą realnych adresów), nie parser - inaczej
+    // wzrost serwisu wymagałby zmiany w DWÓCH miejscach.
+    expect(parseSitemapShard("posts-99999.xml")).toEqual({ section: "posts", shard: 99999 });
+  });
+
+  // FAKT ZMIERZONY (stan produkcji): numer z zerem wiodącym przechodzi, bo
+  // `Number("02") === 2`. Ten test jest ZIELONY i przypina stan faktyczny -
+  // gdy produkcja zostanie naprawiona, wywali się on i `it.fails` poniżej
+  // przestanie być potrzebny.
+  it("numer z zerem wiodącym parsuje się jak numer kanoniczny", () => {
+    expect(parseSitemapShard("posts-02.xml")).toEqual({ section: "posts", shard: 2 });
+    expect(parseSitemapShard("posts-0002.xml")).toEqual({ section: "posts", shard: 2 });
+  });
+
+  it.fails("DEFEKT: shard 2 jest dostępny pod dwoma adresami (posts-2.xml i posts-02.xml)", () => {
+    // KONSEKWENCJA DLA UŻYTKOWNIKA: dokumentacja `parseSitemapShard` mówi
+    // wprost, że odrzuca "numer <= 1 podanego jawnie (...), żeby jeden shard
+    // nie był dostępny pod dwoma URL-ami". Zero wiodące łamie ten sam
+    // inwariant: `/sitemaps/posts-02.xml` zwraca BAJT W BAJT tę samą mapę co
+    // adres kanoniczny `/sitemaps/posts-2.xml`. Crawler, który trafi na
+    // wariant z zerem (błędny link, stara mapa, skan katalogu), zaindeksuje
+    // drugi adres tej samej mapy, a raport "Sitemapy" w GSC pokaże duplikat
+    // zamiast pokrycia sekcji. Poprawka: odrzucić `shardRaw`, którego zapis
+    // nie jest kanoniczny (`String(Number(shardRaw)) !== shardRaw`).
+    expect(parseSitemapShard("posts-02.xml")).toBeNull();
+  });
+});
+
+describe("shardCountFor / shardSlice - wartości spoza zakresu", () => {
+  it.each([
+    { label: "zero adresów", urlCount: 0, expected: 0 },
+    { label: "liczba ujemna", urlCount: -5, expected: 0 },
+    { label: "NaN", urlCount: Number.NaN, expected: 0 },
+    { label: "Infinity", urlCount: Number.POSITIVE_INFINITY, expected: 0 },
+  ])("shardCountFor zwraca 0 dla $label (trasa odpowiada wtedy 404)", ({ urlCount, expected }) => {
+    expect(shardCountFor(urlCount)).toBe(expected);
+  });
+
+  it("rozmiar shardu <= 0 nie dzieli przez zero ani nie gubi adresów", () => {
+    // `perShard` z konfiguracji nigdy nie powinno być zerem, ale dzielenie przez
+    // zero dałoby Infinity shardów, a `slice(0, 0)` - pustą mapę na produkcji.
+    expect(shardCountFor(10, 0)).toBe(10);
+    expect(shardCountFor(10, -1)).toBe(10);
+    const urls = [1, 2, 3];
+    expect(shardSlice(urls, 1, 0)).toEqual([1]);
+    expect(shardSlice(urls, 1, -7)).toEqual([1]);
+  });
+
+  it("numer shardu 0 i ujemny są traktowane jak pierwszy shard", () => {
+    const urls = Array.from({ length: 5 }, (_, i) => i);
+    expect(shardSlice(urls, 0, 2)).toEqual([0, 1]);
+    expect(shardSlice(urls, -3, 2)).toEqual([0, 1]);
+  });
+});
+
+describe("buildSitemapIndexXml - wejścia niepełne", () => {
+  const lastmodCases: readonly { label: string; lastmod?: string | null }[] = [
+    { label: "pominięte pole" },
+    { label: "null", lastmod: null },
+    { label: "pusty łańcuch", lastmod: "" },
+    { label: "same spacje", lastmod: "   " },
+  ];
+
+  it.each(lastmodCases)("pomija <lastmod> dla $label", ({ lastmod }) => {
+    const xml = buildSitemapIndexXml([{ loc: "https://nes.example/sitemaps/core.xml", lastmod }]);
+    expect(xml).not.toContain("<lastmod>");
+    expect(xml).toContain("<loc>https://nes.example/sitemaps/core.xml</loc>");
+  });
+
+  it("przycina datę otoczoną spacjami", () => {
+    const xml = buildSitemapIndexXml([
+      { loc: "https://nes.example/a.xml", lastmod: "  2026-08-01 " },
+    ]);
+    expect(xml).toContain("<lastmod>2026-08-01</lastmod>");
+  });
+
+  it("pusta lista wpisów daje poprawny, pusty indeks (a nie połamany XML)", () => {
+    // Świeża instalacja bez treści nadal MUSI odpowiedzieć dokumentem, który
+    // walidator sitemaps.org przyjmie - inaczej GSC zgłasza błąd pobierania.
+    const xml = buildSitemapIndexXml([]);
+    expect(xml).toBe(
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        "</sitemapindex>",
+    );
+    expect(xml).not.toContain("<sitemap>");
+  });
+});
