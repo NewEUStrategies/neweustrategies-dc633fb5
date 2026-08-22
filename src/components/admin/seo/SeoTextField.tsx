@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SerpMeter } from "@/components/admin/seo/SerpMeter";
+import { CharCounter, isAtHardLimit } from "@/components/admin/seo/atoms/CharCounter";
 import { serpDescriptionMetric, serpTitleMetric } from "@/lib/seo/serp";
 
 interface SeoTextFieldProps {
@@ -38,7 +39,7 @@ export function SeoTextField({
   const raw = value ?? "";
   const effective = raw.trim() || fallback;
   const metric = kind === "title" ? serpTitleMetric(effective) : serpDescriptionMetric(effective);
-  const overHardLimit = raw.length >= maxLength;
+  const overHardLimit = isAtHardLimit(raw.length, maxLength);
   const overPixelBudget = raw.length > 0 && metric.grade === "long";
   const isInvalid = overHardLimit;
   const handle = (next: string) => onChange(next.length ? next : null);
@@ -66,14 +67,7 @@ export function SeoTextField({
     <div>
       <Label htmlFor={id} className="flex items-center justify-between">
         <span>{label}</span>
-        <span
-          className={cn(
-            "text-[10px] font-normal tabular-nums",
-            overHardLimit ? "text-destructive" : "text-muted-foreground",
-          )}
-        >
-          {raw.length}/{maxLength}
-        </span>
+        <CharCounter length={raw.length} max={maxLength} />
       </Label>
       {kind === "title" ? (
         <Input {...commonProps} onChange={(e) => handle(e.target.value)} />
