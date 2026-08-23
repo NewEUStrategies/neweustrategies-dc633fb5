@@ -8195,3 +8195,18 @@ sup.fn-ref > a[id^="fnref-"] {
   font-size: 9px !important;
   line-height: 1.35 !important;
 }
+
+/* Akapit vs. miękki enter (Shift+Enter):
+ * - Enter tworzy NOWY blok akapitu - w kanwie edytora musi być widoczna
+ *   przerwa, żeby autor od razu widział, że powstał nowy akapit,
+ * - Shift+Enter wstawia <br> wewnątrz akapitu/pozycji listy - bez przerwy.
+ * Publiczny widok (prose) ma własne marginesy akapitów; tu wyrównujemy kanwę. */
+.block-canvas > div[data-block-type="paragraph"] + div[data-block-type="paragraph"] {
+  margin-top: 0.85em;
+}
+.block-canvas div[data-block-type="paragraph"] .ProseMirror p + p {
+  margin-top: 0.85em;
+}
+.block-canvas div[data-block-type="paragraph"] .ProseMirror br {
+  line-height: inherit;
+}

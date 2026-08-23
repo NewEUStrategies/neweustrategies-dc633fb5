@@ -46,6 +46,13 @@ export function ListBlockEdit({ block, onChange }: Props) {
     if (e.key === "Tab") {
       e.preventDefault();
       setLevel(idx, e.shiftKey ? -1 : 1);
+    } else if (e.key === "Enter" && e.shiftKey) {
+      // Miękki enter: łamanie wiersza WEWNĄTRZ pozycji listy (parytet z Word/WP)
+      // - nie tworzy nowego punktu wypunktowania.
+      e.preventDefault();
+      document.execCommand("insertLineBreak");
+      const el = refs.current[idx];
+      if (el) update(idx, el.innerHTML);
     } else if (e.key === "Enter") {
       e.preventDefault();
       const nextItems = [...items];
