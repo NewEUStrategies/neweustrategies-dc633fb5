@@ -8492,9 +8492,28 @@ sup.fn-ref {
 }
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
+  box-sizing: border-box;
   content: counter(cms-ordered-list);
   grid-column: 1;
   grid-row: 1;
+  display: inline-flex;
+  width: 1.3rem;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
+  color: var(--cms-list-accent, #fa9346);
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .cms-rich-content ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
