@@ -557,6 +557,11 @@ const RenderSection = memo(function RenderSection({
   };
   const typoCss = typographyCss(section.id, section.typography);
   const sectionKind = useMemo(() => (isPeopleSectionKind(allChildren) ? "people" : ""), [allChildren]);
+  const videoUrl =
+    section.background?.type === "video"
+      ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
+      : "";
+
     section.background?.type === "video"
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
       : "";
