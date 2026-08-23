@@ -108,7 +108,7 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { CommentsSection } from "@/components/comments/CommentsSection";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
-import { MobileArticleActions } from "@/components/post/MobileArticleActions";
+import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 import { resolveTakeaways } from "@/lib/keyTakeaways/resolve";
@@ -1103,23 +1103,26 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   </div>
                 )}
 
-                {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
-                    czasu czytania / aktualizacji. Odsluch idzie przez globalny
-                    player i kanoniczny endpoint post-tts (jeden glos i jeden
-                    plik na wpis), wiec formaty audio/wideo - ktore maja wlasny
-                    odtwarzacz - go nie pokazuja. */}
+                {/* Mobile: odsłuch artykułu (SidebarListenCard) na całą szerokość
+                    bezpośrednio pod sekcją "Share article + Recommend us". Na
+                    desktop karta mieszka w sidebarze, więc tutaj pokazujemy ją
+                    tylko poniżej breakpointu `lg`. */}
                 {format !== "audio" && format !== "video" && (
-                  <MobileArticleActions
-                    lang={lang}
-                    postId={post.id}
-                    title={title}
-                    author={
-                      postAuthor?.display_name ||
-                      [postAuthor?.first_name, postAuthor?.last_name].filter(Boolean).join(" ") ||
-                      null
-                    }
-                    audioUrl={(lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null}
-                  />
+                  <div className="no-print mb-6 lg:hidden">
+                    <SidebarListenCard
+                      postId={post.id}
+                      lang={lang}
+                      title={title}
+                      author={
+                        postAuthor?.display_name ||
+                        [postAuthor?.first_name, postAuthor?.last_name].filter(Boolean).join(" ") ||
+                        null
+                      }
+                      authorHref={postAuthor?.slug ? `/author/${postAuthor.slug}` : null}
+                      readMinutes={readMinutes}
+                      audioUrl={(lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null}
+                    />
+                  </div>
                 )}
 
                 {!merged.quick_view_info && !editorialActions && (
