@@ -219,6 +219,8 @@ body {
   --accent-foreground: oklch(0.18 0 0);
   --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(1 0 0);
+  --status-success: oklch(0.52 0.15 155);
+  --status-warning: oklch(0.58 0.15 65);
   --border: oklch(0.9 0.005 80);
   --input: oklch(0.9 0.005 80);
   --ring: oklch(0.18 0 0);
@@ -301,6 +303,8 @@ body {
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(1 0 0);
+  --status-success: oklch(0.72 0.17 155);
+  --status-warning: oklch(0.78 0.16 75);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.98 0 0);
@@ -8469,7 +8473,8 @@ sup.fn-ref > a[id^="fnref-"] {
   width: 100%;
   margin-block: 0.25rem 0.125rem;
 }
-.cms-rich-content li > ul:not(.task-list):not(.contains-task-list)
+.cms-rich-content ul:not(.task-list):not(.contains-task-list)
+  ul:not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   width: 5px;
   height: 5px;
@@ -8502,9 +8507,9 @@ sup.fn-ref > a[id^="fnref-"] {
 :is(h1, h2) .cms-inline-status-icon { stroke-width: 1.6; }
 h3 .cms-inline-status-icon { stroke-width: 1.7; }
 :is(strong, b) .cms-inline-status-icon { stroke-width: 2; }
-.cms-inline-status-icon--success { color: var(--success, #10b981); }
+.cms-inline-status-icon--success { color: var(--status-success); }
 .cms-inline-status-icon--error { color: var(--destructive); }
-.cms-inline-status-icon--warning { color: var(--warning, #f59e0b); }
+.cms-inline-status-icon--warning { color: var(--status-warning); }
 
 @keyframes sonner-icon-pop {
   0% { transform: scale(0.7); opacity: 0; }
