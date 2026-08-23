@@ -1509,28 +1509,135 @@ export default defineConfig({
         // Nowy plik poczty bez ani jednej asercji obniża wskaźnik katalogu i
         // zatrzymuje bramkę, nawet jeśli nikt nie dopisze mu progu własnego.
         //
-        // Poziom jest niższy niż w panelach z rozmysłu: w tym katalogu zostają
-        // trzy powierzchnie świadomie nietknięte w tej warstwie
+        // 2026-08-22: RATCHET W GÓRĘ. Trzy powierzchnie, które w 2026-08-19
+        // zostały tu świadomie nietknięte i trzymały ten próg nisko
         // (`transactional.server.ts` 8,3%, `tx-preview.server.ts` 0%,
-        // `platformCompat.server.ts` 0%) - uzasadnienie w
-        // `docs/WDROZENIE_NEWSLETTER_TESTY_MODUL_11_2026-08-19.md` §6.
-        // Zmierzone: 78,15% instr. / 65,74% gał. / 83,89% fn / 78,99% linii.
+        // `platformCompat.server.ts` 0%), są domknięte w MODULE 11 - wszystkie
+        // trzy na 100%. Zmierzone na tym HEAD dla całego katalogu:
+        // 99,33% instr. / 98,17% gał. / 99,33% fn / 99,48% linii.
+        // Próg = zmierzone minus ~1-2 pp marginesu na dryf CI.
         "src/lib/email/**": {
-          statements: 74,
-          functions: 79,
-          lines: 74,
-          branches: 61,
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
         },
-        // Ta sama siatka dla reguł newslettera. Zmierzone: 83,55% instr. /
-        // 79,90% gał. / 89,09% fn / 84,95% linii. Poniżej progu zostają
-        // `emailDocResolve.ts` (34,1%) i `newsletterFieldLabels.ts` (31,6%) -
-        // oba są rozstrzygane w testach warstwy wyżej, patrz §6 wdrożenia.
+        // Ta sama siatka dla reguł newslettera.
+        // 2026-08-22: RATCHET W GÓRĘ. Dwie powierzchnie, które trzymały ten
+        // próg nisko - `emailDocResolve.ts` (34,1%) i `newsletterFieldLabels.ts`
+        // (31,6%) - są domknięte w MODULE 11, obie na 100% linii. Zmierzone na
+        // tym HEAD dla całego katalogu: 98,90% instr. / 96,65% gał. / 100% fn /
+        // 99,49% linii. Próg = zmierzone minus ~1-2 pp marginesu na dryf CI.
         "src/lib/newsletter/**": {
-          statements: 79,
-          functions: 84,
-          lines: 80,
-          branches: 75,
+          statements: 97,
+          functions: 99,
+          lines: 98,
+          branches: 94,
         },
+        // ══ MODUŁ 11 (2026-08-22): ZAPADKA POWIERZCHNI DOMKNIĘTYCH W TEJ PRACY ══
+        //
+        // Progi floorowane 1-2 pp pod POMIAREM z pełnej suity na tym HEAD.
+        // Wolno je wyłącznie PODNOSIĆ.
+        //
+        // TŁUMIENIA MAJĄ PRÓG WYŻSZY NIŻ SĄSIEDNIE I TO JEST POWÓD: łańcuch
+        // skutków nie kończy się na newsletterze - kampania wysłana na martwe
+        // adresy psuje reputację domeny nadawczej, a razem z nią przestaje
+        // dochodzić poczta TRANSAKCYJNA, w tym RESET HASŁA; użytkownik nie
+        // wejdzie wtedy na konto i nie ma jak tego zgłosić, bo formularz
+        // kontaktowy też idzie mailem.
+        // Zmierzone: 100% instr. / 100% gał. / 100% fn / 100% linii.
+        "src/lib/email/suppression.server.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        // Powierzchnie platformowe poczty: webhook wykluczeń dostawcy, dren
+        // kolejki, podglądy szablonów. Wejście z ZEWNĄTRZ, więc odmowa bez
+        // ważnego podpisu musi następować przed jakąkolwiek pracą - bez tego
+        // endpoint jest publicznym sposobem wpisania dowolnego adresu na listę
+        // wykluczeń (cichy DoS na pocztę wybranego odbiorcy).
+        // Zmierzone: 97,98% instr. / 93,99% gał. / 100% fn / 99,70% linii.
+        "src/routes/platform/email/**": {
+          statements: 96,
+          functions: 99,
+          lines: 98,
+          branches: 92,
+        },
+        // Aliasy zgodności `/lovable/email/*`: pięć plików po jednej decyzji
+        // (jaki cel przekazania). Literówka w tej stałej to 404 na odbiciach
+        // i skargach - lista wykluczeń przestaje rosnąć PO CICHU.
+        // Zmierzone: 100% na czterech wymiarach.
+        "src/routes/lovable/email/**": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        // Renderer dokumentu maila i panel po zapisie. MAILA NIE DA SIĘ WYCOFAĆ:
+        // defekt renderu poszedł do skrzynek i jest w nich na zawsze, a poprawka
+        // dotyczy dopiero następnej wysyłki. Dlatego próg jest tu wysoki mimo
+        // że to warstwa widoku - dowód musi istnieć PRZED wysyłką.
+        // Zmierzone: 100% instr. / 99,08% gał. / 100% fn / 100% linii.
+        "src/components/newsletter/**": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 97,
+        },
+        // Popup zapisu: PUNKT ZBIERANIA ZGODY RODO. Payload zgody to dowód,
+        // którego ciężar leży po stronie administratora (art. 7 ust. 1 RODO),
+        // więc regresja w tym formularzu jest zdarzeniem prawnym, nie usterką
+        // wygody. Zmierzone: 99,64% instr. / 97,44% gał. / 100% fn / 100% linii.
+        "src/components/{NewsletterPopup,PopupSignupForm}.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 99,
+          branches: 95,
+        },
+        // Czyste funkcje i server fns panelu kampanii.
+        // Zmierzone: 100% na czterech wymiarach.
+        "src/lib/newsletter-{admin,status}.functions.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        // Szablony i teksty maili transakcyjnych - 22 typy razy dwa języki.
+        // Te moduły działają POZA dostawcą i18n (własny słownik `Record<"pl" |
+        // "en", …>`, jak `errorCopy.ts`), więc próg pilnuje kompletności obu
+        // języków, a nie obecności kluczy.
+        // Zmierzone: 100% na czterech wymiarach.
+        "src/lib/email-templates/**": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 98,
+        },
+        // Trasy kampanii. TEN PRÓG CHRONI STAN I SKLEJENIE, a dostępu pilnuje
+        // `src/routes/__tests__/adminRouteAuthority.gate.test.ts` - ta sama
+        // zasada co przy progu klubowym. Konsekwencja regresji jest tu jednak
+        // większa niż w klubach: zła konwersja harmonogramu to wysyłka o złej
+        // godzinie, a wznowienie zakończonej kampanii to wysyłka PODWÓJNA.
+        // Zmierzone: 99,44% instr. / 98,58% gał. / 100% fn / 99,41% linii.
+        "src/routes/admin.newsletter.campaigns*.tsx": {
+          statements: 98,
+          functions: 99,
+          lines: 98,
+          branches: 96,
+        },
+        // Hooki popupów buildera: `useActivePopups` i `usePopupEditor` decydują,
+        // KOMU i JAK CZĘSTO pokaże się popup. Reguła częstotliwości zepsuta
+        // w jedną stronę to popup przy każdym przewinięciu, w drugą - popup,
+        // którego nikt nigdy nie zobaczy.
+        // Zmierzone: 100% instr. / 96,67% gał. / 100% fn / 100% linii.
+        "src/lib/builder/popups.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 94,
+        },
+        // ══ koniec zapadki MODUŁU 11 ════════════════════════════════════════
         // provider.server.ts: trzy pola wyniku sterują całą pętlą ponowień -
         // `rateLimited` (wstrzymaj CAŁĄ wysyłkę), `permanent` (prosto do DLQ,
         // bez mielenia martwego adresu) i `messageId` (JEDYNY klucz korelacji
