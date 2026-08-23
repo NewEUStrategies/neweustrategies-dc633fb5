@@ -2378,7 +2378,23 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     word-break: normal;
     hyphens: manual;
     -webkit-hyphens: manual;
+  /* Section tabs: allow labels to wrap naturally at word boundaries on
+     mobile (no hyphenation, no arbitrary word breaking). The global button
+     reset above forces white-space: normal, but also sets overflow-wrap:
+     break-word which can split words like "Misja" into "Misj" + "a". These
+     tabs must keep words intact and wrap only on spaces. */
+  [data-builder-renderer] [data-section-tabs-bar] .cms-section-tab-btn,
+  [data-builder-renderer] [data-section-tabs-bar] .cms-section-tab-btn .cms-section-tab-label,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar] .cms-section-tab-btn,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar] .cms-section-tab-btn .cms-section-tab-label {
+    white-space: normal !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    hyphens: none !important;
+    -webkit-hyphens: none !important;
+    text-wrap: pretty;
   }
+
   [data-builder-renderer] h1:not(.cms-post-title) {
     font-size: clamp(1.4rem, 7vw, 2rem) !important;
     line-height: 1.15 !important;
