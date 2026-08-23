@@ -970,8 +970,9 @@ function TickerStyles() {
           height: 24px; line-height: 1.5; padding-block: 0;
         }
         /* Numer i nazwisko autora tylko od sm w górę - na mobile zostaje
-           awatar i pełna szerokość dla tytułu (klasa `hidden` z Tailwinda
+           awatar i pełna szerokość dla tytułu (klasa hidden z Tailwinda
            nie może być nadpisywana przez display z tego bloku). */
+
         @media (min-width: 640px) {
           .tt-skin--live .tt-live-index {
             display: inline-flex; align-items: center;
