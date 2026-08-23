@@ -101,26 +101,7 @@ function resolveOrder(
   return order.desktop ?? undefined;
 }
 
-const PEOPLE_WIDGET_TYPES = new Set(["team-member", "author-profile-card"]);
-
-function isPeopleWidget(w: WidgetNode): boolean {
-  return PEOPLE_WIDGET_TYPES.has(w.type);
-}
-
-function isPeopleSectionKind(children: SectionChild[]): boolean {
-  if (!children.length) return false;
-  return children.every((child) => {
-    if (child.kind === "column") {
-      if (!child.children.length) return false;
-      return child.children.every(isPeopleWidget);
-    }
-    if (child.kind === "inner-section") {
-      return isPeopleSectionKind(child.columns);
-    }
-    return false;
-  });
-}
-
+import { isPeopleSectionKind } from "@/lib/builder/sectionKind";
 
 interface Props {
   doc: BuilderDocument;
