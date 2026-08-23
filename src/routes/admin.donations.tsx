@@ -21,6 +21,14 @@ import {
   formatDonationAmount,
   type DonationsConfig,
 } from "@/lib/billing/donationsConfig";
+import {
+  coerceCurrency,
+  coerceProvider,
+  coerceSyncEnvironment,
+  formatPresetsInput,
+  parseAmountField,
+  parsePresetsCents,
+} from "@/lib/billing/donationsAdminModel";
 import { ensureI18n as ensureDonateI18n } from "@/lib/i18n-donate";
 import { ensureDonationsAdminI18n } from "@/lib/i18n-donations-admin";
 
@@ -109,12 +117,7 @@ function AdminDonations() {
           <select
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.provider}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                provider: e.target.value === "external" ? "external" : "stripe",
-              })
-            }
+            onChange={(e) => setDraft({ ...draft, provider: coerceProvider(e.target.value) })}
           >
             <option value="stripe">{t("adminDonations.engine.modeStripe")}</option>
             <option value="external">{t("adminDonations.engine.modeExternal")}</option>
@@ -132,9 +135,7 @@ function AdminDonations() {
           <select
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.currency}
-            onChange={(e) =>
-              setDraft({ ...draft, currency: e.target.value === "EUR" ? "EUR" : "PLN" })
-            }
+            onChange={(e) => setDraft({ ...draft, currency: coerceCurrency(e.target.value) })}
           >
             <option value="PLN">PLN</option>
             <option value="EUR">EUR</option>
@@ -149,25 +150,16 @@ function AdminDonations() {
           hint={t("adminDonations.amounts.presetsHint")}
         >
           <Text
-            value={draft.presetsCents.map((cents) => String(cents / 100)).join(", ")}
+            value={formatPresetsInput(draft.presetsCents)}
             onChange={(e) =>
-              setDraft({
-                ...draft,
-                presetsCents: e.target.value
-                  .split(",")
-                  .map((part: string) =>
-                    Math.round(Number.parseFloat(part.replace(",", ".")) * 100),
-                  )
-                  .filter((cents: number) => Number.isFinite(cents) && cents > 0)
-                  .slice(0, 8),
-              })
+              setDraft({ ...draft, presetsCents: parsePresetsCents(e.target.value) })
             }
           />
         </Field>
         <Field label={t("adminDonations.amounts.min")}>
           <NumberInput
             value={draft.minCents}
-            onChange={(e) => setDraft({ ...draft, minCents: Number(e.target.value) || 0 })}
+            onChange={(e) => setDraft({ ...draft, minCents: parseAmountField(e.target.value) })}
             min={500}
             max={5_000_000}
           />
@@ -175,7 +167,7 @@ function AdminDonations() {
         <Field label={t("adminDonations.amounts.max")}>
           <NumberInput
             value={draft.maxCents}
-            onChange={(e) => setDraft({ ...draft, maxCents: Number(e.target.value) || 0 })}
+            onChange={(e) => setDraft({ ...draft, maxCents: parseAmountField(e.target.value) })}
             min={500}
             max={5_000_000}
           />
@@ -183,7 +175,7 @@ function AdminDonations() {
         <Field label={t("adminDonations.amounts.goal")} hint={t("adminDonations.amounts.goalHint")}>
           <NumberInput
             value={draft.goalCents}
-            onChange={(e) => setDraft({ ...draft, goalCents: Number(e.target.value) || 0 })}
+            onChange={(e) => setDraft({ ...draft, goalCents: parseAmountField(e.target.value) })}
             min={0}
             max={100_000_000}
           />
@@ -251,7 +243,7 @@ function AdminDonations() {
           <select
             className="h-9 rounded-md border bg-background px-2 text-sm"
             value={environment}
-            onChange={(e) => setEnvironment(e.target.value === "live" ? "live" : "sandbox")}
+            onChange={(e) => setEnvironment(coerceSyncEnvironment(e.target.value))}
           >
             <option value="sandbox">{t("adminDonations.sync.envSandbox")}</option>
             <option value="live">{t("adminDonations.sync.envLive")}</option>
