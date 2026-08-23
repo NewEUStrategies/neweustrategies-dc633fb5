@@ -78,44 +78,44 @@ policzona po obu stronach na identycznej liście 151 plików.
 Cele z rozdziału 4 zlecenia obok wyniku. Kolumna „przed" to stan z audytu/zlecenia,
 kolumna „po" — pomiar pełną suitą na HEAD tej gałęzi.
 
-| Powierzchnia (etap)                                  | Cel       | Linie: przed → po   | Gałęzie: po | Wynik |
-| ---------------------------------------------------- | --------- | ------------------- | ----------- | ----- |
-| `lib/email/suppression.server.ts` (1)                | 98 / 95   | 50,0% → **100%**    | 100,00%     | ✅    |
-| `routes/platform/email/**` (1)                       | 98 / 95   | ~30% → **99,70%**   | 93,99%      | ⚠️ §6.1 |
-| `lib/email/queueDrain.server.ts` (1)                 | 98 / 95   | 91,2% → **100%**    | 100,00%     | ✅    |
-| `lib/email/transactional.server.ts` (1)              | 95 / 90   | 8,0% → **100%**     | 100,00%     | ✅    |
-| `lib/email/platformCompat.server.ts` (1)             | 95 / 90   | 0,0% → **100%**     | 100,00%     | ✅    |
-| `routes/lovable/email/**`, 5 aliasów (1)             | 95 / 90   | 0,0% → **100%**     | 100,00%     | ✅    |
-| `components/newsletter/NewsletterDocRenderer.tsx` (2)| 95 / 93   | **5,3% → 100%**     | 99,00%      | ✅    |
-| `lib/newsletter-{admin,status}.functions.ts` (3)     | 95 / 93   | 0% i 9% → **100%**  | 100,00%     | ✅    |
-| `lib/newsletter-campaigns.functions.ts` (3)          | 95 / 93   | 88% → **100%**      | 98,90%      | ✅    |
-| `routes/admin.newsletter.campaigns*.tsx` (3)         | 90 / 85   | 0,0% → **99,41%**   | 98,58%      | ✅    |
-| `routes/admin.newsletter.*` pozostałe 11 tras (3)    | 90 / 85   | 0,0% → **100%**     | 100,00%     | ✅    |
-| `components/PopupSignupForm.tsx` (4)                 | 95 / 93   | 28,1% → **100%**    | 98,48%      | ✅    |
-| `components/NewsletterPopup.tsx` (4)                 | 95 / 93   | **0,0% → 100%**     | 94,66%      | ✅    |
-| `components/newsletter/NewsletterSubscribedPanel` (4)| 95 / 93   | **0,0% → 100%**     | 100,00%     | ✅    |
-| `lib/email-templates/**`, 15 plików (5)              | 95 / 90   | ~37% → **100%**     | 100,00%     | ✅    |
-| `lib/email/tx-preview.server.ts` (5)                 | 95 / 90   | 0,0% → **100%**     | 100,00%     | ✅    |
-| `lib/tx-email-preview.functions.ts` (5)              | 95 / 90   | 0,0% → **100%**     | 100,00%     | ✅    |
-| `lib/auth-email-events.functions.ts` (5)             | 95 / 90   | 0,0% → **100%**     | 100,00%     | ✅    |
-| `lib/builder/popups.ts` (6)                          | 95 / 90   | 71,6% → **100%**    | 96,67%      | ✅    |
-| `lib/newsletter/emailDocResolve.ts` (6)              | dobicie   | 34,1% → **100%**    | 100,00%     | ✅    |
-| `lib/newsletter/newsletterFieldLabels.ts` (6)        | dobicie   | 31,6% → **100%**    | 100,00%     | ✅    |
-| `lib/newsletter/renderEmailHtml.ts` (6)              | dobicie   | 75,0% → **100%**    | 98,33%      | ✅    |
-| `lib/newsletter/emailDoc.ts` (6)                     | dobicie   | 90,5% → **100%**    | 100,00%     | ✅    |
-| `hooks/useMyNewsletterStatus.ts` (6)                 | dobicie   | (40% fn) → **100%** | 100,00%     | ✅    |
-| `components/admin/popups/signup/FormTab.tsx` (6)     | dobicie   | 96,2% → **100%**    | 100,00%     | ✅    |
-| `lib/email/txOverrides.ts` (poza etapami)            | 95 / 90   | 64,7% → **100%**    | 100,00%     | ✅    |
+| Powierzchnia (etap)                                   | Cel     | Linie: przed → po   | Gałęzie: po | Wynik   |
+| ----------------------------------------------------- | ------- | ------------------- | ----------- | ------- |
+| `lib/email/suppression.server.ts` (1)                 | 98 / 95 | 50,0% → **100%**    | 100,00%     | ✅      |
+| `routes/platform/email/**` (1)                        | 98 / 95 | ~30% → **99,70%**   | 93,99%      | ⚠️ §6.1 |
+| `lib/email/queueDrain.server.ts` (1)                  | 98 / 95 | 91,2% → **100%**    | 100,00%     | ✅      |
+| `lib/email/transactional.server.ts` (1)               | 95 / 90 | 8,0% → **100%**     | 100,00%     | ✅      |
+| `lib/email/platformCompat.server.ts` (1)              | 95 / 90 | 0,0% → **100%**     | 100,00%     | ✅      |
+| `routes/lovable/email/**`, 5 aliasów (1)              | 95 / 90 | 0,0% → **100%**     | 100,00%     | ✅      |
+| `components/newsletter/NewsletterDocRenderer.tsx` (2) | 95 / 93 | **5,3% → 100%**     | 99,00%      | ✅      |
+| `lib/newsletter-{admin,status}.functions.ts` (3)      | 95 / 93 | 0% i 9% → **100%**  | 100,00%     | ✅      |
+| `lib/newsletter-campaigns.functions.ts` (3)           | 95 / 93 | 88% → **100%**      | 98,90%      | ✅      |
+| `routes/admin.newsletter.campaigns*.tsx` (3)          | 90 / 85 | 0,0% → **99,41%**   | 98,58%      | ✅      |
+| `routes/admin.newsletter.*` pozostałe 11 tras (3)     | 90 / 85 | 0,0% → **100%**     | 100,00%     | ✅      |
+| `components/PopupSignupForm.tsx` (4)                  | 95 / 93 | 28,1% → **100%**    | 98,48%      | ✅      |
+| `components/NewsletterPopup.tsx` (4)                  | 95 / 93 | **0,0% → 100%**     | 94,66%      | ✅      |
+| `components/newsletter/NewsletterSubscribedPanel` (4) | 95 / 93 | **0,0% → 100%**     | 100,00%     | ✅      |
+| `lib/email-templates/**`, 15 plików (5)               | 95 / 90 | ~37% → **100%**     | 100,00%     | ✅      |
+| `lib/email/tx-preview.server.ts` (5)                  | 95 / 90 | 0,0% → **100%**     | 100,00%     | ✅      |
+| `lib/tx-email-preview.functions.ts` (5)               | 95 / 90 | 0,0% → **100%**     | 100,00%     | ✅      |
+| `lib/auth-email-events.functions.ts` (5)              | 95 / 90 | 0,0% → **100%**     | 100,00%     | ✅      |
+| `lib/builder/popups.ts` (6)                           | 95 / 90 | 71,6% → **100%**    | 96,67%      | ✅      |
+| `lib/newsletter/emailDocResolve.ts` (6)               | dobicie | 34,1% → **100%**    | 100,00%     | ✅      |
+| `lib/newsletter/newsletterFieldLabels.ts` (6)         | dobicie | 31,6% → **100%**    | 100,00%     | ✅      |
+| `lib/newsletter/renderEmailHtml.ts` (6)               | dobicie | 75,0% → **100%**    | 98,33%      | ✅      |
+| `lib/newsletter/emailDoc.ts` (6)                      | dobicie | 90,5% → **100%**    | 100,00%     | ✅      |
+| `hooks/useMyNewsletterStatus.ts` (6)                  | dobicie | (40% fn) → **100%** | 100,00%     | ✅      |
+| `components/admin/popups/signup/FormTab.tsx` (6)      | dobicie | 96,2% → **100%**    | 100,00%     | ✅      |
+| `lib/email/txOverrides.ts` (poza etapami)             | 95 / 90 | 64,7% → **100%**    | 100,00%     | ✅      |
 
 Agregaty katalogowe (pełna suita):
 
-| Katalog                        | Instr. | Gałęzie | Funkcje | Linie  |
-| ------------------------------ | -----: | ------: | ------: | -----: |
-| `src/lib/email/**`             | 99,33% |  98,17% |  99,33% | 99,48% |
-| `src/lib/email-templates/**`   |  100%  |   100%  |   100%  |  100%  |
-| `src/lib/newsletter/**`        | 98,90% |  96,65% |   100%  | 99,49% |
-| `src/routes/platform/email/**` | 97,98% |  93,99% |   100%  | 99,70% |
-| `src/components/newsletter/**` |  100%  |  99,08% |   100%  |  100%  |
+| Katalog                        |     Instr. |    Gałęzie |    Funkcje |      Linie |
+| ------------------------------ | ---------: | ---------: | ---------: | ---------: |
+| `src/lib/email/**`             |     99,33% |     98,17% |     99,33% |     99,48% |
+| `src/lib/email-templates/**`   |       100% |       100% |       100% |       100% |
+| `src/lib/newsletter/**`        |     98,90% |     96,65% |       100% |     99,49% |
+| `src/routes/platform/email/**` |     97,98% |     93,99% |       100% |     99,70% |
+| `src/components/newsletter/**` |       100% |     99,08% |       100% |       100% |
 | **CAŁY MODUŁ 11 (151 plików)** | **98,93%** | **95,16%** | **99,45%** | **99,56%** |
 
 ### Pomiar PRZED → PO na TYM SAMYM zbiorze
@@ -138,18 +138,18 @@ plików: 151 kontra 147. Dlatego porównywalna jest RÓŻNICA, nie wartość bez
 
 Per powierzchnia, oba końce tym samym poleceniem (linie / gałęzie):
 
-| Powierzchnia                                          | PRZED           | PO              |
-| ----------------------------------------------------- | --------------- | --------------- |
-| `src/lib/email/**`                                    | 78,99% / 65,74% | 99,48% / 98,17% |
-| `src/lib/email-templates/**`                          | 78,26% / 43,50% | 100% / 100%     |
-| `src/lib/newsletter/**`                               | 87,76% / 83,25% | 99,49% / 96,65% |
-| `src/routes/platform/email/**`                        | 77,78% / 69,96% | 99,70% / 93,99% |
-| `src/routes/lovable/email/**`                         | 0,00% / —       | 100% / 100%     |
-| `src/components/newsletter/**`                        | **4,57% / 0%**  | 100% / 99,08%   |
-| `src/components/{NewsletterPopup,PopupSignupForm}.tsx`| 17,70% / 20,15% | 100% / 97,44%   |
-| `src/routes/admin.newsletter.*` (14 tras)             | **0,00% / 0%**  | 99,50% / 97,93% |
-| `src/lib/newsletter-{admin,status}.functions.ts`      | **3,41% / 0%**  | 100% / 100%     |
-| `src/lib/builder/popups.ts`                           | 71,57% / 65,00% | 100% / 96,67%   |
+| Powierzchnia                                           | PRZED           | PO              |
+| ------------------------------------------------------ | --------------- | --------------- |
+| `src/lib/email/**`                                     | 78,99% / 65,74% | 99,48% / 98,17% |
+| `src/lib/email-templates/**`                           | 78,26% / 43,50% | 100% / 100%     |
+| `src/lib/newsletter/**`                                | 87,76% / 83,25% | 99,49% / 96,65% |
+| `src/routes/platform/email/**`                         | 77,78% / 69,96% | 99,70% / 93,99% |
+| `src/routes/lovable/email/**`                          | 0,00% / —       | 100% / 100%     |
+| `src/components/newsletter/**`                         | **4,57% / 0%**  | 100% / 99,08%   |
+| `src/components/{NewsletterPopup,PopupSignupForm}.tsx` | 17,70% / 20,15% | 100% / 97,44%   |
+| `src/routes/admin.newsletter.*` (14 tras)              | **0,00% / 0%**  | 99,50% / 97,93% |
+| `src/lib/newsletter-{admin,status}.functions.ts`       | **3,41% / 0%**  | 100% / 100%     |
+| `src/lib/builder/popups.ts`                            | 71,57% / 65,00% | 100% / 96,67%   |
 
 Cel modułowy ≥ 93% linii / ≥ 92% funkcji: **osiągnięty** (99,56% / 99,45%).
 
@@ -258,7 +258,7 @@ które czynią z tego dowód.
 
 **2. Webhook wykluczeń wywala się na ładunku o złym typie.**
 `src/routes/platform/email/-suppression.test.ts`. `parseSuppressionPayload` sprawdza
-*prawdziwość* pól (`!data?.email || !data?.reason`), nie ich typ. Ładunek `{"email":123}`
+_prawdziwość_ pól (`!data?.email || !data?.reason`), nie ich typ. Ładunek `{"email":123}`
 przechodzi bramkę wejściową, po czym `payload.email.trim()` (linia 126) wysadza handler
 wyjątkiem. Dostawca zamiast 400 dostaje surową awarię, w logu nie ma zredagowanego adresu,
 a ponieważ wyjątek wygląda na błąd przejściowy — ten sam trujący ładunek wraca w ponowieniach.
@@ -379,21 +379,21 @@ dwie gałęzie w teście `SupporterStrip` — osobna praca, nie obniżenie progu
 
 Rozkład na koniec pracy (z 1 129 przed nią):
 
-| plik                                                              | niepokrytych |
-| ----------------------------------------------------------------- | -----------: |
-| `components/admin/newsletter/subscribers/ImportCsvDialog.tsx`     |            4 |
-| `lib/email/deliveryEvents.ts`                                     |            3 |
-| `lib/newsletter/trackingEvents.server.ts`                         |            2 |
-| `hooks/useNewsletterSettings.ts`                                  |            2 |
-| `components/popups/PopupHost.tsx`                                 |            2 |
-| `components/admin/newsletter/builder/WidgetPreview.tsx`           |            2 |
-| `components/admin/newsletter/builder/NewsletterBuilder.tsx`       |            2 |
-| `routes/platform/email/auth/webhook.ts`                           |            1 |
-| `routes/admin.newsletter.campaigns.$id.tsx`                       |            1 |
-| `lib/email/webhookSignature.server.ts`                            |            1 |
-| `components/admin/newsletter/deliverability/SuppressionTable.tsx` |            1 |
-| `components/admin/newsletter/deliverability/DeliverabilityPanel.tsx` |         1 |
-| `components/admin/newsletter/SubscribersPanel.tsx`                |            1 |
+| plik                                                                 | niepokrytych |
+| -------------------------------------------------------------------- | -----------: |
+| `components/admin/newsletter/subscribers/ImportCsvDialog.tsx`        |            4 |
+| `lib/email/deliveryEvents.ts`                                        |            3 |
+| `lib/newsletter/trackingEvents.server.ts`                            |            2 |
+| `hooks/useNewsletterSettings.ts`                                     |            2 |
+| `components/popups/PopupHost.tsx`                                    |            2 |
+| `components/admin/newsletter/builder/WidgetPreview.tsx`              |            2 |
+| `components/admin/newsletter/builder/NewsletterBuilder.tsx`          |            2 |
+| `routes/platform/email/auth/webhook.ts`                              |            1 |
+| `routes/admin.newsletter.campaigns.$id.tsx`                          |            1 |
+| `lib/email/webhookSignature.server.ts`                               |            1 |
+| `components/admin/newsletter/deliverability/SuppressionTable.tsx`    |            1 |
+| `components/admin/newsletter/deliverability/DeliverabilityPanel.tsx` |            1 |
+| `components/admin/newsletter/SubscribersPanel.tsx`                   |            1 |
 
 Żaden z tych plików nie był nazwany w zleceniu jako powierzchnia etapu — dziesięć z trzynastu
 to panel admina, który wszedł do tej pracy już z pokryciem 99%+ i nie był jej celem. Nie są tu
@@ -417,19 +417,19 @@ Dziewięć nowych wpisów w `vitest.config.ts` plus podniesienie dwóch istniej�
 katalogowych. Wszystkie floorowane 1–2 pp pod pomiarem, z datą i uzasadnieniem w komentarzu.
 Progi wolno wyłącznie **podnosić**.
 
-| Ścieżka                                              | instr. | gał. | fn  | linie |
-| ---------------------------------------------------- | -----: | ---: | --: | ----: |
-| `src/lib/email/suppression.server.ts`                |     99 |   98 | 100 |    99 |
-| `src/routes/platform/email/**`                       |     96 |   92 |  99 |    98 |
-| `src/routes/lovable/email/**`                        |     99 |   98 | 100 |    99 |
-| `src/components/newsletter/**`                       |     99 |   97 | 100 |    99 |
-| `src/components/{NewsletterPopup,PopupSignupForm}.tsx` |   98 |   95 | 100 |    99 |
-| `src/lib/newsletter-{admin,status}.functions.ts`     |     99 |   98 | 100 |    99 |
-| `src/lib/email-templates/**`                         |     99 |   98 | 100 |    99 |
-| `src/routes/admin.newsletter.campaigns*.tsx`         |     98 |   96 |  99 |    98 |
-| `src/lib/builder/popups.ts`                          |     99 |   94 | 100 |    99 |
-| `src/lib/email/**` (podniesione z 74/61/79/74)       |     98 |   96 |  98 |    98 |
-| `src/lib/newsletter/**` (podniesione z 79/75/84/80)  |     97 |   94 |  99 |    98 |
+| Ścieżka                                                | instr. | gał. |  fn | linie |
+| ------------------------------------------------------ | -----: | ---: | --: | ----: |
+| `src/lib/email/suppression.server.ts`                  |     99 |   98 | 100 |    99 |
+| `src/routes/platform/email/**`                         |     96 |   92 |  99 |    98 |
+| `src/routes/lovable/email/**`                          |     99 |   98 | 100 |    99 |
+| `src/components/newsletter/**`                         |     99 |   97 | 100 |    99 |
+| `src/components/{NewsletterPopup,PopupSignupForm}.tsx` |     98 |   95 | 100 |    99 |
+| `src/lib/newsletter-{admin,status}.functions.ts`       |     99 |   98 | 100 |    99 |
+| `src/lib/email-templates/**`                           |     99 |   98 | 100 |    99 |
+| `src/routes/admin.newsletter.campaigns*.tsx`           |     98 |   96 |  99 |    98 |
+| `src/lib/builder/popups.ts`                            |     99 |   94 | 100 |    99 |
+| `src/lib/email/**` (podniesione z 74/61/79/74)         |     98 |   96 |  98 |    98 |
+| `src/lib/newsletter/**` (podniesione z 79/75/84/80)    |     97 |   94 |  99 |    98 |
 
 Dwa progi mają w komentarzu zdanie, którego nie wolno zgubić przy kolejnej edycji:
 
