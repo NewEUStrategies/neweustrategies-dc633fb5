@@ -11,10 +11,12 @@
 //   2. Gałąź `catch` w `fmtMoney` (niepoprawny kod waluty - `Intl` rzuca
 //      `RangeError`) formatuje `toFixed(0)`, czyli ZAOKRĄGLA 1,50 do „2”.
 //      To jest zawyżona kwota na ekranie, a nie brakujący symbol waluty.
-//   3. `fmtRelative` czyta `Date.now()` i ma napisy wpisane w kod - bez
-//      zamrożonego zegara nie da się jej sprawdzić, a bez tego testu nikt nie
-//      zauważy, że data z przyszłości daje „0 min temu”, a nieparsowalna
-//      „NaN dni temu”.
+//   3. `fmtRelative` czyta `Date.now()` - bez zamrożonego zegara nie da się jej
+//      sprawdzić, a bez tego testu nikt nie zauważy, że data z przyszłości daje
+//      „0 min temu”, a nieparsowalna „NaN dni temu”. Napisy poszły do słownika
+//      (`i18n-donations-widget.ts`), więc asercje idą przez PRAWDZIWY słownik -
+//      to jest jednocześnie dowód, że przeniesienie NIE zmieniło ani znaku
+//      w tym, co widzi darczyńca.
 //   4. Pasek postępu BEZ CELU liczy darczyńców × 5 jako procent - 20 wpłat
 //      maluje go na 100% przy zerowym celu.
 //   5. Trzy różne konwencje boolean w jednej funkcji (`!== false`, `=== true`)
@@ -25,6 +27,7 @@
 // Tu nie ma ani Reacta, ani react-query - moduł ich nie zna.
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { donationsWidgetEn, donationsWidgetPl } from "@/lib/i18n-donations-widget";
 import {
   FALLBACK,
   computeProgressPct,
@@ -44,6 +47,31 @@ function stats(over: Partial<StatsShape> = {}): StatsShape {
 /** Atrapa `t` - echo z prefiksem, żeby było WIDAĆ, co przeszło przez słownik. */
 function tSpy() {
   return vi.fn((key: string) => `T:${key}`);
+}
+
+/**
+ * Tłumacz stojący na PRAWDZIWYM słowniku widgetu, z interpolacją `{{value}}`
+ * i obsługą `lng` (wymuszenie języka widgetu niezależnie od języka strony).
+ *
+ * Po co prawdziwy słownik, skoro reszta pliku używa echa: napisy czasu
+ * relatywnego zostały właśnie PRZENIESIONE z kodu do słownika, a jedyny dowód
+ * wart czegokolwiek to taki, który pokazuje, że wynik dla darczyńcy jest
+ * IDENTYCZNY co do znaku. Echo pokazałoby tylko, że klucz poleciał.
+ */
+function tSlownik(domyslny: "pl" | "en" = "pl") {
+  return vi.fn((key: string, opts?: Record<string, unknown>) => {
+    const lng = (opts?.lng as string | undefined) ?? domyslny;
+    const drzewo = lng === "en" ? donationsWidgetEn : donationsWidgetPl;
+    const wzor = key
+      .split(".")
+      .reduce<unknown>(
+        (n, part) =>
+          n !== null && typeof n === "object" ? (n as Record<string, unknown>)[part] : undefined,
+        drzewo,
+      );
+    if (typeof wzor !== "string") throw new Error(`test: brak klucza ${key} dla lng=${lng}`);
+    return wzor.replace(/\{\{(\w+)\}\}/g, (_m, nazwa: string) => String(opts?.[nazwa] ?? ""));
+  });
 }
 
 function resolve(props: DonationsWidgetProps, over: Partial<StatsShape> = {}, language = "pl") {
@@ -100,57 +128,76 @@ describe("fmtRelative - granice czasu przy zamrożonym zegarze", () => {
     vi.useRealTimers();
   });
 
+  const T = tSlownik();
+
   it("DECYZJA: 59 minut to jeszcze minuty, 60 minut przeskakuje na godziny", () => {
-    expect(fmtRelative(ago(59), "pl")).toBe("59 min temu");
-    expect(fmtRelative(ago(60), "pl")).toBe("1 godz. temu");
+    expect(fmtRelative(ago(59), "pl", T)).toBe("59 min temu");
+    expect(fmtRelative(ago(60), "pl", T)).toBe("1 godz. temu");
   });
 
   it("DECYZJA: 23 godziny to jeszcze godziny, 24 godziny przeskakują na dni", () => {
-    expect(fmtRelative(ago(23 * 60), "pl")).toBe("23 godz. temu");
+    expect(fmtRelative(ago(23 * 60), "pl", T)).toBe("23 godz. temu");
     // Liczebnik nie jest odmieniany - dokładnie 24 h daje „1 dni temu”.
-    expect(fmtRelative(ago(24 * 60), "pl")).toBe("1 dni temu");
-    expect(fmtRelative(ago(48 * 60), "pl")).toBe("2 dni temu");
+    // Po przeniesieniu do słownika NADAL nie jest: klucz `relativeDays` niesie
+    // jeden wariant, a interpolacja idzie przez `{{value}}`, nie `{{count}}`,
+    // więc i18next nie uruchamia liczby mnogiej. To jest zachowanie
+    // ZACHOWANE świadomie - przeniesienie literałów nie jest poprawką języka.
+    expect(fmtRelative(ago(24 * 60), "pl", T)).toBe("1 dni temu");
+    expect(fmtRelative(ago(48 * 60), "pl", T)).toBe("2 dni temu");
   });
 
   it("DECYZJA: data z PRZYSZŁOŚCI daje „0 min temu” (Math.max), nie napis o przyszłości", () => {
-    expect(fmtRelative(ago(-90), "pl")).toBe("0 min temu");
+    expect(fmtRelative(ago(-90), "pl", T)).toBe("0 min temu");
   });
 
   it("DECYZJA: EN ma własne, krótsze skróty na tych samych granicach", () => {
-    expect(fmtRelative(ago(5), "en")).toBe("5 min ago");
-    expect(fmtRelative(ago(120), "en")).toBe("2h ago");
-    expect(fmtRelative(ago(72 * 60), "en")).toBe("3d ago");
+    expect(fmtRelative(ago(5), "en", T)).toBe("5 min ago");
+    expect(fmtRelative(ago(120), "en", T)).toBe("2h ago");
+    expect(fmtRelative(ago(72 * 60), "en", T)).toBe("3d ago");
   });
 
-  it('DŁUG i18n: napisy są wpisane w kod - o języku decyduje jeden `=== "pl"`', () => {
-    // Każdy język inny niż „pl” dostaje ANGIELSKI napis, bo nie ma tu żadnego
-    // słownika - jest tylko binarny warunek.
-    expect(fmtRelative(ago(5), "de" as never)).toBe("5 min ago");
+  it("język widgetu jedzie do `t` jako `lng` - nie zależy od języka STRONY", () => {
+    // To jest cała różnica między przeniesieniem literałów a zepsuciem
+    // zachowania. Widget przyjmuje prop `lang`, którym redakcja wstawia
+    // angielską zbiórkę na polską stronę. Gdyby `t()` szło bez `lng`, czas
+    // relatywny przełączyłby się na język otoczenia - i tego nikt by nie
+    // zauważył do pierwszej skargi anglojęzycznego czytelnika.
+    const t = tSlownik("pl");
+    expect(fmtRelative(ago(5), "en", t)).toBe("5 min ago");
+    expect(t).toHaveBeenCalledWith("donationsWidget.relativeMinutes", { lng: "en", value: 5 });
   });
 
   it("DECYZJA: nieparsowalna data renderuje się jako „NaN dni temu”, nie znika", () => {
-    expect(fmtRelative("nie-jest-datą", "pl")).toBe("NaN dni temu");
+    expect(fmtRelative("nie-jest-datą", "pl", T)).toBe("NaN dni temu");
   });
 
   it.fails("DEFEKT: nieparsowalna data POWINNA dać pusty napis, jak `formatDate` domu", () => {
     // `src/lib/i18n/format.ts` zwraca "" dla `Number.isNaN(d.getTime())`.
     // `fmtRelative` tej konwencji nie zna i wypisuje czytelnikowi „NaN”.
-    expect(fmtRelative("nie-jest-datą", "pl")).toBe("");
+    // Przeniesienie do słownika tego NIE naprawia i nie miało naprawiać.
+    expect(fmtRelative("nie-jest-datą", "pl", T)).toBe("");
   });
 
-  it.fails("DŁUG i18n: słownik widgetu POWINIEN nieść etykiety czasu relatywnego", () => {
-    // Oczekiwane: „min temu”/„godz. temu”/„dni temu” pochodzą z
-    // `i18n-donations-widget.ts` (i mają parę EN), więc redakcja może je
-    // poprawić bez zmiany kodu. Dziś w słowniku NIE MA takiego klucza.
-    const dict = readFileSync("src/lib/i18n-donations-widget.ts", "utf8");
-    expect(dict).toMatch(/minAgo|minutesAgo|hoursAgo|daysAgo|relativeTime/);
+  it("słownik widgetu NIESIE etykiety czasu relatywnego - w obu językach", () => {
+    // Był to `it.fails` przed przeniesieniem literałów. Teraz jest dowodem, że
+    // redakcja poprawi te napisy bez zmiany kodu, a trzeci język nie wymaga
+    // dopisania gałęzi `if`.
+    for (const klucz of ["relativeMinutes", "relativeHours", "relativeDays"] as const) {
+      expect(typeof donationsWidgetPl.donationsWidget[klucz]).toBe("string");
+      expect(typeof donationsWidgetEn.donationsWidget[klucz]).toBe("string");
+      expect(donationsWidgetPl.donationsWidget[klucz]).toContain("{{value}}");
+      expect(donationsWidgetEn.donationsWidget[klucz]).toContain("{{value}}");
+    }
   });
 
-  it("DŁUG i18n: literały czasu siedzą w kodzie modułu - tu jest dowód miejsca", () => {
+  it("w kodzie modułu NIE MA JUŻ literałów czasu - tu jest dowód miejsca", () => {
+    // Odwrotność dawnego testu „literały siedzą w kodzie". Bramka
+    // `check:i18n-hardcoded` liczy je globalnie; ta asercja mówi, o który
+    // dokładnie plik chodzi, żeby regresja miała adres.
     const src = readFileSync("src/components/donations/donationsWidgetModel.ts", "utf8");
-    expect(src).toContain("min temu");
-    expect(src).toContain("godz. temu");
-    expect(src).toContain("dni temu");
+    for (const literal of ["min temu", "godz. temu", "dni temu", "min ago"]) {
+      expect(src.includes(`\`${literal}`)).toBe(false);
+    }
   });
 });
 
@@ -202,29 +249,45 @@ describe("resolveWidgetProps - normalizacja konfiguracji z edytora CMS", () => {
     expect(resolve({ href: "  /wspieraj  " }).view.href).toBe("/wspieraj");
   });
 
-  it("DECYZJA: brak CTA bierze napis ze słownika - to JEDYNY klucz, po który sięga model", () => {
+  it("DECYZJA: brak CTA i brak tytułu biorą napisy ze słownika - i tylko te dwa", () => {
     const { view, t } = resolve({});
     expect(view.cta).toBe("T:donationsWidget.cta");
-    expect(t.mock.calls.map(([key]) => key)).toEqual(["donationsWidget.cta"]);
+    expect(view.title).toBe("T:donationsWidget.defaultTitle");
+    // Dwa klucze, nie więcej: reszta konfiguracji to propy edytora, nie napisy.
+    expect(t.mock.calls.map(([key]) => key)).toEqual([
+      "donationsWidget.cta",
+      "donationsWidget.defaultTitle",
+    ]);
   });
 
-  it("DECYZJA: własny CTA jest przycinany i NIE woła słownika", () => {
-    const { view, t } = resolve({ cta: "  Wesprzyj nas  " });
+  it("DECYZJA: własny CTA i własny tytuł są przycinane i NIE wołają słownika", () => {
+    const { view, t } = resolve({ cta: "  Wesprzyj nas  ", title: "  Zbiórka na tracker  " });
     expect(view.cta).toBe("Wesprzyj nas");
+    expect(view.title).toBe("Zbiórka na tracker");
     expect(t).not.toHaveBeenCalled();
   });
 
-  it("DŁUG i18n: domyślny tytuł to LITERAŁ w kodzie, choć słownik jest zaimportowany", () => {
-    const { view: pl, t } = resolve({});
-    expect(pl.title).toBe("Mecenat obywatelski");
-    expect(t.mock.calls.map(([key]) => key)).not.toContain("donationsWidget.title");
-    expect(resolve({ lang: "en" }).view.title).toBe("Citizen patronage");
+  it("napis z samych spacji NIE jest własnym napisem - wraca wartość ze słownika", () => {
+    // `?.trim() ||` traktuje `"   "` jak brak. Bez tej asercji nikt nie
+    // zauważy, gdyby ktoś zamienił `||` na `??` i widget dostał pusty tytuł.
+    const { view } = resolve({ cta: "   ", title: "   " });
+    expect(view.cta).toBe("T:donationsWidget.cta");
+    expect(view.title).toBe("T:donationsWidget.defaultTitle");
   });
 
-  it.fails("DŁUG i18n: domyślny tytuł POWINIEN pochodzić z t(), tak jak CTA obok", () => {
-    // Oczekiwane: tytuł jedzie przez słownik (atrapa `t` prefiksuje „T:”),
-    // więc redakcja zmienia go bez wdrożenia kodu.
-    expect(resolve({}).view.title.startsWith("T:")).toBe(true);
+  it("domyślny tytuł pochodzi ze SŁOWNIKA - i niesie WYMUSZONY język widgetu", () => {
+    // Był to `it.fails` przed przeniesieniem literałów: tytuł jechał literałem
+    // („Mecenat obywatelski" / „Citizen patronage") mimo że CTA tuż obok już
+    // wołało `t()`. `lng` jest tu równie istotne, co sam klucz - bez niego
+    // angielski widget na polskiej stronie dostałby polski tytuł.
+    const t = tSlownik("pl");
+    expect(resolveWidgetProps({}, stats(), { language: "pl", t }).title).toBe(
+      "Mecenat obywatelski",
+    );
+    expect(resolveWidgetProps({ lang: "en" }, stats(), { language: "pl", t }).title).toBe(
+      "Citizen patronage",
+    );
+    expect(t).toHaveBeenCalledWith("donationsWidget.defaultTitle", { lng: "en" });
   });
 
   it("DECYZJA: tytuł i podtytuł z edytora są przycinane; sam odstęp znaczy „brak”", () => {
@@ -240,8 +303,15 @@ describe("resolveWidgetProps - normalizacja konfiguracji z edytora CMS", () => {
   });
 
   it("DEFEKT (przypięty): „en-US” daje POLSKI - porównanie jest dokładne, nie prefiksowe", () => {
-    expect(resolve({}, {}, "en-US").view.lang).toBe("pl");
-    expect(resolve({}, {}, "en-US").view.title).toBe("Mecenat obywatelski");
+    // Przeniesienie tytułu do słownika NIE naprawiło tego defektu i nie miało:
+    // `lang` nadal wychodzi z `i18n.language === "en"`, a przez `lng` do
+    // słownika jedzie już wynik tego porównania. Anglojęzyczny czytelnik
+    // z ustawieniem „en-US” dostaje polski tytuł zbiórki.
+    const t = tSlownik("pl");
+    const view = resolveWidgetProps({}, stats(), { language: "en-US", t });
+    expect(view.lang).toBe("pl");
+    expect(view.title).toBe("Mecenat obywatelski");
+    expect(t).toHaveBeenCalledWith("donationsWidget.defaultTitle", { lng: "pl" });
   });
 
   it.fails("DEFEKT: „en-US” POWINNO dać angielski - dom ma na to `uiLang()`", () => {

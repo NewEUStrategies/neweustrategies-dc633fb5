@@ -288,7 +288,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           )}
           {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
           {showRecent && (
-            <DonationRecentList recent={stats.recent} currency={currency} lang={lang} />
+            <DonationRecentList recent={stats.recent} currency={currency} lang={lang} t={t} />
           )}
           <DonationCta
             href={href}

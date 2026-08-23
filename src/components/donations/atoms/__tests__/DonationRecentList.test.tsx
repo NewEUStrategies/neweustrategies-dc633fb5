@@ -16,6 +16,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { DonationRecentList } from "../DonationRecentList";
 import type { RecentDonation } from "../../donationsWidgetModel";
+import { donationsWidgetEn, donationsWidgetPl } from "@/lib/i18n-donations-widget";
+
+/**
+ * Tłumacz na PRAWDZIWYM słowniku widgetu. Atom dostaje `t` propem (a nie bierze
+ * go z `useTranslation()`), bo czas relatywny musi jechać w języku WIDGETU,
+ * nie strony - patrz komentarz w `DonationRecentList.tsx`. Tu stawiam pod to
+ * słownik realny, żeby asercje pokazywały napis, który zobaczy darczyńca.
+ */
+const T = (key: string, opts?: Record<string, unknown>) => {
+  const drzewo = opts?.lng === "en" ? donationsWidgetEn : donationsWidgetPl;
+  const wzor = key
+    .split(".")
+    .reduce<unknown>(
+      (n, part) =>
+        n !== null && typeof n === "object" ? (n as Record<string, unknown>)[part] : undefined,
+      drzewo,
+    );
+  if (typeof wzor !== "string") throw new Error(`test: brak klucza ${key}`);
+  return wzor.replace(/\{\{(\w+)\}\}/g, (_m, nazwa: string) => String(opts?.[nazwa] ?? ""));
+};
 
 const NOW = new Date("2026-08-23T12:00:00.000Z");
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString();
@@ -37,12 +57,14 @@ const WPLATY: RecentDonation[] = [
 
 describe("DonationRecentList", () => {
   it("DECYZJA: pusta lista renderuje NIC - żadnego pustego <ul> z marginesem", () => {
-    const { container } = render(<DonationRecentList recent={[]} currency="PLN" lang="pl" />);
+    const { container } = render(<DonationRecentList recent={[]} currency="PLN" lang="pl" t={T} />);
     expect(container.innerHTML).toBe("");
   });
 
   it("DECYZJA: każdy wiersz to kwota + „ile temu”, bez śladu po darczyńcy", () => {
-    const { container } = render(<DonationRecentList recent={WPLATY} currency="PLN" lang="pl" />);
+    const { container } = render(
+      <DonationRecentList recent={WPLATY} currency="PLN" lang="pl" t={T} />,
+    );
     const rows = [...container.querySelectorAll("li")].map((li) =>
       [...li.querySelectorAll("span")].map((s) => s.textContent),
     );
@@ -55,7 +77,7 @@ describe("DonationRecentList", () => {
 
   it("DECYZJA: język przełącza JEDNOCZEŚNIE format kwoty i skrót czasu", () => {
     const { container } = render(
-      <DonationRecentList recent={[WPLATY[1]]} currency="EUR" lang="en" />,
+      <DonationRecentList recent={[WPLATY[1]]} currency="EUR" lang="en" t={T} />,
     );
     expect(container.querySelector("li")!.textContent).toBe("€1.501h ago");
   });
@@ -66,6 +88,7 @@ describe("DonationRecentList", () => {
         recent={[{ amount_cents: 2500, currency: "EUR", created_at: ago(1) }]}
         currency="PLN"
         lang="pl"
+        t={T}
       />,
     );
     expect(container.querySelector("li span")!.textContent).toBe("25\u00a0zł");
@@ -79,6 +102,7 @@ describe("DonationRecentList", () => {
         recent={[{ amount_cents: 2500, currency: "EUR", created_at: ago(1) }]}
         currency="PLN"
         lang="pl"
+        t={T}
       />,
     );
     expect(container.querySelector("li span")!.textContent).toBe("25\u00a0€");
@@ -87,7 +111,7 @@ describe("DonationRecentList", () => {
   it("DECYZJA: lista zachowuje kolejność wejścia - nie sortuje po dacie", () => {
     const odwrotnie = [...WPLATY].reverse();
     const { container } = render(
-      <DonationRecentList recent={odwrotnie} currency="PLN" lang="pl" />,
+      <DonationRecentList recent={odwrotnie} currency="PLN" lang="pl" t={T} />,
     );
     const czasy = [...container.querySelectorAll("li span:last-child")].map((s) => s.textContent);
     expect(czasy).toEqual(["3 dni temu", "1 godz. temu", "5 min temu"]);

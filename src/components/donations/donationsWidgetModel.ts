@@ -93,23 +93,33 @@ export function fmtMoney(cents: number, currency: string, lang: "pl" | "en"): st
 }
 
 /**
- * „5 min temu" / „3 godz. temu" / „2 dni temu". Przeniesione ZNAK W ZNAK.
+ * „5 min temu" / „3 godz. temu" / „2 dni temu".
  *
- * DŁUG i18n: napisy są wpisane w kod (dwa języki na `if`), nie idą przez `t()`,
- * więc słownik `i18n-donations-widget.ts` nie ma nawet klucza, którym można by
- * je poprawić. Poza tym funkcja czyta `Date.now()`, więc jest testowalna
- * wyłącznie przy zamrożonym zegarze, a data z PRZYSZŁOŚCI daje „0 min temu"
- * (`Math.max(0, ...)`), nie napis o przyszłości.
+ * PRZENIESIENIE DO SŁOWNIKA (osobny commit od ekstrakcji). Napisy siedziały
+ * wpisane w kod na dwóch `if`-ach z rozgałęzieniem po języku; teraz idą przez
+ * `t()` z `i18n-donations-widget.ts`, więc redakcja poprawi je bez zmiany kodu,
+ * a trzeci język nie wymaga dopisywania gałęzi.
+ *
+ * `{ lng: lang }` NIE jest ozdobnikiem: widget przyjmuje własny prop `lang`,
+ * który może różnić się od języka strony (redakcja wstawia angielski widget
+ * na polskiej stronie). Bez wymuszenia języka czas relatywny przełączyłby się
+ * na język otoczenia - i to BYŁABY zmiana zachowania.
+ *
+ * Reszta bez zmian: funkcja czyta `Date.now()`, więc jest testowalna wyłącznie
+ * przy zamrożonym zegarze, a data z PRZYSZŁOŚCI daje „0 min temu"
+ * (`Math.max(0, ...)`), nie napis o przyszłości. Data nieparsowalna nadal
+ * wypisuje `NaN` - to defekt, nie zmieniam go tutaj.
  */
-export function fmtRelative(iso: string, lang: "pl" | "en"): string {
+export function fmtRelative(iso: string, lang: "pl" | "en", t: WidgetTranslate): string {
   const then = new Date(iso).getTime();
   const diff = Math.max(0, Date.now() - then);
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(mins / 60);
   const days = Math.floor(hours / 24);
-  if (mins < 60) return lang === "pl" ? `${mins} min temu` : `${mins} min ago`;
-  if (hours < 24) return lang === "pl" ? `${hours} godz. temu` : `${hours}h ago`;
-  return lang === "pl" ? `${days} dni temu` : `${days}d ago`;
+  const opts = (value: number) => ({ lng: lang, value });
+  if (mins < 60) return t("donationsWidget.relativeMinutes", opts(mins));
+  if (hours < 24) return t("donationsWidget.relativeHours", opts(hours));
+  return t("donationsWidget.relativeDays", opts(days));
 }
 
 /**
@@ -134,10 +144,16 @@ export function resolveBarPct(goalCents: number, progressPct: number, count: num
 }
 
 /** Minimum z instancji i18next, jakiego potrzebuje rozstrzygnięcie propsów. */
+/**
+ * Tłumacz w kształcie, jakiego potrzebuje ten moduł: klucz plus opcje
+ * i18next (`lng` do wymuszenia języka widgetu, `value` do interpolacji).
+ */
+export type WidgetTranslate = (key: string, options?: Record<string, unknown>) => string;
+
 export interface WidgetI18n {
   /** Surowe `i18n.language` - porównywane DOKŁADNIE z "en" (nie `startsWith`). */
   language?: string;
-  t: (key: string) => string;
+  t: WidgetTranslate;
 }
 
 export interface ResolvedWidgetProps {
@@ -166,8 +182,6 @@ export interface ResolvedWidgetProps {
  *     (domyślnie WŁĄCZONE), a `showRecent` to `=== true` (domyślnie WYŁĄCZONE),
  *   * `props.currency` bije `stats.currency`, czyli waluta wpisana w edytorze
  *     przemianowuje kwoty ZEBRANE w innej walucie, nie przelicza ich,
- *   * domyślny tytuł to literał („Mecenat obywatelski" / „Citizen patronage")
- *     mimo zaimportowanego słownika - drugi dług i18n obok `fmtRelative`,
  *   * język bierze się z `i18n.language === "en"`, więc `"en-US"` daje POLSKI.
  */
 export function resolveWidgetProps(
@@ -179,8 +193,10 @@ export function resolveWidgetProps(
   const variant: DonationsVariant = props.variant ?? "hero";
   const href = props.href?.trim() || "/support";
   const cta = props.cta?.trim() || i18n.t("donationsWidget.cta");
-  const title =
-    props.title?.trim() || (lang === "pl" ? "Mecenat obywatelski" : "Citizen patronage");
+  // PRZENIESIENIE DO SŁOWNIKA: tytuł domyślny szedł literałem, mimo że CTA
+  // tuż obok już wołało `t()`. `lng: lang` z tego samego powodu, co
+  // w `fmtRelative` - prop `lang` widgetu bije język strony.
+  const title = props.title?.trim() || i18n.t("donationsWidget.defaultTitle", { lng: lang });
   const subtitle = props.subtitle?.trim() ?? "";
   const goalCents = Math.max(0, Number(props.goalCents ?? 0) || 0);
   const showMonth = props.showMonth !== false;

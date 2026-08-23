@@ -16,6 +16,15 @@ export const donationsWidgetPl = {
     anon: "Anonimowy darczyńca",
     cta: "Wesprzyj",
     loading: "Wczytywanie...",
+    // Domyślny tytuł widgetu, gdy redakcja nie wpisała własnego w edytorze CMS.
+    defaultTitle: "Mecenat obywatelski",
+    // Czas relatywny przy ostatnich wpłatach. Interpolacja przez `{{value}}`,
+    // a NIE przez `{{count}}`: `count` uruchamia w i18next liczbę mnogą
+    // (szukanie kluczy `_one`/`_few`/`_other`), a te napisy są jednym wariantem
+    // w obu językach - dokładnie tak, jak brzmiały wpisane w kodzie.
+    relativeMinutes: "{{value}} min temu",
+    relativeHours: "{{value}} godz. temu",
+    relativeDays: "{{value}} dni temu",
   },
 };
 
@@ -32,6 +41,10 @@ export const donationsWidgetEn = {
     anon: "Anonymous donor",
     cta: "Support",
     loading: "Loading...",
+    defaultTitle: "Citizen patronage",
+    relativeMinutes: "{{value}} min ago",
+    relativeHours: "{{value}}h ago",
+    relativeDays: "{{value}}d ago",
   },
 };
 

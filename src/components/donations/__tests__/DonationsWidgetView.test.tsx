@@ -218,7 +218,7 @@ describe("sześć wariantów wizualnych", () => {
   it("DECYZJA: brak `variant` renderuje hero - zapisane strony bez tego pola nie pustoszeją", async () => {
     const { root } = await renderWidget({}, { stats: ZEBRANE });
     expect(root.className).toContain("rounded-2xl");
-    expect(tekst(root)).toContain("Mecenat obywatelski");
+    expect(tekst(root)).toContain("donationsWidget.defaultTitle(lng=pl)");
     expect(root.querySelector("a")?.getAttribute("href")).toBe("/support");
   });
 
@@ -454,7 +454,7 @@ describe("konfiguracja z edytora CMS", () => {
     expect(tekst(root)).toContain("Zbiórka na redakcję");
     expect(tekst(root)).toContain("Bez reklam");
     expect(tekst(root)).toContain("Wpłacam");
-    expect(tekst(root)).not.toContain("Mecenat obywatelski");
+    expect(tekst(root)).not.toContain("donationsWidget.defaultTitle");
     expect(tekst(root)).not.toContain("donationsWidget.cta");
   });
 
@@ -476,12 +476,14 @@ describe("konfiguracja z edytora CMS", () => {
 
   it("DECYZJA: język interfejsu przełącza domyślny tytuł na angielski", async () => {
     const { root } = await renderWidget({ variant: "hero" }, { stats: ZEBRANE, jezyk: "en" });
-    expect(tekst(root)).toContain("Citizen patronage");
+    expect(tekst(root)).toContain("donationsWidget.defaultTitle(lng=en)");
   });
 
   it("DEFEKT (przypięty): interfejs „en-US” dostaje POLSKI tytuł zbiórki", async () => {
     const { root } = await renderWidget({ variant: "hero" }, { stats: ZEBRANE, jezyk: "en-US" });
-    expect(tekst(root)).toContain("Mecenat obywatelski");
+    // Klucz jedzie z `lng=pl`, czyli anglojęzyczny czytelnik dostanie POLSKI
+    // napis. Defekt jest w wyborze języka, nie w słowniku.
+    expect(tekst(root)).toContain("donationsWidget.defaultTitle(lng=pl)");
   });
 
   it("DECYZJA: prop `lang` bije język interfejsu (osadzenie EN na stronie PL)", async () => {
@@ -489,6 +491,6 @@ describe("konfiguracja z edytora CMS", () => {
       { variant: "hero", lang: "en" },
       { stats: ZEBRANE, jezyk: "pl" },
     );
-    expect(tekst(root)).toContain("Citizen patronage");
+    expect(tekst(root)).toContain("donationsWidget.defaultTitle(lng=en)");
   });
 });
