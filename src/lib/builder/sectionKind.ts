@@ -6,18 +6,22 @@ function isPeopleWidget(w: WidgetNode): boolean {
   return PEOPLE_WIDGET_TYPES.has(w.type);
 }
 
+function containsPeopleWidget(child: SectionChild): boolean {
+  if (child.kind === "column") {
+    return child.children.some(isPeopleWidget);
+  }
+  if (child.kind === "inner-section") {
+    return child.columns.length > 0 && child.columns.every(containsPeopleWidget);
+  }
+  return false;
+}
+
 export function isPeopleSectionKind(children: SectionChild[]): boolean {
   if (!children.length) return false;
-  return children.every((child) => {
-    if (child.kind === "column") {
-      if (!child.children.length) return false;
-      return child.children.every(isPeopleWidget);
-    }
-    if (child.kind === "inner-section") {
-      return isPeopleSectionKind(child.columns);
-    }
-    return false;
-  });
+  // A person card may be accompanied by text/decorative widgets in the same
+  // column. This is how the Management Board document is authored, so the
+  // section remains a people grid as long as every column contains a card.
+  return children.every(containsPeopleWidget);
 }
 
 export function peopleColumnCount(children: SectionChild[]): number {

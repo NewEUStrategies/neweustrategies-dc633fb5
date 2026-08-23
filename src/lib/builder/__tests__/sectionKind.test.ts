@@ -28,8 +28,12 @@ describe("isPeopleSectionKind", () => {
     expect(isPeopleSectionKind([col([w("author-profile-card")])])).toBe(true);
   });
 
-  it("returns false when a column contains a non-people widget", () => {
-    expect(isPeopleSectionKind([col([w("team-member"), w("heading")])])).toBe(false);
+  it("keeps a people section when cards have supporting text widgets", () => {
+    expect(isPeopleSectionKind([col([w("team-member"), w("text")])])).toBe(true);
+  });
+
+  it("returns false when a column has only non-people widgets", () => {
+    expect(isPeopleSectionKind([col([w("heading"), w("text")])])).toBe(false);
   });
 
   it("returns true for nested inner-sections that contain only people widgets", () => {
