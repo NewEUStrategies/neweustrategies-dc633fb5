@@ -257,21 +257,59 @@ ALTER TABLE public.events
   ADD COLUMN IF NOT EXISTS root_page_id uuid REFERENCES public.pages(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS features jsonb NOT NULL DEFAULT '{}'::jsonb;  -- add-on features
 
--- §4.2 SESJE (agenda z JSON-a do bazy — §0.2)
+-- §4.2 SESJE (agenda z JSON-a do bazy — §0.2; model wg partii 6 i 7 zrzutów)
 event_sessions (
   id, tenant_id, event_id → events ON DELETE CASCADE,
-  day_index int NOT NULL DEFAULT 0, day_date date,
-  starts_at timestamptz, ends_at timestamptz,          -- albo time_start/time_end + day_date
-  kind text CHECK (kind IN ('session','keynote','panel','break','workshop','networking')),
   title_pl/title_en, description_pl/description_en,
-  room text, track text, capacity int, stream_url text,  -- stream_url: grant kolumnowy!
-  visibility text, min_tier_rank int, sort_order int,
+  header_image text,                                     -- 16:9, per sesja
+  starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL,
+  -- Godziny są w strefie WYDARZENIA (events.timezone) - panel musi to napisać.
+  format text NOT NULL DEFAULT 'in_person'
+    CHECK (format IN ('in_person','embedded_video','video_file','roundtable','external_stream')),
+  stream_url text,                                       -- GRANT KOLUMNOWY (jak join_url)
+  location text, track text,                             -- pola pierwszej klasy: kolizje + onsite
+  capacity int,                                          -- limit miejsc na sesję
+  allow_overlap boolean NOT NULL DEFAULT true,           -- blokada podwójnego zapisu (§ niżej)
+  registration_scope text NOT NULL DEFAULT 'event_groups'
+    CHECK (registration_scope IN ('event_groups','community','none')),
+  min_tier_rank int NOT NULL DEFAULT 0,
+  is_private boolean NOT NULL DEFAULT false,             -- widoczna tylko dla zapisanych
+  hide_attendees boolean NOT NULL DEFAULT false,         -- ukryj listę zapisanych
+  feedback_enabled boolean NOT NULL DEFAULT false,       -- ocena po sesji
+  interaction jsonb NOT NULL DEFAULT '{}'::jsonb,        -- skrzynka interakcji (patrz niżej)
   status text CHECK (status IN ('draft','published','cancelled')),
-  created_by, created_at, updated_at,
-  UNIQUE (event_id, day_index, sort_order)
+  sort_order int, created_by, created_at, updated_at,
+  CHECK (ends_at > starts_at)
 )
-event_session_speakers (session_id, user_id, role text, sort_order)
-event_session_attendance (session_id, user_id, status)   -- „moja agenda" + frekwencja
+-- Blokada kolizji czasowej (Swapcard: "Allow overlap"). Reguła działa TYLKO
+-- między sesjami, które OBIE mają allow_overlap = false. Sprawdzenie należy do
+-- RPC pod blokadą wiersza; w kliencie byłoby wyścigiem. W Postgresie:
+--   tstzrange(starts_at, ends_at) && tstzrange(...)  + indeks GiST
+--
+-- interaction jsonb: { label_pl, label_en, tabs: ['chat','questions','polls'] }
+--   Maks. 5 zakładek (limit Swapcarda - skrzynka jest wąska na telefonie).
+--   Silniki są w repo: czat (conversations/messages), Q&A z głosowaniem
+--   (club_thread_questions + club_thread_question_votes, qa_sessions/qa_questions),
+--   ankiety (club_thread_polls). Praca = przypięcie session_id, nie budowa.
+
+event_speaker_roles (id, tenant_id, event_id, key, name_pl/name_en, sort_order)
+  -- domyślne: moderator, panelist, lecturer („Wykładowcy"), host, guest
+event_session_speakers (session_id, person_id, role_id, sort_order)
+  -- person_id → rekord uczestnika (§4.11), NIE auth.users: prelegent bez konta
+  -- musi być możliwy (21 z 21 prelegentów w danych referencyjnych ma "No account")
+event_session_companies (session_id, company_id → crm_companies,
+  role text CHECK (role IN ('sponsor','host','partner')))
+event_session_registrations (session_id, person_id, registered_at, status,
+  UNIQUE (session_id, person_id))                        -- ZAPIS na sesję (przed)
+event_session_feedback (session_id, person_id, rating int CHECK (rating BETWEEN 1 AND 5),
+  comment text, created_at, UNIQUE (session_id, person_id))
+  -- To jest brakujące ŹRÓDŁO dla speaker_profiles.rating / reviews_count, które
+  -- dziś są pustą obietnicą: nie ma skąd ich policzyć.
+event_session_links (from_session_id, to_session_id,
+  kind CHECK (kind IN ('continuation','parallel','translation','related')))
+
+-- Frekwencja (BYŁ) to osobny fakt od zapisu (ZAPISAŁ SIĘ) - patrz event_checkins
+-- w §4.6 z session_id. Zlanie ich w jedno uniemożliwia policzenie no-show.
 
 -- §4.3 GRUPY I UPRAWNIENIA (wzorzec club_groups + club_capabilities)
 event_groups (
@@ -326,7 +364,23 @@ event_sponsors (id, tenant_id, tier_id → event_sponsor_tiers ON DELETE CASCADE
   company_id uuid → crm_companies,                      -- jedno źródło prawdy o firmie
   name_override text, logo_override text, url_override text,  -- gdy CRM nie ma logotypu
   description_pl/en, sort_order)
--- Bez event_exhibitors, bez pakietów i stoisk - moduł wystawców poza zakresem.
+-- Bez pakietów, stoisk i Exhibitor Center - moduł wystawców poza zakresem (§0.4).
+
+-- Firma przy wydarzeniu (partner / patron / prowadzący panel). Zrzut 8.6 pokazał
+-- plakietkę "Events (1)": firma należy do SPOŁECZNOŚCI i jest przypięta do N
+-- wydarzeń, a wydarzenie nadaje jej kontekst. To wzorzec "dziedzicz albo nadpisz".
+event_companies (
+  id, tenant_id, event_id, company_id → crm_companies,
+  group_id uuid → event_groups,                          -- grupa obejmuje też firmy
+  role text,                                             -- partner | patron | media | host
+  description_pl/description_en,                         -- NADPISANIE opisu z CRM
+  header_image text, background_image text, logo_override text,
+  sort_order int, created_at, updated_at,
+  UNIQUE (event_id, company_id)
+)
+-- Odczyt publiczny przez definerowy RPC get_public_event_companies (wzorzec
+-- get_public_speakers): gość widzi nazwę, logo, opis i KRAJ - nigdy telefonu
+-- ani e-maila. Degradacja widoczności należy do bazy, nie do komponentu.
 
 -- §4.6 ONSITE (wymagane - decyzja §0.4)
 event_checkins (id, tenant_id, event_id, session_id NULL, user_id, ticket_code,
@@ -376,6 +430,69 @@ event_term_acceptances (term_id, user_id, version int, accepted_at,
 --   nie zapisuje wartości domyślnej. Wyjście tym samym kanałem, co globalne kolory:
 --   CSS custom properties w SSR (globalColorsToCss / DesignTokensStyle), z zakresem
 --   ograniczonym do poddrzewa stron wydarzenia ORAZ formularza rejestracji.
+
+-- §4.11 OSOBY WYDARZENIA (uczestnik bez konta - zrzut 5.1, decyzja modelowa)
+--   21 prelegentów z OECD, NASK, SGH i RPP ma w danych referencyjnych "No account".
+--   Dzisiejsze event_rsvps.user_id i event_speakers.user_id wskazują auth.users,
+--   więc wpisanie prelegenta do agendy wymagałoby ZAŁOŻENIA MU KONTA - czego
+--   redakcja nie zrobi dla 21 osób i nie powinna robić bez ich wiedzy.
+event_people (
+  id, tenant_id, event_id,
+  user_id uuid NULL → auth.users,                        -- wiązanie przy pierwszym logowaniu
+  email text, email_norm text,                           -- klucz dopasowania (wzorzec crm_leads)
+  first_name, last_name, job_title, company_text,
+  company_id uuid NULL → crm_companies,
+  group_id uuid NOT NULL → event_groups,                 -- grupa PODSTAWOWA (wymagana)
+  crm_lead_id uuid NULL → crm_leads,                     -- most do CRM (grant kolumnowy!)
+  created_at, updated_at,
+  UNIQUE (event_id, email_norm)
+)
+event_group_members (group_id, person_id)                -- grupy DODATKOWE (wiele-do-wielu)
+-- Uprawnienie wypadkowe z wielu grup = SUMA zdolności (najbardziej pozwalająca
+-- wygrywa); domyślny "iloczyn" dałby efekt odwrotny do zamierzonego.
+-- event_registrations, event_session_*, event_checkins i event_leads wskazują
+-- na event_people, więc jest JEDNA kartoteka osób wydarzenia.
+
+-- §4.12 POLA WŁASNE - JEDEN mechanizm dla trzech encji (zrzuty 5.2, 6.2, 8.2)
+--   Swapcard ma osobne "custom fields" dla osób, sesji i firm, ale ten sam
+--   wzorzec: definicja na poziomie SPOŁECZNOŚCI ("field used in other events
+--   within this Community"), wartość per wydarzenie. Wzorzec w repo:
+--   post_custom_meta_defs + /admin/custom-meta.
+event_custom_field_defs (
+  id, tenant_id, entity text CHECK (entity IN ('session','person','company')),
+  key text, label_pl/label_en, section text,
+  type text CHECK (type IN ('text','textarea','select','multiselect','url','email','tel','checkbox')),
+  options jsonb, is_filter boolean, sort_order int,
+  UNIQUE (tenant_id, entity, key)
+)
+event_custom_field_values (def_id, event_id, entity_id, value jsonb)
+-- Reguła projektowa Swapcarda warta skopiowania: FILTREM wyszukiwania może być
+-- wyłącznie pole słownikowe (select/multiselect). Pole tekstowe jako filtr daje
+-- listę pięćdziesięciu unikalnych wartości i jest bezużyteczne.
+--
+-- Polityka edycji pól profilu (zrzut 5.2) jest na poziomie TENANTA, nie wydarzenia:
+profile_field_policy (tenant_id, field text, editable boolean)
+-- Domyślne wg Swapcarda: imię, nazwisko i e-mail profilu ZABLOKOWANE (nazwisko
+-- na wydrukowanym badge'u nie może się zmienić po druku), reszta edytowalna.
+-- Wyłączenie wszystkiego byłoby problemem prawnym (RODO: prawo do sprostowania).
+
+-- §4.13 BIBLIOTEKA TREŚCI WYDARZENIA (partie 9 i 10)
+event_documents (
+  id, tenant_id, event_id,
+  kind text CHECK (kind IN ('file','link')),             -- Swapcard trzyma to JEDNĄ encją
+  url text, title_pl/title_en, description_pl/description_en,  -- opis do 160 znaków
+  visibility text, min_tier_rank int, group_ids uuid[],  -- „Spotkania Chatham House"!
+  download_count int NOT NULL DEFAULT 0, created_at, updated_at
+)
+event_session_documents (session_id, document_id, sort_order)
+event_company_documents (company_id, document_id, sort_order)  -- „Attached to"
+-- Statystyki pobrań: liczone jak ad_events (kind = pobranie / klik). Redakcja
+-- używa dziś do tego skrótów bit.ly - ta funkcja zastępuje zewnętrzne narzędzie.
+--
+-- Kanał ogłoszeń wydarzenia: wzorzec club_board_notices + club_posts.
+-- Dyskusje wydarzenia: NIE budujemy nowego silnika - podpinamy grupę klubu
+-- (club_events.anchor_event_id wiąże już kalendarz klubu z wydarzeniem; brakuje
+-- kierunku odwrotnego: „dyskusja tego wydarzenia toczy się w grupie X").
 ```
 
 Decyzje do potwierdzenia przed migracją:
@@ -437,6 +554,16 @@ Chatham House domyślnie **włączone**, brak nagrania, brak listy uczestników)
 
 Wybór rodzaju w kreatorze („Utwórz wydarzenie") **zakłada od razu** poddrzewo stron
 i włącza moduły — to jest odpowiednik swapcardowego onboardingu z checklistą.
+
+**Drugi tryb tworzenia: klon poprzedniej edycji.** Zrzut 9.1 pokazał u Swapcarda
+„Import from another event in the Community" — i to jest, z punktu widzenia NES,
+najlepszy pomysł w całym tym panelu. Kongres jest cykliczny: ci sami prelegenci,
+ci sami partnerzy, podobna agenda, te same typy wejściówek. Kreator ma więc dwie
+drogi: **z presetu rodzaju** (nowy format) albo **z poprzedniej edycji**
+(kopiowanie sesji, prelegentów, firm, sponsorów, dokumentów, typów biletów i grup,
+z wyzerowanymi datami i statusem `draft`). Druga droga oszczędza kilka godzin pracy
+redakcji przy każdej edycji i jest tańsza w implementacji niż wygląda: to jeden RPC
+kopiujący wiersze między `event_id`.
 Istniejące `starterTemplates` buildera (`src/lib/builder/starterTemplates.ts`) są
 gotowym miejscem na `default_widgets`.
 
@@ -460,6 +587,10 @@ podgrupa `events` w palecie — `SUBGROUPS` w `WidgetLibrary.tsx`):
 | `event-map`          | plan sal / stoisk                                                                | treść widgetu (SVG/obraz + hotspoty)             |
 | `event-practical`    | informacje praktyczne: dojazd, hotele, kontakt, hashtag                          | `events`                                         |
 | `event-cta-bar`      | przyklejony pasek „Zarejestruj się" z odliczaniem                                | `events`                                         |
+| `event-documents`    | materiały wydarzenia z bramką widoczności i licznikiem pobrań                    | `event_documents`                                |
+| `event-feed`         | tablica ogłoszeń wydarzenia („Czy wiedziałeś, że…”)                              | kanał ogłoszeń (wzorzec `club_board_notices`)    |
+| `event-companies`    | partnerzy i patroni z filtrami po polach słownikowych                            | `event_companies` + `crm_companies`              |
+| `event-feedback`     | ocena sesji po jej zakończeniu (prywatna, 1–5 + komentarz)                       | `event_session_feedback`                         |
 
 Rozszerzenia istniejących:
 `event-schedule` → `source: manual | event`; `event-sponsors` → `source: manual | event`;
@@ -490,15 +621,15 @@ trybu gościa ani do robota (`forceNoindex`).
 
 ## 8. Etapy wdrożenia
 
-| Etap                                             | Zakres                                                                                                                                                                                                           | Kryterium odbioru                                                                                                                                                                          |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **E1** Szkielet                                  | grupa `events` w `adminNav`, `/admin/events` (lista + KPI), `/admin/events/$eventId` (layout + sub-nav + `Outlet`), `/general` przeniesione z dzisiejszego dialogu, redirect z `/admin/community/events`         | pełny CRUD działa z nowej powierzchni; stara trasa przekierowuje; `check:i18n-hardcoded` czysty                                                                                            |
-| **E2** Rodzaje                                   | `event_types` + `/admin/events/types` + kreator „nowe wydarzenie z rodzaju"                                                                                                                                      | utworzenie kongresu zakłada podstrony i włącza moduły jednym kliknięciem                                                                                                                   |
-| **E3** Strony i menu                             | `event_pages` + `/pages` (drzewo, kolejność, ikony, widoczność), oparte na `pages`/builderze                                                                                                                     | podstrona wydarzenia powstaje i publikuje się bez wejścia w `/admin/pages`                                                                                                                 |
-| **E4** Agenda                                    | `event_sessions` (+ prelegenci sesji), `/agenda`, `event-schedule` z `source: "event"`                                                                                                                           | agenda dwudniowa z 30 sesjami zarządzalna z panelu; widget renderuje z bazy                                                                                                                |
-| **E5** Grupy, rejestracja, zgody, bilety         | `event_groups` + `event_capabilities()`, `event_registration_forms`, `event_registrations`, `event_ticket_types` (z `group_id`), `event_terms` + akceptacje; `/groups` + `/registration` + `/tickets` + `/terms` | oba przebiegi działają (RSVP i formularz z akceptacją); **typ biletu nadaje grupę**; zgoda na przekazanie danych partnerowi zebrana w formularzu; pgtap na uprawnieniach i na zgodach      |
-| **E6** Sponsorzy i spotkania                     | `event_sponsor_tiers` + `event_sponsors` (z `crm_companies`), rozszerzenie `AdTargeting`/`AdPosition` o wydarzenie i grupy, panel `/meetings`                                                                    | poziomy sponsorskie z logotypami z CRM; reklama wydarzenia celowana w grupę, z odsłonami i klikami z `ad_events`; sloty 1-1 z limitami                                                     |
-| **E7** Onsite (wymagany), komunikacja, analityka | `event_checkins`, `event_badge_templates` + druk, `event_leads` z RLS per firma, sekwencje e-mail, dashboard                                                                                                     | check-in QR odporny na brak sieci i na powtórny skan (`UNIQUE`); badge z nazwą grupy i typem wejściówki; partner widzi **wyłącznie własne** leady; dashboard pokazuje frekwencję per sesja |
+| Etap                                             | Zakres                                                                                                                                                                                                                                                 | Kryterium odbioru                                                                                                                                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **E1** Szkielet                                  | grupa `events` w `adminNav`, `/admin/events` (lista + KPI), `/admin/events/$eventId` (layout + sub-nav + `Outlet`), `/general` przeniesione z dzisiejszego dialogu, redirect z `/admin/community/events`                                               | pełny CRUD działa z nowej powierzchni; stara trasa przekierowuje; `check:i18n-hardcoded` czysty                                                                                                                                 |
+| **E2** Rodzaje                                   | `event_types` + `/admin/events/types` + kreator „nowe wydarzenie z rodzaju"                                                                                                                                                                            | utworzenie kongresu zakłada podstrony i włącza moduły jednym kliknięciem                                                                                                                                                        |
+| **E3** Strony i menu                             | `event_pages` + `/pages` (drzewo, kolejność, ikony, widoczność), oparte na `pages`/builderze                                                                                                                                                           | podstrona wydarzenia powstaje i publikuje się bez wejścia w `/admin/pages`                                                                                                                                                      |
+| **E4** Agenda i sesje                            | `event_people` (osoba bez konta!), `event_sessions`, role prelegentów, zapisy na sesję z limitem i blokadą kolizji czasowej, skrzynka interakcji (czat / Q&A / ankiety — silniki już są), oceny sesji, `/agenda`, `event-schedule` z `source: "event"` | agenda dwudniowa z 30 sesjami zarządzalna z panelu; prelegent bez konta da się wpisać; zapis na dwie sesje o tej samej godzinie jest **odrzucany serwerowo**; widget renderuje z bazy; oceny zasilają `speaker_profiles.rating` |
+| **E5** Grupy, rejestracja, zgody, bilety         | `event_groups` + `event_capabilities()`, `event_registration_forms`, `event_registrations`, `event_ticket_types` (z `group_id`), `event_terms` + akceptacje; `/groups` + `/registration` + `/tickets` + `/terms`                                       | oba przebiegi działają (RSVP i formularz z akceptacją); **typ biletu nadaje grupę**; zgoda na przekazanie danych partnerowi zebrana w formularzu; pgtap na uprawnieniach i na zgodach                                           |
+| **E6** Sponsorzy i spotkania                     | `event_sponsor_tiers` + `event_sponsors` (z `crm_companies`), rozszerzenie `AdTargeting`/`AdPosition` o wydarzenie i grupy, panel `/meetings`                                                                                                          | poziomy sponsorskie z logotypami z CRM; reklama wydarzenia celowana w grupę, z odsłonami i klikami z `ad_events`; sloty 1-1 z limitami                                                                                          |
+| **E7** Onsite (wymagany), komunikacja, analityka | `event_checkins`, `event_badge_templates` + druk, `event_leads` z RLS per firma, sekwencje e-mail, dashboard                                                                                                                                           | check-in QR odporny na brak sieci i na powtórny skan (`UNIQUE`); badge z nazwą grupy i typem wejściówki; partner widzi **wyłącznie własne** leady; dashboard pokazuje frekwencję per sesja                                      |
 
 ---
 
@@ -515,7 +646,12 @@ trybu gościa ani do robota (`forceNoindex`).
 5. **Rozmiar tras** — dzisiejszy plik ma 580 linii przy jednym ekranie. Piętnaście
    sekcji w jednym pliku jest niedopuszczalne: każda sekcja = własna trasa + własne
    organizmy w `src/components/admin/events/`.
-6. **i18n** — każdy nowy tekst przez overlay (`src/lib/i18n-admin-events.ts`),
+6. **Kartoteka osób wydarzenia obok `auth.users`** (§4.11) — to nowa oś tożsamości
+   i największe ryzyko modelowe po stronie danych osobowych. Mitygacja: jedno
+   dopasowanie po `email_norm` przy pierwszym logowaniu, retencja rekordów bez
+   konta opisana w polityce prywatności, i **zakaz** wysyłki marketingowej do
+   osób, które nie przeszły rejestracji (wpisane przez organizatora).
+7. **i18n** — każdy nowy tekst przez overlay (`src/lib/i18n-admin-events.ts`),
    nigdy `isPl ? … : …`; bramka `check:i18n-hardcoded` to wyłapie.
 
 ---

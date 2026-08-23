@@ -1450,20 +1450,453 @@ sort_order)` z domyślnymi: `moderator`, `panelist`, `lecturer` („Wykładowcy"
 
 ---
 
-## Partia 8 — (oczekuje na zrzuty)
+## Partia 8 — 2026-08-23 (Exhibitors: lista, ustawienia, profil firmy)
 
-Domknięte: strona główna i menu, dane podstawowe, grupy i uprawnienia (bez macierzy
-gościa), branding, sponsorzy i reklama, zgody, tryby rejestracji, typy biletów, kody,
-formularz rejestracji, uczestnicy i polityka pól, **sesje w pełni** (lista, szczegóły,
-formaty, prelegenci z rolami, firmy, zapisy, powiązania, dokumenty, preferencje).
+> **Uwaga o zakresie.** Decyzja §0.4 („wystawcy nie są osobnym modułem, partnerzy
+> i sponsorzy synchronizowani z CRM firm") pozostaje w mocy. Te zrzuty mapuję,
+> bo pokazują **jak wygląda profil firmy przy wydarzeniu** — a to potrzebne
+> niezależnie od modułu wystawców: partner, sponsor i firma prowadząca panel to
+> ten sam byt. Elementy typowo wystawiennicze (Exhibitor Center, Items, pakiety)
+> zaznaczam jako **poza zakresem**, żeby nie wróciły do backlogu przez pomyłkę.
 
-Brakuje:
+### Zrzut 8.1 — `…/exhibitors` · lista firm
+
+**Co widać**
+
+- „Give your exhibitors more value and improve their ROI with dedicated Exhibitor
+  Profiles and access to the Exhibitor Area."
+- `Search` · `Exhibitor settings` · `Export` · **`Create exhibitors`**.
+- Tabela: `Logo` · `Name` (sort) · `Group` (filtr) · `Location` · `Type` ·
+  `Members` · `Created on` (sort) · `Description` (sort) · `Website`.
+- Cztery firmy (`1 – 4 of 4`), wszystkie w grupie `Exhibitors`, utworzone
+  21.06.2024: **Bank Pekao S.A.** (0 członków), **Forbes Polska** (0, forbes.pl),
+  **New European Strategies** (1 członek, neweuropeanstrategies.com),
+  **Parlament Europejski** (0, warsaw.europarl.eu). Opisy po polsku.
+
+**Mapowanie**
+
+| Swapcard                                                  | NES                                                                                     | Stan                                 | Zadanie |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------ | ------- |
+| firma przy wydarzeniu (logo, opis, www, lokalizacja, typ) | `crm_companies` (`logo_url`, `name`, `website`, `domain`, `address`, `city`, `country`) | ✅ dane, 🔴 powiązanie z wydarzeniem | EB-819  |
+| `Group` firmy                                             | grupa wydarzenia (§4.3) obejmuje też **organizacje**, nie tylko osoby                   | 🔴                                   | EB-304  |
+| `Members` (obsada firmy)                                  | `organization_seats` — ale tylko dla `member_organizations`                             | 🟡                                   | EB-908  |
+| `Type` (typ firmy)                                        | pole własne (zrzut 8.2)                                                                 | 🔴                                   | EB-830  |
+| `Export`                                                  | wzorzec CSV                                                                             | ✅                                   | —       |
+| `Create exhibitors`                                       | dopisanie firmy do wydarzenia (z CRM albo nowa)                                         | 🔴                                   | EB-819  |
+
+**Wnioski**
+
+1. Cztery firmy w wydarzeniu referencyjnym to **partnerzy i patroni medialni**
+   (bank, tytuł prasowy, instytucja UE, organizator), nie wystawcy ze stoiskami.
+   To potwierdza decyzję §0.4 z drugiej strony: nawet w Swapcardzie NES używa
+   „Exhibitors" jako **kartoteki firm wydarzenia**. Nasz odpowiednik nazywa się
+   **Partnerzy / Firmy wydarzenia** i jest widokiem `crm_companies` przypiętych
+   do wydarzenia — z logo, opisem i typem.
+2. Wszystkie cztery mają `0` lub `1` członka. Obsada firmy to funkcja, której
+   NES realnie nie użyje w pierwszej wersji (dziewięć z dziesięciu partnerów nie
+   zaloguje się do panelu). Wniosek: `Members` firmy jest **na końcu kolejki**,
+   za sponsorami i sesjami.
+
+### Zrzut 8.2 — `Exhibitor settings` → „Custom fields"
+
+**Co widać**
+
+- „Here you can manage the custom fields and main content of your event. This
+  includes any of the information on pages that you will sort into sections.
+  **Creating fields with single or multiple choice formats will allow you to create
+  search filters.**"
+- Pole **`Add a custom field used in other events within this Community`** + wybór
+  języka (`Polish`).
+- Sekcja `Default custom fields` — „Displayed on top of exhibitor details page" →
+  pole `Type`.
+- Sekcja `Information` → `+ Create custom field`.
+
+**Mapowanie**
+
+| Swapcard                                                    | NES                                                              | Stan       | Zadanie |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- | ---------- | ------- |
+| słownik pól własnych firmy                                  | wzorzec: `post_custom_meta_defs` + `/admin/custom-meta`          | 🟡         | EB-830  |
+| **pole współdzielone między wydarzeniami społeczności**     | definicja na poziomie tenanta, wartość per wydarzenie            | 🔴         | EB-831  |
+| pola typu „jeden / wiele wyborów" → **filtry wyszukiwania** | filtry katalogu (wzorzec: filtry CRM, `search_companies_public`) | 🟡         | EB-832  |
+| sekcje pól (`Default` / `Information`)                      | grupowanie pól na karcie                                         | 🔴         | EB-830  |
+| wybór języka wartości pola                                  | bliźniacze kolumny / wartości i18n                               | ✅ wzorzec | —       |
+
+**Wnioski**
+
+1. „Pole użyte w innych wydarzeniach tej społeczności" to **kluczowy wzorzec
+   oszczędności pracy**: definicja pola żyje raz na tenanta, wartości per
+   wydarzenie. Powtarza się przy sesjach (zrzut 6.2), osobach (5.2) i tu.
+   Rekomendacja architektoniczna: **jeden mechanizm pól własnych dla trzech
+   encji** (`event_custom_field_defs(entity IN ('session','person','company'))`
+   - `event_custom_field_values`), a nie trzy osobne. W repo istnieje precedens
+     (`post_custom_meta_defs`), więc to rozszerzenie wzorca, nie nowy wynalazek.
+2. Zdanie „single or multiple choice → search filters" to reguła projektowa warta
+   skopiowania: **tylko pola słownikowe stają się filtrami**. Pole tekstowe jako
+   filtr daje bezużyteczną listę pięćdziesięciu unikalnych wartości.
+
+### Zrzut 8.3 — `Exhibitor settings` → „Export condition"
+
+**Co widać**
+
+- „To exclude specific leads from the exports downloaded by exhibitors, add a
+  condition such as a **custom field or a term consent**. This condition will be
+  applied to all exhibitors of the event." + `Add condition`.
+
+**Mapowanie**
+
+| Swapcard                                    | NES                                             | Stan | Zadanie |
+| ------------------------------------------- | ----------------------------------------------- | ---- | ------- |
+| warunek wykluczający leady z eksportu       | filtr na `event_leads` przy eksporcie           | 🔴   | EB-833  |
+| warunek oparty o **zgodę** (`term consent`) | `event_terms` + `event_term_acceptances` (§4.8) | 🔴   | EB-603  |
+| silnik warunków                             | `club_segment_rules.rule jsonb` jako wzorzec    | 🟡   | EB-308  |
+
+**Wnioski**
+
+1. **To jest brakujące ogniwo RODO z partii 2 (zrzut 2.3).** Swapcard rozwiązuje
+   problem „kto nie chce, żeby jego dane trafiły do partnera" właśnie tu: warunek
+   eksportu oparty o zgodę. Nasza wersja jest prostsza i mocniejsza:
+   **eksport leadów widzi wyłącznie osoby z aktywną zgodą** — nie jako
+   konfigurowalny warunek, a jako **niewyłączalna reguła w RPC**. Konfigurowalny
+   filtr zgody to zaproszenie do pomyłki, której skutkiem jest naruszenie.
+2. Zostawiam `Add condition` jako opcję **zawężającą** (partner z pakietu premium
+   dostaje tylko leady z określonego typu wejściówki), ale nigdy rozszerzającą.
+
+### Zrzut 8.4 — `Exhibitor settings` → „Home message"
+
+**Co widać**
+
+- „You can customize the home message of the Exhibitor Center here."
+- RTE z pełnym paskiem (`Aa`, B, I, U, listy, `---`, link, obraz, plik) + flaga języka.
+- Treść: nagłówek **„Welcome to the Exhibitor Center"** i wideo instruktażowe.
+
+**Mapowanie**
+
+| Swapcard                              | NES                                                            | Stan | Zadanie |
+| ------------------------------------- | -------------------------------------------------------------- | ---- | ------- |
+| Exhibitor Center (panel dla firmy)    | ⛔ **poza zakresem** (§0.4)                                    | —    | —       |
+| komunikat powitalny w panelu partnera | odpowiednik: ekran onboardingu (`components/admin/onboarding`) | 🟡   | —       |
+
+**Wnioski**
+
+1. Cały „Exhibitor Center" — osobny panel, do którego loguje się firma — jest
+   poza zakresem. Notuję to świadomie: gdyby kiedyś wrócił, NES ma pod niego
+   gotowy fundament (`organization_seats` + macierz uprawnień + panel
+   z `AdminShell`), ale to **osobny produkt**, nie zakładka Event Buildera.
+
+### Zrzut 8.5 — `Exhibitor settings` → „Similar exhibitor recommendation"
+
+**Co widać**
+
+- `Display similar exhibitors - for the community` — **ON**: „a list of similar
+  exhibitors **generated by AI** is displayed on each Exhibitor page on your community."
+- `Display similar exhibitors - for this event` — **ON**: to samo w zakresie wydarzenia.
+
+**Mapowanie**
+
+| Swapcard                               | NES                                                                                                   | Stan | Zadanie |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---- | ------- |
+| rekomendacje „podobne firmy" z AI      | **wzorzec istnieje**: `club_thread_embeddings` (wektory), rekomendacje treści, `/admin/related-posts` | 🟡   | EB-834  |
+| dwa zakresy (społeczność / wydarzenie) | filtr zakresu rekomendacji                                                                            | 🔴   | EB-834  |
+
+**Wnioski**
+
+1. NES ma już osadzenia wektorowe i moduł powiązanych treści, więc „podobne firmy"
+   to zastosowanie istniejącego mechanizmu do nowej encji, a nie nowy model.
+   Warto to jednak umieścić **nisko** w kolejce: przy czterech partnerach
+   rekomendacja „podobnych" jest zabawna, a nie użyteczna. Sensu nabiera od ~30 firm.
+
+### Zrzut 8.6 — profil firmy `Forbes Polska` → „Details"
+
+**Co widać**
+
+- Nagłówek: `Forbes Polska` z plakietką **`Events (1)`**.
+- Zakładki: `Details` · `Contact details` · `Members` · `Documents & Links` ·
+  `Exhibitors` · `Permissions`.
+- `General` — „Add the booth name, a brief description, and the location…":
+  `* Name` (flaga języka), `Description` (RTE, treść po polsku),
+  `Location` („Search or select an existing location" + `Create new`).
+- `Branding` — „Customize the virtual booth with a header, logo, and background image…":
+  `Header image` (1200×675, 16:9, ≤1 MB; **albo wideo** z YouTube/Vimeo — „Use a video
+  instead"), logo (Forbes), `Background image` (2560×1600, 16:10, ≤1 MB).
+- `Custom fields` — `Type` = `None` + `Edit field`; `Create custom field`
+  („Custom fields are crucial to boost searchability and **AI recommendations**").
+- `Social networks` — `linkedin.com/company/`, `x.com/forbespolska`,
+  `instagram.com/`, `facebook.com/` + `See all social networks`.
+- `IDs` → `Internal IDs`.
+
+**Mapowanie**
+
+| Swapcard                                                                      | NES                                                                                 | Stan | Zadanie |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---- | ------- |
+| **`Events (1)`** — firma należy do społeczności, jest przypięta do N wydarzeń | dokładnie model `crm_companies` (tenant) + `event_companies` (przypięcie)           | 🔴   | EB-819  |
+| nazwa i opis firmy per wydarzenie                                             | `crm_companies.name` + **nadpisanie per wydarzenie** (opis inny na innym kongresie) | 🔴   | EB-819  |
+| `Location` ze słownika lokalizacji                                            | słownik lokalizacji wydarzenia (ten sam co `Location` sesji, zrzut 6.2)             | 🔴   | EB-835  |
+| branding firmy (header/logo/tło, wideo w nagłówku)                            | `member_organizations` ma logotypy i kolory; `crm_companies` ma tylko `logo_url`    | 🟡   | EB-836  |
+| pola własne firmy                                                             | jeden mechanizm pól własnych (zrzut 8.2, wniosek 1)                                 | 🔴   | EB-830  |
+| social media firmy                                                            | wzorzec `SocialIdentityPanel` (osoba); dla firmy brak                               | 🔴   | EB-837  |
+
+**Wnioski**
+
+1. Plakietka `Events (1)` rozstrzyga architekturę: firma **nie jest** dzieckiem
+   wydarzenia. Jest bytem społeczności widocznym w wielu wydarzeniach, a wydarzenie
+   nadaje jej **kontekst** (grupa, typ, opis, poziom sponsorski, branding stoiska).
+   Nasz model: `crm_companies` (jedno źródło prawdy o firmie) + `event_companies`
+   (`event_id`, `company_id`, `group_id`, `role`, `description_pl/en` jako
+   nadpisanie, `header_image`, `background_image`, `sort_order`).
+   To zresztą **ten sam wzorzec „dziedzicz albo nadpisz"**, który mamy w klubach.
+2. Trzy formaty obrazów z różnymi proporcjami (16:9 header, 16:10 tło, logo)
+   trafiają wprost do `/admin/crop-sizes` — nie wymyślamy nowych rozmiarów,
+   dodajemy presety.
+3. Opis Forbesa jest po polsku w polu z flagą języka. Czwarty raz to samo:
+   **każde pole treściowe firmy musi być bliźniacze**.
+
+### Zrzut 8.7 — profil firmy → „Contact details"
+
+**Co widać**
+
+- „Attendees can view the exhibitor's contact details, but **in Guest mode and on
+  widgets, only the country is shown**."
+- `Mobile phone` i `Landline` (z wyborem kraju), `Email`,
+  `Address` („Search for a venue or address" + `Add manually`),
+  `Website` = `https://www.forbes.pl`.
+
+**Mapowanie**
+
+| Swapcard                                           | NES                                                                               | Stan               | Zadanie |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------ | ------- |
+| dane kontaktowe firmy                              | `crm_companies` (`phone`, `address`, `city`, `postal_code`, `country`, `website`) | ✅                 | —       |
+| **degradacja widoczności dla gościa (tylko kraj)** | wzorzec: `profiles_public` jako zawężona projekcja; `get_public_speakers`         | 🟡 **wzorzec 1:1** | EB-838  |
+
+**Wnioski**
+
+1. „Gość widzi tylko kraj" to elegancki wzorzec ochrony danych kontaktowych,
+   który NES realizuje **lepiej niż flagą w UI**: osobną projekcją publiczną
+   (definerowy RPC zwracający wyłącznie kolumny publiczne — tak działa już
+   `get_public_speakers`). Dla firm robimy `get_public_event_companies` i problem
+   znika na poziomie bazy, a nie komponentu.
+
+### Zrzut 8.8 — profil firmy → „Members"
+
+**Co widać**
+
+- Pole `Add a member by searching among people with an account`.
+- `Members role` — **`Add-on`**: „By default, members are assigned the **'Admin'**
+  role, granting them full access to the Exhibitor Center. Change their role to
+  **'Limited'** for more control."
+
+**Mapowanie**
+
+| Swapcard                    | NES                                                                 | Stan | Zadanie |
+| --------------------------- | ------------------------------------------------------------------- | ---- | ------- |
+| obsada firmy z konta        | `organization_seats` (role, statusy, zaproszenia)                   | 🟡   | EB-908  |
+| dwie role (Admin / Limited) | `organization_seats.role`                                           | ✅   | —       |
+| „tylko osoby **z kontem**"  | tu Swapcard wymaga konta, inaczej niż przy uczestnikach (zrzut 5.1) | —    | —       |
+
+**Wnioski**
+
+1. Ciekawa asymetria: uczestnik może istnieć bez konta, **członek obsady firmy nie**.
+   To sensowne — obsada dostaje uprawnienia zapisu, a uprawnienia wymagają
+   uwierzytelnienia. Nasz model musi to odzwierciedlić: `event_registrations`
+   dopuszcza `user_id NULL`, `organization_seats` nie.
+
+### Zrzut 8.9 — profil firmy → „Permissions"
+
+**Co widać**
+
+- `Groups` — „**By default the exhibitor has the permissions of the group it belongs
+  to. By editing, it will apply a specific permission for the exhibitor.**"
+  `Group` = `Exhibitors` + link `Edit group's settings`.
+- `Exhibitor profile` → `Company fields` — „Define the fields that the exhibitor can
+  edit on their company profile": `Name`, `Logo`, `Header image`, `Video header`,
+  `Advertising`, `Background image`, `Description`, `Address`, `Website`, `Email`,
+  `Phone numbers`, `Social networks` — **wszystkie ON**.
+- `Documents & Links` **Add-on**, `Items` **Add-on**.
+- `Lead generation`: `Lead capture` **Add-on**, `Lead qualification` **Add-on**,
+  `Allow to download QR code` **OFF**, `Lead dashboards and exports` **Add-on**.
+- `Members`: `Allow to add registered members` **ON**,
+  `Allow to register members` **OFF**.
+
+**Mapowanie**
+
+| Swapcard                                         | NES                                                                 | Stan               | Zadanie |
+| ------------------------------------------------ | ------------------------------------------------------------------- | ------------------ | ------- |
+| **nadpisanie uprawnień grupy na poziomie firmy** | wzorzec „dziedzicz albo nadpisz" z `club_groups` (NULL = dziedzicz) | 🟡 **wzorzec 1:1** | EB-839  |
+| polityka pól firmy                               | (poza zakresem bez Exhibitor Center — §0.4)                         | ⛔                 | —       |
+| lead generation per firma                        | `event_leads` + zgoda (§4.6, §4.8)                                  | 🔴                 | EB-1201 |
+| `Allow to download QR code`                      | QR do profilu firmy do druku na stoisku                             | 🔴                 | EB-907  |
+
+**Wnioski**
+
+1. Ten ekran domyka partię 2 (zrzut 2.1): uprawnienia mają **dwa poziomy** —
+   grupa i pojedynczy podmiot, z dziedziczeniem. To trzecie miejsce, w którym
+   Swapcard stosuje „dziedzicz albo nadpisz" (grupa społeczności → grupa
+   wydarzenia → firma). Nasz `event_capabilities()` musi liczyć tę kaskadę
+   w jednym miejscu, a panel pokazywać jawnie, co skąd wynika (etykieta
+   „dziedziczone z grupy" + przełącznik „nadpisz") — dokładnie tak, jak opisuje
+   `PROJEKT_MODUL_DISCUSSION_CLUB_V2_ADMIN_2026-08-07.md` §1.
+2. Powtórzenie tych samych przełączników (`Company fields`, `Lead generation`,
+   `Members`) na poziomie **grupy** (partia 2) i **firmy** (tu) to nie duplikacja
+   UI, a właśnie kaskada. Warto zbudować **jeden komponent** renderujący te same
+   pola w dwóch trybach (ustawienie grupy / nadpisanie firmy), bo inaczej dwa
+   ekrany rozjadą się przy pierwszej zmianie.
+
+---
+
+## Partia 9 — 2026-08-23 (Items, Feed channels, Documents & Links)
+
+### Zrzut 9.1 — `…/products` · „Create items"
+
+**Co widać**
+
+- „Showcase any type of items (**Products, Projects, Job Offers**, etc.) that
+  participants will be able to browse and bookmark. Your exhibitors will be able to
+  import them from the Exhibitor Center."
+- Cztery drogi: **Import via Excel file** („Download and update our pre-filled Excel
+  template to add or edit items in bulk"), **Import from another event in the
+  Community** („Attach existing content from an event within the same community"),
+  **Create manually**, **Item settings** („Create item types, subcategories and custom
+  fields. Choose if a list of similar items generated by AI is displayed").
+
+**Mapowanie**
+
+| Swapcard                                             | NES                                                                                                 | Stan | Zadanie |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---- | ------- |
+| katalog „items" (produkty / projekty / oferty pracy) | ⛔ jako moduł wystawców; **ale**: NES ma `programs`, `research-programs`, `careers` (oferty pracy!) | 🟡   | EB-840  |
+| **import z innego wydarzenia w społeczności**        | brak — a to wzorzec o dużej wartości (patrz Wnioski)                                                | 🔴   | EB-841  |
+| import z Excela z gotowym szablonem                  | wzorzec: `WxrUploadPanel`, importy CSV                                                              | 🟡   | EB-805  |
+| typy, podkategorie i pola własne                     | jeden mechanizm pól własnych (8.2)                                                                  | 🔴   | EB-830  |
+| bookmarkowanie przez uczestnika                      | **istnieje**: zakładki/`reading-list`, `profile.bookmarks`                                          | ✅   | —       |
+
+**Wnioski**
+
+1. `Items` jako produkt wystawcy jest poza zakresem, ale **„Import from another event
+   in the Community" to najlepszy pomysł w całym Swapcardzie z punktu widzenia NES**.
+   Kongres jest cykliczny: ci sami prelegenci, ci sami partnerzy, podobna agenda.
+   Rekomendacja: **kopiowanie zawartości między wydarzeniami** (sesje, prelegenci,
+   firmy, sponsorzy, dokumenty, typy biletów) jako osobna funkcja panelu —
+   „utwórz wydarzenie na podstawie poprzedniego". Wchodzi do §5 (presety rodzajów)
+   jako drugi tryb: preset albo klon.
+2. Że oferty pracy są „items" u Swapcarda, a u NES osobnym modułem (`careers`,
+   `hiring`), jest argumentem za tym, żeby **nie** budować generycznego katalogu:
+   NES ma już typowane moduły treści, które robią to lepiej.
+
+### Zrzut 9.2 i 9.3 — `…/feed-channels` · kanały feedu
+
+**Co widać**
+
+- Lista: `Search` · **`Create channel`**; tabela `Name` (sort) · `Created on` ·
+  `Posts` · **`Displayed on`**. Jeden kanał: **„Czy wiedział_ś, że …"**,
+  utworzony 21.06.2024, `0` postów, `Displayed on: Dyskusje`.
+- Szczegóły kanału: zakładki `Details` · `Posts` · `Settings`; `* Name` (i18n).
+
+**Mapowanie**
+
+| Swapcard                                              | NES                                                                      | Stan | Zadanie |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ | ---- | ------- |
+| kanał feedu wydarzenia (posty, ogłoszenia)            | **wzorzec 1:1**: `club_posts` + `club_post_likes` + `club_board_notices` | 🟡   | EB-842  |
+| `Displayed on` (na której stronie kanał się pokazuje) | u nas: widget na stronie wydarzenia (`event_pages` + builder)            | 🟡   | EB-842  |
+| moderacja postów                                      | `club_moderation_log`, `comments`                                        | ✅   | —       |
+
+**Wnioski**
+
+1. Kanał feedu to w praktyce **tablica ogłoszeń wydarzenia** („Czy wiedziałeś, że…"
+   to komunikaty organizatora). NES ma to w klubach (`club_board_notices` +
+   `club_posts`) — praca polega na przypięciu do wydarzenia i wystawieniu widgetu.
+2. `Displayed on: Dyskusje` pokazuje, że kanał jest **treścią**, a strona
+   („Dyskusje") jej **powierzchnią**. To znowu potwierdza §0.1: strony są
+   z jednego silnika, a moduły dostarczają do nich treść przez widgety.
+
+### Zrzut 9.4 i 9.5 — `…/documents` · „Documents & Links"
+
+**Co widać**
+
+- „Add any document for **sessions & exhibitors** and get all **download statistics**."
+  `Search` · **`Add a document`**.
+- Tabela: `Title of the document` · **`Attached to`** · `Description` · `Type` · `URL`.
+  Dwa wpisy, oba `Type: Link`: „Spotkania Chatham House" (`bit.ly/3V8srNS`),
+  „Konferencja Geopolityczna Gra Mocarstw" (`bit.ly/4bIcXHr`).
+- Szczegóły dokumentu: `* URL of the document` (z ikonami podglądu, usunięcia
+  i wgrania pliku), `* Title of the document`, `Description of the document`
+  (max 160 znaków), `Internal ID`, `Delete`.
+
+**Mapowanie**
+
+| Swapcard                             | NES                                                                           | Stan | Zadanie |
+| ------------------------------------ | ----------------------------------------------------------------------------- | ---- | ------- |
+| biblioteka dokumentów wydarzenia     | **wzorzec 1:1**: `club_documents` + `club_thread_documents`                   | 🟡   | EB-822  |
+| `Type: Link` vs plik (ta sama encja) | `club_documents` (plik) + `club_thread_links` (link) — u nas **dwie** encje   | 🟡   | EB-843  |
+| **`Attached to`** (sesje, firmy)     | relacja wiele-do-wielu (`event_session_documents`, `event_company_documents`) | 🔴   | EB-822  |
+| **statystyki pobrań**                | brak dla dokumentów; wzorzec liczników: `ad_events`, `analytics_events`       | 🔴   | EB-844  |
+| `Internal ID`                        | id widoczne w panelu                                                          | 🔴   | EB-808  |
+
+**Wnioski**
+
+1. Swapcard trzyma **link i plik jako jedną encję** z polem `Type`. NES ma dwie
+   (`club_documents` i `club_thread_links`). Dla wydarzeń rekomenduję **jedną**:
+   `event_documents(kind ('file','link'), url, title, description, …)` — redakcja
+   myśli „materiał do pobrania", a nie „plik vs URL", a statystyki pobrań/kliknięć
+   mają być w jednym miejscu.
+2. Oba dokumenty w wydarzeniu referencyjnym to **skróty bit.ly** — czyli redakcja
+   już dziś liczy kliknięcia poza platformą. To mocny argument za `EB-844`
+   (statystyki pobrań w panelu): funkcja zastępuje zewnętrzne narzędzie, którego
+   NES realnie używa.
+3. Nazwa „Spotkania Chatham House" wśród dokumentów jest przypomnieniem, że
+   materiały wydarzeń NES bywają **poufne**. Biblioteka dokumentów musi od pierwszej
+   wersji respektować bramkę widoczności (grupa / warstwa / zapisani na sesję),
+   a nie być publicznym katalogiem URL-i.
+
+---
+
+## Partia 10 — 2026-08-23 (Content → Discussions)
+
+### Zrzut 10.1 — `…/chatrooms` · „Discussions"
+
+**Co widać**
+
+- „Get your attendees engaging on specific topics or a general forum. **For better
+  engagement, we recommend using the News Feed feature instead.**" + `Learn how`.
+- `Search` · **`New discussion`**.
+- Tabela: `Name` · `Description` · `Members` · `Messages`.
+  Jeden wpis: **„Rekomendacje fiskalne dla Polski"** — `1` członek, `0` wiadomości.
+- Szuflada edycji: `Picture` (zalecane 256×256 px, ≤300 kB), `* Discussion name`,
+  `Description` („Add a short description"), `Delete`.
+
+**Mapowanie**
+
+| Swapcard                                                      | NES                                                                                                                                        | Stan      | Zadanie |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------- |
+| pokój dyskusyjny wydarzenia (temat + członkowie + wiadomości) | **wzorzec 1:1 i mocniejszy**: `club_threads` + `club_replies` + `club_reactions` + `club_stances` (stanowiska) + moderacja + Chatham House | ✅ silnik | EB-845  |
+| obraz i opis pokoju                                           | `club_threads` / `club_groups` mają odpowiedniki                                                                                           | ✅        | —       |
+| liczniki członków i wiadomości                                | `thread_count`, `last_activity_at` w klubach                                                                                               | ✅        | —       |
+| rekomendacja Swapcarda: „użyj raczej News Feed"               | u nas: kanał ogłoszeń (partia 9) vs wątek dyskusyjny                                                                                       | —         | —       |
+
+**Wnioski**
+
+1. Swapcard **sam odradza** własną funkcję dyskusji na rzecz feedu — to znaczy, że
+   czat tematyczny przy wydarzeniu słabo działa bez masy krytycznej. NES ma tu
+   przewagę, której nie warto marnować: moduł klubów dyskusyjnych z wątkami,
+   stanowiskami, moderacją i regułą Chatham House jest o klasę bogatszy niż ten
+   ekran. Rekomendacja: **nie budować osobnych „dyskusji wydarzenia"**, tylko
+   podpiąć istniejący klub/grupę pod wydarzenie (`club_events.anchor_event_id`
+   już wiąże kalendarz klubu z wydarzeniem — brakuje odwrotnego kierunku:
+   „dyskusja tego wydarzenia toczy się w grupie X").
+2. Jeden pokój z jednym członkiem i zerem wiadomości w realnym wydarzeniu to
+   dowód empiryczny na powyższe. Ta sekcja ma w naszym backlogu **najniższy
+   priorytet** i najlepszy stosunek wartości do pracy przy podejściu „podepnij
+   istniejący moduł", a nie „zbuduj nowy".
+
+---
+
+## Partia 11 — (oczekuje na zrzuty)
+
+Domknięte: cały `Event builder`, cała `In-App registration`, cały `Content`
+(People, Sessions, Exhibitors, Items, Documents & Links, Feed channels, Discussions).
+
+Brakuje wyłącznie modułów operacyjnych i przekrojowych:
 
 1. **`Onsite`** — check-in, skaner, szablony badge'y, druk (moduł wymagany, §0.4).
-2. **`Groups & permissions → Manage visibility`** + rozwinięty **`Add condition`**.
-3. **`Session settings`** (słownik pól własnych sesji) i **`Manage roles`** (słownik
-   ról prelegentów) — dwa ekrany słownikowe, na które powołują się zrzuty 6.2 i 7.1.
-4. **`Meetings`** — sloty, limity, matchmaking.
-5. **`Communications`** — sekwencje e-mail, powiadomienia.
-6. **`Content → Items` / `Feed channels` / `Discussions`**.
-7. **`Analytics`** · **`Overview`** · **`Integrations`** · **`Add-on features`**.
+2. **`Meetings`** — sloty, limity, matchmaking.
+3. **`Communications`** — sekwencje e-mail, powiadomienia push.
+4. **`Groups & permissions → Manage visibility`** + rozwinięty **`Add condition`**.
+5. **`Session settings`** i **`Manage roles`** (słowniki z 6.2 i 7.1).
+6. **`Analytics`** · **`Overview`** · **`Integrations`** · **`Add-on features`**.
