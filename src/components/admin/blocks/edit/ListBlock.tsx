@@ -19,7 +19,6 @@ export function ListBlockEdit({ block, onChange }: Props) {
   const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [""];
   const ordered = Boolean(block.data.ordered);
   const levels = readLevels(block, items.length);
-  const nested = levels.some((l) => l > 1);
   const refs = useRef<(HTMLDivElement | null)[]>([]);
 
   const commit = (nextItems: string[], nextLevels: number[]) => {
@@ -83,21 +82,23 @@ export function ListBlockEdit({ block, onChange }: Props) {
   };
 
   return (
-    <ListTag className="list-none pl-0 m-0 p-0 text-foreground text-base leading-relaxed">
+    <ListTag
+      className={`cms-block-list-editor ${ordered ? "cms-block-list-editor--ordered" : "cms-block-list-editor--unordered"}`}
+    >
       {items.map((it, i) => {
         const level = levels[i] ?? 1;
         const n = ordered ? numberFor(i) : 0;
         return (
           <li
             key={i}
-            className="flex items-baseline gap-2 m-0 p-0"
-            style={nested ? { paddingLeft: `${(level - 1) * 20}px` } : undefined}
+            className="cms-block-list-editor__item"
+            style={{ "--cms-list-level": level } as React.CSSProperties}
             data-level={level}
           >
             {ordered ? (
-              <span className="w-6 text-right tabular-nums text-foreground">{n}.</span>
+              <span className="cms-list-number" aria-hidden="true">{n}</span>
             ) : (
-              <span className="w-6 text-center text-foreground">{level > 1 ? "◦" : "•"}</span>
+              <span className="cms-list-bullet" aria-hidden="true" />
             )}
             <InlineHtmlEditable
               editableRef={(el) => {
@@ -108,7 +109,7 @@ export function ListBlockEdit({ block, onChange }: Props) {
               data-field="list-item"
               onChange={(html) => update(i, html)}
               onKeyDown={(e) => onKeyDown(i, e)}
-              className="flex-1 bg-transparent border-0 p-0 m-0 text-foreground text-base leading-relaxed"
+              className="cms-list-content flex-1 bg-transparent border-0 p-0 m-0 text-foreground text-base leading-relaxed"
             />
           </li>
         );

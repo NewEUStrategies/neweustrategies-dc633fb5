@@ -9,12 +9,13 @@ import type { ReactElement } from "react";
 import { safeUrl } from "@/lib/sanitize";
 import { blockAnchor } from "@/lib/blocks/anchors";
 import { looksLikeInlineHtml, safeCssColor } from "@/lib/blocks/inlineHtml";
+import { decorateCmsStatusIcons } from "@/lib/content/cmsInlineIcons";
 import type { BlockRenderer } from "./context";
 import { bool, num, sanitize, str, strList } from "./data";
 
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
-  const safe = fnHtml.get(block.id) ?? str(block.data, "html");
+  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? str(block.data, "html"));
   return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
 };
 
@@ -43,14 +44,21 @@ export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) 
   if (withFn !== undefined) {
     // Aliasy doklejamy do stringa HTML, żeby przy braku aliasów (przypadek
     // dominujący) DOM nagłówka pozostał BAJT W BAJT taki jak dotąd.
-    const html = legacyAnchorsHtml(anchor.legacyIds, anchor.id) + withFn;
+    const html =
+      legacyAnchorsHtml(anchor.legacyIds, anchor.id) + decorateCmsStatusIcons(withFn);
     return <Tag id={id} className={cls} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
   }
   // Nagłówek edytowany w CMS builderze przechowuje INLINE HTML (bold / italic /
   // kolor zaznaczenia). Rozpoznajemy to i sanityzujemy - inaczej czytelnik
   // zobaczyłby dosłowne znaczniki.
   if (looksLikeInlineHtml(text)) {
-    const html = legacyAnchorsHtml(anchor.legacyIds, anchor.id) + sanitize(text);
+    const html =
+      legacyAnchorsHtml(anchor.legacyIds, anchor.id) + decorateCmsStatusIcons(sanitize(text));
+    return <Tag id={id} className={cls} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  if (/✅|❌|⚠️/.test(text)) {
+    const html =
+      legacyAnchorsHtml(anchor.legacyIds, anchor.id) + decorateCmsStatusIcons(sanitize(text));
     return <Tag id={id} className={cls} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return (
@@ -103,11 +111,16 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
 
   const renderItem = (entry: (typeof kept)[number]) => {
     const withFn = fnHtml.get(`${block.id}:item:${entry.i}`);
-    if (withFn !== undefined) return <span dangerouslySetInnerHTML={{ __html: withFn }} />;
+    if (withFn !== undefined)
+      return <span dangerouslySetInnerHTML={{ __html: decorateCmsStatusIcons(withFn) }} />;
     // Pozycje mogą nieść formatowanie inline (<strong>, <em>) z edytora/Worda -
     // renderujemy je jako HTML, żeby znaczniki nie były widoczne jako tekst.
-    if (looksLikeInlineHtml(entry.it))
-      return <span dangerouslySetInnerHTML={{ __html: sanitize(entry.it) }} />;
+    if (looksLikeInlineHtml(entry.it) || /✅|❌|⚠️/.test(entry.it))
+      return (
+        <span
+          dangerouslySetInnerHTML={{ __html: decorateCmsStatusIcons(sanitize(entry.it)) }}
+        />
+      );
     return <>{entry.it}</>;
   };
 
@@ -120,6 +133,7 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
   ): ReactElement => {
     const Tag = isOrdered ? "ol" : "ul";
     const nodes: ReactElement[] = [];
+    let ordinal = top && isOrdered ? start : 1;
     for (let k = 0; k < entries.length; k++) {
       const entry = entries[k];
       if (entry.level !== level) continue;
@@ -131,17 +145,21 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
       }
       const childLevel = childEntries.find((c) => c.level === level + 1) ?? childEntries[0];
       nodes.push(
-        <li key={entry.i} className="my-0 pl-1">
-          {renderItem(entry)}
+        <li key={entry.i} className="cms-list-item" data-list-level={level}>
+          <span className={isOrdered ? "cms-list-number" : "cms-list-bullet"} aria-hidden="true">
+            {isOrdered ? ordinal : ""}
+          </span>
+          <span className="cms-list-content">{renderItem(entry)}</span>
           {childEntries.length > 0 &&
             renderLevel(childEntries, level + 1, childLevel?.ordered ?? isOrdered, false)}
         </li>,
       );
+      ordinal += 1;
       k = j - 1;
     }
     return (
       <Tag
-        className={`my-0 pl-6 ${isOrdered ? "list-decimal" : "list-disc"} marker:text-foreground ${top ? cls : ""}`}
+        className={`cms-content-list ${isOrdered ? "cms-content-list--ordered" : "cms-content-list--unordered"} ${top ? cls : ""}`}
         start={top && isOrdered && start > 1 ? start : undefined}
       >
         {nodes}
@@ -160,8 +178,10 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
 export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
   const text = str(block.data, "text");
   const cite = str(block.data, "cite");
-  const textFn = fnHtml.get(`${block.id}:text`);
-  const citeFn = fnHtml.get(`${block.id}:cite`);
+  const textFnRaw = fnHtml.get(`${block.id}:text`);
+  const citeFnRaw = fnHtml.get(`${block.id}:cite`);
+  const textFn = textFnRaw === undefined ? undefined : decorateCmsStatusIcons(textFnRaw);
+  const citeFn = citeFnRaw === undefined ? undefined : decorateCmsStatusIcons(citeFnRaw);
   const variant = str(block.data, "variant") || "default";
   const palette = str(block.data, "colorPalette") || "neutral";
 
@@ -257,7 +277,7 @@ export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
 
 /** Surowy HTML (sanitizowany, z rozwiniętymi przypisami). */
 export const renderHtml: BlockRenderer = ({ block, fnHtml, cls }) => {
-  const safe = fnHtml.get(block.id) ?? str(block.data, "html");
+  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? str(block.data, "html"));
   return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
 };
 

@@ -618,7 +618,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       // - list-outside + pl-5 (marker poza kolumną tekstu, jedno spójne wcięcie)
       // - zagnieżdżone listy: bez dodatkowego pl (dziedziczą pl-5 z reguły ogólnej),
       //   zmienia się tylko kształt markera (circle/lower-alpha).
-      const proseCls = `cms-elementor-richtext prose prose-sm max-w-none [&_*]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-2 [&_h2]:font-semibold [&_h3]:font-semibold [&_a]:underline ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
+      const proseCls = `cms-rich-content cms-elementor-richtext prose prose-sm max-w-none [&_*]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-2 [&_h2]:font-semibold [&_h3]:font-semibold [&_a]:underline ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
       const colStyle =
         cols > 1 ? ({ columnCount: cols, columnGap: "1.5rem" } as CSSProperties) : undefined;
       // Multi-paragraph HTML (po Enterze pojawia się kolejny <p>) MUSI zachować
