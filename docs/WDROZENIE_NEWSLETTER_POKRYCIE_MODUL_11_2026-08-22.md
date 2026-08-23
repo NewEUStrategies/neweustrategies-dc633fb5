@@ -121,8 +121,9 @@ Agregaty katalogowe (pełna suita):
 ### Pomiar PRZED → PO na TYM SAMYM zbiorze
 
 Obie strony policzone tym samym poleceniem i na **identycznej liście 151 plików**. Stronę PRZED
-odtwarza wyłączenie 38 plików testowych dodanych w tej pracy (`--exclude` na każdym z nich) —
-kod produkcyjny jest po obu stronach ten sam, bo ta praca go nie zmienia.
+odtwarza wyłączenie plików testowych dodanych w tej pracy (`--exclude` na każdym z 38, które
+istniały w chwili pomiaru; dwa ostatnie powstały po nim i tym samym też nie wnosiły do strony
+PRZED nic). Kod produkcyjny jest po obu stronach ten sam, bo ta praca go nie zmienia.
 
 | Miara (MODUŁ 11, 151 plików) | PRZED  | PO         | Δ         |
 | ---------------------------- | ------ | ---------- | --------- |
