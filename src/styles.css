@@ -8476,12 +8476,12 @@ sup.fn-ref > a[id^="fnref-"] {
 .cms-rich-content ul:not(.task-list):not(.contains-task-list)
   ul:not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
-  width: 5px;
-  height: 5px;
+  width: 5px !important;
+  height: 5px !important;
   margin-top: calc(0.5em * var(--lh-body, 1.65) - 2.5px);
-  border-radius: 1px;
-  background: color-mix(in oklab, var(--brand) 30%, transparent);
-  transform: none;
+  border-radius: 1px !important;
+  background: color-mix(in oklab, var(--brand) 30%, transparent) !important;
+  transform: none !important;
 }
 .cms-block-list-editor {
   margin: 0;
