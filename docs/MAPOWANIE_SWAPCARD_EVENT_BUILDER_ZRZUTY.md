@@ -1887,16 +1887,1011 @@ sort_order)` z domyślnymi: `moderator`, `panelist`, `lecturer` („Wykładowcy"
 
 ---
 
-## Partia 11 — (oczekuje na zrzuty)
+## Partia 11 — 2026-08-23 (Exhibitor Marketplace: sprzedaż dodatków partnerom)
 
-Domknięte: cały `Event builder`, cała `In-App registration`, cały `Content`
-(People, Sessions, Exhibitors, Items, Documents & Links, Feed channels, Discussions).
+> **Zakres.** Sam `Exhibitor Marketplace` jest **poza zakresem** (§0.4). Mapuję go,
+> bo pokazuje **mechanizm, którego NES realnie potrzebuje pod inną nazwą**:
+> sprzedaż pakietów partnerskich online, gdzie zakup **nadaje uprawnienie**.
+> Dziś NES sprzedaje pakiety partnerskie ofertą i fakturą; te ekrany pokazują,
+> jak to wygląda jako self-service.
 
-Brakuje wyłącznie modułów operacyjnych i przekrojowych:
+### Zrzut 11.1 — `…/exhibitor-marketplace` · ekran powitalny
 
-1. **`Onsite`** — check-in, skaner, szablony badge'y, druk (moduł wymagany, §0.4).
-2. **`Meetings`** — sloty, limity, matchmaking.
-3. **`Communications`** — sekwencje e-mail, powiadomienia push.
-4. **`Groups & permissions → Manage visibility`** + rozwinięty **`Add condition`**.
-5. **`Session settings`** i **`Manage roles`** (słowniki z 6.2 i 7.1).
-6. **`Analytics`** · **`Overview`** · **`Integrations`** · **`Add-on features`**.
+**Co widać**
+
+- „Generate new revenue by enabling exhibitors to purchase extras directly in the
+  Exhibitor Center, whether Swapcard features such as **Lead Capture** or **in-app
+  Advertising**, or any **on-site services** you offer (e.g. parking spaces or Wi-Fi
+  access)." + `Create marketplace` · `Learn more`.
+- `How does it work?`: **1** `Connect your Stripe account` · **2** `Create & price your
+extras` („Customize pricing for each extra to match your monetization strategy") ·
+  **3** `Track purchase data` („Monitor sales and revenue with real-time purchase
+  insights").
+
+**Mapowanie**
+
+| Swapcard                                                     | NES                                                                                    | Stan | Zadanie |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ---- | ------- |
+| sprzedaż dodatków firmom (self-service)                      | ⛔ moduł wystawców poza zakresem; **ale** pakiety partnerskie są realnym produktem NES | 🟡   | EB-1101 |
+| Stripe jako bramka                                           | **istnieje**: `/admin/billing`, `payment_orders`, `payment_webhook_events`, checkout   | ✅   | —       |
+| „on-site services" (parking, Wi-Fi) jako pozycje sprzedażowe | wzorzec: `/admin/pricing` + `event_ticket_types`                                       | 🟡   | EB-1101 |
+| statystyki sprzedaży w czasie realnym                        | `/admin/monetization`, `/admin/billing`                                                | ✅   | —       |
+
+**Wnioski**
+
+1. Trzy kroki („podłącz Stripe → wyceń dodatki → mierz sprzedaż") to dokładnie
+   ścieżka, którą NES ma już zbudowaną dla subskrypcji i biletów. Gdyby pakiety
+   partnerskie miały wejść do sprzedaży online, **nie powstaje nowy moduł
+   płatności** — powstaje nowy typ pozycji w istniejącym.
+
+### Zrzut 11.2 — modal „Set currency"
+
+**Co widać**
+
+- Ostrzeżenie: „**This currency applies to both Marketplace and In-app registration.
+  Currency changes require support assistance.**"
+- Lista walut (EUR, USD ✓, CAD, AED, GBP, SGD, JPY, SEK, AUD, ZAR, DKK,
+  **PLN** podświetlony, CHF, NOK, …).
+
+**Mapowanie**
+
+| Swapcard                              | NES                                                            | Stan | Zadanie |
+| ------------------------------------- | -------------------------------------------------------------- | ---- | ------- |
+| jedna waluta dla biletów i dodatków   | `events.ticket_currency` (per wydarzenie) + waluty w cennikach | 🟡   | EB-1102 |
+| zmiana waluty **tylko przez support** | brak analogicznej blokady                                      | 🔴   | EB-1102 |
+
+**Wnioski**
+
+1. To ostrzeżenie jest **lekcją dla naszego modelu**, nie tylko ciekawostką:
+   po pierwszej sprzedaży waluta staje się niezmienna, bo kwoty w zamówieniach są
+   historyczne. Nasz `events.ticket_currency` da się dziś zmienić kliknięciem —
+   po sprzedaniu pierwszego biletu to psuje raportowanie. Reguła do wdrożenia:
+   **waluta wydarzenia jest edytowalna tylko dopóki nie istnieje żadne
+   zamówienie**, potem wyłącznie przez migrację (`payment_orders` trzyma
+   `currency` per zamówienie, więc dane są bezpieczne — chodzi o spójność UI).
+2. `ticket_currency` per wydarzenie jest u nas **lepsze** niż jedna waluta na
+   społeczność: kongres w Warszawie sprzedaje w PLN, seminarium w Brukseli w EUR.
+
+### Zrzut 11.3 — `Exhibitor Marketplace` · lista dodatków
+
+**Co widać**
+
+- Banner: „**New Feature Release!** Easily customize the marketplace for your
+  exhibitors. Try it out and share your feedback." + `Provide feedback`.
+- „Offer exhibitors tailored add-ons to enhance their event presence with additional
+  services and products, creating valuable monetization opportunities…"
+- Zakładki: **`Extras`** · **`Orders`** · **`Revenue team`**.
+  Akcje: `Payment settings` · `Marketplace settings` · **`Create an extra`**.
+- Tabela: `Status` · `Extra name` · **`Related permission`** · `Price` · `Units sold`.
+  Dwa wpisy, oba `Disabled`, `0` sprzedanych:
+  **Lead Capture (LC)** → uprawnienie `Lead capture` → **532,90 zł**;
+  **Lead Qualification** → uprawnienie `Lead qualification` → **103,24 zł**.
+
+**Mapowanie**
+
+| Swapcard                                            | NES                                                                                          | Stan               | Zadanie |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------ | ------- |
+| **`Related permission`** — zakup NADAJE uprawnienie | wzorzec istnieje: warstwy członkowskie z flagami funkcji (`tierHasFeature`, `min_tier_rank`) | 🟡 **wzorzec 1:1** | EB-1103 |
+| `Orders` (zamówienia dodatków)                      | `payment_orders`                                                                             | ✅                 | —       |
+| `Revenue team` (zespół sprzedaży / prowizje)        | `crm_leads.owner_id`, lej CRM                                                                | 🟡                 | EB-1104 |
+| `Status: Disabled / Enabled` per pozycja            | `event_ticket_types.visibility` jako analogia                                                | 🟡                 | EB-1101 |
+| `Units sold`                                        | licznik zamówień                                                                             | ✅                 | —       |
+
+**Wnioski**
+
+1. **`Related permission` to najważniejsza rzecz na tym ekranie.** Zakup nie jest
+   tylko transakcją — **nadaje zdolność** (`Lead capture`). To znaczy, że
+   uprawnienia w Swapcardzie mają trzy źródła: grupa, nadpisanie na podmiocie
+   (zrzut 8.9) i **zakup**. Nasz `event_capabilities()` musi to unieść jako
+   czwarty składnik kaskady: `rola platformy × grupa × warstwa × uprawnienia
+kupione`. W repo istnieje precedens — warstwy członkowskie z flagami funkcji
+   (`tierHasFeature`) robią dokładnie to dla użytkownika; tu chodzi o firmę.
+2. Ceny są znaczące: **532,90 zł za Lead Capture** przy „minimum 531,90 zł,
+   matching the Swapcard fee" (zrzut 11.5) i **szacowanej wypłacie 64,53 zł**.
+   Czyli organizator sprzedaje funkcję Swapcarda, oddaje Swapcardowi ~88% ceny
+   i zostawia sobie resztę. To nie jest marketplace organizatora — to **kanał
+   sprzedaży Swapcarda z organizatorem jako pośrednikiem**. Warto to zapisać,
+   bo zmienia ocenę tej funkcji: dla NES wartość ma sprzedaż **własnych** pozycji
+   (pakiet partnerski, panel sponsorowany, stoisko, wejściówki dla obsługi),
+   a nie odsprzedaż cudzych dodatków.
+
+### Zrzut 11.4 — szczegóły dodatku „Lead Capture (LC)" (góra)
+
+**Co widać**
+
+- Nagłówek: `Lead Capture (LC)` · plakietka `0 sold` · `Disabled` · przycisk
+  **`Enable extra`**.
+- Banner: „**Collect payments** — Connect your Stripe account to accept payments for
+  extras." + `Set gateway`.
+- `Basics`: `* Extra name` (`17/50 characters`), `* Description`
+  („Exhibitor members will be able to use the mobile app to scan participants badges,
+  saving their contact information.", `115/500`), `Image`
+  („Manage image visibility on the Marketplace settings"), `Quantity` = `No limit`.
+
+**Mapowanie**
+
+| Swapcard                                        | NES                                                                              | Stan | Zadanie |
+| ----------------------------------------------- | -------------------------------------------------------------------------------- | ---- | ------- |
+| pozycja sprzedażowa (nazwa, opis, obraz, limit) | `event_ticket_types` ma dokładnie ten kształt (nazwa, opis, `quota`, widoczność) | 🟡   | EB-1101 |
+| bramka płatności per wydarzenie                 | `/admin/billing` (globalna) — i **tak jest lepiej**                              | ✅   | —       |
+| `Enable extra` (włącz sprzedaż)                 | `status` / okno sprzedaży                                                        | 🟡   | EB-1101 |
+
+**Wnioski**
+
+1. Kształt pozycji sprzedażowej („nazwa, opis, obraz, limit, cena, widoczność,
+   grupa docelowa") jest **identyczny** z typem wejściówki (zrzut 4.1). To argument,
+   żeby u nas **nie budować drugiej encji**: pakiet partnerski to
+   `event_ticket_types` z `audience ('person','company')` i opcjonalnym
+   `grants_capabilities jsonb`. Jedna tabela, dwa zastosowania — zamiast dwóch
+   równoległych systemów cenowych w jednym wydarzeniu.
+
+### Zrzut 11.5 — szczegóły dodatku (dół): uprawnienia, cena, e-mail po zakupie
+
+**Co widać**
+
+- `Permissions` — „Define the permissions for this extra and choose which group can
+  view it.": `Related permissions` (checkboxy: **Lead capture** ✓, `Lead qualification` ☐);
+  `* Assigned groups`: **Exhibitors** ✓.
+- `Price` — `* Price (before tax)` = `532,9`; `Estimated payout` = **`PLN 64.53`**;
+  link `How fees work`; nota: „**Minimum price set to PLN 531.90, matching the
+  Swapcard fee.**"
+- `Additional settings` — `"Learn more" link` („Add a link so the exhibitor can find
+  out more about this extra").
+- `After purchase email campaign` — „Create an email in the email manager for this
+  extra. Customize it to send more information to your exhibitors about their
+  purchase." + `Create campaign`.
+- `Preview` — podgląd karty dodatku.
+
+**Mapowanie**
+
+| Swapcard                                            | NES                                                                                                   | Stan | Zadanie |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---- | ------- |
+| zakup → nadanie uprawnień (lista)                   | `event_ticket_types.grants_capabilities jsonb` + `event_capabilities()`                               | 🔴   | EB-1103 |
+| `Assigned groups` (kto widzi pozycję)               | widoczność pozycji per grupa                                                                          | 🔴   | EB-1101 |
+| cena przed podatkiem + szacowana wypłata + prowizja | `payment_orders`, Stripe, `/admin/billing-reconcile`                                                  | 🟡   | EB-1105 |
+| **e-mail po zakupie** powiązany z pozycją           | **istnieje**: kampanie i szablony w `/admin/newsletter`, e-maile systemowe, `rsvp-email.functions.ts` | ✅   | EB-1106 |
+| podgląd karty pozycji                               | wzorzec podglądów (`LayoutPreview`)                                                                   | 🟡   | —       |
+
+**Wnioski**
+
+1. „E-mail po zakupie powiązany z pozycją sprzedażową" to wzorzec, który warto
+   przenieść **także na bilety**: kupujesz `Partner` → dostajesz inną wiadomość
+   niż kupujący `Uczestnik` (instrukcja dla obsługi stoiska vs plan dojazdu).
+   NES ma szablony i kampanie; brakuje wyłącznie **powiązania szablonu z typem
+   wejściówki**. Tanie, a widoczne dla każdego uczestnika.
+2. Podatek: pole nazywa się „Price (before tax)". Nasz model trzyma dziś
+   `ticket_price_cents` bez rozstrzygnięcia netto/brutto. Przy sprzedaży pakietów
+   partnerskich firmom (faktura VAT) to **musi** być jawne: `price_cents` +
+   `tax_rate` + `price_is_net boolean`. Inaczej pierwsza faktura dla partnera
+   wymaga ręcznej korekty.
+3. Cały ekran jest ostatecznym potwierdzeniem, że **nie budujemy marketplace'u**,
+   ale trzy jego mechanizmy wchodzą do naszego modelu jako rozszerzenia biletów:
+   `audience ('person','company')`, `grants_capabilities` i `email_template_id`.
+
+---
+
+## Partia 12 — 2026-08-23 (Meetings: spotkania 1-1, slots, locations)
+
+Sidebar `Meetings` rozwija się na: **All meetings** · **Slots** · **Locations** ·
+**Request rules** · **Hosted buyer & Smart Meetings** (`New`).
+
+> **To najważniejsza partia po sesjach.** NES ma networking 1-1 w produkcji, ale
+> **zbudowany na innym modelu** niż Swapcard. Ta różnica jest sedno tej partii.
+
+### Zrzut 12.1 — `…/meetings/schedule` · „All meetings"
+
+**Co widać**
+
+- „Make sure people can meet at the time and place that's convenient for them."
+- Stan pusty: „**No meetings scheduled, make sure you create slots, locations,
+  generate condition and/or add request rules.**" + `Create locations`.
+
+**Mapowanie**
+
+| Swapcard                                                 | NES                                            | Stan | Zadanie |
+| -------------------------------------------------------- | ---------------------------------------------- | ---- | ------- |
+| lista wszystkich spotkań wydarzenia                      | `meeting_bookings` istnieje, **panelu nie ma** | 🔴   | EB-1001 |
+| cztery warunki wstępne (sloty, miejsca, warunki, reguły) | u nas warunkiem jest tylko slot hosta          | 🟡   | EB-1002 |
+
+**Wnioski**
+
+1. Stan pusty wymienia **cztery** rzeczy potrzebne, żeby spotkania w ogóle
+   zadziałały: sloty, miejsca, warunek generowania i reguły zapytań. NES ma
+   pierwsze i (częściowo) trzecie. To dobra lista kontrolna zakresu etapu E6.
+
+### Zrzut 12.2 — `…/meetings/places` · „Create locations"
+
+**Co widać**
+
+- „Create meeting locations to define where your participants can meet.
+  **'Category'** allows you to apply an area (floor, hall, zone) to the room name.
+  **'Meeting capacity'** is the capacity of meetings that can occur **at the same
+  time** for the location. A capacity set to '1' means the location can only hold
+  one meeting at a time."
+- Pola: `Category` (np. „Hall 2", „Level 3") · `* Name` (np. „Blue room", „Table") ·
+  `* Meeting capacity` = `3` · `Virtual` (przełącznik, wyłączony).
+  Przycisk `Create 1 location`.
+
+**Mapowanie**
+
+| Swapcard                                                | NES                                                           | Stan | Zadanie |
+| ------------------------------------------------------- | ------------------------------------------------------------- | ---- | ------- |
+| słownik miejsc spotkań (kategoria + nazwa)              | `meeting_slots.location text` — **wolny tekst, bez słownika** | 🔴   | EB-1003 |
+| **pojemność równoległa miejsca**                        | brak pojęcia; u nas slot = jedno spotkanie                    | 🔴   | EB-1004 |
+| `Virtual` (miejsce zdalne)                              | `meeting_slots.is_public` / link zewnętrzny — nie to samo     | 🔴   | EB-1005 |
+| ten sam słownik lokalizacji co przy sesjach (zrzut 6.2) | jeden słownik `event_locations` dla sesji **i** spotkań       | 🔴   | EB-835  |
+
+**Wnioski**
+
+1. „Pojemność równoległa" to nietrywialna zmiana modelu: u nas slot jest
+   niepodzielny (jeden potwierdzony uczestnik na slot, egzekwowane częściowym
+   indeksem unikalnym + `FOR UPDATE` — wzorzec `rsvp_event`). U Swapcarda
+   **slot × miejsce** tworzy siatkę: przy 40 slotach i 3 stolikach mamy 120
+   równoległych okien. Nasz odpowiednik: `event_meeting_locations.capacity`,
+   a przydział miejsca następuje **przy akceptacji spotkania** (pierwsze wolne
+   miejsce w tym slocie), nie przy tworzeniu slotu.
+2. Rekomendacja: **jeden słownik lokalizacji** dla całego wydarzenia
+   (`event_locations`: kategoria, nazwa, pojemność, wirtualne, sala sesyjna czy
+   stolik networkingowy). Sesja wskazuje lokalizację, spotkanie też. Dwa słowniki
+   („sale sesji" i „miejsca spotkań") rozjadą się przy pierwszej zmianie planu sal.
+
+### Zrzut 12.3 — `…/meetings/places` · lista „Locations"
+
+**Co widać**
+
+- `Search an exhibitor` · `Default meeting location capacity` · `Add locations`.
+- Tabela: `Category` · `Name` (sort) · `Meeting capacity` · **`Exhibitors`** (filtr) ·
+  `Confirmed` · **`Confirmed - past`** · `Pending` · `Canceled` · **`Expired`** ·
+  **`Not held`**. Jeden wiersz testowy (`d` / `d` / `3` / – / zera).
+
+**Mapowanie**
+
+| Swapcard                                                       | NES                                                                  | Stan | Zadanie |
+| -------------------------------------------------------------- | -------------------------------------------------------------------- | ---- | ------- |
+| miejsce **przypisane do firmy** (stoisko jako miejsce spotkań) | brak; po decyzji §0.4: `event_companies` + lokalizacja               | 🔴   | EB-1006 |
+| domyślna pojemność miejsca (ustawienie globalne)               | brak                                                                 | 🔴   | EB-1004 |
+| **statystyki per miejsce** w siedmiu stanach                   | `meeting_bookings.status` ma **dwa** stany: `confirmed`, `cancelled` | 🔴   | EB-1007 |
+
+**Wnioski**
+
+1. Siedem kolumn stanu to **cały cykl życia spotkania**, którego NES nie modeluje:
+   `pending` (zaproszenie czeka), `confirmed`, `confirmed - past` (odbyło się),
+   `canceled`, `expired` (nikt nie odpowiedział na czas), `not held` (nikt nie
+   przyszedł), `draft`. Nasze dwa stany (`confirmed`/`cancelled`) wynikają
+   z modelu „rezerwuję wolny slot hosta" — tam nie ma czego akceptować.
+   **To jest właściwa różnica między produktami** (patrz zrzut 12.5, wniosek 1).
+2. `expired` i `not held` to nie ozdoby raportu: pierwszy mierzy jakość
+   matchmakingu (ile zapytań umiera bez odpowiedzi), drugi frekwencję (ile
+   potwierdzonych spotkań się nie odbyło). Bez nich nie da się poprawić programu
+   networkingowego w kolejnej edycji.
+
+### Zrzut 12.4 — `…/meetings/slots` · lista slotów
+
+**Co widać**
+
+- `Add slots`. Tabela: `Date` (sort) · `Duration` · `Confirmed` · `Pending` ·
+  `Canceled` · `Expired` · `Not held` · **`Draft`**.
+- Cztery wpisy, wszystkie z zerami; widoczne **anomalie danych**:
+  `November 27, 2024 11:00 PM – 11:30 PM` (30 min, rok 2024),
+  `March 27, 2025 12:00 AM – 3:30 PM` → **930 minutes**,
+  `March 27, 2025 12:00 AM – 5:30 PM` → **1050 minutes**,
+  `March 27, 2025 10:00 AM – 10:30 AM` (30 min).
+
+**Mapowanie**
+
+| Swapcard                              | NES                                                                                           | Stan | Zadanie |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ---- | ------- |
+| slot jako wiersz z czasem i długością | `meeting_slots` (`starts_at`, `ends_at`, `host_user_id`, `event_id`, `location`, `is_public`) | ✅   | —       |
+| slot **wydarzenia**, nie hosta        | `meeting_slots.host_user_id` jest **wymagany** — slot zawsze należy do osoby                  | 🔴   | EB-1008 |
+| statystyki per slot                   | jak wyżej — dwa stany                                                                         | 🔴   | EB-1007 |
+
+**Wnioski**
+
+1. Slot o długości **1050 minut** (17,5 godziny) i slot z 2024 roku w wydarzeniu
+   z 2025 to nie ciekawostka, a wskazówka produktowa: **generator slotów bez
+   walidacji produkuje śmieci**, które potem trafiają do uczestnika jako
+   „dostępne terminy". Nasz panel musi: (a) ograniczyć slot do zakresu dat
+   wydarzenia, (b) ostrzegać przy długości powyżej ~2 h, (c) pozwolić na masowe
+   usunięcie partii.
+2. Kluczowa różnica modelowa: u nas slot **należy do hosta**
+   (`meeting_slots.host_user_id NOT NULL`), u Swapcarda slot należy do
+   **wydarzenia** i jest wspólną siatką czasu dla wszystkich. Nasz model jest
+   lepszy dla „umów się z ekspertem", swapcardowy dla „kongres z 200 uczestnikami
+   networkingującymi się między sobą". Rekomendacja: `host_user_id` staje się
+   **opcjonalny** — `NULL` oznacza slot wspólny wydarzenia. Jedna zmiana kolumny
+   otwiera drugi tryb bez rozbijania pierwszego.
+
+### Zrzut 12.5 — modal „Create meeting slots" (generator partii)
+
+**Co widać**
+
+- „Create slots where you want your participants to meet. **Each batch allows you to
+  create several consecutive slots of the same duration**, for which you have to
+  define the date, the start time of the first slot, the end time of the last one,
+  as well as their duration."
+- Dwie partie: `11/26/2025` `9:00 AM` → `7:00 PM`, `30 minutes`;
+  `11/27/2025` `9:00 AM` → `7:00 PM`, `30 minutes`.
+  `Add another batch` · przycisk **`Create 40 slots`**.
+
+**Mapowanie**
+
+| Swapcard                                                        | NES                                                                                       | Stan       | Zadanie |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------- | ------- |
+| **generator partii slotów** (dzień + okno + długość → N slotów) | `create_my_meeting_slot` tworzy **jeden** slot                                            | 🔴         | EB-1009 |
+| licznik w przycisku („Create 40 slots")                         | wzorzec „liczba w przycisku potwierdzenia" jest już opisany w repo (`adminSegment.ts` §4) | ✅ wzorzec | —       |
+
+**Wnioski**
+
+1. **Podsumowanie różnicy modelowej — do decyzji przy E6.** Swapcard i NES
+   rozwiązują dwa różne problemy:
+
+   |                  | NES dziś                           | Swapcard                                                   |
+   | ---------------- | ---------------------------------- | ---------------------------------------------------------- |
+   | kto tworzy sloty | **host** (ekspert, prelegent)      | **organizator** dla całego wydarzenia                      |
+   | jednostka        | slot = jedno spotkanie             | slot × miejsce = siatka okien                              |
+   | inicjacja        | uczestnik **rezerwuje** wolny slot | uczestnik **wysyła zapytanie**, druga strona akceptuje     |
+   | stany            | `confirmed`, `cancelled`           | 7 stanów z `pending`, `expired`, `not held`                |
+   | miejsce          | pole tekstowe na slocie            | słownik miejsc z pojemnością, przydzielany przy akceptacji |
+   | kto z kim        | dowolny uczestnik do hosta         | **reguły zapytań** (grupa × grupa)                         |
+
+   Rekomendacja: **rozszerzyć, nie zastępować**. Cztery zmiany dają parytet
+   bez utraty dzisiejszego trybu:
+   - `meeting_slots.host_user_id` → opcjonalny (`NULL` = slot wspólny wydarzenia)
+     - generator partii (jeden RPC, `generate_series` po czasie),
+   - `event_locations` ze słownikiem, pojemnością równoległą i flagą `virtual`,
+   - `meeting_requests` (zapytanie: od kogo, do kogo, slot preferowany, wiadomość)
+     ze stanami `draft | pending | accepted | declined | expired | cancelled`
+     - `held boolean` (frekwencja),
+   - `meeting_request_rules` (macierz grupa × grupa: kto może zapraszać kogo)
+     — na tym samym silniku warunków co `club_segment_rules`.
+
+2. „Create 40 slots" liczy dokładnie tyle, ile powstanie — dokładnie ta zasada,
+   którą repo ma już zapisaną przy kampaniach segmentowych: liczba w przycisku
+   jest treścią potwierdzenia, bo operacja masowa jest nieodwracalna.
+3. `Hosted buyer & Smart Meetings` (pozycja `New` w sidebarze, bez zrzutu) to
+   program VIP-ów z ustawionymi z góry spotkaniami plus matchmaking. Zostaje
+   **poza zakresem** pierwszej wersji: dla NES sensowniejsze jest „dobre 1-1
+   z rekomendacją tematyczną" (osadzenia wektorowe już są) niż program hosted buyer.
+
+---
+
+## Partia 13 — 2026-08-23 (matching: reguły zapytań, hosted buyer, smart meetings)
+
+### Zrzut 13.1 — `…/meetings/rules` · „Create rule"
+
+**Co widać**
+
+- „Create a request rule to define **who can request meeting (requesters)**, **to whom
+  (invitees)** and **in which locations**. Select all groups if you do not want any
+  restrictions."
+- `Rule name` — „This name is only visible to you".
+- **`Who should meet with whom?`** — „People of groups **Requesters** will be able to
+  send meeting requests to the people **and exhibiting companies** of groups
+  **Invitees**." Dwie kolumny checkboxów (`Exhibitors`, `Speakers`, `Attendees`)
+  z `Select all` nad każdą.
+- **`Where and when should they meet?`** — „Select the locations where participants can
+  meet, as well as the time slots when each location is available."
+  Ostrzeżenie: „Time slots must be created first" + `Add time slots`.
+- **`Meeting request expiration`** — „Define the meeting request expiration time;
+  changes impact only **new** meeting requests. **A 2 to 4-day expiration boosts
+  acceptance rates.**" Radio: `After a time period of` [`3`] [`Day(s)`] /
+  `At meeting start date`.
+
+**Mapowanie**
+
+| Swapcard                                             | NES                                                         | Stan | Zadanie |
+| ---------------------------------------------------- | ----------------------------------------------------------- | ---- | ------- |
+| **macierz kto-może-zapraszać-kogo** (grupa × grupa)  | brak; u nas każdy może rezerwować wolny slot hosta          | 🔴   | EB-1010 |
+| zapraszanie **firm**, nie tylko osób                 | `event_companies` jako adresat zapytania                    | 🔴   | EB-1011 |
+| reguła wiąże grupy **z lokalizacjami i slotami**     | brak                                                        | 🔴   | EB-1012 |
+| **wygaśnięcie zapytania** (dni albo start spotkania) | brak stanu `pending`, więc i wygaśnięcia                    | 🔴   | EB-1013 |
+| „zmiany dotyczą tylko nowych zapytań"                | wersjonowanie reguły albo znacznik na zapytaniu             | 🔴   | EB-1013 |
+| nazwa reguły widoczna tylko dla admina               | `name` + wzorzec „Label (only visible to you)" z zrzutu 3.3 | —    | —       |
+
+**Wnioski**
+
+1. **To jest brakująca oś modelu spotkań.** Trzy wymiary reguły — kto zaprasza,
+   kogo, gdzie i kiedy — plus czas wygaśnięcia. W naszym modelu (`meeting_slots`
+   hosta) żaden z nich nie istnieje, bo rezerwacja jest natychmiastowa i nie ma
+   czego regulować. Propozycja tabeli:
+   `meeting_request_rules(event_id, name, requester_group_ids uuid[],
+invitee_group_ids uuid[], location_ids uuid[], slot_ids uuid[],
+expires_after_hours int NULL, expires_at_meeting_start boolean)`.
+2. Wskazówka „2 do 4 dni podnosi wskaźnik akceptacji" jest **wiedzą produktową
+   z danych** i warto ją skopiować **razem z domyślną wartością**: nasz
+   `expires_after_hours` startuje z 72 (3 dni), a nie z `NULL`. Domyślne „nigdy
+   nie wygasa" oznaczałoby setki wiszących zapytań i martwe siatki slotów.
+3. „Zmiany dotyczą tylko nowych zapytań" to reguła o niezmienności historii:
+   zapytanie zapisuje swój czas wygaśnięcia **w momencie utworzenia**
+   (`meeting_requests.expires_at`), a nie liczy go z aktualnej reguły. Bez tego
+   zmiana reguły unieważnia wysłane zaproszenia — i słusznie Swapcard to podkreśla.
+
+### Zrzut 13.2 — `…/meetings/hosted-buyer` · „Hosted buyer & Smart meetings" (`Add-on`)
+
+**Co widać**
+
+- „Let participants choose who they want to meet, and **our algorithm will generate
+  their best agenda** to optimize business time." + `Get feature`.
+- `Ready for next-level networking?`
+  - **Let participants choose** — „Create a **selection page** where participants can
+    choose their preferred meetings by marking others as **»Highly Interested«** or
+    **»Interested«**".
+  - **Smart meeting scheduling** — „Use AI to generate meetings based on
+    **preferences, availability, and selection criteria**, ensuring an optimized
+    schedule for all participants."
+
+**Mapowanie**
+
+| Swapcard                                                         | NES                                                                                    | Stan | Zadanie |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---- | ------- |
+| strona wyboru preferencji („chcę poznać te osoby")               | brak; wzorzec zbliżony: `/profile/interests`, `customize-interests`                    | 🔴   | EB-1014 |
+| dwa poziomy zainteresowania (`Highly Interested` / `Interested`) | waga preferencji                                                                       | 🔴   | EB-1014 |
+| algorytm generujący optymalną agendę spotkań                     | brak; **to problem optymalizacyjny**, nie „AI"                                         | 🔴   | EB-1015 |
+| rekomendacje „kogo poznać"                                       | osadzenia wektorowe (`club_thread_embeddings`), `search_companies_public`, scoring CRM | 🟡   | EB-1016 |
+
+**Wnioski**
+
+1. **Nazwijmy rzecz po imieniu: „Smart meeting scheduling" to nie AI, a
+   przydział dwustronny** (wariant problemu skojarzeń / stable matching
+   z ograniczeniami: pojemność slotów, pojemność miejsc, preferencje z wagami,
+   dostępność obu stron, limit spotkań na osobę). To zadanie algorytmiczne
+   o znanych rozwiązaniach — i to jest dobra wiadomość, bo znaczy, że nie
+   potrzebujemy modelu językowego, tylko dobrze postawionego solvera.
+2. Dla NES sensowna jest **wersja lekka**, wprost na naszych danych:
+   uczestnik zaznacza preferencje (dwa poziomy), a algorytm proponuje agendę
+   spotkań, którą **człowiek zatwierdza**. Rekomendacje „kogo poznać" mamy
+   na czym oprzeć: wspólne tematy (`topics`), specjalizacje, osadzenia wektorowe,
+   sektor firmy. Kolejność prac: najpierw zapytania i reguły (E6), preferencje
+   i przydział dopiero po pierwszym kongresie na żywych danych — bez danych
+   o akceptacjach solver jest zgadywaniem.
+3. `Hosted buyer` w wersji Swapcarda to program VIP (kupujący z opłaconym
+   przyjazdem i narzuconym planem spotkań). Dla NES to **nie ten produkt**:
+   analogiem jest „gość zaproszony" z gwarantowanymi rozmowami, ale bez
+   ekonomii hosted buyer. Zostaje poza zakresem.
+
+### Zrzuty 13.3–13.5 — materiał wideo: konfiguracja strony wyboru
+
+**Co widać** (trzy kadry z filmu instruktażowego)
+
+- **13.3 `Define access and display groups`** — „The meeting selection page lets
+  participants choose who they'd like to meet."
+  `Who can access the page?` → wybór grup (`Exhibitors`, `Speakers`, `Attendees`,
+  **`Buyers`**, **`Sellers`**); `Who is displayed on the page?` → wybór grup.
+  Napis w filmie: „Define who can meet whom, when, and where".
+- **13.4** konfiguracja strony: `What is the page's name?` = **„Meet buyers"**,
+  kolor `#CF386B`, **paleta ~50 ikon**, `Button background image`
+  (600×200 px, ≤300 kB); `Which filters should be available?` → `Industry`, `Size`,
+  `Location`, `Job Function`, `Purchase role`… („Select the fields you want displayed
+  as search filters. You can create new ones and manage their order in the
+  **custom fields settings**"). Napis: „with matching custom rules on category".
+- **13.5 `Define meeting times and locations`** — `When should they meet?` →
+  siatka slotów per dzień (30-minutowe kafle 9:00–18:30, część włączona, część nie),
+  dni jako rozwijane sekcje z checkboxem (`Monday, September 15, 2030`,
+  `Tuesday, September 16`, `Wednesday, September 17`). Napis: „and give preference to
+  your top VIP buyers".
+
+**Mapowanie**
+
+| Swapcard                                                                        | NES                                                                              | Stan | Zadanie |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---- | ------- |
+| strona wyboru jako **strona wydarzenia** (nazwa, kolor, ikona, obraz przycisku) | `event_pages` + builder (§0.1, §4.7) — **dokładnie ten mechanizm**               | 🟡   | EB-1014 |
+| kto ma dostęp / kto jest wyświetlany (dwie listy grup)                          | macierz widoczności (§7) + `event_capabilities()`                                | 🔴   | EB-306  |
+| **filtry z pól własnych** (`Industry`, `Size`, `Job Function`…)                 | `event_custom_field_defs` z `is_filter` (§4.12) — reguła „tylko pola słownikowe" | 🟡   | EB-832  |
+| grupy `Buyers` / `Sellers` (poza trzema systemowymi)                            | `event_groups` z własnymi grupami redakcji                                       | 🔴   | EB-301  |
+| włączanie **pojedynczych slotów** w siatce dni                                  | `meeting_slots` + flaga aktywności per slot                                      | 🔴   | EB-1012 |
+| paleta ~50 ikon dla strony                                                      | `/admin/icons` + `IconPackSync` — **mamy bogatszą**                              | ✅   | —       |
+
+**Wnioski**
+
+1. Strona wyboru spotkań **nie jest osobnym silnikiem** — to strona wydarzenia
+   z nazwą, ikoną, kolorem i widgetem („kogo chcesz poznać"). Trzeci raz to samo
+   potwierdzenie §0.1: wszystko, co Swapcard nazywa „stroną", u nas jest wierszem
+   w `pages` + widgetem. Nowy jest wyłącznie **widget preferencji spotkań**.
+2. `Buyers` i `Sellers` na liście grup to dowód, że grupy systemowe są tylko
+   punktem startu — redakcja tworzy własne (u nas np. `Delegaci`, `Prasa`,
+   `Instytucje`, `Młodzi liderzy`). Potwierdza `is_system` + `Add a group` z §4.3.
+3. Filtry katalogu pochodzą **z tego samego słownika pól własnych**, co pola
+   profilu i sesji (§4.12). To ostateczne potwierdzenie decyzji o **jednym
+   mechanizmie pól własnych** dla wszystkich encji wydarzenia — czwarte miejsce,
+   w którym Swapcard sięga po ten sam słownik.
+
+---
+
+## Partia 14 — 2026-08-23 (Communications: e-maile i powiadomienia)
+
+Sidebar `Communications` rozwija się na: **Emails** · **Notifications**.
+
+### Zrzut 14.1 — `…/emails` · kampanie (góra)
+
+**Co widać**
+
+- „Manage and personalize attendee communications. **Target specific groups** with
+  customized content, ensuring timely, relevant information to boost engagement…"
+- Akcje: `Email templates` · `Email header` · **`Create a campaign`**.
+- **`Campaign for Registration`** (z ikoną „i") → tabela: `Status` · `Subject` ·
+  `Date` · `Type` · `Sent` · `Opened` · `Clicked`.
+  Wiersz: `Disabled` · „Registration confirmation" · – · **`Registration`** · – · – · –
+- **`Campaign for Attendees`** z plakietką grupy `Attendees` + `Create email`:
+  - „Curious about who you'll meet?" · `Nov 17, 2024 · 9:00 AM (CEST)` · **`Continuous`**
+  - „Have you joined your event community?" · `Nov 24` · `One-time`
+  - „It's almost go-time! Are you ready?" · `Nov 26` · `One-time`
+  - „Let's keep the momentum going!" · `Nov 28` · `One-time`
+    (wszystkie `Disabled`)
+
+**Mapowanie**
+
+| Swapcard                                                           | NES                                                                                                           | Stan               | Zadanie |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------ | ------- |
+| kampania **per grupa wydarzenia**                                  | `newsletter_campaigns.audience_filter jsonb` — wystarczy `{ event_id, group_ids }`                            | 🟡 **wzorzec 1:1** | EB-1107 |
+| trzy typy wysyłki: `Registration` / `Continuous` / `One-time`      | `newsletter_campaigns.status` + `scheduled_at`; brak typu „ciągła"                                            | 🟡                 | EB-1108 |
+| statystyki `Sent` / `Opened` / `Clicked`                           | `newsletter_campaign_events` (+ widoki `newsletter_campaign_engagement`, `newsletter_deliverability_metrics`) | ✅                 | —       |
+| gotowa **sekwencja cyklu życia** (4 e-maile: przed, w trakcie, po) | brak gotowych sekwencji; szablony systemowe istnieją                                                          | 🔴                 | EB-1109 |
+| `Email templates` / `Email header`                                 | `/admin/newsletter/email-content`, `/admin/newsletter/system-emails`, `/admin/newsletter/email-preview`       | ✅                 | —       |
+
+**Wnioski**
+
+1. **Najlepszy stosunek wartości do pracy w całej partii:** `audience_filter jsonb`
+   w `newsletter_campaigns` już istnieje, więc „kampania do grupy Prelegenci tego
+   wydarzenia" to **filtr, nie nowy moduł**. Praca: rozszerzyć filtr o
+   `event_id` + `group_ids` i dodać ekran kampanii w studiu wydarzenia,
+   który linkuje do istniejącego edytora.
+2. Czteroelementowa sekwencja („poznaj uczestników" → „dołącz do społeczności" →
+   „już prawie start" → „utrzymajmy tempo") to **gotowy scenariusz komunikacji**,
+   który NES może skopiować jako **preset rodzaju wydarzenia** (§5,
+   `event_types.default_features`). To wiedza operacyjna warta więcej niż kod.
+3. Typ `Continuous` (wysyłka ciągła — każdy nowy zarejestrowany dostaje e-mail
+   po zapisie) to u nas **brakujący tryb**: dzisiejsze kampanie są jednorazowe
+   z `scheduled_at`. Wzorzec do dodania: `trigger ('scheduled','on_register',
+'before_event','after_event')` z przesunięciem w godzinach.
+
+### Zrzut 14.2 — kampanie dla wystawców i prelegentów
+
+**Co widać**
+
+- **`Campaign for Exhibitors`** [`Exhibitors`]: „Want qualified leads and a higher
+  ROI?" (`Continuous`), „Qualified prospects are waiting to meet you!",
+  „Your prospects have the app – do you?", „Stay in touch with your new contacts."
+- **`Campaign for Speakers`** [`Speakers`]: „Your audience looks forward to your
+  session!" (`Continuous`), „Want to see who's attending your session?",
+  „Are you engaging with your audience?", „Make the most of your new connections."
+
+**Mapowanie**
+
+| Swapcard                                         | NES                                    | Stan | Zadanie |
+| ------------------------------------------------ | -------------------------------------- | ---- | ------- |
+| osobna sekwencja per grupa (3 grupy × 4 e-maile) | jedna kampania = jeden filtr odbiorców | 🟡   | EB-1107 |
+| treść dopasowana do **roli**, nie do wydarzenia  | j.w.                                   | 🟡   | EB-1109 |
+
+**Wnioski**
+
+1. Trzy sekwencje po cztery e-maile pokazują, że komunikacja jest zorganizowana
+   **wokół grupy, nie wokół wydarzenia**: prelegent dostaje „twoja publiczność
+   czeka", partner „leady i ROI", uczestnik „poznaj innych". To ta sama zasada,
+   co przy typach biletów (zrzut 3.5): **grupa jest osią całego produktu** —
+   uprawnień, widoczności, komunikacji i sprzedaży.
+2. Dla NES praktyczny wniosek: presety rodzajów wydarzeń powinny nieść **domyślne
+   sekwencje per grupa** w dwóch językach. Redakcja włącza i edytuje, a nie pisze
+   od zera przy każdym kongresie.
+
+### Zrzut 14.3 — edytor e-maila · zakładka „Properties"
+
+**Co widać**
+
+- Nagłówek: „Your audience looks forward to your session!" + `Save as template` ·
+  `Send test email`.
+- „Modify the template by selecting the content you wish to change."
+- Zakładki: **`Properties`** · `Content` · `Blocks`; `Preview`: `Desktop` / `Mobile`.
+- Podgląd e-maila: logo Swapcard, „European Strategies Congress", „Hello Jane,
+  You've been added to the event app for **European Strategies Congress** as a
+  speaker… **ACCESS MY PROFILE**", sekcja „Highlight your profile".
+- `Properties`: `* Subject`; `* From (sender's name)` = **`{{{ event_name }}}`**;
+  `* Email sending date` = `11/17/2024, 09:00 AM` z błędem walidacji:
+  „**The selected date has passed. Please define the hour first.**"; `Email ID`.
+
+**Mapowanie**
+
+| Swapcard                                        | NES                                              | Stan | Zadanie |
+| ----------------------------------------------- | ------------------------------------------------ | ---- | ------- |
+| edytor z podglądem desktop/mobile               | `/admin/newsletter/email-preview` (dual preview) | ✅   | —       |
+| `Save as template` / `Send test email`          | szablony + test w module newslettera             | ✅   | —       |
+| nadawca jako **zmienna** (`{{{ event_name }}}`) | `from_name` w kampanii (wartość stała)           | 🟡   | EB-1110 |
+| walidacja daty w przeszłości                    | wzorzec walidacji w panelu                       | 🟡   | EB-1111 |
+| `Email ID` widoczny                             | j.w. `Event ID` / `Internal ID` (EB-111, EB-808) | 🔴   | EB-808  |
+
+**Wnioski**
+
+1. Nadawca jako zmienna (`{{{ event_name }}}`) to drobiazg z realnym skutkiem:
+   e-mail przychodzi od „European Strategies Congress", a nie od „NES Newsletter".
+   Przy kilku wydarzeniach rocznie to różnica w otwarciach. U nas `from_name`
+   istnieje — brakuje **interpolacji zmiennych** w tym polu.
+2. Komunikat „The selected date has passed. Please define the hour first." jest
+   **złym** komunikatem (nie mówi, co zrobić z datą) — i to dobra przestroga:
+   nasze walidacje mają nazywać poprawkę, nie problem („wybierz datę po dzisiaj").
+
+### Zrzut 14.4 — edytor e-maila · zakładka „Content"
+
+**Co widać**
+
+- `Image type` = `Default email header image`; `Redirection when clicking on image`
+  = **`Event Home`** (lista stron aplikacji); `Title type` = `Event name`.
+- RTE z **tagami scalającymi jako chipami**: „Hello [`First name`] , You've been added
+  to the event app for [`Event name`] as a speaker. Join the app to **increase your
+  visibility** and **start engaging with your audience**."
+- `Redirection when clicking on button` = `Event Home`; `Button text` = `Access My Profile`.
+
+**Mapowanie**
+
+| Swapcard                                               | NES                                            | Stan | Zadanie |
+| ------------------------------------------------------ | ---------------------------------------------- | ---- | ------- |
+| **tagi scalające jako chipy** (nie `{{surowy_tekst}}`) | e-maile systemowe mają zmienne; UI chipów brak | 🟡   | EB-1112 |
+| **przekierowanie z listy stron aplikacji** (deep link) | brak; u nas linki wpisuje się ręcznie          | 🔴   | EB-1113 |
+| `Title type` (nazwa wydarzenia / własny)               | j.w.                                           | 🟡   | EB-1112 |
+
+**Wnioski**
+
+1. Chip zamiast `{{first_name}}` to poważna różnica w użyteczności: redakcja nie
+   psuje składni, bo nie widzi składni. Przy dwóch językach i kilku szablonach to
+   oszczędza realne błędy („Hello {{firstname}}" wysłane do 500 osób).
+2. **Przekierowanie wybierane z listy stron wydarzenia** to konsekwencja tego, że
+   strony są encją (`event_pages`, §4.7): e-mail linkuje do „Agenda" albo „Prelegenci"
+   bez wklejania URL-a. U nas ten sam mechanizm domknie się sam, gdy powstaną
+   `event_pages` — wystarczy pole `redirect_page_id` w kampanii zamiast wolnego URL.
+
+### Zrzut 14.5 — `…/notifications` · „Notifications scheduler"
+
+**Co widać**
+
+- „Send timely and relevant notifications about your content or updates to keep people
+  informed and engaged." + `Learn how to increase your audience interaction` +
+  **`Schedule your first notification`**.
+- `How does it work?`: **1** `Select the redirection` („Select a page to redirect your
+  users to when they click on your notification. Multiple options are available for you
+  to highlight your content.") · **2** `Set the target` („Target specific people by
+  **custom field, groups** and more to make sure you reach the right audience.") ·
+  **3** `Plan the date & time` („Schedule your notifications in advance to be ready even
+  before your event starts.").
+
+**Mapowanie**
+
+| Swapcard                               | NES                                                                                                     | Stan     | Zadanie |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------- | ------- |
+| harmonogram powiadomień push           | **istnieje**: `push_subscriptions`, `notifications`, Web Push (VAPID), `/admin/community/notifications` | ✅ rdzeń | EB-1114 |
+| przekierowanie na stronę wydarzenia    | `event_pages` + deep link (jak w e-mailu)                                                               | 🔴       | EB-1113 |
+| celowanie **po polu własnym i grupie** | `event_custom_field_values` + `event_groups` + silnik warunków (`club_segment_rules`)                   | 🟡       | EB-1115 |
+| planowanie z wyprzedzeniem             | wzorzec: `pg_cron` (`run_event_reminders`), harmonogram publikacji                                      | ✅       | —       |
+
+**Wnioski**
+
+1. Wszystkie trzy klocki powiadomień NES ma: Web Push z VAPID, tabelę powiadomień,
+   panel powiadomień społeczności i `pg_cron` do wysyłek zaplanowanych. Brakuje
+   **jednego ekranu w studiu wydarzenia**, który spina: cel (grupa/pole własne) +
+   treść + strona docelowa + czas.
+2. Powiadomienie i e-mail mają **ten sam trójkąt** (cel, treść, przekierowanie,
+   czas). Rekomendacja: jeden ekran „Komunikacja" z dwiema kartami kanału zamiast
+   dwóch osobnych modułów — inaczej redakcja poda dwa różne linki w e-mailu i pushu
+   o tym samym wydarzeniu.
+3. Reguła praktyczna do zapisania: powiadomienia push o sesji („twoja sesja
+   startuje za 15 minut") powstają **z danych sesji** (§4.2), a nie z ręcznego
+   harmonogramu. Ręczne planowanie zostawiamy dla komunikatów organizacyjnych.
+
+---
+
+## Partia 15 — 2026-08-23 (Onsite: leady, badge'e, skanowanie, checkpointy, self check-in)
+
+Sidebar `Onsite`: **Lead generation** 💎 · **Badge templates** · **Session scanning** 💎 ·
+**Checkpoints** 💎 · **Self check-in** 💎 (💎 = dodatek płatny u Swapcarda).
+
+> **Decyzja §0.4: onsite budujemy.** Zamawiający potwierdził: „Tak, musimy stworzyć
+> moduły". Ta partia jest więc nie tylko mapowaniem, ale **projektem własnego
+> systemu skanowania** — sekcja 15.6 poniżej opisuje go wprost.
+
+### Zrzut 15.1 — `…/lead-generation` · „Lead generation"
+
+**Co widać**
+
+- „Allow your attendees **and exhibitors** to collect valuable leads, enhancing
+  networking opportunities and optimizing event outcomes with our intuitive badge
+  scanning."
+- Dwie karty `Add-on`: **Lead capture** („Use the app to scan participant badges for
+  simple lead collection and sharing." + `Get feature`) i **Lead qualification**
+  („…giving them a way to qualify leads by criteria they define." + `Get feature`).
+- Baner: „**Boost revenue by selling extras in the marketplace!**" + `Set marketplace`.
+
+**Mapowanie / wnioski**
+
+1. Nowa informacja wobec partii 2: leady zbierają **także uczestnicy**, nie tylko
+   firmy („attendees and exhibitors"). To zmienia model: `event_leads.owner` może być
+   osobą albo firmą. U nas: `event_leads(owner_person_id NULL, owner_company_id NULL,
+CHECK (num_nonnulls(owner_person_id, owner_company_id) = 1))`.
+2. Skan „uczestnik → uczestnik" to w istocie **wymiana wizytówek**, a NES ma już
+   sieć kontaktów (`connections`, `network.tsx`, stopień oddalenia). Rekomendacja:
+   skan między uczestnikami tworzy **połączenie w sieci kontaktów**, a nie leada
+   w CRM. Lead w CRM powstaje wyłącznie przy skanie **firma → uczestnik**, i tylko
+   za zgodą (§4.8).
+
+### Zrzut 15.2 — `…/registration/badge-templates` · „Default badge" (edytor badge'a)
+
+**Co widać**
+
+- Nagłówek: `Default badge` + plakietka `Default`; `Back to badge templates`.
+- **Podgląd badge'a w skali 1:1** (kartka A6/A5 pionowa, układ do złożenia na pół):
+  - u góry **grafika nagłówkowa** wydarzenia (okładka „Geopolityczna Gra Mocarstw"),
+  - `First name Last name` (duża czcionka), `Job title`, **`Company`** (pogrubione),
+  - **kod QR**,
+  - pasek **logotypów partnerów** (trzy bloki: „PARTNERZY HONOROWI", „PARTNERZY
+    MEDIALNI", „PARTNERZY MERYTORYCZNI"),
+  - w prawej kolumnie: „Badge generated by **swapcard**",
+  - na dole **odbicie lustrzane** treści (druga strona po złożeniu) + instrukcja
+    „How to double fold your badge" z trzema miniaturami.
+- Panel prawy **`Badge customization`**: „Personalize your badge template. **Default
+  badge is associated to all tickets which haven't a template associated.**"
+  Zakładki: **`General`** · **`Design`** · **`Fields`**.
+  W `General`: `* Badge template name` = `Default badge`.
+
+**Zrzut 15.3 — ten sam edytor, panel elementu `Picture`**
+
+- Panel prawy: **`Picture`** (strzałka powrotu, menu „…"):
+  `Header image` (podgląd paska logotypów partnerów),
+  **`Width`** = `%` / `100` (jednostka wybierana z listy),
+  **`Alignment`** = `Center`, **`Distance from previous (cm)`** = `0,54`.
+- Na podglądzie badge'a **zaznaczony element** z etykietą wymiaru `0.54(cm)`
+  i ramką selekcji.
+- Stopka panelu: `← Previous field` · `Next field →`.
+
+**Mapowanie**
+
+| Swapcard                                                    | NES                                                                                            | Stan       | Zadanie |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------- | ------- |
+| edytor badge'a z podglądem 1:1 i selekcją elementów         | **builder istnieje** (sekcja→kolumna→widget, `@dnd-kit`), ale nie dla nośnika drukowanego w cm | 🟡         | EB-1206 |
+| jednostki **fizyczne** (cm) i szerokość w %                 | builder operuje na px/%/rem — brak jednostek druku                                             | 🔴         | EB-1207 |
+| szablon domyślny + szablon **per typ biletu**               | `event_badge_templates.is_default` + `event_ticket_types.badge_template_id`                    | 🔴         | EB-1208 |
+| pola z danych osoby (imię, stanowisko, firma)               | `event_people` (§4.11)                                                                         | 🔴         | EB-1206 |
+| kod QR z numerem biletu                                     | `src/lib/events/ticketCode.ts` + QR **już istnieje**                                           | ✅         | —       |
+| pasek logotypów partnerów na badge'u                        | `event_sponsors` + `crm_companies.logo_url`                                                    | 🟡         | EB-1209 |
+| układ „do złożenia na pół" (druk dwustronny w jednym pliku) | brak                                                                                           | 🔴         | EB-1210 |
+| nawigacja `Previous field` / `Next field`                   | wzorzec edytora właściwości w builderze                                                        | ✅ wzorzec | —       |
+
+**Wnioski**
+
+1. **Badge builder to nie builder stron.** Różnica jest zasadnicza: nośnik ma
+   fizyczne wymiary, jednostki w centymetrach, margines bezpieczny drukarki
+   i wymóg deterministycznego renderu (ten sam PDF na każdej drukarce).
+   Rekomendacja: **osobny, wąski edytor** z pionową listą elementów
+   (obraz nagłówka → imię i nazwisko → stanowisko → firma → QR → logotypy →
+   stopka), każdy z: widoczność, szerokość (% lub cm), wyrównanie, odstęp od
+   poprzedniego (cm), rozmiar i grubość czcionki. **Bez swobodnego pozycjonowania
+   XY** — bo to gwarantuje, że badge zawsze się zmieści i wydrukuje.
+   Wyjście: HTML→PDF w rozmiarze fizycznym (`@page` + `mm`), z podglądem 1:1.
+2. Układ „złóż na pół" jest praktyczny (identyfikator czytelny z obu stron
+   w smyczy) i tani: to ten sam blok obrócony o 180°, generowany automatycznie
+   z przełącznika `double_fold boolean`.
+3. „Domyślny badge dotyczy wszystkich biletów bez własnego szablonu" to reguła
+   dziedziczenia identyczna z resztą modułu — zapisujemy jako
+   `event_ticket_types.badge_template_id NULL = szablon domyślny wydarzenia`.
+
+### Zrzut 15.4 — `…/onsite/sessions` · „Session scanning" (`Add-on`)
+
+**Co widać**
+
+- „Scan attendee badges at the **entrance or exit** of a session to **control access**
+  or **track attendance** with SwapAccess App." + `Get feature`.
+- `How does it work?`: **1 Attendance tracking** („Scan participant badges at the
+  entrances or exits of sessions to control access and measure attendance") ·
+  **2 Access control** („Manage access with precision… Ensure only authorized attendees
+  enter specific sessions or areas") · **3 Data driven insights** („Analyze attendance
+  patterns, session popularity, and participant flow to optimize future events").
+
+### Zrzut 15.5 — `…/self-check-in` · „Self check-in and badge printing" (`Add-on`)
+
+**Co widać**
+
+- „**Swapcard GO** delivers all the necessary equipment to easily allow people with an
+  In-App registration ticket to do self check-in and have their badge automatically
+  printed." + `Get feature` + wideo.
+- `How does it work?`: **1 Use In-App registration** („Self Check-in only works for
+  people registered with In-App Registration") · **2 Request a Swapcard GO box**
+  („Everything you need will be delivered to you" + `Request a box`) ·
+  **3 Use SwapAccess** („Generate a login code for accessing the SwapAccess app on the
+  **iPads** included in your Swapcard GO box").
+
+### Zrzut 15.x — `Checkpoints` (treść przekazana przez zamawiającego)
+
+- „**Unlock the power of Checkpoints** — Track or control access to any part of your
+  event with badge scanning checkpoints with SwapAccess App." + `Get feature`.
+- `How does it work?`: **1 Create checkpoints** („Create as many checkpoints as you
+  want to monitor or track access to certain areas of your event") ·
+  **2 Create SwapAccess credentials** („Set up credentials to login to the SwapAccess
+  App. **These credentials can be used to log in on multiple devices**") ·
+  **3 Scan with SwapAccess** („Download the SwapAccess app and scan attendees' badges
+  **at the entrance and exit** of your checkpoints").
+
+### 15.6 — Projekt własnego systemu skanowania NES (na życzenie zamawiającego)
+
+Trzy warstwy Swapcarda (`Checkpoints` + `Session scanning` + `Self check-in`)
+sprowadzają się do **jednego modelu**: punkty kontroli, poświadczenia urządzeń
+i zdarzenia skanu. Propozycja dla NES — **bez aplikacji natywnej i bez pudełka
+ze sprzętem**:
+
+```sql
+-- Punkt kontroli: wejście na wydarzenie, wejście na salę, sesja, strefa VIP,
+-- catering, stoisko partnera. Sesja NIE jest osobnym bytem - jest kotwicą.
+event_checkpoints (
+  id, tenant_id, event_id,
+  name_pl/name_en, kind text
+    CHECK (kind IN ('event_entry','session','zone','catering','company_booth')),
+  session_id uuid NULL → event_sessions,      -- gdy kind = 'session'
+  company_id uuid NULL → crm_companies,       -- gdy kind = 'company_booth'
+  location_id uuid NULL → event_locations,
+  direction_mode text NOT NULL DEFAULT 'in_out'
+    CHECK (direction_mode IN ('in_only','in_out')),
+  access_mode text NOT NULL DEFAULT 'track'
+    CHECK (access_mode IN ('track','control')), -- mierz frekwencję / wpuszczaj
+  allowed_group_ids uuid[],                     -- kto ma prawo wejść (gdy 'control')
+  allowed_ticket_type_ids uuid[],
+  capacity int,                                 -- ilu jednocześnie w środku
+  is_active boolean NOT NULL DEFAULT true
+)
+
+-- Poświadczenie URZĄDZENIA, nie osoby: jeden kod na bramkę, działa na wielu
+-- urządzeniach, wygasa z wydarzeniem. Bez zakładania kont wolontariuszom.
+event_scanner_credentials (
+  id, tenant_id, event_id, checkpoint_id NULL,  -- NULL = wszystkie punkty
+  label text,                                   -- „Bramka główna", „Sala Blue"
+  code_hash text NOT NULL,                      -- hash kodu (nigdy jawny!)
+  scopes text[] NOT NULL DEFAULT '{checkin}',   -- checkin | lead | badge_print
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  created_by, created_at
+)
+
+-- Zdarzenie skanu. Idempotencja: ten sam człowiek, ten sam punkt, ten sam
+-- kierunek w oknie 60 s = jeden wiersz (podwójne piknięcie przy bramce).
+event_scans (
+  id, tenant_id, event_id, checkpoint_id, person_id → event_people,
+  direction text CHECK (direction IN ('in','out')),
+  scanned_at timestamptz NOT NULL DEFAULT now(),
+  credential_id → event_scanner_credentials,
+  device_id text,                               -- z przeglądarki skanera
+  result text CHECK (result IN ('granted','denied_group','denied_ticket',
+                                'denied_capacity','denied_duplicate','unknown_code')),
+  offline_queued_at timestamptz,                -- czas skanu na urządzeniu
+  UNIQUE (checkpoint_id, person_id, direction, scanned_at)
+)
+```
+
+Sześć decyzji projektowych, które warto zapisać teraz:
+
+1. **Skaner to PWA, nie aplikacja natywna.** Kamera przez `getUserMedia` +
+   `BarcodeDetector` (z fallbackiem na bibliotekę JS) działa na dowolnym telefonie
+   wolontariusza. Zero App Store, zero pudełka ze sprzętem, zero kosztu urządzeń.
+2. **Kolejka offline jest wymogiem, nie opcją.** Sala kongresowa to miejsce bez
+   zasięgu. Skan zapisuje się lokalnie (IndexedDB) ze znacznikiem
+   `offline_queued_at` i synchronizuje przy powrocie sieci; serwer rozstrzyga
+   duplikaty i przekroczenie pojemności. Bez tego bramka staje się kolejką.
+3. **Poświadczenie należy do urządzenia, nie do osoby** — dokładnie jak
+   u Swapcarda („can be used to log in on multiple devices"). Wolontariusz nie
+   dostaje konta w platformie, tylko kod na jedno wydarzenie z terminem ważności.
+   To rozstrzyga pytanie otwarte §10.1 dokumentu nadrzędnego.
+4. **Dwa tryby punktu: mierzę albo wpuszczam.** `track` zapisuje przejście
+   i nigdy nie blokuje (frekwencja sesji). `control` sprawdza grupę, typ biletu
+   i pojemność, i **odmawia** z konkretnym powodem (`result`), żeby obsługa
+   wiedziała, co powiedzieć człowiekowi w kolejce.
+5. **Self check-in to ta sama PWA w trybie kiosku** (tablet na stojaku,
+   wyszukiwanie po nazwisku/e-mailu lub skan kodu z e-maila) + druk badge'a
+   z szablonu (§15.3) na drukarkę etykiet przez zwykły dialog druku. Nie
+   potrzebujemy „pudełka" — potrzebujemy poprawnego PDF-a w rozmiarze nośnika.
+6. **QR na badge'u nie może być identyfikatorem osoby.** Kod biletu z
+   `ticketCode.ts` jest losowy i nieodwracalny — skan wymaga zapytania do serwera,
+   więc zgubiony badge nie ujawnia niczego o właścicielu. Tę właściwość mamy
+   już dziś i trzeba jej **nie zepsuć** przy wystawianiu QR na wydruk.
+
+---
+
+## Partia 16 — 2026-08-23 (Analytics: dashboard i raporty)
+
+### Zrzut 16.1 — `…/analytics` · „Dashboard"
+
+**Co widać**
+
+- „Insightful metrics and analytics to better understand your audience and measure
+  your ROI." + `Learn how`.
+- Baner: „**You are seeing dummy data on this dashboard.**" + `Show my event data`.
+- Sekcja **`In-App registration`** — cztery kafle: `48,820 Registered` ·
+  `28,501 Checked-in` · `350 Canceled*` · `15 Abandoned` (`Add-on`).
+- Sekcja **`Paid tickets*`** — cztery kafle: `349 Paid tickets sold` ·
+  `$4,890.00 Total revenue` · `$522.00 Total refunds` · `$350.00 Total balance due`.
+- Nota: „\*Group filtering is not considered for the these metrics."
+- **`Registration over time`** — przełącznik `Confirmed registrations` /
+  `All registrations`, wykres liniowy z tooltipem (`Jun 22 — Registration over
+time: 10000`), oś Y `0 … 34,000`, oś X `Jun 14 … Jun 30`.
+
+**Mapowanie**
+
+| Swapcard                                                   | NES                                                            | Stan                         | Zadanie |
+| ---------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------- | ------- |
+| kafle rejestracji (zapisani, obecni, anulowani, porzuceni) | `event_registrations` + `event_scans` (§15.6)                  | 🔴                           | EB-1401 |
+| kafle sprzedaży (sztuki, przychód, zwroty, saldo)          | `payment_orders`, `/admin/billing`, `/admin/monetization`      | ✅ dane, 🔴 widok wydarzenia | EB-1402 |
+| wykres rejestracji w czasie                                | wzorzec: `/admin/analytics`, wykresy w repo (`src/lib/charts`) | 🟡                           | EB-1403 |
+| `dummy data` w pustym dashboardzie                         | **antywzorzec** (patrz Wnioski)                                | —                            | —       |
+| „filtrowanie po grupie nie dotyczy tych metryk"            | j.w.                                                           | —                            | —       |
+
+**Wnioski**
+
+1. **Dane demonstracyjne w panelu produkcyjnym to antywzorzec.** Administrator
+   widzi 48 820 rejestracji przy wydarzeniu, które ma 21 osób — i musi kliknąć
+   „Show my event data", żeby zobaczyć prawdę. Nasza wersja pokazuje **pusty stan
+   z instrukcją** („brak rejestracji — otwórz sprzedaż biletów"), nigdy liczby
+   z palca. To nie jest drobiazg estetyczny: liczba w dashboardzie bywa
+   przepisywana do raportu dla zarządu.
+2. Gwiazdka „filtrowanie po grupie nie dotyczy tych metryk" ujawnia rozjazd:
+   część kafli respektuje filtr, część nie. U nas reguła jest odwrotna —
+   **filtr obowiązuje wszędzie albo nigdzie**; jeśli metryki nie da się
+   przefiltrować, nie stoi obok tych, które da się.
+3. `Total balance due` (saldo do zapłaty) sugeruje sprzedaż z odroczoną płatnością
+   (faktura dla instytucji). To realny scenariusz NES — kongres opłacany przez
+   uczelnię czy ministerstwo — i wchodzi do modelu biletów jako
+   `payment_terms ('immediate','invoice')`.
+
+### Zrzuty 16.2 i 16.3 — `…/reports` · „Reports"
+
+**Co widać**
+
+- „Access comprehensive reports that provide valuable insights into every aspect of
+  your event." + `Upgrade plan` (wszystkie pozycje wyszarzone — plan nie obejmuje).
+- Sekcja bez nazwy: **General metrics** („Networking summary for attendees and
+  exhibitors, active users and platform usage information") · **Transactions**
+  („List of all credit card transactions, including customer and payment details,
+  status, and verification information").
+- **`SESSIONS`**: **Session registrations, attendance, and feedback** („List of people
+  registered for sessions, with **scan in and out dates**, their ratings, and comments") ·
+  **Live session interaction messages and questions** · **Poll answers** („List of
+  people who answered polls during sessions with their results") ·
+  **Video streaming** („…who watched the session's streaming video, with dates and
+  durations") · **Roundtables** („…who joined the roundtables, with dates").
+- **`EXHIBITORS & ITEMS`**: **Exhibitors' pages, ads, docs, and items views and
+  bookmarks** · **Item views and bookmarks**.
+- **`SPONSORS & ADS`**: **Ads clicks and views** („…who have seen or clicked on the
+  event home advertising or the advanced banner ads views") · **Event home sponsors**
+  („List of people who clicked on the event home sponsors").
+
+**Mapowanie**
+
+| Swapcard                                         | NES                                                                                    | Stan | Zadanie |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- | ---- | ------- |
+| raport zapisów, frekwencji i ocen sesji          | `event_session_registrations` + `event_scans` + `event_session_feedback` (§4.2, §15.6) | 🔴   | EB-1404 |
+| raport wiadomości i pytań z interakcji           | `qa_questions`, `club_thread_questions`, `messages`                                    | 🟡   | EB-1405 |
+| raport odpowiedzi w ankietach                    | `club_thread_polls` + odpowiedzi                                                       | 🟡   | EB-1405 |
+| raport oglądalności wideo (czas trwania)         | brak pomiaru czasu odtwarzania                                                         | 🔴   | EB-1406 |
+| raport transakcji                                | `payment_orders`, `payment_webhook_events`, `/admin/billing-reconcile`                 | ✅   | —       |
+| raporty odsłon/kliknięć reklam i sponsorów       | `ad_events` (odsłony i kliki)                                                          | ✅   | EB-1407 |
+| raporty „kto co obejrzał i zapisał w zakładkach" | `profile_view_events`, `analytics_events`, zakładki                                    | 🟡   | EB-1407 |
+
+**Wnioski**
+
+1. Lista raportów to **najlepsza specyfikacja pomiaru**, jaką dostaliśmy: mówi
+   dokładnie, co trzeba logować, żeby po wydarzeniu odpowiedzieć na pytania
+   partnerów i prelegentów. Trzy z nich mamy „darmo" (`ad_events`,
+   `payment_orders`, `analytics_events`), trzy wymagają nowych zdarzeń
+   (skany, oglądalność wideo, odpowiedzi w ankietach sesji).
+2. Wszystkie raporty to **listy osób z kontekstem**, nie zagregowane wykresy —
+   czyli w praktyce **eksporty CSV z filtrem**. To dobra wiadomość: NES ma
+   eksporty i filtry; brakuje zapytań i ekranu z listą raportów.
+3. Kluczowe zastrzeżenie RODO: raport „kto obejrzał profil / stoisko / reklamę"
+   jest **profilowaniem uczestnika**. Przy wydarzeniach z Chatham House takie
+   raporty muszą być wyłączone, a nie tylko ukryte w UI — bramka na poziomie RPC.
+   To wchodzi do `event_capabilities()` jako osobna zdolność `can_view_reports`.
+
+---
+
+## Partia 17 — (oczekuje na zrzuty)
+
+Domknięte: **cały panel Swapcarda poza czterema ekranami**: `Event builder`,
+`In-App registration`, `Content`, `Exhibitor Marketplace`, `Meetings`,
+`Communications`, `Onsite`, `Analytics`.
+
+Brakuje:
+
+1. **`Overview`** (pulpit wydarzenia) — jedyny nietknięty ekran główny.
+2. **`Integrations`** i **`Add-on features`**.
+3. **`Groups & permissions → Manage visibility`** + rozwinięty **`Add condition`**.
+4. **`Session settings`** i **`Manage roles`** (słowniki z 6.2 i 7.1).

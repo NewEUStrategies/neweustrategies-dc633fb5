@@ -382,18 +382,77 @@ event_companies (
 -- get_public_speakers): gość widzi nazwę, logo, opis i KRAJ - nigdy telefonu
 -- ani e-maila. Degradacja widoczności należy do bazy, nie do komponentu.
 
--- §4.6 ONSITE (wymagane - decyzja §0.4)
-event_checkins (id, tenant_id, event_id, session_id NULL, user_id, ticket_code,
-  scanned_by, scanned_at, gate text,
-  UNIQUE (event_id, user_id, session_id))                -- idempotencja skanu
-event_badge_templates (id, tenant_id, event_id, name, template jsonb,
-  paper_format text, is_default boolean)                 -- layout badge'a do druku
-event_leads (id, tenant_id, event_id, company_id → crm_companies,
-  lead_user_id uuid, scanned_by uuid, scanned_at timestamptz,
+-- §4.6 ONSITE - WŁASNY SYSTEM SKANOWANIA (wymagane, decyzja §0.4)
+--   Swapcard dzieli to na trzy płatne dodatki (Checkpoints + Session scanning +
+--   Self check-in). To jeden model: punkty kontroli, poświadczenia urządzeń,
+--   zdarzenia skanu. Bez aplikacji natywnej i bez pudełka ze sprzętem.
+event_checkpoints (
+  id, tenant_id, event_id, name_pl/name_en,
+  kind text CHECK (kind IN ('event_entry','session','zone','catering','company_booth')),
+  session_id uuid NULL → event_sessions,      -- gdy kind = 'session'
+  company_id uuid NULL → crm_companies,       -- gdy kind = 'company_booth'
+  location_id uuid NULL → event_locations,
+  direction_mode text NOT NULL DEFAULT 'in_out'
+    CHECK (direction_mode IN ('in_only','in_out')),
+  access_mode text NOT NULL DEFAULT 'track'
+    CHECK (access_mode IN ('track','control')),  -- mierz frekwencję / wpuszczaj
+  allowed_group_ids uuid[], allowed_ticket_type_ids uuid[],
+  capacity int, is_active boolean NOT NULL DEFAULT true
+)
+-- Poświadczenie URZĄDZENIA, nie osoby (Swapcard: "can be used to log in on
+-- multiple devices"). Wolontariusz nie dostaje konta w platformie.
+event_scanner_credentials (
+  id, tenant_id, event_id, checkpoint_id NULL,  -- NULL = wszystkie punkty
+  label text,                                    -- „Bramka główna", „Sala Blue"
+  code_hash text NOT NULL,                       -- HASH kodu, nigdy jawny
+  scopes text[] NOT NULL DEFAULT '{checkin}',    -- checkin | lead | badge_print
+  expires_at timestamptz NOT NULL, revoked_at timestamptz, created_by, created_at
+)
+event_scans (
+  id, tenant_id, event_id, checkpoint_id, person_id → event_people,
+  direction text CHECK (direction IN ('in','out')),
+  scanned_at timestamptz NOT NULL DEFAULT now(),
+  credential_id → event_scanner_credentials, device_id text,
+  result text CHECK (result IN ('granted','denied_group','denied_ticket',
+                               'denied_capacity','denied_duplicate','unknown_code')),
+  offline_queued_at timestamptz,                 -- czas skanu na urządzeniu
+  UNIQUE (checkpoint_id, person_id, direction, scanned_at)
+)
+-- Idempotencja: ten sam człowiek, punkt i kierunek w oknie 60 s = jeden wiersz
+-- (podwójne piknięcie przy bramce). Rozstrzyga serwer, nie urządzenie.
+
+event_badge_templates (
+  id, tenant_id, event_id, name, is_default boolean,
+  paper_format text,                             -- A6 / A5 / 100x150mm
+  double_fold boolean NOT NULL DEFAULT false,     -- odbicie lustrzane (smycz)
+  elements jsonb                                  -- lista elementów, patrz niżej
+)
+-- elements: pionowa LISTA bloków, bez swobodnego pozycjonowania XY:
+--   [{ kind: 'image'|'text'|'field'|'qr'|'sponsors', field: 'first_name'|…,
+--      width: {unit:'%'|'cm', value}, align: 'left'|'center'|'right',
+--      gap_cm: 0.54, font_size_pt, font_weight, visible }]
+-- Jednostki FIZYCZNE (cm/mm) + @page w CSS: badge musi wyjść identycznie
+-- z każdej drukarki. Swobodne XY gwarantuje, że coś kiedyś nie zmieści się.
+event_ticket_types.badge_template_id uuid NULL   -- NULL = szablon domyślny
+
+event_leads (
+  id, tenant_id, event_id,
+  owner_company_id uuid NULL → crm_companies,     -- lead firmy (skan na stoisku)
+  owner_person_id uuid NULL → event_people,       -- lead uczestnika (wymiana wizytówek)
+  CHECK (num_nonnulls(owner_company_id, owner_person_id) = 1),
+  lead_person_id → event_people, scanned_by, scanned_at,
   qualification jsonb, note text,
-  UNIQUE (event_id, company_id, lead_user_id))
--- RLS event_leads: dostęp WYŁĄCZNIE dla obsady firmy (organization_seats) oraz
--- staff. Wspólna tabela z filtrem w UI = wyciek jednym SELECT-em.
+  UNIQUE (event_id, owner_company_id, owner_person_id, lead_person_id)
+)
+-- RLS: dostęp WYŁĄCZNIE dla obsady firmy (organization_seats) albo właściciela
+-- leada oraz staff. Wspólna tabela z filtrem w UI = wyciek jednym SELECT-em.
+-- Eksport leadów widzi TYLKO osoby z aktywną zgodą (§4.8) - reguła w RPC,
+-- nie konfigurowalny warunek (inaczej pierwsza pomyłka = naruszenie).
+-- Skan uczestnik→uczestnik tworzy POŁĄCZENIE w sieci kontaktów, nie leada w CRM.
+
+-- Skaner: PWA (getUserMedia + BarcodeDetector), kolejka offline w IndexedDB
+-- (sala kongresowa bez zasięgu), synchronizacja przy powrocie sieci.
+-- Self check-in: ta sama PWA w trybie kiosku + druk badge'a przez dialog druku.
 
 -- §4.7 STRONY WYDARZENIA (bez drugiego silnika stron — §0.1)
 event_pages (event_id, page_id → pages, slot text, menu_label_pl/en,
@@ -493,6 +552,92 @@ event_company_documents (company_id, document_id, sort_order)  -- „Attached to
 -- Dyskusje wydarzenia: NIE budujemy nowego silnika - podpinamy grupę klubu
 -- (club_events.anchor_event_id wiąże już kalendarz klubu z wydarzeniem; brakuje
 -- kierunku odwrotnego: „dyskusja tego wydarzenia toczy się w grupie X").
+
+-- §4.14 SPOTKANIA 1-1 - rozszerzenie, nie zastąpienie (partie 12 i 13)
+--   Dziś: host publikuje slot, uczestnik rezerwuje, potwierdzenie natychmiastowe
+--   (meeting_slots.host_user_id NOT NULL; meeting_bookings.status =
+--   confirmed|cancelled). Kongres potrzebuje drugiego trybu: wspólna siatka
+--   slotów wydarzenia + ZAPYTANIA akceptowane przez drugą stronę.
+ALTER TABLE public.meeting_slots
+  ALTER COLUMN host_user_id DROP NOT NULL,       -- NULL = slot wspólny wydarzenia
+  ADD COLUMN IF NOT EXISTS location_id uuid → event_locations,
+  ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+-- + RPC generate_event_meeting_slots(event_id, batches jsonb) - generator partii
+--   (dzień + okno + długość → N slotów; „Create 40 slots" liczy dokładnie tyle).
+
+event_locations (                                 -- WSPÓLNY słownik: sale i stoliki
+  id, tenant_id, event_id, category text,         -- „Hall 2", „Level 3"
+  name text,                                      -- „Blue room", „Table 4"
+  capacity int NOT NULL DEFAULT 1,                -- ile spotkań RÓWNOLEGLE
+  is_virtual boolean NOT NULL DEFAULT false,
+  company_id uuid NULL → crm_companies,           -- stoisko jako miejsce spotkań
+  sort_order int
+)
+meeting_requests (
+  id, tenant_id, event_id,
+  from_person_id → event_people,
+  to_person_id uuid NULL → event_people,
+  to_company_id uuid NULL → crm_companies,        -- zaprosić można też firmę
+  CHECK (num_nonnulls(to_person_id, to_company_id) = 1),
+  slot_id uuid NULL → meeting_slots, location_id uuid NULL → event_locations,
+  message text,
+  status text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('draft','pending','accepted','declined','expired','cancelled')),
+  held boolean,                                   -- frekwencja: odbyło się?
+  expires_at timestamptz NOT NULL,                -- ZAPISANY przy utworzeniu
+  created_at, responded_at
+)
+-- expires_at jest zapisywany, nie liczony z reguły: zmiana reguły nie może
+-- unieważniać wysłanych zaproszeń (Swapcard: „changes impact only new requests").
+-- Domyślnie 72 h - Swapcard podaje z danych, że 2-4 dni podnosi akceptację.
+-- Miejsce przydziela się PRZY AKCEPTACJI (pierwsze wolne w slocie), nie przy
+-- tworzeniu slotu - dlatego location.capacity > 1 ma sens.
+meeting_request_rules (
+  id, tenant_id, event_id, name,
+  requester_group_ids uuid[], invitee_group_ids uuid[],
+  location_ids uuid[], slot_ids uuid[],
+  expires_after_hours int NULL DEFAULT 72,
+  expires_at_meeting_start boolean NOT NULL DEFAULT false
+)
+meeting_preferences (person_id, target_person_id, level
+  CHECK (level IN ('interested','highly_interested')))
+-- „Smart meeting scheduling" to NIE model językowy, a przydział dwustronny
+-- z ograniczeniami (pojemność slotów i miejsc, preferencje z wagami, limit
+-- spotkań na osobę). Solver, nie AI. Kolejność: najpierw zapytania i reguły,
+-- przydział dopiero na żywych danych o akceptacjach.
+
+-- §4.15 KOMUNIKACJA - rozszerzenie modułu newslettera (partia 14)
+--   newsletter_campaigns ma już audience_filter jsonb, i18n treści, harmonogram
+--   i statystyki (newsletter_campaign_events). Kampania wydarzenia to FILTR,
+--   nie nowy moduł: audience_filter = { event_id, group_ids }.
+--   Do dodania:
+--     trigger text ('scheduled','on_register','before_event','after_event')
+--       + offset_hours int          -- typ „Continuous" u Swapcarda
+--     redirect_page_id uuid         -- deep link do event_pages, nie wolny URL
+--     from_name z INTERPOLACJĄ zmiennych („{{ event_name }}")
+--     email_template_id na event_ticket_types (inny e-mail dla Partnera
+--       niż dla Uczestnika)
+--   Presety rodzajów wydarzeń (§5) niosą DOMYŚLNE SEKWENCJE per grupa
+--   (Swapcard: 3 grupy × 4 e-maile - to wiedza operacyjna warta więcej niż kod).
+--   Powiadomienia push: push_subscriptions + notifications + VAPID już są;
+--   brakuje jednego ekranu (cel: grupa/pole własne, treść, strona, czas).
+--   Push o sesji („start za 15 minut") generuje się Z DANYCH SESJI, nie ręcznie.
+
+-- §4.16 RAPORTY (partia 16) - wszystkie są LISTAMI OSÓB z kontekstem, czyli
+--   w praktyce eksportami CSV z filtrem, nie wykresami:
+--     zapisy + frekwencja + oceny sesji   (event_session_registrations
+--                                          + event_scans + event_session_feedback)
+--     wiadomości i pytania z interakcji   (qa_questions, club_thread_questions)
+--     odpowiedzi w ankietach              (club_thread_polls)
+--     oglądalność wideo z czasem          BRAK - wymaga nowych zdarzeń
+--     transakcje                          (payment_orders) ✅
+--     odsłony/kliknięcia reklam i sponsorów (ad_events) ✅
+--   BRAMKA RODO: raport „kto obejrzał profil/stoisko/reklamę" to PROFILOWANIE.
+--   Przy chatham_house = true raporty osobowe muszą być wyłączone w RPC, nie
+--   ukryte w UI → nowa zdolność can_view_reports w event_capabilities().
+--   Dashboard: NIGDY danych demonstracyjnych (Swapcard pokazuje 48 820 rejestracji
+--   przy wydarzeniu z 21 osobami) - pusty stan z instrukcją, nie liczby z palca.
+--   Filtr grupy obowiązuje we WSZYSTKICH kaflach albo w żadnym.
 ```
 
 Decyzje do potwierdzenia przed migracją:
@@ -689,3 +834,12 @@ z samych ekranów Swapcarda:
 Mapowanie ekran-po-ekranie (co widać → co to znaczy → gdzie to ma powstać) żyje
 w `docs/MAPOWANIE_SWAPCARD_EVENT_BUILDER_ZRZUTY.md`. Każda nowa partia zrzutów
 dopisuje tam sekcję i, jeśli trzeba, aktualizuje tabele §2 i backlog §8 tutaj.
+
+Osobno powstał **inwentarz wykonawczy interfejsu**:
+`docs/INWENTARZ_ELEMENTOW_UI_SWAPCARD_2026-08-23.md` — każde pole, etykieta
+(dosłownie po angielsku), przełącznik, kolumna tabeli, komunikat walidacji,
+limit znaków i wymóg obrazka ze wszystkich ~70 zrzutów, plus sześć załączników
+przekrojowych (wymogi obrazów, limity znaków, zbiory statusów, katalog kolumn
+tabel, lista funkcji płatnych Swapcarda, wszystkie komunikaty walidacji).
+Ten dokument jest listą kontrolną do implementacji; dziennik mapowania jest
+wykładnią „co to znaczy dla NES".
