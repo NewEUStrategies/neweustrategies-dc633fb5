@@ -96,7 +96,9 @@ export function ListBlockEdit({ block, onChange }: Props) {
             data-level={level}
           >
             {ordered ? (
-              <span className="cms-list-number" aria-hidden="true">{n}</span>
+              <span className="cms-list-number" aria-hidden="true">
+                <span className="cms-list-number-text">{n}</span>
+              </span>
             ) : (
               <span className="cms-list-bullet" aria-hidden="true" />
             )}
