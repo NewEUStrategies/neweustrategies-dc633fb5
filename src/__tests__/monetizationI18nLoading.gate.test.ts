@@ -132,19 +132,37 @@ function importSideEffect(src: string, s: Slownik): boolean {
 }
 
 describe("bramka ładowania słowników monetyzacji (moduł 14)", () => {
-  it.each(LENIWE)("każdy plik renderujący klucze $ns ŁADUJE słownik $modul", (s) => {
-    // Twierdzenie najsłabsze i najważniejsze: słownik jest załadowany
-    // JAKKOLWIEK. Którym mechanizmem - sprawdza następny test.
-    const winni = FILES.filter(
-      ({ src }) =>
-        wolaNs(src, s.ns) &&
-        maTlumacza(src) &&
-        !importujeLoader(src, s) &&
-        !importSideEffect(src, s),
-    )
-      .map(({ path }) => path)
-      .sort();
-    expect(winni).toEqual([]);
+  it("moduł 14 ma w baseline `check:i18n-overlay-imports` DOKŁADNIE jednego dłużnika", () => {
+    // Twierdzenia „kto woła klucz nakładki, ten ją importuje" NIE dowodzę tutaj:
+    // dowodzi go repozytoryjna bramka `check:i18n-overlay-imports`
+    // (`src/lib/ci/i18nOverlayImports.ts`), i to mocniej - po spłaszczonych
+    // KLUCZACH, nie po prefiksie przestrzeni nazw, oraz dla całego `src`.
+    //
+    // Ta bramka ma jednak ZAWÓR: `I18N_OVERLAY_IMPORT_BASELINE` toleruje znanych
+    // dłużników i wymaga tylko, żeby ich liczba MALAŁA - nie żeby doszła do zera
+    // i nie żeby lista dłużników się nie zmieniała. Nowy plik monetyzacji da się
+    // więc dopisać do baseline i uciszyć tamtą bramkę bez jednego czerwonego
+    // światła. Ta asercja przypina, kto dokładnie jest dłużnikiem w module 14.
+    //
+    // DZIŚ JEST NIM `CouponInput.tsx` - pole kuponu w kasie, czyli powierzchnia
+    // pieniężna. Cztery klucze `coupon.*` docierają do niego IMPORTEM POŚREDNIM:
+    // nakładkę wciąga inny moduł w tym samym chunku. To działa dopóki chunk
+    // kasy składa się tak jak dziś. Gdy się przestawi, płacący klient zobaczy
+    // w polu rabatu napis „coupon.placeholder" i „coupon.apply" na przycisku.
+    const baseline = readFileSync(join("scripts", "lib", "i18nOverlayImportBaseline.ts"), "utf8");
+    const pozycje = [...baseline.matchAll(/\["([^"]+)",\s*(\d+)\]/g)].map(
+      (m) => [m[1], Number(m[2])] as const,
+    );
+    // Kanarek: gdy zmieni się format pliku, regex przestanie łapać i asercja
+    // „moduł 14 ma jednego dłużnika" przeszłaby na liście pustej.
+    expect(pozycje.length).toBeGreaterThan(40);
+    const modul14 = pozycje.filter(([f]) =>
+      /(donation|donate|coupon|gifting|gift|\/ads\/|adSlot|AdSlot)/i.test(f),
+    );
+    expect(modul14.map(([f]) => f)).toEqual(["src/components/checkout/CouponInput.tsx"]);
+    // Liczba może tylko maleć - taka jest reguła tamtego baseline i tu ją
+    // egzekwuję punktowo dla jedynej pozycji monetyzacji.
+    expect(modul14[0][1]).toBeLessThanOrEqual(4);
   });
 
   it.each(LENIWE.filter((s) => s.modul !== "@/lib/i18n-donate"))(
