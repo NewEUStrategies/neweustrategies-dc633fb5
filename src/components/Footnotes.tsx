@@ -1,7 +1,8 @@
 // Renders the "Przypisy źródłowe" list at the bottom of an article and wires
 // up hover tooltips for the [N] markers inserted by processHtmlFootnotes /
 // processDocFootnotes.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { Footnote } from "@/lib/footnotes";
 import { resolveFootnoteTargetId, scrollToFootnoteId } from "@/lib/footnotes/navigation";
@@ -97,9 +98,33 @@ export function FootnoteTooltips({
   notes: Footnote[];
   containerRef: React.RefObject<HTMLElement | null>;
 }) {
-  const [state, setState] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [state, setState] = useState<{
+    id: number;
+    anchorLeft: number;
+    anchorRight: number;
+    anchorTop: number;
+    anchorBottom: number;
+  } | null>(null);
+  const [position, setPosition] = useState<{ left: number; top: number; ready: boolean }>({
+    left: 12,
+    top: 12,
+    ready: false,
+  });
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<number | null>(null);
   useFootnoteNavigation();
+
+  const cancelHide = () => {
+    if (hideTimer.current !== null) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+
+  const scheduleHide = () => {
+    cancelHide();
+    hideTimer.current = window.setTimeout(() => setState(null), 200);
+  };
 
   useEffect(() => {
     const root = containerRef.current;
@@ -110,40 +135,76 @@ export function FootnoteTooltips({
       if (!a) return;
       const id = Number(a.dataset.fn);
       if (!byId.has(id)) return;
-      if (hideTimer.current) {
-        window.clearTimeout(hideTimer.current);
-        hideTimer.current = null;
-      }
+       cancelHide();
       const r = a.getBoundingClientRect();
-      setState({ id, x: r.left + r.width / 2, y: r.top });
-    };
-    const leave = () => {
-      hideTimer.current = window.setTimeout(() => setState(null), 200);
+       setPosition((current) => ({ ...current, ready: false }));
+       setState({
+         id,
+         anchorLeft: r.left,
+         anchorRight: r.right,
+         anchorTop: r.top,
+         anchorBottom: r.bottom,
+       });
     };
     root.addEventListener("mouseenter", enter, true);
     root.addEventListener("focusin", enter, true);
-    root.addEventListener("mouseleave", leave, true);
-    root.addEventListener("focusout", leave, true);
+     root.addEventListener("mouseleave", scheduleHide, true);
+     root.addEventListener("focusout", scheduleHide, true);
     return () => {
       root.removeEventListener("mouseenter", enter, true);
       root.removeEventListener("focusin", enter, true);
-      root.removeEventListener("mouseleave", leave, true);
-      root.removeEventListener("focusout", leave, true);
+       root.removeEventListener("mouseleave", scheduleHide, true);
+       root.removeEventListener("focusout", scheduleHide, true);
+       cancelHide();
     };
   }, [notes, containerRef]);
+
+  useLayoutEffect(() => {
+    const tooltip = tooltipRef.current;
+    if (!state || !tooltip) return;
+
+    const VIEWPORT_GUTTER = 12;
+    const ANCHOR_GAP = 8;
+    const rect = tooltip.getBoundingClientRect();
+    const anchorCenter = (state.anchorLeft + state.anchorRight) / 2;
+    const left = Math.min(
+      Math.max(anchorCenter - rect.width / 2, VIEWPORT_GUTTER),
+      Math.max(VIEWPORT_GUTTER, window.innerWidth - rect.width - VIEWPORT_GUTTER),
+    );
+    const roomAbove = state.anchorTop - VIEWPORT_GUTTER;
+    const top =
+      roomAbove >= rect.height + ANCHOR_GAP
+        ? state.anchorTop - rect.height - ANCHOR_GAP
+        : Math.min(
+            state.anchorBottom + ANCHOR_GAP,
+            Math.max(VIEWPORT_GUTTER, window.innerHeight - rect.height - VIEWPORT_GUTTER),
+          );
+
+    setPosition({ left, top, ready: true });
+  }, [state]);
 
   if (!state) return null;
   const note = notes.find((n) => n.id === state.id);
   if (!note) return null;
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
+      ref={tooltipRef}
       role="tooltip"
       data-footnote-tooltip
-      className="pointer-events-none fixed z-50 max-w-[280px] rounded-[6px] border border-brand bg-popover text-popover-foreground text-[9px] leading-[1.35] px-2 py-1.5 shadow-lg -translate-x-1/2 -translate-y-full"
-      style={{ left: state.x, top: state.y - 8, fontSize: "9px", lineHeight: 1.35 }}
+      className="fixed z-[100] w-max max-w-[min(34rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain whitespace-normal break-words rounded-[6px] border border-brand bg-popover px-3 py-2 text-popover-foreground shadow-lg"
+      style={{
+        left: position.left,
+        top: position.top,
+        visibility: position.ready ? "visible" : "hidden",
+      }}
+      onMouseEnter={cancelHide}
+      onMouseLeave={scheduleHide}
     >
       <span className="font-medium mr-1">[{state.id}]</span>
       <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.html) }} />
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -23,6 +23,12 @@ describe("WP footnotes - pelna tresc zamiast 'Czytaj dalej'", () => {
     expect(out).not.toContain("Czytaj dalej");
   });
 
+  it("automatycznie odzyskuje pelny przypis z tabeli w tym samym HTML", () => {
+    const out = normalizeLegacyFootnoteHtml(`${BODY}${REF_TABLE}`);
+    expect(out).toContain("niemozliwa.[/fn]");
+    expect(out).not.toContain("Czytaj dalej");
+  });
+
   it("bez tabeli usuwa sam przycisk 'Czytaj dalej' i wielokropek", () => {
     const out = normalizeLegacyFootnoteHtml(BODY);
     expect(out).not.toContain("Czytaj dalej");
