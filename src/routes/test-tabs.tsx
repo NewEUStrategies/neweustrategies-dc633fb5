@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import type { SectionTabsConfig } from "@/lib/builder/types";
 
-const demoTabs: SectionTabsConfig = {
+const baseDemoTabs: SectionTabsConfig = {
   enabled: true,
   orientation: "horizontal",
   variant: "underline",
@@ -18,7 +18,7 @@ const demoTabs: SectionTabsConfig = {
   defaultTabId: "m1",
 };
 
-const demoTabs2: SectionTabsConfig = {
+const baseDemoTabs2: SectionTabsConfig = {
   enabled: true,
   orientation: "horizontal",
   variant: "underline",
@@ -38,23 +38,42 @@ const demoTabs2: SectionTabsConfig = {
 
 export const Route = createFileRoute("/test-tabs")({
   component: () => (
-    <div className="p-4" data-builder-renderer data-device="mobile">
-      <h2 className="mb-4 text-lg font-bold">Poznaj nas bliżej</h2>
-      <SectionTabsBar
-        sectionId="demo1"
-        tabs={demoTabs}
-        lang="pl"
-        activeId="m1"
-        onSelect={() => {}}
-      />
-      <h2 className="mt-8 mb-4 text-lg font-bold">Rady Programowe</h2>
-      <SectionTabsBar
-        sectionId="demo2"
-        tabs={demoTabs2}
-        lang="pl"
-        activeId="r1"
-        onSelect={() => {}}
-      />
+    <div className="p-4 space-y-8" data-builder-renderer data-device="mobile">
+      <section>
+        <h2 className="mb-4 text-lg font-bold">Scroll mode (domyślne)</h2>
+        <SectionTabsBar
+          sectionId="demo-scroll"
+          tabs={{ ...baseDemoTabs, mobileMode: "scroll" }}
+          lang="pl"
+          activeId="m1"
+          onSelect={() => {}}
+        />
+        <SectionTabsBar
+          sectionId="demo-scroll-2"
+          tabs={{ ...baseDemoTabs2, mobileMode: "scroll" }}
+          lang="pl"
+          activeId="r1"
+          onSelect={() => {}}
+        />
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-lg font-bold">Wrap mode</h2>
+        <SectionTabsBar
+          sectionId="demo-wrap"
+          tabs={{ ...baseDemoTabs, mobileMode: "wrap" }}
+          lang="pl"
+          activeId="m1"
+          onSelect={() => {}}
+        />
+        <SectionTabsBar
+          sectionId="demo-wrap-2"
+          tabs={{ ...baseDemoTabs2, mobileMode: "wrap" }}
+          lang="pl"
+          activeId="r1"
+          onSelect={() => {}}
+        />
+      </section>
     </div>
   ),
 });
