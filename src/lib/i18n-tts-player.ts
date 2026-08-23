@@ -58,10 +58,12 @@ const pl = {
     },
     card: {
       label: "Posłuchaj artykułu",
+      listen: "Odsłuchaj artykuł",
       retry: "Spróbuj ponownie",
       aiNarration: "Narracja generowana automatycznie (AI) na podstawie treści artykułu.",
       approx: "ok. {{min}} min",
     },
+
     errors: {
       noText: "Brak tekstu do odczytania",
       signInRequired: "Zaloguj się, aby odsłuchać wersję audio.",
@@ -110,10 +112,12 @@ const en = {
     },
     card: {
       label: "Listen to this article",
+      listen: "Listen to article",
       retry: "Try again",
       aiNarration: "Narration is generated automatically (AI) from the article text.",
       approx: "~{{min}} min",
     },
+
     errors: {
       noText: "No text to read aloud",
       signInRequired: "Sign in to listen to the audio version.",
