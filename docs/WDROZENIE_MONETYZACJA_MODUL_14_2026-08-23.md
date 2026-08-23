@@ -8,6 +8,16 @@ zielonych**, 2 pominięte, **42 669 testów zdanych, 254 `expected fail`**
 (udokumentowane defekty), 50 pominiętych, **1 czerwony** — `authzSnapshotParity`,
 czerwony na tej gałęzi od jej utworzenia i **nie z tej pracy** (§4 poz. 11).
 
+Samo polecenie `test:coverage` kończy się kodem 1 z DRUGIEGO, niezależnego
+powodu: progu gałęzi `src/components/pricing/molecules/**` (92,3% wobec 94%).
+To też jest pre-existing i też nie moje — §4 poz. 13.
+
+**Progi dopisane w etapie 6 zweryfikowałem DRUGIM pełnym przebiegiem** już po
+ich wstawieniu (05:49). Wynik: identyczna liczba zdanych testów i **dokładnie
+jeden błąd progu — ten sam `pricing/molecules/**`, który był tam przed moimi
+progami.** Żaden z 71 nowych progów nie pada. To jest różnica między „progi
+wyglądają na policzone" a „progi przeszły".
+
 ### Moduł 14 — dwa liczniki, bo ekstrakcja zmieniła MIANOWNIK
 
 Ekstrakcja wg atomic design utworzyła 78 nowych plików modułu, więc „moduł 14"
