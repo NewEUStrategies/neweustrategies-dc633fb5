@@ -42,9 +42,20 @@ describe("nawigacja przypisów", () => {
 
   it("klik w numer w sekcji wraca do markera w treści", () => {
     render(<Harness />);
-    const back = screen.getAllByTitle("Wróć do odsyłacza")[0];
+    const back = screen.getAllByTitle("Wróć do czytanego fragmentu")[0];
     fireEvent.click(back);
     expect(window.scrollTo).toHaveBeenCalled();
     expect(document.getElementById("fnref-1")).not.toBeNull();
+  });
+
+  it("pokazuje pelna tresc tooltipu bez clampowania poza kontenerem wpisu", () => {
+    render(<Harness />);
+    const marker = screen.getByRole("link", { name: "[1]" });
+    fireEvent.mouseEnter(marker);
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent("[1]Nota źródłowa");
+    expect(tooltip.parentElement).toBe(document.body);
+    expect(tooltip).not.toHaveClass("truncate", "line-clamp-1", "line-clamp-2", "line-clamp-3");
   });
 });
