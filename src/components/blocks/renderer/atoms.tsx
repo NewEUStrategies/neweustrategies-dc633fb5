@@ -146,9 +146,13 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
       const childLevel = childEntries.find((c) => c.level === level + 1) ?? childEntries[0];
       nodes.push(
         <li key={entry.i} className="cms-list-item" data-list-level={level}>
-          <span className={isOrdered ? "cms-list-number" : "cms-list-bullet"} aria-hidden="true">
-            {isOrdered ? ordinal : ""}
-          </span>
+          {isOrdered ? (
+            <span className="cms-list-number" aria-hidden="true">
+              <span className="cms-list-number-text">{ordinal}</span>
+            </span>
+          ) : (
+            <span className="cms-list-bullet" aria-hidden="true" />
+          )}
           <span className="cms-list-content">{renderItem(entry)}</span>
           {childEntries.length > 0 &&
             renderLevel(childEntries, level + 1, childLevel?.ordered ?? isOrdered, false)}
