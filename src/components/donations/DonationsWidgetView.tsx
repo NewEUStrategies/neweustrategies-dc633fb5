@@ -6,93 +6,37 @@
 // (własna kasa /donate albo zbiórka zewnętrzna), nigdy adres wpisany w kodzie.
 // Warianty wizualne: hero / progress / stats-strip / compact-card /
 // inline-bar / thermometer.
-import { useMemo, type CSSProperties } from "react";
+//
+// PO EKSTRAKCJI ten plik jest KOMPOZYCJĄ, nie logiką: rozstrzygnięcie propsów
+// edytora, formatowanie kwot i arytmetyka paska siedzą w `donationsWidgetModel`
+// (czyste funkcje, własny test), a powtarzalne kawałki DOM w `./atoms/*`.
+// Zachowanie jest identyczne - w szczególności `statsQ.data ?? FALLBACK` NADAL
+// nie rozróżnia awarii odczytu i stanu wczytywania od zbiórki bez wpłat
+// (dowód: `__tests__/DonationsWidgetView.test.tsx`).
+import type { CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { HandHeart, Heart, Target, TrendingUp, Users } from "@/lib/lucide-shim";
-import { DonationCta, type DonationCtaMode } from "./DonationCta";
+import { DonationCta } from "./DonationCta";
 import { getDonationsPublicStats } from "@/lib/billing/donations.functions";
 import "@/lib/i18n-donations-widget";
-import { uiLocale } from "@/lib/i18n/format";
+import {
+  FALLBACK,
+  fmtMoney,
+  resolveBarPct,
+  resolveWidgetProps,
+  type DonationsWidgetProps,
+  type StatsShape,
+} from "./donationsWidgetModel";
+import { DonationProgressBar } from "./atoms/DonationProgressBar";
+import { DonationRecentList } from "./atoms/DonationRecentList";
+import { DonationStatBox } from "./atoms/DonationStatBox";
 
-export type DonationsVariant =
-  "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
-
-export interface DonationsWidgetProps {
-  variant?: DonationsVariant;
-  title?: string;
-  subtitle?: string;
-  cta?: string;
-  href?: string;
-  goalCents?: number;
-  currency?: string;
-  showMonth?: boolean;
-  showCount?: boolean;
-  showRecent?: boolean;
-  accent?: string;
-  /** Zgodność wstecz: `quick` = dawna szybka płatność, dziś link do zbiórki. */
-  quickDonate?: boolean;
-  /** Tryb akcji: link na /support albo bezpośredni link do zewnętrznej zbiórki. */
-  mode?: DonationCtaMode;
-  lang?: "pl" | "en";
-}
-
-interface StatsShape {
-  totalCents: number;
-  monthCents: number;
-  count: number;
-  monthCount: number;
-  currency: string;
-  recent: { amount_cents: number; currency: string; created_at: string }[];
-}
-
-const FALLBACK: StatsShape = {
-  totalCents: 0,
-  monthCents: 0,
-  count: 0,
-  monthCount: 0,
-  currency: "PLN",
-  recent: [],
-};
-
-function fmtMoney(cents: number, currency: string, lang: "pl" | "en"): string {
-  try {
-    return new Intl.NumberFormat(uiLocale(lang), {
-      style: "currency",
-      currency,
-      maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
-    }).format(cents / 100);
-  } catch {
-    return `${(cents / 100).toFixed(0)} ${currency}`;
-  }
-}
-
-function fmtRelative(iso: string, lang: "pl" | "en"): string {
-  const then = new Date(iso).getTime();
-  const diff = Math.max(0, Date.now() - then);
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(mins / 60);
-  const days = Math.floor(hours / 24);
-  if (mins < 60) return lang === "pl" ? `${mins} min temu` : `${mins} min ago`;
-  if (hours < 24) return lang === "pl" ? `${hours} godz. temu` : `${hours}h ago`;
-  return lang === "pl" ? `${days} dni temu` : `${days}d ago`;
-}
+export type { DonationsVariant, DonationsWidgetProps, StatsShape } from "./donationsWidgetModel";
 
 export function DonationsWidgetView(props: DonationsWidgetProps) {
   const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = props.lang ?? (i18n.language === "en" ? "en" : "pl");
-  const variant: DonationsVariant = props.variant ?? "hero";
-  const href = props.href?.trim() || "/support";
-  const cta = props.cta?.trim() || t("donationsWidget.cta");
-  const title =
-    props.title?.trim() || (lang === "pl" ? "Mecenat obywatelski" : "Citizen patronage");
-  const subtitle = props.subtitle?.trim() ?? "";
-  const goalCents = Math.max(0, Number(props.goalCents ?? 0) || 0);
-  const showMonth = props.showMonth !== false;
-  const showCount = props.showCount !== false;
-  const showRecent = props.showRecent === true;
-  const accent = props.accent?.trim() || "";
 
   const fetchStats = useServerFn(getDonationsPublicStats);
   const statsQ = useQuery({
@@ -102,19 +46,31 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
     refetchOnWindowFocus: false,
   });
   const stats: StatsShape = statsQ.data ?? FALLBACK;
-  const currency = props.currency?.trim() || stats.currency || "PLN";
+
+  const {
+    lang,
+    variant,
+    href,
+    cta,
+    title,
+    subtitle,
+    goalCents,
+    showMonth,
+    showCount,
+    showRecent,
+    accent,
+    currency,
+    actionMode,
+    progressPct,
+  } = resolveWidgetProps(props, stats, { language: i18n.language, t });
 
   // Wspólna konfiguracja akcji darowizny - jeden tryb dla każdego wariantu
   // wizualnego, żeby CTA nie rozjechało się między nimi.
-  const actionProps = {
-    mode: (props.mode ?? (props.quickDonate === true ? "quick" : "link")) as DonationCtaMode,
-  };
+  const actionProps = { mode: actionMode };
 
   const money = (cents: number) => fmtMoney(cents, currency, lang);
-  const progressPct = useMemo(() => {
-    if (goalCents <= 0) return 0;
-    return Math.min(100, Math.round((stats.totalCents / goalCents) * 100));
-  }, [goalCents, stats.totalCents]);
+  /** Pasek `progress`/`thermometer`: bez celu liczy darczyńców × 5, nie postęp. */
+  const barPct = resolveBarPct(goalCents, progressPct, stats.count);
 
   const accentStyle: CSSProperties = accent
     ? ({ ["--donation-accent" as never]: accent } as CSSProperties)
@@ -222,14 +178,14 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           />
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <StatBox
+          <DonationStatBox
             icon={<HandHeart className="h-4 w-4" aria-hidden="true" />}
             label={t("donationsWidget.total")}
             value={money(stats.totalCents)}
             accent={accent}
           />
           {showMonth && (
-            <StatBox
+            <DonationStatBox
               icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
               label={t("donationsWidget.thisMonth")}
               value={money(stats.monthCents)}
@@ -237,7 +193,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             />
           )}
           {showCount && (
-            <StatBox
+            <DonationStatBox
               icon={<Users className="h-4 w-4" aria-hidden="true" />}
               label={t("donationsWidget.donors")}
               value={String(stats.count)}
@@ -267,15 +223,11 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             </div>
           )}
         </div>
-        <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-700"
-            style={{
-              width: `${goalCents > 0 ? progressPct : Math.min(100, stats.count * 5)}%`,
-              background: accent || undefined,
-            }}
-          />
-        </div>
+        <DonationProgressBar
+          pct={barPct}
+          accent={accent}
+          trackClassName="mt-3 h-3 overflow-hidden rounded-full bg-muted"
+        />
         {(showMonth || showCount) && (
           <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
             {showMonth && (
@@ -311,18 +263,16 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
         className="flex flex-col items-center gap-4 rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:flex-row sm:items-stretch"
         style={accentStyle}
       >
-        <div className="relative mx-auto flex h-56 w-14 shrink-0 flex-col justify-end overflow-hidden rounded-full border border-border/60 bg-muted">
-          <div
-            className="w-full rounded-full bg-primary transition-all duration-700"
-            style={{
-              height: `${goalCents > 0 ? progressPct : Math.min(100, stats.count * 5)}%`,
-              background: accent || undefined,
-            }}
-          />
+        <DonationProgressBar
+          pct={barPct}
+          accent={accent}
+          orientation="vertical"
+          trackClassName="relative mx-auto flex h-56 w-14 shrink-0 flex-col justify-end overflow-hidden rounded-full border border-border/60 bg-muted"
+        >
           <div className="pointer-events-none absolute inset-x-0 top-2 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {goalCents > 0 ? `${progressPct}%` : ""}
           </div>
-        </div>
+        </DonationProgressBar>
         <div className="flex-1">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
             <Target className="h-4 w-4" aria-hidden="true" />
@@ -337,15 +287,8 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             </div>
           )}
           {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
-          {showRecent && stats.recent.length > 0 && (
-            <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-              {stats.recent.map((r, i) => (
-                <li key={i} className="flex items-center justify-between gap-2">
-                  <span className="tabular-nums">{money(r.amount_cents)}</span>
-                  <span>{fmtRelative(r.created_at, lang)}</span>
-                </li>
-              ))}
-            </ul>
+          {showRecent && (
+            <DonationRecentList recent={stats.recent} currency={currency} lang={lang} />
           )}
           <DonationCta
             href={href}
@@ -410,15 +353,11 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           </div>
           {goalCents > 0 && (
             <div className="mt-4 max-w-sm">
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-700"
-                  style={{
-                    width: `${progressPct}%`,
-                    background: accent || undefined,
-                  }}
-                />
-              </div>
+              <DonationProgressBar
+                pct={progressPct}
+                accent={accent}
+                trackClassName="h-2 overflow-hidden rounded-full bg-muted"
+              />
               <div className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {progressPct}% {t("donationsWidget.of")} {money(goalCents)}
               </div>
@@ -436,32 +375,6 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-function StatBox({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-background/60 p-4">
-      <div
-        className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"
-        style={accent ? { color: accent } : undefined}
-      >
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 font-display text-2xl font-bold tabular-nums">{value}</div>
     </div>
   );
 }

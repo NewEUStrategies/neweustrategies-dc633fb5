@@ -2,9 +2,15 @@
 // po N-tym paragrafie zgodnie z konfiguracją placement.config.paragraph.
 // Renderuje React do dynamicznie utworzonych kontenerów wewnątrz articleRef
 // (poprzez createPortal) - bez modyfikowania samego HTML treści.
+//
+// Logika WYBORU (kolejność, sufit `MAX_MID_POST_ADS`, przycinanie numeru
+// paragrafu) mieszka w `@/lib/ads/injection` - tutaj zostaje wyłącznie praca
+// na DOM. Ekstrakcja nie zmieniła zachowania: ciała funkcji przeniesiono
+// znak w znak razem z ich wadami.
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useAdPlacements, type AdContentContext } from "@/lib/ads/queries";
+import { sortAndCapMidPost, targetParagraphIndex } from "@/lib/ads/injection";
 import { AdSlotView } from "@/components/AdSlot";
 import type { AdPageType, AdPlacementWithSlot } from "@/lib/ads/types";
 
@@ -25,26 +31,11 @@ interface Mount {
 
 const HOST_ATTR = "data-ad-mid-host";
 
-// Twardy sufit wstrzyknięć mid-post na jeden artykuł. Konfiguracja placementów
-// jest nieograniczona po stronie CMS, więc bez capa artykuł mógł dostać dowolną
-// liczbę śródtekstowych reklam (audyt UX: presja monetyzacyjna). Dwie
-// najwcześniejsze (wg config.paragraph) wygrywają; reszta jest pomijana.
-const MAX_MID_POST_ADS = 2;
-
 export function MidPostAds({ articleRef, pageType, pageId, scanKey, content }: Props) {
   const { data } = useAdPlacements("mid_post", pageType, pageId, content);
   const [mounts, setMounts] = useState<Mount[]>([]);
 
-  const sorted = useMemo(() => {
-    if (!data) return [];
-    return [...data]
-      .sort((a, b) => {
-        const ap = Number((a.config as { paragraph?: number }).paragraph ?? 4);
-        const bp = Number((b.config as { paragraph?: number }).paragraph ?? 4);
-        return ap - bp;
-      })
-      .slice(0, MAX_MID_POST_ADS);
-  }, [data]);
+  const sorted = useMemo(() => sortAndCapMidPost(data), [data]);
 
   useEffect(() => {
     const root = articleRef.current;
@@ -62,11 +53,7 @@ export function MidPostAds({ articleRef, pageType, pageId, scanKey, content }: P
 
     const next: Mount[] = [];
     sorted.forEach((placement) => {
-      const after = Math.max(
-        1,
-        Number((placement.config as { paragraph?: number }).paragraph ?? 4),
-      );
-      const target = paragraphs[Math.min(after - 1, paragraphs.length - 1)];
+      const target = paragraphs[targetParagraphIndex(placement.config, paragraphs.length)];
       if (!target || !target.parentNode) return;
       const host = document.createElement("div");
       host.setAttribute(HOST_ATTR, placement.id);

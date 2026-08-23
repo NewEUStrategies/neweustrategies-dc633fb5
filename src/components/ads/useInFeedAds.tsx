@@ -3,22 +3,17 @@
 // i wyniki wyszukiwania. Konfigurację częstotliwości niesie placement
 // (ad_placements.config.every); renderer zwraca elementy do wstawienia
 // PO karcie o danym indeksie (0-based), więc lista wywołuje go w pętli map.
+//
+// Decyzja "czy przy tej karcie leci reklama" mieszka w
+// `@/lib/ads/injection#placementsAfterCard` - przeniesiona znak w znak,
+// żeby dała się przetestować bez montowania listy wpisów.
 import type { ReactNode } from "react";
 import { AdSlotView } from "@/components/AdSlot";
+import { placementsAfterCard } from "@/lib/ads/injection";
 import { useAdPlacements } from "@/lib/ads/queries";
-import type { AdPageType, AdPlacementWithSlot } from "@/lib/ads/types";
+import type { AdPageType } from "@/lib/ads/types";
 
 export type InFeedRenderer = (cardIndex: number) => ReactNode;
-
-function placementsAfterCard(
-  placements: readonly AdPlacementWithSlot[],
-  cardIndex: number,
-): AdPlacementWithSlot[] {
-  return placements.filter((p) => {
-    const every = Math.max(1, Number((p.config as { every?: number }).every ?? 5));
-    return (cardIndex + 1) % every === 0;
-  });
-}
 
 /**
  * Zwraca renderer wstawek in-feed dla danego typu strony. Wynik renderera to
