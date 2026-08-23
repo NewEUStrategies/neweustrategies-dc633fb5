@@ -8461,6 +8461,15 @@ sup.fn-ref {
   font-variant-numeric: tabular-nums;
 }
 
+/* Gdy renderer dostarcza własny marker (span.cms-list-number / .cms-list-bullet),
+ * pseudo-marker CSS musi zniknąć - inaczej numeracja nakłada się na siebie. */
+.cms-rich-content
+  :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+  > li:is(:has(> .cms-list-number), :has(> .cms-list-bullet))::before {
+  content: none !important;
+  display: none !important;
+}
+
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
   counter-reset: cms-ordered-list;
 }
