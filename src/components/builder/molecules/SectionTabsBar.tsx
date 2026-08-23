@@ -282,7 +282,10 @@ export function SectionTabsBar({
                 }}
               />
             ) : null}
-            <span className="cms-section-tab-label" style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>
+            <span
+              className="cms-section-tab-label"
+              style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}
+            >
               {labelOf(it, lang)}
             </span>
             {isUnderline ? (

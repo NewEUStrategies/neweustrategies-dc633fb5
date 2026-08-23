@@ -12,11 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import "@/lib/i18n-public";
 import { FootnoteTooltips } from "@/components/Footnotes";
-import {
-  createCounter,
-  isLegacyFootnoteReferenceHtml,
-  type Footnote,
-} from "@/lib/footnotes";
+import { createCounter, isLegacyFootnoteReferenceHtml, type Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import {

@@ -269,7 +269,10 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
             {/* Budzet klikniec wyczerpany: stan TERMINALNY do przelomu miesiaca -
               rotacja linku dziedziczy zuzycie, wiec nie obiecujemy nowego kodu. */}
             {phase === "budgetExhausted" && budget && (
-              <div className="border-t border-border/60 px-4 py-3.5" data-testid="gift-budget-spent">
+              <div
+                className="border-t border-border/60 px-4 py-3.5"
+                data-testid="gift-budget-spent"
+              >
                 <p className="text-[12.5px] font-semibold text-foreground mb-1">
                   {t("gifting.budget.spentTitle")}
                 </p>
@@ -360,7 +363,9 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
                   {budget && !budget.unlimited
                     ? t("gifting.firstNCanRead", { count: budget.limit })
                     : t("gifting.anyoneCanRead")}
-                  {expiresAt ? ` ${t("gifting.expiresOn", { date: formatDate(expiresAt, lang) })}` : ""}
+                  {expiresAt
+                    ? ` ${t("gifting.expiresOn", { date: formatDate(expiresAt, lang) })}`
+                    : ""}
                 </p>
               </div>
             )}

@@ -535,14 +535,16 @@ const RenderSection = memo(function RenderSection({
     ...typographyAlign(section.typography, device),
   };
   const typoCss = typographyCss(section.id, section.typography);
-  const sectionKind = useMemo(() => (isPeopleSectionKind(allChildren) ? "people" : ""), [allChildren]);
+  const sectionKind = useMemo(
+    () => (isPeopleSectionKind(allChildren) ? "people" : ""),
+    [allChildren],
+  );
   const videoUrl =
     section.background?.type === "video"
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
       : "";
 
   const preloadRef = useSectionPreload(section, lang);
-
 
   return (
     <Tag
@@ -555,7 +557,6 @@ const RenderSection = memo(function RenderSection({
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
-
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />
       )}
@@ -706,7 +707,6 @@ const RenderInner = memo(function RenderInner({
       data-section-kind={innerKind || undefined}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()}
       style={{
-
         ...sectionWrapperStyle(inner),
         ...backgroundLayerStyle(inner.background),
         ...borderStyle(inner.border),

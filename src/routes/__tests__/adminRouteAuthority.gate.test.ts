@@ -48,6 +48,42 @@ const CLUB_RPC_TESTS = [
   "supabase/tests/discussion_clubs_a5_a6_test.sql",
   "supabase/tests/club_topics_tenant_isolation_test.sql",
 ] as const;
+// Rodzina `admin.newsletter.*` - czternaście tras panelu newslettera, które ta
+// bramka pilnuje osobno (patrz `describe("panel newslettera - autorytet dostępu")`).
+const NEWSLETTER_ROUTES = [
+  "admin.newsletter.tsx",
+  "admin.newsletter.index.tsx",
+  "admin.newsletter.overview.tsx",
+  "admin.newsletter.campaigns.tsx",
+  "admin.newsletter.campaigns.index.tsx",
+  "admin.newsletter.campaigns.$id.tsx",
+  "admin.newsletter.subscribers.tsx",
+  "admin.newsletter.deliverability.tsx",
+  "admin.newsletter.auth-logs.tsx",
+  "admin.newsletter.email-content.tsx",
+  "admin.newsletter.email-preview.tsx",
+  "admin.newsletter.system-emails.tsx",
+  "admin.newsletter.inline.tsx",
+  "admin.newsletter.popup.tsx",
+] as const;
+// Warstwa serwerowa, przez którą panel newslettera dotyka bazy. Wszystkie
+// funkcje w tych plikach są WYŁĄCZNIE panelowe, więc każda musi mieć bramkę
+// roli. `newsletter-popup-events.functions.ts` NIE jest na tej liście celowo:
+// mieszka tam jeden endpoint publiczny (telemetria popupu od anonimowego
+// odwiedzającego) - pilnuje go osobna asercja niżej.
+const NEWSLETTER_SERVER_FNS = [
+  "src/lib/newsletter-campaigns.functions.ts",
+  "src/lib/newsletter-admin.functions.ts",
+  "src/lib/newsletter-deliverability.functions.ts",
+] as const;
+// pgTAP bazy tłumień i zdarzeń kampanii - autorytet ostateczny higieny listy.
+const NEWSLETTER_PGTAP_TESTS = [
+  "supabase/tests/email_suppression_test.sql",
+  "supabase/tests/email_suppression_unification_test.sql",
+  "supabase/tests/newsletter_campaign_events_backfill_test.sql",
+  "supabase/tests/newsletter_campaign_events_dedup_test.sql",
+  "supabase/tests/newsletter_email_ci_unique_test.sql",
+] as const;
 const ADMIN_LAYOUT = "src/routes/admin.tsx";
 const SHELL = "src/components/admin/AdminShell.tsx";
 // Mapa nawigacji panelu mieszka w osobnym module - to tam stoją wpisy
@@ -749,5 +785,130 @@ describe("panel SEO - autorytet dostępu", () => {
     const source = read(`${ROUTES_DIR}/admin.settings.seo.tsx`);
     expect(source, "zapis istnieje").toMatch(/save\.mutate\(/);
     expect(source, "kontroli roli nie ma").not.toMatch(/isAdmin|isSuperAdmin/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PANEL NEWSLETTERA
+// rozszerzenie zakresu bramki (moduł 11, etap 3)
+// ---------------------------------------------------------------------------
+//
+// DOSTĘPU DO TYCH TRAS PILNUJE WSPÓLNY LAYOUT `/admin` (`isStaff`) - żadna
+// z czternastu nie ma i NIE POTRZEBUJE własnego sprawdzenia roli, bo
+// newsletter prowadzi cała redakcja; te trasy odpowiadają za STAN i SKLEJENIE,
+// a ich stan pokrywają `adminNewsletterCampaignRoutes.test.tsx` oraz
+// `adminNewsletterShellRoutes.test.tsx`.
+//
+// Bramka pilnuje więc czterech rzeczy, których nie widzi żaden test renderujący:
+// czy rodzina nadal istnieje w komplecie, czy trasy nadal chodzą do bazy
+// WYŁĄCZNIE przez funkcje serwerowe, czy każda z tych funkcji ma bramkę roli,
+// i czy pokrycie pgTAP dla tłumień oraz zdarzeń kampanii nie zniknęło.
+describe("panel newslettera - autorytet dostępu", () => {
+  it("wszystkie czternaście tras rodziny `admin.newsletter` istnieje - kanarek zasięgu", () => {
+    // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i milczała.
+    const present = adminRoutes();
+    for (const file of NEWSLETTER_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+    // Skan widzi CAŁĄ rodzinę, także pliki dodane po napisaniu tej listy.
+    const skan = present.filter((name) => name.startsWith("admin.newsletter"));
+    expect(skan.length).toBeGreaterThanOrEqual(NEWSLETTER_ROUTES.length);
+  });
+
+  it("dostępu pilnuje layout `/admin` - żadna trasa newslettera nie udaje własnej bramki", () => {
+    // Newsletter prowadzi cała redakcja (`isStaff` = admin/editor/author), więc
+    // brak własnego `isAdmin` jest tu POPRAWNY, a nie przeoczony. Ten test
+    // przybija stan faktyczny: gdyby ktoś dołożył w trasie warunek `isAdmin`
+    // bez zmiany reguł po stronie funkcji serwerowych i RLS, panel zacząłby
+    // odmawiać czegoś, do czego baza i tak dopuszcza - czyli kłamałby
+    // w drugą stronę niż defekt z nagłówka tego pliku.
+    const zRolaWTrasie = NEWSLETTER_ROUTES.filter((file) =>
+      /isAdmin|isSuperAdmin/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zRolaWTrasie).toEqual([]);
+    // …a skoro tak, layout MUSI być jedyną i realną bramką.
+    expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
+  });
+
+  it("trasy newslettera NIE budują własnych zapytań do Supabase - idą przez server fns", () => {
+    // Zapytanie zbudowane w pliku trasy omija bramkę roli funkcji serwerowej
+    // i przypięcie do najemcy, które ta funkcja robi z profilu wywołującego.
+    // Lista subskrybentów to dane osobowe - jedno takie zapytanie w panelu
+    // wystarczy, żeby wyciekła poza tenanta.
+    const offenders = NEWSLETTER_ROUTES.filter((file) => {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      return /@\/integrations\/supabase|supabaseAdmin|\bsupabase\s*\n?\s*\.from\(/.test(source);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("KAŻDA funkcja serwerowa newslettera deklaruje bramkę personelu", () => {
+    // To jest miejsce, w którym naprawdę mieszka autoryzacja tego modułu.
+    // Server fn bez middleware jest wywoływalna przez każdego, kto zna jej
+    // adres - a te funkcje czytają listę adresów i URUCHAMIAJĄ WYSYŁKĘ.
+    for (const file of NEWSLETTER_SERVER_FNS) {
+      const source = read(file);
+      const ilePublicznych = (source.match(/createServerFn\(/g) ?? []).length;
+      const ileZBramka = (
+        source.match(/\.middleware\(\[require(Staff|AdminEditor|Admin)\]\)/g) ?? []
+      ).length;
+      expect(
+        ilePublicznych,
+        `${file}: brak funkcji serwerowych - czy plik się nie przeniósł?`,
+      ).toBeGreaterThan(0);
+      expect(ileZBramka, `${file}: ${ilePublicznych} funkcji, ${ileZBramka} z bramką roli`).toBe(
+        ilePublicznych,
+      );
+    }
+  });
+
+  it("telemetria popupu jest publiczna Z ROZMYSŁEM, ale JEJ RAPORT już nie", () => {
+    // Zdarzenia popupu zbiera anonimowy odwiedzający - tam bramki roli być nie
+    // może (tenant rozwiązuje się z hosta żądania, wolumen tnie limiter).
+    // RAPORT z tych zdarzeń to już dane panelu i musi być za personelem.
+    // Ten podział jest łatwy do przypadkowego odwrócenia przy dokładaniu
+    // kolejnej funkcji do tego pliku, dlatego stoi tu jawnie.
+    const source = read("src/lib/newsletter-popup-events.functions.ts");
+    const publiczny = source.slice(source.indexOf("logNewsletterPopupEvent"));
+    const raport = source.slice(source.indexOf("getNewsletterPopupEventStats"));
+    expect(
+      publiczny.slice(0, raport.length > 0 ? publiczny.length - raport.length : undefined),
+    ).not.toMatch(/\.middleware\(\[require/);
+    expect(raport).toMatch(/\.middleware\(\[requireStaff\]\)/);
+  });
+
+  it("autorytet tłumień i zdarzeń kampanii jest pokryty pgTAP - i to on jest ostateczny", () => {
+    // Ten test nie sprawdza bazy (do tego jest pgTAP) - sprawdza, że pokrycie
+    // NIE ZNIKNĘŁO. To są reguły, po których adres z twardym odbiciem albo
+    // skargą na spam wypada z audiencji ZANIM powstanie request do dostawcy,
+    // oraz reguła unikalności adresu bez rozróżniania wielkości liter (bez niej
+    // ta sama osoba wchodzi na listę dwa razy i dostaje kampanię podwójnie).
+    for (const file of NEWSLETTER_PGTAP_TESTS) {
+      const sql = read(file);
+      expect(sql.length, `pusty plik pgTAP: ${file}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("pgTAP newslettera pilnuje ZAKRESU NAJEMCY i wykluczeń adresowych", () => {
+    const sql = NEWSLETTER_PGTAP_TESTS.map((file) => read(file)).join("\n");
+    for (const guarantee of ["tenant", "email", "suppression"]) {
+      expect(sql, `pgTAP przestał wspominać: ${guarantee}`).toContain(guarantee);
+    }
+    // Deduplikacja zdarzeń kampanii to warunek uczciwego wskaźnika otwarć -
+    // bez niej „otwarcia" potrafią przekroczyć liczbę dostarczonych.
+    expect(sql).toContain("newsletter_campaign_events");
+  });
+
+  it("trasy newslettera mówią do operatora KLUCZAMI i18n, nie polszczyzną w kodzie", () => {
+    // Bramka parytetu słowników nie widzi literału w JSX-ie, a moduł ma wersję
+    // angielską. Sprawdzamy trasy, które w ogóle mają własną treść - reszta to
+    // powłoki delegujące render do organizmów panelu.
+    const zTrescia = NEWSLETTER_ROUTES.filter((file) =>
+      /useTranslation\(/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zTrescia.length, "żadna trasa newslettera nie ma własnej treści?").toBeGreaterThan(0);
+    for (const file of zTrescia) {
+      expect(read(`${ROUTES_DIR}/${file}`), `${file} nie woła t() ani razu`).toMatch(/\bt\("/);
+    }
   });
 });
