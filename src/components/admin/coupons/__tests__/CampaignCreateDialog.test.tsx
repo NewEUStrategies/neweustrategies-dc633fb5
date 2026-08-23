@@ -28,11 +28,15 @@ import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/sup
 
 const h = vi.hoisted(() => ({
   db: null as SupabaseFromStub | null,
+  /** Język interfejsu - decyduje o KOLUMNIE, z której bierze się nazwa warstwy. */
+  language: "pl",
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
+);
 vi.mock("sonner", () => ({
   toast: { success: h.toastSuccess, error: h.toastError },
   Toaster: () => null,
@@ -121,6 +125,7 @@ beforeEach(() => {
   db().reset();
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
+  h.language = "pl";
   odpowiedz = { data: null, error: null };
   db().setResponse(TABELA, () => odpowiedz);
 });
@@ -285,6 +290,26 @@ describe("ładunek insertu z interfejsu", () => {
     await waitFor(() => expect(db().chainsFor(TABELA)).toHaveLength(1));
     expect(db().lastChain(TABELA)?.has("insert")).toBe(true);
     expect(db().chains.map((c) => c.table)).toEqual([TABELA]);
+  });
+});
+
+describe("opis kampanii", () => {
+  it("wpisany opis idzie do bazy przycięty, a nie jako pusty string", async () => {
+    renderDialog();
+    wpisz("adminCoupons.name", "Kampania");
+    wpisz("adminCoupons.descriptionOptional", "  Rabat dla subskrybentów VIP  ");
+    zapisz();
+    await waitFor(() => expect(db().chainsFor(TABELA)).toHaveLength(1));
+    expect(ladunek().description).toBe("Rabat dla subskrybentów VIP");
+  });
+});
+
+describe("język interfejsu", () => {
+  it("nazwa warstwy w liście bierze się z KOLUMNY języka interfejsu", async () => {
+    h.language = "en";
+    renderDialog();
+    expect(screen.getByRole("option", { name: "Gold" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Złoty" })).not.toBeInTheDocument();
   });
 });
 

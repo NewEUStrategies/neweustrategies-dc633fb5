@@ -32,9 +32,13 @@ import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/sup
 const h = vi.hoisted(() => ({
   db: null as SupabaseFromStub | null,
   pendingTables: new Set<string>(),
+  /** Język interfejsu - ta trasa NIE MA kluczy w słowniku, ma własne `L(pl,en)`. */
+  language: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
+);
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabase");
   const db = supabaseFromStub();
@@ -120,6 +124,7 @@ let odpowiedz: SupabaseResult;
 beforeEach(() => {
   db().reset();
   h.pendingTables.clear();
+  h.language = "pl";
   odpowiedz = ok([redemption()]);
   db().setResponse(TABELA, () => odpowiedz);
 });
@@ -356,6 +361,59 @@ describe("eksport arkusza", () => {
     await waitFor(() => expect(createUrl).toHaveBeenCalledTimes(1));
     const blob = createUrl.mock.calls[0][0] as Blob;
     expect(await blob.text()).toBe("date;code;user_id;order_id;original;discount;paid;currency\n");
+  });
+});
+
+describe("język interfejsu", () => {
+  it("po angielsku ekran NIE pokazuje polszczyzny - napisy idą z lokalnego L(pl,en)", async () => {
+    h.language = "en";
+    await renderReady();
+    await waitFor(() => expect(screen.getByText("Redemption log")).toBeInTheDocument());
+    expect(screen.getByLabelText("From")).toBeInTheDocument();
+    expect(screen.getByLabelText("To")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Export CSV/ })).toBeInTheDocument();
+    expect(kafel("Net revenue")).toBe("80.00");
+    expect(screen.queryByText("Historia realizacji")).not.toBeInTheDocument();
+  });
+
+  it("po angielsku PUSTY zakres też mówi po angielsku", async () => {
+    h.language = "en";
+    odpowiedz = ok([]);
+    await renderPanel();
+    await waitFor(() => expect(screen.getByText("No redemptions in range.")).toBeInTheDocument());
+  });
+
+  it("data realizacji jest formatowana językiem interfejsu, nie stałą", async () => {
+    await renderReady();
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    const pl = screen.getAllByRole("row")[1].textContent ?? "";
+    cleanup();
+    h.language = "en";
+    db().reset();
+    db().setResponse(TABELA, () => odpowiedz);
+    await renderReady();
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    expect(screen.getAllByRole("row")[1].textContent).not.toBe(pl);
+  });
+});
+
+describe("wyczyszczenie dolnej granicy zakresu", () => {
+  it("wyczyszczenie daty 'od' USUWA ogniwo gte, a raport sięga do początku danych", async () => {
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Od"), { target: { value: "" } });
+    await waitFor(() => expect(db().chainsFor(TABELA).length).toBeGreaterThan(1));
+    expect(ostatnieZapytanie().has("gte")).toBe(false);
+    expect(ostatnieZapytanie().has("lte")).toBe(true);
+  });
+
+  it("wyczyszczenie OBU dat zostawia zapytanie bez ani jednego ogniwa filtrującego", async () => {
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Od"), { target: { value: "" } });
+    await waitFor(() => expect(db().chainsFor(TABELA).length).toBeGreaterThan(1));
+    fireEvent.change(screen.getByLabelText("Do"), { target: { value: "" } });
+    await waitFor(() => expect(ostatnieZapytanie().has("lte")).toBe(false));
+    expect(ostatnieZapytanie().has("gte")).toBe(false);
+    expect(ostatnieZapytanie().argsOf("limit")).toEqual([500]);
   });
 });
 

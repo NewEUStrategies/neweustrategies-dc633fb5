@@ -32,9 +32,13 @@ const h = vi.hoisted(() => ({
   rpc: null as SupabaseRpcStub | null,
   /** Gdy true, RPC nigdy się nie rozwiązuje (stan „wczytywanie"). */
   pending: false,
+  /** Język interfejsu - ta trasa NIE MA kluczy w słowniku, ma własne `L(pl,en)`. */
+  language: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
+);
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseRpcStub } = await import("@/test/supabase");
   const rpc = supabaseRpcStub();
@@ -112,6 +116,7 @@ let odpowiedz: SupabaseResult;
 beforeEach(() => {
   rpc().reset();
   h.pending = false;
+  h.language = "pl";
   odpowiedz = ok([wiersz()]);
   rpc().setResponse(FUNKCJA, () => odpowiedz);
 });
@@ -349,6 +354,45 @@ describe("tabela szczegółów", () => {
     expect(screen.getByText("-20.00")).toBeInTheDocument();
     expect(screen.getByText("-5.50")).toBeInTheDocument();
     expect(screen.getByText("25.50")).toBeInTheDocument();
+  });
+});
+
+describe("język interfejsu", () => {
+  it("po angielsku ekran NIE pokazuje polszczyzny - napisy idą z lokalnego L(pl,en)", async () => {
+    h.language = "en";
+    await renderReady();
+    await waitFor(() => expect(screen.getByText("TOP 10 coupons")).toBeInTheDocument());
+    expect(screen.getByText("Per-coupon detail")).toBeInTheDocument();
+    expect(screen.getByLabelText("From")).toBeInTheDocument();
+    expect(kafel("Coupons")).toBe("1");
+    expect(screen.queryByText("TOP 10 kuponów")).not.toBeInTheDocument();
+  });
+
+  it("nazwa serii wykresu zmienia się razem z językiem", async () => {
+    h.language = "en";
+    await renderReady();
+    await waitFor(() => expect(screen.getByTestId("wykres")).toBeInTheDocument());
+    expect(opcjaWykresu().series[0].name).toBe("Redemptions");
+  });
+
+  it("po angielsku PUSTY zbiór też mówi po angielsku", async () => {
+    h.language = "en";
+    odpowiedz = ok([]);
+    await renderReady();
+    await waitFor(() => expect(screen.getAllByText("No data.")).toHaveLength(2));
+  });
+});
+
+describe("wyczyszczenie górnej granicy zakresu", () => {
+  it("wyczyszczenie daty 'do' podstawia CHWILĘ ODCZYTU, a nie usuwa granicy", async () => {
+    await renderReady();
+    const przed = String(rpc().lastCall(FUNKCJA)?.arg("_to"));
+    fireEvent.change(screen.getByLabelText("Do"), { target: { value: "" } });
+    await waitFor(() => expect(rpc().callsFor(FUNKCJA).length).toBeGreaterThan(1));
+    const po = String(rpc().lastCall(FUNKCJA)?.arg("_to"));
+    expect(rpc().lastCall(FUNKCJA)?.keys()).toEqual(["_from", "_to"]);
+    expect(po).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+    expect(po >= przed).toBe(true);
   });
 });
 

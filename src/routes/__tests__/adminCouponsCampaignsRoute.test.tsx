@@ -316,6 +316,12 @@ describe("odczyt listy kampanii", () => {
     await renderPanel();
     await waitFor(() => expect(screen.getByText("adminCoupons.campaignsYet")).toBeInTheDocument());
   });
+
+  it("odpowiedź BEZ wierszy (data null) też daje pustą listę, a nie wyjątek w komponencie", async () => {
+    plan.list = ok(null);
+    await renderPanel();
+    await waitFor(() => expect(screen.getByText("adminCoupons.campaignsYet")).toBeInTheDocument());
+  });
 });
 
 describe("DEFEKT: odmowa odczytu wygląda dokładnie jak brak kampanii", () => {
@@ -594,6 +600,18 @@ describe("eksport kodów do CSV", () => {
     expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.csvExported");
   });
 
+  it("odpowiedź BEZ wierszy (data null) produkuje plik z samym nagłówkiem", async () => {
+    plan.coupons = ok(null);
+    const { createUrl } = przechwycPobranie();
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    await waitFor(() => expect(createUrl).toHaveBeenCalledTimes(1));
+    const blob = createUrl.mock.calls[0][0] as Blob;
+    expect(await blob.text()).toBe(
+      "code;name;active;valid_until;max_redemptions;redemptions_count\n",
+    );
+  });
+
   it("odmowa odczytu kodów NIE tworzy pliku i pokazuje komunikat bazy", async () => {
     plan.coupons = fail("permission denied for table b2b_coupons");
     const { createUrl } = przechwycPobranie();
@@ -619,6 +637,32 @@ describe("okno tworzenia kampanii", () => {
     await waitFor(() => expect(screen.getByTestId("dialog-content")).toBeInTheDocument());
     const okno = within(screen.getByTestId("dialog-content"));
     expect(okno.getByRole("option", { name: "Złoty" })).toBeInTheDocument();
+  });
+
+  it("zapis nowej kampanii ZAMYKA okno i odświeża listę - operator widzi nowy wiersz", async () => {
+    await renderReady();
+    const przed = odczytyListy().length;
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons.newCampaign/ }));
+    await waitFor(() => expect(screen.getByTestId("dialog-content")).toBeInTheDocument());
+    const okno = within(screen.getByTestId("dialog-content"));
+    fireEvent.change(okno.getByLabelText("adminCoupons.name"), {
+      target: { value: "Kampania z trasy" },
+    });
+    fireEvent.click(okno.getByRole("button", { name: "adminCoupons.createCampaign" }));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.campaignCreatedDraft"),
+    );
+    await waitFor(() => expect(screen.queryByTestId("dialog-content")).not.toBeInTheDocument());
+    expect(odczytyListy().length).toBeGreaterThan(przed);
+  });
+
+  it("PUSTA odpowiedź (data null) jest traktowana jak brak warstw, a nie jako wyjątek", async () => {
+    db().setResponse(TIERS, ok(null));
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons.newCampaign/ }));
+    await waitFor(() => expect(screen.getByTestId("dialog-content")).toBeInTheDocument());
+    const okno = within(screen.getByTestId("dialog-content"));
+    expect(okno.getAllByRole("option", { name: "adminCoupons.none" })).toHaveLength(1);
   });
 
   it("awaria odczytu warstw zostawia listę z samą pozycją 'brak' - bez śladu awarii", async () => {
