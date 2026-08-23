@@ -55,7 +55,9 @@ export function SidebarListenCard({
   postHref,
   readMinutes,
   audioUrl,
+  variant = "compact",
 }: SidebarListenCardProps) {
+
   // Komunikaty idą w języku ARTYKUŁU, nie interfejsu (audio jest w języku treści).
   const { t } = useTranslation();
   const copy = (key: string, params?: Record<string, unknown>) =>
