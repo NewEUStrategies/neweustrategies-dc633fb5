@@ -4,8 +4,8 @@ Zlecenie: cel **różnicowany** per powierzchnia (rozdz. 4 zlecenia), cel moduł
 z **81,5% linii / 82,7% funkcji** na **≥ 93% / ≥ 92%**.
 
 **Wynik: wszystkie siedem powierzchni na celu, cel modułowy osiągnięty.**
-Zmierzone dla całego modułu: **99,44% linii / 99,20% funkcji / 98,83% instrukcji /
-95,09% gałęzi** (151 plików źródłowych, pełna suita `npx vitest run --coverage`).
+Zmierzone dla całego modułu: **99,56% linii / 99,45% funkcji / 98,93% instrukcji /
+95,16% gałęzi** (151 plików źródłowych, pełna suita `npx vitest run --coverage`).
 Przed tą pracą, na tym samym zbiorze i tym samym poleceniem: 78,39% / 80,80% / 77,41% / 68,96%.
 
 **Dlaczego ten moduł wymagał innego rodzaju dowodu niż pięć poprzednich.** Maila nie da się
@@ -116,7 +116,7 @@ Agregaty katalogowe (pełna suita):
 | `src/lib/newsletter/**`        | 98,90% |  96,65% |   100%  | 99,49% |
 | `src/routes/platform/email/**` | 97,98% |  93,99% |   100%  | 99,70% |
 | `src/components/newsletter/**` |  100%  |  99,08% |   100%  |  100%  |
-| **CAŁY MODUŁ 11 (151 plików)** | **98,83%** | **95,09%** | **99,20%** | **99,44%** |
+| **CAŁY MODUŁ 11 (151 plików)** | **98,93%** | **95,16%** | **99,45%** | **99,56%** |
 
 ### Pomiar PRZED → PO na TYM SAMYM zbiorze
 
@@ -126,11 +126,11 @@ kod produkcyjny jest po obu stronach ten sam, bo ta praca go nie zmienia.
 
 | Miara (MODUŁ 11, 151 plików) | PRZED  | PO         | Δ         |
 | ---------------------------- | ------ | ---------- | --------- |
-| Instrukcje                   | 77,41% | **98,83%** | +21,42 pp |
-| Gałęzie                      | 68,96% | **95,09%** | +26,13 pp |
-| Funkcje                      | 80,80% | **99,20%** | +18,40 pp |
-| Linie                        | 78,39% | **99,44%** | +21,06 pp |
-| Linii bez pokrycia           | 1 129  | **29**     | −1 100    |
+| Instrukcje                   | 77,41% | **98,93%** | +21,52 pp |
+| Gałęzie                      | 68,96% | **95,16%** | +26,20 pp |
+| Funkcje                      | 80,80% | **99,45%** | +18,65 pp |
+| Linie                        | 78,39% | **99,56%** | +21,17 pp |
+| Linii bez pokrycia           | 1 129  | **23**     | −1 106    |
 
 (Strona PRZED daje 78,39% linii przy 81,47% z audytu — różnica bierze się z innego zbioru
 plików: 151 kontra 147. Dlatego porównywalna jest RÓŻNICA, nie wartość bezwzględna.)
@@ -150,10 +150,11 @@ Per powierzchnia, oba końce tym samym poleceniem (linie / gałęzie):
 | `src/lib/newsletter-{admin,status}.functions.ts`      | **3,41% / 0%**  | 100% / 100%     |
 | `src/lib/builder/popups.ts`                           | 71,57% / 65,00% | 100% / 96,67%   |
 
-Cel modułowy ≥ 93% linii / ≥ 92% funkcji: **osiągnięty** (99,44% / 99,20%).
+Cel modułowy ≥ 93% linii / ≥ 92% funkcji: **osiągnięty** (99,56% / 99,45%).
 
-38 nowych plików testowych, około 11 000 linii testu, 12 zgłoszonych defektów.
-Suita: 41 302 → 42 713 testów (+1 411), 163 → 176 wpisów `it.fails`.
+40 nowych plików testowych, około 11 500 linii testu, 12 zgłoszonych defektów.
+Suita: 41 302 → 42 740 testów (+1 438), 163 → 176 wpisów `it.fails`.
+W całym zbiorze zostały **23 niepokryte linie** — wypisane co do pliku w §6.5.
 
 ---
 
@@ -373,7 +374,32 @@ dwie gałęzie w teście `SupporterStrip` — osobna praca, nie obniżenie progu
 
 **Wszystkie jedenaście progów MODUŁU 11 przechodzi z globalnej konfiguracji.**
 
-### 6.5 Czego świadomie nie dublowano
+### 6.5 Dwadzieścia trzy niepokryte linie, które zostały
+
+Rozkład na koniec pracy (z 1 129 przed nią):
+
+| plik                                                              | niepokrytych |
+| ----------------------------------------------------------------- | -----------: |
+| `components/admin/newsletter/subscribers/ImportCsvDialog.tsx`     |            4 |
+| `lib/email/deliveryEvents.ts`                                     |            3 |
+| `lib/newsletter/trackingEvents.server.ts`                         |            2 |
+| `hooks/useNewsletterSettings.ts`                                  |            2 |
+| `components/popups/PopupHost.tsx`                                 |            2 |
+| `components/admin/newsletter/builder/WidgetPreview.tsx`           |            2 |
+| `components/admin/newsletter/builder/NewsletterBuilder.tsx`       |            2 |
+| `routes/platform/email/auth/webhook.ts`                           |            1 |
+| `routes/admin.newsletter.campaigns.$id.tsx`                       |            1 |
+| `lib/email/webhookSignature.server.ts`                            |            1 |
+| `components/admin/newsletter/deliverability/SuppressionTable.tsx` |            1 |
+| `components/admin/newsletter/deliverability/DeliverabilityPanel.tsx` |         1 |
+| `components/admin/newsletter/SubscribersPanel.tsx`                |            1 |
+
+Żaden z tych plików nie był nazwany w zleceniu jako powierzchnia etapu — dziesięć z trzynastu
+to panel admina, który wszedł do tej pracy już z pokryciem 99%+ i nie był jej celem. Nie są tu
+pomijane po cichu: domknięcie ostatnich 23 linii to praca nad panelem administracyjnym, nie nad
+powierzchniami MODUŁU 11 z rozdziału 4 zlecenia — te stoją na 100%.
+
+### 6.6 Czego świadomie nie dublowano
 
 pgTAP dowodzi w bazie: unikalności adresu bez rozróżniania wielkości liter, deduplikacji zdarzeń
 kampanii i unifikacji dwóch list wykluczeń (`email_suppression_test.sql`,
