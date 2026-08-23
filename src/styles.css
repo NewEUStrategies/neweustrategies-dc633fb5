@@ -2403,29 +2403,46 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] [data-section-tabs-bar] .cms-section-tab-btn,
   [data-builder-renderer] [data-section-tabs-bar] .cms-section-tab-btn .cms-section-tab-label,
   [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar] .cms-section-tab-btn,
-  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar] .cms-section-tab-btn .cms-section-tab-label {
+  [data-builder-renderer][data-device="mobile"]
+    [data-section-tabs-bar]
+    .cms-section-tab-btn
+    .cms-section-tab-label {
     hyphens: none !important;
     -webkit-hyphens: none !important;
   }
 
   [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn,
-  [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn .cms-section-tab-label,
-  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn,
-  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn .cms-section-tab-label {
+  [data-builder-renderer]
+    [data-section-tabs-bar][data-mobile-mode="scroll"]
+    .cms-section-tab-btn
+    .cms-section-tab-label,
+  [data-builder-renderer][data-device="mobile"]
+    [data-section-tabs-bar][data-mobile-mode="scroll"]
+    .cms-section-tab-btn,
+  [data-builder-renderer][data-device="mobile"]
+    [data-section-tabs-bar][data-mobile-mode="scroll"]
+    .cms-section-tab-btn
+    .cms-section-tab-label {
     white-space: nowrap !important;
   }
 
   [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn,
-  [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn .cms-section-tab-label,
-  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn,
-  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn .cms-section-tab-label {
+  [data-builder-renderer]
+    [data-section-tabs-bar][data-mobile-mode="wrap"]
+    .cms-section-tab-btn
+    .cms-section-tab-label,
+  [data-builder-renderer][data-device="mobile"]
+    [data-section-tabs-bar][data-mobile-mode="wrap"]
+    .cms-section-tab-btn,
+  [data-builder-renderer][data-device="mobile"]
+    [data-section-tabs-bar][data-mobile-mode="wrap"]
+    .cms-section-tab-btn
+    .cms-section-tab-label {
     white-space: normal !important;
     overflow-wrap: normal !important;
     word-break: normal !important;
     text-wrap: pretty;
   }
-
-
 
   [data-builder-renderer] h1:not(.cms-post-title) {
     font-size: clamp(1.4rem, 7vw, 2rem) !important;

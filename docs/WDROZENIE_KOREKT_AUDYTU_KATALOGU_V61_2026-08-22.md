@@ -326,29 +326,29 @@ istniejących płatników — nie audytowa** i audyt jej nie zlecał. Do rozstrz
 
 ## 11. Weryfikacja
 
-| Bramka                               | Wynik                                           |
-| ------------------------------------ | ----------------------------------------------- |
-| `check:sql-migration-replay`         | ✅ (0 nowych bliźniaków treści)                 |
-| `check:sql-tenant-scope`             | ✅ 847 funkcji, 4 uzasadnione ścieżki publiczne |
-| `check:sql-app-role`                 | ✅ 975 literałów `has_role`                     |
-| `check:sql-anon-insert`              | ✅ 557 polityk                                  |
-| `check:sql-owner-tenant-scope`       | ✅                                              |
-| `check:sql-policy-tenant-regression` | ✅                                              |
-| `check:sql-emit-actor`               | ✅                                              |
-| `check:rpc-contract`                 | ✅                                              |
-| `check:types-freshness`              | ✅ baseline bez zmian (26 pozycji)              |
-| `check:authz-snapshot`               | ✅ po regeneracji (20 bramek flag dla 16 flag)  |
-| `check:gate-coverage`                | ✅                                              |
-| `check:db-row-casts`                 | ✅                                              |
-| `check:stale-never-casts`            | ✅                                              |
-| `check:unknown-casts`                | ✅                                              |
-| `check:content-layering`             | ✅                                              |
-| `check:legacy-payment-refs`          | ✅                                              |
-| `check:i18n-hardcoded`               | ✅                                              |
-| `check:i18n-default-value`           | ✅                                              |
-| `check:i18n-overlay-imports`         | ✅                                              |
-| `check-pgtap-plan`                   | ✅ 98 plików, `plan(N)` = liczba asercji        |
-| `typecheck`                          | ✅ `tsc --noEmit` na całym projekcie            |
+| Bramka                               | Wynik                                                     |
+| ------------------------------------ | --------------------------------------------------------- |
+| `check:sql-migration-replay`         | ✅ (0 nowych bliźniaków treści)                           |
+| `check:sql-tenant-scope`             | ✅ 847 funkcji, 4 uzasadnione ścieżki publiczne           |
+| `check:sql-app-role`                 | ✅ 975 literałów `has_role`                               |
+| `check:sql-anon-insert`              | ✅ 557 polityk                                            |
+| `check:sql-owner-tenant-scope`       | ✅                                                        |
+| `check:sql-policy-tenant-regression` | ✅                                                        |
+| `check:sql-emit-actor`               | ✅                                                        |
+| `check:rpc-contract`                 | ✅                                                        |
+| `check:types-freshness`              | ✅ baseline bez zmian (26 pozycji)                        |
+| `check:authz-snapshot`               | ✅ po regeneracji (20 bramek flag dla 16 flag)            |
+| `check:gate-coverage`                | ✅                                                        |
+| `check:db-row-casts`                 | ✅                                                        |
+| `check:stale-never-casts`            | ✅                                                        |
+| `check:unknown-casts`                | ✅                                                        |
+| `check:content-layering`             | ✅                                                        |
+| `check:legacy-payment-refs`          | ✅                                                        |
+| `check:i18n-hardcoded`               | ✅                                                        |
+| `check:i18n-default-value`           | ✅                                                        |
+| `check:i18n-overlay-imports`         | ✅                                                        |
+| `check-pgtap-plan`                   | ✅ 98 plików, `plan(N)` = liczba asercji                  |
+| `typecheck`                          | ✅ `tsc --noEmit` na całym projekcie                      |
 | `check:db-contract`                  | ⛔ wymaga `SUPABASE_URL` / klucza — brak w tym środowisku |
 
 Pakiet testowy Vitest: **38 402 testy przechodzą, zero nieudanych** (1 480 plików).

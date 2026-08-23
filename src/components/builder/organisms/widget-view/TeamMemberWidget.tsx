@@ -168,7 +168,6 @@ export function TeamMemberWidget({
             </span>
           )}
         </span>
-
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>

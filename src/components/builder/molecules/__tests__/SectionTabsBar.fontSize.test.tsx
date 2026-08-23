@@ -119,6 +119,4 @@ describe("SectionTabsBar - fontSize wiring", () => {
     expect(btn).toHaveClass("cms-section-tab-btn");
     expect(btn!.querySelector(".cms-section-tab-label")).not.toBeNull();
   });
-
-
 });

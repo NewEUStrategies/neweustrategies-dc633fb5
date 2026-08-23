@@ -37,7 +37,9 @@ describe("isPeopleSectionKind", () => {
   });
 
   it("returns true for nested inner-sections that contain only people widgets", () => {
-    expect(isPeopleSectionKind([inner([col([w("team-member")]), col([w("team-member")])])])).toBe(true);
+    expect(isPeopleSectionKind([inner([col([w("team-member")]), col([w("team-member")])])])).toBe(
+      true,
+    );
   });
 
   it("returns false for empty sections", () => {
@@ -55,6 +57,10 @@ describe("peopleColumnCount", () => {
   });
 
   it("counts columns inside nested inner-sections", () => {
-    expect(peopleColumnCount([inner([col([w("team-member")]), col([w("team-member")]), col([w("team-member")])])])).toBe(3);
+    expect(
+      peopleColumnCount([
+        inner([col([w("team-member")]), col([w("team-member")]), col([w("team-member")])]),
+      ]),
+    ).toBe(3);
   });
 });

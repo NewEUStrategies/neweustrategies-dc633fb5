@@ -27,8 +27,7 @@ export interface BuildAdhocOrderArgs {
 }
 
 export type BuildAdhocOrderResult =
-  | { ok: true; clientSecret: string; orderId: string }
-  | { ok: false; error: string };
+  { ok: true; clientSecret: string; orderId: string } | { ok: false; error: string };
 
 interface ResolvedAmount {
   amountCents: number;

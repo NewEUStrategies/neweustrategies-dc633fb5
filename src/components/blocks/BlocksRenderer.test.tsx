@@ -119,7 +119,7 @@ describe("BlocksRenderer", () => {
             id: "legacy-script",
             type: "html",
             data: {
-              html: '<script>function footnote_expand_reference_container_1(){}</script></div>',
+              html: "<script>function footnote_expand_reference_container_1(){}</script></div>",
             },
           },
         ])}
