@@ -8211,7 +8211,6 @@ html.dark.club-navy body {
   }
 }
 
-
 /* Pulsująca kropka "rekrutujemy" w badge'u hero. */
 .crs-pulse-dot {
   position: relative;
@@ -8342,7 +8341,6 @@ sup.fn-ref {
   vertical-align: super;
 }
 
-
 /* Przypisy: pełna treść bez clamp/ellipsis. Portal do body omija overflow
  * kontenerów wpisu, a viewport-aware pozycjonowanie pilnuje krawędzi ekranu. */
 [data-footnote-tooltip],
@@ -8389,7 +8387,8 @@ sup.fn-ref {
 }
 .cms-content-list .cms-list-item,
 .cms-block-list-editor__item,
-.cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
   position: relative;
   display: grid;
@@ -8401,7 +8400,8 @@ sup.fn-ref {
 }
 .cms-content-list .cms-list-item + .cms-list-item,
 .cms-block-list-editor__item + .cms-block-list-editor__item,
-.cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))
   + li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
   margin-top: 0.4em;
@@ -8443,7 +8443,8 @@ sup.fn-ref {
   background: var(--cms-list-accent, #fa9346);
 }
 .cms-content-list--unordered .cms-content-list--unordered .cms-list-bullet,
-.cms-block-list-editor--unordered .cms-block-list-editor__item[data-level]:not([data-level="1"])
+.cms-block-list-editor--unordered
+  .cms-block-list-editor__item[data-level]:not([data-level="1"])
   > .cms-list-bullet {
   width: 5px;
   height: 5px;
@@ -8490,11 +8491,13 @@ sup.fn-ref {
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
   counter-reset: cms-ordered-list;
 }
-.cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
   counter-increment: cms-ordered-list;
 }
-.cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   box-sizing: border-box;
   content: counter(cms-ordered-list);
@@ -8519,7 +8522,8 @@ sup.fn-ref {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.cms-rich-content ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   content: "";
   grid-column: 1;
@@ -8534,7 +8538,8 @@ sup.fn-ref {
     transform 180ms ease,
     background-color 180ms ease;
 }
-.cms-rich-content ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"])):hover::before {
   transform: scale(1.3);
   background: var(--cms-list-accent, #fa9346);
@@ -8544,7 +8549,8 @@ sup.fn-ref {
   width: 100%;
   margin-block: 0.4rem 0.15rem;
 }
-.cms-rich-content ul:not(.task-list):not(.contains-task-list)
+.cms-rich-content
+  ul:not(.task-list):not(.contains-task-list)
   ul:not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   width: 5px !important;
@@ -8578,17 +8584,38 @@ sup.fn-ref {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-:is(h1, h2) .cms-inline-status-icon { stroke-width: 1.6; }
-h3 .cms-inline-status-icon { stroke-width: 1.7; }
-:is(strong, b) .cms-inline-status-icon { stroke-width: 2; }
-.cms-inline-status-icon--success { color: var(--status-success); }
-.cms-inline-status-icon--error { color: var(--destructive); }
-.cms-inline-status-icon--warning { color: var(--status-warning); }
+:is(h1, h2) .cms-inline-status-icon {
+  stroke-width: 1.6;
+}
+h3 .cms-inline-status-icon {
+  stroke-width: 1.7;
+}
+:is(strong, b) .cms-inline-status-icon {
+  stroke-width: 2;
+}
+.cms-inline-status-icon--success {
+  color: var(--status-success);
+}
+.cms-inline-status-icon--error {
+  color: var(--destructive);
+}
+.cms-inline-status-icon--warning {
+  color: var(--status-warning);
+}
 
 @keyframes sonner-icon-pop {
-  0% { transform: scale(0.7); opacity: 0; }
-  60% { transform: scale(1.08); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   [data-sonner-toast][data-type="success"] [data-icon],
@@ -8599,7 +8626,8 @@ h3 .cms-inline-status-icon { stroke-width: 1.7; }
 }
 @media (max-width: 767px) {
   .cms-content-list,
-  .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
+  .cms-rich-content
+    :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
     --cms-list-marker-col: 1.45rem;
   }
 }

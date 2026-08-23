@@ -321,7 +321,7 @@ Pełna lista pozycji z podpozycjami:
 | ustawienia płatności | `lnk` (ikona „i") | `Payment settings`                                                                                                                                             |
 | nowy bilet           | `btn`             | `Create a ticket` (zielony)                                                                                                                                    |
 | tabela               | `tbl`             | kolumny: `Ticket name` · `Status` (filtr) · `Price` · `Uses` · `Valid from` · `Valid until` · `Group` (filtr) · `Visibility` (filtr) · ikona kolejności · `…`  |
-| wiersz 1             | dane              | `Partner` · `● Ended` · `Free` · `0/Unlimited` · `Mar 26, 2025 9:00 AM` · `Mar 27, 2025 7:00 PM` · `Exhibitors` · 👁 `Visible`                                 |
+| wiersz 1             | dane              | `Partner` · `● Ended` · `Free` · `0/Unlimited` · `Mar 26, 2025 9:00 AM` · `Mar 27, 2025 7:00 PM` · `Exhibitors` · 👁 `Visible`                                  |
 | wiersz 2             | dane              | `Uczestnik` · `● Ended` · `Free` · `0/Unlimited` · j.w. · `Attendees` · `Visible`                                                                              |
 | wiersz 3             | dane              | `Prelegent` · `● Ended` · `Free` · `0/Unlimited` · j.w. · `Speakers` · `Visible`                                                                               |
 

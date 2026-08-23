@@ -1126,7 +1126,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   </div>
                 )}
 
-
                 {!merged.quick_view_info && !editorialActions && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{articleActions}</div>
                 )}

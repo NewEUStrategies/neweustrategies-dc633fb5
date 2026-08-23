@@ -54,7 +54,8 @@ describe("ListBlockEdit - miękki enter", () => {
     } as Block;
     const { container } = render(<ListBlockEdit block={ordered} onChange={vi.fn()} />);
 
-    expect(Array.from(container.querySelectorAll(".cms-list-number")).map((node) => node.textContent))
-      .toEqual(["1", "2"]);
+    expect(
+      Array.from(container.querySelectorAll(".cms-list-number")).map((node) => node.textContent),
+    ).toEqual(["1", "2"]);
   });
 });

@@ -51,11 +51,19 @@ describe("BlocksRenderer", () => {
       />,
     );
 
-    expect(container.querySelectorAll(".cms-content-list--unordered .cms-list-bullet")).toHaveLength(2);
-    expect(container.querySelector(".cms-content-list--unordered .cms-content-list--unordered"))
-      .not.toBeNull();
-    expect(Array.from(container.querySelectorAll(".cms-content-list--ordered > .cms-list-item > .cms-list-number")).map((node) => node.textContent))
-      .toEqual(["4", "5"]);
+    expect(
+      container.querySelectorAll(".cms-content-list--unordered .cms-list-bullet"),
+    ).toHaveLength(2);
+    expect(
+      container.querySelector(".cms-content-list--unordered .cms-content-list--unordered"),
+    ).not.toBeNull();
+    expect(
+      Array.from(
+        container.querySelectorAll(
+          ".cms-content-list--ordered > .cms-list-item > .cms-list-number",
+        ),
+      ).map((node) => node.textContent),
+    ).toEqual(["4", "5"]);
     const icon = container.querySelector(".cms-inline-status-icon--success");
     expect(icon?.getAttribute("aria-hidden")).toBe("true");
   });

@@ -44,8 +44,7 @@ export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) 
   if (withFn !== undefined) {
     // Aliasy doklejamy do stringa HTML, żeby przy braku aliasów (przypadek
     // dominujący) DOM nagłówka pozostał BAJT W BAJT taki jak dotąd.
-    const html =
-      legacyAnchorsHtml(anchor.legacyIds, anchor.id) + decorateCmsStatusIcons(withFn);
+    const html = legacyAnchorsHtml(anchor.legacyIds, anchor.id) + decorateCmsStatusIcons(withFn);
     return <Tag id={id} className={cls} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
   }
   // Nagłówek edytowany w CMS builderze przechowuje INLINE HTML (bold / italic /
@@ -117,9 +116,7 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
     // renderujemy je jako HTML, żeby znaczniki nie były widoczne jako tekst.
     if (looksLikeInlineHtml(entry.it) || /✅|❌|⚠️/.test(entry.it))
       return (
-        <span
-          dangerouslySetInnerHTML={{ __html: decorateCmsStatusIcons(sanitize(entry.it)) }}
-        />
+        <span dangerouslySetInnerHTML={{ __html: decorateCmsStatusIcons(sanitize(entry.it)) }} />
       );
     return <>{entry.it}</>;
   };

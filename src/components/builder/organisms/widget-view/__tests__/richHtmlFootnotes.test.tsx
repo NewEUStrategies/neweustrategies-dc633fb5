@@ -61,7 +61,9 @@ describe("RichHtmlView - treść bez przypisów", () => {
   });
 
   it("renders decorative status icons while preserving readable labels", () => {
-    const { container } = render(<RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />);
+    const { container } = render(
+      <RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />,
+    );
     expect(container.querySelector(".cms-inline-status-icon--success")).not.toBeNull();
     expect(container.textContent).toContain("Gotowe");
   });

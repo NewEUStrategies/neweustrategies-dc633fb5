@@ -414,14 +414,14 @@ i sponsorów w kolumnie środkowej.
 
 ### 7.2 Prelegenci — siatka (zrzut 7): **gotowe**
 
-| Element                           | Artefakt                                                                                                                                                                                                                                                | Stan |
+| Element | Artefakt | Stan |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------- |
-| Dane karty                        | RPC `get_public_speakers(p_event_id, p_limit, p_user_ids)` → `display_name`, `avatar_url`, `job_title`, `company`, `slug`, `sort_order`, `is_expert`, `has_speaker_profile`, `headline_pl/en`, `topics_pl/en`, `rating`, `reviews_count`, `talks_count` | ✅   |
-| Widget siatki                     | `speakers` z polami `source: 'manual' \| 'directory' \| 'event'` + `eventId`                                                                                                                                                                            | ✅   |
-| Kolejność                         | `event_speakers.sort_order` (przenumerowanie całej listy — `EventSpeakersManager.tsx:78-94`)                                                                                                                                                            | ✅   |
-| Cel linku z karty                 | `/author/$slug`                                                                                                                                                                                                                                         | ✅   |
-| Odznaki                           | `ProfileBadges`, `is_expert` z `profile_badges.badge='expert'`                                                                                                                                                                                          | ✅   |
-| Grupowanie po roli („Wykładowcy") | ⛔ — `event_speakers` nie ma `role_id`                                                                                                                                                                                                                  | ⛔   | → `ANALIZA_BRAKUJACYCH_EKRANOW` §6 (EB dla `event_speaker_roles`) |
+| Dane karty | RPC `get_public_speakers(p_event_id, p_limit, p_user_ids)` → `display_name`, `avatar_url`, `job_title`, `company`, `slug`, `sort_order`, `is_expert`, `has_speaker_profile`, `headline_pl/en`, `topics_pl/en`, `rating`, `reviews_count`, `talks_count` | ✅ |
+| Widget siatki | `speakers` z polami `source: 'manual' \| 'directory' \| 'event'` + `eventId` | ✅ |
+| Kolejność | `event_speakers.sort_order` (przenumerowanie całej listy — `EventSpeakersManager.tsx:78-94`) | ✅ |
+| Cel linku z karty | `/author/$slug` | ✅ |
+| Odznaki | `ProfileBadges`, `is_expert` z `profile_badges.badge='expert'` | ✅ |
+| Grupowanie po roli („Wykładowcy") | ⛔ — `event_speakers` nie ma `role_id` | ⛔ | → `ANALIZA_BRAKUJACYCH_EKRANOW` §6 (EB dla `event_speaker_roles`) |
 
 **To jedyny ekran z paczki 2, który da się złożyć dziś, bez migracji.**
 
@@ -624,20 +624,20 @@ albo przez ukrycie sekcji, dopóki źródła nie ma.
 
 ### 11.1 System reklamowy — kompletny, brakuje **dwóch** rzeczy
 
-| Element frontu                         | Artefakt                                                                                                                                                                                                                                     | Stan |
+| Element frontu | Artefakt | Stan |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Kreacja (pionowy baner 300×600)        | `ad_slots`: `kind` (`html`/`script`/`image`), `image_url`, `image_link`, `image_alt`, `width`, `height`, `requires_consent`, `targeting`, `status`                                                                                           | ✅   |
-| Pozycja „prawa kolumna"                | enum `ad_position` wariant **`sidebar`** + `AD_POSITION_LABEL_KEYS['sidebar']`                                                                                                                                                               | ✅   |
-| Render strefy                          | `<AdZone position="sidebar" pageType="all" pageId={event.id} limit={1} />` — **bez żadnych zmian w kodzie strefy**                                                                                                                           | ✅   |
-| Render kreacji + zliczanie             | `AdSlotView` (memo); `kind='image'` → `<img>` w `<a target="_blank" rel="sponsored noopener noreferrer">`; `html`/`script` → `SandboxedAdFrame`                                                                                              | ✅   |
-| Bezpieczny HTML z własnym CTA          | `SandboxedAdFrame` — iframe `sandbox` **bez** `allow-same-origin`, prop `onEngage`                                                                                                                                                           | ✅   |
-| Bramka zgody marketingowej             | `useMarketingConsent()` + `ad_slots.requires_consent` → `AdContainer state="blocked"` z `t('ads.consentBlocked')`; zapis: `localStorage 'consent:v2'` + cookie + `profiles.prefs.consent` + rejestr `user_consents`; GPC honorowany          | ✅   |
-| Zero CLS (rezerwacja miejsca)          | `AdContainer` (`role="complementary"`, `data-ad-position`, `data-ad-state`) + `reserveStyle()`; przy podanych `width`+`height` rezerwacja przez `aspect-ratio` — dla 300×600 **działa poprawnie**                                            | ✅   |
-| Leniwe ładowanie (nie konkuruje z LCP) | `useDeferredAd({ rootMargin, idleTimeout })` — dwie bramki: idle po pierwszym paincie + `IntersectionObserver` z `rootMargin` 200 px                                                                                                         | ✅   |
-| Telemetria                             | `beaconAdEvent('impression'\|'click', slotId, placementId)` → `POST /api/public/ad-event` → `ad_events` (`kind CHECK IN ('impression','click')`, `path`)                                                                                     | ✅   |
-| Baner jako widget w dowolnej kolumnie  | widget `ad-slot` (`defaults { slotId: '' }`) → `AdSlotById`                                                                                                                                                                                  | 🟡   | `AdSlotById` buduje syntetyczny placement z **zaszytym** `position:'top_of_post'` → rezerwacja liczy się jak dla `top_of_post` (250 px), nie dla skyscrapera |
-| Wybór kreacji do emisji                | `useAdPlacements` + `fetchPlacements`: `.eq(position)` + `.in(page_type, ['all', pageType])` + `.eq(active,true)` + `.eq(slot.status,'active')` + okno `starts_at`/`ends_at` + `.order(sort_order)`, potem klientowo `page_id` i `targeting` | ✅   |
-| Przypięcie do konkretnej encji         | `ad_placements.page_id` (uuid, **bez FK**) — honorowane przez `fetchPlacements`                                                                                                                                                              | 🟡   |
+| Kreacja (pionowy baner 300×600) | `ad_slots`: `kind` (`html`/`script`/`image`), `image_url`, `image_link`, `image_alt`, `width`, `height`, `requires_consent`, `targeting`, `status` | ✅ |
+| Pozycja „prawa kolumna" | enum `ad_position` wariant **`sidebar`** + `AD_POSITION_LABEL_KEYS['sidebar']` | ✅ |
+| Render strefy | `<AdZone position="sidebar" pageType="all" pageId={event.id} limit={1} />` — **bez żadnych zmian w kodzie strefy** | ✅ |
+| Render kreacji + zliczanie | `AdSlotView` (memo); `kind='image'` → `<img>` w `<a target="_blank" rel="sponsored noopener noreferrer">`; `html`/`script` → `SandboxedAdFrame` | ✅ |
+| Bezpieczny HTML z własnym CTA | `SandboxedAdFrame` — iframe `sandbox` **bez** `allow-same-origin`, prop `onEngage` | ✅ |
+| Bramka zgody marketingowej | `useMarketingConsent()` + `ad_slots.requires_consent` → `AdContainer state="blocked"` z `t('ads.consentBlocked')`; zapis: `localStorage 'consent:v2'` + cookie + `profiles.prefs.consent` + rejestr `user_consents`; GPC honorowany | ✅ |
+| Zero CLS (rezerwacja miejsca) | `AdContainer` (`role="complementary"`, `data-ad-position`, `data-ad-state`) + `reserveStyle()`; przy podanych `width`+`height` rezerwacja przez `aspect-ratio` — dla 300×600 **działa poprawnie** | ✅ |
+| Leniwe ładowanie (nie konkuruje z LCP) | `useDeferredAd({ rootMargin, idleTimeout })` — dwie bramki: idle po pierwszym paincie + `IntersectionObserver` z `rootMargin` 200 px | ✅ |
+| Telemetria | `beaconAdEvent('impression'\|'click', slotId, placementId)` → `POST /api/public/ad-event` → `ad_events` (`kind CHECK IN ('impression','click')`, `path`) | ✅ |
+| Baner jako widget w dowolnej kolumnie | widget `ad-slot` (`defaults { slotId: '' }`) → `AdSlotById` | 🟡 | `AdSlotById` buduje syntetyczny placement z **zaszytym** `position:'top_of_post'` → rezerwacja liczy się jak dla `top_of_post` (250 px), nie dla skyscrapera |
+| Wybór kreacji do emisji | `useAdPlacements` + `fetchPlacements`: `.eq(position)` + `.in(page_type, ['all', pageType])` + `.eq(active,true)` + `.eq(slot.status,'active')` + okno `starts_at`/`ends_at` + `.order(sort_order)`, potem klientowo `page_id` i `targeting` | ✅ |
+| Przypięcie do konkretnej encji | `ad_placements.page_id` (uuid, **bez FK**) — honorowane przez `fetchPlacements` | 🟡 |
 
 Dwa braki, oba drobne:
 
@@ -675,15 +675,15 @@ ale oba są przypisane innym encjom.
 
 ### 11.3 Pasek zakładek wydarzenia
 
-| Wzorzec                                           | Artefakt                                                                                                                                                                                | Stan |
+| Wzorzec | Artefakt | Stan |
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Najbliższy wzorzec** (trasowe, aktywna w ramce) | `ClubHubSectionBar` — poziomy pasek `<Link>` po poddrzewie encji, aktywny stan `data-[status=active]:border-primary`, `activeOptions={{exact}}`, przewijanie poziome na mobile          | 🔵   |
-| Zakładki bez zmiany trasy                         | `ClubWorkspaceTabs` + `ClubWorkspaceTab` — `role="tablist"`, sticky `top-16`, strzałki/Home/End, `aria-selected`, roving `tabIndex`, aktywna: `border-primary/40 bg-primary/10`, badge  | 🔵   |
-| Zakładki konfigurowane z panelu                   | `SectionTabsBar` + `SectionTabsConfig`, wariant **`bordered`** (border 1 px `activeColor`, `borderRadius` 8, tło `color-mix` 6%); `SectionTabItem` z `label_pl/en`, `icon`, **`color`** | 🔵   |
-| Zakładki ze stanem w URL                          | `SearchSectionTabs` (`role="tablist"`, `SEARCH_TABS`, stan w query paramie `tab`)                                                                                                       | 🔵   |
-| Ścieżka/hierarchia                                | `Breadcrumbs` + `fetchPageBreadcrumbs` → RPC `page_breadcrumbs(_page_id)`, `buildBreadcrumbs`                                                                                           | ✅   |
-| Źródło pozycji z poddrzewa stron                  | `publicPagesTreeQueryOptions()` → `pages(id, slug, title_pl, title_en, parent_id, menu_order)` filtrowane `status='published'`, `seo_noindex=false`, `deleted_at is null`               | ✅   |
-| Pasek dolny na telefonie                          | `MobileBottomBarView` (props: `config`, `items`, `activeIndex`, …) + `MobileBottomBarItem` (`icon` Lucide kebab-case, `href`, `color`, `badge`)                                         | 🟡   | komponent nadaje się wprost, ale konfiguracja jest **globalna**: jeden wiersz `site_settings[key='mobile_bottom_bar']` na tenanta |
+| **Najbliższy wzorzec** (trasowe, aktywna w ramce) | `ClubHubSectionBar` — poziomy pasek `<Link>` po poddrzewie encji, aktywny stan `data-[status=active]:border-primary`, `activeOptions={{exact}}`, przewijanie poziome na mobile | 🔵 |
+| Zakładki bez zmiany trasy | `ClubWorkspaceTabs` + `ClubWorkspaceTab` — `role="tablist"`, sticky `top-16`, strzałki/Home/End, `aria-selected`, roving `tabIndex`, aktywna: `border-primary/40 bg-primary/10`, badge | 🔵 |
+| Zakładki konfigurowane z panelu | `SectionTabsBar` + `SectionTabsConfig`, wariant **`bordered`** (border 1 px `activeColor`, `borderRadius` 8, tło `color-mix` 6%); `SectionTabItem` z `label_pl/en`, `icon`, **`color`** | 🔵 |
+| Zakładki ze stanem w URL | `SearchSectionTabs` (`role="tablist"`, `SEARCH_TABS`, stan w query paramie `tab`) | 🔵 |
+| Ścieżka/hierarchia | `Breadcrumbs` + `fetchPageBreadcrumbs` → RPC `page_breadcrumbs(_page_id)`, `buildBreadcrumbs` | ✅ |
+| Źródło pozycji z poddrzewa stron | `publicPagesTreeQueryOptions()` → `pages(id, slug, title_pl, title_en, parent_id, menu_order)` filtrowane `status='published'`, `seo_noindex=false`, `deleted_at is null` | ✅ |
+| Pasek dolny na telefonie | `MobileBottomBarView` (props: `config`, `items`, `activeIndex`, …) + `MobileBottomBarItem` (`icon` Lucide kebab-case, `href`, `color`, `badge`) | 🟡 | komponent nadaje się wprost, ale konfiguracja jest **globalna**: jeden wiersz `site_settings[key='mobile_bottom_bar']` na tenanta |
 
 Trzy braki:
 

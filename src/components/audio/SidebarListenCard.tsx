@@ -40,7 +40,6 @@ interface SidebarListenCardProps {
   variant?: "compact" | "full-width";
 }
 
-
 // Pierścień fokusu przychodzi z atomu. Tu i w `GlobalAudioBar` stała była
 // ZADEKLAROWANA OSOBNO - dwie kopie jedynej rzeczy, która odpowiada za
 // widoczność fokusu klawiatury w całym odtwarzaczu.
@@ -57,7 +56,6 @@ export function SidebarListenCard({
   audioUrl,
   variant = "compact",
 }: SidebarListenCardProps) {
-
   // Komunikaty idą w języku ARTYKUŁU, nie interfejsu (audio jest w języku treści).
   const { t } = useTranslation();
   const copy = (key: string, params?: Record<string, unknown>) =>
@@ -271,7 +269,6 @@ export function SidebarListenCard({
             )}
           </button>
         )}
-
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2 mb-1.5">

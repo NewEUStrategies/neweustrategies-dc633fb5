@@ -135,27 +135,27 @@ export function FootnoteTooltips({
       if (!a) return;
       const id = Number(a.dataset.fn);
       if (!byId.has(id)) return;
-       cancelHide();
+      cancelHide();
       const r = a.getBoundingClientRect();
-       setPosition((current) => ({ ...current, ready: false }));
-       setState({
-         id,
-         anchorLeft: r.left,
-         anchorRight: r.right,
-         anchorTop: r.top,
-         anchorBottom: r.bottom,
-       });
+      setPosition((current) => ({ ...current, ready: false }));
+      setState({
+        id,
+        anchorLeft: r.left,
+        anchorRight: r.right,
+        anchorTop: r.top,
+        anchorBottom: r.bottom,
+      });
     };
     root.addEventListener("mouseenter", enter, true);
     root.addEventListener("focusin", enter, true);
-     root.addEventListener("mouseleave", scheduleHide, true);
-     root.addEventListener("focusout", scheduleHide, true);
+    root.addEventListener("mouseleave", scheduleHide, true);
+    root.addEventListener("focusout", scheduleHide, true);
     return () => {
       root.removeEventListener("mouseenter", enter, true);
       root.removeEventListener("focusin", enter, true);
-       root.removeEventListener("mouseleave", scheduleHide, true);
-       root.removeEventListener("focusout", scheduleHide, true);
-       cancelHide();
+      root.removeEventListener("mouseleave", scheduleHide, true);
+      root.removeEventListener("focusout", scheduleHide, true);
+      cancelHide();
     };
   }, [notes, containerRef]);
 

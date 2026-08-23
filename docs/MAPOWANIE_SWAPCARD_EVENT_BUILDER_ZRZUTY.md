@@ -1084,14 +1084,14 @@ nadrzędnego). Wnioski są tu najcięższe w całym mapowaniu.
   `Location` · `Topics` · `Speakers` (sort) · `Exhibitors` (sort) · `Attendees`.
 - Sześć sesji (`1 – 6 of 6`), wszystkie `In-person (no video)`, wszystkie
   `Wednesday, November 27,…`:
-  | Sesja | Godziny | Speakers | Exhibitors | Attendees |
-  | --- | --- | --- | --- | --- |
-  | Uroczyste otwarcie konferencji… | 9:00–9:05 | 1 | 1 | – |
-  | Aktywność Polski w organizacjach… | 9:05–10:00 | 4 | 2 | 1 |
-  | Bezpieczeństwo Europy – NATO czy budowa… | 10:00–11:45 | 4 | 1 | – |
-  | Innowacyjna bankowość, a gdzie przedsiębiorcy? | 12:00–13:45 | 4 | 1 | 1 |
-  | Przyszłość reguł fiskalnych w Unii… | 14:00–15:45 | 4 | 1 | 1 |
-  | Mobilność wojskowa państw na wschodniej… | 16:00–17:45 | 4 | 3 | – |
+  | Sesja                                          | Godziny     | Speakers | Exhibitors | Attendees |
+  | ---------------------------------------------- | ----------- | -------- | ---------- | --------- |
+  | Uroczyste otwarcie konferencji…                | 9:00–9:05   | 1        | 1          | –         |
+  | Aktywność Polski w organizacjach…              | 9:05–10:00  | 4        | 2          | 1         |
+  | Bezpieczeństwo Europy – NATO czy budowa…       | 10:00–11:45 | 4        | 1          | –         |
+  | Innowacyjna bankowość, a gdzie przedsiębiorcy? | 12:00–13:45 | 4        | 1          | 1         |
+  | Przyszłość reguł fiskalnych w Unii…            | 14:00–15:45 | 4        | 1          | 1         |
+  | Mobilność wojskowa państw na wschodniej…       | 16:00–17:45 | 4        | 3          | –         |
 
 **Mapowanie**
 
