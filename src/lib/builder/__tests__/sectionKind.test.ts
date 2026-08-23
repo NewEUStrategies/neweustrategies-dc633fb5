@@ -1,22 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { isPeopleSectionKind, peopleColumnCount } from "@/lib/builder/sectionKind";
-import type { SectionChild, WidgetNode } from "@/lib/builder/types";
+import type { ColumnNode, SectionChild, WidgetNode, WidgetType } from "@/lib/builder/types";
 
-function w(type: string): WidgetNode {
+function w(type: WidgetType): WidgetNode {
   return { id: `${type}-1`, kind: "widget", type, content: {} };
 }
 
-const col = (widgets: WidgetNode[]): SectionChild => ({
+const col = (widgets: WidgetNode[]): ColumnNode => ({
   id: "col-1",
   kind: "column",
   span: { desktop: 3, mobile: 12 },
   children: widgets,
 });
 
-const inner = (columns: SectionChild[]): SectionChild => ({
+const inner = (columns: ColumnNode[]): SectionChild => ({
   id: "inner-1",
   kind: "inner-section",
-  columns: columns as NonNullable<typeof columns>,
+  columns,
 });
 
 describe("isPeopleSectionKind", () => {
