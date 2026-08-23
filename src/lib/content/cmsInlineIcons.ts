@@ -12,5 +12,12 @@ const ICONS: Readonly<Record<string, string>> = {
 const STATUS_EMOJI_RE = /✅|❌|⚠️/g;
 
 export function decorateCmsStatusIcons(sanitizedHtml: string): string {
-  return sanitizedHtml.replace(STATUS_EMOJI_RE, (emoji) => ICONS[emoji] ?? emoji);
+  // Nie dotykamy wnętrza tagów/atrybutów (np. `title="✅"`), bo wstrzyknięcie
+  // elementu SVG do atrybutu zepsułoby poprawny, już oczyszczony HTML.
+  return sanitizedHtml
+    .split(/(<[^>]+>)/g)
+    .map((part) =>
+      part.startsWith("<") ? part : part.replace(STATUS_EMOJI_RE, (emoji) => ICONS[emoji] ?? emoji),
+    )
+    .join("");
 }

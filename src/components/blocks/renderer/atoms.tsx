@@ -178,8 +178,10 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
 export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
   const text = str(block.data, "text");
   const cite = str(block.data, "cite");
-  const textFn = fnHtml.get(`${block.id}:text`);
-  const citeFn = fnHtml.get(`${block.id}:cite`);
+  const textFnRaw = fnHtml.get(`${block.id}:text`);
+  const citeFnRaw = fnHtml.get(`${block.id}:cite`);
+  const textFn = textFnRaw === undefined ? undefined : decorateCmsStatusIcons(textFnRaw);
+  const citeFn = citeFnRaw === undefined ? undefined : decorateCmsStatusIcons(citeFnRaw);
   const variant = str(block.data, "variant") || "default";
   const palette = str(block.data, "colorPalette") || "neutral";
 
@@ -275,7 +277,7 @@ export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
 
 /** Surowy HTML (sanitizowany, z rozwiniętymi przypisami). */
 export const renderHtml: BlockRenderer = ({ block, fnHtml, cls }) => {
-  const safe = fnHtml.get(block.id) ?? str(block.data, "html");
+  const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? str(block.data, "html"));
   return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
 };
 

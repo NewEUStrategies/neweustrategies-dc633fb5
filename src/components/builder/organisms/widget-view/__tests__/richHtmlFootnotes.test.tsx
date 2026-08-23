@@ -59,4 +59,10 @@ describe("RichHtmlView - treść bez przypisów", () => {
     const host = container.querySelector(".prose") as HTMLElement;
     expect(host.style.color).toBe("#333");
   });
+
+  it("renders decorative status icons while preserving readable labels", () => {
+    const { container } = render(<RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />);
+    expect(container.querySelector(".cms-inline-status-icon--success")).not.toBeNull();
+    expect(container.textContent).toContain("Gotowe");
+  });
 });

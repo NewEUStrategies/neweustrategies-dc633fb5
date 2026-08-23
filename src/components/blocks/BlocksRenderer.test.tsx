@@ -33,6 +33,33 @@ describe("BlocksRenderer", () => {
     expect(container.querySelector("blockquote")).not.toBeNull();
   });
 
+  it("renders styled nested markers, ordered start values and status icons", () => {
+    const { container } = render(
+      <BlocksRenderer
+        doc={doc([
+          {
+            id: "bullets",
+            type: "list",
+            data: { items: ["Poziom ✅", "Dziecko"], ordered: false, levels: [1, 2] },
+          },
+          {
+            id: "numbers",
+            type: "list",
+            data: { items: ["Krok A", "Krok B"], ordered: true, start: 4 },
+          },
+        ])}
+      />,
+    );
+
+    expect(container.querySelectorAll(".cms-content-list--unordered .cms-list-bullet")).toHaveLength(2);
+    expect(container.querySelector(".cms-content-list--unordered .cms-content-list--unordered"))
+      .not.toBeNull();
+    expect(Array.from(container.querySelectorAll(".cms-content-list--ordered > .cms-list-item > .cms-list-number")).map((node) => node.textContent))
+      .toEqual(["4", "5"]);
+    const icon = container.querySelector(".cms-inline-status-icon--success");
+    expect(icon?.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("sanitizes dangerous markup out of HTML blocks", () => {
     const { container } = render(
       <BlocksRenderer

@@ -31,4 +31,30 @@ describe("ListBlockEdit - miękki enter", () => {
     const items = onChange.mock.calls.map((c) => (c[0] as Block).data.items);
     for (const list of items) expect(list).toHaveLength(1);
   });
+
+  it("renders semantic CMS markers and preserves nesting levels", () => {
+    const onChange = vi.fn();
+    const nested: Block = {
+      id: "nested",
+      type: "list",
+      data: { items: ["główny", "zagnieżdżony"], ordered: false, levels: [1, 2] },
+    } as Block;
+    const { container } = render(<ListBlockEdit block={nested} onChange={onChange} />);
+
+    expect(container.querySelector(".cms-block-list-editor--unordered")).not.toBeNull();
+    expect(container.querySelectorAll(".cms-list-bullet")).toHaveLength(2);
+    expect(container.querySelector('[data-level="2"]')).not.toBeNull();
+  });
+
+  it("renders ordered values as branded number badges", () => {
+    const ordered: Block = {
+      id: "ordered",
+      type: "list",
+      data: { items: ["pierwszy", "drugi"], ordered: true },
+    } as Block;
+    const { container } = render(<ListBlockEdit block={ordered} onChange={vi.fn()} />);
+
+    expect(Array.from(container.querySelectorAll(".cms-list-number")).map((node) => node.textContent))
+      .toEqual(["1", "2"]);
+  });
 });
