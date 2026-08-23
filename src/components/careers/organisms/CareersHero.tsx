@@ -59,7 +59,6 @@ export function CareersHero({
           onClick={onSeeRoles}
           className="group inline-flex items-center gap-2 rounded-[6px] border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors duration-200 hover:border-brand/70 hover:bg-brand/15"
         >
-          <span aria-hidden className="crs-pulse-dot" />
           {t("careers.hero.badge", { value: offers.length })}
           <ArrowRight
             className="h-3.5 w-3.5 text-brand-ink transition-transform duration-200 group-hover:translate-x-0.5"
