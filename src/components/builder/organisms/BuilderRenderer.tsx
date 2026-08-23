@@ -21,10 +21,8 @@ import {
 import type {
   BuilderDocument,
   SectionNode,
-  SectionChild,
   ColumnNode,
   InnerSectionNode,
-  WidgetNode,
   Device,
   ResponsiveValue,
 } from "@/lib/builder/types";
