@@ -3518,6 +3518,99 @@ export default defineConfig({
           lines: 99,
           branches: 98,
         },
+
+        // ==================================================================
+        // MODUŁ 14 - MONETYZACJA (kupony / darowizny / prezenty / reklamy)
+        //
+        // Moduł startował z ZEREM progów per-ścieżka (na 334 w repo) przy
+        // 27,10% linii i 17,90% funkcji - piąte wydanie audytu z rzędu jako
+        // najsłabszy moduł repozytorium. Te progi ryglują warstwę DECYZJI:
+        // każdy z tych plików rozstrzyga o kwocie do zapłaty, o liczbie reklam
+        // pokazanych czytelnikowi albo o tym, czy spalony slot budżetu
+        // dostarczył artykuł.
+        //
+        // PODZIAŁ ODPOWIEDZIALNOŚCI, tak jak przy modułach 8/15/19:
+        //   próg per-ścieżka = stan i decyzja.  Bramka autorytetu = dostęp.
+        // Testy handlerów server fn NIE uruchamiają middleware - autoryzację
+        // pilnują `check:authz-snapshot`, RLS i re-walidacja roli wewnątrz
+        // każdego SECURITY DEFINER RPC.
+        // ==================================================================
+
+        // Warstwy na 100% we wszystkich czterech wymiarach. Wartości zmierzone,
+        // nie aspiracyjne.
+        "src/lib/ads/readingMode.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/queries.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/lib/billing/couponEffects.server.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useValidateCoupon.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/checkout/CouponInput.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/api/public/ad-event.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+
+        // Gifting: warstwa danych i panel. Gałęzie NIŻEJ niż 100 z policzonego
+        // powodu, nie z braku testów:
+        //   * hooks.ts - pozostałe gałęzie to warianty okna wdrożeniowego,
+        //     w których RPC nie zna jeszcze kolumn `reason`/budżetu; część
+        //     kombinacji jest wzajemnie wykluczająca się w jednym przebiegu.
+        //   * gifting-admin.functions.ts - domyślne wartości walidatora zod
+        //     (`.default()`) mają gałąź „podano" i „nie podano"; dla pól, które
+        //     panel ZAWSZE wysyła, druga gałąź jest nieosiągalna z produkcji.
+        "src/lib/gifting/hooks.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
+        "src/lib/gifting-admin.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+
+        // Zgody RODO (CMP-lite). Zmierzone: 96,89% linii / 87,90% gałęzi /
+        // 96,22% funkcji / 91,22% instrukcji przy 96 testach w dwóch plikach.
+        //
+        // DLACZEGO GAŁĘZIE STOJĄ NA 86, A NIE NA 93. Wszystkie 15 pozostałych
+        // niepokrytych gałęzi to STRAŻNICY SSR: jedenaście
+        // `typeof window === "undefined"`, trzy `typeof document === "undefined"`
+        // i jeden `typeof location !== "undefined"` (gałąź atrybutu `Secure`
+        // cookie na https). Pod happy-dom `window` i `document` istnieją
+        // ZAWSZE, więc te gałęzie są strukturalnie nieosiągalne - 87,9% jest
+        // SUFITEM tego pliku w tym środowisku, nie luką w pokryciu. Próg
+        // ustawiony pod zmierzoną wartością zgodnie z zasadą repo: próg powyżej
+        // rzeczywistości to próg WYŁĄCZONY. Podniesienie go wymagałoby albo
+        // usunięcia strażników (zmiana zachowania na SSR), albo drugiego
+        // środowiska testowego bez `window` - jedno i drugie jest osobną pracą.
+        "src/lib/ads/consent.ts": {
+          statements: 90,
+          functions: 95,
+          lines: 95,
+          branches: 86,
+        },
       },
     },
   },
