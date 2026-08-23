@@ -8373,8 +8373,15 @@ sup.fn-ref {
   --cms-list-lh: var(--lh-body, 1.65);
   --cms-list-accent: #fa9346;
   margin-block: 0.85em;
-  padding: 0;
-  list-style: none;
+  padding: 0 !important;
+  list-style: none !important;
+}
+.cms-content-list > li::marker,
+.cms-rich-content
+  :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+  > li:not(.task-list-item)::marker {
+  content: "";
+  font-size: 0;
 }
 .cms-content-list .cms-list-item,
 .cms-block-list-editor__item,
@@ -8443,10 +8450,12 @@ sup.fn-ref {
 .cms-list-number,
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
+  box-sizing: border-box;
   display: inline-flex;
+  width: 1.3rem;
   min-width: 1.3rem;
   height: 1.3rem;
-  padding-inline: 0.22rem;
+  padding: 0;
   align-items: center;
   justify-content: center;
   /* wyśrodkowanie plakietki względem wysokości pierwszej linii tekstu */
@@ -8458,7 +8467,9 @@ sup.fn-ref {
   font-size: 0.72rem;
   font-weight: 800;
   line-height: 1;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Gdy renderer dostarcza własny marker (span.cms-list-number / .cms-list-bullet),

@@ -53,8 +53,10 @@ export function PostContentStyle() {
          (--sp-list). Tutaj tylko style linków i obrazów, bez duplikatów. */
       .single-post-content a { ${fontStyle} ${underline} ${lightLink} ${lightUl} }
       .dark .single-post-content a { ${darkLink} ${darkUl} }
-      .single-post-content ul { list-style: ${listStyleVal}; padding-left: 1.5rem; }
-      .single-post-content ol { padding-left: 1.5rem; }
+      .single-post-content ul:not(.cms-content-list) { list-style: ${listStyleVal}; padding-left: 1.5rem; }
+      .single-post-content ol:not(.cms-content-list) { padding-left: 1.5rem; }
+      .single-post-content .cms-content-list,
+      .single-post-content .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) { list-style: none; padding: 0; }
       .single-post-content img { max-width: 100%; height: auto; max-height: 70vh; }
       .single-post-content figure.is-wide { max-width: ${s.wide_align_max_width}px; margin-left: auto; margin-right: auto; }
       ${s.image_caption_left_border ? ".single-post-content figcaption { border-left: 3px solid var(--border); padding-left: 0.75rem; }" : ""}

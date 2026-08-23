@@ -57,10 +57,12 @@ export function ContentAreaStyle() {
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="html"] {
   margin-top: var(--cms-paragraph-spacing);
 }
-.post-content ul, .blocks-content ul, .single-post-content ul,
-[data-builder-renderer] > [data-block-type="list"] ul { list-style: ${s.list_style || "disc"}; padding-left: 1.5rem; }
-.post-content ol, .blocks-content ol, .single-post-content ol,
-[data-builder-renderer] > [data-block-type="list"] ol { padding-left: 1.5rem; }
+.post-content ul:not(.cms-content-list), .blocks-content ul:not(.cms-content-list), .single-post-content ul:not(.cms-content-list),
+[data-builder-renderer] > [data-block-type="list"] ul:not(.cms-content-list) { list-style: ${s.list_style || "disc"}; padding-left: 1.5rem; }
+.post-content ol:not(.cms-content-list), .blocks-content ol:not(.cms-content-list), .single-post-content ol:not(.cms-content-list),
+[data-builder-renderer] > [data-block-type="list"] ol:not(.cms-content-list) { padding-left: 1.5rem; }
+.cms-content-list,
+.cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) { list-style: none; padding: 0; }
 
 .post-content a, .single-post-content a {
   color: var(--pc-link);
