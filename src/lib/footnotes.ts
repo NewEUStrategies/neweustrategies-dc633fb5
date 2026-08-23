@@ -207,7 +207,12 @@ export function normalizeOfficeFootnoteHtml(html: string): string {
  * dlatego jeden dokument może mieszać WP, Worda i nasz `[fn]`.
  */
 export function normalizeLegacyFootnoteHtml(html: string, texts?: Map<string, string>): string {
-  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html, texts));
+  // Jeżeli wywołujący nie wykonał pre-passu (np. zwykły HTML wpisu), pełna
+  // tabela źródeł nadal może znajdować się w tym samym dokumencie. Zbieramy ją
+  // automatycznie przed usunięciem legacy markupu, aby tooltip i lista końcowa
+  // nigdy nie dziedziczyły skrótu „… Czytaj dalej”.
+  const resolvedTexts = texts ?? collectWpFootnoteTexts([html]);
+  return normalizeOfficeFootnoteHtml(normalizeWpFootnoteHtml(html, resolvedTexts));
 }
 
 /** Czy string zawiera jakikolwiek rozpoznawany zapis przypisu. */

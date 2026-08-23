@@ -8343,11 +8343,15 @@ sup.fn-ref {
 }
 
 
-/* Przypisy: dymek zawsze 9px - style treści (.cms-post-*) nie mogą go powiększać. */
+/* Przypisy: pełna treść bez clamp/ellipsis. Portal do body omija overflow
+ * kontenerów wpisu, a viewport-aware pozycjonowanie pilnuje krawędzi ekranu. */
 [data-footnote-tooltip],
 [data-footnote-tooltip] * {
   font-size: 9px !important;
   line-height: 1.35 !important;
+  overflow-wrap: anywhere;
+  text-overflow: clip !important;
+  -webkit-line-clamp: unset !important;
 }
 
 /* Akapit vs. miękki enter (Shift+Enter):
