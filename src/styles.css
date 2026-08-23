@@ -2141,6 +2141,14 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     max-width: 100% !important;
     min-width: 0 !important;
   }
+  /* People-card grids keep 3 columns on mobile so they remain readable. */
+  [data-builder-renderer] [data-section-kind="people"] [data-columns-row] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  [data-builder-renderer] [data-section-kind="people"] [data-column-slot] {
+    grid-column: auto !important;
+  }
 }
 /* Apply the same mobile layout when the renderer's container is mobile-sized
    (e.g. admin canvas constrained to 390px while the browser window is wide). */
@@ -2153,6 +2161,13 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
+}
+[data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-columns-row] {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+[data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-column-slot] {
+  grid-column: auto !important;
 }
 [data-builder-renderer][data-device="mobile"] [data-col-id] {
   width: 100% !important;

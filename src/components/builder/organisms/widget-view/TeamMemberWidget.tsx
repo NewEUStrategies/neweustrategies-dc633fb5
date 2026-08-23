@@ -132,34 +132,34 @@ export function TeamMemberWidget({
           </span>
         )}
         {/* Hover-only identity block: name, position, social icons */}
-        <span className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 text-center opacity-0 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0">
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-4 text-center opacity-0 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0">
           {name && (
-            <span className="block font-display text-lg font-bold uppercase leading-tight tracking-wide">
+            <span className="block font-display text-[10px] sm:text-lg font-bold uppercase leading-tight tracking-wide">
               {name}
             </span>
           )}
           {position && (
             <span
-              className="block text-xs font-semibold uppercase tracking-widest"
+              className="block text-[8px] sm:text-xs font-semibold uppercase tracking-widest"
               style={{ color: accent }}
             >
               {position}
             </span>
           )}
           {socials.length > 0 && (
-            <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+            <span className="mt-0.5 sm:mt-1 hidden sm:flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
               {socials.map(({ key }) => {
                 const Fallback = SOCIAL_FALLBACK[key];
                 return (
                   <span
                     key={key}
                     aria-hidden
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/15 backdrop-blur-sm text-white"
+                    className="inline-flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-md bg-white/15 backdrop-blur-sm text-white"
                   >
                     <BrandIcon
                       name={key}
                       fallback={Fallback}
-                      className="h-3.5 w-3.5"
+                      className="h-3 w-3 sm:h-3.5 sm:w-3.5"
                       alt={SOCIAL_LABEL[key]}
                     />
                   </span>
@@ -168,6 +168,7 @@ export function TeamMemberWidget({
             </span>
           )}
         </span>
+
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
