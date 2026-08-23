@@ -4,8 +4,9 @@ Zlecenie: cel **różnicowany** per powierzchnia (rozdz. 4 zlecenia), cel moduł
 z **81,5% linii / 82,7% funkcji** na **≥ 93% / ≥ 92%**.
 
 **Wynik: wszystkie siedem powierzchni na celu, cel modułowy osiągnięty.**
-Zmierzone dla całego modułu: **99,40% linii / 99,16% funkcji / 98,76% instrukcji /
-95,09% gałęzi** (153 pliki źródłowe, pełna suita `npx vitest run --coverage`).
+Zmierzone dla całego modułu: **99,44% linii / 99,20% funkcji / 98,83% instrukcji /
+95,09% gałęzi** (151 plików źródłowych, pełna suita `npx vitest run --coverage`).
+Przed tą pracą, na tym samym zbiorze i tym samym poleceniem: 78,39% / 80,80% / 77,41% / 68,96%.
 
 **Dlaczego ten moduł wymagał innego rodzaju dowodu niż pięć poprzednich.** Maila nie da się
 wycofać. W każdym innym module defekt wykryty po wdrożeniu naprawia się hotfixem i użytkownik
@@ -64,9 +65,11 @@ src/components/NewsletterPopup.tsx   src/components/PopupSignupForm.tsx
 src/routes/**{newsletter,email,unsubscribe,popup,nl-}**
 ```
 
-Daje 153 pliki źródłowe w pomiarze (audyt liczył 147). **Wartość bezwzględna nie jest
-wprost porównywalna z 81,47% ze zlecenia i nie należy jej tak czytać** — porównywalne są
-liczby per plik i per powierzchnia w rozdziale 2, mierzone tym samym poleceniem po obu stronach.
+Daje **151 plików źródłowych** w pomiarze (audyt liczył 147; dwie trasy edytora popupów,
+`admin.popups.tsx` i `admin.popups.$id.tsx`, wpadają do modułu według wzorca audytu, ale poza ten
+zbiór — są policzone osobno i nie wchodzą do liczb niżej). **Wartość bezwzględna nie jest wprost
+porównywalna z 81,47% ze zlecenia i nie należy jej tak czytać** — porównywalna jest RÓŻNICA,
+policzona po obu stronach na identycznej liście 151 plików.
 
 ---
 
@@ -113,11 +116,44 @@ Agregaty katalogowe (pełna suita):
 | `src/lib/newsletter/**`        | 98,90% |  96,65% |   100%  | 99,49% |
 | `src/routes/platform/email/**` | 97,98% |  93,99% |   100%  | 99,70% |
 | `src/components/newsletter/**` |  100%  |  99,08% |   100%  |  100%  |
-| **CAŁY MODUŁ 11 (153 pliki)**  | **98,76%** | **95,09%** | **99,16%** | **99,40%** |
+| **CAŁY MODUŁ 11 (151 plików)** | **98,83%** | **95,09%** | **99,20%** | **99,44%** |
 
-Cel modułowy ≥ 93% linii / ≥ 92% funkcji: **osiągnięty** (99,40% / 99,16%).
+### Pomiar PRZED → PO na TYM SAMYM zbiorze
+
+Obie strony policzone tym samym poleceniem i na **identycznej liście 151 plików**. Stronę PRZED
+odtwarza wyłączenie 38 plików testowych dodanych w tej pracy (`--exclude` na każdym z nich) —
+kod produkcyjny jest po obu stronach ten sam, bo ta praca go nie zmienia.
+
+| Miara (MODUŁ 11, 151 plików) | PRZED  | PO         | Δ         |
+| ---------------------------- | ------ | ---------- | --------- |
+| Instrukcje                   | 77,41% | **98,83%** | +21,42 pp |
+| Gałęzie                      | 68,96% | **95,09%** | +26,13 pp |
+| Funkcje                      | 80,80% | **99,20%** | +18,40 pp |
+| Linie                        | 78,39% | **99,44%** | +21,06 pp |
+| Linii bez pokrycia           | 1 129  | **29**     | −1 100    |
+
+(Strona PRZED daje 78,39% linii przy 81,47% z audytu — różnica bierze się z innego zbioru
+plików: 151 kontra 147. Dlatego porównywalna jest RÓŻNICA, nie wartość bezwzględna.)
+
+Per powierzchnia, oba końce tym samym poleceniem (linie / gałęzie):
+
+| Powierzchnia                                          | PRZED           | PO              |
+| ----------------------------------------------------- | --------------- | --------------- |
+| `src/lib/email/**`                                    | 78,99% / 65,74% | 99,48% / 98,17% |
+| `src/lib/email-templates/**`                          | 78,26% / 43,50% | 100% / 100%     |
+| `src/lib/newsletter/**`                               | 87,76% / 83,25% | 99,49% / 96,65% |
+| `src/routes/platform/email/**`                        | 77,78% / 69,96% | 99,70% / 93,99% |
+| `src/routes/lovable/email/**`                         | 0,00% / —       | 100% / 100%     |
+| `src/components/newsletter/**`                        | **4,57% / 0%**  | 100% / 99,08%   |
+| `src/components/{NewsletterPopup,PopupSignupForm}.tsx`| 17,70% / 20,15% | 100% / 97,44%   |
+| `src/routes/admin.newsletter.*` (14 tras)             | **0,00% / 0%**  | 99,50% / 97,93% |
+| `src/lib/newsletter-{admin,status}.functions.ts`      | **3,41% / 0%**  | 100% / 100%     |
+| `src/lib/builder/popups.ts`                           | 71,57% / 65,00% | 100% / 96,67%   |
+
+Cel modułowy ≥ 93% linii / ≥ 92% funkcji: **osiągnięty** (99,44% / 99,20%).
 
 38 nowych plików testowych, około 11 000 linii testu, 12 zgłoszonych defektów.
+Suita: 41 302 → 42 713 testów (+1 411), 163 → 176 wpisów `it.fails`.
 
 ---
 
