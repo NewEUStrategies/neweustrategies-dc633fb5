@@ -51,6 +51,8 @@ export function ListBlockEdit({ block, onChange }: Props) {
       // - nie tworzy nowego punktu wypunktowania.
       e.preventDefault();
       document.execCommand("insertLineBreak");
+      const el = refs.current[idx];
+      if (el) update(idx, el.innerHTML);
     } else if (e.key === "Enter") {
       e.preventDefault();
       const nextItems = [...items];
