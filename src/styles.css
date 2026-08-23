@@ -2163,7 +2163,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   min-width: 0 !important;
 }
 [data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-columns-row] {
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 8px !important;
 }
 [data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-column-slot] {
