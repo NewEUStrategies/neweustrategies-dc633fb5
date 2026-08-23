@@ -47,10 +47,11 @@ export function CareersHero({
 
   return (
     <header className="relative isolate overflow-hidden rounded-[6px] border border-border/70 bg-card/50 px-5 py-12 sm:px-10 sm:py-16">
-      <span aria-hidden className="crs-aurora pointer-events-none absolute inset-0 -z-10">
-        <span />
-        <span />
-        <span />
+      <span aria-hidden className="careers-hero-glass pointer-events-none absolute inset-0 -z-10">
+        <span className="careers-hero-glass-refraction" />
+        <span className="careers-hero-glass-grid" />
+        <span className="careers-hero-glass-blade" />
+        <span className="careers-hero-glass-accent" />
       </span>
 
       <div className="max-w-3xl">
