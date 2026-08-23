@@ -98,4 +98,11 @@ describe("TeamMemberWidget", () => {
     expect((card as HTMLElement).style.maxWidth).toBe("");
     expect(card?.querySelector("svg")).toBeTruthy();
   });
+
+  it("ukrywa stanowisko i etykiete programu na mobile", () => {
+    const { container } = renderWidget(FULL);
+    expect(screen.getByText("Dyrektorka programu")).toHaveClass("hidden", "sm:block");
+    expect(screen.getByText("Bezpieczeństwo")).toHaveClass("hidden", "sm:block");
+    expect(container.querySelector(".cms-team-member")).toBeTruthy();
+  });
 });

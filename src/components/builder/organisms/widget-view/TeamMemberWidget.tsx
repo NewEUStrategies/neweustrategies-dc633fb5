@@ -127,7 +127,7 @@ export function TeamMemberWidget({
           </span>
         )}
         {programLabel && (
-          <span className="absolute inset-x-0 top-4 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/85">
+          <span className="absolute inset-x-0 top-4 hidden text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/85 sm:block">
             {programLabel}
           </span>
         )}
@@ -140,7 +140,7 @@ export function TeamMemberWidget({
           )}
           {position && (
             <span
-              className="block text-[8px] sm:text-xs font-semibold uppercase tracking-widest"
+              className="hidden text-xs font-semibold uppercase tracking-widest sm:block"
               style={{ color: accent }}
             >
               {position}
