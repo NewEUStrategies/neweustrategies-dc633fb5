@@ -55,6 +55,35 @@ const SHELL = "src/components/admin/AdminShell.tsx";
 const NAV_MAP = "src/lib/admin/adminNav.ts";
 const ROLE_RPC_TEST = "supabase/tests/role_management_test.sql";
 
+/**
+ * MODUŁ 14 - MONETYZACJA. Cztery panele z nawigacji (`adminNav.ts`: /admin/ads,
+ * /admin/coupons, /admin/gifting, /admin/donations) plus trzy podstrony kuponów.
+ * Do wdrożenia tej sekcji bramka NIE ZNAŁA żadnej z nich - a każda oferuje
+ * akcję dotykającą pieniędzy.
+ */
+const MONETIZATION_ROUTES = [
+  "admin.ads.tsx",
+  "admin.coupons.tsx",
+  "admin.coupons.index.tsx",
+  "admin.coupons.campaigns.tsx",
+  "admin.coupons.redemptions.tsx",
+  "admin.coupons.analytics.tsx",
+  "admin.gifting.tsx",
+  "admin.donations.tsx",
+] as const;
+/** Migracja, która dopisała klauzulę najemcy do PUBLICZNEGO odczytu reklam. */
+const ADS_TENANT_MIGRATION =
+  "supabase/migrations/20260703052115_f0827bf0-6b4f-44b7-b4a5-2695f2764718.sql";
+/** Migracja z polityką `donations admin read` (rola `admin`, NIE editor). */
+const DONATIONS_POLICY_MIGRATION = "supabase/migrations/20260714111000_donations.sql";
+const MONETIZATION_PGTAP = [
+  "supabase/tests/ad_events_tenant_scope_test.sql",
+  "supabase/tests/b2b_coupons_money_test.sql",
+  "supabase/tests/donations_ledger_scope_test.sql",
+  "supabase/tests/coupon_effects_after_payment_test.sql",
+  "supabase/tests/share_full_article_budget_test.sql",
+] as const;
+
 function read(path: string): string {
   return readFileSync(path, "utf8");
 }
@@ -748,6 +777,200 @@ describe("panel SEO - autorytet dostępu", () => {
     // Te dwie asercje opisują stan FAKTYCZNY: zapis jest, kontroli roli nie ma.
     const source = read(`${ROUTES_DIR}/admin.settings.seo.tsx`);
     expect(source, "zapis istnieje").toMatch(/save\.mutate\(/);
+    expect(source, "kontroli roli nie ma").not.toMatch(/isAdmin|isSuperAdmin/);
+  });
+});
+
+describe("moduł 14 - panele monetyzacji: autorytet dostępu", () => {
+  it("wszystkie osiem tras monetyzacji istnieje - kanarek zasięgu", () => {
+    // Bez tego bramka zrobiłaby się pusta po przeniesieniu albo przemianowaniu
+    // pliku i milczała - tak samo, jak milczała przez pięć wydań audytu,
+    // zanim ta sekcja powstała.
+    const present = adminRoutes();
+    for (const file of MONETIZATION_ROUTES) {
+      expect(present, `brak trasy monetyzacji: ${file}`).toContain(file);
+    }
+  });
+
+  it("`noindex` przychodzi ze WSPÓLNEGO layoutu, nie z każdej trasy osobno", () => {
+    // Ustalenie warte zapisania, bo łatwo je przeoczyć: tylko 27 ze 142 tras
+    // panelu deklaruje `robots` samodzielnie, a mimo to WSZYSTKIE są wyłączone
+    // z indeksowania - `head()` w `routes/admin.tsx` scala się w dół po
+    // dopasowanym łańcuchu tras. Wymaganie `noindex` w każdym pliku panelu
+    // byłoby więc szumem; wymagać trzeba tego, żeby ŹRÓDŁO nie zniknęło.
+    const layout = read(ADMIN_LAYOUT);
+    expect(layout).toMatch(/name:\s*"robots"/);
+    expect(layout).toMatch(/noindex,\s*nofollow/);
+  });
+
+  it("żaden panel monetyzacji nie NADPISUJE `robots` w swoim `head()`", () => {
+    // Dziecko może przesłonić wpis rodzica tą samą nazwą `meta`. Panel, który
+    // zadeklaruje `robots: index`, wypadłby z osłony layoutu - i nikt by tego
+    // nie zauważył, bo reszta panelu nadal byłaby wyłączona z indeksowania.
+    const offenders = MONETIZATION_ROUTES.filter((file) => {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      return /name:\s*"robots"/.test(source) && !/noindex/.test(source);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("żaden panel monetyzacji nie pisze WPROST do tabel uprzywilejowanych", () => {
+    const PRIVILEGED = ["user_roles", "tenants", "role_audit_log", "user_consents"] as const;
+    for (const file of MONETIZATION_ROUTES) {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      const offenders = PRIVILEGED.filter((table) =>
+        new RegExp(`from\\("${table}"\\)[\\s\\S]{0,200}?\\.(insert|update|upsert|delete)\\(`).test(
+          source,
+        ),
+      );
+      expect(offenders, `${file} pisze wprost do tabeli uprzywilejowanej`).toEqual([]);
+    }
+  });
+
+  it("publiczny odczyt reklam JEST wiązany z najemcą - i ta klauzula nadal istnieje", () => {
+    // Migracja zakładająca tabele (20260624165807) dała publiczny odczyt BEZ
+    // najemcy: `USING (status = 'active')`. Klauzulę dopisała dopiero
+    // 20260703052115. Utrata tej poprawki znaczy: czytelnik jednej redakcji
+    // dostaje kreacje drugiej, razem z zawartością kolumny `script`.
+    const sql = read(ADS_TENANT_MIGRATION);
+    expect(sql).toContain('CREATE POLICY "Public can read active ad_slots"');
+    expect(sql).toContain('CREATE POLICY "Public can read active ad_placements"');
+    const tenantClauses = sql.match(/tenant_id = public\.public_tenant_id\(\)/g) ?? [];
+    expect(
+      tenantClauses.length,
+      "publiczny odczyt slotów I placementów musi wiązać się z najemcą",
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejestr wpłat to autorytet `admin` w RLS - i ta polityka nadal istnieje", () => {
+    // Źródło prawdy dla `it.fails` niżej. Gdyby politykę rozluźniono do
+    // `editor`, tamten test przestałby opisywać realny defekt.
+    const sql = read(DONATIONS_POLICY_MIGRATION);
+    expect(sql).toContain('CREATE POLICY "donations admin read"');
+    expect(sql).toMatch(/has_role\(\(SELECT auth\.uid\(\)\), 'admin'::app_role\)/);
+    expect(sql, "rejestr wpłat NIE MOŻE dopuszczać roli editor").not.toMatch(/'editor'::app_role/);
+  });
+
+  it("autorytet monetyzacji jest pokryty pgTAP - i to pokrycie nie zniknęło", () => {
+    // Ten test nie sprawdza bazy (do tego są same pliki pgTAP) - sprawdza, że
+    // da się je usunąć jednym commitem, a wtedy coś w TS musi zapłonąć.
+    for (const file of MONETIZATION_PGTAP) {
+      expect(read(file).length, `pusty albo brakujący plik pgTAP: ${file}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("pgTAP monetyzacji realnie wspomina najemcę i próbę zapisu", () => {
+    // Każdy plik OSOBNO: warunek na sklejonym tekście przechodziłby, gdyby
+    // jeden plik niósł wszystko, a pozostałe zrobiły się puste.
+    for (const file of [
+      "supabase/tests/ad_events_tenant_scope_test.sql",
+      "supabase/tests/donations_ledger_scope_test.sql",
+    ]) {
+      const sql = read(file).toLowerCase();
+      for (const guarantee of ["tenant_id", "insert"]) {
+        expect(sql, `${file} przestał wspominać: ${guarantee}`).toContain(guarantee);
+      }
+    }
+  });
+
+  it("pgTAP kwot kuponu dowodzi OBECNOŚCI CHECK-ów, a nie ich braku", () => {
+    // Zlecenie zakładało, że baza nie ma CHECK-ów na kwocie kuponu. Ma
+    // wszystkie cztery, więc plik pgTAP chroni je przed cofnięciem. Ten test
+    // pilnuje, żeby ktoś nie zamienił go z powrotem na „dokumentację braku".
+    const sql = read("supabase/tests/b2b_coupons_money_test.sql");
+    expect(sql).toContain("discount_percent");
+    expect(sql).toContain("discount_cents");
+    expect(sql).toContain("max_redemptions");
+    expect(sql, "CHECK-i dowodzimy przez ODRZUCENIE wstawki").toContain("throws_ok");
+  });
+
+  it("każdy panel monetyzacji jest DWUJĘZYCZNY - jednym z dwóch mechanizmów", () => {
+    // Wymaganie brzmi „dwujęzyczny", nie „woła t()". Sześć paneli korzysta ze
+    // słownika i18next; DWA (`admin.coupons.tsx` i `admin.coupons.analytics.tsx`)
+    // mają zamiast tego lokalny helper `const L = (pl, en) => ...`. To nadal
+    // jest dwujęzyczność - po angielsku panel NIE pokazuje polszczyzny - więc
+    // asercja przyjmuje oba mechanizmy. Konsekwencje helpera opisuje test niżej.
+    for (const file of MONETIZATION_ROUTES) {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      const viaDictionary = /\bt\("/.test(source);
+      const viaLocalHelper = /const L = \(pl: string, en: string\)/.test(source);
+      expect(
+        viaDictionary || viaLocalHelper,
+        `${file} nie jest dwujęzyczny ani przez t(), ani przez lokalny helper`,
+      ).toBe(true);
+    }
+  });
+
+  it("DŁUG: trzy panele kuponów omijają słownik, więc ich napisy są niewidoczne dla bramek i18n", () => {
+    // Ten test NIE jest defektem funkcjonalnym - jest zapisem długu, żeby nie
+    // zniknął. Trzy pliki, nie dwa: `admin.coupons.redemptions.tsx` używa
+    // OBU mechanizmów naraz (jedno `t()` obok helpera), co jest najgorszym
+    // wariantem - część napisów tej samej strony jest w słowniku, część nie.
+    // Napisy w lokalnym helperze `L(pl, en)` są dwujęzyczne, ale:
+    //   * nie przechodzą przez `i18nParity.gate` ani `i18nKeyDrift.gate`
+    //     (te czytają WYŁĄCZNIE `src/lib/i18n-*.ts`),
+    //   * nie widzi ich tłumacz, bo nie ma dla nich klucza,
+    //   * trzecia wersja językowa wymagałaby przepisania obu plików.
+    // Przeniesienie do `i18n-admin-coupons.ts` jest bezpieczne, ale jest
+    // ZMIANĄ PRODUKCYJNĄ i nie wchodzi w zakres tej bramki. Jeżeli ktoś to
+    // zrobi, ten test padnie i trzeba go usunąć - to jest jego cel.
+    const withLocalHelper = MONETIZATION_ROUTES.filter((file) =>
+      /const L = \(pl: string, en: string\)/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(withLocalHelper).toEqual([
+      "admin.coupons.tsx",
+      "admin.coupons.redemptions.tsx",
+      "admin.coupons.analytics.tsx",
+    ]);
+  });
+
+  it("panele kuponów, reklam i prezentów SĄ spójne z autorytetem bazy", () => {
+    // Kontrola POZYTYWNA - i powód, dla którego `it.fails` niżej dotyczy
+    // wyłącznie darowizn. `b2b_coupons`, `ad_slots`, `ad_placements`
+    // i `gift_article_settings` dopuszczają w RLS `admin OR editor`, a warstwa
+    // serwerowa giftingu używa `requireAdminEditor`. Layout `/admin` przepuszcza
+    // dokładnie tę samą grupę, więc redaktor, który widzi te panele, MOŻE
+    // wykonać ich akcje. Tu interfejs nie kłamie.
+    const coupons = read(
+      "supabase/migrations/20260721070203_a0e336e0-eaf3-4342-9435-40e076ebf0dd.sql",
+    );
+    expect(coupons).toMatch(/b2b_coupons_staff_all/);
+    expect(coupons).toMatch(/'editor'/);
+    const gifting = read("src/lib/gifting-admin.functions.ts");
+    expect(gifting).toMatch(/requireAdminEditor/);
+  });
+
+  it.fails(
+    "DEFEKT: /admin/donations pokazuje redaktorowi PUSTY rejestr wpłat i przycisk, " +
+      "który serwer odrzuci - trasa nie domyka uprawnienia sama",
+    () => {
+      // KONSEKWENCJA. `donations` ma w RLS wyłącznie `admin` (asercja wyżej
+      // czyta tę politykę wprost), a layout `/admin` przepuszcza też `editor`
+      // i `author`. Redaktor otwiera /admin/donations i widzi DWIE nieprawdy
+      // naraz:
+      //   1. tabelę „Ostatnie wpłaty" jako PUSTĄ - co czyta się jako „nikt nie
+      //      wpłacił", a znaczy „nie masz prawa tego widzieć". Kafelki „Suma
+      //      wpłat" liczą się z publicznych statystyk (service role), więc
+      //      pokazują kwotę - obok pustej listy. Sprzeczność w jednym widoku.
+      //   2. przycisk „Synchronizuj ze Stripe", który wywoła
+      //      `syncDonationsWithStripe` -> `assertAdmin` -> `forbidden`.
+      // To ta sama klasa defektu, którą ta bramka złapała na `admin.users.$id`
+      // (droplista roli dla całego personelu) i na `admin.settings.seo`.
+      //
+      // NAPRAWA (poza zakresem - nie zmieniamy produkcji, żeby test przeszedł):
+      // trasa powinna czytać `isAdmin` z `useAuth()` i albo odmawiać treści,
+      // albo ukryć rejestr i przycisk synchronizacji.
+      const source = read(`${ROUTES_DIR}/admin.donations.tsx`);
+      expect(source, "panel rejestru wpłat musi sam sprawdzać rolę `admin`").toMatch(/isAdmin/);
+    },
+  );
+
+  it("kontrola dodatnia: /admin/donations FAKTYCZNIE oferuje dziś akcje bez sprawdzenia roli", () => {
+    // Bez tego `it.fails` wyżej mógłby zzielenieć z niewłaściwego powodu -
+    // np. gdyby ktoś usunął przycisk synchronizacji zamiast dodać warunek roli.
+    const source = read(`${ROUTES_DIR}/admin.donations.tsx`);
+    expect(source, "synchronizacja ze Stripe jest oferowana").toMatch(/syncDonationsWithStripe/);
+    expect(source, "rejestr wpłat jest czytany").toMatch(/listDonationRecords/);
     expect(source, "kontroli roli nie ma").not.toMatch(/isAdmin|isSuperAdmin/);
   });
 });
