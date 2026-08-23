@@ -24,7 +24,7 @@
 // faktycznie je wystawia i że heurystyka działa na prawdziwych zdarzeniach.
 // Bez atrapy: pod happy-dom `iframe.focus()` realnie ustawia
 // `document.activeElement`, więc heurystykę da się przejechać naprawdę.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { SandboxedAdFrame } from "@/components/ads/atoms/SandboxedAdFrame";
 
@@ -85,10 +85,10 @@ describe("SandboxedAdFrame - izolacja kreacji", () => {
 });
 
 describe("SandboxedAdFrame - zliczanie interakcji (CTR)", () => {
-  let onEngage: ReturnType<typeof vi.fn>;
+  let onEngage: Mock<() => void>;
 
   beforeEach(() => {
-    onEngage = vi.fn();
+    onEngage = vi.fn<() => void>();
   });
 
   afterEach(cleanup);
@@ -129,7 +129,7 @@ describe("SandboxedAdFrame - zliczanie interakcji (CTR)", () => {
   });
 
   it("podmiana onEngage po zliczeniu nie odblokowuje drugiego zliczenia", () => {
-    const drugi = vi.fn();
+    const drugi = vi.fn<() => void>();
     const { container, rerender } = render(
       <SandboxedAdFrame markup="<b>x</b>" title="Reklama: A" onEngage={onEngage} />,
     );

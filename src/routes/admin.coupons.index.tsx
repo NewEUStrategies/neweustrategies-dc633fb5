@@ -1,51 +1,35 @@
 // Zakładka Kupony - lista + CRUD (rozbudowa: DatePicker, powiązania CRM/plan).
+//
+// Po ekstrakcji trasa jest KOMPOZYCJĄ: warstwa danych (trzy zapytania i dwie
+// mutacje) plus złożenie organizmów. Reguły listy mieszkają w
+// `lib/billing/couponAdminList`, reguły formularza w `lib/billing/couponAdminForm`,
+// a widok w `components/admin/coupons/{atoms,molecules,organisms}`.
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
-import { Plus, Trash2, Copy, Check, Loader2, Link2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { CouponListToolbar } from "@/components/admin/coupons/molecules/CouponListToolbar";
+import { CouponStatsRow } from "@/components/admin/coupons/molecules/CouponStatsRow";
+import { CouponCreateDialog } from "@/components/admin/coupons/organisms/CouponCreateDialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+  CouponsTable,
+  type CouponAdminRow,
+} from "@/components/admin/coupons/organisms/CouponsTable";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
-import type { B2bCouponRow, CouponDiscountKind } from "@/lib/billing/coupons";
-import { normalizeCouponCode } from "@/lib/billing/coupons";
+  couponListStats,
+  filterCoupons,
+  type CouponListStatus,
+} from "@/lib/billing/couponAdminList";
 
 export const Route = createFileRoute("/admin/coupons/")({
   component: CouponsListPage,
 });
-
-type ExtRow = B2bCouponRow & {
-  campaign_id: string | null;
-  grants_tier_key: string | null;
-  grants_duration_days: number | null;
-  assigned_company_id: string | null;
-  assigned_lead_id: string | null;
-};
 
 function CouponsListPage() {
   // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
@@ -55,14 +39,12 @@ function CouponsListPage() {
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive" | "expired">(
-    "all",
-  );
+  const [filterStatus, setFilterStatus] = useState<CouponListStatus>("all");
   const [search, setSearch] = useState("");
 
   const couponsQ = useQuery({
     queryKey: ["admin", "b2b-coupons"],
-    queryFn: async (): Promise<ExtRow[]> => {
+    queryFn: async (): Promise<CouponAdminRow[]> => {
       const { data, error } = await supabase
         .from("b2b_coupons")
         .select(
@@ -71,7 +53,7 @@ function CouponsListPage() {
         .order("created_at", { ascending: false })
         .limit(1000);
       if (error) throw error;
-      return (data ?? []) as ExtRow[];
+      return (data ?? []) as CouponAdminRow[];
     },
   });
 
@@ -102,7 +84,7 @@ function CouponsListPage() {
   });
 
   const toggle = useMutation({
-    mutationFn: async (row: ExtRow) => {
+    mutationFn: async (row: CouponAdminRow) => {
       const { error } = await supabase
         .from("b2b_coupons")
         .update({ active: !row.active })
@@ -123,60 +105,20 @@ function CouponsListPage() {
   });
 
   const rows = couponsQ.data ?? [];
-  const filtered = useMemo(() => {
-    const now = Date.now();
-    return rows.filter((c) => {
-      if (search) {
-        const s = search.toLowerCase();
-        if (!c.code.toLowerCase().includes(s) && !(c.name ?? "").toLowerCase().includes(s)) {
-          return false;
-        }
-      }
-      if (filterStatus === "active" && !c.active) return false;
-      if (filterStatus === "inactive" && c.active) return false;
-      if (filterStatus === "expired") {
-        if (!c.valid_until || new Date(c.valid_until).getTime() >= now) return false;
-      }
-      return true;
-    });
-  }, [rows, search, filterStatus]);
-
-  const active = useMemo(() => rows.filter((c) => c.active).length, [rows]);
-  const totalRedemptions = useMemo(
-    () => rows.reduce((s, c) => s + (c.redemptions_count || 0), 0),
-    [rows],
+  const filtered = useMemo(
+    () => filterCoupons(rows, { search, status: filterStatus }, Date.now()),
+    [rows, search, filterStatus],
   );
-  const expired = useMemo(
-    () =>
-      rows.filter((c) => c.valid_until && new Date(c.valid_until).getTime() < Date.now()).length,
-    [rows],
-  );
+  const stats = useMemo(() => couponListStats(rows, Date.now()), [rows]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("adminCoupons.searchCodeName")}
-            className="h-10 w-56 rounded-[6px]"
-          />
-          <Select
-            value={filterStatus}
-            onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}
-          >
-            <SelectTrigger className="h-10 w-40 rounded-[6px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("adminCoupons.all")}</SelectItem>
-              <SelectItem value="active">{t("adminCoupons.active")}</SelectItem>
-              <SelectItem value="inactive">{t("adminCoupons.inactive")}</SelectItem>
-              <SelectItem value="expired">{t("adminCoupons.expired")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <CouponListToolbar
+        search={search}
+        onSearch={setSearch}
+        status={filterStatus}
+        onStatus={setFilterStatus}
+      >
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="h-10 rounded-[6px]">
@@ -193,387 +135,25 @@ function CouponsListPage() {
             }}
           />
         </Dialog>
-      </div>
+      </CouponListToolbar>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label={t("adminCoupons.total")} value={String(rows.length)} />
-        <StatCard label={t("adminCoupons.active")} value={String(active)} />
-        <StatCard label={t("adminCoupons.totalRedemptions")} value={String(totalRedemptions)} />
-        <StatCard label={t("adminCoupons.expired")} value={String(expired)} />
-      </div>
+      <CouponStatsRow stats={stats} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("adminCoupons.couponList")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {couponsQ.isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("adminCoupons.loading")}
-            </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6">{t("adminCoupons.results")}</p>
-          ) : (
-            <div className="overflow-x-auto -mx-4 px-4">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground uppercase">
-                  <tr className="border-b border-border/60">
-                    <th className="text-left py-2 pr-3">{t("adminCoupons.code")}</th>
-                    <th className="text-left py-2 pr-3">{t("adminCoupons.discount")}</th>
-                    <th className="text-left py-2 pr-3">{t("adminCoupons.uses")}</th>
-                    <th className="text-left py-2 pr-3">{t("adminCoupons.validity")}</th>
-                    <th className="text-left py-2 pr-3">{t("adminCoupons.planSubscription")}</th>
-                    <th className="text-left py-2 pr-3">{t("adminCoupons.status")}</th>
-                    <th className="text-right py-2">{t("adminCoupons.actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((c) => (
-                    <tr key={c.id} className="border-b border-border/40">
-                      <td className="py-3 pr-3">
-                        <div className="flex items-center gap-2">
-                          <code className="font-mono font-semibold text-sm">{c.code}</code>
-                          <button
-                            type="button"
-                            aria-label="Kopiuj"
-                            className="text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                              void navigator.clipboard.writeText(c.code);
-                              toast.success(t("adminCoupons.copied"));
-                            }}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                          {c.campaign_id && (
-                            <Link2 className="h-3.5 w-3.5 text-brand" aria-label="kampania" />
-                          )}
-                        </div>
-                        {c.name && <div className="text-xs text-muted-foreground">{c.name}</div>}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.discount_kind === "percent"
-                          ? `${c.discount_percent}%`
-                          : `${((c.discount_cents ?? 0) / 100).toFixed(2)} ${c.currency ?? ""}`}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.redemptions_count}
-                        {c.max_redemptions != null ? ` / ${c.max_redemptions}` : ""}
-                      </td>
-                      <td className="py-3 pr-3 text-xs">
-                        {c.valid_from ? new Date(c.valid_from).toLocaleDateString(lang) : "—"}
-                        {" → "}
-                        {c.valid_until ? new Date(c.valid_until).toLocaleDateString(lang) : "∞"}
-                      </td>
-                      <td className="py-3 pr-3 text-xs">
-                        {c.grants_tier_key ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Badge variant="outline" className="text-xs">
-                              {c.grants_tier_key}
-                            </Badge>
-                            {c.grants_duration_days && (
-                              <span className="text-muted-foreground">
-                                {c.grants_duration_days}d
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.active ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10">
-                            <Check className="h-3 w-3 mr-1" />
-                            {t("adminCoupons.active2")}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">{t("adminCoupons.inactive2")}</Badge>
-                        )}
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <Switch
-                            checked={c.active}
-                            onCheckedChange={() => toggle.mutate(c)}
-                            aria-label="toggle-active"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="delete"
-                            onClick={() => {
-                              if (confirm(t("adminCoupons.deleteCoupon") + ` ${c.code}`)) {
-                                remove.mutate(c.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <CouponsTable
+        rows={filtered}
+        loading={couponsQ.isLoading}
+        lang={lang}
+        onCopy={(code) => {
+          void navigator.clipboard.writeText(code);
+          toast.success(t("adminCoupons.copied"));
+        }}
+        onToggle={(row) => toggle.mutate(row)}
+        onDelete={(row) => {
+          if (confirm(t("adminCoupons.deleteCoupon") + ` ${row.code}`)) {
+            remove.mutate(row.id);
+          }
+        }}
+      />
     </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="text-xs uppercase text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface CreateDialogProps {
-  plans: Array<{ id: string; name_pl: string | null; name_en: string | null; active: boolean }>;
-  tiers: Array<{ key: string; name_pl: string; name_en: string; active: boolean }>;
-  onCreated: () => void;
-}
-
-function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
-  const { t, i18n } = useTranslation();
-  const lang = i18n.language === "en" ? "en" : "pl";
-
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [kind, setKind] = useState<CouponDiscountKind>("percent");
-  const [percent, setPercent] = useState<number>(10);
-  const [cents, setCents] = useState<number>(1000);
-  const [currency, setCurrency] = useState("PLN");
-  const [maxRedemptions, setMaxRedemptions] = useState<string>("");
-  const [validFrom, setValidFrom] = useState<Date | undefined>(undefined);
-  const [validUntil, setValidUntil] = useState<Date | undefined>(undefined);
-  const [planIds, setPlanIds] = useState<string[]>([]);
-  const [grantsTierKey, setGrantsTierKey] = useState<string>("");
-  const [grantsDurationDays, setGrantsDurationDays] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    const norm = normalizeCouponCode(code);
-    if (!norm) {
-      toast.error(t("adminCoupons.enterCode"));
-      return;
-    }
-    if (kind === "percent" && (percent < 1 || percent > 100)) {
-      toast.error(t("adminCoupons.percent1100"));
-      return;
-    }
-    if (kind === "fixed" && cents <= 0) {
-      toast.error(t("adminCoupons.amount0"));
-      return;
-    }
-    setBusy(true);
-    const payload = {
-      code: norm,
-      name: name.trim() || null,
-      description: description.trim() || null,
-      discount_kind: kind,
-      discount_percent: kind === "percent" ? percent : null,
-      discount_cents: kind === "fixed" ? cents : null,
-      currency: kind === "fixed" ? currency.toUpperCase() : null,
-      max_redemptions: maxRedemptions ? Number(maxRedemptions) : null,
-      valid_from: validFrom ? validFrom.toISOString() : null,
-      valid_until: validUntil ? validUntil.toISOString() : null,
-      plan_ids: planIds,
-      grants_tier_key: grantsTierKey || null,
-      grants_duration_days: grantsDurationDays ? Number(grantsDurationDays) : null,
-    };
-    const { error } = await supabase.from("b2b_coupons").insert(payload);
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(t("adminCoupons.couponCreated"));
-    onCreated();
-  };
-
-  return (
-    <DialogContent className="max-w-xl">
-      <DialogHeader>
-        <DialogTitle>{t("adminCoupons.newB2bCoupon")}</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>{t("adminCoupons.code")}</Label>
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="NES-B2B-10"
-              className="uppercase h-10 rounded-[6px]"
-            />
-          </div>
-          <div>
-            <Label>{t("adminCoupons.nameOptional")}</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-10 rounded-[6px]"
-            />
-          </div>
-        </div>
-
-        <div>
-          <Label>{t("adminCoupons.internalDescription")}</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>{t("adminCoupons.discountType")}</Label>
-            <Select value={kind} onValueChange={(v) => setKind(v as CouponDiscountKind)}>
-              <SelectTrigger className="h-10 rounded-[6px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="percent">%</SelectItem>
-                <SelectItem value="fixed">{t("adminCoupons.fixed")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {kind === "percent" ? (
-            <div>
-              <Label>{t("adminCoupons.percent")}</Label>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={percent}
-                onChange={(e) => setPercent(Number(e.target.value))}
-                className="h-10 rounded-[6px]"
-              />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label>{t("adminCoupons.amountCents")}</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={cents}
-                  onChange={(e) => setCents(Number(e.target.value))}
-                  className="h-10 rounded-[6px]"
-                />
-              </div>
-              <div>
-                <Label>{t("adminCoupons.currency")}</Label>
-                <Input
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  maxLength={4}
-                  className="h-10 rounded-[6px]"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>{t("adminCoupons.maxRedemptions")}</Label>
-            <Input
-              type="number"
-              min={1}
-              value={maxRedemptions}
-              onChange={(e) => setMaxRedemptions(e.target.value)}
-              placeholder={t("adminCoupons.unlimited")}
-              className="h-10 rounded-[6px]"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <DatePickerField
-              value={validFrom}
-              onChange={setValidFrom}
-              label={t("adminCoupons.valid")}
-            />
-            <DatePickerField
-              value={validUntil}
-              onChange={setValidUntil}
-              label={t("adminCoupons.validUntil")}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
-          <div>
-            <Label>{t("adminCoupons.grantsSubscriptionOptional")}</Label>
-            <Select
-              value={grantsTierKey || "none"}
-              onValueChange={(v) => setGrantsTierKey(v === "none" ? "" : v)}
-            >
-              <SelectTrigger className="h-10 rounded-[6px]">
-                <SelectValue placeholder={t("adminCoupons.none")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">{t("adminCoupons.none")}</SelectItem>
-                {tiers.map((tier) => (
-                  <SelectItem key={tier.key} value={tier.key}>
-                    {pickLocalized(tier, "name", lang)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>{t("adminCoupons.durationDays")}</Label>
-            <Input
-              type="number"
-              min={1}
-              value={grantsDurationDays}
-              onChange={(e) => setGrantsDurationDays(e.target.value)}
-              placeholder={t("adminCoupons.unlimited2")}
-              disabled={!grantsTierKey}
-              className="h-10 rounded-[6px]"
-            />
-          </div>
-        </div>
-
-        <div>
-          <Label>{t("adminCoupons.restrictPlansOptional")}</Label>
-          <div className="rounded-[6px] border border-border/60 p-2 max-h-40 overflow-y-auto space-y-1">
-            {plans.length === 0 && (
-              <p className="text-xs text-muted-foreground">{t("adminCoupons.plansAvailable")}</p>
-            )}
-            {plans.map((p) => {
-              const on = planIds.includes(p.id);
-              return (
-                <label
-                  key={p.id}
-                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/40 rounded px-1.5 py-1"
-                >
-                  <Checkbox
-                    checked={on}
-                    onCheckedChange={(v) =>
-                      setPlanIds((prev) => (v ? [...prev, p.id] : prev.filter((id) => id !== p.id)))
-                    }
-                  />
-                  <span className={p.active ? "" : "text-muted-foreground line-through"}>
-                    {pickLocalized(p, "name", lang)}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button onClick={submit} disabled={busy} className="h-10 rounded-[6px]">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("adminCoupons.createCoupon")}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
   );
 }
