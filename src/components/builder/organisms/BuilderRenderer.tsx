@@ -721,10 +721,13 @@ const RenderInner = memo(function RenderInner({
     (c): c is ColumnNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const innerKind = isPeopleSectionKind(columns) ? "people" : "";
   return (
     <div
+      data-section-kind={innerKind || undefined}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()}
       style={{
+
         ...sectionWrapperStyle(inner),
         ...backgroundLayerStyle(inner.background),
         ...borderStyle(inner.border),
