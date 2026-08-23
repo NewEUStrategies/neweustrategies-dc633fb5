@@ -118,6 +118,7 @@ export function SectionTabsBar({
       data-section-tabs-bar
       data-orientation={orientation}
       data-tabs-variant={variant}
+      data-mobile-mode={wrapMode}
       style={listStyle}
       className="cms-section-tabs"
     >
