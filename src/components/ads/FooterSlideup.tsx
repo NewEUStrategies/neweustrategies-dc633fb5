@@ -9,13 +9,18 @@ import { useAdPlacements } from "@/lib/ads/queries";
 import type { AdPageType } from "@/lib/ads/types";
 import { useTranslation } from "react-i18next";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
+import {
+  isSlideupDismissed,
+  markSlideupDismissed,
+  slideupDelayMs,
+  slideupDismissible,
+  slideupSlotId,
+} from "@/lib/ads/footerSlideup";
 
 interface Props {
   pageType: AdPageType;
   pageId?: string | null;
 }
-
-const STORAGE_PREFIX = "ad_slideup_dismissed:";
 
 export function FooterSlideup({ pageType, pageId }: Props) {
   const { data } = useAdPlacements("footer_slideup", pageType, pageId);
@@ -27,18 +32,13 @@ export function FooterSlideup({ pageType, pageId }: Props) {
 
   useEffect(() => {
     if (!placement) return;
-    const slotId = `footer-slideup:${placement.id}`;
-    const cfg = placement.config as { delay_ms?: number; dismissible?: boolean };
-    const dismissible = cfg.dismissible ?? true;
+    const slotId = slideupSlotId(placement.id);
+    const dismissible = slideupDismissible(placement.config);
     if (dismissible) {
-      try {
-        if (sessionStorage.getItem(STORAGE_PREFIX + placement.id) === "1") return;
-      } catch {
-        // ignore storage errors
-      }
+      if (isSlideupDismissed(placement.id)) return;
     }
     let disposed = false;
-    const delay = Math.max(0, Number(cfg.delay_ms ?? 3000));
+    const delay = slideupDelayMs(placement.config);
     const handle = setTimeout(() => {
       // Ask the coordinator for a slot: a non-modal slide-up still counts as an
       // interruption, must not appear on top of a popup, and shares the budget.
@@ -63,15 +63,10 @@ export function FooterSlideup({ pageType, pageId }: Props) {
 
   if (!placement || visibleId !== placement.id) return null;
 
-  const cfg = placement.config as { dismissible?: boolean };
-  const dismissible = cfg.dismissible ?? true;
+  const dismissible = slideupDismissible(placement.config);
 
   const dismiss = () => {
-    try {
-      sessionStorage.setItem(STORAGE_PREFIX + placement.id, "1");
-    } catch {
-      // ignore
-    }
+    markSlideupDismissed(placement.id);
     releaseSlotRef.current?.();
     releaseSlotRef.current = null;
     setVisibleId(null);

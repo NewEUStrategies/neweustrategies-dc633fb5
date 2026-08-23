@@ -11,6 +11,7 @@
 // skrypty pozostają zablokowane - identycznie jak przy wcześniejszym montażu
 // bezpośrednio w DOM. Zmiana jest czysto izolacyjna, bez regresji emisji.
 import { memo, useEffect, useMemo, useRef } from "react";
+import { AD_FRAME_SANDBOX, buildAdFrameSrcDoc } from "@/lib/ads/adFrame";
 
 interface Props {
   /** Surowy HTML/JS kreacji (wykona się wyłącznie wewnątrz sandboxu). */
@@ -25,14 +26,7 @@ export const SandboxedAdFrame = memo(function SandboxedAdFrame({ markup, title, 
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const engagedRef = useRef(false);
 
-  const srcDoc = useMemo(
-    () =>
-      '<!doctype html><html><head><meta charset="utf-8"><base target="_blank">' +
-      "<style>html,body{margin:0;padding:0;height:100%}" +
-      "body{display:flex;align-items:center;justify-content:center;overflow:hidden}</style>" +
-      `</head><body>${markup}</body></html>`,
-    [markup],
-  );
+  const srcDoc = useMemo(() => buildAdFrameSrcDoc(markup), [markup]);
 
   // Kliknięcia wewnątrz sandboxowanej ramki nie bąbelkują do strony, więc
   // klasyczny listener na kontenerze ich nie widzi. Standardowa heurystyka
@@ -54,7 +48,7 @@ export const SandboxedAdFrame = memo(function SandboxedAdFrame({ markup, title, 
     <iframe
       ref={frameRef}
       title={title}
-      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+      sandbox={AD_FRAME_SANDBOX}
       srcDoc={srcDoc}
       referrerPolicy="no-referrer"
       loading="lazy"
