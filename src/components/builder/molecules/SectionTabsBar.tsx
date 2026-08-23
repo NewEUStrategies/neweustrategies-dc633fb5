@@ -118,6 +118,7 @@ export function SectionTabsBar({
       data-section-tabs-bar
       data-orientation={orientation}
       data-tabs-variant={variant}
+      data-mobile-mode={wrapMode}
       style={listStyle}
       className="cms-section-tabs"
     >
@@ -251,6 +252,7 @@ export function SectionTabsBar({
             data-section-tab-btn
             data-section-tab-id={it.id}
             data-active={active ? "true" : "false"}
+            className="cms-section-tab-btn"
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
@@ -280,7 +282,9 @@ export function SectionTabsBar({
                 }}
               />
             ) : null}
-            <span style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>{labelOf(it, lang)}</span>
+            <span className="cms-section-tab-label" style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>
+              {labelOf(it, lang)}
+            </span>
             {isUnderline ? (
               <span
                 aria-hidden="true"
