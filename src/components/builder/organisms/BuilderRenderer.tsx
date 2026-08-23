@@ -99,6 +99,8 @@ function resolveOrder(
   return order.desktop ?? undefined;
 }
 
+import { isPeopleSectionKind } from "@/lib/builder/sectionKind";
+
 interface Props {
   doc: BuilderDocument;
   lang: "pl" | "en";
@@ -533,22 +535,27 @@ const RenderSection = memo(function RenderSection({
     ...typographyAlign(section.typography, device),
   };
   const typoCss = typographyCss(section.id, section.typography);
+  const sectionKind = useMemo(() => (isPeopleSectionKind(allChildren) ? "people" : ""), [allChildren]);
   const videoUrl =
     section.background?.type === "video"
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
       : "";
+
   const preloadRef = useSectionPreload(section, lang);
+
 
   return (
     <Tag
       ref={preloadRef as React.Ref<HTMLElement>}
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
+      data-section-kind={sectionKind || undefined}
       data-ab-experiment={section.advanced?.abTest?.experimentId}
       data-ab-variant={section.advanced?.abTest?.variant}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
+
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />
       )}
@@ -693,10 +700,13 @@ const RenderInner = memo(function RenderInner({
     (c): c is ColumnNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const innerKind = isPeopleSectionKind(columns) ? "people" : "";
   return (
     <div
+      data-section-kind={innerKind || undefined}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()}
       style={{
+
         ...sectionWrapperStyle(inner),
         ...backgroundLayerStyle(inner.background),
         ...borderStyle(inner.border),

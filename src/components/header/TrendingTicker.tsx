@@ -432,7 +432,7 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
         </span>
       ) : null}
       {name ? (
-        <span className="tt-live-name hidden sm:inline whitespace-nowrap text-[12px] font-semibold">
+        <span className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold">
           {name}
         </span>
       ) : null}
@@ -965,13 +965,26 @@ function TickerStyles() {
            w tej samej wysokości - bez ucinania g/j/y/ą/ę. */
         .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5; align-items: center }
         .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5; align-items: center }
-        .tt-skin--live .tt-live-index,
-        .tt-skin--live .tt-live-author,
-        .tt-skin--live .tt-live-name {
+        .tt-skin--live .tt-live-author {
           display: inline-flex; align-items: center;
           height: 24px; line-height: 1.5; padding-block: 0;
         }
-        .tt-skin--live .tt-live-index { margin-right: 10px }
+        /* Numer i nazwisko autora tylko od sm w górę - na mobile zostaje
+           awatar i pełna szerokość dla tytułu (klasa hidden z Tailwinda
+           nie może być nadpisywana przez display z tego bloku). */
+
+        @media (min-width: 640px) {
+          .tt-skin--live .tt-live-index {
+            display: inline-flex; align-items: center;
+            height: 24px; line-height: 1.5; padding-block: 0;
+            margin-right: 10px;
+          }
+          .tt-skin--live .tt-live-name {
+            align-items: center;
+            height: 24px; line-height: 1.5; padding-block: 0;
+          }
+        }
+
         .tt-skin--live .tt-live-title.tt-live-title {
           display: inline-block; height: 24px; line-height: 24px;
           padding-block: 0; align-self: center;

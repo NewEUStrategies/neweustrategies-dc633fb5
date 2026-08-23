@@ -4,7 +4,7 @@
 // (lib/gifting/hooks) jest mockowana - macierz faz ma wlasne testy w
 // lib/gifting/__tests__/model.test.ts.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { giftClickBudget } from "@/lib/gifting/model";
 import type { GiftArticleState, GiftLinkResult, GiftSettings } from "@/lib/gifting/model";
@@ -32,6 +32,8 @@ const h = vi.hoisted(() => ({
   refetch: vi.fn(),
   mutate: vi.fn(),
   mutationData: null as GiftLinkResult | null,
+  mutationError: false,
+  errorKey: null as "notGated" | null,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -77,10 +79,11 @@ vi.mock("@/lib/gifting/hooks", () => ({
     mutation: {
       data: h.mutationData,
       isPending: false,
-      isError: false,
+      isError: h.mutationError,
       mutate: h.mutate,
+      reset: vi.fn(),
     },
-    errorKey: null,
+    errorKey: h.errorKey,
   }),
 }));
 
@@ -105,13 +108,14 @@ function makeState(partial: Partial<GiftArticleState>): GiftArticleState {
   };
 }
 
-function renderButton() {
+function renderButton(props: { gated?: boolean } = {}) {
   return renderWithQueryClient(
     <GiftArticleButton
       postId="post-1"
       title="Tytuł wpisu"
       url="https://example.org/analizy/wpis"
       lang="pl"
+      gated={props.gated ?? true}
     />,
   );
 }
@@ -126,6 +130,8 @@ beforeEach(() => {
   h.state = null;
   h.stateLoading = false;
   h.stateError = false;
+  h.mutationError = false;
+  h.errorKey = null;
   h.refetch.mockClear();
   h.mutate.mockClear();
 });
@@ -228,5 +234,59 @@ describe("GiftArticleButton", () => {
     expect(screen.getByText("gifting.limitTitle")).toBeInTheDocument();
     expect(screen.getByText(/gifting.limitDesc/)).toBeInTheDocument();
     expect(h.mutate).not.toHaveBeenCalled();
+  });
+
+  it("artykuł niezabramkowany: tylko zwykły link bez gift-mechaniki", async () => {
+    h.session = { user: { id: "u1" } };
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderButton({ gated: false });
+    openPopover();
+    // Nie generujemy linku podarunkowego - nawet dla zalogowanego.
+    expect(h.mutate).not.toHaveBeenCalled();
+    // Lead mówi, że artykuł jest bez paywalla.
+    expect(screen.getByText("gifting.leadFree")).toBeInTheDocument();
+    // Nie pokazujemy budżetu kliknięć ani komunikatu firstNCanRead.
+    expect(screen.queryByTestId("gift-budget")).not.toBeInTheDocument();
+    expect(screen.queryByText(/gifting.firstNCanRead/)).not.toBeInTheDocument();
+    // Kopiowanie zwykłego URL, bez parametrów gift.
+    fireEvent.click(screen.getByRole("button", { name: "gifting.copyLink" }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
+      expect(screen.getByRole("button", { name: "gifting.copied" })).toBeInTheDocument();
+    });
+    // Kanały udostępniania prowadzą do zwykłego linku publicznego.
+    const fb = screen.getByRole("link", { name: "gifting.channels.facebook" });
+    expect(fb).toHaveAttribute(
+      "href",
+      expect.stringContaining(encodeURIComponent("https://example.org/analizy/wpis")),
+    );
+    expect(fb).not.toHaveAttribute("href", expect.stringContaining("?gift="));
+  });
+
+  it("zabramkowany artykuł z błędem notGated: fallback pozwala skopiować zwykły link", async () => {
+    h.session = { user: { id: "u1" } };
+    h.state = makeState({});
+    h.mutationError = true;
+    h.errorKey = "notGated";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderButton();
+    openPopover();
+    expect(screen.queryByRole("button", { name: "common.retry" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "gifting.copyLink" }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
+      expect(screen.getByRole("button", { name: "gifting.copied" })).toBeInTheDocument();
+    });
   });
 });

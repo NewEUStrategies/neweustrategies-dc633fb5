@@ -28,8 +28,9 @@ export function looksLikeRichPaste(html: string): boolean {
  * Word: `<a href="#_ftn1" id="_ftnref1">` w treści + `<div id="ftn1">` na końcu.
  * Google Docs: `<a href="#ftnt1" id="ftnt_ref1">` + `<div id="ftnt1">`.
  * LibreOffice: `<a class="sdfootnoteanc" href="#sdfootnote1sym">` + `#sdfootnote1`.
+ * pandoc/docx: `<a class="footnote-ref" href="#fn1">` + `<li id="fn1">`.
  */
-const FTN_REF_HREF = /^#(_?ftn|ftnt|sdfootnote|_?edn)/i;
+const FTN_REF_HREF = /^#(_?ftn|ftnt|sdfootnote|_?edn|fn(?=\d))/i;
 
 /** Normalizuje `#_ftn1` / `#ftnt1` / `#sdfootnote1sym` do klucza `1`. */
 function footnoteKey(raw: string): string | null {
@@ -52,7 +53,7 @@ function sanitizeFootnoteBody(html: string): string {
 }
 
 /** Link powrotny w definicji przypisu (Word/GDocs/LibreOffice) - do usunięcia. */
-const FTN_BACKREF_HREF = /^#(_?ftnref|ftnt_ref|sdfootnote\d+(anc|sym)|_?ednref)/i;
+const FTN_BACKREF_HREF = /^#(_?ftnref|ftnt_ref|sdfootnote\d+(anc|sym)|_?ednref|fnref)/i;
 
 /**
  * Treść przypisu jako bezpieczny HTML inline - kursywa tytułów, linki i indeksy
@@ -86,7 +87,7 @@ function collectFootnotes(root: HTMLElement): Map<string, string> {
   );
   for (const el of candidates) {
     const id = el.getAttribute("id") ?? "";
-    if (!/^(_?ftn|ftnt|sdfootnote|_?edn)\d+$/i.test(id)) continue;
+    if (!/^(_?ftn|ftnt|sdfootnote|_?edn|fn)\d+$/i.test(id)) continue;
     const key = footnoteKey(id);
     if (!key) continue;
     const body = footnoteBody(el);

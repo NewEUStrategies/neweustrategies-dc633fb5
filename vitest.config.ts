@@ -1423,28 +1423,106 @@ export default defineConfig({
         // konta na całej powierzchni publicznej. Progi floorowane tuż pod
         // zmierzonym pokryciem, tak jak pozostałe wpisy w tym pliku.
         //
-        // AuthPortal.tsx - niedobite gałęzie: pola rejestracji poza fixture
-        // testu (phone/company/job/linkedin - typ/autoComplete), domyślne
-        // linki prawne (privacy_url/terms_url) i wyścig `mfaPending` w
-        // efekcie przekierowania, którego nie da się wywołać bez reaktywnego
-        // mocka sesji (useAuth() w teście zwraca statyczną wartość per render).
+        // AuthPortal.tsx - 2026-08-22: gałęzie PODNIESIONE z 90 na 98 po
+        // dobiciu 11 z 12 niedobitych ramion (pomiar: 99,43%, czyli 177/178).
+        // Poprzedni próg stał 3 pp POD pomiarem, więc przepuszczał regresję,
+        // której nikt by nie zauważył. Dobite: kontrakt `type`/`autoComplete`
+        // każdego pola rejestracji (phone/company/job/linkedin + spadek na
+        // `off`) i spadki domyślnych linków prawnych (privacy_url/terms_url).
+        // Dwunaste ramię jest NIEOSIĄGALNE, nie niedotestowane: w linii 444
+        // `full ? ... : ...` stoi wewnątrz bloku dla pól hasła, a `full` jest
+        // prawdziwe tylko dla email/linkedin - czyli w tym miejscu zawsze
+        // fałszywe. To martwy kod; dlatego sufit tego pliku to 99,43, a nie 100.
         "src/components/auth/AuthPortal.tsx": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 90,
+          branches: 98,
         },
-        // MfaChallenge.tsx - niedobite: puste ciało `.catch(() => {})` na
-        // signOut() podczas anulowania (mock nigdy nie odrzuca, więc callback
-        // się nie odpala) i strażnik `active` chroniący przed osadzeniem
-        // odpowiedzi factorId po zamknięciu/odmontowaniu (wyścig wymagający
-        // sterowanego opóźnionego promise).
-        "src/components/auth/MfaChallenge.tsx": {
+        // ── PORTAL LOGOWANIA: POZOSTAŁE WEJŚCIA UŻYTKOWNIKA ──────────────────
+        // 2026-08-22. Funkcjonalność "portal logowania" raportowała 56,4%
+        // linii i 59,4% gałęzi, ale ta średnia UKRYWAŁA dwa pliki na zerze:
+        // serce portalu (AuthPortal.tsx, 119 z 225 mierzonych linii) stało już
+        // na 100% linii i funkcji, a całe brakujące 43,6% to były popup i
+        // trasa /login. Wnioskiem z tego zlecenia jest jednak coś innego:
+        // zakres oparty na NAZWACH PLIKÓW zgubił trzy dalsze wejścia do
+        // logowania, które audyt wymienił jako "dwa". Poniższe progi trzymają
+        // WSZYSTKIE PIĘĆ ścieżek wejścia, nie tylko te dwie nazwane.
+        //
+        // routes/login.tsx (0% -> 100/100/100/100 na 10 mierzonych liniach).
+        // Ten próg chroni także asercję o `robots: "noindex, nofollow"` - bez
+        // niej jedna usunięta linia w `head()` wpuszcza stronę logowania do
+        // indeksu razem z wariantami `?mode=signup` i `?mode=reset` jako
+        // zduplikowanymi adresami, a zobaczyłby to dopiero ktoś czytający
+        // Search Console po kilku tygodniach.
+        "src/routes/login.tsx": {
           statements: 100,
-          functions: 90,
+          functions: 100,
           lines: 100,
-          branches: 83,
+          branches: 100,
         },
+        // LoginPopup.tsx (0% -> 100 instr. / 98,85 gałęzi / 100 funkcji /
+        // 100 linii na 88 mierzonych liniach). Progi floorowane ~1-2 pp pod
+        // pomiarem, bo to jedyny plik tej funkcjonalności na tyle duży, żeby
+        // ten margines coś znaczył. Niedobita jedna gałąź: `?? "pl"` w
+        // `(i18n.language ?? "pl")` - instancja i18next zawsze ma ustawiony
+        // język, więc ramię jest nieosiągalne z testu.
+        // Popup jest bramką czterech akcji gościa (zapis artykułu,
+        // obserwowanie autora, karta autora, zachęta w liście do przeczytania),
+        // więc jego awaria wygląda dla użytkownika jak BRAK FUNKCJI, nie jak
+        // błąd - stąd wysoki próg na tak niedawno odkrytej powierzchni.
+        "src/components/LoginPopup.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 97,
+        },
+        // loginPopupBus.ts (gałęzie 50% -> 100%, funkcje 80% -> 100%).
+        // Osiem mierzonych linii, więc próg poniżej 100 byłby nieodróżnialny
+        // od 100 (utrata jednej linii to i tak 87,5%). Dwie z czterech gałęzi
+        // to strażniki SSR: nieprzetestowany strażnik `typeof window ===
+        // "undefined"` to wyjątek w renderze serwerowym, czyli biały ekran,
+        // a nie zdegradowany popup.
+        "src/lib/loginPopupBus.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // GuestCheckoutGate.tsx (51,72/42,85/20/51,85 -> 100/100/100/100).
+        // TRZECIE wejście użytkownika do logowania i JEDYNY magic link w całym
+        // repo (`signInWithOtp` z `shouldCreateUser: true`). Audyt nazwał tę
+        // funkcjonalność "portal logowania (hasło, magic link)", ale tego pliku
+        // nie wymienił - więc jedyna ścieżka magic linka stała bez testu na
+        // całej funkcji `submit()` (1 z 5 funkcji pokryta). Bramka stoi PRZED
+        // PŁATNOŚCIĄ (routes/checkout.$planId.tsx owija nią cały checkout):
+        // gdy wysyłka linku milczy, gość nie może zapłacić i nie wie dlaczego.
+        "src/components/checkout/GuestCheckoutGate.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // membership-registration.tsx (0% -> 100/100/100/100). PIĄTE wejście:
+        // druga trasa montująca AuthPortal, tym razem w trybie rejestracji.
+        // Próg chroni odwrotność asercji z `/login`: ta strona NIE MA `robots`
+        // i mieć nie powinna, bo to publiczna strona pozyskania członka.
+        // Pomyłka "ujednolicam obie strony auth" idzie w obie strony - dopisany
+        // tu `noindex` wycina rejestrację z wyszukiwarki, a usunięty z `/login`
+        // wpuszcza tam formularz logowania.
+        "src/routes/membership-registration.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // MfaChallenge.tsx MA SWÓJ WPIS WYŻEJ (100/100/100/90) i NIE POWTARZA
+        // GO TUTAJ. Do 2026-08-22 ten sam klucz stał w tym pliku DWA RAZY,
+        // a ponieważ w literale obiektu wygrywa wpis PÓŹNIEJSZY, obowiązywała
+        // ta słabsza kopia (funkcje 90, gałęzie 83) - czyli 10 pp i 8,66 pp
+        // PONIŻEJ pomiaru (100% funkcji, 91,66% gałęzi). Ratchet wpisany wyżej
+        // był martwy: regresja z 100% na 90% funkcji przeszłaby przez bramkę
+        // niezauważona. Duplikat usunięty; obowiązuje wpis wyżej.
         // useAuth.tsx - niedobite: fallback `?? []` dla `rolesData` (RPC nigdy
         // nie zwraca null/undefined w testach) i strażnik `typeof window !==
         // "undefined"` w signOut() - zawsze prawdziwy pod happy-dom, więc

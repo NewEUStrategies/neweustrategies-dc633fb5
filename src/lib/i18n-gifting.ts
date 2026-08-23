@@ -10,6 +10,7 @@ const pl = {
     button: "Udostępnij pełny artykuł",
     popoverTitle: "Udostępnij pełny artykuł",
     lead: "Podaruj dostęp do pełnej treści tego artykułu - bez paywalla.",
+    leadFree: "Ten artykuł jest dostępny bez paywalla - wystarczy zwykły link do strony.",
     leadCapped_one:
       "Twój link otworzy pełną treść pierwszej osobie, która w niego kliknie - bez paywalla.",
     leadCapped_few:
@@ -109,6 +110,7 @@ const en: typeof pl = {
     button: "Share full article",
     popoverTitle: "Share full article",
     lead: "Give paywall-free access to the full text of this article.",
+    leadFree: "This article is already paywall-free - a plain page link is enough.",
     leadCapped_one: "Your link opens the full article for the first person who clicks it.",
     leadCapped_few: "Your link opens the full article for the first {{count}} people who click it.",
     leadCapped_many:

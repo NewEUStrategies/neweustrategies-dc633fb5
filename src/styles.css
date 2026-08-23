@@ -2141,6 +2141,14 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     max-width: 100% !important;
     min-width: 0 !important;
   }
+  /* People-card grids keep 3 columns on mobile so they remain readable. */
+  [data-builder-renderer] [data-section-kind="people"] [data-columns-row] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  [data-builder-renderer] [data-section-kind="people"] [data-column-slot] {
+    grid-column: auto !important;
+  }
 }
 /* Apply the same mobile layout when the renderer's container is mobile-sized
    (e.g. admin canvas constrained to 390px while the browser window is wide). */
@@ -2153,6 +2161,13 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
+}
+[data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-columns-row] {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+[data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-column-slot] {
+  grid-column: auto !important;
 }
 [data-builder-renderer][data-device="mobile"] [data-col-id] {
   width: 100% !important;
@@ -2379,6 +2394,39 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     hyphens: manual;
     -webkit-hyphens: manual;
   }
+
+  /* Section tabs: the global button reset above forces word breaking and
+     white-space: normal on every button. That destroys tab labels in scroll
+     mode (they break mid-word instead of scrolling horizontally) and in wrap
+     mode it splits words like "Misja" into "Misj" + "a". Keep labels readable
+     by preserving the intended mobile mode. */
+  [data-builder-renderer] [data-section-tabs-bar] .cms-section-tab-btn,
+  [data-builder-renderer] [data-section-tabs-bar] .cms-section-tab-btn .cms-section-tab-label,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar] .cms-section-tab-btn,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar] .cms-section-tab-btn .cms-section-tab-label {
+    hyphens: none !important;
+    -webkit-hyphens: none !important;
+  }
+
+  [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn,
+  [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn .cms-section-tab-label,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="scroll"] .cms-section-tab-btn .cms-section-tab-label {
+    white-space: nowrap !important;
+  }
+
+  [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn,
+  [data-builder-renderer] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn .cms-section-tab-label,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn,
+  [data-builder-renderer][data-device="mobile"] [data-section-tabs-bar][data-mobile-mode="wrap"] .cms-section-tab-btn .cms-section-tab-label {
+    white-space: normal !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    text-wrap: pretty;
+  }
+
+
+
   [data-builder-renderer] h1:not(.cms-post-title) {
     font-size: clamp(1.4rem, 7vw, 2rem) !important;
     line-height: 1.15 !important;
@@ -8134,4 +8182,16 @@ html.dark.club-navy body {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+/* Przypisy: skok do markera w treści nie może chować się pod sticky headerem. */
+sup.fn-ref > a[id^="fnref-"] {
+  scroll-margin-top: 7rem;
+}
+
+/* Przypisy: dymek zawsze 9px - style treści (.cms-post-*) nie mogą go powiększać. */
+[data-footnote-tooltip],
+[data-footnote-tooltip] * {
+  font-size: 9px !important;
+  line-height: 1.35 !important;
 }
