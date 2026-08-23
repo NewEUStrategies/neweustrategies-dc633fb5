@@ -162,17 +162,31 @@ describe("bramka etykiet panelu reklam: enum bazy -> unia TS -> słownik PL/EN",
     }
   });
 
-  it("PL i EN naprawdę się różnią - słownik nie jest kopią jednego języka", () => {
+  it("PL i EN naprawdę się różnią - a wyjątki są DECYZJĄ, nie przypadkiem", () => {
     // Bez tej asercji bramka przechodziłaby na słowniku, w którym `en` to
     // wklejone polskie napisy - czyli dokładnie na stanie sprzed 12.08, tylko
-    // przepuszczonym przez `t()`. Progu nie stawiam na „wszystkie", bo
-    // `positions.sidebar` (Sidebar) i część nazw technicznych są tożsame
-    // w obu językach z pełnym prawem.
-    const wszystkie = MAPY.flatMap(({ mapa }) => Object.values(mapa));
-    const rozne = wszystkie.filter(
-      (klucz) => leaf(adsAdminResources.pl, klucz) !== leaf(adsAdminResources.en, klucz),
+    // przepuszczonym przez `t()`.
+    //
+    // Wyjątki są WYLICZONE, a nie objęte progiem liczbowym („wszystkie minus
+    // dwa"). Próg przepuściłby dowolne dwa zapomniane tłumaczenia; lista
+    // wymusza, żeby każdy nowy przypadek tożsamości ktoś tutaj dopisał i tym
+    // samym uzasadnił.
+    const TE_SAME_W_OBU_JEZYKACH = new Set(["adsAdmin.positions.sidebar"]);
+    const tozsame = MAPY.flatMap(({ mapa }) => Object.values(mapa)).filter(
+      (klucz) =>
+        !TE_SAME_W_OBU_JEZYKACH.has(klucz) &&
+        leaf(adsAdminResources.pl, klucz) === leaf(adsAdminResources.en, klucz),
     );
-    expect(rozne.length).toBeGreaterThanOrEqual(wszystkie.length - 2);
+    expect(tozsame).toEqual([]);
+  });
+
+  it("wyjątki z listy tożsamości NAPRAWDĘ są tożsame - lista nie zbiera martwych wpisów", () => {
+    // Druga strona tej samej reguły: wyjątek, który przestał być potrzebny
+    // (bo ktoś przetłumaczył „Sidebar"), ma zniknąć z listy, a nie zostać
+    // w niej jako cichy zawór na przyszłość.
+    expect(leaf(adsAdminResources.pl, "adsAdmin.positions.sidebar")).toBe(
+      leaf(adsAdminResources.en, "adsAdmin.positions.sidebar"),
+    );
   });
 
   it("kanarek zasięgu: trzy mapy są niepuste i mają razem 18 wariantów", () => {
