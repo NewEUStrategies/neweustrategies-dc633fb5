@@ -564,6 +564,15 @@ describe("useGiftCodeFromUrl: reaktywność na zmianę adresu", () => {
     expect(result.current).toBe("BBBB2222");
   });
 
+  it("BRAK `searchStr` w lokalizacji (undefined) nie wywraca hooka", () => {
+    // Router potrafi oddać `undefined` dla adresu bez części zapytania -
+    // `searchStr ?? ""` jest tu jedyną obroną przed wyjątkiem w URLSearchParams.
+    h.searchStr = undefined as unknown as string;
+    const qc = freshClient();
+    const { result } = renderHook(() => useGiftCodeFromUrl(), { wrapper: wrapper(qc) });
+    expect(result.current).toBeNull();
+  });
+
   it("przejście na adres BEZ kodu czyści wynik", () => {
     h.searchStr = "?gift=AAAA1111";
     const qc = freshClient();
@@ -737,6 +746,67 @@ describe("useGiftRedemption: konsumpcja slotu i tożsamość odbiorcy", () => {
     await waitFor(() => expect(second.result.current.settled).toBe(true));
 
     expect(db.rpc.callsFor("redeem_gift_link")).toHaveLength(1);
+  });
+
+  it("OKNO WDROŻENIOWE: wiersz BEZ kolumny `reason` przy `valid:true` daje werdykt `ok`", async () => {
+    // Kolumna `reason` przyszła migracją 20260806170000. Kod na produkcji
+    // przed migracją musi umieć odczytać wiersz bez niej - inaczej KAŻDA
+    // realizacja w oknie wdrożeniowym wyglądałaby na nieprawidłowy kod.
+    const row: Record<string, unknown> = {
+      valid: true,
+      content_pl: "<p>Treść</p>",
+      content_en: null,
+      builder_data: null,
+      blocks_data: null,
+    };
+    db.rpc.setData("redeem_gift_link", [row]);
+    const { result } = renderRedeem();
+    await waitFor(() => expect(result.current.settled).toBe(true));
+
+    expect(result.current.reason).toBe("ok");
+    expect(result.current.valid).toBe(true);
+  });
+
+  it("OKNO WDROŻENIOWE: wiersz BEZ `reason` przy `valid:false` daje `invalid`", async () => {
+    db.rpc.setData("redeem_gift_link", [
+      { valid: false, content_pl: null, content_en: null, builder_data: null, blocks_data: null },
+    ]);
+    const { result } = renderRedeem();
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.reason).toBe("invalid");
+  });
+
+  it("`reason: null` z bazy zachowuje się jak brak kolumny", async () => {
+    db.rpc.setData("redeem_gift_link", [
+      {
+        valid: true,
+        reason: null,
+        content_pl: "<p>Treść</p>",
+        content_en: null,
+        builder_data: null,
+        blocks_data: null,
+      },
+    ]);
+    const { result } = renderRedeem();
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.reason).toBe("ok");
+  });
+
+  it("`data: null` z RPC realizacji daje werdykt `invalid`, nie wyjątek", async () => {
+    db.rpc.setData("redeem_gift_link", null);
+    const { result } = renderRedeem();
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.valid).toBe(false);
+    expect(result.current.reason).toBe("invalid");
+  });
+
+  it("błąd RPC realizacji NIE jest ponawiany - ponowienie spaliłoby drugi slot", async () => {
+    db.rpc.setError("redeem_gift_link", "gift_link_revoked");
+    const { result } = renderRedeem();
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    // `retry: false` w praktyce: dokładnie JEDNO wywołanie mimo błędu.
+    expect(db.rpc.callsFor("redeem_gift_link")).toHaveLength(1);
+    expect(result.current.valid).toBeNull();
   });
 
   it("argumenty RPC to dokładnie wpis, kod i (dla gościa) pseudonim", async () => {

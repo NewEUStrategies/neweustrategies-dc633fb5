@@ -67,6 +67,7 @@ import {
   type SupabaseRpcStub,
 } from "@/test/supabase";
 import {
+  hasAnalyticsConsent,
   hasCategoryConsent,
   isGpcCurrentlyHonored,
   useConsent,
@@ -766,5 +767,104 @@ describe("udokumentowane krawędzie warstwy synchronizacji", () => {
     // (`backfillInFlight`) jest jego własnym kontraktem i ma swój test.
     expect(h.from.chainsFor("profiles")).toHaveLength(2);
     expect(h.rpc.callsFor("get_own_profile")).toHaveLength(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hydratacja bez podmiotu i bez profilu
+// ---------------------------------------------------------------------------
+
+describe("hydrateConsentFromProfile - brak podmiotu i brak wiersza profilu", () => {
+  it("GOŚĆ: zdarzenie auth bez sesji kończy hydratację PRZED odczytem profilu", async () => {
+    // `INITIAL_SESSION` przychodzi także dla gościa. Bez wczesnego wyjścia
+    // każde wejście anonimowe generowałoby RPC `get_own_profile`, które i tak
+    // nic nie może zwrócić.
+    resetStubs(null);
+    persistLocal(BASE_TS, { functional: true, analytics: true, marketing: false });
+
+    const { result } = renderHookWithQueryClient(() => useConsent());
+    await act(async () => {
+      await settle();
+    });
+    await fireAuth("INITIAL_SESSION");
+
+    expect(h.rpc.callsFor("get_own_profile")).toHaveLength(0);
+    expect(h.from.chainsFor("profiles")).toHaveLength(0);
+    // Decyzja gościa żyje dalej lokalnie.
+    expect(result.current.state?.categories.analytics).toBe(true);
+  });
+
+  it("PUSTY wynik RPC profilu: brak `prefs` schodzi do `{}` bez wyjątku", async () => {
+    // `ownRows?.[0]?.prefs ?? {}` - konto bez wiersza profilu (świeża
+    // rejestracja, wyścig z triggerem) nie może wywrócić hydratacji.
+    resetStubs("u1");
+    h.rpc.setData("get_own_profile", []);
+    h.from.setResponse("profiles", { data: null, error: null });
+    persistLocal(BASE_TS, { functional: true, analytics: true, marketing: false });
+
+    const { result } = renderHookWithQueryClient(() => useConsent());
+    await act(async () => {
+      await settle();
+    });
+    await fireAuth("SIGNED_IN");
+
+    // Brak zdalnej zgody + istniejąca lokalna => lokalna jest WYPCHNIĘTA
+    // do profilu, a nie skasowana.
+    expect(result.current.state?.categories.analytics).toBe(true);
+    expect(h.from.chainsFor("profiles").length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Odporność hydratacji: awaria warstwy sesji nie może wywrócić drzewa Reacta
+// ---------------------------------------------------------------------------
+
+describe("hydrateConsentFromProfile - awaria warstwy sesji", () => {
+  it("RZUCAJĄCE `getSession()` jest połknięte - stan lokalny zostaje, baza nietknięta", async () => {
+    // Cała hydratacja jest owinięta w `try/catch` z `return null`. Bez tego
+    // wyjątek z warstwy sesji (wygasły token, brak sieci przy odświeżaniu)
+    // leciałby z callbacku `onAuthStateChange` jako nieobsłużone odrzucenie -
+    // a przy okazji gasił subskrypcję zdarzeń auth dla całej karty.
+    resetStubs("u1");
+    persistLocal(BASE_TS, { functional: true, analytics: true, marketing: false });
+
+    const { result } = renderHookWithQueryClient(() => useConsent());
+    await act(async () => {
+      await settle();
+    });
+
+    h.auth = {
+      getSession: () => Promise.reject(new Error("token wygasł")),
+      getUser: () => Promise.reject(new Error("token wygasł")),
+    } as unknown as SupabaseAuthStub;
+
+    await fireAuth("SIGNED_IN");
+
+    // Decyzja lokalna nietknięta, żadne zapytanie nie poszło dalej.
+    expect(result.current.state?.categories.analytics).toBe(true);
+    expect(h.rpc.callsFor("get_own_profile")).toHaveLength(0);
+    expect(h.from.chainsFor("profiles")).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Powierzchnia skrótowa
+// ---------------------------------------------------------------------------
+
+describe("hasAnalyticsConsent - skrót dla silnika analityki", () => {
+  it("oddaje dokładnie zgodę na kategorię `analytics`", () => {
+    // To jedyny konsument, przez który silnik analityki bramkuje beacony -
+    // rozjazd z `hasCategoryConsent("analytics")` znaczyłby, że beacony i UI
+    // bramkują się różnie.
+    persistLocal(BASE_TS, { functional: true, analytics: true, marketing: false });
+    expect(hasAnalyticsConsent()).toBe(hasCategoryConsent("analytics"));
+    expect(hasAnalyticsConsent()).toBe(true);
+  });
+
+  it("odmowa analityki wyłącza skrót", () => {
+    persistLocal(BASE_TS, { functional: true, analytics: false, marketing: true });
+    expect(hasAnalyticsConsent()).toBe(false);
+    // Marketing zostaje niezależnie - to dwie różne kategorie.
+    expect(hasCategoryConsent("marketing")).toBe(true);
   });
 });
