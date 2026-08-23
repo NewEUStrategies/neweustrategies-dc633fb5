@@ -562,10 +562,8 @@ const RenderSection = memo(function RenderSection({
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
       : "";
 
-    section.background?.type === "video"
-      ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
-      : "";
   const preloadRef = useSectionPreload(section, lang);
+
 
   return (
     <Tag
