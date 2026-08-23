@@ -40,6 +40,7 @@ import {
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { confirmFreeRsvpEmail } from "@/lib/events/rsvp-email.functions";
+import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
 import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
@@ -334,11 +335,13 @@ function EventDetail() {
 
       <dl className="mt-6 grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2">
         <MetaRow icon={<Calendar className="h-4 w-4" />} label={t("community.events.whenLabel")}>
-          {startsAt.toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-            dateStyle: "long",
-            timeStyle: "short",
-          })}
-          {ev.timezone ? ` (${ev.timezone})` : null}
+          {/* Godzina w STREFIE WYDARZENIA, a nie w strefie przegladarki.
+              Poprzednia wersja formatowala date lokalnie i doklejala surowy
+              identyfikator IANA w nawiasie - uczestnik z Brukseli widzial
+              godzine warszawska opisana jako warszawska i musial ja przeliczyc
+              sam. Wspolny formater zyje w lib/events/timezone.ts. */}
+          {formatEventDateTime(ev.starts_at, ev.timezone, lang)}
+          {ev.timezone ? ` (${eventTimeZoneLabel(ev.starts_at, ev.timezone, lang)})` : null}
         </MetaRow>
         {ev.location && (
           <MetaRow icon={<MapPin className="h-4 w-4" />} label={t("community.events.location")}>

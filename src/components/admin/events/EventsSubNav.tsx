@@ -22,6 +22,12 @@ import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 const EVENT_TABS = [
   {
+    to: "/admin/events/list" as const,
+    key: "list",
+    icon: CalendarDays,
+    labelKey: "adminEvents.nav.list",
+  },
+  {
     to: "/admin/events/types" as const,
     key: "types",
     icon: Shapes,

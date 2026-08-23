@@ -301,3 +301,141 @@ GRANT EXECUTE ON FUNCTION public.admin_events_counts(uuid, text, text, timestamp
 
 COMMENT ON FUNCTION public.admin_events_counts(uuid, text, text, timestamptz, timestamptz) IS
   'Liczniki wydarzen per status pod zakladki listy. Ignoruje filtr statusu, respektuje pozostale filtry.';
+
+-- ----------------------------------------------------------------------------
+-- 4) Utworzenie wydarzenia z DOMYSLNYCH USTAWIEN RODZAJU
+--
+-- JEDNO MIEJSCE, W KTORYM RODZAJ ZAMIENIA SIE W WYDARZENIE. Rodzaj niesie
+-- jedenascie wartosci startowych (etap 1). Gdyby przepisywal je formularz, kazda
+-- inna sciezka tworzenia - import, klon poprzedniej edycji, webhook, przyszly
+-- kreator - musialaby powtorzyc te sama logike, a rozjazd miedzy nimi jest
+-- niewidoczny: wydarzenie startuje z innym progiem warstwy, niz jego rodzaj
+-- obiecuje, i nikt tego nie zauwazy do pierwszej skargi uczestnika.
+--
+-- ADRES JEST GENEROWANY, NIE WYMAGANY. `events.slug` ma CHECK
+-- `^[a-z0-9-]{3,120}$` i UNIQUE (tenant_id, slug). Formularz, ktory kaze
+-- redaktorowi wymyslic adres, dostaje albo kolizje (odmowa `23505` bez
+-- wskazania pola), albo adresy w rodzaju "wydarzenie-1". Funkcja sklada adres
+-- z tytulu polskiego i domyka unikalnosc licznikiem.
+--
+-- KONIEC CZASU LICZY SIE Z CZASU TRWANIA RODZAJU. Wydarzenie bez `ends_at`
+-- nie da sie pokazac w kalendarzu ani wyliczyc kolizji sesji - a redaktor
+-- i tak wpisalby te sama liczbe, ktora rodzaj juz zna.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_event_create(p_payload jsonb)
+RETURNS uuid
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_tenant uuid := public.assert_editor_tenant();
+  v_type public.event_types;
+  v_type_id uuid := NULLIF(p_payload->>'event_type_id', '')::uuid;
+  v_title_pl text := btrim(COALESCE(p_payload->>'title_pl', ''));
+  v_title_en text := btrim(COALESCE(p_payload->>'title_en', ''));
+  v_starts_at timestamptz := NULLIF(p_payload->>'starts_at', '')::timestamptz;
+  v_slug_base text;
+  v_slug text;
+  v_suffix integer := 1;
+  v_kind text;
+  v_ends_at timestamptz;
+  v_id uuid;
+BEGIN
+  IF v_title_pl = '' OR v_title_en = '' THEN
+    RAISE EXCEPTION 'invalid_titles: both titles are required';
+  END IF;
+
+  IF v_starts_at IS NULL THEN
+    RAISE EXCEPTION 'invalid_starts_at: start date is required';
+  END IF;
+
+  IF v_type_id IS NULL THEN
+    RAISE EXCEPTION 'invalid_type: event type is required';
+  END IF;
+
+  -- Rodzaj MUSI nalezec do tenanta wolajacego. Bez tego warunku redaktor
+  -- tenanta A zaseedowalby wydarzenie ustawieniami tenanta B, podajac obce id.
+  SELECT * INTO v_type
+  FROM public.event_types et
+  WHERE et.id = v_type_id AND et.tenant_id = v_tenant;
+
+  IF v_type.id IS NULL THEN
+    RAISE EXCEPTION 'not_found: event type does not exist in this tenant';
+  END IF;
+
+  IF NOT v_type.is_active THEN
+    RAISE EXCEPTION 'event_type_inactive: type is disabled in this organisation';
+  END IF;
+
+  -- Adres z tytulu polskiego: diakrytyki rozkladane (`unaccent` nie jest
+  -- gwarantowane, wiec translate na pary), reszta na myslniki.
+  v_slug_base := lower(translate(
+    v_title_pl,
+    'ąćęłńóśźżĄĆĘŁŃÓŚŹŻ',
+    'acelnoszzACELNOSZZ'
+  ));
+  v_slug_base := regexp_replace(v_slug_base, '[^a-z0-9]+', '-', 'g');
+  v_slug_base := btrim(v_slug_base, '-');
+  v_slug_base := left(v_slug_base, 110);
+
+  -- Tytul zlozony wylacznie ze znakow niealfanumerycznych da pusty adres,
+  -- a CHECK wymaga trzech znakow. Wtedy adres bierzemy z klucza rodzaju.
+  IF char_length(v_slug_base) < 3 THEN
+    v_slug_base := v_type.key;
+  END IF;
+
+  v_slug := v_slug_base;
+  WHILE EXISTS (
+    SELECT 1 FROM public.events e WHERE e.tenant_id = v_tenant AND e.slug = v_slug
+  ) LOOP
+    v_suffix := v_suffix + 1;
+    v_slug := left(v_slug_base, 110) || '-' || v_suffix::text;
+  END LOOP;
+
+  -- Legacy `kind` ma wlasny CHECK z szescioma wartosciami, wiec rodzaj
+  -- redakcyjny poza tym zbiorem nie da sie w nia wpisac. Wtedy `kind` bierze
+  -- wartosc najblizsza semantycznie formatowi, a zrodlem prawdy jest
+  -- `event_type_id`.
+  v_kind := CASE
+    WHEN v_type.key IN ('webinar', 'briefing', 'roundtable', 'ama', 'in_person', 'hybrid')
+      THEN v_type.key
+    WHEN v_type.default_format = 'online' THEN 'webinar'
+    WHEN v_type.default_format = 'hybrid' THEN 'hybrid'
+    ELSE 'in_person'
+  END;
+
+  v_ends_at := CASE
+    WHEN v_type.default_duration_minutes IS NULL THEN NULL
+    ELSE v_starts_at + make_interval(mins => v_type.default_duration_minutes)
+  END;
+
+  INSERT INTO public.events (
+    tenant_id, slug, title_pl, title_en, starts_at, ends_at,
+    status, kind, event_type_id, format,
+    registration_mode, registration_flow, guest_mode,
+    capacity, min_tier_rank, chatham_house,
+    visibility, created_by
+  ) VALUES (
+    v_tenant, v_slug, v_title_pl, v_title_en, v_starts_at, v_ends_at,
+    'draft', v_kind, v_type.id, v_type.default_format,
+    v_type.default_registration_mode, v_type.default_registration_flow, v_type.default_guest_mode,
+    v_type.default_capacity, v_type.default_min_tier_rank, v_type.default_chatham_house,
+    -- Prog rangi wieksze od zera znaczy tresc czlonkowska - widocznosc musi za
+    -- tym pojsc, inaczej wydarzenie jest publiczne i jednoczesnie progowane,
+    -- czyli widoczne dla wszystkich i niedostepne dla wiekszosci.
+    CASE WHEN v_type.default_min_tier_rank > 0 THEN 'members' ELSE 'public' END,
+    auth.uid()
+  )
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_event_create(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_event_create(jsonb) TO authenticated, service_role;
+
+COMMENT ON FUNCTION public.admin_event_create(jsonb) IS
+  'Tworzy wydarzenie w statusie draft, przepisujac jedenascie ustawien domyslnych z rodzaju. Adres generowany z tytulu polskiego z domknieciem unikalnosci.';

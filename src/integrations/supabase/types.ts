@@ -15952,6 +15952,7 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      admin_event_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_type_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_type_reassign: {
         Args: { _from_id: string; _to_id: string }
@@ -15987,6 +15988,67 @@ export type Database = {
           is_active: boolean
           is_system: boolean
           published_events_count: number
+        }[]
+      }
+      admin_events_counts: {
+        Args: {
+          p_format?: string
+          p_from?: string
+          p_q?: string
+          p_to?: string
+          p_type_id?: string
+        }
+        Returns: Json
+      }
+      admin_events_list: {
+        Args: {
+          p_format?: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_q?: string
+          p_status?: string
+          p_to?: string
+          p_type_id?: string
+        }
+        Returns: {
+          cancelled_at: string | null
+          capacity: number | null
+          chatham_house: boolean
+          cover_url: string | null
+          ends_at: string | null
+          event_type_id: string | null
+          format: string
+          going_count: number
+          guest_mode: string
+          has_recording: boolean
+          has_stream: boolean
+          id: string
+          interested_count: number
+          kind: string
+          location: string | null
+          min_tier_rank: number
+          published_at: string | null
+          registration_flow: string
+          registration_mode: string
+          seats_left: number | null
+          slug: string
+          speakers_count: number
+          starts_at: string
+          status: string
+          ticket_currency: string
+          ticket_price_cents: number | null
+          timezone: string
+          title_en: string
+          title_pl: string
+          total_count: number
+          type_accent_color: string | null
+          type_icon: string | null
+          type_key: string | null
+          type_name_en: string | null
+          type_name_pl: string | null
+          visibility: string
+          waitlist_count: number
         }[]
       }
       admin_get_author_profile: {
@@ -16483,6 +16545,7 @@ export type Database = {
         Returns: string
       }
       assert_admin_tenant: { Args: never; Returns: string }
+      assert_editor_tenant: { Args: never; Returns: string }
       authorize_resource_download: {
         Args: { p_resource: string }
         Returns: {

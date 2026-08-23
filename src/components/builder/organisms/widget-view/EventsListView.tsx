@@ -21,11 +21,10 @@ import {
 } from "@/lib/builder/eventsQuery";
 import { daysUntil } from "@/lib/events/countdown";
 import { eventKindLabel } from "@/lib/events/kinds";
+import { eventDateBlock, formatEventDateTime } from "@/lib/events/timezone";
 import { getBool, getStr, type Lang } from "./frame";
-import { uiLocale } from "@/lib/i18n/format";
 
 const CARD_IMAGE_SIZES = "(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92vw";
-const DEFAULT_EVENT_TZ = "Europe/Warsaw";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
   return getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || getStr(c, `${base}_en`);
@@ -46,45 +45,6 @@ function eventTitle(row: EventListRow, lang: Lang): string {
 function eventDescription(row: EventListRow, lang: Lang): string {
   const primary = lang === "pl" ? row.description_pl : row.description_en;
   return primary || row.description_pl || row.description_en || "";
-}
-
-/** Strefa wydarzenia z fallbackiem - nieznana wartosc nie moze wysypac
- *  Intl (RangeError), wiec degradujemy do domyslnej. */
-function eventTimeZone(row: EventListRow): string {
-  return row.timezone || DEFAULT_EVENT_TZ;
-}
-
-function formatEventDate(row: EventListRow, lang: Lang): string {
-  const date = new Date(row.starts_at);
-  if (Number.isNaN(date.getTime())) return "";
-  const options: Intl.DateTimeFormatOptions = { dateStyle: "long", timeStyle: "short" };
-  try {
-    return date.toLocaleString(uiLocale(lang), {
-      ...options,
-      timeZone: eventTimeZone(row),
-    });
-  } catch {
-    return date.toLocaleString(uiLocale(lang), options);
-  }
-}
-
-/** Blok daty (dzien + miesiac) w strefie wydarzenia. */
-function dateBlockParts(row: EventListRow, lang: Lang): { day: string; month: string } | null {
-  const date = new Date(row.starts_at);
-  if (Number.isNaN(date.getTime())) return null;
-  const locale = uiLocale(lang);
-  try {
-    const timeZone = eventTimeZone(row);
-    return {
-      day: date.toLocaleDateString(locale, { day: "numeric", timeZone }),
-      month: date.toLocaleDateString(locale, { month: "short", timeZone }),
-    };
-  } catch {
-    return {
-      day: date.toLocaleDateString(locale, { day: "numeric" }),
-      month: date.toLocaleDateString(locale, { month: "short" }),
-    };
-  }
 }
 
 /** Chip odliczania - liczony wylacznie po montazu (nowMs != null). */
@@ -166,7 +126,7 @@ function EventCard({ row, lang, showCountdown, showKindBadge, going, nowMs }: Ro
           </h3>
           <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays aria-hidden className="h-3.5 w-3.5" />
-            {formatEventDate(row, lang)}
+            {formatEventDateTime(row.starts_at, row.timezone, lang)}
           </p>
           {row.location && (
             <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -187,7 +147,7 @@ function EventCard({ row, lang, showCountdown, showKindBadge, going, nowMs }: Ro
 
 function EventRowItem({ row, lang, showCountdown, showKindBadge, going, nowMs }: RowProps) {
   const title = eventTitle(row, lang);
-  const dateBlock = dateBlockParts(row, lang);
+  const dateBlock = eventDateBlock(row.starts_at, row.timezone, lang);
   const countdown = showCountdown ? countdownChipLabel(row.starts_at, lang, nowMs) : null;
   return (
     <AppLink
@@ -214,7 +174,7 @@ function EventRowItem({ row, lang, showCountdown, showKindBadge, going, nowMs }:
           {title}
         </h3>
         <p className="truncate text-xs text-muted-foreground">
-          {formatEventDate(row, lang)}
+          {formatEventDateTime(row.starts_at, row.timezone, lang)}
           {row.location ? ` · ${row.location}` : ""}
         </p>
       </div>

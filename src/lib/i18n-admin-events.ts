@@ -57,6 +57,89 @@ export const adminEventsPl = {
       full: "Pełna treść bez kontaktów",
     },
 
+    list: {
+      title: "Wydarzenia",
+      subtitle:
+        "Wszystkie wydarzenia organizacji. Nowe wydarzenie startuje z ustawieniami swojego rodzaju.",
+      createAction: "Nowe wydarzenie",
+      searchPlaceholder: "Szukaj po tytule, adresie albo miejscu",
+      loading: "Wczytywanie wydarzeń…",
+      empty: "Nie ma jeszcze żadnego wydarzenia. Dodaj pierwsze, żeby zobaczyć je na liście.",
+      emptyFiltered: "Żadne wydarzenie nie pasuje do tych filtrów.",
+      adminOnly: "Lista wydarzeń jest dostępna dla administratora i redaktora organizacji.",
+      clearFilters: "Wyczyść filtry",
+
+      tabs: {
+        all: "Wszystkie",
+        draft: "Szkice",
+        published: "Opublikowane",
+        upcoming: "Nadchodzące",
+        past: "Minione",
+        cancelled: "Odwołane",
+      },
+
+      filters: {
+        typeLabel: "Rodzaj",
+        typeAll: "Wszystkie rodzaje",
+        formatLabel: "Format",
+        formatAll: "Wszystkie formaty",
+      },
+
+      range: "{{from}}-{{to}} z {{total}}",
+      prevPage: "Poprzednia strona",
+      nextPage: "Następna strona",
+
+      row: {
+        noType: "Bez rodzaju",
+        going: "Zapisani: {{count}}",
+        interested: "Zainteresowani: {{count}}",
+        waitlist: "Lista rezerwowa: {{count}}",
+        seatsLeft: "Wolne miejsca: {{count}}",
+        noCapacity: "Bez limitu miejsc",
+        speakers: "Prelegenci: {{count}}",
+        stream: "Transmisja",
+        recording: "Nagranie",
+        chathamHouse: "Chatham House",
+        membersOnly: "Tylko członkowie",
+        editAction: "Edytuj wydarzenie {{title}}",
+        openPublicAction: "Otwórz stronę wydarzenia {{title}}",
+        noDate: "Bez terminu",
+      },
+
+      status: {
+        draft: "Szkic",
+        published: "Opublikowane",
+        cancelled: "Odwołane",
+      },
+
+      create: {
+        title: "Nowe wydarzenie",
+        description:
+          "Podaj tytuł, termin i rodzaj. Format, tryb rejestracji, limit miejsc i próg członkostwa przepisze rodzaj - zmienisz je później w ustawieniach wydarzenia.",
+        typeLabel: "Rodzaj wydarzenia",
+        typeHint: "Widoczne są tylko rodzaje aktywne w tej organizacji.",
+        titlePlLabel: "Tytuł PL",
+        titleEnLabel: "Tytuł EN",
+        startsAtLabel: "Początek",
+        startsAtHint: "Koniec wyliczy się z czasu trwania rodzaju, jeśli rodzaj go zna.",
+        submitAction: "Utwórz szkic",
+        cancelAction: "Anuluj",
+        errors: {
+          titles: "Tytuł jest wymagany w obu językach.",
+          startsAt: "Termin początku jest wymagany.",
+          type: "Wybierz rodzaj wydarzenia.",
+          typeInactive: "Ten rodzaj jest wyłączony w organizacji.",
+          notFound: "Rodzaj nie istnieje w tej organizacji.",
+          noTypes:
+            "Nie ma żadnego aktywnego rodzaju wydarzenia. Dodaj rodzaj w katalogu, zanim utworzysz wydarzenie.",
+        },
+      },
+
+      toasts: {
+        created: "Szkic wydarzenia utworzony",
+      },
+    },
+
     types: {
       title: "Rodzaje wydarzeń",
       subtitle:
@@ -188,6 +271,89 @@ export const adminEventsEn = {
       hidden: "Hidden from non-attendees",
       teaser: "Description and agenda",
       full: "Full content without contacts",
+    },
+
+    list: {
+      title: "Events",
+      subtitle:
+        "Every event in the organisation. A new event starts with the settings of its type.",
+      createAction: "New event",
+      searchPlaceholder: "Search by title, slug or location",
+      loading: "Loading events…",
+      empty: "No event yet. Add the first one to see it on the list.",
+      emptyFiltered: "No event matches these filters.",
+      adminOnly: "The event list is available to organisation administrators and editors.",
+      clearFilters: "Clear filters",
+
+      tabs: {
+        all: "All",
+        draft: "Drafts",
+        published: "Published",
+        upcoming: "Upcoming",
+        past: "Past",
+        cancelled: "Cancelled",
+      },
+
+      filters: {
+        typeLabel: "Type",
+        typeAll: "All types",
+        formatLabel: "Format",
+        formatAll: "All formats",
+      },
+
+      range: "{{from}}-{{to}} of {{total}}",
+      prevPage: "Previous page",
+      nextPage: "Next page",
+
+      row: {
+        noType: "No type",
+        going: "Going: {{count}}",
+        interested: "Interested: {{count}}",
+        waitlist: "Waiting list: {{count}}",
+        seatsLeft: "Seats left: {{count}}",
+        noCapacity: "No seat limit",
+        speakers: "Speakers: {{count}}",
+        stream: "Stream",
+        recording: "Recording",
+        chathamHouse: "Chatham House",
+        membersOnly: "Members only",
+        editAction: "Edit the {{title}} event",
+        openPublicAction: "Open the public page of {{title}}",
+        noDate: "No date",
+      },
+
+      status: {
+        draft: "Draft",
+        published: "Published",
+        cancelled: "Cancelled",
+      },
+
+      create: {
+        title: "New event",
+        description:
+          "Give a title, a date and a type. Format, registration mode, seat limit and membership threshold come from the type - you can change them later in the event settings.",
+        typeLabel: "Event type",
+        typeHint: "Only types active in this organisation are listed.",
+        titlePlLabel: "Title PL",
+        titleEnLabel: "Title EN",
+        startsAtLabel: "Starts",
+        startsAtHint: "The end time is derived from the type duration when the type knows one.",
+        submitAction: "Create draft",
+        cancelAction: "Cancel",
+        errors: {
+          titles: "The title is required in both languages.",
+          startsAt: "A start date is required.",
+          type: "Choose an event type.",
+          typeInactive: "That type is disabled in this organisation.",
+          notFound: "The type does not exist in this organisation.",
+          noTypes:
+            "There is no active event type. Add one in the catalogue before creating an event.",
+        },
+      },
+
+      toasts: {
+        created: "Event draft created",
+      },
     },
 
     types: {
