@@ -8083,6 +8083,131 @@ html.dark.club-navy body {
   }
 }
 
+/* Geometric glass depth - tło hero strony kariery.
+   Warstwowana powierzchnia: gradient bazowy, rozmyty akcent marki,
+   subtelna siatka, skośna "glass" płaszczyzna i dolna linia światła.
+   Wszystkie kolory pochodzą z semantycznych tokenów, więc działa
+   w jasnym i ciemnym motywie. */
+.careers-hero-glass {
+  overflow: hidden;
+  border-radius: inherit;
+}
+.careers-hero-glass::before,
+.careers-hero-glass > span {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.careers-hero-glass::before {
+  content: "";
+  background: linear-gradient(135deg, var(--card) 0%, var(--background) 50%, var(--muted) 100%);
+}
+
+/* Rozmyty akcent marki w górnym prawym rogu. */
+.careers-hero-glass-refraction {
+  top: -6rem;
+  right: -6rem;
+  left: auto;
+  bottom: auto;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 50%;
+  filter: blur(120px);
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  opacity: 0.8;
+}
+@media (min-width: 768px) {
+  .careers-hero-glass-refraction {
+    width: 32rem;
+    height: 32rem;
+    top: -8rem;
+    right: -8rem;
+  }
+}
+
+/* Subtelna siatka kropek - "strategy grid". */
+.careers-hero-glass-grid {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--foreground) 5%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 40px 40px;
+  opacity: 0.6;
+}
+
+/* Skośna płaszczyzna szkła po prawej stronie. */
+.careers-hero-glass-blade {
+  top: 0;
+  right: 0;
+  left: auto;
+  bottom: 0;
+  width: 33.333%;
+  height: 100%;
+  transform: skewX(-20deg) translateX(50%);
+  border-left: 1px solid color-mix(in oklab, var(--foreground) 6%, transparent);
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--foreground) 5%, transparent),
+    transparent
+  );
+  backdrop-filter: blur(2px);
+}
+@media (max-width: 767px) {
+  .careers-hero-glass-blade {
+    width: 50%;
+    opacity: 0.6;
+  }
+}
+
+/* Dolna, pozioma linia światła marki. */
+.careers-hero-glass-accent {
+  top: auto;
+  bottom: 0;
+  left: 25%;
+  right: 25%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--brand) 40%, transparent),
+    transparent
+  );
+  filter: blur(1px);
+}
+
+/* W trybie jasnym tłumimy efekt, żeby nie konkurował z treścią. */
+:root .careers-hero-glass::before,
+.light .careers-hero-glass::before {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--card) 98%, var(--foreground)) 0%,
+    var(--background) 50%,
+    color-mix(in oklab, var(--muted) 96%, var(--foreground)) 100%
+  );
+}
+.light .careers-hero-glass-grid {
+  opacity: 0.35;
+}
+.light .careers-hero-glass-blade {
+  opacity: 0.5;
+}
+.light .careers-hero-glass-accent {
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--brand) 25%, transparent),
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .careers-hero-glass-blade {
+    backdrop-filter: none;
+  }
+}
+
+
 /* Pulsująca kropka "rekrutujemy" w badge'u hero. */
 .crs-pulse-dot {
   position: relative;
