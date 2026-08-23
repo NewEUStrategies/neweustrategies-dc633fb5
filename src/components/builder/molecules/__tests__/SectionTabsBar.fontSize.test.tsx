@@ -110,4 +110,12 @@ describe("SectionTabsBar - fontSize wiring", () => {
     const btn = container.querySelector<HTMLButtonElement>("[data-section-tab-btn]");
     expect(btn!.style.fontSize).toBe("14px");
   });
+
+  it("adds stable CSS classes for tab button and label", () => {
+    const { container } = renderAt(16);
+    const btn = container.querySelector<HTMLButtonElement>("[data-section-tab-btn]");
+    expect(btn).toHaveClass("cms-section-tab-btn");
+    expect(btn!.querySelector(".cms-section-tab-label")).not.toBeNull();
+  });
+
 });
