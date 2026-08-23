@@ -23,8 +23,8 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Reguł katalogu (wersja robocza, walidacja,
 // payload, odcięcie kosza, mapowanie odmowy) - tabele przypadków są
 // w `lib/clubs/__tests__/adminTaxonomyCatalog.test.ts`; tutaj dowodzimy, że
-// organizm ich UŻYWA i co robi z wynikiem. (2) Molekuł `ClubCatalogToolbar`,
-// `ClubCatalogListState` i `ClubCatalogRow` - mają własne pliki. (3) Normalizacji
+// organizm ich UŻYWA i co robi z wynikiem. (2) Molekuł `AdminCatalogToolbar`,
+// `AdminCatalogListState` i `AdminCatalogRow` - mają własne pliki. (3) Normalizacji
 // klucza (`slugifyTopicKey` - `topics.test.ts`). (4) Samych hooków katalogu
 // (unieważnianie cache, `staleTime`) - są zamockowane na poziomie MODUŁU, bo
 // przedmiotem dowodu jest to, CO organizm do nich wysyła.

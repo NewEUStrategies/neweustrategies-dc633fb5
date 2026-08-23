@@ -16,15 +16,15 @@
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Tego, skąd biorą się flagi - to zapytania
 // panelu (`useAdminClubTopics`, `useAdminClubSpecializations`) mockowane
-// w testach organizmów. (2) Wyglądu wiersza - `ClubCatalogRow.test.tsx`.
+// w testach organizmów. (2) Wyglądu wiersza - `AdminCatalogRow.test.tsx`.
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { ClubCatalogListState } from "@/components/admin/clubs/molecules/ClubCatalogListState";
+import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 
-function stan(props: Partial<Parameters<typeof ClubCatalogListState>[0]> = {}) {
+function stan(props: Partial<Parameters<typeof AdminCatalogListState>[0]> = {}) {
   return render(
-    <ClubCatalogListState
+    <AdminCatalogListState
       isLoading={false}
       loadingLabel="Wczytywanie obszarów..."
       errorMessage={null}
@@ -35,7 +35,7 @@ function stan(props: Partial<Parameters<typeof ClubCatalogListState>[0]> = {}) {
       <ul>
         <li>pierwszy wpis</li>
       </ul>
-    </ClubCatalogListState>,
+    </AdminCatalogListState>,
   );
 }
 

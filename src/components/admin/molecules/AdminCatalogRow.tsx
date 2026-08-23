@@ -21,6 +21,18 @@
 // nie zna słownika (napisy dostaje gotowe, bo klucze obu katalogów mieszkają
 // w RÓŻNYCH plikach i18n), nie woła mutacji i nie wie, czy wpis jest obszarem,
 // czy specjalizacją.
+//
+// ── PROMOCJA DO WSPÓLNEGO KATALOGU (2026-08-23) ──────────────────────────────
+// Molekuła powstała dla dwóch katalogów taksonomii klubów i mieszkała pod
+// `admin/clubs/molecules/ClubCatalog*`. Trzeci konsument - katalog RODZAJÓW
+// WYDARZEŃ - dowiódł, że nazwa `Club*` była przypadkiem pierwszego domu, a nie
+// właściwością komponentu: w API nie ma ani jednego pola, które wiedziałoby
+// o klubach. Alternatywą było czwarte pudełko z tym samym JSX-em, czyli dokładnie
+// ten dług, który ta molekuła miała zlikwidować.
+//
+// GRANICA POZOSTAJE TA SAMA: molekuła nie zna słownika (dostaje gotowe napisy,
+// bo klucze każdego katalogu mieszkają w innym pliku i18n), nie czyta serwera
+// i nie wie, jakiej encji dotyczy wiersz.
 import type { ReactNode } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 
-export function ClubCatalogRow({
+export function AdminCatalogRow({
   isActive,
   isSystem,
   systemLabel,

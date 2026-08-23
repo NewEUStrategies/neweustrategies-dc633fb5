@@ -396,6 +396,7 @@ export const en = {
       monetization: "Monetization",
       engagement: "Engagement",
       community: "Community & media",
+      events: "Events",
       design: "Appearance",
       system: "System",
     },

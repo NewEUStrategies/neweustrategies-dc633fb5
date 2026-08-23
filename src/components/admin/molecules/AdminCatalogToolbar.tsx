@@ -16,10 +16,22 @@
 // „dodaj wpis”. Molekuła nie zna słownika (dostaje gotowe napisy, bo klucze
 // obu katalogów mieszkają w RÓŻNYCH plikach i18n), nie czyta danych serwera
 // i nie wie, co się otworzy po kliknięciu.
+//
+// ── PROMOCJA DO WSPÓLNEGO KATALOGU (2026-08-23) ──────────────────────────────
+// Molekuła powstała dla dwóch katalogów taksonomii klubów i mieszkała pod
+// `admin/clubs/molecules/ClubCatalog*`. Trzeci konsument - katalog RODZAJÓW
+// WYDARZEŃ - dowiódł, że nazwa `Club*` była przypadkiem pierwszego domu, a nie
+// właściwością komponentu: w API nie ma ani jednego pola, które wiedziałoby
+// o klubach. Alternatywą było czwarte pudełko z tym samym JSX-em, czyli dokładnie
+// ten dług, który ta molekuła miała zlikwidować.
+//
+// GRANICA POZOSTAJE TA SAMA: molekuła nie zna słownika (dostaje gotowe napisy,
+// bo klucze każdego katalogu mieszkają w innym pliku i18n), nie czyta serwera
+// i nie wie, jakiej encji dotyczy wiersz.
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function ClubCatalogToolbar({
+export function AdminCatalogToolbar({
   title,
   subtitle,
   addLabel,

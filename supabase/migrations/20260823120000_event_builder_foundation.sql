@@ -50,11 +50,11 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. Katalog rodzajow wydarzen
+-- 1) Katalog rodzajow wydarzen
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.event_types (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   key text NOT NULL,
   name_pl text NOT NULL,
   name_en text NOT NULL,
@@ -157,7 +157,7 @@ CREATE TRIGGER event_types_touch_updated_at
   FOR EACH ROW EXECUTE FUNCTION public._tg_touch_updated_at();
 
 -- ----------------------------------------------------------------------------
--- 2. Zasilenie katalogu: szesc rodzajow zgodnych z legacy CHECK-iem `events.kind`
+-- 2) Zasilenie katalogu: szesc rodzajow zgodnych z legacy CHECK-iem `events.kind`
 --
 -- Klucze SA IDENTYCZNE z wartosciami `events.kind`, bo tylko wtedy backfill
 -- `event_type_id` da sie zrobic bez tabeli mapujacej, a widgety czytajace `kind`
@@ -204,7 +204,7 @@ CROSS JOIN (VALUES
 ON CONFLICT (tenant_id, key) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
--- 3. Kolumny wydarzenia: rodzaj, przeplyw, cykl zycia, zaczep frontu
+-- 3) Kolumny wydarzenia: rodzaj, przeplyw, cykl zycia, zaczep frontu
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.events
   ADD COLUMN IF NOT EXISTS event_type_id uuid REFERENCES public.event_types(id) ON DELETE SET NULL,
@@ -296,7 +296,7 @@ CREATE INDEX IF NOT EXISTS events_root_page_idx
   ON public.events (root_page_id) WHERE root_page_id IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
--- 4. Backfill: rodzaj i format istniejacych wydarzen
+-- 4) Backfill: rodzaj i format istniejacych wydarzen
 --
 -- Warunkowy (`IS NULL`), zeby powtorny przebieg nie nadpisal decyzji redakcji.
 -- Mapowanie formatu wynika z semantyki `kind`: webinar i AMA dzieja sie online,
@@ -357,7 +357,7 @@ SET cancelled_at = updated_at
 WHERE cancelled_at IS NULL AND status = 'cancelled';
 
 -- ----------------------------------------------------------------------------
--- 5. Trigger cyklu zycia: stempel publikacji i odwolania
+-- 5) Trigger cyklu zycia: stempel publikacji i odwolania
 --
 -- BEFORE UPDATE, zeby wartosc byla w wierszu jeszcze przed AFTER-owym
 -- `events_status_notify` - inaczej powiadomienie i webhook widzialyby NULL
@@ -418,7 +418,7 @@ CREATE TRIGGER events_stamp_lifecycle_insert
   FOR EACH ROW EXECUTE FUNCTION public.tg_events_stamp_lifecycle_insert();
 
 -- ----------------------------------------------------------------------------
--- 6. Publiczny odczyt aktywnych rodzajow (filtry na liscie wydarzen, selekt
+-- 6) Publiczny odczyt aktywnych rodzajow (filtry na liscie wydarzen, selekt
 --    w kreatorze). Wiazanie z najemca IDENTYCZNE jak w polityce - SECURITY
 --    DEFINER omija RLS, wiec bez tego warunku funkcja odslanialaby katalogi
 --    wszystkich organizacji (dokladnie regresja z 20260816090000).
@@ -468,7 +468,7 @@ COMMENT ON FUNCTION public.event_types_active() IS
   'Aktywne rodzaje wydarzen tenanta wolajacego (anon: tenant z naglowka hosta). Zrodlo selektu w kreatorze i filtrow na liscie.';
 
 -- ----------------------------------------------------------------------------
--- 7. Panel: lista rodzajow z licznikiem uzycia
+-- 7) Panel: lista rodzajow z licznikiem uzycia
 --
 -- Licznik jest ROZBITY na wszystkie i opublikowane. Redaktor kasujacy rodzaj
 -- musi wiedziec nie tylko, ze "cos go uzywa", ale czy to szkice (do przepiecia
@@ -537,7 +537,7 @@ COMMENT ON FUNCTION public.admin_event_types_list() IS
   'Katalog rodzajow wydarzen dla panelu, z licznikiem uzycia (wszystkie i opublikowane). Bramka: assert_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
--- 8. Panel: dodanie i edycja rodzaju
+-- 8) Panel: dodanie i edycja rodzaju
 --
 -- Payload jest jsonb, a nie 18 parametrami pozycyjnymi: katalog ma osiemnascie
 -- pol redakcyjnych i bedzie ich mial wiecej, a kazde dodane pole w sygnaturze
@@ -658,7 +658,7 @@ COMMENT ON FUNCTION public.admin_event_type_upsert(jsonb) IS
   'Dodanie albo edycja rodzaju wydarzenia. Klucz jest niezmienny po zapisie. Bramka: assert_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
--- 9. Panel: przelacznik dostepnosci rodzaju
+-- 9) Panel: przelacznik dostepnosci rodzaju
 --
 -- Wylaczenie jest ODWRACALNE i nie rusza wydarzen - rodzaj znika z kreatora,
 -- ale istniejace wydarzenia zachowuja etykiete. To dlatego wylaczenie jest
@@ -690,7 +690,7 @@ REVOKE ALL ON FUNCTION public.admin_event_type_set_active(uuid, boolean) FROM PU
 GRANT EXECUTE ON FUNCTION public.admin_event_type_set_active(uuid, boolean) TO authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
--- 10. Panel: usuniecie rodzaju - tylko gdy nikt go nie uzywa
+-- 10) Panel: usuniecie rodzaju - tylko gdy nikt go nie uzywa
 --
 -- Dwie niezalezne blokady, obie po stronie DANYCH, a nie widoku przycisku:
 --   * wpis systemowy nie kasuje sie nigdy (zabralby etykiete z archiwum);
@@ -741,7 +741,7 @@ REVOKE ALL ON FUNCTION public.admin_event_type_delete(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_event_type_delete(uuid) TO authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
--- 11. Panel: przepiecie wydarzen z jednego rodzaju na inny
+-- 11) Panel: przepiecie wydarzen z jednego rodzaju na inny
 --
 -- Bez tej operacji "rodzaj w uzyciu" jest pulapka bez wyjscia: redaktor widzi
 -- blokade usuniecia i licznik 40 wydarzen, ale zeby je przepiac musialby otworzyc
