@@ -67,7 +67,6 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-
 /** Ślad zmiennej, której nie było - w wysłanym mailu nie do cofnięcia. */
 const SLAD_BRAKU = /\b(undefined|NaN)\b|\[object Object\]/;
 
