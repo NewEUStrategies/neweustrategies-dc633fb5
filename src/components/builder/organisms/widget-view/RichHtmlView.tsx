@@ -20,6 +20,7 @@ import {
 } from "@/lib/footnotes";
 import { FootnoteTooltips } from "@/components/Footnotes";
 import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
+import { decorateCmsStatusIcons } from "@/lib/content/cmsInlineIcons";
 
 interface Props {
   html: string;
@@ -36,7 +37,7 @@ export function RichHtmlView({ html, className, style }: Props) {
   const { safe, liveNotes } = useMemo(() => {
     const col = createCounter(1);
     const expanded = expandFootnotes(normalizeBuilderRichHtml(html), col);
-    return { safe: sanitizeHtml(expanded), liveNotes: col.notes };
+    return { safe: decorateCmsStatusIcons(sanitizeHtml(expanded)), liveNotes: col.notes };
   }, [html]);
 
   useEffect(() => {
