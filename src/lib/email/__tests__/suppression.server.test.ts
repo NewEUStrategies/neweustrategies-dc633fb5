@@ -102,6 +102,7 @@ describe("isEmailSuppressed", () => {
     db.on("email_is_suppressed", { data: true, error: null });
 
     await expect(isEmailSuppressed(db.admin, TENANT, "blokada@example.test")).resolves.toBe(true);
+    expect(db.callsTo("email_is_suppressed")).toHaveLength(1);
   });
 
   it("adres POZA listą zwraca fałsz", async () => {
@@ -109,6 +110,7 @@ describe("isEmailSuppressed", () => {
     db.on("email_is_suppressed", { data: false, error: null });
 
     await expect(isEmailSuppressed(db.admin, TENANT, "czysty@example.test")).resolves.toBe(false);
+    expect(db.callsTo("email_is_suppressed")).toHaveLength(1);
   });
 
   it("pyta o adres MAŁYMI literami - tak samo, jak baza wymusza unikalność", async () => {
@@ -124,6 +126,7 @@ describe("isEmailSuppressed", () => {
       p_tenant: TENANT,
       p_email: "jan.kowalski@example.test",
     });
+    expect(db.calls.map((c) => c.fn)).toEqual(["email_is_suppressed"]);
   });
 
   it("obcina białe znaki wokół adresu przed zapytaniem", async () => {
@@ -133,6 +136,7 @@ describe("isEmailSuppressed", () => {
     await isEmailSuppressed(db.admin, TENANT, "  spacja@example.test \n");
 
     expect(db.lastCall("email_is_suppressed")?.args.p_email).toBe("spacja@example.test");
+    expect(db.callsTo("email_is_suppressed")).toHaveLength(1);
   });
 
   it("pusty adres NIE pyta bazy - zapytanie o nic kosztowałoby przejazd", async () => {
@@ -156,6 +160,8 @@ describe("isEmailSuppressed", () => {
     db.on("email_is_suppressed", { data: null, error: null });
 
     await expect(isEmailSuppressed(db.admin, TENANT, "ktos@example.test")).resolves.toBe(false);
+    // I nie jest to skutek błędu - zapytanie poszło i wróciło bez awarii.
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it("PRZYPIĘCIE STANU FAKTYCZNEGO: przy błędzie bazy jest FAIL-OPEN", async () => {
@@ -169,6 +175,8 @@ describe("isEmailSuppressed", () => {
     db.on("email_is_suppressed", { data: null, error: { message: "connection reset" } });
 
     await expect(isEmailSuppressed(db.admin, TENANT, "blokada@example.test")).resolves.toBe(false);
+    // I stało się to PO zapytaniu, a nie zamiast niego - bramka naprawdę pytała.
+    expect(db.callsTo("email_is_suppressed")).toHaveLength(1);
   });
 
   it("awaria odczytu zostaje ZALOGOWANA - fail-open nie może być cichy", async () => {
@@ -178,6 +186,7 @@ describe("isEmailSuppressed", () => {
     await isEmailSuppressed(db.admin, TENANT, "blokada@example.test");
 
     expect(errorSpy).toHaveBeenCalledWith("[suppression] check failed", "connection reset");
+    expect(errorSpy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -217,6 +226,7 @@ describe("fetchSuppressedEmails", () => {
     ]);
 
     expect(db.lastCall("email_filter_suppressed")?.args.p_emails).toEqual(["ten.sam@example.test"]);
+    expect(db.callsTo("email_filter_suppressed")).toHaveLength(1);
   });
 
   it("pusta lista adresów NIE pyta bazy", async () => {
@@ -284,6 +294,7 @@ describe("fetchSuppressedEmails", () => {
     const found = await fetchSuppressedEmails(db.admin, TENANT, ["ktos@example.test"]);
 
     expect(found.size).toBe(0);
+    expect(db.callsTo("email_filter_suppressed")).toHaveLength(1);
   });
 
   it("wiersz o nieznanym kształcie jest odsiewany, reszta porcji przechodzi", async () => {
@@ -305,6 +316,7 @@ describe("fetchSuppressedEmails", () => {
     ]);
 
     expect(Array.from(found.keys())).toEqual(["dobry@example.test"]);
+    expect(db.callsTo("email_filter_suppressed")).toHaveLength(1);
   });
 
   it("brakujący `expires_at` czyta się jako null, nie undefined", async () => {
@@ -317,6 +329,7 @@ describe("fetchSuppressedEmails", () => {
     const found = await fetchSuppressedEmails(db.admin, TENANT, ["blok@example.test"]);
 
     expect(found.get("blok@example.test")?.expiresAt).toBeNull();
+    expect(db.callsTo("email_filter_suppressed")).toHaveLength(1);
   });
 });
 
@@ -337,6 +350,7 @@ describe("resolveTenantForAddress", () => {
     db.on("email_resolve_tenant_for_address", { data: "", error: null });
 
     await expect(resolveTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    expect(db.callsTo("email_resolve_tenant_for_address")).toHaveLength(1);
   });
 
   it("odpowiedź nie-napisowa to brak tenanta", async () => {
@@ -344,6 +358,7 @@ describe("resolveTenantForAddress", () => {
     db.on("email_resolve_tenant_for_address", { data: { id: TENANT }, error: null });
 
     await expect(resolveTenantForAddress(db.admin, "ktos@example.test")).resolves.toBeNull();
+    expect(db.callsTo("email_resolve_tenant_for_address")).toHaveLength(1);
   });
 
   it("błąd bazy to brak tenanta i wpis w logu", async () => {
@@ -460,6 +475,7 @@ describe("checkSendAllowed", () => {
     });
 
     expect(result.allowed).toBe(false);
+    expect(db.callsTo("email_filter_suppressed")).toHaveLength(1);
   });
 
   it("PRZYPIĘCIE: awaria odczytu listy PRZEPUSZCZA wysyłkę (fail-open)", async () => {
@@ -516,6 +532,7 @@ describe("unsubscribeByToken", () => {
       tenantId: TENANT,
       error: undefined,
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("przekazuje token DOSŁOWNIE - normalizacja adresu tokenu nie dotyczy", async () => {
@@ -527,6 +544,7 @@ describe("unsubscribeByToken", () => {
     expect(db.lastCall("email_unsubscribe_by_token")?.args).toEqual({
       p_token: "TOK-Wielkie-Litery",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("DRUGIE kliknięcie w ten sam link NIE jest błędem - wypis jest idempotentny", async () => {
@@ -555,6 +573,7 @@ describe("unsubscribeByToken", () => {
       tenantId: null,
       error: "token_not_found",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("token zużyty oddaje powód z bazy", async () => {
@@ -568,6 +587,7 @@ describe("unsubscribeByToken", () => {
       ok: false,
       error: "token_consumed",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("token wygasły oddaje powód z bazy", async () => {
@@ -581,6 +601,7 @@ describe("unsubscribeByToken", () => {
       ok: false,
       error: "token_expired",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("token innego najemcy nie wypisuje i nie oddaje cudzego tenanta", async () => {
@@ -633,6 +654,7 @@ describe("unsubscribeByToken", () => {
       tenantId: null,
       error: "invalid_response",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("TABLICA w odpowiedzi też jest odrzucana - strażnik kształtu nie liczy tablicy za rekord", async () => {
@@ -643,6 +665,7 @@ describe("unsubscribeByToken", () => {
       ok: false,
       error: "invalid_response",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("`null` w odpowiedzi jest odrzucany", async () => {
@@ -653,6 +676,7 @@ describe("unsubscribeByToken", () => {
       ok: false,
       error: "invalid_response",
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 
   it("`tenant_id` nie-napisowy czyta się jako brak tenanta", async () => {
@@ -666,6 +690,7 @@ describe("unsubscribeByToken", () => {
       ok: true,
       tenantId: null,
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 });
 
@@ -755,6 +780,7 @@ describe("recordSuppression", () => {
       p_diagnostic: "550 unknown user",
       p_meta: { note: "test" },
     });
+    expect(db.callsTo("email_record_suppression")).toHaveLength(1);
   });
 
   it("odpowiedź bez `ok: true` to porażka zapisu", async () => {
@@ -764,6 +790,7 @@ describe("recordSuppression", () => {
     await expect(
       recordSuppression(db.admin, { tenantId: TENANT, email: "a@b.test", reason: "blocked" }),
     ).resolves.toBe(false);
+    expect(db.callsTo("email_record_suppression")).toHaveLength(1);
   });
 
   it("odpowiedź o nieznanym kształcie to porażka, nie cichy sukces", async () => {
@@ -773,6 +800,7 @@ describe("recordSuppression", () => {
     await expect(
       recordSuppression(db.admin, { tenantId: TENANT, email: "a@b.test", reason: "blocked" }),
     ).resolves.toBe(false);
+    expect(db.callsTo("email_record_suppression")).toHaveLength(1);
   });
 
   it("błąd bazy to porażka zapisu z wpisem w logu", async () => {
@@ -870,6 +898,7 @@ describe("applyDeliveryEvent", () => {
     await applyDeliveryEvent(db.admin, deliveryEvent({ email: null }));
 
     expect(db.lastCall("email_apply_delivery_event")?.args.p_email).toBeNull();
+    expect(db.callsTo("email_apply_delivery_event")).toHaveLength(1);
   });
 
   it("brakujące podpowiedzi korelacji idą jako null, a ładunek jako pusty obiekt", async () => {
@@ -918,6 +947,7 @@ describe("applyDeliveryEvent", () => {
       subscriberId: null,
       suppressed: false,
     });
+    expect(db.callsTo("email_apply_delivery_event")).toHaveLength(1);
   });
 
   it("TABLICA w odpowiedzi jest odrzucana przez strażnik kształtu", async () => {
@@ -928,6 +958,7 @@ describe("applyDeliveryEvent", () => {
       ok: false,
       suppressed: false,
     });
+    expect(db.callsTo("email_apply_delivery_event")).toHaveLength(1);
   });
 
   it("zagnieżdżona `suppression` o nieznanym kształcie nie udaje postawionej blokady", async () => {
@@ -941,6 +972,7 @@ describe("applyDeliveryEvent", () => {
       ok: true,
       suppressed: false,
     });
+    expect(db.callsTo("email_apply_delivery_event")).toHaveLength(1);
   });
 
   it("identyfikatory nie-napisowe czytają się jako null", async () => {
@@ -955,6 +987,7 @@ describe("applyDeliveryEvent", () => {
       campaignId: null,
       subscriberId: null,
     });
+    expect(db.callsTo("email_apply_delivery_event")).toHaveLength(1);
   });
 
   it("błąd bazy oddaje pusty wynik i zostawia ślad w logu", async () => {

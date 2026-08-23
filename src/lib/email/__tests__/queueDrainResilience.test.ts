@@ -600,6 +600,7 @@ describe("drainEmailQueues - konfiguracja przebiegu", () => {
       duplicates: 0,
       stopped: null,
     });
+    expect(state.deleted).toEqual([]);
   });
 });
 

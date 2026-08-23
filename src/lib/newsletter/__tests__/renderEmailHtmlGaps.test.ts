@@ -88,6 +88,7 @@ describe("akapit - najczęstszy blok newslettera", () => {
   it("akapit bez treści w języku odbiorcy nie zostawia pustej ramki w mailu", () => {
     const doc = docWith([paragraph({ html: { pl: "<b>Treść</b>", en: "" } })]);
     expect(renderEmailHtml(doc, "en", emptyCtx)).toBe("");
+    expect(renderEmailHtml(doc, "pl", emptyCtx)).toContain("<b>Treść</b>");
   });
 
   it("akapit przechodzi przez sanityzację - skrypt z edytora nie dojedzie do skrzynki", () => {
@@ -102,6 +103,7 @@ describe("akapit - najczęstszy blok newslettera", () => {
   it("wyśrodkowanie akapitu jedzie w stylu inline, bo klienty pocztowe nie mają arkusza", () => {
     const doc = docWith([paragraph({ html: { pl: "Wstęp", en: "" }, align: "center" })]);
     expect(renderEmailHtml(doc, "pl", emptyCtx)).toContain("text-align:center");
+    expect(renderEmailHtml(doc, "pl", emptyCtx)).toContain("Wstęp");
   });
 });
 
@@ -126,6 +128,7 @@ describe("cytat", () => {
   it("cytat bez treści w języku odbiorcy znika zamiast wysłać samą kreskę boczną", () => {
     const doc = docWith([quote({ text: { pl: "Cytat", en: "" } })]);
     expect(renderEmailHtml(doc, "en", emptyCtx)).toBe("");
+    expect(renderEmailHtml(doc, "pl", emptyCtx)).toContain("Cytat");
   });
 
   it("cytat bez podpisu nie dokleja pustego wiersza z myślnikiem", () => {
@@ -165,6 +168,7 @@ describe("nota stopki", () => {
   it("pusta nota nie dokleja do maila pustego bloku wyśrodkowanego tekstu", () => {
     const doc = docWith([footerNote({ html: { pl: "Nota", en: "" } })]);
     expect(renderEmailHtml(doc, "en", emptyCtx)).toBe("");
+    expect(renderEmailHtml(doc, "pl", emptyCtx)).toContain("Nota");
   });
 
   it("nota jest sanityzowana i wyśrodkowana", () => {
@@ -182,6 +186,7 @@ describe("obraz", () => {
   it("adres z samych spacji nie produkuje obrazka z pustym src", () => {
     const image: EmailImageBlock = { id: "i", type: "image", url: "   ", alt: "Baner", href: null };
     expect(renderEmailHtml(docWith([image]), "pl", emptyCtx)).toBe("");
+    expect(renderEmailHtml(docWith([image]), "pl", emptyCtx)).not.toContain("Baner");
   });
 
   it("obraz z poprawnym linkiem staje się klikalnym banerem", () => {
@@ -226,6 +231,7 @@ describe("lista wpisów - warianty, w których odbiorca widzi coś innego", () =
     const block = postList({ showExcerpt: false });
     const ctx: RenderEmailCtx = { postsByBlock: { pl: [postRef()] } };
     expect(renderEmailHtml(docWith([block]), "pl", ctx)).not.toContain("Krótkie streszczenie.");
+    expect(renderEmailHtml(docWith([block]), "pl", ctx)).toContain(postRef().title);
   });
 
   it("wpis bez zajawki nie zostawia pustego akapitu pod tytułem", () => {
@@ -233,6 +239,7 @@ describe("lista wpisów - warianty, w których odbiorca widzi coś innego", () =
     const ctx: RenderEmailCtx = { postsByBlock: { pl: [postRef({ excerpt: "" })] } };
     const html = renderEmailHtml(docWith([block]), "pl", ctx);
     expect(html).not.toContain("font-size:13px;line-height:1.5");
+    expect(html).toContain(postRef().title);
   });
 
   it("odbiorca angielski dostaje 'Read more', a nie polskie 'Czytaj więcej'", () => {

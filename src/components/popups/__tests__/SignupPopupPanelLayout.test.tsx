@@ -208,6 +208,7 @@ describe("obramowanie i cień kadru", () => {
     );
 
     expect(wlasciwosc("border-radius")).toBe("0px");
+    expect(wlasciwosc("max-width")).not.toBeNull();
   });
 });
 
@@ -216,6 +217,7 @@ describe("przycisk zamknięcia - popup bez wyjścia blokuje stronę", () => {
     render(<SignupPopupPanel settings={settings()} lang="pl" mode="dark" />);
 
     expect(screen.queryByRole("button", { name: /zamknij/i })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Załóż konto" }).className).not.toContain("pr-10");
   });
 
   it("z `onClose` przycisk istnieje i woła podaną funkcję", () => {
@@ -225,6 +227,7 @@ describe("przycisk zamknięcia - popup bez wyjścia blokuje stronę", () => {
     fireEvent.click(screen.getByRole("button", { name: /zamknij/i }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith(expect.anything());
   });
 
   it("przy wyśrodkowanym nagłówku krzyżyk rezerwuje sobie miejsce obok tytułu", () => {
@@ -303,6 +306,7 @@ describe("identyfikator nagłówka dla dialogu", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Załóż konto" }).id).toBe("popup-rejestracji-tytul");
+    expect(screen.getByRole("heading", { name: "Załóż konto" }).tagName).toBe("H2");
   });
 });
 
@@ -341,5 +345,6 @@ describe("obrazy galerii", () => {
     );
 
     expect(screen.getByText("Tylko PL")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Create an account" })).toBeTruthy();
   });
 });

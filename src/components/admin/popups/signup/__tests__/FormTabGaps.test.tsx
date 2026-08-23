@@ -82,12 +82,14 @@ describe("ikona przycisku CTA", () => {
     const { patchForm } = setup();
     fireEvent.click(screen.getByLabelText("picker-wybierz"));
     expect(patchForm).toHaveBeenCalledWith({ ctaIcon: "Star" });
+    expect(patchForm).toHaveBeenCalledTimes(1);
   });
 
   it("wyczyszczenie wyboru zapisuje pustkę, żeby dało się cofnąć jednorazowe kliknięcie", () => {
     const { patchForm } = setup();
     fireEvent.click(screen.getByLabelText("picker-czysc"));
     expect(patchForm).toHaveBeenCalledWith({ ctaIcon: "" });
+    expect(patchForm).toHaveBeenCalledTimes(1);
   });
 
   it("aktualna ikona jest widoczna w podglądzie zakładki", () => {

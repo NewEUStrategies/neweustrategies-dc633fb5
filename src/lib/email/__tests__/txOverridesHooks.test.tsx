@@ -120,6 +120,9 @@ describe("useTxOverrides - odczyt nadpisań", () => {
     expect(result.current.team_seat_grace.pl.subject).toBe(
       "Dostęp w {orgName} wygasa za {daysLeft} dni",
     );
+    expect(result.current.team_seat_grace.en.subject).toBe(
+      TX_OVERRIDES_DEFAULTS.team_seat_grace.en.subject,
+    );
   });
 
   it("ZEPSUTY kształt w bazie wraca jako wartości domyślne, a nie wywraca renderu maila", () => {
@@ -131,6 +134,7 @@ describe("useTxOverrides - odczyt nadpisań", () => {
     const { result } = renderHook(() => useTxOverrides(), { wrapper: wrapper(client) });
 
     expect(result.current).toEqual(TX_OVERRIDES_DEFAULTS);
+    expect(h.siteSettingCalls).toHaveLength(1);
   });
 
   it("brak ustawienia (null) też daje wartości domyślne", () => {
@@ -140,6 +144,7 @@ describe("useTxOverrides - odczyt nadpisań", () => {
     const { result } = renderHook(() => useTxOverrides(), { wrapper: wrapper(client) });
 
     expect(result.current).toEqual(TX_OVERRIDES_DEFAULTS);
+    expect(h.siteSettingCalls[0].key).toBe(TX_OVERRIDES_SETTING_KEY);
   });
 });
 
@@ -171,8 +176,12 @@ describe("useSaveTxOverrides - zapis nadpisań", () => {
     });
 
     const [wiersz] = h.db?.lastChain("site_settings")?.argsOf("upsert") ?? [];
-    const value = (wiersz as { value: Record<string, { pl: { subject: string } }> }).value;
+    const value = (wiersz as { value: Record<string, Record<"pl" | "en", { subject: string }>> })
+      .value;
     expect(value.team_seat_grace.pl.subject).toBe("Dostęp w {orgName} wygasa za {daysLeft} dni");
+    // Druga gałąź językowa przechodzi NIETKNIĘTA - zapis jednego języka nie
+    // może po cichu wyczyścić drugiego.
+    expect(value.team_seat_grace.en.subject).toBe(TX_OVERRIDES_DEFAULTS.team_seat_grace.en.subject);
   });
 
   it("unieważnia OBA cache - ustawienia i podglądy maili", async () => {
@@ -265,6 +274,9 @@ describe("overrideFor i resolvedField - brzegi, które widzi dopiero odbiorca", 
     expect(overrideFor(TX_OVERRIDES_DEFAULTS, "payment_failed", "pl")).toEqual(
       EMPTY_TX_COPY_OVERRIDE,
     );
+    expect(overrideFor(TX_OVERRIDES_DEFAULTS, "payment_failed", "en")).toEqual(
+      EMPTY_TX_COPY_OVERRIDE,
+    );
   });
 
   it("brak gałęzi językowej w zapisanym nadpisaniu wraca do treści domyślnej", () => {
@@ -275,12 +287,16 @@ describe("overrideFor i resolvedField - brzegi, które widzi dopiero odbiorca", 
     });
 
     expect(overrideFor(bezAngielskiego, "team_seat_grace", "en")).toEqual(EMPTY_TX_COPY_OVERRIDE);
+    expect(overrideFor(bezAngielskiego, "team_seat_grace", "pl")).toEqual(
+      TX_OVERRIDES_DEFAULTS.team_seat_grace.pl,
+    );
   });
 
   it("brak pola w nadpisaniu to `null`, czyli „użyj domyślnej treści”", () => {
     const bezTematu = Object.assign({}, EMPTY_TX_COPY_OVERRIDE, { subject: undefined });
 
     expect(resolvedField(bezTematu, "subject", {})).toBeNull();
+    expect(resolvedField(bezTematu, "heading", {})).toBeNull();
   });
 
   it("pole złożone WYŁĄCZNIE z nieznanych tokenów daje `null`, a nie pusty temat", () => {
@@ -289,11 +305,13 @@ describe("overrideFor i resolvedField - brzegi, które widzi dopiero odbiorca", 
     const override = { ...EMPTY_TX_COPY_OVERRIDE, subject: "{nieznanyToken}" };
 
     expect(resolvedField(override, "subject", {})).toBeNull();
+    expect(resolvedField(override, "subject", { orgName: "NES" })).toBeNull();
   });
 
   it("pole z tokenem o wartości `null` też nie zostawia pustego tematu", () => {
     const override = { ...EMPTY_TX_COPY_OVERRIDE, subject: "{orgName}" };
 
     expect(resolvedField(override, "subject", { orgName: null })).toBeNull();
+    expect(resolvedField(override, "subject", { orgName: "NES" })).toBe("NES");
   });
 });

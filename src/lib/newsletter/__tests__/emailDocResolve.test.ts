@@ -198,6 +198,7 @@ describe("fetchEmailDocPostRows - tryb 'najnowsze'", () => {
     const db = dbStub({ posts: { data: null, error: null } });
     const out = await fetchEmailDocPostRows(db.client, TENANT, docWith([postListBlock()]));
     expect(out["blok-1"]).toEqual([]);
+    expect(Object.keys(out)).toEqual(["blok-1"]);
   });
 
   it("dokument bez bloku listy wpisów nie odpytuje bazy ani razu", async () => {
@@ -220,6 +221,7 @@ describe("fetchEmailDocPostRows - tryb 'najnowsze'", () => {
     const out = await fetchEmailDocPostRows(db.client, TENANT, docWith([postListBlock()]));
     // Odbiorca dostanie mail bez tej sekcji - to jedyny bezpieczny skutek.
     expect(out["blok-1"]).toEqual([]);
+    expect(Object.keys(out)).toEqual(["blok-1"]);
   });
 
   it("dwa bloki listy są rozwiązywane niezależnie", async () => {
@@ -299,6 +301,7 @@ describe("fetchEmailDocPostRows - zawężenie kategorią", () => {
       docWith([postListBlock({ categorySlug: "energia" })]),
     );
     expect(out["blok-1"]).toEqual([]);
+    expect(Object.keys(out)).toEqual(["blok-1"]);
   });
 
   it("liczba powiązań jest ograniczona - jedna kategoria nie zaciąga całej bazy", async () => {
@@ -313,6 +316,8 @@ describe("fetchEmailDocPostRows - zawężenie kategorią", () => {
       docWith([postListBlock({ categorySlug: "energia" })]),
     );
     expect(db.argsOfAll("post_categories", "limit")).toContainEqual([200]);
+    // Limit dotyczy powiązań, nie wyniku - blok nadal dostaje swój wpis.
+    expect(db.argsOfAll("post_categories", "limit")).toHaveLength(1);
   });
 });
 
@@ -358,6 +363,7 @@ describe("fetchEmailDocPostRows - tryb ręcznego wyboru", () => {
       docWith([postListBlock({ mode: "manual", postIds: ["a", "usuniety"] })]),
     );
     expect(out["blok-1"]?.map((r) => r.id)).toEqual(["a"]);
+    expect(out["blok-1"]).toHaveLength(1);
   });
 
   it("ręczny wybór też przechodzi przez filtry publikacji i obszaru roboczego", async () => {
@@ -381,6 +387,7 @@ describe("fetchEmailDocPostRows - tryb ręcznego wyboru", () => {
       docWith([postListBlock({ mode: "manual", postIds: ["a"] })]),
     );
     expect(out["blok-1"]).toEqual([]);
+    expect(Object.keys(out)).toEqual(["blok-1"]);
   });
 });
 
@@ -389,26 +396,31 @@ describe("postRefsForLang - dokąd prowadzi link w mailu", () => {
   it("odbiorca angielski dostaje adres z prefiksem /en", () => {
     const out = postRefsForLang({ b: [row()] }, "https://example.org", "en");
     expect(out.b?.[0]?.href).toBe("https://example.org/en/post/reforma-rynku-energii");
+    expect(out.b?.[0]?.title).toBe("Energy market reform");
   });
 
   it("odbiorca polski dostaje adres bez prefiksu", () => {
     const out = postRefsForLang({ b: [row()] }, "https://example.org", "pl");
     expect(out.b?.[0]?.href).toBe("https://example.org/post/reforma-rynku-energii");
+    expect(out.b).toHaveLength(1);
   });
 
   it("nadmiarowe ukośniki w originie nie produkują podwójnego slasha w linku", () => {
     const out = postRefsForLang({ b: [row()] }, "https://example.org///", "pl");
     expect(out.b?.[0]?.href).toBe("https://example.org/post/reforma-rynku-energii");
+    expect(out.b?.[0]?.href).not.toContain("//post");
   });
 
   it("slug ze znakami specjalnymi jest zakodowany - link nie rozpada się w kliencie pocztowym", () => {
     const out = postRefsForLang({ b: [row({ slug: "raport 2026/q1" })] }, "https://x.pl", "pl");
     expect(out.b?.[0]?.href).toBe("https://x.pl/post/raport%202026%2Fq1");
+    expect(out.b?.[0]?.href).not.toContain(" ");
   });
 
   it("brak tłumaczenia tytułu spada na drugi język, a nie na pusty link", () => {
     const out = postRefsForLang({ b: [row({ title_en: null })] }, "https://x.pl", "en");
     expect(out.b?.[0]?.title).toBe("Reforma rynku energii");
+    expect(out.b?.[0]?.href).toContain("/en/post/");
   });
 
   it("wpis zupełnie bez tytułu daje pusty napis, a nie 'null' w treści maila", () => {
@@ -424,12 +436,14 @@ describe("postRefsForLang - dokąd prowadzi link w mailu", () => {
   it("zajawka traci znaczniki HTML - w mailu ma być tekst, nie kod", () => {
     const out = postRefsForLang({ b: [row()] }, "https://x.pl", "pl");
     expect(out.b?.[0]?.excerpt).toBe("Krótkie streszczenie .");
+    expect(out.b?.[0]?.excerpt).not.toContain("<");
   });
 
   it("zajawka jest przycięta do 220 znaków, żeby karta wpisu nie rozjechała się w skrzynce", () => {
     const long = "a".repeat(400);
     const out = postRefsForLang({ b: [row({ excerpt_pl: long })] }, "https://x.pl", "pl");
     expect(out.b?.[0]?.excerpt).toHaveLength(220);
+    expect(out.b?.[0]?.excerpt?.startsWith("aaa")).toBe(true);
   });
 
   it("okładka przechodzi bez zmian, a jej brak zostaje pustką", () => {
@@ -441,5 +455,6 @@ describe("postRefsForLang - dokąd prowadzi link w mailu", () => {
 
   it("pusty blok zostaje pustą listą - renderer pomija taką sekcję", () => {
     expect(postRefsForLang({ b: [] }, "https://x.pl", "pl")).toEqual({ b: [] });
+    expect(Object.keys(postRefsForLang({ b: [] }, "https://x.pl", "pl"))).toEqual(["b"]);
   });
 });

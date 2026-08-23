@@ -61,6 +61,7 @@ describe("etykieta pola - skąd bierze się napis nad polem formularza", () => {
   it("własne brzmienie wpisane w widgecie wygrywa z konfiguracją globalną", () => {
     h.rawFields = [{ key: "company", label_pl: "Firma / organizacja" }];
     expect(labels("pl").label("company", "  Instytucja  ")).toBe("Instytucja");
+    expect(labels("en").label("company", "  Company  ")).toBe("Company");
   });
 
   it("zapisana KOPIA fabrycznej etykiety ustępuje konfiguracji panelu", () => {
@@ -69,12 +70,16 @@ describe("etykieta pola - skąd bierze się napis nad polem formularza", () => {
     // i operator poprawiałby to samo w kilkunastu miejscach.
     h.rawFields = [{ key: "email", label_pl: "Adres e-mail" }];
     expect(labels("pl").label("email", "Twój e-mail")).toBe("Adres e-mail");
+    expect(labels("pl").label("email", "Firmowy e-mail")).toBe("Firmowy e-mail");
   });
 
   it("kopia fabrycznej etykiety z konfiguracji REJESTRACJI też ustępuje panelowi", () => {
     h.rawFields = [{ key: "first_name", label_pl: "Imię (do personalizacji)" }];
     // "Imię" to fabryczna etykieta pola `first_name` w konfiguracji rejestracji.
     expect(labels("pl").label("firstName", "imię")).toBe("Imię (do personalizacji)");
+    expect(labels("pl").label("firstName", "Jak się do Ciebie zwracać")).toBe(
+      "Jak się do Ciebie zwracać",
+    );
   });
 
   it("pusty albo złożony ze spacji override jest ignorowany, nie zostawia pustej etykiety", () => {
@@ -97,10 +102,12 @@ describe("pola spoza konfiguracji rejestracji", () => {
 
   it("takie pole nadal przyjmuje własne brzmienie z widgetu", () => {
     expect(labels("pl").label("country", "Państwo")).toBe("Państwo");
+    expect(labels("en").label("country", "State")).toBe("State");
   });
 
   it("override będący kopią wbudowanej etykiety nie zmienia nic", () => {
     expect(labels("pl").label("country", "  Kraj  ")).toBe("Kraj");
+    expect(labels("pl").label("country", "")).toBe("Kraj");
   });
 });
 

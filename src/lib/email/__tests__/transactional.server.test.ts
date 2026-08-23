@@ -199,6 +199,7 @@ describe("dostęp do kolejki", () => {
         auth: { persistSession: false },
       },
     );
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("brak adresu bazy zatrzymuje wysyłkę JAWNIE - wywołujący dostaje ok:false i powód", async () => {
@@ -238,6 +239,7 @@ describe("dostęp do kolejki", () => {
       ok: false,
       error: "supabase_unavailable",
     });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
   });
 
   it("wysyłka surowego HTML bez konfiguracji też mówi wprost, że nie wyszła", async () => {
@@ -247,6 +249,7 @@ describe("dostęp do kolejki", () => {
       ok: false,
       error: "supabase_unavailable",
     });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
   });
 });
 
@@ -266,6 +269,7 @@ describe("brak odbiorcy", () => {
       ok: false,
       skipped: "no_recipient",
     });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
   });
 
   it("wysyłka surowego HTML bez adresu kończy się tak samo", async () => {
@@ -334,6 +338,7 @@ describe("kolejkowanie wiadomości", () => {
     await sendTxEmail(txInput());
 
     expect(String(queuedPayload().run_id)).toMatch(UUID_V4);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("do kolejki idą obie postacie wiadomości: HTML i tekst dla klientów bez HTML", async () => {
@@ -370,6 +375,7 @@ describe("język wiadomości", () => {
     await sendTxEmail(txInput({ lang }));
 
     expect(queuedText("subject")).toContain("Płatność nie powiodła się");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 });
 
@@ -381,6 +387,7 @@ describe("treść wiadomości", () => {
     await sendTxEmail(txInput({ subjectName: "Klub NES" }));
 
     expect(queuedText("subject")).toContain("Klub NES");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("bez nazwy planu temat zostaje ogólny, bez pustego łącznika", async () => {
@@ -427,6 +434,7 @@ describe("treść wiadomości", () => {
     await sendTxEmail(txInput({ extra: "Prorata zostanie rozliczona w kolejnym okresie." }));
 
     expect(queuedText("html")).toContain("Prorata zostanie rozliczona");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("imię z metadanych oszczędza zapytanie o subskrybenta i wchodzi do powitania", async () => {
@@ -452,6 +460,7 @@ describe("treść wiadomości", () => {
     await sendTxEmail(txInput());
 
     expect(queuedText("html")).toContain("Marku");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 });
 
@@ -476,18 +485,21 @@ describe("przycisk akcji", () => {
     await sendTxEmail(txInput({ ctaPath: "/konto/subskrypcja" }));
 
     expect(queuedText("html")).toContain("https://neweuropeanstrategies.com/konto/subskrypcja");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("własna etykieta przycisku zastępuje domyślną", async () => {
     await sendTxEmail(txInput({ ctaPath: "/konto", ctaLabel: "Wejdź do panelu" }));
 
     expect(queuedText("html")).toContain("Wejdź do panelu");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("bez CTA mail wychodzi bez przycisku, a nie z przyciskiem donikąd", async () => {
     await sendTxEmail(txInput());
 
     expect(queuedText("html")).not.toContain("Zaktualizuj metodę płatności");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 });
 
@@ -506,6 +518,7 @@ describe("nadpisania treści z panelu", () => {
     await sendTxEmail(txInput({ type: "team_seat_grace", bodyVars: { daysLeft: 5 } }));
 
     expect(queuedText("subject")).toBe("Zostały 5 dni dostępu");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("tokeny w nadpisaniu podstawiają dane zdarzenia, a nieznane znikają bez śladu w treści", async () => {
@@ -598,6 +611,7 @@ describe("brama listy wykluczeń", () => {
       skipped: "suppressed",
       reason: "suppressed:manual",
     });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
   });
 
   it("wypis z newslettera NIE zatrzymuje maila o nieudanej płatności - to zgoda marketingowa, nie zakaz kontaktu", async () => {
@@ -613,6 +627,7 @@ describe("brama listy wykluczeń", () => {
     suppress("anna@example.test", "soft_bounce", "transient");
 
     await expect(sendTxEmail(txInput())).resolves.toEqual({ ok: true });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("wypis zatrzymuje potwierdzenie zapisu na newsletter - to wysyłka za zgodą, którą właśnie cofnięto", async () => {
@@ -681,6 +696,7 @@ describe("brama listy wykluczeń", () => {
     await sendTxEmail(txInput({ to: "ANNA@Example.test" }));
 
     expect(rpc.lastCall("email_filter_suppressed")?.arg("p_emails")).toEqual(["anna@example.test"]);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
   });
 });
 
@@ -708,6 +724,7 @@ describe("tenant odbiorcy", () => {
     await sendTxEmail(txInput({ tenantId: OTHER_TENANT }));
 
     expect(queuedPayload().tenant_id).toBe(OTHER_TENANT);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("adres spoza znanych tenantów wychodzi z pustym tenantem, a nie zostaje uziemiony", async () => {
@@ -731,6 +748,9 @@ describe("idempotencja", () => {
     await sendTxEmail(txInput({ idempotencyKey: "invoice_in_2026_08_1" }));
 
     expect(queuedPayload().message_id).toBe(first);
+    // Dwa wywołania, jeden identyfikator - to jest cała idempotencja: dren
+    // odsieje drugą wiadomość po `message_id`, bo widzi ten sam klucz.
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(2);
   });
 
   it("różne klucze dają różne identyfikatory - dwie faktury to dwie wiadomości", async () => {
@@ -740,12 +760,14 @@ describe("idempotencja", () => {
     await sendTxEmail(txInput({ idempotencyKey: "invoice_in_2026_09_1" }));
 
     expect(queuedPayload().message_id).not.toBe(first);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(2);
   });
 
   it("pusty klucz też daje poprawny identyfikator - wiadomość nie może wyjść bez śladu w logu", async () => {
     await sendTxEmail(txInput({ idempotencyKey: "" }));
 
     expect(String(queuedPayload().message_id)).toMatch(UUID_V4);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("wiersz 'pending' w logu zatrzymuje drugą wysyłkę i nie dokłada kolejnego wpisu", async () => {
@@ -790,6 +812,7 @@ describe("awaria kolejki", () => {
     const result = await sendTxEmail(txInput());
 
     expect(result).toEqual({ ok: false, error: "queue transactional_emails is full" });
+    expect(logInserts().at(-1)).toMatchObject({ status: "failed" });
   });
 
   it("nieudane kolejkowanie dopisuje do logu wiersz 'failed' z powodem", async () => {
@@ -954,12 +977,14 @@ describe("enqueueRawEmail", () => {
     await enqueueRawEmail(rawInput());
 
     expect(queuedPayload().text).toBe("");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("podana wersja tekstowa dociera do kolejki", async () => {
     await enqueueRawEmail(rawInput({ text: "Trzy nowe komentarze" }));
 
     expect(queuedPayload().text).toBe("Trzy nowe komentarze");
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("adres wypisu trafia do ładunku - bez niego wysyłka masowa łamie RFC 8058", async () => {
@@ -970,12 +995,14 @@ describe("enqueueRawEmail", () => {
     expect(queuedPayload().unsubscribe_url).toBe(
       "https://neweuropeanstrategies.com/wypis?token=abc",
     );
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("bez adresu wypisu pole jest puste, a nie pominięte", async () => {
     await enqueueRawEmail(rawInput());
 
     expect(queuedPayload().unsubscribe_url).toBeNull();
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("rozpoznana etykieta digestu to wysyłka za zgodą - wypis ją zatrzymuje", async () => {
@@ -993,6 +1020,7 @@ describe("enqueueRawEmail", () => {
     await expect(
       enqueueRawEmail(rawInput({ label: "auth_recovery", idempotencyKey: "reset_1" })),
     ).resolves.toEqual({ ok: true });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("NIEROZPOZNANA etykieta traktowana jest ostrożniej - domyślna kategoria to wysyłka za zgodą", async () => {
@@ -1012,6 +1040,7 @@ describe("enqueueRawEmail", () => {
     );
 
     expect(result).toEqual({ ok: true });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("skarga na spam zatrzymuje digest i zostawia ślad w logu", async () => {
@@ -1024,6 +1053,7 @@ describe("enqueueRawEmail", () => {
       error_message: "suppressed:complaint",
       template_name: "digest_daily",
     });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
   });
 
   it("znany tenant nie jest rozwiązywany ponownie i trafia do ładunku", async () => {
@@ -1050,6 +1080,7 @@ describe("enqueueRawEmail", () => {
       template_name: "digest_daily",
       recipient_email: "anna@example.test",
     });
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
 
   it("odmowa zapisu do kolejki wraca z komunikatem i wierszem 'failed'", async () => {

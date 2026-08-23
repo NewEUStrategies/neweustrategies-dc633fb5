@@ -61,6 +61,7 @@ describe("bloki, których wyrzucenie skróciłoby wysłany mail bez ostrzeżenia
       align: "justify",
     });
     expect(block.align).toBe("left");
+    expect(block.type).toBe("paragraph");
   });
 
   it("obraz zachowuje adres, tekst alternatywny i link", () => {
@@ -105,11 +106,13 @@ describe("bloki, których wyrzucenie skróciłoby wysłany mail bez ostrzeżenia
   it("przycisk bez adresu ma pusty napis, a nie 'undefined' w linku", () => {
     const block = parseOne<EmailButtonBlock>({ id: "b1", type: "button" });
     expect(block.url).toBe("");
+    expect(block.type).toBe("button");
   });
 
   it("separator przechodzi jako blok bez pól", () => {
     const block = parseOne({ id: "d1", type: "divider" });
     expect(block).toEqual({ id: "d1", type: "divider" });
+    expect(Object.keys(block)).toEqual(["id", "type"]);
   });
 
   it("cytat zachowuje treść i podpis w obu językach", () => {
@@ -130,6 +133,7 @@ describe("bloki, których wyrzucenie skróciłoby wysłany mail bez ostrzeżenia
       html: { pl: "Wypisz się", en: "Unsubscribe" },
     });
     expect(block.html).toEqual({ pl: "Wypisz się", en: "Unsubscribe" });
+    expect(block.type).toBe("footer-note");
   });
 });
 
@@ -138,6 +142,7 @@ describe("teksty dwujęzyczne - renderer nie może dostać undefined", () => {
   it("tekst podany jako napis zamiast pary języków daje pustą parę", () => {
     const block = parseOne<EmailHeadingBlock>({ id: "h1", type: "heading", text: "Tytuł" });
     expect(block.text).toEqual({ pl: "", en: "" });
+    expect(Object.keys(block.text)).toEqual(["pl", "en"]);
   });
 
   it("brakująca strona językowa jest pustym napisem, nie brakiem klucza", () => {
@@ -147,6 +152,7 @@ describe("teksty dwujęzyczne - renderer nie może dostać undefined", () => {
       text: { pl: "Tylko PL" },
     });
     expect(block.text).toEqual({ pl: "Tylko PL", en: "" });
+    expect(Object.keys(block.text)).toEqual(["pl", "en"]);
   });
 
   it("poziom nagłówka spoza {1,2} schodzi do dwójki", () => {
@@ -174,6 +180,7 @@ describe("lista wpisów - pola, których zła wartość zmienia treść wysyłki
       postIds: "post-1",
     });
     expect(block.postIds).toEqual([]);
+    expect(Array.isArray(block.postIds)).toBe(true);
   });
 
   it("układ kart jest zachowany, nieznany układ schodzi do listy", () => {
@@ -203,6 +210,7 @@ describe("lista wpisów - pola, których zła wartość zmienia treść wysyłki
       categorySlug: "  ",
     });
     expect(block.categorySlug).toBeNull();
+    expect(block.type).toBe("post-list");
   });
 });
 
@@ -211,6 +219,7 @@ describe("identyfikatory bloków", () => {
   it("blok bez identyfikatora dostaje własny - inaczej dwa bloki dzieliłyby klucz listy wpisów", () => {
     const block = parseOne({ type: "divider" });
     expect(block.id).toBeTruthy();
+    expect(typeof block.id).toBe("string");
   });
 
   it("środowisko bez crypto.randomUUID nadal produkuje identyfikatory", () => {
@@ -220,5 +229,6 @@ describe("identyfikatory bloków", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     const block = createEmailBlock("divider");
     expect(block.id).toMatch(/^blk-[0-9a-z]+$/);
+    expect(createEmailBlock("divider").id).toMatch(/^blk-[0-9a-z]+$/);
   });
 });
