@@ -1121,9 +1121,11 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       authorHref={postAuthor?.slug ? `/author/${postAuthor.slug}` : null}
                       readMinutes={readMinutes}
                       audioUrl={(lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null}
+                      variant="full-width"
                     />
                   </div>
                 )}
+
 
                 {!merged.quick_view_info && !editorialActions && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{articleActions}</div>
