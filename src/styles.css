@@ -8502,6 +8502,9 @@ sup.fn-ref > a[id^="fnref-"] {
   transform: none !important;
 }
 .cms-block-list-editor {
+  --cms-list-marker-col: 1.65rem;
+  --cms-list-lh: var(--lh-body, 1.65);
+  --cms-list-accent: #fa9346;
   margin: 0;
   padding: 0;
   list-style: none;
