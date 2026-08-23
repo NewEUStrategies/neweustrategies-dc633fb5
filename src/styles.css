@@ -8335,6 +8335,14 @@ sup.fn-ref > a[id^="fnref-"] {
   scroll-margin-top: 7rem;
 }
 
+/* Przypisy górne: połowa rozmiaru czcionki tekstu nadrzędnego (body). */
+sup.fn-ref {
+  font-size: 0.5em;
+  line-height: 1;
+  vertical-align: super;
+}
+
+
 /* Przypisy: dymek zawsze 9px - style treści (.cms-post-*) nie mogą go powiększać. */
 [data-footnote-tooltip],
 [data-footnote-tooltip] * {
