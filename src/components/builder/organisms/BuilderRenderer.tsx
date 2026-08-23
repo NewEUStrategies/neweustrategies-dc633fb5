@@ -570,11 +570,13 @@ const RenderSection = memo(function RenderSection({
       ref={preloadRef as React.Ref<HTMLElement>}
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
+      data-section-kind={sectionKind || undefined}
       data-ab-experiment={section.advanced?.abTest?.experimentId}
       data-ab-variant={section.advanced?.abTest?.variant}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
+
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />
       )}
