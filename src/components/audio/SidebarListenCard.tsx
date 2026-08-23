@@ -217,28 +217,61 @@ export function SidebarListenCard({
       </div>
 
       {/* Main row: play + time/progress */}
-      <div className="flex items-center gap-3">
-        {/* Play button - subtle */}
-        <button
-          type="button"
-          onClick={onPrimary}
-          disabled={loading}
-          aria-label={shared(transportLabelKey({ loading, playing, paused: !playing && isThis }))}
-          aria-pressed={playing}
-          data-playing={playing ? "true" : "false"}
-          className={[
-            "listen-play-toggle shrink-0 h-9 w-9 rounded-[6px]",
-            "bg-brand text-brand-foreground transition-all",
-            "hover:brightness-110 active:scale-95 disabled:opacity-70",
-            FOCUS_RING,
-          ].join(" ")}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <MorphPlayPause playing={playing} />
-          )}
-        </button>
+      <div className={variant === "full-width" ? "flex flex-col gap-3" : "flex items-center gap-3"}>
+        {variant === "full-width" ? (
+          <button
+            type="button"
+            onClick={onPrimary}
+            disabled={loading}
+            aria-label={shared(transportLabelKey({ loading, playing, paused: !playing && isThis }))}
+            aria-pressed={playing}
+            data-playing={playing ? "true" : "false"}
+            className={[
+              "listen-play-toggle inline-flex h-10 w-full items-center justify-center gap-2 rounded-[6px]",
+              "bg-brand text-brand-foreground transition-all",
+              "hover:brightness-110 active:scale-[0.98] disabled:opacity-70",
+              "cms-widget-label font-semibold tracking-tight",
+              FOCUS_RING,
+            ].join(" ")}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Headphones className="h-4 w-4" aria-hidden />
+            )}
+            <span>
+              {loading
+                ? shared("loading")
+                : playing
+                  ? shared("pause")
+                  : isThis
+                    ? shared("play")
+                    : copy("listen")}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onPrimary}
+            disabled={loading}
+            aria-label={shared(transportLabelKey({ loading, playing, paused: !playing && isThis }))}
+            aria-pressed={playing}
+            data-playing={playing ? "true" : "false"}
+            className={[
+              "listen-play-toggle shrink-0 h-9 w-9 rounded-[6px]",
+              "bg-brand text-brand-foreground transition-all",
+              "hover:brightness-110 active:scale-95 disabled:opacity-70",
+              FOCUS_RING,
+            ].join(" ")}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <MorphPlayPause playing={playing} />
+            )}
+          </button>
+        )}
+
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2 mb-1.5">
