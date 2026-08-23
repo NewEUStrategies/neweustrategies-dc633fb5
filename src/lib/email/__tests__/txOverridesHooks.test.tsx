@@ -238,7 +238,12 @@ describe("useSaveTxOverrides - zapis nadpisań", () => {
     // do bazy nie może trafić nic, czego `parseTxOverrides` nie odczyta.
     const client = newClient();
     const { result } = renderHook(() => useSaveTxOverrides(), { wrapper: wrapper(client) });
-    const zly = { team_seat_grace: { pl: { subject: 42 } } } as unknown as TxOverrides;
+    // Niezgodne wejście budowane przez `Object.assign`, a nie rzutowaniem:
+    // przecięcie typów zostaje przypisywalne do `TxOverrides`, więc test nie
+    // potrzebuje `as unknown as` (w tym repo pod ratchetem).
+    const zly: TxOverrides = Object.assign({}, overrides(), {
+      team_seat_grace: { pl: { subject: 42 } },
+    });
 
     await act(async () => {
       await expect(result.current.mutateAsync(zly)).rejects.toBeTruthy();
@@ -265,18 +270,17 @@ describe("overrideFor i resolvedField - brzegi, które widzi dopiero odbiorca", 
   it("brak gałęzi językowej w zapisanym nadpisaniu wraca do treści domyślnej", () => {
     // Wiersz zapisany przed dodaniem drugiego języka nie ma klucza `en`.
     // Bez tego zapasu render maila czytałby `undefined.subject`.
-    const bezAngielskiego = {
-      ...TX_OVERRIDES_DEFAULTS,
+    const bezAngielskiego: TxOverrides = Object.assign({}, TX_OVERRIDES_DEFAULTS, {
       team_seat_grace: { pl: TX_OVERRIDES_DEFAULTS.team_seat_grace.pl },
-    } as unknown as TxOverrides;
+    });
 
     expect(overrideFor(bezAngielskiego, "team_seat_grace", "en")).toEqual(EMPTY_TX_COPY_OVERRIDE);
   });
 
   it("brak pola w nadpisaniu to `null`, czyli „użyj domyślnej treści”", () => {
-    const puste = {} as unknown as Parameters<typeof resolvedField>[0];
+    const bezTematu = Object.assign({}, EMPTY_TX_COPY_OVERRIDE, { subject: undefined });
 
-    expect(resolvedField(puste, "subject", {})).toBeNull();
+    expect(resolvedField(bezTematu, "subject", {})).toBeNull();
   });
 
   it("pole złożone WYŁĄCZNIE z nieznanych tokenów daje `null`, a nie pusty temat", () => {
