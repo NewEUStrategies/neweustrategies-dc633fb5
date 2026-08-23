@@ -111,11 +111,14 @@ describe("SectionTabsBar - fontSize wiring", () => {
     expect(btn!.style.fontSize).toBe("14px");
   });
 
-  it("adds stable CSS classes for tab button and label", () => {
+  it("adds stable CSS classes and exposes mobile mode for CSS targeting", () => {
     const { container } = renderAt(16);
-    const btn = container.querySelector<HTMLButtonElement>("[data-section-tab-btn]");
+    const bar = container.querySelector<HTMLDivElement>("[data-section-tabs-bar]");
+    const btn = bar?.querySelector<HTMLButtonElement>("[data-section-tab-btn]");
+    expect(bar).toHaveAttribute("data-mobile-mode", "scroll");
     expect(btn).toHaveClass("cms-section-tab-btn");
     expect(btn!.querySelector(".cms-section-tab-label")).not.toBeNull();
   });
+
 
 });
