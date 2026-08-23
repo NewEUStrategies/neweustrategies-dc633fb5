@@ -16,7 +16,7 @@ Cały dowód musi więc być **przed** wysyłką — na renderze, na rozwiązani
 filtrze tłumień i na konwersji harmonogramu.
 
 Trzy rzeczy trzeba przeczytać niezależnie od tabel: **rozdział 3** (tłumienia są fail-open),
-**rozdział 4** (rozstrzygnięcie i18n dla szablonów) i **rozdział 5** (dwanaście zgłoszonych
+**rozdział 4** (rozstrzygnięcie i18n dla szablonów) i **rozdział 5** (trzynaście zgłoszonych
 defektów, w tym jeden o wymiarze prawnym).
 
 ---
@@ -153,7 +153,7 @@ Per powierzchnia, oba końce tym samym poleceniem (linie / gałęzie):
 
 Cel modułowy ≥ 93% linii / ≥ 92% funkcji: **osiągnięty** (99,56% / 99,45%).
 
-40 nowych plików testowych, około 11 500 linii testu, 12 zgłoszonych defektów.
+40 nowych plików testowych, około 11 500 linii testu, 13 zgłoszonych defektów.
 Suita: 41 302 → 42 740 testów (+1 438), 163 → 176 wpisów `it.fails`.
 W całym zbiorze zostały **23 niepokryte linie** — wypisane co do pliku w §6.5.
 
@@ -242,7 +242,8 @@ słowniku w obu językach.
 
 ## 5. Defekty zgłoszone jako `it.fails`
 
-Dwanaście wpisów. Żaden nie został naprawiony — zlecenie zabrania zmiany zachowania
+Trzynaście wpisów — tyle samo, o ile urósł licznik `it.fails` całej suity (163 → 176).
+Żaden nie został naprawiony — zlecenie zabrania zmiany zachowania
 produkcyjnego pod test, a `it.fails` jest w tym repo konwencją zgłoszenia (są tam już 244 takie
 wpisy przed tą pracą).
 
@@ -309,9 +310,17 @@ niczym go nie blokuje: przycisk zostaje aktywny, a `onSubmit` nie sprawdza stanu
 przy polu bez `id`, więc etykieta jest wyłącznie graficzna. Formularz zbierający zgodę RODO nie
 jest obsługiwalny czytnikiem ekranu.
 
-**Plus jeden defekt w komunikacie o błędzie** (`popupSignupForm.test.tsx`): komunikat po
-nieudanym zapisie to surowy tekst dostawcy, nie klucz i18n — użytkownik interfejsu po polsku
-czyta techniczny komunikat po angielsku, a nazwa ograniczenia unikalności wycieka na ekran.
+### 5.5 Wyciek treści błędu bazy do interfejsu
+
+`src/components/__tests__/popupSignupForm.test.tsx`:
+
+**13. Komunikat po nieudanym zapisie to SUROWY tekst dostawcy, nie klucz i18n.** Dwie szkody
+naraz. Po pierwsze **wyciek**: na ekran trafia treść błędu bazy razem z nazwą naruszonego
+ograniczenia unikalności (`duplicate key value violates unique constraint "users_email_key"`),
+czyli fragment schematu pokazany anonimowemu odwiedzającemu w publicznym formularzu zapisu.
+Po drugie **regresja i18n**: użytkownik interfejsu po polsku czyta techniczny komunikat po
+angielsku, bo tekst nie przechodzi przez słownik. Mapowanie odpowiedzi na komunikat istnieje
+(`src/lib/newsletter/subscribeFeedback.ts`) — ta ścieżka błędu po prostu przez nie nie idzie.
 
 ---
 
