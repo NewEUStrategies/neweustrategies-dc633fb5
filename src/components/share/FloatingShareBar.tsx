@@ -312,8 +312,11 @@ export function FloatingShareBar({
       {isSidebar && listen && (
         // Sidebar startuje równo z paskiem akcji wpisu ("30 min czytania /
         // Udostępnij pełny artykuł") - bez dodatkowego offsetu u góry.
+        // Na mobile odsłuch renderuje się w głównej kolumnie artykułu,
+        // bezpośrednio pod sekcją "Share article + Recommend us", żeby nie
+        // wędrował na sam dół sidebara na wąskich ekranach.
         <>
-          <div className="mb-4">
+          <div className="hidden lg:block mb-4">
             <SidebarListenCard
               postId={listen.postId}
               lang={lang}
@@ -335,6 +338,7 @@ export function FloatingShareBar({
                 href={listen.authorHref}
                 jobTitle={listen.authorJobTitle}
                 company={listen.authorCompany}
+                bio={listen.authorBio}
                 email={listen.authorEmail}
                 xUrl={listen.authorXUrl}
                 linkedinUrl={listen.authorLinkedinUrl}
