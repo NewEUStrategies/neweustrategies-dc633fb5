@@ -32,7 +32,14 @@ interface SidebarListenCardProps {
    * lektora AI.
    */
   audioUrl?: string | null;
+  /**
+   * Wariant wizualny. `compact` (domyślny) to karta sidebaru z małym
+   * przyciskiem play. `full-width` to mobilny przycisk tekstowy na całą
+   * szerokość z ikoną słuchawek, używany pod sekcją share/recommend.
+   */
+  variant?: "compact" | "full-width";
 }
+
 
 // Pierścień fokusu przychodzi z atomu. Tu i w `GlobalAudioBar` stała była
 // ZADEKLAROWANA OSOBNO - dwie kopie jedynej rzeczy, która odpowiada za
