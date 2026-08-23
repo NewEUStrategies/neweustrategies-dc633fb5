@@ -8522,7 +8522,7 @@ sup.fn-ref {
   grid-row: 1;
   width: 6px;
   height: 6px;
-  margin-top: calc((var(--cms-list-fs, 1rem) * var(--cms-list-lh, 1.65) - 6px) / 2);
+  margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
   background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
