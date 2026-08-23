@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
 import { Route as ZatrudniamyRouteImport } from './routes/zatrudniamy'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
-import { Route as TestTabsRouteImport } from './routes/test-tabs'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SitemapIndexDotxmlRouteImport } from './routes/sitemap-index[.]xml'
@@ -322,11 +321,6 @@ const ZatrudniamyRoute = ZatrudniamyRouteImport.update({
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TestTabsRoute = TestTabsRouteImport.update({
-  id: '/test-tabs',
-  path: '/test-tabs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SupportRoute = SupportRouteImport.update({
@@ -1890,7 +1884,6 @@ export interface FileRoutesByFullPath {
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
-  '/test-tabs': typeof TestTabsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
@@ -2188,7 +2181,6 @@ export interface FileRoutesByTo {
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
-  '/test-tabs': typeof TestTabsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
@@ -2482,7 +2474,6 @@ export interface FileRoutesById {
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
-  '/test-tabs': typeof TestTabsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
@@ -2785,7 +2776,6 @@ export interface FileRouteTypes {
     | '/sitemap-index.xml'
     | '/sitemap.xml'
     | '/support'
-    | '/test-tabs'
     | '/unsubscribe'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
@@ -3083,7 +3073,6 @@ export interface FileRouteTypes {
     | '/sitemap-index.xml'
     | '/sitemap.xml'
     | '/support'
-    | '/test-tabs'
     | '/unsubscribe'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
@@ -3376,7 +3365,6 @@ export interface FileRouteTypes {
     | '/sitemap-index.xml'
     | '/sitemap.xml'
     | '/support'
-    | '/test-tabs'
     | '/unsubscribe'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
@@ -3678,7 +3666,6 @@ export interface RootRouteChildren {
   SitemapIndexDotxmlRoute: typeof SitemapIndexDotxmlRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
-  TestTabsRoute: typeof TestTabsRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   ZatrudniamyRoute: typeof ZatrudniamyRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
@@ -3771,13 +3758,6 @@ declare module '@tanstack/react-router' {
       path: '/unsubscribe'
       fullPath: '/unsubscribe'
       preLoaderRoute: typeof UnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/test-tabs': {
-      id: '/test-tabs'
-      path: '/test-tabs'
-      fullPath: '/test-tabs'
-      preLoaderRoute: typeof TestTabsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/support': {
@@ -6508,7 +6488,6 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapIndexDotxmlRoute: SitemapIndexDotxmlRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
-  TestTabsRoute: TestTabsRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   ZatrudniamyRoute: ZatrudniamyRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
