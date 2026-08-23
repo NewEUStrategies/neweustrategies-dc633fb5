@@ -1,4 +1,4 @@
-import type { ColumnNode, InnerSectionNode, SectionChild, WidgetNode } from "./types";
+import type { SectionChild, WidgetNode } from "./types";
 
 const PEOPLE_WIDGET_TYPES = new Set(["team-member", "author-profile-card"]);
 
