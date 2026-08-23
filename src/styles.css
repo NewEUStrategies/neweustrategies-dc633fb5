@@ -2162,6 +2162,13 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   max-width: 100% !important;
   min-width: 0 !important;
 }
+[data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-columns-row] {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+[data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-column-slot] {
+  grid-column: auto !important;
+}
 [data-builder-renderer][data-device="mobile"] [data-col-id] {
   width: 100% !important;
   max-width: 100% !important;
