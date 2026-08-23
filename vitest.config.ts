@@ -594,11 +594,15 @@ export default defineConfig({
         },
         // Rozgrzewka kasy na intencję: czysty moduł, trzymany pod 100 jak
         // pozostałe czyste moduły ścieżki płatność -> dostęp.
+        // Gałęzie podniesione 95 -> 100 na pomiarze z 2026-08-23 (2/2). Wpis
+        // istniał w tym pliku raz; drugi raz dopisałem go omyłkowo w bloku
+        // modułu 14, co CICHO nadpisałoby ten - duplikat usunięty, a wartość
+        // przeniesiona tutaj, żeby próg nie spadł przy sprzątaniu.
         "src/components/checkout/checkoutIntent.ts": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 95,
+          branches: 100,
         },
         // publicSegments: two pure helpers, fully exercised.
         "src/lib/routing/publicSegments.ts": {
@@ -3610,6 +3614,454 @@ export default defineConfig({
           functions: 95,
           lines: 95,
           branches: 86,
+        },
+
+        // ═══════════════════════════════════════════════════════════════════
+        // MODUŁ 14, ETAPY 2-3: warstwa układu i reguł po ekstrakcji
+        //
+        // DLACZEGO KATALOGI, A NIE 73 WPISY PER PLIK. Próg z globem liczy
+        // AGREGAT plików, które glob łapie - a te katalogi to atomic design
+        // wyprowadzony z dziewięciu tras panelu w jednej pracy: 62 pliki,
+        // z których 106 z 146 plików modułu stoi dziś na 100/100/100. Wpis per
+        // plik dla każdego z nich dodałby 250 linii konfiguracji i ani jednej
+        // nowej gwarancji, a przy dopisaniu kolejnego atomu wymagałby ręcznego
+        // dopisania progu - czyli dokładnie tej czynności, o której się
+        // zapomina. Glob obejmuje nowy plik automatycznie: atom bez testu
+        // OBNIŻA agregat katalogu i zapala bramkę.
+        //
+        // WSZYSTKIE WARTOŚCI ZMIERZONE (`bun run test:coverage`, 2026-08-23
+        // 05:28, 1629/1632 plików testowych zielonych) i ustawione NIE WYŻEJ
+        // niż pomiar. Tam, gdzie pomiar to dokładnie 100, próg jest 100 -
+        // bo próg poniżej pełnego pokrycia pozwala je cicho stracić.
+        // ═══════════════════════════════════════════════════════════════════
+        // ── MODUŁ 14 (monetyzacja), etapy 2-3: KATALOGI atomic design ──
+        "src/components/admin/ads/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/ads/molecules/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 96,
+        },
+        "src/components/admin/ads/organisms/**": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 91,
+        },
+        "src/components/admin/coupons/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/coupons/molecules/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/coupons/organisms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/gifting/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/gifting/molecules/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/gifting/organisms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 93,
+        },
+        "src/components/donations/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/ads/atoms/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+
+        // ── MODUŁ 14: pliki pojedyncze ──
+        "src/components/AdSlot.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/admin/coupons/DatePickerField.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 93,
+        },
+        "src/components/ads/AdSlotById.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/ads/FooterSlideup.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/ads/MidPostAds.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/ads/useInFeedAds.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/checkout/CheckoutAssurances.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/checkout/EmbeddedCheckoutDialog.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/checkout/FxRateNotice.tsx": {
+          statements: 87,
+          functions: 100,
+          lines: 92,
+          branches: 47,
+        },
+        "src/components/checkout/LazyEmbeddedCheckoutDialog.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/checkout/StripeEmbeddedFrame.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/checkout/atoms/CheckoutFrameSkeleton.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 49,
+        },
+        "src/components/checkout/checkoutDialogChunk.ts": {
+          statements: 100,
+          functions: 74,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/donations/DonationCta.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 75,
+        },
+        "src/components/donations/DonationForm.tsx": {
+          statements: 86,
+          functions: 65,
+          lines: 87,
+          branches: 85,
+        },
+        "src/components/donations/DonationsWidgetView.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/donations/donationsWidgetModel.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/gifting/GiftBanner.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/gifting/atoms/GiftChannelLink.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/gifting/atoms/GiftCopyButton.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 56,
+        },
+        "src/components/gifting/molecules/GiftShareChannels.tsx": {
+          statements: 82,
+          functions: 100,
+          lines: 100,
+          branches: 49,
+        },
+        "src/lib/admin/couponTabs.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/adFrame.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/dimensions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/footerSlideup.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/idle.ts": {
+          statements: 90,
+          functions: 79,
+          lines: 100,
+          branches: 79,
+        },
+        "src/lib/ads/injection.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/pageType.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/ads/types.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 96,
+        },
+        "src/lib/ads/useDeferredAd.ts": {
+          statements: 91,
+          functions: 100,
+          lines: 90,
+          branches: 87,
+        },
+        "src/lib/billing/couponAdminForm.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponAdminList.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponAnalyticsView.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponCampaignForm.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponCsv.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponMoney.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponNewsletterDraft.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/couponRedemptionsRange.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/donations.server.ts": {
+          statements: 86,
+          functions: 100,
+          lines: 93,
+          branches: 80,
+        },
+        "src/lib/billing/donationsAdminModel.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/donationsConfig.ts": {
+          statements: 87,
+          functions: 100,
+          lines: 100,
+          branches: 74,
+        },
+        "src/lib/billing/donationsConfigQuery.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/billing/donationsExternal.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/gifting/admin-model.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/gifting/model.ts": {
+          statements: 93,
+          functions: 100,
+          lines: 96,
+          branches: 93,
+        },
+        "src/lib/i18n-admin-coupons.ts": {
+          statements: 100,
+          functions: 0,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/i18n-ads-admin.ts": {
+          statements: 100,
+          functions: 0,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/i18n-donate.ts": {
+          statements: 100,
+          functions: 0,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/i18n-donations-admin.ts": {
+          statements: 100,
+          functions: 0,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/i18n-donations-widget.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/i18n-gifting-admin.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/i18n-gifting.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.ads.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.coupons.analytics.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
+        "src/routes/admin.coupons.campaigns.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.coupons.index.tsx": {
+          statements: 94,
+          functions: 92,
+          lines: 96,
+          branches: 83,
+        },
+        "src/routes/admin.coupons.redemptions.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 93,
+        },
+        "src/routes/admin.coupons.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/admin.gifting.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/donate.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
         },
       },
     },
