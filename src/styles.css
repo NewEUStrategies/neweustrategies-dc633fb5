@@ -2378,6 +2378,8 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     word-break: normal;
     hyphens: manual;
     -webkit-hyphens: manual;
+  }
+
   /* Section tabs: allow labels to wrap naturally at word boundaries on
      mobile (no hyphenation, no arbitrary word breaking). The global button
      reset above forces white-space: normal, but also sets overflow-wrap:
@@ -2394,6 +2396,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     -webkit-hyphens: none !important;
     text-wrap: pretty;
   }
+
 
   [data-builder-renderer] h1:not(.cms-post-title) {
     font-size: clamp(1.4rem, 7vw, 2rem) !important;
