@@ -8542,11 +8542,9 @@ h3 .cms-inline-status-icon { stroke-width: 1.7; }
   }
 }
 @media (max-width: 767px) {
-  .cms-content-list .cms-list-item,
-  .cms-block-list-editor__item,
-  .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-    > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
-    grid-template-columns: 1.25rem minmax(0, 1fr);
+  .cms-content-list,
+  .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
+    --cms-list-marker-col: 1.45rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {
