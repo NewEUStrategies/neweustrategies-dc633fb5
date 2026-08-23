@@ -8417,7 +8417,7 @@ sup.fn-ref > a[id^="fnref-"] {
 }
 .cms-list-number,
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox")))::before {
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   display: inline-flex;
   min-width: 1.35rem;
   height: 1.35rem;
@@ -8437,17 +8437,17 @@ sup.fn-ref > a[id^="fnref-"] {
   counter-reset: cms-ordered-list;
 }
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"))) {
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
   counter-increment: cms-ordered-list;
 }
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox")))::before {
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   content: counter(cms-ordered-list);
   grid-column: 1;
   grid-row: 1;
 }
 .cms-rich-content ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox")))::before {
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   content: "";
   grid-column: 1;
   grid-row: 1;
@@ -8460,7 +8460,7 @@ sup.fn-ref > a[id^="fnref-"] {
   transition: transform 180ms ease, background-color 180ms ease;
 }
 .cms-rich-content ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"))):hover::before {
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"])):hover::before {
   transform: scale(1.3);
   background: var(--brand);
 }
@@ -8470,7 +8470,7 @@ sup.fn-ref > a[id^="fnref-"] {
   margin-block: 0.25rem 0.125rem;
 }
 .cms-rich-content li > ul:not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox")))::before {
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   width: 5px;
   height: 5px;
   margin-top: calc(0.5em * var(--lh-body, 1.65) - 2.5px);
