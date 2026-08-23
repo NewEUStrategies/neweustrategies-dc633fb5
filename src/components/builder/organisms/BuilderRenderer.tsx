@@ -556,7 +556,7 @@ const RenderSection = memo(function RenderSection({
     ...typographyAlign(section.typography, device),
   };
   const typoCss = typographyCss(section.id, section.typography);
-  const videoUrl =
+  const sectionKind = useMemo(() => (isPeopleSectionKind(allChildren) ? "people" : ""), [allChildren]);
     section.background?.type === "video"
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
       : "";
