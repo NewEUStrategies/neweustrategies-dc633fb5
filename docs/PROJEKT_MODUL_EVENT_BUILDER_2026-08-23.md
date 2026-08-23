@@ -54,6 +54,30 @@ widgetami, rodzajami eventów" w pełnym zakresie Swapcarda. Powyższe dwa punkt
 mówią tylko, **czym to zbudować**, żeby po trzech miesiącach nie było dwóch
 niekompatybilnych silników treści.
 
+### 0.4 Decyzje zamawiającego (2026-08-23) — wiążące dla całego dokumentu
+
+Pytania otwarte z §10 zostały rozstrzygnięte. Poniższe odpowiedzi są **wiążące**;
+reszta dokumentu jest do nich doprowadzona, a §10 przechowuje już tylko to,
+co nadal otwarte.
+
+| Pytanie                                 | Decyzja                                                                | Skutek dla zakresu                                                                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Microsite czy sekcja w serwisie?        | **sekcja `/events/<slug>/…` w serwisie** (zgodnie z rekomendacją §0.1) | poddrzewo `pages`, jeden silnik stron, wspólne SEO i breadcrumby                                                                                    |
+| Wystawcy jako moduł?                    | **nie** — partnerzy i sponsorzy **synchronizowani z CRM firm**         | `Exhibitor Marketplace` **poza zakresem**: bez self-service profilu wystawcy, `Items`, pakietów i stoisk; źródłem danych firmy jest `crm_companies` |
+| Rejestracja przy wejściu (QR, badge'e)? | **tak, moduły do zbudowania**                                          | `Onsite` awansuje z „jeśli będzie czas” na **wymagany etap E7**: skaner QR, check-in, szablon i druk badge'a                                        |
+| RSVP czy formularz z akceptacją?        | **obie formy**                                                         | `events.registration_flow ('rsvp' albo 'form')` — jedno wydarzenie klika RSVP, inne przechodzi formularz kwalifikacyjny z akceptacją                |
+| Ile typów wejściówek?                   | **każde wydarzenie indywidualnie**                                     | `event_ticket_types` jako tabela; `events.ticket_price_cents` zostaje skrótem dla wydarzenia z jedną ceną                                           |
+
+Dwie konsekwencje warte nazwania wprost, bo zmieniają kolejność pracy:
+
+1. **Rezygnacja z modułu wystawców upraszcza moduł o cały podsystem** (profil firmy
+   z polityką pól, `Items`, dokumenty wystawcy, pakiety, Exhibitor Center). Zostaje
+   **grupa „Partnerzy”** z uprawnieniami i **sponsorzy z poziomami** czytani
+   z `crm_companies`. Zaoszczędzony zakres etapu E6 przechodzi na onsite i rejestrację.
+2. **Onsite przestaje być opcją**, a to znaczy, że zgoda na przekazanie danych
+   partnerowi (skan badge'a) musi być zaprojektowana **razem z rejestracją** (E5),
+   nie przy skanerze. Zgodę zbiera się w formularzu, nie przy bramce — patrz §4.8.
+
 ---
 
 ## 1. Co platforma ma już dziś (stan na 2026-08-23)
@@ -142,18 +166,18 @@ Legenda: **✅ jest** · **🟡 częściowo** · **🔴 brak**
 
 ### 2.2 Pozostałe sekcje sidebara (do rozpisania po kolejnych zrzutach)
 
-| Swapcard                               | Stan NES | Najbliższy istniejący klocek                                                                                                        | Zadanie |
-| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| In-App registration                    | 🟡       | `rsvp_event`, bilety (`ticket*.ts`), `plan_ticket_claims`, `admin.users.invitations`, `onboarding-form`/`register-form` w builderze | EB-7xx  |
-| Content (sesje, prelegenci, dokumenty) | 🟡       | `event_speakers` + `speaker_profiles` ✅; sesje tylko w JSON widgetu 🔴; dokumenty → wzorzec `club_documents`                       | EB-8xx  |
-| Exhibitor Marketplace                  | 🔴       | `member_organizations` (branding + miejsca) + `crm_companies` + `/admin/pricing`                                                    | EB-9xx  |
-| Meetings                               | ✅ rdzeń | `meeting_slots.event_id`, `meeting_bookings`, widget `meeting-booking` — brak panelu (siatka slotów, limity, reguły matchmakingu)   | EB-10xx |
-| Communications                         | 🟡       | `/admin/newsletter` (kampanie, szablony), powiadomienia community, `run_event_reminders()`                                          | EB-11xx |
-| Onsite                                 | 🔴       | bilet z QR (`src/lib/events/ticketCode.ts`) istnieje, **skanera/check-inu/badge'y nie ma**                                          | EB-12xx |
-| Integrations                           | 🟡       | `/admin/integrations` (globalne) — brak zakresu per wydarzenie                                                                      | EB-13xx |
-| Analytics                              | 🟡       | `/admin/analytics`, `analytics_events`, `domain_events` — brak dashboardu wydarzenia                                                | EB-14xx |
-| Add-on features                        | 🔴       | odpowiednik: przełączniki modułów (`fetchCommunityModules`) → per wydarzenie                                                        | EB-15xx |
-| Publish event / Preview event          | 🟡       | `events.status` (`draft/published/cancelled`) + `/preview/$token` dla treści                                                        | EB-16xx |
+| Swapcard                               | Stan NES                | Najbliższy istniejący klocek                                                                                                        | Zadanie |
+| -------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| In-App registration                    | 🟡                      | `rsvp_event`, bilety (`ticket*.ts`), `plan_ticket_claims`, `admin.users.invitations`, `onboarding-form`/`register-form` w builderze | EB-7xx  |
+| Content (sesje, prelegenci, dokumenty) | 🟡                      | `event_speakers` + `speaker_profiles` ✅; sesje tylko w JSON widgetu 🔴; dokumenty → wzorzec `club_documents`                       | EB-8xx  |
+| Exhibitor Marketplace                  | ⛔ poza zakresem (§0.4) | zamiast modułu: grupa „Partnerzy” + sponsorzy czytani z `crm_companies`                                                             | —       |
+| Meetings                               | ✅ rdzeń                | `meeting_slots.event_id`, `meeting_bookings`, widget `meeting-booking` — brak panelu (siatka slotów, limity, reguły matchmakingu)   | EB-10xx |
+| Communications                         | 🟡                      | `/admin/newsletter` (kampanie, szablony), powiadomienia community, `run_event_reminders()`                                          | EB-11xx |
+| Onsite **(wymagany, §0.4)**            | 🔴                      | bilet z QR (`src/lib/events/ticketCode.ts`) istnieje, **skanera/check-inu/badge'y nie ma**                                          | EB-12xx |
+| Integrations                           | 🟡                      | `/admin/integrations` (globalne) — brak zakresu per wydarzenie                                                                      | EB-13xx |
+| Analytics                              | 🟡                      | `/admin/analytics`, `analytics_events`, `domain_events` — brak dashboardu wydarzenia                                                | EB-14xx |
+| Add-on features                        | 🔴                      | odpowiednik: przełączniki modułów (`fetchCommunityModules`) → per wydarzenie                                                        | EB-15xx |
+| Publish event / Preview event          | 🟡                      | `events.status` (`draft/published/cancelled`) + `/preview/$token` dla treści                                                        | EB-16xx |
 
 ---
 
@@ -174,8 +198,8 @@ Dwa poziomy, bo Swapcard ma dwa: **lista wydarzeń** (poziom organizacji) i
   ├── /registration                    In-App registration (formularz, typy biletów, akceptacje)
   ├── /agenda                          Content → sesje (`event_sessions`), sale, ścieżki
   ├── /speakers                        Content → prelegenci wydarzenia
-  ├── /exhibitors                      Exhibitor Marketplace / wystawcy
-  ├── /sponsors                        Sponsors & advertising
+  ├── /tickets                         typy wejściówek (event_ticket_types) + kody dostępu
+  ├── /sponsors                        sponsorzy i partnerzy (z CRM firm) + reklama wydarzenia
   ├── /meetings                         Meetings (sloty, reguły, statystyki)
   ├── /communications                  e-maile, przypomnienia, powiadomienia push
   ├── /onsite                          check-in, QR, badge'e, lead retrieval
@@ -259,28 +283,99 @@ event_groups (
 event_group_members (group_id, user_id, org_id, added_by, created_at)
 -- jedna funkcja prawdy: event_capabilities(_event_id, _user_id) → can_read/can_meet/…
 
--- §4.4 REJESTRACJA
-event_registration_forms (event_id, schema jsonb, approval_mode, confirmation_email_id, …)
+-- §4.4 REJESTRACJA (tryb + przebieg: decyzja §0.4 "obie formy")
+--   registration_mode: GDZIE się rejestruje; registration_flow: JAK to wygląda.
+ALTER TABLE public.events
+  ADD COLUMN IF NOT EXISTS registration_mode text NOT NULL DEFAULT 'in_app'
+    CHECK (registration_mode IN ('in_app','external','none')),
+  ADD COLUMN IF NOT EXISTS registration_flow text NOT NULL DEFAULT 'rsvp'
+    CHECK (registration_flow IN ('rsvp','form')),
+  ADD COLUMN IF NOT EXISTS registration_url text,        -- tryb 'external'
+  ADD COLUMN IF NOT EXISTS guest_redirect text NOT NULL DEFAULT 'in_app'
+    CHECK (guest_redirect IN ('in_app','external'));
+
+event_registration_forms (event_id, schema jsonb, approval_mode
+  CHECK (approval_mode IN ('auto','manual')), confirmation_email_id, …)
 event_registrations (id, tenant_id, event_id, user_id, group_id, status
   CHECK (status IN ('pending','approved','rejected','waitlist','cancelled')),
   answers jsonb, ticket_type_id, created_at)
-event_ticket_types (id, tenant_id, event_id, name_pl/en, price_cents, currency,
-  quota int, sales_from, sales_to, min_tier_rank, visibility)
 
--- §4.5 WYSTAWCY / SPONSORZY
-event_exhibitors (id, tenant_id, event_id, org_id → member_organizations,
-  package_key, booth text, description_pl/en, status, sort_order)
-event_sponsor_tiers (id, tenant_id, event_id, name_pl/en, size, sort_order)
-event_sponsors (id, tier_id, org_id NULL, name, logo_url, url, description_pl/en, sort_order)
+-- Typy wejściówek. KRAWĘDŹ KLUCZOWA: typ biletu NADAJE GRUPĘ (zrzut 3.5); bez
+-- niej administrator przypisuje grupy ręcznie przy każdym uczestniku.
+event_ticket_types (
+  id, tenant_id, event_id → events ON DELETE CASCADE,
+  name_pl/name_en, description_pl/en,
+  price_cents int NOT NULL DEFAULT 0, currency text NOT NULL DEFAULT 'PLN',
+  group_id uuid → event_groups,                         -- nadanie grupy przy zakupie
+  quota int,                                            -- NULL = bez limitu
+  sales_from timestamptz, sales_to timestamptz,          -- "Valid from / until"
+  min_tier_rank int NOT NULL DEFAULT 0,
+  visibility text NOT NULL DEFAULT 'visible'
+    CHECK (visibility IN ('visible','hidden')),           -- hidden = tylko z kodu
+  coupon_scope uuid NULL,                                 -- powiązanie z /admin/coupons
+  sort_order int NOT NULL DEFAULT 0,
+  created_at, updated_at
+)
+-- Status ("Ended" / "Active") NIE jest kolumną - wylicza się z okna sprzedaży.
+-- Brak wiersza w event_ticket_types ⇒ obowiązuje events.ticket_price_cents.
 
--- §4.6 ONSITE
+-- §4.5 SPONSORZY I PARTNERZY (decyzja §0.4: źródłem jest CRM firm)
+event_sponsor_tiers (id, tenant_id, event_id, name_pl/en, size
+  CHECK (size IN ('sm','md','lg')), sort_order)
+event_sponsors (id, tenant_id, tier_id → event_sponsor_tiers ON DELETE CASCADE,
+  company_id uuid → crm_companies,                      -- jedno źródło prawdy o firmie
+  name_override text, logo_override text, url_override text,  -- gdy CRM nie ma logotypu
+  description_pl/en, sort_order)
+-- Bez event_exhibitors, bez pakietów i stoisk - moduł wystawców poza zakresem.
+
+-- §4.6 ONSITE (wymagane - decyzja §0.4)
 event_checkins (id, tenant_id, event_id, session_id NULL, user_id, ticket_code,
-  scanned_by, scanned_at, gate text)                    -- idempotencja per (event,user,session)
-event_badges (event_id, template jsonb)                 -- layout badge'a do druku
+  scanned_by, scanned_at, gate text,
+  UNIQUE (event_id, user_id, session_id))                -- idempotencja skanu
+event_badge_templates (id, tenant_id, event_id, name, template jsonb,
+  paper_format text, is_default boolean)                 -- layout badge'a do druku
+event_leads (id, tenant_id, event_id, company_id → crm_companies,
+  lead_user_id uuid, scanned_by uuid, scanned_at timestamptz,
+  qualification jsonb, note text,
+  UNIQUE (event_id, company_id, lead_user_id))
+-- RLS event_leads: dostęp WYŁĄCZNIE dla obsady firmy (organization_seats) oraz
+-- staff. Wspólna tabela z filtrem w UI = wyciek jednym SELECT-em.
 
 -- §4.7 STRONY WYDARZENIA (bez drugiego silnika stron — §0.1)
 event_pages (event_id, page_id → pages, slot text, menu_label_pl/en,
   icon, color, in_menu boolean, sort_order, visible_to_groups uuid[])
+
+-- §4.8 ZGODY I REGULAMIN (zrzut 3.3)
+event_terms (
+  id, tenant_id, event_id, key text,                    -- "Label (only visible to you)"
+  title_pl/title_en, body_pl/body_en, external_url text,
+  display text NOT NULL DEFAULT 'access'
+    CHECK (display IN ('access','registration_and_access')),
+  required boolean NOT NULL DEFAULT false,
+  version int NOT NULL DEFAULT 1,                        -- nasze, nie Swapcarda
+  sort_order int, created_at, updated_at,
+  UNIQUE (event_id, key)
+)
+event_term_acceptances (term_id, user_id, version int, accepted_at,
+  UNIQUE (term_id, user_id, version))
+-- Wersja jest warunkiem wartości dowodowej: zgoda na v1 nie jest zgodą na v2.
+-- Zgoda required = false (np. przekazanie danych partnerowi) NIE MOŻE blokować
+-- zatwierdzenia rejestracji - inaczej jest zgodą pozorną.
+
+-- §4.9 REKLAMA WYDARZENIA (rozszerzenie /admin/ads, nie nowy moduł)
+--   AdTargeting  += eventGroupKeys text[]   (dziś: categorySlugs, tagSlugs, languages)
+--   AdPosition   += 'event_home_sidebar' | 'interstitial_mobile'
+--   ad_placements.page_type += 'event'      (page_id = events.id)
+--   rotacja: wiele slotów trafiających w tę samą grupę → losowanie przy renderze
+--   statystyki: ad_events (kind = odsłona / klik) - już liczone
+
+-- §4.10 BRANDING WYDARZENIA (zrzut 2.5)
+--   events.branding jsonb: WĄSKI podzbiór slotów (nawigacja, akcja główna, tekst,
+--   tło bloków, obraz tła, logo) w dwóch trybach (light/dark). Klucz nieobecny =
+--   dziedziczenie z motywu globalnego; "Reset to community branding" USUWA klucz,
+--   nie zapisuje wartości domyślnej. Wyjście tym samym kanałem, co globalne kolory:
+--   CSS custom properties w SSR (globalColorsToCss / DesignTokensStyle), z zakresem
+--   ograniczonym do poddrzewa stron wydarzenia ORAZ formularza rejestracji.
 ```
 
 Decyzje do potwierdzenia przed migracją:
@@ -291,8 +386,13 @@ Decyzje do potwierdzenia przed migracją:
 2. **`event_groups` vs `min_tier_rank`** — grupy wydarzenia to nowa oś uprawnień
    obok warstw członkowskich. Rekomendacja: grupa **nie zastępuje** warstwy;
    `event_capabilities()` liczy iloczyn (rola platformy × grupa × warstwa).
-3. **wystawca = `member_organizations`** czy nowy byt? Rekomendacja: `member_organizations`
-   — ma już logotypy w czterech wariantach, kolory marki, miejsca i warstwę.
+3. **Sponsor = wiersz w `crm_companies`** (decyzja §0.4). `member_organizations`
+   zostaje przy członkostwie B2B; sponsor nie musi mieć miejsc ani warstwy. Gdy
+   firma w CRM nie ma logotypu, ratuje sytuację `logo_override` na `event_sponsors`
+   — bez zaśmiecania CRM danymi marketingowymi.
+4. **Nazwy typów biletów i poziomów sponsorskich są bliźniacze** (`*_pl` / `*_en`).
+   W danych referencyjnych bilety nazywają się `Uczestnik` / `Prelegent`, a grupy
+   `Attendees` / `Speakers`; jednojęzyczne pole zablokowałoby wersję angielską.
 
 ---
 
@@ -377,8 +477,11 @@ niezalogowany). NES ma już dwie warstwy, które to pokrywają:
 (`pages.status`, `seo_noindex`, harmonogram publikacji).
 
 Do zrobienia: **jedna macierz widoczności per wydarzenie** — wiersze: sekcje
-(agenda, prelegenci, wystawcy, uczestnicy, nagrania, dokumenty), kolumny:
-gość / zarejestrowany / grupa / warstwa. Wzorzec UI: `AccessSettingsPane.tsx`
+(agenda, prelegenci, partnerzy, uczestnicy, nagrania, dokumenty), kolumny:
+gość / zarejestrowany / grupa / warstwa. Uwaga z zrzutu 3.1: u Swapcarda `Guests`
+występuje w `Targeted groups` **obok** grup uczestników, czyli gość jest pełnoprawną
+grupą docelową, a nie „stanem zerowym" — nasza macierz musi mieć dla niego wiersz,
+nie wyjątek w kodzie. Wzorzec UI: `AccessSettingsPane.tsx`
 i `ClubPermissionsTab.tsx`. Ostrzeżenie z modułu klubów obowiązuje tu wprost:
 przy `chatham_house = true` lista uczestników i nagranie **nie mogą** trafić do
 trybu gościa ani do robota (`forceNoindex`).
@@ -387,15 +490,15 @@ trybu gościa ani do robota (`forceNoindex`).
 
 ## 8. Etapy wdrożenia
 
-| Etap                                  | Zakres                                                                                                                                                                                                   | Kryterium odbioru                                                                               |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **E1** Szkielet                       | grupa `events` w `adminNav`, `/admin/events` (lista + KPI), `/admin/events/$eventId` (layout + sub-nav + `Outlet`), `/general` przeniesione z dzisiejszego dialogu, redirect z `/admin/community/events` | pełny CRUD działa z nowej powierzchni; stara trasa przekierowuje; `check:i18n-hardcoded` czysty |
-| **E2** Rodzaje                        | `event_types` + `/admin/events/types` + kreator „nowe wydarzenie z rodzaju"                                                                                                                              | utworzenie kongresu zakłada podstrony i włącza moduły jednym kliknięciem                        |
-| **E3** Strony i menu                  | `event_pages` + `/pages` (drzewo, kolejność, ikony, widoczność), oparte na `pages`/builderze                                                                                                             | podstrona wydarzenia powstaje i publikuje się bez wejścia w `/admin/pages`                      |
-| **E4** Agenda                         | `event_sessions` (+ prelegenci sesji), `/agenda`, `event-schedule` z `source: "event"`                                                                                                                   | agenda dwudniowa z 30 sesjami zarządzalna z panelu; widget renderuje z bazy                     |
-| **E5** Grupy i rejestracja            | `event_groups`, `event_capabilities()`, `event_registrations`, `event_ticket_types`, `/groups` + `/registration`                                                                                         | rejestracja z akceptacją; grupa steruje widocznością; pgtap na uprawnieniach                    |
-| **E6** Wystawcy, sponsorzy, spotkania | `event_exhibitors`, `event_sponsor_tiers`, panel `/meetings`                                                                                                                                             | wystawca z pakietem, sponsorzy z bazy, sloty 1-1 z limitami                                     |
-| **E7** Onsite, komunikacja, analityka | `event_checkins`, badge'e, sekwencje e-mail, dashboard                                                                                                                                                   | check-in QR działa offline-tolerantnie; dashboard pokazuje frekwencję per sesja                 |
+| Etap                                             | Zakres                                                                                                                                                                                                           | Kryterium odbioru                                                                                                                                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **E1** Szkielet                                  | grupa `events` w `adminNav`, `/admin/events` (lista + KPI), `/admin/events/$eventId` (layout + sub-nav + `Outlet`), `/general` przeniesione z dzisiejszego dialogu, redirect z `/admin/community/events`         | pełny CRUD działa z nowej powierzchni; stara trasa przekierowuje; `check:i18n-hardcoded` czysty                                                                                            |
+| **E2** Rodzaje                                   | `event_types` + `/admin/events/types` + kreator „nowe wydarzenie z rodzaju"                                                                                                                                      | utworzenie kongresu zakłada podstrony i włącza moduły jednym kliknięciem                                                                                                                   |
+| **E3** Strony i menu                             | `event_pages` + `/pages` (drzewo, kolejność, ikony, widoczność), oparte na `pages`/builderze                                                                                                                     | podstrona wydarzenia powstaje i publikuje się bez wejścia w `/admin/pages`                                                                                                                 |
+| **E4** Agenda                                    | `event_sessions` (+ prelegenci sesji), `/agenda`, `event-schedule` z `source: "event"`                                                                                                                           | agenda dwudniowa z 30 sesjami zarządzalna z panelu; widget renderuje z bazy                                                                                                                |
+| **E5** Grupy, rejestracja, zgody, bilety         | `event_groups` + `event_capabilities()`, `event_registration_forms`, `event_registrations`, `event_ticket_types` (z `group_id`), `event_terms` + akceptacje; `/groups` + `/registration` + `/tickets` + `/terms` | oba przebiegi działają (RSVP i formularz z akceptacją); **typ biletu nadaje grupę**; zgoda na przekazanie danych partnerowi zebrana w formularzu; pgtap na uprawnieniach i na zgodach      |
+| **E6** Sponsorzy i spotkania                     | `event_sponsor_tiers` + `event_sponsors` (z `crm_companies`), rozszerzenie `AdTargeting`/`AdPosition` o wydarzenie i grupy, panel `/meetings`                                                                    | poziomy sponsorskie z logotypami z CRM; reklama wydarzenia celowana w grupę, z odsłonami i klikami z `ad_events`; sloty 1-1 z limitami                                                     |
+| **E7** Onsite (wymagany), komunikacja, analityka | `event_checkins`, `event_badge_templates` + druk, `event_leads` z RLS per firma, sekwencje e-mail, dashboard                                                                                                     | check-in QR odporny na brak sieci i na powtórny skan (`UNIQUE`); badge z nazwą grupy i typem wejściówki; partner widzi **wyłącznie własne** leady; dashboard pokazuje frekwencję per sesja |
 
 ---
 
@@ -417,19 +520,31 @@ trybu gościa ani do robota (`forceNoindex`).
 
 ---
 
-## 10. Pytania otwarte (do rozstrzygnięcia z zamawiającym)
+## 10. Pytania otwarte
 
-1. **Jedno wydarzenie = jedno microsite z własnym menu, czy sekcja w serwisie?**
-   Swapcard robi osobną aplikację wydarzenia. Dla NES tańsze i spójniejsze SEO-wo
-   jest poddrzewo `/events/<slug>/…` w serwisie.
-2. **Wystawcy** — czy w ogóle są w modelu NES (kongres z powierzchnią wystawienniczą),
-   czy wystarczą sponsorzy i partnerzy?
-3. **Onsite** — czy jest fizyczna rejestracja przy wejściu (skaner QR, druk badge'y),
-   czy wydarzenia pozostają online/hybrydowe bez check-inu?
-4. **Rejestracja** — RSVP (jak dziś) czy formularz z akceptacją i pytaniami
-   kwalifikacyjnymi (jak Decision Lab)?
-5. **Bilety** — czy `event_ticket_types` (kilka rodzajów wejściówek) są potrzebne,
-   czy jedna cena per wydarzenie wystarcza?
+Pięć pytań pierwotnych zostało rozstrzygniętych — decyzje w **§0.4**. Otwarte
+pozostaje to, co wyszło z partii 2 i 3 zrzutów i czego nie da się rozstrzygnąć
+z samych ekranów Swapcarda:
+
+1. **Skaner leadów: kto skanuje?** Partner obsługujący stoisko musi mieć aplikację
+   (telefon) i konto z uprawnieniem. Czy to obsada firmy z `organization_seats`
+   (wymaga, żeby partner był organizacją w platformie), czy prostsze rozwiązanie:
+   **token urządzenia** wydany na czas wydarzenia, bez kont per osoba?
+   Rekomendacja: token urządzenia — partner na jedno wydarzenie nie potrzebuje
+   struktury organizacyjnej, a token łatwiej odebrać po wydarzeniu.
+2. **Druk badge'y: gdzie?** Druk lokalny z przeglądarki (PDF na drukarkę etykiet)
+   czy usługa druku on-site? To decyduje, czy `event_badge_templates.template`
+   musi być drukowalny bez internetu.
+3. **Formularz rejestracji: kreator czy stałe zestawy pól?** Pełny kreator (typy
+   pytań, warunki, walidacje) to osobny produkt. Rekomendacja na start: stały
+   zestaw pól + pytania kwalifikacyjne jako lista (tekst / wybór / wielokrotny
+   wybór) — a kreator dopiero, gdy okaże się potrzebny.
+4. **Widget rejestracji do zagnieżdżenia na stronach partnerów** (zrzut 3.4) — czy
+   jest potrzebny w pierwszej wersji? To osobna powierzchnia bezpieczeństwa
+   (CORS, iframe, klucz publiczny), więc proponuję etap po E5.
+5. **Kody dostępu** — czy wykorzystujemy istniejący moduł `/admin/coupons`
+   (kampanie, realizacje, analityka), czy kody wydarzenia mają być osobnym bytem?
+   Rekomendacja: `/admin/coupons` z zakresem „to wydarzenie / ten typ biletu".
 
 ---
 
