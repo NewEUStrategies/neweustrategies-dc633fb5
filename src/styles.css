@@ -8361,7 +8361,10 @@ sup.fn-ref > a[id^="fnref-"] {
  * edytora blokowego, preview i publikacji. Checklisty są celowo wyłączone. */
 .cms-content-list,
 .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
-  margin-block: 0.75em;
+  --cms-list-marker-col: 1.65rem;
+  --cms-list-lh: var(--lh-body, 1.65);
+  --cms-list-accent: #fa9346;
+  margin-block: 0.85em;
   padding: 0;
   list-style: none;
 }
@@ -8371,11 +8374,18 @@ sup.fn-ref > a[id^="fnref-"] {
   > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
   position: relative;
   display: grid;
-  grid-template-columns: 1.75rem minmax(0, 1fr);
+  grid-template-columns: var(--cms-list-marker-col, 1.65rem) minmax(0, 1fr);
   align-items: start;
   gap: 0;
   margin: 0;
   padding: 0;
+}
+.cms-content-list .cms-list-item + .cms-list-item,
+.cms-block-list-editor__item + .cms-block-list-editor__item,
+.cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))
+  + li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
+  margin-top: 0.4em;
 }
 .cms-content-list .cms-list-content,
 .cms-block-list-editor .cms-list-content {
@@ -8385,7 +8395,7 @@ sup.fn-ref > a[id^="fnref-"] {
 .cms-content-list .cms-list-item > .cms-content-list {
   grid-column: 2;
   width: 100%;
-  margin-block: 0.25rem 0.125rem;
+  margin-block: 0.4rem 0.15rem;
 }
 .cms-list-bullet,
 .cms-list-number {
@@ -8398,45 +8408,51 @@ sup.fn-ref > a[id^="fnref-"] {
 .cms-list-bullet {
   width: 6px;
   height: 6px;
-  margin-top: calc(0.5em * var(--lh-body, 1.65) - 3px);
-  margin-left: 0.25rem;
+  /* wyśrodkowanie względem pierwszej linii tekstu obok */
+  margin-top: calc((1em * var(--cms-list-lh, 1.65) - 6px) / 2);
+  margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--brand) 50%, transparent);
-  transition: transform 180ms ease, background-color 180ms ease;
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease;
 }
 .cms-content-list--unordered > .cms-list-item:hover > .cms-list-bullet,
 .cms-block-list-editor--unordered > .cms-block-list-editor__item:hover > .cms-list-bullet {
   transform: scale(1.3);
-  background: var(--brand);
+  background: var(--cms-list-accent, #fa9346);
 }
 .cms-content-list--unordered .cms-content-list--unordered .cms-list-bullet,
 .cms-block-list-editor--unordered .cms-block-list-editor__item[data-level]:not([data-level="1"])
   > .cms-list-bullet {
   width: 5px;
   height: 5px;
-  margin-top: calc(0.5em * var(--lh-body, 1.65) - 2.5px);
+  margin-top: calc((1em * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px;
-  background: color-mix(in oklab, var(--brand) 30%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent);
   transform: none;
 }
 .cms-list-number,
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
   display: inline-flex;
-  min-width: 1.35rem;
-  height: 1.35rem;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding-inline: 0.22rem;
   align-items: center;
   justify-content: center;
-  margin-top: calc((1em * var(--lh-body, 1.65) - 1.35rem) / 2);
-  border-radius: 5px;
-  background: color-mix(in oklab, var(--brand) 10%, transparent);
-  color: var(--brand-ink);
+  /* wyśrodkowanie plakietki względem wysokości pierwszej linii tekstu */
+  margin-top: calc((1em * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
+  color: var(--cms-list-accent, #fa9346);
   font-family: var(--font-heading);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+
 .cms-rich-content ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
   counter-reset: cms-ordered-list;
 }
