@@ -26,7 +26,7 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Reguł katalogu (wersja robocza z kolumn
 // NULL-owalnych, walidacja, payload, odcięcie kosza, mapowanie odmowy) - tabele
 // przypadków są w `lib/clubs/__tests__/adminTaxonomyCatalog.test.ts`. (2) Molekuł
-// `ClubCatalogToolbar`, `ClubCatalogListState`, `ClubCatalogRow`. (3) Normalizacji
+// `AdminCatalogToolbar`, `AdminCatalogListState`, `AdminCatalogRow`. (3) Normalizacji
 // adresu (`clubSlugFromName` - `clubTypes.test.ts`) i katalogu ikon
 // (`resolveSpecializationIcon` - `clubPureModules.test.ts`). (4) Samych hooków
 // katalogu - są zamockowane na poziomie MODUŁU.

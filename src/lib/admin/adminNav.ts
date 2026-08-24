@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { TFunction } from "i18next";
 import {
+  CalendarDays,
   LayoutDashboard,
   FileText,
   File,
@@ -308,6 +309,18 @@ export function buildAdminNavGroups({
         { to: "/admin/community/clubs/topics", icon: Shapes, label: t("admin.nav.clubTopics") },
         { to: "/admin/community/clubs/elements", icon: Shapes, label: t("admin.nav.clubElements") },
         { to: "/admin/comments", icon: MessageCircle, label: t("admin.nav.comments") },
+      ],
+    },
+    {
+      // Wydarzenia sa OSOBNA sekcja, nie pozycja w spolecznosci: modul ma
+      // wlasna podnawigacje (`EventsSubNav`) i docelowo czternascie ekranow.
+      // Sidebar pokazuje wejscie do sekcji, a nie jej wnetrze - inaczej te
+      // czternascie pozycji utopiloby reszte panelu.
+      id: "events",
+      label: t("admin.navGroups.events"),
+      items: [
+        { to: "/admin/events", icon: CalendarDays, label: t("admin.nav.events") },
+        { to: "/admin/events/types", icon: Shapes, label: t("admin.nav.eventTypes") },
       ],
     },
   ];

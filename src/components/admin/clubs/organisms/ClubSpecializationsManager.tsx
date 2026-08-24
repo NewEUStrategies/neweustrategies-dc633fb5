@@ -14,7 +14,7 @@
 // walidacja, payload zapisu, odcięcie kosza, mapowanie odmowy bazy) mieszkają
 // w `lib/clubs/adminTaxonomyCatalog` - wspólnie z katalogiem obszarów, bo obie
 // powierzchnie obiecują to samo. Powtarzalne fragmenty widoku to molekuły
-// `ClubCatalog*`. Tutaj zostaje SKLEJENIE: co idzie do mutacji, co się dzieje
+// `AdminCatalog*`. Tutaj zostaje SKLEJENIE: co idzie do mutacji, co się dzieje
 // z odpowiedzią i co widzi administrator po odmowie.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -78,9 +78,9 @@ import {
   type CatalogFailure,
   type ClubSpecializationDraft,
 } from "@/lib/clubs/adminTaxonomyCatalog";
-import { ClubCatalogListState } from "@/components/admin/clubs/molecules/ClubCatalogListState";
-import { ClubCatalogRow } from "@/components/admin/clubs/molecules/ClubCatalogRow";
-import { ClubCatalogToolbar } from "@/components/admin/clubs/molecules/ClubCatalogToolbar";
+import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
+import { AdminCatalogRow } from "@/components/admin/molecules/AdminCatalogRow";
+import { AdminCatalogToolbar } from "@/components/admin/molecules/AdminCatalogToolbar";
 
 export function ClubSpecializationsManager() {
   const { t } = useTranslation();
@@ -140,7 +140,7 @@ export function ClubSpecializationsManager() {
 
   return (
     <div className="space-y-4">
-      <ClubCatalogToolbar
+      <AdminCatalogToolbar
         title={t("adminClubs.specializations.title")}
         subtitle={t("adminClubs.specializations.subtitle")}
         addLabel={t("adminClubs.specializations.add")}
@@ -151,7 +151,7 @@ export function ClubSpecializationsManager() {
         })}
       />
 
-      <ClubCatalogListState
+      <AdminCatalogListState
         isLoading={listQ.isLoading}
         loadingLabel={t("adminClubs.specializations.loading")}
         errorMessage={listQ.isError ? listQ.error.message : null}
@@ -163,7 +163,7 @@ export function ClubSpecializationsManager() {
             const Icon = resolveSpecializationIcon(row.icon);
             return (
               <li key={row.id}>
-                <ClubCatalogRow
+                <AdminCatalogRow
                   isActive={row.is_active}
                   isSystem={row.is_system}
                   systemLabel={t("adminClubs.specializations.system")}
@@ -215,7 +215,7 @@ export function ClubSpecializationsManager() {
             );
           })}
         </ul>
-      </ClubCatalogListState>
+      </AdminCatalogListState>
 
       <Dialog open={draft !== null} onOpenChange={(open) => (open ? null : setDraft(null))}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

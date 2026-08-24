@@ -11,7 +11,7 @@
 // odcięcie kosza, mapowanie odmowy bazy) mieszkają w `lib/clubs/adminTaxonomyCatalog`
 // - wspólnie z katalogiem specjalizacji, bo obie powierzchnie obiecują to samo.
 // Powtarzalne fragmenty widoku (nagłówek z licznikiem, trzy stany listy, wiersz
-// wpisu) to molekuły `ClubCatalog*`. Tutaj zostaje SKLEJENIE: co idzie do mutacji,
+// wpisu) to molekuły `AdminCatalog*`. Tutaj zostaje SKLEJENIE: co idzie do mutacji,
 // co się dzieje z odpowiedzią i co widzi administrator po odmowie.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -62,9 +62,9 @@ import {
   type CatalogFailure,
   type ClubTopicDraft,
 } from "@/lib/clubs/adminTaxonomyCatalog";
-import { ClubCatalogListState } from "@/components/admin/clubs/molecules/ClubCatalogListState";
-import { ClubCatalogRow } from "@/components/admin/clubs/molecules/ClubCatalogRow";
-import { ClubCatalogToolbar } from "@/components/admin/clubs/molecules/ClubCatalogToolbar";
+import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
+import { AdminCatalogRow } from "@/components/admin/molecules/AdminCatalogRow";
+import { AdminCatalogToolbar } from "@/components/admin/molecules/AdminCatalogToolbar";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
@@ -128,7 +128,7 @@ export function ClubTopicsManager() {
 
   return (
     <div className="space-y-4">
-      <ClubCatalogToolbar
+      <AdminCatalogToolbar
         title={t("adminClubs.topics.title")}
         subtitle={t("adminClubs.topics.subtitle")}
         addLabel={t("adminClubs.topics.add")}
@@ -139,7 +139,7 @@ export function ClubTopicsManager() {
         })}
       />
 
-      <ClubCatalogListState
+      <AdminCatalogListState
         isLoading={listQ.isLoading}
         loadingLabel={t("adminClubs.topics.loading")}
         errorMessage={listQ.isError ? listQ.error.message : null}
@@ -149,7 +149,7 @@ export function ClubTopicsManager() {
         <ul className="space-y-2">
           {rows.map((row) => (
             <li key={row.id}>
-              <ClubCatalogRow
+              <AdminCatalogRow
                 isActive={row.is_active}
                 isSystem={row.is_system}
                 systemLabel={t("adminClubs.topics.system")}
@@ -190,7 +190,7 @@ export function ClubTopicsManager() {
             </li>
           ))}
         </ul>
-      </ClubCatalogListState>
+      </AdminCatalogListState>
 
       <Dialog open={draft !== null} onOpenChange={(open) => (open ? null : setDraft(null))}>
         <DialogContent className="sm:max-w-md">

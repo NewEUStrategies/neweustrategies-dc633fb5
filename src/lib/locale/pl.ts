@@ -401,6 +401,7 @@ export const pl = {
       monetization: "Monetyzacja",
       engagement: "Zaangażowanie",
       community: "Społeczność i media",
+      events: "Wydarzenia",
       design: "Wygląd",
       system: "System",
     },

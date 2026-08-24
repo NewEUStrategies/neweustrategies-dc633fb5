@@ -24,9 +24,20 @@ describe("RichHtmlView - przypisy live ([fn]...[/fn])", () => {
     fireEvent.focusIn(marker as Element);
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent("Źródło: raport NES");
-    // Jeden spójny tooltip: kompaktowy, 9 px, pomarańczowa linia 1 px i 6 px radius.
-    expect(tooltip.className).toContain("max-w-[280px]");
-    expect(tooltip.className).toContain("text-[9px]");
+    // JEDEN SPÓJNY TOOLTIP - i asercje na tym, co jest REGUŁĄ, nie na wartości
+    // w pikselach. Poprzednia wersja tego testu zamrażała `max-w-[280px]`
+    // i `text-[9px]`; oba zniknęły, gdy bąbelek dostał szerokość zależną od
+    // okna, a test został z martwymi literałami. Pytanie, na które ma
+    // odpowiadać, jest inne: czy bąbelek NIE MOŻE wyjść za ekran.
+    //
+    //   * szerokość ograniczona oknem, nie stałą - długi przypis na telefonie
+    //     nie wypada poza widok;
+    //   * wysokość ograniczona oknem PLUS przewijanie - przypis na dwadzieścia
+    //     linijek się przewija, a nie obcina;
+    //   * marka i promień 6 px - jeden bąbelek w całym serwisie.
+    expect(tooltip.className).toContain("max-w-[min(34rem,calc(100vw-1.5rem))]");
+    expect(tooltip.className).toContain("max-h-[calc(100dvh-1.5rem)]");
+    expect(tooltip.className).toContain("overflow-y-auto");
     expect(tooltip.className).toContain("border-brand");
     expect(tooltip.className).toContain("rounded-[6px]");
   });
@@ -61,7 +72,9 @@ describe("RichHtmlView - treść bez przypisów", () => {
   });
 
   it("renders decorative status icons while preserving readable labels", () => {
-    const { container } = render(<RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />);
+    const { container } = render(
+      <RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />,
+    );
     expect(container.querySelector(".cms-inline-status-icon--success")).not.toBeNull();
     expect(container.textContent).toContain("Gotowe");
   });

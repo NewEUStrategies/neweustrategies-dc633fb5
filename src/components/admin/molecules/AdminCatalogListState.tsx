@@ -19,10 +19,22 @@
 // Molekuła nie wie, co jest na liście, nie zna słownika (dostaje gotowe napisy)
 // i nie pyta serwera - stan dostaje gotowy, bo o kolejności zapytań decyduje
 // organizm.
+//
+// ── PROMOCJA DO WSPÓLNEGO KATALOGU (2026-08-23) ──────────────────────────────
+// Molekuła powstała dla dwóch katalogów taksonomii klubów i mieszkała pod
+// `admin/clubs/molecules/ClubCatalog*`. Trzeci konsument - katalog RODZAJÓW
+// WYDARZEŃ - dowiódł, że nazwa `Club*` była przypadkiem pierwszego domu, a nie
+// właściwością komponentu: w API nie ma ani jednego pola, które wiedziałoby
+// o klubach. Alternatywą było czwarte pudełko z tym samym JSX-em, czyli dokładnie
+// ten dług, który ta molekuła miała zlikwidować.
+//
+// GRANICA POZOSTAJE TA SAMA: molekuła nie zna słownika (dostaje gotowe napisy,
+// bo klucze każdego katalogu mieszkają w innym pliku i18n), nie czyta serwera
+// i nie wie, jakiej encji dotyczy wiersz.
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
-export function ClubCatalogListState({
+export function AdminCatalogListState({
   isLoading,
   loadingLabel,
   errorMessage,

@@ -14,15 +14,15 @@
 // (klucze obu katalogów mieszkają w różnych plikach i18n), więc nie ma tu ani
 // jednego `t()`. (2) Liczenia włączonych wpisów - `catalogActiveCount` ma test
 // w `lib/clubs/__tests__/adminTaxonomyCatalog.test.ts`. (3) Trzech stanów listy -
-// to `ClubCatalogListState.test.tsx`.
+// to `AdminCatalogListState.test.tsx`.
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { ClubCatalogToolbar } from "@/components/admin/clubs/molecules/ClubCatalogToolbar";
+import { AdminCatalogToolbar } from "@/components/admin/molecules/AdminCatalogToolbar";
 
 function nagłówek(onAdd = vi.fn()) {
   const widok = render(
-    <ClubCatalogToolbar
+    <AdminCatalogToolbar
       title="Obszary tematyczne"
       subtitle="Wspólna taksonomia dla klubów i wątków."
       addLabel="Dodaj obszar"

@@ -54,6 +54,7 @@ const pl = {
       tag: "Tagi",
       archive: "Archiwa",
       search: "Wyniki wyszukiwania",
+      event: "Strony wydarzeń",
     },
     kinds: {
       html: "HTML (banner kodowy)",
@@ -158,6 +159,7 @@ const en: typeof pl = {
       tag: "Tags",
       archive: "Archives",
       search: "Search results",
+      event: "Event pages",
     },
     kinds: {
       html: "HTML (code banner)",

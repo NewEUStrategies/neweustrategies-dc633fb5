@@ -159,6 +159,7 @@ import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
 import { Route as AdminExpertRequestsRouteImport } from './routes/admin.expert-requests'
 import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
+import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
@@ -186,6 +187,7 @@ import { Route as ClubClubSlugIndexRouteImport } from './routes/club.$clubSlug.i
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
+import { Route as AdminEventsIndexRouteImport } from './routes/admin.events.index'
 import { Route as AdminCrmIndexRouteImport } from './routes/admin.crm.index'
 import { Route as AdminCouponsIndexRouteImport } from './routes/admin.coupons.index'
 import { Route as AdminCompaniesIndexRouteImport } from './routes/admin.companies.index'
@@ -261,6 +263,8 @@ import { Route as AdminNewsletterEmailContentRouteImport } from './routes/admin.
 import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admin.newsletter.deliverability'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminNewsletterAuthLogsRouteImport } from './routes/admin.newsletter.auth-logs'
+import { Route as AdminEventsTypesRouteImport } from './routes/admin.events.types'
+import { Route as AdminEventsListRouteImport } from './routes/admin.events.list'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
 import { Route as AdminCouponsCampaignsRouteImport } from './routes/admin.coupons.campaigns'
@@ -1058,6 +1062,11 @@ const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
   path: '/experiments',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminEventsRoute = AdminEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminDonationsRoute = AdminDonationsRouteImport.update({
   id: '/donations',
   path: '/donations',
@@ -1195,6 +1204,11 @@ const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminNewsletterRoute,
+} as any)
+const AdminEventsIndexRoute = AdminEventsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminEventsRoute,
 } as any)
 const AdminCrmIndexRoute = AdminCrmIndexRouteImport.update({
   id: '/',
@@ -1584,6 +1598,16 @@ const AdminNewsletterAuthLogsRoute = AdminNewsletterAuthLogsRouteImport.update({
   path: '/auth-logs',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminEventsTypesRoute = AdminEventsTypesRouteImport.update({
+  id: '/types',
+  path: '/types',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
+const AdminEventsListRoute = AdminEventsListRouteImport.update({
+  id: '/list',
+  path: '/list',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
 const AdminCrmIdRoute = AdminCrmIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -1910,6 +1934,7 @@ export interface FileRoutesByFullPath {
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
+  '/admin/events': typeof AdminEventsRouteWithChildren
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -2037,6 +2062,8 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/list': typeof AdminEventsListRoute
+  '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
@@ -2112,6 +2139,7 @@ export interface FileRoutesByFullPath {
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
+  '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2327,6 +2355,8 @@ export interface FileRoutesByTo {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/list': typeof AdminEventsListRoute
+  '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
@@ -2401,6 +2431,7 @@ export interface FileRoutesByTo {
   '/admin/companies': typeof AdminCompaniesIndexRoute
   '/admin/coupons': typeof AdminCouponsIndexRoute
   '/admin/crm': typeof AdminCrmIndexRoute
+  '/admin/events': typeof AdminEventsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -2500,6 +2531,7 @@ export interface FileRoutesById {
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
+  '/admin/events': typeof AdminEventsRouteWithChildren
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -2627,6 +2659,8 @@ export interface FileRoutesById {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/list': typeof AdminEventsListRoute
+  '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
@@ -2702,6 +2736,7 @@ export interface FileRoutesById {
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
+  '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2802,6 +2837,7 @@ export interface FileRouteTypes {
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/donations'
+    | '/admin/events'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -2929,6 +2965,8 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/list'
+    | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/deliverability'
@@ -3004,6 +3042,7 @@ export interface FileRouteTypes {
     | '/admin/companies/'
     | '/admin/coupons/'
     | '/admin/crm/'
+    | '/admin/events/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3219,6 +3258,8 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/list'
+    | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/deliverability'
     | '/admin/newsletter/email-content'
@@ -3293,6 +3334,7 @@ export interface FileRouteTypes {
     | '/admin/companies'
     | '/admin/coupons'
     | '/admin/crm'
+    | '/admin/events'
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
@@ -3391,6 +3433,7 @@ export interface FileRouteTypes {
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/donations'
+    | '/admin/events'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -3518,6 +3561,8 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/list'
+    | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/deliverability'
@@ -3593,6 +3638,7 @@ export interface FileRouteTypes {
     | '/admin/companies/'
     | '/admin/coupons/'
     | '/admin/crm/'
+    | '/admin/events/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -4789,6 +4835,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminExperimentsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/events': {
+      id: '/admin/events'
+      path: '/events'
+      fullPath: '/admin/events'
+      preLoaderRoute: typeof AdminEventsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/donations': {
       id: '/admin/donations'
       path: '/donations'
@@ -4977,6 +5030,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/newsletter/'
       preLoaderRoute: typeof AdminNewsletterIndexRouteImport
       parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/events/': {
+      id: '/admin/events/'
+      path: '/'
+      fullPath: '/admin/events/'
+      preLoaderRoute: typeof AdminEventsIndexRouteImport
+      parentRoute: typeof AdminEventsRoute
     }
     '/admin/crm/': {
       id: '/admin/crm/'
@@ -5503,6 +5563,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterAuthLogsRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/events/types': {
+      id: '/admin/events/types'
+      path: '/types'
+      fullPath: '/admin/events/types'
+      preLoaderRoute: typeof AdminEventsTypesRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/list': {
+      id: '/admin/events/list'
+      path: '/list'
+      fullPath: '/admin/events/list'
+      preLoaderRoute: typeof AdminEventsListRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
     '/admin/crm/$id': {
       id: '/admin/crm/$id'
       path: '/$id'
@@ -5941,6 +6015,22 @@ const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
   AdminCrmRouteChildren,
 )
 
+interface AdminEventsRouteChildren {
+  AdminEventsListRoute: typeof AdminEventsListRoute
+  AdminEventsTypesRoute: typeof AdminEventsTypesRoute
+  AdminEventsIndexRoute: typeof AdminEventsIndexRoute
+}
+
+const AdminEventsRouteChildren: AdminEventsRouteChildren = {
+  AdminEventsListRoute: AdminEventsListRoute,
+  AdminEventsTypesRoute: AdminEventsTypesRoute,
+  AdminEventsIndexRoute: AdminEventsIndexRoute,
+}
+
+const AdminEventsRouteWithChildren = AdminEventsRoute._addFileChildren(
+  AdminEventsRouteChildren,
+)
+
 interface AdminNewsletterCampaignsRouteChildren {
   AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
   AdminNewsletterCampaignsIndexRoute: typeof AdminNewsletterCampaignsIndexRoute
@@ -6131,6 +6221,7 @@ interface AdminRouteChildren {
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminDonationsRoute: typeof AdminDonationsRoute
+  AdminEventsRoute: typeof AdminEventsRouteWithChildren
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
   AdminExpertRequestsRoute: typeof AdminExpertRequestsRoute
@@ -6205,6 +6296,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminDonationsRoute: AdminDonationsRoute,
+  AdminEventsRoute: AdminEventsRouteWithChildren,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
   AdminExpertRequestsRoute: AdminExpertRequestsRoute,
@@ -6564,13 +6656,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

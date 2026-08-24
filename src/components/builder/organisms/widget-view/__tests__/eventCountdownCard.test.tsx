@@ -205,3 +205,60 @@ describe("EventCountdownCardView - brak celu odliczania", () => {
     ).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// STREFA CZASOWA WYDARZENIA (EB-912, sekcja 4.4 projektu frontu)
+//
+// Projekt wskazywał ten widget wprost: "EventCountdownCardView IGNORUJE timezone
+// całkowicie". Samo odliczanie jest od strefy niezależne - liczy się na
+// milisekundach absolutnych - ale ETYKIETA DATY już nie. 1 lipca 22:30 UTC to
+// 1 lipca w Londynie i 2 lipca w Auckland, a karta deklaruje datę WYDARZENIA,
+// nie datę u widza.
+//
+// Test dobiera strefę o dużym przesunięciu właśnie po to, żeby stara i nowa
+// ścieżka dawały RÓŻNY DZIEŃ - inaczej przechodziłby przy obu i nie mierzyłby
+// niczego.
+// ---------------------------------------------------------------------------
+describe("EventCountdownCardView - strefa czasowa wydarzenia", () => {
+  it("renders the date in the event zone, not in the machine zone", async () => {
+    db.event = {
+      id: "ev-tz",
+      slug: "auckland-2030",
+      title_pl: "Szczyt w Auckland",
+      title_en: "Auckland summit",
+      // 22:30 UTC = 10:30 następnego dnia w Auckland (NZST, UTC+12, lipiec bez DST).
+      starts_at: "2030-07-01T22:30:00.000Z",
+      timezone: "Pacific/Auckland",
+      cover_url: null,
+      location: null,
+    };
+    renderCard({ mode: "event", eventId: "ev-tz" }, "en");
+
+    await screen.findByText("Auckland summit");
+
+    // Dzień DRUGI, nie pierwszy. Format pozostaje niezmieniony (dzień dwucyfrowy,
+    // miesiąc skrócony, rok liczbowy) - poprawka dotyczyła strefy, nie wyglądu.
+    expect(screen.getByText("02 Jul 2030")).toBeInTheDocument();
+    expect(screen.queryByText("01 Jul 2030")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the service zone when the event carries no zone", async () => {
+    db.event = {
+      id: "ev-nozone",
+      slug: "bez-strefy",
+      title_pl: "Bez strefy",
+      title_en: "No zone",
+      // 23:30 UTC = 01:30 następnego dnia w Warszawie (CEST, UTC+2, lipiec).
+      starts_at: "2030-07-01T23:30:00.000Z",
+      timezone: null,
+      cover_url: null,
+      location: null,
+    };
+    renderCard({ mode: "event", eventId: "ev-nozone" }, "en");
+
+    await screen.findByText("No zone");
+    // Kontrakt modułu: brak strefy znaczy strefa domyślna serwisu (Europe/Warsaw),
+    // a NIE strefa maszyny. Dlatego dzień drugi, choć w UTC jest jeszcze pierwszy.
+    expect(screen.getByText("02 Jul 2030")).toBeInTheDocument();
+  });
+});

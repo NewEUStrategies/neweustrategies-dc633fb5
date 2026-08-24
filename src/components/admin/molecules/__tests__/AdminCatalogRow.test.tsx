@@ -27,9 +27,9 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import { ClubCatalogRow } from "@/components/admin/clubs/molecules/ClubCatalogRow";
+import { AdminCatalogRow } from "@/components/admin/molecules/AdminCatalogRow";
 
-function wiersz(props: Partial<Parameters<typeof ClubCatalogRow>[0]> = {}) {
+function wiersz(props: Partial<Parameters<typeof AdminCatalogRow>[0]> = {}) {
   // Atrapy są TYPOWANE sygnaturą, której oczekuje molekuła - dzięki temu
   // asercja na argumencie przełącznika nie przejdzie z byle wartością.
   const domknięcia = {
@@ -38,7 +38,7 @@ function wiersz(props: Partial<Parameters<typeof ClubCatalogRow>[0]> = {}) {
     onDelete: vi.fn<() => void>(),
   };
   const { container } = render(
-    <ClubCatalogRow
+    <AdminCatalogRow
       isActive
       isSystem={false}
       systemLabel="systemowy"
