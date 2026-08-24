@@ -20747,6 +20747,20 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
+      event_sections: {
+        Args: { p_slug: string }
+        Returns: {
+          has_content: boolean
+          heading_en: string
+          heading_pl: string
+          is_locked: boolean
+          lock_reason: string
+          min_tier_rank: number
+          section_key: string
+          sort_order: number
+          visibility: string
+        }[]
+      }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
       event_sponsor_materials_public: {
