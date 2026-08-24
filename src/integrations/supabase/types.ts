@@ -17045,6 +17045,41 @@ export type Database = {
         }[]
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
+      admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_group_member_set: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_group_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_groups_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          attendee_visibility: string
+          can_chat: boolean
+          can_lead_retrieval: boolean
+          can_meet: boolean
+          can_see_attendees: boolean
+          can_see_recording: boolean
+          color: string
+          created_at: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          extra_members_count: number
+          id: string
+          is_default: boolean
+          is_system: boolean
+          key: string
+          members_count: number
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          primary_members_count: number
+          sort_order: number
+          tickets_count: number
+          updated_at: string
+        }[]
+      }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
         Returns: Json
@@ -17299,6 +17334,31 @@ export type Database = {
       admin_event_sessions_set_status: {
         Args: { p_payload: Json }
         Returns: number
+      }
+      admin_event_term_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_term_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_terms_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          acceptances_current: number
+          acceptances_total: number
+          body_en: string
+          body_pl: string
+          created_at: string
+          display: string
+          event_id: string
+          external_url: string
+          id: string
+          is_active: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+          updated_at: string
+          version: number
+          withdrawn_count: number
+        }[]
       }
       admin_event_ticket_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
