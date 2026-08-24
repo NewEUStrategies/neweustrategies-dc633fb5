@@ -17824,6 +17824,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_sponsor_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_sponsor_detail: {
         Args: { _id: string }
         Returns: {
@@ -17861,6 +17862,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_sponsor_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_sponsor_tier_delete: {
         Args: { _id: string }
         Returns: boolean
@@ -17944,6 +17946,14 @@ export type Database = {
           total_count: number
           updated_at: string
         }[]
+      }
+      admin_event_sponsors_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sponsors_set_published: {
+        Args: { p_payload: Json }
+        Returns: number
       }
       admin_event_term_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_term_upsert: { Args: { p_payload: Json }; Returns: string }
