@@ -8,9 +8,9 @@ po replayu zostawiają **34 tabele `event_*`, 143 funkcje, 53 polityki RLS,
 
 Do powstania tego harnessu **żadna bramka CI nie wykonywała ani jednej z nich**:
 
-* `check:sql-migration-replay` jest bramką **statyczną** — czyta migracje jako
+- `check:sql-migration-replay` jest bramką **statyczną** — czyta migracje jako
   tekst;
-* `check:pg-harness` (moduł klubów) dobiera migracje po treści `public.club_`
+- `check:pg-harness` (moduł klubów) dobiera migracje po treści `public.club_`
   i `public.admin_club_`, a **żadna migracja Wydarzeń tego nie zawiera**.
 
 Skutek: cały backend modułu mógł się nie wykonać na czystej bazie, a CI tego nie
@@ -23,12 +23,12 @@ obcego najemcę.
 Harness jest **czwartym** równoległym harnessem w repozytorium i odwzorowuje ten
 sam wzorzec:
 
-| harness | moduł | port |
-|---|---|---|
-| `scripts/pg-harness` | Discussion Club | 5433 |
-| `scripts/careers-harness` | Rekrutacja | 5434 |
-| `scripts/programs-harness` | Programy | 5435 |
-| **`scripts/events-harness`** | **Wydarzenia** | **5436** |
+| harness                      | moduł           | port     |
+| ---------------------------- | --------------- | -------- |
+| `scripts/pg-harness`         | Discussion Club | 5433     |
+| `scripts/careers-harness`    | Rekrutacja      | 5434     |
+| `scripts/programs-harness`   | Programy        | 5435     |
+| **`scripts/events-harness`** | **Wydarzenia**  | **5436** |
 
 ## Co sprawdza
 
@@ -42,18 +42,18 @@ sam wzorzec:
 
 ## Czego **nie** sprawdza
 
-* **Nie sprawdza kodu frontu** (`src/`) ani wygenerowanych typów — to inne bramki.
-* **Nie sprawdza wydajności ani planów zapytań** — baza jest pusta, więc każdy
+- **Nie sprawdza kodu frontu** (`src/`) ani wygenerowanych typów — to inne bramki.
+- **Nie sprawdza wydajności ani planów zapytań** — baza jest pusta, więc każdy
   pomiar czasu byłby fikcją.
-* **Nie odtwarza bazy produkcyjnej.** Cała powierzchnia **poza** modułem jest
+- **Nie odtwarza bazy produkcyjnej.** Cała powierzchnia **poza** modułem jest
   atrapą (`harness.sql`), więc zachowanie klubów, stron, reklam, CRM-u i warstw
   członkostwa **nie jest tu miarodajne**. Atrapy mają kształt, nie zachowanie.
-* **Nie sprawdza migracji sprzed modułu** — `20260713093000_events_module.sql`
+- **Nie sprawdza migracji sprzed modułu** — `20260713093000_events_module.sql`
   i późniejszych łatek na `events`. Te są zastąpione atrapą o dokładnie tym
   kształcie, jakiego moduł potrzebuje.
-* **Nie naprawia `scripts/pg-harness`.** Tamta bramka jest czerwona również na
+- **Nie naprawia `scripts/pg-harness`.** Tamta bramka jest czerwona również na
   `origin/main` (migracja `20260822171037` robi `UPDATE public.events SET
-  min_tier_rank` na atrapie, która tej kolumny nie ma) i jest to osobna sprawa.
+min_tier_rank` na atrapie, która tej kolumny nie ma) i jest to osobna sprawa.
 
 ## Jak uruchomić lokalnie
 
@@ -87,13 +87,13 @@ Funkcje-atrapy uprawnień w `harness.sql` czytają parametry sesji (GUC), żeby
 jeden plik asercji mógł udawać po kolei administratora, redaktora, uczestnika
 i anonima **bez stawiania bazy od nowa**:
 
-| GUC | czyta go | znaczenie |
-|---|---|---|
-| `request.jwt.claim.sub` | `auth.uid()` | kim jestem; puste = anonim |
-| `nes.tenant` | `public._caller_tenant()` | z jakiej domeny wchodzę |
-| `nes.public_tenant` | `public.public_tenant_id()` | najemca domyślny |
-| `nes.tier_rank` | `public.has_tier_rank()`, `current_tier_rank()` | ranga warstwy |
-| `nes.tier_features` | `public.has_tier_feature()` | cechy warstwy, po przecinku |
+| GUC                     | czyta go                                        | znaczenie                   |
+| ----------------------- | ----------------------------------------------- | --------------------------- |
+| `request.jwt.claim.sub` | `auth.uid()`                                    | kim jestem; puste = anonim  |
+| `nes.tenant`            | `public._caller_tenant()`                       | z jakiej domeny wchodzę     |
+| `nes.public_tenant`     | `public.public_tenant_id()`                     | najemca domyślny            |
+| `nes.tier_rank`         | `public.has_tier_rank()`, `current_tier_rank()` | ranga warstwy               |
+| `nes.tier_features`     | `public.has_tier_feature()`                     | cechy warstwy, po przecinku |
 
 **Role nie są GUC-iem.** `admin`, `editor`, `super_admin` siedzą w prawdziwej
 tabeli `public.user_roles`, bo tak działa produkcja — i dzięki temu
@@ -128,10 +128,10 @@ SELECT pg_temp.act_as(NULL, NULL);              -- anonim, bez domeny
 **Asercja, która nie potrafi być czerwona, jest komentarzem.** Stąd trzy sloty
 w `runtime_test.sql`:
 
-| slot | do czego |
-|---|---|
-| `pg_temp.assert(warunek, etykieta)` | zgoda. `NULL` **nie** jest prawdą — `SELECT … = 1` na braku wiersza daje `NULL`, a taka asercja przechodziłaby na pustej bazie |
-| `pg_temp.assert_raises(sql, etykieta)` | **odmowa** — operacja musi zostać odrzucona |
+| slot                                                 | do czego                                                                                                                                 |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `pg_temp.assert(warunek, etykieta)`                  | zgoda. `NULL` **nie** jest prawdą — `SELECT … = 1` na braku wiersza daje `NULL`, a taka asercja przechodziłaby na pustej bazie           |
+| `pg_temp.assert_raises(sql, etykieta)`               | **odmowa** — operacja musi zostać odrzucona                                                                                              |
 | `pg_temp.assert_raises_like(sql, wzorzec, etykieta)` | odmowa **z konkretnego powodu**. `assert_raises` przechodzi też wtedy, gdy operacja padła z literówki w teście, a to jest fałszywa zgoda |
 
 Testuj **odmowy tak samo jak zgody**: naruszenie `EXCLUDE`, przekroczenie puli
@@ -149,15 +149,15 @@ sekcja 4.
 
 1. Utwórz `runtime_test.d/NN_nazwa.sql` z numeracją:
 
-   | prefiks | zakres |
-   |---|---|
-   | `00_` | dym (jest) |
-   | `10_` | sesje |
-   | `20_` | zapisy |
-   | `30_` | sponsorzy |
-   | `40_` | front |
-   | `50_` | obsługa na miejscu |
-   | `60_` | spotkania |
+   | prefiks | zakres             |
+   | ------- | ------------------ |
+   | `00_`   | dym (jest)         |
+   | `10_`   | sesje              |
+   | `20_`   | zapisy             |
+   | `30_`   | sponsorzy          |
+   | `40_`   | front              |
+   | `50_`   | obsługa na miejscu |
+   | `60_`   | spotkania          |
 
 2. Zacznij plik komentarzem mówiącym **po co istnieje** i **czego nie sprawdza** —
    dokładnie jak ten README.
@@ -190,11 +190,11 @@ redefiniowała trzy funkcje klubowe poza zasięgiem globu).
 Selektor jest **alternatywą dwóch wzorców**, bo żaden pojedynczy nie łapie
 całego modułu:
 
-* `public.admin_event_` — powierzchnia panelu; łapie 8 z 10 migracji, ale nie
+- `public.admin_event_` — powierzchnia panelu; łapie 8 z 10 migracji, ale nie
   `20260823135000` (dokłada tylko ograniczenie unikalności na `events`)
   ani `20260823170000` (zaczep frontu, który zamiast RPC panelu wystawia widoki
   publiczne);
-* `events_tenant_id_key` — nazwa ograniczenia `UNIQUE (tenant_id, id)`
+- `events_tenant_id_key` — nazwa ograniczenia `UNIQUE (tenant_id, id)`
   z `20260823135000`, na które powołują się złożone klucze obce
   `(tenant_id, event_id)` wszystkich tabel potomnych; to domyka te dwie.
 
@@ -232,10 +232,10 @@ w komentarzu przy każdej atrapie.
 
 Dwie decyzje warte zapamiętania:
 
-* **`ad_page_type` nie zawiera wariantu `'event'`.** Dodaje go dopiero
+- **`ad_page_type` nie zawiera wariantu `'event'`.** Dodaje go dopiero
   `20260823170000` (`ALTER TYPE … ADD VALUE IF NOT EXISTS 'event'`, EB-937).
   Gdyby atrapa go zawierała, replay tamtej linijki nie sprawdzałby niczego.
-* **Polityki `events` i `event_rsvps` są atrapami obowiązkowymi.** Żadna
+- **Polityki `events` i `event_rsvps` są atrapami obowiązkowymi.** Żadna
   z dziesięciu migracji ich nie tworzy — siedzą w `20260713093000`. Kusi
   zostawić tabelę z włączonym RLS i bez polityk, i to jest pułapka: RLS bez
   polityki znaczy **odmowa wszystkiego**, a polityki tabel **potomnych** modułu
@@ -246,10 +246,10 @@ Dwie decyzje warte zapamiętania:
 
 ## Pliki
 
-| plik | rola |
-|---|---|
-| `run.sh` | klaster, atrapy, replay migracji, pętla asercji |
-| `harness.sql` | atrapy powierzchni platformy, której moduł wymaga, a nie tworzy |
-| `runtime_test.sql` | sloty asercji, przestawianie aktora, pętla po `runtime_test.d` |
-| `runtime_test.d/00_smoke.sql` | zestaw dymny: schemat, pętla, aktor, izolacja najemców |
-| `README.md` | ten plik |
+| plik                          | rola                                                            |
+| ----------------------------- | --------------------------------------------------------------- |
+| `run.sh`                      | klaster, atrapy, replay migracji, pętla asercji                 |
+| `harness.sql`                 | atrapy powierzchni platformy, której moduł wymaga, a nie tworzy |
+| `runtime_test.sql`            | sloty asercji, przestawianie aktora, pętla po `runtime_test.d`  |
+| `runtime_test.d/00_smoke.sql` | zestaw dymny: schemat, pętla, aktor, izolacja najemców          |
+| `README.md`                   | ten plik                                                        |
