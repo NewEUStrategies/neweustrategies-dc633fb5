@@ -6005,6 +6005,436 @@ export type Database = {
           },
         ]
       }
+      event_group_members: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          event_id: string
+          group_id: string
+          id: string
+          person_id: string
+          tenant_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          event_id: string
+          group_id: string
+          id?: string
+          person_id: string
+          tenant_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          event_id?: string
+          group_id?: string
+          id?: string
+          person_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_group_members_group_fkey"
+            columns: ["tenant_id", "event_id", "group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_group_members_person_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_group_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_groups: {
+        Row: {
+          attendee_visibility: string
+          can_chat: boolean
+          can_lead_retrieval: boolean
+          can_meet: boolean
+          can_see_attendees: boolean
+          can_see_recording: boolean
+          color: string | null
+          created_at: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          is_default: boolean
+          is_system: boolean
+          key: string
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attendee_visibility?: string
+          can_chat?: boolean
+          can_lead_retrieval?: boolean
+          can_meet?: boolean
+          can_see_attendees?: boolean
+          can_see_recording?: boolean
+          color?: string | null
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          event_id: string
+          id?: string
+          is_default?: boolean
+          is_system?: boolean
+          key: string
+          min_tier_rank?: number
+          name_en: string
+          name_pl: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attendee_visibility?: string
+          can_chat?: boolean
+          can_lead_retrieval?: boolean
+          can_meet?: boolean
+          can_see_attendees?: boolean
+          can_see_recording?: boolean
+          color?: string | null
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          event_id?: string
+          id?: string
+          is_default?: boolean
+          is_system?: boolean
+          key?: string
+          min_tier_rank?: number
+          name_en?: string
+          name_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_groups_event_tenant_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_groups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_people: {
+        Row: {
+          company_id: string | null
+          company_text: string | null
+          consent_data_processing_at: string | null
+          consent_marketing_at: string | null
+          consent_partner_sharing_at: string | null
+          consent_withdrawn_at: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          email_norm: string | null
+          first_name: string
+          full_name_norm: string | null
+          id: string
+          job_title: string | null
+          last_name: string
+          notes: string | null
+          phone: string | null
+          social_profile_url: string | null
+          source: string
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          company_text?: string | null
+          consent_data_processing_at?: string | null
+          consent_marketing_at?: string | null
+          consent_partner_sharing_at?: string | null
+          consent_withdrawn_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          email_norm?: string | null
+          first_name: string
+          full_name_norm?: string | null
+          id?: string
+          job_title?: string | null
+          last_name: string
+          notes?: string | null
+          phone?: string | null
+          social_profile_url?: string | null
+          source?: string
+          tenant_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          company_text?: string | null
+          consent_data_processing_at?: string | null
+          consent_marketing_at?: string | null
+          consent_partner_sharing_at?: string | null
+          consent_withdrawn_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          email_norm?: string | null
+          first_name?: string
+          full_name_norm?: string | null
+          id?: string
+          job_title?: string | null
+          last_name?: string
+          notes?: string | null
+          phone?: string | null
+          social_profile_url?: string | null
+          source?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_people_company_tenant_fkey"
+            columns: ["tenant_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_people_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registration_fields: {
+        Row: {
+          created_at: string
+          event_id: string
+          field_type: string
+          help_en: string
+          help_pl: string
+          id: string
+          is_active: boolean
+          is_qualifying: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options: Json
+          qualify_operator: string
+          qualify_outcome: string
+          qualify_value: Json
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          field_type?: string
+          help_en?: string
+          help_pl?: string
+          id?: string
+          is_active?: boolean
+          is_qualifying?: boolean
+          is_required?: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options?: Json
+          qualify_operator?: string
+          qualify_outcome?: string
+          qualify_value?: Json
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          field_type?: string
+          help_en?: string
+          help_pl?: string
+          id?: string
+          is_active?: boolean
+          is_qualifying?: boolean
+          is_required?: boolean
+          key?: string
+          label_en?: string
+          label_pl?: string
+          options?: Json
+          qualify_operator?: string
+          qualify_outcome?: string
+          qualify_value?: Json
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_fields_event_tenant_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registration_fields_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registrations: {
+        Row: {
+          answers: Json
+          attended_at: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          decision_source: string | null
+          event_id: string
+          group_id: string | null
+          id: string
+          manage_token_hash: string | null
+          person_id: string
+          promoted_at: string | null
+          qr_issued_at: string | null
+          qr_token_hash: string | null
+          registration_mode: string
+          source: string
+          status: string
+          tenant_id: string
+          ticket_type_id: string | null
+          updated_at: string
+          waitlist_notified_at: string | null
+          waitlist_position: number | null
+        }
+        Insert: {
+          answers?: Json
+          attended_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          decision_source?: string | null
+          event_id: string
+          group_id?: string | null
+          id?: string
+          manage_token_hash?: string | null
+          person_id: string
+          promoted_at?: string | null
+          qr_issued_at?: string | null
+          qr_token_hash?: string | null
+          registration_mode: string
+          source?: string
+          status?: string
+          tenant_id: string
+          ticket_type_id?: string | null
+          updated_at?: string
+          waitlist_notified_at?: string | null
+          waitlist_position?: number | null
+        }
+        Update: {
+          answers?: Json
+          attended_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          decision_source?: string | null
+          event_id?: string
+          group_id?: string | null
+          id?: string
+          manage_token_hash?: string | null
+          person_id?: string
+          promoted_at?: string | null
+          qr_issued_at?: string | null
+          qr_token_hash?: string | null
+          registration_mode?: string
+          source?: string
+          status?: string
+          tenant_id?: string
+          ticket_type_id?: string | null
+          updated_at?: string
+          waitlist_notified_at?: string | null
+          waitlist_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_event_tenant_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registrations_group_fkey"
+            columns: ["tenant_id", "event_id", "group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registrations_person_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_ticket_fkey"
+            columns: ["tenant_id", "event_id", "ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
       event_rooms: {
         Row: {
           capacity: number | null
@@ -6399,6 +6829,100 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_ticket_types: {
+        Row: {
+          created_at: string
+          currency: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          group_id: string | null
+          id: string
+          is_active: boolean
+          key: string
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          price_cents: number
+          quota: number | null
+          requires_approval: boolean
+          sales_from: string | null
+          sales_to: string | null
+          sold_count: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description_en?: string
+          description_pl?: string
+          event_id: string
+          group_id?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          min_tier_rank?: number
+          name_en: string
+          name_pl: string
+          price_cents?: number
+          quota?: number | null
+          requires_approval?: boolean
+          sales_from?: string | null
+          sales_to?: string | null
+          sold_count?: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description_en?: string
+          description_pl?: string
+          event_id?: string
+          group_id?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          min_tier_rank?: number
+          name_en?: string
+          name_pl?: string
+          price_cents?: number
+          quota?: number | null
+          requires_approval?: boolean
+          sales_from?: string | null
+          sales_to?: string | null
+          sold_count?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ticket_types_event_tenant_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_ticket_types_group_fkey"
+            columns: ["tenant_id", "event_id", "group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_ticket_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
