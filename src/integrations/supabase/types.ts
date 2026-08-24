@@ -6935,6 +6935,382 @@ export type Database = {
           },
         ]
       }
+      event_sponsor_contacts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          lead_id: string
+          role: string
+          sort_order: number
+          sponsor_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          lead_id: string
+          role?: string
+          sort_order?: number
+          sponsor_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          lead_id?: string
+          role?: string
+          sort_order?: number
+          sponsor_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_contacts_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_contacts_lead_fk"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_contacts_lead_fk"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_contacts_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_contacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_materials: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          is_published: boolean
+          kind: string
+          sort_order: number
+          sponsor_id: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          is_published?: boolean
+          kind?: string
+          sort_order?: number
+          sponsor_id: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          is_published?: boolean
+          kind?: string
+          sort_order?: number
+          sponsor_id?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_materials_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_materials_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_materials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_tier_benefits: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+          tenant_id: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          label_en: string
+          label_pl: string
+          sort_order?: number
+          tenant_id: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          label_en?: string
+          label_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_tier_benefits_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_tier_benefits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_tier_benefits_tier_fk"
+            columns: ["tenant_id", "event_id", "tier_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsor_tiers"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
+      event_sponsor_tiers: {
+        Row: {
+          accent_color: string | null
+          created_at: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          logo_size: string
+          max_companies: number | null
+          name_en: string
+          name_pl: string
+          rank: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          key: string
+          logo_size?: string
+          max_companies?: number | null
+          name_en: string
+          name_pl: string
+          rank?: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          logo_size?: string
+          max_companies?: number | null
+          name_en?: string
+          name_pl?: string
+          rank?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_tiers_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_tiers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsors: {
+        Row: {
+          booth_label: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          internal_note: string | null
+          is_published: boolean
+          role: string
+          snapshot_country: string | null
+          snapshot_description_en: string
+          snapshot_description_pl: string
+          snapshot_logo_url: string | null
+          snapshot_name: string
+          snapshot_source: string
+          snapshot_taken_at: string
+          snapshot_website: string | null
+          sort_order: number
+          tenant_id: string
+          tier_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          booth_label?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          internal_note?: string | null
+          is_published?: boolean
+          role?: string
+          snapshot_country?: string | null
+          snapshot_description_en?: string
+          snapshot_description_pl?: string
+          snapshot_logo_url?: string | null
+          snapshot_name: string
+          snapshot_source?: string
+          snapshot_taken_at?: string
+          snapshot_website?: string | null
+          sort_order?: number
+          tenant_id: string
+          tier_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booth_label?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          internal_note?: string | null
+          is_published?: boolean
+          role?: string
+          snapshot_country?: string | null
+          snapshot_description_en?: string
+          snapshot_description_pl?: string
+          snapshot_logo_url?: string | null
+          snapshot_name?: string
+          snapshot_source?: string
+          snapshot_taken_at?: string
+          snapshot_website?: string | null
+          sort_order?: number
+          tenant_id?: string
+          tier_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsors_company_fk"
+            columns: ["tenant_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsors_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sponsors_tier_fk"
+            columns: ["tenant_id", "event_id", "tier_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsor_tiers"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
       event_term_acceptances: {
         Row: {
           accepted_at: string
@@ -16528,6 +16904,7 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
       _event_waitlist_promote: {
         Args: {
           _event_id: string
@@ -17444,6 +17821,42 @@ export type Database = {
         Returns: number
       }
       admin_event_sessions_set_status: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sponsor_tier_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_tier_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_sponsor_tiers_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          accent_color: string
+          benefits: Json
+          created_at: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          logo_size: string
+          max_companies: number
+          name_en: string
+          name_pl: string
+          published_sponsors_count: number
+          rank: number
+          slots_left: number
+          sort_order: number
+          sponsors_count: number
+          updated_at: string
+        }[]
+      }
+      admin_event_sponsor_tiers_reorder: {
         Args: { p_payload: Json }
         Returns: number
       }
