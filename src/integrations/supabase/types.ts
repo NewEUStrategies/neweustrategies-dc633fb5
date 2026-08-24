@@ -21409,6 +21409,8 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
+      event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
