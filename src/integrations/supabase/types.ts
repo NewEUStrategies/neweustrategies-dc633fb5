@@ -18207,6 +18207,42 @@ export type Database = {
           subject_name: string
         }[]
       }
+      admin_event_checkpoint_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_checkpoint_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_checkpoints_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          access_mode: string
+          capacity: number
+          created_at: string
+          dedupe_window_seconds: number
+          denied_count: number
+          device_count: number
+          direction_mode: string
+          event_id: string
+          granted_count: number
+          id: string
+          is_active: boolean
+          kind: string
+          last_checkin_at: string
+          name_en: string
+          name_pl: string
+          occupancy: number
+          repeat_count: number
+          room_id: string
+          room_name: string
+          session_id: string
+          session_title_en: string
+          session_title_pl: string
+          sort_order: number
+          sponsor_id: string
+          sponsor_name: string
+          updated_at: string
+        }[]
+      }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_group_member_set: {
