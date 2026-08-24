@@ -6044,6 +6044,105 @@ export type Database = {
           },
         ]
       }
+      event_checkpoints: {
+        Row: {
+          access_mode: string
+          capacity: number | null
+          created_at: string
+          created_by: string | null
+          dedupe_window_seconds: number
+          direction_mode: string
+          event_id: string
+          id: string
+          is_active: boolean
+          kind: string
+          name_en: string
+          name_pl: string
+          room_id: string | null
+          session_id: string | null
+          sort_order: number
+          sponsor_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_mode?: string
+          capacity?: number | null
+          created_at?: string
+          created_by?: string | null
+          dedupe_window_seconds?: number
+          direction_mode?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name_en: string
+          name_pl: string
+          room_id?: string | null
+          session_id?: string | null
+          sort_order?: number
+          sponsor_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_mode?: string
+          capacity?: number | null
+          created_at?: string
+          created_by?: string | null
+          dedupe_window_seconds?: number
+          direction_mode?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name_en?: string
+          name_pl?: string
+          room_id?: string | null
+          session_id?: string | null
+          sort_order?: number
+          sponsor_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_checkpoints_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkpoints_room_fk"
+            columns: ["tenant_id", "event_id", "room_id"]
+            isOneToOne: false
+            referencedRelation: "event_rooms"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkpoints_session_fk"
+            columns: ["tenant_id", "event_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkpoints_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkpoints_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_group_members: {
         Row: {
           added_by: string | null
@@ -6638,6 +6737,113 @@ export type Database = {
           },
           {
             foreignKeyName: "event_rsvps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_scanner_devices: {
+        Row: {
+          checkpoint_id: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          fail_window_count: number
+          fail_window_started_at: string | null
+          failed_scan_count: number
+          id: string
+          is_active: boolean
+          label: string
+          last_failed_scan_at: string | null
+          last_seen_at: string | null
+          locked_until: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scan_count: number
+          scopes: string[]
+          sponsor_id: string | null
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+        }
+        Insert: {
+          checkpoint_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          expires_at: string
+          fail_window_count?: number
+          fail_window_started_at?: string | null
+          failed_scan_count?: number
+          id?: string
+          is_active?: boolean
+          label: string
+          last_failed_scan_at?: string | null
+          last_seen_at?: string | null
+          locked_until?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scan_count?: number
+          scopes?: string[]
+          sponsor_id?: string | null
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at?: string
+        }
+        Update: {
+          checkpoint_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          expires_at?: string
+          fail_window_count?: number
+          fail_window_started_at?: string | null
+          failed_scan_count?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          last_failed_scan_at?: string | null
+          last_seen_at?: string | null
+          locked_until?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scan_count?: number
+          scopes?: string[]
+          sponsor_id?: string | null
+          tenant_id?: string
+          token_hash?: string
+          token_prefix?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_scanner_devices_checkpoint_fk"
+            columns: ["tenant_id", "event_id", "checkpoint_id"]
+            isOneToOne: false
+            referencedRelation: "event_checkpoints"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_scanner_devices_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_scanner_devices_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_scanner_devices_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
