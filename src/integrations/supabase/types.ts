@@ -17045,6 +17045,21 @@ export type Database = {
         }[]
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
+      admin_event_registration_decide: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_registrations_counts: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_group_id?: string
+          p_q?: string
+          p_ticket_type_id?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       admin_event_registrations_list: {
         Args: {
           p_event_id: string
