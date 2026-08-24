@@ -17881,6 +17881,18 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_sponsor_material_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_material_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_sponsor_materials_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsor_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_sponsor_snapshot_refresh: {
         Args: { p_payload: Json }
@@ -20679,6 +20691,40 @@ export type Database = {
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
+      event_sponsor_materials_public: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          kind: string
+          sort_order: number
+          sponsor_id: string
+          sponsor_logo_url: string
+          sponsor_name: string
+          tier_id: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
+          title_en: string
+          title_pl: string
+          url: string
+        }[]
+      }
+      event_sponsors_public: {
+        Args: { p_slug: string }
+        Returns: {
+          benefits: Json
+          sponsors: Json
+          tier_accent_color: string
+          tier_description_en: string
+          tier_description_pl: string
+          tier_id: string
+          tier_key: string
+          tier_logo_size: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
+        }[]
+      }
       event_types_active: {
         Args: never
         Returns: {
