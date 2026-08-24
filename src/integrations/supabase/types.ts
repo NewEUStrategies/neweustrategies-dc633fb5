@@ -6044,6 +6044,115 @@ export type Database = {
           },
         ]
       }
+      event_checkins: {
+        Row: {
+          checkpoint_id: string
+          client_scan_uid: string | null
+          dedupe_range: unknown
+          device_id: string | null
+          device_scanned_at: string | null
+          direction: string
+          event_id: string
+          id: string
+          last_repeat_at: string | null
+          note: string | null
+          occurred_at: string | null
+          operator_user_id: string | null
+          person_id: string
+          registration_id: string | null
+          repeat_count: number
+          result: string
+          scanned_at: string
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          checkpoint_id: string
+          client_scan_uid?: string | null
+          dedupe_range: unknown
+          device_id?: string | null
+          device_scanned_at?: string | null
+          direction?: string
+          event_id: string
+          id?: string
+          last_repeat_at?: string | null
+          note?: string | null
+          occurred_at?: string | null
+          operator_user_id?: string | null
+          person_id: string
+          registration_id?: string | null
+          repeat_count?: number
+          result?: string
+          scanned_at?: string
+          source?: string
+          tenant_id: string
+        }
+        Update: {
+          checkpoint_id?: string
+          client_scan_uid?: string | null
+          dedupe_range?: unknown
+          device_id?: string | null
+          device_scanned_at?: string | null
+          direction?: string
+          event_id?: string
+          id?: string
+          last_repeat_at?: string | null
+          note?: string | null
+          occurred_at?: string | null
+          operator_user_id?: string | null
+          person_id?: string
+          registration_id?: string | null
+          repeat_count?: number
+          result?: string
+          scanned_at?: string
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_checkins_checkpoint_fk"
+            columns: ["tenant_id", "event_id", "checkpoint_id"]
+            isOneToOne: false
+            referencedRelation: "event_checkpoints"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkins_device_fk"
+            columns: ["tenant_id", "device_id"]
+            isOneToOne: false
+            referencedRelation: "event_scanner_devices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkins_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkins_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkins_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_checkins_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_checkpoints: {
         Row: {
           access_mode: string
