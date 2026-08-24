@@ -17045,6 +17045,68 @@ export type Database = {
         }[]
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
+      admin_event_registrations_list: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_group_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_q?: string
+          p_status?: string
+          p_ticket_type_id?: string
+          p_to?: string
+        }
+        Returns: {
+          accepted_terms_count: number
+          answers: Json
+          attended_at: string
+          cancelled_at: string
+          company_id: string
+          company_name: string
+          company_text: string
+          consent_data_processing_at: string
+          consent_marketing_at: string
+          consent_partner_sharing_at: string
+          consent_withdrawn_at: string
+          created_at: string
+          decided_at: string
+          decided_by: string
+          decision_note: string
+          decision_source: string
+          email: string
+          event_id: string
+          extra_groups_count: number
+          first_name: string
+          group_color: string
+          group_id: string
+          group_key: string
+          group_name_en: string
+          group_name_pl: string
+          has_qr: boolean
+          id: string
+          job_title: string
+          last_name: string
+          person_id: string
+          person_user_id: string
+          phone: string
+          promoted_at: string
+          registration_mode: string
+          required_terms_missing: number
+          social_profile_url: string
+          source: string
+          status: string
+          ticket_currency: string
+          ticket_key: string
+          ticket_name_en: string
+          ticket_name_pl: string
+          ticket_price_cents: number
+          ticket_type_id: string
+          total_count: number
+          waitlist_notified_at: string
+          waitlist_position: number
+        }[]
+      }
       admin_event_room_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_room_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_rooms_list: {
@@ -19820,6 +19882,9 @@ export type Database = {
           track_name_pl: string
         }[]
       }
+      event_register: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
       event_types_active: {
