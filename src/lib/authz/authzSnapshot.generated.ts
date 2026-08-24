@@ -61,6 +61,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260807054859_a72ef6bd-541a-4d59-a822-616f71e003f7.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_2","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260812102000_pgtap_cluster_e_fix.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_5","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260812102000_pgtap_cluster_e_fix.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chatham_house_events","ref":"fn:event_page_header/1","kind":"function","object":"event_page_header","file":"20260823170000_event_front_binding.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"chatham_house_events","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"chatham_house_events","ref":"fn:rsvp_event/2","kind":"function","object":"rsvp_event","file":"20260823136000_event_builder_review_fixes.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"early_access","ref":"policy:posts/Early access reads scheduled posts","kind":"policy","object":"posts","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":[],"tenantRef":"row"},
@@ -77,5 +78,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":801,"functions":859,"policies":548},
+  stats: {"migrations":807,"functions":999,"policies":597},
 };
