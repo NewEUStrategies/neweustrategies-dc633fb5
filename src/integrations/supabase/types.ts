@@ -16333,6 +16333,23 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      admin_event_agenda_conflicts: {
+        Args: { p_event_id: string }
+        Returns: {
+          actual_value: number
+          expected_value: number
+          kind: string
+          other_session_id: string
+          other_title_en: string
+          other_title_pl: string
+          session_id: string
+          session_starts_at: string
+          session_title_en: string
+          session_title_pl: string
+          subject_id: string
+          subject_name: string
+        }[]
+      }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_room_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_room_save: { Args: { p_payload: Json }; Returns: string }
@@ -16353,6 +16370,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_session_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_session_detail: {
         Args: { _id: string }
         Returns: {
@@ -16392,6 +16410,25 @@ export type Database = {
         }[]
       }
       admin_event_session_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_session_signups_list: {
+        Args: { p_session_id: string }
+        Returns: {
+          added_by_staff: boolean
+          avatar_url: string
+          cancelled_at: string
+          display_name: string
+          id: string
+          profile_slug: string
+          registered_at: string
+          status: string
+          user_id: string
+          waitlist_position: number
+        }[]
+      }
+      admin_event_session_speakers_set: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sessions_list: {
         Args: {
           p_event_id: string
@@ -16439,6 +16476,14 @@ export type Database = {
           track_name_pl: string
           waitlist_count: number
         }[]
+      }
+      admin_event_sessions_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sessions_set_status: {
+        Args: { p_payload: Json }
+        Returns: number
       }
       admin_event_track_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_track_save: { Args: { p_payload: Json }; Returns: string }
@@ -19040,6 +19085,45 @@ export type Database = {
         }
         Returns: string
       }
+      event_agenda: {
+        Args: { p_slug: string }
+        Returns: {
+          access_state: string
+          capacity: number
+          chatham_house: boolean
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_id: string
+          format: string
+          has_recording: boolean
+          has_stream: boolean
+          id: string
+          min_tier_rank: number
+          my_signup_status: string
+          parent_session_id: string
+          registered_count: number
+          requires_signup: boolean
+          room_floor: string
+          room_id: string
+          room_name: string
+          seats_left: number
+          sort_order: number
+          speakers: Json
+          starts_at: string
+          status: string
+          timezone: string
+          title_en: string
+          title_pl: string
+          track_accent_color: string
+          track_id: string
+          track_key: string
+          track_name_en: string
+          track_name_pl: string
+        }[]
+      }
+      event_session_access: { Args: { _session_id: string }; Returns: Json }
+      event_session_signup: { Args: { p_payload: Json }; Returns: Json }
       event_types_active: {
         Args: never
         Returns: {
