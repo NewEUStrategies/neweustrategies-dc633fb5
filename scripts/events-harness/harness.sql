@@ -439,6 +439,15 @@ CREATE TABLE IF NOT EXISTS public.events (
   recording_url text,
   visibility text NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'members')),
   min_tier_rank integer NOT NULL DEFAULT 0 CHECK (min_tier_rank >= 0),
+  -- Okno zapisow i wczesny dostep. Nie sa ozdoba: `rsvp_event` z migracji
+  -- 20260823136000, ktora ten harness REPLAYUJE, czyta oba pola przy kazdym
+  -- zapisie (odmowa `events: rsvp not open` plus wyjatek dla rangi
+  -- z pierwszenstwem). Bez nich replay przechodzi, ale kazda asercja o oknie
+  -- zapisow musialaby dolozyc te kolumny u siebie - i jeden plik asercji
+  -- naprawde to robil, mutujac WSPOLNY schemat poza transakcja, czyli takze
+  -- dla plikow, ktore biegna po nim. Atrapa deklaruje to, czego modul wymaga.
+  rsvp_opens_at timestamptz,
+  early_rsvp_rank integer CHECK (early_rsvp_rank IS NULL OR early_rsvp_rank >= 0),
   capacity integer CHECK (capacity IS NULL OR capacity > 0),
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'cancelled')),
   host_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
