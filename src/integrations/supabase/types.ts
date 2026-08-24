@@ -20653,6 +20653,28 @@ export type Database = {
         }
         Returns: string
       }
+      event_ad_placements: {
+        Args: { p_position: string; p_slug: string }
+        Returns: {
+          ad_position: string
+          config: Json
+          height: number
+          html: string
+          image_alt: string
+          image_link: string
+          image_url: string
+          page_type: string
+          placement_id: string
+          requires_consent: boolean
+          script: string
+          slot_id: string
+          slot_kind: string
+          slot_name: string
+          sort_order: number
+          targeting: Json
+          width: number
+        }[]
+      }
       event_agenda: {
         Args: { p_slug: string }
         Returns: {
@@ -20688,6 +20710,31 @@ export type Database = {
           track_key: string
           track_name_en: string
           track_name_pl: string
+        }[]
+      }
+      event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
+      event_bookmarks_mine: {
+        Args: { p_limit?: number; p_offset?: number; p_scope?: string }
+        Returns: {
+          bookmarked_at: string
+          cancelled_at: string
+          cover_url: string
+          ends_at: string
+          event_id: string
+          format: string
+          has_ended: boolean
+          kind: string
+          location: string
+          min_tier_rank: number
+          seats_left: number
+          slug: string
+          starts_at: string
+          timezone: string
+          title_en: string
+          title_pl: string
+          total_count: number
+          type_name_en: string
+          type_name_pl: string
         }[]
       }
       event_page_header: {
@@ -20818,6 +20865,52 @@ export type Database = {
           name_pl: string
           requires_ticket: boolean
           sort_order: number
+        }[]
+      }
+      events_public_list: {
+        Args: {
+          p_format?: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_q?: string
+          p_scope?: string
+          p_to?: string
+          p_type_id?: string
+        }
+        Returns: {
+          cancelled_at: string
+          capacity: number
+          chatham_house: boolean
+          cover_url: string
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_type_id: string
+          format: string
+          has_ended: boolean
+          id: string
+          is_bookmarked: boolean
+          kind: string
+          location: string
+          min_tier_rank: number
+          registration_mode: string
+          seats_left: number
+          slug: string
+          starts_at: string
+          ticket_currency: string
+          ticket_price_cents: number
+          tier_locked: boolean
+          timezone: string
+          title_en: string
+          title_pl: string
+          total_count: number
+          type_accent_color: string
+          type_icon: string
+          type_key: string
+          type_name_en: string
+          type_name_pl: string
+          visibility: string
         }[]
       }
       filter_group_candidates: {
