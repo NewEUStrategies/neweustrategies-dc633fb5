@@ -43,10 +43,8 @@ import {
   rsvpRefusalMessageKey,
   waitlistPositionOf,
 } from "@/lib/events/registrationSurface";
-import {
-  EventRegistrationSurface,
-  eventRegistrationActionFrom,
-} from "@/components/events/molecules/EventRegistrationSurface";
+import { eventRegistrationActionFrom } from "@/components/events/eventRegistrationAction";
+import { EventRegistrationSurface } from "@/components/events/molecules/EventRegistrationSurface";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { confirmFreeRsvpEmail } from "@/lib/events/rsvp-email.functions";
 import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";

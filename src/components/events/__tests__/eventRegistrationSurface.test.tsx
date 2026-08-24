@@ -17,10 +17,8 @@ import {
   waitlistPositionOf,
   type RegistrationSurfaceInput,
 } from "@/lib/events/registrationSurface";
-import {
-  EventRegistrationSurface,
-  eventRegistrationActionFrom,
-} from "@/components/events/molecules/EventRegistrationSurface";
+import { eventRegistrationActionFrom } from "@/components/events/eventRegistrationAction";
+import { EventRegistrationSurface } from "@/components/events/molecules/EventRegistrationSurface";
 
 // Molekula rysuje `<Link to="/pricing">` tylko w wariancie czlonkostwa; zaden
 // z trzech przypadkow ponizej go nie dotyka, ale atrapa musi istniec, bo

@@ -1,17 +1,17 @@
 // Molekula: blok zapisow na publicznej stronie wydarzenia.
 //
 // DOSTAJE GOTOWE NAPISY, NIE KLUCZE. Decyzje podejmuje regula czysta
-// (`lib/events/registrationSurface.ts`), napisy sklada trasa, a ten plik
-// wyłącznie rysuje. Dlatego nie ma tu ani `useTranslation`, ani jednego
-// warunku na kolumnie wydarzenia - i dlatego test tej molekuly nie potrzebuje
-// ani klienta Supabase, ani slownika.
+// (`lib/events/registrationSurface.ts`), napisy sklada trasa, ksztalt kontrolki
+// wylicza `eventRegistrationAction.ts`, a ten plik WYLACZNIE rysuje. Dlatego
+// nie ma tu ani `useTranslation`, ani jednego warunku na kolumnie wydarzenia -
+// i dlatego test tej molekuly nie potrzebuje ani klienta Supabase, ani slownika.
 //
 // DLACZEGO `src/components/events/`, A NIE `community/`. Front wydarzenia ma
-// juz w tym katalogu swoje organy (`EventSpeakersSection`, `SpeakerChip`),
-// a `components/community/` trzyma powierzchnie wspolne calego modulu
-// (wejsciowki, kalendarz, ankiety), ktore z rodzajem wydarzenia nie maja nic
-// wspolnego. Podkatalog `molecules/` powstaje tutaj po raz pierwszy i jest
-// zgodny z konwencja atomowa uzywana w `careers/`, `clubs/`, `network/`.
+// juz w tym katalogu swoje komponenty (`EventSpeakersSection`, `SpeakerChip`,
+// `speakerAvatarSizes.ts`), a `components/community/` trzyma powierzchnie
+// wspolne calego modulu (wejsciowki, kalendarz, ankiety), ktore z trybem
+// zapisow nie maja nic wspolnego. Podkatalog `molecules/` powstaje tutaj po raz
+// pierwszy i jest zgodny z konwencja atomowa z `careers/`, `clubs/`, `network/`.
 //
 // JEDNA KONTROLKA ALBO ZADNA. Wariant reguly niesie co najwyzej jedna
 // kontrolke, wiec ten komponent nie ma jak wyrenderowac przycisku zapisu obok
@@ -20,60 +20,16 @@ import { Check, ExternalLink, ListPlus, XCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
-import type { RegistrationControl } from "@/lib/events/registrationSurface";
-
-/** Ikona przycisku - wybor nalezy do wariantu, nie do tego pliku. */
-export type EventRegistrationActionIcon = "check" | "listPlus" | "xCircle";
-
-/**
- * Kontrolka do wyrenderowania. Trzy rozlaczne ksztalty, bo trzy rozne cele:
- * nasze RPC (przycisk), obce narzedzie organizatora (adres zewnetrzny)
- * i wlasna trasa cennika (nawigacja wewnetrzna).
- */
-export type EventRegistrationAction =
-  | {
-      readonly kind: "button";
-      readonly label: string;
-      readonly enabled: boolean;
-      readonly icon: EventRegistrationActionIcon;
-    }
-  | { readonly kind: "externalLink"; readonly label: string; readonly href: string }
-  | { readonly kind: "internalLink"; readonly label: string };
+import type {
+  EventRegistrationAction,
+  EventRegistrationActionIcon,
+} from "@/components/events/eventRegistrationAction";
 
 const ICONS: Record<EventRegistrationActionIcon, typeof Check> = {
   check: Check,
   listPlus: ListPlus,
   xCircle: XCircle,
 };
-
-/**
- * Kontrolka wariantu -> ksztalt do wyrenderowania. `switch` bez `default`
- * domyka kompletnosc po stronie kompilatora, a `label` przychodzi JUZ ZLOZONY -
- * ten modul nie zna ani klucza i18n, ani jezyka.
- *
- * Mapowanie zyje tutaj, a nie w ciele trasy, z jednego powodu: test komponentu
- * ma przejsc dokladnie ta sama sciezka, ktora przechodzi trasa. Mapowanie
- * przepisane w tescie sprawdzalo by kopie, nie kod.
- */
-export function eventRegistrationActionFrom(
-  control: RegistrationControl | null,
-  label: string,
-  pending: boolean,
-): EventRegistrationAction | null {
-  if (control === null) return null;
-  switch (control.action) {
-    case "external":
-      return { kind: "externalLink", label, href: control.url };
-    case "membership":
-      return { kind: "internalLink", label };
-    case "rsvp":
-      return { kind: "button", label, enabled: control.enabled && !pending, icon: "check" };
-    case "waitlist":
-      return { kind: "button", label, enabled: control.enabled && !pending, icon: "listPlus" };
-    case "cancel":
-      return { kind: "button", label, enabled: control.enabled && !pending, icon: "xCircle" };
-  }
-}
 
 export function EventRegistrationSurface({
   message,
