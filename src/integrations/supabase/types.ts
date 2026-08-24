@@ -6082,8 +6082,96 @@ export type Database = {
           },
         ]
       }
+      event_types: {
+        Row: {
+          accent_color: string | null
+          created_at: string
+          default_capacity: number | null
+          default_chatham_house: boolean
+          default_duration_minutes: number | null
+          default_format: string
+          default_guest_mode: string
+          default_min_tier_rank: number
+          default_registration_flow: string
+          default_registration_mode: string
+          description_en: string
+          description_pl: string
+          icon: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          requires_ticket: boolean
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string
+          default_capacity?: number | null
+          default_chatham_house?: boolean
+          default_duration_minutes?: number | null
+          default_format?: string
+          default_guest_mode?: string
+          default_min_tier_rank?: number
+          default_registration_flow?: string
+          default_registration_mode?: string
+          description_en?: string
+          description_pl?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          requires_ticket?: boolean
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string
+          default_capacity?: number | null
+          default_chatham_house?: boolean
+          default_duration_minutes?: number | null
+          default_format?: string
+          default_guest_mode?: string
+          default_min_tier_rank?: number
+          default_registration_flow?: string
+          default_registration_mode?: string
+          description_en?: string
+          description_pl?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name_en?: string
+          name_pl?: string
+          requires_ticket?: boolean
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
+          branding: Json
+          cancelled_at: string | null
           capacity: number | null
           chatham_house: boolean
           conversation_id: string | null
@@ -6094,6 +6182,10 @@ export type Database = {
           description_pl: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
+          event_type_id: string | null
+          external_registration_url: string | null
+          format: string
+          guest_mode: string
           host_user_id: string | null
           id: string
           join_url: string | null
@@ -6101,8 +6193,12 @@ export type Database = {
           location: string | null
           min_tier_rank: number
           program_id: string | null
+          published_at: string | null
           recording_url: string | null
           region_id: string | null
+          registration_flow: string
+          registration_mode: string
+          root_page_id: string | null
           rsvp_opens_at: string | null
           slug: string
           starts_at: string
@@ -6117,6 +6213,8 @@ export type Database = {
           visibility: string
         }
         Insert: {
+          branding?: Json
+          cancelled_at?: string | null
           capacity?: number | null
           chatham_house?: boolean
           conversation_id?: string | null
@@ -6127,6 +6225,10 @@ export type Database = {
           description_pl?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
+          event_type_id?: string | null
+          external_registration_url?: string | null
+          format?: string
+          guest_mode?: string
           host_user_id?: string | null
           id?: string
           join_url?: string | null
@@ -6134,8 +6236,12 @@ export type Database = {
           location?: string | null
           min_tier_rank?: number
           program_id?: string | null
+          published_at?: string | null
           recording_url?: string | null
           region_id?: string | null
+          registration_flow?: string
+          registration_mode?: string
+          root_page_id?: string | null
           rsvp_opens_at?: string | null
           slug: string
           starts_at: string
@@ -6150,6 +6256,8 @@ export type Database = {
           visibility?: string
         }
         Update: {
+          branding?: Json
+          cancelled_at?: string | null
           capacity?: number | null
           chatham_house?: boolean
           conversation_id?: string | null
@@ -6160,6 +6268,10 @@ export type Database = {
           description_pl?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
+          event_type_id?: string | null
+          external_registration_url?: string | null
+          format?: string
+          guest_mode?: string
           host_user_id?: string | null
           id?: string
           join_url?: string | null
@@ -6167,8 +6279,12 @@ export type Database = {
           location?: string | null
           min_tier_rank?: number
           program_id?: string | null
+          published_at?: string | null
           recording_url?: string | null
           region_id?: string | null
+          registration_flow?: string
+          registration_mode?: string
+          root_page_id?: string | null
           rsvp_opens_at?: string | null
           slug?: string
           starts_at?: string
@@ -6191,6 +6307,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "events_event_type_id_fkey"
+            columns: ["event_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "events_program_id_fkey"
             columns: ["program_id"]
             isOneToOne: false
@@ -6209,6 +6332,13 @@ export type Database = {
             columns: ["region_id"]
             isOneToOne: false
             referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_root_page_id_fkey"
+            columns: ["root_page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
             referencedColumns: ["id"]
           },
           {
@@ -15825,6 +15955,105 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      admin_event_create: { Args: { p_payload: Json }; Returns: string }
+      admin_event_type_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_type_reassign: {
+        Args: { _from_id: string; _to_id: string }
+        Returns: number
+      }
+      admin_event_type_set_active: {
+        Args: { _id: string; _is_active: boolean }
+        Returns: boolean
+      }
+      admin_event_type_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_types_list: {
+        Args: never
+        Returns: {
+          accent_color: string
+          default_capacity: number
+          default_chatham_house: boolean
+          default_duration_minutes: number
+          default_format: string
+          default_guest_mode: string
+          default_min_tier_rank: number
+          default_registration_flow: string
+          default_registration_mode: string
+          description_en: string
+          description_pl: string
+          events_count: number
+          icon: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          published_events_count: number
+          requires_ticket: boolean
+          sort_order: number
+        }[]
+      }
+      admin_events_counts: {
+        Args: {
+          p_format?: string
+          p_from?: string
+          p_q?: string
+          p_to?: string
+          p_type_id?: string
+        }
+        Returns: Json
+      }
+      admin_events_list: {
+        Args: {
+          p_format?: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_q?: string
+          p_status?: string
+          p_to?: string
+          p_type_id?: string
+        }
+        Returns: {
+          cancelled_at: string
+          capacity: number
+          chatham_house: boolean
+          cover_url: string
+          ends_at: string
+          event_type_id: string
+          format: string
+          going_count: number
+          guest_mode: string
+          has_recording: boolean
+          has_stream: boolean
+          id: string
+          interested_count: number
+          kind: string
+          location: string
+          min_tier_rank: number
+          published_at: string
+          registration_flow: string
+          registration_mode: string
+          seats_left: number
+          slug: string
+          speakers_count: number
+          starts_at: string
+          status: string
+          ticket_currency: string
+          ticket_price_cents: number
+          timezone: string
+          title_en: string
+          title_pl: string
+          total_count: number
+          type_accent_color: string
+          type_icon: string
+          type_key: string
+          type_name_en: string
+          type_name_pl: string
+          visibility: string
+          waitlist_count: number
+        }[]
+      }
       admin_get_author_profile: {
         Args: { _user_id: string }
         Returns: {
@@ -15873,6 +16102,8 @@ export type Database = {
       admin_get_event: {
         Args: { p_id: string }
         Returns: {
+          branding: Json
+          cancelled_at: string | null
           capacity: number | null
           chatham_house: boolean
           conversation_id: string | null
@@ -15883,6 +16114,10 @@ export type Database = {
           description_pl: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
+          event_type_id: string | null
+          external_registration_url: string | null
+          format: string
+          guest_mode: string
           host_user_id: string | null
           id: string
           join_url: string | null
@@ -15890,8 +16125,12 @@ export type Database = {
           location: string | null
           min_tier_rank: number
           program_id: string | null
+          published_at: string | null
           recording_url: string | null
           region_id: string | null
+          registration_flow: string
+          registration_mode: string
+          root_page_id: string | null
           rsvp_opens_at: string | null
           slug: string
           starts_at: string
@@ -15982,6 +16221,8 @@ export type Database = {
       admin_list_events: {
         Args: { p_q?: string; p_status?: string }
         Returns: {
+          branding: Json
+          cancelled_at: string | null
           capacity: number | null
           chatham_house: boolean
           conversation_id: string | null
@@ -15992,6 +16233,10 @@ export type Database = {
           description_pl: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
+          event_type_id: string | null
+          external_registration_url: string | null
+          format: string
+          guest_mode: string
           host_user_id: string | null
           id: string
           join_url: string | null
@@ -15999,8 +16244,12 @@ export type Database = {
           location: string | null
           min_tier_rank: number
           program_id: string | null
+          published_at: string | null
           recording_url: string | null
           region_id: string | null
+          registration_flow: string
+          registration_mode: string
+          root_page_id: string | null
           rsvp_opens_at: string | null
           slug: string
           starts_at: string
@@ -16319,6 +16568,7 @@ export type Database = {
         Returns: string
       }
       assert_admin_tenant: { Args: never; Returns: string }
+      assert_editor_tenant: { Args: never; Returns: string }
       authorize_resource_download: {
         Args: { p_resource: string }
         Returns: {
@@ -18287,6 +18537,29 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      event_types_active: {
+        Args: never
+        Returns: {
+          accent_color: string
+          default_capacity: number
+          default_chatham_house: boolean
+          default_duration_minutes: number
+          default_format: string
+          default_guest_mode: string
+          default_min_tier_rank: number
+          default_registration_flow: string
+          default_registration_mode: string
+          description_en: string
+          description_pl: string
+          icon: string
+          id: string
+          key: string
+          name_en: string
+          name_pl: string
+          requires_ticket: boolean
+          sort_order: number
+        }[]
       }
       filter_group_candidates: {
         Args: { p_candidates: string[]; p_inviter: string }
