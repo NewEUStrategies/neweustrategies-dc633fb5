@@ -53,6 +53,7 @@ export interface EventCreateDraft {
   titlePl: string;
   titleEn: string;
   startsAt: string;
+  externalRegistrationUrl: string;
 }
 
 export const EMPTY_EVENT_CREATE_DRAFT: EventCreateDraft = {
@@ -60,15 +61,37 @@ export const EMPTY_EVENT_CREATE_DRAFT: EventCreateDraft = {
   titlePl: "",
   titleEn: "",
   startsAt: "",
+  externalRegistrationUrl: "",
 };
 
-/** Klucz i18n powodu odrzucenia albo `null`, gdy wersja robocza jest gotowa. */
-export function eventCreateIssue(draft: EventCreateDraft): string | null {
+/** Adres dopuszczalny jako cel zapisów zewnętrznych. Ta sama reguła stoi w bazie. */
+const EXTERNAL_URL_PATTERN = /^https:\/\/\S+$/;
+
+/**
+ * Klucz i18n powodu odrzucenia albo `null`, gdy wersja robocza jest gotowa.
+ *
+ * `registrationMode` jest PARAMETREM, a nie wyliczeniem z `draft`: tryb niesie
+ * wybrany rodzaj, a nie formularz. Dzięki temu reguła zostaje czysta i daje się
+ * przetestować bez listy rodzajów, a jednocześnie widzi to, co zobaczy baza -
+ * dla trybu `external` warunek `events_external_mode_requires_url` odrzuci
+ * wydarzenie bez adresu, więc formularz musi zapytać o niego ZAWCZASU.
+ */
+export function eventCreateIssue(
+  draft: EventCreateDraft,
+  registrationMode: string | null,
+): string | null {
   if (draft.titlePl.trim() === "" || draft.titleEn.trim() === "") {
     return "adminEvents.list.create.errors.titles";
   }
   if (draft.startsAt.trim() === "") return "adminEvents.list.create.errors.startsAt";
   if (draft.eventTypeId === "") return "adminEvents.list.create.errors.type";
+  if (registrationMode === "external") {
+    const url = draft.externalRegistrationUrl.trim();
+    if (url === "") return "adminEvents.list.create.errors.externalUrl";
+    if (!EXTERNAL_URL_PATTERN.test(url) || url.length > 2048) {
+      return "adminEvents.list.create.errors.externalUrlInvalid";
+    }
+  }
   return null;
 }
 
@@ -96,7 +119,8 @@ export function EventCreateDialog({
     [types, draft.eventTypeId],
   );
 
-  const issue = eventCreateIssue(draft);
+  const registrationMode = selected === null ? null : selected.default_registration_mode;
+  const issue = eventCreateIssue(draft, registrationMode);
   const noTypes = types.length === 0;
 
   const close = () => {
@@ -159,6 +183,22 @@ export function EventCreateDialog({
               type="datetime-local"
               onValueChange={(value) => setDraft({ ...draft, startsAt: value })}
             />
+
+            {/* Pole POJAWIA SIĘ z trybu rodzaju, a nie stoi zawsze. Adres zapisów
+                zewnętrznych jest wymagany dokładnie wtedy, gdy rodzaj zapisuje
+                uczestników poza serwisem - pytanie o niego przy każdym innym
+                rodzaju byłoby polem, którego nikt nigdy nie czyta. */}
+            {registrationMode === "external" ? (
+              <AdminFormTextRow
+                id="event-create-external-url"
+                label={t("adminEvents.list.create.externalUrlLabel")}
+                hint={t("adminEvents.list.create.externalUrlHint")}
+                value={draft.externalRegistrationUrl}
+                type="url"
+                maxLength={2048}
+                onValueChange={(value) => setDraft({ ...draft, externalRegistrationUrl: value })}
+              />
+            ) : null}
 
             {selected === null ? null : (
               <dl className="grid gap-x-4 gap-y-1 rounded-md border border-border/60 bg-muted/40 p-3 text-xs sm:grid-cols-2">

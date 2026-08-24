@@ -81,6 +81,13 @@ export interface EventCreateInput {
   titlePl: string;
   titleEn: string;
   startsAt: string;
+  /**
+   * Adres zapisow w obcym systemie. Wymagany DOKLADNIE dla rodzajow o trybie
+   * `external` - baza odrzuca tworzenie bez niego (`external_url_required`),
+   * bo warunek `events_external_mode_requires_url` nie dopuszcza takiego wiersza.
+   * Dla pozostalych rodzajow `null`, i serwer i tak go wtedy zeruje.
+   */
+  externalRegistrationUrl: string | null;
 }
 
 export async function createEventFromType(input: EventCreateInput): Promise<string> {
@@ -90,6 +97,12 @@ export async function createEventFromType(input: EventCreateInput): Promise<stri
       title_pl: input.titlePl,
       title_en: input.titleEn,
       starts_at: input.startsAt,
+      // Klucz pomijany, a nie ustawiany na `null`: payload jest kontraktem
+      // czytanym operatorem `->>`, wiec brak klucza i klucz o wartosci null sa
+      // dla bazy tym samym, a pominiecie nie klamie, ze cokolwiek podano.
+      ...(input.externalRegistrationUrl === null
+        ? {}
+        : { external_registration_url: input.externalRegistrationUrl }),
     },
   });
   if (error) throw error;

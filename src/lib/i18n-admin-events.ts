@@ -122,6 +122,9 @@ export const adminEventsPl = {
         titleEnLabel: "Tytuł EN",
         startsAtLabel: "Początek",
         startsAtHint: "Koniec wyliczy się z czasu trwania rodzaju, jeśli rodzaj go zna.",
+        externalUrlLabel: "Adres zapisów w systemie zewnętrznym",
+        externalUrlHint:
+          "Ten rodzaj prowadzi zapisy poza serwisem, więc adres jest wymagany - uczestnik zostanie do niego przekierowany zamiast zapisywać się u nas.",
         submitAction: "Utwórz szkic",
         cancelAction: "Anuluj",
         errors: {
@@ -130,6 +133,8 @@ export const adminEventsPl = {
           type: "Wybierz rodzaj wydarzenia.",
           typeInactive: "Ten rodzaj jest wyłączony w organizacji.",
           notFound: "Rodzaj nie istnieje w tej organizacji.",
+          externalUrl: "Podaj adres zapisów - ten rodzaj prowadzi je w systemie zewnętrznym.",
+          externalUrlInvalid: "Adres musi zaczynać się od https:// i nie może zawierać spacji.",
           noTypes:
             "Nie ma żadnego aktywnego rodzaju wydarzenia. Dodaj rodzaj w katalogu, zanim utworzysz wydarzenie.",
         },
@@ -338,6 +343,9 @@ export const adminEventsEn = {
         titleEnLabel: "Title EN",
         startsAtLabel: "Starts",
         startsAtHint: "The end time is derived from the type duration when the type knows one.",
+        externalUrlLabel: "External registration url",
+        externalUrlHint:
+          "This type registers people outside the site, so the address is required - attendees are sent there instead of signing up here.",
         submitAction: "Create draft",
         cancelAction: "Cancel",
         errors: {
@@ -346,6 +354,8 @@ export const adminEventsEn = {
           type: "Choose an event type.",
           typeInactive: "That type is disabled in this organisation.",
           notFound: "The type does not exist in this organisation.",
+          externalUrl: "Give the registration address - this type registers people externally.",
+          externalUrlInvalid: "The address must start with https:// and must not contain spaces.",
           noTypes:
             "There is no active event type. Add one in the catalogue before creating an event.",
         },

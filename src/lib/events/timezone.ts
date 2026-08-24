@@ -18,11 +18,22 @@
 // „o której to jest". Ten moduł jest piątym miejscem tylko na chwilę - jego
 // zadaniem jest zastąpić poprzednie cztery.
 //
-// DLACZEGO `try/catch` WOKÓŁ `Intl`. `events.timezone` jest w bazie kolumną
-// `text` bez CHECK-a na listę IANA, więc wartość spoza katalogu strefy jest
-// osiągalna (import, ręczna korekta, literówka). `Intl.DateTimeFormat` rzuca
-// wtedy `RangeError` i wywraca cały render listy. Degradacja do strefy
-// domyślnej jest zawsze lepsza niż biała strona.
+// DLACZEGO STREFA JEST WALIDOWANA, A NIE TYLKO OPAKOWANA W `try/catch`.
+// `events.timezone` jest w bazie kolumną `text` bez CHECK-a na listę IANA, więc
+// wartość spoza katalogu strefy jest osiągalna (import, ręczna korekta,
+// literówka). Sam `try/catch` wokół `Intl` był na to odpowiedzią NIEPEŁNĄ i mylącą:
+// gałąź ratunkowa formatowała godzinę w strefie MASZYNY, a `eventTimeZoneLabel`
+// zwracała nieistniejący identyfikator z bazy. Uczestnik widział wtedy godzinę
+// lokalną serwera opisaną nazwą strefy, której nie ma - czyli najgorszy możliwy
+// wariant: wynik wyglądający na poprawny i będący nieprawdą.
+//
+// Dlatego rozstrzygnięcie strefy przechodzi przez `isUsableTimeZone`: identyfikator,
+// którego `Intl` nie zna, jest odrzucany U ŹRÓDŁA i zamieniany na strefę domyślną.
+// Wszyscy konsumenci - godzina, blok daty, etykieta, wykrycie obcej strefy - widzą
+// wtedy tę SAMĄ strefę, więc godzina i jej podpis nie mogą się rozjechać.
+// `try/catch` zostaje jako druga linia obrony (nowe wersje `Intl` mogą odrzucić
+// kombinację opcji, nie samą strefę), ale degraduje już do strefy domyślnej,
+// a nie do strefy maszyny.
 //
 // GRANICA WARSTW: zero Reacta, zero i18next. Moduł jest liściem.
 import { uiLocale, type UiLang } from "@/lib/i18n/format";
@@ -34,10 +45,49 @@ import { uiLocale, type UiLang } from "@/lib/i18n/format";
  */
 export const EVENT_DEFAULT_TZ = "Europe/Warsaw";
 
-/** Strefa wydarzenia z fallbackiem. Pusty napis i `null` znaczą to samo. */
+/**
+ * Pamięć rozstrzygnięć `Intl` dla identyfikatorów strefy.
+ *
+ * `eventTimeZone` woła się raz na każdą sformatowaną datę, czyli na liście
+ * dwustu wydarzeń - kilkaset razy na render. Konstruktor `Intl.DateTimeFormat`
+ * nie jest darmowy, a zbiór wartości `events.timezone` w organizacji jest
+ * mały i stabilny, więc odpowiedź „czy ta strefa istnieje" liczy się RAZ.
+ *
+ * Górny limit jest bezpiecznikiem, nie optymalizacją: gdyby kolumna kiedyś
+ * przyjęła dane nieograniczone (import z obcego systemu), pamięć nie ma rosnąć
+ * bez końca. Po przekroczeniu limitu przestajemy zapisywać - poprawność nie
+ * zależy od pamięci, tylko szybkość.
+ */
+const TZ_VALIDITY = new Map<string, boolean>();
+const TZ_VALIDITY_LIMIT = 512;
+
+/** Czy `Intl` zna ten identyfikator strefy. */
+function isUsableTimeZone(value: string): boolean {
+  const cached = TZ_VALIDITY.get(value);
+  if (cached !== undefined) return cached;
+  let usable: boolean;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    usable = true;
+  } catch {
+    usable = false;
+  }
+  if (TZ_VALIDITY.size < TZ_VALIDITY_LIMIT) TZ_VALIDITY.set(value, usable);
+  return usable;
+}
+
+/**
+ * Strefa wydarzenia z fallbackiem.
+ *
+ * Pusty napis, `null` i identyfikator NIEZNANY `Intl`-owi znaczą to samo:
+ * bierzemy strefę domyślną serwisu. Zwrócona wartość jest zawsze strefą, którą
+ * `Intl` potrafi obsłużyć - to kontrakt, na który liczą wszystkie funkcje niżej.
+ */
 export function eventTimeZone(row: { timezone?: string | null }): string {
   const value = row.timezone;
-  return value === null || value === undefined || value.trim() === "" ? EVENT_DEFAULT_TZ : value;
+  if (value === null || value === undefined || value.trim() === "") return EVENT_DEFAULT_TZ;
+  const trimmed = value.trim();
+  return isUsableTimeZone(trimmed) ? trimmed : EVENT_DEFAULT_TZ;
 }
 
 /**
@@ -59,7 +109,15 @@ export function formatEventDateTime(
   try {
     return date.toLocaleString(locale, { ...options, timeZone: eventTimeZone({ timezone }) });
   } catch {
-    return date.toLocaleString(locale, options);
+    // Strefa jest już zwalidowana, więc tu dochodzi wyłącznie odrzucona
+    // KOMBINACJA opcji. Degradujemy do strefy domyślnej, nie do strefy maszyny -
+    // godzina bez strefy jest gorsza niż godzina w strefie biura, bo nie wiadomo,
+    // czyja jest.
+    try {
+      return date.toLocaleString(locale, { ...options, timeZone: EVENT_DEFAULT_TZ });
+    } catch {
+      return date.toLocaleString(locale, options);
+    }
   }
 }
 
@@ -99,8 +157,8 @@ export function eventDateBlock(
     };
   } catch {
     return {
-      day: date.toLocaleDateString(locale, { day: "numeric" }),
-      month: date.toLocaleDateString(locale, { month: "short" }),
+      day: date.toLocaleDateString(locale, { day: "numeric", timeZone: EVENT_DEFAULT_TZ }),
+      month: date.toLocaleDateString(locale, { month: "short", timeZone: EVENT_DEFAULT_TZ }),
     };
   }
 }

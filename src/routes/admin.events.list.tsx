@@ -14,11 +14,12 @@
 // `assert_editor_tenant()`, więc autor bez roli redaktora dostanie `42501`
 // niezależnie od tego, co pokaże ekran. Zdanie zamiast pustej listy istnieje po
 // to, żeby odmowa nie wyglądała jak awaria.
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { Card, CardContent } from "@/components/ui/card";
 import { EventsListManager } from "@/components/admin/events/organisms/EventsListManager";
 import { parseEventListParams, type EventListParams } from "@/lib/events/eventListParams";
@@ -49,9 +50,11 @@ function AdminEventsListPage() {
   const params = Route.useSearch();
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Zegar zamrożony na montaż widoku. Odświeżenie listy odświeża też granicę,
-  // bo hook trzyma znacznik minuty w kluczu zapytania.
-  const now = useMemo(() => new Date(), []);
+  // Zegar MUSI tykać. Granica zakładek „Najbliższe" i „Archiwum" liczy się z tej
+  // wartości, a licznik zakładek liczy się w bazie funkcją `now()` przy każdym
+  // odświeżeniu - zamrożone „teraz" rozjeżdża jedno z drugim i ekran pokazuje
+  // zakładkę z inną liczbą niż długość listy pod nią.
+  const now = useMinuteClock();
 
   if (!canRead) {
     return (

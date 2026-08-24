@@ -163,6 +163,10 @@ export function EventsListManager({
         // lokalny przeglądarki i zamieniamy na chwilę - inaczej wydarzenie
         // wpisane o 10:00 zapisuje się jako 10:00 UTC, czyli 12:00 w Warszawie.
         startsAt: new Date(draft.startsAt).toISOString(),
+        // Puste pole znaczy „nie podano", a nie „podano pusty adres". Serwer
+        // i tak zeruje adres dla rodzajów, które go nie używają.
+        externalRegistrationUrl:
+          draft.externalRegistrationUrl.trim() === "" ? null : draft.externalRegistrationUrl.trim(),
       },
       {
         onSuccess: () => {

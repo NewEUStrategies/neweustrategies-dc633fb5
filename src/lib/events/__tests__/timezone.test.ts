@@ -73,14 +73,22 @@ describe("degradacja zamiast wyjątku", () => {
     expect(out).toContain("2026");
   });
 
-  it("blok daty też degraduje, a nie rzuca", () => {
+  it("blok daty degraduje do strefy domyślnej, a nie do strefy maszyny", () => {
     const block = eventDateBlock(LATO, "Nie/Istnieje", "pl");
     expect(block).not.toBeNull();
-    expect(block?.day).toBe("1");
+    expect(block).toEqual(eventDateBlock(LATO, EVENT_DEFAULT_TZ, "pl"));
   });
 
-  it("etykieta strefy dla wartości nieznanej oddaje samą wartość", () => {
-    expect(eventTimeZoneLabel(LATO, "Nie/Istnieje", "pl")).toBe("Nie/Istnieje");
+  // Ten test odwrócił się po recenzji PR 285 i to jest jego SENS. Wcześniej
+  // etykieta oddawała nieistniejący identyfikator z bazy, a godzina obok niej
+  // liczyła się w strefie maszyny - użytkownik dostawał godzinę serwera opisaną
+  // nazwą strefy, której nie ma. Reguła jest teraz jedna: nieznana strefa to
+  // strefa domyślna, i tak samo mówi o tym etykieta.
+  it("etykieta strefy dla wartości nieznanej mówi o strefie domyślnej", () => {
+    expect(eventTimeZoneLabel(LATO, "Nie/Istnieje", "pl")).toBe(
+      eventTimeZoneLabel(LATO, EVENT_DEFAULT_TZ, "pl"),
+    );
+    expect(eventTimeZoneLabel(LATO, "Nie/Istnieje", "pl")).not.toContain("Nie/Istnieje");
   });
 });
 
@@ -138,5 +146,47 @@ describe("ostrzeżenie o obcej strefie", () => {
   it("brak strefy wydarzenia znaczy strefę domyślną, także w tym porównaniu", () => {
     expect(isForeignTimeZone(null, EVENT_DEFAULT_TZ)).toBe(false);
     expect(isForeignTimeZone(null, "America/New_York")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STREFA NIEZNANA `Intl`-owi (recenzja PR 285, P2)
+//
+// `events.timezone` to kolumna `text` bez CHECK-a na listę IANA, więc identyfikator
+// spoza katalogu jest osiągalny. Wcześniej gałąź ratunkowa formatowała godzinę
+// w strefie MASZYNY, a etykieta zwracała ten nieistniejący identyfikator - wynik
+// wyglądał poprawnie i był nieprawdą. Reguła: nieznana strefa degraduje do strefy
+// domyślnej serwisu, a etykieta mówi o TEJ strefie.
+// ---------------------------------------------------------------------------
+describe("timezone - identyfikator spoza katalogu IANA", () => {
+  const INVALID = "Europe/Warszawa";
+  const MOMENT = "2026-07-15T10:00:00.000Z";
+
+  it("resolves an unknown zone to the service default", () => {
+    expect(eventTimeZone({ timezone: INVALID })).toBe(EVENT_DEFAULT_TZ);
+    expect(eventTimeZone({ timezone: "  " })).toBe(EVENT_DEFAULT_TZ);
+    expect(eventTimeZone({ timezone: "nonsense" })).toBe(EVENT_DEFAULT_TZ);
+  });
+
+  it("keeps a valid zone untouched and trims it", () => {
+    expect(eventTimeZone({ timezone: "Europe/Brussels" })).toBe("Europe/Brussels");
+    expect(eventTimeZone({ timezone: " Europe/Brussels " })).toBe("Europe/Brussels");
+  });
+
+  it("formats an unknown zone exactly like the default zone", () => {
+    expect(formatEventDateTime(MOMENT, INVALID, "pl")).toBe(
+      formatEventDateTime(MOMENT, EVENT_DEFAULT_TZ, "pl"),
+    );
+  });
+
+  it("labels an unknown zone with the default zone, never with the bad identifier", () => {
+    const label = eventTimeZoneLabel(MOMENT, INVALID, "pl");
+    expect(label).not.toContain("Warszawa");
+    expect(label).toBe(eventTimeZoneLabel(MOMENT, EVENT_DEFAULT_TZ, "pl"));
+  });
+
+  it("does not call an unknown zone foreign for a viewer sitting in the default zone", () => {
+    expect(isForeignTimeZone(INVALID, EVENT_DEFAULT_TZ)).toBe(false);
+    expect(isForeignTimeZone(INVALID, "Europe/Brussels")).toBe(true);
   });
 });
