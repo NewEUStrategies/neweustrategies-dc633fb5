@@ -6005,6 +6005,63 @@ export type Database = {
           },
         ]
       }
+      event_rooms: {
+        Row: {
+          capacity: number | null
+          created_at: string
+          event_id: string
+          floor: string | null
+          id: string
+          is_active: boolean
+          location_note: string | null
+          name: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string
+          event_id: string
+          floor?: string | null
+          id?: string
+          is_active?: boolean
+          location_note?: string | null
+          name: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string
+          event_id?: string
+          floor?: string | null
+          id?: string
+          is_active?: boolean
+          location_note?: string | null
+          name?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rooms_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_rooms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_rsvps: {
         Row: {
           created_at: string
@@ -6056,6 +6113,270 @@ export type Database = {
           },
         ]
       }
+      event_session_signups: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          registered_at: string
+          session_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          registered_at?: string
+          session_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          registered_at?: string
+          session_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_session_signups_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_session_signups_session_fk"
+            columns: ["tenant_id", "event_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_session_signups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_session_speakers: {
+        Row: {
+          allow_overlap: boolean
+          created_at: string
+          event_id: string
+          id: string
+          role: string
+          session_id: string
+          sort_order: number
+          speaker_profile_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          allow_overlap?: boolean
+          created_at?: string
+          event_id: string
+          id?: string
+          role?: string
+          session_id: string
+          sort_order?: number
+          speaker_profile_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          allow_overlap?: boolean
+          created_at?: string
+          event_id?: string
+          id?: string
+          role?: string
+          session_id?: string
+          sort_order?: number
+          speaker_profile_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_session_speakers_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_session_speakers_profile_fk"
+            columns: ["tenant_id", "speaker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "speaker_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_session_speakers_session_fk"
+            columns: ["tenant_id", "event_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_session_speakers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sessions: {
+        Row: {
+          allow_overlap: boolean
+          cancelled_at: string | null
+          capacity: number | null
+          chatham_house: boolean
+          created_at: string
+          created_by: string | null
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_id: string
+          format: string
+          id: string
+          is_private: boolean
+          min_tier_rank: number
+          parent_session_id: string | null
+          published_at: string | null
+          recording_url: string | null
+          requires_signup: boolean
+          room_id: string | null
+          sort_order: number
+          starts_at: string
+          status: string
+          stream_url: string | null
+          tenant_id: string
+          time_range: unknown
+          title_en: string
+          title_pl: string
+          track_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          allow_overlap?: boolean
+          cancelled_at?: string | null
+          capacity?: number | null
+          chatham_house?: boolean
+          created_at?: string
+          created_by?: string | null
+          description_en?: string
+          description_pl?: string
+          ends_at: string
+          event_id: string
+          format?: string
+          id?: string
+          is_private?: boolean
+          min_tier_rank?: number
+          parent_session_id?: string | null
+          published_at?: string | null
+          recording_url?: string | null
+          requires_signup?: boolean
+          room_id?: string | null
+          sort_order?: number
+          starts_at: string
+          status?: string
+          stream_url?: string | null
+          tenant_id: string
+          time_range?: unknown
+          title_en: string
+          title_pl: string
+          track_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allow_overlap?: boolean
+          cancelled_at?: string | null
+          capacity?: number | null
+          chatham_house?: boolean
+          created_at?: string
+          created_by?: string | null
+          description_en?: string
+          description_pl?: string
+          ends_at?: string
+          event_id?: string
+          format?: string
+          id?: string
+          is_private?: boolean
+          min_tier_rank?: number
+          parent_session_id?: string | null
+          published_at?: string | null
+          recording_url?: string | null
+          requires_signup?: boolean
+          room_id?: string | null
+          sort_order?: number
+          starts_at?: string
+          status?: string
+          stream_url?: string | null
+          tenant_id?: string
+          time_range?: unknown
+          title_en?: string
+          title_pl?: string
+          track_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sessions_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sessions_parent_fk"
+            columns: ["tenant_id", "event_id", "parent_session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sessions_room_fk"
+            columns: ["tenant_id", "event_id", "room_id"]
+            isOneToOne: false
+            referencedRelation: "event_rooms"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sessions_track_fk"
+            columns: ["tenant_id", "event_id", "track_id"]
+            isOneToOne: false
+            referencedRelation: "event_tracks"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
       event_speakers: {
         Row: {
           event_id: string
@@ -6078,6 +6399,63 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_tracks: {
+        Row: {
+          accent_color: string | null
+          created_at: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          name_en?: string
+          name_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_tracks_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_tracks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -15956,6 +16334,130 @@ export type Database = {
         Returns: undefined
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
+      admin_event_room_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_room_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_rooms_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          booked_minutes: number
+          capacity: number
+          created_at: string
+          event_id: string
+          floor: string
+          id: string
+          is_active: boolean
+          location_note: string
+          name: string
+          sessions_count: number
+          sort_order: number
+          updated_at: string
+        }[]
+      }
+      admin_event_session_detail: {
+        Args: { _id: string }
+        Returns: {
+          allow_overlap: boolean
+          cancelled_at: string
+          capacity: number
+          chatham_house: boolean
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_ends_at: string
+          event_id: string
+          event_starts_at: string
+          event_timezone: string
+          event_title_en: string
+          event_title_pl: string
+          format: string
+          id: string
+          is_private: boolean
+          min_tier_rank: number
+          parent_session_id: string
+          published_at: string
+          recording_url: string
+          registered_count: number
+          requires_signup: boolean
+          room_id: string
+          seats_left: number
+          sort_order: number
+          speakers: Json
+          starts_at: string
+          status: string
+          stream_url: string
+          title_en: string
+          title_pl: string
+          track_id: string
+          waitlist_count: number
+        }[]
+      }
+      admin_event_session_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_sessions_list: {
+        Args: {
+          p_event_id: string
+          p_q?: string
+          p_room_id?: string
+          p_status?: string
+          p_track_id?: string
+        }
+        Returns: {
+          allow_overlap: boolean
+          cancelled_at: string
+          cancelled_count: number
+          capacity: number
+          chatham_house: boolean
+          children_count: number
+          description_en: string
+          description_pl: string
+          duration_minutes: number
+          ends_at: string
+          event_id: string
+          format: string
+          has_recording: boolean
+          has_stream: boolean
+          id: string
+          is_private: boolean
+          min_tier_rank: number
+          parent_session_id: string
+          published_at: string
+          registered_count: number
+          requires_signup: boolean
+          room_capacity: number
+          room_id: string
+          room_name: string
+          seats_left: number
+          sort_order: number
+          speakers_count: number
+          starts_at: string
+          status: string
+          title_en: string
+          title_pl: string
+          track_accent_color: string
+          track_id: string
+          track_key: string
+          track_name_en: string
+          track_name_pl: string
+          waitlist_count: number
+        }[]
+      }
+      admin_event_track_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_track_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_tracks_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          accent_color: string
+          created_at: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          sessions_count: number
+          sort_order: number
+          updated_at: string
+        }[]
+      }
       admin_event_type_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_type_reassign: {
         Args: { _from_id: string; _to_id: string }
