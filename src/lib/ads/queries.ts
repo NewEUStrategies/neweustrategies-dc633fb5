@@ -8,6 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import {
   matchesAdTargeting,
   parseAdTargeting,
@@ -29,6 +30,25 @@ export interface AdContentContext {
   tagSlugs?: string[];
 }
 
+/** Wartości `ad_page_type`, które baza zna DZISIAJ (bez `event`). */
+type DbAdPageType = Database["public"]["Enums"]["ad_page_type"];
+
+const DB_AD_PAGE_TYPES: readonly DbAdPageType[] = [
+  "all",
+  "home",
+  "post",
+  "page",
+  "category",
+  "tag",
+  "archive",
+  "search",
+];
+
+function dbPageTypes(pageType: AdPageType): DbAdPageType[] {
+  const known = DB_AD_PAGE_TYPES.find((value) => value === pageType);
+  return known === undefined ? ["all"] : ["all", known];
+}
+
 async function fetchPlacements({
   position,
   pageType,
@@ -39,7 +59,10 @@ async function fetchPlacements({
     .from("ad_placements")
     .select("*, slot:ad_slots!inner(*)")
     .eq("position", position)
-    .in("page_type", ["all", pageType])
+    // `event` jest wartością enuma dopiero po migracji modułu Wydarzeń, dlatego
+    // filtr wysyła ją tylko wtedy, gdy baza ją zna - inaczej PostgREST odrzuca
+    // całe zapytanie i strona zostaje bez reklam.
+    .in("page_type", dbPageTypes(pageType))
     .eq("active", true)
     .eq("slot.status", "active")
     .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
