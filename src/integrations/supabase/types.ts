@@ -17474,6 +17474,10 @@ export type Database = {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
       }
+      _event_checkpoint_occupancy: {
+        Args: { _checkpoint_id: string; _tenant: string }
+        Returns: number
+      }
       _event_default_sections: {
         Args: never
         Returns: {
@@ -17485,9 +17489,14 @@ export type Database = {
         }[]
       }
       _event_new_qr_token: { Args: never; Returns: string }
+      _event_new_scanner_token: { Args: never; Returns: string }
       _event_next_waitlist_position: {
         Args: { _event_id: string; _tenant: string }
         Returns: number
+      }
+      _event_onsite_person_card: {
+        Args: { _event_id: string; _person_id: string; _tenant: string }
+        Returns: Json
       }
       _event_page_seats_left: {
         Args: { _event_id: string; _tenant: string }
@@ -17496,6 +17505,44 @@ export type Database = {
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
+      }
+      _event_scanner_device_auth: {
+        Args: { _scope: string; _token: string }
+        Returns: {
+          checkpoint_id: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          fail_window_count: number
+          fail_window_started_at: string | null
+          failed_scan_count: number
+          id: string
+          is_active: boolean
+          label: string
+          last_failed_scan_at: string | null
+          last_seen_at: string | null
+          locked_until: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scan_count: number
+          scopes: string[]
+          sponsor_id: string | null
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_scanner_devices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _event_scanner_device_note_failure: {
+        Args: { _device_id: string }
+        Returns: boolean
       }
       _event_seats_left: {
         Args: { _event_id: string; _tenant: string; _ticket_type_id?: string }
