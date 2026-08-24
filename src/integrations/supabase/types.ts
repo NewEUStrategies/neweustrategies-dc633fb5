@@ -660,6 +660,7 @@ export type Database = {
       }
       b2b_coupon_campaigns: {
         Row: {
+          audience: string | null
           code_count: number
           code_length: number
           created_at: string
@@ -669,24 +670,29 @@ export type Database = {
           discount_cents: number | null
           discount_kind: string
           discount_percent: number | null
+          event_ids: string[]
           generated_count: number
           grants_duration_days: number | null
           grants_tier_key: string | null
           id: string
           max_redemptions_per_code: number | null
+          max_redemptions_per_user: number | null
           metadata: Json
           name: string
           newsletter_campaign_id: string | null
           newsletter_segment: string | null
+          package_ids: string[]
           plan_ids: string[]
           prefix: string
           status: string
           tenant_id: string
+          ticket_type_ids: string[]
           updated_at: string
           valid_from: string | null
           valid_until: string | null
         }
         Insert: {
+          audience?: string | null
           code_count: number
           code_length?: number
           created_at?: string
@@ -696,24 +702,29 @@ export type Database = {
           discount_cents?: number | null
           discount_kind: string
           discount_percent?: number | null
+          event_ids?: string[]
           generated_count?: number
           grants_duration_days?: number | null
           grants_tier_key?: string | null
           id?: string
           max_redemptions_per_code?: number | null
+          max_redemptions_per_user?: number | null
           metadata?: Json
           name: string
           newsletter_campaign_id?: string | null
           newsletter_segment?: string | null
+          package_ids?: string[]
           plan_ids?: string[]
           prefix?: string
           status?: string
           tenant_id?: string
+          ticket_type_ids?: string[]
           updated_at?: string
           valid_from?: string | null
           valid_until?: string | null
         }
         Update: {
+          audience?: string | null
           code_count?: number
           code_length?: number
           created_at?: string
@@ -723,19 +734,23 @@ export type Database = {
           discount_cents?: number | null
           discount_kind?: string
           discount_percent?: number | null
+          event_ids?: string[]
           generated_count?: number
           grants_duration_days?: number | null
           grants_tier_key?: string | null
           id?: string
           max_redemptions_per_code?: number | null
+          max_redemptions_per_user?: number | null
           metadata?: Json
           name?: string
           newsletter_campaign_id?: string | null
           newsletter_segment?: string | null
+          package_ids?: string[]
           plan_ids?: string[]
           prefix?: string
           status?: string
           tenant_id?: string
+          ticket_type_ids?: string[]
           updated_at?: string
           valid_from?: string | null
           valid_until?: string | null
@@ -818,19 +833,23 @@ export type Database = {
           discount_cents: number | null
           discount_kind: string
           discount_percent: number | null
+          event_ids: string[]
           grants_duration_days: number | null
           grants_tier_key: string | null
           id: string
           lead_score_bonus: number
           max_redemptions: number | null
+          max_redemptions_per_user: number | null
           metadata: Json
           name: string | null
           newsletter_segment: string | null
           organization_id: string | null
+          package_ids: string[]
           plan_ids: string[]
           prefix: string | null
           redemptions_count: number
           tenant_id: string
+          ticket_type_ids: string[]
           updated_at: string
           valid_from: string | null
           valid_until: string | null
@@ -848,19 +867,23 @@ export type Database = {
           discount_cents?: number | null
           discount_kind: string
           discount_percent?: number | null
+          event_ids?: string[]
           grants_duration_days?: number | null
           grants_tier_key?: string | null
           id?: string
           lead_score_bonus?: number
           max_redemptions?: number | null
+          max_redemptions_per_user?: number | null
           metadata?: Json
           name?: string | null
           newsletter_segment?: string | null
           organization_id?: string | null
+          package_ids?: string[]
           plan_ids?: string[]
           prefix?: string | null
           redemptions_count?: number
           tenant_id?: string
+          ticket_type_ids?: string[]
           updated_at?: string
           valid_from?: string | null
           valid_until?: string | null
@@ -878,19 +901,23 @@ export type Database = {
           discount_cents?: number | null
           discount_kind?: string
           discount_percent?: number | null
+          event_ids?: string[]
           grants_duration_days?: number | null
           grants_tier_key?: string | null
           id?: string
           lead_score_bonus?: number
           max_redemptions?: number | null
+          max_redemptions_per_user?: number | null
           metadata?: Json
           name?: string | null
           newsletter_segment?: string | null
           organization_id?: string | null
+          package_ids?: string[]
           plan_ids?: string[]
           prefix?: string | null
           redemptions_count?: number
           tenant_id?: string
+          ticket_type_ids?: string[]
           updated_at?: string
           valid_from?: string | null
           valid_until?: string | null
@@ -8539,6 +8566,7 @@ export type Database = {
       }
       event_ticket_types: {
         Row: {
+          audience: string
           created_at: string
           currency: string
           description_en: string
@@ -8548,12 +8576,14 @@ export type Database = {
           id: string
           is_active: boolean
           key: string
+          max_per_person: number | null
           min_tier_rank: number
           name_en: string
           name_pl: string
           price_cents: number
           quota: number | null
           requires_approval: boolean
+          requires_verification: boolean
           sales_from: string | null
           sales_to: string | null
           sold_count: number
@@ -8562,6 +8592,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audience?: string
           created_at?: string
           currency?: string
           description_en?: string
@@ -8571,12 +8602,14 @@ export type Database = {
           id?: string
           is_active?: boolean
           key: string
+          max_per_person?: number | null
           min_tier_rank?: number
           name_en: string
           name_pl: string
           price_cents?: number
           quota?: number | null
           requires_approval?: boolean
+          requires_verification?: boolean
           sales_from?: string | null
           sales_to?: string | null
           sold_count?: number
@@ -8585,6 +8618,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audience?: string
           created_at?: string
           currency?: string
           description_en?: string
@@ -8594,12 +8628,14 @@ export type Database = {
           id?: string
           is_active?: boolean
           key?: string
+          max_per_person?: number | null
           min_tier_rank?: number
           name_en?: string
           name_pl?: string
           price_cents?: number
           quota?: number | null
           requires_approval?: boolean
+          requires_verification?: boolean
           sales_from?: string | null
           sales_to?: string | null
           sold_count?: number
