@@ -17824,6 +17824,43 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_sponsor_detail: {
+        Args: { _id: string }
+        Returns: {
+          booth_label: string
+          company_id: string
+          contacts: Json
+          created_at: string
+          crm_city: string
+          crm_country: string
+          crm_domain: string
+          crm_drift_fields: string[]
+          crm_logo_url: string
+          crm_name: string
+          crm_website: string
+          event_id: string
+          id: string
+          internal_note: string
+          is_published: boolean
+          materials: Json
+          role: string
+          snapshot_country: string
+          snapshot_description_en: string
+          snapshot_description_pl: string
+          snapshot_logo_url: string
+          snapshot_name: string
+          snapshot_source: string
+          snapshot_taken_at: string
+          snapshot_website: string
+          sort_order: number
+          tier_id: string
+          tier_key: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
+          updated_at: string
+        }[]
+      }
       admin_event_sponsor_tier_delete: {
         Args: { _id: string }
         Returns: boolean
@@ -17859,6 +17896,54 @@ export type Database = {
       admin_event_sponsor_tiers_reorder: {
         Args: { p_payload: Json }
         Returns: number
+      }
+      admin_event_sponsors_list: {
+        Args: {
+          p_event_id: string
+          p_limit?: number
+          p_offset?: number
+          p_published?: string
+          p_q?: string
+          p_role?: string
+          p_tier_id?: string
+        }
+        Returns: {
+          booth_label: string
+          company_id: string
+          contacts_count: number
+          created_at: string
+          crm_city: string
+          crm_country: string
+          crm_drift: boolean
+          crm_drift_fields: string[]
+          crm_logo_url: string
+          crm_name: string
+          crm_website: string
+          event_id: string
+          id: string
+          is_published: boolean
+          materials_count: number
+          published_materials_count: number
+          role: string
+          snapshot_country: string
+          snapshot_description_en: string
+          snapshot_description_pl: string
+          snapshot_logo_url: string
+          snapshot_name: string
+          snapshot_source: string
+          snapshot_taken_at: string
+          snapshot_website: string
+          sort_order: number
+          tier_accent_color: string
+          tier_id: string
+          tier_key: string
+          tier_logo_size: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
+          total_count: number
+          updated_at: string
+        }[]
       }
       admin_event_term_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_term_upsert: { Args: { p_payload: Json }; Returns: string }
