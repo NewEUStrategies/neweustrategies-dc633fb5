@@ -9413,6 +9413,7 @@ export type Database = {
           retry_count: number
           status: string
           subscription_id: string | null
+          tenant_id: string
           user_id: string | null
         }
         Insert: {
@@ -9432,6 +9433,7 @@ export type Database = {
           retry_count?: number
           status?: string
           subscription_id?: string | null
+          tenant_id?: string
           user_id?: string | null
         }
         Update: {
@@ -9451,6 +9453,7 @@ export type Database = {
           retry_count?: number
           status?: string
           subscription_id?: string | null
+          tenant_id?: string
           user_id?: string | null
         }
         Relationships: []
