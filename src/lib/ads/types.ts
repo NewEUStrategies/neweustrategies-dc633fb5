@@ -13,7 +13,7 @@ export type AdPosition =
   | "footer_slideup";
 
 export type AdPageType =
-  "all" | "home" | "post" | "page" | "category" | "tag" | "archive" | "search";
+  "all" | "home" | "post" | "page" | "category" | "tag" | "archive" | "search" | "event";
 
 export interface AdSlot {
   id: string;
@@ -88,6 +88,7 @@ export const AD_PAGE_TYPE_LABEL_KEYS: Record<AdPageType, string> = {
   tag: "adsAdmin.pageTypes.tag",
   archive: "adsAdmin.pageTypes.archive",
   search: "adsAdmin.pageTypes.search",
+  event: "adsAdmin.pageTypes.event",
 };
 
 export const AD_SLOT_KIND_LABEL_KEYS: Record<AdSlotKind, string> = {

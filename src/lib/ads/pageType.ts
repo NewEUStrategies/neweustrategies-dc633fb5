@@ -27,6 +27,12 @@ export function adPageTypeForLocation(
   if (path.startsWith("/category/")) return "category";
   if (path.startsWith("/tag/")) return "tag";
   if (path === "/search" || path.startsWith("/search/")) return "search";
+  // Strona wydarzenia i lista wydarzeń dostały własny typ strony migracją
+  // 20260823170000 (zadanie EB-937). Warunek stoi PRZED rozstrzygnięciem po
+  // `contentKind`, bo front wydarzenia jest poddrzewem stron - bez tego każde
+  // wydarzenie zgłaszałoby się jako "page" i placementy zawężone do wydarzeń
+  // nie renderowałyby się nigdy.
+  if (path === "/events" || path.startsWith("/events/")) return "event";
   if (contentKind === "post") return "post";
   if (contentKind === "page") return "page";
   return "all";
