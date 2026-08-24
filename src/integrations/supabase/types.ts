@@ -23041,6 +23041,7 @@ export type Database = {
       invoke_billing_cron: { Args: never; Returns: undefined }
       invoke_community_cron: { Args: { p_job?: string }; Returns: undefined }
       invoke_jobs_tick: { Args: never; Returns: undefined }
+      is_admin_or_editor: { Args: never; Returns: boolean }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_club_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_connected_pair: { Args: { _a: string; _b: string }; Returns: boolean }
