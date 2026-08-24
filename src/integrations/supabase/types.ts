@@ -17824,6 +17824,25 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_sponsor_companies_search: {
+        Args: { p_event_id: string; p_limit?: number; p_q?: string }
+        Returns: {
+          city: string
+          country: string
+          domain: string
+          events_count: number
+          id: string
+          is_pinned: boolean
+          logo_url: string
+          name: string
+          pinned_sponsor_id: string
+          website: string
+        }[]
+      }
+      admin_event_sponsor_contacts_set: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsor_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_sponsor_detail: {
         Args: { _id: string }
@@ -17863,6 +17882,10 @@ export type Database = {
         }[]
       }
       admin_event_sponsor_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_sponsor_snapshot_refresh: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsor_tier_delete: {
         Args: { _id: string }
         Returns: boolean
