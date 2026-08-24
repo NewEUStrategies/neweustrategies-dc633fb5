@@ -12,6 +12,7 @@ import { publicEventsQueryOptions, type PublicEvent } from "@/lib/community/publ
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
@@ -249,10 +250,15 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const title = lang === "en" ? event.title_en || event.title_pl : event.title_pl || event.title_en;
   const desc = lang === "en" ? event.description_en : event.description_pl;
-  const when = new Date(event.starts_at).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  // Godzina liczy sie w STREFIE WYDARZENIA, nie w strefie przegladarki, a obok
+  // niej stoi nazwa tej strefy. Bez jednego i drugiego uczestnik z Brukseli
+  // czytal godzine warszawska jako swoja i przychodzil o zlej godzinie - to jest
+  // zadanie EB-912 z projektu frontu, punkt "strefa czasowa: jedna funkcja,
+  // cztery miejsca do naprawy". Etykieta jest wyliczana ze strefy WYDARZENIA
+  // (deterministycznie), a nie ze strefy widza - strefa widza jest znana dopiero
+  // po montazu i rozjechalaby hydratacje.
+  const when = formatEventDateTime(event.starts_at, event.timezone, lang);
+  const zone = eventTimeZoneLabel(event.starts_at, event.timezone, lang);
   return (
     <li className="group relative overflow-hidden rounded-lg border border-border bg-card transition hover:border-primary/60">
       {event.cover_url && (
@@ -288,7 +294,7 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-            {when}
+            {zone === "" ? when : `${when} (${zone})`}
           </span>
           {event.location && (
             <span className="inline-flex items-center gap-1">

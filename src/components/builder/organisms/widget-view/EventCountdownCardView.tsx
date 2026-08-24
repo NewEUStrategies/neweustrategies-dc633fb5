@@ -15,7 +15,7 @@ import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/li
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 import { asOneOf } from "@/lib/content-model/contentValue";
-import { uiLocale } from "@/lib/i18n/format";
+import { formatEventDateTime } from "@/lib/events/timezone";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
   return getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || getStr(c, `${base}_en`);
@@ -138,11 +138,29 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   const parts = nowMs !== null ? countdownParts(targetMs, nowMs) : null;
   const soon = nowMs !== null && isStartingSoon(targetMs, nowMs);
   const done = parts?.done ?? false;
-  const dateLabel = new Date(targetMs).toLocaleDateString(uiLocale(lang), {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  // Data w STREFIE WYDARZENIA. Projekt frontu wskazywal ten widget wprost:
+  // "EventCountdownCardView IGNORUJE timezone calkowicie". Samo odliczanie jest
+  // od strefy niezalezne (liczy sie na milisekundach absolutnych), ale ETYKIETA
+  // daty juz nie: 1 lipca 23:30 w Warszawie to 1 lipca w Warszawie i 30 czerwca
+  // w Londynie, a widget deklaruje date wydarzenia, nie date u widza.
+  //
+  // Tryb `custom` nie ma wydarzenia, wiec nie ma i strefy - `eventTimeZone`
+  // oddaje wtedy strefe domyslna serwisu, i to jest kontrakt tego modulu:
+  // brak strefy znaczy strefa biura, nie strefa maszyny.
+  // Opcje formatu zostaja TE SAME co przed poprawka (dzien dwucyfrowy, miesiac
+  // skrocony, rok liczbowy) - poprawiamy STREFE, a nie wyglad karty. Zmiana
+  // formatu na `dateStyle` byla by cicha zmiana projektu graficznego przy okazji
+  // naprawy defektu, a to dwie rozne decyzje.
+  const dateLabel = formatEventDateTime(
+    new Date(targetMs).toISOString(),
+    eventRow?.timezone ?? null,
+    lang,
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    },
+  );
   const labels =
     lang === "pl"
       ? { days: "dni", hours: "godz.", minutes: "min", seconds: "sek." }
