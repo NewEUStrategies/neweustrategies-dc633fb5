@@ -17049,6 +17049,14 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_mark_notified: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_registration_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_registrations_counts: {
         Args: {
           p_event_id: string
@@ -17315,6 +17323,7 @@ export type Database = {
           sort_order: number
         }[]
       }
+      admin_event_waitlist_promote: { Args: { p_payload: Json }; Returns: Json }
       admin_events_counts: {
         Args: {
           p_format?: string
