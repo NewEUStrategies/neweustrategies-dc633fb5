@@ -5,6 +5,7 @@
 // Chatham House) - nigdy bezpośrednimi insertami do tabel.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface PublicEvent {
@@ -83,6 +84,56 @@ export async function fetchPublicEventBySlug(slug: string): Promise<PublicEvent 
     .maybeSingle();
   if (error) throw error;
   return (data ?? null) as PublicEvent | null;
+}
+
+/**
+ * Nagłówek strony wydarzenia - kształt WPROST z sygnatury RPC
+ * (`event_page_header`), nigdy przepisany ręcznie: 49 kolumn utrzymywanych
+ * dwa razy rozjeżdża się przy pierwszej zmianie funkcji, a bramka
+ * `check:db-row-casts` pilnuje właśnie tego.
+ */
+export type EventPageHeader =
+  Database["public"]["Functions"]["event_page_header"]["Returns"][number];
+
+/**
+ * Nagłówek publicznej strony wydarzenia w JEDNYM wywołaniu.
+ *
+ * ── DLACZEGO OBOK `fetchPublicEventBySlug`, A NIE ZAMIAST ──────────────────
+ * Rozważane były oba warianty. Zastąpienie odrzucone po sprawdzeniu WSZYSTKICH
+ * konsumentów typu `PublicEvent` - jest ich pięć i żaden nie czyta nagłówka
+ * strony wydarzenia:
+ *   * `routes/events.tsx` (lista) - czyta `PublicEvent[]` z jednego zapytania
+ *     tabelarycznego; docelowo przechodzi na `events_public_list()`, ale to
+ *     osobne zadanie z paginacją i filtrami serwerowymi,
+ *   * `lib/queries/programs.ts` + `routes/programs.$slug.tsx` - wydarzenia
+ *     programu, znowu lista, nie strona,
+ *   * `components/community/AddToCalendar.tsx` - przyjmuje `PublicEvent`
+ *     w sygnaturze,
+ *   * `routes/events.$slug.tsx` - nadal potrzebuje `host_user_id`, `status`
+ *     i `early_rsvp_rank`, których nagłówek NIE ODDAJE (kolejno: dla
+ *     `EventGroupButton`, dla `EventGroupButton` i dla plakietki wcześniejszego
+ *     dostępu).
+ * Zastąpienie zepsułoby więc cztery miejsca, żeby naprawić jedno.
+ *
+ * ŚCIEŻKĄ DOCELOWĄ JEST TA FUNKCJA i to nie jest kwestia gustu: nagłówek oddaje
+ * dziesięć kolumn etapu 1 (`registration_mode`, `registration_flow`,
+ * `external_registration_url`, `guest_mode`, `format`, `event_type_id`,
+ * `branding`, ...), których zapytanie tabelaryczne DOSTAĆ NIE MOŻE - migracja
+ * `20260803191905` odebrała anon i authenticated SELECT na `public.events`
+ * i nadała go z jawną allowlistą 29 kolumn, w której tych dziesięciu nie ma.
+ * `fetchPublicEventBySlug` żyje wyłącznie do wygaszenia trzech pól wyżej
+ * (`get_event_access` i lista mają je oddać w swoich kontraktach).
+ *
+ * JEDNO WYWOŁANIE = JEDNA CHWILA W CZASIE. Liczba wolnych miejsc, stan zapisów
+ * i własny status uczestnika są ze sobą powiązane; policzone trzema zapytaniami
+ * dają trzy różne odpowiedzi na to samo pytanie, a wtedy strona pokazuje
+ * przycisk, który odmawia. Uzasadnienie po stronie bazy: decyzja D1 w nagłówku
+ * migracji `20260823170000_event_front_binding.sql`.
+ */
+export async function fetchEventPageHeader(slug: string): Promise<EventPageHeader | null> {
+  const { data, error } = await supabase.rpc("event_page_header", { p_slug: slug });
+  if (error) throw error;
+  return data?.[0] ?? null;
 }
 
 export interface EventAccess {

@@ -187,6 +187,28 @@ export const eventFrontPl = {
       seeMembership: "Poznaj członkostwo",
     },
 
+    // ---------------------------------------------------------------------
+    // Powierzchnia zapisów: zdania, których słownik stanu z bazy NIE MA.
+    //
+    // `registration_state` z `event_page_header()` opisuje stan WYDARZENIA,
+    // a te pięć zdań opisuje stan NASZEGO EKRANU: tryb, którego strona jeszcze
+    // nie obsługuje, adres, którego organizator nie podał, oraz stan, którego
+    // ta wersja klienta nie zna. Rozróżnienie jest celowe - zdanie „zapisy
+    // otwarte" byłoby przy trybie `form` prawdziwe i całkowicie bezużyteczne.
+    // Reguła: `lib/events/registrationSurface.ts`.
+    // ---------------------------------------------------------------------
+    registrationSurface: {
+      signInHint: "Zaloguj się, żeby zapisać się na to wydarzenie.",
+      formRequired:
+        "Zapis na to wydarzenie prowadzi organizator przez formularz zgłoszenia, którego nie ma jeszcze na tej stronie. Zapis jednym kliknięciem tutaj nie zadziała - napisz do organizatora.",
+      approvalRequired:
+        "Zapis na to wydarzenie wymaga akceptacji organizatora, a ekranu zgłoszenia nie ma jeszcze na tej stronie. Napisz do organizatora.",
+      externalUrlMissing:
+        "Organizator wskazał rejestrację w zewnętrznym narzędziu, ale nie podał jej adresu. Zapis przez tę stronę nie zadziała - napisz do organizatora.",
+      ticketRequired: "To wydarzenie wymaga opłaconej wejściówki.",
+      closedUnknown: "Zapisy na to wydarzenie są w tej chwili zamknięte.",
+    },
+
     // Stan WŁASNEGO zgłoszenia (event_registrations.status) - osiem wartości.
     myRegistration: {
       draft: "Zgłoszenie nieukończone",
@@ -449,6 +471,18 @@ export const eventFrontEn = {
       cancel: "Withdraw registration",
       signIn: "Sign in to register",
       seeMembership: "See membership",
+    },
+
+    registrationSurface: {
+      signInHint: "Sign in to register for this event.",
+      formRequired:
+        "The organiser runs registration for this event through an application form that is not on this page yet. One-click registration will not work here - contact the organiser.",
+      approvalRequired:
+        "Registration for this event needs the organiser's approval, and the application screen is not on this page yet. Contact the organiser.",
+      externalUrlMissing:
+        "The organiser set registration to an external tool but gave no address for it. Registration through this page will not work - contact the organiser.",
+      ticketRequired: "This event requires a paid ticket.",
+      closedUnknown: "Registration for this event is closed at the moment.",
     },
 
     myRegistration: {

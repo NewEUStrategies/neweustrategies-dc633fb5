@@ -19,10 +19,7 @@ import {
   ShieldQuestion,
   Video,
   ArrowLeft,
-  Check,
-  ListPlus,
   Star,
-  XCircle,
   BadgeCheck,
   Lock,
   Clock,
@@ -32,12 +29,24 @@ import { supabase } from "@/integrations/supabase/client";
 
 import {
   fetchEventAccess,
+  fetchEventPageHeader,
   fetchEventRsvpCounts,
   fetchEventWaitlistPosition,
   fetchPublicEventBySlug,
   rsvpEvent,
   type RsvpRequestStatus,
 } from "@/lib/community/publicQueries";
+import {
+  canSignalInterest,
+  isLegacyRsvpDecision,
+  resolveRegistrationSurface,
+  rsvpRefusalMessageKey,
+  waitlistPositionOf,
+} from "@/lib/events/registrationSurface";
+import {
+  EventRegistrationSurface,
+  eventRegistrationActionFrom,
+} from "@/components/events/molecules/EventRegistrationSurface";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { confirmFreeRsvpEmail } from "@/lib/events/rsvp-email.functions";
 import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
@@ -56,6 +65,7 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 type RsvpStatus = "going" | "interested" | "cancelled" | "waitlist";
 
 export const Route = createFileRoute("/events/$slug")({
@@ -80,6 +90,7 @@ export const Route = createFileRoute("/events/$slug")({
 function EventDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureCommunityI18n();
+  ensureEventFrontI18n();
   const { slug } = useParams({ from: "/events/$slug" });
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
@@ -93,6 +104,18 @@ function EventDetail() {
     enabled: modules.events_enabled,
   });
   const eventId = eventQ.data?.id ?? null;
+
+  // Nagłówek strony w JEDNYM wywołaniu (event_page_header). To jedyne źródło
+  // trybu i przepływu zapisów: kolumny `registration_mode`,
+  // `registration_flow` i `external_registration_url` NIE SĄ w allowliście
+  // kolumnowej z migracji 20260803191905, więc zapytanie tabelaryczne o nie
+  // kończy się odmową uprawnień. Klucz zawiera użytkownika, bo RPC
+  // personalizuje odpowiedź (`my_*`, `tier_locked`, `chatham_house_locked`).
+  const headerQ = useQuery({
+    queryKey: ["event-page-header", slug, user?.id ?? "anon"],
+    queryFn: () => fetchEventPageHeader(slug),
+    enabled: modules.events_enabled,
+  });
 
   // Własny RSVP (RLS: "rsvps owner read" - widzę tylko swój wiersz).
   const rsvpQ = useQuery({
@@ -137,6 +160,7 @@ function EventDetail() {
   });
 
   const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["event-page-header", slug, user?.id ?? "anon"] });
     void qc.invalidateQueries({ queryKey: ["event-rsvp", eventId, user?.id] });
     void qc.invalidateQueries({ queryKey: ["event-access", eventId, user?.id ?? "anon"] });
     void qc.invalidateQueries({ queryKey: ["event-rsvp-counts", eventId] });
@@ -186,13 +210,18 @@ function EventDetail() {
       toast.success(t(key));
     },
     onError: (e: unknown) => {
-      // Surowe komunikaty RPC rsvp_event mapujemy na czytelne i18n.
+      // DRUGA LINIA OBRONY. Po przebudowie bloku zapisów odmowy trybu
+      // (`registration disabled` / `external` / `form required` /
+      // `approval required`) są z interfejsu NIEOSIĄGALNE - kontrolka wołająca
+      // rsvp_event powstaje tylko wtedy, gdy reguła mówi, że wywołanie ma
+      // szansę przejść. Mapowanie zostaje dla jednego realnego scenariusza:
+      // uczestnik z otwartą kartą w chwili, gdy organizator zmienia tryb
+      // w panelu. Jego przycisk pochodzi z migawki, która przestała być prawdą,
+      // i ma dostać zdanie prawdziwe, a nie generyczny błąd.
+      // Słownik i kolejność dopasowań (Chatham House PRZED członkostwem, bo
+      // pierwszy komunikat zawiera drugi) żyją w lib/events/registrationSurface.
       const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("full")) toast.error(t("community.events.rsvpFull"));
-      else if (msg.includes("rsvp not open")) toast.error(t("community.events.rsvpNotOpenToast"));
-      else if (msg.includes("membership required"))
-        toast.error(t("community.events.rsvpTierError"));
-      else toast.error(t("community.events.rsvpError"));
+      toast.error(t(rsvpRefusalMessageKey(msg)));
     },
   });
 
@@ -267,28 +296,73 @@ function EventDetail() {
     return match ? tierName(match, lang) : null;
   })();
 
-  // Pierwszeństwo rejestracji: okno rsvp_opens_at + wcześniejszy dostęp dla
-  // członków o randze >= early_rsvp_rank. Twardo egzekwuje to rsvp_event; tu
-  // rozstrzygamy tylko, co pokazać (przyciski vs komunikat "jeszcze nieotwarta").
+  // Okno rejestracji: data otwarcia (do zdania "zapisy otwierają się ...")
+  // i plakietka wcześniejszego dostępu dla członków o randze >= early_rsvp_rank.
+  // O tym, CZY pokazać kontrolkę, nie decyduje już ten rachunek - decyduje
+  // `registration_state` z nagłówka, który sam uwzględnia early_rsvp_rank.
+  // Tutaj zostaje wyłącznie to, czego nagłówek NIE ODDAJE: `early_rsvp_rank`.
   const rsvpOpensAt = ev.rsvp_opens_at ? new Date(ev.rsvp_opens_at) : null;
   const rsvpBeforeOpen = !!rsvpOpensAt && rsvpOpensAt.getTime() > Date.now();
   const earlyRank = ev.early_rsvp_rank ?? null;
   const myRank = currentTierQ.data?.rank ?? 0;
   const hasEarlyAccess = earlyRank !== null && myRank >= earlyRank;
-  // Rejestracja zamknięta dla wołającego, dopóki nie ma wcześniejszego dostępu.
-  const rsvpLockedByWindow = rsvpBeforeOpen && !hasEarlyAccess;
   const whenOpens = rsvpOpensAt
     ? rsvpOpensAt.toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
         dateStyle: "long",
         timeStyle: "short",
       })
     : "";
-  const requiredEarlyTierName = (() => {
-    if (earlyRank === null || earlyRank <= 0) return null;
-    const tiers = tiersQ.data ?? [];
-    const match = [...tiers].sort((a, b) => a.rank - b.rank).find((tier) => tier.rank >= earlyRank);
-    return match ? tierName(match, lang) : null;
-  })();
+
+  // ── POWIERZCHNIA ZAPISÓW ────────────────────────────────────────────────
+  // JEDNA decyzja z reguły czystej. Trasa nie składa już własnych warunków
+  // z kolumn wydarzenia: dokładnie ten rachunek rysował wcześniej przycisk
+  // zapisu na wydarzeniu w trybie `form`, czyli kontrolkę prowadzącą w ścianę.
+  const header = headerQ.data ?? null;
+  const surface =
+    header === null
+      ? null
+      : resolveRegistrationSurface({
+          registrationMode: header.registration_mode,
+          registrationFlow: header.registration_flow,
+          registrationState: header.registration_state,
+          externalRegistrationUrl: header.external_registration_url,
+          seatsLeft: header.seats_left,
+          myRegistrationStatus: header.my_registration_status,
+          myRsvpStatus: header.my_rsvp_status,
+          // Dwie żywe ścieżki zapisu = dwa źródła pozycji w kolejce. Nagłówek
+          // liczy kolejkę `event_registrations` (etap 4), a legacy kolejkę
+          // `event_rsvps` - RPC get_event_waitlist_position. Bierzemy tę, która
+          // odpowiada ścieżce, na której uczestnik naprawdę stoi.
+          myWaitlistPosition: header.my_waitlist_position ?? waitlistPosQ.data ?? null,
+          tierLocked: header.tier_locked,
+          chathamHouseLocked: header.chatham_house_locked,
+          hasEnded: header.has_ended,
+          isSignedIn: !!user,
+        });
+
+  // Wariant -> kształt kontrolki. Molekuła nie dostaje ani jednego klucza i18n:
+  // napis składa się tutaj, a mapowanie kształtu żyje przy molekule, żeby test
+  // komponentu przechodził tą samą ścieżką co ta trasa.
+  const surfaceAction =
+    surface === null
+      ? null
+      : eventRegistrationActionFrom(
+          surface.control,
+          surface.control === null ? "" : t(surface.control.labelKey),
+          rsvpM.isPending,
+        );
+
+  const surfaceQueuePosition = surface === null ? null : waitlistPositionOf(surface);
+
+  const onSurfaceAction = () => {
+    if (surface === null || surface.control === null) return;
+    // Kolejka rezerwowa NIE jest osobnym żądaniem: klient wysyła `going`,
+    // a rsvp_event sam degraduje wynik do `waitlist` pod blokadą wiersza.
+    if (surface.control.action === "cancel") rsvpM.mutate("cancelled");
+    else if (surface.control.action === "rsvp" || surface.control.action === "waitlist") {
+      rsvpM.mutate("going");
+    }
+  };
 
   return (
     <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
@@ -407,19 +481,13 @@ function EventDetail() {
             </a>
           </Button>
         )}
-        {!isPast && !user && (
-          <p className="text-sm text-muted-foreground">{t("community.events.rsvpSignInHint")}</p>
-        )}
-        {!isPast && user && rsvpLockedByWindow ? (
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            {requiredEarlyTierName
-              ? t("community.events.rsvpEarlyForMembers", {
-                  when: whenOpens,
-                  tier: requiredEarlyTierName,
-                })
-              : t("community.events.rsvpNotOpen", { when: whenOpens })}
-          </p>
-        ) : !isPast && user && isPaidEvent ? (
+        {/* Wydarzenie PŁATNE: wejściówki są własną powierzchnią (płatność,
+            webhook, przydział z planu), więc zastępują kontrolkę bezpłatnego
+            zapisu - ale WYŁĄCZNIE wtedy, gdy reguła mówi, że ta kontrolka
+            w ogóle mogłaby się udać. Przy trybie `form`, `external`, `none`
+            i przy przepływie `approval` uczestnik dostaje zdanie reguły,
+            a nie przycisk zakupu prowadzący w tę samą ścianę. */}
+        {surface === null ? null : isPaidEvent && isLegacyRsvpDecision(surface) ? (
           <EventTicketPurchase
             eventId={ev.id}
             slug={ev.slug}
@@ -431,14 +499,36 @@ function EventDetail() {
             isFull={isFull}
             onClaimed={invalidate}
           />
-        ) : !isPast && user ? (
-          <RsvpControls
-            current={rsvpQ.data?.status ?? null}
-            pending={rsvpM.isPending}
-            isFull={isFull}
-            onChoose={(s) => rsvpM.mutate(s)}
+        ) : (
+          <EventRegistrationSurface
+            message={t(surface.messageKey, { date: whenOpens })}
+            note={
+              surfaceQueuePosition === null
+                ? null
+                : t("eventFront.waitlistPosition", { position: surfaceQueuePosition })
+            }
+            action={surfaceAction}
+            onAction={onSurfaceAction}
+            groupLabel={t("eventFront.sections.registration.heading")}
           />
-        ) : null}
+        )}
+        {/* Sygnał zainteresowania jest OSOBNĄ decyzją, nie odmianą zapisu:
+            bramka trybu z 20260823136000 obejmuje wyłącznie `going`, więc
+            „zainteresowany" przechodzi także na wydarzeniu z formularzem czy
+            z rejestracją zewnętrzną. Blokują go tylko bramki wspólne dla
+            wszystkich statusów (warstwa, Chatham House, okno) - rozstrzyga to
+            canSignalInterest, żeby i ten przycisk nie prowadził w ścianę. */}
+        {user && surface !== null && canSignalInterest(surface) && (
+          <Button
+            variant={rsvpQ.data?.status === "interested" ? "default" : "outline"}
+            onClick={() => rsvpM.mutate("interested")}
+            disabled={rsvpM.isPending}
+            aria-pressed={rsvpQ.data?.status === "interested"}
+          >
+            <Star className="mr-2 h-4 w-4" aria-hidden="true" />
+            {t("community.events.rsvpInterested")}
+          </Button>
+        )}
         {!isPast && <AddToCalendar event={ev} lang={lang} />}
         <EventTicketCard
           eventId={ev.id}
@@ -446,24 +536,19 @@ function EventDetail() {
           enabled={!!user && rsvpQ.data?.status === "going"}
         />
       </div>
-      {!isPast && user && !rsvpLockedByWindow && rsvpBeforeOpen && hasEarlyAccess && (
+      {!isPast && user && rsvpBeforeOpen && hasEarlyAccess && (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
           {t("community.events.rsvpEarlyAccessOpen", { when: whenOpens })}
         </p>
       )}
-      {!isPast && user && rsvpQ.data && rsvpQ.data.status !== "cancelled" && (
-        <p
-          key={rsvpQ.data.status}
-          className="mt-3 text-sm text-primary animate-fade-in"
-          aria-live="polite"
-        >
-          {rsvpQ.data.status === "going"
-            ? t("community.events.rsvpStatusGoing")
-            : rsvpQ.data.status === "waitlist"
-              ? typeof waitlistPosQ.data === "number"
-                ? t("community.events.waitlistStatus", { position: waitlistPosQ.data })
-                : t("community.events.waitlistStatusNoPosition")
-              : t("community.events.rsvpStatusInterested")}
+      {/* Zostaje TYLKO 'interested'. Zdania o zapisie i o liście rezerwowej
+          niesie teraz wariant reguły (EventRegistrationSurface) - dublowanie ich
+          tutaj dawało dwa zdania o tym samym, liczone z dwóch różnych chwil
+          w czasie. 'interested' reguła świadomie pomija: sygnał
+          zainteresowania nie jest zapisem, więc nie odbiera przycisku zapisu. */}
+      {!isPast && user && rsvpQ.data?.status === "interested" && (
+        <p className="mt-3 text-sm text-primary animate-fade-in" aria-live="polite">
+          {t("community.events.rsvpStatusInterested")}
         </p>
       )}
       {/* Kolejka rezerwowa nie daje wejściówki - link do transmisji pojawia
@@ -510,65 +595,6 @@ function EventDetail() {
           uczestników 'going' (komponent sam znika dla pozostałych). */}
       <EventGroupButton eventId={ev.id} hostUserId={ev.host_user_id} eventStatus={ev.status} />
     </article>
-  );
-}
-
-function RsvpControls({
-  current,
-  pending,
-  isFull,
-  onChoose,
-}: {
-  current: RsvpStatus | null;
-  pending: boolean;
-  isFull: boolean;
-  onChoose: (s: RsvpRequestStatus) => void;
-}) {
-  const { t } = useTranslation();
-  const active = current && current !== "cancelled" ? current : null;
-  // Przy komplecie przycisk 'going' staje się wejściem do kolejki rezerwowej;
-  // klient i tak wysyła 'going' - degradację do 'waitlist' rozstrzyga serwer.
-  const waitlistMode = active === "waitlist" || (isFull && active !== "going");
-  return (
-    <div className="inline-flex flex-wrap items-center gap-2" role="group" aria-label="RSVP">
-      <Button
-        variant={active === "going" || active === "waitlist" ? "default" : "outline"}
-        onClick={() => onChoose("going")}
-        disabled={pending}
-        aria-pressed={active === "going" || active === "waitlist"}
-      >
-        {waitlistMode ? (
-          <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-        ) : (
-          <Check className="mr-2 h-4 w-4" aria-hidden="true" />
-        )}
-        {active === "waitlist"
-          ? t("community.events.waitlistBadge")
-          : waitlistMode
-            ? t("community.events.waitlistJoin")
-            : t("community.events.rsvpGoing")}
-      </Button>
-      <Button
-        variant={active === "interested" ? "default" : "outline"}
-        onClick={() => onChoose("interested")}
-        disabled={pending}
-        aria-pressed={active === "interested"}
-      >
-        <Star className="mr-2 h-4 w-4" aria-hidden="true" />
-        {t("community.events.rsvpInterested")}
-      </Button>
-      {active && (
-        <Button
-          variant="ghost"
-          onClick={() => onChoose("cancelled")}
-          disabled={pending}
-          aria-label={t("community.events.rsvpCancel")}
-        >
-          <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-          {t("community.events.rsvpCancel")}
-        </Button>
-      )}
-    </div>
   );
 }
 
