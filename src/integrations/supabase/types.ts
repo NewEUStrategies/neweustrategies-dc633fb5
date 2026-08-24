@@ -17474,6 +17474,36 @@ export type Database = {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
       }
+      _event_checkin_evaluate: {
+        Args: {
+          _checkpoint_id: string
+          _direction: string
+          _event_id: string
+          _person_id: string
+          _tenant: string
+        }
+        Returns: Json
+      }
+      _event_checkin_write: {
+        Args: {
+          _checkpoint_id: string
+          _client_uid: string
+          _device_at: string
+          _device_id: string
+          _direction: string
+          _event_id: string
+          _note: string
+          _operator: string
+          _person_id: string
+          _source: string
+          _tenant: string
+        }
+        Returns: Json
+      }
+      _event_checkpoint_occupancy: {
+        Args: { _checkpoint_id: string; _tenant: string }
+        Returns: number
+      }
       _event_default_sections: {
         Args: never
         Returns: {
@@ -17485,9 +17515,14 @@ export type Database = {
         }[]
       }
       _event_new_qr_token: { Args: never; Returns: string }
+      _event_new_scanner_token: { Args: never; Returns: string }
       _event_next_waitlist_position: {
         Args: { _event_id: string; _tenant: string }
         Returns: number
+      }
+      _event_onsite_person_card: {
+        Args: { _event_id: string; _person_id: string; _tenant: string }
+        Returns: Json
       }
       _event_page_seats_left: {
         Args: { _event_id: string; _tenant: string }
@@ -17496,6 +17531,44 @@ export type Database = {
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
+      }
+      _event_scanner_device_auth: {
+        Args: { _scope: string; _token: string }
+        Returns: {
+          checkpoint_id: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          fail_window_count: number
+          fail_window_started_at: string | null
+          failed_scan_count: number
+          id: string
+          is_active: boolean
+          label: string
+          last_failed_scan_at: string | null
+          last_seen_at: string | null
+          locked_until: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scan_count: number
+          scopes: string[]
+          sponsor_id: string | null
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_scanner_devices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _event_scanner_device_note_failure: {
+        Args: { _device_id: string }
+        Returns: boolean
       }
       _event_seats_left: {
         Args: { _event_id: string; _tenant: string; _ticket_type_id?: string }
@@ -18132,6 +18205,42 @@ export type Database = {
           session_title_pl: string
           subject_id: string
           subject_name: string
+        }[]
+      }
+      admin_event_checkpoint_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_checkpoint_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_checkpoints_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          access_mode: string
+          capacity: number
+          created_at: string
+          dedupe_window_seconds: number
+          denied_count: number
+          device_count: number
+          direction_mode: string
+          event_id: string
+          granted_count: number
+          id: string
+          is_active: boolean
+          kind: string
+          last_checkin_at: string
+          name_en: string
+          name_pl: string
+          occupancy: number
+          repeat_count: number
+          room_id: string
+          room_name: string
+          session_id: string
+          session_title_en: string
+          session_title_pl: string
+          sort_order: number
+          sponsor_id: string
+          sponsor_name: string
+          updated_at: string
         }[]
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
@@ -21334,6 +21443,10 @@ export type Database = {
           type_name_pl: string
         }[]
       }
+      event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
+      event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
+      event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
@@ -21391,6 +21504,7 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
+      event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
       event_sections: {
         Args: { p_slug: string }
         Returns: {
