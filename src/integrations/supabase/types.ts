@@ -16410,6 +16410,10 @@ export type Database = {
         }[]
       }
       admin_event_session_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_session_signup_set: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_session_signups_list: {
         Args: { p_session_id: string }
         Returns: {
