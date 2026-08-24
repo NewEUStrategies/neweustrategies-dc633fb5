@@ -6005,6 +6005,178 @@ export type Database = {
           },
         ]
       }
+      event_badge_prints: {
+        Row: {
+          copies: number
+          device_id: string | null
+          event_id: string
+          id: string
+          note: string | null
+          person_id: string
+          printed_at: string
+          printed_by: string | null
+          reason: string
+          registration_id: string | null
+          template_id: string | null
+          template_version: number
+          tenant_id: string
+        }
+        Insert: {
+          copies?: number
+          device_id?: string | null
+          event_id: string
+          id?: string
+          note?: string | null
+          person_id: string
+          printed_at?: string
+          printed_by?: string | null
+          reason?: string
+          registration_id?: string | null
+          template_id?: string | null
+          template_version: number
+          tenant_id: string
+        }
+        Update: {
+          copies?: number
+          device_id?: string | null
+          event_id?: string
+          id?: string
+          note?: string | null
+          person_id?: string
+          printed_at?: string
+          printed_by?: string | null
+          reason?: string
+          registration_id?: string | null
+          template_id?: string | null
+          template_version?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_badge_prints_device_fk"
+            columns: ["tenant_id", "device_id"]
+            isOneToOne: false
+            referencedRelation: "event_scanner_devices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_badge_prints_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_badge_prints_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_badge_prints_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_badge_prints_template_fk"
+            columns: ["tenant_id", "event_id", "template_id"]
+            isOneToOne: false
+            referencedRelation: "event_badge_templates"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_badge_prints_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_badge_templates: {
+        Row: {
+          background_color: string | null
+          background_image_url: string | null
+          created_at: string
+          created_by: string | null
+          double_fold: boolean
+          elements: Json
+          event_id: string
+          height_mm: number | null
+          id: string
+          is_default: boolean
+          name: string
+          orientation: string
+          paper_format: string
+          qr_size_mm: number
+          show_qr: boolean
+          tenant_id: string
+          updated_at: string
+          version: number
+          width_mm: number | null
+        }
+        Insert: {
+          background_color?: string | null
+          background_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          double_fold?: boolean
+          elements?: Json
+          event_id: string
+          height_mm?: number | null
+          id?: string
+          is_default?: boolean
+          name: string
+          orientation?: string
+          paper_format?: string
+          qr_size_mm?: number
+          show_qr?: boolean
+          tenant_id: string
+          updated_at?: string
+          version?: number
+          width_mm?: number | null
+        }
+        Update: {
+          background_color?: string | null
+          background_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          double_fold?: boolean
+          elements?: Json
+          event_id?: string
+          height_mm?: number | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          orientation?: string
+          paper_format?: string
+          qr_size_mm?: number
+          show_qr?: boolean
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+          width_mm?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_badge_templates_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_badge_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_bookmarks: {
         Row: {
           created_at: string
@@ -6384,6 +6556,116 @@ export type Database = {
           },
           {
             foreignKeyName: "event_groups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_lead_scans: {
+        Row: {
+          checkpoint_id: string | null
+          consent_snapshot_at: string | null
+          created_at: string
+          device_id: string | null
+          event_id: string
+          first_scanned_at: string
+          id: string
+          interest_rating: number | null
+          last_scanned_at: string
+          note: string | null
+          person_id: string
+          registration_id: string | null
+          scan_count: number
+          scanned_by_user_id: string | null
+          sponsor_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          checkpoint_id?: string | null
+          consent_snapshot_at?: string | null
+          created_at?: string
+          device_id?: string | null
+          event_id: string
+          first_scanned_at?: string
+          id?: string
+          interest_rating?: number | null
+          last_scanned_at?: string
+          note?: string | null
+          person_id: string
+          registration_id?: string | null
+          scan_count?: number
+          scanned_by_user_id?: string | null
+          sponsor_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          checkpoint_id?: string | null
+          consent_snapshot_at?: string | null
+          created_at?: string
+          device_id?: string | null
+          event_id?: string
+          first_scanned_at?: string
+          id?: string
+          interest_rating?: number | null
+          last_scanned_at?: string
+          note?: string | null
+          person_id?: string
+          registration_id?: string | null
+          scan_count?: number
+          scanned_by_user_id?: string | null
+          sponsor_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_lead_scans_checkpoint_fk"
+            columns: ["tenant_id", "event_id", "checkpoint_id"]
+            isOneToOne: false
+            referencedRelation: "event_checkpoints"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_lead_scans_device_fk"
+            columns: ["tenant_id", "device_id"]
+            isOneToOne: false
+            referencedRelation: "event_scanner_devices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_lead_scans_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_lead_scans_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_lead_scans_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_lead_scans_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_lead_scans_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
