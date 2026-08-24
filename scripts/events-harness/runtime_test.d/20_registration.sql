@@ -1045,6 +1045,22 @@ BEGIN
   INSERT INTO reg_q (k, u, t) VALUES ('wl2', (v->>'registration_id')::uuid, NULL);
 END $$;
 
+-- Nastepna wolna pozycja to max + 1, liczona pod ta sama blokada, co pula.
+-- Funkcja jest wolana z trzech miejsc, wiec ma wlasna asercje, a nie tylko
+-- posrednia przez wynik zapisu.
+SELECT pg_temp.assert(
+  public._event_next_waitlist_position('11111111-1111-1111-1111-111111111111',
+    'a1111111-0000-0000-0000-000000000003') = 3,
+  'rezerwa: nastepna wolna pozycja w kolejce to max + 1 (dwie zajete, wiec 3)');
+SELECT pg_temp.assert(
+  public._event_next_waitlist_position('11111111-1111-1111-1111-111111111111',
+    'a1111111-0000-0000-0000-000000000001') = 1,
+  'rezerwa: pusta kolejka innego wydarzenia zaczyna sie od 1, nie od 3');
+SELECT pg_temp.assert(
+  public._event_next_waitlist_position('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    'a1111111-0000-0000-0000-000000000003') = 1,
+  'rezerwa/izolacja: kolejka wydarzenia najemcy A nie jest widoczna z najemcy B');
+
 -- Dwie osoby nie moga zajmowac tej samej pozycji w kolejce.
 SELECT pg_temp.assert_raises_like($q$
   UPDATE public.event_registrations SET waitlist_position = 1
@@ -2027,6 +2043,85 @@ SELECT pg_temp.assert(
 RESET ROLE;
 
 SELECT pg_temp.act_as(NULL, NULL);
+
+-- ---------------------------------------------------------------------------
+-- SEKCJA 13B: GALAZ DELETE TRIGGERA LICZNIKA I HURTOWA PROMOCJA Z KOLEJKI
+--
+-- Dwie sciezki, ktorych nie dotyka zadna asercja wyzej: usuniecie wiersza
+-- zapisu (trigger przelicza takze przy DELETE - inkrementacja by tego nie
+-- zrobila) i promocja HURTOWA po wydarzeniu, gdzie wiazaca jest KOLEJNOSC
+-- kolejki, a nie to, ze ktos awansowal.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.act_as('e1111111-0000-0000-0000-000000000001',
+                      '11111111-1111-1111-1111-111111111111');
+
+DO $$
+DECLARE v_id uuid;
+BEGIN
+  -- Bilet prasowy ma dotad zero zajetych miejsc (jedno zgloszenie oczekujace).
+  PERFORM pg_temp.assert(
+    (SELECT sold_count FROM public.event_ticket_types
+      WHERE id = 'a2222222-0000-0000-0000-000000000005') = 0,
+    'licznik: bilet prasowy startuje z zerem zajetych miejsc');
+
+  v_id := public.admin_event_registration_upsert(jsonb_build_object(
+    'event_id','a1111111-0000-0000-0000-000000000001',
+    'ticket_type_id','a2222222-0000-0000-0000-000000000005',
+    'email','do.usuniecia@example.org', 'first_name','Do', 'last_name','Usuniecia',
+    'status','approved'));
+  PERFORM pg_temp.assert(
+    (SELECT sold_count FROM public.event_ticket_types
+      WHERE id = 'a2222222-0000-0000-0000-000000000005') = 1,
+    'licznik: zatwierdzony wpis organizatora zajal miejsce na bilecie prasowym');
+
+  DELETE FROM public.event_registrations WHERE id = v_id;
+  PERFORM pg_temp.assert(
+    (SELECT sold_count FROM public.event_ticket_types
+      WHERE id = 'a2222222-0000-0000-0000-000000000005') = 0,
+    'licznik/DELETE: usuniecie zapisu ZWALNIA miejsce (przeliczenie, nie inkrementacja)');
+END $$;
+
+-- Hurtowa promocja: dwie osoby w kolejce, jedno miejsce do rozdania. Wygrywa
+-- ta z NIZSZA pozycja - inaczej kolejka jest ozdoba.
+DO $$
+DECLARE v_a uuid; v_b uuid; v jsonb;
+BEGIN
+  v_a := public.admin_event_registration_upsert(jsonb_build_object(
+    'event_id','a1111111-0000-0000-0000-000000000001',
+    'ticket_type_id','a2222222-0000-0000-0000-000000000005',
+    'email','hurt.pierwszy@example.org', 'first_name','Hurt', 'last_name','Pierwszy',
+    'status','waitlist'));
+  v_b := public.admin_event_registration_upsert(jsonb_build_object(
+    'event_id','a1111111-0000-0000-0000-000000000001',
+    'ticket_type_id','a2222222-0000-0000-0000-000000000005',
+    'email','hurt.drugi@example.org', 'first_name','Hurt', 'last_name','Drugi',
+    'status','waitlist'));
+  PERFORM pg_temp.assert(
+    (SELECT waitlist_position FROM public.event_registrations WHERE id = v_a)
+    < (SELECT waitlist_position FROM public.event_registrations WHERE id = v_b),
+    'promocja hurtowa: kolejka ma ustalona kolejnosc przed promocja');
+
+  v := public.admin_event_waitlist_promote(jsonb_build_object(
+    'event_id','a1111111-0000-0000-0000-000000000001',
+    'ticket_type_id','a2222222-0000-0000-0000-000000000005', 'count', 1));
+  PERFORM pg_temp.assert((v->>'promoted')::integer = 1,
+    'promocja hurtowa: count = 1 promuje DOKLADNIE jedna osobe, nie cala kolejke');
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_registrations WHERE id = v_a) = 'approved',
+    'promocja hurtowa/KOLEJNOSC: awansowala osoba z NIZSZA pozycja w kolejce');
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_registrations WHERE id = v_b) = 'waitlist',
+    'promocja hurtowa/KOLEJNOSC: osoba z wyzsza pozycja NIE awansowala');
+  PERFORM pg_temp.assert(
+    (SELECT jsonb_array_length(v->'registrations')) = 1
+    AND (v->'registrations'->0->>'registration_id')::uuid = v_a,
+    'promocja hurtowa: zwrotka wymienia awansowany wiersz (warstwa wysylkowa go potrzebuje)');
+
+  -- Straznik wejscia: brak najemcy albo wydarzenia to zero awansow, nie wyjatek.
+  PERFORM pg_temp.assert(
+    (public._event_waitlist_promote(NULL, NULL, NULL, 1)->>'promoted')::integer = 0,
+    'promocja hurtowa: wywolanie bez najemcy i wydarzenia oddaje zero awansow');
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- SEKCJA 14: KLUCZE OBCE ZLOZONE - granica najemcy pilnowana SILNIKIEM
