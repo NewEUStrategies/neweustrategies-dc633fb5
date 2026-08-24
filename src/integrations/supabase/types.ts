@@ -17049,6 +17049,38 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_field_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_registration_field_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_registration_fields_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          answers_count: number
+          created_at: string
+          event_id: string
+          field_type: string
+          help_en: string
+          help_pl: string
+          id: string
+          is_active: boolean
+          is_qualifying: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options: Json
+          qualify_operator: string
+          qualify_outcome: string
+          qualify_value: Json
+          sort_order: number
+          updated_at: string
+        }[]
+      }
       admin_event_registration_mark_notified: {
         Args: { p_payload: Json }
         Returns: number
@@ -17267,6 +17299,39 @@ export type Database = {
       admin_event_sessions_set_status: {
         Args: { p_payload: Json }
         Returns: number
+      }
+      admin_event_ticket_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_tickets_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          availability: string
+          created_at: string
+          currency: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          id: string
+          is_active: boolean
+          key: string
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          pending_count: number
+          price_cents: number
+          quota: number
+          requires_approval: boolean
+          sales_from: string
+          sales_to: string
+          seats_left: number
+          sold_count: number
+          sort_order: number
+          updated_at: string
+          waitlist_count: number
+        }[]
       }
       admin_event_track_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_track_save: { Args: { p_payload: Json }; Returns: string }
