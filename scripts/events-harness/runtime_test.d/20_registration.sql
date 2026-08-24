@@ -45,10 +45,11 @@
 --   1) `public.events.rsvp_opens_at` i `public.events.early_rsvp_rank`.
 --      Oba czyta cialo `event_register()` (`v_event.rsvp_opens_at`) i oba
 --      dodaje migracja 20260713174428 - a wiec migracja SPRZED modulu, ktorej
---      harness nie replayuje. Atrapa `events` w harness.sql konczy sie na
---      kolumnach z 20260713093000, wiec kazde wywolanie zapisu publicznego
---      pada na "record has no field". To jest LUKA ATRAPY, nie blad migracji:
---      na produkcji obie kolumny istnieja od 20260713174428.
+--      harness nie replayuje. Bez nich kazde wywolanie zapisu publicznego pada
+--      na "record has no field". To jest LUKA ATRAPY, nie blad migracji: na
+--      produkcji obie kolumny istnieja od 20260713174428. Rownolegly autor
+--      pliku 10_ dolozyl je juz do atrapy `events` w harness.sql - i to jest
+--      ich miejsce docelowe.
 --
 --   2) `public.rate_limit_hit(text, text, integer, integer)` wraz z tabela
 --      `public.rate_limits`. `event_register()` wola je jako bramke
@@ -59,45 +60,85 @@
 --
 -- DLACZEGO SIEDZI TO TUTAJ, A NIE W harness.sql. Ta faza pisze DOKLADNIE
 -- JEDEN plik, a rownolegle powstaje piec innych plikow asercji; wspolna edycja
--- harness.sql konczy sie kolizja. Atrapy sa wiec zakladane tutaj i USUWANE na
--- koncu pliku, wiec pliki 30_..60_ widza baze dokladnie taka, jaka zastaly.
--- MIEJSCE DOCELOWE TYCH DWOCH ATRAP JEST W harness.sql - zgloszone w raporcie
--- (`registration-assertions.md`, sekcja "Luki harnessu"), bo `event_register()`
--- bedzie potrzebny takze plikom frontu i odprawy na miejscu.
+-- harness.sql konczy sie kolizja. MIEJSCE DOCELOWE OBU ATRAP JEST
+-- W harness.sql - zgloszone w raporcie (`registration-assertions.md`, sekcja
+-- "Luki harnessu"), bo `event_register()` bedzie potrzebny takze plikom frontu
+-- i odprawy na miejscu.
+--
+-- SPRZATANIE JEST WARUNKOWE, I TO NIE JEST OSTROZNOSC NA ZAPAS. Skoro kolumny
+-- okna zapisow moga byc juz w harness.sql, bezwarunkowe `DROP COLUMN` na koncu
+-- tego pliku ZABRALOBY je plikom 30_..60_ - czyli zepsulo by scenografie,
+-- ktorej ten plik nie stawial. Dlatego kazda atrapa jest zakladana TYLKO gdy
+-- jej nie ma, fakt zalozenia zostaje zapamietany w GUC-u sesji, a przy
+-- sprzataniu usuwamy WYLACZNIE to, co sami dolozylismy.
 -- ---------------------------------------------------------------------------
-ALTER TABLE public.events ADD COLUMN IF NOT EXISTS rsvp_opens_at timestamptz;
-ALTER TABLE public.events ADD COLUMN IF NOT EXISTS early_rsvp_rank integer;
-
-CREATE TABLE IF NOT EXISTS public.rate_limits (
-  scope        text NOT NULL,
-  subject_id   text NOT NULL,
-  window_start timestamptz NOT NULL,
-  count        integer NOT NULL DEFAULT 0,
-  PRIMARY KEY (scope, subject_id, window_start)
-);
-
--- Atrapa LICZY naprawde (nie zwraca stalego `true`), bo bramka, ktora zawsze
--- przepuszcza, nie jest bramka - a asercja o niej byla by komentarzem.
-CREATE OR REPLACE FUNCTION public.rate_limit_hit(
-  _scope text, _subject text, _max integer, _window_minutes integer DEFAULT 1
-) RETURNS TABLE(allowed boolean, hits integer, bucket_start timestamptz)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $rl$
-DECLARE
-  v_win integer := GREATEST(1, COALESCE(_window_minutes, 1));
-  v_sec integer := v_win * 60;
-  v_start timestamptz := to_timestamp(
-    (floor(extract(epoch FROM now()) / v_sec) * v_sec)::double precision);
-  v_count integer;
+DO $do$
+DECLARE v_has boolean;
 BEGIN
-  IF _scope IS NULL OR length(_scope) = 0 OR _subject IS NULL OR length(_subject) = 0 THEN
-    RAISE EXCEPTION 'rate_limit_hit: scope/subject required';
+  v_has := EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'rsvp_opens_at');
+  PERFORM set_config('nes.t20_added_rsvp_opens', CASE WHEN v_has THEN '0' ELSE '1' END, false);
+  IF NOT v_has THEN
+    ALTER TABLE public.events ADD COLUMN rsvp_opens_at timestamptz;
   END IF;
-  INSERT INTO public.rate_limits AS rl (scope, subject_id, window_start, count)
-  VALUES (_scope, _subject, v_start, 1)
-  ON CONFLICT (scope, subject_id, window_start) DO UPDATE SET count = rl.count + 1
-  RETURNING rl.count INTO v_count;
-  RETURN QUERY SELECT (v_count <= GREATEST(1, _max)), v_count, v_start;
-END $rl$;
+
+  v_has := EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'early_rsvp_rank');
+  PERFORM set_config('nes.t20_added_early_rank', CASE WHEN v_has THEN '0' ELSE '1' END, false);
+  IF NOT v_has THEN
+    ALTER TABLE public.events ADD COLUMN early_rsvp_rank integer
+      CHECK (early_rsvp_rank IS NULL OR early_rsvp_rank >= 0);
+  END IF;
+
+  v_has := EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'rate_limit_hit');
+  PERFORM set_config('nes.t20_added_rate_limit', CASE WHEN v_has THEN '0' ELSE '1' END, false);
+  IF NOT v_has THEN
+    CREATE TABLE public.rate_limits (
+      scope        text NOT NULL,
+      subject_id   text NOT NULL,
+      window_start timestamptz NOT NULL,
+      count        integer NOT NULL DEFAULT 0,
+      PRIMARY KEY (scope, subject_id, window_start)
+    );
+    -- Atrapa LICZY naprawde (nie zwraca stalego `true`), bo bramka, ktora
+    -- zawsze przepuszcza, nie jest bramka - a asercja o niej byla by
+    -- komentarzem.
+    CREATE FUNCTION public.rate_limit_hit(
+      _scope text, _subject text, _max integer, _window_minutes integer DEFAULT 1
+    ) RETURNS TABLE(allowed boolean, hits integer, bucket_start timestamptz)
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $rl$
+    DECLARE
+      v_win integer := GREATEST(1, COALESCE(_window_minutes, 1));
+      v_sec integer := v_win * 60;
+      v_start timestamptz := to_timestamp(
+        (floor(extract(epoch FROM now()) / v_sec) * v_sec)::double precision);
+      v_count integer;
+    BEGIN
+      IF _scope IS NULL OR length(_scope) = 0 OR _subject IS NULL OR length(_subject) = 0 THEN
+        RAISE EXCEPTION 'rate_limit_hit: scope/subject required';
+      END IF;
+      INSERT INTO public.rate_limits AS rl (scope, subject_id, window_start, count)
+      VALUES (_scope, _subject, v_start, 1)
+      ON CONFLICT (scope, subject_id, window_start) DO UPDATE SET count = rl.count + 1
+      RETURNING rl.count INTO v_count;
+      RETURN QUERY SELECT (v_count <= GREATEST(1, _max)), v_count, v_start;
+    END $rl$;
+  END IF;
+END
+$do$;
+
+-- Bez tych trzech rzeczy `event_register()` nie da sie wykonac ANI RAZU, wiec
+-- ich obecnosc jest ASERCJA, nie zalozeniem.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events'
+      AND column_name IN ('rsvp_opens_at', 'early_rsvp_rank')) = 2,
+  'atrapy: events ma kolumny okna zapisow czytane przez event_register()');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'rate_limit_hit') = 1,
+  'atrapy: bramka czestotliwosci istnieje (event_register() jej wymaga)');
 
 -- ############################################################################
 -- FAZA 1 - asercje jednosesyjne. Cala faza wycofuje sie ROLLBACK-iem.
@@ -2132,7 +2173,15 @@ SELECT dblink_send_query('race2', $$
 DO $$
 DECLARE v_blocked integer := 0; i integer := 0;
 BEGIN
-  WHILE i < 100 LOOP
+  WHILE i < 300 LOOP
+    -- pg_stat_clear_snapshot() JEST TU WARUNKIEM DZIALANIA PETLI, nie ozdoba.
+    -- Widoki pg_stat_* stabilizuja migawke stanu backendow na CALA transakcje,
+    -- wiec bez tego wywolania kazdy obrot petli czyta te sama, pierwsza
+    -- odpowiedz - i asercja przechodzi albo pada zaleznie od tego, w ktorej
+    -- milisekundzie transakcja sie zaczela. Bez tej linijki test byl
+    -- niedeterministyczny i raz na kilka przebiegow padal mimo poprawnej
+    -- blokady.
+    PERFORM pg_stat_clear_snapshot();
     SELECT count(*) INTO v_blocked
     FROM pg_stat_activity
     WHERE pid <> pg_backend_pid()
@@ -2215,8 +2264,22 @@ DROP EXTENSION dblink;
 DELETE FROM public.domain_events WHERE tenant_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 DELETE FROM public.tenants WHERE id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 
-DROP FUNCTION IF EXISTS public.rate_limit_hit(text, text, integer, integer);
-DROP TABLE IF EXISTS public.rate_limits;
+-- Usuwamy WYLACZNIE to, co ten plik dolozyl (patrz sekcja 0): jesli atrape
+-- postawil harness.sql albo inny plik, zostaje na miejscu.
+DO $do$
+BEGIN
+  IF current_setting('nes.t20_added_rate_limit', true) = '1' THEN
+    DROP FUNCTION IF EXISTS public.rate_limit_hit(text, text, integer, integer);
+    DROP TABLE IF EXISTS public.rate_limits;
+  END IF;
+  IF current_setting('nes.t20_added_rsvp_opens', true) = '1' THEN
+    ALTER TABLE public.events DROP COLUMN IF EXISTS rsvp_opens_at;
+  END IF;
+  IF current_setting('nes.t20_added_early_rank', true) = '1' THEN
+    ALTER TABLE public.events DROP COLUMN IF EXISTS early_rsvp_rank;
+  END IF;
+END
+$do$;
 -- `rsvp_opens_at` i `early_rsvp_rank` NIE sa juz sprzatane tutaj: przeniesione
 -- do atrapy `events` w harness.sql, zgodnie ze zgloszeniem z naglowka tego
 -- pliku. Zdejmowanie ich stad odbieralo by kolumny plikom 30_ .. 60_, ktore
