@@ -17474,6 +17474,32 @@ export type Database = {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
       }
+      _event_checkin_evaluate: {
+        Args: {
+          _checkpoint_id: string
+          _direction: string
+          _event_id: string
+          _person_id: string
+          _tenant: string
+        }
+        Returns: Json
+      }
+      _event_checkin_write: {
+        Args: {
+          _checkpoint_id: string
+          _client_uid: string
+          _device_at: string
+          _device_id: string
+          _direction: string
+          _event_id: string
+          _note: string
+          _operator: string
+          _person_id: string
+          _source: string
+          _tenant: string
+        }
+        Returns: Json
+      }
       _event_checkpoint_occupancy: {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
