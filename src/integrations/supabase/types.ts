@@ -16904,6 +16904,7 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
       _event_waitlist_promote: {
         Args: {
           _event_id: string
@@ -17820,6 +17821,42 @@ export type Database = {
         Returns: number
       }
       admin_event_sessions_set_status: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sponsor_tier_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_tier_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_sponsor_tiers_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          accent_color: string
+          benefits: Json
+          created_at: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          logo_size: string
+          max_companies: number
+          name_en: string
+          name_pl: string
+          published_sponsors_count: number
+          rank: number
+          slots_left: number
+          sort_order: number
+          sponsors_count: number
+          updated_at: string
+        }[]
+      }
+      admin_event_sponsor_tiers_reorder: {
         Args: { p_payload: Json }
         Returns: number
       }
