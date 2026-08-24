@@ -16892,6 +16892,10 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_page_seats_left: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: number
+      }
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
@@ -20684,6 +20688,60 @@ export type Database = {
           track_key: string
           track_name_en: string
           track_name_pl: string
+        }[]
+      }
+      event_page_header: {
+        Args: { p_slug: string }
+        Returns: {
+          branding: Json
+          cancelled_at: string
+          capacity: number
+          chatham_house: boolean
+          chatham_house_locked: boolean
+          cover_url: string
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_type_id: string
+          external_registration_url: string
+          format: string
+          guest_mode: string
+          has_ended: boolean
+          has_recording: boolean
+          has_stream: boolean
+          id: string
+          is_bookmarked: boolean
+          kind: string
+          location: string
+          min_tier_rank: number
+          my_registration_status: string
+          my_rsvp_status: string
+          my_waitlist_position: number
+          published_at: string
+          registration_flow: string
+          registration_mode: string
+          registration_state: string
+          root_page_id: string
+          rsvp_opens_at: string
+          seats_left: number
+          sessions_count: number
+          slug: string
+          speakers_count: number
+          sponsors_count: number
+          starts_at: string
+          ticket_currency: string
+          ticket_price_cents: number
+          tier_locked: boolean
+          timezone: string
+          title_en: string
+          title_pl: string
+          type_accent_color: string
+          type_icon: string
+          type_key: string
+          type_name_en: string
+          type_name_pl: string
+          viewer_tier_rank: number
+          visibility: string
         }[]
       }
       event_register: { Args: { p_payload: Json }; Returns: Json }
