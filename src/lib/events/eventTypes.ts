@@ -119,7 +119,30 @@ type Fns = Database["public"]["Functions"];
  * migracji, a bramka `check:db-row-casts` istnieje wlasnie po to, zeby tego
  * pilnowac.
  */
-export type EventTypeAdminRow = Fns["admin_event_types_list"]["Returns"][number];
+type EventTypeAdminRowRaw = Fns["admin_event_types_list"]["Returns"][number];
+
+/**
+ * Kolumny NULLOWALNE w `event_types`. Generator typów oddaje kolumny
+ * `RETURNS TABLE` jako nie-NULL, co jest NIEPRAWDĄ dla tych sześciu (brak
+ * koloru, pojemności czy czasu trwania to normalny stan wpisu). Zawężenie
+ * trzymamy TUTAJ, żeby formularz i testy widziały ten sam kontrakt.
+ */
+export type EventTypeAdminRow = Omit<
+  EventTypeAdminRowRaw,
+  | "accent_color"
+  | "default_capacity"
+  | "default_duration_minutes"
+  | "description_pl"
+  | "description_en"
+  | "icon"
+> & {
+  accent_color: string | null;
+  default_capacity: number | null;
+  default_duration_minutes: number | null;
+  description_pl: string | null;
+  description_en: string | null;
+  icon: string | null;
+};
 
 /** Wiersz publiczny (selekt w kreatorze, filtry na liscie wydarzen). */
 export type EventTypeOption = Fns["event_types_active"]["Returns"][number];

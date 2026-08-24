@@ -88,7 +88,7 @@ export function EventsListManager({
   const patch = (next: Partial<EventListParams>) => {
     void navigate({
       to: "/admin/events/list",
-      search: (prev: EventListParams) => ({ ...prev, ...next, page: undefined }),
+      search: { ...params, ...next, page: undefined },
     });
   };
 
@@ -281,20 +281,13 @@ export function EventsListManager({
           onPageChange={(page) =>
             void navigate({
               to: "/admin/events/list",
-              search: (prev: EventListParams) => ({
-                ...prev,
-                page: page <= 1 ? undefined : page,
-              }),
+              search: { ...params, page: page <= 1 ? undefined : page },
             })
           }
           onPageSizeChange={(size) =>
             void navigate({
               to: "/admin/events/list",
-              search: (prev: EventListParams) => ({
-                ...prev,
-                size: size as EventListPageSize,
-                page: undefined,
-              }),
+              search: { ...params, size: size as EventListPageSize, page: undefined },
             })
           }
         />

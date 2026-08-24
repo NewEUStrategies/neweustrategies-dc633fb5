@@ -5,7 +5,7 @@
 // Chatham House) - nigdy bezpośrednimi insertami do tabel.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface PublicEvent {
@@ -87,13 +87,66 @@ export async function fetchPublicEventBySlug(slug: string): Promise<PublicEvent 
 }
 
 /**
- * Nagłówek strony wydarzenia - kształt WPROST z sygnatury RPC
- * (`event_page_header`), nigdy przepisany ręcznie: 49 kolumn utrzymywanych
- * dwa razy rozjeżdża się przy pierwszej zmianie funkcji, a bramka
- * `check:db-row-casts` pilnuje właśnie tego.
+ * Nagłówek strony wydarzenia - kształt lustrzany do sygnatury RPC
+ * `event_page_header` z migracji `20260823170000_event_front_binding.sql`.
+ *
+ * DLACZEGO TU, A NIE Z `Database["public"]["Functions"]`: ta migracja NIE JEST
+ * jeszcze zaaplikowana, więc wygenerowane typy funkcji nie znają. Deklaracja
+ * ZNIKA (wraca `Fns["event_page_header"]["Returns"][number]`) w tej samej
+ * zmianie, która zaaplikuje migrację - to jedyny dozwolony stan przejściowy,
+ * bo alternatywą jest `any` na wywołaniu RPC.
  */
-export type EventPageHeader =
-  Database["public"]["Functions"]["event_page_header"]["Returns"][number];
+export interface EventPageHeader {
+  id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  description_pl: string;
+  description_en: string;
+  kind: string;
+  format: string;
+  event_type_id: string;
+  type_key: string;
+  type_name_pl: string;
+  type_name_en: string;
+  type_icon: string;
+  type_accent_color: string;
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  has_ended: boolean;
+  location: string;
+  cover_url: string;
+  branding: Json;
+  root_page_id: string;
+  visibility: string;
+  guest_mode: string;
+  min_tier_rank: number;
+  chatham_house: boolean;
+  chatham_house_locked: boolean;
+  tier_locked: boolean;
+  viewer_tier_rank: number;
+  capacity: number;
+  seats_left: number;
+  registration_mode: string;
+  registration_flow: string;
+  registration_state: string;
+  external_registration_url: string;
+  rsvp_opens_at: string;
+  ticket_price_cents: number;
+  ticket_currency: string;
+  my_registration_status: string;
+  my_waitlist_position: number;
+  my_rsvp_status: string;
+  is_bookmarked: boolean;
+  has_stream: boolean;
+  has_recording: boolean;
+  speakers_count: number;
+  sessions_count: number;
+  sponsors_count: number;
+  published_at: string;
+  cancelled_at: string;
+}
 
 /**
  * Nagłówek publicznej strony wydarzenia w JEDNYM wywołaniu.
@@ -131,7 +184,14 @@ export type EventPageHeader =
  * migracji `20260823170000_event_front_binding.sql`.
  */
 export async function fetchEventPageHeader(slug: string): Promise<EventPageHeader | null> {
-  const { data, error } = await supabase.rpc("event_page_header", { p_slug: slug });
+  // Wywołanie idzie przez wąski typ funkcji, bo migracja `20260823170000` nie
+  // jest jeszcze zaaplikowana i generator nie zna `event_page_header`. Szew
+  // znika razem z lokalnym typem `EventPageHeader` po aplikacji migracji.
+  const call = supabase.rpc as unknown as (
+    fn: "event_page_header",
+    args: { p_slug: string },
+  ) => Promise<{ data: EventPageHeader[] | null; error: { message: string } | null }>;
+  const { data, error } = await call("event_page_header", { p_slug: slug });
   if (error) throw error;
   return data?.[0] ?? null;
 }
