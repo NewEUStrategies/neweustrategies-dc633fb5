@@ -6005,6 +6005,45 @@ export type Database = {
           },
         ]
       }
+      event_bookmarks: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_bookmarks_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_bookmarks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_group_members: {
         Row: {
           added_by: string | null
@@ -6137,6 +6176,69 @@ export type Database = {
           },
           {
             foreignKeyName: "event_groups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_page_sections: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          heading_en: string | null
+          heading_pl: string | null
+          id: string
+          is_visible: boolean
+          min_tier_rank: number
+          section_key: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          heading_en?: string | null
+          heading_pl?: string | null
+          id?: string
+          is_visible?: boolean
+          min_tier_rank?: number
+          section_key: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          heading_en?: string | null
+          heading_pl?: string | null
+          id?: string
+          is_visible?: boolean
+          min_tier_rank?: number
+          section_key?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_page_sections_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_page_sections_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -16399,6 +16501,16 @@ export type Database = {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
       }
+      _event_default_sections: {
+        Args: never
+        Returns: {
+          is_visible: boolean
+          min_tier_rank: number
+          section_key: string
+          sort_order: number
+          visibility: string
+        }[]
+      }
       _event_new_qr_token: { Args: never; Returns: string }
       _event_next_waitlist_position: {
         Args: { _event_id: string; _tenant: string }
@@ -22133,6 +22245,7 @@ export type Database = {
         | "tag"
         | "archive"
         | "search"
+        | "event"
       ad_position:
         | "header_banner"
         | "top_of_post"
@@ -22330,6 +22443,7 @@ export const Constants = {
         "tag",
         "archive",
         "search",
+        "event",
       ],
       ad_position: [
         "header_banner",
