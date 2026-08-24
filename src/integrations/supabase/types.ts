@@ -6833,6 +6833,146 @@ export type Database = {
           },
         ]
       }
+      event_term_acceptances: {
+        Row: {
+          accepted_at: string
+          id: string
+          ip_hash: string | null
+          person_id: string
+          registration_id: string | null
+          tenant_id: string
+          term_id: string
+          user_agent: string | null
+          version: number
+          withdrawn_at: string | null
+        }
+        Insert: {
+          accepted_at?: string
+          id?: string
+          ip_hash?: string | null
+          person_id: string
+          registration_id?: string | null
+          tenant_id: string
+          term_id: string
+          user_agent?: string | null
+          version: number
+          withdrawn_at?: string | null
+        }
+        Update: {
+          accepted_at?: string
+          id?: string
+          ip_hash?: string | null
+          person_id?: string
+          registration_id?: string | null
+          tenant_id?: string
+          term_id?: string
+          user_agent?: string | null
+          version?: number
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_term_acceptances_person_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_term_acceptances_registration_fkey"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_term_acceptances_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_term_acceptances_term_fkey"
+            columns: ["tenant_id", "term_id"]
+            isOneToOne: false
+            referencedRelation: "event_terms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      event_terms: {
+        Row: {
+          body_en: string
+          body_pl: string
+          created_at: string
+          display: string
+          event_id: string
+          external_url: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          body_en?: string
+          body_pl?: string
+          created_at?: string
+          display?: string
+          event_id: string
+          external_url?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          body_en?: string
+          body_pl?: string
+          created_at?: string
+          display?: string
+          event_id?: string
+          external_url?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          key?: string
+          label_en?: string
+          label_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_terms_event_tenant_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_terms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_ticket_types: {
         Row: {
           created_at: string
@@ -16255,6 +16395,36 @@ export type Database = {
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       _caller_tenant: { Args: never; Returns: string }
+      _event_answer_matches: {
+        Args: { _answer: Json; _expected: Json; _operator: string }
+        Returns: boolean
+      }
+      _event_new_qr_token: { Args: never; Returns: string }
+      _event_next_waitlist_position: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: number
+      }
+      _event_registration_verdict: {
+        Args: { _answers: Json; _event_id: string; _tenant: string }
+        Returns: string
+      }
+      _event_seats_left: {
+        Args: { _event_id: string; _tenant: string; _ticket_type_id?: string }
+        Returns: number
+      }
+      _event_seed_default_groups: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: number
+      }
+      _event_waitlist_promote: {
+        Args: {
+          _event_id: string
+          _limit?: number
+          _tenant: string
+          _ticket_type_id?: string
+        }
+        Returns: Json
+      }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
