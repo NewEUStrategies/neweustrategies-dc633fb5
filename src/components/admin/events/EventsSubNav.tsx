@@ -17,10 +17,11 @@
 // wchodzi na ekran).
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, Shapes, Handshake, Ticket } from "@/lib/lucide-shim";
+import { CalendarDays, Shapes, Handshake, Ticket, ListOrdered } from "@/lib/lucide-shim";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
+import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 
 const EVENT_TABS = [
   {
@@ -43,6 +44,13 @@ const EVENT_TABS = [
     labelKey: "adminEventRegistration.nav.sectionTitle",
   },
   {
+    // Etykieta z własnego słownika agendy - program wydarzenia wozi swoje teksty.
+    to: "/admin/events/agenda" as const,
+    key: "agenda",
+    icon: ListOrdered,
+    labelKey: "adminEventAgenda.nav.sectionTitle",
+  },
+  {
     // Etykieta z własnego słownika giełdy - moduł spotkań wozi swoje teksty,
     // a `adminEvents` nie musi wiedzieć, że giełda w ogóle istnieje.
     to: "/admin/events/meetings" as const,
@@ -59,6 +67,7 @@ export function EventsSubNav() {
   // bez tych rejestracji pasek pokazalby surowe klucze zamiast nazw.
   ensureMeetingsI18n();
   ensureRegistrationI18n();
+  ensureAgendaI18n();
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
