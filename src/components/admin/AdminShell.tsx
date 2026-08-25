@@ -209,7 +209,7 @@ type AdminNavRowProps = {
 /** Pojedynczy wiersz nawigacji - wspólny dla listy grup i wyników wyszukiwania. */
 function AdminNavRow({
   item,
-  path,
+  activeTo,
   compact,
   externalHint,
   badgeLabel,
@@ -230,7 +230,8 @@ function AdminNavRow({
       />
     );
   }
-  const active = isNavItemActive(item.to, path);
+  const active = item.to === activeTo;
+
   return (
     <Link
       {...rest}
