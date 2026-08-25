@@ -126,7 +126,7 @@ export function EventListRow({
             )}
             {location === null || location === "" ? null : <span> · {location}</span>}
             <span> · </span>
-            <span className="font-mono">{slug}</span>
+            <span className="font-medium tracking-tight">{slug}</span>
             <span> · {typeName}</span>
           </p>
 
