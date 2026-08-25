@@ -91,6 +91,7 @@ function renderBlock(row: Partial<typeof HEADER_ROW>) {
       )}
       onAction={() => {}}
       groupLabel="Zapisy"
+      eventSlug="kongres"
     />,
   );
   return { ...utils, surface };
