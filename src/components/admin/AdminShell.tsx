@@ -312,6 +312,12 @@ function AdminShellInner({
     [t, isAdmin, isSuperAdmin, clubPending],
   );
 
+  // DOKŁADNIE JEDNA pomarańczowa pozycja: wygrywa najdłuższe dopasowanie, więc
+  // podtrasa nie podświetla się razem z pozycją nadrzędną.
+  const activeTo = useMemo(() => resolveActiveNavTarget(groups, path), [groups, path]);
+
+
+
   // Wyszukiwarka wewnętrzna panelu (tylko admin) - filtruje mapę nawigacji,
   // bez sięgania po treści publiczne.
   const [query, setQuery] = useState("");
