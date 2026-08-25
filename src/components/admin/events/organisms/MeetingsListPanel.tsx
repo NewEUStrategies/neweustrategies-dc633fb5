@@ -43,6 +43,7 @@ import {
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
+import { ArrangeMeetingDialog } from "@/components/admin/events/organisms/ArrangeMeetingDialog";
 import { adminMeetingFailure } from "@/lib/events/adminMeetingErrors";
 import { formatDateTime } from "@/lib/i18n/format";
 import type { AdminMeetingRow, MeetingStatusFilter } from "@/lib/events/meetingsApi";
@@ -78,6 +79,7 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
   const [status, setStatus] = useState<MeetingStatusFilter>("all");
   const [search, setSearch] = useState("");
   const [tableId, setTableId] = useState("all");
+  const [arrangeOpen, setArrangeOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [cancelled, setCancelled] = useState<AdminMeetingRow | null>(null);
   const [reason, setReason] = useState("");
@@ -150,12 +152,20 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
 
   return (
     <section className="space-y-4">
-      <header>
-        <h2 className="font-display text-lg">{t("adminEventMeetings.list.title")}</h2>
-        <p className="mt-1 max-w-2xl text-xs leading-snug text-muted-foreground">
-          {t("adminEventMeetings.list.subtitle")}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg">{t("adminEventMeetings.list.title")}</h2>
+          <p className="mt-1 max-w-2xl text-xs leading-snug text-muted-foreground">
+            {t("adminEventMeetings.list.subtitle")}
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setArrangeOpen(true)}>
+          <CalendarPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("adminEventMeetings.list.arrangeAction")}
+        </Button>
       </header>
+
+      <ArrangeMeetingDialog eventId={eventId} open={arrangeOpen} onOpenChange={setArrangeOpen} />
 
       <div className="tabs-scroller flex gap-1 overflow-x-auto pb-1">
         {TABS.map((tab) => (
@@ -297,7 +307,6 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
               disabled={page === 0}
               onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
             >
-              <CalendarPlus className="hidden" aria-hidden="true" />
               {"<"}
             </Button>
             <Button
