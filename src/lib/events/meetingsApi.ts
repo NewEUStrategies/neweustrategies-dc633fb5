@@ -42,17 +42,18 @@ export type MeetingStatusFilter = MeetingStatus | "all" | "pending" | "expired";
 
 export type MeetingSide = "requester" | "invitee";
 
-type Payload = Record<string, Json>;
+type Payload = Record<string, Json | undefined>;
 
 function payload(input: Payload): Json {
   // Klucze o wartosci `undefined` sa POMINIETE, a nie wyslane jako null:
   // RPC rozroznia "pole nieobecne" (zachowaj) od jawnego null (wyczysc).
-  const out: Payload = {};
+  const out: Record<string, Json> = {};
   for (const [key, value] of Object.entries(input)) {
     if (value !== undefined) out[key] = value;
   }
   return out as Json;
 }
+
 
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: STOLIKI
@@ -105,13 +106,67 @@ export async function deleteMeetingTable(id: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: KONFIGURACJA GIELDY
 // ---------------------------------------------------------------------------
+//
+// KLUCZE PAYLOADU SA DOKLADNIE TYMI, KTORE CZYTA `admin_event_meeting_settings_save`.
+// Funkcja nie odrzuca nieznanego klucza - po prostu go IGNORUJE, wiec literowka
+// w nazwie pola nie konczy sie bledem, tylko cicho niezapisana konfiguracja.
+// Dlatego kontrakt jest zamkniety typem i pilnowany testem.
 
-export async function fetchMeetingSettings(eventId: string): Promise<Json> {
+/** Reguly widocznosci gieldy - odwzorowanie CHECK-a `visibility` z migracji. */
+export const MEETING_VISIBILITIES = [
+  "everyone",
+  "groups",
+  "sponsors_to_attendees",
+  "disabled",
+] as const;
+export type MeetingVisibility = (typeof MEETING_VISIBILITIES)[number];
+
+/** Grupa uczestnikow w regule gieldy - ksztalt z `jsonb_build_object` w RPC. */
+export interface MeetingRuleGroup {
+  group_id: string;
+  key: string;
+  name_pl: string;
+  name_en: string;
+  can_meet: boolean;
+  can_lead_retrieval: boolean;
+}
+
+/** Odpowiedz `admin_event_meeting_settings_get` - jeden do jednego z RPC. */
+export interface MeetingSettings {
+  configured: boolean;
+  event_id: string;
+  event_timezone: string | null;
+  is_enabled: boolean;
+  slot_minutes: number;
+  break_minutes: number;
+  day_start_time: string;
+  day_end_time: string;
+  meeting_days: string[];
+  timezone: string;
+  invites_open_at: string | null;
+  invites_close_at: string | null;
+  max_invites_per_person: number | null;
+  max_meetings_per_day: number | null;
+  invite_expires_after_hours: number;
+  visibility: MeetingVisibility;
+  intro_pl: string;
+  intro_en: string;
+  updated_at: string | null;
+  requester_groups: MeetingRuleGroup[];
+  invitee_groups: MeetingRuleGroup[];
+  available_groups: MeetingRuleGroup[];
+  tables_count: number;
+  seats_count: number;
+  participants_count: number;
+  with_availability_count: number;
+}
+
+export async function fetchMeetingSettings(eventId: string): Promise<MeetingSettings> {
   const { data, error } = await supabase.rpc("admin_event_meeting_settings_get", {
     p_event_id: eventId,
   });
   if (error) throw error;
-  return data;
+  return data as unknown as MeetingSettings;
 }
 
 export interface MeetingSettingsInput {
@@ -120,20 +175,25 @@ export interface MeetingSettingsInput {
   timezone: string;
   slotMinutes: number;
   breakMinutes: number;
-  windowStartsAt: string;
-  windowEndsAt: string;
-  bookingOpensAt: string | null;
-  bookingClosesAt: string | null;
+  /** Godzina otwarcia i zamkniecia gieldy w danym dniu, `HH:MM`. */
+  dayStartTime: string;
+  dayEndTime: string;
+  /** Konkretne dni gieldy (`YYYY-MM-DD`), nie zakres. */
+  meetingDays: string[];
+  invitesOpenAt: string | null;
+  invitesCloseAt: string | null;
   inviteExpiresAfterHours: number;
   maxInvitesPerPerson: number | null;
   maxMeetingsPerDay: number | null;
-  visibilityMode: string;
-  requiresApproval: boolean;
-  instructionsPl: string | null;
-  instructionsEn: string | null;
+  visibility: MeetingVisibility;
+  introPl: string;
+  introEn: string;
+  /** Wysylane tylko przy regule `groups`; pominiete = zachowaj obecny przydzial. */
+  requesterGroupIds?: string[];
+  inviteeGroupIds?: string[];
 }
 
-export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<Json> {
+export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<MeetingSettings> {
   const { data, error } = await supabase.rpc("admin_event_meeting_settings_save", {
     p_payload: payload({
       event_id: input.eventId,
@@ -141,22 +201,25 @@ export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<
       timezone: input.timezone,
       slot_minutes: input.slotMinutes,
       break_minutes: input.breakMinutes,
-      window_starts_at: input.windowStartsAt,
-      window_ends_at: input.windowEndsAt,
-      booking_opens_at: input.bookingOpensAt,
-      booking_closes_at: input.bookingClosesAt,
+      day_start_time: input.dayStartTime,
+      day_end_time: input.dayEndTime,
+      meeting_days: input.meetingDays,
+      invites_open_at: input.invitesOpenAt,
+      invites_close_at: input.invitesCloseAt,
       invite_expires_after_hours: input.inviteExpiresAfterHours,
       max_invites_per_person: input.maxInvitesPerPerson,
       max_meetings_per_day: input.maxMeetingsPerDay,
-      visibility_mode: input.visibilityMode,
-      requires_approval: input.requiresApproval,
-      instructions_pl: input.instructionsPl,
-      instructions_en: input.instructionsEn,
+      visibility: input.visibility,
+      intro_pl: input.introPl,
+      intro_en: input.introEn,
+      requester_group_ids: input.requesterGroupIds,
+      invitee_group_ids: input.inviteeGroupIds,
     }),
   });
   if (error) throw error;
-  return data;
+  return data as unknown as MeetingSettings;
 }
+
 
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: LISTA, STATYSTYKI, DECYZJE
@@ -166,9 +229,12 @@ export interface AdminMeetingsQuery {
   eventId: string;
   status?: MeetingStatusFilter;
   tableId?: string | null;
-  groupKey?: string | null;
+  /** Grupa uczestnikow filtruje po IDENTYFIKATORZE grupy, nie po jej kluczu. */
+  groupId?: string | null;
   sponsorId?: string | null;
   day?: string | null;
+  from?: string | null;
+  to?: string | null;
   search?: string | null;
   limit?: number;
   offset?: number;
@@ -180,10 +246,12 @@ export async function fetchAdminMeetings(query: AdminMeetingsQuery): Promise<Adm
       event_id: query.eventId,
       status: query.status ?? "all",
       table_id: query.tableId ?? null,
-      group_key: query.groupKey ?? null,
+      group_id: query.groupId ?? null,
       sponsor_id: query.sponsorId ?? null,
       day: query.day ?? null,
-      search: query.search ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      q: query.search ?? null,
       limit: query.limit ?? 50,
       offset: query.offset ?? 0,
     }),
@@ -191,6 +259,7 @@ export async function fetchAdminMeetings(query: AdminMeetingsQuery): Promise<Adm
   if (error) throw error;
   return data ?? [];
 }
+
 
 export async function fetchMeetingStats(eventId: string): Promise<Json> {
   const { data, error } = await supabase.rpc("admin_event_meeting_stats", {
@@ -219,21 +288,27 @@ export async function setMeetingStatus(input: {
 
 export async function fetchAdminFreeSlots(input: {
   eventId: string;
-  requesterRegistrationId: string;
-  inviteeRegistrationId: string;
+  /** Strony sa symetryczne - baza szuka terminu wolnego dla OBU naraz. */
+  aRegistrationId: string;
+  bRegistrationId: string;
+  from?: string | null;
+  to?: string | null;
   limit?: number;
 }): Promise<MeetingFreeSlot[]> {
   const { data, error } = await supabase.rpc("admin_event_meeting_free_slots", {
     p_payload: payload({
       event_id: input.eventId,
-      requester_registration_id: input.requesterRegistrationId,
-      invitee_registration_id: input.inviteeRegistrationId,
+      a_registration_id: input.aRegistrationId,
+      b_registration_id: input.bRegistrationId,
+      from: input.from ?? null,
+      to: input.to ?? null,
       limit: input.limit ?? 50,
     }),
   });
   if (error) throw error;
   return data ?? [];
 }
+
 
 /** Organizator umawia spotkanie od razu przyjete (pakiety sponsorskie). */
 export async function arrangeMeeting(input: {
@@ -268,25 +343,29 @@ export async function arrangeMeeting(input: {
 
 export async function saveAdminAvailability(input: {
   id?: string | null;
-  eventId: string;
+  /** Wydarzenie bierze sie ze zgloszenia - RPC nie czyta `event_id` z payloadu. */
   registrationId: string;
   startsAt: string;
   endsAt: string;
+  /** Okno zamkniete zostaje w danych, ale gielda przestaje z niego proponowac. */
+  isOpen?: boolean;
   note?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_meeting_availability_set", {
     p_payload: payload({
       id: input.id ?? null,
-      event_id: input.eventId,
       registration_id: input.registrationId,
       starts_at: input.startsAt,
       ends_at: input.endsAt,
+      is_open: input.isOpen,
       note: input.note ?? null,
     }),
   });
   if (error) throw error;
   return String(data);
 }
+
+
 
 export async function deleteAdminAvailability(id: string): Promise<boolean> {
   const { error } = await supabase.rpc("admin_event_meeting_availability_delete", { _id: id });
@@ -319,6 +398,7 @@ export async function saveMyAvailability(input: {
   eventSlug?: string;
   startsAt: string;
   endsAt: string;
+  isOpen?: boolean;
   note?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("event_meeting_availability_set", {
@@ -328,6 +408,7 @@ export async function saveMyAvailability(input: {
       event_slug: input.eventSlug ?? null,
       starts_at: input.startsAt,
       ends_at: input.endsAt,
+      is_open: input.isOpen,
       note: input.note ?? null,
     }),
   });
@@ -346,14 +427,19 @@ export async function deleteMyAvailability(id: string): Promise<boolean> {
 export async function fetchMyFreeSlots(input: {
   eventId?: string;
   eventSlug?: string;
-  inviteeRegistrationId: string;
+  /** Druga strona rozmowy; baza nazywa ja `counterpart`, bo szuka symetrycznie. */
+  counterpartRegistrationId: string;
+  from?: string | null;
+  to?: string | null;
   limit?: number;
 }): Promise<MeetingFreeSlot[]> {
   const { data, error } = await supabase.rpc("event_meeting_free_slots", {
     p_payload: payload({
       event_id: input.eventId ?? null,
       event_slug: input.eventSlug ?? null,
-      invitee_registration_id: input.inviteeRegistrationId,
+      counterpart_registration_id: input.counterpartRegistrationId,
+      from: input.from ?? null,
+      to: input.to ?? null,
       limit: input.limit ?? 50,
     }),
   });
@@ -364,7 +450,7 @@ export async function fetchMyFreeSlots(input: {
 export async function inviteToMeeting(input: {
   eventId?: string;
   eventSlug?: string;
-  inviteeRegistrationId: string;
+  counterpartRegistrationId: string;
   startsAt: string;
   topic?: string | null;
   message?: string | null;
@@ -374,7 +460,7 @@ export async function inviteToMeeting(input: {
     p_payload: payload({
       event_id: input.eventId ?? null,
       event_slug: input.eventSlug ?? null,
-      invitee_registration_id: input.inviteeRegistrationId,
+      counterpart_registration_id: input.counterpartRegistrationId,
       starts_at: input.startsAt,
       topic: input.topic ?? null,
       message: input.message ?? null,
@@ -384,6 +470,7 @@ export async function inviteToMeeting(input: {
   if (error) throw error;
   return data;
 }
+
 
 export async function respondToMeeting(input: {
   meetingId: string;
