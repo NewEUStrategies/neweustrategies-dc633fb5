@@ -1,5 +1,28 @@
-ALTER TABLE public.crm_leads
-  ADD CONSTRAINT crm_leads_tenant_id_key UNIQUE (tenant_id, id);
+-- OSLONA DODANA 2026-08-25. Bez niej ta linia wywracala CALY lancuch migracji:
+-- `supabase db start` konczylo sie bledem 42P07 "relation crm_leads_tenant_id_key
+-- already exists", bo to samo ograniczenie zaklada JUZ migracja 20260823160000
+-- (modul sponsorow, linie 216-223) - i zaklada je w wersji OSLONIETEJ. Skutkiem
+-- byly dwie martwe bramki CI naraz: `pgtap` (98 plikow asercji nie ruszalo z miejsca)
+-- oraz `e2e-seeded` (baza nie wstawala, wiec Playwright nie odpalal ani jednego
+-- testu i nie zostawial nawet raportu). Postawienie swiezej bazy bylo niemozliwe.
+--
+-- Ksztalt oslony przepisany z 20260823160000, zeby obie migracje mowily to samo
+-- w ten sam sposob. Zmiana jest IDEMPOTENTNA i bezpieczna takze tam, gdzie ta
+-- migracja juz sie wykonala: Supabase sledzi migracje po NAZWIE pliku, wiec
+-- poprawione cialo nie uruchomi sie ponownie, a przy kazdym nowym zastosowaniu
+-- lancucha po prostu nie wywroci sie na istniejacym ograniczeniu.
+DO $guard$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.crm_leads'::regclass
+      AND conname = 'crm_leads_tenant_id_key'
+  ) THEN
+    ALTER TABLE public.crm_leads
+      ADD CONSTRAINT crm_leads_tenant_id_key UNIQUE (tenant_id, id);
+  END IF;
+END
+$guard$;
 
 CREATE TABLE IF NOT EXISTS public.event_sponsor_tiers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
