@@ -508,6 +508,7 @@ function EventDetail() {
             action={surfaceAction}
             onAction={onSurfaceAction}
             groupLabel={t("eventFront.sections.registration.heading")}
+            eventSlug={ev.slug}
           />
         )}
         {/* Sygnał zainteresowania jest OSOBNĄ decyzją, nie odmianą zapisu:

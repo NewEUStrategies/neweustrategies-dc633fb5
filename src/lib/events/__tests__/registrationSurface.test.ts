@@ -99,17 +99,19 @@ describe("resolveRegistrationSurface: zapisy otwarte", () => {
 });
 
 describe("resolveRegistrationSurface: tryb i przeplyw zapisow (ten defekt)", () => {
-  it("tryb form NIE DAJE kontrolki zapisu i mowi prawde o braku ekranu", () => {
+  it("tryb form kieruje na FORMULARZ, a nie na RPC szybkiego zapisu", () => {
     const result = surface({ registrationMode: "form" });
     expect(result.kind).toBe("registrationForm");
-    expect(result.control).toBeNull();
+    // Kluczowe: akcja NIE jest `rsvp`. `rsvp_event()` odmawia trybowi `form`
+    // statusu `going`, wiec kontrolka z ta akcja prowadzilaby w sciane.
+    expect(result.control?.action).toBe("registrationForm");
     expect(result.messageKey).toBe("eventFront.registrationSurface.formRequired");
   });
 
-  it("przeplyw approval NIE DAJE kontrolki zapisu", () => {
+  it("przeplyw approval kieruje na TEN SAM formularz zgloszenia", () => {
     const result = surface({ registrationFlow: "approval" });
     expect(result.kind).toBe("registrationApproval");
-    expect(result.control).toBeNull();
+    expect(result.control?.action).toBe("registrationForm");
   });
 
   it("tryb none nie daje zadnej kontrolki", () => {

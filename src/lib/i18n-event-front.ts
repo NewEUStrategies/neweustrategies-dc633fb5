@@ -181,6 +181,7 @@ export const eventFrontPl = {
     registrationAction: {
       register: "Zapisz się",
       registerExternal: "Przejdź do rejestracji",
+      registerForm: "Wypełnij formularz zgłoszenia",
       joinWaitlist: "Dopisz się na listę rezerwową",
       cancel: "Wycofaj zapis",
       signIn: "Zaloguj się, żeby się zapisać",
@@ -191,18 +192,18 @@ export const eventFrontPl = {
     // Powierzchnia zapisów: zdania, których słownik stanu z bazy NIE MA.
     //
     // `registration_state` z `event_page_header()` opisuje stan WYDARZENIA,
-    // a te pięć zdań opisuje stan NASZEGO EKRANU: tryb, którego strona jeszcze
-    // nie obsługuje, adres, którego organizator nie podał, oraz stan, którego
-    // ta wersja klienta nie zna. Rozróżnienie jest celowe - zdanie „zapisy
-    // otwarte" byłoby przy trybie `form` prawdziwe i całkowicie bezużyteczne.
+    // a te zdania opisują stan NASZEGO EKRANU: tryb zgłoszenia formularzem,
+    // adres, którego organizator nie podał, oraz stan, którego ta wersja
+    // klienta nie zna. Rozróżnienie jest celowe - zdanie „zapisy otwarte"
+    // byłoby przy trybie `form` prawdziwe i całkowicie bezużyteczne.
     // Reguła: `lib/events/registrationSurface.ts`.
     // ---------------------------------------------------------------------
     registrationSurface: {
       signInHint: "Zaloguj się, żeby zapisać się na to wydarzenie.",
       formRequired:
-        "Zapis na to wydarzenie prowadzi organizator przez formularz zgłoszenia, którego nie ma jeszcze na tej stronie. Zapis jednym kliknięciem tutaj nie zadziała - napisz do organizatora.",
+        "Zapis na to wydarzenie prowadzi organizator przez formularz zgłoszenia - wypełnij go, żeby zająć miejsce.",
       approvalRequired:
-        "Zapis na to wydarzenie wymaga akceptacji organizatora, a ekranu zgłoszenia nie ma jeszcze na tej stronie. Napisz do organizatora.",
+        "Zapis na to wydarzenie wymaga akceptacji organizatora - wyślij zgłoszenie przez formularz.",
       externalUrlMissing:
         "Organizator wskazał rejestrację w zewnętrznym narzędziu, ale nie podał jej adresu. Zapis przez tę stronę nie zadziała - napisz do organizatora.",
       ticketRequired: "To wydarzenie wymaga opłaconej wejściówki.",
@@ -467,6 +468,7 @@ export const eventFrontEn = {
     registrationAction: {
       register: "Register",
       registerExternal: "Go to registration",
+      registerForm: "Fill in the registration form",
       joinWaitlist: "Join the waiting list",
       cancel: "Withdraw registration",
       signIn: "Sign in to register",
@@ -476,9 +478,9 @@ export const eventFrontEn = {
     registrationSurface: {
       signInHint: "Sign in to register for this event.",
       formRequired:
-        "The organiser runs registration for this event through an application form that is not on this page yet. One-click registration will not work here - contact the organiser.",
+        "The organiser takes registrations for this event through an application form - fill it in to book your seat.",
       approvalRequired:
-        "Registration for this event needs the organiser's approval, and the application screen is not on this page yet. Contact the organiser.",
+        "Registration for this event needs the organiser's approval - send an application through the form.",
       externalUrlMissing:
         "The organiser set registration to an external tool but gave no address for it. Registration through this page will not work - contact the organiser.",
       ticketRequired: "This event requires a paid ticket.",

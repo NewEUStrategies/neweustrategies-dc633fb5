@@ -28,7 +28,14 @@ export type EventRegistrationAction =
       readonly icon: EventRegistrationActionIcon;
     }
   | { readonly kind: "externalLink"; readonly label: string; readonly href: string }
-  | { readonly kind: "internalLink"; readonly label: string };
+  // Nawigacja wewnetrzna ma CEL w typie, a nie w komponencie: molekula rysowala
+  // wczesniej jeden zapisany na sztywno adres cennika, wiec druga kontrolka
+  // wewnetrzna (formularz zgloszenia) trafialaby pod ten sam link.
+  | {
+      readonly kind: "internalLink";
+      readonly label: string;
+      readonly target: "membership" | "registrationForm";
+    };
 
 /**
  * Kontrolka wariantu -> ksztalt do wyrenderowania. `switch` bez `default`
@@ -49,7 +56,9 @@ export function eventRegistrationActionFrom(
     case "external":
       return { kind: "externalLink", label, href: control.url };
     case "membership":
-      return { kind: "internalLink", label };
+      return { kind: "internalLink", label, target: "membership" };
+    case "registrationForm":
+      return { kind: "internalLink", label, target: "registrationForm" };
     case "rsvp":
       return { kind: "button", label, enabled: control.enabled && !pending, icon: "check" };
     case "waitlist":

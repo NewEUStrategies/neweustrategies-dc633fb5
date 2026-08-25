@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DateTimePickerProps {
+  /** Identyfikator przycisku-triggera - wiąże `<Label htmlFor>` z kontrolką. */
+  id?: string;
   value: string | null;
   onChange: (iso: string | null) => void;
   placeholder?: string;
@@ -23,6 +25,7 @@ interface DateTimePickerProps {
 }
 
 export function DateTimePicker({
+  id,
   value,
   onChange,
   placeholder,
@@ -61,6 +64,7 @@ export function DateTimePicker({
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           type="button"
           variant="outline"
           disabled={disabled}

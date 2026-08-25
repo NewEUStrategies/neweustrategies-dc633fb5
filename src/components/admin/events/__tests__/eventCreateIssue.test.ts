@@ -11,7 +11,7 @@ import {
   EMPTY_EVENT_CREATE_DRAFT,
   eventCreateIssue,
   type EventCreateDraft,
-} from "@/components/admin/events/organisms/EventCreateDialog";
+} from "@/components/admin/events/organisms/EventCreateForm";
 
 const READY: EventCreateDraft = {
   eventTypeId: "3f1a0c8e-0000-4000-8000-000000000001",
