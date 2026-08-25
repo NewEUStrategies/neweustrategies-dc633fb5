@@ -74,7 +74,7 @@ export function OnsiteCheckpointsPanel({ eventId }: { eventId: string }) {
     () =>
       (sponsorsQ.data ?? []).map((row) => ({
         id: row.id,
-        label: row.company_name ?? row.id,
+        label: row.snapshot_name || row.crm_name || row.id,
       })),
     [sponsorsQ.data],
   );
