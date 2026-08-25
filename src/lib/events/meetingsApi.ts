@@ -398,6 +398,7 @@ export async function saveMyAvailability(input: {
   eventSlug?: string;
   startsAt: string;
   endsAt: string;
+  isOpen?: boolean;
   note?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("event_meeting_availability_set", {
@@ -407,6 +408,7 @@ export async function saveMyAvailability(input: {
       event_slug: input.eventSlug ?? null,
       starts_at: input.startsAt,
       ends_at: input.endsAt,
+      is_open: input.isOpen,
       note: input.note ?? null,
     }),
   });
@@ -425,14 +427,19 @@ export async function deleteMyAvailability(id: string): Promise<boolean> {
 export async function fetchMyFreeSlots(input: {
   eventId?: string;
   eventSlug?: string;
-  inviteeRegistrationId: string;
+  /** Druga strona rozmowy; baza nazywa ja `counterpart`, bo szuka symetrycznie. */
+  counterpartRegistrationId: string;
+  from?: string | null;
+  to?: string | null;
   limit?: number;
 }): Promise<MeetingFreeSlot[]> {
   const { data, error } = await supabase.rpc("event_meeting_free_slots", {
     p_payload: payload({
       event_id: input.eventId ?? null,
       event_slug: input.eventSlug ?? null,
-      invitee_registration_id: input.inviteeRegistrationId,
+      counterpart_registration_id: input.counterpartRegistrationId,
+      from: input.from ?? null,
+      to: input.to ?? null,
       limit: input.limit ?? 50,
     }),
   });
@@ -443,7 +450,7 @@ export async function fetchMyFreeSlots(input: {
 export async function inviteToMeeting(input: {
   eventId?: string;
   eventSlug?: string;
-  inviteeRegistrationId: string;
+  counterpartRegistrationId: string;
   startsAt: string;
   topic?: string | null;
   message?: string | null;
@@ -453,7 +460,7 @@ export async function inviteToMeeting(input: {
     p_payload: payload({
       event_id: input.eventId ?? null,
       event_slug: input.eventSlug ?? null,
-      invitee_registration_id: input.inviteeRegistrationId,
+      counterpart_registration_id: input.counterpartRegistrationId,
       starts_at: input.startsAt,
       topic: input.topic ?? null,
       message: input.message ?? null,
@@ -463,6 +470,7 @@ export async function inviteToMeeting(input: {
   if (error) throw error;
   return data;
 }
+
 
 export async function respondToMeeting(input: {
   meetingId: string;
