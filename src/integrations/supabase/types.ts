@@ -6673,6 +6673,502 @@ export type Database = {
           },
         ]
       }
+      event_meeting_attendees: {
+        Row: {
+          created_at: string
+          ends_at: string
+          event_id: string
+          id: string
+          meeting_id: string
+          registration_id: string
+          side: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          time_range: unknown
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          event_id: string
+          id?: string
+          meeting_id: string
+          registration_id: string
+          side: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          time_range?: unknown
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          event_id?: string
+          id?: string
+          meeting_id?: string
+          registration_id?: string
+          side?: string
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          time_range?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meeting_attendees_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_attendees_meeting_fk"
+            columns: ["tenant_id", "event_id", "meeting_id"]
+            isOneToOne: false
+            referencedRelation: "event_meetings"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_attendees_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_attendees_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_meeting_availability: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          event_id: string
+          id: string
+          is_open: boolean
+          note: string | null
+          registration_id: string
+          starts_at: string
+          tenant_id: string
+          time_range: unknown
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          event_id: string
+          id?: string
+          is_open?: boolean
+          note?: string | null
+          registration_id: string
+          starts_at: string
+          tenant_id: string
+          time_range?: unknown
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          event_id?: string
+          id?: string
+          is_open?: boolean
+          note?: string | null
+          registration_id?: string
+          starts_at?: string
+          tenant_id?: string
+          time_range?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meeting_availability_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_availability_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_availability_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_meeting_rule_groups: {
+        Row: {
+          created_at: string
+          event_id: string
+          group_id: string
+          id: string
+          side: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          group_id: string
+          id?: string
+          side: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          group_id?: string
+          id?: string
+          side?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meeting_rule_groups_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_rule_groups_group_fk"
+            columns: ["tenant_id", "event_id", "group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_rule_groups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_meeting_settings: {
+        Row: {
+          break_minutes: number
+          created_at: string
+          day_end_time: string
+          day_start_time: string
+          event_id: string
+          id: string
+          intro_en: string
+          intro_pl: string
+          invite_expires_after_hours: number
+          invites_close_at: string | null
+          invites_open_at: string | null
+          is_enabled: boolean
+          max_invites_per_person: number | null
+          max_meetings_per_day: number | null
+          meeting_days: string[]
+          slot_minutes: number
+          tenant_id: string
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+          visibility: string
+        }
+        Insert: {
+          break_minutes?: number
+          created_at?: string
+          day_end_time?: string
+          day_start_time?: string
+          event_id: string
+          id?: string
+          intro_en?: string
+          intro_pl?: string
+          invite_expires_after_hours?: number
+          invites_close_at?: string | null
+          invites_open_at?: string | null
+          is_enabled?: boolean
+          max_invites_per_person?: number | null
+          max_meetings_per_day?: number | null
+          meeting_days?: string[]
+          slot_minutes?: number
+          tenant_id: string
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Update: {
+          break_minutes?: number
+          created_at?: string
+          day_end_time?: string
+          day_start_time?: string
+          event_id?: string
+          id?: string
+          intro_en?: string
+          intro_pl?: string
+          invite_expires_after_hours?: number
+          invites_close_at?: string | null
+          invites_open_at?: string | null
+          is_enabled?: boolean
+          max_invites_per_person?: number | null
+          max_meetings_per_day?: number | null
+          meeting_days?: string[]
+          slot_minutes?: number
+          tenant_id?: string
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meeting_settings_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_meeting_tables: {
+        Row: {
+          capacity: number
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          is_active: boolean
+          label: string
+          note: string | null
+          room_id: string | null
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          zone: string | null
+        }
+        Insert: {
+          capacity?: number
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          is_active?: boolean
+          label: string
+          note?: string | null
+          room_id?: string | null
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+          zone?: string | null
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          note?: string | null
+          room_id?: string | null
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meeting_tables_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_tables_room_fk"
+            columns: ["tenant_id", "event_id", "room_id"]
+            isOneToOne: false
+            referencedRelation: "event_rooms"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meeting_tables_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_meetings: {
+        Row: {
+          attendance_marked_at: string | null
+          attendance_marked_by: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_side: string | null
+          created_at: string
+          decline_reason: string | null
+          ends_at: string
+          event_id: string
+          expires_at: string
+          id: string
+          invitation_message: string | null
+          invited_by: string | null
+          invitee_registration_id: string
+          pair_high: string | null
+          pair_low: string | null
+          requester_registration_id: string
+          rescheduled_from_id: string | null
+          responded_at: string | null
+          responded_by: string | null
+          sponsor_id: string | null
+          starts_at: string
+          status: string
+          table_id: string | null
+          table_seat: number | null
+          tenant_id: string
+          time_range: unknown
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          attendance_marked_at?: string | null
+          attendance_marked_by?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_side?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          ends_at: string
+          event_id: string
+          expires_at: string
+          id?: string
+          invitation_message?: string | null
+          invited_by?: string | null
+          invitee_registration_id: string
+          pair_high?: string | null
+          pair_low?: string | null
+          requester_registration_id: string
+          rescheduled_from_id?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          sponsor_id?: string | null
+          starts_at: string
+          status?: string
+          table_id?: string | null
+          table_seat?: number | null
+          tenant_id: string
+          time_range?: unknown
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attendance_marked_at?: string | null
+          attendance_marked_by?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_side?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          ends_at?: string
+          event_id?: string
+          expires_at?: string
+          id?: string
+          invitation_message?: string | null
+          invited_by?: string | null
+          invitee_registration_id?: string
+          pair_high?: string | null
+          pair_low?: string | null
+          requester_registration_id?: string
+          rescheduled_from_id?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          sponsor_id?: string | null
+          starts_at?: string
+          status?: string
+          table_id?: string | null
+          table_seat?: number | null
+          tenant_id?: string
+          time_range?: unknown
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meetings_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meetings_invitee_fk"
+            columns: ["tenant_id", "event_id", "invitee_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meetings_requester_fk"
+            columns: ["tenant_id", "event_id", "requester_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meetings_rescheduled_from_fk"
+            columns: ["tenant_id", "event_id", "rescheduled_from_id"]
+            isOneToOne: false
+            referencedRelation: "event_meetings"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meetings_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meetings_table_fk"
+            columns: ["tenant_id", "event_id", "table_id"]
+            isOneToOne: false
+            referencedRelation: "event_meeting_tables"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_meetings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_page_sections: {
         Row: {
           created_at: string
@@ -17528,6 +18024,75 @@ export type Database = {
           visibility: string
         }[]
       }
+      _event_meeting_available: {
+        Args: {
+          _ends: string
+          _event_id: string
+          _registration_id: string
+          _starts: string
+          _tenant: string
+        }
+        Returns: boolean
+      }
+      _event_meeting_caller_registration: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: string
+      }
+      _event_meeting_can_invite: {
+        Args: {
+          _event_id: string
+          _from_registration_id: string
+          _tenant: string
+          _to_registration_id: string
+        }
+        Returns: string
+      }
+      _event_meeting_free_slots: {
+        Args: {
+          _a_registration_id: string
+          _b_registration_id: string
+          _event_id: string
+          _from: string
+          _limit: number
+          _tenant: string
+          _to: string
+        }
+        Returns: {
+          ends_at: string
+          starts_at: string
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
+        }[]
+      }
+      _event_meeting_groups: {
+        Args: { _event_id: string; _registration_id: string; _tenant: string }
+        Returns: string[]
+      }
+      _event_meeting_slot_valid: {
+        Args: {
+          _ends: string
+          _event_id: string
+          _starts: string
+          _tenant: string
+        }
+        Returns: boolean
+      }
+      _event_meeting_take_seat: {
+        Args: {
+          _ends: string
+          _event_id: string
+          _exclude_meeting_id: string
+          _preferred_table_id: string
+          _starts: string
+          _tenant: string
+        }
+        Returns: {
+          out_table_id: string
+          out_table_seat: number
+        }[]
+      }
       _event_new_qr_token: { Args: never; Returns: string }
       _event_new_scanner_token: { Args: never; Returns: string }
       _event_next_waitlist_position: {
@@ -18451,6 +19016,41 @@ export type Database = {
           sponsor_id: string
           sponsor_name: string
           total_count: number
+        }[]
+      }
+      admin_event_meeting_settings_get: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_meeting_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_meeting_table_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_meeting_table_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_meeting_tables_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          capacity: number
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          meetings_count: number
+          minutes_taken: number
+          next_meeting_at: string
+          note: string
+          room_id: string
+          room_name: string
+          sort_order: number
+          updated_at: string
+          zone: string
         }[]
       }
       admin_event_onsite_stats: {
