@@ -18415,6 +18415,46 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_scanner_device_issue: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_scanner_device_revoke: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_scanner_device_set_active: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_scanner_devices_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          checkins_count: number
+          checkpoint_id: string
+          checkpoint_name_en: string
+          checkpoint_name_pl: string
+          created_at: string
+          event_id: string
+          expires_at: string
+          fail_window_count: number
+          failed_scan_count: number
+          id: string
+          is_active: boolean
+          label: string
+          last_failed_scan_at: string
+          last_seen_at: string
+          lead_scans_count: number
+          locked_until: string
+          revoked_at: string
+          scan_count: number
+          scopes: string[]
+          sponsor_id: string
+          sponsor_name: string
+          state: string
+          token_prefix: string
+        }[]
+      }
       admin_event_session_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_session_detail: {
         Args: { _id: string }
