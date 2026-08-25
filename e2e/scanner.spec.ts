@@ -125,12 +125,16 @@ async function readOutbox(page: Page): Promise<Array<{ id: string; code: string;
 }
 
 test.describe("aplikacja skanera", () => {
+  // Dev server renderuje strumieniowo i domyka dokument dopiero po strażniku
+  // bezczynności - dlatego nawigujemy do `domcontentloaded` i dajemy zapas czasu.
+  test.describe.configure({ timeout: 90_000 });
+
   test("bez poświadczenia pokazuje parowanie i zostaje poza indeksem", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     const calls = await stubScannerPlane(page);
 
-    await page.goto("/scanner");
+    await page.goto("/scanner", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "Podłącz urządzenie" })).toBeVisible();
     await expect(page.locator("#scanner-token")).toBeVisible();
@@ -147,7 +151,7 @@ test.describe("aplikacja skanera", () => {
 
   test("kod o złym kształcie jest odrzucany bez żądania", async ({ page }) => {
     const calls = await stubScannerPlane(page);
-    await page.goto("/scanner");
+    await page.goto("/scanner", { waitUntil: "domcontentloaded" });
 
     await page.locator("#scanner-token").fill("za-krotki");
     await page.locator("#scanner-token").blur();
@@ -161,7 +165,7 @@ test.describe("aplikacja skanera", () => {
 
   test("parowanie kodem z panelu otwiera tryb odprawy", async ({ page }) => {
     const calls = await stubScannerPlane(page);
-    await page.goto("/scanner");
+    await page.goto("/scanner", { waitUntil: "domcontentloaded" });
 
     await page.locator("#scanner-token").fill(DEVICE_TOKEN);
     await page.getByRole("button", { name: "Podłącz" }).click();
@@ -182,7 +186,7 @@ test.describe("aplikacja skanera", () => {
   test("parowanie linkiem z panelu czyści poświadczenie z adresu", async ({ page }) => {
     const calls = await stubScannerPlane(page);
 
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`);
+    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
 
     await expect(page.locator("#scanner-code")).toBeVisible();
     expect(calls.bootstrap).toBe(1);
@@ -193,7 +197,7 @@ test.describe("aplikacja skanera", () => {
 
   test("odłączenie urządzenia wraca do parowania i kasuje poświadczenie", async ({ page }) => {
     await stubScannerPlane(page);
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`);
+    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.getByRole("button", { name: "Odłącz urządzenie" }).first().click();
@@ -207,7 +211,7 @@ test.describe("aplikacja skanera", () => {
 
   test("skan online pokazuje decyzję bazy i nie zostawia nic w kolejce", async ({ page }) => {
     const calls = await stubScannerPlane(page);
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`);
+    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.locator("#scanner-code").fill("TICKET-ONLINE-1");
@@ -232,7 +236,7 @@ test.describe("aplikacja skanera", () => {
     context,
   }) => {
     const calls = await stubScannerPlane(page);
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`);
+    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await context.setOffline(true);
@@ -270,7 +274,7 @@ test.describe("aplikacja skanera", () => {
       Object.defineProperty(window.navigator, "onLine", { get: () => false });
     });
 
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`);
+    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.locator("#scanner-code").fill("TICKET-PERSIST-1");
@@ -278,7 +282,7 @@ test.describe("aplikacja skanera", () => {
     await expect(page.getByText("1 skan czeka na wysłanie")).toBeVisible();
     await expect.poll(async () => (await readOutbox(page)).length, { timeout: 10_000 }).toBe(1);
 
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded" });
 
     // Poświadczenie z pamięci urządzenia wznawia sesję, a kolejka wraca z dysku.
     await expect(page.getByText("Kongres testowy")).toBeVisible();
