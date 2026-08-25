@@ -22,6 +22,7 @@ import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
+import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 
 const EVENT_TABS = [
   {
@@ -51,6 +52,13 @@ const EVENT_TABS = [
     labelKey: "adminEventAgenda.nav.sectionTitle",
   },
   {
+    // Etykieta z własnego słownika sponsorów - moduł sponsorów wozi swoje teksty.
+    to: "/admin/events/sponsors" as const,
+    key: "sponsors",
+    icon: Handshake,
+    labelKey: "adminEventSponsors.nav.sectionTitle",
+  },
+  {
     // Etykieta z własnego słownika giełdy - moduł spotkań wozi swoje teksty,
     // a `adminEvents` nie musi wiedzieć, że giełda w ogóle istnieje.
     to: "/admin/events/meetings" as const,
@@ -68,6 +76,7 @@ export function EventsSubNav() {
   ensureMeetingsI18n();
   ensureRegistrationI18n();
   ensureAgendaI18n();
+  ensureSponsorsI18n();
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
