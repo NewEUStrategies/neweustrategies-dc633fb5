@@ -21,6 +21,7 @@ import {
 import {
   arrangeMeeting,
   deleteMeetingTable,
+  fetchAdminFreeSlots,
   fetchAdminMeetings,
   fetchMeetingSettings,
   fetchMeetingStats,
@@ -33,8 +34,13 @@ import {
   type MeetingSettings,
   type MeetingSettingsInput,
   type MeetingTableInput,
+  type MeetingFreeSlot,
   type MeetingTableRow,
 } from "@/lib/events/meetingsApi";
+import {
+  searchMeetingParticipants,
+  type MeetingParticipantOption,
+} from "@/lib/events/meetingParticipants";
 import { parseMeetingStats, type MeetingStats } from "@/lib/events/meetingsStats";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -151,4 +157,57 @@ export function useArrangeMeeting(
 ): UseMutationResult<Json, Error, Parameters<typeof arrangeMeeting>[0]> {
   const invalidate = useMeetingInvalidation(eventId);
   return useMutation({ mutationFn: arrangeMeeting, onSuccess: invalidate });
+}
+
+// ---------------------------------------------------------------------------
+// DIALOG "UMOW SPOTKANIE": WYSZUKIWARKA OSOB I WSPOLNE WOLNE TERMINY
+// ---------------------------------------------------------------------------
+
+/** Lista podpowiedzi zmienia sie tylko przy nowej frazie - trzymamy ja dluzej. */
+export function useMeetingParticipants(
+  eventId: string | null,
+  query: string,
+): UseQueryResult<MeetingParticipantOption[], Error> {
+  return useQuery({
+    queryKey: [...meetingKeys.event(eventId ?? ""), "participants", query] as const,
+    queryFn: () => searchMeetingParticipants({ eventId: eventId as string, query }),
+    enabled: hasEvent(eventId),
+    staleTime: SETUP_STALE_MS,
+  });
+}
+
+/**
+ * Wolne terminy liczy baza dla PARY - dlatego zapytanie rusza dopiero, gdy obie
+ * strony sa wybrane, i nigdy nie jest cache'owane dluzej niz kilkanascie sekund:
+ * kazde umowione w miedzyczasie spotkanie zabiera miejsce przy stoliku.
+ */
+export function useMeetingFreeSlots(input: {
+  eventId: string | null;
+  aRegistrationId: string | null;
+  bRegistrationId: string | null;
+}): UseQueryResult<MeetingFreeSlot[], Error> {
+  const { eventId, aRegistrationId, bRegistrationId } = input;
+  const ready =
+    hasEvent(eventId) &&
+    typeof aRegistrationId === "string" &&
+    aRegistrationId.length > 0 &&
+    typeof bRegistrationId === "string" &&
+    bRegistrationId.length > 0 &&
+    aRegistrationId !== bRegistrationId;
+  return useQuery({
+    queryKey: [
+      ...meetingKeys.event(eventId ?? ""),
+      "free-slots",
+      aRegistrationId,
+      bRegistrationId,
+    ] as const,
+    queryFn: () =>
+      fetchAdminFreeSlots({
+        eventId: eventId as string,
+        aRegistrationId: aRegistrationId as string,
+        bRegistrationId: bRegistrationId as string,
+      }),
+    enabled: ready,
+    staleTime: LIVE_STALE_MS,
+  });
 }
