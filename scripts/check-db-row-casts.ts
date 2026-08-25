@@ -135,6 +135,12 @@ const ROW_CAST_EXCEPTIONS: readonly RowCastException[] = [
     type: "RetentionRow",
     reason: "rpc admin_member_retention - RETURNS TABLE kłamie o nullowalności",
   },
+  {
+    file: "src/lib/events/meetingsApi.ts",
+    type: "MeetingSettings",
+    reason:
+      "rpc admin_event_meeting_settings_get/_save - zwraca jsonb, nie wiersz (jak monetization_dashboard)",
+  },
 ];
 
 function walk(dir: string, out: string[]): string[] {

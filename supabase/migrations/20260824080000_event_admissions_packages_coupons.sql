@@ -1362,7 +1362,12 @@ RETURNS jsonb
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_temp
+-- `extensions` NA SCIEZCE, BO CIALO WOLA `digest()` BEZ KWALIFIKATORA.
+-- Na Supabase pgcrypto mieszka w schemacie `extensions`, a PRZYPIETA sciezka
+-- nadpisuje sesyjna - bez tego wpisu haszowanie tokenu zaproszenia padaloby
+-- z 42883 "function digest(text, unknown) does not exist". Kontrakt pilnuje
+-- pgTAP `extensions_search_path_contract_test.sql`.
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
   v_uid uuid := auth.uid();
