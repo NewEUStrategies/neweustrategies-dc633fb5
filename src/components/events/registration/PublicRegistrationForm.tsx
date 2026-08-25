@@ -197,8 +197,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
 
   if (draft === null) return null;
   const current = draft;
-  const patch = (next: Partial<RegistrationDraft>): void =>
-    setDraft({ ...current, ...next });
+  const patch = (next: Partial<RegistrationDraft>): void => setDraft({ ...current, ...next });
 
   return (
     <form
@@ -311,9 +310,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
               lang={lang}
               value={current.answers[field.key]}
               error={errorOf.get(`answer:${field.key}`) ?? null}
-              onChange={(value) =>
-                patch({ answers: { ...current.answers, [field.key]: value } })
-              }
+              onChange={(value) => patch({ answers: { ...current.answers, [field.key]: value } })}
             />
           ))}
         </section>
@@ -345,7 +342,9 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             checked={current.consentDataProcessing}
             onCheckedChange={(next) => patch({ consentDataProcessing: next === true })}
           />
-          <span className="text-foreground">{t("eventRegistration.consents.dataProcessing")} *</span>
+          <span className="text-foreground">
+            {t("eventRegistration.consents.dataProcessing")} *
+          </span>
         </label>
         <label className="flex items-start gap-2 text-sm">
           <Checkbox
@@ -391,9 +390,7 @@ function Header({ title }: { title: string }) {
   const { t } = useTranslation();
   return (
     <header className="space-y-1">
-      <h1 className="text-2xl font-semibold text-foreground">
-        {t("eventRegistration.heading")}
-      </h1>
+      <h1 className="text-2xl font-semibold text-foreground">{t("eventRegistration.heading")}</h1>
       <p className="text-sm text-muted-foreground">{title}</p>
       <p className="text-sm text-muted-foreground">{t("eventRegistration.subheading")}</p>
     </header>
@@ -434,15 +431,7 @@ function FieldErrors({ messages }: { messages: string[] }) {
   );
 }
 
-function ClosedNotice({
-  title,
-  message,
-  slug,
-}: {
-  title: string;
-  message: string;
-  slug: string;
-}) {
+function ClosedNotice({ title, message, slug }: { title: string; message: string; slug: string }) {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold text-foreground">{title}</h1>

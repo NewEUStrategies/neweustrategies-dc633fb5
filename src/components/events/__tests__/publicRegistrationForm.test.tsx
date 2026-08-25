@@ -44,9 +44,8 @@ vi.mock("@/lib/events/publicRegistrationApi", () => ({
   cancelRegistration: (input: unknown) => cancel(input),
 }));
 
-const { PublicRegistrationForm } = await import(
-  "@/components/events/registration/PublicRegistrationForm"
-);
+const { PublicRegistrationForm } =
+  await import("@/components/events/registration/PublicRegistrationForm");
 
 const EVENT = {
   id: "e1",

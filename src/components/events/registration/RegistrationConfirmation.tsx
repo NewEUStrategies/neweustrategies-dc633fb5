@@ -85,7 +85,9 @@ export function RegistrationConfirmation({
       {!cancelled && (
         <Button type="button" variant="ghost" disabled={cancelling} onClick={onCancel}>
           <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-          {cancelling ? t("eventRegistration.actions.cancelling") : t("eventRegistration.actions.cancel")}
+          {cancelling
+            ? t("eventRegistration.actions.cancelling")
+            : t("eventRegistration.actions.cancel")}
         </Button>
       )}
     </section>
