@@ -85,8 +85,10 @@ describe("szkic przypiecia firmy", () => {
     const draft = {
       ...emptySponsorDraft(10),
       companyId: COMPANY,
+      snapshotName: "Acme sp. z o.o.",
       role: "media_partner" as const,
     };
+
     expect(validateSponsorDraft(draft)).toEqual([]);
     const input = sponsorDraftToInput(draft, EVENT);
     expect(input.companyId).toBe(COMPANY);
