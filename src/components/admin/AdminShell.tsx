@@ -194,28 +194,17 @@ function groupContainsPath(group: AdminNavGroup, path: string): boolean {
   );
 }
 
-/** Czy pozycja nawigacji odpowiada aktualnej ścieżce. */
-function isNavItemActive(to: string, path: string): boolean {
-  if (path === to) return true;
-  if (to === "/admin" || to === "/admin/appearance") return false;
-  // Kontakty CRM podświetlamy tylko na /admin/crm i szczegółach kontaktu,
-  // nie w lejku ani firmach.
-  if (to === "/admin/crm") return /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path);
-  // Skrót do klubów ma własną pozycję, więc "Społeczność" nie może się
-  // podświetlać razem z nim.
-  if (to === "/admin/community" && path.startsWith("/admin/community/clubs")) return false;
-  return path.startsWith(`${to}/`);
-}
-
 type AdminNavRowProps = {
   item: AdminNavItem;
-  path: string;
+  /** Trasa JEDYNEJ aktywnej pozycji sidebara (rozstrzygnięta w adminNav). */
+  activeTo: string | null;
   compact: boolean;
   externalHint: string;
   badgeLabel: string;
   groupLabel?: string;
   onNavigate?: () => void;
 };
+
 
 /** Pojedynczy wiersz nawigacji - wspólny dla listy grup i wyników wyszukiwania. */
 function AdminNavRow({
