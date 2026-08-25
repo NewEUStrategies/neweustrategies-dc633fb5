@@ -98,7 +98,11 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
     );
   }
 
+  // Po dwoch strazach wyzej dane sa juz w cache; ta trzecia istnieje dla
+  // kompilatora, ktory nie widzi zwiazku miedzy `draft` a `settingsQ.data`.
   const settings = settingsQ.data;
+  if (settings === undefined) return null;
+
   const patch = (next: Partial<MeetingSettingsDraft>) =>
     setDraft((prev) => (prev === null ? prev : { ...prev, ...next }));
 
