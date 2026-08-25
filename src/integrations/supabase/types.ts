@@ -17474,6 +17474,20 @@ export type Database = {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
       }
+      _event_badge_print_write: {
+        Args: {
+          _copies: number
+          _device_id: string
+          _event_id: string
+          _note: string
+          _person_id: string
+          _printed_by: string
+          _reason: string
+          _template_id: string
+          _tenant: string
+        }
+        Returns: Json
+      }
       _event_checkin_evaluate: {
         Args: {
           _checkpoint_id: string
@@ -18207,6 +18221,74 @@ export type Database = {
           subject_name: string
         }[]
       }
+      admin_event_badge_print_record: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_badge_prints_list: {
+        Args: {
+          p_event_id: string
+          p_limit?: number
+          p_offset?: number
+          p_person_id?: string
+        }
+        Returns: {
+          company: string
+          copies: number
+          device_id: string
+          device_label: string
+          first_name: string
+          id: string
+          last_name: string
+          note: string
+          person_id: string
+          printed_at: string
+          printed_by: string
+          printed_by_name: string
+          reason: string
+          registration_id: string
+          registration_status: string
+          template_current_version: number
+          template_id: string
+          template_name: string
+          template_version: number
+          total_count: number
+        }[]
+      }
+      admin_event_badge_template_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_badge_template_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_badge_templates_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          background_color: string
+          background_image_url: string
+          created_at: string
+          double_fold: boolean
+          elements: Json
+          event_id: string
+          height_mm: number
+          id: string
+          is_default: boolean
+          last_printed_at: string
+          name: string
+          orientation: string
+          paper_format: string
+          printed_people_count: number
+          prints_count: number
+          qr_size_mm: number
+          show_qr: boolean
+          stale_prints_count: number
+          updated_at: string
+          version: number
+          width_mm: number
+        }[]
+      }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
       admin_event_checkin_search: {
         Args: { p_payload: Json }
@@ -18342,6 +18424,33 @@ export type Database = {
           sort_order: number
           tickets_count: number
           updated_at: string
+        }[]
+      }
+      admin_event_lead_scans_list: {
+        Args: {
+          p_event_id: string
+          p_limit?: number
+          p_offset?: number
+          p_sponsor_id?: string
+        }
+        Returns: {
+          company: string
+          consent: boolean
+          consent_snapshot_at: string
+          device_id: string
+          device_label: string
+          first_name: string
+          first_scanned_at: string
+          id: string
+          interest_rating: number
+          last_name: string
+          last_scanned_at: string
+          note: string
+          person_id: string
+          scan_count: number
+          sponsor_id: string
+          sponsor_name: string
+          total_count: number
         }[]
       }
       admin_event_onsite_stats: {
@@ -21527,6 +21636,7 @@ export type Database = {
           track_name_pl: string
         }[]
       }
+      event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
       event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_bookmarks_mine: {
         Args: { p_limit?: number; p_offset?: number; p_scope?: string }
