@@ -20,11 +20,25 @@ import {
 import { eventRegistrationActionFrom } from "@/components/events/eventRegistrationAction";
 import { EventRegistrationSurface } from "@/components/events/molecules/EventRegistrationSurface";
 
-// Molekula rysuje `<Link to="/pricing">` tylko w wariancie czlonkostwa; zaden
-// z trzech przypadkow ponizej go nie dotyka, ale atrapa musi istniec, bo
-// komponent i tak importuje router.
+// Atrapa routera SKLADA adres z `to` i `params`, zamiast zwracac staly napis:
+// wariant formularza i wariant czlonkostwa rozniaz sie WLASNIE celem linku,
+// wiec atrapa gubiaca `to` nie potrafilaby ich odroznic.
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <a href="/pricing">{children}</a>,
+  Link: ({
+    to,
+    params,
+    children,
+  }: {
+    to: string;
+    params?: Record<string, string>;
+    children: React.ReactNode;
+  }) => {
+    let href = to;
+    for (const [key, value] of Object.entries(params ?? {})) {
+      href = href.replace(`$${key}`, value);
+    }
+    return <a href={href}>{children}</a>;
+  },
 }));
 
 const HEADER_ROW = {
@@ -44,14 +58,17 @@ const HEADER_ROW = {
 const REGISTER_LABEL = "Zapisz się";
 const WAITLIST_LABEL = "Dopisz się na listę rezerwową";
 const EXTERNAL_LABEL = "Przejdź do rejestracji";
-const FORM_MESSAGE = "Zapis prowadzi organizator formularzem, którego tu nie ma.";
+const FORM_LABEL = "Wypełnij formularz zgłoszenia";
+const FORM_MESSAGE = "Zgłoszenie przyjmujemy formularzem.";
 
 /** Napisy podstawiamy per klucz - trasa robi to samo wywolaniem `t()`. */
 const LABELS: Record<string, string> = {
   "eventFront.registrationAction.register": REGISTER_LABEL,
   "eventFront.registrationAction.joinWaitlist": WAITLIST_LABEL,
   "eventFront.registrationAction.registerExternal": EXTERNAL_LABEL,
+  "eventFront.registrationAction.registerForm": FORM_LABEL,
   "eventFront.registrationSurface.formRequired": FORM_MESSAGE,
+  "eventFront.registrationSurface.approvalRequired": FORM_MESSAGE,
   "eventFront.registrationStateHint.sold_out": "Wszystkie miejsca są zajęte.",
   "eventFront.registrationStateHint.open": "Zapisz się i zabierz swoje miejsce.",
   "eventFront.registrationStateHint.registration_external":
@@ -98,16 +115,31 @@ function renderBlock(row: Partial<typeof HEADER_ROW>) {
 }
 
 describe("blok zapisow: tryb form", () => {
-  it("NIE POKAZUJE przycisku zapisu i mowi, dlaczego", () => {
+  it("prowadzi do TRASY FORMULARZA, a nie do RPC szybkiego zapisu", () => {
     // To jest ten defekt: trzy z szesciu zasianych rodzajow wydarzen (okragly
     // stol, stacjonarne, hybrydowe) maja `default_registration_mode = 'form'`,
     // a `rsvp_event()` odmawia im statusu `going`. Przycisk zapisu byl tu
     // kontrolka prowadzaca w sciane.
     const { surface } = renderBlock({ registration_mode: "form" });
     expect(surface.kind).toBe("registrationForm");
+    // Zaden przycisk wolajacy `rsvp_event()` - tryb `form` odmawia mu statusu.
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.queryByRole("link")).toBeNull();
+    const link = screen.getByRole("link", { name: FORM_LABEL });
+    expect(link).toHaveAttribute("href", "/events/kongres/register");
     expect(screen.getByText(FORM_MESSAGE)).toBeTruthy();
+  });
+
+  it("przeplyw akceptacji prowadzi TAM SAMO - to tez zgloszenie", () => {
+    const { surface } = renderBlock({
+      registration_mode: "rsvp",
+      registration_flow: "approval",
+    });
+    expect(surface.kind).toBe("registrationApproval");
+    expect(screen.getByRole("link", { name: FORM_LABEL })).toHaveAttribute(
+      "href",
+      "/events/kongres/register",
+    );
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });
 
