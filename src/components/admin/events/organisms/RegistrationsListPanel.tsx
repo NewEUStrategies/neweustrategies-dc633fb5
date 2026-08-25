@@ -191,7 +191,7 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[16rem] flex-1 space-y-1.5">
-          <Label htmlFor="registrations-search">{t(`${base}.filters.status`)}</Label>
+          <Label htmlFor="registrations-search">{t(`${base}.searchPlaceholder`)}</Label>
           <div className="flex gap-2">
             <Input
               id="registrations-search"
