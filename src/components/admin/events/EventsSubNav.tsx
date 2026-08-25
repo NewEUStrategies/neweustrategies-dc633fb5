@@ -32,6 +32,7 @@ import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-reg
 import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
+import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
 
 const EVENT_TABS = [
   {
@@ -102,6 +103,7 @@ export function EventsSubNav() {
   ensureRegistrationI18n();
   ensureAgendaI18n();
   ensureSponsorsI18n();
+  ensureTermsI18n();
   ensureOnsiteI18n();
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
