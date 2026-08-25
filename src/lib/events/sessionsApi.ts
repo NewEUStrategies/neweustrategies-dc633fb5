@@ -106,7 +106,9 @@ export interface EventTrackInput {
 export async function saveEventTrack(input: EventTrackInput): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_track_save", {
     p_payload: payload({
-      id: input.id,
+      // `null` w JSON-ie to nadal obecny klucz, a baza rozpoznaje edycje po
+      // OBECNOSCI `id` - dlatego przy tworzeniu klucza nie wysylamy wcale.
+      id: input.id ?? undefined,
       // Zmiana wydarzenia nie jest edycja sciezki - przy aktualizacji baza czyta
       // wydarzenie z wiersza, wiec klucz jest zbedny i mylacy.
       event_id: input.id === null ? input.eventId : undefined,
@@ -155,7 +157,9 @@ export interface EventRoomInput {
 export async function saveEventRoom(input: EventRoomInput): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_room_save", {
     p_payload: payload({
-      id: input.id,
+      // `null` w JSON-ie to nadal obecny klucz, a baza rozpoznaje edycje po
+      // OBECNOSCI `id` - dlatego przy tworzeniu klucza nie wysylamy wcale.
+      id: input.id ?? undefined,
       event_id: input.id === null ? input.eventId : undefined,
       name: input.name,
       capacity: input.capacity,
@@ -246,7 +250,9 @@ export interface EventSessionInput {
 export async function saveEventSession(input: EventSessionInput): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_session_save", {
     p_payload: payload({
-      id: input.id,
+      // `null` w JSON-ie to nadal obecny klucz, a baza rozpoznaje edycje po
+      // OBECNOSCI `id` - dlatego przy tworzeniu klucza nie wysylamy wcale.
+      id: input.id ?? undefined,
       // Baza odrzuca przeniesienie sesji do innego wydarzenia (`event_immutable`),
       // wiec wysylamy wydarzenie tylko przy tworzeniu.
       event_id: input.id === null ? input.eventId : undefined,
