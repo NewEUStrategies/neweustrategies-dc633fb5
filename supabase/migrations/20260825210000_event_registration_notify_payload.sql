@@ -48,6 +48,7 @@ BEGIN
     'status', r.status,
     'decision_note', r.decision_note,
     'waitlist_position', r.waitlist_position,
+    'decided_at', r.decided_at,
     'promoted_at', r.promoted_at,
     'waitlist_notified_at', r.waitlist_notified_at,
     'email', p.email,

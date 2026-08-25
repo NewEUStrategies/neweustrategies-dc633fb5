@@ -73,7 +73,9 @@ export const confirmEventRegistrationEmail = createServerFn({ method: "POST" })
     if (notice === null) return { ok: true, skipped: "not_notifiable" };
 
     const { buildRegistrationNotice } = await import("@/lib/events/registrationNotify.server");
-    const content = buildRegistrationNotice(notice, row);
+    // Klucz jawny wedruje do tresci maila: to JEDYNY moment, w ktorym serwis
+    // go widzi (baza trzyma sam hash), a gosc bez konta nie ma go skad odtworzyc.
+    const content = buildRegistrationNotice(notice, row, data.manageToken);
     const registrationId = typeof row.registration_id === "string" ? row.registration_id : "";
 
     const { sendTxEmail } = await import("@/lib/email/transactional.server");
@@ -84,6 +86,7 @@ export const confirmEventRegistrationEmail = createServerFn({ method: "POST" })
       subjectName: content.eventTitle,
       details: content.details,
       ctaPath: content.ctaPath,
+      ctaLabel: content.ctaLabel ?? undefined,
       metaName: content.firstName,
       tenantId: content.tenantId,
       idempotencyKey: `event-registration:${registrationId}:${notice}`,

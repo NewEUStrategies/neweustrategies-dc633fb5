@@ -87,6 +87,16 @@ export const notifyEventRegistrationDecision = createServerFn({ method: "POST" }
     const { buildRegistrationNotice } = await import("@/lib/events/registrationNotify.server");
     const notice = buildRegistrationNotice(data.notice, row);
 
+    // ZNACZNIK PRZEJSCIA W KLUCZU IDEMPOTENCJI. Zgloszenie moze wrocic do stanu,
+    // w ktorym juz bylo: pending -> rejected -> approved -> waitlist -> rejected.
+    // Sam `notice` daje dla obu odmow IDENTYCZNY klucz, a `sendTxEmail` traktuje
+    // istniejacy wpis jako duplikat - druga decyzja NIE dotarlaby do uczestnika,
+    // a przy awansie zostalaby jeszcze ostemplowana jako „powiadomiony".
+    // Stempel z bazy rozdziela PRZEJSCIA, zachowujac dedup PONOWIEN w obrebie
+    // jednego przejscia (ten sam `decided_at` = to samo klikniecie organizatora).
+    const stampRaw = data.notice === "promoted" ? row.promoted_at : row.decided_at;
+    const stamp = typeof stampRaw === "string" && stampRaw !== "" ? stampRaw : "0";
+
     const { sendTxEmail } = await import("@/lib/email/transactional.server");
     const result = await sendTxEmail({
       type: TYPE_BY_NOTICE[data.notice],
@@ -97,7 +107,7 @@ export const notifyEventRegistrationDecision = createServerFn({ method: "POST" }
       ctaPath: notice.ctaPath,
       metaName: notice.firstName,
       tenantId: notice.tenantId,
-      idempotencyKey: `event-registration:${data.registrationId}:${data.notice}`,
+      idempotencyKey: `event-registration:${data.registrationId}:${data.notice}:${stamp}`,
     });
 
     if (!result.ok) {

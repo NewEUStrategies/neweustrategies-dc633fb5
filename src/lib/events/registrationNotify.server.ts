@@ -21,6 +21,7 @@ import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy } from "@/lib/email-templates/tx-copy";
 import type { RegistrationNotice } from "@/lib/events/registrationNotify.functions";
+import { manageLinkPath } from "@/lib/events/manageToken";
 
 const LOCALE: Record<EmailLang, string> = { pl: "pl-PL", en: "en-GB" };
 
@@ -31,6 +32,13 @@ export interface RegistrationNoticeContent {
   tenantId: string | null;
   details: TxDetail[];
   ctaPath: string;
+  /**
+   * Napis przycisku albo `null`, gdy ma zostać domyślny z `tx-copy`.
+   *
+   * Niepusty WYŁĄCZNIE wtedy, gdy przycisk prowadzi do samoobsługi zgłoszenia -
+   * inaczej „Szczegóły wydarzenia" wskazywałoby stronę rezygnacji.
+   */
+  ctaLabel: string | null;
 }
 
 function text(value: unknown): string | null {
@@ -80,6 +88,16 @@ export function formatEventMoment(
 export function buildRegistrationNotice(
   notice: RegistrationNotice,
   row: Record<string, unknown>,
+  /**
+   * Surowy `manage_token` - TYLKO ze ścieżki samoobsługowej.
+   *
+   * Ścieżka administracyjna go NIE MA i mieć nie może: baza trzyma wyłącznie
+   * `manage_token_hash`, a klucz jawny istnieje jedynie w odpowiedzi
+   * `event_register`, czyli w przeglądarce zgłaszającego. Dlatego domyślnie
+   * `null` - a mail wysyłany przez organizatora zachowuje przycisk do
+   * wydarzenia.
+   */
+  manageToken: string | null = null,
 ): RegistrationNoticeContent {
   const lang = langOf(row.lang);
   const labels = txCopy("event_registration_received", lang).labels;
@@ -110,6 +128,14 @@ export function buildRegistrationNotice(
     }
   }
 
+  const fallbackPath = notice === "rejected" || slug === null ? "/events" : `/events/${slug}`;
+  // Odmowa nie dostaje samoobsługi: nie ma czego odwoływać, a link do zgłoszenia
+  // pod komunikatem odmownym tylko podtrzymywałby nadzieję.
+  const manage =
+    manageToken === null || slug === null || notice === "rejected"
+      ? null
+      : manageLinkPath(slug, manageToken);
+
   return {
     lang,
     eventTitle,
@@ -118,6 +144,15 @@ export function buildRegistrationNotice(
     details,
     // Odmowa prowadzi do KATALOGU, nie do wydarzenia, na które nie ma wstępu -
     // przycisk „szczegóły" pod komunikatem odmownym byłby okrucieństwem.
-    ctaPath: notice === "rejected" || slug === null ? "/events" : `/events/${slug}`,
+    //
+    // POTWIERDZENIE PROWADZI DO SAMOOBSŁUGI, NIE DO OPISU WYDARZENIA. Treść
+    // maila obiecuje wprost: „możesz wycofać zgłoszenie odnośnikiem z tej
+    // wiadomości". Bez tego adresu obietnica była pusta - gość bez konta ma
+    // klucz `manage_token` wyłącznie w tej jednej wiadomości, a po zamknięciu
+    // strony potwierdzenia nie odtworzy go z niczego. Wejście na stronę samo
+    // w sobie NICZEGO nie odwołuje (skanery bezpieczeństwa odwiedzają każdy
+    // adres z maila), więc przycisk jest bezpieczny.
+    ctaPath: manage === null ? fallbackPath : manage,
+    ctaLabel: manage === null ? null : labels.manageCta,
   };
 }

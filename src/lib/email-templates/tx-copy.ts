@@ -80,6 +80,15 @@ export interface TxCopy {
     decisionNote: string;
     /** Wiadomość darczyńcy przekazana w formularzu darowizny. */
     donorMessage: string;
+    /**
+     * Napis przycisku prowadzącego do samoobsługi zgłoszenia.
+     *
+     * Etykieta jest osobna, bo przycisk zmienia CEL: bez klucza `manage_token`
+     * prowadzi do wydarzenia („Szczegóły wydarzenia"), a z kluczem - na stronę
+     * zgłoszenia, gdzie gość bez konta może je wycofać. Ten sam napis pod
+     * dwoma różnymi adresami byłby wprowadzaniem w błąd.
+     */
+    manageCta: string;
   };
   footerHelp: string;
 }
@@ -106,6 +115,7 @@ const LABELS_PL: TxCopy["labels"] = {
   waitlistPosition: "Miejsce w kolejce",
   decisionNote: "Uzasadnienie organizatora",
   donorMessage: "Twoja wiadomość",
+  manageCta: "Zarządzaj zgłoszeniem",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -128,6 +138,7 @@ const LABELS_EN: TxCopy["labels"] = {
   waitlistPosition: "Waiting list position",
   decisionNote: "Organiser's note",
   donorMessage: "Your message",
+  manageCta: "Manage your registration",
 };
 
 const HELP_PL =

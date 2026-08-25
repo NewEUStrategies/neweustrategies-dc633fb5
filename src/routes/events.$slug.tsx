@@ -369,6 +369,7 @@ function EventDetail() {
   // Zamek sekcji prelegentów rozstrzyga się w trasie, bo to trasa trzyma
   // komponent tej sekcji (razem z jego własnym nagłówkiem).
   const speakersSection = findEventSection(sectionsQ.data ?? [], "speakers");
+  const descriptionSection = findEventSection(sectionsQ.data ?? [], "description");
 
   const onSurfaceAction = () => {
     if (surface === null || surface.control === null) return;
@@ -472,18 +473,31 @@ function EventDetail() {
         )}
       </dl>
 
-      {desc && (
+      {descriptionSection === null ? null : descriptionSection.isLocked ? (
+        <section id="event-description" className="mt-8 scroll-mt-24">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            {t(sectionHeadingKey("description"))}
+          </h2>
+          <div className="mt-4">
+            <SectionLockCard
+              reason={descriptionSection.lockReason}
+              sectionKey="description"
+              eventSlug={slug}
+            />
+          </div>
+        </section>
+      ) : desc ? (
         <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line dark:prose-invert">
           {desc}
         </div>
-      )}
+      ) : null}
 
       {/* Prelegenci wydarzenia: event_speakers + profil prelegenta/eksperta
           (RPC get_public_speakers); klik otwiera dialog profilu prelegenta.
           Sekcja ma własny nagłówek, więc zamek rozstrzyga się tutaj, a nie
           w `EventPageSections` - inaczej strona miałaby dwa nagłówki
           „Prelegenci" jeden pod drugim. */}
-      {speakersSection !== null && speakersSection.isLocked ? (
+      {speakersSection === null ? null : speakersSection.isLocked ? (
         <section className="mt-10 scroll-mt-24" id="event-speakers">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
             {t(sectionHeadingKey("speakers"))}

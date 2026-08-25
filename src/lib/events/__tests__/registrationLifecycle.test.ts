@@ -90,6 +90,36 @@ describe("registrationNotify - tresc maila o zgloszeniu", () => {
     expect(buildRegistrationNotice("rejected", payload).ctaPath).toBe("/events");
   });
 
+  // REGRESJA (uwaga bota na PR #289). Tresc maila `event_registration_received`
+  // obiecuje wprost: „mozesz wycofac zgloszenie odnosnikiem z tej wiadomosci".
+  // Przycisk prowadzil do `/events/<slug>`, a `manage_token` nie trafial do
+  // wiadomosci w ogole - czyli obietnica byla pusta, a gosc bez konta tracil
+  // JEDYNA droge do rezygnacji w chwili zamkniecia strony potwierdzenia
+  // (baza trzyma sam hash, klucz jawny zyje tylko w odpowiedzi `event_register`).
+  it("potwierdzenie z kluczem samoobslugi prowadzi na strone zgloszenia, nie na opis wydarzenia", () => {
+    const token = "A".repeat(32);
+    const withToken = buildRegistrationNotice("received", payload, token);
+    expect(withToken.ctaPath).toBe(`/events/kongres/manage?token=${token}`);
+    // Napis MUSI sie zmienic razem z celem - „Szczegoly wydarzenia" pod adresem
+    // rezygnacji wprowadzaloby w blad.
+    expect(withToken.ctaLabel).toBe("Zarządzaj zgłoszeniem");
+  });
+
+  it("sciezka administracyjna NIE dostaje klucza - zostaje przycisk do wydarzenia", () => {
+    // Organizator nie ma czym podpisac linku samoobslugi: w bazie jest wylacznie
+    // `manage_token_hash`. Domyslny `null` musi zachowac dotychczasowe zachowanie.
+    const admin = buildRegistrationNotice("received", payload);
+    expect(admin.ctaPath).toBe("/events/kongres");
+    expect(admin.ctaLabel).toBeNull();
+  });
+
+  it("odmowa nie dostaje samoobslugi nawet z kluczem", () => {
+    // Nie ma czego odwolywac, a link do zgloszenia pod odmowa podtrzymywalby nadzieje.
+    const rejected = buildRegistrationNotice("rejected", payload, "B".repeat(32));
+    expect(rejected.ctaPath).toBe("/events");
+    expect(rejected.ctaLabel).toBeNull();
+  });
+
   it("awans z rezerwy pokazuje miejsce w kolejce", () => {
     const promoted = buildRegistrationNotice("promoted", payload);
     expect(promoted.details.map((row) => row.value)).toContain("3");
