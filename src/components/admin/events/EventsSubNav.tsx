@@ -24,6 +24,7 @@ import {
   Ticket,
   ListOrdered,
   CalendarCheck,
+  ShieldCheck,
 } from "@/lib/lucide-shim";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
