@@ -19026,6 +19026,21 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: string
       }
+      admin_event_meeting_free_slots: {
+        Args: { p_payload: Json }
+        Returns: {
+          ends_at: string
+          starts_at: string
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
+        }[]
+      }
+      admin_event_meeting_set_status: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_meeting_settings_get: {
         Args: { p_event_id: string }
         Returns: Json
@@ -19034,6 +19049,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_meeting_stats: { Args: { p_event_id: string }; Returns: Json }
       admin_event_meeting_table_delete: {
         Args: { _id: string }
         Returns: boolean
