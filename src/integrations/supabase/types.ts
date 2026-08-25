@@ -7732,7 +7732,6 @@ export type Database = {
           decided_by: string | null
           decision_note: string | null
           decision_source: string | null
-          directory_opt_out: boolean
           event_id: string
           group_id: string | null
           id: string
@@ -7760,7 +7759,6 @@ export type Database = {
           decided_by?: string | null
           decision_note?: string | null
           decision_source?: string | null
-          directory_opt_out?: boolean
           event_id: string
           group_id?: string | null
           id?: string
@@ -7788,7 +7786,6 @@ export type Database = {
           decided_by?: string | null
           decision_note?: string | null
           decision_source?: string | null
-          directory_opt_out?: boolean
           event_id?: string
           group_id?: string | null
           id?: string
@@ -19606,10 +19603,6 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
-      admin_event_registration_notify_payload: {
-        Args: { p_payload: Json }
-        Returns: Json
-      }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -22799,11 +22792,6 @@ export type Database = {
         Returns: Json
       }
       event_meeting_cancel: { Args: { p_payload: Json }; Returns: Json }
-      event_meeting_directory: { Args: { p_payload: Json }; Returns: Json }
-      event_meeting_directory_visibility_set: {
-        Args: { p_payload: Json }
-        Returns: Json
-      }
       event_meeting_exchange: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_free_slots: {
         Args: { p_payload: Json }
@@ -22908,10 +22896,6 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
-      event_registration_notify_payload: {
-        Args: { p_payload: Json }
-        Returns: Json
-      }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
       event_sections: {
         Args: { p_slug: string }
