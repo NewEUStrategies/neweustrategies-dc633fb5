@@ -23,7 +23,7 @@ indirection.
 ## Setting the key
 
 Claude Code expands `${API_KEY_21ST}` from **its own process environment** at
-connection time. Two things that do *not* work, both verified:
+connection time. Two things that do _not_ work, both verified:
 
 - Putting the value in `.env` — Claude Code does not read `.env` for `.mcp.json`
   expansion. It warns `Missing environment variables: API_KEY_21ST` and sends
@@ -51,7 +51,7 @@ claude mcp list      # expect: 21st: https://21st.dev/api/mcp (HTTP) - ✓ Conne
 
 ## Network requirement
 
-`21st.dev:443` must be reachable. In Claude Code *web/remote* sessions this
+`21st.dev:443` must be reachable. In Claude Code _web/remote_ sessions this
 project's egress policy currently denies it — the proxy rejects `CONNECT` with
 403 and the health check reports the misleading `! Needs authentication`, because
 no handshake ever happens and the key is never evaluated. Confirm the real cause
