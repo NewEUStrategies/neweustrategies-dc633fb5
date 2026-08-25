@@ -15,6 +15,7 @@ export const adminEventSponsorsPl = {
       sectionTitle: "Sponsorzy",
       sponsors: "Firmy",
       tiers: "Poziomy",
+      sectionsNavLabel: "Sekcje modułu sponsorów",
     },
     roles: {
       sponsor: "Sponsor",
@@ -199,6 +200,7 @@ export const adminEventSponsorsEn = {
       sectionTitle: "Sponsors",
       sponsors: "Companies",
       tiers: "Tiers",
+      sectionsNavLabel: "Sponsor module sections",
     },
     roles: {
       sponsor: "Sponsor",
