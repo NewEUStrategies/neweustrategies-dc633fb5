@@ -265,6 +265,7 @@ import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admi
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminNewsletterAuthLogsRouteImport } from './routes/admin.newsletter.auth-logs'
 import { Route as AdminEventsTypesRouteImport } from './routes/admin.events.types'
+import { Route as AdminEventsSponsorsRouteImport } from './routes/admin.events.sponsors'
 import { Route as AdminEventsRegistrationsRouteImport } from './routes/admin.events.registrations'
 import { Route as AdminEventsMeetingsRouteImport } from './routes/admin.events.meetings'
 import { Route as AdminEventsListRouteImport } from './routes/admin.events.list'
@@ -1612,6 +1613,11 @@ const AdminEventsTypesRoute = AdminEventsTypesRouteImport.update({
   path: '/types',
   getParentRoute: () => AdminEventsRoute,
 } as any)
+const AdminEventsSponsorsRoute = AdminEventsSponsorsRouteImport.update({
+  id: '/sponsors',
+  path: '/sponsors',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
 const AdminEventsRegistrationsRoute =
   AdminEventsRegistrationsRouteImport.update({
     id: '/registrations',
@@ -2092,6 +2098,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
   '/admin/events/registrations': typeof AdminEventsRegistrationsRoute
+  '/admin/events/sponsors': typeof AdminEventsSponsorsRoute
   '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
@@ -2389,6 +2396,7 @@ export interface FileRoutesByTo {
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
   '/admin/events/registrations': typeof AdminEventsRegistrationsRoute
+  '/admin/events/sponsors': typeof AdminEventsSponsorsRoute
   '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
@@ -2697,6 +2705,7 @@ export interface FileRoutesById {
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
   '/admin/events/registrations': typeof AdminEventsRegistrationsRoute
+  '/admin/events/sponsors': typeof AdminEventsSponsorsRoute
   '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
@@ -3007,6 +3016,7 @@ export interface FileRouteTypes {
     | '/admin/events/list'
     | '/admin/events/meetings'
     | '/admin/events/registrations'
+    | '/admin/events/sponsors'
     | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
@@ -3304,6 +3314,7 @@ export interface FileRouteTypes {
     | '/admin/events/list'
     | '/admin/events/meetings'
     | '/admin/events/registrations'
+    | '/admin/events/sponsors'
     | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/deliverability'
@@ -3611,6 +3622,7 @@ export interface FileRouteTypes {
     | '/admin/events/list'
     | '/admin/events/meetings'
     | '/admin/events/registrations'
+    | '/admin/events/sponsors'
     | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
@@ -5627,6 +5639,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsTypesRouteImport
       parentRoute: typeof AdminEventsRoute
     }
+    '/admin/events/sponsors': {
+      id: '/admin/events/sponsors'
+      path: '/sponsors'
+      fullPath: '/admin/events/sponsors'
+      preLoaderRoute: typeof AdminEventsSponsorsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
     '/admin/events/registrations': {
       id: '/admin/events/registrations'
       path: '/registrations'
@@ -6098,6 +6117,7 @@ interface AdminEventsRouteChildren {
   AdminEventsListRoute: typeof AdminEventsListRoute
   AdminEventsMeetingsRoute: typeof AdminEventsMeetingsRoute
   AdminEventsRegistrationsRoute: typeof AdminEventsRegistrationsRoute
+  AdminEventsSponsorsRoute: typeof AdminEventsSponsorsRoute
   AdminEventsTypesRoute: typeof AdminEventsTypesRoute
   AdminEventsIndexRoute: typeof AdminEventsIndexRoute
 }
@@ -6107,6 +6127,7 @@ const AdminEventsRouteChildren: AdminEventsRouteChildren = {
   AdminEventsListRoute: AdminEventsListRoute,
   AdminEventsMeetingsRoute: AdminEventsMeetingsRoute,
   AdminEventsRegistrationsRoute: AdminEventsRegistrationsRoute,
+  AdminEventsSponsorsRoute: AdminEventsSponsorsRoute,
   AdminEventsTypesRoute: AdminEventsTypesRoute,
   AdminEventsIndexRoute: AdminEventsIndexRoute,
 }
