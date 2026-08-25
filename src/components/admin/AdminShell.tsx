@@ -509,7 +509,7 @@ function AdminShellInner({
                             >
                               <AdminNavRow
                                 item={item}
-                                path={path}
+                                activeTo={activeTo}
                                 compact={compact}
                                 externalHint={t("admin.nav.externalNewTab")}
                                 badgeLabel={t("admin.nav.pendingItems")}
