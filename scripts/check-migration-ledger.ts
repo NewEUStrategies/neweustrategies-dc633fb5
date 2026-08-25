@@ -12,19 +12,25 @@
  * znanych CI i zwraca wyłącznie te, których w bazie brak - żadnej enumeracji
  * historii wdrożeń, więc klucz publikowalny wystarczy.
  *
+ * Zakres bramki (bazowa linia + uzgodnienia) opisuje `supabase/migration-ledger.json`.
+ *
  * Usage:
  *   bun run check:migration-ledger
  * Env: SUPABASE_URL (lub VITE_SUPABASE_URL) + SUPABASE_PUBLISHABLE_KEY
  *      (lub VITE_SUPABASE_PUBLISHABLE_KEY / SUPABASE_SERVICE_ROLE_KEY).
  */
-import { readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import {
   buildLedgerReport,
   ledgerFailed,
+  ledgerRequirements,
   parseMigrationFiles,
   renderLedgerReport,
+  type LedgerConfig,
 } from "../src/lib/ci/migrationLedger";
 import { MIGRATIONS_DIR } from "./lib/sqlMigrations";
+
+const CONFIG_PATH = "supabase/migration-ledger.json";
 
 const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
 const key =
@@ -34,6 +40,30 @@ const key =
 
 /** Rejestr bywa duży - pytamy partiami, żeby nie budować gigantycznego body. */
 const BATCH = 200;
+
+function loadConfig(): LedgerConfig {
+  const raw: unknown = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+  if (raw === null || typeof raw !== "object") {
+    throw new Error(`${CONFIG_PATH}: oczekiwano obiektu JSON.`);
+  }
+  const parsed = raw as { baseline?: unknown; reconciled?: unknown };
+  if (typeof parsed.baseline !== "string" || !/^\d{14}$/.test(parsed.baseline)) {
+    throw new Error(`${CONFIG_PATH}: 'baseline' musi być 14-cyfrową wersją migracji.`);
+  }
+  const reconciled: Record<string, string> = {};
+  if (parsed.reconciled !== undefined) {
+    if (parsed.reconciled === null || typeof parsed.reconciled !== "object") {
+      throw new Error(`${CONFIG_PATH}: 'reconciled' musi być mapą plik → wersja.`);
+    }
+    for (const [file, version] of Object.entries(parsed.reconciled as Record<string, unknown>)) {
+      if (typeof version !== "string" || !/^\d{14}$/.test(version)) {
+        throw new Error(`${CONFIG_PATH}: uzgodnienie '${file}' musi wskazywać 14-cyfrową wersję.`);
+      }
+      reconciled[file] = version;
+    }
+  }
+  return { baseline: parsed.baseline, reconciled };
+}
 
 async function askMissing(versions: readonly string[]): Promise<string[]> {
   const missing: string[] = [];
@@ -71,9 +101,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const config = loadConfig();
   const { parsed, malformed } = parseMigrationFiles(readdirSync(MIGRATIONS_DIR));
-  const missingVersions = await askMissing(parsed.map((m) => m.version));
-  const report = buildLedgerReport(parsed, malformed, missingVersions);
+  const askedVersions = [
+    ...new Set(ledgerRequirements(parsed, config).map((r) => r.ledgerVersion)),
+  ];
+  const missingVersions = await askMissing(askedVersions);
+  const report = buildLedgerReport(parsed, malformed, missingVersions, config);
 
   const markdown = renderLedgerReport(report);
   console.log(markdown);
@@ -83,8 +117,15 @@ async function main(): Promise<void> {
     "reports/migration-ledger.json",
     `${JSON.stringify(
       {
-        expected: report.expected.length,
-        missing: report.missing.map((m) => ({ version: m.version, file: m.file })),
+        baseline: config.baseline,
+        required: report.required.length,
+        baselined: report.baselined,
+        missing: report.missing.map((m) => ({
+          file: m.file,
+          version: m.version,
+          ledgerVersion: m.ledgerVersion,
+        })),
+        staleReconciliations: report.staleReconciliations,
         malformed: report.malformed,
       },
       null,
@@ -97,13 +138,18 @@ async function main(): Promise<void> {
 
   if (ledgerFailed(report)) {
     console.error(
-      `✗ Wdrożenie niepełne: ${report.missing.length} migracji nie wykonało się na bazie` +
+      `✗ Wdrożenie niepełne: ${report.missing.length} migracji nie ma w rejestrze bazy` +
         (report.malformed.length > 0 ? `, ${report.malformed.length} plików ma złą nazwę` : "") +
+        (report.staleReconciliations.length > 0
+          ? `, ${report.staleReconciliations.length} martwych uzgodnień`
+          : "") +
         ".",
     );
     process.exit(1);
   }
-  console.log(`✓ Rejestr migracji zgodny (${report.expected.length} migracji).`);
+  console.log(
+    `✓ Rejestr migracji zgodny (${report.required.length} egzekwowanych, ${report.baselined} poniżej bazowej linii).`,
+  );
 }
 
 void main();
