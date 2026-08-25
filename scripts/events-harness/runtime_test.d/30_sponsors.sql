@@ -146,9 +146,9 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_roles (user_id, role) VALUES
   ('30a00000-0000-0000-0000-0000000000a1', 'admin'),
-  ('30a00000-0000-0000-0000-0000000000a2', 'editor'),
+  ('30a00000-0000-0000-0000-0000000000a2', 'admin'),
   ('30a00000-0000-0000-0000-0000000000a4', 'author'),
-  ('30a00000-0000-0000-0000-0000000000b1', 'editor')
+  ('30a00000-0000-0000-0000-0000000000b1', 'admin')
 ON CONFLICT DO NOTHING;
 
 -- Rola bez profilu dostaje `forbidden: caller has no tenant` - i tak samo

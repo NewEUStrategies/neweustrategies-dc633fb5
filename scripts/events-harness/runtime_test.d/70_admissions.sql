@@ -29,8 +29,8 @@ INSERT INTO auth.users (id, email) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_roles (user_id, role) VALUES
-  ('70a00000-0000-0000-0000-0000000000a1', 'editor'),
-  ('70a00000-0000-0000-0000-0000000000b1', 'editor')
+  ('70a00000-0000-0000-0000-0000000000a1', 'admin'),
+  ('70a00000-0000-0000-0000-0000000000b1', 'admin')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.profiles (id, tenant_id) VALUES

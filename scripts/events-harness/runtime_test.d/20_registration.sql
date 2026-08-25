@@ -170,8 +170,8 @@ INSERT INTO auth.users (id, email) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_roles (user_id, role) VALUES
-  ('e1111111-0000-0000-0000-000000000001', 'editor'),
-  ('e1111111-0000-0000-0000-000000000002', 'editor'),
+  ('e1111111-0000-0000-0000-000000000001', 'admin'),
+  ('e1111111-0000-0000-0000-000000000002', 'admin'),
   ('e1111111-0000-0000-0000-000000000003', 'author')
 ON CONFLICT DO NOTHING;
 
@@ -1182,7 +1182,7 @@ SELECT pg_temp.act_as('e1111111-0000-0000-0000-000000000003',
                       '11111111-1111-1111-1111-111111111111');
 SELECT pg_temp.assert_raises_like(
   $q$SELECT public.admin_event_registrations_list('a1111111-0000-0000-0000-000000000001')$q$,
-  'editor role required',
+  'admin role required',
   'panel/ODMOWA: rola author NIE wystarcza (autor nie widzi adresow uczestnikow)');
 SELECT pg_temp.act_as('e1111111-0000-0000-0000-000000000001',
                       '11111111-1111-1111-1111-111111111111');
