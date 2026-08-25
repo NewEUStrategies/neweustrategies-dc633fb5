@@ -67,7 +67,7 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
   const roomsQ = useEventRooms(eventId);
   const listQ = useEventSessions({
     eventId,
-    search: search.trim() === "" ? null : search.trim(),
+    q: search,
     trackId: trackId === ALL ? null : trackId,
     roomId: roomId === ALL ? null : roomId,
     status,
@@ -107,7 +107,7 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
 
   const changeStatus = (row: EventSessionRow, next: "draft" | "published" | "cancelled") => {
     setStatuses.mutate(
-      { eventId, sessionIds: [row.id], status: next },
+      { ids: [row.id], status: next },
       {
         onSuccess: (count) => {
           toast.success(t("adminEventAgenda.sessions.toasts.statusChanged", { count }));
