@@ -288,21 +288,27 @@ export async function setMeetingStatus(input: {
 
 export async function fetchAdminFreeSlots(input: {
   eventId: string;
-  requesterRegistrationId: string;
-  inviteeRegistrationId: string;
+  /** Strony sa symetryczne - baza szuka terminu wolnego dla OBU naraz. */
+  aRegistrationId: string;
+  bRegistrationId: string;
+  from?: string | null;
+  to?: string | null;
   limit?: number;
 }): Promise<MeetingFreeSlot[]> {
   const { data, error } = await supabase.rpc("admin_event_meeting_free_slots", {
     p_payload: payload({
       event_id: input.eventId,
-      requester_registration_id: input.requesterRegistrationId,
-      invitee_registration_id: input.inviteeRegistrationId,
+      a_registration_id: input.aRegistrationId,
+      b_registration_id: input.bRegistrationId,
+      from: input.from ?? null,
+      to: input.to ?? null,
       limit: input.limit ?? 50,
     }),
   });
   if (error) throw error;
   return data ?? [];
 }
+
 
 /** Organizator umawia spotkanie od razu przyjete (pakiety sponsorskie). */
 export async function arrangeMeeting(input: {
