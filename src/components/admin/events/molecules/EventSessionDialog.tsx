@@ -64,15 +64,6 @@ interface EventSessionDialogProps {
   onSubmit: (input: EventSessionInput) => void;
 }
 
-function rowText(row: unknown, key: string): string {
-  const value = (row as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : "";
-}
-
-function rowId(row: unknown): string {
-  return String((row as Record<string, unknown>).id);
-}
-
 export function EventSessionDialog({
   open,
   onOpenChange,
@@ -110,17 +101,15 @@ export function EventSessionDialog({
   const parentCandidates = useMemo(
     () =>
       sessions.filter((row) => {
-        if (draft.id !== null && rowId(row) === draft.id) return false;
+        if (draft.id !== null && row.id === draft.id) return false;
         // Drzewo ma dwa poziomy: sesja, która sama ma rodzica, nie może być rodzicem.
-        return rowText(row, "parent_session_id") === "";
+        return row.parent_session_id === "" || row.parent_session_id === null;
       }),
     [sessions, draft.id],
   );
 
-  const label = (row: unknown, plKey: string, enKey: string): string =>
-    lang === "en"
-      ? rowText(row, enKey) || rowText(row, plKey)
-      : rowText(row, plKey) || rowText(row, enKey);
+  const label = (pl: string, en: string): string =>
+    lang === "en" ? en || pl : pl || en;
 
   const submit = () => {
     setTouched(true);
@@ -133,24 +122,24 @@ export function EventSessionDialog({
   const roomValue = draft.roomId ?? NONE;
   const parentValue = draft.parentSessionId ?? NONE;
 
-  const trackOptions = [NONE, ...tracks.map(rowId)] as readonly string[];
-  const roomOptions = [NONE, ...rooms.map(rowId)] as readonly string[];
-  const parentOptions = [NONE, ...parentCandidates.map(rowId)] as readonly string[];
+  const trackOptions: readonly string[] = [NONE, ...tracks.map((row) => row.id)];
+  const roomOptions: readonly string[] = [NONE, ...rooms.map((row) => row.id)];
+  const parentOptions: readonly string[] = [NONE, ...parentCandidates.map((row) => row.id)];
 
   const trackLabel = (value: string): string => {
     if (value === NONE) return t("adminEventAgenda.sessions.noTrack");
-    const found = tracks.find((row) => rowId(row) === value);
-    return found === undefined ? value : label(found, "name_pl", "name_en");
+    const found = tracks.find((row) => row.id === value);
+    return found === undefined ? value : label(found.name_pl, found.name_en);
   };
   const roomLabel = (value: string): string => {
     if (value === NONE) return t("adminEventAgenda.sessions.noRoom");
-    const found = rooms.find((row) => rowId(row) === value);
-    return found === undefined ? value : rowText(found, "name");
+    const found = rooms.find((row) => row.id === value);
+    return found === undefined ? value : found.name;
   };
   const parentLabel = (value: string): string => {
     if (value === NONE) return "-";
-    const found = parentCandidates.find((row) => rowId(row) === value);
-    return found === undefined ? value : label(found, "title_pl", "title_en");
+    const found = parentCandidates.find((row) => row.id === value);
+    return found === undefined ? value : label(found.title_pl, found.title_en);
   };
 
   return (
