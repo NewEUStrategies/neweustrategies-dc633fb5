@@ -22353,6 +22353,7 @@ export type Database = {
           table_zone: string
         }[]
       }
+      event_meeting_invite: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
