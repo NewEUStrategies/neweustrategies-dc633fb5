@@ -191,12 +191,8 @@ export function EventTypesManager() {
                       </Badge>
                     </>
                   }
-                  meta={
-                    <>
-                      <span className="font-mono">{row.key}</span> · PL: {row.name_pl} · EN:{" "}
-                      {row.name_en} · {usageLabel(row)}
-                    </>
-                  }
+                  meta={<>{usageLabel(row)}</>}
+
                   toggleLabel={t("adminEvents.types.toggleLabel", { name })}
                   toggleDisabled={setActive.isPending}
                   onToggle={(checked) =>

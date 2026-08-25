@@ -284,7 +284,7 @@ export function ScannerCredentialDialog({ credential, onClose }: ScannerCredenti
                 </Badge>
               ))}
             </div>
-            <code className="block break-all rounded-md border border-border bg-muted/40 p-3 font-mono text-xs">
+            <code className="block break-all rounded-md border border-border bg-muted/40 p-3 font-medium tracking-tight text-xs">
               {credential.token}
             </code>
 

@@ -145,7 +145,7 @@ export function EventTicketsPanel({ eventId }: { eventId: string }) {
                 <p className="font-medium">
                   {i18n.language.startsWith("pl") ? row.name_pl : row.name_en}
                 </p>
-                <p className="font-mono text-xs text-muted-foreground">{row.key}</p>
+                <p className="font-medium tracking-tight text-xs text-muted-foreground">{row.key}</p>
               </div>
 
               <div className="min-w-[8rem] text-sm">
