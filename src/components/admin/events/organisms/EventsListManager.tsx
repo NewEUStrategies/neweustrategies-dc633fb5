@@ -22,7 +22,6 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "@/lib/lucide-shim";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
