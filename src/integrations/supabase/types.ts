@@ -19018,6 +19018,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_event_meeting_arrange: { Args: { p_payload: Json }; Returns: Json }
       admin_event_meeting_availability_delete: {
         Args: { _id: string }
         Returns: boolean
@@ -22332,6 +22333,7 @@ export type Database = {
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_exchange: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
