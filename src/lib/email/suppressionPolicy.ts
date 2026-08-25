@@ -115,6 +115,17 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   team_seat_access_ended: "transactional",
   // Bilet / potwierdzenie rejestracji - dowód uczestnictwa.
   event_registered: "transactional",
+  // Cykl życia zgłoszenia formularzowego: przyjęcie, decyzja i awans z rezerwy.
+  // Wszystkie cztery są odpowiedzią na WŁASNE działanie odbiorcy (wysłał
+  // zgłoszenie) i niosą informację o dostępie, którego nie da się odtworzyć
+  // z innego źródła - to jest definicja maila transakcyjnego, nie wysyłki
+  // za zgodą marketingową. Mail odmowny należy do tej samej klasy: człowiek,
+  // który wypisał się z newslettera, nadal ma prawo dowiedzieć się, że nie
+  // wejdzie na wydarzenie, na które się zgłosił.
+  event_registration_received: "transactional",
+  event_registration_approved: "transactional",
+  event_registration_rejected: "transactional",
+  event_waitlist_promoted: "transactional",
   // Potwierdzenie darowizny - dokument dla darczyńcy.
   donation_received: "transactional",
   // Jednorazowy link do portalu operatora płatności, wywołany kliknięciem

@@ -17,6 +17,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SitemapIndexDotxmlRouteImport } from './routes/sitemap-index[.]xml'
 import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as ScannerRouteImport } from './routes/scanner'
 import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -101,6 +102,8 @@ import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confi
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
+import { Route as EventsIndexRouteImport } from './routes/events.index'
+import { Route as EventsSavedRouteImport } from './routes/events.saved'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as ClubApplyRouteImport } from './routes/club.apply'
@@ -201,6 +204,7 @@ import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
+import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.manage'
 import { Route as ClubSpecializationSlugRouteImport } from './routes/club.specialization.$slug'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
 import { Route as ClubClubSlugSpotlightRouteImport } from './routes/club.$clubSlug.spotlight'
@@ -359,6 +363,11 @@ const SitemapRoute = SitemapRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScannerRoute = ScannerRouteImport.update({
+  id: '/scanner',
+  path: '/scanner',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RssDotxmlRoute = RssDotxmlRouteImport.update({
@@ -775,6 +784,16 @@ const LiveRssDotxmlRoute = LiveRssDotxmlRouteImport.update({
   id: '/live_/rss.xml',
   path: '/live/rss.xml',
   getParentRoute: () => rootRouteImport,
+} as any)
+const EventsSavedRoute = EventsSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => EventsRoute,
+} as any)
+const EventsIndexRoute = EventsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EventsRoute,
 } as any)
 const EventsSlugRoute = EventsSlugRouteImport.update({
   id: '/$slug',
@@ -1283,6 +1302,11 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
 const EventsSlugRegisterRoute = EventsSlugRegisterRouteImport.update({
   id: '/$slug_/register',
   path: '/$slug/register',
+  getParentRoute: () => EventsRoute,
+} as any)
+const EventsSlugManageRoute = EventsSlugManageRouteImport.update({
+  id: '/$slug_/manage',
+  path: '/$slug/manage',
   getParentRoute: () => EventsRoute,
 } as any)
 const ClubSpecializationSlugRoute = ClubSpecializationSlugRouteImport.update({
@@ -1958,6 +1982,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
+  '/scanner': typeof ScannerRoute
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
@@ -2050,6 +2075,7 @@ export interface FileRoutesByFullPath {
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
+  '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
@@ -2191,6 +2217,7 @@ export interface FileRoutesByFullPath {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2204,6 +2231,7 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
+  '/events/': typeof EventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2268,6 +2296,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
+  '/scanner': typeof ScannerRoute
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
@@ -2352,6 +2381,7 @@ export interface FileRoutesByTo {
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
+  '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
@@ -2492,6 +2522,7 @@ export interface FileRoutesByTo {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2505,6 +2536,7 @@ export interface FileRoutesByTo {
   '/admin/coupons': typeof AdminCouponsIndexRoute
   '/admin/crm': typeof AdminCrmIndexRoute
   '/admin/events': typeof AdminEventsIndexRoute
+  '/events': typeof EventsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -2573,6 +2605,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
+  '/scanner': typeof ScannerRoute
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
@@ -2665,6 +2698,7 @@ export interface FileRoutesById {
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
+  '/events/saved': typeof EventsSavedRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
@@ -2806,6 +2840,7 @@ export interface FileRoutesById {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug_/manage': typeof EventsSlugManageRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2819,6 +2854,7 @@ export interface FileRoutesById {
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
+  '/events/': typeof EventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2888,6 +2924,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
+    | '/scanner'
     | '/search'
     | '/sitemap'
     | '/sitemap-index.xml'
@@ -2980,6 +3017,7 @@ export interface FileRouteTypes {
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
+    | '/events/saved'
     | '/live/rss.xml'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
@@ -3121,6 +3159,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/manage'
     | '/events/$slug/register'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
@@ -3134,6 +3173,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/'
     | '/admin/crm/'
     | '/admin/events/'
+    | '/events/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3198,6 +3238,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
+    | '/scanner'
     | '/search'
     | '/sitemap'
     | '/sitemap-index.xml'
@@ -3282,6 +3323,7 @@ export interface FileRouteTypes {
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
+    | '/events/saved'
     | '/live/rss.xml'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
@@ -3422,6 +3464,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/manage'
     | '/events/$slug/register'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
@@ -3502,6 +3545,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
+    | '/scanner'
     | '/search'
     | '/sitemap'
     | '/sitemap-index.xml'
@@ -3594,6 +3638,7 @@ export interface FileRouteTypes {
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
+    | '/events/saved'
     | '/live_/rss.xml'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
@@ -3735,6 +3780,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug_/manage'
     | '/events/$slug_/register'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
@@ -3748,6 +3794,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/'
     | '/admin/crm/'
     | '/admin/events/'
+    | '/events/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3816,6 +3863,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   RssDotxmlRoute: typeof RssDotxmlRoute
+  ScannerRoute: typeof ScannerRoute
   SearchRoute: typeof SearchRoute
   SitemapRoute: typeof SitemapRoute
   SitemapIndexDotxmlRoute: typeof SitemapIndexDotxmlRoute
@@ -3942,6 +3990,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap'
       fullPath: '/sitemap'
       preLoaderRoute: typeof SitemapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scanner': {
+      id: '/scanner'
+      path: '/scanner'
+      fullPath: '/scanner'
+      preLoaderRoute: typeof ScannerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -4531,6 +4586,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/live/rss.xml'
       preLoaderRoute: typeof LiveRssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/events/saved': {
+      id: '/events/saved'
+      path: '/saved'
+      fullPath: '/events/saved'
+      preLoaderRoute: typeof EventsSavedRouteImport
+      parentRoute: typeof EventsRoute
     }
     '/events/$slug': {
       id: '/events/$slug'
@@ -5155,6 +5217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsIndexRouteImport
       parentRoute: typeof AdminEventsRoute
     }
+    '/events/': {
+      id: '/events/'
+      path: '/'
+      fullPath: '/events/'
+      preLoaderRoute: typeof EventsIndexRouteImport
+      parentRoute: typeof EventsRoute
+    }
     '/admin/crm/': {
       id: '/admin/crm/'
       path: '/'
@@ -5231,6 +5300,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/events/$slug_/manage': {
+      id: '/events/$slug_/manage'
+      path: '/$slug/manage'
+      fullPath: '/events/$slug/manage'
+      preLoaderRoute: typeof EventsSlugManageRouteImport
+      parentRoute: typeof EventsRoute
     }
     '/events/$slug_/register': {
       id: '/events/$slug_/register'
@@ -6587,11 +6663,17 @@ const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
 
 interface EventsRouteChildren {
   EventsSlugRoute: typeof EventsSlugRoute
+  EventsSavedRoute: typeof EventsSavedRoute
+  EventsIndexRoute: typeof EventsIndexRoute
+  EventsSlugManageRoute: typeof EventsSlugManageRoute
   EventsSlugRegisterRoute: typeof EventsSlugRegisterRoute
 }
 
 const EventsRouteChildren: EventsRouteChildren = {
   EventsSlugRoute: EventsSlugRoute,
+  EventsSavedRoute: EventsSavedRoute,
+  EventsIndexRoute: EventsIndexRoute,
+  EventsSlugManageRoute: EventsSlugManageRoute,
   EventsSlugRegisterRoute: EventsSlugRegisterRoute,
 }
 
@@ -6764,6 +6846,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   RssDotxmlRoute: RssDotxmlRoute,
+  ScannerRoute: ScannerRoute,
   SearchRoute: SearchRoute,
   SitemapRoute: SitemapRoute,
   SitemapIndexDotxmlRoute: SitemapIndexDotxmlRoute,

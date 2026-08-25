@@ -52,6 +52,11 @@ import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
 import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
+import { EventPageSections } from "@/components/events/public/organisms/EventPageSections";
+import { EventBookmarkButton } from "@/components/events/public/molecules/EventBookmarkButton";
+import { SectionLockCard } from "@/components/events/public/molecules/SectionLockCard";
+import { publicEventKeys, useEventSections } from "@/lib/events/usePublicEvent";
+import { findEventSection, sectionHeadingKey } from "@/lib/events/eventSections";
 import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
 import { EventTicketPurchase } from "@/components/community/EventTicketPurchase";
@@ -115,6 +120,12 @@ function EventDetail() {
     enabled: modules.events_enabled,
   });
 
+  // Sekcje treści strony: kolejność, nadpisane nagłówki i ZAMKI liczy baza
+  // (`event_sections`). Bez tego przełączniki sekcji w panelu organizatora
+  // byłyby ozdobą, a bramka gościa (`events.guest_mode`) nie miałaby jak
+  // zadziałać na froncie.
+  const sectionsQ = useEventSections(slug, modules.events_enabled);
+
   // Własny RSVP (RLS: "rsvps owner read" - widzę tylko swój wiersz).
   const rsvpQ = useQuery({
     queryKey: ["event-rsvp", eventId, user?.id],
@@ -163,6 +174,9 @@ function EventDetail() {
     void qc.invalidateQueries({ queryKey: ["event-access", eventId, user?.id ?? "anon"] });
     void qc.invalidateQueries({ queryKey: ["event-rsvp-counts", eventId] });
     void qc.invalidateQueries({ queryKey: ["event-waitlist-position", eventId, user?.id] });
+    // Zapis czyni z gościa uczestnika, a to OTWIERA sekcje zamknięte regułą
+    // `registered` - bez tego program pojawiłby się dopiero po odświeżeniu.
+    void qc.invalidateQueries({ queryKey: publicEventKeys.sections(slug, user?.id ?? "anon") });
   };
 
   // Potwierdzenie mailowe bezpłatnego RSVP - serwer sam weryfikuje status,
@@ -352,6 +366,11 @@ function EventDetail() {
 
   const surfaceQueuePosition = surface === null ? null : waitlistPositionOf(surface);
 
+  // Zamek sekcji prelegentów rozstrzyga się w trasie, bo to trasa trzyma
+  // komponent tej sekcji (razem z jego własnym nagłówkiem).
+  const speakersSection = findEventSection(sectionsQ.data ?? [], "speakers");
+  const descriptionSection = findEventSection(sectionsQ.data ?? [], "description");
+
   const onSurfaceAction = () => {
     if (surface === null || surface.control === null) return;
     // Kolejka rezerwowa NIE jest osobnym żądaniem: klient wysyła `going`,
@@ -405,6 +424,13 @@ function EventDetail() {
 
       <h1 className="mt-3 text-4xl font-bold tracking-tight">{title}</h1>
 
+      {/* Zapamiętanie wydarzenia. Stan gwiazdki jedzie z nagłówka
+          (`is_bookmarked`), więc nie ma tu drugiego zapytania ani drugiej
+          chwili w czasie. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <EventBookmarkButton eventSlug={slug} isBookmarked={header?.is_bookmarked === true} />
+      </div>
+
       <dl className="mt-6 grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2">
         <MetaRow icon={<Calendar className="h-4 w-4" />} label={t("community.events.whenLabel")}>
           {/* Godzina w STREFIE WYDARZENIA, a nie w strefie przegladarki.
@@ -447,15 +473,49 @@ function EventDetail() {
         )}
       </dl>
 
-      {desc && (
+      {descriptionSection === null ? null : descriptionSection.isLocked ? (
+        <section id="event-description" className="mt-8 scroll-mt-24">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            {t(sectionHeadingKey("description"))}
+          </h2>
+          <div className="mt-4">
+            <SectionLockCard
+              reason={descriptionSection.lockReason}
+              sectionKey="description"
+              eventSlug={slug}
+            />
+          </div>
+        </section>
+      ) : desc ? (
         <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line dark:prose-invert">
           {desc}
         </div>
-      )}
+      ) : null}
 
       {/* Prelegenci wydarzenia: event_speakers + profil prelegenta/eksperta
-          (RPC get_public_speakers); klik otwiera dialog profilu prelegenta. */}
-      <EventSpeakersSection eventId={ev.id} lang={lang} />
+          (RPC get_public_speakers); klik otwiera dialog profilu prelegenta.
+          Sekcja ma własny nagłówek, więc zamek rozstrzyga się tutaj, a nie
+          w `EventPageSections` - inaczej strona miałaby dwa nagłówki
+          „Prelegenci" jeden pod drugim. */}
+      {speakersSection === null ? null : speakersSection.isLocked ? (
+        <section className="mt-10 scroll-mt-24" id="event-speakers">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            {t(sectionHeadingKey("speakers"))}
+          </h2>
+          <div className="mt-4">
+            <SectionLockCard
+              reason={speakersSection.lockReason}
+              sectionKey="speakers"
+              eventSlug={slug}
+            />
+          </div>
+        </section>
+      ) : (
+        <EventSpeakersSection eventId={ev.id} lang={lang} />
+      )}
+
+      {/* Program, partnerzy i materiały - w kolejności i z zamkami z bazy. */}
+      <EventPageSections slug={slug} sections={sectionsQ.data ?? []} />
 
       {tierBlocked && (
         <div className="mt-8 rounded-lg border border-primary/40 bg-primary/5 p-5">

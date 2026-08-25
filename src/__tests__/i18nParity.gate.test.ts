@@ -98,6 +98,11 @@ const GATED_PREFIXES = [
   "eventRegistration",
   "eventMeetings",
   "eventFront",
+  // Aplikacja skanera na bramce. Rozjazd PL/EN kosztuje tu najwięcej z całego
+  // modułu: napis czyta wolontariusz, który ma pięć sekund na decyzję, czy
+  // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
+  // kolejkę. Bramka od pierwszego dnia, nie po pierwszym incydencie.
+  "eventScanner",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

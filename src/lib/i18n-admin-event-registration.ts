@@ -186,6 +186,7 @@ export const adminEventRegistrationPl = {
       cancel: "Anuluj zapis",
       promote: "Awansuj z rezerwy",
       markNotified: "Oznacz jako powiadomionych",
+      exportCsv: "Eksport CSV",
     },
 
     registrations: {
@@ -344,6 +345,17 @@ export const adminEventRegistrationPl = {
         saved: "Uczestnik dopisany",
         promoted: "Awansowano {{count}} osób z kolejki",
         notified: "Oznaczono {{count}} zgłoszeń jako powiadomione",
+        notifyFailed: "Decyzja zapisana, ale nie udało się wysłać wiadomości.",
+        // BEZ SUFIKSÓW LICZBY MNOGIEJ. Ten słownik ma własną bramkę
+        // (`src/lib/__tests__/i18nEventRegistrations.test.ts`), która wymaga
+        // DOKŁADNIE tych samych kluczy po obu stronach - a polskie `_few`
+        // i `_many` nie mają odpowiednika w angielskim. Sąsiednie komunikaty
+        // („Awansowano {{count}} osób z kolejki") rozwiązują to tak samo:
+        // konstrukcją, która działa dla każdej liczby.
+        notifyFailedCount: "Nie udało się wysłać wiadomości: {{count}}",
+        exported: "Wyeksportowano zgłoszenia: {{count}}",
+        exportTruncated:
+          "Plik nie zawiera wszystkich zgłoszeń - zawęź filtr i wyeksportuj resztę osobno.",
       },
     },
 
@@ -895,6 +907,7 @@ export const adminEventRegistrationEn = {
       cancel: "Cancel registration",
       promote: "Promote from the waiting list",
       markNotified: "Mark as notified",
+      exportCsv: "Export CSV",
     },
 
     registrations: {
@@ -1055,6 +1068,11 @@ export const adminEventRegistrationEn = {
         saved: "Participant added",
         promoted: "Promoted {{count}} people from the queue",
         notified: "Marked {{count}} applications as notified",
+        notifyFailed: "Decision saved, but the message could not be sent.",
+        notifyFailedCount: "Messages that could not be sent: {{count}}",
+        exported: "Exported registrations: {{count}}",
+        exportTruncated:
+          "The file does not contain every registration - narrow the filter and export the rest separately.",
       },
     },
 

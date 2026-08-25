@@ -15,7 +15,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Copy, KeyRound } from "lucide-react";
+import { Copy, KeyRound, Link as LinkIcon } from "lucide-react";
+import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -204,10 +205,52 @@ interface ScannerCredentialDialogProps {
   onClose: () => void;
 }
 
-/** Jednorazowy pokaz jawnego tokenu - zamknięcie okienka kasuje go z pamięci. */
+/**
+ * Jednorazowy pokaz jawnego tokenu - zamknięcie okienka kasuje go z pamięci.
+ *
+ * KOD QR JEST TU NAJWAŻNIEJSZY. Wolontariusz nie przepisze trzydziestu dwóch
+ * znaków base64url z ekranu laptopa na telefon bez pomyłki, a przepisany
+ * z pomyłką token wygląda jak awaria systemu. Kod prowadzi wprost do
+ * `/scanner?t=…`, więc telefon jest sparowany w jednym geście - a trasa
+ * skanera natychmiast czyści token z paska adresu.
+ *
+ * ADRES POWSTAJE W PRZEGLĄDARCE, NIE NA SERWERZE. `window.location.origin`
+ * daje tę samą domenę, na której stoi organizator - a przy wielu domenach
+ * najemców to jest jedyna wartość, która na pewno wskaże właściwą.
+ */
 export function ScannerCredentialDialog({ credential, onClose }: ScannerCredentialDialogProps) {
   const { t } = useTranslation();
   const open = credential !== null;
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  const pairingUrl =
+    credential === null || typeof window === "undefined"
+      ? null
+      : `${window.location.origin}/scanner?t=${encodeURIComponent(credential.token)}`;
+
+  useEffect(() => {
+    if (pairingUrl === null) {
+      setQrDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void QRCode.toDataURL(pairingUrl, { width: 320, margin: 1 }).then((url) => {
+      if (!cancelled) setQrDataUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pairingUrl]);
+
+  const copyLink = async () => {
+    if (pairingUrl === null) return;
+    try {
+      await navigator.clipboard.writeText(pairingUrl);
+      toast.success(t("adminEventOnsite.devices.credential.copied"));
+    } catch {
+      toast.error(t("adminEventOnsite.errors.unknown"));
+    }
+  };
 
   const copy = async () => {
     if (credential === null) return;
@@ -244,6 +287,15 @@ export function ScannerCredentialDialog({ credential, onClose }: ScannerCredenti
             <code className="block break-all rounded-md border border-border bg-muted/40 p-3 font-medium tracking-tight text-xs">
               {credential.token}
             </code>
+
+            {qrDataUrl !== null && (
+              <div className="flex flex-col items-center gap-2 rounded-md border border-border p-3">
+                <img src={qrDataUrl} alt="" width={200} height={200} className="h-48 w-48" />
+                <p className="text-center text-xs text-muted-foreground">
+                  {t("adminEventOnsite.devices.credential.qrHint")}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -251,6 +303,10 @@ export function ScannerCredentialDialog({ credential, onClose }: ScannerCredenti
           <Button variant="outline" onClick={copy}>
             <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("adminEventOnsite.actions.copyToken")}
+          </Button>
+          <Button variant="outline" onClick={copyLink} disabled={pairingUrl === null}>
+            <LinkIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            {t("adminEventOnsite.actions.copyPairingLink")}
           </Button>
           <Button onClick={onClose}>{t("adminEventOnsite.devices.credential.close")}</Button>
         </DialogFooter>

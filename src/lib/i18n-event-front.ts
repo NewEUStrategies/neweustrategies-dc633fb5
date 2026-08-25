@@ -314,6 +314,123 @@ export const eventFrontPl = {
       loading: "Wczytywanie zapamiętanych…",
     },
 
+    // ---------------------------------------------------------------------
+    // Program wydarzenia (RPC `event_agenda`). Sesja ma trzy niezależne osie:
+    // CZAS (dzień, godzina, strefa), MIEJSCE (sala, piętro, nurt) i DOSTĘP
+    // (zapis, rezerwa, warstwa). Każda z nich ma tu własne napisy, bo każda
+    // znaczy dla uczestnika coś innego.
+    // ---------------------------------------------------------------------
+    agenda: {
+      loading: "Wczytywanie programu…",
+      empty: "Program jeszcze nie jest gotowy.",
+      emptyFiltered: "Żadna sesja nie pasuje do wybranego filtra.",
+      emptyMine: "Nie zapisałeś się jeszcze na żadną sesję.",
+      dayLabel: "Dzień {{index}}",
+      allTracks: "Wszystkie ścieżki",
+      trackLabel: "Ścieżka",
+      onlyMine: "Tylko moje sesje",
+      roomLabel: "Sala",
+      floorLabel: "Piętro",
+      speakersLabel: "Prelegenci",
+      seatsLeft_one: "Zostało {{count}} miejsce",
+      seatsLeft_few: "Zostały {{count}} miejsca",
+      seatsLeft_many: "Zostało {{count}} miejsc",
+      seatsLeft_other: "Zostało {{count}} miejsc",
+      seatsUnlimited: "Bez limitu miejsc",
+      chathamHouse: "Reguła Chatham House",
+      streamAvailable: "Transmisja online",
+      recordingAvailable: "Nagranie po sesji",
+      openDetails: "Pokaż szczegóły",
+      closeDetails: "Ukryj szczegóły",
+      states: {
+        open: "Wstęp wolny",
+        signupRequired: "Wymagany zapis",
+        signedUp: "Jesteś zapisany",
+        waitlisted: "Lista rezerwowa",
+        full: "Komplet",
+        tierRequired: "Dla członków",
+        cancelled: "Sesja odwołana",
+      },
+      actions: {
+        signup: "Zapisz się na sesję",
+        joinWaitlist: "Dopisz do rezerwy",
+        cancel: "Zrezygnuj z sesji",
+        working: "Zapisujemy…",
+        signIn: "Zaloguj się, żeby się zapisać",
+      },
+      toasts: {
+        registered: "Zapisaliśmy Cię na sesję.",
+        waitlist: "Komplet - jesteś na liście rezerwowej.",
+        cancelled: "Zapis na sesję odwołany.",
+        promoted: "Zwolnione miejsce trafiło do kolejnej osoby z rezerwy.",
+      },
+    },
+
+    // ---------------------------------------------------------------------
+    // Partnerzy i sponsorzy. To MIGAWKA z chwili przypięcia, nie kartoteka -
+    // dlatego nie ma tu żadnego napisu obiecującego aktualność danych firmy.
+    // ---------------------------------------------------------------------
+    sponsors: {
+      loading: "Wczytywanie partnerów…",
+      empty: "Lista partnerów jeszcze się kompletuje.",
+      noTier: "Pozostali partnerzy",
+      benefitsLabel: "W pakiecie",
+      boothLabel: "Stoisko {{label}}",
+      visitSite: "Strona partnera",
+      roles: {
+        sponsor: "Sponsor",
+        partner: "Partner",
+        mediaPartner: "Patronat medialny",
+        exhibitor: "Wystawca",
+      },
+    },
+
+    // ---------------------------------------------------------------------
+    // Materiały partnerów. Sekcja domyślnie stoi za zapisem (`registered`),
+    // więc napisy mówią, co jest po drugiej stronie, a nie „brak dostępu".
+    // ---------------------------------------------------------------------
+    materials: {
+      loading: "Wczytywanie materiałów…",
+      empty: "Partnerzy nie udostępnili jeszcze materiałów.",
+      open: "Otwórz",
+      kinds: {
+        document: "Dokument",
+        presentation: "Prezentacja",
+        video: "Wideo",
+        link: "Odnośnik",
+        logoPack: "Pakiet logotypów",
+      },
+    },
+
+    // ---------------------------------------------------------------------
+    // Samoobsługowa rezygnacja z zapisu kluczem `manage_token` - jedyna droga
+    // dla gościa BEZ konta. Napisy mówią wprost, że operacji nie da się cofnąć.
+    // ---------------------------------------------------------------------
+    manage: {
+      title: "Twoje zgłoszenie",
+      subtitle: "Tu odwołasz udział w wydarzeniu bez zakładania konta.",
+      tokenLabel: "Klucz zarządzania zgłoszeniem",
+      tokenPlaceholder: "Wklej klucz z potwierdzenia zapisu",
+      tokenHint:
+        "Klucz dostałeś raz, w potwierdzeniu zapisu. Bez niego rezygnację przyjmie tylko organizator.",
+      missingToken: "Otwórz odnośnik z potwierdzenia zapisu albo wklej klucz poniżej.",
+      confirmTitle: "Odwołać udział?",
+      confirmBody: "Zapis zniknie z listy uczestników, a Twoje miejsce trafi do kolejnej osoby.",
+      confirm: "Odwołaj udział",
+      confirming: "Odwołujemy…",
+      keep: "Zostaw zapis",
+      cancelled: "Udział odwołany. Dziękujemy za informację.",
+      promoted_one: "Zwolnione miejsce trafiło do {{count}} osoby z listy rezerwowej.",
+      promoted_few: "Zwolnione miejsca trafiły do {{count}} osób z listy rezerwowej.",
+      promoted_many: "Zwolnione miejsca trafiły do {{count}} osób z listy rezerwowej.",
+      promoted_other: "Zwolnione miejsca trafiły do {{count}} osób z listy rezerwowej.",
+      backToEvent: "Wróć do wydarzenia",
+      manageLink: "Odnośnik do zarządzania zgłoszeniem",
+      manageLinkHint: "Zapisz go w zakładkach - otwiera tę stronę bez logowania.",
+      copyLink: "Kopiuj odnośnik",
+      copied: "Skopiowano",
+    },
+
     // Baner reklamowy strony wydarzenia (page_type = 'event').
     ads: {
       sectionLabel: "Reklama",
@@ -328,6 +445,11 @@ export const eventFrontPl = {
       authRequired: "Zaloguj się, żeby wykonać tę operację.",
       invalidPayload: "Brakuje wskazania wydarzenia.",
       invalidScope: "Nieznany zakres listy.",
+      invalidStatus: "Nieznany stan zapisu.",
+      forbidden: "Zaloguj się, żeby zapisać się na sesję.",
+      signupDisabled: "Ta sesja nie przyjmuje zapisów.",
+      overlapConflict: "Masz już zapis na inną sesję w tych godzinach.",
+      tierRequired: "Ta sesja jest dla członków o wyższej warstwie.",
       unknown: "Coś nie zadziałało. Spróbuj jeszcze raz.",
     },
   },
@@ -575,6 +697,107 @@ export const eventFrontEn = {
       loading: "Loading saved events…",
     },
 
+    // Programme of the event (`event_agenda`).
+    agenda: {
+      loading: "Loading the programme…",
+      empty: "The programme is not ready yet.",
+      emptyFiltered: "No session matches the selected filter.",
+      emptyMine: "You have not signed up for any session yet.",
+      dayLabel: "Day {{index}}",
+      allTracks: "All tracks",
+      trackLabel: "Track",
+      onlyMine: "My sessions only",
+      roomLabel: "Room",
+      floorLabel: "Floor",
+      speakersLabel: "Speakers",
+      seatsLeft_one: "{{count}} seat left",
+      seatsLeft_other: "{{count}} seats left",
+      seatsUnlimited: "No seat limit",
+      chathamHouse: "Chatham House Rule",
+      streamAvailable: "Live stream",
+      recordingAvailable: "Recording afterwards",
+      openDetails: "Show details",
+      closeDetails: "Hide details",
+      states: {
+        open: "Open to all",
+        signupRequired: "Sign-up required",
+        signedUp: "You are signed up",
+        waitlisted: "Waiting list",
+        full: "Fully booked",
+        tierRequired: "Members only",
+        cancelled: "Session cancelled",
+      },
+      actions: {
+        signup: "Sign up for this session",
+        joinWaitlist: "Join the waiting list",
+        cancel: "Cancel my seat",
+        working: "Saving…",
+        signIn: "Sign in to save a seat",
+      },
+      toasts: {
+        registered: "Your seat in this session is saved.",
+        waitlist: "Fully booked - you are on the waiting list.",
+        cancelled: "Your seat in this session has been released.",
+        promoted: "The released seat went to the next person on the waiting list.",
+      },
+    },
+
+    // Partners and sponsors - a snapshot taken when the partner was pinned.
+    sponsors: {
+      loading: "Loading partners…",
+      empty: "The partner list is still coming together.",
+      noTier: "Other partners",
+      benefitsLabel: "Included in the package",
+      boothLabel: "Booth {{label}}",
+      visitSite: "Partner website",
+      roles: {
+        sponsor: "Sponsor",
+        partner: "Partner",
+        mediaPartner: "Media partner",
+        exhibitor: "Exhibitor",
+      },
+    },
+
+    // Partner materials - the section sits behind registration by default.
+    materials: {
+      loading: "Loading materials…",
+      empty: "Partners have not shared any materials yet.",
+      open: "Open",
+      kinds: {
+        document: "Document",
+        presentation: "Presentation",
+        video: "Video",
+        link: "Link",
+        logoPack: "Logo pack",
+      },
+    },
+
+    // Self-service cancellation with the `manage_token` - the only route for a
+    // guest without an account.
+    manage: {
+      title: "Your registration",
+      subtitle: "Cancel your attendance here, no account needed.",
+      tokenLabel: "Registration management key",
+      tokenPlaceholder: "Paste the key from your confirmation",
+      tokenHint:
+        "You received the key once, in your registration confirmation. Without it only the organiser can cancel for you.",
+      missingToken: "Open the link from your confirmation or paste the key below.",
+      confirmTitle: "Cancel your attendance?",
+      confirmBody:
+        "Your registration leaves the attendee list and your seat goes to the next person.",
+      confirm: "Cancel attendance",
+      confirming: "Cancelling…",
+      keep: "Keep my registration",
+      cancelled: "Your attendance is cancelled. Thank you for letting us know.",
+      promoted_one: "The released seat went to {{count}} person from the waiting list.",
+      promoted_other: "The released seats went to {{count}} people from the waiting list.",
+      backToEvent: "Back to the event",
+      manageLink: "Registration management link",
+      manageLinkHint: "Bookmark it - it opens this page without signing in.",
+      copyLink: "Copy link",
+      copied: "Copied",
+    },
+
     ads: {
       sectionLabel: "Advertisement",
     },
@@ -584,6 +807,11 @@ export const eventFrontEn = {
       authRequired: "Sign in to perform this action.",
       invalidPayload: "The event is not identified.",
       invalidScope: "Unknown list range.",
+      invalidStatus: "Unknown sign-up state.",
+      forbidden: "Sign in to save a seat in this session.",
+      signupDisabled: "This session does not take sign-ups.",
+      overlapConflict: "You already have a seat in another session at this time.",
+      tierRequired: "This session is for members on a higher tier.",
       unknown: "Something went wrong. Please try again.",
     },
   },

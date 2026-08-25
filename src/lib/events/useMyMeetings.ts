@@ -23,17 +23,20 @@ import {
   cancelMeeting,
   deleteMyAvailability,
   fetchMeetingExchange,
+  fetchMeetingDirectory,
   fetchMyFreeSlots,
   fetchMyMeetings,
   inviteToMeeting,
   respondToMeeting,
   rescheduleMeeting,
   saveMyAvailability,
+  setMeetingDirectoryVisibility,
   type MeetingFreeSlot,
   type MeetingStatusFilter,
   type MyMeetingRow,
 } from "@/lib/events/meetingsApi";
 import { parseMeetingExchange, type MeetingExchange } from "@/lib/events/meetingExchange";
+import type { MeetingDirectory } from "@/lib/events/meetingDirectory";
 import type { Json } from "@/integrations/supabase/types";
 
 export const myMeetingKeys = {
@@ -44,6 +47,8 @@ export const myMeetingKeys = {
     [...myMeetingKeys.event(slug), "list", status] as const,
   slots: (slug: string, counterpartRegistrationId: string) =>
     [...myMeetingKeys.event(slug), "slots", counterpartRegistrationId] as const,
+  directory: (slug: string, q: string, groupId: string | null, offset: number) =>
+    [...myMeetingKeys.event(slug), "directory", q, groupId ?? "all", offset] as const,
 };
 
 // Uczestnik patrzy na ten ekran w dniu wydarzenia, miedzy sesjami - dane maja
@@ -154,4 +159,45 @@ export function useRescheduleMyMeeting(
 ): UseMutationResult<Json, Error, Parameters<typeof rescheduleMeeting>[0]> {
   const invalidate = useMyInvalidation(slug);
   return useMutation({ mutationFn: rescheduleMeeting, onSuccess: invalidate });
+}
+
+/**
+ * Katalog uczestnikow gieldy.
+ *
+ * `staleTime` jest KROTKI, bo lista niesie stan rozmowy miedzy nami a kazda
+ * osoba - a ten zmienia sie dokladnie w chwili, w ktorej ktos przyjmie albo
+ * odrzuci zaproszenie. Nieaktualny stan pokazalby przycisk "Zapros" komus,
+ * z kim juz jestesmy umowieni.
+ */
+export function useMeetingDirectory(
+  slug: string | null,
+  input: { q: string; groupId: string | null; offset: number; limit: number },
+  enabled = true,
+): UseQueryResult<MeetingDirectory, Error> {
+  return useQuery({
+    queryKey: myMeetingKeys.directory(slug ?? "", input.q, input.groupId, input.offset),
+    queryFn: () =>
+      fetchMeetingDirectory({
+        eventSlug: slug ?? "",
+        q: input.q === "" ? undefined : input.q,
+        groupId: input.groupId,
+        limit: input.limit,
+        offset: input.offset,
+      }),
+    enabled: enabled && hasSlug(slug),
+    staleTime: STATE_STALE_MS,
+  });
+}
+
+/** Wlasna obecnosc w katalogu; po zmianie lista i stan gieldy sa nieaktualne. */
+export function useSetDirectoryVisibility(
+  slug: string,
+): UseMutationResult<boolean, Error, boolean> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (listed: boolean) => setMeetingDirectoryVisibility({ eventSlug: slug, listed }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: myMeetingKeys.event(slug) });
+    },
+  });
 }

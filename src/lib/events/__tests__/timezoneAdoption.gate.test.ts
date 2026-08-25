@@ -26,7 +26,7 @@ const TIMEZONE_IMPORT = /from "@\/lib\/events\/timezone"/;
 
 /** Pliki, które JUŻ przeszły na wspólny moduł. Ta lista ma tylko rosnąć. */
 const MIGRATED = [
-  "src/routes/events.tsx",
+  "src/routes/events.index.tsx",
   "src/components/builder/organisms/widget-view/EventsListView.tsx",
   "src/components/builder/organisms/widget-view/EventCountdownCardView.tsx",
   "src/components/admin/events/organisms/EventsListManager.tsx",
@@ -41,6 +41,15 @@ const MIGRATED = [
 const PENDING: ReadonlyArray<{ file: string; maxOwnFormatting: number }> = [
   { file: "src/routes/events.$slug.tsx", maxOwnFormatting: 1 },
 ];
+
+/**
+ * Trasy-układy: nic nie rysują, więc nie mają po co importować modułu strefy.
+ *
+ * Pilnujemy ich mimo to, bo układ jest naturalnym miejscem, w które ktoś kiedyś
+ * wstawi nagłówek z datą - a wtedy ominąłby bramkę, której `MIGRATED` wymaga
+ * importu i przez to nie może objąć pliku bez formatowania.
+ */
+const LAYOUT_ONLY = ["src/routes/events.tsx"] as const;
 
 function read(file: string): string {
   return readFileSync(resolve(process.cwd(), file), "utf8");
@@ -69,10 +78,14 @@ describe("EB-912 - powierzchnia wydarzeń nie formatuje dat sama", () => {
     }
   });
 
+  it.each(LAYOUT_ONLY)("%s nie formatuje daty - to tylko układ", (file) => {
+    expect(countOwnFormatting(read(file))).toBe(0);
+  });
+
   it("karta listy publicznej podaje strefę obok godziny", () => {
     // Sama godzina w obcej strefie jest gorsza niż brak godziny: uczestnik czyta
     // ją jako swoją. Dlatego karta MUSI wołać etykietę strefy, nie tylko format.
-    const source = read("src/routes/events.tsx");
+    const source = read("src/routes/events.index.tsx");
     expect(source).toContain("eventTimeZoneLabel");
     expect(source).toContain("formatEventDateTime");
   });

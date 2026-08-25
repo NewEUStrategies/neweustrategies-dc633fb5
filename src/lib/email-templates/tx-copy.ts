@@ -23,6 +23,16 @@ export type TxEmailType =
   | "team_seat_grace_reminder"
   | "team_seat_access_ended"
   | "event_registered"
+  // CZTERY MAILE SCIEZKI FORMULARZOWEJ (`events.registration_mode = 'form'`).
+  // `event_registered` opisuje RSVP: klikniecie „ide" jest jednoczesnie
+  // decyzja. Zgloszenie przez formularz ma CYKL ZYCIA - przyjete, rozpatrzone,
+  // ewentualnie awansowane z rezerwy - i kazdy z tych momentow mowi odbiorcy
+  // co innego. Jeden szablon na wszystkie cztery musialby albo obiecywac
+  // miejsce, ktorego jeszcze nie ma, albo nie potwierdzac tego, ktore jest.
+  | "event_registration_received"
+  | "event_registration_approved"
+  | "event_registration_rejected"
+  | "event_waitlist_promoted"
   | "donation_received"
   | "newsletter_confirmed"
   | "customer_portal_link"
@@ -62,8 +72,23 @@ export interface TxCopy {
     accessUntil: string;
     transaction: string;
     ticketCode: string;
+    /** Nazwa rodzaju wejściówki (nie numer biletu - ten ma własną etykietę). */
+    ticketType: string;
+    /** Pozycja w kolejce rezerwowej - tylko mail o awansie. */
+    waitlistPosition: string;
+    /** Powód decyzji organizatora - tylko mail odmowny. */
+    decisionNote: string;
     /** Wiadomość darczyńcy przekazana w formularzu darowizny. */
     donorMessage: string;
+    /**
+     * Napis przycisku prowadzącego do samoobsługi zgłoszenia.
+     *
+     * Etykieta jest osobna, bo przycisk zmienia CEL: bez klucza `manage_token`
+     * prowadzi do wydarzenia („Szczegóły wydarzenia"), a z kluczem - na stronę
+     * zgłoszenia, gdzie gość bez konta może je wycofać. Ten sam napis pod
+     * dwoma różnymi adresami byłby wprowadzaniem w błąd.
+     */
+    manageCta: string;
   };
   footerHelp: string;
 }
@@ -86,7 +111,11 @@ const LABELS_PL: TxCopy["labels"] = {
   accessUntil: "Dostęp aktywny do",
   transaction: "Numer transakcji",
   ticketCode: "Numer biletu",
+  ticketType: "Rodzaj wejściówki",
+  waitlistPosition: "Miejsce w kolejce",
+  decisionNote: "Uzasadnienie organizatora",
   donorMessage: "Twoja wiadomość",
+  manageCta: "Zarządzaj zgłoszeniem",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -105,7 +134,11 @@ const LABELS_EN: TxCopy["labels"] = {
   accessUntil: "Access active until",
   transaction: "Transaction number",
   ticketCode: "Ticket number",
+  ticketType: "Ticket type",
+  waitlistPosition: "Waiting list position",
+  decisionNote: "Organiser's note",
   donorMessage: "Your message",
+  manageCta: "Manage your registration",
 };
 
 const HELP_PL =
@@ -350,6 +383,62 @@ const PL: Dict = {
       "Dziękujemy za rejestrację. Twoje miejsce jest zarezerwowane - poniżej znajdziesz najważniejsze szczegóły wydarzenia.",
     cta: "Szczegóły wydarzenia",
     note: "Przypomnienie z linkiem lub instrukcją wejścia wyślemy przed rozpoczęciem wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_registration_received: {
+    subject: (v) =>
+      `📝 Zgłoszenie przyjęte${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Mamy Twoje zgłoszenie - czeka na decyzję organizatora.",
+    eyebrow: "Wydarzenie",
+    heading: "Zgłoszenie przyjęte",
+    intro:
+      "Dziękujemy za zgłoszenie. Organizator rozpatruje zgłoszenia pojedynczo, więc miejsce nie jest jeszcze zarezerwowane - napiszemy do Ciebie z decyzją.",
+    cta: "Szczegóły wydarzenia",
+    note: "Co dalej: decyzję wyślemy na ten adres. Jeśli Twoje plany się zmienią, możesz wycofać zgłoszenie odnośnikiem z tej wiadomości.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_registration_approved: {
+    subject: (v) =>
+      `✅ Zgłoszenie zaakceptowane${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Masz miejsce na wydarzeniu.",
+    eyebrow: "Wydarzenie",
+    heading: "Widzimy się na wydarzeniu",
+    intro:
+      "Organizator zaakceptował Twoje zgłoszenie. Miejsce jest zarezerwowane - poniżej najważniejsze szczegóły.",
+    cta: "Szczegóły wydarzenia",
+    note: "Kod wejścia i instrukcję dotarcia wyślemy przed rozpoczęciem. Zabierz ze sobą dokument tożsamości, jeśli wydarzenie odbywa się na miejscu.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_registration_rejected: {
+    subject: (v) =>
+      `Decyzja w sprawie zgłoszenia${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Organizator rozpatrzył Twoje zgłoszenie.",
+    eyebrow: "Wydarzenie",
+    heading: "Tym razem bez miejsca",
+    intro:
+      "Organizator nie mógł przyjąć Twojego zgłoszenia na to wydarzenie. To nie zamyka drogi na kolejne - Twoje konto i dostęp do materiałów pozostają bez zmian.",
+    cta: "Zobacz inne wydarzenia",
+    note: "Jeśli decyzja wygląda na pomyłkę, odpisz organizatorowi - dane kontaktowe są na stronie wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_waitlist_promoted: {
+    subject: (v) =>
+      `🎟️ Zwolniło się miejsce${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Z listy rezerwowej wchodzisz na listę uczestników.",
+    eyebrow: "Wydarzenie",
+    heading: "Masz miejsce z listy rezerwowej",
+    intro:
+      "Zwolniło się miejsce i przeszłaś/przeszedłeś z listy rezerwowej na listę uczestników. Nie musisz nic potwierdzać - zapis jest już aktywny.",
+    cta: "Szczegóły wydarzenia",
+    note: "Jeśli nie możesz przyjść, odwołaj udział odnośnikiem z potwierdzenia zapisu - miejsce trafi do kolejnej osoby z kolejki.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -661,6 +750,62 @@ const EN: Dict = {
       "Thank you for registering. Your seat is reserved - the key details of the event are below.",
     cta: "Event details",
     note: "We will send a reminder with the joining link or entry instructions before the event starts.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_registration_received: {
+    subject: (v) =>
+      `📝 Registration received${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "We have your registration - it is waiting for the organiser's decision.",
+    eyebrow: "Event",
+    heading: "Registration received",
+    intro:
+      "Thank you for registering. The organiser reviews registrations one by one, so your seat is not reserved yet - we will write to you with the decision.",
+    cta: "Event details",
+    note: "What happens next: the decision goes to this address. If your plans change, you can withdraw using the link from this message.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_registration_approved: {
+    subject: (v) =>
+      `✅ Registration approved${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Your seat at the event is confirmed.",
+    eyebrow: "Event",
+    heading: "See you at the event",
+    intro:
+      "The organiser approved your registration. Your seat is reserved - the key details are below.",
+    cta: "Event details",
+    note: "We will send the entry code and travel instructions before the start. Bring an ID document if the event takes place on site.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_registration_rejected: {
+    subject: (v) =>
+      `Decision on your registration${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The organiser reviewed your registration.",
+    eyebrow: "Event",
+    heading: "No seat this time",
+    intro:
+      "The organiser could not accept your registration for this event. That does not close the door on the next ones - your account and access to materials stay unchanged.",
+    cta: "See other events",
+    note: "If the decision looks like a mistake, reply to the organiser - the contact details are on the event page.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_waitlist_promoted: {
+    subject: (v) =>
+      `🎟️ A seat opened up${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "You move from the waiting list to the attendee list.",
+    eyebrow: "Event",
+    heading: "You have a seat from the waiting list",
+    intro:
+      "A seat opened up and you moved from the waiting list to the attendee list. Nothing to confirm - your registration is already active.",
+    cta: "Event details",
+    note: "If you cannot come, cancel with the link from your registration confirmation - the seat goes to the next person in the queue.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

@@ -9,21 +9,34 @@
 // REZYGNACJA DZIALA BEZ KONTA. `event_registration_cancel()` przyjmuje albo
 // identyfikator zapisu zalogowanego wlasciciela, albo ten klucz - dlatego gosc
 // tez ma tu dzialajacy przycisk, a nie prosbe o kontakt z organizatorem.
+//
+// ODNOSNIK DO ZARZADZANIA JEST WAZNIEJSZY NIZ SAM KLUCZ. Goly napis do
+// przepisania z ekranu ginie razem z zakladka; adres `/events/<slug>/manage`
+// z kluczem w zapytaniu da sie zapisac, wyslac sobie mailem i otworzyc na
+// telefonie w dniu wydarzenia. Pokazujemy oba, bo klucz bywa wklejany recznie
+// w innej przegladarce niz ta, w ktorej powstal zapis.
 import { useState } from "react";
-import { Check, Copy, XCircle } from "lucide-react";
+import { Check, Copy, Link as LinkIcon, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import type { RegistrationResult } from "@/lib/events/publicRegistrationApi";
+import { manageLinkPath } from "@/lib/events/manageToken";
 import { Button } from "@/components/ui/button";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+
+ensureEventFrontI18n();
 
 export function RegistrationConfirmation({
   result,
+  slug,
   cancelled,
   cancelling,
   onCancel,
 }: {
   result: RegistrationResult;
+  /** Slug wydarzenia - buduje adres strony zarzadzania zgloszeniem. */
+  slug: string;
   /** Zapis odwolany w tej sesji - przycisk rezygnacji nie ma juz sensu. */
   cancelled: boolean;
   cancelling: boolean;
@@ -59,7 +72,7 @@ export function RegistrationConfirmation({
       </p>
 
       {result.manageToken !== null && !cancelled && (
-        <div className="space-y-2 rounded-[6px] border border-border bg-card p-4">
+        <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
           <h2 className="text-sm font-semibold text-foreground">
             {t("eventRegistration.result.manageTokenTitle")}
           </h2>
@@ -78,6 +91,20 @@ export function RegistrationConfirmation({
               )}
               {t("eventRegistration.result.manageTokenTitle")}
             </Button>
+          </div>
+
+          <div className="border-t border-border pt-3">
+            <a
+              href={manageLinkPath(slug, result.manageToken)}
+              rel="nofollow"
+              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <LinkIcon className="h-4 w-4" aria-hidden="true" />
+              {t("eventFront.manage.manageLink")}
+            </a>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("eventFront.manage.manageLinkHint")}
+            </p>
           </div>
         </div>
       )}

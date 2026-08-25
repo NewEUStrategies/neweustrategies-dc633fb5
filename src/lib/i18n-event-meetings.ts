@@ -116,11 +116,57 @@ export const eventMeetingsPl = {
     },
 
     participant: {
+      // -------------------------------------------------------------------
+      // Katalog uczestnikow (RPC `event_meeting_directory`). Lista istnieje po
+      // to, zeby dalo sie zaprosic kogos NOWEGO - dlatego kazdy powod, dla
+      // ktorego jej nie ma, mowi co zrobic dalej, a nie „brak dostepu".
+      // -------------------------------------------------------------------
+      directory: {
+        heading: "Uczestnicy giełdy",
+        subtitle: "Wybierz osobę, z którą chcesz porozmawiać, i zaproponuj termin.",
+        searchPlaceholder: "Szukaj po nazwisku albo firmie",
+        allGroups: "Wszystkie grupy",
+        loading: "Wczytywanie listy uczestników…",
+        empty: "Nikt jeszcze nie pasuje do tych kryteriów.",
+        emptyFiltered: "Żaden uczestnik nie pasuje do wyszukiwania.",
+        // BEZ SUFIKSÓW LICZBY MNOGIEJ - ten słownik ma własną bramkę
+        // (`src/lib/__tests__/i18nEventMeetings.test.ts`) wymagającą DOKŁADNIE
+        // tych samych kluczy po obu stronach, a polskie `_few`/`_many` nie mają
+        // odpowiednika w angielskim. Konstrukcja z dwukropkiem działa dla
+        // każdej liczby.
+        count: "Uczestnicy: {{count}}",
+        hasAvailability: "Zgłosił dostępność",
+        noAvailability: "Bez zgłoszonej dostępności",
+        invite: "Zaproś na rozmowę",
+        inviteTitle: "Zaproszenie na rozmowę",
+        inviteHint: "Wybierz wspólny termin. Druga strona dostanie zaproszenie do potwierdzenia.",
+        inviteSend: "Wyślij zaproszenie",
+        inviteSending: "Wysyłam…",
+        inviteSent: "Zaproszenie wysłane.",
+        alreadyInvited: "Zaproszenie już wysłane",
+        alreadyMeeting: "Macie umówione spotkanie",
+        openMeetings: "Zobacz moje spotkania",
+        prevPage: "Poprzednia strona",
+        nextPage: "Następna strona",
+        listedLabel: "Jestem widoczny na liście uczestników",
+        listedHint:
+          "Wyłączenie ukrywa Cię przed innymi uczestnikami. Nadal możesz zapraszać i odpowiadać na zaproszenia.",
+        listedOn: "Jesteś widoczny",
+        listedOff: "Jesteś ukryty",
+        blocks: {
+          meetingsDisabled: "Organizator nie uruchomił jeszcze giełdy spotkań.",
+          exchangeRuleClosed: "Organizator zamknął umawianie rozmów na tym wydarzeniu.",
+          requesterNotParticipating: "Zapisz się na wydarzenie, żeby zobaczyć listę uczestników.",
+          directoryHidden:
+            "Twoja grupa uczestników nie ma wglądu w listę. Napisz do organizatora, jeśli to pomyłka.",
+        },
+      },
       heading: "Giełda spotkań 1-1",
       loading: "Ładujemy stan giełdy…",
       tabs: {
         meetings: "Moje spotkania",
         availability: "Moja dostępność",
+        directory: "Uczestnicy",
       },
       badges: {
         // "Termin", a nie "Slot": reszta polskiej powierzchni gieldy mowi
@@ -183,6 +229,7 @@ export const eventMeetingsPl = {
 
     errors: {
       forbidden: "Zaloguj się, żeby korzystać z giełdy spotkań.",
+      auth_required: "Zaloguj się, żeby zobaczyć listę uczestników.",
       invalid_payload: "Brakuje danych do wykonania tej operacji.",
       invalid_decision: "Nieznana decyzja - przyjmij albo odrzuć zaproszenie.",
       not_found: "Nie znaleziono tego spotkania.",
@@ -330,11 +377,48 @@ export const eventMeetingsEn = {
     },
 
     participant: {
+      // Participant directory (`event_meeting_directory`).
+      directory: {
+        heading: "Exchange participants",
+        subtitle: "Pick the person you want to talk to and propose a slot.",
+        searchPlaceholder: "Search by name or company",
+        allGroups: "All groups",
+        loading: "Loading the participant list…",
+        empty: "Nobody matches these criteria yet.",
+        emptyFiltered: "No participant matches your search.",
+        count: "Participants: {{count}}",
+        hasAvailability: "Availability declared",
+        noAvailability: "No availability declared",
+        invite: "Invite to a meeting",
+        inviteTitle: "Meeting invitation",
+        inviteHint: "Pick a shared slot. The other side receives an invitation to confirm.",
+        inviteSend: "Send the invitation",
+        inviteSending: "Sending…",
+        inviteSent: "Invitation sent.",
+        alreadyInvited: "Invitation already sent",
+        alreadyMeeting: "You already have a meeting",
+        openMeetings: "See my meetings",
+        prevPage: "Previous page",
+        nextPage: "Next page",
+        listedLabel: "I am visible in the participant list",
+        listedHint:
+          "Turning this off hides you from other participants. You can still invite and answer invitations.",
+        listedOn: "You are visible",
+        listedOff: "You are hidden",
+        blocks: {
+          meetingsDisabled: "The organiser has not opened the meeting exchange yet.",
+          exchangeRuleClosed: "The organiser closed meeting requests for this event.",
+          requesterNotParticipating: "Register for the event to see the participant list.",
+          directoryHidden:
+            "Your participant group cannot see the list. Write to the organiser if that is a mistake.",
+        },
+      },
       heading: "1-1 meeting exchange",
       loading: "Loading the exchange…",
       tabs: {
         meetings: "My meetings",
         availability: "My availability",
+        directory: "Participants",
       },
       badges: {
         slot: "Slot: {{count}} min",
@@ -393,6 +477,7 @@ export const eventMeetingsEn = {
 
     errors: {
       forbidden: "Sign in to use the meeting exchange.",
+      auth_required: "Sign in to see the participant list.",
       invalid_payload: "Some data required for this operation is missing.",
       invalid_decision: "Unknown decision - accept or decline the invitation.",
       not_found: "This meeting could not be found.",

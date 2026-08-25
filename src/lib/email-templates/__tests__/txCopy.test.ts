@@ -120,7 +120,9 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     const zPolityki = Object.keys(TX_EMAIL_CATEGORY).sort();
 
     expect(zeSlownika).toEqual(zPolityki);
-    expect(zeSlownika).toHaveLength(22);
+    // 22 -> 26: cztery maile cyklu życia zgłoszenia formularzowego
+    // (`event_registration_received/_approved/_rejected`, `event_waitlist_promoted`).
+    expect(zeSlownika).toHaveLength(26);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -244,7 +246,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(44);
+    // 26 typów razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(52);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {
