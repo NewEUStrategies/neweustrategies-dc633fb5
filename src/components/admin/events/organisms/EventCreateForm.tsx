@@ -20,18 +20,17 @@
 // TERMIN JEST WYMAGANY, bo bez niego wydarzenia nie da się ustawić w kalendarzu
 // ani policzyć kolizji sesji; CHECK bazy tego nie pilnuje (`starts_at` ma
 // wartość domyślną), więc pilnuje formularz i RPC.
+//
+// TO JEST STRONA, NIE OKNO MODALNE. Tworzenie wydarzenia ma własny adres
+// (`/admin/events/new`), więc redaktor może je odświeżyć, wrócić „wstecz"
+// i przesłać link, a podgląd dziedziczenia rodzaju nie jest ściśnięty do
+// wysokości popupu.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { AdminFormDateTimeRow } from "@/components/admin/molecules/AdminFormDateTimeRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { uiLang } from "@/lib/i18n/format";
@@ -95,18 +94,16 @@ export function eventCreateIssue(
   return null;
 }
 
-export function EventCreateDialog({
-  open,
+export function EventCreateForm({
   types,
   isSaving,
-  onClose,
+  onCancel,
   onSubmit,
 }: {
-  open: boolean;
   /** Wyłącznie rodzaje AKTYWNE - filtrowanie należy do wywołującego. */
   types: readonly EventTypeOption[];
   isSaving: boolean;
-  onClose: () => void;
+  onCancel: () => void;
   onSubmit: (draft: EventCreateDraft) => void;
 }) {
   ensureAdminEventsI18n();
@@ -123,18 +120,18 @@ export function EventCreateDialog({
   const issue = eventCreateIssue(draft, registrationMode);
   const noTypes = types.length === 0;
 
-  const close = () => {
+  const cancel = () => {
     setDraft(EMPTY_EVENT_CREATE_DRAFT);
-    onClose();
+    onCancel();
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? null : close())}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t("adminEvents.list.create.title")}</DialogTitle>
-          <DialogDescription>{t("adminEvents.list.create.description")}</DialogDescription>
-        </DialogHeader>
+    <Card className="mx-auto w-full max-w-3xl">
+      <CardHeader className="space-y-1">
+        <h1 className="text-lg font-semibold">{t("adminEvents.list.create.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("adminEvents.list.create.description")}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
 
         {noTypes ? (
           <p className="text-sm text-destructive" role="alert">
@@ -175,12 +172,13 @@ export function EventCreateDialog({
               />
             </div>
 
-            <AdminFormTextRow
+            {/* Kalendarz jest NASZ, nie systemowy - `datetime-local` rysowałby
+                popup przeglądarki obok droplisty z naszymi tokenami. */}
+            <AdminFormDateTimeRow
               id="event-create-starts-at"
               label={t("adminEvents.list.create.startsAtLabel")}
               hint={t("adminEvents.list.create.startsAtHint")}
               value={draft.startsAt}
-              type="datetime-local"
               onValueChange={(value) => setDraft({ ...draft, startsAt: value })}
             />
 
@@ -267,8 +265,8 @@ export function EventCreateDialog({
           </div>
         )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={close}>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-4">
+          <Button variant="outline" onClick={cancel}>
             {t("adminEvents.list.create.cancelAction")}
           </Button>
           <Button onClick={() => onSubmit(draft)} disabled={isSaving || noTypes || issue !== null}>
@@ -277,8 +275,8 @@ export function EventCreateDialog({
             ) : null}
             {t("adminEvents.list.create.submitAction")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
