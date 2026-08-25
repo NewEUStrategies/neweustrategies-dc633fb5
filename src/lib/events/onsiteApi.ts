@@ -15,6 +15,13 @@
 // jawny `null` jedzie do bazy.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import type {
+  CheckinDirection,
+  CheckpointAccessMode,
+  CheckpointDirectionMode,
+  CheckpointKind,
+  ScannerScope,
+} from "@/lib/events/onsiteEnums";
 
 type Fns = Database["public"]["Functions"];
 
@@ -26,43 +33,31 @@ export type BadgeTemplateRow = Fns["admin_event_badge_templates_list"]["Returns"
 export type BadgePrintRow = Fns["admin_event_badge_prints_list"]["Returns"][number];
 export type LeadScanRow = Fns["admin_event_lead_scans_list"]["Returns"][number];
 
-/** Rodzaje punktow kontrolnych - lustro CHECK-a z migracji. */
-export const CHECKPOINT_KINDS = [
-  "event_entry",
-  "session",
-  "room",
-  "zone",
-  "catering",
-  "cloakroom",
-  "company_booth",
-] as const;
-export type CheckpointKind = (typeof CHECKPOINT_KINDS)[number];
-
-export const CHECKPOINT_DIRECTION_MODES = ["in_only", "in_out"] as const;
-export type CheckpointDirectionMode = (typeof CHECKPOINT_DIRECTION_MODES)[number];
-
-/** `control` odmawia bez zapisu/miejsca, `track` liczy wejscia bez odmowy. */
-export const CHECKPOINT_ACCESS_MODES = ["control", "track"] as const;
-export type CheckpointAccessMode = (typeof CHECKPOINT_ACCESS_MODES)[number];
-
-export const SCANNER_SCOPES = ["checkin", "lead", "badge_print"] as const;
-export type ScannerScope = (typeof SCANNER_SCOPES)[number];
+// Zamkniete slowniki modulu zyja w `onsiteEnums` - ten sam plik czyta klient
+// skanera, ktory nie ma po co wciagac funkcji administracyjnych. Re-eksport
+// zostawia publiczna powierzchnie tego modulu bez zmian.
+export {
+  BADGE_PRINT_REASONS,
+  CHECKIN_DIRECTIONS,
+  CHECKIN_RESULTS,
+  CHECKIN_SOURCES,
+  CHECKPOINT_ACCESS_MODES,
+  CHECKPOINT_DIRECTION_MODES,
+  CHECKPOINT_KINDS,
+  SCANNER_SCOPES,
+  type BadgePrintReason,
+  type CheckinDirection,
+  type CheckinResult,
+  type CheckinSource,
+  type CheckpointAccessMode,
+  type CheckpointDirectionMode,
+  type CheckpointKind,
+  type ScannerScope,
+} from "@/lib/events/onsiteEnums";
 
 /** Panel zapisuje TYLKO te dwa zrodla - reszta nalezy do urzadzenia. */
 export const MANUAL_CHECKIN_SOURCES = ["manual_entry", "name_search"] as const;
 export type ManualCheckinSource = (typeof MANUAL_CHECKIN_SOURCES)[number];
-
-export const CHECKIN_DIRECTIONS = ["in", "out"] as const;
-export type CheckinDirection = (typeof CHECKIN_DIRECTIONS)[number];
-
-export const CHECKIN_RESULTS = [
-  "granted",
-  "denied_no_registration",
-  "denied_not_approved",
-  "denied_capacity",
-  "denied_wrong_direction",
-  "denied_duplicate",
-] as const;
 
 export const BADGE_PAPER_FORMATS = ["a6", "a7", "cr80", "custom"] as const;
 export type BadgePaperFormat = (typeof BADGE_PAPER_FORMATS)[number];

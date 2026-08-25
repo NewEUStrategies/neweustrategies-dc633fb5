@@ -42,6 +42,9 @@ export function RegistrationsManager() {
   const [eventId, setEventId] = useState<string | null>(null);
 
   const events = useMemo(() => listQ.data ?? [], [listQ.data]);
+  // Slug wchodzi wylacznie do NAZWY PLIKU eksportu - plik ma sie sam opisywac
+  // w katalogu Pobrane, a organizator prowadzi kilka wydarzen naraz.
+  const eventSlug = events.find((row) => row.id === eventId)?.slug ?? "";
 
   useEffect(() => {
     if (eventId !== null || events.length === 0) return;
@@ -80,7 +83,7 @@ export function RegistrationsManager() {
           {/* `key` na wydarzeniu: zmiana kontekstu resetuje szkice formularzy,
               zamiast przepisywać stan poprzedniego wydarzenia na nowe. */}
           <TabsContent value="registrations">
-            <RegistrationsListPanel key={eventId} eventId={eventId} />
+            <RegistrationsListPanel key={eventId} eventId={eventId} eventSlug={eventSlug} />
           </TabsContent>
           <TabsContent value="tickets">
             <EventTicketsPanel key={eventId} eventId={eventId} />

@@ -192,6 +192,38 @@ export function eventTimeZoneLabel(
 }
 
 /**
+ * Klucz DNIA w strefie wydarzenia: `YYYY-MM-DD`.
+ *
+ * Grupowanie agendy potrzebuje klucza, który NIE ZALEŻY od języka interfejsu -
+ * `formatEventDate` daje napis do czytania („25 sie 2026"), więc przełączenie
+ * na angielski przebudowałoby zakładki dni i zgubiło wybór uczestnika. `en-CA`
+ * jest tu formatem TECHNICZNYM (ISO), a nie językiem: to jedyne locale, które
+ * w każdej przeglądarce daje `2026-08-25`.
+ *
+ * Doba liczy się w strefie WYDARZENIA, nie przeglądarki - sesja o 00:30 czasu
+ * kongresu należy do dnia kongresu, a nie do wczoraj u uczestnika siedzącego
+ * dwie strefy dalej.
+ */
+export function eventDayKey(
+  startsAt: string | null | undefined,
+  timezone: string | null | undefined,
+): string {
+  if (startsAt === null || startsAt === undefined || startsAt === "") return "";
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: eventTimeZone({ timezone }),
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+/**
  * Czy uczestnik widzi wydarzenie w INNEJ strefie niż jego własna.
  *
  * To jest warunek pokazania ostrzeżenia o przeliczeniu. Bez niego albo

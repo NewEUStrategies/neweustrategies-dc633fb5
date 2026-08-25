@@ -9,6 +9,7 @@
 // PRZY ZAMKNIETYCH ZAPISACH EKRAN NADAL DZIALA. Zakladka dostepnosci i lista
 // wlasnych spotkan sa czytelne zawsze, gdy uczestnik jest zapisany - zamkniete
 // sa tylko NOWE zaproszenia, o czym mowi banner, a nie brak ekranu.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MyAvailabilityPanel } from "@/components/events/meetings/MyAvailabilityPanel";
 import { MyMeetingsPanel } from "@/components/events/meetings/MyMeetingsPanel";
+import { ParticipantDirectoryPanel } from "@/components/events/meetings/ParticipantDirectoryPanel";
 import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { eventTimeZone } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
@@ -26,6 +28,11 @@ import { useMeetingExchange, useMyMeetings } from "@/lib/events/useMyMeetings";
 export function MeetingExchangeBoard({ slug }: { slug: string }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
+  // Zakladka jest STANEM, a nie wartoscia domyslna: katalog uczestnikow musi
+  // umiec przelaczyc widok na "Moje spotkania" po zaproszeniu kogos, kogo
+  // spotkanie juz laczy - inaczej przycisk "Zobacz moje spotkania" nie mialby
+  // gdzie prowadzic.
+  const [tab, setTab] = useState("meetings");
 
   const exchange = useMeetingExchange(slug);
   const meetings = useMyMeetings(slug);
@@ -135,10 +142,13 @@ export function MeetingExchangeBoard({ slug }: { slug: string }) {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="meetings">
+          <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
               <TabsTrigger value="meetings">
                 {t("eventMeetings.participant.tabs.meetings")}
+              </TabsTrigger>
+              <TabsTrigger value="directory">
+                {t("eventMeetings.participant.tabs.directory")}
               </TabsTrigger>
               <TabsTrigger value="availability">
                 {t("eventMeetings.participant.tabs.availability")}
@@ -151,6 +161,14 @@ export function MeetingExchangeBoard({ slug }: { slug: string }) {
               ) : (
                 <MyMeetingsPanel slug={slug} rows={meetings.data ?? []} timezone={timezone} />
               )}
+            </TabsContent>
+
+            <TabsContent value="directory" className="mt-4">
+              <ParticipantDirectoryPanel
+                slug={slug}
+                timezone={timezone}
+                onOpenMeetings={() => setTab("meetings")}
+              />
             </TabsContent>
 
             <TabsContent value="availability" className="mt-4">

@@ -1,0 +1,33 @@
+{
+  "id": "/scanner",
+  "name": "NES Scanner",
+  "short_name": "NES Scan",
+  "description": "Attendee check-in, lead capture and badge printing at the venue.",
+  "start_url": "/scanner",
+  "scope": "/scanner",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#141414",
+  "theme_color": "#141414",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/scanner/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/scanner/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/scanner/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

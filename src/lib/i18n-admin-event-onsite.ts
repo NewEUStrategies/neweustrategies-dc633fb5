@@ -33,6 +33,7 @@ export const adminEventOnsitePl = {
     },
     directionModes: {
       in_only: "Tylko wejście",
+      out_only: "Tylko wyjście",
       in_out: "Wejście i wyjście",
     },
     accessModes: {
@@ -50,11 +51,16 @@ export const adminEventOnsitePl = {
     },
     results: {
       granted: "Wpuszczono",
-      denied_no_registration: "Brak zapisu",
-      denied_not_approved: "Zapis niezatwierdzony",
+      // Sześć wartości `event_checkins.result` - dokładnie te, które dopuszcza
+      // ograniczenie CHECK. Wcześniej stały tu cztery nazwy, których baza nigdy
+      // nie zapisała (`denied_no_registration`, `denied_not_approved`,
+      // `denied_wrong_direction`, `denied_duplicate`): filtr po nich zwracał
+      // pustą listę, a prawdziwa odmowa renderowała się jako goły klucz.
+      denied_not_registered: "Brak zapisu",
+      denied_registration_status: "Zapis niezatwierdzony",
+      denied_direction: "Zły kierunek",
       denied_capacity: "Brak miejsc",
-      denied_wrong_direction: "Zły kierunek",
-      denied_duplicate: "Powtórzone piknięcie",
+      denied_checkpoint_inactive: "Punkt nieaktywny",
     },
     sources: {
       qr_code: "Skan kodu",
@@ -120,6 +126,7 @@ export const adminEventOnsitePl = {
       addTemplate: "Dodaj szablon",
       refresh: "Odśwież",
       copyToken: "Skopiuj token",
+      copyPairingLink: "Kopiuj odnośnik parowania",
       save: "Zapisz",
       cancel: "Anuluj",
     },
@@ -251,6 +258,8 @@ export const adminEventOnsitePl = {
         description:
           "Ten token pokazujemy raz. Skopiuj go teraz i przekaż operatorowi bezpiecznym kanałem.",
         copied: "Token skopiowany do schowka.",
+        qrHint:
+          "Zeskanuj telefonem, żeby otworzyć skaner z już podłączonym urządzeniem. Kod niesie poświadczenie - traktuj go jak hasło i nie fotografuj ekranu.",
         close: "Zamknąłem, mam token",
       },
       toasts: {
@@ -348,6 +357,7 @@ export const adminEventOnsiteEn = {
     },
     directionModes: {
       in_only: "Entry only",
+      out_only: "Exit only",
       in_out: "Entry and exit",
     },
     accessModes: {
@@ -365,11 +375,11 @@ export const adminEventOnsiteEn = {
     },
     results: {
       granted: "Admitted",
-      denied_no_registration: "No registration",
-      denied_not_approved: "Registration not approved",
+      denied_not_registered: "No registration",
+      denied_registration_status: "Registration not approved",
+      denied_direction: "Wrong direction",
       denied_capacity: "At capacity",
-      denied_wrong_direction: "Wrong direction",
-      denied_duplicate: "Duplicate scan",
+      denied_checkpoint_inactive: "Checkpoint inactive",
     },
     sources: {
       qr_code: "QR scan",
@@ -435,6 +445,7 @@ export const adminEventOnsiteEn = {
       addTemplate: "Add template",
       refresh: "Refresh",
       copyToken: "Copy token",
+      copyPairingLink: "Copy pairing link",
       save: "Save",
       cancel: "Cancel",
     },
@@ -565,6 +576,8 @@ export const adminEventOnsiteEn = {
         description:
           "This token is shown once. Copy it now and hand it to the operator over a secure channel.",
         copied: "Token copied to the clipboard.",
+        qrHint:
+          "Scan with the phone to open the scanner already paired. The code carries the credential - treat it like a password and do not photograph the screen.",
         close: "Done, I have the token",
       },
       toasts: {

@@ -34,6 +34,10 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "team_seat_grace_reminder",
   "team_seat_access_ended",
   "event_registered",
+  "event_registration_received",
+  "event_registration_approved",
+  "event_registration_rejected",
+  "event_waitlist_promoted",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -52,6 +56,19 @@ export interface TxEmailPreview {
 }
 
 const SITE_URL = "https://neweuropeanstrategies.com";
+
+/**
+ * Przykladowe uzasadnienie odmowy w podgladzie maila.
+ *
+ * MAPA PO JEZYKU, A NIE TERNARY. Reszta danych demonstracyjnych w tym pliku
+ * rozgalezia sie w kodzie (dlug zmierzony przez `check:i18n-hardcoded`);
+ * nowy wpis nie ma powodu ten dlug powiekszac, a `Record<EmailLang, string>`
+ * jest kanonicznym zapisem tej samej rzeczy.
+ */
+const DEMO_DECISION_NOTE: Record<EmailLang, string> = {
+  pl: "Komplet miejsc dla tej grupy uczestników.",
+  en: "The seat pool for this participant group is full.",
+};
 
 interface DemoData {
   subjectName: string | null;
@@ -187,6 +204,38 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.event, value: eventTitle },
           { label: l.date, value: eventDate },
           { label: l.place, value: place },
+        ],
+        ctaUrl: `${SITE_URL}/events`,
+      };
+    case "event_registration_received":
+    case "event_registration_approved":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.place, value: place },
+        ],
+        ctaUrl: `${SITE_URL}/events`,
+      };
+    case "event_registration_rejected":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.decisionNote, value: DEMO_DECISION_NOTE[lang] },
+        ],
+        ctaUrl: `${SITE_URL}/events`,
+      };
+    case "event_waitlist_promoted":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.place, value: place },
+          { label: l.waitlistPosition, value: "3" },
         ],
         ctaUrl: `${SITE_URL}/events`,
       };

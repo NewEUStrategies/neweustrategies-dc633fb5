@@ -22,6 +22,11 @@
 // dostępności rozmówcy) uczestnik widział jako „Operacja się nie powiodła".
 export const MEETING_ERROR_KEYS = [
   "forbidden",
+  // `event_meeting_directory` i `event_meeting_directory_visibility_set`
+  // odmawiaja gosciowi bez sesji wlasnym kluczem - reszta modulu uzywa
+  // `forbidden`, ale te dwie mowia wprost, ze brakuje ZALOGOWANIA, a nie
+  // uprawnienia.
+  "auth_required",
   "invalid_payload",
   "invalid_decision",
   "invalid_window",

@@ -18,6 +18,7 @@
 // wpasc do cache zapytan, dlatego wynik zapisu trzymamy w stanie lokalnym.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Loader2, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
@@ -40,6 +41,7 @@ import {
   type RegistrationDraftError,
 } from "@/lib/events/registrationSubmitDraft";
 import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
+import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
@@ -100,6 +102,12 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
     return map;
   }, [errors, t]);
 
+  // Potwierdzenie mailowe zapisu. Serwer sam odczytuje adres, jezyk i status
+  // po kluczu `manage_token`, wiec wywolanie jest bezpieczne i CALKOWICIE
+  // fail-soft: brak maila nie moze uniewaznic zapisu ani zepsuc ekranu
+  // potwierdzenia. Ten sam uklad, co przy bezplatnym RSVP.
+  const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
+
   const submit = useMutation({
     mutationFn: async (current: RegistrationDraft) => {
       return submitRegistration({
@@ -122,6 +130,11 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
     onSuccess: (data) => {
       setFailure(null);
       setResult(data);
+      if (data.manageToken !== null) {
+        void sendConfirmation({ data: { manageToken: data.manageToken } }).catch(() => {
+          /* mail jest dodatkiem - brak potwierdzenia nie uniewaznia zapisu */
+        });
+      }
     },
     onError: (error: unknown) => setFailure(registrationErrorMessage(error)),
   });
@@ -173,6 +186,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         {failure !== null && <FailureNotice message={failure} />}
         <RegistrationConfirmation
           result={result}
+          slug={slug}
           cancelled={cancelled}
           cancelling={cancel.isPending}
           onCancel={() => cancel.mutate(result)}

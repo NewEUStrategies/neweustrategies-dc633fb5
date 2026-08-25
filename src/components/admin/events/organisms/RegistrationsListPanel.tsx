@@ -14,9 +14,10 @@
 // nad zapytaniem, wiec licznik stron nie wymaga drugiego zapytania, a lista w
 // dniu wydarzenia nie ciagnie tysiaca wierszy do przegladarki.
 import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { BellRing, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { BellRing, ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,8 @@ import {
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { RegistrationDecideDialog } from "@/components/admin/events/molecules/RegistrationDecideDialog";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
+import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
+import { registrationsCsvFileName, registrationsToCsv } from "@/lib/events/registrationsCsv";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
 import {
   allowedRegistrationActions,
@@ -47,6 +50,7 @@ import {
   type StatusTone,
 } from "@/lib/events/registrationRows";
 import {
+  fetchRegistrations,
   DEFAULT_REGISTRATIONS_QUERY,
   REGISTRATION_STATUSES,
   type EventRegistrationRow,
@@ -63,6 +67,9 @@ import {
 } from "@/lib/events/useEventRegistrations";
 
 const ALL_TICKETS = "__all__";
+
+/** Gorna granica jednej strony `admin_event_registrations_list` - lustro SQL. */
+const EXPORT_PAGE_SIZE = 200;
 
 /** Tonacja stanu -> wariant plakietki. Kolory pochodza wylacznie z tokenow. */
 const TONE_VARIANT: Record<StatusTone, "default" | "secondary" | "destructive" | "outline"> = {
@@ -82,7 +89,14 @@ const TOAST_KEYS: Record<RegistrationAction, string> = {
   no_show: "noShow",
 };
 
-export function RegistrationsListPanel({ eventId }: { eventId: string }) {
+export function RegistrationsListPanel({
+  eventId,
+  eventSlug = "",
+}: {
+  eventId: string;
+  /** Slug wydarzenia - wchodzi wylacznie do nazwy pliku eksportu. */
+  eventSlug?: string;
+}) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
@@ -109,6 +123,11 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
   const decide = useDecideRegistration(eventId);
   const promote = usePromoteFromWaitlist(eventId);
   const markNotified = useMarkRegistrationsNotified(eventId);
+  // Wysylka maila zyje na serwerze (kolejka, idempotencja, lista wykluczen);
+  // panel jest tylko wyzwalaczem i pokazuje wynik.
+  const notifyDecision = useServerFn(notifyEventRegistrationDecision);
+  const [notifying, setNotifying] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const rows = listQ.data?.rows ?? [];
   const total = listQ.data?.total ?? 0;
@@ -129,13 +148,29 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
 
   const confirmDecision = (note: string | null) => {
     if (decided === null || action === null) return;
+    const registrationId = decided.id;
     decide.mutate(
-      { registrationId: decided.id, action, note },
+      { registrationId, action, note },
       {
         onSuccess: () => {
           toast.success(t(`${base}.toasts.${TOAST_KEYS[action]}`));
           setDecided(null);
           setAction(null);
+          // Decyzja BEZ wiadomosci jest decyzja, o ktorej uczestnik sie nie
+          // dowie. Mail leci od razu po zapisie, fail-soft: nieudana wysylka
+          // nie cofa decyzji, ale organizator musi o niej wiedziec.
+          if (action === "approve" || action === "reject") {
+            void notifyDecision({
+              data: {
+                registrationId,
+                notice: action === "approve" ? "approved" : "rejected",
+              },
+            })
+              .then((result) => {
+                if (!result.ok) toast.error(t(`${base}.toasts.notifyFailed`));
+              })
+              .catch(() => toast.error(t(`${base}.toasts.notifyFailed`)));
+          }
         },
         onError: fail,
       },
@@ -154,12 +189,101 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
     );
   };
 
-  const runMarkNotified = () => {
-    if (awaitingIds.length === 0) return;
-    markNotified.mutate(awaitingIds, {
-      onSuccess: (count) => toast.success(t(`${base}.toasts.notified`, { count })),
-      onError: fail,
-    });
+  /**
+   * Powiadomienie o awansie z rezerwy.
+   *
+   * WYSYLA, A NIE TYLKO ODZNACZA. Do tej pory ten przycisk stemplowal
+   * `waitlist_notified_at` i nic wiecej - czyli organizator potwierdzal, ze
+   * powiadomil kogos JAKOS, poza systemem. Teraz kazdy wiersz dostaje maila,
+   * a pieczec stawia dopiero udana wysylka (robi to funkcja serwerowa).
+   *
+   * SZEREGOWO, NIE ROWNOLEGLE. Lista bywa dlugia, a kazdy mail to zapis do
+   * dziennika wysylek i wstawienie do kolejki; dwadziescia rownoleglych
+   * wywolan konczy sie limitem po stronie dostawcy, a nie dwudziestoma mailami.
+   */
+  const runNotifyPromoted = () => {
+    if (awaitingIds.length === 0 || notifying) return;
+    setNotifying(true);
+    void (async () => {
+      let sent = 0;
+      let failed = 0;
+      for (const registrationId of awaitingIds) {
+        try {
+          const result = await notifyDecision({ data: { registrationId, notice: "promoted" } });
+          if (result.ok) sent += 1;
+          else failed += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      setNotifying(false);
+      if (sent > 0) toast.success(t(`${base}.toasts.notified`, { count: sent }));
+      if (failed > 0) toast.error(t(`${base}.toasts.notifyFailedCount`, { count: failed }));
+      // Pieczec stawia serwer, ale to panel trzyma liste - odswiezamy ja,
+      // zeby wiersze zniknely z „czeka na powiadomienie".
+      markNotified.reset();
+      void listQ.refetch();
+      void countsQ.refetch();
+    })();
+  };
+
+  /**
+   * Eksport listy uczestnikow.
+   *
+   * BIERZE CALY PRZEKROJ FILTRA, NIE BIEZACA STRONE. Organizator eksportuje
+   * po to, zeby miec komplet - plik z dwudziestoma wierszami z widocznej
+   * strony bylby pulapka.
+   *
+   * CHODZIMY PO STRONACH, BO RPC TNIE DO 200 WIERSZY
+   * (`admin_event_registrations_list`: `LEAST(GREATEST(p_limit, 1), 200)`).
+   * Poproszenie o 2000 nie daje bledu - daje 200 wierszy wygladajacych na
+   * komplet, czyli najgorszy mozliwy wynik: plik, ktoremu organizator ufa.
+   */
+  const runExport = () => {
+    if (exporting) return;
+    setExporting(true);
+    void (async () => {
+      try {
+        const rows: EventRegistrationRow[] = [];
+        let cursor = 0;
+        let total = 0;
+        // Zabezpieczenie przed petla, gdyby RPC kiedys przestalo oddawac
+        // `total_count`: 100 stron po 200 wierszy to 20 tysiecy zgloszen,
+        // wielokrotnie ponad najwieksze wydarzenie w historii serwisu.
+        for (let page = 0; page < 100; page += 1) {
+          const chunk = await fetchRegistrations({
+            ...filters,
+            status,
+            limit: EXPORT_PAGE_SIZE,
+            offset: cursor,
+          });
+          rows.push(...chunk.rows);
+          total = chunk.total;
+          cursor += chunk.rows.length;
+          if (chunk.rows.length < EXPORT_PAGE_SIZE || cursor >= chunk.total) break;
+        }
+        // Nie obiecujemy kompletu, ktorego nie mamy - liczba w komunikacie
+        // jest liczba WIERSZY W PLIKU, a nie liczba zgloszen w bazie.
+        if (total > rows.length) toast.warning(t(`${base}.toasts.exportTruncated`));
+        const csv = registrationsToCsv(rows, lang);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = registrationsCsvFileName(eventSlug, new Date().toISOString());
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        // Zwolnienie w NASTEPNEJ klatce - Safari przerywa pobieranie, gdy adres
+        // znika synchronicznie po kliknieciu.
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        toast.success(t(`${base}.toasts.exported`, { count: rows.length }));
+      } catch (error: unknown) {
+        fail(error);
+      } finally {
+        setExporting(false);
+      }
+    })();
   };
 
   const seatsLabel = (): string => {
@@ -286,11 +410,15 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
         </Button>
         <Button
           variant="outline"
-          onClick={runMarkNotified}
-          disabled={awaitingIds.length === 0 || markNotified.isPending}
+          onClick={runNotifyPromoted}
+          disabled={awaitingIds.length === 0 || notifying}
         >
           <BellRing className="mr-2 h-4 w-4" />
           {t("adminEventRegistration.actions.markNotified")}
+        </Button>
+        <Button variant="outline" onClick={runExport} disabled={exporting || total === 0}>
+          <Download className="mr-2 h-4 w-4" />
+          {t("adminEventRegistration.actions.exportCsv")}
         </Button>
         {counts === null || counts.awaitingNotice === 0 ? null : (
           <p className="text-sm text-muted-foreground">

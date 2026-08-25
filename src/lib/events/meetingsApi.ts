@@ -16,6 +16,7 @@
 // to nowa funkcja i nowy grant. Tlumaczenie camelCase -> snake_case zyje
 // wylacznie tutaj.
 import { supabase } from "@/integrations/supabase/client";
+import { parseMeetingDirectory, type MeetingDirectory } from "@/lib/events/meetingDirectory";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
@@ -613,6 +614,55 @@ export async function inviteToMeeting(input: {
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * KATALOG UCZESTNIKOW gieldy - jedyna droga do `counterpart_registration_id`
+ * dla kogos, z kim jeszcze nie mamy spotkania.
+ *
+ * Baza filtruje liste TA SAMA regula, ktora dopuszcza zaproszenie
+ * (`_event_meeting_can_invite`), wiec kazdy wiersz na tej liscie da sie
+ * zaprosic. Odwrotna kolejnosc - najpierw pokaz, potem sprawdz - konczyla sie
+ * odmowa po kliknieciu, czyli najgorszym mozliwym momentem.
+ */
+export async function fetchMeetingDirectory(input: {
+  eventSlug?: string;
+  eventId?: string;
+  q?: string;
+  groupId?: string | null;
+  limit?: number;
+  offset?: number;
+}): Promise<MeetingDirectory> {
+  const { data, error } = await supabase.rpc("event_meeting_directory", {
+    p_payload: payload({
+      event_slug: input.eventSlug,
+      event_id: input.eventId,
+      q: input.q,
+      group_id: input.groupId ?? undefined,
+      limit: input.limit,
+      offset: input.offset,
+    }),
+  });
+  if (error) throw error;
+  return parseMeetingDirectory(data);
+}
+
+/** Wlasna obecnosc w katalogu - decyzja uczestnika, nie organizatora. */
+export async function setMeetingDirectoryVisibility(input: {
+  eventSlug?: string;
+  eventId?: string;
+  listed: boolean;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("event_meeting_directory_visibility_set", {
+    p_payload: payload({
+      event_slug: input.eventSlug,
+      event_id: input.eventId,
+      listed: input.listed,
+    }),
+  });
+  if (error) throw error;
+  const row = typeof data === "object" && data !== null && !Array.isArray(data) ? data : {};
+  return (row as Record<string, unknown>).listed === true;
 }
 
 export async function respondToMeeting(input: {
