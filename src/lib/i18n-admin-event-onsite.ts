@@ -236,7 +236,8 @@ export const adminEventOnsitePl = {
       dialog: {
         createTitle: "Wydaj poświadczenie urządzenia",
         label: "Nazwa urządzenia",
-        labelHint: "Np. „Wejście główne 1" - operator musi wiedzieć, które to urządzenie.",
+        labelHint:
+          "Np. \u201eWej\u015bcie g\u0142\u00f3wne 1\u201d - operator musi wiedzie\u0107, kt\u00f3re to urz\u0105dzenie.",
         scopes: "Uprawnienia",
         checkpoint: "Przypnij do punktu",
         checkpointNone: "Bez przypięcia",
