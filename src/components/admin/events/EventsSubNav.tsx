@@ -47,6 +47,9 @@ const EVENT_TABS = [
 
 export function EventsSubNav() {
   ensureAdminEventsI18n();
+  // Etykieta zakladki gieldy mieszka w slowniku modulu spotkan - bez tej
+  // rejestracji pasek pokazalby surowy klucz zamiast nazwy.
+  ensureMeetingsI18n();
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
