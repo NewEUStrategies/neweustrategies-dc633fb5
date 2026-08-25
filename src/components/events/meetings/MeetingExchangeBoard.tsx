@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MyAvailabilityPanel } from "@/components/events/meetings/MyAvailabilityPanel";
 import { MyMeetingsPanel } from "@/components/events/meetings/MyMeetingsPanel";
-import { FriendlyErrorPage } from "@/components/errors/FriendlyErrorPage";
+import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { eventTimeZone } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
 import { meetingErrorI18nKey } from "@/lib/events/meetingsErrors";
@@ -52,7 +52,7 @@ export function MeetingExchangeBoard({ slug }: { slug: string }) {
   }
 
   const state = exchange.data;
-  const timezone = eventTimeZone(state.timezone);
+  const timezone = eventTimeZone({ timezone: state.timezone });
   const block = exchangeBlock(state);
   const intro = exchangeIntro(state, lang);
   // Ekran ma sens dopiero od momentu, w ktorym uczestnik jest zapisany:
