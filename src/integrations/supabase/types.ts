@@ -22341,6 +22341,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      event_meeting_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_exchange: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_free_slots: {
         Args: { p_payload: Json }
@@ -22354,7 +22355,38 @@ export type Database = {
         }[]
       }
       event_meeting_invite: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_reschedule: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_respond: { Args: { p_payload: Json }; Returns: Json }
+      event_meetings_mine: {
+        Args: { p_payload: Json }
+        Returns: {
+          cancel_reason: string
+          cancelled_side: string
+          counterpart_company: string
+          counterpart_first_name: string
+          counterpart_job_title: string
+          counterpart_last_name: string
+          counterpart_registration_id: string
+          created_at: string
+          decline_reason: string
+          ends_at: string
+          event_id: string
+          expires_at: string
+          id: string
+          invitation_message: string
+          is_expired: boolean
+          responded_at: string
+          side: string
+          sponsor_id: string
+          sponsor_name: string
+          starts_at: string
+          status: string
+          table_label: string
+          table_seat: number
+          table_zone: string
+          topic: string
+        }[]
+      }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
