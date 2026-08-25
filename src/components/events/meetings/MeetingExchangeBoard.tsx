@@ -43,10 +43,10 @@ export function MeetingExchangeBoard({ slug }: { slug: string }) {
   if (exchange.isError || exchange.data === undefined) {
     return (
       <FriendlyErrorPage
-        variant="inline"
-        code={403}
+        variant="compact"
+        error={exchange.error}
         title={t("eventMeetings.participant.heading")}
-        description={t(meetingErrorI18nKey(exchange.error))}
+        footer={t(meetingErrorI18nKey(exchange.error))}
       />
     );
   }
