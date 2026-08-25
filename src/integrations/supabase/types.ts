@@ -18207,6 +18207,71 @@ export type Database = {
           subject_name: string
         }[]
       }
+      admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_checkin_search: {
+        Args: { p_payload: Json }
+        Returns: {
+          badge_printed: boolean
+          company: string
+          first_name: string
+          group_name_en: string
+          group_name_pl: string
+          job_title: string
+          last_checkin_at: string
+          last_checkin_direction: string
+          last_name: string
+          person_id: string
+          registration_id: string
+          registration_status: string
+          ticket_name_en: string
+          ticket_name_pl: string
+        }[]
+      }
+      admin_event_checkins_list: {
+        Args: {
+          p_checkpoint_id?: string
+          p_direction?: string
+          p_event_id: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_q?: string
+          p_result?: string
+          p_source?: string
+          p_to?: string
+        }
+        Returns: {
+          checkpoint_id: string
+          checkpoint_kind: string
+          checkpoint_name_en: string
+          checkpoint_name_pl: string
+          company: string
+          device_id: string
+          device_label: string
+          device_scanned_at: string
+          direction: string
+          first_name: string
+          group_name_en: string
+          group_name_pl: string
+          id: string
+          job_title: string
+          last_name: string
+          note: string
+          occurred_at: string
+          operator_name: string
+          operator_user_id: string
+          person_id: string
+          registration_id: string
+          registration_status: string
+          repeat_count: number
+          result: string
+          scanned_at: string
+          source: string
+          ticket_name_en: string
+          ticket_name_pl: string
+          total_count: number
+        }[]
+      }
       admin_event_checkpoint_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_checkpoint_save: {
         Args: { p_payload: Json }
