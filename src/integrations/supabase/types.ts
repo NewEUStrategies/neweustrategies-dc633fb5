@@ -18344,6 +18344,10 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_onsite_stats: {
+        Args: { p_bucket_minutes?: number; p_event_id: string }
+        Returns: Json
+      }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
         Returns: Json
