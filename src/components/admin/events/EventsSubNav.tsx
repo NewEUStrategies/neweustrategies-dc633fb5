@@ -17,8 +17,9 @@
 // wchodzi na ekran).
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, Shapes } from "@/lib/lucide-shim";
+import { CalendarDays, Shapes, Handshake } from "@/lib/lucide-shim";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
+import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
 
 const EVENT_TABS = [
   {
@@ -33,10 +34,22 @@ const EVENT_TABS = [
     icon: Shapes,
     labelKey: "adminEvents.nav.types",
   },
+  {
+    // Etykieta z własnego słownika giełdy - moduł spotkań wozi swoje teksty,
+    // a `adminEvents` nie musi wiedzieć, że giełda w ogóle istnieje.
+    to: "/admin/events/meetings" as const,
+    key: "meetings",
+    icon: Handshake,
+    labelKey: "adminEventMeetings.nav.section",
+  },
 ] as const;
+
 
 export function EventsSubNav() {
   ensureAdminEventsI18n();
+  // Etykieta zakladki gieldy mieszka w slowniku modulu spotkan - bez tej
+  // rejestracji pasek pokazalby surowy klucz zamiast nazwy.
+  ensureMeetingsI18n();
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
