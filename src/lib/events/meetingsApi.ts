@@ -347,6 +347,8 @@ export async function saveAdminAvailability(input: {
   registrationId: string;
   startsAt: string;
   endsAt: string;
+  /** Okno zamkniete zostaje w danych, ale gielda przestaje z niego proponowac. */
+  isOpen?: boolean;
   note?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_meeting_availability_set", {
@@ -356,12 +358,14 @@ export async function saveAdminAvailability(input: {
       registration_id: input.registrationId,
       starts_at: input.startsAt,
       ends_at: input.endsAt,
+      is_open: input.isOpen,
       note: input.note ?? null,
     }),
   });
   if (error) throw error;
   return String(data);
 }
+
 
 export async function deleteAdminAvailability(id: string): Promise<boolean> {
   const { error } = await supabase.rpc("admin_event_meeting_availability_delete", { _id: id });
