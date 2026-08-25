@@ -19610,6 +19610,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -22908,6 +22912,10 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
+      event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
       event_sections: {
         Args: { p_slug: string }
