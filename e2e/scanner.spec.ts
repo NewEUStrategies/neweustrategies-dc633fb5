@@ -258,6 +258,11 @@ test.describe("aplikacja skanera", () => {
     // 3) Powrót sieci opróżnia kolejkę bez udziału człowieka.
     await context.setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    // eslint-disable-next-line no-console
+    page.on("console", (m) => console.log("BROWSER", m.type(), m.text()));
+    await page.waitForTimeout(5000);
+    // eslint-disable-next-line no-console
+    console.log("DEBUG state", await page.evaluate(() => ({ online: navigator.onLine })), calls.checkin.length);
 
     await expect.poll(() => calls.checkin.length, { timeout: 20_000 }).toBe(1);
     expect(calls.checkin[0]).toMatchObject({ code: "TICKET-OFFLINE-1" });
