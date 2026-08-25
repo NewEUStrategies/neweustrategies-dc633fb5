@@ -143,7 +143,7 @@ export function AvailabilityWindowDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t("common.cancel", { defaultValue: "Anuluj" })}
+            {t("eventMeetings.participant.form.dismiss")}
           </Button>
           <Button
             disabled={isSaving || payload === null}
@@ -151,7 +151,7 @@ export function AvailabilityWindowDialog({
               if (payload !== null) onSubmit(payload);
             }}
           >
-            {t("common.save", { defaultValue: "Zapisz" })}
+            {t("eventMeetings.participant.form.save")}
           </Button>
         </DialogFooter>
 

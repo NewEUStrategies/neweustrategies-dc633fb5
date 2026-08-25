@@ -139,6 +139,11 @@ export const eventMeetingsPl = {
         notAllowed: "Twoja grupa uczestników nie umawia spotkań na tym wydarzeniu.",
         closed: "Zapisy na spotkania są w tej chwili zamknięte - okna dostępności możesz zgłosić już teraz.",
       },
+      form: {
+        save: "Zapisz",
+        dismiss: "Anuluj",
+        confirm: "Potwierdź",
+      },
       availability: {
         title: "Twoje okna dostępności",
         description: "Zaproszenie da się umówić tylko na termin, w którym obie strony mają otwarte okno.",
@@ -336,6 +341,11 @@ export const eventMeetingsEn = {
         notRegistered: "The exchange is for registered participants - register for the event to book conversations.",
         notAllowed: "Your participant group does not book meetings at this event.",
         closed: "Meeting booking is closed right now - you can still declare your availability windows.",
+      },
+      form: {
+        save: "Save",
+        dismiss: "Cancel",
+        confirm: "Confirm",
       },
       availability: {
         title: "Your availability windows",
