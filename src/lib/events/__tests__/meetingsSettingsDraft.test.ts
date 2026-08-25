@@ -158,9 +158,12 @@ describe("settingsInputFromDraft", () => {
 
 describe("slotsPerDay", () => {
   it("liczy sloty tak samo jak siatka w bazie", () => {
-    // 09:00-17:00 = 480 min, krok 25 min, ostatni slot musi zmiescic sie caly.
-    expect(slotsPerDay(draft())).toBe(20);
+    // 09:00-17:00 = 480 min, krok 25 min, ostatni slot musi zmiescic sie caly:
+    // start 0, 25, ... 450 (450 + 20 <= 480), czyli 19 terminow - tyle samo, co
+    // `generate_series(start, end - slot, step)` po stronie Postgresa.
+    expect(slotsPerDay(draft())).toBe(19);
   });
+
 
   it("bez przerwy krok rowna sie dlugosci slotu", () => {
     expect(slotsPerDay(draft({ breakMinutes: "0", dayEndTime: "10:00" }))).toBe(3);
