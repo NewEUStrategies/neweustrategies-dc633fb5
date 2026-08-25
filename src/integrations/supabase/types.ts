@@ -18207,6 +18207,40 @@ export type Database = {
           subject_name: string
         }[]
       }
+      admin_event_badge_template_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_badge_template_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_badge_templates_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          background_color: string
+          background_image_url: string
+          created_at: string
+          double_fold: boolean
+          elements: Json
+          event_id: string
+          height_mm: number
+          id: string
+          is_default: boolean
+          last_printed_at: string
+          name: string
+          orientation: string
+          paper_format: string
+          printed_people_count: number
+          prints_count: number
+          qr_size_mm: number
+          show_qr: boolean
+          stale_prints_count: number
+          updated_at: string
+          version: number
+          width_mm: number
+        }[]
+      }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
       admin_event_checkin_search: {
         Args: { p_payload: Json }
