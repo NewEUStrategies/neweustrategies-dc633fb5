@@ -13,10 +13,18 @@
 // surowego tekstu wyjatku z nazwa ograniczenia w srodku.
 
 /** Klucze bledow, ktore moduł gieldy potrafi podniesc. */
+// LISTA JEST PRZEPISANA Z `RAISE EXCEPTION` I Z `_event_meeting_can_invite`
+// w migracji `20260823190000_event_meetings.sql`, klucz po kluczu. Wcześniejsza
+// wersja miała klucze WYMYŚLONE (`same_person`, `slot_invalid`,
+// `counterpart_unavailable`, `group_not_allowed`, `availability_in_use`), których
+// baza nigdy nie podnosi - każdy z nich degradował do komunikatu ogólnego,
+// a najczęstsze odmowy giełdy (nakładające się okno, termin poza siatką, brak
+// dostępności rozmówcy) uczestnik widział jako „Operacja się nie powiodła".
 export const MEETING_ERROR_KEYS = [
   "forbidden",
   "invalid_payload",
   "invalid_decision",
+  "invalid_window",
   "not_found",
   "not_registered",
   "not_invitee",
@@ -27,21 +35,35 @@ export const MEETING_ERROR_KEYS = [
   "meeting_not_active",
   "meetings_disabled",
   "exchange_closed",
+  "exchange_rule_closed",
+  "rate_limited",
   "same_slot",
-  "same_person",
-  "slot_invalid",
-  "slot_outside_availability",
-  "counterpart_unavailable",
-  "group_not_allowed",
+  "self_invite",
+  "slot_not_in_grid",
+  "requester_unavailable",
+  "invitee_unavailable",
+  "requester_not_participating",
+  "invitee_not_participating",
+  "requester_group_cannot_meet",
+  "invitee_group_cannot_meet",
+  "requester_group_not_allowed",
+  "invitee_group_not_allowed",
+  "requester_not_sponsor",
   "invite_limit_reached",
   "daily_limit_reached",
   "duplicate_invitation",
+  "duplicate_meeting",
   "participant_busy",
   "table_busy",
+  "table_inactive",
+  "table_not_found",
+  "table_seat_out_of_range",
   "no_free_table",
-  "availability_in_use",
+  "availability_overlap",
+  "availability_has_meetings",
   "unknown",
 ] as const;
+
 
 export type MeetingErrorKey = (typeof MEETING_ERROR_KEYS)[number];
 
