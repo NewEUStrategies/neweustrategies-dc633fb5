@@ -5,9 +5,12 @@ import { existsSync } from "node:fs";
 // points browsers at /opt/pw-browsers; we never run `playwright install` here).
 // CI installs its own matching browser via `playwright install chromium`.
 const LOCAL_CHROMIUM = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
   "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome",
-].find(existsSync);
+  "/opt/ms-playwright/chromium-1194/chrome-linux/chrome",
+  "/opt/ms-playwright/chromium/chrome-linux/chrome",
+].find((candidate): candidate is string => typeof candidate === "string" && existsSync(candidate));
 
 const PORT = 4173;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
