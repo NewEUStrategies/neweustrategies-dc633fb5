@@ -23920,6 +23920,10 @@ export type Database = {
           used: number
         }[]
       }
+      missing_migration_versions: {
+        Args: { _versions: string[] }
+        Returns: string[]
+      }
       monetization_dashboard: {
         Args: {
           _from?: string
