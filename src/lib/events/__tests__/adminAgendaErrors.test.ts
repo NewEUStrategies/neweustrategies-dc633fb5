@@ -91,7 +91,7 @@ describe("adminAgendaFailure", () => {
     expect(failure.params).toEqual({ count: 200, total: 120 });
   });
 
-  it("„Failed to fetch" nie udaje klucza bazy", () => {
+  it('„Failed to fetch" nie udaje klucza bazy', () => {
     expect(adminAgendaFailure(new Error("Failed to fetch")).key).toBe(
       "adminEventAgenda.errors.unknown",
     );
