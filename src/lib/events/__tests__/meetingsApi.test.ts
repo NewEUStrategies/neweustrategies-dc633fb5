@@ -96,7 +96,6 @@ const KONTRAKT: Record<string, readonly string[]> = {
   ],
   admin_event_meeting_availability_set: [
     "ends_at",
-    "event_id",
     "id",
     "is_open",
     "note",
@@ -251,7 +250,6 @@ describe("meetingsApi - kontrakt payloadów", () => {
     expect(poza("admin_event_meeting_arrange", wyslanePola("admin_event_meeting_arrange"))).toEqual([]);
 
     await api.saveAdminAvailability({
-      eventId: "e1",
       registrationId: "r1",
       startsAt: "2026-09-01T09:00:00Z",
       endsAt: "2026-09-01T12:00:00Z",
