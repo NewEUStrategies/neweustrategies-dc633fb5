@@ -6032,6 +6032,86 @@ export type Database = {
           },
         ]
       }
+      event_audience_grants: {
+        Row: {
+          audience: string
+          company_id: string | null
+          created_at: string
+          event_id: string | null
+          evidence: string
+          granted_by: string | null
+          id: string
+          person_id: string | null
+          revoked_at: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          audience: string
+          company_id?: string | null
+          created_at?: string
+          event_id?: string | null
+          evidence: string
+          granted_by?: string | null
+          id?: string
+          person_id?: string | null
+          revoked_at?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id?: string | null
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          audience?: string
+          company_id?: string | null
+          created_at?: string
+          event_id?: string | null
+          evidence?: string
+          granted_by?: string | null
+          id?: string
+          person_id?: string | null
+          revoked_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string | null
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_audience_grants_company_fkey"
+            columns: ["tenant_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_audience_grants_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_audience_grants_person_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_audience_grants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_badge_prints: {
         Row: {
           copies: number
@@ -7189,6 +7269,217 @@ export type Database = {
           },
           {
             foreignKeyName: "event_meetings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_package_orders: {
+        Row: {
+          amount_cents: number
+          buyer_email: string
+          buyer_name: string
+          buyer_person_id: string | null
+          buyer_user_id: string | null
+          cancelled_at: string | null
+          company_id: string | null
+          coupon_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          discount_cents: number
+          event_id: string
+          id: string
+          invoice_note: string
+          package_id: string
+          paid_at: string | null
+          payment_order_id: string | null
+          seats_assigned: number
+          seats_total: number
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents?: number
+          buyer_email: string
+          buyer_name?: string
+          buyer_person_id?: string | null
+          buyer_user_id?: string | null
+          cancelled_at?: string | null
+          company_id?: string | null
+          coupon_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          discount_cents?: number
+          event_id: string
+          id?: string
+          invoice_note?: string
+          package_id: string
+          paid_at?: string | null
+          payment_order_id?: string | null
+          seats_assigned?: number
+          seats_total: number
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          buyer_email?: string
+          buyer_name?: string
+          buyer_person_id?: string | null
+          buyer_user_id?: string | null
+          cancelled_at?: string | null
+          company_id?: string | null
+          coupon_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          discount_cents?: number
+          event_id?: string
+          id?: string
+          invoice_note?: string
+          package_id?: string
+          paid_at?: string | null
+          payment_order_id?: string | null
+          seats_assigned?: number
+          seats_total?: number
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_package_orders_company_fkey"
+            columns: ["tenant_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_orders_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_package_orders_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_orders_package_fkey"
+            columns: ["tenant_id", "event_id", "package_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_packages"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_orders_payment_order_id_fkey"
+            columns: ["payment_order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_package_orders_person_fkey"
+            columns: ["tenant_id", "buyer_person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_package_seats: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          created_at: string
+          event_id: string
+          id: string
+          invite_email: string | null
+          invite_expires_at: string | null
+          invite_name: string
+          invite_sent_at: string | null
+          invite_token_hash: string | null
+          package_order_id: string
+          registration_id: string | null
+          revoked_at: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          invite_email?: string | null
+          invite_expires_at?: string | null
+          invite_name?: string
+          invite_sent_at?: string | null
+          invite_token_hash?: string | null
+          package_order_id: string
+          registration_id?: string | null
+          revoked_at?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          invite_email?: string | null
+          invite_expires_at?: string | null
+          invite_name?: string
+          invite_sent_at?: string | null
+          invite_token_hash?: string | null
+          package_order_id?: string
+          registration_id?: string | null
+          revoked_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_package_seats_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_seats_order_fkey"
+            columns: ["tenant_id", "event_id", "package_order_id"]
+            isOneToOne: false
+            referencedRelation: "event_package_orders"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_seats_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_seats_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -8568,6 +8859,106 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_ticket_packages: {
+        Row: {
+          audience: string
+          created_at: string
+          currency: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          price_cents: number
+          quota: number | null
+          requires_verification: boolean
+          sales_from: string | null
+          sales_to: string | null
+          seats: number
+          sold_count: number
+          sort_order: number
+          tenant_id: string
+          ticket_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: string
+          created_at?: string
+          currency?: string
+          description_en?: string
+          description_pl?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          key: string
+          min_tier_rank?: number
+          name_en: string
+          name_pl: string
+          price_cents?: number
+          quota?: number | null
+          requires_verification?: boolean
+          sales_from?: string | null
+          sales_to?: string | null
+          seats: number
+          sold_count?: number
+          sort_order?: number
+          tenant_id: string
+          ticket_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          currency?: string
+          description_en?: string
+          description_pl?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          min_tier_rank?: number
+          name_en?: string
+          name_pl?: string
+          price_cents?: number
+          quota?: number | null
+          requires_verification?: boolean
+          sales_from?: string | null
+          sales_to?: string | null
+          seats?: number
+          sold_count?: number
+          sort_order?: number
+          tenant_id?: string
+          ticket_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ticket_packages_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_ticket_packages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_ticket_packages_ticket_type_fkey"
+            columns: ["tenant_id", "event_id", "ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["tenant_id", "event_id", "id"]
           },
         ]
       }
@@ -18822,6 +19213,14 @@ export type Database = {
           subject_name: string
         }[]
       }
+      admin_event_audience_grant_revoke: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      admin_event_audience_grant_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_badge_print_record: {
         Args: { p_payload: Json }
         Returns: Json
@@ -19159,6 +19558,10 @@ export type Database = {
       admin_event_onsite_stats: {
         Args: { p_bucket_minutes?: number; p_event_id: string }
         Returns: Json
+      }
+      admin_event_package_seat_assign: {
+        Args: { p_payload: Json }
+        Returns: string
       }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
@@ -19647,6 +20050,10 @@ export type Database = {
         }[]
       }
       admin_event_ticket_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_ticket_package_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_tickets_list: {
         Args: { p_event_id: string }
@@ -20311,6 +20718,8 @@ export type Database = {
       }
       assert_admin_tenant: { Args: never; Returns: string }
       assert_editor_tenant: { Args: never; Returns: string }
+      assert_event_admin_tenant: { Args: never; Returns: string }
+      assert_event_staff_tenant: { Args: never; Returns: string }
       authorize_resource_download: {
         Args: { p_resource: string }
         Returns: {
@@ -22302,6 +22711,7 @@ export type Database = {
           width: number
         }[]
       }
+      event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
         Returns: {
@@ -22338,6 +22748,10 @@ export type Database = {
           track_name_en: string
           track_name_pl: string
         }[]
+      }
+      event_audience_qualifies: {
+        Args: { p_audience: string }
+        Returns: boolean
       }
       event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
       event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
@@ -22423,6 +22837,8 @@ export type Database = {
           topic: string
         }[]
       }
+      event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
+      event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
