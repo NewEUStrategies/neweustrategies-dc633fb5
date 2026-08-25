@@ -200,6 +200,7 @@ import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$sh
 import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/email/suppression'
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
 import { Route as ClubSpecializationSlugRouteImport } from './routes/club.specialization.$slug'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
 import { Route as ClubClubSlugSpotlightRouteImport } from './routes/club.$clubSlug.spotlight'
@@ -1278,6 +1279,11 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsSlugRegisterRoute = EventsSlugRegisterRouteImport.update({
+  id: '/$slug_/register',
+  path: '/$slug/register',
+  getParentRoute: () => EventsRoute,
+} as any)
 const ClubSpecializationSlugRoute = ClubSpecializationSlugRouteImport.update({
   id: '/specialization/$slug',
   path: '/specialization/$slug',
@@ -2178,6 +2184,7 @@ export interface FileRoutesByFullPath {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2477,6 +2484,7 @@ export interface FileRoutesByTo {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2789,6 +2797,7 @@ export interface FileRoutesById {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug_/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -3102,6 +3111,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/register'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -3401,6 +3411,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/register'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -3712,6 +3723,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug_/register'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -5208,6 +5220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events/$slug_/register': {
+      id: '/events/$slug_/register'
+      path: '/$slug/register'
+      fullPath: '/events/$slug/register'
+      preLoaderRoute: typeof EventsSlugRegisterRouteImport
+      parentRoute: typeof EventsRoute
+    }
     '/club/specialization/$slug': {
       id: '/club/specialization/$slug'
       path: '/specialization/$slug'
@@ -6547,10 +6566,12 @@ const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
 
 interface EventsRouteChildren {
   EventsSlugRoute: typeof EventsSlugRoute
+  EventsSlugRegisterRoute: typeof EventsSlugRegisterRoute
 }
 
 const EventsRouteChildren: EventsRouteChildren = {
   EventsSlugRoute: EventsSlugRoute,
+  EventsSlugRegisterRoute: EventsSlugRegisterRoute,
 }
 
 const EventsRouteWithChildren =
