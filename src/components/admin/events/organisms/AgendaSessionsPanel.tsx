@@ -324,10 +324,13 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
                   <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
                   {t("adminEventAgenda.sessionDialog.editTitle")}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)}>
-                  <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t("adminEventAgenda.sessions.deleteConfirm").slice(0, 0)}
-                  {t("adminEventAgenda.sessionDialog.cancelAction")}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("adminEventAgenda.sessions.deleteConfirm")}
+                  onClick={() => setPendingDelete(row)}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
             </li>
