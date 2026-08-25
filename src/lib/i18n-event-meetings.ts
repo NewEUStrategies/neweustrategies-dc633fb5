@@ -123,7 +123,10 @@ export const eventMeetingsPl = {
         availability: "Moja dostępność",
       },
       badges: {
-        slot: "Slot: {{count}} min",
+        // "Termin", a nie "Slot": reszta polskiej powierzchni gieldy mowi
+        // "Wolne terminy" i "Termin", wiec odznaka nie moze mowic inaczej
+        // o tym samym pojeciu.
+        slot: "Termin: {{count}} min",
         tables: "Stoliki: {{count}}",
         timezone: "Strefa: {{zone}}",
         expiry: "Zaproszenie wygasa po {{count}} h",
