@@ -37,6 +37,7 @@ export function EventRegistrationSurface({
   action,
   onAction,
   groupLabel,
+  eventSlug,
 }: {
   /** Zdanie o stanie zapisow - zawsze obecne, zawsze prawdziwe. */
   message: string;
@@ -48,6 +49,8 @@ export function EventRegistrationSurface({
   onAction?: () => void;
   /** Dostepna nazwa grupy - blok jest regionem zywym (zmienia sie po akcji). */
   groupLabel: string;
+  /** Slug wydarzenia - adres trasy formularza zgloszenia sklada sie z niego. */
+  eventSlug: string;
 }) {
   return (
     <div
@@ -56,7 +59,9 @@ export function EventRegistrationSurface({
       aria-label={groupLabel}
       aria-live="polite"
     >
-      {action !== null && <ActionControl action={action} onAction={onAction} />}
+      {action !== null && (
+        <ActionControl action={action} onAction={onAction} eventSlug={eventSlug} />
+      )}
       <div className="min-w-0">
         <p className="text-sm text-muted-foreground">{message}</p>
         {note !== null && <p className="mt-1 text-sm text-primary">{note}</p>}
@@ -68,9 +73,11 @@ export function EventRegistrationSurface({
 function ActionControl({
   action,
   onAction,
+  eventSlug,
 }: {
   action: EventRegistrationAction;
   onAction?: () => void;
+  eventSlug: string;
 }) {
   if (action.kind === "externalLink") {
     // Adres organizatora, NIE nasze RPC. `noreferrer noopener` odcina obcej
@@ -85,6 +92,19 @@ function ActionControl({
     );
   }
   if (action.kind === "internalLink") {
+    // Formularz zgloszenia stoi na WLASNEJ trasie (`/events/$slug/register`),
+    // bo wola inne RPC niz szybki zapis i ma wlasny stan wypelniania - wciagniecie
+    // go w stronę wydarzenia kazaloby uczestnikowi tracic dane przy kazdym
+    // odswiezeniu naglowka.
+    if (action.target === "registrationForm") {
+      return (
+        <Button asChild>
+          <Link to="/events/$slug/register" params={{ slug: eventSlug }}>
+            {action.label}
+          </Link>
+        </Button>
+      );
+    }
     return (
       <Button asChild size="sm">
         <Link to="/pricing">{action.label}</Link>

@@ -153,7 +153,12 @@ export type RegistrationControl =
       readonly enabled: boolean;
       readonly url: string;
     }
-  | { readonly action: "membership"; readonly labelKey: string; readonly enabled: boolean };
+  | { readonly action: "membership"; readonly labelKey: string; readonly enabled: boolean }
+  // Zgloszenie formularzem (`event_register()`) stoi na WLASNEJ trasie, a nie
+  // pod tym samym przyciskiem co `rsvp_event()`: to inne wejscie do bazy, inny
+  // zestaw danych i inna decyzja. Osobna akcja pilnuje, zeby kontrolka
+  // formularza nie mogla przez pomylke wolac RPC szybkiego zapisu.
+  | { readonly action: "registrationForm"; readonly labelKey: string; readonly enabled: boolean };
 
 /**
  * Jeden wariant = jedno zdanie + co najwyzej jedna kontrolka. Warianty bez
@@ -201,8 +206,16 @@ export type RegistrationSurface =
       readonly messageKey: string;
       readonly control: null;
     }
-  | { readonly kind: "registrationForm"; readonly messageKey: string; readonly control: null }
-  | { readonly kind: "registrationApproval"; readonly messageKey: string; readonly control: null }
+  | {
+      readonly kind: "registrationForm";
+      readonly messageKey: string;
+      readonly control: Extract<RegistrationControl, { action: "registrationForm" }>;
+    }
+  | {
+      readonly kind: "registrationApproval";
+      readonly messageKey: string;
+      readonly control: Extract<RegistrationControl, { action: "registrationForm" }>;
+    }
   // --- bramki osobiste ----------------------------------------------------
   | { readonly kind: "signInRequired"; readonly messageKey: string; readonly control: null }
   | { readonly kind: "registrationNotOpen"; readonly messageKey: string; readonly control: null }
@@ -376,17 +389,22 @@ export function resolveRegistrationSurface(input: RegistrationSurfaceInput): Reg
   }
   if (mode === "form") {
     // `registration_state` mowi tu `open`, bo z punktu widzenia bazy zapisy SA
-    // otwarte - tylko innym wejsciem (`event_register()`). Ekranu formularza
-    // NIE MA jeszcze na tej stronie, wiec wariant mowi prawde, a nie udaje, ze
-    // przycisk zaraz zadziala. To dokladnie ten przypadek, ktory przed ta
-    // zmiana konczyl sie generycznym bledem po klikniciu.
-    return { kind: "registrationForm", messageKey: `${SURFACE}.formRequired`, control: null };
+    // otwarte - tylko innym wejsciem (`event_register()`). Kontrolka prowadzi
+    // WLASNIE tam: na trase formularza zgloszenia, ktora wola `event_register()`
+    // z pelnym zestawem danych (bilet, pytania organizatora, zgody).
+    return {
+      kind: "registrationForm",
+      messageKey: `${SURFACE}.formRequired`,
+      control: { action: "registrationForm", labelKey: `${ACTION}.registerForm`, enabled: true },
+    };
   }
   if (flow === "approval") {
+    // Przeplyw akceptacji to takze zgloszenie, a nie szybki zapis: decyzje
+    // podejmuje organizator, wiec uczestnik wypelnia ten sam formularz.
     return {
       kind: "registrationApproval",
       messageKey: `${SURFACE}.approvalRequired`,
-      control: null,
+      control: { action: "registrationForm", labelKey: `${ACTION}.registerForm`, enabled: true },
     };
   }
 
