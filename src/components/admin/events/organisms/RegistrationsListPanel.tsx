@@ -148,8 +148,7 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
     promote.mutate(
       { eventId, registrationId: null, ticketTypeId, count: promoteCount },
       {
-        onSuccess: () =>
-          toast.success(t(`${base}.toasts.promoted`, { count: promoteCount })),
+        onSuccess: () => toast.success(t(`${base}.toasts.promoted`, { count: promoteCount })),
         onError: fail,
       },
     );
@@ -202,7 +201,11 @@ export function RegistrationsListPanel({ eventId }: { eventId: string }) {
                 if (event.key === "Enter") submitSearch();
               }}
             />
-            <Button variant="outline" onClick={submitSearch} aria-label={t(`${base}.searchPlaceholder`)}>
+            <Button
+              variant="outline"
+              onClick={submitSearch}
+              aria-label={t(`${base}.searchPlaceholder`)}
+            >
               <Search className="h-4 w-4" />
             </Button>
           </div>

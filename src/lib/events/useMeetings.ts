@@ -65,9 +65,7 @@ function hasEvent(eventId: string | null | undefined): eventId is string {
   return typeof eventId === "string" && eventId.length > 0;
 }
 
-export function useMeetingTables(
-  eventId: string | null,
-): UseQueryResult<MeetingTableRow[], Error> {
+export function useMeetingTables(eventId: string | null): UseQueryResult<MeetingTableRow[], Error> {
   return useQuery({
     queryKey: meetingKeys.tables(eventId ?? ""),
     queryFn: () => fetchMeetingTables(eventId ?? ""),

@@ -132,9 +132,7 @@ export function OnsiteBadgesPanel({ eventId }: { eventId: string }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {row.is_default ? (
-                    <Badge>{t("adminEventOnsite.badges.isDefault")}</Badge>
-                  ) : null}
+                  {row.is_default ? <Badge>{t("adminEventOnsite.badges.isDefault")}</Badge> : null}
                   <Badge variant="outline">{`${t("adminEventOnsite.stats.badgesPrinted")}: ${row.prints_count}`}</Badge>
                   {row.stale_prints_count > 0 ? (
                     <Badge variant="secondary">{t("adminEventOnsite.badges.staleVersion")}</Badge>
@@ -198,9 +196,7 @@ export function OnsiteBadgesPanel({ eventId }: { eventId: string }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {row.template_version < row.template_current_version ? (
-                      <Badge variant="secondary">
-                        {t("adminEventOnsite.badges.staleVersion")}
-                      </Badge>
+                      <Badge variant="secondary">{t("adminEventOnsite.badges.staleVersion")}</Badge>
                     ) : null}
                     <Badge variant="outline">{`×${row.copies}`}</Badge>
                     <span className="text-xs text-muted-foreground">

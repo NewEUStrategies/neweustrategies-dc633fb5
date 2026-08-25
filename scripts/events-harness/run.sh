@@ -115,7 +115,15 @@ echo "harness (atrapy): OK"
 # Sortowanie po nazwie pliku jest ISTOTNE: tylko ono odtwarza kolejnosc,
 # w ktorej pliki aplikuje Supabase CLI, a wiec realny stan koncowy.
 # ---------------------------------------------------------------------------
-MIGRATIONS="$(grep -lE 'public\.admin_event_|events_tenant_id_key' \
+# TRZECI CZLON SELEKTORA: JAWNY ZNACZNIK `events-harness: include`.
+# Selektor po tresci lapie migracje, ktore definiuja RPC panelu albo klucz
+# tozsamosci najemcy. Nie zlapie migracji, ktora rusza WYLACZNIE polityki RLS
+# modulu - a taka jest `20260825170000_event_rls_admin_only.sql`. Rozszerzenie
+# wzorca o `ON public.event_` wciagneloby 37 obcych plikow (hub ekspertow,
+# scoring CRM, profile) i `20260713093000_events_module.sql`, ktorego
+# powierzchnie harness stawia jako ATRAPE - wiec zamiast luzniejszej
+# heurystyki migracja dopisuje sie do zestawu SAMA, jedna linia komentarza.
+MIGRATIONS="$(grep -lE 'public\.admin_event_|events_tenant_id_key|events-harness: include' \
                 "$REPO"/supabase/migrations/*.sql | sort -u)"
 echo "Migracje modulu Wydarzen: $(echo "$MIGRATIONS" | grep -c .)"
 

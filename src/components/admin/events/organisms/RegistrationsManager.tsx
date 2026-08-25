@@ -52,9 +52,7 @@ export function RegistrationsManager() {
   return (
     <div className="space-y-6">
       <div className="space-y-1.5">
-        <Label htmlFor="registrations-event">
-          {t("adminEventRegistration.nav.sectionTitle")}
-        </Label>
+        <Label htmlFor="registrations-event">{t("adminEventRegistration.nav.sectionTitle")}</Label>
         <Select value={eventId ?? ""} onValueChange={setEventId}>
           <SelectTrigger id="registrations-event" className="max-w-xl">
             <SelectValue placeholder={t("adminEventRegistration.nav.sectionTitle")} />

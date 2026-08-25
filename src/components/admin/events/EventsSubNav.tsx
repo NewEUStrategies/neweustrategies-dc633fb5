@@ -91,9 +91,7 @@ const EVENT_TABS = [
     icon: Handshake,
     labelKey: "adminEventMeetings.nav.section",
   },
-
 ] as const;
-
 
 export function EventsSubNav() {
   ensureAdminEventsI18n();

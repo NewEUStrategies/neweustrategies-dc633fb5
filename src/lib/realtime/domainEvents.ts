@@ -77,6 +77,30 @@ export const DOMAIN_EVENT_TYPES = [
   // domain_events czyta caly staff tenantu.
   "club_thread.document_added.v1",
   "club_thread.milestone_set.v1",
+  // Event Builder: gielda spotkan 1-1 (20260823190000), obsluga na miejscu
+  // (20260823180000) i sponsorzy (20260823160000). Payload kazdego z nich
+  // niesie `event_id`, wiec regula inwalidacji trafia w GALAZ JEDNEGO
+  // wydarzenia, a nie w caly modul.
+  //
+  // Spotkania emituja z RPC, nie z triggera, bo ta sama zmiana stanu ma dwie
+  // sciezki (decyzja uczestnika i przestawienie przez organizatora), a payload
+  // niesie WYLACZNIE identyfikatory - `domain_events` czyta caly staff tenantu,
+  // a temat spotkania jest tresria prywatna dwoch stron.
+  "event_meeting.invited.v1",
+  "event_meeting.accepted.v1",
+  "event_meeting.declined.v1",
+  "event_meeting.cancelled.v1",
+  "event_meeting.rescheduled.v1",
+  "event_meeting.arranged.v1",
+  // Urzadzenia skanujace: wydanie, zablokowanie i uniewaznienie. Payload
+  // niesie `token_prefix`, nigdy calego tokenu - ten wraca wylacznie
+  // z wywolania, ktore go tworzy.
+  "event_scanner_device.issued.v1",
+  "event_scanner_device.locked.v1",
+  "event_scanner_device.revoked.v1",
+  // Sponsorzy: publikacja karty i odswiezenie migawki z CRM firm.
+  "event_sponsor.published.v1",
+  "event_sponsor.snapshot_refreshed.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -122,6 +146,9 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "club_thread",
   "club_reply",
   "club_member",
+  "event_meeting",
+  "event_scanner_device",
+  "event_sponsor",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

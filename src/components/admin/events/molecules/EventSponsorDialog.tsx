@@ -82,11 +82,7 @@ export function EventSponsorDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      sponsor === null
-        ? emptySponsorDraft(nextSortOrder)
-        : sponsorDraftFromRow(sponsor as unknown as Record<string, unknown>),
-    );
+    setDraft(sponsor === null ? emptySponsorDraft(nextSortOrder) : sponsorDraftFromRow(sponsor));
     setTouched(false);
     setCompanyQuery("");
   }, [open, sponsor, nextSortOrder]);

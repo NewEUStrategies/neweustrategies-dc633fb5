@@ -69,9 +69,12 @@ export function EventTicketsPanel({ eventId }: { eventId: string }) {
 
   /** Przełącznik w wierszu wysyła CAŁY wiersz - RPC zapisu jest upsertem. */
   const toggleActive = (row: EventTicketRow, next: boolean) => {
-    save.mutate({ ...ticketDraftToInput(ticketDraftFromRow(row), eventId), isActive: next }, {
-      onError: fail,
-    });
+    save.mutate(
+      { ...ticketDraftToInput(ticketDraftFromRow(row), eventId), isActive: next },
+      {
+        onError: fail,
+      },
+    );
   };
 
   const confirmDelete = () => {

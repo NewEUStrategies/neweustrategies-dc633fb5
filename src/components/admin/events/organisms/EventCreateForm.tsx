@@ -132,7 +132,6 @@ export function EventCreateForm({
         <p className="text-sm text-muted-foreground">{t("adminEvents.list.create.description")}</p>
       </CardHeader>
       <CardContent className="space-y-4">
-
         {noTypes ? (
           <p className="text-sm text-destructive" role="alert">
             {t("adminEvents.list.create.errors.noTypes")}

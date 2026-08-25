@@ -63,7 +63,10 @@ export function TermsGroupsManager() {
 
       {eventId === null ? null : (
         <Tabs defaultValue="groups" className="space-y-4">
-          <TabsList className="tabs-scroller" aria-label={t("adminEventTerms.nav.sectionsNavLabel")}>
+          <TabsList
+            className="tabs-scroller"
+            aria-label={t("adminEventTerms.nav.sectionsNavLabel")}
+          >
             <TabsTrigger value="groups">{t("adminEventTerms.nav.groups")}</TabsTrigger>
             <TabsTrigger value="members">{t("adminEventTerms.nav.members")}</TabsTrigger>
             <TabsTrigger value="terms">{t("adminEventTerms.nav.terms")}</TabsTrigger>

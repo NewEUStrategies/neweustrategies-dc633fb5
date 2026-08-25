@@ -192,7 +192,9 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("adminEventAgenda.tracks.dialog.cancelAction")}</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t("adminEventAgenda.tracks.dialog.cancelAction")}
+            </AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>
               {t("adminEventAgenda.tracks.dialog.saveAction")}
             </AlertDialogAction>

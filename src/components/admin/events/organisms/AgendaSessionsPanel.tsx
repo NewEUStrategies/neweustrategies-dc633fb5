@@ -84,8 +84,7 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
   const tracks = tracksQ.data ?? [];
   const rooms = roomsQ.data ?? [];
   const rows = listQ.data ?? [];
-  const hasFilters =
-    search.trim() !== "" || trackId !== ALL || roomId !== ALL || status !== "all";
+  const hasFilters = search.trim() !== "" || trackId !== ALL || roomId !== ALL || status !== "all";
 
   const nextSortOrder = useMemo(
     () => rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10,
@@ -266,7 +265,9 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
                       : t("adminEventAgenda.sessions.seatsUnlimited")
                     : t("adminEventAgenda.sessions.signupsOff")}
                 </span>
-                <span>{t("adminEventAgenda.sessions.speakersCount", { count: row.speakers_count })}</span>
+                <span>
+                  {t("adminEventAgenda.sessions.speakersCount", { count: row.speakers_count })}
+                </span>
                 {row.children_count > 0 ? (
                   <span>
                     {t("adminEventAgenda.sessions.childrenCount", { count: row.children_count })}

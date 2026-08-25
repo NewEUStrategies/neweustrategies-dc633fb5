@@ -421,10 +421,10 @@ export function validateBadgeTemplateDraft(
     }
   }
   const inRange = (value: number | null | false) =>
-    value === null ||
-    (value !== false && value >= BADGE_MIN_SIDE_MM && value <= BADGE_MAX_SIDE_MM);
+    value === null || (value !== false && value >= BADGE_MIN_SIDE_MM && value <= BADGE_MAX_SIDE_MM);
   if (!inRange(width)) errors.push({ field: "widthMm", messageKey: `${PREFIX}invalidDimensions` });
-  if (!inRange(height)) errors.push({ field: "heightMm", messageKey: `${PREFIX}invalidDimensions` });
+  if (!inRange(height))
+    errors.push({ field: "heightMm", messageKey: `${PREFIX}invalidDimensions` });
 
   if (draft.showQr) {
     const qr = intOrNull(draft.qrSizeMm);
@@ -432,7 +432,10 @@ export function validateBadgeTemplateDraft(
       errors.push({ field: "qrSizeMm", messageKey: `${PREFIX}invalidQrSize` });
     }
   }
-  if (draft.backgroundColor.trim() !== "" && !ONSITE_HEX_COLOR_PATTERN.test(draft.backgroundColor.trim())) {
+  if (
+    draft.backgroundColor.trim() !== "" &&
+    !ONSITE_HEX_COLOR_PATTERN.test(draft.backgroundColor.trim())
+  ) {
     errors.push({ field: "backgroundColor", messageKey: `${PREFIX}invalidBackgroundColor` });
   }
   if (draft.backgroundImageUrl.trim() !== "" && !isOnsiteUrl(draft.backgroundImageUrl)) {

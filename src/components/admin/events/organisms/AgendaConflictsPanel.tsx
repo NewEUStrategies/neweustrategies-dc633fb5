@@ -56,7 +56,10 @@ export function AgendaConflictsPanel({ eventId }: { eventId: string }) {
               key={`${row.session_id}-${row.kind}-${index}`}
               className="flex flex-wrap items-start gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3"
             >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
+                aria-hidden="true"
+              />
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium">
                   {pick(row.session_title_pl, row.session_title_en)}

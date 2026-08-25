@@ -87,8 +87,7 @@ export const adminEventTermsPl = {
     },
     members: {
       title: "Członkostwa dodatkowe",
-      subtitle:
-        "Grupa dodatkowa nie zmienia grupy z biletu - dokłada uprawnienia wybranym osobom.",
+      subtitle: "Grupa dodatkowa nie zmienia grupy z biletu - dokłada uprawnienia wybranym osobom.",
       groupLabel: "Grupa dodatkowa",
       search: "Szukaj osoby (imię, nazwisko, e-mail, firma)",
       loading: "Wczytywanie zapisów…",
@@ -205,8 +204,7 @@ export const adminEventTermsEn = {
     },
     groups: {
       title: "Attendee groups",
-      subtitle:
-        "A group decides permissions: who sees whom, who can meet, chat and collect leads.",
+      subtitle: "A group decides permissions: who sees whom, who can meet, chat and collect leads.",
       loading: "Loading groups…",
       empty: "This event has no group yet.",
       createAction: "Add group",
@@ -318,12 +316,27 @@ export const adminEventTermsEn = {
   },
 } as const;
 
-let registered = false;
+// REJESTRACJA PRZY IMPORCIE, NIE W FUNKCJI.
+//
+// Rejestracja schowana w ciele `ensureTermsI18n()` znaczyla, ze SAM import
+// tego pliku nie dokladal ani jednego klucza do i18n. Kazdy, kto wczytal
+// nakladke, a nie wywolal funkcji, dostawal gole klucze zamiast napisow -
+// dotyczylo to takze bramek `i18nKeyDrift` i `eventsI18nKeys`, ktore
+// zaciagaja nakladki przez `import.meta.glob(..., { eager: true })`
+// i z zalozenia maja miec je WSZYSTKIE naraz. Bramki raportowaly wiec
+// caly slownik jako `missing_both`, chociaz co do jednego klucza istnial
+// w tym pliku, w obu jezykach.
+//
+// Rejestracja na poziomie modulu nie psuje podzialu na chunki: ten plik
+// nadal wchodzi do paczki dopiero wtedy, gdy ktos go zaimportuje. Tak
+// robi 110 pozostalych nakladek w repozytorium - lacznie z siostrzana
+// `i18n-admin-event-agenda`, ktora te bramki przechodzila.
+i18n.addResourceBundle("pl", "translation", adminEventTermsPl, true, true);
+i18n.addResourceBundle("en", "translation", adminEventTermsEn, true, true);
 
-/** Rejestruje nakładkę raz na sesję - `i18n.exists()` bez niej zwraca fałsz. */
-export function ensureTermsI18n(): void {
-  if (registered) return;
-  i18n.addResourceBundle("pl", "translation", adminEventTermsPl, true, true);
-  i18n.addResourceBundle("en", "translation", adminEventTermsEn, true, true);
-  registered = true;
-}
+/**
+ * Zostaje jako PUSTE wywolanie dla modulow, ktore potrzebuja slownika
+ * przed pierwszym renderem: sam import juz wystarcza, a kasowanie funkcji
+ * ruszyloby wszystkie miejsca wywolania bez zysku.
+ */
+export function ensureTermsI18n(): void {}

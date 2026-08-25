@@ -293,17 +293,20 @@ function trimmedOrNull(value: string): string | null {
 }
 
 export async function fetchRegistrations(query: RegistrationsQuery): Promise<RegistrationsPage> {
-  const { data, error } = await supabase.rpc("admin_event_registrations_list", args({
-    p_event_id: query.eventId,
-    p_status: query.status === "all" ? undefined : query.status,
-    p_ticket_type_id: query.ticketTypeId ?? undefined,
-    p_group_id: query.groupId ?? undefined,
-    p_q: trimmedOrNull(query.q) ?? undefined,
-    p_from: query.from ?? undefined,
-    p_to: query.to ?? undefined,
-    p_limit: query.limit,
-    p_offset: query.offset,
-  }));
+  const { data, error } = await supabase.rpc(
+    "admin_event_registrations_list",
+    args({
+      p_event_id: query.eventId,
+      p_status: query.status === "all" ? undefined : query.status,
+      p_ticket_type_id: query.ticketTypeId ?? undefined,
+      p_group_id: query.groupId ?? undefined,
+      p_q: trimmedOrNull(query.q) ?? undefined,
+      p_from: query.from ?? undefined,
+      p_to: query.to ?? undefined,
+      p_limit: query.limit,
+      p_offset: query.offset,
+    }),
+  );
   if (error) throw error;
   const rows = data ?? [];
   // `total_count` jest powtorzone w kazdym wierszu (okno nad zapytaniem). Pusta
@@ -322,14 +325,17 @@ export interface RegistrationCountsQuery {
 }
 
 export async function fetchRegistrationCounts(query: RegistrationCountsQuery): Promise<Json> {
-  const { data, error } = await supabase.rpc("admin_event_registrations_counts", args({
-    p_event_id: query.eventId,
-    p_ticket_type_id: query.ticketTypeId ?? undefined,
-    p_group_id: query.groupId ?? undefined,
-    p_q: trimmedOrNull(query.q) ?? undefined,
-    p_from: query.from ?? undefined,
-    p_to: query.to ?? undefined,
-  }));
+  const { data, error } = await supabase.rpc(
+    "admin_event_registrations_counts",
+    args({
+      p_event_id: query.eventId,
+      p_ticket_type_id: query.ticketTypeId ?? undefined,
+      p_group_id: query.groupId ?? undefined,
+      p_q: trimmedOrNull(query.q) ?? undefined,
+      p_from: query.from ?? undefined,
+      p_to: query.to ?? undefined,
+    }),
+  );
   if (error) throw error;
   return (data ?? {}) as Json;
 }
@@ -404,7 +410,7 @@ export async function saveRegistration(input: RegistrationUpsertInput): Promise<
 /** Odznaczenie wyslanego powiadomienia o promocji z rezerwy. Zwraca liczbe wierszy. */
 export async function markRegistrationsNotified(ids: readonly string[]): Promise<number> {
   const { data, error } = await supabase.rpc("admin_event_registration_mark_notified", {
-    p_payload: payload({ registration_ids: [...ids] as unknown as Json }),
+    p_payload: payload({ registration_ids: [...ids] }),
   });
   if (error) throw error;
   return Number(data ?? 0);

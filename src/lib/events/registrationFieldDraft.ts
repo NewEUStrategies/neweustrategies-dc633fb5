@@ -235,8 +235,8 @@ export function fieldDraftToInput(
     helpEn: draft.helpEn.trim(),
     isRequired: draft.isRequired,
     // Typ bez wariantów wysyła pustą tablicę, a nie „zostaw jak było": zmiana
-        // listy na tekst musi zabrać ze sobą osierocone warianty.
-    options: (FIELD_TYPES_WITH_OPTIONS.includes(draft.fieldType) ? options : []) as unknown as Json,
+    // listy na tekst musi zabrać ze sobą osierocone warianty.
+    options: FIELD_TYPES_WITH_OPTIONS.includes(draft.fieldType) ? options : [],
     sortOrder: Number(draft.sortOrder.trim()),
     isQualifying: draft.isQualifying,
     qualifyOperator: draft.isQualifying ? draft.qualifyOperator : "none",

@@ -26,6 +26,7 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { useSessionDetail } from "@/lib/events/useEventSessions";
 import {
   SESSION_MAX_DESCRIPTION,
   SESSION_MAX_TITLE,
@@ -82,11 +83,32 @@ export function EventSessionDialog({
   const [draft, setDraft] = useState<SessionDraft>(() => emptySessionDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
 
+  // SZCZEGOL, A NIE WIERSZ LISTY. `stream_url` i `recording_url` sa odciete
+  // od klienckiego SELECT-a grantem kolumnowym (patrz granty w migracji
+  // 20260823140000), wiec wiersz listy ICH NIE NIESIE. Budowanie draftu
+  // z listy dawalo w obu polach pusty ciag, a zapis odsylal go jako `null` -
+  // czyli KAZDE otwarcie i zapisanie sesji kasowalo adres transmisji
+  // i nagrania. Panel czyta te kolumny wylacznie przez
+  // `admin_event_session_detail`, dokladnie jak zapowiada naglowek migracji.
+  const detailQuery = useSessionDetail(open && session !== null ? session.id : null);
+  const detail = detailQuery.data ?? null;
+
   useEffect(() => {
     if (!open) return;
-    setDraft(session === null ? emptySessionDraft(nextSortOrder) : sessionDraftFromRow(session));
+    if (session === null) {
+      setDraft(emptySessionDraft(nextSortOrder));
+      setTouched(false);
+      return;
+    }
+    // Do czasu przyjscia szczegolu draft zostaje pusty, a zapis jest zablokowany
+    // nizej - inaczej wrocilaby ta sama utrata danych, tylko przez wyscig.
+    if (detail === null) return;
+    setDraft(sessionDraftFromRow(detail));
     setTouched(false);
-  }, [open, session, nextSortOrder]);
+  }, [open, session, detail, nextSortOrder]);
+
+  /** Edycja czeka na szczegol; nowa sesja nie ma na co czekac. */
+  const isLoadingDetail = session !== null && detail === null;
 
   const errors = validateSessionDraft(draft);
   const errorFor = (field: keyof SessionDraft): string | null => {
@@ -108,8 +130,7 @@ export function EventSessionDialog({
     [sessions, draft.id],
   );
 
-  const label = (pl: string, en: string): string =>
-    lang === "en" ? en || pl : pl || en;
+  const label = (pl: string, en: string): string => (lang === "en" ? en || pl : pl || en);
 
   const submit = () => {
     setTouched(true);
@@ -328,7 +349,7 @@ export function EventSessionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             {t("adminEventAgenda.sessionDialog.cancelAction")}
           </Button>
-          <Button onClick={submit} disabled={isSaving}>
+          <Button onClick={submit} disabled={isSaving || isLoadingDetail}>
             {t("adminEventAgenda.sessionDialog.saveAction")}
           </Button>
         </DialogFooter>

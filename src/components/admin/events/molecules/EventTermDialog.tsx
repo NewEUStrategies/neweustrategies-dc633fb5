@@ -62,11 +62,7 @@ export function EventTermDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      term === null
-        ? emptyTermDraft(nextSortOrder)
-        : termDraftFromRow(term as unknown as Record<string, unknown>),
-    );
+    setDraft(term === null ? emptyTermDraft(nextSortOrder) : termDraftFromRow(term));
     setTouched(false);
   }, [open, term, nextSortOrder]);
 

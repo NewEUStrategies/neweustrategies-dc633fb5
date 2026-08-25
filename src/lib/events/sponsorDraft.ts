@@ -139,8 +139,7 @@ export function tierDraftFromRow(row: Record<string, unknown>): TierDraft {
     descriptionEn: textOf(row.description_en),
     rank: String(numberOf(row.rank, 0)),
     accentColor: textOf(row.accent_color),
-    logoSize:
-      logoSize === "sm" || logoSize === "lg" ? (logoSize as SponsorTierLogoSize) : "md",
+    logoSize: logoSize === "sm" || logoSize === "lg" ? (logoSize as SponsorTierLogoSize) : "md",
     maxCompanies: row.max_companies === null ? "" : String(numberOf(row.max_companies, 0)),
     sortOrder: String(numberOf(row.sort_order, 0)),
     isActive: row.is_active !== false,
@@ -158,7 +157,10 @@ export function validateTierDraft(draft: TierDraft): Array<SponsorFieldError<Tie
   if (draft.namePl.trim() === "" || draft.nameEn.trim() === "") {
     errors.push({ field: "namePl", messageKey: `${PREFIX}invalidNames` });
   }
-  if (draft.accentColor.trim() !== "" && !SPONSOR_HEX_COLOR_PATTERN.test(draft.accentColor.trim())) {
+  if (
+    draft.accentColor.trim() !== "" &&
+    !SPONSOR_HEX_COLOR_PATTERN.test(draft.accentColor.trim())
+  ) {
     errors.push({ field: "accentColor", messageKey: `${PREFIX}invalidColor` });
   }
   const limit = intOrNull(draft.maxCompanies);

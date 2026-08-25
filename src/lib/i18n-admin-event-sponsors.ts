@@ -193,7 +193,6 @@ export const adminEventSponsorsPl = {
   },
 } as const;
 
-
 export const adminEventSponsorsEn = {
   adminEventSponsors: {
     nav: {
@@ -378,13 +377,27 @@ export const adminEventSponsorsEn = {
   },
 } as const;
 
+// REJESTRACJA PRZY IMPORCIE, NIE W FUNKCJI.
+//
+// Rejestracja schowana w ciele `ensureSponsorsI18n()` znaczyla, ze SAM import
+// tego pliku nie dokladal ani jednego klucza do i18n. Kazdy, kto wczytal
+// nakladke, a nie wywolal funkcji, dostawal gole klucze zamiast napisow -
+// dotyczylo to takze bramek `i18nKeyDrift` i `eventsI18nKeys`, ktore
+// zaciagaja nakladki przez `import.meta.glob(..., { eager: true })`
+// i z zalozenia maja miec je WSZYSTKIE naraz. Bramki raportowaly wiec
+// caly slownik jako `missing_both`, chociaz co do jednego klucza istnial
+// w tym pliku, w obu jezykach.
+//
+// Rejestracja na poziomie modulu nie psuje podzialu na chunki: ten plik
+// nadal wchodzi do paczki dopiero wtedy, gdy ktos go zaimportuje. Tak
+// robi 110 pozostalych nakladek w repozytorium - lacznie z siostrzana
+// `i18n-admin-event-agenda`, ktora te bramki przechodzila.
+i18n.addResourceBundle("pl", "translation", adminEventSponsorsPl, true, true);
+i18n.addResourceBundle("en", "translation", adminEventSponsorsEn, true, true);
 
-let registered = false;
-
-/** Rejestruje nakładkę raz na sesję - `i18n.exists()` bez niej zwraca fałsz. */
-export function ensureSponsorsI18n(): void {
-  if (registered) return;
-  i18n.addResourceBundle("pl", "translation", adminEventSponsorsPl, true, true);
-  i18n.addResourceBundle("en", "translation", adminEventSponsorsEn, true, true);
-  registered = true;
-}
+/**
+ * Zostaje jako PUSTE wywolanie dla modulow, ktore potrzebuja slownika
+ * przed pierwszym renderem: sam import juz wystarcza, a kasowanie funkcji
+ * ruszyloby wszystkie miejsca wywolania bez zysku.
+ */
+export function ensureSponsorsI18n(): void {}

@@ -9,7 +9,12 @@
 //
 // PUSTA POJEMNOŚĆ SALI TO BRAK DEKLARACJI, NIE ZERO. Sala na zero osób nie
 // przyjmie żadnej sesji; sala bez deklarowanej pojemności przyjmie każdą.
-import type { EventRoomInput, EventRoomRow, EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
+import type {
+  EventRoomInput,
+  EventRoomRow,
+  EventTrackInput,
+  EventTrackRow,
+} from "@/lib/events/sessionsApi";
 
 export const AGENDA_KEY_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 export const AGENDA_MAX_NAME = 200;
@@ -65,15 +70,14 @@ export function emptyTrackDraft(sortOrder: number): TrackDraft {
 }
 
 export function trackDraftFromRow(row: EventTrackRow): TrackDraft {
-  const record = row as unknown as Record<string, unknown>;
   return {
-    id: String(record.id),
-    key: textOf(record.key),
-    namePl: textOf(record.name_pl),
-    nameEn: textOf(record.name_en),
-    accentColor: textOf(record.accent_color),
-    sortOrder: String(numberOf(record.sort_order, 0)),
-    isActive: record.is_active !== false,
+    id: String(row.id),
+    key: textOf(row.key),
+    namePl: textOf(row.name_pl),
+    nameEn: textOf(row.name_en),
+    accentColor: textOf(row.accent_color),
+    sortOrder: String(numberOf(row.sort_order, 0)),
+    isActive: row.is_active !== false,
   };
 }
 
@@ -87,8 +91,10 @@ export function validateTrackDraft(draft: TrackDraft): TrackFieldError[] {
   if (draft.id === null && !AGENDA_KEY_PATTERN.test(draft.key.trim())) {
     errors.push({ field: "key", messageKey: `${TV}keyRequired` });
   }
-  if (draft.namePl.trim() === "") errors.push({ field: "namePl", messageKey: `${TV}namesRequired` });
-  if (draft.nameEn.trim() === "") errors.push({ field: "nameEn", messageKey: `${TV}namesRequired` });
+  if (draft.namePl.trim() === "")
+    errors.push({ field: "namePl", messageKey: `${TV}namesRequired` });
+  if (draft.nameEn.trim() === "")
+    errors.push({ field: "nameEn", messageKey: `${TV}namesRequired` });
   return errors;
 }
 
@@ -136,16 +142,15 @@ export function emptyRoomDraft(sortOrder: number): RoomDraft {
 }
 
 export function roomDraftFromRow(row: EventRoomRow): RoomDraft {
-  const record = row as unknown as Record<string, unknown>;
-  const capacity = record.capacity;
+  const capacity = row.capacity;
   return {
-    id: String(record.id),
-    name: textOf(record.name),
+    id: String(row.id),
+    name: textOf(row.name),
     capacity: typeof capacity === "number" ? String(capacity) : "",
-    floor: textOf(record.floor),
-    locationNote: textOf(record.location_note),
-    sortOrder: String(numberOf(record.sort_order, 0)),
-    isActive: record.is_active !== false,
+    floor: textOf(row.floor),
+    locationNote: textOf(row.location_note),
+    sortOrder: String(numberOf(row.sort_order, 0)),
+    isActive: row.is_active !== false,
   };
 }
 

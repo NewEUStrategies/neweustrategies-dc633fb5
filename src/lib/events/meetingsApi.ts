@@ -54,7 +54,6 @@ function payload(input: Payload): Json {
   return out as Json;
 }
 
-
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: STOLIKI
 // ---------------------------------------------------------------------------
@@ -161,12 +160,162 @@ export interface MeetingSettings {
   with_availability_count: number;
 }
 
+// ---------------------------------------------------------------------------
+// PARSER ODPOWIEDZI `jsonb`
+//
+// DLACZEGO PARSER, A NIE RZUTOWANIE. Obie funkcje ustawien oddaja `jsonb`,
+// wiec generowany typ to `Json` - deklaracja intencji, a nie fakt o ksztalcie.
+// Podwojne rzutowanie odpowiedzi na ten interfejs - a tak bylo tu wczesniej -
+// zamienialo zmiane nazwy klucza w `jsonb_build_object` na ekran ustawien
+// z pustymi polami i BEZ jednego bledu w konsoli: organizator zapisalby wtedy
+// wartosci domyslne na dzialajacej gieldzie. Wzorzec jak
+// w `registrationFormSurface`.
+//
+// BRAK DANYCH DEGRADUJE DO STANU BEZPIECZNEGO: `configured: false`
+// i `is_enabled: false`, czyli ekran proponuje konfiguracje od nowa, zamiast
+// udawac, ze zna cudza.
+// ---------------------------------------------------------------------------
+type Bag = Record<string, unknown>;
+
+function bag(value: unknown): Bag | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Bag)
+    : null;
+}
+
+function text(source: Bag, key: string): string {
+  const value = source[key];
+  return typeof value === "string" ? value : "";
+}
+
+function nullableText(source: Bag, key: string): string | null {
+  const value = source[key];
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+function bool(source: Bag, key: string): boolean {
+  return source[key] === true;
+}
+
+function int(source: Bag, key: string, fallback: number): number {
+  const value = source[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/** `null` to BRAK LIMITU, a nie zero - sklejenie z zerem zamknieloby gielde. */
+function optionalInt(source: Bag, key: string): number | null {
+  const value = source[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function textList(source: Bag, key: string): string[] {
+  const value = source[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function visibilityOf(source: Bag): MeetingVisibility {
+  const value = source.visibility;
+  return typeof value === "string" && (MEETING_VISIBILITIES as readonly string[]).includes(value)
+    ? (value as MeetingVisibility)
+    : "disabled";
+}
+
+function ruleGroups(value: unknown): MeetingRuleGroup[] {
+  if (!Array.isArray(value)) return [];
+  const out: MeetingRuleGroup[] = [];
+  for (const item of value) {
+    const row = bag(item);
+    // Grupa bez identyfikatora jest nieuzywalna: panel odsyla `group_id`
+    // w regule, wiec wiersz bez niego zapisalby regule wskazujaca na nic.
+    if (row === null || text(row, "group_id") === "") continue;
+    out.push({
+      group_id: text(row, "group_id"),
+      key: text(row, "key"),
+      name_pl: text(row, "name_pl"),
+      name_en: text(row, "name_en"),
+      can_meet: bool(row, "can_meet"),
+      can_lead_retrieval: bool(row, "can_lead_retrieval"),
+    });
+  }
+  return out;
+}
+
+/**
+ * Zawezenie odpowiedzi `admin_event_meeting_settings_get/_save`.
+ * `eventId` jest tu drugim argumentem, bo ekran bez identyfikatora nie umialby
+ * zapisac zmian - a odpowiedz nieczytelna to wlasnie ten przypadek.
+ */
+export function parseMeetingSettings(value: unknown, eventId: string): MeetingSettings {
+  const row = bag(value);
+  if (row === null) {
+    return {
+      configured: false,
+      event_id: eventId,
+      event_timezone: null,
+      is_enabled: false,
+      slot_minutes: 0,
+      break_minutes: 0,
+      day_start_time: "",
+      day_end_time: "",
+      meeting_days: [],
+      timezone: "",
+      invites_open_at: null,
+      invites_close_at: null,
+      max_invites_per_person: null,
+      max_meetings_per_day: null,
+      invite_expires_after_hours: 0,
+      visibility: "disabled",
+      intro_pl: "",
+      intro_en: "",
+      updated_at: null,
+      requester_groups: [],
+      invitee_groups: [],
+      available_groups: [],
+      tables_count: 0,
+      seats_count: 0,
+      participants_count: 0,
+      with_availability_count: 0,
+    };
+  }
+  const fromRow = text(row, "event_id");
+  return {
+    configured: bool(row, "configured"),
+    event_id: fromRow === "" ? eventId : fromRow,
+    event_timezone: nullableText(row, "event_timezone"),
+    is_enabled: bool(row, "is_enabled"),
+    slot_minutes: int(row, "slot_minutes", 0),
+    break_minutes: int(row, "break_minutes", 0),
+    day_start_time: text(row, "day_start_time"),
+    day_end_time: text(row, "day_end_time"),
+    meeting_days: textList(row, "meeting_days"),
+    timezone: text(row, "timezone"),
+    invites_open_at: nullableText(row, "invites_open_at"),
+    invites_close_at: nullableText(row, "invites_close_at"),
+    max_invites_per_person: optionalInt(row, "max_invites_per_person"),
+    max_meetings_per_day: optionalInt(row, "max_meetings_per_day"),
+    invite_expires_after_hours: int(row, "invite_expires_after_hours", 0),
+    visibility: visibilityOf(row),
+    intro_pl: text(row, "intro_pl"),
+    intro_en: text(row, "intro_en"),
+    updated_at: nullableText(row, "updated_at"),
+    requester_groups: ruleGroups(row.requester_groups),
+    invitee_groups: ruleGroups(row.invitee_groups),
+    available_groups: ruleGroups(row.available_groups),
+    tables_count: int(row, "tables_count", 0),
+    seats_count: int(row, "seats_count", 0),
+    participants_count: int(row, "participants_count", 0),
+    with_availability_count: int(row, "with_availability_count", 0),
+  };
+}
+
 export async function fetchMeetingSettings(eventId: string): Promise<MeetingSettings> {
   const { data, error } = await supabase.rpc("admin_event_meeting_settings_get", {
     p_event_id: eventId,
   });
   if (error) throw error;
-  return data as unknown as MeetingSettings;
+  return parseMeetingSettings(data, eventId);
 }
 
 export interface MeetingSettingsInput {
@@ -217,9 +366,8 @@ export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<
     }),
   });
   if (error) throw error;
-  return data as unknown as MeetingSettings;
+  return parseMeetingSettings(data, input.eventId);
 }
-
 
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: LISTA, STATYSTYKI, DECYZJE
@@ -259,7 +407,6 @@ export async function fetchAdminMeetings(query: AdminMeetingsQuery): Promise<Adm
   if (error) throw error;
   return data ?? [];
 }
-
 
 export async function fetchMeetingStats(eventId: string): Promise<Json> {
   const { data, error } = await supabase.rpc("admin_event_meeting_stats", {
@@ -308,7 +455,6 @@ export async function fetchAdminFreeSlots(input: {
   if (error) throw error;
   return data ?? [];
 }
-
 
 /** Organizator umawia spotkanie od razu przyjete (pakiety sponsorskie). */
 export async function arrangeMeeting(input: {
@@ -364,8 +510,6 @@ export async function saveAdminAvailability(input: {
   if (error) throw error;
   return String(data);
 }
-
-
 
 export async function deleteAdminAvailability(id: string): Promise<boolean> {
   const { error } = await supabase.rpc("admin_event_meeting_availability_delete", { _id: id });
@@ -470,7 +614,6 @@ export async function inviteToMeeting(input: {
   if (error) throw error;
   return data;
 }
-
 
 export async function respondToMeeting(input: {
   meetingId: string;

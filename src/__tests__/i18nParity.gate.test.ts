@@ -74,6 +74,30 @@ const GATED_PREFIXES = [
   // w `check:i18n-parity`; oba braki domknięte razem z tym wpisem.
   "adminPostPanes",
   "adminWorkflows",
+  // MODUŁ WYDARZEŃ (Event Builder), obie płaszczyzny: panel organizatora
+  // i powierzchnia uczestnika. Do 08.2026 stał poza bramką - i to nie był
+  // wybór, tylko przeoczenie: cztery nakładki modułu rejestrowały się dopiero
+  // w ciele `ensureXI18n()`, więc parytet ich po prostu NIE WIDZIAŁ i liczył
+  // je jako zero rozjazdów. Po wpięciu rejestracji przy imporcie okazało się,
+  // że parytet jest pełny (`missingEn` i `missingPl` po zerze), więc bramka
+  // nic nie kosztuje TERAZ, a zamyka drogę następnemu brakowi.
+  //
+  // Dlaczego to musi być bramka, a nie raport. Moduł renderuje z kluczy
+  // ETYKIETY ENUMÓW (formaty, stany, role, rodzaje punktów kontroli) i
+  // KOMUNIKATY ODMOWY - a odmowa mówi organizatorowi, CO ZROBIĆ, żeby zapis
+  // przeszedł. Surowy klucz w tym miejscu zostawia go bez następnego kroku,
+  // dokładnie tak jak na powierzchni klubów, gdzie ten sam argument
+  // przesądził o bramce od pierwszego dnia.
+  "adminEvents",
+  "adminEventAgenda",
+  "adminEventRegistration",
+  "adminEventSponsors",
+  "adminEventTerms",
+  "adminEventOnsite",
+  "adminEventMeetings",
+  "eventRegistration",
+  "eventMeetings",
+  "eventFront",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -126,6 +150,42 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // "część", "Previous part" -> "Poprzednia część"), a samo "Dossier" jest
   // zapożyczeniem używanym po polsku bez zmiany - jak "Newsletter" wyżej.
   "postExperience.series.series",
+  // MODUŁ WYDARZEŃ. Dwadzieścia cztery pozycje tej samej klasy: zapożyczenia
+  // i nazwy własne, które po polsku brzmią tak samo jak po angielsku.
+  // "Sponsor", "Partner", "Moderator", "Catering", "Marketing", "Link",
+  // "Format", "Status", "Online" i "Agenda" to nie są nieprzetłumaczone
+  // napisy - to są te same słowa. "Chatham House" to nazwa własna reguły.
+  // Nazwy walut zapisuje się małą literą w OBU językach ("euro"), więc
+  // identyczność jest tu poprawną pisownią, a nie kopią.
+  //
+  // Jedna pozycja z pierwotnych dwudziestu pięciu NIE trafiła na tę listę, bo
+  // była realną usterką: polska odznaka giełdy mówiła "Slot", gdy reszta
+  // polskiej powierzchni mówi "Termin" - i została poprawiona, zamiast zostać
+  // tu przykryta.
+  "adminEvents.formats.online",
+  "adminEvents.list.filters.formatLabel",
+  "adminEvents.list.row.chathamHouse",
+  "adminEvents.types.dialog.formatLabel",
+  "adminEventAgenda.formats.online",
+  "adminEventAgenda.nav.sectionTitle",
+  "adminEventAgenda.roles.moderator",
+  "adminEventMeetings.list.sponsorColumn",
+  "adminEventMeetings.list.sponsorFilter",
+  "adminEventOnsite.badges.dialog.paperFormat",
+  "adminEventOnsite.checkpointKinds.catering",
+  "adminEventOnsite.checkpoints.dialog.sponsor",
+  "adminEventOnsite.filters.sponsor",
+  "adminEventRegistration.currencies.EUR",
+  "adminEventRegistration.registrations.columns.status",
+  "adminEventRegistration.registrations.filters.status",
+  "adminEventRegistration.sources.partner",
+  "adminEventSponsors.contactRoles.marketing",
+  "adminEventSponsors.materialKinds.link",
+  "adminEventSponsors.roles.partner",
+  "adminEventSponsors.roles.sponsor",
+  "eventFront.formats.online",
+  "eventFront.list.formatLabel",
+  "eventMeetings.fields.sponsor",
 ];
 
 function loadOverlays(): void {

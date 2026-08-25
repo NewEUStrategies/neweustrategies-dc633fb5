@@ -466,6 +466,132 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.events TO anon, authenticated;
 GRANT ALL ON public.events TO service_role;
 
+-- ---------------------------------------------------------------------------
+-- KASA I SILNIK KUPONOW - atrapy pod migracje 20260824080000 (wejsciowki,
+-- pakiety, kupony). Modul Wydarzen zaczal od niej zalezec od trzech rzeczy
+-- spoza swojego zakresu, a harness wylapal to REPLAYEM, nie lektura:
+-- "relation public.payment_orders does not exist".
+--
+-- Ksztalt z oryginalow: payment_orders, b2b_coupons i b2b_coupon_redemptions
+-- (20260721070203), b2b_coupon_campaigns (20260721082414), verification_domains
+-- plus kolumna `academic` (20260822171037). Wchodzi WYLACZNIE to, czego dotyka
+-- modul - kolumny rozliczeniowe, ktorych zaden RPC wydarzen nie czyta, sa poza
+-- atrapa, zgodnie z zasada calego tego pliku.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.payment_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'pending',
+  amount_cents integer NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'PLN',
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.b2b_coupons (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  code text NOT NULL,
+  name text,
+  description text,
+  discount_kind text NOT NULL CHECK (discount_kind IN ('percent', 'fixed')),
+  discount_percent integer CHECK (discount_percent IS NULL OR discount_percent BETWEEN 1 AND 100),
+  discount_cents integer CHECK (discount_cents IS NULL OR discount_cents > 0),
+  currency text,
+  active boolean NOT NULL DEFAULT true,
+  max_redemptions integer CHECK (max_redemptions IS NULL OR max_redemptions > 0),
+  redemptions_count integer NOT NULL DEFAULT 0,
+  valid_from timestamptz,
+  valid_until timestamptz,
+  plan_ids uuid[] NOT NULL DEFAULT ARRAY[]::uuid[],
+  campaign_id uuid,
+  grants_tier_key text,
+  grants_duration_days integer,
+  newsletter_segment text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT b2b_coupons_code_unique UNIQUE (tenant_id, code),
+  CONSTRAINT b2b_coupons_discount_shape CHECK (
+    (discount_kind = 'percent' AND discount_percent IS NOT NULL AND discount_cents IS NULL)
+    OR (discount_kind = 'fixed' AND discount_cents IS NOT NULL AND discount_percent IS NULL)
+  )
+);
+
+CREATE TABLE IF NOT EXISTS public.b2b_coupon_redemptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  coupon_id uuid NOT NULL REFERENCES public.b2b_coupons(id) ON DELETE CASCADE,
+  order_id uuid REFERENCES public.payment_orders(id) ON DELETE SET NULL,
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  applied_cents integer NOT NULL DEFAULT 0,
+  original_cents integer NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'PLN',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.b2b_coupon_campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  prefix text NOT NULL DEFAULT '',
+  code_length integer NOT NULL DEFAULT 8 CHECK (code_length BETWEEN 4 AND 24),
+  code_count integer NOT NULL CHECK (code_count > 0 AND code_count <= 10000),
+  generated_count integer NOT NULL DEFAULT 0,
+  discount_kind text NOT NULL CHECK (discount_kind IN ('percent', 'fixed')),
+  discount_percent integer CHECK (discount_percent IS NULL OR discount_percent BETWEEN 1 AND 100),
+  discount_cents integer CHECK (discount_cents IS NULL OR discount_cents > 0),
+  currency text,
+  max_redemptions_per_code integer DEFAULT 1,
+  valid_from timestamptz,
+  valid_until timestamptz,
+  plan_ids uuid[] NOT NULL DEFAULT ARRAY[]::uuid[],
+  grants_tier_key text,
+  grants_duration_days integer,
+  newsletter_segment text,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'generated', 'sent', 'archived')),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.verification_domains (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  domain text NOT NULL,
+  badge text NOT NULL DEFAULT 'verified',
+  active boolean NOT NULL DEFAULT true,
+  require_email_confirmed boolean NOT NULL DEFAULT true,
+  academic boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Weryfikacja akademicka jako ATRAPA O ZEROWEJ LOGICE WLASNEJ: czyta prawdziwa
+-- tabele domen i prawdziwy adres wolajacego. Gdyby zwracala stala, kazda asercja
+-- o stawce akademickiej przechodzilaby zawsze i nie mierzylaby niczego.
+CREATE OR REPLACE FUNCTION public.my_academic_domain_verification()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $fn$
+  SELECT EXISTS (
+    SELECT 1
+    FROM auth.users u
+    JOIN public.verification_domains d
+      ON d.domain = split_part(lower(btrim(u.email)), '@', 2)
+    WHERE u.id = auth.uid()
+      AND d.active
+      AND d.academic
+      AND d.tenant_id = public._caller_tenant()
+  );
+$fn$;
+
 -- POLITYKI `events` - ATRAPA, ale ATRAPA OBOWIAZKOWA (z 20260713093000).
 --
 -- Zadna z dziesieciu migracji modulu nie tworzy polityki na `events`; siedza

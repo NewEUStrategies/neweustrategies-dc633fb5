@@ -20,7 +20,11 @@ import { AvailabilityWindowDialog } from "@/components/events/meetings/Availabil
 import { formatEventDateTime, formatEventTime } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
 import { meetingErrorI18nKey } from "@/lib/events/meetingsErrors";
-import { draftFromWindow, type WindowDraft, type WindowPayload } from "@/lib/events/meetingWindowDraft";
+import {
+  draftFromWindow,
+  type WindowDraft,
+  type WindowPayload,
+} from "@/lib/events/meetingWindowDraft";
 import { useDeleteMyAvailability, useSaveMyAvailability } from "@/lib/events/useMyMeetings";
 import type { MyAvailabilityWindow } from "@/lib/events/meetingExchange";
 

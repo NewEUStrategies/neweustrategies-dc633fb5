@@ -104,6 +104,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO auth.users (id, email) VALUES
   ('e0000000-0000-0000-0000-0000000000a1', 'red.a@sesje.test'),
   ('e0000000-0000-0000-0000-0000000000b1', 'red.b@sesje.test'),
+  ('e0000000-0000-0000-0000-00000000000e', 'tylko.redaktor@sesje.test'),
   ('c0000000-0000-0000-0000-0000000000a1', 'czlonek1.a@sesje.test'),
   ('c0000000-0000-0000-0000-0000000000a2', 'czlonek2.a@sesje.test'),
   ('c0000000-0000-0000-0000-0000000000a3', 'czlonek3.a@sesje.test'),
@@ -114,6 +115,7 @@ INSERT INTO auth.users (id, email) VALUES
 INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
   ('e0000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'Redaktor A', 'red-a'),
   ('e0000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'Redaktor B', 'red-b'),
+  ('e0000000-0000-0000-0000-00000000000e', '11111111-1111-1111-1111-111111111111', 'Tylko Redaktor', 'tylko-red'),
   ('c0000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'Czlonek Jeden', 'czlonek-1'),
   ('c0000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'Czlonek Dwa', 'czlonek-2'),
   ('c0000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111', 'Czlonek Trzy', 'czlonek-3'),
@@ -122,8 +124,9 @@ INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
   ('50000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'Prelegent B1', 'prelegent-b1');
 
 INSERT INTO public.user_roles (user_id, role) VALUES
-  ('e0000000-0000-0000-0000-0000000000a1', 'editor'),
-  ('e0000000-0000-0000-0000-0000000000b1', 'editor');
+  ('e0000000-0000-0000-0000-0000000000a1', 'admin'),
+  ('e0000000-0000-0000-0000-0000000000b1', 'admin'),
+  ('e0000000-0000-0000-0000-00000000000e', 'editor');
 
 INSERT INTO public.speaker_profiles (id, tenant_id, user_id, headline_pl, headline_en, is_public) VALUES
   ('59000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111',
@@ -1294,10 +1297,38 @@ RESET ROLE;
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as('c0000000-0000-0000-0000-0000000000a1',
                       '11111111-1111-1111-1111-111111111111');
+-- ---------------------------------------------------------------------------
+-- AGENDA JEST ADMINISTRACYJNA. Decyzja wlasciciela produktu z 2026-08-24:
+-- szesc podmodulow (agenda, zapisy, sponsorzy, obsluga na miejscu, regulaminy,
+-- gielda spotkan) przestaje byc dostepnych dla roli `editor`. Migracja
+-- 20260824090000 zamyka to w bazie, a nie w ekranie - komponent React
+-- zatrzymuje tylko tego, kto go widzi, a RPC mozna zawolac z konsoli.
+--
+-- BEZ TEJ ASERCJI ZMIANA NIE MIALABY TESTU. Aktor ma role `editor` i nic poza
+-- nia: gdyby bramka wrocila kiedys do `assert_editor_tenant()` w starym
+-- znaczeniu, ten wiersz zrobi sie czerwony, a nie przejdzie po cichu.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.act_as('e0000000-0000-0000-0000-00000000000e',
+                      '11111111-1111-1111-1111-111111111111');
 SELECT pg_temp.assert_raises_like(
   $q$SELECT count(*) FROM public.admin_event_sessions_list(
        'e5000000-0000-0000-0000-0000000000a1')$q$,
-  'editor role required',
+  'admin role required',
+  '10/sesje/ROLA: REDAKTOR nie wchodzi do panelu agendy - podmodul jest administracyjny');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_session_save(jsonb_build_object(
+       'event_id','e5000000-0000-0000-0000-0000000000a1',
+       'title_pl','Proba','title_en','Attempt',
+       'starts_at', now()::text, 'ends_at', (now() + interval '1 hour')::text))$q$,
+  'admin role required',
+  '10/sesje/ROLA: REDAKTOR nie zapisze sesji - odmowa dotyczy takze zapisu, nie tylko odczytu');
+
+SELECT pg_temp.act_as('c0000000-0000-0000-0000-0000000000a1',
+                      '11111111-1111-1111-1111-111111111111');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT count(*) FROM public.admin_event_sessions_list(
+       'e5000000-0000-0000-0000-0000000000a1')$q$,
+  'admin role required',
   '10/sesje: uczestnik bez roli redakcyjnej nie wchodzi do panelu agendy');
 
 SELECT pg_temp.act_as(NULL, '11111111-1111-1111-1111-111111111111');

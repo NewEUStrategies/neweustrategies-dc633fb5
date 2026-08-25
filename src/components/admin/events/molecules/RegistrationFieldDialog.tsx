@@ -78,10 +78,8 @@ export function RegistrationFieldDialog({
   const errorFor = (name: FieldDraftField): string | null =>
     touched && issue?.field === name ? t(`adminEventRegistration.errors.${issue.errorKey}`) : null;
 
-  const set = <K extends keyof RegistrationFieldDraft>(
-    key: K,
-    value: RegistrationFieldDraft[K],
-  ) => setDraft((previous) => ({ ...previous, [key]: value }));
+  const set = <K extends keyof RegistrationFieldDraft>(key: K, value: RegistrationFieldDraft[K]) =>
+    setDraft((previous) => ({ ...previous, [key]: value }));
 
   const setOption = (index: number, patch: Partial<RegistrationFieldDraft["options"][number]>) =>
     setDraft((previous) => ({

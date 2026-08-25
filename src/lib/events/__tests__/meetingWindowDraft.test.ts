@@ -54,9 +54,9 @@ describe("meetingWindowDraft", () => {
   });
 
   it("odrzuca zbyt dluga notatke", () => {
-    expect(validateWindowDraft(draft("2026-09-14T10:00", "2026-09-14T11:00", "x".repeat(301)))).toBe(
-      "noteTooLong",
-    );
+    expect(
+      validateWindowDraft(draft("2026-09-14T10:00", "2026-09-14T11:00", "x".repeat(301))),
+    ).toBe("noteTooLong");
   });
 
   it("z wiersza bazy robi szkic edycji z zachowanym id i stanem okna", () => {

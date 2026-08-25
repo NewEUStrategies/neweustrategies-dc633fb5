@@ -77,10 +77,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
     setDraft(draftFromSettings(settingsQ.data));
   }, [settingsQ.data, eventId]);
 
-  const errors = useMemo(
-    () => (draft === null ? [] : validateSettingsDraft(draft)),
-    [draft],
-  );
+  const errors = useMemo(() => (draft === null ? [] : validateSettingsDraft(draft)), [draft]);
   const perDay = draft === null ? 0 : slotsPerDay(draft);
 
   if (settingsQ.isLoading || draft === null) {
@@ -116,9 +113,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
   const toggleGroup = (side: "requesterGroupIds" | "inviteeGroupIds", id: string) => {
     const current = draft[side];
     patch({
-      [side]: current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
+      [side]: current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
     } as Partial<MeetingSettingsDraft>);
   };
 
@@ -164,9 +159,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
         columns={2}
       >
         <div className="space-y-1.5">
-          <Label htmlFor="slot-minutes">
-            {t("adminEventMeetings.settings.slotMinutesLabel")}
-          </Label>
+          <Label htmlFor="slot-minutes">{t("adminEventMeetings.settings.slotMinutesLabel")}</Label>
           <Input
             id="slot-minutes"
             inputMode="numeric"
@@ -210,9 +203,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="meeting-timezone">
-            {t("adminEventMeetings.settings.timezoneLabel")}
-          </Label>
+          <Label htmlFor="meeting-timezone">{t("adminEventMeetings.settings.timezoneLabel")}</Label>
           <Input
             id="meeting-timezone"
             value={draft.timezone}
@@ -223,9 +214,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="expiry-hours">
-            {t("adminEventMeetings.settings.expiryHoursLabel")}
-          </Label>
+          <Label htmlFor="expiry-hours">{t("adminEventMeetings.settings.expiryHoursLabel")}</Label>
           <Input
             id="expiry-hours"
             inputMode="numeric"

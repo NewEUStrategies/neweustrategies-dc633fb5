@@ -485,6 +485,13 @@ export const adminEventMeetingsPl = {
     },
 
     // ---- spotkanie umówione przez organizatora ------------------------------
+    // Etykiety listy wolnych terminow w dialogu umawiania. Siostrzana sekcja
+    // `eventMeetings.slots` obsluguje powierzchnie UCZESTNIKA i ma wlasne
+    // napisy - te dwa ekrany celowo nie dziela slownika.
+    slots: {
+      loading: "Szukanie wolnych terminów…",
+      tableNone: "Bez stolika",
+    },
     arrange: {
       title: "Umów spotkanie",
       subtitle:
@@ -492,6 +499,11 @@ export const adminEventMeetingsPl = {
       firstPersonLabel: "Pierwsza osoba",
       secondPersonLabel: "Druga osoba",
       personPlaceholder: "Szukaj po nazwisku albo firmie",
+      // Komunikaty WYSZUKIWARKI OSOB. Wczesniej stal tu klucz od szukania
+      // terminow, wiec przy wpisywaniu nazwiska panel pisal "Szukanie wolnych
+      // terminow…" - napis z zupelnie innego kroku dialogu.
+      personsLoading: "Szukanie osób…",
+      personsEmpty: "Nikogo takiego nie znaleźliśmy.",
       slotLabel: "Termin",
       slotPlaceholder: "Wybierz z wolnych terminów",
       findSlotsAction: "Pokaż wolne terminy",
@@ -1071,6 +1083,10 @@ export const adminEventMeetingsEn = {
       seatLabel: "seat {{seat}}",
     },
 
+    slots: {
+      loading: "Looking for free slots…",
+      tableNone: "No table",
+    },
     arrange: {
       title: "Arrange a meeting",
       subtitle:
@@ -1078,6 +1094,8 @@ export const adminEventMeetingsEn = {
       firstPersonLabel: "First person",
       secondPersonLabel: "Second person",
       personPlaceholder: "Search by name or company",
+      personsLoading: "Searching for people…",
+      personsEmpty: "We found nobody like that.",
       slotLabel: "Slot",
       slotPlaceholder: "Pick from the free slots",
       findSlotsAction: "Show free slots",

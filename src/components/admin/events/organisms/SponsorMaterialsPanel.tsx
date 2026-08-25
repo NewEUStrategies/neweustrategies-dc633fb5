@@ -103,9 +103,7 @@ export function SponsorMaterialsPanel({
   return (
     <section className="space-y-3 rounded-md border border-border/70 bg-muted/20 p-3">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">
-          {t("adminEventSponsors.sponsors.materials.title")}
-        </h3>
+        <h3 className="text-sm font-medium">{t("adminEventSponsors.sponsors.materials.title")}</h3>
         <Button
           size="sm"
           variant="outline"
@@ -200,9 +198,7 @@ export function SponsorMaterialsPanel({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("adminEventSponsors.sponsors.materials.title")}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("adminEventSponsors.sponsors.materials.title")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("adminEventSponsors.sponsors.materials.deleteConfirm")}
             </AlertDialogDescription>

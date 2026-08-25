@@ -224,7 +224,9 @@ describe("meetingsApi - kontrakt payloadów", () => {
       sortOrder: 10,
       isActive: true,
     });
-    expect(poza("admin_event_meeting_table_save", wyslanePola("admin_event_meeting_table_save"))).toEqual([]);
+    expect(
+      poza("admin_event_meeting_table_save", wyslanePola("admin_event_meeting_table_save")),
+    ).toEqual([]);
 
     await api.fetchAdminMeetings({ eventId: "e1", groupId: "g1", search: "kowalski" });
     const lista = wyslanePola("admin_event_meetings_list");
@@ -233,7 +235,9 @@ describe("meetingsApi - kontrakt payloadów", () => {
     expect(lista).toContain("q");
 
     await api.setMeetingStatus({ meetingId: "m1", status: "held" });
-    expect(poza("admin_event_meeting_set_status", wyslanePola("admin_event_meeting_set_status"))).toEqual([]);
+    expect(
+      poza("admin_event_meeting_set_status", wyslanePola("admin_event_meeting_set_status")),
+    ).toEqual([]);
 
     await api.fetchAdminFreeSlots({ eventId: "e1", aRegistrationId: "r1", bRegistrationId: "r2" });
     const sloty = wyslanePola("admin_event_meeting_free_slots");
@@ -247,7 +251,9 @@ describe("meetingsApi - kontrakt payloadów", () => {
       inviteeRegistrationId: "r2",
       startsAt: "2026-09-01T09:00:00Z",
     });
-    expect(poza("admin_event_meeting_arrange", wyslanePola("admin_event_meeting_arrange"))).toEqual([]);
+    expect(poza("admin_event_meeting_arrange", wyslanePola("admin_event_meeting_arrange"))).toEqual(
+      [],
+    );
 
     await api.saveAdminAvailability({
       registrationId: "r1",
@@ -256,7 +262,10 @@ describe("meetingsApi - kontrakt payloadów", () => {
       isOpen: true,
     });
     expect(
-      poza("admin_event_meeting_availability_set", wyslanePola("admin_event_meeting_availability_set")),
+      poza(
+        "admin_event_meeting_availability_set",
+        wyslanePola("admin_event_meeting_availability_set"),
+      ),
     ).toEqual([]);
   });
 
@@ -292,10 +301,14 @@ describe("meetingsApi - kontrakt payloadów", () => {
       startsAt: "2026-09-01T09:00:00Z",
       endsAt: "2026-09-01T12:00:00Z",
     });
-    expect(poza("event_meeting_availability_set", wyslanePola("event_meeting_availability_set"))).toEqual([]);
+    expect(
+      poza("event_meeting_availability_set", wyslanePola("event_meeting_availability_set")),
+    ).toEqual([]);
 
     await api.deleteMyAvailability("a1");
-    expect(poza("event_meeting_availability_delete", wyslanePola("event_meeting_availability_delete"))).toEqual([]);
+    expect(
+      poza("event_meeting_availability_delete", wyslanePola("event_meeting_availability_delete")),
+    ).toEqual([]);
 
     await api.fetchMyMeetings({ eventSlug: "kongres", status: "accepted" });
     expect(poza("event_meetings_mine", wyslanePola("event_meetings_mine"))).toEqual([]);

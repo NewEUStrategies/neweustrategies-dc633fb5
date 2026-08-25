@@ -41,10 +41,7 @@ import {
   type RegistrationsQuery,
   type WaitlistPromoteInput,
 } from "@/lib/events/registrationsApi";
-import {
-  parseRegistrationCounts,
-  type RegistrationCounts,
-} from "@/lib/events/registrationCounts";
+import { parseRegistrationCounts, type RegistrationCounts } from "@/lib/events/registrationCounts";
 import type { Json } from "@/integrations/supabase/types";
 
 export const registrationKeys = {
@@ -52,10 +49,17 @@ export const registrationKeys = {
   event: (eventId: string) => [...registrationKeys.all, eventId] as const,
   tickets: (eventId: string) => [...registrationKeys.event(eventId), "tickets"] as const,
   fields: (eventId: string) => [...registrationKeys.event(eventId), "fields"] as const,
-  counts: (query: RegistrationCountsQuery) =>
-    [...registrationKeys.event(query.eventId), "counts", query] as const,
-  list: (query: RegistrationsQuery) =>
-    [...registrationKeys.event(query.eventId), "list", query] as const,
+  // OBA KLUCZE PRZYJMUJA `null` - patrz uzasadnienie przy `agendaKeys.sessions`.
+  // Atrapa `{ eventId: "none" }` wymagala rzutowania `as unknown as`, bo nie
+  // miala pozostalych pol zapytania; `null` opisuje stan wylaczenia wprost.
+  counts: (query: RegistrationCountsQuery | null) =>
+    query === null
+      ? ([...registrationKeys.all, "counts", "idle"] as const)
+      : ([...registrationKeys.event(query.eventId), "counts", query] as const),
+  list: (query: RegistrationsQuery | null) =>
+    query === null
+      ? ([...registrationKeys.all, "list", "idle"] as const)
+      : ([...registrationKeys.event(query.eventId), "list", query] as const),
 };
 
 // Lista i liczniki starzeja sie szybko - w dniu wydarzenia organizator patrzy na
@@ -88,9 +92,7 @@ export function useRegistrationsList(
   query: RegistrationsQuery | null,
 ): UseQueryResult<RegistrationsPage> {
   return useQuery({
-    queryKey: registrationKeys.list(
-      query ?? ({ eventId: "none" } as unknown as RegistrationsQuery),
-    ),
+    queryKey: registrationKeys.list(query),
     queryFn: () => fetchRegistrations(query as RegistrationsQuery),
     enabled: query !== null,
     staleTime: LIVE_STALE_MS,
@@ -101,10 +103,9 @@ export function useRegistrationCounts(
   query: RegistrationCountsQuery | null,
 ): UseQueryResult<RegistrationCounts> {
   return useQuery({
-    queryKey: registrationKeys.counts(
-      query ?? ({ eventId: "none" } as unknown as RegistrationCountsQuery),
-    ),
-    queryFn: async () => parseRegistrationCounts(await fetchRegistrationCounts(query as RegistrationCountsQuery)),
+    queryKey: registrationKeys.counts(query),
+    queryFn: async () =>
+      parseRegistrationCounts(await fetchRegistrationCounts(query as RegistrationCountsQuery)),
     enabled: query !== null,
     staleTime: LIVE_STALE_MS,
   });

@@ -66,12 +66,8 @@ describe("fieldDraftIssue", () => {
     expect(fieldDraftIssue(valid({ isQualifying: true, qualifyOperator: "equals" }))?.field).toBe(
       "qualifyValue",
     );
-    expect(
-      fieldDraftIssue(valid({ isQualifying: true, qualifyOperator: "is_true" })),
-    ).toBeNull();
-    expect(
-      fieldDraftIssue(valid({ isQualifying: true, qualifyOperator: "not_empty" })),
-    ).toBeNull();
+    expect(fieldDraftIssue(valid({ isQualifying: true, qualifyOperator: "is_true" }))).toBeNull();
+    expect(fieldDraftIssue(valid({ isQualifying: true, qualifyOperator: "not_empty" }))).toBeNull();
   });
 });
 
@@ -88,7 +84,9 @@ describe("qualifyValueJson", () => {
       qualifyValueJson(valid({ isQualifying: true, qualifyOperator: "gte", qualifyValue: "10" })),
     ).toBe(10);
     expect(
-      qualifyValueJson(valid({ isQualifying: true, qualifyOperator: "equals", qualifyValue: "PL" })),
+      qualifyValueJson(
+        valid({ isQualifying: true, qualifyOperator: "equals", qualifyValue: "PL" }),
+      ),
     ).toBe("PL");
   });
 

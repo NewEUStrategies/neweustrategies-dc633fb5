@@ -199,7 +199,10 @@ export function EventTicketDialog({
             />
           </AdminFormSection>
 
-          <AdminFormSection title={t("adminEventRegistration.tickets.columns.approval")} columns={1}>
+          <AdminFormSection
+            title={t("adminEventRegistration.tickets.columns.approval")}
+            columns={1}
+          >
             <AdminFormSwitchRow
               label={t("adminEventRegistration.tickets.editor.requiresApproval")}
               hint={t("adminEventRegistration.tickets.editor.requiresApprovalHint")}

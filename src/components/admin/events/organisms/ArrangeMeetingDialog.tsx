@@ -92,8 +92,8 @@ function PersonPicker(props: {
         {options.length === 0 ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">
             {isFetching
-              ? t("adminEventMeetings.slots.loading")
-              : t("adminEventMeetings.empty.participants")}
+              ? t("adminEventMeetings.arrange.personsLoading")
+              : t("adminEventMeetings.arrange.personsEmpty")}
           </p>
         ) : (
           options.map((option) => (
@@ -159,7 +159,8 @@ export function ArrangeMeetingDialog({ eventId, open, onOpenChange }: ArrangeMee
           toast.success(t("adminEventMeetings.toasts.meetingArranged"));
           onOpenChange(false);
         },
-        onError: (error) => toast.error(t(adminMeetingFailure(error).key, adminMeetingFailure(error).params)),
+        onError: (error) =>
+          toast.error(t(adminMeetingFailure(error).key, adminMeetingFailure(error).params)),
       },
     );
   };

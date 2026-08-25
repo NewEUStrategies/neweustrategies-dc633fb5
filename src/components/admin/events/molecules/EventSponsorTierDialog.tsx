@@ -67,11 +67,7 @@ export function EventSponsorTierDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      tier === null
-        ? emptyTierDraft(nextSortOrder, nextRank)
-        : tierDraftFromRow(tier as unknown as Record<string, unknown>),
-    );
+    setDraft(tier === null ? emptyTierDraft(nextSortOrder, nextRank) : tierDraftFromRow(tier));
     setTouched(false);
   }, [open, tier, nextSortOrder, nextRank]);
 
@@ -242,7 +238,9 @@ export function EventSponsorTierDialog({
                     onClick={() =>
                       setDraft((previous) => ({
                         ...previous,
-                        benefits: previous.benefits.filter((_item, itemIndex) => itemIndex !== index),
+                        benefits: previous.benefits.filter(
+                          (_item, itemIndex) => itemIndex !== index,
+                        ),
                       }))
                     }
                   >
