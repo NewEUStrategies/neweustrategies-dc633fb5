@@ -23,6 +23,7 @@ vi.mock("react-i18next", () => ({
     t: (key: string) => key,
     i18n: { language: "pl", changeLanguage: () => Promise.resolve() },
   }),
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
