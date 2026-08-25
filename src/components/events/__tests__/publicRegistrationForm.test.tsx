@@ -14,8 +14,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
 import type { RegisterInput } from "@/lib/events/publicRegistrationApi";
 
-const fetchForm = vi.fn<[string], Promise<RegistrationForm>>();
-const register = vi.fn<[RegisterInput], Promise<unknown>>();
+const fetchForm = vi.fn<(slug: string) => Promise<RegistrationForm>>();
+const register = vi.fn<(input: RegisterInput) => Promise<unknown>>();
 const cancel = vi.fn();
 
 vi.mock("react-i18next", () => ({

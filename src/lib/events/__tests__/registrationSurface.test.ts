@@ -104,14 +104,14 @@ describe("resolveRegistrationSurface: tryb i przeplyw zapisow (ten defekt)", () 
     expect(result.kind).toBe("registrationForm");
     // Kluczowe: akcja NIE jest `rsvp`. `rsvp_event()` odmawia trybowi `form`
     // statusu `going`, wiec kontrolka z ta akcja prowadzilaby w sciane.
-    expect(result.control.action).toBe("registrationForm");
+    expect(result.control?.action).toBe("registrationForm");
     expect(result.messageKey).toBe("eventFront.registrationSurface.formRequired");
   });
 
   it("przeplyw approval kieruje na TEN SAM formularz zgloszenia", () => {
     const result = surface({ registrationFlow: "approval" });
     expect(result.kind).toBe("registrationApproval");
-    expect(result.control.action).toBe("registrationForm");
+    expect(result.control?.action).toBe("registrationForm");
   });
 
   it("tryb none nie daje zadnej kontrolki", () => {
