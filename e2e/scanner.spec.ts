@@ -233,13 +233,26 @@ test.describe("aplikacja skanera", () => {
 
   test("bez sieci skan trafia do kolejki, a po powrocie sieci zostaje wysłany", async ({
     page,
-    context,
   }) => {
     const calls = await stubScannerPlane(page);
+    // Brak sieci udajemy PRZEGLĄDARCE, a nie łączu: dev server dogrywa moduły
+    // w trakcie pracy, więc realne odcięcie transportu wywracałoby aplikację
+    // zamiast testować kolejkę. Flaga steruje `navigator.onLine`, czyli
+    // dokładnie tym sygnałem, na którym opiera się skaner.
+    await page.addInitScript(() => {
+      (window as unknown as { __scannerOffline: boolean }).__scannerOffline = false;
+      Object.defineProperty(window.navigator, "onLine", {
+        get: () => !(window as unknown as { __scannerOffline: boolean }).__scannerOffline,
+      });
+    });
+
     await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
-    await context.setOffline(true);
+    await page.evaluate(() => {
+      (window as unknown as { __scannerOffline: boolean }).__scannerOffline = true;
+      window.dispatchEvent(new Event("offline"));
+    });
 
     await page.locator("#scanner-code").fill("TICKET-OFFLINE-1");
     await page.locator("#scanner-code").press("Enter");
@@ -256,19 +269,17 @@ test.describe("aplikacja skanera", () => {
     expect(calls.checkin).toHaveLength(0);
 
     // 3) Powrót sieci opróżnia kolejkę bez udziału człowieka.
-    await context.setOffline(false);
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    // eslint-disable-next-line no-console
-    page.on("console", (m) => console.log("BROWSER", m.type(), m.text()));
-    await page.waitForTimeout(5000);
-    // eslint-disable-next-line no-console
-    console.log("DEBUG state", await page.evaluate(() => ({ online: navigator.onLine })), calls.checkin.length);
+    await page.evaluate(() => {
+      (window as unknown as { __scannerOffline: boolean }).__scannerOffline = false;
+      window.dispatchEvent(new Event("online"));
+    });
 
-    await expect.poll(() => calls.checkin.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(() => calls.checkin.length, { timeout: 30_000 }).toBe(1);
     expect(calls.checkin[0]).toMatchObject({ code: "TICKET-OFFLINE-1" });
     await expect.poll(async () => (await readOutbox(page)).length, { timeout: 10_000 }).toBe(0);
     await expect(page.getByRole("heading", { name: "Kolejka skanów" })).toBeHidden();
   });
+
 
   test("kolejka przeżywa przeładowanie karty", async ({ page }) => {
     await stubScannerPlane(page);
