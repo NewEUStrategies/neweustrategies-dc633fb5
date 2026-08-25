@@ -733,4 +733,5 @@ jobs:
             reports/deployment-report.md
             reports/deployment-report.json
             reports/db-contract.json
+            reports/migration-ledger.json
           if-no-files-found: ignore

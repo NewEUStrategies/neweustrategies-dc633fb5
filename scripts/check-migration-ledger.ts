@@ -65,7 +65,9 @@ async function askMissing(versions: readonly string[]): Promise<string[]> {
 
 async function main(): Promise<void> {
   if (!url || !key) {
-    console.error("✗ Brak SUPABASE_URL / klucza Supabase - nie mogę zweryfikować rejestru migracji.");
+    console.error(
+      "✗ Brak SUPABASE_URL / klucza Supabase - nie mogę zweryfikować rejestru migracji.",
+    );
     process.exit(1);
   }
 
