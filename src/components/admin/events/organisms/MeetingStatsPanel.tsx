@@ -66,7 +66,7 @@ export function MeetingStatsPanel({ eventId }: { eventId: string }) {
           icon={CalendarCheck}
           label={t("adminEventMeetings.stats.confirmed")}
           value={num(stats.confirmed)}
-          tone="positive"
+          tone="ok"
         />
         <AdminMetricTile
           icon={Percent}
@@ -89,7 +89,7 @@ export function MeetingStatsPanel({ eventId }: { eventId: string }) {
           icon={CalendarClock}
           label={t("adminEventMeetings.stats.expired")}
           value={num(stats.expired)}
-          tone="warning"
+          tone="warn"
         />
         <AdminMetricTile
           icon={CalendarCheck}
@@ -100,7 +100,7 @@ export function MeetingStatsPanel({ eventId }: { eventId: string }) {
           icon={Users}
           label={t("adminEventMeetings.stats.noShow")}
           value={num(stats.noShow)}
-          tone="warning"
+          tone="warn"
         />
       </div>
 
