@@ -52,6 +52,7 @@
     "check:sql-policy-tenant-regression": "bun run scripts/check-sql-policy-tenant-regression.ts",
     "check:gate-coverage": "bun run scripts/check-gate-coverage.ts",
     "check:db-contract": "bun run scripts/check-db-contract.ts",
+    "check:migration-ledger": "bun run scripts/check-migration-ledger.ts",
     "check:types-freshness": "bun run scripts/check-generated-types-freshness.ts",
     "check:db-row-casts": "bun run scripts/check-db-row-casts.ts",
     "check:i18n-hardcoded": "bun run scripts/check-i18n-hardcoded.ts",
