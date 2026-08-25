@@ -18477,6 +18477,10 @@ export type Database = {
         }
         Returns: string
       }
+      _event_meeting_directory_scope: {
+        Args: { _event_id: string; _registration_id: string; _tenant: string }
+        Returns: string
+      }
       _event_meeting_free_slots: {
         Args: {
           _a_registration_id: string

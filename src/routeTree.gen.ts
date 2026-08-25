@@ -59,6 +59,7 @@ import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
 import { Route as ProgramsIndexRouteImport } from './routes/programs.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as PodcastsIndexRouteImport } from './routes/podcasts.index'
+import { Route as EventsIndexRouteImport } from './routes/events.index'
 import { Route as ClubIndexRouteImport } from './routes/club.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -101,9 +102,8 @@ import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.u
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
-import { Route as EventsSlugRouteImport } from './routes/events.$slug'
-import { Route as EventsIndexRouteImport } from './routes/events.index'
 import { Route as EventsSavedRouteImport } from './routes/events.saved'
+import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as ClubApplyRouteImport } from './routes/club.apply'
@@ -575,6 +575,11 @@ const PodcastsIndexRoute = PodcastsIndexRouteImport.update({
   path: '/podcasts/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsIndexRoute = EventsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EventsRoute,
+} as any)
 const ClubIndexRoute = ClubIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -788,11 +793,6 @@ const LiveRssDotxmlRoute = LiveRssDotxmlRouteImport.update({
 const EventsSavedRoute = EventsSavedRouteImport.update({
   id: '/saved',
   path: '/saved',
-  getParentRoute: () => EventsRoute,
-} as any)
-const EventsIndexRoute = EventsIndexRouteImport.update({
-  id: '/',
-  path: '/',
   getParentRoute: () => EventsRoute,
 } as any)
 const EventsSlugRoute = EventsSlugRouteImport.update({
@@ -2118,6 +2118,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/club/': typeof ClubIndexRoute
+  '/events/': typeof EventsIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/programs/': typeof ProgramsIndexRoute
@@ -2231,7 +2232,6 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
-  '/events/': typeof EventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2270,7 +2270,6 @@ export interface FileRoutesByTo {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
-  '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/glossary': typeof GlossaryRoute
@@ -2424,6 +2423,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/club': typeof ClubIndexRoute
+  '/events': typeof EventsIndexRoute
   '/podcasts': typeof PodcastsIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/programs': typeof ProgramsIndexRoute
@@ -2536,7 +2536,6 @@ export interface FileRoutesByTo {
   '/admin/coupons': typeof AdminCouponsIndexRoute
   '/admin/crm': typeof AdminCrmIndexRoute
   '/admin/events': typeof AdminEventsIndexRoute
-  '/events': typeof EventsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -2741,6 +2740,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/club/': typeof ClubIndexRoute
+  '/events/': typeof EventsIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/programs/': typeof ProgramsIndexRoute
@@ -2854,7 +2854,6 @@ export interface FileRoutesById {
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
-  '/events/': typeof EventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -3060,6 +3059,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/club/'
+    | '/events/'
     | '/podcasts/'
     | '/profile/'
     | '/programs/'
@@ -3173,7 +3173,6 @@ export interface FileRouteTypes {
     | '/admin/coupons/'
     | '/admin/crm/'
     | '/admin/events/'
-    | '/events/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3212,7 +3211,6 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
-    | '/events'
     | '/experts'
     | '/feed'
     | '/glossary'
@@ -3366,6 +3364,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/club'
+    | '/events'
     | '/podcasts'
     | '/profile'
     | '/programs'
@@ -3681,6 +3680,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/club/'
+    | '/events/'
     | '/podcasts/'
     | '/profile/'
     | '/programs/'
@@ -3794,7 +3794,6 @@ export interface FileRouteTypes {
     | '/admin/coupons/'
     | '/admin/crm/'
     | '/admin/events/'
-    | '/events/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3992,18 +3991,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/scanner': {
-      id: '/scanner'
-      path: '/scanner'
-      fullPath: '/scanner'
-      preLoaderRoute: typeof ScannerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/search': {
       id: '/search'
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scanner': {
+      id: '/scanner'
+      path: '/scanner'
+      fullPath: '/scanner'
+      preLoaderRoute: typeof ScannerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rss.xml': {
@@ -4292,6 +4291,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/podcasts/'
       preLoaderRoute: typeof PodcastsIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/events/': {
+      id: '/events/'
+      path: '/'
+      fullPath: '/events/'
+      preLoaderRoute: typeof EventsIndexRouteImport
+      parentRoute: typeof EventsRoute
     }
     '/club/': {
       id: '/club/'
@@ -5217,13 +5223,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsIndexRouteImport
       parentRoute: typeof AdminEventsRoute
     }
-    '/events/': {
-      id: '/events/'
-      path: '/'
-      fullPath: '/events/'
-      preLoaderRoute: typeof EventsIndexRouteImport
-      parentRoute: typeof EventsRoute
-    }
     '/admin/crm/': {
       id: '/admin/crm/'
       path: '/'
@@ -5301,18 +5300,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/events/$slug_/manage': {
-      id: '/events/$slug_/manage'
-      path: '/$slug/manage'
-      fullPath: '/events/$slug/manage'
-      preLoaderRoute: typeof EventsSlugManageRouteImport
-      parentRoute: typeof EventsRoute
-    }
     '/events/$slug_/register': {
       id: '/events/$slug_/register'
       path: '/$slug/register'
       fullPath: '/events/$slug/register'
       preLoaderRoute: typeof EventsSlugRegisterRouteImport
+      parentRoute: typeof EventsRoute
+    }
+    '/events/$slug_/manage': {
+      id: '/events/$slug_/manage'
+      path: '/$slug/manage'
+      fullPath: '/events/$slug/manage'
+      preLoaderRoute: typeof EventsSlugManageRouteImport
       parentRoute: typeof EventsRoute
     }
     '/club/specialization/$slug': {
