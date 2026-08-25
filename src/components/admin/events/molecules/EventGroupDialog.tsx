@@ -64,11 +64,7 @@ export function EventGroupDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      group === null
-        ? emptyGroupDraft(nextSortOrder)
-        : groupDraftFromRow(group as unknown as Record<string, unknown>),
-    );
+    setDraft(group === null ? emptyGroupDraft(nextSortOrder) : groupDraftFromRow(group));
     setTouched(false);
   }, [open, group, nextSortOrder]);
 

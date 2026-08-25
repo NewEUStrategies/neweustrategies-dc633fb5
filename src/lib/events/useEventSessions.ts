@@ -52,8 +52,14 @@ import type { Json } from "@/integrations/supabase/types";
 export const agendaKeys = {
   all: ["event-agenda"] as const,
   event: (eventId: string) => [...agendaKeys.all, eventId] as const,
-  sessions: (query: SessionsQuery) =>
-    [...agendaKeys.event(query.eventId), "sessions", query] as const,
+  // KLUCZ PRZYJMUJE `null`, BO ZAPYTANIE BYWA WYLACZONE. Wczesniej wolajacy
+  // podstawial atrape `{ eventId: "none" }` przez `as unknown as` - rzutowanie
+  // klamalo o ksztalcie (brakowalo czterech pol), a klucz i tak byl sztuczny.
+  // `null` jest tu PRAWDA: zapytanie z `enabled: false` nie ma zapytania.
+  sessions: (query: SessionsQuery | null) =>
+    query === null
+      ? ([...agendaKeys.all, "sessions", "idle"] as const)
+      : ([...agendaKeys.event(query.eventId), "sessions", query] as const),
   tracks: (eventId: string) => [...agendaKeys.event(eventId), "tracks"] as const,
   rooms: (eventId: string) => [...agendaKeys.event(eventId), "rooms"] as const,
   conflicts: (eventId: string) => [...agendaKeys.event(eventId), "conflicts"] as const,
@@ -69,7 +75,7 @@ const LIVE_STALE_MS = 15_000;
 
 export function useEventSessions(query: SessionsQuery | null): UseQueryResult<EventSessionRow[]> {
   return useQuery({
-    queryKey: agendaKeys.sessions(query ?? ({ eventId: "none" } as unknown as SessionsQuery)),
+    queryKey: agendaKeys.sessions(query),
     queryFn: () => fetchEventSessions(query as SessionsQuery),
     enabled: query !== null,
     staleTime: CONFIG_STALE_MS,
@@ -130,6 +136,14 @@ function useInvalidateEvent(): (eventId: string) => Promise<void> {
   const queryClient = useQueryClient();
   return async (eventId: string) => {
     await queryClient.invalidateQueries({ queryKey: agendaKeys.event(eventId) });
+    // DRUGIE UNIEWAZNIENIE, BO SZCZEGOL LEZY POZA GALEZIA WYDARZENIA.
+    // `agendaKeys.session(id)` to `["event-agenda", "session", id]`, a wiec NIE
+    // ma przedrostka `agendaKeys.event(eventId)` - sam pierwszy wiersz zostawial
+    // szczegol w cache na `CONFIG_STALE_MS`. Dialog edycji czyta wlasnie
+    // szczegol (to on niesie `stream_url` i `recording_url`, odciete od
+    // klienckiego SELECT-a), wiec bez tej linii ponowne otwarcie sesji zaraz
+    // po zapisie pokazywaloby WARTOSC SPRZED zapisu - i odsylalo ja z powrotem.
+    await queryClient.invalidateQueries({ queryKey: [...agendaKeys.all, "session"] });
   };
 }
 

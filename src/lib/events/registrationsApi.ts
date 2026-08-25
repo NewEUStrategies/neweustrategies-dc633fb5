@@ -410,7 +410,7 @@ export async function saveRegistration(input: RegistrationUpsertInput): Promise<
 /** Odznaczenie wyslanego powiadomienia o promocji z rezerwy. Zwraca liczbe wierszy. */
 export async function markRegistrationsNotified(ids: readonly string[]): Promise<number> {
   const { data, error } = await supabase.rpc("admin_event_registration_mark_notified", {
-    p_payload: payload({ registration_ids: [...ids] as unknown as Json }),
+    p_payload: payload({ registration_ids: [...ids] }),
   });
   if (error) throw error;
   return Number(data ?? 0);

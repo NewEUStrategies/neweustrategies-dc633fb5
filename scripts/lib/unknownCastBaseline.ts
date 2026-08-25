@@ -139,7 +139,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/admin.coupons.redemptions.tsx", 1],
   ["src/routes/admin.link-monitor.tsx", 1],
   ["src/routes/admin.monetization.tsx", 1],
-  ["src/routes/admin.names.tsx", 3],
   ["src/routes/admin.pages.$slug.tsx", 1],
   ["src/routes/admin.pages.new.tsx", 1],
   ["src/routes/admin.podcasts.tsx", 1],

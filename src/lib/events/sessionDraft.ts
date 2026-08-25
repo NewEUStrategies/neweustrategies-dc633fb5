@@ -13,8 +13,8 @@
 // CHECK-iem albo `RAISE`, ma tu odpowiednik z kluczem komunikatu przy polu -
 // odmowa `23514` nie mówi organizatorowi, które z dwudziestu pól poprawić.
 import type {
+  EventSessionDetailRow,
   EventSessionInput,
-  EventSessionRow,
   SessionFormat,
   SessionStatus,
 } from "@/lib/events/sessionsApi";
@@ -109,34 +109,33 @@ function numberOf(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-export function sessionDraftFromRow(row: EventSessionRow): SessionDraft {
-  const record = row as unknown as Record<string, unknown>;
-  const capacity = record.capacity;
+export function sessionDraftFromRow(row: EventSessionDetailRow): SessionDraft {
+  const capacity = row.capacity;
   return {
-    id: String(record.id),
-    titlePl: textOf(record.title_pl),
-    titleEn: textOf(record.title_en),
-    descriptionPl: textOf(record.description_pl),
-    descriptionEn: textOf(record.description_en),
-    startsAt: toLocalInput(textOf(record.starts_at) || null),
-    endsAt: toLocalInput(textOf(record.ends_at) || null),
-    format: pick(SESSION_FORMATS, textOf(record.format), "onsite"),
-    status: pick(SESSION_STATUSES, textOf(record.status), "draft"),
-    trackId: typeof record.track_id === "string" ? record.track_id : null,
-    roomId: typeof record.room_id === "string" ? record.room_id : null,
-    parentSessionId: typeof record.parent_session_id === "string" ? record.parent_session_id : null,
-    requiresSignup: record.requires_signup === true,
+    id: String(row.id),
+    titlePl: textOf(row.title_pl),
+    titleEn: textOf(row.title_en),
+    descriptionPl: textOf(row.description_pl),
+    descriptionEn: textOf(row.description_en),
+    startsAt: toLocalInput(textOf(row.starts_at) || null),
+    endsAt: toLocalInput(textOf(row.ends_at) || null),
+    format: pick(SESSION_FORMATS, textOf(row.format), "onsite"),
+    status: pick(SESSION_STATUSES, textOf(row.status), "draft"),
+    trackId: typeof row.track_id === "string" ? row.track_id : null,
+    roomId: typeof row.room_id === "string" ? row.room_id : null,
+    parentSessionId: typeof row.parent_session_id === "string" ? row.parent_session_id : null,
+    requiresSignup: row.requires_signup === true,
     // Kolumna jest NULL-owalna, a wygenerowany typ podaje liczbę - brak limitu
     // przychodzi jako `null` i MUSI zostać pustym polem, nie zerem.
     capacity: typeof capacity === "number" ? String(capacity) : "",
-    minTierRank: String(numberOf(record.min_tier_rank, 0)),
-    chathamHouse: record.chatham_house === true,
-    isPrivate: record.is_private === true,
+    minTierRank: String(numberOf(row.min_tier_rank, 0)),
+    chathamHouse: row.chatham_house === true,
+    isPrivate: row.is_private === true,
     // Domyślnie zgoda jest włączona; `false` blokuje nachodzenie zapisów.
-    allowOverlap: record.allow_overlap !== false,
-    streamUrl: textOf(record.stream_url),
-    recordingUrl: textOf(record.recording_url),
-    sortOrder: String(numberOf(record.sort_order, 0)),
+    allowOverlap: row.allow_overlap !== false,
+    streamUrl: textOf(row.stream_url),
+    recordingUrl: textOf(row.recording_url),
+    sortOrder: String(numberOf(row.sort_order, 0)),
   };
 }
 

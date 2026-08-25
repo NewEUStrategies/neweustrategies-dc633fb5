@@ -14,7 +14,7 @@ import {
   validateSessionDraft,
   type SessionDraft,
 } from "@/lib/events/sessionDraft";
-import type { EventSessionRow } from "@/lib/events/sessionsApi";
+import type { EventSessionDetailRow } from "@/lib/events/sessionsApi";
 
 const EVENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
@@ -60,7 +60,7 @@ describe("sessionDraft - konwersje", () => {
       capacity: null,
       requires_signup: false,
       allow_overlap: false,
-    } as unknown as EventSessionRow;
+    } as unknown as EventSessionDetailRow;
     const converted = sessionDraftFromRow(row);
     expect(converted.capacity).toBe("");
     expect(converted.format).toBe("hybrid");
@@ -68,12 +68,38 @@ describe("sessionDraft - konwersje", () => {
     expect(converted.allowOverlap).toBe(false);
   });
 
+  // REGRESJA. `sessionDraftFromRow` brał wcześniej wiersz LISTY, a ten nie
+  // niesie `stream_url` ani `recording_url` - kolumny są odcięte od klienckiego
+  // SELECT-a grantem kolumnowym i panel czyta je wyłącznie przez
+  // `admin_event_session_detail`. Draft dostawał więc w obu polach pusty ciąg,
+  // a `sessionDraftToInput` odsyłał go jako `null`: każde otwarcie i zapisanie
+  // sesji KASOWAŁO adres transmisji i nagrania. Ten test pilnuje obu kierunków.
+  it("adres transmisji i nagrania wracają ze SZCZEGÓŁU i przeżywają zapis", () => {
+    const row = {
+      id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      title_pl: "Sesja",
+      title_en: "Session",
+      starts_at: "2026-09-01T08:00:00.000Z",
+      ends_at: "2026-09-01T09:00:00.000Z",
+      stream_url: "https://stream.example/abc",
+      recording_url: "https://rec.example/xyz",
+    } as unknown as EventSessionDetailRow;
+
+    const converted = sessionDraftFromRow(row);
+    expect(converted.streamUrl).toBe("https://stream.example/abc");
+    expect(converted.recordingUrl).toBe("https://rec.example/xyz");
+
+    const input = sessionDraftToInput(converted, EVENT);
+    expect(input.streamUrl).toBe("https://stream.example/abc");
+    expect(input.recordingUrl).toBe("https://rec.example/xyz");
+  });
+
   it("nieznany format i stan z bazy schodzą do wartości bezpiecznych", () => {
     const row = {
       id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
       format: "teleport",
       status: "archived",
-    } as unknown as EventSessionRow;
+    } as unknown as EventSessionDetailRow;
     const converted = sessionDraftFromRow(row);
     expect(converted.format).toBe("onsite");
     expect(converted.status).toBe("draft");

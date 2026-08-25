@@ -107,9 +107,9 @@ function answersPayload(answers: RegistrationAnswer[] | undefined): Json {
   for (const answer of answers ?? []) {
     const key = answer.key.trim();
     if (key === "") continue;
-    out[key] = Array.isArray(answer.value) ? (answer.value as unknown as Json) : answer.value;
+    out[key] = answer.value;
   }
-  return out as unknown as Json;
+  return out;
 }
 
 /** Formularz zapisu - jedno wywołanie, więc jedna chwila w czasie. */
@@ -128,7 +128,7 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
     last_name: input.lastName,
     email: input.email,
     answers: answersPayload(input.answers),
-    accepted_term_ids: (input.acceptedTermIds ?? []) as unknown as Json,
+    accepted_term_ids: input.acceptedTermIds ?? [],
     consent_data_processing: input.consentDataProcessing,
     consent_marketing: input.consentMarketing === true,
     consent_partner_sharing: input.consentPartnerSharing === true,
@@ -140,7 +140,7 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
   if (input.ticketTypeId !== undefined) payload.ticket_type_id = input.ticketTypeId;
 
   const { data, error } = await supabase.rpc("event_register", {
-    p_payload: payload as unknown as Json,
+    p_payload: payload,
   });
   if (error) throw error;
 
@@ -173,7 +173,7 @@ export async function cancelRegistration(
   if (input.reason !== undefined) payload.reason = input.reason;
 
   const { data, error } = await supabase.rpc("event_registration_cancel", {
-    p_payload: payload as unknown as Json,
+    p_payload: payload,
   });
   if (error) throw error;
 

@@ -300,7 +300,7 @@ export async function reorderSessions(items: readonly SessionOrderItem[]): Promi
       items: items.map((item) => ({
         id: item.id,
         sort_order: item.sortOrder,
-      })) as unknown as Json,
+      })),
     }),
   });
   if (error) throw error;
@@ -316,7 +316,7 @@ export interface SessionsStatusInput {
 export async function setSessionsStatus(input: SessionsStatusInput): Promise<number> {
   const { data, error } = await supabase.rpc("admin_event_sessions_set_status", {
     p_payload: payload({
-      ids: [...input.ids] as unknown as Json,
+      ids: [...input.ids],
       status: input.status,
     }),
   });
@@ -353,7 +353,7 @@ export async function setSessionSpeakers(
         role: speaker.role,
         sort_order: speaker.sortOrder,
         allow_overlap: speaker.allowOverlap,
-      })) as unknown as Json,
+      })),
     }),
   });
   if (error) throw error;

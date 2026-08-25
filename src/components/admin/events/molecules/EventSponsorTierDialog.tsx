@@ -67,11 +67,7 @@ export function EventSponsorTierDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      tier === null
-        ? emptyTierDraft(nextSortOrder, nextRank)
-        : tierDraftFromRow(tier as unknown as Record<string, unknown>),
-    );
+    setDraft(tier === null ? emptyTierDraft(nextSortOrder, nextRank) : tierDraftFromRow(tier));
     setTouched(false);
   }, [open, tier, nextSortOrder, nextRank]);
 

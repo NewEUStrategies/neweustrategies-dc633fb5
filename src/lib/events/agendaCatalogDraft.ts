@@ -70,15 +70,14 @@ export function emptyTrackDraft(sortOrder: number): TrackDraft {
 }
 
 export function trackDraftFromRow(row: EventTrackRow): TrackDraft {
-  const record = row as unknown as Record<string, unknown>;
   return {
-    id: String(record.id),
-    key: textOf(record.key),
-    namePl: textOf(record.name_pl),
-    nameEn: textOf(record.name_en),
-    accentColor: textOf(record.accent_color),
-    sortOrder: String(numberOf(record.sort_order, 0)),
-    isActive: record.is_active !== false,
+    id: String(row.id),
+    key: textOf(row.key),
+    namePl: textOf(row.name_pl),
+    nameEn: textOf(row.name_en),
+    accentColor: textOf(row.accent_color),
+    sortOrder: String(numberOf(row.sort_order, 0)),
+    isActive: row.is_active !== false,
   };
 }
 
@@ -143,16 +142,15 @@ export function emptyRoomDraft(sortOrder: number): RoomDraft {
 }
 
 export function roomDraftFromRow(row: EventRoomRow): RoomDraft {
-  const record = row as unknown as Record<string, unknown>;
-  const capacity = record.capacity;
+  const capacity = row.capacity;
   return {
-    id: String(record.id),
-    name: textOf(record.name),
+    id: String(row.id),
+    name: textOf(row.name),
     capacity: typeof capacity === "number" ? String(capacity) : "",
-    floor: textOf(record.floor),
-    locationNote: textOf(record.location_note),
-    sortOrder: String(numberOf(record.sort_order, 0)),
-    isActive: record.is_active !== false,
+    floor: textOf(row.floor),
+    locationNote: textOf(row.location_note),
+    sortOrder: String(numberOf(row.sort_order, 0)),
+    isActive: row.is_active !== false,
   };
 }
 

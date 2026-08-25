@@ -64,7 +64,7 @@ export function SponsorTiersPanel({ eventId }: { eventId: string }) {
 
   /** Przelacznik wysyla CALY wiersz - RPC zapisu jest upsertem. */
   const toggleActive = (row: EventSponsorTierRow, next: boolean) => {
-    const draft = tierDraftFromRow(row as unknown as Record<string, unknown>);
+    const draft = tierDraftFromRow(row);
     save.mutate({ ...tierDraftToInput(draft, eventId), isActive: next }, { onError: fail });
   };
 

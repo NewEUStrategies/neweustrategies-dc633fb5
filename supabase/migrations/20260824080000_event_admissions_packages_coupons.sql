@@ -1396,11 +1396,13 @@ BEGIN
     RAISE EXCEPTION 'not_found: package order does not exist in this tenant';
   END IF;
 
-  -- Rozdaje kupujacy ALBO staff. Nikt inny, nawet w tym samym najemcy.
+  -- Rozdaje kupujacy ALBO administrator. Nikt inny, nawet w tym samym najemcy.
+  -- Rola `editor` NIE wystarcza: plaszczyzna administracyjna Wydarzen jest
+  -- zamknieta dla redakcji (patrz 20260824090000 dla RPC i 20260825170000
+  -- dla RLS), a rozdanie miejsca z pakietu firmowego to decyzja rozliczeniowa.
   IF v_order.buyer_user_id IS DISTINCT FROM v_uid
      AND NOT (
        public.has_role(v_uid, 'admin'::app_role)
-       OR public.has_role(v_uid, 'editor'::app_role)
        OR public.is_super_admin(v_uid)
      ) THEN
     RAISE EXCEPTION 'forbidden: only the buyer or the organiser may hand out seats';
