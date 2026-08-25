@@ -229,9 +229,12 @@ export interface AdminMeetingsQuery {
   eventId: string;
   status?: MeetingStatusFilter;
   tableId?: string | null;
-  groupKey?: string | null;
+  /** Grupa uczestnikow filtruje po IDENTYFIKATORZE grupy, nie po jej kluczu. */
+  groupId?: string | null;
   sponsorId?: string | null;
   day?: string | null;
+  from?: string | null;
+  to?: string | null;
   search?: string | null;
   limit?: number;
   offset?: number;
@@ -243,10 +246,12 @@ export async function fetchAdminMeetings(query: AdminMeetingsQuery): Promise<Adm
       event_id: query.eventId,
       status: query.status ?? "all",
       table_id: query.tableId ?? null,
-      group_key: query.groupKey ?? null,
+      group_id: query.groupId ?? null,
       sponsor_id: query.sponsorId ?? null,
       day: query.day ?? null,
-      search: query.search ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      q: query.search ?? null,
       limit: query.limit ?? 50,
       offset: query.offset ?? 0,
     }),
@@ -254,6 +259,7 @@ export async function fetchAdminMeetings(query: AdminMeetingsQuery): Promise<Adm
   if (error) throw error;
   return data ?? [];
 }
+
 
 export async function fetchMeetingStats(eventId: string): Promise<Json> {
   const { data, error } = await supabase.rpc("admin_event_meeting_stats", {
