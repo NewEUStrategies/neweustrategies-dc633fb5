@@ -7732,6 +7732,7 @@ export type Database = {
           decided_by: string | null
           decision_note: string | null
           decision_source: string | null
+          directory_opt_out: boolean
           event_id: string
           group_id: string | null
           id: string
@@ -7759,6 +7760,7 @@ export type Database = {
           decided_by?: string | null
           decision_note?: string | null
           decision_source?: string | null
+          directory_opt_out?: boolean
           event_id: string
           group_id?: string | null
           id?: string
@@ -7786,6 +7788,7 @@ export type Database = {
           decided_by?: string | null
           decision_note?: string | null
           decision_source?: string | null
+          directory_opt_out?: boolean
           event_id?: string
           group_id?: string | null
           id?: string
@@ -18474,6 +18477,10 @@ export type Database = {
         }
         Returns: string
       }
+      _event_meeting_directory_scope: {
+        Args: { _event_id: string; _registration_id: string; _tenant: string }
+        Returns: string
+      }
       _event_meeting_free_slots: {
         Args: {
           _a_registration_id: string
@@ -22792,6 +22799,11 @@ export type Database = {
         Returns: Json
       }
       event_meeting_cancel: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_directory: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_directory_visibility_set: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_meeting_exchange: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_free_slots: {
         Args: { p_payload: Json }
