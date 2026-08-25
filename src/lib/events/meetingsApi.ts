@@ -42,17 +42,18 @@ export type MeetingStatusFilter = MeetingStatus | "all" | "pending" | "expired";
 
 export type MeetingSide = "requester" | "invitee";
 
-type Payload = Record<string, Json>;
+type Payload = Record<string, Json | undefined>;
 
 function payload(input: Payload): Json {
   // Klucze o wartosci `undefined` sa POMINIETE, a nie wyslane jako null:
   // RPC rozroznia "pole nieobecne" (zachowaj) od jawnego null (wyczysc).
-  const out: Payload = {};
+  const out: Record<string, Json> = {};
   for (const [key, value] of Object.entries(input)) {
     if (value !== undefined) out[key] = value;
   }
   return out as Json;
 }
+
 
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: STOLIKI
