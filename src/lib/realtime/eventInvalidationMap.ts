@@ -183,7 +183,58 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // jeden klucz zamiast dwoch, bo licznik i lista i tak zmieniaja sie razem.
   "club_thread.document_added.v1": (event) => clubWorkspaceEventKeys(event),
   "club_thread.milestone_set.v1": (event) => clubWorkspaceEventKeys(event),
+
+  // Event Builder. Kazde z tych zdarzen niesie `event_id`, wiec inwalidacja
+  // schodzi do GALEZI JEDNEGO wydarzenia - organizator patrzacy na inne
+  // wydarzenie nie traci swojego cache przy cudzym skanie.
+  "event_meeting.invited.v1": (event) => meetingEventKeys(event),
+  "event_meeting.accepted.v1": (event) => meetingEventKeys(event),
+  "event_meeting.declined.v1": (event) => meetingEventKeys(event),
+  "event_meeting.cancelled.v1": (event) => meetingEventKeys(event),
+  "event_meeting.rescheduled.v1": (event) => meetingEventKeys(event),
+  "event_meeting.arranged.v1": (event) => meetingEventKeys(event),
+  "event_scanner_device.issued.v1": (event) => onsiteEventKeys(event),
+  "event_scanner_device.locked.v1": (event) => onsiteEventKeys(event),
+  "event_scanner_device.revoked.v1": (event) => onsiteEventKeys(event),
+  "event_sponsor.published.v1": (event) => sponsorEventKeys(event),
+  "event_sponsor.snapshot_refreshed.v1": (event) => sponsorEventKeys(event),
 };
+
+// KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
+// `onsiteKeys`, `sponsorKeys`) mieszkaja w plikach hookow, wiec import
+// wciagnalby tu React Query i cala warstwe zapytan modulu - do pliku, ktory
+// czyta konsument szyny zdarzen. To ten sam powod, dla ktorego literalami stoi
+// `eventKeysList` nizej. Zgodnosci literalow z fabrykami pilnuje
+// `__tests__/eventRealtimeKeys.test.ts`, wiec rozjazd nie przejdzie po cichu.
+
+/**
+ * Gielda spotkan ma DWIE plaszczyzny. Panel organizatora klucza po `event_id`,
+ * wiec schodzimy do jego galezi. Uczestnik klucza po SLUG-u wydarzenia, ktorego
+ * payload nie niesie - tam uniewazniamy cala galez, bo zawezenie wymagaloby
+ * wlozenia sluga do payloadu, czyli tresci tam, gdzie maja byc identyfikatory.
+ */
+function meetingEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [
+    eventId === "" ? ["event-meetings"] : ["event-meetings", eventId],
+    ["event-meetings-mine"],
+  ];
+}
+
+function onsiteEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-onsite"] : ["event-onsite", eventId]];
+}
+
+/**
+ * Karta sponsora jest widoczna TAKZE na stronie publicznej wydarzenia, wiec
+ * publikacja uniewaznia obie strony - inaczej organizator widzi zmiane, a gosc
+ * nadal stara liste.
+ */
+function sponsorEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-sponsors"] : ["event-sponsors", eventId], ["public-event"]];
+}
 
 function billingDocumentKeys(): QueryKey[] {
   return [billingKeys.myBillingDocumentsAll(), billingKeys.myOrdersAll()];

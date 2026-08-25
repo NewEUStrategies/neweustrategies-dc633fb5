@@ -92,8 +92,8 @@ function PersonPicker(props: {
         {options.length === 0 ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">
             {isFetching
-              ? t("adminEventMeetings.slots.loading")
-              : t("adminEventMeetings.empty.participants")}
+              ? t("adminEventMeetings.arrange.personsLoading")
+              : t("adminEventMeetings.arrange.personsEmpty")}
           </p>
         ) : (
           options.map((option) => (
