@@ -1,7 +1,11 @@
 import type { ComponentType } from "react";
 import type { TFunction } from "i18next";
 import {
+  CalendarCheck,
   CalendarDays,
+  Handshake,
+  ListOrdered,
+  Ticket,
   LayoutDashboard,
   FileText,
   File,
