@@ -22333,7 +22333,26 @@ export type Database = {
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_availability_delete: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      event_meeting_availability_set: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_meeting_exchange: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_free_slots: {
+        Args: { p_payload: Json }
+        Returns: {
+          ends_at: string
+          starts_at: string
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
+        }[]
+      }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
