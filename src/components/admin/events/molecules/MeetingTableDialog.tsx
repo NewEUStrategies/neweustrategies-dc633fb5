@@ -127,9 +127,7 @@ export function MeetingTableDialog({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="meeting-table-label">
-              {t("adminEventMeetings.tables.labelLabel")}
-            </Label>
+            <Label htmlFor="meeting-table-label">{t("adminEventMeetings.tables.labelLabel")}</Label>
             <Input
               id="meeting-table-label"
               value={draft.label}
@@ -145,9 +143,7 @@ export function MeetingTableDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="meeting-table-zone">
-                {t("adminEventMeetings.tables.zoneLabel")}
-              </Label>
+              <Label htmlFor="meeting-table-zone">{t("adminEventMeetings.tables.zoneLabel")}</Label>
               <Input
                 id="meeting-table-zone"
                 value={draft.zone}
@@ -176,16 +172,12 @@ export function MeetingTableDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="meeting-table-order">
-              {t("adminEventMeetings.tables.orderLabel")}
-            </Label>
+            <Label htmlFor="meeting-table-order">{t("adminEventMeetings.tables.orderLabel")}</Label>
             <Input
               id="meeting-table-order"
               inputMode="numeric"
               value={draft.sortOrder}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, sortOrder: event.target.value }))
-              }
+              onChange={(event) => setDraft((prev) => ({ ...prev, sortOrder: event.target.value }))}
             />
             <p className="text-xs text-muted-foreground">
               {t("adminEventMeetings.tables.orderHint")}

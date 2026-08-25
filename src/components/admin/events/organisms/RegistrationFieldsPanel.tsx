@@ -64,9 +64,12 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
   };
 
   const toggleActive = (row: EventRegistrationFieldRow, next: boolean) => {
-    save.mutate({ ...fieldDraftToInput(fieldDraftFromRow(row), eventId), isActive: next }, {
-      onError: fail,
-    });
+    save.mutate(
+      { ...fieldDraftToInput(fieldDraftFromRow(row), eventId), isActive: next },
+      {
+        onError: fail,
+      },
+    );
   };
 
   const confirmDelete = () => {
@@ -125,9 +128,7 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
               </Badge>
 
               {row.is_required ? (
-                <Badge variant="outline">
-                  {t("adminEventRegistration.form.columns.required")}
-                </Badge>
+                <Badge variant="outline">{t("adminEventRegistration.form.columns.required")}</Badge>
               ) : null}
 
               {row.is_qualifying ? (

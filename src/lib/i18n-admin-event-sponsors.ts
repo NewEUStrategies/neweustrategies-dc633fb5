@@ -193,7 +193,6 @@ export const adminEventSponsorsPl = {
   },
 } as const;
 
-
 export const adminEventSponsorsEn = {
   adminEventSponsors: {
     nav: {
@@ -377,7 +376,6 @@ export const adminEventSponsorsEn = {
     },
   },
 } as const;
-
 
 let registered = false;
 

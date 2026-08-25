@@ -159,7 +159,8 @@ export function ArrangeMeetingDialog({ eventId, open, onOpenChange }: ArrangeMee
           toast.success(t("adminEventMeetings.toasts.meetingArranged"));
           onOpenChange(false);
         },
-        onError: (error) => toast.error(t(adminMeetingFailure(error).key, adminMeetingFailure(error).params)),
+        onError: (error) =>
+          toast.error(t(adminMeetingFailure(error).key, adminMeetingFailure(error).params)),
       },
     );
   };

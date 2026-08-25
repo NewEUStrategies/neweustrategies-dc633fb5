@@ -139,7 +139,8 @@ export const adminEventAgendaPl = {
       empty: "Wydarzenie nie ma ścieżek - program jest jednym pasmem.",
       addAction: "Dodaj ścieżkę",
       sessionsCount: "Sesje: {{count}}",
-      deleteConfirm: "Usunąć ścieżkę? Operacja zadziała tylko wtedy, gdy żadna sesja jej nie używa.",
+      deleteConfirm:
+        "Usunąć ścieżkę? Operacja zadziała tylko wtedy, gdy żadna sesja jej nie używa.",
       dialog: {
         createTitle: "Nowa ścieżka",
         editTitle: "Edycja ścieżki",
@@ -484,7 +485,8 @@ export const adminEventAgendaEn = {
 
     signups: {
       title: "Session signups",
-      subtitle: "The list of people with an account. The waiting list promotes itself when a seat frees up.",
+      subtitle:
+        "The list of people with an account. The waiting list promotes itself when a seat frees up.",
       loading: "Loading signups…",
       empty: "Nobody has signed up for this session.",
       addedByStaff: "Added by the organiser",
@@ -543,7 +545,8 @@ export const adminEventAgendaEn = {
       parentSelf: "A session cannot be its own parent session.",
       parentNotFound: "The parent session does not belong to this event.",
       parentDepth: "A sub-session cannot have sub-sessions of its own.",
-      sessionHasSignups: "The session has {{count}} active signups - cancel it instead of deleting.",
+      sessionHasSignups:
+        "The session has {{count}} active signups - cancel it instead of deleting.",
       speakerNotFound: "The speaker profile does not exist in this organisation.",
       speakerOverlap: "The speaker already has a session in this time slot.",
       signupDisabled: "This session does not take signups.",

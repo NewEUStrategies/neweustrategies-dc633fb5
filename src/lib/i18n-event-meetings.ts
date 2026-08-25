@@ -83,11 +83,13 @@ export const eventMeetingsPl = {
     },
 
     hints: {
-      availability: "Zaproszenie można wysłać tylko na termin, w którym obie strony mają otwarte okno dostępności.",
+      availability:
+        "Zaproszenie można wysłać tylko na termin, w którym obie strony mają otwarte okno dostępności.",
       invitesLeft: "Pozostało zaproszeń: {{count}}",
       dailyLimit: "Limit spotkań w jednym dniu: {{count}}",
       noSlots: "Brak wspólnego wolnego terminu - poproś rozmówcę o poszerzenie dostępności.",
-      noContact: "Adresu e-mail i telefonu nie udostępniamy - kontaktem wymienicie się na spotkaniu.",
+      noContact:
+        "Adresu e-mail i telefonu nie udostępniamy - kontaktem wymienicie się na spotkaniu.",
       bookingClosed: "Zapisy na spotkania są zamknięte.",
       declineReasonRequired: "Krótkie uzasadnienie odmowy trafia do drugiej strony.",
     },
@@ -135,9 +137,11 @@ export const eventMeetingsPl = {
       blocks: {
         notConfigured: "Organizator nie uruchomił jeszcze giełdy spotkań dla tego wydarzenia.",
         disabled: "Giełda spotkań jest wyłączona dla tego wydarzenia.",
-        notRegistered: "Giełda jest dla zarejestrowanych uczestników - zapisz się na wydarzenie, żeby umawiać rozmowy.",
+        notRegistered:
+          "Giełda jest dla zarejestrowanych uczestników - zapisz się na wydarzenie, żeby umawiać rozmowy.",
         notAllowed: "Twoja grupa uczestników nie umawia spotkań na tym wydarzeniu.",
-        closed: "Zapisy na spotkania są w tej chwili zamknięte - okna dostępności możesz zgłosić już teraz.",
+        closed:
+          "Zapisy na spotkania są w tej chwili zamknięte - okna dostępności możesz zgłosić już teraz.",
       },
       form: {
         save: "Zapisz",
@@ -146,7 +150,8 @@ export const eventMeetingsPl = {
       },
       availability: {
         title: "Twoje okna dostępności",
-        description: "Zaproszenie da się umówić tylko na termin, w którym obie strony mają otwarte okno.",
+        description:
+          "Zaproszenie da się umówić tylko na termin, w którym obie strony mają otwarte okno.",
         open: "Przyjmuję zaproszenia",
         closed: "Jestem, ale nie przyjmuję zaproszeń",
         openField: "Przyjmuję w tym oknie zaproszenia",
@@ -166,7 +171,8 @@ export const eventMeetingsPl = {
         declineTitle: "Odrzuć zaproszenie",
         cancelTitle: "Odwołaj spotkanie",
         rescheduleTitle: "Zaproponuj inny termin",
-        rescheduleHint: "Wybieramy z terminów wolnych dla obu stron - obecne spotkanie zostanie zamknięte jako przełożone.",
+        rescheduleHint:
+          "Wybieramy z terminów wolnych dla obu stron - obecne spotkanie zostanie zamknięte jako przełożone.",
         noSlots: "Brak wspólnego wolnego terminu - poproś rozmówcę o poszerzenie dostępności.",
         loadingSlots: "Szukamy wspólnych terminów…",
       },
@@ -198,9 +204,11 @@ export const eventMeetingsPl = {
       invitee_not_participating: "Zgłoszenie rozmówcy na to wydarzenie nie jest potwierdzone.",
       requester_group_cannot_meet: "Twoja grupa uczestników nie umawia spotkań na tym wydarzeniu.",
       invitee_group_cannot_meet: "Grupa rozmówcy nie przyjmuje zaproszeń na tym wydarzeniu.",
-      requester_group_not_allowed: "Reguły giełdy nie pozwalają Twojej grupie zapraszać na spotkania.",
+      requester_group_not_allowed:
+        "Reguły giełdy nie pozwalają Twojej grupie zapraszać na spotkania.",
       invitee_group_not_allowed: "Reguły giełdy nie pozwalają zaprosić osoby z tej grupy.",
-      requester_not_sponsor: "Na tym wydarzeniu zaproszenia wysyłają wyłącznie partnerzy i sponsorzy.",
+      requester_not_sponsor:
+        "Na tym wydarzeniu zaproszenia wysyłają wyłącznie partnerzy i sponsorzy.",
       invite_limit_reached: "Wyczerpałeś limit zaproszeń w tym wydarzeniu.",
       daily_limit_reached: "Jedna ze stron ma już komplet spotkań tego dnia.",
       duplicate_invitation: "Masz już aktywne zaproszenie do tej osoby na ten termin.",
@@ -286,11 +294,13 @@ export const eventMeetingsEn = {
     },
 
     hints: {
-      availability: "An invitation can only be sent for a slot where both sides have an open availability window.",
+      availability:
+        "An invitation can only be sent for a slot where both sides have an open availability window.",
       invitesLeft: "Invitations left: {{count}}",
       dailyLimit: "Meetings allowed per day: {{count}}",
       noSlots: "No shared free slot - ask your counterpart to widen their availability.",
-      noContact: "Email addresses and phone numbers are not shared here - exchange contacts at the meeting.",
+      noContact:
+        "Email addresses and phone numbers are not shared here - exchange contacts at the meeting.",
       bookingClosed: "Meeting booking is closed.",
       declineReasonRequired: "A short reason is passed on to the other side.",
     },
@@ -338,9 +348,11 @@ export const eventMeetingsEn = {
       blocks: {
         notConfigured: "The organiser has not opened the meeting exchange for this event yet.",
         disabled: "The meeting exchange is switched off for this event.",
-        notRegistered: "The exchange is for registered participants - register for the event to book conversations.",
+        notRegistered:
+          "The exchange is for registered participants - register for the event to book conversations.",
         notAllowed: "Your participant group does not book meetings at this event.",
-        closed: "Meeting booking is closed right now - you can still declare your availability windows.",
+        closed:
+          "Meeting booking is closed right now - you can still declare your availability windows.",
       },
       form: {
         save: "Save",
@@ -369,7 +381,8 @@ export const eventMeetingsEn = {
         declineTitle: "Decline invitation",
         cancelTitle: "Cancel meeting",
         rescheduleTitle: "Propose another slot",
-        rescheduleHint: "We only offer slots free for both sides - the current meeting is closed as rescheduled.",
+        rescheduleHint:
+          "We only offer slots free for both sides - the current meeting is closed as rescheduled.",
         noSlots: "No shared free slot - ask your counterpart to widen their availability.",
         loadingSlots: "Looking for shared slots…",
       },
@@ -400,9 +413,11 @@ export const eventMeetingsEn = {
       requester_not_participating: "Your registration for this event is not confirmed.",
       invitee_not_participating: "Your counterpart's registration for this event is not confirmed.",
       requester_group_cannot_meet: "Your participant group does not book meetings at this event.",
-      invitee_group_cannot_meet: "Your counterpart's group does not accept invitations at this event.",
+      invitee_group_cannot_meet:
+        "Your counterpart's group does not accept invitations at this event.",
       requester_group_not_allowed: "The exchange rules do not let your group send invitations.",
-      invitee_group_not_allowed: "The exchange rules do not let you invite someone from that group.",
+      invitee_group_not_allowed:
+        "The exchange rules do not let you invite someone from that group.",
       requester_not_sponsor: "At this event only partners and sponsors send invitations.",
       invite_limit_reached: "You have used up your invitations for this event.",
       daily_limit_reached: "One of you already has a full day of meetings.",

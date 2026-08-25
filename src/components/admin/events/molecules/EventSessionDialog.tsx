@@ -108,8 +108,7 @@ export function EventSessionDialog({
     [sessions, draft.id],
   );
 
-  const label = (pl: string, en: string): string =>
-    lang === "en" ? en || pl : pl || en;
+  const label = (pl: string, en: string): string => (lang === "en" ? en || pl : pl || en);
 
   const submit = () => {
     setTouched(true);

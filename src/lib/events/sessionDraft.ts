@@ -12,7 +12,12 @@
 // WALIDACJA ODCINA ZAPIS PRZED ŻĄDANIEM. Każdy warunek, który baza sprawdza
 // CHECK-iem albo `RAISE`, ma tu odpowiednik z kluczem komunikatu przy polu -
 // odmowa `23514` nie mówi organizatorowi, które z dwudziestu pól poprawić.
-import type { EventSessionInput, EventSessionRow, SessionFormat, SessionStatus } from "@/lib/events/sessionsApi";
+import type {
+  EventSessionInput,
+  EventSessionRow,
+  SessionFormat,
+  SessionStatus,
+} from "@/lib/events/sessionsApi";
 import { SESSION_FORMATS, SESSION_STATUSES } from "@/lib/events/sessionsApi";
 
 export const SESSION_MAX_TITLE = 300;
@@ -119,8 +124,7 @@ export function sessionDraftFromRow(row: EventSessionRow): SessionDraft {
     status: pick(SESSION_STATUSES, textOf(record.status), "draft"),
     trackId: typeof record.track_id === "string" ? record.track_id : null,
     roomId: typeof record.room_id === "string" ? record.room_id : null,
-    parentSessionId:
-      typeof record.parent_session_id === "string" ? record.parent_session_id : null,
+    parentSessionId: typeof record.parent_session_id === "string" ? record.parent_session_id : null,
     requiresSignup: record.requires_signup === true,
     // Kolumna jest NULL-owalna, a wygenerowany typ podaje liczbę - brak limitu
     // przychodzi jako `null` i MUSI zostać pustym polem, nie zerem.
@@ -151,8 +155,10 @@ const V = "adminEventAgenda.sessionDialog.validation.";
 export function validateSessionDraft(draft: SessionDraft): SessionFieldError[] {
   const errors: SessionFieldError[] = [];
 
-  if (draft.titlePl.trim() === "") errors.push({ field: "titlePl", messageKey: `${V}titleRequired` });
-  if (draft.titleEn.trim() === "") errors.push({ field: "titleEn", messageKey: `${V}titleRequired` });
+  if (draft.titlePl.trim() === "")
+    errors.push({ field: "titlePl", messageKey: `${V}titleRequired` });
+  if (draft.titleEn.trim() === "")
+    errors.push({ field: "titleEn", messageKey: `${V}titleRequired` });
 
   const startsAt = fromLocalInput(draft.startsAt);
   const endsAt = fromLocalInput(draft.endsAt);

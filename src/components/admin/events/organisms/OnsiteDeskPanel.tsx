@@ -76,9 +76,7 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
         onSuccess: (outcome) => {
           setLastOutcome(outcome);
           if (outcome.admit) {
-            toast.success(
-              t("adminEventOnsite.desk.outcome.granted", { name: personName(row) }),
-            );
+            toast.success(t("adminEventOnsite.desk.outcome.granted", { name: personName(row) }));
           } else {
             toast.error(
               t("adminEventOnsite.desk.outcome.denied", {
@@ -197,7 +195,9 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{personName(row)}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {[row.job_title, row.company].filter((part) => part !== null && part !== "").join(" · ")}
+                  {[row.job_title, row.company]
+                    .filter((part) => part !== null && part !== "")
+                    .join(" · ")}
                 </p>
               </div>
 

@@ -41,10 +41,7 @@ import {
   type RegistrationsQuery,
   type WaitlistPromoteInput,
 } from "@/lib/events/registrationsApi";
-import {
-  parseRegistrationCounts,
-  type RegistrationCounts,
-} from "@/lib/events/registrationCounts";
+import { parseRegistrationCounts, type RegistrationCounts } from "@/lib/events/registrationCounts";
 import type { Json } from "@/integrations/supabase/types";
 
 export const registrationKeys = {
@@ -104,7 +101,8 @@ export function useRegistrationCounts(
     queryKey: registrationKeys.counts(
       query ?? ({ eventId: "none" } as unknown as RegistrationCountsQuery),
     ),
-    queryFn: async () => parseRegistrationCounts(await fetchRegistrationCounts(query as RegistrationCountsQuery)),
+    queryFn: async () =>
+      parseRegistrationCounts(await fetchRegistrationCounts(query as RegistrationCountsQuery)),
     enabled: query !== null,
     staleTime: LIVE_STALE_MS,
   });

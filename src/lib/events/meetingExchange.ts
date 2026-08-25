@@ -215,7 +215,8 @@ export function exchangeIntro(exchange: MeetingExchange, lang: string): string {
 }
 
 /** Powod, dla ktorego uczestnik nie moze wysylac zaproszen - albo `null`. */
-export type ExchangeBlock = "notConfigured" | "disabled" | "notRegistered" | "notAllowed" | "closed";
+export type ExchangeBlock =
+  "notConfigured" | "disabled" | "notRegistered" | "notAllowed" | "closed";
 
 export function exchangeBlock(exchange: MeetingExchange): ExchangeBlock | null {
   if (!exchange.configured) return "notConfigured";

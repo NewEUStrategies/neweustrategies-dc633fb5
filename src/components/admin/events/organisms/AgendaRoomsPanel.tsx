@@ -24,11 +24,7 @@ import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitch
 import { EventRoomDialog } from "@/components/admin/events/molecules/EventRoomDialog";
 import { adminAgendaErrorMessage } from "@/lib/events/adminAgendaErrors";
 import { roomDraftFromRow, roomDraftToInput } from "@/lib/events/agendaCatalogDraft";
-import {
-  useDeleteEventRoom,
-  useEventRooms,
-  useSaveEventRoom,
-} from "@/lib/events/useEventSessions";
+import { useDeleteEventRoom, useEventRooms, useSaveEventRoom } from "@/lib/events/useEventSessions";
 import type { EventRoomInput, EventRoomRow } from "@/lib/events/sessionsApi";
 
 export function AgendaRoomsPanel({ eventId }: { eventId: string }) {

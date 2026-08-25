@@ -103,9 +103,7 @@ export function emptyGroupDraft(nextSortOrder: number): GroupDraft {
 
 function visibilityOf(value: unknown): GroupVisibility {
   const text = textOf(value);
-  return text === "none" || text === "own_group" || text === "everyone"
-    ? text
-    : "registered";
+  return text === "none" || text === "own_group" || text === "everyone" ? text : "registered";
 }
 
 export function groupDraftFromRow(row: Record<string, unknown>): GroupDraft {
@@ -275,7 +273,10 @@ export function termDraftToInput(draft: TermDraft, eventId: string): TermInput {
 }
 
 /** Ile akceptacji przestalo byc aktualne po podniesieniu wersji. */
-export function staleAcceptances(row: { acceptances_total: number; acceptances_current: number }): number {
+export function staleAcceptances(row: {
+  acceptances_total: number;
+  acceptances_current: number;
+}): number {
   const stale = numberOf(row.acceptances_total, 0) - numberOf(row.acceptances_current, 0);
   return stale > 0 ? stale : 0;
 }

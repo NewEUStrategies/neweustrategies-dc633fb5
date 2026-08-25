@@ -232,6 +232,9 @@ export function participantName(person: {
   firstName: string | null;
   lastName: string | null;
 }): string | null {
-  const name = [person.firstName, person.lastName].filter((part) => part !== null).join(" ").trim();
+  const name = [person.firstName, person.lastName]
+    .filter((part) => part !== null)
+    .join(" ")
+    .trim();
   return name.length > 0 ? name : null;
 }

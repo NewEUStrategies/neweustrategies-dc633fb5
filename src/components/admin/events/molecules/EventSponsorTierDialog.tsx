@@ -242,7 +242,9 @@ export function EventSponsorTierDialog({
                     onClick={() =>
                       setDraft((previous) => ({
                         ...previous,
-                        benefits: previous.benefits.filter((_item, itemIndex) => itemIndex !== index),
+                        benefits: previous.benefits.filter(
+                          (_item, itemIndex) => itemIndex !== index,
+                        ),
                       }))
                     }
                   >

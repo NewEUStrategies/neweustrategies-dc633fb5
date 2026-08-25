@@ -85,7 +85,11 @@ function answerText(value: string | string[] | undefined): string {
 }
 
 function isAnswered(field: RegistrationFormField, value: string | string[] | undefined): boolean {
-  if (field.fieldType === "checkbox" || field.fieldType === "switch" || field.fieldType === "consent")
+  if (
+    field.fieldType === "checkbox" ||
+    field.fieldType === "switch" ||
+    field.fieldType === "consent"
+  )
     return value === "true";
   if (Array.isArray(value)) return value.length > 0;
   return answerText(value) !== "";

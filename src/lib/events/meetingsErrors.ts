@@ -64,7 +64,6 @@ export const MEETING_ERROR_KEYS = [
   "unknown",
 ] as const;
 
-
 export type MeetingErrorKey = (typeof MEETING_ERROR_KEYS)[number];
 
 const KEY_SET = new Set<string>(MEETING_ERROR_KEYS);

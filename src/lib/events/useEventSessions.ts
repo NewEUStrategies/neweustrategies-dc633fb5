@@ -189,7 +189,9 @@ export function useDeleteEventTrack(eventId: string): UseMutationResult<boolean,
   });
 }
 
-export function useSaveEventRoom(eventId: string): UseMutationResult<string, Error, EventRoomInput> {
+export function useSaveEventRoom(
+  eventId: string,
+): UseMutationResult<string, Error, EventRoomInput> {
   const invalidate = useInvalidateEvent();
   return useMutation({
     mutationFn: saveEventRoom,

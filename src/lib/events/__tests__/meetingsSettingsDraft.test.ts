@@ -164,7 +164,6 @@ describe("slotsPerDay", () => {
     expect(slotsPerDay(draft())).toBe(19);
   });
 
-
   it("bez przerwy krok rowna sie dlugosci slotu", () => {
     expect(slotsPerDay(draft({ breakMinutes: "0", dayEndTime: "10:00" }))).toBe(3);
   });

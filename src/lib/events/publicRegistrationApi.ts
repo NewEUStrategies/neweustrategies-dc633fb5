@@ -20,10 +20,7 @@
 // „nie dotykaj".
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import {
-  parseRegistrationForm,
-  type RegistrationForm,
-} from "@/lib/events/registrationFormSurface";
+import { parseRegistrationForm, type RegistrationForm } from "@/lib/events/registrationFormSurface";
 
 /** Odpowiedzi bazy po zapisie - status ustala SQL, nie formularz. */
 export const REGISTRATION_RESULT_STATUSES = ["approved", "pending", "waitlist"] as const;
@@ -183,6 +180,7 @@ export async function cancelRegistration(
   const source = bag(data);
   return {
     registrationId: source === null ? "" : (nullableText(source, "registration_id") ?? ""),
-    promotedFromWaitlist: source === null ? 0 : (optionalInt(source, "promoted_from_waitlist") ?? 0),
+    promotedFromWaitlist:
+      source === null ? 0 : (optionalInt(source, "promoted_from_waitlist") ?? 0),
   };
 }

@@ -62,9 +62,7 @@ export function MeetingReasonDialog({
               : t("eventMeetings.participant.meetings.cancelTitle")}
           </DialogTitle>
           {required ? (
-            <DialogDescription>
-              {t("eventMeetings.hints.declineReasonRequired")}
-            </DialogDescription>
+            <DialogDescription>{t("eventMeetings.hints.declineReasonRequired")}</DialogDescription>
           ) : null}
         </DialogHeader>
 

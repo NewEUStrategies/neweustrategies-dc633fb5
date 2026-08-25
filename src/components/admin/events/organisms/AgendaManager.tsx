@@ -73,7 +73,10 @@ export function AgendaManager() {
 
       {eventId === null ? null : (
         <Tabs defaultValue="sessions" className="space-y-4">
-          <TabsList className="tabs-scroller" aria-label={t("adminEventAgenda.nav.sectionsNavLabel")}>
+          <TabsList
+            className="tabs-scroller"
+            aria-label={t("adminEventAgenda.nav.sectionsNavLabel")}
+          >
             <TabsTrigger value="sessions">{t("adminEventAgenda.nav.sessions")}</TabsTrigger>
             <TabsTrigger value="tracks">{t("adminEventAgenda.nav.tracks")}</TabsTrigger>
             <TabsTrigger value="rooms">{t("adminEventAgenda.nav.rooms")}</TabsTrigger>

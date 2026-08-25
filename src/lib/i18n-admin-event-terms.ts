@@ -87,8 +87,7 @@ export const adminEventTermsPl = {
     },
     members: {
       title: "Członkostwa dodatkowe",
-      subtitle:
-        "Grupa dodatkowa nie zmienia grupy z biletu - dokłada uprawnienia wybranym osobom.",
+      subtitle: "Grupa dodatkowa nie zmienia grupy z biletu - dokłada uprawnienia wybranym osobom.",
       groupLabel: "Grupa dodatkowa",
       search: "Szukaj osoby (imię, nazwisko, e-mail, firma)",
       loading: "Wczytywanie zapisów…",
@@ -205,8 +204,7 @@ export const adminEventTermsEn = {
     },
     groups: {
       title: "Attendee groups",
-      subtitle:
-        "A group decides permissions: who sees whom, who can meet, chat and collect leads.",
+      subtitle: "A group decides permissions: who sees whom, who can meet, chat and collect leads.",
       loading: "Loading groups…",
       empty: "This event has no group yet.",
       createAction: "Add group",

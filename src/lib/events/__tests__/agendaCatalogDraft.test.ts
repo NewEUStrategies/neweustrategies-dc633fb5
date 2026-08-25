@@ -24,7 +24,13 @@ const EVENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
 function track(overrides: Partial<TrackDraft> = {}): TrackDraft {
-  return { ...emptyTrackDraft(100), key: "policy", namePl: "Polityka", nameEn: "Policy", ...overrides };
+  return {
+    ...emptyTrackDraft(100),
+    key: "policy",
+    namePl: "Polityka",
+    nameEn: "Policy",
+    ...overrides,
+  };
 }
 
 function room(overrides: Partial<RoomDraft> = {}): RoomDraft {
@@ -46,7 +52,9 @@ describe("trackDraft", () => {
   });
 
   it("kolor spoza wzoru #RRGGBB nie trafia do bazy", () => {
-    expect(trackDraftToInput(track({ accentColor: "red; content:x" }), EVENT).accentColor).toBeNull();
+    expect(
+      trackDraftToInput(track({ accentColor: "red; content:x" }), EVENT).accentColor,
+    ).toBeNull();
     expect(trackDraftToInput(track({ accentColor: "#FA9346" }), EVENT).accentColor).toBe("#fa9346");
     expect(trackDraftToInput(track({ accentColor: "" }), EVENT).accentColor).toBeNull();
   });

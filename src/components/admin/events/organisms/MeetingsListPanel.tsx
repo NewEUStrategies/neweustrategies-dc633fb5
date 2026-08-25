@@ -329,9 +329,7 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("adminEventMeetings.list.cancelConfirmTitle")}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("adminEventMeetings.list.cancelConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("adminEventMeetings.list.cancelConfirmBody")}
             </AlertDialogDescription>

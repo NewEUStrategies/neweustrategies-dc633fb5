@@ -214,9 +214,7 @@ export function EventCheckpointDialog({
           ) : null}
 
           <div className="space-y-1.5">
-            <Label htmlFor="checkpoint-room">
-              {t("adminEventOnsite.checkpoints.dialog.room")}
-            </Label>
+            <Label htmlFor="checkpoint-room">{t("adminEventOnsite.checkpoints.dialog.room")}</Label>
             <FormSelect
               id="checkpoint-room"
               value={relationValue(draft.roomId)}

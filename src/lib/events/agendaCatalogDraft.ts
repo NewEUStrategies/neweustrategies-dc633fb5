@@ -9,7 +9,12 @@
 //
 // PUSTA POJEMNOŚĆ SALI TO BRAK DEKLARACJI, NIE ZERO. Sala na zero osób nie
 // przyjmie żadnej sesji; sala bez deklarowanej pojemności przyjmie każdą.
-import type { EventRoomInput, EventRoomRow, EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
+import type {
+  EventRoomInput,
+  EventRoomRow,
+  EventTrackInput,
+  EventTrackRow,
+} from "@/lib/events/sessionsApi";
 
 export const AGENDA_KEY_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 export const AGENDA_MAX_NAME = 200;
@@ -87,8 +92,10 @@ export function validateTrackDraft(draft: TrackDraft): TrackFieldError[] {
   if (draft.id === null && !AGENDA_KEY_PATTERN.test(draft.key.trim())) {
     errors.push({ field: "key", messageKey: `${TV}keyRequired` });
   }
-  if (draft.namePl.trim() === "") errors.push({ field: "namePl", messageKey: `${TV}namesRequired` });
-  if (draft.nameEn.trim() === "") errors.push({ field: "nameEn", messageKey: `${TV}namesRequired` });
+  if (draft.namePl.trim() === "")
+    errors.push({ field: "namePl", messageKey: `${TV}namesRequired` });
+  if (draft.nameEn.trim() === "")
+    errors.push({ field: "nameEn", messageKey: `${TV}namesRequired` });
   return errors;
 }
 

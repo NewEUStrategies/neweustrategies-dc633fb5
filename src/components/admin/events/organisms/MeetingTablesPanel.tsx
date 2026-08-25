@@ -212,9 +212,7 @@ export function MeetingTablesPanel({ eventId }: { eventId: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("adminEventMeetings.tables.deleteConfirmTitle")}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("adminEventMeetings.tables.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("adminEventMeetings.tables.deleteConfirmBody")}
             </AlertDialogDescription>

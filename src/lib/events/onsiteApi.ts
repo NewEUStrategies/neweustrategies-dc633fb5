@@ -208,8 +208,7 @@ export function parseCheckinOutcome(value: unknown): CheckinOutcome {
     direction: typeof row.direction === "string" ? row.direction : "in",
     occurredAt: typeof row.occurred_at === "string" ? row.occurred_at : null,
     repeatCount: typeof repeat === "number" ? repeat : 0,
-    previousCheckinAt:
-      typeof row.previous_checkin_at === "string" ? row.previous_checkin_at : null,
+    previousCheckinAt: typeof row.previous_checkin_at === "string" ? row.previous_checkin_at : null,
     checkpoint: record(row.checkpoint),
     person: record(row.person),
   };

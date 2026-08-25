@@ -66,10 +66,7 @@ describe("parseMeetingStats", () => {
         { label: "bez id", capacity: 2 },
         { table_id: "t1", label: "A", capacity: 1, is_active: false, utilisation_pct: 50 },
       ],
-      by_day: [
-        { day: "2026-09-01", confirmed: 2, invited: 1, total: 3 },
-        { confirmed: 9 },
-      ],
+      by_day: [{ day: "2026-09-01", confirmed: 2, invited: 1, total: 3 }, { confirmed: 9 }],
       without_meeting: [
         { registration_id: "r1", first_name: "Anna", last_name: "Nowak", has_availability: true },
         { first_name: "duch" },

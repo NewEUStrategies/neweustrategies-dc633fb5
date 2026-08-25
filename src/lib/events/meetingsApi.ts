@@ -54,7 +54,6 @@ function payload(input: Payload): Json {
   return out as Json;
 }
 
-
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: STOLIKI
 // ---------------------------------------------------------------------------
@@ -220,7 +219,6 @@ export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<
   return data as unknown as MeetingSettings;
 }
 
-
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: LISTA, STATYSTYKI, DECYZJE
 // ---------------------------------------------------------------------------
@@ -259,7 +257,6 @@ export async function fetchAdminMeetings(query: AdminMeetingsQuery): Promise<Adm
   if (error) throw error;
   return data ?? [];
 }
-
 
 export async function fetchMeetingStats(eventId: string): Promise<Json> {
   const { data, error } = await supabase.rpc("admin_event_meeting_stats", {
@@ -308,7 +305,6 @@ export async function fetchAdminFreeSlots(input: {
   if (error) throw error;
   return data ?? [];
 }
-
 
 /** Organizator umawia spotkanie od razu przyjete (pakiety sponsorskie). */
 export async function arrangeMeeting(input: {
@@ -364,8 +360,6 @@ export async function saveAdminAvailability(input: {
   if (error) throw error;
   return String(data);
 }
-
-
 
 export async function deleteAdminAvailability(id: string): Promise<boolean> {
   const { error } = await supabase.rpc("admin_event_meeting_availability_delete", { _id: id });
@@ -470,7 +464,6 @@ export async function inviteToMeeting(input: {
   if (error) throw error;
   return data;
 }
-
 
 export async function respondToMeeting(input: {
   meetingId: string;

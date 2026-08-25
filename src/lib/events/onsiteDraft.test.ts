@@ -169,10 +169,7 @@ describe("szablon identyfikatora", () => {
   });
 
   it("puste tlo i kolor jada jako null, nie jako pusty napis", () => {
-    const input = badgeTemplateDraftToInput(
-      { ...emptyBadgeTemplateDraft(), name: "Karta" },
-      EVENT,
-    );
+    const input = badgeTemplateDraftToInput({ ...emptyBadgeTemplateDraft(), name: "Karta" }, EVENT);
     expect(input.backgroundColor).toBeNull();
     expect(input.backgroundImageUrl).toBeNull();
     expect(input.widthMm).toBeNull();

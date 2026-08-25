@@ -3,10 +3,7 @@
 // nieznany klucz spada do `unknown` (organizator nie czyta kodow SQLSTATE).
 import { describe, expect, it } from "vitest";
 import i18n from "@/lib/i18n";
-import {
-  adminSponsorErrorMessage,
-  adminSponsorFailure,
-} from "@/lib/events/adminSponsorErrors";
+import { adminSponsorErrorMessage, adminSponsorFailure } from "@/lib/events/adminSponsorErrors";
 import {
   adminEventSponsorsEn,
   adminEventSponsorsPl,
@@ -51,9 +48,7 @@ describe("adminSponsorErrors", () => {
     expect(adminSponsorFailure(new Error("23514: violates check constraint")).key).toBe(
       "adminEventSponsors.errors.unknown",
     );
-    expect(adminSponsorFailure("Failed to fetch").key).toBe(
-      "adminEventSponsors.errors.unknown",
-    );
+    expect(adminSponsorFailure("Failed to fetch").key).toBe("adminEventSponsors.errors.unknown");
     expect(adminSponsorFailure(null).key).toBe("adminEventSponsors.errors.unknown");
   });
 });
