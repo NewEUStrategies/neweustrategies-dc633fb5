@@ -90,6 +90,22 @@ export type QualifyOutcome = (typeof QUALIFY_OUTCOMES)[number];
 
 type PayloadInput = Record<string, Json | undefined>;
 
+/**
+ * Argumenty pozycyjne RPC bez kluczy `undefined`.
+ *
+ * `{ p_status: undefined }` NIE jest tym samym co brak klucza: klient Supabase
+ * serializuje taki obiekt z polem `p_status: null`, a `null` w `p_status` to
+ * jawny filtr, nie jego brak. Skutek byłby cichy - lista zwracałaby te same
+ * wiersze, dopóki ktoś nie doda funkcji, która rozróżnia oba przypadki.
+ */
+function args<T extends Record<string, unknown>>(input: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) out[key] = value;
+  }
+  return out as T;
+}
+
 function payload(input: PayloadInput): Json {
   const out: Record<string, Json> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -271,7 +287,7 @@ function trimmedOrNull(value: string): string | null {
 }
 
 export async function fetchRegistrations(query: RegistrationsQuery): Promise<RegistrationsPage> {
-  const { data, error } = await supabase.rpc("admin_event_registrations_list", {
+  const { data, error } = await supabase.rpc("admin_event_registrations_list", args({
     p_event_id: query.eventId,
     p_status: query.status === "all" ? undefined : query.status,
     p_ticket_type_id: query.ticketTypeId ?? undefined,
@@ -281,7 +297,7 @@ export async function fetchRegistrations(query: RegistrationsQuery): Promise<Reg
     p_to: query.to ?? undefined,
     p_limit: query.limit,
     p_offset: query.offset,
-  });
+  }));
   if (error) throw error;
   const rows = data ?? [];
   // `total_count` jest powtorzone w kazdym wierszu (okno nad zapytaniem). Pusta
@@ -300,14 +316,14 @@ export interface RegistrationCountsQuery {
 }
 
 export async function fetchRegistrationCounts(query: RegistrationCountsQuery): Promise<Json> {
-  const { data, error } = await supabase.rpc("admin_event_registrations_counts", {
+  const { data, error } = await supabase.rpc("admin_event_registrations_counts", args({
     p_event_id: query.eventId,
     p_ticket_type_id: query.ticketTypeId ?? undefined,
     p_group_id: query.groupId ?? undefined,
     p_q: trimmedOrNull(query.q) ?? undefined,
     p_from: query.from ?? undefined,
     p_to: query.to ?? undefined,
-  });
+  }));
   if (error) throw error;
   return (data ?? {}) as Json;
 }
@@ -368,7 +384,9 @@ export async function saveRegistration(input: RegistrationUpsertInput): Promise<
       social_profile_url: input.socialProfileUrl,
       ticket_type_id: input.ticketTypeId,
       group_id: input.groupId,
-      status: input.status,
+      // `null` znaczy „nie ruszaj stanu" - baza ma własną wartość domyślną
+      // (`approved`), a wysłanie null wyglądałoby jak próba wyczyszczenia stanu.
+      status: input.status ?? undefined,
       answers: input.answers,
       note: input.note,
     }),
