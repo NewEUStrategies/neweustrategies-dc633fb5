@@ -336,7 +336,9 @@ export async function saveMyAvailability(input: {
 }
 
 export async function deleteMyAvailability(id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("event_meeting_availability_delete", { _id: id });
+  const { error } = await supabase.rpc("event_meeting_availability_delete", {
+    p_payload: payload({ id }),
+  });
   if (error) throw error;
   return true;
 }
