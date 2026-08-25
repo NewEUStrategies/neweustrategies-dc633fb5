@@ -313,14 +313,28 @@ export function buildAdminNavGroups({
     },
     {
       // Wydarzenia sa OSOBNA sekcja, nie pozycja w spolecznosci: modul ma
-      // wlasna podnawigacje (`EventsSubNav`) i docelowo czternascie ekranow.
-      // Sidebar pokazuje wejscie do sekcji, a nie jej wnetrze - inaczej te
-      // czternascie pozycji utopiloby reszte panelu.
+      // wlasna podnawigacje (`EventsSubNav`) i kilkanascie ekranow.
+      //
+      // DLACZEGO SIDEBAR WYMIENIA MODULY, A NIE TYLKO WEJSCIE DO SEKCJI.
+      // Panel jest punktem centralnym backendu, a wewnetrzna wyszukiwarka
+      // panelu indeksuje WLASNIE te pozycje. Modul widoczny tylko w
+      // `EventsSubNav` jest nieosiagalny dla kogos, kto szuka "rejestracja"
+      // albo "sponsorzy" - istnieje, ale nie da sie do niego trafic.
       id: "events",
       label: t("admin.navGroups.events"),
       items: [
         { to: "/admin/events", icon: CalendarDays, label: t("admin.nav.events") },
         { to: "/admin/events/types", icon: Shapes, label: t("admin.nav.eventTypes") },
+        {
+          to: "/admin/events/registrations",
+          icon: Ticket,
+          label: t("admin.nav.eventRegistrations"),
+        },
+        { to: "/admin/events/agenda", icon: ListOrdered, label: t("admin.nav.eventAgenda") },
+        { to: "/admin/events/sponsors", icon: Handshake, label: t("admin.nav.eventSponsors") },
+        { to: "/admin/events/onsite", icon: CalendarCheck, label: t("admin.nav.eventOnsite") },
+        { to: "/admin/events/meetings", icon: Users, label: t("admin.nav.eventMeetings") },
+        { to: "/admin/events/terms", icon: ShieldCheck, label: t("admin.nav.eventTerms") },
       ],
     },
   ];
