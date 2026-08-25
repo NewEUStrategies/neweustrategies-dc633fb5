@@ -105,13 +105,67 @@ export async function deleteMeetingTable(id: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: KONFIGURACJA GIELDY
 // ---------------------------------------------------------------------------
+//
+// KLUCZE PAYLOADU SA DOKLADNIE TYMI, KTORE CZYTA `admin_event_meeting_settings_save`.
+// Funkcja nie odrzuca nieznanego klucza - po prostu go IGNORUJE, wiec literowka
+// w nazwie pola nie konczy sie bledem, tylko cicho niezapisana konfiguracja.
+// Dlatego kontrakt jest zamkniety typem i pilnowany testem.
 
-export async function fetchMeetingSettings(eventId: string): Promise<Json> {
+/** Reguly widocznosci gieldy - odwzorowanie CHECK-a `visibility` z migracji. */
+export const MEETING_VISIBILITIES = [
+  "everyone",
+  "groups",
+  "sponsors_to_attendees",
+  "disabled",
+] as const;
+export type MeetingVisibility = (typeof MEETING_VISIBILITIES)[number];
+
+/** Grupa uczestnikow w regule gieldy - ksztalt z `jsonb_build_object` w RPC. */
+export interface MeetingRuleGroup {
+  group_id: string;
+  key: string;
+  name_pl: string;
+  name_en: string;
+  can_meet: boolean;
+  can_lead_retrieval: boolean;
+}
+
+/** Odpowiedz `admin_event_meeting_settings_get` - jeden do jednego z RPC. */
+export interface MeetingSettings {
+  configured: boolean;
+  event_id: string;
+  event_timezone: string | null;
+  is_enabled: boolean;
+  slot_minutes: number;
+  break_minutes: number;
+  day_start_time: string;
+  day_end_time: string;
+  meeting_days: string[];
+  timezone: string;
+  invites_open_at: string | null;
+  invites_close_at: string | null;
+  max_invites_per_person: number | null;
+  max_meetings_per_day: number | null;
+  invite_expires_after_hours: number;
+  visibility: MeetingVisibility;
+  intro_pl: string;
+  intro_en: string;
+  updated_at: string | null;
+  requester_groups: MeetingRuleGroup[];
+  invitee_groups: MeetingRuleGroup[];
+  available_groups: MeetingRuleGroup[];
+  tables_count: number;
+  seats_count: number;
+  participants_count: number;
+  with_availability_count: number;
+}
+
+export async function fetchMeetingSettings(eventId: string): Promise<MeetingSettings> {
   const { data, error } = await supabase.rpc("admin_event_meeting_settings_get", {
     p_event_id: eventId,
   });
   if (error) throw error;
-  return data;
+  return data as unknown as MeetingSettings;
 }
 
 export interface MeetingSettingsInput {
@@ -120,20 +174,25 @@ export interface MeetingSettingsInput {
   timezone: string;
   slotMinutes: number;
   breakMinutes: number;
-  windowStartsAt: string;
-  windowEndsAt: string;
-  bookingOpensAt: string | null;
-  bookingClosesAt: string | null;
+  /** Godzina otwarcia i zamkniecia gieldy w danym dniu, `HH:MM`. */
+  dayStartTime: string;
+  dayEndTime: string;
+  /** Konkretne dni gieldy (`YYYY-MM-DD`), nie zakres. */
+  meetingDays: string[];
+  invitesOpenAt: string | null;
+  invitesCloseAt: string | null;
   inviteExpiresAfterHours: number;
   maxInvitesPerPerson: number | null;
   maxMeetingsPerDay: number | null;
-  visibilityMode: string;
-  requiresApproval: boolean;
-  instructionsPl: string | null;
-  instructionsEn: string | null;
+  visibility: MeetingVisibility;
+  introPl: string;
+  introEn: string;
+  /** Wysylane tylko przy regule `groups`; pominiete = zachowaj obecny przydzial. */
+  requesterGroupIds?: string[];
+  inviteeGroupIds?: string[];
 }
 
-export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<Json> {
+export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<MeetingSettings> {
   const { data, error } = await supabase.rpc("admin_event_meeting_settings_save", {
     p_payload: payload({
       event_id: input.eventId,
@@ -141,22 +200,25 @@ export async function saveMeetingSettings(input: MeetingSettingsInput): Promise<
       timezone: input.timezone,
       slot_minutes: input.slotMinutes,
       break_minutes: input.breakMinutes,
-      window_starts_at: input.windowStartsAt,
-      window_ends_at: input.windowEndsAt,
-      booking_opens_at: input.bookingOpensAt,
-      booking_closes_at: input.bookingClosesAt,
+      day_start_time: input.dayStartTime,
+      day_end_time: input.dayEndTime,
+      meeting_days: input.meetingDays,
+      invites_open_at: input.invitesOpenAt,
+      invites_close_at: input.invitesCloseAt,
       invite_expires_after_hours: input.inviteExpiresAfterHours,
       max_invites_per_person: input.maxInvitesPerPerson,
       max_meetings_per_day: input.maxMeetingsPerDay,
-      visibility_mode: input.visibilityMode,
-      requires_approval: input.requiresApproval,
-      instructions_pl: input.instructionsPl,
-      instructions_en: input.instructionsEn,
+      visibility: input.visibility,
+      intro_pl: input.introPl,
+      intro_en: input.introEn,
+      requester_group_ids: input.requesterGroupIds,
+      invitee_group_ids: input.inviteeGroupIds,
     }),
   });
   if (error) throw error;
-  return data;
+  return data as unknown as MeetingSettings;
 }
+
 
 // ---------------------------------------------------------------------------
 // PANEL ORGANIZATORA: LISTA, STATYSTYKI, DECYZJE
