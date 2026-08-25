@@ -19018,6 +19018,14 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_event_meeting_availability_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_meeting_availability_set: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_meeting_settings_get: {
         Args: { p_event_id: string }
         Returns: Json
@@ -19051,6 +19059,48 @@ export type Database = {
           sort_order: number
           updated_at: string
           zone: string
+        }[]
+      }
+      admin_event_meetings_list: {
+        Args: { p_payload: Json }
+        Returns: {
+          attendance_marked_at: string
+          cancel_reason: string
+          cancelled_at: string
+          cancelled_side: string
+          created_at: string
+          decline_reason: string
+          ends_at: string
+          expires_at: string
+          id: string
+          invitation_message: string
+          invitee_company: string
+          invitee_first_name: string
+          invitee_group_name_en: string
+          invitee_group_name_pl: string
+          invitee_job_title: string
+          invitee_last_name: string
+          invitee_registration_id: string
+          is_expired: boolean
+          requester_company: string
+          requester_first_name: string
+          requester_group_name_en: string
+          requester_group_name_pl: string
+          requester_job_title: string
+          requester_last_name: string
+          requester_registration_id: string
+          rescheduled_from_id: string
+          responded_at: string
+          sponsor_id: string
+          sponsor_name: string
+          starts_at: string
+          status: string
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
+          topic: string
+          total_count: number
         }[]
       }
       admin_event_onsite_stats: {
