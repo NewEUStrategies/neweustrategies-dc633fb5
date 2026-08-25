@@ -192,7 +192,7 @@ describe("embedTexts - kontrakt zapytania do bramki", () => {
       Authorization: `Bearer ${API_KEY}`,
     });
     expect(lastRequestBody()).toEqual({
-      model: "text-embedding-3-small",
+      model: "openai/text-embedding-3-small",
       input: ["polityka energetyczna", "rozszerzenie UE"],
       dimensions: EMBEDDING_DIMS,
     });

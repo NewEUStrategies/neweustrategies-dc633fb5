@@ -6712,7 +6712,7 @@ export type Database = {
           starts_at: string
           status: string
           tenant_id: string
-          time_range: unknown | null
+          time_range: unknown
           updated_at: string
         }
         Insert: {
@@ -6726,7 +6726,7 @@ export type Database = {
           starts_at: string
           status: string
           tenant_id: string
-          time_range?: unknown | null
+          time_range?: unknown
           updated_at?: string
         }
         Update: {
@@ -6740,7 +6740,7 @@ export type Database = {
           starts_at?: string
           status?: string
           tenant_id?: string
-          time_range?: unknown | null
+          time_range?: unknown
           updated_at?: string
         }
         Relationships: [
@@ -6786,7 +6786,7 @@ export type Database = {
           registration_id: string
           starts_at: string
           tenant_id: string
-          time_range: unknown | null
+          time_range: unknown
           updated_at: string
         }
         Insert: {
@@ -6800,7 +6800,7 @@ export type Database = {
           registration_id: string
           starts_at: string
           tenant_id: string
-          time_range?: unknown | null
+          time_range?: unknown
           updated_at?: string
         }
         Update: {
@@ -6814,7 +6814,7 @@ export type Database = {
           registration_id?: string
           starts_at?: string
           tenant_id?: string
-          time_range?: unknown | null
+          time_range?: unknown
           updated_at?: string
         }
         Relationships: [
@@ -6964,7 +6964,7 @@ export type Database = {
           {
             foreignKeyName: "event_meeting_settings_event_fk"
             columns: ["tenant_id", "event_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "events"
             referencedColumns: ["tenant_id", "id"]
           },
@@ -7076,7 +7076,7 @@ export type Database = {
           table_id: string | null
           table_seat: number | null
           tenant_id: string
-          time_range: unknown | null
+          time_range: unknown
           topic: string | null
           updated_at: string
         }
@@ -7108,7 +7108,7 @@ export type Database = {
           table_id?: string | null
           table_seat?: number | null
           tenant_id: string
-          time_range?: unknown | null
+          time_range?: unknown
           topic?: string | null
           updated_at?: string
         }
@@ -7140,7 +7140,7 @@ export type Database = {
           table_id?: string | null
           table_seat?: number | null
           tenant_id?: string
-          time_range?: unknown | null
+          time_range?: unknown
           topic?: string | null
           updated_at?: string
         }
@@ -8105,6 +8105,13 @@ export type Database = {
             columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_contacts_lead_fk"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -12185,6 +12192,7 @@ export type Database = {
           retry_count: number
           status: string
           subscription_id: string | null
+          tenant_id: string
           user_id: string | null
         }
         Insert: {
@@ -12204,6 +12212,7 @@ export type Database = {
           retry_count?: number
           status?: string
           subscription_id?: string | null
+          tenant_id?: string
           user_id?: string | null
         }
         Update: {
@@ -12223,6 +12232,7 @@ export type Database = {
           retry_count?: number
           status?: string
           subscription_id?: string | null
+          tenant_id?: string
           user_id?: string | null
         }
         Relationships: []
@@ -18086,10 +18096,10 @@ export type Database = {
         Returns: {
           ends_at: string
           starts_at: string
-          table_id: string | null
-          table_label: string | null
-          table_seat: number | null
-          table_zone: string | null
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
         }[]
       }
       _event_meeting_groups: {
@@ -18097,7 +18107,12 @@ export type Database = {
         Returns: string[]
       }
       _event_meeting_slot_valid: {
-        Args: { _ends: string; _event_id: string; _starts: string; _tenant: string }
+        Args: {
+          _ends: string
+          _event_id: string
+          _starts: string
+          _tenant: string
+        }
         Returns: boolean
       }
       _event_meeting_take_seat: {
@@ -18110,8 +18125,8 @@ export type Database = {
           _tenant: string
         }
         Returns: {
-          out_table_id: string | null
-          out_table_seat: number | null
+          out_table_id: string
+          out_table_seat: number
         }[]
       }
       _event_new_qr_token: { Args: never; Returns: string }
@@ -18158,6 +18173,12 @@ export type Database = {
           token_hash: string
           token_prefix: string
           updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_scanner_devices"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       _event_scanner_device_note_failure: {
@@ -18787,21 +18808,24 @@ export type Database = {
       admin_event_agenda_conflicts: {
         Args: { p_event_id: string }
         Returns: {
-          actual_value: number | null
-          expected_value: number | null
+          actual_value: number
+          expected_value: number
           kind: string
-          other_session_id: string | null
-          other_title_en: string | null
-          other_title_pl: string | null
+          other_session_id: string
+          other_title_en: string
+          other_title_pl: string
           session_id: string
           session_starts_at: string
           session_title_en: string
           session_title_pl: string
-          subject_id: string | null
-          subject_name: string | null
+          subject_id: string
+          subject_name: string
         }[]
       }
-      admin_event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_badge_print_record: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_badge_prints_list: {
         Args: {
           p_event_id: string
@@ -18810,43 +18834,49 @@ export type Database = {
           p_person_id?: string
         }
         Returns: {
-          company: string | null
+          company: string
           copies: number
-          device_id: string | null
-          device_label: string | null
+          device_id: string
+          device_label: string
           first_name: string
           id: string
           last_name: string
-          note: string | null
+          note: string
           person_id: string
           printed_at: string
-          printed_by: string | null
-          printed_by_name: string | null
+          printed_by: string
+          printed_by_name: string
           reason: string
-          registration_id: string | null
-          registration_status: string | null
-          template_current_version: number | null
-          template_id: string | null
-          template_name: string | null
+          registration_id: string
+          registration_status: string
+          template_current_version: number
+          template_id: string
+          template_name: string
           template_version: number
           total_count: number
         }[]
       }
-      admin_event_badge_template_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_badge_template_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_badge_template_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_badge_template_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_badge_templates_list: {
         Args: { p_event_id: string }
         Returns: {
-          background_color: string | null
-          background_image_url: string | null
+          background_color: string
+          background_image_url: string
           created_at: string
           double_fold: boolean
           elements: Json
           event_id: string
-          height_mm: number | null
+          height_mm: number
           id: string
           is_default: boolean
-          last_printed_at: string | null
+          last_printed_at: string
           name: string
           orientation: string
           paper_format: string
@@ -18857,7 +18887,7 @@ export type Database = {
           stale_prints_count: number
           updated_at: string
           version: number
-          width_mm: number | null
+          width_mm: number
         }[]
       }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
@@ -18865,19 +18895,19 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: {
           badge_printed: boolean
-          company: string | null
+          company: string
           first_name: string
-          group_name_en: string | null
-          group_name_pl: string | null
-          job_title: string | null
-          last_checkin_at: string | null
-          last_checkin_direction: string | null
+          group_name_en: string
+          group_name_pl: string
+          job_title: string
+          last_checkin_at: string
+          last_checkin_direction: string
           last_name: string
           person_id: string
-          registration_id: string | null
-          registration_status: string | null
-          ticket_name_en: string | null
-          ticket_name_pl: string | null
+          registration_id: string
+          registration_status: string
+          ticket_name_en: string
+          ticket_name_pl: string
         }[]
       }
       admin_event_checkins_list: {
@@ -18898,40 +18928,43 @@ export type Database = {
           checkpoint_kind: string
           checkpoint_name_en: string
           checkpoint_name_pl: string
-          company: string | null
-          device_id: string | null
-          device_label: string | null
-          device_scanned_at: string | null
+          company: string
+          device_id: string
+          device_label: string
+          device_scanned_at: string
           direction: string
           first_name: string
-          group_name_en: string | null
-          group_name_pl: string | null
+          group_name_en: string
+          group_name_pl: string
           id: string
-          job_title: string | null
+          job_title: string
           last_name: string
-          note: string | null
+          note: string
           occurred_at: string
-          operator_name: string | null
-          operator_user_id: string | null
+          operator_name: string
+          operator_user_id: string
           person_id: string
-          registration_id: string | null
-          registration_status: string | null
+          registration_id: string
+          registration_status: string
           repeat_count: number
           result: string
           scanned_at: string
           source: string
-          ticket_name_en: string | null
-          ticket_name_pl: string | null
+          ticket_name_en: string
+          ticket_name_pl: string
           total_count: number
         }[]
       }
       admin_event_checkpoint_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_checkpoint_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_checkpoint_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_checkpoints_list: {
         Args: { p_event_id: string }
         Returns: {
           access_mode: string
-          capacity: number | null
+          capacity: number
           created_at: string
           dedupe_window_seconds: number
           denied_count: number
@@ -18942,25 +18975,28 @@ export type Database = {
           id: string
           is_active: boolean
           kind: string
-          last_checkin_at: string | null
+          last_checkin_at: string
           name_en: string
           name_pl: string
           occupancy: number
           repeat_count: number
-          room_id: string | null
-          room_name: string | null
-          session_id: string | null
-          session_title_en: string | null
-          session_title_pl: string | null
+          room_id: string
+          room_name: string
+          session_id: string
+          session_title_en: string
+          session_title_pl: string
           sort_order: number
-          sponsor_id: string | null
-          sponsor_name: string | null
+          sponsor_id: string
+          sponsor_name: string
           updated_at: string
         }[]
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_group_member_set: { Args: { p_payload: Json }; Returns: boolean }
+      admin_event_group_member_set: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
       admin_event_group_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_groups_list: {
         Args: { p_event_id: string }
@@ -18971,7 +19007,7 @@ export type Database = {
           can_meet: boolean
           can_see_attendees: boolean
           can_see_recording: boolean
-          color: string | null
+          color: string
           created_at: string
           description_en: string
           description_pl: string
@@ -18999,18 +19035,18 @@ export type Database = {
           p_sponsor_id?: string
         }
         Returns: {
-          company: string | null
+          company: string
           consent: boolean
-          consent_snapshot_at: string | null
-          device_id: string | null
-          device_label: string | null
+          consent_snapshot_at: string
+          device_id: string
+          device_label: string
           first_name: string
           first_scanned_at: string
           id: string
-          interest_rating: number | null
+          interest_rating: number
           last_name: string
           last_scanned_at: string
-          note: string | null
+          note: string
           person_id: string
           scan_count: number
           sponsor_id: string
@@ -19019,25 +19055,46 @@ export type Database = {
         }[]
       }
       admin_event_meeting_arrange: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_meeting_availability_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_meeting_availability_set: { Args: { p_payload: Json }; Returns: string }
+      admin_event_meeting_availability_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_meeting_availability_set: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_meeting_free_slots: {
         Args: { p_payload: Json }
         Returns: {
           ends_at: string
           starts_at: string
-          table_id: string | null
-          table_label: string | null
-          table_seat: number | null
-          table_zone: string | null
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
         }[]
       }
-      admin_event_meeting_set_status: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_meeting_settings_get: { Args: { p_event_id: string }; Returns: Json }
-      admin_event_meeting_settings_save: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_meeting_set_status: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_meeting_settings_get: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_meeting_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_meeting_stats: { Args: { p_event_id: string }; Returns: Json }
-      admin_event_meeting_table_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_meeting_table_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_meeting_table_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_meeting_table_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_meeting_tables_list: {
         Args: { p_event_id: string }
         Returns: {
@@ -19048,54 +19105,54 @@ export type Database = {
           label: string
           meetings_count: number
           minutes_taken: number
-          next_meeting_at: string | null
-          note: string | null
-          room_id: string | null
-          room_name: string | null
+          next_meeting_at: string
+          note: string
+          room_id: string
+          room_name: string
           sort_order: number
           updated_at: string
-          zone: string | null
+          zone: string
         }[]
       }
       admin_event_meetings_list: {
         Args: { p_payload: Json }
         Returns: {
-          attendance_marked_at: string | null
-          cancel_reason: string | null
-          cancelled_at: string | null
-          cancelled_side: string | null
+          attendance_marked_at: string
+          cancel_reason: string
+          cancelled_at: string
+          cancelled_side: string
           created_at: string
-          decline_reason: string | null
+          decline_reason: string
           ends_at: string
           expires_at: string
           id: string
-          invitation_message: string | null
-          invitee_company: string | null
+          invitation_message: string
+          invitee_company: string
           invitee_first_name: string
-          invitee_group_name_en: string | null
-          invitee_group_name_pl: string | null
-          invitee_job_title: string | null
+          invitee_group_name_en: string
+          invitee_group_name_pl: string
+          invitee_job_title: string
           invitee_last_name: string
           invitee_registration_id: string
           is_expired: boolean
-          requester_company: string | null
+          requester_company: string
           requester_first_name: string
-          requester_group_name_en: string | null
-          requester_group_name_pl: string | null
-          requester_job_title: string | null
+          requester_group_name_en: string
+          requester_group_name_pl: string
+          requester_job_title: string
           requester_last_name: string
           requester_registration_id: string
-          rescheduled_from_id: string | null
-          responded_at: string | null
-          sponsor_id: string | null
-          sponsor_name: string | null
+          rescheduled_from_id: string
+          responded_at: string
+          sponsor_id: string
+          sponsor_name: string
           starts_at: string
           status: string
-          table_id: string | null
-          table_label: string | null
-          table_seat: number | null
-          table_zone: string | null
-          topic: string | null
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
+          topic: string
           total_count: number
         }[]
       }
@@ -19103,9 +19160,18 @@ export type Database = {
         Args: { p_bucket_minutes?: number; p_event_id: string }
         Returns: Json
       }
-      admin_event_registration_decide: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_registration_field_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_registration_field_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_registration_decide: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_registration_field_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_registration_field_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_registration_fields_list: {
         Args: { p_event_id: string }
         Returns: {
@@ -19130,8 +19196,14 @@ export type Database = {
           updated_at: string
         }[]
       }
-      admin_event_registration_mark_notified: { Args: { p_payload: Json }; Returns: number }
-      admin_event_registration_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_registration_mark_notified: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_registration_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_registrations_counts: {
         Args: {
           p_event_id: string
@@ -19158,51 +19230,51 @@ export type Database = {
         Returns: {
           accepted_terms_count: number
           answers: Json
-          attended_at: string | null
-          cancelled_at: string | null
-          company_id: string | null
-          company_name: string | null
-          company_text: string | null
-          consent_data_processing_at: string | null
-          consent_marketing_at: string | null
-          consent_partner_sharing_at: string | null
-          consent_withdrawn_at: string | null
+          attended_at: string
+          cancelled_at: string
+          company_id: string
+          company_name: string
+          company_text: string
+          consent_data_processing_at: string
+          consent_marketing_at: string
+          consent_partner_sharing_at: string
+          consent_withdrawn_at: string
           created_at: string
-          decided_at: string | null
-          decided_by: string | null
-          decision_note: string | null
-          decision_source: string | null
-          email: string | null
+          decided_at: string
+          decided_by: string
+          decision_note: string
+          decision_source: string
+          email: string
           event_id: string
           extra_groups_count: number
           first_name: string
-          group_color: string | null
-          group_id: string | null
-          group_key: string | null
-          group_name_en: string | null
-          group_name_pl: string | null
+          group_color: string
+          group_id: string
+          group_key: string
+          group_name_en: string
+          group_name_pl: string
           has_qr: boolean
           id: string
-          job_title: string | null
+          job_title: string
           last_name: string
           person_id: string
-          person_user_id: string | null
-          phone: string | null
-          promoted_at: string | null
+          person_user_id: string
+          phone: string
+          promoted_at: string
           registration_mode: string
           required_terms_missing: number
-          social_profile_url: string | null
+          social_profile_url: string
           source: string
           status: string
-          ticket_currency: string | null
-          ticket_key: string | null
-          ticket_name_en: string | null
-          ticket_name_pl: string | null
-          ticket_price_cents: number | null
-          ticket_type_id: string | null
+          ticket_currency: string
+          ticket_key: string
+          ticket_name_en: string
+          ticket_name_pl: string
+          ticket_price_cents: number
+          ticket_type_id: string
           total_count: number
-          waitlist_notified_at: string | null
-          waitlist_position: number | null
+          waitlist_notified_at: string
+          waitlist_position: number
         }[]
       }
       admin_event_room_delete: { Args: { _id: string }; Returns: boolean }
@@ -19211,21 +19283,27 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           booked_minutes: number
-          capacity: number | null
+          capacity: number
           created_at: string
           event_id: string
-          floor: string | null
+          floor: string
           id: string
           is_active: boolean
-          location_note: string | null
+          location_note: string
           name: string
           sessions_count: number
           sort_order: number
           updated_at: string
         }[]
       }
-      admin_event_scanner_device_issue: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_scanner_device_revoke: { Args: { p_payload: Json }; Returns: boolean }
+      admin_event_scanner_device_issue: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_scanner_device_revoke: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
       admin_event_scanner_device_set_active: {
         Args: { p_payload: Json }
         Returns: boolean
@@ -19234,9 +19312,9 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           checkins_count: number
-          checkpoint_id: string | null
-          checkpoint_name_en: string | null
-          checkpoint_name_pl: string | null
+          checkpoint_id: string
+          checkpoint_name_en: string
+          checkpoint_name_pl: string
           created_at: string
           event_id: string
           expires_at: string
@@ -19245,15 +19323,15 @@ export type Database = {
           id: string
           is_active: boolean
           label: string
-          last_failed_scan_at: string | null
-          last_seen_at: string | null
+          last_failed_scan_at: string
+          last_seen_at: string
           lead_scans_count: number
-          locked_until: string | null
-          revoked_at: string | null
+          locked_until: string
+          revoked_at: string
           scan_count: number
           scopes: string[]
-          sponsor_id: string | null
-          sponsor_name: string | null
+          sponsor_id: string
+          sponsor_name: string
           state: string
           token_prefix: string
         }[]
@@ -19263,13 +19341,13 @@ export type Database = {
         Args: { _id: string }
         Returns: {
           allow_overlap: boolean
-          cancelled_at: string | null
-          capacity: number | null
+          cancelled_at: string
+          capacity: number
           chatham_house: boolean
           description_en: string
           description_pl: string
           ends_at: string
-          event_ends_at: string | null
+          event_ends_at: string
           event_id: string
           event_starts_at: string
           event_timezone: string
@@ -19279,42 +19357,48 @@ export type Database = {
           id: string
           is_private: boolean
           min_tier_rank: number
-          parent_session_id: string | null
-          published_at: string | null
-          recording_url: string | null
+          parent_session_id: string
+          published_at: string
+          recording_url: string
           registered_count: number
           requires_signup: boolean
-          room_id: string | null
-          seats_left: number | null
+          room_id: string
+          seats_left: number
           sort_order: number
           speakers: Json
           starts_at: string
           status: string
-          stream_url: string | null
+          stream_url: string
           title_en: string
           title_pl: string
-          track_id: string | null
+          track_id: string
           waitlist_count: number
         }[]
       }
       admin_event_session_save: { Args: { p_payload: Json }; Returns: string }
-      admin_event_session_signup_set: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_session_signup_set: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_session_signups_list: {
         Args: { p_session_id: string }
         Returns: {
           added_by_staff: boolean
-          avatar_url: string | null
-          cancelled_at: string | null
-          display_name: string | null
+          avatar_url: string
+          cancelled_at: string
+          display_name: string
           id: string
-          profile_slug: string | null
+          profile_slug: string
           registered_at: string
           status: string
           user_id: string
-          waitlist_position: number | null
+          waitlist_position: number
         }[]
       }
-      admin_event_session_speakers_set: { Args: { p_payload: Json }; Returns: number }
+      admin_event_session_speakers_set: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sessions_list: {
         Args: {
           p_event_id: string
@@ -19325,9 +19409,9 @@ export type Database = {
         }
         Returns: {
           allow_overlap: boolean
-          cancelled_at: string | null
+          cancelled_at: string
           cancelled_count: number
-          capacity: number | null
+          capacity: number
           chatham_house: boolean
           children_count: number
           description_en: string
@@ -19341,94 +19425,122 @@ export type Database = {
           id: string
           is_private: boolean
           min_tier_rank: number
-          parent_session_id: string | null
-          published_at: string | null
+          parent_session_id: string
+          published_at: string
           registered_count: number
           requires_signup: boolean
-          room_capacity: number | null
-          room_id: string | null
-          room_name: string | null
-          seats_left: number | null
+          room_capacity: number
+          room_id: string
+          room_name: string
+          seats_left: number
           sort_order: number
+          speakers_count: number
           starts_at: string
           status: string
           title_en: string
           title_pl: string
-          track_accent_color: string | null
-          track_id: string | null
-          track_key: string | null
-          track_name_en: string | null
-          track_name_pl: string | null
+          track_accent_color: string
+          track_id: string
+          track_key: string
+          track_name_en: string
+          track_name_pl: string
           waitlist_count: number
         }[]
       }
-      admin_event_sessions_reorder: { Args: { p_payload: Json }; Returns: number }
-      admin_event_sessions_set_status: { Args: { p_payload: Json }; Returns: number }
+      admin_event_sessions_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sessions_set_status: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsor_companies_search: {
         Args: { p_event_id: string; p_limit?: number; p_q?: string }
         Returns: {
-          city: string | null
-          country: string | null
-          domain: string | null
+          city: string
+          country: string
+          domain: string
           events_count: number
           id: string
           is_pinned: boolean
-          logo_url: string | null
+          logo_url: string
           name: string
-          pinned_sponsor_id: string | null
-          website: string | null
+          pinned_sponsor_id: string
+          website: string
         }[]
       }
-      admin_event_sponsor_contacts_set: { Args: { p_payload: Json }; Returns: number }
+      admin_event_sponsor_contacts_set: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsor_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_sponsor_detail: {
         Args: { _id: string }
         Returns: {
-          booth_label: string | null
+          booth_label: string
           company_id: string
           contacts: Json
           created_at: string
-          crm_city: string | null
-          crm_country: string | null
-          crm_domain: string | null
+          crm_city: string
+          crm_country: string
+          crm_domain: string
           crm_drift_fields: string[]
-          crm_logo_url: string | null
+          crm_logo_url: string
           crm_name: string
-          crm_website: string | null
+          crm_website: string
           event_id: string
           id: string
-          internal_note: string | null
+          internal_note: string
           is_published: boolean
           materials: Json
           role: string
-          snapshot_country: string | null
+          snapshot_country: string
           snapshot_description_en: string
           snapshot_description_pl: string
-          snapshot_logo_url: string | null
+          snapshot_logo_url: string
           snapshot_name: string
           snapshot_source: string
           snapshot_taken_at: string
-          snapshot_website: string | null
+          snapshot_website: string
           sort_order: number
-          tier_id: string | null
-          tier_key: string | null
-          tier_name_en: string | null
-          tier_name_pl: string | null
-          tier_rank: number | null
+          tier_id: string
+          tier_key: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
           updated_at: string
         }[]
       }
-      admin_event_sponsor_material_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_sponsor_material_save: { Args: { p_payload: Json }; Returns: string }
-      admin_event_sponsor_materials_reorder: { Args: { p_payload: Json }; Returns: number }
+      admin_event_sponsor_material_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_material_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_sponsor_materials_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsor_save: { Args: { p_payload: Json }; Returns: string }
-      admin_event_sponsor_snapshot_refresh: { Args: { p_payload: Json }; Returns: number }
-      admin_event_sponsor_tier_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_sponsor_tier_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_sponsor_snapshot_refresh: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sponsor_tier_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_tier_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_sponsor_tiers_list: {
         Args: { p_event_id: string }
         Returns: {
-          accent_color: string | null
+          accent_color: string
           benefits: Json
           created_at: string
           description_en: string
@@ -19438,18 +19550,21 @@ export type Database = {
           is_active: boolean
           key: string
           logo_size: string
-          max_companies: number | null
+          max_companies: number
           name_en: string
           name_pl: string
           published_sponsors_count: number
           rank: number
-          slots_left: number | null
+          slots_left: number
           sort_order: number
           sponsors_count: number
           updated_at: string
         }[]
       }
-      admin_event_sponsor_tiers_reorder: { Args: { p_payload: Json }; Returns: number }
+      admin_event_sponsor_tiers_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_sponsors_list: {
         Args: {
           p_event_id: string
@@ -19461,45 +19576,51 @@ export type Database = {
           p_tier_id?: string
         }
         Returns: {
-          booth_label: string | null
+          booth_label: string
           company_id: string
           contacts_count: number
           created_at: string
-          crm_city: string | null
-          crm_country: string | null
+          crm_city: string
+          crm_country: string
           crm_drift: boolean
           crm_drift_fields: string[]
-          crm_logo_url: string | null
+          crm_logo_url: string
           crm_name: string
-          crm_website: string | null
+          crm_website: string
           event_id: string
           id: string
           is_published: boolean
           materials_count: number
           published_materials_count: number
           role: string
-          snapshot_country: string | null
+          snapshot_country: string
           snapshot_description_en: string
           snapshot_description_pl: string
-          snapshot_logo_url: string | null
+          snapshot_logo_url: string
           snapshot_name: string
           snapshot_source: string
           snapshot_taken_at: string
-          snapshot_website: string | null
+          snapshot_website: string
           sort_order: number
-          tier_accent_color: string | null
-          tier_id: string | null
-          tier_key: string | null
-          tier_logo_size: string | null
-          tier_name_en: string | null
-          tier_name_pl: string | null
-          tier_rank: number | null
+          tier_accent_color: string
+          tier_id: string
+          tier_key: string
+          tier_logo_size: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
           total_count: number
           updated_at: string
         }[]
       }
-      admin_event_sponsors_reorder: { Args: { p_payload: Json }; Returns: number }
-      admin_event_sponsors_set_published: { Args: { p_payload: Json }; Returns: number }
+      admin_event_sponsors_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_sponsors_set_published: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_term_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_term_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_terms_list: {
@@ -19512,7 +19633,7 @@ export type Database = {
           created_at: string
           display: string
           event_id: string
-          external_url: string | null
+          external_url: string
           id: string
           is_active: boolean
           is_required: boolean
@@ -19536,9 +19657,9 @@ export type Database = {
           description_en: string
           description_pl: string
           event_id: string
-          group_id: string | null
-          group_name_en: string | null
-          group_name_pl: string | null
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
           id: string
           is_active: boolean
           key: string
@@ -19547,11 +19668,11 @@ export type Database = {
           name_pl: string
           pending_count: number
           price_cents: number
-          quota: number | null
+          quota: number
           requires_approval: boolean
-          sales_from: string | null
-          sales_to: string | null
-          seats_left: number | null
+          sales_from: string
+          sales_to: string
+          seats_left: number
           sold_count: number
           sort_order: number
           updated_at: string
@@ -19563,7 +19684,7 @@ export type Database = {
       admin_event_tracks_list: {
         Args: { p_event_id: string }
         Returns: {
-          accent_color: string | null
+          accent_color: string
           created_at: string
           event_id: string
           id: string
@@ -19589,10 +19710,10 @@ export type Database = {
       admin_event_types_list: {
         Args: never
         Returns: {
-          accent_color: string | null
-          default_capacity: number | null
+          accent_color: string
+          default_capacity: number
           default_chatham_house: boolean
-          default_duration_minutes: number | null
+          default_duration_minutes: number
           default_format: string
           default_guest_mode: string
           default_min_tier_rank: number
@@ -19600,17 +19721,17 @@ export type Database = {
           default_registration_mode: string
           description_en: string
           description_pl: string
+          events_count: number
           icon: string
           id: string
+          is_active: boolean
+          is_system: boolean
           key: string
           name_en: string
           name_pl: string
+          published_events_count: number
           requires_ticket: boolean
           sort_order: number
-          events_count: number
-          is_active: boolean
-          is_system: boolean
-          published_events_count: number
         }[]
       }
       admin_event_waitlist_promote: { Args: { p_payload: Json }; Returns: Json }
@@ -19636,12 +19757,12 @@ export type Database = {
           p_type_id?: string
         }
         Returns: {
-          cancelled_at: string | null
-          capacity: number | null
+          cancelled_at: string
+          capacity: number
           chatham_house: boolean
-          cover_url: string | null
-          ends_at: string | null
-          event_type_id: string | null
+          cover_url: string
+          ends_at: string
+          event_type_id: string
           format: string
           going_count: number
           guest_mode: string
@@ -19650,27 +19771,27 @@ export type Database = {
           id: string
           interested_count: number
           kind: string
-          location: string | null
+          location: string
           min_tier_rank: number
-          published_at: string | null
+          published_at: string
           registration_flow: string
           registration_mode: string
-          seats_left: number | null
+          seats_left: number
           slug: string
           speakers_count: number
           starts_at: string
           status: string
           ticket_currency: string
-          ticket_price_cents: number | null
+          ticket_price_cents: number
           timezone: string
           title_en: string
           title_pl: string
           total_count: number
-          type_accent_color: string | null
-          type_icon: string | null
-          type_key: string | null
-          type_name_en: string | null
-          type_name_pl: string | null
+          type_accent_color: string
+          type_icon: string
+          type_key: string
+          type_name_en: string
+          type_name_pl: string
           visibility: string
           waitlist_count: number
         }[]
@@ -19723,6 +19844,8 @@ export type Database = {
       admin_get_event: {
         Args: { p_id: string }
         Returns: {
+          branding: Json
+          cancelled_at: string | null
           capacity: number | null
           chatham_house: boolean
           conversation_id: string | null
@@ -19733,6 +19856,10 @@ export type Database = {
           description_pl: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
+          event_type_id: string | null
+          external_registration_url: string | null
+          format: string
+          guest_mode: string
           host_user_id: string | null
           id: string
           join_url: string | null
@@ -19740,8 +19867,12 @@ export type Database = {
           location: string | null
           min_tier_rank: number
           program_id: string | null
+          published_at: string | null
           recording_url: string | null
           region_id: string | null
+          registration_flow: string
+          registration_mode: string
+          root_page_id: string | null
           rsvp_opens_at: string | null
           slug: string
           starts_at: string
@@ -19832,6 +19963,8 @@ export type Database = {
       admin_list_events: {
         Args: { p_q?: string; p_status?: string }
         Returns: {
+          branding: Json
+          cancelled_at: string | null
           capacity: number | null
           chatham_house: boolean
           conversation_id: string | null
@@ -19842,6 +19975,10 @@ export type Database = {
           description_pl: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
+          event_type_id: string | null
+          external_registration_url: string | null
+          format: string
+          guest_mode: string
           host_user_id: string | null
           id: string
           join_url: string | null
@@ -19849,8 +19986,12 @@ export type Database = {
           location: string | null
           min_tier_rank: number
           program_id: string | null
+          published_at: string | null
           recording_url: string | null
           region_id: string | null
+          registration_flow: string
+          registration_mode: string
+          root_page_id: string | null
           rsvp_opens_at: string | null
           slug: string
           starts_at: string
@@ -22144,28 +22285,28 @@ export type Database = {
         Returns: {
           ad_position: string
           config: Json
-          height: number | null
-          html: string | null
-          image_alt: string | null
-          image_link: string | null
-          image_url: string | null
+          height: number
+          html: string
+          image_alt: string
+          image_link: string
+          image_url: string
           page_type: string
           placement_id: string
           requires_consent: boolean
-          script: string | null
+          script: string
           slot_id: string
           slot_kind: string
           slot_name: string
           sort_order: number
           targeting: Json
-          width: number | null
+          width: number
         }[]
       }
       event_agenda: {
         Args: { p_slug: string }
         Returns: {
           access_state: string
-          capacity: number | null
+          capacity: number
           chatham_house: boolean
           description_en: string
           description_pl: string
@@ -22176,14 +22317,14 @@ export type Database = {
           has_stream: boolean
           id: string
           min_tier_rank: number
-          my_signup_status: string | null
-          parent_session_id: string | null
+          my_signup_status: string
+          parent_session_id: string
           registered_count: number
           requires_signup: boolean
-          room_floor: string | null
-          room_id: string | null
-          room_name: string | null
-          seats_left: number | null
+          room_floor: string
+          room_id: string
+          room_name: string
+          seats_left: number
           sort_order: number
           speakers: Json
           starts_at: string
@@ -22191,48 +22332,51 @@ export type Database = {
           timezone: string
           title_en: string
           title_pl: string
-          track_accent_color: string | null
-          track_id: string | null
-          track_key: string | null
-          track_name_en: string | null
-          track_name_pl: string | null
+          track_accent_color: string
+          track_id: string
+          track_key: string
+          track_name_en: string
+          track_name_pl: string
         }[]
       }
       event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
-      event_bookmark_toggle: {
-        Args: { p_payload: Json }
-        Returns: Json
-      }
+      event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_bookmarks_mine: {
         Args: { p_limit?: number; p_offset?: number; p_scope?: string }
         Returns: {
           bookmarked_at: string
-          cancelled_at: string | null
-          cover_url: string | null
-          ends_at: string | null
+          cancelled_at: string
+          cover_url: string
+          ends_at: string
           event_id: string
           format: string
           has_ended: boolean
           kind: string
-          location: string | null
+          location: string
           min_tier_rank: number
-          seats_left: number | null
+          seats_left: number
           slug: string
           starts_at: string
           timezone: string
           title_en: string
           title_pl: string
           total_count: number
-          type_name_en: string | null
-          type_name_pl: string | null
+          type_name_en: string
+          type_name_pl: string
         }[]
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
-      event_meeting_availability_delete: { Args: { p_payload: Json }; Returns: boolean }
-      event_meeting_availability_set: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_availability_delete: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      event_meeting_availability_set: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_meeting_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_exchange: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_free_slots: {
@@ -22240,10 +22384,10 @@ export type Database = {
         Returns: {
           ends_at: string
           starts_at: string
-          table_id: string | null
-          table_label: string | null
-          table_seat: number | null
-          table_zone: string | null
+          table_id: string
+          table_label: string
+          table_seat: number
+          table_zone: string
         }[]
       }
       event_meeting_invite: { Args: { p_payload: Json }; Returns: Json }
@@ -22252,47 +22396,47 @@ export type Database = {
       event_meetings_mine: {
         Args: { p_payload: Json }
         Returns: {
-          cancel_reason: string | null
-          cancelled_side: string | null
-          counterpart_company: string | null
+          cancel_reason: string
+          cancelled_side: string
+          counterpart_company: string
           counterpart_first_name: string
-          counterpart_job_title: string | null
+          counterpart_job_title: string
           counterpart_last_name: string
           counterpart_registration_id: string
           created_at: string
-          decline_reason: string | null
+          decline_reason: string
           ends_at: string
           event_id: string
           expires_at: string
           id: string
-          invitation_message: string | null
+          invitation_message: string
           is_expired: boolean
-          responded_at: string | null
+          responded_at: string
           side: string
-          sponsor_id: string | null
-          sponsor_name: string | null
+          sponsor_id: string
+          sponsor_name: string
           starts_at: string
           status: string
-          table_label: string | null
-          table_seat: number | null
-          table_zone: string | null
-          topic: string | null
+          table_label: string
+          table_seat: number
+          table_zone: string
+          topic: string
         }[]
       }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
           branding: Json
-          cancelled_at: string | null
-          capacity: number | null
+          cancelled_at: string
+          capacity: number
           chatham_house: boolean
           chatham_house_locked: boolean
-          cover_url: string | null
-          description_en: string | null
-          description_pl: string | null
-          ends_at: string | null
-          event_type_id: string | null
-          external_registration_url: string | null
+          cover_url: string
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_type_id: string
+          external_registration_url: string
           format: string
           guest_mode: string
           has_ended: boolean
@@ -22301,34 +22445,34 @@ export type Database = {
           id: string
           is_bookmarked: boolean
           kind: string
-          location: string | null
+          location: string
           min_tier_rank: number
-          my_registration_status: string | null
-          my_rsvp_status: string | null
-          my_waitlist_position: number | null
-          published_at: string | null
+          my_registration_status: string
+          my_rsvp_status: string
+          my_waitlist_position: number
+          published_at: string
           registration_flow: string
           registration_mode: string
           registration_state: string
-          root_page_id: string | null
-          rsvp_opens_at: string | null
-          seats_left: number | null
+          root_page_id: string
+          rsvp_opens_at: string
+          seats_left: number
           sessions_count: number
           slug: string
           speakers_count: number
           sponsors_count: number
           starts_at: string
           ticket_currency: string
-          ticket_price_cents: number | null
+          ticket_price_cents: number
           tier_locked: boolean
           timezone: string
           title_en: string
           title_pl: string
-          type_accent_color: string | null
-          type_icon: string | null
-          type_key: string | null
-          type_name_en: string | null
-          type_name_pl: string | null
+          type_accent_color: string
+          type_icon: string
+          type_key: string
+          type_name_en: string
+          type_name_pl: string
           viewer_tier_rank: number
           visibility: string
         }[]
@@ -22340,9 +22484,9 @@ export type Database = {
       event_sections: {
         Args: { p_slug: string }
         Returns: {
-          has_content: boolean | null
-          heading_en: string | null
-          heading_pl: string | null
+          has_content: boolean
+          heading_en: string
+          heading_pl: string
           is_locked: boolean
           lock_reason: string
           min_tier_rank: number
@@ -22360,12 +22504,12 @@ export type Database = {
           kind: string
           sort_order: number
           sponsor_id: string
-          sponsor_logo_url: string | null
+          sponsor_logo_url: string
           sponsor_name: string
-          tier_id: string | null
-          tier_name_en: string | null
-          tier_name_pl: string | null
-          tier_rank: number | null
+          tier_id: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
           title_en: string
           title_pl: string
           url: string
@@ -22376,24 +22520,24 @@ export type Database = {
         Returns: {
           benefits: Json
           sponsors: Json
-          tier_accent_color: string | null
-          tier_description_en: string | null
-          tier_description_pl: string | null
-          tier_id: string | null
-          tier_key: string | null
+          tier_accent_color: string
+          tier_description_en: string
+          tier_description_pl: string
+          tier_id: string
+          tier_key: string
           tier_logo_size: string
-          tier_name_en: string | null
-          tier_name_pl: string | null
-          tier_rank: number | null
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
         }[]
       }
       event_types_active: {
         Args: never
         Returns: {
-          accent_color: string | null
-          default_capacity: number | null
+          accent_color: string
+          default_capacity: number
           default_chatham_house: boolean
-          default_duration_minutes: number | null
+          default_duration_minutes: number
           default_format: string
           default_guest_mode: string
           default_min_tier_rank: number
@@ -22422,37 +22566,37 @@ export type Database = {
           p_type_id?: string
         }
         Returns: {
-          cancelled_at: string | null
-          capacity: number | null
+          cancelled_at: string
+          capacity: number
           chatham_house: boolean
-          cover_url: string | null
-          description_en: string | null
-          description_pl: string | null
-          ends_at: string | null
-          event_type_id: string | null
+          cover_url: string
+          description_en: string
+          description_pl: string
+          ends_at: string
+          event_type_id: string
           format: string
           has_ended: boolean
           id: string
           is_bookmarked: boolean
           kind: string
-          location: string | null
+          location: string
           min_tier_rank: number
           registration_mode: string
-          seats_left: number | null
+          seats_left: number
           slug: string
           starts_at: string
           ticket_currency: string
-          ticket_price_cents: number | null
+          ticket_price_cents: number
           tier_locked: boolean
           timezone: string
           title_en: string
           title_pl: string
           total_count: number
-          type_accent_color: string | null
-          type_icon: string | null
-          type_key: string | null
-          type_name_en: string | null
-          type_name_pl: string | null
+          type_accent_color: string
+          type_icon: string
+          type_key: string
+          type_name_en: string
+          type_name_pl: string
           visibility: string
         }[]
       }
@@ -23077,6 +23221,7 @@ export type Database = {
       invoke_billing_cron: { Args: never; Returns: undefined }
       invoke_community_cron: { Args: { p_job?: string }; Returns: undefined }
       invoke_jobs_tick: { Args: never; Returns: undefined }
+      is_admin_or_editor: { Args: never; Returns: boolean }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_club_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_connected_pair: { Args: { _a: string; _b: string }; Returns: boolean }

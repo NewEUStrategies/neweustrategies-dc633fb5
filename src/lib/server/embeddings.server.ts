@@ -8,9 +8,11 @@ import type { Database } from "@/integrations/supabase/types";
 
 const EMBEDDINGS_URL =
   process.env.AI_GATEWAY_EMBEDDINGS_URL || "https://ai.gateway.lovable.dev/v1/embeddings";
-// text-embedding-3-small z dimensions=768 == wymiar Gemini text-embedding-004;
-// jedna kolumna vector(768) obsługuje oba (patrz migracja pgvector).
-const EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || "text-embedding-3-small";
+// Identyfikator modelu w bramce MUSI mieć prefiks dostawcy - bez niego bramka
+// odrzuca żądanie z 400 "invalid model" jeszcze przed dostawcą.
+// openai/text-embedding-3-small z dimensions=768 == wymiar Gemini
+// text-embedding-004; jedna kolumna vector(768) obsługuje oba (migracja pgvector).
+const EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small";
 export const EMBEDDING_DIMS = 768;
 
 type DbClient = SupabaseClient<Database>;

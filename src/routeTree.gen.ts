@@ -98,6 +98,7 @@ import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
@@ -264,7 +265,13 @@ import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admi
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminNewsletterAuthLogsRouteImport } from './routes/admin.newsletter.auth-logs'
 import { Route as AdminEventsTypesRouteImport } from './routes/admin.events.types'
+import { Route as AdminEventsTermsRouteImport } from './routes/admin.events.terms'
+import { Route as AdminEventsSponsorsRouteImport } from './routes/admin.events.sponsors'
+import { Route as AdminEventsRegistrationsRouteImport } from './routes/admin.events.registrations'
+import { Route as AdminEventsOnsiteRouteImport } from './routes/admin.events.onsite'
+import { Route as AdminEventsMeetingsRouteImport } from './routes/admin.events.meetings'
 import { Route as AdminEventsListRouteImport } from './routes/admin.events.list'
+import { Route as AdminEventsAgendaRouteImport } from './routes/admin.events.agenda'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
 import { Route as AdminCouponsCampaignsRouteImport } from './routes/admin.coupons.campaigns'
@@ -755,6 +762,11 @@ const NewsletterUnsubscribeRoute = NewsletterUnsubscribeRouteImport.update({
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeetingsEventSlugRoute = MeetingsEventSlugRouteImport.update({
+  id: '/meetings/$eventSlug',
+  path: '/meetings/$eventSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveRssDotxmlRoute = LiveRssDotxmlRouteImport.update({
@@ -1603,9 +1615,40 @@ const AdminEventsTypesRoute = AdminEventsTypesRouteImport.update({
   path: '/types',
   getParentRoute: () => AdminEventsRoute,
 } as any)
+const AdminEventsTermsRoute = AdminEventsTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
+const AdminEventsSponsorsRoute = AdminEventsSponsorsRouteImport.update({
+  id: '/sponsors',
+  path: '/sponsors',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
+const AdminEventsRegistrationsRoute =
+  AdminEventsRegistrationsRouteImport.update({
+    id: '/registrations',
+    path: '/registrations',
+    getParentRoute: () => AdminEventsRoute,
+  } as any)
+const AdminEventsOnsiteRoute = AdminEventsOnsiteRouteImport.update({
+  id: '/onsite',
+  path: '/onsite',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
+const AdminEventsMeetingsRoute = AdminEventsMeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
 const AdminEventsListRoute = AdminEventsListRouteImport.update({
   id: '/list',
   path: '/list',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
+const AdminEventsAgendaRoute = AdminEventsAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
   getParentRoute: () => AdminEventsRoute,
 } as any)
 const AdminCrmIdRoute = AdminCrmIdRouteImport.update({
@@ -1996,6 +2039,7 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
+  '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -2062,7 +2106,13 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
+  '/admin/events/meetings': typeof AdminEventsMeetingsRoute
+  '/admin/events/onsite': typeof AdminEventsOnsiteRoute
+  '/admin/events/registrations': typeof AdminEventsRegistrationsRoute
+  '/admin/events/sponsors': typeof AdminEventsSponsorsRoute
+  '/admin/events/terms': typeof AdminEventsTermsRoute
   '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
@@ -2289,6 +2339,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
+  '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -2355,7 +2406,13 @@ export interface FileRoutesByTo {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
+  '/admin/events/meetings': typeof AdminEventsMeetingsRoute
+  '/admin/events/onsite': typeof AdminEventsOnsiteRoute
+  '/admin/events/registrations': typeof AdminEventsRegistrationsRoute
+  '/admin/events/sponsors': typeof AdminEventsSponsorsRoute
+  '/admin/events/terms': typeof AdminEventsTermsRoute
   '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
@@ -2593,6 +2650,7 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
+  '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -2659,7 +2717,13 @@ export interface FileRoutesById {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
+  '/admin/events/meetings': typeof AdminEventsMeetingsRoute
+  '/admin/events/onsite': typeof AdminEventsOnsiteRoute
+  '/admin/events/registrations': typeof AdminEventsRegistrationsRoute
+  '/admin/events/sponsors': typeof AdminEventsSponsorsRoute
+  '/admin/events/terms': typeof AdminEventsTermsRoute
   '/admin/events/types': typeof AdminEventsTypesRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
@@ -2899,6 +2963,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/live/rss.xml'
+    | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/plans/$planId'
@@ -2965,7 +3030,13 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/agenda'
     | '/admin/events/list'
+    | '/admin/events/meetings'
+    | '/admin/events/onsite'
+    | '/admin/events/registrations'
+    | '/admin/events/sponsors'
+    | '/admin/events/terms'
     | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
@@ -3192,6 +3263,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/live/rss.xml'
+    | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/plans/$planId'
@@ -3258,7 +3330,13 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/agenda'
     | '/admin/events/list'
+    | '/admin/events/meetings'
+    | '/admin/events/onsite'
+    | '/admin/events/registrations'
+    | '/admin/events/sponsors'
+    | '/admin/events/terms'
     | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/deliverability'
@@ -3495,6 +3573,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/live_/rss.xml'
+    | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/plans/$planId'
@@ -3561,7 +3640,13 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/agenda'
     | '/admin/events/list'
+    | '/admin/events/meetings'
+    | '/admin/events/onsite'
+    | '/admin/events/registrations'
+    | '/admin/events/sponsors'
+    | '/admin/events/terms'
     | '/admin/events/types'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
@@ -3727,6 +3812,7 @@ export interface RootRouteChildren {
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
+  MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
@@ -4406,6 +4492,13 @@ declare module '@tanstack/react-router' {
       path: '/newsletter/confirm'
       fullPath: '/newsletter/confirm'
       preLoaderRoute: typeof NewsletterConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meetings/$eventSlug': {
+      id: '/meetings/$eventSlug'
+      path: '/meetings/$eventSlug'
+      fullPath: '/meetings/$eventSlug'
+      preLoaderRoute: typeof MeetingsEventSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live_/rss.xml': {
@@ -5570,11 +5663,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsTypesRouteImport
       parentRoute: typeof AdminEventsRoute
     }
+    '/admin/events/terms': {
+      id: '/admin/events/terms'
+      path: '/terms'
+      fullPath: '/admin/events/terms'
+      preLoaderRoute: typeof AdminEventsTermsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/sponsors': {
+      id: '/admin/events/sponsors'
+      path: '/sponsors'
+      fullPath: '/admin/events/sponsors'
+      preLoaderRoute: typeof AdminEventsSponsorsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/registrations': {
+      id: '/admin/events/registrations'
+      path: '/registrations'
+      fullPath: '/admin/events/registrations'
+      preLoaderRoute: typeof AdminEventsRegistrationsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/onsite': {
+      id: '/admin/events/onsite'
+      path: '/onsite'
+      fullPath: '/admin/events/onsite'
+      preLoaderRoute: typeof AdminEventsOnsiteRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/meetings': {
+      id: '/admin/events/meetings'
+      path: '/meetings'
+      fullPath: '/admin/events/meetings'
+      preLoaderRoute: typeof AdminEventsMeetingsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
     '/admin/events/list': {
       id: '/admin/events/list'
       path: '/list'
       fullPath: '/admin/events/list'
       preLoaderRoute: typeof AdminEventsListRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/agenda': {
+      id: '/admin/events/agenda'
+      path: '/agenda'
+      fullPath: '/admin/events/agenda'
+      preLoaderRoute: typeof AdminEventsAgendaRouteImport
       parentRoute: typeof AdminEventsRoute
     }
     '/admin/crm/$id': {
@@ -6016,13 +6151,25 @@ const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
 )
 
 interface AdminEventsRouteChildren {
+  AdminEventsAgendaRoute: typeof AdminEventsAgendaRoute
   AdminEventsListRoute: typeof AdminEventsListRoute
+  AdminEventsMeetingsRoute: typeof AdminEventsMeetingsRoute
+  AdminEventsOnsiteRoute: typeof AdminEventsOnsiteRoute
+  AdminEventsRegistrationsRoute: typeof AdminEventsRegistrationsRoute
+  AdminEventsSponsorsRoute: typeof AdminEventsSponsorsRoute
+  AdminEventsTermsRoute: typeof AdminEventsTermsRoute
   AdminEventsTypesRoute: typeof AdminEventsTypesRoute
   AdminEventsIndexRoute: typeof AdminEventsIndexRoute
 }
 
 const AdminEventsRouteChildren: AdminEventsRouteChildren = {
+  AdminEventsAgendaRoute: AdminEventsAgendaRoute,
   AdminEventsListRoute: AdminEventsListRoute,
+  AdminEventsMeetingsRoute: AdminEventsMeetingsRoute,
+  AdminEventsOnsiteRoute: AdminEventsOnsiteRoute,
+  AdminEventsRegistrationsRoute: AdminEventsRegistrationsRoute,
+  AdminEventsSponsorsRoute: AdminEventsSponsorsRoute,
+  AdminEventsTermsRoute: AdminEventsTermsRoute,
   AdminEventsTypesRoute: AdminEventsTypesRoute,
   AdminEventsIndexRoute: AdminEventsIndexRoute,
 }
@@ -6597,6 +6744,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
+  MeetingsEventSlugRoute: MeetingsEventSlugRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
@@ -6656,3 +6804,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

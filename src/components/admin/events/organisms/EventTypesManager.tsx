@@ -180,7 +180,7 @@ export function EventTypesManager() {
                           : { color: row.accent_color, borderColor: row.accent_color }
                       }
                     >
-                      <DynamicIcon name={row.icon} size={16} />
+                      <DynamicIcon name={row.icon ?? "CalendarDays"} size={16} />
                     </span>
                   }
                   title={

@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchWithTenantHostAndCorrelation } from "./correlation-fetch";
 import { resolveSupabasePublicConfig } from "@/lib/supabasePublicConfig";
 import type { Database } from "./types";
+import { brokeredPreviewStorage } from "./previewAuthStorage";
 
 function createSupabaseClient() {
   // Build-time VITE_* -> SSR-injected window config -> server process.env.
@@ -32,7 +33,7 @@ function createSupabaseClient() {
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
-      storage: typeof window !== "undefined" ? localStorage : undefined,
+      storage: brokeredPreviewStorage(),
       persistSession: true,
       autoRefreshToken: true,
     },
