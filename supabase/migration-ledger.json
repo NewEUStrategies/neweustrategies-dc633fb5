@@ -1,0 +1,13 @@
+{
+  "$comment": [
+    "Konfiguracja bramki CI `bun run check:migration-ledger` (post-deploy).",
+    "baseline: migracje o wersji <= baseline nie są sprawdzane w rejestrze bazy -",
+    "  rejestr stał się kompletny dopiero od tego punktu, a starsze obiekty pilnuje",
+    "  bramka obiektowa `check:db-contract`. Linia może TYLKO rosnąć.",
+    "reconciled: plik migracji -> wersja, pod którą pipeline faktycznie wykonał ten SQL",
+    "  (dotyczy migracji przyniesionych w PR-ze i odtworzonych pod nową wersją).",
+    "  Wpis nie zwalnia z kontroli - bramka sprawdza wskazaną wersję w rejestrze."
+  ],
+  "baseline": "20260825230232",
+  "reconciled": {}
+}
