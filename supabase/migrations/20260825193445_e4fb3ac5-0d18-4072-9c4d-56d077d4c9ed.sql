@@ -1,0 +1,2 @@
+UPDATE public.event_types SET name_pl = 'Okrągły stół' WHERE key = 'roundtable' AND name_pl = 'Okragly stol';
+UPDATE public.event_types SET name_pl = 'Pytania i odpowiedzi' WHERE key = 'ama' AND name_pl IN ('Pytania i odpowiedzi', 'Pytania i odpowiedzi ');
