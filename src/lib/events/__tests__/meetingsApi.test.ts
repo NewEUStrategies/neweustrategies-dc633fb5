@@ -133,9 +133,7 @@ const KONTRAKT: Record<string, readonly string[]> = {
   ],
   event_meeting_respond: ["decision", "decline_reason", "meeting_id", "table_id"],
   event_meeting_cancel: ["meeting_id", "reason"],
-  event_meeting_reschedule: ["меeting_id", "message", "starts_at"].map((k) =>
-    k.replace("ме", "me"),
-  ),
+  event_meeting_reschedule: ["meeting_id", "message", "starts_at"],
   event_meetings_mine: ["event_id", "event_slug", "limit", "status"],
 };
 
