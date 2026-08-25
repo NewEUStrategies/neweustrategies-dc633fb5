@@ -1,16 +1,20 @@
-// Parytet PL/EN słownika zapisów i biletów + kompletność wartości słownikowych bazy.
+// Słownik modułu zapisów: parytet PL/EN i pokrycie wartości słownikowych bazy.
 //
 // DLACZEGO. Brakujący klucz w jednej wersji językowej nie wysypuje ekranu -
-// i18next pokazuje surowy klucz („adminEventRegistrations.statuses.waitlist")
-// na liście zgłoszeń, czyli awarię widzi dopiero użytkownik EN. Drugi test
-// pilnuje czegoś innego: każda wartość z CHECK-ów migracji musi mieć etykietę,
-// bo nowy status dodany w SQL-u renderuje się w tabeli jako `no_show` zamiast
-// „Nieobecność".
+// i18next renderuje surowy klucz („adminEventRegistration.statuses.no_show"),
+// czyli awarię widzi dopiero użytkownik drugiego języka. Drugi test pilnuje
+// czegoś innego: każda wartość z CHECK-ów migracji
+// `20260823150000_event_people_registration.sql` musi mieć etykietę, bo nowy
+// typ pola dodany w SQL-u renderuje się w panelu jako `consent` zamiast „Zgoda".
+//
+// TU JEST TEŻ DOWÓD JEDNEGO ŹRÓDŁA: stałe czytamy z `registrationsApi`, więc
+// rozjazd między listą wartości w kodzie a etykietami przewraca test, zamiast
+// kończyć się pustą opcją na liście rozwijanej.
 import { describe, expect, it } from "vitest";
 import {
-  adminEventRegistrationsEn,
-  adminEventRegistrationsPl,
-} from "@/lib/i18n-admin-event-registrations";
+  adminEventRegistrationEn,
+  adminEventRegistrationPl,
+} from "@/lib/i18n-admin-event-registration";
 import {
   QUALIFY_OPERATORS,
   QUALIFY_OUTCOMES,
@@ -19,6 +23,8 @@ import {
   REGISTRATION_STATUSES,
 } from "@/lib/events/registrationsApi";
 
+type Bundle = typeof adminEventRegistrationPl;
+
 function flatten(input: unknown, prefix = ""): string[] {
   if (typeof input !== "object" || input === null) return [prefix];
   return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) =>
@@ -26,27 +32,31 @@ function flatten(input: unknown, prefix = ""): string[] {
   );
 }
 
+function valueAt(bundle: Bundle, path: string): unknown {
+  return path
+    .split(".")
+    .reduce<unknown>((acc, part) => (acc as Record<string, unknown> | undefined)?.[part], bundle);
+}
+
+const bundles: readonly [string, Bundle][] = [
+  ["pl", adminEventRegistrationPl],
+  ["en", adminEventRegistrationEn],
+];
+
 describe("słownik zapisów wydarzenia", () => {
   it("PL i EN mają dokładnie te same klucze", () => {
-    const pl = flatten(adminEventRegistrationsPl).sort();
-    const en = flatten(adminEventRegistrationsEn).sort();
+    const pl = flatten(adminEventRegistrationPl).sort();
+    const en = flatten(adminEventRegistrationEn).sort();
     expect(en.filter((key) => !pl.includes(key))).toEqual([]);
     expect(pl.filter((key) => !en.includes(key))).toEqual([]);
   });
 
-  it("żadna wartość nie jest pusta", () => {
-    for (const bundle of [adminEventRegistrationsPl, adminEventRegistrationsEn]) {
-      const empty = flatten(bundle).filter((key) => {
-        const value = key
-          .split(".")
-          .reduce<unknown>(
-            (acc, part) => (acc as Record<string, unknown> | undefined)?.[part],
-            bundle,
-          );
-        return typeof value !== "string" || value.trim() === "";
-      });
-      expect(empty).toEqual([]);
-    }
+  it.each(bundles)("żadna wartość (%s) nie jest pusta", (_lang, bundle) => {
+    const empty = flatten(bundle).filter((key) => {
+      const value = valueAt(bundle, key);
+      return typeof value !== "string" || value.trim() === "";
+    });
+    expect(empty).toEqual([]);
   });
 
   const dictionaries = [
@@ -58,21 +68,19 @@ describe("słownik zapisów wydarzenia", () => {
   ] as const;
 
   it.each(dictionaries)("każda wartość bazy z %s ma etykietę w obu językach", (group, values) => {
-    for (const bundle of [adminEventRegistrationsPl, adminEventRegistrationsEn]) {
-      const section = (
-        bundle.adminEventRegistrations as unknown as Record<string, Record<string, string>>
-      )[group];
+    for (const [lang, bundle] of bundles) {
       for (const value of values) {
-        expect(section?.[value], `${group}.${value}`).toBeTruthy();
+        expect(
+          valueAt(bundle, `adminEventRegistration.${group}.${value}`),
+          `${lang}: ${group}.${value}`,
+        ).toBeTruthy();
       }
     }
   });
 
-  it("każdy komunikat odmowy ma zdanie w obu językach", () => {
-    const pl = Object.keys(adminEventRegistrationsPl.adminEventRegistrations.errors);
-    const en = Object.keys(adminEventRegistrationsEn.adminEventRegistrations.errors);
-    expect(pl.sort()).toEqual(en.sort());
-    // `unknown` jest ostatnią linią obrony mappera - bez niego pokazałby klucz.
-    expect(pl).toContain("unknown");
+  it("mapper odmów ma dokąd trafić: `unknown` jest ostatnią linią obrony", () => {
+    for (const [, bundle] of bundles) {
+      expect(valueAt(bundle, "adminEventRegistration.errors.unknown")).toBeTruthy();
+    }
   });
 });

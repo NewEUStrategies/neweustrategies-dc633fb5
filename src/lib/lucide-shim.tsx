@@ -22,6 +22,7 @@ import {
   CalendarClock as LCalendarClock,
   CalendarDays as LCalendarDays,
   Handshake as LHandshake,
+  Ticket as LTicket,
   Circle as LCircle,
   Clock as LClock,
   Columns2 as LColumns2,
@@ -215,6 +216,7 @@ export const CalendarCheck = makeIcon("CalendarCheck", LCalendarCheck);
 export const CalendarClock = makeIcon("CalendarClock", LCalendarClock);
 export const CalendarDays = makeIcon("CalendarDays", LCalendarDays);
 export const Handshake = makeIcon("Handshake", LHandshake);
+export const Ticket = makeIcon("Ticket", LTicket);
 export const Circle = makeIcon("Circle", LCircle);
 export const Clock = makeIcon("Clock", LClock);
 export const Columns2 = makeIcon("Columns2", LColumns2);

@@ -56,16 +56,22 @@ export const REGISTRATION_ACTIONS = [
 ] as const;
 export type RegistrationAction = (typeof REGISTRATION_ACTIONS)[number];
 
-/** Typy pol formularza zapisu - lista z CHECK-a `field_type`. */
+/**
+ * Typy pol formularza - dokladnie `event_registration_fields_type_values`
+ * z migracji. Wartosc, ktorej nie ma w CHECK-u, wraca z bazy jako `23514` bez
+ * wskazania pola, wiec lista musi byc odwzorowaniem, nie propozycja.
+ */
 export const REGISTRATION_FIELD_TYPES = [
   "text",
   "textarea",
   "select",
   "multiselect",
   "checkbox",
+  "switch",
   "number",
   "date",
-  "url",
+  "file",
+  "consent",
 ] as const;
 export type RegistrationFieldType = (typeof REGISTRATION_FIELD_TYPES)[number];
 
@@ -74,18 +80,18 @@ export const QUALIFY_OPERATORS = [
   "none",
   "equals",
   "not_equals",
-  "contains",
   "in",
   "not_in",
   "gte",
   "lte",
   "is_true",
   "is_false",
+  "not_empty",
 ] as const;
 export type QualifyOperator = (typeof QUALIFY_OPERATORS)[number];
 
 /** Werdykt, ktory pole narzuca zgloszeniu, gdy warunek jest spelniony. */
-export const QUALIFY_OUTCOMES = ["approval", "waitlist", "reject"] as const;
+export const QUALIFY_OUTCOMES = ["auto_approve", "approval", "reject"] as const;
 export type QualifyOutcome = (typeof QUALIFY_OUTCOMES)[number];
 
 type PayloadInput = Record<string, Json | undefined>;
