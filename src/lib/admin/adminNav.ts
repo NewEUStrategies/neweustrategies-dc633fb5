@@ -378,3 +378,40 @@ export function buildAdminNavGroups({
 
   return groups;
 }
+
+/**
+ * Czy pozycja nawigacji PASUJE do ścieżki (dopasowanie kandydujące).
+ *
+ * Sam prefiks nie wystarcza do podświetlenia: na `/admin/events/types` pasuje
+ * zarówno pozycja `/admin/events`, jak i `/admin/events/types`. Wybór jednego
+ * zwycięzcy robi `resolveActiveNavTarget` - tutaj tylko odsiewamy pozycje,
+ * które świadomie NIE mają się podświetlać na podtrasach.
+ */
+export function navItemMatchesPath(to: string, path: string): boolean {
+  if (path === to) return true;
+  if (to === "/admin" || to === "/admin/appearance") return false;
+  // Kontakty CRM podświetlamy tylko na /admin/crm i szczegółach kontaktu,
+  // nie w lejku ani firmach.
+  if (to === "/admin/crm") return /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path);
+  // Skrót do klubów ma własną pozycję, więc "Społeczność" nie może się
+  // podświetlać razem z nim.
+  if (to === "/admin/community" && path.startsWith("/admin/community/clubs")) return false;
+  return path.startsWith(`${to}/`);
+}
+
+/**
+ * DOKŁADNIE JEDNA aktywna pozycja w całym sidebarze: z kandydatów wygrywa ten
+ * z najdłuższą trasą, więc na `/admin/events/types` świeci się „Wydarzenia -
+ * rodzaje", a nadrzędne „Wydarzenia" już nie.
+ */
+export function resolveActiveNavTarget(groups: AdminNavGroup[], path: string): string | null {
+  let best: string | null = null;
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (!("to" in item)) continue;
+      if (!navItemMatchesPath(item.to, path)) continue;
+      if (best === null || item.to.length > best.length) best = item.to;
+    }
+  }
+  return best;
+}
