@@ -62,3 +62,10 @@ reports/*
 # Drugi lockfile w repo rozjeżdża rozwiązywanie zależności między CI i lokalnie,
 # a jest generowany przy każdym takim obejściu - stąd wykluczenie, nie dyscyplina.
 package-lock.json
+
+# Claude Code: `.claude/settings.json` JEST kontraktem zespołu (marketplace
+# wtyczek i lista włączonych wtyczek), więc idzie do repo. Wariant
+# `*.local.json` to warstwa osobista - trafiają tam m.in. bloki `env`
+# z kluczami API, których nie wolno commitować.
+.claude/settings.local.json
+.claude/*.local.json
