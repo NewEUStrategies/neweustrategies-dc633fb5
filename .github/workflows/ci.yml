@@ -697,6 +697,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
 
+      # Bramka obiektowa wyżej nie widzi migracji, ktore niczego nie tworza -
+      # ALTER, polityka RLS, GRANT, CREATE OR REPLACE, seed. Ta porownuje sam
+      # rejestr: pliki supabase/migrations ⇄ supabase_migrations.schema_migrations
+      # (przez RPC missing_migration_versions, ktore odpowiada tylko na pytanie
+      # o podane wersje). Dokladnie ten typ luki przepuscil PR #286.
+      - name: Migration ledger (branch migrations actually applied)
+        if: always()
+        run: bun run check:migration-ledger
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+
       - name: Download i18n parity report
         if: always()
         continue-on-error: true
