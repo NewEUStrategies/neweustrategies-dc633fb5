@@ -8,8 +8,9 @@
 // KOLEJNOŚĆ ZAKŁADEK ODPOWIADA KOLEJNOŚCI PRACY: najpierw bilety (nadają pulę
 // miejsc i grupę), potem pola formularza, o które pytamy przy zapisie.
 //
-// ZAKŁADKI ZGŁOSZEŃ TU JESZCZE NIE MA, bo lista decyzji jest osobnym ekranem z
-// filtrami i akcjami zbiorczymi - dopisze się tutaj jedną linią, gdy powstanie.
+// ZGŁOSZENIA STOJĄ NA PIERWSZEJ ZAKŁADCE, bo to ekran pracy codziennej: bilety i
+// pola formularza ustawia się raz przed wydarzeniem, a decyzje podejmuje się
+// codziennie aż do dnia wydarzenia.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +24,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { RegistrationFieldsPanel } from "@/components/admin/events/organisms/RegistrationFieldsPanel";
+import { RegistrationsListPanel } from "@/components/admin/events/organisms/RegistrationsListPanel";
 import { useAdminEventsList } from "@/lib/events/useAdminEvents";
 import { formatDateShort, uiLang } from "@/lib/i18n/format";
 import type { AdminEventListRow } from "@/lib/events/eventsListApi";
@@ -68,14 +70,20 @@ export function RegistrationsManager() {
       </div>
 
       {eventId === null ? null : (
-        <Tabs defaultValue="tickets" className="space-y-4">
+        <Tabs defaultValue="registrations" className="space-y-4">
           <TabsList className="tabs-scroller">
+            <TabsTrigger value="registrations">
+              {t("adminEventRegistration.nav.registrations")}
+            </TabsTrigger>
             <TabsTrigger value="tickets">{t("adminEventRegistration.nav.tickets")}</TabsTrigger>
             <TabsTrigger value="form">{t("adminEventRegistration.nav.form")}</TabsTrigger>
           </TabsList>
 
           {/* `key` na wydarzeniu: zmiana kontekstu resetuje szkice formularzy,
               zamiast przepisywać stan poprzedniego wydarzenia na nowe. */}
+          <TabsContent value="registrations">
+            <RegistrationsListPanel key={eventId} eventId={eventId} />
+          </TabsContent>
           <TabsContent value="tickets">
             <EventTicketsPanel key={eventId} eventId={eventId} />
           </TabsContent>
