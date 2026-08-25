@@ -343,7 +343,7 @@ export async function arrangeMeeting(input: {
 
 export async function saveAdminAvailability(input: {
   id?: string | null;
-  eventId: string;
+  /** Wydarzenie bierze sie ze zgloszenia - RPC nie czyta `event_id` z payloadu. */
   registrationId: string;
   startsAt: string;
   endsAt: string;
@@ -354,7 +354,6 @@ export async function saveAdminAvailability(input: {
   const { data, error } = await supabase.rpc("admin_event_meeting_availability_set", {
     p_payload: payload({
       id: input.id ?? null,
-      event_id: input.eventId,
       registration_id: input.registrationId,
       starts_at: input.startsAt,
       ends_at: input.endsAt,
@@ -365,6 +364,7 @@ export async function saveAdminAvailability(input: {
   if (error) throw error;
   return String(data);
 }
+
 
 
 export async function deleteAdminAvailability(id: string): Promise<boolean> {
