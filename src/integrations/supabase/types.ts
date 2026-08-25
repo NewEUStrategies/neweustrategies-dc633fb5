@@ -22354,6 +22354,7 @@ export type Database = {
         }[]
       }
       event_meeting_invite: { Args: { p_payload: Json }; Returns: Json }
+      event_meeting_respond: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {
