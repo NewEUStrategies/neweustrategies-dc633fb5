@@ -74,6 +74,14 @@ const EVENT_TABS = [
     labelKey: "adminEventOnsite.nav.sectionTitle",
   },
   {
+    // Etykieta z własnego słownika grup i zgód - katalog uprawnień i dowodów
+    // akceptacji wozi swoje teksty.
+    to: "/admin/events/terms" as const,
+    key: "terms",
+    icon: ShieldCheck,
+    labelKey: "adminEventTerms.nav.sectionTitle",
+  },
+  {
     // Etykieta z własnego słownika giełdy - moduł spotkań wozi swoje teksty,
     // a `adminEvents` nie musi wiedzieć, że giełda w ogóle istnieje.
     to: "/admin/events/meetings" as const,
@@ -81,6 +89,7 @@ const EVENT_TABS = [
     icon: Handshake,
     labelKey: "adminEventMeetings.nav.section",
   },
+
 ] as const;
 
 
