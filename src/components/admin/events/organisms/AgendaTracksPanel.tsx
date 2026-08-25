@@ -35,13 +35,9 @@ import {
 } from "@/lib/events/useEventSessions";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
 
-function field(row: EventTrackRow, key: string): unknown {
-  return (row as unknown as Record<string, unknown>)[key];
-}
-
 export function AgendaTracksPanel({ eventId }: { eventId: string }) {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language.startsWith("en") ? "en" : "pl";
+  const isEn = i18n.language.startsWith("en");
   const listQ = useEventTracks(eventId);
   const save = useSaveEventTrack(eventId);
   const remove = useDeleteEventTrack(eventId);
@@ -51,8 +47,7 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
   const [pendingDelete, setPendingDelete] = useState<EventTrackRow | null>(null);
 
   const rows = listQ.data ?? [];
-  const nextSortOrder =
-    rows.reduce((max, row) => Math.max(max, Number(field(row, "sort_order") ?? 0)), 0) + 10;
+  const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
 
   const fail = (error: unknown) => toast.error(adminAgendaErrorMessage(error));
 
@@ -69,14 +64,15 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
 
   /** Przełącznik w wierszu wysyła CAŁY wiersz - RPC zapisu jest upsertem. */
   const toggleActive = (row: EventTrackRow, next: boolean) => {
-    save.mutate({ ...trackDraftToInput(trackDraftFromRow(row), eventId), isActive: next }, {
-      onError: fail,
-    });
+    save.mutate(
+      { ...trackDraftToInput(trackDraftFromRow(row), eventId), isActive: next },
+      { onError: fail },
+    );
   };
 
   const confirmDelete = () => {
     if (pendingDelete === null) return;
-    remove.mutate(String(field(pendingDelete, "id")), {
+    remove.mutate(pendingDelete.id, {
       onSuccess: () => {
         toast.success(t("adminEventAgenda.tracks.toasts.deleted"));
         setPendingDelete(null);
@@ -88,11 +84,8 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
     });
   };
 
-  const nameOf = (row: EventTrackRow): string => {
-    const pl = String(field(row, "name_pl") ?? "");
-    const en = String(field(row, "name_en") ?? "");
-    return lang === "en" ? en || pl : pl || en;
-  };
+  const nameOf = (row: EventTrackRow): string =>
+    isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en;
 
   return (
     <section className="space-y-4">
@@ -117,64 +110,61 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
       <AdminCatalogListState
         isLoading={listQ.isLoading}
         loadingLabel={t("adminEventAgenda.tracks.loading")}
-        errorMessage={listQ.error === null ? null : adminAgendaErrorMessage(listQ.error)}
+        errorMessage={
+          listQ.error === null || listQ.error === undefined
+            ? null
+            : adminAgendaErrorMessage(listQ.error)
+        }
         isEmpty={rows.length === 0}
         emptyLabel={t("adminEventAgenda.tracks.empty")}
       >
         <ul className="space-y-2">
-          {rows.map((row) => {
-            const color = field(row, "accent_color");
-            return (
-              <li
-                key={String(field(row, "id"))}
-                className="flex flex-wrap items-center gap-3 rounded-md border border-border/70 p-3"
-              >
-                <span
-                  aria-hidden="true"
-                  className="h-4 w-4 shrink-0 rounded-sm border border-border"
-                  style={typeof color === "string" ? { backgroundColor: color } : undefined}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{nameOf(row)}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">
-                    {String(field(row, "key") ?? "")}
-                  </p>
-                </div>
-                <Badge variant="secondary">
-                  {t("adminEventAgenda.tracks.sessionsCount", {
-                    count: Number(field(row, "sessions_count") ?? 0),
-                  })}
-                </Badge>
-                <AdminFormSwitchRow
-                  label={t("adminEventAgenda.tracks.dialog.isActive")}
-                  checked={field(row, "is_active") !== false}
-                  onCheckedChange={(next) => toggleActive(row, next)}
-                  className="w-auto"
-                />
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("adminEventAgenda.tracks.dialog.editTitle")}
-                    onClick={() => {
-                      setEdited(row);
-                      setDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("adminEventAgenda.tracks.deleteConfirm")}
-                    onClick={() => setPendingDelete(row)}
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
+          {rows.map((row) => (
+            <li
+              key={row.id}
+              className="flex flex-wrap items-center gap-3 rounded-md border border-border/70 p-3"
+            >
+              <span
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 rounded-sm border border-border"
+                style={{ backgroundColor: row.accent_color }}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{nameOf(row)}</p>
+                <p className="truncate font-mono text-xs text-muted-foreground">{row.key}</p>
+              </div>
+              <Badge variant="secondary">
+                {t("adminEventAgenda.tracks.sessionsCount", { count: row.sessions_count })}
+              </Badge>
+              <AdminFormSwitchRow
+                label={t("adminEventAgenda.tracks.dialog.isActive")}
+                checked={row.is_active}
+                onCheckedChange={(next) => toggleActive(row, next)}
+                className="w-auto"
+              />
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("adminEventAgenda.tracks.dialog.editTitle")}
+                  onClick={() => {
+                    setEdited(row);
+                    setDialogOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("adminEventAgenda.tracks.deleteConfirm")}
+                  onClick={() => setPendingDelete(row)}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </li>
+          ))}
         </ul>
       </AdminCatalogListState>
 
@@ -190,7 +180,9 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
 
       <AlertDialog
         open={pendingDelete !== null}
-        onOpenChange={(open) => (open ? null : setPendingDelete(null))}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -200,9 +192,7 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("adminEventAgenda.tracks.dialog.cancelAction")}
-            </AlertDialogCancel>
+            <AlertDialogCancel>{t("adminEventAgenda.tracks.dialog.cancelAction")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>
               {t("adminEventAgenda.tracks.dialog.saveAction")}
             </AlertDialogAction>
