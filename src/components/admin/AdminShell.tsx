@@ -464,7 +464,8 @@ function AdminShellInner({
                       <AdminNavRow
                         key={`${hit.groupId}-${adminNavItemKey(hit.item)}`}
                         item={hit.item}
-                        path={path}
+                        activeTo={activeTo}
+
                         compact={false}
                         groupLabel={hit.groupLabel}
                         externalHint={t("admin.nav.externalNewTab")}
