@@ -129,7 +129,7 @@ export function SponsorTiersPanel({ eventId }: { eventId: string }) {
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{nameOf(row)}</p>
-                <p className="truncate font-mono text-xs text-muted-foreground">{row.key}</p>
+                <p className="truncate font-medium tracking-tight text-xs text-muted-foreground">{row.key}</p>
               </div>
               <Badge variant="secondary">
                 {t("adminEventSponsors.tiers.sponsorsCount", { count: row.sponsors_count })}

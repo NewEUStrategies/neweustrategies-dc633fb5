@@ -193,7 +193,9 @@ export function EventTypesManager() {
                   }
                   meta={
                     <>
-                      <span className="font-mono">{row.key}</span> · PL: {row.name_pl} · EN:{" "}
+                      <span className="font-medium tracking-tight">{row.key}</span> · PL:{" "}
+                      {row.name_pl} · EN:{" "}
+
                       {row.name_en} · {usageLabel(row)}
                     </>
                   }
