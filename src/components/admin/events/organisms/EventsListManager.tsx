@@ -28,10 +28,6 @@ import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalog
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { EventListFilters } from "@/components/admin/events/molecules/EventListFilters";
 import { EventListRow } from "@/components/admin/events/molecules/EventListRow";
-import {
-  EventCreateDialog,
-  type EventCreateDraft,
-} from "@/components/admin/events/organisms/EventCreateDialog";
 import { uiLang } from "@/lib/i18n/format";
 import { EVENT_FORMATS, EVENT_FORMAT_LABEL_KEYS, asEventFormat } from "@/lib/events/eventTypes";
 import {
@@ -46,11 +42,7 @@ import {
   type EventListTab,
 } from "@/lib/events/eventListParams";
 import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
-import {
-  useAdminEventCounts,
-  useAdminEventsList,
-  useCreateEventFromType,
-} from "@/lib/events/useAdminEvents";
+import { useAdminEventCounts, useAdminEventsList } from "@/lib/events/useAdminEvents";
 import { useEventTypes } from "@/lib/events/useEventTypes";
 import type { AdminEventListRow } from "@/lib/events/eventsListApi";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
@@ -61,14 +53,10 @@ const ALL = "all";
 export function EventsListManager({
   params,
   now,
-  createOpen,
-  onCreateOpenChange,
 }: {
   params: EventListParams;
   /** Zegar podany z zewnątrz - granica „przyszłe/przeszłe" musi być testowalna. */
   now: Date;
-  createOpen: boolean;
-  onCreateOpenChange: (open: boolean) => void;
 }) {
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
@@ -78,7 +66,6 @@ export function EventsListManager({
   const listQ = useAdminEventsList(params, now);
   const countsQ = useAdminEventCounts(params);
   const typesQ = useEventTypes();
-  const create = useCreateEventFromType();
 
   const rows = useMemo(() => listQ.data ?? [], [listQ.data]);
   const total = rows[0]?.total_count ?? 0;
@@ -153,31 +140,6 @@ export function EventsListManager({
     return out;
   };
 
-  const submitCreate = (draft: EventCreateDraft) => {
-    create.mutate(
-      {
-        eventTypeId: draft.eventTypeId,
-        titlePl: draft.titlePl.trim(),
-        titleEn: draft.titleEn.trim(),
-        // Pole `datetime-local` oddaje czas BEZ strefy. Traktujemy go jako czas
-        // lokalny przeglądarki i zamieniamy na chwilę - inaczej wydarzenie
-        // wpisane o 10:00 zapisuje się jako 10:00 UTC, czyli 12:00 w Warszawie.
-        startsAt: new Date(draft.startsAt).toISOString(),
-        // Puste pole znaczy „nie podano", a nie „podano pusty adres". Serwer
-        // i tak zeruje adres dla rodzajów, które go nie używają.
-        externalRegistrationUrl:
-          draft.externalRegistrationUrl.trim() === "" ? null : draft.externalRegistrationUrl.trim(),
-      },
-      {
-        onSuccess: () => {
-          toast.success(t("adminEvents.list.toasts.created"));
-          onCreateOpenChange(false);
-        },
-        onError: (error) => toast.error(error.message),
-      },
-    );
-  };
-
   const pageSize = eventListPageSize(params);
   const filtered = hasEventListFilters(params) || activeTab !== "all";
 
@@ -188,7 +150,10 @@ export function EventsListManager({
           <h2 className="text-lg font-semibold">{t("adminEvents.list.title")}</h2>
           <p className="text-sm text-muted-foreground">{t("adminEvents.list.subtitle")}</p>
         </div>
-        <Button size="sm" onClick={() => onCreateOpenChange(true)}>
+        {/* Tworzenie ma WŁASNY ADRES (`/admin/events/new`), więc redaktor może
+            wrócić „wstecz", odświeżyć i przesłać link - okno modalne odcinało
+            formularz od historii przeglądarki. */}
+        <Button size="sm" onClick={() => void navigate({ to: "/admin/events/new" })}>
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
           {t("adminEvents.list.createAction")}
         </Button>
@@ -292,14 +257,6 @@ export function EventsListManager({
           }
         />
       </AdminCatalogListState>
-
-      <EventCreateDialog
-        open={createOpen}
-        types={typesQ.data ?? []}
-        isSaving={create.isPending}
-        onClose={() => onCreateOpenChange(false)}
-        onSubmit={submitCreate}
-      />
     </div>
   );
 }

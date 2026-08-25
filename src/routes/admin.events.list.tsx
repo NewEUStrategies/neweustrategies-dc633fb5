@@ -14,7 +14,6 @@
 // `assert_editor_tenant()`, więc autor bez roli redaktora dostanie `42501`
 // niezależnie od tego, co pokaże ekran. Zdanie zamiast pustej listy istnieje po
 // to, żeby odmowa nie wyglądała jak awaria.
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ShieldAlert } from "lucide-react";
@@ -48,7 +47,6 @@ function AdminEventsListPage() {
   const { isAdmin, roles } = useAuth();
   const canRead = isAdmin || roles.includes("editor");
   const params = Route.useSearch();
-  const [createOpen, setCreateOpen] = useState(false);
 
   // Zegar MUSI tykać. Granica zakładek „Najbliższe" i „Archiwum" liczy się z tej
   // wartości, a licznik zakładek liczy się w bazie funkcją `now()` przy każdym
@@ -69,12 +67,7 @@ function AdminEventsListPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
-      <EventsListManager
-        params={params}
-        now={now}
-        createOpen={createOpen}
-        onCreateOpenChange={setCreateOpen}
-      />
+      <EventsListManager params={params} now={now} />
     </div>
   );
 }
