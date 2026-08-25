@@ -24,6 +24,7 @@ import {
   Ticket,
   ListOrdered,
   CalendarCheck,
+  ShieldCheck,
 } from "@/lib/lucide-shim";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
@@ -31,6 +32,7 @@ import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-reg
 import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
+import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
 
 const EVENT_TABS = [
   {
@@ -74,6 +76,14 @@ const EVENT_TABS = [
     labelKey: "adminEventOnsite.nav.sectionTitle",
   },
   {
+    // Etykieta z własnego słownika grup i zgód - katalog uprawnień i dowodów
+    // akceptacji wozi swoje teksty.
+    to: "/admin/events/terms" as const,
+    key: "terms",
+    icon: ShieldCheck,
+    labelKey: "adminEventTerms.nav.sectionTitle",
+  },
+  {
     // Etykieta z własnego słownika giełdy - moduł spotkań wozi swoje teksty,
     // a `adminEvents` nie musi wiedzieć, że giełda w ogóle istnieje.
     to: "/admin/events/meetings" as const,
@@ -81,6 +91,7 @@ const EVENT_TABS = [
     icon: Handshake,
     labelKey: "adminEventMeetings.nav.section",
   },
+
 ] as const;
 
 
@@ -92,6 +103,7 @@ export function EventsSubNav() {
   ensureRegistrationI18n();
   ensureAgendaI18n();
   ensureSponsorsI18n();
+  ensureTermsI18n();
   ensureOnsiteI18n();
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
