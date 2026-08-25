@@ -120,7 +120,9 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
                 <p className="font-medium">
                   {i18n.language.startsWith("pl") ? row.label_pl : row.label_en}
                 </p>
-                <p className="font-medium tracking-tight text-xs text-muted-foreground">{row.key}</p>
+                <p className="font-medium tracking-tight text-xs text-muted-foreground">
+                  {row.key}
+                </p>
               </div>
 
               <Badge variant="secondary">

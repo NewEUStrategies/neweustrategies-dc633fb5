@@ -22,7 +22,6 @@ import {
   searchAdminNav,
   adminNavItemKey,
   resolveActiveNavTarget,
-
   type AdminNavGroup,
   type AdminNavItem,
 } from "@/lib/admin/adminNav";
@@ -207,7 +206,6 @@ type AdminNavRowProps = {
   onNavigate?: () => void;
 };
 
-
 /** Pojedynczy wiersz nawigacji - wspólny dla listy grup i wyników wyszukiwania. */
 function AdminNavRow({
   item,
@@ -317,8 +315,6 @@ function AdminShellInner({
   // DOKŁADNIE JEDNA pomarańczowa pozycja: wygrywa najdłuższe dopasowanie, więc
   // podtrasa nie podświetla się razem z pozycją nadrzędną.
   const activeTo = useMemo(() => resolveActiveNavTarget(groups, path), [groups, path]);
-
-
 
   // Wyszukiwarka wewnętrzna panelu (tylko admin) - filtruje mapę nawigacji,
   // bez sięgania po treści publiczne.

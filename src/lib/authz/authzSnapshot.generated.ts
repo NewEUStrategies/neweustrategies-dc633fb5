@@ -25,7 +25,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:admin_update_user_avatar/2","kind":"function","object":"admin_update_user_avatar","file":"20260703175337_26cac59a-7e92-4f74-b66d-0f4f6cfeb098.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:authorize_resource_download/1","kind":"function","object":"authorize_resource_download","file":"20260724100000_fix_definer_header_tenant_scope.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:b2b_coupons_analytics/2","kind":"function","object":"b2b_coupons_analytics","file":"20260725090200_fix_coupon_analytics_applied_cents_inversion.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:bulk_generate_coupons_for_campaign/1","kind":"function","object":"bulk_generate_coupons_for_campaign","file":"20260824080000_event_admissions_packages_coupons.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:bulk_generate_coupons_for_campaign/1","kind":"function","object":"bulk_generate_coupons_for_campaign","file":"20260825191948_ab7f57aa-961d-436a-ba0f-2fd114f42844.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:can_access_entity_presence/2","kind":"function","object":"can_access_entity_presence","file":"20260726121910_2aee5795-f498-4de1-b4b5-34b2b5422a50.sql","anyRoles":["admin","author","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:can_publish_content/1","kind":"function","object":"can_publish_content","file":"20260702113027_d3940358-76a0-4e77-bf9c-52f475d524b6.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:change_user_role/2","kind":"function","object":"change_user_role","file":"20260703090100_profiles_column_grants_and_role_audit.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -78,5 +78,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":862,"functions":1017,"policies":604},
+  stats: {"migrations":866,"functions":1017,"policies":604},
 };
