@@ -19018,6 +19018,41 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_event_meeting_settings_get: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_meeting_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_meeting_table_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_meeting_table_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_meeting_tables_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          capacity: number
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          meetings_count: number
+          minutes_taken: number
+          next_meeting_at: string
+          note: string
+          room_id: string
+          room_name: string
+          sort_order: number
+          updated_at: string
+          zone: string
+        }[]
+      }
       admin_event_onsite_stats: {
         Args: { p_bucket_minutes?: number; p_event_id: string }
         Returns: Json
