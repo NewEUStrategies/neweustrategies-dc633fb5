@@ -17,9 +17,10 @@
 // wchodzi na ekran).
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, Shapes, Handshake } from "@/lib/lucide-shim";
+import { CalendarDays, Shapes, Handshake, Ticket } from "@/lib/lucide-shim";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
+import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
 const EVENT_TABS = [
   {
@@ -33,6 +34,13 @@ const EVENT_TABS = [
     key: "types",
     icon: Shapes,
     labelKey: "adminEvents.nav.types",
+  },
+  {
+    // Etykieta z własnego słownika zapisów - `adminEvents` nie musi znać jego kluczy.
+    to: "/admin/events/registrations" as const,
+    key: "registrations",
+    icon: Ticket,
+    labelKey: "adminEventRegistration.nav.sectionTitle",
   },
   {
     // Etykieta z własnego słownika giełdy - moduł spotkań wozi swoje teksty,

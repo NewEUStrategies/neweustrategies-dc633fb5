@@ -11,8 +11,12 @@
 // NIEZNANY KLUCZ NIE UDAJE ZNANEGO: wracamy do `unknown` zamiast pokazywac
 // organizatorowi `42501` albo techniczna angielszczyzne.
 import i18n from "@/lib/i18n";
+import { ensureI18n } from "@/lib/i18n-admin-event-registration";
 
-const PREFIX = "adminEventRegistrations.errors.";
+// Slownik modulu zapisow istnieje od migracji `20260823150000` i zna KAZDA
+// wartosc jej CHECK-ow. Drugi, wlasny zestaw kluczy rozjechalby sie z nim przy
+// pierwszej zmianie SQL-a, wiec mapper czyta ten sam namespace, co ekrany.
+const PREFIX = "adminEventRegistration.errors.";
 
 /** `quota_below_sold` -> `quotaBelowSold`. Slownik camelCase, baza snake_case. */
 function camel(key: string): string {
@@ -45,6 +49,9 @@ function paramsOf(tail: string): AdminRegistrationErrorParams {
 }
 
 export function adminRegistrationFailure(error: unknown): AdminRegistrationFailure {
+  // Bez rejestracji nakladki `i18n.exists()` odpowiada „nie ma" na kazdy klucz,
+  // wiec kazda odmowa bazy spadalaby do `unknown`.
+  ensureI18n();
   const message = messageOf(error);
   const separator = message.indexOf(":");
   const head = (separator === -1 ? message : message.slice(0, separator)).trim();
