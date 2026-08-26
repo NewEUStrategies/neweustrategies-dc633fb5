@@ -32,6 +32,13 @@
   "missingEn": [],
   "missingPl": [],
   "untranslated": [
+    "adminEvents.general.videoPlatforms.vimeo",
+    "adminEvents.general.videoPlatforms.youtube",
+    "adminEvents.studio.general.format",
+    "adminEvents.studio.general.hashtag",
+    "adminEvents.studio.general.regionLabel",
+    "adminEvents.studio.pages.standard",
+    "adminEvents.studio.sections.branding",
     "adminPostPanes.editor.langEn",
     "adminPostPanes.general.badgeOverride",
     "adminPostPanes.general.formatRow",
@@ -193,6 +200,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 485
+    "untranslated": 492
   }
 }

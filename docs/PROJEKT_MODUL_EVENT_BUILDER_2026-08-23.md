@@ -1,9 +1,11 @@
 # Event Builder — dedykowany moduł wydarzeń w panelu administracyjnym
 
-Data: 2026-08-23 · Status: **specyfikacja w budowie (mapowanie, przed implementacją)**
+Data otwarcia: 2026-08-23 · Ostatnia aktualizacja: 2026-08-26
+Status: **specyfikacja żywa — wdrożenie w toku (E1 i E3 częściowo, patrz §8 i §12)**
 Wzorzec referencyjny: **Swapcard Studio** (`studio.swapcard.com/event/<slug>/…`)
 Dziennik zrzutów ekranu: `docs/MAPOWANIE_SWAPCARD_EVENT_BUILDER_ZRZUTY.md`
-Zakres tej iteracji: **inwentaryzacja + mapowanie + backlog**. Kod nie jest jeszcze pisany.
+(sekcja „Stan wdrożenia — 2026-08-26" mapuje ekran po ekranie na ścieżki w repo)
+Dziennik wdrożenia: **§12** tego dokumentu.
 
 ---
 
@@ -155,29 +157,29 @@ Legenda: **✅ jest** · **🟡 częściowo** · **🔴 brak**
 
 ### 2.1 Event builder
 
-| Swapcard               | Zawartość ekranu                                                                                                                                                                                                                                               | Stan NES                             | Gdzie to jest / gdzie ma być                                                                                                                                         | Zadanie    |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| General information    | nazwa, URL wydarzenia, `Begins`/`Ends`/`Time zone`, okładka, video header (YouTube ID), **Format: Hybrid / In-person / Virtual**, lokalizacja (adres/miasto/region/kod/kraj), Information (RTE), hashtag X, **Languages** (multi), support email, **Event ID** | 🟡                                   | jest: nazwa, slug, daty, strefa, `location`, `cover_url`, opisy PL/EN. brak: `format`, adres strukturalny, video header, hashtag, support email, jawny Event ID w UI | EB-101…107 |
-| Pages & menu           | `Home page design: Advanced / Standard`, `Display mode: Grid / List`, **Pages** (`Menu pages` / `Other pages`) z ikoną, kolorem, kolejnością i widocznością                                                                                                    | 🔴 (silnik jest, powierzchni nie ma) | oprzeć na `pages.parent_id` + `menu_order` + `header_override` (`docs/MICROSITES.md`), nie nowy CRUD                                                                 | EB-201…206 |
-| Groups & permissions   | grupy uczestników (`Exhibitors`, `Speakers`, `Attendees` z licznikami), edycja + reguły per grupa, `Guest mode`, `Guests visibility` → „Manage visibility"                                                                                                     | 🔴                                   | wzorzec 1:1 z `club_groups` + `club_capabilities()` (`docs/PROJEKT_MODUL_DISCUSSION_CLUB_V2_ADMIN_2026-08-07.md`)                                                    | EB-301…306 |
-| Branding               | kolory, logotypy, fonty wydarzenia                                                                                                                                                                                                                             | 🟡                                   | globalne: `/admin/theme-design`, `/admin/theme-options`; per-organizacja wzorzec kolumn w `member_organizations` (logo H/V light/dark + `brand_*`)                   | EB-401…403 |
-| Sponsors & advertising | sponsorzy, poziomy, kreacje reklamowe                                                                                                                                                                                                                          | 🟡                                   | widget `event-sponsors` (JSON) + globalny `/admin/ads` (`ad_events`)                                                                                                 | EB-501…504 |
-| Terms                  | regulamin i zgody wydarzenia                                                                                                                                                                                                                                   | 🟡                                   | globalnie `user_consents` / `crm_consent_log` + `/regulamin`; per-wydarzenie brak                                                                                    | EB-601…603 |
+| Swapcard               | Zawartość ekranu                                                                                                                                                                                                                                               | Stan NES                       | Gdzie to jest / gdzie ma być                                                                                                                                                                                                                                                                                                                                              | Zadanie                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| General information    | nazwa, URL wydarzenia, `Begins`/`Ends`/`Time zone`, okładka, video header (YouTube ID), **Format: Hybrid / In-person / Virtual**, lokalizacja (adres/miasto/region/kod/kraj), Information (RTE), hashtag X, **Languages** (multi), support email, **Event ID** | ✅ ekran, 🟡 skutki na froncie | `src/components/admin/events/organisms/EventGeneralPanel.tsx` + `src/lib/events/eventGeneralDraft.ts` + `src/lib/events/eventLanguages.ts`; zapis `admin_event_general_save`, kolumny w `supabase/migrations/20260826090000_event_studio_general.sql`. **Front publiczny nie czyta jeszcze** adresu strukturalnego, nagłówka wideo, hashtagu, języków ani adresu wsparcia | EB-101…111 (otwarte: 103, 105, 106, 108, 110) |
+| Pages & menu           | `Home page design: Advanced / Standard`, `Display mode: Grid / List`, **Pages** (`Menu pages` / `Other pages`) z ikoną, kolorem, kolejnością i widocznością                                                                                                    | 🟡                             | `src/components/admin/events/organisms/EventPagesMenuPanel.tsx` + `src/lib/events/eventPagesApi.ts` (poddrzewo `pages` po `events.root_page_id`); `events.home_design`, `events.pages_display_mode`. **Bez `event_pages`**: podział menu liczy się z `pages.menu_order`, brak ikon, kolorów, kolejności i widoczności per grupa; brak widgetu `event-menu` na froncie     | EB-201…206 (otwarte: 202…206)                 |
+| Groups & permissions   | grupy uczestników (`Exhibitors`, `Speakers`, `Attendees` z licznikami), edycja + reguły per grupa, `Guest mode`, `Guests visibility` → „Manage visibility"                                                                                                     | 🟡                             | `src/components/admin/events/organisms/EventGroupsPermissionsPanel.tsx` (montuje istniejący `EventGroupsPanel.tsx`) + `events.guest_mode` (`hidden`/`teaser`/`full`). Ostrzeżenie o kolizji z Chatham House jest **informacyjne**; `event_capabilities()` i macierz „Manage visibility" nie istnieją                                                                      | EB-301…306 (otwarte: 302, 303, 306)           |
+| Branding               | kolory, logotypy, fonty wydarzenia                                                                                                                                                                                                                             | 🟡                             | `src/components/admin/events/organisms/EventBrandingPanel.tsx` + `src/lib/events/eventBrandingDraft.ts`; zapis `admin_event_branding_save` (biała lista kluczy, `#RRGGBB`, obrazy wyłącznie `https`). Klucz pominięty = dziedziczenie z motywu globalnego. **Nie wstrzykujemy jeszcze** nadpisań w SSR poddrzewa stron wydarzenia; fonty zostają globalne                 | EB-401…405 (otwarte: 402, 405)                |
+| Sponsors & advertising | sponsorzy, poziomy, kreacje reklamowe                                                                                                                                                                                                                          | 🟡                             | panele `SponsorsListPanel.tsx` / `SponsorTiersPanel.tsx` (`src/components/admin/events/organisms/`), w studiu montowane przez `EventStudioModuleSections.tsx`; reklama wydarzenia nadal globalna (`/admin/ads`, `ad_events`)                                                                                                                                              | EB-501…504                                    |
+| Terms                  | regulamin i zgody wydarzenia                                                                                                                                                                                                                                   | 🟡                             | `EventTermsPanel.tsx` + `GroupMembersPanel.tsx`, w studiu montowane przez `EventStudioModuleSections.tsx`; globalnie nadal `user_consents` / `crm_consent_log`                                                                                                                                                                                                            | EB-601…603                                    |
 
 ### 2.2 Pozostałe sekcje sidebara (do rozpisania po kolejnych zrzutach)
 
-| Swapcard                               | Stan NES                | Najbliższy istniejący klocek                                                                                                        | Zadanie |
-| -------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| In-App registration                    | 🟡                      | `rsvp_event`, bilety (`ticket*.ts`), `plan_ticket_claims`, `admin.users.invitations`, `onboarding-form`/`register-form` w builderze | EB-7xx  |
-| Content (sesje, prelegenci, dokumenty) | 🟡                      | `event_speakers` + `speaker_profiles` ✅; sesje tylko w JSON widgetu 🔴; dokumenty → wzorzec `club_documents`                       | EB-8xx  |
-| Exhibitor Marketplace                  | ⛔ poza zakresem (§0.4) | zamiast modułu: grupa „Partnerzy” + sponsorzy czytani z `crm_companies`                                                             | —       |
-| Meetings                               | ✅ rdzeń                | `meeting_slots.event_id`, `meeting_bookings`, widget `meeting-booking` — brak panelu (siatka slotów, limity, reguły matchmakingu)   | EB-10xx |
-| Communications                         | 🟡                      | `/admin/newsletter` (kampanie, szablony), powiadomienia community, `run_event_reminders()`                                          | EB-11xx |
-| Onsite **(wymagany, §0.4)**            | 🔴                      | bilet z QR (`src/lib/events/ticketCode.ts`) istnieje, **skanera/check-inu/badge'y nie ma**                                          | EB-12xx |
-| Integrations                           | 🟡                      | `/admin/integrations` (globalne) — brak zakresu per wydarzenie                                                                      | EB-13xx |
-| Analytics                              | 🟡                      | `/admin/analytics`, `analytics_events`, `domain_events` — brak dashboardu wydarzenia                                                | EB-14xx |
-| Add-on features                        | 🔴                      | odpowiednik: przełączniki modułów (`fetchCommunityModules`) → per wydarzenie                                                        | EB-15xx |
-| Publish event / Preview event          | 🟡                      | `events.status` (`draft/published/cancelled`) + `/preview/$token` dla treści                                                        | EB-16xx |
+| Swapcard                               | Stan NES                | Najbliższy istniejący klocek                                                                                                                                                                                                                                                             | Zadanie |
+| -------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| In-App registration                    | 🟡                      | `RegistrationsListPanel` / `EventTicketsPanel` / `RegistrationFieldsPanel`; w studiu sekcja „Zapisy" bez droplisty wyboru wydarzenia (`EventStudioModuleSections.tsx`)                                                                                                                   | EB-7xx  |
+| Content (sesje, prelegenci, dokumenty) | 🟡                      | `AgendaSessionsPanel` / `AgendaTracksPanel` / `AgendaRoomsPanel` / `AgendaConflictsPanel`; w studiu sekcja „Treść" (`EventStudioModuleSections.tsx`); dokumenty → wzorzec `club_documents` 🔴                                                                                            | EB-8xx  |
+| Exhibitor Marketplace                  | ⛔ poza zakresem (§0.4) | zamiast modułu: grupa „Partnerzy” + sponsorzy czytani z `crm_companies`                                                                                                                                                                                                                  | —       |
+| Meetings                               | 🟡 panel jest           | `MeetingTablesPanel` / `MeetingSettingsPanel` / `MeetingsListPanel` / `MeetingStatsPanel`; w studiu sekcja „Spotkania" (`EventStudioModuleSections.tsx`); reguły matchmakingu nadal 🔴                                                                                                   | EB-10xx |
+| Communications                         | 🟡                      | `/admin/newsletter` (kampanie, szablony), `run_event_reminders()`; w studiu **drogowskaz** bez zakresu per wydarzenie (`studio/EventStudioExternalSection.tsx`)                                                                                                                          | EB-11xx |
+| Onsite **(wymagany, §0.4)**            | 🟡                      | `OnsiteDeskPanel` / `OnsiteLogPanel` / `OnsiteStatsPanel` / `OnsiteCheckpointsPanel` / `OnsiteDevicesPanel` / `OnsiteBadgesPanel` / `OnsiteLeadsPanel` + `src/lib/events/scannerApi.ts`; w studiu sekcja „Na miejscu" (`EventStudioModuleSections.tsx`)                                  | EB-12xx |
+| Integrations                           | 🟡                      | `/admin/integrations` (globalne); w studiu **drogowskaz** bez zakresu per wydarzenie (`studio/EventStudioExternalSection.tsx`)                                                                                                                                                           | EB-13xx |
+| Analytics                              | 🟡                      | `/admin/analytics`, `analytics_events`, `domain_events`; w studiu **drogowskaz**, a liczby wydarzenia na pulpicie (`EventOverviewPanel.tsx`) — brak dashboardu wydarzenia                                                                                                                | EB-14xx |
+| Add-on features                        | 🔴 ekran                | kolumna `events.features jsonb` istnieje (migracja `20260826090000`), ekranu przełączników nie ma; w studiu **drogowskaz** (`studio/EventStudioExternalSection.tsx`)                                                                                                                     | EB-15xx |
+| Publish event / Preview event          | ✅                      | chip statusu jako przełącznik + „Opublikuj wydarzenie" w `studio/EventStudioTopBar.tsx` (RPC `admin_event_set_status`, znaczniki `published_at`/`cancelled_at` ustawia baza); podgląd na żywo z niezapisanego szkicu w `studio/EventStudioPreview.tsx` + `studio/EventPreviewCanvas.tsx` | EB-16xx |
 
 ---
 
@@ -235,27 +237,74 @@ Bramki: `check:sql-tenant-scope`, `check:sql-owner-tenant-scope`,
 
 ```sql
 -- §4.1 ROZSZERZENIE events (bez nowej tabeli — wydarzenie zostaje jednym wierszem)
+--
+-- STAN 2026-08-26: CAŁOŚĆ WDROŻONA, w dwóch migracjach i z czterema odstępstwami
+-- od propozycji poniżej. Kolumny przepływu i zaczepu frontu przyszły wcześniej
+-- (`20260823120000_event_builder_foundation.sql`), reszta ekranu „Informacje
+-- ogólne" w `20260826090000_event_studio_general.sql`. Odstępstwa są opisane
+-- przy poszczególnych liniach — propozycji nie kasuję, żeby dało się prześledzić,
+-- co i dlaczego zmieniło się względem projektu.
 ALTER TABLE public.events
+  -- WDROŻONE INACZEJ (20260823120000): wartości to `onsite | online | hybrid`,
+  -- DEFAULT `onsite`, CHECK `events_format_values`. Nazwy z propozycji
+  -- (`virtual`/`in_person`) były kalką ze wzorca; w repo ta sama trójka nazywa
+  -- się `onsite/online/hybrid` w `event_types.default_format` i w `eventTypes.ts`,
+  -- a dwa słowniki na jedną oś to gwarantowany rozjazd.
   ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'virtual'
     CHECK (format IN ('virtual','in_person','hybrid')),
+  -- WDROŻONE INACZEJ (20260823120000): zamiast `type_key text` jest
+  -- `event_type_id uuid REFERENCES public.event_types(id) ON DELETE SET NULL`.
+  -- Klucz tekstowy nie ma integralności referencyjnej: zmiana `key` rodzaju
+  -- zostawiłaby wydarzenia wskazujące na nieistniejący preset.
   ADD COLUMN IF NOT EXISTS type_key text,              -- → event_types.key (§5)
-  ADD COLUMN IF NOT EXISTS street_address text,
-  ADD COLUMN IF NOT EXISTS city text,
-  ADD COLUMN IF NOT EXISTS region text,
-  ADD COLUMN IF NOT EXISTS postal_code text,
-  ADD COLUMN IF NOT EXISTS country text,
+  ADD COLUMN IF NOT EXISTS street_address text,        -- WDROŻONE (20260826090000)
+  ADD COLUMN IF NOT EXISTS city text,                  -- WDROŻONE (20260826090000)
+  ADD COLUMN IF NOT EXISTS region text,                -- WDROŻONE (20260826090000)
+  ADD COLUMN IF NOT EXISTS postal_code text,           -- WDROŻONE (20260826090000)
+  ADD COLUMN IF NOT EXISTS country text,               -- WDROŻONE (20260826090000)
+  -- WDROŻONE (20260826090000) z domknięciem zbioru: CHECK
+  -- `events_video_header_platform_check` dopuszcza `youtube | vimeo` albo NULL.
   ADD COLUMN IF NOT EXISTS video_header_platform text,  -- youtube | vimeo | …
+  -- WDROŻONE (20260826090000) + WARUNEK, KTÓREGO PROPOZYCJA NIE MIAŁA:
+  -- `events_video_header_requires_cover` — `video_header_id IS NOT NULL`
+  -- wymaga `cover_url IS NOT NULL`. Nagłówek wideo NIE zwalnia z okładki:
+  -- miniatura w katalogu, w karcie społecznościowej i w e-mailu bierze się
+  -- z obrazu. Warunek stoi w bazie, bo wideo da się ustawić także importem.
   ADD COLUMN IF NOT EXISTS video_header_id text,
-  ADD COLUMN IF NOT EXISTS social_hashtag text,
-  ADD COLUMN IF NOT EXISTS support_email text,
-  ADD COLUMN IF NOT EXISTS languages text[] NOT NULL DEFAULT '{pl,en}',
+  ADD COLUMN IF NOT EXISTS social_hashtag text,        -- WDROŻONE; w bazie BEZ znaku `#`
+  ADD COLUMN IF NOT EXISTS support_email text,         -- WDROŻONE (20260826090000)
+  ADD COLUMN IF NOT EXISTS languages text[] NOT NULL DEFAULT '{pl,en}',  -- WDROŻONE
+  -- WDROŻONE INACZEJ (20260823120000): `guest_mode text NOT NULL DEFAULT 'teaser'`
+  -- z CHECK `hidden | teaser | full`. Boolean odpowiadał tylko na pytanie „czy
+  -- widoczne", a ekran 1.5 pyta o dwie rzeczy naraz: czy niezapisany w ogóle widzi
+  -- wydarzenie i CO widzi. Trzeci stan („wszystko poza kontaktami") nie mieści się
+  -- w dwóch wartościach, a dokładanie drugiej kolumny obok flagi dałoby stan
+  -- niemożliwy (`false` + `full`).
   ADD COLUMN IF NOT EXISTS guest_mode boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS home_design text NOT NULL DEFAULT 'standard'
-    CHECK (home_design IN ('standard','advanced')),
+    CHECK (home_design IN ('standard','advanced')),      -- WDROŻONE 1:1 (20260826090000)
   ADD COLUMN IF NOT EXISTS pages_display_mode text NOT NULL DEFAULT 'list'
-    CHECK (pages_display_mode IN ('list','grid')),
+    CHECK (pages_display_mode IN ('list','grid')),       -- WDROŻONE 1:1 (20260826090000)
+  -- JUŻ ISTNIAŁO przed tą propozycją (20260823120000), razem z `branding jsonb`,
+  -- `published_at`, `cancelled_at`, `registration_mode`, `registration_flow`
+  -- i `external_registration_url`.
   ADD COLUMN IF NOT EXISTS root_page_id uuid REFERENCES public.pages(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS features jsonb NOT NULL DEFAULT '{}'::jsonb;  -- add-on features
+  ADD COLUMN IF NOT EXISTS features jsonb NOT NULL DEFAULT '{}'::jsonb;  -- WDROŻONE; ekranu przełączników jeszcze nie ma
+
+-- RPC ekranu (20260826090000), bo zapis tych pól nie może iść zwykłym UPDATE-em
+-- z klienta: slug ma unikalność w tenancie (klient nie sprawdzi kolizji bez
+-- wyścigu), `ends_at > starts_at` jest warunkiem bazy, a nagłówek wideo bez
+-- okładki jest błędem produktowym. Odmowa ma być JEDNYM, nazwanym błędem,
+-- a nie trzema różnymi `23514`:
+--   admin_event_detail(uuid)                     -- całe wydarzenie dla studia;
+--                                                -- NIE oddaje join_url/recording_url,
+--                                                -- tylko flagi has_stream/has_recording
+--   admin_event_general_save(jsonb)              -- klucz nieobecny w payloadzie
+--                                                -- = pole NIETKNIĘTE (ten sam kontrakt
+--                                                -- unosi zapisy cząstkowe z innych ekranów)
+--   admin_event_set_status(uuid, text)           -- publikacja/odwołanie; published_at
+--                                                -- i cancelled_at ustawia BAZA, nie klient
+--   admin_event_branding_save(uuid, jsonb)       -- biała lista kluczy, #RRGGBB, https
 
 -- §4.2 SESJE (agenda z JSON-a do bazy — §0.2; model wg partii 6 i 7 zrzutów)
 event_sessions (
@@ -776,6 +825,37 @@ trybu gościa ani do robota (`forceNoindex`).
 | **E6** Sponsorzy i spotkania                     | `event_sponsor_tiers` + `event_sponsors` (z `crm_companies`), rozszerzenie `AdTargeting`/`AdPosition` o wydarzenie i grupy, panel `/meetings`                                                                                                          | poziomy sponsorskie z logotypami z CRM; reklama wydarzenia celowana w grupę, z odsłonami i klikami z `ad_events`; sloty 1-1 z limitami                                                                                          |
 | **E7** Onsite (wymagany), komunikacja, analityka | `event_checkins`, `event_badge_templates` + druk, `event_leads` z RLS per firma, sekwencje e-mail, dashboard                                                                                                                                           | check-in QR odporny na brak sieci i na powtórny skan (`UNIQUE`); badge z nazwą grupy i typem wejściówki; partner widzi **wyłącznie własne** leady; dashboard pokazuje frekwencję per sesja                                      |
 
+**Stan etapów na 2026-08-26** (szczegóły i ścieżki plików: §12, dziennik zrzutów
+→ „Stan wdrożenia — 2026-08-26"):
+
+- **E1 — zrobione:** studio wydarzenia jako osobna powierzchnia
+  `/admin/events/<id>/<sekcja>` z własnym sidebarem wydarzenia, wyszukiwarką
+  sekcji i górnym paskiem (chip statusu jako przełącznik, podgląd, publikacja);
+  ekran „Informacje ogólne" 1:1 ze wzorcem wraz z kolumnami i RPC; publikacja
+  przez `admin_event_set_status`; podgląd na żywo z niezapisanego szkicu;
+  oba wejścia prowadzą do studia („utwórz wydarzenie" po zapisie, edycja z listy
+  wydarzeń zamiast dialogu w `/admin/community/events`).
+  **E1 — zostało:** przekierowanie ze starej trasy `/admin/community/events` —
+  grupa `events` w `adminNav` już jest (`src/lib/admin/adminNav.ts`) i stara
+  pozycja z niej zniknęła, ale sama trasa **żyje dalej** jako druga powierzchnia,
+  a nie alias; odzwierciedlenie nowych pól na froncie publicznym (adres strukturalny w
+  `schema.org/Event` i `AddToCalendar`, nagłówek wideo, hashtag, języki treści,
+  adres wsparcia).
+  Teksty studia idą — zgodnie z ryzykiem nr 7 z §9 — wyłącznie przez overlay
+  `src/lib/i18n-admin-events.ts` (gałęzie `adminEvents.studio.*`,
+  `adminEvents.general.*`, `adminEvents.branding.*`), w obu językach.
+- **E3 — zrobione:** ekran „Strony i menu" (`EventPagesMenuPanel.tsx`) z układem
+  strony głównej (`standard`/`advanced`), trybem prezentacji (`list`/`grid`),
+  listą podstron czytaną z poddrzewa `pages` po `events.root_page_id`
+  (`src/lib/events/eventPagesApi.ts`) i podziałem na „strony w menu" / „pozostałe".
+  **E3 — zostało:** tabela `event_pages` (§4.7) — bez niej podział menu jest
+  liczony z `pages.menu_order`, a ikony, kolory, kolejność i widoczność per grupa
+  nie mają gdzie mieszkać; zakładanie podstrony z gotowym
+  `parent_id = events.root_page_id` (dziś przycisk prowadzi do zwykłego
+  `/admin/pages/new`); grupy menu; preset startowy dla `home_design = standard`;
+  widget `event-menu` z wariantami `list`/`grid` na froncie — dopóki go nie ma,
+  `pages_display_mode` widać wyłącznie w podglądzie studia.
+
 ---
 
 ## 9. Ryzyka
@@ -843,3 +923,141 @@ przekrojowych (wymogi obrazów, limity znaków, zbiory statusów, katalog kolumn
 tabel, lista funkcji płatnych Swapcarda, wszystkie komunikaty walidacji).
 Ten dokument jest listą kontrolną do implementacji; dziennik mapowania jest
 wykładnią „co to znaczy dla NES".
+
+---
+
+## 12. Dziennik wdrożenia
+
+Jedna sekcja = jedna iteracja kodu. Zapisujemy **co powstało**, **jakie decyzje
+projektowe zapadły przy okazji** (bo one przeżyją kod) i **co zostało długiem**.
+Mapowanie ekran-po-ekranie na ścieżki w repo żyje w dzienniku zrzutów
+(`docs/MAPOWANIE_SWAPCARD_EVENT_BUILDER_ZRZUTY.md`, sekcja „Stan wdrożenia").
+
+### 2026-08-26 — studio wydarzenia, informacje ogólne, strony i menu, grupy, branding, pulpit
+
+**Co powstało**
+
+1. **Studio wydarzenia** — osobna powierzchnia `/admin/events/<id>/<sekcja>`
+   z piętnastoma sekcjami (`src/routes/admin.events_.$eventId.tsx` + pliki
+   sekcji; model nawigacji w `src/lib/events/eventStudioNav.ts`). Sidebar należy
+   do **wydarzenia**, nie do panelu; górny pasek niesie nazwę, chip statusu jako
+   przełącznik, przełącznik podglądu i publikację
+   (`src/components/admin/events/studio/EventStudioTopBar.tsx`). Nad sidebarem —
+   wyszukiwarka „szukaj w wydarzeniu", filtrująca po etykiecie **i po słowach
+   kluczowych** (`bilety` prowadzą do Zapisów, `QR` do Odprawy).
+2. **Podgląd na żywo** — dok przypięty do ramy studia
+   (`studio/EventStudioPreview.tsx`), rysujący stronę wydarzenia z
+   **niezapisanego** szkicu (`studio/EventStudioPreviewContext.tsx`,
+   `studio/EventPreviewCanvas.tsx`), z przełącznikiem desktop/mobile i skalą
+   liczoną `transform: scale` z **mierzonej** szerokości doku.
+3. **Informacje ogólne** — pełny ekran 1:1 ze wzorcem
+   (`organisms/EventGeneralPanel.tsx`, logika czysta w
+   `src/lib/events/eventGeneralDraft.ts` i `eventLanguages.ts`): nazwa z
+   przełącznikiem PL/EN, adres publiczny pod kłódką, `Begins`/`Ends`/strefa,
+   okładka + nagłówek wideo, format, adres strukturalny z „wyczyść lokalizację",
+   informacje, hashtag X, języki treści, adres wsparcia, Event ID z kopiowaniem.
+4. **Strony i menu** — `organisms/EventPagesMenuPanel.tsx` +
+   `src/lib/events/eventPagesApi.ts`: układ strony głównej, tryb prezentacji,
+   lista podstron z poddrzewa `pages` po `events.root_page_id`, zakładki
+   „strony w menu" / „pozostałe".
+5. **Grupy i uprawnienia** — `organisms/EventGroupsPermissionsPanel.tsx`:
+   istniejący `EventGroupsPanel` + tryb gościa + widoczność dla niezapisanych
+   - ostrzeżenie o kolizji z Chatham House.
+6. **Branding** — `organisms/EventBrandingPanel.tsx` +
+   `src/lib/events/eventBrandingDraft.ts`: tryb jasny/ciemny, pięć slotów
+   kolorów, obraz tła, „przywróć branding społeczności".
+7. **Pulpit** — `organisms/EventOverviewPanel.tsx`: kafle z żywych RPC i lista
+   kroków liczona ze stanu danych.
+8. **Sekcje montujące istniejące panele** — rejestracja, treść, spotkania,
+   na miejscu, sponsorzy, regulaminy (`studio/EventStudioModuleSections.tsx`);
+   cztery sekcje bez zakresu per wydarzenie jako drogowskazy
+   (`studio/EventStudioExternalSection.tsx`).
+9. **Migracja** `supabase/migrations/20260826090000_event_studio_general.sql`
+   — kolumny i cztery RPC; różnice względem propozycji §4.1 opisane tam przy
+   poszczególnych liniach.
+10. **Wejścia** — „utwórz wydarzenie" prowadzi po zapisie do studia
+    (`src/routes/admin.events.new.tsx`), edycja z listy wydarzeń też
+    (`organisms/EventsListManager.tsx`) zamiast do dialogu w
+    `/admin/community/events`.
+
+Testy jednostkowe warstwy czystej: `src/lib/events/__tests__/eventStudioNav.test.ts`,
+`eventGeneralDraft.test.ts`, `eventBrandingDraft.test.ts`, `eventPagesApi.test.ts`.
+
+**Decyzje projektowe, które zapadły przy okazji**
+
+- **Studio wypięte z układu `/admin/events`.** Podkreślnik w `events_` sprawia,
+  że studio nie dziedziczy paska `EventsSubNav`. Dwa poziomy nawigacji naraz
+  odpowiadałyby na dwa różne pytania „gdzie jestem" i zabierały połowę
+  szerokości ekranowi z osiemnastoma polami. Wydarzenie na czas pracy nad nim
+  przejmuje lewy pas — dokładnie jak we wzorcu.
+- **Podgląd rysujemy, nie osadzamy `<iframe>` strony publicznej.** Ramka
+  z adresem publicznym pokazuje stan **zapisany**; pytanie brzmi „jak będzie
+  wyglądać to, co właśnie zmieniam". Odpowiedzieć na nie może wyłącznie rysunek
+  z tego samego szkicu, który karmi formularz.
+- **Kanwa podglądu nie renderuje widgetów buildera.** To szkic układu, nie drugi
+  renderer strony — ryzyko nr 1 z §9. Konsekwencję (uproszczenie dla
+  `home_design = advanced`) przyjmujemy świadomie.
+- **Zapis idzie przez RPC, nie przez `UPDATE` z klienta.** Slug ma unikalność
+  w tenancie (klient nie sprawdzi kolizji bez wyścigu), `ends_at > starts_at`
+  jest warunkiem bazy, a nagłówek wideo bez okładki jest błędem produktowym.
+  Odmowa ma być jednym, nazwanym błędem, a nie trzema różnymi `23514`
+  (`src/lib/events/adminEventStudioErrors.ts` tłumaczy klucz na zdanie).
+- **Klucz nieobecny w payloadzie = pole nietknięte.** Ten sam
+  `admin_event_general_save` obsługuje ekran w całości i zapisy cząstkowe
+  z innych ekranów (`pages_display_mode` ze „Stron i menu", `guest_mode`
+  z „Grup i uprawnień"). Dwa RPC na tę samą kolumnę to dwa miejsca na regułę.
+- **Klucz nieobecny w brandingu = dziedziczenie.** „Przywróć branding
+  społeczności" **usuwa** klucze zamiast zapisywać dzisiejsze kolory motywu —
+  inaczej wydarzenie z zapisaną kopią przestałoby reagować na zmianę marki.
+  Zbiór kluczy jest zamknięty białą listą, bo `branding jsonb` bez niej byłby
+  wstrzyknięciem dowolnej wartości do tokenów CSS renderowanych w SSR.
+- **Jeden klucz cache na wydarzenie** (`src/lib/events/useAdminEventDetail.ts`).
+  Cztery ekrany czytające ten sam wiersz osobno dałyby cztery odpowiedzi,
+  które po zapisie rozjeżdżają się w czasie; zapis unieważnia także listę
+  modułu i starą listę w sekcji społeczności.
+- **Liczby na pulpicie są prawdziwe albo nie ma ich wcale.** Wzorzec pokazuje
+  48 820 rejestracji przy wydarzeniu z dwudziestoma jeden osobami — to uczy nie
+  ufać żadnej liczbie na ekranie. Kafel bez danych pokazuje kreskę, nie zero.
+  Lista kroków liczy się ze stanu danych, nie z checklisty do odklikania.
+- **Sekcje bez własnego zakresu prowadzą do modułu globalnego, nie do jego
+  kopii.** Kampanie, integracje i analityka są wspólne dla serwisu; duplikat per
+  wydarzenie to dwa miejsca do utrzymania i dwa źródła prawdy o tym samym kluczu API.
+- **Stare trasy modułu zostają nietknięte.** `/admin/events/agenda` i siostrzane
+  nadal działają ze swoimi droplistami. Studio jest **drugą drogą** do tych
+  samych paneli, a nie ich zamiennikiem — kto pracuje na kilku wydarzeniach
+  naraz, nie musi przez nie przechodzić.
+- **`format` i `guest_mode` odbiegają od propozycji §4.1** — wartości
+  `onsite/online/hybrid` zamiast `virtual/in_person/hybrid` (jeden słownik
+  z `event_types.default_format`) i enum tekstowy `hidden/teaser/full` zamiast
+  `boolean` (bo ekran 1.5 pyta o dwie rzeczy naraz: czy widać i **co** widać).
+
+**Dług**
+
+1. **`event_pages` nadal nie istnieje** (§4.7). Podział „strony w menu /
+   pozostałe" liczy się tymczasowo z `pages.menu_order` (`splitEventPages`
+   w `src/lib/events/eventPagesApi.ts`). Brak ikon, kolorów, kolejności
+   i widoczności per grupa dla pozycji menu; brak etykiet menu niezależnych
+   od tytułów stron.
+2. **Nowe kolumny są zapisywane, ale front publiczny ich jeszcze nie czyta** —
+   adres strukturalny, nagłówek wideo, hashtag, języki treści, adres wsparcia,
+   `home_design` i `pages_display_mode` widać dziś wyłącznie w podglądzie
+   studia. Brakuje też widgetu `event-menu` i wstrzyknięcia brandingu wydarzenia
+   w SSR poddrzewa stron.
+3. **Sekcje Komunikacja / Integracje / Analityka / Funkcje dodatkowe** odsyłają
+   do modułów globalnych — nie mają zakresu per wydarzenie. Kolumna
+   `events.features` istnieje, ekranu przełączników nie ma.
+4. **Szuflada edycji grupy ze wzorca ma cztery zakładki** (`General`,
+   `Exhibitor profile`, `Lead generation`, `Members`). Dwie środkowe dotyczą
+   wystawców, czyli zakresu wyłączonego decyzją §0.4 — nasza
+   (`src/components/admin/events/molecules/EventGroupDialog.tsx`) ma dwie:
+   „Ogólne" i „Członkowie". To różnica zakresu, nie niedoróbka, ale musi być
+   zapisana, żeby nie wracała jako zgłoszenie braku.
+5. **Podgląd na żywo rysuje szkic układu, a nie kompozycję buildera** — dla
+   `home_design = advanced` pokazuje uproszczenie.
+6. **Ostrzeżenie o kolizji Chatham House z trybem gościa jest informacyjne** —
+   twardej bramki (`event_capabilities()` + test pgtap) nadal nie ma.
+7. **Przekierowanie ze starej trasy.** Grupa `events` w `adminNav` już istnieje
+   (`src/lib/admin/adminNav.ts`) i nie ma w niej pozycji `community/events`, ale
+   sama trasa `/admin/community/events` żyje dalej jako druga powierzchnia
+   edycji wydarzenia — a kryterium odbioru E1 mówi „stara trasa przekierowuje".
+   Dopóki obie działają, istnieją dwa formularze na te same kolumny.

@@ -2895,3 +2895,201 @@ Brakuje:
 2. **`Integrations`** i **`Add-on features`**.
 3. **`Groups & permissions → Manage visibility`** + rozwinięty **`Add condition`**.
 4. **`Session settings`** i **`Manage roles`** (słowniki z 6.2 i 7.1).
+
+---
+
+## Stan wdrożenia — 2026-08-26
+
+Iteracja, w której wydarzenie dostało **własną powierzchnię** — studio. Ta
+sekcja **nie przepisuje** partii 1–16; one zostają zapisem tego, co widać na
+zrzutach. Tutaj jest odpowiedź na inne pytanie: **co z tego już stoi w repo,
+pod jaką ścieżką i czego w tym jeszcze nie ma.** Wcześniejsze iteracje
+(katalog rodzajów, kolumny przepływu, panele agendy, zapisów, spotkań, odprawy,
+sponsorów i regulaminów) są tu wymienione tylko tam, gdzie studio je montuje.
+
+Stany w tabeli opisują **NES**, nie wzorzec: ✅ jest · 🟡 częściowo · 🔴 brak.
+Identyfikatory `EB-nnn` są te same, co w §2 dokumentu nadrzędnego.
+
+Migracja tej iteracji: `supabase/migrations/20260826090000_event_studio_general.sql`
+(kolumny `events` + RPC `admin_event_detail`, `admin_event_general_save`,
+`admin_event_set_status`, `admin_event_branding_save`).
+
+### Rama studia — powierzchnia, której wcześniej nie było
+
+| Element wzorca                                                                | Co powstało                                                                                                                                                                                                        | Gdzie w kodzie                                                                                                 | Stan | Co zostaje                                                              |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------- |
+| osobna powierzchnia jednego wydarzenia (`studio.swapcard.com/event/<slug>/…`) | trasy `/admin/events/<id>/<sekcja>`, piętnaście sekcji, `index` przekierowuje na „Informacje ogólne"                                                                                                               | `src/routes/admin.events_.$eventId.tsx`, `…$eventId.index.tsx` + 15 plików sekcji                              | ✅   | —                                                                       |
+| lewy sidebar należący do wydarzenia, nie do panelu                            | własny pas nawigacji; podkreślnik w `events_` **wypina studio z układu** `/admin/events`, więc nie ma dwóch pasków sekcji naraz                                                                                    | `src/components/admin/events/studio/EventStudioSidebar.tsx`, model danych w `src/lib/events/eventStudioNav.ts` | ✅   | pozycje nie pokazują liczników ani stanu „niedokończone"                |
+| „Search within the event…" nad sidebarem                                      | wyszukiwarka filtrująca pozycje po etykiecie **i po słowach kluczowych** (`bilety` → Zapisy, `QR` → Na miejscu)                                                                                                    | `eventStudioNav.ts` (`matchesStudioQuery`, `keywordKeys`), `EventStudioSidebar.tsx`                            | ✅   | nie szuka w treści wydarzenia (sesje, uczestnicy), tylko w mapie sekcji |
+| `Open event`                                                                  | odnośnik do strony publicznej; dla szkicu **nie ma odnośnika**, tylko zdanie — szkic nie ma strony, na którą można wejść                                                                                           | `EventStudioSidebar.tsx`                                                                                       | ✅   | —                                                                       |
+| górny pasek: `Preview event` · `Publish event` · stan planu                   | pasek z nazwą wydarzenia, chipem statusu (przełącznik szkic / opublikowane / odwołane), przełącznikiem podglądu i przyciskiem publikacji                                                                           | `src/components/admin/events/studio/EventStudioTopBar.tsx`, RPC `admin_event_set_status`                       | ✅   | brak odpowiednika „planu" — u nas nie ma warstw cennikowych wydarzenia  |
+| makieta podglądu po prawej + wskaźnik `1 / 4`                                 | dok podglądu przypięty do ramy studia, rysujący stronę wydarzenia z **niezapisanego** szkicu; zamiast paginacji `1/4` — przełącznik desktop/mobile i skalowanie `transform: scale` z **mierzonej** szerokości doku | `EventStudioPreview.tsx`, `EventPreviewCanvas.tsx`, `EventStudioPreviewContext.tsx`                            | ✅   | kanwa nie renderuje widgetów buildera — patrz „Dług" niżej              |
+| pulpit wydarzenia (`Overview`, Partia 17 pkt 1 — bez zrzutu)                  | kafle z **żywych** RPC (zapisy, wolne miejsca, sesje, grupy, sponsorzy) + lista kroków liczona ze stanu danych                                                                                                     | `src/components/admin/events/organisms/EventOverviewPanel.tsx`                                                 | 🟡   | brak wykresu zapisów w czasie i brak listy ostatnich zdarzeń            |
+
+Dwie decyzje projektowe z tej ramy, które warto mieć zapisane, bo wrócą przy
+każdym kolejnym ekranie:
+
+1. **Podgląd rysujemy, nie osadzamy `<iframe>` strony publicznej.** Ramka
+   z adresem publicznym pokazuje stan **zapisany** i odświeża się dopiero po
+   zapisie — czyli odpowiada na pytanie, którego nikt nie zadaje. Pytanie brzmi
+   „jak będzie wyglądać to, co właśnie zmieniam", a odpowiedzieć na nie może
+   wyłącznie rysunek z **tego samego szkicu**, który karmi formularz. Kanał:
+   `EventStudioPreviewContext` (rama wystawia gniazdo, ekran je wypełnia — ten
+   sam wzorzec, co `AdminSidebarExtras`).
+2. **Kanwa podglądu nie jest drugim rendererem strony.** Rysuje szkic układu
+   (pasek nawigacji, nagłówek z okładką, kafle podstron, blok informacji,
+   stopka) i **nie wchodzi w widgety buildera** — inaczej powstałby drugi silnik
+   stron, czyli ryzyko nr 1 z §9 dokumentu nadrzędnego.
+
+### Partia 1 — `Pages & menu`, `General information`, `Groups & permissions`
+
+| Zrzut / element wzorca                                         | Co powstało                                                                                                                                                               | Gdzie w kodzie                                                                                                                                                                        | Stan                 | Co zostaje                                                                                                                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1 `Home page design: Advanced / Standard` + `Customize page` | dwie karty wyboru z opisem; `Advanced` prowadzi do edytora strony-korzenia wydarzenia                                                                                     | `EventPagesMenuPanel.tsx`, `events.home_design`                                                                                                                                       | ✅ zapis             | `Standard` zapisuje wybór, ale **nie zakłada** presetu startowego (`starterTemplates.ts`) — EB-202 otwarte                      |
+| 1.1 `Display mode: Grid / List`                                | dwie karty wyboru; przełączenie natychmiast zmienia układ kafli w podglądzie, przed zapisem                                                                               | `EventPagesMenuPanel.tsx`, `EventPreviewCanvas.tsx`, `events.pages_display_mode`                                                                                                      | 🟡                   | **front publiczny nie czyta tej kolumny** — widgetu `event-menu` nie ma; dziś tryb widać wyłącznie w podglądzie studia (EB-203) |
+| 1.1 `Pages` → `Menu pages` / `Other pages`                     | dwie zakładki z licznikami nad listą podstron; lista czytana z poddrzewa `pages` (`parent_id = events.root_page_id`)                                                      | `src/lib/events/eventPagesApi.ts` (`fetchEventPages`, `splitEventPages`), `EventPagesMenuPanel.tsx`                                                                                   | 🟡                   | `event_pages` nie istnieje — podział liczy się tymczasowo z `pages.menu_order` (EB-204)                                         |
+| 1.1 kolorowa ikona pozycji, kolejność, widoczność              | —                                                                                                                                                                         | —                                                                                                                                                                                     | 🔴                   | wymaga `event_pages` (`icon`, `color`, `sort_order`, `visible_to_groups`) — EB-206                                              |
+| 1.1 `Create page` / `Create menu group`                        | przycisk „Utwórz stronę" prowadzący do `/admin/pages/new`                                                                                                                 | `EventPagesMenuPanel.tsx`                                                                                                                                                             | 🟡                   | strona nie powstaje z gotowym `parent_id = events.root_page_id`; grup menu nie ma (EB-204, EB-205)                              |
+| 1.2 `Event name` z flagą języka                                | jedno pole + przełącznik PL/EN nad nim (nie dwa pola obok siebie — wniosek 2 ze zrzutu 1.2)                                                                               | `EventGeneralPanel.tsx` (`LangToggle`)                                                                                                                                                | ✅                   | —                                                                                                                               |
+| 1.2 `Event URL` + ołówek                                       | adres publiczny **pod kłódką**: pole zamknięte do świadomego kliknięcia ołówka, bo zmiana slugu opublikowanego wydarzenia psuje linki w wysłanych e-mailach               | `EventGeneralPanel.tsx`, RPC sprawdza `^[a-z0-9-]{3,120}$` i unikalność w tenancie (`slug_taken`)                                                                                     | ✅                   | brak przekierowania ze starego slugu po zmianie                                                                                 |
+| 1.2 `Begins` / `Ends` / `Time zone`                            | trzy pola z listą stref (`Intl.supportedValuesOf`, z listą zapasową); `ends_at > starts_at` sprawdzane **i w szkicu, i w RPC**                                            | `EventGeneralPanel.tsx`, `eventGeneralDraft.ts`, migracja (`invalid_ends_at`)                                                                                                         | ✅                   | —                                                                                                                               |
+| 1.2 `Cover` → `Event image` + `Crop`                           | wybór okładki istniejącym `CoverImagePicker`                                                                                                                              | `EventGeneralPanel.tsx`                                                                                                                                                               | ✅                   | kadrowanie zostaje w `/admin/crop-sizes` — nie dublujemy narzędzia (EB-102)                                                     |
+| 1.2 `Video header` (platforma + `Video ID`)                    | wybór YouTube/Vimeo + pole identyfikatora przyjmujące **także cały adres z paska przeglądarki**                                                                           | `eventGeneralDraft.ts` (`parseVideoId`, `videoEmbedUrl`), kolumny `video_header_platform` / `video_header_id`                                                                         | 🟡                   | zapisane, ale **strona publiczna jeszcze go nie odtwarza** (EB-103)                                                             |
+| 1.2 nota „obraz nadal potrzebny do miniatur"                   | reguła w **trzech** miejscach: warunek bazy `events_video_header_requires_cover`, sprawdzenie w RPC (`cover_required`) i w szkicu formularza                              | migracja `20260826090000`, `eventGeneralDraft.ts`                                                                                                                                     | ✅                   | —                                                                                                                               |
+| 1.2 „An event cannot exceed 90 days."                          | **nie skopiowane** — patrz „Czego świadomie nie skopiowaliśmy"                                                                                                            | `eventGeneralDraft.ts` (`eventGeneralWarnings`)                                                                                                                                       | ✅ świadomie inaczej | —                                                                                                                               |
+| 1.3 `Format: Hybrid / In-person / Virtual`                     | trzy karty wyboru w kolejności wzorca; kolumna `events.format` (`onsite`/`online`/`hybrid`) istnieje od `20260823120000_event_builder_foundation.sql`                     | `EventGeneralPanel.tsx`, `src/lib/events/eventTypes.ts`                                                                                                                               | ✅                   | prezentacja dat w strefie uczestnika dla formatu online — nadal nie zależy od formatu (EB-105)                                  |
+| 1.3 `Location` + adres strukturalny + `Reset location`         | nazwa miejsca (`location`) plus pięć pól adresu i przycisk „Wyczyść lokalizację" czyszczący **cały** zestaw naraz                                                         | `EventGeneralPanel.tsx`, `eventGeneralDraft.ts` (`EVENT_LOCATION_FIELDS`, `clearEventLocation`, `eventAddressLine`), kolumny `street_address`/`city`/`region`/`postal_code`/`country` | 🟡                   | zapisane, ale `schema.org/Event` z `location.address`, mapa dojazdu i `AddToCalendar` **jeszcze tego nie czytają** (EB-106)     |
+| 1.3 brak adresu przy formacie stacjonarnym                     | miękkie **ostrzeżenie**, nie blokada zapisu — organizator nierzadko zna termin przed miejscem                                                                             | `eventGeneralDraft.ts` (`adminEvents.general.warnings.addressMissing`)                                                                                                                | ✅                   | walidacja kodu pocztowego per kraj — nie ma                                                                                     |
+| 1.3 `Information` (RTE)                                        | pole tekstowe PL/EN z tym samym przełącznikiem języka, co nazwa                                                                                                           | `EventGeneralPanel.tsx` (`Textarea` na `description_pl`/`description_en`)                                                                                                             | ✅ świadomie inaczej | trzeciego edytora RTE nie dorabiamy — patrz niżej (§1.3 wniosek 4)                                                              |
+| 1.4 `X (ex-Twitter) hashtag`                                   | pole z krzyżykiem jako prefiksem; w bazie hashtag **bez** `#` (znak jest prezentacją), wzorzec `^[A-Za-z0-9_]{1,60}$` w RPC i w szkicu                                    | `EventGeneralPanel.tsx`, `eventGeneralDraft.ts`, `events.social_hashtag`                                                                                                              | 🟡                   | stopka e-maila i karta społecznościowa jeszcze go nie używają (EB-108)                                                          |
+| 1.4 `Languages` (checklista)                                   | checklista z katalogu 30 kodów ISO 639-1; **nazwy języków bierze `Intl.DisplayNames`**, a nie słownik i18n — kod języka jest daną, nie tekstem interfejsu                 | `src/lib/events/eventLanguages.ts`, `EventGeneralPanel.tsx`, `events.languages`                                                                                                       | ✅                   | opis w UI musi mówić wprost, że to języki **treści**, a nie interfejsu (EB-109)                                                 |
+| 1.4 `Support email`                                            | pole z walidacją adresu w szkicu i w RPC (`invalid_support_email`)                                                                                                        | `EventGeneralPanel.tsx`, `events.support_email`                                                                                                                                       | 🟡                   | zapisane; strona publiczna i stopka e-maila jeszcze go nie pokazują (EB-110)                                                    |
+| 1.4 `Event ID` + kopiowanie                                    | `events.id` w stopce ekranu z przyciskiem kopiowania i potwierdzeniem                                                                                                     | `EventGeneralPanel.tsx`                                                                                                                                                               | ✅                   | — (EB-111 zamknięte)                                                                                                            |
+| 1.5 `Groups` z licznikami + `Add a group` + ołówek edycji      | istniejący `EventGroupsPanel` wmontowany w ekran studia — nie druga lista grup; edycja grupy otwiera **szufladę z prawej krawędzi**, z zakładkami „Ogólne" i „Członkowie" | `EventGroupsPermissionsPanel.tsx`, `EventGroupsPanel.tsx`, `molecules/EventGroupDialog.tsx`                                                                                           | 🟡                   | reguły per grupa (`event_capabilities()`) nadal do zrobienia (EB-302)                                                           |
+| 1.5 `Guest mode` (przełącznik)                                 | przełącznik „widoczne publicznie" + wybór, **co** widzi niezapisany (`teaser` / `full`); `hidden` = wyłączone                                                             | `EventGroupsPermissionsPanel.tsx`, `events.guest_mode` (enum tekstowy)                                                                                                                | ✅                   | —                                                                                                                               |
+| 1.5 kolizja Guest mode ↔ Chatham House                         | ostrzeżenie na ekranie przy `chatham_house = true`                                                                                                                        | `EventGroupsPermissionsPanel.tsx`                                                                                                                                                     | 🟡                   | ostrzeżenie **informuje**; twardej bramki w `event_capabilities()` (i testu pgtap) nadal nie ma                                 |
+| 1.5 `Guests visibility` → `Manage visibility`                  | —                                                                                                                                                                         | —                                                                                                                                                                                     | 🔴                   | macierz widoczności per sekcja (§7 dokumentu nadrzędnego) — EB-306                                                              |
+
+### Partia 2 — `Branding` (zrzut 2.5)
+
+| Element wzorca                                                                    | Co powstało                                                                                                                              | Gdzie w kodzie                                                                                                    | Stan | Co zostaje                                                                                                                               |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `Appearance: Light / Dark`                                                        | dwie karty wyboru z miniaturą wizytówki uczestnika                                                                                       | `EventBrandingPanel.tsx`, `eventBrandingDraft.ts`                                                                 | ✅   | u wzorca `Dark` ma plakietkę `Beta`; u nas motyw dwutrybowy jest rdzeniem platformy, więc plakietki nie kopiujemy                        |
+| `Navigation` / `Main actions` / `Text` / `Content blocks background` + tło strony | **pięć** slotów kolorów: `navigation`, `main_action`, `text`, `blocks_background`, `page_background`; wpis szesnastkowy plus próbnik     | `eventBrandingDraft.ts` (`EVENT_BRANDING_COLOR_SLOTS`), `EventBrandingPanel.tsx`                                  | ✅   | zakres celowo wąski — nie oddajemy per wydarzenie całego `GlobalColorsEditor` (wniosek 1 ze zrzutu 2.5)                                  |
+| obraz tła „na wszystkich stronach, łącznie z formularzem rejestracji"             | pole adresu obrazu, wyłącznie `https`                                                                                                    | `EventBrandingPanel.tsx`, `admin_event_branding_save`                                                             | 🟡   | branding **nie jest jeszcze wstrzykiwany w SSR** poddrzewa stron wydarzenia ani w formularz zapisu — działa w podglądzie studia (EB-402) |
+| **`Reset to community branding`**                                                 | przycisk **czyści klucze**, a nie zapisuje dzisiejszych kolorów motywu — inaczej wydarzenie przestałoby reagować na zmianę marki serwisu | `EventBrandingPanel.tsx`, `eventBrandingPayload` (slot pusty nie wchodzi do obiektu), `admin_event_branding_save` | ✅   | — (EB-403 zamknięte po stronie zapisu)                                                                                                   |
+| `Discard changes` / `Save` (nieaktywny bez zmian)                                 | wspólny przyklejony pasek zapisu, **widoczny dopiero przy realnej zmianie**                                                              | `EventStudioSection.tsx` (`EventStudioSaveBar`)                                                                   | ✅   | —                                                                                                                                        |
+| podgląd na żywo obok formularza                                                   | dok podglądu wspólny dla całego studia; każda zmiana koloru trafia tam przed zapisem                                                     | `EventStudioPreview.tsx`, `EventPreviewCanvas.tsx` (funkcja `palette` — slot pusty = wartość z motywu)            | ✅   | — (EB-404 zamknięte)                                                                                                                     |
+| fonty wydarzenia                                                                  | —                                                                                                                                        | —                                                                                                                 | 🔴   | EB-405; fonty zostają globalne (`CustomFontUploader`)                                                                                    |
+
+Zabezpieczenie, którego wzorzec nie pokazuje, a które musiało powstać:
+`events.branding` jest kolumną `jsonb`, więc bez **białej listy kluczy** ktokolwiek
+z rolą redaktora mógłby wstrzyknąć dowolną wartość do tokenów CSS renderowanych
+w SSR. `admin_event_branding_save` przyjmuje wyłącznie znane klucze, kolory w
+`#RRGGBB` i obrazy pod adresem `https`.
+
+### Sekcje montujące istniejące panele
+
+Rejestracja, treść/agenda, spotkania, na miejscu, sponsorzy i regulaminy dostały
+w studiu ekrany, które montują **istniejące** panele modułu
+(`src/components/admin/events/studio/EventStudioModuleSections.tsx`).
+Panele od początku przyjmowały `eventId` — brakowało im miejsca, w którym
+wydarzenie jest już **wybrane**. W studiu wybór zrobił sidebar, więc znika
+droplista wyboru wydarzenia: pytanie o coś, co już wiadomo, jest zarazem drugim,
+rozjeżdżającym się źródłem prawdy o tym, co jest edytowane.
+
+Stare trasy modułu (`/admin/events/agenda`, `…/registrations`, `…/meetings`,
+`…/onsite`, `…/sponsors`, `…/terms`) **zostają nietknięte** ze swoimi droplistami.
+Studio jest **drugą drogą** do tych samych paneli, a nie ich zamiennikiem — kto
+pracuje na kilku wydarzeniach naraz, nie musi przez nie przechodzić.
+
+Cztery sekcje bez własnego zakresu per wydarzenie (`Komunikacja`, `Integracje`,
+`Analityka`, `Funkcje dodatkowe`) stoją w sidebarze, ale ich ekrany są
+**drogowskazami**: mówią wprost, gdzie ta praca dziś mieszka, i prowadzą do
+modułu globalnego (`src/components/admin/events/studio/EventStudioExternalSection.tsx`).
+Pusta pozycja w sidebarze jest gorsza niż suchy ekran, a kopia modułu globalnego
+per wydarzenie oznaczałaby dwa miejsca do utrzymania i dwa źródła prawdy o tym
+samym kluczu API.
+
+### Wejścia do studia
+
+„Utwórz wydarzenie" prowadzi po zapisie prosto do studia
+(`src/routes/admin.events.new.tsx` → `/admin/events/$eventId/general`;
+`admin_event_create` oddaje identyfikator nowego wiersza, więc nie ma
+dodatkowego zapytania o listę). Edycja z listy wydarzeń prowadzi do studia
+zamiast do starego dialogu w `/admin/community/events`
+(`src/components/admin/events/organisms/EventsListManager.tsx`) — tamten adres
+dawał **wynik wyszukiwania po slugu**, a nie wydarzenie: jeden formularz z
+częścią pól i zero dojścia do stron, brandingu czy zapisów.
+
+### Czego świadomie NIE skopiowaliśmy
+
+**Limit „An event cannot exceed 90 days" (zrzut 1.2).** To ograniczenie
+**cennikowe** wzorca, a nie merytoryczne — nic w danych nie psuje się przy
+wydarzeniu dłuższym niż kwartał. Zamiast blokady jest miękkie ostrzeżenie przy
+wydarzeniu dłuższym niż 30 dni (`eventGeneralWarnings`): literówka w roku daty
+końca kosztuje przypomnienia wysłane do wszystkich zapisanych, a kongres
+trwający miesiąc jest dziwny, ale możliwy. Ostrzeżenie mówi o tym redaktorowi,
+zamiast decydować za niego.
+
+**Exhibitor Marketplace i dodatki płatne (partie 2, 8, 9, 11, 13, 15).** Decyzja
+zamawiającego §0.4: wystawcy **nie są osobnym modułem**, partnerzy i sponsorzy
+są synchronizowani z CRM firm. Sidebar studia nie ma pozycji „Exhibitor
+Marketplace", a odpowiednik `Add-on features` to u nas „Funkcje" — przełączniki
+modułów wydarzenia (`events.features`), a nie sklep, w którym organizator
+sprzedaje wystawcom dostęp do skanera leadów. Konsekwencja praktyczna: wszystko,
+co we wzorcu jest oznaczone `Add-on`, jest u nas albo w zakresie podstawowym
+(skanowanie na miejscu — E7), albo poza zakresem.
+
+**Dane demonstracyjne na pulpicie (partia 16, zrzut 16.1).** Wzorzec pokazuje
+48 820 rejestracji przy wydarzeniu, które w tych samych danych ma dwadzieścia
+jeden osób. To jest najgorsza rzecz, jaką może zrobić pulpit, bo uczy nie ufać
+**żadnej** liczbie na ekranie — także tej prawdziwej. `EventOverviewPanel` czyta
+wyłącznie żywe RPC, a kafel bez danych pokazuje kreskę, nie zero z palca:
+„nie wiem" i „zero" to różne odpowiedzi. Z tego samego powodu lista kroków liczy
+się ze **stanu danych** („dodaj okładkę" znika, gdy okładka jest), a nie
+z checklisty do odklikania — checklista, którą da się odhaczyć bez zrobienia
+rzeczy, jest gorsza niż jej brak.
+
+**`Information` jako trzeci edytor RTE (§1.3 wniosek 4).** NES ma już dwa
+edytory treści bogatej: builder stron i `PostBlockEditor` widgetu `rich-text`.
+Trzeci — wpięty w jedno pole formularza ustawień — byłby trzecim zestawem reguł
+sanityzacji, trzecim rendererem i trzecim miejscem, w którym psuje się osadzone
+wideo. `description_pl`/`description_en` zostają **tekstem** (zapowiedź, karta
+katalogu, opis w e-mailu), a bogata treść idzie na stronę wydarzenia w builderze.
+
+### Dług nazwany wprost
+
+1. **`event_pages` nadal nie istnieje.** Podział „strony w menu / pozostałe"
+   liczy się tymczasowo z `pages.menu_order` (zero = poza menu) —
+   `splitEventPages` w `src/lib/events/eventPagesApi.ts`. Brak ikon, kolorów,
+   kolejności i widoczności per grupa dla pozycji menu; brak `menu_label_pl/en`
+   niezależnej od tytułu strony. Docelowo rozstrzyga `event_pages.in_menu`
+   (§4.7 dokumentu nadrzędnego).
+2. **Nowe kolumny są zapisywane, ale front publiczny ich jeszcze nie czyta.**
+   `street_address`/`city`/`region`/`postal_code`/`country`, `video_header_*`,
+   `social_hashtag`, `support_email`, `languages`, `home_design`,
+   `pages_display_mode` widać dziś wyłącznie w podglądzie studia. Dopóki nie ma
+   widgetu `event-menu` i dopóki `schema.org/Event` oraz `AddToCalendar` nie
+   biorą adresu strukturalnego, ekran „Informacje ogólne" obiecuje więcej, niż
+   pokazuje uczestnikowi.
+3. **Sekcje Komunikacja / Integracje / Analityka / Funkcje dodatkowe** odsyłają
+   do modułów globalnych — nie mają jeszcze zakresu per wydarzenie. Kolumna
+   `events.features` istnieje od tej migracji, ekranu przełączników nie ma.
+4. **Szuflada edycji grupy ze wzorca ma cztery zakładki** (`General`,
+   `Exhibitor profile`, `Lead generation`, `Members` — zrzuty 2.1–2.4). Dwie
+   środkowe dotyczą **wystawców**, czyli zakresu wyłączonego decyzją §0.4, więc
+   nasza (`src/components/admin/events/molecules/EventGroupDialog.tsx`) ma dwie:
+   „Ogólne" i „Członkowie". Nie jest to brak do nadrobienia, tylko różnica
+   zakresu — ale musi być zapisana, żeby przy następnym porównaniu ze zrzutami
+   nie wyglądała na niedoróbkę. Atrapa zakładki bez źródła danych obiecywałaby
+   redaktorowi ekran, którego nie ma.
+5. **Podgląd na żywo rysuje szkic układu, a nie kompozycję buildera.** Dla
+   `home_design = advanced` — czyli dla strony złożonej w builderze — pokazuje
+   uproszczenie: prawdziwy układ sekcji i widgetów zobaczy się dopiero w
+   podglądzie strony. To jest cena rezygnacji z drugiego renderera i wybór
+   świadomy, nie przeoczenie.
+6. **Ostrzeżenie o kolizji Chatham House z trybem gościa jest informacyjne.**
+   Twarda bramka (`event_capabilities()` + test pgtap) nadal do zrobienia —
+   dziś regułę egzekwują polityki istniejące wcześniej, a nie jedna funkcja
+   prawdy.

@@ -31,8 +31,15 @@ import {
 
 const SCANNED_DIRS = ["src/components/admin/events", "src/lib/events"] as const;
 
-/** Trasy modułu leżą wśród setek innych, więc bierzemy je po nazwie. */
-const SCANNED_ROUTE_PREFIXES = ["admin.events."] as const;
+/**
+ * Trasy modułu leżą wśród setek innych, więc bierzemy je po nazwie.
+ *
+ * PREFIKSY SĄ DWA, bo trasy studium wydarzenia nazywają się `admin.events_.…` -
+ * podkreślnik wypina je z układu `admin.events.tsx` i jednocześnie wypycha poza
+ * `startsWith("admin.events.")`. Bez drugiego prefiksu piętnaście ekranów
+ * studia wypadłoby ze skanu i mogłoby wołać klucze spoza słownika.
+ */
+const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
 
 /**
  * Korzenie, w których goły literał w kodzie jest referencją do klucza.

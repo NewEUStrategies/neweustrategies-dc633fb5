@@ -217,8 +217,17 @@ export function EventsListManager({
                   badges={badgesFor(row)}
                   metrics={metricsFor(row)}
                   editLabel={t("adminEvents.list.row.editAction", { title })}
+                  // EDYCJA PROWADZI DO STUDIA, nie do starej listy w sekcji
+                  // społeczności z wydarzeniem wyszukanym po slugu. Tamten
+                  // adres dawał wynik wyszukiwania, a nie wydarzenie: jeden
+                  // formularz z częścią pól i zero dojścia do stron, brandingu
+                  // czy zapisów. Studio otwiera to samo wydarzenie ze wszystkimi
+                  // sekcjami i bez pośrednika w postaci frazy szukania.
                   onEdit={() =>
-                    void navigate({ to: "/admin/community/events", search: { q: row.slug } })
+                    void navigate({
+                      to: "/admin/events/$eventId/general",
+                      params: { eventId: row.id },
+                    })
                   }
                   publicHref={row.status === "published" ? `/events/${row.slug}` : null}
                   publicLabel={t("adminEvents.list.row.openPublicAction", { title })}

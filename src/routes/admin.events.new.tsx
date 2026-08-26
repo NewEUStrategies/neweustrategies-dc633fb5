@@ -9,6 +9,13 @@
 // więc autor bez roli redaktora dostanie `42501` niezależnie od tego, co pokaże
 // ekran. Zdanie zamiast formularza istnieje po to, by odmowa nie wyglądała
 // na awarię.
+//
+// PO UTWORZENIU IDZIEMY DO STUDIA, NIE NA LISTĘ. Kreator zbiera pięć pól -
+// resztę wydarzenia (opis, okładka, strony, branding, zapisy, regulamin)
+// uzupełnia się w studiu. Powrót na listę kazałby redaktorowi odszukać wśród
+// kilkudziesięciu wierszy ten świeżo dodany i dopiero stamtąd wejść do środka,
+// czyli wykonać dwa kliknięcia po to, żeby wrócić do pracy, której nie skończył.
+// Tworzenie kończy się tam, gdzie zaczyna się ciąg dalszy.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ShieldAlert } from "lucide-react";
@@ -72,9 +79,11 @@ function AdminEventCreatePage() {
           draft.externalRegistrationUrl.trim() === "" ? null : draft.externalRegistrationUrl.trim(),
       },
       {
-        onSuccess: () => {
+        // `admin_event_create` oddaje identyfikator nowego wiersza - jedyny
+        // moment, w którym znamy go bez dodatkowego zapytania o listę.
+        onSuccess: (eventId) => {
           toast.success(t("adminEvents.list.toasts.created"));
-          backToList();
+          void navigate({ to: "/admin/events/$eventId/general", params: { eventId } });
         },
         onError: (error) => toast.error(error.message),
       },

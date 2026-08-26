@@ -1,7 +1,8 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { eventStudioSectionFromPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 export const Route = createFileRoute("/admin")({
@@ -20,6 +21,19 @@ function AdminLayout() {
   ensureAdminExtrasI18n();
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+
+  // STUDIO WYDARZENIA WYMIENIA CALA RAME PANELU, nie tylko tresc.
+  //
+  // Na czas pracy nad jednym wydarzeniem lewy pas nalezy do TEGO wydarzenia
+  // (pietnascie sekcji: informacje ogolne, strony i menu, grupy, branding,
+  // zapisy, tresc, spotkania, odprawa...), a nie do panelu. Dwa sidebary obok
+  // siebie zabralyby polowe szerokosci formularzowi o osiemnastu polach i nie
+  // odpowiadaly by na pytanie „ktore wydarzenie mam w reku".
+  //
+  // Bramka logowania i roli ZOSTAJE tutaj - dlatego studio jest nadal dzieckiem
+  // `/admin`, a nie osobnym drzewem tras. Wymieniamy tylko powloke wizualna.
+  const isEventStudio = eventStudioSectionFromPath(path) !== null;
 
   useEffect(() => {
     if (!loading && (!session || !isStaff)) navigate({ to: "/login" });
@@ -33,6 +47,8 @@ function AdminLayout() {
     );
   }
   if (!session || !isStaff) return null;
+
+  if (isEventStudio) return <Outlet />;
 
   return (
     <AdminShell>
