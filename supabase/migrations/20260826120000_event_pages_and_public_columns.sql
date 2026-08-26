@@ -120,8 +120,14 @@ ALTER TABLE public.event_pages ENABLE ROW LEVEL SECURITY;
 --
 -- 1. `public.is_staff(auth.uid())` - `is_staff()` NIE PRZYJMUJE argumentu, czyta
 --    `auth.uid()` sama (20260628230000). Migracja wywracala sie bledem 42883
---    i tabela nie powstawala wcale, a lokalna weryfikacja tego nie widziala,
---    bo atrapa definiowala `is_staff` sama - czyli byla SZERSZA od bazy.
+--    i tabela nie powstawala wcale.
+--    DLACZEGO NIE ZLAPALA TEGO WERYFIKACJA LOKALNA: nie dlatego, ze atrapy sa
+--    za szerokie - obie (`scripts/pg-harness/harness.sql`,
+--    `scripts/events-harness/harness.sql`) definiuja `is_staff` BEZ argumentu,
+--    dokladnie jak baza, i ta pomylke by pokazaly. Powod byl proceduralny:
+--    narzedzia istnialy i nie zostaly uruchomione, a ich miejsce zajela atrapa
+--    pisana ad hoc pod te jedna migracje. Wniosek nie brzmi „pisz szersze
+--    atrapy", tylko „uruchom te, ktore repozytorium ma".
 --
 -- 2. Poprawka przez przepisanie predykatu z `event_page_sections`
 --    (20260823170000) - plik SPRZED zamkniecia plaszczyzny. Od 20260824090000
@@ -297,10 +303,10 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_root uuid;
 BEGIN
   SELECT e.root_page_id INTO v_root
@@ -356,10 +362,10 @@ RETURNS uuid
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_id uuid := NULLIF(p_payload->>'id', '')::uuid;
   v_event_id uuid := NULLIF(p_payload->>'event_id', '')::uuid;
   v_page_id uuid := NULLIF(p_payload->>'page_id', '')::uuid;
@@ -468,10 +474,10 @@ RETURNS boolean
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_deleted integer;
 BEGIN
   DELETE FROM public.event_pages ep
@@ -501,10 +507,10 @@ RETURNS integer
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_count integer;
 BEGIN
   UPDATE public.event_pages ep
@@ -619,10 +625,10 @@ RETURNS uuid
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_event_id uuid := NULLIF(p_payload->>'event_id', '')::uuid;
   v_title_pl text := btrim(COALESCE(p_payload->>'title_pl', ''));
   v_title_en text := btrim(COALESCE(p_payload->>'title_en', ''));
@@ -747,7 +753,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_tenant uuid := public.public_tenant_id();

@@ -160,10 +160,10 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
 BEGIN
   RETURN QUERY
   SELECT
@@ -209,10 +209,10 @@ RETURNS uuid
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_id uuid := NULLIF(p_payload->>'id', '')::uuid;
   v_event public.events;
   v_slug text;
@@ -426,10 +426,10 @@ RETURNS text
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_status text := lower(btrim(COALESCE(p_status, '')));
   v_event public.events;
 BEGIN
@@ -497,10 +497,10 @@ RETURNS jsonb
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_in jsonb := COALESCE(p_branding, '{}'::jsonb);
   v_out jsonb := '{}'::jsonb;
   v_key text;

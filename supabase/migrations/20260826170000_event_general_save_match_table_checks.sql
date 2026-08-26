@@ -24,10 +24,10 @@ RETURNS uuid
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_tenant uuid := public.assert_editor_tenant();
+  v_tenant uuid := public.assert_event_admin_tenant();
   v_id uuid := NULLIF(p_payload->>'id', '')::uuid;
   v_event public.events;
   v_slug text;
