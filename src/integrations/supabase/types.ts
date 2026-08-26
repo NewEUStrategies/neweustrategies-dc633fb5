@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -7550,69 +7550,6 @@ export type Database = {
           },
         ]
       }
-      event_pages: {
-        Row: {
-          color: string | null
-          created_at: string
-          event_id: string
-          icon: string | null
-          id: string
-          in_menu: boolean
-          menu_label_en: string | null
-          menu_label_pl: string | null
-          page_id: string
-          sort_order: number
-          tenant_id: string
-          updated_at: string
-          visible_to_groups: string[]
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          event_id: string
-          icon?: string | null
-          id?: string
-          in_menu?: boolean
-          menu_label_en?: string | null
-          menu_label_pl?: string | null
-          page_id: string
-          sort_order?: number
-          tenant_id?: string
-          updated_at?: string
-          visible_to_groups?: string[]
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          event_id?: string
-          icon?: string | null
-          id?: string
-          in_menu?: boolean
-          menu_label_en?: string | null
-          menu_label_pl?: string | null
-          page_id?: string
-          sort_order?: number
-          tenant_id?: string
-          updated_at?: string
-          visible_to_groups?: string[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_pages_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_pages_page_id_fkey"
-            columns: ["page_id"]
-            isOneToOne: false
-            referencedRelation: "pages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       event_people: {
         Row: {
           company_id: string | null
@@ -9280,9 +9217,7 @@ export type Database = {
           cancelled_at: string | null
           capacity: number | null
           chatham_house: boolean
-          city: string | null
           conversation_id: string | null
-          country: string | null
           cover_url: string | null
           created_at: string
           created_by: string | null
@@ -9292,34 +9227,25 @@ export type Database = {
           ends_at: string | null
           event_type_id: string | null
           external_registration_url: string | null
-          features: Json
           format: string
           guest_mode: string
-          home_design: string
           host_user_id: string | null
           id: string
           join_url: string | null
           kind: string
-          languages: string[]
           location: string | null
           min_tier_rank: number
-          pages_display_mode: string
-          postal_code: string | null
           program_id: string | null
           published_at: string | null
           recording_url: string | null
-          region: string | null
           region_id: string | null
           registration_flow: string
           registration_mode: string
           root_page_id: string | null
           rsvp_opens_at: string | null
           slug: string
-          social_hashtag: string | null
           starts_at: string
           status: string
-          street_address: string | null
-          support_email: string | null
           tenant_id: string
           ticket_currency: string
           ticket_price_cents: number | null
@@ -9327,8 +9253,6 @@ export type Database = {
           title_en: string
           title_pl: string
           updated_at: string
-          video_header_id: string | null
-          video_header_platform: string | null
           visibility: string
         }
         Insert: {
@@ -9336,9 +9260,7 @@ export type Database = {
           cancelled_at?: string | null
           capacity?: number | null
           chatham_house?: boolean
-          city?: string | null
           conversation_id?: string | null
-          country?: string | null
           cover_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -9348,34 +9270,25 @@ export type Database = {
           ends_at?: string | null
           event_type_id?: string | null
           external_registration_url?: string | null
-          features?: Json
           format?: string
           guest_mode?: string
-          home_design?: string
           host_user_id?: string | null
           id?: string
           join_url?: string | null
           kind?: string
-          languages?: string[]
           location?: string | null
           min_tier_rank?: number
-          pages_display_mode?: string
-          postal_code?: string | null
           program_id?: string | null
           published_at?: string | null
           recording_url?: string | null
-          region?: string | null
           region_id?: string | null
           registration_flow?: string
           registration_mode?: string
           root_page_id?: string | null
           rsvp_opens_at?: string | null
           slug: string
-          social_hashtag?: string | null
           starts_at: string
           status?: string
-          street_address?: string | null
-          support_email?: string | null
           tenant_id?: string
           ticket_currency?: string
           ticket_price_cents?: number | null
@@ -9383,8 +9296,6 @@ export type Database = {
           title_en: string
           title_pl: string
           updated_at?: string
-          video_header_id?: string | null
-          video_header_platform?: string | null
           visibility?: string
         }
         Update: {
@@ -9392,9 +9303,7 @@ export type Database = {
           cancelled_at?: string | null
           capacity?: number | null
           chatham_house?: boolean
-          city?: string | null
           conversation_id?: string | null
-          country?: string | null
           cover_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -9404,34 +9313,25 @@ export type Database = {
           ends_at?: string | null
           event_type_id?: string | null
           external_registration_url?: string | null
-          features?: Json
           format?: string
           guest_mode?: string
-          home_design?: string
           host_user_id?: string | null
           id?: string
           join_url?: string | null
           kind?: string
-          languages?: string[]
           location?: string | null
           min_tier_rank?: number
-          pages_display_mode?: string
-          postal_code?: string | null
           program_id?: string | null
           published_at?: string | null
           recording_url?: string | null
-          region?: string | null
           region_id?: string | null
           registration_flow?: string
           registration_mode?: string
           root_page_id?: string | null
           rsvp_opens_at?: string | null
           slug?: string
-          social_hashtag?: string | null
           starts_at?: string
           status?: string
-          street_address?: string | null
-          support_email?: string | null
           tenant_id?: string
           ticket_currency?: string
           ticket_price_cents?: number | null
@@ -9439,8 +9339,6 @@ export type Database = {
           title_en?: string
           title_pl?: string
           updated_at?: string
-          video_header_id?: string | null
-          video_header_platform?: string | null
           visibility?: string
         }
         Relationships: [
@@ -19398,10 +19296,6 @@ export type Database = {
           width_mm: number
         }[]
       }
-      admin_event_branding_save: {
-        Args: { p_branding: Json; p_event_id: string }
-        Returns: Json
-      }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
       admin_event_checkin_search: {
         Args: { p_payload: Json }
@@ -19504,74 +19398,6 @@ export type Database = {
         }[]
       }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
-      admin_event_detail: {
-        Args: { p_event_id: string }
-        Returns: {
-          branding: Json
-          cancelled_at: string
-          capacity: number
-          chatham_house: boolean
-          city: string
-          country: string
-          cover_url: string
-          created_at: string
-          description_en: string
-          description_pl: string
-          early_rsvp_rank: number
-          ends_at: string
-          event_type_id: string
-          external_registration_url: string
-          features: Json
-          format: string
-          guest_mode: string
-          has_recording: boolean
-          has_stream: boolean
-          home_design: string
-          id: string
-          join_url: string
-          kind: string
-          languages: string[]
-          location: string
-          min_tier_rank: number
-          pages_display_mode: string
-          postal_code: string
-          published_at: string
-          recording_url: string
-          region: string
-          registration_flow: string
-          registration_mode: string
-          root_page_id: string
-          rsvp_opens_at: string
-          slug: string
-          social_hashtag: string
-          starts_at: string
-          status: string
-          street_address: string
-          support_email: string
-          ticket_currency: string
-          ticket_price_cents: number
-          timezone: string
-          title_en: string
-          title_pl: string
-          type_accent_color: string
-          type_icon: string
-          type_key: string
-          type_name_en: string
-          type_name_pl: string
-          updated_at: string
-          video_header_id: string
-          video_header_platform: string
-          visibility: string
-        }[]
-      }
-      admin_event_features_save: {
-        Args: { p_event_id: string; p_features: Json }
-        Returns: Json
-      }
-      admin_event_general_save: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_group_member_set: {
         Args: { p_payload: Json }
@@ -19743,33 +19569,6 @@ export type Database = {
       admin_event_package_seat_assign: {
         Args: { p_payload: Json }
         Returns: string
-      }
-      admin_event_page_create: { Args: { p_payload: Json }; Returns: string }
-      admin_event_page_detach: { Args: { p_id: string }; Returns: boolean }
-      admin_event_page_upsert: { Args: { p_payload: Json }; Returns: string }
-      admin_event_pages_list: {
-        Args: { p_event_id: string }
-        Returns: {
-          color: string
-          icon: string
-          id: string
-          in_menu: boolean
-          menu_label_en: string
-          menu_label_pl: string
-          page_id: string
-          page_path: string
-          page_slug: string
-          page_status: string
-          sort_order: number
-          title_en: string
-          title_pl: string
-          updated_at: string
-          visible_to_groups: string[]
-        }[]
-      }
-      admin_event_pages_reorder: {
-        Args: { p_event_id: string; p_ids: string[] }
-        Returns: number
       }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
@@ -20069,10 +19868,6 @@ export type Database = {
       admin_event_sessions_set_status: {
         Args: { p_payload: Json }
         Returns: number
-      }
-      admin_event_set_status: {
-        Args: { p_event_id: string; p_status: string }
-        Returns: string
       }
       admin_event_sponsor_companies_search: {
         Args: { p_event_id: string; p_limit?: number; p_q?: string }
@@ -23122,19 +22917,6 @@ export type Database = {
         Returns: Json
       }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
-      event_menu: {
-        Args: { p_slug: string }
-        Returns: {
-          color: string
-          icon: string
-          id: string
-          label_en: string
-          label_pl: string
-          page_id: string
-          path: string
-          sort_order: number
-        }[]
-      }
       event_sections: {
         Args: { p_slug: string }
         Returns: {
