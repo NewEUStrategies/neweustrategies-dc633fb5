@@ -10,9 +10,9 @@
 // biblioteka (heading, text, button, section-label, counter, accordion, cta,
 // newsletter, gallery, testimonial, post-list) - to kompletne strony, nie
 // pojedyncze bloki.
-import type { ColumnNode, SectionNode, WidgetContent, WidgetNode, WidgetType } from "./types";
+import type { SectionNode } from "./types";
 import { newId, toJson } from "./types";
-import { WIDGET_MAP } from "./registry";
+import { centered, column, contentLayout, section, widget } from "./templateKit";
 
 export type Lang = "pl" | "en";
 
@@ -41,8 +41,6 @@ export function starterDescription(tpl: StarterTemplate, lang: Lang): string {
 // podstron wydarzenia, wiec domyslna szerokosc sekcji i czytanie `defaults()`
 // z rejestru maja jedno miejsce, a nie dwie kopie do zsynchronizowania.
 
-
-const centered = { style: { align: { desktop: "center" as const } } };
 
 // --- przykladowa agenda (2 dni) ----------------------------------------------
 
