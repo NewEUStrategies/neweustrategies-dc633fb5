@@ -765,6 +765,7 @@ export const adminEventsPl = {
           moveDown: "Przesuń „{{label}}” niżej w menu",
           edit: "Edytuj pozycję menu „{{label}}”",
           editContent: "Edytuj treść strony",
+          preview: "Pokaż zawartość „{{label}}” w podglądzie",
           detach: "Odepnij „{{label}}” od wydarzenia",
           addToMenu: "Dodaj do menu",
           keepOutOfMenu: "Trzymaj poza menu",
@@ -812,6 +813,9 @@ export const adminEventsPl = {
           icon: "Ikona (opcjonalnie)",
           iconHint:
             "Nazwa z katalogu ikon, na przykład calendar-days. Możesz ją dodać później w edytorze pozycji.",
+          template: "Szablon strony",
+          templateHint:
+            "Szablon wstawia gotowe sekcje razem z blokami - zostaje podmiana treści. Układ zmienisz później w builderze.",
           draftHint:
             "Strona powstaje jako szkic - uczestnik zobaczy ją dopiero po opublikowaniu w edytorze stron.",
           submit: "Utwórz stronę",
@@ -907,6 +911,7 @@ export const adminEventsPl = {
         languages: "Języki",
         support: "Kontakt",
         untitled: "Wydarzenie bez nazwy",
+        pageEmpty: "Ta podstrona nie ma jeszcze żadnych bloków - dodaj je w edytorze stron.",
         noDate: "Termin do ustalenia",
       },
 
@@ -1708,6 +1713,7 @@ export const adminEventsEn = {
           moveDown: "Move “{{label}}” down in the menu",
           edit: "Edit the menu entry “{{label}}”",
           editContent: "Edit the page content",
+          preview: "Show the content of “{{label}}” in the preview",
           detach: "Unpin “{{label}}” from the event",
           addToMenu: "Add to the menu",
           keepOutOfMenu: "Keep out of the menu",
@@ -1755,6 +1761,9 @@ export const adminEventsEn = {
           icon: "Icon (optional)",
           iconHint:
             "A name from the icon catalogue, for example calendar-days. You can add it later in the entry editor.",
+          template: "Page template",
+          templateHint:
+            "A template inserts ready-made sections together with their blocks - only the copy is left to replace. You can change the layout later in the builder.",
           draftHint:
             "The page is created as a draft - an attendee sees it only once you publish it in the page editor.",
           submit: "Create the page",
@@ -1850,6 +1859,7 @@ export const adminEventsEn = {
         languages: "Languages",
         support: "Contact",
         untitled: "Untitled event",
+        pageEmpty: "This subpage has no blocks yet - add them in the page editor.",
         noDate: "Date to be confirmed",
       },
 

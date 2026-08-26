@@ -34,6 +34,7 @@
   "untranslated": [
     "adminEvents.general.videoPlatforms.vimeo",
     "adminEvents.general.videoPlatforms.youtube",
+    "adminEvents.list.create.formatLabel",
     "adminEvents.studio.general.format",
     "adminEvents.studio.general.hashtag",
     "adminEvents.studio.general.regionLabel",
@@ -201,6 +202,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 493
+    "untranslated": 494
   }
 }

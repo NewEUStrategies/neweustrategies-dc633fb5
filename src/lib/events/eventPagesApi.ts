@@ -24,6 +24,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { UiLang } from "@/lib/i18n/format";
+import type { BuilderDocument } from "@/lib/builder/types";
+import { parseBuilderDoc } from "@/lib/builder/parse";
+import { eventPageTemplateDocument } from "@/lib/events/eventPageTemplates";
 
 type Fns = Database["public"]["Functions"];
 
@@ -194,6 +197,15 @@ export interface EventPageCreateInput {
   titleEn: string;
   icon?: string;
   inMenu?: boolean;
+  /**
+   * Szablon ukladu strony.
+   *
+   * NIEZNANY IDENTYFIKATOR NIE JEST BLEDEM TUTAJ, tylko brakiem szablonu:
+   * `eventPageTemplateDocument` oddaje wtedy `null`, a RPC zaklada pusta strone
+   * robocza - dokladnie tak, jak przed wprowadzeniem szablonow. Blad zglasza
+   * baza tylko wtedy, gdy dokument JEST, ale ma zly kształt.
+   */
+  templateId?: string | null;
 }
 
 /**
@@ -202,8 +214,13 @@ export interface EventPageCreateInput {
  * JEDNO WOLANIE, TRZY SKUTKI (korzen, strona, przypiecie) - bo rozbite na trzy
  * kroki w interfejsie daloby stan, w ktorym strona istnieje, ale nie nalezy do
  * zadnego wydarzenia. Zwraca identyfikator POZYCJI MENU, nie strony.
+ *
+ * SZABLON JEDZIE W TEJ SAMEJ TRANSAKCJI. Doklejenie tresci osobnym zapisem po
+ * utworzeniu zostawialoby przy bledzie sieci strone pusta - a redaktor widzialby
+ * pozycje w menu, ktora niczego nie pokazuje.
  */
 export async function createEventPage(input: EventPageCreateInput): Promise<string> {
+  const document = eventPageTemplateDocument(input.templateId);
   const { data, error } = await supabase.rpc("admin_event_page_create", {
     p_payload: payload({
       event_id: input.eventId,
@@ -211,10 +228,33 @@ export async function createEventPage(input: EventPageCreateInput): Promise<stri
       title_en: input.titleEn,
       icon: input.icon,
       in_menu: input.inMenu,
+      builder_data: document === null ? undefined : (document as unknown as Json),
     }),
   });
   if (error) throw new Error(error.message);
   return String(data);
+}
+
+/**
+ * Dokument buildera podstrony - zrodlo podgladu tresci w studiu.
+ *
+ * CZYTAMY `pages` WPROST, bo to jedna kolumna jednego wiersza, do ktorego
+ * redaktor ma dostep tymi samymi regulami, co w `/admin/pages`. Wlasny RPC
+ * dublowalby te reguly bez zadnego zysku.
+ */
+export async function fetchEventPageDocument(pageId: string): Promise<BuilderDocument | null> {
+  const { data, error } = await supabase
+    .from("pages")
+    .select("builder_data")
+    .eq("id", pageId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const raw = data?.builder_data ?? null;
+  // PUSTA STRONA ODDAJE `null`, nie pusty dokument: podglad ma wtedy powiedziec
+  // „ta strona nie ma jeszcze tresci", a nie narysowac pusta kanwe bez slowa.
+  if (raw === null) return null;
+  const doc = parseBuilderDoc(raw);
+  return doc.sections.length === 0 ? null : doc;
 }
 
 /* ------------------------------------------------------------ czysta czesc --- */

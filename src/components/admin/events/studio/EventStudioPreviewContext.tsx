@@ -22,6 +22,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { BuilderDocument } from "@/lib/builder/types";
 import type { EventBrandingDraft } from "@/lib/events/eventBrandingDraft";
 import { EMPTY_EVENT_BRANDING } from "@/lib/events/eventBrandingDraft";
 import type { EventFormat } from "@/lib/events/eventTypes";
@@ -31,6 +32,19 @@ export interface EventPreviewMenuItem {
   label: string;
   icon: string;
   color: string;
+}
+
+/**
+ * PODSTRONA WYBRANA DO PODGLADU.
+ *
+ * `document === null` znaczy „strona istnieje, ale nie ma jeszcze ani jednego
+ * bloku" - to inna odpowiedz niz `selectedPage === null` („patrzymy na strone
+ * glowna"), i podglad musi umiec powiedziec obie.
+ */
+export interface EventPreviewPage {
+  label: string;
+  path: string;
+  document: BuilderDocument | null;
 }
 
 export interface EventPreviewModel {
@@ -55,6 +69,8 @@ export interface EventPreviewModel {
   branding: EventBrandingDraft;
   pagesDisplayMode: "list" | "grid";
   menu: readonly EventPreviewMenuItem[];
+  /** `null` = podglad strony glownej wydarzenia. */
+  selectedPage: EventPreviewPage | null;
 }
 
 export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
@@ -79,6 +95,7 @@ export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
   branding: EMPTY_EVENT_BRANDING,
   pagesDisplayMode: "list",
   menu: [],
+  selectedPage: null,
 };
 
 interface PreviewContextValue {

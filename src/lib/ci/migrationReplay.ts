@@ -677,6 +677,26 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     rationale:
       "Panel wyemitowal ponownie migracje z PR-a pod wlasnym numerem (commit 1586fc1). Dowod zastosowania: plik jest w zbiorze migracji galezi glownej, a przebieg `pgtap` na PR #289 pokazuje w logu `Applying migration 20260825190728_8cc00473-...` - odtworzenie od zera stosuje OBIE wersje po kolei, bo SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE`). WPIS, NIE KASOWANIE PLIKU: bramka dopuszcza obie naprawy, ale sa niesymetryczne w ryzyku. Usuniecie duplikatu, ktory zdazyl wejsc na baze, zostawia w `schema_migrations` wiersz bez pliku i wywraca kolejny `db push`; zbedny wpis w rejestrze nie psuje niczego poza tym, ze rejestr jest o pozycje dluzszy. Pod niepewnoscia wybieramy tansza pomylke. Jesli panel NIE zastosowal tej wersji na bazie projektu, wlasciwa naprawa jest skasowanie pliku i usuniecie tego wpisu.",
   },
+  {
+    files: [
+      "20260826090000_event_studio_general.sql",
+      "20260826114319_e981f858-db1a-48e4-880b-5f8ceece179c.sql",
+    ],
+    deployment: "PR #291 / panel Lovable",
+    appliedOn: "2026-08-26",
+    rationale:
+      "Panel wyemitowal ponownie migracje z PR #291 (pola ogolne wydarzenia + RPC) pod wlasnym numerem. Dowod zastosowania: `check:db-contract` widzi kolumny i funkcje z tego pliku na zywej bazie, a `check:migration-ledger` nie raportuje brakow, wiec OBIE wersje sa w `schema_migrations`. SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE`), wiec odtworzenie od zera stosuje je po kolei bez konfliktu. WPIS, NIE KASOWANIE PLIKU: usuniecie duplikatu obecnego na bazie zostawiloby wiersz ledgera bez pliku i wywrocilo kolejny `db push`.",
+  },
+  {
+    files: [
+      "20260826114616_91bf0987-7ee1-4e18-b13a-e1bd9a1e11f8.sql",
+      "20260826120000_event_pages_and_public_columns.sql",
+    ],
+    deployment: "PR #291 / panel Lovable",
+    appliedOn: "2026-08-26",
+    rationale:
+      "Ta sama para okolicznosci co wpis powyzej, dla migracji `event_pages` (tabela podstron, RLS, funkcje menu). Dowod zastosowania: `event_pages` i funkcje menu odpowiadaja na zywej bazie po zastosowaniu obu numerow, a ledger nie zglasza brakow. SQL idempotentny.",
+  },
 ];
 
 /**

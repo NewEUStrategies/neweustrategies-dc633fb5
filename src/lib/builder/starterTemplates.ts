@@ -10,9 +10,9 @@
 // biblioteka (heading, text, button, section-label, counter, accordion, cta,
 // newsletter, gallery, testimonial, post-list) - to kompletne strony, nie
 // pojedyncze bloki.
-import type { ColumnNode, SectionNode, WidgetContent, WidgetNode, WidgetType } from "./types";
+import type { SectionNode } from "./types";
 import { newId, toJson } from "./types";
-import { WIDGET_MAP } from "./registry";
+import { centered, column, contentLayout, section, widget } from "./templateKit";
 
 export type Lang = "pl" | "en";
 
@@ -35,44 +35,11 @@ export function starterDescription(tpl: StarterTemplate, lang: Lang): string {
   return lang === "pl" ? tpl.description_pl : tpl.description_en;
 }
 
-// --- helpers (wzorzec homepageTemplate) -------------------------------------
-
-const widget = (
-  type: WidgetType,
-  overrides: WidgetContent = {},
-  node: Partial<Pick<WidgetNode, "style" | "advanced">> = {},
-): WidgetNode => {
-  const def = WIDGET_MAP[type];
-  const defaults = (def?.defaults?.() ?? {}) as WidgetContent;
-  return {
-    id: newId(),
-    kind: "widget",
-    type,
-    content: { ...defaults, ...overrides },
-    ...node,
-  };
-};
-
-const column = (span: number, children: WidgetNode[] = []): ColumnNode => ({
-  id: newId(),
-  kind: "column",
-  span: { desktop: span },
-  children,
-});
-
-const section = (cols: ColumnNode[], opts: Partial<SectionNode> = {}): SectionNode => ({
-  id: newId(),
-  kind: "section",
-  children: cols,
-  ...opts,
-});
-
-/** Standardowa sekcja tresci: boxed 1200 + odstep dolny. */
-const contentLayout = (marginBottom = 48) => ({
-  layout: { contentWidth: "boxed" as const, width: 1200, marginBottom },
-});
-
-const centered = { style: { align: { desktop: "center" as const } } };
+// --- helpers ----------------------------------------------------------------
+//
+// Sklad wezlow siedzi w `templateKit` - ten sam zestaw uzywaja szablony
+// podstron wydarzenia, wiec domyslna szerokosc sekcji i czytanie `defaults()`
+// z rejestru maja jedno miejsce, a nie dwie kopie do zsynchronizowania.
 
 // --- przykladowa agenda (2 dni) ----------------------------------------------
 

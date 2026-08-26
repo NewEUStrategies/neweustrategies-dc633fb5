@@ -22,9 +22,11 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+import type { BuilderDocument } from "@/lib/builder/types";
 import {
   createEventPage,
   detachEventPage,
+  fetchEventPageDocument,
   fetchEventPages,
   fetchEventRootPage,
   reorderEventPages,
@@ -41,6 +43,7 @@ export const eventPagesKeys = {
   event: (eventId: string) => [...eventPagesKeys.all, eventId] as const,
   list: (eventId: string) => [...eventPagesKeys.event(eventId), "list"] as const,
   root: (rootPageId: string) => [...eventPagesKeys.all, "root", rootPageId] as const,
+  document: (pageId: string) => [...eventPagesKeys.all, "document", pageId] as const,
 };
 
 export function useAdminEventPages(
@@ -51,6 +54,24 @@ export function useAdminEventPages(
     queryKey: eventPagesKeys.list(eventId),
     queryFn: () => fetchEventPages(eventId),
     enabled: enabled && eventId !== "",
+  });
+}
+
+/**
+ * Dokument buildera WYBRANEJ podstrony - zrodlo podgladu tresci w studiu.
+ *
+ * OSOBNE ZAPYTANIE NA STRONE, a nie `builder_data` w liscie: dokumenty stron waza
+ * tyle, co cala tresc serwisu, wiec lista menu ciagnelaby je wszystkie po to,
+ * zeby pokazac jeden.
+ */
+export function useEventPageDocument(
+  pageId: string | null,
+): UseQueryResult<BuilderDocument | null, Error> {
+  const key = pageId ?? "";
+  return useQuery({
+    queryKey: eventPagesKeys.document(key),
+    queryFn: () => fetchEventPageDocument(key),
+    enabled: key !== "",
   });
 }
 

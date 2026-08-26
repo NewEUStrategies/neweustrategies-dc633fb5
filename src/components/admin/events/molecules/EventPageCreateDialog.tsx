@@ -1,19 +1,25 @@
 // Molekula: zalozenie NOWEJ PODSTRONY wydarzenia.
 //
 // OKNO MODALNE, NIE SZUFLADA - odwrotnie niz przy edycji pozycji menu. To jest
-// akcja jednorazowa i krotka (dwa tytuly), a nie porzadkowanie listy: nie ma
-// tu czego porownywac z sasiadem, a okno na srodku niesie decyzje „zakladam
-// strone" wyrazniej niz panel doklejony do krawedzi.
+// akcja jednorazowa i krotka (dwa tytuly plus wybor szablonu), a nie
+// porzadkowanie listy: nie ma tu czego porownywac z sasiadem, a okno na srodku
+// niesie decyzje „zakladam strone" wyrazniej niz panel doklejony do krawedzi.
 //
-// TRZY POLA, MIMO ZE STRONA MA KILKADZIESIAT USTAWIEN. Adres, szablon, SEO
-// i harmonogram publikacji naleza do `/admin/pages` i tam zostaja; tutaj
-// pytamy WYLACZNIE o to, bez czego strony nie da sie utworzyc (tytul w obu
-// jezykach - slug liczy baza z tytulu) plus ikone, bo pozycja bez ikony
-// wchodzi do menu z domyslna i redaktor wraca do niej drugim klikniecem.
+// TYTULY, IKONA I SZABLON - NIC WIECEJ. Adres, SEO i harmonogram publikacji
+// naleza do `/admin/pages` i tam zostaja; tutaj pytamy WYLACZNIE o to, bez czego
+// strony nie da sie utworzyc (tytul w obu jezykach - slug liczy baza z tytulu),
+// plus ikone, bo pozycja bez ikony wchodzi do menu z domyslna, plus SZABLON.
+//
+// SZABLON JEST TU, A NIE „POTEM W BUILDERZE". Strona zalozona pusta stawiala
+// redaktora przed bialą kanwa i pytaniem „co ta strona ma zawierac"; wybor na
+// tym ekranie odpowiada na nie z gory, a lista blokow pod kazda pozycja mowi,
+// co dokladnie wjedzie na strone. Ikona pozycji idzie w parze z szablonem, o ile
+// redaktor nie wpisal wlasnej.
 //
 // TYTUL W OBU JEZYKACH JEST WYMAGANY, tak jak w `admin_event_page_create`
 // (`invalid_titles`). Blokada po stronie okna istnieje, zeby powod odmowy stal
 // przy polu, ktore go wywolalo - a nie w toascie nad calym ekranem.
+
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -26,6 +32,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
+import { cn } from "@/lib/utils";
+import { uiLang } from "@/lib/i18n/format";
+import {
+  DEFAULT_EVENT_PAGE_TEMPLATE_ID,
+  EVENT_PAGE_TEMPLATES,
+  findEventPageTemplate,
+  templateText,
+} from "@/lib/events/eventPageTemplates";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,10 +67,12 @@ export function EventPageCreateDialog({
   isSaving,
   onSubmit,
 }: EventPageCreateDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [titlePl, setTitlePl] = useState("");
   const [titleEn, setTitleEn] = useState("");
   const [icon, setIcon] = useState("");
+  const [templateId, setTemplateId] = useState<string>(DEFAULT_EVENT_PAGE_TEMPLATE_ID);
   const [touched, setTouched] = useState(false);
 
   // RESET PRZY OTWARCIU, nie przy zamknieciu: pola wyczyszczone w trakcie
@@ -66,8 +82,14 @@ export function EventPageCreateDialog({
     setTitlePl("");
     setTitleEn("");
     setIcon("");
+    setTemplateId(DEFAULT_EVENT_PAGE_TEMPLATE_ID);
     setTouched(false);
   }, [open]);
+
+  const template = findEventPageTemplate(templateId);
+  // IKONA Z SZABLONU JEST PROPOZYCJA, NIE NADPISANIEM: wpisana recznie wygrywa,
+  // bo redaktor wpisal ja pozniej i swiadomie.
+  const effectiveIcon = icon === "" ? (template?.icon ?? "") : icon;
 
   const titlesMissing = titlePl.trim() === "" || titleEn.trim() === "";
   const iconInvalid = icon !== "" && !EVENT_PAGE_ICON_PATTERN.test(icon);
@@ -80,8 +102,9 @@ export function EventPageCreateDialog({
       eventId,
       titlePl: titlePl.trim(),
       titleEn: titleEn.trim(),
-      icon: icon === "" ? undefined : icon,
+      icon: effectiveIcon === "" ? undefined : effectiveIcon,
       inMenu: true,
+      templateId,
     });
   };
 
@@ -89,7 +112,7 @@ export function EventPageCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("adminEvents.studio.pages.create.title")}</DialogTitle>
           <DialogDescription>{t("adminEvents.studio.pages.create.subtitle")}</DialogDescription>
@@ -116,7 +139,10 @@ export function EventPageCreateDialog({
                 aria-hidden="true"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground"
               >
-                <DynamicIcon name={icon === "" ? EVENT_PAGE_DEFAULT_ICON : icon} size={16} />
+                <DynamicIcon
+                  name={effectiveIcon === "" ? EVENT_PAGE_DEFAULT_ICON : effectiveIcon}
+                  size={16}
+                />
               </span>
               <Input
                 id={iconId}
@@ -124,7 +150,7 @@ export function EventPageCreateDialog({
                 onChange={(event) => setIcon(event.target.value.trim().toLowerCase())}
                 placeholder={EVENT_PAGE_DEFAULT_ICON}
                 maxLength={48}
-                className="font-mono text-[13px]"
+                className="text-[13px]"
                 aria-invalid={touched && iconInvalid ? true : undefined}
               />
             </div>
@@ -138,6 +164,65 @@ export function EventPageCreateDialog({
               </p>
             )}
           </div>
+          <div className="space-y-2">
+            <Label>{t("adminEvents.studio.pages.create.template")}</Label>
+            <p className="text-xs leading-snug text-muted-foreground">
+              {t("adminEvents.studio.pages.create.templateHint")}
+            </p>
+            <div
+              role="radiogroup"
+              aria-label={t("adminEvents.studio.pages.create.template")}
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              {EVENT_PAGE_TEMPLATES.map((item) => {
+                const active = item.id === templateId;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setTemplateId(item.id)}
+                    className={cn(
+                      "rounded-md border p-3 text-left transition-colors",
+                      active
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+                          active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <DynamicIcon name={item.icon} size={15} />
+                      </span>
+                      <span className="text-[13px] font-medium">
+                        {templateText(item.name, lang)}
+                      </span>
+                    </span>
+                    <span className="mt-1.5 block text-xs leading-snug text-muted-foreground">
+                      {templateText(item.description, lang)}
+                    </span>
+                    <span className="mt-2 flex flex-wrap gap-1">
+                      {item.elements.map((element) => (
+                        <span
+                          key={element.en}
+                          className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {templateText(element, lang)}
+                        </span>
+                      ))}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <p className="text-xs leading-snug text-muted-foreground">
             {t("adminEvents.studio.pages.create.draftHint")}
           </p>

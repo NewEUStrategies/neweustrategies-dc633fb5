@@ -39,6 +39,7 @@ import {
   LayoutGrid,
   Link2Off,
   Pencil,
+  Eye,
   Plus,
   Rows,
 } from "@/lib/lucide-shim";
@@ -69,6 +70,7 @@ import {
   useAdminEventPages,
   useCreateEventPage,
   useDetachEventPage,
+  useEventPageDocument,
   useEventRootPage,
   useReorderEventPages,
   useSaveEventPage,
@@ -125,9 +127,13 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
   const createPage = useCreateEventPage(row.id);
 
   const [editedId, setEditedId] = useState<string | null>(null);
+  // PODGLADANA STRONA TRZYMA `page_id`, nie `id` pozycji menu: podglad pyta
+  // o tresc STRONY, a ta istnieje takze wtedy, gdy pozycji w menu nie ma.
+  const [previewPageId, setPreviewPageId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
   const rows = useMemo(() => pagesQ.data ?? [], [pagesQ.data]);
+  const documentQ = useEventPageDocument(previewPageId);
   const split = useMemo(() => splitEventPages(rows), [rows]);
   const menuIds = useMemo(() => split.menu.map((entry) => entry.id), [split.menu]);
 
@@ -142,7 +148,22 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
   // Podglad dostaje TE pozycje menu i TEN tryb prezentacji - kafle na stronie
   // glownej zmieniaja uklad razem z przelacznikiem, bez zapisu. Pozycje ida
   // w kolejnosci `sort_order`, bo tak ustawia je baza w liscie.
+  const previewRow = useMemo(
+    () => rows.find((page) => page.page_id === previewPageId) ?? null,
+    [rows, previewPageId],
+  );
+
   useSyncEventPreview({
+    // Dopoki tresc sie wczytuje, podglad zostaje na stronie glownej - kanwa
+    // przelaczona na strone bez dokumentu klamalaby, ze strona jest pusta.
+    selectedPage:
+      previewRow === null || documentQ.isPending
+        ? null
+        : {
+            label: eventPageLabel(previewRow, lang),
+            path: previewRow.page_path,
+            document: documentQ.data ?? null,
+          },
     pagesDisplayMode: mode,
     menu: split.menu.map((entry) => ({
       key: entry.id,
@@ -342,6 +363,12 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
                       last={index === split.menu.length - 1}
                       busy={listBusy}
                       onEdit={() => setEditedId(entry.id)}
+                      previewing={entry.page_id === previewPageId}
+                      onPreview={() =>
+                        setPreviewPageId((current) =>
+                          current === entry.page_id ? null : entry.page_id,
+                        )
+                      }
                       onMove={(direction) => moveEntry(entry.id, direction)}
                       onDetach={() => detach(entry)}
                     />
@@ -462,6 +489,8 @@ function MenuEntryRow({
   last,
   busy,
   onEdit,
+  previewing,
+  onPreview,
   onMove,
   onDetach,
 }: {
@@ -471,6 +500,8 @@ function MenuEntryRow({
   last: boolean;
   busy: boolean;
   onEdit: () => void;
+  previewing: boolean;
+  onPreview: () => void;
   onMove: (direction: -1 | 1) => void;
   onDetach: () => void;
 }) {
@@ -479,11 +510,33 @@ function MenuEntryRow({
   return (
     <li className="flex items-center gap-3 px-3 py-2.5">
       <EntryIcon icon={entry.icon} color={entry.color} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium">{label}</span>
+      {/* TYTUL JEST PRZYCISKIEM PODGLADU, bo „co ta strona zawiera" jest
+          pierwszym pytaniem redaktora o wiersz - a klik w nazwe jest jedynym
+          gestem, ktorego nie trzeba tlumaczyc. */}
+      <button
+        type="button"
+        aria-pressed={previewing}
+        onClick={onPreview}
+        className="min-w-0 flex-1 text-left"
+      >
+        <span
+          className={"block truncate text-[13px] font-medium " + (previewing ? "text-primary" : "")}
+        >
+          {label}
+        </span>
         <PageMeta page={entry} />
-      </span>
+      </button>
       <span className="flex shrink-0 items-center gap-0.5">
+        <Button
+          variant={previewing ? "secondary" : "ghost"}
+          size="icon"
+          className="h-7 w-7"
+          aria-label={t("adminEvents.studio.pages.rowActions.preview", { label })}
+          aria-pressed={previewing}
+          onClick={onPreview}
+        >
+          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
