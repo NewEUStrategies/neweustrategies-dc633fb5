@@ -20,7 +20,7 @@ type AnyNode = SectionNode | InnerSectionNode | ColumnNode | WidgetNode;
 function walk(nodes: readonly AnyNode[], visit: (node: AnyNode) => void): void {
   for (const node of nodes) {
     visit(node);
-    if (node.kind !== "widget") walk(node.children, visit);
+    if (node.kind === "section" || node.kind === "column") walk(node.children, visit);
   }
 }
 
