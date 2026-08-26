@@ -178,13 +178,20 @@ export function EventStudioShell({
   };
 
   return (
-    <div className="admin-compact flex min-h-screen flex-col bg-muted/30">
+    // TRESC STOI NA CZYSTYM TLE, NIE NA SZAREJ PLYCIE. Wzorzec sadza tabele,
+    // karty metryk i formularze wprost na tle strony (zrzuty 04, 08, 18, 31,
+    // 33), bo to one maja obwodke - szara plyta pod obrysowanym kontenerem
+    // rysuje DRUGA krawedz kilka pikseli od pierwszej i tabela zaczyna
+    // wygladac jak okno w okienku. Pasek gorny i sidebar maja wlasne `bg-card`
+    // i tej zmiany nie widza.
+    <div className="admin-compact flex min-h-screen flex-col bg-background">
       <EventStudioTopBar
         status={status}
         isBusy={setStatus.isPending}
         previewOpen={previewOpen}
         onTogglePreview={() => setPreviewOpen((value) => !value)}
         onStatusChange={changeStatus}
+        section={activeSection}
       />
       <EventStudioPreviewProvider base={base}>
         <div className="flex min-h-0 flex-1">

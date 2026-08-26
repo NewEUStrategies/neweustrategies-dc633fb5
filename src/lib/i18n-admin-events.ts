@@ -85,7 +85,64 @@ export const adminEventsPl = {
         formatAll: "Wszystkie formaty",
       },
 
-      range: "{{from}}-{{to}} z {{total}}",
+      // PASEK NARZĘDZI MA JEDEN RZĄD, a prawa trójka stałą kolejność: ustawienia
+      // rzeczy, eksport, akcja główna. Etykieta ustawień nazywa RZECZ, którą się
+      // ustawia, a nie ekran, na który prowadzi - redaktor szuka „rodzajów
+      // wydarzeń”, nie „katalogu”. Oba gniazda są niezależnie opcjonalne, więc
+      // ekran bez katalogu rodzajów nie potrzebuje żadnego z tych napisów.
+      toolbar: {
+        eventTypes: "Rodzaje wydarzeń",
+        export: "Eksport",
+      },
+
+      // KRÓTKI PLACEHOLDER OBOK DŁUGIEGO, a nie zamiast niego. Pole szukania
+      // w jednorzędowym pasku narzędzi jest węższe niż dawne pole nad tabelą,
+      // więc pełne zdanie o tytule, adresie i miejscu ucinało się w połowie.
+      // Długi wariant zostaje dla ekranów, które mają na niego miejsce.
+      searchPlaceholderShort: "Szukaj wydarzeń",
+
+      // NAGŁÓWKI KOLUMN TABELI. Osobne od `filters.*` i od `row.*`, bo napis
+      // w nagłówku jest rzeczownikiem kolumny, a te dwa gniazda odmieniają go
+      // pod swój kontekst („Wszystkie rodzaje”, „Zapisani: 12”).
+      columns: {
+        title: "Tytuł",
+        date: "Termin",
+        type: "Rodzaj",
+        format: "Format",
+        location: "Miejsce",
+        status: "Status",
+        registrations: "Zapisani",
+        speakers: "Prelegenci",
+      },
+
+      // TE NAPISY CZYTA CZYTNIK EKRANU. Kolumna zaznaczania to same pola wyboru
+      // bez widocznej etykiety, więc bez tych kluczy czytnik ogłasza „pole
+      // wyboru” tyle razy, ile jest wierszy, i nie da się rozpoznać którego.
+      select: {
+        all: "Zaznacz wszystkie wydarzenia",
+        row: "Zaznacz wydarzenie {{title}}",
+        clear: "Odznacz wszystkie",
+        // Liczba mnoga przez mechanizm i18next, nie jedna forma dla wszystkiego -
+        // ten sam zabieg co `adminCommunityEvents.toasts.remindersSent`. Polski
+        // ma trzy formy istotne dla liczebników (1 / 2-4 / 5+), angielski dwie,
+        // dlatego EN nie powtarza `_few` i `_many` (i18next ich nie użyje).
+        count_one: "Zaznaczono {{count}} wydarzenie",
+        count_few: "Zaznaczono {{count}} wydarzenia",
+        count_many: "Zaznaczono {{count}} wydarzeń",
+        count_other: "Zaznaczono {{count}} wydarzeń",
+      },
+
+      // KIERUNEK SORTOWANIA JAKO OSOBNE SŁOWO, nie sklejony z nazwą kolumny.
+      // Podwójna strzałka w nagłówku nie mówi czytnikowi niczego o kierunku,
+      // a to on decyduje, czy redaktor patrzy na najbliższe czy najstarsze
+      // wydarzenia.
+      sort: {
+        by: "Sortuj według {{column}}",
+        asc: "Rosnąco",
+        desc: "Malejąco",
+      },
+
+      range: "{{from}} - {{to}} z {{total}}",
       prevPage: "Poprzednia strona",
       nextPage: "Następna strona",
 
@@ -349,7 +406,19 @@ export const adminEventsPl = {
       topBar: {
         studio: "Studio wydarzenia",
         preview: "Podgląd wydarzenia",
+        // ETYKIETA PODGLĄDU JEST KONTEKSTOWA, a nie jedna dla całego studia. Na
+        // ekranie kreatora formularza przycisk otwiera sam formularz zgłoszenia,
+        // więc „Podgląd wydarzenia” obiecywałby stronę, której redaktor tam
+        // nie zobaczy - i wróciłby sprawdzić, czy formularz w ogóle się zapisał.
+        previewForm: "Podgląd formularza",
         publish: "Opublikuj wydarzenie",
+      },
+
+      // PIGUŁKA POMOCY WISI NA KOŃCU AKAPITU OPISU EKRANU, nie w pasku narzędzi,
+      // dlatego jeden klucz obsługuje wszystkie ekrany studia: adres docelowy
+      // wybiera komponent nagłówka, a napis jest wszędzie ten sam.
+      help: {
+        learnHow: "Dowiedz się jak",
       },
 
       actions: {
@@ -1045,7 +1114,39 @@ export const adminEventsEn = {
         formatAll: "All formats",
       },
 
-      range: "{{from}}-{{to}} of {{total}}",
+      toolbar: {
+        eventTypes: "Event types",
+        export: "Export",
+      },
+
+      searchPlaceholderShort: "Search events",
+
+      columns: {
+        title: "Title",
+        date: "Date",
+        type: "Type",
+        format: "Format",
+        location: "Location",
+        status: "Status",
+        registrations: "Registrations",
+        speakers: "Speakers",
+      },
+
+      select: {
+        all: "Select all events",
+        row: "Select the {{title}} event",
+        clear: "Clear selection",
+        count_one: "{{count}} event selected",
+        count_other: "{{count}} events selected",
+      },
+
+      sort: {
+        by: "Sort by {{column}}",
+        asc: "Ascending",
+        desc: "Descending",
+      },
+
+      range: "{{from}} - {{to}} of {{total}}",
       prevPage: "Previous page",
       nextPage: "Next page",
 
@@ -1279,7 +1380,12 @@ export const adminEventsEn = {
       topBar: {
         studio: "Event studio",
         preview: "Preview event",
+        previewForm: "Preview form",
         publish: "Publish event",
+      },
+
+      help: {
+        learnHow: "Learn how",
       },
 
       actions: {

@@ -29,12 +29,32 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { EventStatus } from "@/lib/events/eventDetailApi";
+import type { EventStudioSection } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 const STATUS_LABEL_KEYS: Record<EventStatus, string> = {
   draft: "adminEvents.list.status.draft",
   published: "adminEvents.list.status.published",
   cancelled: "adminEvents.list.status.cancelled",
+};
+
+/** Etykieta podgladu wszedzie tam, gdzie przycisk otwiera STRONE wydarzenia. */
+const PREVIEW_LABEL_KEY = "adminEvents.studio.topBar.preview";
+
+/**
+ * Sekcje, na ktorych podglad otwiera COS INNEGO niz strone wydarzenia.
+ *
+ * MAPA, A NIE WARUNEK W JSX. Wzorzec zmienia ten napis kontekstowo (zrzut 02:
+ * „Preview form” na kreatorze formularza, „Preview event” na pozostalych
+ * ekranach), a takich wyjatkow bedzie wiecej niz jeden. Rozsiane `if`
+ * odpowiadaja na to samo pytanie w kilku miejscach naraz i przy trzecim
+ * wyjatku przestaja sie zgadzac. `Partial<Record<EventStudioSection, ...>>`
+ * dodatkowo NIE PRZEPUSZCZA klucza sekcji, ktora nie istnieje: literowka
+ * w nazwie ekranu wychodzi w kompilacji, a nie jako niezmieniony napis,
+ * ktorego nikt nie zglosi.
+ */
+const PREVIEW_LABEL_KEY_BY_SECTION: Partial<Record<EventStudioSection, string>> = {
+  registrationForm: "adminEvents.studio.topBar.previewForm",
 };
 
 export function EventStudioTopBar({
@@ -44,6 +64,7 @@ export function EventStudioTopBar({
   onTogglePreview,
   onStatusChange,
   createMode = false,
+  section = null,
 }: {
   status: EventStatus;
   isBusy: boolean;
@@ -59,10 +80,23 @@ export function EventStudioTopBar({
    * zmienia SKLAD miedzy ekranami, kaze szukac akcji od nowa na kazdym z nich.
    */
   createMode?: boolean;
+  /**
+   * Sekcja, na ktorej stoimy - potrzebna WYLACZNIE do etykiety podgladu.
+   *
+   * Pasek nie wylicza jej sam, bo rama i tak juz ja zna (rozstrzyga nia
+   * podswietlenie sidebara i bramke wylaczonego modulu); drugie liczenie
+   * z `pathname` dawaloby dwie odpowiedzi na jedno pytanie. `null` znaczy
+   * „adres bez sekcji” (kreator, gole przekierowanie) - wtedy zostaje
+   * etykieta domyslna.
+   */
+  section?: EventStudioSection | null;
 }) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();
   const [statusOpen, setStatusOpen] = useState(false);
+
+  const previewLabelKey =
+    (section === null ? undefined : PREVIEW_LABEL_KEY_BY_SECTION[section]) ?? PREVIEW_LABEL_KEY;
 
   const pick = (next: EventStatus) => {
     setStatusOpen(false);
@@ -137,12 +171,25 @@ export function EventStudioTopBar({
         onClick={onTogglePreview}
       >
         <Play className="h-3.5 w-3.5" aria-hidden="true" />
-        {t("adminEvents.studio.topBar.preview")}
+        {t(previewLabelKey)}
       </Button>
 
+      {/* PUBLIKACJA JEST OBRYSOWANA, NIE WYPELNIONA - i to jest cala regula
+          hierarchii tego paska. Wzorzec trzyma w pasku gornym wylacznie
+          akcje obrysowane, a wypelniony akcent rezerwuje dla akcji glownej
+          w TRESCI: „Create sessions” na liscie sesji, „Create marketplace”
+          na pustym module (zrzuty 08, 02, 37). Jeden wypelniony przycisk na
+          ekran znaczy „to jest ta jedna rzecz, ktora tu robisz”; dwa
+          konkuruja i zaden nie wygrywa - a przegralby wlasnie ten w tresci,
+          po ktory redaktor przyszedl, bo pasek gorny stoi wyzej i patrzy sie
+          na niego pierwszy. Obwodka i napis w kolorze akcentu, bo wzorzec
+          tak odroznia publikacje od pozostalych akcji paska; wyszarzenie
+          w trybie kreatora robi juz `disabled` - akcja ZOSTAJE na swoim
+          miejscu, zamiast znikac (zrzut 37). */}
       <Button
+        variant="outline"
         size="sm"
-        className="h-8 text-xs"
+        className="h-8 border-brand text-xs text-brand hover:bg-brand/10 hover:text-brand"
         disabled={createMode || isBusy || status === "published"}
         onClick={() => onStatusChange("published")}
       >
