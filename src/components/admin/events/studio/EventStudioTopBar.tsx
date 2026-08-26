@@ -162,7 +162,14 @@ export function EventStudioTopBar({
       {/* Rozpiera pasek: akcje maja stac po PRAWEJ, tak jak we wzorcu. */}
       <span className="flex-1" aria-hidden="true" />
 
+      {/* PRZELACZNIK MOTYWU STOI W PASKU STUDIA, bo redaktor sklada tu strone
+          wydarzenia i musi zobaczyc ja w obu trybach bez wychodzenia z panelu.
+          Ten sam komponent, co w naglowku serwisu - jedno zrodlo prawdy dla
+          stanu `dark`, wiec podglad i strona publiczna nie moga sie rozjechac. */}
+      <ThemeToggle className="h-8 w-8 rounded-[6px]" />
+
       <Button
+
         variant="ghost"
         size="sm"
         className="h-8 gap-1.5 text-xs"
