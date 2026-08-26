@@ -55,8 +55,18 @@ GRANT SELECT (
 
 CREATE TABLE IF NOT EXISTS public.event_pages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id(),
-  event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  -- BEZ pojedynczego klucza obcego do `events(id)` - wiaze go dopiero zlozony
+  -- `event_pages_event_fk` nizej. Pojedynczy pozwalal na wiersz, ktory ma
+  -- `tenant_id` najemcy B i `event_id` wydarzenia najemcy A: polityka RLS stoi
+  -- na `tenant_id`, wiec administrator B widzialby i edytowal pozycje menu
+  -- wydarzenia A. Zlozony klucz czyni ten wiersz niemozliwym w bazie.
+  event_id uuid NOT NULL,
+  -- `pages` NIE MA `UNIQUE (tenant_id, id)`, wiec tutaj zostaje klucz
+  -- pojedynczy - zlozonego nie da sie zalozyc bez zmiany tamtej tabeli, a to
+  -- juz nie jest zakres tej migracji. Najemce strony pilnuje kazde zapytanie
+  -- modulu (JOIN po `pg.tenant_id = ep.tenant_id`).
   page_id uuid NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
   -- NULL = uzyj tytulu strony. Wlasna etykieta istnieje, bo w menu mieszcza sie
   -- dwa slowa, a tytul strony bywa zdaniem („Program kongresu dzien pierwszy").
@@ -71,7 +81,15 @@ CREATE TABLE IF NOT EXISTS public.event_pages (
   visible_to_groups uuid[] NOT NULL DEFAULT '{}'::uuid[],
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT event_pages_unique UNIQUE (event_id, page_id),
+  -- Unikalnosc W GRANICACH NAJEMCY, nie globalna. Ten sam powod, ktory stoi za
+  -- zlozonym kluczem obcym: kazdy warunek tej tabeli ma sie rozstrzygac wewnatrz
+  -- najemcy, bo tam rozstrzyga sie tez dostep.
+  CONSTRAINT event_pages_unique UNIQUE (tenant_id, event_id, page_id),
+  -- Tozsamosc w granicach najemcy - kotwica dla przyszlych tabel-wnukow,
+  -- dokladnie jak `event_page_sections_tenant_id_key` (20260823170000).
+  CONSTRAINT event_pages_tenant_id_key UNIQUE (tenant_id, id),
+  CONSTRAINT event_pages_event_fk FOREIGN KEY (tenant_id, event_id)
+    REFERENCES public.events (tenant_id, id) ON DELETE CASCADE,
   CONSTRAINT event_pages_color_check
     CHECK (color IS NULL OR color ~ '^#[0-9A-Fa-f]{6}$'),
   CONSTRAINT event_pages_icon_check
@@ -93,14 +111,31 @@ ALTER TABLE public.event_pages ENABLE ROW LEVEL SECURITY;
 -- bo pozycja menu niesie widocznosc per grupa i to RPC ma ja rozstrzygac,
 -- a nie polityka, ktora nie zna zapisu wolajacego.
 --
--- PREDYKAT PRZEPISANY Z `event_page_sections` (20260823170000), a nie zlozony
--- tutaj od nowa, z dwoch powodow. Po pierwsze `public.is_staff()` NIE PRZYJMUJE
--- argumentu - czyta `auth.uid()` sama (20260628230000) - wiec `is_staff(auth.uid())`
--- wywracalo cala migracje bledem 42883 i tabela nie powstawala wcale.
--- Po drugie `is_staff()` obejmuje takze range `author`, a kazdy zapis do tej
--- tabeli idzie przez RPC za `assert_editor_tenant()`, czyli admin/editor. Polityka
--- luzniejsza od RPC nie otwiera zadnej sciezki w panelu, tylko ciche uprawnienie
--- do tabeli wprost - i to jest gorszy rodzaj rozjazdu, bo nie widac go w UI.
+-- PREDYKAT: `admin` ALBO `is_super_admin` - NIGDY `editor`. To nie jest wybor
+-- stylistyczny, tylko kontrakt modulu, pilnowany przez
+-- `supabase/tests/event_admin_only_contract_test.sql`.
+--
+-- Dwie pomylki, ktore tu popelnilem, warte zapisania, bo obie wygladaly na
+-- poprawne:
+--
+-- 1. `public.is_staff(auth.uid())` - `is_staff()` NIE PRZYJMUJE argumentu, czyta
+--    `auth.uid()` sama (20260628230000). Migracja wywracala sie bledem 42883
+--    i tabela nie powstawala wcale, a lokalna weryfikacja tego nie widziala,
+--    bo atrapa definiowala `is_staff` sama - czyli byla SZERSZA od bazy.
+--
+-- 2. Poprawka przez przepisanie predykatu z `event_page_sections`
+--    (20260823170000) - plik SPRZED zamkniecia plaszczyzny. Od 20260824090000
+--    `assert_editor_tenant()` deleguje do `assert_event_admin_tenant()`
+--    („admin albo super_admin, nigdy editor ani author"), a 20260825170000
+--    dociagnelo do tego RLS. Wzorzec `admin OR editor` jest w tym repozytorium
+--    domyslny i wraca z automatu, wiec przepisanie go tutaj cofalo cala te
+--    naprawe - dla nowej tabeli, czyli bez sladu w diffie tamtych migracji.
+--    Dokladnie ten mechanizm opisuje naglowek tamtego testu.
+--
+-- Wzorzec ponizej jest przepisany z 20260825192230 (tam 39 polityk modulu
+-- stoi na tym samym predykacie). `has_role(uid,'admin')` to scisly odczyt
+-- wiersza z `user_roles` i NIE obejmuje super admina - dlatego drugi czlon
+-- jest obowiazkowy, inaczej super admin traci dostep do wlasnych danych.
 DROP POLICY IF EXISTS "event_pages staff read" ON public.event_pages;
 CREATE POLICY "event_pages staff read" ON public.event_pages
   FOR SELECT TO authenticated
@@ -108,7 +143,7 @@ CREATE POLICY "event_pages staff read" ON public.event_pages
     tenant_id = (SELECT public.current_tenant_id())
     AND (
       public.has_role((SELECT auth.uid()), 'admin'::app_role)
-      OR public.has_role((SELECT auth.uid()), 'editor'::app_role)
+      OR public.is_super_admin((SELECT auth.uid()))
     )
   );
 
@@ -119,18 +154,32 @@ CREATE POLICY "event_pages staff write" ON public.event_pages
     tenant_id = (SELECT public.current_tenant_id())
     AND (
       public.has_role((SELECT auth.uid()), 'admin'::app_role)
-      OR public.has_role((SELECT auth.uid()), 'editor'::app_role)
+      OR public.is_super_admin((SELECT auth.uid()))
     )
   )
   WITH CHECK (
     tenant_id = (SELECT public.current_tenant_id())
     AND (
       public.has_role((SELECT auth.uid()), 'admin'::app_role)
-      OR public.has_role((SELECT auth.uid()), 'editor'::app_role)
+      OR public.is_super_admin((SELECT auth.uid()))
     )
   );
 
-REVOKE ALL ON public.event_pages FROM anon;
+-- GRANTY JAWNE, jak w kazdej siostrzanej tabeli modulu. Bez tego bloku tabela
+-- stoi na domyslnych przywilejach Supabase, a te nie sa czescia tej migracji -
+-- czyli uprawnienia na produkcji zaleza od czegos, czego nie ma w diffie.
+-- `anon` nie dostaje NICZEGO: powierzchnia publiczna czyta wylacznie przez
+-- definerowy `event_menu`.
+REVOKE ALL ON public.event_pages FROM PUBLIC, anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.event_pages TO authenticated;
+GRANT ALL ON public.event_pages TO service_role;
+
+-- Kolumna `updated_at` bez triggera klamie przy kazdym zapisie przez PostgREST,
+-- a polityka zapisu jest `FOR ALL`, wiec UPDATE wprost jest dozwolony.
+DROP TRIGGER IF EXISTS trg_event_pages_touch ON public.event_pages;
+CREATE TRIGGER trg_event_pages_touch
+  BEFORE UPDATE ON public.event_pages
+  FOR EACH ROW EXECUTE FUNCTION public._tg_touch_updated_at();
 
 -- ---------------------------------------------------------------------------
 -- 3. Pomocnik: publiczna sciezka strony
@@ -148,15 +197,21 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+  -- REKURENCJA NIE WYCHODZI Z NAJEMCY strony startowej. Funkcja jest
+  -- SECURITY DEFINER, wiec bez tego warunku wspinaczka po `parent_id` moze
+  -- wciagnac slug strony innego najemcy do publicznej sciezki - i to bez
+  -- zadnego bledu, po cichu.
   WITH RECURSIVE chain AS (
-    SELECT p.id, p.parent_id, p.slug::text AS acc, 1 AS depth
+    SELECT p.id, p.parent_id, p.tenant_id, p.slug::text AS acc, 1 AS depth
     FROM public.pages p
     WHERE p.id = _page_id
     UNION ALL
-    SELECT parent.id, parent.parent_id, parent.slug || '/' || chain.acc, chain.depth + 1
+    SELECT parent.id, parent.parent_id, parent.tenant_id,
+           parent.slug || '/' || chain.acc, chain.depth + 1
     FROM public.pages parent
     JOIN chain ON parent.id = chain.parent_id
     WHERE chain.depth < 10
+      AND parent.tenant_id = chain.tenant_id
   )
   SELECT acc FROM chain ORDER BY depth DESC LIMIT 1;
 $$;
@@ -186,15 +241,19 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+  -- Ten sam warunek najemcy co w `_event_page_path` i z tego samego powodu.
   WITH RECURSIVE chain AS (
-    SELECT p.id, p.parent_id, p.status::text AS status, p.deleted_at, 1 AS depth
+    SELECT p.id, p.parent_id, p.tenant_id, p.status::text AS status,
+           p.deleted_at, 1 AS depth
     FROM public.pages p
     WHERE p.id = _page_id
     UNION ALL
-    SELECT parent.id, parent.parent_id, parent.status::text, parent.deleted_at, chain.depth + 1
+    SELECT parent.id, parent.parent_id, parent.tenant_id, parent.status::text,
+           parent.deleted_at, chain.depth + 1
     FROM public.pages parent
     JOIN chain ON parent.id = chain.parent_id
     WHERE chain.depth < 10
+      AND parent.tenant_id = chain.tenant_id
   )
   SELECT NOT EXISTS (
     SELECT 1 FROM chain WHERE chain.status <> 'published' OR chain.deleted_at IS NOT NULL
@@ -373,7 +432,7 @@ BEGIN
     COALESCE((NULLIF(p_payload->>'sort_order', ''))::integer, 0),
     v_groups, now()
   )
-  ON CONFLICT (event_id, page_id) DO UPDATE SET
+  ON CONFLICT (tenant_id, event_id, page_id) DO UPDATE SET
     menu_label_pl = EXCLUDED.menu_label_pl,
     menu_label_en = EXCLUDED.menu_label_en,
     icon = EXCLUDED.icon,
@@ -486,6 +545,10 @@ CREATE OR REPLACE FUNCTION public._event_slugify(_text text)
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
+-- Przypiety search_path i zamkniety ACL jak w kazdym innym helperze `_event_*`
+-- tego modulu. Ta jedna funkcja stala bez obu: domyslny ACL funkcji znaczy
+-- EXECUTE dla PUBLIC, czyli takze dla `anon`.
+SET search_path = public, pg_temp
 AS $$
   SELECT left(
     btrim(
@@ -502,6 +565,9 @@ AS $$
     110
   );
 $$;
+
+REVOKE ALL ON FUNCTION public._event_slugify(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_slugify(text) TO service_role;
 
 COMMENT ON FUNCTION public._event_slugify(text) IS
   'Tytul -> slug: transliteracja polskich znakow do ASCII, reszta na myslniki, maks. 110 znakow. Pomocnik wewnetrzny.';
