@@ -24,6 +24,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { UiLang } from "@/lib/i18n/format";
+import type { BuilderDocument } from "@/lib/builder/types";
+import { parseBuilderDoc } from "@/lib/builder/parse";
+import { eventPageTemplateDocument } from "@/lib/events/eventPageTemplates";
 
 type Fns = Database["public"]["Functions"];
 
@@ -246,7 +249,12 @@ export async function fetchEventPageDocument(pageId: string): Promise<BuilderDoc
     .eq("id", pageId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return parseBuilderDocument(data?.builder_data ?? null);
+  const raw = data?.builder_data ?? null;
+  // PUSTA STRONA ODDAJE `null`, nie pusty dokument: podglad ma wtedy powiedziec
+  // „ta strona nie ma jeszcze tresci", a nie narysowac pusta kanwe bez slowa.
+  if (raw === null) return null;
+  const doc = parseBuilderDoc(raw);
+  return doc.sections.length === 0 ? null : doc;
 }
 
 
