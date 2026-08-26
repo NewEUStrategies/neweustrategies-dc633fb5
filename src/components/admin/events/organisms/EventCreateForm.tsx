@@ -47,10 +47,7 @@ import {
   type EventFormat,
   type EventTypeOption,
 } from "@/lib/events/eventTypes";
-import {
-  DEFAULT_EVENT_TIME_ZONE,
-  timeZoneOptions,
-} from "@/lib/events/timeZoneOptions";
+import { DEFAULT_EVENT_TIME_ZONE, timeZoneOptions } from "@/lib/events/timeZoneOptions";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export interface EventCreateDraft {
@@ -299,7 +296,6 @@ export function EventCreateForm({
                 />
               </div>
             )}
-
 
             {/* Pole POJAWIA SIĘ z trybu rodzaju, a nie stoi zawsze. Adres zapisów
                 zewnętrznych jest wymagany dokładnie wtedy, gdy rodzaj zapisuje
