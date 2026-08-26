@@ -196,6 +196,18 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url      text,
   job_title       text,
   current_company text,
+  -- `email` czyta `is_nes_staff` (atrapa modulu klubow nizej): rozpoznaje
+  -- pracownika po domenie adresu. Bez tej kolumny replay pada na 42703.
+  email           text,
+  -- `discoverable` czyta `event_attendees` (20260826182500) i to jest CALA
+  -- zgoda na pokazanie osoby na liscie uczestnikow. Domyslne NIE jest tu
+  -- istotne: gdyby atrapa dala DEFAULT true, test przeszedlby przy filtrze
+  -- odwroconym i nie zauwazylby, ze RPC pokazuje ludzi bez zgody.
+  discoverable    boolean NOT NULL DEFAULT false,
+  -- `hide_avatar` czyta ta sama projekcja: osoba zgadza sie byc na liscie,
+  -- a osobno decyduje, czy ze zdjeciem. Domyslne NIE (pokazuj) jest zgodne
+  -- z baza; gdyby atrapa dala tu true, filtr zdjecia przechodzilby zawsze.
+  hide_avatar     boolean NOT NULL DEFAULT false,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
@@ -747,3 +759,429 @@ CREATE TABLE IF NOT EXISTS public.speaker_profiles (
 ALTER TABLE public.speaker_profiles ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.speaker_profiles TO anon, authenticated;
 GRANT ALL ON public.speaker_profiles TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- MODUL KLUBOW DYSKUSYJNYCH - ATRAPA
+--
+-- PO CO. `20260826182500_event_attendees_and_discussions.sql` przypina do
+-- wydarzenia klub i grupe (`events.discussion_club_id`, `discussion_group_id`),
+-- a `event_discussions` czyta `clubs`, `club_groups`, `club_threads` i wola
+-- `club_capabilities`. Bez tych atrap replay wywala sie na
+-- `relation "public.clubs" does not exist` i zaden test frontu nie rusza.
+--
+-- ZADNA SYGNATURA NIE JEST SZERSZA OD PRODUKCYJNEJ. Kazdy blok ma w komentarzu
+-- migracje zrodlowa, a cialo `club_capabilities` zostalo porownane `diff`-em
+-- z 20260812091500. To jest lekcja z `public.is_staff()`: wlasna atrapa
+-- przyjmujaca argument przepuscila blad 42883 i migracja nie wchodzila wcale,
+-- bo w bazie ta funkcja NIE MA argumentu.
+-- ----------------------------------------------------------------------------
+
+-- [20260808090000_discussion_clubs_a1_structure.sql] clubs
+CREATE TABLE IF NOT EXISTS public.clubs (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  slug              text NOT NULL,
+  name_pl           text NOT NULL,
+  name_en           text NOT NULL,
+  tagline_pl        text,
+  tagline_en        text,
+  description_pl    text,
+  description_en    text,
+  icon              text NOT NULL DEFAULT 'MessagesSquare',
+  accent_color      text,
+  cover_image_url   text,
+
+  visibility        text NOT NULL DEFAULT 'members'
+                    CHECK (visibility IN ('public', 'members', 'private', 'secret')),
+  join_policy       text NOT NULL DEFAULT 'request'
+                    CHECK (join_policy IN ('open', 'request', 'invite')),
+  min_tier_rank     integer NOT NULL DEFAULT 0 CHECK (min_tier_rank >= 0),
+  attribution_mode  text NOT NULL DEFAULT 'attributed'
+                    CHECK (attribution_mode IN ('attributed', 'chatham', 'anonymous_allowed')),
+  who_can_post      text NOT NULL DEFAULT 'moderators'
+                    CHECK (who_can_post IN ('members', 'moderators', 'staff_only')),
+  moderation_mode   text NOT NULL DEFAULT 'trusted'
+                    CHECK (moderation_mode IN ('post', 'pre', 'trusted')),
+
+  policy_area       text,
+  rules_pl          text,
+  rules_en          text,
+
+  status            text NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft', 'active', 'archived')),
+
+  -- Denormalizacja swiadoma: lista klubow i lista tematow to ekrany otwierane
+  -- najczesciej w calym module i nie moga liczyc COUNT(*) per wiersz.
+  member_count      integer NOT NULL DEFAULT 0,
+  group_count       integer NOT NULL DEFAULT 0,
+  thread_count      integer NOT NULL DEFAULT 0,
+  last_activity_at  timestamptz,
+
+  created_by        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT clubs_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  CONSTRAINT clubs_name_pl_len CHECK (char_length(btrim(name_pl)) BETWEEN 2 AND 120),
+  CONSTRAINT clubs_name_en_len CHECK (char_length(btrim(name_en)) BETWEEN 2 AND 120)
+);
+
+-- [20260808090000_discussion_clubs_a1_structure.sql] club_groups
+CREATE TABLE IF NOT EXISTS public.club_groups (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  club_id           uuid NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
+  slug              text NOT NULL,
+  name_pl           text NOT NULL,
+  name_en           text NOT NULL,
+  description_pl    text,
+  description_en    text,
+  icon              text,
+  accent_color      text,
+  sort_order        integer NOT NULL DEFAULT 0,
+
+  -- Dziedziczenie: NULL = wez z klubu, wartosc = nadpisz.
+  visibility        text CHECK (visibility IN ('members', 'private', 'secret')),
+  who_can_post      text CHECK (who_can_post IN ('members', 'moderators', 'staff_only')),
+  moderation_mode   text CHECK (moderation_mode IN ('post', 'pre', 'trusted')),
+  min_tier_rank     integer CHECK (min_tier_rank IS NULL OR min_tier_rank >= 0),
+  attribution_mode  text CHECK (attribution_mode IN ('attributed', 'chatham', 'anonymous_allowed')),
+
+  -- Harmonogram (V2 §5). Egzekwowany przez club_capabilities, nie przez UI.
+  opens_at          timestamptz,
+  closes_at         timestamptz,
+  status            text NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft', 'scheduled', 'active', 'frozen', 'archived')),
+
+  anchor_type       text CHECK (anchor_type IN ('eu_policy_item', 'post', 'event', 'research_program')),
+  anchor_id         text,
+
+  thread_count      integer NOT NULL DEFAULT 0,
+  last_activity_at  timestamptz,
+
+  created_by        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT club_groups_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  CONSTRAINT club_groups_name_pl_len CHECK (char_length(btrim(name_pl)) BETWEEN 2 AND 120),
+  CONSTRAINT club_groups_name_en_len CHECK (char_length(btrim(name_en)) BETWEEN 2 AND 120),
+  -- Okno dyskusji musi byc oknem, nie punktem w odwrotnej kolejnosci.
+  CONSTRAINT club_groups_window_sane CHECK (opens_at IS NULL OR closes_at IS NULL OR closes_at > opens_at),
+  CONSTRAINT club_groups_anchor_pair CHECK ((anchor_type IS NULL) = (anchor_id IS NULL))
+);
+
+-- [20260808090000_discussion_clubs_a1_structure.sql] club_members
+CREATE TABLE IF NOT EXISTS public.club_members (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  club_id           uuid NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
+  user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  role              text NOT NULL DEFAULT 'member'
+                    CHECK (role IN ('lead', 'moderator', 'member', 'observer')),
+  status            text NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'pending', 'invited', 'banned', 'left')),
+  notify_level      text NOT NULL DEFAULT 'digest'
+                    CHECK (notify_level IN ('all', 'mentions', 'digest', 'none')),
+
+  -- Kadencja roli (V2 §5.4): moderator na kwartal wraca do 'member' bez recznej
+  -- pracy admina. Wygasniecie realnie odbiera uprawnienia - patrz
+  -- club_effective_member_role() ponizej, gdzie data jest czytana przy KAZDYM
+  -- wyliczeniu zdolnosci, a nie dopiero przez nocny job.
+  role_expires_at   timestamptz,
+
+  rules_accepted_at timestamptz,
+  invited_by        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  invite_source     text NOT NULL DEFAULT 'direct'
+                    CHECK (invite_source IN ('direct', 'email', 'link', 'segment', 'auto', 'self')),
+  banned_reason     text,
+  joined_at         timestamptz NOT NULL DEFAULT now(),
+  last_read_at      timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT club_members_club_user_key UNIQUE (club_id, user_id)
+);
+
+-- [20260808090000_discussion_clubs_a1_structure.sql] is_club_admin(uuid DEFAULT auth.uid()) -> boolean
+CREATE OR REPLACE FUNCTION public.is_club_admin(_user_id uuid DEFAULT auth.uid())
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT _user_id IS NOT NULL
+     AND (public.has_role(_user_id, 'admin')
+          OR public.has_role(_user_id, 'super_admin'));
+$$;
+
+-- [20260807152937_619d4282-bdd4-4414-a524-75a2ed752b63.sql] club_effective_member_role(text, timestamptz) -> text
+CREATE OR REPLACE FUNCTION public.club_effective_member_role(
+  _role text, _role_expires_at timestamptz
+)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT CASE
+    WHEN _role IS NULL THEN NULL
+    WHEN _role IN ('lead', 'moderator')
+         AND _role_expires_at IS NOT NULL
+         AND _role_expires_at <= now()
+      THEN 'member'
+    ELSE _role
+  END;
+$$;
+
+-- [20260811224504_57fa01db-327a-4989-8b32-ee0253023d7e.sql] is_nes_staff(uuid DEFAULT auth.uid()) -> boolean
+CREATE OR REPLACE FUNCTION public.is_nes_staff(_user_id uuid DEFAULT auth.uid())
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT _user_id IS NOT NULL
+     AND (
+       public.has_role(_user_id, 'admin')
+       OR public.has_role(_user_id, 'super_admin')
+       OR public.has_role(_user_id, 'editor')
+       OR public.has_role(_user_id, 'author')
+       OR EXISTS (
+         SELECT 1 FROM public.profiles p
+          WHERE p.id = _user_id
+            AND lower(COALESCE(p.email, '')) LIKE '%@neweuropeanstrategies.com'
+       )
+     );
+$function$;
+
+-- [20260808093000_discussion_clubs_a3_threads.sql] club_threads
+-- JEDNA ROZNICA WOBEC ORYGINALU: kolumna GENERATED `search_vector` odwoluje sie
+-- do konfiguracji `public.nes_polish`, ktora stawia inna migracja tego samego
+-- modulu. Nie jest czytana przez event_discussions, wiec atrapa jej nie ma -
+-- i to jest UBYTEK, nie zmiana ksztaltu tego, co testujemy.
+CREATE TABLE IF NOT EXISTS public.club_threads (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  club_id           uuid NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
+  group_id          uuid NOT NULL REFERENCES public.club_groups(id) ON DELETE CASCADE,
+  author_id         uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  slug              text NOT NULL,
+
+  title             text NOT NULL CHECK (char_length(btrim(title)) BETWEEN 5 AND 200),
+  body              text NOT NULL CHECK (char_length(btrim(body)) BETWEEN 10 AND 20000),
+
+  kind              text NOT NULL DEFAULT 'discussion'
+                    CHECK (kind IN ('discussion', 'question', 'position',
+                                    'resource', 'announcement', 'poll')),
+  status            text NOT NULL DEFAULT 'open'
+                    CHECK (status IN ('pending', 'open', 'resolved', 'dormant',
+                                      'locked', 'hidden', 'deleted')),
+
+  is_anonymous      boolean NOT NULL DEFAULT false,
+
+  anchor_type       text CHECK (anchor_type IN ('eu_policy_item', 'post', 'event',
+                                                'research_program', 'club_thread')),
+  anchor_id         text,
+
+  pinned_at         timestamptz,
+  locked_at         timestamptz,
+  resolved_reply_id uuid,
+
+  -- Denormalizacja swiadoma: lista tematow jest ekranem otwieranym najczesciej
+  -- w calym module i nie moze liczyc COUNT(*) per wiersz.
+  reply_count       integer NOT NULL DEFAULT 0,
+  participant_count integer NOT NULL DEFAULT 0,
+  reaction_count    integer NOT NULL DEFAULT 0,
+  last_reply_at     timestamptz,
+
+  -- Kolumna, nie widok: lista tematow nie moze liczyc potegi per wiersz.
+  hotness           numeric NOT NULL DEFAULT 0,
+
+  -- Konfiguracja public.nes_polish - patrz sekcja 0.
+
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  edited_at         timestamptz,
+  edit_count        smallint NOT NULL DEFAULT 0,
+
+  CONSTRAINT club_threads_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  CONSTRAINT club_threads_anchor_pair CHECK ((anchor_type IS NULL) = (anchor_id IS NULL)),
+  -- Rozstrzygajaca odpowiedz ma sens wylacznie w pytaniu.
+  CONSTRAINT club_threads_resolved_only_question
+    CHECK (resolved_reply_id IS NULL OR kind = 'question')
+);
+
+
+-- [20260809212413_60a2e464-fda8-4bf6-ba8d-029cc30a0778.sql] club_threads.attribution_mode (nadpisanie per watek)
+ALTER TABLE public.club_threads
+  ADD COLUMN IF NOT EXISTS attribution_mode text
+  CHECK (attribution_mode IN ('attributed','chatham','anonymous_allowed'));
+
+-- [20260812091500_club_capabilities_group_read_scope.sql] club_capabilities(uuid, uuid, uuid) - NAJNOWSZA definicja,
+-- cialo 1:1, bo to jedyne zrodlo prawdy o dostepie do grupy klubu.
+CREATE OR REPLACE FUNCTION public.club_capabilities(_club_id uuid, _group_id uuid DEFAULT NULL::uuid, _user_id uuid DEFAULT auth.uid())
+ RETURNS TABLE(can_read boolean, can_post_thread boolean, can_reply boolean, can_react boolean, can_moderate boolean, can_manage boolean, can_invite boolean, can_see_members boolean, can_reveal_author boolean, effective_role text, reason text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_club        public.clubs%ROWTYPE;
+  v_group       public.club_groups%ROWTYPE;
+  v_member      public.club_members%ROWTYPE;
+  v_caller      uuid := auth.uid();
+  v_is_admin    boolean;
+  v_is_editor   boolean;
+  v_is_staff    boolean;
+  v_home_tenant uuid;
+  v_role        text;
+  v_visibility  text;
+  v_who_can_post text;
+  v_min_tier    integer;
+  v_reason      text := NULL;
+  v_read        boolean := false;
+  v_group_open  boolean := true;
+  v_group_visible boolean := true;
+BEGIN
+  SELECT * INTO v_club FROM public.clubs c WHERE c.id = _club_id;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                        'non_member'::text, 'not_found'::text;
+    RETURN;
+  END IF;
+  IF _user_id IS DISTINCT FROM v_caller
+     AND NOT (public.is_club_admin(v_caller) AND v_club.tenant_id = public.current_tenant_id())
+  THEN
+    _user_id := v_caller;
+  END IF;
+  v_is_admin  := public.is_club_admin(_user_id);
+  v_is_staff  := public.is_nes_staff(_user_id);
+  v_is_editor := _user_id IS NOT NULL AND (public.has_role(_user_id, 'editor') OR v_is_staff);
+  SELECT p.tenant_id INTO v_home_tenant FROM public.profiles p WHERE p.id = _user_id;
+  IF _user_id IS NULL THEN
+    IF v_club.visibility = 'public' AND v_club.status = 'active'
+       AND v_club.tenant_id = public.public_tenant_id() THEN
+      RETURN QUERY SELECT true, false, false, false, false, false, false, false, false,
+                          'non_member'::text, NULL::text;
+    ELSE
+      RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                          'non_member'::text, 'auth_required'::text;
+    END IF;
+    RETURN;
+  END IF;
+  IF v_home_tenant IS NULL OR v_home_tenant <> v_club.tenant_id THEN
+    RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                        'non_member'::text, 'not_found'::text;
+    RETURN;
+  END IF;
+  IF _group_id IS NOT NULL THEN
+    SELECT * INTO v_group FROM public.club_groups g
+     WHERE g.id = _group_id AND g.club_id = _club_id;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                          'non_member'::text, 'not_found'::text;
+      RETURN;
+    END IF;
+  END IF;
+  SELECT * INTO v_member FROM public.club_members m
+   WHERE m.club_id = _club_id AND m.user_id = _user_id;
+  IF FOUND AND v_member.status = 'banned' THEN
+    RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                        'banned'::text, 'banned'::text;
+    RETURN;
+  END IF;
+  v_role := CASE
+    WHEN v_member.id IS NULL OR v_member.status <> 'active' THEN 'non_member'
+    ELSE public.club_effective_member_role(v_member.role, v_member.role_expires_at)
+  END;
+  IF v_club.visibility = 'secret' AND v_role = 'non_member' AND NOT v_is_admin AND NOT v_is_staff THEN
+    RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                        'non_member'::text, 'not_found'::text;
+    RETURN;
+  END IF;
+  IF v_club.status <> 'active' AND NOT v_is_admin AND NOT v_is_staff THEN
+    RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                        v_role,
+                        CASE WHEN v_club.status = 'draft' THEN 'not_open_yet' ELSE 'archived' END;
+    RETURN;
+  END IF;
+  v_visibility   := COALESCE(v_group.visibility, v_club.visibility);
+  v_who_can_post := COALESCE(v_group.who_can_post, v_club.who_can_post);
+  v_min_tier     := COALESCE(v_group.min_tier_rank, v_club.min_tier_rank);
+  IF _group_id IS NOT NULL AND NOT v_is_admin AND NOT v_is_staff THEN
+    IF v_group.status IN ('draft', 'archived') THEN
+      v_group_open := false;
+      v_group_visible := v_group.status <> 'draft';
+      v_reason := CASE WHEN v_group.status = 'draft' THEN 'not_open_yet' ELSE 'archived' END;
+    ELSIF v_group.status = 'frozen' THEN
+      v_group_open := false;
+      v_reason := 'group_frozen';
+    ELSIF v_group.opens_at IS NOT NULL AND v_group.opens_at > now() THEN
+      v_group_open := false;
+      v_group_visible := false;
+      v_reason := 'not_open_yet';
+    ELSIF v_group.closes_at IS NOT NULL AND v_group.closes_at <= now() THEN
+      v_group_open := false;
+      v_reason := 'window_closed';
+    END IF;
+  END IF;
+  IF v_min_tier > 0 AND NOT v_is_admin AND NOT v_is_staff AND v_role = 'non_member' THEN
+    IF _user_id = v_caller THEN
+      IF NOT public.has_tier_rank(v_min_tier) THEN
+        RETURN QUERY SELECT false, false, false, false, false, false, false, false, false,
+                            v_role, 'tier_too_low'::text;
+        RETURN;
+      END IF;
+    ELSE
+      v_reason := COALESCE(v_reason, 'tier_unknown');
+    END IF;
+  END IF;
+  v_read := CASE
+    WHEN v_is_admin OR v_is_staff THEN true
+    WHEN NOT v_group_visible THEN false
+    WHEN v_role <> 'non_member' THEN true
+    WHEN v_visibility IN ('public', 'members') THEN true
+    ELSE false
+  END;
+  IF NOT v_read AND v_reason IS NULL THEN
+    v_reason := 'not_member';
+  END IF;
+  IF v_reason IS NULL
+     AND v_role IN ('member', 'observer')
+     AND COALESCE(v_group.moderation_mode, v_club.moderation_mode) = 'pre' THEN
+    v_reason := 'pre_moderation';
+  END IF;
+  RETURN QUERY SELECT
+    v_read,
+    CASE
+      WHEN v_is_admin THEN true
+      WHEN NOT v_read OR NOT v_group_open THEN false
+      WHEN v_role IN ('lead', 'moderator') THEN true
+      WHEN v_who_can_post = 'staff_only' THEN v_is_editor
+      WHEN v_who_can_post = 'moderators' THEN false
+      WHEN v_who_can_post = 'members' THEN v_role = 'member' OR v_is_editor
+      ELSE v_is_staff
+    END,
+    CASE
+      WHEN v_is_admin THEN true
+      WHEN NOT v_read OR NOT v_group_open THEN false
+      WHEN v_role IN ('lead', 'moderator', 'member') THEN true
+      WHEN v_is_editor AND v_read THEN true
+      ELSE false
+    END,
+    CASE
+      WHEN v_is_admin THEN true
+      WHEN NOT v_read OR NOT v_group_open THEN false
+      WHEN v_role IN ('lead', 'moderator', 'member') THEN true
+      WHEN v_is_editor AND v_read THEN true
+      ELSE false
+    END,
+    (v_is_admin OR (v_read AND v_role IN ('lead', 'moderator'))),
+    v_is_admin,
+    (v_is_admin OR (v_read AND v_role = 'lead')),
+    v_read,
+    v_is_admin,
+    v_role,
+    v_reason;
+END;
+$function$;

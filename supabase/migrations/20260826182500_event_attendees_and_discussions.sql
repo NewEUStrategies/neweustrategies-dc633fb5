@@ -75,20 +75,25 @@
 -- plaszczyzna tresci, dokladnie jak `event_agenda` i `event_sponsors_public`.
 --
 -- ---------------------------------------------------------------------------
--- CZEGO TU CELOWO NIE MA: ZNACZNIKA WLACZAJACEGO TEN PLIK DO ZESTAWU
--- events-harness (selektor stoi w scripts/events-harness/run.sh; jego
--- literalu NIE WOLNO tu zacytowac, bo selektor grepuje CALY plik razem
--- z komentarzami i zacytowanie wciagneloby migracje do zestawu).
+-- WPIECIE DO events-harness BYLO ODLOZONE I JUZ NIE JEST.
 --
--- Tamten harness (scripts/events-harness) stawia atrape CALEJ powierzchni poza
--- modulem Wydarzen, a modulu klubow NIE STAWIA WCALE - nie ma w nim ani
--- `clubs`, ani `club_groups`, ani `club_capabilities`. Dopisanie znacznika bez
--- tych atrap wywrociloby replay na pierwszym kluczu obcym tej migracji, czyli
--- zaczerwienilo bramke z powodu niedomiaru harnessu, a nie bledu tutaj.
--- Asercje runtime dla obu funkcji SA NAPISANE i przechodza (35 asercji, w tym
--- piec dowodow widocznosci i reguly Chatham House) - czekaja na atrapy klubow
--- w `scripts/events-harness/harness.sql`. To jest jedna zmiana w jednym pliku
--- i jest zgloszona w raporcie jako odlozona.
+-- Ten harness stawia atrape CALEJ powierzchni poza modulem Wydarzen, a modulu
+-- klubow nie stawial wcale - nie bylo w nim ani `clubs`, ani `club_groups`,
+-- ani `club_capabilities`. Sam znacznik bez tych atrap wywrocilby replay na
+-- pierwszym kluczu obcym tej migracji, czyli zaczerwienilby bramke z powodu
+-- NIEDOMIARU HARNESSU, a nie bledu tutaj - dlatego kolejnosc byla odwrotna:
+-- najpierw atrapy, potem znacznik. Atrapy klubow stoja teraz w
+-- `scripts/events-harness/harness.sql` (kazdy blok z migracja zrodlowa,
+-- cialo `club_capabilities` porownane diff-em z 20260812091500), a znacznik
+-- nizej wciaga ten plik do zestawu.
+--
+-- events-harness: include
+--   Znacznik dla `scripts/events-harness/run.sh`. Ta migracja nie definiuje
+--   zadnego `public.admin_event_*` ani `events_tenant_id_key`, wiec selektor
+--   po tresci by jej nie zlapal - a jej dwie funkcje sa w plpgsql, wiec
+--   `CREATE FUNCTION` nie sprawdza w nich ANI JEDNEJ nazwy tabeli. Czysty
+--   replay nie dowodzi tu niczego; dowodzi go dopiero WYWOLANIE, ktore robi
+--   `runtime_test.d/95_attendees_and_discussions.sql`.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
