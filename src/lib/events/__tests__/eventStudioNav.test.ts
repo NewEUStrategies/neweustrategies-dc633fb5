@@ -14,11 +14,13 @@
 // adres z prefiksem cudzej sekcji i adres o segment za dlugi.
 import { describe, expect, it } from "vitest";
 import {
+  EVENT_STUDIO_CREATE_PATH,
   EVENT_STUDIO_NAV,
   EVENT_STUDIO_ROUTES,
   EVENT_STUDIO_SECTIONS,
   eventStudioNodeSections,
   eventStudioSectionFromPath,
+  isEventStudioPath,
   matchesStudioQuery,
   type EventStudioNavGroup,
 } from "@/lib/events/eventStudioNav";
@@ -257,5 +259,57 @@ describe("filtr wyszukiwarki studia", () => {
 
   it("odrzuca zapytanie, ktorego nie ma ani w etykiecie, ani w slowach", () => {
     expect(matchesStudioQuery("faktura", "Rejestracja", ["bilety", "zapisy"])).toBe(false);
+  });
+});
+
+describe("przynaleznosc adresu do STUDIA (powloka panelu)", () => {
+  // Te dwa pytania byly przez pomylke jednym: „ktora pozycja sidebara swieci"
+  // i „czy chowac powloke panelu". Kreator nie ma zadnej pozycji w sidebarze,
+  // wiec pierwsza funkcja zwracala dla niego `null` - i panel dorysowywal nad
+  // studiem swoj wlasny sidebar. Ten opis pilnuje, ze rozdzielenie zostaje.
+  it("KREATOR nalezy do studia, choc nie ma pozycji w sidebarze", () => {
+    expect(isEventStudioPath(EVENT_STUDIO_CREATE_PATH)).toBe(true);
+    expect(isEventStudioPath("/admin/events/new")).toBe(true);
+    expect(isEventStudioPath("/admin/events/new/")).toBe(true);
+    // ...a mimo to NIE jest sekcja - kontrakt tamtej funkcji zostaje nietknięty.
+    expect(eventStudioSectionFromPath("/admin/events/new")).toBeNull();
+  });
+
+  it("GOLY IDENTYFIKATOR nalezy do studia (trasa przekierowuje na `general`)", () => {
+    expect(isEventStudioPath(`/admin/events/${EVENT_ID}`)).toBe(true);
+    expect(isEventStudioPath(`/admin/events/${EVENT_ID}/`)).toBe(true);
+  });
+
+  it("EKRANY PANELU maja ten sam KSZTALT adresu, a powloke zachowuja", () => {
+    // `/admin/events/list` i `/admin/events/<uuid>` to jeden segment po
+    // `/admin/events/` - rozroznia je WYLACZNIE ksztalt segmentu. Dopasowanie
+    // po „jeden dowolny segment" zabraloby powloke liscie i katalogowi rodzajow,
+    // czyli ekranom, ktore sa jedynym wejsciem do modulu.
+    for (const path of [
+      "/admin/events",
+      "/admin/events/list",
+      "/admin/events/types",
+      "/admin/events/registrations",
+      "/admin/events/agenda",
+      "/admin/events/sponsors",
+      "/admin/events/onsite",
+      "/admin/events/meetings",
+      "/admin/events/terms",
+      "/admin/community/events",
+      "/admin/pages",
+    ]) {
+      expect(isEventStudioPath(path)).toBe(false);
+    }
+  });
+
+  it("SEKCJE studia nadal naleza do studia", () => {
+    for (const path of [
+      `/admin/events/${EVENT_ID}/general`,
+      `/admin/events/${EVENT_ID}/registration/tickets`,
+      `/admin/events/${EVENT_ID}/content/speakers`,
+      `/admin/events/${EVENT_ID}/onsite`,
+    ]) {
+      expect(isEventStudioPath(path)).toBe(true);
+    }
   });
 });

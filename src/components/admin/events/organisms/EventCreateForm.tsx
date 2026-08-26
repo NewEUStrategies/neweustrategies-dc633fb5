@@ -25,7 +25,7 @@
 // (`/admin/events/new`), więc redaktor może je odświeżyć, wrócić „wstecz"
 // i przesłać link, a podgląd dziedziczenia rodzaju nie jest ściśnięty do
 // wysokości popupu.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
@@ -99,17 +99,32 @@ export function EventCreateForm({
   isSaving,
   onCancel,
   onSubmit,
+  onDraftChange,
 }: {
   /** Wyłącznie rodzaje AKTYWNE - filtrowanie należy do wywołującego. */
   types: readonly EventTypeOption[];
   isSaving: boolean;
   onCancel: () => void;
   onSubmit: (draft: EventCreateDraft) => void;
+  /**
+   * Szkic w gore, na zywo. Rama studia rysuje w sidebarze tytul i termin
+   * WPISYWANE w tym formularzu, zeby przejscie z kreatora do studia nie
+   * przesunelo naglowka nawigacji - po zapisie stoi tam ta sama nazwa i ta
+   * sama data, ktore redaktor widzial sekunde wczesniej.
+   */
+  onDraftChange?: (draft: EventCreateDraft) => void;
 }) {
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [draft, setDraft] = useState<EventCreateDraft>(EMPTY_EVENT_CREATE_DRAFT);
+
+  // Raport w gore idzie EFEKTEM, nie wewnatrz `setDraft`: wywolanie funkcji
+  // rodzica w trakcie obslugi zdarzenia znaczy `setState` rodzica podczas
+  // renderu dziecka, a to Reactowi nie wolno.
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
 
   const selected = useMemo(
     () => types.find((type) => type.id === draft.eventTypeId) ?? null,

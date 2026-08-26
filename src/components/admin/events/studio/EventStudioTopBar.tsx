@@ -43,12 +43,22 @@ export function EventStudioTopBar({
   previewOpen,
   onTogglePreview,
   onStatusChange,
+  createMode = false,
 }: {
   status: EventStatus;
   isBusy: boolean;
   previewOpen: boolean;
   onTogglePreview: () => void;
   onStatusChange: (status: EventStatus) => void;
+  /**
+   * Tryb kreatora: wydarzenia JESZCZE NIE MA.
+   *
+   * Sklad paska zostaje NIETKNIETY - zmienia sie tylko dostepnosc. Tak robi
+   * wzorzec: na ekranie modulu, ktorego jeszcze nie zalozono, akcja publikacji
+   * stoi na swoim miejscu wyszarzona, a nie znika (zrzut 37). Pasek, ktory
+   * zmienia SKLAD miedzy ekranami, kaze szukac akcji od nowa na kazdym z nich.
+   */
+  createMode?: boolean;
 }) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();
@@ -71,39 +81,49 @@ export function EventStudioTopBar({
         <span className="hidden sm:inline">{t("adminEvents.studio.topBar.studio")}</span>
       </Link>
 
-      <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                status === "published" && "bg-emerald-500",
-                status === "draft" && "bg-amber-500",
-                status === "cancelled" && "bg-destructive",
-              )}
-              aria-hidden="true"
-            />
-            {t(STATUS_LABEL_KEYS[status])}
-            <ChevronDown className="h-3 w-3" aria-hidden="true" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-56 p-1">
-          {(["draft", "published", "cancelled"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => pick(value)}
-              disabled={value === status}
-              className={cn(
-                "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted",
-                value === status && "font-medium text-muted-foreground",
-              )}
-            >
-              {t(STATUS_LABEL_KEYS[value])}
-            </button>
-          ))}
-        </PopoverContent>
-      </Popover>
+      {createMode ? (
+        /* Szkic nie ma jeszcze wiersza w bazie, wiec nie ma czego przestawiac.
+           Plakietka zamiast droplisty: kontrolka, ktora nie moze nic zmienic,
+           klamie samym tym, ze wyglada na klikalna. */
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+          {t(STATUS_LABEL_KEYS.draft)}
+        </span>
+      ) : (
+        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  status === "published" && "bg-emerald-500",
+                  status === "draft" && "bg-amber-500",
+                  status === "cancelled" && "bg-destructive",
+                )}
+                aria-hidden="true"
+              />
+              {t(STATUS_LABEL_KEYS[status])}
+              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-56 p-1">
+            {(["draft", "published", "cancelled"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => pick(value)}
+                disabled={value === status}
+                className={cn(
+                  "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted",
+                  value === status && "font-medium text-muted-foreground",
+                )}
+              >
+                {t(STATUS_LABEL_KEYS[value])}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
 
       {/* Rozpiera pasek: akcje maja stac po PRAWEJ, tak jak we wzorcu. */}
       <span className="flex-1" aria-hidden="true" />
@@ -113,6 +133,7 @@ export function EventStudioTopBar({
         size="sm"
         className="h-8 gap-1.5 text-xs"
         aria-pressed={previewOpen}
+        disabled={createMode}
         onClick={onTogglePreview}
       >
         <Play className="h-3.5 w-3.5" aria-hidden="true" />
@@ -122,7 +143,7 @@ export function EventStudioTopBar({
       <Button
         size="sm"
         className="h-8 text-xs"
-        disabled={isBusy || status === "published"}
+        disabled={createMode || isBusy || status === "published"}
         onClick={() => onStatusChange("published")}
       >
         {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}

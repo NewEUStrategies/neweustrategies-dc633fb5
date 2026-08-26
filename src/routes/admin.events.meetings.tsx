@@ -1,56 +1,24 @@
-// /admin/events/meetings - giełda spotkań biznesowych 1-1.
+// /admin/events/meetings - WYCOFANE, przekierowanie na liste wydarzen.
 //
-// JEDNA TRASA NA MODUŁ, WYDARZENIE WYBIERANE W ŚRODKU: konfiguracja giełdy,
-// stoliki, lista spotkań i statystyki to cztery widoki tego samego kontekstu,
-// a organizator przełącza kontekst częściej niż widok.
+// Ten ekran zaczynal sie od droplisty „wybierz wydarzenie" i dopiero pod nia
+// montowal panele. Studio wie, o ktore wydarzenie chodzi, Z ADRESU - te same
+// panele stoja tam bez pytania o to samo drugi raz.
 //
-// BRAMKA ROLI JEST W BAZIE, TU STOI TYLKO ZDANIE. Wszystkie RPC organizatora
-// stoją za asercją roli w tenancie, więc redaktor bez uprawnień dostanie odmowę
-// niezależnie od tego, co pokaże ekran - komunikat istnieje po to, żeby odmowa
-// nie wyglądała jak awaria.
-import { createFileRoute } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
-import { ShieldAlert } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent } from "@/components/ui/card";
-import { MeetingsManager } from "@/components/admin/events/organisms/MeetingsManager";
-import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
-import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
+// GDZIE TO JEST TERAZ: studio wydarzenia, grupa „Spotkania",
+// sekcje meetings/tables, meetings/settings, meetings/list, meetings/stats.
+// Droga: /admin/events/list -> wybierz wydarzenie -> sekcja w sidebarze studia.
+//
+// PRZEKIEROWANIE, A NIE USUNIECIE PLIKU: adres mogl trafic do zakladek
+// przegladarki albo do zgloszenia do wsparcia. Martwy link nie mowi, gdzie
+// szukac; przekierowanie na liste stawia redaktora dokladnie tam, gdzie
+// zaczyna sie nowa droga do tej samej funkcji.
+//
+// PRZEKIEROWANIE STOI W `beforeLoad`, nie w komponencie - inaczej mignelby
+// pusty ekran z powloka panelu, zanim trasa zdazylaby sie zmienic.
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/admin/events/meetings")({
-  head: () => ({
-    meta: [
-      { title: "1-1 meetings · Events · Admin" },
-      { name: "robots", content: "noindex, nofollow" },
-      {
-        name: "description",
-        content: "Run the 1-1 business matching exchange: tables, slot grid, meetings and stats.",
-      },
-    ],
-  }),
-  component: AdminEventMeetingsPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/events/list" });
+  },
 });
-
-function AdminEventMeetingsPage() {
-  ensureAdminEventsI18n();
-  ensureMeetingsI18n();
-  const { t } = useTranslation();
-  const { isAdmin } = useAuth();
-
-  if (!isAdmin) {
-    return (
-      <Card>
-        <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
-          <ShieldAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
-          {t("adminEventMeetings.errors.forbidden")}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
-      <MeetingsManager />
-    </div>
-  );
-}

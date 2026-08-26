@@ -16,6 +16,7 @@
 // kilkudziesięciu wierszy ten świeżo dodany i dopiero stamtąd wejść do środka,
 // czyli wykonać dwa kliknięcia po to, żeby wrócić do pracy, której nie skończył.
 // Tworzenie kończy się tam, gdzie zaczyna się ciąg dalszy.
+import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ShieldAlert } from "lucide-react";
@@ -26,11 +27,14 @@ import {
   EventCreateForm,
   type EventCreateDraft,
 } from "@/components/admin/events/organisms/EventCreateForm";
+import { EventStudioCreateShell } from "@/components/admin/events/studio/EventStudioCreateShell";
+import { formatEventDateTime } from "@/lib/events/timezone";
+import { uiLang } from "@/lib/i18n/format";
 import { useCreateEventFromType } from "@/lib/events/useAdminEvents";
 import { useEventTypes } from "@/lib/events/useEventTypes";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
-export const Route = createFileRoute("/admin/events/new")({
+export const Route = createFileRoute("/admin/events_/new")({
   head: () => ({
     meta: [
       { title: "New event · Admin" },
@@ -43,13 +47,20 @@ export const Route = createFileRoute("/admin/events/new")({
 
 function AdminEventCreatePage() {
   ensureAdminEventsI18n();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isAdmin, roles } = useAuth();
   const canWrite = isAdmin || roles.includes("editor");
   const navigate = useNavigate();
 
   const typesQ = useEventTypes();
   const create = useCreateEventFromType();
+
+  // Nagłówek railu czyta TEN stan, nie formularz - dlatego kreator raportuje
+  // szkic w górę (`onDraftChange`). Bez tego sidebar musiałby albo trzymać
+  // drugą kopię pól, albo pokazywać „Nowe wydarzenie" także wtedy, gdy tytuł
+  // jest już wpisany - czyli kłamać o stanie, który redaktor ma przed oczami.
+  const [railTitle, setRailTitle] = useState("");
+  const [railStartsAt, setRailStartsAt] = useState("");
 
   const backToList = () => void navigate({ to: "/admin/events/list" });
 
@@ -90,14 +101,32 @@ function AdminEventCreatePage() {
     );
   };
 
+  // Strefa przeglądarki, nie wydarzenia: rodzaj jeszcze nie przepisał strefy,
+  // więc jedyna, jaką znamy na tym ekranie, to strefa osoby wypełniającej.
+  const lang = uiLang(i18n.language);
+  const railDate =
+    railStartsAt.trim() === ""
+      ? ""
+      : formatEventDateTime(
+          new Date(railStartsAt).toISOString(),
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+          lang,
+        );
+
   return (
-    <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
-      <EventCreateForm
-        types={typesQ.data ?? []}
-        isSaving={create.isPending}
-        onCancel={backToList}
-        onSubmit={submit}
-      />
-    </div>
+    <EventStudioCreateShell eventTitle={railTitle} startsAtLabel={railDate}>
+      <div className="w-full p-4 sm:p-6">
+        <EventCreateForm
+          types={typesQ.data ?? []}
+          isSaving={create.isPending}
+          onCancel={backToList}
+          onSubmit={submit}
+          onDraftChange={(draft) => {
+            setRailTitle(lang === "en" ? draft.titleEn || draft.titlePl : draft.titlePl);
+            setRailStartsAt(draft.startsAt);
+          }}
+        />
+      </div>
+    </EventStudioCreateShell>
   );
 }
