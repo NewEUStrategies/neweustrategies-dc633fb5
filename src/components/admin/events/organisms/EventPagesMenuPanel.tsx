@@ -60,6 +60,7 @@ import {
   eventPageInput,
   eventPageLabel,
   isEventPageAttached,
+  isModuleEventPage,
   moveEventPage,
   nextEventPageSortOrder,
   splitEventPages,
@@ -258,6 +259,23 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
   const listBusy =
     savePage.isPending || detachPage.isPending || reorderPages.isPending || createPage.isPending;
 
+  /**
+   * TRZY STANY PUSTEJ LISTY, TRZY ZDANIA.
+   *
+   * „Jeszcze nie wiem", „nie udalo sie" i „nic tu nie ma" to trzy rozne
+   * informacje: pierwsze kaze czekac, drugie odswiezyc, trzecie sprawdzic, czy
+   * wydarzenie jeszcze istnieje. Jeden napis na wszystkie trzy - a tak bylo -
+   * kaze redaktorowi zgadywac, ktora z tych trzech rzeczy sie stala.
+   *
+   * `isLoading`, a nie `isPending`: zapytanie WYLACZONE zostaje w stanie
+   * `pending` na zawsze, wiec ekran obiecywalby wczytywanie, ktore nie trwa.
+   */
+  const emptyListKey = pagesQ.isLoading
+    ? "adminEvents.studio.pages.loading"
+    : pagesQ.isError
+      ? "adminEvents.studio.pages.loadFailed"
+      : "adminEvents.studio.pages.noPagesYet";
+
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.pages")}>
       <EventStudioRow
@@ -331,16 +349,15 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
         </div>
 
         {rows.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border p-4 text-[13px] text-muted-foreground">
-            {t(
-              pagesQ.isLoading
-                ? "adminEvents.studio.pages.loading"
-                : "adminEvents.studio.pages.noRootPageLong",
-            )}
-          </p>
+          <EmptyList messageKey={emptyListKey} />
         ) : (
           <Tabs defaultValue="menu" className="space-y-3">
-            <TabsList className="tabs-scroller">
+            {/* DWIE ZAKLADKI PO POLOWIE SZEROKOSCI - jak we wzorcu. Zakladek
+                jest dokladnie dwie i nigdy nie bedzie wiecej (pozycja jest
+                w menu albo poza nim), wiec `tabs-scroller` nie mial czego
+                przewijac, a zwezone zakladki wygladaly jak poczatek dluzszej
+                listy, ktorej nie ma. */}
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="menu">
                 {t("adminEvents.studio.pages.menuPages")} ({split.menu.length})
               </TabsTrigger>
@@ -455,18 +472,52 @@ function EmptyList({ messageKey }: { messageKey: string }) {
   );
 }
 
-/** Kolorowa ikona pozycji - ta sama figura, co w podgladzie strony wydarzenia. */
+/**
+ * Kolorowa ikona pozycji menu.
+ *
+ * ZAOKRAGLONY KWADRAT, NIE KOLO - i to jest ROZNICA MIEDZY POWIERZCHNIAMI, nie
+ * niespojnosc. Wzorzec rysuje w PANELU kwadrat o promieniu ~8 px (zrzut „Pages
+ * & menu"), a na FRONCIE - kolorowy krazek (zrzut 38, strona glowna
+ * wydarzenia). Ujednolicenie ich na sile zepsulo by jedna z dwoch: panel to
+ * lista do zarzadzania, front to nawigacja dla uczestnika.
+ */
 function EntryIcon({ icon, color }: { icon: string | null; color: string | null }) {
   return (
     <span
       aria-hidden="true"
       style={color === null ? undefined : { background: color, color: "#FFFFFF" }}
       className={
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md " +
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg " +
         (color === null ? "bg-muted text-muted-foreground" : "")
       }
     >
       <DynamicIcon name={icon ?? EVENT_PAGE_DEFAULT_ICON} size={16} />
+    </span>
+  );
+}
+
+/**
+ * Znacznik jednej z pieciu pozycji zawsze obecnych.
+ *
+ * PO CO NAZYWAC TEN STAN. Pozycja modulowa wyglada w liscie jak kazda inna,
+ * a ma o jeden przycisk mniej. Bez nazwy brak odpiecia wyglada na awarie panelu
+ * - a to jest DECYZJA: piatka nalezy do wydarzenia z definicji i wraca przy
+ * nastepnym wejsciu na ekran, nawet gdyby ktos ja skasowal w `/admin/pages`.
+ *
+ * WYJASNIENIE JEST DLA OBU ODBIORCOW: `title` dla myszy, `sr-only` dla czytnika
+ * ekranu. Sam `title` nie dojezdza do czytnika, a sam napis „stala pozycja" nie
+ * mowi, co z tego wynika.
+ */
+function ModuleBadge({ label }: { label: string }) {
+  const { t } = useTranslation();
+  const explanation = t("adminEvents.studio.pages.rowActions.moduleLocked", { label });
+  return (
+    <span
+      title={explanation}
+      className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground"
+    >
+      {t("adminEvents.studio.pages.states.module")}
+      <span className="sr-only"> {explanation}</span>
     </span>
   );
 }
@@ -482,6 +533,16 @@ function PageMeta({ page }: { page: EventPageRow }) {
   );
 }
 
+/**
+ * Wiersz zakladki „W menu" - DWA ZESTAWY AKCJI w jednej liscie.
+ *
+ * Pozycja ZWYKLA ma podglad, kolejnosc, edycje pozycji, edycje tresci i ODPIECIE.
+ * Pozycja MODULOWA (jedna z pieciu zawsze obecnych) ma wszystko poza odpieciem:
+ * `admin_event_page_detach` odmawia jej wyjatkiem `module_page` (migracja
+ * 20260826181500, krok 5), a przycisk, ktory zawsze konczy sie bledem, jest
+ * gorszy od braku przycisku. Zamiast niego stoi znacznik nazywajacy ten stan
+ * i wskazujacy droge, ktora zostaje: przelacznik „Pokaz w menu wydarzenia".
+ */
 function MenuEntryRow({
   entry,
   lang,
@@ -507,8 +568,9 @@ function MenuEntryRow({
 }) {
   const { t } = useTranslation();
   const label = eventPageLabel(entry, lang);
+  const isModule = isModuleEventPage(entry);
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5">
+    <li className="group/row flex items-center gap-3 px-3 py-2.5">
       <EntryIcon icon={entry.icon} color={entry.color} />
       {/* TYTUL JEST PRZYCISKIEM PODGLADU, bo „co ta strona zawiera" jest
           pierwszym pytaniem redaktora o wiersz - a klik w nazwe jest jedynym
@@ -526,7 +588,31 @@ function MenuEntryRow({
         </span>
         <PageMeta page={entry} />
       </button>
-      <span className="flex shrink-0 items-center gap-0.5">
+      {/* ZNACZNIK STOI POZA PRZYCISKIEM PODGLADU celowo: w srodku jego napis
+          wszedlby do NAZWY tego przycisku i czytnik ekranu oglosilby caly
+          akapit wyjasnienia jako etykiete akcji „pokaz w podgladzie". */}
+      {isModule ? <ModuleBadge label={label} /> : null}
+      {/* AKCJE UKRYTE WZROKOWO DO NAJECHANIA - jak we wzorcu, gdzie wiersz
+          w spoczynku ma tylko ikone i etykiete. Ale ukryte WZROKOWO, nie
+          usuniete: `opacity-0` zostawia przyciski w drzewie dostepnosci
+          i w kolejnosci fokusa, a `display: none` by je z obu wyrzucil.
+          Dlatego akcja widoczna wylacznie na hover byla by niedostepna
+          z klawiatury - i dlatego sa tu TRZY warunki pokazania, nie jeden:
+            * `group-hover/row` - mysz nad wierszem (wzorzec);
+            * `group-focus-within/row` - fokus klawiatury gdziekolwiek
+              w wierszu, wiec tabulator odslania te akcje sam;
+            * `@media (hover: none)` - ekran dotykowy NIE MA hoveru, wiec tam
+              akcje sa widoczne od razu. Bez tego czlonu na telefonie zostalyby
+              przyciski niewidoczne, ale klikalne - najgorszy z trzech stanow.
+          Kolejnosc idzie DALEJ STRZALKAMI (patrz naglowek pliku); przeciaganie
+          wolno dolozyc obok nich, nie zamiast. */}
+      <span
+        className={
+          "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity " +
+          "group-hover/row:opacity-100 group-focus-within/row:opacity-100 " +
+          "[@media(hover:none)]:opacity-100"
+        }
+      >
         <Button
           variant={previewing ? "secondary" : "ghost"}
           size="icon"
@@ -576,16 +662,21 @@ function MenuEntryRow({
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          disabled={busy}
-          aria-label={t("adminEvents.studio.pages.rowActions.detach", { label })}
-          onClick={onDetach}
-        >
-          <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
-        </Button>
+        {/* ODPIECIA NIE MA PRZY POZYCJI MODULOWEJ. Nie jest wylaczone, a NIE
+            ISTNIEJE: przycisk wylaczony pyta „dlaczego dzisiaj nie", a tutaj
+            odpowiedz jest „nigdy" - piatka nalezy do wydarzenia z definicji. */}
+        {isModule ? null : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={busy}
+            aria-label={t("adminEvents.studio.pages.rowActions.detach", { label })}
+            onClick={onDetach}
+          >
+            <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        )}
       </span>
     </li>
   );
@@ -599,6 +690,11 @@ function MenuEntryRow({
  * odpinac - ma dwa wejscia: „do menu" albo „swiadomie poza menu". Znacznik przy
  * tytule nazywa ten stan, bo bez niego dwa rozne zestawy przyciskow w jednej
  * liscie wygladaja na przypadek.
+ *
+ * TRZECI STAN WSZEDL TUTAJ RAZEM Z PIATKA: pozycja MODULOWA ukryta
+ * przelacznikiem `in_menu = false` laduje w tej samej zakladce - i tak samo jak
+ * w „W menu" nie wolno jej odpiac. Gdyby ten wiersz zostal przy odpieciu, cala
+ * oslona z kroku 5 migracji dalaby sie obejsc jednym przelaczeniem widocznosci.
  */
 function OtherPageRow({
   page,
@@ -619,6 +715,7 @@ function OtherPageRow({
 }) {
   const { t } = useTranslation();
   const attached = isEventPageAttached(page) ? page : null;
+  const isModule = isModuleEventPage(page);
   const label = eventPageLabel(page, lang);
   return (
     <li className="flex flex-wrap items-center gap-3 px-3 py-2.5">
@@ -633,6 +730,10 @@ function OtherPageRow({
                 : "adminEvents.studio.pages.states.attachedOutOfMenu",
             )}
           </span>
+          {/* DWA ZNACZNIKI, NIE JEDEN. „Poza menu" mowi, gdzie ta pozycja
+              teraz jest; „stala pozycja" mowi, czego z nia zrobic nie mozna.
+              Zlaczenie ich w jeden napis zgubilo by jedna z tych dwoch rzeczy. */}
+          {isModule ? <ModuleBadge label={label} /> : null}
         </span>
         <PageMeta page={page} />
       </span>
@@ -656,16 +757,18 @@ function OtherPageRow({
             >
               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={busy}
-              aria-label={t("adminEvents.studio.pages.rowActions.detach", { label })}
-              onClick={() => onDetach(attached)}
-            >
-              <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
-            </Button>
+            {isModule ? null : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={busy}
+                aria-label={t("adminEvents.studio.pages.rowActions.detach", { label })}
+                onClick={() => onDetach(attached)}
+              >
+                <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            )}
           </>
         )}
         <Button asChild variant="ghost" size="icon" className="h-7 w-7">

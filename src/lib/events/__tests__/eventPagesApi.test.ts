@@ -10,14 +10,24 @@
 //   2. etykieta - pusty wiersz w liscie to wiersz, ktorego nie da sie kliknac
 //      swiadomie, a tytul bywa uzupelniony tylko w jednym jezyku;
 //   3. przesuniecie - ruch w gore musi byc odwracalny jednym ruchem w dol,
-//      inaczej kolejnosc menu ustawia sie metoda prob i bledow.
+//      inaczej kolejnosc menu ustawia sie metoda prob i bledow;
+//   4. ZNACZNIK POZYCJI MODULOWEJ - od migracji 20260826181500 piec pozycji
+//      (Uczestnicy, Prelegenci, Partnerzy, Agenda, Dyskusje) ma inny zestaw
+//      akcji niz pozostale. Zgubiony znacznik znaczy przycisk odpiecia, ktory
+//      zawsze konczy sie odmowa bazy - a zgubic go da sie po cichu, bo w typach
+//      to zwykly napis.
 import { describe, expect, it } from "vitest";
 import {
+  EVENT_PAGE_MODULES,
+  eventPageInput,
   eventPageLabel,
+  eventPageModule,
   isEventPageAttached,
+  isModuleEventPage,
   moveEventPage,
   nextEventPageSortOrder,
   splitEventPages,
+  type AttachedEventPageRow,
   type EventPageRow,
 } from "@/lib/events/eventPagesApi";
 
@@ -37,6 +47,7 @@ function page(overrides: Partial<EventPageRow> & { page_slug: string }): EventPa
     in_menu: true,
     sort_order: 10,
     visible_to_groups: [],
+    module: null,
     updated_at: "2026-08-01T10:00:00.000Z",
     ...overrides,
   };
@@ -156,5 +167,79 @@ describe("kolejnosc pozycji menu", () => {
     expect(moveEventPage(ids, "a", -1)).toBe(ids);
     expect(moveEventPage(ids, "b", 1)).toBe(ids);
     expect(moveEventPage(ids, "nieistniejace", 1)).toBe(ids);
+  });
+});
+
+describe("znacznik pozycji modulowej", () => {
+  // ZBIOR JEST KONTRAKTEM Z BAZA (`event_pages_module_values`). Rownosc, nie
+  // "co najmniej": szosty modul ma przyjsc razem ze swiadoma zmiana ekranu
+  // i frontu, a nie po cichu.
+  it("piec modulow, w kolejnosci wzorca", () => {
+    expect([...EVENT_PAGE_MODULES]).toEqual([
+      "participants",
+      "speakers",
+      "partners",
+      "agenda",
+      "discussions",
+    ]);
+  });
+
+  it("znany znacznik przechodzi, nieznany czyta sie jako brak", () => {
+    expect(eventPageModule("agenda")).toBe("agenda");
+    expect(eventPageModule("sponsorzy")).toBeNull();
+    expect(eventPageModule("")).toBeNull();
+    expect(eventPageModule(null)).toBeNull();
+    expect(eventPageModule(undefined)).toBeNull();
+  });
+
+  // Wartosc poza zbiorem MA sie zachowac jak zwykla pozycja, a nie wysadzic
+  // ekran: baza pilnuje zbioru `CHECK`-iem, ale `CHECK` nie przechodzi do typow,
+  // wiec klient musi miec odpowiedz na wartosc, ktorej nie zna.
+  it("wiersz z nieznanym znacznikiem nie jest pozycja modulowa", () => {
+    const row = page({ page_slug: "agenda", module: null });
+    expect(isModuleEventPage(row)).toBe(false);
+  });
+
+  it("wiersz ze znacznikiem I mapowaniem jest pozycja modulowa", () => {
+    expect(isModuleEventPage(page({ page_slug: "agenda", module: "agenda" }))).toBe(true);
+  });
+
+  // WARUNEK JEST PODWOJNY. `id` bierze sie z LEFT JOIN-a, wiec typ dopuszcza
+  // brak mapowania takze przy ustawionym znaczniku - a pozycji bez mapowania
+  // nie ma jak zapisac, bo RPC adresuje ja przez `id`.
+  it("znacznik bez mapowania NIE wystarcza", () => {
+    expect(isModuleEventPage(page({ page_slug: "agenda", module: "agenda", id: null }))).toBe(
+      false,
+    );
+    expect(isModuleEventPage(page({ page_slug: "agenda", module: "agenda", id: "" }))).toBe(false);
+  });
+
+  // Pozycja modulowa ukryta przelacznikiem laduje w "Pozostalych" - i tam tez
+  // nie wolno jej odpiac. Ta asercja pilnuje, ze podzial listy o znaczniku wie,
+  // bo interfejs czyta go wlasnie z tych dwoch tablic.
+  it("ukryta pozycja modulowa idzie do pozostalych i NADAL jest modulowa", () => {
+    const { menu, other } = splitEventPages([
+      page({ page_slug: "agenda", module: "agenda" }),
+      page({ page_slug: "dyskusje", module: "discussions", in_menu: false }),
+    ]);
+    expect(menu.map((row) => row.module)).toEqual(["agenda"]);
+    expect(other.map((row) => row.module)).toEqual(["discussions"]);
+    expect(other.filter(isModuleEventPage)).toHaveLength(1);
+  });
+
+  // TO JEST TA REGRESJA, KTOREJ NIE WIDAC NA EKRANIE. Klient wysyla przy kazdej
+  // zmianie CALY wiersz, wiec gdyby `eventPageInput` niosl `module`, pierwsze
+  // przelaczenie "w menu / poza menu" wyslaloby znacznik do RPC - a wtedy cala
+  // ochrona piatki stalaby na tym, ze baza go ignoruje.
+  it("wejscie zapisu NIE niesie znacznika modulu", () => {
+    const row = page({ page_slug: "agenda", module: "agenda" });
+    // Zwezenie przez STRAZNIKA, nie przez `as`: gdyby straznik przestal
+    // dzialac, ten test padnie tutaj, a nie na cichym rzutowaniu.
+    if (!isModuleEventPage(row)) throw new Error("wiersz modulowy nie przeszedl straznika");
+    const entry: AttachedEventPageRow = row;
+    const input = eventPageInput(entry, { inMenu: false });
+    expect(Object.keys(input)).not.toContain("module");
+    expect(input.inMenu).toBe(false);
+    expect(input.id).toBe(entry.id);
   });
 });

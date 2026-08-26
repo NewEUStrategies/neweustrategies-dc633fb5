@@ -325,6 +325,13 @@ CREATE TABLE IF NOT EXISTS public.pages (
   editor        public.editor_type NOT NULL DEFAULT 'richtext',
   template_type text NOT NULL DEFAULT 'default',
   menu_order    int NOT NULL DEFAULT 0,
+  -- `builder_data` z 20260531182614. WCHODZI, bo dwie funkcje modulu PISZA do
+  -- tej kolumny: `admin_event_page_create` (20260826162459:87) wstawia dokument
+  -- z szablonu, a `_event_seed_default_pages` (20260826181500) dokument strony
+  -- modulowej. Bez niej replay przechodzi (cialo plpgsql nie jest sprawdzane
+  -- przy CREATE FUNCTION), a KAZDE wywolanie tych dwoch pada na 42703 - czyli
+  -- dokladnie ta klasa bledu, po ktora ten harness istnieje.
+  builder_data  jsonb,
   deleted_at    timestamptz,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),

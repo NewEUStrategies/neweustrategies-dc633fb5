@@ -149,15 +149,19 @@ sekcja 4.
 
 1. Utwórz `runtime_test.d/NN_nazwa.sql` z numeracją:
 
-   | prefiks | zakres             |
-   | ------- | ------------------ |
-   | `00_`   | dym (jest)         |
-   | `10_`   | sesje              |
-   | `20_`   | zapisy             |
-   | `30_`   | sponsorzy          |
-   | `40_`   | front              |
-   | `50_`   | obsługa na miejscu |
-   | `60_`   | spotkania          |
+   | prefiks | zakres                 |
+   | ------- | ---------------------- |
+   | `00_`   | dym (jest)             |
+   | `10_`   | sesje                  |
+   | `20_`   | zapisy                 |
+   | `30_`   | sponsorzy              |
+   | `40_`   | prelegenci (jest)      |
+   | `50_`   | obsługa na miejscu     |
+   | `60_`   | spotkania              |
+   | `70_`   | wejściówki (jest)      |
+   | `80_`   | tylko admin (jest)     |
+   | `90_`   | strony modułowe (jest) |
+   | `95_`   | front publiczny        |
 
 2. Zacznij plik komentarzem mówiącym **po co istnieje** i **czego nie sprawdza** —
    dokładnie jak ten README.
@@ -246,10 +250,11 @@ Dwie decyzje warte zapamiętania:
 
 ## Pliki
 
-| plik                          | rola                                                            |
-| ----------------------------- | --------------------------------------------------------------- |
-| `run.sh`                      | klaster, atrapy, replay migracji, pętla asercji                 |
-| `harness.sql`                 | atrapy powierzchni platformy, której moduł wymaga, a nie tworzy |
-| `runtime_test.sql`            | sloty asercji, przestawianie aktora, pętla po `runtime_test.d`  |
-| `runtime_test.d/00_smoke.sql` | zestaw dymny: schemat, pętla, aktor, izolacja najemców          |
-| `README.md`                   | ten plik                                                        |
+| plik                                 | rola                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `run.sh`                             | klaster, atrapy, replay migracji, pętla asercji                                                   |
+| `harness.sql`                        | atrapy powierzchni platformy, której moduł wymaga, a nie tworzy                                   |
+| `runtime_test.sql`                   | sloty asercji, przestawianie aktora, pętla po `runtime_test.d`                                    |
+| `runtime_test.d/00_smoke.sql`        | zestaw dymny: schemat, pętla, aktor, izolacja najemców                                            |
+| `runtime_test.d/90_module_pages.sql` | pięć zawsze obecnych stron: zasiew, `event_menu`, idempotencja, odmowa odpięcia, pułapka `STABLE` |
+| `README.md`                          | ten plik                                                                                          |

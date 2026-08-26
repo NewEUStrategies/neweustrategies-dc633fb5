@@ -34,6 +34,45 @@ type Fns = Database["public"]["Functions"];
 type EventPagesListRow = Fns["admin_event_pages_list"]["Returns"][number];
 
 /**
+ * PIEC ZAWSZE OBECNYCH STRON WYDARZENIA.
+ *
+ * Zbior jest przepisany JEDEN DO JEDNEGO z `event_pages_module_values`
+ * (migracja `20260826181500_event_default_module_pages.sql`) i z kolejnoscia
+ * z `_event_default_pages()`. Wartosci NIE SA napisami interfejsu - to
+ * identyfikatory z bazy, wiec nie chodza przez slownik; napisy tych pozycji
+ * bierze sie z tytulu strony (`eventPageLabel`), bo redakcja moze je zmienic.
+ *
+ * PO CO TO W KLIENCIE, JESLI BAZA JUZ PILNUJE ZBIORU. Panel musi ODROZNIC
+ * pozycje modulowa od zwyklej, zeby nie pokazac przy niej akcji odpiecia,
+ * ktorej baza i tak odmowi - a przycisk, ktory zawsze konczy sie bledem,
+ * jest gorszy od braku przycisku.
+ */
+export const EVENT_PAGE_MODULES = [
+  "participants",
+  "speakers",
+  "partners",
+  "agenda",
+  "discussions",
+] as const;
+
+export type EventPageModule = (typeof EVENT_PAGE_MODULES)[number];
+
+/**
+ * Znacznik z bazy -> znany modul albo `null`.
+ *
+ * ZWEZENIE NA GRANICY, NIE RZUTOWANIE. Wygenerowane typy opisuja `module` jako
+ * `string`, bo w bazie to kolumna `text` z ograniczeniem `CHECK` - a `CHECK`
+ * nie ma jak przejsc do typow. Nieznana wartosc czytamy jako `null`, czyli
+ * „zwykla pozycja": pozycja z literowka w znaczniku ma sie zachowac jak zwykla
+ * strona, a nie wysadzic caly ekran.
+ */
+export function eventPageModule(value: string | null | undefined): EventPageModule | null {
+  if (value === null || value === undefined) return null;
+  for (const module of EVENT_PAGE_MODULES) if (module === value) return module;
+  return null;
+}
+
+/**
  * Kolumny, ktore lista oddaje NULL-em.
  *
  * Generowane typy `RETURNS TABLE` opisuja KAZDA kolumne jako non-null, a tutaj
@@ -45,12 +84,28 @@ type EventPagesListRow = Fns["admin_event_pages_list"]["Returns"][number];
  */
 type NullableListColumn = "id" | "menu_label_pl" | "menu_label_en" | "icon" | "color";
 
-export type EventPageRow = Omit<EventPagesListRow, NullableListColumn> & {
+export type EventPageRow = Omit<EventPagesListRow, NullableListColumn | "module"> & {
   [K in NullableListColumn]: EventPagesListRow[K] | null;
+} & {
+  /**
+   * Znacznik jednej z pieciu pozycji modulowych; `null` = zwykla pozycja menu.
+   *
+   * Typ jest WEZSZY od wygenerowanego (`string`), bo `fetchEventPages` zweza
+   * go na granicy przez `eventPageModule` - patrz komentarz tamtej funkcji.
+   */
+  module: EventPageModule | null;
 };
 
 /** Wiersz listy PRZYPIETY do menu wydarzenia - ma identyfikator mapowania. */
 export type AttachedEventPageRow = EventPageRow & { id: string };
+
+/**
+ * Wiersz jednej z pieciu pozycji zawsze obecnych.
+ *
+ * Zawsze jest PRZYPIETY: znacznik nadaje wylacznie zasiew, razem z wierszem
+ * `event_pages` - pozycji modulowej bez mapowania nie ma jak powstac.
+ */
+export type ModuleEventPageRow = AttachedEventPageRow & { module: EventPageModule };
 
 /** Strona-korzen wydarzenia. Poza lista podstron, wiec poza `event_pages`. */
 export type EventRootPageRow = Pick<
@@ -91,14 +146,24 @@ function payload(input: PayloadInput): Json {
 /**
  * Podstrony wydarzenia: przypiete oraz nieprzypiete z poddrzewa korzenia.
  *
- * Wydarzenie bez korzenia (`root_page_id IS NULL`) i bez ani jednego przypiecia
- * oddaje pusta liste - to stan POPRAWNY, nie awaria. Ekran pokazuje wtedy
- * zaproszenie do zalozenia pierwszej strony.
+ * TO WOLANIE MA SKUTEK UBOCZNY W BAZIE. `admin_event_pages_list` DOSIEWA
+ * brakujace strony modulowe na wejsciu (migracja 20260826181500, krok 4b), bo
+ * dla wydarzen sprzed tej migracji nie ma backfillu, a strona skasowana
+ * w `/admin/pages` zabiera pozycje menu razem z soba (`ON DELETE CASCADE`).
+ * Pierwsze wejscie na ekran zwraca wiec liste, ktorej chwile wczesniej nie
+ * bylo - i to jest poprawne zachowanie, nie wyscig.
+ *
+ * PUSTA LISTA PRZESTALA BYC STANEM ZWYKLYM. Po zasiewie kazde istniejace
+ * wydarzenie ma co najmniej piec pozycji, wiec zero wierszy znaczy albo
+ * wydarzenie skasowane w innej karcie, albo awarie - i ekran ma o tym mowic
+ * inaczej niz „utworz pierwsza strone".
  */
 export async function fetchEventPages(eventId: string): Promise<EventPageRow[]> {
   const { data, error } = await supabase.rpc("admin_event_pages_list", { p_event_id: eventId });
   if (error) throw new Error(error.message);
-  return data ?? [];
+  // Zwezenie `module` z `string` do znanego zbioru robi sie TUTAJ, raz, na
+  // granicy sieci - nie w kazdym miejscu, ktore czyta wiersz.
+  return (data ?? []).map((row) => ({ ...row, module: eventPageModule(row.module) }));
 }
 
 /**
@@ -270,6 +335,18 @@ export function isEventPageAttached(row: EventPageRow): row is AttachedEventPage
 }
 
 /**
+ * Czy wiersz jest jedna z pieciu pozycji zawsze obecnych.
+ *
+ * WARUNEK JEST PODWOJNY, i to nie jest ostroznosc na zapas: `id` bierze sie
+ * z `LEFT JOIN`-a, wiec typ dopuszcza `null` takze tam, gdzie znacznik jest
+ * ustawiony. Bez sprawdzenia mapowania interfejs dostalby wiersz, ktorego nie
+ * ma jak zapisac (`admin_event_page_upsert` adresuje pozycje przez `id`).
+ */
+export function isModuleEventPage(row: EventPageRow): row is ModuleEventPageRow {
+  return row.module !== null && isEventPageAttached(row);
+}
+
+/**
  * Wejscie zapisu odtwarzajace CALY wiersz, ze zmiana nalozona na wierzch.
  *
  * ZAPIS NADPISUJE KAZDE POLE, TAKZE POMINIETE. `admin_event_page_upsert` ma
@@ -277,6 +354,12 @@ export function isEventPageAttached(row: EventPageRow): row is AttachedEventPage
  * nieobecny w payloadzie czyta jako pusty - wiec „przelacz obecnosc w menu"
  * wyslane samo skasowaloby pozycji ikone, kolor, etykiety i widocznosc per
  * grupa. Kazda zmiana jednego pola wysyla wiec pelny wiersz.
+ *
+ * `module` JEST JEDYNYM POLEM, KTOREGO TU NIE MA - i to jest cala tresc kroku 6
+ * migracji 20260826181500. Znacznik nadaje WYLACZNIE zasiew, a RPC trzyma go
+ * poza lista `DO UPDATE SET`; gdyby wszedl na te liste albo do tego payloadu,
+ * pierwsze przelaczenie „w menu / poza menu" wyczyscilo by go i pozycja
+ * przestalaby byc modulowa.
  */
 export function eventPageInput(
   entry: AttachedEventPageRow,

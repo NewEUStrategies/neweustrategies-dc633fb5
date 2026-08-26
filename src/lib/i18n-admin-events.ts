@@ -736,8 +736,20 @@ export const adminEventsPl = {
           "Zamknięty preset startowy z gotowym układem sekcji. Nie wyłącza buildera - przełączenie na zaawansowany otwiera tę samą stronę do edycji.",
         customize: "Dostosuj w builderze",
         noRootPage: "Wydarzenie nie ma jeszcze strony głównej.",
-        noRootPageLong:
-          "Wydarzenie nie ma jeszcze żadnej strony. Utwórz pierwszą, żeby menu miało co pokazywać.",
+
+        // TRZY STANY PUSTEJ LISTY, TRZY ZDANIA. „Jeszcze nie wiem”,
+        // „nie udało się” i „nic tu nie ma” to trzy różne informacje, a jeden
+        // napis na wszystkie trzy każe redaktorowi zgadywać, czy ma czekać,
+        // odświeżyć, czy działać.
+        //
+        // Napis „utwórz pierwszą stronę” zniknął razem z kluczem
+        // `noRootPageLong`: od migracji 20260826181500 pięć stron zakłada się
+        // samo przy wejściu na ten ekran, więc rada „utwórz pierwszą” była
+        // instrukcją do czynności, której nikt już nie musi wykonywać.
+        noPagesYet:
+          "Nie widzimy tu żadnej strony, a pięć stron wydarzenia zakłada się samo przy wejściu na ten ekran. Odśwież ekran; jeśli lista nadal jest pusta, wydarzenie mogło zostać usunięte w innej karcie.",
+        loadFailed:
+          "Nie udało się wczytać podstron wydarzenia. Odśwież ekran - to nie znaczy, że wydarzenie nie ma stron.",
         displayMode: "Prezentacja podstron",
         displayModeDescription: "Sposób, w jaki uczestnik widzi listę podstron wydarzenia.",
         grid: "Kafle",
@@ -758,6 +770,11 @@ export const adminEventsPl = {
         states: {
           attachedOutOfMenu: "poza menu",
           unattached: "nieprzypięta",
+
+          // TRZECI STAN, KTÓREGO NIE DA SIĘ WYWNIOSKOWAĆ Z WIERSZA. Pozycja
+          // modułowa wygląda jak każda inna, a ma o jeden przycisk mniej -
+          // bez nazwy tego stanu brak odpięcia wygląda na awarię panelu.
+          module: "stała pozycja",
         },
 
         rowActions: {
@@ -769,6 +786,11 @@ export const adminEventsPl = {
           detach: "Odepnij „{{label}}” od wydarzenia",
           addToMenu: "Dodaj do menu",
           keepOutOfMenu: "Trzymaj poza menu",
+
+          // Wyjaśnienie przy znaczniku stałej pozycji - to samo, co RPC mówi
+          // wyjątkiem `module_page`, tylko po polsku i zanim ktoś kliknie.
+          moduleLocked:
+            "„{{label}}” to jedna z pięciu stałych pozycji wydarzenia. Można ją ukryć przełącznikiem „Pokaż w menu wydarzenia”, ale nie można jej odpiąć - wróci przy następnym wejściu na ten ekran.",
         },
 
         entry: {
@@ -1688,8 +1710,10 @@ export const adminEventsEn = {
           "A closed starter preset with a ready section layout. It does not switch the builder off - moving to advanced opens the same page for editing.",
         customize: "Customise in the builder",
         noRootPage: "This event has no home page yet.",
-        noRootPageLong:
-          "This event has no page at all yet. Create the first one so the menu has something to show.",
+        noPagesYet:
+          "We see no page here, and the five event pages create themselves when this screen opens. Refresh the screen; if the list is still empty, the event may have been deleted in another tab.",
+        loadFailed:
+          "The event subpages could not be loaded. Refresh the screen - this does not mean the event has no pages.",
         displayMode: "Subpage presentation",
         displayModeDescription: "How an attendee sees the list of event subpages.",
         grid: "Grid",
@@ -1706,6 +1730,7 @@ export const adminEventsEn = {
         states: {
           attachedOutOfMenu: "out of the menu",
           unattached: "not pinned",
+          module: "always-on entry",
         },
 
         rowActions: {
@@ -1717,6 +1742,8 @@ export const adminEventsEn = {
           detach: "Unpin “{{label}}” from the event",
           addToMenu: "Add to the menu",
           keepOutOfMenu: "Keep out of the menu",
+          moduleLocked:
+            "“{{label}}” is one of the five always-on event entries. You can hide it with the “Show in the event menu” switch, but you cannot unpin it - it comes back the next time this screen opens.",
         },
 
         entry: {
