@@ -520,9 +520,7 @@ function MenuEntryRow({
         className="min-w-0 flex-1 text-left"
       >
         <span
-          className={
-            "block truncate text-[13px] font-medium " + (previewing ? "text-primary" : "")
-          }
+          className={"block truncate text-[13px] font-medium " + (previewing ? "text-primary" : "")}
         >
           {label}
         </span>

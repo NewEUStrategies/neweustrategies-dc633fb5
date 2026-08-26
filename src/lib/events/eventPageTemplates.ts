@@ -148,14 +148,7 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
           intro_en: "",
         }),
       ]),
-      oneColumn([
-        cta(
-          "Zarezerwuj miejsce",
-          "Reserve your seat",
-          "Zarejestruj się",
-          "Register",
-        ),
-      ]),
+      oneColumn([cta("Zarezerwuj miejsce", "Reserve your seat", "Zarejestruj się", "Register")]),
     ],
   },
   {
@@ -184,12 +177,7 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
       ),
       oneColumn([widget("speakers", { heading_pl: "", heading_en: "" })]),
       oneColumn([
-        cta(
-          "Chcesz wystąpić?",
-          "Would you like to speak?",
-          "Zgłoś prelekcję",
-          "Submit a talk",
-        ),
+        cta("Chcesz wystąpić?", "Would you like to speak?", "Zgłoś prelekcję", "Submit a talk"),
       ]),
     ],
   },
@@ -230,10 +218,7 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
         ],
         32,
       ),
-      oneColumn([
-        heading("Masz pytanie?", "Have a question?"),
-        widget("contact-form", {}),
-      ]),
+      oneColumn([heading("Masz pytanie?", "Have a question?"), widget("contact-form", {})]),
     ],
   },
   {
@@ -303,12 +288,7 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
       oneColumn([widget("event-sponsors", {})]),
       oneColumn([widget("logo-cloud", {})]),
       oneColumn([
-        cta(
-          "Zostań partnerem",
-          "Become a partner",
-          "Poproś o ofertę",
-          "Request the offer",
-        ),
+        cta("Zostań partnerem", "Become a partner", "Poproś o ofertę", "Request the offer"),
       ]),
     ],
   },
@@ -401,11 +381,7 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
         ],
         32,
       ),
-      twoColumns(
-        [widget("counter", {}, centered)],
-        [widget("counter", {}, centered)],
-        32,
-      ),
+      twoColumns([widget("counter", {}, centered)], [widget("counter", {}, centered)], 32),
       oneColumn([widget("gallery", {})]),
       oneColumn([widget("testimonial", {})]),
     ],

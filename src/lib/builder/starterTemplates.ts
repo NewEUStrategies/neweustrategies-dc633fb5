@@ -41,7 +41,6 @@ export function starterDescription(tpl: StarterTemplate, lang: Lang): string {
 // podstron wydarzenia, wiec domyslna szerokosc sekcji i czytanie `defaults()`
 // z rejestru maja jedno miejsce, a nie dwie kopie do zsynchronizowania.
 
-
 // --- przykladowa agenda (2 dni) ----------------------------------------------
 
 const sampleScheduleDays = () =>

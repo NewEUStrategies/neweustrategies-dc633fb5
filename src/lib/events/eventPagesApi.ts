@@ -257,7 +257,6 @@ export async function fetchEventPageDocument(pageId: string): Promise<BuilderDoc
   return doc.sections.length === 0 ? null : doc;
 }
 
-
 /* ------------------------------------------------------------ czysta czesc --- */
 
 /** Czy wiersz ma mapowanie, czyli czy nalezy do wydarzenia. */

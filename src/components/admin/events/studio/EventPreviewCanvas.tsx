@@ -160,7 +160,10 @@ export function EventPreviewCanvas({
     >
       <EventBrandingStyle branding={eventBrandingPayload(model.branding)} />
       {page === null ? null : (
-        <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16" data-testid="event-preview-page">
+        <article
+          className="container mx-auto max-w-3xl px-4 py-12 md:py-16"
+          data-testid="event-preview-page"
+        >
           <span className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             {title}
@@ -182,103 +185,101 @@ export function EventPreviewCanvas({
         </article>
       )}
       {page !== null ? null : (
-      <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
-
-        {/* Powrot do katalogu jest NAPISEM, nie odnosnikiem: klik w podgladzie
+        <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
+          {/* Powrot do katalogu jest NAPISEM, nie odnosnikiem: klik w podgladzie
             wyprowadzalby redaktora ze studia w trakcie edycji. */}
-        <span className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("community.events.backToList")}
-        </span>
+          <span className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t("community.events.backToList")}
+          </span>
 
-        <EventVideoHeader
-          title={title}
-          coverUrl={model.coverUrl}
-          videoPlatform={model.videoPlatform}
-          videoId={model.videoId}
-        />
+          <EventVideoHeader
+            title={title}
+            coverUrl={model.coverUrl}
+            videoPlatform={model.videoPlatform}
+            videoId={model.videoId}
+          />
 
-        <h1 className="mt-3 text-4xl font-bold tracking-tight">{title}</h1>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight">{title}</h1>
 
-        <dl className="mt-6 grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2">
-          <PreviewMetaRow
-            icon={<CalendarDays className="h-4 w-4" />}
-            label={t("community.events.whenLabel")}
-          >
-            {dateLabel === "" ? t("adminEvents.studio.preview.noDate") : dateLabel}
-            {zoneLabel === "" ? null : ` (${zoneLabel})`}
-          </PreviewMetaRow>
-          {model.locationName === "" ? null : (
+          <dl className="mt-6 grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2">
             <PreviewMetaRow
-              icon={<MapPin className="h-4 w-4" />}
-              label={t("community.events.location")}
+              icon={<CalendarDays className="h-4 w-4" />}
+              label={t("community.events.whenLabel")}
             >
-              {model.locationName}
+              {dateLabel === "" ? t("adminEvents.studio.preview.noDate") : dateLabel}
+              {zoneLabel === "" ? null : ` (${zoneLabel})`}
             </PreviewMetaRow>
-          )}
-        </dl>
+            {model.locationName === "" ? null : (
+              <PreviewMetaRow
+                icon={<MapPin className="h-4 w-4" />}
+                label={t("community.events.location")}
+              >
+                {model.locationName}
+              </PreviewMetaRow>
+            )}
+          </dl>
 
-        {/* JEDYNY SZKIC W TYM PLIKU - patrz naglowek: `EventMenuNav` wola menu
+          {/* JEDYNY SZKIC W TYM PLIKU - patrz naglowek: `EventMenuNav` wola menu
             z bazy, a pozycje szkicu nie maja jeszcze sciezki. Znaczniki i klasy
             sa przepisane z tamtego komponentu, zeby rozjazd bylo widac na
             pierwszy rzut oka. */}
-        {model.menu.length === 0 ? null : (
-          <nav aria-label={t("eventFront.menu.label")} className="mt-8">
-            <ul
-              className={cn(
-                isGrid ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-2",
-              )}
-            >
-              {model.menu.map((item) => (
-                <li key={item.key}>
-                  <span
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground",
-                      isGrid && "h-full",
-                    )}
-                  >
+          {model.menu.length === 0 ? null : (
+            <nav aria-label={t("eventFront.menu.label")} className="mt-8">
+              <ul
+                className={cn(
+                  isGrid ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-2",
+                )}
+              >
+                {model.menu.map((item) => (
+                  <li key={item.key}>
                     <span
-                      aria-hidden="true"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
-                      style={item.color === "" ? undefined : { backgroundColor: item.color }}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground",
+                        isGrid && "h-full",
+                      )}
                     >
-                      <DynamicIcon name={item.icon} size={18} />
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+                        style={item.color === "" ? undefined : { backgroundColor: item.color }}
+                      >
+                        <DynamicIcon name={item.icon} size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">{item.label}</span>
                     </span>
-                    <span className="min-w-0 flex-1">{item.label}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
 
-        {description === "" ? null : (
-          <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line dark:prose-invert">
-            {description}
-          </div>
-        )}
+          {description === "" ? null : (
+            <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line dark:prose-invert">
+              {description}
+            </div>
+          )}
 
-        {/* Dojazd i kontakt rysuje TEN SAM organizm, co strona publiczna -
+          {/* Dojazd i kontakt rysuje TEN SAM organizm, co strona publiczna -
             razem z naglowkami, kolejnoscia i odsiewaniem pustych sekcji. */}
-        <EventPageSections
-          slug={model.slug}
-          sections={PREVIEW_SECTION_KEYS.map(previewSection)}
-          practical={practical}
-        />
+          <EventPageSections
+            slug={model.slug}
+            sections={PREVIEW_SECTION_KEYS.map(previewSection)}
+            practical={practical}
+          />
 
-        {/* Kontrolka zapisu jest ATRAPA WYGLADU, a nie wariantem reguly:
+          {/* Kontrolka zapisu jest ATRAPA WYGLADU, a nie wariantem reguly:
             `EventRegistrationSurface` dostaje zdanie policzone z dostepu
             wolajacego (warstwa, okno zapisow, komplet miejsc), a szkic
             niepublikowanego wydarzenia takiego dostepu nie ma. Zamiast fabrykowac
             decyzje reguly, podglad pokazuje sam przycisk w kolorze akcji -
             i dlatego jest `span`, ktory nie zabiera skupienia z formularza. */}
-        <div className="mt-10 flex flex-wrap items-center gap-3">
-          <span className={buttonVariants()}>{t("adminEvents.studio.preview.register")}</span>
-        </div>
-      </article>
+          <div className="mt-10 flex flex-wrap items-center gap-3">
+            <span className={buttonVariants()}>{t("adminEvents.studio.preview.register")}</span>
+          </div>
+        </article>
       )}
     </div>
-
   );
 }
 

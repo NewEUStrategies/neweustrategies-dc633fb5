@@ -98,7 +98,6 @@ export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
   selectedPage: null,
 };
 
-
 interface PreviewContextValue {
   model: EventPreviewModel;
   patch: (partial: Partial<EventPreviewModel>) => void;
