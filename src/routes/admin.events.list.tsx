@@ -65,8 +65,14 @@ function AdminEventsListPage() {
     );
   }
 
+  // TRESC IDZIE DO PRAWEJ KRAWEDZI, bez `max-w-5xl` i bez `mx-auto`. Lista jest
+  // od tej zmiany TABELA o dziewieciu kolumnach: wysrodkowana kolumna o stalej
+  // szerokosci wypychala ja w poziomy pasek przewijania i jednoczesnie zostawiala
+  // puste marginesy po obu stronach. Ta sama decyzja stoi juz w ramie studia
+  // (`EventStudioSection`, stala `PAGE_SHELL_CLASS`), wiec przejscie z listy do
+  // sekcji wydarzenia nie przeskakuje ukladem.
   return (
-    <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
+    <div className="w-full p-4 sm:p-6">
       <EventsListManager params={params} now={now} />
     </div>
   );

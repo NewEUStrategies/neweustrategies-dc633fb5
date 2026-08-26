@@ -465,6 +465,45 @@ export function eventStudioSectionFromPath(pathname: string): EventStudioSection
   return SECTION_BY_TAIL.get(match[1]) ?? null;
 }
 
+/** Adres kreatora nowego wydarzenia. */
+export const EVENT_STUDIO_CREATE_PATH = "/admin/events/new";
+
+/**
+ * Identyfikator wydarzenia jest UUID-em (`events.id uuid DEFAULT
+ * gen_random_uuid()`), wiec KSZTALT segmentu odroznia go od nazwanych ekranow
+ * modulu. To rozroznienie jest tu jedyna obrona: `/admin/events/list`,
+ * `/admin/events/types` i `/admin/events/<uuid>` maja DOKLADNIE ten sam
+ * ksztalt adresu - jeden segment po `/admin/events/`. Dopasowanie po „jeden
+ * dowolny segment" zabraloby powloke panelu liscie i katalogowi rodzajow.
+ */
+const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Goly identyfikator: `/admin/events/<uuid>` - trasa przekierowuje na `general`. */
+function isBareEventStudioPath(pathname: string): boolean {
+  const match = /^\/admin\/events\/([^/]+)\/?$/.exec(pathname);
+  return match !== null && EVENT_ID_PATTERN.test(match[1]);
+}
+
+/**
+ * Czy adres nalezy do STUDIA, czyli czy `admin.tsx` ma schowac powloke panelu.
+ *
+ * TO JEST SZERSZE OD `eventStudioSectionFromPath` I MUSI BYC. Tamta odpowiada
+ * na pytanie „ktora pozycja sidebara swieci", a studio ma dwa adresy BEZ zadnej
+ * pozycji: kreator (wydarzenia jeszcze nie ma, wiec zadna sekcja nie moze byc
+ * aktywna) i goly identyfikator (przekierowanie na `general`). Jedna funkcja na
+ * dwa rozne pytania byla wlasnie zrodlem bledu: kreator dostawal powloke panelu
+ * z jej wlasnym sidebarem, mimo ze jest ekranem studia.
+ *
+ * Nie rozluzniamy tamtej funkcji, bo jej kontrakt pilnuje test: `/admin/events`
+ * i `/admin/events/list` MUSZA dawac `null`, inaczej sidebar studia zaczalby
+ * podswietlac pozycje na ekranach, ktore do studia nie naleza.
+ */
+export function isEventStudioPath(pathname: string): boolean {
+  if (pathname.replace(/\/$/, "") === EVENT_STUDIO_CREATE_PATH) return true;
+  if (isBareEventStudioPath(pathname)) return true;
+  return eventStudioSectionFromPath(pathname) !== null;
+}
+
 /**
  * Filtr wyszukiwarki studia. Wejsciem sa GOTOWE napisy (etykieta + slowa
  * kluczowe), bo modul nie zna i18next - tak samo jak `AdminCatalogRow` nie zna

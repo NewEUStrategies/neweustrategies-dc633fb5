@@ -810,8 +810,10 @@ describe("skrzynka CRM - obudowa listy", () => {
     await screen.findByText("Anna Kowalska");
     fireEvent.click(await screen.findByLabelText("admin.pagination.next"));
     await waitFor(() => expect(lastListArgs().page).toBe(2));
-    const combos = screen.getAllByRole("combobox");
-    const perPage = combos[combos.length - 1];
+    // Stopka ma teraz DWIE droplisty (rozmiar strony i numer strony, jak we
+    // wzorcu Swapcard), wiec rozmiar bierzemy po nazwie dostepnej - indeks
+    // „ostatni combobox” lapal od tej pory numer strony.
+    const perPage = screen.getByLabelText("admin.pagination.perPage");
     fireEvent.keyDown(perPage, { key: "Enter" });
     fireEvent.click(await screen.findByRole("option", { name: "100" }));
     await waitFor(() => expect(lastListArgs()).toMatchObject({ page: 1, limit: 100 }));

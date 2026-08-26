@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { eventStudioSectionFromPath } from "@/lib/events/eventStudioNav";
+import { isEventStudioPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 export const Route = createFileRoute("/admin")({
@@ -32,15 +32,17 @@ function AdminLayout() {
   // o osiemnastu polach i nie odpowiadaly by na pytanie „ktore wydarzenie mam
   // w reku".
   //
-  // TA JEDNA LINIA DECYDUJE O DWOCH SIDEBARACH. `eventStudioSectionFromPath`
-  // musi rozpoznawac WSZYSTKIE adresy studia - takze dwusegmentowe
-  // (`.../registration/tickets`) i adresy grup (`.../onsite`, przekierowywane
-  // na pierwsze dziecko). Adres studia, ktorego ta funkcja nie zna, dostaje
-  // powloke panelu Z JEJ WLASNYM sidebarem obok sidebara wydarzenia.
+  // TA JEDNA LINIA DECYDUJE O DWOCH SIDEBARACH. `isEventStudioPath` musi
+  // rozpoznawac WSZYSTKIE adresy studia: jednosegmentowe, dwusegmentowe
+  // (`.../registration/tickets`), adresy grup (`.../onsite`, przekierowywane na
+  // pierwsze dziecko), goly identyfikator ORAZ KREATOR (`/admin/events/new`).
+  // Adres studia, ktorego ta funkcja nie zna, dostaje powloke panelu Z JEJ
+  // WLASNYM sidebarem obok sidebara wydarzenia - i dokladnie to dzialo sie
+  // z kreatorem, dopoki pytalismy tu o SEKCJE zamiast o przynaleznosc do studia.
   //
   // Bramka logowania i roli ZOSTAJE tutaj - dlatego studio jest nadal dzieckiem
   // `/admin`, a nie osobnym drzewem tras. Wymieniamy tylko powloke wizualna.
-  const isEventStudio = eventStudioSectionFromPath(path) !== null;
+  const isEventStudio = isEventStudioPath(path);
 
   useEffect(() => {
     if (!loading && (!session || !isStaff)) navigate({ to: "/login" });

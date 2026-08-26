@@ -375,10 +375,17 @@ export const adminExtrasPl = {
       first: "Pierwsza",
       last: "Ostatnia",
       next: "Następna",
+      // ETYKIETA POLA NUMERU STRONY, osobna od `pageOf`. Tamto jest gotowym
+      // odczytem „3 / 7”, a to napisem PRZED kontrolką wyboru strony -
+      // bez niego pole numeru stoi w stopce bez nazwy i czytnik ogłasza sam
+      // numer.
+      page: "Strona",
       pageOf: "{{page}} / {{count}}",
       perPage: "Na stronę",
       prev: "Poprzednia",
-      range: "{{start}}-{{end}} z {{total}}",
+      // Spacje wokół myślnika są celowe: „1-6 z 6” przy czterocyfrowych
+      // numerach czyta się jak jedna liczba („1000-1020”).
+      range: "{{start}} - {{end}} z {{total}}",
     },
     paywall: {
       badgeEn: "Badge (EN)",
@@ -1071,10 +1078,11 @@ export const adminExtrasEn = {
       first: "First",
       last: "Last",
       next: "Next",
+      page: "Page",
       pageOf: "{{page}} / {{count}}",
       perPage: "Per page",
       prev: "Previous",
-      range: "{{start}}-{{end}} of {{total}}",
+      range: "{{start}} - {{end}} of {{total}}",
     },
     paywall: {
       badgeEn: "Badge (EN)",

@@ -168,6 +168,8 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // polskiej powierzchni mówi "Termin" - i została poprawiona, zamiast zostać
   // tu przykryta.
   "adminEvents.formats.online",
+  "adminEvents.list.columns.format",
+  "adminEvents.list.columns.status",
   "adminEvents.list.filters.formatLabel",
   "adminEvents.list.row.chathamHouse",
   "adminEvents.types.dialog.formatLabel",

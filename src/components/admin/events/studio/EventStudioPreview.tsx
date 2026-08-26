@@ -1,17 +1,33 @@
-// Dok PODGLADU NA ZYWO - przypiety do ramy studia, widoczny na kazdej sekcji.
+// PODGLAD NA ZYWO jako PELNOEKRANOWA NAKLADKA nad studiem.
 //
-// PODGLAD JEST STALYM ELEMENTEM RAMY, a nie osobnym ekranem: pytanie „jak to
-// bedzie wygladac" pada przy KAZDEJ zmianie (tytul, kolor, kolejnosc podstron),
-// a odpowiedz wymagajaca przejscia na inny ekran nie jest odpowiedzia.
+// NAKLADKA, NIE DOK W NAROZNIKU. Poprzednia wersja przypinala podglad do prawego
+// dolnego naroznika, wiec strona wydarzenia miescila sie w 460 px i redaktor
+// ogladal ja przez dziurke od klucza - a kazde „powieksz” zabieralo miejsce
+// formularzowi, ktory wlasnie edytuje. Wzorzec (zrzuty 38-41) pokazuje
+// odwrotnosc: podglad zabiera CALY ekran, sidebar i pasek studia znikaja,
+// a strona stoi w zaokraglonej ramie na ciemnym tle. Nakladka jest `fixed
+// inset-0`, wiec robi to bez dotykania ramy studia.
+//
+// ADRES SIE NIE ZMIENIA - PODGLAD JEST STANEM. Wlascicielem tego stanu zostaje
+// rama studia (`open` / `onOpenChange`), dokladnie jak przy doku: gdyby podglad
+// byl osobna trasa, wyjscie z niego przeladowywaloby ekran, a niezapisany szkic
+// formularza zostalby po drodze.
 //
 // SKALA LICZY SIE Z ZMIERZONEJ SZEROKOSCI, nie z zalozonej. Kanwa ma stala
-// szerokosc wirtualna (1240 px albo 390 px), a dok bywa waski albo rozlozony na
-// pol ekranu - `transform: scale` z wyliczonym wspolczynnikiem daje ten sam
-// uklad w kazdym rozmiarze doku. Wysokosc wnetrza tez jest mierzona, inaczej
-// pasek przewijania kończyłby się w połowie strony.
+// szerokosc wirtualna (1240 px albo 390 px), a rama nakladki zalezy od okna -
+// `transform: scale` z wyliczonym wspolczynnikiem daje ten sam uklad na kazdym
+// ekranie, a na szerokim monitorze wspolczynnik dochodzi do 1, czyli strona
+// rysuje sie w skali 1:1. Wysokosc wnetrza tez jest mierzona, inaczej pasek
+// przewijania konczylby sie w polowie strony.
+//
+// CIEMNE TLO OTOCZENIA JEST SUROWYM KOLOREM, nie tokenem motywu. Otoczenie ramy
+// ma byc NEUTRALNE wobec tego, co rysuje w srodku: `bg-background` w jasnym
+// motywie dalby biale tlo pod biala strona, czyli znikniecie krawedzi kartki.
+// Sama rama bierze juz token, bo wypelnia ja kanwa - a ta maluje tlo strony
+// wydarzenia (nadpisywalne brandingiem).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronUp, ExternalLink, Monitor, Smartphone } from "@/lib/lucide-shim";
+import { ExternalLink, Monitor, Smartphone, XCircle } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -21,9 +37,6 @@ import {
 } from "@/components/admin/events/studio/EventPreviewCanvas";
 import { useEventPreviewModel } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
-
-const DOCK_HEIGHT = 300;
-const EXPANDED_HEIGHT = 620;
 
 export function EventStudioPreview({
   open,
@@ -39,8 +52,7 @@ export function EventStudioPreview({
   const { t } = useTranslation();
   const model = useEventPreviewModel();
   const [device, setDevice] = useState<PreviewDevice>("desktop");
-  const [expanded, setExpanded] = useState(false);
-  const [scale, setScale] = useState(0.3);
+  const [scale, setScale] = useState(1);
   const [contentHeight, setContentHeight] = useState(0);
 
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -65,99 +77,89 @@ export function EventStudioPreview({
     return () => observer.disconnect();
   }, [open, measure, model]);
 
+  // Nakladka zabiera caly ekran, wiec Escape jest odruchem - bez niego wyjscie
+  // wymaga trafienia w jeden przycisk w pasku.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onOpenChange]);
+
   if (!open) return null;
 
-  const height = expanded ? EXPANDED_HEIGHT : DOCK_HEIGHT;
-
   return (
-    <aside
+    <div
+      role="dialog"
       aria-label={t("adminEvents.studio.preview.title")}
-      className={cn(
-        "fixed bottom-4 right-4 z-40 overflow-hidden rounded-xl border border-border bg-card shadow-2xl",
-        expanded ? "w-[min(1100px,calc(100vw-2rem))]" : "w-[min(460px,calc(100vw-2rem))]",
-      )}
+      className="fixed inset-0 z-50 flex flex-col bg-neutral-900"
     >
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2">
-        <span className="mr-auto text-xs font-medium">
-          {t("adminEvents.studio.preview.title")}
-          {model.status === "published" ? null : (
-            <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
-              {t("adminEvents.studio.preview.draftNotice")}
-            </span>
-          )}
+      {/* Trzy kolumny, a nie `justify-between`: przelacznik urzadzenia stoi
+          W OSI EKRANU niezaleznie od dlugosci napisow po bokach. */}
+      <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3">
+        <span className="truncate text-xs text-white/60">
+          {t("adminEvents.studio.preview.draftNotice")}
         </span>
 
-        <Button
-          type="button"
-          variant={device === "desktop" ? "secondary" : "ghost"}
-          size="icon"
-          className="h-7 w-7"
-          aria-label={t("adminEvents.studio.preview.desktop")}
-          aria-pressed={device === "desktop"}
-          onClick={() => setDevice("desktop")}
-        >
-          <Monitor className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant={device === "mobile" ? "secondary" : "ghost"}
-          size="icon"
-          className="h-7 w-7"
-          aria-label={t("adminEvents.studio.preview.mobile")}
-          aria-pressed={device === "mobile"}
-          onClick={() => setDevice("mobile")}
-        >
-          <Smartphone className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1 rounded-full border border-white/15 bg-white/5 p-1">
+          <DeviceTab
+            active={device === "desktop"}
+            label={t("adminEvents.studio.preview.desktop")}
+            onSelect={() => setDevice("desktop")}
+            icon={<Monitor className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
+          <DeviceTab
+            active={device === "mobile"}
+            label={t("adminEvents.studio.preview.mobile")}
+            onSelect={() => setDevice("mobile")}
+            icon={<Smartphone className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
+        </div>
 
-        {publicHref === null ? null : (
+        <div className="flex items-center justify-end gap-2">
+          {publicHref === null ? null : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-2 text-white hover:bg-white/10 hover:text-white"
+              asChild
+            >
+              <a href={publicHref} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("adminEvents.studio.preview.openPublic")}
+              </a>
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label={t("adminEvents.studio.preview.openPublic")}
-            asChild
+            size="sm"
+            className="h-8 gap-2 text-white hover:bg-white/10 hover:text-white"
+            onClick={() => onOpenChange(false)}
           >
-            <a href={publicHref} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("adminEvents.studio.preview.close")}
           </Button>
-        )}
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          aria-label={t(
-            expanded ? "adminEvents.studio.preview.collapse" : "adminEvents.studio.preview.expand",
-          )}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronUp className="h-3.5 w-3.5" />
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={() => onOpenChange(false)}
-        >
-          {t("adminEvents.studio.preview.close")}
-        </Button>
+        </div>
       </div>
 
-      <div ref={frameRef} className="overflow-auto bg-muted/40" style={{ height }}>
+      {/* Zaokraglona rama kartki: strona konczy sie krawedzia, a nie zlewa
+          z tlem nakladki. Przewijanie jest WEWNATRZ ramy, zeby pasek studia
+          zostal na miejscu. */}
+      <div ref={frameRef} className="mx-4 min-h-0 flex-1 overflow-auto rounded-t-2xl bg-background">
+        {/* Kartka jest ZAWSZE wysrodkowana. W doku wspolczynnik skali zawsze
+            schodzil ponizej 1, wiec kanwa wypelniala szerokosc sama; w nakladce
+            na szerokim monitorze skala dobija do 1 i kanwa (1240 px) jest wezsza
+            od ramy - bez wysrodkowania strona przyklejalaby sie do lewej
+            krawedzi z pustka po prawej. */}
         <div
           style={{
             width: PREVIEW_WIDTHS[device] * scale,
             height: contentHeight * scale,
-            margin: device === "mobile" ? "0 auto" : undefined,
+            margin: "0 auto",
           }}
         >
           <div
@@ -172,6 +174,49 @@ export function EventStudioPreview({
           </div>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+}
+
+/**
+ * Zakladka urzadzenia. AKTYWNA JEST WYPELNIONA, a nie tylko pogrubiona: na
+ * ciemnym pasku sama grubosc pisma nie odpowiada na pytanie „ktory widok
+ * ogladam”. Wypelnienie bierze akcent marki - wzorzec ma tu zielen Swapcarda.
+ *
+ * WYPELNIENIE, A NIE NAPIS W AKCENCIE, i to jest wymuszone paleta. Nakladka
+ * jest chromem NIEZALEZNYM OD MOTYWU (`bg-neutral-900` w obu), a tokeny tekstu
+ * motyw przelacza: `text-primary` na bialej pastylce dawal prawie czern
+ * w jasnym motywie i prawie biel w ciemnym, czyli w ciemnym napis aktywnej
+ * zakladki ZNIKAL na bialym tle. `--brand-ink` tu nie pomaga, bo tez sie
+ * przelacza (w ciemnym wraca do #fa9346 = 2.2:1 na bieli). Jedyny token stalych
+ * wartosci w obu motywach to `--brand`, a jego rola z definicji jest TLEM
+ * (`src/lib/__tests__/brandContrast.test.ts` pilnuje, ze jako tekst na jasnym
+ * nie przechodzi AA) - stad pomaranczowa pastylka z prawie czarnym napisem,
+ * ktora daje ~8:1 niezaleznie od motywu.
+ */
+function DeviceTab({
+  active,
+  label,
+  icon,
+  onSelect,
+}: {
+  active: boolean;
+  label: string;
+  icon: React.ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onSelect}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+        active ? "bg-brand text-neutral-900" : "text-white/70 hover:text-white",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

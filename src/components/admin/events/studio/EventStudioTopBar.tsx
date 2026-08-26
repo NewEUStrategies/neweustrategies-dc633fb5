@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { EventStatus } from "@/lib/events/eventDetailApi";
+import type { EventStudioSection } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 const STATUS_LABEL_KEYS: Record<EventStatus, string> = {
@@ -37,22 +38,65 @@ const STATUS_LABEL_KEYS: Record<EventStatus, string> = {
   cancelled: "adminEvents.list.status.cancelled",
 };
 
+/** Etykieta podgladu wszedzie tam, gdzie przycisk otwiera STRONE wydarzenia. */
+const PREVIEW_LABEL_KEY = "adminEvents.studio.topBar.preview";
+
+/**
+ * Sekcje, na ktorych podglad otwiera COS INNEGO niz strone wydarzenia.
+ *
+ * MAPA, A NIE WARUNEK W JSX. Wzorzec zmienia ten napis kontekstowo (zrzut 02:
+ * „Preview form” na kreatorze formularza, „Preview event” na pozostalych
+ * ekranach), a takich wyjatkow bedzie wiecej niz jeden. Rozsiane `if`
+ * odpowiadaja na to samo pytanie w kilku miejscach naraz i przy trzecim
+ * wyjatku przestaja sie zgadzac. `Partial<Record<EventStudioSection, ...>>`
+ * dodatkowo NIE PRZEPUSZCZA klucza sekcji, ktora nie istnieje: literowka
+ * w nazwie ekranu wychodzi w kompilacji, a nie jako niezmieniony napis,
+ * ktorego nikt nie zglosi.
+ */
+const PREVIEW_LABEL_KEY_BY_SECTION: Partial<Record<EventStudioSection, string>> = {
+  registrationForm: "adminEvents.studio.topBar.previewForm",
+};
+
 export function EventStudioTopBar({
   status,
   isBusy,
   previewOpen,
   onTogglePreview,
   onStatusChange,
+  createMode = false,
+  section = null,
 }: {
   status: EventStatus;
   isBusy: boolean;
   previewOpen: boolean;
   onTogglePreview: () => void;
   onStatusChange: (status: EventStatus) => void;
+  /**
+   * Tryb kreatora: wydarzenia JESZCZE NIE MA.
+   *
+   * Sklad paska zostaje NIETKNIETY - zmienia sie tylko dostepnosc. Tak robi
+   * wzorzec: na ekranie modulu, ktorego jeszcze nie zalozono, akcja publikacji
+   * stoi na swoim miejscu wyszarzona, a nie znika (zrzut 37). Pasek, ktory
+   * zmienia SKLAD miedzy ekranami, kaze szukac akcji od nowa na kazdym z nich.
+   */
+  createMode?: boolean;
+  /**
+   * Sekcja, na ktorej stoimy - potrzebna WYLACZNIE do etykiety podgladu.
+   *
+   * Pasek nie wylicza jej sam, bo rama i tak juz ja zna (rozstrzyga nia
+   * podswietlenie sidebara i bramke wylaczonego modulu); drugie liczenie
+   * z `pathname` dawaloby dwie odpowiedzi na jedno pytanie. `null` znaczy
+   * „adres bez sekcji” (kreator, gole przekierowanie) - wtedy zostaje
+   * etykieta domyslna.
+   */
+  section?: EventStudioSection | null;
 }) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();
   const [statusOpen, setStatusOpen] = useState(false);
+
+  const previewLabelKey =
+    (section === null ? undefined : PREVIEW_LABEL_KEY_BY_SECTION[section]) ?? PREVIEW_LABEL_KEY;
 
   const pick = (next: EventStatus) => {
     setStatusOpen(false);
@@ -71,39 +115,49 @@ export function EventStudioTopBar({
         <span className="hidden sm:inline">{t("adminEvents.studio.topBar.studio")}</span>
       </Link>
 
-      <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                status === "published" && "bg-emerald-500",
-                status === "draft" && "bg-amber-500",
-                status === "cancelled" && "bg-destructive",
-              )}
-              aria-hidden="true"
-            />
-            {t(STATUS_LABEL_KEYS[status])}
-            <ChevronDown className="h-3 w-3" aria-hidden="true" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-56 p-1">
-          {(["draft", "published", "cancelled"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => pick(value)}
-              disabled={value === status}
-              className={cn(
-                "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted",
-                value === status && "font-medium text-muted-foreground",
-              )}
-            >
-              {t(STATUS_LABEL_KEYS[value])}
-            </button>
-          ))}
-        </PopoverContent>
-      </Popover>
+      {createMode ? (
+        /* Szkic nie ma jeszcze wiersza w bazie, wiec nie ma czego przestawiac.
+           Plakietka zamiast droplisty: kontrolka, ktora nie moze nic zmienic,
+           klamie samym tym, ze wyglada na klikalna. */
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+          {t(STATUS_LABEL_KEYS.draft)}
+        </span>
+      ) : (
+        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  status === "published" && "bg-emerald-500",
+                  status === "draft" && "bg-amber-500",
+                  status === "cancelled" && "bg-destructive",
+                )}
+                aria-hidden="true"
+              />
+              {t(STATUS_LABEL_KEYS[status])}
+              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-56 p-1">
+            {(["draft", "published", "cancelled"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => pick(value)}
+                disabled={value === status}
+                className={cn(
+                  "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted",
+                  value === status && "font-medium text-muted-foreground",
+                )}
+              >
+                {t(STATUS_LABEL_KEYS[value])}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
 
       {/* Rozpiera pasek: akcje maja stac po PRAWEJ, tak jak we wzorcu. */}
       <span className="flex-1" aria-hidden="true" />
@@ -113,16 +167,30 @@ export function EventStudioTopBar({
         size="sm"
         className="h-8 gap-1.5 text-xs"
         aria-pressed={previewOpen}
+        disabled={createMode}
         onClick={onTogglePreview}
       >
         <Play className="h-3.5 w-3.5" aria-hidden="true" />
-        {t("adminEvents.studio.topBar.preview")}
+        {t(previewLabelKey)}
       </Button>
 
+      {/* PUBLIKACJA JEST OBRYSOWANA, NIE WYPELNIONA - i to jest cala regula
+          hierarchii tego paska. Wzorzec trzyma w pasku gornym wylacznie
+          akcje obrysowane, a wypelniony akcent rezerwuje dla akcji glownej
+          w TRESCI: „Create sessions” na liscie sesji, „Create marketplace”
+          na pustym module (zrzuty 08, 02, 37). Jeden wypelniony przycisk na
+          ekran znaczy „to jest ta jedna rzecz, ktora tu robisz”; dwa
+          konkuruja i zaden nie wygrywa - a przegralby wlasnie ten w tresci,
+          po ktory redaktor przyszedl, bo pasek gorny stoi wyzej i patrzy sie
+          na niego pierwszy. Obwodka i napis w kolorze akcentu, bo wzorzec
+          tak odroznia publikacje od pozostalych akcji paska; wyszarzenie
+          w trybie kreatora robi juz `disabled` - akcja ZOSTAJE na swoim
+          miejscu, zamiast znikac (zrzut 37). */}
       <Button
+        variant="outline"
         size="sm"
-        className="h-8 text-xs"
-        disabled={isBusy || status === "published"}
+        className="h-8 border-brand text-xs text-brand hover:bg-brand/10 hover:text-brand"
+        disabled={createMode || isBusy || status === "published"}
         onClick={() => onStatusChange("published")}
       >
         {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
