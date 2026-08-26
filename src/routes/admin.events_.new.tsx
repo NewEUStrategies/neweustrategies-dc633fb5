@@ -10,7 +10,7 @@
 // ekran. Zdanie zamiast formularza istnieje po to, by odmowa nie wyglądała
 // na awarię.
 //
-// PO UTWORZENIU IDZIEMY DO STUDIA, NIE NA LISTĘ. Kreator zbiera pięć pól -
+// PO UTWORZENIU IDZIEMY NA PULPIT WYDARZENIA, NIE NA LISTĘ. Kreator zbiera pięć pól -
 // resztę wydarzenia (opis, okładka, strony, branding, zapisy, regulamin)
 // uzupełnia się w studiu. Powrót na listę kazałby redaktorowi odszukać wśród
 // kilkudziesięciu wierszy ten świeżo dodany i dopiero stamtąd wejść do środka,
@@ -84,6 +84,13 @@ function AdminEventCreatePage() {
         // Szkic trzyma już chwilę w ISO (nasz picker liczy strefę przeglądarki),
         // więc tutaj nie ma żadnej ponownej interpretacji czasu lokalnego.
         startsAt: new Date(draft.startsAt).toISOString(),
+        // Koniec pusty znaczy „nie podano" - wtedy koniec liczy rodzaj po stronie
+        // bazy, a nie formularz zgadujacy dlugosc wydarzenia.
+        endsAt: draft.endsAt.trim() === "" ? null : new Date(draft.endsAt).toISOString(),
+        timezone: draft.timezone.trim() === "" ? null : draft.timezone.trim(),
+        format: draft.format.trim() === "" ? null : draft.format.trim(),
+        city: draft.city.trim() === "" ? null : draft.city.trim(),
+        country: draft.country.trim() === "" ? null : draft.country.trim(),
         // Puste pole znaczy „nie podano", a nie „podano pusty adres". Serwer
         // i tak zeruje adres dla rodzajów, które go nie używają.
         externalRegistrationUrl:
@@ -94,7 +101,11 @@ function AdminEventCreatePage() {
         // moment, w którym znamy go bez dodatkowego zapytania o listę.
         onSuccess: (eventId) => {
           toast.success(t("adminEvents.list.toasts.created"));
-          void navigate({ to: "/admin/events/$eventId/general", params: { eventId } });
+          // PULPIT, NIE „Informacje ogolne": kreator zebral juz wszystko, co
+          // ogólne pytanie by powtórzyło, a pulpit pokazuje następne kroki
+          // (okladka, opis, sesje, publikacja) - czyli miejsce, w ktorym praca
+          // nad wydarzeniem realnie sie zaczyna.
+          void navigate({ to: "/admin/events/$eventId/overview", params: { eventId } });
         },
         onError: (error) => toast.error(error.message),
       },

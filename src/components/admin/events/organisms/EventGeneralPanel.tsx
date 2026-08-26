@@ -58,34 +58,12 @@ import { eventLanguageOptions } from "@/lib/events/eventLanguages";
 import { EVENT_FORMATS, EVENT_FORMAT_LABEL_KEYS, type EventFormat } from "@/lib/events/eventTypes";
 import { useSaveEventGeneral } from "@/lib/events/useAdminEventDetail";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
+import { timeZoneOptions } from "@/lib/events/timeZoneOptions";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Kolejnosc kart formatu jak we wzorcu: hybryda, na miejscu, online. */
 const FORMAT_ORDER: readonly EventFormat[] = ["hybrid", "onsite", "online"];
-
-/** Strefy oferowane wprost; `Intl` dorzuca reszte, gdy przegladarka ja zna. */
-const FALLBACK_TIME_ZONES = [
-  "Europe/Warsaw",
-  "Europe/Brussels",
-  "Europe/Berlin",
-  "Europe/London",
-  "Europe/Kyiv",
-  "Europe/Vilnius",
-  "Europe/Prague",
-  "UTC",
-] as const;
-
-function timeZoneOptions(current: string): readonly string[] {
-  let zones: readonly string[] = FALLBACK_TIME_ZONES;
-  try {
-    const supported = (Intl as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
-    if (typeof supported === "function") zones = supported("timeZone");
-  } catch {
-    // Starsza przegladarka - lista skrocona jest nadal uzyteczna.
-  }
-  return current !== "" && !zones.includes(current) ? [current, ...zones] : zones;
-}
 
 export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAdminEventsI18n();

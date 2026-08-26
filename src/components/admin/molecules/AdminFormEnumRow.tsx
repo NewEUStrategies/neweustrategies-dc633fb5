@@ -30,6 +30,7 @@ export function AdminFormEnumRow<T extends string>({
   hint,
   disabled,
   className,
+  placeholder,
 }: {
   id?: string;
   label: string;
@@ -42,6 +43,11 @@ export function AdminFormEnumRow<T extends string>({
   hint?: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * Tekst zastępczy dla stanu „nic nie wybrano". Bez niego pusta wartość rysuje
+   * PUSTY przycisk - kontrolka wygląda na zepsutą, choć droplista ma opcje.
+   */
+  placeholder?: string;
 }) {
   const reactId = useId();
   const fieldId = id ?? reactId;
@@ -54,6 +60,7 @@ export function AdminFormEnumRow<T extends string>({
         value={value}
         options={options.map((option) => ({ value: option, label: labelFor(option) }))}
         disabled={disabled}
+        placeholder={placeholder}
         aria-label={label}
         // Zawężenie z powrotem do enuma: `FormSelect` jest generyczny po stringu,
         // ale droplista nie ma jak oddać wartości spoza `options`.

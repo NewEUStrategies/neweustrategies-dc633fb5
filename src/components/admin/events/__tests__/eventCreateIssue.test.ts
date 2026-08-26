@@ -18,6 +18,11 @@ const READY: EventCreateDraft = {
   titlePl: "Śniadanie eksperckie",
   titleEn: "Expert breakfast",
   startsAt: "2026-09-01T09:00",
+  endsAt: "",
+  timezone: "Europe/Warsaw",
+  format: "onsite",
+  city: "",
+  country: "",
   externalRegistrationUrl: "",
 };
 
@@ -51,6 +56,34 @@ describe("eventCreateIssue - pola podstawowe", () => {
     expect(eventCreateIssue(READY, null)).toBeNull();
     expect(eventCreateIssue(READY, "form")).toBeNull();
     expect(eventCreateIssue(READY, "none")).toBeNull();
+  });
+});
+
+describe("eventCreateIssue - termin, strefa i format", () => {
+  it("koniec przed początkiem jest odrzucany", () => {
+    expect(eventCreateIssue({ ...READY, endsAt: "2026-09-01T08:00" }, "rsvp")).toBe(
+      "adminEvents.list.create.errors.endsAt",
+    );
+    expect(eventCreateIssue({ ...READY, endsAt: "2026-09-01T09:00" }, "rsvp")).toBe(
+      "adminEvents.list.create.errors.endsAt",
+    );
+  });
+
+  it("koniec po początku i brak końca są równie poprawne", () => {
+    expect(eventCreateIssue({ ...READY, endsAt: "2026-09-01T17:00" }, "rsvp")).toBeNull();
+    expect(eventCreateIssue({ ...READY, endsAt: "" }, "rsvp")).toBeNull();
+  });
+
+  it("wymaga strefy czasowej i zbioru formatów zgodnego z bazą", () => {
+    expect(eventCreateIssue({ ...READY, timezone: " " }, "rsvp")).toBe(
+      "adminEvents.list.create.errors.timezone",
+    );
+    expect(eventCreateIssue({ ...READY, format: "teleport" }, "rsvp")).toBe(
+      "adminEvents.list.create.errors.format",
+    );
+    for (const format of ["onsite", "online", "hybrid", ""]) {
+      expect(eventCreateIssue({ ...READY, format }, "rsvp")).toBeNull();
+    }
   });
 });
 
