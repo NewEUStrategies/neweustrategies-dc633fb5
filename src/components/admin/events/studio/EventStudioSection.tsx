@@ -17,7 +17,7 @@
 // zakladki tego rekordu). Zdania opisowego w wariancie rekordu nie ma celowo:
 // redaktor, ktory wszedl w konkretna sesje, nie czyta juz definicji sesji -
 // szuka pol i zakladek, a akapit odsuwa je o dwa wiersze w dol.
-import { useId, type ReactNode } from "react";
+import { createContext, useContext, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, Sparkles } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,29 @@ function EventStudioHelpPill({ href }: { href: string }) {
  * w nie drugi przycisk glowny - i wtedy na ekranie sa dwa, kilkadziesiat
  * pikseli od siebie.
  */
+/**
+ * Licznik sekcji ekranu.
+ *
+ * PO CO NUMERY. Ekran ustawien to pionowa tasma kilkunastu blokow o tej samej
+ * wadze - bez znacznika porzadkowego oko nie ma sie o co zaczepic i wszystko
+ * zlewa sie w jedna plachte. Numer jest NAJTANSZA kotwica: nie dodaje koloru,
+ * nie konkuruje z akcja, a daje kazdej sekcji adres („wroc do 03”).
+ *
+ * NUMERUJEMY LICZNIKIEM W REF, nie indeksem z `children`. Ekrany podaja sekcje
+ * warunkowo (`{enabled ? <Row/> : null}`), wiec indeks tablicy policzylby tez
+ * te niewyrenderowane i numeracja mialaby dziury.
+ */
+type SectionCounter = { next: () => number } | null;
+const EventStudioSectionCounter = createContext<SectionCounter>(null);
+
+function useSectionNumber(): number | null {
+  const counter = useContext(EventStudioSectionCounter);
+  // Numer przypisujemy RAZ, przy pierwszym renderze wiersza - inaczej kazdy
+  // kolejny render przesuwalby numeracje o dlugosc listy.
+  const [number] = useState(() => (counter === null ? null : counter.next()));
+  return number;
+}
+
 export function EventStudioPage({
   title,
   description,
@@ -94,19 +117,33 @@ export function EventStudioPage({
   helpHref?: string;
   children: ReactNode;
 }) {
+  const seq = useRef(0);
+  const counter = useRef<{ next: () => number }>({ next: () => (seq.current += 1) });
   return (
-    <div className={PAGE_SHELL_CLASS}>
-      <div className="mb-6 space-y-2">
-        <h1 className="font-display text-2xl">{title}</h1>
-        {description === undefined && helpHref === undefined ? null : (
-          <p className="max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
-            {description}
-            {helpHref === undefined ? null : <EventStudioHelpPill href={helpHref} />}
-          </p>
-        )}
+    <EventStudioSectionCounter.Provider value={counter.current}>
+      <div className={PAGE_SHELL_CLASS}>
+        <header className="mb-8 border-b border-border pb-6">
+          <div className="flex items-start gap-3">
+            {/* Pionowa belka marki zastepuje kreske pod naglowkiem: mowi „tu
+                zaczyna sie ekran” bez dokladania kolejnej linii poziomej. */}
+            <span
+              aria-hidden="true"
+              className="mt-1 h-8 w-1 shrink-0 rounded-[6px] bg-brand"
+            />
+            <div className="min-w-0 space-y-2">
+              <h1 className="font-display text-2xl leading-tight tracking-tight">{title}</h1>
+              {description === undefined && helpHref === undefined ? null : (
+                <p className="max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
+                  {description}
+                  {helpHref === undefined ? null : <EventStudioHelpPill href={helpHref} />}
+                </p>
+              )}
+            </div>
+          </div>
+        </header>
+        <div className="space-y-10">{children}</div>
       </div>
-      <div className="divide-y divide-border">{children}</div>
-    </div>
+    </EventStudioSectionCounter.Provider>
   );
 }
 
@@ -203,7 +240,7 @@ export function EventStudioRecordPage({
         </div>
       )}
 
-      <div className="mt-2 divide-y divide-border">{children}</div>
+      <div className="mt-6 space-y-10">{children}</div>
     </div>
   );
 }
@@ -222,18 +259,37 @@ export function EventStudioRow({
   children: ReactNode;
   className?: string;
 }) {
+  const number = useSectionNumber();
   return (
     <section
-      className={cn("grid gap-4 py-6 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]", className)}
+      className={cn(
+        "grid gap-6 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-10",
+        className,
+      )}
     >
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold">{label}</h2>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          {number === null ? null : (
+            <span
+              aria-hidden="true"
+              className="rounded-[6px] border border-border bg-muted px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-brand-ink"
+            >
+              {String(number).padStart(2, "0")}
+            </span>
+          )}
+          <h2 className="text-sm font-semibold tracking-tight">{label}</h2>
+        </div>
         {description === undefined ? null : (
           <p className="text-[13px] leading-relaxed text-muted-foreground">{description}</p>
         )}
         {hint}
       </div>
-      <div className="min-w-0 space-y-4">{children}</div>
+      {/* PRAWA KOLUMNA JEST POWIERZCHNIA, nie samym marginesem. Pola na tym
+          samym tle co opis zlewaly sie z nim w jeden akapit - ramka i lekko
+          inne tlo rozdzielaja „co to jest” od „co tu ustawiasz”. */}
+      <div className="min-w-0 space-y-4 rounded-[6px] border border-border bg-card/40 p-4 sm:p-5">
+        {children}
+      </div>
     </section>
   );
 }
@@ -268,7 +324,7 @@ export function EventStudioChoiceCard({
     <label
       htmlFor={id}
       className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+        "flex cursor-pointer items-start gap-3 rounded-[6px] border p-4 transition-colors",
         checked ? "border-brand bg-brand/5" : "border-border hover:border-brand/40",
       )}
     >
@@ -336,7 +392,7 @@ export function EventStudioSaveBar({
         type="button"
         onClick={onDiscard}
         disabled={saving}
-        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+        className="rounded-[6px] border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
       >
         {discardLabel}
       </button>
@@ -344,7 +400,7 @@ export function EventStudioSaveBar({
         type="button"
         onClick={onSave}
         disabled={saving || disabled === true}
-        className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        className="rounded-[6px] bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
       >
         {saveLabel}
       </button>
