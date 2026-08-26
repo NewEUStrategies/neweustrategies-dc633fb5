@@ -22,6 +22,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { BuilderDocument } from "@/lib/builder/types";
 import type { EventBrandingDraft } from "@/lib/events/eventBrandingDraft";
 import { EMPTY_EVENT_BRANDING } from "@/lib/events/eventBrandingDraft";
 import type { EventFormat } from "@/lib/events/eventTypes";
