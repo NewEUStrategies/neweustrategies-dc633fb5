@@ -7550,6 +7550,69 @@ export type Database = {
           },
         ]
       }
+      event_pages: {
+        Row: {
+          color: string | null
+          created_at: string
+          event_id: string
+          icon: string | null
+          id: string
+          in_menu: boolean
+          menu_label_en: string | null
+          menu_label_pl: string | null
+          page_id: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          visible_to_groups: string[]
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          event_id: string
+          icon?: string | null
+          id?: string
+          in_menu?: boolean
+          menu_label_en?: string | null
+          menu_label_pl?: string | null
+          page_id: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          visible_to_groups?: string[]
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          event_id?: string
+          icon?: string | null
+          id?: string
+          in_menu?: boolean
+          menu_label_en?: string | null
+          menu_label_pl?: string | null
+          page_id?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          visible_to_groups?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_pages_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_pages_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_people: {
         Row: {
           company_id: string | null
@@ -19673,6 +19736,33 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: string
       }
+      admin_event_page_create: { Args: { p_payload: Json }; Returns: string }
+      admin_event_page_detach: { Args: { p_id: string }; Returns: boolean }
+      admin_event_page_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_pages_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          color: string
+          icon: string
+          id: string
+          in_menu: boolean
+          menu_label_en: string
+          menu_label_pl: string
+          page_id: string
+          page_path: string
+          page_slug: string
+          page_status: string
+          sort_order: number
+          title_en: string
+          title_pl: string
+          updated_at: string
+          visible_to_groups: string[]
+        }[]
+      }
+      admin_event_pages_reorder: {
+        Args: { p_event_id: string; p_ids: string[] }
+        Returns: number
+      }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
         Returns: Json
@@ -23024,6 +23114,19 @@ export type Database = {
         Returns: Json
       }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
+      event_menu: {
+        Args: { p_slug: string }
+        Returns: {
+          color: string
+          icon: string
+          id: string
+          label_en: string
+          label_pl: string
+          page_id: string
+          path: string
+          sort_order: number
+        }[]
+      }
       event_sections: {
         Args: { p_slug: string }
         Returns: {
