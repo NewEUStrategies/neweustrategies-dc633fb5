@@ -76,7 +76,7 @@ export function EventGroupsPermissionsPanel({ row }: { row: AdminEventDetailRow 
         label={t("adminEvents.studio.groupsPage.publicVisibility")}
         description={t("adminEvents.studio.groupsPage.publicVisibilityDescription")}
       >
-        <div className="flex items-start justify-between gap-4 rounded-md border border-border p-4">
+        <div className="flex items-start justify-between gap-4 rounded-[6px] border border-border bg-background p-4">
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-medium">{t("adminEvents.studio.groupsPage.guestMode")}</p>
             <p className="text-[13px] leading-relaxed text-muted-foreground">
@@ -92,7 +92,7 @@ export function EventGroupsPermissionsPanel({ row }: { row: AdminEventDetailRow 
 
         {mode === "hidden" ? null : (
           <div className="space-y-3">
-            <p className="text-sm font-medium">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {t("adminEvents.studio.groupsPage.guestsVisibility")}
             </p>
             <p className="text-[13px] leading-relaxed text-muted-foreground">
@@ -115,7 +115,7 @@ export function EventGroupsPermissionsPanel({ row }: { row: AdminEventDetailRow 
         )}
 
         {row.chatham_house ? (
-          <p className="inline-flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+          <p className="inline-flex items-start gap-1.5 rounded-[6px] border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {t("adminEvents.studio.groupsPage.chathamWarning")}
           </p>
