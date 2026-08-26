@@ -68,7 +68,12 @@ export function EventStudioShell({
 
   const detailQ = useAdminEventDetail(canWrite ? eventId : "");
   const setStatus = useSetEventStatus(eventId);
-  const [previewOpen, setPreviewOpen] = useState(true);
+  // PODGLĄD JEST ZAMKNIĘTY NA WEJŚCIU. Studio to panel zarządzania wydarzeniem;
+  // podgląd strony publicznej otwarty domyślnie zasłaniał cały panel (sidebar
+  // sekcji, pulpit, formularze) i po utworzeniu szkicu wyglądał jak jedyny
+  // dostępny ekran. Redaktor włącza go przyciskiem „Podgląd wydarzenia".
+  const [previewOpen, setPreviewOpen] = useState(false);
+
 
   const row = detailQ.data ?? null;
   const activeSection = eventStudioSectionFromPath(pathname);
