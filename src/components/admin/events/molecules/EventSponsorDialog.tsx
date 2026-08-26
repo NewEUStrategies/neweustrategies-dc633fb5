@@ -49,6 +49,8 @@ import {
   type SponsorRole,
 } from "@/lib/events/sponsorsApi";
 
+const TIER_NONE = "__none__";
+
 interface EventSponsorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -224,10 +226,10 @@ export function EventSponsorDialog({
             <Label htmlFor="sponsor-tier">{t("adminEventSponsors.sponsors.dialog.tier")}</Label>
             <FormSelect
               id="sponsor-tier"
-              value={draft.tierId}
+              value={draft.tierId === "" ? TIER_NONE : draft.tierId}
               options={tierOptions}
               aria-label={t("adminEventSponsors.sponsors.dialog.tier")}
-              onValueChange={(value) => set("tierId", value)}
+              onValueChange={(value) => set("tierId", value === TIER_NONE ? "" : value)}
             />
             {errorFor("tierId") === null ? null : (
               <p className="text-xs text-destructive" role="alert">
