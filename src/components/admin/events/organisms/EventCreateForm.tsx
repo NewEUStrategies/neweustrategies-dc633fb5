@@ -35,6 +35,7 @@ import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { uiLang } from "@/lib/i18n/format";
 import {
+  EVENT_FORMATS,
   EVENT_FORMAT_LABEL_KEYS,
   EVENT_GUEST_MODE_LABEL_KEYS,
   EVENT_REGISTRATION_FLOW_LABEL_KEYS,
@@ -43,8 +44,13 @@ import {
   asEventGuestMode,
   asEventRegistrationFlow,
   asEventRegistrationMode,
+  type EventFormat,
   type EventTypeOption,
 } from "@/lib/events/eventTypes";
+import {
+  DEFAULT_EVENT_TIME_ZONE,
+  timeZoneOptions,
+} from "@/lib/events/timeZoneOptions";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export interface EventCreateDraft {
@@ -52,6 +58,18 @@ export interface EventCreateDraft {
   titlePl: string;
   titleEn: string;
   startsAt: string;
+  /**
+   * Koniec podany WPROST. Pusty napis znaczy „wylicz z czasu trwania rodzaju" -
+   * dokładnie to robi `admin_event_create`, więc formularz nie musi zgadywać
+   * długości wydarzenia za redaktora.
+   */
+  endsAt: string;
+  /** Nazwa IANA. Zapisywana zawsze - `events.timezone` jest NOT NULL. */
+  timezone: string;
+  /** Format wybrany na ekranie; pusty napis znaczy „format rodzaju". */
+  format: string;
+  city: string;
+  country: string;
   externalRegistrationUrl: string;
 }
 
@@ -60,6 +78,11 @@ export const EMPTY_EVENT_CREATE_DRAFT: EventCreateDraft = {
   titlePl: "",
   titleEn: "",
   startsAt: "",
+  endsAt: "",
+  timezone: DEFAULT_EVENT_TIME_ZONE,
+  format: "",
+  city: "",
+  country: "",
   externalRegistrationUrl: "",
 };
 
@@ -84,6 +107,19 @@ export function eventCreateIssue(
   }
   if (draft.startsAt.trim() === "") return "adminEvents.list.create.errors.startsAt";
   if (draft.eventTypeId === "") return "adminEvents.list.create.errors.type";
+  // Ta sama reguła stoi w `admin_event_create` (`invalid_ends_at`): koniec przed
+  // początkiem daje wydarzenie, którego nie da się ustawić w kalendarzu.
+  if (draft.endsAt.trim() !== "") {
+    const starts = new Date(draft.startsAt).getTime();
+    const ends = new Date(draft.endsAt).getTime();
+    if (!Number.isFinite(ends) || !Number.isFinite(starts) || ends <= starts) {
+      return "adminEvents.list.create.errors.endsAt";
+    }
+  }
+  if (draft.timezone.trim() === "") return "adminEvents.list.create.errors.timezone";
+  if (draft.format !== "" && !(EVENT_FORMATS as readonly string[]).includes(draft.format)) {
+    return "adminEvents.list.create.errors.format";
+  }
   if (registrationMode === "external") {
     const url = draft.externalRegistrationUrl.trim();
     if (url === "") return "adminEvents.list.create.errors.externalUrl";
@@ -131,6 +167,7 @@ export function EventCreateForm({
     [types, draft.eventTypeId],
   );
 
+  const zones = timeZoneOptions(draft.timezone);
   const registrationMode = selected === null ? null : selected.default_registration_mode;
   const issue = eventCreateIssue(draft, registrationMode);
   const noTypes = types.length === 0;
@@ -158,6 +195,7 @@ export function EventCreateForm({
               label={t("adminEvents.list.create.typeLabel")}
               hint={t("adminEvents.list.create.typeHint")}
               value={draft.eventTypeId}
+              placeholder={t("adminEvents.list.create.typePlaceholder")}
               options={types.map((type) => type.id)}
               labelFor={(id) => {
                 const type = types.find((candidate) => candidate.id === id);
@@ -165,7 +203,17 @@ export function EventCreateForm({
                 const primary = lang === "en" ? type.name_en : type.name_pl;
                 return primary === "" ? type.key : primary;
               }}
-              onValueChange={(value) => setDraft({ ...draft, eventTypeId: value })}
+              // Wybór rodzaju PRZEPISUJE format do szkicu, zamiast pozostawiać
+              // pole puste: format jest dalej edytowalny, ale redaktor widzi
+              // wprost wartość, którą dostanie wydarzenie, a nie pusty przycisk.
+              onValueChange={(value) => {
+                const type = types.find((candidate) => candidate.id === value) ?? null;
+                setDraft({
+                  ...draft,
+                  eventTypeId: value,
+                  format: type === null ? draft.format : type.default_format,
+                });
+              }}
             />
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -188,13 +236,70 @@ export function EventCreateForm({
 
             {/* Kalendarz jest NASZ, nie systemowy - `datetime-local` rysowałby
                 popup przeglądarki obok droplisty z naszymi tokenami. */}
-            <AdminFormDateTimeRow
-              id="event-create-starts-at"
-              label={t("adminEvents.list.create.startsAtLabel")}
-              hint={t("adminEvents.list.create.startsAtHint")}
-              value={draft.startsAt}
-              onValueChange={(value) => setDraft({ ...draft, startsAt: value })}
-            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminFormDateTimeRow
+                id="event-create-starts-at"
+                label={t("adminEvents.list.create.startsAtLabel")}
+                value={draft.startsAt}
+                onValueChange={(value) => setDraft({ ...draft, startsAt: value })}
+              />
+              {/* Koniec jest OPCJONALNY, nie wymagany: rodzaj zna czas trwania
+                  i baza go doliczy. Pole stoi tu dla wydarzeń, które trwają
+                  inaczej niż wzorzec rodzaju (dzień konferencji, nie webinar). */}
+              <AdminFormDateTimeRow
+                id="event-create-ends-at"
+                label={t("adminEvents.list.create.endsAtLabel")}
+                hint={t("adminEvents.list.create.startsAtHint")}
+                value={draft.endsAt}
+                minDate={draft.startsAt === "" ? undefined : new Date(draft.startsAt)}
+                onValueChange={(value) => setDraft({ ...draft, endsAt: value })}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminFormEnumRow<string>
+                id="event-create-timezone"
+                label={t("adminEvents.list.create.timeZoneLabel")}
+                hint={t("adminEvents.list.create.timeZoneHint")}
+                value={draft.timezone}
+                options={zones}
+                labelFor={(zone) => zone}
+                onValueChange={(value) => setDraft({ ...draft, timezone: value })}
+              />
+              <AdminFormEnumRow<EventFormat>
+                id="event-create-format"
+                label={t("adminEvents.list.create.formatLabel")}
+                hint={t("adminEvents.list.create.formatHint")}
+                value={asEventFormat(draft.format)}
+                options={EVENT_FORMATS}
+                labelFor={(format) => t(EVENT_FORMAT_LABEL_KEYS[format])}
+                onValueChange={(value) => setDraft({ ...draft, format: value })}
+              />
+            </div>
+
+            {/* Miejsce ZNIKA dla wydarzeń wyłącznie online - tak samo jak w bazie,
+                która zeruje wtedy miasto i kraj. Pole, którego zapis jest z góry
+                unieważniony, jest kontrolką kłamiącą o skutku. */}
+            {asEventFormat(draft.format) === "online" ? null : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <AdminFormTextRow
+                  id="event-create-city"
+                  label={t("adminEvents.list.create.cityLabel")}
+                  value={draft.city}
+                  maxLength={160}
+                  onValueChange={(value) => setDraft({ ...draft, city: value })}
+                />
+                <AdminFormTextRow
+                  id="event-create-country"
+                  label={t("adminEvents.list.create.countryLabel")}
+                  hint={t("adminEvents.list.create.placeHint")}
+                  value={draft.country}
+                  maxLength={160}
+                  onValueChange={(value) => setDraft({ ...draft, country: value })}
+                />
+              </div>
+            )}
+
 
             {/* Pole POJAWIA SIĘ z trybu rodzaju, a nie stoi zawsze. Adres zapisów
                 zewnętrznych jest wymagany dokładnie wtedy, gdy rodzaj zapisuje

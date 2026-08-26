@@ -81,6 +81,15 @@ export interface EventCreateInput {
   titlePl: string;
   titleEn: string;
   startsAt: string;
+  /** Koniec podany wprost; `null` znaczy „wylicz z czasu trwania rodzaju". */
+  endsAt: string | null;
+  /** Nazwa IANA strefy wydarzenia; `null` zostawia domyslna organizacji. */
+  timezone: string | null;
+  /** Format wydarzenia; `null` przepisuje format rodzaju. */
+  format: string | null;
+  /** Miasto i kraj - baza zeruje je dla wydarzen wylacznie online. */
+  city: string | null;
+  country: string | null;
   /**
    * Adres zapisow w obcym systemie. Wymagany DOKLADNIE dla rodzajow o trybie
    * `external` - baza odrzuca tworzenie bez niego (`external_url_required`),
@@ -103,6 +112,11 @@ export async function createEventFromType(input: EventCreateInput): Promise<stri
       ...(input.externalRegistrationUrl === null
         ? {}
         : { external_registration_url: input.externalRegistrationUrl }),
+      ...(input.endsAt === null ? {} : { ends_at: input.endsAt }),
+      ...(input.timezone === null ? {} : { timezone: input.timezone }),
+      ...(input.format === null ? {} : { format: input.format }),
+      ...(input.city === null ? {} : { city: input.city }),
+      ...(input.country === null ? {} : { country: input.country }),
     },
   });
   if (error) throw error;
