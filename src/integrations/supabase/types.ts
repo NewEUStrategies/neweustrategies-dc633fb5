@@ -19534,6 +19534,7 @@ export type Database = {
           created_at: string
           description_en: string
           description_pl: string
+          early_rsvp_rank: number
           ends_at: string
           event_type_id: string
           external_registration_url: string
@@ -19544,6 +19545,7 @@ export type Database = {
           has_stream: boolean
           home_design: string
           id: string
+          join_url: string
           kind: string
           languages: string[]
           location: string
@@ -19551,10 +19553,12 @@ export type Database = {
           pages_display_mode: string
           postal_code: string
           published_at: string
+          recording_url: string
           region: string
           registration_flow: string
           registration_mode: string
           root_page_id: string
+          rsvp_opens_at: string
           slug: string
           social_hashtag: string
           starts_at: string
@@ -19576,6 +19580,10 @@ export type Database = {
           video_header_platform: string
           visibility: string
         }[]
+      }
+      admin_event_features_save: {
+        Args: { p_event_id: string; p_features: Json }
+        Returns: Json
       }
       admin_event_general_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
