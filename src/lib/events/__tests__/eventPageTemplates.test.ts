@@ -6,7 +6,7 @@
 // ten sam obiekt dwa razy sklada dwie strony z jednego drzewa.
 import { describe, expect, it } from "vitest";
 import { WIDGET_MAP } from "@/lib/builder/registry";
-import type { BuilderNode } from "@/lib/builder/types";
+import type { ColumnNode, InnerSectionNode, SectionNode, WidgetNode } from "@/lib/builder/types";
 import {
   DEFAULT_EVENT_PAGE_TEMPLATE_ID,
   EVENT_PAGE_TEMPLATES,
@@ -15,10 +15,12 @@ import {
   templateText,
 } from "@/lib/events/eventPageTemplates";
 
-function walk(nodes: readonly BuilderNode[], visit: (node: BuilderNode) => void): void {
+type AnyNode = SectionNode | InnerSectionNode | ColumnNode | WidgetNode;
+
+function walk(nodes: readonly AnyNode[], visit: (node: AnyNode) => void): void {
   for (const node of nodes) {
     visit(node);
-    if (node.kind === "section" || node.kind === "column") walk(node.children, visit);
+    if (node.kind !== "widget") walk(node.children, visit);
   }
 }
 
