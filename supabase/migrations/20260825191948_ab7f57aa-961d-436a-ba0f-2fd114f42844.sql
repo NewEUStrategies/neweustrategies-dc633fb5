@@ -3,7 +3,7 @@
 -- (migracja repozytorium 20260824080000_event_admissions_packages_coupons.sql)
 -- ============================================================================
 --
--- KAZDA POLITYKA MA STRAZ `DROP POLICY IF EXISTS`. Ten plik jest PONOWNA EMISJA
+-- KAZDA POLITYKA I KAZDY WYZWALACZ MAJA STRAZ `DROP ... IF EXISTS`. Ten plik jest PONOWNA EMISJA
 -- migracji 20260824080000 pod innym numerem - tak, jak zapowiada naglowek wyzej.
 -- Tabele i kolumny przezyly to bez szkody, bo niosly `IF NOT EXISTS`; polityki
 -- nie niosly nic, wiec przy odtworzeniu bazy od zera `CREATE POLICY` trafial na
@@ -13,7 +13,16 @@
 --
 -- Straz NIE zmienia stanu koncowego bazy: polityka i tak jest zastepowana ta
 -- sama definicja. Zmienia tylko to, ze plik daje sie odtworzyc drugi raz.
--- Ten sam idiom stosuje sasiednia 20260825170000_event_rls_admin_only.sql.
+-- Ten sam idiom stosuje sasiednia 20260825170000_event_rls_admin_only.sql,
+-- a dla wyzwalaczy - ten sam plik nizej (`event_package_seats_count`).
+--
+-- WYZWALACZE WYSZLY DOPIERO ZA DRUGIM PODEJSCIEM. Pierwsza poprawka objela
+-- same polityki i odtworzenie przesunelo sie o jedna instrukcje dalej, na
+-- `CREATE TRIGGER ... touch_updated_at`. Dlatego audyt jest teraz pelny:
+-- tabele i indeksy niosa `IF NOT EXISTS`, funkcje `OR REPLACE`, ograniczenia
+-- siedza w blokach `DO $$` ze sprawdzeniem `pg_constraint`, a wszystkie
+-- `INSERT`-y sa w cialach funkcji - czyli zero instrukcji, ktora przewroci
+-- sie przy powtorzeniu.
 
 -- 1) WEJSCIOWKA INDYWIDUALNA: dla kogo jest
 ALTER TABLE public.event_ticket_types
@@ -130,6 +139,7 @@ CREATE POLICY "event_audience_grants_own_read" ON public.event_audience_grants
   FOR SELECT TO authenticated
   USING (tenant_id = public._caller_tenant() AND user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS event_audience_grants_touch_updated_at ON public.event_audience_grants;
 CREATE TRIGGER event_audience_grants_touch_updated_at
   BEFORE UPDATE ON public.event_audience_grants
   FOR EACH ROW EXECUTE FUNCTION public._tg_touch_updated_at();
@@ -221,6 +231,7 @@ CREATE POLICY "event_ticket_packages_staff_all" ON public.event_ticket_packages
     )
   );
 
+DROP TRIGGER IF EXISTS event_ticket_packages_touch_updated_at ON public.event_ticket_packages;
 CREATE TRIGGER event_ticket_packages_touch_updated_at
   BEFORE UPDATE ON public.event_ticket_packages
   FOR EACH ROW EXECUTE FUNCTION public._tg_touch_updated_at();
@@ -325,6 +336,7 @@ CREATE POLICY "event_package_orders_buyer_read" ON public.event_package_orders
   FOR SELECT TO authenticated
   USING (tenant_id = public._caller_tenant() AND buyer_user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS event_package_orders_touch_updated_at ON public.event_package_orders;
 CREATE TRIGGER event_package_orders_touch_updated_at
   BEFORE UPDATE ON public.event_package_orders
   FOR EACH ROW EXECUTE FUNCTION public._tg_touch_updated_at();
@@ -422,6 +434,7 @@ CREATE POLICY "event_package_seats_buyer_read" ON public.event_package_seats
     )
   );
 
+DROP TRIGGER IF EXISTS event_package_seats_touch_updated_at ON public.event_package_seats;
 CREATE TRIGGER event_package_seats_touch_updated_at
   BEFORE UPDATE ON public.event_package_seats
   FOR EACH ROW EXECUTE FUNCTION public._tg_touch_updated_at();
