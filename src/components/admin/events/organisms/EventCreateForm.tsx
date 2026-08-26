@@ -54,6 +54,7 @@ import {
   asEventGuestMode,
   asEventRegistrationFlow,
   asEventRegistrationMode,
+  type EventFormat,
   type EventTypeOption,
 } from "@/lib/events/eventTypes";
 import { DEFAULT_EVENT_TIME_ZONE, timeZoneOptions } from "@/lib/events/timeZoneOptions";
