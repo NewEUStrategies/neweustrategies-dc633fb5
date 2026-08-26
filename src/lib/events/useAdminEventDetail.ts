@@ -17,6 +17,7 @@ import {
 import {
   fetchAdminEventDetail,
   saveEventBranding,
+  saveEventFeatures,
   saveEventGeneral,
   setEventStatus,
   type AdminEventDetailRow,
@@ -65,6 +66,25 @@ export function useSaveEventBranding(
   const invalidate = useDetailInvalidation(eventId);
   return useMutation({
     mutationFn: (branding: Record<string, string>) => saveEventBranding(eventId, branding),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Zapis przelacznikow modulow.
+ *
+ * UNIEWAZNIENIE JEST TU WARUNKIEM POPRAWNOSCI EKRANU, a nie odswiezeniem
+ * formularza: z tego samego wiersza rama studia liczy zbior sekcji ukrytych
+ * w sidebarze. Bez uniewaznienia redaktor zapisuje „bez spotkan", a pozycje
+ * grupy „Spotkania" nadal stoja w lewym pasie - do najblizszego przeladowania
+ * strony. Stad ten sam `useDetailInvalidation`, co przy brandingu.
+ */
+export function useSaveEventFeatures(
+  eventId: string,
+): UseMutationResult<void, Error, Record<string, boolean>> {
+  const invalidate = useDetailInvalidation(eventId);
+  return useMutation({
+    mutationFn: (features: Record<string, boolean>) => saveEventFeatures(eventId, features),
     onSuccess: invalidate,
   });
 }

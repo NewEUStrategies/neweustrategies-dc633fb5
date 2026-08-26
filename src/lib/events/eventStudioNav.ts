@@ -55,10 +55,12 @@ export const EVENT_STUDIO_SECTIONS = [
   "branding",
   "sponsors",
   "terms",
+  "registrationSettings",
   "registrationList",
   "registrationTickets",
   "registrationForm",
   "contentSessions",
+  "contentSpeakers",
   "contentTracks",
   "contentRooms",
   "contentConflicts",
@@ -97,10 +99,12 @@ export const EVENT_STUDIO_ROUTES = {
   branding: "/admin/events/$eventId/branding",
   sponsors: "/admin/events/$eventId/sponsors",
   terms: "/admin/events/$eventId/terms",
+  registrationSettings: "/admin/events/$eventId/registration/settings",
   registrationList: "/admin/events/$eventId/registration/list",
   registrationTickets: "/admin/events/$eventId/registration/tickets",
   registrationForm: "/admin/events/$eventId/registration/form",
   contentSessions: "/admin/events/$eventId/content/sessions",
+  contentSpeakers: "/admin/events/$eventId/content/speakers",
   contentTracks: "/admin/events/$eventId/content/tracks",
   contentRooms: "/admin/events/$eventId/content/rooms",
   contentConflicts: "/admin/events/$eventId/content/conflicts",
@@ -215,13 +219,27 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
     key: "registration",
     labelKey: "adminEvents.studio.groups.registration",
     icon: "ticket",
-    defaultSection: "registrationList",
+    defaultSection: "registrationSettings",
     keywordKeys: ["adminEvents.studio.keywords.registration"],
     // ETYKIETY PODPOZYCJI POCHODZA ZE SLOWNIKA MODULU, a nie z `adminEvents`.
     // To DOKLADNIE te napisy, ktore do tej zmiany stały na zakladkach w srodku
     // sekcji - przepisane do `adminEvents` rozjechalyby sie z nimi przy pierwszej
     // korekcie i ten sam ekran mialby dwie nazwy w dwoch miejscach panelu.
+    //
+    // WYJATKIEM SA „Ustawienia rejestracji": ten ekran NIE byl wczesniej zakladka
+    // w module zapisow, wiec nie ma napisu, z ktorym moglby sie rozjechac -
+    // etykieta stoi tam, gdzie etykiety pozostalych ekranow studia.
+    //
+    // STOI NA PIERWSZEJ POZYCJI i jest pozycja domyslna grupy, bo odpowiada na
+    // pytanie WCZESNIEJSZE niz pozostale trzy: dopoki tryb zapisow jest `none`,
+    // nie ma zadnych zgloszen do ogladania, zadnych wejsciowek do sprzedania
+    // i zadnego formularza do wypelnienia.
     entries: [
+      {
+        key: "registrationSettings",
+        labelKey: "adminEvents.studio.sections.registrationSettings",
+        keywordKeys: ["adminEvents.studio.keywords.registrationSettings"],
+      },
       {
         key: "registrationList",
         labelKey: "adminEventRegistration.nav.registrations",
@@ -250,6 +268,14 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
       {
         key: "contentSessions",
         labelKey: "adminEventAgenda.nav.sessions",
+        keywordKeys: ["adminEvents.studio.keywords.contentSessions"],
+      },
+      {
+        // Etykieta z istniejacego slownika modulu - „Prelegenci" jest tam od
+        // poczatku i drugi klucz na ten sam napis rozjechalby sie przy
+        // pierwszej korekcie.
+        key: "contentSpeakers",
+        labelKey: "adminEvents.nav.speakers",
         keywordKeys: ["adminEvents.studio.keywords.contentSessions"],
       },
       {

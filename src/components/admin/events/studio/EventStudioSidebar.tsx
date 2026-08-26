@@ -38,6 +38,12 @@
 // Przycisk strzalki stoi OBOK odnosnika, a nie w nim: przycisk w srodku
 // odnosnika jest niepoprawnym HTML-em i myli czytnik ekranu. Sluzy do
 // ZAJRZENIA do grupy, w ktorej sie nie stoi.
+//
+// POZYCJE WYLACZONYCH MODULOW SA NIEOBECNE, A NIE WYSZARZONE. Webinar nie ma
+// gieldy spotkan ani odprawy na miejscu, a wyszarzona pozycja to nadal wiersz do
+// przewiniecia i do przeczytania - przy dwudziestu dziewieciu ekranach to jedyna
+// roznica, ktora widac. Zbior sekcji do ukrycia liczy rama z `events.features`;
+// TRASY tych sekcji nadal dzialaja, patrz `EventStudioDisabledSection`.
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -63,6 +69,7 @@ export function EventStudioSidebar({
   eventTitle,
   startsAtLabel,
   activeSection,
+  hiddenSections,
   publicHref,
 }: {
   eventId: string;
@@ -71,6 +78,12 @@ export function EventStudioSidebar({
   /** Termin w strefie WYDARZENIA albo zdanie „bez terminu" - liczy rama. */
   startsAtLabel: string;
   activeSection: EventStudioSection | null;
+  /**
+   * Sekcje wylaczonych modulow - GOTOWY ZBIOR, liczy go rama z `events.features`.
+   * Sidebar nie zna kolumny wydarzenia ani mapy „funkcja -> sekcje": jego
+   * zadaniem jest nie narysowac tych pozycji.
+   */
+  hiddenSections: ReadonlySet<EventStudioSection>;
   /** Adres strony publicznej albo `null` dla szkicu - nie ma czego otwierac. */
   publicHref: string | null;
 }) {
@@ -93,18 +106,32 @@ export function EventStudioSidebar({
 
     return EVENT_STUDIO_NAV.flatMap<EventStudioNavNode>((node) => {
       if (node.kind === "item") {
+        if (hiddenSections.has(node.key)) return [];
         return matchesStudioQuery(query, t(node.labelKey), words(node.keywordKeys)) ? [node] : [];
       }
-      // Trafienie w nazwe grupy przepuszcza WSZYSTKIE jej dzieci.
+      // WYLACZONE MODULY ODPADAJA PRZED WYSZUKIWANIEM. Odwrotna kolejnosc
+      // dawalaby wynik na haslo „stoliki" w wydarzeniu, ktore gieldy spotkan
+      // nie ma - a wynik, ktory nie prowadzi do pracy, jest gorszy niz jego brak.
+      const visible = node.entries.filter((entry) => !hiddenSections.has(entry.key));
+      // GRUPA BEZ WIDOCZNYCH DZIECI ZNIKA CALA: sam naglowek jest wierszem,
+      // ktory po rozwinieciu nic nie pokazuje, a po klikniecie prowadzi na ekran
+      // wylaczonego modulu.
+      if (visible.length === 0) return [];
+      // Naglowek grupy prowadzi na pierwsze WIDOCZNE dziecko. Adres domyslny
+      // wypisany w modelu moze byc wlasnie tym, ktory schowal przelacznik.
+      const defaultSection = visible.some((entry) => entry.key === node.defaultSection)
+        ? node.defaultSection
+        : visible[0].key;
+      // Trafienie w nazwe grupy przepuszcza WSZYSTKIE jej widoczne dzieci.
       const wholeGroup = matchesStudioQuery(query, t(node.labelKey), words(node.keywordKeys));
       const entries = wholeGroup
-        ? node.entries
-        : node.entries.filter((entry) =>
+        ? visible
+        : visible.filter((entry) =>
             matchesStudioQuery(query, t(entry.labelKey), words(entry.keywordKeys)),
           );
-      return entries.length === 0 ? [] : [{ ...node, entries }];
+      return entries.length === 0 ? [] : [{ ...node, defaultSection, entries }];
     });
-  }, [query, t]);
+  }, [hiddenSections, query, t]);
 
   const searching = query.trim() !== "";
 

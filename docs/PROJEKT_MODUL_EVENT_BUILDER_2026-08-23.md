@@ -1224,3 +1224,94 @@ Testy jednostkowe warstwy czystej: `src/lib/events/__tests__/eventStudioNav.test
    mają stopkę „Zapisz zmiany". To świadoma rozbieżność (zapis zmieniający adres
    publiczny i termin nie ma być efektem ubocznym pisania), ale warta rewizji na
    ekranach, gdzie zapisuje się jeden przełącznik.
+
+### 2026-08-26 (partia 3) — ustawienia rejestracji, bramkowanie modułów, wycofanie starej trasy
+
+**Co powstało**
+
+1. **`Rejestracja w aplikacji › Ustawienia`** — dziesięć parametrów, które do tej
+   zmiany dawały się ustawić **wyłącznie** w starym dialogu
+   `/admin/community/events`: tryb zapisów, przebieg, adres zewnętrzny,
+   widoczność, limit miejsc, próg warstwy, przedsprzedaż (ranga + moment
+   otwarcia), cena i waluta wejściówki, zasada Chatham House oraz adresy
+   transmisji i nagrania
+   (`src/components/admin/events/organisms/EventRegistrationSettingsPanel.tsx`,
+   reguły czyste w `src/lib/events/registrationSettingsDraft.ts`).
+2. **`admin_event_general_save` przyjmuje te kolumny**, a `admin_event_detail`
+   dokłada do odpowiedzi `join_url`, `recording_url`, `rsvp_opens_at`
+   i `early_rsvp_rank`
+   (`supabase/migrations/20260826150000_event_registration_settings_and_features.sql`).
+3. **`admin_event_features_save`** z zamkniętą listą siedmiu modułów
+   (`pages`, `registration`, `tickets`, `sessions`, `meetings`, `onsite`,
+   `sponsors`), zapisujący do `events.features` **wyłącznie wyłączenia**.
+4. **`Funkcje dodatkowe` bramkują naprawdę** — przełącznik chowa pozycję (albo
+   całą grupę) z sidebara studia, a skład grupy liczy się z `EVENT_STUDIO_NAV`,
+   nie z drugiej listy obok
+   (`src/lib/events/eventFeatures.ts`,
+   `src/components/admin/events/organisms/EventFeaturesPanel.tsx`).
+   Trasa ukrytej sekcji **nadal odpowiada**: rama studia podstawia
+   `EventStudioDisabledSection` — nazwę wyłączonego modułu, zdanie o tym, że dane
+   zostały na miejscu, i przycisk do „Funkcji dodatkowych".
+5. **`Treść › Prelegenci`** — jedyny ekran prelegentów, dotąd dostępny tylko ze
+   starej trasy, wszedł do studia bez zmian w komponencie
+   (`EventSpeakersManager` przyjmował `eventId` od początku).
+6. **Ręczne wyzwolenie przypomnień** przeniesione na listę modułu
+   (`EventsListManager`), a **`/admin/community/events` przekierowuje** na
+   `/admin/events/list`; zakładka zniknęła z `CommunitySubNav`.
+7. **`20260826170000_event_general_save_match_table_checks.sql`** dociąga RPC do
+   CHECK-ów tabeli w czterech miejscach (patrz decyzja 2).
+
+**Decyzje projektowe**
+
+1. **Stara trasa dostała przekierowanie dopiero po inwentaryzacji tego, co
+   trzymała sama.** Były to dwie rzeczy — ekran prelegentów i przypomnienia —
+   i obie mają nowe miejsce, zanim stary adres przestał je pokazywać.
+   Przekierowanie postawione wcześniej byłoby cichą utratą funkcji.
+2. **Cztery reguły RPC były LUŹNIEJSZE niż CHECK-i tabeli**, czyli redaktor
+   dostawał surowe `23514 violates check constraint` zamiast zdania po polsku:
+   adres zewnętrzny sprawdzany tylko w trybie `external` (CHECK obowiązuje
+   zawsze — a adres zostaje zapisany także wtedy, gdy tryb go nie używa),
+   `capacity >= 0` przy CHECK-u `> 0`, cena `>= 0` przy CHECK-u `>= 100` groszy,
+   waluta „dowolne trzy litery" przy zbiorze `{PLN, EUR}`. Migracja forward-only
+   zrównuje obie strony; te same reguły stoją drugi raz w module czystym, więc
+   ekran odrzuca wartość, nie czekając na odpowiedź bazy.
+3. **`events.features` bramkuje STUDIO, nie stronę publiczną.** Widocznością dla
+   uczestnika rządzi `event_page_sections` + `event_sections` — dwa przełączniki
+   na tę samą rzecz to dwa miejsca, w których można ją wyłączyć, i jedno, które
+   ktoś pamięta.
+4. **Klucz nieobecny w `features` znaczy „moduł włączony".** Kolumna trzyma
+   wyłącznie wyłączenia, bo przy zapisie kompletu flag moduł dodany w przyszłości
+   znikałby każdemu wydarzeniu zapisanemu przed jego powstaniem. Ekran wysyła
+   komplet siedmiu wartości (kontrakt „klucz pominięty = bez zmian" nie umiałby
+   inaczej **włączyć** modułu z powrotem), a odsianie `true` robi RPC.
+5. **Przypomnienia są akcją MODUŁU, nie wydarzenia.** `run_event_reminders()`
+   przechodzi wszystkie wydarzenia z terminem w oknie powiadomienia — przycisk
+   na ekranie jednego wydarzenia kłamałby o zasięgu.
+6. **Bramka wyłączonego modułu stoi w jednym miejscu — w ramie studia.** Ten sam
+   warunek dopisany do osiemnastu tras rozjechałby się przy pierwszym nowym
+   ekranie: ktoś by o nim zapomniał i dostał sekcję, która chowa się w sidebarze,
+   ale żyje pod adresem.
+7. **Sekcja `Funkcje dodatkowe` nie jest celem żadnego przełącznika** — inaczej
+   wyłączenie byłoby nieodwracalne z panelu. Pilnuje tego test.
+8. **`Ustawienia rejestracji` nie karmią podglądu na żywo.** Dok rysuje wygląd
+   strony wydarzenia; tryb zapisów decyduje, jaki formularz stoi za przyciskiem,
+   a limit miejsc i próg warstwy to reguły dostępu liczone w bazie
+   (`get_event_access`). Podpięcie ich obiecywałoby, że zobaczymy tam skutek
+   zmiany — a podgląd renderuje szkic, nie sesję uczestnika o danej warstwie.
+
+**Dług**
+
+1. **Ekrany wzorca nadal bez odpowiednika:** `Content › People`, `Items`,
+   `Feed channels`, `Discussions`, `In-App registration › Codes`, pozycja `Help`.
+   Wystawcy pozostają poza zakresem decyzją §0.4.
+2. **Podpozycji pięciu grup wzorca nadal nie znamy** (`Meetings`,
+   `Communications`, `Onsite`, `Integrations`, `Analytics` — zwinięte na
+   wszystkich 41 zrzutach).
+3. **Komunikacja i Integracje zostają drogowskazami** — obie czekają na decyzję
+   produktową, nie na kod.
+4. **`check:sql-migration-replay` ma dwa czerwone testy** (para bliźniaków
+   `20260824090000_event_admin_only_guards.sql` + `20260825190728_…`, oba
+   z commita `1586fc1`). Nie pochodzą z tej gałęzi — sprawdzone przez usunięcie
+   naszych migracji ze skanu; ratchet długu do zamknięcia osobno.
+5. **Podgląd na żywo** nadal nie rysuje reklamy ani nazwanych poziomów sponsorów
+   i nie ma kontekstowych odnośników „Edytuj tę stronę" (zrzuty 38–41).

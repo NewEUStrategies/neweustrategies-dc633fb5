@@ -57,6 +57,9 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration/tickets`)).toBe(
       "registrationTickets",
     );
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration/settings`)).toBe(
+      "registrationSettings",
+    );
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/content/conflicts`)).toBe(
       "contentConflicts",
     );
@@ -73,7 +76,7 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     // dziecko). Gdyby nie byl rozpoznawany, `admin.tsx` na czas przekierowania
     // dorysowalby powloke panelu z jej wlasnym sidebarem.
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration`)).toBe(
-      "registrationList",
+      "registrationSettings",
     );
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/content`)).toBe("contentSessions");
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/meetings`)).toBe("meetingsTables");
@@ -99,8 +102,10 @@ describe("rozpoznanie sekcji studia po adresie", () => {
   });
 
   it("zwraca null dla segmentu spoza zamknietej listy sekcji", () => {
+    // „settings" i „tickets" istnieja TYLKO pod grupa - samodzielnie nie sa
+    // adresami studia. „settings" ma az dwoch rodzicow (`registration/settings`
+    // i `meetings/settings`), wiec goly ogon nie moze wskazywac zadnego z nich.
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/settings`)).toBeNull();
-    // „tickets" istnieje TYLKO pod „registration" - samodzielnie nie jest adresem.
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/tickets`)).toBeNull();
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/content/people`)).toBeNull();
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/builder`)).toBeNull();

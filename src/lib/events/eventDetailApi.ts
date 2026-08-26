@@ -49,6 +49,28 @@ export async function saveEventBranding(
   if (error) throw error;
 }
 
+/**
+ * Przelaczniki modulow wydarzenia.
+ *
+ * KOMPLET SIEDMIU BOOLEANOW, nie same wylaczenia: klucz POMINIETY w payloadzie
+ * zachowuje dzisiejszy stan, wiec bez jawnego `true` nie da sie modulu wlaczyc
+ * z powrotem. Kolumna i tak zapisze tylko wylaczenia - RPC wyrzuca `true`
+ * (patrz `eventFeatures.ts`).
+ *
+ * Bez `asJson`: `Record<K, boolean>` jest juz zgodny z `Json`, a wymuszanie
+ * konwersji tam, gdzie typy sie spinaja, chowaloby przyszly rozjazd.
+ */
+export async function saveEventFeatures(
+  eventId: string,
+  features: Record<string, boolean>,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_event_features_save", {
+    p_event_id: eventId,
+    p_features: features,
+  });
+  if (error) throw error;
+}
+
 export type EventStatus = "draft" | "published" | "cancelled";
 
 export async function setEventStatus(eventId: string, status: EventStatus): Promise<EventStatus> {

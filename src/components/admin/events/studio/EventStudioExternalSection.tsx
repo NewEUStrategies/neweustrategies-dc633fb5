@@ -1,23 +1,24 @@
 // Sekcje studia, ktore NIE MAJA jeszcze wlasnej powierzchni per wydarzenie.
 //
-// PUSTA POZYCJA W SIDEBARZE JEST GORSZA NIZ SUCHY EKRAN. Cztery sekcje
-// (`communications`, `integrations`, `features`) stoja w
-// `EVENT_STUDIO_NAV`, bo naleza do mapy studia i redaktor ma je zobaczyc od
-// razu, a nie odkrywac w kolejnym wydaniu. Klikniecie w nie nie moze jednak
-// konczyc sie bialym ekranem: kazda mowi WPROST, gdzie ta praca dzis mieszka.
+// PUSTA POZYCJA W SIDEBARZE JEST GORSZA NIZ SUCHY EKRAN. Dwie sekcje
+// (`communications`, `integrations`) stoja w `EVENT_STUDIO_NAV`, bo naleza do
+// mapy studia i redaktor ma je zobaczyc od razu, a nie odkrywac w kolejnym
+// wydaniu. Klikniecie w nie nie moze jednak konczyc sie bialym ekranem: kazda
+// mowi WPROST, gdzie ta praca dzis mieszka.
 //
 // ODNOSNIK PROWADZI DO MODULU GLOBALNEGO, a nie do jego kopii w studiu.
 // Kampanie, integracje i analityka sa wspolne dla calego serwisu; zduplikowanie
 // ich per wydarzenie znaczyloby dwa miejsca do utrzymania i dwa zrodla prawdy
 // o tym samym kluczu API.
 //
-// „Funkcje" NIE MAJA GLOBALNEGO ODPOWIEDNIKA. Kolumna `events.features` istnieje
-// od migracji `20260826090000_event_studio_general.sql`, ale ekran przelacznikow
-// jeszcze nie - wiec ta jedna sekcja konczy sie na zdaniu o stanie. Przycisk
-// prowadzacy donikad byloby gorszy niz jego brak.
+// „FUNKCJI DODATKOWYCH" TU JUZ NIE MA. Ta sekcja miala wlasny wariant tego
+// drogowskazu, dopoki nie istnial ekran przelacznikow modulow; dzis stoi za nia
+// `EventFeaturesPanel`, ktory realnie zapisuje `events.features`. Zostawiona
+// galaz klamalaby o zakresie tego komponentu - i przy nastepnej zmianie ktos
+// szukalby, ktory z dwoch ekranow „Funkcji" widzi redaktor.
 //
-// JEDEN KOMPONENT NA CZTERY SEKCJE. Cztery prawie identyczne pliki rozjechalyby
-// sie na pierwszej zmianie ukladu; roznica miedzy nimi to dwa klucze i18n
+// JEDEN KOMPONENT NA DWIE SEKCJE. Prawie identyczne pliki rozjechalyby sie
+// na pierwszej zmianie ukladu; roznica miedzy nimi to dwa klucze i18n
 // i adres docelowy, czyli DANE, a nie kod.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -30,7 +31,7 @@ import {
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Podzbior `EVENT_STUDIO_SECTIONS` bez wlasnej powierzchni w studiu. */
-export type EventStudioExternalKey = "communications" | "integrations" | "features";
+export type EventStudioExternalKey = "communications" | "integrations";
 
 interface ExternalCopy {
   /** Naglowek ekranu - TA SAMA etykieta, co pozycja w sidebarze. */
@@ -51,11 +52,6 @@ const EXTERNAL_COPY: Record<EventStudioExternalKey, ExternalCopy> = {
     sectionKey: "adminEvents.studio.sections.integrations",
     titleKey: "adminEvents.studio.external.integrationsTitle",
     descriptionKey: "adminEvents.studio.external.integrationsDescription",
-  },
-  features: {
-    sectionKey: "adminEvents.studio.sections.features",
-    titleKey: "adminEvents.studio.external.featuresTitle",
-    descriptionKey: "adminEvents.studio.external.featuresDescription",
   },
 };
 
@@ -92,9 +88,6 @@ function ExternalModuleButton({
           </Link>
         </Button>
       );
-    // „Funkcje" celowo bez przycisku - patrz naglowek pliku.
-    case "features":
-      return null;
   }
 }
 
@@ -105,14 +98,12 @@ export function EventStudioExternalSection({ section }: { section: EventStudioEx
   return (
     <EventStudioPage title={t(copy.sectionKey)}>
       <EventStudioRow label={t(copy.titleKey)} description={t(copy.descriptionKey)}>
-        {section === "features" ? null : (
-          <div className="flex flex-wrap justify-end gap-2">
-            <ExternalModuleButton
-              section={section}
-              label={t("adminEvents.studio.external.openModule")}
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <ExternalModuleButton
+            section={section}
+            label={t("adminEvents.studio.external.openModule")}
+          />
+        </div>
       </EventStudioRow>
     </EventStudioPage>
   );

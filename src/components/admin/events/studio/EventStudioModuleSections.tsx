@@ -34,6 +34,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
+import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";
 import { AgendaConflictsPanel } from "@/components/admin/events/organisms/AgendaConflictsPanel";
 import { AgendaRoomsPanel } from "@/components/admin/events/organisms/AgendaRoomsPanel";
 import { AgendaSessionsPanel } from "@/components/admin/events/organisms/AgendaSessionsPanel";
@@ -59,6 +60,7 @@ import { SponsorsListPanel } from "@/components/admin/events/organisms/SponsorsL
 import { eventTimeZone } from "@/lib/events/timezone";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
+import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
@@ -122,6 +124,28 @@ export function EventContentSessionsSection({ row }: { row: AdminEventDetailRow 
   return (
     <ModuleScreen titleKey="adminEventAgenda.nav.sessions">
       <AgendaSessionsPanel key={row.id} eventId={row.id} timeZoneLabel={timeZoneLabel} />
+    </ModuleScreen>
+  );
+}
+
+/**
+ * Prelegenci wydarzenia.
+ *
+ * OSTATNI EKRAN, KTORY TRZYMAL PRZY ZYCIU STARA TRASE. Katalog prelegentow
+ * mieszkal wylacznie w `/admin/community/events` - wewnatrz dialogu edycji
+ * wydarzenia, do ktorego dochodzilo sie przez wyszukanie wydarzenia po slugu.
+ * Komponent od poczatku przyjmuje `eventId`, wiec brakowalo mu tylko miejsca,
+ * w ktorym wydarzenie jest juz wybrane.
+ *
+ * Slownik jest ten sam, co w sekcji spolecznosci (`adminCommunityEvents`) -
+ * komponent wozi swoje teksty i nie ma powodu ich przepisywac po to, zeby
+ * stanely pod innym korzeniem.
+ */
+export function EventContentSpeakersSection({ row }: { row: AdminEventDetailRow }) {
+  ensureCommunityEventsI18n();
+  return (
+    <ModuleScreen titleKey="adminEvents.nav.speakers">
+      <EventSpeakersManager key={row.id} eventId={row.id} />
     </ModuleScreen>
   );
 }

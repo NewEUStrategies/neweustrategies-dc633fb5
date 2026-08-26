@@ -26,12 +26,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { eventStudioSectionFromPath } from "@/lib/events/eventStudioNav";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { eventBrandingFromJson } from "@/lib/events/eventBrandingDraft";
+import {
+  eventFeatureHidingSection,
+  eventFeaturesFromJson,
+  hiddenStudioSections,
+} from "@/lib/events/eventFeatures";
 import { asEventFormat } from "@/lib/events/eventTypes";
 import { adminEventStudioErrorMessage } from "@/lib/events/adminEventStudioErrors";
 import { useAdminEventDetail, useSetEventStatus } from "@/lib/events/useAdminEventDetail";
 import type { EventStatus } from "@/lib/events/eventDetailApi";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { uiLang } from "@/lib/i18n/format";
+import { EventStudioDisabledSection } from "@/components/admin/events/studio/EventStudioDisabledSection";
 import { EventStudioSidebar } from "@/components/admin/events/studio/EventStudioSidebar";
 import { EventStudioTopBar } from "@/components/admin/events/studio/EventStudioTopBar";
 import { EventStudioPreview } from "@/components/admin/events/studio/EventStudioPreview";
@@ -66,6 +72,13 @@ export function EventStudioShell({
 
   const row = detailQ.data ?? null;
   const activeSection = eventStudioSectionFromPath(pathname);
+
+  // PRZELACZNIKI MODULOW CZYTA RAMA, nie sidebar i nie sekcja. Rama ma wiersz,
+  // wiec jest jedynym miejscem, w ktorym stan `events.features` da sie policzyc
+  // RAZ - a odpowiada on na dwa pytania naraz: ktorych pozycji sidebar ma nie
+  // rysowac i czy ekran, na ktorym stoimy, nalezy do wylaczonego modulu.
+  const features = useMemo(() => eventFeaturesFromJson(row?.features ?? null), [row]);
+  const hiddenSections = useMemo(() => hiddenStudioSections(features), [features]);
 
   // Podklad podgladu to stan ZAPISANY; szkic ekranu naklada sie na niego
   // w kontekscie, wiec sekcja, ktora nic nie wnosi, nadal pokazuje prawde.
@@ -149,6 +162,14 @@ export function EventStudioShell({
   // Szkic nie ma strony publicznej - odnosnik do niej prowadzilby na 404.
   const publicHref = status === "published" && row.slug !== "" ? `/events/${row.slug}` : null;
 
+  // ADRES UKRYTEJ SEKCJI NADAL DZIALA. Chowamy pozycje w nawigacji, nie ekran:
+  // link z zakladki przegladarki albo ze zgloszenia do wsparcia nie moze
+  // prowadzic na pusta strone. Zamiast panelu pokazujemy wtedy jedno zdanie
+  // o wylaczonym modulu i odnosnik do „Funkcji dodatkowych" - powod stoi
+  // w naglowku `EventStudioDisabledSection`.
+  const hiddenFeature =
+    activeSection === null ? null : eventFeatureHidingSection(features, activeSection);
+
   const changeStatus = (next: EventStatus) => {
     setStatus.mutate(next, {
       onSuccess: () => toast.success(t(`adminEvents.studio.toasts.status.${next}`)),
@@ -172,9 +193,16 @@ export function EventStudioShell({
             eventTitle={title}
             startsAtLabel={startsAtLabel}
             activeSection={activeSection}
+            hiddenSections={hiddenSections}
             publicHref={publicHref}
           />
-          <main className="min-w-0 flex-1 pb-80">{children}</main>
+          <main className="min-w-0 flex-1 pb-80">
+            {hiddenFeature === null ? (
+              children
+            ) : (
+              <EventStudioDisabledSection eventId={eventId} feature={hiddenFeature} />
+            )}
+          </main>
         </div>
         <EventStudioPreview
           open={previewOpen}

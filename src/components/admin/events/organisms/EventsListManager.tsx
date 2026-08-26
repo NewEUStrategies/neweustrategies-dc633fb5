@@ -22,6 +22,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "@/lib/lucide-shim";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
@@ -44,6 +46,8 @@ import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
 import { useAdminEventCounts, useAdminEventsList } from "@/lib/events/useAdminEvents";
 import { useEventTypes } from "@/lib/events/useEventTypes";
 import type { AdminEventListRow } from "@/lib/events/eventsListApi";
+import { runEventReminders } from "@/lib/admin/community";
+import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Wartość droplisty znaczy „wszystkie" - Radix nie przyjmuje pustego stringa. */
@@ -58,6 +62,10 @@ export function EventsListManager({
   now: Date;
 }) {
   ensureAdminEventsI18n();
+  // Slownik sekcji spolecznosci: akcja przypomnien PRZENIOSLA sie tutaj razem
+  // ze swoimi tekstami. Drugi klucz na ten sam napis (z formami mnogimi!)
+  // rozjechalby sie przy pierwszej korekcie.
+  ensureCommunityEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const navigate = useNavigate();
@@ -142,6 +150,17 @@ export function EventsListManager({
   const pageSize = eventListPageSize(params);
   const filtered = hasEventListFilters(params) || activeTab !== "all";
 
+  // PRZYPOMNIENIA SA AKCJA MODULU, NIE WYDARZENIA. `run_event_reminders()`
+  // przechodzi WSZYSTKIE wydarzenia, ktorym termin przypomnienia wlasnie minal -
+  // ten sam przycisk na ekranie jednego wydarzenia klamalby o zasiegu.
+  // Harmonogram robi to sam (`jobsTick`); przycisk jest dla sytuacji, w ktorej
+  // trzeba popchnac kolejke wczesniej i widziec wynik od razu.
+  const remindersM = useMutation({
+    mutationFn: runEventReminders,
+    onSuccess: (count) => toast.success(t("adminCommunityEvents.toasts.remindersSent", { count })),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -152,10 +171,20 @@ export function EventsListManager({
         {/* Tworzenie ma WŁASNY ADRES (`/admin/events/new`), więc redaktor może
             wrócić „wstecz", odświeżyć i przesłać link - okno modalne odcinało
             formularz od historii przeglądarki. */}
-        <Button size="sm" onClick={() => void navigate({ to: "/admin/events/new" })}>
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {t("adminEvents.list.createAction")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={remindersM.isPending}
+            onClick={() => remindersM.mutate()}
+          >
+            {t("adminCommunityEvents.remindersAction")}
+          </Button>
+          <Button size="sm" onClick={() => void navigate({ to: "/admin/events/new" })}>
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("adminEvents.list.createAction")}
+          </Button>
+        </div>
       </div>
 
       <EventListFilters

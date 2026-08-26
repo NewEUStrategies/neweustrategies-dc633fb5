@@ -1,25 +1,35 @@
-// /admin/events/<id>/features - sekcja „Features" studia wydarzenia.
+// /admin/events/<id>/features - sekcja „Funkcje dodatkowe" studia wydarzenia.
 //
-// SEKCJA BEZ WŁASNEJ POWIERZCHNI PER WYDARZENIE - dlaczego mimo to istnieje
-// i dokąd prowadzi, tłumaczy nagłówek `EventStudioExternalSection`.
+// TRASA JEST CIENKA, jak siostrzane ekrany ustawień: wiersz wydarzenia wczytuje
+// RAMA studia i to ona pokazuje spinner oraz zdanie „nie znaleziono". Sekcja,
+// która powtórzyłaby jedno i drugie, dawałaby dwa spinnery pod sobą i dwa
+// komunikaty o tym samym braku.
 //
-// TRASA NIE PYTA O WIERSZ WYDARZENIA: ekran jest drogowskazem, nie formularzem,
-// więc zapytanie o dane, których nie renderuje, byłoby wyłącznie kosztem.
+// TA SEKCJA NIGDY NIE JEST UKRYTA. Przełączniki chowają pozycje innych sekcji;
+// ekran, na którym się je odkręca, musi zostać dostępny zawsze - inaczej
+// wyłączenie modułu byłoby nieodwracalne z panelu.
 import { createFileRoute } from "@tanstack/react-router";
 
-import { EventStudioExternalSection } from "@/components/admin/events/studio/EventStudioExternalSection";
+import { EventFeaturesPanel } from "@/components/admin/events/organisms/EventFeaturesPanel";
+import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 
 export const Route = createFileRoute("/admin/events_/$eventId/features")({
   head: () => ({
     meta: [
       { title: "Features · Event · Admin" },
       { name: "robots", content: "noindex, nofollow" },
-      { name: "description", content: "State of the per-event module switches." },
+      { name: "description", content: "Per-event module switches of the event studio." },
     ],
   }),
   component: EventStudioFeaturesPage,
 });
 
 function EventStudioFeaturesPage() {
-  return <EventStudioExternalSection section="features" />;
+  const { eventId } = Route.useParams();
+  // Ten sam klucz cache, co w ramie - React Query oddaje wczytany wiersz,
+  // a nie drugie zapytanie o to samo wydarzenie.
+  const detailQ = useAdminEventDetail(eventId);
+  const row = detailQ.data ?? null;
+  if (row === null) return null;
+  return <EventFeaturesPanel row={row} />;
 }

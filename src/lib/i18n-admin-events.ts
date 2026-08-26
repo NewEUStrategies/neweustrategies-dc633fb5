@@ -261,6 +261,12 @@ export const adminEventsPl = {
         branding: "Branding",
         sponsors: "Sponsorzy i reklama",
         terms: "Regulaminy",
+        // WYJATEK W TEJ GALEZI: pozostale PODPOZYCJE grup biora etykiety ze
+        // slownikow swoich modulow, bo byly wczesniej zakladkami i te napisy juz
+        // istnialy. „Ustawienia rejestracji" sa ekranem NOWYM - nie ma napisu,
+        // z ktorym moglyby sie rozjechac, wiec stoja tam, gdzie etykiety
+        // pozostalych ekranow studia.
+        registrationSettings: "Ustawienia rejestracji",
         communications: "Komunikacja",
         integrations: "Integracje",
         analytics: "Analityka",
@@ -304,6 +310,8 @@ export const adminEventsPl = {
         // Słowa PODPOZYCJI. Klucze wyżej opisują całe grupy („networking"
         // znajduje grupę „Spotkania"), te niżej trafiają w jeden ekran
         // („obłożenie" prowadzi wprost do statystyk spotkań).
+        registrationSettings:
+          "tryb zapisów, RSVP, widoczność, limit miejsc, pojemność, próg warstwy, cena wejściówki, waluta, transmisja, link do spotkania, nagranie, Chatham House",
         registrationList: "zgłoszenia, uczestnicy, lista zapisów, eksport, statusy",
         registrationTickets: "bilety, wejściówki, pule, cennik, limity miejsc",
         registrationForm: "formularz, pola zgłoszenia, pytania, zgody w zapisie",
@@ -361,6 +369,8 @@ export const adminEventsPl = {
         pageDetached: "Strona odpięta od wydarzenia - treść została",
         pageOrderSaved: "Kolejność menu zapisana",
         brandingSaved: "Branding wydarzenia zapisany",
+        featuresSaved: "Funkcje dodatkowe zapisane",
+        registrationSettingsSaved: "Ustawienia rejestracji zapisane",
         visibilitySaved: "Widoczność wydarzenia zapisana",
         status: {
           draft: "Wydarzenie wróciło do szkiców",
@@ -396,6 +406,31 @@ export const adminEventsPl = {
         invalidLanguages: "Wskaż przynajmniej jeden język treści wydarzenia.",
         invalidGuestMode:
           "Wybierz, co widzi osoba niezapisana: nic, opis i agendę albo pełną treść bez kontaktów.",
+        // ODMOWY EKRANU „USTAWIENIA REJESTRACJI". Każda z nich ma odpowiednik
+        // w regułach czystych (`lib/events/registrationSettingsDraft.ts`), więc
+        // redaktor normalnie ich nie zobaczy - te zdania są dla przypadku, w
+        // którym baza jest OSTRZEJSZA od ekranu (zapis z innego klienta, stara
+        // karta w przeglądarce, import). Bez nich mapper degraduje do `unknown`
+        // i powód znika.
+        invalidRegistrationMode:
+          "Tryb zapisów to jedno z czterech: zapis jednym kliknięciem, formularz zgłoszenia, rejestracja zewnętrzna albo bez zapisów.",
+        invalidRegistrationFlow:
+          "Przebieg zapisu jest natychmiastowy albo wymaga akceptacji organizatora.",
+        externalUrlRequired:
+          "Rejestracja zewnętrzna zapisuje ludzi w innym serwisie, więc bez adresu nie ma gdzie ich odesłać. Podaj adres albo zmień tryb zapisów.",
+        externalUrlInvalid:
+          "Adres rejestracji zewnętrznej musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
+        invalidVisibility: "Widoczność wydarzenia to publiczna albo tylko dla członków.",
+        invalidCapacity:
+          "Limit miejsc musi być liczbą większą od zera. Puste pole znaczy „bez limitu”.",
+        invalidTierRank: "Ranga warstwy nie może być ujemna. Zero znaczy „bez progu”.",
+        invalidPrice:
+          "Cena nie może być ujemna, a najniższa kwota do zapłaty to 1,00. Puste pole znaczy „wydarzenie bezpłatne”.",
+        invalidCurrency: "Waluta zapisuje się trzyliterowym kodem - dopuszczone są PLN i EUR.",
+        invalidJoinUrl:
+          "Adres transmisji musi zaczynać się od https://. Adres http to mieszana treść i ostrzeżenie przeglądarki dokładnie w chwili, w której uczestnik wchodzi na transmisję.",
+        invalidRecordingUrl:
+          "Adres nagrania musi zaczynać się od https://. Wyczyść pole, jeśli nagrania jeszcze nie ma.",
         invalidStatus: "Status wydarzenia to szkic, opublikowane albo odwołane.",
         invalidAppearance: "Motyw wydarzenia może być jasny albo ciemny.",
         invalidColor:
@@ -412,6 +447,8 @@ export const adminEventsPl = {
           "Brakuje wskazania strony albo wydarzenia. Odśwież listę podstron i spróbuj jeszcze raz.",
         invalidGroup:
           "Jedna z zaznaczonych grup nie należy do tego wydarzenia. Odśwież ekran i zaznacz grupy jeszcze raz.",
+        invalidFeature:
+          "Moduł może być tylko włączony albo wyłączony. Odśwież ekran i przełącz go jeszcze raz.",
         forbidden:
           "Twoje konto nie ma uprawnień redaktora w tej organizacji. Poproś administratora o dostęp.",
         unknown:
@@ -482,6 +519,120 @@ export const adminEventsPl = {
         copyId: "Skopiuj identyfikator",
         copyFailed:
           "Przeglądarka nie pozwoliła skopiować identyfikatora. Zaznacz go i skopiuj ręcznie.",
+      },
+
+      // EKRAN „USTAWIENIA REJESTRACJI" - pierwsza podpozycja grupy „Rejestracja
+      // w aplikacji". Te dziesięć pól dawało się do tej zmiany ustawić WYŁĄCZNIE
+      // w starym dialogu `/admin/community/events`, więc studio pytało o tytuł
+      // i termin, a o to, czy w ogóle da się zapisać - inny formularz w innej
+      // sekcji panelu.
+      //
+      // POWODY ODRZUCENIA I OSTRZEŻENIA SĄ W TEJ SAMEJ GAŁĘZI, co etykiety, a nie
+      // obok niej jak w `adminEvents.general`. Ten ekran ma jedno źródło reguł
+      // (`lib/events/registrationSettingsDraft.ts`) i jedno źródło napisów -
+      // rozdzielenie ich miało sens, gdy `studio.general` opisywało pola, a
+      // `general.errors` reguły wspólne ze starym dialogiem; tutaj wspólnego
+      // formularza nie ma.
+      registrationSettings: {
+        mode: "Tryb zapisów",
+        modeDescription:
+          "Decyduje, co się stanie, gdy uczestnik kliknie „Zapisz się” na stronie wydarzenia. To jedno ustawienie ustawia sens trzech pozostałych ekranów tej grupy.",
+        modeHints: {
+          rsvp: "Jedno kliknięcie i uczestnik jest na liście. Bez pytań i bez formularza - do webinarów, briefingów i spotkań otwartych.",
+          form: "Uczestnik wypełnia formularz zgłoszenia, którego pola układasz w „Formularzu zapisu”.",
+          external:
+            "Zapisy prowadzi inny serwis. Przycisk na stronie odsyła pod podany adres, a lista zgłoszeń w panelu zostaje pusta.",
+          none: "Wydarzenie informacyjne: strona jest, przycisku zapisu nie ma.",
+        },
+        externalUrlLabel: "Adres rejestracji zewnętrznej",
+        externalUrlHint:
+          "Pełny adres https, najwyżej 2048 znaków. Pole widać tylko przy tym trybie, ale adres zostaje zapisany także po zmianie trybu - nie musisz go wpisywać drugi raz, gdy wrócisz.",
+
+        flow: "Przebieg zapisu",
+        flowDescription: "Czy zgłoszenie wchodzi na listę od razu, czy czeka na Twoją decyzję.",
+        flowHints: {
+          instant:
+            "Zgłoszenie jest potwierdzone natychmiast: uczestnik dostaje wejściówkę i wpis do kalendarza.",
+          approval:
+            "Zgłoszenie czeka na akceptację w „Zgłoszeniach”, a uczestnik widzi status „w rozpatrzeniu”.",
+        },
+
+        access: "Dostęp",
+        accessDescription: "Kto widzi wydarzenie i kto może się na nie zapisać.",
+        accessHint:
+          "Próg warstwy i pierwszeństwo liczy baza przy każdym wejściu na stronę. To nie jest ukrycie sekcji w panelu, tylko realna reguła dostępu.",
+        visibilities: {
+          public: "Publiczne",
+          members: "Tylko dla członków",
+        },
+        visibilityHints: {
+          public:
+            "Stronę wydarzenia widzi każdy, także osoba niezalogowana, i trafia ona do wyszukiwarek.",
+          members:
+            "Wydarzenie widzą wyłącznie zalogowani członkowie - poza logowaniem nie ma go ani w katalogu, ani w wyszukiwarkach.",
+        },
+        minTierLabel: "Próg warstwy członkostwa",
+        minTierHint: "Najniższa ranga warstwy, która może się zapisać. Zero znaczy „bez progu”.",
+        earlyRankLabel: "Pierwszeństwo od rangi",
+        earlyRankHint:
+          "Warstwy o tej randze i wyższej zapisują się PRZED otwarciem zapisów. Puste pole znaczy „bez pierwszeństwa”.",
+        rsvpOpensLabel: "Otwarcie zapisów",
+        rsvpOpensHint: "Puste pole znaczy „zapisy otwarte od publikacji wydarzenia”.",
+        chathamHouseLabel: "Zasada Chatham House",
+        chathamHouseHint:
+          "Wypowiedzi wolno cytować bez przypisania do osoby. Uczestnik widzi tę informację przy zapisie i w materiałach po spotkaniu.",
+
+        seats: "Miejsca i cena",
+        seatsDescription: "Limit zapisów i kwota, którą uczestnik płaci za wejściówkę.",
+        capacityLabel: "Limit miejsc",
+        capacityHint:
+          "Puste pole znaczy „bez limitu”. Po wyczerpaniu miejsc kolejne zgłoszenia trafiają na listę oczekujących.",
+        priceLabel: "Cena wejściówki",
+        priceHint:
+          "Kwota w jednostkach głównych, na przykład 250,00 - nie w groszach. Puste pole znaczy „wydarzenie bezpłatne”; najniższa kwota do zapłaty to 1,00.",
+        currencyLabel: "Waluta",
+
+        stream: "Transmisja i nagranie",
+        streamDescription:
+          "Dwa adresy, które dostaje wyłącznie uczestnik z dostępem. Nie ma ich w publicznym HTML-u strony wydarzenia.",
+        joinUrlLabel: "Adres transmisji",
+        joinUrlHint:
+          "Pełny adres https. Serwer oddaje go dopiero po sprawdzeniu dostępu (get_event_access), więc w źródle strony osoby niezapisanej go nie ma. Adres http to mieszana treść i ostrzeżenie przeglądarki dokładnie w chwili wejścia na transmisję.",
+        recordingUrlLabel: "Adres nagrania",
+        recordingUrlHint:
+          "Pełny adres https, udostępniany po wydarzeniu tą samą bramką dostępu co transmisja. Puste pole znaczy „nagrania nie ma”.",
+
+        errors: {
+          externalUrlRequired:
+            "Ten tryb zapisuje ludzi w innym serwisie - podaj adres, pod który mamy ich odesłać.",
+          externalUrlInvalid: "Adres musi zaczynać się od https:// i nie zawierać spacji.",
+          externalUrlTooLong: "Adres może mieć najwyżej 2048 znaków.",
+          tierRankInvalid: "Ranga warstwy to liczba całkowita nie mniejsza od zera.",
+          capacityInvalid:
+            "Limit miejsc to liczba całkowita większa od zera. Zostaw pole puste, żeby nie ustawiać limitu.",
+          priceInvalid:
+            "Kwotę zapisz cyframi, z najwyżej dwiema cyframi po przecinku - na przykład 250,00.",
+          priceTooLow:
+            "Najniższa kwota do zapłaty to 1,00. Zostaw pole puste, jeśli wydarzenie ma być bezpłatne.",
+          joinUrlInvalid: "Adres transmisji musi być pełnym adresem https, najwyżej 2048 znaków.",
+          recordingUrlInvalid:
+            "Adres nagrania musi być pełnym adresem https, najwyżej 2048 znaków.",
+        },
+
+        // OSTRZEŻENIE TO NIE BŁĄD: każde z tych czterech zdań opisuje SKUTEK
+        // ustawienia, które da się zapisać, ale nie robi tego, czego się po nim
+        // oczekuje. Blokada zapisu zmuszałaby do wpisania adresu transmisji,
+        // zanim jest znany link ze Zooma.
+        warnings: {
+          onlineWithoutJoinUrl:
+            "Wydarzenie jest online i przyjmuje zapisy, ale nie ma adresu transmisji - uczestnik dostanie potwierdzenie i nie będzie miał gdzie wejść.",
+          earlyRankWithoutOpening:
+            "Pierwszeństwo warstwy nic nie robi, dopóki zapisy nie mają daty otwarcia - nie ma przed czym być pierwszym.",
+          pricedWithoutRegistration:
+            "Cena jest ustawiona, a tryb zapisów to „bez zapisów” - nie ma jak jej zapłacić, bo nie ma zapisu.",
+          chathamHouseOnPublicPage:
+            "Zasada Chatham House przy publicznej stronie jest obietnicą, której strona nie dowozi: treść czyta każdy, także ten, kto zasady nie przyjął.",
+        },
       },
 
       pages: {
@@ -670,6 +821,62 @@ export const adminEventsPl = {
         noDate: "Termin do ustalenia",
       },
 
+      // EKRAN „FUNKCJE DODATKOWE" - siedem przełączników modułów wydarzenia.
+      // OPIS MUSI POWIEDZIEĆ, CZEGO PRZEŁĄCZNIK NIE ROBI: „wyłącz" czyta się jak
+      // „usuń dane" albo jak „ukryj przed uczestnikiem", a nie robi ani jednego,
+      // ani drugiego - chowa POZYCJĘ W TYM PANELU. Dwa zdania w opisie sekcji są
+      // więc częścią kontrolki, a nie ozdobą.
+      features: {
+        modulesLabel: "Moduły tego wydarzenia",
+        modulesDescription:
+          "Wyłączenie CHOWA sekcję w tym panelu i nie usuwa żadnych danych - zgłoszenia, sesje, stoliki i dziennik odprawy zostają na miejscu i wracają razem z pozycją po ponownym włączeniu.",
+        notPublicVisibility:
+          "To NIE jest widoczność publiczna. Tym, co widzi uczestnik, rządzą strony i sekcje wydarzenia - dwa przełączniki na tę samą rzecz znaczyłyby dwa miejsca, w których można ją wyłączyć, i jedno, które ktoś pamięta.",
+        routesStayAlive:
+          "Adres wyłączonej sekcji nadal działa: link zapisany w zakładkach albo wysłany współpracownikowi pokaże zdanie o wyłączonym module, a nie pusty ekran.",
+
+        labels: {
+          pages: "Strony i menu",
+          registration: "Rejestracja w aplikacji",
+          tickets: "Bilety i wejściówki",
+          sessions: "Agenda i sesje",
+          meetings: "Spotkania 1:1",
+          onsite: "Odprawa na miejscu",
+          sponsors: "Sponsorzy i reklama",
+        },
+
+        // ZDANIE MOWI, CO ZNIKNIE PO WYŁĄCZENIU. Sama etykieta „Spotkania" nie
+        // różni stolików od wniosków o rozmowę, a to jest dokładnie ta różnica,
+        // której redaktor szuka przed kliknięciem.
+        hints: {
+          pages:
+            "Znika builder podstron i menu wydarzenia. Strona główna wydarzenia zostaje - wydarzenie na jednej stronie.",
+          registration:
+            "Znikają zgłoszenia, formularz zapisu i wejściówki. Dla wydarzeń, które prowadzą zapisy poza tą aplikacją albo nie prowadzą ich wcale.",
+          tickets:
+            "Znika ekran wejściówek, a zapisy zostają - wydarzenie z wolnym wstępem, bez pul i bez cennika.",
+          sessions:
+            "Znikają sesje, ścieżki, sale i kolizje - wydarzenie jednoblokowe, bez agendy do ułożenia.",
+          meetings:
+            "Znikają stoliki, siatka dostępności i wnioski o rozmowę 1:1 - wydarzenie bez giełdy spotkań.",
+          onsite:
+            "Znikają odprawa, skanery, punkty kontrolne, urządzenia i identyfikatory - webinar nie ma wejścia na miejscu.",
+          sponsors:
+            "Znika lista sponsorów i pakietów wraz z materiałami reklamowymi tego wydarzenia.",
+        },
+
+        // EKRAN SEKCJI, KTÓREJ MODUŁ JEST WYŁĄCZONY. Adres działa dalej, więc
+        // zdanie musi powiedzieć dwie rzeczy: dlaczego pozycji nie ma w pasie
+        // i że dane są na miejscu. Nazwa modułu wchodzi interpolacją - „ten
+        // moduł" kazałoby zgadywać, który z siedmiu przełączników odkręcić.
+        disabled: {
+          title: "Moduł wyłączony dla tego wydarzenia",
+          description:
+            "Moduł „{{module}}” jest w tym wydarzeniu wyłączony, więc jego pozycja nie stoi w nawigacji - dane zostały na miejscu i wrócą razem z nią.",
+          action: "Otwórz Funkcje dodatkowe",
+        },
+      },
+
       // SEKCJE, KTÓRYCH PRACA DZIEJE SIĘ DZIŚ W MODULE GLOBALNYM PANELU.
       // Opis mówi, GDZIE ta praca jest teraz i co przyjdzie per wydarzenie -
       // pusty ekran z napisem „wkrótce" nie mówi ani jednego, ani drugiego,
@@ -684,9 +891,6 @@ export const adminEventsPl = {
         analyticsTitle: "Analityka",
         analyticsDescription:
           "Ruch, źródła wejść i konwersje zbiera moduł analityki panelu. Per wydarzenie przyjdą tu lejek rejestracji, frekwencja na sesjach i raport po wydarzeniu.",
-        featuresTitle: "Funkcje dodatkowe",
-        featuresDescription:
-          "Włączanie modułów i rozszerzeń należy dziś do ustawień organizacji i planu. Per wydarzenie przyjdzie tu wybór, które funkcje są aktywne na tym wydarzeniu.",
         openModule: "Otwórz moduł",
       },
     },
@@ -1007,6 +1211,7 @@ export const adminEventsEn = {
         branding: "Branding",
         sponsors: "Sponsors and advertising",
         terms: "Terms",
+        registrationSettings: "Registration settings",
         communications: "Communications",
         integrations: "Integrations",
         analytics: "Analytics",
@@ -1037,6 +1242,8 @@ export const adminEventsEn = {
         analytics: "statistics, reports, attendance, charts, data",
         features: "modules, extensions, options, extra settings",
 
+        registrationSettings:
+          "registration mode, RSVP, visibility, seat limit, capacity, tier threshold, ticket price, currency, stream, join link, recording, Chatham House",
         registrationList: "applications, attendees, sign-up list, export, statuses",
         registrationTickets: "tickets, passes, pools, pricing, seat limits",
         registrationForm: "form, application fields, questions, sign-up consents",
@@ -1089,6 +1296,8 @@ export const adminEventsEn = {
         pageDetached: "The page is unpinned from the event - the content stayed",
         pageOrderSaved: "Menu order saved",
         brandingSaved: "Event branding saved",
+        registrationSettingsSaved: "Registration settings saved",
+        featuresSaved: "Extra features saved",
         visibilitySaved: "Event visibility saved",
         status: {
           draft: "The event is back in drafts",
@@ -1117,6 +1326,25 @@ export const adminEventsEn = {
         invalidLanguages: "Pick at least one content language for the event.",
         invalidGuestMode:
           "Choose what a non-attendee sees: nothing, the description and agenda, or the full content without contacts.",
+        invalidRegistrationMode:
+          "The registration mode is one of four: one-click sign-up, application form, external registration or no sign-ups.",
+        invalidRegistrationFlow:
+          "The sign-up flow is either instant or waiting for the organiser to approve it.",
+        externalUrlRequired:
+          "External registration signs people up somewhere else, so without an address there is nowhere to send them. Give the address or change the registration mode.",
+        externalUrlInvalid:
+          "The external registration address must start with https:// and stay under 2048 characters.",
+        invalidVisibility: "Event visibility is either public or members only.",
+        invalidCapacity:
+          "The seat limit must be a number greater than zero. An empty field means no limit.",
+        invalidTierRank: "A tier rank cannot be negative. Zero means no threshold.",
+        invalidPrice:
+          "The price cannot be negative and the lowest payable amount is 1.00. An empty field means the event is free.",
+        invalidCurrency: "The currency takes a three-letter code - PLN and EUR are allowed.",
+        invalidJoinUrl:
+          "The stream address must start with https://. An http address is mixed content and a browser warning at the exact moment an attendee joins the stream.",
+        invalidRecordingUrl:
+          "The recording address must start with https://. Clear the field if there is no recording yet.",
         invalidStatus: "The event status is draft, published or cancelled.",
         invalidAppearance: "The event appearance can be light or dark.",
         invalidColor:
@@ -1129,6 +1357,7 @@ export const adminEventsEn = {
           "The page or the event is missing from the request. Refresh the subpage list and try again.",
         invalidGroup:
           "One of the ticked groups does not belong to this event. Refresh the screen and tick the groups again.",
+        invalidFeature: "A module can only be on or off. Refresh the screen and switch it again.",
         forbidden:
           "Your account is not an editor in this organisation. Ask an administrator for access.",
         unknown:
@@ -1195,6 +1424,105 @@ export const adminEventsEn = {
           "Quote it in a support request or in an integration setup - it points at this event unambiguously.",
         copyId: "Copy the id",
         copyFailed: "The browser refused to copy the id. Select it and copy it by hand.",
+      },
+
+      registrationSettings: {
+        mode: "Registration mode",
+        modeDescription:
+          "It decides what happens when an attendee clicks Sign up on the event page. This single setting gives meaning to the other three screens in this group.",
+        modeHints: {
+          rsvp: "One click and the attendee is on the list. No questions, no form - for webinars, briefings and open meetings.",
+          form: "The attendee fills in an application form whose fields you arrange in Sign-up form.",
+          external:
+            "Another service runs the sign-ups. The button on the page sends people to the address you give, and the application list in the panel stays empty.",
+          none: "An informational event: the page exists, the sign-up button does not.",
+        },
+        externalUrlLabel: "External registration address",
+        externalUrlHint:
+          "A full https address, at most 2048 characters. The field only shows for this mode, but the address is kept after you switch modes - you do not have to type it again when you come back.",
+
+        flow: "Sign-up flow",
+        flowDescription:
+          "Whether an application joins the list right away or waits for your decision.",
+        flowHints: {
+          instant:
+            "The application is confirmed immediately: the attendee gets a pass and a calendar entry.",
+          approval:
+            "The application waits for approval in Applications, and the attendee sees the status under review.",
+        },
+
+        access: "Access",
+        accessDescription: "Who sees the event and who can sign up for it.",
+        accessHint:
+          "The tier threshold and the early access are computed by the database on every visit. This is not hiding a section in the panel - it is a real access rule.",
+        visibilities: {
+          public: "Public",
+          members: "Members only",
+        },
+        visibilityHints: {
+          public: "Anyone sees the event page, signed in or not, and search engines index it.",
+          members:
+            "Only signed-in members see the event - outside the login it appears neither in the catalogue nor in search engines.",
+        },
+        minTierLabel: "Membership tier threshold",
+        minTierHint: "The lowest tier rank allowed to sign up. Zero means no threshold.",
+        earlyRankLabel: "Early access from rank",
+        earlyRankHint:
+          "Tiers at this rank and above sign up BEFORE the sign-ups open. An empty field means no early access.",
+        rsvpOpensLabel: "Sign-ups open",
+        rsvpOpensHint: "An empty field means sign-ups are open from the moment of publication.",
+        chathamHouseLabel: "Chatham House rule",
+        chathamHouseHint:
+          "Remarks may be quoted without attribution. The attendee sees this at sign-up and in the post-meeting materials.",
+
+        seats: "Seats and price",
+        seatsDescription: "The sign-up limit and the amount an attendee pays for a pass.",
+        capacityLabel: "Seat limit",
+        capacityHint:
+          "An empty field means no limit. Once the seats run out, further applications go to the waiting list.",
+        priceLabel: "Pass price",
+        priceHint:
+          "The amount in major units, for example 250.00 - not in cents. An empty field means the event is free; the lowest payable amount is 1.00.",
+        currencyLabel: "Currency",
+
+        stream: "Stream and recording",
+        streamDescription:
+          "Two addresses that only an attendee with access receives. They are not in the public HTML of the event page.",
+        joinUrlLabel: "Stream address",
+        joinUrlHint:
+          "A full https address. The server hands it over only after the access check (get_event_access), so it is absent from the page source for anyone not signed up. An http address is mixed content and a browser warning at the exact moment of joining the stream.",
+        recordingUrlLabel: "Recording address",
+        recordingUrlHint:
+          "A full https address, shared after the event through the same access gate as the stream. An empty field means there is no recording.",
+
+        errors: {
+          externalUrlRequired:
+            "This mode signs people up in another service - give the address we should send them to.",
+          externalUrlInvalid: "The address must start with https:// and contain no spaces.",
+          externalUrlTooLong: "The address may be at most 2048 characters long.",
+          tierRankInvalid: "A tier rank is a whole number no smaller than zero.",
+          capacityInvalid:
+            "The seat limit is a whole number greater than zero. Leave the field empty to set no limit.",
+          priceInvalid:
+            "Write the amount in digits, with at most two decimal places - for example 250.00.",
+          priceTooLow:
+            "The lowest payable amount is 1.00. Leave the field empty if the event is to be free.",
+          joinUrlInvalid:
+            "The stream address must be a full https address, at most 2048 characters.",
+          recordingUrlInvalid:
+            "The recording address must be a full https address, at most 2048 characters.",
+        },
+
+        warnings: {
+          onlineWithoutJoinUrl:
+            "The event is online and accepts sign-ups but has no stream address - the attendee gets a confirmation and nowhere to join.",
+          earlyRankWithoutOpening:
+            "Early access does nothing while the sign-ups have no opening date - there is nothing to be early for.",
+          pricedWithoutRegistration:
+            "A price is set while the registration mode is no sign-ups - there is no way to pay it, because there is no sign-up.",
+          chathamHouseOnPublicPage:
+            "The Chatham House rule on a public page is a promise the page does not keep: anyone reads the content, including someone who never accepted the rule.",
+        },
       },
 
       pages: {
@@ -1379,6 +1707,50 @@ export const adminEventsEn = {
         noDate: "Date to be confirmed",
       },
 
+      features: {
+        modulesLabel: "Modules of this event",
+        modulesDescription:
+          "Switching a module off HIDES its section in this panel and deletes nothing - applications, sessions, tables and the check-in log stay where they are and come back together with the entry once the module is on again.",
+        notPublicVisibility:
+          "This is NOT public visibility. What an attendee sees is ruled by the event pages and sections - two switches for the same thing would mean two places to turn it off and only one that anybody remembers.",
+        routesStayAlive:
+          "The address of a hidden section keeps working: a link kept in bookmarks or sent to a colleague shows a sentence about the disabled module, not an empty screen.",
+
+        labels: {
+          pages: "Pages and menu",
+          registration: "In-app registration",
+          tickets: "Tickets and passes",
+          sessions: "Agenda and sessions",
+          meetings: "One-to-one meetings",
+          onsite: "On-site check-in",
+          sponsors: "Sponsors and advertising",
+        },
+
+        hints: {
+          pages:
+            "The subpage builder and the event menu go away. The event home page stays - a one-page event.",
+          registration:
+            "Applications, the sign-up form and the passes go away. For events that register people outside this application, or do not register them at all.",
+          tickets:
+            "The passes screen goes away and sign-ups stay - an event with free entry, no pools and no pricing.",
+          sessions:
+            "Sessions, tracks, rooms and conflicts go away - a single-block event with no agenda to lay out.",
+          meetings:
+            "Tables, the availability grid and one-to-one requests go away - an event without a meeting exchange.",
+          onsite:
+            "Check-in, scanners, checkpoints, devices and badges go away - a webinar has no door to walk through.",
+          sponsors:
+            "The list of sponsors and packages goes away together with the advertising materials of this event.",
+        },
+
+        disabled: {
+          title: "This module is off for this event",
+          description:
+            "The “{{module}}” module is switched off for this event, so its entry is not in the navigation - the data stayed where it was and comes back together with it.",
+          action: "Open Extra features",
+        },
+      },
+
       external: {
         communicationsTitle: "Communications",
         communicationsDescription:
@@ -1389,9 +1761,6 @@ export const adminEventsEn = {
         analyticsTitle: "Analytics",
         analyticsDescription:
           "Traffic, entry sources and conversions are collected by the panel analytics module. Per event, this screen will gain the registration funnel, session attendance and the post-event report.",
-        featuresTitle: "Extra features",
-        featuresDescription:
-          "Turning modules and extensions on belongs today to the organisation and plan settings. Per event, this screen will gain the choice of which features are active on this event.",
         openModule: "Open the module",
       },
     },
