@@ -103,9 +103,12 @@ export function EventSponsorDialog({
     onSubmit(sponsorDraftToInput(draft, eventId));
   };
 
+  // Radix Select ODRZUCA pusty string jako wartosc pozycji (rzuca wyjatkiem i
+  // cale okno przestaje sie renderowac - stad „dodawanie firm nie dziala").
+  // Brak poziomu ma wiec wlasny znacznik, tlumaczony na "" w szkicu.
   const tierOptions = useMemo(
     () => [
-      { value: "", label: t("adminEventSponsors.sponsors.dialog.tierNone") },
+      { value: TIER_NONE, label: t("adminEventSponsors.sponsors.dialog.tierNone") },
       ...tiers.map((tier) => ({
         value: tier.id,
         label: isEn ? tier.name_en || tier.name_pl : tier.name_pl || tier.name_en,
