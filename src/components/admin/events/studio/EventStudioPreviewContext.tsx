@@ -33,6 +33,19 @@ export interface EventPreviewMenuItem {
   color: string;
 }
 
+/**
+ * PODSTRONA WYBRANA DO PODGLADU.
+ *
+ * `document === null` znaczy „strona istnieje, ale nie ma jeszcze ani jednego
+ * bloku" - to inna odpowiedz niz `selectedPage === null` („patrzymy na strone
+ * glowna"), i podglad musi umiec powiedziec obie.
+ */
+export interface EventPreviewPage {
+  label: string;
+  path: string;
+  document: BuilderDocument | null;
+}
+
 export interface EventPreviewModel {
   titlePl: string;
   titleEn: string;
@@ -55,6 +68,8 @@ export interface EventPreviewModel {
   branding: EventBrandingDraft;
   pagesDisplayMode: "list" | "grid";
   menu: readonly EventPreviewMenuItem[];
+  /** `null` = podglad strony glownej wydarzenia. */
+  selectedPage: EventPreviewPage | null;
 }
 
 export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
@@ -79,7 +94,9 @@ export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
   branding: EMPTY_EVENT_BRANDING,
   pagesDisplayMode: "list",
   menu: [],
+  selectedPage: null,
 };
+
 
 interface PreviewContextValue {
   model: EventPreviewModel;
