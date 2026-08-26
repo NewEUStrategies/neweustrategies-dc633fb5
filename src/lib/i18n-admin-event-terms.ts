@@ -63,6 +63,16 @@ export const adminEventTermsPl = {
       dialog: {
         createTitle: "Nowa grupa uczestników",
         editTitle: "Edycja grupy uczestników",
+        // Zakładki szuflady. Wzorzec referencyjny ma tu cztery (General,
+        // Exhibitor profile, Lead generation, Members); dwie środkowe dotyczą
+        // modułu wystawców, który jest poza zakresem (decyzja §0.4 projektu
+        // modułu), więc nie ma dla nich atrap.
+        tabsLabel: "Sekcje edytora grupy",
+        tabGeneral: "Ogólne",
+        tabMembers: "Członkowie",
+        membersAfterSaveHint: "Lista członków pojawi się po zapisaniu grupy.",
+        membersManageHint:
+          "Skład grupy zmienia się w zakładce „Członkostwa dodatkowe” na ekranie grup i zgód - tutaj są tylko liczniki.",
         key: "Klucz techniczny",
         keyHint: "Małe litery, cyfry i podkreślenia. Po zapisie klucz jest niezmienny.",
         namePl: "Nazwa (PL)",
@@ -216,6 +226,12 @@ export const adminEventTermsEn = {
       dialog: {
         createTitle: "New attendee group",
         editTitle: "Edit attendee group",
+        tabsLabel: "Group editor sections",
+        tabGeneral: "General",
+        tabMembers: "Members",
+        membersAfterSaveHint: "The member list appears once the group is saved.",
+        membersManageHint:
+          "You change who belongs to the group in the “Extra memberships” tab of the groups and consents screen - this tab only shows the counters.",
         key: "Technical key",
         keyHint: "Lowercase letters, digits and underscores. The key is immutable after saving.",
         namePl: "Name (PL)",

@@ -17,7 +17,7 @@
 // JEDNA ODPOWIEDZIALNOŚĆ: pokazać jedno wydarzenie i oddać dwie intencje
 // (edycja, podgląd publiczny). Molekuła nie zna słownika ani serwera.
 import type { ReactNode } from "react";
-import { CalendarDays, ExternalLink, Mic, Pencil, Users, Video } from "@/lib/lucide-shim";
+import { CalendarDays, ExternalLink, Mic, Pencil, Trash2, Users, Video } from "@/lib/lucide-shim";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +40,8 @@ export function EventListRow({
   metrics,
   editLabel,
   onEdit,
+  deleteLabel,
+  onDelete,
   publicHref,
   publicLabel,
   hasStream,
@@ -68,6 +70,9 @@ export function EventListRow({
   metrics: readonly string[];
   editLabel: string;
   onEdit: () => void;
+  deleteLabel: string;
+  /** Usuniecie POTWIERDZA sie wyzej - wiersz tylko zglasza zamiar. */
+  onDelete: () => void;
   /** Adres strony publicznej; `null` dla szkicu - nie ma czego otwierać. */
   publicHref: string | null;
   publicLabel: string;
@@ -162,6 +167,18 @@ export function EventListRow({
           )}
           <Button variant="ghost" size="icon" aria-label={editLabel} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
+          </Button>
+          {/* Usuwanie stoi OSTATNIE i jest jedyna akcja w kolorze zagrozenia -
+              obok olowka o tym samym ciezarze wizualnym trafia sie w nie
+              przypadkiem, a tej pomylki nie da sie cofnac. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive"
+            aria-label={deleteLabel}
+            onClick={onDelete}
+          >
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>

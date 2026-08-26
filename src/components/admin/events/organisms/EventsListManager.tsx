@@ -18,10 +18,19 @@
 //
 // LICZNIKI ZAKŁADEK IDĄ Z OSOBNEGO ZAPYTANIA, które IGNORUJE zakładkę statusu -
 // inaczej „Szkice" pokazywałyby liczbę szkiców wśród szkiców.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "@/lib/lucide-shim";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
@@ -41,9 +50,15 @@ import {
   type EventListTab,
 } from "@/lib/events/eventListParams";
 import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
-import { useAdminEventCounts, useAdminEventsList } from "@/lib/events/useAdminEvents";
+import {
+  adminEventKeys,
+  useAdminEventCounts,
+  useAdminEventsList,
+} from "@/lib/events/useAdminEvents";
 import { useEventTypes } from "@/lib/events/useEventTypes";
 import type { AdminEventListRow } from "@/lib/events/eventsListApi";
+import { deleteEvent, runEventReminders } from "@/lib/admin/community";
+import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Wartość droplisty znaczy „wszystkie" - Radix nie przyjmuje pustego stringa. */
@@ -58,6 +73,10 @@ export function EventsListManager({
   now: Date;
 }) {
   ensureAdminEventsI18n();
+  // Slownik sekcji spolecznosci: akcja przypomnien PRZENIOSLA sie tutaj razem
+  // ze swoimi tekstami. Drugi klucz na ten sam napis (z formami mnogimi!)
+  // rozjechalby sie przy pierwszej korekcie.
+  ensureCommunityEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const navigate = useNavigate();
@@ -142,6 +161,42 @@ export function EventsListManager({
   const pageSize = eventListPageSize(params);
   const filtered = hasEventListFilters(params) || activeTab !== "all";
 
+  // PRZYPOMNIENIA SA AKCJA MODULU, NIE WYDARZENIA. `run_event_reminders()`
+  // przechodzi WSZYSTKIE wydarzenia, ktorym termin przypomnienia wlasnie minal -
+  // ten sam przycisk na ekranie jednego wydarzenia klamalby o zasiegu.
+  // Harmonogram robi to sam (`jobsTick`); przycisk jest dla sytuacji, w ktorej
+  // trzeba popchnac kolejke wczesniej i widziec wynik od razu.
+  const qc = useQueryClient();
+  const remindersM = useMutation({
+    mutationFn: runEventReminders,
+    onSuccess: (count) => toast.success(t("adminCommunityEvents.toasts.remindersSent", { count })),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // USUWANIE WRACA TUTAJ Z WYCOFANEJ TRASY `/admin/community/events`. Tamten
+  // ekran byl JEDYNYM miejscem, z ktorego dalo sie usunac wydarzenie, wiec
+  // przekierowanie zabralo redaktorowi cala operacje - studio jej nie ma
+  // i nie powinno miec: kasowanie z wnetrza edytowanego wydarzenia zostawia
+  // otwarty ekran czegos, czego juz nie ma.
+  //
+  // ID POTWIERDZENIA JEST W `useState`, wbrew regule z naglowka pliku - i to
+  // jest ta jedna rzecz, ktorej w adresie byc NIE MOZE. Filtry sa warte linku,
+  // otwarte pytanie „usunac?" nie: link, ktory komus otwiera potwierdzenie
+  // usuniecia, to pulapka, a nie udogodnienie.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const deleteM = useMutation({
+    mutationFn: (id: string) => deleteEvent(id),
+    onSuccess: () => {
+      // Ten sam zestaw co przy tworzeniu: lista, liczniki zakladek i stara
+      // lista w sekcji spolecznosci czytaja te same wiersze.
+      void qc.invalidateQueries({ queryKey: adminEventKeys.all });
+      void qc.invalidateQueries({ queryKey: ["admin-community-events"] });
+      toast.success(t("adminCommunityEvents.toasts.deleted"));
+      setConfirmDeleteId(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -152,10 +207,20 @@ export function EventsListManager({
         {/* Tworzenie ma WŁASNY ADRES (`/admin/events/new`), więc redaktor może
             wrócić „wstecz", odświeżyć i przesłać link - okno modalne odcinało
             formularz od historii przeglądarki. */}
-        <Button size="sm" onClick={() => void navigate({ to: "/admin/events/new" })}>
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {t("adminEvents.list.createAction")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={remindersM.isPending}
+            onClick={() => remindersM.mutate()}
+          >
+            {t("adminCommunityEvents.remindersAction")}
+          </Button>
+          <Button size="sm" onClick={() => void navigate({ to: "/admin/events/new" })}>
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("adminEvents.list.createAction")}
+          </Button>
+        </div>
       </div>
 
       <EventListFilters
@@ -217,8 +282,19 @@ export function EventsListManager({
                   badges={badgesFor(row)}
                   metrics={metricsFor(row)}
                   editLabel={t("adminEvents.list.row.editAction", { title })}
+                  deleteLabel={t("adminCommunityEvents.actions.deleteEvent")}
+                  onDelete={() => setConfirmDeleteId(row.id)}
+                  // EDYCJA PROWADZI DO STUDIA, nie do starej listy w sekcji
+                  // społeczności z wydarzeniem wyszukanym po slugu. Tamten
+                  // adres dawał wynik wyszukiwania, a nie wydarzenie: jeden
+                  // formularz z częścią pól i zero dojścia do stron, brandingu
+                  // czy zapisów. Studio otwiera to samo wydarzenie ze wszystkimi
+                  // sekcjami i bez pośrednika w postaci frazy szukania.
                   onEdit={() =>
-                    void navigate({ to: "/admin/community/events", search: { q: row.slug } })
+                    void navigate({
+                      to: "/admin/events/$eventId/general",
+                      params: { eventId: row.id },
+                    })
                   }
                   publicHref={row.status === "published" ? `/events/${row.slug}` : null}
                   publicLabel={t("adminEvents.list.row.openPublicAction", { title })}
@@ -256,6 +332,29 @@ export function EventsListManager({
           }
         />
       </AdminCatalogListState>
+
+      <Dialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("adminCommunityEvents.deleteTitle")}</DialogTitle>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>
+              {t("adminCommunityEvents.common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteM.isPending}
+              onClick={() => confirmDeleteId !== null && deleteM.mutate(confirmDeleteId)}
+            >
+              {t("adminCommunityEvents.common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

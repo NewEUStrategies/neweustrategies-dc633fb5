@@ -1,7 +1,8 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { eventStudioSectionFromPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 export const Route = createFileRoute("/admin")({
@@ -20,6 +21,26 @@ function AdminLayout() {
   ensureAdminExtrasI18n();
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+
+  // STUDIO WYDARZENIA WYMIENIA CALA RAME PANELU, nie tylko tresc.
+  //
+  // Na czas pracy nad jednym wydarzeniem lewy pas nalezy do TEGO wydarzenia
+  // (dwupoziomowa nawigacja: pulpit, kreator wydarzenia, rejestracja, tresc,
+  // spotkania, na miejscu... - blisko trzydziestu podstron), a nie do panelu.
+  // Dwa sidebary obok siebie zabralyby polowe szerokosci formularzowi
+  // o osiemnastu polach i nie odpowiadaly by na pytanie „ktore wydarzenie mam
+  // w reku".
+  //
+  // TA JEDNA LINIA DECYDUJE O DWOCH SIDEBARACH. `eventStudioSectionFromPath`
+  // musi rozpoznawac WSZYSTKIE adresy studia - takze dwusegmentowe
+  // (`.../registration/tickets`) i adresy grup (`.../onsite`, przekierowywane
+  // na pierwsze dziecko). Adres studia, ktorego ta funkcja nie zna, dostaje
+  // powloke panelu Z JEJ WLASNYM sidebarem obok sidebara wydarzenia.
+  //
+  // Bramka logowania i roli ZOSTAJE tutaj - dlatego studio jest nadal dzieckiem
+  // `/admin`, a nie osobnym drzewem tras. Wymieniamy tylko powloke wizualna.
+  const isEventStudio = eventStudioSectionFromPath(path) !== null;
 
   useEffect(() => {
     if (!loading && (!session || !isStaff)) navigate({ to: "/login" });
@@ -33,6 +54,8 @@ function AdminLayout() {
     );
   }
   if (!session || !isStaff) return null;
+
+  if (isEventStudio) return <Outlet />;
 
   return (
     <AdminShell>

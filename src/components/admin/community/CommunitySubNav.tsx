@@ -13,7 +13,6 @@ import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import {
   LayoutDashboard,
   MessageCircle,
-  Calendar,
   HelpCircle,
   Vote,
   UserPlus,
@@ -44,13 +43,6 @@ const tabs = [
     key: "clubs",
     icon: MessagesSquare,
     labelKey: "adminCommunity.nav.clubs",
-    exact: false,
-  },
-  {
-    to: "/admin/community/events" as const,
-    key: "events",
-    icon: Calendar,
-    labelKey: "adminCommunity.nav.events",
     exact: false,
   },
   {

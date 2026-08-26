@@ -288,15 +288,48 @@ END $$;
 -- ----------------------------------------------------------------------------
 -- Strony (front wydarzenia jest poddrzewem `pages`)
 --
--- Modul dotyka tylko `id` - przez `events.root_page_id REFERENCES pages(id)`
--- oraz `event_page_sections`. Cala reszta budowniczego stron jest poza
--- zakresem, wiec atrapa ma tyle kolumn, ile potrzebuje klucz obcy i seed.
+-- DO 20260826120000 modul dotykal tylko `id` - przez
+-- `events.root_page_id REFERENCES pages(id)` oraz `event_page_sections` - i tyle
+-- mial ten stub. `event_pages` to zmienilo: mapowanie strona -> menu wydarzenia
+-- czyta lancuch rodzicow (`parent_id`), status publikacji kazdego przodka
+-- (`status`, `deleted_at`), tytuly na etykiety zastepcze (`title_pl`,
+-- `title_en`), a `admin_event_page_create` ZAKLADA strony, wiec pisze takze
+-- `editor`, `template_type` i `menu_order`. Bez tych kolumn replay modulu padal
+-- na `column p.parent_id does not exist` - czyli na wlasnym niedomiarze atrapy,
+-- a nie na bledzie w migracji.
+--
+-- Typy sa z ORYGINALOW, nie uproszczone do `text`: `status` to `post_status`
+-- (20260531180217), `editor` to `editor_type` z dolozonym wariantem `builder`
+-- (20260531182614) - `admin_event_page_create` wstawia dokladnie ten wariant,
+-- wiec atrapa na `text` przepuscilaby literowke, ktorej baza nie przepusci.
+-- Ksztalt kolumn: 20260531182153 (tabela), 20260531223436 (`parent_id`,
+-- `menu_order`), 20260531183823 (`deleted_at`), 20260624182857
+-- (`template_type` + jego CHECK).
 -- ----------------------------------------------------------------------------
+DO $$ BEGIN
+  CREATE TYPE public.post_status AS ENUM ('draft', 'published', 'archived');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.editor_type AS ENUM ('richtext', 'markdown', 'builder', 'blocks');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 CREATE TABLE IF NOT EXISTS public.pages (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id  uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  slug       text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  slug          text NOT NULL,
+  parent_id     uuid REFERENCES public.pages(id) ON DELETE RESTRICT,
+  title_pl      text NOT NULL DEFAULT '',
+  title_en      text NOT NULL DEFAULT '',
+  status        public.post_status NOT NULL DEFAULT 'draft',
+  editor        public.editor_type NOT NULL DEFAULT 'richtext',
+  template_type text NOT NULL DEFAULT 'default',
+  menu_order    int NOT NULL DEFAULT 0,
+  deleted_at    timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT pages_template_type_check
+    CHECK (template_type IN ('default','full_width','landing','archive_listing','contact')),
   UNIQUE (tenant_id, slug)
 );
 
