@@ -1,34 +1,34 @@
-// /admin/events/<id>/onsite - sekcja „On-site" studia wydarzenia.
+// /admin/events/<id>/registration/tickets - podstrona „Tickets" studia wydarzenia.
 //
 // TRASA JEST CIENKA. Wiersz wydarzenia wczytuje RAMA studia i to ona pokazuje
-// spinner oraz zdanie „nie znaleziono"; sekcja, która powtórzyłaby jedno i
+// spinner oraz zdanie „nie znaleziono"; podstrona, która powtórzyłaby jedno i
 // drugie, dawałaby dwa spinnery pod sobą i dwa komunikaty o tym samym braku.
-// Dopóki wiersza nie ma, sekcja nie rysuje niczego.
+// Dopóki wiersza nie ma, podstrona nie rysuje niczego.
 import { createFileRoute } from "@tanstack/react-router";
 
-import { EventOnsiteSection } from "@/components/admin/events/studio/EventStudioModuleSections";
+import { EventRegistrationTicketsSection } from "@/components/admin/events/studio/EventStudioModuleSections";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 
-export const Route = createFileRoute("/admin/events_/$eventId/onsite")({
+export const Route = createFileRoute("/admin/events_/$eventId/registration/tickets")({
   head: () => ({
     meta: [
-      { title: "On-site · Event · Admin" },
+      { title: "Tickets · Event · Admin" },
       { name: "robots", content: "noindex, nofollow" },
       {
         name: "description",
-        content: "On-site desk of this event: check-in, badges, devices, leads and the log.",
+        content: "Ticket types of this event: pools, prices and seat limits.",
       },
     ],
   }),
-  component: EventStudioOnsitePage,
+  component: EventStudioRegistrationTicketsPage,
 });
 
-function EventStudioOnsitePage() {
+function EventStudioRegistrationTicketsPage() {
   const { eventId } = Route.useParams();
   // Ten sam klucz cache, co w ramie - React Query oddaje wczytany wiersz,
   // a nie drugie zapytanie o to samo wydarzenie.
   const detailQ = useAdminEventDetail(eventId);
   const row = detailQ.data ?? null;
   if (row === null) return null;
-  return <EventOnsiteSection row={row} />;
+  return <EventRegistrationTicketsSection row={row} />;
 }

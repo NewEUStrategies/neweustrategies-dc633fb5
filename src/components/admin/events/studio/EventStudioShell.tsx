@@ -1,9 +1,9 @@
 // Rama STUDIA WYDARZENIA: pasek gorny + wlasny sidebar + tresc + podglad.
 //
 // RAMA WCZYTUJE WYDARZENIE RAZ i oddaje je sekcjom przez `Outlet` z kontekstem
-// podgladu. Kazda sekcja pytajaca o wiersz osobno dawalaby cztery odpowiedzi,
-// ktore po zapisie rozjezdzaja sie w czasie - a tytul w pasku gornym musialby
-// odswiezac sie inaczej niz tytul w formularzu.
+// podgladu. Kazda sekcja pytajaca o wiersz osobno dawalaby tyle odpowiedzi, ile
+// ekranow - a te po zapisie rozjezdzaja sie w czasie: nazwa w naglowku sidebara
+// musialaby odswiezac sie inaczej niz to samo pole w formularzu.
 //
 // BRAMKA ROLI JEST W BAZIE, TU STOI TYLKO ZDANIE. Kazde RPC studia ma asercje
 // roli w tenancie, wiec autor bez uprawnien dostanie odmowe niezaleznie od
@@ -12,6 +12,10 @@
 //
 // STUDIO NIE UZYWA `AdminShell`. To jest cala idea: na czas pracy nad jednym
 // wydarzeniem lewy pas nalezy do wydarzenia, a nie do panelu.
+//
+// TOZSAMOSC WYDARZENIA ODDAJE SIDEBAROWI RAMA. Nazwa w jezyku interfejsu
+// i termin w strefie wydarzenia licza sie TU, raz, bo tu jest wiersz - sidebar
+// dostaje gotowe napisy i nie musi znac ani `uiLang`, ani stref czasowych.
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldAlert } from "lucide-react";
@@ -20,6 +24,7 @@ import { Loader2 } from "@/lib/lucide-shim";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { eventStudioSectionFromPath } from "@/lib/events/eventStudioNav";
+import { formatEventDateTime } from "@/lib/events/timezone";
 import { eventBrandingFromJson } from "@/lib/events/eventBrandingDraft";
 import { asEventFormat } from "@/lib/events/eventTypes";
 import { adminEventStudioErrorMessage } from "@/lib/events/adminEventStudioErrors";
@@ -135,6 +140,12 @@ export function EventStudioShell({
 
   const status = asStatus(row.status ?? "draft");
   const title = lang === "en" ? row.title_en || row.title_pl : row.title_pl || row.title_en;
+  // TERMIN LICZY RAMA, NIE SIDEBAR. Data w naglowku sidebara musi byc w strefie
+  // WYDARZENIA, a nie przegladarki - organizator w innej strefie inaczej czyta
+  // „9:00" jako swoja godzine i planuje odprawe o zlej porze. Wydarzenie bez
+  // daty dostaje zdanie „bez terminu": pusty wiersz wyglada jak blad wczytania.
+  const startsAtLabel =
+    formatEventDateTime(row.starts_at, row.timezone, lang) || t("adminEvents.list.row.noDate");
   // Szkic nie ma strony publicznej - odnosnik do niej prowadzilby na 404.
   const publicHref = status === "published" && row.slug !== "" ? `/events/${row.slug}` : null;
 
@@ -148,7 +159,6 @@ export function EventStudioShell({
   return (
     <div className="admin-compact flex min-h-screen flex-col bg-muted/30">
       <EventStudioTopBar
-        title={title}
         status={status}
         isBusy={setStatus.isPending}
         previewOpen={previewOpen}
@@ -159,6 +169,8 @@ export function EventStudioShell({
         <div className="flex min-h-0 flex-1">
           <EventStudioSidebar
             eventId={eventId}
+            eventTitle={title}
+            startsAtLabel={startsAtLabel}
             activeSection={activeSection}
             publicHref={publicHref}
           />

@@ -261,18 +261,23 @@ export const adminEventsPl = {
         branding: "Branding",
         sponsors: "Sponsorzy i reklama",
         terms: "Regulaminy",
-        registration: "Rejestracja w aplikacji",
-        content: "Treść",
-        meetings: "Spotkania",
         communications: "Komunikacja",
-        onsite: "Na miejscu",
         integrations: "Integracje",
         analytics: "Analityka",
         features: "Funkcje dodatkowe",
       },
 
+      // NAZWY GRUP SIDEBARA - nie ekranów. Grupa nie ma własnego ekranu:
+      // klik prowadzi na jej pierwsze dziecko. Cztery z nich stały do tej zmiany
+      // w `sections`, bo były wtedy POZYCJAMI z zakładkami w środku; po podziale
+      // na podstrony ten sam napis jest nagłówkiem grupy, a nie tytułem ekranu -
+      // trzymanie go w obu gałęziach dałoby dwa klucze na jeden napis.
       groups: {
         builder: "Kreator wydarzenia",
+        registration: "Rejestracja w aplikacji",
+        content: "Treść",
+        meetings: "Spotkania",
+        onsite: "Na miejscu",
       },
 
       // SŁOWA, KTÓRYCH REDAKTOR SZUKA, A NIE ETYKIETY, KTÓRE JUŻ WIDZI.
@@ -295,6 +300,28 @@ export const adminEventsPl = {
         integrations: "API, webhooki, CRM, eksport, synchronizacja",
         analytics: "statystyki, raporty, frekwencja, wykresy, dane",
         features: "moduły, rozszerzenia, opcje, ustawienia dodatkowe",
+
+        // Słowa PODPOZYCJI. Klucze wyżej opisują całe grupy („networking"
+        // znajduje grupę „Spotkania"), te niżej trafiają w jeden ekran
+        // („obłożenie" prowadzi wprost do statystyk spotkań).
+        registrationList: "zgłoszenia, uczestnicy, lista zapisów, eksport, statusy",
+        registrationTickets: "bilety, wejściówki, pule, cennik, limity miejsc",
+        registrationForm: "formularz, pola zgłoszenia, pytania, zgody w zapisie",
+        contentSessions: "sesje, agenda, program, prelegenci, harmonogram",
+        contentTracks: "ścieżki, bloki tematyczne, tory programu",
+        contentRooms: "sale, miejsca sesji, audytoria, pokoje",
+        contentConflicts: "kolizje, nakładające się sesje, ta sama sala, ten sam prelegent",
+        meetingsTables: "stoliki, miejsca spotkań, strefa networkingu",
+        meetingsSettings: "siatka, reguły, dostępność, długość spotkania, matchmaking",
+        meetingsList: "spotkania 1:1, rozmowy, kalendarz spotkań, wnioski",
+        meetingsStats: "statystyki spotkań, wykorzystanie stolików, obłożenie",
+        onsiteDesk: "odprawa, check-in, skaner, QR, kod uczestnika",
+        onsiteLog: "dziennik, historia wejść, zdarzenia odprawy, audyt",
+        onsiteStats: "statystyki odprawy, frekwencja, obecność",
+        onsiteCheckpoints: "punkty kontrolne, bramki, wejścia, kontrola dostępu",
+        onsiteDevices: "urządzenia, terminale, skanery, tokeny dostępu",
+        onsiteBadges: "identyfikatory, plakietki, druk, szablony badge",
+        onsiteLeads: "leady, wizytówki sponsorów, kontakty ze stoiska",
       },
 
       nav: {
@@ -304,6 +331,11 @@ export const adminEventsPl = {
           "Strona wydarzenia powstanie po publikacji - szkic nie ma jeszcze adresu publicznego.",
         searchPlaceholder: "Szukaj w wydarzeniu…",
         searchEmpty: "Żadna sekcja nie pasuje do tego zapytania.",
+        // DWA RÓŻNE WYJŚCIA, nie jedno: `backToList` wychodzi o poziom wyżej
+        // (katalog wydarzeń w panelu), `openEvent` - do widoku publicznego.
+        backToList: "Powrót do listy wydarzeń",
+        expandGroup: "Rozwiń grupę",
+        collapseGroup: "Zwiń grupę",
       },
 
       topBar: {
@@ -321,6 +353,13 @@ export const adminEventsPl = {
       toasts: {
         generalSaved: "Informacje ogólne zapisane",
         pagesSaved: "Strony i menu zapisane",
+        pageCreated: "Podstrona utworzona",
+        pageEntrySaved: "Pozycja menu zapisana",
+        // POTWIERDZENIE MOWI, CZEGO NIE ZROBILISMY. Odpięcie wygląda jak
+        // usunięcie, a strona zostaje - bez tego dopisku redaktor sprawdza to
+        // dopiero w koszu stron.
+        pageDetached: "Strona odpięta od wydarzenia - treść została",
+        pageOrderSaved: "Kolejność menu zapisana",
         brandingSaved: "Branding wydarzenia zapisany",
         visibilitySaved: "Widoczność wydarzenia zapisana",
         status: {
@@ -363,6 +402,16 @@ export const adminEventsPl = {
           "Kolor zapisuje się jako #RRGGBB. Popraw wartość albo wyczyść pole, żeby dziedziczyć kolor z motywu serwisu.",
         invalidImage:
           "Obraz tła musi być pełnym adresem https. Wklej cały adres albo wyczyść pole.",
+        // ODMOWY Z `event_pages`. Wszystkie trzy są cichymi awariami, gdyby
+        // przeszły: zła nazwa ikony daje znak zapytania w menu, brak wskazania
+        // strony daje pozycję prowadzącą w nikąd, a grupa z obcego wydarzenia
+        // znaczy „nikt" - i widać to dopiero, gdy uczestnik nie widzi strony.
+        invalidIcon:
+          "Nazwa ikony może zawierać wyłącznie małe litery, cyfry i myślniki - najwyżej 48 znaków. Katalog nazw jest w panelu pod adresem /admin/icons.",
+        invalidPage:
+          "Brakuje wskazania strony albo wydarzenia. Odśwież listę podstron i spróbuj jeszcze raz.",
+        invalidGroup:
+          "Jedna z zaznaczonych grup nie należy do tego wydarzenia. Odśwież ekran i zaznacz grupy jeszcze raz.",
         forbidden:
           "Twoje konto nie ma uprawnień redaktora w tej organizacji. Poproś administratora o dostęp.",
         unknown:
@@ -460,8 +509,74 @@ export const adminEventsPl = {
         otherPages: "Pozostałe",
         menuEmpty: "Żadna strona nie jest jeszcze przypięta do menu.",
         otherEmpty: "Wszystkie strony wydarzenia są w menu.",
-        menuMapping:
-          "Podział na strony w menu i pozostałe liczy się dziś z kolejności menu (menu_order) - to mapowanie tymczasowe. Docelowo zdecyduje o nim osobne przypięcie strony do wydarzenia.",
+        loading: "Wczytywanie podstron…",
+
+        // DWA STANY POZA MENU, DWIE NAZWY. Strona przypięta poza menu należy do
+        // wydarzenia i ma już ikonę oraz widoczność; nieprzypięta leży pod stroną
+        // główną, ale wydarzenie o niej nie wie. Jedna wspólna nazwa kazałaby
+        // redaktorowi zgadywać, dlaczego jedna ma przycisk odpięcia, a druga nie.
+        states: {
+          attachedOutOfMenu: "poza menu",
+          unattached: "nieprzypięta",
+        },
+
+        rowActions: {
+          moveUp: "Przesuń „{{label}}” wyżej w menu",
+          moveDown: "Przesuń „{{label}}” niżej w menu",
+          edit: "Edytuj pozycję menu „{{label}}”",
+          editContent: "Edytuj treść strony",
+          detach: "Odepnij „{{label}}” od wydarzenia",
+          addToMenu: "Dodaj do menu",
+          keepOutOfMenu: "Trzymaj poza menu",
+        },
+
+        entry: {
+          title: "Pozycja menu",
+          subtitle:
+            "Etykieta, ikona, kolor i widoczność jednej pozycji menu. Tytuł, treść i adres strony zmienia się w edytorze stron.",
+          labelSection: "Etykieta w menu",
+          labelHint:
+            "Puste pole znaczy „użyj tytułu strony”. Własna etykieta przydaje się, gdy tytuł jest zdaniem, a w menu mieszczą się dwa słowa.",
+          menuLabelPl: "Etykieta PL",
+          menuLabelEn: "Etykieta EN",
+          appearanceSection: "Wygląd",
+          icon: "Ikona",
+          iconHint:
+            "Nazwa pisana małymi literami z myślnikami, na przykład calendar-days. Pełny katalog nazw jest w panelu pod adresem /admin/icons. Puste pole daje ikonę domyślną.",
+          iconInvalid:
+            "Nazwa ikony może zawierać wyłącznie małe litery, cyfry i myślniki - najwyżej 48 znaków.",
+          color: "Kolor",
+          colorHint:
+            "Kolor kafla i ikony w menu. Puste pole znaczy „weź kolor z brandingu wydarzenia”.",
+          colorInvalid: "Kolor zapisuje się jako #RRGGBB - sześć znaków szesnastkowych.",
+          colorPlaceholder: "z brandingu",
+          colorPicker: "Wybierz kolor pozycji menu",
+          visibilitySection: "Widoczność",
+          inMenu: "Pokaż w menu wydarzenia",
+          inMenuHint:
+            "Wyłączone: strona zostaje przypięta do wydarzenia i działa pod swoim adresem, ale nie pojawia się ani w menu, ani w kaflach na stronie głównej.",
+          visibilityHint:
+            "Zaznacz grupy, które mają widzieć tę pozycję. Nic niezaznaczone znaczy „widoczna dla wszystkich” - także dla gości, którzy nie są zapisani.",
+          visibilityNoGroups:
+            "To wydarzenie nie ma jeszcze grup uczestników, więc pozycja jest widoczna dla wszystkich.",
+          save: "Zapisz pozycję",
+          cancel: "Anuluj",
+        },
+
+        create: {
+          title: "Nowa podstrona wydarzenia",
+          subtitle:
+            "Strona powstanie pod stroną główną wydarzenia i od razu trafi do menu. Adres publiczny wyliczy się z tytułu.",
+          titlePl: "Tytuł PL",
+          titleEn: "Tytuł EN",
+          icon: "Ikona (opcjonalnie)",
+          iconHint:
+            "Nazwa z katalogu ikon, na przykład calendar-days. Możesz ją dodać później w edytorze pozycji.",
+          draftHint:
+            "Strona powstaje jako szkic - uczestnik zobaczy ją dopiero po opublikowaniu w edytorze stron.",
+          submit: "Utwórz stronę",
+          cancel: "Anuluj",
+        },
       },
 
       groupsPage: {
@@ -485,6 +600,36 @@ export const adminEventsPl = {
           "Zasada Chatham House jest włączona: publiczna lista uczestników i nagranie w trybie gościa są wykluczone - wypowiedzi nie mogą dać się przypisać do osób.",
       },
 
+      analytics: {
+        registrations: "Zgłoszenia",
+        registrationsDescription:
+          "Liczby z modułu zapisów - te same, które widzisz na liście zgłoszeń. Kreska znaczy „jeszcze nie wiadomo”, a nie zero.",
+        registrationsTotal: "Wszystkie zgłoszenia",
+        approved: "Zatwierdzone",
+        pending: "Oczekujące",
+        waitlist: "Lista rezerwowa",
+        seatsLeft: "Wolne miejsca",
+        noCapacity: "Wydarzenie bez limitu miejsc",
+        programme: "Program i spotkania",
+        programmeDescription:
+          "Sesje w programie oraz spotkania 1-1: ile się odbyło i jaki odsetek zaproszeń został przyjęty.",
+        sessions: "Sesje w programie",
+        meetingsHeld: "Spotkania odbyte",
+        meetingsAcceptance: "Przyjęte zaproszenia",
+        onsite: "Na miejscu",
+        onsiteDescription:
+          "Odprawa w dniu wydarzenia: kto przyszedł, kto się nie zjawił, ile identyfikatorów wydrukowano i ile leadów zebrali partnerzy.",
+        arrived: "Odprawionych",
+        noShow: "Nieobecnych",
+        attendanceRate: "Frekwencja",
+        walkIn: "Bez zapisu",
+        badgesPrinted: "Wydrukowane identyfikatory",
+        leadScans: "Zebrane leady",
+        leadScansConsent: "Z aktywną zgodą: {{count}}",
+        siteTraffic: "Ruch na stronie",
+        siteTrafficDescription:
+          "Odsłony, źródła wejść i konwersje liczy moduł analityki serwisu - wydarzenie nie ma osobnego licznika ruchu.",
+      },
       overview: {
         summary: "Wydarzenie w liczbach",
         summaryDescription:
@@ -862,11 +1007,7 @@ export const adminEventsEn = {
         branding: "Branding",
         sponsors: "Sponsors and advertising",
         terms: "Terms",
-        registration: "In-app registration",
-        content: "Content",
-        meetings: "Meetings",
         communications: "Communications",
-        onsite: "On site",
         integrations: "Integrations",
         analytics: "Analytics",
         features: "Extra features",
@@ -874,6 +1015,10 @@ export const adminEventsEn = {
 
       groups: {
         builder: "Event builder",
+        registration: "In-app registration",
+        content: "Content",
+        meetings: "Meetings",
+        onsite: "On site",
       },
 
       keywords: {
@@ -891,6 +1036,25 @@ export const adminEventsEn = {
         integrations: "API, webhooks, CRM, export, sync",
         analytics: "statistics, reports, attendance, charts, data",
         features: "modules, extensions, options, extra settings",
+
+        registrationList: "applications, attendees, sign-up list, export, statuses",
+        registrationTickets: "tickets, passes, pools, pricing, seat limits",
+        registrationForm: "form, application fields, questions, sign-up consents",
+        contentSessions: "sessions, agenda, programme, speakers, schedule",
+        contentTracks: "tracks, thematic blocks, programme streams",
+        contentRooms: "rooms, session venues, auditoriums",
+        contentConflicts: "conflicts, overlapping sessions, same room, same speaker",
+        meetingsTables: "tables, meeting places, networking area",
+        meetingsSettings: "grid, rules, availability, meeting length, matchmaking",
+        meetingsList: "one-to-one meetings, calls, meeting calendar, requests",
+        meetingsStats: "meeting statistics, table usage, occupancy",
+        onsiteDesk: "check-in, front desk, scanner, QR, attendee code",
+        onsiteLog: "log, entry history, check-in events, audit",
+        onsiteStats: "check-in statistics, attendance, turnout",
+        onsiteCheckpoints: "checkpoints, gates, entrances, access control",
+        onsiteDevices: "devices, terminals, scanners, access tokens",
+        onsiteBadges: "badges, name tags, printing, badge templates",
+        onsiteLeads: "leads, sponsor business cards, booth contacts",
       },
 
       nav: {
@@ -900,6 +1064,9 @@ export const adminEventsEn = {
           "The public page appears once the event is published - a draft has no public address yet.",
         searchPlaceholder: "Search in this event…",
         searchEmpty: "No section matches this query.",
+        backToList: "Back to the event list",
+        expandGroup: "Expand group",
+        collapseGroup: "Collapse group",
       },
 
       topBar: {
@@ -917,6 +1084,10 @@ export const adminEventsEn = {
       toasts: {
         generalSaved: "General information saved",
         pagesSaved: "Pages and menu saved",
+        pageCreated: "Subpage created",
+        pageEntrySaved: "Menu entry saved",
+        pageDetached: "The page is unpinned from the event - the content stayed",
+        pageOrderSaved: "Menu order saved",
         brandingSaved: "Event branding saved",
         visibilitySaved: "Event visibility saved",
         status: {
@@ -952,6 +1123,12 @@ export const adminEventsEn = {
           "A colour is written as #RRGGBB. Fix the value, or clear the field to inherit the colour from the site theme.",
         invalidImage:
           "The background image must be a full https address. Paste the whole address or clear the field.",
+        invalidIcon:
+          "An icon name may contain only lower-case letters, digits and hyphens - 48 characters at most. The catalogue of names is in the panel at /admin/icons.",
+        invalidPage:
+          "The page or the event is missing from the request. Refresh the subpage list and try again.",
+        invalidGroup:
+          "One of the ticked groups does not belong to this event. Refresh the screen and tick the groups again.",
         forbidden:
           "Your account is not an editor in this organisation. Ask an administrator for access.",
         unknown:
@@ -1045,8 +1222,70 @@ export const adminEventsEn = {
         otherPages: "Other",
         menuEmpty: "No page is pinned to the menu yet.",
         otherEmpty: "Every event page is in the menu.",
-        menuMapping:
-          "The split between menu pages and the rest is derived today from the menu order (menu_order) - a temporary mapping. In the end a separate pinning of a page to the event will decide it.",
+        loading: "Loading subpages…",
+
+        states: {
+          attachedOutOfMenu: "out of the menu",
+          unattached: "not pinned",
+        },
+
+        rowActions: {
+          moveUp: "Move “{{label}}” up in the menu",
+          moveDown: "Move “{{label}}” down in the menu",
+          edit: "Edit the menu entry “{{label}}”",
+          editContent: "Edit the page content",
+          detach: "Unpin “{{label}}” from the event",
+          addToMenu: "Add to the menu",
+          keepOutOfMenu: "Keep out of the menu",
+        },
+
+        entry: {
+          title: "Menu entry",
+          subtitle:
+            "The label, icon, colour and visibility of one menu entry. The page title, content and address are changed in the page editor.",
+          labelSection: "Menu label",
+          labelHint:
+            "An empty field means “use the page title”. A label of its own helps when the title is a sentence and the menu has room for two words.",
+          menuLabelPl: "Label PL",
+          menuLabelEn: "Label EN",
+          appearanceSection: "Appearance",
+          icon: "Icon",
+          iconHint:
+            "A lower-case name with hyphens, for example calendar-days. The full catalogue of names is in the panel at /admin/icons. An empty field uses the default icon.",
+          iconInvalid:
+            "An icon name may contain only lower-case letters, digits and hyphens - 48 characters at most.",
+          color: "Colour",
+          colorHint:
+            "The colour of the tile and the icon in the menu. An empty field means “take the colour from the event branding”.",
+          colorInvalid: "A colour is written as #RRGGBB - six hexadecimal characters.",
+          colorPlaceholder: "from branding",
+          colorPicker: "Pick the menu entry colour",
+          visibilitySection: "Visibility",
+          inMenu: "Show in the event menu",
+          inMenuHint:
+            "Off: the page stays pinned to the event and works at its own address, but appears neither in the menu nor in the tiles on the home page.",
+          visibilityHint:
+            "Tick the groups that should see this entry. Nothing ticked means “visible to everyone” - including guests who are not registered.",
+          visibilityNoGroups:
+            "This event has no attendee groups yet, so the entry is visible to everyone.",
+          save: "Save the entry",
+          cancel: "Cancel",
+        },
+
+        create: {
+          title: "New event subpage",
+          subtitle:
+            "The page will be created under the event home page and pinned to the menu straight away. The public address is derived from the title.",
+          titlePl: "Title PL",
+          titleEn: "Title EN",
+          icon: "Icon (optional)",
+          iconHint:
+            "A name from the icon catalogue, for example calendar-days. You can add it later in the entry editor.",
+          draftHint:
+            "The page is created as a draft - an attendee sees it only once you publish it in the page editor.",
+          submit: "Create the page",
+          cancel: "Cancel",
+        },
       },
 
       groupsPage: {
@@ -1070,6 +1309,36 @@ export const adminEventsEn = {
           "The Chatham House rule is on: a public attendee list and a recording in guest mode are ruled out - remarks must not be attributable to people.",
       },
 
+      analytics: {
+        registrations: "Registrations",
+        registrationsDescription:
+          "Numbers from the registrations module - the same ones the registrations list shows. A dash means “not known yet”, not zero.",
+        registrationsTotal: "All registrations",
+        approved: "Approved",
+        pending: "Pending",
+        waitlist: "Waiting list",
+        seatsLeft: "Seats left",
+        noCapacity: "This event has no seat limit",
+        programme: "Programme and meetings",
+        programmeDescription:
+          "Sessions in the programme and 1-1 meetings: how many took place and what share of invitations was accepted.",
+        sessions: "Sessions in the programme",
+        meetingsHeld: "Meetings held",
+        meetingsAcceptance: "Invitations accepted",
+        onsite: "Onsite",
+        onsiteDescription:
+          "Check-in on the day: who arrived, who did not show up, how many badges were printed and how many leads partners collected.",
+        arrived: "Checked in",
+        noShow: "No-shows",
+        attendanceRate: "Attendance",
+        walkIn: "Walk-ins",
+        badgesPrinted: "Badges printed",
+        leadScans: "Leads collected",
+        leadScansConsent: "With active consent: {{count}}",
+        siteTraffic: "Site traffic",
+        siteTrafficDescription:
+          "Page views, traffic sources and conversions are counted by the site analytics module - an event has no separate traffic counter.",
+      },
       overview: {
         summary: "The event in numbers",
         summaryDescription:

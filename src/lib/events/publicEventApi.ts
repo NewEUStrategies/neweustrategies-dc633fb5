@@ -58,6 +58,71 @@ export async function fetchEventSections(slug: string): Promise<EventSection[]> 
   return parseEventSections(data);
 }
 
+/* --------------------------------------------------------------- menu --- */
+
+/** Wiersz menu wydarzenia - kształt WPROST z sygnatury RPC, nie przepisany. */
+export type EventMenuRow = Fns["event_menu"]["Returns"][number];
+
+/**
+ * Pozycja menu podstron wydarzenia.
+ *
+ * `path` JEST CAŁĄ ŚCIEŻKĄ, NIE SLUGIEM. Strona publiczna żyje pod łańcuchem
+ * slugów rodziców (`src/routes/$.tsx`), więc RPC składa ją rekurencyjnie
+ * w SQL - klient dostaje gotowe „kongres-2026/agenda" i tylko dokleja `/`.
+ * Doklejanie ścieżki w kliencie wymagałoby zapytania o każdego rodzica.
+ *
+ * WIDOCZNOŚĆ JUŻ SIĘ STAŁA. `event_menu` filtruje pozycje po grupach wołającego
+ * po stronie bazy, więc tu nie ma pola „dla kogo" i nie ma go po co dodawać:
+ * lista, która przyszła, jest listą do narysowania w całości.
+ */
+export interface EventMenuItem {
+  id: string;
+  pageId: string;
+  labelPl: string;
+  labelEn: string;
+  /** Nazwa ikony kebab-case dla `DynamicIcon`; `null` = pozycja bez ikony. */
+  icon: string | null;
+  /** `#RRGGBB` na tło ikony; `null` = kolor z motywu. */
+  color: string | null;
+  /** Pełna ścieżka strony BEZ wiodącego ukośnika. */
+  path: string;
+  sortOrder: number;
+}
+
+/**
+ * Wiersze RPC -> model menu. Generowane typy `RETURNS TABLE` opisują każdą
+ * kolumnę jako non-null, a `icon`, `color` i własna etykieta są w bazie
+ * nullowalne - dlatego przechodzą przez `text()`, a nie wprost do modelu.
+ * Pozycja bez ścieżki wypada: odnośnik do `/` nie jest podstroną wydarzenia.
+ */
+function parseEventMenu(rows: readonly EventMenuRow[] | null): EventMenuItem[] {
+  if (rows === null) return [];
+  const out: EventMenuItem[] = [];
+  for (const row of rows) {
+    const path = text(row.path);
+    if (path === null) continue;
+    out.push({
+      id: text(row.id) ?? "",
+      pageId: text(row.page_id) ?? "",
+      labelPl: text(row.label_pl) ?? "",
+      labelEn: text(row.label_en) ?? "",
+      icon: text(row.icon),
+      color: text(row.color),
+      path: path.replace(/^\/+/, ""),
+      sortOrder: nullableInt(row.sort_order) ?? 0,
+    });
+  }
+  // Baza sortuje, ale kolejność jest częścią kontraktu widoku - domykamy ją
+  // tutaj, żeby test komponentu nie zależał od porządku z sieci.
+  return out.sort((a, b) => a.sortOrder - b.sortOrder || a.labelPl.localeCompare(b.labelPl));
+}
+
+export async function fetchEventMenu(slug: string): Promise<EventMenuItem[]> {
+  const { data, error } = await supabase.rpc("event_menu", { p_slug: slug });
+  if (error) throw error;
+  return parseEventMenu(data);
+}
+
 /* ------------------------------------------------------------- agenda --- */
 
 export async function fetchEventAgenda(slug: string): Promise<AgendaSession[]> {

@@ -1,10 +1,27 @@
-// Sekcje studia, ktore montuja ISTNIEJACE panele modulu wydarzen.
+// Ekrany studia, ktore montuja ISTNIEJACE panele modulu wydarzen.
 //
 // PANELE JUZ ISTNIEJA i przyjmuja `eventId` - brakowalo im tylko miejsca,
 // w ktorym wydarzenie jest juz WYBRANE. Dotad kazdy ekran modulu mial wlasna
 // dropliste wyboru wydarzenia na gorze; w studiu wybor zrobil sidebar, wiec
 // droplista bylaby pytaniem o cos, co juz wiadomo (i drugim, rozjezdzajacym sie
 // zrodlem prawdy o tym, ktore wydarzenie jest edytowane).
+//
+// JEDEN PANEL = JEDNA PODSTRONA. Do tej zmiany cztery sekcje („Rejestracja",
+// „Tresc", „Spotkania", „Na miejscu") sciagaly po kilka paneli i przelaczaly je
+// ZAKLADKAMI. Zakladki znikly, bo nawigacja przeniosla sie do sidebara: kazdy
+// panel ma teraz wlasny adres, wiec da sie do niego odeslac link i wrocic
+// z zakladki przegladarki, a sidebar mowi „jestem w Salach", a nie „jestem
+// w Tresci". Dwie nawigacje jedna nad druga odpowiadaly na to samo pytanie
+// „gdzie jestem" dwa razy.
+//
+// ZAKLADKI ZOSTAJA W DWOCH MIEJSCACH: „Sponsorzy i reklama" (lista + poziomy)
+// i „Regulaminy" (zgody + czlonkostwa). Te dwie zostaja POZYCJAMI sidebara,
+// bo sidebar wzorca jest dwupoziomowy - „Kreator > Sponsorzy > Poziomy" byloby
+// trzecim poziomem, ktorego wzorzec nie ma.
+//
+// TYTUL EKRANU TO TA SAMA ETYKIETA, CO POZYCJA W SIDEBARZE, i pochodzi z tego
+// samego klucza slownika modulu. Dwa napisy na jedna rzecz („Sesje" w sidebarze,
+// „Agenda" w naglowku) kaza sie za kazdym razem upewniac, czy to ten ekran.
 //
 // STARE TRASY MODULU ZOSTAJA NIETKNIETE. `/admin/events/agenda` i siostrzane
 // nadal dzialaja ze swoja droplista - kto pracuje na kilku wydarzeniach naraz,
@@ -13,6 +30,7 @@
 //
 // `key={eventId}` NA KAZDYM PANELU: zmiana wydarzenia resetuje szkice
 // formularzy, zamiast przepisywac stan poprzedniego wydarzenia na nowe.
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
@@ -48,142 +66,197 @@ import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-reg
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
 
-export function EventRegistrationSection({ row }: { row: AdminEventDetailRow }) {
-  ensureAdminEventsI18n();
-  ensureRegistrationI18n();
+/**
+ * Rama jednoekranowej podstrony studia.
+ *
+ * Tytul przychodzi KLUCZEM, nie napisem: dziewietnascie ekranow przepisanych
+ * „na piechote" rozjechaloby sie z sidebarem na pierwszej korekcie nazwy.
+ */
+function ModuleScreen({ titleKey, children }: { titleKey: string; children: ReactNode }) {
   const { t } = useTranslation();
-  const eventId = row.id;
   return (
-    <EventStudioPage title={t("adminEvents.studio.sections.registration")}>
-      <Tabs defaultValue="registrations" className="space-y-4 py-6">
-        <TabsList className="tabs-scroller">
-          <TabsTrigger value="registrations">
-            {t("adminEventRegistration.nav.registrations")}
-          </TabsTrigger>
-          <TabsTrigger value="tickets">{t("adminEventRegistration.nav.tickets")}</TabsTrigger>
-          <TabsTrigger value="form">{t("adminEventRegistration.nav.form")}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="registrations">
-          <RegistrationsListPanel key={eventId} eventId={eventId} eventSlug={row.slug} />
-        </TabsContent>
-        <TabsContent value="tickets">
-          <EventTicketsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="form">
-          <RegistrationFieldsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-      </Tabs>
+    <EventStudioPage title={t(titleKey)}>
+      <div className="py-6">{children}</div>
     </EventStudioPage>
   );
 }
 
-export function EventContentSection({ row }: { row: AdminEventDetailRow }) {
-  ensureAdminEventsI18n();
+// ------------------------------------------------- Rejestracja w aplikacji
+
+export function EventRegistrationListSection({ row }: { row: AdminEventDetailRow }) {
+  ensureRegistrationI18n();
+  return (
+    <ModuleScreen titleKey="adminEventRegistration.nav.registrations">
+      {/* `eventSlug` jest tu po to, zeby wiersz zgloszenia mogl prowadzic na
+          strone publiczna wydarzenia - panel sam adresu nie zna. */}
+      <RegistrationsListPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+    </ModuleScreen>
+  );
+}
+
+export function EventRegistrationTicketsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureRegistrationI18n();
+  return (
+    <ModuleScreen titleKey="adminEventRegistration.nav.tickets">
+      <EventTicketsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventRegistrationFormSection({ row }: { row: AdminEventDetailRow }) {
+  ensureRegistrationI18n();
+  return (
+    <ModuleScreen titleKey="adminEventRegistration.nav.form">
+      <RegistrationFieldsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+// ------------------------------------------------------------------ Tresc
+
+export function EventContentSessionsSection({ row }: { row: AdminEventDetailRow }) {
   ensureAgendaI18n();
-  const { t } = useTranslation();
-  const eventId = row.id;
   // Godziny sesji wpisuje sie w STREFIE WYDARZENIA - bez tej etykiety
   // organizator w innej strefie wpisuje wlasne popoludnie w cudzy poranek.
   const timeZoneLabel = eventTimeZone({ timezone: row.timezone });
   return (
-    <EventStudioPage title={t("adminEvents.studio.sections.content")}>
-      <Tabs defaultValue="sessions" className="space-y-4 py-6">
-        <TabsList className="tabs-scroller">
-          <TabsTrigger value="sessions">{t("adminEventAgenda.nav.sessions")}</TabsTrigger>
-          <TabsTrigger value="tracks">{t("adminEventAgenda.nav.tracks")}</TabsTrigger>
-          <TabsTrigger value="rooms">{t("adminEventAgenda.nav.rooms")}</TabsTrigger>
-          <TabsTrigger value="conflicts">{t("adminEventAgenda.nav.conflicts")}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="sessions">
-          <AgendaSessionsPanel key={eventId} eventId={eventId} timeZoneLabel={timeZoneLabel} />
-        </TabsContent>
-        <TabsContent value="tracks">
-          <AgendaTracksPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="rooms">
-          <AgendaRoomsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="conflicts">
-          <AgendaConflictsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-      </Tabs>
-    </EventStudioPage>
+    <ModuleScreen titleKey="adminEventAgenda.nav.sessions">
+      <AgendaSessionsPanel key={row.id} eventId={row.id} timeZoneLabel={timeZoneLabel} />
+    </ModuleScreen>
   );
 }
 
-export function EventMeetingsSection({ row }: { row: AdminEventDetailRow }) {
-  ensureAdminEventsI18n();
+export function EventContentTracksSection({ row }: { row: AdminEventDetailRow }) {
+  ensureAgendaI18n();
+  return (
+    <ModuleScreen titleKey="adminEventAgenda.nav.tracks">
+      <AgendaTracksPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventContentRoomsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureAgendaI18n();
+  return (
+    <ModuleScreen titleKey="adminEventAgenda.nav.rooms">
+      <AgendaRoomsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventContentConflictsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureAgendaI18n();
+  return (
+    <ModuleScreen titleKey="adminEventAgenda.nav.conflicts">
+      <AgendaConflictsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+// -------------------------------------------------------------- Spotkania
+
+export function EventMeetingsTablesSection({ row }: { row: AdminEventDetailRow }) {
   ensureMeetingsI18n();
-  const { t } = useTranslation();
-  const eventId = row.id;
   return (
-    <EventStudioPage title={t("adminEvents.studio.sections.meetings")}>
-      <Tabs defaultValue="tables" className="space-y-4 py-6">
-        <TabsList className="tabs-scroller">
-          <TabsTrigger value="tables">{t("adminEventMeetings.nav.tables")}</TabsTrigger>
-          <TabsTrigger value="settings">{t("adminEventMeetings.nav.settings")}</TabsTrigger>
-          <TabsTrigger value="meetings">{t("adminEventMeetings.nav.meetings")}</TabsTrigger>
-          <TabsTrigger value="stats">{t("adminEventMeetings.nav.stats")}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="tables">
-          <MeetingTablesPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="settings">
-          <MeetingSettingsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="meetings">
-          <MeetingsListPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="stats">
-          <MeetingStatsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-      </Tabs>
-    </EventStudioPage>
+    <ModuleScreen titleKey="adminEventMeetings.nav.tables">
+      <MeetingTablesPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
   );
 }
 
-export function EventOnsiteSection({ row }: { row: AdminEventDetailRow }) {
-  ensureAdminEventsI18n();
-  ensureOnsiteI18n();
-  const { t } = useTranslation();
-  const eventId = row.id;
+export function EventMeetingsSettingsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureMeetingsI18n();
   return (
-    <EventStudioPage title={t("adminEvents.studio.sections.onsite")}>
-      <Tabs defaultValue="desk" className="space-y-4 py-6">
-        <TabsList className="tabs-scroller">
-          <TabsTrigger value="desk">{t("adminEventOnsite.nav.desk")}</TabsTrigger>
-          <TabsTrigger value="log">{t("adminEventOnsite.nav.log")}</TabsTrigger>
-          <TabsTrigger value="stats">{t("adminEventOnsite.nav.stats")}</TabsTrigger>
-          <TabsTrigger value="checkpoints">{t("adminEventOnsite.nav.checkpoints")}</TabsTrigger>
-          <TabsTrigger value="devices">{t("adminEventOnsite.nav.devices")}</TabsTrigger>
-          <TabsTrigger value="badges">{t("adminEventOnsite.nav.badges")}</TabsTrigger>
-          <TabsTrigger value="leads">{t("adminEventOnsite.nav.leads")}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="desk">
-          <OnsiteDeskPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="log">
-          <OnsiteLogPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="stats">
-          <OnsiteStatsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="checkpoints">
-          <OnsiteCheckpointsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="devices">
-          <OnsiteDevicesPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="badges">
-          <OnsiteBadgesPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-        <TabsContent value="leads">
-          <OnsiteLeadsPanel key={eventId} eventId={eventId} />
-        </TabsContent>
-      </Tabs>
-    </EventStudioPage>
+    <ModuleScreen titleKey="adminEventMeetings.nav.settings">
+      <MeetingSettingsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
   );
 }
+
+export function EventMeetingsListSection({ row }: { row: AdminEventDetailRow }) {
+  ensureMeetingsI18n();
+  return (
+    <ModuleScreen titleKey="adminEventMeetings.nav.meetings">
+      <MeetingsListPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventMeetingsStatsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureMeetingsI18n();
+  return (
+    <ModuleScreen titleKey="adminEventMeetings.nav.stats">
+      <MeetingStatsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+// -------------------------------------------------------------- Na miejscu
+
+export function EventOnsiteDeskSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.desk">
+      <OnsiteDeskPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventOnsiteLogSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.log">
+      <OnsiteLogPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventOnsiteStatsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.stats">
+      <OnsiteStatsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventOnsiteCheckpointsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.checkpoints">
+      <OnsiteCheckpointsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventOnsiteDevicesSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.devices">
+      <OnsiteDevicesPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventOnsiteBadgesSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.badges">
+      <OnsiteBadgesPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventOnsiteLeadsSection({ row }: { row: AdminEventDetailRow }) {
+  ensureOnsiteI18n();
+  return (
+    <ModuleScreen titleKey="adminEventOnsite.nav.leads">
+      <OnsiteLeadsPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+// ------------------------------ Pozycje z zakladkami (drugi poziom w tresci)
 
 export function EventSponsorsSection({ row }: { row: AdminEventDetailRow }) {
   ensureAdminEventsI18n();

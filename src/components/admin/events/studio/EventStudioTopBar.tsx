@@ -1,10 +1,18 @@
 // Gorny pasek STUDIA WYDARZENIA.
 //
-// TRZY RZECZY, KTORE MUSZA BYC WIDOCZNE ZAWSZE: gdzie jestem (nazwa wydarzenia
-// i powrot do listy), w jakim jest stanie (szkic / opublikowane / odwolane)
-// i co moge z nim zrobic teraz (podglad, publikacja). Wzorzec referencyjny ma
-// dokladnie ten uklad i to nie jest przypadek: publikacja jest jedyna akcja
-// nieodwracalna z punktu widzenia uczestnika, wiec stoi osobno, po prawej.
+// PASEK NALEZY DO AKCJI, NIE DO TOZSAMOSCI. Zostaja w nim dwie rzeczy: w jakim
+// stanie jest wydarzenie (szkic / opublikowane / odwolane) i co moge z nim
+// zrobic teraz (podglad, publikacja). Publikacja jest jedyna akcja nieodwracalna
+// z punktu widzenia uczestnika, wiec stoi osobno, po prawej.
+//
+// NAZWY WYDARZENIA TU NIE MA - i to jest decyzja, nie przeoczenie. Nazwa
+// i termin przeniosly sie do naglowka sidebara, bo tam stoja we wzorcu
+// (`‹ Back to the community` · nazwa · data · `Open event`), a pasek gorny
+// wzorca ma wylacznie logo, plakietke planu, `Preview event`, `Publish event`
+// i konto. Zostawienie nazwy tutaj znaczyloby ten sam napis dwa razy na jednym
+// ekranie, kilkadziesiat pikseli od siebie - a wtedy przestaje sie go czytac
+// w obu miejscach. Odnosnik po lewej zostaje, bo prowadzi do STUDIA jako
+// modulu (i jest jedynym wyjsciem, gdy sidebar jest przewiniety).
 //
 // STATUS JEST PRZELACZNIKIEM, NIE PLAKIETKA. Odwolanie wydarzenia i cofniecie
 // go do szkicu to czynnosci rzadkie, ale musza byc osiagalne bez szukania -
@@ -30,14 +38,12 @@ const STATUS_LABEL_KEYS: Record<EventStatus, string> = {
 };
 
 export function EventStudioTopBar({
-  title,
   status,
   isBusy,
   previewOpen,
   onTogglePreview,
   onStatusChange,
 }: {
-  title: string;
   status: EventStatus;
   isBusy: boolean;
   previewOpen: boolean;
@@ -99,7 +105,8 @@ export function EventStudioTopBar({
         </PopoverContent>
       </Popover>
 
-      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{title}</span>
+      {/* Rozpiera pasek: akcje maja stac po PRAWEJ, tak jak we wzorcu. */}
+      <span className="flex-1" aria-hidden="true" />
 
       <Button
         variant="ghost"

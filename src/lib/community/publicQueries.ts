@@ -5,7 +5,7 @@
 // Chatham House) - nigdy bezpośrednimi insertami do tabel.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface PublicEvent {
@@ -34,12 +34,45 @@ export interface PublicEvent {
   /** Cena biletu w groszach/centach; NULL lub 0 = wydarzenie bezpłatne. */
   ticket_price_cents: number | null;
   ticket_currency: string;
+  /** onsite/online/hybrid - format wydarzenia (kolumna `events.format`). */
+  format: string;
+  /** hidden/teaser/full - ile widzi niezapisany (bramkę egzekwuje baza). */
+  guest_mode: string;
+  street_address: string | null;
+  city: string | null;
+  region: string | null;
+  postal_code: string | null;
+  country: string | null;
+  /** youtube/vimeo; NULL = wydarzenie bez nagłówka wideo. */
+  video_header_platform: string | null;
+  video_header_id: string | null;
+  /** Hashtag BEZ krzyżyka - `#` dokłada prezentacja, patrz eventGeneralDraft. */
+  social_hashtag: string | null;
+  support_email: string | null;
+  /** Języki TREŚCI wydarzenia (ISO 639-1), nie języki interfejsu. */
+  languages: string[];
+  /** Branding wydarzenia; kształt waliduje `eventBrandingFromJson`. */
+  branding: Json;
+  /** list/grid - prezentacja menu podstron wydarzenia. */
+  pages_display_mode: string;
+  published_at: string | null;
 }
 
+// ── DLACZEGO TA LISTA JEST DŁUŻSZA NIŻ KIEDYŚ ──────────────────────────────
 // join_url/recording_url są odcięte grantem kolumnowym (SELECT bez tych
 // kolumn dla anon/authenticated) - jedyną ścieżką jest RPC get_event_access.
+//
+// Reszta kolumn niżej (adres strukturalny, nagłówek wideo, hashtag, języki
+// treści, branding, tryb prezentacji podstron) czekała na GRANT, a nie na ten
+// plik: `events` ma JAWNĄ allowlistę kolumn czytelnych dla `anon`
+// i `authenticated` (migracja 20260803191905), a kolumna dopisana ALTER-em
+// NIE wchodzi do niej sama - `SELECT` na nią kończył się odmową uprawnień,
+// mimo że panel ją zapisywał. Grant przyrostowy per kolumna nadaje migracja
+// `20260826120000_event_pages_and_public_columns.sql`. TA PUŁAPKA WRÓCI przy
+// następnej kolumnie: dopisanie pola tutaj bez `GRANT SELECT (kolumna)` daje
+// stronę, która przestaje się wczytywać w całości, a nie pole, które jest puste.
 const EVENT_COLUMNS =
-  "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank, rsvp_opens_at, early_rsvp_rank, ticket_price_cents, ticket_currency";
+  "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank, rsvp_opens_at, early_rsvp_rank, ticket_price_cents, ticket_currency, format, guest_mode, street_address, city, region, postal_code, country, video_header_platform, video_header_id, social_hashtag, support_email, languages, branding, pages_display_mode, published_at";
 
 async function fetchPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase

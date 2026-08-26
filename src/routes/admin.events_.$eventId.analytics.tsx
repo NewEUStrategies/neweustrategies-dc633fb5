@@ -1,13 +1,17 @@
-// /admin/events/<id>/analytics - sekcja „Analytics" studia wydarzenia.
+// /admin/events/<id>/analytics - sekcja „Analityka" studia wydarzenia.
 //
-// SEKCJA BEZ WŁASNEJ POWIERZCHNI PER WYDARZENIE - dlaczego mimo to istnieje
-// i dokąd prowadzi, tłumaczy nagłówek `EventStudioExternalSection`.
+// TA SEKCJA MA WLASNA POWIERZCHNIE, bo ma z czego liczyc. Zapisy, program,
+// gielda spotkan i odprawa licza swoje statystyki po stronie bazy od tygodni -
+// ekran je SKLADA, a nie liczy po raz szosty. Drogowskaz do modulu globalnego
+// zostaje na dole panelu: ruch na stronie (odslony, zrodla, konwersje) nie jest
+// wielkoscia wydarzenia i nie ma sensu udawac, ze wydarzenie ma wlasny licznik.
 //
-// TRASA NIE PYTA O WIERSZ WYDARZENIA: ekran jest drogowskazem, nie formularzem,
-// więc zapytanie o dane, których nie renderuje, byłoby wyłącznie kosztem.
+// TRASA JEST CIENKA - wiersz wydarzenia wczytuje rama studia i ona pokazuje
+// spinner oraz zdanie „nie znaleziono".
 import { createFileRoute } from "@tanstack/react-router";
 
-import { EventStudioExternalSection } from "@/components/admin/events/studio/EventStudioExternalSection";
+import { EventAnalyticsPanel } from "@/components/admin/events/organisms/EventAnalyticsPanel";
+import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 
 export const Route = createFileRoute("/admin/events_/$eventId/analytics")({
   head: () => ({
@@ -16,7 +20,7 @@ export const Route = createFileRoute("/admin/events_/$eventId/analytics")({
       { name: "robots", content: "noindex, nofollow" },
       {
         name: "description",
-        content: "Where traffic and conversion data for this event is read today.",
+        content: "Registrations, programme, meetings and check-in figures for this event.",
       },
     ],
   }),
@@ -24,5 +28,9 @@ export const Route = createFileRoute("/admin/events_/$eventId/analytics")({
 });
 
 function EventStudioAnalyticsPage() {
-  return <EventStudioExternalSection section="analytics" />;
+  const { eventId } = Route.useParams();
+  const detailQ = useAdminEventDetail(eventId);
+  const row = detailQ.data ?? null;
+  if (row === null) return null;
+  return <EventAnalyticsPanel row={row} />;
 }

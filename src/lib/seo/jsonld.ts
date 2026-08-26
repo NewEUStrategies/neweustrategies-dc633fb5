@@ -11,6 +11,7 @@ import { SITE_NAME, SITE_DEFAULT_DESCRIPTION, absoluteUrl, type Lang } from "@/l
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { homeLabel } from "@/lib/i18n/commonLabels";
+import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
 
 /**
  * Serialize a JSON-LD graph for embedding inside a <script> element. Plain
@@ -368,8 +369,18 @@ export function platformLandingJsonLd(input: PlatformLandingJsonLdInput): Record
   };
 }
 
-/** Jedno nadchodzące wydarzenie listy /events w postaci węzła schema.org Event. */
-export interface EventsListJsonLdEvent {
+/**
+ * Jedno wydarzenie w postaci węzła schema.org Event - dla listy /events
+ * i dla strony szczegółu.
+ *
+ * ADRES STRUKTURALNY JEST OPCJONALNY I DOKŁADANY, NIE ZAMIENIANY. `location`
+ * jest nazwą miejsca („Centrum Kongresowe"), a pola adresowe pochodzą
+ * z osobnych kolumn `events` (street_address … country). Wydarzenie, które ma
+ * tylko nazwę miejsca, ZOSTAJE przy dzisiejszym markupie - dopisanie
+ * `PostalAddress` nie może odebrać `Place` wydarzeniom, których nikt nie
+ * uzupełnił.
+ */
+export interface EventsListJsonLdEvent extends EventAddressParts {
   slug: string;
   name: string;
   /** ISO 8601 (timestamptz z bazy). */
@@ -380,6 +391,7 @@ export interface EventsListJsonLdEvent {
   /** Miejsce fizyczne (events.location); brak = wydarzenie bez sali. */
   location?: string | null;
   image?: string | null;
+  description?: string | null;
 }
 
 export interface EventsListJsonLdInput {
@@ -408,6 +420,27 @@ const ATTENDANCE_MODE_BY_KIND: Record<string, string> = {
   hybrid: MIXED_MODE,
 };
 
+/**
+ * `PostalAddress` albo `null`, gdy adresu strukturalnego nie ma.
+ *
+ * TO JEST JEDYNE MIEJSCE, W KTÓRYM ADRES STRUKTURALNY NAPRAWDĘ ZARABIA:
+ * `location.address` jako `PostalAddress` kwalifikuje wydarzenie do wyniku
+ * z mapą i adresem, czego tekstowy adres nie robi. Pole puste NIE WCHODZI do
+ * węzła - `addressRegion: ""` jest dla walidatora błędem, nie brakiem danych.
+ */
+function postalAddressNode(parts: EventAddressParts): Record<string, unknown> | null {
+  const entries: Array<[string, string]> = [
+    ["streetAddress", parts.streetAddress?.trim() ?? ""],
+    ["postalCode", parts.postalCode?.trim() ?? ""],
+    ["addressLocality", parts.city?.trim() ?? ""],
+    ["addressRegion", parts.region?.trim() ?? ""],
+    ["addressCountry", parts.country?.trim() ?? ""],
+  ];
+  const filled = entries.filter(([, value]) => value !== "");
+  if (filled.length === 0) return null;
+  return { "@type": "PostalAddress", ...Object.fromEntries(filled) };
+}
+
 function publicEventNode(
   origin: string,
   lang: Lang,
@@ -416,8 +449,18 @@ function publicEventNode(
   const url = absoluteUrl(origin, localizedPath(`/events/${ev.slug}`, lang));
   const mode = ev.kind ? ATTENDANCE_MODE_BY_KIND[ev.kind] : undefined;
   const physical = ev.location?.trim();
+  const postal = postalAddressNode(ev);
   const location: Array<Record<string, unknown>> = [];
-  if (physical) location.push({ "@type": "Place", name: physical, address: physical });
+  // Nazwa miejsca jest wymagana przez `Place`, więc gdy organizator podał sam
+  // adres bez nazwy sali, nazwą staje się adres w jednej linii - ta sama
+  // reguła składania, którą widzi uczestnik na stronie wydarzenia.
+  if (physical || postal !== null) {
+    location.push({
+      "@type": "Place",
+      name: physical || eventAddressLine(ev),
+      address: postal ?? physical,
+    });
+  }
   // Wydarzenia zdalne/hybrydowe: VirtualLocation wskazuje stronę wydarzenia -
   // właściwy link do transmisji stoi za bramką RSVP (get_event_access) i nigdy
   // nie trafia do publicznego markupu.
@@ -431,14 +474,40 @@ function publicEventNode(
     url,
     startDate: ev.startDate,
     ...(ev.endDate ? { endDate: ev.endDate } : {}),
-    // Lista pobiera wyłącznie opublikowane, a projekcja head tylko nadchodzące
-    // wydarzenia, więc status jest zawsze "zaplanowane".
+    // Oba wejścia (lista i strona szczegółu) czytają WYŁĄCZNIE wydarzenia
+    // `status = 'published'`, więc „zaplanowane" jest jedyną wartością, która
+    // nie kłamie. Odwołanie (`events.cancelled_at`) nie jest dziś w żadnym
+    // z tych odczytów - w dniu, w którym wejdzie, wchodzi tu `EventCancelled`.
     eventStatus: "https://schema.org/EventScheduled",
     ...(mode ? { eventAttendanceMode: mode } : {}),
     ...(location.length > 0 ? { location: location.length === 1 ? location[0] : location } : {}),
     ...(ev.image ? { image: [ev.image] } : {}),
     inLanguage: lang,
     organizer: { "@id": `${origin}/#organization` },
+  };
+}
+
+/**
+ * Pojedynczy węzeł `Event` dla strony /events/$slug.
+ *
+ * DLACZEGO OSOBNA FUNKCJA, A NIE ELEMENT KOLEKCJI. Strona szczegółu jest
+ * kanonicznym adresem wydarzenia, więc jej markup musi być samodzielnym
+ * dokumentem `@context` - węzeł wyjęty z `ItemList` listy nie ma kontekstu
+ * i crawler czyta go jako fragment. Kształt węzła jest DOKŁADNIE ten sam
+ * (jedna funkcja `publicEventNode`), żeby lista i szczegół nie opisywały tego
+ * samego wydarzenia dwoma różnymi zestawami pól.
+ */
+export function publicEventJsonLd(input: {
+  origin: string;
+  lang: Lang;
+  event: EventsListJsonLdEvent;
+}): Record<string, unknown> {
+  const node = publicEventNode(input.origin, input.lang, input.event);
+  const description = input.event.description?.trim();
+  return {
+    "@context": "https://schema.org",
+    ...node,
+    ...(description ? { description } : {}),
   };
 }
 

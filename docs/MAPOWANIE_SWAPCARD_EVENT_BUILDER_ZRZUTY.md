@@ -2883,18 +2883,452 @@ time: 10000`), oś Y `0 … 34,000`, oś X `Jun 14 … Jun 30`.
 
 ---
 
-## Partia 17 — (oczekuje na zrzuty)
+## Partia 17 — warstwa układu i nawigacji (2026-08-26)
 
-Domknięte: **cały panel Swapcarda poza czterema ekranami**: `Event builder`,
-`In-App registration`, `Content`, `Exhibitor Marketplace`, `Meetings`,
-`Communications`, `Onsite`, `Analytics`.
+Ta partia jest inna niż szesnaście poprzednich. Tam materiałem była **treść ekranu**:
+etykieta pola, limit znaków, zbiór wartości droplisty. Tu materiałem jest **nawigacja
+i układ** — czego dziennik nie miał w ogóle, bo wcześniejsze zrzuty były kadrowane na
+obszar treści, a sidebar albo w nich nie mieścił się, albo miał wszystkie grupy zwinięte.
 
-Brakuje:
+Podstawa: **41 zrzutów leżących w repozytorium** (`zrzuty/swapcard-2026-08-23/`,
+pliki `01-…png` … `41-…png`) i cztery inwentarze wykonane na nich 2026-08-26 (10 + 11 +
+10 + 10 zrzutów). Numery w tej sekcji odsyłają do **plików**, nie do numeracji „Zrzut
+n.m" z partii 1–16; mapowanie jednego na drugie jest w tabeli §17.4. Partii 1–16 ta
+sekcja **nie przepisuje** — odsyła do nich numerem.
 
-1. **`Overview`** (pulpit wydarzenia) — jedyny nietknięty ekran główny.
-2. **`Integrations`** i **`Add-on features`**.
-3. **`Groups & permissions → Manage visibility`** + rozwinięty **`Add condition`**.
-4. **`Session settings`** i **`Manage roles`** (słowniki z 6.2 i 7.1).
+Ta sekcja zajmuje miejsce dawnego szkicu „Partia 17 — (oczekuje na zrzuty)". Jego lista
+brakujących ekranów nie zniknęła: żyje dalej w §17.6, razem z brakami, które wyszły
+z tych 41 zrzutów.
+
+### 17.1 Pełne drzewo sidebara wzorca
+
+Sidebar ma **trzy rodzaje pozycji**, nie jeden — i to jest pierwsza rzecz, którą trzeba
+zapisać, bo nasz sidebar zna tylko jeden rodzaj (pozycja płaska).
+
+| Rodzaj              | Znak rozpoznawczy                      | Pozycje                                                                                                                |
+| ------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| pozycja samodzielna | brak strzałki, klikalna wprost         | `Overview`, `Exhibitor Marketplace`, `Add-on features`, `Help`                                                         |
+| grupa rozwijana     | strzałka ⌄ (zwinięta) / ⌃ (rozwinięta) | `Event builder`, `In-App registration`, `Content`, `Meetings`, `Communications`, `Onsite`, `Integrations`, `Analytics` |
+| podpozycja          | wcięcie, **bez ikony**                 | dzieci grup — patrz niżej                                                                                              |
+
+**Kolejność pierwszego poziomu, dosłownie** (pełna lista widoczna na
+[`37-exhibitor-marketplace-set-currency-modal.png`](zrzuty/swapcard-2026-08-23/37-exhibitor-marketplace-set-currency-modal.png)
+— jedyny zrzut, na którym sidebar mieści się w kadrze od `Overview` do `Help`;
+potwierdzona na [`01-in-app-registration-codes-empty-state.png`](zrzuty/swapcard-2026-08-23/01-in-app-registration-codes-empty-state.png)):
+
+1. `Overview`
+2. `Event builder` ⌄
+3. `In-App registration` ⌄
+4. `Content` ⌄
+5. `Exhibitor Marketplace` — plakietka **`New`** (pomarańczowa)
+6. `Meetings` ⌄
+7. `Communications` ⌄
+8. `Onsite` ⌄
+9. `Integrations` ⌄
+10. `Analytics` ⌄
+11. `Add-on features` — ikona diamentu, tekst złoto-pomarańczowy
+12. `Help` — ikona znaku zapytania, pozycja ostatnia
+
+**Podpozycje odczytane z sidebara** (tylko dwie grupy były na tych 41 zrzutach
+rozwinięte):
+
+- **`In-App registration`** — cztery podpozycje, w tej kolejności:
+  `Registration settings` · `Tickets` · `Codes` · `Form`.
+  Zrzuty [`01`](zrzuty/swapcard-2026-08-23/01-in-app-registration-codes-empty-state.png)
+  (aktywne `Codes`), [`02`](zrzuty/swapcard-2026-08-23/02-in-app-registration-form-builder-top.png)
+  i [`03`](zrzuty/swapcard-2026-08-23/03-in-app-registration-form-builder-thank-you.png)
+  (aktywne `Form`).
+- **`Content`** — siedem podpozycji, w tej kolejności:
+  `People` · `Sessions` · `Exhibitors` · `Items` · `Documents & Links` ·
+  `Feed channels` · `Discussions`.
+  Zrzuty `04`–`36`, z aktywną kolejno każdą z siedmiu poza `Items` i `Discussions`
+  widzianymi jako aktywne odpowiednio na
+  [`30`](zrzuty/swapcard-2026-08-23/30-content-items-create-items.png) i
+  [`35`](zrzuty/swapcard-2026-08-23/35-content-discussions-list.png).
+
+**Podpozycje nieodczytane.** Sześć grup jest zwiniętych na **wszystkich 41 zrzutach**,
+więc ich drzewa nie znamy z sidebara: `Event builder`, `Meetings`, `Communications`,
+`Onsite`, `Integrations`, `Analytics`. Rozróżnienie jest istotne i nie wolno go zatrzeć:
+
+- dla `Event builder` **znamy ekrany** z partii 1–2 (`General information`,
+  `Pages & menu`, `Groups & permissions`, `Branding`, `Sponsors & advertising`,
+  `Terms`) — ale to wiedza z ekranów i adresów, nie z rozwiniętego sidebara, więc
+  **nie wiemy, czy to komplet** ani w jakiej kolejności wzorzec je wypisuje;
+- dla `Meetings`, `Communications`, `Onsite`, `Analytics` podobnie — ekrany opisują
+  partie 12–16, hierarchii nikt nie widział;
+- dla `Integrations` nie mamy **ani jednego** ekranu (dawna „Partia 17 pkt 2").
+
+Wszystko sześć wchodzi do §17.6 jako braki w rozpoznaniu — inaczej przy następnym
+porównaniu zapis „znamy podpozycje" wyglądałby na odczytany fakt.
+
+**Zachowanie grup.** Na każdym zrzucie **rozwinięta jest dokładnie jedna grupa** i jest
+to grupa, w której leży aktywny ekran. Stan rozwinięcia **przeżywa przejścia między
+ekranami**: na zrzutach `22`→`30`→`31` adres zmienia się `…/exhibitors` → `…/products`
+→ `…/documents`, a `Content` pozostaje otwarte. Na
+[`37`](zrzuty/swapcard-2026-08-23/37-exhibitor-marketplace-set-currency-modal.png)
+`Content` jest **zwinięte**, bo aktywna jest samodzielna pozycja `Exhibitor Marketplace`.
+Czy rozwinięcie drugiej grupy zamyka pierwszą (akordeon), czy grup może być otwartych
+kilka — **nieodczytane**: nie ma zrzutu z dwiema rozwiniętymi grupami ani z rozwiniętą
+grupą, w której nie ma aktywnego ekranu.
+
+**Plakietki.** Dwie, o różnych rolach i różnych miejscach:
+
+- **`New`** (pomarańczowa, bez tła) — wyłącznie przy `Exhibitor Marketplace`, na
+  **wszystkich 41 zrzutach**. To plakietka **pozycji nawigacji**: nowość produktowa.
+- **`Add-on`** (piaskowe tło, ikona diamentu) — **nigdy w sidebarze**, zawsze w treści
+  ekranu, przy konkretnej funkcji: karta KPI `Abandoned`
+  ([`04`](zrzuty/swapcard-2026-08-23/04-content-people-list.png)),
+  `Onsite access tracking with SwapAccess`
+  ([`17`](zrzuty/swapcard-2026-08-23/17-sessions-session-preferences.png)),
+  `Members role` ([`26`](zrzuty/swapcard-2026-08-23/26-exhibitor-profile-members.png)),
+  `Documents & Links`, `Items`, `Lead capture`, `Lead qualification`,
+  `Lead dashboards and exports`
+  ([`27`](zrzuty/swapcard-2026-08-23/27-exhibitor-profile-permissions-top.png),
+  [`28`](zrzuty/swapcard-2026-08-23/28-exhibitor-profile-permissions-bottom.png),
+  [`29`](zrzuty/swapcard-2026-08-23/29-exhibitor-profile-documents-and-links.png)).
+  Oznacza **funkcję płatną**, a pozycja `Add-on features` na dole sidebara to jej katalog
+  sprzedażowy.
+
+Pozycja **`Help`** to pełnoprawna pozycja nawigacji, nie ikona w narożniku paska —
+u nas nie ma jej w żadnej formie.
+
+Co to zmienia u nas: `src/lib/events/eventStudioNav.ts` ma **piętnaście sekcji na
+płasko**. Jedyną grupą z nagłówkiem jest `builder` (sześć wpisów); `registration`,
+`content`, `meetings`, `communications`, `onsite`, `integrations`, `analytics`,
+`features` są pojedynczymi wpisami z `labelKey: null`, czyli grupą jednoelementową bez
+nagłówka. Wzorzec ma **osiem grup i cztery pozycje samodzielne**. Największa
+rozbieżność: `Content` to u wzorca siedem osobnych ekranów, a u nas jedna sekcja,
+w której siedzą cztery zakładki agendy (`EventContentSection`
+w `src/components/admin/events/studio/EventStudioModuleSections.tsx`) — i żadna z tych
+czterech nie jest jedną z siedmiu wzorca poza `Sessions`.
+
+### 17.2 Nagłówek nad wyszukiwarką — cztery elementy, nieprzyklejony
+
+Nad polem `Search within the event…` stoją **cztery** elementy, w tej kolejności
+(zrzuty `01`–`03`, `08`–`13`, `18`–`37`):
+
+1. **`‹ Back to the community`** — odnośnik ze strzałką w lewo, na samej górze
+2. **`European Strategies Congress`** — nazwa wydarzenia, pogrubiona, zawija się na dwa
+   wiersze
+3. **`November 26th 2025, 9:00 am`** — data **i godzina rozpoczęcia**, szary tekst,
+   jeden wiersz
+4. **`Open event`** — odnośnik podkreślony (wyjście do widoku publicznego)
+
+Dwie rzeczy do zapisania. Pierwsza: to **dwa różne wyjścia**, nie jedno.
+`Back to the community` prowadzi o poziom w górę (do społeczności), `Open event` na
+zewnątrz (do widoku publicznego). Nasz sidebar ma tylko drugie z nich
+(`EventStudioSidebar.tsx`), a wyjścia o poziom w górę — do listy wydarzeń — nie ma jako
+nazwanego odnośnika.
+
+Druga: **nagłówek nie jest przyklejony**. Na zrzutach
+[`04`](zrzuty/swapcard-2026-08-23/04-content-people-list.png)–[`07`](zrzuty/swapcard-2026-08-23/07-content-people-create-manually-group-dropdown.png)
+sidebar jest przewinięty i `‹ Back to the community` **znika z kadru**, a nazwa
+wydarzenia zostaje. Czyli nagłówek przewija się razem z listą pozycji, a nie stoi ponad
+nią. Nasza rama studia trzyma nagłówek na stałe — to odchylenie na naszą korzyść
+(wyjście w górę nie ucieka), ale świadome, a nie przypadkowe: przy dwunastu pozycjach
+i podpozycjach lista może nie mieścić się w ekranie, a wtedy koszt przyklejenia to
+kilkadziesiąt pikseli wysokości.
+
+Trzecia obserwacja, mniejsza: pasek górny **zmienia etykietę podglądu zależnie od
+ekranu** — `Preview event` wszędzie, ale **`Preview form`** na
+`…/registration/forms` (`02`, `03`). Podgląd wzorca dotyczy **tego, co się edytuje**,
+nie zawsze całego wydarzenia.
+
+### 17.3 Adresowanie — każda podstrona ma własny adres (wniosek, który zmienia architekturę)
+
+To jest najważniejszy wniosek całej partii i dlatego stoi osobno.
+
+**Co widać.** Każdy ekran wzorca — także trzeci poziom w głąb — ma **własny adres**:
+
+| Zrzut | Adres (z paska lub paska statusu)     | Aktywna pozycja sidebara      | Powrót do listy         |
+| ----- | ------------------------------------- | ----------------------------- | ----------------------- |
+| `05`  | `…/people/settings/profile-edition`   | `Content › People`            | `‹ Back to people`      |
+| `09`  | `…/plannings/UGxhbm5pbmdfMjAwNDQzMg…` | `Content › Sessions`          | `‹ Back to sessions`    |
+| `19`  | `…/exhibitors/settings/cu…`           | `Content › Exhibitors`        | `‹ Back to exhibitors`  |
+| `20`  | `…/exhibitors/settings/re…`           | `Content › Exhibitors`        | `‹ Back to exhibitors`  |
+| `21`  | `…/exhibitors/settings/ho…`           | `Content › Exhibitors`        | `‹ Back to exhibitors`  |
+| `22`  | `…/exhibitors/settings/si…`           | `Content › Exhibitors`        | `‹ Back to exhibitors`  |
+| `23`  | `…/exhibitors/RXhoaWJp…`              | `Content › Exhibitors`        | `‹ Back to exhibitors`  |
+| `32`  | `…/documents/RG9jdW1l…`               | `Content › Documents & Links` | `Back to documents`     |
+| `34`  | `…/feed-channels/a42fd…`              | `Content › Feed channels`     | `Back to feed channels` |
+
+**Podświetlenie zostaje na pozycji listy.** Wejście w szczegół rekordu (sesja, firma,
+dokument, kanał) ani w podstronę ustawień **nie dodaje trzeciego poziomu w sidebarze**
+i nie zapala okruszków. Sidebar nadal wskazuje `Sessions`, `Exhibitors`,
+`Documents & Links`. Powrót realizuje **odnośnik w treści** — `‹ Back to …` nad
+nagłówkiem ekranu.
+
+**Dlaczego to zmienia architekturę u nas.** Nasze podekrany są **zakładkami wewnątrz
+jednej trasy**: `EventRegistrationSection` ma `Tabs defaultValue="registrations"`
+(zakładki „zapisy" / „wejściówki" / „formularz"), `EventContentSection` ma
+`Tabs defaultValue="sessions"` (sesje / ścieżki / sale / konflikty) — oba
+w `src/components/admin/events/studio/EventStudioModuleSections.tsx`. Zakładka nie jest
+w adresie, więc:
+
+- **nie da się jej podlinkować** — „zobacz konflikty w agendzie" jest instrukcją
+  („wejdź w Treść, potem czwarta zakładka"), a nie odnośnikiem;
+- **nie da się jej otworzyć w nowej karcie** — porównanie dwóch podstron obok siebie
+  jest niewykonalne;
+- **nie da się jej wskazać w zgłoszeniu do wsparcia** ani w dokumentacji — adres kończy
+  się na sekcji, więc zgłoszenie „na tym ekranie nie zapisuje się X" nie identyfikuje
+  ekranu;
+- **powrót z detalu nie ma gdzie wrócić** — dziś detal jest dialogiem nad zakładką,
+  a we wzorcu jest osobnym adresem z odnośnikiem powrotu.
+
+Decyzja, która z tego wynika, jest zapisana w §12 dokumentu nadrzędnego
+(`docs/PROJEKT_MODUL_EVENT_BUILDER_2026-08-23.md`, wpis „2026-08-26, partia 2"):
+sidebar studia przechodzi z płaskich piętnastu sekcji na **grupy z podpozycjami**,
+a dzisiejsze zakładki wewnątrz sekcji stają się **osobnymi adresami**.
+
+### 17.4 Co z tych 41 zrzutów jest nowe wobec dziennika
+
+Liczby policzone na inwentarzach, nie oszacowane: **36 zrzutów pokrywa ekrany już
+opisane** w partiach **4–11**, a **5 zrzutów jest nowe**. Rozkład pokrycia: partia 4 —
+3 zrzuty, partia 5 — 4, partia 6 — 4, partia 7 — 6, partia 8 — 11, partia 9 — 5,
+partia 10 — 2, partia 11 — 1.
+
+Nowe są: **`29.png`** (jeden ekran studia, którego dziennik nie opisywał) oraz
+**`38–41.png`** (cztery zrzuty trybu `Preview event`, czyli **frontu** wydarzenia — poza
+zakresem tego dziennika, opisane w `docs/PROJEKT_FRONT_WYDARZENIA_2026-08-23.md`).
+
+| Plik                                                                                                                                                  | Ekran wzorca                                            | W dzienniku |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------- |
+| [`01-in-app-registration-codes-empty-state.png`](zrzuty/swapcard-2026-08-23/01-in-app-registration-codes-empty-state.png)                             | `In-App registration › Codes` — pusty stan              | 4.3         |
+| [`02-in-app-registration-form-builder-top.png`](zrzuty/swapcard-2026-08-23/02-in-app-registration-form-builder-top.png)                               | `… › Form` — góra kreatora                              | 4.4         |
+| [`03-in-app-registration-form-builder-thank-you.png`](zrzuty/swapcard-2026-08-23/03-in-app-registration-form-builder-thank-you.png)                   | `… › Form` — dół + ekran podziękowania                  | 4.5         |
+| [`04-content-people-list.png`](zrzuty/swapcard-2026-08-23/04-content-people-list.png)                                                                 | `Content › People` — lista                              | 5.1         |
+| [`05-content-people-settings-basic-fields-edition.png`](zrzuty/swapcard-2026-08-23/05-content-people-settings-basic-fields-edition.png)               | `People settings › Basic fields edition`                | 5.2         |
+| [`06-content-people-create-manually-dialog.png`](zrzuty/swapcard-2026-08-23/06-content-people-create-manually-dialog.png)                             | modal `Create manually`                                 | 5.3–5.4     |
+| [`07-content-people-create-manually-group-dropdown.png`](zrzuty/swapcard-2026-08-23/07-content-people-create-manually-group-dropdown.png)             | tenże modal, droplista `Group`                          | 5.3–5.4     |
+| [`08-content-sessions-list.png`](zrzuty/swapcard-2026-08-23/08-content-sessions-list.png)                                                             | `Content › Sessions` — lista                            | 6.1         |
+| [`09-content-session-details-basics.png`](zrzuty/swapcard-2026-08-23/09-content-session-details-basics.png)                                           | sesja → `Details` (góra)                                | 6.2         |
+| [`10-content-session-details-live-interactions.png`](zrzuty/swapcard-2026-08-23/10-content-session-details-live-interactions.png)                     | sesja → `Details` (interakcje, zasoby, ID)              | 6.3         |
+| [`11-sessions-session-format-video-modal.png`](zrzuty/swapcard-2026-08-23/11-sessions-session-format-video-modal.png)                                 | modal `Select format & video`                           | 6.4         |
+| [`12-sessions-session-speakers-tab.png`](zrzuty/swapcard-2026-08-23/12-sessions-session-speakers-tab.png)                                             | sesja → `Speakers (1)`                                  | 7.1         |
+| [`13-sessions-session-exhibitors-tab.png`](zrzuty/swapcard-2026-08-23/13-sessions-session-exhibitors-tab.png)                                         | sesja → `Exhibitors (1)`                                | 7.2         |
+| [`14-sessions-session-attendees-empty.png`](zrzuty/swapcard-2026-08-23/14-sessions-session-attendees-empty.png)                                       | sesja → `Attendees` (pusto)                             | 7.3         |
+| [`15-sessions-session-linked-sessions.png`](zrzuty/swapcard-2026-08-23/15-sessions-session-linked-sessions.png)                                       | sesja → `Sessions` (powiązania)                         | 7.4         |
+| [`16-sessions-session-documents-links.png`](zrzuty/swapcard-2026-08-23/16-sessions-session-documents-links.png)                                       | sesja → `Documents & Links`                             | 7.5         |
+| [`17-sessions-session-preferences.png`](zrzuty/swapcard-2026-08-23/17-sessions-session-preferences.png)                                               | sesja → `Preferences`                                   | 7.6         |
+| [`18-content-exhibitors-list.png`](zrzuty/swapcard-2026-08-23/18-content-exhibitors-list.png)                                                         | `Content › Exhibitors` — lista                          | 8.1         |
+| [`19-content-exhibitor-settings-custom-fields.png`](zrzuty/swapcard-2026-08-23/19-content-exhibitor-settings-custom-fields.png)                       | `Exhibitor settings › Custom fields`                    | 8.2         |
+| [`20-content-exhibitor-settings-export-condition.png`](zrzuty/swapcard-2026-08-23/20-content-exhibitor-settings-export-condition.png)                 | `Exhibitor settings › Export condition`                 | 8.3         |
+| [`21-content-exhibitor-settings-home-message.png`](zrzuty/swapcard-2026-08-23/21-content-exhibitor-settings-home-message.png)                         | `Exhibitor settings › Home message`                     | 8.4         |
+| [`22-exhibitor-settings-similar-exhibitor-recommendation.png`](zrzuty/swapcard-2026-08-23/22-exhibitor-settings-similar-exhibitor-recommendation.png) | `Exhibitor settings › Similar exhibitor recommendation` | 8.5         |
+| [`23-exhibitor-profile-details-top.png`](zrzuty/swapcard-2026-08-23/23-exhibitor-profile-details-top.png)                                             | profil firmy → `Details` (góra)                         | 8.6         |
+| [`24-exhibitor-profile-details-bottom.png`](zrzuty/swapcard-2026-08-23/24-exhibitor-profile-details-bottom.png)                                       | profil firmy → `Details` (dół)                          | 8.6         |
+| [`25-exhibitor-profile-contact-details.png`](zrzuty/swapcard-2026-08-23/25-exhibitor-profile-contact-details.png)                                     | profil firmy → `Contact details`                        | 8.7         |
+| [`26-exhibitor-profile-members.png`](zrzuty/swapcard-2026-08-23/26-exhibitor-profile-members.png)                                                     | profil firmy → `Members`                                | 8.8         |
+| [`27-exhibitor-profile-permissions-top.png`](zrzuty/swapcard-2026-08-23/27-exhibitor-profile-permissions-top.png)                                     | profil firmy → `Permissions` (góra)                     | 8.9         |
+| [`28-exhibitor-profile-permissions-bottom.png`](zrzuty/swapcard-2026-08-23/28-exhibitor-profile-permissions-bottom.png)                               | profil firmy → `Permissions` (dół)                      | 8.9         |
+| [**`29-exhibitor-profile-documents-and-links.png`**](zrzuty/swapcard-2026-08-23/29-exhibitor-profile-documents-and-links.png)                         | profil firmy → `Documents & Links`                      | **NOWE**    |
+| [`30-content-items-create-items.png`](zrzuty/swapcard-2026-08-23/30-content-items-create-items.png)                                                   | `Content › Items` — `Create items`                      | 9.1         |
+| [`31-content-documents-and-links-list.png`](zrzuty/swapcard-2026-08-23/31-content-documents-and-links-list.png)                                       | `Content › Documents & Links` — lista                   | 9.4         |
+| [`32-content-documents-links-document-detail.png`](zrzuty/swapcard-2026-08-23/32-content-documents-links-document-detail.png)                         | szczegóły dokumentu                                     | 9.4–9.5     |
+| [`33-content-feed-channels-list.png`](zrzuty/swapcard-2026-08-23/33-content-feed-channels-list.png)                                                   | `Content › Feed channels` — lista                       | 9.2–9.3     |
+| [`34-content-feed-channel-details-tab.png`](zrzuty/swapcard-2026-08-23/34-content-feed-channel-details-tab.png)                                       | kanał → `Details`                                       | 9.2–9.3     |
+| [`35-content-discussions-list.png`](zrzuty/swapcard-2026-08-23/35-content-discussions-list.png)                                                       | `Content › Discussions` — lista                         | 10.1        |
+| [`36-content-discussion-edit-drawer.png`](zrzuty/swapcard-2026-08-23/36-content-discussion-edit-drawer.png)                                           | szuflada edycji dyskusji                                | 10.1        |
+| [`37-exhibitor-marketplace-set-currency-modal.png`](zrzuty/swapcard-2026-08-23/37-exhibitor-marketplace-set-currency-modal.png)                       | `Exhibitor Marketplace` + modal `Set currency`          | 11.1–11.2   |
+| [**`38-preview-event-home-desktop.png`**](zrzuty/swapcard-2026-08-23/38-preview-event-home-desktop.png)                                               | `Preview event` → strona główna frontu (PL)             | **NOWE**    |
+| [**`39-preview-speakers-grid.png`**](zrzuty/swapcard-2026-08-23/39-preview-speakers-grid.png)                                                         | `Preview event` → `Prelegenci`                          | **NOWE**    |
+| [**`40-preview-partners-list.png`**](zrzuty/swapcard-2026-08-23/40-preview-partners-list.png)                                                         | `Preview event` → `Partnerzy`                           | **NOWE**    |
+| [**`41-preview-exhibitor-profile.png`**](zrzuty/swapcard-2026-08-23/41-preview-exhibitor-profile.png)                                                 | `Preview event` → profil wystawcy                       | **NOWE**    |
+
+**Co dokładnie wnosi `29.png`.** Dziennik wymienia zakładkę `Documents & Links` na
+liście sześciu zakładek profilu firmy (8.6) i notuje przy niej plakietkę `Add-on`
+w kontekście `Permissions` (8.9) — ale **treści samej zakładki nie opisuje**. Zrzut
+pokazuje, że u wzorca ta zakładka jest **w całości bramką sprzedażową**: nagłówek
+`Documents & Links` + plakietka `Add-on` + jedno zdanie + przycisk `Get feature`.
+Zero tabeli, zero przycisku „dodaj", zero ilustracji pustego stanu. To nie jest ekran
+z danymi, którego nie zdążono wypełnić — to ekran, który **nigdy** nie ma danych, dopóki
+funkcja nie jest kupiona. Dla nas wniosek jest negatywny i wart zapisania: nie budujemy
+zakładek, które istnieją tylko po to, żeby coś sprzedać (§0.4 dokumentu nadrzędnego —
+wystawcy poza zakresem).
+
+**Co wnoszą `38–41.png`.** Cztery zrzuty **frontu wydarzenia po polsku** widzianego
+w trybie `Preview event`. Dziennik zrzutów opisuje wyłącznie ekrany studia, więc ich tu
+nie ma i nie będzie — odpowiedniki są w `docs/PROJEKT_FRONT_WYDARZENIA_2026-08-23.md`
+(zrzuty 2, 3, 6, 7, 8 tamtego dokumentu). Do dziennika należy tylko to, co dotyczy
+**ramy studia**, i to jest odnotowane w §17.5 pkt 6: pasek podglądu
+(`Desktop` / `Mobile` · `Open in a new tab` · `Close preview` · ostrzeżenie
+`Beware that actions you make are real.`) i **kontekstowe odnośniki edycji**
+w nagłówku frontu.
+
+**Czego te 36 „pokrywających się" zrzutów jednak dokładają.** Pokrycie dotyczy
+**ekranu**, nie każdego szczegółu. Inwentarze wskazały drobiazgi, których dziennik nie
+zapisał, a które są dowodem na wzorce z §17.5: brak stopki w modalu wyboru formatu
+(`11`), `+ Add people` w stopce karty roli, a nie nad kartą (`12`), pole wyszukiwania
+zamiast przycisku dodawania (`13`, `16`, `19`, `26`), `Get feature` **w miejscu
+przełącznika** (`17`), komplet kontrolek paginacji `Nb / page` · `Page` · `1 - 4 of 4`
+(`18`, `33`), dosłowna wartość `Internal ID` i przycisk zatwierdzenia **w polu** opisu
+(`32`), flaga języka **wewnątrz** pola (`34`), oraz `Publish event` w stanie nieaktywnym
+(`37`).
+
+### 17.5 Wzorce interakcji — bierzemy albo świadomie odrzucamy
+
+Sześć wzorców zebranych ze wszystkich czterech inwentarzy. Każdy z rozstrzygnięciem,
+bo wzorzec bez rozstrzygnięcia wraca po dwóch tygodniach jako „czy my tego nie mieliśmy
+zrobić".
+
+1. **Brak przycisku `Save` — zapis natychmiastowy.** Na żadnym z ekranów formularzowych
+   nie ma `Save`, stopki z akcjami ani przycisku w prawym górnym rogu: `05`, `09`, `10`,
+   `17`, `19`, `21`, `22`, `23`–`28`, `32`, `34`, `36`. Modal `Select format & video`
+   (`11`) nie ma nawet `Cancel` — wybór karty-radio działa od razu. Zapis idzie **per
+   pole**: na `32` pole `Description of the document` ma własny niebieski przycisk
+   z „ptaszkiem".
+   **Nie bierzemy.** Zostaje przyklejony pasek „Zapisz zmiany"
+   (`EventStudioSaveBar` w `src/components/admin/events/studio/EventStudioSection.tsx`),
+   pojawiający się dopiero przy realnej zmianie. Powód: nasze zapisy idą przez RPC,
+   które **odrzucają cały zestaw naraz** (`ends_at > starts_at`, nagłówek wideo bez
+   okładki, kolizja slugu) — zapis per pole musiałby albo zapisywać stan niespójny,
+   albo odrzucać pojedyncze pole z powodu leżącego w innym. Do tego pasek daje
+   „Odrzuć zmiany", którego wzorzec nie ma wcale: przy zapisie natychmiastowym nie ma
+   czego odrzucić, więc pomyłkę odkręca się ręcznie.
+
+2. **„Szukaj = dodaj" — pole wyszukiwania zamiast przycisku dodawania.** Firmy przy
+   sesji: pole `Search among exhibitors to add them to the session` i **żadnego**
+   przycisku „Add" (`13`). Pole własne: `Add a custom field used in other events within
+this Community` (`19`). Obsada firmy: `Add a member by searching among people with an
+account` (`26`). Dokumenty przy sesji: `Search` + odnośnik `Or create new`
+   **w tej samej linii** (`16`). Sesje powiązane: `Create a new link` +
+   `Link an existing session` (`15`). Zawsze najpierw istniejące, potem nowe.
+   **Bierzemy** — dla powiązań (prelegent do sesji, firma do sesji, dokument do sesji).
+   Powód: przycisk „Dodaj" otwierający dialog z listą do przeklikania jest o dwa kliknięcia
+   dłuższy od wpisania trzech liter, a przy dwudziestu jednej osobie i czterech firmach
+   lista i tak nie jest do przeglądania. **Nie bierzemy** dla tworzenia rekordu od zera:
+   `Create a new link` bez zdania, co ten link znaczy (`15`), to najgorszy ekran w całej
+   partii — wzorzec nie mówi, jakiego rodzaju powiązanie tworzy.
+
+3. **Wskaźnik języka na poziomie POJEDYNCZEGO POLA.** Flaga Polski stoi **w polu** albo
+   **w pasku narzędzi edytora**, nie nad sekcją: `Session name` i `Description` (`09`),
+   `Interaction box label` (`10`), `Home message` (`21`), `Name` i `Description` firmy
+   (`23`), `Name` kanału (`34`). Wzorzec ma też drugi poziom: droplista `Polish` **nad
+   kartami** ustawień pól własnych (`19`) — czyli język całej sekcji.
+   **Nie bierzemy w tej postaci.** U nas jest `LangToggle` **nad** polem, wspólny dla
+   sekcji (`EventGeneralPanel.tsx`). Powód: wskaźnik per pole na ekranie z osiemnastoma
+   polami to osiemnaście niezależnych stanów, z których każdy da się przestawić
+   przypadkiem — a redaktor pracuje **jedną wersją językową naraz**, nie polem po polu.
+   Jeden przełącznik na sekcję odpowiada na pytanie „którą wersję teraz piszę".
+   Zapisać trzeba jednak dwie rzeczy, których dziś nie mamy: pole **bez** wersji
+   językowej (adres, telefon) musi być odróżnialne od pola z wersjami, a lista **nie
+   pokazuje**, w jakim języku jest wartość — wzorzec też tego nie robi (`18`: trzy opisy
+   polskie i jeden angielski w jednej kolumnie, bez wskaźnika).
+
+4. **Plakietka `Add-on` + przycisk `Get feature` w miejscu przełącznika.** Funkcja płatna
+   nie jest wyłączonym przełącznikiem — nie ma przełącznika wcale. W jego pozycji, przy
+   prawej krawędzi, stoi obwiedziony `Get feature`: `17` (`Onsite access tracking with
+SwapAccess`), `26` (`Members role`), `27`–`28` (`Documents & Links`, `Items`,
+   `Lead capture`, `Lead qualification`, `Lead dashboards and exports`), `29`. Drugi
+   wariant tego samego: **wyszarzona pozycja listy** (`11`, `RTMP stream from 3rd-party
+tool`).
+   **Nie bierzemy.** Decyzja §0.4: nie sprzedajemy organizatorowi funkcji wydarzenia,
+   a `Add-on features` to u nas „Funkcje" — przełączniki modułów (`events.features`),
+   nie sklep. Wzorzec ma tu jednak **jedną rzecz wartą skopiowania bez upsellu**: funkcja
+   niedostępna zostaje **widoczna z wyjaśnieniem**, zamiast zniknąć z ekranu. Nasz
+   odpowiednik to modul wyłączony w `events.features` — pokazany z jednym zdaniem, co
+   włącza, a nie ukryty.
+
+5. **Pusty stan z krokami `How does it work?`.** Stały układ: nadnagłówek `Welcome to` +
+   nazwa sekcji + akapit + przycisk główny („utwórz") + przycisk drugorzędny
+   (`Learn more`) + ilustracja po prawej + sekcja `How does it work?` z **trzema
+   numerowanymi krokami** (`01`: `Create codes` / `Share your codes` / `Monitor usage`;
+   `37`: `Connect your Stripe account` / … / `Track purchase data`). Przyciski są
+   **w treści karty**, nie w prawym górnym rogu.
+   **Bierzemy** — bez ilustracji i bez `Learn more`. Powód: pusty ekran z jednym
+   przyciskiem „Utwórz" nie mówi, po co ta sekcja istnieje, a trzy kroki mówią to
+   w dwudziestu słowach. `Learn more` odpadałby na brak materiału, do którego mógłby
+   prowadzić: odnośnik do nieistniejącej pomocy jest gorszy niż jego brak. Nie bierzemy
+   też chipa `Learn how ›`, który wzorzec stawia na **każdym** ekranie (`02`, `04`, `08`,
+   `10`, `18`, `19`, `28`, `30`, `31`, `35`) — z tego samego powodu.
+
+6. **Kontekstowe odnośniki edycji w nagłówku frontu w trybie podglądu.** Odnośnik zmienia
+   treść zależnie od otwartego obiektu: `Edytuj wydarzenie` na stronie głównej (`38`),
+   `Edytuj tę stronę` na liście prelegentów i partnerów (`39`, `40`),
+   `Edytuj tego wystawcę` na profilu firmy (`41`). Do tego pasek podglądu:
+   `Desktop` / `Mobile`, `Open in a new tab`, `Close preview` i ostrzeżenie
+   **`Beware that actions you make are real.`**
+   **Bierzemy odnośniki, nie bierzemy ostrzeżenia.** Odnośnik „edytuj to, co widzisz"
+   zamyka pętlę podgląd → edycja, której nasza kanwa (`EventPreviewCanvas.tsx`) nie ma
+   wcale. Ostrzeżenia nie bierzemy, bo u nas jest **nieprawdziwe**: wzorzec podgląda
+   **dane produkcyjne** (dlatego musi ostrzegać), a nasz podgląd rysuje **niezapisany
+   szkic** — nie ma czego zepsuć. Różnica modelu ma jednak konsekwencję: `Open in a new
+tab` (otwarcie prawdziwej strony w nowej karcie) u nas nie istnieje i nie może
+   istnieć, dopóki podgląd jest rysunkiem, a nie stroną.
+
+### 17.6 Braki w rozpoznaniu — czego dobrać w następnej partii
+
+Lista jest scaleniem dawnego szkicu „Partia 17 — (oczekuje na zrzuty)" z brakami, które
+wyszły z tych 41 zrzutów. Każda pozycja z jednym zdaniem, dlaczego jest potrzebna.
+
+**Nawigacja — najpilniejsze, bo blokuje projekt sidebara:**
+
+1. **`Meetings` rozwinięte** — bez tego nie wiemy, na ile podstron dzieli się sekcja
+   spotkań ani w jakiej kolejności (partia 12–13 opisuje ekrany, hierarchii nie widział
+   nikt).
+2. **`Communications` rozwinięte** — to samo; partia 14 zna `Emails` i `Notifications`
+   z adresów, a nie z sidebara, więc nie wiemy, czy to komplet.
+3. **`Onsite` rozwinięte** — partia 15 opisuje siedem ekranów, ale nie wiemy, ile z nich
+   jest podpozycjami, a ile zakładkami wewnątrz jednej podpozycji.
+4. **`Integrations` rozwinięte** — jedyna grupa, dla której nie mamy **ani jednego**
+   ekranu, więc nie wiemy nawet, czego dotyczy.
+5. **`Analytics` rozwinięte** — partia 16 zna `Dashboard` i `Reports`; przy dwóch
+   pozycjach różnica „grupa czy zakładki" decyduje o adresowaniu.
+6. **`Event builder` rozwinięte** — sześć ekranów z partii 1–2 to jedyne, które już
+   zbudowaliśmy; potwierdzenie, że to komplet i w tej kolejności, jest tanie, a rozjazd
+   drogi do naprawy.
+7. **Dwie grupy rozwinięte naraz** (albo dowód, że to niemożliwe) — od tego zależy, czy
+   nasz sidebar ma akordeon, czy niezależne rozwinięcia; dziś na 41 zrzutach otwarta
+   jest zawsze dokładnie jedna grupa i zawsze ta z aktywnym ekranem.
+
+**Ekrany widoczne na paskach zakładek, których treści nie ma na żadnym zrzucie:**
+
+8. **`Exhibitors` w profilu firmy** — zakładka stoi na pasku na zrzutach `23`–`29`,
+   a treści nie widzieliśmy; nie wiemy, czy to co-wystawcy, firmy podrzędne, czy lista
+   wydarzeń, w których firma wystawia (plakietka `Events (1)` przy nazwie sugeruje to
+   trzecie).
+9. **`People settings › Custom fields`** — zakładka widoczna na `05`, treść nie; bez niej
+   nie wiemy, jak wzorzec definiuje pola własne uczestnika, a to jest bezpośredni wzorzec
+   dla `RegistrationFieldsPanel`.
+10. **`Feed channel › Posts` i `› Settings`** — dwie z trzech zakładek kanału widoczne na
+    `34`, obie bez treści; `Settings` musi zawierać to, co na liście widnieje jako
+    kolumna `Displayed on`.
+11. **`Item settings`** — czwarta karta rozjazdu na `30` („typy, podkategorie i pola
+    własne"), ekranu nie widzieliśmy; niski priorytet, bo `Items` jest poza zakresem
+    (§0.4), ale wzorzec definiowania typów i podkategorii jest przenośny.
+
+**Ekrany, o które prosi wprost projekt:**
+
+12. **`In-App registration › Registration settings`** — podpozycja widoczna na `01`–`03`,
+    nigdy nieotwarta; to najprawdopodobniej miejsce, w którym wzorzec rozstrzyga
+    odpowiednik naszego `events.registration_flow` (RSVP vs formularz), czyli rdzeń
+    etapu E5.
+13. **`In-App registration › Codes` po utworzeniu kodu** — mamy tylko pusty stan (`01`),
+    więc nie znamy ani kolumn tabeli kodów, ani formularza tworzenia (zakres kodu, limit
+    użyć, zniżka procentowa czy kwotowa) — a od tego zależy, czy da się użyć istniejącego
+    `/admin/coupons` (§10 pkt 5 dokumentu nadrzędnego).
+14. **`Overview`** (pulpit wydarzenia) — nadal jedyny nietknięty ekran główny wzorca;
+    `EventOverviewPanel.tsx` powstał bez zrzutu, na wnioskach z partii 16.
+15. **`Add-on features`** — katalog funkcji płatnych; potrzebny nie po to, żeby go
+    skopiować (nie kopiujemy), a po to, żeby wiedzieć, **co** wzorzec liczy za dodatek,
+    czyli gdzie kończy się jego zakres podstawowy.
+16. **`Groups & permissions › Manage visibility`** i rozwinięty **`Add condition`** —
+    macierz widoczności per sekcja (§7 dokumentu nadrzędnego, EB-306); dziś mamy jedno
+    pole `guest_mode` i żadnego wzorca na macierz.
+17. **`Session settings`** i **`Manage roles`** — dwa słowniki, do których prowadzą
+    odnośniki z `08`/`09` i `12`; bez nich nie wiemy, czy role prelegentów są słownikiem
+    wydarzenia, czy społeczności (na `12` nazwa roli `Wykładowcy` jest **po polsku**,
+    czyli jest daną, nie stałą interfejsu).
+
+**Drobne, ale tanie do domknięcia jednym zrzutem:**
+
+18. **Prawa krawędź tabel `People` i `Sessions`** — ostatnie kolumny są ucięte krawędzią
+    okna (`Registere…` na `04`, `Attend…` na `08`); pełnych etykiet **nie odczytano**.
+19. **Dół zakładki `Preferences`** sesji (`17`) — grupa `Engagement` jest ucięta w zdaniu
+    „Notifications that encourage registrants to provide feedback will be…", więc nie
+    wiemy, czy poniżej są jeszcze przełączniki.
+20. **Stan `Limit the number of registrations` po włączeniu** (`17`) — pole liczby miejsc
+    pojawia się dopiero wtedy i nie wiemy, czy ma walidację ani czy pokazuje zajętość.
 
 ---
 

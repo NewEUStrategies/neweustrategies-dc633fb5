@@ -168,18 +168,58 @@ Legenda: **✅ jest** · **🟡 częściowo** · **🔴 brak**
 
 ### 2.2 Pozostałe sekcje sidebara (do rozpisania po kolejnych zrzutach)
 
-| Swapcard                               | Stan NES                | Najbliższy istniejący klocek                                                                                                                                                                                                                                                             | Zadanie |
-| -------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| In-App registration                    | 🟡                      | `RegistrationsListPanel` / `EventTicketsPanel` / `RegistrationFieldsPanel`; w studiu sekcja „Zapisy" bez droplisty wyboru wydarzenia (`EventStudioModuleSections.tsx`)                                                                                                                   | EB-7xx  |
-| Content (sesje, prelegenci, dokumenty) | 🟡                      | `AgendaSessionsPanel` / `AgendaTracksPanel` / `AgendaRoomsPanel` / `AgendaConflictsPanel`; w studiu sekcja „Treść" (`EventStudioModuleSections.tsx`); dokumenty → wzorzec `club_documents` 🔴                                                                                            | EB-8xx  |
-| Exhibitor Marketplace                  | ⛔ poza zakresem (§0.4) | zamiast modułu: grupa „Partnerzy” + sponsorzy czytani z `crm_companies`                                                                                                                                                                                                                  | —       |
-| Meetings                               | 🟡 panel jest           | `MeetingTablesPanel` / `MeetingSettingsPanel` / `MeetingsListPanel` / `MeetingStatsPanel`; w studiu sekcja „Spotkania" (`EventStudioModuleSections.tsx`); reguły matchmakingu nadal 🔴                                                                                                   | EB-10xx |
-| Communications                         | 🟡                      | `/admin/newsletter` (kampanie, szablony), `run_event_reminders()`; w studiu **drogowskaz** bez zakresu per wydarzenie (`studio/EventStudioExternalSection.tsx`)                                                                                                                          | EB-11xx |
-| Onsite **(wymagany, §0.4)**            | 🟡                      | `OnsiteDeskPanel` / `OnsiteLogPanel` / `OnsiteStatsPanel` / `OnsiteCheckpointsPanel` / `OnsiteDevicesPanel` / `OnsiteBadgesPanel` / `OnsiteLeadsPanel` + `src/lib/events/scannerApi.ts`; w studiu sekcja „Na miejscu" (`EventStudioModuleSections.tsx`)                                  | EB-12xx |
-| Integrations                           | 🟡                      | `/admin/integrations` (globalne); w studiu **drogowskaz** bez zakresu per wydarzenie (`studio/EventStudioExternalSection.tsx`)                                                                                                                                                           | EB-13xx |
-| Analytics                              | 🟡                      | `/admin/analytics`, `analytics_events`, `domain_events`; w studiu **drogowskaz**, a liczby wydarzenia na pulpicie (`EventOverviewPanel.tsx`) — brak dashboardu wydarzenia                                                                                                                | EB-14xx |
-| Add-on features                        | 🔴 ekran                | kolumna `events.features jsonb` istnieje (migracja `20260826090000`), ekranu przełączników nie ma; w studiu **drogowskaz** (`studio/EventStudioExternalSection.tsx`)                                                                                                                     | EB-15xx |
-| Publish event / Preview event          | ✅                      | chip statusu jako przełącznik + „Opublikuj wydarzenie" w `studio/EventStudioTopBar.tsx` (RPC `admin_event_set_status`, znaczniki `published_at`/`cancelled_at` ustawia baza); podgląd na żywo z niezapisanego szkicu w `studio/EventStudioPreview.tsx` + `studio/EventPreviewCanvas.tsx` | EB-16xx |
+Tabela rozpisana na **podpozycje** po partii 17 zrzutów
+(`docs/MAPOWANIE_SWAPCARD_EVENT_BUILDER_ZRZUTY.md`, §17.1). Dwie grupy —
+`In-App registration` i `Content` — zostały odczytane z rozwiniętego sidebara wzorca
+i okazały się grupami po cztery i siedem osobnych ekranów, każdy z własnym adresem.
+Wiersze z `›` to te podpozycje; pozostałe grupy są w sidebarze wzorca zwinięte na
+wszystkich 41 zrzutach, więc ich drzewa **nie znamy** i zostają jednym wierszem.
+
+| Swapcard                                      | Stan NES                | Najbliższy istniejący klocek                                                                                                                                                                                                                                                             | Zadanie |
+| --------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| **In-App registration** (grupa, 4 podpozycje) | 🟡                      | w studiu jedna sekcja „Zapisy" z trzema zakładkami, bez droplisty wyboru wydarzenia (`EventStudioModuleSections.tsx` → `EventRegistrationSection`) — wzorzec ma tu **cztery adresy**                                                                                                     | EB-7xx  |
+| › `Registration settings`                     | 🔴 ekran                | `RegistrationsManager` + `events.registration_flow` (`rsvp` / `form`, §0.4); ekranu ustawień zapisów per wydarzenie nie ma. Treść ekranu wzorca **nieodczytana** — brak zrzutu (§17.6 pkt 12)                                                                                            | EB-7xx  |
+| › `Tickets`                                   | 🟡                      | `EventTicketsPanel` + `events.ticket_price_cents`; `event_ticket_types` jako tabela nadal do zrobienia (§0.4)                                                                                                                                                                            | EB-7xx  |
+| › `Codes`                                     | 🔴 ekran                | moduł kuponów `/admin/coupons` (`src/routes/admin.coupons.index.tsx`, `.campaigns`, `.redemptions`, `.analytics`) — kampanie, realizacje i analityka **już są**; brakuje zakresu „to wydarzenie / ten typ biletu" i wejścia z poziomu wydarzenia (§10 pkt 5)                             | EB-7xx  |
+| › `Form`                                      | 🟡                      | `RegistrationFieldsPanel`; wzorzec ma kreator wielostronicowy z edytowalnym ekranem podziękowania (zrzuty `02`, `03`) — u nas lista pól                                                                                                                                                  | EB-7xx  |
+| **Content** (grupa, 7 podpozycji)             | 🟡                      | w studiu jedna sekcja „Treść" z czterema zakładkami agendy (`EventStudioModuleSections.tsx` → `EventContentSection`) — pokrywa **jedną** z siedmiu podpozycji wzorca                                                                                                                     | EB-8xx  |
+| › `People`                                    | 🔴 ekran                | `RegistrationsListPanel` pokazuje **zapisanych** (`event_rsvps`), a nie kartotekę osób wydarzenia; docelowo `event_people` (§4.11) — osoba **bez konta**, wielokrotna przynależność do grup, `No account` jako wartość kolumny e-mail                                                    | EB-8xx  |
+| › `Sessions`                                  | 🟡                      | `AgendaSessionsPanel` / `AgendaTracksPanel` / `AgendaRoomsPanel` / `AgendaConflictsPanel`; u wzorca sesja to **ekran z ośmioma zakładkami**, u nas dialog                                                                                                                                | EB-8xx  |
+| › `Exhibitors` + `Exhibitor settings`         | ⛔ poza zakresem (§0.4) | zamiast kartoteki firm wydarzenia: sponsorzy i partnerzy czytani z `crm_companies` (`SponsorsListPanel` / `SponsorTiersPanel`). **Nie budujemy** profilu firmy z zakładkami, polityki `Company fields`, ani czterech zakładek `Exhibitor settings`                                       | —       |
+| › `Items`                                     | ⛔ poza zakresem (§0.4) | brak odpowiednika i **nie ma powstać** — katalog produktów/projektów/ofert wystawcy to część modułu wystawców                                                                                                                                                                            | —       |
+| › `Documents & Links`                         | 🔴 ekran                | wzorzec `club_documents` (`src/lib/clubs/workspaceApi.ts`, migracja `20260808300000_discussion_clubs_a28_workspace.sql`) — dokumenty istnieją w klubach, bez podpięcia do sesji i firm (`Attached to`) i bez statystyk pobrań                                                            | EB-8xx  |
+| › `Feed channels`                             | 🔴 ekran                | wzorzec `club_board_notices` (`src/lib/clubs/networkApi.ts`, migracja `20260810180000_discussion_clubs_a33_network_screens.sql`) — kanał ogłoszeń istnieje w klubach; wydarzenie nie ma ani kanału, ani kolumny „na której stronie się pokazuje"                                         | EB-8xx  |
+| › `Discussions`                               | 🔴 ekran                | dyskusje klubu: `club_groups` / `club_threads` / `club_replies` (`src/lib/clubs/`). Decyzja z dziennika (partia 10) — **nie budować drugiego silnika dyskusji**, podpiąć moduł klubów; brakuje wejścia w studiu, dziś sekcja nie istnieje w żadnej formie                                | EB-8xx  |
+| Exhibitor Marketplace                         | ⛔ poza zakresem (§0.4) | zamiast modułu: grupa „Partnerzy” + sponsorzy czytani z `crm_companies`                                                                                                                                                                                                                  | —       |
+| Meetings                                      | 🟡 panel jest           | `MeetingTablesPanel` / `MeetingSettingsPanel` / `MeetingsListPanel` / `MeetingStatsPanel`; w studiu sekcja „Spotkania" (`EventStudioModuleSections.tsx`); reguły matchmakingu nadal 🔴. Podpozycje wzorca **nieodczytane** (§17.6 pkt 1)                                                 | EB-10xx |
+| Communications                                | 🟡                      | `/admin/newsletter` (kampanie, szablony), `run_event_reminders()`; w studiu **drogowskaz** bez zakresu per wydarzenie (`studio/EventStudioExternalSection.tsx`). Podpozycje **nieodczytane** (§17.6 pkt 2)                                                                               | EB-11xx |
+| Onsite **(wymagany, §0.4)**                   | 🟡                      | `OnsiteDeskPanel` / `OnsiteLogPanel` / `OnsiteStatsPanel` / `OnsiteCheckpointsPanel` / `OnsiteDevicesPanel` / `OnsiteBadgesPanel` / `OnsiteLeadsPanel` + `src/lib/events/scannerApi.ts`; w studiu sekcja „Na miejscu". Podpozycje **nieodczytane** (§17.6 pkt 3)                         | EB-12xx |
+| Integrations                                  | 🟡                      | `/admin/integrations` (globalne); w studiu **drogowskaz** bez zakresu per wydarzenie (`studio/EventStudioExternalSection.tsx`). Ani jednego zrzutu ekranu wzorca (§17.6 pkt 4)                                                                                                           | EB-13xx |
+| Analytics                                     | 🟡                      | `/admin/analytics`, `analytics_events`, `domain_events`; w studiu **drogowskaz**, a liczby wydarzenia na pulpicie (`EventOverviewPanel.tsx`) — brak dashboardu wydarzenia. Podpozycje **nieodczytane** (§17.6 pkt 5)                                                                     | EB-14xx |
+| Add-on features                               | 🔴 ekran                | kolumna `events.features jsonb` istnieje (migracja `20260826090000`), ekranu przełączników nie ma; w studiu **drogowskaz** (`studio/EventStudioExternalSection.tsx`). U nas to przełączniki modułów, nie sklep — patrz niżej                                                             | EB-15xx |
+| `Help`                                        | 🔴                      | brak w jakiejkolwiek formie — u wzorca to **pozycja nawigacji** (ostatnia w sidebarze, zrzuty `01` i `37`), nie ikona w narożniku paska                                                                                                                                                  | EB-16xx |
+| Publish event / Preview event                 | ✅                      | chip statusu jako przełącznik + „Opublikuj wydarzenie" w `studio/EventStudioTopBar.tsx` (RPC `admin_event_set_status`, znaczniki `published_at`/`cancelled_at` ustawia baza); podgląd na żywo z niezapisanego szkicu w `studio/EventStudioPreview.tsx` + `studio/EventPreviewCanvas.tsx` | EB-16xx |
+
+**Granica §0.4 zapisana wprost, żeby nikt jej nie „dokończył" przez przypadek.**
+Trzy pozycje wzorca — `Content › Exhibitors` (wraz z `Exhibitor settings` i profilem
+firmy o sześciu zakładkach), `Content › Items` oraz `Exhibitor Marketplace` — są
+**poza zakresem decyzją zamawiającego**, a nie brakiem do nadrobienia. Nie oznaczamy ich
+🔴, bo 🔴 znaczy „do zrobienia", i ktoś, kto zobaczy czerwoną kropkę przy dziewięciu
+ekranach z zrzutów `18`–`30`, uzna to za zaległość. Konkretnie **nie powstaje**:
+kartoteka firm wydarzenia z polami własnymi, polityka `Company fields` (dwanaście
+przełączników „co partner sam edytuje"), `Exhibitor Center` z komunikatem powitalnym
+i obsadą, warunek eksportu leadów, rekomendacje „podobnych firm", katalog `Items`
+z typami i podkategoriami, ani marketplace ze Stripe'em i modalem `Set currency`.
+Zostaje **grupa „Partnerzy"** z uprawnieniami i **sponsorzy z poziomami** czytani
+z `crm_companies`. Jeżeli któryś z tych ekranów kiedyś wróci do zakresu, wraca przez
+zmianę §0.4, a nie przez dopisanie wiersza do tej tabeli.
+
+Konsekwencja druga, dla `Add-on features`: wszystko, co wzorzec oznacza plakietką
+`Add-on` (skanowanie sesji, self check-in, lead capture i qualification, dashboardy
+leadów, role obsady firmy, dokumenty i `Items` wystawcy — zrzuty `17`, `26`–`29`), jest
+u nas **albo w zakresie podstawowym** (skanowanie na miejscu — etap E7), **albo poza
+zakresem** wraz z modułem wystawców. Nasze „Funkcje" to przełączniki modułów wydarzenia
+(`events.features`), nie sklep, w którym organizator dokupuje funkcje.
 
 ---
 
@@ -856,6 +896,47 @@ trybu gościa ani do robota (`forceNoindex`).
   widget `event-menu` z wariantami `list`/`grid` na froncie — dopóki go nie ma,
   `pages_display_mode` widać wyłącznie w podglądzie studia.
 
+**Korekta zakresu po partii 17 zrzutów (2026-08-26).** Cztery inwentarze 41 zrzutów
+wzorca (`docs/MAPOWANIE_SWAPCARD_EVENT_BUILDER_ZRZUTY.md`, „Partia 17") zmieniają zakres
+czterech etapów. Nie dodają nowych funkcji — zmieniają **liczbę adresów**, pod którymi
+te funkcje mają stać, a to jest praca, którą trzeba zaplanować, nie doczepić.
+
+- **E1 (szkielet) — zakres poszerzony, kryterium odbioru rozszerzone.** Sidebar studia
+  przechodzi z **piętnastu sekcji na płasko** na **grupy z podpozycjami**
+  (`src/lib/events/eventStudioNav.ts`), a dzisiejsze zakładki wewnątrz sekcji stają się
+  **osobnymi adresami** (`src/components/admin/events/studio/EventStudioModuleSections.tsx`).
+  Uzasadnienie w §17.3 dziennika: u wzorca każda podstrona ma własny adres, a zakładka
+  z `Tabs defaultValue` nie jest w adresie, więc nie da się jej ani podlinkować, ani
+  otworzyć w nowej karcie, ani wskazać w zgłoszeniu do wsparcia. Do kryterium odbioru
+  dochodzi: **każdy podekran studia ma adres**, a wejście w szczegół rekordu **zostawia
+  podświetlenie na pozycji listy** i wraca odnośnikiem w treści, nie trzecim poziomem
+  sidebara. Dochodzi też pozycja `Help`, której nie mamy w żadnej formie.
+- **E4 (agenda i sesje) — zakres poszerzony.** `Content` to u wzorca **siedem** ekranów
+  (`People`, `Sessions`, `Exhibitors`, `Items`, `Documents & Links`, `Feed channels`,
+  `Discussions`), z których nasza sekcja „Treść" pokrywa **jeden** (`Sessions`), i to
+  zakładkami. Po odjęciu tego, co jest poza zakresem §0.4 (`Exhibitors`, `Items`),
+  do E4 wchodzą jako **osobne adresy**: `People` (kartoteka `event_people` — już była
+  w zakresie), `Documents & Links`, `Feed channels`, `Discussions`. Dwa ostatnie idą
+  po wzorcach z klubów (`club_board_notices`, `club_groups`/`club_threads`), nie jako
+  drugi silnik. Sesja przestaje być dialogiem: u wzorca to **ekran z ośmioma
+  zakładkami** pod własnym adresem (`…/plannings/<id>`), więc E4 dostaje trasę szczegółu
+  sesji z odnośnikiem `‹ powrót do sesji`.
+- **E5 (grupy, rejestracja, zgody, bilety) — zakres poszerzony.** `In-App registration`
+  to u wzorca **cztery** adresy: `Registration settings` · `Tickets` · `Codes` · `Form`.
+  Nasza sekcja „Zapisy" ma trzy zakładki i żadnej z nich nie ma w adresie. Dwa skutki:
+  ekran **`Registration settings`** (najprawdopodobniej miejsce, w którym wzorzec
+  rozstrzyga odpowiednik `events.registration_flow`) trzeba dobrać zrzutem, zanim
+  powstanie (§17.6 pkt 12); **`Codes`** przestaje być pytaniem otwartym o architekturę —
+  z §10 pkt 5 zostaje wykonanie: zakres „to wydarzenie / ten typ biletu" na istniejącym
+  `/admin/coupons` plus wejście z poziomu wydarzenia. Ekranu kodów po utworzeniu kodu
+  nadal nie widzieliśmy (§17.6 pkt 13), więc kolumny tabeli i formularz tworzenia są
+  do domknięcia zrzutem.
+- **E6 (sponsorzy i spotkania) — zakres bez zmian, granica potwierdzona.** Dziewięć
+  zrzutów kartoteki firm wydarzenia (`18`–`30`) opisuje ekrany **poza zakresem** decyzją
+  §0.4. Zapisane w §2.2 wprost, bo to jest dokładnie ta część, którą przy porównaniu ze
+  zrzutami najłatwiej wziąć za zaległość. E6 zostaje przy poziomach sponsorskich
+  i logotypach z `crm_companies`.
+
 ---
 
 ## 9. Ryzyka
@@ -1061,3 +1142,85 @@ Testy jednostkowe warstwy czystej: `src/lib/events/__tests__/eventStudioNav.test
    sama trasa `/admin/community/events` żyje dalej jako druga powierzchnia
    edycji wydarzenia — a kryterium odbioru E1 mówi „stara trasa przekierowuje".
    Dopóki obie działają, istnieją dwa formularze na te same kolumny.
+
+### 2026-08-26 (partia 2) — nawigacja dwupoziomowa, podstrony wydarzenia, front publiczny
+
+**Co powstało**
+
+1. **41 zrzutów wzorca weszło do repozytorium** (`docs/zrzuty/swapcard-2026-08-23/`,
+   nazwy opisowe, README z zakresem) i zostało zinwentaryzowane ekran po ekranie.
+   Wykładnia: partia 17 dziennika zrzutów.
+2. **Sidebar studia przeszedł z płaskich piętnastu sekcji na grupy z podpozycjami**,
+   a dzisiejsze zakładki wewnątrz sekcji stały się osobnymi adresami: 29 liści,
+   pięć grup (`Kreator wydarzenia`, `Rejestracja w aplikacji`, `Treść`, `Spotkania`,
+   `Na miejscu`), 22 nowe trasy, trasy indeksowe grup przekierowują na pierwsze
+   dziecko (`src/lib/events/eventStudioNav.ts` + `src/routes/admin.events_.$eventId.*`).
+3. **Nagłówek sidebara** według wzorca: powrót do listy, nazwa wydarzenia, termin
+   w strefie wydarzenia, `Otwórz wydarzenie`, dopiero potem wyszukiwarka.
+4. **`event_pages`** — mapowanie strona → menu wydarzenia (ikona, kolor, własna
+   etykieta PL/EN, kolejność w tym menu, widoczność per grupa) z pięcioma RPC
+   administracyjnymi i publicznym `event_menu`
+   (`supabase/migrations/20260826120000_event_pages_and_public_columns.sql`).
+   Ekran „Strony i menu" zarządza całością, w tym tworzeniem podstrony jednym
+   ruchem (korzeń + strona + przypięcie w jednej transakcji).
+5. **Front publiczny czyta nowe kolumny**: nagłówek wideo (degraduje do okładki),
+   adres strukturalny w sekcji `map` z odnośnikiem do mapy, języki treści,
+   hashtag i adres wsparcia w sekcji `contact`, branding wydarzenia jako zmienne
+   CSS w zakresie strony wydarzenia, menu wydarzenia w dwóch prezentacjach,
+   `PostalAddress` w `schema.org/Event`.
+6. **Analityka wydarzenia** złożona z żywych RPC (zapisy, program, spotkania,
+   odprawa) zamiast drogowskazu — `src/components/admin/events/organisms/EventAnalyticsPanel.tsx`.
+
+**Decyzje projektowe**
+
+1. **Każda podstrona ma własny adres.** Zakładki wewnątrz jednej trasy nie dają
+   się podlinkować, otworzyć w nowej karcie ani wskazać w zgłoszeniu do wsparcia,
+   a wzorzec nawiguje po sidebarze. To była rozbieżność systemowa, nie kosmetyczna.
+2. **Prawdziwą przyczyną „front nie czyta nowych kolumn" był GRANT KOLUMNOWY.**
+   `events` ma jawną listę kolumn czytelnych dla `anon`/`authenticated` (odcięcie
+   `join_url` i `recording_url`), a kolumna dopisana ALTER-em do tej listy nie
+   wchodzi — `SELECT` kończył się odmową uprawnień, nie pustą wartością. Grant
+   rozszerzamy przyrostowo; odtworzenie całej listy jest dokładnie tym ruchem,
+   którym gubi się odcięcie linków do transmisji.
+3. **Informacje praktyczne rozdzielone na `map` i `contact`,** a nie zlane w jedną
+   kartę: `guest_mode = full` znaczy „wszystko poza kontaktami", a widoczność
+   trzyma się per klucz sekcji. Jedna karta musiałaby wybrać jedną widoczność —
+   i wybranie kontaktowej ukryłoby adres miejsca przed gościem, który dopiero
+   decyduje, czy jechać.
+4. **Widoczność pozycji menu per grupa rozstrzyga baza, nie komponent.** Filtr
+   w kliencie oznaczałby, że pełna lista pozycji (razem z nazwami stron dla
+   partnerów) jedzie do każdego gościa.
+5. **Nazwa wydarzenia zniknęła z paska górnego,** bo stoi w nagłówku sidebara —
+   ten sam napis dwa razy na jednym ekranie przestaje być czytany w obu miejscach.
+6. **Etykiety podpozycji pochodzą ze słowników modułów** (`adminEventRegistration`,
+   `adminEventAgenda`, `adminEventMeetings`, `adminEventOnsite`), a nie z drugiej
+   kopii w `adminEvents`. Dwa klucze na jeden napis to zaproszenie do rozjazdu.
+7. **`admin_event_pages_list` pokazuje także strony NIEPRZYPIĘTE** z poddrzewa
+   korzenia (`id IS NULL`). Lista, która ich nie pokazuje, każe redaktorowi
+   założyć te strony drugi raz.
+8. **Odpięcie pozycji menu nie usuwa strony.** Pomyłkowe odpięcie kosztuje jedno
+   kliknięcie, pomyłkowe usunięcie strony kosztuje treść, historię i SEO.
+
+**Dług**
+
+1. **Ekrany wzorca, których nie mamy jako podpozycji:** `Content › People`,
+   `Items`, `Feed channels`, `Discussions`, `Exhibitors` (+ `Exhibitor settings`),
+   `In-App registration › Registration settings`, `Codes`, oraz pozycja `Help`.
+   Wystawcy (`Exhibitors`, `Items`, `Exhibitor Marketplace`) są **poza zakresem**
+   decyzją §0.4 — reszta jest realnym brakiem.
+2. **Podpozycji pięciu grup wzorca nadal nie znamy** (`Meetings`,
+   `Communications`, `Onsite`, `Integrations`, `Analytics` — na wszystkich 41
+   zrzutach zwinięte). Nasze podziały tych grup są własne, nie odwzorowane.
+3. **Komunikacja i Integracje zostają drogowskazami.** Obie wymagają decyzji
+   produktowej (model celowania kampanii; zakres integracji per wydarzenie),
+   a nie zgadywania.
+4. **`Funkcje dodatkowe` nadal nie bramkują niczego.** Kolumna `events.features`
+   istnieje, ale przełącznik, który nie wyłącza sekcji ani w studiu, ani na
+   stronie publicznej, byłby przełącznikiem kłamiącym.
+5. **Podgląd na żywo nie rysuje reklamy ani nazwanych poziomów sponsorów**
+   i nie ma kontekstowych odnośników „Edytuj tę stronę" / „Edytuj tego wystawcę",
+   które wzorzec pokazuje w trybie podglądu (zrzuty 38–41).
+6. **Wzorzec nie ma przycisku `Save`** — zapisuje natychmiast; nasze ekrany studia
+   mają stopkę „Zapisz zmiany". To świadoma rozbieżność (zapis zmieniający adres
+   publiczny i termin nie ma być efektem ubocznym pisania), ale warta rewizji na
+   ekranach, gdzie zapisuje się jeden przełącznik.

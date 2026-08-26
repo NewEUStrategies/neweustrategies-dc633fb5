@@ -1,34 +1,34 @@
-// /admin/events/<id>/meetings - sekcja „Meetings" studia wydarzenia.
+// /admin/events/<id>/onsite/badges - podstrona „Badges" studia wydarzenia.
 //
 // TRASA JEST CIENKA. Wiersz wydarzenia wczytuje RAMA studia i to ona pokazuje
-// spinner oraz zdanie „nie znaleziono"; sekcja, która powtórzyłaby jedno i
+// spinner oraz zdanie „nie znaleziono"; podstrona, która powtórzyłaby jedno i
 // drugie, dawałaby dwa spinnery pod sobą i dwa komunikaty o tym samym braku.
-// Dopóki wiersza nie ma, sekcja nie rysuje niczego.
+// Dopóki wiersza nie ma, podstrona nie rysuje niczego.
 import { createFileRoute } from "@tanstack/react-router";
 
-import { EventMeetingsSection } from "@/components/admin/events/studio/EventStudioModuleSections";
+import { EventOnsiteBadgesSection } from "@/components/admin/events/studio/EventStudioModuleSections";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 
-export const Route = createFileRoute("/admin/events_/$eventId/meetings")({
+export const Route = createFileRoute("/admin/events_/$eventId/onsite/badges")({
   head: () => ({
     meta: [
-      { title: "Meetings · Event · Admin" },
+      { title: "Badges · Event · Admin" },
       { name: "robots", content: "noindex, nofollow" },
       {
         name: "description",
-        content: "Meeting marketplace of this event: meetings, tables, statistics and settings.",
+        content: "Badge templates printed for the attendees of this event.",
       },
     ],
   }),
-  component: EventStudioMeetingsPage,
+  component: EventStudioOnsiteBadgesPage,
 });
 
-function EventStudioMeetingsPage() {
+function EventStudioOnsiteBadgesPage() {
   const { eventId } = Route.useParams();
   // Ten sam klucz cache, co w ramie - React Query oddaje wczytany wiersz,
   // a nie drugie zapytanie o to samo wydarzenie.
   const detailQ = useAdminEventDetail(eventId);
   const row = detailQ.data ?? null;
   if (row === null) return null;
-  return <EventMeetingsSection row={row} />;
+  return <EventOnsiteBadgesSection row={row} />;
 }

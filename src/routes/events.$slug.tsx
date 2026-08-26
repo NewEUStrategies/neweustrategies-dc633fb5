@@ -53,6 +53,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
 import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
 import { EventPageSections } from "@/components/events/public/organisms/EventPageSections";
+import { EventMenuNav } from "@/components/events/public/organisms/EventMenuNav";
+import { EventVideoHeader } from "@/components/events/public/molecules/EventVideoHeader";
+import { EventBrandingStyle } from "@/components/events/public/atoms/EventBrandingStyle";
+import { eventBrandingScopeProps } from "@/lib/events/eventBrandingCss";
 import { EventBookmarkButton } from "@/components/events/public/molecules/EventBookmarkButton";
 import { SectionLockCard } from "@/components/events/public/molecules/SectionLockCard";
 import { publicEventKeys, useEventSections } from "@/lib/events/usePublicEvent";
@@ -64,9 +68,11 @@ import { EventTicketCard } from "@/components/community/EventTicketCard";
 import { useEventSeatsRealtime } from "@/hooks/useEventSeatsRealtime";
 import { formatMoney } from "@/lib/billing/types";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import type { EventPracticalInfo } from "@/lib/events/eventPractical";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, splitUrl } from "@/lib/seo/meta";
+import { publicEventJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 type RsvpStatus = "going" | "interested" | "cancelled" | "waitlist";
@@ -371,6 +377,47 @@ function EventDetail() {
   const speakersSection = findEventSection(sectionsQ.data ?? [], "speakers");
   const descriptionSection = findEventSection(sectionsQ.data ?? [], "description");
 
+  // Informacje praktyczne: kolumny, które panel zapisywał, a uczestnik ich nie
+  // widział - do czasu grantu kolumnowego z migracji 20260826120000. Kształt
+  // jest wspólny dla sekcji `map` i `contact`; o tym, KTÓRA z nich pokazuje
+  // co (i dlaczego to nie może być jedna karta), rozstrzyga
+  // `lib/events/eventPractical`.
+  const practical: EventPracticalInfo = {
+    streetAddress: ev.street_address,
+    postalCode: ev.postal_code,
+    city: ev.city,
+    region: ev.region,
+    country: ev.country,
+    languages: ev.languages,
+    socialHashtag: ev.social_hashtag,
+    supportEmail: ev.support_email,
+  };
+
+  // JSON-LD wydarzenia W TREŚCI, a nie w `head()`: ta trasa nie ma loadera,
+  // więc `head()` nie zna wydarzenia i wysłałby węzeł bez nazwy i bez daty.
+  // Skrypt w treści jest dla crawlera równoprawny, a wzorzec ma już precedens
+  // w repozytorium (`FaqBlockView`, `ReviewBlockView`). `safeJsonLd` zamyka
+  // ucieczkę przez `</script>` w danych z bazy.
+  const eventLd = publicEventJsonLd({
+    origin: splitUrl(getRequestUrl() || `/events/${slug}`).origin,
+    lang,
+    event: {
+      slug: ev.slug,
+      name: title,
+      startDate: ev.starts_at,
+      endDate: ev.ends_at,
+      kind: ev.kind,
+      location: ev.location,
+      image: ev.cover_url,
+      description: desc,
+      streetAddress: ev.street_address,
+      postalCode: ev.postal_code,
+      city: ev.city,
+      region: ev.region,
+      country: ev.country,
+    },
+  });
+
   const onSurfaceAction = () => {
     if (surface === null || surface.control === null) return;
     // Kolejka rezerwowa NIE jest osobnym żądaniem: klient wysyła `going`,
@@ -382,7 +429,18 @@ function EventDetail() {
   };
 
   return (
-    <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
+    // Branding wydarzenia wchodzi na OPAKOWANIE tej strony, nigdy na `:root`:
+    // kolory jednego kongresu nie mogą przemalować nagłówka serwisu ani
+    // sąsiedniej zakładki. Zmienne generuje `EventBrandingStyle`.
+    <article
+      {...eventBrandingScopeProps}
+      className="container mx-auto max-w-3xl px-4 py-12 md:py-16"
+    >
+      <EventBrandingStyle branding={ev.branding} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(eventLd) }}
+      />
       <Link
         to="/events"
         className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -391,11 +449,16 @@ function EventDetail() {
         {t("community.events.backToList")}
       </Link>
 
-      {ev.cover_url && (
-        <div className="mb-8 aspect-video overflow-hidden rounded-lg bg-muted">
-          <img src={ev.cover_url} alt="" className="h-full w-full object-cover" />
-        </div>
-      )}
+      {/* Nagłówek wideo ZASTĘPUJE baner okładki, a przy braku (albo błędnym)
+          identyfikatorze sam rysuje okładkę - okładka pozostaje wymagana,
+          bo to z niej bierze się miniatura w katalogu i w karcie
+          społecznościowej (`events_video_header_requires_cover`). */}
+      <EventVideoHeader
+        title={title}
+        coverUrl={ev.cover_url}
+        videoPlatform={ev.video_header_platform}
+        videoId={ev.video_header_id}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         {isProBriefing ? (
@@ -473,6 +536,10 @@ function EventDetail() {
         )}
       </dl>
 
+      {/* Menu podstron wydarzenia. Widoczność pozycji per grupa rozstrzyga
+          baza (`event_menu`), a prezentację - `events.pages_display_mode`. */}
+      <EventMenuNav slug={slug} displayMode={ev.pages_display_mode} />
+
       {descriptionSection === null ? null : descriptionSection.isLocked ? (
         <section id="event-description" className="mt-8 scroll-mt-24">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
@@ -514,8 +581,10 @@ function EventDetail() {
         <EventSpeakersSection eventId={ev.id} lang={lang} />
       )}
 
-      {/* Program, partnerzy i materiały - w kolejności i z zamkami z bazy. */}
-      <EventPageSections slug={slug} sections={sectionsQ.data ?? []} />
+      {/* Program, partnerzy, materiały, dojazd i kontakt - w kolejności
+          i z zamkami z bazy. Dwie ostatnie sekcje biorą treść z kolumn
+          wydarzenia, więc jadą tu jako `practical`, a nie osobnym zapytaniem. */}
+      <EventPageSections slug={slug} sections={sectionsQ.data ?? []} practical={practical} />
 
       {tierBlocked && (
         <div className="mt-8 rounded-lg border border-primary/40 bg-primary/5 p-5">

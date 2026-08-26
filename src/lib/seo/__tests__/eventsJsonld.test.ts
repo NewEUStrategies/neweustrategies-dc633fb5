@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { eventsCollectionJsonLd, type EventsListJsonLdEvent } from "@/lib/seo/jsonld";
+import {
+  eventsCollectionJsonLd,
+  publicEventJsonLd,
+  type EventsListJsonLdEvent,
+} from "@/lib/seo/jsonld";
 
 const ORIGIN = "https://neweuropeanstrategies.com";
 
@@ -100,5 +104,116 @@ describe("eventsCollectionJsonLd", () => {
     expect(nodes[0].image).toEqual(["https://cdn.example.com/cover.jpg"]);
     expect(nodes[1]).not.toHaveProperty("endDate");
     expect(nodes[1]).not.toHaveProperty("image");
+  });
+
+  it("dokłada PostalAddress, gdy adres strukturalny jest w kolumnach", () => {
+    const nodes = items(
+      build([
+        {
+          slug: "kongres",
+          name: "Kongres",
+          startDate: "2026-09-01T10:00:00Z",
+          kind: "in_person",
+          location: "Centrum Kongresowe",
+          streetAddress: "Krucza 1",
+          postalCode: "00-001",
+          city: "Warszawa",
+          region: "mazowieckie",
+          country: "PL",
+        },
+      ]),
+    );
+    expect(nodes[0].location).toEqual({
+      "@type": "Place",
+      // Nazwa sali zostaje nazwą miejsca - adres strukturalny zajmuje `address`.
+      name: "Centrum Kongresowe",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "Krucza 1",
+        postalCode: "00-001",
+        addressLocality: "Warszawa",
+        addressRegion: "mazowieckie",
+        addressCountry: "PL",
+      },
+    });
+  });
+
+  it("pomija puste pola adresu, zamiast emitować je jako pusty napis", () => {
+    const nodes = items(
+      build([
+        {
+          slug: "bruksela",
+          name: "Bruksela",
+          startDate: "2026-09-01T10:00:00Z",
+          city: "Bruksela",
+          country: "BE",
+          streetAddress: null,
+          postalCode: "",
+          region: null,
+        },
+      ]),
+    );
+    // Bez nazwy sali nazwą miejsca jest adres w jednej linii (`Place` wymaga
+    // nazwy), a `address` niesie wyłącznie pola wypełnione.
+    expect(nodes[0].location).toEqual({
+      "@type": "Place",
+      name: "Bruksela, BE",
+      address: { "@type": "PostalAddress", addressLocality: "Bruksela", addressCountry: "BE" },
+    });
+  });
+
+  it("ZACHOWUJE dzisiejsze zachowanie dla wydarzenia z samą nazwą miejsca", () => {
+    // To jest regresja, o którą naprawdę chodzi: dopisanie adresu
+    // strukturalnego nie może odebrać `Place` wydarzeniom, w których nikt
+    // nowych kolumn nie uzupełnił.
+    const nodes = items(
+      build([
+        { slug: "sala", name: "Sala", startDate: "2026-09-01T10:00:00Z", location: "Bruksela" },
+      ]),
+    );
+    expect(nodes[0].location).toEqual({ "@type": "Place", name: "Bruksela", address: "Bruksela" });
+  });
+});
+
+describe("publicEventJsonLd - strona szczegółu wydarzenia", () => {
+  it("jest samodzielnym dokumentem @context o kształcie węzła z listy", () => {
+    const ld = publicEventJsonLd({
+      origin: ORIGIN,
+      lang: "pl",
+      event: {
+        slug: "kongres",
+        name: "Kongres",
+        startDate: "2026-09-01T10:00:00Z",
+        endDate: "2026-09-02T16:00:00Z",
+        kind: "in_person",
+        location: "Centrum Kongresowe",
+        city: "Warszawa",
+        country: "PL",
+        description: "  Opis wydarzenia  ",
+      },
+    });
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("Event");
+    expect(ld["@id"]).toBe(`${ORIGIN}/events/kongres#event`);
+    expect(ld.url).toBe(`${ORIGIN}/events/kongres`);
+    expect(ld.endDate).toBe("2026-09-02T16:00:00Z");
+    expect(ld.eventAttendanceMode).toBe("https://schema.org/OfflineEventAttendanceMode");
+    expect(ld.description).toBe("Opis wydarzenia");
+    const place = ld.location as Record<string, unknown>;
+    expect(place.address).toEqual({
+      "@type": "PostalAddress",
+      addressLocality: "Warszawa",
+      addressCountry: "PL",
+    });
+  });
+
+  it("bez opisu nie emituje pustego pola description", () => {
+    const ld = publicEventJsonLd({
+      origin: ORIGIN,
+      lang: "en",
+      event: { slug: "web", name: "Web", startDate: "2026-09-01T10:00:00Z", description: "   " },
+    });
+    expect(ld).not.toHaveProperty("description");
+    expect(ld.url).toBe(`${ORIGIN}/en/events/web`);
   });
 });

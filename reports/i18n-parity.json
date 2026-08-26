@@ -194,12 +194,13 @@
     "club.spec.items.transport.title",
     "club.topic.transport",
     "club.workspace.schedule.statusLabel",
+    "eventFront.practical.hashtagLabel",
     "eventFront.sponsors.roles.partner",
     "eventFront.sponsors.roles.sponsor"
   ],
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 492
+    "untranslated": 493
   }
 }

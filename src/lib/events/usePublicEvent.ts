@@ -25,6 +25,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import {
   fetchEventAgenda,
+  fetchEventMenu,
   fetchEventSections,
   fetchEventSponsorMaterials,
   fetchEventSponsors,
@@ -35,6 +36,7 @@ import {
   type BookmarkListPage,
   type BookmarkScope,
   type BookmarkToggleResult,
+  type EventMenuItem,
   type SessionAccess,
   type SessionSignupResult,
 } from "@/lib/events/publicEventApi";
@@ -50,6 +52,7 @@ export const publicEventKeys = {
   event: (slug: string) => [...publicEventKeys.all, slug] as const,
   sections: (slug: string, viewer: string) =>
     [...publicEventKeys.event(slug), "sections", viewer] as const,
+  menu: (slug: string, viewer: string) => [...publicEventKeys.event(slug), "menu", viewer] as const,
   agenda: (slug: string, viewer: string) =>
     [...publicEventKeys.event(slug), "agenda", viewer] as const,
   sponsors: (slug: string) => [...publicEventKeys.event(slug), "sponsors"] as const,
@@ -74,6 +77,25 @@ export function useEventSections(slug: string, enabled = true): UseQueryResult<E
     queryFn: () => fetchEventSections(slug),
     enabled: enabled && slug !== "",
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Menu podstron wydarzenia.
+ *
+ * UŻYTKOWNIK JEST W KLUCZU, bo `event_menu` filtruje pozycje po grupach
+ * zapisu wołającego - pozycja widoczna tylko dla partnerów nie może zostać
+ * w cache gościa po zalogowaniu, a menu gościa nie może przeżyć wylogowania
+ * z pozycjami, których gość widzieć nie ma prawa.
+ */
+export function useEventMenu(slug: string, enabled = true): UseQueryResult<EventMenuItem[]> {
+  const viewer = useViewerId();
+  return useQuery({
+    queryKey: publicEventKeys.menu(slug, viewer),
+    queryFn: () => fetchEventMenu(slug),
+    enabled: enabled && slug !== "",
+    // Menu zmienia się w panelu, nie w trakcie zwiedzania strony.
+    staleTime: 5 * 60_000,
   });
 }
 

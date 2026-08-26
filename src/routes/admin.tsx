@@ -26,10 +26,17 @@ function AdminLayout() {
   // STUDIO WYDARZENIA WYMIENIA CALA RAME PANELU, nie tylko tresc.
   //
   // Na czas pracy nad jednym wydarzeniem lewy pas nalezy do TEGO wydarzenia
-  // (pietnascie sekcji: informacje ogolne, strony i menu, grupy, branding,
-  // zapisy, tresc, spotkania, odprawa...), a nie do panelu. Dwa sidebary obok
-  // siebie zabralyby polowe szerokosci formularzowi o osiemnastu polach i nie
-  // odpowiadaly by na pytanie „ktore wydarzenie mam w reku".
+  // (dwupoziomowa nawigacja: pulpit, kreator wydarzenia, rejestracja, tresc,
+  // spotkania, na miejscu... - blisko trzydziestu podstron), a nie do panelu.
+  // Dwa sidebary obok siebie zabralyby polowe szerokosci formularzowi
+  // o osiemnastu polach i nie odpowiadaly by na pytanie „ktore wydarzenie mam
+  // w reku".
+  //
+  // TA JEDNA LINIA DECYDUJE O DWOCH SIDEBARACH. `eventStudioSectionFromPath`
+  // musi rozpoznawac WSZYSTKIE adresy studia - takze dwusegmentowe
+  // (`.../registration/tickets`) i adresy grup (`.../onsite`, przekierowywane
+  // na pierwsze dziecko). Adres studia, ktorego ta funkcja nie zna, dostaje
+  // powloke panelu Z JEJ WLASNYM sidebarem obok sidebara wydarzenia.
   //
   // Bramka logowania i roli ZOSTAJE tutaj - dlatego studio jest nadal dzieckiem
   // `/admin`, a nie osobnym drzewem tras. Wymieniamy tylko powloke wizualna.

@@ -14,8 +14,31 @@
 // prefiks, w bazie go nie ma, a w stopce e-maila dokleja go szablon.
 //
 // GRANICA WARSTW: zero Reacta, zero i18next, zero klienta bazy.
+import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
 import { normalizeEventLanguages } from "@/lib/events/eventLanguages";
 import { asEventFormat, type EventFormat } from "@/lib/events/eventTypes";
+import {
+  asEventVideoPlatform,
+  EVENT_VIDEO_PLATFORMS,
+  parseVideoId,
+  videoEmbedUrl,
+  type EventVideoPlatform,
+} from "@/lib/events/eventVideoHeader";
+
+// TE TRZY REGULY MAJA JEDNO ZRODLO, A DWA WEJSCIA. `eventAddressLine`,
+// `parseVideoId` i `videoEmbedUrl` liczy modul-lisc (`eventAddress`,
+// `eventVideoHeader`), bo tej samej reguly potrzebuje panel (szkic formularza)
+// i strona publiczna (wiersz z bazy). Reeksport zostaje, zeby ekran panelu i
+// jego test nie musialy wiedziec, ze regula sie przeniosla - druga sciezka
+// importu tej samej funkcji nie jest drugim zachowaniem.
+export {
+  eventAddressLine,
+  EVENT_VIDEO_PLATFORMS,
+  parseVideoId,
+  videoEmbedUrl,
+  type EventAddressParts,
+  type EventVideoPlatform,
+};
 
 export const EVENT_GENERAL_MAX_TITLE = 200;
 export const EVENT_GENERAL_MAX_SLUG = 120;
@@ -30,10 +53,6 @@ export interface EventGeneralFieldError {
   field: EventGeneralField;
   messageKey: string;
 }
-
-/** Platformy naglowka wideo. Pusty napis = brak naglowka wideo. */
-export const EVENT_VIDEO_PLATFORMS = ["youtube", "vimeo"] as const;
-export type EventVideoPlatform = (typeof EVENT_VIDEO_PLATFORMS)[number];
 
 export const EVENT_VIDEO_PLATFORM_LABEL_KEYS: Record<EventVideoPlatform, string> = {
   youtube: "adminEvents.general.videoPlatforms.youtube",
@@ -90,7 +109,6 @@ function text(value: unknown): string {
 
 /** Szkic z wiersza RPC. Nieznane pole degraduje do pustego, a nie wywraca ekranu. */
 export function eventGeneralDraftFromRow(row: Record<string, unknown>): EventGeneralDraft {
-  const platform = text(row["video_header_platform"]);
   const languages = Array.isArray(row["languages"])
     ? normalizeEventLanguages(row["languages"].filter((v): v is string => typeof v === "string"))
     : [];
@@ -102,9 +120,7 @@ export function eventGeneralDraftFromRow(row: Record<string, unknown>): EventGen
     endsAt: text(row["ends_at"]),
     timezone: text(row["timezone"]),
     coverUrl: text(row["cover_url"]),
-    videoPlatform: (EVENT_VIDEO_PLATFORMS as readonly string[]).includes(platform)
-      ? (platform as EventVideoPlatform)
-      : "youtube",
+    videoPlatform: asEventVideoPlatform(text(row["video_header_platform"])),
     videoId: text(row["video_header_id"]),
     format: asEventFormat(text(row["format"])),
     location: text(row["location"]),
@@ -212,14 +228,6 @@ export function eventGeneralDirty(a: EventGeneralDraft, b: EventGeneralDraft): b
   return JSON.stringify(eventGeneralPayload("", a)) !== JSON.stringify(eventGeneralPayload("", b));
 }
 
-/** Adres strukturalny w jednej linii - podglad i `schema.org/Event`. */
-export function eventAddressLine(draft: EventGeneralDraft): string {
-  const cityLine = [draft.postalCode.trim(), draft.city.trim()].filter((p) => p !== "").join(" ");
-  return [draft.streetAddress.trim(), cityLine, draft.region.trim(), draft.country.trim()]
-    .filter((part) => part !== "")
-    .join(", ");
-}
-
 /** Wyczyszczenie calego adresu - odpowiednik „Reset location". */
 export function clearEventLocation(draft: EventGeneralDraft): EventGeneralDraft {
   return {
@@ -267,39 +275,4 @@ export function eventGeneralPayload(
     languages: normalizeEventLanguages(draft.languages),
     support_email: draft.supportEmail.trim().toLowerCase(),
   };
-}
-
-/**
- * Identyfikator materialu z adresu albo z samego identyfikatora.
- *
- * Redaktor wkleja CALY adres z paska przegladarki - i to jest zachowanie,
- * ktorego nie da sie oduczyc etykieta. Pole przyjmuje jedno i drugie.
- */
-export function parseVideoId(input: string, platform: EventVideoPlatform): string {
-  const value = input.trim();
-  if (value === "") return "";
-  if (!/^https?:\/\//i.test(value)) return value;
-  try {
-    const url = new URL(value);
-    if (platform === "youtube") {
-      const fromQuery = url.searchParams.get("v");
-      if (fromQuery !== null && fromQuery !== "") return fromQuery;
-      const segments = url.pathname.split("/").filter((part) => part !== "");
-      return segments[segments.length - 1] ?? "";
-    }
-    const segments = url.pathname.split("/").filter((part) => part !== "");
-    return segments[segments.length - 1] ?? "";
-  } catch {
-    return value;
-  }
-}
-
-/** Adres osadzenia naglowka wideo albo `null`, gdy naglowka nie ma. */
-export function videoEmbedUrl(platform: EventVideoPlatform, videoId: string): string | null {
-  const id = videoId.trim();
-  if (id === "") return null;
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
-  return platform === "youtube"
-    ? `https://www.youtube-nocookie.com/embed/${id}`
-    : `https://player.vimeo.com/video/${id}`;
 }

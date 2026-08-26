@@ -1,73 +1,160 @@
-// Test podzialu podstron wydarzenia na „Strony w menu" i „Pozostale strony".
+// Reguly czyste ekranu „Strony i menu" - podzial listy, etykieta, kolejnosc.
 //
-// TYLKO CZESC CZYSTA: odczyt z `pages` ma wlasne pokrycie po stronie zapytan,
-// a tutaj chodzi o jedyna regule, ktora ekran „Strony i menu" stanowi sam -
-// mapowanie TYMCZASOWE `menu_order > 0` na obecnosc w menu. Regula znika
-// dopiero razem z tabela `event_pages`, wiec do tego czasu musi byc pilnowana:
-// strona wypchnieta z menu przez pomylke to strona, ktorej uczestnik nie
-// znajdzie.
+// TYLKO CZESC CZYSTA: odczyt i zapis chodza przez RPC (`admin_event_pages_list`,
+// `admin_event_page_upsert`, `…_reorder`), a te maja pokrycie po stronie bazy.
+// Tutaj chodzi o to, co ekran stanowi SAM i co da sie zepsuc bez odmowy z bazy.
+//
+// TRZY REGULY WARTE TESTU, bo ich zlamanie jest niewidoczne na ekranie:
+//   1. podzial menu/pozostale - strona wypchnieta z menu przez pomylke to
+//      strona, ktorej uczestnik nie znajdzie;
+//   2. etykieta - pusty wiersz w liscie to wiersz, ktorego nie da sie kliknac
+//      swiadomie, a tytul bywa uzupelniony tylko w jednym jezyku;
+//   3. przesuniecie - ruch w gore musi byc odwracalny jednym ruchem w dol,
+//      inaczej kolejnosc menu ustawia sie metoda prob i bledow.
 import { describe, expect, it } from "vitest";
-import { splitEventPages, type EventPageRow } from "@/lib/events/eventPagesApi";
+import {
+  eventPageLabel,
+  isEventPageAttached,
+  moveEventPage,
+  nextEventPageSortOrder,
+  splitEventPages,
+  type EventPageRow,
+} from "@/lib/events/eventPagesApi";
 
-function page(slug: string, menuOrder: number): EventPageRow {
+/** Wiersz listy. `id: null` = strona istnieje, ale NIE jest przypieta do menu. */
+function page(overrides: Partial<EventPageRow> & { page_slug: string }): EventPageRow {
   return {
-    id: `id-${slug}`,
-    slug,
-    title_pl: slug,
-    title_en: slug,
-    status: "published",
-    menu_order: menuOrder,
-    template_type: "default",
+    id: `entry-${overrides.page_slug}`,
+    page_id: `page-${overrides.page_slug}`,
+    page_path: `kongres/${overrides.page_slug}`,
+    page_status: "published",
+    title_pl: overrides.page_slug,
+    title_en: overrides.page_slug,
+    menu_label_pl: null,
+    menu_label_en: null,
+    icon: null,
+    color: null,
+    in_menu: true,
+    sort_order: 10,
+    visible_to_groups: [],
     updated_at: "2026-08-01T10:00:00.000Z",
+    ...overrides,
   };
 }
 
-describe("podzial podstron wydarzenia na menu i reszte", () => {
-  it("do menu idzie tylko strona z dodatnia kolejnoscia", () => {
-    const { menu, other } = splitEventPages([page("agenda", 1), page("archiwum", 0)]);
-    expect(menu.map((row) => row.slug)).toEqual(["agenda"]);
-    expect(other.map((row) => row.slug)).toEqual(["archiwum"]);
+describe("przypiecie pozycji menu", () => {
+  it("brak identyfikatora mapowania znaczy strone nieprzypieta", () => {
+    expect(isEventPageAttached(page({ page_slug: "agenda" }))).toBe(true);
+    expect(isEventPageAttached(page({ page_slug: "agenda", id: null }))).toBe(false);
   });
 
-  it("zero i wartosc ujemna znacza tyle samo co brak menu", () => {
-    const { menu, other } = splitEventPages([page("a", 0), page("b", -1), page("c", -100)]);
+  // Pusty napis jest tym samym stanem co NULL: RPC oddaje `id` z LEFT JOIN-a,
+  // a warstwa transportu potrafi zamienic NULL na "" po drodze.
+  it("pusty identyfikator tez znaczy nieprzypieta", () => {
+    expect(isEventPageAttached(page({ page_slug: "agenda", id: "" }))).toBe(false);
+  });
+});
+
+describe("podzial podstron na menu i pozostale", () => {
+  it("do menu idzie tylko strona PRZYPIETA i oznaczona jako w menu", () => {
+    const { menu, other } = splitEventPages([
+      page({ page_slug: "agenda" }),
+      page({ page_slug: "archiwum", in_menu: false }),
+      page({ page_slug: "sierotka", id: null }),
+    ]);
+    expect(menu.map((row) => row.page_slug)).toEqual(["agenda"]);
+    expect(other.map((row) => row.page_slug)).toEqual(["archiwum", "sierotka"]);
+  });
+
+  // Strona nieprzypieta z `in_menu = true` istnieje w odpowiedzi RPC (kolumna
+  // ma COALESCE), ale bez wiersza mapowania nie ma czego pokazac w menu -
+  // wpuszczenie jej tam dalo by pozycje, ktorej nie da sie edytowac.
+  it("nieprzypieta strona nie wchodzi do menu, nawet gdy ma znacznik w menu", () => {
+    const { menu, other } = splitEventPages([
+      page({ page_slug: "sierotka", id: null, in_menu: true }),
+    ]);
     expect(menu).toEqual([]);
-    expect(other.map((row) => row.slug)).toEqual(["a", "b", "c"]);
+    expect(other.map((row) => row.page_slug)).toEqual(["sierotka"]);
   });
 
   it("suma obu list jest rowna wejsciu - zadna strona nie ginie i nie dubluje sie", () => {
     const rows = [
-      page("agenda", 1),
-      page("archiwum", 0),
-      page("prelegenci", 2),
-      page("robocza", -3),
-      page("kontakt", 10),
+      page({ page_slug: "a" }),
+      page({ page_slug: "b", in_menu: false }),
+      page({ page_slug: "c", id: null }),
+      page({ page_slug: "d" }),
     ];
     const { menu, other } = splitEventPages(rows);
     expect(menu.length + other.length).toBe(rows.length);
-    expect([...menu, ...other].map((row) => row.id).sort()).toEqual(
-      rows.map((row) => row.id).sort(),
-    );
+    expect([...menu, ...other].map((row) => row.page_slug).sort()).toEqual(["a", "b", "c", "d"]);
   });
 
-  it("zachowuje kolejnosc wejscia wewnatrz obu list", () => {
-    // Wejscie jest juz posortowane zapytaniem (`menu_order`, potem `title_pl`),
-    // wiec podzial nie ma prawa go przestawic - inaczej menu ekranu rozjezdza
-    // sie z menu serwisu.
-    const rows = [page("c", 3), page("z", 0), page("a", 1), page("b", 0), page("m", 2)];
-    const { menu, other } = splitEventPages(rows);
-    expect(menu.map((row) => row.slug)).toEqual(["c", "a", "m"]);
-    expect(other.map((row) => row.slug)).toEqual(["z", "b"]);
+  it("kolejnosc wejscia jest zachowana w obu listach", () => {
+    const { menu } = splitEventPages([
+      page({ page_slug: "trzecia", sort_order: 30 }),
+      page({ page_slug: "pierwsza", sort_order: 10 }),
+    ]);
+    expect(menu.map((row) => row.page_slug)).toEqual(["trzecia", "pierwsza"]);
+  });
+});
+
+describe("etykieta pozycji menu", () => {
+  it("wlasna etykieta wygrywa z tytulem strony", () => {
+    const row = page({
+      page_slug: "agenda",
+      title_pl: "Program kongresu",
+      menu_label_pl: "Agenda",
+    });
+    expect(eventPageLabel(row, "pl")).toBe("Agenda");
   });
 
-  it("pusta lista daje dwie puste listy, a nie undefined", () => {
-    expect(splitEventPages([])).toEqual({ menu: [], other: [] });
+  it("brak wlasnej etykiety siega po tytul strony w jezyku interfejsu", () => {
+    const row = page({ page_slug: "agenda", title_pl: "Program", title_en: "Programme" });
+    expect(eventPageLabel(row, "pl")).toBe("Program");
+    expect(eventPageLabel(row, "en")).toBe("Programme");
   });
 
-  it("zwraca nowe tablice, a nie widok na wejscie", () => {
-    const rows = [page("agenda", 1)];
-    const { menu } = splitEventPages(rows);
-    menu.pop();
-    expect(rows).toHaveLength(1);
+  // Tlumaczenie dopisuje sie pozniej, wiec wiersz bez wersji angielskiej
+  // istnieje. Zapas w drugim jezyku jest lepszy niz pusty wiersz.
+  it("brak tytulu w jezyku interfejsu siega do drugiego jezyka", () => {
+    const row = page({ page_slug: "agenda", title_pl: "Program", title_en: "" });
+    expect(eventPageLabel(row, "en")).toBe("Program");
+  });
+
+  it("biale znaki nie udaja etykiety", () => {
+    const row = page({ page_slug: "agenda", menu_label_pl: "   ", title_pl: "Program" });
+    expect(eventPageLabel(row, "pl")).toBe("Program");
+  });
+
+  it("wiersz bez zadnej nazwy oddaje pusty napis, a nie undefined", () => {
+    const row = page({ page_slug: "x", title_pl: "", title_en: "" });
+    expect(eventPageLabel(row, "pl")).toBe("");
+  });
+});
+
+describe("kolejnosc pozycji menu", () => {
+  it("nowa pozycja idzie za najwyzsza istniejaca", () => {
+    expect(nextEventPageSortOrder([page({ page_slug: "a", sort_order: 10 })])).toBe(20);
+    expect(nextEventPageSortOrder([page({ page_slug: "a", sort_order: 37 })])).toBe(47);
+  });
+
+  it("puste menu zaczyna od pierwszego kroku", () => {
+    expect(nextEventPageSortOrder([])).toBe(10);
+  });
+
+  it("przesuniecie w gore i z powrotem w dol daje wyjsciowa kolejnosc", () => {
+    const ids = ["a", "b", "c"];
+    const up = moveEventPage(ids, "c", -1);
+    expect(up).toEqual(["a", "c", "b"]);
+    expect(moveEventPage(up, "c", 1)).toEqual(["a", "b", "c"]);
+  });
+
+  // Tozsamosc tablicy jest kontraktem: ekran po niej poznaje, ze nie ma czego
+  // zapisywac, i nie wysyla zapisu bez zmiany.
+  it("ruch poza zakres oddaje TE SAMA tablice", () => {
+    const ids = ["a", "b"];
+    expect(moveEventPage(ids, "a", -1)).toBe(ids);
+    expect(moveEventPage(ids, "b", 1)).toBe(ids);
+    expect(moveEventPage(ids, "nieistniejace", 1)).toBe(ids);
   });
 });

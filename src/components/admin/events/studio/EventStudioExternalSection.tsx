@@ -1,7 +1,7 @@
 // Sekcje studia, ktore NIE MAJA jeszcze wlasnej powierzchni per wydarzenie.
 //
 // PUSTA POZYCJA W SIDEBARZE JEST GORSZA NIZ SUCHY EKRAN. Cztery sekcje
-// (`communications`, `integrations`, `analytics`, `features`) stoja w
+// (`communications`, `integrations`, `features`) stoja w
 // `EVENT_STUDIO_NAV`, bo naleza do mapy studia i redaktor ma je zobaczyc od
 // razu, a nie odkrywac w kolejnym wydaniu. Klikniecie w nie nie moze jednak
 // konczyc sie bialym ekranem: kazda mowi WPROST, gdzie ta praca dzis mieszka.
@@ -30,7 +30,7 @@ import {
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Podzbior `EVENT_STUDIO_SECTIONS` bez wlasnej powierzchni w studiu. */
-export type EventStudioExternalKey = "communications" | "integrations" | "analytics" | "features";
+export type EventStudioExternalKey = "communications" | "integrations" | "features";
 
 interface ExternalCopy {
   /** Naglowek ekranu - TA SAMA etykieta, co pozycja w sidebarze. */
@@ -51,11 +51,6 @@ const EXTERNAL_COPY: Record<EventStudioExternalKey, ExternalCopy> = {
     sectionKey: "adminEvents.studio.sections.integrations",
     titleKey: "adminEvents.studio.external.integrationsTitle",
     descriptionKey: "adminEvents.studio.external.integrationsDescription",
-  },
-  analytics: {
-    sectionKey: "adminEvents.studio.sections.analytics",
-    titleKey: "adminEvents.studio.external.analyticsTitle",
-    descriptionKey: "adminEvents.studio.external.analyticsDescription",
   },
   features: {
     sectionKey: "adminEvents.studio.sections.features",
@@ -92,15 +87,6 @@ function ExternalModuleButton({
       return (
         <Button asChild size="sm">
           <Link to="/admin/integrations">
-            <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {label}
-          </Link>
-        </Button>
-      );
-    case "analytics":
-      return (
-        <Button asChild size="sm">
-          <Link to="/admin/analytics">
             <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             {label}
           </Link>

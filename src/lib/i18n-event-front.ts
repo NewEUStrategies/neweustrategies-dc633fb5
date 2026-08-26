@@ -431,6 +431,31 @@ export const eventFrontPl = {
       copied: "Skopiowano",
     },
 
+    // ---------------------------------------------------------------------
+    // Nagłówek wideo, menu podstron i informacje praktyczne.
+    //
+    // TRZY POWIERZCHNIE, KTÓRE PANEL ZAPISYWAŁ, A UCZESTNIK ICH NIE WIDZIAŁ.
+    // Kolumny (`video_header_*`, `street_address`…`country`, `languages`,
+    // `social_hashtag`, `support_email`, `pages_display_mode`) czekały nie na
+    // komponent, a na GRANT kolumnowy - patrz `lib/community/publicQueries.ts`.
+    // ---------------------------------------------------------------------
+    videoHeader: {
+      frameTitle: "Wideo wydarzenia: {{title}}",
+    },
+
+    menu: {
+      label: "Podstrony wydarzenia",
+    },
+
+    practical: {
+      addressLabel: "Adres",
+      showOnMap: "Pokaż na mapie",
+      languagesLabel: "Języki treści",
+      hashtagLabel: "Hashtag",
+      hashtagSearch: "Zobacz wpisy z {{hashtag}} w serwisie X",
+      supportLabel: "Pomoc organizatora",
+    },
+
     // Baner reklamowy strony wydarzenia (page_type = 'event').
     ads: {
       sectionLabel: "Reklama",
@@ -796,6 +821,25 @@ export const eventFrontEn = {
       manageLinkHint: "Bookmark it - it opens this page without signing in.",
       copyLink: "Copy link",
       copied: "Copied",
+    },
+
+    // The video header, the page menu and the practical facts - three
+    // surfaces the studio already stored and the attendee could not see.
+    videoHeader: {
+      frameTitle: "Event video: {{title}}",
+    },
+
+    menu: {
+      label: "Event pages",
+    },
+
+    practical: {
+      addressLabel: "Address",
+      showOnMap: "Show on map",
+      languagesLabel: "Content languages",
+      hashtagLabel: "Hashtag",
+      hashtagSearch: "See posts tagged {{hashtag}} on X",
+      supportLabel: "Organiser support",
     },
 
     ads: {
