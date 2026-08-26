@@ -66,6 +66,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { EventBrandingStyle } from "@/components/events/public/atoms/EventBrandingStyle";
 import { EventVideoHeader } from "@/components/events/public/molecules/EventVideoHeader";
 import { EventPageSections } from "@/components/events/public/organisms/EventPageSections";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
