@@ -25,6 +25,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, ChevronDown, Loader2, Play } from "@/lib/lucide-shim";
+import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -162,7 +163,14 @@ export function EventStudioTopBar({
       {/* Rozpiera pasek: akcje maja stac po PRAWEJ, tak jak we wzorcu. */}
       <span className="flex-1" aria-hidden="true" />
 
+      {/* PRZELACZNIK MOTYWU STOI W PASKU STUDIA, bo redaktor sklada tu strone
+          wydarzenia i musi zobaczyc ja w obu trybach bez wychodzenia z panelu.
+          Ten sam komponent, co w naglowku serwisu - jedno zrodlo prawdy dla
+          stanu `dark`, wiec podglad i strona publiczna nie moga sie rozjechac. */}
+      <ThemeToggle className="h-8 w-8 rounded-[6px]" />
+
       <Button
+
         variant="ghost"
         size="sm"
         className="h-8 gap-1.5 text-xs"
