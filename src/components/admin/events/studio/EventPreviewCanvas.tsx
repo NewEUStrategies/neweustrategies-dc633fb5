@@ -143,6 +143,11 @@ export function EventPreviewCanvas({
     supportEmail: model.supportEmail,
   };
 
+  // PODSTRONA WYGRYWA Z STRONA GLOWNA. Redaktor, ktory kliknal wiersz „Program",
+  // pyta o tresc TEJ strony - dopisanie jej pod metadanymi wydarzenia dawaloby
+  // rysunek, ktory nie odpowiada zadnemu adresowi publicznemu.
+  const page = model.selectedPage;
+
   return (
     // Zakres brandingu obejmuje CALA kanwe, nie samo opakowanie tresci: tlo
     // strony (`--background`) widac takze w marginesach obok kolumny tekstu.
@@ -153,7 +158,31 @@ export function EventPreviewCanvas({
       data-testid="event-preview-canvas"
     >
       <EventBrandingStyle branding={eventBrandingPayload(model.branding)} />
+      {page === null ? null : (
+        <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16" data-testid="event-preview-page">
+          <span className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {title}
+          </span>
+          <h1 className="text-4xl font-bold tracking-tight">{page.label}</h1>
+          <p className="mt-2 font-sans text-xs text-muted-foreground">/{page.path}</p>
+          <div className="mt-8">
+            {page.document === null ? (
+              <p className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+                {t("adminEvents.studio.preview.pageEmpty")}
+              </p>
+            ) : (
+              // TRESC RYSUJE PUBLICZNY RENDERER, nie kopia ukladu sekcji -
+              // inaczej podglad podstrony rozjechalby sie z publikacja przy
+              // pierwszej zmianie w builderze.
+              <BuilderRenderer doc={page.document} lang={lang} device={device} editorPreview />
+            )}
+          </div>
+        </article>
+      )}
+      {page !== null ? null : (
       <article className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
+
         {/* Powrot do katalogu jest NAPISEM, nie odnosnikiem: klik w podgladzie
             wyprowadzalby redaktora ze studia w trakcie edycji. */}
         <span className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground">
