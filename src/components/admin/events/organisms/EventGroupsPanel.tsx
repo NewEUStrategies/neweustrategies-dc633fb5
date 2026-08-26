@@ -33,6 +33,18 @@ import {
 } from "@/lib/events/useEventTermsGroups";
 import type { EventGroupRow, GroupInput } from "@/lib/events/termsGroupsApi";
 
+/** Jedna metryka grupy: etykieta nad liczba, zeby rzedy dalo sie skanowac. */
+function GroupMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="flex flex-col leading-tight">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
+    </span>
+  );
+}
+
 export function EventGroupsPanel({ eventId }: { eventId: string }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -80,12 +92,13 @@ export function EventGroupsPanel({ eventId }: { eventId: string }) {
 
   return (
     <section className="space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-lg">{t("adminEventTerms.groups.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("adminEventTerms.groups.subtitle")}</p>
-        </div>
+      {/* SAM PRZYCISK, BEZ TYTULU. Naglowek „Grupy uczestnikow” stoi juz w
+          lewej kolumnie sekcji studia - powtorzony obok listy dawal dwa te same
+          zdania kilkadziesiat pikseli od siebie i to one najmocniej zlewaly
+          ekran. Zostaje akcja, bo ona nie ma odpowiednika po lewej. */}
+      <div className="flex justify-end">
         <Button
+          size="sm"
           onClick={() => {
             setEditing(null);
             setDialogOpen(true);
@@ -94,7 +107,7 @@ export function EventGroupsPanel({ eventId }: { eventId: string }) {
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("adminEventTerms.groups.createAction")}
         </Button>
-      </header>
+      </div>
 
       <AdminCatalogListState
         isLoading={listQ.isLoading}
@@ -103,23 +116,26 @@ export function EventGroupsPanel({ eventId }: { eventId: string }) {
         isEmpty={rows.length === 0}
         emptyLabel={t("adminEventTerms.groups.empty")}
       >
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {rows.map((row) => (
             <li
               key={row.id}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/70 p-3"
+              className="flex flex-wrap items-center gap-3 rounded-[6px] border border-border bg-background p-4 transition-colors hover:border-brand/40"
             >
-              <div className="min-w-0 space-y-1">
+              {/* PIONOWA BELKA ZAMIAST KROPKI: kolor grupy jest jedynym
+                  znacznikiem, po ktorym rzedy roznia sie na pierwszy rzut oka,
+                  a kropka o boku 12 px ginela miedzy plakietkami. */}
+              <span
+                aria-hidden="true"
+                className="h-10 w-1 shrink-0 rounded-[6px] bg-border"
+                style={row.color === null ? undefined : { backgroundColor: row.color }}
+              />
+              <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  {row.color === null ? null : (
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full border border-border"
-                      style={{ backgroundColor: row.color }}
-                      aria-hidden="true"
-                    />
-                  )}
-                  <span className="font-medium">{nameOf(row)}</span>
-                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{row.key}</code>
+                  <span className="truncate text-[15px] font-semibold">{nameOf(row)}</span>
+                  <span className="rounded-[6px] border border-border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    {row.key}
+                  </span>
                   {row.is_default ? (
                     <Badge variant="secondary">{t("adminEventTerms.labels.default")}</Badge>
                   ) : null}
@@ -127,12 +143,27 @@ export function EventGroupsPanel({ eventId }: { eventId: string }) {
                     <Badge variant="outline">{t("adminEventTerms.labels.system")}</Badge>
                   ) : null}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {`${t("adminEventTerms.labels.members")}: ${String(row.primary_members_count)}`}
-                  {` · ${t("adminEventTerms.labels.extraMembers")}: ${String(row.extra_members_count)}`}
-                  {` · ${t("adminEventTerms.labels.tickets")}: ${String(row.tickets_count)}`}
-                  {` · ${t(`adminEventTerms.visibilities.${row.attendee_visibility}`)}`}
-                </p>
+                {/* LICZNIKI JAKO KOLUMNY, nie jako zdanie z kropkami. Ciag
+                    „Zapisani: 0 · Dodatkowi: 0 · Bilety: 0” czytalo sie jak
+                    jeden szary akapit; etykieta nad liczba daje trzy punkty
+                    zaczepienia i pozwala porownywac rzedy w pionie. */}
+                <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+                  <GroupMetric
+                    label={t("adminEventTerms.labels.members")}
+                    value={row.primary_members_count}
+                  />
+                  <GroupMetric
+                    label={t("adminEventTerms.labels.extraMembers")}
+                    value={row.extra_members_count}
+                  />
+                  <GroupMetric
+                    label={t("adminEventTerms.labels.tickets")}
+                    value={row.tickets_count}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {t(`adminEventTerms.visibilities.${row.attendee_visibility}`)}
+                  </span>
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Button
