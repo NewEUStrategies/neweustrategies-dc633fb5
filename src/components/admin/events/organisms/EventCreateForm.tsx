@@ -28,14 +28,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  AlertCircle,
+  AlertTriangle,
   CalendarDays,
-  CalendarPlus,
   Globe2,
   Info,
   Layers,
   Loader2,
   MapPin,
+  Plus,
   SlidersHorizontal,
 } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
@@ -193,7 +193,7 @@ export function EventCreateForm({
             aria-hidden="true"
             className="flex h-7 w-7 items-center justify-center rounded-md bg-brand/10 text-brand"
           >
-            <CalendarPlus className="h-4 w-4" />
+            <CalendarDays className="h-4 w-4" />
           </span>
           <h1 className="text-base font-semibold leading-tight">
             {t("adminEvents.list.create.title")}
@@ -404,7 +404,7 @@ export function EventCreateForm({
                 role="alert"
                 aria-live="polite"
               >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 {t(issue)}
               </p>
             ) : null}
@@ -429,7 +429,7 @@ export function EventCreateForm({
             {isSaving ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <CalendarPlus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
             )}
             {t("adminEvents.list.create.submitAction")}
           </Button>
