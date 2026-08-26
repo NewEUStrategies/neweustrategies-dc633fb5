@@ -188,6 +188,14 @@ export const adminEventsPl = {
         cityLabel: "Miasto",
         countryLabel: "Kraj",
         placeHint: "Miejsce zapisujemy tylko dla wydarzeń stacjonarnych i hybrydowych.",
+        onlineNoPlace: "Wydarzenie online nie ma adresu - miasto i kraj zostaną puste.",
+        groups: {
+          basics: "Podstawy",
+          schedule: "Termin",
+          place: "Format i miejsce",
+          registration: "Rejestracja",
+          inherited: "Przepisane z rodzaju",
+        },
         externalUrlLabel: "Adres zapisów w systemie zewnętrznym",
         externalUrlHint:
           "Ten rodzaj prowadzi zapisy poza serwisem, więc adres jest wymagany - uczestnik zostanie do niego przekierowany zamiast zapisywać się u nas.",
@@ -1204,6 +1212,14 @@ export const adminEventsEn = {
         cityLabel: "City",
         countryLabel: "Country",
         placeHint: "The venue is stored for onsite and hybrid events only.",
+        onlineNoPlace: "An online event has no venue - city and country stay empty.",
+        groups: {
+          basics: "Basics",
+          schedule: "Schedule",
+          place: "Format and venue",
+          registration: "Registration",
+          inherited: "Inherited from the type",
+        },
         externalUrlLabel: "External registration url",
         externalUrlHint:
           "This type registers people outside the site, so the address is required - attendees are sent there instead of signing up here.",
