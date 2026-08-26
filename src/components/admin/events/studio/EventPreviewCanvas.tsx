@@ -275,7 +275,9 @@ export function EventPreviewCanvas({
           <span className={buttonVariants()}>{t("adminEvents.studio.preview.register")}</span>
         </div>
       </article>
+      )}
     </div>
+
   );
 }
 
