@@ -54,6 +54,7 @@ import {
   asEventGuestMode,
   asEventRegistrationFlow,
   asEventRegistrationMode,
+  type EventFormat,
   type EventTypeOption,
 } from "@/lib/events/eventTypes";
 import { DEFAULT_EVENT_TIME_ZONE, timeZoneOptions } from "@/lib/events/timeZoneOptions";
@@ -302,19 +303,19 @@ export function EventCreateForm({
             </FieldGroup>
 
             <FieldGroup icon={MapPin} title={t("adminEvents.list.create.groups.place")}>
-              {/* FORMAT = RODZAJ. Nie ma osobnej droplisty formatu: wybór rodzaju
-                  wydarzenia jest jednocześnie wyborem formatu (tak liczy to
-                  `admin_event_create`), a dwa pola o tym samym znaczeniu tylko
-                  sugerowały, że wypełniony format wystarczy do zapisu. */}
-              <p className="flex items-start gap-1.5 text-xs leading-snug text-muted-foreground">
-                <Layers className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>
-                  <span className="font-medium text-foreground">
-                    {t(EVENT_FORMAT_LABEL_KEYS[asEventFormat(draft.format)])}
-                  </span>{" "}
-                  {t("adminEvents.list.create.formatHint")}
-                </span>
-              </p>
+              {/* FORMAT WRACA JAKO POLE, ale nie jest już warunkiem zapisu: rodzaj
+                  ustawia go domyślnie, a droplista pozwala go nadpisać dla tego
+                  jednego wydarzenia. */}
+              <AdminFormEnumRow<EventFormat>
+                id="event-create-format"
+                label={t("adminEvents.list.create.formatLabel")}
+                hint={t("adminEvents.list.create.formatHint")}
+                value={asEventFormat(draft.format)}
+                options={EVENT_FORMATS}
+                labelFor={(format) => t(EVENT_FORMAT_LABEL_KEYS[format])}
+                onValueChange={(value) => setDraft({ ...draft, format: value })}
+              />
+
 
 
               {/* Miejsce ZNIKA dla wydarzeń wyłącznie online - tak samo jak w bazie,
