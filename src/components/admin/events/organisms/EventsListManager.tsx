@@ -625,7 +625,7 @@ export function EventsListManager({
       </AdminCatalogListState>
 
       <Dialog open={confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(false)}>
-        <DialogContent>
+        <DialogContent className="event-dialog-compact">
           <DialogHeader>
             <DialogTitle>{t("adminCommunityEvents.deleteTitle")}</DialogTitle>
           </DialogHeader>

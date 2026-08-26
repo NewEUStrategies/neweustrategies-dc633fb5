@@ -110,7 +110,7 @@ export function ScannerDeviceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto">
+      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("adminEventOnsite.devices.dialog.createTitle")}</DialogTitle>
           <DialogDescription>{t("adminEventOnsite.devices.subtitle")}</DialogDescription>
@@ -266,7 +266,7 @@ export function ScannerCredentialDialog({ credential, onClose }: ScannerCredenti
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="event-dialog-compact max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("adminEventOnsite.devices.credential.title")}</DialogTitle>
           <DialogDescription>

@@ -167,7 +167,7 @@ export function ArrangeMeetingDialog({ eventId, open, onOpenChange }: ArrangeMee
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="event-dialog-compact max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("adminEventMeetings.arrange.title")}</DialogTitle>
           <DialogDescription>{t("adminEventMeetings.arrange.subtitle")}</DialogDescription>

@@ -66,7 +66,7 @@ export function EventTypeReassignDialog({
 
   return (
     <Dialog open={sourceName !== null} onOpenChange={(open) => (open ? null : close())}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="event-dialog-compact sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("adminEvents.types.reassignDialog.title")}</DialogTitle>
           <DialogDescription>

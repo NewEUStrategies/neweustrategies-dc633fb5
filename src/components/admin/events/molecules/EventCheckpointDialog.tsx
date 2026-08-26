@@ -119,7 +119,7 @@ export function EventCheckpointDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {t(

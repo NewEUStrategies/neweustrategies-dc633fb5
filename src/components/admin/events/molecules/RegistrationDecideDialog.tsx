@@ -77,7 +77,7 @@ export function RegistrationDecideDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="event-dialog-compact max-w-lg">
         <DialogHeader>
           <DialogTitle>{t(`${base}.${TITLE_KEYS[action]}`)}</DialogTitle>
           <DialogDescription>{t(`${base}.${BODY_KEYS[action]}`)}</DialogDescription>
