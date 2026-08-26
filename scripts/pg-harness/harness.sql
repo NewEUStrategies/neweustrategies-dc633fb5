@@ -494,15 +494,23 @@ CREATE TABLE IF NOT EXISTS public.eu_policy_follows (
 -- `title_pl`/`title_en`/`status`/`starts_at` dolozone przy A35 z tego samego
 -- powodu, co w `eu_policy_items` wyzej: `club_anchor_suggest` filtruje po
 -- `status` i sortuje po `starts_at`. Ksztalt z ORYGINALU 20260712224438.
+-- `min_tier_rank` z tego samego powodu i z tego samego oryginalu: migracja
+-- 20260822171037 przemapowuje wycofana range 28 na 30 i robi to WPROST na
+-- `public.events`. Kolumna stoi w OBU oryginalnych definicjach tabeli
+-- (20260712224438 i 20260713093000), ale obie sa `CREATE TABLE IF NOT EXISTS`,
+-- wiec ten stub je wyprzedza i zamienia w brak-operacji - kolumna nie powstawala
+-- nigdy i harness padal na `column „min_tier_rank” does not exist`, czyli na
+-- swoim wlasnym niedomiarze, a nie na bledzie w migracji.
 CREATE TABLE IF NOT EXISTS public.events (
-  id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  slug      text,
-  title     text,
-  title_pl  text,
-  title_en  text,
-  status    text NOT NULL DEFAULT 'draft',
-  starts_at timestamptz
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  slug          text,
+  title         text,
+  title_pl      text,
+  title_en      text,
+  status        text NOT NULL DEFAULT 'draft',
+  starts_at     timestamptz,
+  min_tier_rank integer NOT NULL DEFAULT 0
 );
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS slug text;
 
