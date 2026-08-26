@@ -92,16 +92,43 @@ ALTER TABLE public.event_pages ENABLE ROW LEVEL SECURITY;
 -- publiczna czyta przez definerowy `event_menu` - bez polityki dla `anon`,
 -- bo pozycja menu niesie widocznosc per grupa i to RPC ma ja rozstrzygac,
 -- a nie polityka, ktora nie zna zapisu wolajacego.
+--
+-- PREDYKAT PRZEPISANY Z `event_page_sections` (20260823170000), a nie zlozony
+-- tutaj od nowa, z dwoch powodow. Po pierwsze `public.is_staff()` NIE PRZYJMUJE
+-- argumentu - czyta `auth.uid()` sama (20260628230000) - wiec `is_staff(auth.uid())`
+-- wywracalo cala migracje bledem 42883 i tabela nie powstawala wcale.
+-- Po drugie `is_staff()` obejmuje takze range `author`, a kazdy zapis do tej
+-- tabeli idzie przez RPC za `assert_editor_tenant()`, czyli admin/editor. Polityka
+-- luzniejsza od RPC nie otwiera zadnej sciezki w panelu, tylko ciche uprawnienie
+-- do tabeli wprost - i to jest gorszy rodzaj rozjazdu, bo nie widac go w UI.
 DROP POLICY IF EXISTS "event_pages staff read" ON public.event_pages;
 CREATE POLICY "event_pages staff read" ON public.event_pages
   FOR SELECT TO authenticated
-  USING (tenant_id = public.current_tenant_id() AND public.is_staff(auth.uid()));
+  USING (
+    tenant_id = (SELECT public.current_tenant_id())
+    AND (
+      public.has_role((SELECT auth.uid()), 'admin'::app_role)
+      OR public.has_role((SELECT auth.uid()), 'editor'::app_role)
+    )
+  );
 
 DROP POLICY IF EXISTS "event_pages staff write" ON public.event_pages;
 CREATE POLICY "event_pages staff write" ON public.event_pages
   FOR ALL TO authenticated
-  USING (tenant_id = public.current_tenant_id() AND public.is_staff(auth.uid()))
-  WITH CHECK (tenant_id = public.current_tenant_id() AND public.is_staff(auth.uid()));
+  USING (
+    tenant_id = (SELECT public.current_tenant_id())
+    AND (
+      public.has_role((SELECT auth.uid()), 'admin'::app_role)
+      OR public.has_role((SELECT auth.uid()), 'editor'::app_role)
+    )
+  )
+  WITH CHECK (
+    tenant_id = (SELECT public.current_tenant_id())
+    AND (
+      public.has_role((SELECT auth.uid()), 'admin'::app_role)
+      OR public.has_role((SELECT auth.uid()), 'editor'::app_role)
+    )
+  );
 
 REVOKE ALL ON public.event_pages FROM anon;
 
@@ -139,6 +166,45 @@ GRANT EXECUTE ON FUNCTION public._event_page_path(uuid) TO service_role;
 
 COMMENT ON FUNCTION public._event_page_path(uuid) IS
   'Publiczna sciezka strony zlozona z lancucha slugow rodzicow (maks. 10 poziomow). Pomocnik wewnetrzny.';
+
+-- Czy CALY lancuch przodkow strony jest opublikowany.
+--
+-- `resolve_path` (20260531223436) idzie sciezka segment po segmencie i na KAZDYM
+-- poziomie wymaga `status = 'published'`. Menu, ktore sprawdza status tylko
+-- samej podstrony, wystawia wiec odnosnik dzialajacy pozornie: korzen wydarzenia
+-- zaklada sie SAM jako szkic przy pierwszej podstronie, redaktor publikuje
+-- dziecko - i uczestnik dostaje 404 na pozycji, ktora widzi w menu. Gorzej:
+-- korzen nie stoi jako pozycja menu, wiec nie ma go gdzie zauwazyc.
+--
+-- Odnosnik, ktory nie prowadzi nigdzie, jest gorszy od braku odnosnika - dlatego
+-- menu filtruje tym samym warunkiem, ktorym rozstrzyga publiczne rozwiazywanie
+-- sciezki. Limit 10 poziomow ten sam co w `_event_page_path`.
+CREATE OR REPLACE FUNCTION public._event_page_chain_published(_page_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  WITH RECURSIVE chain AS (
+    SELECT p.id, p.parent_id, p.status::text AS status, p.deleted_at, 1 AS depth
+    FROM public.pages p
+    WHERE p.id = _page_id
+    UNION ALL
+    SELECT parent.id, parent.parent_id, parent.status::text, parent.deleted_at, chain.depth + 1
+    FROM public.pages parent
+    JOIN chain ON parent.id = chain.parent_id
+    WHERE chain.depth < 10
+  )
+  SELECT NOT EXISTS (
+    SELECT 1 FROM chain WHERE chain.status <> 'published' OR chain.deleted_at IS NOT NULL
+  );
+$$;
+REVOKE ALL ON FUNCTION public._event_page_chain_published(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_page_chain_published(uuid) TO service_role;
+
+COMMENT ON FUNCTION public._event_page_chain_published(uuid) IS
+  'Czy strona i WSZYSCY jej przodkowie sa opublikowani i nieusunieci - ten sam warunek, ktory stawia resolve_path. Pomocnik wewnetrzny.';
 
 -- ---------------------------------------------------------------------------
 -- 4. Lista podstron wydarzenia dla panelu
@@ -477,7 +543,7 @@ COMMENT ON FUNCTION public._event_unique_page_slug(uuid, text) IS
 --
 -- „Utworz strone" ma zrobic TRZY rzeczy naraz: zalozyc korzen wydarzenia,
 -- jesli go jeszcze nie ma, zalozyc pod nim strone i przypiac ja do menu.
--- Rozbite na trzy krokii w interfejsie daloby stan, w ktorym strona istnieje,
+-- Rozbite na trzy kroki w interfejsie daloby stan, w ktorym strona istnieje,
 -- ale nie nalezy do wydarzenia - czyli dokladnie ten stan, ktory ta migracja
 -- ma zlikwidowac.
 
@@ -501,6 +567,7 @@ DECLARE
   v_page_id uuid;
   v_next integer;
   v_entry uuid;
+  v_try integer;
 BEGIN
   IF v_title_pl = '' OR v_title_en = '' THEN
     RAISE EXCEPTION 'invalid_titles: both titles are required';
@@ -517,15 +584,32 @@ BEGIN
   -- Korzen wydarzenia zaklada sie SAM, przy pierwszej podstronie. Osobny
   -- przycisk „zaloz strone glowna wydarzenia" byl by pytaniem o decyzje,
   -- ktorej nie ma: strona glowna jest warunkiem istnienia podstron.
+  -- WOLNY SLUG TRZEBA BRAC I ZUZYC W JEDNEJ PROBIE.
+  -- `_event_unique_page_slug` sprawdza zajetosc SELECT-em, a INSERT idzie po nim
+  -- - miedzy jednym a drugim mieszcza sie dwaj redaktorzy zakladajacy strone
+  -- o tym samym tytule. Oba wywolania dostaja wtedy ten sam „wolny” slug i drugi
+  -- INSERT konczy sie golym 23505 zamiast slugiem z numerem, czyli dokladnie
+  -- tym, przed czym ten pomocnik mial chronic. Blokada na tabeli byla by tu
+  -- lekarstwem gorszym od choroby (kazde zalozenie strony serializowaloby cale
+  -- `pages` w tenancie), wiec zamiast niej: ponowna proba z przeliczonym slugiem.
+  -- Piec prob wystarcza - kolejny numer jest wolny, chyba ze trafi go kolejny
+  -- rownolegly zapis, a wtedy szosta proba tez nie pomoze i blad ma poleciec.
   IF v_root IS NULL THEN
-    INSERT INTO public.pages (
-      tenant_id, slug, title_pl, title_en, status, editor, template_type, menu_order
-    ) VALUES (
-      v_tenant,
-      public._event_unique_page_slug(v_tenant, v_event.slug),
-      v_event.title_pl, v_event.title_en, 'draft', 'builder', 'default', 0
-    )
-    RETURNING id INTO v_root;
+    FOR v_try IN 1..5 LOOP
+      BEGIN
+        INSERT INTO public.pages (
+          tenant_id, slug, title_pl, title_en, status, editor, template_type, menu_order
+        ) VALUES (
+          v_tenant,
+          public._event_unique_page_slug(v_tenant, v_event.slug),
+          v_event.title_pl, v_event.title_en, 'draft', 'builder', 'default', 0
+        )
+        RETURNING id INTO v_root;
+        EXIT;
+      EXCEPTION WHEN unique_violation THEN
+        IF v_try = 5 THEN RAISE; END IF;
+      END;
+    END LOOP;
 
     UPDATE public.events e SET root_page_id = v_root, updated_at = now()
     WHERE e.id = v_event_id AND e.tenant_id = v_tenant;
@@ -533,14 +617,21 @@ BEGIN
 
   v_slug_base := public._event_slugify(v_title_pl);
   IF char_length(v_slug_base) < 3 THEN v_slug_base := 'strona'; END IF;
-  v_slug := public._event_unique_page_slug(v_tenant, v_slug_base);
 
-  INSERT INTO public.pages (
-    tenant_id, parent_id, slug, title_pl, title_en, status, editor, template_type, menu_order
-  ) VALUES (
-    v_tenant, v_root, v_slug, v_title_pl, v_title_en, 'draft', 'builder', 'default', 0
-  )
-  RETURNING id INTO v_page_id;
+  FOR v_try IN 1..5 LOOP
+    BEGIN
+      v_slug := public._event_unique_page_slug(v_tenant, v_slug_base);
+      INSERT INTO public.pages (
+        tenant_id, parent_id, slug, title_pl, title_en, status, editor, template_type, menu_order
+      ) VALUES (
+        v_tenant, v_root, v_slug, v_title_pl, v_title_en, 'draft', 'builder', 'default', 0
+      )
+      RETURNING id INTO v_page_id;
+      EXIT;
+    EXCEPTION WHEN unique_violation THEN
+      IF v_try = 5 THEN RAISE; END IF;
+    END;
+  END LOOP;
 
   SELECT COALESCE(max(ep.sort_order), 0) + 10 INTO v_next
   FROM public.event_pages ep
@@ -631,6 +722,8 @@ BEGIN
     AND ep.in_menu
     AND pg.deleted_at IS NULL
     AND pg.status = 'published'
+    -- Sam status podstrony NIE WYSTARCZA - patrz `_event_page_chain_published`.
+    AND public._event_page_chain_published(pg.id)
     AND (
       cardinality(ep.visible_to_groups) = 0
       OR ep.visible_to_groups && v_groups

@@ -71,6 +71,15 @@ export function eventLanguageLabel(code: string, uiLanguage: string): string {
   const cached = LABEL_CACHE.get(key);
   if (cached !== undefined) return cached;
   let label = code;
+  // PUSTY KOD ODCINAMY PRZED `Intl.DisplayNames`, a nie w `catch`. W tym
+  // srodowisku `of("")` rzuca `RangeError` i degradacja dziala, ale to detal
+  // implementacji ICU: sa wersje, w ktorych `of("")` ZWRACA `"root"` - wtedy
+  // z pustego kodu robilaby sie widoczna etykieta „Root”. Kontrakt („nie podano
+  // jezyka” = pusty napis) ma trzymac niezaleznie od wersji ICU pod spodem.
+  if (code === "") {
+    LABEL_CACHE.set(key, label);
+    return label;
+  }
   try {
     const names = new Intl.DisplayNames([uiLanguage], { type: "language" });
     const resolved = names.of(code);
