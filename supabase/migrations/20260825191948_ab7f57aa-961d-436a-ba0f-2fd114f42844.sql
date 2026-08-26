@@ -2,6 +2,18 @@
 -- Event Builder, etap 3: WEJSCIOWKI, PAKIETY I KUPONY
 -- (migracja repozytorium 20260824080000_event_admissions_packages_coupons.sql)
 -- ============================================================================
+--
+-- KAZDA POLITYKA MA STRAZ `DROP POLICY IF EXISTS`. Ten plik jest PONOWNA EMISJA
+-- migracji 20260824080000 pod innym numerem - tak, jak zapowiada naglowek wyzej.
+-- Tabele i kolumny przezyly to bez szkody, bo niosly `IF NOT EXISTS`; polityki
+-- nie niosly nic, wiec przy odtworzeniu bazy od zera `CREATE POLICY` trafial na
+-- obiekt zalozony przez 20260824080000 i konczyl sie bledem 42710. Odtworzenie
+-- przewracalo sie na PIERWSZEJ z siedmiu, przez co `supabase db start` nie
+-- wstawal w ogole - stad czerwone `pgtap` i `e2e-seeded`.
+--
+-- Straz NIE zmienia stanu koncowego bazy: polityka i tak jest zastepowana ta
+-- sama definicja. Zmienia tylko to, ze plik daje sie odtworzyc drugi raz.
+-- Ten sam idiom stosuje sasiednia 20260825170000_event_rls_admin_only.sql.
 
 -- 1) WEJSCIOWKA INDYWIDUALNA: dla kogo jest
 ALTER TABLE public.event_ticket_types
@@ -95,6 +107,7 @@ GRANT ALL ON public.event_audience_grants TO service_role;
 
 ALTER TABLE public.event_audience_grants ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "event_audience_grants_staff_all" ON public.event_audience_grants;
 CREATE POLICY "event_audience_grants_staff_all" ON public.event_audience_grants
   FOR ALL TO authenticated
   USING (
@@ -112,6 +125,7 @@ CREATE POLICY "event_audience_grants_staff_all" ON public.event_audience_grants
     )
   );
 
+DROP POLICY IF EXISTS "event_audience_grants_own_read" ON public.event_audience_grants;
 CREATE POLICY "event_audience_grants_own_read" ON public.event_audience_grants
   FOR SELECT TO authenticated
   USING (tenant_id = public._caller_tenant() AND user_id = auth.uid());
@@ -189,6 +203,7 @@ GRANT ALL ON public.event_ticket_packages TO service_role;
 
 ALTER TABLE public.event_ticket_packages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "event_ticket_packages_staff_all" ON public.event_ticket_packages;
 CREATE POLICY "event_ticket_packages_staff_all" ON public.event_ticket_packages
   FOR ALL TO authenticated
   USING (
@@ -287,6 +302,7 @@ GRANT ALL ON public.event_package_orders TO service_role;
 
 ALTER TABLE public.event_package_orders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "event_package_orders_staff_all" ON public.event_package_orders;
 CREATE POLICY "event_package_orders_staff_all" ON public.event_package_orders
   FOR ALL TO authenticated
   USING (
@@ -304,6 +320,7 @@ CREATE POLICY "event_package_orders_staff_all" ON public.event_package_orders
     )
   );
 
+DROP POLICY IF EXISTS "event_package_orders_buyer_read" ON public.event_package_orders;
 CREATE POLICY "event_package_orders_buyer_read" ON public.event_package_orders
   FOR SELECT TO authenticated
   USING (tenant_id = public._caller_tenant() AND buyer_user_id = auth.uid());
@@ -374,6 +391,7 @@ GRANT ALL ON public.event_package_seats TO service_role;
 
 ALTER TABLE public.event_package_seats ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "event_package_seats_staff_all" ON public.event_package_seats;
 CREATE POLICY "event_package_seats_staff_all" ON public.event_package_seats
   FOR ALL TO authenticated
   USING (
@@ -391,6 +409,7 @@ CREATE POLICY "event_package_seats_staff_all" ON public.event_package_seats
     )
   );
 
+DROP POLICY IF EXISTS "event_package_seats_buyer_read" ON public.event_package_seats;
 CREATE POLICY "event_package_seats_buyer_read" ON public.event_package_seats
   FOR SELECT TO authenticated
   USING (
