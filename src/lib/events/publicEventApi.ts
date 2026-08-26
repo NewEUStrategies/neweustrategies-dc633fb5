@@ -8,11 +8,17 @@
 // zgubić.
 //
 // GOŚĆ CZYTA, ZALOGOWANY DZIAŁA. `event_sections`, `event_agenda`,
-// `event_session_access`, `event_sponsors_public` i
-// `event_sponsor_materials_public` mają GRANT dla `anon`; `event_session_signup`,
-// `event_bookmark_toggle` i `event_bookmarks_mine` wymagają sesji. Bramki
-// logowania NIE powielamy tutaj - odmowa z bazy niesie klucz, a `publicEventErrors`
-// zamienia go w zdanie z następnym krokiem.
+// `event_session_access`, `event_sponsors_public`,
+// `event_sponsor_materials_public` i `event_discussions` mają GRANT dla `anon`;
+// `event_session_signup`, `event_bookmark_toggle`, `event_bookmarks_mine`
+// i `event_attendees` wymagają sesji. Bramki logowania NIE powielamy tutaj -
+// odmowa z bazy niesie klucz, a `publicEventErrors` zamienia go w zdanie
+// z następnym krokiem.
+//
+// LISTA UCZESTNIKÓW JEST WYJĄTKIEM OD „GOŚĆ CZYTA” I TO NIE JEST NIEDBALSTWO:
+// `event_attendees` ma REVOKE dla `anon`, bo „kto jest na sali” to informacja
+// dla ludzi z sali. Hook nie woła jej dla gościa (`enabled`), a komponent
+// pokazuje wtedy zaproszenie do zalogowania - nie komunikat o błędzie.
 //
 // PARSOWANIE STOI PRZY MODELU, NIE PRZY ZAPYTANIU. Ten plik oddaje kształt
 // z bazy do modułów `eventSections` / `agendaSurface` / `sponsorsSurface`,
@@ -201,6 +207,368 @@ export async function fetchEventSponsorMaterials(slug: string): Promise<PublicSp
   const { data, error } = await supabase.rpc("event_sponsor_materials_public", { p_slug: slug });
   if (error) throw error;
   return parseSponsorMaterials(data);
+}
+
+/* --------------------------------------------------------- uczestnicy --- */
+
+/**
+ * Powód, dla którego lista uczestnika nie przyszła. `null` = przyszła.
+ *
+ * DWA POWODY, DWA RÓŻNE NASTĘPNE KROKI - i dlatego to nie jest jedno pole
+ * „pusto”: `requester_not_participating` znaczy „zapisz się”, a `chatham_house`
+ * znaczy „nazwisk nie będzie i to jest cała odpowiedź”. Trzeciego powodu tu nie
+ * ma, bo brak sesji baza zgłasza wyjątkiem, nie polem (patrz nagłówek pliku).
+ */
+export const ATTENDEE_BLOCK_REASONS = ["requester_not_participating", "chatham_house"] as const;
+export type AttendeeBlockReason = (typeof ATTENDEE_BLOCK_REASONS)[number];
+
+/** Etykieta grupy zapisu - kolor jest z bazy, nie z motywu. */
+export interface AttendeeGroupTag {
+  id: string;
+  namePl: string;
+  nameEn: string;
+  color: string | null;
+}
+
+/** Grupa wydarzenia z licznikiem osób NA LIŚCIE (nie wszystkich zapisanych). */
+export interface AttendeeGroupCount extends AttendeeGroupTag {
+  count: number;
+}
+
+/**
+ * Jedna osoba na liście uczestników.
+ *
+ * `name` jest zawsze niepuste - składa je SQL (nazwa wyświetlana profilu, potem
+ * imię i nazwisko profilu, na końcu kartoteka wydarzenia), więc front nie ma
+ * tu żadnej gałęzi do podjęcia. Adresu poczty ani telefonu w tym kształcie
+ * NIE MA i nie wolno go dołożyć: dane kontaktowe należą do ścieżki zgody
+ * partnerskiej, nie do listy uczestników.
+ */
+export interface AttendeeEntry {
+  registrationId: string;
+  name: string;
+  jobTitle: string | null;
+  company: string | null;
+  avatarUrl: string | null;
+  profileSlug: string | null;
+  groups: AttendeeGroupTag[];
+}
+
+export interface AttendeeDirectory {
+  blocked: AttendeeBlockReason | null;
+  /** Reguła Chatham House tego wydarzenia - front mówi o niej wprost. */
+  chathamHouse: boolean;
+  myRegistrationId: string | null;
+  /** Czy JA jestem widoczny dla innych: `myDiscoverable && !myOptOut`. */
+  myListed: boolean;
+  /** Dźwignia PLATFORMOWA (`profiles.discoverable`) - poza tą stroną. */
+  myDiscoverable: boolean;
+  /** Dźwignia TEGO ZAPISU (`event_registrations.directory_opt_out`). */
+  myOptOut: boolean;
+  totalCount: number;
+  rows: AttendeeEntry[];
+  groups: AttendeeGroupCount[];
+}
+
+/**
+ * Odpowiedź, której front nie musi rozpoznawać jako braku danych.
+ *
+ * Stała, a nie literał w komponencie: `useQuery` przez pierwszy render oddaje
+ * `undefined`, a ekran z dwiema gałęziami („jeszcze nie ma” i „nie ma nikogo”)
+ * rozjeżdża się dokładnie tam, gdzie te dwie gałęzie się różnią.
+ */
+export const EMPTY_ATTENDEE_DIRECTORY: AttendeeDirectory = {
+  blocked: null,
+  chathamHouse: false,
+  myRegistrationId: null,
+  myListed: false,
+  myDiscoverable: false,
+  myOptOut: false,
+  totalCount: 0,
+  rows: [],
+  groups: [],
+};
+
+function list(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function blockReasonOf(value: unknown): AttendeeBlockReason | null {
+  const raw = text(value);
+  return ATTENDEE_BLOCK_REASONS.find((reason) => reason === raw) ?? null;
+}
+
+function parseGroupTag(value: unknown): AttendeeGroupTag | null {
+  const row = record(value);
+  const id = text(row.id);
+  if (id === null) return null;
+  return {
+    id,
+    namePl: text(row.name_pl) ?? "",
+    nameEn: text(row.name_en) ?? "",
+    color: text(row.color),
+  };
+}
+
+export function parseAttendeeDirectory(value: unknown): AttendeeDirectory {
+  const row = record(value);
+  const rows: AttendeeEntry[] = [];
+  for (const item of list(row.rows)) {
+    const entry = record(item);
+    const registrationId = text(entry.registration_id);
+    const name = text(entry.name);
+    // Wiersz bez identyfikatora albo bez nazwy nie jest osobą, którą można
+    // pokazać - a klucz Reacta na indeksie tablicy rozjeżdża listę po każdym
+    // przewinięciu strony.
+    if (registrationId === null || name === null) continue;
+    rows.push({
+      registrationId,
+      name,
+      jobTitle: text(entry.job_title),
+      company: text(entry.company),
+      avatarUrl: text(entry.avatar_url),
+      profileSlug: text(entry.profile_slug),
+      groups: list(entry.groups)
+        .map(parseGroupTag)
+        .filter((tag): tag is AttendeeGroupTag => tag !== null),
+    });
+  }
+
+  const groups: AttendeeGroupCount[] = [];
+  for (const item of list(row.groups)) {
+    const tag = parseGroupTag(item);
+    if (tag === null) continue;
+    groups.push({ ...tag, count: nullableInt(record(item).count) ?? 0 });
+  }
+
+  return {
+    blocked: blockReasonOf(row.blocked),
+    chathamHouse: row.chatham_house === true,
+    myRegistrationId: text(row.my_registration_id),
+    myListed: row.my_listed === true,
+    myDiscoverable: row.my_discoverable === true,
+    myOptOut: row.my_opt_out === true,
+    totalCount: nullableInt(row.total_count) ?? 0,
+    rows,
+    groups,
+  };
+}
+
+export async function fetchEventAttendees(input: {
+  slug: string;
+  q?: string;
+  groupId?: string | null;
+  limit: number;
+  offset: number;
+}): Promise<AttendeeDirectory> {
+  const payload: Record<string, Json> = {
+    event_slug: input.slug,
+    limit: input.limit,
+    offset: input.offset,
+  };
+  // Puste pole wyszukiwania NIE JEST filtrem - wysłane jako `""` kazałoby
+  // bazie porównywać każdy wiersz z niczym.
+  if (input.q !== undefined && input.q.trim() !== "") payload.q = input.q.trim();
+  if (input.groupId !== undefined && input.groupId !== null) payload.group_id = input.groupId;
+
+  const { data, error } = await supabase.rpc("event_attendees", { p_payload: payload });
+  if (error) throw error;
+  return parseAttendeeDirectory(data);
+}
+
+/**
+ * Własna obecność na liście - JEDNA dźwignia, ta per wydarzenie.
+ *
+ * WOŁAMY RPC GIEŁDY, BO KOLUMNA JEST TA SAMA.
+ * `event_registrations.directory_opt_out` ma dokładnie jedną drogę zapisu
+ * z powierzchni uczestnika (`event_meeting_directory_visibility_set`) i to jest
+ * właściwość, której nie chcemy zepsuć drugą funkcją piszącą do tej samej
+ * kolumny. Własne opakowanie zamiast importu hooka giełdy jest tu świadome:
+ * tamten moduł wciąga do chunka strony wydarzenia całą nakładkę i18n giełdy
+ * spotkań, a unieważnia inne klucze cache niż ta strona.
+ *
+ * `profiles.discoverable` NIE JEST tu ruszane. Zgoda platformowa zapadła
+ * w profilu i strona wydarzenia nie ma prawa jej rozszerzać za człowieka -
+ * może tylko powiedzieć, że jest wyłączona.
+ */
+export async function setEventAttendeeVisibility(input: {
+  slug: string;
+  listed: boolean;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("event_meeting_directory_visibility_set", {
+    p_payload: { event_slug: input.slug, listed: input.listed } as Json,
+  });
+  if (error) throw error;
+  return record(data).listed === true;
+}
+
+/* ------------------------------------------------------------ dyskusje --- */
+
+/**
+ * Stan pozycji „Dyskusje”.
+ *
+ * `ok` i `not_configured` pochodzą z naszego RPC; pozostałe to WPROST
+ * `club_capabilities.reason` modułu klubów - nie tłumaczymy ich na własny
+ * słownik stanów, bo drugi słownik znaczyłby drugie źródło prawdy o dostępie.
+ * Nieznany stan czytamy jako `no_access`: strona ma wtedy powiedzieć „nie masz
+ * tu dostępu”, a nie udawać, że dyskusji nie ma.
+ */
+export const DISCUSSION_STATES = [
+  "ok",
+  "not_configured",
+  "not_found",
+  "auth_required",
+  "not_member",
+  "banned",
+  "not_open_yet",
+  "archived",
+  "tier_too_low",
+  "tier_unknown",
+  "no_access",
+] as const;
+export type DiscussionState = (typeof DISCUSSION_STATES)[number];
+
+export interface DiscussionClub {
+  id: string;
+  slug: string;
+  namePl: string;
+  nameEn: string;
+  /** Nazwa ikony lucide W PASCAL CASE - tak trzyma ją `clubs.icon`. */
+  icon: string | null;
+  accentColor: string | null;
+}
+
+export interface DiscussionGroup {
+  id: string;
+  slug: string;
+  namePl: string;
+  nameEn: string;
+  status: string;
+}
+
+/**
+ * Wątek klubu na stronie wydarzenia.
+ *
+ * `authorName` JEST `null` W TRYBIE CHATHAM HOUSE i przy wątku anonimowym -
+ * decyduje o tym RPC (kaskada wątek -> grupa -> klub), a nie ten komponent.
+ * `isAnonymous` mówi, że tak ma być, więc front rysuje etykietę „uczestnik”,
+ * zamiast pustego miejsca po nazwisku.
+ */
+export interface DiscussionThread {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  kind: string;
+  status: string;
+  isAnonymous: boolean;
+  authorName: string | null;
+  authorAvatar: string | null;
+  authorSlug: string | null;
+  replyCount: number;
+  participantCount: number;
+  pinnedAt: string | null;
+  lastReplyAt: string | null;
+  createdAt: string | null;
+}
+
+export interface EventDiscussions {
+  state: DiscussionState;
+  club: DiscussionClub | null;
+  group: DiscussionGroup | null;
+  /** `attributed` | `chatham` | `anonymous_allowed` - tryb grupy albo klubu. */
+  attribution: string | null;
+  canPost: boolean;
+  totalCount: number;
+  threads: DiscussionThread[];
+}
+
+export const EMPTY_EVENT_DISCUSSIONS: EventDiscussions = {
+  state: "not_configured",
+  club: null,
+  group: null,
+  attribution: null,
+  canPost: false,
+  totalCount: 0,
+  threads: [],
+};
+
+function discussionStateOf(value: unknown): DiscussionState {
+  const raw = text(value);
+  return DISCUSSION_STATES.find((state) => state === raw) ?? "no_access";
+}
+
+export function parseEventDiscussions(value: unknown): EventDiscussions {
+  const row = record(value);
+  const clubRow = record(row.club);
+  const clubId = text(clubRow.id);
+  const clubSlug = text(clubRow.slug);
+  const groupRow = record(row.group);
+  const groupId = text(groupRow.id);
+
+  const threads: DiscussionThread[] = [];
+  for (const item of list(row.threads)) {
+    const entry = record(item);
+    const id = text(entry.id);
+    const slug = text(entry.slug);
+    const title = text(entry.title);
+    // Bez sluga nie ma odnośnika do wątku, a karta bez odnośnika jest atrapą.
+    if (id === null || slug === null || title === null) continue;
+    threads.push({
+      id,
+      slug,
+      title,
+      excerpt: text(entry.excerpt),
+      kind: text(entry.kind) ?? "discussion",
+      status: text(entry.status) ?? "open",
+      isAnonymous: entry.is_anonymous === true,
+      authorName: text(entry.author_name),
+      authorAvatar: text(entry.author_avatar),
+      authorSlug: text(entry.author_slug),
+      replyCount: nullableInt(entry.reply_count) ?? 0,
+      participantCount: nullableInt(entry.participant_count) ?? 0,
+      pinnedAt: text(entry.pinned_at),
+      lastReplyAt: text(entry.last_reply_at),
+      createdAt: text(entry.created_at),
+    });
+  }
+
+  return {
+    state: discussionStateOf(row.state),
+    // Klub bez identyfikatora ALBO bez sluga jest dla frontu nieużyteczny:
+    // trasa wątku (`/club/$clubSlug/t/$threadSlug`) potrzebuje obu.
+    club:
+      clubId === null || clubSlug === null
+        ? null
+        : {
+            id: clubId,
+            slug: clubSlug,
+            namePl: text(clubRow.name_pl) ?? "",
+            nameEn: text(clubRow.name_en) ?? "",
+            icon: text(clubRow.icon),
+            accentColor: text(clubRow.accent_color),
+          },
+    group:
+      groupId === null
+        ? null
+        : {
+            id: groupId,
+            slug: text(groupRow.slug) ?? "",
+            namePl: text(groupRow.name_pl) ?? "",
+            nameEn: text(groupRow.name_en) ?? "",
+            status: text(groupRow.status) ?? "active",
+          },
+    attribution: text(row.attribution),
+    canPost: row.can_post === true,
+    totalCount: nullableInt(row.total_count) ?? 0,
+    threads,
+  };
+}
+
+export async function fetchEventDiscussions(slug: string): Promise<EventDiscussions> {
+  const { data, error } = await supabase.rpc("event_discussions", { p_slug: slug });
+  if (error) throw error;
+  return parseEventDiscussions(data);
 }
 
 /* ----------------------------------------------------------- zakładki --- */

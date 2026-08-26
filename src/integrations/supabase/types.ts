@@ -7560,6 +7560,7 @@ export type Database = {
           in_menu: boolean
           menu_label_en: string | null
           menu_label_pl: string | null
+          module: string | null
           page_id: string
           sort_order: number
           tenant_id: string
@@ -7575,6 +7576,7 @@ export type Database = {
           in_menu?: boolean
           menu_label_en?: string | null
           menu_label_pl?: string | null
+          module?: string | null
           page_id: string
           sort_order?: number
           tenant_id?: string
@@ -7590,6 +7592,7 @@ export type Database = {
           in_menu?: boolean
           menu_label_en?: string | null
           menu_label_pl?: string | null
+          module?: string | null
           page_id?: string
           sort_order?: number
           tenant_id?: string
@@ -9295,6 +9298,8 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
+          discussion_club_id: string | null
+          discussion_group_id: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
           event_type_id: string | null
@@ -9351,6 +9356,8 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          discussion_club_id?: string | null
+          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -9407,6 +9414,8 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          discussion_club_id?: string | null
+          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -19770,6 +19779,7 @@ export type Database = {
           in_menu: boolean
           menu_label_en: string
           menu_label_pl: string
+          module: string
           page_id: string
           page_path: string
           page_slug: string
@@ -23010,6 +23020,7 @@ export type Database = {
         Returns: boolean
       }
       event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
+      event_attendees: { Args: { p_payload: Json }; Returns: Json }
       event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_bookmarks_mine: {
         Args: { p_limit?: number; p_offset?: number; p_scope?: string }
@@ -23037,6 +23048,7 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_discussions: { Args: { p_slug: string }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_availability_delete: {
@@ -23106,6 +23118,7 @@ export type Database = {
           id: string
           label_en: string
           label_pl: string
+          module: string
           page_id: string
           path: string
           sort_order: number

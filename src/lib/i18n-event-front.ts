@@ -495,6 +495,112 @@ export const eventFrontPl = {
       supportLabel: "Pomoc organizatora",
     },
 
+    // ---------------------------------------------------------------------
+    // UCZESTNICY (`event_attendees`).
+    //
+    // TA LISTA JEST DLA LUDZI Z SALI I TEKST MUSI TO MÓWIĆ WPROST. Trzy różne
+    // „nie ma listy” mają trzy różne następne kroki, więc mają trzy różne
+    // zdania: gość ma się zalogować, niezapisany ma się zapisać, a przy
+    // regule Chatham House nazwisk NIE BĘDZIE i to jest odpowiedź ostateczna,
+    // nie awaria.
+    //
+    // ZERO NOWYCH ZGÓD, WIĘC ZERO OBIETNIC W TEKŚCIE. Na liście stoją
+    // wyłącznie osoby, które w profilu włączyły widoczność
+    // (`profiles.discoverable`) i nie wypisały się z tego wydarzenia
+    // (`event_registrations.directory_opt_out`) - dlatego „nikogo tu nie ma”
+    // mówi o ZGODACH, a nie o pustej sali.
+    // ---------------------------------------------------------------------
+    attendees: {
+      heading: "Uczestnicy",
+      subtitle: "Osoby, które zgodziły się być widoczne dla pozostałych uczestników.",
+      listLabel: "Lista uczestników",
+      count_one: "{{count}} osoba na liście",
+      count_few: "{{count}} osoby na liście",
+      count_many: "{{count}} osób na liście",
+      count_other: "{{count}} osób na liście",
+      searchPlaceholder: "Szukaj po nazwisku albo firmie",
+      searchLabel: "Szukaj uczestnika",
+      allGroups: "Wszyscy",
+      empty:
+        "Nikt jeszcze nie włączył widoczności na tym wydarzeniu. Możesz być pierwszy - przełącznik jest wyżej.",
+      emptyFiltered: "Nikt na liście nie odpowiada temu zapytaniu.",
+      loading: "Odświeżamy listę…",
+      prevPage: "Poprzednie",
+      nextPage: "Następne",
+      pageRange: "{{from}}-{{to}} z {{total}}",
+      profileLink: "Zobacz profil: {{name}}",
+      signInTitle: "Lista uczestników jest dla zapisanych",
+      signInBody: "Zaloguj się na konto, z którego zapisałeś się na to wydarzenie.",
+      notRegisteredTitle: "Zapisz się, żeby zobaczyć, kto będzie",
+      notRegisteredBody: "Listę uczestników pokazujemy tylko osobom zapisanym na to wydarzenie.",
+      chathamTitle: "To spotkanie działa w regule Chatham House",
+      chathamBody:
+        "Nazwisk nie pokazujemy - ani na tej stronie, ani nikomu innemu. Możemy powiedzieć, ilu was będzie i w jakich grupach.",
+      groupsHeading: "Kto będzie na sali",
+      groupCount_one: "{{count}} osoba",
+      groupCount_few: "{{count}} osoby",
+      groupCount_many: "{{count}} osób",
+      groupCount_other: "{{count}} osób",
+      visibilityHeading: "Moja widoczność",
+      listedLabel: "Jesteś widoczny dla innych uczestników",
+      listedHint:
+        "Pokazujemy imię, nazwisko, stanowisko i firmę. Nigdy adresu poczty ani telefonu.",
+      listedOn: "Widoczny",
+      listedOff: "Ukryty",
+      profileHiddenLabel: "Twój profil jest ukryty w całym serwisie",
+      profileHiddenHint:
+        "Dopóki w ustawieniach profilu masz wyłączoną widoczność, nie pokażemy Cię na żadnej liście uczestników - także po włączeniu przełącznika tutaj.",
+    },
+
+    // ---------------------------------------------------------------------
+    // DYSKUSJE (`event_discussions`).
+    //
+    // WĄTKI SĄ Z KLUBU DYSKUSYJNEGO I TEKST NIE UDAJE, ŻE JEST INACZEJ:
+    // odnośnik prowadzi do klubu, bo tam człowiek odpowiada, moderuje
+    // i dostaje powiadomienia. Wydarzenie bez przypiętej grupy klubu dostaje
+    // JEDNO ZDANIE zaproszenia - nie pustą ramkę i nie atrapę.
+    //
+    // NAZWY RODZAJÓW WĄTKÓW STOJĄ TU, A NIE W SŁOWNIKU KLUBÓW, mimo że to te
+    // same sześć wartości. Nakładki i18n są NIEPODZIELNE: import słownika
+    // klubów wciągnąłby do chunka strony wydarzenia całą powierzchnię klubową.
+    // ---------------------------------------------------------------------
+    discussions: {
+      heading: "Dyskusje",
+      subtitle: "Rozmowy uczestników w klubie dyskusyjnym tego wydarzenia.",
+      listLabel: "Wątki dyskusji",
+      invite: "Dyskusje otwieramy w dniu wydarzenia - zajrzyj tu wtedy jeszcze raz.",
+      empty: "W tej grupie nie ma jeszcze ani jednego wątku. Pierwszy głos należy do Ciebie.",
+      openInClub: "Otwórz w klubie: {{club}}",
+      startThread: "Rozpocznij wątek w klubie",
+      anonymousAuthor: "Uczestnik",
+      chathamNote: "Ta grupa działa w regule Chatham House - wypowiedzi bez nazwisk.",
+      replies_one: "{{count}} odpowiedź",
+      replies_few: "{{count}} odpowiedzi",
+      replies_many: "{{count}} odpowiedzi",
+      replies_other: "{{count}} odpowiedzi",
+      kind: {
+        discussion: "Dyskusja",
+        question: "Pytanie",
+        position: "Stanowisko",
+        resource: "Materiał",
+        announcement: "Ogłoszenie",
+        poll: "Ankieta",
+      },
+      // Stany z `club_capabilities.reason` - jedno źródło prawdy o dostępie
+      // siedzi w bazie, a tutaj ma tylko nazwę po polsku.
+      state: {
+        notFound: "Nie znaleźliśmy tego wydarzenia.",
+        authRequired: "Zaloguj się, żeby zobaczyć dyskusje tego wydarzenia.",
+        notMember: "Dyskusje są dla członków klubu. Poproś organizatora o dostęp.",
+        banned: "Nie masz dostępu do dyskusji w tym klubie.",
+        notOpenYet: "Dyskusje jeszcze się nie otworzyły.",
+        archived: "Dyskusje tego wydarzenia są już zamknięte i przeniesione do archiwum.",
+        tierTooLow: "Dyskusje są dla członków o wyższej warstwie.",
+        tierUnknown: "Nie umiemy sprawdzić Twojej warstwy członkostwa.",
+        noAccess: "Nie masz dostępu do tych dyskusji.",
+      },
+    },
+
     // Baner reklamowy strony wydarzenia (page_type = 'event').
     ads: {
       sectionLabel: "Reklama",
@@ -511,6 +617,7 @@ export const eventFrontPl = {
       invalidScope: "Nieznany zakres listy.",
       invalidStatus: "Nieznany stan zapisu.",
       forbidden: "Zaloguj się, żeby zapisać się na sesję.",
+      requesterNotParticipating: "Ta operacja jest dla osób zapisanych na to wydarzenie.",
       signupDisabled: "Ta sesja nie przyjmuje zapisów.",
       overlapConflict: "Masz już zapis na inną sesję w tych godzinach.",
       tierRequired: "Ta sesja jest dla członków o wyższej warstwie.",
@@ -904,6 +1011,84 @@ export const eventFrontEn = {
       supportLabel: "Organiser support",
     },
 
+    // ---------------------------------------------------------------------
+    // ATTENDEES (`event_attendees`). Three different „no list” cases, three
+    // different next steps - see the Polish block for the reasoning.
+    // ---------------------------------------------------------------------
+    attendees: {
+      heading: "Attendees",
+      subtitle: "People who agreed to be visible to the other attendees.",
+      listLabel: "Attendee list",
+      count_one: "{{count}} person on the list",
+      count_other: "{{count}} people on the list",
+      searchPlaceholder: "Search by name or company",
+      searchLabel: "Search attendees",
+      allGroups: "Everyone",
+      empty:
+        "Nobody has turned visibility on for this event yet. You can be the first - the switch is above.",
+      emptyFiltered: "Nobody on the list matches this search.",
+      loading: "Refreshing the list…",
+      prevPage: "Previous",
+      nextPage: "Next",
+      pageRange: "{{from}}-{{to}} of {{total}}",
+      profileLink: "See profile: {{name}}",
+      signInTitle: "The attendee list is for registered guests",
+      signInBody: "Sign in with the account you used to register for this event.",
+      notRegisteredTitle: "Register to see who is coming",
+      notRegisteredBody: "We only show the attendee list to people registered for this event.",
+      chathamTitle: "This meeting runs under the Chatham House Rule",
+      chathamBody:
+        "We do not show names - not here and not to anyone else. We can tell you how many of you there will be, and in which groups.",
+      groupsHeading: "Who will be in the room",
+      groupCount_one: "{{count}} person",
+      groupCount_other: "{{count}} people",
+      visibilityHeading: "My visibility",
+      listedLabel: "You are visible to other attendees",
+      listedHint: "We show your name, job title and company. Never your email or phone.",
+      listedOn: "Visible",
+      listedOff: "Hidden",
+      profileHiddenLabel: "Your profile is hidden across the site",
+      profileHiddenHint:
+        "While visibility is off in your profile settings, we will not show you on any attendee list - even with the switch here turned on.",
+    },
+
+    // ---------------------------------------------------------------------
+    // DISCUSSIONS (`event_discussions`). Threads come from the discussion
+    // club and the copy says so - see the Polish block for the reasoning.
+    // ---------------------------------------------------------------------
+    discussions: {
+      heading: "Discussions",
+      subtitle: "Attendee conversations in this event's discussion club.",
+      listLabel: "Discussion threads",
+      invite: "Discussions open on the day of the event - come back here then.",
+      empty: "This group has no threads yet. The first word is yours.",
+      openInClub: "Open in club: {{club}}",
+      startThread: "Start a thread in the club",
+      anonymousAuthor: "Attendee",
+      chathamNote: "This group runs under the Chatham House Rule - contributions carry no names.",
+      replies_one: "{{count}} reply",
+      replies_other: "{{count}} replies",
+      kind: {
+        discussion: "Discussion",
+        question: "Question",
+        position: "Position",
+        resource: "Resource",
+        announcement: "Announcement",
+        poll: "Poll",
+      },
+      state: {
+        notFound: "We could not find this event.",
+        authRequired: "Sign in to see the discussions for this event.",
+        notMember: "Discussions are for club members. Ask the organiser for access.",
+        banned: "You do not have access to discussions in this club.",
+        notOpenYet: "Discussions have not opened yet.",
+        archived: "Discussions for this event are closed and archived.",
+        tierTooLow: "Discussions are for members on a higher tier.",
+        tierUnknown: "We cannot check your membership tier.",
+        noAccess: "You do not have access to these discussions.",
+      },
+    },
+
     ads: {
       sectionLabel: "Advertisement",
     },
@@ -915,6 +1100,7 @@ export const eventFrontEn = {
       invalidScope: "Unknown list range.",
       invalidStatus: "Unknown sign-up state.",
       forbidden: "Sign in to save a seat in this session.",
+      requesterNotParticipating: "This action is for people registered for this event.",
       signupDisabled: "This session does not take sign-ups.",
       overlapConflict: "You already have a seat in another session at this time.",
       tierRequired: "This session is for members on a higher tier.",
