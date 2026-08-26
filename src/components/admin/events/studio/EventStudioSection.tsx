@@ -113,22 +113,29 @@ export function EventStudioPage({
 }) {
   return (
     <div className={cn(PAGE_SHELL_CLASS, SECTION_COUNTER_RESET)}>
+      {/* TYTUL I BELKA SA WYSRODKOWANE WZGLEDEM SIEBIE, nie „przyklejone do
+          gory”: belka ma dokladnie wysokosc wiersza tytulu (`self-stretch`
+          w rzedzie `items-center`), wiec przy jednym i przy dwoch wierszach
+          nagłówka nadal konczy sie tam, gdzie tekst. Opis stoi ponizej,
+          wciety do tej samej osi co tytul - inaczej „wisialby” pod belka. */}
       <header className="mb-8 border-b border-border pb-6">
-        <div className="flex items-start gap-3">
-          {/* Pionowa belka marki zastepuje kreske pod naglowkiem: mowi „tu
-                zaczyna sie ekran” bez dokladania kolejnej linii poziomej. */}
-          <span aria-hidden="true" className="mt-1 h-8 w-1 shrink-0 rounded-[6px] bg-brand" />
-          <div className="min-w-0 space-y-2">
-            <h1 className="font-display text-2xl leading-tight tracking-tight">{title}</h1>
-            {description === undefined && helpHref === undefined ? null : (
-              <p className="max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
-                {description}
-                {helpHref === undefined ? null : <EventStudioHelpPill href={helpHref} />}
-              </p>
-            )}
-          </div>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="h-7 w-1 shrink-0 self-center rounded-[6px] bg-brand"
+          />
+          <h1 className="min-w-0 font-display text-2xl leading-[1.75rem] tracking-tight">
+            {title}
+          </h1>
+          {description === undefined && helpHref === undefined ? null : (
+            <p className="col-start-2 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
+              {description}
+              {helpHref === undefined ? null : <EventStudioHelpPill href={helpHref} />}
+            </p>
+          )}
         </div>
       </header>
+
       <div className="space-y-10">{children}</div>
     </div>
   );
