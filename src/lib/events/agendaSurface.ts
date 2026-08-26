@@ -14,6 +14,9 @@
 // dlatego klucz dnia bierze się z `eventDayKey`, a nie z `Date` przeglądarki.
 import type { Database, Json } from "@/integrations/supabase/types";
 import { eventDayKey } from "@/lib/events/timezone";
+import { foldQuery } from "@/lib/search/fuzzy";
+import type { UiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 type Fns = Database["public"]["Functions"];
 
@@ -284,14 +287,63 @@ export function agendaTrackOptions(sessions: readonly AgendaSession[]): AgendaTr
   );
 }
 
+/**
+ * Czy uczestnik ma na tej sesji MIEJSCE - zapis albo rezerwę.
+ *
+ * DLACZEGO REZYGNACJA NIE LICZY SIĘ DO „MOICH SESJI”. `event_agenda` oddaje
+ * `my_signup_status` także dla zapisu ODWOŁANEGO - to ślad historii, nie
+ * miejsce na sali. `agendaSignupControl` już dzisiaj czyta go tak samo:
+ * po rezygnacji podaje z powrotem przycisk zapisu. Gdyby „tylko moje sesje”
+ * i „Twój harmonogram” liczyły to inaczej, uczestnik zobaczyłby sesję na
+ * swojej liście i przycisk „zapisz się” pod nią - dwie odpowiedzi na jedno
+ * pytanie w jednym bloku.
+ */
+export function hasSeat(session: AgendaSession): boolean {
+  return session.mySignupStatus === "registered" || session.mySignupStatus === "waitlist";
+}
+
+/**
+ * Tekst, po którym szuka pole „Wyszukiwanie” nad programem.
+ *
+ * OBA JĘZYKI, NIE TYLKO JĘZYK INTERFEJSU. Program dwujęzycznego kongresu ma
+ * tytuły wpisane raz po polsku, raz po angielsku, a nazwiska prelegentów są
+ * takie same w obu. Szukanie tylko w kolumnie języka interfejsu kazałoby
+ * uczestnikowi zgadywać, w którym języku redakcja wpisała sesję.
+ */
+function searchHaystack(session: AgendaSession): string {
+  const parts: string[] = [session.titlePl ?? "", session.titleEn ?? ""];
+  if (session.track !== null) parts.push(session.track.namePl ?? "", session.track.nameEn ?? "");
+  if (session.room !== null) parts.push(session.room.name ?? "", session.room.floor ?? "");
+  for (const speaker of session.speakers) {
+    parts.push(speaker.displayName, speaker.headlinePl ?? "", speaker.headlineEn ?? "");
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Czy sesja pasuje do wpisanej frazy. Pusta fraza pasuje do wszystkiego -
+ * pole wyszukiwania w spoczynku nie może ukrywać programu.
+ *
+ * Składanie diakrytyków idzie przez `foldQuery` po OBU stronach, więc „prelegent
+ * Zabłocki” znajduje się po wpisaniu „zablocki”, a wklejona fraza z ogonkami
+ * nadal znajduje tekst bez nich.
+ */
+export function matchesAgendaQuery(session: AgendaSession, query: string): boolean {
+  const needle = foldQuery(query.trim().toLowerCase());
+  if (needle === "") return true;
+  return foldQuery(searchHaystack(session).toLowerCase()).includes(needle);
+}
+
 export interface AgendaFilter {
   /** `null` = wszystkie nurty. */
   trackId: string | null;
   /** Tylko sesje, na które uczestnik jest zapisany (także rezerwa). */
   onlyMine: boolean;
+  /** Fraza z pola „Wyszukiwanie”; brak albo pusta = bez filtra. */
+  query?: string;
 }
 
-export const EMPTY_AGENDA_FILTER: AgendaFilter = { trackId: null, onlyMine: false };
+export const EMPTY_AGENDA_FILTER: AgendaFilter = { trackId: null, onlyMine: false, query: "" };
 
 export function filterAgenda(
   sessions: readonly AgendaSession[],
@@ -299,17 +351,40 @@ export function filterAgenda(
 ): AgendaSession[] {
   return sessions.filter((session) => {
     if (filter.trackId !== null && session.track?.id !== filter.trackId) return false;
-    if (filter.onlyMine && session.mySignupStatus === null) return false;
+    if (filter.onlyMine && !hasSeat(session)) return false;
+    if (filter.query !== undefined && !matchesAgendaQuery(session, filter.query)) return false;
     return true;
   });
 }
 
 /** Czy uczestnik ma cokolwiek w „mojej agendzie" - decyduje o pokazaniu filtra. */
 export function hasOwnAgenda(sessions: readonly AgendaSession[]): boolean {
-  return sessions.some((session) => session.mySignupStatus !== null);
+  return sessions.some(hasSeat);
+}
+
+/**
+ * „Twój harmonogram”: sesje uczestnika ze WSZYSTKICH dni, chronologicznie.
+ *
+ * Kolumna z harmonogramem stoi obok zakładek dni i ma odpowiadać na pytanie
+ * „gdzie mam dziś być”, a nie „co mam w wybranej zakładce” - dlatego bierze
+ * całą agendę, nie dzień aktywny. Sortowanie jest tutaj, a nie u wołającego:
+ * lista terminów nieuporządkowana po godzinie nie jest harmonogramem.
+ */
+export function ownAgenda(sessions: readonly AgendaSession[]): AgendaSession[] {
+  return sessions.filter(hasSeat).sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }
 
 /* --------------------------------------------------------------- napisy --- */
+
+/**
+ * Tytuł sesji w języku interfejsu - JEDNA reguła na wszystkie miejsca,
+ * w których tytuł się pojawia (blok programu i kolumna „Twój harmonogram”).
+ * Rozpisana dwa razy rozjechałaby się przy pierwszej sesji wpisanej tylko
+ * po angielsku: jedna lista pokazywałaby tytuł, druga pustkę.
+ */
+export function agendaSessionTitle(session: AgendaSession, lang: UiLang): string {
+  return pickLocalized({ title_pl: session.titlePl, title_en: session.titleEn }, "title", lang);
+}
 
 const ACCESS_STATE_CAMEL: Record<AgendaAccessState, string> = {
   open: "open",

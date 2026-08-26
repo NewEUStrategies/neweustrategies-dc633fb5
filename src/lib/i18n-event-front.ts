@@ -325,7 +325,23 @@ export const eventFrontPl = {
       empty: "Program jeszcze nie jest gotowy.",
       emptyFiltered: "Żadna sesja nie pasuje do wybranego filtra.",
       emptyMine: "Nie zapisałeś się jeszcze na żadną sesję.",
+      emptyQuery: "Żadna sesja tego dnia nie pasuje do wpisanej frazy.",
       dayLabel: "Dzień {{index}}",
+      // Kolumna obok programu: pole wyszukiwania, strefa czasowa i własny
+      // harmonogram. Jedna etykieta służy za podpowiedź w polu i za nazwę
+      // dla czytnika ekranu - dwa różne napisy na jedno pole kazałyby
+      // zgadywać, które z nich opisuje to samo.
+      sidebarLabel: "Filtry programu",
+      search: "Wyszukiwanie",
+      // Godziny w programie liczą się w strefie WYDARZENIA - podpis mówi
+      // w jakiej, bo bez tego uczestnik przelicza je sam i myli się o godzinę.
+      timezoneRow: "Strefa wydarzenia ({{zone}})",
+      timezoneForeign: "Twoje urządzenie jest w innej strefie - godzin nie przeliczamy.",
+      myScheduleTitle: "Twój harmonogram",
+      myScheduleShowAll: "Zobacz wszystkie",
+      // Przedział sesji w jednym napisie: przyimek między godzinami należy do
+      // języka, a nie do JSX-a („10:00 do 11:45" / „10:00 to 11:45").
+      timeRange: "{{date}}, {{start}} do {{end}}",
       allTracks: "Wszystkie ścieżki",
       trackLabel: "Ścieżka",
       onlyMine: "Tylko moje sesje",
@@ -367,6 +383,16 @@ export const eventFrontPl = {
     },
 
     // ---------------------------------------------------------------------
+    // Siatka prelegentów. Karta to zdjęcie, imię, rola i organizacja - same
+    // dane z profilu, więc jedyny NAPIS, jaki siatka ma własny, dotyczy chwili
+    // przed danymi. Pusta lista nie ma tu komunikatu: nagłówek sekcji rysuje
+    // `EventPageSections` razem z `sections.speakers.empty`.
+    // ---------------------------------------------------------------------
+    speakers: {
+      loading: "Wczytywanie prelegentów…",
+    },
+
+    // ---------------------------------------------------------------------
     // Partnerzy i sponsorzy. To MIGAWKA z chwili przypięcia, nie kartoteka -
     // dlatego nie ma tu żadnego napisu obiecującego aktualność danych firmy.
     // ---------------------------------------------------------------------
@@ -383,6 +409,12 @@ export const eventFrontPl = {
         mediaPartner: "Patronat medialny",
         exhibitor: "Wystawca",
       },
+    },
+
+    // Pas poziomów partnerów na stronie GŁÓWNEJ wydarzenia (rząd logotypów bez
+    // nazw pod spodem) - nazwa odnośnika musi więc powiedzieć, czyja to strona.
+    sponsorTiers: {
+      partnerSite: "Strona partnera {{name}}",
     },
 
     // ---------------------------------------------------------------------
@@ -445,6 +477,13 @@ export const eventFrontPl = {
 
     menu: {
       label: "Podstrony wydarzenia",
+    },
+
+    // Spis sekcji na stronie głównej wydarzenia. ETYKIETA JEST INNA NIŻ
+    // W `menu`: oba spisy mogą stać na jednej stronie, a dwa punkty orientacyjne
+    // o tej samej nazwie nie dają się rozróżnić w czytniku ekranu.
+    homeSections: {
+      label: "Sekcje wydarzenia",
     },
 
     practical: {
@@ -728,7 +767,15 @@ export const eventFrontEn = {
       empty: "The programme is not ready yet.",
       emptyFiltered: "No session matches the selected filter.",
       emptyMine: "You have not signed up for any session yet.",
+      emptyQuery: "No session on this day matches your search.",
       dayLabel: "Day {{index}}",
+      sidebarLabel: "Programme filters",
+      search: "Search",
+      timezoneRow: "Event time zone ({{zone}})",
+      timezoneForeign: "Your device is in a different time zone - times are not converted.",
+      myScheduleTitle: "Your schedule",
+      myScheduleShowAll: "See all",
+      timeRange: "{{date}}, {{start}} to {{end}}",
       allTracks: "All tracks",
       trackLabel: "Track",
       onlyMine: "My sessions only",
@@ -767,6 +814,11 @@ export const eventFrontEn = {
       },
     },
 
+    // Speaker grid - the only string it owns is the loading label.
+    speakers: {
+      loading: "Loading speakers…",
+    },
+
     // Partners and sponsors - a snapshot taken when the partner was pinned.
     sponsors: {
       loading: "Loading partners…",
@@ -781,6 +833,11 @@ export const eventFrontEn = {
         mediaPartner: "Media partner",
         exhibitor: "Exhibitor",
       },
+    },
+
+    // Partner tiers strip on the event home page (a row of logos with no names).
+    sponsorTiers: {
+      partnerSite: "Partner website: {{name}}",
     },
 
     // Partner materials - the section sits behind registration by default.
@@ -831,6 +888,11 @@ export const eventFrontEn = {
 
     menu: {
       label: "Event pages",
+    },
+
+    // Section list on the event home page - a landmark name of its own.
+    homeSections: {
+      label: "Event sections",
     },
 
     practical: {

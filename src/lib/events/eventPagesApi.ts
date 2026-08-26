@@ -26,6 +26,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import type { UiLang } from "@/lib/i18n/format";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
+import { toJson } from "@/lib/content-model/json";
 import { eventPageTemplateDocument } from "@/lib/events/eventPageTemplates";
 
 type Fns = Database["public"]["Functions"];
@@ -228,7 +229,11 @@ export async function createEventPage(input: EventPageCreateInput): Promise<stri
       title_en: input.titleEn,
       icon: input.icon,
       in_menu: input.inMenu,
-      builder_data: document === null ? undefined : (document as unknown as Json),
+      // `toJson` zamiast rzutowania: bramka `check:unknown-casts` trzyma JEDNO
+      // usankcjonowane `as unknown as Json` w `lib/content-model/json.ts`, zeby
+      // nie bylo ich rozsianych po repozytorium. Ten sam helper serializuje
+      // `builder_data` w `lib/wp-import/localizedMerge.ts`.
+      builder_data: document === null ? undefined : toJson(document),
     }),
   });
   if (error) throw new Error(error.message);
