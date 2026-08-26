@@ -1,13 +1,18 @@
 // Agenda publiczna: to, co po zepsuciu kosztuje uczestnika miejsce na sesji.
 //
 // SPRAWDZAMY KONTRAKT, NIE NAPISY. i18n jest zamockowane kluczami (parytet
-// PL/EN pilnuje osobna bramka słowników). Tu chodzi o cztery rzeczy:
+// PL/EN pilnuje osobna bramka słowników). Tu chodzi o siedem rzeczy:
 // 1. dni są ZAKŁADKAMI - sesje z drugiego dnia nie mieszają się z pierwszym,
 // 2. zapis wysyła DOKŁADNIE `session_id` + `status`, bo tego chce RPC,
 // 3. gość bez konta nie strzela w bazę, tylko dostaje podpowiedź logowania,
-// 4. komplet miejsc daje kontrolkę REZERWY, a nie odmowę po kliknięciu.
+// 4. komplet miejsc daje kontrolkę REZERWY, a nie odmowę po kliknięciu,
+// 5. pole „Wyszukiwanie” zawęża listę, a nie tylko zapamiętuje literę,
+// 6. „Twój harmonogram” pokazuje WYŁĄCZNIE sesje wołającego i znika u gościa -
+//    kolumna liczy się z `my_signup_status`, więc pomyłka tutaj pokazałaby
+//    jednemu uczestnikowi zapisy drugiego,
+// 7. sesja bez obsady nie zostawia pustego rzędu prelegentów.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { AgendaSession } from "@/lib/events/agendaSurface";
@@ -146,6 +151,68 @@ describe("EventAgendaSection", () => {
     ]);
     renderAgenda();
     expect(await screen.findByText("eventFront.agenda.actions.cancel")).toBeInTheDocument();
+  });
+
+  it("fraza z pola wyszukiwania zaweza liste sesji dnia", async () => {
+    fetchAgenda.mockResolvedValue([
+      session({ id: "a", titlePl: "Bezpieczenstwo energetyczne" }),
+      session({ id: "b", titlePl: "Rynek pracy" }),
+    ]);
+    renderAgenda();
+    const field = await screen.findByPlaceholderText("eventFront.agenda.search");
+    fireEvent.change(field, { target: { value: "rynek" } });
+    expect(screen.getByText("Rynek pracy")).toBeInTheDocument();
+    expect(screen.queryByText("Bezpieczenstwo energetyczne")).not.toBeInTheDocument();
+  });
+
+  it("harmonogram po lewej pokazuje MOJE sesje, a gosc go nie widzi", async () => {
+    fetchAgenda.mockResolvedValue([
+      session({ id: "a", titlePl: "Moja sesja", mySignupStatus: "registered" }),
+      session({ id: "b", titlePl: "Obca sesja" }),
+    ]);
+    const view = renderAgenda();
+    const card = (await screen.findByText("eventFront.agenda.myScheduleTitle")).closest("section");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText("Moja sesja")).toBeInTheDocument();
+    expect(within(card as HTMLElement).queryByText("Obca sesja")).toBeNull();
+
+    // Gosc nie ma zapisow, wiec karta harmonogramu nie ma czego pokazac.
+    view.unmount();
+    authState.user = null;
+    fetchAgenda.mockResolvedValue([session({ id: "a", titlePl: "Moja sesja" })]);
+    renderAgenda();
+    expect(await screen.findByText("Moja sesja")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.agenda.myScheduleTitle")).not.toBeInTheDocument();
+  });
+
+  it("sesja bez obsady nie rysuje pustego rzedu prelegentow", async () => {
+    fetchAgenda.mockResolvedValue([session({ id: "a", speakers: [] })]);
+    renderAgenda();
+    await screen.findByText("Sesja otwarcia");
+    expect(screen.queryByRole("list", { name: "eventFront.agenda.speakersLabel" })).toBeNull();
+  });
+
+  it("prelegent sesji ma nazwisko i organizacje w bloku sesji", async () => {
+    fetchAgenda.mockResolvedValue([
+      session({
+        id: "a",
+        speakers: [
+          {
+            userId: "u1",
+            slug: null,
+            displayName: "Anna Zablocka",
+            avatarUrl: null,
+            headlinePl: "Glowna ekonomistka, PwC",
+            headlineEn: null,
+            role: "speaker",
+            sortOrder: 0,
+          },
+        ],
+      }),
+    ]);
+    renderAgenda();
+    expect(await screen.findByText("Anna Zablocka")).toBeInTheDocument();
+    expect(screen.getByText("Glowna ekonomistka, PwC")).toBeInTheDocument();
   });
 
   it("pusty program mowi o programie, a nie o bledzie", async () => {

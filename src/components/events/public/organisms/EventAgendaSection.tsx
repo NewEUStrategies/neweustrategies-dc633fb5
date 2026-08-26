@@ -54,6 +54,7 @@ import {
 } from "@/lib/events/timezone";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  agendaSessionAnchor,
   agendaSessionTitle,
   agendaTrackOptions,
   filterAgenda,
@@ -64,10 +65,7 @@ import {
 } from "@/lib/events/agendaSurface";
 import { useEventAgenda, useSessionSignup } from "@/lib/events/usePublicEvent";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
-import {
-  AgendaSessionCard,
-  agendaSessionAnchor,
-} from "@/components/events/public/molecules/AgendaSessionCard";
+import { AgendaSessionCard } from "@/components/events/public/molecules/AgendaSessionCard";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
@@ -111,7 +109,8 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
   const activeDay = days.find((day) => day.key === activeDayKey) ?? null;
 
   const visible = useMemo(
-    () => (activeDay === null ? [] : filterAgenda(activeDay.sessions, { trackId, onlyMine, query })),
+    () =>
+      activeDay === null ? [] : filterAgenda(activeDay.sessions, { trackId, onlyMine, query }),
     [activeDay, trackId, onlyMine, query],
   );
 
@@ -186,6 +185,9 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
     return <p className="text-sm text-muted-foreground">{t("eventFront.sections.agenda.empty")}</p>;
   }
 
+  // Strefę podpisu bierzemy z PIERWSZEJ sesji: `event_sessions.timezone`
+  // dziedziczy strefę wydarzenia, więc jest ta sama w całym programie, a gdyby
+  // kiedyś nie była, podpis nadal opisuje dzień, od którego program się zaczyna.
   const eventZone = eventTimeZone({ timezone: sessions[0].timezone });
   const foreignZone = isForeignTimeZone(sessions[0].timezone, browserTimeZone());
   const scheduleShown = scheduleOpen ? mySessions : mySessions.slice(0, SCHEDULE_PREVIEW);

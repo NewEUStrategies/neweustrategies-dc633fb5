@@ -42,6 +42,7 @@ import {
 import {
   agendaFormatKey,
   agendaSeatsLeft,
+  agendaSessionAnchor,
   agendaSessionTitle,
   agendaSignupControl,
   type AgendaSession,
@@ -52,11 +53,6 @@ import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
-
-/** Prefiks identyfikatora bloku - kolumna „Twój harmonogram" celuje tu odnośnikiem. */
-export function agendaSessionAnchor(sessionId: string): string {
-  return `event-session-${sessionId}`;
-}
 
 /**
  * Wiersz prelegenta w bloku sesji: okrągła miniatura zdjęcia (u nas promień 6px -

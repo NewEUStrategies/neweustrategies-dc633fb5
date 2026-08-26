@@ -340,7 +340,7 @@ export const eventFrontPl = {
       myScheduleTitle: "Twój harmonogram",
       myScheduleShowAll: "Zobacz wszystkie",
       // Przedział sesji w jednym napisie: przyimek między godzinami należy do
-      // języka, a nie do JSX-a („10:00 do 11:45" / „10:00 to 11:45").
+      // języka, a nie do JSX-a („10:00 do 11:45” / „10:00 to 11:45”).
       timeRange: "{{date}}, {{start}} do {{end}}",
       allTracks: "Wszystkie ścieżki",
       trackLabel: "Ścieżka",

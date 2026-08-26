@@ -377,6 +377,16 @@ export function ownAgenda(sessions: readonly AgendaSession[]): AgendaSession[] {
 /* --------------------------------------------------------------- napisy --- */
 
 /**
+ * Identyfikator bloku sesji w DOM. Mieszka tu, a nie w komponencie, bo
+ * potrzebują go DWA miejsca: blok, który go wypisuje, i kolumna „Twój
+ * harmonogram”, która nim celuje - literał powtórzony w obu rozjechałby się
+ * przy pierwszej zmianie prefiksu i przewijanie po cichu przestałoby działać.
+ */
+export function agendaSessionAnchor(sessionId: string): string {
+  return `event-session-${sessionId}`;
+}
+
+/**
  * Tytuł sesji w języku interfejsu - JEDNA reguła na wszystkie miejsca,
  * w których tytuł się pojawia (blok programu i kolumna „Twój harmonogram”).
  * Rozpisana dwa razy rozjechałaby się przy pierwszej sesji wpisanej tylko

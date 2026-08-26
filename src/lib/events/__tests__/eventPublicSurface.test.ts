@@ -18,12 +18,14 @@ import {
 } from "@/lib/events/eventSections";
 import {
   agendaSeatsLeft,
+  agendaSessionTitle,
   agendaSignupControl,
   agendaStateKey,
   agendaTrackOptions,
   filterAgenda,
   groupAgendaByDay,
   hasOwnAgenda,
+  ownAgenda,
   parseEventAgenda,
   type EventAgendaRow,
 } from "@/lib/events/agendaSurface";
@@ -209,6 +211,58 @@ describe("agendaSurface - dni, filtry i kontrolka zapisu", () => {
     expect(filterAgenda(sessions, { trackId: null, onlyMine: true })).toHaveLength(1);
     expect(hasOwnAgenda(sessions)).toBe(true);
     expect(agendaTrackOptions(sessions).map((track) => track.key)).toEqual(["energy", "policy"]);
+  });
+
+  it("fraza z pola wyszukiwania trafia w tytul w DRUGIM jezyku i bez ogonkow", () => {
+    const sessions = parseEventAgenda([
+      agendaRow({ id: "a", title_pl: "Bezpieczeństwo energetyczne", title_en: "Energy security" }),
+      agendaRow({ id: "b", title_pl: "Rynek pracy", title_en: "Labour market" }),
+    ]);
+    const find = (query: string) =>
+      filterAgenda(sessions, { trackId: null, onlyMine: false, query });
+    expect(find("bezpieczenstwo").map((session) => session.id)).toEqual(["a"]);
+    expect(find("labour").map((session) => session.id)).toEqual(["b"]);
+    // Pole w spoczynku nie moze ukrywac programu.
+    expect(find("   ")).toHaveLength(2);
+  });
+
+  it("wyszukiwanie znajduje sesje po NAZWISKU prelegenta", () => {
+    const sessions = parseEventAgenda([
+      agendaRow({
+        id: "a",
+        speakers: [{ user_id: "u1", display_name: "Anna Zabłocka", headline_pl: "PwC" }],
+      }),
+      agendaRow({ id: "b" }),
+    ]);
+    expect(
+      filterAgenda(sessions, { trackId: null, onlyMine: false, query: "zablocka" }).map(
+        (session) => session.id,
+      ),
+    ).toEqual(["a"]);
+  });
+
+  it("harmonogram uczestnika pomija REZYGNACJE i porzadkuje po godzinie", () => {
+    const sessions = parseEventAgenda([
+      agendaRow({ id: "late", starts_at: "2026-09-01T12:00:00Z", my_signup_status: "waitlist" }),
+      agendaRow({ id: "gone", starts_at: "2026-09-01T09:00:00Z", my_signup_status: "cancelled" }),
+      agendaRow({ id: "early", starts_at: "2026-09-01T10:00:00Z", my_signup_status: "registered" }),
+    ]);
+    expect(ownAgenda(sessions).map((session) => session.id)).toEqual(["early", "late"]);
+    // Rezygnacja nie jest miejscem na sali, wiec nie wlacza filtra „tylko moje".
+    expect(hasOwnAgenda(parseEventAgenda([agendaRow({ my_signup_status: "cancelled" })]))).toBe(
+      false,
+    );
+    expect(
+      filterAgenda(parseEventAgenda([agendaRow({ my_signup_status: "cancelled" })]), {
+        trackId: null,
+        onlyMine: true,
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("tytul sesji ma JEDNA regule dla bloku i dla harmonogramu", () => {
+    const [onlyEn] = parseEventAgenda([agendaRow({ title_pl: "", title_en: "Closing panel" })]);
+    expect(agendaSessionTitle(onlyEn, "pl")).toBe("Closing panel");
   });
 
   it("prelegent bez identyfikatora wypada, kolejnosc bierze sie z `sort_order`", () => {
