@@ -7625,6 +7625,8 @@ export type Database = {
       }
       event_people: {
         Row: {
+          bio_en: string | null
+          bio_pl: string | null
           company_id: string | null
           company_text: string | null
           consent_data_processing_at: string | null
@@ -7642,6 +7644,7 @@ export type Database = {
           last_name: string
           notes: string | null
           phone: string | null
+          photo_url: string | null
           social_profile_url: string | null
           source: string
           tenant_id: string
@@ -7649,6 +7652,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          bio_en?: string | null
+          bio_pl?: string | null
           company_id?: string | null
           company_text?: string | null
           consent_data_processing_at?: string | null
@@ -7666,6 +7671,7 @@ export type Database = {
           last_name: string
           notes?: string | null
           phone?: string | null
+          photo_url?: string | null
           social_profile_url?: string | null
           source?: string
           tenant_id: string
@@ -7673,6 +7679,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          bio_en?: string | null
+          bio_pl?: string | null
           company_id?: string | null
           company_text?: string | null
           consent_data_processing_at?: string | null
@@ -7690,6 +7698,7 @@ export type Database = {
           last_name?: string
           notes?: string | null
           phone?: string | null
+          photo_url?: string | null
           social_profile_url?: string | null
           source?: string
           tenant_id?: string
@@ -16624,6 +16633,7 @@ export type Database = {
           id: string
           is_public: boolean
           languages: string[]
+          person_id: string | null
           rating: number
           reviews_count: number
           talks_count: number
@@ -16631,7 +16641,7 @@ export type Database = {
           topics_en: string[]
           topics_pl: string[]
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           bio_en?: string | null
@@ -16643,6 +16653,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           languages?: string[]
+          person_id?: string | null
           rating?: number
           reviews_count?: number
           talks_count?: number
@@ -16650,7 +16661,7 @@ export type Database = {
           topics_en?: string[]
           topics_pl?: string[]
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           bio_en?: string | null
@@ -16662,6 +16673,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           languages?: string[]
+          person_id?: string | null
           rating?: number
           reviews_count?: number
           talks_count?: number
@@ -16669,7 +16681,7 @@ export type Database = {
           topics_en?: string[]
           topics_pl?: string[]
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -16692,6 +16704,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "crm_leads_all"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaker_profiles_person_tenant_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "speaker_profiles_tenant_id_fkey"

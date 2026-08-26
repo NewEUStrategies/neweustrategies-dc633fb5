@@ -291,84 +291,241 @@ export async function runEventReminders(): Promise<number> {
 }
 
 // ------- Prelegenci wydarzen + profile prelegentow --------
-// event_speakers: bezposrednie wpisy klienta pod RLS "event_speakers staff
-// manage" (wzorzec calego panelu events). Profil prelegenta: wylacznie przez
-// utwardzone RPC admin_*_speaker_profile (migracja 20260727200000) - funkcje
-// nie sa jeszcze w wygenerowanych typach, stad ustalony idiom rzutowania rpc
-// przez `unknown` (patrz popular_post_ids w postListQuery).
+//
+// CALA TA SEKCJA IDZIE PRZEZ RPC, a nie przez tabele.
+//
+// STAN ZASTANY. `fetchEventSpeakers` czytal `event_speakers` wprost, a
+// `addEventSpeaker` pisal tam upsertem. Tamta tabela ma `user_id NOT NULL
+// REFERENCES auth.users` i `PRIMARY KEY (event_id, user_id)`, wiec ta warstwa
+// nie mogla dodac prelegenta BEZ KONTA - a wzorzec ma takich 21 z 21.
+//
+// TERAZ. Cztery operacje panelu wolaja migracje 20260826180000:
+// `admin_event_speakers_list`, `admin_event_speaker_upsert`,
+// `admin_event_speaker_remove`, `admin_event_speaker_reorder`. Kazda stoi na
+// bramce `assert_event_admin_tenant()` (admin albo super_admin, NIGDY editor).
+// Dwa rejestry (nowy `event_speaker_entries` i legacy `event_speakers`) skleja
+// SQL, nie klient: sklejanie po stronie panelu znaczyloby dwa zapytania i
+// dedublowanie w JS, ktore rozjedzie sie z definicja publicznej projekcji.
+//
+// Profil prelegenta (nakladka sceniczna) zostaje na utwardzonych RPC
+// `admin_*_speaker_profile` z 20260727200000 - bez zmian.
 
+type UntypedRpc = (
+  fn: string,
+  args: Record<string, unknown>,
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+// Dostep odroczony do wywolania (klient Supabase to leniwe proxy).
+const rpcUntyped: UntypedRpc = (fn, args) => (supabase.rpc as unknown as UntypedRpc)(fn, args);
+
+const strOrEmpty = (v: unknown): string => (typeof v === "string" ? v : "");
+const numOrZero = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const strArr = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+/**
+ * Wiersz listy prelegentow wydarzenia.
+ *
+ * `user_id` I `person_id` sa opcjonalne, ale NIGDY oba naraz puste: podmiotem
+ * jest konto platformy ALBO osoba z kartoteki najemcy (CHECK
+ * `speaker_profiles_subject_xor`). `speaker_profile_id` jest jedynym
+ * identyfikatorem obecnym ZAWSZE - i dlatego jest kluczem Reacta.
+ */
 export interface EventSpeakerEntry {
-  user_id: string;
-  sort_order: number;
+  /** `null` dla rzedu legacy `event_speakers` (nie ma go w nowym rejestrze). */
+  entry_id: string | null;
+  speaker_profile_id: string;
+  user_id: string | null;
+  person_id: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  job_title: string | null;
+  company: string | null;
+  email: string | null;
+  is_public: boolean;
+  sort_order: number;
+  /** true = wiersz pochodzi WYLACZNIE ze starego rejestru. */
+  is_legacy: boolean;
+}
+
+const strOrNull = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
+
+function mapSpeakerRow(row: Record<string, unknown>): EventSpeakerEntry {
+  return {
+    entry_id: strOrNull(row.entry_id),
+    speaker_profile_id: strOrEmpty(row.speaker_profile_id),
+    user_id: strOrNull(row.user_id),
+    person_id: strOrNull(row.person_id),
+    display_name: strOrNull(row.display_name),
+    avatar_url: strOrNull(row.avatar_url),
+    job_title: strOrNull(row.job_title),
+    company: strOrNull(row.company),
+    email: strOrNull(row.email),
+    is_public: row.is_public !== false,
+    sort_order: numOrZero(row.sort_order),
+    is_legacy: row.is_legacy === true,
+  };
 }
 
 export async function fetchEventSpeakers(eventId: string): Promise<EventSpeakerEntry[]> {
-  const { data, error } = await supabase
-    .from("event_speakers")
-    .select("user_id, sort_order")
-    .eq("event_id", eventId)
-    .order("sort_order", { ascending: true });
-  if (error) throw error;
-  const links = (data ?? []) as Array<{ user_id: string; sort_order: number }>;
-  if (links.length === 0) return [];
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles_public")
-    .select("id, display_name, avatar_url")
-    .in(
-      "id",
-      links.map((l) => l.user_id),
-    );
-  if (profilesError) throw profilesError;
-  const byId = new Map(
-    (
-      (profiles ?? []) as Array<{
-        id: string;
-        display_name: string | null;
-        avatar_url: string | null;
-      }>
-    ).map((p) => [p.id, p]),
-  );
-  return links.map((l) => ({
-    user_id: l.user_id,
-    sort_order: l.sort_order,
-    display_name: byId.get(l.user_id)?.display_name ?? null,
-    avatar_url: byId.get(l.user_id)?.avatar_url ?? null,
-  }));
+  const { data, error } = await rpcUntyped("admin_event_speakers_list", {
+    p_event_id: eventId,
+  });
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data)) return [];
+  return data
+    .filter((row): row is Record<string, unknown> => row !== null && typeof row === "object")
+    .map(mapSpeakerRow);
 }
 
+/** Dane osoby BEZ konta, zbierane w popupie „Nowy prelegent". */
+export interface EventSpeakerPersonInput {
+  eventId: string;
+  /** Grupa uczestnikow wydarzenia - opcjonalna (u nas rola wynika z rejestru). */
+  groupId?: string;
+  email?: string;
+  firstName: string;
+  lastName: string;
+  jobTitle?: string;
+  companyText?: string;
+  phone?: string;
+  socialProfileUrl?: string;
+  photoUrl?: string;
+  bioPl?: string;
+  bioEn?: string;
+  headlinePl?: string;
+  headlineEn?: string;
+  /** Tematy wystapien - chipy na profilu prelegenta. */
+  topicsPl?: readonly string[];
+  topicsEn?: readonly string[];
+  /** Kody jezykow wystapien ('pl', 'en'). */
+  languages?: readonly string[];
+  /** Nakladka sceniczna widoczna publicznie (opis, nie sama obecnosc). */
+  isPublic?: boolean;
+}
+
+export interface EventSpeakerUpsertResult {
+  entry_id: string | null;
+  speaker_profile_id: string | null;
+  person_id: string | null;
+  user_id: string | null;
+}
+
+/**
+ * Klucze o wartosci `undefined` NIE WCHODZA do payloadu: SQL czyta
+ * `p_payload->>'phone'`, wiec brak klucza znaczy „zostaw jak bylo", a pusty
+ * napis po `btrim` -> `NULL` znaczy to samo. Sklejenie obu odebraloby
+ * mozliwosc rozroznienia „nie dotykaj" od „wyczysc" przy pierwszym
+ * rozszerzeniu tej funkcji.
+ */
+function speakerPayload(
+  input: Record<string, string | boolean | readonly string[] | undefined>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined || value === "") continue;
+    // Tablica PUSTA wchodzi do payloadu: `[]` znaczy „wyczysc tematy",
+    // a pominiecie klucza znaczy „nie dotykaj kolumny". Odsianie `[]` razem
+    // z `undefined` odebraloby mozliwosc usuniecia ostatniego tematu.
+    out[key] = Array.isArray(value) ? [...value] : value;
+  }
+  return out;
+}
+
+function mapUpsertResult(data: unknown): EventSpeakerUpsertResult {
+  const obj = (data ?? {}) as Record<string, unknown>;
+  return {
+    entry_id: strOrNull(obj.entry_id),
+    speaker_profile_id: strOrNull(obj.speaker_profile_id),
+    person_id: strOrNull(obj.person_id),
+    user_id: strOrNull(obj.user_id),
+  };
+}
+
+/** Zaklada OSOBE BEZ KONTA i podpina ja do wydarzenia w jednym zapisie. */
+export async function createEventSpeakerPerson(
+  input: EventSpeakerPersonInput,
+): Promise<EventSpeakerUpsertResult> {
+  const { data, error } = await rpcUntyped("admin_event_speaker_upsert", {
+    p_payload: speakerPayload({
+      event_id: input.eventId,
+      group_id: input.groupId,
+      email: input.email,
+      first_name: input.firstName,
+      last_name: input.lastName,
+      job_title: input.jobTitle,
+      company_text: input.companyText,
+      phone: input.phone,
+      social_profile_url: input.socialProfileUrl,
+      photo_url: input.photoUrl,
+      bio_pl: input.bioPl,
+      bio_en: input.bioEn,
+      headline_pl: input.headlinePl,
+      headline_en: input.headlineEn,
+      topics_pl: input.topicsPl,
+      topics_en: input.topicsEn,
+      languages: input.languages,
+      is_public: input.isPublic,
+    }),
+  });
+  if (error) throw new Error(error.message);
+  return mapUpsertResult(data);
+}
+
+/** Podpina ISTNIEJACE konto platformy (droplista wyszukiwarki kont). */
 export async function addEventSpeaker(
   eventId: string,
   userId: string,
-  sortOrder: number,
-): Promise<void> {
-  const { error } = await supabase
-    .from("event_speakers")
-    .upsert({ event_id: eventId, user_id: userId, sort_order: sortOrder });
-  if (error) throw error;
+): Promise<EventSpeakerUpsertResult> {
+  const { data, error } = await rpcUntyped("admin_event_speaker_upsert", {
+    p_payload: { event_id: eventId, user_id: userId },
+  });
+  if (error) throw new Error(error.message);
+  return mapUpsertResult(data);
 }
 
-export async function removeEventSpeaker(eventId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from("event_speakers")
-    .delete()
-    .eq("event_id", eventId)
-    .eq("user_id", userId);
-  if (error) throw error;
+/**
+ * Zdejmuje prelegenta z WYDARZENIA. Kartoteka osoby i nakladka sceniczna
+ * zostaja - ta sama osoba wystepuje na kolejnych wydarzeniach.
+ */
+export async function removeEventSpeaker(
+  eventId: string,
+  target: { speakerProfileId?: string; userId?: string },
+): Promise<boolean> {
+  const { data, error } = await rpcUntyped("admin_event_speaker_remove", {
+    p_payload: speakerPayload({
+      event_id: eventId,
+      speaker_profile_id: target.speakerProfileId,
+      user_id: target.userId,
+    }),
+  });
+  if (error) throw new Error(error.message);
+  return data === true;
 }
 
+/**
+ * Przenumerowanie CALEJ listy w zadanej kolejnosci (sort_order = indeks).
+ * Zamiana dwoch wartosci byla by no-op dla rzedow legacy z rownym
+ * `sort_order` (DEFAULT 0), a czesciowy zapis zostawialby duplikaty.
+ */
 export async function setEventSpeakerOrder(
   eventId: string,
-  userId: string,
-  sortOrder: number,
-): Promise<void> {
-  const { error } = await supabase
-    .from("event_speakers")
-    .update({ sort_order: sortOrder })
-    .eq("event_id", eventId)
-    .eq("user_id", userId);
-  if (error) throw error;
+  items: readonly EventSpeakerEntry[],
+): Promise<number> {
+  const { data, error } = await rpcUntyped("admin_event_speaker_reorder", {
+    p_payload: {
+      event_id: eventId,
+      items: items.map((item) => ({
+        speaker_profile_id: item.speaker_profile_id,
+        user_id: item.user_id,
+      })),
+    },
+  });
+  if (error) throw new Error(error.message);
+  return numOrZero(data);
 }
 
 export interface AdminSpeakerProfile {
@@ -386,22 +543,6 @@ export interface AdminSpeakerProfile {
   is_public: boolean;
   crm_lead_id: string | null;
 }
-
-type UntypedRpc = (
-  fn: string,
-  args: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>;
-
-// Dostep odroczony do wywolania (klient Supabase to leniwe proxy).
-const rpcUntyped: UntypedRpc = (fn, args) => (supabase.rpc as unknown as UntypedRpc)(fn, args);
-
-const strOrEmpty = (v: unknown): string => (typeof v === "string" ? v : "");
-const numOrZero = (v: unknown): number => {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const strArr = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
 export async function fetchAdminSpeakerProfile(
   userId: string,

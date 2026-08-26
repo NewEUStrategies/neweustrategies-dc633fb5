@@ -94,6 +94,7 @@ import {
   EVENT_STATUSES,
   EVENT_STATUS_LABEL_KEYS,
   addEventSpeaker,
+  createEventSpeakerPerson,
   cleanupFailedPushSubscriptions,
   createEvent,
   createPoll,
@@ -875,125 +876,243 @@ describe("runEventReminders", () => {
 // ---------------------------------------------------------------------------
 
 describe("fetchEventSpeakers", () => {
-  it("czyta powiązania po event_id w kolejności sort_order, potem profile jednym zapytaniem", async () => {
-    db().setResponse(
-      "event_speakers",
-      ok([
-        { user_id: "user-1", sort_order: 0 },
-        { user_id: "user-2", sort_order: 1 },
-      ]),
-    );
-    db().setResponse(
-      "profiles_public",
-      ok([{ id: "user-1", display_name: "A. Kowalska", avatar_url: "https://example.com/a.png" }]),
-    );
+  // STAN ZASTANY: dwa zapytania do TABEL (`event_speakers` + `profiles_public`)
+  // i sklejanie w JS. Tamta tabela ma `user_id NOT NULL REFERENCES auth.users`,
+  // wiec ta warstwa nie mogla oddac prelegenta BEZ KONTA - a to przypadek
+  // typowy. Teraz jedno RPC (`admin_event_speakers_list`) sklada oba rejestry
+  // w SQL-u: dedublowanie po stronie panelu rozjechalo by sie z definicja
+  // publicznej projekcji.
+  const row = (over: Record<string, unknown> = {}) => ({
+    entry_id: "en-1",
+    speaker_profile_id: "sp-1",
+    user_id: null,
+    person_id: "pe-1",
+    display_name: "Lech K.",
+    avatar_url: "https://example.com/l.png",
+    job_title: "Profesor",
+    company: "Uczelnia",
+    email: "lech@example.com",
+    is_public: true,
+    sort_order: 0,
+    is_legacy: false,
+    ...over,
+  });
+
+  it("czyta liste JEDNYM RPC po p_event_id i NIE dotyka tabel", async () => {
+    setRpc("admin_event_speakers_list", ok([row()]));
 
     const speakers = await fetchEventSpeakers("ev-1");
 
-    expect(links("event_speakers")).toEqual(["select", "eq", "order"]);
-    expect(chain("event_speakers").argsOf("select")).toEqual(["user_id, sort_order"]);
-    expect(chain("event_speakers").argsOf("eq")).toEqual(["event_id", "ev-1"]);
-    expect(chain("event_speakers").argsOf("order")).toEqual(["sort_order", { ascending: true }]);
-    // Profile z WIDOKU publicznego (bez kolumn PII) i jednym `in`, nie N+1.
-    expect(links("profiles_public")).toEqual(["select", "in"]);
-    expect(chain("profiles_public").argsOf("in")).toEqual(["id", ["user-1", "user-2"]]);
-
+    expect(rpcArgs("admin_event_speakers_list")).toEqual({ p_event_id: "ev-1" });
+    // Zero zapytan do tabel: caly odczyt idzie przez bramke
+    // `assert_event_admin_tenant()`, nie przez RLS klienta.
+    expect(db().chainsFor("event_speakers")).toEqual([]);
+    expect(db().chainsFor("profiles_public")).toEqual([]);
     expect(speakers).toEqual([
       {
-        user_id: "user-1",
+        entry_id: "en-1",
+        speaker_profile_id: "sp-1",
+        user_id: null,
+        person_id: "pe-1",
+        display_name: "Lech K.",
+        avatar_url: "https://example.com/l.png",
+        job_title: "Profesor",
+        company: "Uczelnia",
+        email: "lech@example.com",
+        is_public: true,
         sort_order: 0,
-        display_name: "A. Kowalska",
-        avatar_url: "https://example.com/a.png",
+        is_legacy: false,
       },
-      // Prelegent bez wiersza w profiles_public zostaje na liście - kolejność
-      // agendy nie może zniknąć razem z brakującym profilem.
-      { user_id: "user-2", sort_order: 1, display_name: null, avatar_url: null },
     ]);
   });
 
-  it("sort_order 0 (pierwszy prelegent) nie gubi się przy odczycie", async () => {
-    db().setResponse("event_speakers", ok([{ user_id: "user-1", sort_order: 0 }]));
-    db().setResponse("profiles_public", ok([]));
+  it("sort_order 0 (pierwszy prelegent) nie gubi sie przy odczycie", async () => {
+    setRpc("admin_event_speakers_list", ok([row({ sort_order: 0 })]));
     const speakers = await fetchEventSpeakers("ev-1");
     expect(speakers[0].sort_order).toBe(0);
   });
 
-  it("profil z pustymi kolumnami oddaje null, nie undefined", async () => {
-    db().setResponse("event_speakers", ok([{ user_id: "user-1", sort_order: 1 }]));
-    db().setResponse(
-      "profiles_public",
-      ok([{ id: "user-1", display_name: null, avatar_url: null }]),
+  it("puste kolumny oddaja null, nie undefined ani pusty napis", async () => {
+    setRpc(
+      "admin_event_speakers_list",
+      ok([
+        row({
+          entry_id: null,
+          person_id: null,
+          user_id: "u-1",
+          display_name: null,
+          avatar_url: "",
+          job_title: null,
+          company: null,
+          email: null,
+          is_legacy: true,
+        }),
+      ]),
     );
-    await expect(fetchEventSpeakers("ev-1")).resolves.toEqual([
-      { user_id: "user-1", sort_order: 1, display_name: null, avatar_url: null },
-    ]);
+    const [speaker] = await fetchEventSpeakers("ev-1");
+    expect(speaker.entry_id).toBeNull();
+    expect(speaker.person_id).toBeNull();
+    expect(speaker.display_name).toBeNull();
+    // Pusty napis z jsonb to tez BRAK: `avatar_url: ""` w `<img src>` to
+    // zapytanie do biezacego adresu strony, nie brak obrazka.
+    expect(speaker.avatar_url).toBeNull();
+    expect(speaker.is_legacy).toBe(true);
   });
 
-  it("data: null na profilach nie wywraca listy", async () => {
-    db().setResponse("event_speakers", ok([{ user_id: "user-1", sort_order: 1 }]));
-    db().setResponse("profiles_public", ok(null));
-    await expect(fetchEventSpeakers("ev-1")).resolves.toEqual([
-      { user_id: "user-1", sort_order: 1, display_name: null, avatar_url: null },
-    ]);
+  it("is_public bez wartosci jest TRUE (nakladka domyslnie widoczna)", async () => {
+    setRpc("admin_event_speakers_list", ok([row({ is_public: null })]));
+    const [speaker] = await fetchEventSpeakers("ev-1");
+    expect(speaker.is_public).toBe(true);
+  });
+
+  it("sort_order o zlym TYPIE nie wywala listy", async () => {
+    setRpc("admin_event_speakers_list", ok([row({ sort_order: "trzy" })]));
+    const [speaker] = await fetchEventSpeakers("ev-1");
+    expect(speaker.sort_order).toBe(0);
   });
 
   it.each([
-    ["brak prelegentów", ok([])],
+    ["brak prelegentow", ok([])],
     ["data: null", ok(null)],
-  ])("%s: zwraca [] i NIE pyta o profile", async (_label, response) => {
-    db().setResponse("event_speakers", response);
+    ["zwrotka nie-tablicowa", ok({})],
+  ])("%s: zwraca []", async (_label, response) => {
+    setRpc("admin_event_speakers_list", response);
     await expect(fetchEventSpeakers("ev-1")).resolves.toEqual([]);
-    expect(db().chainsFor("profiles_public")).toEqual([]);
   });
 
-  it("błąd powiązań podnosi wyjątek", async () => {
-    db().setResponse("event_speakers", fail("speakers denied", "42501"));
-    await expect(fetchEventSpeakers("ev-1")).rejects.toThrow("speakers denied");
-  });
-
-  it("błąd profili podnosi wyjątek (lista bez nazwisk jest bezużyteczna)", async () => {
-    db().setResponse("event_speakers", ok([{ user_id: "user-1", sort_order: 0 }]));
-    db().setResponse("profiles_public", fail("profiles denied", "42501"));
-    await expect(fetchEventSpeakers("ev-1")).rejects.toThrow("profiles denied");
+  it("blad podnosi wyjatek z TRESCIA bledu bazy", async () => {
+    // Komunikat jest nazwany (`forbidden: admin role required`) i idzie na
+    // ekran - zamiana go na jedno "nie udalo sie" kosztuje diagnostyke.
+    setRpc("admin_event_speakers_list", fail("forbidden: admin role required", "42501"));
+    await expect(fetchEventSpeakers("ev-1")).rejects.toThrow("forbidden: admin role required");
   });
 });
 
-describe("mutacje prelegentów", () => {
-  it("addEventSpeaker jest IDEMPOTENTNY (upsert), nie insert", async () => {
-    db().setResponse("event_speakers", ok(null));
-    await addEventSpeaker("ev-1", "user-1", 0);
-    expect(links("event_speakers")).toEqual(["upsert"]);
-    expect(chain("event_speakers").argsOf("upsert")).toEqual([
-      { event_id: "ev-1", user_id: "user-1", sort_order: 0 },
-    ]);
+describe("mutacje prelegentow", () => {
+  it("createEventSpeakerPerson wysyla payload BEZ pustych kluczy", async () => {
+    setRpc("admin_event_speaker_upsert", ok({ entry_id: "en-1", speaker_profile_id: "sp-1" }));
+
+    await createEventSpeakerPerson({
+      eventId: "ev-1",
+      firstName: "Lech",
+      lastName: "Kurklinski",
+      email: "lech@example.com",
+      jobTitle: "",
+      phone: undefined,
+      isPublic: true,
+    });
+
+    // Klucz nieobecny znaczy w SQL-u "zostaw kolumne", a pusty napis wysylany
+    // w kazdym zapisie wymazywalby dane wpisane inna droga (rejestracja, skan).
+    expect(rpcArgs("admin_event_speaker_upsert")).toEqual({
+      p_payload: {
+        event_id: "ev-1",
+        first_name: "Lech",
+        last_name: "Kurklinski",
+        email: "lech@example.com",
+        is_public: true,
+      },
+    });
   });
 
-  it("removeEventSpeaker kasuje po PARZE event_id + user_id", async () => {
-    db().setResponse("event_speakers", ok(null));
-    await removeEventSpeaker("ev-1", "user-1");
-    expect(links("event_speakers")).toEqual(["delete", "eq", "eq"]);
-    // Brak drugiego `eq` wypisałby prelegenta ze WSZYSTKICH wydarzeń.
-    expect(chain("event_speakers").calls.map((call) => call.args)).toEqual([
-      [],
-      ["event_id", "ev-1"],
-      ["user_id", "user-1"],
-    ]);
+  it("createEventSpeakerPerson oddaje identyfikatory z jednego zapisu", async () => {
+    setRpc(
+      "admin_event_speaker_upsert",
+      ok({ entry_id: "en-1", speaker_profile_id: "sp-1", person_id: "pe-1", user_id: null }),
+    );
+    await expect(
+      createEventSpeakerPerson({ eventId: "ev-1", firstName: "A", lastName: "B" }),
+    ).resolves.toEqual({
+      entry_id: "en-1",
+      speaker_profile_id: "sp-1",
+      person_id: "pe-1",
+      user_id: null,
+    });
   });
 
-  it("setEventSpeakerOrder zmienia sam sort_order pary", async () => {
-    db().setResponse("event_speakers", ok(null));
-    await setEventSpeakerOrder("ev-1", "user-1", 2);
-    expect(links("event_speakers")).toEqual(["update", "eq", "eq"]);
-    expect(chain("event_speakers").argsOf("update")).toEqual([{ sort_order: 2 }]);
+  it("addEventSpeaker (tryb konta) wysyla WYLACZNIE event_id i user_id", async () => {
+    setRpc("admin_event_speaker_upsert", ok({ speaker_profile_id: "sp-1", user_id: "u-1" }));
+    await addEventSpeaker("ev-1", "u-1");
+    // Kolejnosc LICZY BAZA: "na koniec listy" wymaga zobaczenia calej listy,
+    // a klient widzi tylko swoja migawke sprzed sekundy.
+    expect(rpcArgs("admin_event_speaker_upsert")).toEqual({
+      p_payload: { event_id: "ev-1", user_id: "u-1" },
+    });
+  });
+
+  it("removeEventSpeaker po koncie podaje OBA identyfikatory (rzad legacy)", async () => {
+    setRpc("admin_event_speaker_remove", ok(true));
+    await expect(
+      removeEventSpeaker("ev-1", { speakerProfileId: "sp-1", userId: "u-1" }),
+    ).resolves.toBe(true);
+    expect(rpcArgs("admin_event_speaker_remove")).toEqual({
+      p_payload: { event_id: "ev-1", speaker_profile_id: "sp-1", user_id: "u-1" },
+    });
+  });
+
+  it("removeEventSpeaker dla osoby BEZ konta nie wysyla user_id", async () => {
+    setRpc("admin_event_speaker_remove", ok(true));
+    await removeEventSpeaker("ev-1", { speakerProfileId: "sp-1" });
+    expect(rpcArgs("admin_event_speaker_remove")).toEqual({
+      p_payload: { event_id: "ev-1", speaker_profile_id: "sp-1" },
+    });
+  });
+
+  it("removeEventSpeaker: zwrotka inna niz true to NIE sukces", async () => {
+    setRpc("admin_event_speaker_remove", ok(null));
+    await expect(removeEventSpeaker("ev-1", { speakerProfileId: "sp-1" })).resolves.toBe(false);
+  });
+
+  it("setEventSpeakerOrder wysyla CALA liste w kolejnosci, nie pare wartosci", async () => {
+    setRpc("admin_event_speaker_reorder", ok(2));
+    const entry = (id: string, userId: string | null) => ({
+      entry_id: null,
+      speaker_profile_id: id,
+      user_id: userId,
+      person_id: null,
+      display_name: null,
+      avatar_url: null,
+      job_title: null,
+      company: null,
+      email: null,
+      is_public: true,
+      sort_order: 0,
+      is_legacy: false,
+    });
+
+    await expect(
+      setEventSpeakerOrder("ev-1", [entry("sp-2", "u-2"), entry("sp-1", null)]),
+    ).resolves.toBe(2);
+
+    // `user_id` jedzie RAZEM z profilem, bo rzedy legacy trzymaja kolejnosc
+    // w drugiej tabeli - bez niego przenumerowanie ich pomija.
+    expect(rpcArgs("admin_event_speaker_reorder")).toEqual({
+      p_payload: {
+        event_id: "ev-1",
+        items: [
+          { speaker_profile_id: "sp-2", user_id: "u-2" },
+          { speaker_profile_id: "sp-1", user_id: null },
+        ],
+      },
+    });
   });
 
   it.each([
-    ["addEventSpeaker", () => addEventSpeaker("ev-1", "user-1", 0)],
-    ["removeEventSpeaker", () => removeEventSpeaker("ev-1", "user-1")],
-    ["setEventSpeakerOrder", () => setEventSpeakerOrder("ev-1", "user-1", 1)],
-  ])("%s: błąd podnosi wyjątek", async (_label, run) => {
-    db().setResponse("event_speakers", fail("speakers write denied", "42501"));
-    await expect(run()).rejects.toThrow("speakers write denied");
+    [
+      "createEventSpeakerPerson",
+      "admin_event_speaker_upsert",
+      () => createEventSpeakerPerson({ eventId: "ev-1", firstName: "A", lastName: "B" }),
+    ],
+    ["addEventSpeaker", "admin_event_speaker_upsert", () => addEventSpeaker("ev-1", "u-1")],
+    [
+      "removeEventSpeaker",
+      "admin_event_speaker_remove",
+      () => removeEventSpeaker("ev-1", { speakerProfileId: "sp-1" }),
+    ],
+    ["setEventSpeakerOrder", "admin_event_speaker_reorder", () => setEventSpeakerOrder("ev-1", [])],
+  ])("%s: blad podnosi wyjatek", async (_label, fn, run) => {
+    setRpc(fn, fail("forbidden: admin role required", "42501"));
+    await expect(run()).rejects.toThrow("forbidden: admin role required");
   });
 });
 
