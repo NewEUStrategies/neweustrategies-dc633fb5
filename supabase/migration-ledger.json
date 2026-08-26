@@ -9,5 +9,10 @@
     "  Wpis nie zwalnia z kontroli - bramka sprawdza wskazaną wersję w rejestrze."
   ],
   "baseline": "20260825230232",
-  "reconciled": {}
+  "reconciled": {
+    "20260826090000_event_studio_general.sql": "20260826114319",
+    "20260826120000_event_pages_and_public_columns.sql": "20260826114616",
+    "20260826150000_event_registration_settings_and_features.sql": "20260826114933",
+    "20260826170000_event_general_save_match_table_checks.sql": "20260826114933"
+  }
 }
