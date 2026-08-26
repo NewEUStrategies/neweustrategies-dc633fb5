@@ -17,7 +17,7 @@
 // zakladki tego rekordu). Zdania opisowego w wariancie rekordu nie ma celowo:
 // redaktor, ktory wszedl w konkretna sesje, nie czyta juz definicji sesji -
 // szuka pol i zakladek, a akapit odsuwa je o dwa wiersze w dol.
-import { createContext, useContext, useId, useRef, useState, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, Sparkles } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
@@ -82,27 +82,21 @@ function EventStudioHelpPill({ href }: { href: string }) {
  * pikseli od siebie.
  */
 /**
- * Licznik sekcji ekranu.
+ * Numery sekcji liczy CSS (`counter-increment`), nie React.
  *
- * PO CO NUMERY. Ekran ustawien to pionowa tasma kilkunastu blokow o tej samej
- * wadze - bez znacznika porzadkowego oko nie ma sie o co zaczepic i wszystko
- * zlewa sie w jedna plachte. Numer jest NAJTANSZA kotwica: nie dodaje koloru,
- * nie konkuruje z akcja, a daje kazdej sekcji adres („wroc do 03”).
+ * PO CO NUMERY. Ekran ustawien to pionowa tasma blokow o tej samej wadze -
+ * numer jest najtansza kotwica: nie dodaje koloru, nie konkuruje z akcja,
+ * a daje kazdej sekcji adres („wroc do 03”).
  *
- * NUMERUJEMY LICZNIKIEM W REF, nie indeksem z `children`. Ekrany podaja sekcje
- * warunkowo (`{enabled ? <Row/> : null}`), wiec indeks tablicy policzylby tez
- * te niewyrenderowane i numeracja mialaby dziury.
+ * DLACZEGO CSS, A NIE LICZNIK W REFIE. Licznik zwiekszany w renderze jest
+ * efektem ubocznym: w StrictMode React wywoluje render dwa razy i numeracja
+ * przeskakiwala 01 -> 03. Counter CSS liczy realnie wyrenderowane sekcje,
+ * wiec dziala tez wtedy, gdy ekran podaje sekcje warunkowo.
  */
-type SectionCounter = { next: () => number } | null;
-const EventStudioSectionCounter = createContext<SectionCounter>(null);
-
-function useSectionNumber(): number | null {
-  const counter = useContext(EventStudioSectionCounter);
-  // Numer przypisujemy RAZ, przy pierwszym renderze wiersza - inaczej kazdy
-  // kolejny render przesuwalby numeracje o dlugosc listy.
-  const [number] = useState(() => (counter === null ? null : counter.next()));
-  return number;
-}
+const SECTION_COUNTER_RESET = "[counter-reset:studio-section]";
+const SECTION_NUMBER_CLASS =
+  "rounded-[6px] border border-border bg-muted px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-brand-ink " +
+  "before:[counter-increment:studio-section] before:content-[counter(studio-section,decimal-leading-zero)]";
 
 export function EventStudioPage({
   title,
@@ -117,33 +111,26 @@ export function EventStudioPage({
   helpHref?: string;
   children: ReactNode;
 }) {
-  const seq = useRef(0);
-  const counter = useRef<{ next: () => number }>({ next: () => (seq.current += 1) });
   return (
-    <EventStudioSectionCounter.Provider value={counter.current}>
-      <div className={PAGE_SHELL_CLASS}>
-        <header className="mb-8 border-b border-border pb-6">
-          <div className="flex items-start gap-3">
-            {/* Pionowa belka marki zastepuje kreske pod naglowkiem: mowi „tu
+    <div className={cn(PAGE_SHELL_CLASS, SECTION_COUNTER_RESET)}>
+      <header className="mb-8 border-b border-border pb-6">
+        <div className="flex items-start gap-3">
+          {/* Pionowa belka marki zastepuje kreske pod naglowkiem: mowi „tu
                 zaczyna sie ekran” bez dokladania kolejnej linii poziomej. */}
-            <span
-              aria-hidden="true"
-              className="mt-1 h-8 w-1 shrink-0 rounded-[6px] bg-brand"
-            />
-            <div className="min-w-0 space-y-2">
-              <h1 className="font-display text-2xl leading-tight tracking-tight">{title}</h1>
-              {description === undefined && helpHref === undefined ? null : (
-                <p className="max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
-                  {description}
-                  {helpHref === undefined ? null : <EventStudioHelpPill href={helpHref} />}
-                </p>
-              )}
-            </div>
+          <span aria-hidden="true" className="mt-1 h-8 w-1 shrink-0 rounded-[6px] bg-brand" />
+          <div className="min-w-0 space-y-2">
+            <h1 className="font-display text-2xl leading-tight tracking-tight">{title}</h1>
+            {description === undefined && helpHref === undefined ? null : (
+              <p className="max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
+                {description}
+                {helpHref === undefined ? null : <EventStudioHelpPill href={helpHref} />}
+              </p>
+            )}
           </div>
-        </header>
-        <div className="space-y-10">{children}</div>
-      </div>
-    </EventStudioSectionCounter.Provider>
+        </div>
+      </header>
+      <div className="space-y-10">{children}</div>
+    </div>
   );
 }
 
@@ -240,7 +227,7 @@ export function EventStudioRecordPage({
         </div>
       )}
 
-      <div className="mt-6 space-y-10">{children}</div>
+      <div className={cn("mt-6 space-y-10", SECTION_COUNTER_RESET)}>{children}</div>
     </div>
   );
 }
@@ -259,24 +246,13 @@ export function EventStudioRow({
   children: ReactNode;
   className?: string;
 }) {
-  const number = useSectionNumber();
   return (
     <section
-      className={cn(
-        "grid gap-6 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-10",
-        className,
-      )}
+      className={cn("grid gap-6 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-10", className)}
     >
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          {number === null ? null : (
-            <span
-              aria-hidden="true"
-              className="rounded-[6px] border border-border bg-muted px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-brand-ink"
-            >
-              {String(number).padStart(2, "0")}
-            </span>
-          )}
+          <span aria-hidden="true" className={SECTION_NUMBER_CLASS} />
           <h2 className="text-sm font-semibold tracking-tight">{label}</h2>
         </div>
         {description === undefined ? null : (
