@@ -8659,9 +8659,8 @@ h3 .cms-inline-status-icon {
   font-size: 0.6875rem;
   line-height: 1rem;
 }
-.event-dialog-compact :is(input, button, [role="combobox"]):not([type="checkbox"]):not(
-    [role="switch"]
-  ):not(.h-auto) {
+.event-dialog-compact
+  :is(input, button, [role="combobox"]):not([type="checkbox"]):not([role="switch"]):not(.h-auto) {
   min-height: 2rem;
   height: 2rem;
 }
