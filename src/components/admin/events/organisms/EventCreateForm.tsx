@@ -54,7 +54,6 @@ import {
   asEventGuestMode,
   asEventRegistrationFlow,
   asEventRegistrationMode,
-  type EventFormat,
   type EventTypeOption,
 } from "@/lib/events/eventTypes";
 import { DEFAULT_EVENT_TIME_ZONE, timeZoneOptions } from "@/lib/events/timeZoneOptions";
@@ -168,6 +167,20 @@ export function EventCreateForm({
   useEffect(() => {
     onDraftChange?.(draft);
   }, [draft, onDraftChange]);
+
+  // RODZAJ MA WARTOŚĆ OD WEJŚCIA. Formularz z jednym rodzajem w katalogu (albo z
+  // oczywistym pierwszym wyborem) nie ma powodu blokować zapisu placeholderem -
+  // redaktor zmienia rodzaj, jeśli chce inny.
+  useEffect(() => {
+    if (draft.eventTypeId !== "" || types.length === 0) return;
+    const first = types[0];
+    if (first === undefined) return;
+    setDraft((current) =>
+      current.eventTypeId === ""
+        ? { ...current, eventTypeId: first.id, format: first.default_format }
+        : current,
+    );
+  }, [types, draft.eventTypeId]);
 
   const selected = useMemo(
     () => types.find((type) => type.id === draft.eventTypeId) ?? null,
