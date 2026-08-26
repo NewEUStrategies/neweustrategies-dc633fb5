@@ -1309,9 +1309,12 @@ Testy jednostkowe warstwy czystej: `src/lib/events/__tests__/eventStudioNav.test
    wszystkich 41 zrzutach).
 3. **Komunikacja i Integracje zostają drogowskazami** — obie czekają na decyzję
    produktową, nie na kod.
-4. **`check:sql-migration-replay` ma dwa czerwone testy** (para bliźniaków
-   `20260824090000_event_admin_only_guards.sql` + `20260825190728_…`, oba
-   z commita `1586fc1`). Nie pochodzą z tej gałęzi — sprawdzone przez usunięcie
-   naszych migracji ze skanu; ratchet długu do zamknięcia osobno.
+4. ~~`check:sql-migration-replay` ma dwa czerwone testy~~ — **zamknięte przez
+   `main`**. Para bliźniaków (`20260824090000_event_admin_only_guards.sql` +
+   `20260825190728_…`, oba z `1586fc1`) czerwieniła się niezależnie od tej
+   gałęzi; commit `935616c` na `main` ją rozwiązał i po scaleniu bramka jest
+   zielona. Tym samym scaleniem zniknął jedyny czerwony `format:check`
+   (`previewAuthStorage.ts` — plik nietknięty przez tę gałąź, doformatowany tutaj
+   razem z jednym `prefer-const`, bo `bun run lint` w CI liczy oba).
 5. **Podgląd na żywo** nadal nie rysuje reklamy ani nazwanych poziomów sponsorów
    i nie ma kontekstowych odnośników „Edytuj tę stronę" (zrzuty 38–41).

@@ -667,6 +667,16 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     rationale:
       "Kariera: publiczny odczyt sekcji respektuje `is_visible`. Plik z gałęzi (5b759d7) i bliźniak wygenerowany przez platformę po merge'u (acd05fc); różnią się wyłącznie znakiem końca ostatniej linii. Dowód zastosowania: ten sam commit przyniósł regenerowane `types.ts` z blokami Insert/Update dla `career_page_sections_public`, z `never` dokładnie na kolumnach owiniętych w CASE - to odczyt `information_schema.columns.is_updatable` z żywej bazy, więc widok tam istnieje.",
   },
+  {
+    files: [
+      "20260824090000_event_admin_only_guards.sql",
+      "20260825190728_8cc00473-7359-48aa-b098-e38d19feb5e2.sql",
+    ],
+    deployment: "PR #289 / panel Lovable",
+    appliedOn: "2026-08-25",
+    rationale:
+      "Panel wyemitowal ponownie migracje z PR-a pod wlasnym numerem (commit 1586fc1). Dowod zastosowania: plik jest w zbiorze migracji galezi glownej, a przebieg `pgtap` na PR #289 pokazuje w logu `Applying migration 20260825190728_8cc00473-...` - odtworzenie od zera stosuje OBIE wersje po kolei, bo SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE`). WPIS, NIE KASOWANIE PLIKU: bramka dopuszcza obie naprawy, ale sa niesymetryczne w ryzyku. Usuniecie duplikatu, ktory zdazyl wejsc na baze, zostawia w `schema_migrations` wiersz bez pliku i wywraca kolejny `db push`; zbedny wpis w rejestrze nie psuje niczego poza tym, ze rejestr jest o pozycje dluzszy. Pod niepewnoscia wybieramy tansza pomylke. Jesli panel NIE zastosowal tej wersji na bazie projektu, wlasciwa naprawa jest skasowanie pliku i usuniecie tego wpisu.",
+  },
 ];
 
 /**
