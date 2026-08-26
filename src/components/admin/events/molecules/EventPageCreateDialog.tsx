@@ -1,19 +1,25 @@
 // Molekula: zalozenie NOWEJ PODSTRONY wydarzenia.
 //
 // OKNO MODALNE, NIE SZUFLADA - odwrotnie niz przy edycji pozycji menu. To jest
-// akcja jednorazowa i krotka (dwa tytuly), a nie porzadkowanie listy: nie ma
-// tu czego porownywac z sasiadem, a okno na srodku niesie decyzje „zakladam
-// strone" wyrazniej niz panel doklejony do krawedzi.
+// akcja jednorazowa i krotka (dwa tytuly plus wybor szablonu), a nie
+// porzadkowanie listy: nie ma tu czego porownywac z sasiadem, a okno na srodku
+// niesie decyzje „zakladam strone" wyrazniej niz panel doklejony do krawedzi.
 //
-// TRZY POLA, MIMO ZE STRONA MA KILKADZIESIAT USTAWIEN. Adres, szablon, SEO
-// i harmonogram publikacji naleza do `/admin/pages` i tam zostaja; tutaj
-// pytamy WYLACZNIE o to, bez czego strony nie da sie utworzyc (tytul w obu
-// jezykach - slug liczy baza z tytulu) plus ikone, bo pozycja bez ikony
-// wchodzi do menu z domyslna i redaktor wraca do niej drugim klikniecem.
+// TYTULY, IKONA I SZABLON - NIC WIECEJ. Adres, SEO i harmonogram publikacji
+// naleza do `/admin/pages` i tam zostaja; tutaj pytamy WYLACZNIE o to, bez czego
+// strony nie da sie utworzyc (tytul w obu jezykach - slug liczy baza z tytulu),
+// plus ikone, bo pozycja bez ikony wchodzi do menu z domyslna, plus SZABLON.
+//
+// SZABLON JEST TU, A NIE „POTEM W BUILDERZE". Strona zalozona pusta stawiala
+// redaktora przed bialą kanwa i pytaniem „co ta strona ma zawierac"; wybor na
+// tym ekranie odpowiada na nie z gory, a lista blokow pod kazda pozycja mowi,
+// co dokladnie wjedzie na strone. Ikona pozycji idzie w parze z szablonem, o ile
+// redaktor nie wpisal wlasnej.
 //
 // TYTUL W OBU JEZYKACH JEST WYMAGANY, tak jak w `admin_event_page_create`
 // (`invalid_titles`). Blokada po stronie okna istnieje, zeby powod odmowy stal
 // przy polu, ktore go wywolalo - a nie w toascie nad calym ekranem.
+
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
