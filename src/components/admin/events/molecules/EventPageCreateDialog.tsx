@@ -112,7 +112,7 @@ export function EventPageCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="event-dialog-compact max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("adminEvents.studio.pages.create.title")}</DialogTitle>
           <DialogDescription>{t("adminEvents.studio.pages.create.subtitle")}</DialogDescription>

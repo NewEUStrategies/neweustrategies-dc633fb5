@@ -49,6 +49,8 @@ import {
   type SponsorRole,
 } from "@/lib/events/sponsorsApi";
 
+const TIER_NONE = "__none__";
+
 interface EventSponsorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -103,9 +105,12 @@ export function EventSponsorDialog({
     onSubmit(sponsorDraftToInput(draft, eventId));
   };
 
+  // Radix Select ODRZUCA pusty string jako wartosc pozycji (rzuca wyjatkiem i
+  // cale okno przestaje sie renderowac - stad „dodawanie firm nie dziala").
+  // Brak poziomu ma wiec wlasny znacznik, tlumaczony na "" w szkicu.
   const tierOptions = useMemo(
     () => [
-      { value: "", label: t("adminEventSponsors.sponsors.dialog.tierNone") },
+      { value: TIER_NONE, label: t("adminEventSponsors.sponsors.dialog.tierNone") },
       ...tiers.map((tier) => ({
         value: tier.id,
         label: isEn ? tier.name_en || tier.name_pl : tier.name_pl || tier.name_en,
@@ -118,7 +123,7 @@ export function EventSponsorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {t(
@@ -221,10 +226,10 @@ export function EventSponsorDialog({
             <Label htmlFor="sponsor-tier">{t("adminEventSponsors.sponsors.dialog.tier")}</Label>
             <FormSelect
               id="sponsor-tier"
-              value={draft.tierId}
+              value={draft.tierId === "" ? TIER_NONE : draft.tierId}
               options={tierOptions}
               aria-label={t("adminEventSponsors.sponsors.dialog.tier")}
-              onValueChange={(value) => set("tierId", value)}
+              onValueChange={(value) => set("tierId", value === TIER_NONE ? "" : value)}
             />
             {errorFor("tierId") === null ? null : (
               <p className="text-xs text-destructive" role="alert">

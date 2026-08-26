@@ -115,7 +115,7 @@ export function MeetingTableDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="event-dialog-compact max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {row === null
