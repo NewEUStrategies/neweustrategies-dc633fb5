@@ -92,7 +92,7 @@ export function MemberPicker({ value, onChange, labels, disabled }: MemberPicker
         <button
           type="button"
           disabled={disabled}
-          className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm disabled:pointer-events-none disabled:opacity-50 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-10 w-full items-center justify-between gap-2 rounded-[6px] border border-border bg-background px-3 text-sm shadow-sm transition-colors hover:border-brand/60 data-[state=open]:border-brand disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           aria-label={labels.placeholder}
         >
           {selected ? (
@@ -124,11 +124,11 @@ export function MemberPicker({ value, onChange, labels, disabled }: MemberPicker
               <X className="h-4 w-4" aria-hidden />
             </span>
           ) : (
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(24rem,90vw)] p-2" align="start">
+      <PopoverContent className="w-[min(24rem,90vw)] rounded-[6px] p-2" align="start">
         <Input
           autoFocus
           value={input}
