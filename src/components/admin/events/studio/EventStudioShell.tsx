@@ -74,7 +74,6 @@ export function EventStudioShell({
   // dostępny ekran. Redaktor włącza go przyciskiem „Podgląd wydarzenia".
   const [previewOpen, setPreviewOpen] = useState(false);
 
-
   const row = detailQ.data ?? null;
   const activeSection = eventStudioSectionFromPath(pathname);
 
