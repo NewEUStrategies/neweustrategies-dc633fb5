@@ -52,6 +52,51 @@ interface LogEntry {
   wp_id?: number;
 }
 
+type PostStatusFilter = "publish" | "draft" | "any";
+type PostTypeFilter = "post" | "page" | "any";
+type TargetLanguage = "pl" | "en";
+
+/**
+ * WEJŚCIE PODGLĄDU/IMPORTU JEST ARGUMENTEM MUTACJI, NIE DOMKNIĘCIEM.
+ *
+ * `useMutation` z React Query wstawia świeże opcje - a więc i świeże domknięcie
+ * `mutationFn` - w EFEKCIE PASYWNYM: `observer.setOptions(options)` siedzi w
+ * `React.useEffect` (`@tanstack/react-query@5.102.7`,
+ * `build/modern/useMutation.js`). Efekty pasywne lecą PO commicie, w osobnym
+ * makrozadaniu. Między commitem i tym flushem DOM już pokazuje wypełnioną
+ * domenę, przycisk „Podgląd" już nie jest `disabled`, a obserwator mutacji
+ * trzyma jeszcze `mutationFn` z POPRZEDNIEGO renderu - tego, w którym `site`
+ * było puste.
+ *
+ * SKUTEK, GDY WEJŚCIE CZYTA SIĘ Z DOMKNIĘCIA: klik w tym okienku uruchamiał
+ * podgląd z pustym `site` i kończył się komunikatem „Podaj domenę witryny" pod
+ * polem, w którym domena jest widoczna - czyli ekran przeczył sam sobie. Okno
+ * jest wąskie (jedno makrozadanie), więc ręką się w nie prawie nie trafia, ale
+ * trafia w nie autofill z Enterem, skrypt i każdy zadyszany wątek główny.
+ * Dowód: `src/routes/__tests__/adminImportWordpressRoute.test.tsx`, test „klik
+ * w TYM SAMYM makrozadaniu, w którym DOM dostał domenę".
+ *
+ * DLACZEGO ARGUMENT TO NAPRAWIA: `mutate(input)` woła handler `onClick`, a ten
+ * jest częścią ZATWIERDZONEGO drzewa - widzi dokładnie ten stan, który widzi
+ * użytkownik. `mutationFn` staje się funkcją swojego argumentu i nie ma już
+ * czego przeterminować.
+ */
+interface PreviewInput {
+  site: string;
+  number: number;
+  offset: number;
+  status: PostStatusFilter;
+  type: PostTypeFilter;
+}
+
+/** Wejście zadania importu - podgląd plus to, co dotyczy zapisu do bazy. */
+interface ImportInput extends PreviewInput {
+  language: TargetLanguage;
+  only_ids: number[] | undefined;
+  sync_existing: boolean;
+  import_media: boolean;
+}
+
 function ImportWordpressPage() {
   const { i18n } = useTranslation();
   const isPL = i18n.language.startsWith("pl");
@@ -59,9 +104,9 @@ function ImportWordpressPage() {
   const [site, setSite] = useState("");
   const [number, setNumber] = useState(20);
   const [offset, setOffset] = useState(0);
-  const [status, setStatus] = useState<"publish" | "draft" | "any">("publish");
-  const [type, setType] = useState<"post" | "page" | "any">("post");
-  const [language, setLanguage] = useState<"pl" | "en">("pl");
+  const [status, setStatus] = useState<PostStatusFilter>("publish");
+  const [type, setType] = useState<PostTypeFilter>("post");
+  const [language, setLanguage] = useState<TargetLanguage>("pl");
   const [syncExisting, setSyncExisting] = useState(false);
   const [importMedia, setImportMedia] = useState(true);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -114,17 +159,14 @@ function ImportWordpressPage() {
   }, [sites.data, site]);
 
   const cancel = useMutation({
-    mutationFn: async () => {
-      if (!jobId) return null;
-      return callCancel({ data: { jobId } });
-    },
+    mutationFn: async (input: { jobId: string }) => callCancel({ data: input }),
   });
 
   const preview = useMutation({
-    mutationFn: async () => {
-      if (!site.trim()) throw new Error(isPL ? "Podaj domenę witryny" : "Enter a site domain");
+    mutationFn: async (input: PreviewInput) => {
+      if (!input.site) throw new Error(isPL ? "Podaj domenę witryny" : "Enter a site domain");
       setSelected(new Set());
-      return callPreview({ data: { site: site.trim(), number, offset, status, type } });
+      return callPreview({ data: input });
     },
   });
 
@@ -163,19 +205,7 @@ function ImportWordpressPage() {
   }, [job.data, jobId, qc]);
 
   const importer = useMutation({
-    mutationFn: async () => {
-      const only_ids = selected.size > 0 ? Array.from(selected) : undefined;
-      const input = {
-        site: site.trim(),
-        number,
-        offset,
-        status,
-        type,
-        language,
-        only_ids,
-        sync_existing: syncExisting,
-        import_media: importMedia,
-      };
+    mutationFn: async (input: ImportInput) => {
       const { jobId: id } = await callCreate({ data: input });
       setJobId(id);
       // Fire-and-track: run in parallel; UI is driven by the polling query.
@@ -366,7 +396,7 @@ function ImportWordpressPage() {
             size="sm"
             variant="outline"
             className="h-8 text-xs"
-            onClick={() => preview.mutate()}
+            onClick={() => preview.mutate({ site: site.trim(), number, offset, status, type })}
             disabled={preview.isPending || !site.trim()}
           >
             {preview.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
@@ -376,7 +406,19 @@ function ImportWordpressPage() {
             type="button"
             size="sm"
             className="h-8 text-xs"
-            onClick={() => importer.mutate()}
+            onClick={() =>
+              importer.mutate({
+                site: site.trim(),
+                number,
+                offset,
+                status,
+                type,
+                language,
+                only_ids: selected.size > 0 ? Array.from(selected) : undefined,
+                sync_existing: syncExisting,
+                import_media: importMedia,
+              })
+            }
             disabled={importer.isPending || isRunning || !preview.data}
           >
             {importer.isPending || isRunning ? (
@@ -406,7 +448,12 @@ function ImportWordpressPage() {
           pct={pct}
           isPL={isPL}
           canCancel={isRunning}
-          onCancel={() => cancel.mutate()}
+          onCancel={() => {
+            // `jobData` istnieje tylko z ustawionym `jobId` (zapytanie jest
+            // `enabled: !!jobId`), ale odczyt zostaje W HANDLERZE - tam widzi
+            // stan z zatwierdzonego renderu, a nie z opcji obserwatora mutacji.
+            if (jobId) cancel.mutate({ jobId });
+          }}
           cancelPending={cancel.isPending}
         />
       )}

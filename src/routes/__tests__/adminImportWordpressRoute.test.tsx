@@ -10,7 +10,9 @@
 //   2. FORMULARZ SAM SIĘ WYPEŁNIA, ale rozsądnie: preferuje własną domenę,
 //      spada na pierwszą z listy, a przy tokenie ograniczonym do jednej
 //      witryny (pusta lista) wpisuje znaną domyślną - inaczej formularz
-//      byłby bezużyteczny.
+//      byłby bezużyteczny. Wypełnienie jest WIDOCZNE DLA PODGLĄDU już w tym
+//      makrozadaniu, w którym DOM je dostał (nie po flushie efektów) - inaczej
+//      klik zaraz po autouzupełnieniu leciał z pustą domeną.
 //   3. ZAKRES IMPORTU JEST OGRANICZANY W UI. `number` jest przycinane do
 //      1..100, `offset` nie schodzi poniżej zera. Bez tego jedno kliknięcie
 //      ściągałoby tysiące wpisów albo nie ściągało nic.
@@ -190,6 +192,67 @@ async function renderReady() {
   return view;
 }
 
+/** Pole domeny, ale tylko gdy już COŚ w nim jest. */
+function filledDomainInput(container: HTMLElement) {
+  const input = container.querySelector<HTMLInputElement>(
+    'input[placeholder="example.wordpress.com"]',
+  );
+  return input && input.value !== "" ? input : null;
+}
+
+/**
+ * Ten sam zabieg, który `asyncWrapper` z RTL robi wokół `waitFor`: na czas
+ * czekania POZA `act(...)` gasi flagę środowiska `act`, żeby React nie
+ * ostrzegał „An update to ImportWordpressPage inside a test was not wrapped in
+ * act(...)". Flaga steruje WYŁĄCZNIE ostrzeżeniem - harmonogram efektów
+ * pasywnych zależy od `actQueue`, nie od niej - więc okno, którego pilnuje
+ * bramka niżej, zostaje nietknięte. Czekać trzeba poza `act`, bo `act` flushuje
+ * efekty pasywne, czyli to okno by zamknął.
+ */
+async function outsideAct<T>(body: () => Promise<T>): Promise<T> {
+  const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const previous = env.IS_REACT_ACT_ENVIRONMENT;
+  env.IS_REACT_ACT_ENVIRONMENT = false;
+  try {
+    return await body();
+  } finally {
+    env.IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+}
+
+/**
+ * Czeka na COMMIT wypełnionej domeny NIE oddając sterowania makrozadaniu:
+ * `MutationObserver` budzi się w MIKROzadaniu, więc kod po tym `await` biegnie
+ * jeszcze PRZED flushem efektów pasywnych Reacta. `waitFor` tego nie potrafi -
+ * jego `asyncWrapper` z RTL domyka się `setTimeout(0)`, czyli już PO flushu, i
+ * dlatego zwykłe `renderReady()` wyścigu z bramki niżej nie widzi.
+ */
+function domainCommitted(container: HTMLElement): Promise<void> {
+  if (filledDomainInput(container)) return Promise.resolve();
+  return outsideAct(
+    () =>
+      new Promise<void>((resolve) => {
+        const observer = new MutationObserver(() => {
+          if (!filledDomainInput(container)) return;
+          observer.disconnect();
+          resolve();
+        });
+        observer.observe(container, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+        // Gdyby domena nie doszła wcale (regresja efektu startowego), bramka ma
+        // upaść na asercjach niżej, a nie wisieć do `testTimeout`.
+        setTimeout(() => {
+          observer.disconnect();
+          resolve();
+        }, 2000);
+      }),
+  );
+}
+
 /** Podgląd + import: najkrótsza droga do panelu zadania. */
 async function startImport(job = jobRow()) {
   h.job = job;
@@ -274,6 +337,48 @@ describe("start i wypełnienie formularza", () => {
     // wartość musi więc wskazywać naszą domenę, nie pierwszą z konta.
     await renderReady();
     expect(siteInput().value).toBe("www.neweuropeanstrategies.com");
+  });
+
+  it("PODGLĄD widzi domenę w TYM SAMYM makrozadaniu, w którym DOM ją dostał", async () => {
+    // WYŚCIG, KTÓRY TA BRAMKA ZAMYKA. `useMutation` z React Query wstawia
+    // świeże opcje - a więc i świeże domknięcie `mutationFn` - w EFEKCIE
+    // PASYWNYM: `observer.setOptions(options)` siedzi w `React.useEffect`
+    // (`@tanstack/react-query@5.102.7`, `build/modern/useMutation.js`). Efekty
+    // pasywne lecą PO commicie, w osobnym makrozadaniu. Jest więc chwila, w
+    // której DOM pokazuje już wypełnioną domenę i ODBLOKOWANY przycisk, a
+    // obserwator mutacji trzyma jeszcze `mutationFn` z poprzedniego renderu -
+    // z PUSTYM `site`. Klik w tej chwili nie wołał `previewWpComPosts` w ogóle,
+    // tylko wypisywał „Podaj domenę witryny" pod polem, w którym domena jest
+    // widoczna: ekran przeczył sam sobie.
+    //
+    // TO NIE BYŁ „FLAKE". W przejeździe całego katalogu tras (79 plików) ten
+    // jeden wyścig sypał ten plik na cztery różne sposoby - „Unable to find an
+    // element with the text: Stary wpis" oraz „expected vi.fn() to be called at
+    // least once" z `startImport()` - a plik uruchomiony SAM przechodził 44/44,
+    // bo `waitFor` oddaje sterowanie makrozadaniem i flush efektów przepuszcza.
+    // Podniesienie limitu `waitFor` nic tu nie dawało: warunek nie spełniał się
+    // NIGDY, tylko czekanie na porażkę rosło.
+    //
+    // Naprawa mieszka w `src/routes/admin.import-wordpress.tsx`: wejście
+    // podglądu i importu jest ARGUMENTEM `mutate()`, zbieranym w handlerze
+    // `onClick` - a ten jest częścią ZATWIERDZONEGO drzewa, więc widzi ten stan,
+    // który widzi użytkownik.
+    const view = await render();
+    await domainCommitted(view.container);
+
+    expect(previewButton()).not.toBeDisabled();
+    fireEvent.click(previewButton());
+
+    await waitFor(() => expect(previewFn()).toHaveBeenCalledTimes(1));
+    expect(previewFn().mock.calls[0][0]).toEqual({
+      data: {
+        site: "www.neweuropeanstrategies.com",
+        number: 20,
+        offset: 0,
+        status: "publish",
+        type: "post",
+      },
+    });
   });
 
   it("bez własnej domeny bierze PIERWSZĄ witrynę z konta", async () => {
