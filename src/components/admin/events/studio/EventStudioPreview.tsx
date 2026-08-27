@@ -40,6 +40,8 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
+import { useSponsors } from "@/lib/events/useEventSponsors";
+import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
