@@ -367,6 +367,10 @@ export const adminCommunityEventsEn = {
         photoRemove: "Remove photo",
         photoFailed: "The photo could not be uploaded.",
         photoAlt: "Speaker photo preview",
+        photoReplace: "Replace photo",
+        photoDropHint:
+          "Drag and drop a file onto the tile or upload from disk - you see the preview before saving. An https URL also works.",
+
 
         headlinePl: "Stage headline PL",
         headlineEn: "Stage headline EN",
