@@ -20,7 +20,7 @@ function row(overrides: Partial<EventSponsorRow>): EventSponsorRow {
 describe("sponsorTiersFromAdminRows", () => {
   it("grupuje po poziomie i ustawia rangi malejaco, grupe bez poziomu na koncu", () => {
     const tiers = sponsorTiersFromAdminRows([
-      row({ id: "a", snapshot_name: "Bez poziomu", tier_id: null }),
+      row({ id: "a", snapshot_name: "Bez poziomu", tier_id: undefined }),
       row({ id: "b", snapshot_name: "Srebro", tier_id: "t-silver", tier_rank: 10 }),
       row({ id: "c", snapshot_name: "Zloto", tier_id: "t-gold", tier_rank: 30 }),
     ]);
@@ -32,7 +32,7 @@ describe("sponsorTiersFromAdminRows", () => {
   it("odsiewa przypiecia nieogloszone i pozycje bez nazwy", () => {
     const tiers = sponsorTiersFromAdminRows([
       row({ id: "a", is_published: false }),
-      row({ id: "b", snapshot_name: null, crm_name: null }),
+      row({ id: "b", snapshot_name: undefined, crm_name: undefined }),
       row({ id: "c", snapshot_name: "Widoczny" }),
     ]);
 
@@ -55,7 +55,7 @@ describe("sponsorTiersFromAdminRows", () => {
       row({
         id: "a",
         snapshot_name: "Migawka",
-        snapshot_logo_url: null,
+        snapshot_logo_url: undefined,
         crm_logo_url: "https://example.com/logo.svg",
         snapshot_website: "https://migawka.example",
         crm_website: "https://crm.example",
