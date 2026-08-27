@@ -1,8 +1,8 @@
 // Molekuła: formularz jednej ŚCIEŻKI programu.
 //
-// KLUCZ JEST ZAMROŻONY PO ZAPISIE. RPC zapisu nie czyta klucza przy edycji, więc
-// edytowalne pole obiecywałoby zmianę, która nigdy się nie stanie - pokazujemy je
-// wyłączone.
+// KLUCZA I KOLEJNOŚCI NIE PYTAMY. Klucz jest identyfikatorem technicznym -
+// wyprowadzamy go z nazwy (`deriveTrackKey`) i zamrażamy po zapisie, a kolejność
+// nadaje lista (`nextSortOrder`). Organizator opisuje pasmo, nie schemat bazy.
 //
 // KOLOR MA WŁASNY PRÓBNIK, ale trzymamy go jako tekst: `#RRGGBB` wraca na
 // publiczną agendę i musi przejść wzór, zanim pojedzie do bazy.
@@ -21,6 +21,7 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { EventImageDropzone } from "@/components/admin/events/atoms/EventImageDropzone";
 import { useEventRooms } from "@/lib/events/useEventSessions";
 import {
   AGENDA_MAX_DESCRIPTION,
@@ -106,22 +107,6 @@ export function EventTrackDialog({
 
         <AdminFormSection title={t("adminEventAgenda.tracks.title")} columns={2}>
           <AdminFormTextRow
-            label={t("adminEventAgenda.tracks.dialog.key")}
-            hint={t("adminEventAgenda.tracks.dialog.keyHint")}
-            value={draft.key}
-            onValueChange={(value) => set("key", value)}
-            disabled={!isNew}
-            monospace
-            maxLength={49}
-            error={errorFor("key")}
-          />
-          <AdminFormTextRow
-            label={t("adminEventAgenda.tracks.dialog.sortOrder")}
-            value={draft.sortOrder}
-            onValueChange={(value) => set("sortOrder", value)}
-            inputMode="numeric"
-          />
-          <AdminFormTextRow
             label={t("adminEventAgenda.tracks.dialog.namePl")}
             value={draft.namePl}
             onValueChange={(value) => set("namePl", value)}
@@ -202,14 +187,14 @@ export function EventTrackDialog({
             maxLength={AGENDA_MAX_DESCRIPTION}
             rows={5}
           />
-          <AdminFormTextRow
+          <EventImageDropzone
+            className="md:col-span-2"
             label={t("adminEventAgenda.tracks.dialog.coverUrl")}
             hint={t("adminEventAgenda.tracks.dialog.coverUrlHint")}
+            recommendation="1600 x 900 px (16:9), JPG/WebP, < 1 MB"
             value={draft.coverUrl}
             onValueChange={(value) => set("coverUrl", value)}
-            type="url"
-            maxLength={2000}
-            className="md:col-span-2"
+            subfolder="event-tracks"
           />
         </AdminFormSection>
 

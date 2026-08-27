@@ -17,6 +17,17 @@ import i18n from "@/lib/i18n";
 
 export const adminEventAgendaPl = {
   adminEventAgenda: {
+    imageDrop: {
+      upload: "Wgraj z dysku",
+      replace: "Podmień",
+      remove: "Usuń grafikę",
+      uploading: "Wgrywam…",
+      dropHint: "Przeciągnij plik tutaj albo kliknij, aby wybrać z dysku",
+      recommended: "Rekomendowane wymiary: {{size}}",
+      urlLabel: "Adres grafiki",
+      failed: "Nie udało się wgrać grafiki.",
+    },
+
     nav: {
       sectionTitle: "Agenda",
       sectionsNavLabel: "Sekcje agendy wydarzenia",
@@ -193,7 +204,9 @@ export const adminEventAgendaPl = {
         descriptionPl: "Opis (PL)",
         descriptionEn: "Opis (EN)",
         coverUrl: "Grafika nagłówka",
-        coverUrlHint: "Pełny adres obrazu pokazywanego nad nazwą ścieżki.",
+        coverUrlHint:
+          "Obraz pokazywany nad nazwą ścieżki. Przeciągnij plik, wybierz z dysku albo wklej pełny adres.",
+
         saveAction: "Zapisz",
         cancelAction: "Anuluj",
         validation: {
@@ -450,6 +463,17 @@ export const adminEventAgendaPl = {
 
 export const adminEventAgendaEn = {
   adminEventAgenda: {
+    imageDrop: {
+      upload: "Upload from disk",
+      replace: "Replace",
+      remove: "Remove the image",
+      uploading: "Uploading…",
+      dropHint: "Drop a file here or click to pick one from your disk",
+      recommended: "Recommended size: {{size}}",
+      urlLabel: "Image address",
+      failed: "The image could not be uploaded.",
+    },
+
     nav: {
       sectionTitle: "Agenda",
       sectionsNavLabel: "Event agenda sections",
@@ -625,7 +649,9 @@ export const adminEventAgendaEn = {
         descriptionPl: "Description (PL)",
         descriptionEn: "Description (EN)",
         coverUrl: "Header image",
-        coverUrlHint: "Full address of the image shown above the track name.",
+        coverUrlHint:
+          "Shown above the track name. Drop a file, pick one from your disk or paste a full address.",
+
         saveAction: "Save",
         cancelAction: "Cancel",
         validation: {

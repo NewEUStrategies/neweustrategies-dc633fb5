@@ -7,7 +7,10 @@
 // publiczną agendę do atrybutu `style`.
 import { describe, expect, it } from "vitest";
 import {
+  AGENDA_KEY_PATTERN,
+  deriveTrackKey,
   emptyRoomDraft,
+
   emptyTrackDraft,
   roomDraftFromRow,
   roomDraftToInput,
@@ -42,10 +45,14 @@ describe("trackDraft", () => {
     expect(validateTrackDraft(track())).toEqual([]);
   });
 
-  it("klucz jest sprawdzany tylko przy tworzeniu - przy edycji baza go nie czyta", () => {
-    expect(validateTrackDraft(track({ key: "Zła Nazwa" })).map((e) => e.field)).toEqual(["key"]);
-    expect(validateTrackDraft(track({ id: ID, key: "Zła Nazwa" }))).toEqual([]);
+  it("klucza nie pytamy w formularzu - wyprowadzamy go z nazwy", () => {
+    expect(validateTrackDraft(track({ key: "" }))).toEqual([]);
+    expect(deriveTrackKey({ namePl: "Ścieżka Główna 2026", nameEn: "Main" })).toBe(
+      "sciezka_glowna_2026",
+    );
+    expect(AGENDA_KEY_PATTERN.test(deriveTrackKey({ namePl: "Только", nameEn: "" }))).toBe(true);
   });
+
 
   it("wymaga obu nazw", () => {
     expect(validateTrackDraft(track({ nameEn: " " })).map((e) => e.field)).toEqual(["nameEn"]);
