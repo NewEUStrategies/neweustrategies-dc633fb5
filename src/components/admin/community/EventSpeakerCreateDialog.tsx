@@ -204,6 +204,38 @@ export function EventSpeakerCreateDialog({
   const lang = uiLang(i18n.language);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [error, setError] = useState<string | null>(null);
+  const { user, tenantId } = useAuth();
+  const registerUpload = useServerFn(registerMediaUpload);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // UPLOAD ZDJECIA. Ta sama, jedyna dopuszczalna sciezka co w reszcie panelu:
+  // walidacja MIME/rozmiaru -> storage w prefiksie najemcy -> rejestracja w
+  // bibliotece, a odrzucona rejestracja kasuje obiekt (patrz lib/media/upload).
+  const handlePhoto = async (file: File): Promise<void> => {
+    if (tenantId === null || tenantId === undefined || user?.id === undefined) return;
+    setUploading(true);
+    try {
+      const uploaded = await uploadAndRegisterMedia({
+        file,
+        tenantId,
+        userId: user.id,
+        registerMedia: registerUpload,
+        allowedMime: IMAGE_MIME,
+        subfolder: "event-speakers",
+      });
+      setDraft((prev) => ({ ...prev, photoUrl: uploaded.publicUrl }));
+      setError(null);
+    } catch (e) {
+      setError(
+        `${t("adminCommunityEvents.speakers.create.photoFailed")} ${(e as Error).message}`.trim(),
+      );
+    } finally {
+      setUploading(false);
+      if (fileRef.current !== null) fileRef.current.value = "";
+    }
+  };
+
 
   // Grupy czytamy TYLKO przy otwartym popupie: zamknięty dialog nie ma prawa
   // trzymać zapytania, ktore odpala sie na kazdym wejsciu w ekran prelegentow.
