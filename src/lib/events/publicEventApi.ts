@@ -93,6 +93,20 @@ export interface EventMenuItem {
   /** Pełna ścieżka strony BEZ wiodącego ukośnika. */
   path: string;
   sortOrder: number;
+  /**
+   * `event_pages.module` - znacznik pozycji modułowej (`participants`,
+   * `speakers`, `partners`, `agenda`, `discussions`); `null` = zwykła podstrona
+   * założona ręcznie w studiu.
+   *
+   * PO CO FRONT GO POTRZEBUJE. Pozycja modułowa ma w serwisie trasę dedykowaną
+   * (`/events/<slug>/<module>`), która pod dokumentem strony CMS dokłada dane
+   * z bazy - listę uczestników, siatkę prelegentów, program. Pozycja zwykła
+   * takiej trasy nie ma i prowadzi tam, gdzie prowadziła zawsze: pod ścieżkę
+   * strony w trasie splat. Bez tego pola front nie umiałby ich rozróżnić
+   * i musiałby zgadywać po sluggu, czyli po napisie, który redaktor może
+   * zmienić.
+   */
+  module: string | null;
 }
 
 /**
@@ -116,6 +130,10 @@ function parseEventMenu(rows: readonly EventMenuRow[] | null): EventMenuItem[] {
       color: text(row.color),
       path: path.replace(/^\/+/, ""),
       sortOrder: nullableInt(row.sort_order) ?? 0,
+      // Kolumna jest w bazie nullowalna (znacznik ma tylko pięć pozycji
+      // modułowych), a generowany typ `RETURNS TABLE` opisuje ją jako non-null -
+      // dlatego przechodzi przez `text()` tak samo jak ikona i kolor.
+      module: text(row.module),
     });
   }
   // Baza sortuje, ale kolejność jest częścią kontraktu widoku - domykamy ją

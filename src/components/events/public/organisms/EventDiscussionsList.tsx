@@ -61,9 +61,17 @@ const THREAD_KINDS = [
 export function EventDiscussionsList({
   slug,
   enabled = true,
+  heading = true,
 }: {
   slug: string;
   enabled?: boolean;
+  /**
+   * `false` = nagłówek i podtytuł rysuje ktoś nad nami - na trasie zakładki
+   * `/events/<slug>/discussions` robi to dokument strony CMS (własny `h1`
+   * i zdanie wstępu redagowane w studiu). Domyślne `true` zachowuje zachowanie
+   * w każdym innym miejscu.
+   */
+  heading?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -75,13 +83,18 @@ export function EventDiscussionsList({
       : pickLocalized({ name_pl: data.club.namePl, name_en: data.club.nameEn }, "name", lang);
 
   return (
-    <section className="space-y-4" aria-labelledby="event-discussions-heading">
-      <header className="space-y-1">
-        <h2 id="event-discussions-heading" className="text-base font-semibold text-foreground">
-          {t("eventFront.discussions.heading")}
-        </h2>
-        <p className="text-sm text-muted-foreground">{t("eventFront.discussions.subtitle")}</p>
-      </header>
+    <section
+      className="space-y-4"
+      aria-labelledby={heading ? "event-discussions-heading" : undefined}
+    >
+      {heading && (
+        <header className="space-y-1">
+          <h2 id="event-discussions-heading" className="text-base font-semibold text-foreground">
+            {t("eventFront.discussions.heading")}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t("eventFront.discussions.subtitle")}</p>
+        </header>
+      )}
 
       {discussions.isLoading ? (
         <div className="space-y-2" aria-busy="true">

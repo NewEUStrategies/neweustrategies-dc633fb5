@@ -14,16 +14,16 @@
 // paska nawigacji. Dorobienie tu trzeciej wartości trybu znaczyłoby, że
 // przełącznik w panelu przestaje rozstrzygać jedno pytanie.
 //
-// ŹRÓDŁO I ŚCIEŻKA DZIAŁAJĄ JAK W `EventMenuNav` - jeden hook, jedna reguła:
+// ŹRÓDŁO I ADRES DZIAŁAJĄ JAK W `EventMenuNav` - jeden hook, jedna reguła:
 // `useEventMenu` oddaje pozycje JUŻ przefiltrowane po grupach zapisu wołającego
 // (filtr w kliencie znaczyłby, że pełna lista podstron jedzie do każdego
-// gościa), a `path` jest CAŁĄ ścieżką strony, więc odnośnik idzie do trasy
-// splat `/$` - nie `href`, bo przejście ma zostać w routerze.
+// gościa), a o adres pyta się `EventPageLink` - pozycja modułowa idzie do trasy
+// dedykowanej `/events/<slug>/<module>`, zwykła pod ścieżkę strony w trasie
+// splat. Ten warunek stoi w jednym atomie dla wszystkich trzech spisów.
 //
 // KOMPONENT NIE ZAKŁADA ZALOGOWANEGO. `useEventMenu` woła RPC z GRANT-em dla
 // `anon`, a hook trzyma gościa pod własną tożsamością w kluczu cache - tutaj
 // nie ma i nie może być ani jednego odwołania do sesji.
-import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -33,6 +33,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { pickTextColor, THEME_TEXT } from "@/lib/post/badgeContrast";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
+import { EventPageLink } from "@/components/events/public/atoms/EventPageLink";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { EventMenuItem } from "@/lib/events/publicEventApi";
 
@@ -72,6 +73,7 @@ export function EventHomeSectionLinks({
           <li key={item.id}>
             <SectionLinkRow
               item={item}
+              eventSlug={slug}
               label={pickLocalized(
                 { label_pl: item.labelPl, label_en: item.labelEn },
                 "label",
@@ -86,7 +88,15 @@ export function EventHomeSectionLinks({
   );
 }
 
-function SectionLinkRow({ item, label }: { item: EventMenuItem; label: string }) {
+function SectionLinkRow({
+  item,
+  eventSlug,
+  label,
+}: {
+  item: EventMenuItem;
+  eventSlug: string;
+  label: string;
+}) {
   // KONTRAST LICZY REGUŁA, NIE OKO REDAKTORA. `color` przychodzi z panelu jako
   // dowolny `#RRGGBB`, więc ikona w stałej bieli gaśnie na żółtym, a w stałej
   // czerni na granacie. `pickTextColor` to czysta reguła luminancji (wagi sRGB
@@ -102,9 +112,9 @@ function SectionLinkRow({ item, label }: { item: EventMenuItem; label: string })
   const measurable = ink !== THEME_TEXT;
 
   return (
-    <Link
-      to="/$"
-      params={{ _splat: item.path }}
+    <EventPageLink
+      item={item}
+      eventSlug={eventSlug}
       className="group flex items-center gap-4 rounded-[6px] px-2 py-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {/* Krążek stoi w KAŻDYM wierszu, także bez ikony: kolumna etykiet ma
@@ -126,6 +136,6 @@ function SectionLinkRow({ item, label }: { item: EventMenuItem; label: string })
         aria-hidden="true"
         className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
       />
-    </Link>
+    </EventPageLink>
   );
 }

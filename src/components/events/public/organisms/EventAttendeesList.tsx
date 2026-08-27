@@ -61,7 +61,25 @@ ensureEventFrontI18n();
 // do jednego zapytania.
 const PAGE_SIZE = 24;
 
-export function EventAttendeesList({ slug, enabled = true }: { slug: string; enabled?: boolean }) {
+export function EventAttendeesList({
+  slug,
+  enabled = true,
+  heading = true,
+}: {
+  slug: string;
+  enabled?: boolean;
+  /**
+   * `false` = nagłówek i podtytuł rysuje ktoś nad nami.
+   *
+   * PO CO TO ISTNIEJE. Na trasie zakładki `/events/<slug>/participants` nad tą
+   * listą stoi DOKUMENT STRONY CMS z własnym `h1` („Uczestnicy”) i zdaniem
+   * wstępu redagowanym w studiu. Własny nagłówek dałby wtedy „Uczestnicy” dwa
+   * razy pod sobą. Domyślne `true` zachowuje zachowanie wszędzie indziej -
+   * tam, gdzie ta lista stoi sama, nagłówek jest jej jedynym punktem
+   * orientacyjnym dla czytnika ekranu.
+   */
+  heading?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const { user } = useAuth();
@@ -85,17 +103,25 @@ export function EventAttendeesList({ slug, enabled = true }: { slug: string; ena
   const data = attendees.data ?? EMPTY_ATTENDEE_DIRECTORY;
 
   return (
-    <section className="space-y-4" aria-labelledby="event-attendees-heading">
-      <header className="space-y-1">
-        {/* NAGŁÓWEK JEST TUTAJ, inaczej niż w `EventSpeakersGrid`: tam siatka
-            jest sekcją POD nagłówkiem z bazy, a to jest cała treść podstrony
-            „Uczestnicy” - bez własnego nagłówka nie miałaby punktu
-            orientacyjnego dla czytnika ekranu. */}
-        <h2 id="event-attendees-heading" className="text-base font-semibold text-foreground">
-          {t("eventFront.attendees.heading")}
-        </h2>
-        <p className="text-sm text-muted-foreground">{t("eventFront.attendees.subtitle")}</p>
-      </header>
+    // Bez własnego nagłówka sekcja NIE dostaje `aria-labelledby` wskazującego
+    // na nieistniejący węzeł - zostaje zwykłym blokiem pod nagłówkiem, który
+    // narysował ktoś nad nią.
+    <section
+      className="space-y-4"
+      aria-labelledby={heading ? "event-attendees-heading" : undefined}
+    >
+      {heading && (
+        <header className="space-y-1">
+          {/* NAGŁÓWEK JEST TUTAJ, inaczej niż w `EventSpeakersGrid`: tam siatka
+              jest sekcją POD nagłówkiem z bazy, a to jest cała treść podstrony
+              „Uczestnicy” - bez własnego nagłówka nie miałaby punktu
+              orientacyjnego dla czytnika ekranu. */}
+          <h2 id="event-attendees-heading" className="text-base font-semibold text-foreground">
+            {t("eventFront.attendees.heading")}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t("eventFront.attendees.subtitle")}</p>
+        </header>
+      )}
 
       {!signedIn ? (
         <NoticeCard

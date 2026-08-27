@@ -21,7 +21,7 @@
 // (nieuzywany wpis czerwieni test tak samo jak brakujacy komponent).
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -64,21 +64,87 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 
-const PUBLIC_ROUTE = "src/routes/events.$slug.tsx";
+const ROUTES_DIR = "src/routes";
 const PREVIEW_CANVAS = "src/components/admin/events/studio/EventPreviewCanvas.tsx";
+
+/**
+ * CALA RODZINA TRAS PUBLICZNEJ STRONY WYDARZENIA, nie jeden plik.
+ *
+ * Strona wydarzenia przestala byc lisciem: `events.$slug.tsx` jest powloka
+ * z `<Outlet />`, przeglad zjechal do `events.$slug.index.tsx`, a piec zakladek
+ * modulowych (uczestnicy, prelegenci, partnerzy, agenda, dyskusje) to osobne
+ * trasy-dzieci. Gdyby bramka czytala dalej sam plik powloki, wystarczyloby
+ * zamontowac nowa powierzchnie w KTOREJKOLWIEK zakladce, zeby przestala byc
+ * przez nia widziana - czyli dokladnie ten defekt, przed ktorym ta bramka stoi.
+ *
+ * Rodzina jest LICZONA Z KATALOGU, a nie wypisana: szosta zakladka dopisana
+ * jutro wchodzi do bramki sama, bez pamietania o tej liscie. `$slug_` z
+ * podkreslnikiem (zapis, samoobsluga) NIE nalezy do rodziny - te trasy sa
+ * dziecmi `/events`, a nie zakladkami wydarzenia, i maja wlasne powierzchnie.
+ */
+function publicRouteFamily(): string[] {
+  const files = readdirSync(ROUTES_DIR)
+    .filter((name) => /^events\.\$slug(\.[a-z0-9-]+)?\.tsx$/.test(name))
+    .map((name) => `${ROUTES_DIR}/${name}`)
+    .sort();
+  return files;
+}
 
 /**
  * Powierzchnie publiczne, ktorych podglad SWIADOMIE nie montuje, z powodem.
  *
- * Powod nie jest ozdoba: to on rozstrzyga, czy nowy wpis wolno tu dodac.
- * „Nie zdazylem” nie jest powodem - jesli komponent przyjmuje zwykle propsy,
- * podglad ma go zamontowac.
+ * DWA POWODY SA PRAWDZIWE I OBA SA MECHANICZNE - reszta to wymowki.
+ *
+ *  (1) PUBLICZNE RPC SA BRAMKOWANE STATUSEM WYDARZENIA, nie brakiem
+ *      identyfikatora. `event_menu`, `event_agenda`, `event_sponsors_public`,
+ *      `event_attendees`, `event_discussions` i `get_public_speakers` maja
+ *      w ciele `AND e.status = 'published'`. Studio otwiera sie na ISTNIEJACYM
+ *      wierszu, wiec podglad ma PRAWDZIWY slug i prawdziwe id
+ *      (`EventStudioShell`: `slug: row.slug ?? ""`) - a mimo to wydarzenie
+ *      w statusie `draft` oddaje tym powierzchniom pustke. Harness tego
+ *      repozytorium wykonuje oba dowody:
+ *      `40_speakers.sql` - 'front: SZKIC oddaje zero kart, mimo wpisanego
+ *      prelegenta'; `95_attendees_and_discussions.sql` - 'szkic wydarzenia nie
+ *      ma listy uczestnikow'.
+ *
+ *  (2) DLA WYDARZENIA OPUBLIKOWANEGO PODGLAD POKAZUJE STAN NIEZAPISANY
+ *      (nakladka szkicu ekranu na `base` ze stanu zapisanego), a te komponenty
+ *      czytaja WYLACZNIE baze. Zamontowane, zmieszalyby niezapisana edycje
+ *      z zapisanymi danymi i pokazalyby redaktorowi uklad, ktorego po zapisie
+ *      nie zobaczy.
+ *
+ * WCZESNIEJSZA WERSJA TEJ LISTY MOWILA 'szkic nie ma jeszcze sciezki / slugu /
+ * identyfikatora'. To bylo NIEPRAWDA i warto wiedziec, dlaczego: opisywalo
+ * kreator nieutworzonego wydarzenia (`EMPTY_EVENT_PREVIEW`), a bramka stoi nad
+ * studiem, ktore zawsze ma wiersz.
+ *
+ * Kazdy wpis nazywa SWOJ powod. Jesli dla nowej powierzchni zadne z powyzszych
+ * nie pasuje, to znaczy, ze podglad powinien ja zamontowac - a nie ze trzeba
+ * dopisac dziesiaty wyjatek.
  */
 const COMPONENT_EXCEPTIONS: Record<string, string> = {
   EventMenuNav:
-    "wola menu z bazy (useEventMenu); pozycje szkicu nie maja jeszcze sciezki, z ktorej sklada sie odnosnik",
+    "NAWIGACJA, nie tresc: kazda pozycja to <Link> do `/$` albo do `/events/<slug>/<module>`, wiec klikniecie w podgladzie wyprowadziloby redaktora ze studia. Do tego `event_menu` ma `AND e.status = 'published'`, wiec na szkicu spis i tak bylby pusty",
   EventBookmarkButton: "akcja konta - useAuth i mutacja zakladki, a nie tresc strony",
   SectionLockCard: "zamki liczy baza dla wolajacego; redaktor widzi wlasne wydarzenie w calosci",
+  EventTabsNav:
+    "pasek zakladek jest NAWIGACJA POWLOKI: kazda pozycja prowadzi na `/events/<slug>/...`, czyli poza panel. Zrodlem jest `event_menu` z `AND e.status = 'published'` - na szkicu pasek nie mialby ani jednej pozycji",
+  EventHomeSectionLinks:
+    "ten sam `event_menu` i ta sama rola: spis jest zestawem odnosnikow wyprowadzajacych ze studia, a na szkicu wraca pusty",
+  EventSponsorTiers:
+    "`event_sponsors_public` odmawia szkicowi (`AND e.status = 'published'`), a wydarzeniu opublikowanemu oddaje ZAPISANE przypiecia - podglad pokazuje stan niezapisany, wiec pas logotypow klamalby o tym, co redaktor wlasnie zmienia",
+  EventModulePage:
+    "powierzchnia ZAKLADKI, a nie strony glownej - podglad rysuje strone glowna wydarzenia, a nie trasy `/events/<slug>/<module>`. Dodatkowo sklada dokument strony CMS przez publiczny rezolwer sciezek, ktory wymaga strony i lancucha rodzicow w statusie `published`",
+  EventAttendeesList:
+    "`event_attendees` wymaga, zeby WOLAJACY byl zapisany na to wydarzenie - organizator ogladajacy wlasne studio zwykle nie jest uczestnikiem, wiec podglad pokazalby karte 'zapisz sie', a nie liste. Na szkicu RPC odmawia wprost (harness: `not_found`)",
+  EventSpeakersGrid:
+    "`get_public_speakers` ma `AND e.status = 'published'` - harness dowodzi, ze SZKIC oddaje zero kart mimo wpisanego prelegenta, wiec podglad szkicu pokazalby pusta siatke zamiast osob, ktore redaktor widzi w Tresci wydarzenia",
+  EventSponsorsSection:
+    "ten sam `event_sponsors_public`, co pas poziomow: pustka na szkicu, zapisane przypiecia na wydarzeniu opublikowanym - w obu wypadkach co innego niz stan, ktory redaktor ma przed soba",
+  EventAgendaSection:
+    "poza bramka statusu (`event_agenda`) niesie ZAPIS NA SESJE (`event_session_signup`) - zywy przycisk zapisu w podgladzie panelu pozwolilby organizatorowi zapisac sie na sesje z ekranu, ktory mial tylko pokazywac",
+  EventDiscussionsList:
+    "`event_discussions` liczy dostep przez `club_capabilities` grupy klubu PRZYPIETEJ do wydarzenia, a ekran studia do wyboru klubu jest odlozony - dzis ten komponent nie ma w podgladzie zadnego stanu poza `not_configured`",
 };
 
 /**
@@ -89,15 +155,19 @@ const COMPONENT_EXCEPTIONS: Record<string, string> = {
 const SECTION_EXCEPTIONS: Record<string, string> = {
   description: "trasa rysuje opis wlasnym blokiem `prose`, poza `EventPageSections`",
   registration: "trasa rysuje zapisy wlasna powierzchnia, poza `EventPageSections`",
-  speakers: "wlasne zapytanie (get_public_speakers) i wlasny naglowek na trasie",
-  agenda: "wlasne zapytanie po slugu; program nie jest czescia szkicu formularza",
-  sponsors: "wlasne zapytanie po slugu; partnerzy nie sa czescia szkicu formularza",
-  materials: "wlasne zapytanie po slugu; materialy nie sa czescia szkicu formularza",
+  speakers:
+    "wlasny naglowek na trasie oraz `get_public_speakers` z `AND e.status = 'published'` - szkic oddaje zero kart (harness `40_speakers.sql`)",
+  agenda:
+    "`event_agenda` odmawia szkicowi (`AND e.status = 'published'`), a na wydarzeniu opublikowanym sekcja nioslaby zywy zapis na sesje z ekranu panelu",
+  sponsors:
+    "`event_sponsors_public` odmawia szkicowi (`AND e.status = 'published'`), a opublikowanemu oddaje ZAPISANE przypiecia - podglad pokazuje stan niezapisany",
+  materials:
+    "`event_sponsor_materials_public` stoi na tej samej bramce statusu, co partnerzy - materialy przypina sie do przypiec partnerow, ktorych szkic nie ma",
 };
 
-/** Nazwy importowane z `components/events/public/` w danym pliku zrodlowym. */
-function publicImports(path: string): Set<string> {
-  const source = readFileSync(path, "utf8");
+/** Nazwy importowane z `components/events/public/` w podanych plikach zrodlowych. */
+function publicImports(...paths: string[]): Set<string> {
+  const source = paths.map((path) => readFileSync(path, "utf8")).join("\n");
   const pattern = /import\s*\{([^}]*)\}\s*from\s*"(@\/components\/events\/public\/[^"]+)"/g;
   const names = new Set<string>();
   for (const match of source.matchAll(pattern)) {
@@ -122,8 +192,19 @@ describe("podglad studia kontra strona publiczna", () => {
     expect([...preview].sort()).not.toEqual([]);
   });
 
+  it("czyta CALA rodzine tras wydarzenia, a nie jeden plik", () => {
+    const family = publicRouteFamily();
+    // Powloka + przeglad + piec zakladek modulowych. Mniej znaczy, ze regexp
+    // rodziny przestal je lapac i bramka mierzy pustke.
+    expect(family).toContain("src/routes/events.$slug.tsx");
+    expect(family).toContain("src/routes/events.$slug.index.tsx");
+    expect(family.length).toBeGreaterThanOrEqual(7);
+    // Trasy z podkreslnikiem nie sa zakladkami wydarzenia - nie moga tu wejsc.
+    expect(family.some((file) => file.includes("$slug_"))).toBe(false);
+  });
+
   it("nie omija zadnej powierzchni strony publicznej bez jawnego wyjatku", () => {
-    const route = publicImports(PUBLIC_ROUTE);
+    const route = publicImports(...publicRouteFamily());
     const preview = publicImports(PREVIEW_CANVAS);
     expect(route.size).toBeGreaterThan(0);
 
@@ -134,7 +215,7 @@ describe("podglad studia kontra strona publiczna", () => {
   });
 
   it("nie trzyma wyjatku na powierzchnie, ktorej strona publiczna juz nie rysuje", () => {
-    const route = publicImports(PUBLIC_ROUTE);
+    const route = publicImports(...publicRouteFamily());
     const stale = Object.keys(COMPONENT_EXCEPTIONS).filter((name) => !route.has(name));
     expect(stale).toEqual([]);
   });

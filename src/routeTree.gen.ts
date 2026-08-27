@@ -291,6 +291,12 @@ import { Route as ClubClubSlugScheduleRouteImport } from './routes/club.$clubSlu
 import { Route as ClubClubSlugSpotlightRouteImport } from './routes/club.$clubSlug.spotlight'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
 import { Route as ClubSpecializationSlugRouteImport } from './routes/club.specialization.$slug'
+import { Route as EventsSlugIndexRouteImport } from './routes/events.$slug.index'
+import { Route as EventsSlugAgendaRouteImport } from './routes/events.$slug.agenda'
+import { Route as EventsSlugDiscussionsRouteImport } from './routes/events.$slug.discussions'
+import { Route as EventsSlugParticipantsRouteImport } from './routes/events.$slug.participants'
+import { Route as EventsSlugPartnersRouteImport } from './routes/events.$slug.partners'
+import { Route as EventsSlugSpeakersRouteImport } from './routes/events.$slug.speakers'
 import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.manage'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -1796,6 +1802,36 @@ const ClubSpecializationSlugRoute = ClubSpecializationSlugRouteImport.update({
   path: '/specialization/$slug',
   getParentRoute: () => ClubRoute,
 } as any)
+const EventsSlugIndexRoute = EventsSlugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugAgendaRoute = EventsSlugAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugDiscussionsRoute = EventsSlugDiscussionsRouteImport.update({
+  id: '/discussions',
+  path: '/discussions',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugParticipantsRoute = EventsSlugParticipantsRouteImport.update({
+  id: '/participants',
+  path: '/participants',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugPartnersRoute = EventsSlugPartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugSpeakersRoute = EventsSlugSpeakersRouteImport.update({
+  id: '/speakers',
+  path: '/speakers',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
 const EventsSlugManageRoute = EventsSlugManageRouteImport.update({
   id: '/$slug_/manage',
   path: '/$slug/manage',
@@ -2329,7 +2365,7 @@ export interface FileRoutesByFullPath {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
-  '/events/$slug': typeof EventsSlugRoute
+  '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
@@ -2474,6 +2510,11 @@ export interface FileRoutesByFullPath {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/agenda': typeof EventsSlugAgendaRoute
+  '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
+  '/events/$slug/participants': typeof EventsSlugParticipantsRoute
+  '/events/$slug/partners': typeof EventsSlugPartnersRoute
+  '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2492,6 +2533,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
+  '/events/$slug/': typeof EventsSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/community/clubs/applications': typeof AdminCommunityClubsApplicationsRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
@@ -2671,7 +2713,6 @@ export interface FileRoutesByTo {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
-  '/events/$slug': typeof EventsSlugRoute
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
@@ -2814,6 +2855,11 @@ export interface FileRoutesByTo {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/agenda': typeof EventsSlugAgendaRoute
+  '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
+  '/events/$slug/participants': typeof EventsSlugParticipantsRoute
+  '/events/$slug/partners': typeof EventsSlugPartnersRoute
+  '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2832,6 +2878,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/club/$clubSlug': typeof ClubClubSlugIndexRoute
+  '/events/$slug': typeof EventsSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/community/clubs/applications': typeof AdminCommunityClubsApplicationsRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
@@ -3024,7 +3071,7 @@ export interface FileRoutesById {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
-  '/events/$slug': typeof EventsSlugRoute
+  '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
@@ -3169,6 +3216,11 @@ export interface FileRoutesById {
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
+  '/events/$slug/agenda': typeof EventsSlugAgendaRoute
+  '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
+  '/events/$slug/participants': typeof EventsSlugParticipantsRoute
+  '/events/$slug/partners': typeof EventsSlugPartnersRoute
+  '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug_/manage': typeof EventsSlugManageRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3187,6 +3239,7 @@ export interface FileRoutesById {
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
+  '/events/$slug/': typeof EventsSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/community/clubs/applications': typeof AdminCommunityClubsApplicationsRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
@@ -3525,6 +3578,11 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/agenda'
+    | '/events/$slug/discussions'
+    | '/events/$slug/participants'
+    | '/events/$slug/partners'
+    | '/events/$slug/speakers'
     | '/events/$slug/manage'
     | '/events/$slug/register'
     | '/lovable/email/suppression'
@@ -3543,6 +3601,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/users/'
     | '/club/$clubSlug/'
+    | '/events/$slug/'
     | '/admin/community/clubs/$clubId'
     | '/admin/community/clubs/applications'
     | '/admin/community/clubs/elements'
@@ -3722,7 +3781,6 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
-    | '/events/$slug'
     | '/events/saved'
     | '/live/rss.xml'
     | '/meetings/$eventSlug'
@@ -3865,6 +3923,11 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/agenda'
+    | '/events/$slug/discussions'
+    | '/events/$slug/participants'
+    | '/events/$slug/partners'
+    | '/events/$slug/speakers'
     | '/events/$slug/manage'
     | '/events/$slug/register'
     | '/lovable/email/suppression'
@@ -3883,6 +3946,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/club/$clubSlug'
+    | '/events/$slug'
     | '/admin/community/clubs/$clubId'
     | '/admin/community/clubs/applications'
     | '/admin/community/clubs/elements'
@@ -4219,6 +4283,11 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
     | '/club/specialization/$slug'
+    | '/events/$slug/agenda'
+    | '/events/$slug/discussions'
+    | '/events/$slug/participants'
+    | '/events/$slug/partners'
+    | '/events/$slug/speakers'
     | '/events/$slug_/manage'
     | '/events/$slug_/register'
     | '/lovable/email/suppression'
@@ -4237,6 +4306,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/users/'
     | '/club/$clubSlug/'
+    | '/events/$slug/'
     | '/admin/community/clubs/$clubId'
     | '/admin/community/clubs/applications'
     | '/admin/community/clubs/elements'
@@ -6391,6 +6461,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubSpecializationSlugRouteImport
       parentRoute: typeof ClubRoute
     }
+    '/events/$slug/': {
+      id: '/events/$slug/'
+      path: '/'
+      fullPath: '/events/$slug/'
+      preLoaderRoute: typeof EventsSlugIndexRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/agenda': {
+      id: '/events/$slug/agenda'
+      path: '/agenda'
+      fullPath: '/events/$slug/agenda'
+      preLoaderRoute: typeof EventsSlugAgendaRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/discussions': {
+      id: '/events/$slug/discussions'
+      path: '/discussions'
+      fullPath: '/events/$slug/discussions'
+      preLoaderRoute: typeof EventsSlugDiscussionsRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/participants': {
+      id: '/events/$slug/participants'
+      path: '/participants'
+      fullPath: '/events/$slug/participants'
+      preLoaderRoute: typeof EventsSlugParticipantsRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/partners': {
+      id: '/events/$slug/partners'
+      path: '/partners'
+      fullPath: '/events/$slug/partners'
+      preLoaderRoute: typeof EventsSlugPartnersRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/speakers': {
+      id: '/events/$slug/speakers'
+      path: '/speakers'
+      fullPath: '/events/$slug/speakers'
+      preLoaderRoute: typeof EventsSlugSpeakersRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
     '/events/$slug_/manage': {
       id: '/events/$slug_/manage'
       path: '/$slug/manage'
@@ -7487,8 +7599,30 @@ const ClubRouteChildren: ClubRouteChildren = {
 
 const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
 
+interface EventsSlugRouteChildren {
+  EventsSlugAgendaRoute: typeof EventsSlugAgendaRoute
+  EventsSlugDiscussionsRoute: typeof EventsSlugDiscussionsRoute
+  EventsSlugParticipantsRoute: typeof EventsSlugParticipantsRoute
+  EventsSlugPartnersRoute: typeof EventsSlugPartnersRoute
+  EventsSlugSpeakersRoute: typeof EventsSlugSpeakersRoute
+  EventsSlugIndexRoute: typeof EventsSlugIndexRoute
+}
+
+const EventsSlugRouteChildren: EventsSlugRouteChildren = {
+  EventsSlugAgendaRoute: EventsSlugAgendaRoute,
+  EventsSlugDiscussionsRoute: EventsSlugDiscussionsRoute,
+  EventsSlugParticipantsRoute: EventsSlugParticipantsRoute,
+  EventsSlugPartnersRoute: EventsSlugPartnersRoute,
+  EventsSlugSpeakersRoute: EventsSlugSpeakersRoute,
+  EventsSlugIndexRoute: EventsSlugIndexRoute,
+}
+
+const EventsSlugRouteWithChildren = EventsSlugRoute._addFileChildren(
+  EventsSlugRouteChildren,
+)
+
 interface EventsRouteChildren {
-  EventsSlugRoute: typeof EventsSlugRoute
+  EventsSlugRoute: typeof EventsSlugRouteWithChildren
   EventsSavedRoute: typeof EventsSavedRoute
   EventsIndexRoute: typeof EventsIndexRoute
   EventsSlugManageRoute: typeof EventsSlugManageRoute
@@ -7496,7 +7630,7 @@ interface EventsRouteChildren {
 }
 
 const EventsRouteChildren: EventsRouteChildren = {
-  EventsSlugRoute: EventsSlugRoute,
+  EventsSlugRoute: EventsSlugRouteWithChildren,
   EventsSavedRoute: EventsSavedRoute,
   EventsIndexRoute: EventsIndexRoute,
   EventsSlugManageRoute: EventsSlugManageRoute,

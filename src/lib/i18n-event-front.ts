@@ -136,12 +136,39 @@ export const eventFrontPl = {
       recordingForMembers: "Nagranie jest dostępne dla członków z uprawnieniem do nagrań.",
       priceFree: "Wstęp bezpłatny",
       priceLabel: "Bilet",
+      // -------------------------------------------------------------------
+      // ZAKŁADKI POWŁOKI WYDARZENIA (`/events/<slug>/…`).
+      //
+      // TE KLUCZE SĄ ZAPASOWE, NIE GŁÓWNE. Napis na zakładce niesie baza:
+      // własna nazwa pozycji z panelu (`event_pages.menu_label_*`), a po niej
+      // tytuł strony. Słownik wchodzi dopiero wtedy, gdy z bazy nie przyszło
+      // ani jedno słowo - i tylko dla pozycji modułowej, bo tylko dla niej
+      // wiadomo, o którą z pięciu chodzi.
+      //
+      // DLACZEGO `partners`, A NIE `sponsors`. Baza ma na to pojęcie DWIE
+      // nazwy i obie są prawdziwe w swoim zbiorze: `event_sections.key` mówi
+      // `sponsors` (sekcja na stronie głównej, klucz z `_event_default_sections()`),
+      // a `event_pages.module` mówi `partners` (podstrona modułowa, klucz
+      // z `_event_default_pages()`). Ten słownik nazywa ZAKŁADKI, zakładka jest
+      // pozycją modułową, a segment jej trasy JEST wartością `module` - więc
+      // idzie za `partners`. Nagłówek sekcji na stronie głównej ma osobny klucz
+      // `eventFront.sections.sponsors.heading` i to nie jest dublet: tamten
+      // nazywa sekcję, ten nazywa zakładkę, i każdy trzyma się słownika swojej
+      // tabeli.
+      //
+      // `materials` WYPADŁO, bo nie ma modułu `materials` i nie ma trasy
+      // `/events/<slug>/materials`. Materiały są sekcją strony głównej
+      // (`event_sections`) i nazywa je `eventFront.sections.materials.heading`.
+      // Klucz zakładki bez zakładki obiecywałby szóstą pozycję w pasku.
+      // -------------------------------------------------------------------
+      tabsLabel: "Zakładki wydarzenia",
       tabs: {
-        overview: "Wydarzenie",
-        agenda: "Program",
+        overview: "Strona główna",
+        participants: "Uczestnicy",
         speakers: "Prelegenci",
-        sponsors: "Partnerzy",
-        materials: "Materiały",
+        partners: "Partnerzy",
+        agenda: "Program",
+        discussions: "Dyskusje",
       },
     },
 
@@ -719,12 +746,18 @@ export const eventFrontEn = {
       recordingForMembers: "The recording is available to members entitled to recordings.",
       priceFree: "Free entry",
       priceLabel: "Ticket",
+      // Fallback labels for the event shell tabs; the database label wins.
+      // The key set follows the `event_pages.module` vocabulary (which is also
+      // the route segment), hence `partners` and not `sponsors` - see the
+      // Polish side for the full reasoning.
+      tabsLabel: "Event tabs",
       tabs: {
-        overview: "Event",
-        agenda: "Programme",
+        overview: "Event home",
+        participants: "Attendees",
         speakers: "Speakers",
-        sponsors: "Partners",
-        materials: "Materials",
+        partners: "Partners",
+        agenda: "Programme",
+        discussions: "Discussions",
       },
     },
 
