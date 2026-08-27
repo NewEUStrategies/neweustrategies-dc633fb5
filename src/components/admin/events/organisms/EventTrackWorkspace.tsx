@@ -12,7 +12,7 @@
 // OBSADA JEST WYLICZANA, NIE WPISYWANA. Prelegent należy do SESJI; pasmo
 // pokazuje sumę tych przypisań (`admin_event_track_speakers`). Osobna lista
 // prelegentów ścieżki rozjeżdżałaby się z agendą po pierwszej zmianie obsady.
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -39,7 +39,6 @@ import {
 } from "@/components/admin/events/molecules/TrackSessionsLinkDialog";
 import { adminAgendaErrorMessage } from "@/lib/events/adminAgendaErrors";
 import {
-  useEventSessions,
   useEventTrackSpeakers,
   useSaveEventTrack,
   useSetSessionsTrack,
@@ -80,13 +79,6 @@ export function EventTrackWorkspace({
   const save = useSaveEventTrack(eventId);
   const setTrack = useSetSessionsTrack(eventId);
   const speakersQ = useEventTrackSpeakers(track.id);
-  const sessionsQ = useEventSessions({
-    eventId,
-    q: "",
-    trackId: track.id,
-    roomId: null,
-    status: "all",
-  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -98,14 +90,6 @@ export function EventTrackWorkspace({
   const description = isEn
     ? track.description_en || track.description_pl
     : track.description_pl || track.description_en;
-
-  const sessions = useMemo(
-    () =>
-      [...(sessionsQ.data ?? [])].sort((a, b) =>
-        String(a.starts_at).localeCompare(String(b.starts_at)),
-      ),
-    [sessionsQ.data],
-  );
 
   const fail = (error: unknown) => toast.error(adminAgendaErrorMessage(error));
 
