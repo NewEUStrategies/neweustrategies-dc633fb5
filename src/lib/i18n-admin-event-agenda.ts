@@ -58,6 +58,20 @@ export const adminEventAgendaPl = {
       overbooked: "Zapisy ponad limit miejsc",
     },
 
+    structure: {
+      title: "Jak zbudowany jest program",
+      lead: "Ścieżka to kolumna programu (temat, nurt), sesja to kafel w tej kolumnie - punkt z godziną i salą. Uczestnik zapisuje się na sesję, a ścieżką filtruje agendę.",
+      sessionTerm: "Sesja",
+      sessionDetail: "Jeden punkt programu: tytuł, godziny, sala, prelegenci, zapisy.",
+      trackTerm: "Ścieżka",
+      trackDetail: "Etykieta tematyczna grupująca sesje. Nie ma godzin ani sali - nadaje kolor i filtr.",
+      roomTerm: "Sala",
+      roomDetail: "Miejsce, w którym odbywa się sesja. Po sali liczone są kolizje terminów.",
+      noTrackColumn: "Bez ścieżki",
+      moreSessions: "+{{count}} więcej",
+      emptyDiagram: "Dodaj pierwszą ścieżkę lub sesję, aby zobaczyć strukturę programu.",
+    },
+
     sessions: {
       title: "Sesje",
       subtitle:
@@ -138,6 +152,16 @@ export const adminEventAgendaPl = {
       loading: "Wczytywanie ścieżek…",
       empty: "Wydarzenie nie ma ścieżek - program jest jednym pasmem.",
       addAction: "Dodaj ścieżkę",
+      linkAction: "Powiąż sesje",
+      link: {
+        title: "Powiąż sesje ze ścieżką",
+        description:
+          "Zaznacz sesje, które mają należeć do ścieżki „{{track}}”. Sesja ma dokładnie jedną ścieżkę - zaznaczenie zdejmuje ją z poprzedniej.",
+        movesFrom: "Teraz: {{track}}",
+        summary: "Do przypięcia: {{attach}} · do odpięcia: {{detach}}",
+        saved: "Powiązano sesje: {{count}}",
+        nothing: "Nic się nie zmieniło",
+      },
       sessionsCount: "Sesje: {{count}}",
       deleteConfirm:
         "Usunąć ścieżkę? Operacja zadziała tylko wtedy, gdy żadna sesja jej nie używa.",
@@ -329,6 +353,20 @@ export const adminEventAgendaEn = {
       overbooked: "Signups above the seat limit",
     },
 
+    structure: {
+      title: "How the programme is built",
+      lead: "A track is a column of the programme (a theme or strand), a session is a tile in that column - a slot with a time and a room. Attendees sign up for sessions and filter the agenda by track.",
+      sessionTerm: "Session",
+      sessionDetail: "One programme item: title, times, room, speakers, signups.",
+      trackTerm: "Track",
+      trackDetail: "A thematic label grouping sessions. It has no time or room - it gives colour and a filter.",
+      roomTerm: "Room",
+      roomDetail: "The place where a session happens. Scheduling clashes are counted per room.",
+      noTrackColumn: "No track",
+      moreSessions: "+{{count}} more",
+      emptyDiagram: "Add the first track or session to see the structure of the programme.",
+    },
+
     sessions: {
       title: "Sessions",
       subtitle:
@@ -409,6 +447,16 @@ export const adminEventAgendaEn = {
       loading: "Loading tracks…",
       empty: "The event has no tracks - the programme is a single strand.",
       addAction: "Add a track",
+      linkAction: "Link sessions",
+      link: {
+        title: "Link sessions to the track",
+        description:
+          "Tick the sessions that belong to the \"{{track}}\" track. A session has exactly one track - ticking it here removes it from the previous one.",
+        movesFrom: "Now: {{track}}",
+        summary: "To attach: {{attach}} · to detach: {{detach}}",
+        saved: "Linked sessions: {{count}}",
+        nothing: "Nothing changed",
+      },
       sessionsCount: "Sessions: {{count}}",
       deleteConfirm: "Delete the track? This only works while no session uses it.",
       dialog: {
