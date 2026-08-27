@@ -42,6 +42,17 @@ export interface EventPreviewMenuItem {
  * glowna"), i podglad musi umiec powiedziec obie.
  */
 export interface EventPreviewPage {
+  /**
+   * Identyfikator POZYCJI MENU (`event_pages.id`), pod ktora ta strona jest
+   * przypieta - albo `null`, gdy wybrana strona w menu nie stoi.
+   *
+   * PO CO, ZAMIAST POROWNYWANIA ETYKIET. Etykieta jest redagowalna i NIE jest
+   * unikalna: dwie podstrony moga nazywac sie tak samo, a strona wybrana poza
+   * menu moze dzielic nazwe z pozycja menu. Porownanie napisow zaznaczaloby
+   * wtedy zla zakladke albo dwie naraz. `null` znaczy „zadna zakladka nie jest
+   * aktywna" i to jest poprawna odpowiedz dla strony nieprzypietej.
+   */
+  key: string | null;
   label: string;
   path: string;
   document: BuilderDocument | null;

@@ -197,30 +197,36 @@ export function EventPreviewCanvas({
         </span>
       }
       titleSlot={<span className="text-sm font-semibold text-foreground">{title}</span>}
+      // PUSTE MENU = ZERO PASKA, tak samo jak `EventTabsNav:60`. Wydarzenie bez
+      // ani jednej widocznej podstrony nie dostaje na stronie paska z jedna
+      // pozycja („Strona glowna" sama nie jest nawigacja), wiec podglad, ktory
+      // by go pokazal, obiecywalby chrome, ktorego po publikacji nie bedzie.
       tabsSlot={
-        <EventTabsBar label={t("eventFront.header.tabsLabel")}>
-          <li>
-            <span className={cn(EVENT_TAB_CLASS, page === null && EVENT_TAB_ACTIVE_CLASS)}>
-              {t("eventFront.header.tabs.overview")}
-            </span>
-          </li>
-          {model.menu.map((item) => (
-            <li key={item.key}>
-              {/* Pozycje aktywna poznajemy po ETYKIECIE, bo szkic nie niesie
-                  identyfikatora podstrony obok wybranej strony - oba napisy
-                  sklada ta sama funkcja (`eventPageLabel`) z tego samego
-                  wiersza, wiec porownanie jest rowne porownaniu identyfikatorow. */}
-              <span
-                className={cn(
-                  EVENT_TAB_CLASS,
-                  page !== null && page.label === item.label && EVENT_TAB_ACTIVE_CLASS,
-                )}
-              >
-                {item.label}
+        model.menu.length === 0 ? null : (
+          <EventTabsBar label={t("eventFront.header.tabsLabel")}>
+            <li>
+              <span className={cn(EVENT_TAB_CLASS, page === null && EVENT_TAB_ACTIVE_CLASS)}>
+                {t("eventFront.header.tabs.overview")}
               </span>
             </li>
-          ))}
-        </EventTabsBar>
+            {model.menu.map((item) => (
+              <li key={item.key}>
+                {/* Pozycje aktywna poznajemy po IDENTYFIKATORZE, nie po etykiecie.
+                  Etykieta jest redagowalna i nie jest unikalna, wiec dwie
+                  podstrony o tej samej nazwie zaznaczalyby sie obie - patrz
+                  `EventPreviewPage.key`. */}
+                <span
+                  className={cn(
+                    EVENT_TAB_CLASS,
+                    page !== null && page.key === item.key && EVENT_TAB_ACTIVE_CLASS,
+                  )}
+                >
+                  {item.label}
+                </span>
+              </li>
+            ))}
+          </EventTabsBar>
+        )
       }
     >
       {page === null ? (

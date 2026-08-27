@@ -345,6 +345,9 @@ function filledModel(): EventPreviewModel {
   };
 }
 
+/** Pasek zakladek - `EventTabsBar` nadaje `nav` te etykiete w obu miejscach. */
+const TABS_NAV = 'nav[aria-label="eventFront.header.tabsLabel"]';
+
 // ── 1. STRUKTURA: OBA MIEJSCA RYSUJA TE SAME KOMPONENTY UKLADU ─────────────
 
 describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
@@ -385,7 +388,7 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
       <EventPreviewCanvas
         model={{
           ...filledModel(),
-          selectedPage: { label: "Program", path: "kongres/program", document: null },
+          selectedPage: { key: null, label: "Program", path: "kongres/program", document: null },
         }}
         device="desktop"
       />,
@@ -402,6 +405,36 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
     // „Strona glowna” + pozycje ze szkicu.
     expect(tabs.querySelectorAll("li")).toHaveLength(2);
     expect(screen.getByText("eventFront.header.tabs.overview")).toBeInTheDocument();
+  });
+
+  // ── PARYTET WARUNKU, NIE TYLKO STRUKTURY ─────────────────────────────────
+  //
+  // PO CO OSOBNA ASERCJA. Reszta tego pliku pilnuje, ze oba miejsca rysuja TE
+  // SAME komponenty. To NIE WYSTARCZA: komponent moze byc ten sam, a warunek
+  // jego pokazania inny - i wtedy podglad obiecuje chrome, ktorego po publikacji
+  // nie bedzie. Dokladnie to przepuscila pierwsza wersja tej bramki: kanwa
+  // montowala `EventTabsBar` BEZWARUNKOWO, a `EventTabsNav:60` zwraca `null`
+  // przy pustym menu. Znalazl to bot recenzyjny, nie ta bramka.
+  it("puste menu: ANI strona, ANI podglad nie rysuja paska zakladek", async () => {
+    // Po stronie publicznej menu jedzie przez zaatrapowany `fetchEventMenu`,
+    // ktory w tym pliku nie zwraca nic - czyli `useEventMenu` daje `[]`, a
+    // `EventTabsNav:60` zwraca `null`. To jest stan odniesienia i asercja
+    // pilnuje, ze taki POZOSTANIE, gdyby ktos usunal tamta furtke.
+    const route = await renderRoute({
+      route: EventShellRoute,
+      path: "/events/$slug",
+      initialEntry: `/events/${EVENT_SLUG}`,
+    });
+    await waitFor(() => expect(route.container.querySelectorAll(SHELL)).toHaveLength(1));
+    expect(route.container.querySelector(TABS_NAV)).toBeNull();
+    cleanup();
+
+    // A tu sedno: kanwa z pustym menu tez nie moze pokazac paska.
+    const preview = render(
+      <EventPreviewCanvas model={{ ...filledModel(), menu: [] }} device="desktop" />,
+    );
+    expect(preview.container.querySelectorAll(SHELL)).toHaveLength(1);
+    expect(preview.container.querySelector(TABS_NAV)).toBeNull();
   });
 });
 
