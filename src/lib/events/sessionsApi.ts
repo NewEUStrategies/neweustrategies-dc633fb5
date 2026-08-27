@@ -324,6 +324,26 @@ export async function setSessionsStatus(input: SessionsStatusInput): Promise<num
   return Number(data ?? 0);
 }
 
+export interface SessionsTrackInput {
+  ids: readonly string[];
+  /** `null` odpina sesje od sciezki - to jest wlasciwa operacja, nie brak danych. */
+  trackId: string | null;
+}
+
+/** Wsadowe przypiecie sesji do sciezki. Zwraca liczbe zmienionych sesji. */
+export async function setSessionsTrack(input: SessionsTrackInput): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_event_sessions_set_track", {
+    p_payload: payload({
+      ids: [...input.ids],
+      track_id: input.trackId,
+    }),
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+
+
 // ---------------------------------------------------------------------------
 // PRELEGENCI SESJI
 // ---------------------------------------------------------------------------

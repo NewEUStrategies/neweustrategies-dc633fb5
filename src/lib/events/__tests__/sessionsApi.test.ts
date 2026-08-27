@@ -74,6 +74,7 @@ const KONTRAKT: Record<string, readonly string[]> = {
   ],
   admin_event_sessions_reorder: ["items"],
   admin_event_sessions_set_status: ["ids", "status"],
+  admin_event_sessions_set_track: ["ids", "track_id"],
   admin_event_session_speakers_set: ["session_id", "speakers"],
   admin_event_session_signup_set: ["force", "session_id", "status", "user_id"],
 };
@@ -126,6 +127,7 @@ describe("sessionsApi - kontrakt payloadów", () => {
     for (const name of Object.keys(KONTRAKT)) h.rpc.setData(name, ID);
     h.rpc.setData("admin_event_sessions_reorder", 4);
     h.rpc.setData("admin_event_sessions_set_status", 2);
+    h.rpc.setData("admin_event_sessions_set_track", 3);
     h.rpc.setData("admin_event_session_speakers_set", 3);
     h.rpc.setData("admin_event_session_signup_set", { status: "registered" });
     h.rpc.setData("admin_event_sessions_list", []);
@@ -221,6 +223,21 @@ describe("sessionsApi - kontrakt payloadów", () => {
     const p = payloadOf("admin_event_sessions_set_status");
     expect(p.ids).toEqual([ID]);
     expect(p.status).toBe("published");
+  });
+
+  it("wsadowe powiązanie ze ścieżką wysyła identyfikatory i ścieżkę", async () => {
+    const count = await api.setSessionsTrack({ ids: [ID, USER], trackId: EVENT });
+    expect(count).toBe(3);
+    const p = payloadOf("admin_event_sessions_set_track");
+    expect(p.ids).toEqual([ID, USER]);
+    expect(p.track_id).toBe(EVENT);
+  });
+
+  it("odpięcie sesji od ścieżki wysyła jawny null, a nie brak klucza", async () => {
+    await api.setSessionsTrack({ ids: [ID], trackId: null });
+    const p = payloadOf("admin_event_sessions_set_track");
+    expect("track_id" in p).toBe(true);
+    expect(p.track_id).toBeNull();
   });
 
   it("obsada jest podmieniana w całości, z rolą i zgodą na nachodzenie", async () => {
