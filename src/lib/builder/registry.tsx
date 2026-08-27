@@ -1324,6 +1324,11 @@ export const WIDGETS: WidgetDef[] = [
           name: "",
           role_pl: "",
           role_en: "",
+          // Organizacja BEZ blizniakow jezykowych - RPC `get_public_speakers`
+          // ma jedna kolumne `company`, a renderer czyta ten klucz tym samym
+          // `loc()`. Dwa pola na jedna afiliacje obiecywalyby rozroznienie,
+          // ktorego zrodlo „baza" nie ma.
+          organization: "",
           category_pl: "",
           category_en: "",
           gigs: 0,

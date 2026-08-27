@@ -61,11 +61,18 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 
+// `initReactI18next` MUSI byc w atrapie, choc zaden widget go nie wola wprost.
+// `EventScheduleView` importuje `SpeakerProfileDialog`, ten od commita `145ed72`
+// wspolna plakietke eksperta, a ta - nakladke `i18n-event-front`, ktora przy
+// zaladowaniu modulu robi `i18n.use(initReactI18next)`. Bez tej linii CALA suita
+// nie wstaje ("No initReactI18next export is defined on the react-i18next mock"),
+// czyli zielony przebieg oznaczalby zero uruchomionych testow.
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k,
     i18n: { language: "pl" },
   }),
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 vi.mock("@tanstack/react-router", async (orig) => {
@@ -416,6 +423,7 @@ describe("SpeakersWidget - data sources", () => {
               name: "Maria Test",
               role_pl: "Analityczka",
               role_en: "Analyst",
+              organization: "Fundacja Testowa",
               gigs: 3,
               rating: 0,
               reviews: 0,
@@ -427,7 +435,27 @@ describe("SpeakersWidget - data sources", () => {
     );
     expect(screen.getByText("Maria Test")).toBeInTheDocument();
     expect(screen.getByText(/Analityczka/)).toBeInTheDocument();
+    // ORGANIZACJA wpisu RECZNEGO idzie z pola edytora studia. Ten fakt stal
+    // wczesniej wylacznie na stronie wydarzenia (`company` z RPC), a model
+    // tresci widgetu nie mial dla niego kolumny w ogole.
+    expect(screen.getByText("Fundacja Testowa")).toBeInTheDocument();
     expect(rpcSpy).not.toHaveBeenCalledWith("get_public_speakers", expect.anything());
+  });
+
+  it("manual entry WITHOUT an organization renders no empty affiliation line", () => {
+    // Puste pole nie ma prawa zostawic wiersza bez tresci pod nazwiskiem -
+    // to wyglada jak brakujace dane, a nie jak brak afiliacji.
+    const { container } = renderWithClient(
+      <SpeakersWidget
+        node={speakersNode({
+          speakers: [{ id: "m-1", name: "Maria Test", role_pl: "Analityczka" }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(screen.getByText("Maria Test")).toBeInTheDocument();
+    // Zawezone do KARTY: `cms-meta` nosi tez licznik wynikow nad siatka.
+    expect(container.querySelectorAll("article p.cms-meta")).toHaveLength(1);
   });
 
   it("directory source renders CRM-backed speaker profiles with the expert badge", async () => {
@@ -438,6 +466,34 @@ describe("SpeakersWidget - data sources", () => {
     expect(await screen.findByText("Jan Kowalski")).toBeInTheDocument();
     expect(screen.getByText("Ekspert")).toBeInTheDocument();
     expect(screen.getByText(/Dyrektor programu Cyber/)).toBeInTheDocument();
+    // AFILIACJA Z KOLUMNY `company` tego samego wiersza RPC, ktory niesie
+    // `is_expert`. Karta pokazywala tytul eksperta bez organizacji, wiec ta
+    // sama osoba miala w widgecie mniej faktow niz na stronie wydarzenia.
+    expect(screen.getByText("NES")).toBeInTheDocument();
+  });
+
+  it("event source renders the organization from the same RPC row", async () => {
+    // Zrodlo „prelegenci wydarzenia" idzie tym samym mapowaniem, co katalog -
+    // afiliacja nie moze zaleze c od tego, KTORE ze dwoch zrodel bazy wybrala
+    // redakcja.
+    db.rpc.get_public_speakers = [speakerRpcRow({ company: "Kancelaria Brukselska" })];
+    renderWithClient(
+      <SpeakersWidget node={speakersNode({ source: "event", eventId: "e-1" })} lang="pl" />,
+    );
+    expect(await screen.findByText("Jan Kowalski")).toBeInTheDocument();
+    expect(screen.getByText("Kancelaria Brukselska")).toBeInTheDocument();
+  });
+
+  it("row without a company renders no empty affiliation line", async () => {
+    db.rpc.get_public_speakers = [speakerRpcRow({ company: null })];
+    const { container } = renderWithClient(
+      <SpeakersWidget node={speakersNode({ source: "directory" })} lang="pl" />,
+    );
+    expect(await screen.findByText("Jan Kowalski")).toBeInTheDocument();
+    // Zostaje sam wiersz roli (`cms-meta`) i opis - bez trzeciego, pustego.
+    expect([...container.querySelectorAll("article p.cms-meta")].map((n) => n.textContent)).toEqual(
+      ["Dyrektor programu Cyber · 12 wystąpień", "Bio PL"],
+    );
   });
 
   it("directory source opens the speaker profile dialog on card click", async () => {
@@ -479,6 +535,7 @@ const manualRoster = (): WidgetContent => ({
       name: "Alfa Pierwsza",
       role_pl: "Analityczka",
       role_en: "Analyst",
+      organization: "Instytut Alfa",
       category_pl: "Cyber",
       category_en: "Cyber",
       gigs: 10,
@@ -492,6 +549,7 @@ const manualRoster = (): WidgetContent => ({
       name: "Beta Druga",
       role_pl: "Ekonomista",
       role_en: "Economist",
+      organization: "Fundacja Beta",
       category_pl: "Ekonomia",
       category_en: "Economy",
       gigs: 2,
@@ -523,6 +581,16 @@ describe("SpeakersWidget - behaviors (filter/search/sort/pagination)", () => {
     expect(screen.queryByText("Alfa Pierwsza")).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: "brak-takiego" } });
     expect(screen.getByText("Brak wyników wyszukiwania.")).toBeInTheDocument();
+  });
+
+  it("searches across the ORGANIZATION shown on the card", () => {
+    // Pole szukania, ktore nie widzi napisu stojacego pod nazwiskiem, odpowiada
+    // „brak wynikow" na fraze, ktora czytelnik ma przed oczami - dlatego
+    // organizacja weszla do worka razem z rysunkiem na karcie.
+    renderWithClient(<SpeakersWidget node={speakersNode(manualRoster())} lang="pl" />);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "instytut" } });
+    expect(screen.getByText("Alfa Pierwsza")).toBeInTheDocument();
+    expect(screen.queryByText("Beta Druga")).not.toBeInTheDocument();
   });
 
   it("sorts by rating when selected", () => {

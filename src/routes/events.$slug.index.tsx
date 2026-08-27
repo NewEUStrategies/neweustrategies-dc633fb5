@@ -77,7 +77,7 @@ import { EventVideoHeader } from "@/components/events/public/molecules/EventVide
 import { EventBookmarkButton } from "@/components/events/public/molecules/EventBookmarkButton";
 import { SectionLockCard } from "@/components/events/public/molecules/SectionLockCard";
 import { publicEventKeys, useEventSections } from "@/lib/events/usePublicEvent";
-import { findEventSection, sectionHeadingKey } from "@/lib/events/eventSections";
+import { eventSectionHeading, findEventSection } from "@/lib/events/eventSections";
 import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
 import { EventTicketPurchase } from "@/components/community/EventTicketPurchase";
@@ -371,6 +371,11 @@ function EventOverview() {
   // komponent tej sekcji (razem z jego własnym nagłówkiem).
   const speakersSection = findEventSection(sectionsQ.data ?? [], "speakers");
   const descriptionSection = findEventSection(sectionsQ.data ?? [], "description");
+  // Zapisy NIE mają na tej stronie własnego <h2> - nazwę tej sekcji niesie
+  // DOSTĘPNA NAZWA GRUPY bloku zapisów (`EventRegistrationSurface`), a to jest
+  // ten sam napis i to samo nadpisanie z bazy. Dopóki szedł wprost ze słownika,
+  // organizator zmieniał nazwę sekcji „Zapisy" i czytnik ekranu ogłaszał starą.
+  const registrationSection = findEventSection(sectionsQ.data ?? [], "registration");
 
   // Informacje praktyczne: kolumny, które panel zapisywał, a uczestnik ich nie
   // widział - do czasu grantu kolumnowego z migracji 20260826120000. Kształt
@@ -484,7 +489,7 @@ function EventOverview() {
             {descriptionSection === null ? null : descriptionSection.isLocked ? (
               <section id="event-description" className="mt-8 scroll-mt-24">
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {t(sectionHeadingKey("description"))}
+                  {eventSectionHeading(descriptionSection, "description", lang, t)}
                 </h2>
                 <div className="mt-4">
                   <SectionLockCard
@@ -531,7 +536,7 @@ function EventOverview() {
             {speakersSection === null ? null : speakersSection.isLocked ? (
               <section className="mt-10 scroll-mt-24" id="event-speakers">
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {t(sectionHeadingKey("speakers"))}
+                  {eventSectionHeading(speakersSection, "speakers", lang, t)}
                 </h2>
                 <div className="mt-4">
                   <SectionLockCard
@@ -542,7 +547,10 @@ function EventOverview() {
                 </div>
               </section>
             ) : (
-              <EventSpeakersSection eventId={ev.id} lang={lang} />
+              // Wiersz sekcji jedzie DO komponentu, bo nagłówek sekcji otwartej
+              // rysuje on - inaczej nadpisanie z bazy widzieliby wyłącznie
+              // goście bez dostępu (gałąź z zamkiem wyżej).
+              <EventSpeakersSection eventId={ev.id} lang={lang} section={speakersSection} />
             )}
 
             {/* Program, partnerzy, materiały, dojazd i kontakt - w kolejności
@@ -611,7 +619,7 @@ function EventOverview() {
                   }
                   action={surfaceAction}
                   onAction={onSurfaceAction}
-                  groupLabel={t("eventFront.sections.registration.heading")}
+                  groupLabel={eventSectionHeading(registrationSection, "registration", lang, t)}
                   eventSlug={ev.slug}
                 />
               )}

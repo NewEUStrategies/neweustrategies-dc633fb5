@@ -5,8 +5,18 @@
 // sortowanie, licznik wyników (aria-live), ułamkowe gwiazdki ocen, kaskadowe
 // animacje wejścia kart oraz paginacja "load more" lub infinite scroll.
 // Renderer jest deterministyczny podczas SSR (bookmarki hydratują po mount),
-// używa tokenów Theme Design i wspiera dark/light. Kompatybilny z istniejącym
-// SpeakersEditor - żadne pole danych nie zostało zmienione.
+// używa tokenów Theme Design i wspiera dark/light.
+//
+// ORGANIZACJA NA KARCIE - JEDEN FAKT, DWA ŹRÓDŁA. Karta pokazywała `is_expert`,
+// ale nie afiliację, więc ta sama osoba miała w widgecie tytuł eksperta bez
+// organizacji, a na stronie wydarzenia jedno i drugie (rozstrzygnięcie
+// z commita `145ed72`: ujednolicamy FAKTY, nie układ). Przeszkodą był MODEL
+// TREŚCI: wpisy ręczne ze studia nie miały takiego pola w ogóle. Dziś:
+//   * źródło „baza" (`directory` / `event`) -> kolumna `company` wiersza RPC,
+//     mapowana w `speakerRowToItem` na bezjęzykowy klucz `organization`,
+//   * wpis ręczny -> pole „Organizacja" w `SpeakersEditor` (ten sam klucz).
+// Oba czyta jeden `loc(item, "organization", lang)`, dokładnie tak, jak widget
+// czyta `is_expert` przez `item.isExpert` - drugiego wzorca tu nie ma.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
@@ -76,7 +86,14 @@ function Highlight({ text, query }: { text: string; query: string }) {
 }
 
 /** Wiersz z RPC -> kształt karty (ten sam, co wpisy ręczne), więc filtrowanie,
- *  sortowanie i paginacja działają identycznie dla każdego źródła. */
+ *  sortowanie i paginacja działają identycznie dla każdego źródła.
+ *
+ *  ORGANIZACJA WCHODZI BEZ BLIŹNIAKÓW JĘZYKOWYCH i to nie jest przeoczenie:
+ *  RPC `get_public_speakers` ma JEDNĄ kolumnę `company`, a `loc()` czyta klucz
+ *  bezjęzykowy jako ostatnie ogniwo łańcucha. Rozpisanie jej tutaj na
+ *  `organization_pl` / `organization_en` znaczyłoby, że ta sama afiliacja jest
+ *  „przetłumaczona" na dwa identyczne napisy - i że model karty z bazy obiecuje
+ *  rozróżnienie, którego baza nie ma. */
 function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
   const rolePl = row.headline_pl || row.job_title || "";
   const roleEn = row.headline_en || row.job_title || "";
@@ -88,6 +105,7 @@ function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
     name: row.display_name ?? "",
     role_pl: rolePl,
     role_en: roleEn,
+    organization: row.company ?? "",
     category_pl: "",
     category_en: "",
     gigs: row.talks_count,
@@ -217,9 +235,13 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
         return false;
       }
       if (!q) return true;
+      // Organizacja jest w tym worku, bo JEST na karcie: pole szukania, które
+      // nie widzi napisu stojącego pod nazwiskiem, odpowiada „brak wyników" na
+      // frazę, którą czytelnik ma przed oczami.
       const hay = [
         getStr(item as WidgetContent, "name"),
         loc(item, "role", lang),
+        loc(item, "organization", lang),
         loc(item, "description", lang),
       ]
         .join(" ")
@@ -369,8 +391,8 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
                 }}
                 placeholder={
                   lang === "pl"
-                    ? "Szukaj po imieniu, roli, opisie…"
-                    : "Search by name, role, description…"
+                    ? "Szukaj po imieniu, roli, organizacji, opisie…"
+                    : "Search by name, role, organization, description…"
                 }
                 className="h-10 w-full rounded-[6px] border border-border/60 bg-background pl-11 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/50"
               />
@@ -561,6 +583,10 @@ function SpeakerCard({
   );
   const name = getStr(item as WidgetContent, "name");
   const role = loc(item, "role", lang);
+  // AFILIACJA JEST FAKTEM O OSOBIE, nie ozdobą karty. Przy źródle „baza" idzie
+  // z kolumny `company` wiersza RPC, przy wpisie ręcznym - z pola edytora; oba
+  // wchodzą tym samym `loc()`, więc karta nie wie, skąd pochodzi.
+  const organization = loc(item, "organization", lang).trim();
   const category = loc(item, "category", lang).trim();
   const description = loc(item, "description", lang);
   const gigs = numOf(item.gigs);
@@ -663,6 +689,17 @@ function SpeakerCard({
             <Highlight text={role} query={query} />
             {role && gigs > 0 ? " · " : ""}
             {gigs > 0 ? `${gigs} ${lang === "pl" ? "wystąpień" : "gigs"}` : ""}
+          </p>
+        )}
+        {/* WŁASNY WIERSZ, nie doklejenie do roli: rola i organizacja to dwa
+            różne fakty, a skleja je myślnikiem tylko ten, kto ma pewność, że
+            oba są wypełnione. Grubszy krój odróżnia afiliację od roli i od
+            opisu - to JĘZYK WIZUALNY TEGO widgetu (`cms-meta`), a nie kopia
+            układu z siatki na zakładce wydarzenia, gdzie podpis jest
+            wyśrodkowany pod kwadratowym zdjęciem. */}
+        {organization && (
+          <p className="cms-meta font-medium">
+            <Highlight text={organization} query={query} />
           </p>
         )}
         {(rating > 0 || reviews > 0) && (

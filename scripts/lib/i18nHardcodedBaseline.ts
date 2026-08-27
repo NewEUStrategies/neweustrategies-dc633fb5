@@ -25,7 +25,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/admin/builder/ui/organisms/widget-properties/PricingEditor.tsx", 12],
   ["src/components/admin/builder/ui/organisms/widget-properties/ProfilePicker.tsx", 3],
   ["src/components/admin/builder/ui/organisms/widget-properties/RatedListEditor.tsx", 1],
-  ["src/components/admin/builder/ui/organisms/widget-properties/SpeakersEditor.tsx", 40],
+  ["src/components/admin/builder/ui/organisms/widget-properties/SpeakersEditor.tsx", 39],
   ["src/components/admin/builder/ui/organisms/widget-properties/SponsorsEditor.tsx", 24],
   ["src/components/admin/builder/ui/organisms/widget-properties/TeamMemberEditor.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-properties/TextRotateEditor.tsx", 1],
