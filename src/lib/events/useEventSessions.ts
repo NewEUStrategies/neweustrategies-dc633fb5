@@ -185,6 +185,18 @@ export function useSetSessionsStatus(
   });
 }
 
+export function useSetSessionsTrack(
+  eventId: string,
+): UseMutationResult<number, Error, SessionsTrackInput> {
+  const invalidate = useInvalidateEvent();
+  return useMutation({
+    mutationFn: setSessionsTrack,
+    onSuccess: () => invalidate(eventId),
+  });
+}
+
+
+
 export function useSaveEventTrack(
   eventId: string,
 ): UseMutationResult<string, Error, EventTrackInput> {
