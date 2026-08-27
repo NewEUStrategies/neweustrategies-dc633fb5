@@ -30,17 +30,35 @@ const MIGRATED = [
   "src/components/builder/organisms/widget-view/EventsListView.tsx",
   "src/components/builder/organisms/widget-view/EventCountdownCardView.tsx",
   "src/components/admin/events/organisms/EventsListManager.tsx",
+  // Przegląd wydarzenia. Był długiem `PENDING` pod nazwą `events.$slug.tsx`;
+  // patrz komentarz przy `PENDING` niżej - to jest ta sama treść po podziale trasy.
+  "src/routes/events.$slug.index.tsx",
 ] as const;
 
 /**
  * Dług, który został - z górnym limitem zmierzonym, nie zgadniętym.
  *
- * `events.$slug.tsx` nadal ma jedno własne formatowanie. Zejdzie razem z przejściem
- * tej trasy na kontrakt `event_page_header` (ta trasa jest przebudowywana osobno).
+ * PUSTA, I TO JEST HISTORIA WARTA ZAPISANIA. Stał tu wpis
+ * `{ file: "src/routes/events.$slug.tsx", maxOwnFormatting: 1 }` - jedna godzina
+ * otwarcia zapisów liczona przez `toLocaleString`, czyli w strefie PRZEGLĄDARKI,
+ * na tym samym ekranie, co termin wydarzenia liczony w strefie wydarzenia.
+ *
+ * Podział tej trasy na powłokę i przegląd (`events.$slug.index.tsx`) PRZENIÓSŁ
+ * ten dług do pliku, którego na żadnej z trzech list tutaj nie było - a bramka
+ * zna wyłącznie pliki WYPISANE. Skutek: osiem testów świeciło zielono, dług
+ * żył dalej, a `console.warn` o zmniejszeniu długu nie pada, bo w pliku ze
+ * starej nazwy zostało zero formatowań, czyli limit `<= 1` jest spełniony.
+ * Nie znalazła tego ta bramka; znalazł to osobny audyt.
+ *
+ * Wniosek na przyszłość: rodzina plików WYPISANA RĘCZNIE przecieka przy każdej
+ * zmianie struktury katalogów. Rodzina LICZONA (glob po powierzchni wydarzeń)
+ * nie przeciekłaby - ale objęłaby też pliki innych modułów, które mają realny
+ * dług (`src/routes/programs.$slug.tsx`, `src/components/community/EventTicketCard.tsx`),
+ * więc jej włączenie jest decyzją właściciela, nie skutkiem ubocznym tej poprawki.
+ * Docstring tej bramki przewidział to zresztą słowo w słowo: „wystarczy, że ktoś
+ * doda piąty widok i napisze w nim toLocaleString".
  */
-const PENDING: ReadonlyArray<{ file: string; maxOwnFormatting: number }> = [
-  { file: "src/routes/events.$slug.tsx", maxOwnFormatting: 1 },
-];
+const PENDING: ReadonlyArray<{ file: string; maxOwnFormatting: number }> = [];
 
 /**
  * Trasy-układy: nic nie rysują, więc nie mają po co importować modułu strefy.
@@ -49,7 +67,13 @@ const PENDING: ReadonlyArray<{ file: string; maxOwnFormatting: number }> = [
  * wstawi nagłówek z datą - a wtedy ominąłby bramkę, której `MIGRATED` wymaga
  * importu i przez to nie może objąć pliku bez formatowania.
  */
-const LAYOUT_ONLY = ["src/routes/events.tsx"] as const;
+const LAYOUT_ONLY = [
+  "src/routes/events.tsx",
+  // Powłoka wydarzenia po podziale: branding, powrót, nazwa, pasek zakładek,
+  // `<Outlet />`. Ani jednej daty - i asercja pilnuje, że tak zostanie, bo to
+  // naturalne miejsce na nagłówek z terminem.
+  "src/routes/events.$slug.tsx",
+] as const;
 
 function read(file: string): string {
   return readFileSync(resolve(process.cwd(), file), "utf8");

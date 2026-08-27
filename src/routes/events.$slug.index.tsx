@@ -315,12 +315,16 @@ function EventOverview() {
   const earlyRank = ev.early_rsvp_rank ?? null;
   const myRank = currentTierQ.data?.rank ?? 0;
   const hasEarlyAccess = earlyRank !== null && myRank >= earlyRank;
-  const whenOpens = rsvpOpensAt
-    ? rsvpOpensAt.toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-        dateStyle: "long",
-        timeStyle: "short",
-      })
-    : "";
+  // STREFA WYDARZENIA, NIE PRZEGLĄDARKI. Godzina otwarcia zapisów stoi na tym
+  // samym ekranie, co termin wydarzenia liczony przez `formatEventDateTime`
+  // (:714). Liczenie jej przez `toLocaleString` dawało dwie różne strefy w
+  // dwóch kartach jednej strony - uczestnik w innej strefie czytał jedną z nich
+  // jako swoją. Etykieta strefy jedzie obok, bo sama godzina w obcej strefie
+  // jest gorsza niż brak godziny (ten sam argument stoi w bramce EB-912).
+  const whenOpens =
+    ev.rsvp_opens_at === null || ev.rsvp_opens_at === undefined
+      ? ""
+      : formatEventDateTime(ev.rsvp_opens_at, ev.timezone, lang);
 
   // ── POWIERZCHNIA ZAPISÓW ────────────────────────────────────────────────
   // JEDNA decyzja z reguły czystej. Trasa nie składa już własnych warunków
