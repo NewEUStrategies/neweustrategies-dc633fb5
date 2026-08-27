@@ -21,14 +21,25 @@
 // potem zapisy, potem szczegóły. Pozycje wymuszają `lg:col-start-*`, więc
 // kolejność wizualna nie zależy od kolejności w kodzie.
 //
-// CZEGO W KOLUMNACH BOCZNYCH NIE ODWZOROWUJEMY I DLACZEGO. Na wzorcu po lewej
-// stoi KARTA PROFILU ZALOGOWANEGO WIDZA („Edytuj”, zdjęcie, stanowisko), a po
-// prawej BANER PROMOCYJNY z przyciskiem „Dowiedz się więcej”. Nie mamy źródła
-// danych ani dla jednego, ani dla drugiego, a wypełnienie kolumny atrapą
-// opublikowałoby treść, której nikt nie wpisał. Zamiast tego kolumny biorą to,
-// co ma dane i po co czytelnik tu przychodzi: po lewej karta „kiedy, gdzie, ile
-// miejsc”, po prawej powierzchnia zapisów. To jest ZAMIENNIK, nie odwzorowanie
-// wzorca - jeśli kiedyś powstanie źródło banera, jego miejsce jest po prawej.
+// CO W KOLUMNACH BOCZNYCH ODWZOROWUJEMY, A CZEGO NIE - I DLACZEGO.
+//
+// PO LEWEJ WZORZEC MA KARTĘ PROFILU ZALOGOWANEGO WIDZA („Edytuj”, zdjęcie,
+// stanowisko, organizacja) i TO JUŻ ODWZOROWUJEMY: dane są w `profiles`, czyta
+// je `useViewerCardFacts` (jeden round-trip, wspólny z paskiem konta), rysuje
+// `EventViewerCard`. Wcześniejsza wersja tego komentarza twierdziła, że „nie
+// mamy źródła danych” - to była NIEPRAWDA i warto wiedzieć, dlaczego: mierzyła
+// brak KOMPONENTU, a nie brak danych. Pod kartą profilu zostaje karta „kiedy,
+// gdzie, ile miejsc”, bo to jedyne miejsce, w którym widać pola terminu,
+// strefy czasowej i lokalizacji wpisywane w studiu.
+//
+// PO PRAWEJ WZORZEC MA BANER PROMOCYJNY z przyciskiem „Dowiedz się więcej”
+// i TEGO NIE ODWZOROWUJEMY - tu brak źródła jest prawdziwy i sprawdzony:
+// `events` ma wyłącznie `cover_url` (okładka katalogu i nagłówek strony),
+// ani jednej kolumny na obraz promocyjny, jego adres docelowy i etykietę
+// przycisku. Atrapa opublikowałaby treść, której nikt nie wpisał, więc kolumna
+// bierze to, po co czytelnik tu przychodzi: powierzchnię zapisów. Gdy powstanie
+// źródło banera (trzy kolumny albo osobna tabela), jego miejsce jest po prawej,
+// NAD zapisami.
 //
 // ZERO HOOKÓW ROUTERA I ZERO ZAPYTAŃ: treść kolumn wnosi wołający, bo podgląd
 // studia wnosi ją ze szkicu formularza, a strona publiczna z bazy.

@@ -36,6 +36,7 @@ import {
   type PreviewDevice,
 } from "@/components/admin/events/studio/EventPreviewCanvas";
 import { useEventPreviewModel } from "@/components/admin/events/studio/EventStudioPreviewContext";
+import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export function EventStudioPreview({
@@ -51,6 +52,11 @@ export function EventStudioPreview({
   ensureAdminEventsI18n();
   const { t } = useTranslation();
   const model = useEventPreviewModel();
+  // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
+  // kanwa. Kanwa rysuje szkic formularza i nie ma prawa odpalic zapytania;
+  // tutaj jestesmy w drzewie aplikacji, wiec ten sam hook, ktorego uzywa strona
+  // publiczna, oddaje te same fakty o zalogowanym redaktorze.
+  const viewer = useViewerCardFacts();
   const [device, setDevice] = useState<PreviewDevice>("desktop");
   const [scale, setScale] = useState(1);
   const [contentHeight, setContentHeight] = useState(0);
@@ -170,7 +176,7 @@ export function EventStudioPreview({
               transformOrigin: "top left",
             }}
           >
-            <EventPreviewCanvas model={model} device={device} />
+            <EventPreviewCanvas model={model} device={device} viewer={viewer} />
           </div>
         </div>
       </div>

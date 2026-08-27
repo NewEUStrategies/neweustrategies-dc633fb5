@@ -23,16 +23,21 @@ import {
   type ReactNode,
 } from "react";
 import type { BuilderDocument } from "@/lib/builder/types";
+import type { EventMenuDraftItem } from "@/lib/events/eventPagesApi";
 import type { EventBrandingDraft } from "@/lib/events/eventBrandingDraft";
 import { EMPTY_EVENT_BRANDING } from "@/lib/events/eventBrandingDraft";
 import type { EventFormat } from "@/lib/events/eventTypes";
 
-export interface EventPreviewMenuItem {
-  key: string;
-  label: string;
-  icon: string;
-  color: string;
-}
+/**
+ * Pozycja menu podgladu.
+ *
+ * KSZTALT MIESZKA W LIB (`eventPagesApi.EventMenuDraftItem`), bo policzyc go
+ * musza DWA producenty: rama studia (stan zapisany) i ekran „Strony i menu"
+ * (szkic trybu prezentacji). Alias zostaje, zeby powierzchnie podgladu nadal
+ * mowily o „pozycji menu podgladu", a nie o wierszu API - ale strukturalnie
+ * jest to JEDEN typ, wiec dwa mapowania nie moga sie rozjechac.
+ */
+export type EventPreviewMenuItem = EventMenuDraftItem;
 
 /**
  * PODSTRONA WYBRANA DO PODGLADU.

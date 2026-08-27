@@ -22,6 +22,7 @@ import {
   eventPageInput,
   eventPageLabel,
   eventPageModule,
+  eventPreviewMenu,
   isEventPageAttached,
   isModuleEventPage,
   moveEventPage,
@@ -241,5 +242,54 @@ describe("znacznik pozycji modulowej", () => {
     expect(Object.keys(input)).not.toContain("module");
     expect(input.inMenu).toBe(false);
     expect(input.id).toBe(entry.id);
+  });
+});
+
+// ── POZYCJE MENU DLA PODGLADU ──────────────────────────────────────────────
+//
+// PO CO TO TU. Pozycje paska zakladek i spisu sekcji strony glownej w podgladzie
+// studia licza sie DWA RAZY: raz w ramie studia (stan zapisany), raz na ekranie
+// „Strony i menu" (szkic przelacznika trybu). Do tej zmiany kazde z tych miejsc
+// mialo wlasne mapowanie - a rozjazd byloby widac dopiero po wejsciu na tamten
+// ekran, kiedy podglad zmienialby wyglad menu bez zadnej zmiany danych.
+describe("eventPreviewMenu", () => {
+  it("bierze WYLACZNIE pozycje w menu, w kolejnosci z bazy", () => {
+    const menu = eventPreviewMenu(
+      [
+        page({ page_slug: "uczestnicy", module: "participants" }),
+        // Poza menu (ukryta przelacznikiem) i NIEPRZYPIETA - obie sa w liscie,
+        // ale zadna nie jest pozycja menu.
+        page({ page_slug: "regulamin", in_menu: false }),
+        page({ page_slug: "luzna", id: null }),
+        page({ page_slug: "agenda", module: "agenda" }),
+      ],
+      "pl",
+    );
+    expect(menu.map((item) => item.key)).toEqual(["entry-uczestnicy", "entry-agenda"]);
+  });
+
+  it("etykieta idzie w jezyku interfejsu, ta sama regula co w liscie", () => {
+    const rows = [
+      page({ page_slug: "uczestnicy", menu_label_pl: "Uczestnicy", menu_label_en: "Attendees" }),
+    ];
+    expect(eventPreviewMenu(rows, "pl")[0].label).toBe("Uczestnicy");
+    expect(eventPreviewMenu(rows, "en")[0].label).toBe("Attendees");
+  });
+
+  // IKONA I KOLOR IDA Z BAZY, a brak degraduje - NIE zgadujemy piatki po nazwie
+  // modulu. Wartosci zasiewa `_event_default_pages()` (migracja 20260826181500),
+  // wiec kolor krazka „Uczestnicy" jest tam, a nie w stalej w kliencie.
+  it("ikona i kolor jada z wiersza; brak ikony degraduje do domyslnej", () => {
+    const [withValues, withoutValues] = eventPreviewMenu(
+      [
+        page({ page_slug: "uczestnicy", icon: "users", color: "#D73953" }),
+        page({ page_slug: "luzna-w-menu", icon: null, color: null }),
+      ],
+      "pl",
+    );
+    expect(withValues.icon).toBe("users");
+    expect(withValues.color).toBe("#D73953");
+    expect(withoutValues.icon).toBe("file-text");
+    expect(withoutValues.color).toBe("");
   });
 });

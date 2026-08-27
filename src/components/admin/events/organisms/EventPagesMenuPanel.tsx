@@ -59,6 +59,7 @@ import {
   EVENT_PAGE_DEFAULT_ICON,
   eventPageInput,
   eventPageLabel,
+  eventPreviewMenu,
   isEventPageAttached,
   isModuleEventPage,
   moveEventPage,
@@ -170,12 +171,10 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
             document: documentQ.data ?? null,
           },
     pagesDisplayMode: mode,
-    menu: split.menu.map((entry) => ({
-      key: entry.id,
-      label: eventPageLabel(entry, lang),
-      icon: entry.icon ?? EVENT_PAGE_DEFAULT_ICON,
-      color: entry.color ?? "",
-    })),
+    // MAPOWANIE JEST WSPOLNE Z RAMA STUDIA (`eventPreviewMenu`). Ten ekran wnosi
+    // wylacznie SZKIC przelacznika trybu - gdyby liczyl pozycje po swojemu,
+    // podglad zmienialby wyglad menu w chwili wejscia na „Strony i menu”.
+    menu: eventPreviewMenu(rows, lang),
   });
 
   const failed = (error: unknown) => toast.error(adminEventStudioErrorMessage(error));
