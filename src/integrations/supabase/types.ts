@@ -7724,6 +7724,8 @@ export type Database = {
       }
       event_registration_fields: {
         Row: {
+          consent_url_en: string
+          consent_url_pl: string
           created_at: string
           event_id: string
           field_type: string
@@ -7745,6 +7747,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          consent_url_en?: string
+          consent_url_pl?: string
           created_at?: string
           event_id: string
           field_type?: string
@@ -7766,6 +7770,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          consent_url_en?: string
+          consent_url_pl?: string
           created_at?: string
           event_id?: string
           field_type?: string
@@ -9101,11 +9107,15 @@ export type Database = {
       }
       event_ticket_types: {
         Row: {
+          access_code_hash: string | null
+          access_code_hint: string
           audience: string
           created_at: string
           currency: string
           description_en: string
           description_pl: string
+          early_bird_price_cents: number | null
+          early_bird_until: string | null
           event_id: string
           group_id: string | null
           id: string
@@ -9125,13 +9135,18 @@ export type Database = {
           sort_order: number
           tenant_id: string
           updated_at: string
+          waitlist_enabled: boolean
         }
         Insert: {
+          access_code_hash?: string | null
+          access_code_hint?: string
           audience?: string
           created_at?: string
           currency?: string
           description_en?: string
           description_pl?: string
+          early_bird_price_cents?: number | null
+          early_bird_until?: string | null
           event_id: string
           group_id?: string | null
           id?: string
@@ -9151,13 +9166,18 @@ export type Database = {
           sort_order?: number
           tenant_id: string
           updated_at?: string
+          waitlist_enabled?: boolean
         }
         Update: {
+          access_code_hash?: string | null
+          access_code_hint?: string
           audience?: string
           created_at?: string
           currency?: string
           description_en?: string
           description_pl?: string
+          early_bird_price_cents?: number | null
+          early_bird_until?: string | null
           event_id?: string
           group_id?: string | null
           id?: string
@@ -9177,6 +9197,7 @@ export type Database = {
           sort_order?: number
           tenant_id?: string
           updated_at?: string
+          waitlist_enabled?: boolean
         }
         Relationships: [
           {
@@ -18675,6 +18696,7 @@ export type Database = {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
       }
+      _event_consent_url: { Args: { p_value: string }; Returns: string }
       _event_default_pages: {
         Args: never
         Returns: {
@@ -18857,6 +18879,14 @@ export type Database = {
       _event_slugify: { Args: { _text: string }; Returns: string }
       _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
+      _event_ticket_effective_price: {
+        Args: {
+          p_early_price_cents: number
+          p_early_until: string
+          p_price_cents: number
+        }
+        Returns: number
+      }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
@@ -19904,9 +19934,99 @@ export type Database = {
         Args: { p_bucket_minutes?: number; p_event_id: string }
         Returns: Json
       }
+      admin_event_package_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_package_order_create: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_package_order_set_status: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_package_orders_list: {
+        Args: { p_event_id: string; p_package_id?: string }
+        Returns: {
+          amount_cents: number
+          buyer_email: string
+          buyer_name: string
+          cancelled_at: string
+          created_at: string
+          currency: string
+          discount_cents: number
+          event_id: string
+          id: string
+          invoice_note: string
+          package_id: string
+          package_name_en: string
+          package_name_pl: string
+          paid_at: string
+          seats_assigned: number
+          seats_invited: number
+          seats_total: number
+          status: string
+          updated_at: string
+        }[]
+      }
       admin_event_package_seat_assign: {
         Args: { p_payload: Json }
         Returns: string
+      }
+      admin_event_package_seat_invite: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_package_seat_revoke: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_event_package_seats_list: {
+        Args: { p_order_id: string }
+        Returns: {
+          assigned_at: string
+          attendee_name: string
+          id: string
+          invite_email: string
+          invite_expires_at: string
+          invite_name: string
+          invite_sent_at: string
+          package_order_id: string
+          registration_id: string
+          registration_status: string
+          revoked_at: string
+          state: string
+        }[]
+      }
+      admin_event_package_upsert: { Args: { p_payload: Json }; Returns: string }
+      admin_event_packages_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          audience: string
+          created_at: string
+          currency: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          is_active: boolean
+          key: string
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          orders_count: number
+          price_cents: number
+          quota: number
+          requires_verification: boolean
+          sales_from: string
+          sales_to: string
+          seats: number
+          seats_assigned: number
+          sold_count: number
+          sort_order: number
+          ticket_name_en: string
+          ticket_name_pl: string
+          ticket_type_id: string
+          updated_at: string
+        }[]
       }
       admin_event_page_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_page_detach: { Args: { p_id: string }; Returns: boolean }
@@ -19952,6 +20072,8 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           answers_count: number
+          consent_url_en: string
+          consent_url_pl: string
           created_at: string
           event_id: string
           field_type: string
@@ -20469,15 +20591,20 @@ export type Database = {
       admin_event_tickets_list: {
         Args: { p_event_id: string }
         Returns: {
+          access_code_hint: string
           availability: string
           created_at: string
           currency: string
           description_en: string
           description_pl: string
+          early_bird_price_cents: number
+          early_bird_until: string
+          effective_price_cents: number
           event_id: string
           group_id: string
           group_name_en: string
           group_name_pl: string
+          has_access_code: boolean
           id: string
           is_active: boolean
           key: string
@@ -20495,6 +20622,7 @@ export type Database = {
           sort_order: number
           updated_at: string
           waitlist_count: number
+          waitlist_enabled: boolean
         }[]
       }
       admin_event_track_delete: { Args: { _id: string }; Returns: boolean }
@@ -23324,6 +23452,7 @@ export type Database = {
           sort_order: number
         }[]
       }
+      event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
       event_page_header: {

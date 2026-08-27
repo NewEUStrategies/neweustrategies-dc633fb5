@@ -392,6 +392,10 @@ export const adminEventRegistrationPl = {
         helpPl: "Podpowiedź (polski)",
         helpEn: "Podpowiedź (angielski)",
         helpHint: "Zdanie pod polem. Mówi, czego oczekujemy, a nie powtarza etykiety.",
+        consentUrlPl: "Dokument zgody (polski)",
+        consentUrlEn: "Dokument zgody (angielski)",
+        consentUrlHint:
+          "Adres https:// do treści zgody. Pokazujemy go przy polu zgody, żeby uczestnik wiedział, na co się godzi.",
         required: "Pole wymagane",
         options: "Opcje listy",
         optionsHint:
@@ -458,6 +462,10 @@ export const adminEventRegistrationPl = {
       windowTo: "do {{date}}",
       noGroup: "Bez nadania grupy",
       anyTier: "Bez progu",
+      earlyBirdBadge: "Promocja do {{date}}",
+      accessCodeBadge: "Kod dostępu",
+      noWaitlistBadge: "Bez kolejki",
+      effectivePrice: "Cena dzisiaj: {{price}}",
 
       editor: {
         createTitle: "Nowy bilet",
@@ -490,6 +498,22 @@ export const adminEventRegistrationPl = {
         deleteAction: "Usuń bilet",
         deleteConfirm:
           "Usunąć bilet? Operacja jest możliwa tylko wtedy, gdy żaden zapis go nie używa.",
+        advancedSection: "Cena promocyjna, kod dostępu i kolejka",
+        earlyBirdPriceCents: "Cena promocyjna (early bird)",
+        earlyBirdUntil: "Cena promocyjna obowiązuje do",
+        earlyBirdHint:
+          "Cena i termin działają w parze. Po tym terminie obowiązuje cena podstawowa - bez ręcznej zmiany biletu.",
+        accessCode: "Nowy kod dostępu",
+        accessCodeHelp:
+          "Kod nie wraca z serwera - w bazie leży wyłącznie jego skrót. Puste pole zostawia obecny kod bez zmian.",
+        accessCodeSet: "Bilet ma ustawiony kod dostępu",
+        accessCodeNone: "Bilet jest dostępny bez kodu",
+        removeAccessCode: "Zdejmij kod dostępu przy zapisie",
+        accessCodeHintLabel: "Podpowiedź przy polu kodu",
+        accessCodeHintHelp: "Zdanie dla uczestnika, np. „kod z zaproszenia partnera”.",
+        waitlistEnabled: "Lista rezerwowa po wyczerpaniu puli",
+        waitlistHint:
+          "Wyłączona oznacza komunikat o wyprzedaniu zamiast kolejki - nikt nie czeka na miejsce, które nie wróci.",
       },
 
       toasts: {
@@ -752,6 +776,18 @@ export const adminEventRegistrationPl = {
       invalidLabels: "Etykieta jest wymagana w obu językach.",
       invalidOptions: "Opcje listy muszą być tablicą.",
       duplicateKey: "Wpis o tym kluczu już istnieje w tym wydarzeniu.",
+      invalidEarlyBird:
+        "Cena promocyjna wymaga terminu i nie może przekraczać ceny podstawowej.",
+      invalidAccessCode: "Kod dostępu musi mieć od 4 do 64 znaków.",
+      invalidConsentUrl: "Adres dokumentu zgody musi zaczynać się od https:// (do 500 znaków).",
+      notFound: "Rekord nie istnieje w tej organizacji.",
+      packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
+      packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
+      seatTaken: "To miejsce jest już zajęte przez uczestnika.",
+      seatRevoked: "To miejsce zostało wycofane.",
+      orderCancelled: "Zamówienie stojące za tym miejscem jest anulowane.",
+      invitationExpired: "Zaproszenie wygasło - wyślij je ponownie.",
+      invalidToken: "Odnośnik zaproszenia jest nieprawidłowy.",
       unknown: "Operacja się nie udała. Odśwież ekran i spróbuj ponownie.",
     },
   },
@@ -1110,6 +1146,10 @@ export const adminEventRegistrationEn = {
         helpEn: "Hint (English)",
         helpHint:
           "A sentence under the field. It says what we expect instead of repeating the label.",
+        consentUrlPl: "Consent document (Polish)",
+        consentUrlEn: "Consent document (English)",
+        consentUrlHint:
+          "An https:// address with the consent wording. We show it next to the consent field so the participant knows what they agree to.",
         required: "Required field",
         options: "List options",
         optionsHint:
@@ -1176,6 +1216,10 @@ export const adminEventRegistrationEn = {
       windowTo: "until {{date}}",
       noGroup: "No group granted",
       anyTier: "No threshold",
+      earlyBirdBadge: "Early bird until {{date}}",
+      accessCodeBadge: "Access code",
+      noWaitlistBadge: "No queue",
+      effectivePrice: "Price today: {{price}}",
 
       editor: {
         createTitle: "New ticket",
@@ -1207,6 +1251,22 @@ export const adminEventRegistrationEn = {
         cancelAction: "Cancel",
         deleteAction: "Delete ticket",
         deleteConfirm: "Delete the ticket? Only possible while no registration uses it.",
+        advancedSection: "Early bird, access code and queue",
+        earlyBirdPriceCents: "Early bird price",
+        earlyBirdUntil: "Early bird price valid until",
+        earlyBirdHint:
+          "Price and date work as a pair. After that date the base price applies - with no manual edit.",
+        accessCode: "New access code",
+        accessCodeHelp:
+          "The code never comes back from the server - only its hash is stored. An empty field keeps the current code.",
+        accessCodeSet: "This ticket has an access code",
+        accessCodeNone: "This ticket is available without a code",
+        removeAccessCode: "Remove the access code on save",
+        accessCodeHintLabel: "Hint next to the code field",
+        accessCodeHintHelp: "A sentence for the participant, e.g. “the code from the invitation”.",
+        waitlistEnabled: "Waiting list once the pool runs out",
+        waitlistHint:
+          "Turned off means a sold-out message instead of a queue - nobody waits for a seat that will not return.",
       },
 
       toasts: {
@@ -1467,6 +1527,19 @@ export const adminEventRegistrationEn = {
       invalidLabels: "The label is required in both languages.",
       invalidOptions: "List options must be an array.",
       duplicateKey: "An entry with this key already exists for this event.",
+      invalidEarlyBird:
+        "The early bird price needs a date and cannot exceed the base price.",
+      invalidAccessCode: "The access code must have 4 to 64 characters.",
+      invalidConsentUrl:
+        "The consent document address must start with https:// (up to 500 characters).",
+      notFound: "The record does not exist in this organisation.",
+      packageSoldOut: "The pool of packages of this kind is exhausted.",
+      packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
+      seatTaken: "This seat is already taken by a participant.",
+      seatRevoked: "This seat has been withdrawn.",
+      orderCancelled: "The order behind this seat is cancelled.",
+      invitationExpired: "The invitation has expired - send it again.",
+      invalidToken: "The invitation link is invalid.",
       unknown: "The operation failed. Refresh the screen and try again.",
     },
   },

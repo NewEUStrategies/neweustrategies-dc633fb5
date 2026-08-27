@@ -48,7 +48,27 @@ export interface TicketDraft {
   groupId: string | null;
   isActive: boolean;
   sortOrder: string;
+  /** Cena promocyjna obowiązująca do `earlyBirdUntil`; pusty tekst = brak. */
+  earlyBirdPriceCents: string;
+  /** `datetime-local` - termin końca ceny promocyjnej. */
+  earlyBirdUntil: string;
+  /**
+   * NOWY kod dostępu w postaci jawnej. Pusty tekst NIE kasuje kodu - baza trzyma
+   * wyłącznie skrót, więc formularz nigdy nie zna obecnego kodu i nie może go
+   * odesłać z powrotem. Zdjęcie bramki ma własny przełącznik.
+   */
+  accessCode: string;
+  /** Czy bilet ma już zapisany kod (z wiersza) - sterowanie treścią pomocy. */
+  hasAccessCode: boolean;
+  /** Zaznaczone = zdejmij kod przy zapisie. */
+  removeAccessCode: boolean;
+  accessCodeHint: string;
+  waitlistEnabled: boolean;
 }
+
+export const TICKET_ACCESS_CODE_MIN = 4;
+export const TICKET_ACCESS_CODE_MAX = 64;
+export const TICKET_MAX_ACCESS_CODE_HINT = 120;
 
 export function emptyTicketDraft(sortOrder: number): TicketDraft {
   return {
@@ -68,6 +88,13 @@ export function emptyTicketDraft(sortOrder: number): TicketDraft {
     groupId: null,
     isActive: true,
     sortOrder: String(sortOrder),
+    earlyBirdPriceCents: "",
+    earlyBirdUntil: "",
+    accessCode: "",
+    hasAccessCode: false,
+    removeAccessCode: false,
+    accessCodeHint: "",
+    waitlistEnabled: true,
   };
 }
 
@@ -112,6 +139,16 @@ export function ticketDraftFromRow(row: EventTicketRow): TicketDraft {
     groupId: row.group_id ?? null,
     isActive: row.is_active,
     sortOrder: String(row.sort_order ?? 0),
+    earlyBirdPriceCents:
+      row.early_bird_price_cents === null || row.early_bird_price_cents === undefined
+        ? ""
+        : String(row.early_bird_price_cents),
+    earlyBirdUntil: toLocalInput(row.early_bird_until ?? null),
+    accessCode: "",
+    hasAccessCode: row.has_access_code === true,
+    removeAccessCode: false,
+    accessCodeHint: row.access_code_hint ?? "",
+    waitlistEnabled: row.waitlist_enabled !== false,
   };
 }
 
@@ -131,7 +168,11 @@ export type TicketDraftField =
   | "priceCents"
   | "quota"
   | "salesTo"
-  | "minTierRank";
+  | "minTierRank"
+  | "earlyBirdPriceCents"
+  | "earlyBirdUntil"
+  | "accessCode"
+  | "accessCodeHint";
 
 export interface TicketDraftIssue {
   field: TicketDraftField;
@@ -187,6 +228,42 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   if (from !== null && to !== null && new Date(to).getTime() <= new Date(from).getTime()) {
     return { field: "salesTo", errorKey: "invalidRequest" };
   }
+
+  // Para early-bird jest niepodzielna: cena bez terminu obowiązywałaby wiecznie,
+  // a termin bez ceny nie zmieniałby niczego. CHECK w bazie odrzuca oba przypadki
+  // bez nazwy pola, więc rozstrzygamy je tutaj, przy właściwym polu.
+  const early = intOrNull(draft.earlyBirdPriceCents);
+  const hasEarlyDate = draft.earlyBirdUntil.trim() !== "";
+  if (early !== null && !hasEarlyDate) {
+    return { field: "earlyBirdUntil", errorKey: "invalidEarlyBird" };
+  }
+  if (early === null && hasEarlyDate) {
+    return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
+  }
+  if (early !== null) {
+    const base = intOrNull(draft.priceCents);
+    if (
+      Number.isNaN(early) ||
+      early < 0 ||
+      base === null ||
+      Number.isNaN(base) ||
+      early > base
+    ) {
+      return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
+    }
+  }
+
+  const code = draft.accessCode.trim();
+  if (
+    code !== "" &&
+    (code.length < TICKET_ACCESS_CODE_MIN || code.length > TICKET_ACCESS_CODE_MAX)
+  ) {
+    return { field: "accessCode", errorKey: "invalidAccessCode" };
+  }
+  if (draft.accessCodeHint.trim().length > TICKET_MAX_ACCESS_CODE_HINT) {
+    return { field: "accessCodeHint", errorKey: "invalidRequest" };
+  }
+
   return null;
 }
 
@@ -211,5 +288,16 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     groupId: draft.groupId,
     isActive: draft.isActive,
     sortOrder: Number(draft.sortOrder.trim() === "" ? "0" : draft.sortOrder.trim()),
+    earlyBirdPriceCents:
+      draft.earlyBirdPriceCents.trim() === "" ? null : Number(draft.earlyBirdPriceCents.trim()),
+    earlyBirdUntil: fromLocalInput(draft.earlyBirdUntil),
+    // Trzy stany kodu: `undefined` = zostaw, `null` = zdejmij, napis = ustaw.
+    accessCode: draft.removeAccessCode
+      ? null
+      : draft.accessCode.trim() === ""
+        ? undefined
+        : draft.accessCode.trim(),
+    accessCodeHint: draft.accessCodeHint.trim(),
+    waitlistEnabled: draft.waitlistEnabled,
   };
 }
