@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@/lib/i18n-event-front";
 import { realT } from "@/test/i18nReal";
-import { sectionHeadingKey } from "@/lib/events/eventSections";
+import { sectionHeadingKey, type EventSection } from "@/lib/events/eventSections";
 import { SpeakerChip } from "@/components/events/SpeakerChip";
 
 const h = vi.hoisted(() => ({
@@ -53,6 +53,22 @@ const t = realT("pl");
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+/** Wiersz sekcji `speakers` z nadpisanym nagłówkiem - tylko tyle, ile
+ *  komponent czyta (nagłówek); reszta modelu należy do trasy. */
+function speakersSection(headingPl: string, headingEn: string | null = null): EventSection {
+  return {
+    key: "speakers",
+    sortOrder: 40,
+    headingPl,
+    headingEn,
+    visibility: "public",
+    minTierRank: 0,
+    isLocked: false,
+    lockReason: "none",
+    hasContent: true,
+  };
 }
 
 function speaker(overrides: Record<string, unknown> = {}) {
@@ -206,5 +222,36 @@ describe("EventSpeakersSection", () => {
     h.speakers = [speaker({ display_name: null })];
     render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
     expect(await screen.findByText(t(sectionHeadingKey("speakers")))).toBeInTheDocument();
+  });
+
+  it("REDAKCYJNE NADPISANIE nagłówka wygrywa ze słownikiem sekcji", async () => {
+    // Nadpisanie (`event_page_sections.heading_pl`) było z tej powierzchni
+    // niewidzialne: komponent dostawał tylko `eventId` i `lang`, więc wiersza
+    // sekcji nie widział, a organizator widział swoją nazwę WYŁĄCZNIE w gałęzi
+    // z zamkiem, czyli u gości bez dostępu. Rodziny miejsc rysowania pilnuje
+    // bramka `eventSectionHeadingOverride.gate.test.tsx`.
+    h.speakers = [speaker()];
+    render(
+      <EventSpeakersSection eventId="e1" lang="pl" section={speakersSection("Nasi mówcy")} />,
+      { wrapper },
+    );
+    expect(await screen.findByText("Nasi mówcy")).toBeInTheDocument();
+    expect(screen.queryByText(t(sectionHeadingKey("speakers")))).not.toBeInTheDocument();
+  });
+
+  it("nagłówek idzie za JĘZYKIEM PROPSA, nie za instancją i18n", async () => {
+    // Ta sama decyzja, co przy roli i przy dialogu profilu: strona wydarzenia
+    // podaje język jawnie, więc nagłówek i treść kart nie mogą rozjechać się
+    // z powodu innego języka aktywnego w instancji i18n.
+    h.speakers = [speaker()];
+    render(
+      <EventSpeakersSection
+        eventId="e1"
+        lang="en"
+        section={speakersSection("Nasi mówcy", "Our speakers")}
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByText("Our speakers")).toBeInTheDocument();
   });
 });

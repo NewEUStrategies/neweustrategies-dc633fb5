@@ -1,9 +1,24 @@
 // Organism: "Speakers" widget editor. Nagłówek i18n + siatka prelegentów
-// z polami (zdjęcie, imię, rola/kategoria PL/EN, statystyki, opis, link).
-// Kategorie do filtra są automatycznie odczytywane z pola `category_${lang}`
-// każdego speakera - nie trzymamy osobnej listy, żeby edycja była jednym
-// źródłem prawdy. Zawiera walidację (URL zdjęcia, ocena 0-5), przełączniki
-// wyszukiwarki/sortowania/paginacji oraz eksport/import JSON.
+// z polami (zdjęcie, imię, organizacja, rola/kategoria PL/EN, statystyki, opis,
+// link). Kategorie do filtra są automatycznie odczytywane z pola
+// `category_${lang}` każdego speakera - nie trzymamy osobnej listy, żeby edycja
+// była jednym źródłem prawdy. Zawiera walidację (URL zdjęcia, ocena 0-5),
+// przełączniki wyszukiwarki/sortowania/paginacji oraz eksport/import JSON.
+//
+// ORGANIZACJA: JEDNO POLE, BEZ BLIŹNIAKÓW JĘZYKOWYCH. Renderer czyta ją tym
+// samym `loc(item, "organization", lang)`, co resztę pól karty, ale przy źródle
+// „baza" wypełnia ją JEDNA kolumna `company` z `get_public_speakers`. Druga
+// rubryka obiecywałaby redakcji rozróżnienie, którego publiczna projekcja
+// prelegentów nie ma - a `loc()` i tak przeczyta `organization_pl` / `_en`,
+// jeśli przyjdą importem JSON ze starszego dokumentu.
+//
+// ETYKIETA TEGO POLA IDZIE ZE SŁOWNIKA, a sąsiednie nadal przez `l(pl, en)`.
+// To nie niekonsekwencja, a kierunek: `check:i18n-hardcoded` trzyma ten plik
+// w rachetcie (dług może tylko maleć), więc NOWY napis nie ma prawa dosypać
+// do niego kolejnego bliźniaka w kodzie. Migracja pozostałych etykiet to osobna
+// zmiana - tutaj byłaby diffem, którego nikt nie przeczyta.
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
@@ -88,6 +103,7 @@ function validateNonNeg(v: number, l: Translate): string | null {
 }
 
 export function SpeakersEditor({ c, lang, setContent }: Props) {
+  const { t } = useTranslation();
   const speakers = itemsOf(c, "speakers");
   const commit = (next: Item[]) => setContent("speakers", toJson(next));
   const patch = (i: number, p: Partial<Item>) =>
@@ -120,6 +136,7 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         id: `sp-${Date.now().toString(36)}`,
         photo: "",
         name: "",
+        organization: "",
         role_pl: "",
         role_en: "",
         category_pl: "",
@@ -240,9 +257,13 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
       </div>
 
       <div className="rounded-[6px] border border-border/60 bg-muted/30 p-2 space-y-2">
+        {/* Podpowiedź musiała się zmienić razem z workiem szukania (doszła
+            organizacja), więc przy okazji ZJECHAŁA DO SŁOWNIKA - dopisanie
+            słowa do bliźniaka w kodzie utrwalałoby dług, który ta zmiana ma
+            zmniejszać (baseline `check:i18n-hardcoded` tego pliku: 40 -> 39). */}
         <PropField
           label={l("Wyszukiwarka", "Search box")}
-          hint={l("Filtruje po imieniu, roli, opisie", "Filters by name, role, description")}
+          hint={t("builder.speakersEditor.searchHint")}
           inline
         >
           <Switch checked={enableSearch} onCheckedChange={(v) => setContent("enableSearch", v)} />
@@ -364,6 +385,7 @@ function SortableSpeakerRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
+  const { t } = useTranslation();
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -430,6 +452,19 @@ function SortableSpeakerRow({
           <Input
             value={strOf(it.name)}
             onChange={(e) => onPatch({ name: e.target.value })}
+            className="h-8 text-xs"
+          />
+        </PropField>
+        {/* Afiliacja stoi PRZY NAZWISKU, a nie przy opisie: na karcie jest
+            faktem o osobie (renderer rysuje ją własnym wierszem pod rolą),
+            a nie jej biografią. */}
+        <PropField
+          label={t("builder.speakersEditor.organization")}
+          hint={t("builder.speakersEditor.organizationHint")}
+        >
+          <Input
+            value={strOf(it.organization)}
+            onChange={(e) => onPatch({ organization: e.target.value })}
             className="h-8 text-xs"
           />
         </PropField>

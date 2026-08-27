@@ -29,9 +29,8 @@
 import { useTranslation } from "react-i18next";
 
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import {
-  sectionHeadingKey,
+  eventSectionHeading,
   shouldRenderSection,
   type EventSection,
   type EventSectionKey,
@@ -99,12 +98,11 @@ function EventPageSection({
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
-  const heading = pickLocalized(
-    { heading_pl: section.headingPl, heading_en: section.headingEn },
-    "heading",
-    lang,
-    t(sectionHeadingKey(section.key)),
-  );
+  // Nadpisanie redakcji, a w jego braku napis ze słownika - JEDNYM selektorem
+  // wspólnym z pozostałymi trzema miejscami rysującymi nagłówek sekcji (trasa
+  // przeglądu: opis, zapisy; `EventSpeakersSection`: prelegenci). Ten organizm
+  // był jedynym, który nadpisanie czytał, i dlatego mechanizm z niego wyszedł.
+  const heading = eventSectionHeading(section, section.key, lang, t);
 
   return (
     <section id={`event-${section.key}`} className="mt-10 scroll-mt-24">

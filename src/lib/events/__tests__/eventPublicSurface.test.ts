@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  eventSectionHeading,
   findEventSection,
   lockReasonKey,
   parseEventSections,
@@ -136,6 +137,59 @@ describe("eventSections - kolejnosc, zamki i nagłówki", () => {
     const sections = parseEventSections([sectionRow({ section_key: "speakers" })]);
     expect(findEventSection(sections, "speakers")?.key).toBe("speakers");
     expect(findEventSection(sections, "map")).toBeNull();
+  });
+
+  describe("eventSectionHeading - nadpisanie redakcji przed slownikiem", () => {
+    // Ten selektor jest JEDYNYM dojsciem czterech powierzchni do naglowka
+    // sekcji, wiec jego polityka pustki jest polityka calej strony. Ze zaden
+    // renderer go nie obchodzi, dowodzi bramka
+    // `components/events/__tests__/eventSectionHeadingOverride.gate.test.tsx`.
+    const key = (value: string) => `KLUCZ:${value}`;
+    // Pusty napis, a nie `null`: sygnatura RPC oddaje kolumny nagłówka jako
+    // `string`, a `parseEventSections` i tak czyta pustkę jak brak nadpisania
+    // (`textOrNull`) - czyli dokładnie ten stan, który front musi zdegradować
+    // do słownika.
+    const sectionWith = (pl: string, en: string) =>
+      parseEventSections([
+        sectionRow({ section_key: "speakers", heading_pl: pl, heading_en: en }),
+      ])[0];
+
+    it("nadpisanie w jezyku interfejsu wygrywa ze slownikiem", () => {
+      expect(
+        eventSectionHeading(sectionWith("Prelegenci kongresu", ""), "speakers", "pl", key),
+      ).toBe("Prelegenci kongresu");
+    });
+
+    it("brak nadpisania spada na klucz slownika TEJ sekcji", () => {
+      expect(eventSectionHeading(sectionWith("", ""), "speakers", "pl", key)).toBe(
+        key("eventFront.sections.speakers.heading"),
+      );
+    });
+
+    it("nadpisanie z DRUGIEGO jezyka jest lepsze niz slownik", () => {
+      // Ta sama polityka, co w kazdej innej parze `_pl` / `_en`: organizator,
+      // ktory nazwal sekcje tylko po angielsku, ma widziec swoja nazwe, a nie
+      // dwie roznie nazwane sekcje w dwoch wersjach jezykowych strony.
+      expect(eventSectionHeading(sectionWith("", "Congress speakers"), "speakers", "pl", key)).toBe(
+        "Congress speakers",
+      );
+    });
+
+    it("BIALE ZNAKI to brak nadpisania, nie pusty naglowek", () => {
+      // `parseEventSections` scina to juz na wejsciu (`textOrNull`), a selektor
+      // domyka te sama polityke dla wiersza zlozonego z pominieciem parsera.
+      expect(eventSectionHeading(sectionWith("   ", "  "), "speakers", "pl", key)).toBe(
+        key("eventFront.sections.speakers.heading"),
+      );
+    });
+
+    it("BRAK SEKCJI (RPC jeszcze nie oddalo) to naglowek slownikowy", () => {
+      // Powierzchnia rysujaca naglowek przed odpowiedzia RPC nie moze pokazac
+      // pustego <h2> - to czyta sie jak awaria strony.
+      expect(eventSectionHeading(null, "registration", "en", key)).toBe(
+        key("eventFront.sections.registration.heading"),
+      );
+    });
   });
 });
 

@@ -20,6 +20,7 @@
 // to opis reguły MARTWEJ: mapa czytała stare `events.location`, którego panel nie
 // zapisuje, a kontakt - `events.host_user_id`, którego nie ustawia nic w całym
 // repozytorium, więc oba oddawały `false` i UBIJAŁY swoją sekcję.
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import type { Database } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
@@ -133,6 +134,43 @@ export function findEventSection(
 /** Klucz nagłówka ze słownika - używany, gdy redakcja nic nie nadpisała. */
 export function sectionHeadingKey(key: EventSectionKey): string {
   return `eventFront.sections.${key}.heading`;
+}
+
+/**
+ * NAGŁÓWEK SEKCJI: nadpisanie redakcji, a w jego braku napis ze słownika.
+ *
+ * JEDEN SELEKTOR NA WSZYSTKIE POWIERZCHNIE. `event_page_sections.heading_pl/_en`
+ * to przełącznik w panelu organizatora, więc miejsce rysujące nagłówek WPROST
+ * ze słownika unieważnia go po cichu - a redakcja dostaje dwie różne nazwy tej
+ * samej sekcji na jednej stronie (albo, jak było przy sekcji prelegentów, nazwę
+ * zmienioną wyłącznie gościom bez dostępu, bo nadpisanie widziała tylko gałąź
+ * z zamkiem). Miejsc rysowania nagłówka jest PIĘĆ w trzech plikach, a nadpisanie
+ * czytało jedno - więc mechanizm nie może żyć w żadnym z nich osobno. Trzy
+ * sekcje mają swój nagłówek poza tym organizmem (`description`, `speakers`,
+ * `registration`); pozostałe pięć rysuje `EventPageSections`.
+ *
+ * FALLBACK ZE SŁOWNIKA STOI TUTAJ, NIE U WOŁAJĄCEGO. Dzięki temu
+ * `sectionHeadingKey` ma w kodzie produkcyjnym dokładnie JEDNO wołanie i bramka
+ * `components/events/__tests__/eventSectionHeadingOverride.gate.test.tsx` umie
+ * policzyć z drzewa każde miejsce, które ten selektor obchodzi - nazwą pliku.
+ *
+ * `section === null` znaczy „RPC jeszcze nie oddało tej sekcji" (albo nie ma jej
+ * w ogóle): nagłówek jest wtedy słownikowy, bo pusty <h2> czyta się jak awaria.
+ * Politykę pustki niesie `pickLocalized` - nadpisanie z samych białych znaków
+ * jest brakiem nadpisania, tak samo jak w każdej innej parze kolumn `_pl/_en`.
+ */
+export function eventSectionHeading(
+  section: EventSection | null,
+  key: EventSectionKey,
+  lang: LocaleCode,
+  translate: (key: string) => string,
+): string {
+  return pickLocalized(
+    { heading_pl: section?.headingPl ?? null, heading_en: section?.headingEn ?? null },
+    "heading",
+    lang,
+    translate(sectionHeadingKey(key)),
+  );
 }
 
 /** Zdanie „nic tu jeszcze nie ma" - inne dla każdej sekcji, nie jedno globalne. */

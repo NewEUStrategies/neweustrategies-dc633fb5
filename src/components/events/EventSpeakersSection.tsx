@@ -30,13 +30,22 @@
 // gosciom bez dostepu. Jeden klucz zamyka ten rozjazd; jest nim klucz sekcji,
 // bo to on jest wartoscia domyslna dla nadpisania z bazy
 // (`event_page_sections.heading_*`) i to jego uzywa kazda inna sekcja strony.
+//
+// KLUCZ ZE SLOWNIKA BYL DOPIERO POLOWA ROBOTY. Napis szedl tu WPROST z `t()`,
+// wiec redakcyjne nadpisanie naglowka (`heading_pl` / `heading_en`) bylo z tej
+// powierzchni niewidzialne: organizator zmienial nazwe sekcji i widzial ja
+// wylacznie w gałęzi z zamkiem, czyli u gosci BEZ dostepu. Dlatego komponent
+// przyjmuje teraz `section` - wiersz modelu sekcji - i pyta o naglowek tego
+// samego selektora, co kazde inne miejsce (`eventSectionHeading`). Sekcja jest
+// OPCJONALNA, bo powierzchnie bez modelu sekcji (test komponentu, przyszly
+// widget) maja prawo dostac naglowek slownikowy zamiast pustego <h2>.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
-import { sectionHeadingKey } from "@/lib/events/eventSections";
+import { eventSectionHeading, type EventSection } from "@/lib/events/eventSections";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { SpeakerChip } from "./SpeakerChip";
 import { SpeakerExpertBadge } from "./SpeakerExpertBadge";
@@ -44,7 +53,16 @@ import { SpeakerProfileDialog, type SpeakerDialogFallback } from "./SpeakerProfi
 
 ensureEventFrontI18n();
 
-export function EventSpeakersSection({ eventId, lang }: { eventId: string; lang: "pl" | "en" }) {
+export function EventSpeakersSection({
+  eventId,
+  lang,
+  section = null,
+}: {
+  eventId: string;
+  lang: "pl" | "en";
+  /** Wiersz `event_sections` tej sekcji - niesie nadpisanie naglowka z bazy. */
+  section?: EventSection | null;
+}) {
   const { t } = useTranslation();
   const speakersQ = useQuery({
     ...speakersQueryOptions({ source: "event", eventId, limit: 50 }, lang),
@@ -62,7 +80,10 @@ export function EventSpeakersSection({ eventId, lang }: { eventId: string; lang:
 
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold">{t(sectionHeadingKey("speakers"))}</h2>
+      {/* `lang` z PROPSA, nie z instancji i18n - ta sama decyzja, co przy roli
+          i przy dialogu profilu: naglowek i tresc karty musza byc w jednym
+          jezyku, a props jest jedynym, ktory tu jest autorytatywny. */}
+      <h2 className="text-lg font-semibold">{eventSectionHeading(section, "speakers", lang, t)}</h2>
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
         {speakers.map((speaker) => {
           // Rola przez KANONICZNY selektor, ten sam, ktorego uzywa siatka:

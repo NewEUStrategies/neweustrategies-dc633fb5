@@ -78,7 +78,7 @@ import { EventVideoHeader } from "@/components/events/public/molecules/EventVide
 import { EventBookmarkButton } from "@/components/events/public/molecules/EventBookmarkButton";
 import { SectionLockCard } from "@/components/events/public/molecules/SectionLockCard";
 import { publicEventKeys, useEventSections } from "@/lib/events/usePublicEvent";
-import { findEventSection, sectionHeadingKey } from "@/lib/events/eventSections";
+import { eventSectionHeading, findEventSection } from "@/lib/events/eventSections";
 import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
 import { EventTicketPurchase } from "@/components/community/EventTicketPurchase";
@@ -392,6 +392,17 @@ function EventOverview() {
   // komponent tej sekcji (razem z jego własnym nagłówkiem).
   const speakersSection = findEventSection(sectionsQ.data ?? [], "speakers");
   const descriptionSection = findEventSection(sectionsQ.data ?? [], "description");
+  // Zapisy NIE mają na tej stronie własnego <h2> - nazwę tej sekcji niesie
+  // DOSTĘPNA NAZWA GRUPY bloku zapisów (`EventRegistrationSurface`), a to jest
+  // ten sam napis i to samo nadpisanie z bazy. Dopóki szedł wprost ze słownika,
+  // organizator zmieniał nazwę sekcji „Zapisy" i czytnik ekranu ogłaszał starą.
+  const registrationSection = findEventSection(sectionsQ.data ?? [], "registration");
+  // JEDEN NAPIS NA OBIE KONTROLKI ZAPISU. Reguła wybiera między zakupem biletu
+  // (`EventTicketPurchase`) a kontrolką bezpłatnego zapisu
+  // (`EventRegistrationSurface`) - a nazwa SEKCJI jest ta sama, bo to ta sama
+  // sekcja `registration` z tym samym nadpisaniem z bazy. Policzony raz, żeby
+  // gałąź płatna nie mogła się od bezpłatnej rozjechać przy kolejnej zmianie.
+  const registrationHeading = eventSectionHeading(registrationSection, "registration", lang, t);
 
   // Informacje praktyczne: kolumny, które panel zapisywał, a uczestnik ich nie
   // widział - do czasu grantu kolumnowego z migracji 20260826120000. Kształt
@@ -505,7 +516,7 @@ function EventOverview() {
             {descriptionSection === null ? null : descriptionSection.isLocked ? (
               <section id="event-description" className="mt-8 scroll-mt-24">
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {t(sectionHeadingKey("description"))}
+                  {eventSectionHeading(descriptionSection, "description", lang, t)}
                 </h2>
                 <div className="mt-4">
                   <SectionLockCard
@@ -552,7 +563,7 @@ function EventOverview() {
             {speakersSection === null ? null : speakersSection.isLocked ? (
               <section className="mt-10 scroll-mt-24" id="event-speakers">
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {t(sectionHeadingKey("speakers"))}
+                  {eventSectionHeading(speakersSection, "speakers", lang, t)}
                 </h2>
                 <div className="mt-4">
                   <SectionLockCard
@@ -563,7 +574,10 @@ function EventOverview() {
                 </div>
               </section>
             ) : (
-              <EventSpeakersSection eventId={ev.id} lang={lang} />
+              // Wiersz sekcji jedzie DO komponentu, bo nagłówek sekcji otwartej
+              // rysuje on - inaczej nadpisanie z bazy widzieliby wyłącznie
+              // goście bez dostępu (gałąź z zamkiem wyżej).
+              <EventSpeakersSection eventId={ev.id} lang={lang} section={speakersSection} />
             )}
 
             {/* Program, partnerzy, materiały, dojazd i kontakt - w kolejności
@@ -611,17 +625,26 @@ function EventOverview() {
                 i przy przepływie `approval` uczestnik dostaje zdanie reguły,
                 a nie przycisk zakupu prowadzący w tę samą ścianę. */}
               {surface === null ? null : isPaidEvent && isLegacyRsvpDecision(surface) ? (
-                <EventTicketPurchase
-                  eventId={ev.id}
-                  slug={ev.slug}
-                  priceCents={ticketCents}
-                  currency={ev.ticket_currency || "PLN"}
-                  lang={lang}
-                  hasTicket={rsvpQ.data?.status === "going"}
-                  isPast={isPast}
-                  isFull={isFull}
-                  onClaimed={invalidate}
-                />
+                // NAZWA SEKCJI NALEŻY DO SEKCJI, NIE DO KONTROLKI. Grupa jest
+                // tutaj, bo `EventRegistrationSurface` nazywa się sama
+                // (`role="group"` + `aria-label`), a zakup biletu nie nazywał
+                // się wcale: na wydarzeniu PŁATNYM czytnik ekranu nie dostawał
+                // nazwy sekcji zapisów w ogóle, a redakcyjne nadpisanie
+                // `heading_pl`/`heading_en` było tam martwe - działało tylko
+                // przy zapisie bezpłatnym, formularzu i rejestracji obcej.
+                <div role="group" aria-label={registrationHeading}>
+                  <EventTicketPurchase
+                    eventId={ev.id}
+                    slug={ev.slug}
+                    priceCents={ticketCents}
+                    currency={ev.ticket_currency || "PLN"}
+                    lang={lang}
+                    hasTicket={rsvpQ.data?.status === "going"}
+                    isPast={isPast}
+                    isFull={isFull}
+                    onClaimed={invalidate}
+                  />
+                </div>
               ) : (
                 <EventRegistrationSurface
                   message={t(surface.messageKey, { date: whenOpens })}
@@ -632,7 +655,7 @@ function EventOverview() {
                   }
                   action={surfaceAction}
                   onAction={onSurfaceAction}
-                  groupLabel={t("eventFront.sections.registration.heading")}
+                  groupLabel={registrationHeading}
                   eventSlug={ev.slug}
                 />
               )}

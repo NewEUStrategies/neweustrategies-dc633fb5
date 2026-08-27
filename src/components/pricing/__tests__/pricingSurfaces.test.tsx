@@ -126,6 +126,43 @@ describe("SupporterStrip - wsparcie misji poza drabinką cen", () => {
 
     expect(screen.getByText("pricing.supporterStrip.body")).toBeInTheDocument();
   });
+
+  it("BEZ warstwy strip mówi własnym głosem ze słownika i ZOSTAWIA wejście do wpłaty", () => {
+    // Kontrakt z nagłówka pliku: katalog v6.1 wycofał próg „Wspierający",
+    // a `/pricing` woła strip z `activeTiers.find(...) ?? null`. Gdyby brak
+    // wiersza gasił nazwę albo link, wycofanie progu zabrałoby ostatnie stałe
+    // wejście do modułu darowizn - czyli dokładnie regresja, przed którą
+    // ostrzega audyt. Props celowo pominięty, bo produkcja podaje tu `null`.
+    render(<SupporterStrip lang="pl" />);
+
+    expect(screen.getByText("pricing.supporterStrip.title")).toBeInTheDocument();
+    expect(screen.getByText("pricing.supporterStrip.body")).toBeInTheDocument();
+    expect(screen.getByText("pricing.supporterStrip.note")).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/support");
+  });
+
+  it("po angielsku bierze ANGIELSKĄ nazwę i ANGIELSKI opis warstwy", () => {
+    // Strip stoi na dwujęzycznej stronie publicznej - polski opis pod
+    // angielskim nagłówkiem byłby widocznym błędem oferty.
+    lang = "en";
+    render(
+      <SupporterStrip
+        tier={membershipTier({
+          key: "supporter",
+          name_pl: "Wspierający",
+          name_en: "Supporter",
+          description_pl: "Polski opis",
+          description_en: "English description",
+        })}
+        lang="en"
+      />,
+    );
+
+    expect(screen.getByText("Supporter")).toBeInTheDocument();
+    expect(screen.getByText("English description")).toBeInTheDocument();
+    expect(screen.queryByText("Polski opis")).not.toBeInTheDocument();
+    expect(screen.queryByText("Wspierający")).not.toBeInTheDocument();
+  });
 });
 
 describe("PricingFaq - pytania klienta i widoczność w wyszukiwarce", () => {

@@ -59,6 +59,37 @@ psql -q -d nes -v ON_ERROR_STOP=1 -f "$SHARED/harness.sql" >/dev/null
 psql -q -d nes -v ON_ERROR_STOP=1 -f "$HERE/harness.sql" >/dev/null
 echo "harness: OK"
 
+# TOLERANCJA, WIDOCZNA W LOGU I POLICZONA W PODSUMOWANIU.
+#
+# Czesc tabel w `harness.sql` stoi tam WYLACZNIE jako CELE POLITYK: migracja
+# 20260824074231 przestawia polityki `*_staff_*` z `is_staff()` na nowe
+# `is_admin_or_editor()` w czterech domenach naraz, a `ON_ERROR_STOP=1` przerywa
+# plik na pierwszym brakujacym obiekcie - czyli PRZED sekcja rekrutacyjna, ktora
+# stoi w wierszach 51-99. Bez tych atrap bramka albo swieci czerwono na obiekcie
+# spoza modulu, albo (gdyby dostala SKIP) cicho przestaje pilnowac zaostrzenia,
+# po ktore ta migracja powstala. Uzasadnienie w calosci: `harness.sql`, blok
+# "ATRAPY-CELE POLITYK".
+#
+# Lista jest CZYTANA z `harness.sql`, nie wpisana tutaj - inaczej rozjechalaby
+# sie z kodem przy pierwszej zmianie atrapy.
+CELE_POLITYK="$(sed -nE 's/^-- ATRAPA-CEL-POLITYKI: ([a-z_]+) *$/\1/p' "$HERE/harness.sql")"
+CELE_LICZBA="$(printf '%s\n' "$CELE_POLITYK" | grep -c . || true)"
+echo "Atrapy-cele polityk: $CELE_LICZBA (harness NIC o nich nie twierdzi): $(echo $CELE_POLITYK | tr '\n' ' ')"
+
+# Atrapa-cel polityki NIE odtwarza produkcyjnego ksztaltu tabeli, wiec asercja
+# postawiona na niej mierzylaby fikcje - dokladnie ten blad, przed ktorym
+# ostrzega README. Ten warunek jest po to, zeby "nic nie twierdzimy" bylo
+# EGZEKWOWANE, a nie tylko obiecane w komentarzu.
+for cel in $CELE_POLITYK; do
+  if grep -qE "\b$cel\b" "$HERE/runtime_test.sql"; then
+    echo "runtime_test.sql odwoluje sie do \"$cel\", a to atrapa-cel polityki -" >&2
+    echo "ta tabela nie ma produkcyjnego ksztaltu, wiec asercja na niej mierzy fikcje." >&2
+    echo "Albo odtworz jej ksztalt z migracji i zdejmij znacznik ATRAPA-CEL-POLITYKI," >&2
+    echo "albo usun asercje." >&2
+    exit 1
+  fi
+done
+
 # Dobor po TRESCI, nie po nazwie pliku - migracja nazwana UUID-em przez panel
 # Lovable tez musi wejsc. Sortowanie jest ISTOTNE: dokladnie w tej kolejnosci
 # aplikuje pliki Supabase CLI, wiec tylko ona odtwarza realny stan koncowy.
@@ -107,7 +138,7 @@ echo
 echo "== testy runtime =="
 if psql -d nes -v ON_ERROR_STOP=1 -f "$HERE/runtime_test.sql" 2>&1 | grep -vE '^(SET|INSERT|UPDATE|DELETE|SELECT|CREATE|DROP|BEGIN|COMMIT|ROLLBACK|DO|RESET|ALTER)' ; then
   echo
-  echo "careers-harness: OK ($applied migracji)"
+  echo "careers-harness: OK ($applied migracji, $CELE_LICZBA atrap-celow polityk, 0 pominietych migracji)"
 else
   echo "careers-harness: testy runtime NIE przeszly."
   exit 1

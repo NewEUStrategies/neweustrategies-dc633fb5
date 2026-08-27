@@ -1500,6 +1500,14 @@ const pl = {
       emptyColumn: "Pusta kolumna",
     },
     speakersEditor: {
+      // JEDNO POLE NA OBIE WERSJE JĘZYKOWE - w odróżnieniu od roli, kategorii
+      // i opisu, które mają bliźniaki `_pl` / `_en`. Publiczna projekcja
+      // prelegentów (`get_public_speakers`) ma JEDNĄ kolumnę `company`, więc
+      // druga rubryka obiecywałaby redakcji rozróżnienie, którego przy źródle
+      // „baza" i tak nie ma.
+      organization: "Organizacja",
+      organizationHint: "Jedno pole na obie wersje - baza ma jedną kolumnę afiliacji.",
+      searchHint: "Filtruje po imieniu, roli, organizacji, opisie",
       invalidUrl: "Nieprawidłowy URL (http(s)://… lub /…)",
       notAnImage: "URL nie wygląda na obraz (jpg/png/webp/avif/gif/svg)",
       invalidLink: "Link musi zaczynać się od / lub http(s)://",
@@ -3027,6 +3035,10 @@ const en: typeof pl = {
       emptyColumn: "Empty column",
     },
     speakersEditor: {
+      organization: "Organization",
+      organizationHint:
+        "One field for both languages - the database has a single affiliation column.",
+      searchHint: "Filters by name, role, organization, description",
       invalidUrl: "Invalid URL (http(s)://… or /…)",
       notAnImage: "The URL does not look like an image (jpg/png/webp/avif/gif/svg)",
       invalidLink: "The link must start with / or http(s)://",
