@@ -47,9 +47,22 @@ interface AgendaTracksPanelProps {
   eventId: string;
   /** Strefa wydarzenia - przechodzi do zakładki sesji otwartego pasma. */
   timeZoneLabel: string;
+  /**
+   * OTWARTA ŚCIEŻKA MOŻE MIESZKAĆ W ADRESIE. Warsztat pasma (osiem zakładek na
+   * wzór Swapcarda) to osobny ekran, więc trasa może go trzymać w `?track=`,
+   * dzięki czemu odświeżenie strony i wklejony link wracają w to samo miejsce.
+   * Bez tych propsów panel działa jak dotąd - na własnym stanie.
+   */
+  openedTrackId?: string | null;
+  onOpenTrack?: (trackId: string | null) => void;
 }
 
-export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelProps) {
+export function AgendaTracksPanel({
+  eventId,
+  timeZoneLabel,
+  openedTrackId,
+  onOpenTrack,
+}: AgendaTracksPanelProps) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
   const listQ = useEventTracks(eventId);
@@ -72,7 +85,13 @@ export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelP
   // Otwarta ścieżka jest trzymana po IDENTYFIKATORZE, nie po wierszu: po zapisie
   // lista wraca ze świeżymi danymi i przestrzeń robocza ma pokazać nowe, a nie
   // zamrożoną kopię sprzed edycji.
-  const [openedId, setOpenedId] = useState<string | null>(null);
+  const [localOpenedId, setLocalOpenedId] = useState<string | null>(null);
+  const controlled = onOpenTrack !== undefined;
+  const openedId = controlled ? (openedTrackId ?? null) : localOpenedId;
+  const openTrack = (trackId: string | null) => {
+    if (onOpenTrack !== undefined) onOpenTrack(trackId);
+    else setLocalOpenedId(trackId);
+  };
 
   const rows = listQ.data ?? [];
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
@@ -80,11 +99,15 @@ export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelP
   const fail = (error: unknown) => toast.error(adminAgendaErrorMessage(error));
 
   const submit = (input: EventTrackInput) => {
+    const isNew = edited === null;
     save.mutate(input, {
-      onSuccess: () => {
+      onSuccess: (trackId) => {
         toast.success(t("adminEventAgenda.tracks.toasts.saved"));
         setDialogOpen(false);
         setEdited(null);
+        // NOWE PASMO OTWIERAMY OD RAZU. Ścieżka bez warsztatu jest tylko
+        // wierszem na liście - a cały program planuje się w jej zakładkach.
+        if (isNew && typeof trackId === "string" && trackId !== "") openTrack(trackId);
       },
       onError: fail,
     });
@@ -153,7 +176,7 @@ export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelP
         eventId={eventId}
         track={opened}
         timeZoneLabel={timeZoneLabel}
-        onBack={() => setOpenedId(null)}
+        onBack={() => openTrack(null)}
       />
     );
   }
@@ -211,12 +234,18 @@ export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelP
                 className="h-4 w-4 shrink-0 rounded-sm border border-border"
                 style={{ backgroundColor: row.accent_color }}
               />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{nameOf(row)}</p>
+              {/* Nazwa pasma jest wejściem do warsztatu - tak jak w Swapcardzie,
+                  gdzie klik w wiersz otwiera stronę z zakładkami. */}
+              <button
+                type="button"
+                className="min-w-0 flex-1 text-left"
+                onClick={() => openTrack(row.id)}
+              >
+                <p className="truncate text-sm font-medium hover:underline">{nameOf(row)}</p>
                 <p className="truncate font-medium tracking-tight text-xs text-muted-foreground">
                   {row.key}
                 </p>
-              </div>
+              </button>
               <Badge variant="secondary">
                 {t("adminEventAgenda.tracks.sessionsCount", { count: row.sessions_count })}
               </Badge>
@@ -227,7 +256,7 @@ export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelP
                 className="w-auto"
               />
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={() => setOpenedId(row.id)}>
+                <Button variant="outline" size="sm" onClick={() => openTrack(row.id)}>
                   <ArrowRight className="mr-2 h-4 w-4" aria-hidden="true" />
                   {t("adminEventAgenda.tracks.openAction")}
                 </Button>
