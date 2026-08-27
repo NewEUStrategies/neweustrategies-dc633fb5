@@ -20,8 +20,12 @@ import {
 import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
+import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { useEventRooms } from "@/lib/events/useEventSessions";
 import {
+  AGENDA_MAX_DESCRIPTION,
   AGENDA_MAX_NAME,
+  AGENDA_MAX_TAGLINE,
   emptyTrackDraft,
   trackDraftFromRow,
   trackDraftToInput,
@@ -51,6 +55,9 @@ export function EventTrackDialog({
   onSubmit,
 }: EventTrackDialogProps) {
   const { t } = useTranslation();
+  // Sala domyślna to podpowiedź pasma, więc lista sal jest tu potrzebna tylko
+  // wtedy, gdy formularz jest otwarty.
+  const roomsQ = useEventRooms(open ? eventId : null);
   const [draft, setDraft] = useState<TrackDraft>(() => emptyTrackDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
 
@@ -82,7 +89,7 @@ export function EventTrackDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {t(
@@ -133,10 +140,70 @@ export function EventTrackDialog({
             monospace
             maxLength={7}
           />
+          <AdminFormEnumRow
+            label={t("adminEventAgenda.tracks.dialog.defaultRoom")}
+            hint={t("adminEventAgenda.tracks.dialog.defaultRoomHint")}
+            value={draft.defaultRoomId}
+            options={["", ...(roomsQ.data ?? []).map((room) => String(room.id))]}
+            labelFor={(option) =>
+              option === ""
+                ? t("adminEventAgenda.tracks.dialog.defaultRoomNone")
+                : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ??
+                  option)
+            }
+            onValueChange={(value) => set("defaultRoomId", value)}
+          />
           <AdminFormSwitchRow
             label={t("adminEventAgenda.tracks.dialog.isActive")}
+            hint={t("adminEventAgenda.tracks.dialog.isActiveHint")}
             checked={draft.isActive}
             onCheckedChange={(value) => set("isActive", value)}
+          />
+          <AdminFormSwitchRow
+            label={t("adminEventAgenda.tracks.dialog.isPublic")}
+            hint={t("adminEventAgenda.tracks.dialog.isPublicHint")}
+            checked={draft.isPublic}
+            onCheckedChange={(value) => set("isPublic", value)}
+          />
+        </AdminFormSection>
+
+        <AdminFormSection title={t("adminEventAgenda.tracks.dialog.storySection")} columns={2}>
+          <AdminFormTextRow
+            label={t("adminEventAgenda.tracks.dialog.taglinePl")}
+            value={draft.taglinePl}
+            onValueChange={(value) => set("taglinePl", value)}
+            maxLength={AGENDA_MAX_TAGLINE}
+            error={errorFor("taglinePl")}
+          />
+          <AdminFormTextRow
+            label={t("adminEventAgenda.tracks.dialog.taglineEn")}
+            value={draft.taglineEn}
+            onValueChange={(value) => set("taglineEn", value)}
+            maxLength={AGENDA_MAX_TAGLINE}
+            error={errorFor("taglineEn")}
+          />
+          <AdminFormTextRow
+            label={t("adminEventAgenda.tracks.dialog.descriptionPl")}
+            value={draft.descriptionPl}
+            onValueChange={(value) => set("descriptionPl", value)}
+            maxLength={AGENDA_MAX_DESCRIPTION}
+            rows={5}
+          />
+          <AdminFormTextRow
+            label={t("adminEventAgenda.tracks.dialog.descriptionEn")}
+            value={draft.descriptionEn}
+            onValueChange={(value) => set("descriptionEn", value)}
+            maxLength={AGENDA_MAX_DESCRIPTION}
+            rows={5}
+          />
+          <AdminFormTextRow
+            label={t("adminEventAgenda.tracks.dialog.coverUrl")}
+            hint={t("adminEventAgenda.tracks.dialog.coverUrlHint")}
+            value={draft.coverUrl}
+            onValueChange={(value) => set("coverUrl", value)}
+            type="url"
+            maxLength={2000}
+            className="md:col-span-2"
           />
         </AdminFormSection>
 
