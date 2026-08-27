@@ -627,7 +627,9 @@ export const adminEventAgendaEn = {
         descriptionPl: "Description (PL)",
         descriptionEn: "Description (EN)",
         coverUrl: "Header image",
-        coverUrlHint: "Full address of the image shown above the track name.",
+        coverUrlHint:
+          "Shown above the track name. Drop a file, pick one from your disk or paste a full address.",
+
         saveAction: "Save",
         cancelAction: "Cancel",
         validation: {
