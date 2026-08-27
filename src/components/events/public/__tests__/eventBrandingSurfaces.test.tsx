@@ -18,8 +18,17 @@
 // klas dowolnych. To wiązanie jest częścią dowodu, a nie obejściem: jeśli ktoś
 // usunie albo przechrzci klasę w kodzie produkcyjnym, reguła przestanie pasować
 // do węzła, wartość obliczona spadnie do wartości motywu i test się zaczerwieni.
-// Deklaracje klas DOWOLNYCH (`bg-[color:var(…)]`, `[background-image:var(…)]`)
-// są przy tym wprost odczytane z nazwy klasy - Tailwind nie ma tam swobody.
+// Deklaracje klas DOWOLNYCH (`bg-[color:var(--event-nav,transparent)]`,
+// `[background-image:var(--event-bg-image,none)]`) są przy tym wprost odczytane
+// z nazwy klasy - Tailwind nie ma tam swobody.
+//
+// NAZWY KLAS STOJĄ TU W PEŁNEJ POSTACI, BEZ WYKROPKOWANIA. `styles.css` ma
+// `@source "../src"`, więc skaner Tailwinda czyta też ten plik - i też
+// komentarze. Nazwa klasy dowolnej z WYKROPKOWANĄ nazwą zmiennej w środku jest
+// dla skanera równie dobrym kandydatem jak prawdziwa, więc generator wypuszcza
+// z niej regułę, w której `var()` nie ma nazwy własności - a to błąd składni:
+// lightningcss przerywa transformację CAŁEGO arkusza, w dev-serwerze staje
+// `<vite-error-overlay>` i przechwytuje klikanie na KAŻDEJ stronie serwisu.
 //
 // TOKENY MOTYWU są tu zadeklarowane na `:root` tak jak w `styles.css` - dzięki
 // temu przypadek „wydarzenie BEZ brandingu" ma mierzalną wartość odniesienia
