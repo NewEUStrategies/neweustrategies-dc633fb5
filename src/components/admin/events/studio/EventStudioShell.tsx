@@ -246,6 +246,7 @@ export function EventStudioShell({
           open={previewOpen}
           onOpenChange={setPreviewOpen}
           publicHref={publicHref}
+          eventId={eventId}
         />
       </EventStudioPreviewProvider>
     </div>
