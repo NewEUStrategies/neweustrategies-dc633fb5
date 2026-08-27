@@ -44,6 +44,11 @@ import { useSponsors } from "@/lib/events/useEventSponsors";
 import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
+import type { BuilderDocument } from "@/lib/builder/types";
+
+/** Cel nawigacji podgladu z wlasna kopia etykiety i sciezki (patrz nizej). */
+type PreviewNavTarget = { key: string; pageId: string; label: string; path: string };
+
 
 export function EventStudioPreview({
   open,
@@ -72,38 +77,70 @@ export function EventStudioPreview({
   // albo kafel dokladnie tak, jak zrobi to uczestnik po publikacji - ale bez
   // opuszczania studia i bez gubienia niezapisanego szkicu formularza.
   // `null` = strona glowna wydarzenia.
-  const [navTarget, setNavTarget] = useState<{ key: string; pageId: string } | null>(null);
+  const [navTarget, setNavTarget] = useState<PreviewNavTarget | null>(null);
   const navDocumentQ = useEventPageDocument(navTarget?.pageId ?? null);
+  // WYBRANA PODSTRONA NIE MOZE ZNIKAC PRZY ODSWIEZENIU DANYCH. Menu i dokument
+  // przychodza z zapytan - kazde ponowne pobranie (powrot do okna, uniewaznienie
+  // po zapisie, wyczyszczenie cache) na moment oddaje puste menu albo stan
+  // `pending`. Gdyby podglad czytal wtedy tylko `base.menu`, pozycja znikalaby
+  // z listy i widok wracalby na strone glowna „sam z siebie”. Dlatego cel
+  // nawigacji nosi WLASNA kopie etykiety i sciezki, a ostatni pobrany dokument
+  // zostaje w ref jako rysunek awaryjny.
+  const lastDocumentRef = useRef<BuilderDocument | null>(null);
+  if (navTarget === null) lastDocumentRef.current = null;
+  else if (!navDocumentQ.isPending && navDocumentQ.data !== undefined)
+    lastDocumentRef.current = navDocumentQ.data;
+
+  const handleNavigate = useCallback(
+    (target: { key: string; pageId: string } | null) => {
+      if (target === null) {
+        setNavTarget(null);
+        return;
+      }
+      const item = base.menu.find((entry) => entry.key === target.key);
+      setNavTarget({
+        key: target.key,
+        pageId: target.pageId,
+        label: item?.label ?? "",
+        path: item?.path ?? "",
+      });
+    },
+    [base.menu],
+  );
+
   // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
-  // kanwa. Kanwa rysuje szkic formularza i nie ma prawa odpalic zapytania;
-  // tutaj jestesmy w drzewie aplikacji, wiec ten sam hook, ktorego uzywa strona
-  // publiczna, oddaje te same fakty o zalogowanym redaktorze.
+  // kanwa.
   const viewer = useViewerCardFacts();
-  // Tylko przypiecia OGLOSZONE - `published` to ten sam filtr, ktory stosuje
-  // publiczne `event_sponsors_public`; podglad nie moze obiecywac partnera,
-  // ktorego uczestnik nie zobaczy.
+  // Tylko przypiecia OGLOSZONE - ten sam filtr, ktory stosuje publiczne
+  // `event_sponsors_public`.
   const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
   const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
+
+
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":
   // ostatnia decyzja nalezy do tego, kto wlasnie klika. Dopoki dokument leci
   // z bazy, zostaje poprzedni rysunek - migniecie „strona pusta" klamaloby.
   const navItem =
-    navTarget === null ? undefined : base.menu.find((item) => item.key === navTarget.key);
+    navTarget === null
+      ? undefined
+      : (base.menu.find((item) => item.key === navTarget.key) ?? navTarget);
   const model: EventPreviewModel =
     navTarget === null || navItem === undefined
       ? base
       : {
           ...base,
-          selectedPage: navDocumentQ.isPending
-            ? base.selectedPage
-            : {
-                key: navItem.key,
-                label: navItem.label,
-                path: navItem.path,
-                document: navDocumentQ.data ?? null,
-              },
+          selectedPage: {
+            key: navItem.key,
+            label: navItem.label,
+            path: navItem.path,
+            document:
+              navDocumentQ.isPending || navDocumentQ.data === undefined
+                ? lastDocumentRef.current
+                : navDocumentQ.data,
+          },
         };
+
   const [device, setDevice] = useState<PreviewDevice>("desktop");
   const [scale, setScale] = useState(1);
   const [contentHeight, setContentHeight] = useState(0);
@@ -228,7 +265,7 @@ export function EventStudioPreview({
               device={device}
               viewer={viewer}
               sponsorTiers={sponsorTiers}
-              onNavigate={setNavTarget}
+              onNavigate={handleNavigate}
             />
           </div>
         </div>
