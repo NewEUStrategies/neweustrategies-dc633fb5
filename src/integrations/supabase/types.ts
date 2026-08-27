@@ -7724,6 +7724,8 @@ export type Database = {
       }
       event_registration_fields: {
         Row: {
+          consent_url_en: string
+          consent_url_pl: string
           created_at: string
           event_id: string
           field_type: string
@@ -7745,6 +7747,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          consent_url_en?: string
+          consent_url_pl?: string
           created_at?: string
           event_id: string
           field_type?: string
@@ -7766,6 +7770,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          consent_url_en?: string
+          consent_url_pl?: string
           created_at?: string
           event_id?: string
           field_type?: string
@@ -9101,11 +9107,15 @@ export type Database = {
       }
       event_ticket_types: {
         Row: {
+          access_code_hash: string | null
+          access_code_hint: string
           audience: string
           created_at: string
           currency: string
           description_en: string
           description_pl: string
+          early_bird_price_cents: number | null
+          early_bird_until: string | null
           event_id: string
           group_id: string | null
           id: string
@@ -9125,13 +9135,18 @@ export type Database = {
           sort_order: number
           tenant_id: string
           updated_at: string
+          waitlist_enabled: boolean
         }
         Insert: {
+          access_code_hash?: string | null
+          access_code_hint?: string
           audience?: string
           created_at?: string
           currency?: string
           description_en?: string
           description_pl?: string
+          early_bird_price_cents?: number | null
+          early_bird_until?: string | null
           event_id: string
           group_id?: string | null
           id?: string
@@ -9151,13 +9166,18 @@ export type Database = {
           sort_order?: number
           tenant_id: string
           updated_at?: string
+          waitlist_enabled?: boolean
         }
         Update: {
+          access_code_hash?: string | null
+          access_code_hint?: string
           audience?: string
           created_at?: string
           currency?: string
           description_en?: string
           description_pl?: string
+          early_bird_price_cents?: number | null
+          early_bird_until?: string | null
           event_id?: string
           group_id?: string | null
           id?: string
@@ -9177,6 +9197,7 @@ export type Database = {
           sort_order?: number
           tenant_id?: string
           updated_at?: string
+          waitlist_enabled?: boolean
         }
         Relationships: [
           {
@@ -18675,6 +18696,7 @@ export type Database = {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
       }
+      _event_consent_url: { Args: { p_value: string }; Returns: string }
       _event_default_pages: {
         Args: never
         Returns: {
@@ -18857,6 +18879,14 @@ export type Database = {
       _event_slugify: { Args: { _text: string }; Returns: string }
       _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
+      _event_ticket_effective_price: {
+        Args: {
+          p_early_price_cents: number
+          p_early_until: string
+          p_price_cents: number
+        }
+        Returns: number
+      }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
@@ -20469,15 +20499,20 @@ export type Database = {
       admin_event_tickets_list: {
         Args: { p_event_id: string }
         Returns: {
+          access_code_hint: string
           availability: string
           created_at: string
           currency: string
           description_en: string
           description_pl: string
+          early_bird_price_cents: number
+          early_bird_until: string
+          effective_price_cents: number
           event_id: string
           group_id: string
           group_name_en: string
           group_name_pl: string
+          has_access_code: boolean
           id: string
           is_active: boolean
           key: string
@@ -20495,6 +20530,7 @@ export type Database = {
           sort_order: number
           updated_at: string
           waitlist_count: number
+          waitlist_enabled: boolean
         }[]
       }
       admin_event_track_delete: { Args: { _id: string }; Returns: boolean }
