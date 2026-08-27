@@ -23,7 +23,10 @@
 //   * `EventOverviewLayout` - siatka 1 : 2 : 1 razem z `EventOverviewTitle`
 //     i `EventOverviewDescription`,
 //   * `EventMetaCard` / `EventMetaRow` - karta „kiedy, gdzie”,
-//   * `EventMenuTiles` - kafle podstron (lista albo siatka),
+//   * `EventMenuTiles` - kafle podstron w trybie `grid`,
+//   * `EventSectionLinks` - wiersze sekcji strony glownej w trybie `list`
+//     (krazek z ikona, etykieta, szewron) - to jest tresc wzorca ze zrzutu 38,
+//   * `EventViewerCard` - karta profilu zalogowanego widza w lewej kolumnie,
 //   * `EventPortalContent` - miara kolumny tresci podstrony.
 // Bramka `eventPreviewPublicParity.gate.test.tsx` RENDERUJE oba miejsca
 // i asertuje te same znaczniki powloki i siatki, a dodatkowo czerwieni sie na
@@ -47,9 +50,17 @@
 //     Zamiast fabrykowac decyzje reguly, podglad pokazuje sam przycisk
 //     w kolorze akcji - i dlatego jest `span`, ktory nie zabiera skupienia
 //     z formularza;
-//   * POZYCJE PASKA I KAFLI ida ze SZKICU, nie z `event_menu`: to RPC ma w ciele
-//     `AND e.status = 'published'`, wiec na szkicu oddaloby pustke, a redaktor
-//     ma zobaczyc to, co wlasnie wpisal.
+//   * POZYCJE PASKA I SPISU SEKCJI ida z `admin_event_pages_list`, nie
+//     z `event_menu`: publiczne RPC ma w ciele `AND e.status = 'published'`,
+//     wiec na szkicu oddaloby pustke. RPC panelu czyta te same wiersze
+//     `event_pages` (te same ikony i te same kolory - z `_event_default_pages()`)
+//     i DOSIEWA brakujace strony modulowe na wejsciu, wiec podglad dostaje
+//     PRAWDZIWA piatke, a nie jej kopie wpisana na sztywno w kliencie. Model
+//     wypelnia rama studia (`EventStudioShell`), nie ta kanwa - kanwa nie ma
+//     prawa odpalic zapytania.
+//   * WIDZ WCHODZI PROPEM `viewer`, nie modelem: model to szkic WYDARZENIA,
+//     a tozsamosc ogladajacego nalezy do sesji. Czyta ja nakladka podgladu
+//     (`EventStudioPreview`) tym samym hookiem, co strona publiczna.
 //
 // CZEGO NIE DA SIE ZAMONTOWAC I DLACZEGO - lista z powodami stoi w bramce
 // (`COMPONENT_EXCEPTIONS`), bo tam jest egzekwowana. W skrocie: powierzchnie,
@@ -90,6 +101,12 @@ import {
   eventMenuTileClass,
 } from "@/components/events/public/molecules/EventMenuTiles";
 import {
+  EventSectionLinkBody,
+  EventSectionLinks,
+  EVENT_SECTION_LINK_CLASS,
+} from "@/components/events/public/molecules/EventSectionLinks";
+import { EventViewerCard } from "@/components/events/public/molecules/EventViewerCard";
+import {
   EventTabsBar,
   EVENT_TAB_ACTIVE_CLASS,
   EVENT_TAB_CLASS,
@@ -106,6 +123,7 @@ import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer"
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import type { ViewerCardFacts } from "@/lib/profile/useViewerCard";
 import type { EventPreviewModel } from "@/components/admin/events/studio/EventStudioPreviewContext";
 
 /** Szerokosci wirtualne kanwy - rzeczywiste punkty zalamania strony publicznej. */
@@ -148,9 +166,23 @@ function previewSection(key: EventSectionKey): EventSection {
 export function EventPreviewCanvas({
   model,
   device,
+  viewer = null,
 }: {
   model: EventPreviewModel;
   device: PreviewDevice;
+  /**
+   * Fakty o ZALOGOWANYM REDAKTORZE do karty profilu w lewej kolumnie.
+   *
+   * OSOBNY PROP, A NIE POLE MODELU, bo to nie jest szkic wydarzenia: model
+   * niesie WYLACZNIE to, co redaktor wpisuje w formularzu, a widz jest
+   * wlasnoscia sesji. Wnosi go `EventStudioPreview` przez `useViewerCardFacts`
+   * - ten sam hook, ktorego uzywa strona publiczna - bo kanwa nie ma prawa
+   * odpalic zapytania (rysuje szkic, nie stan bazy).
+   *
+   * `null` = brak sesji albo wiersz profilu w drodze; karty wtedy nie ma,
+   * dokladnie jak dla gosca na stronie publicznej.
+   */
+  viewer?: ViewerCardFacts | null;
 }) {
   ensureAdminEventsI18n();
   ensureCommunityI18n();
@@ -246,16 +278,39 @@ export function EventPreviewCanvas({
                 <EventOverviewDescription>{description}</EventOverviewDescription>
               )}
 
-              {model.menu.length === 0 ? null : (
-                <EventMenuTiles label={t("eventFront.menu.label")} grid={isGrid}>
+              {/* TRYB ROZSTRZYGA TEN SAM WARUNEK, CO NA STRONIE PUBLICZNEJ
+                  (`events.$slug.index.tsx`: `pages_display_mode === "grid"`).
+                  Do tej zmiany podglad rysowal TU KAFLE ZAWSZE, a strona
+                  w trybie `list` - czyli domyslnym - rysuje wiersze z krazkami
+                  i szewronem (wzorzec, zrzut 38). Redaktor widzial wiec
+                  w podgladzie inny spis, niz dostanie uczestnik. Rysunek jest
+                  w obu miejscach ten sam: `EventMenuTiles` albo
+                  `EventSectionLinks`, roznia sie wylacznie opakowaniem pozycji
+                  (`<Link>` na stronie, `<span>` tutaj). */}
+              {model.menu.length === 0 ? null : isGrid ? (
+                <EventMenuTiles label={t("eventFront.menu.label")} grid>
                   {model.menu.map((item) => (
                     <li key={item.key}>
-                      <span className={eventMenuTileClass(isGrid)}>
+                      <span className={eventMenuTileClass(true)}>
                         <EventMenuTileBody icon={item.icon} color={item.color} label={item.label} />
                       </span>
                     </li>
                   ))}
                 </EventMenuTiles>
+              ) : (
+                <EventSectionLinks label={t("eventFront.homeSections.label")}>
+                  {model.menu.map((item) => (
+                    <li key={item.key}>
+                      <span className={EVENT_SECTION_LINK_CLASS}>
+                        <EventSectionLinkBody
+                          icon={item.icon}
+                          color={item.color}
+                          label={item.label}
+                        />
+                      </span>
+                    </li>
+                  ))}
+                </EventSectionLinks>
               )}
 
               {/* Dojazd i kontakt rysuje TEN SAM organizm, co strona publiczna -
@@ -268,23 +323,49 @@ export function EventPreviewCanvas({
             </>
           }
           left={
-            <EventMetaCard>
-              <EventMetaRow
-                icon={<CalendarDays className="h-4 w-4" />}
-                label={t("community.events.whenLabel")}
-              >
-                {dateLabel === "" ? t("adminEvents.studio.preview.noDate") : dateLabel}
-                {zoneLabel === "" ? null : ` (${zoneLabel})`}
-              </EventMetaRow>
-              {model.locationName === "" ? null : (
-                <EventMetaRow
-                  icon={<MapPin className="h-4 w-4" />}
-                  label={t("community.events.location")}
-                >
-                  {model.locationName}
-                </EventMetaRow>
+            <>
+              {/* KARTA PROFILU WIDZA STOI NA GORZE LEWEJ KOLUMNY - tak jak na
+                  wzorcu (zrzut 38). W studiu widzem jest zalogowany redaktor,
+                  wiec to nie jest atrapa: te same fakty, ten sam hook
+                  (`useViewerCardFacts`) i ten sam rysunek (`EventViewerCard`),
+                  co na stronie publicznej. Rozni sie wylacznie „Edytuj":
+                  na stronie `<Link>`, tutaj napis - patrz naglowek pliku. */}
+              {viewer === null ? null : (
+                <EventViewerCard
+                  name={viewer.name}
+                  jobTitle={viewer.jobTitle}
+                  company={viewer.company}
+                  avatarUrl={viewer.avatarUrl}
+                  editSlot={
+                    <span className="text-muted-foreground">{t("eventFront.viewer.edit")}</span>
+                  }
+                />
               )}
-            </EventMetaCard>
+
+              {/* KARTA „KIEDY, GDZIE" ZOSTAJE POD PROFILEM, choc wzorzec jej
+                  nie ma. Wzorzec pokazuje wydarzenie, ktorego termin niesie
+                  grafika baneru - a u nas termin, strefa czasowa i miejsce sa
+                  POLAMI, ktore redaktor wpisuje w „Informacjach ogolnych".
+                  Zdjecie tej karty zabralo by jedyne miejsce, w ktorym te
+                  pola widac, czyli zamienilo by wierny uklad na utracone dane. */}
+              <EventMetaCard>
+                <EventMetaRow
+                  icon={<CalendarDays className="h-4 w-4" />}
+                  label={t("community.events.whenLabel")}
+                >
+                  {dateLabel === "" ? t("adminEvents.studio.preview.noDate") : dateLabel}
+                  {zoneLabel === "" ? null : ` (${zoneLabel})`}
+                </EventMetaRow>
+                {model.locationName === "" ? null : (
+                  <EventMetaRow
+                    icon={<MapPin className="h-4 w-4" />}
+                    label={t("community.events.location")}
+                  >
+                    {model.locationName}
+                  </EventMetaRow>
+                )}
+              </EventMetaCard>
+            </>
           }
           right={
             <span className={buttonVariants()}>{t("adminEvents.studio.preview.register")}</span>

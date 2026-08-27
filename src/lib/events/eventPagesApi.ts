@@ -433,6 +433,48 @@ export function eventPageLabel(row: EventPageRow, lang: UiLang): string {
   return "";
 }
 
+/**
+ * Pozycja menu w kszalcie, w ktorym czyta ja PODGLAD STRONY WYDARZENIA.
+ *
+ * KSZTALT MIESZKA W LIB, A NIE W KONTEKSCIE PODGLADU, bo ma DWOCH producentow:
+ * rame studia (stan zapisany, `base`) i ekran „Strony i menu" (szkic
+ * przelacznika trybu). Dwa niezalezne mapowania jednej listy to dokladnie ten
+ * defekt, z ktorym walczy `EventOverviewLayout` - tylko o warstwe nizej.
+ */
+export interface EventMenuDraftItem {
+  /** `event_pages.id` - pozycja aktywna poznaje sie po IDENTYFIKATORZE, nie po etykiecie. */
+  key: string;
+  label: string;
+  /** Nazwa ikony; nigdy pusta - brak wlasnej degraduje do `EVENT_PAGE_DEFAULT_ICON`. */
+  icon: string;
+  /** `#RRGGBB` albo pusty napis = krazek z motywu. */
+  color: string;
+}
+
+/**
+ * Lista podstron -> pozycje menu podgladu, w kolejnosci z bazy.
+ *
+ * WCHODZI CALA LISTA, NIE JUZ PODZIELONA: podzial na „w menu" i „pozostale" jest
+ * czescia tej samej reguly (`splitEventPages`), a wolajacy, ktory podzieli po
+ * swojemu, moze wpuscic do menu pozycje z `in_menu = false`.
+ *
+ * KOLEJNOSCI NIE PRZESTAWIAMY. Lista przychodzi posortowana przez RPC
+ * (`in_menu` malejaco, potem `sort_order`, potem tytul), a `event_menu` na
+ * stronie publicznej sortuje tak samo - wlasne sortowanie tutaj rozjechaloby
+ * podglad z publikacja.
+ */
+export function eventPreviewMenu(
+  rows: readonly EventPageRow[],
+  lang: UiLang,
+): EventMenuDraftItem[] {
+  return splitEventPages(rows).menu.map((entry) => ({
+    key: entry.id,
+    label: eventPageLabel(entry, lang),
+    icon: entry.icon ?? EVENT_PAGE_DEFAULT_ICON,
+    color: entry.color ?? "",
+  }));
+}
+
 /** Kolejnosc dla pozycji dokladanej na koniec menu. */
 export function nextEventPageSortOrder(menu: readonly EventPageRow[]): number {
   let max = 0;
