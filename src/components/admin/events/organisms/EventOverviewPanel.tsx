@@ -19,6 +19,7 @@ import {
   EventStudioPage,
   EventStudioRow,
 } from "@/components/admin/events/studio/EventStudioSection";
+import { EventReadinessPanel } from "@/components/admin/events/organisms/EventReadinessPanel";
 import { EVENT_STUDIO_ROUTES, type EventStudioSection } from "@/lib/events/eventStudioNav";
 import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { useEventSessions } from "@/lib/events/useEventSessions";
