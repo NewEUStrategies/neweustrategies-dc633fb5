@@ -260,7 +260,7 @@ export function EventStudioPreview({
               device={device}
               viewer={viewer}
               sponsorTiers={sponsorTiers}
-              onNavigate={setNavTarget}
+              onNavigate={handleNavigate}
             />
           </div>
         </div>
