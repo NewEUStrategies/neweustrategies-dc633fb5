@@ -15,7 +15,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, CalendarClock, Link2, Pencil, Users } from "lucide-react";
+import { ArrowLeft, CalendarClock, CheckCircle2, Clock, LayoutList, Link2, Pencil, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -177,18 +177,22 @@ export function EventTrackWorkspace({ eventId, track, onBack }: EventTrackWorksp
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <AdminMetricTile
+          icon={LayoutList}
           label={t("adminEventAgenda.tracks.workspace.metricSessions")}
           value={String(track.sessions_count)}
         />
         <AdminMetricTile
+          icon={CheckCircle2}
           label={t("adminEventAgenda.tracks.workspace.metricPublished")}
           value={`${track.published_count} / ${track.sessions_count}`}
         />
         <AdminMetricTile
+          icon={Users}
           label={t("adminEventAgenda.tracks.workspace.metricSpeakers")}
           value={String(track.speakers_count)}
         />
         <AdminMetricTile
+          icon={Clock}
           label={t("adminEventAgenda.tracks.workspace.metricMinutes")}
           value={t("adminEventAgenda.tracks.workspace.minutes", {
             count: track.minutes_total,
