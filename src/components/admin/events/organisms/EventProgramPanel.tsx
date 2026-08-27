@@ -11,14 +11,18 @@
 // sesji do sciezki.
 import { useTranslation } from "react-i18next";
 import { AgendaTracksPanel } from "@/components/admin/events/organisms/AgendaTracksPanel";
+import { AgendaTimelinePanel } from "@/components/admin/events/organisms/AgendaTimelinePanel";
 
 interface EventProgramPanelProps {
   eventId: string;
   timeZoneLabel: string;
+  /** Strefa wydarzenia (IANA) - siatka czasu liczy doby w niej, nie w przeglądarce. */
+  timezone?: string | null;
   /** Otwarte pasmo z adresu - patrz `AgendaTracksPanel`. */
   openedTrackId?: string | null;
   onOpenTrack?: (trackId: string | null) => void;
 }
+
 
 export function EventProgramPanel({
   eventId,
