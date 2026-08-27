@@ -35,7 +35,11 @@ import {
   PREVIEW_WIDTHS,
   type PreviewDevice,
 } from "@/components/admin/events/studio/EventPreviewCanvas";
-import { useEventPreviewModel } from "@/components/admin/events/studio/EventStudioPreviewContext";
+import {
+  useEventPreviewModel,
+  type EventPreviewModel,
+} from "@/components/admin/events/studio/EventStudioPreviewContext";
+import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
@@ -51,12 +55,38 @@ export function EventStudioPreview({
 }) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();
-  const model = useEventPreviewModel();
+  const base = useEventPreviewModel();
+  // NAWIGACJA PODGLADU JEST STANEM NAKLADKI, nie trasa. Redaktor klika zakladke
+  // albo kafel dokladnie tak, jak zrobi to uczestnik po publikacji - ale bez
+  // opuszczania studia i bez gubienia niezapisanego szkicu formularza.
+  // `null` = strona glowna wydarzenia.
+  const [navTarget, setNavTarget] = useState<{ key: string; pageId: string } | null>(null);
+  const navDocumentQ = useEventPageDocument(navTarget?.pageId ?? null);
   // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
   // kanwa. Kanwa rysuje szkic formularza i nie ma prawa odpalic zapytania;
   // tutaj jestesmy w drzewie aplikacji, wiec ten sam hook, ktorego uzywa strona
   // publiczna, oddaje te same fakty o zalogowanym redaktorze.
   const viewer = useViewerCardFacts();
+
+  // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":
+  // ostatnia decyzja nalezy do tego, kto wlasnie klika. Dopoki dokument leci
+  // z bazy, zostaje poprzedni rysunek - migniecie „strona pusta" klamaloby.
+  const navItem =
+    navTarget === null ? undefined : base.menu.find((item) => item.key === navTarget.key);
+  const model: EventPreviewModel =
+    navTarget === null || navItem === undefined
+      ? base
+      : {
+          ...base,
+          selectedPage: navDocumentQ.isPending
+            ? base.selectedPage
+            : {
+                key: navItem.key,
+                label: navItem.label,
+                path: navItem.path,
+                document: navDocumentQ.data ?? null,
+              },
+        };
   const [device, setDevice] = useState<PreviewDevice>("desktop");
   const [scale, setScale] = useState(1);
   const [contentHeight, setContentHeight] = useState(0);
@@ -176,7 +206,12 @@ export function EventStudioPreview({
               transformOrigin: "top left",
             }}
           >
-            <EventPreviewCanvas model={model} device={device} viewer={viewer} />
+            <EventPreviewCanvas
+              model={model}
+              device={device}
+              viewer={viewer}
+              onNavigate={setNavTarget}
+            />
           </div>
         </div>
       </div>

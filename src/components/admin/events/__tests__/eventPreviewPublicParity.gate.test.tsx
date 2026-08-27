@@ -34,7 +34,7 @@
 // zeby wyjatek nie przezyl powierzchni, ktorej dotyczyl (nieuzywany wpis
 // czerwieni test tak samo jak brakujacy komponent).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync, readdirSync } from "node:fs";
 
 vi.mock("react-i18next", () => ({
@@ -348,7 +348,9 @@ function filledModel(): EventPreviewModel {
       colors: { ...EMPTY_EVENT_PREVIEW.branding.colors, main_action: "#FA9346" },
     },
     pagesDisplayMode: "grid",
-    menu: [{ key: "m1", label: "Prelegenci", icon: "users", color: "" }],
+    menu: [
+      { key: "m1", pageId: "p1", path: "kongres/prelegenci", label: "Prelegenci", icon: "users", color: "" },
+    ],
   };
 }
 
@@ -680,5 +682,32 @@ describe("podglad studia rysuje szkic prawdziwymi komponentami", () => {
     // (`titleSlot` - nazwa wydarzenia widoczna na kazdej zakladce) i raz jako
     // `h1` przegladu. Dokladnie tak jest na stronie publicznej.
     expect(screen.getAllByText("adminEvents.studio.preview.untitled")).toHaveLength(2);
+  });
+
+  // PODGLAD MA ZACHOWYWAC SIE JAK PUBLIKACJA. Bez handlera nawigacji kanwa
+  // rysuje statycznie (tak korzystaja z niej zrzuty i bramki), z handlerem
+  // zakladki i kafle sa prawdziwymi przyciskami i oddaja identyfikator strony.
+  it("bez `onNavigate` zakladki pozostaja statyczne", () => {
+    render(<EventPreviewCanvas model={filledModel()} device="desktop" />);
+    expect(screen.queryByRole("button", { name: "Prelegenci" })).toBeNull();
+  });
+
+  it("z `onNavigate` kafel podstrony oddaje jej identyfikator", () => {
+    const onNavigate = vi.fn();
+    render(
+      <EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />,
+    );
+    const targets = screen.getAllByRole("button", { name: "Prelegenci" });
+    fireEvent.click(targets[targets.length - 1]!);
+    expect(onNavigate).toHaveBeenCalledWith({ key: "m1", pageId: "p1" });
+  });
+
+  it("z `onNavigate` zakladka przegladu wraca na strone glowna", () => {
+    const onNavigate = vi.fn();
+    render(
+      <EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "eventFront.header.tabs.overview" }));
+    expect(onNavigate).toHaveBeenCalledWith(null);
   });
 });

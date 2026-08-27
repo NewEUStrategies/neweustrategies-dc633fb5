@@ -444,12 +444,24 @@ export function eventPageLabel(row: EventPageRow, lang: UiLang): string {
 export interface EventMenuDraftItem {
   /** `event_pages.id` - pozycja aktywna poznaje sie po IDENTYFIKATORZE, nie po etykiecie. */
   key: string;
+  /**
+   * `pages.id` STRONY pod pozycja menu.
+   *
+   * PO CO OSOBNO OD `key`: podglad, ktory ma zachowywac sie jak publikacja,
+   * musi po kliknieciu pozycji POBRAC DOKUMENT strony - a dokument wisi na
+   * stronie, nie na pozycji menu. Bez tego pola nakladka musialaby odtwarzac
+   * mapowanie z listy stron drugi raz.
+   */
+  pageId: string;
+  /** Pelna sciezka publiczna strony - podglad pokazuje ja jako chrome adresu. */
+  path: string;
   label: string;
   /** Nazwa ikony; nigdy pusta - brak wlasnej degraduje do `EVENT_PAGE_DEFAULT_ICON`. */
   icon: string;
   /** `#RRGGBB` albo pusty napis = krazek z motywu. */
   color: string;
 }
+
 
 /**
  * Lista podstron -> pozycje menu podgladu, w kolejnosci z bazy.
@@ -469,6 +481,8 @@ export function eventPreviewMenu(
 ): EventMenuDraftItem[] {
   return splitEventPages(rows).menu.map((entry) => ({
     key: entry.id,
+    pageId: entry.page_id,
+    path: entry.page_path,
     label: eventPageLabel(entry, lang),
     icon: entry.icon ?? EVENT_PAGE_DEFAULT_ICON,
     color: entry.color ?? "",

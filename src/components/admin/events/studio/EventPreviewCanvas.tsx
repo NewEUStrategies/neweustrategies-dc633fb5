@@ -168,6 +168,7 @@ export function EventPreviewCanvas({
   model,
   device,
   viewer = null,
+  onNavigate,
 }: {
   model: EventPreviewModel;
   device: PreviewDevice;
@@ -184,6 +185,16 @@ export function EventPreviewCanvas({
    * dokladnie jak dla gosca na stronie publicznej.
    */
   viewer?: ViewerCardFacts | null;
+  /**
+   * PRZEJSCIE MIEDZY STRONAMI WEWNATRZ PODGLADU.
+   *
+   * Podglad ma zachowywac sie jak publikacja, wiec pasek zakladek, kafle
+   * i wiersze sekcji sa KLIKALNE - tylko celem nie jest trasa routera (klik
+   * wyprowadzilby redaktora ze studia i zgubil niezapisany szkic), lecz stan
+   * nakladki: `null` = strona glowna, pozycja = jej podstrona. Brak handlera
+   * zostawia rysunek statyczny (bramka parytetu renderuje kanwe bez sesji).
+   */
+  onNavigate?: (target: { key: string; pageId: string } | null) => void;
 }) {
   ensureAdminEventsI18n();
   ensureCommunityI18n();
@@ -244,14 +255,15 @@ export function EventPreviewCanvas({
                 jest `Link`-iem, wiec `inactiveProps` routera tu nie dojada -
                 tu wybor robi `cn`. Bez tego wiersza podglad rysowalby zakladki
                 w kolorze DZIEDZICZONYM i rozjechalby sie ze strona publiczna. */}
-              <span
+              <PreviewNavItem
                 className={cn(
                   EVENT_TAB_CLASS,
                   page === null ? EVENT_TAB_ACTIVE_CLASS : EVENT_TAB_INACTIVE_CLASS,
                 )}
+                onActivate={onNavigate === undefined ? undefined : () => onNavigate(null)}
               >
                 {t("eventFront.header.tabs.overview")}
-              </span>
+              </PreviewNavItem>
             </li>
             {model.menu.map((item) => (
               <li key={item.key}>
@@ -259,16 +271,21 @@ export function EventPreviewCanvas({
                   Etykieta jest redagowalna i nie jest unikalna, wiec dwie
                   podstrony o tej samej nazwie zaznaczalyby sie obie - patrz
                   `EventPreviewPage.key`. */}
-                <span
+                <PreviewNavItem
                   className={cn(
                     EVENT_TAB_CLASS,
                     page !== null && page.key === item.key
                       ? EVENT_TAB_ACTIVE_CLASS
                       : EVENT_TAB_INACTIVE_CLASS,
                   )}
+                  onActivate={
+                    onNavigate === undefined
+                      ? undefined
+                      : () => onNavigate({ key: item.key, pageId: item.pageId })
+                  }
                 >
                   {item.label}
-                </span>
+                </PreviewNavItem>
               </li>
             ))}
           </EventTabsBar>
@@ -305,9 +322,16 @@ export function EventPreviewCanvas({
                 <EventMenuTiles label={t("eventFront.menu.label")} grid>
                   {model.menu.map((item) => (
                     <li key={item.key}>
-                      <span className={eventMenuTileClass(true)}>
+                      <PreviewNavItem
+                        className={eventMenuTileClass(true)}
+                        onActivate={
+                          onNavigate === undefined
+                            ? undefined
+                            : () => onNavigate({ key: item.key, pageId: item.pageId })
+                        }
+                      >
                         <EventMenuTileBody icon={item.icon} color={item.color} label={item.label} />
-                      </span>
+                      </PreviewNavItem>
                     </li>
                   ))}
                 </EventMenuTiles>
@@ -315,13 +339,20 @@ export function EventPreviewCanvas({
                 <EventSectionLinks label={t("eventFront.homeSections.label")}>
                   {model.menu.map((item) => (
                     <li key={item.key}>
-                      <span className={EVENT_SECTION_LINK_CLASS}>
+                      <PreviewNavItem
+                        className={EVENT_SECTION_LINK_CLASS}
+                        onActivate={
+                          onNavigate === undefined
+                            ? undefined
+                            : () => onNavigate({ key: item.key, pageId: item.pageId })
+                        }
+                      >
                         <EventSectionLinkBody
                           icon={item.icon}
                           color={item.color}
                           label={item.label}
                         />
-                      </span>
+                      </PreviewNavItem>
                     </li>
                   ))}
                 </EventSectionLinks>
@@ -411,5 +442,31 @@ export function EventPreviewCanvas({
         </EventPortalContent>
       )}
     </EventPortalShell>
+  );
+}
+
+/**
+ * Pozycja nawigacji podgladu: `button` gdy nakladka daje przejscie, `span` gdy
+ * kanwa rysuje statycznie (bramka parytetu, zrzut do dokumentacji).
+ *
+ * JEDEN KOMPONENT, A NIE WARUNEK W PIECIU MIEJSCACH: klasy sa te same, co na
+ * stronie publicznej, wiec wybor znacznika nie moze przy okazji zmieniac
+ * wygladu. `w-full text-left` wyrownuje `button` do `Link`-a, ktory na stronie
+ * jest elementem blokowym.
+ */
+function PreviewNavItem({
+  className,
+  onActivate,
+  children,
+}: {
+  className: string;
+  onActivate?: () => void;
+  children: React.ReactNode;
+}) {
+  if (onActivate === undefined) return <span className={className}>{children}</span>;
+  return (
+    <button type="button" onClick={onActivate} className={cn(className, "w-full text-left")}>
+      {children}
+    </button>
   );
 }
