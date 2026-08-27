@@ -32,6 +32,7 @@ import {
   setSessionSignup,
   setSessionSpeakers,
   setSessionsStatus,
+  setSessionsTrack,
   type AgendaConflictRow,
   type EventRoomInput,
   type EventRoomRow,
@@ -46,6 +47,7 @@ import {
   type SessionSpeakerInput,
   type SessionsQuery,
   type SessionsStatusInput,
+  type SessionsTrackInput,
 } from "@/lib/events/sessionsApi";
 import type { Json } from "@/integrations/supabase/types";
 
