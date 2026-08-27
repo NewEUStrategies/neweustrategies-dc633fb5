@@ -29,7 +29,7 @@
 //
 // ── CO JEST MIERZONE, W DWÓCH NIEZALEŻNYCH WARSTWACH ────────────────────────
 //   1. STRUKTURA LISTY KLAS: na węźle stoi DOKŁADNIE JEDNA klasa koloru napisu
-//      (`text-[color:etc]` bez wariantu). Ta asercja jest ODPORNA NA KOLEJNOŚĆ
+//      (`text-[color:red]` bez wariantu). Ta asercja jest ODPORNA NA KOLEJNOŚĆ
 //      w arkuszu, bo nie pyta o wynik kaskady - pyta o to, żeby kaskada nie
 //      miała czego rozstrzygać. Właśnie ta własność jest treścią poprawki:
 //      kolejność emisji Tailwinda nie jest kontraktem i nie wolno na niej stać.
@@ -40,7 +40,7 @@
 //
 // Arkusz zastępczy jest ten sam co w `eventBrandingSurfaces.test.tsx`:
 // w testach nie ma przejazdu Tailwinda, więc token klasy wiążemy z deklaracją
-// selektorem `[class~="etc"]`, żeby nie escapować nawiasów. Wiązanie jest częścią
+// selektorem `[class~="nazwa-klasy"]`, żeby nie escapować nawiasów. Wiązanie jest częścią
 // dowodu: przechrzczenie klasy w kodzie produkcyjnym odkleja regułę od węzła
 // i wartość obliczona spada do tokenu motywu.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -248,7 +248,7 @@ describe("pasek zakladek wydarzenia: bierzaca pozycja ma kolor bierzacej", () =>
   });
 
   it("pasek BEZ koloru nawigacji bierze tokeny motywu - odwrot dziala dalej", async () => {
-    // Kazda wartosc `var(--event-nav-*, etc)` ma drugi argument. Rozdzielenie klas
+    // Kazda wartosc `var(--event-nav-*, red)` ma drugi argument. Rozdzielenie klas
     // nie moze tego zabrac: wydarzenie bez slotu koloru wyglada jak dzis.
     const { active, idle } = await mount("/events/kongres/speakers", false);
     expect(getComputedStyle(active[0]).color).toBe(THEME_FOREGROUND);
