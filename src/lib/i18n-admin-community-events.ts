@@ -358,6 +358,12 @@ export const adminCommunityEventsEn = {
         photoUrl: "Photo (URL)",
         photoUrlPlaceholder: "https://…",
         photoUrlHint: "https is required, because the photo goes to the public page.",
+        photoUpload: "Upload photo",
+        photoUploading: "Uploading…",
+        photoRemove: "Remove photo",
+        photoFailed: "The photo could not be uploaded.",
+        photoAlt: "Speaker photo preview",
+
         headlinePl: "Stage headline PL",
         headlineEn: "Stage headline EN",
         headlineHint: "The second line of the speaker card. Left empty, the job title stays.",
