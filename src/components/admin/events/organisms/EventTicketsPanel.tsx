@@ -154,6 +154,21 @@ export function EventTicketsPanel({ eventId }: { eventId: string }) {
                 {row.price_cents === 0
                   ? t("adminEventRegistration.tickets.free")
                   : formatPrice(row.price_cents, row.currency, i18n.language)}
+                {/* Cena obowiązująca DZIŚ liczy się w bazie (`effective_price_cents`),
+                    a nie w przeglądarce: zegar przeglądarki bywa przestawiony, a
+                    to on decydowałby, czy uczestnik widzi promocję. */}
+                {typeof row.effective_price_cents === "number" &&
+                row.effective_price_cents !== row.price_cents ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t("adminEventRegistration.tickets.effectivePrice", {
+                      price: formatPrice(
+                        row.effective_price_cents,
+                        row.currency,
+                        i18n.language,
+                      ),
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               <div className="min-w-[10rem] text-sm text-muted-foreground">
@@ -167,6 +182,26 @@ export function EventTicketsPanel({ eventId }: { eventId: string }) {
               </div>
 
               <div className="min-w-[12rem] text-xs text-muted-foreground">{windowLabel(row)}</div>
+
+              {row.early_bird_until !== null && row.early_bird_until !== undefined ? (
+                <Badge variant="secondary">
+                  {t("adminEventRegistration.tickets.earlyBirdBadge", {
+                    date: formatDateTime(row.early_bird_until, i18n.language),
+                  })}
+                </Badge>
+              ) : null}
+
+              {row.has_access_code === true ? (
+                <Badge variant="outline">
+                  {t("adminEventRegistration.tickets.accessCodeBadge")}
+                </Badge>
+              ) : null}
+
+              {row.waitlist_enabled === false ? (
+                <Badge variant="outline">
+                  {t("adminEventRegistration.tickets.noWaitlistBadge")}
+                </Badge>
+              ) : null}
 
               {row.requires_approval ? (
                 <Badge variant="outline">

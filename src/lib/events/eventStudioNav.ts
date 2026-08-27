@@ -58,6 +58,7 @@ export const EVENT_STUDIO_SECTIONS = [
   "registrationSettings",
   "registrationList",
   "registrationTickets",
+  "registrationPackages",
   "registrationForm",
   "contentSpeakers",
   "contentTracks",
@@ -101,6 +102,7 @@ export const EVENT_STUDIO_ROUTES = {
   registrationSettings: "/admin/events/$eventId/registration/settings",
   registrationList: "/admin/events/$eventId/registration/list",
   registrationTickets: "/admin/events/$eventId/registration/tickets",
+  registrationPackages: "/admin/events/$eventId/registration/packages",
   registrationForm: "/admin/events/$eventId/registration/form",
   contentSpeakers: "/admin/events/$eventId/content/speakers",
   contentTracks: "/admin/events/$eventId/content/tracks",
@@ -247,6 +249,13 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         key: "registrationTickets",
         labelKey: "adminEventRegistration.nav.tickets",
         keywordKeys: ["adminEvents.studio.keywords.registrationTickets"],
+      },
+      {
+        // PAKIETY STOJĄ ZA BILETAMI, bo pakiet sprzedaje bilet w hurcie -
+        // bez zdefiniowanej wejściówki nie ma czego zapakować.
+        key: "registrationPackages",
+        labelKey: "adminEventRegistration.packages.title",
+        keywordKeys: ["adminEvents.studio.keywords.registrationPackages"],
       },
       {
         key: "registrationForm",

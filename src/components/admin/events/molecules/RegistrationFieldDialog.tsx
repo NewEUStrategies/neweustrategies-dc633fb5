@@ -23,6 +23,7 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import {
+  FIELD_MAX_CONSENT_URL,
   FIELD_MAX_HELP,
   FIELD_MAX_LABEL,
   FIELD_TYPES_WITH_OPTIONS,
@@ -164,6 +165,31 @@ export function RegistrationFieldDialog({
               maxLength={FIELD_MAX_HELP}
               error={errorFor("helpEn")}
             />
+            {/* ODNOŚNIK ZGODY POKAZUJEMY TYLKO PRZY POLU ZGODY. Przy polu tekstowym
+                byłby martwą kolumną, a przy zgodzie jest wymogiem RODO: uczestnik
+                musi móc przeczytać treść, na którą się godzi. */}
+            {draft.fieldType === "consent" ? (
+              <>
+                <AdminFormTextRow
+                  label={t("adminEventRegistration.form.editor.consentUrlPl")}
+                  hint={t("adminEventRegistration.form.editor.consentUrlHint")}
+                  value={draft.consentUrlPl}
+                  onValueChange={(value) => set("consentUrlPl", value)}
+                  maxLength={FIELD_MAX_CONSENT_URL}
+                  placeholder="https://"
+                  error={errorFor("consentUrlPl")}
+                />
+                <AdminFormTextRow
+                  label={t("adminEventRegistration.form.editor.consentUrlEn")}
+                  value={draft.consentUrlEn}
+                  onValueChange={(value) => set("consentUrlEn", value)}
+                  maxLength={FIELD_MAX_CONSENT_URL}
+                  placeholder="https://"
+                  error={errorFor("consentUrlEn")}
+                />
+              </>
+            ) : null}
+
             <AdminFormTextRow
               label={t("adminEventRegistration.form.editor.sortOrder")}
               value={draft.sortOrder}
