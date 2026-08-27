@@ -208,6 +208,8 @@ export function EventSpeakerCreateDialog({
   const registerUpload = useServerFn(registerMediaUpload);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
 
   // UPLOAD ZDJECIA. Ta sama, jedyna dopuszczalna sciezka co w reszcie panelu:
   // walidacja MIME/rozmiaru -> storage w prefiksie najemcy -> rejestracja w
