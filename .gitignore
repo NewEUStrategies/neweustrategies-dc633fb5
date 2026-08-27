@@ -69,3 +69,8 @@ package-lock.json
 # z kluczami API, których nie wolno commitować.
 .claude/settings.local.json
 .claude/*.local.json
+
+# Worktree'y tworzone przez harness agentów (Workflow, isolation: worktree).
+# `.claude/` jest sledzony ze wzgledu na settings.json, wiec bez tego wpisu
+# jedno `git add -A` wciaga do commita caly rownolegly checkout repozytorium.
+.claude/worktrees/

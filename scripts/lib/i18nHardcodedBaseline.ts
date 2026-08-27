@@ -74,7 +74,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/blocks/XQuoteShare.tsx", 1],
   ["src/components/community/EventTicketPurchase.tsx", 4],
   ["src/components/donations/DonationsWidgetView.tsx", 4],
-  ["src/components/events/SpeakerProfileDialog.tsx", 8],
+  ["src/components/events/SpeakerProfileDialog.tsx", 7],
   ["src/components/megaMenu/MegaMenu.tsx", 1],
   ["src/components/molecules/BulkActionBar.tsx", 4],
   ["src/components/newsletter/NewsletterDocRenderer.tsx", 4],

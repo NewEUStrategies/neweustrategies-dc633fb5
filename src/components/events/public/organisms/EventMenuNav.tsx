@@ -20,12 +20,15 @@
 // adresy rozstrzyga pasek zakładek i spis sekcji na stronie głównej.
 import { useTranslation } from "react-i18next";
 
-import { cn } from "@/lib/utils";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
 import { EventPageLink } from "@/components/events/public/atoms/EventPageLink";
+import {
+  EventMenuTileBody,
+  EventMenuTiles,
+  eventMenuTileClass,
+} from "@/components/events/public/molecules/EventMenuTiles";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { EventMenuItem } from "@/lib/events/publicEventApi";
 
@@ -53,22 +56,16 @@ export function EventMenuNav({
   const isGrid = displayMode === "grid";
 
   return (
-    <nav aria-label={t("eventFront.menu.label")} className="mt-8">
-      <ul
-        className={cn(isGrid ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-2")}
-      >
-        {items.map((item) => (
-          <li key={item.id}>
-            <EventMenuLink
-              item={item}
-              eventSlug={slug}
-              label={menuLabel(item, lang)}
-              grid={isGrid}
-            />
-          </li>
-        ))}
-      </ul>
-    </nav>
+    // Kafle (znacznik, przełącznik lista/siatka, klasy) rysuje `EventMenuTiles` -
+    // ten sam komponent, którym spis rysuje podgląd studia. Tutaj zostaje
+    // ŹRÓDŁO pozycji: `event_menu` i adres z `EventPageLink`.
+    <EventMenuTiles label={t("eventFront.menu.label")} grid={isGrid}>
+      {items.map((item) => (
+        <li key={item.id}>
+          <EventMenuLink item={item} eventSlug={slug} label={menuLabel(item, lang)} grid={isGrid} />
+        </li>
+      ))}
+    </EventMenuTiles>
   );
 }
 
@@ -94,27 +91,8 @@ function EventMenuLink({
   grid: boolean;
 }) {
   return (
-    <EventPageLink
-      item={item}
-      eventSlug={eventSlug}
-      className={cn(
-        "flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/50",
-        grid && "h-full",
-      )}
-    >
-      {item.icon !== null && (
-        <span
-          aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
-          // Kolor pozycji jest TŁEM IKONY, nie kolorem napisu: `#RRGGBB`
-          // z panelu nie ma pary w postaci koloru tekstu, a napis na losowym
-          // tle bywa nieczytelny. Brak koloru = kafelek z motywu.
-          style={item.color === null ? undefined : { backgroundColor: item.color }}
-        >
-          <DynamicIcon name={item.icon} size={18} />
-        </span>
-      )}
-      <span className="min-w-0 flex-1">{label}</span>
+    <EventPageLink item={item} eventSlug={eventSlug} className={eventMenuTileClass(grid)}>
+      <EventMenuTileBody icon={item.icon} color={item.color} label={label} />
     </EventPageLink>
   );
 }

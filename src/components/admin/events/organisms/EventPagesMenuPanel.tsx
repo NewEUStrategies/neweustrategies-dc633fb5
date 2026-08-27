@@ -161,6 +161,10 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
       previewRow === null || documentQ.isPending
         ? null
         : {
+            // Ta sama przestrzen identyfikatorow, co `key` pozycji menu nizej
+            // (`entry.id`), zeby kanwa porownywala identyfikatory, a nie napisy.
+            // `null` = wybrana strona nie jest przypieta do menu.
+            key: split.menu.find((entry) => entry.page_id === previewRow.page_id)?.id ?? null,
             label: eventPageLabel(previewRow, lang),
             path: previewRow.page_path,
             document: documentQ.data ?? null,

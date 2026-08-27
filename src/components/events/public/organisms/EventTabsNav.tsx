@@ -37,17 +37,15 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { eventModuleLabelKey, eventModuleOf } from "@/lib/events/eventModules";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
 import { EventPageLink } from "@/components/events/public/atoms/EventPageLink";
+import {
+  EventTabsBar,
+  EVENT_TAB_ACTIVE_CLASS,
+  EVENT_TAB_CLASS,
+} from "@/components/events/public/molecules/EventTabsBar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { EventMenuItem } from "@/lib/events/publicEventApi";
 
 ensureEventFrontI18n();
-
-const TAB_CLASS =
-  "inline-block whitespace-nowrap rounded-[6px] px-1 py-4 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-// Pogrubienie NIE zmienia rozmiaru napisu, więc pasek nie drga przy przejściu
-// między zakładkami; kolor bierze `--foreground`, bo `--primary` jest w jasnym
-// motywie prawie czernią, a w ciemnym prawie bielą i nie niesie tu żadnej treści.
-const TAB_ACTIVE_CLASS = "font-semibold text-foreground";
 
 export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?: boolean }) {
   const { t, i18n } = useTranslation();
@@ -62,39 +60,36 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label={t("eventFront.header.tabsLabel")} className="border-b border-border">
-      {/* Wyśrodkowany rząd - na wzorcu pasek stoi w osi strony, nie przy lewej
-          krawędzi. Zawijanie zamiast przewijania: sześć krótkich napisów mieści
-          się na telefonie w dwóch rzędach, a poziomy pasek przewijany chowałby
-          ostatnią zakładkę poza ekranem bez żadnego znaku, że tam jest. */}
-      <ul className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-6 px-4">
-        <li>
-          {/* `exact`: bez tego „Strona główna” zostawałaby aktywna na każdej
+    // Listwę (znacznik, wyśrodkowanie, klasy pozycji) rysuje `EventTabsBar` -
+    // ten sam komponent, którym pasek rysuje podgląd studia. Tutaj zostaje
+    // ŹRÓDŁO pozycji: `event_menu` i odnośniki routera.
+    <EventTabsBar label={t("eventFront.header.tabsLabel")}>
+      <li>
+        {/* `exact`: bez tego „Strona główna” zostawałaby aktywna na każdej
               zakładce, bo `/events/<slug>` jest przedrostkiem ich wszystkich. */}
-          <Link
-            to="/events/$slug"
-            params={{ slug }}
-            activeOptions={{ exact: true }}
-            className={TAB_CLASS}
-            activeProps={{ className: TAB_ACTIVE_CLASS }}
+        <Link
+          to="/events/$slug"
+          params={{ slug }}
+          activeOptions={{ exact: true }}
+          className={EVENT_TAB_CLASS}
+          activeProps={{ className: EVENT_TAB_ACTIVE_CLASS }}
+        >
+          {t("eventFront.header.tabs.overview")}
+        </Link>
+      </li>
+      {items.map((item) => (
+        <li key={item.id}>
+          <EventPageLink
+            item={item}
+            eventSlug={slug}
+            className={EVENT_TAB_CLASS}
+            activeProps={{ className: EVENT_TAB_ACTIVE_CLASS }}
           >
-            {t("eventFront.header.tabs.overview")}
-          </Link>
+            {tabLabel(item, lang, t)}
+          </EventPageLink>
         </li>
-        {items.map((item) => (
-          <li key={item.id}>
-            <EventPageLink
-              item={item}
-              eventSlug={slug}
-              className={TAB_CLASS}
-              activeProps={{ className: TAB_ACTIVE_CLASS }}
-            >
-              {tabLabel(item, lang, t)}
-            </EventPageLink>
-          </li>
-        ))}
-      </ul>
-    </nav>
+      ))}
+    </EventTabsBar>
   );
 }
 

@@ -2,12 +2,16 @@
 // kwadratowe zdjęcie u góry karty, pod nim WYŚRODKOWANE imię i nazwisko, rola
 // i organizacja, po cztery karty w wierszu na szerokim ekranie.
 //
-// SIATKA NIE RYSUJE NAGŁÓWKA. Nagłówek sekcji należy do `EventPageSections`,
-// które bierze go z nadpisania w bazie (`event_page_sections.heading_*`) -
-// drugi <h2> tutaj dałby dwa nagłówki jeden pod drugim, dokładnie tak, jak
-// ostrzega komentarz w tamtym pliku. Konsekwencja: pusta lista znaczy „nie ma
-// czego rysować” i komponent zwraca null, zamiast zostawiać ramkę z komunikatem
-// pod nagłówkiem, który ktoś inny już narysował.
+// SIATKA NIE RYSUJE NAGŁÓWKA - I NIE RYSUJE GO `EventPageSections`. Ta lista
+// NIE JEST jego sekcją: `OWNED` w `EventPageSections.tsx` wymienia program,
+// partnerów, materiały, dojazd i kontakt, a `speakers` NIE (nagłówek na
+// przeglądzie stawia `EventSpeakersSection` albo trasa przy zamku). Tutaj,
+// na zakładce `/events/<slug>/speakers`, nagłówkiem jest `h1` DOKUMENTU CMS
+// strony modułowej, który rysuje `EventModulePage` - drugi nagłówek z kodu
+// dałby dwa jeden pod drugim i unieważnił tekst redagowany w studiu.
+// Konsekwencja: pusta lista znaczy „nie ma czego rysować” i komponent zwraca
+// null, zamiast zostawiać ramkę z komunikatem pod nagłówkiem, który ktoś inny
+// już narysował.
 //
 // TO SAMO ŹRÓDŁO, CO SEKCJA PRELEGENTÓW. `speakersQueryOptions` ze źródłem
 // „event” woła RPC `get_public_speakers`; klucz zapytania jest pochodną inputu,
@@ -27,6 +31,14 @@
 // GOŚĆ WIDZI TO SAMO, CO ZALOGOWANY. Siatka nie pyta o sesję ani o uprawnienia;
 // o tym, czy sekcja jest w ogóle otwarta, decyduje `enabled` przekazany z zamka
 // sekcji - a nie stan zalogowania sprawdzany tutaj.
+//
+// TEN SAM ZESTAW FAKTÓW, CO ZAPOWIEDŹ NA PRZEGLĄDZIE. Układ wolno różnić
+// (`EventSpeakersSection` to poziome chipy i to decyzja właściciela), FAKTÓW nie:
+// plakietka eksperta stała przez chwilę tylko tam, a organizacja tylko tutaj,
+// więc ta sama osoba była na jednej powierzchni ekspertem bez afiliacji, a na
+// drugiej odwrotnie. `is_expert` rysuje teraz wspólny `SpeakerExpertBadge`
+// (jeden rysunek faktu, nie dwie kopie), a parytetu pilnuje bramka
+// `src/components/events/__tests__/eventSpeakerFactParity.gate.test.tsx`.
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +48,7 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
+import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
@@ -155,6 +168,11 @@ function SpeakerCard({
           {organization}
         </span>
       )}
+      {/* Plakietka eksperta stoi POD podpisem, a nie w wierszu nazwiska: nazwisko
+        ma `truncate`, więc rodzeństwo w tej samej linii zabierałoby mu szerokość
+        i ucinało je tym wcześniej, im dłuższa nazwa. Sam rysunek plakietki jest
+        wspólny z zapowiedzią na przeglądzie - fakt ma jeden renderer. */}
+      {speaker.is_expert && <SpeakerExpertBadge className="mt-1.5" />}
     </>
   );
 

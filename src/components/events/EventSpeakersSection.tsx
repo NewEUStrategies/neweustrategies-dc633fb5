@@ -2,13 +2,36 @@
 // pochodza z relacji event_speakers (kolejnosc sort_order) wzbogaconej o
 // profil prelegenta i eksperta (RPC get_public_speakers). Klik otwiera
 // SpeakerProfileDialog. Sekcja znika, gdy wydarzenie nie ma prelegentow.
+//
+// TO JEST ZAPOWIEDZ, NIE DRUGA LISTA - I TAK MA ZOSTAC. Uklad poziomych chipow
+// jest zamierzony i rozny od siatki na zakladce `/events/<slug>/speakers`
+// (`EventSpeakersGrid`, cztery kolumny, kwadratowe zdjecie). Rozny UKLAD jest
+// decyzja wlasciciela; rozne FAKTY nie byly. Plakietka eksperta stala tylko
+// tutaj, a organizacja tylko w siatce - wiec ta sama osoba miala na jednej
+// powierzchni afiliacje bez tytulu eksperta, a na drugiej odwrotnie. Oba fakty
+// stoja teraz w obu miejscach i pilnuje tego bramka
+// `__tests__/eventSpeakerFactParity.gate.test.tsx`.
+//
+// NAGLOWEK IDZIE Z JEDNEGO KLUCZA, WSPOLNEGO Z ZAMKIEM. Ten sam <h2> ma na
+// przegladzie dwa miejsca rysowania: to (sekcja otwarta) i trase (sekcja
+// zamknieta rysuje naglowek nad `SectionLockCard`). Dopoki szly z dwoch
+// slownikow - `community.events.speakersTitle` tutaj i `sectionHeadingKey()`
+// tam - zmiana nazwy sekcji w slowniku sekcji przestawialaby naglowek WYLACZNIE
+// gosciom bez dostepu. Jeden klucz zamyka ten rozjazd; jest nim klucz sekcji,
+// bo to on jest wartoscia domyslna dla nadpisania z bazy
+// (`event_page_sections.heading_*`) i to jego uzywa kazda inna sekcja strony.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck } from "@/lib/lucide-shim";
 import { speakersQueryOptions } from "@/lib/builder/speakersQuery";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { sectionHeadingKey } from "@/lib/events/eventSections";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { SpeakerChip } from "./SpeakerChip";
+import { SpeakerExpertBadge } from "./SpeakerExpertBadge";
 import { SpeakerProfileDialog, type SpeakerDialogFallback } from "./SpeakerProfileDialog";
+
+ensureEventFrontI18n();
 
 export function EventSpeakersSection({ eventId, lang }: { eventId: string; lang: "pl" | "en" }) {
   const { t } = useTranslation();
@@ -26,20 +49,20 @@ export function EventSpeakersSection({ eventId, lang }: { eventId: string; lang:
 
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold">{t("community.events.speakersTitle")}</h2>
+      <h2 className="text-lg font-semibold">{t(sectionHeadingKey("speakers"))}</h2>
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
         {speakers.map((speaker) => {
-          const role =
-            (lang === "pl" ? speaker.headline_pl : speaker.headline_en) ||
-            speaker.headline_pl ||
-            speaker.headline_en ||
-            speaker.job_title ||
-            "";
+          // Rola przez KANONICZNY selektor, ten sam, ktorego uzywa siatka:
+          // recznie pisany lancuch `||` czytal napis z samych bialych znakow
+          // jako wypelniony, wiec ta sama osoba mogla miec tu pusta linie roli,
+          // a w siatce stanowisko z profilu.
+          const role = pickLocalized(speaker, "headline", lang, speaker.job_title ?? "");
           return (
             <li key={speaker.user_id}>
               <SpeakerChip
                 name={speaker.display_name ?? ""}
                 role={role}
+                organization={speaker.company ?? ""}
                 photoUrl={speaker.avatar_url}
                 size="lg"
                 onClick={() =>
@@ -52,11 +75,7 @@ export function EventSpeakersSection({ eventId, lang }: { eventId: string; lang:
                     },
                   })
                 }
-                trailing={
-                  speaker.is_expert ? (
-                    <ShieldCheck aria-hidden className="h-4 w-4 shrink-0 text-brand-ink" />
-                  ) : undefined
-                }
+                trailing={speaker.is_expert ? <SpeakerExpertBadge /> : undefined}
               />
             </li>
           );
