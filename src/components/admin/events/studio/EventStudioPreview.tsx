@@ -47,11 +47,21 @@ export function EventStudioPreview({
   open,
   onOpenChange,
   publicHref,
+  eventId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Adres strony publicznej albo `null` dla szkicu - nie ma czego otwierac. */
   publicHref: string | null;
+  /**
+   * Wydarzenie, ktorego partnerow ma pokazac pas w podgladzie.
+   *
+   * ZAPYTANIE STOI TUTAJ, NIE W KANWIE - kanwa rysuje szkic i nie odpala
+   * zapytan (patrz `viewer`). Zapytanie chodzi TYLKO przy otwartej nakladce,
+   * bo zamkniety podglad nie rysuje niczego, a lista partnerow potrafi byc
+   * dluga.
+   */
+  eventId: string;
 }) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();

@@ -81,7 +81,7 @@
 // Naprawa nalezy do strony publicznej (przejscie na zapytania kontenerowe),
 // nie do podgladu - druga siatka liczona tutaj to znowu drugi silnik.
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, CalendarDays, MapPin } from "@/lib/lucide-shim";
+import { ArrowLeft, CalendarDays, Clock, Globe, MapPin } from "@/lib/lucide-shim";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { eventBrandingPayload } from "@/lib/events/eventBrandingDraft";
@@ -93,6 +93,7 @@ import {
 import { EVENT_PRACTICAL_SECTIONS, type EventPracticalInfo } from "@/lib/events/eventPractical";
 import { formatEventDateTime, eventTimeZoneLabel } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
+import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { EventPortalContent } from "@/components/events/public/atoms/EventPortalContent";
 import { EventMetaCard, EventMetaRow } from "@/components/events/public/molecules/EventMetaCard";
 import {
@@ -120,6 +121,7 @@ import {
 } from "@/components/events/public/organisms/EventOverviewLayout";
 import { EventPageSections } from "@/components/events/public/organisms/EventPageSections";
 import { EventPortalShell } from "@/components/events/public/organisms/EventPortalShell";
+import { EventSponsorTiersView } from "@/components/events/public/organisms/EventSponsorTiers";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
@@ -168,10 +170,22 @@ export function EventPreviewCanvas({
   model,
   device,
   viewer = null,
+  sponsorTiers = [],
   onNavigate,
 }: {
   model: EventPreviewModel;
   device: PreviewDevice;
+  /**
+   * PARTNERZY WYDARZENIA, poziomami, w kolejnosci strony publicznej.
+   *
+   * OSOBNY PROP, JAK `viewer`: to nie jest szkic formularza, tylko stan bazy -
+   * przypiecia partnerow zapisuje osobny ekran studia. Publiczne
+   * `event_sponsors_public` bramkuje `status = 'published'`, wiec szkic
+   * dostalby pustke; nakladka wnosi wiec wiersze z RPC panelu przez
+   * `sponsorTiersFromAdminRows`. Pusta lista = pas nie wchodzi do DOM,
+   * dokladnie jak na stronie bez partnerow.
+   */
+  sponsorTiers?: readonly PublicSponsorTier[];
   /**
    * Fakty o ZALOGOWANYM REDAKTORZE do karty profilu w lewej kolumnie.
    *
@@ -210,6 +224,7 @@ export function EventPreviewCanvas({
       ? model.descriptionEn || model.descriptionPl
       : model.descriptionPl || model.descriptionEn;
   const dateLabel = formatEventDateTime(model.startsAt, model.timezone, lang);
+  const endLabel = model.endsAt === "" ? "" : formatEventDateTime(model.endsAt, model.timezone, lang);
   const zoneLabel = eventTimeZoneLabel(model.startsAt, model.timezone, lang);
   const isGrid = model.pagesDisplayMode === "grid";
 
@@ -365,6 +380,12 @@ export function EventPreviewCanvas({
                 sections={PREVIEW_SECTION_KEYS.map(previewSection)}
                 practical={practical}
               />
+
+              {/* PAS PARTNEROW - ten sam rysunek, co na stronie publicznej,
+                  tylko zrodlem wierszy jest RPC panelu (patrz `sponsorTiers`).
+                  Bez tego redaktor ustawial poziomy i logotypy „na slepo". */}
+              <EventSponsorTiersView tiers={sponsorTiers} />
+
             </>
           }
           left={
@@ -401,12 +422,32 @@ export function EventPreviewCanvas({
                   {dateLabel === "" ? t("adminEvents.studio.preview.noDate") : dateLabel}
                   {zoneLabel === "" ? null : ` (${zoneLabel})`}
                 </EventMetaRow>
-                {model.locationName === "" ? null : (
+                {/* KONIEC WCHODZI OSOBNYM WIERSZEM, a nie doklejony do terminu:
+                    to jest drugie pole formularza i jedyny sposob, w jaki
+                    redaktor sprawdzi, ze wpisal dobra date zakonczenia. Puste
+                    pole = brak wiersza, bez zgadywania czasu trwania. */}
+                {endLabel === "" ? null : (
+                  <EventMetaRow
+                    icon={<Clock className="h-4 w-4" />}
+                    label={t("adminEvents.studio.preview.endsLabel")}
+                  >
+                    {endLabel}
+                  </EventMetaRow>
+                )}
+                <EventMetaRow
+                  icon={<Globe className="h-4 w-4" />}
+                  label={t("adminEvents.studio.preview.formatLabel")}
+                >
+                  {t(`eventFront.formats.${model.format}`)}
+                </EventMetaRow>
+                {model.locationName === "" && model.addressLine === "" ? null : (
                   <EventMetaRow
                     icon={<MapPin className="h-4 w-4" />}
                     label={t("community.events.location")}
                   >
-                    {model.locationName}
+                    {/* Nazwa miejsca i adres to DWIE rozne informacje - „Sala
+                        Europa" bez ulicy nie prowadzi nikogo pod drzwi. */}
+                    {[model.locationName, model.addressLine].filter((part) => part !== "").join(", ")}
                   </EventMetaRow>
                 )}
               </EventMetaCard>
