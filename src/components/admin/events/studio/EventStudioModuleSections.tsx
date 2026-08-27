@@ -141,7 +141,16 @@ export function EventContentSpeakersSection({ row }: { row: AdminEventDetailRow 
   );
 }
 
-export function EventContentTracksSection({ row }: { row: AdminEventDetailRow }) {
+export function EventContentTracksSection({
+  row,
+  openedTrackId,
+  onOpenTrack,
+}: {
+  row: AdminEventDetailRow;
+  /** Otwarte pasmo trzyma trasa w `?track=` - link i odświeżenie wracają tu. */
+  openedTrackId?: string | null;
+  onOpenTrack?: (trackId: string | null) => void;
+}) {
   ensureAgendaI18n();
   return (
     <ModuleScreen titleKey="adminEventAgenda.nav.tracks">
@@ -149,6 +158,8 @@ export function EventContentTracksSection({ row }: { row: AdminEventDetailRow })
         key={row.id}
         eventId={row.id}
         timeZoneLabel={eventTimeZone({ timezone: row.timezone })}
+        openedTrackId={openedTrackId}
+        onOpenTrack={onOpenTrack}
       />
     </ModuleScreen>
   );

@@ -15,21 +15,41 @@ import { AgendaTracksPanel } from "@/components/admin/events/organisms/AgendaTra
 interface EventProgramPanelProps {
   eventId: string;
   timeZoneLabel: string;
+  /** Otwarte pasmo z adresu - patrz `AgendaTracksPanel`. */
+  openedTrackId?: string | null;
+  onOpenTrack?: (trackId: string | null) => void;
 }
 
-export function EventProgramPanel({ eventId, timeZoneLabel }: EventProgramPanelProps) {
+export function EventProgramPanel({
+  eventId,
+  timeZoneLabel,
+  openedTrackId,
+  onOpenTrack,
+}: EventProgramPanelProps) {
   const { t } = useTranslation();
+
+  // Gdy pasmo jest otwarte, nagłówek programu znika: warsztat ścieżki ma własny
+  // nagłówek z powrotem i tytułem, a dwa nagłówki nad sobą tylko zabierają
+  // wysokość paskowi zakładek.
+  const isWorkspace = openedTrackId !== null && openedTrackId !== undefined && openedTrackId !== "";
 
   return (
     <section className="space-y-4">
-      <header className="space-y-1">
-        <h2 className="font-display text-lg">{t("adminEventAgenda.program.title")}</h2>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          {t("adminEventAgenda.program.subtitle")}
-        </p>
-      </header>
+      {!isWorkspace && (
+        <header className="space-y-1">
+          <h2 className="font-display text-lg">{t("adminEventAgenda.program.title")}</h2>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            {t("adminEventAgenda.program.subtitle")}
+          </p>
+        </header>
+      )}
 
-      <AgendaTracksPanel eventId={eventId} timeZoneLabel={timeZoneLabel} />
+      <AgendaTracksPanel
+        eventId={eventId}
+        timeZoneLabel={timeZoneLabel}
+        openedTrackId={openedTrackId}
+        onOpenTrack={onOpenTrack}
+      />
     </section>
   );
 }
