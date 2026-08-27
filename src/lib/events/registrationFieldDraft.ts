@@ -27,6 +27,7 @@ import type {
 export const FIELD_KEY_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 export const FIELD_MAX_LABEL = 200;
 export const FIELD_MAX_HELP = 500;
+export const FIELD_MAX_CONSENT_URL = 500;
 
 /** Typy, które bez wariantów odpowiedzi są nie do wypełnienia. */
 export const FIELD_TYPES_WITH_OPTIONS: readonly RegistrationFieldType[] = ["select", "multiselect"];
@@ -55,6 +56,9 @@ export interface RegistrationFieldDraft {
   labelEn: string;
   helpPl: string;
   helpEn: string;
+  /** Odnośnik do dokumentu zgody; wymagany format https://, pusty = brak. */
+  consentUrlPl: string;
+  consentUrlEn: string;
   isRequired: boolean;
   options: FieldOptionDraft[];
   isQualifying: boolean;
@@ -75,6 +79,8 @@ export function emptyFieldDraft(sortOrder: number): RegistrationFieldDraft {
     labelEn: "",
     helpPl: "",
     helpEn: "",
+    consentUrlPl: "",
+    consentUrlEn: "",
     isRequired: false,
     options: [],
     isQualifying: false,
@@ -125,6 +131,8 @@ export function fieldDraftFromRow(row: EventRegistrationFieldRow): RegistrationF
     labelEn: row.label_en,
     helpPl: row.help_pl ?? "",
     helpEn: row.help_en ?? "",
+    consentUrlPl: row.consent_url_pl ?? "",
+    consentUrlEn: row.consent_url_en ?? "",
     isRequired: row.is_required,
     options: optionsFromJson(row.options),
     isQualifying: row.is_qualifying,
@@ -142,6 +150,8 @@ export type FieldDraftField =
   | "labelEn"
   | "helpPl"
   | "helpEn"
+  | "consentUrlPl"
+  | "consentUrlEn"
   | "options"
   | "qualifyOperator"
   | "qualifyValue"
@@ -166,6 +176,20 @@ export function fieldDraftIssue(draft: RegistrationFieldDraft): FieldDraftIssue 
   }
   if (draft.helpPl.length > FIELD_MAX_HELP) return { field: "helpPl", errorKey: "invalidRequest" };
   if (draft.helpEn.length > FIELD_MAX_HELP) return { field: "helpEn", errorKey: "invalidRequest" };
+
+  // Odnośnik zgody musi być bezpieczny i zewnętrznie rozstrzygalny: CHECK w bazie
+  // przepuszcza wyłącznie `https://`, a `javascript:` w takim miejscu byłoby
+  // linkiem wykonującym kod na stronie zapisu.
+  for (const [field, url] of [
+    ["consentUrlPl", draft.consentUrlPl],
+    ["consentUrlEn", draft.consentUrlEn],
+  ] as const) {
+    const value = url.trim();
+    if (value === "") continue;
+    if (!value.startsWith("https://") || value.length > FIELD_MAX_CONSENT_URL) {
+      return { field, errorKey: "invalidConsentUrl" };
+    }
+  }
 
   const options = draft.options.filter((option) => option.value.trim() !== "");
   if (FIELD_TYPES_WITH_OPTIONS.includes(draft.fieldType) && options.length === 0) {
@@ -233,6 +257,8 @@ export function fieldDraftToInput(
     labelEn: draft.labelEn.trim(),
     helpPl: draft.helpPl.trim(),
     helpEn: draft.helpEn.trim(),
+    consentUrlPl: draft.consentUrlPl.trim(),
+    consentUrlEn: draft.consentUrlEn.trim(),
     isRequired: draft.isRequired,
     // Typ bez wariantów wysyła pustą tablicę, a nie „zostaw jak było": zmiana
     // listy na tekst musi zabrać ze sobą osierocone warianty.
