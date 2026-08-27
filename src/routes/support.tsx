@@ -23,13 +23,11 @@ import { hasRenderableBody } from "@/lib/access/gating";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { withBudget } from "@/lib/asyncBudget";
+import { SUPPORT_DOC_BUDGET_MS, SUPPORT_SEGMENTS } from "@/lib/supportRouteConfig";
 
 // Dokument buildera dla /support jest opcjonalny: gdy redakcja opublikuje
 // stronę o tym adresie, jest ona ŹRÓDŁEM PRAWDY dla całego widoku. Bez takiej
 // strony trasa renderuje wbudowaną sekcję mecenatu z linkiem do zbiórki.
-const SUPPORT_SEGMENTS = ["support"];
-// Twardy budżet SSR: brak dokumentu nie może opóźnić strony wsparcia.
-const SUPPORT_DOC_BUDGET_MS = 2_500;
 export const Route = createFileRoute("/support")({
   component: SupportPage,
   loader: async ({ context }) => {
