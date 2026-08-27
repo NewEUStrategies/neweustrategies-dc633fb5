@@ -13,6 +13,9 @@
     "20260826090000_event_studio_general.sql": "20260826114319",
     "20260826120000_event_pages_and_public_columns.sql": "20260826114616",
     "20260826150000_event_registration_settings_and_features.sql": "20260826114933",
-    "20260826170000_event_general_save_match_table_checks.sql": "20260826114933"
+    "20260826170000_event_general_save_match_table_checks.sql": "20260826114933",
+    "20260826180000_event_speaker_person.sql": "20260827064804",
+    "20260826181500_event_default_module_pages.sql": "20260827065451",
+    "20260826182500_event_attendees_and_discussions.sql": "20260827065944"
   }
 }
