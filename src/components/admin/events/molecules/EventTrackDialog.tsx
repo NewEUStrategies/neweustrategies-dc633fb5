@@ -34,6 +34,9 @@ import {
 } from "@/lib/events/agendaCatalogDraft";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
 
+/** Wartownik „bez sali" - Radix Select zabrania pustego `value`. */
+const NO_ROOM = "__none__";
+
 interface EventTrackDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
