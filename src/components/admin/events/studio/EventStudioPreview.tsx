@@ -83,10 +83,7 @@ export function EventStudioPreview({
   // publiczne `event_sponsors_public`; podglad nie moze obiecywac partnera,
   // ktorego uczestnik nie zobaczy.
   const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
-  const sponsorTiers = useMemo(
-    () => sponsorTiersFromAdminRows(sponsorsQ.data),
-    [sponsorsQ.data],
-  );
+  const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":
   // ostatnia decyzja nalezy do tego, kto wlasnie klika. Dopoki dokument leci

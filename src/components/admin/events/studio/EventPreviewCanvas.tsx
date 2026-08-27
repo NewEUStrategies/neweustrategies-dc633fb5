@@ -224,7 +224,8 @@ export function EventPreviewCanvas({
       ? model.descriptionEn || model.descriptionPl
       : model.descriptionPl || model.descriptionEn;
   const dateLabel = formatEventDateTime(model.startsAt, model.timezone, lang);
-  const endLabel = model.endsAt === "" ? "" : formatEventDateTime(model.endsAt, model.timezone, lang);
+  const endLabel =
+    model.endsAt === "" ? "" : formatEventDateTime(model.endsAt, model.timezone, lang);
   const zoneLabel = eventTimeZoneLabel(model.startsAt, model.timezone, lang);
   const isGrid = model.pagesDisplayMode === "grid";
 
@@ -385,7 +386,6 @@ export function EventPreviewCanvas({
                   tylko zrodlem wierszy jest RPC panelu (patrz `sponsorTiers`).
                   Bez tego redaktor ustawial poziomy i logotypy „na slepo". */}
               <EventSponsorTiersView tiers={sponsorTiers} />
-
             </>
           }
           left={
@@ -447,7 +447,9 @@ export function EventPreviewCanvas({
                   >
                     {/* Nazwa miejsca i adres to DWIE rozne informacje - „Sala
                         Europa" bez ulicy nie prowadzi nikogo pod drzwi. */}
-                    {[model.locationName, model.addressLine].filter((part) => part !== "").join(", ")}
+                    {[model.locationName, model.addressLine]
+                      .filter((part) => part !== "")
+                      .join(", ")}
                   </EventMetaRow>
                 )}
               </EventMetaCard>
