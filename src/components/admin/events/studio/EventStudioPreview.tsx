@@ -77,6 +77,14 @@ export function EventStudioPreview({
   // tutaj jestesmy w drzewie aplikacji, wiec ten sam hook, ktorego uzywa strona
   // publiczna, oddaje te same fakty o zalogowanym redaktorze.
   const viewer = useViewerCardFacts();
+  // Tylko przypiecia OGLOSZONE - `published` to ten sam filtr, ktory stosuje
+  // publiczne `event_sponsors_public`; podglad nie moze obiecywac partnera,
+  // ktorego uczestnik nie zobaczy.
+  const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
+  const sponsorTiers = useMemo(
+    () => sponsorTiersFromAdminRows(sponsorsQ.data),
+    [sponsorsQ.data],
+  );
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":
   // ostatnia decyzja nalezy do tego, kto wlasnie klika. Dopoki dokument leci
