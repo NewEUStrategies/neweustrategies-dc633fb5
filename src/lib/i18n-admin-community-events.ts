@@ -164,6 +164,10 @@ export const adminCommunityEventsPl = {
         photoRemove: "Usuń zdjęcie",
         photoFailed: "Nie udało się wgrać zdjęcia.",
         photoAlt: "Podgląd zdjęcia prelegenta",
+        photoReplace: "Podmień zdjęcie",
+        photoDropHint:
+          "Przeciągnij i upuść plik na kafel albo wgraj z dysku - podgląd zobaczysz przed zapisem. Możesz też podać adres https.",
+
 
         headlinePl: "Rola sceniczna PL",
         headlineEn: "Rola sceniczna EN",
