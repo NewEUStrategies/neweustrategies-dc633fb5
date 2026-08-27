@@ -404,7 +404,23 @@ export const adminEventAgendaPl = {
       },
     },
 
+    timeline: {
+      title: "Siatka czasu",
+      subtitle:
+        "Kolumna to sala, oś pionowa to godziny dnia wydarzenia. Kafel z czerwoną ramką ma kolizję z raportu.",
+      loading: "Układanie siatki…",
+      empty: "Żadna sesja nie ma jeszcze godziny rozpoczęcia.",
+      daysLabel: "Dni programu",
+      hourAxis: "Godz.",
+      noRoom: "Bez sali",
+      capacity: "{{count}} miejsc",
+      conflictBadge: "Kolizja",
+      conflictCount: "Kolizje: {{count}}",
+      undated: "Sesje bez godziny w tym dniu: {{count}}",
+    },
+
     conflicts: {
+
       title: "Kolizje agendy",
       subtitle:
         "Raport liczony z danych na żywo. Kolizja sali tu nie występuje - baza jej nie dopuszcza.",
