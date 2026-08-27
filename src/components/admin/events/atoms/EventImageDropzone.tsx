@@ -55,7 +55,7 @@ export function EventImageDropzone({
 
   const handleFile = async (file: File): Promise<void> => {
     if (tenantId === null || tenantId === undefined || user?.id === undefined) {
-      setError(t("adminEventImageDrop.failed"));
+      setError(t("adminEventAgenda.imageDrop.failed"));
       return;
     }
     setUploading(true);
@@ -71,7 +71,7 @@ export function EventImageDropzone({
       onValueChange(uploaded.publicUrl);
       setError(null);
     } catch (e) {
-      setError(`${t("adminEventImageDrop.failed")} ${(e as Error).message}`.trim());
+      setError(`${t("adminEventAgenda.imageDrop.failed")} ${(e as Error).message}`.trim());
     } finally {
       setUploading(false);
       if (fileRef.current !== null) fileRef.current.value = "";
@@ -84,7 +84,7 @@ export function EventImageDropzone({
       <div
         role="button"
         tabIndex={0}
-        aria-label={hasImage ? t("adminEventImageDrop.replace") : t("adminEventImageDrop.upload")}
+        aria-label={hasImage ? t("adminEventAgenda.imageDrop.replace") : t("adminEventAgenda.imageDrop.upload")}
         onClick={() => fileRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -115,13 +115,13 @@ export function EventImageDropzone({
           <span className="flex flex-col items-center gap-1 px-3 text-center">
             <UploadCloud aria-hidden="true" className="size-6 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
-              {t("adminEventImageDrop.dropHint")}
+              {t("adminEventAgenda.imageDrop.dropHint")}
             </span>
           </span>
         )}
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        {t("adminEventImageDrop.recommended", { size: recommendation })}
+        {t("adminEventAgenda.imageDrop.recommended", { size: recommendation })}
       </p>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -132,7 +132,7 @@ export function EventImageDropzone({
           placeholder="https://"
           type="url"
           maxLength={2000}
-          aria-label={t("adminEventImageDrop.urlLabel")}
+          aria-label={t("adminEventAgenda.imageDrop.urlLabel")}
         />
         <input
           ref={fileRef}
@@ -158,10 +158,10 @@ export function EventImageDropzone({
             <ImagePlus aria-hidden="true" className="size-4" />
           )}
           {uploading
-            ? t("adminEventImageDrop.uploading")
+            ? t("adminEventAgenda.imageDrop.uploading")
             : hasImage
-              ? t("adminEventImageDrop.replace")
-              : t("adminEventImageDrop.upload")}
+              ? t("adminEventAgenda.imageDrop.replace")
+              : t("adminEventAgenda.imageDrop.upload")}
         </Button>
         {hasImage && (
           <Button
@@ -169,7 +169,7 @@ export function EventImageDropzone({
             variant="ghost"
             size="icon"
             className="size-9 rounded-[6px]"
-            aria-label={t("adminEventImageDrop.remove")}
+            aria-label={t("adminEventAgenda.imageDrop.remove")}
             onClick={() => onValueChange("")}
           >
             <Trash2 aria-hidden="true" className="size-4" />
