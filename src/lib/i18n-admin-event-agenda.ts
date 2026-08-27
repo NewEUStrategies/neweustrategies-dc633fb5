@@ -149,9 +149,7 @@ export const adminEventAgendaPl = {
     program: {
       title: "Program",
       subtitle:
-        "Program buduje się ścieżkami: pasmo to temat, a sesje planujesz po wejściu w ścieżkę. Pełna lista sesji jest w drugiej zakładce.",
-      tabTracks: "Ścieżki",
-      tabSessions: "Wszystkie sesje",
+        "Program buduje się ścieżkami: pasmo to temat, a sesje planujesz w zakładce Sesje po wejściu w ścieżkę.",
     },
 
     tracks: {
@@ -489,9 +487,7 @@ export const adminEventAgendaEn = {
     program: {
       title: "Programme",
       subtitle:
-        "The programme is built from tracks: a track is a theme and sessions are planned inside it. The full session list lives in the second tab.",
-      tabTracks: "Tracks",
-      tabSessions: "All sessions",
+        "The programme is built from tracks: a track is a theme and its sessions are planned in the track's Sessions tab.",
     },
 
     tracks: {

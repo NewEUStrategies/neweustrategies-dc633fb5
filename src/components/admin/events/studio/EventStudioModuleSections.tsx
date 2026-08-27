@@ -114,18 +114,10 @@ export function EventRegistrationFormSection({ row }: { row: AdminEventDetailRow
 }
 
 // ------------------------------------------------------------------ Tresc
-
-export function EventContentSessionsSection({ row }: { row: AdminEventDetailRow }) {
-  ensureAgendaI18n();
-  // Godziny sesji wpisuje sie w STREFIE WYDARZENIA - bez tej etykiety
-  // organizator w innej strefie wpisuje wlasne popoludnie w cudzy poranek.
-  const timeZoneLabel = eventTimeZone({ timezone: row.timezone });
-  return (
-    <ModuleScreen titleKey="adminEventAgenda.nav.sessions">
-      <EventProgramPanel key={row.id} eventId={row.id} timeZoneLabel={timeZoneLabel} />
-    </ModuleScreen>
-  );
-}
+//
+// SESJI NIE MA WSROD SEKCJI STUDIA. Sesja jest wpisem w pasmie, wiec planuje sie
+// ja w zakladce „Sesje" na stronie sciezki (`EventTrackWorkspace`); stary adres
+// `content/sessions` przekierowuje na sciezki.
 
 /**
  * Prelegenci wydarzenia.

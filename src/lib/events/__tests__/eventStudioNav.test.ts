@@ -80,7 +80,7 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration`)).toBe(
       "registrationSettings",
     );
-    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/content`)).toBe("contentSessions");
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/content`)).toBe("contentTracks");
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/meetings`)).toBe("meetingsTables");
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/onsite`)).toBe("onsiteDesk");
   });

@@ -77,7 +77,7 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
         section: "general",
         done: (row.city ?? "") !== "" || row.format === "online",
       },
-      { key: "sessions", section: "contentSessions", done: (sessions ?? 0) > 0 },
+      { key: "sessions", section: "contentTracks", done: (sessions ?? 0) > 0 },
       { key: "groups", section: "groups", done: (groups ?? 0) > 0 },
       { key: "publish", section: "general", done: row.status === "published" },
     ],
