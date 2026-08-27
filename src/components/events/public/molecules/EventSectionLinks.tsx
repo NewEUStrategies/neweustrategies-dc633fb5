@@ -84,14 +84,20 @@ export function EventSectionLinkBody({
 
   return (
     <>
-      {/* Krążek stoi w KAŻDYM wierszu, także bez ikony: kolumna etykiet ma
+      {/* Kafelek stoi w KAŻDYM wierszu, także bez ikony: kolumna etykiet ma
           jedną krawędź, a spis, w którym co drugi napis zaczyna się gdzie
           indziej, czyta się jak zepsuty. Pozycja bez ikony zostaje samym
-          krążkiem (dla czytnika ekranu i tak jest ozdobą). */}
+          kafelkiem (dla czytnika ekranu i tak jest ozdobą).
+
+          KWADRAT Z ZAOKRĄGLENIEM 6 px, NIE KRĄŻEK - to jest promień, którym
+          w tym systemie zaokrąglamy pola, pastylki i kafle (`rounded-[6px]`
+          w `EVENT_SECTION_LINK_CLASS` linię niżej). Okrągła plamka obok
+          kwadratowego wiersza była jedynym elementem z innym językiem
+          kształtu. */}
       <span
         aria-hidden="true"
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px]",
           !measurable && "bg-muted text-foreground",
         )}
         style={measurable ? { backgroundColor: color ?? undefined, color: ink } : undefined}

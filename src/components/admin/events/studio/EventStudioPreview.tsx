@@ -25,7 +25,7 @@
 // motywie dalby biale tlo pod biala strona, czyli znikniecie krawedzi kartki.
 // Sama rama bierze juz token, bo wypelnia ja kanwa - a ta maluje tlo strony
 // wydarzenia (nadpisywalne brandingiem).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, Monitor, Smartphone, XCircle } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,8 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
+import { useSponsors } from "@/lib/events/useEventSponsors";
+import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
@@ -47,11 +49,21 @@ export function EventStudioPreview({
   open,
   onOpenChange,
   publicHref,
+  eventId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Adres strony publicznej albo `null` dla szkicu - nie ma czego otwierac. */
   publicHref: string | null;
+  /**
+   * Wydarzenie, ktorego partnerow ma pokazac pas w podgladzie.
+   *
+   * ZAPYTANIE STOI TUTAJ, NIE W KANWIE - kanwa rysuje szkic i nie odpala
+   * zapytan (patrz `viewer`). Zapytanie chodzi TYLKO przy otwartej nakladce,
+   * bo zamkniety podglad nie rysuje niczego, a lista partnerow potrafi byc
+   * dluga.
+   */
+  eventId: string;
 }) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();
@@ -67,6 +79,11 @@ export function EventStudioPreview({
   // tutaj jestesmy w drzewie aplikacji, wiec ten sam hook, ktorego uzywa strona
   // publiczna, oddaje te same fakty o zalogowanym redaktorze.
   const viewer = useViewerCardFacts();
+  // Tylko przypiecia OGLOSZONE - `published` to ten sam filtr, ktory stosuje
+  // publiczne `event_sponsors_public`; podglad nie moze obiecywac partnera,
+  // ktorego uczestnik nie zobaczy.
+  const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
+  const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":
   // ostatnia decyzja nalezy do tego, kto wlasnie klika. Dopoki dokument leci
@@ -210,6 +227,7 @@ export function EventStudioPreview({
               model={model}
               device={device}
               viewer={viewer}
+              sponsorTiers={sponsorTiers}
               onNavigate={setNavTarget}
             />
           </div>

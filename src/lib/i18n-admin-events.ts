@@ -935,6 +935,11 @@ export const adminEventsPl = {
         untitled: "Wydarzenie bez nazwy",
         pageEmpty: "Ta podstrona nie ma jeszcze żadnych bloków - dodaj je w edytorze stron.",
         noDate: "Termin do ustalenia",
+        // Karta „Kiedy, gdzie" w podglądzie mówi TO SAMO, co formularz
+        // „Informacje ogólne" - inaczej redaktor wpisuje pola, których nigdzie
+        // nie widzi przed publikacją.
+        endsLabel: "Koniec",
+        formatLabel: "Format",
       },
 
       // EKRAN „FUNKCJE DODATKOWE" - siedem przełączników modułów wydarzenia.
@@ -1888,6 +1893,8 @@ export const adminEventsEn = {
         untitled: "Untitled event",
         pageEmpty: "This subpage has no blocks yet - add them in the page editor.",
         noDate: "Date to be confirmed",
+        endsLabel: "Ends",
+        formatLabel: "Format",
       },
 
       features: {

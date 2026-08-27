@@ -34,10 +34,23 @@ import type { PublicSponsor, PublicSponsorTier } from "@/lib/events/sponsorsSurf
 ensureEventFrontI18n();
 
 export function EventSponsorTiers({ slug, enabled = true }: { slug: string; enabled?: boolean }) {
+  const sponsorsQuery = usePublicEventSponsors(slug, enabled);
+  return <EventSponsorTiersView tiers={sponsorsQuery.data ?? []} />;
+}
+
+/**
+ * SAM RYSUNEK pasa partnerów - bez zapytania.
+ *
+ * PO CO ROZDZIELENIE. Publiczne `event_sponsors_public` ma w ciele
+ * `AND e.status = 'published'`, więc podglądowi w studiu (szkic) oddaje pustkę.
+ * Podgląd musi jednak pokazać partnerów, których organizator właśnie przypiął -
+ * bierze więc wiersze z RPC panelu i wnosi je TUTAJ. Drugi rysunek pasa
+ * znaczyłby dwa układy tej samej sekcji, czyli dokładnie ten defekt, który
+ * kosztował już zgłoszenie o „starym layoucie" w podglądzie.
+ */
+export function EventSponsorTiersView({ tiers }: { tiers: readonly PublicSponsorTier[] }) {
   const { i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const sponsorsQuery = usePublicEventSponsors(slug, enabled);
-  const tiers = sponsorsQuery.data ?? [];
 
   // WCZYTYWANIE, BŁĄD I BRAK PARTNERÓW WYCHODZĄ TĄ SAMĄ FURTKĄ - nic w DOM-ie.
   // Pas partnerów nie ma własnego nagłówka, więc nie ma do czego przypiąć ani
