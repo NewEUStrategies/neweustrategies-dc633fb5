@@ -34,8 +34,7 @@
 // zeby wyjatek nie przezyl powierzchni, ktorej dotyczyl (nieuzywany wpis
 // czerwieni test tak samo jak brakujacy komponent).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync, readdirSync } from "node:fs";
 
 vi.mock("react-i18next", () => ({
@@ -693,22 +692,22 @@ describe("podglad studia rysuje szkic prawdziwymi komponentami", () => {
     expect(screen.queryByRole("button", { name: "Prelegenci" })).toBeNull();
   });
 
-  it("z `onNavigate` kafel podstrony oddaje jej identyfikator", async () => {
+  it("z `onNavigate` kafel podstrony oddaje jej identyfikator", () => {
     const onNavigate = vi.fn();
     render(
       <EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />,
     );
     const targets = screen.getAllByRole("button", { name: "Prelegenci" });
-    await userEvent.click(targets[targets.length - 1]!);
+    fireEvent.click(targets[targets.length - 1]!);
     expect(onNavigate).toHaveBeenCalledWith({ key: "m1", pageId: "p1" });
   });
 
-  it("z `onNavigate` zakladka przegladu wraca na strone glowna", async () => {
+  it("z `onNavigate` zakladka przegladu wraca na strone glowna", () => {
     const onNavigate = vi.fn();
     render(
       <EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "eventFront.header.tabs.overview" }));
+    fireEvent.click(screen.getByRole("button", { name: "eventFront.header.tabs.overview" }));
     expect(onNavigate).toHaveBeenCalledWith(null);
   });
 });
