@@ -136,12 +136,39 @@ export const eventFrontPl = {
       recordingForMembers: "Nagranie jest dostępne dla członków z uprawnieniem do nagrań.",
       priceFree: "Wstęp bezpłatny",
       priceLabel: "Bilet",
+      // -------------------------------------------------------------------
+      // ZAKŁADKI POWŁOKI WYDARZENIA (`/events/<slug>/…`).
+      //
+      // TE KLUCZE SĄ ZAPASOWE, NIE GŁÓWNE. Napis na zakładce niesie baza:
+      // własna nazwa pozycji z panelu (`event_pages.menu_label_*`), a po niej
+      // tytuł strony. Słownik wchodzi dopiero wtedy, gdy z bazy nie przyszło
+      // ani jedno słowo - i tylko dla pozycji modułowej, bo tylko dla niej
+      // wiadomo, o którą z pięciu chodzi.
+      //
+      // DLACZEGO `partners`, A NIE `sponsors`. Baza ma na to pojęcie DWIE
+      // nazwy i obie są prawdziwe w swoim zbiorze: `event_sections.key` mówi
+      // `sponsors` (sekcja na stronie głównej, klucz z `_event_default_sections()`),
+      // a `event_pages.module` mówi `partners` (podstrona modułowa, klucz
+      // z `_event_default_pages()`). Ten słownik nazywa ZAKŁADKI, zakładka jest
+      // pozycją modułową, a segment jej trasy JEST wartością `module` - więc
+      // idzie za `partners`. Nagłówek sekcji na stronie głównej ma osobny klucz
+      // `eventFront.sections.sponsors.heading` i to nie jest dublet: tamten
+      // nazywa sekcję, ten nazywa zakładkę, i każdy trzyma się słownika swojej
+      // tabeli.
+      //
+      // `materials` WYPADŁO, bo nie ma modułu `materials` i nie ma trasy
+      // `/events/<slug>/materials`. Materiały są sekcją strony głównej
+      // (`event_sections`) i nazywa je `eventFront.sections.materials.heading`.
+      // Klucz zakładki bez zakładki obiecywałby szóstą pozycję w pasku.
+      // -------------------------------------------------------------------
+      tabsLabel: "Zakładki wydarzenia",
       tabs: {
-        overview: "Wydarzenie",
-        agenda: "Program",
+        overview: "Strona główna",
+        participants: "Uczestnicy",
         speakers: "Prelegenci",
-        sponsors: "Partnerzy",
-        materials: "Materiały",
+        partners: "Partnerzy",
+        agenda: "Program",
+        discussions: "Dyskusje",
       },
     },
 
@@ -325,7 +352,23 @@ export const eventFrontPl = {
       empty: "Program jeszcze nie jest gotowy.",
       emptyFiltered: "Żadna sesja nie pasuje do wybranego filtra.",
       emptyMine: "Nie zapisałeś się jeszcze na żadną sesję.",
+      emptyQuery: "Żadna sesja tego dnia nie pasuje do wpisanej frazy.",
       dayLabel: "Dzień {{index}}",
+      // Kolumna obok programu: pole wyszukiwania, strefa czasowa i własny
+      // harmonogram. Jedna etykieta służy za podpowiedź w polu i za nazwę
+      // dla czytnika ekranu - dwa różne napisy na jedno pole kazałyby
+      // zgadywać, które z nich opisuje to samo.
+      sidebarLabel: "Filtry programu",
+      search: "Wyszukiwanie",
+      // Godziny w programie liczą się w strefie WYDARZENIA - podpis mówi
+      // w jakiej, bo bez tego uczestnik przelicza je sam i myli się o godzinę.
+      timezoneRow: "Strefa wydarzenia ({{zone}})",
+      timezoneForeign: "Twoje urządzenie jest w innej strefie - godzin nie przeliczamy.",
+      myScheduleTitle: "Twój harmonogram",
+      myScheduleShowAll: "Zobacz wszystkie",
+      // Przedział sesji w jednym napisie: przyimek między godzinami należy do
+      // języka, a nie do JSX-a („10:00 do 11:45” / „10:00 to 11:45”).
+      timeRange: "{{date}}, {{start}} do {{end}}",
       allTracks: "Wszystkie ścieżki",
       trackLabel: "Ścieżka",
       onlyMine: "Tylko moje sesje",
@@ -367,6 +410,16 @@ export const eventFrontPl = {
     },
 
     // ---------------------------------------------------------------------
+    // Siatka prelegentów. Karta to zdjęcie, imię, rola i organizacja - same
+    // dane z profilu, więc jedyny NAPIS, jaki siatka ma własny, dotyczy chwili
+    // przed danymi. Pusta lista nie ma tu komunikatu: nagłówek sekcji rysuje
+    // `EventPageSections` razem z `sections.speakers.empty`.
+    // ---------------------------------------------------------------------
+    speakers: {
+      loading: "Wczytywanie prelegentów…",
+    },
+
+    // ---------------------------------------------------------------------
     // Partnerzy i sponsorzy. To MIGAWKA z chwili przypięcia, nie kartoteka -
     // dlatego nie ma tu żadnego napisu obiecującego aktualność danych firmy.
     // ---------------------------------------------------------------------
@@ -383,6 +436,12 @@ export const eventFrontPl = {
         mediaPartner: "Patronat medialny",
         exhibitor: "Wystawca",
       },
+    },
+
+    // Pas poziomów partnerów na stronie GŁÓWNEJ wydarzenia (rząd logotypów bez
+    // nazw pod spodem) - nazwa odnośnika musi więc powiedzieć, czyja to strona.
+    sponsorTiers: {
+      partnerSite: "Strona partnera {{name}}",
     },
 
     // ---------------------------------------------------------------------
@@ -447,6 +506,13 @@ export const eventFrontPl = {
       label: "Podstrony wydarzenia",
     },
 
+    // Spis sekcji na stronie głównej wydarzenia. ETYKIETA JEST INNA NIŻ
+    // W `menu`: oba spisy mogą stać na jednej stronie, a dwa punkty orientacyjne
+    // o tej samej nazwie nie dają się rozróżnić w czytniku ekranu.
+    homeSections: {
+      label: "Sekcje wydarzenia",
+    },
+
     practical: {
       addressLabel: "Adres",
       showOnMap: "Pokaż na mapie",
@@ -454,6 +520,112 @@ export const eventFrontPl = {
       hashtagLabel: "Hashtag",
       hashtagSearch: "Zobacz wpisy z {{hashtag}} w serwisie X",
       supportLabel: "Pomoc organizatora",
+    },
+
+    // ---------------------------------------------------------------------
+    // UCZESTNICY (`event_attendees`).
+    //
+    // TA LISTA JEST DLA LUDZI Z SALI I TEKST MUSI TO MÓWIĆ WPROST. Trzy różne
+    // „nie ma listy” mają trzy różne następne kroki, więc mają trzy różne
+    // zdania: gość ma się zalogować, niezapisany ma się zapisać, a przy
+    // regule Chatham House nazwisk NIE BĘDZIE i to jest odpowiedź ostateczna,
+    // nie awaria.
+    //
+    // ZERO NOWYCH ZGÓD, WIĘC ZERO OBIETNIC W TEKŚCIE. Na liście stoją
+    // wyłącznie osoby, które w profilu włączyły widoczność
+    // (`profiles.discoverable`) i nie wypisały się z tego wydarzenia
+    // (`event_registrations.directory_opt_out`) - dlatego „nikogo tu nie ma”
+    // mówi o ZGODACH, a nie o pustej sali.
+    // ---------------------------------------------------------------------
+    attendees: {
+      heading: "Uczestnicy",
+      subtitle: "Osoby, które zgodziły się być widoczne dla pozostałych uczestników.",
+      listLabel: "Lista uczestników",
+      count_one: "{{count}} osoba na liście",
+      count_few: "{{count}} osoby na liście",
+      count_many: "{{count}} osób na liście",
+      count_other: "{{count}} osób na liście",
+      searchPlaceholder: "Szukaj po nazwisku albo firmie",
+      searchLabel: "Szukaj uczestnika",
+      allGroups: "Wszyscy",
+      empty:
+        "Nikt jeszcze nie włączył widoczności na tym wydarzeniu. Możesz być pierwszy - przełącznik jest wyżej.",
+      emptyFiltered: "Nikt na liście nie odpowiada temu zapytaniu.",
+      loading: "Odświeżamy listę…",
+      prevPage: "Poprzednie",
+      nextPage: "Następne",
+      pageRange: "{{from}}-{{to}} z {{total}}",
+      profileLink: "Zobacz profil: {{name}}",
+      signInTitle: "Lista uczestników jest dla zapisanych",
+      signInBody: "Zaloguj się na konto, z którego zapisałeś się na to wydarzenie.",
+      notRegisteredTitle: "Zapisz się, żeby zobaczyć, kto będzie",
+      notRegisteredBody: "Listę uczestników pokazujemy tylko osobom zapisanym na to wydarzenie.",
+      chathamTitle: "To spotkanie działa w regule Chatham House",
+      chathamBody:
+        "Nazwisk nie pokazujemy - ani na tej stronie, ani nikomu innemu. Możemy powiedzieć, ilu was będzie i w jakich grupach.",
+      groupsHeading: "Kto będzie na sali",
+      groupCount_one: "{{count}} osoba",
+      groupCount_few: "{{count}} osoby",
+      groupCount_many: "{{count}} osób",
+      groupCount_other: "{{count}} osób",
+      visibilityHeading: "Moja widoczność",
+      listedLabel: "Jesteś widoczny dla innych uczestników",
+      listedHint:
+        "Pokazujemy imię, nazwisko, stanowisko i firmę. Nigdy adresu poczty ani telefonu.",
+      listedOn: "Widoczny",
+      listedOff: "Ukryty",
+      profileHiddenLabel: "Twój profil jest ukryty w całym serwisie",
+      profileHiddenHint:
+        "Dopóki w ustawieniach profilu masz wyłączoną widoczność, nie pokażemy Cię na żadnej liście uczestników - także po włączeniu przełącznika tutaj.",
+    },
+
+    // ---------------------------------------------------------------------
+    // DYSKUSJE (`event_discussions`).
+    //
+    // WĄTKI SĄ Z KLUBU DYSKUSYJNEGO I TEKST NIE UDAJE, ŻE JEST INACZEJ:
+    // odnośnik prowadzi do klubu, bo tam człowiek odpowiada, moderuje
+    // i dostaje powiadomienia. Wydarzenie bez przypiętej grupy klubu dostaje
+    // JEDNO ZDANIE zaproszenia - nie pustą ramkę i nie atrapę.
+    //
+    // NAZWY RODZAJÓW WĄTKÓW STOJĄ TU, A NIE W SŁOWNIKU KLUBÓW, mimo że to te
+    // same sześć wartości. Nakładki i18n są NIEPODZIELNE: import słownika
+    // klubów wciągnąłby do chunka strony wydarzenia całą powierzchnię klubową.
+    // ---------------------------------------------------------------------
+    discussions: {
+      heading: "Dyskusje",
+      subtitle: "Rozmowy uczestników w klubie dyskusyjnym tego wydarzenia.",
+      listLabel: "Wątki dyskusji",
+      invite: "Dyskusje otwieramy w dniu wydarzenia - zajrzyj tu wtedy jeszcze raz.",
+      empty: "W tej grupie nie ma jeszcze ani jednego wątku. Pierwszy głos należy do Ciebie.",
+      openInClub: "Otwórz w klubie: {{club}}",
+      startThread: "Rozpocznij wątek w klubie",
+      anonymousAuthor: "Uczestnik",
+      chathamNote: "Ta grupa działa w regule Chatham House - wypowiedzi bez nazwisk.",
+      replies_one: "{{count}} odpowiedź",
+      replies_few: "{{count}} odpowiedzi",
+      replies_many: "{{count}} odpowiedzi",
+      replies_other: "{{count}} odpowiedzi",
+      kind: {
+        discussion: "Dyskusja",
+        question: "Pytanie",
+        position: "Stanowisko",
+        resource: "Materiał",
+        announcement: "Ogłoszenie",
+        poll: "Ankieta",
+      },
+      // Stany z `club_capabilities.reason` - jedno źródło prawdy o dostępie
+      // siedzi w bazie, a tutaj ma tylko nazwę po polsku.
+      state: {
+        notFound: "Nie znaleźliśmy tego wydarzenia.",
+        authRequired: "Zaloguj się, żeby zobaczyć dyskusje tego wydarzenia.",
+        notMember: "Dyskusje są dla członków klubu. Poproś organizatora o dostęp.",
+        banned: "Nie masz dostępu do dyskusji w tym klubie.",
+        notOpenYet: "Dyskusje jeszcze się nie otworzyły.",
+        archived: "Dyskusje tego wydarzenia są już zamknięte i przeniesione do archiwum.",
+        tierTooLow: "Dyskusje są dla członków o wyższej warstwie.",
+        tierUnknown: "Nie umiemy sprawdzić Twojej warstwy członkostwa.",
+        noAccess: "Nie masz dostępu do tych dyskusji.",
+      },
     },
 
     // Baner reklamowy strony wydarzenia (page_type = 'event').
@@ -472,6 +644,7 @@ export const eventFrontPl = {
       invalidScope: "Nieznany zakres listy.",
       invalidStatus: "Nieznany stan zapisu.",
       forbidden: "Zaloguj się, żeby zapisać się na sesję.",
+      requesterNotParticipating: "Ta operacja jest dla osób zapisanych na to wydarzenie.",
       signupDisabled: "Ta sesja nie przyjmuje zapisów.",
       overlapConflict: "Masz już zapis na inną sesję w tych godzinach.",
       tierRequired: "Ta sesja jest dla członków o wyższej warstwie.",
@@ -573,12 +746,18 @@ export const eventFrontEn = {
       recordingForMembers: "The recording is available to members entitled to recordings.",
       priceFree: "Free entry",
       priceLabel: "Ticket",
+      // Fallback labels for the event shell tabs; the database label wins.
+      // The key set follows the `event_pages.module` vocabulary (which is also
+      // the route segment), hence `partners` and not `sponsors` - see the
+      // Polish side for the full reasoning.
+      tabsLabel: "Event tabs",
       tabs: {
-        overview: "Event",
-        agenda: "Programme",
+        overview: "Event home",
+        participants: "Attendees",
         speakers: "Speakers",
-        sponsors: "Partners",
-        materials: "Materials",
+        partners: "Partners",
+        agenda: "Programme",
+        discussions: "Discussions",
       },
     },
 
@@ -728,7 +907,15 @@ export const eventFrontEn = {
       empty: "The programme is not ready yet.",
       emptyFiltered: "No session matches the selected filter.",
       emptyMine: "You have not signed up for any session yet.",
+      emptyQuery: "No session on this day matches your search.",
       dayLabel: "Day {{index}}",
+      sidebarLabel: "Programme filters",
+      search: "Search",
+      timezoneRow: "Event time zone ({{zone}})",
+      timezoneForeign: "Your device is in a different time zone - times are not converted.",
+      myScheduleTitle: "Your schedule",
+      myScheduleShowAll: "See all",
+      timeRange: "{{date}}, {{start}} to {{end}}",
       allTracks: "All tracks",
       trackLabel: "Track",
       onlyMine: "My sessions only",
@@ -767,6 +954,11 @@ export const eventFrontEn = {
       },
     },
 
+    // Speaker grid - the only string it owns is the loading label.
+    speakers: {
+      loading: "Loading speakers…",
+    },
+
     // Partners and sponsors - a snapshot taken when the partner was pinned.
     sponsors: {
       loading: "Loading partners…",
@@ -781,6 +973,11 @@ export const eventFrontEn = {
         mediaPartner: "Media partner",
         exhibitor: "Exhibitor",
       },
+    },
+
+    // Partner tiers strip on the event home page (a row of logos with no names).
+    sponsorTiers: {
+      partnerSite: "Partner website: {{name}}",
     },
 
     // Partner materials - the section sits behind registration by default.
@@ -833,6 +1030,11 @@ export const eventFrontEn = {
       label: "Event pages",
     },
 
+    // Section list on the event home page - a landmark name of its own.
+    homeSections: {
+      label: "Event sections",
+    },
+
     practical: {
       addressLabel: "Address",
       showOnMap: "Show on map",
@@ -840,6 +1042,84 @@ export const eventFrontEn = {
       hashtagLabel: "Hashtag",
       hashtagSearch: "See posts tagged {{hashtag}} on X",
       supportLabel: "Organiser support",
+    },
+
+    // ---------------------------------------------------------------------
+    // ATTENDEES (`event_attendees`). Three different „no list” cases, three
+    // different next steps - see the Polish block for the reasoning.
+    // ---------------------------------------------------------------------
+    attendees: {
+      heading: "Attendees",
+      subtitle: "People who agreed to be visible to the other attendees.",
+      listLabel: "Attendee list",
+      count_one: "{{count}} person on the list",
+      count_other: "{{count}} people on the list",
+      searchPlaceholder: "Search by name or company",
+      searchLabel: "Search attendees",
+      allGroups: "Everyone",
+      empty:
+        "Nobody has turned visibility on for this event yet. You can be the first - the switch is above.",
+      emptyFiltered: "Nobody on the list matches this search.",
+      loading: "Refreshing the list…",
+      prevPage: "Previous",
+      nextPage: "Next",
+      pageRange: "{{from}}-{{to}} of {{total}}",
+      profileLink: "See profile: {{name}}",
+      signInTitle: "The attendee list is for registered guests",
+      signInBody: "Sign in with the account you used to register for this event.",
+      notRegisteredTitle: "Register to see who is coming",
+      notRegisteredBody: "We only show the attendee list to people registered for this event.",
+      chathamTitle: "This meeting runs under the Chatham House Rule",
+      chathamBody:
+        "We do not show names - not here and not to anyone else. We can tell you how many of you there will be, and in which groups.",
+      groupsHeading: "Who will be in the room",
+      groupCount_one: "{{count}} person",
+      groupCount_other: "{{count}} people",
+      visibilityHeading: "My visibility",
+      listedLabel: "You are visible to other attendees",
+      listedHint: "We show your name, job title and company. Never your email or phone.",
+      listedOn: "Visible",
+      listedOff: "Hidden",
+      profileHiddenLabel: "Your profile is hidden across the site",
+      profileHiddenHint:
+        "While visibility is off in your profile settings, we will not show you on any attendee list - even with the switch here turned on.",
+    },
+
+    // ---------------------------------------------------------------------
+    // DISCUSSIONS (`event_discussions`). Threads come from the discussion
+    // club and the copy says so - see the Polish block for the reasoning.
+    // ---------------------------------------------------------------------
+    discussions: {
+      heading: "Discussions",
+      subtitle: "Attendee conversations in this event's discussion club.",
+      listLabel: "Discussion threads",
+      invite: "Discussions open on the day of the event - come back here then.",
+      empty: "This group has no threads yet. The first word is yours.",
+      openInClub: "Open in club: {{club}}",
+      startThread: "Start a thread in the club",
+      anonymousAuthor: "Attendee",
+      chathamNote: "This group runs under the Chatham House Rule - contributions carry no names.",
+      replies_one: "{{count}} reply",
+      replies_other: "{{count}} replies",
+      kind: {
+        discussion: "Discussion",
+        question: "Question",
+        position: "Position",
+        resource: "Resource",
+        announcement: "Announcement",
+        poll: "Poll",
+      },
+      state: {
+        notFound: "We could not find this event.",
+        authRequired: "Sign in to see the discussions for this event.",
+        notMember: "Discussions are for club members. Ask the organiser for access.",
+        banned: "You do not have access to discussions in this club.",
+        notOpenYet: "Discussions have not opened yet.",
+        archived: "Discussions for this event are closed and archived.",
+        tierTooLow: "Discussions are for members on a higher tier.",
+        tierUnknown: "We cannot check your membership tier.",
+        noAccess: "You do not have access to these discussions.",
+      },
     },
 
     ads: {
@@ -853,6 +1133,7 @@ export const eventFrontEn = {
       invalidScope: "Unknown list range.",
       invalidStatus: "Unknown sign-up state.",
       forbidden: "Sign in to save a seat in this session.",
+      requesterNotParticipating: "This action is for people registered for this event.",
       signupDisabled: "This session does not take sign-ups.",
       overlapConflict: "You already have a seat in another session at this time.",
       tierRequired: "This session is for members on a higher tier.",

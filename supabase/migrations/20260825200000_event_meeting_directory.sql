@@ -1,5 +1,14 @@
 -- KATALOG UCZESTNIKOW GIELDY SPOTKAN 1-1
 --
+-- events-harness: include
+--   Znacznik dla `scripts/events-harness/run.sh`. Selektor po tresci szuka
+--   `public.admin_event_` albo `events_tenant_id_key`; ta migracja nie ma ani
+--   jednego z nich (doklada kolumne do `event_registrations` i RPC plaszczyzny
+--   uczestnika), wiec wypadala z zestawu. Wypadala nieslusznie: to ona zaklada
+--   `event_registrations.directory_opt_out`, czyli kolumne, na ktorej stoi cala
+--   regula widocznosci listy uczestnikow z `20260826182500`. Bez tego pliku
+--   harness odtwarzal modul BEZ tej kolumny i asercje frontu padaly na 42703.
+--
 -- PROBLEM, KTORY TO ZAMYKA. `event_meeting_invite` wymaga
 -- `counterpart_registration_id`, a plaszczyzna uczestnika NIE MIALA CZYM go
 -- wyprodukowac: `event_meeting_exchange` oddaje wylacznie wlasny zapis

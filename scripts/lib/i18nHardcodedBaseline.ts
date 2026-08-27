@@ -119,7 +119,6 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/routes/admin.pages.new.tsx", 2],
   ["src/routes/admin.personalized.tsx", 2],
   ["src/routes/admin.versions.tsx", 1],
-  ["src/routes/events.$slug.tsx", 1],
   ["src/routes/live.tsx", 5],
   ["src/routes/profile.index.tsx", 1],
 ];

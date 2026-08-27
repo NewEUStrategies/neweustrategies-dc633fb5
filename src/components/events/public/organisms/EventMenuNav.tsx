@@ -12,12 +12,12 @@
 // dla partnerów) jedzie do każdego gościa i widać ją w narzędziach
 // deweloperskich.
 //
-// ŚCIEŻKA JEST PEŁNA, WIĘC ODNOŚNIK JEST DO `/$`. Strony publiczne żyją pod
-// trasą splat (`src/routes/$.tsx`), a RPC składa ścieżkę z łańcucha slugów
-// rodziców. Odnośnik buduje się więc tak samo jak w mapie serwisu:
-// `<Link to="/$" params={{ _splat: path }}>` - nie `href={"/" + path}`, żeby
-// przejście zostało w routerze i nie przeładowywało całej aplikacji.
-import { Link } from "@tanstack/react-router";
+// ADRES POZYCJI ROZSTRZYGA `EventPageLink`, NIE TEN PLIK. Pozycja MODUŁOWA
+// (`event_pages.module` niepuste) prowadzi do trasy dedykowanej
+// `/events/<slug>/<module>`, gdzie pod dokumentem strony CMS stoją dane z bazy;
+// pozycja ZWYKŁA prowadzi tam, gdzie zawsze - pod pełną ścieżkę strony w trasie
+// splat (`src/routes/$.tsx`). Ten warunek żyje w JEDNYM atomie, bo te same dwa
+// adresy rozstrzyga pasek zakładek i spis sekcji na stronie głównej.
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
+import { EventPageLink } from "@/components/events/public/atoms/EventPageLink";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { EventMenuItem } from "@/lib/events/publicEventApi";
 
@@ -58,7 +59,12 @@ export function EventMenuNav({
       >
         {items.map((item) => (
           <li key={item.id}>
-            <EventMenuLink item={item} label={menuLabel(item, lang)} grid={isGrid} />
+            <EventMenuLink
+              item={item}
+              eventSlug={slug}
+              label={menuLabel(item, lang)}
+              grid={isGrid}
+            />
           </li>
         ))}
       </ul>
@@ -78,17 +84,19 @@ function menuLabel(item: EventMenuItem, lang: "pl" | "en"): string {
 
 function EventMenuLink({
   item,
+  eventSlug,
   label,
   grid,
 }: {
   item: EventMenuItem;
+  eventSlug: string;
   label: string;
   grid: boolean;
 }) {
   return (
-    <Link
-      to="/$"
-      params={{ _splat: item.path }}
+    <EventPageLink
+      item={item}
+      eventSlug={eventSlug}
       className={cn(
         "flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/50",
         grid && "h-full",
@@ -107,6 +115,6 @@ function EventMenuLink({
         </span>
       )}
       <span className="min-w-0 flex-1">{label}</span>
-    </Link>
+    </EventPageLink>
   );
 }

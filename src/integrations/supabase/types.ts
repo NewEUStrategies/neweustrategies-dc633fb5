@@ -7560,6 +7560,7 @@ export type Database = {
           in_menu: boolean
           menu_label_en: string | null
           menu_label_pl: string | null
+          module: string | null
           page_id: string
           sort_order: number
           tenant_id: string
@@ -7575,6 +7576,7 @@ export type Database = {
           in_menu?: boolean
           menu_label_en?: string | null
           menu_label_pl?: string | null
+          module?: string | null
           page_id: string
           sort_order?: number
           tenant_id?: string
@@ -7590,6 +7592,7 @@ export type Database = {
           in_menu?: boolean
           menu_label_en?: string | null
           menu_label_pl?: string | null
+          module?: string | null
           page_id?: string
           sort_order?: number
           tenant_id?: string
@@ -7622,6 +7625,8 @@ export type Database = {
       }
       event_people: {
         Row: {
+          bio_en: string | null
+          bio_pl: string | null
           company_id: string | null
           company_text: string | null
           consent_data_processing_at: string | null
@@ -7639,6 +7644,7 @@ export type Database = {
           last_name: string
           notes: string | null
           phone: string | null
+          photo_url: string | null
           social_profile_url: string | null
           source: string
           tenant_id: string
@@ -7646,6 +7652,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          bio_en?: string | null
+          bio_pl?: string | null
           company_id?: string | null
           company_text?: string | null
           consent_data_processing_at?: string | null
@@ -7663,6 +7671,7 @@ export type Database = {
           last_name: string
           notes?: string | null
           phone?: string | null
+          photo_url?: string | null
           social_profile_url?: string | null
           source?: string
           tenant_id: string
@@ -7670,6 +7679,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          bio_en?: string | null
+          bio_pl?: string | null
           company_id?: string | null
           company_text?: string | null
           consent_data_processing_at?: string | null
@@ -7687,6 +7698,7 @@ export type Database = {
           last_name?: string
           notes?: string | null
           phone?: string | null
+          photo_url?: string | null
           social_profile_url?: string | null
           source?: string
           tenant_id?: string
@@ -9295,6 +9307,8 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
+          discussion_club_id: string | null
+          discussion_group_id: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
           event_type_id: string | null
@@ -9351,6 +9365,8 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          discussion_club_id?: string | null
+          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -9407,6 +9423,8 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          discussion_club_id?: string | null
+          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -16615,6 +16633,7 @@ export type Database = {
           id: string
           is_public: boolean
           languages: string[]
+          person_id: string | null
           rating: number
           reviews_count: number
           talks_count: number
@@ -16622,7 +16641,7 @@ export type Database = {
           topics_en: string[]
           topics_pl: string[]
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           bio_en?: string | null
@@ -16634,6 +16653,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           languages?: string[]
+          person_id?: string | null
           rating?: number
           reviews_count?: number
           talks_count?: number
@@ -16641,7 +16661,7 @@ export type Database = {
           topics_en?: string[]
           topics_pl?: string[]
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           bio_en?: string | null
@@ -16653,6 +16673,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           languages?: string[]
+          person_id?: string | null
           rating?: number
           reviews_count?: number
           talks_count?: number
@@ -16660,7 +16681,7 @@ export type Database = {
           topics_en?: string[]
           topics_pl?: string[]
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -16683,6 +16704,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "crm_leads_all"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaker_profiles_person_tenant_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "speaker_profiles_tenant_id_fkey"
@@ -19770,6 +19798,7 @@ export type Database = {
           in_menu: boolean
           menu_label_en: string
           menu_label_pl: string
+          module: string
           page_id: string
           page_path: string
           page_slug: string
@@ -23010,6 +23039,7 @@ export type Database = {
         Returns: boolean
       }
       event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
+      event_attendees: { Args: { p_payload: Json }; Returns: Json }
       event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_bookmarks_mine: {
         Args: { p_limit?: number; p_offset?: number; p_scope?: string }
@@ -23037,6 +23067,7 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_discussions: { Args: { p_slug: string }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_availability_delete: {
@@ -23106,6 +23137,7 @@ export type Database = {
           id: string
           label_en: string
           label_pl: string
+          module: string
           page_id: string
           path: string
           sort_order: number

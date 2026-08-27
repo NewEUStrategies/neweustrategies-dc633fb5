@@ -92,6 +92,55 @@ z podstronami**, złożona z widgetów, z jednym wyjątkiem: zakładki wymagają
 danych osobowych i sesji (`Uczestnicy`, `Dyskusje`) są **widgetami z bramką**
 `advanced.access.auth`, a nie osobnymi trasami.
 
+> ### ⟲ KOREKTA (2026-08-27): pięć zakładek to jednak osobne trasy
+>
+> **Co stało wyżej.** Że zakładki wydarzenia są widgetami w dokumencie
+> buildera, a `Uczestnicy` i `Dyskusje` — widgetami z bramką `access.auth`;
+> osobna rodzina tras React została odrzucona jako porzucenie edytora i SEO.
+>
+> **Co jest.** Pięć zakładek to **osobne trasy** pod `/events/<slug>/…`:
+> `participants`, `speakers`, `partners`, `agenda`, `discussions`.
+> `events.$slug.tsx` stał się powłoką z `<Outlet />`, przegląd zjechał do
+> `events.$slug.index.tsx`. Segment trasy **jest wartością `event_pages.module`**
+> — nie nazwą wymyśloną w kodzie (słownik: `src/lib/events/eventModules.ts`,
+> zbiór domknięty CHECK-iem `event_pages_module_values` z migracji
+> `20260826181500`).
+>
+> **Dlaczego decyzja się odwróciła.** Nie dlatego, że powyższa analiza była
+> błędna — jej przesłanka przestała obowiązywać. Widgety modułowe
+> (`speakers`, `event-schedule`, `event-sponsors`) **nadal czytają ręcznie
+> wpisany JSON, nie bazę** (`src/lib/builder/registry.tsx`: `source: "manual"`,
+> `eventId: ""`), bo `src/lib/builder/eventContext.ts` (EB-902) **nie istnieje**.
+> Zakładka „Uczestnicy” jako widget pokazywałaby więc atrapę nazwisk zamiast
+> listy z `event_attendees`, a bramka `advanced.access.auth` sprawdzałaby
+> wyłącznie _zalogowanie_ — podczas gdy reguła jest ostrzejsza: lista wychodzi
+> tylko uczestnikowi **zapisanemu na to wydarzenie**, a Chatham House twardo
+> wyłącza nazwiska (egzekwuje to SQL w `20260826182500`, nie front).
+>
+> **Czego korekta NIE porzuca.** Edytora i SEO nie tracimy: strony modułowe
+> pozostają **prawdziwymi wierszami `pages`** z dokumentem buildera (nagłówek
+> `h1` + zdanie wstępu), a trasa zakładki renderuje ten dokument **tą samą
+> drogą, co każda inna strona serwisu** (`resolvedContentQueryOptions` →
+> `ContentRenderer`, wspólny klucz cache z trasą splat) i dopiero **pod nim**
+> dokłada organizm z danymi. Redaktor edytuje w studiu tekst, który uczestnik
+> naprawdę widzi. Wraz z EB-902 widget modułowy będzie mógł wejść do tego
+> samego dokumentu — korekta tego nie zamyka.
+>
+> **Skutek uboczny, którego ten PR NIE naprawia.** Strona modułowa ma przez to
+> **dwa adresy**: trasę zakładki (`/events/<slug>/speakers`) i ścieżkę strony
+> CMS pod trasą splat (`/<korzeń-wydarzenia>/prelegenci`). Menu wydarzenia
+> prowadzi **wyłącznie** do pierwszego (`EventPageLink` wybiera adres po
+> znaczniku `module`), więc drugi jest osiągalny, ale nielinkowany — i pokazuje
+> sam wstęp, bez danych. Kanonizacja (przekierowanie splata albo `rel=canonical`
+> na zakładkę) wymaga, żeby **rezolwer ścieżek niósł znacznik `module`** — czyli
+> zmiany w warstwie wspólnej dla całego CMS-u (`src/lib/queries/public.ts` oraz
+> `src/routes/$.tsx`), a nie w module wydarzeń. Nie da się tego zrobić jednym
+> `select`: `event_pages` ma RLS „staff read” i **żaden `GRANT` nie obejmuje
+> roli `anon`** (`20260826120000:145,180`), więc odwzorowanie
+> `page_id → (module, slug wydarzenia)` musi przejść przez **nowe RPC
+> `SECURITY DEFINER`**, a każde rozwiązanie ścieżki w serwisie zapłaciłoby za nie
+> round-tripem. Świadomie odłożone do osobnego zadania.
+
 ### 2.3 Czego do tego brakuje w danych ⛔
 
 | Brak                                               | Sprawdzone                                                                                                                                                                                     | Zadanie                                                                                                                        |

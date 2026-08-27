@@ -316,8 +316,6 @@ export function EventCreateForm({
                 onValueChange={(value) => setDraft({ ...draft, format: value })}
               />
 
-
-
               {/* Miejsce ZNIKA dla wydarzeń wyłącznie online - tak samo jak w bazie,
                   która zeruje wtedy miasto i kraj. Pole, którego zapis jest z góry
                   unieważniony, jest kontrolką kłamiącą o skutku. */}

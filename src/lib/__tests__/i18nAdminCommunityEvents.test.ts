@@ -39,6 +39,14 @@ const SPEAKERS_SOURCE = readFileSync(
   "src/components/admin/community/EventSpeakersManager.tsx",
   "utf8",
 );
+// Popup zakladania prelegenta BEZ KONTA woła ~35 kluczy z tego samego drzewa.
+// Bez tego pliku w skanie brakujacy klucz przechodzil parytet (nie ma go
+// w OBU slownikach), przechodzil `tsc` i wychodzil na ekran jako
+// `adminCommunityEvents.speakers.create.…`.
+const SPEAKER_CREATE_SOURCE = readFileSync(
+  "src/components/admin/community/EventSpeakerCreateDialog.tsx",
+  "utf8",
+);
 
 const pl = flatten(adminCommunityEventsPl as unknown as Tree);
 const en = flatten(adminCommunityEventsEn as unknown as Tree);
@@ -74,7 +82,7 @@ describe("i18n-admin-community-events", () => {
   });
 
   it("pokrywa KAZDY klucz adminCommunityEvents.* wolany w kodzie", () => {
-    const used = [ROUTE_SOURCE, SPEAKERS_SOURCE].flatMap((src) =>
+    const used = [ROUTE_SOURCE, SPEAKERS_SOURCE, SPEAKER_CREATE_SOURCE].flatMap((src) =>
       [...src.matchAll(/"(adminCommunityEvents\.[A-Za-z0-9_.]+)"/g)].map((m) => m[1]),
     );
     // Rodzina liczby mnogiej jest wolana kluczem BAZOWYM (`...remindersSent`) -
@@ -111,7 +119,7 @@ describe("i18n-admin-community-events", () => {
     // polskich znakow diakrytycznych - one nie maja jak trafic do kodu inaczej
     // niz jako tekst dla uzytkownika.
     const offenders: string[] = [];
-    for (const source of [ROUTE_SOURCE, SPEAKERS_SOURCE]) {
+    for (const source of [ROUTE_SOURCE, SPEAKERS_SOURCE, SPEAKER_CREATE_SOURCE]) {
       const withoutComments = source
         .replace(/\/\/[^\n]*/g, "")
         .replace(/\/\*[\s\S]*?\*\//g, "")
