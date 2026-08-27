@@ -20207,6 +20207,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_sessions_set_track: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_set_status: {
         Args: { p_event_id: string; p_status: string }
         Returns: string
