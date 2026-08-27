@@ -390,11 +390,44 @@ export function EventSpeakerCreateDialog({
           </Section>
 
           <Section title={t("adminCommunityEvents.speakers.create.sectionCard")} delayMs={60}>
-            {/* ZDJECIE: kafel podgladu 6 px + wgrywanie pliku, adres https jako
-                alternatywa dla materialow hostowanych po stronie partnera. */}
+            {/* ZDJECIE: kafel podgladu 6 px jest JEDNOCZESNIE polem upuszczania.
+                Plik ladujemy od razu (podglad przed zapisem karty prelegenta),
+                a przycisk obok pozwala podmienic albo usunac go przed
+                zatwierdzeniem - dopiero „Dodaj" utrwala cokolwiek w bazie. */}
             <div className="flex items-start gap-3">
-              <div className="flex size-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border/60 bg-muted/40">
-                {draft.photoUrl.trim() !== "" ? (
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={
+                  draft.photoUrl.trim() !== ""
+                    ? t("adminCommunityEvents.speakers.create.photoReplace")
+                    : t("adminCommunityEvents.speakers.create.photoUpload")
+                }
+                onClick={() => fileRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileRef.current?.click();
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file !== undefined) void handlePhoto(file);
+                }}
+                className={`group relative flex size-[76px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/40 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+                  dragOver ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/60"
+                }`}
+              >
+                {uploading ? (
+                  <Loader2 aria-hidden="true" className="size-5 animate-spin text-muted-foreground" />
+                ) : draft.photoUrl.trim() !== "" ? (
                   <img
                     src={draft.photoUrl}
                     alt={t("adminCommunityEvents.speakers.create.photoAlt")}
@@ -407,7 +440,7 @@ export function EventSpeakerCreateDialog({
               <div className="min-w-0 flex-1">
                 <Field
                   label={t("adminCommunityEvents.speakers.create.photoUrl")}
-                  hint={t("adminCommunityEvents.speakers.create.photoUrlHint")}
+                  hint={t("adminCommunityEvents.speakers.create.photoDropHint")}
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
@@ -441,7 +474,9 @@ export function EventSpeakerCreateDialog({
                       )}
                       {uploading
                         ? t("adminCommunityEvents.speakers.create.photoUploading")
-                        : t("adminCommunityEvents.speakers.create.photoUpload")}
+                        : draft.photoUrl.trim() !== ""
+                          ? t("adminCommunityEvents.speakers.create.photoReplace")
+                          : t("adminCommunityEvents.speakers.create.photoUpload")}
                     </Button>
                     {draft.photoUrl.trim() !== "" && (
                       <Button
@@ -458,6 +493,7 @@ export function EventSpeakerCreateDialog({
                   </div>
                 </Field>
               </div>
+
             </div>
 
 
