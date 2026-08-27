@@ -159,6 +159,12 @@ export const adminCommunityEventsPl = {
         photoUrl: "Zdjęcie (adres)",
         photoUrlPlaceholder: "https://…",
         photoUrlHint: "Wymagany adres https, bo zdjęcie jedzie na stronę publiczną.",
+        photoUpload: "Wgraj zdjęcie",
+        photoUploading: "Wgrywanie…",
+        photoRemove: "Usuń zdjęcie",
+        photoFailed: "Nie udało się wgrać zdjęcia.",
+        photoAlt: "Podgląd zdjęcia prelegenta",
+
         headlinePl: "Rola sceniczna PL",
         headlineEn: "Rola sceniczna EN",
         headlineHint: "Druga linia karty prelegenta. Puste pole zostawia stanowisko.",
