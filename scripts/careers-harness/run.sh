@@ -98,12 +98,27 @@ MIGRATIONS="$(grep -lE "public\.(career_|contact_messages)|'career-cv'" \
 
 fail=0
 applied=0
+skipped=0
 for f in $MIGRATIONS; do
   name="$(basename "$f")"
   # Migracje SPRZED wprowadzenia modulu careers dotykaja powierzchni, ktorej ten
   # harness celowo nie odtwarza (redirects, polityki formularza kontaktowego,
   # newsletter). Interesuje nas modul: tabele career_* i bucket CV.
   if ! grep -qE "public\.career_|'career-cv'" "$f"; then continue; fi
+  # ZLEPEK WCHODZI PRZEZ SELEKTOR, A NIE DA SIE GO ODTWORZYC. Migracja panelu
+  # Lovable potrafi zebrac w jednym pliku szesc niepowiazanych modulow; wtedy
+  # wzmianka o `public.career_applications` wciaga tu plik, ktory zaraz pyta
+  # o `crm_webhook_endpoints`, `workflow_runs` i `integration_endpoints` -
+  # powierzchnie, ktorych ten harness CELOWO nie modeluje. Atrapowanie ich po
+  # kolei nie jest naprawa: kazda atrapa to kolejne zdanie o kształcie tabeli,
+  # ktorego nikt nie weryfikuje, a bramka przestaje mowic o modul careers.
+  # Dlatego pominiecie jest JAWNE, opisane w samej migracji i WIDOCZNE w logu -
+  # cicha zmiana selektora ukrylaby, ze plik nie przeszedl.
+  if grep -q 'careers-harness: exclude' "$f"; then
+    printf '  SKIP %s (znacznik careers-harness: exclude)\n' "$name"
+    skipped=$((skipped + 1))
+    continue
+  fi
   if out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
     printf '  OK   %s\n' "$name"
     applied=$((applied + 1))
@@ -113,6 +128,9 @@ for f in $MIGRATIONS; do
     fail=1
   fi
 done
+echo "Zaaplikowano: $applied, pominieto znacznikiem: $skipped."
+# STRAZNIK: pominiecia nie moga zjesc calego zestawu. Gdyby ktos oznaczyl
+# wszystko, bramka swiecilaby na zielono nie sprawdzajac niczego.
 [ "$applied" -gt 0 ] || { echo "Zadna migracja nie zostala wybrana - selektor jest zepsuty."; exit 1; }
 [ "$fail" -eq 0 ] || { echo "Migracje nie przeszly."; exit 1; }
 

@@ -2,7 +2,7 @@
 //
 // Regresje przypięte tutaj:
 //  1. IKONA NIE ROZJAŚNIAŁA SIĘ W LIGHT MODE. Kafelek trzyma kolor w atrybucie
-//     `style`, a reguła hovera była zapisana klasą `group-hover:![color:…]` -
+//     `style`, a reguła hovera była zapisana klasą `group-hover:![color:red]` -
 //     składnią ważności z Tailwinda 3, która w wersji 4 NIE GENERUJE żadnego
 //     CSS. Efekt: wiersz robił się kolorowy, ikona zostawała ciemna. Dziś kolor
 //     ikony na hoverze idzie z arkusza instancji, z `!important`.

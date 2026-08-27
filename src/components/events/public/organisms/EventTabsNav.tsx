@@ -24,6 +24,15 @@
 // dla wystawców nie może więc wyciec do gościa przez pasek nawigacji - a
 // filtrowanie w kliencie znaczyłoby dokładnie to.
 //
+// KOLOR POZYCJI IDZIE PRZEZ `activeProps`/`inactiveProps`, NIE PRZEZ KLASĘ
+// BAZOWĄ - i to jest poprawka defektu. Router SKLEJA `className` z klasami
+// z `activeProps`/`inactiveProps` zwykłą spacją, bez `tailwind-merge`, więc
+// kolor wyciszony trzymany w klasie bazowej współistniał na bieżącym odnośniku
+// z kolorem aktywnym. Przy równej specyficzności rozstrzygała kolejność
+// w arkuszu, a ta stawiała wyciszony PÓŹNIEJ - bieżąca zakładka dostawała
+// odcień wyciszony. Rozdzielone na dwa propsy dają DOKŁADNIE JEDNĄ klasę koloru
+// na węźle w danym momencie (uzasadnienie w całości: `EventTabsBar`).
+//
 // ETYKIETA JEST Z BAZY, KLUCZ i18n JEST ZAPASOWY. Organizator ma prawo nazwać
 // swoją podstronę („Program” zamiast „Agenda”), więc pierwsze słowo należy do
 // `menu_label_*`, a po nim do tytułu strony. Klucz `eventFront.header.tabs.*`
@@ -41,6 +50,7 @@ import {
   EventTabsBar,
   EVENT_TAB_ACTIVE_CLASS,
   EVENT_TAB_CLASS,
+  EVENT_TAB_INACTIVE_CLASS,
 } from "@/components/events/public/molecules/EventTabsBar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { EventMenuItem } from "@/lib/events/publicEventApi";
@@ -73,6 +83,7 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
           activeOptions={{ exact: true }}
           className={EVENT_TAB_CLASS}
           activeProps={{ className: EVENT_TAB_ACTIVE_CLASS }}
+          inactiveProps={{ className: EVENT_TAB_INACTIVE_CLASS }}
         >
           {t("eventFront.header.tabs.overview")}
         </Link>
@@ -84,6 +95,7 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
             eventSlug={slug}
             className={EVENT_TAB_CLASS}
             activeProps={{ className: EVENT_TAB_ACTIVE_CLASS }}
+            inactiveProps={{ className: EVENT_TAB_INACTIVE_CLASS }}
           >
             {tabLabel(item, lang, t)}
           </EventPageLink>

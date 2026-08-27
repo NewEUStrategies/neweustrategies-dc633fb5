@@ -14,21 +14,12 @@
 // JAK TO JEST MIERZALNE BEZ TAILWINDA. W testach nie ma przejazdu Tailwinda,
 // więc klasy utility są tu samymi nazwami. Podstawiamy więc arkusz zastępczy,
 // który wiąże KONKRETNY token klasy z deklaracją, jakiej Tailwind dla niej
-// wypuszcza - selektorem `[class~="…"]`, żeby nie escapować nawiasów w nazwach
+// wypuszcza - selektorem `[class~="nazwa-klasy"]`, żeby nie escapować nawiasów w nazwach
 // klas dowolnych. To wiązanie jest częścią dowodu, a nie obejściem: jeśli ktoś
 // usunie albo przechrzci klasę w kodzie produkcyjnym, reguła przestanie pasować
 // do węzła, wartość obliczona spadnie do wartości motywu i test się zaczerwieni.
-// Deklaracje klas DOWOLNYCH (`bg-[color:var(--event-nav,transparent)]`,
-// `[background-image:var(--event-bg-image,none)]`) są przy tym wprost odczytane
-// z nazwy klasy - Tailwind nie ma tam swobody.
-//
-// NAZWY KLAS STOJĄ TU W PEŁNEJ POSTACI, BEZ WYKROPKOWANIA. `styles.css` ma
-// `@source "../src"`, więc skaner Tailwinda czyta też ten plik - i też
-// komentarze. Nazwa klasy dowolnej z WYKROPKOWANĄ nazwą zmiennej w środku jest
-// dla skanera równie dobrym kandydatem jak prawdziwa, więc generator wypuszcza
-// z niej regułę, w której `var()` nie ma nazwy własności - a to błąd składni:
-// lightningcss przerywa transformację CAŁEGO arkusza, w dev-serwerze staje
-// `<vite-error-overlay>` i przechwytuje klikanie na KAŻDEJ stronie serwisu.
+// Deklaracje klas DOWOLNYCH (`bg-[color:var(--x)]`, `[background-image:var(--x)]`)
+// są przy tym wprost odczytane z nazwy klasy - Tailwind nie ma tam swobody.
 //
 // TOKENY MOTYWU są tu zadeklarowane na `:root` tak jak w `styles.css` - dzięki
 // temu przypadek „wydarzenie BEZ brandingu" ma mierzalną wartość odniesienia
@@ -41,6 +32,7 @@ import {
   EventTabsBar,
   EVENT_TAB_ACTIVE_CLASS,
   EVENT_TAB_CLASS,
+  EVENT_TAB_INACTIVE_CLASS,
 } from "@/components/events/public/molecules/EventTabsBar";
 import { DARK_TEXT, LIGHT_TEXT } from "@/lib/post/badgeContrast";
 import { cn } from "@/lib/utils";
@@ -55,7 +47,7 @@ const THEME_MUTED_FOREGROUND = "#767676";
  *
  * KAŻDY WPIS JEST ASERCJĄ. Klucz to dokładny token klasy, który MUSI stać na
  * węźle malującym; wartość to deklaracja, którą ten token niesie. Selektor
- * `[class~=…]` dopasowuje token listy klas bez escapowania `[`, `(`, `,` - a przy
+ * `[class~=nazwa-klasy]` dopasowuje token listy klas bez escapowania `[`, `(`, `,` - a przy
  * klasach dowolnych deklaracja jest po prostu treścią nawiasu z nazwy klasy.
  */
 const TAILWIND_STUB: ReadonlyArray<readonly [string, string]> = [
@@ -110,13 +102,27 @@ function mountPortal(branding: unknown) {
       tabsSlot={
         <EventTabsBar label="zakladki wydarzenia">
           <li>
-            {/* `cn` DOKŁADNIE jak w miejscach wołających: `tailwind-merge` musi
-                rozstrzygnąć dwie klasy koloru napisu na rzecz aktywnej, inaczej
-                bieżąca zakładka dostałaby odcień wyciszony. */}
+            {/* `cn` z WYBOREM TRÓJDZIELNYM - dokładnie tak, jak składa klasy
+                PODGLĄD STUDIA (`EventPreviewCanvas`), jedyna powierzchnia, dla
+                której ten mount jest wierny: napis w podglądzie nie jest
+                `Link`-iem, więc kolor pozycji dojeżdża do niego przez `cn`,
+                a nie przez `activeProps`/`inactiveProps` routera.
+                CZEGO TEN MOUNT NIE MIERZY - i to jest ważniejsze od tego, co
+                mierzy. Strona publiczna składa klasy PRZEZ ROUTER, który skleja
+                je zwykłą spacją, bez `tailwind-merge`. `cn` użyty tutaj
+                deduplikowałby kolizję, której router nie deduplikuje, więc ten
+                plik NIE MOŻE być dowodem dla paska na stronie - i przez jedno
+                wydanie nim był, świecąc na zielono nad bieżącą zakładką
+                w odcieniu wyciszonym. Dowód dla strony publicznej stoi
+                w `eventTabsNavActiveColor.test.tsx`, na prawdziwym routerze
+                i bez ani jednego `cn`. */}
             <span className={cn(EVENT_TAB_CLASS, EVENT_TAB_ACTIVE_CLASS)}>Przeglad</span>
           </li>
           <li>
-            <span className={EVENT_TAB_CLASS}>Prelegenci</span>
+            {/* Klasa bazowa nie ma już koloru napisu (patrz `EventTabsBar`),
+                więc pozycja niebieżąca MUSI dostać `EVENT_TAB_INACTIVE_CLASS`
+                jawnie - tak samo, jak robi to podgląd studia. */}
+            <span className={cn(EVENT_TAB_CLASS, EVENT_TAB_INACTIVE_CLASS)}>Prelegenci</span>
           </li>
         </EventTabsBar>
       }

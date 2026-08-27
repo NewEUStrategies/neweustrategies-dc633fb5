@@ -28,6 +28,7 @@ export function EventPageLink({
   eventSlug,
   className,
   activeProps,
+  inactiveProps,
   children,
 }: {
   item: EventMenuItem;
@@ -36,13 +37,30 @@ export function EventPageLink({
   className?: string;
   /** Nadpisania dla pozycji aktywnej (pasek zakładek); reszta spisów ich nie używa. */
   activeProps?: { className?: string };
+  /**
+   * Nadpisania dla pozycji NIEBIEŻĄCEJ - drugi bok `activeProps`.
+   *
+   * PO CO OSOBNY PROPS, A NIE KLASA BAZOWA. Router skleja `className`
+   * z `activeProps.className` zwykłą spacją, bez `tailwind-merge`, więc kolor
+   * wyciszony wpisany do klasy bazowej współistniałby na bieżącym odnośniku
+   * z kolorem aktywnym i o wyniku decydowałaby kolejność w arkuszu. Ten props
+   * jest jedyną drogą, żeby na węźle stała DOKŁADNIE JEDNA klasa koloru
+   * (pełne uzasadnienie: `EventTabsBar`).
+   */
+  inactiveProps?: { className?: string };
   children: ReactNode;
 }) {
   const module = eventModuleOf(item.module);
 
   if (module === null) {
     return (
-      <Link to="/$" params={{ _splat: item.path }} className={className} activeProps={activeProps}>
+      <Link
+        to="/$"
+        params={{ _splat: item.path }}
+        className={className}
+        activeProps={activeProps}
+        inactiveProps={inactiveProps}
+      >
         {children}
       </Link>
     );
@@ -54,6 +72,7 @@ export function EventPageLink({
       params={{ slug: eventSlug }}
       className={className}
       activeProps={activeProps}
+      inactiveProps={inactiveProps}
     >
       {children}
     </Link>

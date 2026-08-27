@@ -110,6 +110,7 @@ import {
   EventTabsBar,
   EVENT_TAB_ACTIVE_CLASS,
   EVENT_TAB_CLASS,
+  EVENT_TAB_INACTIVE_CLASS,
 } from "@/components/events/public/molecules/EventTabsBar";
 import { EventVideoHeader } from "@/components/events/public/molecules/EventVideoHeader";
 import {
@@ -237,7 +238,18 @@ export function EventPreviewCanvas({
         model.menu.length === 0 ? null : (
           <EventTabsBar label={t("eventFront.header.tabsLabel")}>
             <li>
-              <span className={cn(EVENT_TAB_CLASS, page === null && EVENT_TAB_ACTIVE_CLASS)}>
+              {/* WYBOR TROJDZIELNY, a nie `&&`: klasa bazowa nie ma juz koloru
+                napisu (patrz `EventTabsBar`), wiec pozycja NIEBIEZACA musi
+                dostac `EVENT_TAB_INACTIVE_CLASS` JAWNIE. Napis w podgladzie nie
+                jest `Link`-iem, wiec `inactiveProps` routera tu nie dojada -
+                tu wybor robi `cn`. Bez tego wiersza podglad rysowalby zakladki
+                w kolorze DZIEDZICZONYM i rozjechalby sie ze strona publiczna. */}
+              <span
+                className={cn(
+                  EVENT_TAB_CLASS,
+                  page === null ? EVENT_TAB_ACTIVE_CLASS : EVENT_TAB_INACTIVE_CLASS,
+                )}
+              >
                 {t("eventFront.header.tabs.overview")}
               </span>
             </li>
@@ -250,7 +262,9 @@ export function EventPreviewCanvas({
                 <span
                   className={cn(
                     EVENT_TAB_CLASS,
-                    page !== null && page.key === item.key && EVENT_TAB_ACTIVE_CLASS,
+                    page !== null && page.key === item.key
+                      ? EVENT_TAB_ACTIVE_CLASS
+                      : EVENT_TAB_INACTIVE_CLASS,
                   )}
                 >
                   {item.label}

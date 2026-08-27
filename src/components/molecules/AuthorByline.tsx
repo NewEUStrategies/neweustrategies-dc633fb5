@@ -86,7 +86,7 @@ export function AuthorByline({
   // KONTRAKT ROZMIARU JEST NIENARUSZALNY.
   //
   // Nie wystarczy styl inline. Warstwa typografii widgetu generuje reguły
-  // `[data-w-id="…"] span:not([data-typography-exempt]){font-size:… !important}`
+  // `[data-w-id="id"] span:not([data-typography-exempt]){font-size:1rem !important}`
   // (patrz `lib/builder/typographyCss`), a `!important` z arkusza BIJE styl
   // inline. Dlatego:
   //   * KAŻDY węzeł bylinu (nie tylko korzeń) nosi `data-typography-exempt`,
