@@ -348,7 +348,9 @@ function filledModel(): EventPreviewModel {
       colors: { ...EMPTY_EVENT_PREVIEW.branding.colors, main_action: "#FA9346" },
     },
     pagesDisplayMode: "grid",
-    menu: [{ key: "m1", label: "Prelegenci", icon: "users", color: "" }],
+    menu: [
+      { key: "m1", pageId: "p1", path: "kongres/prelegenci", label: "Prelegenci", icon: "users", color: "" },
+    ],
   };
 }
 

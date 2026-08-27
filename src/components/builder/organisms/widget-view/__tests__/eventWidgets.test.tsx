@@ -473,16 +473,20 @@ describe("SpeakersWidget - data sources", () => {
   });
 
   it("event source renders the organization from the same RPC row", async () => {
-    // Zrodlo „prelegenci wydarzenia" idzie tym samym mapowaniem, co katalog -
-    // afiliacja nie moze zaleze c od tego, KTORE ze dwoch zrodel bazy wybrala
-    // redakcja.
-    db.rpc.get_public_speakers = [speakerRpcRow({ company: "Kancelaria Brukselska" })];
+    // Zrodlo „prelegenci wydarzenia" idzie WLASNA projekcja
+    // (`event_speakers_public`), bo katalog zlacza rejestr z `profiles` przez
+    // INNER JOIN i gubi prelegenta BEZ konta. Afiliacja ma jednak wygladac tak
+    // samo, jak w katalogu - mapowanie wiersza jest wspolne.
+    db.rpc.event_speakers_public = [
+      speakerRpcRow({ company: "Kancelaria Brukselska", person_id: "p-1" }),
+    ];
     renderWithClient(
       <SpeakersWidget node={speakersNode({ source: "event", eventId: "e-1" })} lang="pl" />,
     );
     expect(await screen.findByText("Jan Kowalski")).toBeInTheDocument();
     expect(screen.getByText("Kancelaria Brukselska")).toBeInTheDocument();
   });
+
 
   it("row without a company renders no empty affiliation line", async () => {
     db.rpc.get_public_speakers = [speakerRpcRow({ company: null })];
