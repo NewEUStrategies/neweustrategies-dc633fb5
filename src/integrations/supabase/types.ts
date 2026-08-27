@@ -20072,6 +20072,8 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           answers_count: number
+          consent_url_en: string
+          consent_url_pl: string
           created_at: string
           event_id: string
           field_type: string
