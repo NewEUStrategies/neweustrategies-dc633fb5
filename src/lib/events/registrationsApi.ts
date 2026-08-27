@@ -153,6 +153,21 @@ export interface EventTicketInput {
   groupId: string | null;
   isActive: boolean;
   sortOrder: number;
+  /** Cena early-bird w groszach albo `null` = brak progu czasowego. */
+  earlyBirdPriceCents: number | null;
+  /** Termin obowiazywania ceny early-bird (ISO) albo `null`. */
+  earlyBirdUntil: string | null;
+  /**
+   * Kod dostepu w POSTACI JAWNEJ - baza zapisuje wylacznie skrot SHA-256.
+   *
+   * `undefined` = nie ruszaj kodu, `null` = skasuj kod, napis = ustaw nowy.
+   * Trzy stany, bo edycja nazwy biletu nie moze po cichu zdejmowac bramki.
+   */
+  accessCode?: string | null;
+  /** Podpowiedz przy polu kodu, np. „kod z zaproszenia". */
+  accessCodeHint: string;
+  /** `false` = po wyczerpaniu puli zapis oddaje `sold_out`, bez kolejki. */
+  waitlistEnabled: boolean;
 }
 
 export async function saveEventTicket(input: EventTicketInput): Promise<string> {
@@ -177,6 +192,13 @@ export async function saveEventTicket(input: EventTicketInput): Promise<string> 
       group_id: input.groupId,
       is_active: input.isActive,
       sort_order: input.sortOrder,
+      early_bird_price_cents: input.earlyBirdPriceCents,
+      early_bird_until: input.earlyBirdUntil,
+      // Klucz pomijamy CALKOWICIE, gdy pole zostalo nietkniete: RPC czyta
+      // `p_payload ? 'access_code'`, wiec jawny `null` znaczy „zdejmij kod".
+      access_code: input.accessCode === undefined ? undefined : input.accessCode,
+      access_code_hint: input.accessCodeHint,
+      waitlist_enabled: input.waitlistEnabled,
     }),
   });
   if (error) throw error;
@@ -212,6 +234,9 @@ export interface RegistrationFieldInput {
   labelEn: string;
   helpPl: string;
   helpEn: string;
+  /** Odnosnik do dokumentu zgody (RODO); pusty tekst = bez odnosnika. */
+  consentUrlPl: string;
+  consentUrlEn: string;
   isRequired: boolean;
   /** Warianty dla `select`/`multiselect`; dla reszty pusta lista. */
   options: Json;
@@ -234,6 +259,8 @@ export async function saveRegistrationField(input: RegistrationFieldInput): Prom
       label_en: input.labelEn,
       help_pl: input.helpPl,
       help_en: input.helpEn,
+      consent_url_pl: input.consentUrlPl,
+      consent_url_en: input.consentUrlEn,
       is_required: input.isRequired,
       options: input.options,
       sort_order: input.sortOrder,
