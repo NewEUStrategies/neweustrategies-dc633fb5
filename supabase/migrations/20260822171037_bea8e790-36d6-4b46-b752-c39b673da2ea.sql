@@ -1,4 +1,31 @@
 -- 20260822090000_orphan_tier_rank_28_remap.sql
+--
+-- pg-harness: exclude
+--   Znacznik dla `scripts/pg-harness/run.sh`. Ten plik to ZLEPEK siedmiu
+--   niezaleznych migracji (naglowki sekcji w liniach 1, 9, 363, 579, 618, 789,
+--   874). Selektor harnessu dobiera po tresci i lapie go przez sekcje klubowa
+--   w liniach 874-1096 - a pozostale ~870 linii to bilety, plany dostepu,
+--   organizacje, seaty i domeny weryfikacyjne, czyli powierzchnia, ktorej
+--   harness modulu klubow celowo NIE odtwarza. Skutek: plik wywracal caly
+--   przebieg na `relation "public.content_access" does not exist` (linia 4).
+--
+--   WYKLUCZENIE NIE TRACI POKRYCIA. Sekcja klubowa tego pliku jest BIT W BIT
+--   tym samym SQL-em, co `20260822096000_club_events_tier_gate.sql`, ktory JUZ
+--   JEST w zestawie i aplikuje sie PRZED nim (sortowanie po nazwie):
+--     diff <(norm 20260822096000) <(sed -n '874,1096p' ten_plik | norm)
+--     >>> SQL IDENTYCZNY <<<   (220 instrukcji vs 220)
+--   Zlepek wnosi wiec ZERO pokrycia klubowego. Asercje tej sekcji
+--   (`runtime_test.sql:1534-1581`: `club_event_upsert`, `club_events_list` w
+--   pieciu argumentach, `club_event_rsvp`, `club_events.going_count`) sa
+--   zielone w przebiegu BEZ tego pliku - sprawdzone uruchomieniem.
+--
+--   TEN PLIK I TAK STOSOWAL SIE CZASTKOWO. `psql -v ON_ERROR_STOP=1` commituje
+--   instrukcje sprzed bledu, a blad pada w linii 4 - wiec jego caly wklad
+--   w baze harnessu to dwa UPDATE na zero wierszy i jeden COMMENT.
+--
+--   ZNACZNIK NIE DOTYKA PRODUKCJI: na prawdziwej bazie ten plik ma wszystkie
+--   swoje tabele i stosuje sie w calosci. Wyklucza go WYLACZNIE harness
+--   modulu klubow, ktory stawia atrape powierzchni poza tym modulem.
 UPDATE public.clubs SET min_tier_rank = 30, updated_at = now() WHERE min_tier_rank = 28;
 UPDATE public.events SET min_tier_rank = 30 WHERE min_tier_rank = 28;
 UPDATE public.content_access SET min_tier_rank = 30 WHERE min_tier_rank = 28;

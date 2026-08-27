@@ -97,10 +97,38 @@ MIGRATIONS="$( { grep -lE 'public\.(club_|admin_club_)' "$REPO"/supabase/migrati
                } | sort -u)"
 echo "Migracje dotykajace modulu: $(echo "$MIGRATIONS" | grep -c .)"
 
+# ---------------------------------------------------------------------------
+# JAWNE POMINIECIE: znacznik `pg-harness: exclude` w tresci migracji.
+#
+# PO CO. Selektor dobiera po tresci, wiec lapie takze ZLEPEK - plik zbierajacy
+# kilka niezaleznych migracji, ktorego jedna sekcja dotyka modulu, a reszta
+# importuje warunki wstepne obcych modulow. Taki plik nie da sie zaaplikowac
+# na atrapie modulu i wywraca CALY przebieg, nie wnoszac pokrycia.
+#
+# DLACZEGO POMINIECIE W PETLI, A NIE WYCIECIE Z SELEKTORA. Wyciecie
+# (`| xargs grep -L`) daje ten sam skutek, ale NIEWIDOCZNIE: plik przestaje
+# istniec dla przebiegu i nikt sie nie dowie, ze zestaw sie skurczyl.
+# Niewidoczne wykluczenie jest dokladnie tym sposobem, w ktory pokrycie
+# harnessu gnije po cichu. Tutaj pominiecie DRUKUJE SIE w logu CI z nazwa pliku
+# i liczba na koncu, wiec jest widoczne przy kazdym przebiegu.
+#
+# STRAZNIK `applied > 0`. Znacznik wpisany za szeroko (albo literowka
+# w warunku) moglby opróznic zestaw, a pusta petla konczy sie zerem - czyli
+# bramka raportowalaby sukces, nie sprawdziwszy ani jednej migracji. To ten sam
+# tryb awarii, ktory ten plik juz raz naprawil przy kodzie wyjscia psql
+# w potoku.
+# ---------------------------------------------------------------------------
 fail=0
+applied=0
+skipped=0
 for f in $MIGRATIONS; do
   name="$(basename "$f")"
   [ -n "$PREFIX" ] && case "$name" in "$PREFIX"*) ;; *) continue ;; esac
+  if grep -q 'pg-harness: exclude' "$f"; then
+    printf '  SKIP %s (znacznik pg-harness: exclude)\n' "$name"
+    skipped=$((skipped + 1))
+    continue
+  fi
   src="$f"
   if [ "$STUB" -eq 1 ]; then
     src="$PGDIR/$(basename "$f")"
@@ -109,13 +137,20 @@ for f in $MIGRATIONS; do
   fi
   if out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$src" 2>&1)"; then
     printf '  OK   %s\n' "$name"
+    applied=$((applied + 1))
   else
     printf '  FAIL %s\n' "$name"
     echo "$out" | grep -E "ERROR|LINE [0-9]|DETAIL|HINT" | head -6 | sed 's/^/       /'
     fail=1
   fi
 done
+echo "Zaaplikowano: $applied, pominieto znacznikiem: $skipped."
 [ "$fail" -eq 0 ] || { echo "Migracje nie przeszly."; exit 1; }
+# Pusty zestaw to NIE sukces - patrz komentarz o strazniku wyzej.
+[ "$applied" -gt 0 ] || {
+  echo "Zero zaaplikowanych migracji - zestaw jest pusty albo znacznik wyciil wszystko."
+  exit 1
+}
 
 echo
 # Kod wyjscia psql musi przezyc potok. Bez tego niespelniona asercja tylko
