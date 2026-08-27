@@ -300,7 +300,7 @@ export function EventSpeakerCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-[6px]">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-[6px] p-5">
         <DialogHeader>
           <DialogTitle>{t("adminCommunityEvents.speakers.create.title")}</DialogTitle>
           <DialogDescription>
