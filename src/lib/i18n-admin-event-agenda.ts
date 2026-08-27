@@ -149,7 +149,7 @@ export const adminEventAgendaPl = {
     program: {
       title: "Program",
       subtitle:
-        "Program buduje się ścieżkami: pasmo to temat, a sesje planujesz w zakładce „Sesje" po wejściu w ścieżkę.",
+        "Program buduje się ścieżkami: pasmo to temat, a sesje planujesz w zakładce Sesje po wejściu w ścieżkę.",
     },
 
     tracks: {
