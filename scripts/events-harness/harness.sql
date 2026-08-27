@@ -104,9 +104,24 @@ INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'ta')
 ON CONFLICT (id) DO NOTHING;
 
+-- `tenant_id` NIE JEST OZDOBA: produkcja ma te kolumne jako NOT NULL
+-- (`user_roles.tenant_id` w wygenerowanych typach), a `is_super_admin`
+-- z 20260824074231 domyka sie predykatem `AND tenant_id =
+-- public.current_tenant_id()`. Atrapa bez tej kolumny wywracala REPLAY na
+-- „column \"tenant_id\" does not exist" - i to nie po to, zeby cos zlapac,
+-- tylko dlatego, ze atrapa klamala o kształcie tabeli.
+--
+-- DEFAULT na jedynego najemce harnessu, bo wszystkie testy runtime wstawiaja
+-- role dwukolumnowo (`INSERT INTO public.user_roles (user_id, role)`).
+-- Bez defaultu NOT NULL wywrocilby te wstawki, a przepisywanie ich w kazdym
+-- harnessie po to, zeby atrapa byla wierna, jest kosztem bez zysku: predykat
+-- `tenant_id = current_tenant_id()` ma sie zgadzac, a zgadza sie wlasnie
+-- wtedy, gdy rola siedzi w tym samym najemcy co profil wolajacego.
 CREATE TABLE IF NOT EXISTS public.user_roles (
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role    public.app_role NOT NULL,
+  user_id   uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role      public.app_role NOT NULL,
+  tenant_id uuid NOT NULL DEFAULT '11111111-1111-1111-1111-111111111111'
+              REFERENCES public.tenants(id) ON DELETE CASCADE,
   PRIMARY KEY (user_id, role)
 );
 
