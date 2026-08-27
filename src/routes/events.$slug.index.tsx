@@ -17,8 +17,8 @@
 // siatkę musi pokazać podgląd w studiu. Dopóki siedziała w tym pliku, podgląd
 // miał przepisaną własną (jedna kolumna `max-w-3xl`) i właściciel widział
 // w panelu „stary layout”, mimo że nowy był na `main`. Proporcje, kolejność
-// w DOM-ie i to, czego z wzorca nie odwzorowujemy (karta profilu widza po lewej,
-// baner promocyjny po prawej - brak źródła danych), są opisane przy komponencie.
+// w DOM-ie i to, czego z wzorca nie odwzorowujemy (baner promocyjny po prawej -
+// `events` nie ma na niego ani jednej kolumny), są opisane przy komponencie.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -72,6 +72,7 @@ import { EventPageSections } from "@/components/events/public/organisms/EventPag
 import { EventMenuNav } from "@/components/events/public/organisms/EventMenuNav";
 import { EventHomeSectionLinks } from "@/components/events/public/organisms/EventHomeSectionLinks";
 import { EventSponsorTiers } from "@/components/events/public/organisms/EventSponsorTiers";
+import { EventViewerProfile } from "@/components/events/public/organisms/EventViewerProfile";
 import { EventMetaCard, EventMetaRow } from "@/components/events/public/molecules/EventMetaCard";
 import { EventVideoHeader } from "@/components/events/public/molecules/EventVideoHeader";
 import { EventBookmarkButton } from "@/components/events/public/molecules/EventBookmarkButton";
@@ -723,6 +724,12 @@ function EventOverview() {
         }
         left={
           <>
+            {/* KARTA PROFILU ZALOGOWANEGO WIDZA - pierwsza rzecz w lewej
+              kolumnie wzorca (zrzut 38): zdjęcie, imię i nazwisko, stanowisko,
+              organizacja, odnośnik „Edytuj”. Gość jej nie widzi wcale, bo nie ma
+              ani zdjęcia, ani czego edytować - powód stoi przy organizmie. */}
+            <EventViewerProfile />
+
             {/* Zapamiętanie wydarzenia. Stan gwiazdki jedzie z nagłówka
               (`is_bookmarked`), więc nie ma tu drugiego zapytania ani drugiej
               chwili w czasie. */}

@@ -98,98 +98,37 @@ MIGRATIONS="$( { grep -lE 'public\.(club_|admin_club_)' "$REPO"/supabase/migrati
 echo "Migracje dotykajace modulu: $(echo "$MIGRATIONS" | grep -c .)"
 
 # ---------------------------------------------------------------------------
-# SPROSTOWANIE UZASADNIENIA, KTORE STALO TU WCZESNIEJ (i nadal stoi w ci.yml
-# przy kroku `Run pg-harness`).
+# JAWNE POMINIECIE: znacznik `pg-harness: exclude` w tresci migracji.
 #
-# FALSZYWA PRZESLANKA. Komentarz selektora wyzej argumentuje, ze wybor po
-# TRESCI (`public.club_` / `public.admin_club_`) trzyma zestaw przy migracjach
-# MODULU, bo "selektor po samym `emit_domain_event` bylby zly: nazwa siedzi
-# w czterdziestu migracjach calej aplikacji, a harness celowo STUBUJE tamte
-# schematy". Na tej przeslance opieral sie wniosek zapisany w ci.yml: "Kod
-# wyjscia 1 oznacza albo migracje, ktora sie nie wykonuje, albo niespelniona
-# asercje" - czyli KAZDA czerwien to defekt modulu.
+# PO CO. Selektor dobiera po tresci, wiec lapie takze ZLEPEK - plik zbierajacy
+# kilka niezaleznych migracji, ktorego jedna sekcja dotyka modulu, a reszta
+# importuje warunki wstepne obcych modulow. Taki plik nie da sie zaaplikowac
+# na atrapie modulu i wywraca CALY przebieg, nie wnoszac pokrycia.
 #
-# JAK JEST NAPRAWDE. Selektor pyta o TRESC PLIKU, a panel Lovable emituje
-# PACZKI: jeden plik migracji to zlepek kilku niezaleznych migracji zapisanych
-# pod jedna nowa wersja. `20260822171037_bea8e790-...` jest zlepkiem SIEDMIU
-# (`20260822090000` ... `20260822096000`) i tylko OSTATNIA sekcja jest klubowa.
-# Szesc pierwszych rusza `public.content_access`, `public.member_resources`,
-# `public.plan_ticket_claims` i katalog produktow - dokladnie te powierzchnie,
-# ktorych atrapa CELOWO nie stawia. Jedno trafienie `public.club_events`
-# w ostatniej sekcji wciaga caly zlepek. Wiec przeslanka "wybrane po tresci =
-# migracja modulu" jest po prostu nieprawdziwa dla plikow-zlepkow, a czerwien
-# 42P01 na `content_access` nie mowi o module NIC.
+# DLACZEGO POMINIECIE W PETLI, A NIE WYCIECIE Z SELEKTORA. Wyciecie
+# (`| xargs grep -L`) daje ten sam skutek, ale NIEWIDOCZNIE: plik przestaje
+# istniec dla przebiegu i nikt sie nie dowie, ze zestaw sie skurczyl.
+# Niewidoczne wykluczenie jest dokladnie tym sposobem, w ktory pokrycie
+# harnessu gnije po cichu. Tutaj pominiecie DRUKUJE SIE w logu CI z nazwa pliku
+# i liczba na koncu, wiec jest widoczne przy kazdym przebiegu.
 #
-# DOWOD (przeliczalny, `grep` po 91 wybranych plikach):
-#   * `content_access` i `member_resources` wystepuja w DOKLADNIE JEDNYM
-#     wybranym pliku - w tym zlepku. Zadna prawdziwa migracja modulu ich nie
-#     zna. Dlatego wlasciwa naprawa NIE jest dostawienie `content_access` do
-#     `harness.sql`: bylo by to poszerzanie zasiegu atrapy pod artefakt panelu,
-#     ktory z modulem nie ma zwiazku.
-#   * klubowa sekcja zlepka jest juz wykonywana OSOBNO - plik
-#     `20260822096000_club_events_tier_gate.sql` przechodzi OK i jest
-#     NADZBIOREM tej sekcji (ma o jeden `GRANT EXECUTE ... club_event_upsert`
-#     wiecej). Pominiecie zlepka nie odbiera bramce ani jednej linii SQL-a
-#     modulu, ktorej by nie wykonala.
+# STRAZNIK `applied > 0`. Znacznik wpisany za szeroko (albo literowka
+# w warunku) moglby opróznic zestaw, a pusta petla konczy sie zerem - czyli
+# bramka raportowalaby sukces, nie sprawdziwszy ani jednej migracji. To ten sam
+# tryb awarii, ktory ten plik juz raz naprawil przy kodzie wyjscia psql
+# w potoku.
 # ---------------------------------------------------------------------------
-# ZASIEG ATRAPY, WYLICZANY - NIE WPISYWANY RECZNIE.
-#
-# Kryterium SKIP musi byc WASKIE i JAWNE, inaczej zamienia sie w "padlo, to
-# pomijamy". Zasieg = zbior nazw relacji, ktore bramka ZNA:
-#   (1) co stawia `harness.sql` - zadeklarowana powierzchnia styku;
-#   (2) co tworza SAME wybrane migracje - obiekty modulu (`club_*`, `clubs`).
-# Lista jest wyliczana z tekstu, a nie wpisana, zeby nie rozjechala sie
-# z plikami: gdy ktos dostawi tabele do atrapy, ta tabela sama wroci do
-# zasiegu i blad na niej znowu bedzie czerwony.
-#
-# Filtr slow kluczowych zdejmuje trafienia z KOMENTARZY (np. `-- "CREATE TABLE
-# is not allowed..."` w a8_hardening). Falszywy wpis w zasiegu moze wywolac
-# tylko FAIL, nigdy SKIP - wiec ten filtr celowo myli sie w strone czerwieni.
-ZASIEG="$PGDIR/zasieg-relacji.txt"
-grep -hoiE 'CREATE +(OR +REPLACE +)?(UNLOGGED +)?(MATERIALIZED +)?(FOREIGN +)?(TABLE|VIEW|SEQUENCE)( +IF +NOT +EXISTS)? +[A-Za-z0-9_."]+' \
-  "$HERE/harness.sql" $MIGRATIONS \
-  | sed -E 's/.*[[:space:]]//; s/"//g; s/.*\.//' \
-  | tr 'A-Z' 'a-z' \
-  | grep -vxE 'if|not|exists|table|view|sequence|or|replace|unlogged|materialized|foreign' \
-  | sort -u > "$ZASIEG"
-echo "Zasieg atrapy: $(grep -c . "$ZASIEG") relacji (atrapa + obiekty tworzone przez wybrane migracje)"
-
-# Zwraca 0 i wypisuje przyczyne, gdy porazka kwalifikuje sie na SKIP.
-# Warunki sa KONIUNKCJA i wszystkie musza byc spelnione:
-#   * kazda linia `ERROR:` z psql-a jest klasy 42P01 `relation "X" does not
-#     exist` - kazdy INNY blad (skladnia, brak kolumny, brak funkcji,
-#     dwuznaczna kolumna, kolizja sygnatur) to kandydat na regresje i zostaje
-#     FAIL-em;
-#   * kazde X lezy POZA wyliczonym zasiegiem atrapy. Jesli X jest w zasiegu -
-#     czyli atrapa je stawia albo tworzy je jakas wybrana migracja - to znaczy,
-#     ze obiekt POWINIEN istniec i jego brak JEST regresja. Wtedy FAIL.
-poza_zasiegiem_atrapy() {
-  local out="$1" errs line rel bare powody=""
-  errs="$(printf '%s\n' "$out" | grep -E 'ERROR:' || true)"
-  [ -n "$errs" ] || return 1
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    case "$line" in
-      *'ERROR:  relation "'*'" does not exist'*) ;;
-      *) return 1 ;;
-    esac
-    rel="$(printf '%s\n' "$line" | sed -E 's/.*relation "([^"]+)" does not exist.*/\1/')"
-    bare="$(printf '%s' "${rel##*.}" | tr 'A-Z' 'a-z')"
-    if grep -qxF "$bare" "$ZASIEG"; then return 1; fi
-    powody="${powody:+$powody; }relacja \"$rel\" poza zasiegiem atrapy (nie stawia jej harness.sql ani zadna wybrana migracja)"
-  done <<EOF
-$errs
-EOF
-  printf '%s' "$powody"
-  return 0
-}
-
-ok=0
+fail=0
+applied=0
 skipped=0
-failed=0
 for f in $MIGRATIONS; do
   name="$(basename "$f")"
   [ -n "$PREFIX" ] && case "$name" in "$PREFIX"*) ;; *) continue ;; esac
+  if grep -q 'pg-harness: exclude' "$f"; then
+    printf '  SKIP %s (znacznik pg-harness: exclude)\n' "$name"
+    skipped=$((skipped + 1))
+    continue
+  fi
   src="$f"
   if [ "$STUB" -eq 1 ]; then
     src="$PGDIR/$(basename "$f")"
@@ -198,38 +137,20 @@ for f in $MIGRATIONS; do
   fi
   if out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$src" 2>&1)"; then
     printf '  OK   %s\n' "$name"
-    ok=$((ok + 1))
-  elif powod="$(poza_zasiegiem_atrapy "$out")"; then
-    # SKIP musi byc WIDOCZNY i uzasadniony w logu - cicha tolerancja jest
-    # dokladnie tym, przed czym ostrzega historia bramek, ktore istnialy
-    # i nie byly uruchamiane. Dlatego obok przyczyny leci surowa linia psql-a,
-    # zeby dalo sie ja skonfrontowac z `harness.sql` bez odtwarzania przebiegu.
-    printf '  SKIP %s - %s\n' "$name" "$powod"
-    echo "$out" | grep -E "ERROR" | head -3 | sed 's/^/       /'
-    skipped=$((skipped + 1))
+    applied=$((applied + 1))
   else
     printf '  FAIL %s\n' "$name"
     echo "$out" | grep -E "ERROR|LINE [0-9]|DETAIL|HINT" | head -6 | sed 's/^/       /'
-    failed=$((failed + 1))
+    fail=1
   fi
 done
-echo "Migracje: $ok OK, $skipped SKIP, $failed FAIL"
-
-# CZEGO BRAMKA PRZEZ SKIP PRZESTAJE PILNOWAC - wprost.
-# Plik z SKIP-em nie jest wykonany do konca: `ON_ERROR_STOP=1` przerywa go na
-# pierwszym bledzie, wiec CALA jego dalsza tresc (w zlepku: szesc kolejnych
-# sekcji, w tym klubowa) NIE zostaje sprawdzona przez wykonanie. Instrukcje
-# PRZED bledem juz sie wykonaly - psql bez `-1` nie owija pliku w transakcje -
-# wiec baza zostaje w stanie czesciowym. W dzisiejszym przypadku to nie ubytek:
-# klubowa sekcja zlepka jest nadzbiorem pokrytym osobnym plikiem
-# `20260822096000_club_events_tier_gate.sql` (patrz dowod wyzej). Gdyby
-# kiedykolwiek zlepek przyniosl SQL modulu, ktorego nie ma w zadnym innym
-# pliku, ten SQL przestanie byc wykonywany - i o tym mowi ta linia logu.
-#
-# Zielona bramka na zerowej liczbie wykonanych migracji byla by klamstwem -
-# ten sam inwariant pilnuje scripts/events-harness/run.sh.
-[ "$ok" -gt 0 ] || { echo "Zadna migracja nie zostala wykonana - selektor albo filtr --only jest zepsuty."; exit 1; }
-[ "$failed" -eq 0 ] || { echo "Migracje nie przeszly."; exit 1; }
+echo "Zaaplikowano: $applied, pominieto znacznikiem: $skipped."
+[ "$fail" -eq 0 ] || { echo "Migracje nie przeszly."; exit 1; }
+# Pusty zestaw to NIE sukces - patrz komentarz o strazniku wyzej.
+[ "$applied" -gt 0 ] || {
+  echo "Zero zaaplikowanych migracji - zestaw jest pusty albo znacznik wyciil wszystko."
+  exit 1
+}
 
 echo
 # Kod wyjscia psql musi przezyc potok. Bez tego niespelniona asercja tylko

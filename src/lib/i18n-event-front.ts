@@ -526,6 +526,13 @@ export const eventFrontPl = {
       label: "Sekcje wydarzenia",
     },
 
+    // Karta profilu ZALOGOWANEGO widza w lewej kolumnie przeglądu (zrzut 38).
+    // Jeden napis, bo resztę karty niosą dane profilu - nazwa, stanowisko
+    // i organizacja są treścią użytkownika, nie interfejsu.
+    viewer: {
+      edit: "Edytuj",
+    },
+
     practical: {
       addressLabel: "Adres",
       showOnMap: "Pokaż na mapie",
@@ -1048,6 +1055,11 @@ export const eventFrontEn = {
     // Section list on the event home page - a landmark name of its own.
     homeSections: {
       label: "Event sections",
+    },
+
+    // Signed-in viewer's profile card in the overview's left column.
+    viewer: {
+      edit: "Edit",
     },
 
     practical: {

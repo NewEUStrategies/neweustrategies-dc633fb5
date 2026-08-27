@@ -642,12 +642,14 @@ jobs:
       # klubowa, a pierwsze sięgają `public.content_access`
       # i `public.member_resources` - obiektów, których atrapa CELOWO nie
       # stawia. Ta czerwień nie mówiła o module NIC i stała na `main`.
-      # Naprawdę jest tak: skrypt raportuje `Migracje: N OK, M SKIP, K FAIL`.
-      # SKIP dostaje WYŁĄCZNIE plik, którego jedynym błędem jest 42P01
-      # („relation X does not exist") na obiekcie POZA wyliczonym zasięgiem
-      # atrapy; 42P01 na obiekcie W zasięgu i każda inna klasa błędu to nadal
-      # FAIL i kod wyjścia 1 - tak samo jak niespełniona asercja runtime.
-      # Reguła i dowód: scripts/pg-harness/run.sh (blok „ZASIĘG ATRAPY").
+      # Naprawdę jest tak: zlepek nosi w treści znacznik `pg-harness: exclude`,
+      # pętla go POMIJA i wypisuje to w logu (`SKIP <plik> (znacznik ...)`,
+      # a na końcu `Zaaplikowano: N, pominieto znacznikiem: M`). Kod wyjścia 1
+      # zostaje dla migracji, która NAPRAWDĘ się nie wykonuje, dla niespełnionej
+      # asercji runtime oraz dla pustego zestawu (strażnik `applied > 0`:
+      # zielona bramka bez ani jednej wykonanej migracji byłaby kłamstwem).
+      # Reguła i uzasadnienie: scripts/pg-harness/run.sh (blok „JAWNE
+      # POMINIECIE"), wprowadzone PR #296.
       - name: Run pg-harness (migracje + asercje runtime)
         run: bun run check:pg-harness
 

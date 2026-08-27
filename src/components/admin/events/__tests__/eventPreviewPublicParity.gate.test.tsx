@@ -121,6 +121,9 @@ vi.mock("@/components/community/EventTicketCard", () => ({ EventTicketCard: () =
 vi.mock("@/components/community/EventTicketPurchase", () => ({ EventTicketPurchase: () => null }));
 
 import { EVENT_SECTION_KEYS } from "@/lib/events/eventSections";
+import { fetchEventMenu } from "@/lib/events/publicEventApi";
+import { fetchPublicEventBySlug } from "@/lib/community/publicQueries";
+import { publicEventRow } from "@/test/events/publicEventRow";
 import { renderRoute } from "@/test/routeHarness";
 import { Route as EventShellRoute } from "@/routes/events.$slug";
 import { Route as EventOverviewRoute } from "@/routes/events.$slug.index";
@@ -199,9 +202,11 @@ function publicRouteFamily(): string[] {
  * studiem, ktore zawsze ma wiersz.
  *
  * UWAGA NA ROZNICE MIEDZY „NIE MONTUJEMY KOMPONENTU” I „NIE POKAZUJEMY
- * POWIERZCHNI”. Pasek zakladek i spis podstron SA w podgladzie - rysuja je
- * `EventTabsBar` i `EventMenuTiles`, czyli TE SAME komponenty prezentacyjne,
- * ktorych uzywaja `EventTabsNav` i `EventMenuNav`. Wyjatek dotyczy wylacznie
+ * POWIERZCHNI”. Pasek zakladek, spis podstron, wiersze sekcji strony glownej
+ * i karta profilu widza SA w podgladzie - rysuja je `EventTabsBar`,
+ * `EventMenuTiles`, `EventSectionLinks` i `EventViewerCard`, czyli TE SAME
+ * komponenty prezentacyjne, ktorych uzywaja `EventTabsNav`, `EventMenuNav`,
+ * `EventHomeSectionLinks` i `EventViewerProfile`. Wyjatek dotyczy wylacznie
  * organizmow, ktore doklejaja do tego rysunku ZAPYTANIE i ODNOSNIKI ROUTERA.
  */
 const COMPONENT_EXCEPTIONS: Record<string, string> = {
@@ -212,7 +217,9 @@ const COMPONENT_EXCEPTIONS: Record<string, string> = {
   EventTabsNav:
     "ZAPYTANIE + NAWIGACJA: pozycje ida z `event_menu` (`AND e.status = 'published'`, na szkicu pusto), a kazda prowadzi na `/events/<slug>/...`, czyli poza panel. LISTWE paska podglad rysuje `EventTabsBar` - tym samym komponentem, co ten organizm",
   EventHomeSectionLinks:
-    "ten sam `event_menu` i ta sama rola: spis jest zestawem odnosnikow wyprowadzajacych ze studia, a na szkicu wraca pusty",
+    "ZAPYTANIE + NAWIGACJA: pozycje ida z `event_menu` (`AND e.status = 'published'`, na szkicu pusto), a kazdy wiersz to <Link> wyprowadzajacy ze studia. SAM RYSUNEK wierszy - krazek z ikona, etykieta, szewron, kreski - podglad ma z `EventSectionLinks`, tego samego, ktorego uzywa ten organizm",
+  EventViewerProfile:
+    "TOZSAMOSC WOLAJACEGO + NAWIGACJA: karta czyta `useAuth` oraz wiersz `profiles`, a „Edytuj” jest <Link>-iem do `/profile/edit`, czyli wyjsciem ze studia. SAMA KARTA jest w podgladzie - rysuje ja `EventViewerCard`, ten sam komponent, ktorego uzywa ten organizm, a fakty wnosi nakladka podgladu tym samym hookiem (`useViewerCardFacts`)",
   EventSponsorTiers:
     "`event_sponsors_public` odmawia szkicowi (`AND e.status = 'published'`), a wydarzeniu opublikowanemu oddaje ZAPISANE przypiecia - podglad pokazuje stan niezapisany, wiec pas logotypow klamalby o tym, co redaktor wlasnie zmienia",
   EventModulePage:
@@ -348,6 +355,26 @@ function filledModel(): EventPreviewModel {
 /** Pasek zakladek - `EventTabsBar` nadaje `nav` te etykiete w obu miejscach. */
 const TABS_NAV = 'nav[aria-label="eventFront.header.tabsLabel"]';
 
+/** Wiersze sekcji strony glownej - `EventSectionLinks` (tryb `list`, wzorzec 38). */
+const SECTION_LINKS_NAV = 'nav[aria-label="eventFront.homeSections.label"]';
+/** Kafle podstron - `EventMenuTiles` (tryb `grid`). */
+const MENU_TILES_NAV = 'nav[aria-label="eventFront.menu.label"]';
+
+/** Pozycja `event_menu` w kszalcie, ktory czyta `useEventMenu`. */
+function publicMenuItem() {
+  return {
+    id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    pageId: "bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb",
+    labelPl: "Uczestnicy",
+    labelEn: "Attendees",
+    icon: "users",
+    color: "#D73953",
+    path: "kongres-strategii-uczestnicy",
+    sortOrder: 10,
+    module: "participants",
+  };
+}
+
 // ── 1. STRUKTURA: OBA MIEJSCA RYSUJA TE SAME KOMPONENTY UKLADU ─────────────
 
 describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
@@ -435,6 +462,110 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
     );
     expect(preview.container.querySelectorAll(SHELL)).toHaveLength(1);
     expect(preview.container.querySelector(TABS_NAV)).toBeNull();
+  });
+});
+
+// ── 1b. SPIS PODSTRON: TEN SAM WARUNEK, NIE TYLKO TEN SAM KOMPONENT ────────
+//
+// PO CO OSOBNY BLOK. Strona GLOWNA wydarzenia ma na wzorcu (zrzut 38) piec
+// WIERSZY sekcji: krazek z ikona, etykieta, szewron. Kanwa podgladu rysowala tam
+// KAFLE ZAWSZE, niezaleznie od `events.pages_display_mode`, a strona publiczna
+// wybiera: `grid` -> `EventMenuNav` (kafle), `list` (domyslnie!) ->
+// `EventHomeSectionLinks` (wiersze). Redaktor typowego wydarzenia widzial wiec
+// w podgladzie inny spis, niz dostanie uczestnik - i to jest ta sama klasa
+// defektu, co przy pasku zakladek: KOMPONENT ten sam, WARUNEK inny.
+//
+// Rozpoznajemy spis po ETYKIECIE PUNKTU ORIENTACYJNEGO, bo to jedyna rzecz,
+// ktora oba miejsca deklaruja tym samym kluczem slownika - klasy CSS moglyby sie
+// zgadzac przypadkiem.
+
+describe("spis podstron: strona i podglad wybieraja go tym samym warunkiem", () => {
+  async function renderOverview(mode: "list" | "grid") {
+    vi.mocked(fetchEventMenu).mockResolvedValue([publicMenuItem()]);
+    vi.mocked(fetchPublicEventBySlug).mockResolvedValue(
+      publicEventRow({ pages_display_mode: mode }),
+    );
+    const route = await renderRoute({
+      route: EventOverviewRoute,
+      path: "/events/$slug/",
+      initialEntry: `/events/${EVENT_SLUG}`,
+    });
+    await waitFor(() => expect(route.container.querySelectorAll(GRID)).toHaveLength(1));
+    return route;
+  }
+
+  it("tryb `list`: oba miejsca rysuja WIERSZE sekcji, a nie kafle", async () => {
+    const route = await renderOverview("list");
+    await waitFor(() => expect(route.container.querySelector(SECTION_LINKS_NAV)).not.toBeNull());
+    expect(route.container.querySelector(MENU_TILES_NAV)).toBeNull();
+    cleanup();
+
+    const preview = render(
+      <EventPreviewCanvas
+        model={{ ...filledModel(), pagesDisplayMode: "list" }}
+        device="desktop"
+      />,
+    );
+    expect(preview.container.querySelector(SECTION_LINKS_NAV)).not.toBeNull();
+    expect(preview.container.querySelector(MENU_TILES_NAV)).toBeNull();
+  });
+
+  it("tryb `grid`: oba miejsca rysuja KAFLE, a nie wiersze sekcji", async () => {
+    const route = await renderOverview("grid");
+    await waitFor(() => expect(route.container.querySelector(MENU_TILES_NAV)).not.toBeNull());
+    expect(route.container.querySelector(SECTION_LINKS_NAV)).toBeNull();
+    cleanup();
+
+    const preview = render(
+      <EventPreviewCanvas
+        model={{ ...filledModel(), pagesDisplayMode: "grid" }}
+        device="desktop"
+      />,
+    );
+    expect(preview.container.querySelector(MENU_TILES_NAV)).not.toBeNull();
+    expect(preview.container.querySelector(SECTION_LINKS_NAV)).toBeNull();
+  });
+});
+
+// ── 1c. KARTA PROFILU WIDZA ─────────────────────────────────────────────────
+//
+// Karta stoi na wzorcu na SAMEJ GORZE lewej kolumny i to bylo drugie zdanie
+// zgloszenia („lewa kolumna: karta profilu ZALOGOWANEGO widza"). Fakty wnosi
+// propem nakladka podgladu, bo kanwa nie ma prawa odpalic zapytania - wiec
+// dowod jest dwustronny: BEZ propa karty nie ma (gosc), Z propem jest.
+
+describe("karta profilu widza w lewej kolumnie podgladu", () => {
+  const viewer = {
+    name: "Igor Miasnikow",
+    jobTitle: "CEO",
+    company: "New European Strategies",
+    avatarUrl: null,
+  };
+
+  it("z faktami o widzu: karta stoi, z nazwa, stanowiskiem i organizacja", () => {
+    render(<EventPreviewCanvas model={filledModel()} device="desktop" viewer={viewer} />);
+    expect(screen.getByTestId("event-viewer-card")).toBeInTheDocument();
+    expect(screen.getByText("Igor Miasnikow")).toBeInTheDocument();
+    expect(screen.getByText("CEO")).toBeInTheDocument();
+    expect(screen.getByText("New European Strategies")).toBeInTheDocument();
+  });
+
+  it("bez faktow (gosc albo wiersz profilu w drodze): karty nie ma wcale", () => {
+    render(<EventPreviewCanvas model={filledModel()} device="desktop" />);
+    expect(screen.queryByTestId("event-viewer-card")).toBeNull();
+  });
+
+  it("pola, ktorego profil nie ma, karta NIE ZGADUJE", () => {
+    render(
+      <EventPreviewCanvas
+        model={filledModel()}
+        device="desktop"
+        viewer={{ ...viewer, jobTitle: "", company: "" }}
+      />,
+    );
+    expect(screen.getByText("Igor Miasnikow")).toBeInTheDocument();
+    expect(screen.queryByText("CEO")).toBeNull();
+    expect(screen.queryByText("New European Strategies")).toBeNull();
   });
 });
 
