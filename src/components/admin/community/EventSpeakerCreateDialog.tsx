@@ -35,10 +35,11 @@
 // wejscie kaskadowe przez istniejaca klase `.pc-rise-y` ze `styles.css`, ktora
 // jest tam opisana wprost jako „odpowiednik framer-motion bez biblioteki"
 // i wygasa przy `prefers-reduced-motion: reduce`. Zadnej nowej zaleznosci.
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
-import { Info, Loader2, UserPlus } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { ImagePlus, Info, Loader2, Trash2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -61,8 +62,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { uiLang } from "@/lib/i18n/format";
+import { useAuth } from "@/hooks/useAuth";
+import { registerMediaUpload } from "@/lib/media.functions";
+import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
 import { createEventSpeakerPerson, type EventSpeakerUpsertResult } from "@/lib/admin/community";
+
 
 /** „Bez grupy" nie moze byc pustym napisem: Radix Select rezerwuje "" na reset. */
 const NO_GROUP = "__none__";
