@@ -24,8 +24,10 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import {
+  TICKET_ACCESS_CODE_MAX,
   TICKET_CURRENCIES,
   TICKET_MAX_DESCRIPTION,
+  TICKET_MAX_ACCESS_CODE_HINT,
   TICKET_MAX_NAME,
   emptyTicketDraft,
   ticketDraftFromRow,
@@ -213,6 +215,66 @@ export function EventTicketDialog({
               label={t("adminEventRegistration.tickets.editor.active")}
               checked={draft.isActive}
               onCheckedChange={(checked) => set("isActive", checked)}
+            />
+          </AdminFormSection>
+
+          {/* KOD DOSTĘPU NIE WRACA Z SERWERA. Baza trzyma wyłącznie skrót, więc
+              formularz nie ma czego pokazać w polu: puste pole znaczy „zostaw
+              obecny kod", a zdjęcie bramki ma osobny przełącznik. Wpisanie
+              pustego napisu jako „skasuj" myliłoby jedno z drugim. */}
+          <AdminFormSection
+            title={t("adminEventRegistration.tickets.editor.advancedSection")}
+            columns={2}
+          >
+            <AdminFormTextRow
+              label={t("adminEventRegistration.tickets.editor.earlyBirdPriceCents")}
+              hint={t("adminEventRegistration.tickets.editor.earlyBirdHint")}
+              value={draft.earlyBirdPriceCents}
+              onValueChange={(value) => set("earlyBirdPriceCents", value)}
+              inputMode="numeric"
+              error={errorFor("earlyBirdPriceCents")}
+            />
+            <AdminFormTextRow
+              label={t("adminEventRegistration.tickets.editor.earlyBirdUntil")}
+              value={draft.earlyBirdUntil}
+              onValueChange={(value) => set("earlyBirdUntil", value)}
+              type="datetime-local"
+              error={errorFor("earlyBirdUntil")}
+            />
+            <AdminFormTextRow
+              label={t("adminEventRegistration.tickets.editor.accessCode")}
+              hint={t(
+                draft.hasAccessCode
+                  ? "adminEventRegistration.tickets.editor.accessCodeSet"
+                  : "adminEventRegistration.tickets.editor.accessCodeNone",
+              )}
+              value={draft.accessCode}
+              onValueChange={(value) => set("accessCode", value)}
+              disabled={draft.removeAccessCode}
+              maxLength={TICKET_ACCESS_CODE_MAX}
+              placeholder={t("adminEventRegistration.tickets.editor.accessCodeHelp")}
+              error={errorFor("accessCode")}
+            />
+            <AdminFormTextRow
+              label={t("adminEventRegistration.tickets.editor.accessCodeHintLabel")}
+              hint={t("adminEventRegistration.tickets.editor.accessCodeHintHelp")}
+              value={draft.accessCodeHint}
+              onValueChange={(value) => set("accessCodeHint", value)}
+              maxLength={TICKET_MAX_ACCESS_CODE_HINT}
+              error={errorFor("accessCodeHint")}
+            />
+            {draft.hasAccessCode ? (
+              <AdminFormSwitchRow
+                label={t("adminEventRegistration.tickets.editor.removeAccessCode")}
+                checked={draft.removeAccessCode}
+                onCheckedChange={(checked) => set("removeAccessCode", checked)}
+              />
+            ) : null}
+            <AdminFormSwitchRow
+              label={t("adminEventRegistration.tickets.editor.waitlistEnabled")}
+              hint={t("adminEventRegistration.tickets.editor.waitlistHint")}
+              checked={draft.waitlistEnabled}
+              onCheckedChange={(checked) => set("waitlistEnabled", checked)}
             />
           </AdminFormSection>
         </div>

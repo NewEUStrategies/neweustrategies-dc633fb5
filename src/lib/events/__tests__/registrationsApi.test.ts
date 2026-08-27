@@ -27,7 +27,12 @@ const api = await import("@/lib/events/registrationsApi");
 /** Klucze CZYTANE przez funkcje bazy (stan migracji 20260823150000). */
 const KONTRAKT: Record<string, readonly string[]> = {
   admin_event_ticket_upsert: [
+    "access_code",
+    "access_code_hint",
     "currency",
+    "early_bird_price_cents",
+    "early_bird_until",
+    "waitlist_enabled",
     "description_en",
     "description_pl",
     "event_id",
@@ -46,6 +51,8 @@ const KONTRAKT: Record<string, readonly string[]> = {
     "sort_order",
   ],
   admin_event_registration_field_upsert: [
+    "consent_url_en",
+    "consent_url_pl",
     "event_id",
     "field_type",
     "help_en",
@@ -122,6 +129,10 @@ const ticket: import("@/lib/events/registrationsApi").EventTicketInput = {
   groupId: null,
   isActive: true,
   sortOrder: 100,
+  earlyBirdPriceCents: null,
+  earlyBirdUntil: null,
+  accessCodeHint: "",
+  waitlistEnabled: true,
 };
 
 const field: import("@/lib/events/registrationsApi").RegistrationFieldInput = {
@@ -133,6 +144,8 @@ const field: import("@/lib/events/registrationsApi").RegistrationFieldInput = {
   labelEn: "Sector",
   helpPl: "",
   helpEn: "",
+  consentUrlPl: "",
+  consentUrlEn: "",
   isRequired: true,
   options: ["public", "private"],
   sortOrder: 100,
