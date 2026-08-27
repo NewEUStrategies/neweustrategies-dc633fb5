@@ -158,6 +158,8 @@ export function EventContentTracksSection({
         key={row.id}
         eventId={row.id}
         timeZoneLabel={eventTimeZone({ timezone: row.timezone })}
+        timezone={row.timezone}
+
         openedTrackId={openedTrackId}
         onOpenTrack={onOpenTrack}
       />
