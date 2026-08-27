@@ -1,5 +1,10 @@
 @import "tailwindcss" source(none);
 @source "../src";
+/* Test fixtures contain illustrative snippets such as arbitrary Tailwind
+   values with an ellipsis placeholder. They are not application content and
+   must not be converted into production CSS by the raw-text scanner. */
+@source not "../src/**/__tests__/**";
+@source not "../src/test/**";
 @import "tw-animate-css";
 
 /* UnreadBadge: neutralizuje `font-size: 14px !important` z reguł
