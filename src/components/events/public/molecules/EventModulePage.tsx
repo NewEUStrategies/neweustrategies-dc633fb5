@@ -38,6 +38,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { eventModuleOf, type EventModule } from "@/lib/events/eventModules";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
 import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
+import { EventPortalContent } from "@/components/events/public/atoms/EventPortalContent";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import { parseBuilderDoc } from "@/lib/builder/parse";
@@ -87,10 +88,13 @@ export function EventModulePage({
     });
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pt-8">
+    // Miara kolumny treści jest WSPÓLNA z przeglądem i z podglądem studia
+    // (`EVENT_PORTAL_CONTENT_CLASS`): trzy kopie `max-w-5xl px-4 pt-8` już raz
+    // się rozjechały - podgląd rysował `max-w-3xl`.
+    <EventPortalContent>
       {hasDocument && page !== null && <ModuleDocument page={page} lang={lang} />}
       <div className={hasDocument ? "mt-8" : undefined}>{children}</div>
-    </div>
+    </EventPortalContent>
   );
 }
 

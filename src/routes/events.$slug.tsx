@@ -11,7 +11,9 @@
 // PODZIAŁ IDZIE PO PYTANIU „CZY TO JEST WSPÓLNE DLA WSZYSTKICH ZAKŁADEK”:
 //   * TUTAJ zostaje bramka modułu, branding, powrót, nazwa wydarzenia, pasek
 //     zakładek i bazowe metadane - bo to widać na każdej zakładce (zrzuty
-//     wzorca 38, 39 i 40 mają dokładnie ten sam pasek nad różną treścią);
+//     wzorca 38, 39 i 40 mają dokładnie ten sam pasek nad różną treścią).
+//     Ta trasa ten chrome SKŁADA (zna wydarzenie i router), a RYSUJE go
+//     `EventPortalShell` - ten sam komponent, którym rysuje go podgląd studia;
 //   * `events.$slug.index.tsx` dostaje CAŁY przegląd - okładkę, tytuł, kartę
 //     meta, opis, zapisy, bilety, nagranie i JSON-LD. Ani jeden z tych bloków
 //     nie zmienił zachowania; zmienił plik.
@@ -42,9 +44,8 @@ import { ArrowLeft } from "lucide-react";
 import { fetchPublicEventBySlug } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
-import { EventBrandingStyle } from "@/components/events/public/atoms/EventBrandingStyle";
+import { EventPortalShell } from "@/components/events/public/organisms/EventPortalShell";
 import { EventTabsNav } from "@/components/events/public/organisms/EventTabsNav";
-import { eventBrandingScopeProps } from "@/lib/events/eventBrandingCss";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -110,15 +111,21 @@ function EventShell() {
   const title = lang === "en" ? ev.title_en || ev.title_pl : ev.title_pl || ev.title_en;
 
   return (
-    // Branding wydarzenia wchodzi na OPAKOWANIE tej strony, nigdy na `:root`:
-    // kolory jednego kongresu nie mogą przemalować nagłówka serwisu ani
-    // sąsiedniej zakładki. Zmienne generuje `EventBrandingStyle`. Zakres jest
-    // na POWŁOCE, więc obejmuje także pasek zakładek i każdą podstronę - inaczej
-    // przegląd byłby w barwach wydarzenia, a lista prelegentów w barwach serwisu.
-    <div {...eventBrandingScopeProps} className="pb-12 md:pb-16">
-      <EventBrandingStyle branding={ev.branding} />
-
-      <div className="mx-auto w-full max-w-5xl px-4 pt-10">
+    // CHROME RYSUJE `EventPortalShell`, nie ten plik. Zakres brandingu, powrót,
+    // nazwa wydarzenia i miejsce na pasek zakładek żyją tam, bo DOKŁADNIE TEN
+    // rysunek musi pokazać także podgląd w studiu - a dopóki mieszkał tutaj,
+    // podgląd przepisywał go po swojemu i rozjeżdżał się cicho. Pilnuje tego
+    // bramka `eventPreviewPublicParity.gate.test.tsx`.
+    //
+    // POWRÓT I NAZWA WCHODZĄ SLOTAMI, bo to jedyna różnica między stroną
+    // a podglądem, która jest ZAMIERZONA: tutaj są odnośnikami routera,
+    // w podglądzie napisami (klik wyprowadzałby redaktora ze studia).
+    //
+    // Pasek zakładek bierze pozycje z `event_menu` (już przefiltrowane po
+    // grupach zapisu wołającego) plus „Strona główna”, której w menu nie ma.
+    <EventPortalShell
+      branding={ev.branding}
+      backSlot={
         <Link
           to="/events"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -126,32 +133,19 @@ function EventShell() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t("community.events.backToList")}
         </Link>
-
-        {/* NAZWA WYDARZENIA W CHROME'IE, a nie tylko w treści przeglądu. Na
-            zakładce „Prelegenci” nie ma okładki ani tytułu (zrzuty 39 i 40), więc
-            bez tego wiersza czytelnik widziałby listę nazwisk bez informacji,
-            czyje one są. Na przeglądzie stoi nad nią duży `h1` z tytułem - tak
-            samo jak na wzorcu, gdzie nazwa jest i w pasku, i na banerze.
-            To jest odnośnik, a nie nagłówek: nagłówek poziomu 1 należy do
-            treści zakładki, a dwa `h1` na stronie to defekt SEO. */}
-        <p className="mt-4">
-          <Link
-            to="/events/$slug"
-            params={{ slug }}
-            className="text-sm font-semibold text-foreground hover:underline"
-          >
-            {title}
-          </Link>
-        </p>
-      </div>
-
-      {/* Pasek zakładek: pozycje z `event_menu` (już przefiltrowane po grupach
-          zapisu wołającego) plus „Strona główna”, której w menu nie ma. */}
-      <div className="mt-4">
-        <EventTabsNav slug={slug} />
-      </div>
-
+      }
+      titleSlot={
+        <Link
+          to="/events/$slug"
+          params={{ slug }}
+          className="text-sm font-semibold text-foreground hover:underline"
+        >
+          {title}
+        </Link>
+      }
+      tabsSlot={<EventTabsNav slug={slug} />}
+    >
       <Outlet />
-    </div>
+    </EventPortalShell>
   );
 }

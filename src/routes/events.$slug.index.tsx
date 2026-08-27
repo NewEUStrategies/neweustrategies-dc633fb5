@@ -11,22 +11,14 @@
 // w rsvp_event), a nagranie po wydarzeniu nadal stoi za bramką warstwy
 // rozstrzyganą w get_event_access.
 //
-// UKŁAD TRÓJKOLUMNOWY JEST ZMIERZONY, NIE ZGADNIĘTY. Zrzut wzorca
-// `docs/zrzuty/swapcard-2026-08-23/38-preview-event-home-desktop.png`: kolumny
-// mają 483 / 963 / 481 pikseli obrazu przy rynnach po 39 - czyli 1 : 2 : 1
-// z rynną 20 punktów logicznych, a cała treść ma ~1000 punktów. Stąd
-// `max-w-5xl` (1024) i `grid-cols-[1fr_2fr_1fr] gap-5`: kolumna środkowa
-// wychodzi 492 punkty przy zmierzonych 481.
-//
-// CZEGO W KOLUMNACH BOCZNYCH NIE ODWZOROWUJEMY I DLACZEGO. Na wzorcu po lewej
-// stoi KARTA PROFILU ZALOGOWANEGO WIDZA („Edytuj”, zdjęcie, stanowisko), a po
-// prawej BANER PROMOCYJNY z przyciskiem „Dowiedz się więcej”. Nie mamy źródła
-// danych ani dla jednego, ani dla drugiego (nie ma tabeli banerów wydarzenia,
-// nie ma karty profilu widza na froncie wydarzeń), a wypełnienie kolumny atrapą
-// opublikowałoby treść, której nikt nie wpisał. Zamiast tego kolumny biorą to,
-// co ma dane i po co czytelnik tu przychodzi: po lewej karta „kiedy, gdzie, ile
-// miejsc”, po prawej powierzchnia zapisów. To jest ZAMIENNIK, nie odwzorowanie
-// wzorca - jeśli kiedyś powstanie źródło banera, jego miejsce jest po prawej.
+// UKŁAD TRÓJKOLUMNOWY MIESZKA W `EventOverviewLayout`, NIE TUTAJ. Ta trasa wnosi
+// TREŚĆ kolumn (dane z bazy, decyzje reguł, powierzchnie z zapytaniami), a siatkę
+// - zmierzoną ze wzorca 1 : 2 : 1 - rysuje jeden komponent, bo DOKŁADNIE tę samą
+// siatkę musi pokazać podgląd w studiu. Dopóki siedziała w tym pliku, podgląd
+// miał przepisaną własną (jedna kolumna `max-w-3xl`) i właściciel widział
+// w panelu „stary layout”, mimo że nowy był na `main`. Proporcje, kolejność
+// w DOM-ie i to, czego z wzorca nie odwzorowujemy (karta profilu widza po lewej,
+// baner promocyjny po prawej - brak źródła danych), są opisane przy komponencie.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -71,10 +63,16 @@ import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
 import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
+import {
+  EventOverviewDescription,
+  EventOverviewLayout,
+  EventOverviewTitle,
+} from "@/components/events/public/organisms/EventOverviewLayout";
 import { EventPageSections } from "@/components/events/public/organisms/EventPageSections";
 import { EventMenuNav } from "@/components/events/public/organisms/EventMenuNav";
 import { EventHomeSectionLinks } from "@/components/events/public/organisms/EventHomeSectionLinks";
 import { EventSponsorTiers } from "@/components/events/public/organisms/EventSponsorTiers";
+import { EventMetaCard, EventMetaRow } from "@/components/events/public/molecules/EventMetaCard";
 import { EventVideoHeader } from "@/components/events/public/molecules/EventVideoHeader";
 import { EventBookmarkButton } from "@/components/events/public/molecules/EventBookmarkButton";
 import { SectionLockCard } from "@/components/events/public/molecules/SectionLockCard";
@@ -425,78 +423,78 @@ function EventOverview() {
   };
 
   return (
-    <article className="mx-auto w-full max-w-5xl px-4 pt-8">
+    // SIATKĘ RYSUJE `EventOverviewLayout`, nie ten plik - ten sam komponent
+    // rysuje ją w podglądzie studia. Dopóki trzy kolumny mieszkały tutaj,
+    // podgląd miał je przepisane po swojemu (jedna kolumna `max-w-3xl`)
+    // i właściciel widział w panelu „stary layout”. Proporcje 1:2:1, powody
+    // kolejności w DOM-ie i to, czego z wzorca nie odwzorowujemy, są opisane
+    // przy komponencie.
+    <>
+      {/* JSON-LD stoi POZA siatką: to nie jest treść żadnej z kolumn. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(eventLd) }}
       />
 
-      {/* KOLEJNOŚĆ W DOM-ie NIE JEST KOLEJNOŚCIĄ NA EKRANIE i to jest celowe:
-          okładka z tytułem idzie pierwsza (czytnik ekranu i crawler czytają
-          dokument, nie siatkę), a karta meta - która na szerokim ekranie stoi
-          po LEWEJ - jest w dokumencie ostatnia. Na telefonie siatka zwija się
-          do jednej kolumny i wtedy kolejność dokumentu jest jedyną, jaka
-          istnieje: tytuł, potem zapisy, potem szczegóły. */}
-      <div className="grid gap-5 lg:grid-cols-[1fr_2fr_1fr]">
-        <div className="min-w-0 lg:col-start-2 lg:row-start-1">
-          {/* Nagłówek wideo ZASTĘPUJE baner okładki, a przy braku (albo błędnym)
+      <EventOverviewLayout
+        main={
+          <>
+            {/* Nagłówek wideo ZASTĘPUJE baner okładki, a przy braku (albo błędnym)
               identyfikatorze sam rysuje okładkę - okładka pozostaje wymagana,
               bo to z niej bierze się miniatura w katalogu i w karcie
               społecznościowej (`events_video_header_requires_cover`). */}
-          <EventVideoHeader
-            title={title}
-            coverUrl={ev.cover_url}
-            videoPlatform={ev.video_header_platform}
-            videoId={ev.video_header_id}
-          />
+            <EventVideoHeader
+              title={title}
+              coverUrl={ev.cover_url}
+              videoPlatform={ev.video_header_platform}
+              videoId={ev.video_header_id}
+            />
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {isProBriefing ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("community.events.proBriefing")}
-              </span>
-            ) : membersOnly ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("community.events.membersOnly")}
-              </span>
-            ) : null}
-            {isFull && !isPast && (
-              <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
-                {t("community.events.capacityFull")}
-              </span>
-            )}
-            {!isPast && rsvpBeforeOpen && earlyRank !== null && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("community.events.earlyForMembers")}
-              </span>
-            )}
-          </div>
-
-          <h1 className="mt-3 text-3xl font-bold tracking-tight">{title}</h1>
-
-          {descriptionSection === null ? null : descriptionSection.isLocked ? (
-            <section id="event-description" className="mt-8 scroll-mt-24">
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                {t(sectionHeadingKey("description"))}
-              </h2>
-              <div className="mt-4">
-                <SectionLockCard
-                  reason={descriptionSection.lockReason}
-                  sectionKey="description"
-                  eventSlug={slug}
-                />
-              </div>
-            </section>
-          ) : desc ? (
-            <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line dark:prose-invert">
-              {desc}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {isProBriefing ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t("community.events.proBriefing")}
+                </span>
+              ) : membersOnly ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t("community.events.membersOnly")}
+                </span>
+              ) : null}
+              {isFull && !isPast && (
+                <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
+                  {t("community.events.capacityFull")}
+                </span>
+              )}
+              {!isPast && rsvpBeforeOpen && earlyRank !== null && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t("community.events.earlyForMembers")}
+                </span>
+              )}
             </div>
-          ) : null}
 
-          {/* SPIS PODSTRON W TREŚCI - na wzorcu (zrzut 38) stoi w kolumnie
+            <EventOverviewTitle>{title}</EventOverviewTitle>
+
+            {descriptionSection === null ? null : descriptionSection.isLocked ? (
+              <section id="event-description" className="mt-8 scroll-mt-24">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  {t(sectionHeadingKey("description"))}
+                </h2>
+                <div className="mt-4">
+                  <SectionLockCard
+                    reason={descriptionSection.lockReason}
+                    sectionKey="description"
+                    eventSlug={slug}
+                  />
+                </div>
+              </section>
+            ) : desc ? (
+              <EventOverviewDescription>{desc}</EventOverviewDescription>
+            ) : null}
+
+            {/* SPIS PODSTRON W TREŚCI - na wzorcu (zrzut 38) stoi w kolumnie
               środkowej, pod banerem i nad poziomami partnerów. To NIE jest ta
               sama nawigacja, co pasek zakładek w powłoce: pasek jest chrome'em
               i jest na każdej zakładce, ten spis jest treścią strony głównej.
@@ -509,278 +507,259 @@ function EventOverview() {
               (jeden hook, jeden klucz cache, jeden filtr widoczności po grupach
               w bazie), więc wybór trybu zmienia WYGLĄD spisu, a nie to, do
               których podstron czytelnik ma dojście. */}
-          {ev.pages_display_mode === "grid" ? (
-            <EventMenuNav slug={slug} displayMode={ev.pages_display_mode} />
-          ) : (
-            <EventHomeSectionLinks slug={slug} />
-          )}
+            {ev.pages_display_mode === "grid" ? (
+              <EventMenuNav slug={slug} displayMode={ev.pages_display_mode} />
+            ) : (
+              <EventHomeSectionLinks slug={slug} />
+            )}
 
-          {/* Poziomy partnerów: sam rząd logotypów pod spisem sekcji - dokładnie
+            {/* Poziomy partnerów: sam rząd logotypów pod spisem sekcji - dokładnie
               jak na wzorcu. Pełne kafle z nazwą, opisem i plakietkami rysuje
               sekcja „Partnerzy” niżej (`EventPageSections`); oba widoki jadą
               z jednego klucza zapytania, więc to nie są dwa pobrania. */}
-          <EventSponsorTiers slug={slug} />
+            <EventSponsorTiers slug={slug} />
 
-          {/* Prelegenci wydarzenia: event_speakers + profil prelegenta/eksperta
+            {/* Prelegenci wydarzenia: event_speakers + profil prelegenta/eksperta
               (RPC get_public_speakers); klik otwiera dialog profilu prelegenta.
               Sekcja ma własny nagłówek, więc zamek rozstrzyga się tutaj, a nie
               w `EventPageSections` - inaczej strona miałaby dwa nagłówki
               „Prelegenci" jeden pod drugim. */}
-          {speakersSection === null ? null : speakersSection.isLocked ? (
-            <section className="mt-10 scroll-mt-24" id="event-speakers">
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                {t(sectionHeadingKey("speakers"))}
-              </h2>
-              <div className="mt-4">
-                <SectionLockCard
-                  reason={speakersSection.lockReason}
-                  sectionKey="speakers"
-                  eventSlug={slug}
-                />
-              </div>
-            </section>
-          ) : (
-            <EventSpeakersSection eventId={ev.id} lang={lang} />
-          )}
+            {speakersSection === null ? null : speakersSection.isLocked ? (
+              <section className="mt-10 scroll-mt-24" id="event-speakers">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  {t(sectionHeadingKey("speakers"))}
+                </h2>
+                <div className="mt-4">
+                  <SectionLockCard
+                    reason={speakersSection.lockReason}
+                    sectionKey="speakers"
+                    eventSlug={slug}
+                  />
+                </div>
+              </section>
+            ) : (
+              <EventSpeakersSection eventId={ev.id} lang={lang} />
+            )}
 
-          {/* Program, partnerzy, materiały, dojazd i kontakt - w kolejności
+            {/* Program, partnerzy, materiały, dojazd i kontakt - w kolejności
               i z zamkami z bazy. Dwie ostatnie sekcje biorą treść z kolumn
               wydarzenia, więc jadą tu jako `practical`, a nie osobnym zapytaniem. */}
-          <EventPageSections slug={slug} sections={sectionsQ.data ?? []} practical={practical} />
+            <EventPageSections slug={slug} sections={sectionsQ.data ?? []} practical={practical} />
 
-          {/* Wydarzenie jako iskra: host/staff zakłada trwały krąg czatu dla
+            {/* Wydarzenie jako iskra: host/staff zakłada trwały krąg czatu dla
               uczestników 'going' (komponent sam znika dla pozostałych). */}
-          <EventGroupButton eventId={ev.id} hostUserId={ev.host_user_id} eventStatus={ev.status} />
-        </div>
-
-        {/* ── KOLUMNA PRAWA: DECYZJA UCZESTNIKA ──────────────────────────────
-            Wszystko, co uczestnik ma kliknąć, w jednym miejscu i wysoko:
-            zapis albo bilet, sygnał zainteresowania, kalendarz, transmisja,
-            nagranie. Na wzorcu w tej kolumnie stoi baner promocyjny z jednym
-            przyciskiem - danych na baner nie mamy (patrz nagłówek pliku), więc
-            kolumna bierze jedyne wezwanie do działania, jakie ta strona ma. */}
-        <aside className="min-w-0 space-y-3 lg:col-start-3 lg:row-start-1">
-          {tierBlocked && (
-            <div className="rounded-lg border border-primary/40 bg-primary/5 p-5">
-              <p className="text-sm font-medium">
-                {requiredTierName
-                  ? t("community.events.tierRequired", { tier: requiredTierName })
-                  : t("community.events.tierRequiredGeneric")}
-              </p>
-              <Button asChild className="mt-3" size="sm">
-                <Link to="/pricing">{t("community.events.tierUpgradeCta")}</Link>
-              </Button>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-3">
-            {!isPast && access?.can_join && access.join_url && (
-              <Button asChild variant="secondary">
-                <a href={access.join_url} target="_blank" rel="noreferrer">
-                  <Video className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t("community.events.joinLive")}
-                </a>
-              </Button>
+            <EventGroupButton
+              eventId={ev.id}
+              hostUserId={ev.host_user_id}
+              eventStatus={ev.status}
+            />
+          </>
+        }
+        right={
+          <>
+            {tierBlocked && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-5">
+                <p className="text-sm font-medium">
+                  {requiredTierName
+                    ? t("community.events.tierRequired", { tier: requiredTierName })
+                    : t("community.events.tierRequiredGeneric")}
+                </p>
+                <Button asChild className="mt-3" size="sm">
+                  <Link to="/pricing">{t("community.events.tierUpgradeCta")}</Link>
+                </Button>
+              </div>
             )}
-            {/* Wydarzenie PŁATNE: wejściówki są własną powierzchnią (płatność,
+
+            <div className="flex flex-wrap items-center gap-3">
+              {!isPast && access?.can_join && access.join_url && (
+                <Button asChild variant="secondary">
+                  <a href={access.join_url} target="_blank" rel="noreferrer">
+                    <Video className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {t("community.events.joinLive")}
+                  </a>
+                </Button>
+              )}
+              {/* Wydarzenie PŁATNE: wejściówki są własną powierzchnią (płatność,
                 webhook, przydział z planu), więc zastępują kontrolkę bezpłatnego
                 zapisu - ale WYŁĄCZNIE wtedy, gdy reguła mówi, że ta kontrolka
                 w ogóle mogłaby się udać. Przy trybie `form`, `external`, `none`
                 i przy przepływie `approval` uczestnik dostaje zdanie reguły,
                 a nie przycisk zakupu prowadzący w tę samą ścianę. */}
-            {surface === null ? null : isPaidEvent && isLegacyRsvpDecision(surface) ? (
-              <EventTicketPurchase
-                eventId={ev.id}
-                slug={ev.slug}
-                priceCents={ticketCents}
-                currency={ev.ticket_currency || "PLN"}
-                lang={lang}
-                hasTicket={rsvpQ.data?.status === "going"}
-                isPast={isPast}
-                isFull={isFull}
-                onClaimed={invalidate}
-              />
-            ) : (
-              <EventRegistrationSurface
-                message={t(surface.messageKey, { date: whenOpens })}
-                note={
-                  surfaceQueuePosition === null
-                    ? null
-                    : t("eventFront.waitlistPosition", { position: surfaceQueuePosition })
-                }
-                action={surfaceAction}
-                onAction={onSurfaceAction}
-                groupLabel={t("eventFront.sections.registration.heading")}
-                eventSlug={ev.slug}
-              />
-            )}
-            {/* Sygnał zainteresowania jest OSOBNĄ decyzją, nie odmianą zapisu:
+              {surface === null ? null : isPaidEvent && isLegacyRsvpDecision(surface) ? (
+                <EventTicketPurchase
+                  eventId={ev.id}
+                  slug={ev.slug}
+                  priceCents={ticketCents}
+                  currency={ev.ticket_currency || "PLN"}
+                  lang={lang}
+                  hasTicket={rsvpQ.data?.status === "going"}
+                  isPast={isPast}
+                  isFull={isFull}
+                  onClaimed={invalidate}
+                />
+              ) : (
+                <EventRegistrationSurface
+                  message={t(surface.messageKey, { date: whenOpens })}
+                  note={
+                    surfaceQueuePosition === null
+                      ? null
+                      : t("eventFront.waitlistPosition", { position: surfaceQueuePosition })
+                  }
+                  action={surfaceAction}
+                  onAction={onSurfaceAction}
+                  groupLabel={t("eventFront.sections.registration.heading")}
+                  eventSlug={ev.slug}
+                />
+              )}
+              {/* Sygnał zainteresowania jest OSOBNĄ decyzją, nie odmianą zapisu:
                 bramka trybu z 20260823136000 obejmuje wyłącznie `going`, więc
                 „zainteresowany" przechodzi także na wydarzeniu z formularzem czy
                 z rejestracją zewnętrzną. Blokują go tylko bramki wspólne dla
                 wszystkich statusów (warstwa, Chatham House, okno) - rozstrzyga to
                 canSignalInterest, żeby i ten przycisk nie prowadził w ścianę. */}
-            {user && surface !== null && canSignalInterest(surface) && (
-              <Button
-                variant={rsvpQ.data?.status === "interested" ? "default" : "outline"}
-                onClick={() => rsvpM.mutate("interested")}
-                disabled={rsvpM.isPending}
-                aria-pressed={rsvpQ.data?.status === "interested"}
-              >
-                <Star className="mr-2 h-4 w-4" aria-hidden="true" />
-                {t("community.events.rsvpInterested")}
-              </Button>
-            )}
-            {!isPast && <AddToCalendar event={ev} lang={lang} />}
-            <EventTicketCard
-              eventId={ev.id}
-              lang={lang}
-              enabled={!!user && rsvpQ.data?.status === "going"}
-            />
-          </div>
+              {user && surface !== null && canSignalInterest(surface) && (
+                <Button
+                  variant={rsvpQ.data?.status === "interested" ? "default" : "outline"}
+                  onClick={() => rsvpM.mutate("interested")}
+                  disabled={rsvpM.isPending}
+                  aria-pressed={rsvpQ.data?.status === "interested"}
+                >
+                  <Star className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {t("community.events.rsvpInterested")}
+                </Button>
+              )}
+              {!isPast && <AddToCalendar event={ev} lang={lang} />}
+              <EventTicketCard
+                eventId={ev.id}
+                lang={lang}
+                enabled={!!user && rsvpQ.data?.status === "going"}
+              />
+            </div>
 
-          {!isPast && user && rsvpBeforeOpen && hasEarlyAccess && (
-            <p className="text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
-              {t("community.events.rsvpEarlyAccessOpen", { when: whenOpens })}
-            </p>
-          )}
-          {/* Zostaje TYLKO 'interested'. Zdania o zapisie i o liście rezerwowej
+            {!isPast && user && rsvpBeforeOpen && hasEarlyAccess && (
+              <p className="text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
+                {t("community.events.rsvpEarlyAccessOpen", { when: whenOpens })}
+              </p>
+            )}
+            {/* Zostaje TYLKO 'interested'. Zdania o zapisie i o liście rezerwowej
               niesie teraz wariant reguły (EventRegistrationSurface) - dublowanie ich
               tutaj dawało dwa zdania o tym samym, liczone z dwóch różnych chwil
               w czasie. 'interested' reguła świadomie pomija: sygnał
               zainteresowania nie jest zapisem, więc nie odbiera przycisku zapisu. */}
-          {!isPast && user && rsvpQ.data?.status === "interested" && (
-            <p className="text-sm text-primary animate-fade-in" aria-live="polite">
-              {t("community.events.rsvpStatusInterested")}
-            </p>
-          )}
-          {/* Kolejka rezerwowa nie daje wejściówki - link do transmisji pojawia
+            {!isPast && user && rsvpQ.data?.status === "interested" && (
+              <p className="text-sm text-primary animate-fade-in" aria-live="polite">
+                {t("community.events.rsvpStatusInterested")}
+              </p>
+            )}
+            {/* Kolejka rezerwowa nie daje wejściówki - link do transmisji pojawia
               się dopiero po awansie na 'going' (rozstrzyga get_event_access). */}
-          {!isPast && isWaitlisted && access?.reason === "waitlisted" && (
-            <p className="text-sm text-muted-foreground">{t("community.events.joinWaitlisted")}</p>
-          )}
+            {!isPast && isWaitlisted && access?.reason === "waitlisted" && (
+              <p className="text-sm text-muted-foreground">
+                {t("community.events.joinWaitlisted")}
+              </p>
+            )}
 
-          {/* Nagranie po wydarzeniu: benefit warstwy (flaga recordings) - URL
+            {/* Nagranie po wydarzeniu: benefit warstwy (flaga recordings) - URL
               nie opuszcza bazy bez uprawnienia, tu tylko czytelny upsell. */}
-          {isPast && !tierBlocked && access && access.watch_reason !== "none" && (
-            <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="flex items-center gap-2 text-base font-semibold">
-                <Video className="h-4 w-4" aria-hidden="true" />
-                {t("community.events.recordingGateTitle")}
-              </h2>
-              {access.can_watch && access.recording_url ? (
-                <Button asChild variant="secondary" className="mt-3">
-                  <a href={access.recording_url} target="_blank" rel="noreferrer">
-                    <Video className="mr-2 h-4 w-4" aria-hidden="true" />
-                    {t("community.events.watchRecording")}
-                  </a>
-                </Button>
-              ) : access.watch_reason === "auth_required" ? (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t("community.events.recordingSignInHint")}
-                </p>
-              ) : (
-                <>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {recordingTierName
-                      ? t("community.events.recordingTierRequired", { tier: recordingTierName })
-                      : t("community.events.recordingTierRequiredGeneric")}
-                  </p>
-                  <Button asChild size="sm" className="mt-3">
-                    <Link to="/pricing">{t("community.events.tierUpgradeCta")}</Link>
+            {isPast && !tierBlocked && access && access.watch_reason !== "none" && (
+              <section className="rounded-lg border border-border bg-card p-5">
+                <h2 className="flex items-center gap-2 text-base font-semibold">
+                  <Video className="h-4 w-4" aria-hidden="true" />
+                  {t("community.events.recordingGateTitle")}
+                </h2>
+                {access.can_watch && access.recording_url ? (
+                  <Button asChild variant="secondary" className="mt-3">
+                    <a href={access.recording_url} target="_blank" rel="noreferrer">
+                      <Video className="mr-2 h-4 w-4" aria-hidden="true" />
+                      {t("community.events.watchRecording")}
+                    </a>
                   </Button>
-                </>
-              )}
-            </section>
-          )}
-        </aside>
-
-        {/* ── KOLUMNA LEWA: CO, KIEDY, GDZIE ─────────────────────────────────
-            Karta meta i gwiazdka zapamiętania. Na wzorcu w tej kolumnie stoi
-            karta profilu zalogowanego widza - nie mamy dla niej danych (patrz
-            nagłówek pliku), a kolumna z atrapą byłaby gorsza od kolumny z tym,
-            po co czytelnik naprawdę tu zajrzał. */}
-        <aside className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1">
-          {/* Zapamiętanie wydarzenia. Stan gwiazdki jedzie z nagłówka
+                ) : access.watch_reason === "auth_required" ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("community.events.recordingSignInHint")}
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {recordingTierName
+                        ? t("community.events.recordingTierRequired", { tier: recordingTierName })
+                        : t("community.events.recordingTierRequiredGeneric")}
+                    </p>
+                    <Button asChild size="sm" className="mt-3">
+                      <Link to="/pricing">{t("community.events.tierUpgradeCta")}</Link>
+                    </Button>
+                  </>
+                )}
+              </section>
+            )}
+          </>
+        }
+        left={
+          <>
+            {/* Zapamiętanie wydarzenia. Stan gwiazdki jedzie z nagłówka
               (`is_bookmarked`), więc nie ma tu drugiego zapytania ani drugiej
               chwili w czasie. */}
-          <EventBookmarkButton eventSlug={slug} isBookmarked={header?.is_bookmarked === true} />
+            <EventBookmarkButton eventSlug={slug} isBookmarked={header?.is_bookmarked === true} />
 
-          <dl className="grid gap-4 rounded-lg border border-border bg-card p-5">
-            <MetaRow
-              icon={<Calendar className="h-4 w-4" />}
-              label={t("community.events.whenLabel")}
-            >
-              {/* Godzina w STREFIE WYDARZENIA, a nie w strefie przegladarki.
+            <EventMetaCard>
+              <EventMetaRow
+                icon={<Calendar className="h-4 w-4" />}
+                label={t("community.events.whenLabel")}
+              >
+                {/* Godzina w STREFIE WYDARZENIA, a nie w strefie przegladarki.
                   Poprzednia wersja formatowala date lokalnie i doklejala surowy
                   identyfikator IANA w nawiasie - uczestnik z Brukseli widzial
                   godzine warszawska opisana jako warszawska i musial ja przeliczyc
                   sam. Wspolny formater zyje w lib/events/timezone.ts. */}
-              {formatEventDateTime(ev.starts_at, ev.timezone, lang)}
-              {ev.timezone ? ` (${eventTimeZoneLabel(ev.starts_at, ev.timezone, lang)})` : null}
-            </MetaRow>
-            {ev.location && (
-              <MetaRow icon={<MapPin className="h-4 w-4" />} label={t("community.events.location")}>
-                {ev.location}
-              </MetaRow>
-            )}
-            {ev.capacity !== null && (
-              <MetaRow
-                icon={<Users className="h-4 w-4" />}
-                label={t("community.events.capacityLabel")}
-              >
-                {isFull
-                  ? t("community.events.capacityFull")
-                  : t("community.events.capacityLeft", { count: seatsLeft ?? 0 })}
-                {" · "}
-                {t("community.events.goingCount", { count: going })}
-                {waitlistCount > 0 && (
-                  <>
-                    {" · "}
-                    {t("community.events.waitlistCount", { count: waitlistCount })}
-                  </>
-                )}
-              </MetaRow>
-            )}
-            {isPaidEvent && (
-              // Etykieta idzie ze słownika (`eventFront.header.priceLabel`),
-              // a nie z rozgałęzienia po języku w kodzie - to był jedyny taki
-              // ternary na tej stronie i znika razem z podziałem pliku.
-              <MetaRow
-                icon={<Ticket className="h-4 w-4" />}
-                label={t("eventFront.header.priceLabel")}
-              >
-                {formatMoney(ticketCents, ev.ticket_currency || "PLN", lang)}
-              </MetaRow>
-            )}
-            {ev.chatham_house && (
-              <MetaRow icon={<ShieldQuestion className="h-4 w-4" />} label="">
-                {t("community.events.chathamHouse")}
-              </MetaRow>
-            )}
-          </dl>
-        </aside>
-      </div>
-    </article>
-  );
-}
-
-function MetaRow({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <dt className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-        {icon}
-        {label}
-      </dt>
-      <dd className="mt-1 text-sm text-foreground">{children}</dd>
-    </div>
+                {formatEventDateTime(ev.starts_at, ev.timezone, lang)}
+                {ev.timezone ? ` (${eventTimeZoneLabel(ev.starts_at, ev.timezone, lang)})` : null}
+              </EventMetaRow>
+              {ev.location && (
+                <EventMetaRow
+                  icon={<MapPin className="h-4 w-4" />}
+                  label={t("community.events.location")}
+                >
+                  {ev.location}
+                </EventMetaRow>
+              )}
+              {ev.capacity !== null && (
+                <EventMetaRow
+                  icon={<Users className="h-4 w-4" />}
+                  label={t("community.events.capacityLabel")}
+                >
+                  {isFull
+                    ? t("community.events.capacityFull")
+                    : t("community.events.capacityLeft", { count: seatsLeft ?? 0 })}
+                  {" · "}
+                  {t("community.events.goingCount", { count: going })}
+                  {waitlistCount > 0 && (
+                    <>
+                      {" · "}
+                      {t("community.events.waitlistCount", { count: waitlistCount })}
+                    </>
+                  )}
+                </EventMetaRow>
+              )}
+              {isPaidEvent && (
+                // Etykieta idzie ze słownika (`eventFront.header.priceLabel`),
+                // a nie z rozgałęzienia po języku w kodzie - to był jedyny taki
+                // ternary na tej stronie i znika razem z podziałem pliku.
+                <EventMetaRow
+                  icon={<Ticket className="h-4 w-4" />}
+                  label={t("eventFront.header.priceLabel")}
+                >
+                  {formatMoney(ticketCents, ev.ticket_currency || "PLN", lang)}
+                </EventMetaRow>
+              )}
+              {ev.chatham_house && (
+                <EventMetaRow icon={<ShieldQuestion className="h-4 w-4" />} label="">
+                  {t("community.events.chathamHouse")}
+                </EventMetaRow>
+              )}
+            </EventMetaCard>
+          </>
+        }
+      />
+    </>
   );
 }
