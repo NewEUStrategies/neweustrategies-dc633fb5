@@ -697,6 +697,41 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     rationale:
       "Ta sama para okolicznosci co wpis powyzej, dla migracji `event_pages` (tabela podstron, RLS, funkcje menu). Dowod zastosowania: `event_pages` i funkcje menu odpowiadaja na zywej bazie po zastosowaniu obu numerow, a ledger nie zglasza brakow. SQL idempotentny.",
   },
+
+  // ── PR #293: panel wyemitowal ponownie WSZYSTKIE TRZY migracje modulu ───────
+  // Nie sa to trzy niezalezne wypadki, tylko jeden: po scaleniu PR #293 panel
+  // Lovable wdrozyl jego migracje i zapisal je pod wlasnymi numerami z UUID-em.
+  // Wszystkie trzy pary maja ten sam dowod i to samo uzasadnienie wyboru naprawy.
+  {
+    files: [
+      "20260826180000_event_speaker_person.sql",
+      "20260827064804_cd7d2d01-c36c-4b1f-9cba-54c54c83be78.sql",
+    ],
+    deployment: "PR #293 / panel Lovable (commit c06f024)",
+    appliedOn: "2026-08-27",
+    rationale:
+      "Prelegent bez konta w `auth.users`: kolumny `event_people`, `person_id` w `speaker_profiles`, CHECK XOR i RPC panelu. Dowod zastosowania: zadanie `pgtap` na PR #294 przeszlo na zielono, a jego krok „Start local database (migrations + seed)” stosuje CALY katalog migracji od zera w kolejnosci nazw - czyli OBA numery tej pary, jeden po drugim, bez konfliktu. Tresc obu plikow jest identyczna po odjeciu komentarzy i bialych znakow (sprawdzone md5 na tresci bez komentarzy). SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE` / `ON CONFLICT`), wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje na bazie projektu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`. Zbedny wpis w rejestrze nie psuje niczego poza dlugoscia rejestru - pod niepewnoscia wybieramy tansza pomylke.",
+  },
+  {
+    files: [
+      "20260826181500_event_default_module_pages.sql",
+      "20260827065451_9dcc93fb-dd36-4a3c-af21-a020a48b9f01.sql",
+    ],
+    deployment: "PR #293 / panel Lovable (commit c06f024)",
+    appliedOn: "2026-08-27",
+    rationale:
+      "Piatka stron modulowych wydarzenia: znacznik `event_pages.module`, zasiew i publiczne menu. Dowod zastosowania: zadanie `pgtap` na PR #294 przeszlo na zielono, a jego krok „Start local database (migrations + seed)” stosuje CALY katalog migracji od zera w kolejnosci nazw - czyli OBA numery tej pary, jeden po drugim, bez konfliktu. Tresc obu plikow jest identyczna po odjeciu komentarzy i bialych znakow (sprawdzone md5 na tresci bez komentarzy). SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE` / `ON CONFLICT`), wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje na bazie projektu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`. Zbedny wpis w rejestrze nie psuje niczego poza dlugoscia rejestru - pod niepewnoscia wybieramy tansza pomylke.",
+  },
+  {
+    files: [
+      "20260826182500_event_attendees_and_discussions.sql",
+      "20260827065944_fbf90e88-713b-4475-94f4-97a841a84b8d.sql",
+    ],
+    deployment: "PR #293 / panel Lovable (commit 60c3938)",
+    appliedOn: "2026-08-27",
+    rationale:
+      "Lista uczestnikow i dyskusje na froncie: dwie kolumny w `events` oraz RPC `event_attendees` i `event_discussions` z regula Chatham House. Dowod zastosowania: zadanie `pgtap` na PR #294 przeszlo na zielono, a jego krok „Start local database (migrations + seed)” stosuje CALY katalog migracji od zera w kolejnosci nazw - czyli OBA numery tej pary, jeden po drugim, bez konfliktu. Tresc obu plikow jest identyczna po odjeciu komentarzy i bialych znakow (sprawdzone md5 na tresci bez komentarzy). SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE` / `ON CONFLICT`), wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje na bazie projektu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`. Zbedny wpis w rejestrze nie psuje niczego poza dlugoscia rejestru - pod niepewnoscia wybieramy tansza pomylke.",
+  },
 ];
 
 /**
