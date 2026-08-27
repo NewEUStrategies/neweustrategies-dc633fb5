@@ -866,7 +866,23 @@ export const adminEventAgendaEn = {
       },
     },
 
+    timeline: {
+      title: "Time grid",
+      subtitle:
+        "Each column is a room, the vertical axis is the hours of the event day. A tile with a red border has a conflict from the report.",
+      loading: "Laying out the grid…",
+      empty: "No session has a start time yet.",
+      daysLabel: "Programme days",
+      hourAxis: "Hour",
+      noRoom: "No room",
+      capacity: "{{count}} seats",
+      conflictBadge: "Conflict",
+      conflictCount: "Conflicts: {{count}}",
+      undated: "Sessions without a time on this day: {{count}}",
+    },
+
     conflicts: {
+
       title: "Agenda conflicts",
       subtitle:
         "A report computed from live data. A room clash does not appear here - the database does not allow it.",
