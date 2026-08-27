@@ -262,13 +262,19 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
     key: "content",
     labelKey: "adminEvents.studio.groups.content",
     icon: "layers",
-    defaultSection: "contentSessions",
+    defaultSection: "contentTracks",
     keywordKeys: ["adminEvents.studio.keywords.content"],
     entries: [
       {
-        key: "contentSessions",
-        labelKey: "adminEventAgenda.nav.sessions",
-        keywordKeys: ["adminEvents.studio.keywords.contentSessions"],
+        // SESJI NIE MA W SIDEBARZE. Sesja jest wpisem w pasmie, wiec planuje sie
+        // ja w zakladce „Sesje" na stronie sciezki - osobna pozycja menu
+        // rozdzielalaby program na dwa niezalezne ekrany.
+        key: "contentTracks",
+        labelKey: "adminEventAgenda.nav.tracks",
+        keywordKeys: [
+          "adminEvents.studio.keywords.contentTracks",
+          "adminEvents.studio.keywords.contentSessions",
+        ],
       },
       {
         // Etykieta z istniejacego slownika modulu - „Prelegenci" jest tam od
@@ -277,11 +283,6 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         key: "contentSpeakers",
         labelKey: "adminEvents.nav.speakers",
         keywordKeys: ["adminEvents.studio.keywords.contentSessions"],
-      },
-      {
-        key: "contentTracks",
-        labelKey: "adminEventAgenda.nav.tracks",
-        keywordKeys: ["adminEvents.studio.keywords.contentTracks"],
       },
       {
         key: "contentRooms",
