@@ -43,9 +43,49 @@
 // ma stanu „kolorowy napis na przezroczystym pasku”.
 import type { ReactNode } from "react";
 
+// ── DLACZEGO W KLASIE BAZOWEJ NIE MA KOLORU NAPISU, I TO JEST POPRAWKA DEFEKTU ─
+//
+// CO BYŁO ZEPSUTE. Kolor WYCISZONY siedział tutaj, w klasie bazowej, a kolor
+// bieżącej pozycji dojeżdżał osobno przez `activeProps`. TanStack Router SKLEJA
+// `className` z `activeProps.className` ZWYKŁĄ SPACJĄ - bez `cn`, bez
+// `tailwind-merge`. Sklejanie jest dosłowne i widać je w źródle routera
+// (`node_modules/@tanstack/react-router/dist/esm/link.js`, `resolvedClassName`):
+// baza, potem klasa aktywna, potem nieaktywna, rozdzielone spacją. Bieżący
+// odnośnik miał więc DWIE klasy koloru napisu naraz. Oba to arbitralne utility
+// o TEJ SAMEJ specyficzności, więc rozstrzygała KOLEJNOŚĆ W ARKUSZU - a Tailwind
+// emituje `text-[color:var(--event-nav-fg-muted,…)]` PÓŹNIEJ niż
+// `text-[color:var(--event-nav-fg,…)]` (pomiar na zbudowanym arkuszu: linie 7564
+// i 7567). Czyli klasa WYCISZONA wygrywała i bieżąca zakładka na pasku
+// z ustawionym kolorem nawigacji dostawała odcień wyciszony. Rozróżnienie
+// „bieżąca / pozostałe”, zamierzone jako DWUSTOPNIOWE (grubość ORAZ odcień),
+// zwijało się do samej grubości.
+//
+// DLACZEGO ROZDZIELENIE, A NIE PRZESTAWIENIE KOLEJNOŚCI. Kolejność emisji
+// Tailwinda nie jest kontraktem: zmienia się z wersją, z kolejnością pierwszego
+// wystąpienia klasy w plikach i z każdym refaktorem, który przeniesie te napisy
+// do innego modułu. Poprawka „przestawmy klasy” byłaby zielona dzisiaj
+// i zepsuta po dowolnym z tych zdarzeń, bez ani jednego czerwonego testu.
+// Rozdzielenie usuwa PRZYCZYNĘ: w danym momencie na węźle obowiązuje DOKŁADNIE
+// JEDNA klasa koloru napisu, więc nie ma kolizji, którą kolejność mogłaby
+// rozstrzygnąć w złą stronę.
+//
+// KLASA BAZOWA NIE MA WIĘC ŻADNEGO KOLORU NAPISU i to jest wymóg wobec
+// WOŁAJĄCEGO: każda powierzchnia paska MUSI dołożyć albo
+// `EVENT_TAB_ACTIVE_CLASS`, albo `EVENT_TAB_INACTIVE_CLASS`. Konsumentów jest
+// dwóch i oba to robią - `EventTabsNav` przez `activeProps`/`inactiveProps`
+// routera, a podgląd studia (`EventPreviewCanvas`) przez `cn` z trójdzielnym
+// wyborem, bo napis w podglądzie nie jest `Link`-iem i `inactiveProps` nie ma.
 /** Klasa pozycji paska - wspólna dla odnośnika strony i napisu w podglądzie. */
 export const EVENT_TAB_CLASS =
-  "inline-block whitespace-nowrap rounded-[6px] px-1 py-4 text-sm text-[color:var(--event-nav-fg-muted,var(--muted-foreground))] transition-colors hover:text-[color:var(--event-nav-fg,var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-block whitespace-nowrap rounded-[6px] px-1 py-4 text-sm transition-colors hover:text-[color:var(--event-nav-fg,var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+// Kolor pozycji NIEBIEŻĄCEJ - mieszanka koloru napisu z tłem paska, policzona
+// w generatorze CSS (`lib/events/eventBrandingCss`), z odwrotem do
+// `--muted-foreground` z motywu serwisu. Stoi OSOBNO od klasy bazowej właśnie
+// po to, żeby nigdy nie współistniała z `EVENT_TAB_ACTIVE_CLASS` na jednym
+// węźle - patrz komentarz nad `EVENT_TAB_CLASS`.
+export const EVENT_TAB_INACTIVE_CLASS =
+  "text-[color:var(--event-nav-fg-muted,var(--muted-foreground))]";
 
 // Pogrubienie NIE zmienia rozmiaru napisu, więc pasek nie drga przy przejściu
 // między zakładkami; kolor bierze `--foreground`, bo `--primary` jest w jasnym

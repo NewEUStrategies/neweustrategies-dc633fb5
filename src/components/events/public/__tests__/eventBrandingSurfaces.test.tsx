@@ -32,6 +32,7 @@ import {
   EventTabsBar,
   EVENT_TAB_ACTIVE_CLASS,
   EVENT_TAB_CLASS,
+  EVENT_TAB_INACTIVE_CLASS,
 } from "@/components/events/public/molecules/EventTabsBar";
 import { DARK_TEXT, LIGHT_TEXT } from "@/lib/post/badgeContrast";
 import { cn } from "@/lib/utils";
@@ -101,13 +102,27 @@ function mountPortal(branding: unknown) {
       tabsSlot={
         <EventTabsBar label="zakladki wydarzenia">
           <li>
-            {/* `cn` DOKŁADNIE jak w miejscach wołających: `tailwind-merge` musi
-                rozstrzygnąć dwie klasy koloru napisu na rzecz aktywnej, inaczej
-                bieżąca zakładka dostałaby odcień wyciszony. */}
+            {/* `cn` z WYBOREM TRÓJDZIELNYM - dokładnie tak, jak składa klasy
+                PODGLĄD STUDIA (`EventPreviewCanvas`), jedyna powierzchnia, dla
+                której ten mount jest wierny: napis w podglądzie nie jest
+                `Link`-iem, więc kolor pozycji dojeżdża do niego przez `cn`,
+                a nie przez `activeProps`/`inactiveProps` routera.
+                CZEGO TEN MOUNT NIE MIERZY - i to jest ważniejsze od tego, co
+                mierzy. Strona publiczna składa klasy PRZEZ ROUTER, który skleja
+                je zwykłą spacją, bez `tailwind-merge`. `cn` użyty tutaj
+                deduplikowałby kolizję, której router nie deduplikuje, więc ten
+                plik NIE MOŻE być dowodem dla paska na stronie - i przez jedno
+                wydanie nim był, świecąc na zielono nad bieżącą zakładką
+                w odcieniu wyciszonym. Dowód dla strony publicznej stoi
+                w `eventTabsNavActiveColor.test.tsx`, na prawdziwym routerze
+                i bez ani jednego `cn`. */}
             <span className={cn(EVENT_TAB_CLASS, EVENT_TAB_ACTIVE_CLASS)}>Przeglad</span>
           </li>
           <li>
-            <span className={EVENT_TAB_CLASS}>Prelegenci</span>
+            {/* Klasa bazowa nie ma już koloru napisu (patrz `EventTabsBar`),
+                więc pozycja niebieżąca MUSI dostać `EVENT_TAB_INACTIVE_CLASS`
+                jawnie - tak samo, jak robi to podgląd studia. */}
+            <span className={cn(EVENT_TAB_CLASS, EVENT_TAB_INACTIVE_CLASS)}>Prelegenci</span>
           </li>
         </EventTabsBar>
       }
