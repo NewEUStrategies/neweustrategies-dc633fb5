@@ -35,10 +35,11 @@
 // wejscie kaskadowe przez istniejaca klase `.pc-rise-y` ze `styles.css`, ktora
 // jest tam opisana wprost jako „odpowiednik framer-motion bez biblioteki"
 // i wygasa przy `prefers-reduced-motion: reduce`. Zadnej nowej zaleznosci.
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
-import { Info, Loader2, UserPlus } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { ImagePlus, Info, Loader2, Trash2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -61,8 +62,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { uiLang } from "@/lib/i18n/format";
+import { useAuth } from "@/hooks/useAuth";
+import { registerMediaUpload } from "@/lib/media.functions";
+import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
 import { createEventSpeakerPerson, type EventSpeakerUpsertResult } from "@/lib/admin/community";
+
 
 /** „Bez grupy" nie moze byc pustym napisem: Radix Select rezerwuje "" na reset. */
 const NO_GROUP = "__none__";
@@ -128,6 +133,12 @@ const csvOrUndefined = (value: string): string[] | undefined => {
   return items.length === 0 ? undefined : items;
 };
 
+/**
+ * WYROWNANIE ETYKIET. Pola stoja obok siebie w siatce, wiec etykieta i podpowiedz
+ * dostaja STALA wysokosc wiersza (`h-4` / `min-h-3.5`) - inaczej pole z
+ * podpowiedzia bylo nizsze od sasiada i ramki inputow rozjezdzaly sie o kilka
+ * pikseli. Siatka `auto auto 1fr` trzyma kontrolke zawsze w tym samym wierszu.
+ */
 function Field({
   label,
   required,
@@ -140,11 +151,8 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="grid gap-1.5">
-      <Label className="text-xs font-medium">
-        {/* Gwiazdka CZERWONA i PRZED etykieta - jak we wzorcu (zrzut 06).
-            Nasz `field-box.tsx` stawia szara po etykiecie, ale ten atom to
-            pole z etykieta plywajaca, a tu potrzebny jest zwykly wiersz. */}
+    <div className="grid content-start gap-1 [grid-template-rows:1rem_auto_1fr]">
+      <Label className="flex h-4 items-center text-[11px] font-medium leading-none text-muted-foreground">
         {required === true && (
           <span aria-hidden="true" className="mr-1 text-destructive">
             *
@@ -153,9 +161,7 @@ function Field({
         {label}
       </Label>
       {children}
-      {hint !== undefined && (
-        <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
-      )}
+      <p className="min-h-3.5 text-[10.5px] leading-snug text-muted-foreground">{hint ?? ""}</p>
     </div>
   );
 }
@@ -171,16 +177,17 @@ function Section({
 }) {
   return (
     <section
-      className="pc-rise-y space-y-3 rounded-[6px] border border-border/60 bg-muted/20 p-3"
+      className="pc-rise-y space-y-2.5 rounded-[6px] border border-border/60 bg-muted/20 p-3"
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </h3>
       {children}
     </section>
   );
 }
+
 
 export function EventSpeakerCreateDialog({
   eventId,
@@ -197,6 +204,38 @@ export function EventSpeakerCreateDialog({
   const lang = uiLang(i18n.language);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [error, setError] = useState<string | null>(null);
+  const { user, tenantId } = useAuth();
+  const registerUpload = useServerFn(registerMediaUpload);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // UPLOAD ZDJECIA. Ta sama, jedyna dopuszczalna sciezka co w reszcie panelu:
+  // walidacja MIME/rozmiaru -> storage w prefiksie najemcy -> rejestracja w
+  // bibliotece, a odrzucona rejestracja kasuje obiekt (patrz lib/media/upload).
+  const handlePhoto = async (file: File): Promise<void> => {
+    if (tenantId === null || tenantId === undefined || user?.id === undefined) return;
+    setUploading(true);
+    try {
+      const uploaded = await uploadAndRegisterMedia({
+        file,
+        tenantId,
+        userId: user.id,
+        registerMedia: registerUpload,
+        allowedMime: IMAGE_MIME,
+        subfolder: "event-speakers",
+      });
+      setDraft((prev) => ({ ...prev, photoUrl: uploaded.publicUrl }));
+      setError(null);
+    } catch (e) {
+      setError(
+        `${t("adminCommunityEvents.speakers.create.photoFailed")} ${(e as Error).message}`.trim(),
+      );
+    } finally {
+      setUploading(false);
+      if (fileRef.current !== null) fileRef.current.value = "";
+    }
+  };
+
 
   // Grupy czytamy TYLKO przy otwartym popupie: zamknięty dialog nie ma prawa
   // trzymać zapytania, ktore odpala sie na kazdym wejsciu w ekran prelegentow.
@@ -261,7 +300,7 @@ export function EventSpeakerCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-[6px]">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-[6px] p-5">
         <DialogHeader>
           <DialogTitle>{t("adminCommunityEvents.speakers.create.title")}</DialogTitle>
           <DialogDescription>
@@ -351,16 +390,76 @@ export function EventSpeakerCreateDialog({
           </Section>
 
           <Section title={t("adminCommunityEvents.speakers.create.sectionCard")} delayMs={60}>
-            <Field
-              label={t("adminCommunityEvents.speakers.create.photoUrl")}
-              hint={t("adminCommunityEvents.speakers.create.photoUrlHint")}
-            >
-              <Input
-                value={draft.photoUrl}
-                onChange={(e) => set("photoUrl", e.target.value)}
-                placeholder={t("adminCommunityEvents.speakers.create.photoUrlPlaceholder")}
-              />
-            </Field>
+            {/* ZDJECIE: kafel podgladu 6 px + wgrywanie pliku, adres https jako
+                alternatywa dla materialow hostowanych po stronie partnera. */}
+            <div className="flex items-start gap-3">
+              <div className="flex size-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border/60 bg-muted/40">
+                {draft.photoUrl.trim() !== "" ? (
+                  <img
+                    src={draft.photoUrl}
+                    alt={t("adminCommunityEvents.speakers.create.photoAlt")}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <ImagePlus aria-hidden="true" className="size-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <Field
+                  label={t("adminCommunityEvents.speakers.create.photoUrl")}
+                  hint={t("adminCommunityEvents.speakers.create.photoUrlHint")}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="h-9 min-w-[12rem] flex-1"
+                      value={draft.photoUrl}
+                      onChange={(e) => set("photoUrl", e.target.value)}
+                      placeholder={t("adminCommunityEvents.speakers.create.photoUrlPlaceholder")}
+                    />
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      className="hidden"
+                      accept={IMAGE_ACCEPT_ATTR}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file !== undefined) void handlePhoto(file);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-[6px]"
+                      disabled={uploading}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {uploading ? (
+                        <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                      ) : (
+                        <ImagePlus aria-hidden="true" className="size-4" />
+                      )}
+                      {uploading
+                        ? t("adminCommunityEvents.speakers.create.photoUploading")
+                        : t("adminCommunityEvents.speakers.create.photoUpload")}
+                    </Button>
+                    {draft.photoUrl.trim() !== "" && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 rounded-[6px]"
+                        aria-label={t("adminCommunityEvents.speakers.create.photoRemove")}
+                        onClick={() => set("photoUrl", "")}
+                      >
+                        <Trash2 aria-hidden="true" className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </Field>
+              </div>
+            </div>
+
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
