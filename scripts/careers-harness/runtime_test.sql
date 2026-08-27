@@ -45,10 +45,16 @@ INSERT INTO public.profiles (id, tenant_id, display_name) VALUES
   ('b0000000-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222222','Admin B')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.user_roles (user_id, role) VALUES
-  ('a0000000-0000-0000-0000-000000000001','admin'),
-  ('a0000000-0000-0000-0000-000000000002','super_admin'),
-  ('b0000000-0000-0000-0000-000000000001','admin')
+-- Rola MUSI nieść tenanta. Na produkcji `user_roles.tenant_id` jest NOT NULL od
+-- 20260531181120, a od 20260824074231 `is_super_admin()` czyta tę kolumnę
+-- i zakresuje po `current_tenant_id()`. Fixture bez tenanta zakładałby wiersz,
+-- którego produkcja nie dopuszcza, i `is_super_admin()` zwracałoby na nim po
+-- cichu FALSE - czyli test mierzyłby stan nieosiągalny. Tenant jest ten sam, co
+-- w profilu danego użytkownika, bo taki jest sens backfillu z 20260531181120.
+INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
+  ('a0000000-0000-0000-0000-000000000001','admin','11111111-1111-1111-1111-111111111111'),
+  ('a0000000-0000-0000-0000-000000000002','super_admin','11111111-1111-1111-1111-111111111111'),
+  ('b0000000-0000-0000-0000-000000000001','admin','22222222-2222-2222-2222-222222222222')
 ON CONFLICT DO NOTHING;
 
 \echo '== 1. Bucket career-cv istnieje i egzekwuje limit oraz MIME =='
@@ -462,6 +468,68 @@ SELECT pg_temp.assert_raises(
             (SELECT id FROM public.career_applications LIMIT 1), 'hired')$$,
   'personel nie dopisze wpisu do dziennika recznie'
 );
+RESET ROLE;
+RESET request.jwt.claim.sub;
+
+\echo '== 15. Rola author NIE jest personelem rekrutacji =='
+-- PO CO TA SEKCJA. Migracja 20260824074231 przestawia polityki `career_*`
+-- i `career_cv_*` z `is_staff()` na `is_admin_or_editor()`. Roznica jest
+-- DOKLADNIE jedna rola: `is_staff()` przepuszcza `author`, `is_admin_or_editor()`
+-- nie. Bez tej sekcji harness to zaostrzenie WYKONYWAL, ale go nie SPRAWDZAL -
+-- wszystkie pozostale asercje przechodza tez na starym zestawie polityk, wiec
+-- cofniecie zmiany do `is_staff()` nie zapaliloby niczego. To ta sama klasa
+-- braku, ktora README wymienia jako powod istnienia tego harnessu: "polityka
+-- odczytu bucketu, ktora przepuszczala obcego najemce - tego nie widzi zaden
+-- test jednostkowy".
+INSERT INTO auth.users (id, email) VALUES
+  ('a0000000-0000-0000-0000-000000000003','author-a@t')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id, display_name) VALUES
+  ('a0000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','Author A')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
+  ('a0000000-0000-0000-0000-000000000003','author','11111111-1111-1111-1111-111111111111')
+ON CONFLICT DO NOTHING;
+
+-- Najpierw DOWOD, ze test nie jest prozny: admin TEGO SAMEGO najemcy musi
+-- widziec te wiersze. Bez tego "author widzi zero" przechodziloby rowniez na
+-- pustej tabeli - a zielone zero to klamstwo.
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+DO $$
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.career_applications) > 0,
+    'admin A widzi procesy wlasnego najemcy (test nie jest prozny)'
+  );
+END $$;
+RESET ROLE;
+RESET request.jwt.claim.sub;
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+DO $$
+BEGIN
+  -- Kotwica zmiany: pod STARA polityka ten warunek dawal dostep. Jesli kiedys
+  -- przestanie byc prawda, ta asercja zapali sie pierwsza i powie, ze test
+  -- porownuje sie z nieaktualnym stanem odniesienia.
+  PERFORM pg_temp.assert(
+    public.is_staff(),
+    'author przechodzi is_staff() - czyli STARA polityka by go wpuscila'
+  );
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.career_applications) = 0,
+    'author NIE widzi procesow rekrutacyjnych (is_admin_or_editor, nie is_staff)'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.career_application_events),
+    'author NIE widzi dziennika etapow'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id = 'career-cv'),
+    'author NIE widzi ZADNEGO CV, takze u wlasnego najemcy'
+  );
+END $$;
 RESET ROLE;
 RESET request.jwt.claim.sub;
 

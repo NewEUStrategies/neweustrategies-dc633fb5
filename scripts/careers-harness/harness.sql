@@ -29,6 +29,31 @@ UPDATE public.tenants SET is_default = true
  WHERE id = '11111111-1111-1111-1111-111111111111'
    AND NOT EXISTS (SELECT 1 FROM public.tenants WHERE is_default);
 
+-- `user_roles.tenant_id` istnieje w prawdziwym schemacie: dostawia ją migracja
+-- platformy 20260531181120 (`ADD COLUMN`, backfill, `SET NOT NULL`), a `Insert`
+-- tej tabeli w `types.ts` ma `tenant_id` jako pole WYMAGANE. Atrapa ze wspólnego
+-- harnessu stawia `user_roles` tylko z `(user_id, role)` - i na tym wywalała się
+-- migracja 20260824074231, która przedefiniowuje `is_super_admin()` na wersję
+-- ZAKRESOWANĄ TENANTEM i tę kolumnę czyta:
+--
+--   ERROR:  column "tenant_id" does not exist
+--   LINE 13:        AND tenant_id = public.current_tenant_id()
+--
+-- To 42703, nie 42P01, i - co ważniejsze - tabela JEST w zadeklarowanym zasięgu
+-- tego harnessu, bo stawia ją `pg-harness/harness.sql`. Jej niepełny kształt to
+-- więc defekt ATRAPY, a nie powód do pomijania migracji: kryterium SKIP
+-- z `pg-harness` celowo nie łapie ani tej klasy błędu, ani obiektów w zasięgu.
+--
+-- NOT NULL wchodzi od razu, bo w tym momencie tabela jest pusta - produkcja
+-- doszła do tego samego stanu w trzech krokach tylko dlatego, że miała dane.
+-- Konsekwencja jest zamierzona: fixture w `runtime_test.sql` MUSI nadać rolom
+-- tenanta. Rola bez tenanta na produkcji istnieć nie może, więc fixture, który
+-- ją zakłada, mierzyłby stan nieosiągalny - a od 20260824074231 `is_super_admin()`
+-- zwracałoby na nim po cichu FALSE.
+ALTER TABLE public.user_roles
+  ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL
+  REFERENCES public.tenants(id) ON DELETE CASCADE;
+
 CREATE TABLE IF NOT EXISTS public.contact_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -147,3 +172,94 @@ BEGIN
     (SELECT id FROM public.tenants ORDER BY created_at ASC LIMIT 1)
   );
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- ATRAPY-CELE POLITYK. Powierzchnia, o której ten harness NIC NIE TWIERDZI.
+-- ---------------------------------------------------------------------------
+--
+-- DLACZEGO TO NIE JEST SPRAWA DLA MECHANIKI `SKIP` Z PG-HARNESSU.
+--
+-- Migracja 20260824074231 (panel Lovable, nazwa z UUID-em) dotyka czterech
+-- domen naraz: webhooków CRM, integracji, REKRUTACJI i workflow. Wygląda jak
+-- zlepek z commitu dfc23e4, ale nim NIE JEST: nie ma w niej kilku niezależnych
+-- migracji pod jedną wersją, jest jedna spójna ZMIANA HARTUJĄCA - przestawienie
+-- KAŻDEJ polityki `*_staff_*` z `is_staff()` (które przepuszcza rolę `author`)
+-- na nowe `is_admin_or_editor()` (tylko `admin` i `editor`). Cztery domeny to
+-- zasięg tej jednej zmiany, nie cztery zlepione migracje.
+--
+-- Dowód, że sekcji rekrutacyjnej nie pokrywa nic innego (`grep` po
+-- `supabase/migrations`):
+--   * `public.is_admin_or_editor()` definiuje w całym repo TYLKO ten plik;
+--   * polityki `career_applications_staff_read` / `_staff_update`
+--     i `career_application_events_staff_read` mają wcześniejsze definicje
+--     (20260814110000, 20260814123014), ale OBIE stoją na `is_staff()` - czyli
+--     na stanie, którego produkcja już nie ma;
+--   * `career_cv_staff_read` / `_staff_delete` - to samo: sześć wcześniejszych
+--     plików, wszystkie przed zaostrzeniem.
+-- Sekcja rekrutacyjna tego pliku jest więc NAJNOWSZYM stanem modułu, a nie
+-- podzbiorem czegokolwiek. W dfc23e4 wolno było pominąć plik dokładnie dlatego,
+-- że klubowa sekcja zlepka była NADZBIOREM osobnego pliku i pominięcie nie
+-- odbierało bramce ani jednej linii SQL-a modułu. Tutaj jest odwrotnie.
+--
+-- Gdzie by to bolało: `ON_ERROR_STOP=1` przerywa plik na PIERWSZYM błędzie,
+-- a pierwszy brakujący obiekt (`public.crm_webhook_endpoints`) leży w wierszu
+-- 38, natomiast sekcja rekrutacyjna w wierszach 51-99 - czyli ZA błędem. SKIP
+-- zostawiłby harness z politykami opartymi o `is_staff()` i cicho przestałby
+-- pilnować dokładnie tego zaostrzenia, po które ta migracja powstała: że
+-- `author` traci dostęp do zgłoszeń rekrutacyjnych i do CV.
+--
+-- CZYM SĄ TE TABELE, A CZYM NIE SĄ. Są wyłącznie CELAMI POLITYK: istnieją, żeby
+-- `DROP POLICY IF EXISTS` / `CREATE POLICY` z tej migracji miały na czym stanąć
+-- i żeby plik dobiegł do sekcji rekrutacyjnej. Mają dokładnie te kolumny,
+-- których dotyka `USING`/`WITH CHECK` tej migracji - `workflow_templates` nawet
+-- `tenant_id` nie ma, bo jej polityka pyta tylko o rolę (i produkcyjna tabela
+-- też go nie ma, patrz 20260711204000). NIE odtwarzają produkcyjnego kształtu,
+-- więc NIE WOLNO na nich niczego twierdzić - `run.sh` pilnuje tego wprost
+-- i przewraca bramkę, gdy `runtime_test.sql` odwoła się do którejkolwiek.
+--
+-- Znaczniki `ATRAPA-CEL-POLITYKI` niżej są JEDYNYM źródłem tej listy: `run.sh`
+-- czyta ją z tego pliku, więc lista w logu nie może rozjechać się z kodem.
+-- RLS włączamy, a grantów nie dajemy żadnych, żeby żaden przyszły test nie
+-- wziął tych atrap za powierzchnię otwartą dla roli klienckiej.
+
+-- ATRAPA-CEL-POLITYKI: crm_webhook_endpoints
+CREATE TABLE IF NOT EXISTS public.crm_webhook_endpoints (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+
+-- ATRAPA-CEL-POLITYKI: integration_endpoints
+CREATE TABLE IF NOT EXISTS public.integration_endpoints (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+
+-- ATRAPA-CEL-POLITYKI: integration_deliveries
+CREATE TABLE IF NOT EXISTS public.integration_deliveries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+
+-- ATRAPA-CEL-POLITYKI: workflow_definitions
+CREATE TABLE IF NOT EXISTS public.workflow_definitions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+
+-- ATRAPA-CEL-POLITYKI: workflow_runs
+CREATE TABLE IF NOT EXISTS public.workflow_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+
+-- ATRAPA-CEL-POLITYKI: workflow_templates
+CREATE TABLE IF NOT EXISTS public.workflow_templates (
+  key text PRIMARY KEY
+);
+
+ALTER TABLE public.crm_webhook_endpoints  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.integration_endpoints  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.integration_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workflow_definitions   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workflow_runs          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workflow_templates     ENABLE ROW LEVEL SECURITY;
