@@ -98,6 +98,18 @@ const h = vi.hoisted(() => ({
   sections: [] as unknown[],
   /** Wiersze prelegentów dla zapowiedzi na przeglądzie. */
   speakers: [] as unknown[],
+  /** Nadpisania migawki wydarzenia - potrzebne, żeby postawić wydarzenie
+   *  PŁATNE, bo o tym, którą kontrolkę zapisu rysuje trasa, decyduje cena. */
+  event: {} as Record<string, unknown>,
+  /**
+   * Zalogowany uczestnik albo `null`. Do gałęzi PŁATNEJ nie da się dojść bez
+   * zalogowania i to nie jest szczegół atrapy: `resolveRegistrationSurface`
+   * dostaje `isSignedIn` i dla gościa oddaje wariant „zaloguj się", który
+   * `isLegacyRsvpDecision` odrzuca - czyli trasa rysuje wtedy kontrolkę
+   * BEZPŁATNĄ. Pierwsza wersja tego testu tego nie uwzględniała i przechodziła
+   * także z odłożoną naprawą, bo mierzyła nie tę gałąź.
+   */
+  user: null as { id: string } | null,
 }));
 
 // `t` oddaje KLUCZ, nie tłumaczenie: „napis ze słownika" rozpoznajemy po
@@ -112,8 +124,19 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user }) }));
+vi.mock("@/integrations/supabase/client", () => {
+  // Łańcuch PostgREST dokładnie na głębokość zapytania o WŁASNY RSVP
+  // (`from().select().eq().eq().maybeSingle()`). Dla gościa to zapytanie nie
+  // startuje (`enabled: !!user`), więc do gałęzi płatnej - która wymaga
+  // zalogowania - pusty obiekt już nie wystarcza.
+  const chain = {
+    select: () => chain,
+    eq: () => chain,
+    maybeSingle: async () => ({ data: null }),
+  };
+  return { supabase: { from: () => chain } };
+});
 
 vi.mock("@/lib/builder/speakersQuery", () => ({
   speakersQueryOptions: (input: unknown, lang: unknown) => ({
@@ -148,7 +171,7 @@ vi.mock("@/lib/community/publicQueries", async (importOriginal) => {
   const { eventPageHeaderRow } = await import("@/test/events/eventPageHeaderRow");
   return {
     ...original,
-    fetchPublicEventBySlug: vi.fn(async () => publicEventRow()),
+    fetchPublicEventBySlug: vi.fn(async () => publicEventRow(h.event)),
     fetchEventPageHeader: vi.fn(async () => eventPageHeaderRow()),
     fetchEventAccess: vi.fn(async () => null),
     fetchEventRsvpCounts: vi.fn(async () => new Map()),
@@ -404,6 +427,8 @@ afterEach(() => {
   cleanup();
   h.sections = [];
   h.speakers = [];
+  h.event = {};
+  h.user = null;
 });
 
 describe("nadpisanie nagłówka sekcji: nie ma miejsca, które je ignoruje", () => {
@@ -447,6 +472,45 @@ describe("nadpisanie nagłówka sekcji: nie ma miejsca, które je ignoruje", () 
     });
     await waitFor(() => expect(route.container.querySelectorAll("h2")).toHaveLength(1));
     expect(route.container.querySelector("h2")?.textContent).toBe(OVERRIDE);
+  });
+
+  // ── GAŁĄŹ PŁATNA: DRUGA KONTROLKA TEJ SAMEJ SEKCJI ────────────────────────
+  // Znalezione w recenzji PR #297, nie przez tę bramkę - i dlatego bramka
+  // dostaje ten przypadek na stałe. Sekcja `registration` ma na przeglądzie DWIE
+  // kontrolki: przy wydarzeniu bezpłatnym `EventRegistrationSurface` (nazywa się
+  // sama), przy PŁATNYM `EventTicketPurchase` (nie nazywał się wcale). Nazwa
+  // należy do SEKCJI, więc nadpisanie musi obowiązywać niezależnie od tego,
+  // którą kontrolkę wybrała reguła - inaczej organizator zmienia nazwę sekcji
+  // i dostaje ją tylko na wydarzeniach darmowych.
+  //
+  // `EventTicketPurchase` jest tu atrapą (`() => null`), więc mierzymy DOKŁADNIE
+  // to, co rysuje trasa: dostępną nazwę grupy wokół kontrolki zakupu.
+  it("na wydarzeniu PŁATNYM nadpisanie nazywa grupę zakupu biletu", async () => {
+    h.sections = [sectionRow("registration", OVERRIDE)];
+    h.event = { ticket_price_cents: 12000 };
+    h.user = { id: "u-1" };
+    const route = await renderRoute({
+      route: EventOverviewRoute,
+      path: "/events/$slug/",
+      initialEntry: `/events/${EVENT_SLUG}`,
+    });
+    await waitFor(() => expect(presentedHeadings(route.container)).toEqual([OVERRIDE]));
+  });
+
+  it("na wydarzeniu PŁATNYM bez nadpisania grupa spada na słownik sekcji", async () => {
+    // Druga połowa dowodu: bez niej „nadpisanie działa" spełniałaby też grupa,
+    // która pokazuje nadpisanie ZAWSZE - także puste.
+    h.sections = [sectionRow("registration", null)];
+    h.event = { ticket_price_cents: 12000 };
+    h.user = { id: "u-1" };
+    const route = await renderRoute({
+      route: EventOverviewRoute,
+      path: "/events/$slug/",
+      initialEntry: `/events/${EVENT_SLUG}`,
+    });
+    await waitFor(() =>
+      expect(presentedHeadings(route.container)).toEqual([sectionHeadingKey("registration")]),
+    );
   });
 });
 

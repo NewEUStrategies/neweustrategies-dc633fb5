@@ -376,6 +376,12 @@ function EventOverview() {
   // ten sam napis i to samo nadpisanie z bazy. Dopóki szedł wprost ze słownika,
   // organizator zmieniał nazwę sekcji „Zapisy" i czytnik ekranu ogłaszał starą.
   const registrationSection = findEventSection(sectionsQ.data ?? [], "registration");
+  // JEDEN NAPIS NA OBIE KONTROLKI ZAPISU. Reguła wybiera między zakupem biletu
+  // (`EventTicketPurchase`) a kontrolką bezpłatnego zapisu
+  // (`EventRegistrationSurface`) - a nazwa SEKCJI jest ta sama, bo to ta sama
+  // sekcja `registration` z tym samym nadpisaniem z bazy. Policzony raz, żeby
+  // gałąź płatna nie mogła się od bezpłatnej rozjechać przy kolejnej zmianie.
+  const registrationHeading = eventSectionHeading(registrationSection, "registration", lang, t);
 
   // Informacje praktyczne: kolumny, które panel zapisywał, a uczestnik ich nie
   // widział - do czasu grantu kolumnowego z migracji 20260826120000. Kształt
@@ -598,17 +604,26 @@ function EventOverview() {
                 i przy przepływie `approval` uczestnik dostaje zdanie reguły,
                 a nie przycisk zakupu prowadzący w tę samą ścianę. */}
               {surface === null ? null : isPaidEvent && isLegacyRsvpDecision(surface) ? (
-                <EventTicketPurchase
-                  eventId={ev.id}
-                  slug={ev.slug}
-                  priceCents={ticketCents}
-                  currency={ev.ticket_currency || "PLN"}
-                  lang={lang}
-                  hasTicket={rsvpQ.data?.status === "going"}
-                  isPast={isPast}
-                  isFull={isFull}
-                  onClaimed={invalidate}
-                />
+                // NAZWA SEKCJI NALEŻY DO SEKCJI, NIE DO KONTROLKI. Grupa jest
+                // tutaj, bo `EventRegistrationSurface` nazywa się sama
+                // (`role="group"` + `aria-label`), a zakup biletu nie nazywał
+                // się wcale: na wydarzeniu PŁATNYM czytnik ekranu nie dostawał
+                // nazwy sekcji zapisów w ogóle, a redakcyjne nadpisanie
+                // `heading_pl`/`heading_en` było tam martwe - działało tylko
+                // przy zapisie bezpłatnym, formularzu i rejestracji obcej.
+                <div role="group" aria-label={registrationHeading}>
+                  <EventTicketPurchase
+                    eventId={ev.id}
+                    slug={ev.slug}
+                    priceCents={ticketCents}
+                    currency={ev.ticket_currency || "PLN"}
+                    lang={lang}
+                    hasTicket={rsvpQ.data?.status === "going"}
+                    isPast={isPast}
+                    isFull={isFull}
+                    onClaimed={invalidate}
+                  />
+                </div>
               ) : (
                 <EventRegistrationSurface
                   message={t(surface.messageKey, { date: whenOpens })}
@@ -619,7 +634,7 @@ function EventOverview() {
                   }
                   action={surfaceAction}
                   onAction={onSurfaceAction}
-                  groupLabel={eventSectionHeading(registrationSection, "registration", lang, t)}
+                  groupLabel={registrationHeading}
                   eventSlug={ev.slug}
                 />
               )}
