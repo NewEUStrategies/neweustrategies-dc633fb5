@@ -193,7 +193,9 @@ export const adminEventAgendaPl = {
         descriptionPl: "Opis (PL)",
         descriptionEn: "Opis (EN)",
         coverUrl: "Grafika nagłówka",
-        coverUrlHint: "Pełny adres obrazu pokazywanego nad nazwą ścieżki.",
+        coverUrlHint:
+          "Obraz pokazywany nad nazwą ścieżki. Przeciągnij plik, wybierz z dysku albo wklej pełny adres.",
+
         saveAction: "Zapisz",
         cancelAction: "Anuluj",
         validation: {
