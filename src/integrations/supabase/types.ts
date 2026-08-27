@@ -9359,6 +9359,8 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
+          discussion_club_id: string | null
+          discussion_group_id: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
           event_type_id: string | null
@@ -9415,6 +9417,8 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          discussion_club_id?: string | null
+          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -9471,6 +9475,8 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
+          discussion_club_id?: string | null
+          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -9520,6 +9526,20 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_discussion_club_id_fkey"
+            columns: ["discussion_club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_discussion_group_id_fkey"
+            columns: ["discussion_group_id"]
+            isOneToOne: false
+            referencedRelation: "club_groups"
             referencedColumns: ["id"]
           },
           {
@@ -20622,6 +20642,8 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
+          discussion_club_id: string | null
+          discussion_group_id: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
           event_type_id: string | null
@@ -20754,6 +20776,8 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
+          discussion_club_id: string | null
+          discussion_group_id: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
           event_type_id: string | null
@@ -23134,6 +23158,7 @@ export type Database = {
           track_name_pl: string
         }[]
       }
+      event_attendees: { Args: { p_payload: Json }; Returns: Json }
       event_audience_qualifies: {
         Args: { p_audience: string }
         Returns: boolean
@@ -23166,6 +23191,7 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_discussions: { Args: { p_slug: string }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_availability_delete: {
