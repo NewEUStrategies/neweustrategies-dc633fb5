@@ -557,6 +557,8 @@ export const adminEventAgendaEn = {
         metricMinutes: "Programme time",
         minutes: "{{count}} min",
         sessionsEmpty: "The strand has no sessions yet. Link existing ones or add new.",
+        sessionsLead:
+          "Plan the whole strand here: add a session, set the time and room, publish or cancel it. A new session lands in this track right away.",
         speakersLoading: "Loading the line-up…",
         speakersEmpty: "The line-up follows the sessions - nobody is assigned yet.",
         window: "Programme window",
