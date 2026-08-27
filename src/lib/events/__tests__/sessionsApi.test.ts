@@ -181,8 +181,15 @@ describe("sessionsApi - kontrakt payloadów", () => {
       namePl: "Polityka",
       nameEn: "Policy",
       accentColor: "#FA9346",
+      taglinePl: "Pasmo regulacyjne",
+      taglineEn: "Regulatory strand",
+      descriptionPl: null,
+      descriptionEn: null,
+      coverUrl: null,
+      defaultRoomId: null,
       sortOrder: 100,
       isActive: true,
+      isPublic: true,
     };
     await api.saveEventTrack(track);
     const created = Object.keys(payloadOf("admin_event_track_save")).sort();
