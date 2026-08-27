@@ -106,7 +106,15 @@ function sectionRow(
   key: "map" | "contact",
   overrides: { has_content?: boolean | null } = {},
 ): EventSectionRow {
-  return {
+  // DWA KROKI, NIE JEDEN, i to nie jest ozdoba. Rzutowanie WPROST na
+  // `EventSectionRow` odrzuca TypeScript (TS2352: „neither type sufficiently
+  // overlaps"), bo `null` i `string` nie mają części wspólnej - a fikstura MUSI
+  // podać `null`, bo to właśnie przychodzi po sieci. Wzorzec z
+  // `eventPublicSurface.test.ts:55` rzutuje jednym krokiem tylko dlatego, że
+  // tam wszystkie pola są niepuste. `as unknown as` byłoby drugą drogą i wchodzi
+  // pod ratchet `check:unknown-casts`; przejście przez `Record<string, unknown>`
+  // wyraża to samo - „to jest surowy wiersz z sieci" - i nie podnosi licznika.
+  const wire: Record<string, unknown> = {
     section_key: key,
     sort_order: key === "map" ? 70 : 80,
     heading_pl: null,
@@ -117,7 +125,8 @@ function sectionRow(
     lock_reason: "none",
     has_content: null,
     ...overrides,
-  } as EventSectionRow;
+  };
+  return wire as EventSectionRow;
 }
 
 /** Cala droga produkcyjna: wiersze RPC -> parser -> organizm scalajacy. */
