@@ -8405,6 +8405,58 @@ export type Database = {
           },
         ]
       }
+      event_speaker_entries: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          sort_order: number
+          speaker_profile_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          sort_order?: number
+          speaker_profile_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          sort_order?: number
+          speaker_profile_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_speaker_entries_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_speaker_entries_profile_fk"
+            columns: ["tenant_id", "speaker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "speaker_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_speaker_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_speakers: {
         Row: {
           event_id: string
@@ -9307,8 +9359,6 @@ export type Database = {
           created_by: string | null
           description_en: string | null
           description_pl: string | null
-          discussion_club_id: string | null
-          discussion_group_id: string | null
           early_rsvp_rank: number | null
           ends_at: string | null
           event_type_id: string | null
@@ -9365,8 +9415,6 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
-          discussion_club_id?: string | null
-          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -9423,8 +9471,6 @@ export type Database = {
           created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
-          discussion_club_id?: string | null
-          discussion_group_id?: string | null
           early_rsvp_rank?: number | null
           ends_at?: string | null
           event_type_id?: string | null
@@ -18581,6 +18627,20 @@ export type Database = {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
       }
+      _event_default_pages: {
+        Args: never
+        Returns: {
+          color: string
+          icon: string
+          intro_en: string
+          intro_pl: string
+          module: string
+          sort_order: number
+          template_id: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
       _event_default_sections: {
         Args: never
         Returns: {
@@ -18664,6 +18724,15 @@ export type Database = {
           out_table_seat: number
         }[]
       }
+      _event_module_page_document: {
+        Args: {
+          _intro_en: string
+          _intro_pl: string
+          _title_en: string
+          _title_pl: string
+        }
+        Returns: Json
+      }
       _event_new_qr_token: { Args: never; Returns: string }
       _event_new_scanner_token: { Args: never; Returns: string }
       _event_next_waitlist_position: {
@@ -18733,7 +18802,12 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_seed_default_pages: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: number
+      }
       _event_slugify: { Args: { _text: string }; Returns: string }
+      _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
@@ -20116,6 +20190,32 @@ export type Database = {
       admin_event_set_status: {
         Args: { p_event_id: string; p_status: string }
         Returns: string
+      }
+      admin_event_speaker_remove: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_speaker_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_speaker_upsert: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_speakers_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          avatar_url: string
+          company: string
+          display_name: string
+          email: string
+          entry_id: string
+          is_legacy: boolean
+          is_public: boolean
+          job_title: string
+          person_id: string
+          sort_order: number
+          speaker_profile_id: string
+          user_id: string
+        }[]
       }
       admin_event_sponsor_companies_search: {
         Args: { p_event_id: string; p_limit?: number; p_q?: string }
@@ -23039,7 +23139,6 @@ export type Database = {
         Returns: boolean
       }
       event_badge_print_record: { Args: { p_payload: Json }; Returns: Json }
-      event_attendees: { Args: { p_payload: Json }; Returns: Json }
       event_bookmark_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_bookmarks_mine: {
         Args: { p_limit?: number; p_offset?: number; p_scope?: string }
@@ -23067,7 +23166,6 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
-      event_discussions: { Args: { p_slug: string }; Returns: Json }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_availability_delete: {
@@ -23223,6 +23321,32 @@ export type Database = {
       }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
+      event_speakers_public: {
+        Args: { p_payload: Json }
+        Returns: {
+          avatar_url: string
+          bio_en: string
+          bio_pl: string
+          company: string
+          display_name: string
+          has_speaker_profile: boolean
+          headline_en: string
+          headline_pl: string
+          is_expert: boolean
+          job_title: string
+          languages: string[]
+          person_id: string
+          rating: number
+          reviews_count: number
+          slug: string
+          sort_order: number
+          speaker_profile_id: string
+          talks_count: number
+          topics_en: string[]
+          topics_pl: string[]
+          user_id: string
+        }[]
+      }
       event_sponsor_materials_public: {
         Args: { p_slug: string }
         Returns: {
