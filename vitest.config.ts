@@ -8,6 +8,31 @@ export default defineConfig({
     globals: true,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
+    // Rachunek „ZEBRANE = ZARAPORTOWANE" obok domyślnego raportu. Bez tego
+    // utrata forka (SIGKILL od jądra przy braku pamięci) kończy się ZIELONYM
+    // logiem, w którym brakuje setek testów - dokładnie tak wyglądał przebieg
+    // CI 33059185577: 927 przypadków bez wyniku, zero porażek, a bramka
+    // `src/components/admin/builder/**` spadła o 19 pp funkcji, bo pokrycie V8
+    // utraconego pliku nie dojechało do raportu. Szczegóły i mechanizm:
+    // `scripts/vitest/testAccountingReporter.ts`.
+    reporters: ["default", "./scripts/vitest/testAccountingReporter.ts"],
+    // Zużycie sterty PER PLIK w logu. Awaria z 2026-08-27 była niewidoczna
+    // właśnie dlatego, że log nie mówił NIC o pamięci: fork ubity SIGKILL-em
+    // nie zdąża nic napisać, a V8 nie zgłasza własnego limitu, gdy pamięć
+    // kończy się na poziomie maszyny. Ta flaga daje liczbę przy KAŻDYM pliku,
+    // więc następny plik rosnący do gigabajtów widać w logu, zanim zabije
+    // przebieg. ZMIERZONE na tym HEAD (4 rdzenie, `pool: forks`, maxForks 3,
+    // pełna suita z coverage): najgrubszy fork 3 564 MB RSS, szczyt całej
+    // maszyny 7 674 MB z 16 075 MB. Przed podziałem `editorMatrix.test.tsx`
+    // JEDEN fork na TYM JEDNYM pliku dochodził do 7 590 MB RSS / 6 917 MB
+    // sterty. Świadomie NIE stawiam tu twardego `execArgv:
+    // ["--max-old-space-size=..."]`: 4 096 MB byłoby o 15% nad zmierzonym
+    // szczytem (czyli fałszywa czerwień przy pierwszym cięższym pliku),
+    // a 5 120 MB razy trzy forki to nadal więcej niż pamięć runnera - więc
+    // limit V8 nie zastąpiłby rachunku testów wyżej, tylko zmieniłby treść
+    // komunikatu. Jeśli ktoś będzie chciał go dołożyć, ma tu liczby, od których
+    // trzeba wyjść.
+    logHeapUsage: true,
     // Ciężkie przejazdy paneli buildera (PR #275) przechodzą pojedynczo w
     // ~1-2 s na test, ale pod pełną równoległością suity przekraczały domyślne
     // 5 s i raportowały fałszywe porażki. Limit globalny 20 s zostawia margines
@@ -163,6 +188,22 @@ export default defineConfig({
         // Cel zadania (95% linii, 93% gałęzi, instrukcje >= 95%,
         // funkcje >= 93%) osiągnięty. Floor = zmierzone minus ~2 pp.
         // Zasada bez zmian: ten próg wolno wyłącznie PODNOSIĆ.
+        //
+        // 2026-08-27: TEN PRÓG CZERWIENIŁ CI I NIE BYŁA TO REGRESJA POKRYCIA.
+        // CI raportowało dla tej powierzchni 87,82/84,02/75,74/88,74 przy
+        // lokalnych 96,50/93,23/95,03/97,34. Rozjazd był CAŁY w jednym pliku
+        // testowym: `editorMatrix.test.tsx` (1 486 przypadków, 1 971 z 2 074
+        // wykonanych funkcji tej powierzchni) tracił swój fork - jądro ubijało
+        // go SIGKILL-em, bo trzy forki po ~7,3 GB nie mieszczą się w 16 GB
+        // runnera - a pokrycie V8 pliku jest odsyłane DOPIERO po jego
+        // zakończeniu. DOWÓD: przebieg powierzchni z wyłączonym tym jednym
+        // plikiem daje 87,83/84,02/75,75/88,75, czyli liczby CI co do
+        // dziesiątej części punktu. Naprawa: podział pliku na sześć kawałków
+        // po edytorach (`editorMatrix.shared.tsx` + `editorMatrix.partN`),
+        // bramka kompletności podziału (`editorMatrixSlices.test.ts`) i
+        // rachunek „zebrane = zaraportowane" (`reporters` wyżej), żeby ta klasa
+        // awarii nie mogła już przejść przy zielonym logu. Próg NIEZMIENIONY -
+        // nie było czego obniżać ani podnosić.
         "src/components/admin/builder/**": {
           statements: 94,
           functions: 93,
