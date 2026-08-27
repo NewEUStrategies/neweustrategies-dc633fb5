@@ -114,12 +114,29 @@ const TV = "adminEventAgenda.tracks.dialog.validation.";
 export const AGENDA_MAX_TAGLINE = 200;
 export const AGENDA_MAX_DESCRIPTION = 4000;
 
+/**
+ * KLUCZ WYPROWADZAMY Z NAZWY, NIE PYTAMY O NIEGO ORGANIZATORA. To identyfikator
+ * techniczny (`^[a-z][a-z0-9_]{1,48}$`), a nie decyzja redakcyjna - polskie
+ * znaki składamy do ASCII, resztę zamieniamy na podkreślenia, a gdy z nazwy nic
+ * nie zostanie (np. sama cyrylica), wracamy do losowego `track_*`.
+ */
+export function deriveTrackKey(draft: Pick<TrackDraft, "namePl" | "nameEn">): string {
+  const source = draft.namePl.trim() !== "" ? draft.namePl : draft.nameEn;
+  const ascii = source
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "L")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const trimmed = ascii.replace(/^[^a-z]+/, "").slice(0, 49);
+  if (AGENDA_KEY_PATTERN.test(trimmed)) return trimmed;
+  return `track_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function validateTrackDraft(draft: TrackDraft): TrackFieldError[] {
   const errors: TrackFieldError[] = [];
-  // Klucz sprawdzamy TYLKO przy tworzeniu - przy edycji nie jest wysyłany.
-  if (draft.id === null && !AGENDA_KEY_PATTERN.test(draft.key.trim())) {
-    errors.push({ field: "key", messageKey: `${TV}keyRequired` });
-  }
   if (draft.namePl.trim() === "")
     errors.push({ field: "namePl", messageKey: `${TV}namesRequired` });
   if (draft.nameEn.trim() === "")
@@ -136,7 +153,8 @@ export function trackDraftToInput(draft: TrackDraft, eventId: string): EventTrac
   return {
     id: draft.id,
     eventId,
-    key: draft.key.trim(),
+    // Klucz z wiersza zostaje (jest niezmienny), a nowa ścieżka dostaje go z nazwy.
+    key: draft.key.trim() === "" ? deriveTrackKey(draft) : draft.key.trim(),
     namePl: draft.namePl.trim(),
     nameEn: draft.nameEn.trim(),
     // Kolor spoza wzoru `#RRGGBB` byłby dla publicznej agendy śmieciem w atrybucie
