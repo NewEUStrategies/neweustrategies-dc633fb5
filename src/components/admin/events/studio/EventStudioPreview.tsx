@@ -25,7 +25,7 @@
 // motywie dalby biale tlo pod biala strona, czyli znikniecie krawedzi kartki.
 // Sama rama bierze juz token, bo wypelnia ja kanwa - a ta maluje tlo strony
 // wydarzenia (nadpisywalne brandingiem).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, Monitor, Smartphone, XCircle } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
