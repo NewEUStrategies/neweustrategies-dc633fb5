@@ -140,18 +140,21 @@ export function EventTrackDialog({
             monospace
             maxLength={7}
           />
+          {/* PUSTA WARTOŚĆ NIE MOŻE TRAFIĆ DO <Select.Item> (Radix rzuca wyjątkiem
+              i cały ekran ląduje w boundary „nie udało się załadować"), więc brak
+              sali jedzie pod wartownikiem i wraca do pustego stringa przy zapisie. */}
           <AdminFormEnumRow
             label={t("adminEventAgenda.tracks.dialog.defaultRoom")}
             hint={t("adminEventAgenda.tracks.dialog.defaultRoomHint")}
-            value={draft.defaultRoomId}
-            options={["", ...(roomsQ.data ?? []).map((room) => String(room.id))]}
+            value={draft.defaultRoomId === "" ? NO_ROOM : draft.defaultRoomId}
+            options={[NO_ROOM, ...(roomsQ.data ?? []).map((room) => String(room.id))]}
             labelFor={(option) =>
-              option === ""
+              option === NO_ROOM
                 ? t("adminEventAgenda.tracks.dialog.defaultRoomNone")
                 : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ??
                   option)
             }
-            onValueChange={(value) => set("defaultRoomId", value)}
+            onValueChange={(value) => set("defaultRoomId", value === NO_ROOM ? "" : value)}
           />
           <AdminFormSwitchRow
             label={t("adminEventAgenda.tracks.dialog.isActive")}
