@@ -86,6 +86,7 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
 
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.overview")}>
+      <EventReadinessPanel row={row} />
       <EventStudioRow
         label={t("adminEvents.studio.overview.summary")}
         description={t("adminEvents.studio.overview.summaryDescription")}
