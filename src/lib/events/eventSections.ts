@@ -13,7 +13,13 @@
 //
 // PUSTA SEKCJA TO CO INNEGO NIŻ ZAMKNIĘTA. `has_content` liczy baza (są sesje?
 // są sponsorzy?), więc sekcja bez treści nie udaje zamkniętej i odwrotnie.
-// `null` znaczy „ta sekcja nie ma pojęcia treści" (mapa, kontakt bez hosta).
+// `null` znaczy „ta sekcja nie ma pojęcia treści" - i od migracji 20260827130000
+// dotyczy TRZECH sekcji: `materials` (źródła w bazie nie ma) oraz `map`
+// i `contact`, których pustkę liczy front z tych samych kolumn, z których rysuje
+// treść (`lib/events/eventPractical`). Stało tu „mapa, kontakt bez hosta" i był
+// to opis reguły MARTWEJ: mapa czytała stare `events.location`, którego panel nie
+// zapisuje, a kontakt - `events.host_user_id`, którego nie ustawia nic w całym
+// repozytorium, więc oba oddawały `false` i UBIJAŁY swoją sekcję.
 import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -61,7 +67,7 @@ export interface EventSection {
   minTierRank: number;
   isLocked: boolean;
   lockReason: EventSectionLockReason;
-  /** `null` = sekcja bez pojęcia treści (RPC oddaje NULL dla `materials`). */
+  /** `null` = sekcja bez pojęcia treści (RPC: `materials`, `map`, `contact`). */
   hasContent: boolean | null;
 }
 

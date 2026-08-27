@@ -274,8 +274,16 @@ describe("useHeaderProfile", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const select = String(db().lastChain("profiles")?.argsOf("select")?.[0] ?? "");
     expect(select).not.toContain("*");
-    // Nagłówek potrzebuje dokładnie tych czterech kolumn - nic więcej.
-    expect(select).toBe("first_name, last_name, display_name, avatar_url");
+    // Nagłówek potrzebuje dokładnie tych SZEŚCIU kolumn - nic więcej. `job_title`
+    // i `current_company` doszły razem z kartą profilu widza na stronie
+    // wydarzenia (`useViewerCardFacts`), która czyta ten sam hook, żeby nie
+    // stawiać drugiego zapytania o ten sam wiersz. Lista jest tu WYPISANA, a nie
+    // policzona z kodu produkcyjnego, i to jest celowe: rozszerzenie selekcji
+    // `profiles` ma wymagać świadomej zmiany testu, bo każda dołożona kolumna
+    // to decyzja o tym, co wychodzi z tabeli z grantami kolumnowymi i PII.
+    expect(select).toBe(
+      "first_name, last_name, display_name, avatar_url, job_title, current_company",
+    );
   });
 
   it("brak wiersza daje `null`, nie błąd renderu nagłówka", async () => {

@@ -47,6 +47,15 @@ export const communityPl = {
       backToList: "Wróć do listy wydarzeń",
       membersOnly: "Dla członków",
       proBriefing: "Briefing Pro",
+      // Format wydarzenia z kolumny `events.format` (onsite/online/hybrid) -
+      // NIE z legacy `events.kind`. Kafel katalogu porownywal sie do wartosci
+      // "online", ktorej `kind` nie moze przyjac (CHECK dopuszcza webinar,
+      // briefing, roundtable, ama, in_person, hybrid), wiec plakietka byla
+      // martwa, a pole z panelu nie mialo ujscia. Trzy wartosci, trzy napisy -
+      // brak wartosci nie ma napisu, bo kolumna jest NOT NULL z domyslna.
+      formatOnsite: "Na miejscu",
+      formatOnline: "Online",
+      formatHybrid: "Hybrydowe",
       tierRequired: "To wydarzenie jest dostępne dla członkostwa {{tier}}.",
       tierRequiredGeneric: "To wydarzenie wymaga wyższego poziomu członkostwa.",
       tierUpgradeCta: "Zobacz plany członkostwa",
@@ -277,6 +286,9 @@ export const communityEn = {
       backToList: "Back to events",
       membersOnly: "Members only",
       proBriefing: "Pro briefing",
+      formatOnsite: "On site",
+      formatOnline: "Online",
+      formatHybrid: "Hybrid",
       tierRequired: "This event is available with the {{tier}} membership.",
       tierRequiredGeneric: "This event requires a higher membership tier.",
       tierUpgradeCta: "See membership plans",

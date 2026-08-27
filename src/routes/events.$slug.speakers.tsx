@@ -27,6 +27,7 @@ import {
   type SpeakerDialogFallback,
 } from "@/components/events/SpeakerProfileDialog";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 
 export const Route = createFileRoute("/events/$slug/speakers")({
   component: EventSpeakersTab,
@@ -45,8 +46,15 @@ function EventSpeakersTab() {
   // Dane awaryjne dialogu bierzemy z wiersza, w który uczestnik kliknął -
   // dzięki temu okno ma nazwisko i zdjęcie od pierwszej klatki, jeszcze zanim
   // dojedzie pełny profil.
+  //
+  // CAŁY WIERSZ, NIE TYLKO `userId`. Dla prelegenta BEZ KONTA `user_id` jest
+  // pusty, więc dialog nie ma czym zapytać bazy - jego biogram, tematy, języki
+  // i statystyki przyszły W TYM WIERSZU z `event_speakers_public` i tylko tędy
+  // mogą wejść do okna. Osoba z kontem dostaje jedno i drugie: wiersz od razu,
+  // dociągnięty profil chwilę później (pierwszeństwo rozstrzyga dialog).
   const [selected, setSelected] = useState<{
     userId: string;
+    row: PublicSpeakerRow;
     fallback: SpeakerDialogFallback;
   } | null>(null);
 
@@ -57,6 +65,7 @@ function EventSpeakersTab() {
         onSelect={(speaker) =>
           setSelected({
             userId: speaker.user_id,
+            row: speaker,
             fallback: {
               name: speaker.display_name ?? "",
               // Ta sama kolejność, co w karcie siatki: `headline` w języku
@@ -71,6 +80,7 @@ function EventSpeakersTab() {
       {selected !== null && (
         <SpeakerProfileDialog
           userId={selected.userId}
+          row={selected.row}
           lang={lang}
           open
           onOpenChange={(open) => {

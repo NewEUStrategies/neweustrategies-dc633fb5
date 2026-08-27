@@ -254,10 +254,37 @@ function Section({
   );
 }
 
-function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
+// Format wydarzenia -> klucz slownika. Mapa, nie sklejanie napisu z wartosci
+// kolumny: `t("community.events.format" + capitalize(ev.format))` dawaloby klucz
+// niewidoczny dla bramki parytetu PL/EN i cichy brak napisu przy nowej wartosci
+// w CHECK. Nieznana wartosc daje null, czyli BRAK plakietki - kafel bez plakietki
+// czyta sie jak brak informacji, a kafel z surowym „onsite” jak awaria.
+const EVENT_FORMAT_KEY: Record<string, string> = {
+  onsite: "community.events.formatOnsite",
+  online: "community.events.formatOnline",
+  hybrid: "community.events.formatHybrid",
+};
+
+// EKSPORT WYŁĄCZNIE DLA TESTU KAFLA. Trasa nie potrzebuje go na zewnątrz, ale
+// dowód „plakietka formatu bierze się z `events.format`" musi zamontować kafel
+// z prawdziwym wierszem `PublicEvent` - a nie porównywać kształt kodu. Bramka,
+// która czytała importy zamiast drzewa, była już w tym repozytorium zielona
+// wtedy, gdy pilnowana rzecz była zepsuta.
+export function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
   const { t } = useTranslation();
+  // `events.format` (onsite/online/hybrid) - to jest kolumna, ktora zapisuje
+  // droplista „Format” w studiu. Poprzednio kafel czytal `events.kind`, ktorego
+  // studio nie rusza i ktorego CHECK nie dopuszcza wartosci „online” - warunek
+  // nie mial jak byc prawdziwy ani jednego razu.
+  const formatKey = EVENT_FORMAT_KEY[event.format] ?? null;
   const title = lang === "en" ? event.title_en || event.title_pl : event.title_pl || event.title_en;
-  const desc = lang === "en" ? event.description_en : event.description_pl;
+  // FALLBACK JAK W TYTULE, i z tego samego powodu. Bez niego wydarzenie opisane
+  // tylko po polsku ma na kaflu sam tytul, a czytelnik z interfejsem EN nie
+  // dowie sie z katalogu, czego dotyczy - mimo ze redakcja opis wpisala.
+  const desc =
+    lang === "en"
+      ? event.description_en || event.description_pl
+      : event.description_pl || event.description_en;
   // Godzina liczy sie w STREFIE WYDARZENIA, nie w strefie przegladarki, a obok
   // niej stoi nazwa tej strefy. Bez jednego i drugiego uczestnik z Brukseli
   // czytal godzine warszawska jako swoja i przychodzil o zlej godzinie - to jest
@@ -310,10 +337,10 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
               {event.location}
             </span>
           )}
-          {event.kind === "online" && (
+          {formatKey === null ? null : (
             <span className="inline-flex items-center gap-1">
               <Video className="h-3.5 w-3.5" aria-hidden="true" />
-              online
+              {t(formatKey)}
             </span>
           )}
           {event.capacity !== null && (

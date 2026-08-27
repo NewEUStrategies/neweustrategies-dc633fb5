@@ -1,7 +1,17 @@
 // Sekcja "Prelegenci" na stronie wydarzenia (/events/$slug). Prelegenci
-// pochodza z relacji event_speakers (kolejnosc sort_order) wzbogaconej o
-// profil prelegenta i eksperta (RPC get_public_speakers). Klik otwiera
-// SpeakerProfileDialog. Sekcja znika, gdy wydarzenie nie ma prelegentow.
+// pochodza z rejestru `event_speaker_entries` (kolejnosc sort_order),
+// scalonego z legacy `event_speakers`, wzbogaconego o profil prelegenta
+// i eksperta - RPC `event_speakers_public`. Klik otwiera SpeakerProfileDialog.
+// Sekcja znika, gdy wydarzenie nie ma prelegentow.
+//
+// PRELEGENT BEZ KONTA JEST TU CHIPEM JAK KAZDY INNY. Poprzednia projekcja
+// (`get_public_speakers`) zlewala rejestr z `profiles` przez INNER JOIN, wiec
+// osoba wpisana recznie w studiu - bez konta, z wierszem w `event_people` -
+// wypadala z listy BEZWARUNKOWO I BEZ BLEDU. Dla tego pliku znaczy to trzy
+// rzeczy: klucz wpisu nie moze stac na `user_id` (`speakerRowKey`), klik nie
+// moze byc bezwarunkowy (`speakerHasProfileToShow`), a dialog musi dostac CALY
+// WIERSZ - bo dla osoby bez konta nie ma czego dociagac po `user_id`.
+// Pilnuje tego bramka `__tests__/eventSpeakerWithoutAccount.gate.test.tsx`.
 //
 // TO JEST ZAPOWIEDZ, NIE DRUGA LISTA - I TAK MA ZOSTAC. Uklad poziomych chipow
 // jest zamierzony i rozny od siatki na zakladce `/events/<slug>/speakers`
@@ -32,7 +42,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { speakersQueryOptions } from "@/lib/builder/speakersQuery";
+import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
+import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { eventSectionHeading, type EventSection } from "@/lib/events/eventSections";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -59,6 +70,8 @@ export function EventSpeakersSection({
   });
   const [dialogSpeaker, setDialogSpeaker] = useState<{
     userId: string;
+    /** Fakty JUZ MAM w wierszu - dla osoby bez konta to jedyne, co dialog dostanie. */
+    row: PublicSpeakerRow;
     fallback: SpeakerDialogFallback;
   } | null>(null);
 
@@ -78,23 +91,32 @@ export function EventSpeakersSection({
           // jako wypelniony, wiec ta sama osoba mogla miec tu pusta linie roli,
           // a w siatce stanowisko z profilu.
           const role = pickLocalized(speaker, "headline", lang, speaker.job_title ?? "");
+          // Klik ma sens tylko wtedy, gdy dialog ma co pokazac - inaczej chip
+          // zostaje MARTWYM WPISEM (`SpeakerChip` bez `onClick` nie udaje
+          // przycisku, wiec czytnik ekranu nie oglasza akcji, ktorej nie ma).
+          // Ten sam predykat rozstrzyga to w siatce na zakladce.
+          const openable = speakerHasProfileToShow(speaker);
           return (
-            <li key={speaker.user_id}>
+            <li key={speakerRowKey(speaker)}>
               <SpeakerChip
                 name={speaker.display_name ?? ""}
                 role={role}
                 organization={speaker.company ?? ""}
                 photoUrl={speaker.avatar_url}
                 size="lg"
-                onClick={() =>
-                  setDialogSpeaker({
-                    userId: speaker.user_id,
-                    fallback: {
-                      name: speaker.display_name ?? "",
-                      role,
-                      photo: speaker.avatar_url ?? undefined,
-                    },
-                  })
+                onClick={
+                  openable
+                    ? () =>
+                        setDialogSpeaker({
+                          userId: speaker.user_id,
+                          row: speaker,
+                          fallback: {
+                            name: speaker.display_name ?? "",
+                            role,
+                            photo: speaker.avatar_url ?? undefined,
+                          },
+                        })
+                    : undefined
                 }
                 trailing={speaker.is_expert ? <SpeakerExpertBadge /> : undefined}
               />
@@ -106,6 +128,7 @@ export function EventSpeakersSection({
       {dialogSpeaker && (
         <SpeakerProfileDialog
           userId={dialogSpeaker.userId}
+          row={dialogSpeaker.row}
           lang={lang}
           open
           onOpenChange={(open) => {
