@@ -34,6 +34,8 @@ import {
 import { asEventFormat } from "@/lib/events/eventTypes";
 import { adminEventStudioErrorMessage } from "@/lib/events/adminEventStudioErrors";
 import { useAdminEventDetail, useSetEventStatus } from "@/lib/events/useAdminEventDetail";
+import { useAdminEventPages } from "@/lib/events/useAdminEventPages";
+import { eventPreviewMenu } from "@/lib/events/eventPagesApi";
 import type { EventStatus } from "@/lib/events/eventDetailApi";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { uiLang } from "@/lib/i18n/format";
@@ -67,6 +69,25 @@ export function EventStudioShell({
   const canWrite = isAdmin || roles.includes("editor");
 
   const detailQ = useAdminEventDetail(canWrite ? eventId : "");
+  // PODSTRONY CZYTA RAMA, A NIE TYLKO EKRAN „STRONY I MENU” - i to jest naprawa
+  // konkretnego zgloszenia. Podglad wydarzenia bierze pozycje paska zakladek
+  // i spis sekcji strony glownej z `model.menu`, a ten do tej pory wypelnial
+  // WYLACZNIE tamten ekran (`useSyncEventPreview`). Redaktor, ktory otworzyl
+  // podglad z „Informacji ogolnych", widzial wiec strone bez paska zakladek
+  // i bez ani jednego wiersza sekcji - czyli mniej, niz zobaczy uczestnik.
+  //
+  // TO WOLANIE MA SKUTEK UBOCZNY I JEST TO SKUTEK POZADANY: `admin_event_pages_list`
+  // DOSIEWA brakujace strony modulowe na wejsciu (migracja 20260826181500,
+  // krok 4b), a dla wydarzen sprzed tej migracji nie ma backfillu. Dopoki
+  // dosiew odpalal sie tylko na jednym ekranie, wydarzenie mialo piec sekcji
+  // dopiero po tym, jak ktos tam wszedl. Zasiew jest idempotentny (wyjscie na
+  // skroty jednym `count(*)`), wiec wejscie do studia nie kosztuje zapisu.
+  //
+  // BRAMKA ROLI JEST WEZSZA NIZ BRAMKA STUDIA, i dlatego stoi tu `isAdmin`,
+  // a nie `canWrite`: RPC listy stoi na `assert_event_admin_tenant()` (admin
+  // albo super_admin, NIGDY editor - `20260824090000`), wiec redaktor dostalby
+  // odmowe. Pytanie, na ktore z gory znamy odpowiedz „forbidden", nie leci.
+  const pagesQ = useAdminEventPages(isAdmin ? eventId : "");
   const setStatus = useSetEventStatus(eventId);
   // PODGLĄD JEST ZAMKNIĘTY NA WEJŚCIU. Studio to panel zarządzania wydarzeniem;
   // podgląd strony publicznej otwarty domyślnie zasłaniał cały panel (sidebar
@@ -75,6 +96,7 @@ export function EventStudioShell({
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const row = detailQ.data ?? null;
+  const pages = pagesQ.data ?? null;
   const activeSection = eventStudioSectionFromPath(pathname);
 
   // PRZELACZNIKI MODULOW CZYTA RAMA, nie sidebar i nie sekcja. Rama ma wiersz,
@@ -118,8 +140,13 @@ export function EventStudioShell({
       status: row.status ?? "draft",
       branding: eventBrandingFromJson(row.branding),
       pagesDisplayMode: row.pages_display_mode === "grid" ? "grid" : "list",
+      // Pozycje licza sie WSPOLNYM mapowaniem z ekranem „Strony i menu”
+      // (`eventPreviewMenu`), zeby szkic tamtego ekranu nakladal sie na ten sam
+      // kszalt, a nie na drugi. Brak odpowiedzi (wczytywanie, odmowa roli)
+      // zostaje pustka - podglad pokazuje wtedy tyle, ile umie udowodnic.
+      menu: eventPreviewMenu(pages ?? [], lang),
     };
-  }, [row]);
+  }, [row, pages, lang]);
 
   if (!canWrite) {
     return (
