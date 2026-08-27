@@ -166,7 +166,6 @@ function Field({
   );
 }
 
-
 function Section({
   title,
   delayMs,
@@ -178,16 +177,17 @@ function Section({
 }) {
   return (
     <section
-      className="pc-rise-y space-y-3 rounded-[6px] border border-border/60 bg-muted/20 p-3"
+      className="pc-rise-y space-y-2.5 rounded-[6px] border border-border/60 bg-muted/20 p-3"
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </h3>
       {children}
     </section>
   );
 }
+
 
 export function EventSpeakerCreateDialog({
   eventId,
