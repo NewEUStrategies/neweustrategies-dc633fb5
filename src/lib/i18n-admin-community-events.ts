@@ -164,6 +164,10 @@ export const adminCommunityEventsPl = {
         photoRemove: "Usuń zdjęcie",
         photoFailed: "Nie udało się wgrać zdjęcia.",
         photoAlt: "Podgląd zdjęcia prelegenta",
+        photoReplace: "Podmień zdjęcie",
+        photoDropHint:
+          "Przeciągnij i upuść plik na kafel albo wgraj z dysku - podgląd zobaczysz przed zapisem. Możesz też podać adres https.",
+
 
         headlinePl: "Rola sceniczna PL",
         headlineEn: "Rola sceniczna EN",
@@ -363,6 +367,10 @@ export const adminCommunityEventsEn = {
         photoRemove: "Remove photo",
         photoFailed: "The photo could not be uploaded.",
         photoAlt: "Speaker photo preview",
+        photoReplace: "Replace photo",
+        photoDropHint:
+          "Drag and drop a file onto the tile or upload from disk - you see the preview before saving. An https URL also works.",
+
 
         headlinePl: "Stage headline PL",
         headlineEn: "Stage headline EN",
