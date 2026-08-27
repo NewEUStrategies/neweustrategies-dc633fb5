@@ -463,6 +463,17 @@ export const adminEventAgendaPl = {
 
 export const adminEventAgendaEn = {
   adminEventAgenda: {
+    imageDrop: {
+      upload: "Upload from disk",
+      replace: "Replace",
+      remove: "Remove the image",
+      uploading: "Uploading…",
+      dropHint: "Drop a file here or click to pick one from your disk",
+      recommended: "Recommended size: {{size}}",
+      urlLabel: "Image address",
+      failed: "The image could not be uploaded.",
+    },
+
     nav: {
       sectionTitle: "Agenda",
       sectionsNavLabel: "Event agenda sections",
