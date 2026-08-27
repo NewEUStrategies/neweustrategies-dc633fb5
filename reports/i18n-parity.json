@@ -32,6 +32,7 @@
   "missingEn": [],
   "missingPl": [],
   "untranslated": [
+    "adminEventAgenda.tracks.workspace.minutes",
     "adminEvents.general.videoPlatforms.vimeo",
     "adminEvents.general.videoPlatforms.youtube",
     "adminEvents.list.create.formatLabel",
@@ -39,6 +40,7 @@
     "adminEvents.studio.general.hashtag",
     "adminEvents.studio.general.regionLabel",
     "adminEvents.studio.pages.standard",
+    "adminEvents.studio.preview.formatLabel",
     "adminEvents.studio.sections.branding",
     "adminPostPanes.editor.langEn",
     "adminPostPanes.general.badgeOverride",
@@ -202,6 +204,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 497
+    "untranslated": 499
   }
 }
