@@ -44,6 +44,11 @@ import { useSponsors } from "@/lib/events/useEventSponsors";
 import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
+import type { BuilderDocument } from "@/lib/builder/types";
+
+/** Cel nawigacji podgladu z wlasna kopia etykiety i sciezki (patrz nizej). */
+type PreviewNavTarget = { key: string; pageId: string; label: string; path: string };
+
 
 export function EventStudioPreview({
   open,
