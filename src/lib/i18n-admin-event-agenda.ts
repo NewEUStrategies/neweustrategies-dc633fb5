@@ -17,6 +17,17 @@ import i18n from "@/lib/i18n";
 
 export const adminEventAgendaPl = {
   adminEventAgenda: {
+    imageDrop: {
+      upload: "Wgraj z dysku",
+      replace: "Podmień",
+      remove: "Usuń grafikę",
+      uploading: "Wgrywam…",
+      dropHint: "Przeciągnij plik tutaj albo kliknij, aby wybrać z dysku",
+      recommended: "Rekomendowane wymiary: {{size}}",
+      urlLabel: "Adres grafiki",
+      failed: "Nie udało się wgrać grafiki.",
+    },
+
     nav: {
       sectionTitle: "Agenda",
       sectionsNavLabel: "Sekcje agendy wydarzenia",
