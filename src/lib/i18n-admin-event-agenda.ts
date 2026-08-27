@@ -146,6 +146,14 @@ export const adminEventAgendaPl = {
       },
     },
 
+    program: {
+      title: "Program",
+      subtitle:
+        "Program buduje się ścieżkami: pasmo to temat, a sesje planujesz po wejściu w ścieżkę. Pełna lista sesji jest w drugiej zakładce.",
+      tabTracks: "Ścieżki",
+      tabSessions: "Wszystkie sesje",
+    },
+
     tracks: {
       title: "Ścieżki",
       subtitle: "Równoległe pasma programu. Kolor ścieżki wraca na publicznej agendzie.",
@@ -210,6 +218,8 @@ export const adminEventAgendaPl = {
         metricMinutes: "Czas programu",
         minutes: "{{count}} min",
         sessionsEmpty: "Pasmo nie ma jeszcze sesji. Powiąż istniejące albo dodaj nowe.",
+        sessionsLead:
+          "Tu planujesz całe pasmo: dodaj sesję, ustaw godziny i salę, opublikuj albo odwołaj. Nowa sesja trafia od razu do tej ścieżki.",
         speakersLoading: "Wczytywanie obsady…",
         speakersEmpty: "Obsada wynika z sesji pasma - na razie nikt nie jest przypisany.",
         window: "Okno programu",
@@ -476,6 +486,14 @@ export const adminEventAgendaEn = {
       },
     },
 
+    program: {
+      title: "Programme",
+      subtitle:
+        "The programme is built from tracks: a track is a theme and sessions are planned inside it. The full session list lives in the second tab.",
+      tabTracks: "Tracks",
+      tabSessions: "All sessions",
+    },
+
     tracks: {
       title: "Tracks",
       subtitle: "Parallel strands of the programme. The track colour returns on the public agenda.",
@@ -539,6 +557,8 @@ export const adminEventAgendaEn = {
         metricMinutes: "Programme time",
         minutes: "{{count}} min",
         sessionsEmpty: "The strand has no sessions yet. Link existing ones or add new.",
+        sessionsLead:
+          "Plan the whole strand here: add a session, set the time and room, publish or cancel it. A new session lands in this track right away.",
         speakersLoading: "Loading the line-up…",
         speakersEmpty: "The line-up follows the sessions - nobody is assigned yet.",
         window: "Programme window",

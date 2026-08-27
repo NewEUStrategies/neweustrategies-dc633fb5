@@ -37,8 +37,7 @@ import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSec
 import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";
 import { AgendaConflictsPanel } from "@/components/admin/events/organisms/AgendaConflictsPanel";
 import { AgendaRoomsPanel } from "@/components/admin/events/organisms/AgendaRoomsPanel";
-import { AgendaSessionsPanel } from "@/components/admin/events/organisms/AgendaSessionsPanel";
-import { AgendaTracksPanel } from "@/components/admin/events/organisms/AgendaTracksPanel";
+import { EventProgramPanel } from "@/components/admin/events/organisms/EventProgramPanel";
 import { EventTermsPanel } from "@/components/admin/events/organisms/EventTermsPanel";
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { GroupMembersPanel } from "@/components/admin/events/organisms/GroupMembersPanel";
@@ -123,7 +122,7 @@ export function EventContentSessionsSection({ row }: { row: AdminEventDetailRow 
   const timeZoneLabel = eventTimeZone({ timezone: row.timezone });
   return (
     <ModuleScreen titleKey="adminEventAgenda.nav.sessions">
-      <AgendaSessionsPanel key={row.id} eventId={row.id} timeZoneLabel={timeZoneLabel} />
+      <EventProgramPanel key={row.id} eventId={row.id} timeZoneLabel={timeZoneLabel} />
     </ModuleScreen>
   );
 }
@@ -154,7 +153,11 @@ export function EventContentTracksSection({ row }: { row: AdminEventDetailRow })
   ensureAgendaI18n();
   return (
     <ModuleScreen titleKey="adminEventAgenda.nav.tracks">
-      <AgendaTracksPanel key={row.id} eventId={row.id} />
+      <EventProgramPanel
+        key={row.id}
+        eventId={row.id}
+        timeZoneLabel={eventTimeZone({ timezone: row.timezone })}
+      />
     </ModuleScreen>
   );
 }

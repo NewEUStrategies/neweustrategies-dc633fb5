@@ -43,7 +43,13 @@ import {
 } from "@/lib/events/useEventSessions";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
 
-export function AgendaTracksPanel({ eventId }: { eventId: string }) {
+interface AgendaTracksPanelProps {
+  eventId: string;
+  /** Strefa wydarzenia - przechodzi do zakładki sesji otwartego pasma. */
+  timeZoneLabel: string;
+}
+
+export function AgendaTracksPanel({ eventId, timeZoneLabel }: AgendaTracksPanelProps) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
   const listQ = useEventTracks(eventId);
@@ -146,6 +152,7 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
       <EventTrackWorkspace
         eventId={eventId}
         track={opened}
+        timeZoneLabel={timeZoneLabel}
         onBack={() => setOpenedId(null)}
       />
     );

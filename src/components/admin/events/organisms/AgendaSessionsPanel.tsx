@@ -53,14 +53,27 @@ interface AgendaSessionsPanelProps {
   eventId: string;
   /** Etykieta strefy wydarzenia - godziny wpisuje się w niej, nie w UTC. */
   timeZoneLabel: string;
+  /**
+   * Ścieżka, w której planujemy. Ustawiona = panel jest ZAKŁADKĄ PASMA: lista
+   * pokazuje wyłącznie sesje tej ścieżki, filtr ścieżki znika (nie ma czego
+   * wybierać), a nowa sesja rodzi się już przypięta do pasma.
+   */
+  lockedTrackId?: string | null;
+  /** W zakładce pasma nagłówek i diagram stoją wyżej - nie powielamy ich. */
+  embedded?: boolean;
 }
 
-export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPanelProps) {
+export function AgendaSessionsPanel({
+  eventId,
+  timeZoneLabel,
+  lockedTrackId = null,
+  embedded = false,
+}: AgendaSessionsPanelProps) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
 
   const [search, setSearch] = useState("");
-  const [trackId, setTrackId] = useState<string>(ALL);
+  const [trackId, setTrackId] = useState<string>(lockedTrackId ?? ALL);
   const [roomId, setRoomId] = useState<string>(ALL);
   const [status, setStatus] = useState<SessionStatusFilter>("all");
 
@@ -69,7 +82,7 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
   const listQ = useEventSessions({
     eventId,
     q: search,
-    trackId: trackId === ALL ? null : trackId,
+    trackId: lockedTrackId ?? (trackId === ALL ? null : trackId),
     roomId: roomId === ALL ? null : roomId,
     status,
   });
@@ -85,7 +98,11 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
   const tracks = tracksQ.data ?? [];
   const rooms = roomsQ.data ?? [];
   const rows = listQ.data ?? [];
-  const hasFilters = search.trim() !== "" || trackId !== ALL || roomId !== ALL || status !== "all";
+  const hasFilters =
+    search.trim() !== "" ||
+    (lockedTrackId === null && trackId !== ALL) ||
+    roomId !== ALL ||
+    status !== "all";
 
   const nextSortOrder = useMemo(
     () => rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10,
@@ -155,12 +172,18 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
   return (
     <section className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="font-display text-lg">{t("adminEventAgenda.sessions.title")}</h2>
+        {embedded ? (
           <p className="max-w-2xl text-sm text-muted-foreground">
-            {t("adminEventAgenda.sessions.subtitle")}
+            {t("adminEventAgenda.tracks.workspace.sessionsLead")}
           </p>
-        </div>
+        ) : (
+          <div className="space-y-1">
+            <h2 className="font-display text-lg">{t("adminEventAgenda.sessions.title")}</h2>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              {t("adminEventAgenda.sessions.subtitle")}
+            </p>
+          </div>
+        )}
         <Button
           onClick={() => {
             setEdited(null);
@@ -172,16 +195,18 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
         </Button>
       </header>
 
-      <AgendaStructureDiagram
-        tracks={tracks.map((row) => ({
-          id: row.id,
-          name: isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en,
-          accentColor: row.accent_color,
-          sessionsCount: row.sessions_count,
-        }))}
-        unassignedCount={rows.filter((row) => row.track_id === "").length}
-        highlight="sessions"
-      />
+      {embedded ? null : (
+        <AgendaStructureDiagram
+          tracks={tracks.map((row) => ({
+            id: row.id,
+            name: isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en,
+            accentColor: row.accent_color,
+            sessionsCount: row.sessions_count,
+          }))}
+          unassignedCount={rows.filter((row) => row.track_id === "").length}
+          highlight="sessions"
+        />
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input
@@ -190,21 +215,23 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
           placeholder={t("adminEventAgenda.sessions.searchPlaceholder")}
           aria-label={t("adminEventAgenda.sessions.searchPlaceholder")}
         />
-        <AdminFormEnumRow
-          label={t("adminEventAgenda.nav.tracks")}
-          value={trackId}
-          options={trackOptions}
-          labelFor={(value) =>
-            value === ALL
-              ? t("adminEventAgenda.sessions.allTracks")
-              : (() => {
-                  const found = tracks.find((row) => row.id === value);
-                  if (found === undefined) return value;
-                  return isEn ? found.name_en || found.name_pl : found.name_pl || found.name_en;
-                })()
-          }
-          onValueChange={setTrackId}
-        />
+        {lockedTrackId === null ? (
+          <AdminFormEnumRow
+            label={t("adminEventAgenda.nav.tracks")}
+            value={trackId}
+            options={trackOptions}
+            labelFor={(value) =>
+              value === ALL
+                ? t("adminEventAgenda.sessions.allTracks")
+                : (() => {
+                    const found = tracks.find((row) => row.id === value);
+                    if (found === undefined) return value;
+                    return isEn ? found.name_en || found.name_pl : found.name_pl || found.name_en;
+                  })()
+            }
+            onValueChange={setTrackId}
+          />
+        ) : null}
         <AdminFormEnumRow
           label={t("adminEventAgenda.nav.rooms")}
           value={roomId}
@@ -241,7 +268,9 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
         emptyLabel={t(
           hasFilters
             ? "adminEventAgenda.sessions.emptyFiltered"
-            : "adminEventAgenda.sessions.empty",
+            : lockedTrackId === null
+              ? "adminEventAgenda.sessions.empty"
+              : "adminEventAgenda.tracks.workspace.sessionsEmpty",
         )}
       >
         <ul className="space-y-2">
@@ -361,6 +390,7 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
         sessions={rows}
         timeZoneLabel={timeZoneLabel}
         nextSortOrder={nextSortOrder}
+        defaultTrackId={lockedTrackId}
         isSaving={save.isPending}
         onSubmit={submit}
       />

@@ -12,15 +12,25 @@
 // OBSADA JEST WYLICZANA, NIE WPISYWANA. Prelegent należy do SESJI; pasmo
 // pokazuje sumę tych przypisań (`admin_event_track_speakers`). Osobna lista
 // prelegentów ścieżki rozjeżdżałaby się z agendą po pierwszej zmianie obsady.
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, CalendarClock, CheckCircle2, Clock, LayoutList, Link2, Pencil, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  
+  CheckCircle2,
+  Clock,
+  LayoutList,
+  Link2,
+  Pencil,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
+import { AgendaSessionsPanel } from "@/components/admin/events/organisms/AgendaSessionsPanel";
 import { AdminMetricTile } from "@/components/admin/molecules/AdminMetricTile";
 import { EventTrackDialog } from "@/components/admin/events/molecules/EventTrackDialog";
 import {
@@ -29,7 +39,6 @@ import {
 } from "@/components/admin/events/molecules/TrackSessionsLinkDialog";
 import { adminAgendaErrorMessage } from "@/lib/events/adminAgendaErrors";
 import {
-  useEventSessions,
   useEventTrackSpeakers,
   useSaveEventTrack,
   useSetSessionsTrack,
@@ -39,6 +48,8 @@ import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
 interface EventTrackWorkspaceProps {
   eventId: string;
   track: EventTrackRow;
+  /** Strefa wydarzenia - sesje pasma planuje się w niej, nie w UTC. */
+  timeZoneLabel: string;
   onBack: () => void;
 }
 
@@ -55,7 +66,12 @@ function initialsOf(name: string): string {
   return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "?";
 }
 
-export function EventTrackWorkspace({ eventId, track, onBack }: EventTrackWorkspaceProps) {
+export function EventTrackWorkspace({
+  eventId,
+  track,
+  timeZoneLabel,
+  onBack,
+}: EventTrackWorkspaceProps) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
   const locale = isEn ? "en-GB" : "pl-PL";
@@ -63,13 +79,6 @@ export function EventTrackWorkspace({ eventId, track, onBack }: EventTrackWorksp
   const save = useSaveEventTrack(eventId);
   const setTrack = useSetSessionsTrack(eventId);
   const speakersQ = useEventTrackSpeakers(track.id);
-  const sessionsQ = useEventSessions({
-    eventId,
-    q: "",
-    trackId: track.id,
-    roomId: null,
-    status: "all",
-  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -81,12 +90,6 @@ export function EventTrackWorkspace({ eventId, track, onBack }: EventTrackWorksp
   const description = isEn
     ? track.description_en || track.description_pl
     : track.description_pl || track.description_en;
-
-  const sessions = useMemo(
-    () =>
-      [...(sessionsQ.data ?? [])].sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at))),
-    [sessionsQ.data],
-  );
 
   const fail = (error: unknown) => toast.error(adminAgendaErrorMessage(error));
 
@@ -134,12 +137,7 @@ export function EventTrackWorkspace({ eventId, track, onBack }: EventTrackWorksp
 
       <header className="overflow-hidden rounded-md border border-border/70">
         {track.cover_url === null || track.cover_url === "" ? null : (
-          <img
-            src={track.cover_url}
-            alt=""
-            className="h-40 w-full object-cover"
-            loading="lazy"
-          />
+          <img src={track.cover_url} alt="" className="h-40 w-full object-cover" loading="lazy" />
         )}
         <div className="flex flex-wrap items-start justify-between gap-3 p-4">
           <div className="min-w-0 space-y-1">
@@ -214,45 +212,17 @@ export function EventTrackWorkspace({ eventId, track, onBack }: EventTrackWorksp
         </TabsList>
 
         <TabsContent value="sessions" className="pt-4">
-          <AdminCatalogListState
-            isLoading={sessionsQ.isLoading}
-            loadingLabel={t("adminEventAgenda.sessions.loading")}
-            errorMessage={
-              sessionsQ.error === null || sessionsQ.error === undefined
-                ? null
-                : adminAgendaErrorMessage(sessionsQ.error)
-            }
-            isEmpty={sessions.length === 0}
-            emptyLabel={t("adminEventAgenda.tracks.workspace.sessionsEmpty")}
-          >
-            <ol className="space-y-2">
-              {sessions.map((session, index) => (
-                <li
-                  key={session.id}
-                  className="flex flex-wrap items-center gap-3 rounded-md border border-border/70 p-3"
-                >
-                  <span className="w-6 shrink-0 text-sm text-muted-foreground">{index + 1}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {isEn
-                        ? session.title_en || session.title_pl
-                        : session.title_pl || session.title_en}
-                    </p>
-                    <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                      <CalendarClock className="h-3 w-3" aria-hidden="true" />
-                      {timeLabel(session.starts_at, locale)}
-                      {session.room_name === null || session.room_name === ""
-                        ? null
-                        : ` · ${session.room_name}`}
-                    </p>
-                  </div>
-                  <Badge variant={session.status === "published" ? "secondary" : "outline"}>
-                    {t(`adminEventAgenda.statuses.${session.status}`)}
-                  </Badge>
-                </li>
-              ))}
-            </ol>
-          </AdminCatalogListState>
+          {/*
+            SESJA JEST ZAKŁADKĄ PASMA. Cały warsztat programu - dodawanie,
+            edycja, publikacja, odwołanie i kasowanie - stoi tutaj, zawężony do
+            tej ścieżki, żeby planować pasmo, a nie przeszukiwać cały program.
+          */}
+          <AgendaSessionsPanel
+            eventId={eventId}
+            timeZoneLabel={timeZoneLabel}
+            lockedTrackId={track.id}
+            embedded
+          />
         </TabsContent>
 
         <TabsContent value="speakers" className="pt-4">
