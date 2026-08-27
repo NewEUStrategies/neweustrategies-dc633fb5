@@ -27,6 +27,7 @@ interface EventProgramPanelProps {
 export function EventProgramPanel({
   eventId,
   timeZoneLabel,
+  timezone,
   openedTrackId,
   onOpenTrack,
 }: EventProgramPanelProps) {
@@ -54,6 +55,11 @@ export function EventProgramPanel({
         openedTrackId={openedTrackId}
         onOpenTrack={onOpenTrack}
       />
+
+      {/* Siatka stoi POD listą pasm i tylko poza warsztatem: w warsztacie
+          ścieżki uwaga jest na jednym paśmie, a siatka mówi o całym dniu. */}
+      {!isWorkspace && <AgendaTimelinePanel eventId={eventId} timezone={timezone ?? null} />}
     </section>
   );
+
 }
