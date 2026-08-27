@@ -30,6 +30,7 @@ import {
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { EventSessionDialog } from "@/components/admin/events/molecules/EventSessionDialog";
+import { AgendaStructureDiagram } from "@/components/admin/events/molecules/AgendaStructureDiagram";
 import { adminAgendaErrorMessage } from "@/lib/events/adminAgendaErrors";
 import {
   SESSION_STATUSES,
@@ -170,6 +171,17 @@ export function AgendaSessionsPanel({ eventId, timeZoneLabel }: AgendaSessionsPa
           {t("adminEventAgenda.sessions.addAction")}
         </Button>
       </header>
+
+      <AgendaStructureDiagram
+        tracks={tracks.map((row) => ({
+          id: row.id,
+          name: isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en,
+          accentColor: row.accent_color,
+          sessionsCount: row.sessions_count,
+        }))}
+        unassignedCount={rows.filter((row) => row.track_id === "").length}
+        highlight="sessions"
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input
