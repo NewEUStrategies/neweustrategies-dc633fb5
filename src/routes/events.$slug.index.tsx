@@ -254,7 +254,27 @@ function EventOverview() {
 
   const ev = eventQ.data;
   const title = lang === "en" ? ev.title_en || ev.title_pl : ev.title_pl || ev.title_en;
-  const desc = lang === "en" ? ev.description_en : ev.description_pl;
+  // OPIS MA FALLBACK JĘZYKA DOKŁADNIE TAK, JAK TYTUŁ LINIĘ WYŻEJ.
+  //
+  // Stało tu `lang === "en" ? ev.description_en : ev.description_pl` - bez
+  // drugiego członu. Skutek był asymetryczny i cichy: opis wpisany TYLKO po
+  // polsku (a tak powstaje każde wydarzenie, bo panel nie wymaga wersji
+  // angielskiej) był dla czytelnika z interfejsem EN NIEWIDOCZNY - blok `prose`
+  // po prostu nie renderował się (`desc ? … : null`), a razem z nim znikał
+  // `description` z węzła `schema.org/Event`. Tytuł tego samego wydarzenia
+  // wychodził po polsku, więc strona pokazywała polski nagłówek nad pustką.
+  //
+  // WZORZEC RĘCZNY, A NIE `pickLocalized`, I TO JEST WYBÓR, NIE PRZEOCZENIE.
+  // Tytuł w linii wyżej liczy się tym samym `a || b`, a dwa różne mechanizmy
+  // w dwóch sąsiednich liniach czytają się jak przypadek - następny czytający
+  // musiałby sprawdzić, czy różnica coś znaczy. Druga, twardsza przesłanka:
+  // `pickLocalized` zwraca `""` przy braku obu wersji, a ten `desc` jedzie do
+  // `publicEventJsonLd`, którego kontrakt (`jsonld.ts:506-510`) rozróżnia brak
+  // opisu od opisu pustego. `null` z tego wyrażenia jest tam informacją.
+  // Reguła fallbacku jest identyczna z tą ze `lib/i18n/pickLocalized` (żądany
+  // język -> drugi język -> brak), więc nie powstaje trzecia polityka.
+  const desc =
+    lang === "en" ? ev.description_en || ev.description_pl : ev.description_pl || ev.description_en;
   const startsAt = new Date(ev.starts_at);
   const isPast = startsAt.getTime() < Date.now();
   // Wydarzenie płatne: bezpłatny RSVP jest wtedy wyłączony - wejściówkę

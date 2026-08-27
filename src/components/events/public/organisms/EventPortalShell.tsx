@@ -30,6 +30,46 @@
 // STAŁĄ SZEROKOŚĆ WIRTUALNĄ (skalowaną przez rodzica) i własne tło, a to musi
 // siedzieć na TYM SAMYM elemencie, co zakres brandingu: tło narysowane poza
 // zakresem brałoby kolory motywu serwisu, a nie wydarzenia.
+//
+// ── TŁO STRONY MALUJE TA POWŁOKA, I TO JEST POPRAWKA DEFEKTU ────────────────
+// CO BYŁO ZEPSUTE. Slot „Tło strony” nadpisuje `--background` POD atrybutem
+// `[data-event-branding]`, czyli na tym elemencie i w jego wnętrzu. Widoczne tło
+// strony malowało natomiast `body` (`styles.css`: `body { background-color:
+// var(--color-background) }`), a `body` jest PRZODKIEM tego elementu - kaskada
+// nadpisania nie ma jak dojechać w górę drzewa. Ta powłoka nie miała ani jednej
+// klasy tła, w całym portalu wydarzenia nie było ani jednego `bg-background`,
+// więc redaktor ustawiał kolor, a uczestnik widział tło motywu serwisu.
+// Najgorsze było to, że KANWA PODGLĄDU dokłada sobie `bg-background` na tym
+// samym elemencie - w studiu kolor więc BYŁ widoczny i wyglądało to na działające.
+//
+// DLACZEGO `bg-background`, A NIE `--event-page-bg`. Generator wypuszcza dla tego
+// slotu obie zmienne (`--event-page-bg` jako uchwyt dla komponentów wydarzenia
+// i `--background` jako token semantyczny). Sięgamy po TOKEN, bo daje trzy rzeczy
+// naraz, których uchwyt nie daje: (1) wydarzenie BEZ brandingu dostaje dokładnie
+// dzisiejszy kolor - token jest wtedy odziedziczony z motywu, więc powłoka maluje
+// to samo, co `body`, i nie ma ani przezroczystej dziury, ani innego odcienia;
+// (2) `@theme inline` w `styles.css` wkleja `var(--background)` wprost do
+// utility, więc nadpisanie NA TYM elemencie działa (przez `--color-background`
+// z `:root` by nie zadziałało - podstawienie zmiennej zachodzi tam, gdzie jest
+// zadeklarowana); (3) kanwa podglądu już dziś stawia tu tę samą klasę, więc
+// podgląd i strona zaczynają malować tło JEDNĄ deklaracją, a nie dwiema.
+//
+// `min-h-full` PILNUJE, ŻEBY NIE ZOSTAŁ PAS. Powłoka jest zwykłym blokiem
+// wewnątrz `main.flex-1` (`SiteChrome`), a `main` rozciąga się do dołu okna.
+// Bez `min-height` krótka treść (np. zakładka z jedną tabelą) zostawiłaby pod
+// powłoką pas w kolorze `body`, czyli motywu serwisu, tuż pod tłem wydarzenia.
+// `100%` liczy się względem `main`, który ma wysokość z układu flex. W kanwie
+// podglądu rodzic ma wysokość `auto`, więc procent nie ma do czego się odnieść
+// i reguła jest tam bezpiecznym nic-nie-robieniem - kanwa dalej rośnie z treści.
+//
+// OBRAZ TŁA RYSUJEMY, A NIE UKRYWAMY KONTROLKĘ. `--event-bg-image` przechodzi
+// w generatorze przez zamknięty alfabet `SAFE_IMAGE_URL` i wychodzi już jako
+// gotowe `url("…")`, więc czytamy TĘ zmienną i nie zakładamy drugiej ścieżki dla
+// adresu (żadnego `style={{ backgroundImage: … }}` z surowej kolumny). Brak
+// obrazu daje `none`, czyli dzisiejszy stan. Ryzyko kontrastu (zdjęcie pod
+// tekstem) zostaje po stronie redaktora ŚWIADOMIE: od tej zmiany podgląd studia
+// rysuje ten sam obraz w tym samym miejscu, więc redaktor widzi skutek przed
+// publikacją - a to jest dokładnie ta pętla, której brakowało przy kolorze tła.
 import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -63,7 +103,10 @@ export function EventPortalShell({
     <div
       {...eventBrandingScopeProps}
       style={style}
-      className={cn("pb-12 md:pb-16", className)}
+      className={cn(
+        "min-h-full bg-background bg-top bg-no-repeat bg-cover [background-image:var(--event-bg-image,none)] pb-12 md:pb-16",
+        className,
+      )}
       data-testid="event-portal-shell"
     >
       <EventBrandingStyle branding={branding} />

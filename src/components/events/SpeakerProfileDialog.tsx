@@ -4,6 +4,25 @@
 // + odznaka 'expert') i lista wystapien (event_speakers -> events). Dane
 // pochodza z RPC get_public_speakers - wylacznie publiczne kolumny; i18n PL/EN
 // z fallbackiem; 6px rounding; dark/light przez tokeny semantyczne.
+//
+// DWA ZRODLA FAKTOW, BO PRELEGENT BEZ KONTA NIE MA CZEGO DOCIAGNAC.
+// `speakerProfileQueryOptions` pyta bazy PO `user_id` - a osoba wpisana recznie
+// w studiu (kartoteka `event_people`) konta nie ma, wiec dla niej to zapytanie
+// nie ma nawet czym zapytac. Publiczna lista wydarzenia
+// (`event_speakers_public`) niesie jednak JEJ FAKTY WPROST W WIERSZU: biogram,
+// tematy, jezyki, stanowisko, firme, statystyki. Dlatego powierzchnia, ktora
+// otwiera dialog, podaje ten wiersz propsem `row`, a dociaganie po `user_id`
+// zostaje TYLKO tam, gdzie konto istnieje.
+//
+// PIERWSZENSTWO: dociagniety profil > wiersz z listy > dane awaryjne z tresci
+// widgetu. Nie odwrotnie - dociagniety profil jest swiezszy i pelniejszy
+// (`slug` do pelnego profilu, lista wystapien), a wiersz listy jest migawka
+// z tego samego RPC, ktory narysowal karte. Bez tej kolejnosci klik w osobe
+// z kontem cofalby ja do migawki na czas dociagania.
+//
+// SZKIELET TYLKO WTEDY, GDY NIE MA CZEGO POKAZAC. Skoro wiersz przyszedl razem
+// z kliknieciem, to okno moze byc pelne od PIERWSZEJ KLATKI - migotanie
+// szkieletu nad danymi, ktore juz sa w pamieci, to strata, nie informacja.
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -37,10 +56,20 @@ export interface SpeakerDialogFallback {
 }
 
 interface SpeakerProfileDialogProps {
+  /** Konto prelegenta. PUSTY NAPIS = osoba bez konta: zapytania spia, liczy `row`. */
   userId: string;
   lang: Lang;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Wiersz publicznej listy wydarzenia, w ktory czytelnik kliknal.
+   *
+   * To NIE jest `fallback` pod inna nazwa: `fallback` niesie trzy pola z tresci
+   * widgetu (imie, rola, zdjecie) i istnieje po to, zeby okno nie bylo puste,
+   * a `row` jest PELNYM wierszem RPC - dla prelegenta bez konta JEDYNYM
+   * zrodlem biogramu, tematow, jezykow i statystyk.
+   */
+  row?: PublicSpeakerRow | null;
   fallback?: SpeakerDialogFallback;
 }
 
@@ -240,6 +269,7 @@ export function SpeakerProfileDialog({
   lang,
   open,
   onOpenChange,
+  row,
   fallback,
 }: SpeakerProfileDialogProps) {
   const profileQ = useQuery({ ...speakerProfileQueryOptions(userId), enabled: open && !!userId });
@@ -249,8 +279,10 @@ export function SpeakerProfileDialog({
   });
 
   const engagements = useMemo(() => engagementsQ.data ?? [], [engagementsQ.data]);
+  // Profil z bazy wygrywa z wierszem listy, wiersz listy z danymi awaryjnymi.
+  const shown = profileQ.data ?? row ?? null;
   const title =
-    profileQ.data?.display_name ||
+    shown?.display_name ||
     fallback?.name ||
     (lang === "pl" ? "Profil prelegenta" : "Speaker profile");
 
@@ -265,15 +297,10 @@ export function SpeakerProfileDialog({
               : "Speaker profile with bio and list of engagements."}
           </DialogDescription>
         </DialogHeader>
-        {profileQ.isLoading ? (
+        {profileQ.isLoading && shown === null ? (
           <DialogSkeleton />
         ) : (
-          <ProfileBody
-            profile={profileQ.data ?? null}
-            fallback={fallback}
-            lang={lang}
-            engagements={engagements}
-          />
+          <ProfileBody profile={shown} fallback={fallback} lang={lang} engagements={engagements} />
         )}
       </DialogContent>
     </Dialog>
