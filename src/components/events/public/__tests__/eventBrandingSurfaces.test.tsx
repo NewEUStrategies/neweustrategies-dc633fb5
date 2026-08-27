@@ -14,11 +14,11 @@
 // JAK TO JEST MIERZALNE BEZ TAILWINDA. W testach nie ma przejazdu Tailwinda,
 // więc klasy utility są tu samymi nazwami. Podstawiamy więc arkusz zastępczy,
 // który wiąże KONKRETNY token klasy z deklaracją, jakiej Tailwind dla niej
-// wypuszcza - selektorem `[class~="…"]`, żeby nie escapować nawiasów w nazwach
+// wypuszcza - selektorem `[class~="etc"]`, żeby nie escapować nawiasów w nazwach
 // klas dowolnych. To wiązanie jest częścią dowodu, a nie obejściem: jeśli ktoś
 // usunie albo przechrzci klasę w kodzie produkcyjnym, reguła przestanie pasować
 // do węzła, wartość obliczona spadnie do wartości motywu i test się zaczerwieni.
-// Deklaracje klas DOWOLNYCH (`bg-[color:var(…)]`, `[background-image:var(…)]`)
+// Deklaracje klas DOWOLNYCH (`bg-[color:var(etc)]`, `[background-image:var(etc)]`)
 // są przy tym wprost odczytane z nazwy klasy - Tailwind nie ma tam swobody.
 //
 // TOKENY MOTYWU są tu zadeklarowane na `:root` tak jak w `styles.css` - dzięki
@@ -47,7 +47,7 @@ const THEME_MUTED_FOREGROUND = "#767676";
  *
  * KAŻDY WPIS JEST ASERCJĄ. Klucz to dokładny token klasy, który MUSI stać na
  * węźle malującym; wartość to deklaracja, którą ten token niesie. Selektor
- * `[class~=…]` dopasowuje token listy klas bez escapowania `[`, `(`, `,` - a przy
+ * `[class~=etc]` dopasowuje token listy klas bez escapowania `[`, `(`, `,` - a przy
  * klasach dowolnych deklaracja jest po prostu treścią nawiasu z nazwy klasy.
  */
 const TAILWIND_STUB: ReadonlyArray<readonly [string, string]> = [
