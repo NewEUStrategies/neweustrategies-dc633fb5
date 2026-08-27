@@ -410,13 +410,26 @@ export const eventFrontPl = {
     },
 
     // ---------------------------------------------------------------------
-    // Siatka prelegentów. Karta to zdjęcie, imię, rola i organizacja - same
-    // dane z profilu, więc jedyny NAPIS, jaki siatka ma własny, dotyczy chwili
-    // przed danymi. Pusta lista nie ma tu komunikatu: nagłówek sekcji rysuje
-    // `EventPageSections` razem z `sections.speakers.empty`.
+    // Prelegenci wydarzenia. Karta to zdjęcie, imię, rola i organizacja - same
+    // dane z profilu, więc napisy własne ma tu tylko to, czego w wierszu nie ma:
+    // chwila przed danymi i NAZWA PLAKIETKI EKSPERTA.
+    //
+    // NAGŁÓWKA SIATKA NIE RYSUJE i nie rysuje go `EventPageSections` - ta lista
+    // NIE JEST jego sekcją (`OWNED` w `EventPageSections.tsx` jej nie ma).
+    // Na przeglądzie nagłówek stawia `EventSpeakersSection` (otwarta sekcja)
+    // albo trasa (sekcja zamknięta), OBA z `sections.speakers.heading`;
+    // na zakładce `/events/<slug>/speakers` nagłówkiem jest `h1` dokumentu CMS
+    // strony modułowej. Dlatego `sections.speakers.empty` NIE MA dziś czytelnika.
+    //
+    // PLAKIETKA EKSPERTA JEST TUTAJ, A NIE W `expert.expertBadge`. Ten sam napis
+    // istnieje w słowniku huba eksperta, ale wciągnięcie tamtej nakładki
+    // (`i18n-experts`) do strony wydarzenia dla jednego słowa uzależniłoby
+    // publiczną stronę wydarzenia od słownika zupełnie innej domeny - a nakładki
+    // są NIEPODZIELNE (patrz nagłówek tego pliku), więc przyszedłby cały hub.
     // ---------------------------------------------------------------------
     speakers: {
       loading: "Wczytywanie prelegentów…",
+      expertBadge: "Ekspert",
     },
 
     // ---------------------------------------------------------------------
@@ -954,9 +967,11 @@ export const eventFrontEn = {
       },
     },
 
-    // Speaker grid - the only string it owns is the loading label.
+    // Event speakers - the only strings it owns are the loading label and the
+    // name of the expert badge (the heading comes from `sections.speakers`).
     speakers: {
       loading: "Loading speakers…",
+      expertBadge: "Expert",
     },
 
     // Partners and sponsors - a snapshot taken when the partner was pinned.

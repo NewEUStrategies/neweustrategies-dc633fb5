@@ -8,6 +8,16 @@ import { SpeakerAvatar, type SpeakerAvatarSize } from "./SpeakerAvatar";
 interface SpeakerChipProps {
   name: string;
   role?: string;
+  /**
+   * Organizacja prelegenta (`company` z publicznej projekcji profilu).
+   *
+   * FAKT, NIE OZDOBA. Afiliacja przez chwile istniala tylko na jednej z dwoch
+   * publicznych list tego samego wydarzenia - siatka na zakladce ja pokazywala,
+   * zapowiedz na przegladzie nie - wiec ta sama osoba miala tam afiliacje,
+   * a tu byla anonimowa. Pusty napis NIE rysuje linii: brak organizacji ma
+   * czytac sie jak brak danych, a nie jak uszkodzony wiersz.
+   */
+  organization?: string;
   photoUrl?: string | null;
   size?: SpeakerAvatarSize;
   href?: string;
@@ -19,10 +29,11 @@ interface SpeakerChipProps {
 function ChipBody({
   name,
   role,
+  organization,
   photoUrl,
   size,
   trailing,
-}: Pick<SpeakerChipProps, "name" | "role" | "photoUrl" | "size" | "trailing">) {
+}: Pick<SpeakerChipProps, "name" | "role" | "organization" | "photoUrl" | "size" | "trailing">) {
   return (
     <>
       <SpeakerAvatar name={name} photoUrl={photoUrl} size={size ?? "md"} />
@@ -32,6 +43,17 @@ function ChipBody({
         </span>
         {role ? (
           <span className="block truncate text-xs leading-tight text-muted-foreground">{role}</span>
+        ) : null}
+        {organization ? (
+          // Pelna wartosc zostaje w `title` - ucieta nazwa organizacji bez
+          // mozliwosci odczytu to strata informacji, dokladnie jak w karcie
+          // siatki (`EventSpeakersGrid`).
+          <span
+            title={organization}
+            className="block truncate text-xs leading-tight text-foreground/80"
+          >
+            {organization}
+          </span>
         ) : null}
       </span>
       {trailing}
@@ -47,6 +69,7 @@ const INTERACTIVE_CLASS =
 export function SpeakerChip({
   name,
   role,
+  organization,
   photoUrl,
   size,
   href,
@@ -54,7 +77,14 @@ export function SpeakerChip({
   trailing,
 }: SpeakerChipProps) {
   const body = (
-    <ChipBody name={name} role={role} photoUrl={photoUrl} size={size} trailing={trailing} />
+    <ChipBody
+      name={name}
+      role={role}
+      organization={organization}
+      photoUrl={photoUrl}
+      size={size}
+      trailing={trailing}
+    />
   );
   if (onClick) {
     return (

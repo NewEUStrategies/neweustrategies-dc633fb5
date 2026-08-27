@@ -14,7 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AppLink } from "@/components/atoms/AppLink";
-import { ArrowRight, CalendarClock, MapPin, ShieldCheck } from "@/lib/lucide-shim";
+import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
+import { ArrowRight, CalendarClock, MapPin } from "@/lib/lucide-shim";
 import {
   speakerEngagementsQueryOptions,
   speakerProfileQueryOptions,
@@ -145,12 +146,14 @@ function ProfileBody({
             <h3 className="font-display text-lg font-semibold leading-tight text-foreground">
               {name}
             </h3>
-            {profile?.is_expert && (
-              <span className="inline-flex items-center gap-1 rounded-[6px] bg-[color:var(--speakers-accent,var(--brand))]/10 px-2 py-0.5 text-[11px] font-semibold text-brand-ink">
-                <ShieldCheck aria-hidden className="h-3 w-3" />
-                {lang === "pl" ? "Ekspert" : "Expert"}
-              </span>
-            )}
+            {/* WSPÓLNA PLAKIETKA, NIE WŁASNY JSX. Ten dialog otwiera się PROSTO
+                z zapowiedzi na przeglądzie, więc czytelnik widzi oba rysunki
+                w jednym kliknięciu - a stały tu dwa różne. Dodatkowo napis był
+                zaszyty `lang === "pl" ? … : …`, czyli poza słownikiem.
+                WYGLĄD ZOSTAJE: `withLabel` daje tę samą pigułkę z widocznym
+                napisem, a `lang` trzyma ją przy języku PROPSA - dialog nie
+                czyta języka z instancji i18n. */}
+            {profile?.is_expert && <SpeakerExpertBadge withLabel lang={lang} />}
           </div>
           {headline ? <p className="text-sm text-muted-foreground">{headline}</p> : null}
           {companyLine && companyLine !== headline ? (

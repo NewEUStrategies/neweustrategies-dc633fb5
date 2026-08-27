@@ -9,8 +9,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "@/lib/i18n-community";
+import "@/lib/i18n-event-front";
 import { realT } from "@/test/i18nReal";
+import { sectionHeadingKey } from "@/lib/events/eventSections";
 import { SpeakerChip } from "@/components/events/SpeakerChip";
 
 const h = vi.hoisted(() => ({
@@ -136,7 +137,10 @@ describe("EventSpeakersSection", () => {
   it("pokazuje nagłówek i listę prelegentów", async () => {
     h.speakers = [speaker(), speaker({ user_id: "u2", display_name: "Bogdan Nowak" })];
     render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
-    expect(await screen.findByText(t("community.events.speakersTitle"))).toBeInTheDocument();
+    // Nagłówek idzie z klucza SEKCJI - tego samego, którego trasa używa nad
+    // kartą zamka. Dwa słowniki na jeden <h2> pozwalały zmienić nazwę sekcji
+    // wyłącznie dla gości bez dostępu.
+    expect(await screen.findByText(t(sectionHeadingKey("speakers")))).toBeInTheDocument();
     expect(screen.getByText("Anna Kowalska")).toBeInTheDocument();
     expect(screen.getByText("Bogdan Nowak")).toBeInTheDocument();
   });
@@ -201,6 +205,6 @@ describe("EventSpeakersSection", () => {
   it("prelegent bez nazwiska nie wywraca listy", async () => {
     h.speakers = [speaker({ display_name: null })];
     render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
-    expect(await screen.findByText(t("community.events.speakersTitle"))).toBeInTheDocument();
+    expect(await screen.findByText(t(sectionHeadingKey("speakers")))).toBeInTheDocument();
   });
 });
