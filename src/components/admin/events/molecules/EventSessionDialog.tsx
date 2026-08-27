@@ -61,6 +61,11 @@ interface EventSessionDialogProps {
   /** Strefa wydarzenia; godziny wpisuje się w niej, nie w UTC. */
   timeZoneLabel: string;
   nextSortOrder: number;
+  /**
+   * Ścieżka wstawiana do NOWEJ sesji. Gdy sesję planuje się z poziomu pasma,
+   * formularz nie może pytać o to, co użytkownik już wybrał, wchodząc w ścieżkę.
+   */
+  defaultTrackId?: string | null;
   isSaving: boolean;
   onSubmit: (input: EventSessionInput) => void;
 }
@@ -75,6 +80,7 @@ export function EventSessionDialog({
   sessions,
   timeZoneLabel,
   nextSortOrder,
+  defaultTrackId = null,
   isSaving,
   onSubmit,
 }: EventSessionDialogProps) {
@@ -96,7 +102,7 @@ export function EventSessionDialog({
   useEffect(() => {
     if (!open) return;
     if (session === null) {
-      setDraft(emptySessionDraft(nextSortOrder));
+      setDraft({ ...emptySessionDraft(nextSortOrder), trackId: defaultTrackId });
       setTouched(false);
       return;
     }
@@ -105,7 +111,7 @@ export function EventSessionDialog({
     if (detail === null) return;
     setDraft(sessionDraftFromRow(detail));
     setTouched(false);
-  }, [open, session, detail, nextSortOrder]);
+  }, [open, session, detail, nextSortOrder, defaultTrackId]);
 
   /** Edycja czeka na szczegol; nowa sesja nie ma na co czekac. */
   const isLoadingDetail = session !== null && detail === null;
