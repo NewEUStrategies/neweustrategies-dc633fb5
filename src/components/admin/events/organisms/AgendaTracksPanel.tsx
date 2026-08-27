@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,12 +26,19 @@ import {
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { EventTrackDialog } from "@/components/admin/events/molecules/EventTrackDialog";
+import { AgendaStructureDiagram } from "@/components/admin/events/molecules/AgendaStructureDiagram";
+import {
+  TrackSessionsLinkDialog,
+  type TrackSessionsLinkResult,
+} from "@/components/admin/events/molecules/TrackSessionsLinkDialog";
 import { adminAgendaErrorMessage } from "@/lib/events/adminAgendaErrors";
 import { trackDraftFromRow, trackDraftToInput } from "@/lib/events/agendaCatalogDraft";
 import {
   useDeleteEventTrack,
+  useEventSessions,
   useEventTracks,
   useSaveEventTrack,
+  useSetSessionsTrack,
 } from "@/lib/events/useEventSessions";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
 
@@ -41,10 +48,20 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
   const listQ = useEventTracks(eventId);
   const save = useSaveEventTrack(eventId);
   const remove = useDeleteEventTrack(eventId);
+  const setTrack = useSetSessionsTrack(eventId);
+  // Diagram i licznik „bez ścieżki" czytają program, nie same ścieżki.
+  const sessionsQ = useEventSessions({
+    eventId,
+    q: "",
+    trackId: null,
+    roomId: null,
+    status: "all",
+  });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [edited, setEdited] = useState<EventTrackRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventTrackRow | null>(null);
+  const [linked, setLinked] = useState<EventTrackRow | null>(null);
 
   const rows = listQ.data ?? [];
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
@@ -84,6 +101,36 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
     });
   };
 
+  /**
+   * Dwie intencje = dwa wywołania: baza rozróżnia „przypnij do ścieżki" od
+   * „odepnij" (`track_id = null`), więc odpięcie idzie osobno.
+   */
+  const submitLink = (result: TrackSessionsLinkResult) => {
+    if (linked === null) return;
+    const steps: Promise<number>[] = [];
+    if (result.attach.length > 0) {
+      steps.push(setTrack.mutateAsync({ ids: result.attach, trackId: linked.id }));
+    }
+    if (result.detach.length > 0) {
+      steps.push(setTrack.mutateAsync({ ids: result.detach, trackId: null }));
+    }
+    if (steps.length === 0) {
+      toast.message(t("adminEventAgenda.tracks.link.nothing"));
+      setLinked(null);
+      return;
+    }
+    void Promise.all(steps)
+      .then((counts) => {
+        toast.success(
+          t("adminEventAgenda.tracks.link.saved", {
+            count: counts.reduce((sum, value) => sum + value, 0),
+          }),
+        );
+        setLinked(null);
+      })
+      .catch(fail);
+  };
+
   const nameOf = (row: EventTrackRow): string =>
     isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en;
 
@@ -106,6 +153,17 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
           {t("adminEventAgenda.tracks.addAction")}
         </Button>
       </header>
+
+      <AgendaStructureDiagram
+        tracks={rows.map((row) => ({
+          id: row.id,
+          name: nameOf(row),
+          accentColor: row.accent_color,
+          sessionsCount: row.sessions_count,
+        }))}
+        unassignedCount={(sessionsQ.data ?? []).filter((row) => row.track_id === "").length}
+        highlight="tracks"
+      />
 
       <AdminCatalogListState
         isLoading={listQ.isLoading}
@@ -145,6 +203,10 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
                 className="w-auto"
               />
               <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => setLinked(row)}>
+                  <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {t("adminEventAgenda.tracks.linkAction")}
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -178,6 +240,17 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
         nextSortOrder={nextSortOrder}
         isSaving={save.isPending}
         onSubmit={submit}
+      />
+
+      <TrackSessionsLinkDialog
+        open={linked !== null}
+        onOpenChange={(open) => {
+          if (!open) setLinked(null);
+        }}
+        eventId={eventId}
+        track={linked}
+        isSaving={setTrack.isPending}
+        onSubmit={submitLink}
       />
 
       <AlertDialog
