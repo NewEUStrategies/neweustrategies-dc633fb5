@@ -133,6 +133,12 @@ const csvOrUndefined = (value: string): string[] | undefined => {
   return items.length === 0 ? undefined : items;
 };
 
+/**
+ * WYROWNANIE ETYKIET. Pola stoja obok siebie w siatce, wiec etykieta i podpowiedz
+ * dostaja STALA wysokosc wiersza (`h-4` / `min-h-3.5`) - inaczej pole z
+ * podpowiedzia bylo nizsze od sasiada i ramki inputow rozjezdzaly sie o kilka
+ * pikseli. Siatka `auto auto 1fr` trzyma kontrolke zawsze w tym samym wierszu.
+ */
 function Field({
   label,
   required,
@@ -145,11 +151,8 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="grid gap-1.5">
-      <Label className="text-xs font-medium">
-        {/* Gwiazdka CZERWONA i PRZED etykieta - jak we wzorcu (zrzut 06).
-            Nasz `field-box.tsx` stawia szara po etykiecie, ale ten atom to
-            pole z etykieta plywajaca, a tu potrzebny jest zwykly wiersz. */}
+    <div className="grid content-start gap-1 [grid-template-rows:1rem_auto_1fr]">
+      <Label className="flex h-4 items-center text-[11px] font-medium leading-none text-muted-foreground">
         {required === true && (
           <span aria-hidden="true" className="mr-1 text-destructive">
             *
@@ -158,12 +161,11 @@ function Field({
         {label}
       </Label>
       {children}
-      {hint !== undefined && (
-        <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
-      )}
+      <p className="min-h-3.5 text-[10.5px] leading-snug text-muted-foreground">{hint ?? ""}</p>
     </div>
   );
 }
+
 
 function Section({
   title,
