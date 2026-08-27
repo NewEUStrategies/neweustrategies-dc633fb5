@@ -27,12 +27,12 @@ z ORYGINALNEJ migracji, bo inaczej test przechodziłby na fikcji.
 
 Czego brakuje i co to znaczy:
 
-| Brak                  | Skutek                                                                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `pgvector`            | funkcje semantyczne trzeba uruchomić z atrapą typu (`--vector-stub`); sprawdzamy składnię i widoczność, nie jakość wyszukiwania |
-| `pg_cron`             | harmonogram wołamy ręcznie, nie sprawdzamy planowania                                                                           |
-| `pgtap`               | asercje są gołym SQL-em, nie planem TAP                                                                                         |
-| konfiguracja `polish` | **nie istnieje też w standardowym PostgreSQL 16** - i to jest ustalenie, nie ograniczenie harnessu                              |
+| Brak                  | Skutek                                                                                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pgvector`            | funkcje semantyczne jadą na atrapie typu (domyślnie; `--no-vector-stub` ją wyłącza); sprawdzamy składnię i widoczność, nie jakość wyszukiwania |
+| `pg_cron`             | harmonogram wołamy ręcznie, nie sprawdzamy planowania                                                                                          |
+| `pgtap`               | asercje są gołym SQL-em, nie planem TAP                                                                                                        |
+| konfiguracja `polish` | **nie istnieje też w standardowym PostgreSQL 16** - i to jest ustalenie, nie ograniczenie harnessu                                             |
 
 ## Użycie
 
@@ -55,6 +55,48 @@ z późniejszymi migracjami wyszła dopiero w CI (błąd 42723 przy odtwarzaniu
 schematu od zera). Kod wyjścia 0 znaczy, że wszystkie
 asercje przeszły; niespełniona asercja przerywa skrypt kodem 1 i wypisuje,
 ile asercji zdążyło przejść przed błędem.
+
+## `SKIP`: plik poza zasięgiem atrapy
+
+Wybór po TREŚCI ma jedną konsekwencję, której wcześniejszy opis nie
+przewidywał: panel Lovable emituje ZLEPKI - jeden plik migracji zawiera kilka
+niezależnych migracji zapisanych pod jedną nową wersją. Jedno trafienie
+`public.club_events` w ostatniej sekcji wciąga cały zlepek, razem z sekcjami,
+które sięgają obiektów poza powierzchnią styku modułu. Tak stało się
+z `20260822171037_bea8e790-...` (siedem migracji, `20260822090000`…`20260822096000`):
+harness przewracał się na `UPDATE public.content_access`, a bramka stała
+czerwona na `main` bez ANI JEDNEGO sygnału o module.
+
+Dlatego pętla migracji ma trzy wyniki, a nie dwa, i podsumowuje je jedną linią:
+
+```
+Migracje: 90 OK, 1 SKIP, 0 FAIL
+  SKIP 20260822171037_bea8e790-....sql - relacja "public.content_access" poza zasiegiem atrapy (...)
+       psql:...: ERROR:  relation "public.content_access" does not exist
+```
+
+`SKIP` jest dopuszczalny **wyłącznie** przy koniunkcji dwóch warunków:
+
+1. każda linia `ERROR:` z `psql` to 42P01 `relation "X" does not exist` - każda
+   inna klasa (brak kolumny, brak funkcji, kolizja sygnatur, dwuznaczna
+   kolumna, błąd składni) zostaje `FAIL`-em;
+2. każde `X` leży poza **wyliczanym** zasięgiem atrapy, czyli poza zbiorem
+   relacji, które stawia `harness.sql` **plus** tych, które tworzą same wybrane
+   migracje. 42P01 na obiekcie z tego zbioru znaczy, że obiekt POWINIEN
+   istnieć - to regresja i `FAIL`.
+
+Zasięg jest wyliczany z tekstu plików, nie wpisany ręcznie: dostawienie tabeli
+do `harness.sql` samo wraca ją do zasięgu i błąd na niej znów jest czerwony.
+
+Czego bramka przez `SKIP` **przestaje** pilnować: `ON_ERROR_STOP=1` przerywa
+plik na pierwszym błędzie, więc cała jego dalsza treść nie jest wykonywana,
+a instrukcje sprzed błędu już się wykonały (`psql` bez `-1` nie owija pliku
+w transakcję) - baza zostaje w stanie częściowym. W dzisiejszym przypadku nie
+jest to ubytek pokrycia: klubowa sekcja zlepka jest NADZBIOREM pokrytym
+osobnym, przechodzącym plikiem `20260822096000_club_events_tier_gate.sql`
+(różnica: jeden `GRANT EXECUTE ... club_event_upsert` więcej w pliku
+samodzielnym). Gdyby zlepek kiedyś przyniósł SQL modułu, którego nie ma nigdzie
+indziej, ten SQL przestanie być wykonywany - i o tym mówi linia `SKIP`.
 
 Kod wyjścia `psql` jest przechwytywany PRZED potokiem `sed | grep`. Bez tego
 status potoku pochodził od `grep`, więc niespełniona asercja tylko drukowała

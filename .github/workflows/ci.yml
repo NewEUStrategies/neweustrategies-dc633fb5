@@ -632,8 +632,22 @@ jobs:
 
       # Skrypt stawia WŁASNĄ instancję na porcie 5433 (klaster systemowy z apt
       # stoi na 5432 i jest nietykany), wykonuje harness.sql, potem migracje
-      # klubowe w kolejności Supabase CLI, potem runtime_test.sql. Kod wyjścia 1
-      # oznacza albo migrację, która się nie wykonuje, albo niespełnioną asercję.
+      # klubowe w kolejności Supabase CLI, potem runtime_test.sql.
+      #
+      # SPROSTOWANIE. Stało tu: „Kod wyjścia 1 oznacza albo migrację, która się
+      # nie wykonuje, albo niespełnioną asercję" - i to jest NIEPRAWDA, bo
+      # milcząco zakłada, że każdy wybrany plik jest migracją modułu. Panel
+      # Lovable emituje ZLEPKI: `20260822171037_bea8e790-...` to siedem
+      # niezależnych migracji w jednym pliku, z których tylko ostatnia jest
+      # klubowa, a pierwsze sięgają `public.content_access`
+      # i `public.member_resources` - obiektów, których atrapa CELOWO nie
+      # stawia. Ta czerwień nie mówiła o module NIC i stała na `main`.
+      # Naprawdę jest tak: skrypt raportuje `Migracje: N OK, M SKIP, K FAIL`.
+      # SKIP dostaje WYŁĄCZNIE plik, którego jedynym błędem jest 42P01
+      # („relation X does not exist") na obiekcie POZA wyliczonym zasięgiem
+      # atrapy; 42P01 na obiekcie W zasięgu i każda inna klasa błędu to nadal
+      # FAIL i kod wyjścia 1 - tak samo jak niespełniona asercja runtime.
+      # Reguła i dowód: scripts/pg-harness/run.sh (blok „ZASIĘG ATRAPY").
       - name: Run pg-harness (migracje + asercje runtime)
         run: bun run check:pg-harness
 
