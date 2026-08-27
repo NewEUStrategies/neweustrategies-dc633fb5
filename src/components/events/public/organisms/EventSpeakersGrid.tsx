@@ -14,10 +14,20 @@
 // już narysował.
 //
 // TO SAMO ŹRÓDŁO, CO SEKCJA PRELEGENTÓW. `speakersQueryOptions` ze źródłem
-// „event” woła RPC `get_public_speakers`; klucz zapytania jest pochodną inputu,
-// a nie komponentu, więc siatka i `EventSpeakersSection` współdzielą cache oraz
-// prefetch SSR. Drugie zapytanie o te same wiersze podwoiłoby ruch i rozjechało
-// migawkę po hydratacji.
+// „event” woła RPC `event_speakers_public`; klucz zapytania jest pochodną
+// inputu, a nie komponentu, więc siatka i `EventSpeakersSection` współdzielą
+// cache oraz prefetch SSR. Drugie zapytanie o te same wiersze podwoiłoby ruch
+// i rozjechało migawkę po hydratacji.
+//
+// PRELEGENT BEZ KONTA JEST TU KARTĄ JAK KAŻDA INNA. Poprzednia projekcja
+// (`get_public_speakers`) zlewała rejestr z `profiles` przez INNER JOIN, więc
+// osoba wpisana ręcznie w studiu - bez konta, z wierszem w `event_people` -
+// wypadała z listy BEZWARUNKOWO i BEZ BŁĘDU: redaktor widział pięć nazwisk
+// w panelu, uczestnik pustą sekcję. Skutek dla tego pliku jest dwojaki:
+// klucz karty NIE MOŻE stać na `user_id` (dla takiej osoby jest pusty -
+// stąd `speakerRowKey`), a klikalność nie może być bezwarunkowa (patrz
+// `speakerHasProfileToShow` niżej). Pilnuje tego bramka
+// `src/components/events/__tests__/eventSpeakerWithoutAccount.gate.test.tsx`.
 //
 // LINIA PODPISU ISTNIEJE TYLKO WTEDY, GDY MA TREŚĆ. Prelegent bez roli albo bez
 // firmy zostawiłby inaczej puste miejsce w karcie - w siatce czterech kolumn
@@ -46,6 +56,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
+import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
@@ -115,7 +126,7 @@ export function EventSpeakersGrid({
   return (
     <ul className={GRID_CLASS}>
       {speakers.map((speaker) => (
-        <li key={speaker.user_id} className="flex">
+        <li key={speakerRowKey(speaker)} className="flex">
           <SpeakerCard speaker={speaker} lang={lang} onSelect={onSelect} />
         </li>
       ))}
@@ -176,7 +187,15 @@ function SpeakerCard({
     </>
   );
 
-  if (onSelect) {
+  // KLIKALNA JEST KARTA, KTÓRA MA CO OTWORZYĆ. Dla osoby z kontem odpowiedź
+  // jest zawsze twierdząca (dialog dociąga profil i listę wystąpień), dla osoby
+  // BEZ konta - tylko wtedy, gdy wiersz niesie coś, czego na karcie nie ma
+  // (biogram, tematy, języki, statystyki). Karta wyglądająca na klikalną,
+  // która po kliknięciu powtarza to samo nazwisko i tę samą firmę, jest gorsza
+  // niż martwy wpis: obiecuje więcej i tego nie dowozi. Ta sama reguła stoi
+  // w zapowiedzi na przeglądzie - decyduje o niej JEDEN predykat, a nie dwie
+  // kopie warunku.
+  if (onSelect && speakerHasProfileToShow(speaker)) {
     return (
       <button
         type="button"
