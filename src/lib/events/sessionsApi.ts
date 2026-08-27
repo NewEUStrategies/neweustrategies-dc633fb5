@@ -99,8 +99,19 @@ export interface EventTrackInput {
   namePl: string;
   nameEn: string;
   accentColor: string | null;
+  /** Jedno zdanie wprowadzajace pasmo - naglowek strony sciezki. */
+  taglinePl: string | null;
+  taglineEn: string | null;
+  descriptionPl: string | null;
+  descriptionEn: string | null;
+  coverUrl: string | null;
+  /** Sala domyslna pasma; podpowiedz przy planowaniu sesji, nie ograniczenie. */
+  defaultRoomId: string | null;
   sortOrder: number;
+  /** `is_active` rzadzi selektem w formularzu sesji. */
   isActive: boolean;
+  /** `is_public` rzadzi widocznoscia pasma dla uczestnika. */
+  isPublic: boolean;
 }
 
 export async function saveEventTrack(input: EventTrackInput): Promise<string> {
@@ -116,12 +127,32 @@ export async function saveEventTrack(input: EventTrackInput): Promise<string> {
       name_pl: input.namePl,
       name_en: input.nameEn,
       accent_color: input.accentColor,
+      tagline_pl: input.taglinePl,
+      tagline_en: input.taglineEn,
+      description_pl: input.descriptionPl,
+      description_en: input.descriptionEn,
+      cover_url: input.coverUrl,
+      default_room_id: input.defaultRoomId,
       sort_order: input.sortOrder,
       is_active: input.isActive,
+      is_public: input.isPublic,
     }),
   });
   if (error) throw error;
   return String(data);
+}
+
+export type EventTrackSpeakerRow = Fns["admin_event_track_speakers"]["Returns"][number];
+
+/** Obsada calego pasma - kto wystepuje w sesjach sciezki i w ilu z nich. */
+export async function fetchEventTrackSpeakers(
+  trackId: string,
+): Promise<EventTrackSpeakerRow[]> {
+  const { data, error } = await supabase.rpc("admin_event_track_speakers", {
+    p_track_id: trackId,
+  });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function deleteEventTrack(id: string): Promise<boolean> {

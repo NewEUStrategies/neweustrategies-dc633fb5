@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Link2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +27,7 @@ import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalog
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { EventTrackDialog } from "@/components/admin/events/molecules/EventTrackDialog";
 import { AgendaStructureDiagram } from "@/components/admin/events/molecules/AgendaStructureDiagram";
+import { EventTrackWorkspace } from "@/components/admin/events/organisms/EventTrackWorkspace";
 import {
   TrackSessionsLinkDialog,
   type TrackSessionsLinkResult,
@@ -62,6 +63,10 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
   const [edited, setEdited] = useState<EventTrackRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventTrackRow | null>(null);
   const [linked, setLinked] = useState<EventTrackRow | null>(null);
+  // Otwarta ścieżka jest trzymana po IDENTYFIKATORZE, nie po wierszu: po zapisie
+  // lista wraca ze świeżymi danymi i przestrzeń robocza ma pokazać nowe, a nie
+  // zamrożoną kopię sprzed edycji.
+  const [openedId, setOpenedId] = useState<string | null>(null);
 
   const rows = listQ.data ?? [];
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
@@ -131,8 +136,20 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
       .catch(fail);
   };
 
+  const opened = rows.find((row) => row.id === openedId) ?? null;
+
   const nameOf = (row: EventTrackRow): string =>
     isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en;
+
+  if (opened !== null) {
+    return (
+      <EventTrackWorkspace
+        eventId={eventId}
+        track={opened}
+        onBack={() => setOpenedId(null)}
+      />
+    );
+  }
 
   return (
     <section className="space-y-4">
@@ -203,6 +220,10 @@ export function AgendaTracksPanel({ eventId }: { eventId: string }) {
                 className="w-auto"
               />
               <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => setOpenedId(row.id)}>
+                  <ArrowRight className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {t("adminEventAgenda.tracks.openAction")}
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setLinked(row)}>
                   <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
                   {t("adminEventAgenda.tracks.linkAction")}

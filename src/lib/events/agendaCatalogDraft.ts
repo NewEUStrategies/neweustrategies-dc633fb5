@@ -53,8 +53,17 @@ export interface TrackDraft {
   nameEn: string;
   /** Pusty tekst = ścieżka bez własnego koloru. */
   accentColor: string;
+  /** Jedno zdanie wprowadzające pasmo. Pusty tekst = brak zdania. */
+  taglinePl: string;
+  taglineEn: string;
+  descriptionPl: string;
+  descriptionEn: string;
+  coverUrl: string;
+  /** Pusty tekst = pasmo bez sali domyślnej. */
+  defaultRoomId: string;
   sortOrder: string;
   isActive: boolean;
+  isPublic: boolean;
 }
 
 export function emptyTrackDraft(sortOrder: number): TrackDraft {
@@ -64,8 +73,15 @@ export function emptyTrackDraft(sortOrder: number): TrackDraft {
     namePl: "",
     nameEn: "",
     accentColor: "",
+    taglinePl: "",
+    taglineEn: "",
+    descriptionPl: "",
+    descriptionEn: "",
+    coverUrl: "",
+    defaultRoomId: "",
     sortOrder: String(sortOrder),
     isActive: true,
+    isPublic: true,
   };
 }
 
@@ -76,14 +92,27 @@ export function trackDraftFromRow(row: EventTrackRow): TrackDraft {
     namePl: textOf(row.name_pl),
     nameEn: textOf(row.name_en),
     accentColor: textOf(row.accent_color),
+    taglinePl: textOf(row.tagline_pl),
+    taglineEn: textOf(row.tagline_en),
+    descriptionPl: textOf(row.description_pl),
+    descriptionEn: textOf(row.description_en),
+    coverUrl: textOf(row.cover_url),
+    defaultRoomId: textOf(row.default_room_id),
     sortOrder: String(numberOf(row.sort_order, 0)),
     isActive: row.is_active !== false,
+    // Brak kolumny w starym wierszu (np. w atrapie testu) to pasmo widoczne -
+    // taka jest wartość domyślna w bazie.
+    isPublic: row.is_public !== false,
   };
 }
 
 export type TrackFieldError = { field: keyof TrackDraft; messageKey: string };
 
 const TV = "adminEventAgenda.tracks.dialog.validation.";
+
+/** Limity z `event_tracks_*_len` w migracji - formularz nie może obiecać więcej. */
+export const AGENDA_MAX_TAGLINE = 200;
+export const AGENDA_MAX_DESCRIPTION = 4000;
 
 export function validateTrackDraft(draft: TrackDraft): TrackFieldError[] {
   const errors: TrackFieldError[] = [];
@@ -95,6 +124,10 @@ export function validateTrackDraft(draft: TrackDraft): TrackFieldError[] {
     errors.push({ field: "namePl", messageKey: `${TV}namesRequired` });
   if (draft.nameEn.trim() === "")
     errors.push({ field: "nameEn", messageKey: `${TV}namesRequired` });
+  if (draft.taglinePl.trim().length > AGENDA_MAX_TAGLINE)
+    errors.push({ field: "taglinePl", messageKey: `${TV}taglineTooLong` });
+  if (draft.taglineEn.trim().length > AGENDA_MAX_TAGLINE)
+    errors.push({ field: "taglineEn", messageKey: `${TV}taglineTooLong` });
   return errors;
 }
 
@@ -109,8 +142,15 @@ export function trackDraftToInput(draft: TrackDraft, eventId: string): EventTrac
     // Kolor spoza wzoru `#RRGGBB` byłby dla publicznej agendy śmieciem w atrybucie
     // `style`, więc zamiast wysyłać go do bazy, zwracamy brak koloru.
     accentColor: HEX_COLOR_PATTERN.test(color) ? color.toLowerCase() : null,
+    taglinePl: trimOrNull(draft.taglinePl),
+    taglineEn: trimOrNull(draft.taglineEn),
+    descriptionPl: trimOrNull(draft.descriptionPl),
+    descriptionEn: trimOrNull(draft.descriptionEn),
+    coverUrl: trimOrNull(draft.coverUrl),
+    defaultRoomId: trimOrNull(draft.defaultRoomId),
     sortOrder: intOrNull(draft.sortOrder) ?? 100,
     isActive: draft.isActive,
+    isPublic: draft.isPublic,
   };
 }
 

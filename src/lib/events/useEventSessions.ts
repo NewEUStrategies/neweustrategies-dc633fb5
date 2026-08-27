@@ -22,6 +22,7 @@ import {
   fetchAgendaConflicts,
   fetchEventRooms,
   fetchEventSessions,
+  fetchEventTrackSpeakers,
   fetchEventTracks,
   fetchSessionDetail,
   fetchSessionSignups,
@@ -42,6 +43,7 @@ import {
   type EventSessionSignupRow,
   type EventTrackInput,
   type EventTrackRow,
+  type EventTrackSpeakerRow,
   type SessionOrderItem,
   type SessionSignupInput,
   type SessionSpeakerInput,
@@ -64,6 +66,7 @@ export const agendaKeys = {
       : ([...agendaKeys.event(query.eventId), "sessions", query] as const),
   tracks: (eventId: string) => [...agendaKeys.event(eventId), "tracks"] as const,
   rooms: (eventId: string) => [...agendaKeys.event(eventId), "rooms"] as const,
+  trackSpeakers: (trackId: string) => [...agendaKeys.all, "track-speakers", trackId] as const,
   conflicts: (eventId: string) => [...agendaKeys.event(eventId), "conflicts"] as const,
   session: (sessionId: string) => [...agendaKeys.all, "session", sessionId] as const,
   signups: (sessionId: string) => [...agendaKeys.all, "session", sessionId, "signups"] as const,
@@ -89,6 +92,18 @@ export function useEventTracks(eventId: string | null): UseQueryResult<EventTrac
     queryKey: agendaKeys.tracks(eventId ?? "none"),
     queryFn: () => fetchEventTracks(eventId as string),
     enabled: eventId !== null,
+    staleTime: CONFIG_STALE_MS,
+  });
+}
+
+/** Obsada calego pasma - kto wystepuje w sesjach sciezki i w jakich rolach. */
+export function useEventTrackSpeakers(
+  trackId: string | null,
+): UseQueryResult<EventTrackSpeakerRow[]> {
+  return useQuery({
+    queryKey: agendaKeys.trackSpeakers(trackId ?? "none"),
+    queryFn: () => fetchEventTrackSpeakers(trackId as string),
+    enabled: trackId !== null,
     staleTime: CONFIG_STALE_MS,
   });
 }

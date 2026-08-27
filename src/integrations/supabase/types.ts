@@ -9205,44 +9205,72 @@ export type Database = {
       event_tracks: {
         Row: {
           accent_color: string | null
+          cover_url: string | null
           created_at: string
+          default_room_id: string | null
+          description_en: string | null
+          description_pl: string | null
           event_id: string
           id: string
           is_active: boolean
+          is_public: boolean
           key: string
           name_en: string
           name_pl: string
           sort_order: number
+          tagline_en: string | null
+          tagline_pl: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
           accent_color?: string | null
+          cover_url?: string | null
           created_at?: string
+          default_room_id?: string | null
+          description_en?: string | null
+          description_pl?: string | null
           event_id: string
           id?: string
           is_active?: boolean
+          is_public?: boolean
           key: string
           name_en: string
           name_pl: string
           sort_order?: number
+          tagline_en?: string | null
+          tagline_pl?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
           accent_color?: string | null
+          cover_url?: string | null
           created_at?: string
+          default_room_id?: string | null
+          description_en?: string | null
+          description_pl?: string | null
           event_id?: string
           id?: string
           is_active?: boolean
+          is_public?: boolean
           key?: string
           name_en?: string
           name_pl?: string
           sort_order?: number
+          tagline_en?: string | null
+          tagline_pl?: string | null
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "event_tracks_default_room_fk"
+            columns: ["tenant_id", "event_id", "default_room_id"]
+            isOneToOne: false
+            referencedRelation: "event_rooms"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
           {
             foreignKeyName: "event_tracks_event_fk"
             columns: ["tenant_id", "event_id"]
@@ -20471,19 +20499,44 @@ export type Database = {
       }
       admin_event_track_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_track_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_track_speakers: {
+        Args: { p_track_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          job_title: string
+          roles: string[]
+          sessions_count: number
+          speaker_profile_id: string
+        }[]
+      }
       admin_event_tracks_list: {
         Args: { p_event_id: string }
         Returns: {
           accent_color: string
+          cover_url: string
           created_at: string
+          default_room_id: string
+          default_room_name: string
+          description_en: string
+          description_pl: string
+          draft_count: number
           event_id: string
+          first_starts_at: string
           id: string
           is_active: boolean
+          is_public: boolean
           key: string
+          last_ends_at: string
+          minutes_total: number
           name_en: string
           name_pl: string
+          published_count: number
           sessions_count: number
           sort_order: number
+          speakers_count: number
+          tagline_en: string
+          tagline_pl: string
           updated_at: string
         }[]
       }

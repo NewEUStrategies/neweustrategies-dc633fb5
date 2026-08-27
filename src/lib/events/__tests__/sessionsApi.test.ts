@@ -54,13 +54,20 @@ const KONTRAKT: Record<string, readonly string[]> = {
   ],
   admin_event_track_save: [
     "accent_color",
+    "cover_url",
+    "default_room_id",
+    "description_en",
+    "description_pl",
     "event_id",
     "id",
     "is_active",
+    "is_public",
     "key",
     "name_en",
     "name_pl",
     "sort_order",
+    "tagline_en",
+    "tagline_pl",
   ],
   admin_event_room_save: [
     "capacity",
@@ -174,8 +181,15 @@ describe("sessionsApi - kontrakt payloadów", () => {
       namePl: "Polityka",
       nameEn: "Policy",
       accentColor: "#FA9346",
+      taglinePl: "Pasmo regulacyjne",
+      taglineEn: "Regulatory strand",
+      descriptionPl: null,
+      descriptionEn: null,
+      coverUrl: null,
+      defaultRoomId: null,
       sortOrder: 100,
       isActive: true,
+      isPublic: true,
     };
     await api.saveEventTrack(track);
     const created = Object.keys(payloadOf("admin_event_track_save")).sort();
