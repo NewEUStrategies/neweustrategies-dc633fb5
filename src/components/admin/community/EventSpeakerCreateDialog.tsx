@@ -390,16 +390,76 @@ export function EventSpeakerCreateDialog({
           </Section>
 
           <Section title={t("adminCommunityEvents.speakers.create.sectionCard")} delayMs={60}>
-            <Field
-              label={t("adminCommunityEvents.speakers.create.photoUrl")}
-              hint={t("adminCommunityEvents.speakers.create.photoUrlHint")}
-            >
-              <Input
-                value={draft.photoUrl}
-                onChange={(e) => set("photoUrl", e.target.value)}
-                placeholder={t("adminCommunityEvents.speakers.create.photoUrlPlaceholder")}
-              />
-            </Field>
+            {/* ZDJECIE: kafel podgladu 6 px + wgrywanie pliku, adres https jako
+                alternatywa dla materialow hostowanych po stronie partnera. */}
+            <div className="flex items-start gap-3">
+              <div className="flex size-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-border/60 bg-muted/40">
+                {draft.photoUrl.trim() !== "" ? (
+                  <img
+                    src={draft.photoUrl}
+                    alt={t("adminCommunityEvents.speakers.create.photoAlt")}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <ImagePlus aria-hidden="true" className="size-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <Field
+                  label={t("adminCommunityEvents.speakers.create.photoUrl")}
+                  hint={t("adminCommunityEvents.speakers.create.photoUrlHint")}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="h-9 min-w-[12rem] flex-1"
+                      value={draft.photoUrl}
+                      onChange={(e) => set("photoUrl", e.target.value)}
+                      placeholder={t("adminCommunityEvents.speakers.create.photoUrlPlaceholder")}
+                    />
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      className="hidden"
+                      accept={IMAGE_ACCEPT_ATTR}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file !== undefined) void handlePhoto(file);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-[6px]"
+                      disabled={uploading}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {uploading ? (
+                        <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                      ) : (
+                        <ImagePlus aria-hidden="true" className="size-4" />
+                      )}
+                      {uploading
+                        ? t("adminCommunityEvents.speakers.create.photoUploading")
+                        : t("adminCommunityEvents.speakers.create.photoUpload")}
+                    </Button>
+                    {draft.photoUrl.trim() !== "" && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 rounded-[6px]"
+                        aria-label={t("adminCommunityEvents.speakers.create.photoRemove")}
+                        onClick={() => set("photoUrl", "")}
+                      >
+                        <Trash2 aria-hidden="true" className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </Field>
+              </div>
+            </div>
+
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
