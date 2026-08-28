@@ -485,11 +485,12 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, status, expires_at, responded_at)
+       starts_at, ends_at, status, expires_at, responded_at, decline_reason)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a2',
-            '60900000-0000-0000-0000-0000000000b1', %L, %L, 'declined', now() + interval '1 day', now())
+            '60900000-0000-0000-0000-0000000000b1', %L, %L, 'declined',
+            now() + interval '1 day', now(), 'Brak czasu w tym slocie')
   $q$, v_s, v_e), 'fk',
     '60/IZOLACJA: spotkanie najemcy A nie moze wskazac zapisu najemcy B');
 
