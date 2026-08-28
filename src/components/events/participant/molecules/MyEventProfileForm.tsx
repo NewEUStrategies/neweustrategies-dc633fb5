@@ -112,13 +112,90 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[6px] border border-border bg-card p-4 sm:p-5 space-y-4">
-      <header className="space-y-1">
+    <section className="rounded-[6px] border border-border bg-card p-3.5 space-y-3">
+      <header className="space-y-0.5">
         <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
         {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}
       </header>
       {children}
     </section>
+  );
+}
+
+// „Czego szukam / Co oferuję" trzymamy w bazie jako tekst z nowymi liniami,
+// a uczestnik edytuje je jak listę punktów - maksymalnie 5, każda linia to
+// jeden punkt widoczny potem jako bullet w katalogu uczestników.
+const MAX_BULLETS = 5;
+
+export function parseBullets(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .slice(0, MAX_BULLETS);
+}
+
+function BulletListInput({
+  value,
+  onChange,
+  placeholder,
+  addLabel,
+  limitLabel,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  addLabel: string;
+  limitLabel: string;
+  ariaLabel: string;
+}) {
+  const items = parseBullets(value);
+  const commit = (next: string[]) => onChange(next.join("\n"));
+
+  return (
+    <div className="space-y-1.5" aria-label={ariaLabel}>
+      {items.map((item, index) => (
+        <div key={index} className="flex items-center gap-1.5">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={item}
+            placeholder={placeholder}
+            aria-label={`${ariaLabel} ${index + 1}`}
+            className="h-8 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2.5 text-sm outline-none focus:border-primary"
+            onChange={(event) =>
+              commit(items.map((current, i) => (i === index ? event.target.value : current)))
+            }
+          />
+          <button
+            type="button"
+            onClick={() => commit(items.filter((_, i) => i !== index))}
+            aria-label={`${ariaLabel} ${index + 1} - usuń`}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      {items.length < MAX_BULLETS ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => commit([...items, ""])}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          {addLabel}
+        </Button>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">{limitLabel}</p>
+      )}
+    </div>
   );
 }
 
