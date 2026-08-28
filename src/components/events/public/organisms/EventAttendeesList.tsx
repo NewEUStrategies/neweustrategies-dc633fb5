@@ -57,6 +57,8 @@ import {
   type SpeakerSessionEntry,
 } from "@/lib/events/participantTicketsApi";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
+import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
+import { EventPersonActions } from "@/components/events/participant/molecules/EventPersonActions";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
@@ -480,6 +482,10 @@ function AttendeeCard({
   sessions: SpeakerSessionEntry[] | null;
 }) {
   const { t } = useTranslation();
+  const bio = (lang === "en" ? entry.bioEn : entry.bioPl) ?? entry.bioPl ?? entry.bioEn;
+  const seeking = (lang === "en" ? entry.seekingEn : entry.seekingPl) ?? entry.seekingPl;
+  const offering = (lang === "en" ? entry.offeringEn : entry.offeringPl) ?? entry.offeringPl;
+  const hasSocials = Object.keys(entry.socialLinks).length > 0;
 
   const body = (
     <>
@@ -497,9 +503,29 @@ function AttendeeCard({
             </p>
           )}
           {entry.company !== null && (
-            <p title={entry.company} className="truncate text-xs text-foreground/80">
-              {entry.company}
-            </p>
+            <span className="flex items-center gap-1.5 text-xs text-foreground/80">
+              {entry.companyLogoUrl !== null && (
+                <img
+                  src={entry.companyLogoUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-5 w-5 shrink-0 rounded-[6px] border border-border object-contain"
+                />
+              )}
+              {entry.companyWebsite === null ? (
+                <span title={entry.company} className="truncate">{entry.company}</span>
+              ) : (
+                <a
+                  href={entry.companyWebsite}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="truncate underline-offset-2 hover:underline"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {entry.company}
+                </a>
+              )}
+            </span>
           )}
         </div>
       </div>
@@ -514,6 +540,34 @@ function AttendeeCard({
               {groupName(group, lang)}
             </Badge>
           ))}
+        </div>
+      )}
+      {(entry.industry !== null || entry.specialization !== null) && (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+          {entry.industry !== null && <Badge variant="secondary">{entry.industry}</Badge>}
+          {entry.specialization !== null && <Badge variant="outline">{entry.specialization}</Badge>}
+        </div>
+      )}
+      {bio !== null && <p className="mt-3 line-clamp-3 text-xs text-muted-foreground">{bio}</p>}
+      {(seeking !== null || offering !== null) && (
+        <dl className="mt-3 grid gap-2 border-t border-border/60 pt-2 text-xs">
+          {seeking !== null && (
+            <div>
+              <dt className="font-semibold text-foreground">{t("eventMe.fields.seeking")}</dt>
+              <dd className="mt-0.5 line-clamp-2 text-muted-foreground">{seeking}</dd>
+            </div>
+          )}
+          {offering !== null && (
+            <div>
+              <dt className="font-semibold text-foreground">{t("eventMe.fields.offering")}</dt>
+              <dd className="mt-0.5 line-clamp-2 text-muted-foreground">{offering}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {hasSocials && (
+        <div className="mt-3 border-t border-border/60 pt-2" onClick={(event) => event.stopPropagation()}>
+          <EventSocialLinks links={entry.socialLinks} />
         </div>
       )}
       {/* PRELEGENT MA POWIEDZIEĆ, GDZIE GO SZUKAĆ. Sama plakietka „prelegent"
@@ -533,6 +587,15 @@ function AttendeeCard({
           </ul>
         </div>
       )}
+      <div className="mt-3 border-t border-border/60 pt-3" onClick={(event) => event.stopPropagation()}>
+        <EventPersonActions
+          slug={null}
+          userId={entry.userId}
+          registrationId={entry.registrationId}
+          displayName={entry.name}
+          displayAvatar={entry.avatarUrl}
+        />
+      </div>
     </>
   );
 

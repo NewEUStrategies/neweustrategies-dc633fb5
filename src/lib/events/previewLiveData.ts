@@ -141,7 +141,7 @@ export function attendeeEntriesFromRegistrationRows(
     .filter((row) => row.status === "approved" || row.status === "attended")
     .map((row) => ({
       registrationId: row.id,
-      userId: row.user_id,
+      userId: null,
       name: [row.first_name ?? "", row.last_name ?? ""]
         .map((part) => part.trim())
         .filter((part) => part !== "")
