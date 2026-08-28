@@ -309,7 +309,7 @@ export async function notifyTicketOutcome(
     }
   }
 
-  if (contact.phone) {
+  if (contact.phone && channels.sms) {
     try {
       const { sendSms } = await import("@/lib/notify/sms.server");
       const sms = await sendSms({ to: contact.phone, body: smsBody(payload, outcome, lang) });
