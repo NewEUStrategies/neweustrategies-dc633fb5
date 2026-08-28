@@ -26,6 +26,14 @@ const ChatBell = lazy(() =>
   import("@/components/chat/ChatBell").then((m) => ({ default: m.ChatBell })),
 );
 
+// Sekcja „moje wydarzenia" - leniwie, bo dotyczy tylko zalogowanych i tylko po
+// otwarciu panelu; nagłówek nie ciągnie jej w swoim chunku.
+const AccountMenuEventsSection = lazy(() =>
+  import("@/components/events/participant/molecules/AccountMenuEventsSection").then((m) => ({
+    default: m.AccountMenuEventsSection,
+  })),
+);
+
 type Lang = "pl" | "en";
 
 type AccountMenuItemKind = "preset" | "page" | "custom" | "separator" | "logout";
