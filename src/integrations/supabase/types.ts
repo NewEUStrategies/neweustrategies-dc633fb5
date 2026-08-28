@@ -23551,6 +23551,9 @@ export type Database = {
           sort_order: number
         }[]
       }
+      event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_event_profile_set: { Args: { p_payload?: Json }; Returns: Json }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
