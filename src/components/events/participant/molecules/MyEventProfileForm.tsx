@@ -585,9 +585,12 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
           </label>
           <Textarea
             rows={12}
-            /* inline style, bo globalna reguła `:where(textarea)` z warstwy CSS
-               potrafiła nadpisać utility min-h-[...] w buildzie produkcyjnym */
-            style={{ minHeight: "300px" }}
+            /* `data-multiline` wymusza wyjątek od globalnej reguły
+               `.admin-compact textarea` (30 px !important), która ścinała pole
+               do jednej linii w studiu i panelu; inline min-height pilnuje
+               wysokości poza adminem. */
+            data-multiline="true"
+            style={{ minHeight: "320px" }}
             className="rounded-[6px] leading-relaxed"
             value={en ? form.bio_en : form.bio_pl}
             onChange={field(en ? "bio_en" : "bio_pl")}

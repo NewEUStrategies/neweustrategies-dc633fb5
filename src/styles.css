@@ -1828,6 +1828,24 @@ a:has(.cms-title-underline):focus {
   padding-bottom: 2px !important;
 }
 
+/* Wyjątek: prawdziwe pola wielowierszowe (np. bio uczestnika wydarzenia).
+   Reguła powyżej ścina KAŻDE textarea w adminie do jednej linii 30 px, więc
+   opis profilu był nieedytowalny. Oznaczamy takie pole data-multiline, a nie
+   klasą komponentu, żeby reguła działała niezależnie od miejsca renderu. */
+.admin-compact textarea[data-multiline="true"] {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  resize: vertical !important;
+  overflow: auto !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  font-size: 13.5px !important;
+  line-height: 1.55 !important;
+}
+
 /* Edytor bloków: nic w podglądzie widgetu nie może być ucinane w poziomie. */
 .block-canvas :is(input, textarea, [contenteditable="true"]) {
   max-width: 100%;
