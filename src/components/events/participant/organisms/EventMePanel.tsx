@@ -185,7 +185,7 @@ export function EventMePanel({ slug }: { slug: string }) {
                 {t("eventMe.publicPreview.hint")}
               </p>
               <div className="max-w-xl">
-                <MyEventPublicPreview profile={panel.data.profile} />
+                <MyEventPublicPreview profile={panel.data.profile} actions={{ slug: null, userId: null, self: true }} />
               </div>
             </div>
           ) : (

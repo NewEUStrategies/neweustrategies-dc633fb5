@@ -6,24 +6,16 @@
 // pokazujemy WYŁĄCZNIE, gdy właściciel je włączył. Dzięki temu podgląd jest
 // weryfikacją zgody, a nie ozdobnikiem.
 import { useTranslation } from "react-i18next";
-import type { ComponentType, SVGProps } from "react";
 import { Mail, Phone } from "lucide-react";
 
-import { Facebook, Globe, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
-import { XIcon } from "@/components/atoms/XIcon";
 import { uiLang } from "@/lib/i18n/format";
-import { SOCIAL_KEYS, type MyEventProfile, type SocialKey } from "@/lib/events/myEventProfileApi";
-
-type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: string | number }>;
-
-const SOCIAL_ICON: Record<SocialKey, IconComponent> = {
-  linkedin: Linkedin,
-  x: XIcon,
-  facebook: Facebook,
-  instagram: Instagram,
-  youtube: Youtube,
-  website: Globe,
-};
+import { type MyEventProfile } from "@/lib/events/myEventProfileApi";
+import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
+import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
+import {
+  EventPersonActions,
+  type EventPersonActionsProps,
+} from "@/components/events/participant/molecules/EventPersonActions";
 
 function Row({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -34,7 +26,13 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
   );
 }
 
-export function MyEventPublicPreview({ profile }: { profile: MyEventProfile }) {
+export interface MyEventPublicPreviewProps {
+  profile: MyEventProfile;
+  /** Akcje networkingowe - gdy podane, karta pokazuje pasek kontaktu. */
+  actions?: Omit<EventPersonActionsProps, "displayName" | "displayAvatar"> | null;
+}
+
+export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicPreviewProps) {
   const { t, i18n } = useTranslation();
   const en = uiLang(i18n.language) === "en";
 
@@ -42,12 +40,15 @@ export function MyEventPublicPreview({ profile }: { profile: MyEventProfile }) {
   const bio = (en ? profile.bioEn : profile.bioPl) ?? profile.bioPl ?? profile.bioEn;
   const seeking = (en ? profile.seekingEn : profile.seekingPl) ?? null;
   const offering = (en ? profile.offeringEn : profile.offeringPl) ?? null;
-  const socials = SOCIAL_KEYS.filter((key) => (profile.socialLinks[key] ?? "").trim() !== "");
+  const hasSocials = Object.values(profile.socialLinks).some(
+    (value) => (value ?? "").trim() !== "",
+  );
   const email = profile.emailVisible ? profile.email : null;
   const phone = profile.phoneVisible ? profile.phone : null;
-  const tags = [profile.industry, profile.specialization].filter(
-    (value): value is string => value !== null && value.trim() !== "",
-  );
+  const brand = useCompanyBrand(profile.companyText);
+  const companyLogo = brand.data?.logoUrl ?? null;
+  const companyWebsite = brand.data?.website ?? null;
+  const industry = profile.industry ?? brand.data?.industry ?? null;
 
   return (
     <div className="overflow-hidden rounded-[6px] border border-border bg-card">
@@ -69,22 +70,63 @@ export function MyEventPublicPreview({ profile }: { profile: MyEventProfile }) {
           </p>
           {profile.jobTitle !== null && <p className="text-sm">{profile.jobTitle}</p>}
           {profile.companyText !== null && (
-            <p className="text-sm text-muted-foreground">{profile.companyText}</p>
+            <span className="inline-flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              {companyLogo !== null && (
+                <img
+                  src={companyLogo}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-6 w-6 rounded-[6px] border border-border bg-background object-contain"
+                />
+              )}
+              {companyWebsite === null ? (
+                profile.companyText
+              ) : (
+                <a
+                  href={companyWebsite}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline-offset-2 hover:underline"
+                >
+                  {profile.companyText}
+                </a>
+              )}
+            </span>
           )}
         </div>
-        {tags.length > 0 && (
-          <ul className="flex flex-wrap justify-center gap-1.5">
-            {tags.map((tag) => (
-              <li
-                key={tag}
-                className="rounded-[6px] border border-border px-2 py-0.5 text-xs text-muted-foreground"
-              >
-                {tag}
-              </li>
-            ))}
-          </ul>
+
+        {actions !== null && (
+          <EventPersonActions
+            {...actions}
+            displayName={name === "" ? t("eventMe.publicPreview.noName") : name}
+            displayAvatar={profile.photoUrl}
+            className="justify-center"
+          />
         )}
       </div>
+
+      {(industry !== null || profile.specialization !== null) && (
+        <Row title={t("eventMe.publicPreview.professional")}>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            {industry !== null && (
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide">
+                  {t("eventMe.fields.industry")}
+                </dt>
+                <dd className="mt-1">{industry}</dd>
+              </div>
+            )}
+            {profile.specialization !== null && (
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide">
+                  {t("eventMe.fields.specialization")}
+                </dt>
+                <dd className="mt-1">{profile.specialization}</dd>
+              </div>
+            )}
+          </dl>
+        </Row>
+      )}
 
       <Row title={t("eventMe.publicPreview.about")}>
         {bio !== null && bio.trim() !== "" ? (
@@ -118,28 +160,10 @@ export function MyEventPublicPreview({ profile }: { profile: MyEventProfile }) {
       )}
 
       <Row title={t("eventMe.sections.social")}>
-        {socials.length === 0 ? (
-          <p className="italic">{t("eventMe.publicPreview.empty")}</p>
+        {hasSocials ? (
+          <EventSocialLinks links={profile.socialLinks} />
         ) : (
-          <ul className="flex flex-wrap gap-2">
-            {socials.map((key) => {
-              const Icon = SOCIAL_ICON[key];
-              const href = profile.socialLinks[key] ?? "";
-              return (
-                <li key={key}>
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] border border-border text-foreground transition-colors hover:bg-muted"
-                    aria-label={t(`eventMe.social.${key}`)}
-                  >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
+          <p className="italic">{t("eventMe.publicPreview.empty")}</p>
         )}
       </Row>
 

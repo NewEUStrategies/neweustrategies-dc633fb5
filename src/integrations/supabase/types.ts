@@ -23191,6 +23191,15 @@ export type Database = {
           leads_count: number
         }[]
       }
+      crm_company_brand: {
+        Args: { p_name: string }
+        Returns: {
+          branch: string
+          logo_url: string
+          name: string
+          website: string
+        }[]
+      }
       crm_enqueue_lead_push: {
         Args: { p_endpoint_id?: string; p_lead_id: string }
         Returns: number
