@@ -135,6 +135,28 @@ export function CartPanel() {
               ))}
             </ul>
 
+            <section className="space-y-2 rounded-[6px] border border-border bg-card p-4">
+              <label
+                htmlFor="cart-promo"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {t("cart.promoLabel")}
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  id="cart-promo"
+                  value={promo}
+                  onChange={(event) => setPromo(event.target.value)}
+                  maxLength={64}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={t("cart.promoPlaceholder")}
+                  className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground">{t("cart.promoHint")}</p>
+              </div>
+            </section>
+
             <footer className="flex flex-col gap-3 rounded-[6px] border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1 text-sm">
                 <p className="font-semibold">{t("cart.itemsCount", { count: totals.count })}</p>
