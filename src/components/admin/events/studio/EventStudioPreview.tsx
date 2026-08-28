@@ -55,6 +55,7 @@ import {
   agendaSessionsFromAdminRows,
   attendeeEntriesFromRegistrationRows,
   speakerRowsFromAdminEntries,
+  trackChipsFromAdminRows,
 } from "@/lib/events/previewLiveData";
 import type { EventPreviewLiveData } from "@/components/admin/events/studio/EventPreviewLiveModule";
 
