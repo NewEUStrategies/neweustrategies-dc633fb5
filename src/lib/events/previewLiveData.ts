@@ -16,7 +16,7 @@
 // ("otwarte" albo "wymaga zapisu"), nie decyzje reguly dla konkretnej osoby.
 import type { AgendaAccessState, AgendaFormat, AgendaSession } from "@/lib/events/agendaSurface";
 import { AGENDA_FORMATS } from "@/lib/events/agendaSurface";
-import type { EventSessionRow } from "@/lib/events/sessionsApi";
+import type { EventSessionRow, EventTrackRow } from "@/lib/events/sessionsApi";
 import type { EventSpeakerEntry } from "@/lib/admin/community";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
@@ -162,4 +162,38 @@ export function attendeeEntriesFromRegistrationRows(
             ],
     }))
     .filter((entry) => entry.name !== "");
+}
+
+/**
+ * Sciezki panelu -> pasek pasm nad programem w podgladzie.
+ *
+ * WCHODZA TAKZE SCIEZKI ZE SZKICAMI: redaktor musi zobaczyc pasmo, ktore
+ * wlasnie zalozyl, zanim opublikuje sesje - dlatego liczba szkicow jedzie
+ * osobno, zamiast filtrowac wiersz.
+ */
+export interface PreviewTrackChip {
+  id: string;
+  namePl: string | null;
+  nameEn: string | null;
+  accentColor: string | null;
+  sessionsCount: number;
+  draftCount: number;
+  isPublic: boolean;
+}
+
+export function trackChipsFromAdminRows(
+  rows: readonly EventTrackRow[] | undefined,
+): PreviewTrackChip[] {
+  if (rows === undefined) return [];
+  return rows
+    .filter((row) => row.is_active !== false)
+    .map((row) => ({
+      id: row.id,
+      namePl: nullable(row.name_pl),
+      nameEn: nullable(row.name_en),
+      accentColor: nullable(row.accent_color),
+      sessionsCount: row.sessions_count ?? 0,
+      draftCount: row.draft_count ?? 0,
+      isPublic: row.is_public !== false,
+    }));
 }

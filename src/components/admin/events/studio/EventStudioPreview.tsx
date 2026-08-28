@@ -45,7 +45,7 @@ import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { useEventSessions } from "@/lib/events/useEventSessions";
+import { useEventSessions, useEventTracks } from "@/lib/events/useEventSessions";
 import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { DEFAULT_REGISTRATIONS_QUERY } from "@/lib/events/registrationsApi";
 import { useRegistrationsList } from "@/lib/events/useEventRegistrations";
@@ -55,6 +55,7 @@ import {
   agendaSessionsFromAdminRows,
   attendeeEntriesFromRegistrationRows,
   speakerRowsFromAdminEntries,
+  trackChipsFromAdminRows,
 } from "@/lib/events/previewLiveData";
 import type { EventPreviewLiveData } from "@/components/admin/events/studio/EventPreviewLiveModule";
 
@@ -149,6 +150,7 @@ export function EventStudioPreview({
     enabled: liveEnabled,
     staleTime: 60_000,
   });
+  const tracksQ = useEventTracks(liveEnabled ? eventId : null);
   const registrationsQ = useRegistrationsList(
     liveEnabled
       ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "all", limit: 60, offset: 0 }
@@ -157,10 +159,11 @@ export function EventStudioPreview({
   const live: EventPreviewLiveData = useMemo(
     () => ({
       sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone),
+      tracks: trackChipsFromAdminRows(tracksQ.data),
       speakers: speakerRowsFromAdminEntries(speakersQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
     }),
-    [sessionsQ.data, speakersQ.data, registrationsQ.data, base.timezone],
+    [sessionsQ.data, tracksQ.data, speakersQ.data, registrationsQ.data, base.timezone],
   );
 
 
