@@ -80,6 +80,7 @@
 // wierne przelamania tekstu, ale siatki zostaja w ukladzie z komputera.
 // Naprawa nalezy do strony publicznej (przejscie na zapytania kontenerowe),
 // nie do podgladu - druga siatka liczona tutaj to znowu drugi silnik.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, CalendarDays, Clock, Globe, MapPin } from "@/lib/lucide-shim";
 import { buttonVariants } from "@/components/ui/button";
@@ -126,6 +127,8 @@ import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer"
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import { ensureI18n as ensureEventMeI18n } from "@/lib/i18n-cart";
+import { PreviewMePanel } from "@/components/admin/events/studio/PreviewMePanel";
 import type { ViewerCardFacts } from "@/lib/profile/useViewerCard";
 import type { EventPreviewModel } from "@/components/admin/events/studio/EventStudioPreviewContext";
 
@@ -213,7 +216,12 @@ export function EventPreviewCanvas({
   ensureAdminEventsI18n();
   ensureCommunityI18n();
   ensureEventFrontI18n();
+  ensureEventMeI18n();
   const { t, i18n } = useTranslation();
+  // „Moj profil" nie jest podstrona organizatora (`event_menu` jej nie zna),
+  // wiec stan tej zakladki zyje TU, obok stanu nakladki - klik w dowolna
+  // pozycje z bazy wraca do rysunku strony publicznej.
+  const [showMe, setShowMe] = useState(false);
   const lang = uiLang(i18n.language);
 
   const title =
@@ -276,7 +284,14 @@ export function EventPreviewCanvas({
                   EVENT_TAB_CLASS,
                   page === null ? EVENT_TAB_ACTIVE_CLASS : EVENT_TAB_INACTIVE_CLASS,
                 )}
-                onActivate={onNavigate === undefined ? undefined : () => onNavigate(null)}
+                onActivate={
+                  onNavigate === undefined
+                    ? undefined
+                    : () => {
+                        setShowMe(false);
+                        onNavigate(null);
+                      }
+                }
               >
                 {t("eventFront.header.tabs.overview")}
               </PreviewNavItem>
@@ -297,18 +312,37 @@ export function EventPreviewCanvas({
                   onActivate={
                     onNavigate === undefined
                       ? undefined
-                      : () => onNavigate({ key: item.key, pageId: item.pageId })
+                      : () => {
+                          setShowMe(false);
+                          onNavigate({ key: item.key, pageId: item.pageId });
+                        }
                   }
                 >
                   {item.label}
                 </PreviewNavItem>
               </li>
             ))}
+            {/* Prywatna zakladka uczestnika - na stronie publicznej rysuje ja
+                `EventTabsNav` dla zalogowanego. W podgladzie stoi zawsze, bo
+                organizator ma widziec, ze uczestnik ja dostanie. */}
+            <li>
+              <PreviewNavItem
+                className={cn(
+                  EVENT_TAB_CLASS,
+                  showMe ? EVENT_TAB_ACTIVE_CLASS : EVENT_TAB_INACTIVE_CLASS,
+                )}
+                onActivate={() => setShowMe(true)}
+              >
+                {t("eventMe.tab")}
+              </PreviewNavItem>
+            </li>
           </EventTabsBar>
         )
       }
     >
-      {page === null ? (
+      {showMe ? (
+        <PreviewMePanel />
+      ) : page === null ? (
         <EventOverviewLayout
           main={
             <>

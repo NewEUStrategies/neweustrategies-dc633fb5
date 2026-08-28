@@ -431,9 +431,11 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
     render(<EventPreviewCanvas model={filledModel()} device="desktop" />);
     const tabs = screen.getByRole("navigation", { name: "eventFront.header.tabsLabel" });
     expect(tabs).toBeInTheDocument();
-    // „Strona glowna” + pozycje ze szkicu.
-    expect(tabs.querySelectorAll("li")).toHaveLength(2);
+    // „Strona glowna” + pozycje ze szkicu + prywatna zakladka uczestnika.
+    expect(tabs.querySelectorAll("li")).toHaveLength(3);
     expect(screen.getByText("eventFront.header.tabs.overview")).toBeInTheDocument();
+    expect(screen.getByText("eventMe.tab")).toBeInTheDocument();
+
   });
 
   // ── PARYTET WARUNKU, NIE TYLKO STRUKTURY ─────────────────────────────────
