@@ -136,7 +136,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         "event_ticket_checkout_quote",
         {
           p_ticket_type_id: data.ticket_type_id,
-          p_access_code: data.access_code ?? null,
+          // `undefined` = brak klucza w żądaniu; RPC ma wtedy własny default.
+          p_access_code: data.access_code === "" ? undefined : data.access_code,
         },
       );
       if (quoteErr) throw new Error(quoteErr.message);
