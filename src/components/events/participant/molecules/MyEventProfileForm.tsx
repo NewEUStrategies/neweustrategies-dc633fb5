@@ -409,12 +409,6 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">{t("eventMe.photo.hint")}</p>
-            <FieldBox
-              label={t("eventMe.fields.photoUrl")}
-              value={form.photo_url}
-              onChange={field("photo_url")}
-              inputMode="url"
-            />
           </div>
         </div>
 
