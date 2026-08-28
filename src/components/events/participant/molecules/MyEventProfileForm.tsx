@@ -35,6 +35,7 @@ import {
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
 import { OrganizationPicker } from "./OrganizationPicker";
+import { MAX_INTENT_BULLETS, parseIntentBullets } from "./IntentBulletList";
 import {
   useSaveMyEventProfile,
   useSyncMyEventProfileFromAccount,
@@ -125,15 +126,9 @@ function Section({
 // „Czego szukam / Co oferuję" trzymamy w bazie jako tekst z nowymi liniami,
 // a uczestnik edytuje je jak listę punktów - maksymalnie 5, każda linia to
 // jeden punkt widoczny potem jako bullet w katalogu uczestników.
-const MAX_BULLETS = 5;
+const MAX_BULLETS = MAX_INTENT_BULLETS;
 
-export function parseBullets(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "")
-    .slice(0, MAX_BULLETS);
-}
+const parseBullets = parseIntentBullets;
 
 function BulletListInput({
   value,

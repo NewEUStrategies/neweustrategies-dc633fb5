@@ -567,13 +567,17 @@ function AttendeeCard({
           {seeking !== null && (
             <div>
               <dt className="font-semibold text-foreground">{t("eventMe.fields.seeking")}</dt>
-              <dd className="mt-0.5 line-clamp-2 text-muted-foreground">{seeking}</dd>
+              <dd className="mt-0.5 text-muted-foreground">
+                <IntentBulletList text={seeking} />
+              </dd>
             </div>
           )}
           {offering !== null && (
             <div>
               <dt className="font-semibold text-foreground">{t("eventMe.fields.offering")}</dt>
-              <dd className="mt-0.5 line-clamp-2 text-muted-foreground">{offering}</dd>
+              <dd className="mt-0.5 text-muted-foreground">
+                <IntentBulletList text={offering} />
+              </dd>
             </div>
           )}
         </dl>
