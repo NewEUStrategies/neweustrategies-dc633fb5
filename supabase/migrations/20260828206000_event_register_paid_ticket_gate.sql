@@ -32,11 +32,19 @@
 --
 -- CZEGO TA MIGRACJA CELOWO NIE ROBI
 --
---   * NIE zmienia statusu zgloszenia. `status` mowi o DECYZJI organizatora
---     (przyjete / czeka / rezerwa), a `payment_status` o pieniadzach. Sklejenie
---     tych dwoch osi daloby zgloszenie „oczekujace", ktorego nikt nie oczekuje
---     rozstrzygnac - a organizator nie odrozni czekajacego na decyzje od
---     czekajacego na przelew.
+--   * NIE SKLEJA DWOCH OSI, ale NIEZAPLACONE ZGLOSZENIE ZOSTAWIA JAKO `pending`.
+--     Pierwsza wersja tej migracji zostawiala je `approved` z osobna kolumna
+--     `payment_status = 'unpaid'` - os decyzji obok osi pieniedzy. Rozumowanie
+--     bylo takie, ze organizator nie odrozni czekajacego na decyzje od
+--     czekajacego na przelew. Odrozni: mowi mu o tym wlasnie `payment_status`.
+--     Cena tamtego wyboru byla natomiast realna i policzalna: `_event_seats_left`
+--     i przelicznik `sold_count` licza statusy `approved / attended / no_show`,
+--     wiec KAZDE porzucone zgloszenie zjadalo miejsce z puli NA ZAWSZE - nic
+--     takich wierszy nie sprzata. Anonim z dowolnym adresem e-mail mogl w petli
+--     wyczerpac pule platnego wydarzenia, nie placac ani zlotowki. Dlatego
+--     niezaplacony bilet stoi `pending`: nie trzyma miejsca, a organizator widzi
+--     po `payment_status`, na co czeka. Miejsce zajmuje sie dopiero przy
+--     zaksiegowaniu wplaty albo przy swiadomej decyzji organizatora.
 --   * NIE zamyka recznej odprawy po nazwisku. Organizator, ktory chce wpuscic
 --     kogos mimo braku platnosci, nadal moze - to jest furtka SWIADOMA,
 --     a nie przeoczenie. Zamkniete jest wylacznie samoobslugowe wejscie kodem.
@@ -402,6 +410,20 @@ BEGIN
     v_decision_source := NULL;
   END IF;
 
+  -- NIEZAPLACONY BILET NIE TRZYMA MIEJSCA W PULI.
+  -- `_event_seats_left` i przelicznik `event_ticket_types.sold_count` licza
+  -- statusy `approved / attended / no_show`. Zgloszenie zostawione jako
+  -- `approved` z `payment_status = 'unpaid'` zajmowaloby wiec miejsce i sztuke
+  -- z puli biletu BEZ KONCA - zadne zadanie takich wierszy nie sprzata, a zapis
+  -- jest otwarty dla anonima. Petla zgloszen z roznymi adresami wyczerpalaby
+  -- platne wydarzenie za darmo. `pending` znaczy tu dokladnie tyle, ile znaczy
+  -- gdzie indziej: zgloszenie istnieje, organizator je widzi, miejsce nie jest
+  -- jeszcze zajete. NA CO czeka, mowi `payment_status`, nie `status`.
+  IF v_payment = 'unpaid' AND v_status = 'approved' THEN
+    v_status := 'pending';
+    v_decision_source := NULL;
+  END IF;
+
   IF v_status = 'approved' THEN
     v_seats_left := public._event_seats_left(v_tenant, v_event.id, v_ticket.id);
     IF v_seats_left IS NOT NULL AND v_seats_left <= 0 THEN
@@ -415,10 +437,12 @@ BEGIN
   END IF;
 
   -- KOD QR JEST PRZEPUSTKA, WIEC NIE POWSTAJE PRZED PLATNOSCIA. Zgloszenie
-  -- istnieje (miejsce z puli jest zajete, organizator je widzi), ale wejsciowka
-  -- nie jest wydana, dopoki `payment_status` nie zmieni sie na `paid`. Reczna
-  -- odprawa po nazwisku nadal dziala - to swiadoma furtka dla organizatora,
-  -- ktory chce kogos wpuscic mimo braku platnosci.
+  -- istnieje i organizator je widzi, ale miejsce z puli NIE jest jeszcze zajete
+  -- (status stoi `pending`, patrz wyzej) i wejsciowka nie jest wydana. Z tego
+  -- stanu wyprowadza `admin_event_registration_decide` akcja `paid`: ksieguje
+  -- wplate, zajmuje miejsce i dopiero wtedy wydaje kod. Reczna odprawa po
+  -- nazwisku nadal dziala - to swiadoma furtka dla organizatora, ktory chce
+  -- kogos wpuscic mimo braku platnosci.
   IF v_status = 'approved' AND v_payment <> 'unpaid' THEN
     v_token := public._event_new_qr_token();
   END IF;

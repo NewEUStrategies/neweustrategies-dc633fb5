@@ -233,9 +233,11 @@ VALUES
    'a1111111-0000-0000-0000-000000000001', 'standard', 'Standard', 'Standard',
    0, 'PLN', 2, NULL, NULL, 0, false, true, 10),
   -- platny: osobny bilet wylacznie do bramki platnosci
+  -- PULA 1 JEST TU CELOWA: bez skonczonej puli nie da sie UDOWODNIC, ze
+  -- zgloszenie niezaplacone puli NIE zajmuje (scenariusz 9c).
   ('a2222222-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111',
    'a1111111-0000-0000-0000-000000000001', 'platny', 'Platny', 'Paid',
-   15000, 'PLN', NULL, NULL, NULL, 0, false, true, 60),
+   15000, 'PLN', 1, NULL, NULL, 0, false, true, 60),
   -- przedsprzedaz, ktora sie JESZCZE nie zaczela
   ('a2222222-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    'a1111111-0000-0000-0000-000000000001', 'early', 'Wczesny', 'Early bird',
@@ -724,7 +726,9 @@ BEGIN
     'accepted_term_ids', jsonb_build_array('a4444444-0000-0000-0000-000000000001')));
 
   PERFORM pg_temp.assert(v->>'registration_id' IS NOT NULL,
-    'platnosc: zgloszenie POWSTAJE - miejsce jest zajete, organizator je widzi');
+    'platnosc: zgloszenie POWSTAJE - organizator je widzi');
+  PERFORM pg_temp.assert(v->>'status' = 'pending',
+    'platnosc: niezaplacone zgloszenie CZEKA (pending), a nie jest przyjete');
   PERFORM pg_temp.assert(v->>'payment_status' = 'unpaid',
     'platnosc: wejsciowka platna dostaje payment_status = unpaid');
   PERFORM pg_temp.assert((v->>'payment_required')::boolean = true,
@@ -747,6 +751,193 @@ BEGIN
       WHERE id = (v->>'registration_id')::uuid) = 'unpaid',
     'platnosc: stan platnosci jest zapisany w wierszu, nie tylko w odpowiedzi');
 END $$;
+
+-- 9c) ROZLICZENIE WPLATY. Bramka z 9b bylaby SLEPA ULICZKA, gdyby ze stanu
+--     „niezaplacone" nic nie wyprowadzalo: `approve` nie przyjmuje zgloszenia
+--     juz przyjetego, a `payment_status` nie ustawiala zadna funkcja. Uczestnik
+--     placilby przelewem, a organizator nie mialby czym wydac wejsciowki.
+--     Migracja `20260828207000` dokłada akcje `paid` i `refund`.
+--
+--     TU JEST TEZ DOWOD, ZE NIEZAPLACONE ZGLOSZENIE NIE ZJADA PULI. To nie jest
+--     szczegol: `_event_seats_left` i przelicznik `sold_count` licza statusy
+--     `approved / attended / no_show`, wiec zgloszenie zostawione jako
+--     `approved` z `payment_status = 'unpaid'` trzymaloby miejsce BEZ KONCA -
+--     nic takich wierszy nie sprzata, a zapis jest otwarty dla anonima.
+--     Bilet `platny` ma pule 1 wlasnie po to, zeby ta roznica byla mierzalna.
+DO $$
+DECLARE
+  v_pending_id uuid;
+  v_second_id uuid;
+  v jsonb;
+  v_left integer;
+BEGIN
+  SELECT r.id INTO v_pending_id
+  FROM public.event_registrations r
+  JOIN public.event_people p ON p.id = r.person_id
+  WHERE r.ticket_type_id = 'a2222222-0000-0000-0000-000000000006'
+    AND p.email = 'platnik@example.org';
+
+  PERFORM pg_temp.assert(v_pending_id IS NOT NULL,
+    'rozliczenie: zgloszenie z 9b jest odnajdywalne po adresie platnika');
+
+  v_left := public._event_seats_left(
+    '11111111-1111-1111-1111-111111111111',
+    'a1111111-0000-0000-0000-000000000001',
+    'a2222222-0000-0000-0000-000000000006');
+  PERFORM pg_temp.assert(v_left = 1,
+    'rozliczenie: NIEZAPLACONE zgloszenie NIE zajmuje miejsca z puli (pula 1, wolne 1)');
+
+  -- Skoro pula jest wolna, DRUGI chetny musi przejsc. Bez tej asercji poprzednia
+  -- dowodzilaby tylko arytmetyki, a nie tego, ze pula jest naprawde dostepna.
+  v := public.event_register(jsonb_build_object(
+    'event_slug','reg-form-a', 'ticket_type_id','a2222222-0000-0000-0000-000000000006',
+    'email','platnik2@example.org', 'first_name','Ewa', 'last_name','Druga',
+    'consent_data_processing', true,
+    'answers', jsonb_build_object('rodo_box', true, 'motivation','place', 'sector','biz'),
+    'accepted_term_ids', jsonb_build_array('a4444444-0000-0000-0000-000000000001')));
+  v_second_id := (v->>'registration_id')::uuid;
+  PERFORM pg_temp.assert(v_second_id IS NOT NULL,
+    'rozliczenie: porzucone zgloszenie NIE blokuje kolejnego chetnego');
+  PERFORM pg_temp.assert(v->>'status' = 'pending',
+    'rozliczenie: drugi tez czeka na wplate');
+END $$;
+
+-- Organizator ksieguje wplate. `assert_editor_tenant` wymaga ADMINA (patrz
+-- asercje w 80_admin_only), wiec tozsamosc musi byc administratorem najemcy.
+INSERT INTO auth.users (id, email) VALUES
+  ('a2000000-0000-0000-0000-0000000000a1', 'admin20@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
+  ('a2000000-0000-0000-0000-0000000000a1',
+   '11111111-1111-1111-1111-111111111111', 'Administrator 20', 'admin-20')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ('a2000000-0000-0000-0000-0000000000a1', 'admin')
+ON CONFLICT DO NOTHING;
+
+SELECT pg_temp.act_as('a2000000-0000-0000-0000-0000000000a1',
+                      '11111111-1111-1111-1111-111111111111');
+
+DO $$
+DECLARE
+  v_pending_id uuid;
+  v_second_id uuid;
+  v jsonb;
+  v_left integer;
+BEGIN
+  SELECT r.id INTO v_pending_id
+  FROM public.event_registrations r
+  JOIN public.event_people p ON p.id = r.person_id
+  WHERE r.ticket_type_id = 'a2222222-0000-0000-0000-000000000006'
+    AND p.email = 'platnik@example.org';
+  SELECT r.id INTO v_second_id
+  FROM public.event_registrations r
+  JOIN public.event_people p ON p.id = r.person_id
+  WHERE r.ticket_type_id = 'a2222222-0000-0000-0000-000000000006'
+    AND p.email = 'platnik2@example.org';
+
+  -- AKCJA `paid`: ksieguje wplate, przyjmuje zgloszenie i DOPIERO TERAZ wydaje kod.
+  v := public.admin_event_registration_decide(jsonb_build_object(
+    'registration_id', v_pending_id, 'action', 'paid'));
+
+  PERFORM pg_temp.assert(v->>'status' = 'approved',
+    'rozliczenie/paid: zaksiegowana wplata PRZYJMUJE zgloszenie');
+  PERFORM pg_temp.assert(v->>'qr_token' IS NOT NULL AND v->'qr_token' <> 'null'::jsonb,
+    'rozliczenie/paid: wejsciowka JEST wydana - to jest wyjscie ze slepej uliczki');
+  PERFORM pg_temp.assert(
+    (SELECT payment_status FROM public.event_registrations WHERE id = v_pending_id) = 'paid',
+    'rozliczenie/paid: stan platnosci jest zapisany w wierszu');
+  PERFORM pg_temp.assert(
+    (SELECT qr_token_hash IS NOT NULL FROM public.event_registrations WHERE id = v_pending_id),
+    'rozliczenie/paid: hasz kodu stoi w bazie, wiec skan przy wejsciu zadziala');
+
+  -- Miejsce zajmuje sie DOPIERO przy wplacie, nie przy zgloszeniu.
+  v_left := public._event_seats_left(
+    '11111111-1111-1111-1111-111111111111',
+    'a1111111-0000-0000-0000-000000000001',
+    'a2222222-0000-0000-0000-000000000006');
+  PERFORM pg_temp.assert(v_left = 0,
+    'rozliczenie/paid: zaplacone zgloszenie ZAJMUJE miejsce (pula 1, wolne 0)');
+
+  -- Pula jest wyczerpana, wiec ksiegowanie DRUGIEJ wplaty musi odmowic.
+  -- Inaczej „paid" bylo furtka omijajaca limit sprzedazy.
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_registration_decide(
+      jsonb_build_object('registration_id','%s','action','paid'))$q$, v_second_id),
+    'no_seats_left',
+    'rozliczenie/paid: wplata NIE omija wyczerpanej puli');
+
+  -- Powtorne ksiegowanie tej samej wplaty jest bledem przejscia, a nie cicha
+  -- powtorka - inaczej dwa klikniecia daja dwa slady ksiegowe.
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_registration_decide(
+      jsonb_build_object('registration_id','%s','action','paid'))$q$, v_pending_id),
+    'invalid_transition',
+    'rozliczenie/paid: zgloszenie juz oplacone nie przyjmuje wplaty drugi raz');
+END $$;
+
+-- `approve` NA NIEZAPLACONYM: organizator moze kogos wpuscic mimo braku wplaty
+-- (zajmuje miejsce), ale wejsciowka NIE wychodzi. Bez tej asercji `approve`
+-- bylo tylnymi drzwiami do darmowego biletu - czyli do bledu K-1.
+DO $$
+DECLARE
+  v_second_id uuid;
+  v jsonb;
+BEGIN
+  SELECT r.id INTO v_second_id
+  FROM public.event_registrations r
+  JOIN public.event_people p ON p.id = r.person_id
+  WHERE r.ticket_type_id = 'a2222222-0000-0000-0000-000000000006'
+    AND p.email = 'platnik2@example.org';
+
+  -- Najpierw ZWROT pierwszej wplaty, zeby pula sie zwolnila.
+  PERFORM public.admin_event_registration_decide(jsonb_build_object(
+    'registration_id',
+    (SELECT r.id FROM public.event_registrations r
+      JOIN public.event_people p ON p.id = r.person_id
+     WHERE r.ticket_type_id = 'a2222222-0000-0000-0000-000000000006'
+       AND p.email = 'platnik@example.org'),
+    'action', 'refund'));
+
+  v := public.admin_event_registration_decide(jsonb_build_object(
+    'registration_id', v_second_id, 'action', 'approve'));
+
+  PERFORM pg_temp.assert(v->>'status' = 'approved',
+    'rozliczenie/approve: organizator MOZE przyjac niezaplacone zgloszenie');
+  PERFORM pg_temp.assert(v->'qr_token' = 'null'::jsonb,
+    'rozliczenie/approve: ale wejsciowki NIE wydaje - to bylaby tylna furtka do K-1');
+  PERFORM pg_temp.assert(
+    (SELECT qr_token_hash IS NULL FROM public.event_registrations WHERE id = v_second_id),
+    'rozliczenie/approve: w bazie tez nie ma haszu kodu');
+  PERFORM pg_temp.assert(
+    (SELECT payment_status FROM public.event_registrations WHERE id = v_second_id) = 'unpaid',
+    'rozliczenie/approve: przyjecie zgloszenia NIE udaje, ze wplata byla');
+END $$;
+
+-- ZWROT ZDEJMUJE WEJSCIOWKE. Kod dzialajacy po zwrocie to przepustka oplacona
+-- pieniedzmi, ktorych juz nie ma.
+DO $$
+DECLARE
+  v_id uuid;
+BEGIN
+  SELECT r.id INTO v_id
+  FROM public.event_registrations r
+  JOIN public.event_people p ON p.id = r.person_id
+  WHERE r.ticket_type_id = 'a2222222-0000-0000-0000-000000000006'
+    AND p.email = 'platnik@example.org';
+
+  PERFORM pg_temp.assert(
+    (SELECT payment_status FROM public.event_registrations WHERE id = v_id) = 'refunded',
+    'rozliczenie/refund: stan platnosci mowi o zwrocie, a nie zostaje na "paid"');
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_registrations WHERE id = v_id) = 'cancelled',
+    'rozliczenie/refund: zwrot odwoluje zapis');
+  PERFORM pg_temp.assert(
+    (SELECT qr_token_hash IS NULL FROM public.event_registrations WHERE id = v_id),
+    'rozliczenie/refund: kod QR jest zdjety');
+END $$;
+
+SELECT pg_temp.act_as(NULL, NULL);
 
 -- 8) TOKEN QR JEST HASZEM. Kolumna nie moze zawierac tokena jawnego.
 DO $$
