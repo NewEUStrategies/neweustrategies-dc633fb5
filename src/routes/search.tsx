@@ -9,7 +9,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
+import {
+  parseSearchParams,
+  searchParamsSchema,
+  SEARCH_SORTS,
+  type SearchInput,
+} from "@/lib/search/searchParams";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -76,7 +81,6 @@ import {
   clearRecentSearches,
   getRecentSearches,
 } from "@/lib/search/recentSearches";
-const SORTS = ["relevance", "newest", "popular"] as const;
 
 interface DateFilterPickerProps {
   label: string;
@@ -134,34 +138,9 @@ const TOPICS_DIMS: readonly FacetDim[] = [
   "series",
 ] as const;
 
-const SearchParams = z.object({
-  q: z.string().optional().default(""),
-  spec: z.string().optional(),
-  type: z.string().optional(),
-  region: z.string().optional(),
-  topic: z.string().optional(),
-  project: z.string().optional(),
-  series: z.string().optional(),
-  org: z.string().optional(),
-  author: z.string().optional(),
-  format: z.string().optional(),
-  lang: z.enum(["pl", "en"]).optional(),
-  access: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
-  year: z.string().optional(),
-  sort: z.enum(SORTS).optional(),
-  match: z.enum(["all", "any", "phrase"]).optional(),
-  scope: z.enum(["all", "title"]).optional(),
-  tab: z.enum(["all", "titles", "types", "topics", "people"]).optional(),
-  /** adv=1 otwiera panel trybów zaawansowanych (deep-link z widgetu nagłówka). */
-  adv: z.coerce.string().optional(),
-});
-
-type SearchInput = z.infer<typeof SearchParams>;
-
 export const Route = createFileRoute("/search")({
-  validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
+  validateSearch: (s: Record<string, unknown>): SearchInput => parseSearchParams(s),
+
   head: () => {
     // Route through buildContentHead so /search emits the canonical + hreflang
     // (x-default / pl / en) cluster like the other public routes.
@@ -498,7 +477,7 @@ function SearchPage() {
             entity="posts"
             // Snapshot z bazy jest nieufany (jsonb, mógł powstać w starszej
             // wersji modelu), więc przechodzi przez ten sam walidator, co URL.
-            onApply={(params) => navigate({ search: () => SearchParams.parse(params) })}
+            onApply={(params) => navigate({ search: () => searchParamsSchema.parse(params) })}
           />
         </div>
       </aside>
@@ -517,7 +496,7 @@ function SearchPage() {
                 role="group"
                 aria-label={t("search.sort.label")}
               >
-                {SORTS.map((s) => {
+                {SEARCH_SORTS.map((s) => {
                   const active = (search.sort ?? "relevance") === s;
                   return (
                     <button
