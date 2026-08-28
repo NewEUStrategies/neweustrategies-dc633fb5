@@ -168,6 +168,7 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
             key: split.menu.find((entry) => entry.page_id === previewRow.page_id)?.id ?? null,
             label: eventPageLabel(previewRow, lang),
             path: previewRow.page_path,
+            module: previewRow.module,
             document: documentQ.data ?? null,
           },
     pagesDisplayMode: mode,

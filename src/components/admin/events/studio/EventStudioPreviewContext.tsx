@@ -61,6 +61,14 @@ export interface EventPreviewPage {
   label: string;
   path: string;
   document: BuilderDocument | null;
+  /**
+   * Znacznik pozycji modulowej (`event_pages.module`); `null` = zwykla strona.
+   *
+   * PO CO: podstrona modulowa niesie tresc, ktorej NIE MA w dokumencie CMS -
+   * program, prelegentow i uczestnikow sklada baza. Bez tego pola podglad
+   * rysowalby sam naglowek strony, tak jak przed ta zmiana.
+   */
+  module: string | null;
 }
 
 export interface EventPreviewModel {

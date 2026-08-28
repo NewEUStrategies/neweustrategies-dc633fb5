@@ -33,6 +33,7 @@
   "missingPl": [],
   "untranslated": [
     "adminEventAgenda.tracks.workspace.minutes",
+    "adminEventRegistration.packages.audiences.partner",
     "adminEvents.general.videoPlatforms.vimeo",
     "adminEvents.general.videoPlatforms.youtube",
     "adminEvents.list.create.formatLabel",
@@ -204,6 +205,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 499
+    "untranslated": 509
   }
 }

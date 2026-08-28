@@ -45,9 +45,28 @@ import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import type { BuilderDocument } from "@/lib/builder/types";
+import { useEventSessions } from "@/lib/events/useEventSessions";
+import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
+import { DEFAULT_REGISTRATIONS_QUERY } from "@/lib/events/registrationsApi";
+import { useRegistrationsList } from "@/lib/events/useEventRegistrations";
+import { useQuery } from "@tanstack/react-query";
+import { fetchEventSpeakers } from "@/lib/admin/community";
+import {
+  agendaSessionsFromAdminRows,
+  attendeeEntriesFromRegistrationRows,
+  speakerRowsFromAdminEntries,
+} from "@/lib/events/previewLiveData";
+import type { EventPreviewLiveData } from "@/components/admin/events/studio/EventPreviewLiveModule";
 
 /** Cel nawigacji podgladu z wlasna kopia etykiety i sciezki (patrz nizej). */
-type PreviewNavTarget = { key: string; pageId: string; label: string; path: string };
+type PreviewNavTarget = {
+  key: string;
+  pageId: string;
+  label: string;
+  path: string;
+  /** Znacznik pozycji modulowej - decyduje, czy podstrona dostaje zywe dane. */
+  module: string | null;
+};
 
 
 export function EventStudioPreview({
@@ -103,6 +122,7 @@ export function EventStudioPreview({
         pageId: target.pageId,
         label: item?.label ?? "",
         path: item?.path ?? "",
+        module: item?.module ?? null,
       });
     },
     [base.menu],
@@ -115,6 +135,33 @@ export function EventStudioPreview({
   // `event_sponsors_public`.
   const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
   const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
+
+  // ZYWE DANE PODSTRON MODULOWYCH. Projekcje publiczne (`event_agenda`,
+  // `get_public_speakers`, `event_attendees`) maja bramke `published` albo
+  // wymagaja zapisu wolajacego, wiec na szkicu oddawaly pustke. Panel czyta te
+  // same wiersze RPC administracyjnymi, a `previewLiveData` sprowadza je do
+  // ksztaltu powierzchni publicznej - rysunek zostaje produkcyjny.
+  const liveEnabled = open && eventId !== "";
+  const sessionsQ = useEventSessions(liveEnabled ? { ...DEFAULT_SESSIONS_QUERY, eventId } : null);
+  const speakersQ = useQuery({
+    queryKey: ["admin", "event", eventId, "speakers", "preview"],
+    queryFn: () => fetchEventSpeakers(eventId),
+    enabled: liveEnabled,
+    staleTime: 60_000,
+  });
+  const registrationsQ = useRegistrationsList(
+    liveEnabled
+      ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "approved", limit: 60, offset: 0 }
+      : null,
+  );
+  const live: EventPreviewLiveData = useMemo(
+    () => ({
+      sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone),
+      speakers: speakerRowsFromAdminEntries(speakersQ.data),
+      attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
+    }),
+    [sessionsQ.data, speakersQ.data, registrationsQ.data, base.timezone],
+  );
 
 
 
@@ -134,6 +181,7 @@ export function EventStudioPreview({
             key: navItem.key,
             label: navItem.label,
             path: navItem.path,
+            module: navItem.module,
             document:
               navDocumentQ.isPending || navDocumentQ.data === undefined
                 ? lastDocumentRef.current
@@ -266,6 +314,7 @@ export function EventStudioPreview({
               viewer={viewer}
               sponsorTiers={sponsorTiers}
               onNavigate={handleNavigate}
+              live={live}
             />
           </div>
         </div>
