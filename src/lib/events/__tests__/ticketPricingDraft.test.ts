@@ -134,7 +134,7 @@ describe("publiczna karta biletu", () => {
     const ticket = form.tickets[0];
     expect(ticket.effectivePriceCents).toBe(9000);
     expect(ticket.priceCents).toBe(12000);
-    expect(ticket.phase.source).toBe("schedule");
+    expect(ticket.phase?.source).toBe("schedule");
     expect(ticket.benefitsPl).toEqual(["Lunch"]);
     expect(ticket.requiresAccessCode).toBe(true);
   });
@@ -155,6 +155,6 @@ describe("publiczna karta biletu", () => {
       ],
     });
     expect(form.tickets[0].effectivePriceCents).toBe(12000);
-    expect(form.tickets[0].phase.source).toBe("standard");
+    expect(form.tickets[0].phase?.source).toBe("standard");
   });
 });
