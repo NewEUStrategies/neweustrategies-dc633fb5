@@ -863,7 +863,7 @@ const EN: Dict = {
     icon: "hero-check",
     preview: "Your ticket payment has settled - the seat is yours.",
     eyebrow: "Event",
-    heading: "Ticket paid",
+    heading: "Ticket payment received",
     intro:
       "We have recorded your ticket payment. Your registration is confirmed and the entry code is waiting on your registration page.",
     cta: "Event details",

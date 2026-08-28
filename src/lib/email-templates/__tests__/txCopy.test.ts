@@ -122,7 +122,7 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     expect(zeSlownika).toEqual(zPolityki);
     // 22 -> 26: cztery maile cyklu życia zgłoszenia formularzowego
     // (`event_registration_received/_approved/_rejected`, `event_waitlist_promoted`).
-    expect(zeSlownika).toHaveLength(26);
+    expect(zeSlownika).toHaveLength(29);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -247,7 +247,7 @@ describe("tx-copy - temat wiadomości", () => {
 
     expect(braki).toEqual([]);
     // 26 typów razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(52);
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(58);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {
