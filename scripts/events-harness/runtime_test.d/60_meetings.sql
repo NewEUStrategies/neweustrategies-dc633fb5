@@ -459,18 +459,23 @@ SELECT pg_temp.assert_raises_like($q$
 $q$, 'meeting_identity_immutable',
   '60/ODMOWA: przepiecie spotkania na innego czlowieka zaciera slad i jest zabronione');
 
-SELECT pg_temp.assert_raises_like($q$
-  INSERT INTO public.event_meetings
-    (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, status, expires_at, responded_at)
-  VALUES ('11111111-1111-1111-1111-111111111111',
-          '60e00000-0000-0000-0000-0000000000a1',
-          '60900000-0000-0000-0000-0000000000a1',
-          '60900000-0000-0000-0000-0000000000a1',
-          now() + interval '3 days', now() + interval '3 days 30 minutes',
-          'invited', now() + interval '1 day', NULL)
-$q$, 'event_meetings_no_self',
-  '60/ODMOWA: spotkanie z samym soba jest odrzucane');
+DO $$
+DECLARE
+  v_s timestamptz := (SELECT ts FROM meet_q WHERE k = 'slot3_start');
+  v_e timestamptz := (SELECT ts FROM meet_q WHERE k = 'slot3_end');
+BEGIN
+  PERFORM pg_temp.assert_raises_like(format($q$
+    INSERT INTO public.event_meetings
+      (tenant_id, event_id, requester_registration_id, invitee_registration_id,
+       starts_at, ends_at, status, expires_at, responded_at)
+    VALUES ('11111111-1111-1111-1111-111111111111',
+            '60e00000-0000-0000-0000-0000000000a1',
+            '60900000-0000-0000-0000-0000000000a2',
+            '60900000-0000-0000-0000-0000000000a2', %L, %L,
+            'invited', now() + interval '1 day', NULL)
+  $q$, v_s, v_e), 'event_meetings_no_self',
+    '60/ODMOWA: spotkanie z samym soba jest odrzucane');
+END $$;
 
 DO $$
 DECLARE
