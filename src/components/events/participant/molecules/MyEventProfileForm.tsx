@@ -16,7 +16,18 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  Activity,
+  Camera,
+  Loader2,
+  Mail,
+  Plus,
+  RefreshCw,
+  Share2,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/field-box";
@@ -34,6 +45,7 @@ import {
   type SocialKey,
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
+import { ProfileHeroFrame, ProfileSectionCard } from "@/components/profile/shell/ProfileShell";
 import { OrganizationPicker } from "./OrganizationPicker";
 import { MAX_INTENT_BULLETS, parseIntentBullets } from "./IntentBulletList";
 import {
@@ -103,23 +115,25 @@ function toForm(profile: MyEventProfile | null): FormState {
   };
 }
 
+// Sekcja formularza = KARTA SEKCJI PROFILU PUBLICZNEGO. Ten sam nagłówek
+// (11px, uppercase, ikona w kolorze primary) co na `/profile`, żeby tryb edycji
+// na wydarzeniu i strona publiczna wyglądały jak jeden produkt.
 function Section({
+  icon,
   title,
   hint,
   children,
 }: {
+  icon: React.ReactNode;
   title: string;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[6px] border border-border bg-card p-3.5 space-y-3">
-      <header className="space-y-0.5">
-        <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-        {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </header>
-      {children}
-    </section>
+    <ProfileSectionCard icon={icon} title={title}>
+      {hint !== undefined && <p className="-mt-1 mb-3 text-xs text-muted-foreground">{hint}</p>}
+      <div className="space-y-3">{children}</div>
+    </ProfileSectionCard>
   );
 }
 
@@ -209,29 +223,33 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   // ZAPIS WSTECZ DO KONTA JEST DECYZJA UZYTKOWNIKA, nie efektem ubocznym:
   // kartoteka wydarzenia bywa celowo inna niz wizytowka platformy.
   const accountOnly = profile === null && account !== null;
-  const editableProfile: MyEventProfile | null = profile ?? (account === null ? null : {
-    personId: "account",
-    firstName: account.firstName,
-    lastName: account.lastName,
-    email: account.email,
-    phone: account.phone,
-    emailVisible: false,
-    phoneVisible: false,
-    jobTitle: account.jobTitle,
-    companyId: account.companyId,
-    companyText: account.companyText,
-    industry: null,
-    specialization: account.specialization,
-    seekingPl: account.seekingPl,
-    seekingEn: account.seekingEn,
-    offeringPl: account.offeringPl,
-    offeringEn: account.offeringEn,
-    socialProfileUrl: null,
-    socialLinks: account.socialLinks,
-    photoUrl: account.photoUrl,
-    bioPl: account.bioPl,
-    bioEn: account.bioEn,
-  });
+  const editableProfile: MyEventProfile | null =
+    profile ??
+    (account === null
+      ? null
+      : {
+          personId: "account",
+          firstName: account.firstName,
+          lastName: account.lastName,
+          email: account.email,
+          phone: account.phone,
+          emailVisible: false,
+          phoneVisible: false,
+          jobTitle: account.jobTitle,
+          companyId: account.companyId,
+          companyText: account.companyText,
+          industry: null,
+          specialization: account.specialization,
+          seekingPl: account.seekingPl,
+          seekingEn: account.seekingEn,
+          offeringPl: account.offeringPl,
+          offeringEn: account.offeringEn,
+          socialProfileUrl: null,
+          socialLinks: account.socialLinks,
+          photoUrl: account.photoUrl,
+          bioPl: account.bioPl,
+          bioEn: account.bioEn,
+        });
   const [pushAccount, setPushAccount] = useState(accountOnly);
 
   // Serwer jest źródłem prawdy: gdy dane dojadą (albo odświeżą się po zapisie),
@@ -316,97 +334,100 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
     );
   }
 
+  const heroName = [form.first_name, form.last_name].filter((part) => part.trim() !== "").join(" ");
+
   return (
-    <form onSubmit={onSubmit} className="space-y-3" aria-label={t("eventMe.profileFormAria")}>
-      <Section title={t("eventMe.sections.identity")} hint={t("eventMe.sections.identityHint")}>
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div
-            className={`relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/30 ${
-              dragOver ? "border-primary" : "border-border"
-            }`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragOver(false);
-              const file = event.dataTransfer.files[0];
-              if (file !== undefined) void handleFile(file);
-            }}
-          >
-            {form.photo_url.trim() !== "" ? (
-              <img
-                src={form.photo_url}
-                alt={t("eventMe.photo.alt")}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <ImagePlus className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-            )}
-            {uploading && (
-              <span className="absolute inset-0 grid place-items-center bg-background/70">
+    <form onSubmit={onSubmit} className="space-y-4" aria-label={t("eventMe.profileFormAria")}>
+      {/* HERO - ten sam układ co profil publiczny: okładka + nachodzący awatar.
+          Upuszczenie pliku na awatar podmienia zdjęcie (bez pola z adresem URL). */}
+      <div
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragOver(false);
+          const file = event.dataTransfer.files[0];
+          if (file !== undefined) void handleFile(file);
+        }}
+      >
+        <ProfileHeroFrame
+          avatarUrl={form.photo_url.trim() === "" ? null : form.photo_url}
+          fullName={heroName === "" ? t("eventMe.publicPreview.noName") : heroName}
+          emptyCoverHint={t("eventMe.photo.hint")}
+          avatarOverlay={
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              aria-label={t("eventMe.photo.upload")}
+              className={`absolute inset-0 inline-flex flex-col items-center justify-center gap-1 rounded-[7px] bg-black/55 text-white backdrop-blur-[2px] transition-opacity ${
+                uploading || dragOver ? "opacity-100" : "opacity-0 hover:opacity-100"
+              }`}
+            >
+              {uploading ? (
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-              </span>
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept={IMAGE_ACCEPT_ATTR}
-                className="sr-only"
-                aria-label={t("eventMe.photo.upload")}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file !== undefined) void handleFile(file);
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
+              ) : (
+                <Camera className="h-5 w-5" aria-hidden="true" />
+              )}
+              <span className="text-[10px] font-medium uppercase tracking-wide">
                 {t("eventMe.photo.upload")}
-              </Button>
-              {form.photo_url.trim() !== "" && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setForm((prev) => ({ ...prev, photo_url: "" }))}
-                >
-                  <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  {t("eventMe.photo.remove")}
-                </Button>
-              )}
-              {account !== null && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={sync.isPending}
-                  onClick={() =>
-                    sync.mutate(undefined, {
-                      onSuccess: () => toast.success(t("eventMe.syncDone")),
-                      onError: () => toast.error(t("eventMe.syncError")),
-                    })
-                  }
-                >
-                  <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  {sync.isPending ? t("eventMe.syncing") : t("eventMe.syncFromAccount")}
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">{t("eventMe.photo.hint")}</p>
-          </div>
-        </div>
+              </span>
+            </button>
+          }
+        />
+      </div>
 
+      <input
+        ref={fileRef}
+        type="file"
+        accept={IMAGE_ACCEPT_ATTR}
+        className="sr-only"
+        aria-label={t("eventMe.photo.upload")}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file !== undefined) void handleFile(file);
+        }}
+      />
+
+      <div className="mt-12 flex flex-wrap items-center justify-center gap-2 sm:mt-14 sm:justify-start">
+        {form.photo_url.trim() !== "" && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setForm((prev) => ({ ...prev, photo_url: "" }))}
+          >
+            <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("eventMe.photo.remove")}
+          </Button>
+        )}
+        {account !== null && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={sync.isPending}
+            onClick={() =>
+              sync.mutate(undefined, {
+                onSuccess: () => toast.success(t("eventMe.syncDone")),
+                onError: () => toast.error(t("eventMe.syncError")),
+              })
+            }
+          >
+            <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {sync.isPending ? t("eventMe.syncing") : t("eventMe.syncFromAccount")}
+          </Button>
+        )}
+      </div>
+
+      <Section
+        icon={<UserRound className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.identity")}
+        hint={t("eventMe.sections.identityHint")}
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <FieldBox
             label={t("eventMe.fields.firstName")}
@@ -451,7 +472,11 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section title={t("eventMe.sections.contact")} hint={t("eventMe.sections.contactHint")}>
+      <Section
+        icon={<Mail className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.contact")}
+        hint={t("eventMe.sections.contactHint")}
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <FieldBox
@@ -494,7 +519,11 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section title={t("eventMe.sections.social")} hint={t("eventMe.sections.socialHint")}>
+      <Section
+        icon={<Share2 className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.social")}
+        hint={t("eventMe.sections.socialHint")}
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           {SOCIAL_KEYS.map((key) => (
             <FieldBox
@@ -509,7 +538,11 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section title={t("eventMe.sections.about")} hint={t("eventMe.sections.aboutHint")}>
+      <Section
+        icon={<Activity className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.about")}
+        hint={t("eventMe.sections.aboutHint")}
+      >
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
@@ -537,9 +570,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
               limitLabel={t("eventMe.fields.bulletLimit")}
               ariaLabel={t("eventMe.fields.seeking")}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t("eventMe.fields.seekingHint")}
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("eventMe.fields.seekingHint")}</p>
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -555,9 +586,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
               limitLabel={t("eventMe.fields.bulletLimit")}
               ariaLabel={t("eventMe.fields.offering")}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t("eventMe.fields.offeringHint")}
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("eventMe.fields.offeringHint")}</p>
           </div>
         </div>
       </Section>
