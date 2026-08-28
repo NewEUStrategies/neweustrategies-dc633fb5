@@ -70,6 +70,10 @@ import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
 import { promptDialog } from "@/lib/appDialogs";
 import { CompanyPickerDialog } from "@/components/profile/CompanyPickerDialog";
+import {
+  ProfileContactRow as Card_ContactRow,
+  ProfileSectionCard,
+} from "@/components/profile/shell/ProfileShell";
 type Gender = "male" | "female" | "neutral";
 type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
 /** Rola w karcie „Wprowadzenia" - do mnie / wysłane / o mnie. */
@@ -1016,36 +1020,9 @@ function CenteredHero({
 
 /* --------------------------- UI atoms -------------------------------- */
 
-function Card({
-  icon,
-  title,
-  action,
-  children,
-  id,
-}: {
-  icon?: ReactNode;
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-  /** Kotwica dla linków z powiadomień (`/profile?tab=activity#introductions`). */
-  id?: string;
-}) {
-  return (
-    <section
-      {...(id ? { id } : {})}
-      className="scroll-mt-24 rounded-[6px] border border-border bg-card p-4"
-    >
-      <header className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
-          {icon ? <span className="text-primary">{icon}</span> : null}
-          {title}
-        </h2>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
-}
+// Karta sekcji i wiersz kontaktu są WSPÓLNE z profilem uczestnika wydarzenia
+// (event builder / preview) - jedno źródło wyglądu, zero rozjazdu wizualnego.
+const Card = ProfileSectionCard;
 
 function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
   // Logo firmy zaciągane z Admin Panel -> Wygląd -> Theme Options (klucz "theme_options.logo").
@@ -1131,27 +1108,7 @@ function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function ContactRow({
-  icon,
-  ariaLabel,
-  children,
-}: {
-  icon: ReactNode;
-  ariaLabel: string;
-  children: ReactNode;
-}) {
-  return (
-    <li
-      className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
-      aria-label={ariaLabel}
-    >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </li>
-  );
-}
+const ContactRow = Card_ContactRow;
 
 function prettyUrl(url: string): string {
   try {
