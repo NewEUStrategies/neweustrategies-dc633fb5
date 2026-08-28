@@ -198,6 +198,18 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_scanner_device.revoked.v1": (event) => onsiteEventKeys(event),
   "event_sponsor.published.v1": (event) => sponsorEventKeys(event),
   "event_sponsor.snapshot_refreshed.v1": (event) => sponsorEventKeys(event),
+
+  // Zgloszenia na wydarzenie. Kazde z tych zdarzen zmienia TRZY powierzchnie
+  // naraz: liste i liczniki w panelu organizatora, "moje zgloszenia" w profilu
+  // uczestnika oraz skrot w menu konta. Brak reguly oznaczal ciche milczenie
+  // - ekran wygladal poprawnie, tylko nie odswiezal sie po decyzji, zapisie
+  // ani awansie z listy rezerwowej.
+  "event.registration.created.v1": (event) => registrationEventKeys(event),
+  "event.registration.updated.v1": (event) => registrationEventKeys(event),
+  "event.registration.decided.v1": (event) => registrationEventKeys(event),
+  "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
+  "event.registration.promoted.v1": (event) => registrationEventKeys(event),
+  "event.registration.payment.v1": (event) => registrationEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -312,6 +324,26 @@ function clubWorkspaceEventKeys(event: DomainEventRow): QueryKey[] {
   const threadId = typeof event.aggregate_id === "string" ? event.aggregate_id : "";
   if (threadId !== "") keys.push(clubKeys.workspace(threadId));
   return keys;
+}
+
+/**
+ * Klucze zgloszen. Payload niesie `event_id`, wiec schodzimy do galezi jednego
+ * wydarzenia; jego brak (starszy backend) degraduje do CALEJ galezi modulu,
+ * bo szersza inwalidacja jest tansza niz nieaktualna lista miejsc. Do tego
+ * zawsze: profil uczestnika ("moje zgloszenia" i bilety), skrot w menu konta
+ * oraz publiczne liczniki miejsc.
+ */
+function registrationEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  const branch: QueryKey =
+    eventId === "" ? ["event-registrations"] : ["event-registrations", eventId];
+  return [
+    branch,
+    ["profile", "event-registrations"],
+    ["account-menu", "my-events"],
+    ["event-rsvp-counts"],
+    ["public-event"],
+  ];
 }
 
 const eventKeysList: QueryKey[] = [

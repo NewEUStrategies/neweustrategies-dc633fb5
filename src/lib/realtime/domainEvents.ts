@@ -98,6 +98,16 @@ export const DOMAIN_EVENT_TYPES = [
   "event_scanner_device.issued.v1",
   "event_scanner_device.locked.v1",
   "event_scanner_device.revoked.v1",
+  // Zgloszenia na wydarzenie (migracje 20260823150000 i pozniejsze). NAZWA
+  // JEST TRZYCZLONOWA (`event.registration.<czasownik>.v1`) - agregatem jest
+  // zgloszenie, a payload niesie `event_id`, wiec inwalidacja schodzi do
+  // galezi jednego wydarzenia.
+  "event.registration.created.v1",
+  "event.registration.updated.v1",
+  "event.registration.decided.v1",
+  "event.registration.cancelled.v1",
+  "event.registration.promoted.v1",
+  "event.registration.payment.v1",
   // Sponsorzy: publikacja karty i odswiezenie migawki z CRM firm.
   "event_sponsor.published.v1",
   "event_sponsor.snapshot_refreshed.v1",
@@ -149,6 +159,7 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_meeting",
   "event_scanner_device",
   "event_sponsor",
+  "event_registration",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];
