@@ -14,8 +14,10 @@
 // FILTR ZGŁOSZEŃ JEST PREZENTACYJNY, NIE OCHRONNY. RPC `event_my_registrations`
 // i tak oddaje wyłącznie zapisy `auth.uid()`; slug zawęża listę do TEGO
 // wydarzenia.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
+import { Eye } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +29,7 @@ import { EventViewerCard } from "@/components/events/public/molecules/EventViewe
 import { MeetingExchangeBoard } from "@/components/events/meetings/MeetingExchangeBoard";
 import { ParticipantTicketsPanel } from "@/components/profile/ParticipantTicketsPanel";
 import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
+import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { MyAgendaList } from "@/components/events/participant/molecules/MyAgendaList";
 import { useMyAgenda, useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import { useMyConnections } from "@/lib/network/useConnections";
@@ -104,6 +107,9 @@ export function EventMePanel({ slug }: { slug: string }) {
   const signedIn = Boolean(session);
   const panel = useMyEventProfile(slug, signedIn);
   const agenda = useMyAgenda(slug, signedIn);
+  // „Zobacz, jak widzą Cię inni" - ten sam rekord, tylko w kształcie karty
+  // katalogowej. Stan jest lokalny, bo to sposób patrzenia, nie dane.
+  const [publicView, setPublicView] = useState(false);
 
   if (!session) {
     return (
@@ -157,13 +163,39 @@ export function EventMePanel({ slug }: { slug: string }) {
               />
             </div>
           )}
-          <p className="text-sm text-muted-foreground">{t("eventMe.profileHint")}</p>
-          <MyEventProfileForm
-            slug={slug}
-            profile={panel.data?.profile ?? null}
-            account={panel.data?.account ?? null}
-            loading={panel.isLoading}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">{t("eventMe.profileHint")}</p>
+            {panel.data?.profile != null && (
+              <Button
+                type="button"
+                size="sm"
+                variant={publicView ? "default" : "outline"}
+                onClick={() => setPublicView((prev) => !prev)}
+              >
+                <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {publicView
+                  ? t("eventMe.publicPreview.close")
+                  : t("eventMe.publicPreview.open")}
+              </Button>
+            )}
+          </div>
+          {publicView && panel.data?.profile != null ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {t("eventMe.publicPreview.hint")}
+              </p>
+              <div className="max-w-xl">
+                <MyEventPublicPreview profile={panel.data.profile} />
+              </div>
+            </div>
+          ) : (
+            <MyEventProfileForm
+              slug={slug}
+              profile={panel.data?.profile ?? null}
+              account={panel.data?.account ?? null}
+              loading={panel.isLoading}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="schedule">
