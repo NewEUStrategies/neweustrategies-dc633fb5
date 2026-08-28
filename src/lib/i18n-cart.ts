@@ -26,6 +26,10 @@ const pl = {
     inCart: "W koszyku",
     signInToPay: "Zaloguj się, aby dokończyć zakup.",
     payError: "Nie udało się otworzyć płatności dla tej pozycji.",
+    promoLabel: "Kod rabatowy",
+    promoPlaceholder: "np. NES2026",
+    promoHint: "Rabat nalicza serwer tuż przed utworzeniem zamówienia - kwota w kasie jest ostateczna.",
+    promoError: "Kod rabatowy jest nieprawidłowy lub wygasł.",
     aria: { label: "Mój koszyk", count: "Pozycje w koszyku: {{count}}" },
   },
   myEvents: {
@@ -116,6 +120,10 @@ const en: typeof pl = {
     inCart: "In cart",
     signInToPay: "Sign in to complete the purchase.",
     payError: "Could not open checkout for this item.",
+    promoLabel: "Promo code",
+    promoPlaceholder: "e.g. NES2026",
+    promoHint: "The discount is calculated server-side right before the order is created - the checkout amount is final.",
+    promoError: "This promo code is invalid or expired.",
     aria: { label: "My cart", count: "Items in cart: {{count}}" },
   },
   myEvents: {
