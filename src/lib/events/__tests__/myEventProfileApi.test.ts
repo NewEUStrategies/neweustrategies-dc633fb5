@@ -1,7 +1,8 @@
 // Parsowanie odpowiedzi panelu uczestnika - kontrakt z RPC, bez sieci.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const rpc = vi.fn();
+// `vi.mock` jest hoistowane ponad importy - stan mocka musi żyć w `vi.hoisted`.
+const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 
 import {
