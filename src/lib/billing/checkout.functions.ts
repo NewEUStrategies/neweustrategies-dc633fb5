@@ -30,6 +30,12 @@ const createOrderSchema = z.object({
   display_currency: z.enum(["PLN", "EUR"]).optional(),
   // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
   event_id: z.string().uuid().nullable().optional(),
+  // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
+  // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
+  ticket_type_id: z.string().uuid().nullable().optional(),
+  // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
+  // nie zna kodu i nie może go obejść.
+  access_code: z.string().trim().max(64).optional(),
   // Liczba miejsc dla planów rozliczanych za miejsce (Zespół). Ignorowana dla
   // pozostałych planów - autorytetem jest wpis katalogu (`perSeat`).
   seats: z.number().int().min(1).max(100).optional(),
@@ -121,6 +127,48 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
             : amountCents;
         amountCents = unitCents * catalogQuantity;
       }
+    } else if (isEventTicket && data.ticket_type_id) {
+      // CENNIK WYDARZENIA. Kwotę, okno sprzedaży, miejsca, rangę członkostwa
+      // i kod dostępu rozstrzyga JEDNA funkcja bazy - ta sama, z której czyta
+      // publiczna karta biletu. Dwie implementacje progu czasowego znaczyłyby
+      // dwie różne kwoty: jedną na karcie, drugą na paragonie.
+      const { data: quote, error: quoteErr } = await supabase.rpc(
+        "event_ticket_checkout_quote",
+        {
+          p_ticket_type_id: data.ticket_type_id,
+          p_access_code: data.access_code ?? null,
+        },
+      );
+      if (quoteErr) throw new Error(quoteErr.message);
+      const parsed =
+        quote !== null && typeof quote === "object" && !Array.isArray(quote)
+          ? (quote as Record<string, unknown>)
+          : null;
+      if (parsed === null) throw new Error("ticket_not_available");
+      const quotedEventId = typeof parsed.event_id === "string" ? parsed.event_id : null;
+      // Bilet MUSI należeć do wydarzenia wskazanego przez klienta - inaczej
+      // webhook potwierdziłby RSVP na innym wydarzeniu niż opłacone.
+      if (quotedEventId === null || quotedEventId !== data.event_id) {
+        throw new Error("ticket_not_available");
+      }
+      const quotedAmount =
+        typeof parsed.amount_cents === "number" ? Math.trunc(parsed.amount_cents) : 0;
+      // Pula wliczona w plan zjada także wejściówki z cennika - tak samo jak
+      // przy cenie z wiersza wydarzenia, więc ścieżka „za darmo" jest jedna.
+      const { ticketPriceForCaller } = await import("@/lib/events/ticketAllowance.server");
+      const ticketPrice = await ticketPriceForCaller(supabase, quotedAmount);
+      if (ticketPrice.amountCents <= 0) throw new Error("ticket_included_in_plan");
+      amountCents = ticketPrice.amountCents;
+      currency = typeof parsed.currency === "string" ? parsed.currency : "PLN";
+      const eventTitle =
+        (typeof parsed.event_title_pl === "string" && parsed.event_title_pl) ||
+        (typeof parsed.event_title_en === "string" && parsed.event_title_en) ||
+        "";
+      const ticketName =
+        (typeof parsed.name_pl === "string" && parsed.name_pl) ||
+        (typeof parsed.name_en === "string" && parsed.name_en) ||
+        "";
+      label = ticketName === "" ? eventTitle : `${eventTitle} - ${ticketName}`;
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
@@ -274,6 +322,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // Bilet na płatne wydarzenie: rozpoznawany po metadanych zamówienia -
     // webhook po zaksięgowaniu potwierdza RSVP i wysyła mail rejestracyjny.
     const eventId = data.event_id ?? null;
+    const ticketTypeId = data.ticket_type_id ?? null;
 
     // Środowisko jest rozstrzygane SERWEROWO (w produkcji zawsze 'live') i
     // stemplowane na zamówieniu, żeby webhook zrealizował je wyłącznie zdarzeniem
@@ -302,6 +351,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         metadata: {
           label,
           ...(eventId ? { event_id: eventId } : {}),
+          ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}),
           ...(couponCode
             ? {
                 coupon_code: couponCode,
@@ -431,7 +481,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         userId,
         customerEmail: receiptEmail,
         returnUrl,
-        metadata: eventId ? { event_id: eventId } : {},
+        metadata: eventId
+          ? { event_id: eventId, ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}) }
+          : {},
         settings,
       });
       if (!created.ok) {
