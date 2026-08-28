@@ -284,8 +284,10 @@ export async function notifyTicketOutcome(
   if (!type || !registrationId) return result;
 
   const lang = await resolveLang(contact.userId);
+  const channels = await readChannels(registrationId);
+  const suffix = options.idempotencySuffix ? `:${options.idempotencySuffix}` : "";
 
-  if (contact.email) {
+  if (contact.email && channels.email) {
     try {
       const { sendTxEmail } = await import("@/lib/email/transactional.server");
       const sendResult = await sendTxEmail({
