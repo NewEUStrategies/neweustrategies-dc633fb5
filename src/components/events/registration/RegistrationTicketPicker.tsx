@@ -48,7 +48,7 @@ export function RegistrationTicketPicker({
         const checked = value === ticket.id;
         const name = (lang === "en" ? ticket.nameEn : ticket.namePl) || ticket.key;
         const description = lang === "en" ? ticket.descriptionEn : ticket.descriptionPl;
-        const benefits = lang === "en" ? ticket.benefitsEn : ticket.benefitsPl;
+        const benefits = (lang === "en" ? ticket.benefitsEn : ticket.benefitsPl) ?? [];
         // Faza cenowa bywa nieobecna (starsze wydarzenia / RPC bez faz) - brak
         // fazy nie moze wywracac calego wyboru biletu.
         const phase = ticket.phase ?? null;
