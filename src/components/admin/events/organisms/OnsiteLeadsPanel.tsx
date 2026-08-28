@@ -8,13 +8,18 @@
 // marketingowych sponsora, więc odznaka nie jest ozdobą, tylko granicą prawną.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { adminOnsiteErrorMessage } from "@/lib/events/adminOnsiteErrors";
-import { useLeadScans } from "@/lib/events/useEventOnsite";
+import { useLeadExport, useLeadScans } from "@/lib/events/useEventOnsite";
+import { buildLeadExport, downloadLeadExport } from "@/lib/events/leadExport";
+import { uiLang } from "@/lib/i18n/format";
 import { useSponsors } from "@/lib/events/useEventSponsors";
 
 const ALL = "__all__";
@@ -24,6 +29,9 @@ export function OnsiteLeadsPanel({ eventId }: { eventId: string }) {
   const [sponsorId, setSponsorId] = useState(ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+
+  const exportRun = useLeadExport(eventId);
+  const lang = uiLang(i18n.language);
 
   const sponsorsQ = useSponsors({ eventId, limit: 200 });
   const listQ = useLeadScans({
@@ -47,6 +55,33 @@ export function OnsiteLeadsPanel({ eventId }: { eventId: string }) {
     [sponsorsQ.data, t],
   );
 
+  /**
+   * EKSPORT NIE UŻYWA WIERSZY Z EKRANU. Lista jest stronicowana i okrojona;
+   * plik dla sponsora musi zawierać wszystkie skany, więc pobieramy je osobnym
+   * wywołaniem bazy, która sama decyduje o ujawnieniu kontaktu przy zgodzie.
+   */
+  const runExport = async (format: "csv" | "xlsx") => {
+    try {
+      const data = await exportRun.mutateAsync({
+        sponsorId: sponsorId === ALL ? undefined : sponsorId,
+      });
+      if (data.length === 0) {
+        toast.info(t("adminEventOnsite.leads.exportEmpty"));
+        return;
+      }
+      const file = await buildLeadExport(data, {
+        format,
+        lang,
+        prefix: t("adminEventOnsite.leads.exportPrefix"),
+        nowIso: new Date().toISOString(),
+      });
+      downloadLeadExport(file);
+      toast.success(t("adminEventOnsite.leads.exportDone", { count: data.length }));
+    } catch (error) {
+      toast.error(adminOnsiteErrorMessage(error));
+    }
+  };
+
   return (
     <section className="space-y-4">
       <header className="space-y-1">
@@ -68,6 +103,36 @@ export function OnsiteLeadsPanel({ eventId }: { eventId: string }) {
           }}
           aria-label={t("adminEventOnsite.filters.sponsor")}
         />
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-md"
+            disabled={exportRun.isPending}
+            onClick={() => void runExport("csv")}
+          >
+            <Download aria-hidden="true" className="mr-2 size-4" />
+            {exportRun.isPending
+              ? t("adminEventOnsite.leads.exportRunning")
+              : t("adminEventOnsite.leads.exportCsv")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-md"
+            disabled={exportRun.isPending}
+            onClick={() => void runExport("xlsx")}
+          >
+            <Download aria-hidden="true" className="mr-2 size-4" />
+            {t("adminEventOnsite.leads.exportXlsx")}
+          </Button>
+        </div>
+        <p className="max-w-2xl text-xs text-muted-foreground">
+          {t("adminEventOnsite.leads.exportHint")}
+        </p>
       </div>
 
       <AdminCatalogListState

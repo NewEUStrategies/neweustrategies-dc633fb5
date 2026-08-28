@@ -15,6 +15,7 @@
 // jawny `null` jedzie do bazy.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { parseBadgeBatch, type BadgeBatch } from "@/lib/events/badgeSheet";
 import type {
   CheckinDirection,
   CheckpointAccessMode,
@@ -32,6 +33,7 @@ export type ScannerDeviceRow = Fns["admin_event_scanner_devices_list"]["Returns"
 export type BadgeTemplateRow = Fns["admin_event_badge_templates_list"]["Returns"][number];
 export type BadgePrintRow = Fns["admin_event_badge_prints_list"]["Returns"][number];
 export type LeadScanRow = Fns["admin_event_lead_scans_list"]["Returns"][number];
+export type LeadExportRow = Fns["admin_event_lead_scans_export"]["Returns"][number];
 
 // Zamkniete slowniki modulu zyja w `onsiteEnums` - ten sam plik czyta klient
 // skanera, ktory nie ma po co wciagac funkcji administracyjnych. Re-eksport
@@ -392,6 +394,98 @@ export async function fetchOnsiteStats(
   return parseOnsiteStats(data);
 }
 
+/* ------------------------------------------ statystyki wejsc na zywo --- */
+
+export interface OnsiteLiveSessionStat {
+  sessionId: string;
+  titlePl: string;
+  titleEn: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  roomId: string | null;
+  roomName: string | null;
+  capacity: number | null;
+  grantedIn: number;
+  grantedOut: number;
+  denied: number;
+  inside: number;
+  uniquePeople: number;
+  recentIn: number;
+  lastCheckinAt: string | null;
+}
+
+export interface OnsiteLiveRoomStat {
+  roomId: string;
+  name: string;
+  floor: string | null;
+  capacity: number | null;
+  grantedIn: number;
+  grantedOut: number;
+  denied: number;
+  inside: number;
+  uniquePeople: number;
+  recentIn: number;
+  lastCheckinAt: string | null;
+}
+
+export interface OnsiteLiveStats {
+  generatedAt: string;
+  windowMinutes: number;
+  sessions: OnsiteLiveSessionStat[];
+  rooms: OnsiteLiveRoomStat[];
+}
+
+function nullableStr(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+/** Parser pulpitu na zywo: brak sesji to pusta lista, nie wyjatek. */
+export function parseOnsiteLiveStats(value: unknown): OnsiteLiveStats {
+  const row = record(value);
+  const sessions = Array.isArray(row.sessions) ? row.sessions : [];
+  const rooms = Array.isArray(row.rooms) ? row.rooms : [];
+  return {
+    generatedAt: str(row.generated_at),
+    windowMinutes: num(row.window_minutes, 60),
+    sessions: sessions.map((item) => {
+      const s = record(item);
+      return {
+        sessionId: str(s.session_id),
+        titlePl: str(s.title_pl),
+        titleEn: str(s.title_en),
+        startsAt: nullableStr(s.starts_at),
+        endsAt: nullableStr(s.ends_at),
+        roomId: nullableStr(s.room_id),
+        roomName: nullableStr(s.room_name),
+        capacity: nullableNum(s.capacity),
+        grantedIn: num(s.granted_in),
+        grantedOut: num(s.granted_out),
+        denied: num(s.denied),
+        inside: num(s.inside),
+        uniquePeople: num(s.unique_people),
+        recentIn: num(s.recent_in),
+        lastCheckinAt: nullableStr(s.last_checkin_at),
+      };
+    }),
+    rooms: rooms.map((item) => {
+      const r = record(item);
+      return {
+        roomId: str(r.room_id),
+        name: str(r.name),
+        floor: nullableStr(r.floor),
+        capacity: nullableNum(r.capacity),
+        grantedIn: num(r.granted_in),
+        grantedOut: num(r.granted_out),
+        denied: num(r.denied),
+        inside: num(r.inside),
+        uniquePeople: num(r.unique_people),
+        recentIn: num(r.recent_in),
+        lastCheckinAt: nullableStr(r.last_checkin_at),
+      };
+    }),
+  };
+}
+
 /* -------------------------------------------------- urzadzenia skanujace --- */
 
 export interface ScannerDeviceIssueInput {
@@ -590,4 +684,61 @@ export async function fetchLeadScans(query: LeadScansQuery): Promise<LeadScanRow
     }),
   );
   return unwrap<LeadScanRow[]>(data, error);
+}
+
+/* --------------------------------------------- eksport leadow wystawcy --- */
+
+/**
+ * Pelny eksport leadow. Osobna funkcja bazy, nie petla po `fetchLeadScans`:
+ * kontakt (mail, telefon) wychodzi WYLACZNIE przy zapisanej zgodzie, a decyzje
+ * o tym podejmuje baza, nie filtr w przegladarce.
+ */
+export async function fetchLeadScansExport(
+  eventId: string,
+  sponsorId?: string,
+): Promise<LeadExportRow[]> {
+  const { data, error } = await supabase.rpc(
+    "admin_event_lead_scans_export",
+    args({ p_event_id: eventId, p_sponsor_id: sponsorId }),
+  );
+  return unwrap<LeadExportRow[]>(data, error);
+}
+
+/* ------------------------------------------- generator identyfikatorow --- */
+
+export interface BadgeBatchInput {
+  eventId: string;
+  personIds: readonly string[];
+  templateId?: string;
+}
+
+/**
+ * Wydaje partie identyfikatorow. WYWOLANIE ZMIENIA STAN: kazdy zapis dostaje
+ * NOWY kod QR, wiec poprzedni wydruk przestaje wpuszczac. Dlatego to mutacja,
+ * a nie zapytanie - i dlatego panel wola ja dopiero po potwierdzeniu druku.
+ */
+export async function issueBadgeBatch(input: BadgeBatchInput): Promise<BadgeBatch> {
+  const { data, error } = await supabase.rpc("admin_event_badge_batch", {
+    p_payload: payload({
+      event_id: input.eventId,
+      person_ids: [...input.personIds],
+      template_id: input.templateId,
+    }),
+  });
+  if (error !== null) throw new Error(error.message);
+  return parseBadgeBatch(data);
+}
+
+/* ----------------------------------------------- statystyki na zywo --- */
+
+export async function fetchOnsiteLiveStats(
+  eventId: string,
+  windowMinutes = 60,
+): Promise<OnsiteLiveStats> {
+  const { data, error } = await supabase.rpc("admin_event_onsite_live_stats", {
+    p_event_id: eventId,
+    p_window_minutes: windowMinutes,
+  });
+  if (error !== null) throw new Error(error.message);
+  return parseOnsiteLiveStats(data);
 }

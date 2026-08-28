@@ -24,8 +24,11 @@ import {
   fetchCheckins,
   fetchCheckpoints,
   fetchLeadScans,
+  fetchLeadScansExport,
+  fetchOnsiteLiveStats,
   fetchOnsiteStats,
   fetchScannerDevices,
+  issueBadgeBatch,
   issueScannerDevice,
   recordBadgePrint,
   recordManualCheckin,
@@ -45,14 +48,18 @@ import {
   type CheckpointInput,
   type EventCheckinRow,
   type EventCheckpointRow,
+  type BadgeBatchInput,
+  type LeadExportRow,
   type LeadScanRow,
   type LeadScansQuery,
   type ManualCheckinInput,
+  type OnsiteLiveStats,
   type OnsiteStats,
   type ScannerDeviceCredential,
   type ScannerDeviceIssueInput,
   type ScannerDeviceRow,
 } from "@/lib/events/onsiteApi";
+import type { BadgeBatch } from "@/lib/events/badgeSheet";
 
 export const onsiteKeys = {
   all: ["event-onsite"] as const,
@@ -66,6 +73,8 @@ export const onsiteKeys = {
   templates: (eventId: string) => [...onsiteKeys.event(eventId), "badge-templates"] as const,
   prints: (query: BadgePrintsQuery) => [...onsiteKeys.event(query.eventId), "badge-prints", query],
   leads: (query: LeadScansQuery) => [...onsiteKeys.event(query.eventId), "lead-scans", query],
+  liveStats: (eventId: string, windowMinutes: number) =>
+    [...onsiteKeys.event(eventId), "live-stats", windowMinutes] as const,
 };
 
 /* --------------------------------------------------------------- zapytania --- */
@@ -164,6 +173,24 @@ export function useLeadScans(query: LeadScansQuery, enabled = true): UseQueryRes
   });
 }
 
+/**
+ * Wejscia na zywo w rozbiciu na sesje i sale. Odswiezanie czestsze niz w
+ * `useOnsiteStats` (15 s), bo to ekran, na ktorym koordynator decyduje o
+ * wpuszczaniu do sali - minutowe opoznienie oznacza przepelniona sale.
+ */
+export function useOnsiteLiveStats(
+  eventId: string,
+  windowMinutes = 60,
+  enabled = true,
+): UseQueryResult<OnsiteLiveStats> {
+  return useQuery({
+    queryKey: onsiteKeys.liveStats(eventId, windowMinutes),
+    queryFn: () => fetchOnsiteLiveStats(eventId, windowMinutes),
+    enabled: enabled && eventId !== "",
+    refetchInterval: enabled && eventId !== "" ? 15_000 : false,
+  });
+}
+
 /* ---------------------------------------------------------------- mutacje --- */
 
 /** Wszystkie mutacje modulu uniewazniaja te sama galaz wydarzenia. */
@@ -219,4 +246,24 @@ export function useDeleteBadgeTemplate(eventId: string) {
 
 export function useRecordBadgePrint(eventId: string) {
   return useOnsiteMutation<BadgePrintInput, Record<string, unknown>>(eventId, recordBadgePrint);
+}
+
+/**
+ * Wydanie partii identyfikatorow. Mutacja, bo rotuje kody QR - stary wydruk
+ * przestaje dzialac, wiec nie wolno tego wywolac "przy okazji" renderu.
+ */
+export function useIssueBadgeBatch(eventId: string) {
+  return useOnsiteMutation<BadgeBatchInput, BadgeBatch>(eventId, issueBadgeBatch);
+}
+
+/**
+ * Eksport leadow uruchamiany przyciskiem, nie zapytaniem: to jednorazowe
+ * pobranie danych kontaktowych i nie ma powodu, zeby lezalo w cache.
+ */
+export function useLeadExport(
+  eventId: string,
+): UseMutationResult<LeadExportRow[], Error, { sponsorId?: string }> {
+  return useMutation<LeadExportRow[], Error, { sponsorId?: string }>({
+    mutationFn: (input) => fetchLeadScansExport(eventId, input.sponsorId),
+  });
 }
