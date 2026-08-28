@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -58,6 +58,15 @@ function ProfileLayout() {
       /* jw. */
     }
   }, [collapsed]);
+  // Szuflada na mobile MUSI otwierać się od góry: karta „Mój profil /
+  // Centrum zarządzania" i grupa „Tożsamość" są pierwszym, co widzi
+  // użytkownik. Bez resetu przeglądarka zachowuje poprawnią pozycję
+  // przewijania i nagłówek ląduje poza ekranem (sidebar „schowany").
+  const asideRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!collapsed) asideRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [collapsed]);
+
   // Rozwinięta szuflada na mobile: Escape zamyka, tło nie przewija się pod spodem.
   useEffect(() => {
     if (collapsed) return;
@@ -105,16 +114,21 @@ function ProfileLayout() {
                   aria-hidden
                   tabIndex={-1}
                   onClick={() => setCollapsed(true)}
-                  className="fixed inset-0 z-40 bg-foreground/40 md:hidden"
+                  // Backdrop NAD przyklejonym nagłówkiem mobilnym (z-[9998]),
+                  // inaczej header przykrywa szufladę i blokuje kliknięcia.
+                  className="fixed inset-0 z-[9999] bg-foreground/40 md:hidden"
                 />
               )}
               {!hideSidebar && (
                 <aside
+                  ref={asideRef}
                   className={cn(
                     "shrink-0 border-border transition-[width] duration-200 md:border-b-0 md:border-r",
                     collapsed
                       ? "w-full border-b bg-muted/40 p-2 md:w-[68px]"
-                      : "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto bg-background p-4 shadow-2xl ring-1 ring-border md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5 md:shadow-none md:ring-0",
+                      // Szuflada nad sticky headerem (z-[9998]) - bez tego
+                      // nagłówek strony przykrywa kartę „Mój profil".
+                      : "fixed inset-y-0 left-0 z-[10000] w-72 max-w-[85vw] overflow-y-auto bg-background p-4 shadow-2xl ring-1 ring-border md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5 md:shadow-none md:ring-0",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
                 >
