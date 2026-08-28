@@ -19592,6 +19592,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: string
       }
+      admin_event_badge_batch: { Args: { p_payload: Json }; Returns: Json }
       admin_event_badge_print_record: {
         Args: { p_payload: Json }
         Returns: Json
@@ -19866,6 +19867,26 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_lead_scans_export: {
+        Args: { p_event_id: string; p_sponsor_id?: string }
+        Returns: {
+          company: string
+          consent: boolean
+          consent_snapshot_at: string
+          device_label: string
+          email: string
+          first_name: string
+          first_scanned_at: string
+          interest_rating: number
+          job_title: string
+          last_name: string
+          last_scanned_at: string
+          note: string
+          phone: string
+          scan_count: number
+          sponsor_name: string
+        }[]
+      }
       admin_event_lead_scans_list: {
         Args: {
           p_event_id: string
@@ -19994,6 +20015,10 @@ export type Database = {
           topic: string
           total_count: number
         }[]
+      }
+      admin_event_onsite_live_stats: {
+        Args: { p_event_id: string; p_window_minutes?: number }
+        Returns: Json
       }
       admin_event_onsite_stats: {
         Args: { p_bucket_minutes?: number; p_event_id: string }

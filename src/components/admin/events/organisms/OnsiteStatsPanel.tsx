@@ -27,6 +27,7 @@ import { AdminMetricTile } from "@/components/admin/molecules/AdminMetricTile";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { adminOnsiteErrorMessage } from "@/lib/events/adminOnsiteErrors";
 import { useOnsiteStats } from "@/lib/events/useEventOnsite";
+import { OnsiteLiveStatsPanel } from "@/components/admin/events/organisms/OnsiteLiveStatsPanel";
 import { uiLang } from "@/lib/i18n/format";
 
 export function OnsiteStatsPanel({ eventId }: { eventId: string }) {
@@ -192,6 +193,7 @@ export function OnsiteStatsPanel({ eventId }: { eventId: string }) {
           </div>
         )}
       </AdminCatalogListState>
-    </section>
+          <OnsiteLiveStatsPanel eventId={eventId} />
+</section>
   );
 }

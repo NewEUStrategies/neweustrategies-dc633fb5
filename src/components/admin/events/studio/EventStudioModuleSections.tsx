@@ -47,6 +47,7 @@ import { MeetingStatsPanel } from "@/components/admin/events/organisms/MeetingSt
 import { MeetingTablesPanel } from "@/components/admin/events/organisms/MeetingTablesPanel";
 import { MeetingsListPanel } from "@/components/admin/events/organisms/MeetingsListPanel";
 import { OnsiteBadgesPanel } from "@/components/admin/events/organisms/OnsiteBadgesPanel";
+import { OnsiteBadgePrintPanel } from "@/components/admin/events/organisms/OnsiteBadgePrintPanel";
 import { OnsiteCheckpointsPanel } from "@/components/admin/events/organisms/OnsiteCheckpointsPanel";
 import { OnsiteDeskPanel } from "@/components/admin/events/organisms/OnsiteDeskPanel";
 import { OnsiteDevicesPanel } from "@/components/admin/events/organisms/OnsiteDevicesPanel";
@@ -284,7 +285,14 @@ export function EventOnsiteBadgesSection({ row }: { row: AdminEventDetailRow }) 
   ensureOnsiteI18n();
   return (
     <ModuleScreen titleKey="adminEventOnsite.nav.badges">
-      <OnsiteBadgesPanel key={row.id} eventId={row.id} />
+      <div className="space-y-8">
+        <OnsiteBadgePrintPanel
+          key={`print-${row.id}`}
+          eventId={row.id}
+          eventTitle={row.title_pl || row.title_en || ""}
+        />
+        <OnsiteBadgesPanel key={row.id} eventId={row.id} />
+      </div>
     </ModuleScreen>
   );
 }
