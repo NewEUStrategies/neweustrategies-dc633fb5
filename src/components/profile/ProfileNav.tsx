@@ -83,6 +83,10 @@ const FINANCE: NavItem[] = [
   { to: "/profile/membership", key: "membership", icon: Crown },
   { to: "/profile/plan", key: "plan", icon: RefreshCw },
   { to: "/profile/payments", key: "payments", icon: Receipt },
+  // „Moje zgłoszenia" stoi w finansach, bo o zgłoszeniu na wydarzenie
+  // rozstrzyga wynik płatności - to tu użytkownik szuka odpowiedzi „dlaczego
+  // anulowano" i „gdzie mój zwrot".
+  { to: "/profile/tickets", key: "tickets", icon: Ticket },
   { to: "/profile/billing", key: "billing", icon: FileText },
 ];
 
