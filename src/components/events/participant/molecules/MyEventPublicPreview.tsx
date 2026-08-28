@@ -5,27 +5,32 @@
 // `event_attendees`, i honorujemy przełączniki widoczności: e-mail i telefon
 // pokazujemy WYŁĄCZNIE, gdy właściciel je włączył. Dzięki temu podgląd jest
 // weryfikacją zgody, a nie ozdobnikiem.
+//
+// WYGLĄD = PROFIL PUBLICZNY. Składamy widok z tych samych atomów co `/profile`
+// (`@/components/profile/shell/ProfileShell`), więc uczestnik widzi w event
+// builderze i w podglądzie dokładnie ten sam język wizualny co na stronie.
 import { useTranslation } from "react-i18next";
-import { Mail, Phone } from "lucide-react";
+import { Activity, Award, Briefcase, Compass, Mail, MapPin, Phone, Share2 } from "lucide-react";
 
 import { uiLang } from "@/lib/i18n/format";
 import { type MyEventProfile } from "@/lib/events/myEventProfileApi";
 import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
 import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
+import {
+  ProfileContactRow,
+  ProfileHeroFrame,
+  ProfileIdentityBlock,
+  ProfileIdentityLine,
+  ProfileMetaPill,
+  ProfileMetaRow,
+  ProfileNameRow,
+  ProfileSectionCard,
+} from "@/components/profile/shell/ProfileShell";
 import { IntentBulletList } from "./IntentBulletList";
 import {
   EventPersonActions,
   type EventPersonActionsProps,
 } from "@/components/events/participant/molecules/EventPersonActions";
-
-function Row({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="border-t border-border px-4 py-4 sm:px-5">
-      <h4 className="text-sm font-semibold tracking-tight">{title}</h4>
-      <div className="mt-2 text-sm text-muted-foreground">{children}</div>
-    </section>
-  );
-}
 
 export interface MyEventPublicPreviewProps {
   profile: MyEventProfile;
@@ -38,12 +43,11 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
   const en = uiLang(i18n.language) === "en";
 
   const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  const displayName = name === "" ? t("eventMe.publicPreview.noName") : name;
   const bio = (en ? profile.bioEn : profile.bioPl) ?? profile.bioPl ?? profile.bioEn;
   const seeking = (en ? profile.seekingEn : profile.seekingPl) ?? null;
   const offering = (en ? profile.offeringEn : profile.offeringPl) ?? null;
-  const hasSocials = Object.values(profile.socialLinks).some(
-    (value) => (value ?? "").trim() !== "",
-  );
+  const hasSocials = Object.values(profile.socialLinks).some((value) => (value ?? "").trim() !== "");
   const email = profile.emailVisible ? profile.email : null;
   const phone = profile.phoneVisible ? profile.phone : null;
   const brand = useCompanyBrand(profile.companyText);
@@ -52,150 +56,146 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
   const industry = profile.industry ?? brand.data?.industry ?? null;
 
   return (
-    <div className="overflow-hidden rounded-[6px] border border-border bg-card">
-      <div className="flex flex-col items-center gap-3 px-4 py-6 text-center sm:px-5">
-        {profile.photoUrl !== null ? (
-          <img
-            src={profile.photoUrl}
-            alt={name}
-            className="h-24 w-24 rounded-[6px] border border-border object-cover"
-          />
-        ) : (
-          <div className="grid h-24 w-24 place-items-center rounded-[6px] border border-border bg-muted text-lg font-semibold text-muted-foreground">
-            {name.slice(0, 1).toUpperCase() || "?"}
-          </div>
-        )}
-        <div className="space-y-0.5">
-          <p className="text-lg font-semibold tracking-tight">
-            {name === "" ? t("eventMe.publicPreview.noName") : name}
-          </p>
-          {profile.jobTitle !== null && <p className="text-sm">{profile.jobTitle}</p>}
-          {profile.companyText !== null && (
-            <span className="inline-flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              {companyLogo !== null && (
-                <img
-                  src={companyLogo}
-                  alt=""
-                  aria-hidden="true"
-                  className="h-6 w-6 rounded-[6px] border border-border bg-background object-contain"
-                />
-              )}
-              {companyWebsite === null ? (
-                profile.companyText
-              ) : (
-                <a
-                  href={companyWebsite}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="underline-offset-2 hover:underline"
-                >
-                  {profile.companyText}
-                </a>
-              )}
-            </span>
+    <div className="space-y-4">
+      <ProfileHeroFrame
+        avatarUrl={profile.photoUrl}
+        fullName={displayName}
+      />
+
+      <ProfileIdentityBlock>
+        <ProfileNameRow name={displayName} />
+        <ProfileIdentityLine
+          companyLogoUrl={companyLogo}
+          companyName={profile.companyText}
+          companyHref={companyWebsite}
+          jobTitle={profile.jobTitle}
+        />
+
+        <ProfileMetaRow>
+          {profile.specialization !== null && (
+            <ProfileMetaPill icon={<Award />}>{profile.specialization}</ProfileMetaPill>
           )}
-        </div>
+          {industry !== null && (
+            <ProfileMetaPill icon={<Briefcase />}>{industry}</ProfileMetaPill>
+          )}
+          {email !== null && (
+            <ProfileMetaPill icon={<Mail />} href={`mailto:${email}`}>
+              {email}
+            </ProfileMetaPill>
+          )}
+          {phone !== null && (
+            <ProfileMetaPill icon={<MapPin />} href={`tel:${phone}`}>
+              {phone}
+            </ProfileMetaPill>
+          )}
+        </ProfileMetaRow>
 
         {actions !== null && (
-          <EventPersonActions
-            {...actions}
-            displayName={name === "" ? t("eventMe.publicPreview.noName") : name}
-            displayAvatar={profile.photoUrl}
-            className="justify-center"
-          />
+          <div className="mt-3">
+            <EventPersonActions
+              {...actions}
+              displayName={displayName}
+              displayAvatar={profile.photoUrl}
+              className="justify-center sm:justify-start"
+            />
+          </div>
         )}
-      </div>
+      </ProfileIdentityBlock>
 
-      {(industry !== null || profile.specialization !== null) && (
-        <Row title={t("eventMe.publicPreview.professional")}>
-          <dl className="grid gap-3 sm:grid-cols-2">
-            {industry !== null && (
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide">
-                  {t("eventMe.fields.industry")}
-                </dt>
-                <dd className="mt-1">{industry}</dd>
-              </div>
-            )}
-            {profile.specialization !== null && (
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide">
-                  {t("eventMe.fields.specialization")}
-                </dt>
-                <dd className="mt-1">{profile.specialization}</dd>
-              </div>
-            )}
-          </dl>
-        </Row>
-      )}
-
-      <Row title={t("eventMe.publicPreview.about")}>
+      <ProfileSectionCard
+        icon={<Activity className="h-3.5 w-3.5" />}
+        title={t("eventMe.publicPreview.about")}
+      >
         {bio !== null && bio.trim() !== "" ? (
-          <p className="whitespace-pre-line">{bio}</p>
+          <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{bio}</p>
         ) : (
-          <p className="italic">{t("eventMe.publicPreview.empty")}</p>
+          <p className="text-sm italic text-muted-foreground/70">
+            {t("eventMe.publicPreview.empty")}
+          </p>
         )}
-      </Row>
+      </ProfileSectionCard>
 
       {(seeking !== null || offering !== null) && (
-        <Row title={t("eventMe.publicPreview.match")}>
+        <ProfileSectionCard
+          icon={<Compass className="h-3.5 w-3.5" />}
+          title={t("eventMe.publicPreview.match")}
+        >
           <dl className="grid gap-3 sm:grid-cols-2">
             {seeking !== null && (
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide">
+                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   {t("eventMe.fields.seeking")}
                 </dt>
-                <dd className="mt-1">
+                <dd className="mt-1 text-sm text-foreground/90">
                   <IntentBulletList text={seeking} />
                 </dd>
               </div>
             )}
             {offering !== null && (
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide">
+                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   {t("eventMe.fields.offering")}
                 </dt>
-                <dd className="mt-1">
+                <dd className="mt-1 text-sm text-foreground/90">
                   <IntentBulletList text={offering} />
                 </dd>
               </div>
             )}
           </dl>
-        </Row>
+        </ProfileSectionCard>
       )}
 
-      <Row title={t("eventMe.sections.social")}>
-        {hasSocials ? (
-          <EventSocialLinks links={profile.socialLinks} />
-        ) : (
-          <p className="italic">{t("eventMe.publicPreview.empty")}</p>
-        )}
-      </Row>
-
-      <Row title={t("eventMe.sections.contact")}>
-        <ul className="space-y-1.5">
-          <li className="flex items-center gap-2">
-            <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <ProfileSectionCard
+        icon={<Mail className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.contact")}
+      >
+        <ul className="divide-y divide-border/60">
+          <ProfileContactRow icon={<Mail className="h-4 w-4" />} ariaLabel={t("eventMe.fields.email")}>
             {email !== null ? (
-              <a className="underline-offset-2 hover:underline" href={`mailto:${email}`}>
+              <a
+                className="truncate text-sm text-foreground/90 hover:text-primary"
+                href={`mailto:${email}`}
+              >
                 {email}
               </a>
             ) : (
-              <span className="italic">{t("eventMe.publicPreview.contactHidden")}</span>
+              <span className="text-sm italic text-muted-foreground/70">
+                {t("eventMe.publicPreview.contactHidden")}
+              </span>
             )}
-          </li>
-          <li className="flex items-center gap-2">
-            <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </ProfileContactRow>
+          <ProfileContactRow
+            icon={<Phone className="h-4 w-4" />}
+            ariaLabel={t("eventMe.fields.phone")}
+          >
             {phone !== null ? (
-              <a className="underline-offset-2 hover:underline" href={`tel:${phone}`}>
+              <a
+                className="truncate text-sm text-foreground/90 hover:text-primary"
+                href={`tel:${phone}`}
+              >
                 {phone}
               </a>
             ) : (
-              <span className="italic">{t("eventMe.publicPreview.contactHidden")}</span>
+              <span className="text-sm italic text-muted-foreground/70">
+                {t("eventMe.publicPreview.contactHidden")}
+              </span>
             )}
-          </li>
+          </ProfileContactRow>
         </ul>
-      </Row>
+      </ProfileSectionCard>
+
+      <ProfileSectionCard
+        icon={<Share2 className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.social")}
+      >
+        {hasSocials ? (
+          <EventSocialLinks links={profile.socialLinks} />
+        ) : (
+          <p className="text-sm italic text-muted-foreground/70">
+            {t("eventMe.publicPreview.empty")}
+          </p>
+        )}
+      </ProfileSectionCard>
     </div>
   );
 }
