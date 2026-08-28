@@ -992,6 +992,9 @@ export const adminEventsPl = {
         moduleEmptyAgenda: "Program jest jeszcze pusty - dodaj sesje w zakładce Ścieżki.",
         moduleEmptySpeakers: "Nie ma jeszcze prelegentów - dodaj ich w Treści wydarzenia.",
         moduleEmptyAttendees: "Brak potwierdzonych zgłoszeń - lista wypełni się po rejestracjach.",
+        tracksLabel: "Ścieżki",
+        trackDraftBadge: "szkice: {{count}}",
+        trackPrivateBadge: "niepubliczna",
       },
 
       // EKRAN „FUNKCJE DODATKOWE" - siedem przełączników modułów wydarzenia.
@@ -1987,6 +1990,9 @@ export const adminEventsEn = {
         moduleEmptyAgenda: "The programme is still empty - add sessions in the Tracks tab.",
         moduleEmptySpeakers: "No speakers yet - add them in the event content screen.",
         moduleEmptyAttendees: "No confirmed registrations yet - the list fills up as people register.",
+        tracksLabel: "Tracks",
+        trackDraftBadge: "drafts: {{count}}",
+        trackPrivateBadge: "not public",
       },
 
       features: {
