@@ -39,6 +39,10 @@ export function CartPanel() {
   const { items, totals, remove, clear } = useCart();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
+  // KOD RABATOWY JEST TYLKO NAPISEM. Zniżkę liczy `createCheckoutOrder`
+  // (validate_b2b_coupon -> redeem_b2b_coupon) tuż przed utworzeniem
+  // zamówienia; przeglądarka nie zna ani wartości rabatu, ani finalnej kwoty.
+  const [promo, setPromo] = useState("");
 
   const pay = async (id: string) => {
     const item = items.find((entry) => entry.id === id);
@@ -48,6 +52,7 @@ export function CartPanel() {
       return;
     }
     setBusyId(id);
+    const code = promo.trim().toUpperCase();
     try {
       const res = await checkout({
         data: {
@@ -57,10 +62,11 @@ export function CartPanel() {
           success_path: `/events/${item.slug}`,
           cancel_path: "/cart",
           environment: getStripeEnvironment(),
+          ...(code.length > 0 ? { coupon_code: code } : {}),
         },
       });
       if (!res.ok) {
-        toast.error(t("cart.payError"));
+        toast.error(res.mode === "coupon" ? t("cart.promoError") : t("cart.payError"));
         return;
       }
       if (res.mode === "stripe") {
