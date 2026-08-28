@@ -170,9 +170,16 @@ i `min_tier_rank = 3` oddaje nagrania wszystkich sesji i transmisje sesji plenar
 klasa błędu, którą dla tabeli `events` zamknęła migracja `20260721150000` — powtórzona na
 `event_sessions`.
 
-Naprawa: dołożyć do zapytania warunki z wiersza wydarzenia (`visibility`, `min_tier_rank`, tryb
-gościa) i uzależnić `recording_url` od tej samej bramki co `stream_url`; dla anonima nie zwracać
-żadnego z dwóch. Wzorzec jest w `get_event_access`.
+Naprawa: dołożyć do zapytania warunki z **wiersza wydarzenia** (`visibility`, `min_tier_rank`, tryb
+gościa) i uzależnić `recording_url` od tej samej bramki co `stream_url`. Wzorzec jest
+w `get_event_access`.
+
+**Nie chodzi o odcięcie anonima jako takiego** — nadanie `GRANT … TO anon` jest tu celowe. Dla
+wydarzenia publicznego z sesją otwartą (`requires_signup = false`) niezalogowany widz jest
+uprawniony i transmisja ma do niego dojść; zabranie mu obu adresów naprawiłoby wyciek przez zepsucie
+otwartych webcastów. Reguła ma brzmieć: adresy wychodzą, dopóki wołający spełnia widoczność i rangę
+**wydarzenia** oraz regułę zapisu **sesji**; dziś nie sprawdza się pierwszego z tych trzech
+warunków i to jest cała usterka.
 
 **K-4 · Sześć zdarzeń rejestracji jest odrzucanych przy zapisie i po cichu ginie — a bramka CI tego nie widzi**
 

@@ -7,8 +7,25 @@ Każdy obszar przeszedł następnie **adwersaryjną weryfikację** — osobne pr
 było ustalenia OBALIĆ, a nie potwierdzić. Poniżej są wyłącznie te, które weryfikację przetrwały;
 dziewięć obalonych jest na końcu, żeby nie wracały.
 
-**Razem 165 ustaleń** — krytycznych 7, wysokich 45, średnich 80, niskich 33.
-Wszystkie **krytyczne** zostały dodatkowo sprawdzone ręcznie w kodzie przy składaniu raportu — każde się potwierdziło.
+**Razem 165 ustaleń** — w wagach nadanych przez recenzentów poszczególnych podsystemów:
+krytycznych 7, wysokich 45, średnich 80, niskich 33.
+
+### Jak te wagi mają się do listy K-1…K-7 w dokumencie głównym
+
+Te dwie siódemki **nie są tym samym zbiorem** i trzeba to powiedzieć wprost, bo inaczej triage po
+samych liczbach wprowadza w błąd. Wagi tutaj nadał recenzent każdego podsystemu, patrząc wyłącznie na
+swój obszar. Lista K-1…K-7 w `docs/PRZEGLAD_MODUL_EVENT_BUILDER_2026-08-28.md` to **mój triage po
+ręcznej weryfikacji całości**, więc różni się w trzech miejscach:
+
+| Różnica                                                 | Tutaj (per podsystem)                                                                   | W dokumencie głównym                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Płatny bilet wydawany za darmo                          | **dwa wpisy** — „Bilety, pakiety" i „Powiązania"; ten sam defekt widziany z dwóch stron | jedno ustalenie **K-1**                                                       |
+| Harness bazodanowy niewpięty w CI                       | krytyczny                                                                               | **U-02**, waga wysoka — nie psuje przebiegu użytkownika, tylko odbiera sygnał |
+| Zdarzenia rejestracji odrzucane przez `CHECK` (**K-4**) | wysoki, w „Powiązaniach"                                                                | **krytyczny** — po ustaleniu, że `emit_domain_event` połyka wyjątek           |
+| Odbiorcy pakietu niezgodni z `CHECK`-iem (**K-7**)      | wysoki, w trzech podsystemach naraz                                                     | **krytyczny** — trzy z czterech opcji UI są niezapisywalne                    |
+
+Licząc bez duplikatu, ten załącznik ma **164 odrębne ustalenia**. Wszystkie ustalenia z listy
+K-1…K-7 dokumentu głównego zostały dodatkowo sprawdzone ręcznie w kodzie — każde się potwierdziło.
 
 Opisy i uzasadnienia weryfikatora są przycięte do czytelnej długości; pełne ścieżki i numery linii są zachowane.
 
@@ -409,6 +426,10 @@ Jedyna kontrola odpowiedzi po stronie serwera to obecność treści dla pól wym
 > Warstwa bazy dla E5 jest rozbudowana i przemyslana: `event_ticket_types` (z `group_id`, `price_schedule`, early bird, kodem dostepu, pula), `event_ticket_packages` / `event_package_orders` / `event_package_seats` z trojpoziomowym lancuchem i tokenem zaproszenia w postaci skrotu, `event_terms` + `event_term_acceptances` z wersjonowaniem, oraz zakres wydarzeniowy dolozony do istniejacego silnika kuponow `b2b_coupons`. Panel studia ma trzy ekrany (Bilety, Pakiety, Regulaminy) spiete z RPC `admin_event_ticket_upsert`, `admin_event_package_*`, `admin_event_term_upsert`, a wycene fazowa liczy baza (`_event_ticket_phase`), nie przegladarka. Realny stan jest jednak duzo slabszy niz schemat: platny bilet z Event Buildera nie ma zadnej sciezki zaplaty - publiczny formularz zapisuje uczestnika na bilet za 500 zl jako `approved` bez zamowienia; caly wymiar `audience` / `event_audience_grants` / `event_admission_quote` / `event_package_purchase` jest martwy (zero wywolan z klienta); zakres wydarzeniowy kuponu jest zapisywany, ale nigdy nie egzekwowany przy realizacji; a link zaproszenia na […]
 
 ### [KRYTYCZNY] Platny bilet Event Buildera jest wydawany za darmo - zapis publiczny nie ma bramki platnosci
+
+> **To samo ustalenie co „Publiczny event_register() nie sprawdza ceny wejściówki" w sekcji
+> „Powiązania między modułami" — dwa podsystemy zobaczyły ten sam defekt. W dokumencie głównym
+> występuje raz, jako K-1. Nie liczyć podwójnie.**
 
 `supabase/migrations/20260827220945_d4ece1f0-ffc7-43aa-a5b0-a04c95760ae7.sql:520` · blad · weryfikacja: POTWIERDZONE
 
@@ -1641,6 +1662,9 @@ Porównanie kompletu funkcji `event_*`/`admin_event_*` z definicjami RPC z całe
 > Event Builder jest zbudowany jako osobny podsystem (39 tabel `event_*`, ~110 RPC, własne studio `/admin/events/$eventId/*`), który świadomie NIE dubluje trzech silników platformy: strony idą przez `pages` + mapowanie `event_pages`, dyskusje przez kluby (`event_discussions` czyta `club_threads`), a sponsorzy przez `crm_companies` z jawną migawką prezentacji. Te trzy styki są zrobione porządnie (złożone klucze obce po `(tenant_id, id)`, izolacja najemcy, migawka zamiast odczytu na żywo). Styki z rzeczami STARSZYMI od modułu są natomiast rozjechane, i zawsze w ten sam sposób: nowa ścieżka pisze `event_registrations`/`event_people`, a stare mechanizmy platformy (przypomnienia `run_event_reminders`, grupa czatu `create_event_group`, katalog prelegentów `get_public_speakers`, macierz uprawnień) nadal czytają wyłącznie `event_rsvps`/`user_id`. Najpoważniejsze są trzy rzeczy: (1) wszystkie zdarzenia rejestracji są ODRZUCANE przez CHECK na `domain_events.event_type` i połykane przez `EXCEPTION WHEN OTHERS` w emiterze — szyna zdarzeń modułu rejestracji nie działa w ogóle i nikt tego nie […]
 
 ### [KRYTYCZNY] Publiczny event_register() nie sprawdza ceny wejściówki — płatny bilet za darmo
+
+> **To samo ustalenie co „Platny bilet Event Buildera jest wydawany za darmo" w sekcji
+> „Bilety, pakiety, regulaminy". W dokumencie głównym występuje raz, jako K-1. Nie liczyć podwójnie.**
 
 `supabase/migrations/20260827220945_d4ece1f0-ffc7-43aa-a5b0-a04c95760ae7.sql:344` · bezpieczenstwo · weryfikacja: POTWIERDZONE
 
