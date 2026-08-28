@@ -201,7 +201,11 @@ export function EventAttendeesList({
                   >
                     {data.rows.map((entry) => (
                       <li key={entry.registrationId} className="flex">
-                        <AttendeeCard entry={entry} lang={lang} />
+                        <AttendeeCard
+                          entry={entry}
+                          lang={lang}
+                          sessions={speakerSessions.data?.get(entry.registrationId) ?? null}
+                        />
                       </li>
                     ))}
                   </ul>
