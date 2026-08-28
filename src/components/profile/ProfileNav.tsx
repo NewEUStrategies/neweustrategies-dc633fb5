@@ -21,6 +21,8 @@ import {
   Ticket,
   Lock,
   MessageSquareQuote,
+  CalendarDays,
+  ShoppingCart,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
@@ -42,7 +44,9 @@ type NavKey =
   | "tickets"
   | "security"
   | "privacy"
-  | "expertRequests";
+  | "expertRequests"
+  | "events"
+  | "cart";
 
 type NavItem = {
   to: string;
@@ -69,6 +73,9 @@ const CONTENT: NavItem[] = [
   { to: "/network", key: "network", icon: Users },
   { to: "/messages", search: { view: "notifications" }, key: "notifications", icon: Bell },
   { to: "/profile/expert-requests", key: "expertRequests", icon: MessageSquareQuote },
+  // Historia wydarzeń: nadchodzące, minione i stan biletów. Stoi w treściach,
+  // bo użytkownik szuka tu „gdzie byłem/będę", a nie faktury - te są w finansach.
+  { to: "/profile/events", key: "events", icon: CalendarDays },
 ];
 
 // FINANSE - cztery pozycje zamiast sześciu (§11 audytu IA). Dwie z dawnej listy
@@ -89,6 +96,8 @@ const FINANCE: NavItem[] = [
   // anulowano" i „gdzie mój zwrot".
   { to: "/profile/tickets", key: "tickets", icon: Ticket },
   { to: "/profile/billing", key: "billing", icon: FileText },
+  // Koszyk stoi w finansach, bo jego jedynym wyjściem jest kasa.
+  { to: "/cart", key: "cart", icon: ShoppingCart },
 ];
 
 // PRYWATNOŚĆ I BEZPIECZEŃSTWO - własna grupa (§10 audytu IA). Do 06.08 obie

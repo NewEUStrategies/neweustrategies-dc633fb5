@@ -220,16 +220,35 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
   );
 }
 
-export function ParticipantTicketsPanel() {
+export function ParticipantTicketsPanel({
+  /**
+   * Zawężenie listy do JEDNEGO wydarzenia - prezentacyjne, nie ochronne:
+   * RPC i tak oddaje wyłącznie zgłoszenia wołającego. Używa go panel „Moje"
+   * na stronie wydarzenia, gdzie cała historia byłaby szumem.
+   */
+  slugFilter,
+  /** Panel osadzony pod cudzym nagłówkiem nie powtarza własnego `h1`. */
+  hideHeader = false,
+}: {
+  slugFilter?: string;
+  hideHeader?: boolean;
+} = {}) {
   const { t } = useTranslation();
-  const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchMyRegistrations });
+  const query = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: fetchMyRegistrations,
+    select: (rows: ParticipantRegistration[]) =>
+      slugFilter === undefined ? rows : rows.filter((row) => row.eventSlug === slugFilter),
+  });
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-lg font-bold">{t("participantTickets.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("participantTickets.lead")}</p>
-      </header>
+      {!hideHeader && (
+        <header className="space-y-1">
+          <h1 className="text-lg font-bold">{t("participantTickets.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("participantTickets.lead")}</p>
+        </header>
+      )}
 
       {query.isPending && (
         <div className="space-y-3">
