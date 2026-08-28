@@ -213,7 +213,16 @@ export async function fetchEventSpeakerSessions(
       }
     }
     if (sessions.length === 0) continue;
-    for (const key of [text(row, "user_id"), text(row, "person_id")]) {
+    const keys: (string | null)[] = [text(row, "user_id"), text(row, "person_id")];
+    // Katalog uczestników identyfikuje wiersz ZGŁOSZENIEM, nie osobą - bez tego
+    // klucza karta nie miałaby czym trafić w prelegenta.
+    const registrationIds = row["registration_ids"];
+    if (Array.isArray(registrationIds)) {
+      for (const value of registrationIds) {
+        if (typeof value === "string" && value.trim() !== "") keys.push(value);
+      }
+    }
+    for (const key of keys) {
       if (key !== null) map.set(key, sessions);
     }
   }
