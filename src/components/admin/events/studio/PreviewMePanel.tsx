@@ -19,8 +19,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +42,7 @@ function demoProfile(en: boolean): MyEventProfile {
     emailVisible: true,
     phoneVisible: false,
     jobTitle: en ? "Policy Director" : "Dyrektorka ds. polityk publicznych",
+    companyId: null,
     companyText: "New European Strategies",
     industry: en ? "Public affairs" : "Public affairs",
     specialization: en ? "EU energy policy" : "Polityka energetyczna UE",
@@ -73,6 +74,7 @@ function profileFromAccount(account: MyAccountSnapshot): MyEventProfile {
     emailVisible: false,
     phoneVisible: false,
     jobTitle: account.jobTitle,
+    companyId: account.companyId,
     companyText: account.companyText,
     industry: null,
     specialization: account.specialization,
@@ -107,7 +109,7 @@ function useEditorAccount(userId: string | null): MyAccountSnapshot | null {
         .from("profiles")
         // Literal selekcji, nie `*`: `profiles` ma granty kolumnowe.
         .select(
-          "first_name, last_name, email, phone, job_title, current_company, specialization, seeking_pl, seeking_en, offering_pl, offering_en, avatar_url, bio_pl, bio_en, linkedin_url, website_url, twitter_url, facebook_url, instagram_url",
+          "first_name, last_name, email, phone, job_title, current_company_id, current_company, specialization, seeking_pl, seeking_en, offering_pl, offering_en, avatar_url, bio_pl, bio_en, linkedin_url, website_url, twitter_url, facebook_url, instagram_url",
         )
         .eq("id", userId as string)
         .maybeSingle();
@@ -128,6 +130,7 @@ function useEditorAccount(userId: string | null): MyAccountSnapshot | null {
         email: data.email,
         phone: data.phone,
         jobTitle: data.job_title,
+        companyId: data.current_company_id,
         companyText: data.current_company,
         specialization: data.specialization,
         seekingPl: data.seeking_pl,
@@ -178,31 +181,6 @@ export function PreviewMePanel({ slug }: { slug: string }) {
 
   const active = tabs.find((item) => item.key === tab) ?? tabs[0];
 
-  // Lista pol, ktorymi uczestnik realnie zarzadza w formularzu produkcyjnym.
-  const fields: { label: string; value: string | null; visibility?: boolean }[] = [
-    { label: t("eventMe.fields.firstName"), value: profile.firstName },
-    { label: t("eventMe.fields.lastName"), value: profile.lastName },
-    { label: t("eventMe.fields.jobTitle"), value: profile.jobTitle },
-    { label: t("eventMe.fields.company"), value: profile.companyText },
-    { label: t("eventMe.fields.industry"), value: profile.industry },
-    { label: t("eventMe.fields.specialization"), value: profile.specialization },
-    { label: t("eventMe.fields.email"), value: profile.email, visibility: profile.emailVisible },
-    { label: t("eventMe.fields.phone"), value: profile.phone, visibility: profile.phoneVisible },
-    {
-      label: t("eventMe.fields.seeking"),
-      value: en ? profile.seekingEn : profile.seekingPl,
-    },
-    {
-      label: t("eventMe.fields.offering"),
-      value: en ? profile.offeringEn : profile.offeringPl,
-    },
-    {
-      label: t("eventMe.sections.social"),
-      value: Object.values(profile.socialLinks).filter(Boolean).join(" · "),
-    },
-    { label: t("eventMe.fields.bioPl"), value: en ? profile.bioEn : profile.bioPl },
-  ];
-
   return (
     <section className="space-y-4">
       <header className="space-y-1">
@@ -213,20 +191,17 @@ export function PreviewMePanel({ slug }: { slug: string }) {
       <ul role="tablist" className="flex flex-wrap gap-2">
         {tabs.map((item) => (
           <li key={item.key}>
-            <button
+            <Button
               type="button"
               role="tab"
+              size="sm"
+              variant={item.key === tab ? "default" : "outline"}
               aria-selected={item.key === tab}
               onClick={() => setTab(item.key)}
-              className={cn(
-                "inline-flex items-center rounded-[6px] border px-3 py-1.5 text-sm transition-colors",
-                item.key === tab
-                  ? "border-transparent bg-foreground text-background"
-                  : "border-border text-muted-foreground hover:border-foreground/40",
-              )}
+              className="rounded-[6px]"
             >
               {item.label}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -268,39 +243,12 @@ export function PreviewMePanel({ slug }: { slug: string }) {
               <MyEventPublicPreview profile={profile} actions={{ slug: null, userId: null, self: true }} />
             </>
           ) : (
-            <ul className="space-y-2">
-              {fields.map((field) => (
-                <li
-                  key={field.label}
-                  className="flex items-start justify-between gap-3 rounded-[6px] border border-border bg-card px-4 py-3"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-xs uppercase tracking-wide text-muted-foreground">
-                      {field.label}
-                    </span>
-                    <span className="block text-sm">
-                      {field.value === null || field.value === ""
-                        ? t("eventMe.publicPreview.empty")
-                        : field.value}
-                    </span>
-                  </span>
-                  {field.visibility !== undefined && (
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-[6px] border px-2 py-0.5 text-xs",
-                        field.visibility
-                          ? "border-primary/40 bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground",
-                      )}
-                    >
-                      {field.visibility
-                        ? t("eventMe.fields.emailVisible")
-                        : t("eventMe.publicPreview.contactHidden")}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <MyEventProfileForm
+              slug={slug}
+              profile={real}
+              account={account}
+              loading={panel.isLoading}
+            />
           )}
 
           <p className="text-xs text-muted-foreground">{t("eventMe.saveHint")}</p>

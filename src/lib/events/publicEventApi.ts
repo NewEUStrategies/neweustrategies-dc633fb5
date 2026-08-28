@@ -264,11 +264,23 @@ export interface AttendeeGroupCount extends AttendeeGroupTag {
  */
 export interface AttendeeEntry {
   registrationId: string;
+  userId: string | null;
   name: string;
   jobTitle: string | null;
   company: string | null;
   avatarUrl: string | null;
   profileSlug: string | null;
+  companyLogoUrl: string | null;
+  companyWebsite: string | null;
+  industry: string | null;
+  specialization: string | null;
+  seekingPl: string | null;
+  seekingEn: string | null;
+  offeringPl: string | null;
+  offeringEn: string | null;
+  bioPl: string | null;
+  bioEn: string | null;
+  socialLinks: Partial<Record<"linkedin" | "x" | "facebook" | "instagram" | "youtube" | "website", string>>;
   groups: AttendeeGroupTag[];
 }
 
@@ -341,11 +353,29 @@ export function parseAttendeeDirectory(value: unknown): AttendeeDirectory {
     if (registrationId === null || name === null) continue;
     rows.push({
       registrationId,
+      userId: text(entry.user_id),
       name,
       jobTitle: text(entry.job_title),
       company: text(entry.company),
       avatarUrl: text(entry.avatar_url),
       profileSlug: text(entry.profile_slug),
+      companyLogoUrl: text(entry.company_logo_url),
+      companyWebsite: text(entry.company_website),
+      industry: text(entry.industry),
+      specialization: text(entry.specialization),
+      seekingPl: text(entry.seeking_pl),
+      seekingEn: text(entry.seeking_en),
+      offeringPl: text(entry.offering_pl),
+      offeringEn: text(entry.offering_en),
+      bioPl: text(entry.bio_pl),
+      bioEn: text(entry.bio_en),
+      socialLinks: Object.fromEntries(
+        Object.entries(record(entry.social_links)).filter(
+          ([key, value]) =>
+            ["linkedin", "x", "facebook", "instagram", "youtube", "website"].includes(key) &&
+            typeof value === "string" && value.trim() !== "",
+        ),
+      ),
       groups: list(entry.groups)
         .map(parseGroupTag)
         .filter((tag): tag is AttendeeGroupTag => tag !== null),

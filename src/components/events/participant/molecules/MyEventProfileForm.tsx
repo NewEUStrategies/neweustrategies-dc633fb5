@@ -55,6 +55,7 @@ interface FormState {
   email_visible: boolean;
   phone_visible: boolean;
   job_title: string;
+  company_id: string;
   company_text: string;
   industry: string;
   specialization: string;
@@ -86,6 +87,7 @@ function toForm(profile: MyEventProfile | null): FormState {
     email_visible: profile?.emailVisible ?? false,
     phone_visible: profile?.phoneVisible ?? false,
     job_title: profile?.jobTitle ?? "",
+    company_id: profile?.companyId ?? "",
     company_text: profile?.companyText ?? "",
     industry: profile?.industry ?? "",
     specialization: profile?.specialization ?? "",
@@ -134,14 +136,39 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   const [form, setForm] = useState<FormState>(() => toForm(profile));
   // ZAPIS WSTECZ DO KONTA JEST DECYZJA UZYTKOWNIKA, nie efektem ubocznym:
   // kartoteka wydarzenia bywa celowo inna niz wizytowka platformy.
-  const [pushAccount, setPushAccount] = useState(false);
+  const accountOnly = profile === null && account !== null;
+  const editableProfile: MyEventProfile | null = profile ?? (account === null ? null : {
+    personId: "account",
+    firstName: account.firstName,
+    lastName: account.lastName,
+    email: account.email,
+    phone: account.phone,
+    emailVisible: false,
+    phoneVisible: false,
+    jobTitle: account.jobTitle,
+    companyId: account.companyId,
+    companyText: account.companyText,
+    industry: null,
+    specialization: account.specialization,
+    seekingPl: account.seekingPl,
+    seekingEn: account.seekingEn,
+    offeringPl: account.offeringPl,
+    offeringEn: account.offeringEn,
+    socialProfileUrl: null,
+    socialLinks: account.socialLinks,
+    photoUrl: account.photoUrl,
+    bioPl: account.bioPl,
+    bioEn: account.bioEn,
+  });
+  const [pushAccount, setPushAccount] = useState(accountOnly);
 
   // Serwer jest źródłem prawdy: gdy dane dojadą (albo odświeżą się po zapisie),
   // formularz przejmuje ich wersję. `personId` w zależności zamiast obiektu -
   // nie chcemy nadpisywać wpisywanego tekstu przy każdym refetchu tej samej treści.
   useEffect(() => {
-    setForm(toForm(profile));
-  }, [profile?.personId, profile]);
+    setForm(toForm(editableProfile));
+    if (profile === null && account !== null) setPushAccount(true);
+  }, [editableProfile?.personId, profile, account]);
 
   const field = (key: keyof FormState) => (event: { target: { value: string } }) => {
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -209,7 +236,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
     );
   }
 
-  if (profile === null) {
+  if (editableProfile === null) {
     return (
       <p className="rounded-[6px] border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
         {t("eventMe.noPerson")}
@@ -335,8 +362,15 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
           />
           <OrganizationPicker
             label={t("eventMe.fields.company")}
+            companyId={form.company_id || null}
             value={form.company_text}
-            onChange={(name) => setForm((prev) => ({ ...prev, company_text: name }))}
+            onChange={(company) =>
+              setForm((prev) => ({
+                ...prev,
+                company_id: company.id ?? "",
+                company_text: company.name,
+              }))
+            }
           />
           <FieldBox
             label={t("eventMe.fields.industry")}
@@ -454,6 +488,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         <Switch
           id="event-profile-push-account"
           checked={pushAccount}
+          disabled={accountOnly}
           onCheckedChange={setPushAccount}
         />
         <label htmlFor="event-profile-push-account" className="min-w-0 space-y-1">
