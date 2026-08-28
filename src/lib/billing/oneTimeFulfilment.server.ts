@@ -25,6 +25,12 @@ export interface OneTimeTransaction {
   currency: string | null;
   customerEmail: string | null;
   customData: Record<string, unknown> | null;
+  /** Identyfikator sesji checkout (gdy zdarzenie pochodzi z sesji). */
+  sessionId?: string | null;
+  /** Identyfikator intencji płatności - po nim przychodzi zwrot. */
+  paymentIntentId?: string | null;
+  /** Identyfikator klienta u operatora - powtarzalne płatności i portal. */
+  customerId?: string | null;
 }
 
 export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded";
@@ -81,6 +87,8 @@ async function refundIfOversold(
     .eq("id", order.id);
   if (flipErr) throw new Error(`one-time: oversold status flip failed: ${flipErr.message}`);
 
+  await applyTicketOutcome(order.id, "refunded");
+
   const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
   await notifyRefundEmail({
     userId: order.user_id,
@@ -107,6 +115,39 @@ async function refundIfOversold(
   }
 
   return true;
+}
+
+/**
+ * Przenosi wynik płatności na zgłoszenie uczestnika (potwierdzenie, brak
+ * zapłaty, zwrot + promocja z listy rezerwowej). Jedna funkcja bazowa, więc
+ * webhook i panel admina dają identyczny skutek. Fail-soft: zamówienie jest
+ * już zaksięgowane, a brak zgłoszenia to normalny przypadek (RSVP bez
+ * formularza).
+ */
+export async function applyTicketOutcome(
+  orderId: string,
+  outcome: "paid" | "unpaid" | "refunded",
+): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin.rpc("payments_apply_event_ticket_outcome", {
+    p_order_id: orderId,
+    p_outcome: outcome,
+  });
+  if (error) {
+    console.error("[payments] ticket outcome failed", orderId, outcome, error.message);
+  }
+}
+
+/**
+ * Nieudana płatność jednorazowa - oznaczamy zgłoszenie jako nieopłacone.
+ * Statusu zamówienia nie ruszamy: to robi ścieżka windykacji.
+ */
+export async function markOneTimePaymentFailed(
+  customData: Record<string, unknown> | null,
+): Promise<void> {
+  const orderId = str(customData, "orderId") ?? str(customData, "order_id");
+  if (!orderId) return;
+  await applyTicketOutcome(orderId, "unpaid");
 }
 
 async function fulfilOrder(
@@ -174,7 +215,9 @@ async function fulfilOrder(
       paid_at: new Date().toISOString(),
       provider: "stripe",
       provider_intent_id: txn.id,
-      provider_session_id: txn.id,
+      provider_session_id: txn.sessionId ?? txn.id,
+      ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
+      ...(txn.customerId ? { provider_customer_id: txn.customerId } : {}),
       amount_cents: amountCents,
       currency,
       ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
@@ -212,6 +255,10 @@ async function fulfilOrder(
       { onConflict: "event_id,user_id" },
     );
     if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
+
+    // Bilet imienny: to samo zdarzenie płatności potwierdza zgłoszenie z
+    // formularza, wydaje kod QR i zdejmuje wpis z listy rezerwowej.
+    await applyTicketOutcome(order.id, "paid");
   }
 
   // 5. Powiadomienia (fail-soft, idempotentne po id zamówienia).
