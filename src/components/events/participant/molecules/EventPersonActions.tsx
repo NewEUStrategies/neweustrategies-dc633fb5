@@ -22,6 +22,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInviteToMeeting } from "@/lib/events/useMyMeetings";
 import { meetingErrorI18nKey } from "@/lib/events/meetingsErrors";
 import { cn } from "@/lib/utils";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 export interface EventPersonActionsProps {
   /** Slug wydarzenia - potrzebny do zaproszenia na spotkanie. */

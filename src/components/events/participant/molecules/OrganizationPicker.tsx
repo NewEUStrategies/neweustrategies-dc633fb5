@@ -32,6 +32,9 @@ import {
   type CompanyOption,
 } from "@/lib/crm/companyDirectory";
 import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 interface Props {
   value: string;

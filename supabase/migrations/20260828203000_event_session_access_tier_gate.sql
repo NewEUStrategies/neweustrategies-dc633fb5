@@ -183,7 +183,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.event_session_access(uuid) IS
-  'Dostep do transmisji i nagrania SESJI. Bramka wydarzenia jest odwzorowaniem get_event_access (obsada, auth_required, widocznosc, ranga, Chatham House), a nie druga regula; nagranie dodatkowo za has_tier_feature(recordings). Wczesniej sprawdzana byla wylacznie wlasna ranga sesji, przez co niezalogowany czytal nagrania wydarzenia dla czlonkow.';
+  'Dostep do transmisji i nagrania SESJI. Bramka wydarzenia jest odwzorowaniem get_event_access (obsada, auth_required, widocznosc, ranga, Chatham House), a nie druga regula. Nagranie idzie za sama ta bramka - BEZ wymogu zapisu na sesje i BEZ flagi recordings, bo zapis otwiera transmisje (miejsce na sali), a nie archiwum. Wczesniej sprawdzana byla wylacznie wlasna ranga sesji, przez co niezalogowany czytal nagrania wydarzenia dla czlonkow.';
 
 REVOKE ALL ON FUNCTION public.event_session_access(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.event_session_access(uuid) TO anon, authenticated, service_role;

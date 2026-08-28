@@ -61,8 +61,10 @@ import { EventSocialLinks } from "@/components/events/participant/atoms/EventSoc
 import { EventPersonActions } from "@/components/events/participant/molecules/EventPersonActions";
 import { IntentBulletList } from "@/components/events/participant/molecules/IntentBulletList";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
 
 ensureEventFrontI18n();
+ensureCartI18n();
 
 // Tyle, ile mieści się w dwóch rzędach siatki trójkolumnowej - strona nie rośnie
 // w nieskończoność, a kongres z tysiącem zapisanych nie wciąga tysiąca wierszy

@@ -31,6 +31,9 @@ import {
   EventPersonActions,
   type EventPersonActionsProps,
 } from "@/components/events/participant/molecules/EventPersonActions";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 export interface MyEventPublicPreviewProps {
   profile: MyEventProfile;

@@ -59,6 +59,9 @@ import {
   useSaveMyEventProfile,
   useSyncMyEventProfileFromAccount,
 } from "@/lib/events/useMyEventPanel";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 interface Props {
   slug: string;
