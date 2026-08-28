@@ -277,6 +277,13 @@ function AdminBillingAudit() {
           )}
         </>
       )}
+
+      {/* Zdrowie webhooków stoi POD dziennikiem, nie w osobnej zakładce:
+          metryka i wiersz błędu opisują to samo zdarzenie, a rozdzielenie ich
+          zmuszałoby dyżurnego do przeskakiwania między widokami. */}
+      <div className="mt-8 border-t border-border pt-6">
+        <WebhookHealthPanel environment={environment} sinceHours={sinceHours} />
+      </div>
     </div>
   );
 }
