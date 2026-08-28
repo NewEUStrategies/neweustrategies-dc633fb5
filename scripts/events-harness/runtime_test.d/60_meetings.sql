@@ -454,7 +454,7 @@ END $$;
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.assert_raises_like($q$
   UPDATE public.event_meetings
-     SET invitee_registration_id = '60900000-0000-0000-0000-0000000000a3'
+     SET invitee_registration_id = '60900000-0000-0000-0000-0000000000a2'
    WHERE id = '60100000-0000-0000-0000-000000000005'
 $q$, 'meeting_identity_immutable',
   '60/ODMOWA: przepiecie spotkania na innego czlowieka zaciera slad i jest zabronione');
