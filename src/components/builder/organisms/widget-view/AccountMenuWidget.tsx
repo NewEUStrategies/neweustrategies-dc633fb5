@@ -26,6 +26,14 @@ const ChatBell = lazy(() =>
   import("@/components/chat/ChatBell").then((m) => ({ default: m.ChatBell })),
 );
 
+// Sekcja „moje wydarzenia" - leniwie, bo dotyczy tylko zalogowanych i tylko po
+// otwarciu panelu; nagłówek nie ciągnie jej w swoim chunku.
+const AccountMenuEventsSection = lazy(() =>
+  import("@/components/events/participant/molecules/AccountMenuEventsSection").then((m) => ({
+    default: m.AccountMenuEventsSection,
+  })),
+);
+
 type Lang = "pl" | "en";
 
 type AccountMenuItemKind = "preset" | "page" | "custom" | "separator" | "logout";
@@ -652,6 +660,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
               <div className="flex flex-col gap-0.5">
                 {effectiveAuth.map((entry, i) => renderItem(entry, i + 1))}
               </div>
+              {/* Skrót do panelu uczestnika najbliższych wydarzeń - montuje się
+                  razem z panelem, więc nie kosztuje zapytania przy renderze headera. */}
+              <Suspense fallback={null}>
+                <AccountMenuEventsSection onNavigate={() => setOpen(false)} />
+              </Suspense>
               {isStaff &&
                 (() => {
                   // Auto-defaults for staff: ensure admin / super-admin always have a route

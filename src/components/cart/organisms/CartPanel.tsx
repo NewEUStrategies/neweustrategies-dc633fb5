@@ -39,6 +39,10 @@ export function CartPanel() {
   const { items, totals, remove, clear } = useCart();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
+  // KOD RABATOWY JEST TYLKO NAPISEM. Zniżkę liczy `createCheckoutOrder`
+  // (validate_b2b_coupon -> redeem_b2b_coupon) tuż przed utworzeniem
+  // zamówienia; przeglądarka nie zna ani wartości rabatu, ani finalnej kwoty.
+  const [promo, setPromo] = useState("");
 
   const pay = async (id: string) => {
     const item = items.find((entry) => entry.id === id);
@@ -48,6 +52,7 @@ export function CartPanel() {
       return;
     }
     setBusyId(id);
+    const code = promo.trim().toUpperCase();
     try {
       const res = await checkout({
         data: {
@@ -57,10 +62,11 @@ export function CartPanel() {
           success_path: `/events/${item.slug}`,
           cancel_path: "/cart",
           environment: getStripeEnvironment(),
+          ...(code.length > 0 ? { coupon_code: code } : {}),
         },
       });
       if (!res.ok) {
-        toast.error(t("cart.payError"));
+        toast.error(res.mode === "coupon" ? t("cart.promoError") : t("cart.payError"));
         return;
       }
       if (res.mode === "stripe") {
@@ -128,6 +134,28 @@ export function CartPanel() {
                 />
               ))}
             </ul>
+
+            <section className="space-y-2 rounded-[6px] border border-border bg-card p-4">
+              <label
+                htmlFor="cart-promo"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {t("cart.promoLabel")}
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  id="cart-promo"
+                  value={promo}
+                  onChange={(event) => setPromo(event.target.value)}
+                  maxLength={64}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={t("cart.promoPlaceholder")}
+                  className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground">{t("cart.promoHint")}</p>
+              </div>
+            </section>
 
             <footer className="flex flex-col gap-3 rounded-[6px] border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1 text-sm">
