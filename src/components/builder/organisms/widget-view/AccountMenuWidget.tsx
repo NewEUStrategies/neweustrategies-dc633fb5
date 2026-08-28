@@ -164,14 +164,6 @@ export const ACCOUNT_PRESETS: Array<{
   },
 
   {
-    // Wydarzenia uczestnika: nadchodzące, bieżące i przeszłe wraz z biletami.
-    key: "events",
-    href: "/profile/events",
-    label_pl: "Wydarzenia",
-    label_en: "Events",
-    icon: "CalendarDays",
-  },
-  {
     key: "interests",
     href: "/profile/interests",
     label_pl: "Zainteresowania",
