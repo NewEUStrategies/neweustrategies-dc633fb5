@@ -131,6 +131,9 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [form, setForm] = useState<FormState>(() => toForm(profile));
+  // ZAPIS WSTECZ DO KONTA JEST DECYZJA UZYTKOWNIKA, nie efektem ubocznym:
+  // kartoteka wydarzenia bywa celowo inna niz wizytowka platformy.
+  const [pushAccount, setPushAccount] = useState(false);
 
   // Serwer jest źródłem prawdy: gdy dane dojadą (albo odświeżą się po zapisie),
   // formularz przejmuje ich wersję. `personId` w zależności zamiast obiektu -
@@ -187,7 +190,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
       if (value !== "") links[key] = value;
     }
     save.mutate(
-      { ...form, social_links: links },
+      { ...form, social_links: links, push_account: pushAccount },
       {
         onSuccess: () => toast.success(t("eventMe.profileSaved")),
         onError: (error) => toast.error(`${t("eventMe.profileSaveError")} ${error.message}`.trim()),
@@ -446,6 +449,20 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
           </div>
         </div>
       </Section>
+
+      <div className="flex items-start gap-3 rounded-[6px] border border-border bg-card p-4">
+        <Switch
+          id="event-profile-push-account"
+          checked={pushAccount}
+          onCheckedChange={setPushAccount}
+        />
+        <label htmlFor="event-profile-push-account" className="min-w-0 space-y-1">
+          <span className="block text-sm font-semibold">{t("eventMe.pushAccount")}</span>
+          <span className="block text-xs text-muted-foreground">
+            {t("eventMe.pushAccountHint")}
+          </span>
+        </label>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" size="sm" disabled={save.isPending}>

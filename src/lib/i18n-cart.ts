@@ -126,6 +126,14 @@ const pl = {
       contactHidden: "Ukryte przed uczestnikami",
       noName: "Uczestnik bez nazwiska",
     },
+    pushAccount: "Zapisz też w moim profilu na platformie",
+    pushAccountHint:
+      "Stanowisko, organizacja, specjalizacja, opis, kontakt i linki trafią też do Twojego globalnego profilu.",
+    previewSource: {
+      person: "Twoja kartoteka na tym wydarzeniu",
+      account: "Twój profil na platformie",
+      demo: "Przykładowe dane - brak Twojej kartoteki",
+    },
     syncFromAccount: "Uzupełnij z konta",
     syncing: "Uzupełniam...",
     syncDone: "Dane z konta przeniesione do profilu wydarzenia.",
@@ -274,6 +282,14 @@ const en: typeof pl = {
       empty: "Not provided",
       contactHidden: "Hidden from attendees",
       noName: "Attendee without a name",
+    },
+    pushAccount: "Also save to my platform profile",
+    pushAccountHint:
+      "Job title, organisation, specialisation, bio, contact and links also update your global profile.",
+    previewSource: {
+      person: "Your record for this event",
+      account: "Your platform profile",
+      demo: "Sample data - no record of yours yet",
     },
     syncFromAccount: "Fill from account",
     syncing: "Filling...",
