@@ -870,6 +870,7 @@ const en: ProfileEn = {
       subscription: "Subscription",
       orders: "Orders",
       payments: "Payments & invoices",
+      tickets: "My registrations",
       security: "Account security",
       privacy: "Privacy & data",
       notificationSettings: "Notification settings",
