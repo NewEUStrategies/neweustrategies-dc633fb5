@@ -486,6 +486,23 @@ function AttendeeCard({
           ))}
         </div>
       )}
+      {/* PRELEGENT MA POWIEDZIEĆ, GDZIE GO SZUKAĆ. Sama plakietka „prelegent"
+          nic nie daje uczestnikowi układającemu plan dnia - dopiero tytuł
+          panelu i godzina zamieniają kartę w decyzję. */}
+      {sessions !== null && sessions.length > 0 && (
+        <div className="mt-3 border-t border-border/60 pt-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("eventFront.attendees.speakerSessions")}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {sessions.slice(0, 3).map((session) => (
+              <li key={session.sessionId} className="truncate text-xs text-foreground/80">
+                {(lang === "en" ? session.titleEn : session.titlePl) ?? session.sessionId}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </>
   );
 
