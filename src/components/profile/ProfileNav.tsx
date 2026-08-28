@@ -38,6 +38,7 @@ type NavKey =
   | "organization"
   | "billing"
   | "payments"
+  | "tickets"
   | "security"
   | "privacy"
   | "expertRequests";
