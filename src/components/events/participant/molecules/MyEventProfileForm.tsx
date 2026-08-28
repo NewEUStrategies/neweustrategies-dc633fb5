@@ -202,13 +202,42 @@ function BulletListInput({
           </button>
         </div>
       ))}
-      {items.length < MAX_BULLETS ? (
+      {draft !== null && (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={draft}
+            autoFocus
+            placeholder={placeholder}
+            aria-label={`${ariaLabel} ${items.length + 1}`}
+            className="h-8 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2.5 text-sm outline-none focus:border-primary"
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next.trim() === "") {
+                setDraft(next);
+                return;
+              }
+              commit([...items, next]);
+              setDraft(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setDraft(null);
+            }}
+            onBlur={() => setDraft(null)}
+          />
+        </div>
+      )}
+      {items.length + (draft === null ? 0 : 1) < MAX_BULLETS ? (
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-7 px-2 text-xs"
-          onClick={() => commit([...items, ""])}
+          onClick={() => setDraft("")}
         >
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           {addLabel}
