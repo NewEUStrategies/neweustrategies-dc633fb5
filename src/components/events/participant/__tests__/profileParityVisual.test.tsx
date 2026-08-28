@@ -163,7 +163,7 @@ describe("podgląd profilu uczestnika = profil publiczny", () => {
     expect(shapes.size).toBe(1);
   });
 
-  it("plakietki grup z „Grupy i uprawnienia" stoją na karcie właściciela", () => {
+  it("plakietki grup z sekcji Grupy i uprawnienia stoja na karcie wlasciciela", () => {
     const { container } = renderPreview();
     expect(container.textContent).toContain("Uczestnicy");
     expect(container.textContent).toContain("Partnerzy");
