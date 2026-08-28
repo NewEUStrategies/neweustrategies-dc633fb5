@@ -518,3 +518,54 @@ Wszystkie ustalenia krytyczne zostały dodatkowo sprawdzone ręcznie przy skład
 Osobno uruchomiono komplet dostępnych testów (§1) — w tym `events-harness`, który stawia własny
 klaster PostgreSQL 16, odtwarza 70 migracji modułu i wykonuje 884 asercje runtime. To jedyna bramka
 w repozytorium, która moduł **wykonuje**, a nie czyta jako tekst; nie jest podpięta do CI (U-02).
+
+---
+
+## 8. Stan wobec `main` — sprawdzone 2026-08-28, wieczorem
+
+Przegląd powstał na commicie `9997ac0`. Zanim został wniesiony, `main` poszedł **38 commitów do
+przodu** i część ustaleń jest już zamknięta. Ta sekcja mówi, co sprawdzić można było, a czego nie —
+żeby nikt nie naprawiał drugi raz tego samego ani nie uznał za zamknięte czegoś, co stoi otworem.
+Wszystko poniżej odczytane z `origin/main`, nie z opisów commitów.
+
+### Zamknięte na `main`
+
+| Ustalenie                               | Dowód na `main`                                                                                                                                                             |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **U-01** trasa `/events/invite/<token>` | trasa jest w `src/routeTree.gen.ts`                                                                                                                                         |
+| **U-02** harness wydarzeń poza CI       | `check:events-harness` jest w `package.json`                                                                                                                                |
+| **U-03** brak asercji onsite i spotkań  | `scripts/events-harness/runtime_test.d/` ma już `50_onsite.sql` i `60_meetings.sql`                                                                                         |
+| **U-04** część osieroconych funkcji RPC | `20260828152704` usuwa `admin_event_ticket_package_save` i `event_ad_placements` jako martwe duplikaty; `20260828162131` dobudowuje panel i audyt nadań uprawnień do stawek |
+
+### Nadal otwarte na `main`
+
+| Ustalenie                                 | Stan na `main`                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| **K-1** płatny bilet za darmo             | najnowsza definicja `event_register` to wciąż `20260827220945` — bez `price_cents` |
+| **K-2** pole zgody blokuje zapis          | `event_registration_form` nadal nie zwraca listy zgód                              |
+| **K-3** wyciek adresów sesji do anonima   | `event_session_access` bez zmian od `20260824084741`                               |
+| **K-5** martwy dialog „Umów spotkanie”    | `ARRANGEABLE_STATUS = "confirmed"` — bez zmian                                     |
+| **K-6** kasowanie notatki sponsora        | dialog nadal zasilany wierszem listy (`sponsorDraftFromRow(sponsor)`)              |
+| **K-7** odbiorcy pakietu nie do zapisania | `PACKAGE_AUDIENCES` bez zmian                                                      |
+| **U-06** snapshot bramek autoryzacji      | rozjazd **powiększył się**: snapshot nadal `migrations: 904`, repozytorium ma 909  |
+
+### K-4 — naprawione to, co widać, nie to, co psuje
+
+To jest jedyna pozycja, która wymaga osobnego zdania, bo wygląda na zamkniętą, a nie jest.
+
+Na `main` zrobiono dwie z trzech rzeczy: wyrażenie w bramce poprawiono dokładnie tak, jak
+proponowałem (`/'([a-z_]+(?:\.[a-z_]+)+\.v\d+)'/`), a katalog frontu dostał komplet sześciu nazw
+i osiem reguł inwalidacji. **Trzeciej — nie:** `domain_events.event_type` ma nadal
+`CHECK (event_type ~ '^[a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$')`, czyli dwa człony. Żadna migracja tego
+ograniczenia nie rusza.
+
+Skutek jest gorszy niż stan wyjściowy. Bramka sprawdza, czy każde emitowane zdarzenie jest
+zadeklarowane w katalogu — po obu poprawkach jest, więc **bramka świeci na zielono**. Tymczasem
+`INSERT` do `domain_events` nadal narusza ograniczenie, a `emit_domain_event` kończy się
+`EXCEPTION WHEN OTHERS THEN RETURN NULL`, więc sześć zdarzeń rejestracji **nadal nigdy nie trafia na
+szynę**. Przedtem defekt był niewidoczny; teraz jest niewidoczny i dodatkowo potwierdzony zielonym
+testem.
+
+Do domknięcia zostaje jedna decyzja: rozluźnić `CHECK` do wielu członów albo przemianować sześć
+zdarzeń na dwuczłonowe. Warto przy tym dołożyć asercję, która sprawdza, że zdarzenie faktycznie
+**wylądowało** w `domain_events` — bramka porównująca nazwy tego nie zobaczy z definicji.
