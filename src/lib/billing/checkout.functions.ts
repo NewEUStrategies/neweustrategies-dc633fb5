@@ -73,6 +73,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let amountCents = 0;
     let currency = "PLN";
     let label = "";
+    // Cena regularna biletu i etykieta aktywnej fazy sprzedaży. Kwota do
+    // zapłaty pozostaje tą wyliczoną przez bazę - to tylko sposób pokazania
+    // rabatu w nakładce operatora.
+    let ticketListPriceCents = 0;
+    let ticketPhaseLabel = "";
     let trialDays = 0;
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
@@ -170,6 +175,26 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         (typeof parsed.name_en === "string" && parsed.name_en) ||
         "";
       label = ticketName === "" ? eventTitle : `${eventTitle} - ${ticketName}`;
+      ticketListPriceCents =
+        typeof parsed.list_price_cents === "number" ? Math.trunc(parsed.list_price_cents) : 0;
+      const phase =
+        parsed.phase !== null && typeof parsed.phase === "object" && !Array.isArray(parsed.phase)
+          ? (parsed.phase as Record<string, unknown>)
+          : null;
+      const phaseSource = typeof phase?.source === "string" ? phase.source : "";
+      const phaseName =
+        (typeof phase?.label_pl === "string" && phase.label_pl) ||
+        (typeof phase?.label_en === "string" && phase.label_en) ||
+        "";
+      ticketPhaseLabel =
+        phaseName ||
+        (phaseSource === "early_bird"
+          ? "Early bird"
+          : phaseSource === "last_minute"
+            ? "Last minute"
+            : phaseSource === "phase"
+              ? "Faza sprzedaży"
+              : "");
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
@@ -472,10 +497,37 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // waluta prezentacji), więc zamiast ceny katalogowej tworzymy sesję z
       // ceną osadzoną (`price_data`) i zwracamy `clientSecret` do nakładki.
       const { createAdhocCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
+
+      // Rabat fazy sprzedaży (early bird / last minute) i benefit planu widoczne
+      // w nakładce: pozycja idzie w cenie regularnej, różnicę zdejmuje kupon
+      // jednorazowy. Bez tego kupujący widzi samą kwotę końcową i nie ma jak
+      // sprawdzić, że promocja faktycznie zadziałała.
+      let ticketDiscount: { coupon: string } | null = null;
+      let lineAmountCents = amountCents;
+      const phaseDiscountCents = ticketListPriceCents - amountCents;
+      if (eventId && phaseDiscountCents > 0 && amountCents >= 50) {
+        const { createStripeClient } = await import("@/lib/stripe.server");
+        const { createAdhocDiscountForCoupon } =
+          await import("@/lib/billing/adhocCheckout.server");
+        const couponRef = await createAdhocDiscountForCoupon(createStripeClient(environment), {
+          code: ticketPhaseLabel || "Rabat",
+          discountCents: phaseDiscountCents,
+          currency,
+        }).catch((err: unknown) => {
+          console.error("[checkout] phase discount failed", order.id, err);
+          return null;
+        });
+        if (couponRef) {
+          ticketDiscount = { coupon: couponRef };
+          lineAmountCents = ticketListPriceCents;
+        }
+      }
+
       const created = await createAdhocCheckoutSession({
         environment,
         name: label || "Zamówienie",
-        amountCents,
+        amountCents: lineAmountCents,
+        discount: ticketDiscount,
         currency,
         orderId: order.id,
         purpose: eventId ? "event_ticket" : "content_unlock",
