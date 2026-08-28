@@ -36,6 +36,14 @@ const PUBLIC_PATH_ALLOWLIST: Readonly<Record<string, string>> = {
     "biblioteka czlonkowska; obejscie stafowe zwiazane z v_res.tenant_id = current_tenant_id()",
   "public.get_event_access/1":
     "dostep do wydarzenia; obejscie stafowe zwiazane z v_event.tenant_id = current_tenant_id()",
+  // Ta sama plaszczyzna co `get_event_access` i CELOWO to samo obejscie: migracja
+  // `20260828203000` odwzorowuje bramke wydarzenia na poziomie SESJI, bo wczesniej
+  // `event_session_access` sprawdzalo wylacznie wlasna range sesji i niezalogowany
+  // czytal nagrania wydarzenia dla czlonkow. Zanim ta funkcja siegnela po
+  // `has_role`, nie dotykala tego inwariantu wcale - wpis powstaje razem
+  // z odwzorowaniem, nie zamiast niego.
+  "public.event_session_access/1":
+    "dostep do transmisji i nagrania sesji; obejscie stafowe zwiazane z v_event.tenant_id = current_tenant_id()",
   "public.get_poll_results/1":
     "wyniki ankiety spolecznosci; podglad stafowy zwiazany z v_poll.tenant_id = current_tenant_id()",
   "public.club_capabilities/3":
