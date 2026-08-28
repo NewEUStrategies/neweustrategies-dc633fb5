@@ -495,6 +495,41 @@ export const adminEventRegistrationPl = {
         unknown: "Operacja się nie udała. Odśwież ekran i spróbuj ponownie.",
       },
     },
+    audienceGrantHistory: {
+      title: "Historia zmian uprawnień",
+      subtitle:
+        "Kto, kiedy i co zmienił przy stawkach ulgowych. Dziennik jest tylko do odczytu - wpis, który da się poprawić, nie jest śladem audytowym.",
+      openAction: "Historia",
+      dialogTitle: "Historia tego uprawnienia",
+      loading: "Wczytywanie historii…",
+      empty: "Brak zapisanych zmian w tym zakresie.",
+      searchLabel: "Szukaj osoby, firmy lub podstawy",
+      searchPlaceholder: "Nazwisko, firma, e-mail…",
+      limitLabel: "Liczba wpisów",
+      actorUnknown: "Zmiana systemowa",
+      subjectUnknown: "Podmiot bez nazwy",
+      emptyValue: "puste",
+      summary: "{{subject}} · {{audience}} · {{scope}}",
+      footnote:
+        "Wpisy pochodzą ze wspólnego dziennika audytu - stawia je baza przy każdym zapisie, niezależnie od tego, którym ekranem zmiana weszła.",
+      actions: {
+        granted: "Nadano",
+        updated: "Zmieniono",
+        revoked: "Wycofano",
+        restored: "Przywrócono",
+      },
+      fields: {
+        audience: "Grupa odbiorców",
+        evidence: "Podstawa",
+        valid_from: "Ważne od",
+        valid_until: "Ważne do",
+        revoked_at: "Wycofanie",
+        company_id: "Organizacja",
+        event_id: "Zakres",
+        user_id: "Konto",
+        person_id: "Osoba",
+      },
+    },
     // PAKIETY GRUPOWE. Jeden platnik, wiele imiennych miejsc - slownictwo
     // celowo mowi „miejsce", a nie „bilet": bilet kupuje sie dla siebie.
     packages: {
@@ -706,7 +741,7 @@ export const adminEventRegistrationPl = {
           "Każda linia to jeden punkt na karcie biletu. Maksymalnie {{max}} pozycji, do 200 znaków każda.",
         phasesSection: "Cennik w czasie (early bird, cena regularna, last minute)",
         phasesHint:
-          "Obowiązuje PIERWSZY próg, którego okno obejmuje bieżącą chwilę. Próg wygrywa z ceną podstawową i ceną promocyjną, a puste daty znaczą „od zawsze\" i „bezterminowo\".",
+          'Obowiązuje PIERWSZY próg, którego okno obejmuje bieżącą chwilę. Próg wygrywa z ceną podstawową i ceną promocyjną, a puste daty znaczą „od zawsze" i „bezterminowo".',
         phasesEmpty: "Brak progów - obowiązuje cena podstawowa (albo cena promocyjna).",
         phaseNumber: "Próg {{index}}",
         phaseLabelPl: "Nazwa progu (PL)",
@@ -1011,8 +1046,7 @@ export const adminEventRegistrationPl = {
       invalidLabels: "Etykieta jest wymagana w obu językach.",
       invalidOptions: "Opcje listy muszą być tablicą.",
       duplicateKey: "Wpis o tym kluczu już istnieje w tym wydarzeniu.",
-      invalidEarlyBird:
-        "Cena promocyjna wymaga terminu i nie może przekraczać ceny podstawowej.",
+      invalidEarlyBird: "Cena promocyjna wymaga terminu i nie może przekraczać ceny podstawowej.",
       invalidAccessCode: "Kod dostępu musi mieć od 4 do 64 znaków.",
       invalidBenefits: "Najwyżej 20 korzyści, każda do 200 znaków.",
       invalidPriceSchedule:
@@ -1461,7 +1495,8 @@ export const adminEventRegistrationEn = {
       subjectHint: "Point at exactly one: an account, a person or an organisation.",
       evidenceLabel: "Evidence",
       evidencePlaceholder: "e.g. student card UW no. 123456, company register 0000123456",
-      evidenceHint: "The evidence stays on the record - it is what explains the lower price at settlement.",
+      evidenceHint:
+        "The evidence stays on the record - it is what explains the lower price at settlement.",
       validUntilLabel: "Valid until",
       validUntilHint: "Empty = no end date.",
       scopeLabel: "Scope",
@@ -1483,6 +1518,41 @@ export const adminEventRegistrationEn = {
         evidenceRequired: "Provide the evidence for this grant.",
         forbidden: "You are not allowed to manage rates for this event.",
         unknown: "The operation failed. Refresh the screen and try again.",
+      },
+    },
+    audienceGrantHistory: {
+      title: "Eligibility change history",
+      subtitle:
+        "Who changed what, and when, on reduced rates. The log is read-only - a record you can edit is not an audit trail.",
+      openAction: "History",
+      dialogTitle: "History of this grant",
+      loading: "Loading history…",
+      empty: "No recorded changes in this scope.",
+      searchLabel: "Search person, company or evidence",
+      searchPlaceholder: "Surname, company, e-mail…",
+      limitLabel: "Entries",
+      actorUnknown: "System change",
+      subjectUnknown: "Unnamed subject",
+      emptyValue: "empty",
+      summary: "{{subject}} · {{audience}} · {{scope}}",
+      footnote:
+        "Entries come from the shared audit log written by the database on every save, whichever screen the change came through.",
+      actions: {
+        granted: "Granted",
+        updated: "Updated",
+        revoked: "Revoked",
+        restored: "Restored",
+      },
+      fields: {
+        audience: "Audience",
+        evidence: "Evidence",
+        valid_from: "Valid from",
+        valid_until: "Valid until",
+        revoked_at: "Revocation",
+        company_id: "Organisation",
+        event_id: "Scope",
+        user_id: "Account",
+        person_id: "Person",
       },
     },
     packages: {
@@ -1693,7 +1763,7 @@ export const adminEventRegistrationEn = {
           "Each line is one bullet on the ticket card. Up to {{max}} entries, 200 characters each.",
         phasesSection: "Pricing over time (early bird, regular, last minute)",
         phasesHint:
-          "The FIRST phase whose window covers the current moment wins. A phase overrides both the base price and the early bird price; empty dates mean \"always\" and \"open-ended\".",
+          'The FIRST phase whose window covers the current moment wins. A phase overrides both the base price and the early bird price; empty dates mean "always" and "open-ended".',
         phasesEmpty: "No phases - the base price (or early bird price) applies.",
         phaseNumber: "Phase {{index}}",
         phaseLabelPl: "Phase name (PL)",
@@ -1996,8 +2066,7 @@ export const adminEventRegistrationEn = {
       invalidLabels: "The label is required in both languages.",
       invalidOptions: "List options must be an array.",
       duplicateKey: "An entry with this key already exists for this event.",
-      invalidEarlyBird:
-        "The early bird price needs a date and cannot exceed the base price.",
+      invalidEarlyBird: "The early bird price needs a date and cannot exceed the base price.",
       invalidAccessCode: "The access code must have 4 to 64 characters.",
       invalidBenefits: "At most 20 benefits, each up to 200 characters.",
       invalidPriceSchedule:

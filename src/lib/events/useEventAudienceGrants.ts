@@ -10,11 +10,14 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  fetchAudienceGrantHistory,
   fetchAudienceGrants,
   revokeAudienceGrant,
   saveAudienceGrant,
   type AudienceGrantInput,
   type AudienceGrantsQuery,
+  type AudienceGrantHistoryQuery,
+  type EventAudienceGrantHistoryRow,
   type EventAudienceGrantRow,
 } from "@/lib/events/audienceGrantsApi";
 
@@ -44,6 +47,7 @@ function useInvalidate(): () => void {
   const client = useQueryClient();
   return () => {
     void client.invalidateQueries({ queryKey: audienceGrantKeys.all });
+    void client.invalidateQueries({ queryKey: audienceGrantHistoryKeys.all });
   };
 }
 
@@ -55,4 +59,30 @@ export function useSaveAudienceGrant(): UseMutationResult<string, Error, Audienc
 export function useRevokeAudienceGrant(): UseMutationResult<boolean, Error, string> {
   const invalidate = useInvalidate();
   return useMutation({ mutationFn: revokeAudienceGrant, onSuccess: invalidate });
+}
+
+// HISTORIA. Osobna galaz klucza, bo dziennik jest tylko do odczytu i zmienia
+// sie wylacznie jako SKUTEK zapisu nadania - dlatego zapis uniewaznia obie.
+export const audienceGrantHistoryKeys = {
+  all: ["event-audience-grant-history"] as const,
+  list: (query: AudienceGrantHistoryQuery) =>
+    [
+      ...audienceGrantHistoryKeys.all,
+      query.eventId ?? "all",
+      query.grantId ?? "all",
+      query.search.trim().toLowerCase(),
+      query.limit,
+    ] as const,
+};
+
+export function useAudienceGrantHistory(
+  query: AudienceGrantHistoryQuery,
+  enabled = true,
+): UseQueryResult<EventAudienceGrantHistoryRow[], Error> {
+  return useQuery({
+    queryKey: audienceGrantHistoryKeys.list(query),
+    queryFn: () => fetchAudienceGrantHistory(query),
+    enabled,
+    staleTime: 15_000,
+  });
 }

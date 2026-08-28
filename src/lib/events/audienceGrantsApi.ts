@@ -94,3 +94,67 @@ export async function revokeAudienceGrant(id: string): Promise<boolean> {
   if (error) throw error;
   return true;
 }
+
+// ----------------------------------------------------------------------------
+// HISTORIA ZMIAN. Lista nadan mowi o STANIE; audyt rozliczen pyta o DROGE:
+// kto przedluzyl waznosc, kto podmienil podstawe, kto wycofal i kiedy. Zrodlem
+// jest wspolny dziennik `public.audit_log` (wpis stawia trigger bazy), a nie
+// druga ksiega w kodzie - inaczej historia rozjechalaby sie ze stanem.
+// ----------------------------------------------------------------------------
+export type EventAudienceGrantHistoryRow =
+  Fns["admin_event_audience_grant_history"]["Returns"][number];
+
+/** Akcje, ktore stawia trigger `event_audience_grants_audit`. */
+export const AUDIENCE_GRANT_ACTIONS = ["granted", "updated", "revoked", "restored"] as const;
+export type AudienceGrantAction = (typeof AUDIENCE_GRANT_ACTIONS)[number];
+
+/** `event_audience_grant.revoked` -> `revoked`; nieznane akcje -> `updated`. */
+export function audienceGrantAction(action: string): AudienceGrantAction {
+  const tail = action.split(".").pop() ?? "";
+  return AUDIENCE_GRANT_ACTIONS.find((value) => value === tail) ?? "updated";
+}
+
+/** Pola diffu, ktore ekran umie nazwac po ludzku - reszta ladnie degraduje. */
+export const AUDIENCE_GRANT_HISTORY_FIELDS = [
+  "audience",
+  "evidence",
+  "valid_from",
+  "valid_until",
+  "revoked_at",
+  "company_id",
+  "event_id",
+  "user_id",
+  "person_id",
+] as const;
+
+export interface AudienceGrantHistoryQuery {
+  /** `null` = historia calego najemcy, nie jednego wydarzenia. */
+  eventId: string | null;
+  /** `null` = wszystkie nadania; UUID = sciezka jednego uprawnienia. */
+  grantId: string | null;
+  search: string;
+  limit: number;
+}
+
+export function historyValueText(value: Json | undefined): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
+
+export async function fetchAudienceGrantHistory(
+  query: AudienceGrantHistoryQuery,
+): Promise<EventAudienceGrantHistoryRow[]> {
+  const search = query.search.trim();
+  const { data, error } = await supabase.rpc("admin_event_audience_grant_history", {
+    p_payload: payload({
+      event_id: query.eventId ?? undefined,
+      grant_id: query.grantId ?? undefined,
+      search: search === "" ? undefined : search,
+      limit: query.limit,
+    }),
+  });
+  if (error) throw error;
+  return data ?? [];
+}
