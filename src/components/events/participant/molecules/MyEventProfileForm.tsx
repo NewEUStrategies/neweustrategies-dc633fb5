@@ -16,7 +16,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/field-box";
