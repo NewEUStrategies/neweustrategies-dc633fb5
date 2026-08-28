@@ -15,6 +15,7 @@
 // przelaczalne zakladki, liste pol, ktorymi uczestnik zarzadza, oraz karte
 // „tak widza Cie inni" renderowana TYM SAMYM komponentem co produkcja.
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import type { MyAccountSnapshot, MyEventProfile } from "@/lib/events/myEventProfileApi";
 
@@ -86,17 +88,75 @@ function profileFromAccount(account: MyAccountSnapshot): MyEventProfile {
   };
 }
 
+/**
+ * PROFIL PLATFORMY ZALOGOWANEGO REDAKTORA - awaryjne zrodlo tozsamosci.
+ *
+ * `event_my_event_profile` wymaga adresu publicznego wydarzenia i kartoteki na
+ * tym wydarzeniu; superadmin ogladajacy SZKIC nie ma ani jednego, wiec podglad
+ * spadal na rysunek przykladowy („Anna Kowalska"). Ten odczyt bierze WLASNY
+ * wiersz `profiles` (RLS oddaje tylko `auth.uid()`), zeby redaktor widzial
+ * siebie od pierwszego wejscia w podglad.
+ */
+function useEditorAccount(userId: string | null): MyAccountSnapshot | null {
+  const query = useQuery({
+    queryKey: ["preview-me", "account", userId ?? ""],
+    enabled: userId !== null,
+    staleTime: 60_000,
+    queryFn: async (): Promise<MyAccountSnapshot | null> => {
+      const { data } = await supabase
+        .from("profiles")
+        // Literal selekcji, nie `*`: `profiles` ma granty kolumnowe.
+        .select(
+          "first_name, last_name, email, phone, job_title, current_company, specialization, seeking_pl, seeking_en, offering_pl, offering_en, avatar_url, bio_pl, bio_en, linkedin_url, website_url, twitter_url, facebook_url, instagram_url",
+        )
+        .eq("id", userId as string)
+        .maybeSingle();
+      if (data === null) return null;
+      const links: MyAccountSnapshot["socialLinks"] = {};
+      if (typeof data.linkedin_url === "string" && data.linkedin_url !== "")
+        links.linkedin = data.linkedin_url;
+      if (typeof data.website_url === "string" && data.website_url !== "")
+        links.website = data.website_url;
+      if (typeof data.twitter_url === "string" && data.twitter_url !== "") links.x = data.twitter_url;
+      if (typeof data.facebook_url === "string" && data.facebook_url !== "")
+        links.facebook = data.facebook_url;
+      if (typeof data.instagram_url === "string" && data.instagram_url !== "")
+        links.instagram = data.instagram_url;
+      return {
+        firstName: data.first_name,
+        lastName: data.last_name,
+        email: data.email,
+        phone: data.phone,
+        jobTitle: data.job_title,
+        companyText: data.current_company,
+        specialization: data.specialization,
+        seekingPl: data.seeking_pl,
+        seekingEn: data.seeking_en,
+        offeringPl: data.offering_pl,
+        offeringEn: data.offering_en,
+        photoUrl: data.avatar_url,
+        bioPl: data.bio_pl,
+        bioEn: data.bio_en,
+        socialLinks: links,
+      };
+    },
+  });
+  return query.data ?? null;
+}
+
 export function PreviewMePanel({ slug }: { slug: string }) {
   const { t, i18n } = useTranslation();
   const en = i18n.language.startsWith("en");
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [tab, setTab] = useState<TabKey>("profile");
   const [publicView, setPublicView] = useState(false);
   // Zapytanie idzie tylko wtedy, gdy szkic ma juz adres publiczny - RPC bramkuje
   // pusty slug wyjatkiem, a podglad nie ma prawa wywrocic sie na szkicu bez adresu.
   const panel = useMyEventProfile(slug, Boolean(session) && slug.trim() !== "");
   const real = panel.data?.profile ?? null;
-  const account = panel.data?.account ?? null;
+  // Kartoteka wydarzenia > profil platformy redaktora > rysunek przykladowy.
+  const editorAccount = useEditorAccount(user?.id ?? null);
+  const account = panel.data?.account ?? editorAccount;
   const profile = useMemo(
     () => real ?? (account !== null ? profileFromAccount(account) : demoProfile(en)),
     [real, account, en],
