@@ -48,15 +48,20 @@ export function RegistrationTicketPicker({
         const checked = value === ticket.id;
         const name = (lang === "en" ? ticket.nameEn : ticket.namePl) || ticket.key;
         const description = lang === "en" ? ticket.descriptionEn : ticket.descriptionPl;
-        const benefits = lang === "en" ? ticket.benefitsEn : ticket.benefitsPl;
+        const benefits = (lang === "en" ? ticket.benefitsEn : ticket.benefitsPl) ?? [];
+        // Faza cenowa bywa nieobecna (starsze wydarzenia / RPC bez faz) - brak
+        // fazy nie moze wywracac calego wyboru biletu.
+        const phase = ticket.phase ?? null;
         const phaseLabel =
-          (lang === "en" ? ticket.phase.labelEn : ticket.phase.labelPl) ||
-          (ticket.phase.source === "standard" ? "" : t("eventRegistration.labels.phaseEarlyBird"));
+          phase === null
+            ? ""
+            : (lang === "en" ? phase.labelEn : phase.labelPl) ||
+              (phase.source === "standard" ? "" : t("eventRegistration.labels.phaseEarlyBird"));
         const phaseEnds =
-          ticket.phase.endsAt === null
+          phase === null || phase.endsAt === null
             ? ""
             : t("eventRegistration.labels.phaseEndsAt", {
-                date: formatEventDateTime(ticket.phase.endsAt, null, lang),
+                date: formatEventDateTime(phase.endsAt, null, lang),
               });
         const phaseNote =
           phaseLabel === "" ? null : [phaseLabel, phaseEnds].filter((part) => part !== "").join(" - ");
