@@ -34,6 +34,7 @@ import {
   type SocialKey,
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
+import { OrganizationPicker } from "./OrganizationPicker";
 import {
   useSaveMyEventProfile,
   useSyncMyEventProfileFromAccount,
@@ -332,11 +333,10 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
             onChange={field("job_title")}
             autoComplete="organization-title"
           />
-          <FieldBox
+          <OrganizationPicker
             label={t("eventMe.fields.company")}
             value={form.company_text}
-            onChange={field("company_text")}
-            autoComplete="organization"
+            onChange={(name) => setForm((prev) => ({ ...prev, company_text: name }))}
           />
           <FieldBox
             label={t("eventMe.fields.industry")}

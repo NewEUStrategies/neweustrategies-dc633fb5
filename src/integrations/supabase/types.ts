@@ -4789,6 +4789,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           domain: string | null
+          email: string | null
           id: string
           logo_url: string | null
           name: string
@@ -4808,6 +4809,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           domain?: string | null
+          email?: string | null
           id?: string
           logo_url?: string | null
           name: string
@@ -4827,6 +4829,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           domain?: string | null
+          email?: string | null
           id?: string
           logo_url?: string | null
           name?: string
@@ -23195,6 +23198,41 @@ export type Database = {
         Args: { p_name: string }
         Returns: {
           branch: string
+          logo_url: string
+          name: string
+          website: string
+        }[]
+      }
+      crm_company_create_self: {
+        Args: {
+          p_address?: string
+          p_branch?: string
+          p_city?: string
+          p_country?: string
+          p_email?: string
+          p_logo_url?: string
+          p_name: string
+          p_phone?: string
+          p_postal_code?: string
+          p_website?: string
+        }
+        Returns: {
+          branch: string
+          city: string
+          country: string
+          id: string
+          logo_url: string
+          name: string
+          website: string
+        }[]
+      }
+      crm_company_search: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          branch: string
+          city: string
+          country: string
+          id: string
           logo_url: string
           name: string
           website: string
