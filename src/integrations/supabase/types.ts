@@ -7825,6 +7825,9 @@ export type Database = {
           group_id: string | null
           id: string
           manage_token_hash: string | null
+          paid_at: string | null
+          payment_order_id: string | null
+          payment_status: string
           person_id: string
           promoted_at: string | null
           qr_issued_at: string | null
@@ -7853,6 +7856,9 @@ export type Database = {
           group_id?: string | null
           id?: string
           manage_token_hash?: string | null
+          paid_at?: string | null
+          payment_order_id?: string | null
+          payment_status?: string
           person_id: string
           promoted_at?: string | null
           qr_issued_at?: string | null
@@ -7881,6 +7887,9 @@ export type Database = {
           group_id?: string | null
           id?: string
           manage_token_hash?: string | null
+          paid_at?: string | null
+          payment_order_id?: string | null
+          payment_status?: string
           person_id?: string
           promoted_at?: string | null
           qr_issued_at?: string | null
@@ -7908,6 +7917,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_groups"
             referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registrations_payment_order_id_fkey"
+            columns: ["payment_order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "event_registrations_person_fkey"
@@ -12736,7 +12752,10 @@ export type Database = {
           paid_at: string | null
           plan_id: string | null
           provider: string
+          provider_charge_id: string | null
+          provider_customer_id: string | null
           provider_intent_id: string | null
+          provider_payment_intent_id: string | null
           provider_session_id: string | null
           provider_subscription_id: string | null
           receipt_email: string | null
@@ -12763,7 +12782,10 @@ export type Database = {
           paid_at?: string | null
           plan_id?: string | null
           provider?: string
+          provider_charge_id?: string | null
+          provider_customer_id?: string | null
           provider_intent_id?: string | null
+          provider_payment_intent_id?: string | null
           provider_session_id?: string | null
           provider_subscription_id?: string | null
           receipt_email?: string | null
@@ -12790,7 +12812,10 @@ export type Database = {
           paid_at?: string | null
           plan_id?: string | null
           provider?: string
+          provider_charge_id?: string | null
+          provider_customer_id?: string | null
           provider_intent_id?: string | null
+          provider_payment_intent_id?: string | null
           provider_session_id?: string | null
           provider_subscription_id?: string | null
           receipt_email?: string | null
@@ -24917,6 +24942,10 @@ export type Database = {
           _status?: Database["public"]["Enums"]["order_status"]
         }
         Returns: boolean
+      }
+      payments_apply_event_ticket_outcome: {
+        Args: { p_order_id: string; p_outcome: string }
+        Returns: Json
       }
       people_filter_options: {
         Args: never
