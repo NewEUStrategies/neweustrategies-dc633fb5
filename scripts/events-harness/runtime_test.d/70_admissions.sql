@@ -88,7 +88,7 @@ BEGIN
   PERFORM pg_temp.act_as('70a00000-0000-0000-0000-0000000000a1',
                          '11111111-1111-1111-1111-111111111111');
 
-  v_pkg := public.admin_event_ticket_package_save(jsonb_build_object(
+  v_pkg := public.admin_event_package_upsert(jsonb_build_object(
     'event_id', '70e00000-0000-0000-0000-0000000000a1',
     'ticket_type_id', '70700000-0000-0000-0000-0000000000a3',
     'key', 'Firmowy_5', 'name_pl', 'Pakiet firmowy 5', 'name_en', 'Corporate 5',
@@ -107,7 +107,7 @@ BEGIN
     '70/pakiet: cena WLASNA, nie iloczyn ceny rodzaju razy liczba miejsc');
 
   PERFORM pg_temp.assert_raises_like(
-    $q$SELECT public.admin_event_ticket_package_save(jsonb_build_object(
+    $q$SELECT public.admin_event_package_upsert(jsonb_build_object(
          'event_id','70e00000-0000-0000-0000-0000000000a1',
          'ticket_type_id','70700000-0000-0000-0000-0000000000a3',
          'key','jednomiejscowy','name_pl','Jednomiejscowy','name_en','Single','seats',1))$q$,
@@ -116,12 +116,12 @@ BEGIN
 
   -- Rodzaj z INNEGO wydarzenia odrzucany kluczem obcym ZLOZONYM, nie kodem RPC.
   PERFORM pg_temp.assert_raises_like(
-    $q$SELECT public.admin_event_ticket_package_save(jsonb_build_object(
+    $q$SELECT public.admin_event_package_upsert(jsonb_build_object(
          'event_id','70e00000-0000-0000-0000-0000000000a2',
          'ticket_type_id','70700000-0000-0000-0000-0000000000a3',
          'key','obcy','name_pl','Obcy rodzaj','name_en','Foreign type','seats',3))$q$,
-    'event_ticket_packages_ticket_type_fkey',
-    '70/IZOLACJA: rodzaj wejsciowki z INNEGO wydarzenia odrzucony kluczem zlozonym');
+    'ticket does not exist for this event',
+    '70/IZOLACJA: rodzaj wejsciowki z INNEGO wydarzenia odrzucony przy zapisie pakietu');
 END $do$;
 
 -- ---------------------------------------------------------------------------
