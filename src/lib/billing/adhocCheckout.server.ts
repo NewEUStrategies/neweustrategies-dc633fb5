@@ -262,6 +262,12 @@ export interface AdhocCheckoutSessionInput {
   locale?: CheckoutLocale;
   /** Flagi checkoutu tenantu zamówienia (brak -> bezpieczne domyślne). */
   settings?: CheckoutSettings;
+  /**
+   * Rabat pokazywany w nakładce (faza sprzedaży, benefit planu). Pozycja jest
+   * wtedy wyceniona ceną regularną, a różnicę zdejmuje kupon operatora - klient
+   * widzi, ile i za co dostał zniżki, a kwota do zapłaty pozostaje ta sama.
+   */
+  discount?: { coupon: string } | null;
 }
 
 /**
