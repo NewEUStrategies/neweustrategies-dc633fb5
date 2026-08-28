@@ -14,7 +14,11 @@
 // WALIDACJA ODCINA ZAPIS PRZED ŻĄDANIEM. Odmowa CHECK-a wraca jako `23514` bez
 // nazwy pola, więc każdy warunek, który baza sprawdza, ma tu odpowiednik z
 // kluczem komunikatu przy polu.
-import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
+import type {
+  EventTicketInput,
+  EventTicketRow,
+  TicketPricePhaseInput,
+} from "@/lib/events/registrationsApi";
 
 /** Waluty dopuszczone CHECK-iem `event_ticket_types_currency_values`. */
 export const TICKET_CURRENCIES = ["PLN", "EUR"] as const;
@@ -64,6 +68,37 @@ export interface TicketDraft {
   removeAccessCode: boolean;
   accessCodeHint: string;
   waitlistEnabled: boolean;
+  /** Korzysci - jedna w linii. Tekst, bo textarea nie zna tablic. */
+  benefitsPl: string;
+  benefitsEn: string;
+  /** Progi cenowe w czasie; pusta lista = tylko cena bazowa i early bird. */
+  phases: TicketPhaseDraft[];
+}
+
+/** Jeden wiersz cennika fazowego w formularzu (wartosci jako tekst). */
+export interface TicketPhaseDraft {
+  labelPl: string;
+  labelEn: string;
+  /** `datetime-local` albo pusty tekst = od zawsze / bezterminowo. */
+  from: string;
+  to: string;
+  priceCents: string;
+}
+
+export const TICKET_MAX_PHASES = 12;
+export const TICKET_MAX_BENEFITS = 20;
+export const TICKET_MAX_BENEFIT_LENGTH = 200;
+
+export function emptyTicketPhase(): TicketPhaseDraft {
+  return { labelPl: "", labelEn: "", from: "", to: "", priceCents: "" };
+}
+
+/** Textarea -> lista korzysci: puste linie odpadaja, kolejnosc zostaje. */
+export function benefitsFromText(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
 }
 
 export const TICKET_ACCESS_CODE_MIN = 4;
@@ -95,6 +130,9 @@ export function emptyTicketDraft(sortOrder: number): TicketDraft {
     removeAccessCode: false,
     accessCodeHint: "",
     waitlistEnabled: true,
+    benefitsPl: "",
+    benefitsEn: "",
+    phases: [],
   };
 }
 
@@ -149,6 +187,9 @@ export function ticketDraftFromRow(row: EventTicketRow): TicketDraft {
     removeAccessCode: false,
     accessCodeHint: row.access_code_hint ?? "",
     waitlistEnabled: row.waitlist_enabled !== false,
+    benefitsPl: (row.benefits_pl ?? []).join("\n"),
+    benefitsEn: (row.benefits_en ?? []).join("\n"),
+    phases: phasesFromJson(row.price_schedule),
   };
 }
 
@@ -172,7 +213,10 @@ export type TicketDraftField =
   | "earlyBirdPriceCents"
   | "earlyBirdUntil"
   | "accessCode"
-  | "accessCodeHint";
+  | "accessCodeHint"
+  | "benefitsPl"
+  | "benefitsEn"
+  | "phases";
 
 export interface TicketDraftIssue {
   field: TicketDraftField;
@@ -264,6 +308,44 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
     return { field: "accessCodeHint", errorKey: "invalidRequest" };
   }
 
+  for (const [field, value] of [
+    ["benefitsPl", draft.benefitsPl],
+    ["benefitsEn", draft.benefitsEn],
+  ] as const) {
+    const list = benefitsFromText(value);
+    if (list.length > TICKET_MAX_BENEFITS) return { field, errorKey: "invalidBenefits" };
+    if (list.some((entry) => entry.length > TICKET_MAX_BENEFIT_LENGTH)) {
+      return { field, errorKey: "invalidBenefits" };
+    }
+  }
+
+  // Cennik fazowy: kazda faza musi miec cene i okno, ktore konczy sie po tym,
+  // jak sie zaczelo. Baza odrzuca to jednym komunikatem bez numeru wiersza,
+  // wiec rozstrzygamy wczesniej - inaczej redaktor szuka bledu po omacku.
+  if (draft.phases.length > TICKET_MAX_PHASES) {
+    return { field: "phases", errorKey: "invalidPriceSchedule" };
+  }
+  for (const phase of draft.phases) {
+    const phasePrice = intOrNull(phase.priceCents);
+    if (
+      phasePrice === null ||
+      Number.isNaN(phasePrice) ||
+      phasePrice < 0 ||
+      phasePrice > TICKET_MAX_PRICE_CENTS
+    ) {
+      return { field: "phases", errorKey: "invalidPriceSchedule" };
+    }
+    const phaseFrom = fromLocalInput(phase.from);
+    const phaseTo = fromLocalInput(phase.to);
+    if (
+      phaseFrom !== null &&
+      phaseTo !== null &&
+      new Date(phaseTo).getTime() <= new Date(phaseFrom).getTime()
+    ) {
+      return { field: "phases", errorKey: "invalidPriceSchedule" };
+    }
+  }
+
   return null;
 }
 
@@ -299,5 +381,36 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
         : draft.accessCode.trim(),
     accessCodeHint: draft.accessCodeHint.trim(),
     waitlistEnabled: draft.waitlistEnabled,
+    benefitsPl: benefitsFromText(draft.benefitsPl),
+    benefitsEn: benefitsFromText(draft.benefitsEn),
+    priceSchedule: draft.phases.map(
+      (phase): TicketPricePhaseInput => ({
+        labelPl: phase.labelPl.trim(),
+        labelEn: phase.labelEn.trim(),
+        from: fromLocalInput(phase.from),
+        to: fromLocalInput(phase.to),
+        priceCents: Number(phase.priceCents.trim()),
+      }),
+    ),
   };
+}
+
+/** `price_schedule` (jsonb) -> wiersze formularza. Bełkot odpada po cichu. */
+export function phasesFromJson(value: unknown): TicketPhaseDraft[] {
+  if (!Array.isArray(value)) return [];
+  const out: TicketPhaseDraft[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+    const row = entry as Record<string, unknown>;
+    const price = row.price_cents;
+    if (typeof price !== "number" || !Number.isFinite(price)) continue;
+    out.push({
+      labelPl: typeof row.label_pl === "string" ? row.label_pl : "",
+      labelEn: typeof row.label_en === "string" ? row.label_en : "",
+      from: toLocalInput(typeof row.from === "string" ? row.from : null),
+      to: toLocalInput(typeof row.to === "string" ? row.to : null),
+      priceCents: String(Math.trunc(price)),
+    });
+  }
+  return out;
 }

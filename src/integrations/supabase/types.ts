@@ -9110,6 +9110,8 @@ export type Database = {
           access_code_hash: string | null
           access_code_hint: string
           audience: string
+          benefits_en: string[]
+          benefits_pl: string[]
           created_at: string
           currency: string
           description_en: string
@@ -9126,6 +9128,7 @@ export type Database = {
           name_en: string
           name_pl: string
           price_cents: number
+          price_schedule: Json
           quota: number | null
           requires_approval: boolean
           requires_verification: boolean
@@ -9141,6 +9144,8 @@ export type Database = {
           access_code_hash?: string | null
           access_code_hint?: string
           audience?: string
+          benefits_en?: string[]
+          benefits_pl?: string[]
           created_at?: string
           currency?: string
           description_en?: string
@@ -9157,6 +9162,7 @@ export type Database = {
           name_en: string
           name_pl: string
           price_cents?: number
+          price_schedule?: Json
           quota?: number | null
           requires_approval?: boolean
           requires_verification?: boolean
@@ -9172,6 +9178,8 @@ export type Database = {
           access_code_hash?: string | null
           access_code_hint?: string
           audience?: string
+          benefits_en?: string[]
+          benefits_pl?: string[]
           created_at?: string
           currency?: string
           description_en?: string
@@ -9188,6 +9196,7 @@ export type Database = {
           name_en?: string
           name_pl?: string
           price_cents?: number
+          price_schedule?: Json
           quota?: number | null
           requires_approval?: boolean
           requires_verification?: boolean
@@ -18887,6 +18896,25 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_phase: {
+        Args: {
+          p_at?: string
+          p_early_price_cents: number
+          p_early_until: string
+          p_price_cents: number
+          p_schedule: Json
+        }
+        Returns: Json
+      }
+      _event_ticket_price_now: {
+        Args: {
+          p_early_price_cents: number
+          p_early_until: string
+          p_price_cents: number
+          p_schedule: Json
+        }
+        Returns: number
+      }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
@@ -20593,8 +20621,11 @@ export type Database = {
         Returns: {
           access_code_hint: string
           availability: string
+          benefits_en: string[]
+          benefits_pl: string[]
           created_at: string
           currency: string
+          current_phase: Json
           description_en: string
           description_pl: string
           early_bird_price_cents: number
@@ -20613,6 +20644,7 @@ export type Database = {
           name_pl: string
           pending_count: number
           price_cents: number
+          price_schedule: Json
           quota: number
           requires_approval: boolean
           sales_from: string
@@ -23592,6 +23624,10 @@ export type Database = {
           tier_name_pl: string
           tier_rank: number
         }[]
+      }
+      event_ticket_checkout_quote: {
+        Args: { p_access_code?: string; p_ticket_type_id: string }
+        Returns: Json
       }
       event_types_active: {
         Args: never

@@ -23,12 +23,14 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { EventTicketPhasesEditor } from "@/components/admin/events/molecules/EventTicketPhasesEditor";
 import {
   TICKET_ACCESS_CODE_MAX,
   TICKET_CURRENCIES,
   TICKET_MAX_DESCRIPTION,
   TICKET_MAX_ACCESS_CODE_HINT,
   TICKET_MAX_NAME,
+  TICKET_MAX_BENEFITS,
   emptyTicketDraft,
   ticketDraftFromRow,
   ticketDraftIssue,
@@ -182,6 +184,48 @@ export function EventTicketDialog({
               onValueChange={(value) => set("minTierRank", value)}
               inputMode="numeric"
               error={errorFor("minTierRank")}
+            />
+          </AdminFormSection>
+
+          {/* KORZYSCI SA CZESCIA OFERTY, NIE OPISEM. Karta biletu wypisuje je
+              punktami w jezyku widza, wiec kazda linia to jedna korzysc - bez
+              recznego wstawiania myslnikow, ktore rozjechalyby sie miedzy PL a EN. */}
+          <AdminFormSection
+            title={t("adminEventRegistration.tickets.editor.benefitsSection")}
+            columns={2}
+          >
+            <AdminFormTextRow
+              label={t("adminEventRegistration.tickets.editor.benefitsPl")}
+              hint={t("adminEventRegistration.tickets.editor.benefitsHint", {
+                max: TICKET_MAX_BENEFITS,
+              })}
+              value={draft.benefitsPl}
+              onValueChange={(value) => set("benefitsPl", value)}
+              rows={5}
+              error={errorFor("benefitsPl")}
+            />
+            <AdminFormTextRow
+              label={t("adminEventRegistration.tickets.editor.benefitsEn")}
+              hint={t("adminEventRegistration.tickets.editor.benefitsHint", {
+                max: TICKET_MAX_BENEFITS,
+              })}
+              value={draft.benefitsEn}
+              onValueChange={(value) => set("benefitsEn", value)}
+              rows={5}
+              error={errorFor("benefitsEn")}
+            />
+          </AdminFormSection>
+
+          {/* CENNIK FAZOWY WYGRYWA Z CENA BAZOWA I EARLY BIRD - tak liczy baza,
+              wiec edytor stoi tuz nad polami, ktore nadpisuje. */}
+          <AdminFormSection
+            title={t("adminEventRegistration.tickets.editor.phasesSection")}
+            columns={1}
+          >
+            <EventTicketPhasesEditor
+              phases={draft.phases}
+              onChange={(phases) => set("phases", phases)}
+              error={errorFor("phases")}
             />
           </AdminFormSection>
 

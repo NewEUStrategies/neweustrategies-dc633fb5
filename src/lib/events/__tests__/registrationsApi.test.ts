@@ -29,6 +29,9 @@ const KONTRAKT: Record<string, readonly string[]> = {
   admin_event_ticket_upsert: [
     "access_code",
     "access_code_hint",
+    "benefits_en",
+    "benefits_pl",
+    "price_schedule",
     "currency",
     "early_bird_price_cents",
     "early_bird_until",
@@ -133,6 +136,17 @@ const ticket: import("@/lib/events/registrationsApi").EventTicketInput = {
   earlyBirdUntil: null,
   accessCodeHint: "",
   waitlistEnabled: true,
+  benefitsPl: ["Lunch", "Materiały"],
+  benefitsEn: ["Lunch", "Materials"],
+  priceSchedule: [
+    {
+      labelPl: "Early bird",
+      labelEn: "Early bird",
+      from: null,
+      to: "2026-09-01T10:00:00.000Z",
+      priceCents: 9000,
+    },
+  ],
 };
 
 const field: import("@/lib/events/registrationsApi").RegistrationFieldInput = {

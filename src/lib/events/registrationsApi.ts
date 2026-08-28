@@ -168,7 +168,28 @@ export interface EventTicketInput {
   accessCodeHint: string;
   /** `false` = po wyczerpaniu puli zapis oddaje `sold_out`, bez kolejki. */
   waitlistEnabled: boolean;
+  /** Korzysci biletu (PL) - lista punktow na karcie oferty. */
+  benefitsPl: string[];
+  /** Korzysci biletu (EN). */
+  benefitsEn: string[];
+  /**
+   * Progi cenowe w czasie. Pierwszy prog, ktorego okno obejmuje „teraz",
+   * wygrywa - kolejnosc listy jest wiec czescia umowy, nie kosmetyka.
+   */
+  priceSchedule: TicketPricePhaseInput[];
 }
+
+/** Jeden prog cennika biletu (early bird, cena regularna, last minute...). */
+export interface TicketPricePhaseInput {
+  labelPl: string;
+  labelEn: string;
+  /** ISO albo `null` = od zawsze. */
+  from: string | null;
+  /** ISO albo `null` = bezterminowo. */
+  to: string | null;
+  priceCents: number;
+}
+
 
 export async function saveEventTicket(input: EventTicketInput): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_ticket_upsert", {
@@ -199,6 +220,18 @@ export async function saveEventTicket(input: EventTicketInput): Promise<string> 
       access_code: input.accessCode === undefined ? undefined : input.accessCode,
       access_code_hint: input.accessCodeHint,
       waitlist_enabled: input.waitlistEnabled,
+      benefits_pl: input.benefitsPl,
+      benefits_en: input.benefitsEn,
+      // Progi wysylamy ZAWSZE, takze puste: brak klucza znaczylby „zostaw stary
+      // cennik", wiec skasowanie ostatniego progu nie mialoby jak dojsc do bazy.
+      price_schedule: input.priceSchedule.map((phase) => ({
+        label_pl: phase.labelPl,
+        label_en: phase.labelEn,
+        from: phase.from,
+        to: phase.to,
+        price_cents: phase.priceCents,
+      })),
+
     }),
   });
   if (error) throw error;
