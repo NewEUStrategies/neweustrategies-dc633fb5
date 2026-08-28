@@ -265,7 +265,7 @@ export function PreviewMePanel({ slug }: { slug: string }) {
           {publicView ? (
             <>
               <p className="text-xs text-muted-foreground">{t("eventMe.publicPreview.hint")}</p>
-              <MyEventPublicPreview profile={profile} />
+              <MyEventPublicPreview profile={profile} actions={{ slug: null, userId: null, self: true }} />
             </>
           ) : (
             <ul className="space-y-2">

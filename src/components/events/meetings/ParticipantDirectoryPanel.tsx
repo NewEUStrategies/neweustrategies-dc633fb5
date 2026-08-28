@@ -20,6 +20,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -214,16 +216,64 @@ export function ParticipantDirectoryPanel({
                 key={entry.registrationId}
                 className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {directoryEntryName(entry)}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {directoryEntrySubtitle(entry)}
-                  </p>
+                <div className="flex min-w-0 items-start gap-3">
+                  {entry.photoUrl === null ? (
+                    <span
+                      aria-hidden="true"
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-[6px] border border-border bg-muted text-sm font-semibold text-muted-foreground"
+                    >
+                      {(directoryEntryName(entry).slice(0, 1) || "?").toUpperCase()}
+                    </span>
+                  ) : (
+                    <img
+                      src={entry.photoUrl}
+                      alt=""
+                      aria-hidden="true"
+                      className="h-10 w-10 shrink-0 rounded-[6px] border border-border object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {directoryEntryName(entry)}
+                    </p>
+                    <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      {entry.companyLogoUrl !== null && (
+                        <img
+                          src={entry.companyLogoUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 rounded-[3px] border border-border bg-background object-contain"
+                        />
+                      )}
+                      <span className="truncate">{directoryEntrySubtitle(entry)}</span>
+                    </p>
+                  </div>
                 </div>
 
+                {entry.userId !== null && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ConnectButton
+                      userId={entry.userId}
+                      displayName={directoryEntryName(entry)}
+                      compact
+                    />
+                    <DirectMessageButton
+                      userId={entry.userId}
+                      displayName={directoryEntryName(entry)}
+                      displayAvatar={entry.photoUrl}
+                      compact
+                    />
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-1.5">
+                  {[entry.industry, entry.specialization]
+                    .filter((value): value is string => value !== null && value.trim() !== "")
+                    .map((value) => (
+                      <Badge key={value} variant="outline">
+                        {value}
+                      </Badge>
+                    ))}
                   {entry.groups.map((group) => (
                     <Badge
                       key={group.id}

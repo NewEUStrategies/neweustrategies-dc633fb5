@@ -42,6 +42,13 @@ export interface DirectoryEntry {
   lastName: string;
   jobTitle: string | null;
   company: string | null;
+  /** Logotyp firmy z CRM, gdy kartoteka organizacji istnieje. */
+  companyLogoUrl: string | null;
+  /** Konto na platformie - warunek zaproszenia do sieci kontaktów i czatu. */
+  userId: string | null;
+  photoUrl: string | null;
+  industry: string | null;
+  specialization: string | null;
   groups: DirectoryGroup[];
   /** Czy ta osoba zgłosiła choć jedno otwarte okno dostępności. */
   hasAvailability: boolean;
@@ -137,6 +144,11 @@ export function parseMeetingDirectory(value: Json | null): MeetingDirectory {
           lastName: text(entry.last_name) ?? "",
           jobTitle: text(entry.job_title),
           company: text(entry.company),
+          companyLogoUrl: text(entry.company_logo_url),
+          userId: text(entry.user_id),
+          photoUrl: text(entry.photo_url),
+          industry: text(entry.industry),
+          specialization: text(entry.specialization),
           groups: parseGroups(entry.groups),
           hasAvailability: entry.has_availability === true,
           meetingStatus: status === "invited" || status === "accepted" ? status : null,
