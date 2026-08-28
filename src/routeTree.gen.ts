@@ -208,6 +208,7 @@ import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$sh
 import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/email/suppression'
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as EventsInviteTokenRouteImport } from './routes/events_.invite.$token'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
 import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.manage'
 import { Route as EventsSlugSpeakersRouteImport } from './routes/events.$slug.speakers'
@@ -1371,6 +1372,11 @@ const NetworkMutualUserIdRoute = NetworkMutualUserIdRouteImport.update({
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsInviteTokenRoute = EventsInviteTokenRouteImport.update({
+  id: '/events_/invite/$token',
+  path: '/events/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsSlugRegisterRoute = EventsSlugRegisterRouteImport.update({
@@ -2559,6 +2565,7 @@ export interface FileRoutesByFullPath {
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
+  '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2910,6 +2917,7 @@ export interface FileRoutesByTo {
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
+  '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -3277,6 +3285,7 @@ export interface FileRoutesById {
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug_/manage': typeof EventsSlugManageRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
+  '/events_/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -3645,6 +3654,7 @@ export interface FileRouteTypes {
     | '/events/$slug/speakers'
     | '/events/$slug/manage'
     | '/events/$slug/register'
+    | '/events/invite/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -3996,6 +4006,7 @@ export interface FileRouteTypes {
     | '/events/$slug/speakers'
     | '/events/$slug/manage'
     | '/events/$slug/register'
+    | '/events/invite/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -4362,6 +4373,7 @@ export interface FileRouteTypes {
     | '/events/$slug/speakers'
     | '/events/$slug_/manage'
     | '/events/$slug_/register'
+    | '/events_/invite/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -4541,6 +4553,7 @@ export interface RootRouteChildren {
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
+  EventsInviteTokenRoute: typeof EventsInviteTokenRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   PlatformEmailSuppressionRoute: typeof PlatformEmailSuppressionRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
@@ -5952,6 +5965,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events_/invite/$token': {
+      id: '/events_/invite/$token'
+      path: '/events/invite/$token'
+      fullPath: '/events/invite/$token'
+      preLoaderRoute: typeof EventsInviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events/$slug_/register': {
@@ -7996,6 +8016,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
+  EventsInviteTokenRoute: EventsInviteTokenRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   PlatformEmailSuppressionRoute: PlatformEmailSuppressionRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
