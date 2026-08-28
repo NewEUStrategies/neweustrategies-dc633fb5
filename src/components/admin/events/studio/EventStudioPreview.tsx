@@ -130,6 +130,15 @@ export function EventStudioPreview({
     [base.menu],
   );
 
+  // „WRÓĆ DO LISTY WYDARZEŃ": na stronie publicznej to link do /events, w
+  // podglądzie zamykamy nakładkę i wracamy do listy w panelu - niezapisany
+  // szkic studia ginie tak samo jak przy przycisku „Zamknij podgląd".
+  const navigate = useNavigate();
+  const handleBack = useCallback(() => {
+    onOpenChange(false);
+    void navigate({ to: "/admin/events" });
+  }, [navigate, onOpenChange]);
+
   // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
   // kanwa.
   const viewer = useViewerCardFacts();
