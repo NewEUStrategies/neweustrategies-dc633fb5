@@ -24,6 +24,7 @@ describe("fetchMyEventProfile", () => {
           first_name: "Ada",
           last_name: "",
           job_title: "Analityk",
+          company_id: "c1",
           bio_pl: "Nota",
         },
         registration: { registration_id: "r1", status: "confirmed", notify_email: true },
@@ -35,6 +36,7 @@ describe("fetchMyEventProfile", () => {
 
     expect(state.profile?.personId).toBe("p1");
     expect(state.profile?.firstName).toBe("Ada");
+    expect(state.profile?.companyId).toBe("c1");
     // Milczenie w bazie = kontakt prywatny.
     expect(state.profile?.emailVisible).toBe(false);
     expect(state.profile?.socialLinks).toEqual({});
@@ -83,6 +85,14 @@ describe("saveMyEventProfile", () => {
     await saveMyEventProfile({ slug: "summit", job_title: "Dyrektor", phone: "" });
     expect(rpc).toHaveBeenCalledWith("event_my_event_profile_set", {
       p_payload: { slug: "summit", job_title: "Dyrektor", phone: "" },
+    });
+  });
+
+  it("przenosi identyfikator wybranej organizacji", async () => {
+    rpc.mockResolvedValue({ data: { profile: null, registration: null }, error: null });
+    await saveMyEventProfile({ slug: "summit", company_id: "c1", company_text: "Alfa" });
+    expect(rpc).toHaveBeenCalledWith("event_my_event_profile_set", {
+      p_payload: { slug: "summit", company_id: "c1", company_text: "Alfa" },
     });
   });
 

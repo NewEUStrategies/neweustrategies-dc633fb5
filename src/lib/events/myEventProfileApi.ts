@@ -53,6 +53,7 @@ export interface MyEventProfile {
   /** Zgoda właściciela: telefon widoczny dla innych uczestników. */
   phoneVisible: boolean;
   jobTitle: string | null;
+  companyId: string | null;
   companyText: string | null;
   industry: string | null;
   specialization: string | null;
@@ -74,6 +75,7 @@ export interface MyAccountSnapshot {
   email: string | null;
   phone: string | null;
   jobTitle: string | null;
+  companyId: string | null;
   companyText: string | null;
   specialization: string | null;
   seekingPl: string | null;
@@ -125,6 +127,7 @@ function parseProfile(raw: unknown): MyEventProfile | null {
     emailVisible: bool(row, "email_visible"),
     phoneVisible: bool(row, "phone_visible"),
     jobTitle: text(row, "job_title"),
+    companyId: text(row, "company_id"),
     companyText: text(row, "company_text"),
     industry: text(row, "industry"),
     specialization: text(row, "specialization"),
@@ -163,6 +166,7 @@ function parseAccount(raw: unknown): MyAccountSnapshot | null {
     email: text(row, "email"),
     phone: text(row, "phone"),
     jobTitle: text(row, "job_title"),
+    companyId: text(row, "company_id"),
     companyText: text(row, "company_text"),
     specialization: text(row, "specialization"),
     seekingPl: text(row, "seeking_pl"),
@@ -202,6 +206,7 @@ export interface MyEventProfileInput {
   email_visible?: boolean;
   phone_visible?: boolean;
   job_title?: string;
+  company_id?: string;
   company_text?: string;
   industry?: string;
   specialization?: string;

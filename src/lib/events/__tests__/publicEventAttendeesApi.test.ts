@@ -45,6 +45,15 @@ function attendeeRow(over: Record<string, unknown> = {}): Record<string, unknown
     company: "Alfa",
     avatar_url: "https://x/a.png",
     profile_slug: "anna-adamska",
+    user_id: "u2",
+    company_logo_url: "https://x/alfa.png",
+    company_website: "https://alfa.example",
+    industry: "Energetyka",
+    specialization: "Polityka UE",
+    seeking_pl: "Partnerów",
+    offering_pl: "Analizy",
+    bio_pl: "Ekspertka",
+    social_links: { linkedin: "https://linkedin.com/in/anna" },
     groups: [{ id: "g1", name_pl: "Uczestnicy", name_en: "Attendees", color: "#2563eb" }],
     ...over,
   };
@@ -97,6 +106,9 @@ describe("event_attendees - odczyt kształtu", () => {
     expect(parsed.totalCount).toBe(7);
     expect(parsed.rows).toHaveLength(1);
     expect(parsed.rows[0]?.name).toBe("Anna Adamska");
+    expect(parsed.rows[0]?.companyLogoUrl).toBe("https://x/alfa.png");
+    expect(parsed.rows[0]?.specialization).toBe("Polityka UE");
+    expect(parsed.rows[0]?.socialLinks.linkedin).toBe("https://linkedin.com/in/anna");
     expect(parsed.rows[0]?.groups[0]?.namePl).toBe("Uczestnicy");
     expect(parsed.groups[0]?.count).toBe(7);
     expect(parsed.myListed).toBe(true);

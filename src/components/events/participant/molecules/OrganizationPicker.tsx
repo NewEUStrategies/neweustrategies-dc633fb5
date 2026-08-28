@@ -35,7 +35,8 @@ import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
 
 interface Props {
   value: string;
-  onChange: (name: string) => void;
+  companyId: string | null;
+  onChange: (company: { id: string | null; name: string }) => void;
   label: string;
 }
 
@@ -69,7 +70,7 @@ function subtitle(option: CompanyOption): string {
   return [option.city, option.country, option.branch].filter((part) => part !== null).join(" · ");
 }
 
-export function OrganizationPicker({ value, onChange, label }: Props) {
+export function OrganizationPicker({ value, companyId, onChange, label }: Props) {
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
   const registerUpload = useServerFn(registerMediaUpload);
@@ -90,7 +91,7 @@ export function OrganizationPicker({ value, onChange, label }: Props) {
   const showList = open && query.trim().length >= 2;
 
   const pick = (option: CompanyOption) => {
-    onChange(option.name);
+    onChange({ id: option.id, name: option.name });
     setQuery("");
     setOpen(false);
   };
@@ -140,7 +141,7 @@ export function OrganizationPicker({ value, onChange, label }: Props) {
       },
       {
         onSuccess: (created) => {
-          onChange(created?.name ?? name);
+          onChange({ id: created?.id ?? null, name: created?.name ?? name });
           setDialogOpen(false);
           setOrg(EMPTY_ORG);
           toast.success(t("eventMe.organization.created"));
@@ -164,7 +165,7 @@ export function OrganizationPicker({ value, onChange, label }: Props) {
           label={label}
           value={value}
           onChange={(event) => {
-            onChange(event.target.value);
+            onChange({ id: null, name: event.target.value });
             setQuery(event.target.value);
             setOpen(true);
           }}
@@ -190,12 +191,13 @@ export function OrganizationPicker({ value, onChange, label }: Props) {
               </p>
             )}
             {options.map((option) => (
-              <button
+              <Button
                 key={option.id}
                 type="button"
                 role="option"
-                aria-selected={option.name === value}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/60"
+                aria-selected={option.id === companyId}
+                variant="ghost"
+                className="flex h-auto w-full items-center justify-start gap-2 rounded-none px-3 py-2 text-left hover:bg-muted/60"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => pick(option)}
               >
@@ -216,10 +218,10 @@ export function OrganizationPicker({ value, onChange, label }: Props) {
                     </span>
                   )}
                 </span>
-                {option.name === value && (
+                {option.id === companyId && (
                   <Check className="ml-auto h-4 w-4 text-primary" aria-hidden="true" />
                 )}
-              </button>
+              </Button>
             ))}
           </div>
         )}

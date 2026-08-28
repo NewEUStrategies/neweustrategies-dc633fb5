@@ -141,6 +141,7 @@ export function attendeeEntriesFromRegistrationRows(
     .filter((row) => row.status === "approved" || row.status === "attended")
     .map((row) => ({
       registrationId: row.id,
+      userId: null,
       name: [row.first_name ?? "", row.last_name ?? ""]
         .map((part) => part.trim())
         .filter((part) => part !== "")
@@ -149,6 +150,17 @@ export function attendeeEntriesFromRegistrationRows(
       company: nullable(row.company_name) ?? nullable(row.company_text),
       avatarUrl: null,
       profileSlug: null,
+      companyLogoUrl: null,
+      companyWebsite: null,
+      industry: null,
+      specialization: null,
+      seekingPl: null,
+      seekingEn: null,
+      offeringPl: null,
+      offeringEn: null,
+      bioPl: null,
+      bioEn: null,
+      socialLinks: {},
       groups:
         nullable(row.group_id) === null
           ? []
