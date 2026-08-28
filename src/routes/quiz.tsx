@@ -30,12 +30,8 @@ import { platformLandingJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { useLang } from "@/lib/i18n/useLang";
 
-/** Druga platforma NES, którą ten landing promuje (cross-promo EuroChallenge).
- *  Adres główny idzie do markupu i do fallbacku udostępniania; `/embed` to ten
- *  sam quiz bez własnego chrome'u, przeznaczony do osadzania w iframe. */
-const QUIZ_PLATFORM_URL = "https://nes-quiz.com";
-const QUIZ_EMBED_URL = `${QUIZ_PLATFORM_URL}/embed`;
-const QUIZ_TITLE = "EuroChallenge Quiz";
+import { QUIZ_PLATFORM_URL, QUIZ_EMBED_URL, QUIZ_TITLE } from "@/lib/quiz/platform";
+
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
