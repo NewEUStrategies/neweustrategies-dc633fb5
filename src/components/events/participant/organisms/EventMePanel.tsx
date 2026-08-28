@@ -80,7 +80,7 @@ function MyContacts() {
             </span>
             {row.slug ? (
               <Link
-                to="/profile/$slug"
+                to="/author/$slug"
                 params={{ slug: row.slug }}
                 className="shrink-0 text-xs underline-offset-2 hover:underline"
               >
