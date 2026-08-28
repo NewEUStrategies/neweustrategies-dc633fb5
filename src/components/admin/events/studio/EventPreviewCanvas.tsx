@@ -180,10 +180,20 @@ export function EventPreviewCanvas({
   viewer = null,
   sponsorTiers = [],
   onNavigate,
+  onBack,
   live = EMPTY_PREVIEW_LIVE_DATA,
 }: {
   model: EventPreviewModel;
   device: PreviewDevice;
+  /**
+   * KLIK „WRÓĆ DO LISTY WYDARZEŃ" W PODGLĄDZIE.
+   *
+   * Na stronie publicznej to `<Link to="/events">`; w podglądzie link
+   * wyprowadziłby redaktora ze studia, więc cel podaje nakładka (zamknięcie
+   * podglądu + powrót do listy w panelu). Brak handlera = statyczny rysunek
+   * (bramka parytetu), dokładnie jak przy `onNavigate`.
+   */
+  onBack?: () => void;
   /**
    * PARTNERZY WYDARZENIA, poziomami, w kolejnosci strony publicznej.
    *
@@ -274,10 +284,23 @@ export function EventPreviewCanvas({
       style={{ width: PREVIEW_WIDTHS[device] }}
       className="bg-background font-sans text-foreground"
       backSlot={
-        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("community.events.backToList")}
-        </span>
+        onBack === undefined ? (
+          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t("community.events.backToList")}
+          </span>
+        ) : (
+          // Klikalny jak na stronie publicznej - cel (lista wydarzen w panelu)
+          // podaje nakladka, bo router wyprowadzilby redaktora ze studia.
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t("community.events.backToList")}
+          </button>
+        )
       }
       titleSlot={<span className="text-sm font-semibold text-foreground">{title}</span>}
       // PUSTE MENU = ZERO PASKA, tak samo jak `EventTabsNav:60`. Wydarzenie bez

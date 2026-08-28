@@ -83,13 +83,20 @@ const pl = {
       photoUrl: "Adres zdjęcia",
       social: "Profil społecznościowy",
       seeking: "Czego szukam",
-      seekingHint: "Np. partnerów projektowych, ekspertów, inwestorów.",
+      seekingHint: "Np. partnerzy projektowi, eksperci, inwestorzy.",
       offering: "Co oferuję",
-      offeringHint: "Np. wiedzę, dane, współpracę medialną.",
+      offeringHint: "Np. wiedza, dane, współpraca medialna.",
+      bulletPlaceholder: "Wpisz punkt...",
+      addBullet: "Dodaj punkt",
+      bulletLimit: "Maksymalnie 5 punktów.",
       bioPl: "O mnie (PL)",
       bioEn: "O mnie (EN)",
       bioHint: "Krótka nota - widoczna w katalogu uczestników.",
     },
+    contentLang: {
+      label: "Wersja językowa treści",
+    },
+
     sections: {
       identity: "Kim jestem",
       identityHint: "Zdjęcie i podpis, który zobaczą inni uczestnicy.",
@@ -281,10 +288,17 @@ const en: typeof pl = {
       seekingHint: "E.g. project partners, experts, investors.",
       offering: "What I offer",
       offeringHint: "E.g. expertise, data, media collaboration.",
+      bulletPlaceholder: "Type a point...",
+      addBullet: "Add point",
+      bulletLimit: "Up to 5 points.",
       bioPl: "About me (PL)",
       bioEn: "About me (EN)",
       bioHint: "A short note - shown in the attendee directory.",
     },
+    contentLang: {
+      label: "Content language",
+    },
+
     sections: {
       identity: "Who I am",
       identityHint: "The photo and byline other attendees will see.",
