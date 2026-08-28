@@ -284,10 +284,23 @@ export function EventPreviewCanvas({
       style={{ width: PREVIEW_WIDTHS[device] }}
       className="bg-background font-sans text-foreground"
       backSlot={
-        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("community.events.backToList")}
-        </span>
+        onBack === undefined ? (
+          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t("community.events.backToList")}
+          </span>
+        ) : (
+          // Klikalny jak na stronie publicznej - cel (lista wydarzen w panelu)
+          // podaje nakladka, bo router wyprowadzilby redaktora ze studia.
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t("community.events.backToList")}
+          </button>
+        )
       }
       titleSlot={<span className="text-sm font-semibold text-foreground">{title}</span>}
       // PUSTE MENU = ZERO PASKA, tak samo jak `EventTabsNav:60`. Wydarzenie bez
