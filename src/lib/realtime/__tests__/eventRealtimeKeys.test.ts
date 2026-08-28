@@ -15,6 +15,7 @@ import { meetingKeys } from "@/lib/events/useMeetings";
 import { myMeetingKeys } from "@/lib/events/useMyMeetings";
 import { onsiteKeys } from "@/lib/events/useEventOnsite";
 import { sponsorKeys } from "@/lib/events/useEventSponsors";
+import { registrationKeys } from "@/lib/events/useEventRegistrations";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CTX = { userId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
@@ -73,5 +74,35 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
       CTX,
     ) as unknown[][];
     expect(includesPrefix(keys, meetingKeys.all)).toBe(true);
+  });
+
+  it("zgłoszenia trafiają w gałąź wydarzenia I w profil uczestnika", () => {
+    // Sześć trzyczłonowych nazw (`event.registration.*`) było poza katalogiem,
+    // więc `invalidationKeysFor` zwracało [] - listy zgłoszeń, liczniki miejsc
+    // i "moje zgłoszenia" nie odświeżały się na żywo.
+    for (const type of [
+      "event.registration.created.v1",
+      "event.registration.updated.v1",
+      "event.registration.decided.v1",
+      "event.registration.cancelled.v1",
+      "event.registration.promoted.v1",
+      "event.registration.payment.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, registrationKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, ["profile", "event-registrations"]), type).toBe(true);
+      expect(includesPrefix(keys, ["account-menu", "my-events"]), type).toBe(true);
+    }
+  });
+
+  it("zgłoszenie bez `event_id` degraduje do całej gałęzi zgłoszeń", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event.registration.decided.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, registrationKeys.all)).toBe(true);
   });
 });
