@@ -327,6 +327,7 @@ export function EventStudioPreview({
               viewer={viewer}
               sponsorTiers={sponsorTiers}
               onNavigate={handleNavigate}
+              onBack={handleBack}
               live={live}
             />
           </div>
