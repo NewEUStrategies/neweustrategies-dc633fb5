@@ -12,6 +12,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { type MyEventProfile } from "@/lib/events/myEventProfileApi";
 import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
 import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
+import { IntentBulletList } from "./IntentBulletList";
 import {
   EventPersonActions,
   type EventPersonActionsProps,
@@ -144,7 +145,9 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
                 <dt className="text-xs font-semibold uppercase tracking-wide">
                   {t("eventMe.fields.seeking")}
                 </dt>
-                <dd className="mt-1 whitespace-pre-line">{seeking}</dd>
+                <dd className="mt-1">
+                  <IntentBulletList text={seeking} />
+                </dd>
               </div>
             )}
             {offering !== null && (
@@ -152,7 +155,9 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
                 <dt className="text-xs font-semibold uppercase tracking-wide">
                   {t("eventMe.fields.offering")}
                 </dt>
-                <dd className="mt-1 whitespace-pre-line">{offering}</dd>
+                <dd className="mt-1">
+                  <IntentBulletList text={offering} />
+                </dd>
               </div>
             )}
           </dl>

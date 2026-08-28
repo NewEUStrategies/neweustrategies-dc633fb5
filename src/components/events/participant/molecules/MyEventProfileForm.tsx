@@ -16,7 +16,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/field-box";
@@ -35,6 +35,7 @@ import {
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
 import { OrganizationPicker } from "./OrganizationPicker";
+import { MAX_INTENT_BULLETS, parseIntentBullets } from "./IntentBulletList";
 import {
   useSaveMyEventProfile,
   useSyncMyEventProfileFromAccount,
@@ -112,13 +113,84 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[6px] border border-border bg-card p-4 sm:p-5 space-y-4">
-      <header className="space-y-1">
+    <section className="rounded-[6px] border border-border bg-card p-3.5 space-y-3">
+      <header className="space-y-0.5">
         <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
         {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}
       </header>
       {children}
     </section>
+  );
+}
+
+// „Czego szukam / Co oferuję" trzymamy w bazie jako tekst z nowymi liniami,
+// a uczestnik edytuje je jak listę punktów - maksymalnie 5, każda linia to
+// jeden punkt widoczny potem jako bullet w katalogu uczestników.
+const MAX_BULLETS = MAX_INTENT_BULLETS;
+
+const parseBullets = parseIntentBullets;
+
+function BulletListInput({
+  value,
+  onChange,
+  placeholder,
+  addLabel,
+  limitLabel,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  addLabel: string;
+  limitLabel: string;
+  ariaLabel: string;
+}) {
+  const items = parseBullets(value);
+  const commit = (next: string[]) => onChange(next.join("\n"));
+
+  return (
+    <div className="space-y-1.5" aria-label={ariaLabel}>
+      {items.map((item, index) => (
+        <div key={index} className="flex items-center gap-1.5">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={item}
+            placeholder={placeholder}
+            aria-label={`${ariaLabel} ${index + 1}`}
+            className="h-8 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2.5 text-sm outline-none focus:border-primary"
+            onChange={(event) =>
+              commit(items.map((current, i) => (i === index ? event.target.value : current)))
+            }
+          />
+          <button
+            type="button"
+            onClick={() => commit(items.filter((_, i) => i !== index))}
+            aria-label={`${ariaLabel} ${index + 1} - usuń`}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      {items.length < MAX_BULLETS ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => commit([...items, ""])}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          {addLabel}
+        </Button>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">{limitLabel}</p>
+      )}
+    </div>
   );
 }
 
@@ -245,7 +317,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" aria-label={t("eventMe.profileFormAria")}>
+    <form onSubmit={onSubmit} className="space-y-3" aria-label={t("eventMe.profileFormAria")}>
       <Section title={t("eventMe.sections.identity")} hint={t("eventMe.sections.identityHint")}>
         <div className="flex flex-col gap-4 sm:flex-row">
           <div
@@ -332,12 +404,6 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">{t("eventMe.photo.hint")}</p>
-            <FieldBox
-              label={t("eventMe.fields.photoUrl")}
-              value={form.photo_url}
-              onChange={field("photo_url")}
-              inputMode="url"
-            />
           </div>
         </div>
 
@@ -444,12 +510,12 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
       </Section>
 
       <Section title={t("eventMe.sections.about")} hint={t("eventMe.sections.aboutHint")}>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
           </label>
           <Textarea
-            rows={4}
+            rows={3}
             className="rounded-[6px]"
             value={en ? form.bio_en : form.bio_pl}
             onChange={field(en ? "bio_en" : "bio_pl")}
@@ -457,29 +523,41 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
           />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("eventMe.fields.seeking")}
             </label>
-            <Textarea
-              rows={3}
-              className="rounded-[6px]"
+            <BulletListInput
               value={en ? form.seeking_en : form.seeking_pl}
-              onChange={field(en ? "seeking_en" : "seeking_pl")}
-              placeholder={t("eventMe.fields.seekingHint")}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, [en ? "seeking_en" : "seeking_pl"]: next }))
+              }
+              placeholder={t("eventMe.fields.bulletPlaceholder")}
+              addLabel={t("eventMe.fields.addBullet")}
+              limitLabel={t("eventMe.fields.bulletLimit")}
+              ariaLabel={t("eventMe.fields.seeking")}
             />
+            <p className="text-[11px] text-muted-foreground">
+              {t("eventMe.fields.seekingHint")}
+            </p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("eventMe.fields.offering")}
             </label>
-            <Textarea
-              rows={3}
-              className="rounded-[6px]"
+            <BulletListInput
               value={en ? form.offering_en : form.offering_pl}
-              onChange={field(en ? "offering_en" : "offering_pl")}
-              placeholder={t("eventMe.fields.offeringHint")}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, [en ? "offering_en" : "offering_pl"]: next }))
+              }
+              placeholder={t("eventMe.fields.bulletPlaceholder")}
+              addLabel={t("eventMe.fields.addBullet")}
+              limitLabel={t("eventMe.fields.bulletLimit")}
+              ariaLabel={t("eventMe.fields.offering")}
             />
+            <p className="text-[11px] text-muted-foreground">
+              {t("eventMe.fields.offeringHint")}
+            </p>
           </div>
         </div>
       </Section>
