@@ -322,10 +322,11 @@ export async function createAdhocCheckoutSession(
       // Jak wyżej - flagi tenantu. Tu klient bywa nieprzypięty (anonimowa
       // darowizna), więc `customer_creation=always` dojedzie wtedy, gdy sesja
       // musi zapisać NIP, policzyć podatek albo wystawić fakturę.
+      ...(input.discount ? { discounts: [{ coupon: input.discount.coupon }] } : {}),
       ...sessionFlags(input.settings, {
         mode: "payment",
         hasCustomer: !!customerId,
-        hasDiscount: false,
+        hasDiscount: !!input.discount,
       }),
     } as SessionCreateParams;
 
