@@ -16,6 +16,8 @@ import { uiLang } from "@/lib/i18n/format";
 import { type MyEventProfile } from "@/lib/events/myEventProfileApi";
 import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
 import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
+import { EventGroupTags } from "@/components/events/participant/atoms/EventGroupTags";
+import type { AttendeeGroupTag } from "@/lib/events/publicEventApi";
 import {
   ProfileContactRow,
   ProfileHeroFrame,
@@ -36,9 +38,15 @@ export interface MyEventPublicPreviewProps {
   profile: MyEventProfile;
   /** Akcje networkingowe - gdy podane, karta pokazuje pasek kontaktu. */
   actions?: Omit<EventPersonActionsProps, "displayName" | "displayAvatar"> | null;
+  /** Grupy z „Grupy i uprawnienia" - etykieta przepustki właściciela karty. */
+  groups?: readonly AttendeeGroupTag[];
 }
 
-export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicPreviewProps) {
+export function MyEventPublicPreview({
+  profile,
+  actions = null,
+  groups = [],
+}: MyEventPublicPreviewProps) {
   const { t, i18n } = useTranslation();
   const en = uiLang(i18n.language) === "en";
 
@@ -69,6 +77,8 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
           companyHref={companyWebsite}
           jobTitle={profile.jobTitle}
         />
+
+        <EventGroupTags groups={groups} lang={en ? "en" : "pl"} className="mt-2 justify-center sm:justify-start" />
 
         <ProfileMetaRow>
           {profile.specialization !== null && (
