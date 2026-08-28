@@ -290,7 +290,10 @@ export function ProfileContactRow({
   children: ReactNode;
 }) {
   return (
-    <li className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0" aria-label={ariaLabel}>
+    <li
+      className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
+      aria-label={ariaLabel}
+    >
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
         {icon}
       </span>

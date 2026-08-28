@@ -24,6 +24,7 @@ import { MyEventProfileForm } from "@/components/events/participant/molecules/My
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { ProfileTabsNav } from "@/components/profile/shell/ProfileShell";
 import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import type { MyAccountSnapshot, MyEventProfile } from "@/lib/events/myEventProfileApi";
 
@@ -119,7 +120,8 @@ function useEditorAccount(userId: string | null): MyAccountSnapshot | null {
         links.linkedin = data.linkedin_url;
       if (typeof data.website_url === "string" && data.website_url !== "")
         links.website = data.website_url;
-      if (typeof data.twitter_url === "string" && data.twitter_url !== "") links.x = data.twitter_url;
+      if (typeof data.twitter_url === "string" && data.twitter_url !== "")
+        links.x = data.twitter_url;
       if (typeof data.facebook_url === "string" && data.facebook_url !== "")
         links.facebook = data.facebook_url;
       if (typeof data.instagram_url === "string" && data.instagram_url !== "")
@@ -188,23 +190,12 @@ export function PreviewMePanel({ slug }: { slug: string }) {
         <p className="text-sm text-muted-foreground">{t("eventMe.lead")}</p>
       </header>
 
-      <ul role="tablist" className="flex flex-wrap gap-2">
-        {tabs.map((item) => (
-          <li key={item.key}>
-            <Button
-              type="button"
-              role="tab"
-              size="sm"
-              variant={item.key === tab ? "default" : "outline"}
-              aria-selected={item.key === tab}
-              onClick={() => setTab(item.key)}
-              className="rounded-[6px]"
-            >
-              {item.label}
-            </Button>
-          </li>
-        ))}
-      </ul>
+      {/* Zakładki identyczne z profilem publicznym (podkreślenie 2px). */}
+      <ProfileTabsNav
+        tabs={tabs.map((item) => ({ key: item.key, label: item.label }))}
+        active={tab}
+        onChange={(key) => setTab(key as TabKey)}
+      />
 
       <div className={CARD}>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -240,7 +231,10 @@ export function PreviewMePanel({ slug }: { slug: string }) {
           {publicView ? (
             <>
               <p className="text-xs text-muted-foreground">{t("eventMe.publicPreview.hint")}</p>
-              <MyEventPublicPreview profile={profile} actions={{ slug: null, userId: null, self: true }} />
+              <MyEventPublicPreview
+                profile={profile}
+                actions={{ slug: null, userId: null, self: true }}
+              />
             </>
           ) : (
             <MyEventProfileForm

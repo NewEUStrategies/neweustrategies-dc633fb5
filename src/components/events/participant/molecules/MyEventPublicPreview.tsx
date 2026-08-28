@@ -47,7 +47,9 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
   const bio = (en ? profile.bioEn : profile.bioPl) ?? profile.bioPl ?? profile.bioEn;
   const seeking = (en ? profile.seekingEn : profile.seekingPl) ?? null;
   const offering = (en ? profile.offeringEn : profile.offeringPl) ?? null;
-  const hasSocials = Object.values(profile.socialLinks).some((value) => (value ?? "").trim() !== "");
+  const hasSocials = Object.values(profile.socialLinks).some(
+    (value) => (value ?? "").trim() !== "",
+  );
   const email = profile.emailVisible ? profile.email : null;
   const phone = profile.phoneVisible ? profile.phone : null;
   const brand = useCompanyBrand(profile.companyText);
@@ -57,10 +59,7 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
 
   return (
     <div className="space-y-4">
-      <ProfileHeroFrame
-        avatarUrl={profile.photoUrl}
-        fullName={displayName}
-      />
+      <ProfileHeroFrame avatarUrl={profile.photoUrl} fullName={displayName} />
 
       <ProfileIdentityBlock>
         <ProfileNameRow name={displayName} />
@@ -75,9 +74,7 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
           {profile.specialization !== null && (
             <ProfileMetaPill icon={<Award />}>{profile.specialization}</ProfileMetaPill>
           )}
-          {industry !== null && (
-            <ProfileMetaPill icon={<Briefcase />}>{industry}</ProfileMetaPill>
-          )}
+          {industry !== null && <ProfileMetaPill icon={<Briefcase />}>{industry}</ProfileMetaPill>}
           {email !== null && (
             <ProfileMetaPill icon={<Mail />} href={`mailto:${email}`}>
               {email}
@@ -150,7 +147,10 @@ export function MyEventPublicPreview({ profile, actions = null }: MyEventPublicP
         title={t("eventMe.sections.contact")}
       >
         <ul className="divide-y divide-border/60">
-          <ProfileContactRow icon={<Mail className="h-4 w-4" />} ariaLabel={t("eventMe.fields.email")}>
+          <ProfileContactRow
+            icon={<Mail className="h-4 w-4" />}
+            ariaLabel={t("eventMe.fields.email")}
+          >
             {email !== null ? (
               <a
                 className="truncate text-sm text-foreground/90 hover:text-primary"

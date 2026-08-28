@@ -45,10 +45,7 @@ import {
   type SocialKey,
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
-import {
-  ProfileHeroFrame,
-  ProfileSectionCard,
-} from "@/components/profile/shell/ProfileShell";
+import { ProfileHeroFrame, ProfileSectionCard } from "@/components/profile/shell/ProfileShell";
 import { OrganizationPicker } from "./OrganizationPicker";
 import { MAX_INTENT_BULLETS, parseIntentBullets } from "./IntentBulletList";
 import {
@@ -226,29 +223,33 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   // ZAPIS WSTECZ DO KONTA JEST DECYZJA UZYTKOWNIKA, nie efektem ubocznym:
   // kartoteka wydarzenia bywa celowo inna niz wizytowka platformy.
   const accountOnly = profile === null && account !== null;
-  const editableProfile: MyEventProfile | null = profile ?? (account === null ? null : {
-    personId: "account",
-    firstName: account.firstName,
-    lastName: account.lastName,
-    email: account.email,
-    phone: account.phone,
-    emailVisible: false,
-    phoneVisible: false,
-    jobTitle: account.jobTitle,
-    companyId: account.companyId,
-    companyText: account.companyText,
-    industry: null,
-    specialization: account.specialization,
-    seekingPl: account.seekingPl,
-    seekingEn: account.seekingEn,
-    offeringPl: account.offeringPl,
-    offeringEn: account.offeringEn,
-    socialProfileUrl: null,
-    socialLinks: account.socialLinks,
-    photoUrl: account.photoUrl,
-    bioPl: account.bioPl,
-    bioEn: account.bioEn,
-  });
+  const editableProfile: MyEventProfile | null =
+    profile ??
+    (account === null
+      ? null
+      : {
+          personId: "account",
+          firstName: account.firstName,
+          lastName: account.lastName,
+          email: account.email,
+          phone: account.phone,
+          emailVisible: false,
+          phoneVisible: false,
+          jobTitle: account.jobTitle,
+          companyId: account.companyId,
+          companyText: account.companyText,
+          industry: null,
+          specialization: account.specialization,
+          seekingPl: account.seekingPl,
+          seekingEn: account.seekingEn,
+          offeringPl: account.offeringPl,
+          offeringEn: account.offeringEn,
+          socialProfileUrl: null,
+          socialLinks: account.socialLinks,
+          photoUrl: account.photoUrl,
+          bioPl: account.bioPl,
+          bioEn: account.bioEn,
+        });
   const [pushAccount, setPushAccount] = useState(accountOnly);
 
   // Serwer jest źródłem prawdy: gdy dane dojadą (albo odświeżą się po zapisie),
@@ -427,8 +428,6 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         title={t("eventMe.sections.identity")}
         hint={t("eventMe.sections.identityHint")}
       >
-
-
         <div className="grid gap-3 sm:grid-cols-2">
           <FieldBox
             label={t("eventMe.fields.firstName")}
@@ -473,7 +472,11 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section icon={<Mail className="h-3.5 w-3.5" />} title={t("eventMe.sections.contact")} hint={t("eventMe.sections.contactHint")}>
+      <Section
+        icon={<Mail className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.contact")}
+        hint={t("eventMe.sections.contactHint")}
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <FieldBox
@@ -516,7 +519,11 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section icon={<Share2 className="h-3.5 w-3.5" />} title={t("eventMe.sections.social")} hint={t("eventMe.sections.socialHint")}>
+      <Section
+        icon={<Share2 className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.social")}
+        hint={t("eventMe.sections.socialHint")}
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           {SOCIAL_KEYS.map((key) => (
             <FieldBox
@@ -531,7 +538,11 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section icon={<Activity className="h-3.5 w-3.5" />} title={t("eventMe.sections.about")} hint={t("eventMe.sections.aboutHint")}>
+      <Section
+        icon={<Activity className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.about")}
+        hint={t("eventMe.sections.aboutHint")}
+      >
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
@@ -559,9 +570,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
               limitLabel={t("eventMe.fields.bulletLimit")}
               ariaLabel={t("eventMe.fields.seeking")}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t("eventMe.fields.seekingHint")}
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("eventMe.fields.seekingHint")}</p>
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -577,9 +586,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
               limitLabel={t("eventMe.fields.bulletLimit")}
               ariaLabel={t("eventMe.fields.offering")}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t("eventMe.fields.offeringHint")}
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("eventMe.fields.offeringHint")}</p>
           </div>
         </div>
       </Section>
