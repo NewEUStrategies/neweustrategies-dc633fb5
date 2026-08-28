@@ -1,0 +1,129 @@
+// Słownik koszyka i moich wydarzeń. Jeden moduł, bo obie powierzchnie mówią
+// o tym samym łańcuchu: „chcę bilet" -> „mam bilet".
+import i18n from "@/lib/i18n";
+
+const pl = {
+  cart: {
+    title: "Mój koszyk",
+    lead: "Bilety odłożone do zakupu. Cena i dostępność są potwierdzane dopiero przy płatności - koszyk nie rezerwuje miejsca.",
+    empty: "Koszyk jest pusty. Bilety dodasz ze strony wydarzenia.",
+    browseEvents: "Zobacz wydarzenia",
+    itemsCount_one: "{{count}} pozycja",
+    itemsCount_few: "{{count}} pozycje",
+    itemsCount_many: "{{count}} pozycji",
+    itemsCount_other: "{{count}} pozycji",
+    total: "Razem ({{currency}})",
+    totalHint: "Suma poglądowa. Płatność odbywa się osobno za każdą pozycję.",
+    pay: "Zapłać",
+    paying: "Otwieram kasę...",
+    remove: "Usuń",
+    removed: "Pozycja usunięta z koszyka.",
+    clear: "Wyczyść koszyk",
+    cleared: "Koszyk wyczyszczony.",
+    openEvent: "Strona wydarzenia",
+    added: "Dodano do koszyka.",
+    addToCart: "Dodaj do koszyka",
+    inCart: "W koszyku",
+    signInToPay: "Zaloguj się, aby dokończyć zakup.",
+    payError: "Nie udało się otworzyć płatności dla tej pozycji.",
+    aria: { label: "Mój koszyk", count: "Pozycje w koszyku: {{count}}" },
+  },
+  myEvents: {
+    title: "Moje wydarzenia",
+    lead: "Historia Twoich zapisów: nadchodzące, trwające i minione - razem z płatnościami i biletami.",
+    tabs: { upcoming: "Nadchodzące", past: "Minione", all: "Wszystkie" },
+    empty: "Nie masz jeszcze żadnego zapisu na wydarzenie.",
+    emptyUpcoming: "Nie masz zaplanowanych wydarzeń.",
+    emptyPast: "Nie masz jeszcze minionych wydarzeń.",
+    loadError: "Nie udało się wczytać wydarzeń. Odśwież stronę.",
+    manageTickets: "Zarządzaj zgłoszeniami",
+    openEvent: "Strona wydarzenia",
+    myPanel: "Mój panel wydarzenia",
+    payNow: "Opłać bilet",
+    unpaid: "Nieopłacone",
+    paid: "Opłacone",
+    free: "Bezpłatne",
+    date: "Termin",
+    noDate: "Termin nieustalony",
+  },
+  eventMe: {
+    tab: "Moje",
+    title: "Mój panel wydarzenia",
+    lead: "Twój profil na tym wydarzeniu, dostępność i spotkania 1-1 oraz stan Twojej rejestracji.",
+    tabs: { profile: "Mój profil", networking: "Networking", registration: "Moja rejestracja" },
+    profileHint:
+      "Tak widzą Cię inni uczestnicy w katalogu wydarzenia. Dane pochodzą z Twojego profilu na platformie.",
+    editProfile: "Edytuj profil",
+    signedOut: "Zaloguj się, aby zobaczyć swój panel uczestnika.",
+    signIn: "Zaloguj się",
+  },
+};
+
+const en: typeof pl = {
+  cart: {
+    title: "My cart",
+    lead: "Tickets set aside for purchase. Price and availability are confirmed at payment - the cart does not hold a seat.",
+    empty: "Your cart is empty. Add tickets from an event page.",
+    browseEvents: "Browse events",
+    itemsCount_one: "{{count}} item",
+    itemsCount_few: "{{count}} items",
+    itemsCount_many: "{{count}} items",
+    itemsCount_other: "{{count}} items",
+    total: "Total ({{currency}})",
+    totalHint: "Indicative total. Each item is paid for separately.",
+    pay: "Pay",
+    paying: "Opening checkout...",
+    remove: "Remove",
+    removed: "Item removed from the cart.",
+    clear: "Clear cart",
+    cleared: "Cart cleared.",
+    openEvent: "Event page",
+    added: "Added to cart.",
+    addToCart: "Add to cart",
+    inCart: "In cart",
+    signInToPay: "Sign in to complete the purchase.",
+    payError: "Could not open checkout for this item.",
+    aria: { label: "My cart", count: "Items in cart: {{count}}" },
+  },
+  myEvents: {
+    title: "My events",
+    lead: "Your registration history: upcoming, ongoing and past - together with payments and tickets.",
+    tabs: { upcoming: "Upcoming", past: "Past", all: "All" },
+    empty: "You have not registered for any event yet.",
+    emptyUpcoming: "You have no upcoming events.",
+    emptyPast: "You have no past events yet.",
+    loadError: "Could not load your events. Refresh the page.",
+    manageTickets: "Manage registrations",
+    openEvent: "Event page",
+    myPanel: "My event panel",
+    payNow: "Pay for ticket",
+    unpaid: "Unpaid",
+    paid: "Paid",
+    free: "Free",
+    date: "Date",
+    noDate: "Date to be confirmed",
+  },
+  eventMe: {
+    tab: "Me",
+    title: "My event panel",
+    lead: "Your profile at this event, your availability and 1-1 meetings, and the state of your registration.",
+    tabs: { profile: "My profile", networking: "Networking", registration: "My registration" },
+    profileHint:
+      "This is how other attendees see you in the event directory. The data comes from your platform profile.",
+    editProfile: "Edit profile",
+    signedOut: "Sign in to open your attendee panel.",
+    signIn: "Sign in",
+  },
+};
+
+let registered = false;
+
+/** Rejestruje słownik w chunku trasy, nie w entry aplikacji. */
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+
+ensureI18n();

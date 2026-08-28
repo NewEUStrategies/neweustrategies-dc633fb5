@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
+import { AddToCartButton } from "@/components/cart/atoms/AddToCartButton";
 import { formatMoney } from "@/lib/billing/types";
 import { rsvpEvent } from "@/lib/community/publicQueries";
 import { getMyTicketAllowance } from "@/lib/events/ticketAllowance.functions";
@@ -182,12 +183,31 @@ export function EventTicketPurchase({
         }}
       />
       <div className="flex flex-col items-start gap-1">
-        <Button onClick={() => void buy()} disabled={busy || isFull}>
-          <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
-          {isFull
-            ? t("community.events.soldOut")
-            : t("community.events.buyTicket", { price: amount })}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => void buy()} disabled={busy || isFull}>
+            <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
+            {isFull
+              ? t("community.events.soldOut")
+              : t("community.events.buyTicket", { price: amount })}
+          </Button>
+          {/* Odłożenie na później - notatka w przeglądarce, bez rezerwacji
+              miejsca i bez zamówienia (patrz `CartPanel`). */}
+          {!isFull && offer.kind !== "free" && (
+            <AddToCartButton
+              item={{
+                eventId,
+                slug,
+                titlePl: "",
+                titleEn: "",
+                ticketTypeId: null,
+                ticketNamePl: "",
+                ticketNameEn: "",
+                priceCents: offer.amountCents,
+                currency,
+              }}
+            />
+          )}
+        </div>
         {offer.kind === "discounted" && (
           <p className="text-xs text-muted-foreground">
             {t("community.events.ticketMemberDiscount", {

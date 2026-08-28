@@ -51,6 +51,7 @@ import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContributorsRouteImport } from './routes/contributors'
 import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as ClubRouteImport } from './routes/club'
+import { Route as CartRouteImport } from './routes/cart'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
@@ -88,6 +89,7 @@ import { Route as ProfileMembershipRouteImport } from './routes/profile.membersh
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileExpertRequestsRouteImport } from './routes/profile.expert-requests'
+import { Route as ProfileEventsRouteImport } from './routes/profile.events'
 import { Route as ProfileEditRouteImport } from './routes/profile.edit'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
@@ -211,6 +213,7 @@ import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.man
 import { Route as EventsSlugSpeakersRouteImport } from './routes/events.$slug.speakers'
 import { Route as EventsSlugPartnersRouteImport } from './routes/events.$slug.partners'
 import { Route as EventsSlugParticipantsRouteImport } from './routes/events.$slug.participants'
+import { Route as EventsSlugMeRouteImport } from './routes/events.$slug.me'
 import { Route as EventsSlugDiscussionsRouteImport } from './routes/events.$slug.discussions'
 import { Route as EventsSlugAgendaRouteImport } from './routes/events.$slug.agenda'
 import { Route as ClubSpecializationSlugRouteImport } from './routes/club.specialization.$slug'
@@ -581,6 +584,11 @@ const ClubRoute = ClubRouteImport.update({
   path: '/club',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CartRoute = CartRouteImport.update({
+  id: '/cart',
+  path: '/cart',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -764,6 +772,11 @@ const ProfileFollowsRoute = ProfileFollowsRouteImport.update({
 const ProfileExpertRequestsRoute = ProfileExpertRequestsRouteImport.update({
   id: '/expert-requests',
   path: '/expert-requests',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileEventsRoute = ProfileEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileEditRoute = ProfileEditRouteImport.update({
@@ -1383,6 +1396,11 @@ const EventsSlugPartnersRoute = EventsSlugPartnersRouteImport.update({
 const EventsSlugParticipantsRoute = EventsSlugParticipantsRouteImport.update({
   id: '/participants',
   path: '/participants',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugMeRoute = EventsSlugMeRouteImport.update({
+  id: '/me',
+  path: '/me',
   getParentRoute: () => EventsSlugRoute,
 } as any)
 const EventsSlugDiscussionsRoute = EventsSlugDiscussionsRouteImport.update({
@@ -2259,6 +2277,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/cart': typeof CartRoute
   '/club': typeof ClubRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
@@ -2402,6 +2421,7 @@ export interface FileRoutesByFullPath {
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
+  '/profile/events': typeof ProfileEventsRoute
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
@@ -2533,6 +2553,7 @@ export interface FileRoutesByFullPath {
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/events/$slug/agenda': typeof EventsSlugAgendaRoute
   '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
+  '/events/$slug/me': typeof EventsSlugMeRoute
   '/events/$slug/participants': typeof EventsSlugParticipantsRoute
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
@@ -2621,6 +2642,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/cart': typeof CartRoute
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
@@ -2752,6 +2774,7 @@ export interface FileRoutesByTo {
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
+  '/profile/events': typeof ProfileEventsRoute
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
@@ -2881,6 +2904,7 @@ export interface FileRoutesByTo {
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/events/$slug/agenda': typeof EventsSlugAgendaRoute
   '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
+  '/events/$slug/me': typeof EventsSlugMeRoute
   '/events/$slug/participants': typeof EventsSlugParticipantsRoute
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
@@ -2971,6 +2995,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/cart': typeof CartRoute
   '/club': typeof ClubRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
@@ -3114,6 +3139,7 @@ export interface FileRoutesById {
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
+  '/profile/events': typeof ProfileEventsRoute
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
@@ -3245,6 +3271,7 @@ export interface FileRoutesById {
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/events/$slug/agenda': typeof EventsSlugAgendaRoute
   '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
+  '/events/$slug/me': typeof EventsSlugMeRoute
   '/events/$slug/participants': typeof EventsSlugParticipantsRoute
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
@@ -3336,6 +3363,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/cart'
     | '/club'
     | '/contribute'
     | '/contributors'
@@ -3479,6 +3507,7 @@ export interface FileRouteTypes {
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/edit'
+    | '/profile/events'
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
@@ -3610,6 +3639,7 @@ export interface FileRouteTypes {
     | '/club/specialization/$slug'
     | '/events/$slug/agenda'
     | '/events/$slug/discussions'
+    | '/events/$slug/me'
     | '/events/$slug/participants'
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
@@ -3698,6 +3728,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/cart'
     | '/contribute'
     | '/contributors'
     | '/cookies'
@@ -3829,6 +3860,7 @@ export interface FileRouteTypes {
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/edit'
+    | '/profile/events'
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
@@ -3958,6 +3990,7 @@ export interface FileRouteTypes {
     | '/club/specialization/$slug'
     | '/events/$slug/agenda'
     | '/events/$slug/discussions'
+    | '/events/$slug/me'
     | '/events/$slug/participants'
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
@@ -4047,6 +4080,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/cart'
     | '/club'
     | '/contribute'
     | '/contributors'
@@ -4190,6 +4224,7 @@ export interface FileRouteTypes {
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/edit'
+    | '/profile/events'
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
@@ -4321,6 +4356,7 @@ export interface FileRouteTypes {
     | '/club/specialization/$slug'
     | '/events/$slug/agenda'
     | '/events/$slug/discussions'
+    | '/events/$slug/me'
     | '/events/$slug/participants'
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
@@ -4411,6 +4447,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
+  CartRoute: typeof CartRoute
   ClubRoute: typeof ClubRouteWithChildren
   ContributeRoute: typeof ContributeRoute
   ContributorsRoute: typeof ContributorsRoute
@@ -4818,6 +4855,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cart': {
+      id: '/cart'
+      path: '/cart'
+      fullPath: '/cart'
+      preLoaderRoute: typeof CartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
       id: '/admin'
       path: '/admin'
@@ -5075,6 +5119,13 @@ declare module '@tanstack/react-router' {
       path: '/expert-requests'
       fullPath: '/profile/expert-requests'
       preLoaderRoute: typeof ProfileExpertRequestsRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/events': {
+      id: '/profile/events'
+      path: '/events'
+      fullPath: '/profile/events'
+      preLoaderRoute: typeof ProfileEventsRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/edit': {
@@ -5936,6 +5987,13 @@ declare module '@tanstack/react-router' {
       path: '/participants'
       fullPath: '/events/$slug/participants'
       preLoaderRoute: typeof EventsSlugParticipantsRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/me': {
+      id: '/events/$slug/me'
+      path: '/me'
+      fullPath: '/events/$slug/me'
+      preLoaderRoute: typeof EventsSlugMeRouteImport
       parentRoute: typeof EventsSlugRoute
     }
     '/events/$slug/discussions': {
@@ -7665,6 +7723,7 @@ const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
 interface EventsSlugRouteChildren {
   EventsSlugAgendaRoute: typeof EventsSlugAgendaRoute
   EventsSlugDiscussionsRoute: typeof EventsSlugDiscussionsRoute
+  EventsSlugMeRoute: typeof EventsSlugMeRoute
   EventsSlugParticipantsRoute: typeof EventsSlugParticipantsRoute
   EventsSlugPartnersRoute: typeof EventsSlugPartnersRoute
   EventsSlugSpeakersRoute: typeof EventsSlugSpeakersRoute
@@ -7674,6 +7733,7 @@ interface EventsSlugRouteChildren {
 const EventsSlugRouteChildren: EventsSlugRouteChildren = {
   EventsSlugAgendaRoute: EventsSlugAgendaRoute,
   EventsSlugDiscussionsRoute: EventsSlugDiscussionsRoute,
+  EventsSlugMeRoute: EventsSlugMeRoute,
   EventsSlugParticipantsRoute: EventsSlugParticipantsRoute,
   EventsSlugPartnersRoute: EventsSlugPartnersRoute,
   EventsSlugSpeakersRoute: EventsSlugSpeakersRoute,
@@ -7720,6 +7780,7 @@ interface ProfileRouteChildren {
   ProfileBillingRoute: typeof ProfileBillingRoute
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
   ProfileEditRoute: typeof ProfileEditRoute
+  ProfileEventsRoute: typeof ProfileEventsRoute
   ProfileExpertRequestsRoute: typeof ProfileExpertRequestsRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
@@ -7744,6 +7805,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileBillingRoute: ProfileBillingRoute,
   ProfileBookmarksRoute: ProfileBookmarksRoute,
   ProfileEditRoute: ProfileEditRoute,
+  ProfileEventsRoute: ProfileEventsRoute,
   ProfileExpertRequestsRoute: ProfileExpertRequestsRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
@@ -7838,6 +7900,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
+  CartRoute: CartRoute,
   ClubRoute: ClubRouteWithChildren,
   ContributeRoute: ContributeRoute,
   ContributorsRoute: ContributorsRoute,

@@ -41,6 +41,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 
+import { useAuth } from "@/hooks/useAuth";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { eventModuleLabelKey, eventModuleOf } from "@/lib/events/eventModules";
@@ -53,13 +54,16 @@ import {
   EVENT_TAB_INACTIVE_CLASS,
 } from "@/components/events/public/molecules/EventTabsBar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import { ensureI18n as ensureEventMeI18n } from "@/lib/i18n-cart";
 import type { EventMenuItem } from "@/lib/events/publicEventApi";
 
 ensureEventFrontI18n();
+ensureEventMeI18n();
 
 export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?: boolean }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
+  const { session } = useAuth();
   const menuQuery = useEventMenu(slug, enabled);
   const items = menuQuery.data ?? [];
 
@@ -101,6 +105,23 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
           </EventPageLink>
         </li>
       ))}
+      {/* „Moje" NIE JEST podstroną organizatora, więc nie ma jej w `event_menu`
+          i nie może mieć: to prywatna płaszczyzna wołającego (profil,
+          networking, rejestracja). Gość jej nie widzi, bo nie miałby w niej
+          ani jednego wiersza danych. */}
+      {session !== null && (
+        <li>
+          <Link
+            to="/events/$slug/me"
+            params={{ slug }}
+            className={EVENT_TAB_CLASS}
+            activeProps={{ className: EVENT_TAB_ACTIVE_CLASS }}
+            inactiveProps={{ className: EVENT_TAB_INACTIVE_CLASS }}
+          >
+            {t("eventMe.tab")}
+          </Link>
+        </li>
+      )}
     </EventTabsBar>
   );
 }

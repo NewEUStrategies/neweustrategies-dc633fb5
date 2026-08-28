@@ -103,6 +103,8 @@ const pl = {
       privacy: "Prywatność i dane",
       notificationSettings: "Ustawienia powiadomień",
       expertRequests: "Zapytania do ekspertów",
+      events: "Moje wydarzenia",
+      cart: "Mój koszyk",
     },
     navGroups: {
       identity: "Tożsamość",
@@ -875,6 +877,8 @@ const en: ProfileEn = {
       privacy: "Privacy & data",
       notificationSettings: "Notification settings",
       expertRequests: "Expert requests",
+      events: "My events",
+      cart: "My cart",
     },
     navGroups: {
       identity: "Identity",

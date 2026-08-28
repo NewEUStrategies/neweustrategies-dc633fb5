@@ -192,6 +192,27 @@ export const ACCOUNT_PRESETS: Array<{
     label_en: "Payments & invoices",
     icon: "ShoppingBag",
   },
+  {
+    key: "events",
+    href: "/profile/events",
+    label_pl: "Moje wydarzenia",
+    label_en: "My events",
+    icon: "CalendarDays",
+  },
+  {
+    key: "tickets",
+    href: "/profile/tickets",
+    label_pl: "Moje zgłoszenia",
+    label_en: "My registrations",
+    icon: "Ticket",
+  },
+  {
+    key: "cart",
+    href: "/cart",
+    label_pl: "Mój koszyk",
+    label_en: "My cart",
+    icon: "ShoppingCart",
+  },
   { key: "pricing", href: "/pricing", label_pl: "Cennik", label_en: "Pricing", icon: "Tag" },
   {
     key: "admin",
