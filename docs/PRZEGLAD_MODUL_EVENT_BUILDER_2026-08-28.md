@@ -7,12 +7,14 @@ Dokumenty odniesienia: `docs/PROJEKT_MODUL_EVENT_BUILDER_2026-08-23.md` (etapy E
 
 ---
 
-## 0. Wniosek w trzech zdaniach
+## 0. Wniosek
 
 Moduł jest w dobrym stanie inżynierskim. **Wszystkie kryteria odbioru etapów E4–E7, które da się
 sprawdzić w kodzie, są spełnione po stronie serwera** — kolizja czasowa sesji odrzucana pod blokadą
 doradczą, „typ biletu nadaje grupę”, trzy ograniczenia `EXCLUDE` przeciw podwójnej rezerwacji,
-deduplikacja powtórnego skanu, izolacja leadów partnera po `sponsor_id` i zgodzie. Fundamenty są więc w porządku. Problemy leżą **na stykach i na ostatnim metrze** — i tam jest ich
+deduplikacja powtórnego skanu, izolacja leadów partnera po `sponsor_id` i zgodzie.
+
+Fundamenty są więc w porządku. Problemy leżą **na stykach i na ostatnim metrze** — i tam jest ich
 sporo. Przegląd piętnastu podsystemów, każdy z osobną adwersaryjną weryfikacją, zostawił po odsianiu
 **165 ustaleń, w tym siedem krytycznych** (pełna lista: załącznik
 `docs/PRZEGLAD_MODUL_EVENT_BUILDER_2026-08-28_USTALENIA.md`). Każde krytyczne sprawdziłem ręcznie
@@ -22,6 +24,10 @@ a **anonim może pobrać adres nagrania sesji z wydarzenia dla członków**.
 
 Wspólny mianownik większości z nich to nie zaniedbanie, tylko **tempo**: backend wyprzedził front
 o kilka dni i część łańcuchów jest kompletna po stronie bazy, a urwana na powierzchni.
+
+Przegląd otwiera pull request
+[#301](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/pull/301) — ten dokument i załącznik
+z pełną listą ustaleń są jego jedyną treścią; żadnego kodu ta gałąź nie zmienia.
 
 ---
 
