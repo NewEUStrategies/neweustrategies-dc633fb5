@@ -576,6 +576,7 @@ export const eventFrontPl = {
       nextPage: "Następne",
       pageRange: "{{from}}-{{to}} z {{total}}",
       profileLink: "Zobacz profil: {{name}}",
+      speakerSessions: "Występuje w panelach",
       signInTitle: "Lista uczestników jest dla zapisanych",
       signInBody: "Zaloguj się na konto, z którego zapisałeś się na to wydarzenie.",
       notRegisteredTitle: "Zapisz się, żeby zobaczyć, kto będzie",
