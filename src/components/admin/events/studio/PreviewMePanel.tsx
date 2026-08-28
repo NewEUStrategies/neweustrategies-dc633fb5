@@ -195,6 +195,7 @@ export function PreviewMePanel({ slug }: { slug: string }) {
         tabs={tabs.map((item) => ({ key: item.key, label: item.label }))}
         active={tab}
         onChange={(key) => setTab(key as TabKey)}
+        sticky={false}
       />
 
       <div className={CARD}>
