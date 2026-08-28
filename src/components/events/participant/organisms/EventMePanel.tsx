@@ -14,8 +14,10 @@
 // FILTR ZGŁOSZEŃ JEST PREZENTACYJNY, NIE OCHRONNY. RPC `event_my_registrations`
 // i tak oddaje wyłącznie zapisy `auth.uid()`; slug zawęża listę do TEGO
 // wydarzenia.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
+import { Eye } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -105,6 +107,9 @@ export function EventMePanel({ slug }: { slug: string }) {
   const signedIn = Boolean(session);
   const panel = useMyEventProfile(slug, signedIn);
   const agenda = useMyAgenda(slug, signedIn);
+  // „Zobacz, jak widzą Cię inni" - ten sam rekord, tylko w kształcie karty
+  // katalogowej. Stan jest lokalny, bo to sposób patrzenia, nie dane.
+  const [publicView, setPublicView] = useState(false);
 
   if (!session) {
     return (
