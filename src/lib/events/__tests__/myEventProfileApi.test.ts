@@ -35,6 +35,9 @@ describe("fetchMyEventProfile", () => {
 
     expect(state.profile?.personId).toBe("p1");
     expect(state.profile?.firstName).toBe("Ada");
+    // Milczenie w bazie = kontakt prywatny.
+    expect(state.profile?.emailVisible).toBe(false);
+    expect(state.profile?.socialLinks).toEqual({});
     // Pusty napis z bazy to brak danych, nie wartość do wyświetlenia.
     expect(state.profile?.lastName).toBeNull();
     expect(state.registration?.status).toBe("confirmed");
@@ -45,6 +48,7 @@ describe("fetchMyEventProfile", () => {
     rpc.mockResolvedValue({ data: { profile: null, registration: null }, error: null });
     await expect(fetchMyEventProfile("summit")).resolves.toEqual({
       profile: null,
+      account: null,
       registration: null,
     });
   });
@@ -56,6 +60,24 @@ describe("fetchMyEventProfile", () => {
 });
 
 describe("saveMyEventProfile", () => {
+  it("przenosi przełączniki widoczności i linki social bez zmiany kształtu", async () => {
+    rpc.mockResolvedValue({ data: { profile: null, registration: null }, error: null });
+    await saveMyEventProfile({
+      slug: "summit",
+      email_visible: true,
+      phone_visible: false,
+      social_links: { linkedin: "https://linkedin.com/in/ada" },
+    });
+    expect(rpc).toHaveBeenCalledWith("event_my_event_profile_set", {
+      p_payload: {
+        slug: "summit",
+        email_visible: true,
+        phone_visible: false,
+        social_links: { linkedin: "https://linkedin.com/in/ada" },
+      },
+    });
+  });
+
   it("wysyła płaski słownik napisów razem ze slugiem", async () => {
     rpc.mockResolvedValue({ data: { profile: null, registration: null }, error: null });
     await saveMyEventProfile({ slug: "summit", job_title: "Dyrektor", phone: "" });

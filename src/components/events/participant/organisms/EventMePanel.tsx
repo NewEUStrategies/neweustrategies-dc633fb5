@@ -161,6 +161,7 @@ export function EventMePanel({ slug }: { slug: string }) {
           <MyEventProfileForm
             slug={slug}
             profile={panel.data?.profile ?? null}
+            account={panel.data?.account ?? null}
             loading={panel.isLoading}
           />
         </TabsContent>

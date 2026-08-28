@@ -7637,16 +7637,25 @@ export type Database = {
           created_by: string | null
           email: string | null
           email_norm: string | null
+          email_visible: boolean
           first_name: string
           full_name_norm: string | null
           id: string
+          industry: string | null
           job_title: string | null
           last_name: string
           notes: string | null
+          offering_en: string | null
+          offering_pl: string | null
           phone: string | null
+          phone_visible: boolean
           photo_url: string | null
+          seeking_en: string | null
+          seeking_pl: string | null
+          social_links: Json
           social_profile_url: string | null
           source: string
+          specialization: string | null
           tenant_id: string
           updated_at: string
           user_id: string | null
@@ -7664,16 +7673,25 @@ export type Database = {
           created_by?: string | null
           email?: string | null
           email_norm?: string | null
+          email_visible?: boolean
           first_name: string
           full_name_norm?: string | null
           id?: string
+          industry?: string | null
           job_title?: string | null
           last_name: string
           notes?: string | null
+          offering_en?: string | null
+          offering_pl?: string | null
           phone?: string | null
+          phone_visible?: boolean
           photo_url?: string | null
+          seeking_en?: string | null
+          seeking_pl?: string | null
+          social_links?: Json
           social_profile_url?: string | null
           source?: string
+          specialization?: string | null
           tenant_id: string
           updated_at?: string
           user_id?: string | null
@@ -7691,16 +7709,25 @@ export type Database = {
           created_by?: string | null
           email?: string | null
           email_norm?: string | null
+          email_visible?: boolean
           first_name?: string
           full_name_norm?: string | null
           id?: string
+          industry?: string | null
           job_title?: string | null
           last_name?: string
           notes?: string | null
+          offering_en?: string | null
+          offering_pl?: string | null
           phone?: string | null
+          phone_visible?: boolean
           photo_url?: string | null
+          seeking_en?: string | null
+          seeking_pl?: string | null
+          social_links?: Json
           social_profile_url?: string | null
           source?: string
+          specialization?: string | null
           tenant_id?: string
           updated_at?: string
           user_id?: string | null
@@ -23554,6 +23581,10 @@ export type Database = {
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_set: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_event_profile_sync_account: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
