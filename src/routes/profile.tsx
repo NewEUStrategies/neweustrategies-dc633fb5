@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -97,6 +98,83 @@ function ProfileLayout() {
     null;
   const initials = initialsFrom(user?.email, displayName);
   const memberLabel = t("profile.overview.memberLabel");
+
+  // Wspólna zawartość rozwiniętego sidebara - używana przez kolumnę
+  // desktopową oraz mobilną szufladę renderowaną portalem na <body>
+  // (sticky nagłówek strony ma własny kontekst nakładania i przykrywałby
+  // szufladę osadzoną w drzewie treści niezależnie od z-index).
+  const drawerHeader = (
+    <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-0 md:bg-transparent md:p-0">
+      <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+        />
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
+          >
+            <UserCircle className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
+              {t("profile.title")}
+            </h1>
+            <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              {t("profile.subtitle")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            aria-expanded
+            aria-label={t("profile.sidebar.collapse")}
+            title={t("profile.sidebar.collapse")}
+            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const drawerUserCard = user ? (
+    <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
+          <AvatarImage
+            src={profile?.avatar_url ?? undefined}
+            alt={displayName ?? t("profile.account.unnamed")}
+            className="rounded-[6px] object-cover"
+          />
+          <AvatarFallback className="rounded-[6px] bg-foreground text-[11px] font-bold text-background">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-bold text-foreground">
+            {displayName ?? t("profile.account.unnamed")}
+          </p>
+          <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+            {memberLabel}
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const drawerCollapseButton = (
+    <button
+      type="button"
+      onClick={() => setCollapsed(true)}
+      className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
+    >
+      <PanelLeftClose className="h-4 w-4" />
+      {t("profile.sidebar.collapse")}
+    </button>
+  );
 
   return (
     <AuthGate>
