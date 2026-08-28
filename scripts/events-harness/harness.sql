@@ -269,12 +269,22 @@ $$;
 -- blad, ktorego szukamy (patrz historia A12/A16/A17 w module klubow).
 -- Wiersze zostaja w tabeli, zeby asercje mogly sprawdzic, CO modul wyemitowal.
 -- ----------------------------------------------------------------------------
+-- ATRAPA MUSI MIEC OGRANICZENIE, INACZEJ HARNESS NIE WIDZI CALEJ KLASY BLEDOW.
+-- Wczesniej ta atrapa nie miala `CHECK` na `event_type`, a atrapa emitera nie
+-- miala `EXCEPTION WHEN OTHERS`. Zlozenie tych dwoch uproszczen znaczylo, ze
+-- zdarzenie o nazwie odrzucanej NA PRODUKCJI przechodzilo tutaj bez slowa -
+-- i wlasnie dlatego harness nie zauwazyl, ze szesc zdarzen `event.registration.*`
+-- nigdy nie trafia na szyne. Ksztalt ponizej jest przepisany z
+-- `20260711200000_domain_event_bus.sql` ZNAK W ZNAK, razem z pierwotnym,
+-- DWUCZLONOWYM wzorcem: migracja `20260828205000` rozluznia go do wielu czlonow,
+-- wiec replay pokazuje realnie, ze ta naprawa cos zmienia.
 CREATE TABLE IF NOT EXISTS public.domain_events (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id      uuid,
   aggregate_type text NOT NULL,
   aggregate_id   text NOT NULL,
-  event_type     text NOT NULL,
+  event_type     text NOT NULL
+    CHECK (event_type ~ '^[a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$'),
   payload        jsonb NOT NULL DEFAULT '{}'::jsonb,
   actor_id       uuid,
   created_at     timestamptz NOT NULL DEFAULT now()
@@ -299,6 +309,15 @@ BEGIN
           CASE WHEN p_suppress_actor THEN NULL ELSE COALESCE(p_actor_id, auth.uid()) END)
   RETURNING id INTO v_id;
   RETURN v_id;
+-- TEN BLOK JEST CZESCIA ATRAPY, NIE JEJ USTERKA. Produkcyjny emiter
+-- (`20260808190000`) konczy sie dokladnie tak samo i to jest DECYZJA: zdarzenie
+-- nie moze wywrocic transakcji, ktora je wywolala. Cena tej decyzji jest taka,
+-- ze odrzucony zapis na szyne nie daje ZADNEGO sygnalu - trzeba go sprawdzac
+-- asercja „czy wiersz faktycznie powstal" (patrz `98_domain_events.sql`).
+-- Atrapa bez tego bloku klamalaby w druga strone: pokazywalaby blad tam, gdzie
+-- produkcja milczy.
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
 END $$;
 
 -- ----------------------------------------------------------------------------

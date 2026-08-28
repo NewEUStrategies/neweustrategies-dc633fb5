@@ -46,8 +46,14 @@
 --      w pozostalych przypadkach                      -> `has_tier_rank(min_tier_rank)`
 --   5. `chatham_house`                                -> `chatham_house_events`
 --   6. wlasna ranga SESJI (jak dotad)                 -> `tier_required`
---   7. nagranie dodatkowo za `has_tier_feature('recordings')` - tak samo jak
---      w `get_event_access`, gdzie `v_can_watch` stoi na tej samej fladze.
+--
+-- NAGRANIA NIE STAWIAMY ZA FLAGA `recordings`, mimo ze `get_event_access` tak
+-- robi dla nagrania WYDARZENIA. Kolumna `event_sessions.recording_url` ma
+-- wlasny, zapisany kontrakt („dostep po randze warstwy, BEZ wymogu zapisu"),
+-- a asercja `10/sesje: nagranie jest dostepne BEZ zapisu` go pilnuje. Dolozenie
+-- tam flagi bylo zawezeniem PONAD kontrakt - odbieraloby nagranie czlonkom,
+-- ktorzy maja do niego prawo. Bramka wydarzenia z punktow 1-5 wystarcza,
+-- zeby zamknac wyciek: to jej brak byl usterka, nie brak flagi.
 --
 -- DLACZEGO ANONIM NIE DOSTAJE ADRESOW, NAWET DLA WYDARZENIA OTWARTEGO.
 -- Bo tak brzmi doktryna tej platformy dla tych dwoch kolumn: `get_event_access`
@@ -154,9 +160,16 @@ BEGIN
       AND g.status = 'registered'
   );
 
-  -- Nagranie stoi na tej samej fladze co `v_can_watch` w `get_event_access`.
-  v_can_watch := v_session.recording_url IS NOT NULL
-             AND (v_staff OR public.has_tier_feature('recordings'));
+  -- NAGRANIE ZALEZY OD RANGI, NIE OD ZAPISU I NIE OD FLAGI `recordings`.
+  -- To jest doktryna zapisana przy samej kolumnie („dostep po randze warstwy,
+  -- BEZ wymogu zapisu") i pilnowana asercja `10/sesje: nagranie jest dostepne
+  -- BEZ zapisu`. Rozdzielenie zasobow jest tu celowe: zapis na sesje otwiera
+  -- TRANSMISJE (miejsce na sali), a nagranie idzie za samym prawem wstepu na
+  -- wydarzenie. Pierwsza wersja tej migracji dokladala tu jeszcze
+  -- `has_tier_feature('recordings')` przez analogie do `get_event_access` -
+  -- i bylo to zawezenie PONAD kontrakt, ktore odbieralo nagranie sesji
+  -- czlonkom majacym do niego prawo. Bramka wydarzenia powyzej wystarcza.
+  v_can_watch := v_session.recording_url IS NOT NULL;
 
   RETURN jsonb_build_object(
     'can_stream', v_signed,
