@@ -210,6 +210,7 @@ import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as EventsInviteTokenRouteImport } from './routes/events_.invite.$token'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
+import { Route as EventsSlugPackagesRouteImport } from './routes/events.$slug_.packages'
 import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.manage'
 import { Route as EventsSlugSpeakersRouteImport } from './routes/events.$slug.speakers'
 import { Route as EventsSlugPartnersRouteImport } from './routes/events.$slug.partners'
@@ -1383,6 +1384,11 @@ const EventsInviteTokenRoute = EventsInviteTokenRouteImport.update({
 const EventsSlugRegisterRoute = EventsSlugRegisterRouteImport.update({
   id: '/$slug_/register',
   path: '/$slug/register',
+  getParentRoute: () => EventsRoute,
+} as any)
+const EventsSlugPackagesRoute = EventsSlugPackagesRouteImport.update({
+  id: '/$slug_/packages',
+  path: '/$slug/packages',
   getParentRoute: () => EventsRoute,
 } as any)
 const EventsSlugManageRoute = EventsSlugManageRouteImport.update({
@@ -2571,6 +2577,7 @@ export interface FileRoutesByFullPath {
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
+  '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2924,6 +2931,7 @@ export interface FileRoutesByTo {
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
+  '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3293,6 +3301,7 @@ export interface FileRoutesById {
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug_/manage': typeof EventsSlugManageRoute
+  '/events/$slug_/packages': typeof EventsSlugPackagesRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
   '/events_/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3663,6 +3672,7 @@ export interface FileRouteTypes {
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
     | '/events/$slug/manage'
+    | '/events/$slug/packages'
     | '/events/$slug/register'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -4016,6 +4026,7 @@ export interface FileRouteTypes {
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
     | '/events/$slug/manage'
+    | '/events/$slug/packages'
     | '/events/$slug/register'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -4384,6 +4395,7 @@ export interface FileRouteTypes {
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
     | '/events/$slug_/manage'
+    | '/events/$slug_/packages'
     | '/events/$slug_/register'
     | '/events_/invite/$token'
     | '/lovable/email/suppression'
@@ -5992,6 +6004,13 @@ declare module '@tanstack/react-router' {
       path: '/$slug/register'
       fullPath: '/events/$slug/register'
       preLoaderRoute: typeof EventsSlugRegisterRouteImport
+      parentRoute: typeof EventsRoute
+    }
+    '/events/$slug_/packages': {
+      id: '/events/$slug_/packages'
+      path: '/$slug/packages'
+      fullPath: '/events/$slug/packages'
+      preLoaderRoute: typeof EventsSlugPackagesRouteImport
       parentRoute: typeof EventsRoute
     }
     '/events/$slug_/manage': {
@@ -7792,6 +7811,7 @@ interface EventsRouteChildren {
   EventsSavedRoute: typeof EventsSavedRoute
   EventsIndexRoute: typeof EventsIndexRoute
   EventsSlugManageRoute: typeof EventsSlugManageRoute
+  EventsSlugPackagesRoute: typeof EventsSlugPackagesRoute
   EventsSlugRegisterRoute: typeof EventsSlugRegisterRoute
 }
 
@@ -7800,6 +7820,7 @@ const EventsRouteChildren: EventsRouteChildren = {
   EventsSavedRoute: EventsSavedRoute,
   EventsIndexRoute: EventsIndexRoute,
   EventsSlugManageRoute: EventsSlugManageRoute,
+  EventsSlugPackagesRoute: EventsSlugPackagesRoute,
   EventsSlugRegisterRoute: EventsSlugRegisterRoute,
 }
 
