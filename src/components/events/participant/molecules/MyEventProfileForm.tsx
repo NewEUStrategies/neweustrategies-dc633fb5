@@ -333,96 +333,101 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
     );
   }
 
-  return (
-    <form onSubmit={onSubmit} className="space-y-3" aria-label={t("eventMe.profileFormAria")}>
-      <Section icon={<UserRound className="h-3.5 w-3.5" />} title={t("eventMe.sections.identity")} hint={t("eventMe.sections.identityHint")}>
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div
-            className={`relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/30 ${
-              dragOver ? "border-primary" : "border-border"
-            }`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragOver(false);
-              const file = event.dataTransfer.files[0];
-              if (file !== undefined) void handleFile(file);
-            }}
-          >
-            {form.photo_url.trim() !== "" ? (
-              <img
-                src={form.photo_url}
-                alt={t("eventMe.photo.alt")}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <ImagePlus className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-            )}
-            {uploading && (
-              <span className="absolute inset-0 grid place-items-center bg-background/70">
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-              </span>
-            )}
-          </div>
+  const heroName = [form.first_name, form.last_name].filter((part) => part.trim() !== "").join(" ");
 
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept={IMAGE_ACCEPT_ATTR}
-                className="sr-only"
-                aria-label={t("eventMe.photo.upload")}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file !== undefined) void handleFile(file);
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
+  return (
+    <form onSubmit={onSubmit} className="space-y-4" aria-label={t("eventMe.profileFormAria")}>
+      {/* HERO - ten sam układ co profil publiczny: okładka + nachodzący awatar.
+          Upuszczenie pliku na awatar podmienia zdjęcie (bez pola z adresem URL). */}
+      <div
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragOver(false);
+          const file = event.dataTransfer.files[0];
+          if (file !== undefined) void handleFile(file);
+        }}
+      >
+        <ProfileHeroFrame
+          avatarUrl={form.photo_url.trim() === "" ? null : form.photo_url}
+          fullName={heroName === "" ? t("eventMe.publicPreview.noName") : heroName}
+          emptyCoverHint={t("eventMe.photo.hint")}
+          avatarOverlay={
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              aria-label={t("eventMe.photo.upload")}
+              className={`absolute inset-0 inline-flex flex-col items-center justify-center gap-1 rounded-[7px] bg-black/55 text-white backdrop-blur-[2px] transition-opacity ${
+                uploading || dragOver ? "opacity-100" : "opacity-0 hover:opacity-100"
+              }`}
+            >
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Camera className="h-5 w-5" aria-hidden="true" />
+              )}
+              <span className="text-[10px] font-medium uppercase tracking-wide">
                 {t("eventMe.photo.upload")}
-              </Button>
-              {form.photo_url.trim() !== "" && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setForm((prev) => ({ ...prev, photo_url: "" }))}
-                >
-                  <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  {t("eventMe.photo.remove")}
-                </Button>
-              )}
-              {account !== null && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={sync.isPending}
-                  onClick={() =>
-                    sync.mutate(undefined, {
-                      onSuccess: () => toast.success(t("eventMe.syncDone")),
-                      onError: () => toast.error(t("eventMe.syncError")),
-                    })
-                  }
-                >
-                  <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  {sync.isPending ? t("eventMe.syncing") : t("eventMe.syncFromAccount")}
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">{t("eventMe.photo.hint")}</p>
-          </div>
-        </div>
+              </span>
+            </button>
+          }
+        />
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept={IMAGE_ACCEPT_ATTR}
+        className="sr-only"
+        aria-label={t("eventMe.photo.upload")}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file !== undefined) void handleFile(file);
+        }}
+      />
+
+      <div className="mt-12 flex flex-wrap items-center justify-center gap-2 sm:mt-14 sm:justify-start">
+        {form.photo_url.trim() !== "" && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setForm((prev) => ({ ...prev, photo_url: "" }))}
+          >
+            <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("eventMe.photo.remove")}
+          </Button>
+        )}
+        {account !== null && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={sync.isPending}
+            onClick={() =>
+              sync.mutate(undefined, {
+                onSuccess: () => toast.success(t("eventMe.syncDone")),
+                onError: () => toast.error(t("eventMe.syncError")),
+              })
+            }
+          >
+            <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {sync.isPending ? t("eventMe.syncing") : t("eventMe.syncFromAccount")}
+          </Button>
+        )}
+      </div>
+
+      <Section
+        icon={<UserRound className="h-3.5 w-3.5" />}
+        title={t("eventMe.sections.identity")}
+        hint={t("eventMe.sections.identityHint")}
+      >
+
 
         <div className="grid gap-3 sm:grid-cols-2">
           <FieldBox
