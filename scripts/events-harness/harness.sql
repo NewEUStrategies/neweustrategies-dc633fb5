@@ -1200,3 +1200,31 @@ BEGIN
     v_reason;
 END;
 $function$;
+
+-- ----------------------------------------------------------------------------
+-- ATRAPA: `public.audit_log` - dziennik zdarzen uprzywilejowanych.
+--
+-- PO CO. `20260828162131` (audyt nadan uprawnien do stawek ulgowych) dopisuje
+-- trigger na `event_audience_grants`, ktory pisze do `audit_log`, i zaklada na
+-- tej tabeli indeks. Tabela nalezy do RDZENIA platformy (`20260531183823`),
+-- a nie do modulu Wydarzen, wiec selektor harnessu jej migracji nie bierze -
+-- i replay przewracal sie na `relation "public.audit_log" does not exist`.
+--
+-- Ksztalt przepisany z oryginalu ZNAK W ZNAK, zeby trigger modulu wstawial
+-- do tych samych kolumn co na produkcji. Atrapa nie odtwarza polityk RLS
+-- rdzenia - harness sprawdza modul Wydarzen, a nie dziennik audytu.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.audit_log (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   uuid NOT NULL,
+  actor_id    uuid,
+  action      text NOT NULL,
+  entity_type text NOT NULL,
+  entity_id   uuid,
+  metadata    jsonb,
+  ip          inet,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_log_tenant_idx
+  ON public.audit_log (tenant_id, created_at DESC);
+GRANT SELECT, INSERT ON public.audit_log TO authenticated;

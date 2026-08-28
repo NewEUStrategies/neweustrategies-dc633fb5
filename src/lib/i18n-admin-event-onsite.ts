@@ -76,9 +76,12 @@ export const adminEventOnsitePl = {
       expired: "Wygasłe",
     },
     paperFormats: {
+      a4: "A4",
+      a5: "A5",
       a6: "A6",
       a7: "A7",
-      cr80: "CR80 (karta)",
+      badge_90x54: "Identyfikator 90 × 54 mm",
+      badge_100x150: "Identyfikator 100 × 150 mm",
       custom: "Własny rozmiar",
     },
     orientations: {
@@ -320,7 +323,8 @@ export const adminEventOnsitePl = {
       generating: "Wydaję identyfikatory…",
       reprintWarning:
         "Co najmniej jedna z wybranych osób ma już wydrukowany identyfikator. Nowy wydruk unieważni poprzedni kod QR.",
-      popupBlocked: "Przeglądarka zablokowała okno druku. Zezwól na wyskakujące okna i spróbuj ponownie.",
+      popupBlocked:
+        "Przeglądarka zablokowała okno druku. Zezwól na wyskakujące okna i spróbuj ponownie.",
       done: "Wydano identyfikatory: {{count}}.",
       noCode: "Bez kodu - wejście ręczne",
       documentTitle: "Identyfikatory",
@@ -451,9 +455,12 @@ export const adminEventOnsiteEn = {
       expired: "Expired",
     },
     paperFormats: {
+      a4: "A4",
+      a5: "A5",
       a6: "A6",
       a7: "A7",
-      cr80: "CR80 (card)",
+      badge_90x54: "Badge 90 × 54 mm",
+      badge_100x150: "Badge 100 × 150 mm",
       custom: "Custom size",
     },
     orientations: {

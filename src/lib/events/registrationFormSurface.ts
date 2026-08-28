@@ -105,7 +105,6 @@ export interface RegistrationFormTicket {
   accessCodeHint: string;
 }
 
-
 export interface RegistrationFormTerm {
   id: string;
   key: string;
@@ -140,6 +139,16 @@ export interface RegistrationForm {
   isOpen: boolean;
   closedReason: RegistrationClosedReason | null;
   fields: RegistrationFormField[];
+  /**
+   * Pola typu `consent` - OSOBNA lista, bo stoja w formularzu ponizej
+   * regulaminow, a nie posrod pytan kwalifikacyjnych.
+   *
+   * Do naprawy z tego commita RPC odsiewalo je z `fields` i nie oddawalo nigdzie
+   * indziej, a `event_register` ich WYMAGAL - wymagana zgoda zamykala zapisy na
+   * gluchy zamek. Pusta tablica przy starszym backendzie jest bezpieczna: brak
+   * zgod do pokazania, walidacja nie ma czego sprawdzac.
+   */
+  consents: RegistrationFormField[];
   tickets: RegistrationFormTicket[];
   terms: RegistrationFormTerm[];
 }
@@ -149,6 +158,7 @@ export const EMPTY_REGISTRATION_FORM: RegistrationForm = {
   isOpen: false,
   closedReason: "unknown",
   fields: [],
+  consents: [],
   tickets: [],
   terms: [],
 };
@@ -230,7 +240,6 @@ function phaseOf(value: unknown, fallbackPriceCents: number): TicketPricePhase {
   };
 }
 
-
 function optionsOf(value: unknown): RegistrationFormOption[] {
   if (!Array.isArray(value)) return [];
   const out: RegistrationFormOption[] = [];
@@ -301,6 +310,21 @@ function eventOf(value: unknown): RegistrationFormEvent | null {
   };
 }
 
+/** Jeden ksztalt pola dla obu list - `fields` i `consents` maja te sama projekcje. */
+function toFormField(row: Record<string, unknown>): RegistrationFormField {
+  return {
+    id: text(row, "id"),
+    key: text(row, "key"),
+    fieldType: fieldTypeOf(row),
+    labelPl: text(row, "label_pl"),
+    labelEn: text(row, "label_en"),
+    helpPl: text(row, "help_pl"),
+    helpEn: text(row, "help_en"),
+    isRequired: bool(row, "is_required"),
+    options: optionsOf(row.options),
+  };
+}
+
 export function parseRegistrationForm(payload: Json | null | undefined): RegistrationForm {
   const source = bag(payload);
   if (source === null) return EMPTY_REGISTRATION_FORM;
@@ -314,17 +338,8 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
     event,
     isOpen,
     closedReason: closedReasonOf(source, isOpen),
-    fields: rows(source.fields).map((row) => ({
-      id: text(row, "id"),
-      key: text(row, "key"),
-      fieldType: fieldTypeOf(row),
-      labelPl: text(row, "label_pl"),
-      labelEn: text(row, "label_en"),
-      helpPl: text(row, "help_pl"),
-      helpEn: text(row, "help_en"),
-      isRequired: bool(row, "is_required"),
-      options: optionsOf(row.options),
-    })),
+    fields: rows(source.fields).map(toFormField),
+    consents: rows(source.consents).map(toFormField),
     tickets: rows(source.tickets).map((row) => {
       const priceCents = int(row, "price_cents");
       const phase = phaseOf(row.phase, priceCents);

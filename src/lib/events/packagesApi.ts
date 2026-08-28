@@ -22,12 +22,30 @@ export type EventPackageRow = Fns["admin_event_packages_list"]["Returns"][number
 export type EventPackageOrderRow = Fns["admin_event_package_orders_list"]["Returns"][number];
 export type EventPackageSeatRow = Fns["admin_event_package_seats_list"]["Returns"][number];
 
-/** Odbiorca pakietu - odwzorowanie CHECK-a `audience` jeden do jednego. */
-export const PACKAGE_AUDIENCES = ["company", "university", "delegation", "partner"] as const;
+/**
+ * Odbiorca pakietu - odwzorowanie CHECK-a
+ * `event_ticket_packages_audience_values` JEDEN DO JEDNEGO.
+ *
+ * Do naprawy z tego commita komentarz obiecywal odwzorowanie, a lista brzmiala
+ * `["company", "university", "delegation", "partner"]` - z CHECK-iem
+ * (`'public', 'member', 'academic', 'ngo', 'company'`) pokrywala sie w JEDNEJ
+ * wartosci. Trzy z czterech opcji w dialogu konczyly sie naruszeniem
+ * ograniczenia, a przebieg szczesliwy dzialal tylko dlatego, ze `company` jest
+ * wartoscia domyslna szkicu. Zgodnosci pilnuje bramka
+ * w `__tests__/dbEnumParity.test.ts`.
+ */
+export const PACKAGE_AUDIENCES = ["public", "member", "academic", "ngo", "company"] as const;
 export type PackageAudience = (typeof PACKAGE_AUDIENCES)[number];
 
-/** Stany zamowienia pakietu - CHECK `event_package_orders_status_values`. */
-export const PACKAGE_ORDER_STATUSES = ["pending", "paid", "cancelled"] as const;
+/**
+ * Stany zamowienia pakietu - CHECK `event_package_orders_status_values`.
+ *
+ * `refunded` bylo tu brakujace, mimo ze `admin_event_package_order_set_status`
+ * je przyjmuje: zamowienia nie dalo sie oznaczyc jako zwrocone z panelu, a gdyby
+ * status nadala inna sciezka, tabela nie miala dla niego etykiety. Zgodnosci
+ * pilnuje bramka w `__tests__/dbEnumParity.test.ts`.
+ */
+export const PACKAGE_ORDER_STATUSES = ["pending", "paid", "cancelled", "refunded"] as const;
 export type PackageOrderStatus = (typeof PACKAGE_ORDER_STATUSES)[number];
 
 /** Stany miejsca w zamowieniu - wyliczane przez `admin_event_package_seats_list`. */
@@ -193,9 +211,7 @@ export interface PackageSeatInvite {
   inviteToken: string;
 }
 
-export async function invitePackageSeat(
-  input: PackageSeatInviteInput,
-): Promise<PackageSeatInvite> {
+export async function invitePackageSeat(input: PackageSeatInviteInput): Promise<PackageSeatInvite> {
   const { data, error } = await supabase.rpc("admin_event_package_seat_invite", {
     p_payload: payload({
       id: input.seatId,

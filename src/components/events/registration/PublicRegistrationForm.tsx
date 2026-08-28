@@ -351,6 +351,22 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           />
         )}
 
+        {/* ZGODY ZDEFINIOWANE PRZEZ ORGANIZATORA. Stoja tutaj, a nie posrod pytan
+            kwalifikacyjnych - zgoda to nie pytanie o dane, tylko oswiadczenie,
+            i uczestnik ma je widziec razem z regulaminami. Do naprawy z tego
+            commita ta petla w ogole nie istniala, a `event_register` zgod
+            WYMAGAL: wymagana zgoda zamykala zapisy na gluchy zamek. */}
+        {(form.consents ?? []).map((consent) => (
+          <RegistrationAnswerField
+            key={consent.id}
+            field={consent}
+            lang={lang}
+            value={current.answers[consent.key]}
+            error={errorOf.get(`answer:${consent.key}`) ?? null}
+            onChange={(value) => patch({ answers: { ...current.answers, [consent.key]: value } })}
+          />
+        ))}
+
         <label className="flex items-start gap-2 text-sm">
           <Checkbox
             checked={current.consentDataProcessing}

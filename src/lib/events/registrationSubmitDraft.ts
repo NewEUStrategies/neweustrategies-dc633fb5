@@ -119,6 +119,16 @@ export function validateRegistrationDraft(
     }
   }
 
+  // ZGODY sa osobna lista, bo stoja w innym miejscu formularza - ale wymagalnosc
+  // dziala tak samo, a serwer sprawdza JEDNO I DRUGIE. Gdyby ta petla ich nie
+  // obejmowala, uczestnik dostawalby odmowe dopiero z bazy, komunikatem
+  // `missing_required_consents`, ktory nic mu nie mowi o tym, co zaznaczyc.
+  for (const consent of form.consents ?? []) {
+    if (consent.isRequired && !isAnswered(consent, draft.answers[consent.key])) {
+      errors.push({ field: `answer:${consent.key}`, errorKey: "requiredConsent" });
+    }
+  }
+
   for (const field of form.fields) {
     if (field.isRequired && !isAnswered(field, draft.answers[field.key])) {
       errors.push({ field: `answer:${field.key}`, errorKey: "requiredField" });
@@ -149,7 +159,15 @@ export function draftAnswers(
   form: RegistrationForm,
 ): RegistrationAnswer[] {
   const out: RegistrationAnswer[] = [];
-  for (const field of form.fields) {
+  // OBIE listy, bo `answers` w bazie jest JEDNYM obiektem: `event_register`
+  // szuka w nim odpowiedzi po kluczu pola, nie zagladajac, z ktorej listy
+  // formularza pole przyszlo. Petla wylacznie po `form.fields` znaczylaby, ze
+  // zaznaczona zgoda NIE JEDZIE do bazy - i wymagana zgoda odrzucalaby zapis
+  // nawet po zaznaczeniu.
+  // `?? []` nie jest ozdoba: `RegistrationForm` sklada takze kod wywolujacy,
+  // a brak jednego klucza nie moze wywrocic NAJWAZNIEJSZEGO przebiegu
+  // publicznego. Parser zawsze ustawia te liste - to jest siatka pod nim.
+  for (const field of [...(form.consents ?? []), ...form.fields]) {
     const raw = draft.answers[field.key];
     if (raw === undefined) continue;
     if (Array.isArray(raw)) {

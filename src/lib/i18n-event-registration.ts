@@ -92,8 +92,7 @@ export const eventRegistrationPl = {
     },
     invite: {
       title: "Zaproszenie na miejsce z pakietu",
-      subtitle:
-        "Organizator opłacił dla Ciebie miejsce. Uzupełnij dane, aby potwierdzić udział.",
+      subtitle: "Organizator opłacił dla Ciebie miejsce. Uzupełnij dane, aby potwierdzić udział.",
       submit: "Potwierdzam udział",
       submitting: "Potwierdzamy...",
       badTokenTitle: "Ten odnośnik jest nieprawidłowy",
@@ -112,6 +111,8 @@ export const eventRegistrationPl = {
       socialProfile: "Adres profilu musi zaczynać się od https://.",
       ticket: "Wybierz bilet.",
       requiredField: "To pole jest obowiązkowe.",
+      requiredConsent: "Ta zgoda jest obowiązkowa.",
+      requiredConsent: "Ta zgoda jest obowiązkowa.",
       requiredTerms: "Zaznacz zgody obowiązkowe.",
       dataProcessing: "Bez zgody na przetwarzanie danych nie możemy przyjąć zapisu.",
       number: "Podaj liczbę.",
@@ -128,6 +129,8 @@ export const eventRegistrationPl = {
       payloadTooLarge: "Zgłoszenie jest zbyt duże - skróć odpowiedzi.",
       consentRequired: "Zgoda na przetwarzanie danych jest obowiązkowa.",
       missingRequiredFields: "Nie wypełniono pól obowiązkowych ({{count}}).",
+      missingRequiredConsents: "Nie zaznaczono wszystkich zgód obowiązkowych.",
+      missingRequiredConsents: "Nie zaznaczono zgód obowiązkowych.",
       termsRequired: "Nie zaznaczono zgód obowiązkowych ({{count}}).",
       rateLimited: "Zbyt wiele prób zapisu. Spróbuj za chwilę.",
       eventCancelled: "Wydarzenie zostało odwołane.",
@@ -199,7 +202,8 @@ export const eventRegistrationPl = {
     inviteDays: "Ważność zaproszenia (dni)",
     inviteAction: "Wyślij zaproszenie",
     inviteLinkTitle: "Odnośnik zaproszenia - skopiuj teraz",
-    inviteLinkHint: "Ten odnośnik pokazujemy dokładnie raz. Po zamknięciu okna nie da się go odtworzyć.",
+    inviteLinkHint:
+      "Ten odnośnik pokazujemy dokładnie raz. Po zamknięciu okna nie da się go odtworzyć.",
     copyAction: "Kopiuj odnośnik",
     orderStatus: {
       pending: "Oczekuje na płatność",
@@ -350,6 +354,8 @@ export const eventRegistrationEn = {
       socialProfile: "The profile address must start with https://.",
       ticket: "Choose a ticket.",
       requiredField: "This field is required.",
+      requiredConsent: "This consent is required.",
+      requiredConsent: "This consent is required.",
       requiredTerms: "Tick the required consents.",
       dataProcessing: "Without consent to data processing we cannot accept the registration.",
       number: "Enter a number.",
@@ -366,6 +372,8 @@ export const eventRegistrationEn = {
       payloadTooLarge: "The request is too large - shorten your answers.",
       consentRequired: "Consent to data processing is required.",
       missingRequiredFields: "Required fields are missing ({{count}}).",
+      missingRequiredConsents: "Not all required consents are ticked.",
+      missingRequiredConsents: "Required consents are not ticked.",
       termsRequired: "Required consents are not ticked ({{count}}).",
       rateLimited: "Too many registration attempts. Try again shortly.",
       eventCancelled: "The event has been cancelled.",
@@ -435,7 +443,8 @@ export const eventRegistrationEn = {
     inviteDays: "Invitation validity (days)",
     inviteAction: "Send invitation",
     inviteLinkTitle: "Invitation link - copy it now",
-    inviteLinkHint: "We show this link exactly once. It cannot be recovered after you close the dialog.",
+    inviteLinkHint:
+      "We show this link exactly once. It cannot be recovered after you close the dialog.",
     copyAction: "Copy link",
     orderStatus: {
       pending: "Awaiting payment",

@@ -30,7 +30,7 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { FormSelect } from "@/components/atoms/FormSelect";
-import { useSponsorCompanySearch } from "@/lib/events/useEventSponsors";
+import { useSponsorCompanySearch, useSponsorDetail } from "@/lib/events/useEventSponsors";
 import {
   SPONSOR_MAX_DESCRIPTION,
   SPONSOR_MAX_NAME,
@@ -82,12 +82,33 @@ export function EventSponsorDialog({
   const isNew = draft.id === null;
   const companiesQ = useSponsorCompanySearch(eventId, companyQuery, open && isNew);
 
+  // NOTATKA WEWNETRZNA NIE JEDZIE Z LISTA - i to jest decyzja bazy, nie
+  // przeoczenie: `admin_event_sponsors_list` jej nie oddaje, zeby nie wozic
+  // tresci handlowych przez ekran, ktory ich nie pokazuje. Dialog edycji jednak
+  // MA pole notatki, wiec musi ja dobrac osobno - inaczej redaktor widzi puste
+  // pole tam, gdzie notatka istnieje, i nie wie, ze pisze po czyms.
+  const detailQ = useSponsorDetail(sponsor?.id ?? "", open && sponsor !== null);
+
   useEffect(() => {
     if (!open) return;
     setDraft(sponsor === null ? emptySponsorDraft(nextSortOrder) : sponsorDraftFromRow(sponsor));
     setTouched(false);
     setCompanyQuery("");
   }, [open, sponsor, nextSortOrder]);
+
+  // Notatka dojezdza po wierszu listy, wiec wpisujemy ja OSOBNYM efektem i tylko
+  // wtedy, gdy szkic jej jeszcze nie zna. Warunek chroni to, co redaktor zdazyl
+  // wpisac, zanim zapytanie wrocilo.
+  const detailNote = detailQ.data?.internal_note ?? null;
+  const detailReady = detailQ.isSuccess;
+  useEffect(() => {
+    if (!open || !detailReady) return;
+    setDraft((previous) =>
+      previous.internalNoteKnown
+        ? previous
+        : { ...previous, internalNote: detailNote ?? "", internalNoteKnown: true },
+    );
+  }, [open, detailReady, detailNote]);
 
   const errors = validateSponsorDraft(draft);
   const errorFor = (field: keyof SponsorDraft): string | null => {
@@ -96,8 +117,15 @@ export function EventSponsorDialog({
     return found === undefined ? null : t(found.messageKey);
   };
 
+  // Wpisanie czegokolwiek w pole notatki czyni ja ZNANA: od tej chwili to, co
+  // widzi redaktor, jest tym, co ma trafic do bazy. Bez tego ochrona przed
+  // nadpisaniem zjadalaby jego wlasna zmiane.
   const set = <K extends keyof SponsorDraft>(key: K, value: SponsorDraft[K]) =>
-    setDraft((previous) => ({ ...previous, [key]: value }));
+    setDraft((previous) => ({
+      ...previous,
+      [key]: value,
+      ...(key === "internalNote" ? { internalNoteKnown: true } : null),
+    }));
 
   const submit = () => {
     setTouched(true);

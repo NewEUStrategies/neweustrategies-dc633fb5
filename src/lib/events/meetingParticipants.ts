@@ -8,6 +8,26 @@
 // albo z listy rezerwowej, ale odmowa po kliknieciu "Umow" jest gorsza niz
 // nieobecnosc na liscie - organizator nie zrozumie, dlaczego widzi kogos,
 // z kim nie da sie nic zrobic.
+//
+// DWA STATUSY, NIE JEDEN - I TO NIE JEST DROBIAZG. `admin_event_meeting_arrange`
+// dopuszcza `r.status IN ('approved', 'attended')`, a odprawa na miejscu
+// PRZESTAWIA `approved` -> `attended` (migracja `20260823180000`, jedyna sciezka
+// nadajaca ten status). Filtr na samym `approved` pokazywalby wiec pusta liste
+// dokladnie w tym momencie, w ktorym gielda spotkan jest potrzebna: w trakcie
+// wydarzenia, gdy wszyscy obecni sa juz odprawieni.
+//
+// DLACZEGO FILTR JEST PO STRONIE KLIENTA. `admin_event_registrations_list`
+// przyjmuje JEDEN status (`p_status = 'all' | <status>`), a my potrzebujemy
+// dwoch. Zamiast dwoch zapytan i sklejania stron bierzemy `all` i odsiewamy
+// u siebie, pobierajac z zapasem (`OVERFETCH`), zeby po odsianiu zostalo tyle
+// pozycji, ile dialog obiecuje pokazac.
+//
+// LISTA STATUSOW JEST ZWIAZANA Z BAZA BRAMKA, NIE KOMENTARZEM. Poprzednia wersja
+// miala tu `"confirmed"` - wartosc, ktorej CHECK na `event_registrations.status`
+// NIE ZNA, wiec wyszukiwarka nie zwracala NIGDY ani jednego wiersza, a kompilator
+// nie mial jak tego zobaczyc (kolumna jest typu `text`). Zeby ta klasa bledu nie
+// wrocila, `__tests__/meetingParticipants.test.ts` czyta migracje i porownuje
+// `ARRANGEABLE_STATUSES` z lista z `admin_event_meeting_arrange`.
 import { supabase } from "@/integrations/supabase/client";
 
 /** Wiersz listy wyboru - tylko to, co dialog naprawde pokazuje. */
@@ -22,8 +42,32 @@ export interface MeetingParticipantOption {
   label: string;
 }
 
-/** Statusy zgloszen, ktore giełda w ogóle dopuszcza do umawiania. */
-const ARRANGEABLE_STATUS = "confirmed";
+/**
+ * Statusy zgloszen, ktore gielda w ogole dopuszcza do umawiania.
+ *
+ * Odwzorowanie `r.status IN (...)` z `admin_event_meeting_arrange` jeden do
+ * jednego - pilnuje tego bramka w tescie tego modulu.
+ */
+export const ARRANGEABLE_STATUSES = ["approved", "attended"] as const;
+
+/**
+ * Ile wierszy brac z bazy na jedna pozycje, ktora dialog ma pokazac.
+ *
+ * Zapytanie idzie bez filtra statusu, wiec w odpowiedzi sa takze zgloszenia
+ * odrzucone, anulowane i z listy rezerwowej. Mnoznik jest kompromisem: przy
+ * wydarzeniu, w ktorym wiekszosc zgloszen czeka na decyzje, czterokrotny zapas
+ * wystarcza, zeby lista nie byla pusta, a przy typowym - nie sciaga sie
+ * niepotrzebnie tysiaca wierszy.
+ */
+const OVERFETCH = 4;
+
+/** Gorna granica pobrania - zeby mnoznik nie zamienil sie w skan tabeli. */
+const MAX_FETCH = 200;
+
+/** Czy zgloszenie o tym statusie da sie umowic. */
+export function isArrangeableStatus(status: unknown): boolean {
+  return typeof status === "string" && (ARRANGEABLE_STATUSES as readonly string[]).includes(status);
+}
 
 function text(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim() : "";
@@ -68,13 +112,18 @@ export async function searchMeetingParticipants(input: {
   query?: string;
   limit?: number;
 }): Promise<MeetingParticipantOption[]> {
+  const limit = input.limit ?? 20;
   const { data, error } = await supabase.rpc("admin_event_registrations_list", {
     p_event_id: input.eventId,
     p_q: input.query !== undefined && input.query.length > 0 ? input.query : undefined,
-    p_status: ARRANGEABLE_STATUS,
-    p_limit: input.limit ?? 20,
+    // Bez filtra statusu - potrzebujemy DWOCH, a RPC przyjmuje jeden.
+    p_status: undefined,
+    p_limit: Math.min(limit * OVERFETCH, MAX_FETCH),
     p_offset: 0,
   });
   if (error) throw error;
-  return (data ?? []).map(toParticipantOption);
+  return (data ?? [])
+    .filter((row) => isArrangeableStatus((row as { status?: unknown }).status))
+    .slice(0, limit)
+    .map(toParticipantOption);
 }

@@ -221,6 +221,19 @@ export interface SponsorDraft {
   snapshotDescriptionPl: string;
   snapshotDescriptionEn: string;
   internalNote: string;
+  /**
+   * Czy szkic W OGOLE ZNA notatke wewnetrzna.
+   *
+   * `admin_event_sponsors_list` CELOWO nie oddaje `internal_note` - notatka
+   * wychodzi wylacznie z `admin_event_sponsor_detail`. Dialog edycji dostaje
+   * jednak wiersz LISTY, wiec bez tego znacznika `internalNote` bylo pustym
+   * napisem „bo nie wiem", nieodroznialnym od pustego napisu „bo skasowano".
+   * Zapis wysylal wtedy `internal_note: null`, klucz byl obecny w ladunku,
+   * a SQL (`CASE WHEN p_payload ? 'internal_note' ...`) nadpisywal notatke
+   * NULL-em. Przy `false` klucz nie jedzie do bazy i galaz zachowawcza
+   * `ELSE internal_note` dziala tak, jak byla pomyslana.
+   */
+  internalNoteKnown: boolean;
 }
 
 export function emptySponsorDraft(sortOrder: number): SponsorDraft {
@@ -240,6 +253,7 @@ export function emptySponsorDraft(sortOrder: number): SponsorDraft {
     snapshotDescriptionPl: "",
     snapshotDescriptionEn: "",
     internalNote: "",
+    internalNoteKnown: true,
   };
 }
 
@@ -264,6 +278,8 @@ export function sponsorDraftFromRow(row: Record<string, unknown>): SponsorDraft 
     snapshotDescriptionPl: textOf(row.snapshot_description_pl),
     snapshotDescriptionEn: textOf(row.snapshot_description_en),
     internalNote: textOf(row.internal_note),
+    // Rozrozniamy „kolumny nie bylo w odpowiedzi" od „byla i jest pusta".
+    internalNoteKnown: "internal_note" in row,
   };
 }
 
@@ -308,7 +324,9 @@ export function sponsorDraftToInput(draft: SponsorDraft, eventId: string): Spons
     snapshotCountry: trimOrNull(draft.snapshotCountry),
     snapshotDescriptionPl: draft.snapshotDescriptionPl.trim(),
     snapshotDescriptionEn: draft.snapshotDescriptionEn.trim(),
-    internalNote: trimOrNull(draft.internalNote),
+    // `undefined` znika w `payload()` po stronie API, wiec klucz nie trafia do
+    // ladunku, a baza zostawia notatke bez zmian.
+    internalNote: draft.internalNoteKnown ? trimOrNull(draft.internalNote) : undefined,
   };
 }
 

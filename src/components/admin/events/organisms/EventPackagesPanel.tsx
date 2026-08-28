@@ -54,8 +54,13 @@ function formatPrice(cents: number, currency: string, locale: string): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
 
+// Straznik czyta LISTE stanow, a nie wylicza ich po raz drugi - recznie
+// wypisane `paid`/`cancelled` gubily `refunded`, przez co zamowienie zwrocone
+// pokazywalo sie w tabeli jako „oczekuje na platnosc".
 function orderStatus(value: string): PackageOrderStatus {
-  return value === "paid" || value === "cancelled" ? value : "pending";
+  return (PACKAGE_ORDER_STATUSES as readonly string[]).includes(value)
+    ? (value as PackageOrderStatus)
+    : "pending";
 }
 
 export function EventPackagesPanel({ eventId }: { eventId: string }) {
@@ -372,9 +377,7 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("adminEventRegistration.packages.deleteTitle")}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("adminEventRegistration.packages.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("adminEventRegistration.packages.deleteDescription")}
             </AlertDialogDescription>
