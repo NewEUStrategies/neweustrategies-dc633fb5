@@ -198,7 +198,6 @@ export function ProfileIdentityLine({
   );
 }
 
-
 export function ProfileMetaRow({ children }: { children: ReactNode }) {
   return (
     <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
@@ -220,9 +219,7 @@ export function ProfileMetaPill({
     "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
   const inner = (
     <>
-      {icon ? (
-        <span className="shrink-0 text-primary [&_svg]:h-3 [&_svg]:w-3">{icon}</span>
-      ) : null}
+      {icon ? <span className="shrink-0 text-primary [&_svg]:h-3 [&_svg]:w-3">{icon}</span> : null}
       {/* ZAWIJAMY, NIE UCINAMY: długi adres e-mail albo nazwa branży musi
           zostać czytelna także na 320px - ucięta pigułka gubi informację. */}
       <span className="min-w-0 break-words [overflow-wrap:anywhere]">{children}</span>

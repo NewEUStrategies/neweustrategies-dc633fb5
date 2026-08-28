@@ -218,11 +218,8 @@ export function EventAttendeesList({
                   <EventAttendeesGridView
                     entries={data.rows}
                     lang={lang}
-                    sessionsOf={(entry) =>
-                      speakerSessions.data?.get(entry.registrationId) ?? null
-                    }
+                    sessionsOf={(entry) => speakerSessions.data?.get(entry.registrationId) ?? null}
                   />
-
 
                   {data.totalCount > PAGE_SIZE && (
                     <div className="flex items-center justify-between gap-2">
@@ -304,7 +301,6 @@ export function EventAttendeesGridView({
     </ul>
   );
 }
-
 
 /** Karta z jednym zdaniem i następnym krokiem - trzy odmowy, jeden układ. */
 function NoticeCard({ title, body }: { title: string; body: string }) {
@@ -529,7 +525,9 @@ function AttendeeCard({
                 />
               )}
               {entry.companyWebsite === null ? (
-                <span title={entry.company} className="truncate">{entry.company}</span>
+                <span title={entry.company} className="truncate">
+                  {entry.company}
+                </span>
               ) : (
                 <a
                   href={entry.companyWebsite}
@@ -576,7 +574,10 @@ function AttendeeCard({
         </dl>
       )}
       {hasSocials && (
-        <div className="mt-3 border-t border-border/60 pt-2" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="mt-3 border-t border-border/60 pt-2"
+          onClick={(event) => event.stopPropagation()}
+        >
           <EventSocialLinks links={entry.socialLinks} />
         </div>
       )}
@@ -597,7 +598,10 @@ function AttendeeCard({
           </ul>
         </div>
       )}
-      <div className="mt-3 border-t border-border/60 pt-3" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="mt-3 border-t border-border/60 pt-3"
+        onClick={(event) => event.stopPropagation()}
+      >
         <EventPersonActions
           slug={null}
           userId={entry.userId}
