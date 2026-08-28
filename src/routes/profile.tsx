@@ -106,29 +106,19 @@ function ProfileLayout() {
             <div className="flex flex-col md:flex-row">
               {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile.
                   Domyślnie zwinięty (rail z ikonami); stan pamiętany lokalnie. */}
-              {!hideSidebar && !collapsed && (
-                // Na mobile rozwinięty sidebar jest szufladą po lewej (overlay),
-                // żeby treść profilu nie była spychana w dół.
-                <button
-                  type="button"
-                  aria-hidden
-                  tabIndex={-1}
-                  onClick={() => setCollapsed(true)}
-                  // Backdrop NAD przyklejonym nagłówkiem mobilnym (z-[9998]),
-                  // inaczej header przykrywa szufladę i blokuje kliknięcia.
-                  className="fixed inset-0 z-[9999] bg-foreground/40 md:hidden"
-                />
-              )}
+              {/* Mobile: rozwinięty sidebar renderowany jest portalem na
+                  document.body (niżej) - sticky nagłówek strony ma własny
+                  kontekst nakładania i przykrywałby szufladę osadzoną w
+                  drzewie treści niezależnie od z-index. */}
               {!hideSidebar && (
                 <aside
-                  ref={asideRef}
                   className={cn(
                     "shrink-0 border-border transition-[width] duration-200 md:border-b-0 md:border-r",
                     collapsed
                       ? "w-full border-b bg-muted/40 p-2 md:w-[68px]"
-                      // Szuflada nad sticky headerem (z-[9998]) - bez tego
-                      // nagłówek strony przykrywa kartę „Mój profil".
-                      : "fixed inset-y-0 left-0 z-[10000] w-72 max-w-[85vw] overflow-y-auto bg-background p-4 shadow-2xl ring-1 ring-border md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5 md:shadow-none md:ring-0",
+                      // Rozwinięty stan na mobile obsługuje portal - tu tylko
+                      // kolumna desktopowa.
+                      : "hidden md:block md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
                 >
