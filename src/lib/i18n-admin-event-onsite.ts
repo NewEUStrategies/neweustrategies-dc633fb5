@@ -173,6 +173,18 @@ export const adminEventOnsitePl = {
       invalidBackgroundColor: "Kolor tła musi mieć postać #rrggbb.",
       invalidBackgroundUrl: "Adres tła musi być pełny albo zaczynać się od /.",
       tooManyElements: "Szablon może mieć najwyżej 40 bloków.",
+      // ODMOWY POJEDYNCZEGO BLOKU UKŁADU (`admin_event_badge_template_save`).
+      // Bez nich osiem różnych powodów odrzucenia szablonu degradowało się do
+      // `unknown` i redaktor nie wiedział, KTÓRY blok jest zły.
+      invalidElement: "Każdy blok układu musi być obiektem.",
+      invalidElementKind:
+        "Blok może być tekstem, polem uczestnika, obrazem, kodem QR, pasem sponsorów albo odstępem.",
+      invalidElementField: "Nieznane pole uczestnika w bloku.",
+      invalidElementText: "Blok tekstowy nie może być pusty.",
+      invalidElementUrl: "Obraz w bloku wymaga pełnego adresu albo adresu zaczynającego się od /.",
+      invalidElementFontSize: "Stopień pisma musi mieścić się między 5 a 96 pt.",
+      invalidElementWidth: "Szerokość bloku musi mieścić się między 5 a 100 procent.",
+      invalidElementAlign: "Wyrównanie może być do lewej, do środka albo do prawej.",
       templateInUse: "Z tego szablonu zrobiono już {{count}} wydruków.",
       templateNotInEvent: "Ten szablon należy do innego wydarzenia.",
       templateMissing: "To wydarzenie nie ma domyślnego szablonu identyfikatora.",
@@ -552,6 +564,15 @@ export const adminEventOnsiteEn = {
       invalidBackgroundColor: "The background colour must be written as #rrggbb.",
       invalidBackgroundUrl: "The background address must be absolute or start with /.",
       tooManyElements: "A template can hold at most 40 blocks.",
+      invalidElement: "Every layout block must be an object.",
+      invalidElementKind:
+        "A block can be text, a participant field, an image, a QR code, a sponsor strip or a spacer.",
+      invalidElementField: "Unknown participant field in the block.",
+      invalidElementText: "A text block cannot be empty.",
+      invalidElementUrl: "An image block needs an absolute address or one starting with /.",
+      invalidElementFontSize: "The font size must be between 5 and 96 pt.",
+      invalidElementWidth: "The block width must be between 5 and 100 percent.",
+      invalidElementAlign: "Alignment must be left, center or right.",
       templateInUse: "{{count}} badge print(s) were made from this template.",
       templateNotInEvent: "This template belongs to another event.",
       templateMissing: "This event has no default badge template.",

@@ -356,18 +356,20 @@ describe("fakt eksperta ma JEDEN rysunek", () => {
     // ikonę (inaczej wpis jest martwy i następny autor uzna go za precedens) i
     // NIE dotyka śladu faktu eksperta - bo wtedy nie jest już „inne znaczenie
     // tej samej ikony", tylko drugi rysunek tego samego faktu.
-    const stale = Object.keys(ICON_EXCEPTIONS).sort().flatMap((file) => {
-      if (!existsSync(file)) return [`${file}: wyjątek wskazuje na nieistniejący plik`];
-      const code = codeOf(file);
-      const problems: string[] = [];
-      if (!/\bShieldCheck\b/.test(code)) {
-        problems.push(`${file}: wyjątek zbędny - plik nie rysuje już tej ikony`);
-      }
-      if (code.includes(EXPERT_FACT_KEY)) {
-        problems.push(`${file}: wyjątek nieuprawniony - plik dotyka śladu faktu eksperta`);
-      }
-      return problems;
-    });
+    const stale = Object.keys(ICON_EXCEPTIONS)
+      .sort()
+      .flatMap((file) => {
+        if (!existsSync(file)) return [`${file}: wyjątek wskazuje na nieistniejący plik`];
+        const code = codeOf(file);
+        const problems: string[] = [];
+        if (!/\bShieldCheck\b/.test(code)) {
+          problems.push(`${file}: wyjątek zbędny - plik nie rysuje już tej ikony`);
+        }
+        if (code.includes(EXPERT_FACT_KEY)) {
+          problems.push(`${file}: wyjątek nieuprawniony - plik dotyka śladu faktu eksperta`);
+        }
+        return problems;
+      });
     expect(stale).toEqual([]);
   });
 

@@ -81,9 +81,7 @@ export function EventPersonActions({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {userId !== null && (
-        <ConnectButton userId={userId} displayName={displayName} compact />
-      )}
+      {userId !== null && <ConnectButton userId={userId} displayName={displayName} compact />}
 
       {canInvite &&
         (meetingStatus === null ? (

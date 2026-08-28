@@ -539,6 +539,13 @@ export const adminEventsPl = {
           "Brakuje wskazania strony albo wydarzenia. Odśwież listę podstron i spróbuj jeszcze raz.",
         invalidGroup:
           "Jedna z zaznaczonych grup nie należy do tego wydarzenia. Odśwież ekran i zaznacz grupy jeszcze raz.",
+        // ODMOWY ODPINANIA I ZAKŁADANIA PODSTRON. Baza broni tu dwóch rzeczy,
+        // których ekran nie sprawdza: strona modułu nie znika z menu przez
+        // usunięcie, a treść buildera musi mieć znany kształt. Bez tych dwóch
+        // kluczy oba powody degradowały się do `unknown`.
+        modulePage: "Strony modułu nie da się usunąć - schowaj ją, wyłączając widoczność w menu.",
+        invalidBuilderData:
+          "Treść strony ma nieznany kształt. Odśwież ekran i załóż podstronę jeszcze raz.",
         invalidFeature:
           "Moduł może być tylko włączony albo wyłączony. Odśwież ekran i przełącz go jeszcze raz.",
         forbidden:
@@ -1595,6 +1602,9 @@ export const adminEventsEn = {
           "The page or the event is missing from the request. Refresh the subpage list and try again.",
         invalidGroup:
           "One of the ticked groups does not belong to this event. Refresh the screen and tick the groups again.",
+        modulePage: "A module page cannot be deleted - hide it by switching it off in the menu.",
+        invalidBuilderData:
+          "The page content has an unknown shape. Refresh the screen and create the subpage again.",
         invalidFeature: "A module can only be on or off. Refresh the screen and switch it again.",
         forbidden:
           "Your account is not an editor in this organisation. Ask an administrator for access.",

@@ -1062,6 +1062,14 @@ export const adminEventRegistrationPl = {
       orderCancelled: "Zamówienie stojące za tym miejscem jest anulowane.",
       invitationExpired: "Zaproszenie wygasło - wyślij je ponownie.",
       invalidToken: "Odnośnik zaproszenia jest nieprawidłowy.",
+      // ODMOWY EKRANU „STAWKI I UPRAWNIENIA" (`admin_event_audience_grant_save`).
+      // Ekran ma własne reguły w `adminEventRegistration.audienceGrants.errors`,
+      // ale mapper odmów bazy czyta TEN namespace - bez tych trzech kluczy baza
+      // ostrzejsza od formularza (zapis z innej karty, import) degradowała się
+      // do `unknown` i powód nadania znikał.
+      invalidAudience: "Grupa odbiorców to uczelnia, organizacja pozarządowa albo firma.",
+      invalidSubject: "Wskaż dokładnie jeden podmiot: konto albo osobę.",
+      invalidEvidence: "Podaj podstawę nadania stawki (co najmniej 3 znaki).",
       unknown: "Operacja się nie udała. Odśwież ekran i spróbuj ponownie.",
     },
   },
@@ -2085,6 +2093,9 @@ export const adminEventRegistrationEn = {
       orderCancelled: "The order behind this seat is cancelled.",
       invitationExpired: "The invitation has expired - send it again.",
       invalidToken: "The invitation link is invalid.",
+      invalidAudience: "The audience is academic, NGO or company.",
+      invalidSubject: "Point at exactly one subject: an account or a person.",
+      invalidEvidence: "Provide the evidence for the rate (at least 3 characters).",
       unknown: "The operation failed. Refresh the screen and try again.",
     },
   },

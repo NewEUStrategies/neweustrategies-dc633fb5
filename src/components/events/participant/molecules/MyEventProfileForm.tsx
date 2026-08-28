@@ -452,9 +452,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </div>
 
-
       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-
         {form.photo_url.trim() !== "" && (
           <Button
             type="button"
