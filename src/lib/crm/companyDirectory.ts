@@ -70,15 +70,15 @@ export async function searchCompanies(query: string, limit = 10): Promise<Compan
 export async function createCompany(input: NewCompanyInput): Promise<CompanyOption | null> {
   const { data, error } = await supabase.rpc("crm_company_create_self", {
     p_name: input.name,
-    p_logo_url: input.logo_url ?? null,
-    p_address: input.address ?? null,
-    p_city: input.city ?? null,
-    p_postal_code: input.postal_code ?? null,
-    p_country: input.country ?? null,
-    p_phone: input.phone ?? null,
-    p_email: input.email ?? null,
-    p_website: input.website ?? null,
-    p_branch: input.branch ?? null,
+    p_logo_url: input.logo_url ?? undefined,
+    p_address: input.address ?? undefined,
+    p_city: input.city ?? undefined,
+    p_postal_code: input.postal_code ?? undefined,
+    p_country: input.country ?? undefined,
+    p_phone: input.phone ?? undefined,
+    p_email: input.email ?? undefined,
+    p_website: input.website ?? undefined,
+    p_branch: input.branch ?? undefined,
   });
   if (error) throw error;
   return parseCompanyOptions(data)[0] ?? null;
