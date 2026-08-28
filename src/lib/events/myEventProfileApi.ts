@@ -214,6 +214,13 @@ export interface MyEventProfileInput {
   photo_url?: string;
   bio_pl?: string;
   bio_en?: string;
+  /**
+   * ZAPIS WSTECZ DO KONTA PLATFORMY. `true` = ten sam zapis aktualizuje wiersz
+   * `profiles` wołającego (stanowisko, organizacja, specjalizacja, „czego szukam
+   * / co oferuję", opis, telefon, zdjęcie, linki). Adres logowania zostaje
+   * nietknięty - należy do warstwy uwierzytelnienia, nie do wizytówki.
+   */
+  push_account?: boolean;
 }
 
 export async function saveMyEventProfile(input: MyEventProfileInput): Promise<MyEventPanelState> {

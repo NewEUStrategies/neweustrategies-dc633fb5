@@ -57,6 +57,12 @@ export function useSaveMyEventProfile(
       // Odpowiedź RPC to już nowy stan - wstawiamy ją do cache zamiast
       // wywoływać drugie zapytanie o to samo.
       qc.setQueryData(myEventPanelKey(slug), data);
+      // KATALOG UCZESTNIKÓW CZYTA TE SAME WIERSZE. Bez unieważnienia karta
+      // w katalogu pokazywałaby poprzednią rolę do czasu wygaśnięcia cache.
+      void qc.invalidateQueries({ queryKey: ["public-event-surface", slug] });
+      // Karta widza i powitanie siedzą na `header-profile`; po zapisie wstecz
+      // do konta nazwa/stanowisko muszą zmienić się natychmiast.
+      void qc.invalidateQueries({ queryKey: ["header-profile"] });
     },
   });
 }
@@ -70,6 +76,7 @@ export function useSyncMyEventProfileFromAccount(
     mutationFn: () => syncMyEventProfileFromAccount(slug),
     onSuccess: (data) => {
       qc.setQueryData(myEventPanelKey(slug), data);
+      void qc.invalidateQueries({ queryKey: ["public-event-surface", slug] });
     },
   });
 }
