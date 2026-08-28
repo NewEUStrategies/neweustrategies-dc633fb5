@@ -150,13 +150,46 @@ describe("toParticipantOption", () => {
 });
 
 describe("searchMeetingParticipants", () => {
-  it("NIE zawęża zapytania statusem - RPC przyjmuje jeden, a potrzebne sa dwa", async () => {
+  it("pyta baze OSOBNO o kazdy dopuszczony status, zamiast odsiewac u siebie", async () => {
     rpc.mockResolvedValue({ data: [], error: null });
     await searchMeetingParticipants({ eventId: "e-1" });
-    expect(rpc).toHaveBeenCalledWith(
-      "admin_event_registrations_list",
-      expect.objectContaining({ p_event_id: "e-1", p_status: undefined }),
-    );
+
+    expect(rpc).toHaveBeenCalledTimes(ARRANGEABLE_STATUSES.length);
+    for (const status of ARRANGEABLE_STATUSES) {
+      expect(rpc).toHaveBeenCalledWith(
+        "admin_event_registrations_list",
+        expect.objectContaining({ p_event_id: "e-1", p_status: status }),
+      );
+    }
+  });
+
+  it("DLUGA LISTA REZERWOWA nie wypycha uczestnikow z wyniku", async () => {
+    // To jest cala przyczyna rozbicia na dwa zapytania. RPC sortuje rezerwe NA
+    // POCZATEK (`ORDER BY CASE WHEN r.status = 'waitlist' THEN 0 ELSE 1 END`),
+    // wiec poprzednia wersja - jedno zapytanie BEZ filtra plus odsiew u siebie -
+    // dostawala strone zlozona z samej rezerwy i pokazywala PUSTO, choc osoby
+    // do umowienia byly dalej na liscie. Zapas nie mogl tego uratowac: przy dosc
+    // dlugiej rezerwie kazdy mnoznik jest za maly.
+    //
+    // Atrapa odwzorowuje to wprost: zapytanie BEZ filtra statusu oddaje same
+    // wiersze rezerwy, a zapytania Z filtrem - prawdziwych uczestnikow.
+    rpc.mockImplementation((_fn: string, args: { p_status?: string }) => {
+      if (args.p_status === undefined) {
+        return Promise.resolve({
+          data: Array.from({ length: 80 }, (_, i) =>
+            row({ id: `rezerwa-${i}`, status: "waitlist" }),
+          ),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: [row({ id: `ok-${args.p_status}`, status: args.p_status })],
+        error: null,
+      });
+    });
+
+    const out = await searchMeetingParticipants({ eventId: "e-1", limit: 20 });
+    expect(out.map((o) => o.registrationId).sort()).toEqual(["ok-approved", "ok-attended"]);
   });
 
   it("oddaje osobe odprawiona (`attended`) - inaczej gielda jest pusta w trakcie wydarzenia", async () => {
@@ -183,17 +216,40 @@ describe("searchMeetingParticipants", () => {
     expect(out.map((o) => o.registrationId)).toEqual(["ok", "obecny"]);
   });
 
-  it("pobiera z zapasem, ale oddaje najwyzej tyle, ile obiecuje limit", async () => {
-    rpc.mockResolvedValue({
-      data: Array.from({ length: 40 }, (_, i) => row({ id: `r-${i}` })),
-      error: null,
-    });
+  it("prosi baze o tyle, ile obiecuje pokazac - i tyle oddaje po scaleniu stron", async () => {
+    // Zapas przestal byc potrzebny: filtr dziala juz w bazie, wiec nic sie po
+    // drodze nie odsiewa. Przyciecie zostaje, bo SCALENIE dwoch stron po
+    // `limit` wierszy daje ich do dwoch razy wiecej.
+    rpc.mockImplementation((_fn: string, args: { p_status?: string }) =>
+      Promise.resolve({
+        data: Array.from({ length: 40 }, (_, i) =>
+          row({ id: `${args.p_status}-${i}`, status: args.p_status }),
+        ),
+        error: null,
+      }),
+    );
     const out = await searchMeetingParticipants({ eventId: "e-1", limit: 5 });
     expect(out).toHaveLength(5);
     expect(rpc).toHaveBeenCalledWith(
       "admin_event_registrations_list",
-      expect.objectContaining({ p_limit: 20 }),
+      expect.objectContaining({ p_limit: 5 }),
     );
+  });
+
+  it("scalone strony ida od NAJNOWSZEGO - kolejnosc nie zalezy od tego, ktora odpowiedz wrocila pierwsza", async () => {
+    // Bez jawnego porzadku wynik zalezalby od wyscigu dwoch zapytan, czyli
+    // lista miejscami zmienialaby kolejnosc bez zadnej zmiany danych.
+    rpc.mockImplementation((_fn: string, args: { p_status?: string }) =>
+      Promise.resolve({
+        data:
+          args.p_status === "approved"
+            ? [row({ id: "starszy", status: "approved", created_at: "2026-01-01T00:00:00Z" })]
+            : [row({ id: "nowszy", status: "attended", created_at: "2026-06-01T00:00:00Z" })],
+        error: null,
+      }),
+    );
+    const out = await searchMeetingParticipants({ eventId: "e-1" });
+    expect(out.map((o) => o.registrationId)).toEqual(["nowszy", "starszy"]);
   });
 
   it("nie pobiera wiecej niz gorna granica, choćby limit byl absurdalny", async () => {
