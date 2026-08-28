@@ -15,7 +15,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Copy, Loader2, ShieldCheck, Users } from "lucide-react";
+import { CheckCircle2, Copy, Loader2, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -295,7 +295,7 @@ function PackageCard({
           </Badge>
           {row.requires_verification ? (
             <Badge variant={row.qualifies ? "default" : "outline"} className="gap-1">
-              <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+              <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
               {row.qualifies ? t("eventPackages.qualified") : t("eventPackages.notQualified")}
             </Badge>
           ) : null}
