@@ -98,6 +98,7 @@ const pl = {
       subscription: "Subskrypcja",
       orders: "Zamówienia",
       payments: "Płatności i faktury",
+      tickets: "Moje zgłoszenia",
       security: "Bezpieczeństwo konta",
       privacy: "Prywatność i dane",
       notificationSettings: "Ustawienia powiadomień",
