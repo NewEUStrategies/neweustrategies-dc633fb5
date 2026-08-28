@@ -1,3 +1,6 @@
+import { describe, expect, it } from "vitest";
+
+import { parseMeetingDirectory } from "@/lib/events/meetingDirectory";
 
 describe("katalog: dane wizytówki", () => {
   it("czyta konto, zdjęcie, logo firmy i profil zawodowy", () => {
