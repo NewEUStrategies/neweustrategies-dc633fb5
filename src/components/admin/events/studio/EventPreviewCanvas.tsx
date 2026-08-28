@@ -356,7 +356,7 @@ export function EventPreviewCanvas({
       }
     >
       {showMe ? (
-        <PreviewMePanel />
+        <PreviewMePanel slug={model.slug} />
       ) : page === null ? (
         <EventOverviewLayout
           main={

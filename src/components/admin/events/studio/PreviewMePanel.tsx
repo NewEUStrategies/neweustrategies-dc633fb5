@@ -1,6 +1,13 @@
 // Podglad studia: PRYWATNA ZAKLADKA UCZESTNIKA („Moj profil").
 //
-// DLACZEGO DEMO, A NIE PRAWDZIWY `EventMePanel`. Panel uczestnika czyta
+// PIERWSZENSTWO MA WLASNA KARTOTEKA REDAKTORA. Podglad pyta `event_my_event_profile`
+// o TOZSAMOSC ZALOGOWANEGO (to jedyna tozsamosc, ktora RPC w ogole oddaje);
+// gdy redaktor ma juz kartoteke na tym wydarzeniu - widzi swoje dane, gdy nie
+// ma - jego profil platformy (`account`), a dopiero przy braku obu wchodzi
+// rysunek przykladowy. Dzieki temu superadmin edytujacy szkic widzi SIEBIE,
+// a nie „Anne Kowalska".
+//
+// DLACZEGO NIE CALY `EventMePanel`. Panel uczestnika czyta
 // tozsamosc wolajacego (`event_my_event_profile`, `event_my_agenda`,
 // zaproszenia 1-1) - w szkicu niezapisanego wydarzenia nie ma ani jednego
 // wiersza, a redaktor nie ma prawa ogladac cudzych danych. Podglad pokazuje
@@ -14,7 +21,9 @@ import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
-import type { MyEventProfile } from "@/lib/events/myEventProfileApi";
+import { useAuth } from "@/hooks/useAuth";
+import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
+import type { MyAccountSnapshot, MyEventProfile } from "@/lib/events/myEventProfileApi";
 
 const CARD = "rounded-[6px] border border-border bg-card p-4";
 
@@ -49,12 +58,51 @@ function demoProfile(en: boolean): MyEventProfile {
   };
 }
 
-export function PreviewMePanel() {
+/** Profil platformy w ksztalcie kartoteki - widok, nie zapis. */
+function profileFromAccount(account: MyAccountSnapshot): MyEventProfile {
+  return {
+    personId: "account",
+    firstName: account.firstName,
+    lastName: account.lastName,
+    email: account.email,
+    phone: account.phone,
+    // KONTAKT DOMYSLNIE PRYWATNY - zgody zyja w kartotece wydarzenia, a tej
+    // jeszcze nie ma; podglad nie moze sugerowac zgody, ktorej nikt nie wydal.
+    emailVisible: false,
+    phoneVisible: false,
+    jobTitle: account.jobTitle,
+    companyText: account.companyText,
+    industry: null,
+    specialization: account.specialization,
+    seekingPl: account.seekingPl,
+    seekingEn: account.seekingEn,
+    offeringPl: account.offeringPl,
+    offeringEn: account.offeringEn,
+    socialProfileUrl: null,
+    socialLinks: account.socialLinks,
+    photoUrl: account.photoUrl,
+    bioPl: account.bioPl,
+    bioEn: account.bioEn,
+  };
+}
+
+export function PreviewMePanel({ slug }: { slug: string }) {
   const { t, i18n } = useTranslation();
   const en = i18n.language.startsWith("en");
+  const { session } = useAuth();
   const [tab, setTab] = useState<TabKey>("profile");
   const [publicView, setPublicView] = useState(false);
-  const profile = useMemo(() => demoProfile(en), [en]);
+  // Zapytanie idzie tylko wtedy, gdy szkic ma juz adres publiczny - RPC bramkuje
+  // pusty slug wyjatkiem, a podglad nie ma prawa wywrocic sie na szkicu bez adresu.
+  const panel = useMyEventProfile(slug, Boolean(session) && slug.trim() !== "");
+  const real = panel.data?.profile ?? null;
+  const account = panel.data?.account ?? null;
+  const profile = useMemo(
+    () => real ?? (account !== null ? profileFromAccount(account) : demoProfile(en)),
+    [real, account, en],
+  );
+  const source: "person" | "account" | "demo" =
+    real !== null ? "person" : account !== null ? "account" : "demo";
 
   const tabs: { key: TabKey; label: string; hint: string }[] = [
     { key: "profile", label: t("eventMe.tabs.profile"), hint: t("eventMe.profileHint") },
@@ -124,7 +172,14 @@ export function PreviewMePanel() {
       </ul>
 
       <div className={CARD}>
-        <p className="text-sm font-semibold">{active.label}</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+          {source === "demo"
+            ? t("eventMe.previewSource.demo")
+            : source === "account"
+              ? t("eventMe.previewSource.account")
+              : t("eventMe.previewSource.person")}
+        </p>
+        <p className="mt-1 text-sm font-semibold">{active.label}</p>
         <p className="mt-1 text-sm text-muted-foreground">{active.hint}</p>
       </div>
 
