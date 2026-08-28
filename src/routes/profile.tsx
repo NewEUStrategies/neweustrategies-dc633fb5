@@ -223,44 +223,44 @@ function ProfileLayout() {
                       <ProfileNav collapsed={collapsed} />
                     </div>
 
-                    {user && !collapsed && (
-                      <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
-                            <AvatarImage
-                              src={profile?.avatar_url ?? undefined}
-                              alt={displayName ?? t("profile.account.unnamed")}
-                              className="rounded-[6px] object-cover"
-                            />
-                            <AvatarFallback className="rounded-[6px] bg-foreground text-[11px] font-bold text-background">
-                              {initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-bold text-foreground">
-                              {displayName ?? t("profile.account.unnamed")}
-                            </p>
-                            <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                              {memberLabel}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {user && !collapsed && drawerUserCard}
 
-                    {!collapsed && (
-                      <button
-                        type="button"
-                        onClick={() => setCollapsed(true)}
-                        className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
-                      >
-                        <PanelLeftClose className="h-4 w-4" />
-                        {t("profile.sidebar.collapse")}
-                      </button>
-                    )}
+                    {!collapsed && drawerCollapseButton}
                   </div>
                 </aside>
               )}
+
+              {/* Mobilna szuflada - portal na <body>, więc zawsze nad sticky
+                  nagłówkiem strony. Reset scrolla przy otwarciu przez asideRef. */}
+              {!hideSidebar &&
+                !collapsed &&
+                typeof document !== "undefined" &&
+                createPortal(
+                  <>
+                    <button
+                      type="button"
+                      aria-hidden
+                      tabIndex={-1}
+                      onClick={() => setCollapsed(true)}
+                      className="fixed inset-0 z-[9999] bg-foreground/40 md:hidden"
+                    />
+                    <aside
+                      ref={asideRef}
+                      data-collapsed="false"
+                      className="fixed inset-y-0 left-0 z-[10000] w-72 max-w-[85vw] overflow-y-auto border-border bg-background p-4 shadow-2xl ring-1 ring-border md:hidden"
+                    >
+                      <div className="flex h-full flex-col gap-6">
+                        {drawerHeader}
+                        <div>
+                          <ProfileNav collapsed={false} />
+                        </div>
+                        {drawerUserCard}
+                        {drawerCollapseButton}
+                      </div>
+                    </aside>
+                  </>,
+                  document.body,
+                )}
 
               {/* Main content */}
               <div className="min-w-0 flex-1 bg-card p-5 md:p-8">
