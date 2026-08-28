@@ -397,8 +397,9 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
       />
 
       {/* PRZELACZNIK JEZYKA TRESCI - dotyczy calego formularza (opis, czego szukam,
-          co oferuje). Nie zmienia jezyka interfejsu, tylko edytowana wersje wpisu. */}
-      <div className="mt-12 flex items-center justify-center gap-2 sm:mt-14 sm:justify-start">
+          co oferuje). Nie zmienia jezyka interfejsu, tylko edytowana wersje wpisu.
+          Sticky, zeby byl widoczny takze przy dlugim opisie. */}
+      <div className="sticky top-2 z-20 mt-12 flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background/95 px-3 py-2 backdrop-blur sm:mt-14 sm:justify-start">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {t("eventMe.contentLang.label")}
         </span>
@@ -424,6 +425,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
           ))}
         </div>
       </div>
+
 
       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
 
@@ -582,13 +584,17 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
           </label>
           <Textarea
-            rows={10}
-            className="min-h-[220px] rounded-[6px] leading-relaxed"
+            rows={12}
+            /* inline style, bo globalna reguła `:where(textarea)` z warstwy CSS
+               potrafiła nadpisać utility min-h-[...] w buildzie produkcyjnym */
+            style={{ minHeight: "300px" }}
+            className="rounded-[6px] leading-relaxed"
             value={en ? form.bio_en : form.bio_pl}
             onChange={field(en ? "bio_en" : "bio_pl")}
             placeholder={t("eventMe.fields.bioHint")}
           />
         </div>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
