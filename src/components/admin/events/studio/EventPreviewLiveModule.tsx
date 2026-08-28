@@ -20,18 +20,22 @@ import { EventAttendeesGridView } from "@/components/events/public/organisms/Eve
 import { groupAgendaByDay, type AgendaSession } from "@/lib/events/agendaSurface";
 import { formatEventDate } from "@/lib/events/timezone";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
+import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
 
 /** Fakty modulowe, ktore nakladka podgladu dociaga RPC panelu. */
 export interface EventPreviewLiveData {
   sessions: AgendaSession[];
+  /** Pasma programu - takze te ze szkicami, zeby redaktor je widzial. */
+  tracks: PreviewTrackChip[];
   speakers: PublicSpeakerRow[];
   attendees: AttendeeEntry[];
 }
 
 export const EMPTY_PREVIEW_LIVE_DATA: EventPreviewLiveData = {
   sessions: [],
+  tracks: [],
   speakers: [],
   attendees: [],
 };
@@ -41,6 +45,53 @@ function EmptyNote({ text }: { text: string }) {
     <p className="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
       {text}
     </p>
+  );
+}
+
+/** Pasek pasm nad programem - nazwa, kolor akcentu, licznik szkicow. */
+function PreviewTracks({ tracks }: { tracks: readonly PreviewTrackChip[] }) {
+  const { t, i18n } = useTranslation();
+  const en = uiLang(i18n.language) === "en";
+  if (tracks.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold text-foreground">
+        {t("adminEvents.studio.preview.tracksLabel")}
+      </h2>
+      <ul className="flex flex-wrap gap-2">
+        {tracks.map((track) => (
+          <li
+            key={track.id}
+            className="inline-flex items-center gap-2 rounded-[6px] border border-border bg-card px-3 py-1.5 text-sm"
+            style={
+              track.accentColor === null ? undefined : { borderColor: track.accentColor }
+            }
+          >
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 rounded-[2px] bg-muted-foreground"
+              style={
+                track.accentColor === null ? undefined : { backgroundColor: track.accentColor }
+              }
+            />
+            <span className="font-medium">
+              {(en ? track.nameEn : track.namePl) ?? track.namePl ?? track.nameEn ?? ""}
+            </span>
+            <span className="text-xs text-muted-foreground">{track.sessionsCount}</span>
+            {track.draftCount > 0 && (
+              <span className="rounded-[6px] border border-border px-1.5 py-0.5 text-xs text-muted-foreground">
+                {t("adminEvents.studio.preview.trackDraftBadge", { count: track.draftCount })}
+              </span>
+            )}
+            {!track.isPublic && (
+              <span className="rounded-[6px] border border-border px-1.5 py-0.5 text-xs text-muted-foreground">
+                {t("adminEvents.studio.preview.trackPrivateBadge")}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -95,7 +146,13 @@ export function EventPreviewLiveModule({
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
-  if (module === "agenda") return <PreviewAgenda sessions={data.sessions} />;
+  if (module === "agenda")
+    return (
+      <div className="space-y-6">
+        <PreviewTracks tracks={data.tracks} />
+        <PreviewAgenda sessions={data.sessions} />
+      </div>
+    );
 
   if (module === "speakers") {
     if (data.speakers.length === 0)

@@ -149,6 +149,7 @@ export function EventStudioPreview({
     enabled: liveEnabled,
     staleTime: 60_000,
   });
+  const tracksQ = useEventTracks(liveEnabled ? eventId : null);
   const registrationsQ = useRegistrationsList(
     liveEnabled
       ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "all", limit: 60, offset: 0 }
@@ -157,10 +158,11 @@ export function EventStudioPreview({
   const live: EventPreviewLiveData = useMemo(
     () => ({
       sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone),
+      tracks: trackChipsFromAdminRows(tracksQ.data),
       speakers: speakerRowsFromAdminEntries(speakersQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
     }),
-    [sessionsQ.data, speakersQ.data, registrationsQ.data, base.timezone],
+    [sessionsQ.data, tracksQ.data, speakersQ.data, registrationsQ.data, base.timezone],
   );
 
 
