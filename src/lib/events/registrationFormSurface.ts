@@ -87,7 +87,7 @@ export interface RegistrationFormTicket {
   priceCents: number;
   /** Cena obowiązująca TERAZ, po progach czasowych. */
   effectivePriceCents: number;
-  phase: TicketPricePhase;
+  phase: TicketPricePhase | null;
   benefitsPl: string[];
   benefitsEn: string[];
   currency: string;
