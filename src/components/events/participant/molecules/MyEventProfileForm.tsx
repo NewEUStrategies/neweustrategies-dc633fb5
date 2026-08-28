@@ -45,7 +45,14 @@ import {
   type SocialKey,
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
-import { ProfileHeroFrame, ProfileSectionCard } from "@/components/profile/shell/ProfileShell";
+import {
+  ProfileHeroFrame,
+  ProfileIdentityBlock,
+  ProfileIdentityLine,
+  ProfileNameRow,
+  ProfileSectionCard,
+} from "@/components/profile/shell/ProfileShell";
+import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
 import { OrganizationPicker } from "./OrganizationPicker";
 import { MAX_INTENT_BULLETS, parseIntentBullets } from "./IntentBulletList";
 import {
@@ -264,6 +271,10 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
     if (profile === null && account !== null) setPushAccount(true);
   }, [editableProfile?.personId, profile, account]);
 
+  // Linia tożsamości w trybie edycji korzysta z tego samego brandu CRM co
+  // profil publiczny - dzięki temu nagłówek wygląda identycznie w obu miejscach.
+  const brand = useCompanyBrand(form.company_text.trim() === "" ? null : form.company_text);
+
   const field = (key: keyof FormState) => (event: { target: { value: string } }) => {
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
   };
@@ -396,10 +407,22 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         }}
       />
 
+      {/* TOZSAMOSC - dokladnie ten sam uklad co na profilu publicznym:
+          imie i nazwisko + linia „organizacja • stanowisko" z logotypem. */}
+      <ProfileIdentityBlock>
+        <ProfileNameRow name={heroName === "" ? t("eventMe.publicPreview.noName") : heroName} />
+        <ProfileIdentityLine
+          companyLogoUrl={brand.data?.logoUrl ?? null}
+          companyName={form.company_text.trim() === "" ? null : form.company_text}
+          companyHref={brand.data?.website ?? null}
+          jobTitle={form.job_title.trim() === "" ? null : form.job_title}
+        />
+      </ProfileIdentityBlock>
+
       {/* PRZELACZNIK JEZYKA TRESCI - dotyczy calego formularza (opis, czego szukam,
           co oferuje). Nie zmienia jezyka interfejsu, tylko edytowana wersje wpisu.
           Sticky, zeby byl widoczny takze przy dlugim opisie. */}
-      <div className="sticky top-2 z-20 mt-12 flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background/95 px-3 py-2 backdrop-blur sm:mt-14 sm:justify-start">
+      <div className="sticky top-2 z-10 mt-3 flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background/95 px-3 py-2 backdrop-blur sm:justify-start">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {t("eventMe.contentLang.label")}
         </span>

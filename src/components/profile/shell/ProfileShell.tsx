@@ -9,8 +9,45 @@
 // Komponenty są czysto prezentacyjne (bez pobierania danych), dzięki czemu
 // nadają się zarówno do trybu edycji, jak i podglądu.
 import { type ReactNode } from "react";
+import { Briefcase } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useTheme } from "@/components/ThemeProvider";
+
+/**
+ * Logotyp organizacji przy linii tożsamości. Priorytet: logo z kartoteki CRM,
+ * potem logo serwisu z Theme Options (wariant zgodny z motywem), na końcu ikona.
+ * Ten sam atom obsługuje profil publiczny i profil uczestnika wydarzenia,
+ * dzięki czemu wiersz „organizacja • stanowisko" wygląda wszędzie identycznie.
+ */
+export function ProfileCompanyLogo({
+  src,
+  className = "h-11 w-20 shrink-0 self-center object-contain",
+}: {
+  src?: string | null;
+  className?: string;
+}) {
+  const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", {
+    logo: {},
+  });
+  const { theme } = useTheme();
+  const l = cfg.logo ?? {};
+  const fallback = theme === "dark" ? l.main_dark || l.main : l.main || l.main_dark;
+  const url = (src ?? "").trim() !== "" ? (src as string) : fallback;
+  if (!url) return <Briefcase className={cn("object-contain", className)} aria-hidden="true" />;
+  return (
+    <img
+      src={url}
+      alt=""
+      aria-hidden="true"
+      className={cn("object-contain", className)}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+    />
+  );
+}
 
 /** Okładka + nachodzący awatar (kwadrat 6px) + mini-ikony social. */
 export function ProfileHeroFrame({
@@ -56,7 +93,7 @@ export function ProfileHeroFrame({
         ) : null}
       </div>
 
-      <div className="absolute -bottom-10 left-1/2 z-20 -translate-x-1/2 sm:-bottom-12">
+      <div className="absolute -bottom-10 left-1/2 z-30 -translate-x-1/2 sm:-bottom-12">
         <div className="relative h-28 w-28 rounded-[10px] bg-gradient-to-br from-primary/60 via-primary/20 to-transparent p-[3px] shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--primary)_45%,transparent)] sm:h-32 sm:w-32">
           <div className="relative h-full w-full overflow-hidden rounded-[7px] bg-background ring-[3px] ring-background">
             {avatarUrl ? (
@@ -116,16 +153,7 @@ export function ProfileIdentityLine({
   if (!companyName && !jobTitle) return null;
   const company = companyName ? (
     <span className="inline-flex max-w-full items-center gap-1.5 align-middle text-[13px] font-medium leading-[1.2] text-foreground">
-      {companyLogoUrl ? (
-        <img
-          src={companyLogoUrl}
-          alt=""
-          aria-hidden="true"
-          className="h-11 w-20 shrink-0 self-center object-contain"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : null}
+      <ProfileCompanyLogo src={companyLogoUrl} />
       {companyHref ? (
         <a
           href={companyHref}
@@ -204,16 +232,20 @@ export function ProfileTabsNav({
   active,
   onChange,
   className,
+  sticky = true,
 }: {
   tabs: readonly ProfileTabItem[];
   active: string;
   onChange: (key: string) => void;
   className?: string;
+  /** W wąskich panelach (studio/podgląd) przyklejony pasek przycinał nagłówek. */
+  sticky?: boolean;
 }) {
   return (
     <nav
       className={cn(
-        "sticky top-0 z-10 rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+        "rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+        sticky ? "sticky top-0 z-10" : "relative z-0",
         className,
       )}
     >
