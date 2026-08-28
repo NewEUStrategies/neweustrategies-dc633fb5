@@ -124,6 +124,11 @@ import { EventPageSections } from "@/components/events/public/organisms/EventPag
 import { EventPortalShell } from "@/components/events/public/organisms/EventPortalShell";
 import { EventSponsorTiersView } from "@/components/events/public/organisms/EventSponsorTiers";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
+import {
+  EventPreviewLiveModule,
+  EMPTY_PREVIEW_LIVE_DATA,
+  type EventPreviewLiveData,
+} from "@/components/admin/events/studio/EventPreviewLiveModule";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -175,6 +180,7 @@ export function EventPreviewCanvas({
   viewer = null,
   sponsorTiers = [],
   onNavigate,
+  live = EMPTY_PREVIEW_LIVE_DATA,
 }: {
   model: EventPreviewModel;
   device: PreviewDevice;
@@ -212,6 +218,15 @@ export function EventPreviewCanvas({
    * zostawia rysunek statyczny (bramka parytetu renderuje kanwe bez sesji).
    */
   onNavigate?: (target: { key: string; pageId: string } | null) => void;
+  /**
+   * PRAWDZIWE DANE PODSTRON MODULOWYCH - program, prelegenci, uczestnicy.
+   *
+   * OSOBNY PROP, JAK `sponsorTiers`: to nie jest szkic formularza, tylko stan
+   * bazy, ktorego publiczne projekcje odmawiaja szkicowi (`AND e.status =
+   * 'published'`). Wnosi je nakladka RPC panelu, a rysuje `EventPreviewLiveModule`
+   * TYMI SAMYMI kartami, co strona publiczna.
+   */
+  live?: EventPreviewLiveData;
 }) {
   ensureAdminEventsI18n();
   ensureCommunityI18n();
@@ -515,6 +530,15 @@ export function EventPreviewCanvas({
                 <BuilderRenderer doc={page.document} lang={lang} device={device} editorPreview />
               )}
             </div>
+            {/* PODSTRONA MODULOWA MA TRESC POZA DOKUMENTEM: program, prelegentow
+                i uczestnikow sklada baza, a dokument CMS niesie tylko naglowek
+                i zdanie wstepu. Bez tego bloku redaktor widzial w podgladzie sam
+                naglowek zakladki „Program" mimo wpisanych sesji. */}
+            {page.module !== null && (
+              <div className="mt-8">
+                <EventPreviewLiveModule module={page.module} data={live} />
+              </div>
+            )}
           </div>
         </EventPortalContent>
       )}

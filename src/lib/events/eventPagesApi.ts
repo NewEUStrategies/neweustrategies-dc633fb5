@@ -460,7 +460,17 @@ export interface EventMenuDraftItem {
   icon: string;
   /** `#RRGGBB` albo pusty napis = krazek z motywu. */
   color: string;
+  /**
+   * Znacznik pozycji modulowej (`event_pages.module`); `null` = zwykla strona.
+   *
+   * PO CO W PODGLADZIE: podstrona modulowa niesie tresc, ktorej NIE MA
+   * w dokumencie CMS - program, prelegentow i uczestnikow sklada baza. Bez tego
+   * pola podglad musialby zgadywac po sciezce (`/agenda`), czyli po napisie,
+   * ktory organizator moze zmienic.
+   */
+  module: EventPageModule | null;
 }
+
 
 
 /**
@@ -486,7 +496,9 @@ export function eventPreviewMenu(
     label: eventPageLabel(entry, lang),
     icon: entry.icon ?? EVENT_PAGE_DEFAULT_ICON,
     color: entry.color ?? "",
+    module: entry.module,
   }));
+
 }
 
 /** Kolejnosc dla pozycji dokladanej na koniec menu. */

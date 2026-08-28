@@ -123,6 +123,25 @@ export function EventSpeakersGrid({
   const speakers = speakersQuery.data ?? [];
   if (speakers.length === 0) return null;
 
+  return <EventSpeakersGridView speakers={speakers} lang={lang} onSelect={onSelect} />;
+}
+
+/**
+ * SAM RYSUNEK siatki - bez zapytania.
+ *
+ * PO CO OSOBNO: podglad studia ma wiersze prelegentow z RPC panelu (publiczna
+ * projekcja odmawia szkicowi), a mimo to musi rysowac TE SAME karty, co strona.
+ * Bez tego eksportu w repozytorium stanelaby druga siatka prelegentow.
+ */
+export function EventSpeakersGridView({
+  speakers,
+  lang,
+  onSelect,
+}: {
+  speakers: readonly PublicSpeakerRow[];
+  lang: "pl" | "en";
+  onSelect?: (speaker: PublicSpeakerRow) => void;
+}) {
   return (
     <ul className={GRID_CLASS}>
       {speakers.map((speaker) => (
@@ -133,6 +152,7 @@ export function EventSpeakersGrid({
     </ul>
   );
 }
+
 
 function SpeakerCard({
   speaker,

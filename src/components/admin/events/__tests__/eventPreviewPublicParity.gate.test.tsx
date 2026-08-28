@@ -349,7 +349,16 @@ function filledModel(): EventPreviewModel {
     },
     pagesDisplayMode: "grid",
     menu: [
-      { key: "m1", pageId: "p1", path: "kongres/prelegenci", label: "Prelegenci", icon: "users", color: "" },
+      {
+        key: "m1",
+        pageId: "p1",
+        path: "kongres/prelegenci",
+        label: "Prelegenci",
+        icon: "users",
+        color: "",
+        module: "speakers",
+      },
+
     ],
   };
 }
@@ -417,7 +426,7 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
       <EventPreviewCanvas
         model={{
           ...filledModel(),
-          selectedPage: { key: null, label: "Program", path: "kongres/program", document: null },
+          selectedPage: { key: null, module: null, label: "Program", path: "kongres/program", document: null },
         }}
         device="desktop"
       />,

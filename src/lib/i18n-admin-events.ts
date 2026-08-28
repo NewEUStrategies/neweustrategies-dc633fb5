@@ -987,6 +987,11 @@ export const adminEventsPl = {
         // nie widzi przed publikacją.
         endsLabel: "Koniec",
         formatLabel: "Format",
+        // Podstrony modulowe czytaja PRAWDZIWE dane wydarzenia przez RPC panelu
+        // - pustka znaczy tu "nic nie wpisano", a nie "podglad nie umie".
+        moduleEmptyAgenda: "Program jest jeszcze pusty - dodaj sesje w zakładce Ścieżki.",
+        moduleEmptySpeakers: "Nie ma jeszcze prelegentów - dodaj ich w Treści wydarzenia.",
+        moduleEmptyAttendees: "Brak potwierdzonych zgłoszeń - lista wypełni się po rejestracjach.",
       },
 
       // EKRAN „FUNKCJE DODATKOWE" - siedem przełączników modułów wydarzenia.
@@ -1979,6 +1984,9 @@ export const adminEventsEn = {
         noDate: "Date to be confirmed",
         endsLabel: "Ends",
         formatLabel: "Format",
+        moduleEmptyAgenda: "The programme is still empty - add sessions in the Tracks tab.",
+        moduleEmptySpeakers: "No speakers yet - add them in the event content screen.",
+        moduleEmptyAttendees: "No confirmed registrations yet - the list fills up as people register.",
       },
 
       features: {

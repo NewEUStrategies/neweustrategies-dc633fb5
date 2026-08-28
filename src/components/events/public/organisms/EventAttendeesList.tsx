@@ -210,20 +210,14 @@ export function EventAttendeesList({
                   <p className="text-xs text-muted-foreground">
                     {t("eventFront.attendees.count", { count: data.totalCount })}
                   </p>
-                  <ul
-                    className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                    aria-label={t("eventFront.attendees.listLabel")}
-                  >
-                    {data.rows.map((entry) => (
-                      <li key={entry.registrationId} className="flex">
-                        <AttendeeCard
-                          entry={entry}
-                          lang={lang}
-                          sessions={speakerSessions.data?.get(entry.registrationId) ?? null}
-                        />
-                      </li>
-                    ))}
-                  </ul>
+                  <EventAttendeesGridView
+                    entries={data.rows}
+                    lang={lang}
+                    sessionsOf={(entry) =>
+                      speakerSessions.data?.get(entry.registrationId) ?? null
+                    }
+                  />
+
 
                   {data.totalCount > PAGE_SIZE && (
                     <div className="flex items-center justify-between gap-2">
@@ -270,6 +264,42 @@ export function EventAttendeesList({
     </section>
   );
 }
+
+/**
+ * SAM RYSUNEK katalogu - bez zapytania, filtrow i stronicowania.
+ *
+ * PO CO OSOBNO: podglad studia sklada liste z RPC panelu (`event_attendees`
+ * wymaga, zeby WOLAJACY byl zapisany), a mimo to ma rysowac TE SAME karty, co
+ * strona - inaczej w repozytorium stoi druga siatka uczestnikow.
+ */
+export function EventAttendeesGridView({
+  entries,
+  lang,
+  sessionsOf,
+}: {
+  entries: readonly AttendeeEntry[];
+  lang: "pl" | "en";
+  sessionsOf?: (entry: AttendeeEntry) => SpeakerSessionEntry[] | null;
+}) {
+  const { t } = useTranslation();
+  return (
+    <ul
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      aria-label={t("eventFront.attendees.listLabel")}
+    >
+      {entries.map((entry) => (
+        <li key={entry.registrationId} className="flex">
+          <AttendeeCard
+            entry={entry}
+            lang={lang}
+            sessions={sessionsOf === undefined ? null : sessionsOf(entry)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 
 /** Karta z jednym zdaniem i następnym krokiem - trzy odmowy, jeden układ. */
 function NoticeCard({ title, body }: { title: string; body: string }) {
