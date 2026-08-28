@@ -130,6 +130,11 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
 
   const nowIso = new Date().toISOString();
 
+  // Identyfikator wchodzi do filtra `or(...)` jako tekst - dopuszczamy wyłącznie
+  // kształt identyfikatora operatora, żeby przecinek czy nawias nie mogły
+  // rozszerzyć zapytania.
+  if (!/^[A-Za-z0-9_-]{1,255}$/.test(txnId)) return "skipped";
+
   // Zwrot przychodzi z identyfikatorem intencji płatności, a zamówienie mogło
   // zapisać sesję checkout albo (historycznie) sesję w polu intencji. Szukamy
   // po wszystkich trzech, inaczej zwrot cicho nie odbierałby dostępu.
