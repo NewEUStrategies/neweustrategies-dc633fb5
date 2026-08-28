@@ -43,13 +43,11 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import {
   EMPTY_ATTENDEE_DIRECTORY,
   type AttendeeEntry,
   type AttendeeGroupCount,
-  type AttendeeGroupTag,
 } from "@/lib/events/publicEventApi";
 import { useEventAttendees, useEventAttendeeVisibility } from "@/lib/events/usePublicEvent";
 import {
