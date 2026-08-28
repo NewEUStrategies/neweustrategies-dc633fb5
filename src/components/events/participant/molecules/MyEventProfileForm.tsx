@@ -168,6 +168,11 @@ function BulletListInput({
 }) {
   const items = parseBullets(value);
   const commit = (next: string[]) => onChange(next.join("\n"));
+  // DRAFT NOWEGO PUNKTU: parseBullets odfiltrowuje puste linie, więc dopisanie
+  // "" do wartości ginęło przy re-renderze i „Dodaj punkt" wyglądał na martwy.
+  // Nowy punkt żyje w lokalnym drafcie, a trafia do wartości dopiero po
+  // wpisaniu pierwszego znaku.
+  const [draft, setDraft] = useState<string | null>(null);
 
   return (
     <div className="space-y-1.5" aria-label={ariaLabel}>
