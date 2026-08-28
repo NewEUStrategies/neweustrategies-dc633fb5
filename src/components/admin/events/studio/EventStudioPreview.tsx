@@ -45,7 +45,7 @@ import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { useEventSessions } from "@/lib/events/useEventSessions";
+import { useEventSessions, useEventTracks } from "@/lib/events/useEventSessions";
 import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { DEFAULT_REGISTRATIONS_QUERY } from "@/lib/events/registrationsApi";
 import { useRegistrationsList } from "@/lib/events/useEventRegistrations";
