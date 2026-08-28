@@ -52,6 +52,10 @@ import {
   type AttendeeGroupTag,
 } from "@/lib/events/publicEventApi";
 import { useEventAttendees, useEventAttendeeVisibility } from "@/lib/events/usePublicEvent";
+import {
+  fetchEventSpeakerSessions,
+  type SpeakerSessionEntry,
+} from "@/lib/events/participantTicketsApi";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
