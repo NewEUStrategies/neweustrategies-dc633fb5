@@ -27,6 +27,7 @@
 // wydarzenia (nadpisywalne brandingiem).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "@tanstack/react-router";
 import { ExternalLink, Monitor, Smartphone, XCircle } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
