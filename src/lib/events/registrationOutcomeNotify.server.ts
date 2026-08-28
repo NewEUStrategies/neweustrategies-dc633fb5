@@ -301,7 +301,7 @@ export async function notifyTicketOutcome(
         tenantId: payload.tenant_id ?? null,
         // Kwota zwrotu wchodzi do klucza: korekta o kolejne 50 zł to NOWA
         // informacja, a ten sam webhook dostarczony dwa razy - nie.
-        idempotencyKey: `event-ticket:${registrationId}:${outcome}:${payload.refunded_cents ?? 0}`,
+        idempotencyKey: `event-ticket:${registrationId}:${outcome}:${payload.refunded_cents ?? 0}${suffix}`,
       });
       result.emailed = sendResult.ok && !sendResult.skipped;
     } catch (err) {
