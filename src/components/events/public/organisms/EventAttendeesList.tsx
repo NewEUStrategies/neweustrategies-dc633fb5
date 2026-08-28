@@ -439,7 +439,16 @@ function GroupCounts({
   );
 }
 
-function AttendeeCard({ entry, lang }: { entry: AttendeeEntry; lang: "pl" | "en" }) {
+function AttendeeCard({
+  entry,
+  lang,
+  sessions,
+}: {
+  entry: AttendeeEntry;
+  lang: "pl" | "en";
+  /** Panele, w których ta osoba występuje - `null`, gdy nie jest prelegentem. */
+  sessions: SpeakerSessionEntry[] | null;
+}) {
   const { t } = useTranslation();
 
   const body = (
