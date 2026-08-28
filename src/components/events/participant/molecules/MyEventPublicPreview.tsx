@@ -6,14 +6,17 @@
 // pokazujemy WYŁĄCZNIE, gdy właściciel je włączył. Dzięki temu podgląd jest
 // weryfikacją zgody, a nie ozdobnikiem.
 import { useTranslation } from "react-i18next";
-import { Globe, Mail, Phone } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
+import { Mail, Phone } from "lucide-react";
 
-import { Facebook, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
+import { Facebook, Globe, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
 import { XIcon } from "@/components/atoms/XIcon";
 import { uiLang } from "@/lib/i18n/format";
 import { SOCIAL_KEYS, type MyEventProfile, type SocialKey } from "@/lib/events/myEventProfileApi";
 
-const SOCIAL_ICON: Record<SocialKey, typeof Globe> = {
+type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: string | number }>;
+
+const SOCIAL_ICON: Record<SocialKey, IconComponent> = {
   linkedin: Linkedin,
   x: XIcon,
   facebook: Facebook,
