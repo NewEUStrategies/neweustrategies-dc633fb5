@@ -27,6 +27,7 @@ import { EventViewerCard } from "@/components/events/public/molecules/EventViewe
 import { MeetingExchangeBoard } from "@/components/events/meetings/MeetingExchangeBoard";
 import { ParticipantTicketsPanel } from "@/components/profile/ParticipantTicketsPanel";
 import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
+import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { MyAgendaList } from "@/components/events/participant/molecules/MyAgendaList";
 import { useMyAgenda, useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import { useMyConnections } from "@/lib/network/useConnections";
@@ -157,13 +158,39 @@ export function EventMePanel({ slug }: { slug: string }) {
               />
             </div>
           )}
-          <p className="text-sm text-muted-foreground">{t("eventMe.profileHint")}</p>
-          <MyEventProfileForm
-            slug={slug}
-            profile={panel.data?.profile ?? null}
-            account={panel.data?.account ?? null}
-            loading={panel.isLoading}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">{t("eventMe.profileHint")}</p>
+            {panel.data?.profile != null && (
+              <Button
+                type="button"
+                size="sm"
+                variant={publicView ? "default" : "outline"}
+                onClick={() => setPublicView((prev) => !prev)}
+              >
+                <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {publicView
+                  ? t("eventMe.publicPreview.close")
+                  : t("eventMe.publicPreview.open")}
+              </Button>
+            )}
+          </div>
+          {publicView && panel.data?.profile != null ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {t("eventMe.publicPreview.hint")}
+              </p>
+              <div className="max-w-xl">
+                <MyEventPublicPreview profile={panel.data.profile} />
+              </div>
+            </div>
+          ) : (
+            <MyEventProfileForm
+              slug={slug}
+              profile={panel.data?.profile ?? null}
+              account={panel.data?.account ?? null}
+              loading={panel.isLoading}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="schedule">
