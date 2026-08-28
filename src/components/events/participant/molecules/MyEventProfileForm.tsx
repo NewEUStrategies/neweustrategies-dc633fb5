@@ -528,29 +528,41 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
           />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("eventMe.fields.seeking")}
             </label>
-            <Textarea
-              rows={3}
-              className="rounded-[6px]"
+            <BulletListInput
               value={en ? form.seeking_en : form.seeking_pl}
-              onChange={field(en ? "seeking_en" : "seeking_pl")}
-              placeholder={t("eventMe.fields.seekingHint")}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, [en ? "seeking_en" : "seeking_pl"]: next }))
+              }
+              placeholder={t("eventMe.fields.bulletPlaceholder")}
+              addLabel={t("eventMe.fields.addBullet")}
+              limitLabel={t("eventMe.fields.bulletLimit")}
+              ariaLabel={t("eventMe.fields.seeking")}
             />
+            <p className="text-[11px] text-muted-foreground">
+              {t("eventMe.fields.seekingHint")}
+            </p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("eventMe.fields.offering")}
             </label>
-            <Textarea
-              rows={3}
-              className="rounded-[6px]"
+            <BulletListInput
               value={en ? form.offering_en : form.offering_pl}
-              onChange={field(en ? "offering_en" : "offering_pl")}
-              placeholder={t("eventMe.fields.offeringHint")}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, [en ? "offering_en" : "offering_pl"]: next }))
+              }
+              placeholder={t("eventMe.fields.bulletPlaceholder")}
+              addLabel={t("eventMe.fields.addBullet")}
+              limitLabel={t("eventMe.fields.bulletLimit")}
+              ariaLabel={t("eventMe.fields.offering")}
             />
+            <p className="text-[11px] text-muted-foreground">
+              {t("eventMe.fields.offeringHint")}
+            </p>
           </div>
         </div>
       </Section>
