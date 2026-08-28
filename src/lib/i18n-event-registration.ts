@@ -90,6 +90,21 @@ export const eventRegistrationPl = {
       cancelled: "Rezygnacja przyjęta.",
       promoted: "Z listy oczekujących weszła kolejna osoba ({{count}}).",
     },
+    invite: {
+      title: "Zaproszenie na miejsce z pakietu",
+      subtitle:
+        "Organizator opłacił dla Ciebie miejsce. Uzupełnij dane, aby potwierdzić udział.",
+      submit: "Potwierdzam udział",
+      submitting: "Potwierdzamy...",
+      badTokenTitle: "Ten odnośnik jest nieprawidłowy",
+      badTokenBody:
+        "Odnośnik z zaproszenia jest niepełny albo został skopiowany z błędem. Poproś organizatora o nowy.",
+      successTitle: "Miejsce jest Twoje",
+      successBody: "Zgłoszenie zostało zatwierdzone - potwierdzenie wysyłamy e-mailem.",
+      qrTitle: "Kod wejścia",
+      qrHint: "Zapisz go teraz - pokazujemy go tylko raz.",
+      backToEvents: "Przejdź do listy wydarzeń",
+    },
     validation: {
       firstName: "Podaj imię.",
       lastName: "Podaj nazwisko.",
@@ -128,6 +143,10 @@ export const eventRegistrationPl = {
       alreadyClosed: "Ten zapis jest już zamknięty.",
       eventFinished: "Wydarzenie się zakończyło - obecność jest już zapisana.",
       forbidden: "Ten zapis należy do innej osoby.",
+      invalidToken: "Zaproszenie jest nieważne lub zostało cofnięte.",
+      seatTaken: "To zaproszenie zostało już wykorzystane.",
+      invitationExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
+      orderCancelled: "Zamówienie pakietu zostało anulowane.",
     },
   },
 } as const;
@@ -211,6 +230,20 @@ export const eventRegistrationEn = {
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
     },
+    invite: {
+      title: "Invitation to a package seat",
+      subtitle: "The organiser paid for your seat. Fill in your details to confirm attendance.",
+      submit: "Confirm attendance",
+      submitting: "Confirming...",
+      badTokenTitle: "This link is not valid",
+      badTokenBody:
+        "The invitation link is incomplete or was copied with an error. Ask the organiser for a new one.",
+      successTitle: "The seat is yours",
+      successBody: "Your registration is approved - we send the confirmation by e-mail.",
+      qrTitle: "Entry code",
+      qrHint: "Save it now - we show it only once.",
+      backToEvents: "Go to the event list",
+    },
     validation: {
       firstName: "Enter your first name.",
       lastName: "Enter your last name.",
@@ -249,6 +282,10 @@ export const eventRegistrationEn = {
       alreadyClosed: "This registration is already closed.",
       eventFinished: "The event has ended - attendance is already recorded.",
       forbidden: "This registration belongs to somebody else.",
+      invalidToken: "The invitation is invalid or has been revoked.",
+      seatTaken: "This invitation has already been used.",
+      invitationExpired: "The invitation has expired - ask the organiser for a new one.",
+      orderCancelled: "The order behind this seat has been cancelled.",
     },
   },
 } as const;
