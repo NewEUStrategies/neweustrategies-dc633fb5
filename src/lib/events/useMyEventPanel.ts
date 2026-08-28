@@ -11,6 +11,7 @@ import {
   fetchMyAgenda,
   fetchMyEventProfile,
   saveMyEventProfile,
+  syncMyEventProfileFromAccount,
   type MyAgendaSession,
   type MyEventPanelState,
   type MyEventProfileInput,
@@ -55,6 +56,19 @@ export function useSaveMyEventProfile(
     onSuccess: (data) => {
       // Odpowiedź RPC to już nowy stan - wstawiamy ją do cache zamiast
       // wywoływać drugie zapytanie o to samo.
+      qc.setQueryData(myEventPanelKey(slug), data);
+    },
+  });
+}
+
+/** „Uzupełnij z konta" - kopiuje dane profilu platformy do kartoteki wydarzenia. */
+export function useSyncMyEventProfileFromAccount(
+  slug: string,
+): UseMutationResult<MyEventPanelState, Error, void> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => syncMyEventProfileFromAccount(slug),
+    onSuccess: (data) => {
       qc.setQueryData(myEventPanelKey(slug), data);
     },
   });
