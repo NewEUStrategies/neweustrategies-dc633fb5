@@ -141,6 +141,10 @@ function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
     id: idOf(session.id) ?? "",
     subscriptionId: idOf(session.subscription),
     customerId: idOf(session.customer),
+    // Sesja checkout i intencja płatności to DWA różne identyfikatory. Zwroty
+    // przychodzą z identyfikatorem intencji, więc bez zapisania go przy
+    // realizacji żaden zwrot nie trafiłby we właściwe zamówienie.
+    paymentIntentId: idOf(session.payment_intent),
     currencyCode: strOf(session.currency)?.toUpperCase() ?? null,
     customData: isRecord(session.metadata) ? session.metadata : null,
     customer: { email: strOf(customerDetails?.email) ?? strOf(session.customer_email) },

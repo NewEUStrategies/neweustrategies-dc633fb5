@@ -334,6 +334,7 @@ describe("normalizeStripeEvent - sesje checkout", () => {
       id: "cs_1",
       subscriptionId: null,
       customerId: "cus_1",
+      paymentIntentId: null,
       currencyCode: "PLN",
       customData: { orderId: "ord_1", purpose: "event_ticket" },
       customer: { email: "kupujacy@example.com" },

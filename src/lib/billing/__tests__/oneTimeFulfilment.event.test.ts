@@ -20,9 +20,14 @@ const updates: Array<Record<string, unknown>> = [];
 const rsvps: Array<Record<string, unknown>> = [];
 const inserts: Array<Record<string, unknown>> = [];
 const grants: Array<unknown> = [];
+const ticketOutcomes: Array<Record<string, unknown>> = [];
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      ticketOutcomes.push({ fn, ...args });
+      return { data: null, error: null };
+    },
     from: (table: string) => ({
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: order, error: null }) }) }),
       update: (patch: Record<string, unknown>) => {
@@ -87,6 +92,7 @@ beforeEach(() => {
   emails.length = 0;
   inserts.length = 0;
   refunds.length = 0;
+  ticketOutcomes.length = 0;
   seatsFull = false;
 });
 
@@ -111,6 +117,10 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
       status: "paid",
       provider: "stripe",
     });
+    // Bilet imienny: płatność potwierdza zgłoszenie z formularza i wydaje QR.
+    expect(ticketOutcomes).toContainEqual(
+      expect.objectContaining({ fn: "payments_apply_event_ticket_outcome", p_outcome: "paid" }),
+    );
     expect(rsvps[0]).toMatchObject({
       table: "event_rsvps",
       event_id: order.metadata.event_id,

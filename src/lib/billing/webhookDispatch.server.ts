@@ -36,6 +36,8 @@ export type TransactionData = {
   id: string;
   subscriptionId?: string | null;
   customerId?: string | null;
+  /** Identyfikator intencji płatności - klucz dopasowania przy zwrocie. */
+  paymentIntentId?: string | null;
   currencyCode?: string | null;
   customData?: Record<string, unknown> | null;
   customer?: { email?: string | null } | null;
@@ -332,6 +334,15 @@ async function handleTransaction(
   // bilet, darowizna). Rozpoznanie idzie po `custom_data`, które ustawia
   // serwer przy tworzeniu transakcji - klient nie ma jak go podmienić.
   if (!data.subscriptionId) {
+    if (kind === "failed") {
+      // Odrzucona płatność jednorazowa: zgłoszenie na wydarzenie zostaje, ale
+      // musi być widoczne jako NIEOPŁACONE - inaczej organizator wpuściłby na
+      // salę osobę, której karta nie przeszła.
+      const { markOneTimePaymentFailed } =
+        await import("@/lib/billing/oneTimeFulfilment.server");
+      await markOneTimePaymentFailed(data.customData ?? null);
+      return;
+    }
     if (kind !== "paid") return;
     const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
     await fulfilOneTimeTransaction(
@@ -341,6 +352,9 @@ async function handleTransaction(
         currency: data.currencyCode ?? null,
         customerEmail: data.customer?.email ?? null,
         customData: data.customData ?? null,
+        sessionId: data.id,
+        paymentIntentId: data.paymentIntentId ?? null,
+        customerId: data.customerId ?? null,
       },
       env,
     );
