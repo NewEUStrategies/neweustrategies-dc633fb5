@@ -43,6 +43,11 @@ export const eventRegistrationPl = {
       readTerms: "Przeczytaj treść",
       version: "Wersja {{version}}",
       chooseTicket: "Wybierz bilet",
+      priceRegular: "Cena regularna {{price}}",
+      phaseEarlyBird: "Cena promocyjna",
+      phaseEndsAt: "obowiązuje do {{date}}",
+      benefitsTitle: "W cenie biletu",
+      accessCodeRequired: "Bilet za kodem z zaproszenia",
       selectPlaceholder: "Wybierz z listy",
     },
     availability: {
@@ -159,6 +164,11 @@ export const eventRegistrationEn = {
       readTerms: "Read the text",
       version: "Version {{version}}",
       chooseTicket: "Choose a ticket",
+      priceRegular: "Regular price {{price}}",
+      phaseEarlyBird: "Early bird price",
+      phaseEndsAt: "valid until {{date}}",
+      benefitsTitle: "Included in this ticket",
+      accessCodeRequired: "Ticket unlocked with an invitation code",
       selectPlaceholder: "Pick from the list",
     },
     availability: {
