@@ -5,18 +5,20 @@
 // nie wklada sie go do cache zapytan, nie loguje i nie doklejamy do adresow
 // innych niz strona przyjecia zaproszenia.
 //
-// KSZTALT SPRAWDZAMY U SIEBIE. `_event_new_qr_token()` daje 24 losowe bajty
-// w base64url, czyli 32 znaki z alfabetu `[A-Za-z0-9_-]`. Adres z literowka
-// nie ma prawa istniec w bazie, wiec odpowiadamy od razu, zamiast zuzywac
-// jedna z dziesieciu prob limitu na pewna odmowe.
+// KSZTALT SPRAWDZAMY U SIEBIE. Baza wystawia DWA ksztalty tokenu: zaproszenie
+// organizatora idzie przez `_event_new_qr_token()` (24 bajty w base64url, 32
+// znaki), a zaproszenie kupujacego przez `event_package_seat_invite()` (dwa
+// UUID bez myslnikow, 64 znaki szesnastkowe). Oba mieszcza sie w alfabecie
+// `[A-Za-z0-9_-]`, wiec sprawdzamy alfabet i zakres dlugosci - adres z
+// literowka odpada od razu, bez zuzywania proby limitu w bazie.
 //
 // JEDNORAZOWOSC. Udane wywolanie kasuje skrot tokenu, wiec `manage_token`
 // i `qr_token` wracaja RAZ - komponent musi je pokazac, a nie schowac.
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 
-/** 24 bajty w base64url - dokladnie 32 znaki, bez wypelnienia `=`. */
-export const PACKAGE_INVITE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
+/** 32 znaki (base64url organizatora) albo 64 znaki (token kupujacego). */
+export const PACKAGE_INVITE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
 
 export function isPackageInviteToken(value: string): boolean {
   return PACKAGE_INVITE_TOKEN_PATTERN.test(value.trim());

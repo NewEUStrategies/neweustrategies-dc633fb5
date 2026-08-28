@@ -40,6 +40,7 @@ import { AgendaRoomsPanel } from "@/components/admin/events/organisms/AgendaRoom
 import { EventProgramPanel } from "@/components/admin/events/organisms/EventProgramPanel";
 import { EventTermsPanel } from "@/components/admin/events/organisms/EventTermsPanel";
 import { EventPackagesPanel } from "@/components/admin/events/organisms/EventPackagesPanel";
+import { EventAudienceGrantsPanel } from "@/components/admin/events/organisms/EventAudienceGrantsPanel";
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { GroupMembersPanel } from "@/components/admin/events/organisms/GroupMembersPanel";
 import { MeetingSettingsPanel } from "@/components/admin/events/organisms/MeetingSettingsPanel";
@@ -111,6 +112,15 @@ export function EventRegistrationPackagesSection({ row }: { row: AdminEventDetai
   return (
     <ModuleScreen titleKey="adminEventRegistration.packages.title">
       <EventPackagesPanel key={row.id} eventId={row.id} />
+    </ModuleScreen>
+  );
+}
+
+export function EventRegistrationAudiencesSection({ row }: { row: AdminEventDetailRow }) {
+  ensureRegistrationI18n();
+  return (
+    <ModuleScreen titleKey="adminEventRegistration.audienceGrants.title">
+      <EventAudienceGrantsPanel key={row.id} eventId={row.id} />
     </ModuleScreen>
   );
 }

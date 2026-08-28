@@ -210,6 +210,7 @@ import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as EventsInviteTokenRouteImport } from './routes/events_.invite.$token'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
+import { Route as EventsSlugPackagesRouteImport } from './routes/events.$slug_.packages'
 import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.manage'
 import { Route as EventsSlugSpeakersRouteImport } from './routes/events.$slug.speakers'
 import { Route as EventsSlugPartnersRouteImport } from './routes/events.$slug.partners'
@@ -358,6 +359,7 @@ import { Route as AdminEventsEventIdRegistrationSettingsRouteImport } from './ro
 import { Route as AdminEventsEventIdRegistrationPackagesRouteImport } from './routes/admin.events_.$eventId.registration.packages'
 import { Route as AdminEventsEventIdRegistrationListRouteImport } from './routes/admin.events_.$eventId.registration.list'
 import { Route as AdminEventsEventIdRegistrationFormRouteImport } from './routes/admin.events_.$eventId.registration.form'
+import { Route as AdminEventsEventIdRegistrationAudiencesRouteImport } from './routes/admin.events_.$eventId.registration.audiences'
 import { Route as AdminEventsEventIdOnsiteStatsRouteImport } from './routes/admin.events_.$eventId.onsite.stats'
 import { Route as AdminEventsEventIdOnsiteLogRouteImport } from './routes/admin.events_.$eventId.onsite.log'
 import { Route as AdminEventsEventIdOnsiteLeadsRouteImport } from './routes/admin.events_.$eventId.onsite.leads'
@@ -1384,6 +1386,11 @@ const EventsSlugRegisterRoute = EventsSlugRegisterRouteImport.update({
   path: '/$slug/register',
   getParentRoute: () => EventsRoute,
 } as any)
+const EventsSlugPackagesRoute = EventsSlugPackagesRouteImport.update({
+  id: '/$slug_/packages',
+  path: '/$slug/packages',
+  getParentRoute: () => EventsRoute,
+} as any)
 const EventsSlugManageRoute = EventsSlugManageRouteImport.update({
   id: '/$slug_/manage',
   path: '/$slug/manage',
@@ -2182,6 +2189,12 @@ const AdminEventsEventIdRegistrationFormRoute =
     path: '/registration/form',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdRegistrationAudiencesRoute =
+  AdminEventsEventIdRegistrationAudiencesRouteImport.update({
+    id: '/registration/audiences',
+    path: '/registration/audiences',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdOnsiteStatsRoute =
   AdminEventsEventIdOnsiteStatsRouteImport.update({
     id: '/onsite/stats',
@@ -2564,6 +2577,7 @@ export interface FileRoutesByFullPath {
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
+  '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2636,6 +2650,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/onsite/leads': typeof AdminEventsEventIdOnsiteLeadsRoute
   '/admin/events/$eventId/onsite/log': typeof AdminEventsEventIdOnsiteLogRoute
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
+  '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -2916,6 +2931,7 @@ export interface FileRoutesByTo {
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
+  '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2988,6 +3004,7 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/onsite/leads': typeof AdminEventsEventIdOnsiteLeadsRoute
   '/admin/events/$eventId/onsite/log': typeof AdminEventsEventIdOnsiteLogRoute
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
+  '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -3284,6 +3301,7 @@ export interface FileRoutesById {
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
   '/events/$slug_/manage': typeof EventsSlugManageRoute
+  '/events/$slug_/packages': typeof EventsSlugPackagesRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
   '/events_/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3356,6 +3374,7 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/onsite/leads': typeof AdminEventsEventIdOnsiteLeadsRoute
   '/admin/events_/$eventId/onsite/log': typeof AdminEventsEventIdOnsiteLogRoute
   '/admin/events_/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
+  '/admin/events_/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events_/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
   '/admin/events_/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events_/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -3653,6 +3672,7 @@ export interface FileRouteTypes {
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
     | '/events/$slug/manage'
+    | '/events/$slug/packages'
     | '/events/$slug/register'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -3725,6 +3745,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/leads'
     | '/admin/events/$eventId/onsite/log'
     | '/admin/events/$eventId/onsite/stats'
+    | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
@@ -4005,6 +4026,7 @@ export interface FileRouteTypes {
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
     | '/events/$slug/manage'
+    | '/events/$slug/packages'
     | '/events/$slug/register'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -4077,6 +4099,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/leads'
     | '/admin/events/$eventId/onsite/log'
     | '/admin/events/$eventId/onsite/stats'
+    | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
@@ -4372,6 +4395,7 @@ export interface FileRouteTypes {
     | '/events/$slug/partners'
     | '/events/$slug/speakers'
     | '/events/$slug_/manage'
+    | '/events/$slug_/packages'
     | '/events/$slug_/register'
     | '/events_/invite/$token'
     | '/lovable/email/suppression'
@@ -4444,6 +4468,7 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/onsite/leads'
     | '/admin/events_/$eventId/onsite/log'
     | '/admin/events_/$eventId/onsite/stats'
+    | '/admin/events_/$eventId/registration/audiences'
     | '/admin/events_/$eventId/registration/form'
     | '/admin/events_/$eventId/registration/list'
     | '/admin/events_/$eventId/registration/packages'
@@ -5981,6 +6006,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsSlugRegisterRouteImport
       parentRoute: typeof EventsRoute
     }
+    '/events/$slug_/packages': {
+      id: '/events/$slug_/packages'
+      path: '/$slug/packages'
+      fullPath: '/events/$slug/packages'
+      preLoaderRoute: typeof EventsSlugPackagesRouteImport
+      parentRoute: typeof EventsRoute
+    }
     '/events/$slug_/manage': {
       id: '/events/$slug_/manage'
       path: '/$slug/manage'
@@ -7017,6 +7049,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdRegistrationFormRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/registration/audiences': {
+      id: '/admin/events_/$eventId/registration/audiences'
+      path: '/registration/audiences'
+      fullPath: '/admin/events/$eventId/registration/audiences'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationAudiencesRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/onsite/stats': {
       id: '/admin/events_/$eventId/onsite/stats'
       path: '/onsite/stats'
@@ -7471,6 +7510,7 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdOnsiteLeadsRoute: typeof AdminEventsEventIdOnsiteLeadsRoute
   AdminEventsEventIdOnsiteLogRoute: typeof AdminEventsEventIdOnsiteLogRoute
   AdminEventsEventIdOnsiteStatsRoute: typeof AdminEventsEventIdOnsiteStatsRoute
+  AdminEventsEventIdRegistrationAudiencesRoute: typeof AdminEventsEventIdRegistrationAudiencesRoute
   AdminEventsEventIdRegistrationFormRoute: typeof AdminEventsEventIdRegistrationFormRoute
   AdminEventsEventIdRegistrationListRoute: typeof AdminEventsEventIdRegistrationListRoute
   AdminEventsEventIdRegistrationPackagesRoute: typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -7516,6 +7556,8 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
   AdminEventsEventIdOnsiteLeadsRoute: AdminEventsEventIdOnsiteLeadsRoute,
   AdminEventsEventIdOnsiteLogRoute: AdminEventsEventIdOnsiteLogRoute,
   AdminEventsEventIdOnsiteStatsRoute: AdminEventsEventIdOnsiteStatsRoute,
+  AdminEventsEventIdRegistrationAudiencesRoute:
+    AdminEventsEventIdRegistrationAudiencesRoute,
   AdminEventsEventIdRegistrationFormRoute:
     AdminEventsEventIdRegistrationFormRoute,
   AdminEventsEventIdRegistrationListRoute:
@@ -7769,6 +7811,7 @@ interface EventsRouteChildren {
   EventsSavedRoute: typeof EventsSavedRoute
   EventsIndexRoute: typeof EventsIndexRoute
   EventsSlugManageRoute: typeof EventsSlugManageRoute
+  EventsSlugPackagesRoute: typeof EventsSlugPackagesRoute
   EventsSlugRegisterRoute: typeof EventsSlugRegisterRoute
 }
 
@@ -7777,6 +7820,7 @@ const EventsRouteChildren: EventsRouteChildren = {
   EventsSavedRoute: EventsSavedRoute,
   EventsIndexRoute: EventsIndexRoute,
   EventsSlugManageRoute: EventsSlugManageRoute,
+  EventsSlugPackagesRoute: EventsSlugPackagesRoute,
   EventsSlugRegisterRoute: EventsSlugRegisterRoute,
 }
 

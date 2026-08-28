@@ -59,6 +59,7 @@ export const EVENT_STUDIO_SECTIONS = [
   "registrationList",
   "registrationTickets",
   "registrationPackages",
+  "registrationAudiences",
   "registrationForm",
   "contentSpeakers",
   "contentTracks",
@@ -103,6 +104,7 @@ export const EVENT_STUDIO_ROUTES = {
   registrationList: "/admin/events/$eventId/registration/list",
   registrationTickets: "/admin/events/$eventId/registration/tickets",
   registrationPackages: "/admin/events/$eventId/registration/packages",
+  registrationAudiences: "/admin/events/$eventId/registration/audiences",
   registrationForm: "/admin/events/$eventId/registration/form",
   contentSpeakers: "/admin/events/$eventId/content/speakers",
   contentTracks: "/admin/events/$eventId/content/tracks",
@@ -256,6 +258,13 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         key: "registrationPackages",
         labelKey: "adminEventRegistration.packages.title",
         keywordKeys: ["adminEvents.studio.keywords.registrationPackages"],
+      },
+      {
+        // UPRAWNIENIA STOJĄ ZA PAKIETAMI, bo dopiero pakiet ze stawką zawężoną
+        // do grupy odbiorców każe komuś to uprawnienie nadać.
+        key: "registrationAudiences",
+        labelKey: "adminEventRegistration.audienceGrants.title",
+        keywordKeys: ["adminEvents.studio.keywords.registrationAudiences"],
       },
       {
         key: "registrationForm",
