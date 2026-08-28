@@ -358,6 +358,7 @@ import { Route as AdminEventsEventIdRegistrationSettingsRouteImport } from './ro
 import { Route as AdminEventsEventIdRegistrationPackagesRouteImport } from './routes/admin.events_.$eventId.registration.packages'
 import { Route as AdminEventsEventIdRegistrationListRouteImport } from './routes/admin.events_.$eventId.registration.list'
 import { Route as AdminEventsEventIdRegistrationFormRouteImport } from './routes/admin.events_.$eventId.registration.form'
+import { Route as AdminEventsEventIdRegistrationAudiencesRouteImport } from './routes/admin.events_.$eventId.registration.audiences'
 import { Route as AdminEventsEventIdOnsiteStatsRouteImport } from './routes/admin.events_.$eventId.onsite.stats'
 import { Route as AdminEventsEventIdOnsiteLogRouteImport } from './routes/admin.events_.$eventId.onsite.log'
 import { Route as AdminEventsEventIdOnsiteLeadsRouteImport } from './routes/admin.events_.$eventId.onsite.leads'
@@ -2182,6 +2183,12 @@ const AdminEventsEventIdRegistrationFormRoute =
     path: '/registration/form',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdRegistrationAudiencesRoute =
+  AdminEventsEventIdRegistrationAudiencesRouteImport.update({
+    id: '/registration/audiences',
+    path: '/registration/audiences',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdOnsiteStatsRoute =
   AdminEventsEventIdOnsiteStatsRouteImport.update({
     id: '/onsite/stats',
@@ -2636,6 +2643,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/onsite/leads': typeof AdminEventsEventIdOnsiteLeadsRoute
   '/admin/events/$eventId/onsite/log': typeof AdminEventsEventIdOnsiteLogRoute
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
+  '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -2988,6 +2996,7 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/onsite/leads': typeof AdminEventsEventIdOnsiteLeadsRoute
   '/admin/events/$eventId/onsite/log': typeof AdminEventsEventIdOnsiteLogRoute
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
+  '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -3356,6 +3365,7 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/onsite/leads': typeof AdminEventsEventIdOnsiteLeadsRoute
   '/admin/events_/$eventId/onsite/log': typeof AdminEventsEventIdOnsiteLogRoute
   '/admin/events_/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
+  '/admin/events_/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events_/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
   '/admin/events_/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events_/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -3725,6 +3735,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/leads'
     | '/admin/events/$eventId/onsite/log'
     | '/admin/events/$eventId/onsite/stats'
+    | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
@@ -4077,6 +4088,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/leads'
     | '/admin/events/$eventId/onsite/log'
     | '/admin/events/$eventId/onsite/stats'
+    | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
@@ -4444,6 +4456,7 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/onsite/leads'
     | '/admin/events_/$eventId/onsite/log'
     | '/admin/events_/$eventId/onsite/stats'
+    | '/admin/events_/$eventId/registration/audiences'
     | '/admin/events_/$eventId/registration/form'
     | '/admin/events_/$eventId/registration/list'
     | '/admin/events_/$eventId/registration/packages'
@@ -7017,6 +7030,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdRegistrationFormRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/registration/audiences': {
+      id: '/admin/events_/$eventId/registration/audiences'
+      path: '/registration/audiences'
+      fullPath: '/admin/events/$eventId/registration/audiences'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationAudiencesRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/onsite/stats': {
       id: '/admin/events_/$eventId/onsite/stats'
       path: '/onsite/stats'
@@ -7471,6 +7491,7 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdOnsiteLeadsRoute: typeof AdminEventsEventIdOnsiteLeadsRoute
   AdminEventsEventIdOnsiteLogRoute: typeof AdminEventsEventIdOnsiteLogRoute
   AdminEventsEventIdOnsiteStatsRoute: typeof AdminEventsEventIdOnsiteStatsRoute
+  AdminEventsEventIdRegistrationAudiencesRoute: typeof AdminEventsEventIdRegistrationAudiencesRoute
   AdminEventsEventIdRegistrationFormRoute: typeof AdminEventsEventIdRegistrationFormRoute
   AdminEventsEventIdRegistrationListRoute: typeof AdminEventsEventIdRegistrationListRoute
   AdminEventsEventIdRegistrationPackagesRoute: typeof AdminEventsEventIdRegistrationPackagesRoute
@@ -7516,6 +7537,8 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
   AdminEventsEventIdOnsiteLeadsRoute: AdminEventsEventIdOnsiteLeadsRoute,
   AdminEventsEventIdOnsiteLogRoute: AdminEventsEventIdOnsiteLogRoute,
   AdminEventsEventIdOnsiteStatsRoute: AdminEventsEventIdOnsiteStatsRoute,
+  AdminEventsEventIdRegistrationAudiencesRoute:
+    AdminEventsEventIdRegistrationAudiencesRoute,
   AdminEventsEventIdRegistrationFormRoute:
     AdminEventsEventIdRegistrationFormRoute,
   AdminEventsEventIdRegistrationListRoute:

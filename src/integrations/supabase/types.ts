@@ -19622,6 +19622,27 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: string
       }
+      admin_event_audience_grants_list: {
+        Args: { p_payload?: Json }
+        Returns: {
+          audience: string
+          company_id: string
+          company_name: string
+          created_at: string
+          event_id: string
+          event_title: string
+          evidence: string
+          id: string
+          person_id: string
+          revoked_at: string
+          state: string
+          subject_email: string
+          subject_name: string
+          user_id: string
+          valid_from: string
+          valid_until: string
+        }[]
+      }
       admin_event_badge_batch: { Args: { p_payload: Json }; Returns: Json }
       admin_event_badge_print_record: {
         Args: { p_payload: Json }
@@ -20703,10 +20724,6 @@ export type Database = {
         }[]
       }
       admin_event_ticket_delete: { Args: { _id: string }; Returns: boolean }
-      admin_event_ticket_package_save: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
       admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_tickets_list: {
         Args: { p_event_id: string }
@@ -23455,28 +23472,6 @@ export type Database = {
         }
         Returns: string
       }
-      event_ad_placements: {
-        Args: { p_position: string; p_slug: string }
-        Returns: {
-          ad_position: string
-          config: Json
-          height: number
-          html: string
-          image_alt: string
-          image_link: string
-          image_url: string
-          page_type: string
-          placement_id: string
-          requires_consent: boolean
-          script: string
-          slot_id: string
-          slot_kind: string
-          slot_name: string
-          sort_order: number
-          targeting: Json
-          width: number
-        }[]
-      }
       event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
@@ -23632,10 +23627,71 @@ export type Database = {
         Args: { p_payload?: Json }
         Returns: Json
       }
+      event_my_package_orders: {
+        Args: never
+        Returns: {
+          amount_cents: number
+          buyer_email: string
+          created_at: string
+          currency: string
+          discount_cents: number
+          event_id: string
+          event_slug: string
+          event_title: string
+          id: string
+          package_id: string
+          package_name_en: string
+          package_name_pl: string
+          seats_assigned: number
+          seats_free: number
+          seats_invited: number
+          seats_total: number
+          status: string
+        }[]
+      }
+      event_my_package_seats: {
+        Args: { p_order_id: string }
+        Returns: {
+          assigned_at: string
+          attendee_name: string
+          id: string
+          invite_email: string
+          invite_expires_at: string
+          invite_name: string
+          invite_sent_at: string
+          package_order_id: string
+          revoked_at: string
+          state: string
+        }[]
+      }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
+      event_packages_offer: {
+        Args: { p_slug: string }
+        Returns: {
+          audience: string
+          currency: string
+          description_en: string
+          description_pl: string
+          event_id: string
+          id: string
+          key: string
+          min_tier_rank: number
+          name_en: string
+          name_pl: string
+          packages_left: number
+          price_cents: number
+          qualifies: boolean
+          requires_verification: boolean
+          sales_from: string
+          sales_to: string
+          seats: number
+          sort_order: number
+          ticket_type_id: string
+        }[]
+      }
       event_page_header: {
         Args: { p_slug: string }
         Returns: {

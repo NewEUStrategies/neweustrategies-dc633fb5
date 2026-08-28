@@ -392,6 +392,8 @@ export const adminEventsPl = {
         registrationList: "zgłoszenia, uczestnicy, lista zapisów, eksport, statusy",
         registrationTickets: "bilety, wejściówki, pule, cennik, limity miejsc",
         registrationPackages: "pakiety, grupy, delegacje, zamówienia zbiorowe, miejsca",
+        registrationAudiences:
+          "stawka akademicka, ngo, uprawnienia, zniżki grupowe, weryfikacja, podstawa nadania",
         registrationForm: "formularz, pola zgłoszenia, pytania, zgody w zapisie",
         contentSessions: "sesje, agenda, program, prelegenci, harmonogram",
         contentTracks: "ścieżki, bloki tematyczne, tory programu",
@@ -1475,6 +1477,8 @@ export const adminEventsEn = {
         registrationList: "applications, attendees, sign-up list, export, statuses",
         registrationTickets: "tickets, passes, pools, pricing, seat limits",
         registrationPackages: "packages, groups, delegations, bulk orders, seats",
+        registrationAudiences:
+          "academic rate, ngo, eligibility, group discounts, verification, evidence",
         registrationForm: "form, application fields, questions, sign-up consents",
         contentSessions: "sessions, agenda, programme, speakers, schedule",
         contentTracks: "tracks, thematic blocks, programme streams",
