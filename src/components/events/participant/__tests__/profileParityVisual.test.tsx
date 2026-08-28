@@ -132,8 +132,8 @@ describe("podgląd profilu uczestnika = profil publiczny", () => {
     // kolumnę i nie nachodzi na awatar.
     expect(heading.className).toMatch(/text-\[clamp\(/);
 
-    const company = [...container.querySelectorAll<HTMLElement>("span, a")].find((node) =>
-      (node.textContent ?? "").trim().startsWith(LONG_COMPANY),
+    const company = [...container.querySelectorAll<HTMLElement>("span, a")].find(
+      (node) => node.childElementCount === 0 && (node.textContent ?? "").trim() === LONG_COMPANY,
     );
     expect(company).toBeDefined();
     expect((company as HTMLElement).className).toMatch(/\[overflow-wrap:anywhere\]/);
