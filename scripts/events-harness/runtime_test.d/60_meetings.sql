@@ -94,6 +94,8 @@ SELECT 'slot1_start', ((current_date + 3) + time '09:00') AT TIME ZONE 'UTC'
 UNION ALL SELECT 'slot1_end', ((current_date + 3) + time '09:30') AT TIME ZONE 'UTC'
 UNION ALL SELECT 'slot2_start', ((current_date + 3) + time '10:00') AT TIME ZONE 'UTC'
 UNION ALL SELECT 'slot2_end', ((current_date + 3) + time '10:30') AT TIME ZONE 'UTC'
+UNION ALL SELECT 'slot3_start', ((current_date + 3) + time '11:00') AT TIME ZONE 'UTC'
+UNION ALL SELECT 'slot3_end', ((current_date + 3) + time '11:30') AT TIME ZONE 'UTC'
 UNION ALL SELECT 'off_grid_start', ((current_date + 3) + time '09:07') AT TIME ZONE 'UTC'
 UNION ALL SELECT 'off_grid_end', ((current_date + 3) + time '09:37') AT TIME ZONE 'UTC'
 UNION ALL SELECT 'late_start', ((current_date + 3) + time '16:00') AT TIME ZONE 'UTC'
@@ -408,8 +410,8 @@ BEGIN
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a3',
-          (SELECT ts FROM meet_q WHERE k = 'slot2_start'),
-          (SELECT ts FROM meet_q WHERE k = 'slot2_end'),
+          (SELECT ts FROM meet_q WHERE k = 'slot3_start'),
+          (SELECT ts FROM meet_q WHERE k = 'slot3_end'),
           'accepted', now() + interval '1 day', now());
 
   PERFORM pg_temp.assert(true,
