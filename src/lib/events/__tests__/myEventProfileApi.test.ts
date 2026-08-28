@@ -85,6 +85,14 @@ describe("saveMyEventProfile", () => {
       p_payload: { slug: "summit", job_title: "Dyrektor", phone: "" },
     });
   });
+
+  it("przenosi zgodę na zapis wstecz do profilu platformy", async () => {
+    rpc.mockResolvedValue({ data: { profile: null, registration: null }, error: null });
+    await saveMyEventProfile({ slug: "summit", job_title: "Dyrektor", push_account: true });
+    expect(rpc).toHaveBeenCalledWith("event_my_event_profile_set", {
+      p_payload: { slug: "summit", job_title: "Dyrektor", push_account: true },
+    });
+  });
 });
 
 describe("fetchMyAgenda", () => {
