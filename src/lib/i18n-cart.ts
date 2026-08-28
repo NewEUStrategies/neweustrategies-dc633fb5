@@ -51,7 +51,7 @@ const pl = {
     noDate: "Termin nieustalony",
   },
   eventMe: {
-    tab: "Moje",
+    tab: "Mój profil",
     title: "Mój panel wydarzenia",
     lead: "Twój profil na tym wydarzeniu, harmonogram, kontakty, dostępność i stan Twojej rejestracji.",
     tabs: {
@@ -88,6 +88,9 @@ const pl = {
     noTime: "Termin nieustalony",
     joinStream: "Dołącz online",
     contactsEmpty: "Nie masz jeszcze kontaktów w swojej sieci.",
+    networkingHint:
+      "Ustaw swoją dostępność, widoczność w katalogu i zarządzaj zaproszeniami 1-1.",
+    registrationHint: "Status zgłoszenia, bilet z kodem QR, płatność i kanały powiadomień.",
     openNetwork: "Sieć kontaktów",
     openProfile: "Profil",
     editProfile: "Edytuj profil",
@@ -145,7 +148,7 @@ const en: typeof pl = {
     noDate: "Date to be confirmed",
   },
   eventMe: {
-    tab: "Me",
+    tab: "My profile",
     title: "My event panel",
     lead: "Your event profile, schedule, contacts, availability and the state of your registration.",
     tabs: {
@@ -182,6 +185,8 @@ const en: typeof pl = {
     noTime: "Time to be confirmed",
     joinStream: "Join online",
     contactsEmpty: "You have no contacts in your network yet.",
+    networkingHint: "Set your availability, directory visibility and manage 1-1 invitations.",
+    registrationHint: "Registration status, QR ticket, payment and notification channels.",
     openNetwork: "My network",
     openProfile: "Profile",
     editProfile: "Edit profile",
