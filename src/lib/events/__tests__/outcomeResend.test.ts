@@ -48,7 +48,7 @@ describe("resendTicketOutcome", () => {
 
     expect(result.outcome).toBe("paid");
     expect(result.emailed).toBe(true);
-    const [payload, options] = notify.mock.calls[0] as [
+    const [payload, options] = notify.mock.calls[0] as unknown as [
       Record<string, unknown>,
       { idempotencySuffix?: string },
     ];
