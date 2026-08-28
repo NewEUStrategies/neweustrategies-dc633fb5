@@ -264,6 +264,7 @@ export interface NotifyOptions {
  */
 export async function notifyTicketOutcome(
   payload: TicketOutcomePayload,
+  options: NotifyOptions = {},
 ): Promise<OutcomeNotifyResult> {
   const result: OutcomeNotifyResult = { emailed: false, smsSent: false, promotedNotified: 0 };
   if (payload.applied !== true) return result;
