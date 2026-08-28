@@ -183,7 +183,7 @@ export function WebhookHealthPanel({
           <FieldBox
             label={t("webhookHealth.registrationId")}
             value={registrationId}
-            onChange={setRegistrationId}
+            onChange={(event) => setRegistrationId(event.target.value)}
             className="min-w-[280px] flex-1"
           />
           <Button
