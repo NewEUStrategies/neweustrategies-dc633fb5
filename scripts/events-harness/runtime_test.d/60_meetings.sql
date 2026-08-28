@@ -515,18 +515,25 @@ SELECT pg_temp.assert(
                       'event_meeting_availability_no_overlap')) = 3,
   '60/struktura: wszystkie TRZY ograniczenia wylacznosci istnieja w bazie');
 
+-- Indeksy skalowane po najemcy maja `tenant_id` na PIERWSZEJ pozycji. Wyjatkiem
+-- jest `event_meetings_time_range_idx` - indeks GiST po samym przedziale,
+-- czytany przy pytaniu "co dzieje sie w tej chwili" na widoku dnia. Wyjatek
+-- jest WYMIENIONY Z NAZWY, zeby kolejny indeks bez najemcy zapalil sie na
+-- czerwono zamiast wsliznac sie ciszkiem.
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_index i
      JOIN pg_class c ON c.oid = i.indrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace
+     JOIN pg_class ic ON ic.oid = i.indexrelid
      JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
     WHERE n.nspname = 'public'
       AND c.relname IN ('event_meeting_tables', 'event_meeting_settings',
                         'event_meeting_availability', 'event_meetings',
                         'event_meeting_attendees')
       AND NOT i.indisprimary
+      AND ic.relname <> 'event_meetings_time_range_idx'
       AND a.attname <> 'tenant_id') = 0,
-  '60/struktura: kazdy indeks wtorny podmodulu ma tenant_id na pierwszej pozycji');
+  '60/struktura: kazdy indeks wtorny podmodulu (poza indeksem GiST widoku dnia) ma tenant_id na pierwszej pozycji');
 
 SELECT pg_temp.act_as(NULL, NULL);
 
