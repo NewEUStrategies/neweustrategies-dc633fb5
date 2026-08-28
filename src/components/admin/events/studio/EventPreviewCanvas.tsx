@@ -180,10 +180,20 @@ export function EventPreviewCanvas({
   viewer = null,
   sponsorTiers = [],
   onNavigate,
+  onBack,
   live = EMPTY_PREVIEW_LIVE_DATA,
 }: {
   model: EventPreviewModel;
   device: PreviewDevice;
+  /**
+   * KLIK „WRÓĆ DO LISTY WYDARZEŃ" W PODGLĄDZIE.
+   *
+   * Na stronie publicznej to `<Link to="/events">`; w podglądzie link
+   * wyprowadziłby redaktora ze studia, więc cel podaje nakładka (zamknięcie
+   * podglądu + powrót do listy w panelu). Brak handlera = statyczny rysunek
+   * (bramka parytetu), dokładnie jak przy `onNavigate`.
+   */
+  onBack?: () => void;
   /**
    * PARTNERZY WYDARZENIA, poziomami, w kolejnosci strony publicznej.
    *
