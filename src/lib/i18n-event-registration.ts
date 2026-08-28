@@ -85,6 +85,11 @@ export const eventRegistrationPl = {
       pending: "Zgłoszenie przyjęte - czeka na potwierdzenie organizatora.",
       waitlist: "Jesteś na liście oczekujących, pozycja {{position}}.",
       waitlistNoPosition: "Jesteś na liście oczekujących.",
+      paymentTitle: "Zgłoszenie czeka na opłatę",
+      paymentHint: "Wejściówka zostanie wydana po zaksięgowaniu wpłaty.",
+      paymentHintAmount: "Do zapłaty: {{amount}}. Wejściówka zostanie wydana po zaksięgowaniu wpłaty.",
+      paymentNoTicketYet:
+        "Kod wstępu nie został jeszcze wygenerowany - dostaniesz go razem z potwierdzeniem płatności.",
       manageTokenTitle: "Klucz do zarządzania zapisem",
       manageTokenHint: "Zapisz go teraz - pokazujemy go tylko raz i tylko tobie.",
       cancelled: "Rezygnacja przyjęta.",
@@ -328,6 +333,11 @@ export const eventRegistrationEn = {
       pending: "Request received - it awaits organiser approval.",
       waitlist: "You are on the waiting list, position {{position}}.",
       waitlistNoPosition: "You are on the waiting list.",
+      paymentTitle: "Your registration awaits payment",
+      paymentHint: "The admission is issued once the payment clears.",
+      paymentHintAmount: "Amount due: {{amount}}. The admission is issued once the payment clears.",
+      paymentNoTicketYet:
+        "Your entry code has not been generated yet - you will get it together with the payment confirmation.",
       manageTokenTitle: "Registration management key",
       manageTokenHint: "Save it now - we show it once and only to you.",
       cancelled: "Cancellation accepted.",

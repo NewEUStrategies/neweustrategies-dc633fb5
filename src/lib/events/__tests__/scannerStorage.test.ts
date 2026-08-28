@@ -104,7 +104,10 @@ interface FakeTransaction {
   oncomplete: (() => void) | null;
   onerror: (() => void) | null;
   onabort: (() => void) | null;
-  objectStore: () => { get: (key: unknown) => FakeRequest; put: (value: unknown, key: unknown) => void };
+  objectStore: () => {
+    get: (key: unknown) => FakeRequest;
+    put: (value: unknown, key: unknown) => void;
+  };
 }
 
 function installFakeIdb(options: FakeIdbOptions = {}): FakeIdbSpy {

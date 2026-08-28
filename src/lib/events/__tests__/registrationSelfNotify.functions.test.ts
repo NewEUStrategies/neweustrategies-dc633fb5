@@ -135,7 +135,7 @@ describe("walidator klucza samoobsługi", () => {
 describe("klient bazy - anonimowy, z nagłówkiem hosta", () => {
   it("używa klucza PUBLIKOWALNEGO, nie serwisowego, i własnego `fetch`", async () => {
     await run({ email: "a@b.pl", status: "pending", registration_id: REG });
-    const [url, key, options] = createClient.mock.calls[0] as [
+    const [url, key, options] = createClient.mock.calls[0] as unknown as [
       string,
       string,
       { global: { fetch: unknown }; auth: Record<string, unknown> },
@@ -150,7 +150,7 @@ describe("klient bazy - anonimowy, z nagłówkiem hosta", () => {
     // Proces serwerowy obsługuje wielu gości naraz - utrwalona sesja
     // przeciekłaby między żądaniami.
     await run({ email: "a@b.pl", status: "pending", registration_id: REG });
-    const [, , options] = createClient.mock.calls[0] as [
+    const [, , options] = createClient.mock.calls[0] as unknown as [
       string,
       string,
       { auth: { storage?: unknown; persistSession: boolean; autoRefreshToken: boolean } },

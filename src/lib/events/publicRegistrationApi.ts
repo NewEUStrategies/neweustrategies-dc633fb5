@@ -38,6 +38,22 @@ export interface RegistrationResult {
   qrToken: string | null;
   /** Jedyny klucz rezygnacji dla gościa bez konta. */
   manageToken: string | null;
+  /**
+   * Czy zgłoszenie czeka na zapłatę.
+   *
+   * `event_register` przy wejściówce płatnej zapisuje `payment_status = 'unpaid'`
+   * i NIE wydaje kodu QR (migracja `20260828206000`). Front MUSI to wiedzieć:
+   * bez tego pokazałby ekran „do zobaczenia na wydarzeniu" i wysłał
+   * potwierdzenie komuś, kto nic nie zapłacił - a dokładnie tak działo się
+   * przed tą naprawą, bo cena nie była w ogóle sprawdzana.
+   */
+  paymentRequired: boolean;
+  /** `not_required` | `unpaid` | `paid` | `refunded` - oś pieniędzy, nie decyzji. */
+  paymentStatus: string | null;
+  /** Kwota do zapłaty w groszach - tylko gdy `paymentRequired`. */
+  amountCents: number | null;
+  /** Waluta kwoty powyżej. */
+  currency: string | null;
 }
 
 export interface RegistrationCancelResult {
@@ -161,6 +177,12 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
     ticketTypeId: nullableText(source, "ticket_type_id"),
     qrToken: nullableText(source, "qr_token"),
     manageToken: nullableText(source, "manage_token"),
+    // Starszy backend nie zna tych kluczy - czytamy je zachowawczo, żeby
+    // formularz nie wywrócił się na odpowiedzi sprzed migracji.
+    paymentRequired: source.payment_required === true,
+    paymentStatus: nullableText(source, "payment_status"),
+    amountCents: optionalInt(source, "amount_cents"),
+    currency: nullableText(source, "currency"),
   };
 }
 

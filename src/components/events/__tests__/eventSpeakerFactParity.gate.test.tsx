@@ -82,7 +82,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ReactElement, ReactNode } from "react";
 
@@ -126,6 +126,18 @@ const EVENTS_DIR = "src/components/events";
 
 /** JEDYNY plik, któremu wolno rysować ikonę tarczy w tym katalogu. */
 const BADGE_FILE = "src/components/events/SpeakerExpertBadge.tsx";
+
+/**
+ * Pliki katalogu wydarzeń, które rysują tę ikonę W INNYM ZNACZENIU niż fakt
+ * eksperta. Powód każdego jest mechaniczny, a wpis NIE jest darmowy: asercja
+ * niżej wymaga, żeby plik istniał, nadal miał ikonę i NIE dotykał śladu faktu
+ * eksperta - zdechły albo rozrastający się wyjątek czerwieni się tak samo jak
+ * drugi rysunek plakietki.
+ */
+const ICON_EXCEPTIONS: Record<string, string> = {
+  "src/components/events/packages/EventPackagesPurchase.tsx":
+    "PLAKIETKA WERYFIKACJI PAKIETU, nie faktu o osobie: rysuje ją `requires_verification` wiersza `event_packages` i mówi o UPRAWNIENIU KUPUJĄCEGO do taryfy (`qualifies` -> `eventPackages.qualified` / `eventPackages.notQualified`), a nie o tym, że ktoś jest ekspertem - ten ekran w ogóle nie woła zapytania o prelegentów i nie ma skąd wziąć kolumny `is_expert`",
+};
 
 /** Klucz nazwy plakietki eksperta - ŚLAD faktu `is_expert` w drzewie. */
 const EXPERT_FACT_KEY = "eventFront.speakers.expertBadge";
@@ -329,9 +341,34 @@ describe("fakt eksperta ma JEDEN rysunek", () => {
     // granicą to `widget-view/SpeakersWidget.tsx` - widget redakcyjny z własnym
     // językiem wizualnym, opisany w `CONSUMER_EXCEPTIONS`.
     const rogue = walk(EVENTS_DIR, [])
-      .filter((file) => file !== BADGE_FILE && /\bShieldCheck\b/.test(codeOf(file)))
+      .filter(
+        (file) =>
+          file !== BADGE_FILE &&
+          ICON_EXCEPTIONS[file] === undefined &&
+          /\bShieldCheck\b/.test(codeOf(file)),
+      )
       .sort();
     expect(rogue).toEqual([]);
+  });
+
+  it("każdy WYJĄTEK od ikony nadal jest wyjątkiem, a nie furtką", () => {
+    // Wyjątek trzyma się trzech warunków naraz: plik istnieje, NADAL rysuje tę
+    // ikonę (inaczej wpis jest martwy i następny autor uzna go za precedens) i
+    // NIE dotyka śladu faktu eksperta - bo wtedy nie jest już „inne znaczenie
+    // tej samej ikony", tylko drugi rysunek tego samego faktu.
+    const stale = Object.keys(ICON_EXCEPTIONS).sort().flatMap((file) => {
+      if (!existsSync(file)) return [`${file}: wyjątek wskazuje na nieistniejący plik`];
+      const code = codeOf(file);
+      const problems: string[] = [];
+      if (!/\bShieldCheck\b/.test(code)) {
+        problems.push(`${file}: wyjątek zbędny - plik nie rysuje już tej ikony`);
+      }
+      if (code.includes(EXPERT_FACT_KEY)) {
+        problems.push(`${file}: wyjątek nieuprawniony - plik dotyka śladu faktu eksperta`);
+      }
+      return problems;
+    });
+    expect(stale).toEqual([]);
   });
 
   it("plakietka nadal stoi tam, gdzie bramka jej szuka", () => {
