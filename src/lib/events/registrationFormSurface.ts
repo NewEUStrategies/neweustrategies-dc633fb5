@@ -56,6 +56,26 @@ export interface RegistrationFormField {
   options: RegistrationFormOption[];
 }
 
+/** Skąd wzięła się cena obowiązująca TERAZ - liczy to baza, nie przeglądarka. */
+export const TICKET_PHASE_SOURCES = ["schedule", "early_bird", "standard"] as const;
+export type TicketPhaseSource = (typeof TICKET_PHASE_SOURCES)[number];
+
+/**
+ * Próg cenowy obowiązujący w chwili odczytu.
+ *
+ * Cena zawsze pochodzi z bazy (`_event_ticket_phase`), bo tę samą funkcję czyta
+ * wycena przed płatnością. Gdyby UI liczył próg z zegara przeglądarki, kupujący
+ * po zmianie czasu w systemie widziałby inną kwotę niż ta, którą pobierze kasa.
+ */
+export interface TicketPricePhase {
+  source: TicketPhaseSource;
+  priceCents: number;
+  labelPl: string;
+  labelEn: string;
+  /** Koniec obowiązywania progu (ISO) albo `null` = bezterminowo. */
+  endsAt: string | null;
+}
+
 export interface RegistrationFormTicket {
   id: string;
   key: string;
@@ -63,7 +83,13 @@ export interface RegistrationFormTicket {
   nameEn: string;
   descriptionPl: string;
   descriptionEn: string;
+  /** Cena katalogowa (bazowa) - punkt odniesienia dla przekreślenia. */
   priceCents: number;
+  /** Cena obowiązująca TERAZ, po progach czasowych. */
+  effectivePriceCents: number;
+  phase: TicketPricePhase;
+  benefitsPl: string[];
+  benefitsEn: string[];
   currency: string;
   requiresApproval: boolean;
   minTierRank: number;
@@ -74,7 +100,11 @@ export interface RegistrationFormTicket {
   availability: TicketAvailability;
   /** Baza już porównała rangę widza - UI tylko podpisuje blokadę. */
   tierLocked: boolean;
+  /** Bilet za kodem z zaproszenia - kod weryfikuje wyłącznie baza. */
+  requiresAccessCode: boolean;
+  accessCodeHint: string;
 }
+
 
 export interface RegistrationFormTerm {
   id: string;
@@ -165,6 +195,41 @@ function rows(value: unknown): Bag[] {
   }
   return out;
 }
+
+/** Lista korzyści z `text[]` w JSON-ie - puste wpisy odpadają, kolejność zostaje. */
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry === "string" && entry.trim() !== "") out.push(entry);
+  }
+  return out;
+}
+
+/** Próg cenowy z bazy; brak lub bełkot degraduje do ceny bazowej biletu. */
+function phaseOf(value: unknown, fallbackPriceCents: number): TicketPricePhase {
+  const source = bag(value);
+  if (source === null) {
+    return {
+      source: "standard",
+      priceCents: fallbackPriceCents,
+      labelPl: "",
+      labelEn: "",
+      endsAt: null,
+    };
+  }
+  const kind = text(source, "source");
+  return {
+    source: (TICKET_PHASE_SOURCES as readonly string[]).includes(kind)
+      ? (kind as TicketPhaseSource)
+      : "standard",
+    priceCents: optionalInt(source, "price_cents") ?? fallbackPriceCents,
+    labelPl: text(source, "label_pl"),
+    labelEn: text(source, "label_en"),
+    endsAt: nullableText(source, "ends_at"),
+  };
+}
+
 
 function optionsOf(value: unknown): RegistrationFormOption[] {
   if (!Array.isArray(value)) return [];
@@ -260,23 +325,37 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
       isRequired: bool(row, "is_required"),
       options: optionsOf(row.options),
     })),
-    tickets: rows(source.tickets).map((row) => ({
-      id: text(row, "id"),
-      key: text(row, "key"),
-      namePl: text(row, "name_pl"),
-      nameEn: text(row, "name_en"),
-      descriptionPl: text(row, "description_pl"),
-      descriptionEn: text(row, "description_en"),
-      priceCents: int(row, "price_cents"),
-      currency: nullableText(row, "currency") ?? "EUR",
-      requiresApproval: bool(row, "requires_approval"),
-      minTierRank: int(row, "min_tier_rank"),
-      salesFrom: nullableText(row, "sales_from"),
-      salesTo: nullableText(row, "sales_to"),
-      seatsLeft: optionalInt(row, "seats_left"),
-      availability: availabilityOf(row),
-      tierLocked: bool(row, "tier_locked"),
-    })),
+    tickets: rows(source.tickets).map((row) => {
+      const priceCents = int(row, "price_cents");
+      const phase = phaseOf(row.phase, priceCents);
+      return {
+        id: text(row, "id"),
+        key: text(row, "key"),
+        namePl: text(row, "name_pl"),
+        nameEn: text(row, "name_en"),
+        descriptionPl: text(row, "description_pl"),
+        descriptionEn: text(row, "description_en"),
+        priceCents,
+        // Brak wyliczonej kwoty degraduje do ceny bazowej, nie do zera: darmowy
+        // bilet z powodu literówki w SQL-u jest gorszy niż cena katalogowa.
+        effectivePriceCents:
+          optionalInt(row, "effective_price_cents") ?? phase.priceCents ?? priceCents,
+        phase,
+        benefitsPl: stringList(row.benefits_pl),
+        benefitsEn: stringList(row.benefits_en),
+        currency: nullableText(row, "currency") ?? "EUR",
+        requiresApproval: bool(row, "requires_approval"),
+        minTierRank: int(row, "min_tier_rank"),
+        salesFrom: nullableText(row, "sales_from"),
+        salesTo: nullableText(row, "sales_to"),
+        seatsLeft: optionalInt(row, "seats_left"),
+        availability: availabilityOf(row),
+        tierLocked: bool(row, "tier_locked"),
+        requiresAccessCode: bool(row, "requires_access_code"),
+        accessCodeHint: text(row, "access_code_hint"),
+      };
+    }),
+
     terms: rows(source.terms).map((row) => ({
       id: text(row, "id"),
       key: text(row, "key"),

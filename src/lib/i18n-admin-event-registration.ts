@@ -633,6 +633,25 @@ export const adminEventRegistrationPl = {
         deleteConfirm:
           "Usunąć bilet? Operacja jest możliwa tylko wtedy, gdy żaden zapis go nie używa.",
         advancedSection: "Cena promocyjna, kod dostępu i kolejka",
+        benefitsSection: "Co zawiera bilet",
+        benefitsPl: "Korzyści (PL) - jedna w linii",
+        benefitsEn: "Korzyści (EN) - jedna w linii",
+        benefitsHint:
+          "Każda linia to jeden punkt na karcie biletu. Maksymalnie {{max}} pozycji, do 200 znaków każda.",
+        phasesSection: "Cennik w czasie (early bird, cena regularna, last minute)",
+        phasesHint:
+          "Obowiązuje PIERWSZY próg, którego okno obejmuje bieżącą chwilę. Próg wygrywa z ceną podstawową i ceną promocyjną, a puste daty znaczą „od zawsze\" i „bezterminowo\".",
+        phasesEmpty: "Brak progów - obowiązuje cena podstawowa (albo cena promocyjna).",
+        phaseNumber: "Próg {{index}}",
+        phaseLabelPl: "Nazwa progu (PL)",
+        phaseLabelEn: "Nazwa progu (EN)",
+        phaseFrom: "Obowiązuje od",
+        phaseTo: "Obowiązuje do",
+        phasePrice: "Cena w groszach",
+        phaseAdd: "Dodaj próg cenowy",
+        phaseRemove: "Usuń próg",
+        phaseMoveUp: "Przenieś próg wyżej",
+        phaseMoveDown: "Przenieś próg niżej",
         earlyBirdPriceCents: "Cena promocyjna (early bird)",
         earlyBirdUntil: "Cena promocyjna obowiązuje do",
         earlyBirdHint:
@@ -929,6 +948,9 @@ export const adminEventRegistrationPl = {
       invalidEarlyBird:
         "Cena promocyjna wymaga terminu i nie może przekraczać ceny podstawowej.",
       invalidAccessCode: "Kod dostępu musi mieć od 4 do 64 znaków.",
+      invalidBenefits: "Najwyżej 20 korzyści, każda do 200 znaków.",
+      invalidPriceSchedule:
+        "Każdy próg cennika potrzebuje ceny i okna, które kończy się po tym, jak się zaczyna.",
       invalidConsentUrl: "Adres dokumentu zgody musi zaczynać się od https:// (do 500 znaków).",
       notFound: "Rekord nie istnieje w tej organizacji.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
@@ -1534,6 +1556,25 @@ export const adminEventRegistrationEn = {
         deleteAction: "Delete ticket",
         deleteConfirm: "Delete the ticket? Only possible while no registration uses it.",
         advancedSection: "Early bird, access code and queue",
+        benefitsSection: "What the ticket includes",
+        benefitsPl: "Benefits (PL) - one per line",
+        benefitsEn: "Benefits (EN) - one per line",
+        benefitsHint:
+          "Each line is one bullet on the ticket card. Up to {{max}} entries, 200 characters each.",
+        phasesSection: "Pricing over time (early bird, regular, last minute)",
+        phasesHint:
+          "The FIRST phase whose window covers the current moment wins. A phase overrides both the base price and the early bird price; empty dates mean \"always\" and \"open-ended\".",
+        phasesEmpty: "No phases - the base price (or early bird price) applies.",
+        phaseNumber: "Phase {{index}}",
+        phaseLabelPl: "Phase name (PL)",
+        phaseLabelEn: "Phase name (EN)",
+        phaseFrom: "Valid from",
+        phaseTo: "Valid until",
+        phasePrice: "Price in cents",
+        phaseAdd: "Add pricing phase",
+        phaseRemove: "Remove phase",
+        phaseMoveUp: "Move phase up",
+        phaseMoveDown: "Move phase down",
         earlyBirdPriceCents: "Early bird price",
         earlyBirdUntil: "Early bird price valid until",
         earlyBirdHint:
@@ -1828,6 +1869,9 @@ export const adminEventRegistrationEn = {
       invalidEarlyBird:
         "The early bird price needs a date and cannot exceed the base price.",
       invalidAccessCode: "The access code must have 4 to 64 characters.",
+      invalidBenefits: "At most 20 benefits, each up to 200 characters.",
+      invalidPriceSchedule:
+        "Every pricing phase needs a price and a window that ends after it starts.",
       invalidConsentUrl:
         "The consent document address must start with https:// (up to 500 characters).",
       notFound: "The record does not exist in this organisation.",

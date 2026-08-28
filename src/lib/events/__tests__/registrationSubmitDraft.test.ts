@@ -16,7 +16,9 @@ import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
 const TICKET = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const TERM = "cccccccc-cccc-cccc-cccc-cccccccccccc";
 
-function ticket(overrides: Partial<RegistrationForm["tickets"][number]> = {}) {
+function ticket(
+  overrides: Partial<RegistrationForm["tickets"][number]> = {},
+): RegistrationForm["tickets"][number] {
   return {
     id: TICKET,
     key: "regular",
@@ -25,6 +27,10 @@ function ticket(overrides: Partial<RegistrationForm["tickets"][number]> = {}) {
     descriptionPl: "",
     descriptionEn: "",
     priceCents: 0,
+    effectivePriceCents: 0,
+    phase: { source: "standard", priceCents: 0, labelPl: "", labelEn: "", endsAt: null },
+    benefitsPl: [],
+    benefitsEn: [],
     currency: "EUR",
     requiresApproval: false,
     minTierRank: 0,
@@ -33,9 +39,12 @@ function ticket(overrides: Partial<RegistrationForm["tickets"][number]> = {}) {
     seatsLeft: null,
     availability: "on_sale" as const,
     tierLocked: false,
+    requiresAccessCode: false,
+    accessCodeHint: "",
     ...overrides,
   };
 }
+
 
 function field(overrides: Partial<RegistrationForm["fields"][number]> = {}) {
   return {
