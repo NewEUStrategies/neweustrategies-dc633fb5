@@ -130,11 +130,17 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
 
   const nowIso = new Date().toISOString();
 
-  const { data: order, error } = await supabase
+  // Zwrot przychodzi z identyfikatorem intencji płatności, a zamówienie mogło
+  // zapisać sesję checkout albo (historycznie) sesję w polu intencji. Szukamy
+  // po wszystkich trzech, inaczej zwrot cicho nie odbierałby dostępu.
+  const { data: matches, error } = await supabase
     .from("payment_orders")
     .select("id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata")
-    .eq("provider_intent_id", txnId)
-    .maybeSingle();
+    .or(
+      `provider_payment_intent_id.eq.${txnId},provider_intent_id.eq.${txnId},provider_session_id.eq.${txnId}`,
+    )
+    .limit(1);
+  const order = matches?.[0] ?? null;
   if (error) throw new Error(`refund: order lookup failed: ${error.message}`);
   if (!order) return await revokeDonation(event, txnId);
 
@@ -158,6 +164,11 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
       .eq("event_id", eventId)
       .eq("user_id", order.user_id);
     if (rsvpErr) throw new Error(`refund: rsvp cancel failed: ${rsvpErr.message}`);
+
+    // Zwolnione miejsce wraca do puli, a pierwsza osoba z listy rezerwowej
+    // wchodzi na jej miejsce - w tej samej operacji co anulowanie zgłoszenia.
+    const { applyTicketOutcome } = await import("@/lib/billing/oneTimeFulfilment.server");
+    await applyTicketOutcome(order.id, "refunded");
   }
 
   if (order.user_id) {
