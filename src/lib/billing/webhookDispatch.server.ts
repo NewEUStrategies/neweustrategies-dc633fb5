@@ -402,9 +402,13 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
   const str = (key: string): string | null =>
     typeof data[key] === "string" ? (data[key] as string) : null;
 
-  const totals = data.totals as { total?: string; currencyCode?: string } | undefined;
+  const totals = data.totals as
+    | { total?: string; captured?: string; currencyCode?: string }
+    | undefined;
   const totalRaw = totals?.total;
   const amountCents = totalRaw !== undefined ? Math.round(Number(totalRaw)) : null;
+  const capturedRaw = totals?.captured;
+  const capturedCents = capturedRaw !== undefined ? Math.round(Number(capturedRaw)) : null;
 
   const { applyRefundEffects } = await import("@/lib/billing/refunds.server");
   await applyRefundEffects({
@@ -415,6 +419,7 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
       "refund" | "chargeback" | "chargeback_warning" | "credit" | "other",
     status: str("status"),
     amountCents: Number.isFinite(amountCents) ? amountCents : null,
+    capturedAmountCents: Number.isFinite(capturedCents) ? capturedCents : null,
     currency: str("currencyCode") ?? totals?.currencyCode ?? null,
     environment: env,
   });

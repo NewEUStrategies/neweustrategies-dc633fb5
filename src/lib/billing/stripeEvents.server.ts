@@ -229,6 +229,9 @@ function mapAdjustment(
       status: strOf(refund?.status) ?? (object.refunded === true ? "succeeded" : null),
       totals: {
         total: String(typeof object.amount_refunded === "number" ? object.amount_refunded : 0),
+        // Kwota pobrana pierwotnie - bez niej nie odróżnimy korekty ceny od
+        // pełnej rezygnacji, bo `amount_refunded` sam w sobie tego nie mówi.
+        captured: String(typeof object.amount === "number" ? object.amount : 0),
         currencyCode: strOf(object.currency)?.toUpperCase() ?? null,
       },
     };

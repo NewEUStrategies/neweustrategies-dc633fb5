@@ -251,6 +251,12 @@ export function buildAdminNavGroups({
           label: t("admin.nav.billingReconcile"),
           keywords: ["webhook", "stripe", "rekoncyliacja"],
         },
+        {
+          to: "/admin/billing-audit",
+          icon: CreditCard,
+          label: t("admin.nav.billingAudit"),
+          keywords: ["audyt", "audit", "webhook", "csv", "xlsx", "ksiegowosc"],
+        },
         { to: "/admin/donations", icon: HandHeart, label: t("admin.nav.donations") },
       ],
     },

@@ -12759,6 +12759,7 @@ export type Database = {
           provider_session_id: string | null
           provider_subscription_id: string | null
           receipt_email: string | null
+          refunded_amount_cents: number
           retention_hold: boolean
           retention_until: string | null
           status: Database["public"]["Enums"]["order_status"]
@@ -12789,6 +12790,7 @@ export type Database = {
           provider_session_id?: string | null
           provider_subscription_id?: string | null
           receipt_email?: string | null
+          refunded_amount_cents?: number
           retention_hold?: boolean
           retention_until?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -12819,6 +12821,7 @@ export type Database = {
           provider_session_id?: string | null
           provider_subscription_id?: string | null
           receipt_email?: string | null
+          refunded_amount_cents?: number
           retention_hold?: boolean
           retention_until?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -24944,7 +24947,11 @@ export type Database = {
         Returns: boolean
       }
       payments_apply_event_ticket_outcome: {
-        Args: { p_order_id: string; p_outcome: string }
+        Args: {
+          p_order_id: string
+          p_outcome: string
+          p_refunded_cents?: number
+        }
         Returns: Json
       }
       people_filter_options: {

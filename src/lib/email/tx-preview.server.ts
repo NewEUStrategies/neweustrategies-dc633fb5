@@ -38,6 +38,9 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_registration_approved",
   "event_registration_rejected",
   "event_waitlist_promoted",
+  "event_ticket_paid",
+  "event_ticket_refunded",
+  "event_ticket_partially_refunded",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -236,6 +239,36 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.date, value: eventDate },
           { label: l.place, value: place },
           { label: l.waitlistPosition, value: "3" },
+        ],
+        ctaUrl: `${SITE_URL}/events`,
+      };
+    // Skutek platnosci za bilet: kwota w temacie, a w szczegolach zawsze
+    // widac, czego dotyczy zwrot i ile faktycznie wrocilo do kupujacego.
+    case "event_ticket_paid":
+    case "event_ticket_refunded":
+    case "event_ticket_partially_refunded":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.ticketType, value: lang === "pl" ? "Wejsciowka standard" : "Standard pass" },
+          { label: l.price, value: lang === "pl" ? "450,00 PLN" : "PLN 450.00" },
+          ...(type === "event_ticket_paid"
+            ? []
+            : [
+                {
+                  label: lang === "pl" ? "Kwota zwrotu" : "Refunded amount",
+                  value:
+                    type === "event_ticket_refunded"
+                      ? lang === "pl"
+                        ? "450,00 PLN"
+                        : "PLN 450.00"
+                      : lang === "pl"
+                        ? "150,00 PLN"
+                        : "PLN 150.00",
+                },
+              ]),
         ],
         ctaUrl: `${SITE_URL}/events`,
       };

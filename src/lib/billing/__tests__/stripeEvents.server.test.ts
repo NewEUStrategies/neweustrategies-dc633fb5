@@ -623,6 +623,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
         id: "ch_1",
         payment_intent: "pi_1",
         currency: "pln",
+        amount: 4900,
         amount_refunded: 4900,
         refunded: true,
         refunds: { data: [{ id: "re_1", status: "succeeded" }] },
@@ -635,7 +636,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
       subscriptionId: null,
       action: "refund",
       status: "succeeded",
-      totals: { total: "4900", currencyCode: "PLN" },
+      totals: { total: "4900", captured: "4900", currencyCode: "PLN" },
     });
   });
 
@@ -659,7 +660,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     const data = adjustmentOf(event("charge.refunded", { id: "ch_3", amount_refunded: 0 }));
 
     expect(data.status).toBeNull();
-    expect(data.totals).toEqual({ total: "0", currencyCode: null });
+    expect(data.totals).toEqual({ total: "0", captured: "0", currencyCode: null });
   });
 
   it("mapuje obciążenie zwrotne (dispute)", () => {

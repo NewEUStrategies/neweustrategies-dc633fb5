@@ -33,6 +33,12 @@ export type TxEmailType =
   | "event_registration_approved"
   | "event_registration_rejected"
   | "event_waitlist_promoted"
+  // Wynik platnosci za bilet przeniesiony z webhooka operatora: zaksiegowanie,
+  // zwrot calkowity (miejsce wraca do puli) i zwrot czesciowy (korekta ceny,
+  // miejsce zostaje). Osobne typy, bo kazdy z nich mowi co innego o miejscu.
+  | "event_ticket_paid"
+  | "event_ticket_refunded"
+  | "event_ticket_partially_refunded"
   | "donation_received"
   | "newsletter_confirmed"
   | "customer_portal_link"
@@ -442,6 +448,48 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  event_ticket_paid: {
+    subject: (v) =>
+      `\u{1F39F}\uFE0F Bilet op\u0142acony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "P\u0142atno\u015b\u0107 za bilet zaksi\u0119gowana - miejsce jest Twoje.",
+    eyebrow: "Wydarzenie",
+    heading: "Bilet op\u0142acony",
+    intro:
+      "Zaksi\u0119gowali\u015bmy p\u0142atno\u015b\u0107 za wej\u015bci\u00f3wk\u0119. Twoje zg\u0142oszenie ma status potwierdzonego, a kod wej\u015bcia czeka na stronie zg\u0142oszenia.",
+    cta: "Szczeg\u00f3\u0142y wydarzenia",
+    note: "Faktur\u0119 i potwierdzenie p\u0142atno\u015bci znajdziesz w profilu, w sekcji p\u0142atno\u015bci.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_refunded: {
+    subject: (v) =>
+      `Zwrot za bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Zwr\u00f3cili\u015bmy p\u0142atno\u015b\u0107 za bilet, a udzia\u0142 zosta\u0142 anulowany.",
+    eyebrow: "Wydarzenie",
+    heading: "Bilet anulowany, p\u0142atno\u015b\u0107 zwr\u00f3cona",
+    intro:
+      "Twoja p\u0142atno\u015b\u0107 zosta\u0142a zwr\u00f3cona w ca\u0142o\u015bci, a rezerwacja miejsca - anulowana. \u015arodki wracaj\u0105 t\u0105 sam\u0105 drog\u0105, kt\u00f3r\u0105 dokona\u0142e\u015b/dokona\u0142a\u015b p\u0142atno\u015bci.",
+    cta: "Zobacz inne wydarzenia",
+    note: "Bank zwykle ksi\u0119guje zwrot w ci\u0105gu kilku dni roboczych. Je\u015bli chcesz wr\u00f3ci\u0107 na list\u0119 uczestnik\u00f3w, zapisz si\u0119 ponownie na stronie wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_partially_refunded: {
+    subject: (v) =>
+      `Cz\u0119\u015bciowy zwrot za bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Cz\u0119\u015b\u0107 kwoty wr\u00f3ci\u0142a na Twoje konto - miejsce zostaje.",
+    eyebrow: "Wydarzenie",
+    heading: "Cz\u0119\u015bciowy zwrot p\u0142atno\u015bci",
+    intro:
+      "Skorygowali\u015bmy kwot\u0119 za wej\u015bci\u00f3wk\u0119 i zwr\u00f3cili\u015bmy r\u00f3\u017cnic\u0119. Twoje miejsce na wydarzeniu pozostaje zarezerwowane, a kod wej\u015bcia jest wa\u017cny.",
+    cta: "Szczeg\u00f3\u0142y wydarzenia",
+    note: "Zaktualizowany dokument rozliczeniowy znajdziesz w profilu, w sekcji p\u0142atno\u015bci.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   donation_received: {
     subject: (v) =>
       `❤️ Dziękujemy za darowiznę${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
@@ -806,6 +854,47 @@ const EN: Dict = {
       "A seat opened up and you moved from the waiting list to the attendee list. Nothing to confirm - your registration is already active.",
     cta: "Event details",
     note: "If you cannot come, cancel with the link from your registration confirmation - the seat goes to the next person in the queue.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_paid: {
+    subject: (v) =>
+      `\u{1F39F}\uFE0F Ticket paid${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Your ticket payment has settled - the seat is yours.",
+    eyebrow: "Event",
+    heading: "Ticket payment received",
+    intro:
+      "We have recorded your ticket payment. Your registration is confirmed and the entry code is waiting on your registration page.",
+    cta: "Event details",
+    note: "The invoice and payment receipt are available in your profile, under payments.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_refunded: {
+    subject: (v) => `Ticket refunded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "We refunded your ticket and released the seat.",
+    eyebrow: "Event",
+    heading: "Ticket cancelled, payment refunded",
+    intro:
+      "Your payment has been refunded in full and the seat reservation has been cancelled. The money returns through the same method you paid with.",
+    cta: "Browse other events",
+    note: "Banks usually post refunds within a few business days. If you want to attend after all, register again on the event page.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_partially_refunded: {
+    subject: (v) =>
+      `Partial ticket refund${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Part of the amount is on its way back - your seat stays.",
+    eyebrow: "Event",
+    heading: "Partial refund issued",
+    intro:
+      "We adjusted the ticket price and refunded the difference. Your seat remains reserved and your entry code stays valid.",
+    cta: "Event details",
+    note: "The updated billing document is available in your profile, under payments.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
