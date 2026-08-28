@@ -16,7 +16,18 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  Activity,
+  Camera,
+  Loader2,
+  Mail,
+  Plus,
+  RefreshCw,
+  Share2,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/field-box";
@@ -34,6 +45,10 @@ import {
   type SocialKey,
   type SocialLinks,
 } from "@/lib/events/myEventProfileApi";
+import {
+  ProfileHeroFrame,
+  ProfileSectionCard,
+} from "@/components/profile/shell/ProfileShell";
 import { OrganizationPicker } from "./OrganizationPicker";
 import { MAX_INTENT_BULLETS, parseIntentBullets } from "./IntentBulletList";
 import {
@@ -103,23 +118,25 @@ function toForm(profile: MyEventProfile | null): FormState {
   };
 }
 
+// Sekcja formularza = KARTA SEKCJI PROFILU PUBLICZNEGO. Ten sam nagłówek
+// (11px, uppercase, ikona w kolorze primary) co na `/profile`, żeby tryb edycji
+// na wydarzeniu i strona publiczna wyglądały jak jeden produkt.
 function Section({
+  icon,
   title,
   hint,
   children,
 }: {
+  icon: React.ReactNode;
   title: string;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[6px] border border-border bg-card p-3.5 space-y-3">
-      <header className="space-y-0.5">
-        <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-        {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </header>
-      {children}
-    </section>
+    <ProfileSectionCard icon={icon} title={title}>
+      {hint !== undefined && <p className="-mt-1 mb-3 text-xs text-muted-foreground">{hint}</p>}
+      <div className="space-y-3">{children}</div>
+    </ProfileSectionCard>
   );
 }
 
@@ -318,7 +335,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3" aria-label={t("eventMe.profileFormAria")}>
-      <Section title={t("eventMe.sections.identity")} hint={t("eventMe.sections.identityHint")}>
+      <Section icon={<UserRound className="h-3.5 w-3.5" />} title={t("eventMe.sections.identity")} hint={t("eventMe.sections.identityHint")}>
         <div className="flex flex-col gap-4 sm:flex-row">
           <div
             className={`relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/30 ${
@@ -451,7 +468,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section title={t("eventMe.sections.contact")} hint={t("eventMe.sections.contactHint")}>
+      <Section icon={<Mail className="h-3.5 w-3.5" />} title={t("eventMe.sections.contact")} hint={t("eventMe.sections.contactHint")}>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <FieldBox
@@ -494,7 +511,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section title={t("eventMe.sections.social")} hint={t("eventMe.sections.socialHint")}>
+      <Section icon={<Share2 className="h-3.5 w-3.5" />} title={t("eventMe.sections.social")} hint={t("eventMe.sections.socialHint")}>
         <div className="grid gap-3 sm:grid-cols-2">
           {SOCIAL_KEYS.map((key) => (
             <FieldBox
@@ -509,7 +526,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </Section>
 
-      <Section title={t("eventMe.sections.about")} hint={t("eventMe.sections.aboutHint")}>
+      <Section icon={<Activity className="h-3.5 w-3.5" />} title={t("eventMe.sections.about")} hint={t("eventMe.sections.aboutHint")}>
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
