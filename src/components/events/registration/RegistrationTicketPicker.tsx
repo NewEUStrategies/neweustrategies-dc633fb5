@@ -11,7 +11,7 @@
 //
 // NATYWNE `radio`, a nie przyciski: klawiatura, czytnik ekranu i walidacja
 // grupy dzialaja bez jednej linii naszego kodu.
-import { Lock } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -19,6 +19,7 @@ import {
   type RegistrationFormTicket,
 } from "@/lib/events/registrationFormSurface";
 import { formatMoney } from "@/lib/billing/types";
+import { formatEventDateTime } from "@/lib/events/timezone";
 
 export function RegistrationTicketPicker({
   tickets,
@@ -47,6 +48,18 @@ export function RegistrationTicketPicker({
         const checked = value === ticket.id;
         const name = (lang === "en" ? ticket.nameEn : ticket.namePl) || ticket.key;
         const description = lang === "en" ? ticket.descriptionEn : ticket.descriptionPl;
+        const benefits = lang === "en" ? ticket.benefitsEn : ticket.benefitsPl;
+        const phaseLabel =
+          (lang === "en" ? ticket.phase.labelEn : ticket.phase.labelPl) ||
+          (ticket.phase.source === "standard" ? "" : t("eventRegistration.labels.phaseEarlyBird"));
+        const phaseEnds =
+          ticket.phase.endsAt === null
+            ? ""
+            : t("eventRegistration.labels.phaseEndsAt", {
+                date: formatEventDateTime(ticket.phase.endsAt, null, lang),
+              });
+        const phaseNote =
+          phaseLabel === "" ? null : [phaseLabel, phaseEnds].filter((part) => part !== "").join(" - ");
 
         return (
           <label
@@ -76,15 +89,49 @@ export function RegistrationTicketPicker({
                 />
                 {name}
               </span>
-              <span className="whitespace-nowrap text-sm font-medium text-foreground">
-                {ticket.priceCents === 0
-                  ? t("eventRegistration.labels.free")
-                  : formatMoney(ticket.priceCents, ticket.currency, lang)}
+              <span className="flex flex-col items-end gap-0.5 whitespace-nowrap text-sm font-medium text-foreground">
+                <span>
+                  {ticket.effectivePriceCents === 0
+                    ? t("eventRegistration.labels.free")
+                    : formatMoney(ticket.effectivePriceCents, ticket.currency, lang)}
+                </span>
+                {/* Cena bazowa pojawia sie WYLACZNIE wtedy, gdy prog realnie
+                    obniza kwote - przekreslenie przy tej samej liczbie udaje
+                    promocje, ktorej nie ma. */}
+                {ticket.effectivePriceCents < ticket.priceCents && (
+                  <span className="text-xs font-normal text-muted-foreground line-through">
+                    {formatMoney(ticket.priceCents, ticket.currency, lang)}
+                  </span>
+                )}
               </span>
             </span>
 
             {description !== "" && (
               <span className="text-sm text-muted-foreground">{description}</span>
+            )}
+
+            {/* PROG CENOWY MOWI, DO KIEDY. „Taniej" bez terminu nie sklania do
+                decyzji, a data konca liczona jest w bazie - tu tylko formatujemy. */}
+            {phaseNote !== null && (
+              <span className="w-fit rounded-[6px] bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {phaseNote}
+              </span>
+            )}
+
+            {benefits.length > 0 && (
+              <span className="mt-1 flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("eventRegistration.labels.benefitsTitle")}
+                </span>
+                <ul className="flex flex-col gap-1">
+                  {benefits.map((benefit) => (
+                    <li key={benefit} className="flex items-start gap-2 text-sm text-foreground">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                      <span>{benefit}</span>
+                    </li>
+                  ))}
+                </ul>
+              </span>
             )}
 
             <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -96,6 +143,13 @@ export function RegistrationTicketPicker({
               </span>
               {ticket.requiresApproval && (
                 <span>{t("eventRegistration.labels.requiresApproval")}</span>
+              )}
+              {ticket.requiresAccessCode && (
+                <span>
+                  {ticket.accessCodeHint === ""
+                    ? t("eventRegistration.labels.accessCodeRequired")
+                    : ticket.accessCodeHint}
+                </span>
               )}
               {ticket.tierLocked && (
                 <span className="flex items-center gap-1 text-primary">
