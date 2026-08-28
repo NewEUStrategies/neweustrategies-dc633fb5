@@ -543,6 +543,18 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         },
         {
           raw: {
+            id: "default-events",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "events",
+            icon: "CalendarDays",
+          },
+          href: "/profile/events",
+          label: lang === "pl" ? "Wydarzenia" : "Events",
+          desc: "",
+        },
+        {
+          raw: {
             id: "default-messages",
             section: "auth" as const,
             kind: "preset" as const,

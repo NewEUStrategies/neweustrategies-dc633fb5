@@ -40,6 +40,7 @@ export interface ParticipantRegistration {
   eventTitlePl: string | null;
   eventTitleEn: string | null;
   eventStartsAt: string | null;
+  eventEndsAt: string | null;
   eventTimezone: string | null;
   orderStatus: string | null;
   amountCents: number | null;
@@ -111,6 +112,7 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
     eventTitlePl: text(row, "event_title_pl"),
     eventTitleEn: text(row, "event_title_en"),
     eventStartsAt: text(row, "event_starts_at"),
+    eventEndsAt: text(row, "event_ends_at"),
     eventTimezone: text(row, "event_timezone"),
     orderStatus: text(row, "order_status"),
     amountCents: int(row, "amount_cents"),

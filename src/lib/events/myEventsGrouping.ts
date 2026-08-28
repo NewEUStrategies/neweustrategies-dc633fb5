@@ -9,13 +9,23 @@
 // odbyło; wrzucenie go do archiwum ukryłoby aktywny zapis.
 import type { ParticipantRegistration } from "@/lib/events/participantTicketsApi";
 
-export type MyEventsBucket = "upcoming" | "past";
+export type MyEventsBucket = "upcoming" | "current" | "past";
+
+/**
+ * TRWA = start już minął, a koniec jeszcze nie. Wydarzenie bez daty końca
+ * traktujemy jak jednodniowe (doba od startu) - inaczej każdy miniony wpis bez
+ * `ends_at` zostałby na zawsze „w trakcie".
+ */
+const DEFAULT_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export function bucketOf(item: ParticipantRegistration, now: Date): MyEventsBucket {
   if (item.eventStartsAt === null) return "upcoming";
   const start = Date.parse(item.eventStartsAt);
   if (Number.isNaN(start)) return "upcoming";
-  return start >= now.getTime() ? "upcoming" : "past";
+  if (start >= now.getTime()) return "upcoming";
+  const endRaw = item.eventEndsAt === null ? Number.NaN : Date.parse(item.eventEndsAt);
+  const end = Number.isNaN(endRaw) ? start + DEFAULT_DURATION_MS : endRaw;
+  return end >= now.getTime() ? "current" : "past";
 }
 
 /** Czy pozycja czeka na pieniądze - „opłać bilet" ma sens tylko wtedy. */
@@ -27,6 +37,7 @@ export function awaitsPayment(item: ParticipantRegistration): boolean {
 
 export interface MyEventsGroups {
   upcoming: ParticipantRegistration[];
+  current: ParticipantRegistration[];
   past: ParticipantRegistration[];
 }
 
@@ -39,9 +50,12 @@ export function groupMyEvents(
   now: Date,
 ): MyEventsGroups {
   const upcoming: ParticipantRegistration[] = [];
+  const current: ParticipantRegistration[] = [];
   const past: ParticipantRegistration[] = [];
   for (const item of items) {
-    if (bucketOf(item, now) === "upcoming") upcoming.push(item);
+    const bucket = bucketOf(item, now);
+    if (bucket === "upcoming") upcoming.push(item);
+    else if (bucket === "current") current.push(item);
     else past.push(item);
   }
   const stamp = (item: ParticipantRegistration): number => {
@@ -49,6 +63,7 @@ export function groupMyEvents(
     return Number.isNaN(value) ? Number.MAX_SAFE_INTEGER : value;
   };
   upcoming.sort((a, b) => stamp(a) - stamp(b));
+  current.sort((a, b) => stamp(a) - stamp(b));
   past.sort((a, b) => stamp(b) - stamp(a));
-  return { upcoming, past };
+  return { upcoming, current, past };
 }
