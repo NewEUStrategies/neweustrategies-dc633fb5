@@ -216,6 +216,7 @@ export type TicketDraftField =
   | "accessCodeHint"
   | "benefitsPl"
   | "benefitsEn"
+  | "sortOrder"
   | "phases";
 
 export interface TicketDraftIssue {
@@ -263,6 +264,18 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   const tier = intOrNull(draft.minTierRank);
   if (tier === null || Number.isNaN(tier) || tier < 0 || tier > 100) {
     return { field: "minTierRank", errorKey: "invalidRequest" };
+  }
+
+  // KOLEJNOSC TEZ JEST LICZBA - i az do teraz nie byla sprawdzana WCALE, choc
+  // blizniaczy `packageDraftIssue` ja sprawdza. `ticketDraftToInput` robi na tym
+  // polu `Number()`, wiec wpisane slowo wychodzilo z formularza jako `NaN`,
+  // w JSON-ie zamienialo sie w `null` i wracalo odmowa NOT NULL bez nazwy
+  // kolumny: uzytkownik widzial „cos poszlo nie tak" i ani jednego
+  // podswietlonego pola. Puste pole zostaje dozwolone, bo `ticketDraftToInput`
+  // czyta je jako zero - to jest udokumentowane zachowanie, nie przeoczenie.
+  const sort = intOrNull(draft.sortOrder);
+  if (sort !== null && (Number.isNaN(sort) || sort < 0 || sort > 10_000)) {
+    return { field: "sortOrder", errorKey: "invalidRequest" };
   }
 
   // Okno sprzedaży zamknięte przed otwarciem to bilet, którego nie da się kupić
