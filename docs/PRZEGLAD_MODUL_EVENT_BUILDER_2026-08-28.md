@@ -12,11 +12,16 @@ Dokumenty odniesienia: `docs/PROJEKT_MODUL_EVENT_BUILDER_2026-08-23.md` (etapy E
 Moduł jest w dobrym stanie inżynierskim. **Wszystkie kryteria odbioru etapów E4–E7, które da się
 sprawdzić w kodzie, są spełnione po stronie serwera** — kolizja czasowa sesji odrzucana pod blokadą
 doradczą, „typ biletu nadaje grupę”, trzy ograniczenia `EXCLUDE` przeciw podwójnej rezerwacji,
-deduplikacja powtórnego skanu, izolacja leadów partnera po `sponsor_id` i zgodzie. Ciężar problemów
-przesunął się z poprawności na **domknięcie i pokrycie**: łańcuch zaproszeń na miejsca w pakiecie
-urywa się na brakującej trasie, dziesięć funkcji RPC żyje w bazie bez wywołania z aplikacji, jedyna
-bramka wykonująca SQL modułu nie jest podpięta do CI, a bramka pilnująca zdarzeń domenowych jest
-zielona, bo jej wyrażenie regularne nie dopasowuje nazw używanych przez ten moduł.
+deduplikacja powtórnego skanu, izolacja leadów partnera po `sponsor_id` i zgodzie. Fundamenty są więc w porządku. Problemy leżą **na stykach i na ostatnim metrze** — i tam jest ich
+sporo. Przegląd piętnastu podsystemów, każdy z osobną adwersaryjną weryfikacją, zostawił po odsianiu
+**165 ustaleń, w tym siedem krytycznych** (pełna lista: załącznik
+`docs/PRZEGLAD_MODUL_EVENT_BUILDER_2026-08-28_USTALENIA.md`). Każde krytyczne sprawdziłem ręcznie
+w kodzie; wszystkie się potwierdziły. Trzy z nich są takie, że wydarzenie z produkcji zachowa się źle
+w pierwszym dniu użycia: **płatny bilet jest wydawany za darmo**, **pole zgody trwale blokuje zapis**,
+a **anonim może pobrać adres nagrania sesji z wydarzenia dla członków**.
+
+Wspólny mianownik większości z nich to nie zaniedbanie, tylko **tempo**: backend wyprzedził front
+o kilka dni i część łańcuchów jest kompletna po stronie bazy, a urwana na powierzchni.
 
 ---
 
@@ -78,47 +83,171 @@ Liczby policzone z repozytorium, nie ze specyfikacji.
 Kryteria sprawdzone przez odczytanie **ostatniej** definicji funkcji w łańcuchu migracji — patrz §5
 o kształcie historii migracji.
 
-| Kryterium                                                            | Gdzie egzekwowane                                                                                                                                                                                                                           |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **E4** — kolizja czasowa sesji odrzucana serwerowo                   | `event_session_signup`: `pg_advisory_xact_lock` na parze (wydarzenie, użytkownik), porównanie `time_range && time_range` z flagą `allow_overlap`. Kolizja sali osobno, przez `EXCLUDE USING gist`.                                          |
-| **E5** — typ biletu nadaje grupę                                     | `event_register`: `v_group_id := v_ticket.group_id`, z powrotem do grupy domyślnej gdy bilet jej nie niesie.                                                                                                                                |
-| **E5** — walidacja formularza po stronie serwera                     | `event_register`: pola wymagane, zgody wymagane (`is_true`, nie „obecne”), regulaminy wymagane, limit 64 kB ładunku, wzorzec e-mail, okno sprzedaży biletu, ranga warstwy, kod dostępu po SHA-256, `rate_limit_hit` 12/10, blokada wiersza. |
-| **E6** — brak podwójnej rezerwacji                                   | Trzy `EXCLUDE USING gist`: miejsce przy stole, uczestnik, okno dostępności. Reguły czasu i pojemności w `tg_event_meetings_validate`.                                                                                                       |
-| **E7** — powtórny skan odrzucany                                     | `event_checkins`: `EXCLUDE USING gist` po (najemca, punkt, osoba, `dedupe_range`) z filtrem na `result = 'granted'` i kierunek.                                                                                                             |
-| **E7** — partner widzi wyłącznie własne leady                        | `event_lead_scans_list` uwierzytelnia po `token_hash`, filtruje po `sponsor_id` urządzenia i **dodatkowo** zeruje pola osobowe bez `consent_partner_sharing_at`.                                                                            |
-| **Ryzyko nr 3** — wyciek `join_url` / `recording_url` / `stream_url` | Granty na `public.events` są kolumnowe i wyliczają wyłącznie kolumny publiczne; kolumny dodane 26 sierpnia dopisano tym samym wzorcem. Żaden grant nie obejmuje kolumn linkowych.                                                           |
-| Higiena warstwy bazy                                                 | 42/42 tabel z RLS. Domyślna odmowa + dostęp wyłącznie przez `SECURITY DEFINER`. **Każda** funkcja `SECURITY DEFINER` modułu ma `search_path`. Żadna `admin_event_*` nie ma `GRANT EXECUTE` dla `anon`.                                      |
-| Poświadczenia                                                        | Token skanera i `manage_token`: 24 losowe bajty base64url (192 bity), w bazie wyłącznie SHA-256, odwołanie, wygaśnięcie, blokada po serii błędów, zakresy. Strona samoobsługi z `noindex, nofollow`.                                        |
+| Kryterium                                                            | Gdzie egzekwowane                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **E4** — kolizja czasowa sesji odrzucana serwerowo                   | `event_session_signup`: `pg_advisory_xact_lock` na parze (wydarzenie, użytkownik), porównanie `time_range && time_range` z flagą `allow_overlap`. Kolizja sali osobno, przez `EXCLUDE USING gist`. **Zastrzeżenie:** awans z listy rezerwowej tej kontroli nie powtarza (patrz ustalenia wysokie).                                                         |
+| **E5** — typ biletu nadaje grupę                                     | `event_register`: `v_group_id := v_ticket.group_id`, z powrotem do grupy domyślnej gdy bilet jej nie niesie.                                                                                                                                                                                                                                               |
+| **E5** — walidacja formularza po stronie serwera                     | `event_register`: pola wymagane, zgody wymagane (`is_true`, nie „obecne”), regulaminy wymagane, limit 64 kB ładunku, wzorzec e-mail, okno sprzedaży biletu, ranga warstwy, kod dostępu po SHA-256, `rate_limit_hit` 12/10, blokada wiersza.                                                                                                                |
+| **E6** — brak podwójnej rezerwacji                                   | Trzy `EXCLUDE USING gist`: miejsce przy stole, uczestnik, okno dostępności. Reguły czasu i pojemności w `tg_event_meetings_validate`.                                                                                                                                                                                                                      |
+| **E7** — powtórny skan odrzucany                                     | `event_checkins`: `EXCLUDE USING gist` po (najemca, punkt, osoba, `dedupe_range`) z filtrem na `result = 'granted'` i kierunek.                                                                                                                                                                                                                            |
+| **E7** — partner widzi wyłącznie własne leady                        | `event_lead_scans_list` uwierzytelnia po `token_hash`, filtruje po `sponsor_id` urządzenia i **dodatkowo** zeruje pola osobowe bez `consent_partner_sharing_at`. **Zastrzeżenie:** eksport po stronie organizatora (`admin_event_lead_scans_export`) bramkuje zgodą wyłącznie e-mail i telefon — imię, nazwisko, firma i stanowisko wychodzą bezwarunkowo. |
+| **Ryzyko nr 3** — wyciek `join_url` / `recording_url` / `stream_url` | Granty na `public.events` są kolumnowe i wyliczają wyłącznie kolumny publiczne; kolumny dodane 26 sierpnia dopisano tym samym wzorcem. Żaden grant nie obejmuje kolumn linkowych.                                                                                                                                                                          |
+| Higiena warstwy bazy                                                 | 42/42 tabel z RLS. Domyślna odmowa + dostęp wyłącznie przez `SECURITY DEFINER`. **Każda** funkcja `SECURITY DEFINER` modułu ma `search_path`. Żadna `admin_event_*` nie ma `GRANT EXECUTE` dla `anon`.                                                                                                                                                     |
+| Poświadczenia                                                        | Token skanera i `manage_token`: 24 losowe bajty base64url (192 bity), w bazie wyłącznie SHA-256, odwołanie, wygaśnięcie, blokada po serii błędów, zakresy. Strona samoobsługi z `noindex, nofollow`.                                                                                                                                                       |
 
 ---
 
 ## 4. Ustalenia
 
-Każde sprawdzone w kodzie. Waga oddaje realną osiągalność scenariusza.
+Poniżej **zestaw priorytetowy**: siedem ustaleń krytycznych i te wysokie oraz średnie, które zmieniają
+plan pracy. Pełna lista 165 ustaleń po weryfikacji — z podziałem na piętnaście podsystemów i z dziewięcioma
+ustaleniami obalonymi — leży w `docs/PRZEGLAD_MODUL_EVENT_BUILDER_2026-08-28_USTALENIA.md`.
+Waga oddaje realną osiągalność scenariusza, nie to, jak groźnie brzmi nazwa.
+
+### Krytyczne — psują przebieg w pierwszym dniu użycia
+
+Siedem ustaleń o tej wadze. Każde sprawdziłem dodatkowo ręcznie w kodzie; każde się potwierdziło.
+
+**K-1 · Płatny bilet jest wydawany za darmo: zapis z formularza nie ma bramki płatności**
+
+`event_register` sprawdza przy wybranym bilecie **wszystko poza ceną**: `is_active`, okno sprzedaży
+(`sales_from`/`sales_to`), `min_tier_rank`, kod dostępu po SHA-256 i pulę miejsc. Kolumna
+`price_cents` nie pada w całym ciele funkcji ani razu
+(`20260827220945_d4ece1f0-…sql:337-363`). Zgłoszenie powstaje ze statusem `approved`, z wydanym
+kodem QR i z `payment_status = 'not_required'` — wartością domyślną kolumny
+(`20260828053802_6e09cbdf-…sql:20`). Publiczny formularz pokazuje cenę w kafelku biletu, po czym
+kończy ekranem potwierdzenia i mailem, bez kroku płatności i bez przekierowania do kasy
+(`PublicRegistrationForm.tsx:109-187`).
+
+Skutek: wydarzenie z `registration_mode = 'form'` i biletem za 1200 zł wydaje ten bilet każdemu, kto
+wypełni formularz. Miejsce z puli zostaje zajęte, kod QR działa przy bramce, w rozliczeniach nie ma
+śladu. Poprawna ścieżka kasowa **istnieje obok** i jest zrobiona dobrze (`event_ticket_checkout_quote`
+→ koszyk → `payment_status`), tylko ten przebieg jej nie używa.
+
+Naprawa: przy `price_cents > 0` wystawiać zgłoszenie ze statusem wstrzymanym i
+`payment_status = 'unpaid'`, bez kodu QR, i zwracać klientowi wskazanie do kasy; kod QR wydawać
+dopiero na potwierdzeniu płatności. Do czasu poprawki — nie konfigurować płatnych biletów
+w przebiegu formularza.
+
+**K-2 · Pole zgody trwale blokuje zapis: formularz go nie pokazuje, a serwer go wymaga**
+
+`event_registration_form` w najnowszej definicji odsiewa pola zgody z listy pól
+(`AND f.field_type <> 'consent'`, `20260828051054_a4d602e0-…sql:511`) i zwraca wyłącznie `fields`,
+`tickets` oraz `terms` — **klucza z listą zgód nie ma w ogóle** (tamże:578-583). Jednocześnie
+`event_register` wymaga, żeby każde aktywne i wymagane pole typu `consent` było zaznaczone, inaczej
+rzuca `missing_required_consents` (`20260827220945_d4ece1f0-…sql:396-403`). Ten kod błędu nie ma
+klucza tłumaczenia w żadnej nakładce, więc uczestnik dostaje generyczne „coś poszło nie tak”.
+
+Skutek: redaktor dodaje wymaganą zgodę i od tej chwili **nikt nie jest w stanie się zapisać**.
+Formularz nie pokazuje pola, więc nie ma czego zaznaczyć; walidacja klienta go nie widzi, bo pole nie
+przyszło w `fields`; serwer odrzuca każdą próbę komunikatem, którego nie da się zrozumieć. Studio
+pozwala takie pole utworzyć bez żadnego ostrzeżenia.
+
+Naprawa: dołożyć klucz `consents` do zwrotu RPC i wyrenderować te pola w formularzu; do czasu
+poprawki zablokować w studiu tworzenie wymaganego pola typu `consent`. Niezależnie od wyboru —
+dopisać klucz tłumaczenia dla `missing_required_consents`.
+
+**K-3 · Anonim pobiera adres nagrania i transmisji sesji z wydarzenia dla członków**
+
+`event_session_access(uuid)` ma `GRANT EXECUTE … TO anon`
+(`20260824084741_5e079502-…sql:823`). Jej zapytanie filtruje wyłącznie po
+`s.status = 'published' AND e.status = 'published'` — **nie patrzy ani na `events.visibility`, ani na
+`events.min_tier_rank`** (tamże:774-784). Jedyna bramka to `IF v_session.min_tier_rank > 0`, a ta
+kolumna ma `DEFAULT 0` (`20260823140000_event_sessions.sql:454`). `recording_url` wychodzi
+**bezwarunkowo**, a `stream_url` gdy `v_signed` — które przy `requires_signup = false` jest prawdą
+także dla `auth.uid() IS NULL`. Identyfikatory sesji są jawne: `event_agenda(text)` też jest nadana
+`anon` i zwraca `s.id`.
+
+Skutek: dwa wywołania z konsoli przeglądarki, bez logowania — `event_agenda('<slug>')` po
+identyfikatory, potem `event_session_access(<id>)` po adresy. Wydarzenie z `visibility = 'members'`
+i `min_tier_rank = 3` oddaje nagrania wszystkich sesji i transmisje sesji plenarnych. To dokładnie ta
+klasa błędu, którą dla tabeli `events` zamknęła migracja `20260721150000` — powtórzona na
+`event_sessions`.
+
+Naprawa: dołożyć do zapytania warunki z wiersza wydarzenia (`visibility`, `min_tier_rank`, tryb
+gościa) i uzależnić `recording_url` od tej samej bramki co `stream_url`; dla anonima nie zwracać
+żadnego z dwóch. Wzorzec jest w `get_event_access`.
+
+**K-4 · Sześć zdarzeń rejestracji jest odrzucanych przy zapisie i po cichu ginie — a bramka CI tego nie widzi**
+
+To samo błędne założenie — „nazwa zdarzenia ma dwa człony” — siedzi w **trzech niezależnych
+miejscach**:
+
+1. `domain_events.event_type` ma `CHECK (event_type ~ '^[a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$')`
+   (`20260711200000_domain_event_bus.sql:34`), więc `event.registration.created.v1` narusza
+   ograniczenie przy `INSERT`. `emit_domain_event` kończy się `EXCEPTION WHEN OTHERS THEN RETURN
+NULL`, więc **zdarzenie nigdy nie trafia na szynę i nikt się o tym nie dowiaduje**. Komentarz
+   w tej samej migracji nazywa ten mechanizm wprost: „własny EXCEPTION emiterów zamienia to w ciszę”.
+2. `DOMAIN_EVENT_TYPES` nie zna żadnej z tych sześciu nazw, więc `invalidationKeysFor()` zwraca `[]`
+   (`eventInvalidationMap.ts:332-337`).
+3. Bramka `domainEventCatalog.test.ts:12` ma to samo dwuczłonowe wyrażenie, więc jest **zielona**.
+
+To jedyne sześć trzyczłonowych nazw w repozytorium na 63 rodzaje zdarzeń — dlatego nie ujawniło się
+nigdzie indziej. Skutek: cały cykl życia zgłoszenia jest niewidoczny dla szyny — brak śladu
+audytowego, brak odświeżania na żywo, brak możliwości podpięcia czegokolwiek pod „zgłoszenie
+rozstrzygnięte”.
+
+Naprawa: najpierw poprawić wyrażenie bramki na `/'([a-z_]+(?:\.[a-z_]+)+\.v\d+)'/` — zczerwienieje
+i pokaże komplet. Potem rozstrzygnąć: rozluźnić `CHECK` na szynie do wielu członów albo przemianować
+sześć zdarzeń na dwuczłonowe (`event_registration.created.v1`). Na końcu dopisać wpisy do katalogu
+i reguły inwalidacji.
+
+**K-5 · Dialog „Umów spotkanie” nie znajdzie nigdy żadnego uczestnika**
+
+`const ARRANGEABLE_STATUS = "confirmed"` (`meetingParticipants.ts:26`) trafia jako `p_status` do
+`admin_event_registrations_list`, które filtruje dosłownie:
+`AND (p_status IS NULL OR p_status = 'all' OR r.status = p_status)`
+(`20260824090214_f14a8b5f-…sql:767`). Ograniczenie kolumny dopuszcza wyłącznie
+`draft, pending, approved, rejected, waitlist, cancelled, attended, no_show`
+(`20260823150000_event_people_registration.sql:692`). Wartości `confirmed` w tym zbiorze **nie ma
+i nigdy nie było**.
+
+Skutek: wyszukiwarka w dialogu zawsze zwraca pustą listę, przycisk zapisu zostaje nieaktywny.
+`admin_event_meeting_arrange` — jedyna droga realizacji obietnicy z pakietu sponsorskiego typu
+„dziesięć umówionych spotkań” — jest z panelu nieosiągalna.
+
+Naprawa: zmienić stałą na `"approved"`. Docelowo wyprowadzić dopuszczalne statusy z jednego miejsca:
+kolumna jest typu `text`, więc typy generowane literówki nie złapią.
+
+**K-6 · Edycja sponsora bezgłośnie kasuje notatkę wewnętrzną**
+
+Łańcuch trzech poprawnych z osobna decyzji daje utratę danych. Dialog edycji dostaje wiersz
+z `admin_event_sponsors_list`, który **celowo** nie zwraca `internal_note` — notatka jest tylko
+w `admin_event_sponsor_detail`, co komentarz w migracji potwierdza
+(`20260823160000_event_sponsors_companies.sql:1262-1296`). `sponsorDraftFromRow` czyta
+`row.internal_note` (`sponsorDraft.ts:266`), dostaje `undefined` i zapisuje pusty napis.
+`sponsorDraftToInput` zawsze zwraca `internalNote: trimOrNull(...)`, czyli `null` — nie `undefined`
+(tamże:311). Pomocnik `payload()` odsiewa wyłącznie `undefined` (`sponsorsApi.ts:64-70`), więc klucz
+**ląduje w ładunku z wartością null**. A SQL brzmi
+`internal_note = CASE WHEN p_payload ? 'internal_note' THEN NULLIF(btrim(COALESCE(…,'')),'') ELSE internal_note END`
+— klucz jest obecny, więc gałąź zachowawcza się nie uruchamia.
+
+Skutek: notatka „umowa NES/2026/114, faktura po wydarzeniu” znika przy pierwszej edycji dowolnego
+innego pola. Bez ostrzeżenia, bez śladu, bez możliwości odtworzenia.
+
+Naprawa: zasilać dialog z `admin_event_sponsor_detail`, nie z wiersza listy; dodatkowo pomijać
+`internalNote` w ładunku, gdy pole nie było w formularzu obecne.
+
+**K-7 · Trzy z czterech odbiorców pakietu miejsc są nie do zapisania**
+
+Klient deklaruje `PACKAGE_AUDIENCES = ["company", "university", "delegation", "partner"]`
+z komentarzem „odwzorowanie CHECK-a `audience` jeden do jednego” (`packagesApi.ts:25`). Ograniczenie
+w bazie brzmi `CHECK (audience IN ('public', 'member', 'academic', 'ngo', 'company'))`
+(`20260824080000_…sql:268`, `20260825191948_ab7f57aa-…sql:180`). Wspólny element jest **jeden**:
+`company` — i akurat on jest wartością domyślną szkicu, dlatego przebieg szczęśliwy działa.
+
+Skutek: wybór „Uczelnia”, „Delegacja” albo „Partner” kończy się naruszeniem ograniczenia —
+komunikatem z bazy, nie zdaniem po polsku. Kompilator tego nie łapie, bo kolumna jest typu `text`.
+Ta sama klasa rozjazdu jest w formatach papieru identyfikatora (`onsiteApi.ts:64` oferuje `cr80`,
+którego baza nie przyjmuje, i ukrywa cztery formaty, które przyjmuje).
+
+Naprawa: zsynchronizować obie listy i dołożyć test porównujący stałe z klienta z wartościami `CHECK`
+w migracjach — dokładnie tak, jak repozytorium robi to już dla kodów błędów i kluczy i18n.
 
 ### Waga wysoka
 
-**U-14 · Sześć zdarzeń domenowych modułu jest niewidocznych dla frontu — i dla bramki, która miała tego pilnować**
-
-Baza emituje `event.registration.created.v1`, `.updated.v1`, `.decided.v1`, `.cancelled.v1`,
-`.promoted.v1` i `.payment.v1`. Żadnego z tych sześciu nie ma w `DOMAIN_EVENT_TYPES` ani
-w `eventInvalidationMap`. Bramka `src/lib/realtime/__tests__/domainEventCatalog.test.ts:12`,
-napisana dokładnie po to, żeby to złapać, jest zielona — bo jej wyrażenie
-`/'([a-z_]+\.[a-z_]+\.v\d+)'/` ma **dwa** człony przed `.vN`, a te nazwy mają trzy. To jedyne sześć
-trzyczłonowych nazw w całym repozytorium (63 rodzaje zdarzeń łącznie), więc luka nie ujawniła się
-w żadnym innym module.
-
-Skutek jest dokładnie tym, przed którym ostrzega komentarz w nagłówku tej bramki:
-`invalidationKeysFor()` (`eventInvalidationMap.ts:332`) nie znajduje reguły i zwraca `[]`, czyli
-**cicho nie robi nic**. Administrator rozstrzyga zgłoszenie, uczestnik się zapisuje, ktoś awansuje
-z listy rezerwowej — a otwarte w innym oknie listy zgłoszeń, liczniki miejsc i „moje zgłoszenia”
-nie odświeżają się na żywo. Nie ma błędu, nie ma czerwonego testu.
-
-Naprawa, w tej kolejności: poprawić wyrażenie na `/'([a-z_]+(?:\.[a-z_]+)+\.v\d+)'/` — bramka
-natychmiast zczerwienieje i pokaże komplet braków; potem dopisać sześć wpisów do
-`DOMAIN_EVENT_TYPES` i sześć reguł inwalidacji.
-
----
+**U-14 → zastąpione przez K-4.** Przy weryfikacji okazało się, że problem sięga głębiej niż
+katalog frontu: zdarzenia są odrzucane już przy zapisie do szyny. Pełny opis w K-1…K-7 powyżej.
 
 **U-01 · Odnośnik zaproszenia na miejsce w pakiecie prowadzi donikąd**
 
@@ -279,11 +408,13 @@ klucza w nakładce, a nieznany wraca na `…unknown`. Z 213 kodów rzucanych prz
 mają klucza w żadnej nakładce — m.in. `missing_required_consents`, `seats_exhausted`, `no_free_seat`,
 `invalid_ticket_type`, `event_type_inactive`, `tier_over_capacity`.
 
-Waga jest niska, bo te ścieżki są zablokowane walidacją klienta (np. `isAnswered`
-w `registrationSubmitDraft.ts:88–96` wymaga `value === "true"` dla zgody, więc
-`missing_required_consents` jest osiągalne wyłącznie z pominięciem interfejsu). To luka w obronie
-w głąb, nie defekt zwykłego przebiegu. Docelowo: test porównujący zbiór `RAISE EXCEPTION` funkcji
-modułu ze zbiorem kluczy nakładek — dziś nic tego nie pilnuje.
+Dla większości kodów waga jest niska, bo odpowiadające im ścieżki są zablokowane walidacją
+klienta — to luka w obronie w głąb. **Z jednym wyjątkiem, który zmienia obraz:**
+`missing_required_consents` jest w zwykłym przebiegu osiągalne, bo formularz w ogóle nie dostaje pól
+zgody z serwera (patrz K-2) — i to właśnie brak tego klucza sprawia, że uczestnik widzi „coś poszło
+nie tak” zamiast wskazówki. Brak tłumaczenia nie jest tam przyczyną awarii, ale zamienia ją w awarię
+niediagnozowalną. Docelowo: test porównujący zbiór `RAISE EXCEPTION` funkcji modułu ze zbiorem kluczy
+nakładek — dziś nic tego nie pilnuje.
 
 **U-12 · `event_capabilities()` nadal nie istnieje**
 
@@ -333,25 +464,51 @@ nie tej w pliku o ładnej nazwie.
 
 ## 6. Proponowana kolejność
 
-Ułożona tak, żeby najpierw odzyskać sygnał, potem domknąć funkcje, na końcu dobudować pokrycie.
+Najpierw to, co dziś zachowa się źle wobec uczestnika lub pieniędzy. Potem odzyskanie sygnału z CI,
+potem domknięcie funkcji, na końcu pokrycie.
 
-1. **Odblokować bramki.** `bun run format` i `bun run generate:authz-snapshot`, potem
+1. **Zatrzymać dwie rzeczy, które psują wydarzenie na produkcji — dziś.** Do czasu poprawki: nie
+   konfigurować płatnych biletów w przebiegu formularza (K-1) i nie oznaczać pól zgody jako
+   wymaganych (K-2). Obie konfiguracje da się dziś ustawić w studiu bez żadnego ostrzeżenia, a obie
+   kończą się cicho złym skutkiem.
+2. **Zamknąć wyciek adresów sesji.** `event_session_access` oddaje anonimowi nagrania wydarzenia dla
+   członków; wzorzec naprawy jest w `get_event_access`. _(K-3)_
+3. **Trzy poprawki jednolinijkowe o dużym zasięgu.** Status w dialogu spotkań (K-5), zasilanie
+   dialogu sponsora z RPC szczegółu (K-6), zsynchronizowanie list `audience` i formatów
+   identyfikatora (K-7). Każda jest tania i każda odblokowuje funkcję, która dziś nie działa wcale.
+4. **Rozstrzygnąć nazewnictwo zdarzeń rejestracji.** Najpierw poprawka wyrażenia w bramce
+   (zczerwienieje i pokaże komplet), potem decyzja: rozluźnić `CHECK` szyny czy przemianować sześć
+   zdarzeń. _(K-4)_
+5. **Odblokować bramki.** `bun run format` i `bun run generate:authz-snapshot`, potem
    `bun run verify:static` w całości — dopiero wtedy widać, co mówią 24 bramki dziś nieuruchamiane.
-   Dwa polecenia, dwa czerwone znikają. _(U-06, U-10)_
-2. **Naprawić wyrażenie w bramce zdarzeń domenowych i dopisać sześć brakujących rodzajów.**
-   Jednoznakowa poprawka regexu przywraca sygnał bramce zielonej bez powodu; sześć wpisów w katalogu
-   przywraca odświeżanie na żywo najczęściej używanemu przebiegowi modułu. _(U-14)_
-3. **Podpiąć harness wydarzeń do CI.** Jedna linia w `package.json`, jeden krok w `ci.yml`. 884
+   _(U-06, U-10)_
+6. **Podpiąć harness wydarzeń do CI.** Jedna linia w `package.json`, jeden krok w `ci.yml`. 884
    asercje istnieją i przechodzą — dziś nikt ich nie uruchamia poza ręcznym wywołaniem. _(U-02)_
-4. **Domknąć trasę zaproszenia.** Bez niej pakiety miejsc są funkcją, której nie da się użyć do końca,
-   mimo że backend jest kompletny. _(U-01)_
-5. **Rozstrzygnąć dziesięć osieroconych funkcji RPC.** Każda dostaje ekran albo migrację usuwającą.
+7. **Domknąć trasę zaproszenia.** Bez niej pakiety miejsc są funkcją, której nie da się użyć do
+   końca, mimo że backend jest kompletny. _(U-01)_
+8. **Rozstrzygnąć dziesięć osieroconych funkcji RPC.** Każda dostaje ekran albo migrację usuwającą.
    Przy okazji zapada decyzja, która z dwóch wycen zakupu zostaje. _(U-04, U-05)_
-6. **Dopisać `50_onsite.sql` i `60_meetings.sql`.** Po kroku 3 mają gdzie się uruchamiać, a chronią to,
-   co w tym module najdroższe do naprawienia po fakcie: dane osobowe leadów i integralność
-   rezerwacji. _(U-03)_
-7. **Sześć importów nakładki i 23 klucze błędów.** Tanie, a zdejmuje klasę usterek, których żadna
-   bramka nie widzi. _(U-07, U-11)_
-8. **Testy paneli, od tych, które zapisują.** Pięć paneli o największej liczbie pól. _(U-08)_
-9. **Decyzje produktowe, nie kod:** `source: "event"` dla widgetów agendy i sponsorów oraz czy
-   `event_capabilities()` powstaje, czy dług zostaje świadomie zamknięty. _(U-09, U-12)_
+9. **Dopisać `50_onsite.sql` i `60_meetings.sql`.** Po kroku 6 mają gdzie się uruchamiać, a chronią
+   to, co w tym module najdroższe do naprawienia po fakcie. _(U-03)_
+10. **Przejść pozostałe ustalenia wysokie z załącznika** — w szczególności bramkę roli redaktora
+    w studiu, zasiew stron publicznych dla wydarzenia w statusie `draft`, prelegenta bez konta
+    znikającego z agendy i przypomnienia omijające zgłoszenia z formularza.
+11. **Sześć importów nakładki i 23 klucze błędów.** Tanie, a zdejmuje klasę usterek, których żadna
+    bramka nie widzi. _(U-07, U-11)_
+12. **Testy paneli, od tych, które zapisują.** Pięć paneli o największej liczbie pól. _(U-08)_
+13. **Decyzje produktowe, nie kod:** `source: "event"` dla widgetów agendy i sponsorów oraz czy
+    `event_capabilities()` powstaje, czy dług zostaje świadomie zamknięty. _(U-09, U-12)_
+
+---
+
+## 7. Jak powstał ten przegląd
+
+Piętnaście podsystemów przejrzanych niezależnie od siebie, każdy przez osobnego recenzenta czytającego
+kod (nie specyfikację). Każdy zestaw ustaleń przeszedł następnie **adwersaryjną weryfikację** — osobne
+przejście, którego zadaniem było ustalenia OBALIĆ, z domyślnym założeniem, że są błędne, dopóki kod
+nie pokaże inaczej. Dziewięć ustaleń weryfikacji nie przetrwało i jest opisanych na końcu załącznika.
+Wszystkie ustalenia krytyczne zostały dodatkowo sprawdzone ręcznie przy składaniu raportu.
+
+Osobno uruchomiono komplet dostępnych testów (§1) — w tym `events-harness`, który stawia własny
+klaster PostgreSQL 16, odtwarza 70 migracji modułu i wykonuje 884 asercje runtime. To jedyna bramka
+w repozytorium, która moduł **wykonuje**, a nie czyta jako tekst; nie jest podpięta do CI (U-02).
