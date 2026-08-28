@@ -1093,6 +1093,7 @@ export const eventFrontEn = {
       nextPage: "Next",
       pageRange: "{{from}}-{{to}} of {{total}}",
       profileLink: "See profile: {{name}}",
+      speakerSessions: "Speaking in sessions",
       signInTitle: "The attendee list is for registered guests",
       signInBody: "Sign in with the account you used to register for this event.",
       notRegisteredTitle: "Register to see who is coming",
