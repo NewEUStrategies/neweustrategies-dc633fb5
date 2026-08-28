@@ -9,7 +9,11 @@ import { join } from "node:path";
 import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
-const EVENT_TYPE_RE = /'([a-z_]+\.[a-z_]+\.v\d+)'/;
+// Nazwa zdarzenia ma CO NAJMNIEJ dwa człony przed `.vN`, ale moduł wydarzeń
+// emituje też trzyczłonowe (`event.registration.created.v1`). Sztywne dwa
+// człony sprawiały, że bramka nie widziała tych sześciu emiterów i świeciła
+// na zielono mimo braku reguł inwalidacji.
+const EVENT_TYPE_RE = /'([a-z_]+(?:\.[a-z_]+)+\.v\d+)'/;
 
 function emittedEventTypes(): string[] {
   const found = new Set<string>();
