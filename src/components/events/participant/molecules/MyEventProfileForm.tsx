@@ -584,13 +584,17 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
           </label>
           <Textarea
-            rows={10}
-            className="min-h-[220px] rounded-[6px] leading-relaxed"
+            rows={12}
+            /* inline style, bo globalna reguła `:where(textarea)` z warstwy CSS
+               potrafiła nadpisać utility min-h-[...] w buildzie produkcyjnym */
+            style={{ minHeight: "300px" }}
+            className="rounded-[6px] leading-relaxed"
             value={en ? form.bio_en : form.bio_pl}
             onChange={field(en ? "bio_en" : "bio_pl")}
             placeholder={t("eventMe.fields.bioHint")}
           />
         </div>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
