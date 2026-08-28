@@ -151,7 +151,7 @@ export function EventStudioPreview({
   });
   const registrationsQ = useRegistrationsList(
     liveEnabled
-      ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "approved", limit: 60, offset: 0 }
+      ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "all", limit: 60, offset: 0 }
       : null,
   );
   const live: EventPreviewLiveData = useMemo(

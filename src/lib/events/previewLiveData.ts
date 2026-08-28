@@ -129,7 +129,7 @@ export function speakerRowsFromAdminEntries(
 /**
  * Zgloszenia panelu -> wpisy katalogu uczestnikow w ksztalcie strony.
  *
- * WCHODZA WYLACZNIE ZATWIERDZENI (`status === "approved"`): katalog publiczny
+ * WCHODZA ZATWIERDZENI I OBECNI (`approved`, `attended`): katalog publiczny
  * nie zna listy rezerwowej ani zgloszen odrzuconych, wiec podglad, ktory by je
  * pokazal, obiecywalby cos, czego po publikacji nie bedzie.
  */
@@ -138,7 +138,7 @@ export function attendeeEntriesFromRegistrationRows(
 ): AttendeeEntry[] {
   if (rows === undefined) return [];
   return rows
-    .filter((row) => row.status === "approved")
+    .filter((row) => row.status === "approved" || row.status === "attended")
     .map((row) => ({
       registrationId: row.id,
       name: [row.first_name ?? "", row.last_name ?? ""]
