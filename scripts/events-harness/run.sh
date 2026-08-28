@@ -123,7 +123,22 @@ echo "harness (atrapy): OK"
 # scoring CRM, profile) i `20260713093000_events_module.sql`, ktorego
 # powierzchnie harness stawia jako ATRAPE - wiec zamiast luzniejszej
 # heurystyki migracja dopisuje sie do zestawu SAMA, jedna linia komentarza.
-MIGRATIONS="$(grep -lE 'public\.admin_event_|events_tenant_id_key|events-harness: include' \
+# CZWARTY CZLON SELEKTORA: PUBLICZNE RPC MODULU.
+#
+# Trzy poprzednie czlony lapia panel administracyjny, tozsamosc najemcy
+# i migracje oznaczone recznie. NIE LAPALY powierzchni PUBLICZNEJ: migracja,
+# ktora definiuje wylacznie `public.event_*` i nie tyka `admin_event_`, byla dla
+# harnessu niewidzialna. Kosztowalo to 21 plikow - miedzy innymi NAJNOWSZE
+# definicje `event_register`, `event_checkin_record`, `event_lead_scan_record`,
+# `event_my_agenda` i `event_meeting_directory`. Harness odtwarzal wiec STARE
+# ciala tych funkcji i zielenil sie na zachowaniu, ktorego produkcja juz nie ma;
+# asercja `zapis/ODMOWA: brak WYMAGANEJ zgody` utrwalila taki wlasnie stan.
+#
+# Wzorzec jest waski CELOWO: `FUNCTION public.event_<cos>(` trafia w DEFINICJE
+# funkcji modulu, a nie w kazde uzycie slowa `event`. Rozszerzenie do
+# `ON public.event_` wciagneloby 37 obcych plikow (hub ekspertow, scoring CRM,
+# profile) - o czym mowi komentarz wyzej i co nadal obowiazuje.
+MIGRATIONS="$(grep -lE 'public\.admin_event_|events_tenant_id_key|events-harness: include|FUNCTION public\.event_[a-z_]+\(' \
                 "$REPO"/supabase/migrations/*.sql | sort -u)"
 echo "Migracje modulu Wydarzen: $(echo "$MIGRATIONS" | grep -c .)"
 
