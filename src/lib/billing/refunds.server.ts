@@ -29,7 +29,15 @@ export interface RefundEvent {
   action: AdjustmentAction;
   /** `approved` / `pending_approval` / `rejected` / `reversed`. */
   status: string | null;
+  /**
+   * Kwota korekty. Dla zwrotu Stripe to `amount_refunded` - wartość
+   * NARASTAJĄCA, a nie kwota pojedynczego zwrotu. Dzięki temu dwa częściowe
+   * zwroty po 150 zł same złożą się na pełny zwrot 300 zł, bez sumowania po
+   * naszej stronie (czyli bez ryzyka podwójnego zliczenia przy ponowieniu).
+   */
   amountCents: number | null;
+  /** Kwota pierwotnie pobrana - odniesienie dla progu „zwrot pełny". */
+  capturedAmountCents?: number | null;
   currency: string | null;
   environment: "sandbox" | "live";
 }
@@ -57,7 +65,9 @@ export function isRevokingAdjustment(event: RefundEvent): boolean {
   }
   // `pending_approval` to dopiero wniosek - dostęp odbieramy po zatwierdzeniu.
   // `reversed` / `rejected` oznaczają, że zwrot nie doszedł do skutku.
-  return event.status === null || event.status === "approved";
+  // `succeeded` to potwierdzenie zwrotu u operatora kart - równoważne
+  // zatwierdzeniu; bez niego zwrot cicho nie odbierałby dostępu.
+  return event.status === null || event.status === "approved" || event.status === "succeeded";
 }
 
 /** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
@@ -140,7 +150,9 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   // po wszystkich trzech, inaczej zwrot cicho nie odbierałby dostępu.
   const { data: matches, error } = await supabase
     .from("payment_orders")
-    .select("id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata")
+    .select(
+      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, refunded_amount_cents",
+    )
     .or(
       `provider_payment_intent_id.eq.${txnId},provider_intent_id.eq.${txnId},provider_session_id.eq.${txnId}`,
     )
@@ -149,19 +161,46 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   if (error) throw new Error(`refund: order lookup failed: ${error.message}`);
   if (!order) return await revokeDonation(event, txnId);
 
+  // Ile łącznie wróciło do kupującego. Operator liczy narastająco, więc bierzemy
+  // maksimum z zapisanego stanu - ponowione zdarzenie nie może cofnąć licznika.
+  const captured = event.capturedAmountCents ?? order.amount_cents ?? null;
+  const refundedSoFar = Math.max(order.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+  // Zwrot częściowy tylko wtedy, gdy znamy kwotę pierwotną I jest ona wyższa.
+  // Bez tej wiedzy zakładamy pełny zwrot - bezpieczniej odebrać dostęp niż
+  // zostawić opłacone uprawnienie po oddaniu pieniędzy.
+  const isPartial =
+    event.action === "refund" &&
+    typeof captured === "number" &&
+    captured > 0 &&
+    refundedSoFar > 0 &&
+    refundedSoFar < captured;
+
   const { error: updateErr } = await supabase
     .from("payment_orders")
-    .update({ status: "refunded", updated_at: nowIso })
+    .update({
+      ...(isPartial ? {} : { status: "refunded" }),
+      refunded_amount_cents: refundedSoFar,
+      updated_at: nowIso,
+    })
     .eq("id", order.id)
     .neq("status", "refunded");
   if (updateErr) throw new Error(`refund: order status flip failed: ${updateErr.message}`);
+
+  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
+  const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
+  const { applyTicketOutcome } = await import("@/lib/billing/oneTimeFulfilment.server");
+
+  if (isPartial) {
+    // Korekta ceny, nie rezygnacja: uprawnienie i miejsce zostają, zmienia się
+    // tylko rozliczenie - baza przeliczy status i wyśle powiadomienie.
+    if (eventId) await applyTicketOutcome(order.id, "partial_refund", refundedSoFar);
+    return "order_refunded";
+  }
 
   const { revokeOrderEntitlement } = await import("@/lib/billing/grant.server");
   await revokeOrderEntitlement(order, nowIso);
 
   // Bilet na wydarzenie: zwrot cofa potwierdzony udział.
-  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
-  const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
   if (eventId && order.user_id) {
     const { error: rsvpErr } = await supabase
       .from("event_rsvps")
@@ -169,11 +208,11 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
       .eq("event_id", eventId)
       .eq("user_id", order.user_id);
     if (rsvpErr) throw new Error(`refund: rsvp cancel failed: ${rsvpErr.message}`);
-
+  }
+  if (eventId) {
     // Zwolnione miejsce wraca do puli, a pierwsza osoba z listy rezerwowej
     // wchodzi na jej miejsce - w tej samej operacji co anulowanie zgłoszenia.
-    const { applyTicketOutcome } = await import("@/lib/billing/oneTimeFulfilment.server");
-    await applyTicketOutcome(order.id, "refunded");
+    await applyTicketOutcome(order.id, "refunded", refundedSoFar);
   }
 
   if (order.user_id) {

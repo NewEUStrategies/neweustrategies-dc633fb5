@@ -126,15 +126,34 @@ async function refundIfOversold(
  */
 export async function applyTicketOutcome(
   orderId: string,
-  outcome: "paid" | "unpaid" | "refunded",
+  outcome: "paid" | "unpaid" | "refunded" | "partial_refund",
+  /**
+   * Suma zwrócona narastająco (Stripe przysyła `amount_refunded` kumulatywnie).
+   * Baza sama zdecyduje, czy to jeszcze korekta ceny, czy już pełny zwrot -
+   * dzięki temu próg „miejsce wraca do puli" ma JEDNO miejsce w systemie.
+   */
+  refundedCents?: number | null,
 ): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin.rpc("payments_apply_event_ticket_outcome", {
+  const { data, error } = await supabaseAdmin.rpc("payments_apply_event_ticket_outcome", {
     p_order_id: orderId,
     p_outcome: outcome,
+    p_refunded_cents:
+      typeof refundedCents === "number" && Number.isFinite(refundedCents)
+        ? Math.max(0, Math.round(refundedCents))
+        : undefined,
   });
   if (error) {
     console.error("[payments] ticket outcome failed", orderId, outcome, error.message);
+    return;
+  }
+
+  // Powiadomienie idzie po zapisie i nigdy go nie unieważnia (fail-soft).
+  try {
+    const { notifyTicketOutcome } = await import("@/lib/events/registrationOutcomeNotify.server");
+    await notifyTicketOutcome((data ?? {}) as Record<string, unknown>);
+  } catch (err) {
+    console.error("[payments] ticket outcome notify failed", orderId, err);
   }
 }
 

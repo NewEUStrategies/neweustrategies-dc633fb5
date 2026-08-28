@@ -126,6 +126,10 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   event_registration_approved: "transactional",
   event_registration_rejected: "transactional",
   event_waitlist_promoted: "transactional",
+  // Skutek platnosci za bilet - dowod rozliczenia, nie wysylka marketingowa.
+  event_ticket_paid: "transactional",
+  event_ticket_refunded: "transactional",
+  event_ticket_partially_refunded: "transactional",
   // Potwierdzenie darowizny - dokument dla darczyńcy.
   donation_received: "transactional",
   // Jednorazowy link do portalu operatora płatności, wywołany kliknięciem

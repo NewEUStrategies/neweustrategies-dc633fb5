@@ -178,6 +178,7 @@ import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminCareersRouteImport } from './routes/admin.careers'
 import { Route as AdminBillingReconcileRouteImport } from './routes/admin.billing-reconcile'
+import { Route as AdminBillingAuditRouteImport } from './routes/admin.billing-audit'
 import { Route as AdminBillingRouteImport } from './routes/admin.billing'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
 import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
@@ -1212,6 +1213,11 @@ const AdminCareersRoute = AdminCareersRouteImport.update({
 const AdminBillingReconcileRoute = AdminBillingReconcileRouteImport.update({
   id: '/billing-reconcile',
   path: '/billing-reconcile',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminBillingAuditRoute = AdminBillingAuditRouteImport.update({
+  id: '/billing-audit',
+  path: '/billing-audit',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminBillingRoute = AdminBillingRouteImport.update({
@@ -2298,6 +2304,7 @@ export interface FileRoutesByFullPath {
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
+  '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -2655,6 +2662,7 @@ export interface FileRoutesByTo {
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
+  '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -3006,6 +3014,7 @@ export interface FileRoutesById {
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
+  '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
@@ -3369,6 +3378,7 @@ export interface FileRouteTypes {
     | '/admin/audience'
     | '/admin/authors'
     | '/admin/billing'
+    | '/admin/billing-audit'
     | '/admin/billing-reconcile'
     | '/admin/careers'
     | '/admin/categories'
@@ -3726,6 +3736,7 @@ export interface FileRouteTypes {
     | '/admin/audience'
     | '/admin/authors'
     | '/admin/billing'
+    | '/admin/billing-audit'
     | '/admin/billing-reconcile'
     | '/admin/careers'
     | '/admin/categories'
@@ -4076,6 +4087,7 @@ export interface FileRouteTypes {
     | '/admin/audience'
     | '/admin/authors'
     | '/admin/billing'
+    | '/admin/billing-audit'
     | '/admin/billing-reconcile'
     | '/admin/careers'
     | '/admin/categories'
@@ -5681,6 +5693,13 @@ declare module '@tanstack/react-router' {
       path: '/billing-reconcile'
       fullPath: '/admin/billing-reconcile'
       preLoaderRoute: typeof AdminBillingReconcileRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/billing-audit': {
+      id: '/admin/billing-audit'
+      path: '/billing-audit'
+      fullPath: '/admin/billing-audit'
+      preLoaderRoute: typeof AdminBillingAuditRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/billing': {
@@ -7427,6 +7446,7 @@ interface AdminRouteChildren {
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
   AdminBillingRoute: typeof AdminBillingRoute
+  AdminBillingAuditRoute: typeof AdminBillingAuditRoute
   AdminBillingReconcileRoute: typeof AdminBillingReconcileRoute
   AdminCareersRoute: typeof AdminCareersRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
@@ -7504,6 +7524,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
   AdminBillingRoute: AdminBillingRoute,
+  AdminBillingAuditRoute: AdminBillingAuditRoute,
   AdminBillingReconcileRoute: AdminBillingReconcileRoute,
   AdminCareersRoute: AdminCareersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
