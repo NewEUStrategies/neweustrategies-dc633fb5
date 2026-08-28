@@ -716,7 +716,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
       event("credit_note.created", { id: "cn_2", invoice: "in_2", amount: "1200" }),
     );
 
-    expect(data.totals).toEqual({ total: "0", captured: "0", currencyCode: null });
+    expect(data.totals).toEqual({ total: "0", currencyCode: null });
   });
 });
 
