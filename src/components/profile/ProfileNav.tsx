@@ -18,6 +18,7 @@ import {
   Receipt,
   RefreshCw,
   Shield,
+  Ticket,
   Lock,
   MessageSquareQuote,
 } from "lucide-react";
