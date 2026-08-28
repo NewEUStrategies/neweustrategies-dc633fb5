@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -58,6 +59,15 @@ function ProfileLayout() {
       /* jw. */
     }
   }, [collapsed]);
+  // Szuflada na mobile MUSI otwierać się od góry: karta „Mój profil /
+  // Centrum zarządzania" i grupa „Tożsamość" są pierwszym, co widzi
+  // użytkownik. Bez resetu przeglądarka zachowuje poprawnią pozycję
+  // przewijania i nagłówek ląduje poza ekranem (sidebar „schowany").
+  const asideRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!collapsed) asideRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [collapsed]);
+
   // Rozwinięta szuflada na mobile: Escape zamyka, tło nie przewija się pod spodem.
   useEffect(() => {
     if (collapsed) return;
@@ -89,6 +99,83 @@ function ProfileLayout() {
   const initials = initialsFrom(user?.email, displayName);
   const memberLabel = t("profile.overview.memberLabel");
 
+  // Wspólna zawartość rozwiniętego sidebara - używana przez kolumnę
+  // desktopową oraz mobilną szufladę renderowaną portalem na <body>
+  // (sticky nagłówek strony ma własny kontekst nakładania i przykrywałby
+  // szufladę osadzoną w drzewie treści niezależnie od z-index).
+  const drawerHeader = (
+    <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-0 md:bg-transparent md:p-0">
+      <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+        />
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
+          >
+            <UserCircle className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
+              {t("profile.title")}
+            </h1>
+            <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              {t("profile.subtitle")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            aria-expanded
+            aria-label={t("profile.sidebar.collapse")}
+            title={t("profile.sidebar.collapse")}
+            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const drawerUserCard = user ? (
+    <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
+          <AvatarImage
+            src={profile?.avatar_url ?? undefined}
+            alt={displayName ?? t("profile.account.unnamed")}
+            className="rounded-[6px] object-cover"
+          />
+          <AvatarFallback className="rounded-[6px] bg-foreground text-[11px] font-bold text-background">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-bold text-foreground">
+            {displayName ?? t("profile.account.unnamed")}
+          </p>
+          <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+            {memberLabel}
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const drawerCollapseButton = (
+    <button
+      type="button"
+      onClick={() => setCollapsed(true)}
+      className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
+    >
+      <PanelLeftClose className="h-4 w-4" />
+      {t("profile.sidebar.collapse")}
+    </button>
+  );
+
   return (
     <AuthGate>
       <div data-theme-typography className="profile-shell bg-muted/40 py-6 md:py-10">
@@ -97,24 +184,19 @@ function ProfileLayout() {
             <div className="flex flex-col md:flex-row">
               {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile.
                   Domyślnie zwinięty (rail z ikonami); stan pamiętany lokalnie. */}
-              {!hideSidebar && !collapsed && (
-                // Na mobile rozwinięty sidebar jest szufladą po lewej (overlay),
-                // żeby treść profilu nie była spychana w dół.
-                <button
-                  type="button"
-                  aria-hidden
-                  tabIndex={-1}
-                  onClick={() => setCollapsed(true)}
-                  className="fixed inset-0 z-40 bg-foreground/40 md:hidden"
-                />
-              )}
+              {/* Mobile: rozwinięty sidebar renderowany jest portalem na
+                  document.body (niżej) - sticky nagłówek strony ma własny
+                  kontekst nakładania i przykrywałby szufladę osadzoną w
+                  drzewie treści niezależnie od z-index. */}
               {!hideSidebar && (
                 <aside
                   className={cn(
                     "shrink-0 border-border transition-[width] duration-200 md:border-b-0 md:border-r",
                     collapsed
                       ? "w-full border-b bg-muted/40 p-2 md:w-[68px]"
-                      : "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto bg-background p-4 shadow-2xl ring-1 ring-border md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5 md:shadow-none md:ring-0",
+                      // Rozwinięty stan na mobile obsługuje portal - tu tylko
+                      // kolumna desktopowa.
+                      : "hidden md:block md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
                 >
@@ -132,40 +214,7 @@ function ProfileLayout() {
                         <span className="md:hidden">{t("profile.sidebar.expand")}</span>
                       </button>
                     ) : (
-                      <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-0 md:bg-transparent md:p-0">
-                        <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
-                          <span
-                            aria-hidden
-                            className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
-                          />
-                          <div className="flex items-center gap-2.5">
-                            <span
-                              aria-hidden
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
-                            >
-                              <UserCircle className="h-4 w-4" />
-                            </span>
-                            <div className="min-w-0">
-                              <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
-                                {t("profile.title")}
-                              </h1>
-                              <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                                {t("profile.subtitle")}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setCollapsed(true)}
-                              aria-expanded
-                              aria-label={t("profile.sidebar.collapse")}
-                              title={t("profile.sidebar.collapse")}
-                              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            >
-                              <PanelLeftClose className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      drawerHeader
                     )}
 
                     {/* Zwinięty rail z ikonami tylko na desktopie - na mobile
@@ -174,44 +223,44 @@ function ProfileLayout() {
                       <ProfileNav collapsed={collapsed} />
                     </div>
 
-                    {user && !collapsed && (
-                      <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
-                            <AvatarImage
-                              src={profile?.avatar_url ?? undefined}
-                              alt={displayName ?? t("profile.account.unnamed")}
-                              className="rounded-[6px] object-cover"
-                            />
-                            <AvatarFallback className="rounded-[6px] bg-foreground text-[11px] font-bold text-background">
-                              {initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-bold text-foreground">
-                              {displayName ?? t("profile.account.unnamed")}
-                            </p>
-                            <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                              {memberLabel}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {user && !collapsed && drawerUserCard}
 
-                    {!collapsed && (
-                      <button
-                        type="button"
-                        onClick={() => setCollapsed(true)}
-                        className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
-                      >
-                        <PanelLeftClose className="h-4 w-4" />
-                        {t("profile.sidebar.collapse")}
-                      </button>
-                    )}
+                    {!collapsed && drawerCollapseButton}
                   </div>
                 </aside>
               )}
+
+              {/* Mobilna szuflada - portal na <body>, więc zawsze nad sticky
+                  nagłówkiem strony. Reset scrolla przy otwarciu przez asideRef. */}
+              {!hideSidebar &&
+                !collapsed &&
+                typeof document !== "undefined" &&
+                createPortal(
+                  <>
+                    <button
+                      type="button"
+                      aria-hidden
+                      tabIndex={-1}
+                      onClick={() => setCollapsed(true)}
+                      className="fixed inset-0 z-[9999] bg-foreground/40 md:hidden"
+                    />
+                    <aside
+                      ref={asideRef}
+                      data-collapsed="false"
+                      className="fixed inset-y-0 left-0 z-[10000] w-72 max-w-[85vw] overflow-y-auto border-border bg-background p-4 shadow-2xl ring-1 ring-border md:hidden"
+                    >
+                      <div className="flex h-full flex-col gap-6">
+                        {drawerHeader}
+                        <div>
+                          <ProfileNav collapsed={false} />
+                        </div>
+                        {drawerUserCard}
+                        {drawerCollapseButton}
+                      </div>
+                    </aside>
+                  </>,
+                  document.body,
+                )}
 
               {/* Main content */}
               <div className="min-w-0 flex-1 bg-card p-5 md:p-8">
