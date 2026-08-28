@@ -99,6 +99,16 @@ export function EventAttendeesList({
     enabled && signedIn,
   );
   const visibility = useEventAttendeeVisibility(slug);
+  // „W jakim panelu ta osoba występuje" - osobne, RZADKO zmienne zapytanie
+  // (jedna mapa na całe wydarzenie), a nie kolumna w wynikach katalogu:
+  // program bywa publikowany później niż lista i nie może wymusić
+  // przeładowania stronicowanej listy uczestników.
+  const speakerSessions = useQuery({
+    queryKey: ["event", slug, "speaker-sessions"],
+    queryFn: () => fetchEventSpeakerSessions(slug),
+    enabled: enabled && signedIn,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const data = attendees.data ?? EMPTY_ATTENDEE_DIRECTORY;
 
