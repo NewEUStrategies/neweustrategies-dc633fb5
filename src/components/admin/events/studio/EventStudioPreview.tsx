@@ -27,6 +27,7 @@
 // wydarzenia (nadpisywalne brandingiem).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "@tanstack/react-router";
 import { ExternalLink, Monitor, Smartphone, XCircle } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -128,6 +129,15 @@ export function EventStudioPreview({
     },
     [base.menu],
   );
+
+  // „WRÓĆ DO LISTY WYDARZEŃ": na stronie publicznej to link do /events, w
+  // podglądzie zamykamy nakładkę i wracamy do listy w panelu - niezapisany
+  // szkic studia ginie tak samo jak przy przycisku „Zamknij podgląd".
+  const navigate = useNavigate();
+  const handleBack = useCallback(() => {
+    onOpenChange(false);
+    void navigate({ to: "/admin/events" });
+  }, [navigate, onOpenChange]);
 
   // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
   // kanwa.
@@ -317,6 +327,7 @@ export function EventStudioPreview({
               viewer={viewer}
               sponsorTiers={sponsorTiers}
               onNavigate={handleNavigate}
+              onBack={handleBack}
               live={live}
             />
           </div>
