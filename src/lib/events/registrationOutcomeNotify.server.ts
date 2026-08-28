@@ -217,6 +217,46 @@ export interface OutcomeNotifyResult {
   promotedNotified: number;
 }
 
+/** Kanały wybrane przez uczestnika na TYM zgłoszeniu (domyślnie oba włączone). */
+interface Channels {
+  email: boolean;
+  sms: boolean;
+}
+
+/**
+ * Centrum preferencji komunikacji jest PER ZGŁOSZENIE, nie per konto: na jedno
+ * wydarzenie zapisuje się też gość bez konta, a osoba z kontem może chcieć
+ * SMS-a o kongresie i ciszy o webinarze. Odczyt jest fail-soft - brak wiersza
+ * albo błąd bazy nie może wyciszyć powiadomienia o pieniądzach.
+ */
+async function readChannels(registrationId: string | null): Promise<Channels> {
+  if (!registrationId) return { email: true, sms: true };
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("event_registrations")
+      .select("notify_email, notify_sms")
+      .eq("id", registrationId)
+      .maybeSingle();
+    return {
+      email: data?.notify_email !== false,
+      sms: data?.notify_sms !== false,
+    };
+  } catch (err) {
+    console.error("[events] channel preferences read failed", err);
+    return { email: true, sms: true };
+  }
+}
+
+export interface NotifyOptions {
+  /**
+   * Dopisek do klucza idempotencji. Ponowna wysyłka z panelu MUSI ominąć
+   * bramkę powtórzeń - to jest jej jedyny sens - a webhook nadal nie może
+   * wysłać tej samej wiadomości dwa razy.
+   */
+  idempotencySuffix?: string;
+}
+
 /**
  * Rozsyła powiadomienia po przeniesieniu wyniku płatności na zgłoszenie.
  * Wołane wyłącznie przez `applyTicketOutcome`, żeby istniała jedna ścieżka
