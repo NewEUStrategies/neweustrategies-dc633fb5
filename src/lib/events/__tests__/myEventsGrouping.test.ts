@@ -21,6 +21,7 @@ function registration(overrides: Partial<ParticipantRegistration> = {}): Partici
     eventTitlePl: "Szczyt",
     eventTitleEn: "Summit",
     eventStartsAt: "2026-10-01T09:00:00.000Z",
+    eventEndsAt: null,
     eventTimezone: "Europe/Warsaw",
     orderStatus: "paid",
     amountCents: 19900,
@@ -55,6 +56,21 @@ describe("myEventsGrouping", () => {
     );
     expect(groups.upcoming.map((entry) => entry.registrationId)).toEqual(["b", "a"]);
     expect(groups.past.map((entry) => entry.registrationId)).toEqual(["d", "c"]);
+  });
+
+  it("wydarzenie w toku trafia do koszyka „bieżące”", () => {
+    expect(
+      bucketOf(
+        registration({
+          eventStartsAt: "2026-08-31T09:00:00.000Z",
+          eventEndsAt: "2026-09-02T18:00:00.000Z",
+        }),
+        NOW,
+      ),
+    ).toBe("current");
+    // Bez daty końca liczy się doba od startu.
+    expect(bucketOf(registration({ eventStartsAt: "2026-08-31T20:00:00.000Z" }), NOW)).toBe("current");
+    expect(bucketOf(registration({ eventStartsAt: "2026-08-25T20:00:00.000Z" }), NOW)).toBe("past");
   });
 
   it("do zapłaty jest tylko żywe zgłoszenie z kwotą i bez opłacenia", () => {

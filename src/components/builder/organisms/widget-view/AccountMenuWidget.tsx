@@ -164,6 +164,14 @@ export const ACCOUNT_PRESETS: Array<{
   },
 
   {
+    // Wydarzenia uczestnika: nadchodzące, bieżące i przeszłe wraz z biletami.
+    key: "events",
+    href: "/profile/events",
+    label_pl: "Wydarzenia",
+    label_en: "Events",
+    icon: "CalendarDays",
+  },
+  {
     key: "interests",
     href: "/profile/interests",
     label_pl: "Zainteresowania",
@@ -539,6 +547,18 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           },
           href: "/club",
           label: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
+          desc: "",
+        },
+        {
+          raw: {
+            id: "default-events",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "events",
+            icon: "CalendarDays",
+          },
+          href: "/profile/events",
+          label: lang === "pl" ? "Wydarzenia" : "Events",
           desc: "",
         },
         {

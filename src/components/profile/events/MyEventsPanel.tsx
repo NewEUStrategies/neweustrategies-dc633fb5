@@ -124,13 +124,20 @@ export function MyEventsPanel() {
       )}
 
       {query.isSuccess && (
-        <Tabs defaultValue="upcoming" className="space-y-4">
+        // Trzy koszyki kalendarza: nadchodzące, bieżące (trwają teraz) i przeszłe.
+        // Domyślnie otwieramy „bieżące", gdy coś właśnie trwa - to jedyny moment,
+        // w którym uczestnik ma pilną sprawę (wejście, agenda, QR).
+        <Tabs defaultValue={groups.current.length > 0 ? "current" : "upcoming"} className="space-y-4">
           <TabsList>
             <TabsTrigger value="upcoming">{t("myEvents.tabs.upcoming")}</TabsTrigger>
+            <TabsTrigger value="current">{t("myEvents.tabs.current")}</TabsTrigger>
             <TabsTrigger value="past">{t("myEvents.tabs.past")}</TabsTrigger>
           </TabsList>
           <TabsContent value="upcoming">
             <Group items={groups.upcoming} emptyLabel={t("myEvents.emptyUpcoming")} />
+          </TabsContent>
+          <TabsContent value="current">
+            <Group items={groups.current} emptyLabel={t("myEvents.emptyCurrent")} />
           </TabsContent>
           <TabsContent value="past">
             <Group items={groups.past} emptyLabel={t("myEvents.emptyPast")} />
