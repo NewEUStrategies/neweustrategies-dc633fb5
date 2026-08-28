@@ -217,13 +217,18 @@ export function ProfileMetaPill({
   href?: string;
 }) {
   const className =
-    "inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
+    "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
   const inner = (
     <>
-      {icon ? <span className="text-primary [&_svg]:h-3 [&_svg]:w-3">{icon}</span> : null}
-      <span className="max-w-[200px] truncate sm:max-w-[280px]">{children}</span>
+      {icon ? (
+        <span className="shrink-0 text-primary [&_svg]:h-3 [&_svg]:w-3">{icon}</span>
+      ) : null}
+      {/* ZAWIJAMY, NIE UCINAMY: długi adres e-mail albo nazwa branży musi
+          zostać czytelna także na 320px - ucięta pigułka gubi informację. */}
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{children}</span>
     </>
   );
+
   if (href) {
     return (
       <a href={href} className={cn(className, "transition-colors hover:bg-muted/60")}>
