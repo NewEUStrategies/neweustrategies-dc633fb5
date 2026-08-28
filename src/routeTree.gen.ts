@@ -73,6 +73,7 @@ import { Route as SitemapsSectionRouteImport } from './routes/sitemaps.$section'
 import { Route as SeriesSlugRouteImport } from './routes/series.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
 import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
+import { Route as ProfileTicketsRouteImport } from './routes/profile.tickets'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
@@ -689,6 +690,11 @@ const ProgramsSlugRoute = ProgramsSlugRouteImport.update({
   id: '/programs/$slug',
   path: '/programs/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileTicketsRoute = ProfileTicketsRouteImport.update({
+  id: '/tickets',
+  path: '/tickets',
+  getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
@@ -2410,6 +2416,7 @@ export interface FileRoutesByFullPath {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/profile/tickets': typeof ProfileTicketsRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -2759,6 +2766,7 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/profile/tickets': typeof ProfileTicketsRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3120,6 +3128,7 @@ export interface FileRoutesById {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/profile/tickets': typeof ProfileTicketsRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3484,6 +3493,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/profile/tickets'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -3833,6 +3843,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/profile/tickets'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -4193,6 +4204,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
+    | '/profile/tickets'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -4959,6 +4971,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/programs/$slug'
       preLoaderRoute: typeof ProgramsSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/profile/tickets': {
+      id: '/profile/tickets'
+      path: '/tickets'
+      fullPath: '/profile/tickets'
+      preLoaderRoute: typeof ProfileTicketsRouteImport
+      parentRoute: typeof ProfileRoute
     }
     '/profile/subscription': {
       id: '/profile/subscription'
@@ -7715,6 +7734,7 @@ interface ProfileRouteChildren {
   ProfileSecurityRoute: typeof ProfileSecurityRoute
   ProfileSocialRoute: typeof ProfileSocialRoute
   ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
+  ProfileTicketsRoute: typeof ProfileTicketsRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
 
@@ -7738,6 +7758,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileSecurityRoute: ProfileSecurityRoute,
   ProfileSocialRoute: ProfileSocialRoute,
   ProfileSubscriptionRoute: ProfileSubscriptionRoute,
+  ProfileTicketsRoute: ProfileTicketsRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }
 

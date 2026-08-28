@@ -13,6 +13,7 @@ import { getBillingAudit, exportBillingAudit } from "@/lib/billing/audit.functio
 import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import type { AuditReport } from "@/lib/billing/audit.server";
 import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
+import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
 
 export const Route = createFileRoute("/admin/billing-audit")({
   head: () => ({
@@ -277,6 +278,13 @@ function AdminBillingAudit() {
           )}
         </>
       )}
+
+      {/* Zdrowie webhooków stoi POD dziennikiem, nie w osobnej zakładce:
+          metryka i wiersz błędu opisują to samo zdarzenie, a rozdzielenie ich
+          zmuszałoby dyżurnego do przeskakiwania między widokami. */}
+      <div className="mt-8 border-t border-border pt-6">
+        <WebhookHealthPanel environment={environment} sinceHours={sinceHours} />
+      </div>
     </div>
   );
 }

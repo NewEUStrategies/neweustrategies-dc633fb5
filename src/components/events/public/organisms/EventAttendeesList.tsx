@@ -29,6 +29,7 @@
 // wyświetlana profilu -> imię i nazwisko profilu -> kartoteka wydarzenia), więc
 // front nie ma tu żadnej gałęzi do pomylenia z tą w bazie.
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Loader2, Search, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -51,6 +52,10 @@ import {
   type AttendeeGroupTag,
 } from "@/lib/events/publicEventApi";
 import { useEventAttendees, useEventAttendeeVisibility } from "@/lib/events/usePublicEvent";
+import {
+  fetchEventSpeakerSessions,
+  type SpeakerSessionEntry,
+} from "@/lib/events/participantTicketsApi";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
@@ -99,6 +104,16 @@ export function EventAttendeesList({
     enabled && signedIn,
   );
   const visibility = useEventAttendeeVisibility(slug);
+  // „W jakim panelu ta osoba występuje" - osobne, RZADKO zmienne zapytanie
+  // (jedna mapa na całe wydarzenie), a nie kolumna w wynikach katalogu:
+  // program bywa publikowany później niż lista i nie może wymusić
+  // przeładowania stronicowanej listy uczestników.
+  const speakerSessions = useQuery({
+    queryKey: ["event", slug, "speaker-sessions"],
+    queryFn: () => fetchEventSpeakerSessions(slug),
+    enabled: enabled && signedIn,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const data = attendees.data ?? EMPTY_ATTENDEE_DIRECTORY;
 
@@ -201,7 +216,11 @@ export function EventAttendeesList({
                   >
                     {data.rows.map((entry) => (
                       <li key={entry.registrationId} className="flex">
-                        <AttendeeCard entry={entry} lang={lang} />
+                        <AttendeeCard
+                          entry={entry}
+                          lang={lang}
+                          sessions={speakerSessions.data?.get(entry.registrationId) ?? null}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -420,7 +439,16 @@ function GroupCounts({
   );
 }
 
-function AttendeeCard({ entry, lang }: { entry: AttendeeEntry; lang: "pl" | "en" }) {
+function AttendeeCard({
+  entry,
+  lang,
+  sessions,
+}: {
+  entry: AttendeeEntry;
+  lang: "pl" | "en";
+  /** Panele, w których ta osoba występuje - `null`, gdy nie jest prelegentem. */
+  sessions: SpeakerSessionEntry[] | null;
+}) {
   const { t } = useTranslation();
 
   const body = (
@@ -456,6 +484,23 @@ function AttendeeCard({ entry, lang }: { entry: AttendeeEntry; lang: "pl" | "en"
               {groupName(group, lang)}
             </Badge>
           ))}
+        </div>
+      )}
+      {/* PRELEGENT MA POWIEDZIEĆ, GDZIE GO SZUKAĆ. Sama plakietka „prelegent"
+          nic nie daje uczestnikowi układającemu plan dnia - dopiero tytuł
+          panelu i godzina zamieniają kartę w decyzję. */}
+      {sessions !== null && sessions.length > 0 && (
+        <div className="mt-3 border-t border-border/60 pt-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("eventFront.attendees.speakerSessions")}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {sessions.slice(0, 3).map((session) => (
+              <li key={session.sessionId} className="truncate text-xs text-foreground/80">
+                {(lang === "en" ? session.titleEn : session.titlePl) ?? session.sessionId}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </>

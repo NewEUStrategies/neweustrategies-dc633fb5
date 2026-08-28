@@ -217,6 +217,46 @@ export interface OutcomeNotifyResult {
   promotedNotified: number;
 }
 
+/** Kanały wybrane przez uczestnika na TYM zgłoszeniu (domyślnie oba włączone). */
+interface Channels {
+  email: boolean;
+  sms: boolean;
+}
+
+/**
+ * Centrum preferencji komunikacji jest PER ZGŁOSZENIE, nie per konto: na jedno
+ * wydarzenie zapisuje się też gość bez konta, a osoba z kontem może chcieć
+ * SMS-a o kongresie i ciszy o webinarze. Odczyt jest fail-soft - brak wiersza
+ * albo błąd bazy nie może wyciszyć powiadomienia o pieniądzach.
+ */
+async function readChannels(registrationId: string | null): Promise<Channels> {
+  if (!registrationId) return { email: true, sms: true };
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("event_registrations")
+      .select("notify_email, notify_sms")
+      .eq("id", registrationId)
+      .maybeSingle();
+    return {
+      email: data?.notify_email !== false,
+      sms: data?.notify_sms !== false,
+    };
+  } catch (err) {
+    console.error("[events] channel preferences read failed", err);
+    return { email: true, sms: true };
+  }
+}
+
+export interface NotifyOptions {
+  /**
+   * Dopisek do klucza idempotencji. Ponowna wysyłka z panelu MUSI ominąć
+   * bramkę powtórzeń - to jest jej jedyny sens - a webhook nadal nie może
+   * wysłać tej samej wiadomości dwa razy.
+   */
+  idempotencySuffix?: string;
+}
+
 /**
  * Rozsyła powiadomienia po przeniesieniu wyniku płatności na zgłoszenie.
  * Wołane wyłącznie przez `applyTicketOutcome`, żeby istniała jedna ścieżka
@@ -224,6 +264,7 @@ export interface OutcomeNotifyResult {
  */
 export async function notifyTicketOutcome(
   payload: TicketOutcomePayload,
+  options: NotifyOptions = {},
 ): Promise<OutcomeNotifyResult> {
   const result: OutcomeNotifyResult = { emailed: false, smsSent: false, promotedNotified: 0 };
   if (payload.applied !== true) return result;
@@ -243,8 +284,10 @@ export async function notifyTicketOutcome(
   if (!type || !registrationId) return result;
 
   const lang = await resolveLang(contact.userId);
+  const channels = await readChannels(registrationId);
+  const suffix = options.idempotencySuffix ? `:${options.idempotencySuffix}` : "";
 
-  if (contact.email) {
+  if (contact.email && channels.email) {
     try {
       const { sendTxEmail } = await import("@/lib/email/transactional.server");
       const sendResult = await sendTxEmail({
@@ -258,7 +301,7 @@ export async function notifyTicketOutcome(
         tenantId: payload.tenant_id ?? null,
         // Kwota zwrotu wchodzi do klucza: korekta o kolejne 50 zł to NOWA
         // informacja, a ten sam webhook dostarczony dwa razy - nie.
-        idempotencyKey: `event-ticket:${registrationId}:${outcome}:${payload.refunded_cents ?? 0}`,
+        idempotencyKey: `event-ticket:${registrationId}:${outcome}:${payload.refunded_cents ?? 0}${suffix}`,
       });
       result.emailed = sendResult.ok && !sendResult.skipped;
     } catch (err) {
@@ -266,7 +309,7 @@ export async function notifyTicketOutcome(
     }
   }
 
-  if (contact.phone) {
+  if (contact.phone && channels.sms) {
     try {
       const { sendSms } = await import("@/lib/notify/sms.server");
       const sms = await sendSms({ to: contact.phone, body: smsBody(payload, outcome, lang) });

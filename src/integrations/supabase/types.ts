@@ -7813,6 +7813,7 @@ export type Database = {
         Row: {
           answers: Json
           attended_at: string | null
+          cancel_reason: string | null
           cancelled_at: string | null
           created_at: string
           created_by: string | null
@@ -7825,6 +7826,8 @@ export type Database = {
           group_id: string | null
           id: string
           manage_token_hash: string | null
+          notify_email: boolean
+          notify_sms: boolean
           paid_at: string | null
           payment_order_id: string | null
           payment_status: string
@@ -7844,6 +7847,7 @@ export type Database = {
         Insert: {
           answers?: Json
           attended_at?: string | null
+          cancel_reason?: string | null
           cancelled_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -7856,6 +7860,8 @@ export type Database = {
           group_id?: string | null
           id?: string
           manage_token_hash?: string | null
+          notify_email?: boolean
+          notify_sms?: boolean
           paid_at?: string | null
           payment_order_id?: string | null
           payment_status?: string
@@ -7875,6 +7881,7 @@ export type Database = {
         Update: {
           answers?: Json
           attended_at?: string | null
+          cancel_reason?: string | null
           cancelled_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -7887,6 +7894,8 @@ export type Database = {
           group_id?: string | null
           id?: string
           manage_token_hash?: string | null
+          notify_email?: boolean
+          notify_sms?: boolean
           paid_at?: string | null
           payment_order_id?: string | null
           payment_status?: string
@@ -21263,6 +21272,10 @@ export type Database = {
           responded_30d: number
         }[]
       }
+      admin_payment_webhook_health: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
       admin_resolve_user_report: {
         Args: { p_action: string; p_note?: string; p_report_id: string }
         Returns: undefined
@@ -23403,6 +23416,7 @@ export type Database = {
           track_name_pl: string
         }[]
       }
+      event_attendee_sessions: { Args: { p_payload: Json }; Returns: Json }
       event_attendees: { Args: { p_payload: Json }; Returns: Json }
       event_audience_qualifies: {
         Args: { p_audience: string }
@@ -23512,6 +23526,7 @@ export type Database = {
           sort_order: number
         }[]
       }
+      event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
@@ -23573,6 +23588,10 @@ export type Database = {
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
       event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      event_registration_set_channels: {
         Args: { p_payload: Json }
         Returns: Json
       }
