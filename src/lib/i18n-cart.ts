@@ -93,6 +93,10 @@ const pl = {
       bioEn: "O mnie (EN)",
       bioHint: "Krótka nota - widoczna w katalogu uczestników.",
     },
+    contentLang: {
+      label: "Wersja językowa treści",
+    },
+
     sections: {
       identity: "Kim jestem",
       identityHint: "Zdjęcie i podpis, który zobaczą inni uczestnicy.",
@@ -291,6 +295,10 @@ const en: typeof pl = {
       bioEn: "About me (EN)",
       bioHint: "A short note - shown in the attendee directory.",
     },
+    contentLang: {
+      label: "Content language",
+    },
+
     sections: {
       identity: "Who I am",
       identityHint: "The photo and byline other attendees will see.",

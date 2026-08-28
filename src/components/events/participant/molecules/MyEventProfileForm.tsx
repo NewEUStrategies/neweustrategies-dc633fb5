@@ -211,7 +211,11 @@ function BulletListInput({
 export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const en = lang === "en";
+  // JEZYK TRESCI (PL/EN) jest niezalezny od jezyka interfejsu - uzytkownik
+  // uzupelnia obie wersje wpisu przelacznikiem nad formularzem.
+  const [contentLang, setContentLang] = useState<"pl" | "en">(lang === "en" ? "en" : "pl");
+  const en = contentLang === "en";
+
   const save = useSaveMyEventProfile(slug);
   const sync = useSyncMyEventProfileFromAccount(slug);
   const { user, tenantId } = useAuth();
@@ -392,7 +396,37 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         }}
       />
 
-      <div className="mt-12 flex flex-wrap items-center justify-center gap-2 sm:mt-14 sm:justify-start">
+      {/* PRZELACZNIK JEZYKA TRESCI - dotyczy calego formularza (opis, czego szukam,
+          co oferuje). Nie zmienia jezyka interfejsu, tylko edytowana wersje wpisu. */}
+      <div className="mt-12 flex items-center justify-center gap-2 sm:mt-14 sm:justify-start">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("eventMe.contentLang.label")}
+        </span>
+        <div
+          role="group"
+          aria-label={t("eventMe.contentLang.label")}
+          className="inline-flex overflow-hidden rounded-[6px] border border-border"
+        >
+          {(["pl", "en"] as const).map((code) => (
+            <button
+              key={code}
+              type="button"
+              aria-pressed={contentLang === code}
+              onClick={() => setContentLang(code)}
+              className={`px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                contentLang === code
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-transparent text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {code}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+
         {form.photo_url.trim() !== "" && (
           <Button
             type="button"
@@ -548,8 +582,8 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
           </label>
           <Textarea
-            rows={3}
-            className="rounded-[6px]"
+            rows={10}
+            className="min-h-[220px] rounded-[6px] leading-relaxed"
             value={en ? form.bio_en : form.bio_pl}
             onChange={field(en ? "bio_en" : "bio_pl")}
             placeholder={t("eventMe.fields.bioHint")}
