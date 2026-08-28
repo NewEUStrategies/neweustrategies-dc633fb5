@@ -16,10 +16,7 @@ import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
 
 export const Route = createFileRoute("/admin/billing-audit")({
   head: () => ({
-    meta: [
-      { title: "Audyt rozliczeń - Panel" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Audyt rozliczeń - Panel" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminBillingAudit,
 });
@@ -250,7 +247,9 @@ function AdminBillingAudit() {
                       <td className="p-2 font-mono text-xs">{row.eventType}</td>
                       <td className="p-2">{row.status}</td>
                       <td className="p-2">{row.retryCount}</td>
-                      <td className="p-2">{row.durationMs === null ? "-" : `${row.durationMs} ms`}</td>
+                      <td className="p-2">
+                        {row.durationMs === null ? "-" : `${row.durationMs} ms`}
+                      </td>
                       <td className="p-2 text-xs text-muted-foreground">
                         {outcomes[row.id] ?? row.error ?? "-"}
                       </td>

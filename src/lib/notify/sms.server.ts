@@ -14,8 +14,7 @@
 // Moduł server-only (token dostawcy) - importuj wyłącznie z handlerów.
 
 export type SmsResult =
-  | { ok: true; skipped?: "disabled" | "no_recipient" }
-  | { ok: false; error: string };
+  { ok: true; skipped?: "disabled" | "no_recipient" } | { ok: false; error: string };
 
 /** Limit jednego segmentu GSM-7 z zapasem na stopkę dostawcy. */
 const MAX_LENGTH = 300;
