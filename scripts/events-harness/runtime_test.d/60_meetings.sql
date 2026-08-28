@@ -220,11 +220,11 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, status, expires_at)
+       starts_at, ends_at, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a1',
-            '60900000-0000-0000-0000-0000000000a2', %L, %L, 'invited', now() + interval '1 day')
+            '60900000-0000-0000-0000-0000000000a2', %L, %L, 'invited', now() + interval '1 day', NULL)
   $q$, v_off_s, v_off_e), 'slot_not_in_grid',
     '60/ODMOWA: termin POZA SIATKA slotow (09:07) jest odrzucany');
 
@@ -233,11 +233,11 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, status, expires_at)
+       starts_at, ends_at, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a1',
-            '60900000-0000-0000-0000-0000000000a2', %L, %L, 'invited', now() + interval '1 day')
+            '60900000-0000-0000-0000-0000000000a2', %L, %L, 'invited', now() + interval '1 day', NULL)
   $q$, v_late_s, v_late_e), 'unavailable',
     '60/ODMOWA: slot w siatce, ale POZA OKNEM dostepnosci strony');
 END $$;
@@ -252,14 +252,14 @@ DECLARE
 BEGIN
   INSERT INTO public.event_meetings
     (id, tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, table_id, table_seat, status, expires_at)
+     starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
   VALUES ('60100000-0000-0000-0000-000000000001',
           '11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a2',
           v_s, v_e, '60700000-0000-0000-0000-0000000000a1', 1,
-          'accepted', now() + interval '1 day');
+          'accepted', now() + interval '1 day', now());
 
   PERFORM pg_temp.assert(true,
     '60/spotkanie: przyjete spotkanie na miejscu 1 stolika 1 zostalo zapisane');
@@ -268,26 +268,26 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, table_id, table_seat, status, expires_at)
+       starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a3',
             '60900000-0000-0000-0000-0000000000a2', %L, %L,
-            '60700000-0000-0000-0000-0000000000a1', 1, 'accepted', now() + interval '1 day')
+            '60700000-0000-0000-0000-0000000000a1', 1, 'accepted', now() + interval '1 day', now())
   $q$, v_s, v_e), 'event_meetings_table_no_overlap',
     '60/ODMOWA: dwa spotkania na JEDNYM MIEJSCU przy stoliku w tym samym oknie');
 
   -- DRUGIE MIEJSCE tego samego stolika jest wolne - pojemnosc 2.
   INSERT INTO public.event_meetings
     (id, tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, table_id, table_seat, status, expires_at)
+     starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
   VALUES ('60100000-0000-0000-0000-000000000002',
           '11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a3',
           '60900000-0000-0000-0000-0000000000a2',
           v_s, v_e, '60700000-0000-0000-0000-0000000000a1', 2,
-          'invited', now() + interval '1 day');
+          'invited', now() + interval '1 day', NULL);
 
   PERFORM pg_temp.assert(true,
     '60/KONTRAPUNKT: drugie MIEJSCE tego samego stolika w tym slocie jest wolne');
@@ -296,12 +296,12 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, table_id, table_seat, status, expires_at)
+       starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a3',
             '60900000-0000-0000-0000-0000000000a1', %L, %L,
-            '60700000-0000-0000-0000-0000000000a1', 3, 'invited', now() + interval '1 day')
+            '60700000-0000-0000-0000-0000000000a1', 3, 'invited', now() + interval '1 day', NULL)
   $q$, v_s, v_e), 'table_seat_out_of_range',
     '60/ODMOWA: numer miejsca wiekszy niz pojemnosc stolika');
 
@@ -309,12 +309,12 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, table_id, table_seat, status, expires_at)
+       starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a3',
             '60900000-0000-0000-0000-0000000000a1', %L, %L,
-            '60700000-0000-0000-0000-0000000000a3', 1, 'invited', now() + interval '1 day')
+            '60700000-0000-0000-0000-0000000000a3', 1, 'invited', now() + interval '1 day', NULL)
   $q$, v_s, v_e), 'table_inactive',
     '60/ODMOWA: stolik wylaczony nie przyjmuje nowych spotkan');
 END $$;
@@ -328,25 +328,25 @@ DECLARE
 BEGIN
   INSERT INTO public.event_meetings
     (id, tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, table_id, table_seat, status, expires_at)
+     starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
   VALUES ('60100000-0000-0000-0000-000000000003',
           '11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a2',
           v_s, v_e, '60700000-0000-0000-0000-0000000000a2', 1,
-          'invited', now() + interval '1 day');
+          'invited', now() + interval '1 day', NULL);
 
   INSERT INTO public.event_meetings
     (id, tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, table_id, table_seat, status, expires_at)
+     starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
   VALUES ('60100000-0000-0000-0000-000000000004',
           '11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a3',
           '60900000-0000-0000-0000-0000000000a1',
           v_s, v_e, '60700000-0000-0000-0000-0000000000a2', 1,
-          'invited', now() + interval '1 day');
+          'invited', now() + interval '1 day', NULL);
 
   PERFORM pg_temp.assert(true,
     '60/wylacznosc: dwa ZAPROSZENIA bez odpowiedzi moga dzielic to samo miejsce');
@@ -390,19 +390,19 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, table_id, table_seat, status, expires_at)
+       starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a3', %L, %L,
-            '60700000-0000-0000-0000-0000000000a2', 2, 'accepted', now() + interval '1 day')
+            '60700000-0000-0000-0000-0000000000a2', 2, 'accepted', now() + interval '1 day', now())
   $q$, v_s, v_e), 'event_meeting_attendees_no_overlap',
     '60/ODMOWA: jedna osoba na DWOCH przyjetych spotkaniach w tym samym oknie');
 
   -- KONTRAPUNKT: ta sama para w INNYM slocie przechodzi.
   INSERT INTO public.event_meetings
     (id, tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, status, expires_at)
+     starts_at, ends_at, status, expires_at, responded_at)
   VALUES ('60100000-0000-0000-0000-000000000005',
           '11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
@@ -410,7 +410,7 @@ BEGIN
           '60900000-0000-0000-0000-0000000000a3',
           (SELECT ts FROM meet_q WHERE k = 'slot2_start'),
           (SELECT ts FROM meet_q WHERE k = 'slot2_end'),
-          'accepted', now() + interval '1 day');
+          'accepted', now() + interval '1 day', now());
 
   PERFORM pg_temp.assert(true,
     '60/KONTRAPUNKT: ta sama osoba w INNYM slocie umawia sie bez przeszkod');
@@ -434,14 +434,14 @@ BEGIN
 
   INSERT INTO public.event_meetings
     (id, tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, table_id, table_seat, status, expires_at)
+     starts_at, ends_at, table_id, table_seat, status, expires_at, responded_at)
   VALUES ('60100000-0000-0000-0000-000000000006',
           '11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a3',
           '60900000-0000-0000-0000-0000000000a1',
           v_s, v_e, '60700000-0000-0000-0000-0000000000a1', 1,
-          'accepted', now() + interval '1 day');
+          'accepted', now() + interval '1 day', now());
 
   PERFORM pg_temp.assert(true,
     '60/wylacznosc: ODWOLANE spotkanie zwalnia miejsce i termin dla nastepnego');
@@ -460,13 +460,13 @@ $q$, 'meeting_identity_immutable',
 SELECT pg_temp.assert_raises_like($q$
   INSERT INTO public.event_meetings
     (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-     starts_at, ends_at, status, expires_at)
+     starts_at, ends_at, status, expires_at, responded_at)
   VALUES ('11111111-1111-1111-1111-111111111111',
           '60e00000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a1',
           '60900000-0000-0000-0000-0000000000a1',
           now() + interval '3 days', now() + interval '3 days 30 minutes',
-          'invited', now() + interval '1 day')
+          'invited', now() + interval '1 day', NULL)
 $q$, 'event_meetings_no_self',
   '60/ODMOWA: spotkanie z samym soba jest odrzucane');
 
@@ -478,11 +478,11 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format($q$
     INSERT INTO public.event_meetings
       (tenant_id, event_id, requester_registration_id, invitee_registration_id,
-       starts_at, ends_at, status, expires_at)
+       starts_at, ends_at, status, expires_at, responded_at)
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a2',
-            '60900000-0000-0000-0000-0000000000b1', %L, %L, 'invited', now() + interval '1 day')
+            '60900000-0000-0000-0000-0000000000b1', %L, %L, 'invited', now() + interval '1 day', NULL)
   $q$, v_s, v_e), 'fk',
     '60/IZOLACJA: spotkanie najemcy A nie moze wskazac zapisu najemcy B');
 
