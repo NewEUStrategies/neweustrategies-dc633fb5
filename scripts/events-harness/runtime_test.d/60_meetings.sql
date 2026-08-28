@@ -489,7 +489,7 @@ BEGIN
     VALUES ('11111111-1111-1111-1111-111111111111',
             '60e00000-0000-0000-0000-0000000000a1',
             '60900000-0000-0000-0000-0000000000a2',
-            '60900000-0000-0000-0000-0000000000b1', %L, %L, 'invited', now() + interval '1 day', NULL)
+            '60900000-0000-0000-0000-0000000000b1', %L, %L, 'declined', now() + interval '1 day', now())
   $q$, v_s, v_e), 'fk',
     '60/IZOLACJA: spotkanie najemcy A nie moze wskazac zapisu najemcy B');
 
