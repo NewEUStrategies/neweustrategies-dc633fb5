@@ -322,7 +322,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" aria-label={t("eventMe.profileFormAria")}>
+    <form onSubmit={onSubmit} className="space-y-3" aria-label={t("eventMe.profileFormAria")}>
       <Section title={t("eventMe.sections.identity")} hint={t("eventMe.sections.identityHint")}>
         <div className="flex flex-col gap-4 sm:flex-row">
           <div
@@ -515,12 +515,12 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
       </Section>
 
       <Section title={t("eventMe.sections.about")} hint={t("eventMe.sections.aboutHint")}>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? t("eventMe.fields.bioEn") : t("eventMe.fields.bioPl")}
           </label>
           <Textarea
-            rows={4}
+            rows={3}
             className="rounded-[6px]"
             value={en ? form.bio_en : form.bio_pl}
             onChange={field(en ? "bio_en" : "bio_pl")}
