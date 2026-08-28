@@ -492,9 +492,22 @@ function AttendeeCard({
       <div className="flex min-w-0 items-center gap-3">
         <SpeakerAvatar name={entry.name} photoUrl={entry.avatarUrl} size="md" />
         <div className="min-w-0">
-          <p title={entry.name} className="truncate text-sm font-semibold text-foreground">
-            {entry.name}
-          </p>
+          {entry.profileSlug === null ? (
+            <p title={entry.name} className="truncate text-sm font-semibold text-foreground">
+              {entry.name}
+            </p>
+          ) : (
+            <Link
+              to="/author/$slug"
+              params={{ slug: entry.profileSlug }}
+              className="block truncate text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {entry.name}
+              <span className="sr-only">
+                {t("eventFront.attendees.profileLink", { name: entry.name })}
+              </span>
+            </Link>
+          )}
           {/* Linia podpisu ISTNIEJE TYLKO GDY MA TREŚĆ - pusta czyta się
               w siatce jak uszkodzone dane, nie jak brak danych. */}
           {entry.jobTitle !== null && (
@@ -599,25 +612,7 @@ function AttendeeCard({
     </>
   );
 
-  // ODNOŚNIK TYLKO DO ISTNIEJĄCEGO PROFILU. Osoba na tej liście ma konto (inaczej
-  // nie miałaby czym włączyć widoczności), ale publicznego adresu profilu mieć
-  // nie musi - a odnośnik bez sluga prowadziłby w nikąd. Trasa `/author/$slug`
-  // jest tą samą, której używa karta autora w klubach: jeden adres profilu
-  // w całym serwisie, nie drugi na potrzeby wydarzeń.
-  if (entry.profileSlug === null) {
-    return <div className="w-full rounded-md border border-border bg-card p-4">{body}</div>;
-  }
-
-  return (
-    <Link
-      to="/author/$slug"
-      params={{ slug: entry.profileSlug }}
-      className="w-full rounded-md border border-border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {body}
-      <span className="sr-only">{t("eventFront.attendees.profileLink", { name: entry.name })}</span>
-    </Link>
-  );
+  return <div className="w-full rounded-md border border-border bg-card p-4">{body}</div>;
 }
 
 function groupName(group: AttendeeGroupTag, lang: "pl" | "en"): string {
