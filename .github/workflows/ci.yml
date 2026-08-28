@@ -677,6 +677,19 @@ jobs:
       - name: Run programs-harness (scalenie tabel programow + asercje runtime)
         run: bun run check:programs-harness
 
+      # Ten sam klaster, czwarty harness - modul wydarzen (wlasny port 5436,
+      # wiec stoi obok trzech pozostalych bez kolizji). Bramki `check:sql-*`
+      # czytaja migracje JAKO TEKST i z zalozenia nie zobacza klasy bledow, dla
+      # ktorej ten harness powstal: kolizji sygnatur miedzy migracjami, funkcji
+      # siegajacej po nieistniejaca kolumne, triggera, ktory nigdy nie odpala,
+      # ani ograniczenia EXCLUDE, ktore niczego nie wyklucza. Harness odtwarza
+      # 70 migracji modulu na czystym klastrze i wykonuje asercje runtime
+      # (m.in. 50_onsite.sql - token urzadzenia i izolacja leadow -
+      # oraz 60_meetings.sql - podwojna rezerwacja stolika i osoby).
+      # Patrz scripts/events-harness/README.md.
+      - name: Run events-harness (migracje modulu wydarzen + asercje runtime)
+        run: bun run check:events-harness
+
   # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
   # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,

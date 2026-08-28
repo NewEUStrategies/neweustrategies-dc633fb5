@@ -19614,6 +19614,26 @@ export type Database = {
           subject_name: string
         }[]
       }
+      admin_event_audience_grant_history: {
+        Args: { p_payload?: Json }
+        Returns: {
+          action: string
+          actor_email: string
+          actor_id: string
+          actor_name: string
+          after_values: Json
+          audience: string
+          before_values: Json
+          changed: string[]
+          created_at: string
+          event_id: string
+          event_title: string
+          grant_id: string
+          id: string
+          subject_email: string
+          subject_name: string
+        }[]
+      }
       admin_event_audience_grant_revoke: {
         Args: { p_id: string }
         Returns: undefined

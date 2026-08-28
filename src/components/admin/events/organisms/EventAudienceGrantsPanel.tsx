@@ -16,6 +16,10 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, ShieldCheck, Undo2 } from "lucide-react";
+import {
+  EventAudienceGrantHistoryPanel,
+  EventAudienceGrantHistoryButton,
+} from "@/components/admin/events/organisms/EventAudienceGrantHistoryPanel";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,6 +102,9 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
   const [draft, setDraft] = useState<GrantDraft>(emptyDraft);
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<EventAudienceGrantRow | null>(null);
+  // Historia jednego nadania - okno otwiera sie z wiersza, bo audyt pyta
+  // zwykle o konkretna ulge, a nie o caly dziennik naraz.
+  const [historyFor, setHistoryFor] = useState<EventAudienceGrantRow | null>(null);
 
   const query = useMemo(
     () => ({
@@ -202,9 +209,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
             id="grants-audience"
             value={audience}
             onValueChange={(value) =>
-              setAudience(
-                AUDIENCE_GRANT_AUDIENCES.find((item) => item === value) ?? "all",
-              )
+              setAudience(AUDIENCE_GRANT_AUDIENCES.find((item) => item === value) ?? "all")
             }
             options={[
               {
@@ -219,11 +224,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
           />
         </div>
         <div className="flex items-center gap-2 pt-6">
-          <Switch
-            id="grants-scope"
-            checked={scopeThisEvent}
-            onCheckedChange={setScopeThisEvent}
-          />
+          <Switch id="grants-scope" checked={scopeThisEvent} onCheckedChange={setScopeThisEvent} />
           <Label htmlFor="grants-scope" className="cursor-pointer">
             {t("adminEventRegistration.audienceGrants.scopeThis")}
           </Label>
@@ -243,9 +244,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
       <AdminCatalogListState
         isLoading={grantsQ.isLoading}
         loadingLabel={t("adminEventRegistration.audienceGrants.loading")}
-        errorMessage={
-          grantsQ.error === null ? null : adminRegistrationErrorMessage(grantsQ.error)
-        }
+        errorMessage={grantsQ.error === null ? null : adminRegistrationErrorMessage(grantsQ.error)}
         isEmpty={rows.length === 0}
         emptyLabel={t("adminEventRegistration.audienceGrants.empty")}
       >
@@ -253,16 +252,10 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
           {rows.map((row) => {
             const state = audienceGrantState(row);
             return (
-              <li
-                key={row.id}
-                className="flex flex-wrap items-start justify-between gap-3 p-3"
-              >
+              <li key={row.id} className="flex flex-wrap items-start justify-between gap-3 p-3">
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <ShieldCheck
-                      className="h-4 w-4 text-muted-foreground"
-                      aria-hidden="true"
-                    />
+                    <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     <span className="font-medium">{subjectLabel(row)}</span>
                     <Badge variant="secondary">
                       {t(`adminEventRegistration.audienceGrants.audiences.${row.audience}`, {
@@ -289,30 +282,57 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                         })}`}
                   </p>
                 </div>
-                {row.revoked_at === null ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => setPendingRevoke(row)}
-                  >
-                    <Undo2 className="h-4 w-4" aria-hidden="true" />
-                    {t("adminEventRegistration.audienceGrants.revokeAction")}
-                  </Button>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  <EventAudienceGrantHistoryButton
+                    label={t("adminEventRegistration.audienceGrantHistory.openAction")}
+                    onClick={() => setHistoryFor(row)}
+                  />
+                  {row.revoked_at === null ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setPendingRevoke(row)}
+                    >
+                      <Undo2 className="h-4 w-4" aria-hidden="true" />
+                      {t("adminEventRegistration.audienceGrants.revokeAction")}
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             );
           })}
         </ul>
       </AdminCatalogListState>
 
+      <EventAudienceGrantHistoryPanel eventId={eventId} />
+
+      <Dialog
+        open={historyFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistoryFor(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t("adminEventRegistration.audienceGrantHistory.dialogTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {historyFor === null ? "" : subjectLabel(historyFor)}
+            </DialogDescription>
+          </DialogHeader>
+          {historyFor === null ? null : (
+            <EventAudienceGrantHistoryPanel eventId={eventId} grantId={historyFor.id} embedded />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {t("adminEventRegistration.audienceGrants.addAction")}
-            </DialogTitle>
+            <DialogTitle>{t("adminEventRegistration.audienceGrants.addAction")}</DialogTitle>
             <DialogDescription>
               {t("adminEventRegistration.audienceGrants.subjectHint")}
             </DialogDescription>
@@ -329,8 +349,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                 onValueChange={(value) =>
                   setDraft((prev) => ({
                     ...prev,
-                    audience:
-                      AUDIENCE_GRANT_AUDIENCES.find((item) => item === value) ?? "academic",
+                    audience: AUDIENCE_GRANT_AUDIENCES.find((item) => item === value) ?? "academic",
                   }))
                 }
                 options={AUDIENCE_GRANT_AUDIENCES.map((item) => ({
@@ -351,8 +370,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                   onValueChange={(value) =>
                     setDraft((prev) => ({
                       ...prev,
-                      subjectKind:
-                        SUBJECT_KINDS.find((item) => item === value) ?? "user",
+                      subjectKind: SUBJECT_KINDS.find((item) => item === value) ?? "user",
                     }))
                   }
                   options={[
@@ -396,9 +414,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                 onChange={(event) =>
                   setDraft((prev) => ({ ...prev, evidence: event.target.value }))
                 }
-                placeholder={t(
-                  "adminEventRegistration.audienceGrants.evidencePlaceholder",
-                )}
+                placeholder={t("adminEventRegistration.audienceGrants.evidencePlaceholder")}
               />
               <p className="text-xs text-muted-foreground">
                 {t("adminEventRegistration.audienceGrants.evidenceHint")}
@@ -453,11 +469,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
             )}
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 {t("adminEventRegistration.audienceGrants.cancelAction")}
               </Button>
               <Button type="button" onClick={submit} disabled={save.isPending}>
