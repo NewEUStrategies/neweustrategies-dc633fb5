@@ -36,6 +36,8 @@ export type TransactionData = {
   id: string;
   subscriptionId?: string | null;
   customerId?: string | null;
+  /** Identyfikator intencji płatności - klucz dopasowania przy zwrocie. */
+  paymentIntentId?: string | null;
   currencyCode?: string | null;
   customData?: Record<string, unknown> | null;
   customer?: { email?: string | null } | null;
