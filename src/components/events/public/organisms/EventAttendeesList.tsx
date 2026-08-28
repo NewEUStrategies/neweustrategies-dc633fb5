@@ -59,6 +59,7 @@ import {
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
 import { EventPersonActions } from "@/components/events/participant/molecules/EventPersonActions";
+import { IntentBulletList } from "@/components/events/participant/molecules/IntentBulletList";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();

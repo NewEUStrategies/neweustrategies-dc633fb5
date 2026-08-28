@@ -12,6 +12,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { type MyEventProfile } from "@/lib/events/myEventProfileApi";
 import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
 import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
+import { IntentBulletList } from "./IntentBulletList";
 import {
   EventPersonActions,
   type EventPersonActionsProps,
