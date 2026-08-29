@@ -23,10 +23,18 @@ fi
 if [ -z "$PGBIN" ]; then echo "Brak PostgreSQL. Zainstaluj postgresql-16." >&2; exit 2; fi
 export PATH="$PGBIN:$PATH"
 
+# initdb odmawia pracy jako root - potrzebny konto nieuprzywilejowane.
 RUNAS="$(id -un)"
 if [ "$RUNAS" = "root" ]; then
-  id -un postgres >/dev/null 2>&1 || useradd -m -s /bin/bash postgres
-  RUNAS=postgres
+  if id -un postgres >/dev/null 2>&1; then
+    RUNAS=postgres
+  elif command -v useradd >/dev/null 2>&1; then
+    useradd -m -s /bin/bash postgres
+    RUNAS=postgres
+  else
+    RUNAS="$(awk -F: '$3>=1000 && $1!="nobody" {print $1; exit}' /etc/passwd)"
+    [ -n "$RUNAS" ] || { echo "Brak konta nie-root do uruchomienia initdb." >&2; exit 2; }
+  fi
 fi
 
 pg_ctl -D "$PGDIR/data" stop >/dev/null 2>&1 || true
