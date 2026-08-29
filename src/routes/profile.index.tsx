@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -474,7 +474,7 @@ function ProfileInline() {
                 <ul className="divide-y divide-border/60">
                   {/* Email - read-only from auth */}
                   <ContactRow
-                    icon={<Mail className="h-4 w-4" aria-hidden="true" />}
+                    icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
                     brandKey="mail"
                     ariaLabel={t("profile.account.email")}
                   >
@@ -488,7 +488,7 @@ function ProfileInline() {
 
                   {/* Phone */}
                   <ContactRow
-                    icon={<Phone className="h-4 w-4" aria-hidden="true" />}
+                    icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
                     brandKey="phone"
                     ariaLabel={t("profile.account.phone")}
                   >
@@ -516,7 +516,9 @@ function ProfileInline() {
 
                   {/* Location */}
                   <ContactRow
-                    icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
+                    icon={
+                      <BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />
+                    }
                     brandKey="location"
                     ariaLabel={t("profile.account.location")}
                   >
@@ -539,7 +541,14 @@ function ProfileInline() {
 
                   {/* LinkedIn */}
                   <ContactRow
-                    icon={<Linkedin className="h-4 w-4" aria-hidden="true" />}
+                    icon={
+                      <BrandIcon
+                        name="linkedin"
+                        fallback={Linkedin}
+                        className="h-4 w-4"
+                        alt="LinkedIn"
+                      />
+                    }
                     brandKey="linkedin"
                     ariaLabel="LinkedIn"
                   >
@@ -570,7 +579,7 @@ function ProfileInline() {
 
                   {/* X */}
                   <ContactRow
-                    icon={<XIcon className="h-4 w-4" aria-hidden="true" />}
+                    icon={<BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />}
                     brandKey="x"
                     ariaLabel="X"
                   >
@@ -963,7 +972,12 @@ function CenteredHero({
                   style={brandTileStyle("linkedin")}
                   className={`${BRAND_TILE_CLASS} h-6 w-6 bg-background ring-2 ring-background shadow-sm`}
                 >
-                  <Linkedin className="h-3.5 w-3.5" aria-hidden="true" />
+                  <BrandIcon
+                    name="linkedin"
+                    fallback={Linkedin}
+                    className="h-3.5 w-3.5"
+                    alt="LinkedIn"
+                  />
                 </a>
               )}
               {twitterUrl && (
@@ -975,7 +989,7 @@ function CenteredHero({
                   style={brandTileStyle("x")}
                   className={`${BRAND_TILE_CLASS} h-6 w-6 bg-background ring-2 ring-background shadow-sm`}
                 >
-                  <XIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <BrandIcon name="x" fallback={XIcon} className="h-3.5 w-3.5" alt="X" />
                 </a>
               )}
             </div>
