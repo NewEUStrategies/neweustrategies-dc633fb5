@@ -71,7 +71,7 @@ describe("brandTile - snapshot palety", () => {
           "gradient": "linear-gradient(135deg, color-mix(in oklab, var(--brand) 62%, #2B1408) 0%, color-mix(in oklab, var(--brand) 45%, #1D0E06) 54%, color-mix(in oklab, var(--brand) 28%, #150B05) 100%)",
         },
         "x": {
-          "color": "#262626",
+          "color": "#000000",
           "gradient": "linear-gradient(135deg, #262626 0%, #000000 100%)",
         },
         "youtube": {
