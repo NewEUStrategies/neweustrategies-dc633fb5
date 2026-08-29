@@ -271,15 +271,21 @@ describe("OrganizationPicker - trzy odpowiedzi katalogu, trzy różne zdania", (
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
   });
 
-  it("BŁĄD zapytania nie zostawia wiszącego stanu szukania", async () => {
-    // Odmowa RPC (brak sesji, brak najemcy) kończy zapytanie; ekran nie może
-    // zostać z kręcącym się kółkiem, bo uczestnik czekałby bez końca.
+  it("BŁĄD zapytania mówi o BŁĘDZIE, a nie o braku dopasowań", async () => {
+    // Dwie rzeczy naraz. Po pierwsze odmowa RPC (brak sesji, brak najemcy)
+    // kończy zapytanie - ekran nie może zostać z kręcącym się kółkiem, bo
+    // uczestnik czekałby bez końca. Po drugie, i ważniejsze: awaria NIE MOŻE
+    // renderować komunikatu „brak dopasowań - możesz dodać nową organizację",
+    // bo ten komunikat PCHA uczestnika do założenia duplikatu kartoteki, która
+    // w CRM już istnieje. Zanim to naprawiono, komponent czytał z zapytania
+    // wyłącznie `isFetching` i `data`, więc oba stany wyglądały identycznie.
     rpcMap({ crm_company_search: { data: null, error: { message: "forbidden" } } });
     renderPicker();
     await wpisz("AC");
 
     await waitFor(() => expect(screen.queryByText(`${BAZA}.searching`)).not.toBeInTheDocument());
-    expect(screen.getByText(`${BAZA}.noResults`)).toBeInTheDocument();
+    expect(screen.getByText(`${BAZA}.searchFailed`)).toBeInTheDocument();
+    expect(screen.queryByText(`${BAZA}.noResults`)).not.toBeInTheDocument();
   });
 
   it("WYNIKI pokazują nazwę i podpis złożony z miasta, kraju i branży", async () => {

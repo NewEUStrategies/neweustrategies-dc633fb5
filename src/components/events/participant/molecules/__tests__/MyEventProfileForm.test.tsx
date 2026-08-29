@@ -37,7 +37,7 @@
 // Asercje idą po KLUCZACH i18n (parytetu PL/EN pilnują osobne bramki
 // słownikowe) oraz po ARGUMENTACH warstwy sieciowej.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type {
@@ -875,5 +875,70 @@ describe("MyEventProfileForm - tożsamość i organizacja", () => {
 
     expect(screen.queryByText("Dyrektorka")).not.toBeInTheDocument();
     expect(h.rpc).not.toHaveBeenCalledWith("crm_company_brand", expect.anything());
+  });
+});
+
+describe("punkty listy intencji i obcinanie białych znaków", () => {
+  it("przycisk dodawania NAPRAWDĘ dodaje wiersz - także przy pustej liście", async () => {
+    // Zanim to naprawiono, przycisk był MARTWY. Wiersze były wyliczane
+    // z `value` przez `parseBullets`, który odsiewa linie puste, więc dopisany
+    // pusty punkt znikał w tym samym renderze, w którym powstawał. Uczestnik
+    // bez wielolinijkowego tekstu już w bazie nie mógł dodać ANI JEDNEGO
+    // punktu - a to jest jedyna droga, żeby cokolwiek o sobie powiedzieć
+    // w katalogu uczestników.
+    renderForm({ profile: pustyProfil() });
+
+    fireEvent.click(
+      within(punkty("seeking")).getByRole("button", { name: "eventMe.fields.addBullet" }),
+    );
+
+    expect(punkt("seeking", 1)).toBeInTheDocument();
+    expect(punkt("seeking", 1).value).toBe("");
+  });
+
+  it("wyczyszczenie wiersza NIE kasuje go w trakcie pisania", async () => {
+    // Ten sam mechanizm: skasowanie treści punktu, żeby wpisać ją od nowa,
+    // usuwało cały wiersz spod kursora.
+    renderForm({ profile: pustyProfil({ seekingPl: "Partner w Czechach" }) });
+
+    fireEvent.change(punkt("seeking", 1), { target: { value: "" } });
+
+    expect(punkt("seeking", 1)).toBeInTheDocument();
+    expect(punkt("seeking", 1).value).toBe("");
+  });
+
+  it("pusty punkt zostawiony przez uczestnika NIE jedzie do bazy", async () => {
+    renderForm({ profile: pustyProfil() });
+
+    fireEvent.click(
+      within(punkty("seeking")).getByRole("button", { name: "eventMe.fields.addBullet" }),
+    );
+    await wyslij();
+
+    expect(ostatniZapis().seeking_pl).toBe("");
+  });
+
+  it("pole wyczyszczone do samych SPACJI jedzie jako puste, a nie jako spacje", async () => {
+    // `event_people` jest źródłem druku identyfikatorów, więc `"   "` w polu
+    // Stanowisko wyczyszczone do spacji to nie jest wyczyszczenie - to spacje na plakietce.
+    // Obcinane były dotąd WYŁĄCZNIE linki społecznościowe.
+    renderForm({ profile: pustyProfil() });
+
+    fireEvent.change(pole("jobTitle"), { target: { value: "   " } });
+    await wyslij();
+
+    expect(ostatniZapis().job_title).toBe("");
+  });
+
+  it("białe znaki wokół treści są obcinane, ale treść zostaje", async () => {
+    // Odwrotna strona tej samej zasady: obcinamy PRZY ZAPISIE, nie przy
+    // wpisywaniu - kasowanie spacji spod kursora uniemożliwiłoby napisanie
+    // dwóch słów.
+    renderForm({ profile: pustyProfil() });
+
+    fireEvent.change(pole("jobTitle"), { target: { value: "  Dyrektorka biura  " } });
+    await wyslij();
+
+    expect(ostatniZapis().job_title).toBe("Dyrektorka biura");
   });
 });

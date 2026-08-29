@@ -92,6 +92,35 @@ interface FormState {
   social_links: SocialLinks;
 }
 
+/**
+ * Pola tekstowe obcinane przy zapisie.
+ *
+ * `company_id` i `photo_url` NIE są tu wymienione świadomie: pierwsze to
+ * identyfikator kartoteki, drugie adres złożony przez wgrywanie - żadne nie
+ * pochodzi z klawiatury uczestnika. `social_links` mają własną pętlę wyżej,
+ * bo tam pusty adres ma ZNIKNĄĆ z obiektu, a nie zostać pustym napisem.
+ */
+const TRIMMED_TEXT_FIELDS = [
+  "first_name",
+  "last_name",
+  "email",
+  "phone",
+  "job_title",
+  "company_text",
+  "industry",
+  "specialization",
+  "bio_pl",
+  "bio_en",
+] as const satisfies readonly (keyof FormState)[];
+
+/** Pola trzymane jako lista punktów - przechodzą przez `parseBullets`. */
+const BULLET_TEXT_FIELDS = [
+  "seeking_pl",
+  "seeking_en",
+  "offering_pl",
+  "offering_en",
+] as const satisfies readonly (keyof FormState)[];
+
 const SOCIAL_PLACEHOLDER: Record<SocialKey, string> = {
   linkedin: "https://www.linkedin.com/in/...",
   x: "https://x.com/...",
@@ -169,8 +198,33 @@ function BulletListInput({
   limitLabel: string;
   ariaLabel: string;
 }) {
-  const items = parseBullets(value);
-  const commit = (next: string[]) => onChange(next.join("\n"));
+  // WIERSZE SĄ STANEM LOKALNYM, NIE POCHODNĄ `value` - i to jest naprawa.
+  //
+  // `parseBullets` odsiewa linie puste, więc dopóki lista była wyliczana
+  // z `value` przy każdym renderze, przycisk „Dodaj punkt" był MARTWY:
+  // `commit([...items, ""])` sklejał tekst z pustą linią na końcu, a następny
+  // render tę linię natychmiast usuwał. Przy pustej liście uczestnik nie mógł
+  // dodać ANI JEDNEGO punktu. Ten sam mechanizm kasował wiersz w trakcie
+  // pisania, gdy ktoś skasował jego treść, żeby wpisać ją od nowa.
+  //
+  // Stan zewnętrzny nadal wygrywa - ale tylko wtedy, gdy NAPRAWDĘ przyszedł
+  // z zewnątrz (przeładowanie kartoteki), a nie wrócił echem naszego zapisu.
+  const [rows, setRows] = useState<string[]>(() => parseBullets(value));
+  const emitted = useRef(value);
+
+  useEffect(() => {
+    if (value === emitted.current) return;
+    emitted.current = value;
+    setRows(parseBullets(value));
+  }, [value]);
+
+  const items = rows;
+  const commit = (next: string[]) => {
+    setRows(next);
+    const joined = next.join("\n");
+    emitted.current = joined;
+    onChange(joined);
+  };
 
   return (
     <div className="space-y-1.5" aria-label={ariaLabel}>
@@ -325,8 +379,20 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
       const value = (form.social_links[key] ?? "").trim();
       if (value !== "") links[key] = value;
     }
+    // BIAŁE ZNAKI OBCINAMY PRZY ZAPISIE, nie przy wpisywaniu: kasowanie spacji
+    // spod kursora uniemożliwiłoby napisanie dwóch słów. Dotąd obcinane były
+    // WYŁĄCZNIE linki, więc pole wyczyszczone do samych spacji jechało do bazy
+    // jako `"   "` - czyli nie było wyczyszczeniem, a `event_people` jest
+    // źródłem druku identyfikatorów. Listy punktów przechodzą przez
+    // `parseBullets`, co przy okazji zdejmuje pusty wiersz zostawiony przez
+    // „Dodaj punkt", którego uczestnik nie wypełnił.
+    const trimmed: FormState = { ...form };
+    for (const key of TRIMMED_TEXT_FIELDS) trimmed[key] = (form[key] ?? "").trim();
+    for (const key of BULLET_TEXT_FIELDS) {
+      trimmed[key] = parseBullets(form[key] ?? "").join("\n");
+    }
     save.mutate(
-      { ...form, social_links: links, push_account: pushAccount },
+      { ...trimmed, social_links: links, push_account: pushAccount },
       {
         onSuccess: () => toast.success(t("eventMe.profileSaved")),
         onError: (error) => toast.error(`${t("eventMe.profileSaveError")} ${error.message}`.trim()),

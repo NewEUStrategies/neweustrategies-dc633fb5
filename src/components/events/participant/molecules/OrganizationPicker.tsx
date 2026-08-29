@@ -184,7 +184,17 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
                 {t("eventMe.organization.searching")}
               </p>
             )}
-            {!search.isFetching && options.length === 0 && (
+            {/* AWARIA NIE UDAJE BRAKU DOPASOWAŃ. Bez tej gałęzi odmowa
+                `crm_company_search` - wygasła sesja, brak sieci, brak
+                uprawnień - renderowała komunikat „brak dopasowań, możesz dodać
+                nową organizację", czyli PCHAŁA uczestnika do założenia
+                duplikatu kartoteki, która w CRM już istnieje. */}
+            {!search.isFetching && search.isError && (
+              <p role="alert" className="px-3 py-2 text-xs text-destructive">
+                {t("eventMe.organization.searchFailed")}
+              </p>
+            )}
+            {!search.isFetching && !search.isError && options.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">
                 {t("eventMe.organization.noResults")}
               </p>

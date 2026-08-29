@@ -784,3 +784,31 @@ describe("ParticipantDirectoryPanel - wysłanie zaproszenia", () => {
     expect(within(ponownie).getByRole("button", { name: `${KAT}.inviteSend` })).toBeDisabled();
   });
 });
+
+describe("wpisywanie frazy nie wymiata ekranu", () => {
+  it("wyszukiwarka ZOSTAJE na ekranie, gdy leci zapytanie o nową frazę", async () => {
+    // Fraza, grupa i strona siedzą w KLUCZU zapytania, więc każde naciśnięcie
+    // klawisza trafiało w pustą szufladę pamięci podręcznej: `isPending` znowu
+    // stawało się prawdą, a panel ma na tym warunku wczesny zwrot ze
+    // szkieletem PRZED nagłówkiem i filtrami. Uczestnik tracił pole wyszukiwania
+    // razem z listą, tracił fokus, a kolejne znaki leciały w próżnię.
+    // `placeholderData: keepPreviousData` trzyma poprzednie okno do czasu,
+    // aż przyjdzie nowe.
+    renderPanel();
+    await poczekajNaListe();
+
+    // Kolejne zapytanie NIGDY się nie rozstrzyga - czyli jesteśmy dokładnie
+    // w tym oknie czasu, w którym panel wcześniej znikał.
+    const przedZmiana = h.directory.mock.calls.length;
+    h.directory.mockImplementation(() => nigdy());
+    fireEvent.change(szukajka(), { target: { value: "Kowalska" } });
+
+    // Czekamy, aż odbicie (300 ms) przepuści nową frazę do zapytania - dopiero
+    // wtedy klucz się zmienia i zaczyna się okno, w którym panel znikał.
+    await waitFor(() => expect(h.directory.mock.calls.length).toBeGreaterThan(przedZmiana));
+
+    expect(szukajka()).toBeInTheDocument();
+    expect((szukajka() as HTMLInputElement).value).toBe("Kowalska");
+    expect(screen.getByText(`${KAT}.heading`)).toBeInTheDocument();
+  });
+});
