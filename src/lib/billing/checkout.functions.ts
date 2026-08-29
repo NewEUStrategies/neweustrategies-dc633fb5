@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
+import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 
 // Zamówienie płatnicze (server-side, RLS jako użytkownik).
 // Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
@@ -43,25 +43,6 @@ const createOrderSchema = z.object({
   environment: z.enum(["sandbox", "live"]).optional(),
 });
 
-/**
- * Buduje bezwzględny adres powrotu dla Stripe Embedded Checkout ze ścieżki
- * względnej podanej przez klienta. Origin bierzemy z nagłówków żądania
- * (dev/preview/produkcja bez ręcznej konfiguracji domeny), a w ostatniej
- * kolejności z `PUBLIC_SITE_URL`.
- */
-function resolveReturnUrl(path: string): string {
-  const request = getRequest();
-  const headers = request?.headers;
-  const originHeader = headers?.get("origin");
-  const forwardedProto = headers?.get("x-forwarded-proto");
-  const forwardedHost = headers?.get("x-forwarded-host") ?? headers?.get("host");
-  const origin =
-    originHeader ??
-    (forwardedHost ? `${forwardedProto ?? "https"}://${forwardedHost}` : null) ??
-    process.env.PUBLIC_SITE_URL ??
-    "https://neweuropeanstrategies.com";
-  return new URL(path, origin).toString();
-}
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

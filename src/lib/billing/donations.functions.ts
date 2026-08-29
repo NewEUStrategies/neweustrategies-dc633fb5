@@ -13,6 +13,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 import type { DonationsConfig } from "@/lib/billing/donationsConfig";
 
 /** TTL wspólny dla konfiguracji i statystyk (te same dane widzi cała strona). */
@@ -149,7 +150,13 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       throw new Error("invalid_environment");
     }
     if (!Number.isFinite(data.amountCents)) throw new Error("invalid_amount");
-    if (typeof data.returnUrl !== "string" || !data.returnUrl.startsWith("http")) {
+    if (typeof data.returnUrl !== "string") {
+      throw new Error("invalid_return_url");
+    }
+    try {
+      // eslint-disable-next-line no-new
+      new URL(data.returnUrl);
+    } catch {
       throw new Error("invalid_return_url");
     }
     return data;
@@ -182,7 +189,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       donorEmail: data.donorEmail ?? null,
       message: data.message ?? null,
       userId,
-      returnUrl: data.returnUrl,
+      returnUrl: resolveReturnUrl(data.returnUrl),
       locale: normalizeCheckoutLocale(data.locale),
       rateKey: requestRateSubject(headers, userId),
     });
