@@ -156,15 +156,27 @@ export function AgendaSessionsPanel({
   const statusOptions: readonly SessionStatusFilter[] = ["all", ...SESSION_STATUSES];
 
   const timeLabel = (row: EventSessionRow): string => {
-    const formatter = new Intl.DateTimeFormat(isEn ? "en-GB" : "pl-PL", {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: timeZoneLabel,
-    });
     try {
+      // FORMATER POWSTAJE W ŚRODKU `try` - I TO JEST CAŁA RÓŻNICA. Nieznaną
+      // strefę odrzuca KONSTRUKTOR (`RangeError: Invalid time zone specified`),
+      // więc dopóki stał przed `try`, ta gałąź łapała wyłącznie niesparsowalną
+      // datę - czyli dokładnie nie ten przypadek, który opisuje. Wyjątek
+      // z konstruktora leciał do renderu i wygaszał CAŁĄ zakładkę „Program":
+      // pusty ekran w miejscu listy sesji, bez komunikatu.
+      //
+      // Że to nie jest hipoteza, mówi sama nazwa propa: `timeZoneLabel`, nie
+      // `timeZone`. `eventTimeZoneLabel()` z tego modułu zwraca ETYKIETĘ
+      // (`GMT+2`) albo pusty łańcuch, a nie identyfikator IANA. Dziś wszystkie
+      // trzy ścieżki wywołania podają wartość odkażoną, więc defekt jest
+      // utajony - ale trzyma go wyłącznie dyscyplina wywołujących.
+      const formatter = new Intl.DateTimeFormat(isEn ? "en-GB" : "pl-PL", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: timeZoneLabel,
+      });
       return formatter.format(new Date(row.starts_at));
     } catch {
-      // Nieznana strefa nie może wygasić całej listy - wracamy do lokalnej.
+      // Nieznana strefa degraduje POJEDYNCZY wiersz, nie całą listę.
       return new Date(row.starts_at).toLocaleString(isEn ? "en-GB" : "pl-PL");
     }
   };
