@@ -702,6 +702,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run check:events-harness
 
+      # Izolacja tenantow plaszczyzny wlasciciela (media_mentions,
+      # saved_searches, user_follows) - asercje RLS na zywej bazie, nie analiza
+      # statyczna. Audyt 2026-08-29: te polityki bramkowaly sam `auth.uid()`,
+      # wiec wiersz z dryfem tenanta przekraczal granice obszaru roboczego.
+      - name: Run tenant-isolation-harness (RLS: media_mentions / saved_searches / user_follows)
+        if: ${{ !cancelled() }}
+        run: bun run check:tenant-isolation
+
   # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
   # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,
