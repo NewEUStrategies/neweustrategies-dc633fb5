@@ -41,7 +41,13 @@ pg_ctl -D "$PGDIR/data" stop >/dev/null 2>&1 || true
 rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run"
 [ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
 
-run_as() { if [ "$(id -un)" = "root" ]; then su "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"; else eval "$*"; fi; }
+run_as() {
+  if [ "$(id -un)" != "root" ]; then eval "$*"; return; fi
+  # `su` bywa nieobecne w obrazie - `runuser` robi to samo bez sesji PAM.
+  switch="su"
+  command -v su >/dev/null 2>&1 || switch="runuser"
+  "$switch" "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"
+}
 run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=C" >/dev/null
 run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p 5434 -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null
 sleep 2
