@@ -11,6 +11,7 @@
 // na które wołający jest zapisany (`event_session_signups`) - to jest „mój
 // harmonogram", a nie kopia programu wydarzenia.
 import { supabase } from "@/integrations/supabase/client";
+import type { AttendeeGroupTag } from "@/lib/events/publicEventApi";
 
 type Bag = Record<string, unknown>;
 
@@ -106,6 +107,12 @@ export interface MyEventRegistrationState {
   directoryOptOut: boolean;
   notifyEmail: boolean;
   notifySms: boolean;
+  /**
+   * GRUPY UCZESTNIKA (przepustka). Te same wiersze `event_groups`, które
+   * katalog przypina do cudzych kart - właściciel widzi więc dokładnie te
+   * etykiety, które widzą inni.
+   */
+  groups: AttendeeGroupTag[];
 }
 
 export interface MyEventPanelState {
@@ -143,6 +150,23 @@ function parseProfile(raw: unknown): MyEventProfile | null {
   };
 }
 
+function parseGroupTags(raw: unknown): AttendeeGroupTag[] {
+  if (!Array.isArray(raw)) return [];
+  const out: AttendeeGroupTag[] = [];
+  for (const item of raw) {
+    const row = bag(item);
+    const id = row === null ? null : text(row, "id");
+    if (row === null || id === null) continue;
+    out.push({
+      id,
+      namePl: text(row, "name_pl") ?? "",
+      nameEn: text(row, "name_en") ?? "",
+      color: text(row, "color"),
+    });
+  }
+  return out;
+}
+
 function parseRegistration(raw: unknown): MyEventRegistrationState | null {
   const row = bag(raw);
   const id = row === null ? null : text(row, "registration_id");
@@ -154,6 +178,7 @@ function parseRegistration(raw: unknown): MyEventRegistrationState | null {
     directoryOptOut: bool(row, "directory_opt_out"),
     notifyEmail: bool(row, "notify_email"),
     notifySms: bool(row, "notify_sms"),
+    groups: parseGroupTags(row["groups"]),
   };
 }
 

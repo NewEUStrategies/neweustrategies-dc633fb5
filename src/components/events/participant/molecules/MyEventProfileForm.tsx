@@ -198,17 +198,19 @@ function BulletListInput({
   limitLabel: string;
   ariaLabel: string;
 }) {
-  // WIERSZE SĄ STANEM LOKALNYM, NIE POCHODNĄ `value` - i to jest naprawa.
+  // PARSUJEMY PRZY WCZYTANIU, ALE NIE PRZY KAŻDYM ZNAKU - i to jest różnica,
+  // której nie da się mieć bez stanu lokalnego.
   //
-  // `parseBullets` odsiewa linie puste, więc dopóki lista była wyliczana
-  // z `value` przy każdym renderze, przycisk „Dodaj punkt" był MARTWY:
-  // `commit([...items, ""])` sklejał tekst z pustą linią na końcu, a następny
-  // render tę linię natychmiast usuwał. Przy pustej liście uczestnik nie mógł
-  // dodać ANI JEDNEGO punktu. Ten sam mechanizm kasował wiersz w trakcie
-  // pisania, gdy ktoś skasował jego treść, żeby wpisać ją od nowa.
+  // `parseBullets` odsiewa linie puste i to jest WŁAŚCIWE dla tekstu z bazy:
+  // wpis z podwójnym enterem nie ma dawać dziur w katalogu. Ale ta sama reguła
+  // zastosowana przy każdym renderze usuwała wiersz spod kursora, gdy ktoś
+  // skasował jego treść, żeby wpisać ją od nowa. Wiersze są więc SEEDOWANE
+  // sparsowaną wartością, a potem żyją lokalnie; pusty wiersz przetrwa
+  // edycję, a `onSubmit` i tak przepuszcza pola punktowe przez `parseBullets`,
+  // więc do `event_people` nie dojedzie.
   //
-  // Stan zewnętrzny nadal wygrywa - ale tylko wtedy, gdy NAPRAWDĘ przyszedł
-  // z zewnątrz (przeładowanie kartoteki), a nie wrócił echem naszego zapisu.
+  // Wartość z zewnątrz wygrywa - ale tylko wtedy, gdy NAPRAWDĘ przyszła
+  // z zewnątrz (przeładowanie kartoteki), a nie wróciła echem naszego zapisu.
   const [rows, setRows] = useState<string[]>(() => parseBullets(value));
   const emitted = useRef(value);
 
@@ -225,6 +227,11 @@ function BulletListInput({
     emitted.current = joined;
     onChange(joined);
   };
+  // DRAFT NOWEGO PUNKTU: parseBullets odfiltrowuje puste linie, więc dopisanie
+  // "" do wartości ginęło przy re-renderze i „Dodaj punkt" wyglądał na martwy.
+  // Nowy punkt żyje w lokalnym drafcie, a trafia do wartości dopiero po
+  // wpisaniu pierwszego znaku.
+  const [draft, setDraft] = useState<string | null>(null);
 
   return (
     <div className="space-y-1.5" aria-label={ariaLabel}>
@@ -254,13 +261,42 @@ function BulletListInput({
           </button>
         </div>
       ))}
-      {items.length < MAX_BULLETS ? (
+      {draft !== null && (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={draft}
+            autoFocus
+            placeholder={placeholder}
+            aria-label={`${ariaLabel} ${items.length + 1}`}
+            className="h-8 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2.5 text-sm outline-none focus:border-primary"
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next.trim() === "") {
+                setDraft(next);
+                return;
+              }
+              commit([...items, next]);
+              setDraft(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setDraft(null);
+            }}
+            onBlur={() => setDraft(null)}
+          />
+        </div>
+      )}
+      {items.length + (draft === null ? 0 : 1) < MAX_BULLETS ? (
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-7 px-2 text-xs"
-          onClick={() => commit([...items, ""])}
+          onClick={() => setDraft("")}
         >
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           {addLabel}

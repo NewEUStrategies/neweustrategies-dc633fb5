@@ -131,8 +131,12 @@ export function ProfileIdentityBlock({ children }: { children: ReactNode }) {
 
 export function ProfileNameRow({ name, badge }: { name: string; badge?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 text-center sm:justify-start sm:text-left">
-      <h1 className="text-[26px] font-bold leading-[1.1] tracking-tight sm:text-[32px]">{name}</h1>
+    <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-2 text-center sm:justify-start sm:text-left">
+      {/* DŁUGIE IMIĘ NIE MOŻE BYĆ UCIĘTE: skala płynna (clamp) + łamanie w
+          dowolnym miejscu, bo pojedyncze nazwisko bywa dłuższe niż kolumna. */}
+      <h1 className="max-w-full min-w-0 hyphens-auto break-words [overflow-wrap:anywhere] text-[clamp(20px,6.2vw,32px)] font-bold leading-[1.15] tracking-tight">
+        {name}
+      </h1>
       {badge}
     </div>
   );
@@ -151,34 +155,42 @@ export function ProfileIdentityLine({
   jobTitle?: string | null;
 }) {
   if (!companyName && !jobTitle) return null;
+  const nameClass =
+    "min-w-0 hyphens-auto break-words [overflow-wrap:anywhere] leading-[1.25] text-[clamp(12px,3.4vw,13px)]";
   const company = companyName ? (
-    <span className="inline-flex max-w-full items-center gap-1.5 align-middle text-[13px] font-medium leading-[1.2] text-foreground">
-      <ProfileCompanyLogo src={companyLogoUrl} />
+    <span className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5 align-middle font-medium leading-[1.25] text-foreground">
+      <ProfileCompanyLogo
+        src={companyLogoUrl}
+        className="h-8 w-14 shrink-0 self-center object-contain sm:h-11 sm:w-20"
+      />
       {companyHref ? (
         <a
           href={companyHref}
           target="_blank"
           rel="noreferrer noopener"
-          className="min-w-0 leading-[1.2] hover:text-primary"
+          className={`${nameClass} hover:text-primary`}
         >
           {companyName}
         </a>
       ) : (
-        <span className="min-w-0 leading-[1.2]">{companyName}</span>
+        <span className={nameClass}>{companyName}</span>
       )}
     </span>
   ) : null;
 
   return (
-    <div className="mt-0.5 flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[13px] leading-[1.2] sm:justify-start">
+    <div className="mt-0.5 flex w-full min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 leading-[1.25] sm:justify-start">
       {company}
       {company && jobTitle ? (
-        <span className="inline-flex items-center text-[13px] leading-none text-muted-foreground/60">
+        <span
+          aria-hidden="true"
+          className="inline-flex items-center text-[13px] leading-none text-muted-foreground/60"
+        >
           •
         </span>
       ) : null}
       {jobTitle ? (
-        <span className="inline-flex items-center text-[13px] font-medium leading-[1.2] text-foreground">
+        <span className={`inline-flex items-center font-medium text-foreground ${nameClass}`}>
           {jobTitle}
         </span>
       ) : null}
@@ -204,13 +216,16 @@ export function ProfileMetaPill({
   href?: string;
 }) {
   const className =
-    "inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
+    "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
   const inner = (
     <>
-      {icon ? <span className="text-primary [&_svg]:h-3 [&_svg]:w-3">{icon}</span> : null}
-      <span className="max-w-[200px] truncate sm:max-w-[280px]">{children}</span>
+      {icon ? <span className="shrink-0 text-primary [&_svg]:h-3 [&_svg]:w-3">{icon}</span> : null}
+      {/* ZAWIJAMY, NIE UCINAMY: długi adres e-mail albo nazwa branży musi
+          zostać czytelna także na 320px - ucięta pigułka gubi informację. */}
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{children}</span>
     </>
   );
+
   if (href) {
     return (
       <a href={href} className={cn(className, "transition-colors hover:bg-muted/60")}>

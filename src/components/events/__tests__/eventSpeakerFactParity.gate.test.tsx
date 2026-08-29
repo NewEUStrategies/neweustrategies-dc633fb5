@@ -133,11 +133,15 @@ const BADGE_FILE = "src/components/events/SpeakerExpertBadge.tsx";
  * niżej wymaga, żeby plik istniał, nadal miał ikonę i NIE dotykał śladu faktu
  * eksperta - zdechły albo rozrastający się wyjątek czerwieni się tak samo jak
  * drugi rysunek plakietki.
+ *
+ * DZIŚ LISTA JEST PUSTA i to jest stan docelowy, nie przeoczenie. Stał tu
+ * `EventPackagesPurchase`, który rysował tę ikonę jako plakietkę WERYFIKACJI
+ * PAKIETU; `main` przebudował ten ekran i ikona z niego zniknęła, więc wpis
+ * przestał cokolwiek osłaniać - i zaczerwienił się dokładnie w asercji, która
+ * ma go przed tym bronić. Nowy wpis wolno dołożyć tylko z powodem tej samej
+ * klasy: ta sama ikona, INNE znaczenie, zero związku z faktem o osobie.
  */
-const ICON_EXCEPTIONS: Record<string, string> = {
-  "src/components/events/packages/EventPackagesPurchase.tsx":
-    "PLAKIETKA WERYFIKACJI PAKIETU, nie faktu o osobie: rysuje ją `requires_verification` wiersza `event_packages` i mówi o UPRAWNIENIU KUPUJĄCEGO do taryfy (`qualifies` -> `eventPackages.qualified` / `eventPackages.notQualified`), a nie o tym, że ktoś jest ekspertem - ten ekran w ogóle nie woła zapytania o prelegentów i nie ma skąd wziąć kolumny `is_expert`",
-};
+const ICON_EXCEPTIONS: Record<string, string> = {};
 
 /** Klucz nazwy plakietki eksperta - ŚLAD faktu `is_expert` w drzewie. */
 const EXPERT_FACT_KEY = "eventFront.speakers.expertBadge";

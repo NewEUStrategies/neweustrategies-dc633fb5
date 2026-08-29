@@ -43,13 +43,11 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import {
   EMPTY_ATTENDEE_DIRECTORY,
   type AttendeeEntry,
   type AttendeeGroupCount,
-  type AttendeeGroupTag,
 } from "@/lib/events/publicEventApi";
 import { useEventAttendees, useEventAttendeeVisibility } from "@/lib/events/usePublicEvent";
 import {
@@ -59,6 +57,10 @@ import {
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { EventSocialLinks } from "@/components/events/participant/atoms/EventSocialLinks";
 import { EventPersonActions } from "@/components/events/participant/molecules/EventPersonActions";
+import {
+  EventGroupTags,
+  eventGroupName,
+} from "@/components/events/participant/atoms/EventGroupTags";
 import { IntentBulletList } from "@/components/events/participant/molecules/IntentBulletList";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
@@ -543,19 +545,9 @@ function AttendeeCard({
           )}
         </div>
       </div>
-      {entry.groups.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {entry.groups.map((group) => (
-            <Badge
-              key={group.id}
-              variant="outline"
-              style={group.color === null ? undefined : { borderColor: group.color }}
-            >
-              {groupName(group, lang)}
-            </Badge>
-          ))}
-        </div>
-      )}
+      {/* Ten sam atom, co w podglądzie „Mój profil" - jedna plakietka grupy
+          na cały moduł, żeby przepustka nie miała dwóch rysunków. */}
+      <EventGroupTags groups={entry.groups} lang={lang} className="mt-3" />
       {(entry.industry !== null || entry.specialization !== null) && (
         <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
           {entry.industry !== null && <Badge variant="secondary">{entry.industry}</Badge>}
@@ -626,6 +618,4 @@ function AttendeeCard({
   return <div className="w-full rounded-md border border-border bg-card p-4">{body}</div>;
 }
 
-function groupName(group: AttendeeGroupTag, lang: "pl" | "en"): string {
-  return pickLocalized({ name_pl: group.namePl, name_en: group.nameEn }, "name", lang);
-}
+const groupName = eventGroupName;
