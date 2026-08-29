@@ -962,7 +962,7 @@ function CenteredHero({
 
           {/* Social mini-icons bottom-right */}
           {(linkedinUrl || twitterUrl) && (
-            <div className="absolute -bottom-1.5 -right-1.5 flex items-center gap-1 z-10">
+            <div className="absolute -bottom-1.5 -right-1.5 flex items-center gap-1 z-10 bg-background rounded-[6px]">
               {linkedinUrl && (
                 <a
                   href={linkedinUrl}
