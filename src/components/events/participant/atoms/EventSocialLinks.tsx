@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { Facebook, Globe, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
 import { XIcon } from "@/components/atoms/XIcon";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { SOCIAL_KEYS, type SocialKey } from "@/lib/events/myEventProfileApi";
 import { cn } from "@/lib/utils";
