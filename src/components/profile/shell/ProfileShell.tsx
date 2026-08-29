@@ -247,7 +247,6 @@ export function ProfileMetaPill({
   return <span className={className}>{inner}</span>;
 }
 
-
 export interface ProfileTabItem {
   key: string;
   label: string;
@@ -369,4 +368,3 @@ export function ProfileContactRow({
     </li>
   );
 }
-

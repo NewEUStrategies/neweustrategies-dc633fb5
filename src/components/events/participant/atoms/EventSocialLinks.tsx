@@ -29,7 +29,6 @@ function brandColor(key: SocialKey): string {
   return brandTileColor(key);
 }
 
-
 export interface EventSocialLinksProps {
   links: Partial<Record<SocialKey, string | null>>;
   className?: string;

@@ -74,11 +74,7 @@ import {
   ProfileContactRow as Card_ContactRow,
   ProfileSectionCard,
 } from "@/components/profile/shell/ProfileShell";
-import {
-  BRAND_PILL_CLASS,
-  BRAND_TILE_CLASS,
-  brandTileStyle,
-} from "@/components/common/brandTile";
+import { BRAND_PILL_CLASS, BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 type Gender = "male" | "female" | "neutral";
 type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
 /** Rola w karcie „Wprowadzenia" - do mnie / wysłane / o mnie. */
