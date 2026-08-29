@@ -86,7 +86,7 @@ for f in $MIGRATIONS; do
   name="$(basename "$f")"
   # Aplikujemy WYLACZNIE instrukcje polityk/defaultow - pliki zalozycielskie
   # niosa tez CREATE TABLE calych modulow, ktorych atrapa nie ma.
-  if out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$f" 2>&1)"; then
+  if out="$(psql -q -d nes -v ON_ERROR_STOP=1 --single-transaction -f "$f" 2>&1)"; then
     printf '  OK   %s\n' "$name"
   else
     printf '  SKIP %s (poza zakresem atrapy)\n' "$name"
