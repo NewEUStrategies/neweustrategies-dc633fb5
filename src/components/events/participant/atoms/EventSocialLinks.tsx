@@ -25,7 +25,6 @@ const SOCIAL_ICON: Record<SocialKey, IconComponent> = {
   website: Globe,
 };
 
-
 export interface EventSocialLinksProps {
   links: Partial<Record<SocialKey, string | null>>;
   className?: string;
