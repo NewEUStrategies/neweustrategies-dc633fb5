@@ -93,12 +93,12 @@ export function MyEventPublicPreview({
           )}
           {industry !== null && <ProfileMetaPill icon={<Briefcase />}>{industry}</ProfileMetaPill>}
           {email !== null && (
-            <ProfileMetaPill icon={<Mail />} href={`mailto:${email}`}>
+            <ProfileMetaPill icon={<Mail />} href={`mailto:${email}`} brandKey="mail">
               {email}
             </ProfileMetaPill>
           )}
           {phone !== null && (
-            <ProfileMetaPill icon={<MapPin />} href={`tel:${phone}`}>
+            <ProfileMetaPill icon={<Phone />} href={`tel:${phone}`} brandKey="phone">
               {phone}
             </ProfileMetaPill>
           )}
@@ -166,6 +166,7 @@ export function MyEventPublicPreview({
         <ul className="divide-y divide-border/60">
           <ProfileContactRow
             icon={<Mail className="h-4 w-4" />}
+            brandKey="mail"
             ariaLabel={t("eventMe.fields.email")}
           >
             {email !== null ? (
@@ -183,6 +184,7 @@ export function MyEventPublicPreview({
           </ProfileContactRow>
           <ProfileContactRow
             icon={<Phone className="h-4 w-4" />}
+            brandKey="phone"
             ariaLabel={t("eventMe.fields.phone")}
           >
             {phone !== null ? (
