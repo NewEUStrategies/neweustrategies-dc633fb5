@@ -12,6 +12,13 @@ import { type ReactNode } from "react";
 import { Briefcase } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  BRAND_PILL_CLASS,
+  BRAND_TILE_CLASS,
+  brandTileStyle,
+  type BrandTileKey,
+} from "@/components/common/brandTile";
+
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 
