@@ -13,7 +13,8 @@
 // 3. PRZEPUSTKA. Etykiety grup z „Grupy i uprawnienia" stoją na karcie
 //    właściciela dokładnie tak, jak stoją na cudzych kartach w katalogu.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup } from "@testing-library/react";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 import type { MyEventProfile } from "@/lib/events/myEventProfileApi";
 import type { AttendeeGroupTag } from "@/lib/events/publicEventApi";
@@ -85,7 +86,7 @@ const COMBINATIONS = [
 ];
 
 function renderPreview() {
-  return render(<MyEventPublicPreview profile={profile} groups={GROUPS} />);
+  return renderWithQueryClient(<MyEventPublicPreview profile={profile} groups={GROUPS} />);
 }
 
 function identityBlock(container: HTMLElement): HTMLElement {

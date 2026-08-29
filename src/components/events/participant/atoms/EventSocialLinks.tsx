@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { Facebook, Globe, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
 import { XIcon } from "@/components/atoms/XIcon";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { SOCIAL_KEYS, type SocialKey } from "@/lib/events/myEventProfileApi";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,6 @@ const SOCIAL_ICON: Record<SocialKey, IconComponent> = {
   youtube: Youtube,
   website: Globe,
 };
-
 
 export interface EventSocialLinksProps {
   links: Partial<Record<SocialKey, string | null>>;
@@ -54,7 +54,12 @@ export function EventSocialLinks({ links, className, size = 36 }: EventSocialLin
               style={style}
               className={BRAND_TILE_CLASS}
             >
-              <Icon className="h-4 w-4" aria-hidden="true" />
+              <BrandIcon
+                name={key}
+                fallback={Icon}
+                className="h-4 w-4"
+                alt={t(`eventMe.social.${key}`)}
+              />
             </a>
           </li>
         );
