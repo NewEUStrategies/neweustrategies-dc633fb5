@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "include": [
-    "src/components/admin/events/__tests__/EventGeneralPanel.test.tsx",
-    "src/components/admin/events/__tests__/EventCreateForm.test.tsx",
-    "src/components/admin/events/__tests__/MeetingSettingsPanel.test.tsx"
-  ]
-}
