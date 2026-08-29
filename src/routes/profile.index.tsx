@@ -972,12 +972,7 @@ function CenteredHero({
                   style={brandTileStyle("linkedin")}
                   className={`${BRAND_TILE_CLASS} h-6 w-6 bg-background ring-2 ring-background shadow-sm`}
                 >
-                  <BrandIcon
-                    name="linkedin"
-                    fallback={Linkedin}
-                    className="h-3.5 w-3.5"
-                    alt="LinkedIn"
-                  />
+                  <Linkedin className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
               )}
               {twitterUrl && (
@@ -989,7 +984,7 @@ function CenteredHero({
                   style={brandTileStyle("x")}
                   className={`${BRAND_TILE_CLASS} h-6 w-6 bg-background ring-2 ring-background shadow-sm`}
                 >
-                  <BrandIcon name="x" fallback={XIcon} className="h-3.5 w-3.5" alt="X" />
+                  <XIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
               )}
             </div>
