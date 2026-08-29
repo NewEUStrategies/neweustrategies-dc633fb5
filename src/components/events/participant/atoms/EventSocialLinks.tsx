@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { Facebook, Globe, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
 import { XIcon } from "@/components/atoms/XIcon";
-import { SOCIAL_OFFICIAL_COLORS } from "@/components/builder/organisms/widget-view/socialHover";
+import { BRAND_TILE_CLASS, brandTileColor } from "@/components/common/brandTile";
 import { SOCIAL_KEYS, type SocialKey } from "@/lib/events/myEventProfileApi";
 import { cn } from "@/lib/utils";
 
