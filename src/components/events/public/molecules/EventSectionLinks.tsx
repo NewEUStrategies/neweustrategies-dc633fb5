@@ -37,7 +37,6 @@ import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import { pickTextColor, THEME_TEXT } from "@/lib/post/badgeContrast";
 
 export function EventSectionLinks({
   label,
