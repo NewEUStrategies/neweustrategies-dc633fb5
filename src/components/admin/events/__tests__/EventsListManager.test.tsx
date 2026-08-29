@@ -876,7 +876,9 @@ describe("sortowanie widocznej strony", () => {
   ];
 
   const sortuj = (kolumna: string) =>
-    fireEvent.click(przycisk(`adminEvents.list.sort.by(column=adminEvents.list.columns.${kolumna})`));
+    fireEvent.click(
+      przycisk(`adminEvents.list.sort.by(column=adminEvents.list.columns.${kolumna})`),
+    );
 
   // TRZECIE KLIKNIĘCIE WRACA DO PORZĄDKU SERWERA. „Bez sortowania" jest stanem,
   // a nie brakiem stanu - inaczej z raz posortowanej kolumny nie ma wyjścia.
@@ -1101,7 +1103,9 @@ describe("zaznaczenie i operacje masowe", () => {
 
     fireEvent.click(przycisk("adminCommunityEvents.common.delete"));
 
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminCommunityEvents.toasts.deleted"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminCommunityEvents.toasts.deleted"),
+    );
     expect(h.deleted).toEqual(["ev-1", "ev-2"]);
     expect(screen.queryByText(/select\.count/)).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -1118,9 +1122,7 @@ describe("zaznaczenie i operacje masowe", () => {
 
     fireEvent.click(przycisk("adminCommunityEvents.common.delete"));
 
-    await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith("events: wydarzenie ma zapisy"),
-    );
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("events: wydarzenie ma zapisy"));
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(screen.getByText("adminEvents.list.select.count(count=2)")).toBeTruthy();
   });
@@ -1209,7 +1211,9 @@ describe("eksport całego zawężonego zbioru", () => {
     const pelna = Array.from({ length: ROZMIAR_EKSPORTU }, (_, i) =>
       eventRow({ id: `a${i}`, total_count: 300 }),
     );
-    const reszta = Array.from({ length: 100 }, (_, i) => eventRow({ id: `b${i}`, total_count: 300 }));
+    const reszta = Array.from({ length: 100 }, (_, i) =>
+      eventRow({ id: `b${i}`, total_count: 300 }),
+    );
     h.exportChunks = [pelna, reszta];
     const { utworzUrl } = przechwycPobranie();
     await panelZWierszami({ q: "kongres" });

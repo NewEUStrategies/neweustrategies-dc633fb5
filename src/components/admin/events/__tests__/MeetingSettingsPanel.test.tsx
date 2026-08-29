@@ -655,9 +655,9 @@ describe("MeetingSettingsPanel - reguła widoczności i przydział grup", () => 
     );
     fireEvent.click(przyciskZapisu());
 
-    const ladunek = ostatniLadunek() as Record<string, unknown>;
-    expect(Object.keys(ladunek)).not.toContain("requesterGroupIds");
-    expect(Object.keys(ladunek)).not.toContain("inviteeGroupIds");
+    const klucze = Object.keys(ostatniLadunek());
+    expect(klucze).not.toContain("requesterGroupIds");
+    expect(klucze).not.toContain("inviteeGroupIds");
   });
 
   it("wydarzenie BEZ grup mówi to zdaniem, a nie pustą ramką", () => {

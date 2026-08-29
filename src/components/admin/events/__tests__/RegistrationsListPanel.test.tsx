@@ -476,11 +476,11 @@ describe("cztery stany listy zgłoszeń", () => {
   // Każda z nich osobno musi zmieniać komunikat - inaczej organizator szuka
   // zgłoszenia, które istnieje, w przekroju, w którym go nie widać.
   it.each([
-    ["status", () => fireEvent.change(dropka(`${B}.filters.status`), { target: { value: "waitlist" } })],
     [
-      "bilet",
-      () => fireEvent.change(dropka(`${B}.filters.ticket`), { target: { value: BILET } }),
+      "status",
+      () => fireEvent.change(dropka(`${B}.filters.status`), { target: { value: "waitlist" } }),
     ],
+    ["bilet", () => fireEvent.change(dropka(`${B}.filters.ticket`), { target: { value: BILET } })],
     [
       "fraza",
       () => {
@@ -533,7 +533,14 @@ describe("filtry, fraza i strona", () => {
     panel();
 
     const args = h.countsQueries.at(-1) as Record<string, unknown>;
-    expect(args).toEqual({ eventId: WYDARZENIE, ticketTypeId: null, groupId: null, q: "", from: null, to: null });
+    expect(args).toEqual({
+      eventId: WYDARZENIE,
+      ticketTypeId: null,
+      groupId: null,
+      q: "",
+      from: null,
+      to: null,
+    });
     expect(args).not.toHaveProperty("status");
   });
 
@@ -965,8 +972,9 @@ describe("decyzja organizatora", () => {
     expect(h.toastError).toHaveBeenCalledWith("odmowa:registrations: invalid_transition");
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect((screen.getByLabelText(`${B}.decideDialog.reasonLabel`) as HTMLTextAreaElement).value)
-      .toBe("brak miejsc");
+    expect(
+      (screen.getByLabelText(`${B}.decideDialog.reasonLabel`) as HTMLTextAreaElement).value,
+    ).toBe("brak miejsc");
     // Poczta NIE leci, skoro decyzja się nie zapisała.
     expect(h.notifyCalls).toEqual([]);
   });
@@ -1012,9 +1020,7 @@ describe("decyzja organizatora", () => {
 
     potwierdz();
 
-    await waitFor(() =>
-      expect(h.notifyCalls).toEqual([{ registrationId: "reg-1", notice }]),
-    );
+    await waitFor(() => expect(h.notifyCalls).toEqual([{ registrationId: "reg-1", notice }]));
   });
 
   // POZOSTAŁE CZTERY CZYNNOŚCI TO NOTATKI ORGANIZACYJNE. Mail „odnotowano
@@ -1023,7 +1029,9 @@ describe("decyzja organizatora", () => {
     "czynność „%s” NIE wysyła maila",
     async (czynnosc) => {
       h.rows = [
-        registrationRow({ status: czynnosc === "attended" || czynnosc === "no_show" ? "approved" : "pending" }),
+        registrationRow({
+          status: czynnosc === "attended" || czynnosc === "no_show" ? "approved" : "pending",
+        }),
       ];
       panel();
       otworzDecyzje(`adminEventRegistration.actions.${czynnosc}`);
@@ -1198,7 +1206,10 @@ describe("powiadomienie awansowanych", () => {
 });
 
 describe("eksport listy uczestników", () => {
-  function przechwycPobranie(): { linki: HTMLAnchorElement[]; utworzUrl: ReturnType<typeof vi.fn> } {
+  function przechwycPobranie(): {
+    linki: HTMLAnchorElement[];
+    utworzUrl: ReturnType<typeof vi.fn>;
+  } {
     const utworzUrl = vi.fn().mockReturnValue("blob:csv");
     vi.stubGlobal("URL", { ...URL, createObjectURL: utworzUrl, revokeObjectURL: vi.fn() });
     const linki: HTMLAnchorElement[] = [];
@@ -1292,7 +1303,9 @@ describe("eksport listy uczestników", () => {
   it("krótsza strona kończy pętlę po jednym zapytaniu", async () => {
     h.rows = [registrationRow()];
     h.total = 2;
-    h.exportPages = [{ rows: [registrationRow({ id: "a" }), registrationRow({ id: "b" })], total: 2 }];
+    h.exportPages = [
+      { rows: [registrationRow({ id: "a" }), registrationRow({ id: "b" })], total: 2 },
+    ];
     const { utworzUrl } = przechwycPobranie();
     panel();
 
