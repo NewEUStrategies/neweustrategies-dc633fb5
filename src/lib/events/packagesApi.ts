@@ -24,10 +24,9 @@ type Fns = Database["public"]["Functions"];
  * o NULL-owalności. `EventPackagesPanel.tsx:188` i `packageDraft.ts:102` mają
  * na to jawne warunki - kłamał wyłącznie typ.
  */
-export type EventPackageRow = Omit<
-  Fns["admin_event_packages_list"]["Returns"][number],
-  "quota"
-> & { quota: number | null };
+export type EventPackageRow = Omit<Fns["admin_event_packages_list"]["Returns"][number], "quota"> & {
+  quota: number | null;
+};
 export type EventPackageOrderRow = Fns["admin_event_package_orders_list"]["Returns"][number];
 /**
  * Wiersz MIEJSCA w pakiecie - z poprawionymi kolumnami NULL-owalnymi.

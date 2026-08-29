@@ -79,7 +79,8 @@ export function EventPackageSeatsDialog({
   const fail = (error: unknown) => toast.error(adminRegistrationErrorMessage(error));
 
   const emailInvalid = !EMAIL_PATTERN.test(email.trim());
-  const daysInvalid = !/^\d+$/.test(validDays.trim()) || Number(validDays) < 1 || Number(validDays) > 90;
+  const daysInvalid =
+    !/^\d+$/.test(validDays.trim()) || Number(validDays) < 1 || Number(validDays) > 90;
 
   const sendInvite = () => {
     if (activeSeat === null || emailInvalid || daysInvalid) return;
@@ -138,9 +139,7 @@ export function EventPackageSeatsDialog({
 
         <AdminCatalogListState
           isLoading={seatsQ.isLoading}
-          errorMessage={
-            seatsQ.error === null ? null : adminRegistrationErrorMessage(seatsQ.error)
-          }
+          errorMessage={seatsQ.error === null ? null : adminRegistrationErrorMessage(seatsQ.error)}
           isEmpty={rows.length === 0}
           loadingLabel={t("adminEventRegistration.packages.seats.loading")}
           emptyLabel={t("adminEventRegistration.packages.seats.empty")}

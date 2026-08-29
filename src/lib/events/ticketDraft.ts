@@ -299,13 +299,7 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   }
   if (early !== null) {
     const base = intOrNull(draft.priceCents);
-    if (
-      Number.isNaN(early) ||
-      early < 0 ||
-      base === null ||
-      Number.isNaN(base) ||
-      early > base
-    ) {
+    if (Number.isNaN(early) || early < 0 || base === null || Number.isNaN(base) || early > base) {
       return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
     }
   }
@@ -396,15 +390,13 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     waitlistEnabled: draft.waitlistEnabled,
     benefitsPl: benefitsFromText(draft.benefitsPl),
     benefitsEn: benefitsFromText(draft.benefitsEn),
-    priceSchedule: draft.phases.map(
-      (phase): TicketPricePhaseInput => ({
-        labelPl: phase.labelPl.trim(),
-        labelEn: phase.labelEn.trim(),
-        from: fromLocalInput(phase.from),
-        to: fromLocalInput(phase.to),
-        priceCents: Number(phase.priceCents.trim()),
-      }),
-    ),
+    priceSchedule: draft.phases.map((phase): TicketPricePhaseInput => ({
+      labelPl: phase.labelPl.trim(),
+      labelEn: phase.labelEn.trim(),
+      from: fromLocalInput(phase.from),
+      to: fromLocalInput(phase.to),
+      priceCents: Number(phase.priceCents.trim()),
+    })),
   };
 }
 

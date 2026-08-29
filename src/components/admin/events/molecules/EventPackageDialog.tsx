@@ -81,9 +81,7 @@ export function EventPackageDialog({
   useEffect(() => {
     if (!open) return;
     const row = packageRef.current;
-    setDraft(
-      row === null ? emptyPackageDraft(nextSortOrderRef.current) : packageDraftFromRow(row),
-    );
+    setDraft(row === null ? emptyPackageDraft(nextSortOrderRef.current) : packageDraftFromRow(row));
     setTouched(false);
   }, [open, packageId]);
 

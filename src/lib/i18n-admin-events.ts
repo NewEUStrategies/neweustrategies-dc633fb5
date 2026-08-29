@@ -2003,7 +2003,8 @@ export const adminEventsEn = {
         formatLabel: "Format",
         moduleEmptyAgenda: "The programme is still empty - add sessions in the Tracks tab.",
         moduleEmptySpeakers: "No speakers yet - add them in the event content screen.",
-        moduleEmptyAttendees: "No confirmed registrations yet - the list fills up as people register.",
+        moduleEmptyAttendees:
+          "No confirmed registrations yet - the list fills up as people register.",
         tracksLabel: "Tracks",
         trackDraftBadge: "drafts: {{count}}",
         trackPrivateBadge: "not public",

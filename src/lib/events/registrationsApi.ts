@@ -211,7 +211,6 @@ export interface TicketPricePhaseInput {
   priceCents: number;
 }
 
-
 export async function saveEventTicket(input: EventTicketInput): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_ticket_upsert", {
     p_payload: payload({
@@ -252,7 +251,6 @@ export async function saveEventTicket(input: EventTicketInput): Promise<string> 
         to: phase.to,
         price_cents: phase.priceCents,
       })),
-
     }),
   });
   if (error) throw error;

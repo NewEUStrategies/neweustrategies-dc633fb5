@@ -45,7 +45,6 @@ function ticket(
   };
 }
 
-
 function field(overrides: Partial<RegistrationForm["fields"][number]> = {}) {
   return {
     id: "f-1",

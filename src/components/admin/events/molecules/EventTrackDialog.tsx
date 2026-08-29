@@ -156,8 +156,7 @@ export function EventTrackDialog({
             labelFor={(option) =>
               option === NO_ROOM
                 ? t("adminEventAgenda.tracks.dialog.defaultRoomNone")
-                : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ??
-                  option)
+                : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ?? option)
             }
             onValueChange={(value) => set("defaultRoomId", value === NO_ROOM ? "" : value)}
           />
