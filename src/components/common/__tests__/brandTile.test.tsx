@@ -30,7 +30,10 @@ const NETWORKS: readonly BrandTileKey[] = [
 describe("brandTile - snapshot palety", () => {
   it("utrzymuje stały kolor i gradient dla każdej sieci", () => {
     const snapshot = Object.fromEntries(
-      NETWORKS.map((key) => [key, { color: brandTileColor(key), gradient: brandTileGradient(key) }]),
+      NETWORKS.map((key) => [
+        key,
+        { color: brandTileColor(key), gradient: brandTileGradient(key) },
+      ]),
     );
     expect(snapshot).toMatchInlineSnapshot(`
       {
@@ -141,7 +144,9 @@ describe("brandTile - kontrakt hover/focus", () => {
   });
 
   it("pigułka kontaktowa reaguje tak samo jak kafelek", () => {
-    for (const cls of HOVER_CONTRACT.filter((c) => c.startsWith("hover:") || c.startsWith("focus-visible:"))) {
+    for (const cls of HOVER_CONTRACT.filter(
+      (c) => c.startsWith("hover:") || c.startsWith("focus-visible:"),
+    )) {
       expect(BRAND_PILL_CLASS).toContain(cls);
     }
   });
