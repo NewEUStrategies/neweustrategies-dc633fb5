@@ -210,10 +210,13 @@ export function ProfileMetaPill({
   icon,
   children,
   href,
+  brandKey = "mail",
 }: {
   icon?: ReactNode;
   children: ReactNode;
   href?: string;
+  /** Klucz marki dla hovera - jak w nagłówku (mail, phone, location, linkedin...). */
+  brandKey?: BrandTileKey;
 }) {
   const className =
     "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
@@ -227,14 +230,16 @@ export function ProfileMetaPill({
   );
 
   if (href) {
+    // Ta sama reakcja co kafelek w nagłówku: pełny kolor marki po najechaniu.
     return (
-      <a href={href} className={cn(className, "transition-colors hover:bg-muted/60")}>
+      <a href={href} className={cn(className, BRAND_PILL_CLASS)} style={brandTileStyle(brandKey)}>
         {inner}
       </a>
     );
   }
   return <span className={className}>{inner}</span>;
 }
+
 
 export interface ProfileTabItem {
   key: string;
