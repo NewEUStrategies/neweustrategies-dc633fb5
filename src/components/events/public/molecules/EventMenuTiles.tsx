@@ -66,15 +66,23 @@ export function EventMenuTileBody({
       {icon === null || icon === "" ? null : (
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
-          // Kolor pozycji jest TŁEM IKONY, nie kolorem napisu: `#RRGGBB`
-          // z panelu nie ma pary w postaci koloru tekstu, a napis na losowym
-          // tle bywa nieczytelny.
-          style={color === null || color === "" ? undefined : { backgroundColor: color }}
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+            color === null || color === "" ? "bg-muted text-muted-foreground" : "",
+          )}
+          // JEDNO ŹRÓDŁO PRAWDY = PANEL (backend): kafelek dostaje kolor
+          // pozycji jako TŁO i biały atrament ikony - dokładnie tak, jak
+          // rysuje go `EntryIcon` w „Strony i menu”. Bez wymuszonego
+          // `#FFFFFF` front zostawiał ikonę w tonie `text-primary`, więc te
+          // same pozycje miały w panelu inny kolor niż na stronie.
+          style={
+            color === null || color === "" ? undefined : { background: color, color: "#FFFFFF" }
+          }
         >
           <DynamicIcon name={icon} size={18} />
         </span>
       )}
+
       <span className="min-w-0 flex-1">{label}</span>
     </>
   );
