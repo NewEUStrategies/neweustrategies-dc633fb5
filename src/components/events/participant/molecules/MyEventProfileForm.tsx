@@ -59,6 +59,9 @@ import {
   useSaveMyEventProfile,
   useSyncMyEventProfileFromAccount,
 } from "@/lib/events/useMyEventPanel";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 interface Props {
   slug: string;
@@ -88,6 +91,35 @@ interface FormState {
   bio_en: string;
   social_links: SocialLinks;
 }
+
+/**
+ * Pola tekstowe obcinane przy zapisie.
+ *
+ * `company_id` i `photo_url` NIE są tu wymienione świadomie: pierwsze to
+ * identyfikator kartoteki, drugie adres złożony przez wgrywanie - żadne nie
+ * pochodzi z klawiatury uczestnika. `social_links` mają własną pętlę wyżej,
+ * bo tam pusty adres ma ZNIKNĄĆ z obiektu, a nie zostać pustym napisem.
+ */
+const TRIMMED_TEXT_FIELDS = [
+  "first_name",
+  "last_name",
+  "email",
+  "phone",
+  "job_title",
+  "company_text",
+  "industry",
+  "specialization",
+  "bio_pl",
+  "bio_en",
+] as const satisfies readonly (keyof FormState)[];
+
+/** Pola trzymane jako lista punktów - przechodzą przez `parseBullets`. */
+const BULLET_TEXT_FIELDS = [
+  "seeking_pl",
+  "seeking_en",
+  "offering_pl",
+  "offering_en",
+] as const satisfies readonly (keyof FormState)[];
 
 const SOCIAL_PLACEHOLDER: Record<SocialKey, string> = {
   linkedin: "https://www.linkedin.com/in/...",
@@ -166,8 +198,35 @@ function BulletListInput({
   limitLabel: string;
   ariaLabel: string;
 }) {
-  const items = parseBullets(value);
-  const commit = (next: string[]) => onChange(next.join("\n"));
+  // PARSUJEMY PRZY WCZYTANIU, ALE NIE PRZY KAŻDYM ZNAKU - i to jest różnica,
+  // której nie da się mieć bez stanu lokalnego.
+  //
+  // `parseBullets` odsiewa linie puste i to jest WŁAŚCIWE dla tekstu z bazy:
+  // wpis z podwójnym enterem nie ma dawać dziur w katalogu. Ale ta sama reguła
+  // zastosowana przy każdym renderze usuwała wiersz spod kursora, gdy ktoś
+  // skasował jego treść, żeby wpisać ją od nowa. Wiersze są więc SEEDOWANE
+  // sparsowaną wartością, a potem żyją lokalnie; pusty wiersz przetrwa
+  // edycję, a `onSubmit` i tak przepuszcza pola punktowe przez `parseBullets`,
+  // więc do `event_people` nie dojedzie.
+  //
+  // Wartość z zewnątrz wygrywa - ale tylko wtedy, gdy NAPRAWDĘ przyszła
+  // z zewnątrz (przeładowanie kartoteki), a nie wróciła echem naszego zapisu.
+  const [rows, setRows] = useState<string[]>(() => parseBullets(value));
+  const emitted = useRef(value);
+
+  useEffect(() => {
+    if (value === emitted.current) return;
+    emitted.current = value;
+    setRows(parseBullets(value));
+  }, [value]);
+
+  const items = rows;
+  const commit = (next: string[]) => {
+    setRows(next);
+    const joined = next.join("\n");
+    emitted.current = joined;
+    onChange(joined);
+  };
   // DRAFT NOWEGO PUNKTU: parseBullets odfiltrowuje puste linie, więc dopisanie
   // "" do wartości ginęło przy re-renderze i „Dodaj punkt" wyglądał na martwy.
   // Nowy punkt żyje w lokalnym drafcie, a trafia do wartości dopiero po
@@ -356,8 +415,20 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
       const value = (form.social_links[key] ?? "").trim();
       if (value !== "") links[key] = value;
     }
+    // BIAŁE ZNAKI OBCINAMY PRZY ZAPISIE, nie przy wpisywaniu: kasowanie spacji
+    // spod kursora uniemożliwiłoby napisanie dwóch słów. Dotąd obcinane były
+    // WYŁĄCZNIE linki, więc pole wyczyszczone do samych spacji jechało do bazy
+    // jako `"   "` - czyli nie było wyczyszczeniem, a `event_people` jest
+    // źródłem druku identyfikatorów. Listy punktów przechodzą przez
+    // `parseBullets`, co przy okazji zdejmuje pusty wiersz zostawiony przez
+    // „Dodaj punkt", którego uczestnik nie wypełnił.
+    const trimmed: FormState = { ...form };
+    for (const key of TRIMMED_TEXT_FIELDS) trimmed[key] = (form[key] ?? "").trim();
+    for (const key of BULLET_TEXT_FIELDS) {
+      trimmed[key] = parseBullets(form[key] ?? "").join("\n");
+    }
     save.mutate(
-      { ...form, social_links: links, push_account: pushAccount },
+      { ...trimmed, social_links: links, push_account: pushAccount },
       {
         onSuccess: () => toast.success(t("eventMe.profileSaved")),
         onError: (error) => toast.error(`${t("eventMe.profileSaveError")} ${error.message}`.trim()),
@@ -483,9 +554,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
         </div>
       </div>
 
-
       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-
         {form.photo_url.trim() !== "" && (
           <Button
             type="button"

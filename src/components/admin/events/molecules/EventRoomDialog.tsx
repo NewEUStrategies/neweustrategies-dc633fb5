@@ -7,7 +7,7 @@
 // OBNIŻENIE POJEMNOŚCI MOŻE ZOSTAĆ ODMÓWIONE (`capacity_below_sessions`), gdy
 // jakaś sesja ma wyższy limit miejsc. To sprawdzenie zostaje w bazie - tylko ona
 // widzi wszystkie sesje sali.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,11 +55,27 @@ export function EventRoomDialog({
   const [draft, setDraft] = useState<RoomDraft>(() => emptyRoomDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
 
+  // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM - dokładnie jak
+  // w `EventTicketDialog`. `room` i `nextSortOrder` przelicza rodzic
+  // (`AgendaRoomsPanel`) z ŻYWEJ listy sal przy KAŻDYM renderze, więc
+  // odświeżenie tej listy w tle - sala dołożona przez drugiego organizatora,
+  // powrót do karty przeglądarki po `staleTime` - podawało tu nowe referencje,
+  // efekt ruszał PRZY OTWARTYM oknie i zamiatał całą wpisaną pracę do wartości
+  // z wiersza (a przy nowej sali - do pustego formularza), bez ostrzeżenia
+  // i bez śladu. Kolejność początkowa idzie przez `ref`, bo jest potrzebna
+  // TYLKO w chwili otwarcia i nie ma prawa niczego wznawiać.
+  const nextSortOrderRef = useRef(nextSortOrder);
+  nextSortOrderRef.current = nextSortOrder;
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  const roomId = room === null ? null : room.id;
+
   useEffect(() => {
     if (!open) return;
-    setDraft(room === null ? emptyRoomDraft(nextSortOrder) : roomDraftFromRow(room));
+    const row = roomRef.current;
+    setDraft(row === null ? emptyRoomDraft(nextSortOrderRef.current) : roomDraftFromRow(row));
     setTouched(false);
-  }, [open, room, nextSortOrder]);
+  }, [open, roomId]);
 
   const errors = validateRoomDraft(draft);
   const errorFor = (field: keyof RoomDraft): string | null => {

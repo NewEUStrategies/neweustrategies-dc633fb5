@@ -18,7 +18,7 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
-import type { EventListParams } from "@/lib/events/eventListParams";
+import { eventCountsQueryArgs, type EventListParams } from "@/lib/events/eventListParams";
 import {
   createEventFromType,
   fetchAdminEventCounts,
@@ -33,7 +33,21 @@ export const adminEventKeys = {
   all: ["admin-module-events"] as const,
   list: (params: EventListParams, minute: string) =>
     [...adminEventKeys.all, "list", params, minute] as const,
-  counts: (params: EventListParams) => [...adminEventKeys.all, "counts", params] as const,
+  // KLUCZ LICZNIKOW SKLADA SIE Z ARGUMENTOW, KTORE LICZNIKI NAPRAWDE DOSTAJA.
+  //
+  // Wczesniej szedl tu CALY `params`, wiec klucz niosl takze `tab`, `page`
+  // i `size` - pola, ktore `eventCountsQueryArgs` SWIADOMIE pomija (liczniki
+  // podaja wszystkie zakladki naraz, wiec nie zaleza ani od wybranej, ani od
+  // strony). Skutek widac bylo w panelu: przelaczenie zakladki albo strony
+  // trafialo w nowy klucz, `data` na moment stawalo sie `undefined`, a szesc
+  // liczb w zakladkach MRUGALO do zera i wracalo - dokladnie ten objaw, przed
+  // ktorym broni sie rozdzial dwoch kluczy opisany w naglowku tego modulu.
+  //
+  // Klucz jest wyprowadzany z TEJ SAMEJ funkcji, ktora sklada argumenty RPC,
+  // wiec nie da sie ich rozjechac po cichu: dolozenie filtra do zapytania
+  // dokłada go do klucza w tej samej linijce.
+  counts: (params: EventListParams) =>
+    [...adminEventKeys.all, "counts", eventCountsQueryArgs(params)] as const,
 };
 
 const LIST_STALE_MS = 15_000;

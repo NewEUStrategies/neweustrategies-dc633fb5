@@ -42,7 +42,7 @@ export function RegistrationConfirmation({
   cancelling: boolean;
   onCancel: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const statusMessage =
@@ -65,11 +65,49 @@ export function RegistrationConfirmation({
     }
   }
 
+  /**
+   * Kwota w groszach -> napis w walucie odpowiedzi, w języku interfejsu.
+   *
+   * `?? null` NIE jest ozdobą: `RegistrationResult` składa też kod wywołujący
+   * (i testy), a `undefined` przechodziłoby przez porównanie z `null` prosto do
+   * `Intl.NumberFormat({ currency: undefined })`, które RZUCA - i wywracało cały
+   * ekran potwierdzenia zamiast pominąć kwotę.
+   */
+  const amountCents = result.amountCents ?? null;
+  const currency = result.currency ?? null;
+  const amountLabel =
+    amountCents === null || currency === null
+      ? null
+      : new Intl.NumberFormat(i18n.language, {
+          style: "currency",
+          currency,
+        }).format(amountCents / 100);
+
   return (
     <section className="space-y-6" aria-live="polite">
       <p className="rounded-[6px] border border-primary/40 bg-primary/5 p-4 text-sm text-foreground">
         {cancelled ? t("eventRegistration.result.cancelled") : statusMessage}
       </p>
+
+      {/* ZGŁOSZENIE CZEKA NA ZAPŁATĘ - i uczestnik musi to zobaczyć PRZED
+          kluczem samoobsługi, bo inaczej wyjdzie z ekranu przekonany, że ma
+          wejściówkę. Przed migracją `20260828206000` ten stan w ogóle nie
+          istniał: płatny bilet był wydawany za darmo, z działającym kodem QR. */}
+      {result.paymentRequired && !cancelled && (
+        <div className="space-y-2 rounded-[6px] border border-amber-500/50 bg-amber-500/5 p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            {t("eventRegistration.result.paymentTitle")}
+          </h2>
+          <p className="text-sm text-foreground">
+            {amountLabel === null
+              ? t("eventRegistration.result.paymentHint")
+              : t("eventRegistration.result.paymentHintAmount", { amount: amountLabel })}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t("eventRegistration.result.paymentNoTicketYet")}
+          </p>
+        </div>
+      )}
 
       {result.manageToken !== null && !cancelled && (
         <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">

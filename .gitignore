@@ -74,3 +74,17 @@ package-lock.json
 # `.claude/` jest sledzony ze wzgledu na settings.json, wiec bez tego wpisu
 # jedno `git add -A` wciaga do commita caly rownolegly checkout repozytorium.
 .claude/worktrees/
+
+# Zawezone konfiguracje TypeScriptu, ktore agenci tworza na czas jednego
+# sprawdzenia typow. Pelny `tsc --noEmit -p tsconfig.json` bywa zabijany przez
+# brak pamieci, gdy kilku agentow pracuje naraz, wiec kazdy stawia sobie
+# `extends: "./tsconfig.json"` zawezony do swoich plikow i kasuje go po sobie.
+# Ten wpis istnieje z tego samego powodu, co `.claude/worktrees/` wyzej:
+# jedno `git add -A` wciaga taki plik do commita, zanim agent zdazy posprzatac -
+# i wciagnelo, dwa razy pod rzad (`5232f29`, `7434521`).
+#
+# Wzorzec jest WASKI celowo: `tsconfig.json` to jedyna konfiguracja, ktora do
+# repozytorium NALEZY, a szerokie `tsconfig.*.json` przeslonicby kazda przyszla
+# konfiguracje projektowa (np. `tsconfig.node.json`).
+tsconfig.*-check.json
+tsconfig.agentcheck.json

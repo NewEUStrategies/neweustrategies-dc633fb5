@@ -6,7 +6,7 @@
 // BILET WYBIERAMY Z LISTY BILETÓW TEGO WYDARZENIA, a nie wpisujemy z ręki:
 // miejsce z pakietu zamienia się w zwykłe zgłoszenie na wskazanym bilecie, więc
 // literówka w identyfikatorze dawałaby pakiet, którego nie da się zrealizować.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,15 +66,24 @@ export function EventPackageDialog({
   const [draft, setDraft] = useState<PackageDraft>(() => emptyPackageDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
 
+  // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM - dokładnie jak
+  // w `EventTicketDialog`. Rodzic przelicza `eventPackage` i `nextSortOrder`
+  // z listy przy każdym renderze, więc odświeżenie tej listy w tle podawało tu
+  // nowe referencje, efekt ruszał przy OTWARTYM dialogu i kasował wpisane
+  // zmiany. Kolejność początkowa idzie przez `ref`, bo liczy się tylko
+  // w chwili otwarcia.
+  const nextSortOrderRef = useRef(nextSortOrder);
+  nextSortOrderRef.current = nextSortOrder;
+  const packageRef = useRef(eventPackage);
+  packageRef.current = eventPackage;
+  const packageId = eventPackage === null ? null : eventPackage.id;
+
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      eventPackage === null
-        ? emptyPackageDraft(nextSortOrder)
-        : packageDraftFromRow(eventPackage),
-    );
+    const row = packageRef.current;
+    setDraft(row === null ? emptyPackageDraft(nextSortOrderRef.current) : packageDraftFromRow(row));
     setTouched(false);
-  }, [open, eventPackage, nextSortOrder]);
+  }, [open, packageId]);
 
   const issue = packageDraftIssue(draft);
   const errorFor = (field: PackageDraftField): string | null =>

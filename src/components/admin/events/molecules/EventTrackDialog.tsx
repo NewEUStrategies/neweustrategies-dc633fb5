@@ -6,7 +6,7 @@
 //
 // KOLOR MA WŁASNY PRÓBNIK, ale trzymamy go jako tekst: `#RRGGBB` wraca na
 // publiczną agendę i musi przejść wzór, zanim pojedzie do bazy.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,11 +67,28 @@ export function EventTrackDialog({
 
   // Szkic odtwarzamy przy KAŻDYM otwarciu - porzucone zmiany nie mogą wrócić
   // do formularza następnej ścieżki.
+  //
+  // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM - dokładnie jak
+  // w `EventTicketDialog`. `track` i `nextSortOrder` przelicza rodzic
+  // (`AgendaTracksPanel`) z ŻYWEJ listy pasm przy KAŻDYM renderze, więc
+  // odświeżenie tej listy w tle - pasmo dołożone przez drugiego organizatora,
+  // powrót do karty przeglądarki po `staleTime` - podawało tu nowe referencje,
+  // efekt ruszał PRZY OTWARTYM oknie i zamiatał całą wpisaną pracę do wartości
+  // z wiersza (a przy nowym paśmie - do pustego formularza), bez ostrzeżenia
+  // i bez śladu. Kolejność początkowa idzie przez `ref`, bo jest potrzebna
+  // TYLKO w chwili otwarcia i nie ma prawa niczego wznawiać.
+  const nextSortOrderRef = useRef(nextSortOrder);
+  nextSortOrderRef.current = nextSortOrder;
+  const trackRef = useRef(track);
+  trackRef.current = track;
+  const trackId = track === null ? null : track.id;
+
   useEffect(() => {
     if (!open) return;
-    setDraft(track === null ? emptyTrackDraft(nextSortOrder) : trackDraftFromRow(track));
+    const row = trackRef.current;
+    setDraft(row === null ? emptyTrackDraft(nextSortOrderRef.current) : trackDraftFromRow(row));
     setTouched(false);
-  }, [open, track, nextSortOrder]);
+  }, [open, trackId]);
 
   const errors = validateTrackDraft(draft);
   const errorFor = (field: keyof TrackDraft): string | null => {
@@ -139,8 +156,7 @@ export function EventTrackDialog({
             labelFor={(option) =>
               option === NO_ROOM
                 ? t("adminEventAgenda.tracks.dialog.defaultRoomNone")
-                : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ??
-                  option)
+                : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ?? option)
             }
             onValueChange={(value) => set("defaultRoomId", value === NO_ROOM ? "" : value)}
           />

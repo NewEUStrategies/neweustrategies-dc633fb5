@@ -216,6 +216,7 @@ export type TicketDraftField =
   | "accessCodeHint"
   | "benefitsPl"
   | "benefitsEn"
+  | "sortOrder"
   | "phases";
 
 export interface TicketDraftIssue {
@@ -265,6 +266,18 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
     return { field: "minTierRank", errorKey: "invalidRequest" };
   }
 
+  // KOLEJNOSC TEZ JEST LICZBA - i az do teraz nie byla sprawdzana WCALE, choc
+  // blizniaczy `packageDraftIssue` ja sprawdza. `ticketDraftToInput` robi na tym
+  // polu `Number()`, wiec wpisane slowo wychodzilo z formularza jako `NaN`,
+  // w JSON-ie zamienialo sie w `null` i wracalo odmowa NOT NULL bez nazwy
+  // kolumny: uzytkownik widzial „cos poszlo nie tak" i ani jednego
+  // podswietlonego pola. Puste pole zostaje dozwolone, bo `ticketDraftToInput`
+  // czyta je jako zero - to jest udokumentowane zachowanie, nie przeoczenie.
+  const sort = intOrNull(draft.sortOrder);
+  if (sort !== null && (Number.isNaN(sort) || sort < 0 || sort > 10_000)) {
+    return { field: "sortOrder", errorKey: "invalidRequest" };
+  }
+
   // Okno sprzedaży zamknięte przed otwarciem to bilet, którego nie da się kupić
   // ani dziś, ani nigdy - baza odrzuca to CHECK-iem, więc odcinamy wcześniej.
   const from = fromLocalInput(draft.salesFrom);
@@ -286,13 +299,7 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   }
   if (early !== null) {
     const base = intOrNull(draft.priceCents);
-    if (
-      Number.isNaN(early) ||
-      early < 0 ||
-      base === null ||
-      Number.isNaN(base) ||
-      early > base
-    ) {
+    if (Number.isNaN(early) || early < 0 || base === null || Number.isNaN(base) || early > base) {
       return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
     }
   }
@@ -383,15 +390,13 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     waitlistEnabled: draft.waitlistEnabled,
     benefitsPl: benefitsFromText(draft.benefitsPl),
     benefitsEn: benefitsFromText(draft.benefitsEn),
-    priceSchedule: draft.phases.map(
-      (phase): TicketPricePhaseInput => ({
-        labelPl: phase.labelPl.trim(),
-        labelEn: phase.labelEn.trim(),
-        from: fromLocalInput(phase.from),
-        to: fromLocalInput(phase.to),
-        priceCents: Number(phase.priceCents.trim()),
-      }),
-    ),
+    priceSchedule: draft.phases.map((phase): TicketPricePhaseInput => ({
+      labelPl: phase.labelPl.trim(),
+      labelEn: phase.labelEn.trim(),
+      from: fromLocalInput(phase.from),
+      to: fromLocalInput(phase.to),
+      priceCents: Number(phase.priceCents.trim()),
+    })),
   };
 }
 

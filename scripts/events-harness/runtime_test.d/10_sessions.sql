@@ -1099,9 +1099,34 @@ SELECT pg_temp.assert(
   (public.event_session_access('bb000000-0000-0000-0000-000000000001')->>'reason') = 'not_found',
   '10/izolacja: event_session_access w najemcy A nie widzi sesji najemcy B');
 
+-- KONTRAPUNKT IZOLACJI WYMAGA TERAZ ZALOGOWANEGO WOLAJACEGO. Do migracji
+-- `20260828203000` ta asercja wolala funkcje BEZ tozsamosci i dostawala
+-- `granted` - i wlasnie to bylo usterka, nie wlasciwoscia: bramka sesji
+-- sprawdzala tylko wlasna range sesji, wiec niezalogowany czytal adresy
+-- transmisji i nagran takze przy wydarzeniu dla czlonkow. Po naprawie funkcja
+-- odwzorowuje `get_event_access`, ktora odsyla `auth_required` PRZED
+-- sprawdzeniem widocznosci. Sens tej asercji - „wlasna sesja JEST widoczna,
+-- wiec test izolacji nie jest prozny" - zostaje bez zmian; zmienia sie tylko
+-- to, ze kontrapunkt musi miec tozsamosc.
+SELECT pg_temp.act_as('e0000000-0000-0000-0000-0000000000a1',
+                      '11111111-1111-1111-1111-111111111111', 9, 'recordings');
+
 SELECT pg_temp.assert(
   (public.event_session_access('aa000000-0000-0000-0000-000000000001')->>'reason') = 'granted',
-  '10/izolacja: event_session_access oddaje SWOJA sesje (kontrapunkt)');
+  '10/izolacja: event_session_access oddaje SWOJA sesje zalogowanemu (kontrapunkt)');
+
+-- DRUGA STRONA TEJ SAMEJ REGULY. Bez tego asercja wyzej nie odroznialaby
+-- naprawy od jej braku: przed migracja OBA wywolania zwracaly `granted`.
+SELECT pg_temp.act_as(NULL, '11111111-1111-1111-1111-111111111111', 0, '');
+
+SELECT pg_temp.assert(
+  (public.event_session_access('aa000000-0000-0000-0000-000000000001')->>'reason') = 'auth_required',
+  '10/izolacja: event_session_access NIE oddaje sesji niezalogowanemu');
+
+SELECT pg_temp.assert(
+  (public.event_session_access('aa000000-0000-0000-0000-000000000001')->>'stream_url') IS NULL
+  AND (public.event_session_access('aa000000-0000-0000-0000-000000000001')->>'recording_url') IS NULL,
+  '10/izolacja: niezalogowany nie dostaje ANI adresu transmisji, ANI nagrania');
 
 -- Panel: kazda funkcja listujaca po kolei. Redaktor A z identyfikatorem
 -- wydarzenia najemcy B musi dostac PUSTO, a nie wiersze.

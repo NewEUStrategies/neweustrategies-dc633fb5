@@ -450,6 +450,18 @@ export function badgeTemplateDraftToInput(
 ): BadgeTemplateInput {
   const width = intOrNull(draft.widthMm);
   const height = intOrNull(draft.heightMm);
+  // BOK KODU QR JEDZIE DO BAZY ZAWSZE, TAKZE PRZY WYLACZONYM KODZIE: kolumna jest
+  // NOT NULL z CHECK-iem 10-100 mm, a RPC sprawdza ja bezwarunkowo. Formularz
+  // pokazuje to pole tylko przy WLACZONYM kodzie, wiec wartosc spoza zakresu
+  // (redaktor wpisal 5, zobaczyl blad i wylaczyl kod) nie miala jak zostac
+  // poprawiona - szla na pewna odmowe bazy przy polu, ktorego nie ma na ekranie.
+  // Przy wlaczonym kodzie o wartosci decyduje `validateBadgeTemplateDraft`, wiec
+  // tutaj zostaje tylko przypadek, ktorego uzytkownik i tak by nie zobaczyl.
+  const qrSize = intOrNull(draft.qrSizeMm);
+  const qrSizeMm =
+    qrSize === null || qrSize === false || qrSize < BADGE_MIN_QR_MM || qrSize > BADGE_MAX_QR_MM
+      ? 30
+      : qrSize;
   return {
     id: draft.id,
     eventId: draft.id === undefined ? eventId : undefined,
@@ -459,7 +471,7 @@ export function badgeTemplateDraftToInput(
     widthMm: width === false ? null : width,
     heightMm: height === false ? null : height,
     showQr: draft.showQr,
-    qrSizeMm: intOr(draft.qrSizeMm, 30),
+    qrSizeMm,
     doubleFold: draft.doubleFold,
     backgroundColor: trimOrNull(draft.backgroundColor),
     backgroundImageUrl: trimOrNull(draft.backgroundImageUrl),

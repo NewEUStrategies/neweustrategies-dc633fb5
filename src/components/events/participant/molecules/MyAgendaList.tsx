@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { uiLang } from "@/lib/i18n/format";
 import type { MyAgendaSession } from "@/lib/events/myEventProfileApi";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 function fmt(value: string | null, locale: string): string | null {
   if (value === null) return null;

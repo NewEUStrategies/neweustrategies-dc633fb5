@@ -516,22 +516,30 @@ export function RegistrationsListPanel({
 
       {pageCount <= 1 ? null : (
         <nav className="flex items-center justify-end gap-2" aria-label={t(`${base}.title`)}>
+          {/* NAZWA DOSTĘPNA, BO SAMA IKONA JEJ NIE DAJE. Oba przyciski niosły
+              wyłącznie strzałkę, więc czytnik ekranu ogłaszał „przycisk,
+              przycisk" - nie było wiadomo, który cofa, a który przewija dalej.
+              Reszta tego panelu (pole frazy, obie droplisty, pole awansu)
+              etykiety MA, więc to nie była konwencja ekranu, tylko brak
+              w dwóch miejscach. */}
           <Button
             variant="outline"
             size="sm"
+            aria-label={t(`${base}.prevPage`)}
             disabled={page <= 1}
             onClick={() => setOffset(registrationOffsetForPage(page - 1, limit, total))}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <span className="text-sm text-muted-foreground">{`${page} / ${pageCount}`}</span>
           <Button
             variant="outline"
             size="sm"
+            aria-label={t(`${base}.nextPage`)}
             disabled={page >= pageCount}
             onClick={() => setOffset(registrationOffsetForPage(page + 1, limit, total))}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </nav>
       )}

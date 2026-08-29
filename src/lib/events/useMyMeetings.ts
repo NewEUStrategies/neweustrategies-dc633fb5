@@ -13,6 +13,7 @@
 // znikelo. Punktowe uniewaznienie listy zostawialoby na ekranie licznik sprzed
 // decyzji, czyli liczbe wygladajaca wiarygodnie i nieprawdziwa.
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -186,6 +187,15 @@ export function useMeetingDirectory(
       }),
     enabled: enabled && hasSlug(slug),
     staleTime: STATE_STALE_MS,
+    // POPRZEDNIE OKNO ZOSTAJE NA EKRANIE W TRAKCIE ZMIANY FRAZY LUB STRONY.
+    // Fraza, grupa i offset siedza w KLUCZU zapytania, wiec kazde nacisniecie
+    // klawisza trafialo w pusta szuflade: `isPending` znowu stawalo sie prawda,
+    // a `ParticipantDirectoryPanel` ma na tym warunku wczesny zwrot ze
+    // szkieletem PRZED naglowkiem i filtrami. Skutek dla uczestnika: pole
+    // wyszukiwania znikalo razem z lista, tracilo fokus, a kolejne znaki lecialy
+    // w prozne. Ten sam wzorzec i z tego samego powodu stoi w
+    // `lib/experts/materials.ts`.
+    placeholderData: keepPreviousData,
   });
 }
 

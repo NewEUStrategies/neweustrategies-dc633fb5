@@ -26,12 +26,11 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
-import {
-  useCompanySearch,
-  useCreateCompany,
-  type CompanyOption,
-} from "@/lib/crm/companyDirectory";
+import { useCompanySearch, useCreateCompany, type CompanyOption } from "@/lib/crm/companyDirectory";
 import { useCompanyBrand } from "@/lib/crm/useCompanyBrand";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 interface Props {
   value: string;
@@ -185,7 +184,17 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
                 {t("eventMe.organization.searching")}
               </p>
             )}
-            {!search.isFetching && options.length === 0 && (
+            {/* AWARIA NIE UDAJE BRAKU DOPASOWAŃ. Bez tej gałęzi odmowa
+                `crm_company_search` - wygasła sesja, brak sieci, brak
+                uprawnień - renderowała komunikat „brak dopasowań, możesz dodać
+                nową organizację", czyli PCHAŁA uczestnika do założenia
+                duplikatu kartoteki, która w CRM już istnieje. */}
+            {!search.isFetching && search.isError && (
+              <p role="alert" className="px-3 py-2 text-xs text-destructive">
+                {t("eventMe.organization.searchFailed")}
+              </p>
+            )}
+            {!search.isFetching && !search.isError && options.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">
                 {t("eventMe.organization.noResults")}
               </p>
@@ -208,7 +217,10 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
                     className="h-6 w-6 shrink-0 rounded-[6px] object-contain"
                   />
                 ) : (
-                  <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <Building2
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
                 )}
                 <span className="min-w-0">
                   <span className="block truncate text-sm">{option.name}</span>
@@ -390,9 +402,7 @@ export function OrganizationPicker({ value, companyId, onChange, label }: Props)
               {t("eventMe.organization.cancel")}
             </Button>
             <Button type="button" disabled={create.isPending} onClick={submitOrg}>
-              {create.isPending
-                ? t("eventMe.organization.saving")
-                : t("eventMe.organization.save")}
+              {create.isPending ? t("eventMe.organization.saving") : t("eventMe.organization.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

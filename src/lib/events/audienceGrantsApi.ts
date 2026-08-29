@@ -13,7 +13,50 @@ import type { Database, Json } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
 
-export type EventAudienceGrantRow = Fns["admin_event_audience_grants_list"]["Returns"][number];
+/**
+ * Wiersz nadania - z POPRAWIONYMI kolumnami NULL-owalnymi.
+ *
+ * Nadanie wskazuje DOKLADNIE JEDEN podmiot: konto, osobe z kartoteki albo
+ * firme. Pozostale dwie kolumny sa wtedy puste - `event_audience_grants` nie ma
+ * na nich `NOT NULL` (`20260824080000:141-143`), a `event_id` puste znaczy
+ * „nadanie dla calej organizacji, nie dla jednego wydarzenia". Kolumny
+ * wyliczane (`subject_email`, `subject_name`, `company_name`, `event_title`)
+ * ida za tym samym rozstrzygnieciem, a `valid_*` i `revoked_at` sa puste,
+ * dopoki termin albo wycofanie nie nastapi.
+ *
+ * Generator opisuje kazda kolumne `RETURNS TABLE` jako niepusta, wiec panel
+ * dopinal to lancuchami `??` (`row.subject_name ?? row.company_name ?? ""`)
+ * na wartosciach, ktorych typ deklarowal jako zawsze obecne - a atrapa wiersza
+ * musiala przemycac `null` rzutowaniem przez `unknown`.
+ */
+export type EventAudienceGrantRow = Omit<
+  Fns["admin_event_audience_grants_list"]["Returns"][number],
+  | "user_id"
+  | "person_id"
+  | "company_id"
+  | "event_id"
+  | "subject_email"
+  | "subject_name"
+  | "company_name"
+  | "event_title"
+  | "evidence"
+  | "valid_from"
+  | "valid_until"
+  | "revoked_at"
+> & {
+  user_id: string | null;
+  person_id: string | null;
+  company_id: string | null;
+  event_id: string | null;
+  subject_email: string | null;
+  subject_name: string | null;
+  company_name: string | null;
+  event_title: string | null;
+  evidence: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  revoked_at: string | null;
+};
 
 /** Grupy, dla ktorych baza w ogole przyjmuje nadanie - CHECK `..._audience_values`. */
 export const AUDIENCE_GRANT_AUDIENCES = ["academic", "ngo", "company"] as const;

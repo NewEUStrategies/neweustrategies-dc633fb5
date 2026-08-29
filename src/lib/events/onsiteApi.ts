@@ -61,7 +61,26 @@ export {
 export const MANUAL_CHECKIN_SOURCES = ["manual_entry", "name_search"] as const;
 export type ManualCheckinSource = (typeof MANUAL_CHECKIN_SOURCES)[number];
 
-export const BADGE_PAPER_FORMATS = ["a6", "a7", "cr80", "custom"] as const;
+/**
+ * Formaty papieru identyfikatora - odwzorowanie CHECK-a
+ * `event_badge_templates_paper_format_values` JEDEN DO JEDNEGO.
+ *
+ * Do naprawy z tego commita lista mowila `["a6", "a7", "cr80", "custom"]`:
+ * `cr80` NIE JEST w CHECK-u, wiec wybor tego formatu konczyl sie naruszeniem
+ * ograniczenia przy zapisie, a cztery formaty, ktore baza przyjmuje (`a4`,
+ * `a5`, `badge_90x54`, `badge_100x150`), byly z panelu niedostepne. Karta
+ * `cr80` odpowiada `badge_90x54` - to ten sam kawalek plastiku pod nazwa,
+ * ktora zna baza. Zgodnosci pilnuje bramka w `__tests__/dbEnumParity.test.ts`.
+ */
+export const BADGE_PAPER_FORMATS = [
+  "a4",
+  "a5",
+  "a6",
+  "a7",
+  "badge_90x54",
+  "badge_100x150",
+  "custom",
+] as const;
 export type BadgePaperFormat = (typeof BADGE_PAPER_FORMATS)[number];
 
 export const BADGE_ORIENTATIONS = ["portrait", "landscape"] as const;

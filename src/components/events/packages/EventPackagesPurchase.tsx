@@ -109,9 +109,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
     <div className="space-y-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">{t("eventPackages.heading")}</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          {t("eventPackages.subheading")}
-        </p>
+        <p className="max-w-2xl text-sm text-muted-foreground">{t("eventPackages.subheading")}</p>
       </header>
 
       <section className="space-y-3">
@@ -120,6 +118,16 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             {t("eventPackages.loading")}
+          </p>
+        ) : /* AWARIA NIE UDAJE PUSTKI. Bez tej gałęzi padnięte zapytanie -
+               wygasła sesja, brak sieci, odmowa uprawnień - wyglądało
+               dokładnie jak wydarzenie bez pakietów: „to wydarzenie nie
+               oferuje pakietów grupowych". Kupujący nie miał czego ponowić,
+               a organizator dostawał zgłoszenie, że nie sprzedaje pakietów,
+               choć sprzedaje. */
+        offerQ.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t("eventPackages.offerFailed")}
           </p>
         ) : offers.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("eventPackages.empty")}</p>
@@ -192,11 +200,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
                 autoComplete="off"
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAppliedCoupon(coupon.trim())}
-            >
+            <Button type="button" variant="outline" onClick={() => setAppliedCoupon(coupon.trim())}>
               {t("eventPackages.couponApply")}
             </Button>
           </div>
@@ -225,6 +229,13 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             {t("eventPackages.loading")}
           </p>
+        ) : ordersQ.isError ? (
+          // Ta sama zasada co przy ofercie: „nie masz zamówień" powiedziane
+          // komuś, kto ma zamówienie, kończy się drugim zakupem tego samego
+          // pakietu.
+          <p role="alert" className="text-sm text-destructive">
+            {t("eventPackages.ordersFailed")}
+          </p>
         ) : (ordersQ.data ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("eventPackages.ordersEmpty")}</p>
         ) : (
@@ -236,9 +247,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
                 locale={locale}
                 isEnglish={isEnglish}
                 open={order.id === openOrderId}
-                onToggle={() =>
-                  setOpenOrderId((prev) => (prev === order.id ? null : order.id))
-                }
+                onToggle={() => setOpenOrderId((prev) => (prev === order.id ? null : order.id))}
               />
             ))}
           </ul>
@@ -287,9 +296,7 @@ function PackageCard({
         }`}
       >
         <span className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">
-            {localized(row.name_pl, row.name_en, isEnglish)}
-          </span>
+          <span className="font-medium">{localized(row.name_pl, row.name_en, isEnglish)}</span>
           <Badge variant="secondary">
             {t(`eventPackages.audiences.${row.audience}`, { defaultValue: row.audience })}
           </Badge>
@@ -308,9 +315,7 @@ function PackageCard({
             <Users className="h-4 w-4" aria-hidden="true" />
             {t("eventPackages.seats", { count: row.seats })}
           </span>
-          <span className="font-semibold">
-            {money(row.price_cents, row.currency, locale)}
-          </span>
+          <span className="font-semibold">{money(row.price_cents, row.currency, locale)}</span>
           <span className="text-muted-foreground">
             {row.packages_left === null
               ? t("eventPackages.packagesUnlimited")
@@ -464,9 +469,7 @@ function OrderCard({
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label htmlFor={`invite-email-${order.id}`}>
-                {t("eventPackages.inviteEmail")}
-              </Label>
+              <Label htmlFor={`invite-email-${order.id}`}>{t("eventPackages.inviteEmail")}</Label>
               <Input
                 id={`invite-email-${order.id}`}
                 type="email"
@@ -475,9 +478,7 @@ function OrderCard({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`invite-name-${order.id}`}>
-                {t("eventPackages.inviteName")}
-              </Label>
+              <Label htmlFor={`invite-name-${order.id}`}>{t("eventPackages.inviteName")}</Label>
               <Input
                 id={`invite-name-${order.id}`}
                 value={name}
@@ -485,9 +486,7 @@ function OrderCard({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`invite-days-${order.id}`}>
-                {t("eventPackages.inviteDays")}
-              </Label>
+              <Label htmlFor={`invite-days-${order.id}`}>{t("eventPackages.inviteDays")}</Label>
               <Input
                 id={`invite-days-${order.id}`}
                 type="number"
@@ -513,9 +512,7 @@ function OrderCard({
             <div className="space-y-2 rounded-md border border-dashed border-border p-3">
               <p className="text-sm font-medium">{t("eventPackages.inviteLinkTitle")}</p>
               <p className="break-all text-xs text-muted-foreground">{issued}</p>
-              <p className="text-xs text-muted-foreground">
-                {t("eventPackages.inviteLinkHint")}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("eventPackages.inviteLinkHint")}</p>
               <Button
                 type="button"
                 variant="outline"

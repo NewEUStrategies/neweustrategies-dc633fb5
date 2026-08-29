@@ -11,7 +11,7 @@
 // SESJA NADRZĘDNA NIE MOŻE BYĆ TĄ SESJĄ ani podsesją innej (`parent_depth`),
 // więc lista kandydatów jest już odfiltrowana - odmowa bazy to ostatnia linia,
 // nie pierwsza.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,19 +99,46 @@ export function EventSessionDialog({
   const detailQuery = useSessionDetail(open && session !== null ? session.id : null);
   const detail = detailQuery.data ?? null;
 
+  // ZALEŻNOŚCIĄ JEST TOŻSAMOŚĆ SESJI I TOŻSAMOŚĆ SZCZEGÓŁU, NIE SAME OBIEKTY -
+  // ten sam wzór co w `EventTicketDialog`. `session`, `nextSortOrder`
+  // i `defaultTrackId` rodzic przelicza z ŻYWEJ listy sesji przy KAŻDYM
+  // renderze, a `useSessionDetail` oddaje przy KAŻDYM pobraniu NOWY obiekt.
+  // Odświeżenie w tle (powrót do karty przeglądarki po `staleTime`,
+  // unieważnienie cache przez cudzą mutację) wznawiało więc efekt PRZY
+  // OTWARTYM oknie i zamiatało poprawiony tytuł i przepisany opis do wartości
+  // z serwera - bez ostrzeżenia i bez śladu. Tożsamość szczegółu ZOSTAJE
+  // w zależnościach, bo przyjście szczegółu to jedyna chwila, w której pola
+  // MAJĄ się wypełnić; ponowne pobranie TEGO SAMEGO szczegółu nie zmienia
+  // `detailId`, więc niczego nie nadpisuje. Kolejność początkowa i ścieżka
+  // domyślna idą przez `ref` - liczą się wyłącznie w chwili otwarcia.
+  const nextSortOrderRef = useRef(nextSortOrder);
+  nextSortOrderRef.current = nextSortOrder;
+  const defaultTrackIdRef = useRef(defaultTrackId);
+  defaultTrackIdRef.current = defaultTrackId;
+  const detailRef = useRef(detail);
+  detailRef.current = detail;
+  const sessionId = session === null ? null : session.id;
+  const detailId = detail === null ? null : detail.id;
+
   useEffect(() => {
     if (!open) return;
-    if (session === null) {
-      setDraft({ ...emptySessionDraft(nextSortOrder), trackId: defaultTrackId });
+    if (sessionId === null) {
+      setDraft({
+        ...emptySessionDraft(nextSortOrderRef.current),
+        trackId: defaultTrackIdRef.current,
+      });
       setTouched(false);
       return;
     }
-    // Do czasu przyjscia szczegolu draft zostaje pusty, a zapis jest zablokowany
-    // nizej - inaczej wrocilaby ta sama utrata danych, tylko przez wyscig.
-    if (detail === null) return;
-    setDraft(sessionDraftFromRow(detail));
+    // DO CZASU PRZYJŚCIA SZCZEGÓŁU POLA SĄ PUSTE, a zapis jest zablokowany
+    // niżej - inaczej wróciłaby ta sama utrata danych, tylko przez wyścig.
+    // Wcześniej efekt w tym miejscu WYCHODZIŁ, więc przez czas zapytania
+    // o sesję B w polach stała sesja A: ekran kłamał, a organizator czytał
+    // tytuł, godziny i adres transmisji zupełnie innego punktu programu.
+    const row = detailRef.current;
+    setDraft(row === null ? emptySessionDraft(nextSortOrderRef.current) : sessionDraftFromRow(row));
     setTouched(false);
-  }, [open, session, detail, nextSortOrder, defaultTrackId]);
+  }, [open, sessionId, detailId]);
 
   /** Edycja czeka na szczegol; nowa sesja nie ma na co czekac. */
   const isLoadingDetail = session !== null && detail === null;

@@ -446,6 +446,7 @@ export function EventsListManager({
         // w polowie, a ucieta podpowiedz nie podpowiada niczego.
         queryPlaceholder={t("adminEvents.list.searchPlaceholderShort")}
         onQueryChange={(value) => patch({ q: value.trim() === "" ? undefined : value })}
+        tabsLabel={t("adminEvents.list.filters.tabsLabel")}
         typeLabel={t("adminEvents.list.filters.typeLabel")}
         typeValue={params.t ?? ALL}
         typeOptions={typeOptions}

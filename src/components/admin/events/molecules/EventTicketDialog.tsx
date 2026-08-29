@@ -8,7 +8,7 @@
 // GRUPY NIE WYBIERAMY TUTAJ. Katalog grup wydarzenia ma własny ekran; do czasu
 // jego powstania edycja biletu PRZENOSI istniejące przypisanie bez zmian,
 // zamiast po cichu je zerować przy każdym zapisie nazwy.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,11 +68,26 @@ export function EventTicketDialog({
 
   // Szkic odtwarzamy przy KAŻDYM otwarciu, nie tylko przy zmianie biletu:
   // porzucone zmiany nie mogą wrócić do formularza następnego biletu.
+  //
+  // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM. `ticket` i `nextSortOrder`
+  // przychodzą od rodzica, który przelicza je przy każdym renderze z listy
+  // pobieranej zapytaniem. Odświeżenie tej listy W TLE (ktoś inny dodał bilet,
+  // fokus wrócił do okna) dawało nowe referencje, efekt ruszał PRZY OTWARTYM
+  // dialogu i zamiatał całą wpisaną pracę do wartości z wiersza - bez
+  // ostrzeżenia i bez śladu. Kolejność początkowa jest czytana przez `ref`,
+  // bo jest potrzebna TYLKO w chwili otwarcia i nie ma prawa niczego wznawiać.
+  const nextSortOrderRef = useRef(nextSortOrder);
+  nextSortOrderRef.current = nextSortOrder;
+  const ticketRef = useRef(ticket);
+  ticketRef.current = ticket;
+  const ticketId = ticket === null ? null : ticket.id;
+
   useEffect(() => {
     if (!open) return;
-    setDraft(ticket === null ? emptyTicketDraft(nextSortOrder) : ticketDraftFromRow(ticket));
+    const row = ticketRef.current;
+    setDraft(row === null ? emptyTicketDraft(nextSortOrderRef.current) : ticketDraftFromRow(row));
     setTouched(false);
-  }, [open, ticket, nextSortOrder]);
+  }, [open, ticketId]);
 
   const issue = ticketDraftIssue(draft);
   const errorFor = (field: TicketDraftField): string | null =>

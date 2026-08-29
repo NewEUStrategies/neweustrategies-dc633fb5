@@ -3744,6 +3744,95 @@ export default defineConfig({
           lines: 99,
           branches: 98,
         },
+
+        // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
+        //
+        // DO 2026-08-29 TEN MODUŁ NIE MIAŁ PROGU WCALE - jako jedyna duża
+        // powierzchnia repozytorium (74 inne ścieżki go miały). Czterdzieści
+        // dwie tabele `event_*`, ~209 RPC i 31 sekcji studia stały wyłącznie
+        // za progiem globalnym, który przy tej wielkości nie łapie niczego
+        // poza katastrofą: moduł mógł stracić połowę testów, a bramka nadal
+        // świeciła na zielono.
+        //
+        // Progi są ZMIERZONE na tym HEAD-zie (pełny przebieg powierzchni
+        // wydarzeń: 138 plików, 2 963 testy, zielono), minus ~4 pp marginesu
+        // na dryf CI - ta sama reguła, co przy progu globalnym i przy panelu
+        // klubów. Zasada bez zmian: te progi wolno wyłącznie PODNOSIĆ.
+        //
+        // Zmierzone (instrukcje / gałęzie / funkcje / linie):
+        //   src/lib/events                 72,9 / 72,4 / 70,2 / 75,2
+        //   src/components/events          67,8 / 59,1 / 66,6 / 68,3
+        //   src/components/admin/events    24,2 / 19,4 / 25,5 / 24,0
+        //     └ molecules                  65,1 / 54,6 / 63,5 / 65,6
+        //     └ organisms                   7,4 /  6,2 /  6,8 /  7,5
+        //
+        // UCZCIWIE O TYCH LICZBACH. Panel administratora startował z 6,0%
+        // gałęzi i 5,0% funkcji (81 pokrytych z 1 615). Praca tej gałęzi
+        // podniosła go do 19,4 / 25,5, ale to nadal jest DALEKO od poziomu
+        // bliźniaczego panelu klubów (96-99%). Cała różnica siedzi
+        // w ORGANIZMACH - 46 plików, 14 000 linii, sekcje studia - i one są
+        // następną pracą, nie przeoczeniem. Próg na nie stoi więc nisko
+        // CELOWO: ma łapać REGRESJĘ od dzisiejszego stanu, a nie udawać, że
+        // powierzchnia jest przetestowana.
+        "src/lib/events/**": {
+          statements: 68,
+          functions: 66,
+          lines: 71,
+          branches: 68,
+        },
+        "src/components/events/**": {
+          statements: 65,
+          functions: 63,
+          lines: 66,
+          branches: 57,
+        },
+        // Zakup pakietu grupowego - jedyny ekran wydarzeń dotykający PIENIĘDZY
+        // po stronie kupującego, więc trzyma własny, wysoki próg.
+        "src/components/events/packages/**": {
+          statements: 94,
+          functions: 96,
+          lines: 96,
+          branches: 90,
+        },
+        // 2026-08-29: RATCHET W GÓRĘ po pracy nad ORGANIZMAMI. Zmierzone
+        // 44,6 / 40,0 / 45,4 / 44,5 wobec 24,2 / 19,4 / 25,5 / 24,0 przy
+        // poprzednim wpisie. Reguła bez zmian: zmierzone minus ~4 pp.
+        "src/components/admin/events/**": {
+          statements: 40,
+          functions: 41,
+          lines: 40,
+          branches: 36,
+        },
+        // Molekuły panelu to DIALOGI ZAPISU: formularze biletu, pakietu,
+        // sesji, ścieżki, pola zgłoszenia, urządzenia skanującego. Osiem
+        // błędów naprawionych na tej gałęzi wyszło właśnie stąd, więc ta
+        // warstwa dostaje próg osobny i wyraźnie wyższy niż katalog nadrzędny.
+        "src/components/admin/events/molecules/**": {
+          statements: 62,
+          functions: 62,
+          lines: 63,
+          branches: 59,
+        },
+
+        // ORGANIZMY: 46 plików, 14 000 linii - katalog, który przy poprzednim
+        // wpisie stał na 6,2% gałęzi i 6,8% funkcji i był tam nazwany „następną
+        // pracą, nie przeoczeniem". Ta praca się odbyła: dziewięć organizmów
+        // (lista wydarzeń, lista zgłoszeń, bilety, sesje, ścieżki, nadania
+        // uprawnień, informacje ogólne, kreator, ustawienia giełdy) dostało
+        // 613 przypadków, a katalog urósł do 40,4 / 36,1 / 39,4 / 40,4.
+        //
+        // PRÓG NADAL JEST NISKI I TO NADAL JEST UCZCIWE: pokryte dziewięć
+        // plików stoi w większości na 90-100% gałęzi, ale pozostałe 37 - w tym
+        // `EventTrackWorkspace` (853 linie) i `EventPagesMenuPanel` (790) - jest
+        // wciąż bez testów. Próg mierzy ŚREDNIĄ katalogu, więc ma łapać
+        // regresję od dzisiejszego stanu, a nie udawać, że powierzchnia jest
+        // przetestowana. Następna porcja podniesie go znowu.
+        "src/components/admin/events/organisms/**": {
+          statements: 36,
+          functions: 35,
+          lines: 36,
+          branches: 32,
+        },
       },
     },
   },

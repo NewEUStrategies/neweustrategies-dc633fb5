@@ -27,6 +27,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { ProfileTabsNav } from "@/components/profile/shell/ProfileShell";
 import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import type { MyAccountSnapshot, MyEventProfile } from "@/lib/events/myEventProfileApi";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 const CARD = "rounded-[6px] border border-border bg-card p-4";
 

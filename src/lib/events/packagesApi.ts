@@ -18,16 +18,80 @@ import type { Database, Json } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
 
-export type EventPackageRow = Fns["admin_event_packages_list"]["Returns"][number];
+/**
+ * Wiersz pakietu z panelu - `quota` bywa pusta („bez limitu"), a generator
+ * opisuje ją jako niepustą, bo `RETURNS TABLE` nie niesie informacji
+ * o NULL-owalności. `EventPackagesPanel.tsx:188` i `packageDraft.ts:102` mają
+ * na to jawne warunki - kłamał wyłącznie typ.
+ */
+export type EventPackageRow = Omit<
+  Fns["admin_event_packages_list"]["Returns"][number],
+  "quota" | "sales_from" | "sales_to"
+> & {
+  quota: number | null;
+  // Okno sprzedazy pakietu jest w bazie `timestamptz` BEZ `NOT NULL`
+  // (`20260824080000:256-257`) - brak okna znaczy „w sprzedazy do odwolania".
+  // `packageDraft.ts:103-104` czyta to przez `?? null`, wiec klamal typ.
+  sales_from: string | null;
+  sales_to: string | null;
+};
 export type EventPackageOrderRow = Fns["admin_event_package_orders_list"]["Returns"][number];
-export type EventPackageSeatRow = Fns["admin_event_package_seats_list"]["Returns"][number];
+/**
+ * Wiersz MIEJSCA w pakiecie - z poprawionymi kolumnami NULL-owalnymi.
+ *
+ * Miejsce WOLNE nie ma ani nazwiska uczestnika, ani adresu zaproszenia, ani
+ * terminu ważności; miejsce ZAPROSZONE nie ma jeszcze nazwiska. RPC oddaje tam
+ * `null`, a `EventPackageSeatsDialog.tsx:159-166` i `EventPackagesPurchase.tsx:460`
+ * na to czekają (`?? "-"`, `=== null`) - niepusty typ z generatora był w tych
+ * kolumnach po prostu nieprawdą.
+ */
+export type EventPackageSeatRow = Omit<
+  Fns["admin_event_package_seats_list"]["Returns"][number],
+  | "attendee_name"
+  | "invite_email"
+  | "invite_name"
+  | "invite_expires_at"
+  | "invite_sent_at"
+  | "assigned_at"
+  | "revoked_at"
+  | "registration_id"
+  | "registration_status"
+> & {
+  attendee_name: string | null;
+  invite_email: string | null;
+  invite_name: string | null;
+  invite_expires_at: string | null;
+  invite_sent_at: string | null;
+  assigned_at: string | null;
+  revoked_at: string | null;
+  registration_id: string | null;
+  registration_status: string | null;
+};
 
-/** Odbiorca pakietu - odwzorowanie CHECK-a `audience` jeden do jednego. */
-export const PACKAGE_AUDIENCES = ["company", "university", "delegation", "partner"] as const;
+/**
+ * Odbiorca pakietu - odwzorowanie CHECK-a
+ * `event_ticket_packages_audience_values` JEDEN DO JEDNEGO.
+ *
+ * Do naprawy z tego commita komentarz obiecywal odwzorowanie, a lista brzmiala
+ * `["company", "university", "delegation", "partner"]` - z CHECK-iem
+ * (`'public', 'member', 'academic', 'ngo', 'company'`) pokrywala sie w JEDNEJ
+ * wartosci. Trzy z czterech opcji w dialogu konczyly sie naruszeniem
+ * ograniczenia, a przebieg szczesliwy dzialal tylko dlatego, ze `company` jest
+ * wartoscia domyslna szkicu. Zgodnosci pilnuje bramka
+ * w `__tests__/dbEnumParity.test.ts`.
+ */
+export const PACKAGE_AUDIENCES = ["public", "member", "academic", "ngo", "company"] as const;
 export type PackageAudience = (typeof PACKAGE_AUDIENCES)[number];
 
-/** Stany zamowienia pakietu - CHECK `event_package_orders_status_values`. */
-export const PACKAGE_ORDER_STATUSES = ["pending", "paid", "cancelled"] as const;
+/**
+ * Stany zamowienia pakietu - CHECK `event_package_orders_status_values`.
+ *
+ * `refunded` bylo tu brakujace, mimo ze `admin_event_package_order_set_status`
+ * je przyjmuje: zamowienia nie dalo sie oznaczyc jako zwrocone z panelu, a gdyby
+ * status nadala inna sciezka, tabela nie miala dla niego etykiety. Zgodnosci
+ * pilnuje bramka w `__tests__/dbEnumParity.test.ts`.
+ */
+export const PACKAGE_ORDER_STATUSES = ["pending", "paid", "cancelled", "refunded"] as const;
 export type PackageOrderStatus = (typeof PACKAGE_ORDER_STATUSES)[number];
 
 /** Stany miejsca w zamowieniu - wyliczane przez `admin_event_package_seats_list`. */
@@ -193,9 +257,7 @@ export interface PackageSeatInvite {
   inviteToken: string;
 }
 
-export async function invitePackageSeat(
-  input: PackageSeatInviteInput,
-): Promise<PackageSeatInvite> {
+export async function invitePackageSeat(input: PackageSeatInviteInput): Promise<PackageSeatInvite> {
   const { data, error } = await supabase.rpc("admin_event_package_seat_invite", {
     p_payload: payload({
       id: input.seatId,

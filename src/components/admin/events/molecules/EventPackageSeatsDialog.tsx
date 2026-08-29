@@ -79,7 +79,8 @@ export function EventPackageSeatsDialog({
   const fail = (error: unknown) => toast.error(adminRegistrationErrorMessage(error));
 
   const emailInvalid = !EMAIL_PATTERN.test(email.trim());
-  const daysInvalid = !/^\d+$/.test(validDays.trim()) || Number(validDays) < 1 || Number(validDays) > 90;
+  const daysInvalid =
+    !/^\d+$/.test(validDays.trim()) || Number(validDays) < 1 || Number(validDays) > 90;
 
   const sendInvite = () => {
     if (activeSeat === null || emailInvalid || daysInvalid) return;
@@ -138,9 +139,7 @@ export function EventPackageSeatsDialog({
 
         <AdminCatalogListState
           isLoading={seatsQ.isLoading}
-          errorMessage={
-            seatsQ.error === null ? null : adminRegistrationErrorMessage(seatsQ.error)
-          }
+          errorMessage={seatsQ.error === null ? null : adminRegistrationErrorMessage(seatsQ.error)}
           isEmpty={rows.length === 0}
           loadingLabel={t("adminEventRegistration.packages.seats.loading")}
           emptyLabel={t("adminEventRegistration.packages.seats.empty")}
@@ -173,7 +172,18 @@ export function EventPackageSeatsDialog({
                           size="sm"
                           variant="outline"
                           onClick={() => {
+                            // FORMULARZ WRACA DO PUSTEGO PRZY KAZDEJ ZMIANIE
+                            // MIEJSCA. Bez tego adres wpisany dla miejsca A
+                            // zostawal po przelaczeniu na miejsce B, przycisk
+                            // „Wyslij" byl od razu czynny, a jedno klikniecie
+                            // wystawialo TOKEN - czyli klucz do zapisu na cudze
+                            // nazwisko - pod inne miejsce, niz chcial
+                            // organizator. Zamkniecie formularza czysci tak samo,
+                            // zeby nie zostawiac danych osoby w stanie ekranu.
                             setActiveSeat(isEditing ? null : row.id);
+                            setEmail("");
+                            setName("");
+                            setValidDays("14");
                             setIssuedLink(null);
                           }}
                         >
@@ -185,6 +195,8 @@ export function EventPackageSeatsDialog({
                         <Button
                           size="sm"
                           variant="ghost"
+                          // Podwojne klikniecie wysylalo dwa zadania cofniecia.
+                          disabled={revoke.isPending}
                           onClick={() =>
                             revoke.mutate(row.id, {
                               onSuccess: () =>

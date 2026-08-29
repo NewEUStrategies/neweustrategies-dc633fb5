@@ -80,18 +80,30 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
   const errors = useMemo(() => (draft === null ? [] : validateSettingsDraft(draft)), [draft]);
   const perDay = draft === null ? 0 : slotsPerDay(draft);
 
+  // AWARIA IDZIE PRZED WCZYTYWANIEM - i to jest cala roznica.
+  //
+  // Straz wczytywania brzmiala `settingsQ.isLoading || draft === null`, a szkic
+  // powstaje WYLACZNIE z `settingsQ.data`. Gdy PIERWSZY odczyt padal, danych
+  // nigdy nie bylo, `draft` zostawal `null` - i panel krecil kolkiem BEZ KONCA,
+  // a gałąź awarii nizej byla w tym scenariuszu NIEOSIAGALNA. Organizator
+  // czekal i odswiezal zamiast zglosic awarie. Odwrocenie kolejnosci naprawia
+  // to bez zadnego nowego stanu: awaria ma pierwszenstwo, bo jest
+  // rozstrzygnieciem, a wczytywanie tylko jego brakiem.
+  if (settingsQ.error !== null) {
+    // PARAMETRY ODMOWY IDA DO ZDANIA, nie tylko do toasta. Slownik ma
+    // `invalidTimezone: "Nieznana strefa czasowa: {{timezone}}."`, wiec bez
+    // `params` uzytkownik czytal zdanie z pusta dziura i nie dowiadywal sie,
+    // ktora strefa jest zla - mimo ze baza to powiedziala.
+    const failure = adminMeetingFailure(settingsQ.error);
+    return <p className="text-sm text-destructive">{t(failure.key, failure.params)}</p>;
+  }
+
   if (settingsQ.isLoading || draft === null) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         {t("adminEventMeetings.settings.loading")}
       </div>
-    );
-  }
-
-  if (settingsQ.error !== null) {
-    return (
-      <p className="text-sm text-destructive">{t(adminMeetingFailure(settingsQ.error).key)}</p>
     );
   }
 

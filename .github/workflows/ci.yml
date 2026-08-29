@@ -687,7 +687,19 @@ jobs:
       # (m.in. 50_onsite.sql - token urzadzenia i izolacja leadow -
       # oraz 60_meetings.sql - podwojna rezerwacja stolika i osoby).
       # Patrz scripts/events-harness/README.md.
+      #
+      # `if: !cancelled()` NIE JEST OBEJSCIEM, tylko konsekwencja tego, ze te
+      # cztery uprzezy sa NIEZALEZNE: osobne moduly, osobne porty, osobne
+      # klastry. Awaria uprzezy rekrutacji nie mowi o module wydarzen NIC,
+      # a przy domyslnym zachowaniu (`success()`) ten krok byl POMIJANY - wiec
+      # 995 asercji tego modulu nie wykonywalo sie w CI ani razu, odkad
+      # careers-harness jest czerwony. Gorsze od niewidocznej zieleni jest
+      # niewidoczna CZERWIEN: regresja w SQL-u wydarzen przechodzilaby przez CI
+      # niezauwazona, bo krok, ktory ma ja zlapac, w ogole nie startowal.
+      # Zadanie i tak konczy sie porazka, gdy ktorykolwiek harness padnie -
+      # zmienia sie wylacznie to, ze KAZDY z nich powie, co u niego.
       - name: Run events-harness (migracje modulu wydarzen + asercje runtime)
+        if: ${{ !cancelled() }}
         run: bun run check:events-harness
 
   # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji

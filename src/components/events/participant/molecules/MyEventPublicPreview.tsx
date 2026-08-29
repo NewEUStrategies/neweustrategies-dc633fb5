@@ -33,6 +33,9 @@ import {
   EventPersonActions,
   type EventPersonActionsProps,
 } from "@/components/events/participant/molecules/EventPersonActions";
+import { ensureI18n as ensureCartI18n } from "@/lib/i18n-cart";
+
+ensureCartI18n();
 
 export interface MyEventPublicPreviewProps {
   profile: MyEventProfile;
@@ -78,7 +81,11 @@ export function MyEventPublicPreview({
           jobTitle={profile.jobTitle}
         />
 
-        <EventGroupTags groups={groups} lang={en ? "en" : "pl"} className="mt-2 justify-center sm:justify-start" />
+        <EventGroupTags
+          groups={groups}
+          lang={en ? "en" : "pl"}
+          className="mt-2 justify-center sm:justify-start"
+        />
 
         <ProfileMetaRow>
           {profile.specialization !== null && (

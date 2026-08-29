@@ -31,6 +31,7 @@ export function AdminFormEnumRow<T extends string>({
   disabled,
   className,
   placeholder,
+  error,
 }: {
   id?: string;
   label: string;
@@ -48,9 +49,23 @@ export function AdminFormEnumRow<T extends string>({
    * PUSTY przycisk - kontrolka wygląda na zepsutą, choć droplista ma opcje.
    */
   placeholder?: string;
+  /**
+   * Komunikat walidacji pod droplistą.
+   *
+   * DOPISANY, BO JEGO BRAK BYŁ BŁĘDEM: „Informacje ogólne" walidują strefę
+   * czasową, ale ta molekuła nie miała gniazda na komunikat, więc przy pustej
+   * strefie przycisk zapisu gasł BEZ SŁOWA - redaktor widział martwy przycisk
+   * i nie wiedział, którego pola brakuje. Kształt jest przepisany
+   * z `AdminFormTextRow`: `role="alert"` i powiązanie przez `aria-describedby`,
+   * żeby czytnik ekranu dostał to samo, co oko.
+   */
+  error?: string | null;
 }) {
   const reactId = useId();
   const fieldId = id ?? reactId;
+  const hintId = hint === undefined ? undefined : `${fieldId}-hint`;
+  const errorId = error === null || error === undefined ? undefined : `${fieldId}-err`;
+  const describedBy = [errorId, hintId].filter((part) => part !== undefined).join(" ") || undefined;
 
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -62,12 +77,21 @@ export function AdminFormEnumRow<T extends string>({
         disabled={disabled}
         placeholder={placeholder}
         aria-label={label}
+        aria-invalid={errorId === undefined ? undefined : true}
+        aria-describedby={describedBy}
         // Zawężenie z powrotem do enuma: `FormSelect` jest generyczny po stringu,
         // ale droplista nie ma jak oddać wartości spoza `options`.
         onValueChange={(next) => onValueChange(next as T)}
       />
-      {hint === undefined ? null : (
-        <p className="text-xs leading-snug text-muted-foreground">{hint}</p>
+      {errorId === undefined ? null : (
+        <p id={errorId} className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+      {hintId === undefined ? null : (
+        <p id={hintId} className="text-xs leading-snug text-muted-foreground">
+          {hint}
+        </p>
       )}
     </div>
   );

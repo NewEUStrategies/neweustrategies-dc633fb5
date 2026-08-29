@@ -131,7 +131,17 @@ export function ScannerLeadPanel({ runtime }: { runtime: ScannerRuntime }) {
                 </Badge>
               </div>
 
-              {person !== null && (
+              {/* KARTA OSOBY WYCHODZI TYLKO ZA ZGODĄ - i to jest druga zapora,
+                  nie ozdoba. Dziś ratuje nas wyłącznie baza:
+                  `event_lead_scan_record` oddaje `person => NULL`, gdy zgody
+                  nie ma. Warunek na samym `person !== null` znaczył więc, że
+                  JEDNA zmiana po stronie SQL - albo cofnięcie zgody między
+                  skanem a renderem - wystawia mail i telefon obok plakietki
+                  „brak zgody". Nagłówek tego panelu obiecuje, że „dane po
+                  prostu nie wychodzą"; teraz to egzekwuje, a nie zakłada.
+                  Ukrywamy CAŁĄ kartę, nie same dane kontaktowe, bo dokładnie
+                  tak zachowuje się baza - dwie zapory mają mówić to samo. */}
+              {consent && person !== null && (
                 <div>
                   <p className="text-base font-semibold text-foreground">
                     {[person.firstName, person.lastName]

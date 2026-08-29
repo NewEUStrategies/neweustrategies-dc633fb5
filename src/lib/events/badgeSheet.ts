@@ -9,6 +9,7 @@
 // dostaje identyfikator bez kodu - baza nie ma czego zahaszować. Karta musi
 // wyjść z drukarki mimo to, tylko oznaczona, bo bramka wpuści ją ręcznie.
 import type { Json } from "@/integrations/supabase/types";
+import { BADGE_PAPER_FORMATS } from "@/lib/events/onsiteApi";
 import type { BadgeOrientation, BadgePaperFormat } from "@/lib/events/onsiteApi";
 
 export interface BadgeCard {
@@ -42,15 +43,23 @@ export interface BadgeSizeMm {
 
 /** Wymiary bazowe formatów (pion) - `custom` bierze wymiary z szablonu. */
 const PAPER_MM: Record<Exclude<BadgePaperFormat, "custom">, BadgeSizeMm> = {
+  a4: { widthMm: 210, heightMm: 297 },
+  a5: { widthMm: 148, heightMm: 210 },
   a6: { widthMm: 105, heightMm: 148 },
   a7: { widthMm: 74, heightMm: 105 },
-  cr80: { widthMm: 54, heightMm: 86 },
+  // Nazwa formatu jest POZIOMA (90 x 54), a tabela trzyma bok pionowy - obrot
+  // robi `orientation`, tak samo jak dla arkuszy A.
+  badge_90x54: { widthMm: 54, heightMm: 90 },
+  badge_100x150: { widthMm: 100, heightMm: 150 },
 };
 
 export const BADGE_FALLBACK_MM: BadgeSizeMm = { widthMm: 105, heightMm: 148 };
 
+// Straznik czyta LISTE, a nie wylicza wartosci po raz drugi. Poprzednia wersja
+// powtarzala je recznie i wlasnie tak `cr80` przetrwal w kodzie, mimo ze baza
+// go nie zna: dwa miejsca z ta sama wiedza rozjezdzaja sie po cichu.
 function isPaperFormat(value: string): value is BadgePaperFormat {
-  return value === "a6" || value === "a7" || value === "cr80" || value === "custom";
+  return (BADGE_PAPER_FORMATS as readonly string[]).includes(value);
 }
 
 /**
@@ -80,10 +89,9 @@ export function badgeSizeMm(input: {
         }
       : PAPER_MM[format];
 
-  const orientation: BadgeOrientation = input.orientation === "landscape" ? "landscape" : "portrait";
-  return orientation === "landscape"
-    ? { widthMm: base.heightMm, heightMm: base.widthMm }
-    : base;
+  const orientation: BadgeOrientation =
+    input.orientation === "landscape" ? "landscape" : "portrait";
+  return orientation === "landscape" ? { widthMm: base.heightMm, heightMm: base.widthMm } : base;
 }
 
 /* ------------------------------------------------------------- parsowanie --- */

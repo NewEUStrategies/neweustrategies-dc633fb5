@@ -211,6 +211,32 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url      text,
   job_title       text,
   current_company text,
+  -- `current_company_id` czyta panel uczestnika (`event_my_event_profile`)
+  -- i kartoteka firm wydarzenia: to WSKAZANIE do CRM, a `current_company`
+  -- obok jest napisem wpisanym recznie. Bez tej kolumny replay pada na 42703.
+  -- Odwzorowanie `20260721200229`, ale BEZ klucza obcego: `crm_companies`
+  -- powstaje w tym pliku PONIZEJ, a atrapa nie testuje wiezow do CRM.
+  current_company_id uuid,
+  -- POWIERZCHNIA PROFILU, KTORA CZYTA PANEL UCZESTNIKA. `event_my_event_profile`
+  -- i `event_attendees` skladaja z tych kolumn wizytowke osoby na wydarzeniu:
+  -- kontakt, noty dwujezyczne, „czego szukam / co oferuje" i odnosniki
+  -- spolecznosciowe. Wszystkie sa `text` - typy przepisane z migracji rdzenia.
+  -- Bez nich replay pada na 42703 i cala ta powierzchnia jest nieprzetestowana.
+  full_name       text,
+  contact_email   text,
+  phone           text,
+  specialization  text,
+  bio_pl          text,
+  bio_en          text,
+  offering_pl     text,
+  offering_en     text,
+  seeking_pl      text,
+  seeking_en      text,
+  linkedin_url    text,
+  twitter_url     text,
+  facebook_url    text,
+  instagram_url   text,
+  website_url     text,
   -- `email` czyta `is_nes_staff` (atrapa modulu klubow nizej): rozpoznaje
   -- pracownika po domenie adresu. Bez tej kolumny replay pada na 42703.
   email           text,
@@ -269,12 +295,22 @@ $$;
 -- blad, ktorego szukamy (patrz historia A12/A16/A17 w module klubow).
 -- Wiersze zostaja w tabeli, zeby asercje mogly sprawdzic, CO modul wyemitowal.
 -- ----------------------------------------------------------------------------
+-- ATRAPA MUSI MIEC OGRANICZENIE, INACZEJ HARNESS NIE WIDZI CALEJ KLASY BLEDOW.
+-- Wczesniej ta atrapa nie miala `CHECK` na `event_type`, a atrapa emitera nie
+-- miala `EXCEPTION WHEN OTHERS`. Zlozenie tych dwoch uproszczen znaczylo, ze
+-- zdarzenie o nazwie odrzucanej NA PRODUKCJI przechodzilo tutaj bez slowa -
+-- i wlasnie dlatego harness nie zauwazyl, ze szesc zdarzen `event.registration.*`
+-- nigdy nie trafia na szyne. Ksztalt ponizej jest przepisany z
+-- `20260711200000_domain_event_bus.sql` ZNAK W ZNAK, razem z pierwotnym,
+-- DWUCZLONOWYM wzorcem: migracja `20260828205000` rozluznia go do wielu czlonow,
+-- wiec replay pokazuje realnie, ze ta naprawa cos zmienia.
 CREATE TABLE IF NOT EXISTS public.domain_events (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id      uuid,
   aggregate_type text NOT NULL,
   aggregate_id   text NOT NULL,
-  event_type     text NOT NULL,
+  event_type     text NOT NULL
+    CHECK (event_type ~ '^[a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$'),
   payload        jsonb NOT NULL DEFAULT '{}'::jsonb,
   actor_id       uuid,
   created_at     timestamptz NOT NULL DEFAULT now()
@@ -299,6 +335,15 @@ BEGIN
           CASE WHEN p_suppress_actor THEN NULL ELSE COALESCE(p_actor_id, auth.uid()) END)
   RETURNING id INTO v_id;
   RETURN v_id;
+-- TEN BLOK JEST CZESCIA ATRAPY, NIE JEJ USTERKA. Produkcyjny emiter
+-- (`20260808190000`) konczy sie dokladnie tak samo i to jest DECYZJA: zdarzenie
+-- nie moze wywrocic transakcji, ktora je wywolala. Cena tej decyzji jest taka,
+-- ze odrzucony zapis na szyne nie daje ZADNEGO sygnalu - trzeba go sprawdzac
+-- asercja „czy wiersz faktycznie powstal" (patrz `98_domain_events.sql`).
+-- Atrapa bez tego bloku klamalaby w druga strone: pokazywalaby blad tam, gdzie
+-- produkcja milczy.
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
 END $$;
 
 -- ----------------------------------------------------------------------------
@@ -452,12 +497,23 @@ CREATE TABLE IF NOT EXISTS public.ad_placements (
 -- scalaniu duplikatow, wiec musi byc generowana rowniez tutaj - zwykla kolumna
 -- tekstowa dawalaby NULL i dopasowanie nigdy by nie trafilo.
 -- ----------------------------------------------------------------------------
+-- KOLUMNY MARKI SA CZESCIA ATRAPY, BO MODUL PO NIE SIEGA. `crm_company_brand`
+-- i kartoteka sponsorow czytaja `logo_url`, `website` i `branch`; bez nich
+-- replay przewraca sie na `column c.logo_url does not exist`. Atrapa ma byc taka,
+-- jakiej modul POTRZEBUJE - nie mniejsza (bo wtedy nie da sie odtworzyc migracji)
+-- i nie wieksza (bo wtedy harness zaczyna testowac CRM, a nie Wydarzenia).
 CREATE TABLE IF NOT EXISTS public.crm_companies (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id  uuid NOT NULL,
   name       text NOT NULL,
   name_norm  text GENERATED ALWAYS AS (lower(btrim(name))) STORED,
   domain     text,
+  logo_url   text,
+  website    text,
+  branch     text,
+  city       text,
+  country    text,
+  email      text,
   aliases    jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -1200,3 +1256,31 @@ BEGIN
     v_reason;
 END;
 $function$;
+
+-- ----------------------------------------------------------------------------
+-- ATRAPA: `public.audit_log` - dziennik zdarzen uprzywilejowanych.
+--
+-- PO CO. `20260828162131` (audyt nadan uprawnien do stawek ulgowych) dopisuje
+-- trigger na `event_audience_grants`, ktory pisze do `audit_log`, i zaklada na
+-- tej tabeli indeks. Tabela nalezy do RDZENIA platformy (`20260531183823`),
+-- a nie do modulu Wydarzen, wiec selektor harnessu jej migracji nie bierze -
+-- i replay przewracal sie na `relation "public.audit_log" does not exist`.
+--
+-- Ksztalt przepisany z oryginalu ZNAK W ZNAK, zeby trigger modulu wstawial
+-- do tych samych kolumn co na produkcji. Atrapa nie odtwarza polityk RLS
+-- rdzenia - harness sprawdza modul Wydarzen, a nie dziennik audytu.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.audit_log (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   uuid NOT NULL,
+  actor_id    uuid,
+  action      text NOT NULL,
+  entity_type text NOT NULL,
+  entity_id   uuid,
+  metadata    jsonb,
+  ip          inet,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_log_tenant_idx
+  ON public.audit_log (tenant_id, created_at DESC);
+GRANT SELECT, INSERT ON public.audit_log TO authenticated;
