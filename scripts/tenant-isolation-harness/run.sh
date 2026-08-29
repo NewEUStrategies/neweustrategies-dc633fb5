@@ -16,6 +16,10 @@ done
 
 PGBIN=""
 for d in /usr/lib/postgresql/*/bin; do [ -x "$d/initdb" ] && PGBIN="$d"; done
+# Fallback: initdb juz na PATH (obrazy bez /usr/lib/postgresql, lokalny sandbox).
+if [ -z "$PGBIN" ] && command -v initdb >/dev/null 2>&1; then
+  PGBIN="$(dirname "$(command -v initdb)")"
+fi
 if [ -z "$PGBIN" ]; then echo "Brak PostgreSQL. Zainstaluj postgresql-16." >&2; exit 2; fi
 export PATH="$PGBIN:$PATH"
 
