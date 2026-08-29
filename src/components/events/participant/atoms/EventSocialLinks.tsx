@@ -26,8 +26,9 @@ const SOCIAL_ICON: Record<SocialKey, IconComponent> = {
 
 /** Kolor marki kafelka; „strona www" dostaje ton firmowy platformy. */
 function brandColor(key: SocialKey): string {
-  return SOCIAL_OFFICIAL_COLORS[key] ?? "hsl(var(--brand, 25 95% 63%))";
+  return brandTileColor(key);
 }
+
 
 export interface EventSocialLinksProps {
   links: Partial<Record<SocialKey, string | null>>;
