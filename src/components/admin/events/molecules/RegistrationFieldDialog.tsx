@@ -6,7 +6,7 @@
 // REGUŁA KWALIFIKUJĄCA POKAZUJE SIĘ TYLKO WŁĄCZONA. Operator i wartość widoczne
 // przy wyłączonej regule sugerują, że coś już bramkuje zapisy - a nie bramkuje
 // nic, i to jest najgorszy rodzaj pomyłki na formularzu, który odrzuca ludzi.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -69,11 +69,27 @@ export function RegistrationFieldDialog({
   const [draft, setDraft] = useState<RegistrationFieldDraft>(() => emptyFieldDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
 
+  // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM - dokładnie jak
+  // w `EventTicketDialog`. `field` i `nextSortOrder` przelicza rodzic z ŻYWEJ
+  // listy pól przy KAŻDYM renderze, więc odświeżenie tej listy w tle - pole
+  // dodane przez drugiego redaktora, powrót do karty przeglądarki po
+  // `staleTime` - podawało tu nowe referencje, efekt ruszał PRZY OTWARTYM
+  // oknie i zasiewał formularz od nowa: wpisana etykieta, warianty i reguła
+  // ginęły w trakcie pisania, bez żadnego komunikatu. Kolejność początkowa
+  // idzie przez `ref`, bo jest potrzebna TYLKO w chwili otwarcia i nie ma
+  // prawa niczego wznawiać.
+  const nextSortOrderRef = useRef(nextSortOrder);
+  nextSortOrderRef.current = nextSortOrder;
+  const fieldRef = useRef(field);
+  fieldRef.current = field;
+  const fieldId = field === null ? null : field.id;
+
   useEffect(() => {
     if (!open) return;
-    setDraft(field === null ? emptyFieldDraft(nextSortOrder) : fieldDraftFromRow(field));
+    const row = fieldRef.current;
+    setDraft(row === null ? emptyFieldDraft(nextSortOrderRef.current) : fieldDraftFromRow(row));
     setTouched(false);
-  }, [open, field, nextSortOrder]);
+  }, [open, fieldId]);
 
   const issue = fieldDraftIssue(draft);
   const errorFor = (name: FieldDraftField): string | null =>

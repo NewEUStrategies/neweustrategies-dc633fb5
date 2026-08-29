@@ -177,30 +177,44 @@ export function fieldDraftIssue(draft: RegistrationFieldDraft): FieldDraftIssue 
   if (draft.helpPl.length > FIELD_MAX_HELP) return { field: "helpPl", errorKey: "invalidRequest" };
   if (draft.helpEn.length > FIELD_MAX_HELP) return { field: "helpEn", errorKey: "invalidRequest" };
 
-  // Odnośnik zgody musi być bezpieczny i zewnętrznie rozstrzygalny: CHECK w bazie
-  // przepuszcza wyłącznie `https://`, a `javascript:` w takim miejscu byłoby
-  // linkiem wykonującym kod na stronie zapisu.
-  for (const [field, url] of [
-    ["consentUrlPl", draft.consentUrlPl],
-    ["consentUrlEn", draft.consentUrlEn],
-  ] as const) {
-    const value = url.trim();
-    if (value === "") continue;
-    if (!value.startsWith("https://") || value.length > FIELD_MAX_CONSENT_URL) {
-      return { field, errorKey: "invalidConsentUrl" };
+  // WALIDUJEMY TYLKO TO, CO PRZY BIEŻĄCYM TYPIE JEST NA EKRANIE I JEDZIE DO BAZY.
+  // Odnośnik zgody i warianty odpowiedzi liczyły się dotąd dla KAŻDEGO typu, choć
+  // okno rysuje je wyłącznie przy zgodzie i przy listach - redaktor, który zaczął
+  // od zgody z błędnym adresem (albo od listy ze zdublowanym wariantem) i zmienił
+  // typ, klikał „Zapisz" w próżnię: żądania nie było, a pola, które je blokowało,
+  // nie było na ekranie. Wybraliśmy ZAWĘŻENIE WARUNKU, a nie czyszczenie pól przy
+  // zmianie typu, bo powrót do poprzedniego typu ma przywracać wpisaną pracę
+  // (redaktor przełącza typ, żeby porównać) - kasowanie wariantów przy każdym
+  // przełączeniu gubiłoby ją bezpowrotnie. Do bazy i tak nie pojadą: tym zajmuje
+  // się `fieldDraftToInput`.
+  if (draft.fieldType === "consent") {
+    // Odnośnik zgody musi być bezpieczny i zewnętrznie rozstrzygalny: CHECK w bazie
+    // przepuszcza wyłącznie `https://`, a `javascript:` w takim miejscu byłoby
+    // linkiem wykonującym kod na stronie zapisu.
+    for (const [field, url] of [
+      ["consentUrlPl", draft.consentUrlPl],
+      ["consentUrlEn", draft.consentUrlEn],
+    ] as const) {
+      const value = url.trim();
+      if (value === "") continue;
+      if (!value.startsWith("https://") || value.length > FIELD_MAX_CONSENT_URL) {
+        return { field, errorKey: "invalidConsentUrl" };
+      }
     }
   }
 
-  const options = draft.options.filter((option) => option.value.trim() !== "");
-  if (FIELD_TYPES_WITH_OPTIONS.includes(draft.fieldType) && options.length === 0) {
-    return { field: "options", errorKey: "invalidOptions" };
-  }
-  const values = options.map((option) => option.value.trim());
-  if (new Set(values).size !== values.length) {
-    return { field: "options", errorKey: "duplicateKey" };
-  }
-  if (options.some((option) => option.labelPl.trim() === "" || option.labelEn.trim() === "")) {
-    return { field: "options", errorKey: "invalidOptions" };
+  if (FIELD_TYPES_WITH_OPTIONS.includes(draft.fieldType)) {
+    const options = draft.options.filter((option) => option.value.trim() !== "");
+    if (options.length === 0) {
+      return { field: "options", errorKey: "invalidOptions" };
+    }
+    const values = options.map((option) => option.value.trim());
+    if (new Set(values).size !== values.length) {
+      return { field: "options", errorKey: "duplicateKey" };
+    }
+    if (options.some((option) => option.labelPl.trim() === "" || option.labelEn.trim() === "")) {
+      return { field: "options", errorKey: "invalidOptions" };
+    }
   }
 
   if (draft.isQualifying) {
@@ -248,6 +262,15 @@ export function fieldDraftToInput(
       label_pl: option.labelPl.trim(),
       label_en: option.labelEn.trim(),
     }));
+  // Odnośnik zgody jedzie tylko przy polu zgody - tak samo jak warianty tylko
+  // przy listach. CHECK bazy przepuszcza wyłącznie `https://` NIEZALEŻNIE od typu
+  // pola, więc adres wpisany przed zmianą typu jechałby na pewną odmowę przy
+  // kolumnie, której nie ma już na ekranie; przy okazji zmiana typu zabiera ze
+  // sobą osierocony odnośnik, zamiast zostawiać go w bazie na przyszłość.
+  const consentUrls =
+    draft.fieldType === "consent"
+      ? { pl: draft.consentUrlPl.trim(), en: draft.consentUrlEn.trim() }
+      : { pl: "", en: "" };
   return {
     id: draft.id,
     eventId,
@@ -257,8 +280,8 @@ export function fieldDraftToInput(
     labelEn: draft.labelEn.trim(),
     helpPl: draft.helpPl.trim(),
     helpEn: draft.helpEn.trim(),
-    consentUrlPl: draft.consentUrlPl.trim(),
-    consentUrlEn: draft.consentUrlEn.trim(),
+    consentUrlPl: consentUrls.pl,
+    consentUrlEn: consentUrls.en,
     isRequired: draft.isRequired,
     // Typ bez wariantów wysyła pustą tablicę, a nie „zostaw jak było": zmiana
     // listy na tekst musi zabrać ze sobą osierocone warianty.

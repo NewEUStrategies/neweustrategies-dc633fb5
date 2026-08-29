@@ -401,18 +401,17 @@ describe("ScannerLeadPanel", () => {
   });
 
   // ---------------------------------------------------------------------
-  // DEFEKT PRODUKCYJNY (stan pożądany, nie stan faktyczny).
+  // DRUGA ZAPORA NA DANE OSOBOWE.
   //
-  // `ScannerLeadPanel.tsx` rysuje kartę osoby na warunku `person !== null`,
-  // bez oglądania się na `consent`. Dziś ratuje nas wyłącznie baza
+  // `ScannerLeadPanel.tsx` rysował kartę osoby na warunku `person !== null`,
+  // bez oglądania się na `consent`. Ratowała nas wyłącznie baza
   // (`event_lead_scan_record` zwraca `person => NULL` przy braku zgody), więc
   // jedna zmiana po stronie SQL - albo cofnięcie zgody między skanem a
-  // renderem - wystawia mail i telefon obok plakietki „brak zgody".
-  // Panel deklaruje w nagłówku, że „dane po prostu nie wychodzą"; ten test
-  // pokazuje, że tego nie egzekwuje. Naprawa (`consent && person !== null`)
-  // należy do zmiany komponentu, nie do testu.
+  // renderem - wystawiłaby mail i telefon obok plakietki „brak zgody".
+  // Warunek jest teraz `consent && person !== null`, czyli panel egzekwuje to,
+  // co obiecuje jego nagłówek, zamiast zakładać, że zrobi to kto inny.
   // ---------------------------------------------------------------------
-  it.fails("DEFEKT: dane kontaktowe leada BEZ ZGODY nie powinny trafić na ekran", async () => {
+  it("dane kontaktowe leada BEZ ZGODY nie trafiają na ekran", async () => {
     render(
       <ScannerLeadPanel
         runtime={runtimeStub({

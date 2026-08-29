@@ -25,7 +25,28 @@ import type { Database, Json } from "@/integrations/supabase/types";
 type Fns = Database["public"]["Functions"];
 
 export type EventRegistrationRow = Fns["admin_event_registrations_list"]["Returns"][number];
-export type EventTicketRow = Fns["admin_event_tickets_list"]["Returns"][number];
+/**
+ * Wiersz biletu z panelu - z POPRAWIONYMI kolumnami NULL-owalnymi.
+ *
+ * DLACZEGO NIE GOŁY TYP Z GENERATORA. `RETURNS TABLE` w Postgresie nie niesie
+ * informacji o tym, które kolumny bywają puste, więc generator opisuje KAŻDĄ
+ * jako niepustą. Dla `quota` („bez limitu") i `early_bird_price_cents` („bez
+ * ceny promocyjnej") jest to nieprawda: RPC oddaje tam `null`, a kod front-endu
+ * DAWNO to wie - `ticketDraft.ts:181` i `EventTicketsPanel.tsx:176` mają na to
+ * jawne warunki. Kłamał wyłącznie typ, przez co każda atrapa tego wiersza
+ * musiała przemycać `null` rzutowaniem przez `unknown`.
+ *
+ * Poprawka jest ZAWĘŻENIEM kontraktu, nie rozluźnieniem: kto sięgnie po te
+ * kolumny bez sprawdzenia pustki, dostanie błąd typu zamiast `undefined`
+ * w interfejsie.
+ */
+export type EventTicketRow = Omit<
+  Fns["admin_event_tickets_list"]["Returns"][number],
+  "quota" | "early_bird_price_cents"
+> & {
+  quota: number | null;
+  early_bird_price_cents: number | null;
+};
 export type EventRegistrationFieldRow =
   Fns["admin_event_registration_fields_list"]["Returns"][number];
 

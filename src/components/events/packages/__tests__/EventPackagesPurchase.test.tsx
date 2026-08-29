@@ -28,7 +28,6 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import type {
   AdmissionQuote,
-  AdmissionQuoteInput,
   AdmissionQuoteOk,
   AdmissionQuoteReason,
   BuyerSeatInvite,
@@ -722,7 +721,7 @@ describe("EventPackagesPurchase - moje zamówienia i miejsca", () => {
   // sprzedajecie pakietów". Naprawa (gałąź `isError` z możliwością ponowienia)
   // należy do zmiany komponentu, nie do testu.
   // ---------------------------------------------------------------------
-  it.fails("DEFEKT: błąd zapytania o ofertę nie powinien udawać braku pakietów", async () => {
+  it("błąd zapytania o ofertę NIE udaje braku pakietów", async () => {
     api.fetchPackagesOffer.mockRejectedValue(new Error("PGRST301: JWT expired"));
     renderPurchase();
 

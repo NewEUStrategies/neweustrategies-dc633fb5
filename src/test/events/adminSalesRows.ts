@@ -31,7 +31,7 @@ import type { EventTicketRow } from "@/lib/events/registrationsApi";
  * ma na to jawny warunek i komentarz. Fixtura musi umieć oddać tę wartość,
  * inaczej testu „pusta pula to brak limitu, nie zero" nie da się napisać.
  */
-const NULLOWALNA_LICZBA = null as unknown as number;
+const NULLOWALNA_LICZBA: number | null = null;
 
 /**
  * Kolumna NULL-owalna, którą generator typuje jako `string`.
@@ -42,7 +42,7 @@ const NULLOWALNA_LICZBA = null as unknown as number;
  * `=== null`), więc fixtura musi umieć oddać właśnie `null`; pustego napisu
  * używamy tam, gdzie kolumna jest w bazie `NOT NULL DEFAULT ''`.
  */
-const NULLOWALNY_NAPIS = null as unknown as string;
+const NULLOWALNY_NAPIS: string | null = null;
 
 /** Identyfikatory w kształcie UUID - panel przekazuje je dalej do RPC. */
 export const SALES_IDS = {

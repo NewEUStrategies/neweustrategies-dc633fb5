@@ -269,12 +269,16 @@ describe("RegistrationManagePanel", () => {
   });
 
   it("zgłoszenie już odwołane mówi to wprost, a nie „spróbuj ponownie”", async () => {
+    // Ten sam odnośnik otwarty drugi raz (albo dwa razy kliknięty w telefonie).
+    // Uczestnik ma usłyszeć „już zamknięte", a ekran nie może ogłosić rezygnacji,
+    // której baza nie wykonała.
     cancel.mockRejectedValue(new Error("already_closed: this registration is already closed"));
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
     fireEvent.click(confirmButton());
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(ALREADY_CLOSED_PL));
+    expect(screen.queryByText("eventFront.manage.cancelled")).toBeNull();
   });
 
   it("trwające odwołanie blokuje przycisk i mówi, że pracuje", async () => {

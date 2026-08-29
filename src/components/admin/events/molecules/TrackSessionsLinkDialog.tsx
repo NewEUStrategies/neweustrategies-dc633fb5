@@ -12,7 +12,7 @@
 // PODPOWIADAMY, CO ZABIERAMY CUDZEJ ŚCIEŻCE. Sesja ma dokładnie jedną ścieżkę,
 // więc zaznaczenie jej tutaj zdejmuje ją z poprzedniego pasma - wiersz mówi to
 // wprost, zanim organizator kliknie zapis.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import {
@@ -71,21 +71,48 @@ export function TrackSessionsLinkDialog({
     [rows, track],
   );
 
+  /** Czy zaznaczenia tego otwarcia pochodzą już z WCZYTANEJ listy sesji. */
+  const zasianoRef = useRef(false);
+
   // Otwarcie okna czyta stan z bazy; późniejsze odświeżenie listy nie kasuje
   // zaznaczeń, które organizator już zrobił.
   useEffect(() => {
-    if (open) {
-      setSelected(initial);
-      setSearch("");
+    if (!open) {
+      zasianoRef.current = false;
+      return;
     }
+    zasianoRef.current = false;
+    setSelected(initial);
+    setSearch("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, track?.id]);
+
+  // ZASIEW CZEKA NA PIERWSZĄ ODPOWIEDŹ LISTY, bo to zaznaczenia decydują, co
+  // zostanie ODPIĘTE. Okno otwarte, zanim zapytanie odpowie, zasiewało pustkę
+  // i już jej nie poprawiało - zapis zdejmował z pasma każdą sesję, której
+  // organizator nigdy nie zobaczył. Kolejne odświeżenia listy nie mają prawa
+  // ruszyć zaznaczeń, więc pilnuje tego `ref`, a nie następna zależność.
+  useEffect(() => {
+    if (!open || zasianoRef.current || listQ.data === undefined) return;
+    zasianoRef.current = true;
+    setSelected(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, track?.id, listQ.data]);
 
   const titleOf = (row: EventSessionRow): string =>
     isEn ? row.title_en || row.title_pl : row.title_pl || row.title_en;
 
   const trackNameOf = (row: EventSessionRow): string =>
     isEn ? row.track_name_en || row.track_name_pl : row.track_name_pl || row.track_name_en;
+
+  // KOLUMNY SPOZA WIERSZA SESJI PRZYCHODZĄ JAKO `null`, NIE JAKO PUSTY TEKST.
+  // `admin_event_sessions_list` oddaje `track_id` sesji bez pasma wprost z
+  // kolumny NULL-owalnej, a nazwę sali z LEFT JOIN-a - a `null !== ""` jest
+  // prawdą i `null === ""` fałszem. Bez tego sesja bez pasma dostawała
+  // ostrzeżenie „zabieramy ją cudzej ścieżce" (bez nazwy tej ścieżki), a sesja
+  // bez sali - sam separator zamiast napisu „bez sali".
+  const trackIdOf = (row: EventSessionRow): string => row.track_id ?? "";
+  const roomNameOf = (row: EventSessionRow): string => row.room_name ?? "";
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -139,8 +166,9 @@ export function TrackSessionsLinkDialog({
           ) : (
             visible.map((row) => {
               const checked = selected.includes(row.id);
-              const otherTrack =
-                row.track_id !== "" && (track === null || row.track_id !== track.id);
+              const rowTrackId = trackIdOf(row);
+              const roomName = roomNameOf(row);
+              const otherTrack = rowTrackId !== "" && (track === null || rowTrackId !== track.id);
               return (
                 <label
                   key={row.id}
@@ -154,10 +182,8 @@ export function TrackSessionsLinkDialog({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{titleOf(row)}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {row.room_name === ""
-                        ? t("adminEventAgenda.sessions.noRoom")
-                        : row.room_name}{" "}
-                      · {row.duration_minutes} min
+                      {roomName === "" ? t("adminEventAgenda.sessions.noRoom") : roomName} ·{" "}
+                      {row.duration_minutes} min
                     </span>
                   </span>
                   {otherTrack ? (
@@ -186,7 +212,9 @@ export function TrackSessionsLinkDialog({
               onClick={() => onSubmit({ attach, detach })}
               disabled={!dirty || isSaving || track === null}
             >
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              {isSaving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
               {t("adminEventAgenda.tracks.dialog.saveAction")}
             </Button>
           </span>
