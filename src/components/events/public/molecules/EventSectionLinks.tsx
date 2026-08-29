@@ -37,7 +37,6 @@ import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import { pickTextColor, THEME_TEXT } from "@/lib/post/badgeContrast";
 
 export function EventSectionLinks({
   label,
@@ -79,8 +78,13 @@ export function EventSectionLinkBody({
   color: string | null;
   label: string;
 }) {
-  const ink = pickTextColor(color);
-  const measurable = ink !== THEME_TEXT;
+  // PANEL JEST ŹRÓDŁEM PRAWDY: „Strony i menu” rysuje kafelek jako kolor
+  // pozycji + BIAŁA ikona. Front liczył atrament z kontrastu, więc jasne
+  // kolory dostawały ciemną ikonę i te same pozycje wyglądały inaczej niż
+  // w backendzie. Zostaje jedna reguła - biel na kolorze pozycji.
+  const measurable = color !== null && color !== "";
+  const ink = "#FFFFFF";
+
 
   return (
     <>
