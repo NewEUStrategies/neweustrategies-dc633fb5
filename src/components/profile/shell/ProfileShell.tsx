@@ -359,7 +359,7 @@ export function ProfileContactRow({
       <span
         className={cn(
           BRAND_TILE_CLASS,
-          "h-8 w-8 bg-muted/70 text-muted-foreground group-hover:border-[var(--tile-brand)] group-hover:bg-[var(--tile-brand)] group-hover:text-white group-focus-within:border-[var(--tile-brand)] group-focus-within:bg-[var(--tile-brand)] group-focus-within:text-white",
+          "h-8 w-8 bg-muted/70 text-muted-foreground group-hover:border-transparent group-hover:[background-image:linear-gradient(180deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.05)_38%,rgba(255,255,255,0)_62%),var(--tile-grad)] group-hover:text-white group-hover:shadow-[0_10px_24px_-16px_rgba(0,0,0,0.55)] group-focus-within:border-transparent group-focus-within:[background-image:linear-gradient(180deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.05)_38%,rgba(255,255,255,0)_62%),var(--tile-grad)] group-focus-within:text-white group-focus-within:shadow-[0_10px_24px_-16px_rgba(0,0,0,0.55)]",
         )}
       >
         {icon}
