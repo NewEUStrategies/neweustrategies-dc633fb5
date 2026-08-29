@@ -39,15 +39,22 @@ fi
 
 pg_ctl -D "$PGDIR/data" stop >/dev/null 2>&1 || true
 rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run"
-[ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
+RUNAS_UID="$(id -u "$RUNAS")"
+RUNAS_GID="$(id -g "$RUNAS")"
+[ "$(id -un)" = "root" ] && chown -R "$RUNAS_UID:$RUNAS_GID" "$PGDIR"
 
 run_as() {
   if [ "$(id -un)" != "root" ]; then eval "$*"; return; fi
-  # `su` bywa nieobecne w obrazie - `runuser` robi to samo bez sesji PAM.
-  switch="su"
-  command -v su >/dev/null 2>&1 || switch="runuser"
-  "$switch" "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"
+  # `su`/`runuser` wymagaja PAM, ktorego czesc obrazow nie ma - `setpriv`
+  # przelacza uid/gid bez niego i jest dostepny w util-linux.
+  if command -v su >/dev/null 2>&1; then
+    su "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"
+  else
+    setpriv --reuid="$RUNAS_UID" --regid="$RUNAS_GID" --clear-groups \
+      env PATH="$PGBIN:$PATH" HOME="$PGDIR" bash -c "$*"
+  fi
 }
+
 run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=C" >/dev/null
 run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p 5434 -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null
 sleep 2
