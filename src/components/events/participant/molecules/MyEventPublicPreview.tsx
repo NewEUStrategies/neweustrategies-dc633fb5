@@ -10,7 +10,7 @@
 // (`@/components/profile/shell/ProfileShell`), więc uczestnik widzi w event
 // builderze i w podglądzie dokładnie ten sam język wizualny co na stronie.
 import { useTranslation } from "react-i18next";
-import { Activity, Award, Briefcase, Compass, Mail, MapPin, Phone, Share2 } from "lucide-react";
+import { Activity, Award, Briefcase, Compass, Mail, Phone, Share2 } from "lucide-react";
 
 import { uiLang } from "@/lib/i18n/format";
 import { type MyEventProfile } from "@/lib/events/myEventProfileApi";
