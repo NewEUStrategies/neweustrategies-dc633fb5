@@ -407,6 +407,9 @@ export type WidgetType =
   // Karta profilu autora/eksperta: ta sama prezentacja co wariant `profile`
   // bloku `author-bio` w block editorze (komponent ProfileCard).
   | "author-profile-card"
+  // Karta trasy: mapa w tle pod nakładką, tytuł/autor, wielki dystans i
+  // polubienie pamiętane w przegladarce odwiedzajacego (bez zapisu w bazie).
+  | "travel-route-card"
   | "speakers"
   | "pricing"
   | "interactive-circle"
