@@ -74,6 +74,7 @@ import {
   ProfileContactRow as Card_ContactRow,
   ProfileSectionCard,
 } from "@/components/profile/shell/ProfileShell";
+import { BRAND_PILL_CLASS, BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 type Gender = "male" | "female" | "neutral";
 type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
 /** Rola w karcie „Wprowadzenia" - do mnie / wysłane / o mnie. */
@@ -345,7 +346,10 @@ function ProfileInline() {
             ) : null}
 
             {data.location ? (
-              <span className="inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
+              <span
+                style={brandTileStyle("location")}
+                className={`inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground ${BRAND_PILL_CLASS}`}
+              >
                 <MapPin className="h-3 w-3 text-primary" />
                 {data.location}
               </span>
@@ -370,7 +374,8 @@ function ProfileInline() {
             {user?.email && (
               <a
                 href={`mailto:${user.email}`}
-                className="inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted/60 transition-colors"
+                style={brandTileStyle("mail")}
+                className={`inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground ${BRAND_PILL_CLASS}`}
               >
                 <Mail className="h-3 w-3 text-primary" />
                 <span className="truncate max-w-[200px] sm:max-w-[280px]">{user.email}</span>
@@ -470,6 +475,7 @@ function ProfileInline() {
                   {/* Email - read-only from auth */}
                   <ContactRow
                     icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
+                    brandKey="mail"
                     ariaLabel={t("profile.account.email")}
                   >
                     <a
@@ -483,6 +489,7 @@ function ProfileInline() {
                   {/* Phone */}
                   <ContactRow
                     icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
+                    brandKey="phone"
                     ariaLabel={t("profile.account.phone")}
                   >
                     {editable ? (
@@ -512,6 +519,7 @@ function ProfileInline() {
                     icon={
                       <BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />
                     }
+                    brandKey="location"
                     ariaLabel={t("profile.account.location")}
                   >
                     {editable ? (
@@ -541,6 +549,7 @@ function ProfileInline() {
                         alt="LinkedIn"
                       />
                     }
+                    brandKey="linkedin"
                     ariaLabel="LinkedIn"
                   >
                     {editable ? (
@@ -571,6 +580,7 @@ function ProfileInline() {
                   {/* X */}
                   <ContactRow
                     icon={<BrandIcon name="x" fallback={XIcon} className="h-4 w-4" alt="X" />}
+                    brandKey="x"
                     ariaLabel="X"
                   >
                     {editable ? (
@@ -959,7 +969,8 @@ function CenteredHero({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="LinkedIn"
-                  className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
+                  style={brandTileStyle("linkedin")}
+                  className={`${BRAND_TILE_CLASS} h-6 w-6 bg-background ring-2 ring-background shadow-sm`}
                 >
                   <BrandIcon
                     name="linkedin"
@@ -975,7 +986,8 @@ function CenteredHero({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="X"
-                  className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
+                  style={brandTileStyle("x")}
+                  className={`${BRAND_TILE_CLASS} h-6 w-6 bg-background ring-2 ring-background shadow-sm`}
                 >
                   <BrandIcon name="x" fallback={XIcon} className="h-3.5 w-3.5" alt="X" />
                 </a>

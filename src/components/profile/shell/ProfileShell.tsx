@@ -12,6 +12,13 @@ import { type ReactNode } from "react";
 import { Briefcase } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  BRAND_PILL_CLASS,
+  BRAND_TILE_CLASS,
+  brandTileStyle,
+  type BrandTileKey,
+} from "@/components/common/brandTile";
+
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 
@@ -210,10 +217,13 @@ export function ProfileMetaPill({
   icon,
   children,
   href,
+  brandKey = "mail",
 }: {
   icon?: ReactNode;
   children: ReactNode;
   href?: string;
+  /** Klucz marki dla hovera - jak w nagłówku (mail, phone, location, linkedin...). */
+  brandKey?: BrandTileKey;
 }) {
   const className =
     "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground";
@@ -227,8 +237,9 @@ export function ProfileMetaPill({
   );
 
   if (href) {
+    // Ta sama reakcja co kafelek w nagłówku: pełny kolor marki po najechaniu.
     return (
-      <a href={href} className={cn(className, "transition-colors hover:bg-muted/60")}>
+      <a href={href} className={cn(className, BRAND_PILL_CLASS)} style={brandTileStyle(brandKey)}>
         {inner}
       </a>
     );
@@ -331,17 +342,26 @@ export function ProfileContactRow({
   icon,
   ariaLabel,
   children,
+  brandKey = "mail",
 }: {
   icon: ReactNode;
   ariaLabel: string;
   children: ReactNode;
+  /** Klucz marki - kafelek ikony reaguje jak kafelek w nagłówku strony. */
+  brandKey?: BrandTileKey;
 }) {
   return (
     <li
-      className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
+      className="group flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
       aria-label={ariaLabel}
+      style={brandTileStyle(brandKey)}
     >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
+      <span
+        className={cn(
+          BRAND_TILE_CLASS,
+          "h-8 w-8 bg-muted/70 text-muted-foreground group-hover:border-[var(--tile-brand)] group-hover:bg-[var(--tile-brand)] group-hover:text-white group-focus-within:border-[var(--tile-brand)] group-focus-within:bg-[var(--tile-brand)] group-focus-within:text-white",
+        )}
+      >
         {icon}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
