@@ -3744,6 +3744,72 @@ export default defineConfig({
           lines: 99,
           branches: 98,
         },
+
+        // ── MODUŁ WYDARZEŃ ────────────────────────────────────────────────
+        //
+        // DO 2026-08-29 TEN MODUŁ NIE MIAŁ PROGU WCALE - jako jedyna duża
+        // powierzchnia repozytorium (74 inne ścieżki go miały). Czterdzieści
+        // dwie tabele `event_*`, ~209 RPC i 31 sekcji studia stały wyłącznie
+        // za progiem globalnym, który przy tej wielkości nie łapie niczego
+        // poza katastrofą: moduł mógł stracić połowę testów, a bramka nadal
+        // świeciła na zielono.
+        //
+        // Progi są ZMIERZONE na tym HEAD-zie (pełny przebieg powierzchni
+        // wydarzeń: 138 plików, 2 963 testy, zielono), minus ~4 pp marginesu
+        // na dryf CI - ta sama reguła, co przy progu globalnym i przy panelu
+        // klubów. Zasada bez zmian: te progi wolno wyłącznie PODNOSIĆ.
+        //
+        // Zmierzone (instrukcje / gałęzie / funkcje / linie):
+        //   src/lib/events                 72,9 / 72,4 / 70,2 / 75,2
+        //   src/components/events          67,8 / 59,1 / 66,6 / 68,3
+        //   src/components/admin/events    24,2 / 19,4 / 25,5 / 24,0
+        //     └ molecules                  65,1 / 54,6 / 63,5 / 65,6
+        //     └ organisms                   7,4 /  6,2 /  6,8 /  7,5
+        //
+        // UCZCIWIE O TYCH LICZBACH. Panel administratora startował z 6,0%
+        // gałęzi i 5,0% funkcji (81 pokrytych z 1 615). Praca tej gałęzi
+        // podniosła go do 19,4 / 25,5, ale to nadal jest DALEKO od poziomu
+        // bliźniaczego panelu klubów (96-99%). Cała różnica siedzi
+        // w ORGANIZMACH - 46 plików, 14 000 linii, sekcje studia - i one są
+        // następną pracą, nie przeoczeniem. Próg na nie stoi więc nisko
+        // CELOWO: ma łapać REGRESJĘ od dzisiejszego stanu, a nie udawać, że
+        // powierzchnia jest przetestowana.
+        "src/lib/events/**": {
+          statements: 68,
+          functions: 66,
+          lines: 71,
+          branches: 68,
+        },
+        "src/components/events/**": {
+          statements: 63,
+          functions: 62,
+          lines: 64,
+          branches: 55,
+        },
+        // Zakup pakietu grupowego - jedyny ekran wydarzeń dotykający PIENIĘDZY
+        // po stronie kupującego, więc trzyma własny, wysoki próg.
+        "src/components/events/packages/**": {
+          statements: 94,
+          functions: 96,
+          lines: 96,
+          branches: 90,
+        },
+        "src/components/admin/events/**": {
+          statements: 20,
+          functions: 21,
+          lines: 20,
+          branches: 15,
+        },
+        // Molekuły panelu to DIALOGI ZAPISU: formularze biletu, pakietu,
+        // sesji, ścieżki, pola zgłoszenia, urządzenia skanującego. Osiem
+        // błędów naprawionych na tej gałęzi wyszło właśnie stąd, więc ta
+        // warstwa dostaje próg osobny i wyraźnie wyższy niż katalog nadrzędny.
+        "src/components/admin/events/molecules/**": {
+          statements: 61,
+          functions: 59,
+          lines: 61,
+          branches: 50,
+        },
       },
     },
   },

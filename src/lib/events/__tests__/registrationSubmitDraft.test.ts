@@ -79,6 +79,12 @@ const form: RegistrationForm = {
   },
   isOpen: true,
   closedReason: null,
+  // Zgody stoją tu PUSTE świadomie: ten plik testuje pola i bilety, a osobne
+  // przypadki na zgody obowiązkowe siedzą przy nich. Klucz musi jednak być,
+  // bo `RegistrationForm` niesie go od migracji `20260828204000` - to była
+  // cała treść błędu K-2 (pola typu `consent` w ogóle nie docierały do
+  // formularza, więc uczestnik zapisywał się bez ich wyrażenia).
+  consents: [],
   fields: [field({ isRequired: true }), field({ id: "f-2", key: "seats", fieldType: "number" })],
   tickets: [ticket()],
   terms: [
