@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
+import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 
 const envSchema = z.enum(["sandbox", "live"]);
 // Język ramki Stripe - musi trafić do sesji, bo checkout nie zna naszego i18n.
@@ -125,7 +126,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       orderId: order.id,
       userId,
       customerEmail: claims.email ?? null,
-      returnUrl: data.returnUrl,
+      returnUrl: resolveReturnUrl(data.returnUrl),
       discount,
       locale: data.locale,
       settings,
@@ -179,7 +180,7 @@ export const createAdhocCheckoutSession = createServerFn({ method: "POST" })
     const environment = resolveEnvironment(data.environment);
     const { buildAdhocOrder } = await import("@/lib/billing/adhocCheckoutOrder.server");
     return buildAdhocOrder({
-      data,
+      data: { ...data, returnUrl: resolveReturnUrl(data.returnUrl) },
       environment,
       supabase: context.supabase,
       userId: context.userId,

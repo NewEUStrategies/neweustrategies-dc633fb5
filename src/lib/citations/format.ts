@@ -249,16 +249,16 @@ function buildChicagoParts(source: CitationSource): ChicagoParts {
 export function formatChicago(source: CitationSource): string {
   const parts = buildChicagoParts(source);
   const pieces: string[] = [];
-  if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
+  if (parts.authorSegment) pieces.push(`${escapeHtml(parts.authorSegment)},`);
   pieces.push(`<em>${escapeHtml(parts.title)}</em>,`);
   if (parts.dateSegment) {
-    if (parts.siteName) pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    if (parts.siteName) pieces.push(`${escapeHtml(parts.siteName)}, ${parts.dateSegment},`);
     else pieces.push(`${parts.dateSegment},`);
   } else {
-    if (parts.siteName) pieces.push(`${parts.siteName},`);
+    if (parts.siteName) pieces.push(`${escapeHtml(parts.siteName)},`);
     if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  if (parts.url) pieces.push(`${parts.url},`);
+  if (parts.url) pieces.push(`${escapeHtml(parts.url)},`);
   return pieces.join(" ");
 }
 
