@@ -225,6 +225,12 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
             value={draft.timezone}
             options={zones}
             labelFor={(zone) => zone}
+            // `validateEventGeneralDraft` zwraca błąd pola `timezone` od zawsze,
+            // ale panel nie rysował go NIGDZIE: `errorFor` wołane było dla
+            // dziewięciu innych pól i ani razu dla strefy. Wiersz z pustą strefą
+            // (kolumna tekstowa, szkic degraduje brak do `""`) dawał ekran,
+            // na którym „Zapisz" gaśnie po kliknięciu i nic się nie dzieje.
+            error={errorFor("timezone")}
             onValueChange={(value) => set("timezone", value)}
           />
         </div>

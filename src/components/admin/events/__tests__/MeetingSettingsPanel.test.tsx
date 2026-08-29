@@ -292,14 +292,24 @@ describe("MeetingSettingsPanel - stany odczytu", () => {
   // zamiast zgłosić awarię. To ta sama klasa błędu, którą naprawiono już na
   // trzech ekranach tego modułu (patrz „trzy stany pustej listy"
   // w `EventPagesMenuPanel.test.tsx`).
-  it.fails("awaria PIERWSZEGO odczytu POWINNA mówić „nie udało się”, a nie kręcić kółkiem", () => {
+  it("awaria PIERWSZEGO odczytu mówi „nie udało się”, a nie kręci kółkiem", () => {
+    // `h.data` USTAWIAMY WPROST, a nie przez `panel(undefined)`. Pomocnik ma
+    // parametr domyślny (`row = settings()`), więc jawne `undefined` PODSTAWIA
+    // pełny wiersz - scenariusz „pierwszy odczyt padł, danych nie ma" był przez
+    // niego nieosiągalny, a test, który go opisywał, przechodził wyłącznie
+    // dlatego, że oczekiwał złego napisu.
     h.isLoading = false;
     h.error = new Error("invalid_timezone: Europe/Nowhere");
-    panel(undefined);
+    h.data = undefined;
+    render(<MeetingSettingsPanel eventId={EVENT_ID} />);
 
+    // Kółko ZNIKA - to jest cała naprawa. Straż wczytywania brzmiała
+    // `isLoading || draft === null`, a szkic powstaje wyłącznie z danych, więc
+    // przy padniętym PIERWSZYM odczycie `draft` zostawał `null` i panel kręcił
+    // kółkiem bez końca; gałąź awarii była w tym scenariuszu NIEOSIĄGALNA.
     expect(screen.queryByText(`${S}loading`)).toBeNull();
     expect(
-      screen.getByText("adminEventMeetings.errors.unknown(detail=invalid_timezone)"),
+      screen.getByText((text) => text.startsWith("adminEventMeetings.errors.unknown")),
     ).toBeTruthy();
   });
 
@@ -310,7 +320,13 @@ describe("MeetingSettingsPanel - stany odczytu", () => {
     h.error = new Error("invalid_timezone: Europe/Nowhere");
     panel();
 
-    expect(screen.getByText("adminEventMeetings.errors.unknown")).toBeTruthy();
+    // Atrapa i18n dokleja parametry do klucza (`klucz(nazwa=wartość)`), więc
+    // pytamy o POCZĄTEK napisu. W produkcji `unknown` nie ma miejsca na
+    // `{{detail}}`, więc i18next ten parametr po prostu pomija - zdanie jest
+    // to samo z parametrami i bez nich.
+    expect(
+      screen.getByText((text) => text.startsWith("adminEventMeetings.errors.unknown")),
+    ).toBeTruthy();
     expect(screen.queryByLabelText(`${S}slotMinutesLabel`)).toBeNull();
   });
 
@@ -321,7 +337,7 @@ describe("MeetingSettingsPanel - stany odczytu", () => {
   // organizator czyta zdanie z pustą dziurą („Nieznana strefa czasowa: .")
   // i nie dowiaduje się, KTÓRA strefa jest nieznana. Naprawa to jeden argument
   // w wywołaniu `t`, ale zmienia treść ekranu - dlatego zgłoszenie, nie poprawka.
-  it.fails("zdanie o awarii POWINNO nieść parametry odmowy, tak jak toast", () => {
+  it("zdanie o awarii niesie parametry odmowy, tak jak toast", () => {
     h.error = new Error("invalid_timezone: Europe/Nowhere");
     panel();
 

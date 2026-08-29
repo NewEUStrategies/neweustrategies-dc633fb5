@@ -765,7 +765,7 @@ describe("EventGeneralPanel - strefa czasowa", () => {
   // do pustego napisu) daje ekran, na którym „Zapisz" gaśnie po kliknięciu
   // i NIC się nie dzieje - bez jednego zdania, które pole trzeba uzupełnić.
   // To ta sama klasa błędu co „awaria wygląda jak pustka": odmowa bez powodu.
-  it.fails("pusta strefa POWINNA nazwać powód odmowy, a nie gasić przycisk w ciszy", () => {
+  it("pusta strefa NAZYWA powód odmowy, zamiast gasić przycisk w ciszy", () => {
     panel({ timezone: "" });
     wpisz("nameLabel", "Kongres Energetyczny 2026");
     zapiszKliknij();
