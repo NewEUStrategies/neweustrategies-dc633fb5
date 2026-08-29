@@ -137,7 +137,15 @@ vi.mock("@/components/ui/alert-dialog", () => {
     }) => {
       stan.open = open;
       stan.onOpenChange = onOpenChange;
-      return <div>{children}</div>;
+      return (
+        <div>
+          {/* Radix woła `onOpenChange(true)` przy przechwyceniu fokusa; happy-dom
+              tej ścieżki nie wywoła, a to ona decyduje, czy wybrany do kasowania
+              wiersz przetrwa. */}
+          <button type="button" data-testid="okno-otworz" onClick={() => onOpenChange?.(true)} />
+          {children}
+        </div>
+      );
     },
     AlertDialogContent: ({ children }: { children?: ReactNode }) =>
       stan.open ? <div role="alertdialog">{children}</div> : null,
@@ -200,11 +208,7 @@ vi.mock("@/components/admin/events/molecules/EventTicketDialog", () => ({
           data-testid="formularz-zapisz"
           onClick={() => onSubmit({ ...LADUNEK, eventId, id: ticket === null ? null : ticket.id })}
         />
-        <button
-          type="button"
-          data-testid="formularz-zamknij"
-          onClick={() => onOpenChange(false)}
-        />
+        <button type="button" data-testid="formularz-zamknij" onClick={() => onOpenChange(false)} />
       </div>
     ),
 }));
@@ -264,6 +268,18 @@ const LADUNEK: EventTicketInput = {
 };
 
 const T = "adminEventRegistration.tickets";
+
+/**
+ * Termin, którego NIE MA.
+ *
+ * `event_tickets.sales_from`, `sales_to` i `early_bird_until` to NULL-owalne
+ * `timestamptz` (migracja 20260823150000), ale wygenerowany typ obiecuje
+ * `string` - i dlatego wspólna fixtura wstawia w te miejsca pusty napis, bo
+ * szerszego typu po prostu nie ma. Organizm ma na to JAWNY warunek (`?? null`,
+ * `!== null && !== undefined`), więc test musi umieć oddać prawdziwe `null`:
+ * na pustym napisie gałąź „bez okna sprzedaży" nigdy by nie padła.
+ */
+const BRAK_TERMINU = null as unknown as string;
 
 function panel() {
   return render(<EventTicketsPanel eventId={SALES_IDS.event} />);
@@ -431,16 +447,21 @@ describe("co niesie wiersz biletu", () => {
   // OKNO SPRZEDAŻY MA CZTERY STANY i cztery różne napisy. „Od-do" wpisane tam,
   // gdzie termin jest tylko jeden, obiecuje granicę, której nie ma.
   it.each([
-    ["bez okna", { sales_from: "", sales_to: "" }, [`${T}.noWindow`], [`${T}.windowFrom`]],
+    [
+      "bez okna",
+      { sales_from: BRAK_TERMINU, sales_to: BRAK_TERMINU },
+      [`${T}.noWindow`],
+      [`${T}.windowFrom`, `${T}.windowTo`],
+    ],
     [
       "od terminu",
-      { sales_from: "2026-08-01T10:00:00.000Z", sales_to: "" },
+      { sales_from: "2026-08-01T10:00:00.000Z", sales_to: BRAK_TERMINU },
       [`${T}.windowFrom`],
       [`${T}.windowTo`, `${T}.noWindow`],
     ],
     [
       "do terminu",
-      { sales_from: "", sales_to: "2026-09-01T10:00:00.000Z" },
+      { sales_from: BRAK_TERMINU, sales_to: "2026-09-01T10:00:00.000Z" },
       [`${T}.windowTo`],
       [`${T}.windowFrom`, `${T}.noWindow`],
     ],
@@ -475,7 +496,7 @@ describe("co niesie wiersz biletu", () => {
       }),
       eventTicketRow({
         id: SALES_IDS.otherTicket,
-        early_bird_until: null as unknown as string,
+        early_bird_until: BRAK_TERMINU,
         has_access_code: false,
         waitlist_enabled: true,
         requires_approval: false,
@@ -686,6 +707,17 @@ describe("kasowanie biletu", () => {
 
     expect(within(okno()).getByText(`${T}.editor.deleteConfirm`)).toBeTruthy();
     expect(h.removeCalls).toEqual([]);
+  });
+
+  it("ponowne „otwarcie” otwartego okna NIE gubi wybranego biletu", () => {
+    panel();
+    fireEvent.click(kosz());
+
+    fireEvent.click(screen.getByTestId("okno-otworz"));
+
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(within(okno()).getByRole("button", { name: `${T}.editor.deleteAction` }));
+    expect(h.removeCalls).toEqual([SALES_IDS.ticket]);
   });
 
   it("rezygnacja zamyka okno i NIE kasuje niczego", () => {
