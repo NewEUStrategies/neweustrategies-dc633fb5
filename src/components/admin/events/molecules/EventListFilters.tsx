@@ -79,6 +79,7 @@ export function EventListFilters({
   queryPlaceholder,
   onQueryChange,
   typeLabel,
+  tabsLabel,
   typeValue,
   typeOptions,
   onTypeChange,
@@ -101,6 +102,16 @@ export function EventListFilters({
   queryPlaceholder: string;
   onQueryChange: (value: string) => void;
   typeLabel: string;
+  /**
+   * Nazwa dostępna PASKA ZAKŁADEK - osobna od `typeLabel`.
+   *
+   * Pasek nosił wcześniej `aria-label={typeLabel}`, czyli nazwę SĄSIEDNIEJ
+   * droplisty. Czytnik ekranu ogłaszał listę zakładek stanu („Wszystkie /
+   * Szkice / Opublikowane…") jako „Rodzaj wydarzenia", a ta sama nazwa dostępna
+   * wisiała na dwóch elementach naraz - przez co `getByLabelText` zwracał dwa
+   * trafienia i testy musiały to obchodzić pytaniem o rolę.
+   */
+  tabsLabel: string;
   typeValue: string;
   typeOptions: readonly EventFilterOption[];
   onTypeChange: (value: string) => void;
@@ -124,7 +135,7 @@ export function EventListFilters({
       <div
         className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]"
         role="tablist"
-        aria-label={typeLabel}
+        aria-label={tabsLabel}
       >
         {tabs.map((tab) => {
           const active = tab.key === activeTab;

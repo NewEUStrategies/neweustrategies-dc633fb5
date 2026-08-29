@@ -374,11 +374,11 @@ const poleLiczbowe = (nazwa: string): HTMLElement =>
   screen.getByRole("spinbutton", { name: nazwa });
 
 /**
- * Strzałki stronicowania - PO POZYCJI W NAWIGACJI, bo nie mają nazwy dostępnej.
+ * Strzałki stronicowania - PO POZYCJI W NAWIGACJI.
  *
- * To nie jest wygoda testu, tylko obejście defektu opisanego w `it.fails` niżej:
- * oba przyciski niosą wyłącznie piktogram, więc czytnik ekranu ogłasza dwa
- * bezimienne przyciski. Dopóki tak jest, nie ma po czym ich zapytać inaczej.
+ * Pozycja zostaje CELOWO, choć oba przyciski mają już nazwę dostępną: dzięki
+ * temu osobny przypadek niżej sprawdza SAME NAZWY i czerwieni się, gdy znikną,
+ * zamiast rozsypywać wszystkie testy stronicowania naraz.
  */
 function strzalki(): { poprzednia: HTMLElement; nastepna: HTMLElement } {
   const nav = screen.getByRole("navigation", { name: `${B}.title` });
@@ -640,10 +640,9 @@ describe("filtry, fraza i strona", () => {
   // niosą wyłącznie piktogram: nie mają ani napisu, ani `aria-label`, więc
   // czytnik ekranu ogłasza „przycisk, przycisk" i nie da się z klawiatury
   // stwierdzić, która cofa, a która przewija dalej. Reszta panelu (pole frazy,
-  // lupa, droplisty) etykiety MA, więc to nie jest przyjęta konwencja ekranu,
-  // tylko braki w dwóch przyciskach. Test stoi na `it.fails`: zzielenieje
-  // w chwili, gdy nazwy się pojawią, i wtedy trzeba zdjąć `.fails`.
-  it.fails("strzałki stronicowania mają nazwę dostępną", () => {
+  // lupa, droplisty) etykiety MA, więc to nie była przyjęta konwencja ekranu,
+  // tylko brak w dwóch przyciskach.
+  it("strzałki stronicowania mają nazwę dostępną", () => {
     h.total = 60;
     panel();
 

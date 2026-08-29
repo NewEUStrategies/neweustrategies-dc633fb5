@@ -377,10 +377,10 @@ const pole = (nazwa: string): HTMLElement => screen.getByLabelText(nazwa);
 /**
  * Droplista filtra po NAZWIE DOSTĘPNEJ.
  *
- * Nie przez `getByLabelText`: pasek zakładek nosi `aria-label` filtra rodzaju
- * (`role="tablist" aria-label={typeLabel}` w `EventListFilters`), więc ta sama
- * nazwa wisi na dwóch elementach naraz. Pytanie o ROLĘ rozstrzyga to jednoznacznie
- * - i przy okazji nazywa defekt dostępności opisany w raporcie.
+ * Pytanie o ROLĘ, nie przez `getByLabelText`. Powód historyczny zniknął (pasek
+ * zakładek nosił `aria-label` filtra rodzaju, więc ta sama nazwa wisiała na
+ * dwóch elementach naraz - naprawione), ale rola i tak jest precyzyjniejsza:
+ * mówi, że pytamy o droplistę, a nie o cokolwiek z tą etykietą.
  */
 const dropka = (nazwa: string): HTMLElement => screen.getByRole("combobox", { name: nazwa });
 
@@ -1316,5 +1316,23 @@ describe("przypomnienia - akcja całego modułu", () => {
 
     fireEvent.click(przycisk("adminEvents.list.createAction"));
     expect(ostatniAdres()).toEqual({ to: "/admin/events/new" });
+  });
+});
+
+describe("nazwy dostępne pasków filtrów", () => {
+  it("pasek zakładek ma WŁASNĄ nazwę, a nie pożyczoną z droplisty rodzaju", () => {
+    // Pasek nosił `aria-label={typeLabel}`, czyli nazwę SĄSIEDNIEJ kontrolki.
+    // Czytnik ekranu ogłaszał listę zakładek stanu („Wszystkie / Szkice /
+    // Opublikowane…") jako „Rodzaj", a ta sama nazwa dostępna wisiała na dwóch
+    // elementach naraz - przez co `getByLabelText` zwracał dwa trafienia.
+    panel();
+
+    const zakladki = screen.getByRole("tablist");
+    expect(zakladki).toHaveAccessibleName("adminEvents.list.filters.tabsLabel");
+    expect(zakladki).not.toHaveAccessibleName("adminEvents.list.filters.typeLabel");
+
+    // Kontrapunkt: droplista rodzaju SWOJĄ nazwę zachowuje. Bez tego asercja
+    // wyżej przechodziłaby także po skasowaniu etykiety z droplisty.
+    expect(dropka("adminEvents.list.filters.typeLabel")).toBeInTheDocument();
   });
 });

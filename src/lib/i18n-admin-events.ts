@@ -79,6 +79,11 @@ export const adminEventsPl = {
       },
 
       filters: {
+        // Nazwa CAŁEGO paska zakładek, osobna od nazwy droplisty rodzaju.
+        // Bez niej pasek pożyczał `typeLabel` sąsiedniej kontrolki i czytnik
+        // ekranu ogłaszał listę „Wszystkie / Szkice / Opublikowane…" jako
+        // „Rodzaj". Ta sama nazwa dostępna wisiała wtedy na dwóch elementach.
+        tabsLabel: "Stan wydarzenia",
         typeLabel: "Rodzaj",
         typeAll: "Wszystkie rodzaje",
         formatLabel: "Format",
@@ -1224,6 +1229,7 @@ export const adminEventsEn = {
       },
 
       filters: {
+        tabsLabel: "Event status",
         typeLabel: "Type",
         typeAll: "All types",
         formatLabel: "Format",

@@ -192,6 +192,8 @@ export const adminEventRegistrationPl = {
     registrations: {
       title: "Zgłoszenia",
       subtitle: "Wszystkie zapisy na to wydarzenie. Uczestnik nie musi mieć konta w systemie.",
+      prevPage: "Poprzednia strona",
+      nextPage: "Następna strona",
       searchPlaceholder: "Szukaj po nazwisku, adresie poczty, firmie albo stanowisku",
       loading: "Wczytywanie zgłoszeń…",
       empty: "Nie ma jeszcze żadnego zgłoszenia. Otwórz zapisy albo dopisz uczestnika ręcznie.",
@@ -1231,6 +1233,8 @@ export const adminEventRegistrationEn = {
     registrations: {
       title: "Applications",
       subtitle: "All registrations for this event. A participant does not need an account.",
+      prevPage: "Previous page",
+      nextPage: "Next page",
       searchPlaceholder: "Search by name, e-mail, company or job title",
       loading: "Loading applications…",
       empty: "No application yet. Open registration or add a participant by hand.",
