@@ -273,13 +273,14 @@ const T = "adminEventRegistration.tickets";
  * Termin, którego NIE MA.
  *
  * `event_tickets.sales_from`, `sales_to` i `early_bird_until` to NULL-owalne
- * `timestamptz` (migracja 20260823150000), ale wygenerowany typ obiecuje
- * `string` - i dlatego wspólna fixtura wstawia w te miejsca pusty napis, bo
- * szerszego typu po prostu nie ma. Organizm ma na to JAWNY warunek (`?? null`,
- * `!== null && !== undefined`), więc test musi umieć oddać prawdziwe `null`:
- * na pustym napisie gałąź „bez okna sprzedaży" nigdy by nie padła.
+ * `timestamptz` (migracja `20260823150000:428-429`). Wygenerowany typ obiecywał
+ * `string`, więc ta stała musiała kiedyś przemycać `null` rzutowaniem przez
+ * `unknown` - `EventTicketRow` zawęża te trzy kolumny od tego commita, więc
+ * `null` jest tu po prostu wartością dozwoloną. Organizm ma na nią jawny
+ * warunek (`?? null`), a na pustym napisie gałąź „bez okna sprzedaży" nigdy by
+ * nie padła.
  */
-const BRAK_TERMINU = null as unknown as string;
+const BRAK_TERMINU: string | null = null;
 
 function panel() {
   return render(<EventTicketsPanel eventId={SALES_IDS.event} />);

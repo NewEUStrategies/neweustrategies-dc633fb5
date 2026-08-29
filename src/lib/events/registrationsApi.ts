@@ -42,10 +42,20 @@ export type EventRegistrationRow = Fns["admin_event_registrations_list"]["Return
  */
 export type EventTicketRow = Omit<
   Fns["admin_event_tickets_list"]["Returns"][number],
-  "quota" | "early_bird_price_cents"
+  "quota" | "early_bird_price_cents" | "sales_from" | "sales_to" | "early_bird_until"
 > & {
   quota: number | null;
   early_bird_price_cents: number | null;
+  // Okno sprzedazy i termin ceny promocyjnej sa w bazie `timestamptz` BEZ
+  // NOT NULL (`20260823150000:428-429`, `CHECK (sales_from IS NULL OR ...)`),
+  // a brak okna to normalny stan biletu - „w sprzedazy od zawsze do odwolania".
+  // Kod front-endu to wie (`row.sales_from ?? null` w `EventTicketsPanel`
+  // i `ticketDraft`), wiec kłamal wylacznie typ - na tyle namacalnie, ze atrapa
+  // wiersza musiala przemycac `null` rzutowaniem, zeby w ogole dosiegnac galezi
+  // „bez okna sprzedazy".
+  sales_from: string | null;
+  sales_to: string | null;
+  early_bird_until: string | null;
 };
 export type EventRegistrationFieldRow =
   Fns["admin_event_registration_fields_list"]["Returns"][number];

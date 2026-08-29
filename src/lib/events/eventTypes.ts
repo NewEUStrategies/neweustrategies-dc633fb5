@@ -144,8 +144,34 @@ export type EventTypeAdminRow = Omit<
   icon: string | null;
 };
 
-/** Wiersz publiczny (selekt w kreatorze, filtry na liscie wydarzen). */
-export type EventTypeOption = Fns["event_types_active"]["Returns"][number];
+/**
+ * Wiersz publiczny (selekt w kreatorze, filtry na liscie wydarzen).
+ *
+ * TE SAME SZESC KOLUMN NULLOWALNYCH, co w `EventTypeAdminRow` wyzej - bo to ta
+ * sama tabela, tylko czytana druga funkcja. Zawezenie stalo dotad WYLACZNIE po
+ * stronie admina, wiec `EventCreateForm` porownywal `default_capacity === null`
+ * na wartosci, ktorej typ deklarowal jako `number`: galaz „bez limitu miejsc"
+ * w podgladzie dziedziczenia byla przez to TYPOWO NIEOSIAGALNA, a atrapa
+ * wiersza musiala klamac rzutowaniem. `CHECK (default_capacity IS NULL OR
+ * default_capacity > 0)` w `20260823120000` mowi wprost, ze NULL jest
+ * poprawnym stanem wpisu.
+ */
+export type EventTypeOption = Omit<
+  Fns["event_types_active"]["Returns"][number],
+  | "accent_color"
+  | "default_capacity"
+  | "default_duration_minutes"
+  | "description_pl"
+  | "description_en"
+  | "icon"
+> & {
+  accent_color: string | null;
+  default_capacity: number | null;
+  default_duration_minutes: number | null;
+  description_pl: string | null;
+  description_en: string | null;
+  icon: string | null;
+};
 
 /** Klucz techniczny rodzaju musi przejsc CHECK `event_types_key_format`. */
 export const EVENT_TYPE_KEY_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;

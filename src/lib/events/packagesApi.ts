@@ -24,8 +24,16 @@ type Fns = Database["public"]["Functions"];
  * o NULL-owalności. `EventPackagesPanel.tsx:188` i `packageDraft.ts:102` mają
  * na to jawne warunki - kłamał wyłącznie typ.
  */
-export type EventPackageRow = Omit<Fns["admin_event_packages_list"]["Returns"][number], "quota"> & {
+export type EventPackageRow = Omit<
+  Fns["admin_event_packages_list"]["Returns"][number],
+  "quota" | "sales_from" | "sales_to"
+> & {
   quota: number | null;
+  // Okno sprzedazy pakietu jest w bazie `timestamptz` BEZ `NOT NULL`
+  // (`20260824080000:256-257`) - brak okna znaczy „w sprzedazy do odwolania".
+  // `packageDraft.ts:103-104` czyta to przez `?? null`, wiec klamal typ.
+  sales_from: string | null;
+  sales_to: string | null;
 };
 export type EventPackageOrderRow = Fns["admin_event_package_orders_list"]["Returns"][number];
 /**

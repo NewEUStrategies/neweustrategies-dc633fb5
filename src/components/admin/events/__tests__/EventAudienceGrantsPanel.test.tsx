@@ -247,21 +247,21 @@ const UUID_OSOBY = "22222222-2222-4222-8222-222222222222";
 function grantRow(overrides: Partial<EventAudienceGrantRow> = {}): EventAudienceGrantRow {
   return {
     audience: "academic",
-    company_id: null as unknown as string,
-    company_name: null as unknown as string,
+    company_id: null,
+    company_name: null,
     created_at: "2026-08-01T09:00:00.000Z",
     event_id: EVENT_ID,
     event_title: "Kongres",
     evidence: "Legitymacja studencka 2026",
     id: "grant-a",
-    person_id: null as unknown as string,
-    revoked_at: null as unknown as string,
+    person_id: null,
+    revoked_at: null,
     state: "active",
     subject_email: "anna@uczelnia.test",
     subject_name: "Anna Kowalska",
     user_id: UUID_OSOBY,
     valid_from: "2026-08-01T09:00:00.000Z",
-    valid_until: null as unknown as string,
+    valid_until: null,
     ...overrides,
   };
 }
@@ -377,8 +377,7 @@ describe("cztery stany listy nadań", () => {
 });
 
 describe("NADANIE SIĘ NIE KASUJE - dwa stany tego samego wiersza", () => {
-  const AKTYWNE = () =>
-    grantRow({ id: "grant-a", state: "active", revoked_at: null as unknown as string });
+  const AKTYWNE = () => grantRow({ id: "grant-a", state: "active", revoked_at: null });
   const WYCOFANE = () =>
     grantRow({ id: "grant-a", state: "revoked", revoked_at: "2026-08-20T12:00:00.000Z" });
 
@@ -537,10 +536,10 @@ describe("etykieta podmiotu - nadanie zawsze wskazuje, KOGO dotyczy", () => {
     h.rows = [
       grantRow({
         audience: "company",
-        subject_name: null as unknown as string,
+        subject_name: null,
         company_name: "Fundacja Testowa",
         company_id: "33333333-3333-4333-8333-333333333333",
-        user_id: null as unknown as string,
+        user_id: null,
       }),
     ];
     renderuj();
@@ -551,15 +550,15 @@ describe("etykieta podmiotu - nadanie zawsze wskazuje, KOGO dotyczy", () => {
     h.rows = [
       grantRow({
         id: "a",
-        subject_name: null as unknown as string,
-        company_name: null as unknown as string,
+        subject_name: null,
+        company_name: null,
         subject_email: "anna@uczelnia.test",
       }),
       grantRow({
         id: "b",
-        subject_name: null as unknown as string,
-        company_name: null as unknown as string,
-        subject_email: null as unknown as string,
+        subject_name: null,
+        company_name: null,
+        subject_email: null,
         user_id: UUID_OSOBY,
       }),
     ];
@@ -573,12 +572,12 @@ describe("etykieta podmiotu - nadanie zawsze wskazuje, KOGO dotyczy", () => {
   it("nadanie bez żadnej z tych wartości pokazuje myślnik, a nie pustkę", () => {
     h.rows = [
       grantRow({
-        subject_name: null as unknown as string,
-        company_name: null as unknown as string,
-        subject_email: null as unknown as string,
-        user_id: null as unknown as string,
-        person_id: null as unknown as string,
-        company_id: null as unknown as string,
+        subject_name: null,
+        company_name: null,
+        subject_email: null,
+        user_id: null,
+        person_id: null,
+        company_id: null,
       }),
     ];
     renderuj();
@@ -588,10 +587,10 @@ describe("etykieta podmiotu - nadanie zawsze wskazuje, KOGO dotyczy", () => {
   it("nadanie kartotekowe pokazuje identyfikator osoby z kartoteki", () => {
     h.rows = [
       grantRow({
-        subject_name: null as unknown as string,
-        company_name: null as unknown as string,
-        subject_email: null as unknown as string,
-        user_id: null as unknown as string,
+        subject_name: null,
+        company_name: null,
+        subject_email: null,
+        user_id: null,
         person_id: "44444444-4444-4444-8444-444444444444",
       }),
     ];
@@ -602,7 +601,7 @@ describe("etykieta podmiotu - nadanie zawsze wskazuje, KOGO dotyczy", () => {
 
 describe("zakres i termin ważności w wierszu", () => {
   it("nadanie poza wydarzeniem mówi, że obowiązuje wszędzie", () => {
-    h.rows = [grantRow({ event_title: null as unknown as string })];
+    h.rows = [grantRow({ event_title: null })];
     renderuj();
     expect(wiersz("Anna Kowalska").textContent).toContain(
       "adminEventRegistration.audienceGrants.scopeAll",
@@ -617,7 +616,7 @@ describe("zakres i termin ważności w wierszu", () => {
 
   it("nadanie bezterminowe mówi to wprost, a terminowe pokazuje datę", () => {
     h.rows = [
-      grantRow({ id: "a", subject_name: "Bez terminu", valid_until: null as unknown as string }),
+      grantRow({ id: "a", subject_name: "Bez terminu", valid_until: null }),
       grantRow({ id: "b", subject_name: "Z terminem", valid_until: "2027-06-30T00:00:00.000Z" }),
     ];
     renderuj();
