@@ -4,12 +4,12 @@
 //
 // Kolory bierzemy z jednego źródła prawdy (`SOCIAL_OFFICIAL_COLORS`), więc gdy
 // header zmieni paletę, karta uczestnika zmienia się razem z nim.
-import type { ComponentType, CSSProperties, SVGProps } from "react";
+import type { ComponentType, SVGProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Facebook, Globe, Instagram, Linkedin, Youtube } from "@/lib/lucide-shim";
 import { XIcon } from "@/components/atoms/XIcon";
-import { BRAND_TILE_CLASS, brandTileColor } from "@/components/common/brandTile";
+import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { SOCIAL_KEYS, type SocialKey } from "@/lib/events/myEventProfileApi";
 import { cn } from "@/lib/utils";
 
@@ -24,10 +24,6 @@ const SOCIAL_ICON: Record<SocialKey, IconComponent> = {
   website: Globe,
 };
 
-/** Kolor marki kafelka; „strona www" dostaje ton firmowy platformy. */
-function brandColor(key: SocialKey): string {
-  return brandTileColor(key);
-}
 
 export interface EventSocialLinksProps {
   links: Partial<Record<SocialKey, string | null>>;
@@ -46,11 +42,7 @@ export function EventSocialLinks({ links, className, size = 36 }: EventSocialLin
       {present.map((key) => {
         const Icon = SOCIAL_ICON[key];
         const href = (links[key] ?? "").trim();
-        const style: CSSProperties & Record<"--tile-brand", string> = {
-          width: size,
-          height: size,
-          "--tile-brand": brandColor(key),
-        };
+        const style = brandTileStyle(key, { width: size, height: size });
         return (
           <li key={key}>
             <a
