@@ -343,20 +343,30 @@ export function ProfileContactRow({
   icon,
   ariaLabel,
   children,
+  brandKey = "mail",
 }: {
   icon: ReactNode;
   ariaLabel: string;
   children: ReactNode;
+  /** Klucz marki - kafelek ikony reaguje jak kafelek w nagłówku strony. */
+  brandKey?: BrandTileKey;
 }) {
   return (
     <li
-      className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
+      className="group flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
       aria-label={ariaLabel}
+      style={brandTileStyle(brandKey)}
     >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
+      <span
+        className={cn(
+          BRAND_TILE_CLASS,
+          "h-8 w-8 bg-muted/70 text-muted-foreground group-hover:border-[var(--tile-brand)] group-hover:bg-[var(--tile-brand)] group-hover:text-white group-focus-within:border-[var(--tile-brand)] group-focus-within:bg-[var(--tile-brand)] group-focus-within:text-white",
+        )}
+      >
         {icon}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
     </li>
   );
 }
+
