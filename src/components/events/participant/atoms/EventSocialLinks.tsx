@@ -61,7 +61,7 @@ export function EventSocialLinks({ links, className, size = 36 }: EventSocialLin
               aria-label={t(`eventMe.social.${key}`)}
               title={t(`eventMe.social.${key}`)}
               style={style}
-              className="inline-flex items-center justify-center rounded-[6px] border border-border bg-card text-foreground transition-colors duration-150 hover:border-[var(--tile-brand)] hover:bg-[var(--tile-brand)] hover:text-primary-foreground focus-visible:border-[var(--tile-brand)] focus-visible:bg-[var(--tile-brand)] focus-visible:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className={BRAND_TILE_CLASS}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
             </a>
