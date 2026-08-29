@@ -48,7 +48,6 @@ import type { MouseEventHandler, ReactNode } from "react";
 import type { RegistrationCounts } from "@/lib/events/registrationCounts";
 import type {
   EventRegistrationRow,
-  EventTicketRow,
   RegistrationDecisionInput,
   RegistrationsQuery,
   WaitlistPromoteInput,
