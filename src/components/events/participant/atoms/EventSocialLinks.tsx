@@ -55,7 +55,12 @@ export function EventSocialLinks({ links, className, size = 36 }: EventSocialLin
               style={style}
               className={BRAND_TILE_CLASS}
             >
-              <Icon className="h-4 w-4" aria-hidden="true" />
+              <BrandIcon
+                name={key}
+                fallback={Icon}
+                className="h-4 w-4"
+                alt={t(`eventMe.social.${key}`)}
+              />
             </a>
           </li>
         );
