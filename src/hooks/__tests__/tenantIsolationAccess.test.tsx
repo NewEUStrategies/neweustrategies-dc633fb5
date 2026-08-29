@@ -16,7 +16,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ok, type RecordedChain, type SupabaseResult } from "@/test/supabaseChain";
 
 const h = vi.hoisted(() => ({ user: { current: null as { id: string } | null } }));
-const stubs = vi.hoisted(() => ({ from: null as ReturnType<typeof import("@/test/supabaseChain").supabaseFromStub> | null }));
+const stubs = vi.hoisted(() => ({
+  from: null as ReturnType<typeof import("@/test/supabaseChain").supabaseFromStub> | null,
+}));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user.current }) }));
 
@@ -109,9 +111,7 @@ const followRows: Row[] = [
 
 /** Filtry `.eq(...)` zapisane w lancuchu - atrapa odtwarza je jak PostgREST. */
 function eqFilters(chain: RecordedChain): Array<[string, unknown]> {
-  return chain.calls
-    .filter((c) => c.method === "eq")
-    .map((c) => [c.args[0] as string, c.args[1]]);
+  return chain.calls.filter((c) => c.method === "eq").map((c) => [c.args[0] as string, c.args[1]]);
 }
 
 /** Predykat polityki wlascicielskiej po migracji: wlasciciel ORAZ tenant. */
@@ -243,7 +243,9 @@ describe("user_follows - dostep miedzy tenantami", () => {
   it("proba zapisu na cudze konto zostaje odrzucona przez polityke", () => {
     const chain = {
       table: "user_follows",
-      calls: [{ method: "upsert", args: [{ user_id: "u-b", target_type: "author", target_id: "a-8" }] }],
+      calls: [
+        { method: "upsert", args: [{ user_id: "u-b", target_type: "author", target_id: "a-8" }] },
+      ],
       has: (m: string) => m === "upsert",
       argsOf: (m: string) =>
         m === "upsert" ? [{ user_id: "u-b", target_type: "author", target_id: "a-8" }] : undefined,
