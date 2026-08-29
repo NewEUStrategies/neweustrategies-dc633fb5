@@ -67,6 +67,7 @@
     "check:careers-harness": "bash scripts/careers-harness/run.sh",
     "check:programs-harness": "bash scripts/programs-harness/run.sh",
     "check:events-harness": "bash scripts/events-harness/run.sh",
+    "check:tenant-isolation": "bash scripts/tenant-isolation-harness/run.sh",
     "test:pgtap-local": "bash scripts/pgtap-local/run.sh"
   },
   "dependencies": {
