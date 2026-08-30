@@ -71,7 +71,7 @@ pomiaru. Taksonomia modułów pochodzi z `docs/OCENA_FUNKCJI_TABELE_2026-08-14.m
    testu — nie taka, której wynik ktoś sprawdził asercją. Dlatego obok pokrycia podaję gęstość
    asercji (kolumna „asercje”) — moduł z wysokim pokryciem i niską liczbą asercji to render bez dowodu.
 2. **Pokrycie jednostkowe to nie całe pokrycie systemu.** Warstwa danych (RLS, RPC, triggery) jest
-   testowana w pgTAP (99 plików, 1 845 asercji), a ścieżki użytkownika w Playwright
+   testowana w pgTAP (99 plików, 1 793 asercji), a ścieżki użytkownika w Playwright
    (9 plików, 66 testów). Tych warstw v8 nie widzi — moduł z niskim %
    jednostkowym może mieć realną zaporę w bazie (rozdział 7).
 3. **Mapowanie plik → moduł jest MOJE, nie repo.** Repo nie ma manifestu modułów; przypisanie
@@ -136,14 +136,27 @@ vitest wychodził przy pierwszym czerwonym teście). Skutek praktyczny: ten pomi
 **Ta sama flaga ma drugą stronę i wydanie 6 dało na nią dowód — którego wtedy nie odczytałem
 poprawnie.** Skoro raport powstaje mimo czerwieni, to linie wykonane przez test, który PADŁ,
 wciąż liczą się jako pokryte: test wywraca się na asercji długo po tym, jak przeszedł przez
-mierzony kod. W wydaniu 6 dziesięć czerwonych testów w `profileShellRoutes` (zduplikowana
-szuflada profilu) kosztowało moduł 15 **0,0 pp** — napisałem wtedy, że moduł zregresował
+mierzony kod. W wydaniu 6 dziesięć czerwonych testów w `profileShellRoutes`
+kosztowało moduł 15 **0,0 pp** — napisałem wtedy, że moduł zregresował
 z 97,42% na 96,15%, i to była nieprawda: przeliczony z danych tamtego przebiegu moduł stał
 na 97,50%, czyli 0,1 pp WYŻEJ niż w wydaniu 5. Awarii nie było widać w procencie w ogóle.
 Złapał ją wyłącznie **próg per-ścieżka** `src/components/profile/**` — 91,59% linii wobec
 progu 93, 85,43% funkcji wobec 87, 83,09% gałęzi wobec 89. Dla porządku: dziś ta sama
 ścieżka mierzy **96,37% linii / 90,37% funkcji / 91,38% gałęzi / 95,03% instrukcji**,
-czyli stoi z zapasem nad każdym z czterech progów — defekt naprawiono w tym oknie.
+czyli stoi z zapasem nad każdym z czterech progów.
+
+**Drugie sprostowanie, przy okazji tego samego wątku.** Napisałem w wydaniu 6, że przyczyną
+czerwieni jest defekt produkcyjny: „szuflada profilu renderuje się DWA RAZY”. **Nie jest.**
+Dwa pasy to zamierzony kontrakt i istniał już przed tamtym pomiarem (`createPortal`
+w `src/routes/profile.tsx` jest obecny na commicie wydania 6): pas desktopowy żyje w drzewie
+treści, a mobilny wisi na `<body>`, bo inaczej sticky nagłówek strony przykryłby go
+niezależnie od `z-index`. Czerwone było **zapytanie testu**, nie produkt — `getByLabelText`
+trafiał w oba pasy naraz. Naprawa w tym oknie nie zmieniła zachowania: produkcja dostała
+znaczniki `data-sidebar-lane="desktop"/"mobile"` (afordancja testowalności, nie nowe
+zachowanie), testy zawężono do pasa, a jeden test **przypina sam kontrakt duplikacji**:
+stan zwinięty ma dokładnie jeden pas, rozwinięty dwa. Próg per-ścieżka zadziałał mimo to
+poprawnie — mierzył, że katalog przestał być wykonywany, i to była prawda. Błędna była
+moja DIAGNOZA przyczyny, nie sygnał bramki.
 Wniosek jest ogólny i wart więcej niż tamta pomyłka: **procent modułu nie jest bramką i nie
 wykrywa czerwieni.** Wykrywa ją albo sam wynik suity, albo próg postawiony na tyle wąsko,
 żeby jeden zepsuty katalog przebił się przez średnią. To jest najmocniejszy argument tej
@@ -233,7 +246,8 @@ Ruszyło 3 powierzchni (powyżej 1 pp), 22 stoi w granicach ±1 pp, 0 spadło o 
 **MODUŁ 22 (wydarzenia): 58,96% → 84,78% linii (+25,8 pp), 55,25% → 84,62% funkcji (+29,4 pp),
 plików na zerze 144 → 72.** Powierzchnia praktycznie się nie zmieniła (362 → 366 plików), więc
 to nie jest dylucja ani dostawa — to jest praca testowa na istniejącym kodzie, wykonana
-w ciągu jednego tygodnia. Rozkład po funkcjonalnościach pokazuje, że szła listą, nie losowo:
+w ciągu **dwudziestu sześciu godzin** — commity modułu rozpięte są od 29.08 12:45 do 30.08 14:56.
+Rozkład po funkcjonalnościach pokazuje, że szła listą, nie losowo:
 
 | funkcjonalność                     | wyd. 6 |      teraz |           Δ |
 | ---------------------------------- | -----: | ---------: | ----------: |
@@ -1117,6 +1131,13 @@ zatrzymanie ścieżki, nie przez wydawanie biletów.
 | Powrót do niezapłaconego zgłoszenia      | trzy wejścia: ekran potwierdzenia, `/events/<slug>/manage`, panel „Moje zgłoszenia”                                                      |
 | Dowód                                    | `e2e/event-paid-registration.spec.ts` + asercja uprzęży `events-harness/runtime_test.d/25_payment_binding.sql`                           |
 
+Domknięcie kosztowało dwie migracje: `20260830090000_event_registration_checkout_binding.sql`
+(1 119 linii) i `20260830110000_event_payment_outcome_order_conflict.sql` (362 linie). Druga
+powstała dlatego, że samo dowiązanie po `registration_id` ujawniło dwa dalsze defekty klasy P1:
+zaksięgowanie wpłaty na zgłoszeniu opłaconym już INNYM zamówieniem (dziś odmowa
+`already_settled_by_another_order`) oraz zwrot z cudzego zamówienia (`refund_for_other_order`).
+Kod QR powstaje teraz wyłącznie dla wiersza, który naprawdę zostanie wpuszczony.
+
 Dowiązanie po `registration_id` nie jest kosmetyką. Przed nim funkcja księgująca dopasowywała
 wpłatę **po osobie**, z `LIMIT 1` po dacie utworzenia — uczestnik z dwoma zgłoszeniami na to samo
 wydarzenie dostawał opłacony bilet przypięty do najnowszego wiersza, niekoniecznie tego, za który
@@ -1285,8 +1306,10 @@ szuflada profilu — linie 91,59% wobec progu 93, funkcje 85,43% wobec 87, gał�
 i `src/components/admin/billing/**` (`WebhookHealthPanel.tsx` wszedł na `main` bez testu, 25 linii,
 0 z 4 funkcji, i sam jeden zbił katalog do 88,3% wobec progu 97).
 
-**W TYM WYDANIU obie regresje są cofnięte i bramka jest w całości zielona.**
-Szuflada profilu naprawiona (plik testowy zielony, 62 testy), a panel rozliczeń pokryty nowym
+**W TYM WYDANIU obie sprawy są zamknięte i bramka jest w całości zielona.**
+Wątek szuflady profilu okazał się problemem TESTU, nie produktu (rozdz. 1): dwa pasy są
+zamierzone, zapytania testów były niejednoznaczne. Plik jest dziś zielony (62 testy),
+a panel rozliczeń pokryty nowym
 testem zamiast obniżeniem progu — katalog stoi dziś na 97,4 / 88,5 / 98,1 / 98,4.
 Cykl zamknął się więc w komplecie i jest to najlepszy dostępny dowód, że mechanizm działa:
 **próg złapał regresję, regresja została cofnięta pracą testową, próg został na miejscu.**
@@ -1311,14 +1334,14 @@ spłacenia testami, nie kolejnym re-floorem.
 
 ## 7. Sześć warstw testów — co która realnie pokrywa
 
-| Warstwa                                         | Rozmiar                                     | Co dowodzi                                                                                                                                                                                                      | Czego NIE dowodzi                                                                                            |
-| ----------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Jednostkowe / komponentowe (vitest)             | 1 863 plików, 37 517 testów, 75 051 asercji | logikę w TS/TSX, render komponentów, kontrakty modułów                                                                                                                                                          | zachowania bazy (RLS/RPC/triggery), realnych ścieżek przeglądarki, SSR end-to-end                            |
-| Baza (pgTAP)                                    | 99 plików, 1 845 asercji                    | izolację tenanta, polityki RLS, kontrakty RPC, triggery                                                                                                                                                         | kodu frontu — v8 tego pokrycia NIE liczy                                                                     |
-| E2E (Playwright)                                | 9 plików, 66 testów                         | ścieżki użytkownika, SSR, SEO, checkout                                                                                                                                                                         | pokrycia jednostkowego (osobny proces, nie wchodzi do %)                                                     |
-| Bramki statyczne (`check:*`)                    | 38 skryptów                                 | kontrakty struktury (SQL, i18n, warstwy, bundle)                                                                                                                                                                | wykonania kodu                                                                                               |
-| **Uprząż replayu migracji** (`check:*-harness`) | 5 uprzęże, 1 505 asercji runtime            | że migracje DAJĄ SIĘ WYKONAĆ na czystym Postgresie i że schemat po nich zachowuje się tak, jak deklaruje: kolizje sygnatur, funkcje bez kolumn, triggery, które nie odpalają, `EXCLUDE`, które nic nie wyklucza | kodu frontu i produkcyjnych danych — powierzchnia poza modułem jest ATRAPĄ                                   |
-| Inwarianty na ŻYWEJ bazie (vitest + sekrety)    | 2 pliki, 50 testów                          | zgodność schematu bazy z typami i parytet języków w DANYCH, nie w słownikach                                                                                                                                    | niczego bez sekretów — a ich osłona NIE odróżnia braku poświadczeń od poświadczeń zaślepkowych (patrz niżej) |
+| Warstwa                                         | Rozmiar                                              | Co dowodzi                                                                                                                                                                                                      | Czego NIE dowodzi                                                                                            |
+| ----------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Jednostkowe / komponentowe (vitest)             | 1 863 plików, 37 517 testów, 75 051 asercji          | logikę w TS/TSX, render komponentów, kontrakty modułów                                                                                                                                                          | zachowania bazy (RLS/RPC/triggery), realnych ścieżek przeglądarki, SSR end-to-end                            |
+| Baza (pgTAP)                                    | 99 plików, 1 793 asercji                             | izolację tenanta, polityki RLS, kontrakty RPC, triggery                                                                                                                                                         | kodu frontu — v8 tego pokrycia NIE liczy                                                                     |
+| E2E (Playwright)                                | 9 plików, 96 testów (66 deklaracji + parametryzacje) | ścieżki użytkownika, SSR, SEO, checkout                                                                                                                                                                         | pokrycia jednostkowego (osobny proces, nie wchodzi do %)                                                     |
+| Bramki statyczne (`check:*`)                    | 38 skryptów                                          | kontrakty struktury (SQL, i18n, warstwy, bundle)                                                                                                                                                                | wykonania kodu                                                                                               |
+| **Uprząż replayu migracji** (`check:*-harness`) | 5 uprzęże, 1 505 asercji runtime                     | że migracje DAJĄ SIĘ WYKONAĆ na czystym Postgresie i że schemat po nich zachowuje się tak, jak deklaruje: kolizje sygnatur, funkcje bez kolumn, triggery, które nie odpalają, `EXCLUDE`, które nic nie wyklucza | kodu frontu i produkcyjnych danych — powierzchnia poza modułem jest ATRAPĄ                                   |
+| Inwarianty na ŻYWEJ bazie (vitest + sekrety)    | 2 pliki, 50 testów                                   | zgodność schematu bazy z typami i parytet języków w DANYCH, nie w słownikach                                                                                                                                    | niczego bez sekretów — a ich osłona NIE odróżnia braku poświadczeń od poświadczeń zaślepkowych (patrz niżej) |
 
 To jest źródło pozornej sprzeczności: MODUŁ z ~20% pokrycia jednostkowego może być jednym
 z najlepiej zabezpieczonych w systemie, jeśli jego reguły siedzą w bazie i mają pgTAP.
@@ -1397,7 +1420,7 @@ polityk i triggerów, **Playwright** (9 plików) ścieżek użytkownika i realne
 a **bramki skryptowe `check:*`** (38) kontraktów strukturalnych, w których nie ma
 kodu do wykonania — na przykład tego, że każda bramka jest wpięta w workflow.
 
-### 7.2 Rejestr defektów: 226 wpisów — i moduł, który w jednym tygodniu zmienił zdanie
+### 7.2 Rejestr defektów: 226 wpisów — i moduł, który w jedną dobę zmienił zdanie
 
 Rozdział 7.1 argumentuje teoretycznie, że rodzaj testu waży więcej niż liczba. Ten rozdział
 pokazuje, co się dzieje, gdy powierzchnia dostanie zamówioną pracę testową — i jest to
@@ -1456,7 +1479,7 @@ tezą z 7.1 w całym tym dokumencie.
 
 Wydanie 4 zapisało rekomendację: „zamienić 24 `it.fails` na naprawy — inaczej po miesiącu staną się
 tłem”. Wydanie 5 zastało 151, to wydanie 226. Przyrost zwolnił, ale kierunek się nie odwrócił,
-a przez tydzień między wydaniami nie ubyło żadnego wpisu z pierwotnej dwudziestki czwórki.
+a między wydaniami nie ubyło żadnego wpisu z pierwotnej dwudziestki czwórki.
 Mechanizm jest przewidywalny i nie wymaga niczyjej złej woli:
 
 1. `it.fails` przechodzi, dopóki defekt istnieje. Nic w CI nie naciska na naprawę.
@@ -1534,7 +1557,7 @@ linii to większa dziura niż 20% na module o 5 tys.
 ### 8.1 Rekomendacje — kolejność, nie lista życzeń
 
 **R1. MODUŁ 22 udowodnił mechanizm. MODUŁ 14 jest następny — i tym razem wiadomo, dlaczego stoi.**
-Wydarzenia poszły w jednym tygodniu z 58,96% na **84,78% linii** i z 55,25% na **84,62% funkcji**,
+Wydarzenia poszły w **dwadzieścia sześć godzin** z 58,96% na **84,78% linii** i z 55,25% na **84,62% funkcji**,
 przy powierzchni praktycznie bez zmian (362 → 366 plików). Dziesięć z piętnastu funkcjonalności
 domknięto, jedna z zera na 100%. To nie jest anomalia ani wysiłek nadzwyczajny — to jest efekt
 zamówienia pracy listą, w kolejności, z regułami.
@@ -1573,7 +1596,24 @@ bramki zgody reklamowej: `AdSlot.tsx:38` decyduje jednym wyrażeniem
 RODO mają siedem plików testowych w `src/lib/consent/` — warstwa CMP, która te decyzje podaje
 reklamom, nie ma ani jednego.
 
-**R2. Zapadka stanęła CAŁA — drugie wydanie z rzędu, i tym razem także per-ścieżka.**
+**R2. Skok modułu 22 ominął warstwę egzekwowania — i ominął plik, o który w tym oknie chodziło.**
+Przyrost 2 748 pokrytych linii rozłożył się tak: **72,5% komponenty, 18,5% reszta biblioteki,
+7,2% API i funkcje serwerowe, 1,8% trasy**. Pokrycie urosło tam, gdzie zachowanie jest rysowane,
+a nie tam, gdzie jest egzekwowane. Dodatkowo **68 z 82 nowych plików testowych (83%) atrapuje
+własną warstwę danych** (`vi.mock` na `@/lib`, `@/components`, `@/hooks`), więc panel zdaje
+egzamin wobec atrapy tego, co sam woła.
+
+Najostrzejszy pojedynczy przypadek: commit „Domknął kasę na ścieżce zapisu etapu 4 (część A)"
+zmienił `src/lib/events/publicRegistrationApi.ts`, który przeszedł z **92,10% (35 z 38 linii)
+na 72,91% (35 z 48)** — przybyło dziesięć linii ścieżki pieniędzy i **ani jedna nie jest
+wykonywana przez żaden test**. Liczba pokrytych linii jest identyczna co do sztuki.
+
+Ścieżka ma dowód w innych warstwach (e2e i 40 asercji runtime w `25_payment_binding.sql`),
+więc to nie jest dziura w kasie — to jest dziura w rozkładzie pracy testowej. Domknięcie warstwy
+API i funkcji serwerowych modułu 22 jest tańsze niż cokolwiek innego na tej liście i powinno pójść
+przed czwórką z R9.
+
+**R3. Zapadka stanęła CAŁA — drugie wydanie z rzędu, i tym razem także per-ścieżka.**
 Próg globalny stoi na `64/62/65/58` od wydania 5, przy pomiarze `76,54/71,64/75,04/77,66` —
 margines urósł do ~12 pp. W wydaniu 6 pisałem, że nawyk nie zniknął, bo progi per-ścieżka rosły
 dalej. **W tym wydaniu nie rosną i one: 353 → 353, liczba bez zmian**, mimo że przybyło 100 plików
@@ -1590,13 +1630,13 @@ liczą. Awarii nie było widać w procencie w ogóle — złapał ją wyłączni
 `src/components/profile/**`. Procent modułu nie jest bramką i czerwieni nie wykrywa. Wykrywa ją
 próg postawiony na tyle wąsko, żeby jeden zepsuty katalog przebił się przez średnią.
 
-**R3. MODUŁ 21 — siódme wydanie z rzędu z ruchem 0,00 pp. To już nie jest zaległość, to wzorzec.**
+**R4. MODUŁ 21 — siódme wydanie z rzędu z ruchem 0,00 pp. To już nie jest zaległość, to wzorzec.**
 55,12% linii, 47,13% funkcji, 12 z 29 plików na zerze, zero progów per-ścieżka — te same liczby
 co w wydaniach 1, 2, 3, 4, 5 i 6, co do drugiego miejsca po przecinku. Najczęściej wypełniany
 formularz przez osoby z zewnątrz nie zmienił pokrycia ani razu w ciągu całej serii.
 Zaraz za nim MODUŁ 17 (32,88%, **0,0 pp od wydania 5**, 47 z 86 plików na zerze).
 
-**R4. Nadsprzedaż puli wejściówek — zarejestrowana, nie naprawiona, i to jest pieniądze klienta.**
+**R5. Nadsprzedaż puli wejściówek — zarejestrowana, nie naprawiona, i to jest pieniądze klienta.**
 Księgowanie wpłaty nie sprawdza puli **typu wejściówki**; istniejący `refundIfOversold` pilnuje
 wyłącznie pojemności całego wydarzenia. Przy wyczerpanej puli i wolnym wydarzeniu: pieniądze
 pobrane, zgłoszenie zostaje `pending/unpaid` bez kodu QR, zwrotu nie ma, powiadomienia nie ma.
@@ -1605,7 +1645,7 @@ właściwe postępowanie — decyzja o rezerwacji miejsca, świadomej nadsprzeda
 zwrocie jest produktowa, nie refaktorem. Ale pozostaje **otwarta**, a stan „wzięliśmy pieniądze
 i milczymy" jest najgorszym z możliwych.
 
-**R5. `page_full_path` — siódme wydanie, nadal nietknięte, a od tego wydania nie ma już wymówki.**
+**R6. `page_full_path` — siódme wydanie, nadal nietknięte, a od tego wydania nie ma już wymówki.**
 Sprawdzone ponownie na mierzonym HEAD: żadna z 134 migracji tego okna nie dotyka tej funkcji
 i **żaden z 99 plików pgTAP nadal jej nie wspomina**. Rekurencyjne CTE idące w górę po
 `pages.parent_id` bez predykatu najemcy, `LANGUAGE sql STABLE`, wołane spod service-role.
@@ -1619,7 +1659,7 @@ mimo `NOT NULL tenant_id`: wiersz z jednego obszaru roboczego był czytelny i ed
 a `WITH CHECK` pozwalał **zapisać** wiersz do cudzego. Naprawione migracją `20260829091010`.
 Skoro uprząż na granicę najemcy istnieje i działa, `page_full_path` należy do niej.
 
-**R6. Osłona testów na żywej bazie myli brak poświadczeń z poświadczeniami zaślepkowymi.**
+**R7. Osłona testów na żywej bazie myli brak poświadczeń z poświadczeniami zaślepkowymi.**
 `src/__tests__/db-schema-invariant.test.ts` i `src/__tests__/lang-parity.test.ts` celowo odpytują
 hostowaną bazę. Osłona brzmi `const shouldRun = Boolean(SUPABASE_URL && SUPABASE_KEY)` — i przechodzi
 dla **zaślepki**. Deweloper z `.env` ustawionym na `placeholder.supabase.co`, czyli z konfiguracją,
@@ -1627,7 +1667,7 @@ którą repozytorium samo daje, nie dostaje „pominięto, brak poświadczeń", 
 wyglądających na zepsute. Osłona ma odrzucać host zaślepkowy, a nie sprawdzać obecność zmiennej.
 Jednolinijkowa zmiana warunku; dziś działa jak strzelba na własnym progu.
 
-**R7. „Pusto" i „nie udało się wczytać" to jedna brakująca konwencja, nie 15 osobnych defektów.**
+**R8. „Pusto" i „nie udało się wczytać" to jedna brakująca konwencja, nie 15 osobnych defektów.**
 Bez zmian wobec wydań 5 i 6, bo nic się w tej sprawie nie wydarzyło — a wydanie 7 dokłada do
 wzorca kolejne przypadki z modułu wydarzeń: `EventMePanel` na odmowę `event_my_agenda` mówi
 o **pustej** agendzie i nie ma ani jednej gałęzi `isError`; `AgendaConflictsPanel` odcina brakujące
@@ -1635,21 +1675,21 @@ kolumny przez `row.x === ""`, a baza oddaje `null`; `useValidateCoupon` w module
 błąd na `not_found`, więc zerwane połączenie mówi użytkownikowi, że jego kupon jest nieprawidłowy.
 Naprawa jednostkowa kolejnych wystąpień nie zapobiega następnemu; naprawa konwencją — tak.
 
-**R8. Komentarz pomiaru w `vitest.config.ts` przekroczył granicę wprowadzania w błąd.**
+**R9. Komentarz pomiaru w `vitest.config.ts` przekroczył granicę wprowadzania w błąd.**
 Config dokumentuje `68,27 / 62,80 / 66,25 / 69,28`; pomiar niezależny daje
 `76,54 / 71,64 / 75,04 / 77,66`. Rozjazd urósł z 5,7 pp (wydanie 6) do **8,4 pp na liniach**.
 Pisałem wtedy, że jest na granicy. Granica przekroczona: to jedyne miejsce w kodzie, z którego
 czytelnik configu dowiaduje się, ile pokrycia repo ma, i mówi mu o repozytorium osiem punktów
 słabszym, niż jest.
 
-**R9. Cztery ostatnie funkcjonalności modułu 22 — praca urwała się na dziewiątej pozycji listy.**
+**R10. Cztery ostatnie funkcjonalności modułu 22 — praca urwała się na dziewiątej pozycji listy.**
 Publiczny portal wydarzenia (66,5%, +1,3 pp, 11 z 60 plików na zerze), bilety i pakiety
 (70,1%, +2,9), katalog wydarzeń (76,3%, +0,2) i rejestracja (77,1%, +0,8). Bilety to powierzchnia
 pieniędzy i `EventPackagesPanel` (59 linii), `EventTicketPurchase` (51) oraz `EventTicketCard` (32)
 stoją na zerze. Domknięcie tej czwórki jest tanie w porównaniu z tym, co już zrobiono, i kończy
 moduł.
 
-**R10. Sprawdzić, czy naprawa izolacji najemcy była kompletna.**
+**R11. Sprawdzić, czy naprawa izolacji najemcy była kompletna.**
 Migracja `20260829091010` naprawiła trzy tabele. Wzorzec defektu — polityka właścicielska
 bramkująca wyłącznie `user_id = auth.uid()` na tabeli z `NOT NULL tenant_id` — jest mechaniczny
 i da się go przeszukać. Uprząż `tenant-isolation-harness` już stoi i przyjmie kolejne asercje bez
@@ -1717,14 +1757,14 @@ Rozbijam to na pięć osobnych ocen, bo jedna liczba tego nie opisuje:
    (sześć starych plus nowy moduł 22). Dziś jest ich sześć: **ubył wyłącznie moduł 22**,
    ten jeden, który dostał zamówienie. **Żaden z sześciu pozostałych nie ruszył się o więcej
    niż 0,1 pp** — moduły 14, 17, 21, 7 i 12 mają dokładnie 0,0 pp, a powłoka admina +0,1.
-   To jest ten sam wniosek co w wydaniu 6, tylko mocniejszy o kolejny tydzień dowodu:
+   To jest ten sam wniosek co w wydaniu 6, tylko mocniejszy o kolejną dobę dowodu:
    kolejka istnieje i jest przestrzegana co do joty, ale najsłabsze powierzchnie w niej
    nie stoją. Powierzchnia rusza się wtedy i tylko wtedy, kiedy ktoś ją zamówi.
 2. **Rozkład — najlepszy w tej serii.** 6 z 25 powierzchni ma ocenę „źle”
    albo „beznadziejnie” — po 12 z 24 w wydaniu 3, 10 w wydaniu 4, 6 w wydaniu 5 i 6 w wydaniu 6.
    „Beznadziejnie” stoi na 2 (MODUŁ 14 i 17, te same co w czterech poprzednich wydaniach),
    „wzorowo” na 9, a „dobrze” urosło z 3 na 5 — bo MODUŁ 22 przeszedł z „przeciętnie”
-   (57,5) na 84,7, czyli o 27 punktów bazy w jednym tygodniu.
+   (57,5) na 84,7, czyli o 27 punktów bazy w jedną dobę.
    Model „jedno zlecenie = jedna powierzchnia, jawny cel, próg na końcu” zadziałał ósmy raz
    z rzędu i nie zawiódł ani razu w całej serii. Wydanie 6 pisało, że zadziałał po raz pierwszy
    PROFILAKTYCZNIE, bo moduł 22 wchodził z 58,96% zamiast z 25%. Wydanie 7 pokazuje drugą połowę
@@ -1736,7 +1776,7 @@ Rozbijam to na pięć osobnych ocen, bo jedna liczba tego nie opisuje:
    2,00 na test, stabilna w każdym rodzaju testu, potwierdza, że dzisiejsze liczby nie są farmione.
 4. **Infrastruktura dowodu — wzorowo.** 353 progów per-ścieżka, 38 bramek `check:*`
    (w tym META-bramka „bramka, która istnieje, musi się uruchamiać”), 99 plików pgTAP
-   z 1 845 asercjami na RLS i RPC, klasyfikacja testów na jedenaście rodzajów — a w tym wydaniu
+   z 1 793 asercjami na RLS i RPC, klasyfikacja testów na jedenaście rodzajów — a w tym wydaniu
    szósta warstwa dowodu urosła: **5 uprzęży** replayu migracji z 1 505
    asercjami runtime, z czego 1 050 w uprzęży wydarzeń. Piąta jest nowa w tym wydaniu
    (`tenant-isolation-harness`) i powstała, bo polityki właścicielskie trzech tabel bramkowały
@@ -1770,7 +1810,7 @@ rosnącej z 817 do 1 863 plików i z ~8,3 tys. do 49 354 testów, to nie jest no
 Trzynaście modułów przeszło z kilkunastu procent do ponad 80: edytor **+91,0 pp**, CRM +87,0, chrome
 +79,8, profil i konto +78,5, **newsletter +72,8**, kluby +71,6, ustawienia i RODO +71,2, wygląd/media
 +69,6, wyszukiwarka +64,2, wpisy +52,5, SEO +46,4, bloki i builder +36,4, billing +34,3.
-Do tej listy dochodzi w tym wydaniu **moduł 22 z +25,8 pp w siedem dni** — najszybszy pojedynczy
+Do tej listy dochodzi w tym wydaniu **moduł 22 z +25,8 pp w dwadzieścia sześć godzin** — najszybszy pojedynczy
 skok dużej powierzchni w całej serii.
 
 Wydanie 6 zapisało tu obserwację, że **moduł zbudowany od zera przy włączonym reżimie testowym
@@ -1778,15 +1818,96 @@ wchodzi na 60%, a nie na 25%** — wszystkie wcześniejsze duże powierzchnie te
 startowały z 24–28% i wymagały kosztownego zadania ratunkowego. Wydanie 7 dokłada do tego
 drugą połowę i jest ona mniej pocieszająca: **wejście z 59% nie sprawiło, że moduł domknął się
 sam.** Stał w miejscu, dopóki nie dostał zamówienia — a kiedy je dostał, zamknął dziesięć
-funkcjonalności w tydzień. Reżim obniża koszt pracy, ale jej nie zastępuje.
+funkcjonalności w dobę. Reżim obniża koszt pracy, ale jej nie zastępuje.
 
 **Jedno zdanie, gdyby trzeba było wybrać jedno.** W wydaniu 6 napisałem, że pytanie nie brzmi
 już „czy da się”, tylko „w jakiej kolejności”. Wydanie 7 odpowiada na to twardym dowodem
 i jednocześnie zawęża pytanie: kolejność działa bezbłędnie — ósma powierzchnia z rzędu
 domknięta na zamówienie — ale **poza kolejką nie dzieje się nic**. Sześć modułów poniżej 60%
-ma dziś dokładnie takie same liczby jak tydzień temu, a trzy z nich mają je takie same
+ma dziś dokładnie takie same liczby jak wczoraj, a trzy z nich mają je takie same
 od siedmiu wydań. To nie jest problem zdolności ani tempa. To jest problem tego, czy ktoś
 wpisze moduł 14 na listę.
+
+---
+
+### 8.3 Czy ten wynik jest „dramatyczny” — sprawdzenie własnego słowa
+
+Pisząc ten dokument nazwałem wynik modułu 22 dramatycznym. Słowo padło, zanim je sprawdziłem,
+więc sprawdzam je tutaj — pięcioma niezależnymi ujęciami i trzema próbami jego obalenia.
+Odpowiedź jest podzielona i to jest jej treść: **dramatyczna jest KONCENTRACJA i KOMPRESJA,
+nie wielkość skoku.**
+
+**Co słowa NIE broni.** Skok +25,82 pp to dopiero **15. miejsce na 145** par moduł×okno w całej
+serii; czołówka to +91,08 pp (moduł 2), +86,95 (18), +79,44 (5), +65,09 (19). Korekta na niską
+bazę, która miała ten wynik uratować, nie ratuje go: moduł skonsumował 62,91% dostępnego zapasu,
+co daje **13. miejsce na 145** — powyżej stoi dwanaście par, z czego pięć powyżej 95%.
+W ujęciu bezwzględnym jest w ścisłej czołówce, ale też nie na szczycie: 2 748 nowo pokrytych
+linii to 4. wynik serii, 1 165 funkcji — 3., spadek plików zerowych o 72 — 3.
+Gorzej: to **dwunasta „kampania domknięcia” w tej serii i najsłabsza z dwunastu** — najniższy skok
+punktowy przy najwygodniejszej bazie startowej. A sam moduł 22 dostał w POPRZEDNIM oknie
+2,2 razy więcej pokrytych linii niż w tym, które nazwałem dramatycznym.
+
+**Czego słowo broni, i to rekordowo.** Moduł 22 wchłonął **83,9% całego przyrostu pokrytych linii
+tego okna** (2 748 z 3 274). To rekord koncentracji w całej serii — poprzednie maksimum wynosiło
+56,4%, a w oknie wydania 1→2 największy moduł odpowiadał za 11,9%. Indeks koncentracji HHI
+wynosi 0,711 wobec poprzedniego rekordu 0,481, a przewaga nad drugą powierzchnią jest
+**7,2-krotna** wobec poprzedniego rekordu 2,3.
+
+Druga rzecz to zegar. Okno trwało **1,47 doby**, nie tydzień, jak najpierw napisałem —
+i to jest błąd działający **na niekorzyść** własnej tezy: przy siedmiu dniach tempo wyniosłoby
+393 linie na dobę i 22. miejsce, przy prawdziwym oknie wynosi 1 873 i 10. miejsce.
+Ostrzej: **jedenaście commitów niosących w temacie etykiety zamówionej listy (A5, B1–B9) mieści
+się w czterech godzinach i dwunastu minutach** 30 sierpnia, między 10:52 a 15:02. W tym czasie
+zamknięto dziesięć funkcjonalności, w tym jedną z zera na 100%.
+
+**Trzecia rzecz — i najważniejsza dla oceny, bo to zarzut, nie pochwała.** Sprawdziłem, czy skok
+nie jest wyfarmiony, tym samym testem, którym to repozytorium raz już zawyżyło wynik
+(98% z warstwy renderów bez asercji). **Nie jest**, i to dość jednoznacznie: zero przypadków bez
+`expect`, zero pętli renderujących bez asercji, zero snapshotów, zero atrapowania jednostki
+testowanej; gęstość 3,81 asercji na przypadek wobec 3,85 średniej repo; **34,5% nazw przypadków
+nazywa błąd, odmowę albo limit** wobec 26,7% w repo; 61 z 82 nowych plików uruchamia `axe`,
+gdy przedtem cały moduł miał jeden taki plik; doszło pięć nowych bramek parytetu stałych z bazą.
+Koszt jednostkowy jest przy tym **najwyższy w całym zestawieniu** — 15,6 linii kodu testowego
+na jedną nowo pokrytą linię produkcyjną — a farmienie pokrycia nie produkuje najdroższych testów.
+
+---
+
+### 8.4 Gdzie ten skok NIE dotarł — i dlaczego to jest najważniejsza linijka wydania
+
+Sprawdzanie własnego słowa wywołało znalezisko, którego nie szukałem. **Przyrost 2 748 linii
+rozłożył się bardzo nierówno po warstwach:**
+
+| Warstwa                                                        | Nowo pokrytych linii |    Udział |
+| -------------------------------------------------------------- | -------------------: | --------: |
+| komponenty (render, panele, dialogi)                           |                1 993 | **72,5%** |
+| pozostała biblioteka domenowa                                  |                  509 |     18,5% |
+| API i funkcje serwerowe (`*Api.ts`, `.server.`, `.functions.`) |                  198 |  **7,2%** |
+| trasy                                                          |                   49 |      1,8% |
+
+Pokrycie urosło tam, gdzie zachowanie jest RYSOWANE, a nie tam, gdzie jest EGZEKWOWANE.
+Dodatkowo **68 z 82 nowych plików testowych (83%) atrapuje własną warstwę danych** —
+`vi.mock` na `@/lib`, `@/components` albo `@/hooks`. Panel zdaje egzamin wobec atrapy tego,
+co sam woła; sama wołana warstwa może pozostać nieprzetestowana i część z niej pozostała.
+
+**A teraz najostrzejsze.** Nagłówkowym osiągnięciem tego okna jest domknięcie ścieżki płatniczej
+(rozdz. 5.5). Commit, który to zrobił, nosi temat „Domknął kasę na ścieżce zapisu etapu 4
+(część A)”. Plik, który przy tym zmienił — `src/lib/events/publicRegistrationApi.ts` — stoi tak:
+
+|                 | wydanie 6 |   wydanie 7 |
+| --------------- | --------: | ----------: |
+| pokrycie linii  |    92,10% |  **72,91%** |
+| linii pokrytych |   35 z 38 | **35 z 48** |
+
+Przybyło dziesięć linii ścieżki pieniędzy i **ani jedna z nich nie jest wykonywana przez żaden
+test**. Liczba linii pokrytych jest identyczna co do sztuki: 35 przed, 35 po. Procent tego pliku
+spadł o 19,2 pp w oknie, które w skali modułu wygląda na +25,8.
+
+To nie unieważnia dostawy — ścieżka płatnicza ma dowód w innych warstwach: test
+`e2e/event-paid-registration.spec.ts` i 40 asercji runtime w nowym pliku uprzęży
+`25_payment_binding.sql`. Ale jest to dokładnie ta sytuacja, przed którą ostrzega rozdział 7:
+**procent modułu może rosnąć o dwadzieścia sześć punktów i jednocześnie nie dotknąć tego
+jednego pliku, o który w tym oknie chodziło najbardziej.** Średnia modułu nie jest bramką —
+tak samo, jak nie była nią przy szufladzie profilu w wydaniu 6 (rozdz. 1).
 
 ---
 
