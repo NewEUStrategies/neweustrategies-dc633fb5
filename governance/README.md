@@ -141,6 +141,11 @@ Cztery kroki, wszystkie wymagane:
 Krok 3 jest istotą zapadki: bez niego obsadzenie nie zostawia śladu i liczba może
 po cichu wrócić w górę.
 
+Bramka odrzuca **obsadzenie pozorne**: wpis z `obsadzone: true` musi mieć
+niepuste `kontakt` i organizację inną niż `NIEOBSADZONE`. Bez tego samo
+przestawienie booleana przy wpisie-zaślepce oznaczyłoby wszystkie 9 domen jako
+mające właściciela, bo wszystkie wskazują ten jeden wpis.
+
 ### 3.4 Dodaję domenę
 
 Nowy wpis w `domeny` musi mieć **niepustą** listę tras albo obiektów bazy -
@@ -159,11 +164,21 @@ usunięcie linii, a chroni przed rejestrem opisującym system sprzed roku.
 
 ## 4. Progi (zapadki)
 
-| Próg                   |  Dziś | Co znaczy                                       | Wolno ruszać    |
-| ---------------------- | ----: | ----------------------------------------------- | --------------- |
-| `domenyBezWlasciciela` | **9** | Ile domen może nie mieć obsadzonego właściciela | **tylko w dół** |
-| `migracjeBezAtrybucji` | **5** | Ile migracji może zostać bez trafienia (§5.1)   | **tylko w dół** |
-| `martweReguly`         | **0** | Ile reguł może nie trafiać już w nic            | **tylko w dół** |
+| Próg                            |             Dziś | Co znaczy                                                                                                                                              | Wolno ruszać     |
+| ------------------------------- | ---------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `domenyBezWlasciciela`          |            **9** | Ile domen może nie mieć obsadzonego właściciela                                                                                                        | **tylko w dół**  |
+| `migracjeBezAtrybucjiDozwolone` | **lista 5 nazw** | Migracje, o których wiadomo, że heurystyka ich nie rozstrzygnie (§5.1). **Lista, nie liczba** - dzięki temu komunikat pokazuje wyłącznie migracje NOWE | **tylko krócej** |
+| `martweWzorceTras`              |            **0** | Ile wzorców TRAS może nie trafiać w żaden plik. Prefiksy bazy są tylko ostrzeżeniem - patrz niżej                                                      | **tylko w dół**  |
+
+Martwy **prefiks bazy** NIE blokuje - jest tylko ostrzeżeniem. Prefiks opisuje
+rodzinę tabel, a nie plik: po spłaszczeniu albo przycięciu historii migracji
+reguła przestaje trafiać, choć tabele istnieją i mają właściciela. Kasowanie jej
+na polecenie bramki niszczyłoby poprawną informację.
+
+**Czego zapadki NIE robią:** nic w repo nie porównuje ich z wartością z gałęzi
+bazowej, więc podniesienie progu w tym samym commicie, który psuje pokrycie,
+przejdzie przez bramkę. Zapadka jest konwencją wspartą przeglądem PR-a, nie
+inwariantem maszynowym.
 
 To ta sama zasada, którą repo stosuje do progów pokrycia w `vitest.config.ts`
 („ten próg wolno wyłącznie podnosić" - tam wyżej znaczy lepiej, tu niżej).
@@ -178,7 +193,7 @@ Cztery warstwy; każda uruchamia się dopiero wtedy, gdy poprzednia nic nie znal
 
 | Warstwa            | Co robi                                                                                  | Dziś |
 | ------------------ | ---------------------------------------------------------------------------------------- | ---: |
-| 1 `identyfikatory` | Identyfikatory specyficzne, ważone rzadkością `1/log2(1+df)`; wygrywa domena z max. sumą |  892 |
+| 1 `identyfikatory` | Identyfikatory specyficzne, ważone rzadkością `1/log2(1+df)`; wygrywa domena z max. sumą |  893 |
 | 1.5 `literaly`     | Skan surowego tekstu po nazwach ≥ 8 znaków - dla `DO $$` i dynamicznego SQL              |    3 |
 | 2 `przekrojowe`    | Dopiero teraz `tier2` (`profiles`, `tenants`, `has_role`, …) jako sygnał słaby           |   18 |
 | 3 `brak`           | Brak trafienia → ostatnia domena rejestru                                                |    5 |
@@ -210,6 +225,22 @@ Code Owners". Bramka własnicielska nie ma prawa zatrzymać wydania.
 
 Kolejność aktywacji: załóż zespół → `obsadzone: true` w rejestrze →
 `bun run generate:codeowners` → obniż próg (§3.3).
+
+**Domeny są w tym pliku wypisane w kolejności ODWROTNEJ niż w rejestrze i nie
+jest to pomyłka.** GitHub rozstrzyga nakładające się wzorce regułą OSTATNIEGO
+trafienia, a rejestr regułą PIERWSZEGO. Emisja „po kolei" dałaby plik kierujący
+przeglądy dokładnie odwrotnie, niż mówi rejestr. Nie sortuj CODEOWNERS.
+
+Plik pokrywa **wyłącznie trasy**. Migracji nie da się w nim wyrazić: nazwy to
+znaczniki czasu i UUID-y, więc nie istnieje wzorzec ścieżki oddzielający domeny.
+Własnicielstwo migracji egzekwuje `check:ownership`, nie CODEOWNERS.
+
+### 6.1 Wzorzec-łapacz
+
+Bramka odrzuca pojedynczy wzorzec tras biorący ponad **40%** wszystkich tras.
+Bez tego progu całą bramkę tras da się uciszyć jedną linią (`admin.*` w dowolnej
+domenie: 100% pokrycia, zero informacji). Najszerszy uczciwy wzorzec w tym
+rejestrze (`admin.events_.$eventId.*`) bierze 20,2%, więc zapas jest dwukrotny.
 
 ---
 

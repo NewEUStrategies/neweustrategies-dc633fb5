@@ -33,17 +33,28 @@
 // niepewność była widoczna, a nie schowana za zieloną bramką.
 //
 // ── ZAPADKI (ratchet) ───────────────────────────────────────────────────────
-// Trzy progi w `governance/ownership.json` wolno WYŁĄCZNIE obniżać - ta sama
+// Progi w `governance/ownership.json` wolno WYŁĄCZNIE zacieśniać - ta sama
 // zasada, którą repo stosuje do progów pokrycia w `vitest.config.ts`:
 //   * `domenyBezWlasciciela` - dziś 9, bo w repo nie ma ANI JEDNEGO
 //     indywidualnego uchwytu GitHub ani osobowego adresu, a wymyślanie ludzi
 //     byłoby fikcją. Próg pilnuje, żeby liczba domen bez właściciela nie
 //     ROSŁA, i spada przy każdym realnym obsadzeniu roli;
-//   * `migracjeBezAtrybucji` - dziś 5 (0,5% korpusu): trzy puste placeholdery,
-//     `CREATE EXTENSION pgtap` i pętla `DO $$` odwołująca się do funkcji
-//     wyłącznie przez `format()`. To podłoga metody, nie zaniedbanie;
-//   * `martweReguly` - dziś 0: wzorzec tras albo prefiks bazy, który nie
-//     trafia już w nic, jest zgnilizną rejestru i ma się nie pojawiać.
+//   * `migracjeBezAtrybucjiDozwolone` - LISTA NAZW, nie liczba. Liczba nie
+//     odróżniała pliku z linii bazowej od świeżo dodanego: przy progu 5
+//     i pięciu plikach bazowych szósta migracja dawała komunikat z sześcioma
+//     UUID-ami i żadnym wskazaniem, który jest nowy. Dziś na liście są cztery
+//     pliki (trzy puste placeholdery i `CREATE EXTENSION pgtap`) plus pętla
+//     `DO $$` sięgająca funkcji wyłącznie przez `format()`;
+//   * `martweWzorceTras` - dziś 0: wzorzec tras, który nie trafia w żaden plik,
+//     jest zgnilizną rejestru. Dotyczy WYŁĄCZNIE tras. Prefiksy bazy są tylko
+//     raportowane jako ostrzeżenie, bo opisują rodzinę tabel, a nie plik -
+//     po spłaszczeniu historii migracji przestają trafiać, choć tabele istnieją,
+//     i kasowanie ich na polecenie bramki niszczyłoby poprawną informację.
+//
+// Czego zapadki NIE robią: nic w repo nie porównuje ich z wartością z gałęzi
+// bazowej, więc podniesienie progu w tym samym commicie, który psuje pokrycie,
+// przejdzie przez bramkę. Zapadka jest tu konwencją wspartą przeglądem PR-a,
+// nie inwariantem maszynowym - i lepiej to napisać, niż udawać inaczej.
 //
 // Warstwa wykonawcza (odczyt katalogów, kod wyjścia) żyje w
 // `scripts/check-ownership.ts`; ten moduł jest czysty i testowalny.
@@ -86,8 +97,14 @@ export interface OwnershipContract {
 
 export interface OwnershipThresholds {
   readonly domenyBezWlasciciela: number;
-  readonly migracjeBezAtrybucji: number;
-  readonly martweReguly: number;
+  readonly martweWzorceTras: number;
+  /**
+   * Migracje, o których WIADOMO, że heurystyka ich nie rozstrzygnie - wypisane
+   * z nazwy, nie policzone. Liczba nie odróżniała pliku z linii bazowej od
+   * świeżo dodanego: przy progu 5 i pięciu plikach bazowych szósta migracja
+   * dawała komunikat z sześcioma UUID-ami i żadnym wskazaniem, który jest nowy.
+   */
+  readonly migracjeBezAtrybucjiDozwolone: readonly string[];
 }
 
 export interface OwnershipRegistry {
@@ -129,20 +146,36 @@ export interface OwnershipReport {
     readonly total: number;
     readonly unmatched: readonly string[];
     readonly overlapping: readonly RouteAttribution[];
+    /** Wzorce zbyt szerokie, by cokolwiek znaczyły - patrz CATCH_ALL_SHARE. */
+    readonly catchAll: readonly string[];
     readonly perDomain: Readonly<Record<string, number>>;
   };
   readonly migrations: {
     readonly total: number;
     readonly noHit: readonly string[];
+    /** Migracje bez atrybucji SPOZA listy bazowej - to one blokują. */
+    readonly noHitNowe: readonly string[];
+    /** Wpisy listy bazowej, które dziś dają się już przypisać - do usunięcia. */
+    readonly noHitNieaktualne: readonly string[];
     readonly weak: number;
     readonly perDomain: Readonly<Record<string, number>>;
     readonly perTier: Readonly<Record<MigrationTier, number>>;
   };
-  readonly deadRules: readonly string[];
+  /** Wzorce tras, które nie trafiają w żaden plik - blokujące. */
+  readonly deadRoutePatterns: readonly string[];
+  /**
+   * Prefiksy bazy bez trafienia - WYŁĄCZNIE ostrzeżenie. Prefiks opisuje rodzinę
+   * tabel, a nie plik: po spłaszczeniu albo przycięciu historii migracji reguła
+   * przestaje trafiać, mimo że tabele istnieją i mają właściciela. Kasowanie jej
+   * na polecenie bramki niszczyłoby poprawną informację o własnicielstwie.
+   */
+  readonly deadDbRules: readonly string[];
   readonly people: {
     readonly unstaffedDomains: readonly string[];
     readonly danglingRefs: readonly string[];
     readonly ownerEqualsDeputy: readonly string[];
+    /** Wpisy `obsadzone: true` bez danych kontaktowych - obsadzenie pozorne. */
+    readonly staffedWithoutContact: readonly string[];
   };
   readonly documents: {
     readonly missing: readonly string[];
@@ -231,11 +264,11 @@ export function parseRegistry(raw: unknown): OwnershipRegistry {
       thresholdsRaw["domenyBezWlasciciela"],
       "progi.domenyBezWlasciciela",
     ),
-    migracjeBezAtrybucji: asNumber(
-      thresholdsRaw["migracjeBezAtrybucji"],
-      "progi.migracjeBezAtrybucji",
+    martweWzorceTras: asNumber(thresholdsRaw["martweWzorceTras"], "progi.martweWzorceTras"),
+    migracjeBezAtrybucjiDozwolone: asStringArray(
+      thresholdsRaw["migracjeBezAtrybucjiDozwolone"],
+      "progi.migracjeBezAtrybucjiDozwolone",
     ),
-    martweReguly: asNumber(thresholdsRaw["martweReguly"], "progi.martweReguly"),
   };
 
   const crossCutting = asRecord(root["identyfikatoryPrzekrojowe"], "identyfikatoryPrzekrojowe");
@@ -301,6 +334,26 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${body}$`);
 }
 
+/**
+ * Udział tras, powyżej którego POJEDYNCZY wzorzec przestaje cokolwiek znaczyć.
+ *
+ * Bez tego progu bramkę tras da się uciszyć JEDNĄ LINIĄ w rejestrze: wzorzec
+ * `admin.*` w dowolnej domenie daje 100% pokrycia, zero niedopasowanych i zero
+ * informacji o tym, kto właściwie za co odpowiada. Zmierzone na tym rejestrze:
+ * najszerszy uczciwy wzorzec (`admin.events_.$eventId.*`) bierze 39 z 193 tras,
+ * czyli 20,2% - próg 40% zostawia więc dwukrotny zapas dla realnych domen,
+ * a zamyka drogę łapaczowi.
+ */
+const CATCH_ALL_SHARE = 0.4;
+
+/**
+ * Poniżej tylu tras UDZIAŁ nic nie znaczy i reguła łapacza zwraca się przeciwko
+ * uczciwym wzorcom: w zbiorze dwuelementowym wzorzec trafiający jeden plik ma
+ * 50% i wyglądałby na łapacza. Ta sama pułapka co przy `UBIQUITOUS_MIN_CORPUS`
+ * - próg procentowy wymaga próbki, w której procent ma sens.
+ */
+const CATCH_ALL_MIN_ROUTES = 20;
+
 export function attributeRoutes(
   files: readonly string[],
   domains: readonly OwnershipDomain[],
@@ -321,8 +374,12 @@ export function attributeRoutes(
     if (matched.length === 0) {
       return { file, domain: null, pattern: null, alsoMatched: [] };
     }
+    // Do „użytych" liczy się KAŻDY wzorzec, który trafił, a nie tylko zwycięski.
+    // Inaczej wzorzec całkowicie przesłonięty przez wcześniejszą domenę byłby
+    // raportowany jako MARTWY, mimo że opisuje istniejące pliki - a lekarstwo
+    // („usuń regułę") skasowałoby poprawną informację o własnicielstwie.
+    for (const hit of matched) usedPatterns.add(hit.glob);
     const winner = matched[0];
-    usedPatterns.add(winner.glob);
     const alsoMatched = [...new Set(matched.slice(1).map((hit) => hit.slug))].filter(
       (slug) => slug !== winner.slug,
     );
@@ -339,15 +396,98 @@ export function attributeRoutes(
  * i blokowe oraz literały napisowe. Ciała `$$ ... $$` ZOSTAJĄ - to w nich
  * siedzi większość odwołań w funkcjach SECURITY DEFINER.
  *
- * (Repo ma pokrewny `stripSqlComments` w `scripts/lib/sqlMigrations.ts`, ale
- * tamten świadomie zachowuje literały - bramki SQL badają ich treść. Tutaj
- * literały są szumem, więc potrzebna jest własna, ostrzejsza wersja.)
+ * JEDEN PRZEBIEG, NIE TRZY `replace`. Łańcuch trzech wyrażeń regularnych jest
+ * tu nie do uratowania w ŻADNEJ kolejności, bo komentarz i literał wzajemnie
+ * się zagnieżdżają:
+ *
+ *   * komentarze przed literałami → `'--'` w literale (`WHERE sep = '--'`)
+ *     zjada resztę linii razem z prawdziwym SQL-em;
+ *   * literały przed komentarzami → apostrof w komentarzu (`-- to nie działa`,
+ *     `-- don't`) otwiera fikcyjny literał i połyka wszystko do następnego
+ *     apostrofu, czasem kilka instrukcji dalej.
+ *
+ * Skaner stanowy nie ma tego problemu: w komentarzu apostrof jest zwykłym
+ * znakiem, a w literale `--` jest zwykłym znakiem. Postgres dopuszcza
+ * ZAGNIEŻDŻONE komentarze blokowe, więc bloki liczone są licznikiem
+ * zagnieżdżenia, a nie leniwym dopasowaniem do pierwszego domknięcia.
+ *
+ * (Repo ma pokrewny `stripSqlComments` w `scripts/lib/sqlMigrations.ts` -
+ * ten sam wzorzec skanera, ale tamten świadomie ZACHOWUJE literały, bo bramki
+ * SQL badają ich treść. Tutaj literały są szumem.)
  */
 export function stripSqlNoise(sql: string): string {
-  return sql
-    .replace(/--[^\n]*/g, " ")
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/'(?:[^']|'')*'/g, " '' ");
+  let out = "";
+  let i = 0;
+
+  while (i < sql.length) {
+    const char = sql[i];
+    const pair = sql.slice(i, i + 2);
+
+    if (pair === "--") {
+      while (i < sql.length && sql[i] !== "\n") i += 1;
+      out += " ";
+      continue;
+    }
+
+    if (pair === "/*") {
+      let depth = 1;
+      i += 2;
+      while (i < sql.length && depth > 0) {
+        const inner = sql.slice(i, i + 2);
+        if (inner === "/*") {
+          depth += 1;
+          i += 2;
+        } else if (inner === "*/") {
+          depth -= 1;
+          i += 2;
+        } else {
+          if (sql[i] === "\n") out += "\n";
+          i += 1;
+        }
+      }
+      out += " ";
+      continue;
+    }
+
+    if (char === "'") {
+      i += 1;
+      while (i < sql.length) {
+        if (sql[i] === "'") {
+          // `''` to zaszytowany apostrof, nie koniec literału.
+          if (sql[i + 1] === "'") {
+            i += 2;
+            continue;
+          }
+          i += 1;
+          break;
+        }
+        if (sql[i] === "\n") out += "\n";
+        i += 1;
+      }
+      out += " '' ";
+      continue;
+    }
+
+    // Cudzysłowy to identyfikatory ("Nazwa Tabeli"), a nie literały - zostają.
+    if (char === '"') {
+      out += char;
+      i += 1;
+      while (i < sql.length && sql[i] !== '"') {
+        out += sql[i];
+        i += 1;
+      }
+      if (i < sql.length) {
+        out += sql[i];
+        i += 1;
+      }
+      continue;
+    }
+
+    out += char;
+    i += 1;
+  }
+
+  return out;
 }
 
 const SCHEMAS = "public|storage|auth|extensions";
@@ -532,10 +672,24 @@ export function matchIdentifier(id: string, rules: RuleIndex): [string, string] 
     }
   }
   // Ostatnia szansa: nazwa z prefiksem czasownikowym spoza listy (`purge_club_x`).
+  // Wygrywa dopasowanie NAJWCZEŚNIEJSZE, a przy równej pozycji najdłuższe -
+  // rzeczownik główny stoi w nazwie funkcji przed dopełnieniami. Sama „najdłuższy
+  // klucz wygrywa" dawała tu błędy: `mark_push_subscription_failed` trafiał
+  // w `subscription` (monetyzacja) zamiast w stojące wcześniej `push_` (platforma).
+  let bestKey: string | null = null;
+  let bestAt = Number.MAX_SAFE_INTEGER;
   for (const key of rules.keys) {
     if (key.endsWith("$") || key.length < 5) continue;
-    if (id.includes(key)) return [rules.domainOf[key], key];
+    const at = id.indexOf(key);
+    if (at === -1) continue;
+    // `rules.keys` jest posortowane malejąco po długości, więc przy równej
+    // pozycji pierwszy trafiony jest zarazem najdłuższy.
+    if (at < bestAt) {
+      bestAt = at;
+      bestKey = key;
+    }
   }
+  if (bestKey !== null) return [rules.domainOf[bestKey], bestKey];
   return null;
 }
 
@@ -692,13 +846,27 @@ export function analyzeOwnership(input: OwnershipInput): OwnershipReport {
     perTier[attribution.tier] += 1;
   }
 
-  const deadRules: string[] = [];
+  // Wzorzec-łapacz: formalnie daje pokrycie, faktycznie kasuje własnicielstwo.
+  const patternHits = new Map<string, number>();
+  for (const attribution of routes.attributions) {
+    if (attribution.pattern === null) continue;
+    patternHits.set(attribution.pattern, (patternHits.get(attribution.pattern) ?? 0) + 1);
+  }
+  const catchAll = (
+    routes.attributions.length < CATCH_ALL_MIN_ROUTES ? [] : [...patternHits.entries()]
+  )
+    .filter(([, hits]) => hits > routes.attributions.length * CATCH_ALL_SHARE)
+    .map(([glob, hits]) => `'${glob}' bierze ${hits} z ${routes.attributions.length} tras`)
+    .sort();
+
+  const deadRoutePatterns: string[] = [];
+  const deadDbRules: string[] = [];
   for (const domain of registry.domeny) {
     for (const glob of domain.trasy) {
-      if (!routes.usedPatterns.has(glob)) deadRules.push(`${domain.slug}: trasa '${glob}'`);
+      if (!routes.usedPatterns.has(glob)) deadRoutePatterns.push(`${domain.slug}: '${glob}'`);
     }
     for (const key of domain.obiektyBazy) {
-      if (!migrations.usedRules.has(key)) deadRules.push(`${domain.slug}: obiekt '${key}'`);
+      if (!migrations.usedRules.has(key)) deadDbRules.push(`${domain.slug}: '${key}'`);
     }
   }
 
@@ -722,12 +890,33 @@ export function analyzeOwnership(input: OwnershipInput): OwnershipReport {
     if (owner !== undefined && !owner.obsadzone) unstaffedDomains.push(domain.slug);
   }
 
+  // Obsadzenie pozorne: samo przestawienie `obsadzone` na `true` przy wpisie
+  // zaślepce oznaczyłoby WSZYSTKIE domeny jako mające właściciela, bo wszystkie
+  // wskazują ten jeden wpis. Obsadzony znaczy: ma się z kim skontaktować.
+  const staffedWithoutContact = Object.entries(registry.osoby)
+    .filter(
+      ([, person]) =>
+        person.obsadzone && (person.kontakt === null || person.organizacja === "NIEOBSADZONE"),
+    )
+    .map(([id, person]) =>
+      person.kontakt === null
+        ? `${id}: 'obsadzone: true' bez pola 'kontakt'`
+        : `${id}: 'obsadzone: true' przy organizacji 'NIEOBSADZONE'`,
+    )
+    .sort();
+
   const missingDocuments = Object.entries(input.documentExists)
     .filter(([, exists]) => !exists)
     .map(([path]) => path)
     .sort();
 
   const daysLeft = daysBetween(input.today, registry.kontraktUtrzymaniowy.obowiazujeDo);
+
+  const noHit = migrations.attributions
+    .filter((attribution) => attribution.tier === "brak")
+    .map((attribution) => attribution.file);
+  const allowedNoHit = new Set(registry.progi.migracjeBezAtrybucjiDozwolone);
+  const presentMigrations = new Set(input.migrations.map((source) => source.file));
 
   return {
     routes: {
@@ -736,19 +925,23 @@ export function analyzeOwnership(input: OwnershipInput): OwnershipReport {
         .filter((attribution) => attribution.domain === null)
         .map((attribution) => attribution.file),
       overlapping: routes.attributions.filter((attribution) => attribution.alsoMatched.length > 0),
+      catchAll,
       perDomain: routesPerDomain,
     },
     migrations: {
       total: migrations.attributions.length,
-      noHit: migrations.attributions
-        .filter((attribution) => attribution.tier === "brak")
-        .map((attribution) => attribution.file),
+      noHit,
+      noHitNowe: noHit.filter((file) => !allowedNoHit.has(file)),
+      noHitNieaktualne: [...allowedNoHit]
+        .filter((file) => !noHit.includes(file) && presentMigrations.has(file))
+        .sort(),
       weak: migrations.attributions.filter((attribution) => attribution.votes === 1).length,
       perDomain: migrationsPerDomain,
       perTier,
     },
-    deadRules,
-    people: { unstaffedDomains, danglingRefs, ownerEqualsDeputy },
+    deadRoutePatterns,
+    deadDbRules,
+    people: { unstaffedDomains, danglingRefs, ownerEqualsDeputy, staffedWithoutContact },
     documents: { missing: missingDocuments },
     contract: {
       daysLeft,
@@ -763,11 +956,13 @@ export function analyzeOwnership(input: OwnershipInput): OwnershipReport {
 export function ownershipFailed(report: OwnershipReport): boolean {
   return (
     report.routes.unmatched.length > 0 ||
-    report.migrations.noHit.length > report.thresholds.migracjeBezAtrybucji ||
+    report.routes.catchAll.length > 0 ||
+    report.migrations.noHitNowe.length > 0 ||
     report.people.unstaffedDomains.length > report.thresholds.domenyBezWlasciciela ||
     report.people.danglingRefs.length > 0 ||
     report.people.ownerEqualsDeputy.length > 0 ||
-    report.deadRules.length > report.thresholds.martweReguly ||
+    report.people.staffedWithoutContact.length > 0 ||
+    report.deadRoutePatterns.length > report.thresholds.martweWzorceTras ||
     report.documents.missing.length > 0 ||
     report.contract.expired
   );
@@ -803,7 +998,7 @@ export function renderOwnershipReport(report: OwnershipReport): string {
       `${report.migrations.perTier.literaly} po literałach, ` +
       `${report.migrations.perTier.przekrojowe} po przekrojowych, ` +
       `${report.migrations.perTier.brak} bez trafienia ` +
-      `(próg ${report.thresholds.migracjeBezAtrybucji}). ${bar(
+      `(${report.thresholds.migracjeBezAtrybucjiDozwolone.length} dopuszczone z nazwy). ${bar(
         report.migrations.perTier.identyfikatory,
         report.migrations.total,
       )}`,
@@ -828,12 +1023,27 @@ export function renderOwnershipReport(report: OwnershipReport): string {
       ...report.routes.unmatched.map((file) => `    • src/routes/${file}`),
     );
   }
-  if (report.migrations.noHit.length > report.thresholds.migracjeBezAtrybucji) {
+  if (report.migrations.noHitNowe.length > 0) {
     problems.push(
-      `MIGRACJE BEZ ATRYBUCJI: ${report.migrations.noHit.length} > próg ` +
-        `${report.thresholds.migracjeBezAtrybucji}. Dopisz prefiks tabeli do ` +
-        "'domeny[].obiektyBazy' albo popraw nazwę obiektu w migracji:",
-      ...report.migrations.noHit.map((file) => `    • supabase/migrations/${file}`),
+      `MIGRACJE BEZ WŁAŚCICIELA (${report.migrations.noHitNowe.length}) - bramka nie potrafi ` +
+        "wskazać domeny z treści SQL. Dopisz prefiks tabeli do 'domeny[].obiektyBazy' " +
+        "(zwykle to wystarczy) albo, jeśli migracja naprawdę nie dotyczy żadnej domeny, " +
+        "dopisz jej NAZWĘ do 'progi.migracjeBezAtrybucjiDozwolone' z uzasadnieniem w PR-ze. " +
+        "NIE podnoś progu - progu tu nie ma, jest lista:",
+      ...report.migrations.noHitNowe.map((file) => `    • supabase/migrations/${file}`),
+    );
+  }
+  if (report.routes.catchAll.length > 0) {
+    problems.push(
+      "WZORZEC-ŁAPACZ - formalnie daje pokrycie, faktycznie kasuje własnicielstwo. " +
+        "Rozbij go na wzorce per domena:",
+      ...report.routes.catchAll.map((entry) => `    • ${entry}`),
+    );
+  }
+  if (report.people.staffedWithoutContact.length > 0) {
+    problems.push(
+      "OBSADZENIE POZORNE - wpis ma 'obsadzone: true', ale nie ma się z kim skontaktować:",
+      ...report.people.staffedWithoutContact.map((entry) => `    • ${entry}`),
     );
   }
   if (report.people.danglingRefs.length > 0) {
@@ -854,11 +1064,12 @@ export function renderOwnershipReport(report: OwnershipReport): string {
         `${report.thresholds.domenyBezWlasciciela}. Ten próg wolno WYŁĄCZNIE obniżać.`,
     );
   }
-  if (report.deadRules.length > report.thresholds.martweReguly) {
+  if (report.deadRoutePatterns.length > report.thresholds.martweWzorceTras) {
     problems.push(
-      `MARTWE REGUŁY REJESTRU: ${report.deadRules.length} > próg ` +
-        `${report.thresholds.martweReguly} - reguła nie trafia już w nic, usuń ją:`,
-      ...report.deadRules.map((rule) => `    • ${rule}`),
+      `MARTWE WZORCE TRAS: ${report.deadRoutePatterns.length} > próg ` +
+        `${report.thresholds.martweWzorceTras}. Wzorzec nie trafia w żaden plik - ` +
+        "usuń go z 'domeny[].trasy' i uruchom `bun run generate:codeowners`:",
+      ...report.deadRoutePatterns.map((rule) => `    • ${rule}`),
     );
   }
   if (report.documents.missing.length > 0) {
@@ -883,6 +1094,20 @@ export function renderOwnershipReport(report: OwnershipReport): string {
   }
 
   const warnings: string[] = [];
+  if (report.deadDbRules.length > 0) {
+    warnings.push(
+      `${report.deadDbRules.length} prefiksów bazy nie trafia dziś w żadną migrację ` +
+        "(historia migracji bywa spłaszczana, więc to NIE jest błąd): " +
+        `${report.deadDbRules.slice(0, 6).join(", ")}` +
+        `${report.deadDbRules.length > 6 ? ", …" : ""}.`,
+    );
+  }
+  if (report.migrations.noHitNieaktualne.length > 0) {
+    warnings.push(
+      "Lista 'migracjeBezAtrybucjiDozwolone' wymienia migracje, które dziś DAJĄ SIĘ " +
+        `przypisać - usuń je z listy: ${report.migrations.noHitNieaktualne.join(", ")}.`,
+    );
+  }
   if (report.contract.warning) {
     warnings.push(
       `Umowa utrzymaniowa wygasa za ${report.contract.daysLeft} dni - uruchom przedłużenie.`,
@@ -912,22 +1137,48 @@ export function renderOwnershipReport(report: OwnershipReport): string {
 /**
  * Generuje `.github/CODEOWNERS` z rejestru.
  *
- * DOPÓKI właściciele nie są obsadzeni, reguły wychodzą ZAKOMENTOWANE i to jest
- * decyzja świadoma: plik CODEOWNERS wskazujący na nieistniejący zespół jest
- * wprawdzie poprawny składniowo, ale przy włączonej ochronie gałęzi z opcją
- * „Require review from Code Owners" zablokowałby KAŻDY merge - bramka
- * własnicielska nie ma prawa zatrzymać wydania. Po założeniu zespołów w
- * organizacji wystarczy przestawić `obsadzone` na `true` w rejestrze;
- * `bun run generate:codeowners` odkomentuje reguły, a `check:codeowners`
- * pilnuje, żeby plik nie rozjechał się z rejestrem.
+ * ── KOLEJNOŚĆ JEST ODWRÓCONA I TO NIE JEST POMYŁKA ──────────────────────────
+ * Ta bramka i GitHub rozstrzygają nakładające się wzorce PRZECIWNIE:
+ * `attributeRoutes` bierze PIERWSZE trafienie w kolejności rejestru, a GitHub
+ * dla CODEOWNERS bierze OSTATNIE trafienie w kolejności pliku. Emisja domen
+ * „po kolei" dałaby więc plik, który po aktywacji kierowałby przeglądy DOKŁADNIE
+ * ODWROTNIE niż mówi rejestr: `admin.settings.privacy.tsx` należy w rejestrze do
+ * `zgodnosc-i-prywatnosc` (domena wcześniejsza, wzorzec dokładny), ale
+ * `admin.settings.*` z `tozsamosc-i-uprawnienia` stałby niżej w pliku i wygrał
+ * u GitHuba. Dlatego domeny wychodzą tu w kolejności ODWROTNEJ - wtedy „ostatni
+ * wygrywa" GitHuba odtwarza „pierwszy wygrywa" rejestru.
+ *
+ * ── DLACZEGO REGUŁY SĄ ZAKOMENTOWANE ────────────────────────────────────────
+ * Dopóki właściciele nie są obsadzeni, reguły wychodzą zakomentowane: plik
+ * wskazujący nieistniejący zespół jest wprawdzie poprawny składniowo, ale przy
+ * ochronie gałęzi z opcją „Require review from Code Owners" zablokowałby KAŻDY
+ * merge - bramka własnicielska nie ma prawa zatrzymać wydania PRZYPADKIEM.
+ * (Wygaśnięcie umowy zatrzymuje wydanie ŚWIADOMIE i po 60 dniach ostrzeżeń -
+ * to inna sytuacja niż cicha blokada przez literówkę w nazwie zespołu.)
+ *
+ * ── CO TEN PLIK POKRYWA, A CZEGO NIE ────────────────────────────────────────
+ * WYŁĄCZNIE trasy. Migracje mają w rejestrze własnicieli, ale NIE DA SIĘ ich
+ * wyrazić w CODEOWNERS: pliki migracji nazywają się znacznikiem czasu (a 68,7%
+ * z nich UUID-em), więc nie istnieje wzorzec ścieżki, który oddzielałby domeny.
+ * Własnicielstwo migracji egzekwuje `bun run check:ownership`, nie ten plik.
  */
 export function renderCodeowners(registry: OwnershipRegistry): string {
+  const routePatternCount = registry.domeny.reduce((sum, domain) => sum + domain.trasy.length, 0);
+
   const lines: string[] = [
     "# PLIK GENEROWANY - nie edytuj ręcznie.",
     "# Źródło: governance/ownership.json  |  Generator: bun run generate:codeowners",
     "# Bramka spójności: bun run check:codeowners",
     "#",
-    "# Własnicielstwo techniczne 193 tras administracyjnych i 918 migracji bazy.",
+    `# ${routePatternCount} wzorców tras administracyjnych w ${registry.domeny.length} domenach.`,
+    "# Ten plik pokrywa WYŁĄCZNIE trasy. Własnicielstwo migracji bazy nie da się",
+    "# wyrazić ścieżką (nazwy to znaczniki czasu i UUID-y) - egzekwuje je bramka",
+    "# `bun run check:ownership` na podstawie tego samego rejestru.",
+    "#",
+    "# UWAGA NA KOLEJNOŚĆ: GitHub stosuje regułę OSTATNIEGO trafienia, a rejestr",
+    "# regułę PIERWSZEGO, więc domeny są tu wypisane w kolejności ODWROTNEJ niż",
+    "# w governance/ownership.json. Nie sortuj tego pliku.",
+    "#",
     "# Zakres każdej domeny, klasa SLA i ścieżka eskalacji: governance/ownership.json",
     "# Umowa utrzymaniowa: " + registry.kontraktUtrzymaniowy.dokument,
     "# Niedostępność wykonawcy: " + registry.kontraktUtrzymaniowy.runbookCiaglosci,
@@ -949,7 +1200,7 @@ export function renderCodeowners(registry: OwnershipRegistry): string {
     );
   }
 
-  for (const domain of registry.domeny) {
+  for (const domain of [...registry.domeny].reverse()) {
     const owner = registry.osoby[domain.wlasciciel];
     const deputy = registry.osoby[domain.zastepca];
     const active = owner?.obsadzone === true;
@@ -964,12 +1215,15 @@ export function renderCodeowners(registry: OwnershipRegistry): string {
     lines.push("");
   }
 
+  // Sam rejestr: reguła zostaje ZAKOMENTOWANA, dopóki nie wskazuje zespołu.
+  // `@NewEUStrategies` to uchwyt ORGANIZACJI, a nie użytkownika ani zespołu -
+  // GitHub odrzuca taki wpis jako błąd składni i podświetla CAŁY plik, więc
+  // aktywna wersja musi poczekać na `@NewEUStrategies/<zespół>`.
+  const steward = registry.osoby["organizacja-nes"];
   lines.push(
     "# ── Rejestr własnicielstwa pilnuje sam siebie ──",
     `# Zmiana rejestru wymaga zgody właściciela biznesowego (${registry.kontraktUtrzymaniowy.zamawiajacy}).`,
-    `${registry.osoby["organizacja-nes"]?.obsadzone === true ? "" : "# "}/governance/ ${
-      registry.osoby["organizacja-nes"]?.github ?? "@NewEUStrategies"
-    }`,
+    `# Odkomentuj, gdy powstanie zespół: /governance/ ${steward?.github ?? "@NewEUStrategies"}/<zespół>`,
     "",
   );
 

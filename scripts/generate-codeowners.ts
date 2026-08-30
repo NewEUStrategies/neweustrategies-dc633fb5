@@ -46,13 +46,26 @@ function main(): void {
   if (actual !== expected) {
     const actualLines = actual.split("\n");
     const expectedLines = expected.split("\n");
-    const firstDiff = expectedLines.findIndex((line, index) => actualLines[index] !== line);
+    // Szukamy po DŁUŻSZEJ z dwóch stron. Iteracja po samych `expectedLines`
+    // zwracała -1, gdy różnica siedziała w OGONIE pliku w repo (linie nadmiarowe),
+    // a komunikat wychodził wtedy pusty: „linia 0", „<brak linii>" po obu stronach.
+    const longest = Math.max(actualLines.length, expectedLines.length);
+    let firstDiff = -1;
+    for (let index = 0; index < longest; index += 1) {
+      if (actualLines[index] !== expectedLines[index]) {
+        firstDiff = index;
+        break;
+      }
+    }
+    const describe = (line: string | undefined): string =>
+      line === undefined ? "<koniec pliku>" : JSON.stringify(line);
     console.error(
       [
         `✗ [codeowners] ${OUTPUT_PATH} rozjechał się z ${REGISTRY_PATH}.`,
+        `  Linii w repo: ${actualLines.length}, z rejestru: ${expectedLines.length}.`,
         `  Pierwsza różnica w linii ${firstDiff + 1}:`,
-        `    w repo:      ${JSON.stringify(actualLines[firstDiff] ?? "<brak linii>")}`,
-        `    z rejestru:  ${JSON.stringify(expectedLines[firstDiff] ?? "<brak linii>")}`,
+        `    w repo:      ${describe(actualLines[firstDiff])}`,
+        `    z rejestru:  ${describe(expectedLines[firstDiff])}`,
         "  Lekarstwo: bun run generate:codeowners",
       ].join("\n"),
     );

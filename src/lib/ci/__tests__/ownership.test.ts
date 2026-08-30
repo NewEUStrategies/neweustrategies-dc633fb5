@@ -56,7 +56,11 @@ function registryJson(overrides: Record<string, unknown> = {}): Record<string, u
         zrodlo: "test",
       },
     },
-    progi: { domenyBezWlasciciela: 0, migracjeBezAtrybucji: 0, martweReguly: 0 },
+    progi: {
+      domenyBezWlasciciela: 0,
+      martweWzorceTras: 0,
+      migracjeBezAtrybucjiDozwolone: [],
+    },
     identyfikatoryPrzekrojowe: { tier2: { profiles: "tozsamosc" } },
     domeny: [
       {
@@ -110,7 +114,7 @@ describe("parseRegistry", () => {
     const registry = parseRegistry(registryJson());
     expect(registry.domeny).toHaveLength(2);
     expect(registry.osoby["wlasciciel"].obsadzone).toBe(true);
-    expect(registry.progi.martweReguly).toBe(0);
+    expect(registry.progi.martweWzorceTras).toBe(0);
   });
 
   it("wskazuje ŚCIEŻKĘ do brakującego pola, a nie tylko fakt błędu", () => {
@@ -320,6 +324,38 @@ describe("matchIdentifier", () => {
     expect(matchIdentifier("admin_get_post_stats", rules)?.[0]).toBe("tresc");
   });
 
+  it("awaryjne dopasowanie bierze NAJWCZEŚNIEJSZY klucz, nie najdłuższy", () => {
+    const twoKeys = buildRuleIndex([
+      {
+        slug: "platforma",
+        nazwa: "Platforma",
+        zakres: "",
+        wlasciciel: "w",
+        zastepca: "z",
+        eskalacja: "e",
+        klasaSla: "sla-1",
+        zespolGithub: "@o/p",
+        trasy: ["x"],
+        obiektyBazy: ["push_"],
+      },
+      {
+        slug: "monetyzacja",
+        nazwa: "Monetyzacja",
+        zakres: "",
+        wlasciciel: "w",
+        zastepca: "z",
+        eskalacja: "e",
+        klasaSla: "sla-1",
+        zespolGithub: "@o/m",
+        trasy: ["y"],
+        obiektyBazy: ["subscription"],
+      },
+    ]);
+    // `subscription` jest DŁUŻSZE, ale `push_` stoi w nazwie WCZEŚNIEJ -
+    // rzeczownik główny funkcji jest przed dopełnieniem.
+    expect(matchIdentifier("mark_push_subscription_failed", twoKeys)?.[0]).toBe("platforma");
+  });
+
   it("zwraca null dla identyfikatora spoza rejestru", () => {
     expect(matchIdentifier("webinar_sessions", rules)).toBeNull();
   });
@@ -420,7 +456,7 @@ describe("analyzeOwnership + ownershipFailed", () => {
     const report = analyzeOwnership(input());
     expect(report.routes.unmatched).toEqual([]);
     expect(report.migrations.noHit).toEqual([]);
-    expect(report.deadRules).toEqual([]);
+    expect(report.deadRoutePatterns).toEqual([]);
     expect(ownershipFailed(report)).toBe(false);
   });
 
@@ -442,13 +478,13 @@ describe("analyzeOwnership + ownershipFailed", () => {
         ],
       }),
     );
-    expect(report.migrations.noHit).toEqual(["b.sql"]);
+    expect(report.migrations.noHitNowe).toEqual(["b.sql"]);
     expect(ownershipFailed(report)).toBe(true);
   });
 
-  it("PRZECHODZI z tą samą liczbą, gdy zapadka jest podniesiona - próg jest świadomą decyzją", () => {
+  it("PRZECHODZI, gdy migracja bez atrybucji jest WYMIENIONA Z NAZWY na liście bazowej", () => {
     const raw = registryJson();
-    (raw["progi"] as Record<string, unknown>)["migracjeBezAtrybucji"] = 1;
+    (raw["progi"] as Record<string, unknown>)["migracjeBezAtrybucjiDozwolone"] = ["b.sql"];
     const report = analyzeOwnership(
       input({
         registry: parseRegistry(raw),
@@ -460,6 +496,7 @@ describe("analyzeOwnership + ownershipFailed", () => {
       }),
     );
     expect(report.migrations.noHit).toHaveLength(1);
+    expect(report.migrations.noHitNowe).toEqual([]);
     expect(ownershipFailed(report)).toBe(false);
   });
 
@@ -481,7 +518,7 @@ describe("analyzeOwnership + ownershipFailed", () => {
 
   it("OBLEWA na martwej regule - rejestr nie może zgnić po usunięciu trasy", () => {
     const report = analyzeOwnership(input({ routeFiles: ["admin.community.chat.tsx"] }));
-    expect(report.deadRules).toContain("tozsamosc: trasa 'admin.users.tsx'");
+    expect(report.deadRoutePatterns).toContain("tozsamosc: 'admin.users.tsx'");
     expect(ownershipFailed(report)).toBe(true);
   });
 
@@ -550,5 +587,131 @@ describe("renderCodeowners", () => {
   it("jest deterministyczny - inaczej bramka byte-for-byte byłaby fałszywie czerwona", () => {
     const registry = parseRegistry(registryJson());
     expect(renderCodeowners(registry)).toBe(renderCodeowners(registry));
+  });
+});
+
+describe("poprawki z przeglądu adwersaryjnego", () => {
+  it("stripSqlNoise: '--' W LITERALE nie jest komentarzem i nie zjada reszty linii", () => {
+    const cleaned = stripSqlNoise(
+      "UPDATE t SET sep = '--' WHERE id IN (SELECT id FROM public.club_members);",
+    );
+    expect(cleaned).toContain("club_members");
+  });
+
+  it("stripSqlNoise: apostrof W KOMENTARZU nie otwiera literału połykającego SQL", () => {
+    const cleaned = stripSqlNoise("-- to nie zadziała, don't\nSELECT * FROM public.club_members;");
+    expect(cleaned).toContain("club_members");
+  });
+
+  it("stripSqlNoise: komentarze blokowe są ZAGNIEŻDŻALNE, jak w Postgresie", () => {
+    const cleaned = stripSqlNoise(
+      "/* zewn /* wewn */ nadal komentarz */ SELECT public.club_members;",
+    );
+    expect(cleaned).toContain("club_members");
+    expect(cleaned).not.toContain("wewn");
+  });
+
+  it("extractIdentifiers czyta tabelę zza literału z '--'", () => {
+    const ids = extractIdentifiers("INSERT INTO public.user_roles VALUES ('--'); SELECT 1;");
+    expect(ids).toContain("user_roles");
+  });
+
+  it("wzorzec trafiający, ale zawsze PRZEGRYWAJĄCY, nie jest martwy", () => {
+    const registry = parseRegistry(
+      registryJson({
+        domeny: [
+          {
+            slug: "pierwsza",
+            nazwa: "Pierwsza",
+            zakres: "Wygrywa kolejnością.",
+            wlasciciel: "wlasciciel",
+            zastepca: "zastepca",
+            eskalacja: "organizacja-nes",
+            klasaSla: "sla-1",
+            zespolGithub: "@org/pierwsza",
+            trasy: ["admin.users.*"],
+            obiektyBazy: ["club_"],
+          },
+          {
+            slug: "druga",
+            nazwa: "Druga",
+            zakres: "Zawsze przegrywa.",
+            wlasciciel: "wlasciciel",
+            zastepca: "zastepca",
+            eskalacja: "organizacja-nes",
+            klasaSla: "sla-1",
+            zespolGithub: "@org/druga",
+            trasy: ["admin.users.tsx"],
+            obiektyBazy: ["user_roles"],
+          },
+        ],
+      }),
+    );
+    const { usedPatterns } = attributeRoutes(["admin.users.tsx"], registry.domeny);
+    expect(usedPatterns.has("admin.users.tsx")).toBe(true);
+    expect(usedPatterns.has("admin.users.*")).toBe(true);
+  });
+
+  it("OBLEWA na wzorcu-łapaczu - 100% pokrycia i zero informacji to nie jest zielona bramka", () => {
+    const raw = registryJson();
+    (raw["domeny"] as Record<string, unknown>[])[0]["trasy"] = ["admin.*"];
+    (raw["domeny"] as Record<string, unknown>[])[1]["trasy"] = ["admin.users.tsx"];
+    const routeFiles = Array.from({ length: 30 }, (_, i) => `admin.strona${i}.tsx`);
+    const report = analyzeOwnership(
+      input({ registry: parseRegistry(raw), routeFiles: [...routeFiles, "admin.users.tsx"] }),
+    );
+    expect(report.routes.unmatched).toEqual([]);
+    expect(report.routes.catchAll).toHaveLength(1);
+    expect(ownershipFailed(report)).toBe(true);
+    expect(renderOwnershipReport(report)).toContain("WZORZEC-ŁAPACZ");
+  });
+
+  it("nie krzyczy o łapaczu na małym zbiorze tras, gdzie procent nic nie znaczy", () => {
+    const report = analyzeOwnership(input());
+    expect(report.routes.catchAll).toEqual([]);
+  });
+
+  it("OBLEWA na obsadzeniu pozornym - sam boolean bez kontaktu nie obsadza nikogo", () => {
+    const raw = registryJson();
+    const people = raw["osoby"] as Record<string, Record<string, unknown>>;
+    people["zastepca"]["obsadzone"] = true;
+    const report = analyzeOwnership(input({ registry: parseRegistry(raw) }));
+    expect(report.people.staffedWithoutContact).toHaveLength(1);
+    expect(ownershipFailed(report)).toBe(true);
+    expect(renderOwnershipReport(report)).toContain("OBSADZENIE POZORNE");
+  });
+
+  it("martwy PREFIKS BAZY tylko ostrzega - historia migracji bywa spłaszczana", () => {
+    const report = analyzeOwnership(
+      input({
+        migrations: [{ file: "a.sql", sql: "CREATE TABLE public.club_members (id uuid);" }],
+      }),
+    );
+    expect(report.deadDbRules).toContain("tozsamosc: 'user_roles'");
+    expect(report.deadRoutePatterns).toEqual([]);
+    expect(ownershipFailed(report)).toBe(false);
+    expect(renderOwnershipReport(report)).toContain("OSTRZEŻENIA");
+  });
+
+  it("zgłasza NIEAKTUALNY wpis listy bazowej, gdy migracja daje się już przypisać", () => {
+    const raw = registryJson();
+    (raw["progi"] as Record<string, unknown>)["migracjeBezAtrybucjiDozwolone"] = [
+      "20260101000000_a.sql",
+    ];
+    const report = analyzeOwnership(input({ registry: parseRegistry(raw) }));
+    expect(report.migrations.noHitNieaktualne).toEqual(["20260101000000_a.sql"]);
+    expect(ownershipFailed(report)).toBe(false);
+  });
+
+  it("CODEOWNERS wypisuje domeny ODWROTNIE - GitHub bierze OSTATNIE trafienie", () => {
+    const rendered = renderCodeowners(parseRegistry(registryJson()));
+    const kluby = rendered.indexOf("@org/kluby");
+    const tozsamosc = rendered.indexOf("@org/tozsamosc");
+    expect(tozsamosc).toBeLessThan(kluby);
+  });
+
+  it("CODEOWNERS nie zawiera aktywnej reguły wskazującej samą organizację", () => {
+    const rendered = renderCodeowners(parseRegistry(registryJson()));
+    expect(rendered).not.toMatch(/^\/governance\/ @NewEUStrategies$/m);
   });
 });

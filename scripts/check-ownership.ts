@@ -12,8 +12,8 @@
  *
  * Usage: bun run check:ownership
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   analyzeOwnership,
   ownershipFailed,
@@ -26,11 +26,35 @@ const REGISTRY_PATH = "governance/ownership.json";
 const ROUTES_DIR = "src/routes";
 const MIGRATIONS_DIR = "supabase/migrations";
 
-/** Trasy panelu to pliki `admin*.tsx` w płaskim katalogu tras (routing plikowy). */
+/**
+ * Trasy panelu to pliki `admin*.tsx` w katalogu tras.
+ *
+ * Skan jest REKURENCYJNY, choć dziś wszystkie 193 trasy leżą płasko. Płaski
+ * `readdirSync` czynił bramkę ślepą na `src/routes/admin/cokolwiek.tsx` -
+ * a bramka, której cała wartość polega na kompletności, nie może mieć miejsca,
+ * w którym trasa znika bez śladu. Katalogi testów pomijamy.
+ */
 function readRouteFiles(): string[] {
-  return readdirSync(ROUTES_DIR)
-    .filter((file) => file.startsWith("admin") && file.endsWith(".tsx"))
-    .sort();
+  const found: string[] = [];
+
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      if (entry === "__tests__" || entry === "node_modules") continue;
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.endsWith(".tsx")) continue;
+      // Ścieżka względem katalogu tras, zawsze z ukośnikiem - wzorce w rejestrze
+      // dopasowują się do niej w całości.
+      const routePath = relative(ROUTES_DIR, full).split(sep).join("/");
+      if (routePath.startsWith("admin")) found.push(routePath);
+    }
+  };
+
+  walk(ROUTES_DIR);
+  return found.sort();
 }
 
 function readMigrations(): MigrationSource[] {
@@ -40,8 +64,51 @@ function readMigrations(): MigrationSource[] {
     .map((file) => ({ file, sql: readFileSync(join(MIGRATIONS_DIR, file), "utf8") }));
 }
 
+/** Uszkodzony rejestr ma dać zdanie po polsku, a nie stos wywołań `JSON.parse`. */
+function loadRegistry(): ReturnType<typeof parseRegistry> {
+  let raw: string;
+  try {
+    raw = readFileSync(REGISTRY_PATH, "utf8");
+  } catch {
+    console.error(
+      [
+        `✗ [ownership] nie mogę odczytać ${REGISTRY_PATH}.`,
+        "  Bramkę uruchamia się z KATALOGU GŁÓWNEGO repozytorium: bun run check:ownership",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    console.error(
+      [
+        `✗ [ownership] ${REGISTRY_PATH} nie jest poprawnym JSON-em.`,
+        `  ${error instanceof Error ? error.message : String(error)}`,
+        "  Instrukcja edycji rejestru: governance/README.md",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
+  try {
+    return parseRegistry(parsed);
+  } catch (error) {
+    console.error(
+      [
+        `✗ [ownership] ${REGISTRY_PATH} ma poprawny JSON, ale zły kształt.`,
+        `  ${error instanceof Error ? error.message : String(error)}`,
+        "  Opis każdego pola: governance/README.md §2",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+}
+
 function main(): void {
-  const registry = parseRegistry(JSON.parse(readFileSync(REGISTRY_PATH, "utf8")));
+  const registry = loadRegistry();
 
   // Dokumenty, których istnienia rejestr wymaga: umowa, runbook ciągłości oraz
   // sam rejestr z instrukcją edycji. Brak któregokolwiek to nie jest usterka

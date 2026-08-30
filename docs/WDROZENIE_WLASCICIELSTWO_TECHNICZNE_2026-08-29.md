@@ -106,9 +106,9 @@ Cztery warstwy, każda uruchamiana dopiero wtedy, gdy poprzednia nic nie znalaz�
 
 | Warstwa            | Co robi                                                                                                           | Plików |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------- | -----: |
-| 1 `identyfikatory` | Identyfikatory specyficzne, ważone rzadkością `1/log2(1+df)`; argmax po domenach                                  |    892 |
+| 1 `identyfikatory` | Identyfikatory specyficzne, ważone rzadkością `1/log2(1+df)`; argmax po domenach                                  |    893 |
 | 1.5 `literaly`     | Rescan surowego tekstu po nazwach ≥ 8 znaków - dla dynamicznego SQL i bloków `DO $$`, gdzie nazwy są w literałach |      3 |
-| 2 `przekrojowe`    | Identyfikatory przekrojowe (`profiles`, `tenants`, `has_role`, ...) jako sygnał SŁABY, nie wyrzucony              |     18 |
+| 2 `przekrojowe`    | Identyfikatory przekrojowe (`profiles`, `tenants`, `has_role`, ...) jako sygnał SŁABY, nie wyrzucony              |     17 |
 | 3 `brak`           | Brak trafienia → domena przekrojowa `platforma-i-baza`                                                            |  **5** |
 
 Kluczowe decyzje metody:
@@ -157,10 +157,10 @@ migracji), czyta wyłącznie pliki repo, więc stoi w bloku najtańszych sygnał
 **Oblewa, gdy:**
 
 - jakakolwiek trasa `src/routes/admin*.tsx` nie pasuje do żadnego wzorca,
-- migracji bez atrybucji jest więcej niż `progi.migracjeBezAtrybucji`,
+- migracja bez atrybucji nie jest wymieniona w `progi.migracjeBezAtrybucjiDozwolone`,
 - domena wskazuje na nieistniejący wpis w `osoby`,
 - właściciel domeny jest jednocześnie jej zastępcą (zerowy bus factor),
-- reguła rejestru nie trafia już w nic (zgnilizna) ponad `progi.martweReguly`,
+- wzorzec TRASY nie trafia już w nic (zgnilizna) ponad `progi.martweWzorceTras`,
 - brakuje któregoś z dokumentów: umowy, runbooka ciągłości, `governance/README.md`,
 - **umowa utrzymaniowa wygasła** (`kontraktUtrzymaniowy.obowiazujeDo` w przeszłości).
 
@@ -174,11 +174,11 @@ migracji), czyta wyłącznie pliki repo, więc stoi w bloku najtańszych sygnał
 Progi wolno **WYŁĄCZNIE OBNIŻAĆ** - ta sama zasada, którą repo stosuje do
 progów pokrycia w `vitest.config.ts`.
 
-| Próg                   |  Dziś | Znaczenie                                                                     |
-| ---------------------- | ----: | ----------------------------------------------------------------------------- |
-| `domenyBezWlasciciela` | **9** | Ile domen może nie mieć obsadzonego właściciela. Spada przy każdym obsadzeniu |
-| `migracjeBezAtrybucji` | **5** | Podłoga metody z §4.1                                                         |
-| `martweReguly`         | **0** | Rejestr nie może zgnić: reguła, która w nic nie trafia, ma zniknąć            |
+| Próg                            |       Dziś | Znaczenie                                                                         |
+| ------------------------------- | ---------: | --------------------------------------------------------------------------------- |
+| `domenyBezWlasciciela`          |      **9** | Ile domen może nie mieć obsadzonego właściciela. Spada przy każdym obsadzeniu     |
+| `migracjeBezAtrybucjiDozwolone` | **5 nazw** | Podłoga metody z §4.1, wypisana z nazwy zamiast policzona                         |
+| `martweWzorceTras`              |      **0** | Wzorzec TRASY, który w nic nie trafia, ma zniknąć. Prefiksy bazy tylko ostrzegają |
 
 ### 5.2 Dlaczego wygaśnięcie umowy jest błędem, a nie ostrzeżeniem
 
@@ -240,3 +240,41 @@ zamknięte, każdy przebieg CI wypisuje, ilu właścicieli brakuje.
 Nested mappings are not allowed in compact mappings`) - błąd występuje
 identycznie na wersji sprzed tej zmiany, więc nie został przez nią
 wprowadzony. Oba stany są zastane i wymagają osobnej pracy.
+
+---
+
+## 9. Przegląd adwersaryjny bramki i wynikające z niego poprawki
+
+Bramka blokująca, która myli się w jedną stronę, kosztuje cykl wydania; myląc
+się w drugą - nie robi nic. Po napisaniu jej przeszła więc osobny przegląd
+adwersaryjny (trzy niezależne soczewki: fałszywa czerwień, poprawność logiki,
+możliwość obejścia; każde znalezisko weryfikowane przez osobnego kontrolera
+z zadaniem OBALENIA go). Znaleziska potwierdzone eksperymentem na żywym repo
+i naprawione w tej samej zmianie:
+
+| #   | Defekt                                                                 | Skutek, gdyby został                                                                                                                                | Poprawka                                                                                                                                                                                  |
+| --- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `stripSqlNoise` wycinał komentarze PRZED literałami                    | `'--'` wewnątrz literału zjadał resztę linii razem z prawdziwym SQL-em; migracja gubiła identyfikatory i dostawała złą domenę                       | Skaner stanowy w jednym przebiegu (żadna kolejność trzech `replace` nie jest poprawna - komentarz i literał zagnieżdżają się wzajemnie). Odzyskał jedną migrację z warstwy 2 do warstwy 1 |
+| 2   | Generowany CODEOWNERS ODWRACAŁ precedencję rejestru                    | GitHub bierze OSTATNIE trafienie, rejestr PIERWSZE - po aktywacji reguł przeglądy trafiałyby do odwrotnych zespołów niż mówi rejestr                | Domeny emitowane w kolejności ODWROTNEJ, z wyjaśnieniem w nagłówku pliku                                                                                                                  |
+| 3   | `usedPatterns` zapisywał tylko wzorzec ZWYCIĘSKI                       | Wzorzec przesłonięty przez wcześniejszą domenę byłby raportowany jako MARTWY, a przepisane lekarstwo („usuń regułę") kasowałoby poprawną informację | Do „użytych" liczy się KAŻDY wzorzec, który trafił                                                                                                                                        |
+| 4   | Wzorzec-łapacz uciszał bramkę tras jedną linią                         | `admin.*` w dowolnej domenie daje 100% pokrycia i zero informacji - bramka świeciła na zielono, nie znacząc nic                                     | Próg `CATCH_ALL_SHARE` (40%; najszerszy uczciwy wzorzec bierze 20,2%) z podłogą 20 tras, żeby procent miał sens                                                                           |
+| 5   | Jeden boolean przy wpisie-zaślepce „obsadzał" 9 domen naraz            | Wszystkie domeny wskazują ten sam wpis `wt-nieobsadzony`; `obsadzone: true` bez kontaktu oznaczałby cały system jako mający właściciela             | Obsadzony musi mieć `kontakt` i organizację inną niż `NIEOBSADZONE`                                                                                                                       |
+| 6   | `martweReguly` traktowało wzorce tras i prefiksy bazy tak samo         | Spłaszczenie historii migracji dawało 13 „martwych" reguł, a lekarstwo kasowało poprawne własnicielstwo tabel, które istnieją                       | Rozdzielone: martwy wzorzec TRASY blokuje, martwy prefiks bazy tylko ostrzega                                                                                                             |
+| 7   | `migracjeBezAtrybucji` było LICZBĄ ustawioną dokładnie na stanie (5/5) | Zero zapasu, a komunikat wypisywał sześć UUID-ów bez wskazania, który jest nowy                                                                     | Lista NAZW zamiast liczby: komunikat pokazuje wyłącznie migracje nowe, a nieaktualny wpis listy jest zgłaszany osobno                                                                     |
+| 8   | Uszkodzony rejestr kończył się stosem wywołań `JSON.parse`             | Pierwszy kontakt z bramką to niezrozumiały błąd                                                                                                     | Trzy osobne komunikaty: brak pliku, zły JSON, zły kształt - każdy ze wskazaniem lekarstwa                                                                                                 |
+| 9   | Skan tras był płaski (`readdirSync` bez rekursji)                      | Trasa w `src/routes/admin/…` byłaby dla bramki niewidzialna - dziura w bramce, której cała wartość to kompletność                                   | Skan rekurencyjny, wzorce dopasowywane do ścieżki względnej                                                                                                                               |
+| 10  | `check:codeowners` przy różnicy w OGONIE pliku dawał pusty komunikat   | „linia 0", „&lt;brak linii&gt;" po obu stronach                                                                                                     | Iteracja po dłuższej z dwóch stron + liczba linii po obu                                                                                                                                  |
+
+Nienaprawione świadomie, z uzasadnieniem:
+
+- **Zapadki nie są egzekwowane maszynowo.** Nic nie porównuje progów z gałęzią
+  bazową, więc podniesienie progu w tym samym commicie, który psuje pokrycie,
+  przejdzie. Porównanie z `origin/main` wymagałoby w CI pobrania gałęzi bazowej
+  i wywracałoby bramkę przy płytkim klonie. Zapadka jest konwencją wspartą
+  przeglądem PR-a - i jest to teraz napisane wprost w nagłówku modułu oraz
+  w `governance/README.md`, zamiast udawać inaczej.
+- **Usunięcie trasy nadal wymaga jednej linii zmiany w rejestrze.** Przegląd
+  policzył, że dotyczy to 58 z 193 tras (te objęte wzorcem dokładnym). To jest
+  zamierzone: własnicielstwo ma śledzić rzeczywistość, komunikat mówi dokładnie
+  co usunąć, a alternatywa (liczenie martwych reguł tylko dla wzorców
+  z gwiazdką) wyłączyłaby zapadkę dla 57 z 75 wzorców.

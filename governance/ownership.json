@@ -73,9 +73,15 @@
   },
   "progi": {
     "domenyBezWlasciciela": 9,
-    "migracjeBezAtrybucji": 5,
-    "martweReguly": 0,
-    "komentarz": "Zapadki (ratchet) w konwencji tego repo: te progi wolno WYŁĄCZNIE obniżać. Podniesienie któregokolwiek jest regresją własnicielstwa i wymaga osobnej decyzji zamawiającego opisanej w docs/UMOWA_UTRZYMANIOWA.md."
+    "martweWzorceTras": 0,
+    "migracjeBezAtrybucjiDozwolone": [
+      "20260628221009_5a12c332-ac42-4ce9-b15e-abcae6db6cad.sql",
+      "20260724060222_9a710f7c-746a-4218-be01-1cb2cd277fd4.sql",
+      "20260724064450_1abe66d4-38d3-4411-a3a0-fae560ac951a.sql",
+      "20260725181311_90af83b6-6371-4c93-ab74-6ec914ea59e5.sql",
+      "20260727053841_7ec6a016-0e5e-403e-beca-30adbd1c4bd3.sql"
+    ],
+    "komentarz": "Zapadki w konwencji tego repo: wolno je WYLACZNIE zaciesniac. domenyBezWlasciciela spada przy kazdym obsadzeniu roli. migracjeBezAtrybucjiDozwolone to LISTA NAZW, nie liczba - dzieki temu komunikat bramki pokazuje wylacznie migracje NOWE, a nie piec plikow linii bazowej. Trzy z nich to puste placeholdery (same komentarze, zero SQL), czwarty to CREATE EXTENSION pgtap, piaty to petla DO $$ siegajaca funkcji przez format(). Uwaga: zadna bramka nie porownuje tych wartosci z galezia bazowa - zapadke egzekwuje przeglad PR-a."
   },
   "identyfikatoryPrzekrojowe": {
     "komentarz": "Identyfikatory obecne w ponad 20% migracji albo semantycznie przekrojowe. Nie punktują w warstwie 1 (zaśmiecałyby atrybucję); są konsultowane dopiero w warstwie 2, gdy nic konkretnego nie trafiło.",
@@ -88,9 +94,7 @@
       "is_super_admin": "tozsamosc-i-uprawnienia",
       "is_staff": "tozsamosc-i-uprawnienia",
       "users": "tozsamosc-i-uprawnienia",
-      "uid": "tozsamosc-i-uprawnienia",
       "set_updated_at": "platforma-i-baza",
-      "_tg_touch_updated_at": "platforma-i-baza",
       "app_role": "tozsamosc-i-uprawnienia"
     }
   },

@@ -502,7 +502,7 @@ NIE DA SIĘ WYKONAĆ** - nie ma z czego przywracać.
 
 - `bun run check:ownership` w CI - blokuje merge przy regresji własnicielstwa (luka L-6).
 - Progi-zapadki z `governance/ownership.json`: `domenyBezWlasciciela` **9**,
-  `migracjeBezAtrybucji` **5**, `martweReguly` **0**. **TE PROGI WOLNO WYŁĄCZNIE OBNIŻAĆ** -
+  `migracjeBezAtrybucjiDozwolone` **5 pozycji**, `martweWzorceTras` **0**. **TE PROGI WOLNO WYŁĄCZNIE ZACIEŚNIAĆ** -
   podniesienie jest regresją i wymaga osobnej decyzji Zamawiającego.
 - Aktualizacja daty przeglądu tego dokumentu przy każdym ćwiczeniu.
 

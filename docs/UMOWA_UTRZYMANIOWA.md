@@ -99,9 +99,9 @@ Nakładki rozstrzyga pierwsza pasująca domena w rejestrze (dziś 2 takie trasy)
 | 8   | `tozsamosc-i-uprawnienia` | Konta, role, macierz uprawnień, zaproszenia, weryfikacja domen, izolacja tenanta, ustawienia instancji   |    20 |       40 | `sla-1` |
 | 9   | `platforma-i-baza`        | Powłoka panelu, harmonogram zadań, kolejki i powiadomienia, storage, wyszukiwarka, i18n, telemetria      |     4 |       69 | `sla-1` |
 
-**Jakość atrybucji (jawna, nie ukryta za zieloną bramką):** 892 migracje po
-identyfikatorach SQL, 3 po literałach, 18 po identyfikatorach przekrojowych,
-**5 bez trafienia** (próg `migracjeBezAtrybucji = 5`, 0,5% korpusu) i **221
+**Jakość atrybucji (jawna, nie ukryta za zieloną bramką):** 893 migracje po
+identyfikatorach SQL, 3 po literałach, 17 po identyfikatorach przekrojowych,
+**5 bez trafienia** (wymienione z nazwy w `migracjeBezAtrybucjiDozwolone`, 0,5% korpusu) i **221
 atrybucji słabych** (rozstrzygniętych jednym identyfikatorem). Bramka
 gwarantuje POKRYCIE, nie TRAFNOŚĆ - przegląd tych 221 wpisów należy do
 pierwszego przeglądu kwartalnego (sekcja 9).
@@ -321,18 +321,18 @@ ryzykiem po stronie Zamawiającego.
 Przegląd **raz na kwartał**: prowadzi Wykonawca, uczestniczy eskalacja
 (`organizacja-nes`), raport pisemny na 5 dni roboczych przed spotkaniem.
 
-| Pozycja raportu                                                             | Źródło liczby                              |
-| --------------------------------------------------------------------------- | ------------------------------------------ |
-| Liczba zgłoszeń w kwartale w podziale na P1-P4 i domeny                     | rejestr zgłoszeń Wykonawcy                 |
-| Dotrzymanie czasów: reakcja / obejście / naprawa, % i przekroczenia         | rejestr zgłoszeń + tabela 4.4              |
-| Liczba tras i migracji objętych rejestrem                                   | `bun run check:ownership` (dziś 193 / 918) |
-| Rozkład tras i migracji per domena                                          | `bun run check:ownership`                  |
-| **Liczba domen bez obsadzonego właściciela**                                | `bun run check:ownership` (dziś **9 z 9**) |
-| Stan progów: `domenyBezWlasciciela`, `migracjeBezAtrybucji`, `martweReguly` | `bun run check:ownership` (dziś 9 / 5 / 0) |
-| Jakość atrybucji: migracje bez trafienia, atrybucje słabe                   | `bun run check:ownership` (dziś 5 / 221)   |
-| Wynik kwartalnego testu odtworzenia backupu                                 | sekcja 8.3 - **obowiązkowy**               |
-| Przegląd `minimumReleaseAgeExcludes`                                        | `bunfig.toml:6`                            |
-| Liczba dni do wygaśnięcia umowy                                             | `bun run check:ownership` (sekcja 10)      |
+| Pozycja raportu                                                                          | Źródło liczby                                      |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Liczba zgłoszeń w kwartale w podziale na P1-P4 i domeny                                  | rejestr zgłoszeń Wykonawcy                         |
+| Dotrzymanie czasów: reakcja / obejście / naprawa, % i przekroczenia                      | rejestr zgłoszeń + tabela 4.4                      |
+| Liczba tras i migracji objętych rejestrem                                                | `bun run check:ownership` (dziś 193 / 918)         |
+| Rozkład tras i migracji per domena                                                       | `bun run check:ownership`                          |
+| **Liczba domen bez obsadzonego właściciela**                                             | `bun run check:ownership` (dziś **9 z 9**)         |
+| Stan progów: `domenyBezWlasciciela`, `migracjeBezAtrybucjiDozwolone`, `martweWzorceTras` | `bun run check:ownership` (dziś 9 / 5 pozycji / 0) |
+| Jakość atrybucji: migracje bez trafienia, atrybucje słabe                                | `bun run check:ownership` (dziś 5 / 221)           |
+| Wynik kwartalnego testu odtworzenia backupu                                              | sekcja 8.3 - **obowiązkowy**                       |
+| Przegląd `minimumReleaseAgeExcludes`                                                     | `bunfig.toml:6`                                    |
+| Liczba dni do wygaśnięcia umowy                                                          | `bun run check:ownership` (sekcja 10)              |
 
 **Wydruk `bun run check:ownership` drukuje większość tych liczb i jest
 obowiązkowym ZAŁĄCZNIKIEM raportu** - załącznikiem, nie przepisaniem: liczba
