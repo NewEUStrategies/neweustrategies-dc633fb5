@@ -26,6 +26,10 @@
     "20260828207000_event_registration_payment_settlement.sql": "20260829071947",
     "20260829220000_footer_social_profile_urls.sql": "20260830093353",
     "20260829221500_event_sections_materials_content_source.sql": "20260830093427",
-    "20260830102000_event_registration_set_channels_search_path.sql": "20260830114612"
+    "20260830102000_event_registration_set_channels_search_path.sql": "20260830114612",
+    "20260830090000_event_registration_checkout_binding.sql": "20260830172534",
+    "20260830110000_event_payment_outcome_order_conflict.sql": "20260830172820",
+    "20260830100000_event_set_channels_extensions_path.sql": "20260830114612",
+    "20260830120000_secdef_search_path_pg_temp_last.sql": "20260830181725"
   }
 }

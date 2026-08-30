@@ -79,9 +79,10 @@
       "20260724060222_9a710f7c-746a-4218-be01-1cb2cd277fd4.sql",
       "20260724064450_1abe66d4-38d3-4411-a3a0-fae560ac951a.sql",
       "20260725181311_90af83b6-6371-4c93-ab74-6ec914ea59e5.sql",
-      "20260727053841_7ec6a016-0e5e-403e-beca-30adbd1c4bd3.sql"
+      "20260727053841_7ec6a016-0e5e-403e-beca-30adbd1c4bd3.sql",
+      "20260830120000_secdef_search_path_pg_temp_last.sql"
     ],
-    "komentarz": "Zapadki w konwencji tego repo: wolno je WYLACZNIE zaciesniac. domenyBezWlasciciela spada przy kazdym obsadzeniu roli. migracjeBezAtrybucjiDozwolone to LISTA NAZW, nie liczba - dzieki temu komunikat bramki pokazuje wylacznie migracje NOWE, a nie piec plikow linii bazowej. Trzy z nich to puste placeholdery (same komentarze, zero SQL), czwarty to CREATE EXTENSION pgtap, piaty to petla DO $$ siegajaca funkcji przez format(). Uwaga: zadna bramka nie porownuje tych wartosci z galezia bazowa - zapadke egzekwuje przeglad PR-a."
+    "komentarz": "Zapadki w konwencji tego repo: wolno je WYLACZNIE zaciesniac. domenyBezWlasciciela spada przy kazdym obsadzeniu roli. migracjeBezAtrybucjiDozwolone to LISTA NAZW, nie liczba - dzieki temu komunikat bramki pokazuje wylacznie migracje NOWE, a nie piec plikow linii bazowej. Trzy z nich to puste placeholdery (same komentarze, zero SQL), czwarty to CREATE EXTENSION pgtap, piaty to petla DO $$ siegajaca funkcji przez format(). Uwaga: zadna bramka nie porownuje tych wartosci z galezia bazowa - zapadke egzekwuje przeglad PR-a. Szosty wpis (2026-08-30, 20260830120000_secdef_search_path_pg_temp_last.sql) to ten sam ksztalt co piaty: petla DO $$ po KATALOGU SYSTEMOWYM (pg_proc), dopisujaca pg_temp na koniec search_path funkcji SECURITY DEFINER. `extractIdentifiers` zwraca dla niej PUSTY zbior - czyta nazwy kwalifikowane schematem z listy public|storage|auth|extensions oraz pozycje strukturalne, a ta migracja nie nazywa ani jednej tabeli domenowej, bo dotyczy funkcji wszystkich dziewieciu domen naraz. Sprawdzone: dopisanie pg_proc do identyfikatoryPrzekrojowe.tier2 NIC by nie dalo, bo tier2 filtruje sie przez ten sam ekstraktor. Wpis nie jest wiec rozluznieniem zapadki dla wygody, tylko jedyna droga, ktora bramka sama wskazuje w komunikacie bledu."
   },
   "identyfikatoryPrzekrojowe": {
     "komentarz": "Identyfikatory obecne w ponad 20% migracji albo semantycznie przekrojowe. Nie punktują w warstwie 1 (zaśmiecałyby atrybucję); są konsultowane dopiero w warstwie 2, gdy nic konkretnego nie trafiło.",
