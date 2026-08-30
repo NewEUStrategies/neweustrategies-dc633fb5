@@ -715,6 +715,59 @@ const CLIENT_DIR =
 //             oparcie w liczbach, a nie w zmęczeniu. Do tej decyzji konwencja
 //             obowiązuje bez zmian i ten wpis się do niej stosuje.
 
+// 2026-08-30 VIII `lazy()` NIE ZDEJMUJE KRAWĘDZI - dwie optymalizacje, które
+//             mierzyły nie to, co ta bramka. Ten wpis NIE rusza floorów;
+//             opisuje ZNALEZISKO i jedną naprawę, która zeszła z PUBLIC.
+//             (Pomiary poniżej powstały PRZED wpisami VI i VII, czyli przy
+//             florach 2545 / 3894. Po ich podniesieniu do 2715 / 4306 wnioski
+//             się nie zmieniają - zmienia się tylko zapas: te -32,1 KB są
+//             teraz marginesem NAD floorem, a nie drogą do niego.)
+//
+//             MECHANIZM, ODTWORZONY POMIAREM. `BuilderRenderer` (chrome KAŻDEJ
+//             strony publicznej) trzymał
+//             `lazy(() => import(".../EmptyContainerPickerBox"))` z komentarzem
+//             obiecującym wprost, że „słowniki edytora nie wchodzą do bundla
+//             publicznego chrome". Bliźniaczo `ClubInsights` sięgał po `EChart`
+//             z katalogu panelu, tłumacząc to tym, że prymityw „trzyma ECharts
+//             poza grafem SSR". OBIE TE RZECZY SĄ PRAWDZIWE - i obie mierzą co
+//             innego niż ta bramka. `lazy()` zdejmuje moduł ze ŚCIEŻKI
+//             STARTOWEJ, ale krawędź w grafie zostaje, a `adminOnlyByGraph()`
+//             wyżej dopasowuje `import(` tym samym wyrażeniem co `from` - więc
+//             moduł nadal jest OSIĄGALNY z publicznej trasy i nadal liczy się
+//             do budżetu czytelnika.
+//
+//             NAPRAWA, KTÓRA WESZŁA: odwrócenie zależności zamiast kolejnego
+//             odroczenia. Kanwa buildera (kod adminowy) PODAJE komponent boksu
+//             przez kontekst, publiczny renderer zna wyłącznie kształt propsów.
+//             Krawędź znika, zamiast się przesuwać.
+//               PUBLIC 2701,8 -> 2669,7 KB  (-32,1: i18n-builder 31,0 +
+//                                           StructurePicker 1,0 + boks 0,4)
+//               ADMIN  1596,6 -> 1629,0 KB  (te same bajty, inne wiadro)
+//               OVERALL bez zmian - bo niczego nie skasowano.
+//             Regresję pilnuje `publicRendererLayering.test.ts`, nie komentarz:
+//             poprzedni komentarz stał tam i był nieprawdziwy przez cały czas
+//             swojego istnienia.
+//
+//             CO ZOSTAJE ŚWIADOMIE, JAKO DECYZJA PRODUKTOWA (2026-08-30):
+//             `ClubInsights` nadal importuje `EChart`, więc 266,8 KB ECharts
+//             siedzi w budżecie PUBLICZNYM, choć wszystkie pozostałe wykresy
+//             w aplikacji są adminowe. Zmierzone: zdjęcie tej jednej krawędzi
+//             zbiłoby PUBLIC do ~2402 KB - 142 KB poniżej floora 2545
+//             sprzed dwóch tygodni i 313 KB poniżej dzisiejszego 2715, bez
+//             podnoszenia czegokolwiek. Kosztem
+//             byłoby przepisanie trzech wykresów (liniowy z trzema seriami,
+//             słupkowy poziomy, kołowy z przewijaną legendą) na własne SVG.
+//             Zamawiający wybrał zachowanie pełnych wykresów na publicznych
+//             wglądach klubu. To jest więc CENA ZNANA I POLICZONA, nie dryf.
+//
+//             CZEGO ŻADNE PRZENOSZENIE NIE ZAŁATWI: OVERALL. Ta bramka sumuje
+//             WYEMITOWANE bajty, więc przeniesienie chunku między grafami
+//             zmienia wyłącznie wiadro. Zejście OVERALL pod 3894 wymaga
+//             SKASOWANIA setek kilobajtów wysyłanego kodu, czyli usunięcia
+//             funkcji -
+//             i dlatego floor OVERALL jest osobną, uczciwą decyzją, a floor
+//             PUBLIC nie musiał nią być.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
