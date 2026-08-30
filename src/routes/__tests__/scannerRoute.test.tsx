@@ -27,7 +27,7 @@
 // WYŁĄCZNIE sklejenie trasy: nagłówek, walidacja adresu i to, co trasa podaje
 // aplikacji w propsie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   /** Kolejne wartości `initialToken`, jakie atrapa aplikacji dostała w propsie. */
@@ -41,6 +41,15 @@ vi.mock("@/components/events/scanner/organisms/ScannerApp", () => ({
     h.initialTokens.push(initialToken);
     return <div data-testid="scanner-app-stub">{initialToken ?? "brak-poświadczenia"}</div>;
   },
+}));
+
+// Zwiezla strona bledu ma wlasny plik testowy i ciagnie router (`Link`,
+// `useRouter`). Tutaj liczy sie WYLACZNIE to, ktory jej wariant wybiera trasa
+// skanera - przy bramce nie ma miejsca na pelna strone z nawigacja serwisu.
+vi.mock("@/components/error/FriendlyErrorPage", () => ({
+  FriendlyErrorPage: ({ variant }: { variant?: string }) => (
+    <div data-testid="strona-bledu">{variant ?? "page"}</div>
+  ),
 }));
 
 vi.mock("@/lib/events/scannerPwa", () => ({
@@ -243,6 +252,18 @@ describe("trasa /scanner - powłoka aplikacji", () => {
     // i nie ma powodu, żeby dwie ścieżki awarii wyglądały inaczej.
     expect(ScannerRoute.options.errorComponent).toBe(ScannerRoute.options.notFoundComponent);
     expect(typeof ScannerRoute.options.errorComponent).toBe("function");
+  });
+
+  it("strona błędu skanera jest wariantem ZWIĘZŁYM - bez nawigacji i stopki serwisu", () => {
+    // Sama tożsamość obu wpisów (przypadek wyżej) nie mówi jeszcze, CO się
+    // narysuje. Telefon przy bramce ma ekran wielkości dłoni: pełnoekranowa
+    // strona błędu z menu serwisu spycha jedyny przydatny przycisk pod zgięcie.
+    const Ekran = ScannerRoute.options.errorComponent;
+    if (typeof Ekran !== "function") throw new Error("test: trasa nie ma komponentu błędu");
+
+    render(<Ekran error={new Error("awaria wczytywania")} reset={() => {}} />);
+
+    expect(screen.getByTestId("strona-bledu")).toHaveTextContent("compact");
   });
 });
 
