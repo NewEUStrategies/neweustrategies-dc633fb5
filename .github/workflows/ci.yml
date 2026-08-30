@@ -105,6 +105,25 @@ jobs:
       - name: Gate coverage (każda bramka wpięta, żadna dwa razy)
         run: bun run check:gate-coverage
 
+      # Bramka własnicielska. Audyt 2026-08-29 zmierzył 193 trasy admina i 918
+      # migracji BEZ wskazanego właściciela technicznego - a 631 z tych migracji
+      # (68,7%) nazywa się UUID-em nadanym przez platformę, więc z nazwy pliku
+      # nie da się odczytać NICZEGO o tym, kogo dotyczy. Dokument opisujący
+      # własnicielstwo zdezaktualizowałby się przy pierwszej nowej trasie i nikt
+      # by tego nie zauważył; rejestr `governance/ownership.json` sprawdzany tym
+      # krokiem przewraca CI dokładnie tak jak błąd typów. Bramka czyta WYŁĄCZNIE
+      # pliki repo (mierzone: 0,6 s na pełnym korpusie), więc stoi w bloku
+      # najtańszych sygnałów. Zakres i lekarstwa: `governance/README.md`.
+      - name: Własnicielstwo (każda trasa i migracja ma właściciela)
+        run: bun run check:ownership
+
+      # `.github/CODEOWNERS` jest GENEROWANY z tego samego rejestru, więc nie ma
+      # jak rozjechać się z nim po cichu - dopisanie trasy do domeny bez
+      # przegenerowania pliku zapala ten krok. Wzorzec jak `check:authz-snapshot`
+      # (ten sam skrypt pisze i weryfikuje bajt w bajt).
+      - name: CODEOWNERS zgodny z rejestrem własnicielstwa
+        run: bun run check:codeowners
+
       # Blokujący inwariant odtwarzalności bazy: czy `supabase db start` (świeża
       # baza, migracje od zera) dobiegnie do końca. Trzy klasy, wszystkie
       # niewidoczne dla przyrostowego `db push` i wszystkie zabijające joby
