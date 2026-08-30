@@ -141,7 +141,9 @@ szuflada profilu) kosztowało moduł 15 **0,0 pp** — napisałem wtedy, że mod
 z 97,42% na 96,15%, i to była nieprawda: przeliczony z danych tamtego przebiegu moduł stał
 na 97,50%, czyli 0,1 pp WYŻEJ niż w wydaniu 5. Awarii nie było widać w procencie w ogóle.
 Złapał ją wyłącznie **próg per-ścieżka** `src/components/profile/**` — 91,59% linii wobec
-progu 93, 85,43% funkcji wobec 87, 83,09% gałęzi wobec 89.
+progu 93, 85,43% funkcji wobec 87, 83,09% gałęzi wobec 89. Dla porządku: dziś ta sama
+ścieżka mierzy **96,37% linii / 90,37% funkcji / 91,38% gałęzi / 95,03% instrukcji**,
+czyli stoi z zapasem nad każdym z czterech progów — defekt naprawiono w tym oknie.
 Wniosek jest ogólny i wart więcej niż tamta pomyłka: **procent modułu nie jest bramką i nie
 wykrywa czerwieni.** Wykrywa ją albo sam wynik suity, albo próg postawiony na tyle wąsko,
 żeby jeden zepsuty katalog przebił się przez średnią. To jest najmocniejszy argument tej
@@ -1410,7 +1412,8 @@ w 129 plikach**, przy zerze `it.skip` i `it.todo`; przebieg wykonał 238 przypad
 miał ZERO wpisów `it.fails` przy 151 plikach testowych i przeglądzie, który wypisał 165 ustaleń.
 Interpretowałem to jako inną decyzję — defekty naprawiane u źródła, nie rejestrowane. Wydanie 7
 pokazuje, że nie była to decyzja modułu, tylko **brak pracy, która by je znalazła**:
-powierzchnia wydarzeń ma dziś **64 wpisy w 58 plikach**, gdzie miała zero.
+powierzchnia wydarzeń ma dziś **52 wpisy w 32 plikach**, gdzie miała zero — czyli blisko
+połowa całego przyrostu rejestru w tym wydaniu.
 
 Nie znalazły się dlatego, że ktoś zmienił zdanie o konwencji. Znalazły się dlatego, że ktoś
 napisał testy tam, gdzie ich nie było — a test, który po raz pierwszy dotyka gałęzi odmowy,
