@@ -12,6 +12,7 @@ import {
   parseRegistry,
   renderCodeowners,
   renderOwnershipReport,
+  stripSqlComments,
   stripSqlNoise,
   type MigrationSource,
   type OwnershipDomain,
@@ -189,6 +190,7 @@ describe("attributeRoutes", () => {
   it("rozstrzyga nakładające się wzorce KOLEJNOŚCIĄ domen i raportuje przegranych", () => {
     const registry = parseRegistry(
       registryJson({
+        identyfikatoryPrzekrojowe: { tier2: { profiles: "waska" } },
         domeny: [
           {
             slug: "waska",
@@ -619,6 +621,7 @@ describe("poprawki z przeglądu adwersaryjnego", () => {
   it("wzorzec trafiający, ale zawsze PRZEGRYWAJĄCY, nie jest martwy", () => {
     const registry = parseRegistry(
       registryJson({
+        identyfikatoryPrzekrojowe: { tier2: { profiles: "pierwsza" } },
         domeny: [
           {
             slug: "pierwsza",
@@ -713,5 +716,58 @@ describe("poprawki z przeglądu adwersaryjnego", () => {
   it("CODEOWNERS nie zawiera aktywnej reguły wskazującej samą organizację", () => {
     const rendered = renderCodeowners(parseRegistry(registryJson()));
     expect(rendered).not.toMatch(/^\/governance\/ @NewEUStrategies$/m);
+  });
+});
+
+describe("poprawki ze zgłoszeń bota przeglądowego (PR #305)", () => {
+  it("warstwa 1.5 NIE bierze nazwy z KOMENTARZA - inaczej pusty placeholder ucieka z kubła 'brak'", () => {
+    const sources: MigrationSource[] = [
+      { file: "slownik.sql", sql: "CREATE TABLE public.club_members (id uuid);" },
+      // Cała treść pliku to komentarz - dokładnie kształt trzech pustych
+      // placeholderów z linii bazowej `migracjeBezAtrybucjiDozwolone`.
+      { file: "placeholder.sql", sql: "-- Follow-up for club_members; no SQL yet\n" },
+    ];
+    const { attributions } = attributeMigrations(sources, parseRegistry(registryJson()));
+    const placeholder = attributions.find((a) => a.file === "placeholder.sql");
+    expect(placeholder?.tier).toBe("brak");
+    expect(placeholder?.votes).toBe(0);
+  });
+
+  it("warstwa 1.5 NADAL bierze nazwę z LITERAŁU - po to istnieje", () => {
+    const sources: MigrationSource[] = [
+      { file: "slownik.sql", sql: "CREATE TABLE public.club_members (id uuid);" },
+      {
+        file: "dynamiczna.sql",
+        sql: "DO $$ BEGIN EXECUTE format('REVOKE ALL ON %I FROM anon', 'club_members'); END $$;",
+      },
+    ];
+    const { attributions } = attributeMigrations(sources, parseRegistry(registryJson()));
+    const dynamic = attributions.find((a) => a.file === "dynamiczna.sql");
+    expect(dynamic?.tier).toBe("literaly");
+    expect(dynamic?.domain).toBe("kluby");
+  });
+
+  it("stripSqlComments zdejmuje komentarze, ale ZOSTAWIA literały", () => {
+    const cleaned = stripSqlComments("-- club_members w komentarzu\nSELECT 'club_threads';");
+    expect(cleaned).not.toContain("club_members");
+    expect(cleaned).toContain("club_threads");
+  });
+
+  it("stripSqlNoise nadal zdejmuje OBA - to jego zadanie w warstwie 1", () => {
+    const cleaned = stripSqlNoise("-- club_members\nSELECT 'club_threads';");
+    expect(cleaned).not.toContain("club_members");
+    expect(cleaned).not.toContain("club_threads");
+  });
+
+  it("rejestr z literówką w domenie tier2 jest ODRZUCANY, a nie liczony jako NaN", () => {
+    const raw = registryJson();
+    (raw["identyfikatoryPrzekrojowe"] as Record<string, unknown>)["tier2"] = {
+      profiles: "tozsamosc-literowka",
+    };
+    expect(() => parseRegistry(raw)).toThrow(/wskazuje domenę 'tozsamosc-literowka'/);
+  });
+
+  it("poprawny cel tier2 nadal przechodzi", () => {
+    expect(() => parseRegistry(registryJson())).not.toThrow();
   });
 });

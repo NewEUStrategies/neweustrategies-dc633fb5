@@ -44,7 +44,7 @@ Dwie z tych liczb decydują o kształcie naprawy:
 | `governance/ownership.json`              | **Rejestr** - jedyne źródło prawdy o zakresie i właścicielach              |
 | `governance/README.md`                   | Instrukcja edycji rejestru (najczęstsze sytuacje, progi, metoda atrybucji) |
 | `src/lib/ci/ownership.ts`                | Inwariant, warstwa czysta: parsowanie, atrybucja, raport                   |
-| `src/lib/ci/__tests__/ownership.test.ts` | 59 testów jednostkowych inwariantu                                         |
+| `src/lib/ci/__tests__/ownership.test.ts` | 65 testów jednostkowych inwariantu                                         |
 | `scripts/check-ownership.ts`             | Cienki runner bramki (`bun run check:ownership`)                           |
 | `scripts/generate-codeowners.ts`         | Generator i weryfikator `.github/CODEOWNERS` (`--check` bajt w bajt)       |
 | `.github/CODEOWNERS`                     | Plik GENEROWANY z rejestru                                                 |
@@ -227,6 +227,7 @@ zamknięte, każdy przebieg CI wypisuje, ilu właścicieli brakuje.
 | Sprawdzenie                                         | Wynik                                                    |
 | --------------------------------------------------- | -------------------------------------------------------- |
 | `bun run check:ownership`                           | ✓ 193/193 tras, 918/918 migracji, 0 martwych reguł       |
+| to samo po scaleniu `main` (2026-08-30)             | ✓ 193/193 tras, **922/922** migracji, 0 martwych reguł   |
 | `bun run check:codeowners`                          | ✓ zgodny z rejestrem                                     |
 | `bun run check:gate-coverage`                       | ✓ 38 bramek `check:*`, każda wpięta dokładnie raz na job |
 | `vitest run src/lib/ci/__tests__/ownership.test.ts` | ✓ 46/46                                                  |
@@ -278,3 +279,31 @@ Nienaprawione świadomie, z uzasadnieniem:
   zamierzone: własnicielstwo ma śledzić rzeczywistość, komunikat mówi dokładnie
   co usunąć, a alternatywa (liczenie martwych reguł tylko dla wzorców
   z gwiazdką) wyłączyłaby zapadkę dla 57 z 75 wzorców.
+
+---
+
+## 10. Zgłoszenia bota przeglądowego na PR #305
+
+Bot `chatgpt-codex-connector` zgłosił trzy uwagi P2 do kodu bramki. Wszystkie
+trzy okazały się realne i zostały naprawione; dwie z nich to ta sama klasa
+błędu, którą przegląd adwersaryjny złapał gdzie indziej - bramka o kompletność
+miała miejsca, w których coś znikało po cichu.
+
+| Zgłoszenie                                          | Weryfikacja                                                                                                                                                                                                                                                                                                                                                                              | Poprawka                                                                                                                                                                                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skan tras obejmował tylko `.tsx`                    | Potwierdzone: router bierze też `.ts`, a repo ma **55** tras w czystym `.ts` (`sitemaps.$section.ts`, `llms[.]txt.ts`, `mcp.ts`, całe `lovable/email/**`). Trasa panelu bez JSX-a - handler, przekierowanie, eksport - jest naturalnie `.ts` i **znikałaby z bramki bez śladu**. Dziś takiej trasy nie ma: jedyne `admin*.ts` to test w `__tests__/`, więc poprawka niczego nie przenosi | Skan bierze `.ts` i `.tsx`; testy odpadają po katalogu `__tests__` **oraz** po `.test.`/`.spec.` w nazwie, bo test bywa położony obok trasy                                                                         |
+| Warstwa 1.5 skanowała surowy SQL **z komentarzami** | Potwierdzone i groźniejsze, niż wygląda: migracja, której cała treść to `-- Follow-up for club_members; no SQL yet`, dostawała domenę **z komentarza**. To dokładnie kształt trzech pustych placeholderów z listy `migracjeBezAtrybucjiDozwolone` - czyli mechanizm, który miał je wyłapywać, sam je przepuszczał                                                                        | Skaner rozdzielony na dwa tryby: `stripSqlNoise` (komentarze **i** literały - warstwa 1) oraz `stripSqlComments` (tylko komentarze, literały zostają - warstwa 1.5). Po poprawce warstwa 1.5 spadła z 3 plików do 2 |
+| `tier2` nie był walidowany wobec listy domen        | Potwierdzone: literówka w nazwie domeny nie zapalała **żadnego** warunku - migracja trafiała do nieistniejącej domeny, `perDomain` liczyło jej udział jako `NaN`, a `ownershipFailed` milczało. Bramka raportowała własnicielstwo, którego nie było                                                                                                                                      | `parseRegistry` odrzuca cel `tier2` spoza `domeny`. Walidacja stoi **po** kontroli duplikatów i pustych domen, żeby bardziej podstawowy błąd zgłaszał się pierwszy                                                  |
+
+Testów: 59 → 65.
+
+### 10.1 Scalenie `main` (2026-08-30)
+
+Konflikt w `.github/workflows/ci.yml` był **wyłącznie w komentarzu**: `main`
+niezależnie zrobiło tę samą poprawkę (cudzysłów wokół nazwy kroku z `RLS: `),
+a jego komentarz niesie fakt, którego mój nie miał - bez cudzysłowu GitHub
+kończy bieg jako **startup failure**: zero jobów, zero logów. Wzięta została
+wersja z `main`; kod po obu stronach był identyczny.
+
+Scalenie dołożyło 4 migracje (918 → 922). Bramka pokrywa je bez zmiany
+rejestru: 922/922, nadal 5 plików na liście bazowej, 0 martwych wzorców tras.

@@ -315,6 +315,19 @@ export function parseRegistry(raw: unknown): OwnershipRegistry {
     }
   }
 
+  // Cel każdego wpisu przekrojowego musi istnieć wśród domen. Literówka tutaj
+  // NIE zapalała żadnego warunku: migracja trafiała do nieistniejącej domeny,
+  // `perDomain` liczyło jej udział jako NaN, a `ownershipFailed` milczało -
+  // bramka raportowała własnicielstwo, którego nie było.
+  for (const [id, target] of Object.entries(tier2)) {
+    if (!seen.has(target)) {
+      throw new Error(
+        `governance/ownership.json: 'identyfikatoryPrzekrojowe.tier2.${id}' wskazuje domenę ` +
+          `'${target}', której nie ma w 'domeny'.`,
+      );
+    }
+  }
+
   return { kontraktUtrzymaniowy, osoby, progi, tier2, domeny };
 }
 
@@ -411,11 +424,30 @@ export function attributeRoutes(
  * ZAGNIEŻDŻONE komentarze blokowe, więc bloki liczone są licznikiem
  * zagnieżdżenia, a nie leniwym dopasowaniem do pierwszego domknięcia.
  *
- * (Repo ma pokrewny `stripSqlComments` w `scripts/lib/sqlMigrations.ts` -
- * ten sam wzorzec skanera, ale tamten świadomie ZACHOWUJE literały, bo bramki
- * SQL badają ich treść. Tutaj literały są szumem.)
+ * (Repo ma pokrewny skaner w `scripts/lib/sqlMigrations.ts`, pod tą samą nazwą
+ * `stripSqlComments` - tamten zachowuje literały, bo bramki SQL badają ich
+ * treść. Tutejszy `stripSqlNoise` wycina i komentarze, i literały; wariant
+ * `stripSqlComments` niżej zachowuje literały dla warstwy 1.5.)
  */
 export function stripSqlNoise(sql: string): string {
+  return scanSql(sql, false);
+}
+
+/**
+ * Wycina WYŁĄCZNIE komentarze, zachowując literały napisowe.
+ *
+ * Potrzebne w warstwie 1.5, która szuka nazw w dynamicznym SQL-u (`DO $$`,
+ * `format()`), gdzie nazwa funkcji siedzi w literale. Skanowanie surowego
+ * tekstu byłoby tam błędem: migracja bez ani jednej instrukcji, której CAŁA
+ * treść to `-- Follow-up for club_members; no SQL yet`, dostawała domenę
+ * z komentarza i wypadała z kubła „brak" - a to właśnie ten kubeł pilnuje
+ * pustych placeholderów z linii bazowej.
+ */
+export function stripSqlComments(sql: string): string {
+  return scanSql(sql, true);
+}
+
+function scanSql(sql: string, keepLiterals: boolean): string {
   let out = "";
   let i = 0;
 
@@ -450,6 +482,7 @@ export function stripSqlNoise(sql: string): string {
     }
 
     if (char === "'") {
+      const start = i;
       i += 1;
       while (i < sql.length) {
         if (sql[i] === "'") {
@@ -461,10 +494,10 @@ export function stripSqlNoise(sql: string): string {
           i += 1;
           break;
         }
-        if (sql[i] === "\n") out += "\n";
+        if (!keepLiterals && sql[i] === "\n") out += "\n";
         i += 1;
       }
-      out += " '' ";
+      out += keepLiterals ? sql.slice(start, i) : " '' ";
       continue;
     }
 
@@ -759,7 +792,7 @@ export function attributeMigrations(
       // w LITERAŁACH, które `stripSqlNoise` wycina. Skanujemy więc surowy tekst,
       // ale tylko po nazwach >= 8 znaków - krótsze dają fałszywe trafienia.
       if (votes === 0) {
-        const raw = source.sql.toLowerCase();
+        const raw = stripSqlComments(source.sql).toLowerCase();
         for (const id of vocabulary) {
           if (ubiquitous.has(id) || id.length < 8 || !raw.includes(id)) continue;
           const hit = matchIdentifier(id, rules);

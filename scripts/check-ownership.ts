@@ -27,12 +27,23 @@ const ROUTES_DIR = "src/routes";
 const MIGRATIONS_DIR = "supabase/migrations";
 
 /**
- * Trasy panelu to pliki `admin*.tsx` w katalogu tras.
+ * Trasy panelu to pliki `admin*.{ts,tsx}` w katalogu tras.
  *
  * Skan jest REKURENCYJNY, choć dziś wszystkie 193 trasy leżą płasko. Płaski
  * `readdirSync` czynił bramkę ślepą na `src/routes/admin/cokolwiek.tsx` -
  * a bramka, której cała wartość polega na kompletności, nie może mieć miejsca,
- * w którym trasa znika bez śladu. Katalogi testów pomijamy.
+ * w którym trasa znika bez śladu.
+ *
+ * `.ts` LICZY SIĘ TAK SAMO JAK `.tsx`. Router bierze oba, a repo ma 55 tras
+ * w czystym `.ts` (`sitemaps.$section.ts`, `llms[.]txt.ts`, `mcp.ts`, cały
+ * `lovable/email/**`). Trasa panelu bez JSX-a - handler, przekierowanie,
+ * eksport danych - jest naturalnie plikiem `.ts` i przy filtrze na samo `.tsx`
+ * ZNIKAŁABY z bramki po cichu: zero wpisu w rejestrze, zielona bramka.
+ * Dziś takiej trasy nie ma (jedyne `admin*.ts` to test w `__tests__/`),
+ * więc ta zmiana niczego nie przenosi - zamyka drogę następnej.
+ *
+ * Pliki testowe odpadają po katalogu `__tests__` ORAZ po `.test.`/`.spec.`
+ * w nazwie, bo test bywa położony obok trasy, nie w katalogu testów.
  */
 function readRouteFiles(): string[] {
   const found: string[] = [];
@@ -45,7 +56,8 @@ function readRouteFiles(): string[] {
         walk(full);
         continue;
       }
-      if (!entry.endsWith(".tsx")) continue;
+      if (!entry.endsWith(".ts") && !entry.endsWith(".tsx")) continue;
+      if (/\.(test|spec)\.tsx?$/.test(entry)) continue;
       // Ścieżka względem katalogu tras, zawsze z ukośnikiem - wzorce w rejestrze
       // dopasowują się do niej w całości.
       const routePath = relative(ROUTES_DIR, full).split(sep).join("/");

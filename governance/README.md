@@ -21,7 +21,7 @@ przewraca CI tak samo jak błąd typów.
 | `governance/ownership.json`              | **Rejestr** - jedyne źródło prawdy. To tu się edytuje                |
 | `governance/README.md`                   | Ten plik. Jego brak przewraca bramkę                                 |
 | `src/lib/ci/ownership.ts`                | Inwariant: parsowanie, atrybucja, raport. Warstwa czysta, bez IO     |
-| `src/lib/ci/__tests__/ownership.test.ts` | 59 testów inwariantu                                                 |
+| `src/lib/ci/__tests__/ownership.test.ts` | 65 testów inwariantu                                                 |
 | `scripts/check-ownership.ts`             | Cienki runner - odczyt katalogów i kod wyjścia                       |
 | `scripts/generate-codeowners.ts`         | Generator `.github/CODEOWNERS` (+ tryb `--check` bajt w bajt)        |
 | `.github/CODEOWNERS`                     | **Plik generowany.** Nie edytuj ręcznie                              |
@@ -193,8 +193,8 @@ Cztery warstwy; każda uruchamia się dopiero wtedy, gdy poprzednia nic nie znal
 
 | Warstwa            | Co robi                                                                                  | Dziś |
 | ------------------ | ---------------------------------------------------------------------------------------- | ---: |
-| 1 `identyfikatory` | Identyfikatory specyficzne, ważone rzadkością `1/log2(1+df)`; wygrywa domena z max. sumą |  893 |
-| 1.5 `literaly`     | Skan surowego tekstu po nazwach ≥ 8 znaków - dla `DO $$` i dynamicznego SQL              |    3 |
+| 1 `identyfikatory` | Identyfikatory specyficzne, ważone rzadkością `1/log2(1+df)`; wygrywa domena z max. sumą |  897 |
+| 1.5 `literaly`     | Skan tekstu BEZ KOMENTARZY po nazwach ≥ 8 znaków - dla `DO $$` i dynamicznego SQL        |    2 |
 | 2 `przekrojowe`    | Dopiero teraz `tier2` (`profiles`, `tenants`, `has_role`, …) jako sygnał słaby           |   18 |
 | 3 `brak`           | Brak trafienia → ostatnia domena rejestru                                                |    5 |
 
@@ -205,8 +205,13 @@ wyrzucane, tylko odłożone do warstwy 2: migracja robiąca wyłącznie
 
 ### 5.1 Czego bramka NIE gwarantuje
 
+Warstwa 1.5 skanuje tekst **bez komentarzy**, ale z literałami. Surowy tekst
+byłby błędem: migracja, której cała treść to `-- Follow-up for club_members`,
+dostawałaby domenę z komentarza i wypadała z kubła „brak" - a to ten kubeł
+pilnuje pustych placeholderów z linii bazowej.
+
 **Gwarantuje pokrycie, nie trafność.** Reguła jest heurystyką po identyfikatorach
-SQL. Dziś **221 z 918** atrybucji jest „słabych" - rozstrzygniętych jednym
+SQL. Dziś **223 z 922** atrybucji jest „słabych" - rozstrzygniętych jednym
 identyfikatorem. Raport podaje tę liczbę w każdym przebiegu właśnie po to, żeby
 nie chować jej za zieloną bramką.
 
