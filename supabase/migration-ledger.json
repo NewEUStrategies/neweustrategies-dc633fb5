@@ -23,6 +23,8 @@
     "20260828204000_event_registration_form_consents.sql": "20260829071657",
     "20260828205000_domain_events_multi_segment_type.sql": "20260829071657",
     "20260828206000_event_register_paid_ticket_gate.sql": "20260829071947",
-    "20260828207000_event_registration_payment_settlement.sql": "20260829071947"
+    "20260828207000_event_registration_payment_settlement.sql": "20260829071947",
+    "20260829220000_footer_social_profile_urls.sql": "20260830093353",
+    "20260829221500_event_sections_materials_content_source.sql": "20260830093427"
   }
 }
