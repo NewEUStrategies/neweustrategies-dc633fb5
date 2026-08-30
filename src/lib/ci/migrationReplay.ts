@@ -732,6 +732,26 @@ const KNOWN_CONTENT_TWINS: readonly KnownContentTwin[] = [
     rationale:
       "Lista uczestnikow i dyskusje na froncie: dwie kolumny w `events` oraz RPC `event_attendees` i `event_discussions` z regula Chatham House. Dowod zastosowania: zadanie `pgtap` na PR #294 przeszlo na zielono, a jego krok „Start local database (migrations + seed)” stosuje CALY katalog migracji od zera w kolejnosci nazw - czyli OBA numery tej pary, jeden po drugim, bez konfliktu. Tresc obu plikow jest identyczna po odjeciu komentarzy i bialych znakow (sprawdzone md5 na tresci bez komentarzy). SQL jest idempotentny (`IF NOT EXISTS` / `OR REPLACE` / `ON CONFLICT`), wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje na bazie projektu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`. Zbedny wpis w rejestrze nie psuje niczego poza dlugoscia rejestru - pod niepewnoscia wybieramy tansza pomylke.",
   },
+  {
+    files: [
+      "20260829220000_footer_social_profile_urls.sql",
+      "20260830093353_c5dc8c02-ec57-4a1b-9572-86f4c4121ce7.sql",
+    ],
+    deployment: "PR #306 / panel Lovable (commit 3d0b8c6)",
+    appliedOn: "2026-08-30",
+    rationale:
+      "Normalizacja adresow profili spolecznosciowych w stopce: jeden `UPDATE public.site_settings` na wierszu `key = 'footer'`, podmieniajacy `content` wezla `ftr-social` w `builder_data`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260829220000_footer_social_profile_urls.sql` -> `20260830093353`, czyli zapisuje, pod ktora wersja pipeline faktycznie wykonal ten SQL. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `76a044c968ef` po obu stronach pary. UWAGA, INACZEJ NIZ WPISY WYZEJ: ten SQL NIE ma zadnego `IF NOT EXISTS` / `OR REPLACE` / `ON CONFLICT` - jest ZBIEZNY W SKUTKU, i to z dwoch roznych powodow zaleznie od klucza. Dla `facebook`/`x`/`linkedin`/`instagram` drugi przebieg wpada w galaz „adres juz poprawny”, bo wartosci domyslne same spelniaja predykat `^https?://[^/]+/[^/?#]`. Dla `youtube`/`spotify` NIE - te maja `ELSE ''` i pierwszy przebieg SWIADOMIE zostawia je puste, wiec drugi przebieg znow wpada w `ELSE` i znow zapisuje `''`. Obie drogi daja te sama wartosc, ale mechanizm jest rozny i nie wolno go opisywac jednym zdaniem. `content - 'twitter'` jest po pierwszym przebiegu pusta operacja, bo `jsonb_build_object` nie emituje juz klucza `twitter`. Jedyny powtarzalny skutek uboczny to bump `updated_at`. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
+  },
+  {
+    files: [
+      "20260829221500_event_sections_materials_content_source.sql",
+      "20260830093427_adcc033b-5cae-4624-a2d8-a11f36c8069d.sql",
+    ],
+    deployment: "PR #306 / panel Lovable (commit 3d0b8c6)",
+    appliedOn: "2026-08-30",
+    rationale:
+      "Przepisanie RPC `public.event_sections(text)` - FUNKCJI zwracajacej sekcje strony wydarzenia, wraz z `REVOKE`/`GRANT`/`COMMENT` na niej. NIE jest to kolumna ani tabela: w schemacie nie ma obiektu `event_sections.content_source`, ta nazwa zyje wylacznie w nazwie pliku migracji i w nazwie asercji `runtime_test.d/96_section_content_sources.sql`. Dowod zastosowania: `supabase/migration-ledger.json` (sekcja `reconciled`) mapuje `20260829221500_event_sections_materials_content_source.sql` -> `20260830093427`. Tresc obu plikow identyczna po odjeciu komentarzy i bialych znakow - md5 okrojonej tresci `48723bf16911` po obu stronach pary. Idempotentnosc ma konkretny mechanizm i nazywamy go wprost: `CREATE OR REPLACE FUNCTION` na NIEZMIENIONEJ sygnaturze plus `REVOKE`/`GRANT`/`COMMENT`, czyli same operacje ustalajace stan - migracja nie zapisuje ani jednego wiersza danych, wiec drugie wykonanie jest pustym przebiegiem. WPIS, NIE KASOWANIE PLIKU: panel zastosowal swoja wersje przy wdrozeniu, wiec usuniecie duplikatu zostawiloby w `schema_migrations` wiersz bez pliku i wywrocilo kolejny `db push`.",
+  },
 ];
 
 /**
