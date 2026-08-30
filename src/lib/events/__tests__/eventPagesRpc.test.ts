@@ -86,7 +86,6 @@ function listRow(overrides: Partial<ListRow> & { page_slug: string }): ListRow {
     module: BRAK,
     page_id: `page-${overrides.page_slug}`,
     page_path: `kongres/${overrides.page_slug}`,
-    page_slug: overrides.page_slug,
     page_status: "published",
     sort_order: 10,
     title_en: overrides.page_slug,
