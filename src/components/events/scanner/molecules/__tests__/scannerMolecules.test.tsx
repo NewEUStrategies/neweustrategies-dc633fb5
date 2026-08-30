@@ -40,20 +40,28 @@ const h = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
   toggleTorch: vi.fn(),
+  /** Wywolanie zwrotne, ktore molekula podaje aparatowi - patrz atrapa nizej. */
+  wykryty: null as ((code: string) => void) | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
 // Aparat nie istnieje w happy-dom - a i tak nie jest gwarancją: gwarancją są
 // czytnik sprzętowy i klawiatura. Stan aparatu ustawia każdy test u siebie.
+// Atrapa PRZECHWYTUJE `onCode`, bo to jedyna droga, ktora aparat ma do reszty
+// aplikacji: bez tego kod odczytany z obrazu nie miałby jak dojsc do bramki,
+// a test aparatu sprawdzalby wylacznie napisy na przyciskach.
 vi.mock("@/hooks/useBarcodeScanner", () => ({
-  useBarcodeScanner: () => ({
-    ...h.camera,
-    videoRef: { current: null },
-    start: h.start,
-    stop: h.stop,
-    toggleTorch: h.toggleTorch,
-  }),
+  useBarcodeScanner: (options: { onCode: (code: string) => void }) => {
+    h.wykryty = options.onCode;
+    return {
+      ...h.camera,
+      videoRef: { current: null },
+      start: h.start,
+      stop: h.stop,
+      toggleTorch: h.toggleTorch,
+    };
+  },
 }));
 
 const { ScanPersonCard } = await import("@/components/events/scanner/molecules/ScanPersonCard");
@@ -102,6 +110,7 @@ function outboxItem(over: Partial<OutboxItem> = {}): OutboxItem {
 beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
+  h.wykryty = null;
   h.camera = {
     support: "unsupported",
     active: false,
@@ -313,6 +322,120 @@ describe("ScannerCodeInput - czytnik sprzętowy i klawiatura", () => {
     const { container } = mountInput();
 
     expect(await axeViolations(container).then(summarize)).toBe("");
+  });
+
+  /* ------------------------------------------------------------- aparat --- */
+
+  /** Odczyt z obrazu - to samo, co robi `useBarcodeScanner` po dekodowaniu. */
+  function aparatWykryl(code: string): void {
+    if (h.wykryty === null) throw new Error("test: molekula nie podala `onCode` aparatowi");
+    h.wykryty(code);
+  }
+
+  it("kod ODCZYTANY Z OBRAZU idzie tą samą drogą co kod z klawiatury", () => {
+    h.camera = { ...h.camera, support: "supported", active: true };
+    const { onCode } = mountInput();
+
+    aparatWykryl("TICKET-Z-APARATU");
+
+    expect(onCode).toHaveBeenCalledExactlyOnceWith("TICKET-Z-APARATU");
+  });
+
+  it("WYŁĄCZONE wejście ignoruje także kod z aparatu, nie tylko z klawiatury", () => {
+    // Aparat pracuje dalej po zablokowaniu pola (tryb bez kolejki offline);
+    // bez tej bramki odczyt z obrazu obchodziłby blokadę bocznymi drzwiami.
+    h.camera = { ...h.camera, support: "supported", active: true };
+    const { onCode } = mountInput({ disabled: true });
+
+    aparatWykryl("TICKET-MIMO-BLOKADY");
+
+    expect(onCode).not.toHaveBeenCalled();
+  });
+
+  it("przycisk aparatu WŁĄCZA go, gdy stoi, i GASI, gdy pracuje", () => {
+    h.camera = { ...h.camera, support: "supported", active: false };
+    const first = mountInput();
+    fireEvent.click(screen.getByRole("button", { name: /eventScanner.camera.start/ }));
+    expect(h.start).toHaveBeenCalledTimes(1);
+    expect(h.stop).not.toHaveBeenCalled();
+    first.unmount();
+
+    h.camera = { ...h.camera, support: "supported", active: true };
+    mountInput();
+    fireEvent.click(screen.getByRole("button", { name: /eventScanner.camera.stop/ }));
+    expect(h.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("APARAT W ROZRUCHU mówi o tym wprost i nie da się go kliknąć drugi raz", () => {
+    // Dwa kliknięcia w rozruchu to dwa strumienie i zapalona dioda po wyjściu
+    // z ekranu - dlatego przycisk gaśnie na czas startu.
+    h.camera = { ...h.camera, support: "supported", starting: true };
+    mountInput();
+
+    const przycisk = screen.getByRole("button", { name: /eventScanner.camera.starting/ });
+    expect(przycisk).toBeDisabled();
+    fireEvent.click(przycisk);
+    expect(h.start).not.toHaveBeenCalled();
+  });
+
+  it("SPRAWDZANIE możliwości też blokuje przycisk - nie wiadomo jeszcze, co uruchomić", () => {
+    h.camera = { ...h.camera, support: "checking" };
+    mountInput();
+
+    expect(screen.getByRole("button", { name: /eventScanner.camera.start/ })).toBeDisabled();
+  });
+
+  it("wyłączone wejście gasi też przycisk aparatu", () => {
+    h.camera = { ...h.camera, support: "supported" };
+    mountInput({ disabled: true });
+
+    expect(screen.getByRole("button", { name: /eventScanner.camera.start/ })).toBeDisabled();
+  });
+
+  it("ZAPALONE doświetlenie proponuje ZGASZENIE, a nie zapalenie drugi raz", () => {
+    h.camera = {
+      ...h.camera,
+      support: "supported",
+      active: true,
+      torchAvailable: true,
+      torchOn: true,
+    };
+    mountInput();
+
+    expect(
+      screen.getByRole("button", { name: /eventScanner.camera.torchOff/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /eventScanner.camera.torchOn/ })).toBeNull();
+  });
+
+  it("BRAK HTTPS to inny komunikat niż brak obsługi - jedno da się naprawić adresem", () => {
+    // `insecure_context` znaczy „otwórz to po HTTPS"; `not_supported` znaczy
+    // „ta przeglądarka tego nie umie". Zlanie ich w jedno zdanie kosztuje
+    // koordynatora telefon do informatyka.
+    h.camera = { ...h.camera, support: "insecure" };
+    const first = mountInput();
+    expect(screen.getByText("eventScanner.camera.insecureContext")).toBeInTheDocument();
+    first.unmount();
+
+    h.camera = { ...h.camera, support: "supported", error: "insecure_context" };
+    mountInput();
+    expect(screen.getByText("eventScanner.camera.insecureContext")).toBeInTheDocument();
+  });
+
+  it("AWARIA SPRZĘTU aparatu schodzi na to samo zdanie co brak obsługi", () => {
+    // Dla operatora różnica jest żadna: aparat nie zadziała, zostaje czytnik
+    // i klawiatura. Osobny komunikat byłby zdaniem bez następnego kroku.
+    h.camera = { ...h.camera, support: "supported", error: "camera_unavailable" };
+    mountInput();
+
+    expect(screen.getByText("eventScanner.camera.notSupported")).toBeInTheDocument();
+  });
+
+  it("PRACUJĄCY aparat chowa komunikat, nawet gdy poprzednia próba się nie udała", () => {
+    h.camera = { ...h.camera, support: "supported", active: true, error: "permission_denied" };
+    mountInput();
+
+    expect(screen.queryByText("eventScanner.camera.permissionDenied")).toBeNull();
   });
 });
 

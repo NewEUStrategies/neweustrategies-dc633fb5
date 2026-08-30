@@ -789,6 +789,198 @@ describe("useScannerRuntime - skan leadu", () => {
   });
 });
 
+/* --------------------------------------- kolejka: leady, zegar, awaria --- */
+
+describe("useScannerRuntime - oproznianie kolejki w szczegolach", () => {
+  it("zalegly LEAD wychodzi WLASNYM wywolaniem, z notatka i ocena rozmowy", async () => {
+    // Kolejka miesza dwa rodzaje skanow. Gdyby przebieg wysylal wszystko jako
+    // odprawe, notatka ze stoiska przepadlaby, a bramka dostalaby kod leadu.
+    api.recordLeadScan.mockResolvedValue(leadResult({ scanCount: 2 }));
+    device.queue = [
+      queuedItem({
+        id: "lead-a",
+        kind: "lead",
+        code: "QR-LEAD-Z-KOLEJKI",
+        checkpointId: null,
+        direction: null,
+        note: "rozmowa o wdrozeniu",
+        interestRating: 4,
+      }),
+    ];
+
+    const { result } = await connected();
+
+    await waitFor(() => expect(api.recordLeadScan).toHaveBeenCalledTimes(1));
+    expect(api.recordLeadScan).toHaveBeenCalledWith({
+      deviceToken: TOKEN,
+      code: "QR-LEAD-Z-KOLEJKI",
+      note: "rozmowa o wdrozeniu",
+      interestRating: 4,
+    });
+    // Lead NIE idzie sciezka odprawy - to sa dwie rozne funkcje bazy.
+    expect(api.recordCheckinScan).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+  });
+
+  it("zalegla odprawa BEZ zapisanego kierunku jedzie jako WEJSCIE, nie jako brak", async () => {
+    // Pozycja z poprzedniej wersji aplikacji moze nie miec kierunku. Baza
+    // wymaga wartosci ze slownika, wiec brak znaczy „wejscie".
+    api.recordCheckinScan.mockResolvedValue(scanResult());
+    device.queue = [queuedItem({ id: "bez-kierunku", code: "QR-BEZ-KIERUNKU", direction: null })];
+
+    await connected();
+
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalledTimes(1));
+    expect(api.recordCheckinScan.mock.calls[0][0].direction).toBe("in");
+  });
+
+  it("AWARIA SIECI na jednej pozycji NIE przerywa przebiegu - nastepna leci dalej", async () => {
+    // Inaczej niz przy odmowie poswiadczenia: chwilowa awaria dotyczy TEJ
+    // pozycji, a nie calej kolejki. Przerwanie przebiegu zostawialoby przy
+    // bramce zaleglosci, ktore przeszlyby za drugim podejsciem.
+    api.recordCheckinScan
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValue(scanResult());
+    device.queue = [
+      queuedItem({ id: "a", code: "QR-A", deviceScannedAt: "2026-08-01T07:00:00.000Z" }),
+      queuedItem({ id: "b", code: "QR-B", deviceScannedAt: "2026-08-01T07:01:00.000Z" }),
+    ];
+
+    const { result } = await connected();
+
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalledTimes(2));
+    // Pozycja z awaria zostaje w kolejce z zapisana przyczyna i licznikiem prob.
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+    expect(result.current.outbox[0].code).toBe("QR-A");
+    expect(result.current.outbox[0].lastError).toContain("Failed to fetch");
+    expect(result.current.outbox[0].attempts).toBe(1);
+  });
+
+  it("AWARIA SIECI przy leadzie odklada go do kolejki zamiast oddac operatorowi wyjatek", async () => {
+    // Stoisko partnera pracuje w hali, w ktorej zasieg znika co kilka minut.
+    // Skan, ktory wraca wyjatkiem, jest skanem straconym.
+    api.recordLeadScan.mockRejectedValue(new Error("Failed to fetch"));
+    const { result } = await connected();
+
+    let outcome: QueuedScanOutcome | SentLeadOutcome | undefined;
+    await act(async () => {
+      outcome = await result.current.submitLead({
+        code: "QR-LEAD-BEZ-ZASIEGU",
+        note: "rozmowa przy stoisku",
+        interestRating: 3,
+      });
+    });
+
+    expect(outcome).toEqual({ queued: true });
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+    expect(result.current.outbox[0]).toMatchObject({
+      kind: "lead",
+      code: "QR-LEAD-BEZ-ZASIEGU",
+      note: "rozmowa przy stoisku",
+      interestRating: 3,
+    });
+  });
+
+  it("odmowa POSWIADCZENIA przy leadzie leci do wolajacego, a nie do kolejki", async () => {
+    api.recordLeadScan.mockRejectedValue(new Error("device_revoked: uniewaznione w panelu"));
+    const { result } = await connected();
+
+    await expect(
+      result.current.submitLead({ code: "QR-LEAD", note: null, interestRating: null }),
+    ).rejects.toThrow("device_revoked");
+    expect(result.current.outbox).toEqual([]);
+  });
+
+  it("odmowa NAZWANA przez baze przy leadzie tez nie idzie do kolejki", async () => {
+    // `invalid_payload: interest_rating out of range` nie stanie sie poprawna
+    // po odczekaniu - operator ma ja zobaczyc od razu.
+    api.recordLeadScan.mockRejectedValue(
+      new Error("invalid_payload: interest_rating out of range"),
+    );
+    const { result } = await connected();
+
+    await expect(
+      result.current.submitLead({ code: "QR-LEAD", note: null, interestRating: 9 }),
+    ).rejects.toThrow("invalid_payload");
+    expect(result.current.outbox).toEqual([]);
+  });
+
+  it("TYKAJACY ODSTEP oprozia kolejke, gdy przegladarka NIE ogloszila powrotu sieci", async () => {
+    // Na telefonie zdarzenie `online` bywa zgubione (uspiony ekran, przejscie
+    // z LTE na wifi). Odstep jest wtedy JEDYNYM, co rusza zaleglosci - bez
+    // niego wolontariusz musialby zauwazyc problem i kliknac „wyslij”.
+    vi.useFakeTimers();
+    try {
+      api.bootstrapScanner.mockResolvedValue(SESSION);
+      api.recordCheckinScan.mockResolvedValue(scanResult());
+      offline = true;
+      device.queue = [queuedItem({ id: "z-nocy", code: "QR-Z-NOCY" })];
+
+      const view = render(TOKEN);
+      await act(async () => {});
+      expect(view.result.current.status).toBe("ready");
+      expect(view.result.current.online).toBe(false);
+
+      // Pierwsze tykniecie PRZY BRAKU ZASIEGU nie wysyla niczego.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      expect(api.recordCheckinScan).not.toHaveBeenCalled();
+
+      // Zasieg wraca po cichu - bez zdarzenia `online`.
+      offline = false;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+      expect(api.recordCheckinScan.mock.calls[0][0].code).toBe("QR-Z-NOCY");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("BEZ `crypto.randomUUID` klucz idempotencji nadal powstaje i jest niepowtarzalny", async () => {
+    // Starsze WebView na androidowych czytnikach nie ma `randomUUID`. Klucz
+    // musi powstac mimo to - bez niego powtorna wysylka kolejki zalozylaby
+    // DRUGA odprawe tej samej osoby.
+    const oryginal = globalThis.crypto.randomUUID;
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    });
+    try {
+      const { result } = await connected();
+      goOffline();
+      await waitFor(() => expect(result.current.online).toBe(false));
+
+      await act(async () => {
+        await result.current.submitCheckin({
+          code: "QR-STARY-CZYTNIK-1",
+          checkpointId: CHECKPOINT_ID,
+          direction: "in",
+        });
+        await result.current.submitCheckin({
+          code: "QR-STARY-CZYTNIK-2",
+          checkpointId: CHECKPOINT_ID,
+          direction: "in",
+        });
+      });
+
+      await waitFor(() => expect(result.current.outbox).toHaveLength(2));
+      const [pierwszy, drugi] = result.current.outbox.map((item) => item.id);
+      expect(pierwszy).not.toBe("");
+      expect(pierwszy).not.toBe(drugi);
+      // Ksztalt awaryjny: znacznik czasu w base36 i losowy ogon.
+      expect(pierwszy).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
+    } finally {
+      Object.defineProperty(globalThis.crypto, "randomUUID", {
+        configurable: true,
+        value: oryginal,
+      });
+    }
+  });
+});
+
 /* ------------------------------------------------------------- defekty --- */
 
 // -----------------------------------------------------------------------------

@@ -541,3 +541,156 @@ describe("dostepnosc", () => {
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });
+
+describe("pary „nadaje / odbiera” na trzech pozostalych uprawnieniach", () => {
+  // TE SAME TRZY UPRAWNIENIA, CO W `EventGroupsPermissionsPanel`, tylko od
+  // strony zapisu. Ladunek `admin_event_group_save` idzie przez `p_payload ?
+  // 'klucz'`, wiec KLUCZ POMINIETY ZOSTAWIA STAN POPRZEDNI - „odebralem prawo"
+  // bez jawnego `false` nie odbiera niczego. Dlatego kazde uprawnienie ma tu
+  // pare: nadanie i odebranie, a nie sam happy path.
+  it("prawo do umawiania spotkan: nadanie jedzie jako `true`", () => {
+    renderuj({ group: groupRow({ can_meet: false }) });
+    przelacz("canMeet");
+    zapisz();
+    expect(h.submitted[0]?.canMeet).toBe(true);
+  });
+
+  it("prawo do umawiania spotkan: odebranie jedzie jako `false`", () => {
+    renderuj({ group: groupRow({ can_meet: true }) });
+    przelacz("canMeet");
+    zapisz();
+    expect(h.submitted[0]?.canMeet).toBe(false);
+  });
+
+  it("prawo do rozmowy: nadanie jedzie jako `true`", () => {
+    renderuj({ group: groupRow({ can_chat: false }) });
+    przelacz("canChat");
+    zapisz();
+    expect(h.submitted[0]?.canChat).toBe(true);
+  });
+
+  it("prawo do rozmowy: odebranie jedzie jako `false`", () => {
+    renderuj({ group: groupRow({ can_chat: true }) });
+    przelacz("canChat");
+    zapisz();
+    expect(h.submitted[0]?.canChat).toBe(false);
+  });
+
+  // NAGRANIE JEST TRESCIA PLATNA. Grupa, ktora dostala do niego dostep przez
+  // pomylke, oglada material zarezerwowany dla wyzszego biletu - i odwrotnie:
+  // odebranie, ktore nie dojechalo, zostawia dostep otwarty.
+  it("dostep do nagrania: nadanie jedzie jako `true`", () => {
+    renderuj({ group: groupRow({ can_see_recording: false }) });
+    przelacz("canSeeRecording");
+    zapisz();
+    expect(h.submitted[0]?.canSeeRecording).toBe(true);
+  });
+
+  it("dostep do nagrania: odebranie jedzie jako `false`", () => {
+    renderuj({ group: groupRow({ can_see_recording: true }) });
+    przelacz("canSeeRecording");
+    zapisz();
+    expect(h.submitted[0]?.canSeeRecording).toBe(false);
+  });
+});
+
+describe("opis grupy jedzie do ladunku w obu jezykach", () => {
+  // OPIS JEST JEDYNYM MIEJSCEM, w ktorym organizator tlumaczy, KOMU ta grupa
+  // przysluguje - a uczestnik czyta go na ekranie wyboru. Pole, ktore nie
+  // dojezdza do ladunku, kasuje to wyjasnienie przy kazdym zapisie grupy.
+  it("nowy opis w obu jezykach dociera do zapisu", () => {
+    renderuj();
+    wypelnijPoprawnie();
+    wpisz("descriptionPl", "  Goscie zaproszeni imiennie  ");
+    wpisz("descriptionEn", "  Personally invited guests  ");
+    zapisz();
+    expect(h.submitted[0]).toMatchObject({
+      descriptionPl: "Goscie zaproszeni imiennie",
+      descriptionEn: "Personally invited guests",
+    });
+  });
+
+  it("wyczyszczenie opisu dojezdza jako pustka, a nie jako stara tresc", () => {
+    renderuj({ group: groupRow({ description_pl: "Stary opis", description_en: "Old text" }) });
+    wpisz("descriptionPl", "");
+    wpisz("descriptionEn", "");
+    zapisz();
+    expect(h.submitted[0]).toMatchObject({ descriptionPl: "", descriptionEn: "" });
+  });
+
+  it("opis wpisany w jednym jezyku nie nadpisuje drugiego", () => {
+    renderuj({ group: groupRow({ description_pl: "Goscie honorowi", description_en: "VIP" }) });
+    wpisz("descriptionPl", "Goscie honorowi 2026");
+    zapisz();
+    expect(h.submitted[0]).toMatchObject({
+      descriptionPl: "Goscie honorowi 2026",
+      descriptionEn: "VIP",
+    });
+  });
+});
+
+describe("wycofanie sie z szuflady - para „zapis wysyla / anulowanie nie wysyla”", () => {
+  /** Wariant z podgladem `onOpenChange` - `renderuj` przekazuje tam pustke. */
+  function renderujZZamknieciem(props: { isSaving?: boolean } = {}) {
+    const zamkniecia: boolean[] = [];
+    render(
+      <EventGroupDialog
+        open
+        onOpenChange={(next) => zamkniecia.push(next)}
+        eventId={EVENT_ID}
+        group={groupRow()}
+        nextSortOrder={30}
+        isSaving={props.isSaving === true}
+        onSubmit={(input) => h.submitted.push(input)}
+      />,
+    );
+    return zamkniecia;
+  }
+
+  // ANULOWANIE MA ZAMKNAC SZUFLADE I NIE ZAPISAC NICZEGO. Gdyby wolalo zapis,
+  // przypadkowa zmiana uprawnien grupy utrwalilaby sie mimo wycofania sie - a
+  // ten formularz ustawia, kto kogo widzi i kto z kim rozmawia.
+  it("anulowanie zamyka szuflade i NIE woła zapisu", () => {
+    const zamkniecia = renderujZZamknieciem();
+    fireEvent.click(screen.getByText(`${D}cancelAction`));
+    expect(zamkniecia).toEqual([false]);
+    expect(h.submitted).toEqual([]);
+  });
+
+  it("zapis woła warstwe zapisu i NIE zamyka szuflady sam z siebie", () => {
+    const zamkniecia = renderujZZamknieciem();
+    zapisz();
+    expect(h.submitted).toHaveLength(1);
+    expect(zamkniecia).toEqual([]);
+  });
+
+  it("trwajacy zapis gasi rowniez anulowanie - klikniecie nic nie zamyka", () => {
+    const zamkniecia = renderujZZamknieciem({ isSaving: true });
+    fireEvent.click(screen.getByText(`${D}cancelAction`));
+    expect(zamkniecia).toEqual([]);
+  });
+});
+
+describe("naglowek grupy bez nazwy w jezyku ekranu", () => {
+  // NAGLOWEK JEST WIAZANY Z SZUFLADA PRZEZ `aria-labelledby`, wiec pusty tytul
+  // to szuflada bez nazwy dla czytnika ekranu. Wiersze sprzed wymogu
+  // `invalid_names` (obie nazwy obowiazkowe) nadal siedza w tabeli, wiec
+  // molekula musi miec z czego wziac zapasowy napis.
+  it("po polsku naglowek bierze nazwe angielska, gdy polskiej nie ma", () => {
+    h.language = "pl";
+    renderuj({ group: groupRow({ name_pl: "", name_en: "VIP guests" }) });
+    expect(screen.getByRole("heading", { name: "VIP guests" })).toBeTruthy();
+  });
+
+  it("po angielsku naglowek bierze nazwe polska, gdy angielskiej nie ma", () => {
+    h.language = "en";
+    renderuj({ group: groupRow({ name_pl: "Goscie honorowi", name_en: "" }) });
+    expect(screen.getByRole("heading", { name: "Goscie honorowi" })).toBeTruthy();
+  });
+
+  it("grupa bez zadnej nazwy dostaje tytul edycji, a nie pusty naglowek", () => {
+    renderuj({ group: groupRow({ name_pl: "", name_en: "" }) });
+    expect(screen.getByRole("heading", { name: `${D}editTitle` })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: `${D}createTitle` })).toBeNull();
+  });
+});

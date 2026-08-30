@@ -502,3 +502,62 @@ describe("dostepnosc", () => {
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });
+
+describe("droplista grup zanim grupy dojada - para „pusto / gotowe”", () => {
+  // ZANIM ODPOWIE ZAPYTANIE O GRUPY, `groupsQ.data` jest `undefined`. Bez
+  // domkniecia `?? []` ekran wywracalby sie na `map` - a to jest ten sam ekran,
+  // ktory administrator otwiera, zeby dopisac kogos do grupy tuz przed
+  // wydarzeniem. Para: pusto (nie ma czego nadac) obok gotowe (mozna nadac).
+  it("bez odpowiedzi o grupy droplista nie ma ani jednej pozycji, a akcje sa wygaszone", () => {
+    h.groups = undefined;
+    renderuj();
+    expect(within(screen.getByLabelText(`${M}groupLabel`)).queryAllByRole("option")).toEqual([]);
+    expect(
+      within(wiersz("Anna Kowalska"))
+        .getByText(`${M}addAction`)
+        .closest("button")
+        ?.hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("po dojechaniu grup droplista ma pozycje, a akcja daje sie nadac", () => {
+    renderuj();
+    expect(
+      within(screen.getByLabelText(`${M}groupLabel`)).queryAllByRole("option").length,
+    ).toBeGreaterThan(0);
+    wybierzGrupe("grupa-a");
+    fireEvent.click(
+      within(wiersz("Anna Kowalska")).getByText(`${M}addAction`).closest("button") as HTMLElement,
+    );
+    expect(h.memberInputs).toHaveLength(1);
+  });
+});
+
+describe("nazwa grupy w dropliscie - para „ma tlumaczenie / nie ma”", () => {
+  // GRUPA BEZ NAZWY W JEZYKU EKRANU NIE MOZE BYC PUSTA POZYCJA. Droplista jest
+  // jedynym miejscem, w ktorym administrator wybiera ADRESATA uprawnienia -
+  // pusty napis znaczy „nadalem cos, nie wiem czemu". Baza wymaga obu nazw
+  // (`invalid_names`), ale wiersze sprzed tego wymogu nadal siedza w tabeli.
+  it("po polsku grupa bez nazwy polskiej pokazuje nazwe angielska", () => {
+    h.language = "pl";
+    h.groups = [groupRow({ id: "grupa-b", name_pl: "", name_en: "Speakers" })];
+    renderuj();
+    expect(within(screen.getByLabelText(`${M}groupLabel`)).getByText("Speakers")).toBeTruthy();
+  });
+
+  it("po angielsku grupa bez nazwy angielskiej pokazuje nazwe polska", () => {
+    h.language = "en";
+    h.groups = [groupRow({ id: "grupa-b", name_pl: "Prelegenci", name_en: "" })];
+    renderuj();
+    expect(within(screen.getByLabelText(`${M}groupLabel`)).getByText("Prelegenci")).toBeTruthy();
+  });
+
+  it("grupa z obiema nazwami bierze te z jezyka ekranu, a nie zapasowa", () => {
+    h.language = "en";
+    h.groups = [groupRow({ id: "grupa-b", name_pl: "Prelegenci", name_en: "Speakers" })];
+    renderuj();
+    const droplista = screen.getByLabelText(`${M}groupLabel`);
+    expect(within(droplista).getByText("Speakers")).toBeTruthy();
+    expect(within(droplista).queryByText("Prelegenci")).toBeNull();
+  });
+});

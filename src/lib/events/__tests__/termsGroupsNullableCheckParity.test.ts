@@ -265,3 +265,46 @@ describe("pozostale ograniczenia nullowalne nadan sa nadal w migracjach", () => 
     ).toBe(true);
   });
 });
+
+/* ------------------------------------------ grupa domyslna: jedna, na wydarzenie --- */
+
+describe("grupa DOMYSLNA wydarzenia jest jedna - kontrakt czytany z migracji", () => {
+  // GRUPA DOMYSLNA JEST ADRESATEM KAZDEGO ZAPISU BEZ BILETU
+  // (`admin_event_registration_submit`: „IF v_group_id IS NULL THEN SELECT ...
+  // WHERE g.is_default"). Dwie domyslne naraz znaczylyby, ze o uprawnieniach
+  // nowego uczestnika rozstrzyga kolejnosc wierszy w tabeli. Pilnuje tego
+  // INDEKS CZESCIOWY, a nie `CHECK` - wiec zaden czytnik ograniczen go nie widzi
+  // i az do tej bramki nie byl sprawdzany z zadnej strony.
+  it("indeks `event_groups_default_uniq` jest UNIKALNY i czesciowy po `is_default`", () => {
+    const utworzenie = SQL.filter((sql) => /event_groups_default_uniq/i.test(sql));
+    expect(utworzenie.length).toBeGreaterThan(0);
+    expect(
+      utworzenie.some((sql) =>
+        /CREATE\s+UNIQUE\s+INDEX[^;]*event_groups_default_uniq[^;]*ON\s+public\.event_groups\s*\(\s*tenant_id\s*,\s*event_id\s*\)\s*WHERE\s+is_default/i.test(
+          sql,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  // DRUGA POLOWA PARY. Sam indeks odbilby zapis drugiej domyslnej grupy bledem
+  // `duplicate key`, ktorego zaden slownik odmow nie tlumaczy. Funkcja zapisu
+  // musi wiec NAJPIERW zdjac znacznik z poprzedniej domyslnej - wtedy
+  // organizator PRZENOSI domyslnosc zamiast dostawac odmowe.
+  it("`admin_event_group_save` zdejmuje znacznik z poprzedniej domyslnej przed zapisem", () => {
+    expect(
+      SQL.some((sql) =>
+        /IF\s+v_is_default\s+IS\s+TRUE\s+THEN[\s\S]{0,400}?UPDATE\s+public\.event_groups[\s\S]{0,200}?SET\s+is_default\s*=\s*false/i.test(
+          sql,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  // GRUPA SYSTEMOWA TO INNA OSLONA NIZ DOMYSLNA i ma osobna odmowe. Bez tej
+  // asercji obie latwo zlac sie w jedna w kolejnej migracji.
+  it("`group_system` jest osobna odmowa usuniecia, nie ta sama co `group_in_use`", () => {
+    expect(SQL.some((sql) => /RAISE EXCEPTION 'group_system:/i.test(sql))).toBe(true);
+    expect(SQL.some((sql) => /RAISE EXCEPTION 'group_in_use:/i.test(sql))).toBe(true);
+  });
+});

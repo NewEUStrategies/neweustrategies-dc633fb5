@@ -22,6 +22,8 @@
 // RODO: dane sa wymyslone, adresy wylacznie `example.org`.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, waitFor } from "@testing-library/react";
+import type { Mock } from "vitest";
+import type { QueryClient, UseMutationResult } from "@tanstack/react-query";
 
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 
@@ -52,14 +54,24 @@ vi.mock("@/lib/events/onsiteApi", () => onsite);
 
 const {
   onsiteKeys,
+  useBadgePrints,
+  useBadgeTemplates,
   useCheckinSearch,
   useCheckins,
   useCheckpoints,
+  useDeleteBadgeTemplate,
+  useDeleteCheckpoint,
+  useIssueBadgeBatch,
   useIssueScannerDevice,
   useLeadExport,
+  useLeadScans,
   useManualCheckin,
   useOnsiteLiveStats,
   useOnsiteStats,
+  useRecordBadgePrint,
+  useRevokeScannerDevice,
+  useSaveBadgeTemplate,
+  useSaveCheckpoint,
   useScannerDevices,
   useSetScannerDeviceActive,
 } = await import("@/lib/events/useEventOnsite");
@@ -69,6 +81,9 @@ const OTHER_EVENT_ID = "99999999-9999-4999-8999-999999999999";
 const CHECKPOINT_ID = "22222222-2222-4222-8222-222222222222";
 const PERSON_ID = "33333333-3333-4333-8333-333333333333";
 const DEVICE_ID = "44444444-4444-4444-8444-444444444444";
+const TEMPLATE_ID = "66666666-6666-4666-8666-666666666666";
+const SPONSOR_ID = "77777777-7777-4777-8777-777777777777";
+const OTHER_SPONSOR_ID = "88888888-8888-4888-8888-888888888888";
 
 /** Jawny token urzadzenia - wraca DOKLADNIE RAZ i nie ma prawa wejsc do cache. */
 const DEVICE_TOKEN = "SCN-abcdefghijklmnopqrstuvwxyz01";
@@ -81,6 +96,9 @@ beforeEach(() => {
   onsite.fetchScannerDevices.mockResolvedValue([]);
   onsite.fetchOnsiteStats.mockResolvedValue({ bucketMinutes: 15 });
   onsite.fetchOnsiteLiveStats.mockResolvedValue({ sessions: [], rooms: [] });
+  onsite.fetchBadgeTemplates.mockResolvedValue([]);
+  onsite.fetchBadgePrints.mockResolvedValue([]);
+  onsite.fetchLeadScans.mockResolvedValue([]);
 });
 
 /* ----------------------------------------------------------- klucze --- */
@@ -190,6 +208,105 @@ describe("useEventOnsite - bramki zapytan", () => {
       .getQueryCache()
       .find({ queryKey: onsiteKeys.liveStats(EVENT_ID, 60) });
     expect(query?.observers[0]?.options.refetchInterval).toBe(15_000);
+  });
+
+  // TRZY POZOSTALE ODCZYTY MODULU. Wzorce identyfikatorow rozni sie w nich
+  // ksztaltem wejscia: szablony biora sam identyfikator wydarzenia, a wydruki
+  // i leady - CALY filtr. Brama `enabled` musi czytac wlasciwe pole obu
+  // ksztaltow, inaczej panel identyfikatorow pyta baze, zanim wiadomo o co.
+  //
+  // WPISY TABELI ODDAJA `void`, A NIE `UseQueryResult<...>`. Kazdy z trzech
+  // hakow ma INNY wiersz wyniku (`badge_layouts`, wydruki, leady), wiec
+  // wspolna tabela zawezilaby parametr do PIERWSZEGO wariantu unii i odrzucila
+  // dwa pozostale. Ten plik i tak nie czyta wyniku - dowodem jest to, czy
+  // warstwa dostepu zostala wywolana - wiec zamiast rzutowac, nie oddajemy go
+  // w ogole.
+  it.each([
+    [
+      "szablony identyfikatorow",
+      () => {
+        useBadgeTemplates(EVENT_ID);
+      },
+      () => {
+        useBadgeTemplates("");
+      },
+      () => {
+        useBadgeTemplates(EVENT_ID, false);
+      },
+      onsite.fetchBadgeTemplates,
+    ],
+    [
+      "dziennik wydrukow",
+      () => {
+        useBadgePrints({ eventId: EVENT_ID });
+      },
+      () => {
+        useBadgePrints({ eventId: "" });
+      },
+      () => {
+        useBadgePrints({ eventId: EVENT_ID }, false);
+      },
+      onsite.fetchBadgePrints,
+    ],
+    [
+      "leady sponsorow",
+      () => {
+        useLeadScans({ eventId: EVENT_ID });
+      },
+      () => {
+        useLeadScans({ eventId: "" });
+      },
+      () => {
+        useLeadScans({ eventId: EVENT_ID }, false);
+      },
+      onsite.fetchLeadScans,
+    ],
+  ] as const)(
+    "%s: para „pyta / nie pyta” - wydarzenie jest, wydarzenia nie ma, jawne wylaczenie",
+    async (_nazwa, zWydarzeniem, bezWydarzenia, wylaczone, atrapa) => {
+      renderHookWithQueryClient(zWydarzeniem);
+      await waitFor(() => expect(atrapa).toHaveBeenCalledTimes(1));
+
+      atrapa.mockClear();
+      renderHookWithQueryClient(bezWydarzenia);
+      await act(async () => {});
+      expect(atrapa).not.toHaveBeenCalled();
+
+      renderHookWithQueryClient(wylaczone);
+      await act(async () => {});
+      expect(atrapa).not.toHaveBeenCalled();
+    },
+  );
+
+  it("filtr wydrukow i filtr leadow jada do warstwy dostepu W CALOSCI, nie samym wydarzeniem", async () => {
+    const wydruki = { eventId: EVENT_ID, personId: PERSON_ID, limit: 20, offset: 40 };
+    const leady = { eventId: EVENT_ID, sponsorId: SPONSOR_ID, limit: 100, offset: 0 };
+    renderHookWithQueryClient(() => useBadgePrints(wydruki));
+    renderHookWithQueryClient(() => useLeadScans(leady));
+
+    await waitFor(() => expect(onsite.fetchBadgePrints).toHaveBeenCalledWith(wydruki));
+    expect(onsite.fetchLeadScans).toHaveBeenCalledWith(leady);
+  });
+
+  it("dwa FILTRY leadow to dwie szuflady - lead sponsora A nie wpada do listy sponsora B", async () => {
+    const { queryClient } = renderHookWithQueryClient(() => ({
+      alfa: useLeadScans({ eventId: EVENT_ID, sponsorId: SPONSOR_ID }),
+      beta: useLeadScans({ eventId: EVENT_ID, sponsorId: OTHER_SPONSOR_ID }),
+    }));
+
+    await waitFor(() => expect(onsite.fetchLeadScans).toHaveBeenCalledTimes(2));
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(2);
+  });
+
+  it("ODMOWA odczytu wychodzi z hakiem jako blad, a nie jako pusta lista", async () => {
+    // Pusta lista po nieudanym zapytaniu klamie: panel narysowalby „brak
+    // urzadzen” dla wydarzenia, ktore ma ich szesc.
+    onsite.fetchScannerDevices.mockRejectedValue(new Error("permission_denied: brak dostepu"));
+    const { result } = renderHookWithQueryClient(() => useScannerDevices(EVENT_ID));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe("permission_denied: brak dostepu");
+    expect(result.current.data).toBeUndefined();
   });
 });
 
@@ -341,6 +458,365 @@ describe("useEventOnsite - mutacje i uniewaznianie", () => {
 
     expect(onsite.fetchLeadScansExport).toHaveBeenCalledWith(EVENT_ID, undefined);
     expect(queryClient.getQueryCache().getAll()).toEqual([]);
+  });
+});
+
+/* ------------------------------------------- tabela wszystkich mutacji --- */
+
+/**
+ * KAZDA mutacja modulu w jednej tabeli.
+ *
+ * Jedenascie z dwunastu hakow zapisu przechodzi przez TE SAMA prywatna funkcje
+ * `useOnsiteMutation` - i wlasnie dlatego kazdy musi byc tu wymieniony
+ * z osobna. Gdyby ktorys ominal wspolna sciezke (bo „ten jeden przeciez niczego
+ * nie zmienia”), zapis wygladalby na udany, a pulpit przy bramce pokazywalby
+ * stan sprzed niego. Dwunasty (`useLeadExport`) NIE uniewaznia niczego z zasady
+ * i ma wlasne przypadki wyzej.
+ */
+interface StanMutacji {
+  isPending: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  data: unknown;
+  error: Error | null;
+}
+
+interface UchwytMutacji {
+  result: { current: StanMutacji };
+  queryClient: QueryClient;
+}
+
+interface PrzypadekMutacji {
+  /** Atrapa warstwy dostepu, ktora hak ma wywolac. */
+  atrapa: Mock;
+  /** Argumenty, z jakimi hak ma ja wywolac - nie zawsze jest to samo wejscie. */
+  argumenty: readonly unknown[];
+  /** Odpowiedz warstwy dostepu - hak ma ja oddac bez podmiany. */
+  wynik: unknown;
+  /** Renderuje hak i wysyla mutacje; zamyka w sobie wlasny typ wejscia. */
+  wyslij: () => UchwytMutacji;
+}
+
+/** Renderuje hak mutacji i od razu ja wysyla - wspolny ksztalt dla tabeli. */
+function wyslij<TInput, TResult>(
+  hak: (eventId: string) => UseMutationResult<TResult, Error, TInput>,
+  input: TInput,
+): UchwytMutacji {
+  const uchwyt = renderHookWithQueryClient(() => hak(EVENT_ID));
+  uchwyt.result.current.mutate(input);
+  return { result: uchwyt.result, queryClient: uchwyt.queryClient };
+}
+
+/** Obietnica sterowana z testu - stan „zapis w toku” bez wyscigu z zegarem. */
+function odroczona<T>(): { promise: Promise<T>; spelnij: (value: T) => void } {
+  let spelnij: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((resolve) => {
+    spelnij = resolve;
+  });
+  return { promise, spelnij };
+}
+
+const WEJSCIE_PUNKTU = {
+  id: CHECKPOINT_ID,
+  namePl: "Brama glowna",
+  nameEn: "Main gate",
+  kind: "event_entry" as const,
+};
+const WEJSCIE_ODPRAWY = {
+  eventId: EVENT_ID,
+  checkpointId: CHECKPOINT_ID,
+  personId: PERSON_ID,
+  clientScanUid: "scan-0001",
+};
+const WEJSCIE_URZADZENIA = {
+  eventId: EVENT_ID,
+  label: "Brama - telefon 1",
+  scopes: ["checkin" as const],
+};
+const WEJSCIE_SZABLONU = {
+  id: TEMPLATE_ID,
+  name: "Identyfikator A6",
+  paperFormat: "a6" as const,
+  orientation: "portrait" as const,
+};
+const WEJSCIE_WYDRUKU = { eventId: EVENT_ID, personId: PERSON_ID, copies: 2 };
+const WEJSCIE_PARTII = { eventId: EVENT_ID, personIds: [PERSON_ID], templateId: TEMPLATE_ID };
+
+const ODMOWA = new Error("checkpoint_in_use: 12 check-in(s) recorded");
+
+const MUTACJE: ReadonlyArray<readonly [string, PrzypadekMutacji]> = [
+  [
+    "zapis punktu kontrolnego",
+    {
+      atrapa: onsite.saveCheckpoint,
+      argumenty: [WEJSCIE_PUNKTU],
+      wynik: CHECKPOINT_ID,
+      wyslij: () => wyslij(useSaveCheckpoint, WEJSCIE_PUNKTU),
+    },
+  ],
+  [
+    "usuniecie punktu kontrolnego",
+    {
+      atrapa: onsite.deleteCheckpoint,
+      argumenty: [CHECKPOINT_ID],
+      wynik: true,
+      wyslij: () => wyslij(useDeleteCheckpoint, CHECKPOINT_ID),
+    },
+  ],
+  [
+    "reczna odprawa",
+    {
+      atrapa: onsite.recordManualCheckin,
+      argumenty: [WEJSCIE_ODPRAWY],
+      wynik: { outcome: "granted", admit: true },
+      wyslij: () => wyslij(useManualCheckin, WEJSCIE_ODPRAWY),
+    },
+  ],
+  [
+    "wydanie poswiadczenia urzadzenia",
+    {
+      atrapa: onsite.issueScannerDevice,
+      argumenty: [WEJSCIE_URZADZENIA],
+      wynik: {
+        deviceId: DEVICE_ID,
+        label: "Brama - telefon 1",
+        token: DEVICE_TOKEN,
+        tokenPrefix: "SCN-abcd",
+        scopes: ["checkin"],
+        expiresAt: null,
+      },
+      wyslij: () => wyslij(useIssueScannerDevice, WEJSCIE_URZADZENIA),
+    },
+  ],
+  [
+    "uniewaznienie poswiadczenia",
+    {
+      atrapa: onsite.revokeScannerDevice,
+      argumenty: [DEVICE_ID],
+      wynik: true,
+      wyslij: () => wyslij(useRevokeScannerDevice, DEVICE_ID),
+    },
+  ],
+  [
+    "pauza i wznowienie poswiadczenia",
+    {
+      // Hak ROZBIJA jedno wejscie na dwa argumenty warstwy dostepu - to jest
+      // miejsce, w ktorym latwo zgubic flage i WZNOWIC zamiast zapauzowac.
+      atrapa: onsite.setScannerDeviceActive,
+      argumenty: [DEVICE_ID, false],
+      wynik: true,
+      wyslij: () => wyslij(useSetScannerDeviceActive, { deviceId: DEVICE_ID, isActive: false }),
+    },
+  ],
+  [
+    "zapis szablonu identyfikatora",
+    {
+      atrapa: onsite.saveBadgeTemplate,
+      argumenty: [WEJSCIE_SZABLONU],
+      wynik: TEMPLATE_ID,
+      wyslij: () => wyslij(useSaveBadgeTemplate, WEJSCIE_SZABLONU),
+    },
+  ],
+  [
+    "usuniecie szablonu identyfikatora",
+    {
+      atrapa: onsite.deleteBadgeTemplate,
+      argumenty: [TEMPLATE_ID],
+      wynik: true,
+      wyslij: () => wyslij(useDeleteBadgeTemplate, TEMPLATE_ID),
+    },
+  ],
+  [
+    "zapis wydruku identyfikatora",
+    {
+      atrapa: onsite.recordBadgePrint,
+      argumenty: [WEJSCIE_WYDRUKU],
+      wynik: { print_id: "aaaaaaaa-1111-4111-8111-111111111111", copies: 2 },
+      wyslij: () => wyslij(useRecordBadgePrint, WEJSCIE_WYDRUKU),
+    },
+  ],
+  [
+    "wydanie partii identyfikatorow",
+    {
+      atrapa: onsite.issueBadgeBatch,
+      argumenty: [WEJSCIE_PARTII],
+      wynik: { badges: [], template: null },
+      wyslij: () => wyslij(useIssueBadgeBatch, WEJSCIE_PARTII),
+    },
+  ],
+];
+
+// `vi.clearAllMocks()` z gornego `beforeEach` czysci WYWOLANIA, ale zostawia
+// implementacje - `mockRejectedValue` z przypadku „odmowa bazy” przeciekloby do
+// nastepnego pliku tabeli i zamienilo sukces w porazke. Dlatego kazda mutacja
+// dostaje tu SWOJ stan wyjsciowy: pelny reset i odpowiedz z wlasnego wiersza.
+beforeEach(() => {
+  for (const [, przypadek] of MUTACJE) {
+    przypadek.atrapa.mockReset();
+    przypadek.atrapa.mockResolvedValue(przypadek.wynik);
+  }
+});
+
+describe("useEventOnsite - tabela mutacji: ladunek do warstwy dostepu", () => {
+  it("tabela obejmuje KAZDA mutacje uniewazniajaca galaz modulu", () => {
+    // Nowy hak zapisu bez wpisu w tabeli przeszedlby ten plik nietkniety.
+    expect(MUTACJE).toHaveLength(10);
+  });
+
+  it.each(MUTACJE)(
+    "%s: wysyla dokladnie to, co dostala, i oddaje odpowiedz bazy bez podmiany",
+    async (_nazwa, przypadek) => {
+      const { result } = przypadek.wyslij();
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(przypadek.atrapa).toHaveBeenCalledOnce();
+      // Porownujemy ARGUMENTY ZNACZACE - react-query dokleja jeszcze wlasny
+      // kontekst, co ma tu wlasny przypadek nizej.
+      const wyslane = przypadek.atrapa.mock.calls[0].slice(0, przypadek.argumenty.length);
+      expect(wyslane).toEqual([...przypadek.argumenty]);
+      expect(result.current.data).toEqual(przypadek.wynik);
+    },
+  );
+
+  // PULAPKA NA PRZYSZLOSC, NIE DZISIEJSZY BLAD. Dziewiec z dziesieciu mutacji
+  // podaje funkcje warstwy dostepu PRZEZ REFERENCJE (`mutationFn: run`), wiec
+  // react-query wklada w jej DRUGI parametr wlasny kontekst. Dzis wszystkie te
+  // funkcje maja jeden parametr i nadmiarowy argument ginie. W dniu, w ktorym
+  // ktoras dostanie opcjonalny drugi parametr, wypelni go obiekt kontekstu -
+  // czyli wartosc PRAWDZIWOSCIOWA, ktorej nikt nie przekazal.
+  it("mutacje podane przez referencje dostaja tez kontekst react-query jako drugi argument", async () => {
+    const { result } = wyslij(useDeleteCheckpoint, CHECKPOINT_ID);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(onsite.deleteCheckpoint.mock.calls[0]).toHaveLength(2);
+    expect(onsite.deleteCheckpoint.mock.calls[0][0]).toBe(CHECKPOINT_ID);
+  });
+
+  // JEDYNA mutacja z wlasnym domknieciem - i wtedy do warstwy dostepu nie
+  // dojezdza NIC PONAD to, co ta lambda zbudowala.
+  it("przelacznik urzadzenia wysyla DOKLADNIE dwa argumenty, bez kontekstu react-query", async () => {
+    const { result } = wyslij(useSetScannerDeviceActive, { deviceId: DEVICE_ID, isActive: true });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(onsite.setScannerDeviceActive).toHaveBeenCalledExactlyOnceWith(DEVICE_ID, true);
+  });
+});
+
+describe("useEventOnsite - tabela mutacji: stan „zapis w toku”", () => {
+  // ZAPIS W TOKU JEST JEDYNYM ZRODLEM BLOKADY PRZYCISKU. Hak, ktory nie
+  // wystawia `isPending`, pozwala kliknac drugi raz - a przy bramce drugie
+  // klikniecie „Odpraw” to druga proba odprawy tej samej osoby.
+  it.each(MUTACJE)("%s: melduje `isPending`, dopoki baza nie odpowie", async (_n, przypadek) => {
+    const bramka = odroczona<unknown>();
+    przypadek.atrapa.mockReturnValue(bramka.promise);
+
+    const { result } = przypadek.wyslij();
+    await waitFor(() => expect(result.current.isPending).toBe(true));
+    expect(result.current.isSuccess).toBe(false);
+
+    bramka.spelnij(przypadek.wynik);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.isPending).toBe(false);
+  });
+});
+
+describe("useEventOnsite - tabela mutacji: odmowa bazy", () => {
+  it.each(MUTACJE)("%s: odmowa wychodzi z hakiem, a nie w cisze", async (_n, przypadek) => {
+    przypadek.atrapa.mockRejectedValue(ODMOWA);
+
+    const { result } = przypadek.wyslij();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(result.current.error?.message).toBe(ODMOWA.message);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  // NIEUDANY ZAPIS NIE UNIEWAZNIA NICZEGO. Odswiezenie pulpitu po odmowie
+  // sugerowaloby, ze cos sie zmienilo - a nie zmienilo.
+  it.each(MUTACJE)("%s: odmowa NIE rusza pamieci podrecznej", async (_n, przypadek) => {
+    przypadek.atrapa.mockRejectedValue(ODMOWA);
+
+    const { result, queryClient } = przypadek.wyslij();
+    const szpieg = vi.spyOn(queryClient, "invalidateQueries");
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(szpieg).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEventOnsite - tabela mutacji: DOKLADNY zasieg uniewaznienia", () => {
+  it.each(MUTACJE)(
+    "%s: uniewaznia DOKLADNIE galaz tego wydarzenia - ani szerzej, ani wezej",
+    async (_n, przypadek) => {
+      const { result, queryClient } = przypadek.wyslij();
+      const szpieg = vi.spyOn(queryClient, "invalidateQueries");
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      const klucze = szpieg.mock.calls.map((call) => call[0]?.queryKey);
+      expect(klucze).toEqual([onsiteKeys.event(EVENT_ID)]);
+    },
+  );
+
+  /** Sadzi wartownika w kazdej galezi, ktorej dotyczy asercja pary. */
+  function posiej(client: QueryClient): void {
+    client.setQueryData(onsiteKeys.checkpoints(EVENT_ID), []);
+    client.setQueryData(onsiteKeys.checkins({ eventId: EVENT_ID }), []);
+    client.setQueryData(onsiteKeys.stats(EVENT_ID, 15), { bucketMinutes: 15 });
+    client.setQueryData(onsiteKeys.devices(EVENT_ID), []);
+    client.setQueryData(onsiteKeys.templates(EVENT_ID), []);
+    client.setQueryData(onsiteKeys.prints({ eventId: EVENT_ID }), []);
+    client.setQueryData(onsiteKeys.leads({ eventId: EVENT_ID }), []);
+    client.setQueryData(onsiteKeys.liveStats(EVENT_ID, 60), { sessions: [], rooms: [] });
+    client.setQueryData(onsiteKeys.checkpoints(OTHER_EVENT_ID), []);
+    client.setQueryData(onsiteKeys.stats(OTHER_EVENT_ID, 15), { bucketMinutes: 15 });
+  }
+
+  const zwietrzal = (client: QueryClient, klucz: readonly unknown[]): boolean =>
+    client.getQueryState(klucz)?.isInvalidated === true;
+
+  // JEDNO PIKNIECIE RUSZA OSIEM EKRANOW. Dziennik - bo doszedl wiersz.
+  // Zajetosc punktu - bo ktos wszedl. Statystyki - bo licznik urosl. Bez
+  // tego jednego uniewaznienia operator czyta zajetosc sprzed odprawy.
+  it("odprawa wietrzy WSZYSTKIE osiem szuflad TEGO wydarzenia", async () => {
+    const { result, queryClient } = wyslij(useManualCheckin, WEJSCIE_ODPRAWY);
+    posiej(queryClient);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    for (const klucz of [
+      onsiteKeys.checkpoints(EVENT_ID),
+      onsiteKeys.checkins({ eventId: EVENT_ID }),
+      onsiteKeys.stats(EVENT_ID, 15),
+      onsiteKeys.devices(EVENT_ID),
+      onsiteKeys.templates(EVENT_ID),
+      onsiteKeys.prints({ eventId: EVENT_ID }),
+      onsiteKeys.leads({ eventId: EVENT_ID }),
+      onsiteKeys.liveStats(EVENT_ID, 60),
+    ]) {
+      expect(zwietrzal(queryClient, klucz)).toBe(true);
+    }
+  });
+
+  it("odprawa NIE rusza szuflad SASIEDNIEGO wydarzenia", async () => {
+    // Organizator prowadzi dwa kongresy w tym samym tygodniu; szersze
+    // uniewaznienie kazaloby drugiemu pulpitowi odpytac baze bez powodu.
+    const { result, queryClient } = wyslij(useManualCheckin, WEJSCIE_ODPRAWY);
+    posiej(queryClient);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(zwietrzal(queryClient, onsiteKeys.checkpoints(OTHER_EVENT_ID))).toBe(false);
+    expect(zwietrzal(queryClient, onsiteKeys.stats(OTHER_EVENT_ID, 15))).toBe(false);
+  });
+
+  // WYDANIE PARTII IDENTYFIKATOROW ROTUJE KODY QR - stary wydruk przestaje
+  // wpuszczac. Dlatego to mutacja i dlatego MUSI zwietrzyc dziennik odpraw:
+  // inaczej operator patrzy na liste, w ktorej polowa kodow juz nie dziala.
+  it("wydanie partii identyfikatorow wietrzy dziennik odpraw, nie tylko liste wydrukow", async () => {
+    const { result, queryClient } = wyslij(useIssueBadgeBatch, WEJSCIE_PARTII);
+    posiej(queryClient);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(zwietrzal(queryClient, onsiteKeys.checkins({ eventId: EVENT_ID }))).toBe(true);
+    expect(zwietrzal(queryClient, onsiteKeys.prints({ eventId: EVENT_ID }))).toBe(true);
   });
 });
 

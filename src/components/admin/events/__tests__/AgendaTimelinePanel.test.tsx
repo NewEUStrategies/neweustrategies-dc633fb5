@@ -233,6 +233,8 @@ beforeEach(() => {
 
 describe("trzy stany siatki", () => {
   it("wczytywanie sesji pokazuje postęp i NIE mówi o pustce", () => {
+    h.sessions = undefined;
+    h.conflicts = undefined;
     h.sessionsLoading = true;
     renderuj();
 
@@ -244,6 +246,7 @@ describe("trzy stany siatki", () => {
   // siatki - bez tego warunku ekran przez chwilę rysowałby kolumny z samych
   // identyfikatorów sal.
   it("wczytywanie SAL także pokazuje postęp, bo sale są kolumnami", () => {
+    h.rooms = undefined;
     h.roomsLoading = true;
     renderuj();
 
@@ -424,6 +427,19 @@ describe("kolizje podświetlone na kaflu i policzone w nagłówku", () => {
 
   // LICZNIK STOI TAKŻE WTEDY, GDY SIATKA JEST PUSTA - raport liczy się z danych
   // bazy, a nie z tego, co udało się narysować.
+  // RAPORT KOLIZJI JEST OSOBNYM ZAPYTANIEM i bywa jeszcze w drodze, gdy sesje
+  // i sale już przyszły. Siatka ma się wtedy narysować BEZ podświetleń, a nie
+  // czekać - „jeszcze nie wiem o kolizjach" nie jest powodem, żeby chować program.
+  it("raport kolizji jeszcze w drodze nie wstrzymuje siatki ani nie podświetla kafli", () => {
+    h.sessions = KOLIZJA_SALI;
+    h.conflicts = undefined;
+    renderuj();
+
+    expect(kafel("Otwarcie")).toBeTruthy();
+    expect(screen.queryByText(/timeline\.conflictCount/)).toBeNull();
+    expect(kafel("Otwarcie").className).toContain("bg-card");
+  });
+
   it("licznik kolizji stoi w nagłówku nawet nad pustą siatką", () => {
     h.conflicts = [conflictRow(SESJA_1, "speaker_overlap")];
     renderuj();

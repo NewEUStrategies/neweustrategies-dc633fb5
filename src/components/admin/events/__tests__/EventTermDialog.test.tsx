@@ -489,3 +489,45 @@ describe("dostepnosc", () => {
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });
+
+describe("wycofanie sie z formularza - para „zapis wysyla / anulowanie nie wysyla”", () => {
+  /** Wariant z podgladem `onOpenChange` - `renderuj` przekazuje tam pustke. */
+  function renderujZZamknieciem(props: { isSaving?: boolean } = {}) {
+    const zamkniecia: boolean[] = [];
+    render(
+      <EventTermDialog
+        open
+        onOpenChange={(next) => zamkniecia.push(next)}
+        eventId={EVENT_ID}
+        term={termRow()}
+        nextSortOrder={30}
+        isSaving={props.isSaving === true}
+        onSubmit={(input) => h.submitted.push(input)}
+      />,
+    );
+    return zamkniecia;
+  }
+
+  // ANULOWANIE MA ZAMKNAC FORMULARZ I NIE ZAPISAC NICZEGO. Gdyby wolalo zapis,
+  // przypadkowe podniesienie wersji utrwalilo by sie mimo wycofania sie - a
+  // podniesiona wersja uniewaznia akceptacje wszystkich uczestnikow naraz.
+  it("anulowanie zamyka formularz i NIE woła zapisu", () => {
+    const zamkniecia = renderujZZamknieciem();
+    fireEvent.click(screen.getByText(`${D}cancelAction`));
+    expect(zamkniecia).toEqual([false]);
+    expect(h.submitted).toEqual([]);
+  });
+
+  it("zapis woła warstwe zapisu i NIE zamyka formularza sam z siebie", () => {
+    const zamkniecia = renderujZZamknieciem();
+    zapisz();
+    expect(h.submitted).toHaveLength(1);
+    expect(zamkniecia).toEqual([]);
+  });
+
+  it("trwajacy zapis gasi rowniez anulowanie - klikniecie nic nie zamyka", () => {
+    const zamkniecia = renderujZZamknieciem({ isSaving: true });
+    fireEvent.click(screen.getByText(`${D}cancelAction`));
+    expect(zamkniecia).toEqual([]);
+  });
+});

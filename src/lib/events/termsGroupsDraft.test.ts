@@ -128,3 +128,102 @@ describe("termDraft", () => {
     expect(staleAcceptances({ acceptances_total: 2, acceptances_current: 5 })).toBe(0);
   });
 });
+
+// PUSTE POLE LICZBOWE TO NIE TO SAMO, CO POLE ZEPSUTE.
+//
+// `intOrNull` rozroznia TRZY stany: pustka (`null`), tekst niebedacy liczba
+// calkowita (`false`) i liczba. Formularz grupy i formularz zgody czytaja to
+// rozroznienie inaczej niz ekran: pustka MA przejsc (wtedy jedzie wartosc
+// domyslna z tabeli), a smiec MA zatrzymac zapis nazwanym bledem. Bez tej pary
+// „pusta kolejnosc" i „kolejnosc wpisana slowem" trafialyby w te sama galaz.
+describe("liczby w szkicu - para „pustka przechodzi / smiec zatrzymuje”", () => {
+  it("pusta kolejnosc i pusta ranga NIE zatrzymuja zapisu grupy", () => {
+    const draft = {
+      ...emptyGroupDraft(10),
+      key: "vip",
+      namePl: "VIP",
+      nameEn: "VIP",
+      minTierRank: "",
+      sortOrder: "",
+    };
+    expect(validateGroupDraft(draft)).toEqual([]);
+  });
+
+  it("pusta kolejnosc jedzie do ladunku jako wartosc domyslna tabeli", () => {
+    const draft = {
+      ...emptyGroupDraft(10),
+      key: "vip",
+      namePl: "VIP",
+      nameEn: "VIP",
+      minTierRank: "",
+      sortOrder: "",
+    };
+    const input = groupDraftToInput(draft, "e-1");
+    expect(input.minTierRank).toBe(0);
+    expect(input.sortOrder).toBe(100);
+  });
+
+  it("kolejnosc wpisana slowem ZATRZYMUJE zapis grupy", () => {
+    const draft = {
+      ...emptyGroupDraft(10),
+      key: "vip",
+      namePl: "VIP",
+      nameEn: "VIP",
+      sortOrder: "pierwsza",
+    };
+    expect(validateGroupDraft(draft).map((error) => error.field)).toContain("minTierRank");
+  });
+
+  it("liczba ujemna nie jest liczba calkowita nieujemna - zapis stoi", () => {
+    const draft = {
+      ...emptyGroupDraft(10),
+      key: "vip",
+      namePl: "VIP",
+      nameEn: "VIP",
+      minTierRank: "-1",
+    };
+    expect(validateGroupDraft(draft).map((error) => error.field)).toContain("minTierRank");
+  });
+
+  it("pusta kolejnosc zgody przechodzi, a wpisana slowem zatrzymuje zapis", () => {
+    const dobry = {
+      ...emptyTermDraft(10),
+      key: "rodo",
+      labelPl: "Zgoda",
+      labelEn: "Consent",
+      sortOrder: "",
+    };
+    expect(validateTermDraft(dobry)).toEqual([]);
+    expect(termDraftToInput(dobry, "e-1").sortOrder).toBe(100);
+
+    const zly = { ...dobry, sortOrder: "druga" };
+    expect(validateTermDraft(zly).map((error) => error.field)).toContain("sortOrder");
+  });
+});
+
+// WIERSZ Z BAZY MOZE PRZYJSC Z KOLUMNA, KTOREJ NIE DA SIE ZAMIENIC NA LICZBE
+// (starszy wiersz, kolumna dodana pozniej, `NULL` w miejscu liczby). Szkic ma
+// wtedy wziac wartosc domyslna, a nie wpisac do pola napis „NaN" - inaczej
+// otwarcie formularza po to, zeby zmienic JEDEN przelacznik, konczy sie
+// odmowa zapisu na polu, ktorego nikt nie dotykal.
+describe("wiersz z nieliczbowa kolumna - szkic bierze wartosc domyslna", () => {
+  it("grupa bez rangi i bez kolejnosci dostaje zero i setke, a nie `NaN`", () => {
+    const draft = groupDraftFromRow({
+      ...groupRow,
+      min_tier_rank: undefined,
+      sort_order: undefined,
+    });
+    expect(draft.minTierRank).toBe("0");
+    expect(draft.sortOrder).toBe("100");
+  });
+
+  it("kolejnosc podana napisem liczbowym jest czytana jako liczba", () => {
+    expect(groupDraftFromRow({ ...groupRow, sort_order: "40" }).sortOrder).toBe("40");
+  });
+
+  it("zgoda bez numeru wersji dostaje wersje pierwsza, a nie `NaN`", () => {
+    const draft = termDraftFromRow({ ...termRow, version: undefined, sort_order: "nie-liczba" });
+    expect(draft.version).toBe(1);
+    expect(draft.sortOrder).toBe("100");
+  });
+});

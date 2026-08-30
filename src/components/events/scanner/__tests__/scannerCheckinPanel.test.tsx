@@ -14,11 +14,20 @@ import type { CheckinScanResult } from "@/lib/events/scannerApi";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 import type { ScannerRuntime } from "@/lib/events/useScanner";
 
+// `istniejaceKlucze` jest sterowalne, bo panel wybiera podpowiedz pod wynikiem
+// po ISTNIENIU klucza w slowniku - wynik bez wlasnej podpowiedzi ma pokazac
+// sam naglowek, a nie surowy klucz.
+const h = vi.hoisted(() => ({ istniejaceKlucze: true }));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) =>
       params === undefined ? key : `${key}(${JSON.stringify(params)})`,
-    i18n: { language: "pl", exists: () => true, changeLanguage: () => Promise.resolve() },
+    i18n: {
+      language: "pl",
+      exists: () => h.istniejaceKlucze,
+      changeLanguage: () => Promise.resolve(),
+    },
   }),
   initReactI18next: { type: "3rdParty", init: () => {} },
 }));
@@ -145,6 +154,7 @@ function scan(code: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.istniejaceKlucze = true;
 });
 
 describe("ScannerCheckinPanel", () => {
@@ -213,5 +223,242 @@ describe("ScannerCheckinPanel", () => {
     const pinned: ScannerSession = { ...SESSION, pinnedCheckpointId: "c2" };
     render(<ScannerCheckinPanel runtime={runtimeStub({ session: pinned })} session={pinned} />);
     expect(screen.queryByText("eventScanner.directions.label")).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------- kolor wyniku, punkt i kierunek na ekranie --- */
+
+// TRZY KOLORY MAJA TRZY ZNACZENIA i operator patrzy na nie z metra, przez
+// ramie, w sloncu. Zielony to „wpusc", czerwony „nie wpuszczaj", bursztynowy
+// „to nie jest odmowa, ale przeczytaj". Pomylenie bursztynu z czerwienia przy
+// powtornym skanie zawraca od bramki czlowieka, ktory ma prawo wejsc.
+describe("ScannerCheckinPanel - kolor wyniku niesie decyzje", () => {
+  /** Pas wyniku - jedyny element o roli `status` na tym ekranie. */
+  function pas(): HTMLElement {
+    return screen.getAllByRole("status")[0];
+  }
+
+  it("POWTORNY skan z prawem wejscia jest BURSZTYNOWY, a nie zielony i nie czerwony", async () => {
+    // `repeat` przy `admit === true` to drugie pikniecie w oknie deduplikacji
+    // punktu: czlowiek juz jest w srodku i ma wejsc dalej.
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({
+        queued: false,
+        result: outcome({ outcome: "repeat", admit: true, result: "repeat", repeatCount: 2 }),
+      }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-REPEAT");
+
+    await screen.findByText("eventScanner.outcomes.repeat");
+    expect(pas().className).toContain("amber");
+    expect(pas().className).not.toContain("emerald");
+  });
+
+  it("ODMOWA jest CZERWONA - to nie jest ostrzezenie", async () => {
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({
+        queued: false,
+        result: outcome({
+          outcome: "denied_registration_status",
+          admit: false,
+          result: "denied_registration_status",
+        }),
+      }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-DENIED");
+
+    await screen.findByText("eventScanner.outcomes.deniedRegistrationStatus");
+    expect(pas().className).toContain("destructive");
+  });
+
+  it("KOD NIEZNANY jest BURSZTYNOWY - zle piknieta kartka to nie jest odmowa wejscia", async () => {
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({
+        queued: false,
+        result: outcome({ outcome: "unknown_code", admit: false, result: null }),
+      }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-NIEZNANY");
+
+    await screen.findByText("eventScanner.outcomes.unknownCode");
+    expect(pas().className).toContain("amber");
+  });
+
+  it("wynik BEZ wlasnej podpowiedzi w slowniku pokazuje sam naglowek, a nie surowy klucz", async () => {
+    h.istniejaceKlucze = false;
+    const runtime = runtimeStub({});
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-BEZ-PODPOWIEDZI");
+
+    await screen.findByText("eventScanner.outcomes.granted");
+    expect(screen.queryByText(/eventScanner\.outcomeHints\.granted/)).not.toBeInTheDocument();
+  });
+
+  it("BLOKADA urzadzenia po serii pomylek jest KRZYCZANA osobno, nie chowana w wyniku", async () => {
+    const { toast } = await import("sonner");
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({
+        queued: false,
+        result: outcome({ outcome: "unknown_code", admit: false, deviceLocked: true }),
+      }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-PO-SERII");
+
+    await screen.findByText("eventScanner.outcomes.unknownCode");
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("POPRZEDNIA odprawa i ZAJETOSC punktu stoja pod wynikiem - to sa liczby decyzji", async () => {
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({
+        queued: false,
+        result: outcome({
+          outcome: "repeat",
+          admit: true,
+          previousCheckinAt: "2026-09-01T07:40:00Z",
+          person: {
+            personId: "p1",
+            firstName: "Zofia",
+            lastName: "Testowa",
+            company: null,
+            jobTitle: null,
+            registrationId: null,
+            registrationStatus: "approved",
+            ticketNamePl: null,
+            ticketNameEn: null,
+            groupNamePl: null,
+            groupNameEn: null,
+            groupColor: null,
+            badgePrinted: false,
+            badgePrintedAt: null,
+            badgePrintedVersion: null,
+          },
+        }),
+      }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-POWTORKA");
+
+    await screen.findByText("eventScanner.outcomes.repeat");
+    expect(screen.getByText(/eventScanner\.outcomeHints\.previousCheckin/)).toBeInTheDocument();
+    expect(screen.getByText(/eventScanner\.checkpoint\.occupancy/)).toBeInTheDocument();
+    // Tozsamosc rozpoznanej osoby - operator porownuje ja z twarza przy bramce.
+    expect(screen.getByText(/Zofia/)).toBeInTheDocument();
+  });
+
+  it("brak zajetosci w odpowiedzi NIE rysuje pustego wiersza z licznikiem", async () => {
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({
+        queued: false,
+        result: outcome({
+          checkpoint: {
+            id: "c1",
+            namePl: "Wejscie glowne",
+            nameEn: "Main entrance",
+            kind: "event_entry",
+            directionMode: "in_out",
+            accessMode: "control",
+            capacity: null,
+            occupancy: null,
+          },
+        }),
+      }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-BEZ-ZAJETOSCI");
+
+    await screen.findByText("eventScanner.outcomes.granted");
+    expect(screen.queryByText(/eventScanner\.checkpoint\.occupancy/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ScannerCheckinPanel - wybor punktu i kierunku", () => {
+  it("ZMIANA PUNKTU jedzie do bazy - operator przeszedl z bramy do sali", async () => {
+    const runtime = runtimeStub({});
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sala B" }));
+    scan("QR-SALA-B");
+    await screen.findByText("eventScanner.outcomes.granted");
+
+    expect(runtime.submitCheckin).toHaveBeenCalledWith({
+      code: "QR-SALA-B",
+      checkpointId: "c2",
+      direction: "in",
+    });
+  });
+
+  it("WYJSCIE wybrane recznie jedzie do bazy jako kierunek `out`", async () => {
+    const runtime = runtimeStub({});
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "eventScanner.directions.out" }));
+    scan("QR-WYJSCIE");
+    await screen.findByText("eventScanner.outcomes.granted");
+
+    expect(runtime.submitCheckin).toHaveBeenCalledWith({
+      code: "QR-WYJSCIE",
+      checkpointId: "c1",
+      direction: "out",
+    });
+  });
+
+  it("PRZEJSCIE do punktu jednokierunkowego sciaga „wyjscie” z powrotem na „wejscie”", async () => {
+    // Bez tego sciagniecia panel wyslalby `out` do punktu `in_only`, a baza
+    // odmowilaby - przy bramce wyglada to jak zepsuty czytnik.
+    const runtime = runtimeStub({});
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "eventScanner.directions.out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sala B" }));
+    scan("QR-PO-ZMIANIE");
+    await screen.findByText("eventScanner.outcomes.granted");
+
+    expect(runtime.submitCheckin).toHaveBeenCalledWith({
+      code: "QR-PO-ZMIANIE",
+      checkpointId: "c2",
+      direction: "in",
+    });
+  });
+
+  it("punkt z OKNEM DEDUPLIKACJI i POJEMNOSCIA opisuje sie operatorowi", () => {
+    const zOknem: ScannerSession = {
+      ...SESSION,
+      pinnedCheckpointId: "c3",
+      checkpoints: [
+        {
+          id: "c3",
+          namePl: "Katering",
+          nameEn: "Catering",
+          kind: "catering",
+          directionMode: "in_only",
+          accessMode: "track",
+          capacity: 250,
+          dedupeWindowSeconds: 60,
+          sortOrder: 1,
+        },
+      ],
+    };
+    render(<ScannerCheckinPanel runtime={runtimeStub({ session: zOknem })} session={zOknem} />);
+
+    expect(screen.getByText("eventScanner.checkpoint.trackMode")).toBeInTheDocument();
+    expect(screen.getByText(/eventScanner\.checkpoint\.capacity/)).toBeInTheDocument();
+    expect(screen.getByText(/eventScanner\.checkpoint\.dedupeWindow/)).toBeInTheDocument();
+  });
+
+  it("POSWIADCZENIE BEZ PUNKTOW mowi o tym wprost i BLOKUJE czytnik", () => {
+    // Skan bez punktu konczy sie odmowa bazy i podnosi licznik pomylek
+    // urzadzenia - po serii takich prob bramka blokuje sie sama.
+    const bezPunktow: ScannerSession = { ...SESSION, checkpoints: [] };
+    render(
+      <ScannerCheckinPanel runtime={runtimeStub({ session: bezPunktow })} session={bezPunktow} />,
+    );
+
+    expect(screen.getByText("eventScanner.checkpoint.none")).toBeInTheDocument();
+    expect(screen.getByLabelText("eventScanner.manual.label")).toBeDisabled();
   });
 });

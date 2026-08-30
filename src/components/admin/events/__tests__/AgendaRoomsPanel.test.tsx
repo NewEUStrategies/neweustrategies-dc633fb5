@@ -91,7 +91,18 @@ vi.mock("@/components/ui/alert-dialog", () => {
     }) => {
       open = isOpen;
       setOpen = onOpenChange;
-      return <div>{children}</div>;
+      // Radix pyta o zmianę stanu w OBIE strony (Escape i klik poza oknem dają
+      // `false`, wyzwalacz `true`). Panel nie ma wyzwalacza, więc drugą stronę
+      // wystawiamy tu jawnie - bez niej nie da się sprawdzić, że stan otwarcia
+      // jest WYPROWADZONY z wybranego wiersza, a nie trzymany osobno.
+      return (
+        <div>
+          <button type="button" onClick={() => onOpenChange(true)}>
+            radix-prosi-o-otwarcie
+          </button>
+          {children}
+        </div>
+      );
     },
     AlertDialogContent: ({ children }: { children: ReactNode }) =>
       open ? <div role="alertdialog">{children}</div> : null,
@@ -625,6 +636,19 @@ describe("kasowanie sali - odmowa `room_in_use` i jej kontrapunkt", () => {
 
     expect(h.removeIds).toEqual([SALA_PUSTA.id]);
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  // STAN OTWARCIA JEST WYPROWADZONY Z WYBRANEGO WIERSZA, nie trzymany osobno.
+  // Gdyby panel miał własną flagę „okno otwarte", żądanie otwarcia bez wskazanej
+  // sali pokazałoby potwierdzenie kasowania, które nie wie, co kasuje - a przycisk
+  // w jego stopce i tak wywołałby `remove.mutate` na pustce.
+  it("żądanie otwarcia BEZ wskazanej sali nie otwiera potwierdzenia", () => {
+    h.rooms = [SALA_PUSTA];
+    renderuj();
+    fireEvent.click(screen.getByText("radix-prosi-o-otwarcie"));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(h.removeIds).toEqual([]);
   });
 
   // DRUGIE KLIKNIĘCIE W CZASIE ZAPISU. Potwierdzenie kasowania - w odróżnieniu

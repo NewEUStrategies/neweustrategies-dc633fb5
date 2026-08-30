@@ -658,6 +658,21 @@ describe("zakładka „Szczegóły”", () => {
     expect(pole(`${W}details.descriptionField`)).toBe("Digital sovereignty strand");
   });
 
+  // OPIS BEZ WERSJI W JĘZYKU INTERFEJSU spada na drugi język - pusty prostokąt
+  // pod etykietą „Opis" wyglądałby jak pasmo bez opisu, choć opis jest.
+  it("pasmo bez opisu PL pokazuje po polsku opis angielski", () => {
+    renderuj({ track: trackRow({ description_pl: "" }) });
+
+    expect(pole(`${W}details.descriptionField`)).toBe("Digital sovereignty strand");
+  });
+
+  it("pasmo bez opisu EN pokazuje po angielsku opis polski", () => {
+    h.language = "en";
+    renderuj({ track: trackRow({ description_en: "" }) });
+
+    expect(pole(`${W}details.descriptionField`)).toBe("Pasmo o suwerenności cyfrowej");
+  });
+
   it("cztery metryki pasma czytają liczniki z wiersza ścieżki", () => {
     renderuj();
 

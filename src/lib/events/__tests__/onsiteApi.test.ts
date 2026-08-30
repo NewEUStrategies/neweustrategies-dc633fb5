@@ -46,6 +46,8 @@ const EVENT_ID = "11111111-1111-4111-8111-111111111111";
 const CHECKPOINT_ID = "22222222-2222-4222-8222-222222222222";
 const PERSON_ID = "33333333-3333-4333-8333-333333333333";
 const DEVICE_ID = "44444444-4444-4444-8444-444444444444";
+const TEMPLATE_ID = "66666666-6666-4666-8666-666666666666";
+const SPONSOR_ID = "77777777-7777-4777-8777-777777777777";
 
 function rpc(): ReturnType<typeof supabaseRpcStub> {
   if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
@@ -574,5 +576,377 @@ describe("onsiteApi - parsery pulpitu", () => {
     expect(live.sessions[0].roomId).toBeNull();
     expect(live.sessions[0].inside).toBe(114);
     expect(live.rooms[0]).toMatchObject({ roomId: "r1", floor: null, inside: 114 });
+  });
+});
+
+/* ------------------------------------ osiem funkcji bez ani jednej proby --- */
+
+// PO CO TA SEKCJA. Pomiar pokrycia przed ta praca pokazal, ze OSIEM funkcji
+// tego modulu nie bylo nigdy wywolanych z zadnego testu - m.in. cale
+// identyfikatory (szablon, wydruk, dziennik wydrukow) i wyszukiwarka osoby
+// przy bramce. To wlasnie te sciezki, na ktorych literowka w nazwie klucza
+// przechodzi przez `tsc` i przez przeglad: baza pomija pole, ktorego nie zna,
+// a panel pokazuje toast sukcesu.
+describe("onsiteApi - reszta kontraktu: nazwy kluczy i nazwy argumentow", () => {
+  it("usuniecie punktu kontrolnego idzie NAZWANYM argumentem `_id`, nie ladunkiem", async () => {
+    rpc().setData("admin_event_checkpoint_delete", true);
+
+    const usuniete = await api.deleteCheckpoint(CHECKPOINT_ID);
+
+    expect(lastArgs("admin_event_checkpoint_delete")).toEqual({ _id: CHECKPOINT_ID });
+    expect(usuniete).toBe(true);
+  });
+
+  it("usuniecie punktu czyta TYLKO twarde `true` - „usunieto zero wierszy” to nie sukces", async () => {
+    // Baza oddaje `false`, gdy punkt ma juz odprawy i nie wolno go skasowac.
+    rpc().setData("admin_event_checkpoint_delete", false);
+    expect(await api.deleteCheckpoint(CHECKPOINT_ID)).toBe(false);
+
+    rpc().setData("admin_event_checkpoint_delete", "true");
+    expect(await api.deleteCheckpoint(CHECKPOINT_ID)).toBe(false);
+  });
+
+  it("odmowa usuniecia punktu wychodzi wyjatkiem z komunikatem bazy", async () => {
+    rpc().setError("admin_event_checkpoint_delete", "checkpoint_in_use: 12 check-in(s) recorded");
+
+    await expect(api.deleteCheckpoint(CHECKPOINT_ID)).rejects.toThrow(/checkpoint_in_use/);
+  });
+
+  it("wyszukiwarka osoby przy bramce niesie wydarzenie, fraze i limit", async () => {
+    rpc().setData("admin_event_checkin_search", []);
+
+    await api.searchCheckinPeople({ eventId: EVENT_ID, q: "kowal", limit: 10 });
+
+    expect(payloadOf("admin_event_checkin_search")).toEqual({
+      event_id: EVENT_ID,
+      q: "kowal",
+      limit: 10,
+    });
+  });
+
+  it("wyszukiwarka BEZ limitu nie wysyla klucza `limit` - baza ma wlasna wartosc domyslna", async () => {
+    rpc().setData("admin_event_checkin_search", []);
+
+    await api.searchCheckinPeople({ eventId: EVENT_ID, q: "kowal" });
+
+    expect(payloadKeys("admin_event_checkin_search")).toEqual(["event_id", "q"]);
+  });
+
+  it("pusta odpowiedz wyszukiwarki to pusta tablica, a nie `null` na ekranie", async () => {
+    rpc().setData("admin_event_checkin_search", null);
+    expect(await api.searchCheckinPeople({ eventId: EVENT_ID, q: "kowal" })).toEqual([]);
+  });
+
+  it("odmowa wyszukiwarki wychodzi wyjatkiem - operator nie dostaje pustej listy", async () => {
+    // Pusta lista po odmowie klamie: wolontariusz uznalby, ze osoby nie ma
+    // w zapisach, i odeslalby ja od bramki.
+    rpc().setError("admin_event_checkin_search", "query_too_short: need at least 2 characters");
+
+    await expect(api.searchCheckinPeople({ eventId: EVENT_ID, q: "k" })).rejects.toThrow(
+      /query_too_short/,
+    );
+  });
+
+  it("lista szablonow identyfikatora pyta NAZWANYM argumentem o wydarzenie", async () => {
+    rpc().setData("admin_event_badge_templates_list", []);
+
+    await api.fetchBadgeTemplates(EVENT_ID);
+
+    expect(lastArgs("admin_event_badge_templates_list")).toEqual({ p_event_id: EVENT_ID });
+  });
+
+  it("odmowa listy szablonow wychodzi wyjatkiem zamiast pustej listy", async () => {
+    rpc().setError("admin_event_badge_templates_list", "permission_denied: not an editor");
+
+    await expect(api.fetchBadgeTemplates(EVENT_ID)).rejects.toThrow(/permission_denied/);
+  });
+
+  it("zapis szablonu niesie KOMPLET nazw czytanych przez baze", async () => {
+    rpc().setData("admin_event_badge_template_save", TEMPLATE_ID);
+
+    await api.saveBadgeTemplate({
+      id: TEMPLATE_ID,
+      eventId: EVENT_ID,
+      name: "Identyfikator A6",
+      paperFormat: "a6",
+      orientation: "portrait",
+      widthMm: 105,
+      heightMm: 148,
+      showQr: true,
+      qrSizeMm: 25,
+      doubleFold: false,
+      backgroundColor: "#ffffff",
+      backgroundImageUrl: null,
+      isDefault: true,
+      elements: [],
+    });
+
+    expect(payloadKeys("admin_event_badge_template_save")).toEqual([
+      "background_color",
+      "background_image_url",
+      "double_fold",
+      "elements",
+      "event_id",
+      "height_mm",
+      "id",
+      "is_default",
+      "name",
+      "orientation",
+      "paper_format",
+      "qr_size_mm",
+      "show_qr",
+      "width_mm",
+    ]);
+  });
+
+  it("zapis szablonu: `undefined` znika, a jawny `null` jedzie do bazy jako „wyczysc”", async () => {
+    rpc().setData("admin_event_badge_template_save", TEMPLATE_ID);
+
+    const id = await api.saveBadgeTemplate({
+      eventId: EVENT_ID,
+      name: "Karta plastikowa",
+      paperFormat: "badge_90x54",
+      orientation: "landscape",
+      widthMm: null,
+      heightMm: null,
+    });
+
+    const ladunek = payloadOf("admin_event_badge_template_save");
+    // Wymiary wlasne przy formacie z katalogu maja byc WYCZYSZCZONE, inaczej
+    // szablon drukuje sie w rozmiarze poprzedniego papieru.
+    expect(ladunek.width_mm).toBeNull();
+    expect(ladunek.height_mm).toBeNull();
+    expect(Object.keys(ladunek).sort()).toEqual([
+      "event_id",
+      "height_mm",
+      "name",
+      "orientation",
+      "paper_format",
+      "width_mm",
+    ]);
+    expect(id).toBe(TEMPLATE_ID);
+  });
+
+  it("zapis szablonu oddaje identyfikator jako NAPIS, nawet gdy baza odda liczbe", async () => {
+    rpc().setData("admin_event_badge_template_save", 42);
+
+    expect(
+      await api.saveBadgeTemplate({
+        name: "Awaryjny",
+        paperFormat: "a7",
+        orientation: "portrait",
+      }),
+    ).toBe("42");
+  });
+
+  it("odmowa zapisu szablonu wychodzi wyjatkiem z komunikatem bazy", async () => {
+    rpc().setError(
+      "admin_event_badge_template_save",
+      "event_badge_templates_paper_format_values: violates check constraint",
+    );
+
+    await expect(
+      api.saveBadgeTemplate({ name: "Zly papier", paperFormat: "a4", orientation: "portrait" }),
+    ).rejects.toThrow(/paper_format/);
+  });
+
+  it("usuniecie szablonu idzie NAZWANYM argumentem `_id` i czyta twarde `true`", async () => {
+    rpc().setData("admin_event_badge_template_delete", true);
+    expect(await api.deleteBadgeTemplate(TEMPLATE_ID)).toBe(true);
+    expect(lastArgs("admin_event_badge_template_delete")).toEqual({ _id: TEMPLATE_ID });
+
+    rpc().setData("admin_event_badge_template_delete", null);
+    expect(await api.deleteBadgeTemplate(TEMPLATE_ID)).toBe(false);
+  });
+
+  it("odmowa usuniecia szablonu wychodzi wyjatkiem - szablon bywa w uzyciu", async () => {
+    rpc().setError("admin_event_badge_template_delete", "template_in_use: 40 print(s) recorded");
+
+    await expect(api.deleteBadgeTemplate(TEMPLATE_ID)).rejects.toThrow(/template_in_use/);
+  });
+
+  it("zapis wydruku identyfikatora niesie komplet nazw i oddaje wiersz bazy", async () => {
+    rpc().setData("admin_event_badge_print_record", {
+      print_id: "aaaaaaaa-1111-4111-8111-111111111111",
+      copies: 2,
+    });
+
+    const wiersz = await api.recordBadgePrint({
+      eventId: EVENT_ID,
+      personId: PERSON_ID,
+      templateId: TEMPLATE_ID,
+      copies: 2,
+      reason: "reprint",
+      note: null,
+    });
+
+    expect(payloadKeys("admin_event_badge_print_record")).toEqual([
+      "copies",
+      "event_id",
+      "note",
+      "person_id",
+      "reason",
+      "template_id",
+    ]);
+    expect(wiersz).toEqual({ print_id: "aaaaaaaa-1111-4111-8111-111111111111", copies: 2 });
+  });
+
+  it("nieczytelna odpowiedz wydruku to PUSTY obiekt, a nie `null` w rece panelu", async () => {
+    rpc().setData("admin_event_badge_print_record", ["nie", "obiekt"]);
+    expect(await api.recordBadgePrint({ eventId: EVENT_ID, personId: PERSON_ID })).toEqual({});
+
+    rpc().setData("admin_event_badge_print_record", null);
+    expect(await api.recordBadgePrint({ eventId: EVENT_ID, personId: PERSON_ID })).toEqual({});
+  });
+
+  it("odmowa zapisu wydruku wychodzi wyjatkiem z komunikatem bazy", async () => {
+    rpc().setError("admin_event_badge_print_record", "person_not_in_event: person not registered");
+
+    await expect(api.recordBadgePrint({ eventId: EVENT_ID, personId: PERSON_ID })).rejects.toThrow(
+      /person_not_in_event/,
+    );
+  });
+
+  it("dziennik wydrukow filtruje NAZWANYMI argumentami, bez ladunku", async () => {
+    rpc().setData("admin_event_badge_prints_list", []);
+
+    await api.fetchBadgePrints({
+      eventId: EVENT_ID,
+      personId: PERSON_ID,
+      limit: 20,
+      offset: 40,
+    });
+
+    expect(lastArgs("admin_event_badge_prints_list")).toEqual({
+      p_event_id: EVENT_ID,
+      p_person_id: PERSON_ID,
+      p_limit: 20,
+      p_offset: 40,
+    });
+  });
+
+  it("dziennik wydrukow BEZ filtrow wysyla samo wydarzenie - `undefined` nie jedzie", async () => {
+    rpc().setData("admin_event_badge_prints_list", null);
+
+    const wiersze = await api.fetchBadgePrints({ eventId: EVENT_ID });
+
+    expect(Object.keys(lastArgs("admin_event_badge_prints_list"))).toEqual(["p_event_id"]);
+    expect(wiersze).toEqual([]);
+  });
+
+  it("odmowa dziennika wydrukow wychodzi wyjatkiem zamiast pustej listy", async () => {
+    rpc().setError("admin_event_badge_prints_list", "permission_denied: not an editor");
+
+    await expect(api.fetchBadgePrints({ eventId: EVENT_ID })).rejects.toThrow(/permission_denied/);
+  });
+
+  it("lista leadow filtruje po SPONSORZE - panel nie odsiewa cudzych leadow sam", async () => {
+    // Izolacja leadow jest asercja bazy (patrz `50_onsite.sql`); warstwa
+    // dostepu ma jej nie obchodzic wlasnym filtrem po stronie przegladarki.
+    rpc().setData("admin_event_lead_scans_list", []);
+
+    await api.fetchLeadScans({ eventId: EVENT_ID, sponsorId: SPONSOR_ID, limit: 50, offset: 0 });
+
+    expect(lastArgs("admin_event_lead_scans_list")).toEqual({
+      p_event_id: EVENT_ID,
+      p_sponsor_id: SPONSOR_ID,
+      p_limit: 50,
+      p_offset: 0,
+    });
+  });
+
+  it("lista leadow BEZ sponsora pyta o komplet wydarzenia, a pusta odpowiedz to pusta tablica", async () => {
+    rpc().setData("admin_event_lead_scans_list", null);
+
+    const wiersze = await api.fetchLeadScans({ eventId: EVENT_ID });
+
+    expect(Object.keys(lastArgs("admin_event_lead_scans_list"))).toEqual(["p_event_id"]);
+    expect(wiersze).toEqual([]);
+  });
+
+  it("odmowa listy leadow wychodzi wyjatkiem - to sa dane osobowe, nie pusta lista", async () => {
+    rpc().setError("admin_event_lead_scans_list", "permission_denied: not an editor");
+
+    await expect(api.fetchLeadScans({ eventId: EVENT_ID })).rejects.toThrow(/permission_denied/);
+  });
+});
+
+/* --------------------------- odmowy bazy na pozostalych sciezkach zapisu --- */
+
+describe("onsiteApi - odmowa bazy nigdy nie udaje sukcesu", () => {
+  it("odmowa statystyk wychodzi wyjatkiem, a nie pulpitem samych zer", async () => {
+    // Pulpit samych zer po odmowie to zdanie o pustej sali - a to nieprawda
+    // o stanie bazy, nie brak danych.
+    rpc().setError("admin_event_onsite_stats", "permission_denied: not an editor");
+
+    await expect(api.fetchOnsiteStats(EVENT_ID)).rejects.toThrow(/permission_denied/);
+  });
+
+  it("odmowa pulpitu na zywo wychodzi wyjatkiem, a nie pusta lista sal", async () => {
+    rpc().setError("admin_event_onsite_live_stats", "permission_denied: not an editor");
+
+    await expect(api.fetchOnsiteLiveStats(EVENT_ID)).rejects.toThrow(/permission_denied/);
+  });
+
+  it("pulpit na zywo BEZ podanego okna wysyla domyslne szescdziesiat minut", async () => {
+    rpc().setData("admin_event_onsite_live_stats", {});
+
+    await api.fetchOnsiteLiveStats(EVENT_ID);
+
+    expect(lastArgs("admin_event_onsite_live_stats")).toEqual({
+      p_event_id: EVENT_ID,
+      p_window_minutes: 60,
+    });
+  });
+
+  it("odmowa wydania poswiadczenia wychodzi wyjatkiem - token nie moze byc zmyslony", async () => {
+    rpc().setError("admin_event_scanner_device_issue", "invalid_payload: scopes required");
+
+    await expect(
+      api.issueScannerDevice({ eventId: EVENT_ID, label: "Brama", scopes: ["checkin"] }),
+    ).rejects.toThrow(/invalid_payload/);
+  });
+
+  it("uniewaznienie poswiadczenia niesie `device_id` i czyta twarde `true`", async () => {
+    rpc().setData("admin_event_scanner_device_revoke", true);
+    expect(await api.revokeScannerDevice(DEVICE_ID)).toBe(true);
+    expect(payloadOf("admin_event_scanner_device_revoke")).toEqual({ device_id: DEVICE_ID });
+
+    rpc().setData("admin_event_scanner_device_revoke", 1);
+    expect(await api.revokeScannerDevice(DEVICE_ID)).toBe(false);
+  });
+
+  it("odmowa uniewaznienia poswiadczenia wychodzi wyjatkiem", async () => {
+    rpc().setError("admin_event_scanner_device_revoke", "device_not_found: no such device");
+
+    await expect(api.revokeScannerDevice(DEVICE_ID)).rejects.toThrow(/device_not_found/);
+  });
+
+  it("odmowa przelacznika poswiadczenia wychodzi wyjatkiem", async () => {
+    rpc().setError("admin_event_scanner_device_set_active", "device_revoked: already revoked");
+
+    await expect(api.setScannerDeviceActive(DEVICE_ID, true)).rejects.toThrow(/device_revoked/);
+  });
+
+  it("odmowa wydania partii identyfikatorow wychodzi wyjatkiem - kody QR NIE zostaly zrotowane", async () => {
+    // Wydanie partii rotuje kody QR: nieudane wywolanie MUSI byc wyjatkiem,
+    // inaczej panel wydrukowalby identyfikatory z nieistniejacymi kodami.
+    rpc().setError("admin_event_badge_batch", "person_not_in_event: person not registered");
+
+    await expect(
+      api.issueBadgeBatch({ eventId: EVENT_ID, personIds: [PERSON_ID] }),
+    ).rejects.toThrow(/person_not_in_event/);
+  });
+
+  it("odmowa recznej odprawy wychodzi wyjatkiem, a nie decyzja „wpusc”", async () => {
+    rpc().setError("admin_event_checkin_manual", "checkpoint_not_found: unknown checkpoint");
+
+    await expect(
+      api.recordManualCheckin({
+        eventId: EVENT_ID,
+        checkpointId: CHECKPOINT_ID,
+        personId: PERSON_ID,
+      }),
+    ).rejects.toThrow(/checkpoint_not_found/);
   });
 });

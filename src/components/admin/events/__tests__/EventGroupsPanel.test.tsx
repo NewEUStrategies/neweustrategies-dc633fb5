@@ -565,3 +565,31 @@ describe("dostepnosc", () => {
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });
+
+describe("nazwa grupy bez tlumaczenia - para „jest / nie ma”", () => {
+  // NAZWA JEST JEDYNYM NAPISEM, PO KTORYM ORGANIZATOR POZNAJE GRUPE przy
+  // kasowaniu i przy edycji uprawnien. Pusty wiersz oznacza tu decyzje o
+  // prawach ludzi podjeta „w ciemno". Baza wymaga obu nazw (`invalid_names`),
+  // ale wiersze sprzed tego wymogu nadal siedza w tabeli.
+  it("po polsku grupa bez nazwy polskiej pokazuje angielska", () => {
+    h.language = "pl";
+    h.rows = [groupRow({ name_pl: "", name_en: "Speakers" })];
+    renderuj();
+    expect(wiersz("Speakers")).toBeTruthy();
+  });
+
+  it("po angielsku grupa bez nazwy angielskiej pokazuje polska", () => {
+    h.language = "en";
+    h.rows = [groupRow({ name_pl: "Prelegenci", name_en: "" })];
+    renderuj();
+    expect(wiersz("Prelegenci")).toBeTruthy();
+  });
+
+  it("grupa z obiema nazwami bierze te z jezyka ekranu, nie zapasowa", () => {
+    h.language = "pl";
+    h.rows = [groupRow({ name_pl: "Prelegenci", name_en: "Speakers" })];
+    renderuj();
+    expect(screen.getByText("Prelegenci")).toBeTruthy();
+    expect(screen.queryByText("Speakers")).toBeNull();
+  });
+});

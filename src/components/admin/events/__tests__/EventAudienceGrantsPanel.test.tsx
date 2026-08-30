@@ -42,6 +42,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { radixSwitchStub } from "@/test/reactStubs";
+import { axeViolations, summarize } from "@/test/axe";
 import type { AudienceGrantInput, EventAudienceGrantRow } from "@/lib/events/audienceGrantsApi";
 
 /** Kształt drugiego argumentu `mutate` - tylko to, co organizm przekazuje. */
@@ -200,7 +201,11 @@ vi.mock("@/components/admin/events/organisms/EventAudienceGrantHistoryPanel", ()
       grantId: props.grantId ?? null,
       embedded: props.embedded === true,
     });
-    return <div aria-label="dziennik-historii" />;
+    // `<section>`, a nie `<div>`: prawdziwy organizm renderuje sekcję, a
+    // `aria-label` na gołym `<div>` jest atrybutem NIEDOZWOLONYM (axe:
+    // `aria-prohibited-attr`) - asercja dostępności mierzyłaby wtedy wadę
+    // atrapy zamiast organizmu. `getByLabelText` działa tak samo w obu.
+    return <section aria-label="dziennik-historii" />;
   },
   EventAudienceGrantHistoryButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
     <button type="button" onClick={onClick}>
@@ -998,5 +1003,103 @@ describe("dziennik historii", () => {
     fireEvent.click(screen.getByText("zamknij-okno"));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getAllByLabelText("dziennik-historii")).toHaveLength(1);
+  });
+});
+
+describe("dowód nadania krótszy niż trzy znaki", () => {
+  // DOLNA GRANICA JEST TRZY, NIE JEDEN. Baza pilnuje jej w DWÓCH miejscach:
+  // `event_audience_grants_evidence_len CHECK (char_length(btrim(evidence))
+  // BETWEEN 3 AND 500)` oraz osobnym strażniku w ciele funkcji zapisu, który
+  // podnosi `invalid_evidence: state on what basis the rate is granted`
+  // (`20260825191948:1247`). Parytet obu progów pilnuje bramka
+  // `termsGroupsNullableCheckParity.test.ts`.
+  //
+  // TO NIE JEST WYMÓG KOSMETYCZNY. Podstawa jest ŚLADEM AUDYTOWYM ROZLICZEŃ:
+  // wiersz nadania tłumaczy, dlaczego ktoś zapłacił mniej. Wpis „x" albo „ok"
+  // nie tłumaczy niczego, więc baza go nie przyjmuje - a formularz, który go
+  // przepuszcza, zamienia decyzję organizatora w czerwony komunikat po fakcie.
+  it("podstawa trzyznakowa przechodzi przez formularz - taką bazę przyjmuje", () => {
+    renderuj();
+    const okno = otworzOkno();
+    wypelnij(okno, { evidence: "KRS" });
+    zapisz(okno);
+    expect(h.saveInputs).toHaveLength(1);
+  });
+
+  it("podstawa opisowa oczywiście przechodzi - kontrola dodatnia dla pary", () => {
+    renderuj();
+    const okno = otworzOkno();
+    wypelnij(okno, { evidence: "Legitymacja studencka 2026" });
+    zapisz(okno);
+    expect(h.saveInputs).toHaveLength(1);
+  });
+
+  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  //
+  // Okno sprawdza WYŁĄCZNIE `draft.evidence.trim() === ""`
+  // (`EventAudienceGrantsPanel.tsx:138`), więc podstawa dwuznakowa przechodzi
+  // walidację ekranu, jedzie do `admin_event_audience_grant_save` i wraca
+  // odmową `invalid_evidence`. Organizator dostaje czerwień ZA COŚ, CO EKRAN
+  // MU WŁAŚNIE POZWOLIŁ ZROBIĆ - a przy nadaniach robionych seryjnie przed
+  // wydarzeniem ta odmowa wygląda jak awaria, nie jak brakujący znak.
+  // Poprawka należy do produkcji: próg trzech znaków po stronie okna, z tym
+  // samym komunikatem co przy pustce.
+  it.fails("podstawa dwuznakowa NIE dojeżdża do bazy - okno zatrzymuje ją na miejscu", () => {
+    renderuj();
+    const okno = otworzOkno();
+    wypelnij(okno, { evidence: "ok" });
+    zapisz(okno);
+    expect(h.saveInputs).toEqual([]);
+  });
+
+  // TA SAMA DZIURA OD DRUGIEJ STRONY: baza liczy długość PO `btrim`, a warstwa
+  // `audienceGrantsApi` przycina podstawę przed wysłaniem. Wpis z samych spacji
+  // i dwóch liter ma dla bazy dwa znaki, choć w polu widać ich pięć.
+  it.fails("podstawa, która po przycięciu ma dwa znaki, też jest zatrzymana", () => {
+    renderuj();
+    const okno = otworzOkno();
+    wypelnij(okno, { evidence: "  ok  " });
+    zapisz(okno);
+    expect(h.saveInputs).toEqual([]);
+  });
+});
+
+describe("dostępność", () => {
+  // KAŻDY ORGANIZM MODUŁU MA TU SWOJĄ ASERCJĘ DOSTĘPNOŚCI - ten był ostatnim
+  // bez niej. Mierzymy stany, które organizm rysuje SAM: listę, pustkę i
+  // odmowę. Okien dialogowych świadomie nie mierzymy - ich atrapy w tym pliku
+  // nie wiążą treści z tytułem przez `aria-labelledby`, więc naruszenie
+  // pochodziłoby z atrapy, a nie z organizmu (pytanie o wycofanie ma pomiar
+  // w plikach, których atrapy to wiązanie odtwarzają).
+  it("lista nadań nie ma naruszeń dostępności", async () => {
+    h.rows = [
+      grantRow(),
+      grantRow({
+        id: "grant-b",
+        audience: "ngo",
+        state: "revoked",
+        revoked_at: "2026-08-20T09:00:00.000Z",
+        subject_name: "Jan Nowak",
+        subject_email: "jan.nowak@example.org",
+      }),
+    ];
+    const { container } = renderuj();
+    const naruszenia = await axeViolations(container);
+    expect(naruszenia, summarize(naruszenia)).toEqual([]);
+  });
+
+  it("pusta lista nadań nie ma naruszeń dostępności", async () => {
+    h.rows = [];
+    const { container } = renderuj();
+    const naruszenia = await axeViolations(container);
+    expect(naruszenia, summarize(naruszenia)).toEqual([]);
+  });
+
+  it("stan odmowy nie ma naruszeń dostępności", async () => {
+    h.rows = undefined;
+    h.listError = new Error("forbidden: admin role required");
+    const { container } = renderuj();
+    const naruszenia = await axeViolations(container);
+    expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });

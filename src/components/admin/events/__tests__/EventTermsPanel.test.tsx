@@ -581,3 +581,32 @@ describe("dostepnosc", () => {
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });
+
+describe("etykieta zgody bez tlumaczenia - para „jest / nie ma”", () => {
+  // ZGODA BEZ NAZWY W JEZYKU EKRANU NIE MOZE BYC PUSTYM WIERSZEM. To jedyny
+  // napis, po ktorym organizator poznaje, KTORY dokument kasuje albo wylacza -
+  // a wiersze sprzed wymogu `invalid_labels` (obie etykiety obowiazkowe) nadal
+  // siedza w tabeli. Zapasowa etykieta jest tu ostatnia oslona przed pomyleniem
+  // dwoch regulaminow.
+  it("po polsku zgoda bez etykiety polskiej pokazuje angielska", () => {
+    h.language = "pl";
+    h.rows = [termRow({ label_pl: "", label_en: "GDPR consent" })];
+    renderuj();
+    expect(wiersz("GDPR consent")).toBeTruthy();
+  });
+
+  it("po angielsku zgoda bez etykiety angielskiej pokazuje polska", () => {
+    h.language = "en";
+    h.rows = [termRow({ label_pl: "Zgoda RODO", label_en: "" })];
+    renderuj();
+    expect(wiersz("Zgoda RODO")).toBeTruthy();
+  });
+
+  it("zgoda z obiema etykietami bierze te z jezyka ekranu, nie zapasowa", () => {
+    h.language = "pl";
+    h.rows = [termRow({ label_pl: "Zgoda RODO", label_en: "GDPR consent" })];
+    renderuj();
+    expect(screen.getByText("Zgoda RODO")).toBeTruthy();
+    expect(screen.queryByText("GDPR consent")).toBeNull();
+  });
+});
