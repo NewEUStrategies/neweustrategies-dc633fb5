@@ -95,10 +95,14 @@ jobs:
     # Suita jedzie więc w jobie `test` niżej. W `verify` zostaje to, co czyta
     # pliki repo, typy, lint i cztery bramki celowane: ~7:06 + ~1:04 = ~8:10.
     # Próg 20 minut to ~2,4x zapasu - I JEST TO OBNIŻENIE PROGU, nie kolejne
-    # podniesienie. Liczba 1:04 na bramkach 35-40 pochodzi z przebiegu 2400
-    # (ostatni, w którym się w ogóle wykonały) i jest z konieczności DOLNYM
-    # oszacowaniem - suita od tamtej pory urosła, więc jej podzbiory też.
-    # Zapas 2,4x jest po to, żeby ta niepewność nie kosztowała joba.
+    # podniesienie. Liczba 1:04 na bramkach 35-40 pochodziła z przebiegu 2400
+    # (ostatni, w którym się w ogóle wykonały) i była z konieczności DOLNYM
+    # oszacowaniem.
+    #
+    # POTWIERDZONE WYKONANIEM (przebieg na 1de66e8, pierwszy PEŁNY przebieg
+    # tego joba po rozdzieleniu): cały `verify` 6:34, a cztery bramki celowane
+    # razem 1:02 - pierwszy raz od 2026-08-29, kiedy w ogóle się wykonały.
+    # Oszacowanie trafione co do dwóch sekund, zapas do limitu trzykrotny.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -572,10 +576,18 @@ jobs:
   # tygodnie dokładano kod przy bramce, która nie ruszyła ani razu.
   test:
     runs-on: ubuntu-latest
-    # Zmierzone 2026-08-30 (przebieg 2753): sama suita 26:10, plus ~15 s
-    # setupu. Czterdzieści minut to ~1,5x zapasu na dzisiejszy ślad - ta sama
-    # proporcja, którą przyjęto dla `verify` przy przejściu 20 -> 35, i ten
-    # sam powód: suita rośnie z każdym nowym testem (46,5 tys. asercji).
+    # ZMIERZONE TRZY RAZY TEGO SAMEGO DNIA, NA PRAKTYCZNIE TEJ SAMEJ TREŚCI -
+    # i to jest najważniejsza liczba w tym komentarzu, bo nie jest jedna:
+    #   26:10  przebieg 2753, `verify` (d0ee497)
+    #   22:44  przebieg 2755, `verify` na `main` (01ecda0b)
+    #   16:05  przebieg 2756+, ten job (1de66e8), plus 20 s setupu
+    # Rozrzut 1,6x na współdzielonych runnerach GitHuba. Budżet stawiamy więc
+    # od NAJDŁUŻSZEGO pomiaru, nie od średniej ani od najkrótszego: 40 minut
+    # to ~1,5x wobec 26:10 - ta sama proporcja, którą przyjęto dla `verify`
+    # przy przejściu 20 -> 35. Kto zobaczy w logu 16 minut i uzna, że limit
+    # da się ściąć do dwudziestu, ustawi go PONIŻEJ pomiaru sprzed dwóch
+    # godzin. Do rozrzutu dochodzi wzrost: suita rośnie z każdym nowym testem
+    # (46,5 tys. asercji).
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
