@@ -471,8 +471,6 @@ export interface EventMenuDraftItem {
   module: EventPageModule | null;
 }
 
-
-
 /**
  * Lista podstron -> pozycje menu podgladu, w kolejnosci z bazy.
  *
@@ -498,7 +496,6 @@ export function eventPreviewMenu(
     color: entry.color ?? "",
     module: entry.module,
   }));
-
 }
 
 /** Kolejnosc dla pozycji dokladanej na koniec menu. */

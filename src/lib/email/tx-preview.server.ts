@@ -73,6 +73,25 @@ const DEMO_DECISION_NOTE: Record<EmailLang, string> = {
   en: "The seat pool for this participant group is full.",
 };
 
+/**
+ * Dane demonstracyjne biletu na wydarzenie - ten sam zapis, co
+ * `DEMO_DECISION_NOTE` wyzej i z tego samego powodu.
+ *
+ * `DEMO_TICKET_PRICE` sluzy DWOM rzeczom naraz: to cena biletu i zarazem kwota
+ * zwrotu calkowitego (`event_ticket_refunded` oddaje cale wejsciowke). Zwrot
+ * czesciowy ma wlasny wpis, bo jest z zalozenia inna kwota.
+ */
+const DEMO_TICKET_TYPE: Record<EmailLang, string> = {
+  pl: "Wejsciowka standard",
+  en: "Standard pass",
+};
+const DEMO_TICKET_PRICE: Record<EmailLang, string> = { pl: "450,00 PLN", en: "PLN 450.00" };
+const DEMO_PARTIAL_REFUND: Record<EmailLang, string> = { pl: "150,00 PLN", en: "PLN 150.00" };
+const DEMO_REFUND_LABEL: Record<EmailLang, string> = {
+  pl: "Kwota zwrotu",
+  en: "Refunded amount",
+};
+
 interface DemoData {
   subjectName: string | null;
   details: TxDetail[];
@@ -252,21 +271,17 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         details: [
           { label: l.event, value: eventTitle },
           { label: l.date, value: eventDate },
-          { label: l.ticketType, value: lang === "pl" ? "Wejsciowka standard" : "Standard pass" },
-          { label: l.price, value: lang === "pl" ? "450,00 PLN" : "PLN 450.00" },
+          { label: l.ticketType, value: DEMO_TICKET_TYPE[lang] },
+          { label: l.price, value: DEMO_TICKET_PRICE[lang] },
           ...(type === "event_ticket_paid"
             ? []
             : [
                 {
-                  label: lang === "pl" ? "Kwota zwrotu" : "Refunded amount",
+                  label: DEMO_REFUND_LABEL[lang],
                   value:
                     type === "event_ticket_refunded"
-                      ? lang === "pl"
-                        ? "450,00 PLN"
-                        : "PLN 450.00"
-                      : lang === "pl"
-                        ? "150,00 PLN"
-                        : "PLN 150.00",
+                      ? DEMO_TICKET_PRICE[lang]
+                      : DEMO_PARTIAL_REFUND[lang],
                 },
               ]),
         ],

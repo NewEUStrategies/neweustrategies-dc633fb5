@@ -64,7 +64,9 @@ export function RegistrationTicketPicker({
                 date: formatEventDateTime(phase.endsAt, null, lang),
               });
         const phaseNote =
-          phaseLabel === "" ? null : [phaseLabel, phaseEnds].filter((part) => part !== "").join(" - ");
+          phaseLabel === ""
+            ? null
+            : [phaseLabel, phaseEnds].filter((part) => part !== "").join(" - ");
 
         return (
           <label
@@ -131,7 +133,10 @@ export function RegistrationTicketPicker({
                 <ul className="flex flex-col gap-1">
                   {benefits.map((benefit) => (
                     <li key={benefit} className="flex items-start gap-2 text-sm text-foreground">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                      <Check
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary"
+                        aria-hidden="true"
+                      />
                       <span>{benefit}</span>
                     </li>
                   ))}

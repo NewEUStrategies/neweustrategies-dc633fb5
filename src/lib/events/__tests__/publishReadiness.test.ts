@@ -53,11 +53,7 @@ describe("buildPublishReadiness", () => {
       }),
     );
     expect(report.canPublish).toBe(false);
-    expect(report.blockers.map((item) => item.key).sort()).toEqual([
-      "cover",
-      "timezone",
-      "venue",
-    ]);
+    expect(report.blockers.map((item) => item.key).sort()).toEqual(["cover", "timezone", "venue"]);
   });
 
   it("nie wymaga adresu dla wydarzenia online, ale ostrzega o braku linku", () => {

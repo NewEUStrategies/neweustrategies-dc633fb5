@@ -17,7 +17,11 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/field-box";
-import { fetchWebhookHealth, type HealthEnv, type WebhookHealth } from "@/lib/billing/webhookHealthApi";
+import {
+  fetchWebhookHealth,
+  type HealthEnv,
+  type WebhookHealth,
+} from "@/lib/billing/webhookHealthApi";
 import { resendRegistrationNotifications } from "@/lib/events/outcomeResend.functions";
 import { ensureI18n as ensureTicketsI18n } from "@/lib/i18n-participant-tickets";
 

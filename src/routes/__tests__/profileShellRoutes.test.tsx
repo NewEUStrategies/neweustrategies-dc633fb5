@@ -39,7 +39,7 @@
 //   testy; sprawdzamy, że trasa czyta ich wynik.
 // - `useGuestPreview` / `guestPreviewStore`: czysty moduł na progu 100%.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
@@ -202,6 +202,24 @@ async function mountLayout(entry = "/profile") {
   return renderRoute({ route: ProfileLayoutRoute, path: "/profile", initialEntry: entry });
 }
 
+// ROZWINIĘTA POWŁOKA ISTNIEJE W DWÓCH EGZEMPLARZACH NARAZ - i to jest cecha,
+// nie usterka. Kolumna desktopowa (`hidden md:block`) siedzi w drzewie treści,
+// a szuflada mobilna (`md:hidden`) jedzie portalem na <body>, bo sticky
+// nagłówek strony ma własny kontekst nakładania i przykrywał szufladę
+// osadzoną w treści niezależnie od z-index. Przeglądarka pokazuje dokładnie
+// jeden pas (`display:none` wycina drugi także z drzewa dostępności), ale
+// jsdom nie liczy Tailwinda - w teście OBA są w DOM. Dlatego zapytania o
+// treść rozwiniętej powłoki MUSZĄ być zawężone do pasa; globalne `getByText`
+// pada tu na „found multiple elements" i to nie jest sygnał o produkcie.
+// Sam kontrakt dwóch pasów pilnuje osobny test niżej („powłoka rozwinięta
+// istnieje w dwóch pasach…"), więc zawężenie nie chowa regresji: gdyby
+// któryś pas zniknął albo doszedł trzeci, tamten test zapali się natychmiast.
+function lane(which: "desktop" | "mobile") {
+  const el = document.querySelector(`[data-sidebar-lane="${which}"]`);
+  if (!el) throw new Error(`Brak pasa powłoki "${which}" w DOM.`);
+  return within(el as HTMLElement);
+}
+
 describe("layout /profile - bramka sesji", () => {
   it("OCZEKIWANIE na sesję pokazuje wskaźnik, nie treść i nie odmowę", async () => {
     // Render odmowy w trakcie ładowania mrugałby ekranem 401 każdemu
@@ -267,9 +285,41 @@ describe("layout /profile - szuflada nawigacji", () => {
   it("zwinięcie z powrotem też zapisuje stan", async () => {
     window.localStorage.setItem("profile:sidebar", "expanded");
     await mountLayout();
-    await waitFor(() => expect(screen.getByLabelText("profile.sidebar.collapse")).toBeTruthy());
-    fireEvent.click(screen.getByLabelText("profile.sidebar.collapse"));
+    await waitFor(() => expect(lane("desktop").getByLabelText("profile.sidebar.collapse")));
+    fireEvent.click(lane("desktop").getByLabelText("profile.sidebar.collapse"));
     await waitFor(() => expect(window.localStorage.getItem("profile:sidebar")).toBe("collapsed"));
+  });
+
+  it("zwinięcie z pasa MOBILNEGO zapisuje ten sam stan", async () => {
+    // Szuflada mobilna ma własny przycisk zwijania - gdyby wisiał na innym
+    // handlerze niż desktopowy, stan pamiętany rozjechałby się między pasami
+    // i panel otwierałby się „zamknięty" po powrocie z podstrony.
+    window.localStorage.setItem("profile:sidebar", "expanded");
+    await mountLayout();
+    await waitFor(() => expect(lane("mobile").getByLabelText("profile.sidebar.collapse")));
+    fireEvent.click(lane("mobile").getByLabelText("profile.sidebar.collapse"));
+    await waitFor(() => expect(window.localStorage.getItem("profile:sidebar")).toBe("collapsed"));
+  });
+
+  it("powłoka rozwinięta istnieje w DWÓCH pasach - desktopowym i portalowym", async () => {
+    // Kontrakt duplikacji, o który opiera się `lane()`: rozwinięty stan ma
+    // dokładnie dwa pasy, zwinięty - wyłącznie desktopowy (na mobile zostaje
+    // sam przycisk, więc portal nie ma czego renderować). Ten test jest po to,
+    // żeby zawężanie zapytań w pozostałych testach nie przykryło regresji:
+    // zniknięcie pasa albo pojawienie się trzeciego pada tutaj.
+    await mountLayout();
+    await waitFor(() => expect(document.querySelectorAll("[data-sidebar-lane]")).toHaveLength(1));
+    expect(document.querySelector("[data-sidebar-lane='mobile']")).toBeNull();
+
+    fireEvent.click(lane("desktop").getByLabelText("profile.sidebar.expand"));
+    await waitFor(() => expect(document.querySelectorAll("[data-sidebar-lane]")).toHaveLength(2));
+    // Szuflada mobilna wisi na <body>, nie w drzewie treści - inaczej sticky
+    // nagłówek strony przykrywa ją niezależnie od z-index.
+    const mobile = document.querySelector("[data-sidebar-lane='mobile']");
+    expect(mobile?.closest(".profile-shell")).toBeNull();
+    // Oba pasy niosą nawigację; żaden nie jest pustą skorupą.
+    expect(lane("desktop").getByTestId("profile-nav")).toBeTruthy();
+    expect(lane("mobile").getByTestId("profile-nav")).toBeTruthy();
   });
 
   it("AWARIA MAGAZYNU zostawia domyślne zwinięcie, nie wywala panelu", async () => {
@@ -405,8 +455,12 @@ describe("layout /profile - nazwa wyświetlana", () => {
     h.headerProfile = { display_name: "Anna Kowalska", avatar_url: null };
     await mountLayout();
     expect(screen.queryByText("Anna Kowalska")).toBeNull();
-    fireEvent.click(screen.getByLabelText("profile.sidebar.expand"));
-    await waitFor(() => expect(screen.getByText("Anna Kowalska")).toBeTruthy());
+    fireEvent.click(lane("desktop").getByLabelText("profile.sidebar.expand"));
+    await waitFor(() => expect(lane("desktop").getByText("Anna Kowalska")).toBeTruthy());
+    // Ta sama wizytówka jedzie w szufladzie mobilnej - użytkownik na telefonie
+    // widzi wyłącznie ten pas, więc pusta karta byłaby tam niewidoczna dla
+    // testu zawężonego do desktopu.
+    expect(lane("mobile").getByText("Anna Kowalska")).toBeTruthy();
   });
 
   it.each([
@@ -424,8 +478,8 @@ describe("layout /profile - nazwa wyświetlana", () => {
       h.headerProfile = profile;
       h.user = { id: "user-1", email: "osoba@example.com", user_metadata: metadata };
       await mountLayout();
-      fireEvent.click(screen.getByLabelText("profile.sidebar.expand"));
-      await waitFor(() => expect(screen.getByText(expected)).toBeTruthy());
+      fireEvent.click(lane("desktop").getByLabelText("profile.sidebar.expand"));
+      await waitFor(() => expect(lane("desktop").getByText(expected)).toBeTruthy());
     },
   );
 
@@ -433,16 +487,17 @@ describe("layout /profile - nazwa wyświetlana", () => {
     h.headerProfile = null;
     h.user = { id: "user-1", email: undefined, user_metadata: {} };
     await mountLayout();
-    fireEvent.click(screen.getByLabelText("profile.sidebar.expand"));
-    await waitFor(() => expect(screen.getByText("profile.account.unnamed")).toBeTruthy());
+    fireEvent.click(lane("desktop").getByLabelText("profile.sidebar.expand"));
+    await waitFor(() => expect(lane("desktop").getByText("profile.account.unnamed")).toBeTruthy());
   });
 
   it("bez zalogowanego użytkownika wizytówka się nie renderuje", async () => {
     // Sesja bez `user` to stan przejściowy odświeżania tokenu.
     h.user = null;
     await mountLayout();
-    fireEvent.click(screen.getByLabelText("profile.sidebar.expand"));
-    await waitFor(() => expect(screen.getByTestId("profile-nav")).toBeTruthy());
+    fireEvent.click(lane("desktop").getByLabelText("profile.sidebar.expand"));
+    await waitFor(() => expect(lane("desktop").getByTestId("profile-nav")).toBeTruthy());
+    // Wizytówki nie ma w ŻADNYM pasie - stąd zapytanie globalne, nie zawężone.
     expect(document.querySelector("[data-slot='avatar']")).toBeNull();
   });
 });

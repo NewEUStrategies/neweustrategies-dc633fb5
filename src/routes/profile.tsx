@@ -194,11 +194,18 @@ function ProfileLayout() {
                     "shrink-0 border-border transition-[width] duration-200 md:border-b-0 md:border-r",
                     collapsed
                       ? "w-full border-b bg-muted/40 p-2 md:w-[68px]"
-                      // Rozwinięty stan na mobile obsługuje portal - tu tylko
-                      // kolumna desktopowa.
-                      : "hidden md:block md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5",
+                      : // Rozwinięty stan na mobile obsługuje portal - tu tylko
+                        // kolumna desktopowa.
+                        "hidden md:block md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
+                  // Rozwinięta powłoka istnieje w DWÓCH egzemplarzach naraz:
+                  // ta kolumna (`hidden md:block`) i szuflada w portalu
+                  // (`md:hidden`). Przeglądarka pokazuje dokładnie jeden -
+                  // `display:none` wycina drugi także z drzewa dostępności -
+                  // ale jsdom nie liczy Tailwinda, więc bez nazwania pasów
+                  // każde `getByText` w teście trafia na dwa węzły.
+                  data-sidebar-lane="desktop"
                 >
                   <div className={cn("flex h-full flex-col", collapsed ? "gap-3" : "gap-6")}>
                     {collapsed ? (
@@ -247,6 +254,7 @@ function ProfileLayout() {
                     <aside
                       ref={asideRef}
                       data-collapsed="false"
+                      data-sidebar-lane="mobile"
                       className="fixed inset-y-0 left-0 z-[10000] w-72 max-w-[85vw] overflow-y-auto border-border bg-background p-4 shadow-2xl ring-1 ring-border md:hidden"
                     >
                       <div className="flex h-full flex-col gap-6">

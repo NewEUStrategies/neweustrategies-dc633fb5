@@ -9,6 +9,7 @@ const loaded = vi.hoisted(() => ({
   dynamicTags: 0,
   postsSlider: 0,
   sliderVariants: 0,
+  sectionLabelVariants: 0,
 }));
 
 vi.mock("../RichHtmlView", () => {
@@ -30,6 +31,19 @@ vi.mock("../PostsSliderWidget", () => {
 vi.mock("@/lib/builder/sliderVariants", () => {
   loaded.sliderVariants += 1;
   return { SliderRender: () => null };
+});
+// SZOSTY rozgrzewany chunk - i JEDYNY, ktorego ten plik kiedys nie zaslanial.
+// Skutek nie byl kosmetyczny: `warmCommonWidgetChunks` odpalalo prawdziwy
+// `sectionLabelVariants` (a przez niego `autoInvertColor` -> `themed`), czego
+// zadna asercja nie oczekiwala, wiec import wisial jeszcze po ostatnim tescie.
+// Vitest zwijal wtedy srodowisko i dostawal `EnvironmentTeardownError` jako
+// nieobsluzone odrzucenie: zestaw raportowal 46 225 zielonych testow i mimo to
+// konczyl sie kodem 1. Atrapa domyka wyscig I zamyka luke pokrycia - plik
+// obiecuje w naglowku, ze mierzy „faktyczne wykonanie dynamicznych importow",
+// a jeden z szesciu nie byl liczony.
+vi.mock("@/lib/builder/sectionLabelVariants", () => {
+  loaded.sectionLabelVariants += 1;
+  return { SectionLabelWidgetView: () => null, SectionLabelRender: () => null };
 });
 
 import { warmCommonWidgetChunks, resetWarmWidgetChunksForTests } from "../warmWidgetChunks";
@@ -53,9 +67,10 @@ describe("warmCommonWidgetChunks", () => {
     loaded.dynamicTags = 0;
     loaded.postsSlider = 0;
     loaded.sliderVariants = 0;
+    loaded.sectionLabelVariants = 0;
   });
 
-  it("dociąga chunki tekstu, listingów, tagów wpisu i hero-slidera dokładnie raz", async () => {
+  it("dociąga chunki tekstu, listingów, tagów wpisu, hero-slidera i etykiet sekcji dokładnie raz", async () => {
     warmCommonWidgetChunks(immediate);
     warmCommonWidgetChunks(immediate);
     await vi.waitFor(() => {
@@ -64,6 +79,7 @@ describe("warmCommonWidgetChunks", () => {
       expect(loaded.dynamicTags).toBe(1);
       expect(loaded.postsSlider).toBe(1);
       expect(loaded.sliderVariants).toBe(1);
+      expect(loaded.sectionLabelVariants).toBe(1);
     });
   });
 
@@ -74,6 +90,7 @@ describe("warmCommonWidgetChunks", () => {
     expect(loaded.rich).toBe(0);
     expect(loaded.postList).toBe(0);
     expect(loaded.dynamicTags).toBe(0);
+    expect(loaded.sectionLabelVariants).toBe(0);
   });
 
   it("po odmowie przez Save-Data kolejne wywołanie też nic nie dociąga (jedno zaplanowanie na proces)", async () => {

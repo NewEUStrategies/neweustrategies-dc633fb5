@@ -1,9 +1,4 @@
--- careers-harness: exclude
---
--- DLACZEGO TA MIGRACJA JEST POMINIETA W HARNESSIE CAREERS (a NIE w pg-harness,
--- gdzie przechodzi):
---
--- To ZLEPEK szesciu niepowiazanych modulow w jednym pliku - tak oddaje je panel
+-- ZLEPEK SZESCIU NIEPOWIAZANYCH MODULOW w jednym pliku - tak oddaje je panel
 -- Lovable. W jednym `20260824074231` siedza obok siebie:
 --   * funkcje rol (`is_super_admin`, `is_admin_or_editor`, `has_role`),
 --   * careers (`career_applications`, `career_application_events`),
@@ -13,24 +8,35 @@
 --   * formularz kontaktowy (`contact_messages`).
 -- Razem 24 zdania DDL.
 --
--- Selektor harnessu careers dobiera pliki PO TRESCI (`public.career_`), wiec
--- wzmianka o `career_applications` wciaga tu caly zlepek. REPLAY przewraca sie
--- wtedy na pierwszym obiekcie z modulu, ktorego ten harness CELOWO nie modeluje
--- (jego wlasny komentarz mowi to wprost) - najpierw na `user_roles.tenant_id`,
--- a po uzupelnieniu atrapy na `public.crm_webhook_endpoints`, i tak dalej przez
--- szesc tabel.
+-- TEN PLIK NIESIE ZAOSTRZENIE, PO KTORE POWSTAL: polityki `career_*_staff_*`
+-- przechodza z `is_staff()` na `is_admin_or_editor()`, czyli rola `author`
+-- przestaje widziec procesy rekrutacyjne, dziennik etapow i bucket `career-cv`.
+-- Sprawdza to sekcja 15. w `scripts/careers-harness/runtime_test.sql`.
 --
--- ATRAPOWANIE ICH PO KOLEI NIE JEST NAPRAWA. Kazda atrapa to zdanie o kształcie
--- obcej tabeli, ktorego w tym harnessie nikt nie weryfikuje, a bramka careers
--- przestaje mowic o module careers. Pominiecie jest wiec JAWNE i widoczne
--- w logu (`SKIP ... znacznik careers-harness: exclude`), ze straznikiem, ktory
--- nie pozwoli pominac calego zestawu.
+-- HISTORIA POMINIECIA - I DLACZEGO GO TU JUZ NIE MA. Plik nosil znacznik
+-- pomijajacy go w harnessie careers: selektor dobiera migracje PO TRESCI
+-- (`public.career_`), wiec wzmianka o `career_applications` wciagala tu caly
+-- zlepek, a REPLAY przewracal sie na pierwszym obiekcie spoza modulu (najpierw
+-- `user_roles.tenant_id`, potem `public.crm_webhook_endpoints`).
+-- Odpowiedzia byly ATRAPY-CELE POLITYK w `scripts/careers-harness/harness.sql`:
+-- szesc tabel stojacych tam WYLACZNIE po to, zeby ten plik mial na czym wykonac
+-- swoje `CREATE POLICY`. Harness nic o nich nie twierdzi i pilnuje tego straznik
+-- w `run.sh`, ktory oblewa, gdy `runtime_test.sql` siegnie po atrape.
 --
--- CZEGO TO NIE ZWALNIA: careersowa czesc tego zlepka jest pokryta z drugiej
--- strony - `pgtap` przechodzi na tej migracji, a same tabele `career_*` zakladaja
--- i bramkuja migracje, ktore w tym harnessie ZOSTAJA (m.in.
--- 20260814100000_careers_tenant_scope.sql i
--- 20260814194500_career_cv_policies_tenant_scope_reassert.sql).
+-- Atrapy dopisano, ale znacznika nie zdjeto - i tak powstala sprzecznosc, ktorej
+-- zadna kolejnosc uruchomien nie rozwiazuje: harness POMIJAL migracje niosaca
+-- zaostrzenie, a zaraz potem ASERTOWAL to zaostrzenie. Bramka nie miala jak
+-- przejsc i nie przechodzila. Zdjecie znacznika daje dokladnie to, o co prosi
+-- komentarz w `run.sh`: bez atrap bramka „cicho przestaje pilnowac zaostrzenia,
+-- po ktore ta migracja powstala". Zestaw wykonuje sie teraz w calosci -
+-- 12 migracji, zero pominietych.
+--
+-- UWAGA DLA PRZYSZLYCH EDYCJI: znacznika pomijania NIE WOLNO cytowac w tym
+-- komentarzu doslownie. Selektor szuka go w CALEJ tresci pliku, wiec sama
+-- wzmianka w prozie pomija migracje tak samo skutecznie, jak dyrektywa
+-- w pierwszej linii. Oba harnessy dopasowuja go teraz do POCZATKU LINII
+-- (`scripts/careers-harness/run.sh` i `scripts/pg-harness/run.sh`), wiec proza
+-- juz nie pomija - ale cytowanie dyrektywy nadal myli czytelnika.
 --
 CREATE OR REPLACE FUNCTION public.is_super_admin(_user_id uuid DEFAULT auth.uid())
 RETURNS boolean

@@ -36,7 +36,9 @@ const NOW = new Date("2026-09-01T00:00:00.000Z");
 
 describe("myEventsGrouping", () => {
   it("granicą jest start wydarzenia, nie status zgłoszenia", () => {
-    expect(bucketOf(registration({ cancelledAt: "2026-08-20T00:00:00.000Z" }), NOW)).toBe("upcoming");
+    expect(bucketOf(registration({ cancelledAt: "2026-08-20T00:00:00.000Z" }), NOW)).toBe(
+      "upcoming",
+    );
     expect(bucketOf(registration({ eventStartsAt: "2026-01-01T00:00:00.000Z" }), NOW)).toBe("past");
   });
 
@@ -69,17 +71,25 @@ describe("myEventsGrouping", () => {
       ),
     ).toBe("current");
     // Bez daty końca liczy się doba od startu.
-    expect(bucketOf(registration({ eventStartsAt: "2026-08-31T20:00:00.000Z" }), NOW)).toBe("current");
+    expect(bucketOf(registration({ eventStartsAt: "2026-08-31T20:00:00.000Z" }), NOW)).toBe(
+      "current",
+    );
     expect(bucketOf(registration({ eventStartsAt: "2026-08-25T20:00:00.000Z" }), NOW)).toBe("past");
   });
 
   it("do zapłaty jest tylko żywe zgłoszenie z kwotą i bez opłacenia", () => {
-    expect(awaitsPayment(registration({ paymentStatus: "unpaid", orderStatus: "pending" }))).toBe(true);
+    expect(awaitsPayment(registration({ paymentStatus: "unpaid", orderStatus: "pending" }))).toBe(
+      true,
+    );
     expect(awaitsPayment(registration())).toBe(false);
     expect(awaitsPayment(registration({ amountCents: 0 }))).toBe(false);
     expect(
       awaitsPayment(
-        registration({ paymentStatus: "unpaid", orderStatus: "pending", cancelledAt: "2026-08-01T00:00:00.000Z" }),
+        registration({
+          paymentStatus: "unpaid",
+          orderStatus: "pending",
+          cancelledAt: "2026-08-01T00:00:00.000Z",
+        }),
       ),
     ).toBe(false);
   });

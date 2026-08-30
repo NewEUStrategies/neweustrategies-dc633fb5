@@ -8,10 +8,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { platformLandingJsonLd } from "@/lib/seo/jsonld";
+import { QUIZ_PLATFORM_URL } from "@/lib/quiz/platform";
 
 const ORIGIN = "https://neweuropeanstrategies.com";
 const PLATFORM = "https://nes-quiz.com";
 const QUIZ_ROUTE = readFileSync(join(process.cwd(), "src/routes/quiz.tsx"), "utf8");
+const QUIZ_PLATFORM_SOURCE = readFileSync(join(process.cwd(), "src/lib/quiz/platform.ts"), "utf8");
 
 const input = {
   origin: ORIGIN,
@@ -88,7 +90,19 @@ describe("trasa /quiz - kontrakt dwujęzycznego head()", () => {
   });
 
   it("emituje JSON-LD landingu z kredytem dla nes-quiz.com", () => {
+    // Adres platformy NIE MIESZKA już w pliku trasy: rozdzielacz tras TanStack
+    // przenosi komponent do osobnego kawałka i re-eksportuje wartości modułowe
+    // używane po obu stronach granicy `head()`/komponent, przez co stała w
+    // pliku trasy wywracała bundle kliencki („does not provide an export named
+    // 'QUIZ_PLATFORM_URL'") i zostawiała serwis bez hydracji. Dlatego pilnujemy
+    // tu OBU końców kontraktu - trasa musi karmić `platformLandingJsonLd`
+    // stałą z `lib/quiz/platform`, a ta stała musi nadal wskazywać nes-quiz.com.
     expect(QUIZ_ROUTE).toMatch(/platformLandingJsonLd\(/);
-    expect(QUIZ_ROUTE).toContain("https://nes-quiz.com");
+    expect(QUIZ_ROUTE).toMatch(
+      /import\s*\{[^}]*QUIZ_PLATFORM_URL[^}]*\}\s*from\s*"@\/lib\/quiz\/platform"/,
+    );
+    expect(QUIZ_ROUTE).toMatch(/platformUrl:\s*QUIZ_PLATFORM_URL/);
+    expect(QUIZ_PLATFORM_URL).toBe(PLATFORM);
+    expect(QUIZ_PLATFORM_SOURCE).toContain("https://nes-quiz.com");
   });
 });

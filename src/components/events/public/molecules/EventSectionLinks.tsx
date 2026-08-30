@@ -85,7 +85,6 @@ export function EventSectionLinkBody({
   const measurable = color !== null && color !== "";
   const ink = "#FFFFFF";
 
-
   return (
     <>
       {/* Kafelek stoi w KAŻDYM wierszu, także bez ikony: kolumna etykiet ma

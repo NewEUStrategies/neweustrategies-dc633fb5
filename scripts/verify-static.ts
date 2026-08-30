@@ -29,8 +29,23 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "check:chunks": "graf chunków z artefaktu buildu",
   "check:entry-purity": "chunk startowy z artefaktu buildu",
   "check:db-contract": "sonduje Data API - wymaga SUPABASE_URL i klucza",
+  // Ta sama klasa co `check:db-contract`: bramka PO WDROŻENIU, pyta wdrożoną
+  // bazę o rejestr migracji przez RPC. W CI jedzie WYŁĄCZNIE w jobie
+  // `post-deploy` (push na main / workflow_dispatch), z sekretami - PR-a nie
+  // bramkuje w ogóle. Bez wykluczenia `verify:static` był czerwony u każdego,
+  // kto nie ma poświadczeń produkcyjnych, i to na bramce, która i tak nie
+  // decyduje o jego zmianie: całe narzędzie „uruchom bramki przed pushem"
+  // przestawało być uruchamialne.
+  "check:migration-ledger": "sonduje wdrożoną bazę (RPC) - wymaga SUPABASE_URL i klucza",
   "check:pg-harness": "stawia własny klaster PostgreSQL 16",
   "check:careers-harness": "jw. - klaster PostgreSQL 16",
+  // Trzy uprzęże dopisane po tym, jak powstała ta lista. Robią dokładnie to
+  // samo, co dwie wyżej (`initdb` + własny klaster na własnym porcie), więc
+  // należą tu z tego samego powodu - automatyczne wciąganie nowych bramek
+  // złapało je jako „statyczne", choć żadna nie czyta wyłącznie plików repo.
+  "check:events-harness": "jw. - klaster PostgreSQL 16 (port 5436)",
+  "check:programs-harness": "jw. - klaster PostgreSQL 16",
+  "check:tenant-isolation": "jw. - klaster PostgreSQL 16 (asercje RLS na żywej bazie)",
   "check:chunk-parity": "test vitest - jedzie w `bun run test`",
   "check:permissions-parity": "testy vitest - jadą w `bun run test`",
   "check:i18n-parity": "testy vitest - jadą w `bun run test`",

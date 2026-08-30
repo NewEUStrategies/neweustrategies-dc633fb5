@@ -30,7 +30,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/admin/builder/ui/organisms/widget-properties/TeamMemberEditor.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-properties/TextRotateEditor.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-properties/WorldMapEditor.tsx", 26],
-  ["src/components/builder/organisms/widget-view/AccountMenuWidget.tsx", 14],
+  ["src/components/builder/organisms/widget-view/AccountMenuWidget.tsx", 9],
   ["src/components/builder/organisms/widget-view/CounterWidget.tsx", 1],
   ["src/components/builder/organisms/widget-view/EventCountdownCardView.tsx", 10],
   ["src/components/builder/organisms/widget-view/EventCountdownView.tsx", 4],

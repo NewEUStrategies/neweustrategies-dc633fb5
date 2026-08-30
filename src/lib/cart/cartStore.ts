@@ -66,7 +66,8 @@ function parseItem(raw: unknown): CartItem | null {
   const slug = str(raw, "slug");
   if (eventId === "" || slug === "") return null;
   const ticketTypeIdRaw = raw["ticketTypeId"];
-  const ticketTypeId = typeof ticketTypeIdRaw === "string" && ticketTypeIdRaw !== "" ? ticketTypeIdRaw : null;
+  const ticketTypeId =
+    typeof ticketTypeIdRaw === "string" && ticketTypeIdRaw !== "" ? ticketTypeIdRaw : null;
   const price = raw["priceCents"];
   return {
     id: cartItemId(eventId, ticketTypeId),
@@ -78,7 +79,8 @@ function parseItem(raw: unknown): CartItem | null {
     ticketTypeId,
     ticketNamePl: str(raw, "ticketNamePl"),
     ticketNameEn: str(raw, "ticketNameEn"),
-    priceCents: typeof price === "number" && Number.isFinite(price) ? Math.max(0, Math.trunc(price)) : 0,
+    priceCents:
+      typeof price === "number" && Number.isFinite(price) ? Math.max(0, Math.trunc(price)) : 0,
     currency: (str(raw, "currency") || "PLN").toUpperCase(),
     addedAt: str(raw, "addedAt") || new Date(0).toISOString(),
   };
@@ -143,7 +145,8 @@ export function cartTotals(items: CartItem[]): CartTotals {
 
 /** Nazwa pozycji w języku interfejsu, z zapasem na drugi język i slug. */
 export function cartItemLabel(item: CartItem, lang: "pl" | "en"): string {
-  const title = (lang === "en" ? item.titleEn : item.titlePl) || item.titlePl || item.titleEn || item.slug;
+  const title =
+    (lang === "en" ? item.titleEn : item.titlePl) || item.titlePl || item.titleEn || item.slug;
   const ticket = (lang === "en" ? item.ticketNameEn : item.ticketNamePl) || "";
   return ticket === "" ? title : `${title} - ${ticket}`;
 }
