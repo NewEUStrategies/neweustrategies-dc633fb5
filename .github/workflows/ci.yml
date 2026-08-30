@@ -52,7 +52,29 @@ jobs:
     # ślad, zamiast kolejnego podnoszenia progu za pół tygodnia. Docelowo
     # `Build` i bramki artefaktu powinny jechać w OSOBNYM jobie: wtedy zegar
     # suity przestaje decydować o tym, czy budżet bundla w ogóle się zmierzy.
-    timeout-minutes: 35
+    #
+    # 2026-08-30: 35 -> 55, DOKŁADNIE TEN SAM OBJAW, co opisany wyżej.
+    # Przebieg 33320445217 (e9b3f9a): wszystkie 40 kroków do `SEO head + schema
+    # contract` ZIELONE, po czym job ubity limitem w połowie `Build` - GitHub
+    # znowu zaraportował to jako `cancelled`, nie `failure`, więc wyglądało na
+    # anulowanie z zewnątrz. Zmierzone na tym przebiegu: Format 1:22,
+    # Typecheck 2:28, Lint 2:05, `Test + coverage gate` 26:21, bramki i18n
+    # i widgetów ~51 s, reszta bramek statycznych ~2 min - razem 35,2 min
+    # w chwili ubicia, przy `Build` uciętym po 1:17 z ~2:20.
+    #
+    # PRZYCZYNA JEST ZNANA I ZAMIERZONA: pokrycie modułu Wydarzeń urosło na tej
+    # gałęzi o 69 plików testowych, a suita z 12:39 na 26:21. To nie jest
+    # spowolnienie do zdiagnozowania - to koszt testów, które miały powstać.
+    # 55 minut daje ~1,45x zapasu na dzisiejszy ślad (~37,5 min z pełnym
+    # `Build` i budżetem bundla), czyli tę samą regułę, co przy poprzednim
+    # podniesieniu.
+    #
+    # ZALECENIE Z POPRZEDNIEGO WPISU JEST NADAL AKTUALNE I NADAL NIEWYKONANE:
+    # dopóki `Build` siedzi w tym samym jobie co suita, każdy przyrost testów
+    # zjada budżet bramek artefaktu, a `Bundle size budget` przestaje się
+    # mierzyć jako pierwszy. Podniesienie limitu kupuje czas, nie rozwiązuje
+    # tego.
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
 

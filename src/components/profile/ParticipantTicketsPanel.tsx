@@ -22,6 +22,7 @@ import {
   setRegistrationChannels,
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
+import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ensureI18n } from "@/lib/i18n-participant-tickets";
 
 ensureI18n();
@@ -143,6 +144,31 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           </div>
         )}
       </dl>
+
+      {/* DROGA POWROTNA DO KASY. Karta pokazywala „nieopłacone" i nie dawała
+          z tym NIC zrobić: jedyną drogą do zapłaty był ekran potwierdzenia,
+          który uczestnik dawno zamknął, więc płacił, zapisując się DRUGI RAZ -
+          co produkuje zduplikowane wiersze, o które rozbija się dopasowanie
+          wpłaty. Warunek jest zawężony do stanów, w których zapłata ma sens:
+          zgłoszenie odwołane albo odrzucone kasy nie potrzebuje. */}
+      {item.paymentStatus === "unpaid" &&
+        item.status !== "cancelled" &&
+        item.status !== "rejected" && (
+          <section className="rounded-[6px] border border-amber-500/50 bg-amber-500/5 p-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              {t("participantTickets.payment.unpaid")}
+            </h3>
+            <RegistrationPayAction
+              registrationId={item.registrationId}
+              eventId={item.eventId}
+              ticketTypeId={item.ticketTypeId}
+              amountCents={item.amountCents}
+              currency={item.currency}
+              returnPath="/profile/tickets"
+              intent="resume"
+            />
+          </section>
+        )}
 
       <section className="rounded-[6px] border border-border/60 bg-muted/30 p-3">
         <h3 className="text-sm font-semibold text-foreground">

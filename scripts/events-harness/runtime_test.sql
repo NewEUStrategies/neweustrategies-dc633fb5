@@ -76,6 +76,24 @@ BEGIN
   RAISE EXCEPTION 'ASERCJA NIESPELNIONA: % - operacja PRZESZLA, a miala zostac odrzucona', _label;
 END $$;
 
+-- DEFEKT ZAREJESTROWANY, a nie naprawiony po cichu. Odpowiednik `it.fails`
+-- z vitest, ktorego w tym repozytorium jest dzis 171 wpisow w 94 plikach:
+-- asercja opisuje ZLE zachowanie, ktore produkcja NADAL ma, i przechodzi
+-- dopoki ono trwa. W chwili naprawy staje sie CZERWONA - i to jest jej cala
+-- wartosc: nikt nie usunie defektu bez usuniecia wpisu, a wpis niesie opis
+-- tego, co bylo zle. Rejestr moze wiec tylko malec.
+--
+-- `_present` = warunek, ktory jest PRAWDA, dopoki defekt istnieje.
+CREATE OR REPLACE FUNCTION pg_temp.assert_known_defect(
+  _present boolean, _label text, _plan text
+) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  IF _present IS NOT TRUE THEN
+    RAISE EXCEPTION 'DEFEKT NAPRAWIONY, USUN WPIS: % (plan bylo: %)', _label, _plan;
+  END IF;
+  RAISE NOTICE '  ok  DEFEKT ZAREJESTROWANY (nadal obecny): % [%]', _label, _plan;
+END $$;
+
 -- ---------------------------------------------------------------------------
 -- Przestawianie aktora
 --

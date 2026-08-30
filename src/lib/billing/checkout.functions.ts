@@ -33,6 +33,13 @@ const createOrderSchema = z.object({
   // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
   // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
   ticket_type_id: z.string().uuid().nullable().optional(),
+  // Zgłoszenie etapu 4, za które płacimy. Klient WSKAZUJE wiersz, więc serwer
+  // musi sprawdzić, że należy do wołającego i do tego samego wydarzenia -
+  // robi to `event_registration_payment_context` (baza, nie ten plik).
+  // Bez tego klucza webhook dopasowuje wpłatę PO OSOBIE, a uczestnik z dwoma
+  // zgłoszeniami na to samo wydarzenie dostaje bilet przypięty do najnowszego
+  // wiersza, niekoniecznie tego, za który zapłacił.
+  registration_id: z.string().uuid().nullable().optional(),
   // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
   // nie zna kodu i nie może go obejść.
   access_code: z.string().trim().max(64).optional(),
@@ -62,6 +69,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
     let catalogQuantity = 1;
+
+    // Zgłoszenie etapu 4 wskazane przez klienta. Deklaracja stoi TU, a nie przy
+    // metadanych niżej, bo walidacja własności musi się odbyć PRZED wyceną
+    // i przed założeniem zamówienia.
+    const registrationId = data.registration_id ?? null;
 
     // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
     // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
@@ -113,6 +125,41 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         amountCents = unitCents * catalogQuantity;
       }
     } else if (isEventTicket && data.ticket_type_id) {
+      // ZGŁOSZENIE, ZA KTÓRE PŁACIMY. Sprawdzamy je PRZED wyceną, żeby błędne
+      // wskazanie nie zakładało zamówienia u operatora. Autorytetem jest baza:
+      // RLS `event_registrations` jest zamknięte dla uczestnika, więc odczyt
+      // tabeli z tego pliku i tak nic by nie zwrócił, a rzutowanie tego na
+      // `service_role` oddałoby serwerowi aplikacji prawo czytania CUDZYCH
+      // zgłoszeń.
+      if (registrationId !== null) {
+        const { data: ctx, error: ctxErr } = await supabase.rpc(
+          "event_registration_payment_context",
+          { p_registration_id: registrationId },
+        );
+        if (ctxErr) throw new Error(ctxErr.message);
+        const parsedCtx =
+          ctx !== null && typeof ctx === "object" && !Array.isArray(ctx)
+            ? (ctx as Record<string, unknown>)
+            : null;
+        if (parsedCtx === null || parsedCtx.ok !== true) {
+          const reason =
+            parsedCtx !== null && typeof parsedCtx.reason === "string"
+              ? parsedCtx.reason
+              : "not_found";
+          throw new Error(`registration_not_payable:${reason}`);
+        }
+        // Zgłoszenie MUSI dotyczyć wydarzenia i wejściówki z żądania - inaczej
+        // wpłata dowiązałaby się do wiersza, którego kupujący nie wskazał.
+        if (parsedCtx.event_id !== data.event_id) {
+          throw new Error("registration_not_payable:event_mismatch");
+        }
+        if (
+          typeof parsedCtx.ticket_type_id === "string" &&
+          parsedCtx.ticket_type_id !== data.ticket_type_id
+        ) {
+          throw new Error("registration_not_payable:ticket_mismatch");
+        }
+      }
       // CENNIK WYDARZENIA. Kwotę, okno sprzedaży, miejsca, rangę członkostwa
       // i kod dostępu rozstrzyga JEDNA funkcja bazy - ta sama, z której czyta
       // publiczna karta biletu. Dwie implementacje progu czasowego znaczyłyby
@@ -355,6 +402,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           label,
           ...(eventId ? { event_id: eventId } : {}),
           ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}),
+          // `registration_id` jest KLUCZEM DOWIĄZANIA wpłaty do zgłoszenia
+          // (`payments_apply_event_ticket_outcome`). Bez niego zostaje
+          // dopasowanie po osobie z `LIMIT 1` po dacie utworzenia.
+          ...(registrationId ? { registration_id: registrationId } : {}),
           ...(couponCode
             ? {
                 coupon_code: couponCode,
@@ -511,7 +562,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         customerEmail: receiptEmail,
         returnUrl,
         metadata: eventId
-          ? { event_id: eventId, ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}) }
+          ? {
+              event_id: eventId,
+              ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}),
+              ...(registrationId ? { registration_id: registrationId } : {}),
+            }
           : {},
         settings,
       });

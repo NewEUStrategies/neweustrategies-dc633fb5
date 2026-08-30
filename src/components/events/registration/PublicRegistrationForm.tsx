@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaidTicketAccountNotice } from "./molecules/PaidTicketAccountNotice";
 import { RegistrationAnswerField } from "./RegistrationAnswerField";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationTermsList } from "./RegistrationTermsList";
@@ -187,6 +188,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         <RegistrationConfirmation
           result={result}
           slug={slug}
+          eventId={form.event.id}
           cancelled={cancelled}
           cancelling={cancel.isPending}
           onCancel={() => cancel.mutate(result)}
@@ -212,6 +214,18 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   if (draft === null) return null;
   const current = draft;
   const patch = (next: Partial<RegistrationDraft>): void => setDraft({ ...current, ...next });
+
+  // PLATNA WEJSCIOWKA WYMAGA KONTA (migracja `20260830090000`).
+  //
+  // Cena obowiazujaca TERAZ, a nie katalogowa: `effectivePriceCents` liczy baza
+  // z fazami cenowymi, wiec bilet w promocji za zero zlotych konta nie wymaga -
+  // i nie moze byc pytany o nie tylko dlatego, ze `priceCents` jest wyzsze.
+  const selectedTicket =
+    current.ticketTypeId === null
+      ? null
+      : (form.tickets.find((ticket) => ticket.id === current.ticketTypeId) ?? null);
+  const paidTicketNeedsAccount =
+    user === null && selectedTicket !== null && selectedTicket.effectivePriceCents > 0;
 
   return (
     <form
@@ -309,6 +323,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
               (entry): entry is string => entry !== undefined,
             )}
           />
+          {paidTicketNeedsAccount && <PaidTicketAccountNotice />}
         </section>
       )}
 
@@ -400,7 +415,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       {failure !== null && <FailureNotice message={failure} />}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={submit.isPending}>
+        <Button type="submit" disabled={submit.isPending || paidTicketNeedsAccount}>
           {submit.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (

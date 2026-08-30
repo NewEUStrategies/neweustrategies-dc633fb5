@@ -29,11 +29,15 @@ import type { EventPageHeader } from "@/lib/community/publicQueries";
 import type {
   CancelRegistrationInput,
   RegistrationCancelResult,
+  RegistrationManageView,
 } from "@/lib/events/publicRegistrationApi";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 const fetchHeader = vi.fn<(slug: string) => Promise<EventPageHeader | null>>();
 const cancel = vi.fn<(input: CancelRegistrationInput) => Promise<RegistrationCancelResult>>();
+const manageView =
+  vi.fn<(input: { manageToken?: string }) => Promise<RegistrationManageView | null>>();
+const checkout = vi.fn();
 const writeText = vi.fn<(value: string) => Promise<void>>();
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -44,6 +48,27 @@ vi.mock("sonner", () => ({
 
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+  useNavigate: () => vi.fn(),
+}));
+
+// Molekuła kasy jedzie PRAWDZIWA - to ona jest przedmiotem asercji o drodze
+// powrotnej do płatności. Podmieniamy wyłącznie jej granice.
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  useServerFn: () => checkout,
+}));
+
+vi.mock("@/lib/billing/checkout.functions", () => ({
+  createCheckoutOrder: { name: "createCheckoutOrder" },
+}));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: { user: { id: "u-1" } } }) }));
+
+vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => "sandbox" }));
+
+vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
+  LazyEmbeddedCheckoutDialog: ({ clientSecret }: { clientSecret: string | null }) =>
+    clientSecret === null ? null : <div data-testid="checkout-modal">{clientSecret}</div>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
@@ -54,6 +79,7 @@ vi.mock("@/lib/community/publicQueries", () => ({
 
 vi.mock("@/lib/events/publicRegistrationApi", () => ({
   cancelRegistration: (input: CancelRegistrationInput) => cancel(input),
+  fetchRegistrationManageView: (input: { manageToken?: string }) => manageView(input),
 }));
 
 const { toast } = await import("sonner");
@@ -92,9 +118,27 @@ function confirmButton(): HTMLElement {
   return screen.getByRole("button", { name: "eventFront.manage.confirm" });
 }
 
+/** Odpowiedź `event_registration_manage_view` w kształcie z migracji. */
+function manageState(over: Partial<RegistrationManageView> = {}): RegistrationManageView {
+  return {
+    registrationId: "11111111-1111-1111-1111-111111111111",
+    eventId: "22222222-2222-2222-2222-222222222222",
+    eventSlug: SLUG,
+    ticketTypeId: "33333333-3333-3333-3333-333333333333",
+    status: "pending",
+    paymentStatus: "unpaid",
+    waitlistPosition: null,
+    amountCents: 15000,
+    currency: "PLN",
+    ownedByCaller: true,
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   fetchHeader.mockResolvedValue(header());
+  manageView.mockResolvedValue(null);
   cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
   writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
@@ -329,5 +373,101 @@ describe("RegistrationManagePanel", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("eventFront.manage.manageLink"));
     expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DROGA POWROTNA DO KASY
+//
+// Do migracji `20260830090000` ta strona mówiła WYŁĄCZNIE o wydarzeniu
+// i o rezygnacji. Zgłoszenie `pending / unpaid` nie miało stąd ŻADNEGO
+// wyjścia: jedyną drogą do zapłaty był ekran potwierdzenia, zamknięty razem
+// z zakładką. Uczestnik płacił więc, zapisując się DRUGI RAZ - czyli
+// produkując dokładnie te zduplikowane wiersze, o które rozbijało się
+// dopasowanie wpłaty w `payments_apply_event_ticket_outcome`.
+// ---------------------------------------------------------------------------
+describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
+  it("niezapłacone zgłoszenie dostaje kwotę i przycisk do kasy", async () => {
+    manageView.mockResolvedValue(manageState());
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.stateTitle")).toBeInTheDocument();
+    expect(screen.getByText("eventFront.manage.statePending")).toBeInTheDocument();
+    expect(screen.getByText("eventFront.manage.paymentUnpaid")).toBeInTheDocument();
+    expect(screen.getByText(/150,00/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "eventRegistration.payment.resume" }),
+    ).toBeInTheDocument();
+  });
+
+  it("klik do kasy niesie `registration_id` z odpowiedzi bazy", async () => {
+    manageView.mockResolvedValue(manageState());
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_9" });
+    renderPanel();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
+    );
+
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    const payload = checkout.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    expect(payload.data.registration_id).toBe("11111111-1111-1111-1111-111111111111");
+    expect(payload.data.event_id).toBe("22222222-2222-2222-2222-222222222222");
+    // Powrót ma prowadzić NA TĘ STRONĘ, z kluczem - inaczej uczestnik wraca
+    // z kasy do formularza „wklej klucz", którego już nie ma.
+    expect(payload.data.success_path).toBe(`/events/${SLUG}/manage?token=${TOKEN}`);
+  });
+
+  it("zapłacone zgłoszenie NIE pokazuje kasy drugi raz", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.paymentPaid")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
+  });
+
+  it("odwołane zgłoszenie nie prowadzi do kasy, choć zostało nieopłacone", async () => {
+    manageView.mockResolvedValue(manageState({ status: "cancelled" }));
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.stateCancelled")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
+  });
+
+  it("zgłoszenie CUDZEGO konta dostaje zdanie, a nie przycisk pod odmowę", async () => {
+    manageView.mockResolvedValue(manageState({ ownedByCaller: false }));
+    renderPanel();
+
+    expect(await screen.findByText("eventRegistration.payment.notOwnerBody")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
+  });
+
+  it("nieznany klucz nazywa problem, a nie pokazuje pustej ramki", async () => {
+    manageView.mockResolvedValue(null);
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.notFound")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.stateTitle")).toBeNull();
+  });
+
+  it("bez klucza w adresie nie pyta bazy o żadne zgłoszenie", async () => {
+    renderPanel(null);
+
+    expect(await screen.findByText("eventFront.manage.missingToken")).toBeInTheDocument();
+    expect(manageView).not.toHaveBeenCalled();
+  });
+
+  it("lista rezerwowa mówi POZYCJĘ, a nie samo „czekasz”", async () => {
+    manageView.mockResolvedValue(
+      manageState({ status: "waitlist", waitlistPosition: 3, paymentStatus: "not_required" }),
+    );
+    renderPanel();
+
+    expect(
+      await screen.findByText("eventFront.manage.stateWaitlist(position=3)"),
+    ).toBeInTheDocument();
+    // `not_required` to NIE jest „nieopłacone" - bezpłatna wejściówka nie ma
+    // czego czekać, więc zdanie o płatności w ogóle nie pada.
+    expect(screen.queryByText("eventFront.manage.paymentUnpaid")).toBeNull();
   });
 });

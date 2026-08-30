@@ -710,6 +710,42 @@ BEGIN
     'zapis: przy bilecie bezplatnym klient nie jest odsylany do kasy');
 END $$;
 
+-- 9a-bis) PLATNA WEJSCIOWKA WYMAGA KONTA (migracja 20260830090000).
+--
+--     Zapis anonimowy zostaje dla wejsciowek BEZPLATNYCH - `manage_token`
+--     wystarcza tam za caly kontrakt z uczestnikiem. Przy wejsciowce PLATNEJ
+--     konczyl sie SLEPYM ZAULKIEM: `createCheckoutOrder` stoi za
+--     `requireSupabaseAuth`, a `payments_apply_event_ticket_outcome` wymaga
+--     `payment_orders.user_id IS NOT NULL`. Gosc dostawal wiec zgloszenie,
+--     ktorego NIKT nie mial jak oplacic - i zadne pozniejsze logowanie tego
+--     nie odkrecalo, bo zgloszenie anonimowe nie ma wlasciciela do dowiazania.
+SELECT pg_temp.assert_raises_like($q$
+  SELECT public.event_register(jsonb_build_object(
+    'event_slug','reg-form-a', 'ticket_type_id','a2222222-0000-0000-0000-000000000006',
+    'email','gosc.platny@example.org', 'first_name','Gosc', 'last_name','Platny',
+    'consent_data_processing', true,
+    'answers', jsonb_build_object('rodo_box', true, 'motivation','place', 'sector','biz'),
+    'accepted_term_ids', jsonb_build_array('a4444444-0000-0000-0000-000000000001')))
+$q$, 'payment_account_required',
+  'platnosc/KONTO: gosc bez konta NIE zaklada zgloszenia, ktorego nie ma jak oplacic');
+
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM public.event_people p
+              WHERE p.tenant_id = '11111111-1111-1111-1111-111111111111'
+                AND p.email_norm = 'gosc.platny@example.org'),
+  'platnosc/KONTO: odmowa wycofuje CALA transakcje - kartoteka nie zostaje po niedoszlym platniku');
+
+-- Tozsamosci platnikow. Od tej migracji platna wejsciowka wymaga konta, wiec
+-- scenariusze 9b i 9c biegna JAKO ZALOGOWANI - inaczej testowalyby stan,
+-- ktorego produkcja juz nie dopuszcza.
+INSERT INTO auth.users (id, email) VALUES
+  ('a2000000-0000-0000-0000-0000000000b1', 'platnik@example.org'),
+  ('a2000000-0000-0000-0000-0000000000b2', 'platnik2@example.org')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT pg_temp.act_as('a2000000-0000-0000-0000-0000000000b1',
+                      '11111111-1111-1111-1111-111111111111');
+
 -- 9b) BRAMKA PLATNOSCI. Wejsciowka PLATNA tworzy zgloszenie, ale NIE wydaje
 --     kodu QR - kod jest przepustka, a przepustka nie powstaje przed zaplata.
 --     Do migracji `20260828206000` `event_register` nie ogladal ceny ANI RAZU:
@@ -750,6 +786,12 @@ BEGIN
     (SELECT payment_status FROM public.event_registrations
       WHERE id = (v->>'registration_id')::uuid) = 'unpaid',
     'platnosc: stan platnosci jest zapisany w wierszu, nie tylko w odpowiedzi');
+  PERFORM pg_temp.assert(v->>'event_id' = 'a1111111-0000-0000-0000-000000000001',
+    'platnosc: odpowiedz niesie event_id - kasa przyjmuje go razem z registration_id');
+  PERFORM pg_temp.assert(
+    (SELECT created_by FROM public.event_registrations
+      WHERE id = (v->>'registration_id')::uuid) = 'a2000000-0000-0000-0000-0000000000b1',
+    'platnosc/KONTO: zgloszenie ma wlasciciela - jest komu wystawic paragon i komu zwrocic');
 END $$;
 
 -- 9c) ROZLICZENIE WPLATY. Bramka z 9b bylaby SLEPA ULICZKA, gdyby ze stanu
@@ -789,6 +831,11 @@ BEGIN
 
   -- Skoro pula jest wolna, DRUGI chetny musi przejsc. Bez tej asercji poprzednia
   -- dowodzilaby tylko arytmetyki, a nie tego, ze pula jest naprawde dostepna.
+  -- Drugi chetny to INNE konto: platna wejsciowka wymaga konta, a dwa
+  -- zgloszenia z jednej tozsamosci na to samo wydarzenie i tak odrzuca
+  -- `already_registered`.
+  PERFORM pg_temp.act_as('a2000000-0000-0000-0000-0000000000b2',
+                         '11111111-1111-1111-1111-111111111111');
   v := public.event_register(jsonb_build_object(
     'event_slug','reg-form-a', 'ticket_type_id','a2222222-0000-0000-0000-000000000006',
     'email','platnik2@example.org', 'first_name','Ewa', 'last_name','Druga',

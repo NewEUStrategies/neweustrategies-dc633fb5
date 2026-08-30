@@ -23770,8 +23770,16 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
+      event_registration_manage_view: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
       event_registration_notify_payload: {
         Args: { p_payload: Json }
+        Returns: Json
+      }
+      event_registration_payment_context: {
+        Args: { p_registration_id: string }
         Returns: Json
       }
       event_registration_set_channels: {
