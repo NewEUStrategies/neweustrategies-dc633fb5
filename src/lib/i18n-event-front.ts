@@ -501,6 +501,22 @@ export const eventFrontPl = {
       manageLinkHint: "Zapisz go w zakładkach - otwiera tę stronę bez logowania.",
       copyLink: "Kopiuj odnośnik",
       copied: "Skopiowano",
+      // STAN ZGLOSZENIA. Do migracji `20260830090000` ta strona pokazywala
+      // wylacznie naglowek wydarzenia i przycisk rezygnacji - o samym
+      // zgloszeniu nie mowila NIC. Uczestnik, ktory zamknal ekran
+      // potwierdzenia przed zaplata, nie mial zadnej drogi powrotu do kasy
+      // poza zapisaniem sie drugi raz.
+      stateTitle: "Stan zgłoszenia",
+      statePending: "Zgłoszenie czeka na decyzję organizatora.",
+      stateApproved: "Zgłoszenie jest przyjęte.",
+      stateWaitlist: "Jesteś na liście rezerwowej, pozycja {{position}}.",
+      stateCancelled: "Zgłoszenie zostało odwołane.",
+      stateRejected: "Zgłoszenie zostało odrzucone.",
+      stateUnknown: "Nie znamy stanu tego zgłoszenia.",
+      paymentUnpaid: "Wejściówka nie jest jeszcze opłacona - kod wstępu powstaje po wpłacie.",
+      paymentPaid: "Wejściówka jest opłacona.",
+      paymentRefunded: "Wpłata została zwrócona.",
+      notFound: "Nie znaleźliśmy zgłoszenia dla tego klucza.",
     },
 
     // ---------------------------------------------------------------------
@@ -1041,6 +1057,18 @@ export const eventFrontEn = {
       manageLinkHint: "Bookmark it - it opens this page without signing in.",
       copyLink: "Copy link",
       copied: "Copied",
+      stateTitle: "Registration status",
+      statePending: "Your registration awaits the organiser's decision.",
+      stateApproved: "Your registration is approved.",
+      stateWaitlist: "You are on the waiting list, position {{position}}.",
+      stateCancelled: "This registration has been cancelled.",
+      stateRejected: "This registration has been rejected.",
+      stateUnknown: "We do not know the status of this registration.",
+      paymentUnpaid:
+        "The admission is not paid yet - the entry code is issued once the payment clears.",
+      paymentPaid: "The admission is paid.",
+      paymentRefunded: "The payment has been refunded.",
+      notFound: "We found no registration for this key.",
     },
 
     // The video header, the page menu and the practical facts - three

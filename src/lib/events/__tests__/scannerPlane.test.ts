@@ -32,7 +32,14 @@ import {
   withoutItem,
   type OutboxItem,
 } from "@/lib/events/scannerOutbox";
-import { invalidatesSession, scannerErrorText } from "@/lib/events/scannerErrors";
+import {
+  invalidatesSession,
+  scanOutcomeKey,
+  scannerErrorKey,
+  scannerErrorMessage,
+  scannerErrorText,
+} from "@/lib/events/scannerErrors";
+import { isCheckinResult } from "@/lib/events/onsiteEnums";
 
 const BOOTSTRAP = {
   device_id: "d1",
@@ -238,5 +245,190 @@ describe("scannerErrors - co uniewaznia sesje urzadzenia", () => {
     expect(scannerErrorText(new Error("boom"))).toBe("boom");
     expect(scannerErrorText({ message: "z obiektu" })).toBe("z obiektu");
     expect(scannerErrorText(null)).toBe("");
+  });
+});
+
+/* --------------------------- brzegi parsera sesji i kolejki --- */
+
+// PO CO TA SEKCJA. Odpowiedz bazy bywa niepelna nie dlatego, ze baza klamie,
+// tylko dlatego, ze telefon przy bramce dziala na tej wersji aplikacji, ktora
+// zostala na nim z zeszlego kongresu. Parser, ktory na takim wejsciu rzuca
+// albo oddaje `undefined`, gasi ekran w chwili, w ktorej stoi przy nim kolejka.
+describe("scannerSession - odpowiedz niepelna nie gasi ekranu", () => {
+  it("PUNKT BEZ IDENTYFIKATORA wypada z listy - nie da sie pod niego zapisac skanu", () => {
+    const sesja = parseScannerSession({
+      ...BOOTSTRAP,
+      checkpoints: [{ name_pl: "Duch" }, { id: "c9", name_pl: "Prawdziwy" }],
+    });
+
+    expect(sesja?.checkpoints.map((punkt) => punkt.id)).toEqual(["c9"]);
+  });
+
+  it("PUNKT BEZ RODZAJU I TRYBU dostaje wartosci domyslne bazy, a nie `undefined`", () => {
+    // `event_entry` / `in_only` / `control` to te same wartosci domyslne, ktore
+    // ma kolumna w migracji - ekran ma zachowac sie tak jak baza.
+    const sesja = parseScannerSession({ ...BOOTSTRAP, checkpoints: [{ id: "c9" }] });
+    const punkt = sesja?.checkpoints[0];
+
+    expect(punkt?.kind).toBe("event_entry");
+    expect(punkt?.directionMode).toBe("in_only");
+    expect(punkt?.accessMode).toBe("control");
+    expect(punkt?.capacity).toBeNull();
+    expect(punkt?.dedupeWindowSeconds).toBe(0);
+    // Bez `sort_order` liczy sie kolejnosc z bazy, a nie przypadkowa.
+    expect(punkt?.sortOrder).toBe(0);
+  });
+
+  it("OKNO IDEMPOTENCJI spoza liczb spada do zera, a nie do `NaN` na ekranie", () => {
+    const sesja = parseScannerSession({
+      ...BOOTSTRAP,
+      checkpoints: [{ id: "c9", dedupe_window_seconds: "szescdziesiat", capacity: "sto" }],
+    });
+
+    expect(sesja?.checkpoints[0].dedupeWindowSeconds).toBe(0);
+    expect(sesja?.checkpoints[0].capacity).toBeNull();
+  });
+
+  it("LISTA PUNKTOW, KTORA NIE JEST TABLICA, to pusta lista - ekran mowi „brak punktow”", () => {
+    const sesja = parseScannerSession({ ...BOOTSTRAP, checkpoints: "brak" });
+
+    expect(sesja?.checkpoints).toEqual([]);
+    // Bez punktow i bez przypiecia ekran nie ma czego wybrac.
+    expect(sesja === null ? null : defaultCheckpointId(sesja)).toBeNull();
+  });
+
+  it("ZAKRESY, KTORE NIE SA TABLICA, to brak zakresow - zaden tryb sie nie otwiera", () => {
+    const sesja = parseScannerSession({ ...BOOTSTRAP, scopes: "checkin" });
+
+    expect(sesja?.scopes).toEqual([]);
+    expect(sesja === null ? [] : availableModes(sesja)).toEqual([]);
+  });
+
+  it("POSWIADCZENIE BEZ NAZWY dostaje pusty napis, a nie `null` w naglowku ekranu", () => {
+    const sesja = parseScannerSession({ ...BOOTSTRAP, label: null });
+
+    expect(sesja?.label).toBe("");
+  });
+
+  it("punkt SPOZA sesji nie zostaje odnaleziony, a brak wyboru nie jest punktem", () => {
+    const sesja = parseScannerSession(BOOTSTRAP);
+    if (sesja === null) throw new Error("test: sesja nie powstala");
+
+    expect(findCheckpoint(sesja, "nie-ma-takiego")).toBeNull();
+    expect(findCheckpoint(sesja, null)).toBeNull();
+    // Bez punktu jedyny sensowny kierunek to wejscie.
+    expect(checkpointDirections(null)).toEqual(["in"]);
+  });
+
+  it("punkt TYLKO WYJSCIOWY oferuje wylacznie wyjscie", () => {
+    const sesja = parseScannerSession({
+      ...BOOTSTRAP,
+      checkpoints: [{ id: "c9", direction_mode: "out_only" }],
+    });
+    const punkt = sesja === null ? null : findCheckpoint(sesja, "c9");
+
+    expect(checkpointDirections(punkt)).toEqual(["out"]);
+  });
+
+  it("NIECZYTELNA data terminu nie wyrzuca operatora do parowania", () => {
+    // Ekran, ktory na zepsutej dacie uzna poswiadczenie za wygasle, zatrzymuje
+    // bramke bez zadnego powodu po stronie bazy.
+    const sesja = parseScannerSession({ ...BOOTSTRAP, expires_at: "kiedys" });
+    if (sesja === null) throw new Error("test: sesja nie powstala");
+
+    expect(isSessionExpired(sesja, "2026-09-01T08:00:00Z")).toBe(false);
+    expect(hoursUntilExpiry(sesja, "2026-09-01T08:00:00Z")).toBeNull();
+  });
+
+  it("NIECZYTELNA chwila „teraz” tez nie uniewaznia poswiadczenia", () => {
+    const sesja = parseScannerSession(BOOTSTRAP);
+    if (sesja === null) throw new Error("test: sesja nie powstala");
+
+    expect(isSessionExpired(sesja, "nie-data")).toBe(false);
+    expect(hoursUntilExpiry(sesja, "nie-data")).toBeNull();
+  });
+});
+
+describe("scannerOutbox - brzegi kolejki", () => {
+  it("komunikat BEZ dwukropka jest w calosci glowa bledu", () => {
+    // `TypeError: Failed to fetch` ma dwukropek, ale `Failed to fetch` (Safari)
+    // juz nie - i to nadal jest awaria sieci, czyli pozycja do ponowienia.
+    expect(errorHead("Failed to fetch")).toBe("Failed to fetch");
+    expect(isPermanentFailure("Failed to fetch")).toBe(false);
+    expect(isPermanentFailure("invalid_payload")).toBe(true);
+  });
+
+  it("NIECZYTELNA chwila „teraz” nie psuje terminu ponowienia", () => {
+    // Zegar urzadzenia bywa przestawiony; termin i tak ma byc data, a nie
+    // `Invalid Date`, bo inaczej pozycja nie wyszlaby z kolejki nigdy.
+    const [po] = withFailure([item({ id: "i1" })], "i1", "Failed to fetch", "nie-data");
+
+    expect(Number.isNaN(Date.parse(po.nextAttemptAt))).toBe(false);
+    expect(po.attempts).toBe(1);
+  });
+
+  it("NIECZYTELNA chwila „teraz” przy wyborze zaleglosci nie chowa kolejki", () => {
+    const czekajaca = item({ id: "i1", nextAttemptAt: "2020-01-01T00:00:00Z" });
+
+    expect(dueItems([czekajaca], "nie-data")).toHaveLength(1);
+  });
+
+  it("nieudana proba dotyka WYLACZNIE swojej pozycji", () => {
+    const kolejka = [item({ id: "i1" }), item({ id: "i2", code: "BBB" })];
+
+    const po = withFailure(kolejka, "i1", "Failed to fetch", "2026-09-01T08:00:00Z");
+
+    expect(po[0].attempts).toBe(1);
+    expect(po[1].attempts).toBe(0);
+    expect(po[1].lastError).toBeNull();
+  });
+});
+
+describe("scannerErrors - klucz odmowy i klucz wyniku", () => {
+  it("glowa komunikatu bazy staje sie kluczem slownika bramki", () => {
+    expect(scannerErrorKey(new Error("device_revoked: gone"))).toBe(
+      "eventScanner.errors.deviceRevoked",
+    );
+    // `camel()` zamienia WSZYSTKIE podkreslenia, nie pierwsze.
+    expect(scannerErrorKey(new Error("device_checkpoint_mismatch: pinned"))).toBe(
+      "eventScanner.errors.deviceCheckpointMismatch",
+    );
+  });
+
+  it("komunikat, ktory NIE JEST kluczem bazy, spada na zdanie awaryjne", () => {
+    // Tekst Postgresa niesie nazwy tabel i ograniczen - pokazanie go przy
+    // bramce to wyciek schematu i zdanie bez nastepnego kroku dla operatora.
+    for (const blad of [
+      new Error("TypeError: Failed to fetch"),
+      new Error('relation "event_checkins" does not exist'),
+      new Error(""),
+      new Error("Nieznana odmowa"),
+    ]) {
+      expect(scannerErrorKey(blad)).toBe("eventScanner.errors.unknown");
+    }
+  });
+
+  it("klucz o poprawnym KSZTALCIE, ale bez tlumaczenia, tez spada na zdanie awaryjne", () => {
+    expect(scannerErrorKey(new Error("cos_czego_nie_ma: tresc"))).toBe(
+      "eventScanner.errors.unknown",
+    );
+    // Zdanie zawsze istnieje - operator nie zobaczy samego klucza.
+    expect(scannerErrorMessage(new Error("cos_czego_nie_ma: tresc"))).not.toBe("");
+  });
+
+  it("WYNIK SKANU ma wlasny slownik, a nieznany wynik ma wlasne zdanie awaryjne", () => {
+    expect(scanOutcomeKey("unknown_code")).toBe("eventScanner.outcomes.unknownCode");
+    expect(scanOutcomeKey("wrong_event")).toBe("eventScanner.outcomes.wrongEvent");
+    expect(scanOutcomeKey("cos-czego-nie-ma")).toBe("eventScanner.outcomes.unknown");
+  });
+});
+
+describe("onsiteEnums - slownik wynikow odprawy", () => {
+  it("rozpoznaje WYLACZNIE wyniki ze slownika bazy", () => {
+    // Straznik chroni dziennik przed wynikiem, ktorego CHECK bazy nie przyjmie.
+    expect(isCheckinResult("granted")).toBe(true);
+    expect(isCheckinResult("denied_registration_status")).toBe(true);
+    expect(isCheckinResult("wpuszczony")).toBe(false);
+    expect(isCheckinResult("")).toBe(false);
   });
 });

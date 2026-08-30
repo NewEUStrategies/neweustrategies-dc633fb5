@@ -103,6 +103,27 @@ jobs:
     # tego joba po rozdzieleniu): cały `verify` 6:34, a cztery bramki celowane
     # razem 1:02 - pierwszy raz od 2026-08-29, kiedy w ogóle się wykonały.
     # Oszacowanie trafione co do dwóch sekund, zapas do limitu trzykrotny.
+    #
+    # ROZSTRZYGNIĘCIE KONFLIKTU Z MAINEM (2026-08-30, scalenie PR #307).
+    # Main podniósł w tym miejscu próg 35 -> 55 i opisał to uczciwie: przebieg
+    # 33320445217 (e9b3f9a) przeszedł WSZYSTKIE 40 kroków do `SEO head + schema
+    # contract`, po czym został ubity w połowie `Build` - Format 1:22,
+    # Typecheck 2:28, Lint 2:05, `Test + coverage gate` 26:21, bramki i18n
+    # i widgetów ~51 s, razem 35,2 min w chwili ubicia. Przyczyna nazwana wprost
+    # i nie jest nią spowolnienie: moduł Wydarzeń dołożył 69 plików testowych.
+    #
+    # Bierzemy ich POMIAR, odrzucamy ich LICZBĘ - i robi to ich własny wniosek,
+    # zapisany tam trzy akapity niżej: „ZALECENIE Z POPRZEDNIEGO WPISU JEST
+    # NADAL AKTUALNE I NADAL NIEWYKONANE: dopóki `Build` siedzi w tym samym
+    # jobie co suita, każdy przyrost testów zjada budżet bramek artefaktu (...).
+    # Podniesienie limitu kupuje czas, nie rozwiązuje tego". Ta gałąź wykonuje
+    # dokładnie to zalecenie, więc 55 minut nie ma już czego kupować: po
+    # rozdzieleniu `verify` nie zawiera ani suity, ani `Build`, a zmierzony
+    # koniec do końca wynosi 6:34-8:00.
+    #
+    # ICH LICZBA 26:21 IDZIE ZA TO DO BUDŻETU JOBA `test` jako najświeższy
+    # pomiar suity - i to na drzewie JUŻ Z tymi 69 plikami, czyli wyższy niż
+    # cokolwiek, co ta gałąź mierzyła sama.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -581,13 +602,19 @@ jobs:
     #   26:10  przebieg 2753, `verify` (d0ee497)
     #   22:44  przebieg 2755, `verify` na `main` (01ecda0b)
     #   16:05  przebieg 2756+, ten job (1de66e8), plus 20 s setupu
+    #   25:39  przebieg po scaleniu maina 145a1ff (fdd4c94)
     # Rozrzut 1,6x na współdzielonych runnerach GitHuba. Budżet stawiamy więc
     # od NAJDŁUŻSZEGO pomiaru, nie od średniej ani od najkrótszego: 40 minut
     # to ~1,5x wobec 26:10 - ta sama proporcja, którą przyjęto dla `verify`
     # przy przejściu 20 -> 35. Kto zobaczy w logu 16 minut i uzna, że limit
     # da się ściąć do dwudziestu, ustawi go PONIŻEJ pomiaru sprzed dwóch
-    # godzin. Do rozrzutu dochodzi wzrost: suita rośnie z każdym nowym testem
-    # (46,5 tys. asercji).
+    # godzin.
+    #
+    # WZROST NIE JEST HIPOTETYCZNY: scalenie PR #307 (moduł Wydarzeń) dołożyło
+    # 69 plików testowych, a tamta gałąź zmierzyła na nich suitę na 26:21
+    # (przebieg 33320445217) - najwyższy dotąd pomiar i jedyny zrobiony JUŻ
+    # z tymi testami. 40 minut daje wobec niego ~1,5x. Gdy ten zapas zacznie
+    # topnieć, następnym krokiem jest shardowanie, nie liczba w tej linii.
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4

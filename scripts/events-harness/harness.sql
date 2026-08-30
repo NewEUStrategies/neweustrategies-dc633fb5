@@ -609,7 +609,12 @@ CREATE TABLE IF NOT EXISTS public.payment_orders (
   amount_cents integer NOT NULL DEFAULT 0,
   currency text NOT NULL DEFAULT 'PLN',
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  -- `updated_at` (ksztalt z 20260624172041): `payments_apply_event_ticket_outcome`
+  -- stempluje nim zamowienie przy zwrocie. Bez tej kolumny asercje zwrotu
+  -- przewracaly sie w harnessie na 42703, a na produkcji nie ma z tym nic
+  -- wspolnego - kolumna tam jest od zalozenia tabeli.
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.b2b_coupons (

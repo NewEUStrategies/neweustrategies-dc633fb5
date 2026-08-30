@@ -30,7 +30,11 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
-import { cancelRegistration } from "@/lib/events/publicRegistrationApi";
+import {
+  cancelRegistration,
+  fetchRegistrationManageView,
+} from "@/lib/events/publicRegistrationApi";
+import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { registrationErrorMessage } from "@/lib/events/publicRegistrationErrors";
 import { isManageToken, manageLinkPath } from "@/lib/events/manageToken";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -61,6 +65,20 @@ export function RegistrationManagePanel({
   });
 
   const activeToken = token ?? (isManageToken(typed) ? typed.trim() : null);
+
+  // STAN ZGLOSZENIA POD KLUCZEM. Bez tego zapytania strona pokazywala naglowek
+  // wydarzenia i przycisk rezygnacji, a o samym zgloszeniu nie mowila nic -
+  // niezaplacone zgloszenie nie mialo stad ZADNEJ drogi powrotu do kasy.
+  //
+  // Klucz jest POSWIADCZENIEM, wiec nie trafia do wspoldzielonego cache pod
+  // golym slugiem: klucz w kluczu zapytania trzyma odpowiedzi rozdzielnie.
+  const stateQuery = useQuery({
+    queryKey: ["event-registration-manage-view", slug, activeToken],
+    queryFn: () => fetchRegistrationManageView({ manageToken: activeToken ?? "" }),
+    enabled: activeToken !== null,
+    staleTime: 15_000,
+  });
+  const state = stateQuery.data ?? null;
 
   const cancelM = useMutation({
     mutationFn: (manageToken: string) => cancelRegistration({ manageToken }),
@@ -159,6 +177,48 @@ export function RegistrationManagePanel({
             </div>
           )}
 
+          {activeToken !== null && stateQuery.isSuccess && state === null && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {t("eventFront.manage.notFound")}
+            </p>
+          )}
+
+          {state !== null && (
+            <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
+              <h2 className="text-sm font-semibold text-foreground">
+                {t("eventFront.manage.stateTitle")}
+              </h2>
+              <p className="text-sm text-foreground">{statusSentence(state.status, state, t)}</p>
+              {state.paymentStatus !== null && state.paymentStatus !== "not_required" && (
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    state.paymentStatus === "paid"
+                      ? "eventFront.manage.paymentPaid"
+                      : state.paymentStatus === "unpaid"
+                        ? "eventFront.manage.paymentUnpaid"
+                        : "eventFront.manage.paymentRefunded",
+                  )}
+                </p>
+              )}
+              {/* DROGA POWROTNA DO KASY. Bez niej jedynym wyjsciem ze stanu
+                  „nieoplacone" byl zapis DRUGI RAZ - czyli produkowanie
+                  zduplikowanych wierszy, o ktore rozbijalo sie dopasowanie
+                  wplaty (patrz `payments_apply_event_ticket_outcome`). */}
+              {state.paymentStatus === "unpaid" && state.status !== "cancelled" && (
+                <RegistrationPayAction
+                  registrationId={state.registrationId}
+                  eventId={state.eventId}
+                  ticketTypeId={state.ticketTypeId}
+                  amountCents={state.amountCents}
+                  currency={state.currency}
+                  returnPath={manageLinkPath(slug, activeToken ?? "")}
+                  intent="resume"
+                  ownedByCaller={state.ownedByCaller}
+                />
+              )}
+            </div>
+          )}
+
           {activeToken !== null && (
             <div className="space-y-4 rounded-[6px] border border-destructive/40 bg-destructive/5 p-4">
               <div>
@@ -213,4 +273,26 @@ export function RegistrationManagePanel({
       )}
     </section>
   );
+}
+
+/**
+ * Stan zapisu -> zdanie dla uczestnika.
+ *
+ * Nieznany status czytamy jako `unknown`, a nie jako „przyjete": zdanie, ktore
+ * obiecuje wejscie na podstawie wartosci, ktorej nie znamy, jest gorsze niz
+ * przyznanie sie do niewiedzy.
+ */
+function statusSentence(
+  status: string,
+  state: { waitlistPosition: number | null },
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if (status === "approved" || status === "attended") return t("eventFront.manage.stateApproved");
+  if (status === "pending" || status === "draft") return t("eventFront.manage.statePending");
+  if (status === "waitlist") {
+    return t("eventFront.manage.stateWaitlist", { position: state.waitlistPosition ?? 0 });
+  }
+  if (status === "cancelled") return t("eventFront.manage.stateCancelled");
+  if (status === "rejected") return t("eventFront.manage.stateRejected");
+  return t("eventFront.manage.stateUnknown");
 }

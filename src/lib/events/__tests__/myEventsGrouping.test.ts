@@ -6,6 +6,8 @@ import type { ParticipantRegistration } from "@/lib/events/participantTicketsApi
 function registration(overrides: Partial<ParticipantRegistration> = {}): ParticipantRegistration {
   const base: ParticipantRegistration = {
     registrationId: "r1",
+    eventId: "e1",
+    ticketTypeId: "t1",
     status: "approved",
     paymentStatus: "paid",
     createdAt: null,

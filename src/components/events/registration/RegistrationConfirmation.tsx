@@ -22,7 +22,9 @@ import { toast } from "sonner";
 
 import type { RegistrationResult } from "@/lib/events/publicRegistrationApi";
 import { manageLinkPath } from "@/lib/events/manageToken";
+import { formatAmountDue } from "@/lib/events/amountDue";
 import { Button } from "@/components/ui/button";
+import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
@@ -30,6 +32,7 @@ ensureEventFrontI18n();
 export function RegistrationConfirmation({
   result,
   slug,
+  eventId,
   cancelled,
   cancelling,
   onCancel,
@@ -37,6 +40,14 @@ export function RegistrationConfirmation({
   result: RegistrationResult;
   /** Slug wydarzenia - buduje adres strony zarzadzania zgloszeniem. */
   slug: string;
+  /**
+   * Wydarzenie z FORMULARZA - awaryjne zrodlo dla kasy.
+   *
+   * `event_register` oddaje `event_id` od migracji `20260830090000`; starszy
+   * backend go nie zna, a formularz zna zawsze (`form.event.id`). Kasa wymaga
+   * kompletu identyfikatorow, wiec bierzemy pierwsze, ktore jest.
+   */
+  eventId?: string | null;
   /** Zapis odwolany w tej sesji - przycisk rezygnacji nie ma juz sensu. */
   cancelled: boolean;
   cancelling: boolean;
@@ -68,6 +79,11 @@ export function RegistrationConfirmation({
   /**
    * Kwota w groszach -> napis w walucie odpowiedzi, w języku interfejsu.
    *
+   * Formatowanie mieszka w atomie (`formatAmountDue`), bo tę samą kwotę
+   * pokazują trzy powierzchnie - ten ekran, panel „Moje zgłoszenia" i strona
+   * samoobsługi. Trzy kopie jednego `Intl.NumberFormat` to trzy okazje do
+   * rozjazdu o grosz albo o walutę.
+   *
    * `?? null` NIE jest ozdobą: `RegistrationResult` składa też kod wywołujący
    * (i testy), a `undefined` przechodziłoby przez porównanie z `null` prosto do
    * `Intl.NumberFormat({ currency: undefined })`, które RZUCA - i wywracało cały
@@ -75,13 +91,7 @@ export function RegistrationConfirmation({
    */
   const amountCents = result.amountCents ?? null;
   const currency = result.currency ?? null;
-  const amountLabel =
-    amountCents === null || currency === null
-      ? null
-      : new Intl.NumberFormat(i18n.language, {
-          style: "currency",
-          currency,
-        }).format(amountCents / 100);
+  const amountLabel = formatAmountDue(amountCents, currency, i18n.language);
 
   return (
     <section className="space-y-6" aria-live="polite">
@@ -106,6 +116,20 @@ export function RegistrationConfirmation({
           <p className="text-xs text-muted-foreground">
             {t("eventRegistration.result.paymentNoTicketYet")}
           </p>
+          {/* DROGA DO KASY. Zdanie o braku wejsciowki ZOSTAJE - czlowiek ma
+              wiedziec, ze przed zaplata biletu nie ma. Zmienia sie to, ze ma
+              teraz co z tym zrobic. */}
+          <RegistrationPayAction
+            registrationId={result.registrationId}
+            eventId={result.eventId ?? eventId ?? null}
+            ticketTypeId={result.ticketTypeId}
+            amountCents={amountCents}
+            currency={currency}
+            returnPath={`/events/${slug}`}
+            /* Kwotę mówi już zdanie wyżej - powtórzona tuż pod spodem czyta się
+               jak dwie różne należności. */
+            showAmount={false}
+          />
         </div>
       )}
 

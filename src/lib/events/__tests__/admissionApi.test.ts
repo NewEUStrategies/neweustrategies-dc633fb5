@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   ADMISSION_QUOTE_REASONS,
+  TICKET_CHECKOUT_ONLY_REASONS,
   admissionQuoteMessageKey,
   parseAdmissionQuote,
+  ticketCheckoutRefusal,
 } from "@/lib/events/admissionApi";
 
 describe("parseAdmissionQuote", () => {
@@ -72,5 +74,77 @@ describe("admissionQuoteMessageKey", () => {
       expect(admissionQuoteMessageKey(reason)).toBe(`eventPackages.quoteReasons.${reason}`);
     }
     expect(admissionQuoteMessageKey("unknown")).toBe("eventPackages.quoteReasons.unknown");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ODMOWY KASY WEJSCIOWKI
+//
+// `event_ticket_checkout_quote` i `createCheckoutOrder` rzucaja WLASNE kody
+// bledow - inne niz `event_admission_quote`. Ekran potwierdzenia zapisu ma
+// pokazac na kazdy z nich WLASNE zdanie, a nie jedno „sprobuj ponownie":
+// „nie ma juz miejsc" i „to jest wliczone w Twoj plan" prowadza kupujacego
+// w dwie zupelnie rozne strony.
+//
+// KODY SA PRZEPISANE Z CIALA FUNKCJI, nie wymyslone: `ticket_not_available`,
+// `event_finished`, `ticket_sales_not_open`, `ticket_sales_closed`,
+// `ticket_tier_required`, `ticket_access_code_invalid`, `ticket_sold_out`,
+// `auth_required` (migracja 20260828054337) oraz `ticket_included_in_plan`
+// i `registration_not_payable` (checkout.functions.ts).
+// ---------------------------------------------------------------------------
+describe("ticketCheckoutRefusal", () => {
+  const cases: ReadonlyArray<readonly [string, string]> = [
+    ["ticket_not_available", "not_found"],
+    ["ticket_not_available: no such ticket", "not_found"],
+    ["event_finished", "event_finished"],
+    ["ticket_sales_not_open", "sales_not_open"],
+    ["ticket_sales_closed", "sales_closed"],
+    ["ticket_tier_required", "tier_required"],
+    ["ticket_access_code_invalid", "access_code_invalid"],
+    ["ticket_sold_out: no seats left", "sold_out"],
+    ["auth_required: sign in to buy a ticket", "account_required"],
+    ["ticket_included_in_plan", "ticket_included_in_plan"],
+    ["registration_not_payable:event_mismatch", "registration_not_payable"],
+    ["billing_unconfigured", "payments_unavailable"],
+  ];
+
+  for (const [message, reason] of cases) {
+    it(`czyta „${message}" jako ${reason}`, () => {
+      expect(ticketCheckoutRefusal(new Error(message))).toBe(reason);
+    });
+  }
+
+  it("czyta goly napis tak samo jak wyjatek", () => {
+    expect(ticketCheckoutRefusal("ticket_sold_out")).toBe("sold_out");
+  });
+
+  it("`ticket_sales_not_open` NIE jest czytane jako `sales_closed`", () => {
+    // Oba kody zaczynaja sie od `ticket_sales_`, wiec kolejnosc dopasowania
+    // decyduje o tym, czy kupujacy przeczyta „jeszcze nie w sprzedazy",
+    // czy „sprzedaz zakonczona". To sa przeciwne zdania.
+    expect(ticketCheckoutRefusal("ticket_sales_not_open")).not.toBe("sales_closed");
+  });
+
+  it("nieznany blad daje `unknown`, a nie zgadywanie", () => {
+    expect(ticketCheckoutRefusal(new Error("cos_zupelnie_innego"))).toBe("unknown");
+    expect(ticketCheckoutRefusal(null)).toBe("unknown");
+    expect(ticketCheckoutRefusal("")).toBe("unknown");
+    expect(ticketCheckoutRefusal({ code: 42 })).toBe("unknown");
+  });
+
+  it("kazdy powod kasowy ma klucz w TYM SAMYM zbiorze nazw", () => {
+    for (const reason of TICKET_CHECKOUT_ONLY_REASONS) {
+      expect(admissionQuoteMessageKey(reason)).toBe(`eventPackages.quoteReasons.${reason}`);
+    }
+  });
+
+  it("powody kasowe NIE udaja powodow `event_admission_quote`", () => {
+    // `ADMISSION_QUOTE_REASONS` odwzorowuje powody JEDNEJ funkcji bazy.
+    // Dopisanie do niej nazwy, ktorej ta funkcja nie zwraca, zamienialoby
+    // dokumentacje kontraktu w liste zyczen - dlatego zbiory sa rozlaczne.
+    const shared = TICKET_CHECKOUT_ONLY_REASONS.filter((reason) =>
+      (ADMISSION_QUOTE_REASONS as readonly string[]).includes(reason),
+    );
+    expect(shared).toEqual([]);
   });
 });

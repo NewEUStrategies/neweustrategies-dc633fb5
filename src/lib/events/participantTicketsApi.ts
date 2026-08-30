@@ -25,6 +25,16 @@ export interface TicketWebhookEntry {
 
 export interface ParticipantRegistration {
   registrationId: string;
+  /**
+   * Wydarzenie i wejściówka - komplet, którego wymaga kasa.
+   *
+   * Bez nich karta pokazywała „nieopłacone" i nie dawała z tym NIC zrobić:
+   * jedyną drogą do zapłaty był ekran potwierdzenia, który uczestnik dawno
+   * zamknął. `null` przy starszym backendzie - przycisk się wtedy nie
+   * pojawia, zamiast prowadzić do kasy bez identyfikatorów.
+   */
+  eventId: string | null;
+  ticketTypeId: string | null;
   status: string;
   paymentStatus: string | null;
   createdAt: string | null;
@@ -99,6 +109,8 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
   if (id === null || slug === null) return null;
   return {
     registrationId: id,
+    eventId: text(row, "event_id"),
+    ticketTypeId: text(row, "ticket_type_id"),
     status: text(row, "status") ?? "pending",
     paymentStatus: text(row, "payment_status"),
     createdAt: text(row, "created_at"),
