@@ -1,13 +1,16 @@
 # Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-08-30)
 
-**Wydanie 7 pomiaru — pierwsze w całości ZIELONE od strony bramek.** Rodowód: wydanie 1
+**Wydanie 7 pomiaru — suita znów w całości zielona, po dwóch wydaniach czerwieni.** Rodowód: wydanie 1
 (2026-08-18) musiało wykluczyć 39 plików testowych wiszących w kolekcji; wydanie 2 (19.08)
-było pierwszym KOMPLETNYM pomiarem; wydanie 3 (19.08) pierwszym bez czerwonych testów;
-wydanie 4 (21.08) zmierzyło skutek domknięcia CMS buildera i klubów; wydanie 5 (22.08) —
-modułów 19 i 20; wydanie 6 (29.08) wprowadziło MODUŁ 22 (wydarzenia).
+było pierwszym KOMPLETNYM pomiarem; wydania 3 (19.08) i 4 (21.08) wyszły kodem 0 — bez czerwieni
+i bez naruszeń progów;
+wydanie 5 (22.08) zmierzyło moduły 19 i 20 i miało dwa czerwone testy; wydanie 6 (29.08)
+wprowadziło MODUŁ 22 (wydarzenia) i miało dwanaście czerwonych oraz osiem naruszeń progów.
 To wydanie mierzy HEAD `d5171bca9` — **134 commity** za wydaniem 6.
 
-**Cały ruch tego wydania pochodzi z jednej powierzchni i jest to powierzchnia, którą zamówiono.**
+**Ruch tego wydania pochodzi w przeważającej części z jednej powierzchni — tej, którą zamówiono.**
+Poza nią drgnęły jeszcze dwie: sieć kontaktów (+1,7 pp) i billing (+1,4 pp), obie bez zamówienia
+i obie w granicach szumu pomiaru. Bez modułu 22 całe repozytorium urosłoby o 0,6 pp.
 MODUŁ 22 (wydarzenia) przeszedł z 58,96% na **84,78% linii** i z 55,25% na **84,62% funkcji**
 przy powierzchni praktycznie bez zmian (362 → 366 plików). Dziesięć z piętnastu jego
 funkcjonalności domknięto, jedna z zera na 100%, a dług w plikach zerowych spadł z 1 198 linii
@@ -78,11 +81,14 @@ pomiaru. Taksonomia modułów pochodzi z `docs/OCENA_FUNKCJI_TABELE_2026-08-14.m
    3 212 plików do 22 modułów zrobiłem regułami po ścieżkach (rozdział 9.1). Pliki graniczne
    (np. `gifting` — „podaruj artykuł” jest funkcją MODUŁU 1, a kod leży w powierzchni MODUŁU 14)
    zaznaczam w tabelach.
-4. **Pomiar jest KOMPLETNY, a suita PO RAZ PIERWSZY W TEJ SERII jest w całości zielona.**
+4. **Pomiar jest KOMPLETNY, a suita znów jest w całości zielona — po dwóch wydaniach czerwieni.**
    Ten przebieg: **1 863 plików testowych przeszło, 49 066 testów przeszło, ZERO padło**,
    a bramka pokrycia wyszła **kodem 0**: próg globalny i wszystkie 353 progów per-ścieżka
-   przeszły, bez ani jednego naruszenia. W sześciu poprzednich wydaniach zawsze coś było
-   czerwone — w wydaniu 6 dwanaście testów w trzech plikach i osiem naruszeń progów.
+   przeszły, bez ani jednego naruszenia. **To nie jest pierwszy taki przebieg w tej serii
+   i nie chcę tego zawyżać:** wydania 3 i 4 również wyszły kodem 0. Nowe jest co innego —
+   skala, przy której to się udało: wydanie 3 miało 1 235 plików testowych i 22 002 testy,
+   wydanie 4 — 1 421 i 34 045, a to wydanie 1 863 i 49 354. Czerwone były wydania 5 (dwa testy)
+   i 6 (dwanaście testów w trzech plikach plus osiem naruszeń progów).
    Trzy rzeczy z wydania 6 zamknęły się w tym oknie: defekt szuflady profilu
    (`routes/__tests__/profileShellRoutes.test.tsx` jest dziś zielony), rozjazd prowieniencji
    snapshotu autoryzacji i kontrakt JSON-LD landingu quizu.
@@ -2029,7 +2035,8 @@ bun run test:coverage          # próg globalny + 353 progów per-ścieżka
 Od wdrożenia R1 z wydania 1 (`coverage.reportOnFailure: true` w configu) raport i progi powstają
 TAKŻE na czerwonej suicie, więc powyższe jedno polecenie wystarcza — obejście z wydania 1 nie jest
 już potrzebne. Pełny przebieg na tym HEAD: 9 min 10 s, 1 863 plików testowych, 49 354 testów
-(1 235 plików / 22 002 testy przeszły, 2 pliki / 50 testów pominięte z braku sekretów Supabase).
+(1 863 plików / 49 066 testów przeszło, 238 „expected fail”,
+2 pliki / 50 testów pominięte — odpytują hostowaną bazę).
 
 Agregacja per moduł / funkcja / funkcjonalność powstała z `coverage/coverage-final.json`
 (mapy `statementMap`/`fnMap`/`branchMap` + liczniki `s`/`f`/`b`) oraz `coverage-summary.json`:
