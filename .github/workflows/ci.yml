@@ -49,9 +49,28 @@ jobs:
     # coś w nich pada, tylko dlatego, że job nie dożywał do ich kroku.
     # Dominującą pozycją jest suita (12:39 z instrumentacją coverage) i to ona
     # rośnie z każdym nowym testem - 35 minut daje ~1,5x zapasu na dzisiejszy
-    # ślad, zamiast kolejnego podnoszenia progu za pół tygodnia. Docelowo
-    # `Build` i bramki artefaktu powinny jechać w OSOBNYM jobie: wtedy zegar
-    # suity przestaje decydować o tym, czy budżet bundla w ogóle się zmierzy.
+    # ślad, zamiast kolejnego podnoszenia progu za pół tygodnia.
+    #
+    # 2026-08-30: WYDZIELENIE WYKONANE. Zapowiedź z tego komentarza („docelowo
+    # `Build` i bramki artefaktu powinny jechać w OSOBNYM jobie") jest już
+    # zrealizowana - patrz job `build` niżej. Powód nie był teoretyczny: między
+    # 29.08 a 30.08 `Bundle size budget` nie uruchomił się ANI RAZU, więc
+    # przekroczenie budżetu rosło niewidoczne, dokładnie tak jak przy 20 minutach.
+    #
+    # Nowy ślad, zmierzony na przebiegu 2754 (`main` 0f7d306), już BEZ Builda:
+    #   setup+install 9 s, prettier 83 s, ~25 bramek statycznych 16 s,
+    #   Typecheck 2:41, Lint 2:10  ->  6:39 przed testami.
+    # Zostaje ~28 min na `Test + coverage gate` plus bramki 35-40.
+    #
+    # PRÓG ZOSTAJE NA 35 I JEST TO DECYZJA, NIE PRZEOCZENIE. Rzetelnego czasu
+    # suity wciąż NIE ZNAMY - job nie dobiegł do końca od 2026-08-29, bo do
+    # 30.08 wywracał go nieparsowalny `ci.yml`, a potem czerwony `format:check`.
+    # Podnoszenie progu bez tej liczby byłoby powtórzeniem błędu opisanego
+    # w kronice `check-bundle-size.ts`: próg rośnie, bramka przestaje łapać.
+    # Wydzielenie oddaje ~3,5 min i to musi wystarczyć do pierwszego PEŁNEGO
+    # przebiegu. Jeśli po nim suita nadal nie mieści się w budżecie, następnym
+    # krokiem jest ROZDZIELENIE SUITY (własny job, ewentualnie shardowanie),
+    # a nie kolejna liczba w tej linii - bo to suita rośnie, nie limit maleje.
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -488,7 +507,64 @@ jobs:
             src/lib/ci/__tests__/staticAssetShadowing.test.ts \
             src/lib/server/__tests__/robotsPolicy.test.ts
 
-      # ── BUILD I BRAMKI ARTEFAKTU (na końcu - tylko one go potrzebują) ───────
+  # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
+  #
+  # DLACZEGO OSOBNY, A NIE NA KOŃCU `verify`. Prosi o to komentarz nad
+  # `timeout-minutes` w `verify` („Docelowo `Build` i bramki artefaktu powinny
+  # jechać w OSOBNYM jobie: wtedy zegar suity przestaje decydować o tym, czy
+  # budżet bundla w ogóle się zmierzy") - i 2026-08-30 ta przepowiednia
+  # zmaterializowała się po raz drugi, tym razem policzalnie.
+  #
+  # POMIAR (przebieg 2754, główny `main` 0f7d306, kroki joba `verify`):
+  #   setup + checkout + bun + repoint + install   9 s
+  #   Format (prettier)                           83 s
+  #   ~25 bramek statycznych                      16 s
+  #   Typecheck                                 2:41
+  #   Lint                                      2:10
+  #   ──────────────────────────────────────────────
+  #   razem PRZED testami                       6:39
+  # Przy limicie 35 minut zostawia to ~28 min na `Test + coverage gate` PLUS
+  # bramki parytetu/wierności/SEO PLUS `Build` (~2:20) PLUS trzy bramki
+  # artefaktu. Suita rośnie z każdym testem (46,5 tys. asercji) i to ONA zjada
+  # ten budżet - a płacą za to bramki stojące ZA nią, bo job umiera, zanim do
+  # nich dojdzie. Efekt jest gorszy niż czerwona bramka: `Bundle size budget`
+  # NIE URUCHOMIŁ SIĘ ANI RAZU od 2026-08-29, więc przekroczenie budżetu rosło
+  # niewidoczne. GitHub raportuje przy tym job ubity limitem jako `cancelled`,
+  # nie `failure`, więc sygnał nie wygląda nawet na awarię bramki.
+  #
+  # Ten job powtarza setup (checkout + bun + install ≈ 15 s) i to jest CAŁY
+  # jego koszt - w zamian `Build` i trzy bramki artefaktu przestają zależeć od
+  # tego, ile trwa suita, i jadą RÓWNOLEGLE do niej zamiast po niej.
+  build:
+    runs-on: ubuntu-latest
+    # Zmierzone na przebiegu 2754: setup+install ~15 s, `Build` ~2:20, trzy
+    # bramki artefaktu ~60 s. Piętnaście minut to ~4x zapasu - job jest krótki
+    # i taki ma zostać; gdy zacznie się zbliżać do limitu, przyczyną będzie
+    # `Build`, a nie sąsiedzi w tym samym jobie.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      # Ten sam repoint co w `verify` - `bun.lock` przypina tarbally do
+      # prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja wyłącznie
+      # w CI, nigdy commitowana.
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      # `--frozen-lockfile` JEST TU ISTOTNE, nie skopiowane z rozpędu: floor
+      # bramki bundla stawia się z liczby zmierzonej NA RUNNERZE, a build
+      # z innych wersji zależności daje inny podział chunków (udokumentowana
+      # w `scripts/check-bundle-size.ts` rozbieżność host <-> runner ~10 KB na
+      # OVERALL). Bez tej flagi liczba z tego joba przestaje być podstawą floora.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        env:
+          npm_config_registry: https://registry.npmjs.org
 
       - name: Build
         run: bun run build
@@ -738,7 +814,11 @@ jobs:
   # smoke). Uruchamiany na push do main i ręcznie - PR-y nie dotykają produkcji.
   post-deploy:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    needs: [verify, pgtap]
+    # `build` dołączony po wydzieleniu go z `verify` (2026-08-30): bramki
+    # artefaktu (budżet bundla, acykliczność grafu chunków, czystość ścieżki
+    # startowej) przeniosły się tam razem z `Build`, więc bez tej zależności
+    # `post-deploy` ruszałby, nie wiedząc, czy artefakt w ogóle przeszedł.
+    needs: [verify, build, pgtap]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
