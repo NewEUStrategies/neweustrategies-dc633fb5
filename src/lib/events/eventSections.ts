@@ -12,14 +12,23 @@
 // wydarzenia istnieje.
 //
 // PUSTA SEKCJA TO CO INNEGO NIŻ ZAMKNIĘTA. `has_content` liczy baza (są sesje?
-// są sponsorzy?), więc sekcja bez treści nie udaje zamkniętej i odwrotnie.
-// `null` znaczy „ta sekcja nie ma pojęcia treści" - i od migracji 20260827130000
-// dotyczy TRZECH sekcji: `materials` (źródła w bazie nie ma) oraz `map`
-// i `contact`, których pustkę liczy front z tych samych kolumn, z których rysuje
-// treść (`lib/events/eventPractical`). Stało tu „mapa, kontakt bez hosta" i był
+// są sponsorzy? są materiały?), więc sekcja bez treści nie udaje zamkniętej
+// i odwrotnie. `null` znaczy „ta sekcja nie ma pojęcia treści" - i od migracji
+// 20260829221500 dotyczy już tylko DWÓCH sekcji: `map` i `contact`, których
+// pustkę liczy front z tych samych kolumn, z których rysuje treść
+// (`lib/events/eventPractical`). Stało tu „mapa, kontakt bez hosta" i był
 // to opis reguły MARTWEJ: mapa czytała stare `events.location`, którego panel nie
 // zapisuje, a kontakt - `events.host_user_id`, którego nie ustawia nic w całym
 // repozytorium, więc oba oddawały `false` i UBIJAŁY swoją sekcję.
+//
+// `materials` BYŁO TU TRZECIE, z uzasadnieniem „źródła w bazie nie ma" - i to
+// zdanie było nieprawdziwe (`public.event_sponsor_materials` stoi od
+// 20260823160000). Kosztowało to samotny nagłówek „Materiały" nad zdaniem
+// o pustce: dla `map` i `contact` pustkę odsiewa `EventPageSections` PRZED
+// nagłówkiem, ale robi to wyłącznie dla sekcji praktycznych, bo tylko one mają
+// treść w propsach - materiały siedzą za osobnym zapytaniem, które rusza już
+// POD nagłówkiem. Od 20260829221500 rachunek robi baza, tym samym
+// dwustopniowym predykatem publikacji, co `event_sponsor_materials_public`.
 import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -67,7 +76,7 @@ export interface EventSection {
   minTierRank: number;
   isLocked: boolean;
   lockReason: EventSectionLockReason;
-  /** `null` = sekcja bez pojęcia treści (RPC: `materials`, `map`, `contact`). */
+  /** `null` = sekcja bez pojęcia treści (RPC: już tylko `map` i `contact`). */
   hasContent: boolean | null;
 }
 

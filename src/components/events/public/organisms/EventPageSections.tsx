@@ -23,6 +23,16 @@
 // liczy front - i musi to zrobić PRZED nagłówkiem, bo inaczej zostałaby karta
 // „Dojazd" bez ani jednej linii pod spodem.
 //
+// TO SĄ JEDYNE DWIE SEKCJE, KTÓRYCH PUSTKĘ LICZY TEN PLIK - i tak ma zostać.
+// Filtr niżej sięga po `hasPracticalContent`, bo mapa i kontakt mają treść
+// W PROPSACH; program, partnerzy i materiały wołają bazę, więc tutaj nie ma
+// czym ich zmierzyć. Ich pustkę liczy `event_sections.has_content` i ubija je
+// `shouldRenderSection`, zanim ta lista w ogóle je zobaczy - dla materiałów
+// od 20260829221500 (wcześniej wracały jako NULL i zostawał sam nagłówek
+// „Materiały" nad zdaniem o pustce). Podnoszenie tu ich zapytań cofnęłoby
+// tamtą naprawę: zimny cache dawałby przeskok układu, a błąd sieci wyglądałby
+// jak „nic tu nie ma".
+//
 // ZAMKNIĘTA SEKCJA NIE POBIERA DANYCH. `enabled` schodzi do zapytań, więc
 // gość nie wysyła zapytania o program, którego i tak nie zobaczy - a serwer
 // nie liczy go dla nikogo, kto nie ma prawa go zobaczyć.
