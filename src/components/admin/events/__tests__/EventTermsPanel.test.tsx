@@ -339,7 +339,10 @@ describe("wymagalnosc i miejsce wyswietlenia - pary w wierszu", () => {
     ["registration", "przy zapisie"],
     ["access", "przy wejsciu"],
     ["registration_and_access", "w obu miejscach"],
-  ] as const)("miejsce `%s` jest nazwane w wierszu (%s)", (display) => {
+    // Drugi element krotki nie jest asercja - wchodzi w nazwe przypadku (`%s`),
+    // zeby raport mowil PO POLSKU, ktory moment opisuje dana wartosc. Callback
+    // musi go przyjac, bo `it.each` podaje CALA krotke.
+  ] as const)("miejsce `%s` jest nazwane w wierszu (%s)", (display, _moment) => {
     h.rows = [termRow({ display })];
     renderuj();
     expect(wiersz("Zgoda na przetwarzanie danych").textContent).toContain(
