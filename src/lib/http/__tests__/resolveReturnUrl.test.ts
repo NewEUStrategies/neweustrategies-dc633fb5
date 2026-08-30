@@ -25,7 +25,9 @@ describe("resolveReturnUrl", () => {
       "x-forwarded-proto": "https",
       "x-forwarded-host": "neweuropeanstrategies.com",
     });
-    expect(resolveReturnUrl("/profile/plan")).toBe("https://neweuropeanstrategies.com/profile/plan");
+    expect(resolveReturnUrl("/profile/plan")).toBe(
+      "https://neweuropeanstrategies.com/profile/plan",
+    );
   });
 
   it("strips external host from client-provided absolute URL", () => {

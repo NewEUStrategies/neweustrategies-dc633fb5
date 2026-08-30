@@ -126,8 +126,7 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
 
   const startsAt = event.startsAt ? Date.parse(event.startsAt) : Number.NaN;
   const endsAt = event.endsAt ? Date.parse(event.endsAt) : Number.NaN;
-  const scheduleOk =
-    Number.isFinite(startsAt) && (!Number.isFinite(endsAt) || endsAt > startsAt);
+  const scheduleOk = Number.isFinite(startsAt) && (!Number.isFinite(endsAt) || endsAt > startsAt);
 
   const liveSessions = sessions.filter((session) => session.status !== "cancelled");
   const draftSessions = liveSessions.filter((session) => session.status !== "published");
@@ -169,13 +168,7 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
       withoutSpeakers.length === 0,
       withoutSpeakers.length,
     ),
-    check(
-      "sessionRooms",
-      "warning",
-      "contentRooms",
-      withoutRoom.length === 0,
-      withoutRoom.length,
-    ),
+    check("sessionRooms", "warning", "contentRooms", withoutRoom.length === 0, withoutRoom.length),
     check("conflicts", "blocker", "contentConflicts", conflictCount === 0, conflictCount),
     check("rooms", "warning", "contentRooms", !onsite || roomCount > 0, roomCount),
     check(

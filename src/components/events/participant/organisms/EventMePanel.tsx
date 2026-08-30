@@ -173,19 +173,18 @@ export function EventMePanel({ slug }: { slug: string }) {
                 onClick={() => setPublicView((prev) => !prev)}
               >
                 <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                {publicView
-                  ? t("eventMe.publicPreview.close")
-                  : t("eventMe.publicPreview.open")}
+                {publicView ? t("eventMe.publicPreview.close") : t("eventMe.publicPreview.open")}
               </Button>
             )}
           </div>
           {publicView && panel.data?.profile != null ? (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {t("eventMe.publicPreview.hint")}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("eventMe.publicPreview.hint")}</p>
               <div className="max-w-xl">
-                <MyEventPublicPreview profile={panel.data.profile} actions={{ slug: null, userId: null, self: true }} />
+                <MyEventPublicPreview
+                  profile={panel.data.profile}
+                  actions={{ slug: null, userId: null, self: true }}
+                />
               </div>
             </div>
           ) : (

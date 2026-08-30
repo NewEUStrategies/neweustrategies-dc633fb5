@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isPackageInviteToken,
-  readPackageInviteToken,
-} from "@/lib/events/packageInviteApi";
+import { isPackageInviteToken, readPackageInviteToken } from "@/lib/events/packageInviteApi";
 import { packageInviteUrl } from "@/lib/events/packagesApi";
 import { registrationFailure } from "@/lib/events/publicRegistrationErrors";
 

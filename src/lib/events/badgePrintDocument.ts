@@ -74,7 +74,10 @@ export function buildBadgePrintDocument(
   options: BadgePrintOptions,
 ): string {
   const background = safeColor(options.backgroundColor, "#ffffff");
-  const qrSide = Math.max(10, Math.min(options.qrSizeMm, Math.min(options.widthMm, options.heightMm) - 6));
+  const qrSide = Math.max(
+    10,
+    Math.min(options.qrSizeMm, Math.min(options.widthMm, options.heightMm) - 6),
+  );
 
   return `<!doctype html>
 <html lang="pl">

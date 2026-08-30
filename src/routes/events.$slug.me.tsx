@@ -16,10 +16,7 @@ import { EventMePanel } from "@/components/events/participant/organisms/EventMeP
 export const Route = createFileRoute("/events/$slug/me")({
   component: EventMeTab,
   head: () => ({
-    meta: [
-      { title: "Mój panel wydarzenia" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Mój panel wydarzenia" }, { name: "robots", content: "noindex, nofollow" }],
   }),
 });
 

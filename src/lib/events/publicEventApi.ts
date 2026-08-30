@@ -280,7 +280,9 @@ export interface AttendeeEntry {
   offeringEn: string | null;
   bioPl: string | null;
   bioEn: string | null;
-  socialLinks: Partial<Record<"linkedin" | "x" | "facebook" | "instagram" | "youtube" | "website", string>>;
+  socialLinks: Partial<
+    Record<"linkedin" | "x" | "facebook" | "instagram" | "youtube" | "website", string>
+  >;
   groups: AttendeeGroupTag[];
 }
 
@@ -373,7 +375,8 @@ export function parseAttendeeDirectory(value: unknown): AttendeeDirectory {
         Object.entries(record(entry.social_links)).filter(
           ([key, value]) =>
             ["linkedin", "x", "facebook", "instagram", "youtube", "website"].includes(key) &&
-            typeof value === "string" && value.trim() !== "",
+            typeof value === "string" &&
+            value.trim() !== "",
         ),
       ),
       groups: list(entry.groups)

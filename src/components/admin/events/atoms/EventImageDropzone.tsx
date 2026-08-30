@@ -84,7 +84,11 @@ export function EventImageDropzone({
       <div
         role="button"
         tabIndex={0}
-        aria-label={hasImage ? t("adminEventAgenda.imageDrop.replace") : t("adminEventAgenda.imageDrop.upload")}
+        aria-label={
+          hasImage
+            ? t("adminEventAgenda.imageDrop.replace")
+            : t("adminEventAgenda.imageDrop.upload")
+        }
         onClick={() => fileRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

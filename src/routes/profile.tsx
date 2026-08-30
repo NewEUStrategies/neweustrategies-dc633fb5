@@ -194,9 +194,9 @@ function ProfileLayout() {
                     "shrink-0 border-border transition-[width] duration-200 md:border-b-0 md:border-r",
                     collapsed
                       ? "w-full border-b bg-muted/40 p-2 md:w-[68px]"
-                      // Rozwinięty stan na mobile obsługuje portal - tu tylko
-                      // kolumna desktopowa.
-                      : "hidden md:block md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5",
+                      : // Rozwinięty stan na mobile obsługuje portal - tu tylko
+                        // kolumna desktopowa.
+                        "hidden md:block md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
                 >

@@ -161,11 +161,7 @@ export function EventTicketsPanel({ eventId }: { eventId: string }) {
                 row.effective_price_cents !== row.price_cents ? (
                   <p className="text-xs text-muted-foreground">
                     {t("adminEventRegistration.tickets.effectivePrice", {
-                      price: formatPrice(
-                        row.effective_price_cents,
-                        row.currency,
-                        i18n.language,
-                      ),
+                      price: formatPrice(row.effective_price_cents, row.currency, i18n.language),
                     })}
                   </p>
                 ) : null}

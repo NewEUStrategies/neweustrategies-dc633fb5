@@ -10,7 +10,6 @@ import {
   AGENDA_KEY_PATTERN,
   deriveTrackKey,
   emptyRoomDraft,
-
   emptyTrackDraft,
   roomDraftFromRow,
   roomDraftToInput,
@@ -52,7 +51,6 @@ describe("trackDraft", () => {
     );
     expect(AGENDA_KEY_PATTERN.test(deriveTrackKey({ namePl: "Только", nameEn: "" }))).toBe(true);
   });
-
 
   it("wymaga obu nazw", () => {
     expect(validateTrackDraft(track({ nameEn: " " })).map((e) => e.field)).toEqual(["nameEn"]);

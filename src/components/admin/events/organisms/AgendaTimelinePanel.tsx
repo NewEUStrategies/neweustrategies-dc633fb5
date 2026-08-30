@@ -193,8 +193,7 @@ export function AgendaTimelinePanel({
                     {day.blocks
                       .filter((block) => block.columnId === column.id)
                       .map((block) => {
-                        const top =
-                          (block.startMinute - day.fromHour * 60) * TIMELINE_MINUTE_PX;
+                        const top = (block.startMinute - day.fromHour * 60) * TIMELINE_MINUTE_PX;
                         const width = 100 / block.lanes;
                         return (
                           <button
