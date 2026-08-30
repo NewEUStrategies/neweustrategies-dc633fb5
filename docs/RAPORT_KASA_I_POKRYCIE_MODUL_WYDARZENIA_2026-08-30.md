@@ -217,14 +217,38 @@ a ekran awarii nie odbija tokenu w treści.
 
 ### Progi w `vitest.config.ts`
 
-Zbiorczy pomiar po katalogach i podniesienie progów wchodzą **osobnym
-commitem**, razem z liczbami wpisanymi w komentarz nad każdym wpisem. Powód
-rozdzielenia jest praktyczny: pomiar to pełny przejazd suity z instrumentacją
-(1861 plików testowych), a ten raport powstał wcześniej, żeby nie czekał na
-niego opis znalezisk.
+Pomiar: pełny przejazd suity z instrumentacją pokrycia - **1 861 plików
+testowych, 49 027 zielonych + 238 `expected fail`**, 29 minut.
 
-Reguła bez zmian i bez wyjątku: progi wolno **wyłącznie podnosić**, do
-wartości „zmierzone minus ~4 pp" marginesu na dryf CI.
+Wartości mierzone jako instrukcje / gałęzie / funkcje / linie:
+
+| katalog                          | 2026-08-29                | 2026-08-30                    | nowy próg                     |
+| -------------------------------- | ------------------------- | ----------------------------- | ----------------------------- |
+| `src/lib/events/**`              | 72,9 / 72,4 / 70,2 / 75,2 | **86,3 / 80,9 / 91,2 / 88,9** | 82 / 77 / 87 / 85             |
+| `src/components/events/**`       | 67,8 / 59,1 / 66,6 / 68,3 | **86,3 / 79,5 / 82,9 / 87,0** | 82 / 75 / 79 / 83             |
+| `.../events/packages/**`         | -                         | **98,8 / 94,8 / 100 / 100**   | 94 / 90 / 96 / 96 (bez zmian) |
+| `src/components/admin/events/**` | 44,6 / 40,0 / 45,4 / 44,5 | **91,9 / 89,5 / 90,4 / 92,7** | 87 / 85 / 86 / 88             |
+| `.../admin/events/molecules/**`  | 65,1 / 54,6 / 63,5 / 65,6 | **99,1 / 96,6 / 99,6 / 99,7** | 95 / 92 / 95 / 95             |
+| `.../admin/events/organisms/**`  | 40,4 / 36,1 / 39,4 / 40,4 | **89,4 / 89,9 / 86,4 / 90,6** | 85 / 85 / 82 / 86             |
+
+Reguła bez wyjątku: progi wolno **wyłącznie podnosić**, do wartości „zmierzone
+minus ~4 pp" marginesu na dryf CI. Wzorzec `packages/**` jako jedyny zostaje bez
+zmian - zmierzone minus 4 pp wypada dokładnie na obecnym progu.
+
+Sposób liczenia sprawdzony w źródle vitesta, nie założony
+(`node_modules/vitest/dist/chunks/coverage.DM_a_rWm.js:816`): każdy wzorzec jest
+liczony po **wszystkich** pasujących plikach, bez odejmowania wzorców bardziej
+szczegółowych. `src/components/events/**` obejmuje więc także `packages/**`.
+
+**Co zostało nazwane w komentarzach, a nie uśrednione.** Poprzedni wpis
+wskazywał z nazwiska `EventTrackWorkspace` (853 linie) jako plik bez testów -
+dziś ma 92 przypadki i 100% w każdej metryce. W jego miejsce komentarz wymienia
+sześć plików, które nadal ciągną średnią organizmów w dół: `EventPackagesPanel`
+(59 linii), `EventRegistrationSettingsPanel` (47), `RegistrationFieldsPanel`
+(33), `EventProgramPanel` (3) - wszystkie na zerze - oraz `EventPagesMenuPanel`
+(71,3% linii) i `EventTypeDialog` (37,5%). Próg mierzy średnią katalogu, więc
+te sześć plików jest w niej rozcieńczone; wpis mówi to wprost, zamiast pozwolić
+liczbie 89,4% udawać, że powierzchnia jest przetestowana w całości.
 
 ### Dwie bramki parytetu, które nigdy nie działały
 
@@ -334,24 +358,48 @@ zależności.
 
 ### Znaleziska poza zakresem, zgłoszone bez naprawy
 
-**Pełny przejazd suity wykonuje prawdziwe żądania sieciowe.** W logu pomiaru
-jest 56 wpisów `getaddrinfo ENOTFOUND placeholder.supabase.co`. Sprawdzone,
-czyje: **nie plików tej gałęzi** - uruchomione osobno nie emitują ani jednego,
-a w pełnym przejeździe pojawiają się **przed** pierwszym wynikiem pliku, więc
-nie da się ich przypisać do konkretnego testu. Źródło jest w
-`src/integrations/supabase/client.ts`: klient powstaje z `persistSession: true`
-i **`autoRefreshToken: true`**, więc gdy którykolwiek test zostawi sesję w
-`localStorage` (współdzielonym w obrębie workera happy-dom), klient rusza w tle
-po odświeżenie tokenu.
+**Dwa testy suity odpytują hostowaną bazę - i ich osłona nie odróżnia
+zaślepki od braku poświadczeń.** Pełny przejazd kończy się dwoma czerwonymi
+plikami i 49 czerwonymi przypadkami:
+`src/__tests__/db-schema-invariant.test.ts` (44 z 45) i
+`src/__tests__/lang-parity.test.ts` (5 z 5). Oba **celowo** wołają anon Data API
+hostowanego projektu - piszą to wprost w nagłówku („Runs against the hosted
+database with the anon key"). To one dają 56 wpisów
+`getaddrinfo ENOTFOUND placeholder.supabase.co` w logu.
 
-`vitest.setup.ts` neutralizuje z dokładnie tego powodu `navigator.sendBeacon`
-(jest tam wprost napisane, dlaczego), ale `fetch` już nie.
+Defekt nie leży w samym zamyśle, tylko w osłonie:
 
-Dziś jest to hałas bez skutku, bo host jest zaślepką. U kogoś z prawdziwymi
-poświadczeniami w `.env` pełny przejazd suity uderzyłby w **prawdziwy projekt
-Supabase**. Nie łatam tego samowolnie: to wspólna infrastruktura testowa całego
-repozytorium, poza zakresem modułu Wydarzeń, a globalna zaślepka `fetch`
-mogłaby wywrócić testy, które celowo ją podmieniają.
+```ts
+const shouldRun = Boolean(SUPABASE_URL && SUPABASE_KEY);
+const d = shouldRun ? describe : describe.skip;
+```
+
+`Boolean(url && key)` przechodzi dla **zaślepki**. Deweloper z `.env`
+ustawionym na `placeholder.supabase.co` - czyli z konfiguracją, którą repozytorium
+samo daje - nie dostaje „pominięto, brak poświadczeń", tylko **49 czerwonych
+testów wyglądających na zepsute**. Osłona powinna odrzucać host zaślepkowy, a nie
+sprawdzać samą obecność zmiennej.
+
+Żadnego z tych plików nie ruszam: są sprzed tej gałęzi, w CI z prawdziwymi
+poświadczeniami przechodzą, a zmiana warunku ich uruchamiania to decyzja o
+zakresie bramki CI, nie o module Wydarzeń. Liczby pokrycia wydarzeń są tym
+nietknięte - żaden z tych dwóch plików nie importuje niczego z modułu.
+
+**Regresja progu poza modułem Wydarzeń, naprawiona przy okazji.**
+`src/components/admin/billing/WebhookHealthPanel.tsx` wszedł na `main` **bez
+testu** (25 linii, 0 z 4 funkcji) i sam jeden zbił próg
+`src/components/admin/billing/**` poniżej ratchetu: linie 88,3% wobec progu 97%.
+Pozostałe sześć plików tego katalogu stoi na 94-100%. Bramka `verify` była przez
+to czerwona na **każdym** PR-ze wychodzącym z tego `main`, nie tylko na tym.
+
+Obniżyć progu nie wolno, więc jedyną drogą do zieleni było pokrycie tego pliku.
+Powstał `WebhookHealthPanel.test.tsx` (35 przypadków, zero zmian produkcyjnych),
+po którym katalog stoi na 97,4 / 88,5 / 98,1 / 98,4 - wszystkie cztery progi
+spełnione. Test nie jest wypełniaczem: sprawdza progi alarmu **na granicy**
+(dokładnie 5% ma być jeszcze „obserwuj", nie „napraw teraz"), rozróżnienie
+`avgDurationMs === null` („-") od zera („0 ms"), blokadę przycisku ponownej
+wysyłki dla wartości niebędącej UUID-em wraz z obcięciem spacji, oraz to, że
+pusta lista awarii **mówi**, że awarii nie ma.
 
 **Duplikat migracji `search_path`.** Gałąź zdalna dołożyła
 `20260830102000_event_registration_set_channels_search_path.sql`, robiącą to
