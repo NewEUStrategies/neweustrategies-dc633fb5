@@ -28,6 +28,16 @@ export type RegistrationResultStatus = (typeof REGISTRATION_RESULT_STATUSES)[num
 
 export interface RegistrationResult {
   registrationId: string;
+  /**
+   * Wydarzenie zgłoszenia.
+   *
+   * Kasa (`createCheckoutOrder`) przyjmuje `event_id`, `ticket_type_id`
+   * I `registration_id` NARAZ, więc odpowiedź zapisu musi nieść komplet -
+   * inaczej ekran potwierdzenia musiałby go doszukiwać drugim zapytaniem.
+   * `null` przy starszym backendzie: wołający ma wtedy własne źródło
+   * (formularz zna `event.id`).
+   */
+  eventId: string | null;
   personId: string | null;
   status: RegistrationResultStatus;
   /** Powód decyzji bazy (`capacity`, reguła kwalifikująca) albo `null`. */
@@ -170,6 +180,7 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
 
   return {
     registrationId,
+    eventId: nullableText(source, "event_id"),
     personId: nullableText(source, "person_id"),
     status: statusOf(source),
     decisionSource: nullableText(source, "decision_source"),
@@ -183,6 +194,65 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
     paymentStatus: nullableText(source, "payment_status"),
     amountCents: optionalInt(source, "amount_cents"),
     currency: nullableText(source, "currency"),
+  };
+}
+
+/**
+ * Stan WLASNEGO zgloszenia widziany ze strony samoobslugi.
+ *
+ * MINIMUM, NIE KARTOTEKA. `event_registration_manage_view` oddaje wylacznie to,
+ * czego potrzebuje zdanie „czekamy na wplate, oto kwota" i przycisk do kasy -
+ * zadnego adresu e-mail, nazwiska ani odpowiedzi z formularza.
+ */
+export interface RegistrationManageView {
+  registrationId: string;
+  eventId: string | null;
+  eventSlug: string | null;
+  ticketTypeId: string | null;
+  status: string;
+  /** `not_required` | `unpaid` | `paid` | `partially_refunded` | `refunded`. */
+  paymentStatus: string | null;
+  waitlistPosition: number | null;
+  amountCents: number | null;
+  currency: string | null;
+  /** Czy ZALOGOWANY wolajacy jest wlascicielem - decyduje o przycisku kasy. */
+  ownedByCaller: boolean;
+}
+
+/**
+ * Zgloszenie pod kluczem `manage_token` (gosc) albo pod identyfikatorem
+ * (wlasciciel konta). `null` = nie ma czego pokazac; odmowa NIE jest wyjatkiem,
+ * bo „zly klucz" to normalny stan strony, a nie awaria.
+ */
+export async function fetchRegistrationManageView(input: {
+  manageToken?: string;
+  registrationId?: string;
+}): Promise<RegistrationManageView | null> {
+  const payload: Record<string, Json> = {};
+  if (input.manageToken !== undefined) payload.manage_token = input.manageToken;
+  if (input.registrationId !== undefined) payload.registration_id = input.registrationId;
+
+  const { data, error } = await supabase.rpc("event_registration_manage_view", {
+    p_payload: payload,
+  });
+  if (error) throw error;
+
+  const source = bag(data);
+  if (source === null || source.ok !== true) return null;
+  const registrationId = nullableText(source, "registration_id");
+  if (registrationId === null) return null;
+
+  return {
+    registrationId,
+    eventId: nullableText(source, "event_id"),
+    eventSlug: nullableText(source, "event_slug"),
+    ticketTypeId: nullableText(source, "ticket_type_id"),
+    status: nullableText(source, "status") ?? "pending",
+    paymentStatus: nullableText(source, "payment_status"),
+    waitlistPosition: optionalInt(source, "waitlist_position"),
+    amountCents: optionalInt(source, "amount_cents"),
+    currency: nullableText(source, "currency"),
+    ownedByCaller: source.owned_by_caller === true,
   };
 }
 

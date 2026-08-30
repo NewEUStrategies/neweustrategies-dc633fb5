@@ -28,10 +28,18 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a href="/events/kongres">{children}</a>,
+  // Ekran potwierdzenia montuje molekule kasy, a ta prowadzi do
+  // `/checkout/success` w trybie mock. Bez tego eksportu render potwierdzenia
+  // wywracal sie na braku haka routera.
+  useNavigate: () => vi.fn(),
 }));
 
+// Tozsamosc jest ZMIENNA, bo od migracji `20260830090000` decyduje o tym, czy
+// formularz w ogole wolno wyslac: platna wejsciowka wymaga konta.
+const auth = vi.hoisted(() => ({ user: null as { id: string } | null }));
+
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ user: null }),
+  useAuth: () => ({ user: auth.user, session: auth.user === null ? null : { user: auth.user } }),
 }));
 
 vi.mock("@/lib/i18n/useLang", () => ({
@@ -121,10 +129,41 @@ async function fillPerson(): Promise<void> {
   fireEvent.change(screen.getByLabelText(/email/), { target: { value: "anna@example.org" } });
 }
 
+/** Wejsciowka PLATNA - `effectivePriceCents` liczy baza, z fazami cenowymi. */
+function paidTicket(): Record<string, unknown> {
+  return {
+    id: "t1",
+    key: "standard",
+    namePl: "Standard",
+    nameEn: "Standard",
+    descriptionPl: "",
+    descriptionEn: "",
+    priceCents: 15000,
+    effectivePriceCents: 15000,
+    phase: null,
+    benefitsPl: [],
+    benefitsEn: [],
+    currency: "PLN",
+    availability: "on_sale",
+    seatsLeft: 10,
+    requiresApproval: false,
+    minTierRank: 0,
+    tierLocked: false,
+    requiresAccessCode: false,
+    accessCodeHint: "",
+    salesFrom: null,
+    salesTo: null,
+    salesStartAt: null,
+    salesEndAt: null,
+    sortOrder: 1,
+  };
+}
+
 beforeEach(() => {
   fetchForm.mockReset();
   register.mockReset();
   cancel.mockReset();
+  auth.user = null;
 });
 
 describe("publiczny formularz zapisu", () => {
@@ -184,5 +223,104 @@ describe("publiczny formularz zapisu", () => {
 
     // Klucz zarzadzania wraca RAZ - musi byc widoczny od razu po zapisie.
     expect(await screen.findByText("manage-secret")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PLATNA WEJSCIOWKA WYMAGA KONTA
+//
+// `event_register` DOPUSZCZA zapis anonimowy i to jest sluszne dla wejsciowek
+// bezplatnych: `manage_token` wystarcza tam za caly kontrakt z uczestnikiem.
+// Przy wejsciowce PLATNEJ konczylo sie to SLEPYM ZAULKIEM: `createCheckoutOrder`
+// stoi za `requireSupabaseAuth`, a `payments_apply_event_ticket_outcome` wymaga
+// `payment_orders.user_id`. Gosc dostawal zgloszenie, ktorego NIKT nie mial jak
+// oplacic - i zadne pozniejsze logowanie tego nie odkrecalo.
+//
+// Prawdziwa bramka stoi w bazie (migracja `20260830090000`, odmowa
+// `payment_account_required`). To, co sprawdza ten opis, to UPRZEDZENIE:
+// czlowiek ma o tym wiedziec PRZED wypelnieniem calego formularza, a nie
+// dostac odmowe po przepisaniu danych, odpowiedzi i zgod.
+// ---------------------------------------------------------------------------
+describe("platna wejsciowka a konto", () => {
+  it("gosc widzi POWOD i odnosnik do logowania przy wyborze biletu", async () => {
+    fetchForm.mockResolvedValue(openForm({ tickets: [paidTicket()] } as never));
+    renderForm();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.accountRequiredTitle"),
+    ).toBeTruthy();
+    expect(screen.getByText("eventRegistration.payment.accountRequiredBody")).toBeTruthy();
+  });
+
+  it("gosc NIE wysyla zgloszenia, ktorego nie mialby jak oplacic", async () => {
+    fetchForm.mockResolvedValue(openForm({ tickets: [paidTicket()] } as never));
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(/Dieta/), { target: { value: "brak" } });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /eventRegistration.consents.dataProcessing/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.submit" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "eventRegistration.actions.submit" }),
+      ).toBeDisabled(),
+    );
+    expect(register).not.toHaveBeenCalled();
+  });
+
+  it("zalogowany przechodzi ta sama sciezke bez zadnej przeszkody", async () => {
+    auth.user = { id: "u-1" };
+    fetchForm.mockResolvedValue(openForm({ tickets: [paidTicket()] } as never));
+    register.mockResolvedValue({
+      registrationId: "r1",
+      eventId: "e1",
+      personId: null,
+      status: "pending",
+      decisionSource: null,
+      waitlistPosition: null,
+      ticketTypeId: "t1",
+      qrToken: null,
+      manageToken: "manage-secret",
+      paymentRequired: true,
+      paymentStatus: "unpaid",
+      amountCents: 15000,
+      currency: "PLN",
+    });
+    renderForm();
+
+    expect(screen.queryByText("eventRegistration.payment.accountRequiredTitle")).toBeNull();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(/Dieta/), { target: { value: "brak" } });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /eventRegistration.consents.dataProcessing/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.submit" }));
+
+    await waitFor(() => expect(register).toHaveBeenCalledTimes(1));
+  });
+
+  it("wejsciowka BEZPLATNA nadal nie wymaga konta - sciezka anonimowa zostaje", async () => {
+    fetchForm.mockResolvedValue(openForm());
+    renderForm();
+
+    expect(await screen.findByLabelText(/firstName/)).toBeTruthy();
+    expect(screen.queryByText("eventRegistration.payment.accountRequiredTitle")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "eventRegistration.actions.submit" }),
+    ).not.toBeDisabled();
+  });
+
+  it("promocja do zera zdejmuje wymog konta - liczy cena OBOWIAZUJACA, nie katalogowa", async () => {
+    // `priceCents` 15000, `effectivePriceCents` 0: bilet w promocji jest
+    // bezplatny TERAZ i pytanie o konto byloby przeszkoda bez powodu.
+    fetchForm.mockResolvedValue(
+      openForm({ tickets: [{ ...paidTicket(), effectivePriceCents: 0 }] } as never),
+    );
+    renderForm();
+
+    expect(await screen.findByLabelText(/firstName/)).toBeTruthy();
+    expect(screen.queryByText("eventRegistration.payment.accountRequiredTitle")).toBeNull();
   });
 });

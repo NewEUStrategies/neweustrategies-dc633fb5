@@ -96,6 +96,26 @@ export const eventRegistrationPl = {
       cancelled: "Rezygnacja przyjęta.",
       promoted: "Z listy oczekujących weszła kolejna osoba ({{count}}).",
     },
+    // DROGA DO KASY. Do migracji `20260830090000` ekran potwierdzenia mówił
+    // „nie masz jeszcze wejściówki" i na tym kończył: nie było przycisku,
+    // odnośnika ani niczego. Te napisy obsługują trzy stany - można zapłacić,
+    // trzeba się najpierw zalogować, nie ma czego płacić.
+    payment: {
+      payNow: "Zapłać",
+      paying: "Otwieramy kasę...",
+      amountDue: "Do zapłaty: {{amount}}",
+      unpaidBadge: "Czeka na opłatę",
+      resume: "Dokończ płatność",
+      settledTitle: "Wpłata zaksięgowana",
+      settledBody: 'Wejściówka jest wydana - kod wstępu znajdziesz w „Moich zgłoszeniach".',
+      accountRequiredTitle: "Płatna wejściówka wymaga konta",
+      accountRequiredBody:
+        "Do konta należy paragon i możliwość zwrotu, dlatego płatną wejściówkę kupujemy po zalogowaniu. Zapis bezpłatny konta nie wymaga.",
+      signIn: "Zaloguj się",
+      notOwnerBody:
+        "To zgłoszenie powstało z innego konta. Zaloguj się na tamto konto, żeby dokończyć płatność.",
+      failed: "Nie udało się otworzyć kasy. Spróbuj ponownie.",
+    },
     invite: {
       title: "Zaproszenie na miejsce z pakietu",
       subtitle: "Organizator opłacił dla Ciebie miejsce. Uzupełnij dane, aby potwierdzić udział.",
@@ -146,6 +166,11 @@ export const eventRegistrationPl = {
       ticketNotOnSale: "Sprzedaż tego biletu jeszcze się nie zaczęła.",
       ticketSalesEnded: "Sprzedaż tego biletu jest zakończona.",
       ticketTierRequired: "Ten bilet wymaga wyższego poziomu członkostwa.",
+      // Bramka z migracji `20260830090000`. Zdanie mówi POWÓD, a nie samo
+      // „zaloguj się": bez konta nie ma do czego przypiąć paragonu ani drogi
+      // zwrotu, a zgłoszenia anonimowego nie da się później opłacić.
+      paymentAccountRequired:
+        "Płatna wejściówka wymaga konta - do niego należy paragon i możliwość zwrotu. Zaloguj się i zapisz ponownie.",
       alreadyRegistered: "Ten adres ma już aktywny zapis na to wydarzenie.",
       alreadyClosed: "Ten zapis jest już zamknięty.",
       eventFinished: "Wydarzenie się zakończyło - obecność jest już zapisana.",
@@ -227,13 +252,18 @@ export const eventRegistrationPl = {
       invited: "Zaproszenie wystawione.",
       copied: "Odnośnik skopiowany.",
     },
+    // JEDEN ZBIOR NAZW DLA DWOCH KAS. Te same powody sklada wycena pakietu
+    // (`event_admission_quote`) i kasa pojedynczej wejsciowki
+    // (`event_ticket_checkout_quote` + `createCheckoutOrder`), wiec zdania sa
+    // NEUTRALNE co do przedmiotu: „ta pozycja", nie „ten pakiet". Drugi
+    // slownik o tych samych powodach rozjechalby sie przy pierwszej zmianie.
     quoteReasons: {
       sign_in_required: "Zaloguj się, aby zobaczyć cenę.",
-      not_found: "Ten pakiet nie istnieje.",
-      inactive: "Pakiet nie jest w sprzedaży.",
+      not_found: "Ta pozycja nie jest dostępna.",
+      inactive: "Ta pozycja nie jest w sprzedaży.",
       sales_not_open: "Sprzedaż jeszcze się nie zaczęła.",
       sales_closed: "Sprzedaż została zakończona.",
-      sold_out: "Brak wolnych zestawów.",
+      sold_out: "Brak wolnych miejsc.",
       tier_required: "Wymagany wyższy poziom członkostwa.",
       audience_not_verified: "Stawka wymaga potwierdzenia uprawnień przez organizatora.",
       per_person_limit: "Masz już maksymalną liczbę wejściówek tego rodzaju.",
@@ -246,7 +276,15 @@ export const eventRegistrationPl = {
       coupon_other_ticket_type: "Kod dotyczy innego rodzaju wejściówki.",
       coupon_other_package: "Kod dotyczy innego pakietu.",
       coupon_other_currency: "Kod obowiązuje w innej walucie.",
-      unknown: "Nie udało się wycenić pakietu. Spróbuj ponownie.",
+      ticket_included_in_plan:
+        "Ta wejściówka jest już wliczona w Twój plan - nie ma czego płacić. Odbierz ją z puli członkowskiej.",
+      event_finished: "Wydarzenie już się odbyło.",
+      access_code_invalid: "Ta wejściówka wymaga poprawnego kodu z zaproszenia.",
+      account_required: "Zaloguj się, żeby dokończyć płatność.",
+      registration_not_payable:
+        "Tego zgłoszenia nie da się już opłacić - jest odwołane albo rozliczone.",
+      payments_unavailable: "Płatności są chwilowo niedostępne. Spróbuj później.",
+      unknown: "Nie udało się wycenić. Spróbuj ponownie.",
     },
     errors: {
       forbidden: "Tylko płatnik lub organizator może rozdawać miejsca.",
@@ -344,6 +382,22 @@ export const eventRegistrationEn = {
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
     },
+    payment: {
+      payNow: "Pay",
+      paying: "Opening checkout...",
+      amountDue: "Amount due: {{amount}}",
+      unpaidBadge: "Awaiting payment",
+      resume: "Complete the payment",
+      settledTitle: "Payment settled",
+      settledBody: 'Your admission has been issued - the entry code is in "My registrations".',
+      accountRequiredTitle: "A paid admission needs an account",
+      accountRequiredBody:
+        "The receipt and the refund route belong to an account, so a paid admission is bought once you are signed in. A free registration needs no account.",
+      signIn: "Sign in",
+      notOwnerBody:
+        "This registration was created from another account. Sign in to that account to complete the payment.",
+      failed: "We could not open the checkout. Please try again.",
+    },
     invite: {
       title: "Invitation to a package seat",
       subtitle: "The organiser paid for your seat. Fill in your details to confirm attendance.",
@@ -394,6 +448,8 @@ export const eventRegistrationEn = {
       ticketNotOnSale: "Sales for this ticket have not started.",
       ticketSalesEnded: "Sales for this ticket are closed.",
       ticketTierRequired: "This ticket requires a higher membership tier.",
+      paymentAccountRequired:
+        "A paid admission requires an account - the receipt and the refund route belong to it. Sign in and register again.",
       alreadyRegistered: "This address already has an active registration for the event.",
       alreadyClosed: "This registration is already closed.",
       eventFinished: "The event has ended - attendance is already recorded.",
@@ -475,11 +531,11 @@ export const eventRegistrationEn = {
     },
     quoteReasons: {
       sign_in_required: "Sign in to see the price.",
-      not_found: "This package does not exist.",
-      inactive: "The package is not on sale.",
+      not_found: "This item is not available.",
+      inactive: "This item is not on sale.",
       sales_not_open: "Sales have not started yet.",
       sales_closed: "Sales are closed.",
-      sold_out: "No packages left.",
+      sold_out: "No places left.",
       tier_required: "A higher membership tier is required.",
       audience_not_verified: "This rate needs the organiser to confirm your eligibility.",
       per_person_limit: "You already hold the maximum number of admissions of this kind.",
@@ -492,7 +548,15 @@ export const eventRegistrationEn = {
       coupon_other_ticket_type: "The code applies to another ticket type.",
       coupon_other_package: "The code applies to another package.",
       coupon_other_currency: "The code applies to another currency.",
-      unknown: "The package could not be priced. Please try again.",
+      ticket_included_in_plan:
+        "This admission is already included in your plan - there is nothing to pay. Claim it from your membership pool.",
+      event_finished: "The event has already taken place.",
+      access_code_invalid: "This admission requires a valid invitation code.",
+      account_required: "Sign in to complete the payment.",
+      registration_not_payable:
+        "This registration can no longer be paid - it is cancelled or already settled.",
+      payments_unavailable: "Payments are temporarily unavailable. Please try again later.",
+      unknown: "We could not price this. Please try again.",
     },
     errors: {
       forbidden: "Only the payer or the organiser may hand out seats.",

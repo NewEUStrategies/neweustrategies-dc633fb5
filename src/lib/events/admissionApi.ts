@@ -119,8 +119,77 @@ export function parseAdmissionQuote(value: Json | null): AdmissionQuote {
   };
 }
 
+/**
+ * Odmowy KASY BILETOWEJ, ktorych `event_admission_quote` NIE zna po nazwie.
+ *
+ * `ADMISSION_QUOTE_REASONS` odwzorowuje powody tej JEDNEJ funkcji bazy i nie
+ * wolno go rozszerzac o nazwy, ktorych ona nie zwraca - to samo rozumowanie,
+ * co przy parytecie stalych z ograniczeniami `CHECK` (`dbEnumParity.test.ts`).
+ * Kasa wejsciowki ma jednak wlasne odmowy, ktore padaja PO wycenie
+ * (`event_ticket_checkout_quote` i `createCheckoutOrder`), wiec stoja obok -
+ * w TYM SAMYM zbiorze nazw i pod tym samym skladaczem kluczy.
+ */
+export const TICKET_CHECKOUT_ONLY_REASONS = [
+  "ticket_included_in_plan",
+  "event_finished",
+  "access_code_invalid",
+  "account_required",
+  "registration_not_payable",
+  "payments_unavailable",
+] as const;
+export type TicketCheckoutOnlyReason = (typeof TICKET_CHECKOUT_ONLY_REASONS)[number];
+
+/** Powod odmowy kasy: wspolny z wycena wstepu albo wylacznie kasowy. */
+export type TicketCheckoutRefusal = AdmissionQuoteReason | TicketCheckoutOnlyReason | "unknown";
+
+/**
+ * Glowy komunikatow plpgsql i bledow serwera -> nazwa powodu.
+ *
+ * Kolejnosc MA ZNACZENIE: dopasowujemy pierwszy pasujacy prefiks, a
+ * `ticket_sales_not_open` jest wlasciwym prefiksem `ticket_sales_`, wiec musi
+ * stac przed ogolniejszymi wzorcami. Porownujemy PO PREFIKSIE, bo plpgsql
+ * dokłada do glowy dwukropek i zdanie po angielsku
+ * (`ticket_sold_out: no seats left`), a serwer aplikacji doklada wlasny sufiks
+ * (`registration_not_payable:event_mismatch`).
+ */
+const TICKET_CHECKOUT_REFUSALS: ReadonlyArray<readonly [string, TicketCheckoutRefusal]> = [
+  ["ticket_included_in_plan", "ticket_included_in_plan"],
+  ["registration_not_payable", "registration_not_payable"],
+  ["ticket_sales_not_open", "sales_not_open"],
+  ["ticket_sales_closed", "sales_closed"],
+  ["ticket_sold_out", "sold_out"],
+  ["sold_out", "sold_out"],
+  ["ticket_tier_required", "tier_required"],
+  ["ticket_access_code_invalid", "access_code_invalid"],
+  ["ticket_not_available", "not_found"],
+  ["event_finished", "event_finished"],
+  ["auth_required", "account_required"],
+  ["sign_in_required", "account_required"],
+  ["billing_unconfigured", "payments_unavailable"],
+  ["payments_not_configured", "payments_unavailable"],
+];
+
+/**
+ * Odmowa kasy wejsciowki wyprowadzona z bledu serwera albo bazy.
+ *
+ * Nieznany blad daje `"unknown"`, a nie zgadywanie: zdanie „nie udalo sie
+ * wycenic, sprobuj ponownie" jest jedyna odpowiedzia, ktora nie obiecuje
+ * kupujacemu czegos, czego nie sprawdzilismy.
+ */
+export function ticketCheckoutRefusal(error: unknown): TicketCheckoutRefusal {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const head = message.trim().toLowerCase();
+  if (head === "") return "unknown";
+  for (const [needle, reason] of TICKET_CHECKOUT_REFUSALS) {
+    if (head.startsWith(needle) || head.includes(`${needle}:`) || head.includes(` ${needle}`)) {
+      return reason;
+    }
+  }
+  return "unknown";
+}
+
 /** Klucz i18n zdania dla odmowy - jeden zbior nazw po obu stronach. */
-export function admissionQuoteMessageKey(reason: AdmissionQuoteReason | "unknown"): string {
+export function admissionQuoteMessageKey(reason: TicketCheckoutRefusal): string {
   return `eventPackages.quoteReasons.${reason}`;
 }
 
