@@ -124,7 +124,13 @@ skipped=0
 for f in $MIGRATIONS; do
   name="$(basename "$f")"
   [ -n "$PREFIX" ] && case "$name" in "$PREFIX"*) ;; *) continue ;; esac
-  if grep -q 'pg-harness: exclude' "$f"; then
+  # Znacznik jest DYREKTYWA, wiec musi stac jako wlasny komentarz na poczatku
+  # linii. Wzorzec swobodny lapal takze PROZE: w harnessie careers migracja
+  # opisujaca wlasne pominiecie cytowala w komentarzu ten sam znacznik, wiec
+  # zdjecie dyrektywy z pierwszej linii nic nie dawalo - plik dalej byl pomijany
+  # przez zdanie o tym, ze bywa pomijany. Tu ta pulapka jeszcze nie wystrzelila;
+  # zamykamy ja tym samym dopasowaniem, co w `scripts/careers-harness/run.sh`.
+  if grep -qE '^--[[:space:]]*pg-harness:[[:space:]]*exclude[[:space:]]*$' "$f"; then
     printf '  SKIP %s (znacznik pg-harness: exclude)\n' "$name"
     skipped=$((skipped + 1))
     continue

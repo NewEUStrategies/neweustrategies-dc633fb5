@@ -114,7 +114,14 @@ for f in $MIGRATIONS; do
   # ktorego nikt nie weryfikuje, a bramka przestaje mowic o modul careers.
   # Dlatego pominiecie jest JAWNE, opisane w samej migracji i WIDOCZNE w logu -
   # cicha zmiana selektora ukrylaby, ze plik nie przeszedl.
-  if grep -q 'careers-harness: exclude' "$f"; then
+  #
+  # DOPASOWANIE DO POCZATKU LINII, nie gdziekolwiek w pliku. Wzorzec swobodny
+  # (`grep -q 'careers-harness: exclude'`) trafial takze w PROZE komentarza:
+  # migracja 20260824074231 opisywala wlasne pominiecie zdaniem cytujacym ten
+  # znacznik, wiec zdjecie dyrektywy z pierwszej linii NIC nie zmienialo - plik
+  # dalej byl pomijany przez zdanie o tym, ze bywa pomijany. Znacznik jest
+  # DYREKTYWA, wiec musi stac jako wlasny komentarz na poczatku linii.
+  if grep -qE '^--[[:space:]]*careers-harness:[[:space:]]*exclude[[:space:]]*$' "$f"; then
     printf '  SKIP %s (znacznik careers-harness: exclude)\n' "$name"
     skipped=$((skipped + 1))
     continue
