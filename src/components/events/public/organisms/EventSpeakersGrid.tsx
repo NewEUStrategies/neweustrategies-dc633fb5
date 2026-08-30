@@ -153,7 +153,6 @@ export function EventSpeakersGridView({
   );
 }
 
-
 function SpeakerCard({
   speaker,
   lang,

@@ -11,13 +11,7 @@ export function parseIntentBullets(text: string): string[] {
     .slice(0, MAX_INTENT_BULLETS);
 }
 
-export function IntentBulletList({
-  text,
-  className,
-}: {
-  text: string;
-  className?: string;
-}) {
+export function IntentBulletList({ text, className }: { text: string; className?: string }) {
   const items = parseIntentBullets(text);
   if (items.length === 0) return null;
   return (

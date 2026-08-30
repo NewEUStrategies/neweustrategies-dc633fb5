@@ -68,6 +68,7 @@ import {
   MeetingBookingView,
   EventSponsorsView,
   CircularCarouselView,
+  TravelRouteCardView,
   // Podział po typie (2026-08-15): listingi, karty zdarzeń, billing, formularz
   // onboardingu, karuzela postępu i renderer HTML tekstu jadą w chunkach na
   // żądanie - entry chrome nie płaci już za komplet widgetów.
@@ -1176,6 +1177,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
 
     case "circular-carousel":
       return wrap(<CircularCarouselView c={c} lang={lang} />);
+
+    // Karta trasy. Widok sam rozpoznaje kanwę edytora (kontekst
+    // `BuilderModeProvider`), bo tylko tam polubienie nie ma prawa zapisać
+    // preferencji redaktora do `localStorage` przeglądarki.
+    case "travel-route-card":
+      return wrap(<TravelRouteCardView c={c} lang={lang} nodeId={node.id} />);
 
     case "cta": {
       const tKey = `title_${lang}`;

@@ -32,7 +32,6 @@ import { useLang } from "@/lib/i18n/useLang";
 
 import { QUIZ_PLATFORM_URL, QUIZ_EMBED_URL, QUIZ_TITLE } from "@/lib/quiz/platform";
 
-
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
   // a pod nim rozbudowany obszar z dużym iframe'em quizu oraz paskiem powrotu.

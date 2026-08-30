@@ -1264,6 +1264,40 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "travel-route-card",
+    label: "Karta trasy",
+    category: "blocks",
+    icon: MapPin,
+    defaults: () => ({
+      // Bez treści przykładowej: pusty tytuł/autor/dystans NIE renderuje
+      // swojego wiersza, więc świeżo wstawiona karta pokazuje samą płaszczyznę
+      // z nakładką - a nie zmyślone dane, które ktoś mógłby opublikować.
+      title_pl: "",
+      title_en: "",
+      author_pl: "",
+      author_en: "",
+      distance: "",
+      distanceCaption_pl: "",
+      distanceCaption_en: "",
+      image: "",
+      imageAlt_pl: "",
+      imageAlt_en: "",
+      href: "",
+      likes: 0,
+      showLikes: true,
+      // Puste = kolor marki (var(--brand)) / czerwień wzorca.
+      overlayColor: "",
+      likeAccentColor: "",
+      overlayAlpha: 0.6,
+      minHeight: 224,
+      radius: 6,
+      maxWidth: 448,
+      distanceSizePx: 96,
+      animate: true,
+      hoverLift: true,
+    }),
+  },
+  {
     type: "author-profile-card",
     label: "Karta profilu autora",
     category: "blocks",

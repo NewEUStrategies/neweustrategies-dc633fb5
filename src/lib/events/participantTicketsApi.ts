@@ -52,7 +52,9 @@ export interface ParticipantRegistration {
 type Bag = Record<string, unknown>;
 
 function bag(value: unknown): Bag | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Bag) : null;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Bag)
+    : null;
 }
 
 function text(source: Bag, key: string): string | null {

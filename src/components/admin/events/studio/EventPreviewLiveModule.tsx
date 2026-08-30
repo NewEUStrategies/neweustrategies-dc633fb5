@@ -63,9 +63,7 @@ function PreviewTracks({ tracks }: { tracks: readonly PreviewTrackChip[] }) {
           <li
             key={track.id}
             className="inline-flex items-center gap-2 rounded-[6px] border border-border bg-card px-3 py-1.5 text-sm"
-            style={
-              track.accentColor === null ? undefined : { borderColor: track.accentColor }
-            }
+            style={track.accentColor === null ? undefined : { borderColor: track.accentColor }}
           >
             <span
               aria-hidden="true"
@@ -101,7 +99,8 @@ function PreviewAgenda({ sessions }: { sessions: readonly AgendaSession[] }) {
   const lang = uiLang(i18n.language);
   const days = useMemo(() => groupAgendaByDay(sessions), [sessions]);
 
-  if (days.length === 0) return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyAgenda")} />;
+  if (days.length === 0)
+    return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyAgenda")} />;
 
   return (
     <div className="space-y-6">

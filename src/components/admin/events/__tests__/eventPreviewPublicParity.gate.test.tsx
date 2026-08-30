@@ -358,7 +358,6 @@ function filledModel(): EventPreviewModel {
         color: "",
         module: "speakers",
       },
-
     ],
   };
 }
@@ -426,7 +425,13 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
       <EventPreviewCanvas
         model={{
           ...filledModel(),
-          selectedPage: { key: null, module: null, label: "Program", path: "kongres/program", document: null },
+          selectedPage: {
+            key: null,
+            module: null,
+            label: "Program",
+            path: "kongres/program",
+            document: null,
+          },
         }}
         device="desktop"
       />,
@@ -444,7 +449,6 @@ describe("uklad strony wydarzenia ma JEDNO zrodlo rysunku", () => {
     expect(tabs.querySelectorAll("li")).toHaveLength(3);
     expect(screen.getByText("eventFront.header.tabs.overview")).toBeInTheDocument();
     expect(screen.getByText("eventMe.tab")).toBeInTheDocument();
-
   });
 
   // ── PARYTET WARUNKU, NIE TYLKO STRUKTURY ─────────────────────────────────
@@ -705,9 +709,7 @@ describe("podglad studia rysuje szkic prawdziwymi komponentami", () => {
 
   it("z `onNavigate` kafel podstrony oddaje jej identyfikator", () => {
     const onNavigate = vi.fn();
-    render(
-      <EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />,
-    );
+    render(<EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />);
     const targets = screen.getAllByRole("button", { name: "Prelegenci" });
     fireEvent.click(targets[targets.length - 1]!);
     expect(onNavigate).toHaveBeenCalledWith({ key: "m1", pageId: "p1" });
@@ -715,9 +717,7 @@ describe("podglad studia rysuje szkic prawdziwymi komponentami", () => {
 
   it("z `onNavigate` zakladka przegladu wraca na strone glowna", () => {
     const onNavigate = vi.fn();
-    render(
-      <EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />,
-    );
+    render(<EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: "eventFront.header.tabs.overview" }));
     expect(onNavigate).toHaveBeenCalledWith(null);
   });

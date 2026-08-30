@@ -23,7 +23,6 @@ interface EventProgramPanelProps {
   onOpenTrack?: (trackId: string | null) => void;
 }
 
-
 export function EventProgramPanel({
   eventId,
   timeZoneLabel,
@@ -61,5 +60,4 @@ export function EventProgramPanel({
       {!isWorkspace && <AgendaTimelinePanel eventId={eventId} timezone={timezone ?? null} />}
     </section>
   );
-
 }

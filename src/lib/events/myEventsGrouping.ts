@@ -45,10 +45,7 @@ export interface MyEventsGroups {
  * Nadchodzące rosnąco (najbliższe u góry), minione malejąco (ostatnie u góry) -
  * w obu przypadkach pierwsza pozycja to ta, o którą użytkownik pyta najczęściej.
  */
-export function groupMyEvents(
-  items: ParticipantRegistration[],
-  now: Date,
-): MyEventsGroups {
+export function groupMyEvents(items: ParticipantRegistration[], now: Date): MyEventsGroups {
   const upcoming: ParticipantRegistration[] = [];
   const current: ParticipantRegistration[] = [];
   const past: ParticipantRegistration[] = [];

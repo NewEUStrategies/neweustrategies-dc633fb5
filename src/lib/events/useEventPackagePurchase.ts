@@ -70,9 +70,7 @@ export function useAdmissionQuote(
   });
 }
 
-export function useMyPackageOrders(
-  enabled = true,
-): UseQueryResult<MyPackageOrderRow[], Error> {
+export function useMyPackageOrders(enabled = true): UseQueryResult<MyPackageOrderRow[], Error> {
   return useQuery({
     queryKey: admissionKeys.myOrders(),
     queryFn: fetchMyPackageOrders,

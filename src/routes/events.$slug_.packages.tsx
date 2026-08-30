@@ -20,8 +20,7 @@ export const Route = createFileRoute("/events/$slug_/packages")({
       { title: "Pakiety grupowe - New European Strategies" },
       {
         name: "description",
-        content:
-          "Kup pulę miejsc na wydarzenie dla zespołu lub delegacji i rozdaj je imiennie.",
+        content: "Kup pulę miejsc na wydarzenie dla zespołu lub delegacji i rozdaj je imiennie.",
       },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:type", content: "website" },
