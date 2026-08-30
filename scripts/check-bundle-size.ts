@@ -678,6 +678,43 @@ const CLIENT_DIR =
 //             tygodnie kodu dołożone przy bramce, która nie ruszyła ani razu -
 //             ale osobny dług i osobna robota.
 
+// 2026-08-30 VII  PIERWSZE ZŁAPANIE NOWEGO FLOORA - I TO PIĘĆ GODZIN PO JEGO
+//             POSTAWIENIU. Floor public 2711 -> 2715, overall 4302 -> 4306.
+//
+//             POMIAR (runner, przebieg 33324768989 / job `build`, głowa
+//             c2e1e35 - scalenie PR #307 „Kasa etapu 4 zapisu na wydarzenie"):
+//             941 plików, public 2714,3 KB, admin-only 1590,9 KB, overall
+//             4305,2 KB, największy chunk 271,4 KB. Wobec wpisu VI: +3,5 KB
+//             publicznego, +3,3 KB overall, +2 pliki. `chunk` znowu bez zmian.
+//
+//             PRZYCZYNA: warstwa słowników modułu Wydarzeń. Wiadro `i18n`
+//             urosło 330,1 -> 331,1 (PR #307 dołożył 28 linii do
+//             `src/lib/i18n-event-front.ts` i 80 do
+//             `src/lib/i18n-event-registration.ts`). To tłumaczy 1,0 z 3,5 KB;
+//             pozostałe 2,5 KB leży poza dwunastką ruchów, którą raport
+//             wypisuje - żadna pojedyncza pozycja nie przekroczyła progu
+//             raportowania. Ta gałąź nie dokłada ANI BAJTA kodu klienckiego,
+//             więc cały przyrost pochodzi ze scalonego maina.
+//
+//             DOWÓD NA ZASADĘ „FLOOR Z RUNNERA" (wpis V), najmocniejszy jaki
+//             padł: na tym samym drzewie HOST wypisał public 2701,7 i overall
+//             4298,1, czyli MIEŚCI SIĘ w progach 2711/4302 i świeci na zielono.
+//             Czerwony jest wyłącznie runner. Gdyby floor stawiać z hosta,
+//             bramka zgłaszałaby przekroczenie tylko w CI i nikt nie umiałby
+//             go odtworzyć lokalnie.
+//
+//             OBSERWACJA STRUKTURALNA, NIE ZMIANA ZASADY. Konwencja tej kroniki
+//             to floor NA ZMIERZONEJ WARTOŚCI plus ułamek na zaokrąglenie -
+//             zero zapasu, „próg schodzi za śladem". Konsekwencję widać teraz
+//             policzalnie: każde scalenie dokładające kilobajt kodu klienckiego
+//             zapala bramkę u tego, kto akurat trzyma próg, a nie u autora
+//             przyrostu. Minęło PIĘĆ GODZIN między wpisem VI a tym. Zero zapasu
+//             daje maksymalną czułość na dryf i to jest jego zaleta; kosztem
+//             jest czerwona bramka na każdym PR-ze po każdym scaleniu z treścią.
+//             Zapisane, żeby decyzja o ewentualnym marginesie (np. 0,5%) miała
+//             oparcie w liczbach, a nie w zmęczeniu. Do tej decyzji konwencja
+//             obowiązuje bez zmian i ten wpis się do niej stosuje.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -698,7 +735,10 @@ const FROZEN_BUDGET_KB = {
   // które weszły przy bramce NIEWYKONUJĄCEJ SIĘ ANI RAZU od 29.08. Host dał
   // tego dnia 2698,4, czyli o 12,4 KB MNIEJ - floor idzie z runnera (zasada
   // z wpisu V), plus ułamek na granicę zaokrąglenia (wpis IV).
-  public: 2711,
+  // Ratchet 2711 -> 2715 (wpis 2026-08-30 VII): scalenie PR #307 dołożyło
+  // 3,5 KB słowników modułu Wydarzeń. Runner 2714,3; host na tym samym
+  // drzewie 2701,7, czyli MIEŚCIŁ SIĘ w 2711 - czerwony był wyłącznie runner.
+  public: 2715,
   // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
   // (run 2397 i 2408, identycznie): 3892,0 przy 790 plikach.
   // Floor 3893, NIE 3892 - i to nie zapas, tylko granica zaokrąglenia.
@@ -713,7 +753,9 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 3894 -> 4302 (wpis 2026-08-30 VI): zmierzone NA RUNNERZE 4301,9
   // (przebieg 2756, job `build`), host 4295,0. Przyczyna rozpisana w kronice -
   // studio wydarzeń, sesje, skaner i słowniki, +407,9 KB od baseline'u z 15.08.
-  overall: 4302,
+  // Ratchet 4302 -> 4306 (wpis 2026-08-30 VII): runner 4305,2 po scaleniu
+  // PR #307 (941 plików zamiast 939); host na tym drzewie 4298,1.
+  overall: 4306,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
