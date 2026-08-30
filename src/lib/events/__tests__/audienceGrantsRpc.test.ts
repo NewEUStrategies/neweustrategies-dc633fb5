@@ -21,9 +21,11 @@
 //      poprawna odpowiedz, a nie awaria.
 //
 // PARA „MOZE / NIE MOZE" NA KAZDYM WEJSCIU. Obie funkcje czytajace stoja za
-// `assert_editor_tenant()`, wiec wolajacy bez roli redakcyjnej dostaje
-// `forbidden: editor role required`. Kazdy odczyt jest tu sprawdzony z obu
-// stron: co dostaje redakcja i co dostaje ktos bez roli.
+// `assert_editor_tenant()`, ktory od `20260824090000` deleguje do
+// `assert_event_admin_tenant()` - wiec wolajacy bez roli ADMINISTRACYJNEJ
+// (redaktor rowniez) dostaje `forbidden: admin role required`. Kazdy odczyt
+// jest tu sprawdzony z obu stron: co dostaje administracja i co dostaje ktos
+// bez tej roli.
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Funkcji czystych - maja wlasne pliki
 // (`audienceGrantsApi.test.ts`, `audienceGrantHistory.test.ts`). (2) Parytetu
@@ -53,7 +55,20 @@ const USER_ID = "33333333-3333-4333-8333-333333333333";
 const PERSON_ID = "44444444-4444-4444-8444-444444444444";
 const COMPANY_ID = "55555555-5555-4555-8555-555555555555";
 
-const ODMOWA_ROLI = "forbidden: editor role required";
+/**
+ * Odmowa, ktora te funkcje REALNIE oddaja.
+ *
+ * Wszystkie stoja za `assert_editor_tenant()`, ale ta oslona od migracji
+ * `20260824090000` jest CIENKIM ALIASEM - jej cale cialo to
+ * `SELECT public.assert_event_admin_tenant()`. Redaktora wiec ODRZUCA, a tekst
+ * odmowy pochodzi z wersji administracyjnej: `forbidden: admin role required`
+ * (dowod wykonawczy: `runtime_test.d/80_admin_only.sql`, punkty 4 i 5 -
+ * redaktor dostaje ta odmowe z aliasu I z wersji administracyjnej, a
+ * administrator przechodzi). Napis `editor role required` jest kopalina sprzed
+ * tamtej migracji i zadna funkcja tego podmodulu juz go nie podnosi; pilnuje
+ * tego bramka `termsGroupsAdminOnlyGate.test.ts`.
+ */
+const ODMOWA_ROLI = "forbidden: admin role required";
 
 /** Klucze czytane przez funkcje bazy (stan migracji 20260828162131). */
 const KONTRAKT: Record<string, readonly string[]> = {

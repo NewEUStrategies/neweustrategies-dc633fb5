@@ -8,9 +8,11 @@
 // bez uprawnien, ktore organizator wlasnie jej nadal.
 //
 // CO TEN PLIK DOWODZI.
-//   1. PARA „MOZE / NIE MOZE" NA KAZDYM ODCZYCIE I KAZDYM ZAPISIE. Redakcja
-//      dostaje wiersze, a wolajacy bez roli dostaje `forbidden: editor role
-//      required` z `assert_editor_tenant()`. Warstwa danych MUSI wtedy rzucic,
+//   1. PARA „MOZE / NIE MOZE" NA KAZDYM ODCZYCIE I KAZDYM ZAPISIE. Administracja
+//      dostaje wiersze, a wolajacy bez tej roli - redaktor takze - dostaje
+//      `forbidden: admin role required` z `assert_editor_tenant()`, ktory od
+//      `20260824090000` deleguje do wersji administracyjnej. Warstwa danych
+//      MUSI wtedy rzucic,
 //      a nie oddac pusta liste: „nie ma zadnych grup" po odmowie to nieprawda
 //      o stanie uprawnien, po ktorej ktos zaklada grupy drugi raz.
 //   2. KLUCZ POMINIETY TO NIE JEST KLUCZ PUSTY. SQL czyta `p_payload ? 'color'`
@@ -51,8 +53,20 @@ const GROUP_ID = "22222222-2222-4222-8222-222222222222";
 const TERM_ID = "33333333-3333-4333-8333-333333333333";
 const PERSON_ID = "44444444-4444-4444-8444-444444444444";
 
-/** Odmowa `assert_editor_tenant()` - dokladnie ta, ktora oddaje baza. */
-const ODMOWA_ROLI = "forbidden: editor role required";
+/**
+ * Odmowa, ktora te funkcje REALNIE oddaja.
+ *
+ * Wszystkie stoja za `assert_editor_tenant()`, ale ta oslona od migracji
+ * `20260824090000` jest CIENKIM ALIASEM - jej cale cialo to
+ * `SELECT public.assert_event_admin_tenant()`. Redaktora wiec ODRZUCA, a tekst
+ * odmowy pochodzi z wersji administracyjnej: `forbidden: admin role required`
+ * (dowod wykonawczy: `runtime_test.d/80_admin_only.sql`, punkty 4 i 5 -
+ * redaktor dostaje ta odmowe z aliasu I z wersji administracyjnej, a
+ * administrator przechodzi). Napis `editor role required` jest kopalina sprzed
+ * tamtej migracji i zadna funkcja tego podmodulu juz go nie podnosi; pilnuje
+ * tego bramka `termsGroupsAdminOnlyGate.test.ts`.
+ */
+const ODMOWA_ROLI = "forbidden: admin role required";
 
 /**
  * Klucze, ktore funkcje bazy REALNIE czytaja (stan migracji 20260824091615).
