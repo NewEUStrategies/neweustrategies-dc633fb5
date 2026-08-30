@@ -145,9 +145,7 @@ export async function saveEventTrack(input: EventTrackInput): Promise<string> {
 export type EventTrackSpeakerRow = Fns["admin_event_track_speakers"]["Returns"][number];
 
 /** Obsada calego pasma - kto wystepuje w sesjach sciezki i w ilu z nich. */
-export async function fetchEventTrackSpeakers(
-  trackId: string,
-): Promise<EventTrackSpeakerRow[]> {
+export async function fetchEventTrackSpeakers(trackId: string): Promise<EventTrackSpeakerRow[]> {
   const { data, error } = await supabase.rpc("admin_event_track_speakers", {
     p_track_id: trackId,
   });
@@ -372,8 +370,6 @@ export async function setSessionsTrack(input: SessionsTrackInput): Promise<numbe
   if (error) throw error;
   return Number(data ?? 0);
 }
-
-
 
 // ---------------------------------------------------------------------------
 // PRELEGENCI SESJI

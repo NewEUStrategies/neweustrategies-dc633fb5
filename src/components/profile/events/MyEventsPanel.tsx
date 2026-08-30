@@ -18,7 +18,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchMyRegistrations, type ParticipantRegistration } from "@/lib/events/participantTicketsApi";
+import {
+  fetchMyRegistrations,
+  type ParticipantRegistration,
+} from "@/lib/events/participantTicketsApi";
 import { awaitsPayment, groupMyEvents } from "@/lib/events/myEventsGrouping";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n } from "@/lib/i18n-cart";
@@ -98,10 +101,7 @@ function Group({ items, emptyLabel }: { items: ParticipantRegistration[]; emptyL
 export function MyEventsPanel() {
   const { t } = useTranslation();
   const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchMyRegistrations });
-  const groups = useMemo(
-    () => groupMyEvents(query.data ?? [], new Date()),
-    [query.data],
-  );
+  const groups = useMemo(() => groupMyEvents(query.data ?? [], new Date()), [query.data]);
 
   return (
     <div className="space-y-6">
@@ -127,7 +127,10 @@ export function MyEventsPanel() {
         // Trzy koszyki kalendarza: nadchodzące, bieżące (trwają teraz) i przeszłe.
         // Domyślnie otwieramy „bieżące", gdy coś właśnie trwa - to jedyny moment,
         // w którym uczestnik ma pilną sprawę (wejście, agenda, QR).
-        <Tabs defaultValue={groups.current.length > 0 ? "current" : "upcoming"} className="space-y-4">
+        <Tabs
+          defaultValue={groups.current.length > 0 ? "current" : "upcoming"}
+          className="space-y-4"
+        >
           <TabsList>
             <TabsTrigger value="upcoming">{t("myEvents.tabs.upcoming")}</TabsTrigger>
             <TabsTrigger value="current">{t("myEvents.tabs.current")}</TabsTrigger>
@@ -146,10 +149,7 @@ export function MyEventsPanel() {
       )}
 
       <p className="text-sm">
-        <Link
-          to="/profile/tickets"
-          className="text-primary underline-offset-2 hover:underline"
-        >
+        <Link to="/profile/tickets" className="text-primary underline-offset-2 hover:underline">
           {t("myEvents.manageTickets")}
         </Link>
       </p>

@@ -463,10 +463,10 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   event_ticket_refunded: {
-    subject: (v) =>
-      `Zwrot za bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) => `Zwrot za bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "info",
-    preview: "Zwr\u00f3cili\u015bmy p\u0142atno\u015b\u0107 za bilet, a udzia\u0142 zosta\u0142 anulowany.",
+    preview:
+      "Zwr\u00f3cili\u015bmy p\u0142atno\u015b\u0107 za bilet, a udzia\u0142 zosta\u0142 anulowany.",
     eyebrow: "Wydarzenie",
     heading: "Bilet anulowany, p\u0142atno\u015b\u0107 zwr\u00f3cona",
     intro:
@@ -872,7 +872,8 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   event_ticket_refunded: {
-    subject: (v) => `Ticket refunded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `Ticket refunded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "info",
     preview: "We refunded your ticket and released the seat.",
     eyebrow: "Event",

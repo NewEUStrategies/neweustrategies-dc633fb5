@@ -121,6 +121,7 @@ export function WidgetLibrary({
     testimonial: "content",
     "team-member": "content",
     "author-profile-card": "content",
+    "travel-route-card": "content",
     "dark-featured-card": "content",
     "rated-list": "content",
     pricing: "marketing",

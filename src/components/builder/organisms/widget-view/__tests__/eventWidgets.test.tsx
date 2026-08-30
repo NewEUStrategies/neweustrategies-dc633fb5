@@ -487,7 +487,6 @@ describe("SpeakersWidget - data sources", () => {
     expect(screen.getByText("Kancelaria Brukselska")).toBeInTheDocument();
   });
 
-
   it("row without a company renders no empty affiliation line", async () => {
     db.rpc.get_public_speakers = [speakerRpcRow({ company: null })];
     const { container } = renderWithClient(

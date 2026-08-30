@@ -212,8 +212,6 @@ export function useSetSessionsTrack(
   });
 }
 
-
-
 export function useSaveEventTrack(
   eventId: string,
 ): UseMutationResult<string, Error, EventTrackInput> {

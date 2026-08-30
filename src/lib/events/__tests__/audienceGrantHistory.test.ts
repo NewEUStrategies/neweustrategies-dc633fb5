@@ -19,12 +19,7 @@ describe("audienceGrantAction", () => {
   });
 
   it("keeps the catalogue in sync with the badge mapping", () => {
-    expect([...AUDIENCE_GRANT_ACTIONS]).toEqual([
-      "granted",
-      "updated",
-      "revoked",
-      "restored",
-    ]);
+    expect([...AUDIENCE_GRANT_ACTIONS]).toEqual(["granted", "updated", "revoked", "restored"]);
   });
 });
 

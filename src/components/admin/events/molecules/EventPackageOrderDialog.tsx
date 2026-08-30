@@ -46,9 +46,7 @@ function intOrNull(value: string): number | null {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
-export function orderDraftIssue(
-  draft: OrderDraft,
-): { field: OrderField; errorKey: string } | null {
+export function orderDraftIssue(draft: OrderDraft): { field: OrderField; errorKey: string } | null {
   if (!EMAIL_PATTERN.test(draft.buyerEmail.trim())) {
     return { field: "buyerEmail", errorKey: "packageOrderBuyerEmail" };
   }

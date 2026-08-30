@@ -70,7 +70,6 @@ type PreviewNavTarget = {
   module: string | null;
 };
 
-
 export function EventStudioPreview({
   open,
   onOpenChange,
@@ -175,8 +174,6 @@ export function EventStudioPreview({
     }),
     [sessionsQ.data, tracksQ.data, speakersQ.data, registrationsQ.data, base.timezone],
   );
-
-
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":
   // ostatnia decyzja nalezy do tego, kto wlasnie klika. Dopoki dokument leci

@@ -77,11 +77,7 @@ export async function acceptPackageInvite(
   if (input.jobTitle !== undefined && input.jobTitle !== null && input.jobTitle !== "") {
     payload.job_title = input.jobTitle;
   }
-  if (
-    input.companyText !== undefined &&
-    input.companyText !== null &&
-    input.companyText !== ""
-  ) {
+  if (input.companyText !== undefined && input.companyText !== null && input.companyText !== "") {
     payload.company_text = input.companyText;
   }
 

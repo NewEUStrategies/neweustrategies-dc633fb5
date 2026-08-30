@@ -75,7 +75,8 @@ export const adminEventAgendaPl = {
       sessionTerm: "Sesja",
       sessionDetail: "Jeden punkt programu: tytuł, godziny, sala, prelegenci, zapisy.",
       trackTerm: "Ścieżka",
-      trackDetail: "Etykieta tematyczna grupująca sesje. Nie ma godzin ani sali - nadaje kolor i filtr.",
+      trackDetail:
+        "Etykieta tematyczna grupująca sesje. Nie ma godzin ani sali - nadaje kolor i filtr.",
       roomTerm: "Sala",
       roomDetail: "Miejsce, w którym odbywa się sesja. Po sali liczone są kolizje terminów.",
       noTrackColumn: "Bez ścieżki",
@@ -245,12 +246,10 @@ export const adminEventAgendaPl = {
         no: "Nie",
         details: {
           asideTitle: "Podstawy",
-          asideLead:
-            "Nazwa, grafika i opis pasma, które uczestnik zobaczy w agendzie wydarzenia.",
+          asideLead: "Nazwa, grafika i opis pasma, które uczestnik zobaczy w agendzie wydarzenia.",
           editAction: "Edytuj ścieżkę",
           cover: "Grafika nagłówka",
-          coverHint:
-            "Obraz w proporcji 16:9, najlepiej 1920x1080 px i nie większy niż 1 MB.",
+          coverHint: "Obraz w proporcji 16:9, najlepiej 1920x1080 px i nie większy niż 1 MB.",
           coverEmpty: "Brak grafiki - pasmo pokaże sam kolor akcentu.",
           nameField: "Nazwa ścieżki",
           taglineField: "Zdanie wprowadzające",
@@ -296,8 +295,7 @@ export const adminEventAgendaPl = {
         },
         attendees: {
           asideTitle: "Uczestnicy",
-          asideLead:
-            "Zgłoszenia wydarzenia - stąd dobierasz osoby na sesje zamknięte tego pasma.",
+          asideLead: "Zgłoszenia wydarzenia - stąd dobierasz osoby na sesje zamknięte tego pasma.",
           searchPlaceholder: "Szukaj uczestników",
           loading: "Wczytywanie uczestników…",
           empty: "Brak zgłoszeń pasujących do wyszukiwania.",
@@ -420,7 +418,6 @@ export const adminEventAgendaPl = {
     },
 
     conflicts: {
-
       title: "Kolizje agendy",
       subtitle:
         "Raport liczony z danych na żywo. Kolizja sali tu nie występuje - baza jej nie dopuszcza.",
@@ -537,7 +534,8 @@ export const adminEventAgendaEn = {
       sessionTerm: "Session",
       sessionDetail: "One programme item: title, times, room, speakers, signups.",
       trackTerm: "Track",
-      trackDetail: "A thematic label grouping sessions. It has no time or room - it gives colour and a filter.",
+      trackDetail:
+        "A thematic label grouping sessions. It has no time or room - it gives colour and a filter.",
       roomTerm: "Room",
       roomDetail: "The place where a session happens. Scheduling clashes are counted per room.",
       noTrackColumn: "No track",
@@ -635,7 +633,7 @@ export const adminEventAgendaEn = {
       link: {
         title: "Link sessions to the track",
         description:
-          "Tick the sessions that belong to the \"{{track}}\" track. A session has exactly one track - ticking it here removes it from the previous one.",
+          'Tick the sessions that belong to the "{{track}}" track. A session has exactly one track - ticking it here removes it from the previous one.',
         movesFrom: "Now: {{track}}",
         summary: "To attach: {{attach}} · to detach: {{detach}}",
         saved: "Linked sessions: {{count}}",
@@ -746,8 +744,7 @@ export const adminEventAgendaEn = {
         },
         exhibitors: {
           asideTitle: "Exhibitors",
-          asideLead:
-            "Event partners and exhibitors you can link to the sessions in this strand.",
+          asideLead: "Event partners and exhibitors you can link to the sessions in this strand.",
           searchPlaceholder: "Search among exhibitors",
           loading: "Loading exhibitors…",
           empty: "The event has no exhibitors yet.",
@@ -882,7 +879,6 @@ export const adminEventAgendaEn = {
     },
 
     conflicts: {
-
       title: "Agenda conflicts",
       subtitle:
         "A report computed from live data. A room clash does not appear here - the database does not allow it.",
