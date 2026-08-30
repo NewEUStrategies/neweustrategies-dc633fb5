@@ -160,3 +160,27 @@ describe("alias `assert_editor_tenant` nadal deleguje do wersji administracyjnej
     expect(BODIES.get("assert_event_admin_tenant") ?? "").toMatch(/is_super_admin/);
   });
 });
+
+describe("kopalina `editor role required` nie wraca do tego podmodulu", () => {
+  // NAPIS `forbidden: editor role required` pochodzi sprzed migracji
+  // `20260824090000` i az do dzis siedzi w atrapach kilku plikow testowych jako
+  // „odmowa, ktora oddaje baza". OD TAMTEJ MIGRACJI JUZ JEJ NIE ODDAJE: alias
+  // nie podnosi wlasnego wyjatku, tylko przepuszcza ten z wersji
+  // administracyjnej. Ta asercja pilnuje, zeby napis nie wrocil do cial funkcji
+  // podmodulu - bo jego powrot znaczylby, ze ktos przywrocil oslone redakcyjna.
+  it.each(WOLANE)("`%s` nie podnosi odmowy o roli redakcyjnej", (name) => {
+    expect(BODIES.get(name) ?? "").not.toMatch(/editor role required/);
+  });
+
+  // PARA NA SAMYM NAPISIE. Tekst `editor role required` NIE ZNIKNAL z bazy -
+  // przeniosl sie do oslony STAFFA, ktora wpuszcza admina ALBO redaktora i
+  // odmawia dopiero komus bez zadnej z tych rol. To jest wlasnie miejsce, w
+  // ktorym on ma stac, i miara tego, ze asercja wyzej nie jest pusta: napis
+  // istnieje, czytnik go widzi, a mimo to nie ma go w oslonie administracyjnej
+  // ani w aliasie, przez ktory chodzi caly ten podmodul.
+  it("napis nalezy do oslony STAFFA, a nie do administracyjnej ani do aliasu", () => {
+    expect(BODIES.get("assert_event_staff_tenant") ?? "").toMatch(/editor role required/);
+    expect(BODIES.get("assert_event_admin_tenant") ?? "").not.toMatch(/editor role required/);
+    expect(BODIES.get("assert_editor_tenant") ?? "").not.toMatch(/editor role required/);
+  });
+});
