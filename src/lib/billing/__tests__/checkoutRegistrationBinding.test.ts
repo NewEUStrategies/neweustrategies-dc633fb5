@@ -209,7 +209,9 @@ describe("createCheckoutOrder - odmowy wskazania zgłoszenia", () => {
   });
 
   it("zgłoszenie na INNĄ wejściówkę jest odrzucone", async () => {
-    state.paymentContext = paymentContext({ ticket_type_id: "44444444-4444-4444-4444-444444444444" });
+    state.paymentContext = paymentContext({
+      ticket_type_id: "44444444-4444-4444-4444-444444444444",
+    });
 
     await expect(callServerFn(createCheckoutOrder, payload(), context())).rejects.toThrow(
       "registration_not_payable:ticket_mismatch",

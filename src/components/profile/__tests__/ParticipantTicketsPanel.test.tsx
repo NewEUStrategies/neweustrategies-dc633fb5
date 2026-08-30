@@ -70,8 +70,7 @@ vi.mock("@/lib/events/participantTicketsApi", () => ({
 }));
 
 const { toast } = await import("sonner");
-const { ParticipantTicketsPanel } =
-  await import("@/components/profile/ParticipantTicketsPanel");
+const { ParticipantTicketsPanel } = await import("@/components/profile/ParticipantTicketsPanel");
 
 const REGISTRATION_ID = "11111111-1111-1111-1111-111111111111";
 const EVENT_ID = "22222222-2222-2222-2222-222222222222";
@@ -111,7 +110,11 @@ function registration(over: Partial<ParticipantRegistration> = {}): ParticipantR
 beforeEach(() => {
   vi.clearAllMocks();
   fetchRegistrations.mockResolvedValue([registration()]);
-  setChannels.mockResolvedValue({ registrationId: REGISTRATION_ID, notifyEmail: true, notifySms: true });
+  setChannels.mockResolvedValue({
+    registrationId: REGISTRATION_ID,
+    notifyEmail: true,
+    notifySms: true,
+  });
 });
 
 describe("ParticipantTicketsPanel - powrót do kasy", () => {
@@ -121,14 +124,18 @@ describe("ParticipantTicketsPanel - powrót do kasy", () => {
     expect(
       await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("eventRegistration.payment.amountDue(amount=150,00 zł)")).toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
+    ).toBeInTheDocument();
   });
 
   it("klik niesie KOMPLET identyfikatorów z wiersza karty", async () => {
     checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_5" });
     renderWithQueryClient(<ParticipantTicketsPanel />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "eventRegistration.payment.resume" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
+    );
 
     await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
     const payload = checkout.mock.calls[0]?.[0] as { data: Record<string, unknown> };
@@ -161,9 +168,7 @@ describe("ParticipantTicketsPanel - powrót do kasy", () => {
       renderWithQueryClient(<ParticipantTicketsPanel />);
 
       expect(await screen.findByText("Kongres CEE 2026")).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "eventRegistration.payment.resume" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
     });
   }
 });

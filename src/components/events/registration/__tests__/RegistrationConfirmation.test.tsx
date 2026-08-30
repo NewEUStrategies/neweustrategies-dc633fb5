@@ -133,9 +133,7 @@ describe("RegistrationConfirmation - stan oczekiwania na wpłatę", () => {
     // Kwota liczona przez `Intl`, nie przez słownik - stąd dosłowna asercja.
     // Pada DOKŁADNIE RAZ: molekuła kasy jej nie powtarza.
     expect(screen.getAllByText(/150,00/)).toHaveLength(1);
-    expect(
-      screen.getByText("eventRegistration.result.paymentNoTicketYet"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.result.paymentNoTicketYet")).toBeInTheDocument();
   });
 
   it("bez kwoty mówi ogólnie, a nie „0,00 zł”", () => {
@@ -235,7 +233,10 @@ describe("RegistrationConfirmation - odmowy wyceny", () => {
     ["ticket_sold_out: no seats left", "eventPackages.quoteReasons.sold_out"],
     ["ticket_sales_closed: sales are closed", "eventPackages.quoteReasons.sales_closed"],
     ["ticket_sales_not_open", "eventPackages.quoteReasons.sales_not_open"],
-    ["registration_not_payable:event_mismatch", "eventPackages.quoteReasons.registration_not_payable"],
+    [
+      "registration_not_payable:event_mismatch",
+      "eventPackages.quoteReasons.registration_not_payable",
+    ],
     ["cos_zupelnie_innego", "eventPackages.quoteReasons.unknown"],
   ];
 
@@ -284,12 +285,8 @@ describe("RegistrationConfirmation - gość bez konta", () => {
   it("dostaje POWÓD i odnośnik do logowania zamiast martwego przycisku", () => {
     renderConfirmation();
 
-    expect(
-      screen.getByText("eventRegistration.payment.accountRequiredTitle"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("eventRegistration.payment.accountRequiredBody"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.payment.accountRequiredTitle")).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.payment.accountRequiredBody")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.payment.payNow")).not.toBeInTheDocument();
     expect(screen.getByText("eventRegistration.payment.signIn").closest("a")).toHaveAttribute(
       "href",

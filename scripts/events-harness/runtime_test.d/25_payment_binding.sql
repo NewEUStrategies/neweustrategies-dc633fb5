@@ -55,6 +55,11 @@ INSERT INTO auth.users (id, email) VALUES
   ('d5000000-0000-0000-0000-000000000004', 'pay.four@example.org'),
   ('d5000000-0000-0000-0000-000000000005', 'pay.five@example.org'),
   ('d5000000-0000-0000-0000-000000000006', 'pay.six@example.org'),
+  -- Siodme konto istnieje TYLKO po to, zeby zamowienie o zlym ksztalcie
+  -- `registration_id` nie mialo w kartotece ZADNEGO zgloszenia. Bez tego
+  -- spadalo ono na sciezke zapasowa i ksiegowalo cudzy wiersz, a asercja
+  -- o sciezce zapasowej mierzyla juz inny stan swiata niz opisuje.
+  ('d5000000-0000-0000-0000-000000000007', 'pay.seven@example.org'),
   ('d5000000-0000-0000-0000-0000000000e1', 'pay.alien@example.org')
 ON CONFLICT (id) DO NOTHING;
 
@@ -115,6 +120,8 @@ VALUES
    'd5000000-0000-0000-0000-000000000005', 'pay.five@example.org', 'Ewa', 'Piata'),
   ('d3000000-0000-0000-0000-000000000006', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
    'd5000000-0000-0000-0000-000000000006', 'pay.six@example.org', 'Filip', 'Szosty'),
+  ('d3000000-0000-0000-0000-000000000007', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+   'd5000000-0000-0000-0000-000000000007', 'pay.seven@example.org', 'Gaja', 'Siodma'),
   ('e3000000-0000-0000-0000-000000000001', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
    'd5000000-0000-0000-0000-0000000000e1', 'pay.alien@example.org', 'Obcy', 'Najemca');
 
@@ -225,10 +232,18 @@ VALUES
    jsonb_build_object('event_id','d1000000-0000-0000-0000-000000000001',
                       'ticket_type_id','d2000000-0000-0000-0000-000000000001',
                       'registration_id','e4000000-0000-0000-0000-000000000001')),
+  -- O11: DRUGIE zamowienie na to samo zgloszenie co O1 (dwie zakladki, powrot
+  -- po zamknieciu nakladki). Zgloszenie nie jest wiazane z zamowieniem w chwili
+  -- jego zalozenia, wiec taka para powstaje bez zadnego bledu po drodze.
+  ('d6000000-0000-0000-0000-000000000011', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+   'd5000000-0000-0000-0000-000000000001', 'paid', 30000, 'PLN',
+   jsonb_build_object('event_id','d1000000-0000-0000-0000-000000000001',
+                      'ticket_type_id','d2000000-0000-0000-0000-000000000001',
+                      'registration_id','d4000000-0000-0000-0000-000000000001')),
   -- O10: `registration_id` o ZLYM KSZTALCIE. Rzutowanie bez regexu podnosiloby
   -- 22P02 i wywracalo ksiegowanie wplaty, ktora u operatora JUZ przeszla.
   ('d6000000-0000-0000-0000-000000000010', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
-   'd5000000-0000-0000-0000-000000000003', 'paid', 30000, 'PLN',
+   'd5000000-0000-0000-0000-000000000007', 'paid', 30000, 'PLN',
    jsonb_build_object('event_id','d1000000-0000-0000-0000-000000000001',
                       'ticket_type_id','d2000000-0000-0000-0000-000000000001',
                       'registration_id','to-nie-jest-uuid'));
@@ -300,6 +315,20 @@ BEGIN
     = 'd6000000-0000-0000-0000-000000000001',
     'rozdzielnosc: pierwsze zgloszenie nadal wskazuje SWOJE zamowienie');
 
+  -- KOD QR NIE POWSTAJE DLA WIERSZA ODWOLANEGO (naprawa 20260830110000).
+  -- `event_checkin_record` odszukuje zgloszenie WYLACZNIE po `qr_token_hash`
+  -- i NIE SPRAWDZA statusu, wiec kod wydany odwolanemu zapisowi WPUSZCZALBY
+  -- przy bramce kogos, kto sam odwolal udzial.
+  PERFORM pg_temp.assert(
+    (SELECT qr_token_hash IS NULL FROM public.event_registrations
+      WHERE id = 'd4000000-0000-0000-0000-000000000002'),
+    'rozdzielnosc: odwolane zgloszenie NIE dostaje kodu QR mimo zaksiegowanej wplaty');
+  -- Kontrapunkt: wiersz, ktory NAPRAWDE jest wpuszczany, kod dostaje.
+  PERFORM pg_temp.assert(
+    (SELECT qr_token_hash IS NOT NULL FROM public.event_registrations
+      WHERE id = 'd4000000-0000-0000-0000-000000000001'),
+    'rozdzielnosc: przyjete zgloszenie kod QR MA - bramka nie zabiera go wszystkim');
+
   -- REGRESJA NA NAPRAWE Z 2026-08-30. Cialo sprzed niej czyscilo `cancelled_at`
   -- BEZWARUNKOWO, a status flipuje sie tylko z `draft/pending/waitlist`.
   -- Wplata na zgloszenie odwolane zostawiala wiec `status = 'cancelled'`
@@ -310,6 +339,53 @@ BEGIN
     (SELECT cancelled_at IS NOT NULL FROM public.event_registrations
       WHERE id = 'd4000000-0000-0000-0000-000000000002'),
     'rozdzielnosc: odwolane zgloszenie ZACHOWUJE date odwolania (inaczej wplata wywraca funkcje)');
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 2b) DWA ZAMOWIENIA NA JEDNO ZGLOSZENIE
+--
+-- Zgloszenie NIE JEST wiazane z zamowieniem w chwili jego zalozenia -
+-- `payment_order_id` ustawia dopiero funkcja ksiegujaca. Kupujacy moze wiec
+-- oplacic DWA zamowienia na ten sam wiersz. Cialo sprzed 20260830110000
+-- przyjmowalo oba i nadpisywalo `payment_order_id`, a pozniejszy zwrot
+-- DOWOLNEGO z nich odwolywal zapis - mimo ze druga wplata byla wazna.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := public.payments_apply_event_ticket_outcome(
+    'd6000000-0000-0000-0000-000000000011', 'paid');
+
+  PERFORM pg_temp.assert((v->>'applied')::boolean = false,
+    'konflikt: druga wplata na to samo zgloszenie NIE jest ksiegowana');
+  PERFORM pg_temp.assert(v->>'reason' = 'already_settled_by_another_order',
+    'konflikt: powod nazywa problem, wiec organizator wie, co zwrocic');
+  PERFORM pg_temp.assert(
+    (SELECT payment_order_id FROM public.event_registrations
+      WHERE id = 'd4000000-0000-0000-0000-000000000001')
+    = 'd6000000-0000-0000-0000-000000000001',
+    'konflikt: zgloszenie NADAL wskazuje zamowienie, ktore je oplacilo');
+
+  -- Ponowne doreczenie TEGO SAMEGO zamowienia musi przechodzic - inaczej
+  -- naprawa zabilaby idempotencje webhooka.
+  v := public.payments_apply_event_ticket_outcome(
+    'd6000000-0000-0000-0000-000000000001', 'paid');
+  PERFORM pg_temp.assert((v->>'applied')::boolean = true,
+    'konflikt: powtorne doreczenie TEGO SAMEGO zamowienia nadal przechodzi');
+
+  -- Zwrot NADLICZBOWEJ wplaty nie moze odwolac poprawnie oplaconego zapisu.
+  v := public.payments_apply_event_ticket_outcome(
+    'd6000000-0000-0000-0000-000000000011', 'refunded');
+  PERFORM pg_temp.assert(v->>'reason' = 'refund_for_other_order',
+    'konflikt: zwrot z CUDZEGO zamowienia nie odwoluje zapisu');
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_registrations
+      WHERE id = 'd4000000-0000-0000-0000-000000000001') = 'approved',
+    'konflikt: zapis oplacony pierwszym zamowieniem ZOSTAJE przyjety');
+  PERFORM pg_temp.assert(
+    (SELECT payment_status FROM public.event_registrations
+      WHERE id = 'd4000000-0000-0000-0000-000000000001') = 'paid',
+    'konflikt: os pieniedzy tez zostaje - to wplata drugiego zamowienia wraca, nie ta');
 END $$;
 
 -- ---------------------------------------------------------------------------

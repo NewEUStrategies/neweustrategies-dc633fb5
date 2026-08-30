@@ -405,7 +405,9 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_9" });
     renderPanel();
 
-    fireEvent.click(await screen.findByRole("button", { name: "eventRegistration.payment.resume" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
+    );
 
     await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
     const payload = checkout.mock.calls[0]?.[0] as { data: Record<string, unknown> };
@@ -417,15 +419,11 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
   });
 
   it("zapłacone zgłoszenie NIE pokazuje kasy drugi raz", async () => {
-    manageView.mockResolvedValue(
-      manageState({ status: "approved", paymentStatus: "paid" }),
-    );
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
     renderPanel();
 
     expect(await screen.findByText("eventFront.manage.paymentPaid")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "eventRegistration.payment.resume" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
   });
 
   it("odwołane zgłoszenie nie prowadzi do kasy, choć zostało nieopłacone", async () => {
@@ -433,9 +431,7 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     renderPanel();
 
     expect(await screen.findByText("eventFront.manage.stateCancelled")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "eventRegistration.payment.resume" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
   });
 
   it("zgłoszenie CUDZEGO konta dostaje zdanie, a nie przycisk pod odmowę", async () => {
@@ -443,9 +439,7 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     renderPanel();
 
     expect(await screen.findByText("eventRegistration.payment.notOwnerBody")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "eventRegistration.payment.resume" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
   });
 
   it("nieznany klucz nazywa problem, a nie pokazuje pustej ramki", async () => {

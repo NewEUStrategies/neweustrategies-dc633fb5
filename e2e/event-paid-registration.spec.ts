@@ -135,17 +135,32 @@ async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Ca
   await page.route("**/_serverFn/**", async (route) => {
     const request = route.request();
     calls.serverFn.push({ url: request.url(), body: request.postData() ?? "" });
-    await json(route, { result: { ok: true, mode: "mock", url: "/checkout/success", orderId: "o-1" } });
+    await json(route, {
+      result: { ok: true, mode: "mock", url: "/checkout/success", orderId: "o-1" },
+    });
   });
 
   return calls;
 }
 
-/** Sesja w localStorage - jedyny sposób na „zalogowanego" bez prawdziwej bazy. */
+/**
+ * Sesja bez prawdziwej bazy - JEDYNY sposób na „zalogowanego" w tym środowisku.
+ *
+ * KLUCZ SESJI ZALEŻY OD PROJEKTU, KTÓREGO TEN TEST NIE ZNA. supabase-js trzyma
+ * ją pod `sb-<ref>-auth-token`, gdzie `<ref>` pochodzi z adresu projektu -
+ * a ten jest inny lokalnie, inny w CI z zaślepką i inny w CI z sekretem.
+ * Wpisanie klucza na sztywno działało lokalnie i CICHO NIE DZIAŁAŁO w CI:
+ * odczyt trafiał w pustkę, ekran pokazywał gościowi wymóg konta, a test padał
+ * na braku przycisku kasy (sprawdzone na przebiegu CI, nie założone).
+ *
+ * Dlatego przechwytujemy ODCZYT, a nie zapis: każdy klucz o kształcie
+ * `sb-<cokolwiek>-auth-token` oddaje tę samą sesję, niezależnie od projektu.
+ * Zapis zostaje natywny - nic w teście go nie potrzebuje.
+ */
 async function signIn(page: Page): Promise<void> {
   await page.addInitScript(
     ({ userId }: { userId: string }) => {
-      const session = {
+      const session = JSON.stringify({
         access_token: "e2e-access-token",
         token_type: "bearer",
         expires_in: 3600,
@@ -160,13 +175,12 @@ async function signIn(page: Page): Promise<void> {
           user_metadata: {},
           created_at: "2026-01-01T00:00:00.000Z",
         },
+      });
+      const nativeGetItem = window.Storage.prototype.getItem;
+      window.Storage.prototype.getItem = function patched(key: string): string | null {
+        if (/^sb-.+-auth-token$/.test(key)) return session;
+        return nativeGetItem.call(this, key);
       };
-      for (const key of Object.keys(window.localStorage)) {
-        if (key.startsWith("sb-") && key.endsWith("-auth-token")) window.localStorage.removeItem(key);
-      }
-      // Klucz zależy od identyfikatora projektu, którego test nie zna - kładziemy
-      // wpis pod każdym kształtem, jaki supabase-js czyta na tym hoście.
-      window.localStorage.setItem("sb-your-project-ref-auth-token", JSON.stringify(session));
     },
     { userId: USER_ID },
   );

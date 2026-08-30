@@ -246,9 +246,7 @@ describe("platna wejsciowka a konto", () => {
     fetchForm.mockResolvedValue(openForm({ tickets: [paidTicket()] } as never));
     renderForm();
 
-    expect(
-      await screen.findByText("eventRegistration.payment.accountRequiredTitle"),
-    ).toBeTruthy();
+    expect(await screen.findByText("eventRegistration.payment.accountRequiredTitle")).toBeTruthy();
     expect(screen.getByText("eventRegistration.payment.accountRequiredBody")).toBeTruthy();
   });
 
