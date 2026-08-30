@@ -18,6 +18,13 @@
     "20260826181500_event_default_module_pages.sql": "20260827065451",
     "20260826182500_event_attendees_and_discussions.sql": "20260827065944",
     "20260827130000_event_sections_real_content_sources.sql": "20260827130000",
-    "20260827150000_event_speakers_public_bio_gate.sql": "20260827154053"
+    "20260827150000_event_speakers_public_bio_gate.sql": "20260827154053",
+    "20260828203000_event_session_access_tier_gate.sql": "20260829071657",
+    "20260828204000_event_registration_form_consents.sql": "20260829071657",
+    "20260828205000_domain_events_multi_segment_type.sql": "20260829071657",
+    "20260828206000_event_register_paid_ticket_gate.sql": "20260829071947",
+    "20260828207000_event_registration_payment_settlement.sql": "20260829071947",
+    "20260829220000_footer_social_profile_urls.sql": "20260830093353",
+    "20260829221500_event_sections_materials_content_source.sql": "20260830093427"
   }
 }

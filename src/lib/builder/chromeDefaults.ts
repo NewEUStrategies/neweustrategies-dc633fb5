@@ -84,13 +84,22 @@ const defaultHeaderDoc = (): BuilderDocument =>
                 title_en: "Newsletter",
                 variant: "link",
               }),
+              // PUSTE ADRESY, A NIE `"#"`. Zaślepka `"#"` jest dla widgetu
+              // adresem PRAWDZIWYM (`active = !!href`), więc świeży tenant
+              // dostawał sześć ikon otwierających w nowej karcie tę samą
+              // stronę - ten sam gatunek usterki, co stopka prowadząca na
+              // strony główne serwisów. Pusty klucz znaczy „nie ustawiono",
+              // a `showEmpty: "show"` sprawia, że kafelki są w kanwie
+              // WIDOCZNE (wyszarzone, bez `<a>`), więc redakcja ma co
+              // kliknąć i co wypełnić.
               widget("social-icons", {
-                facebook: "#",
-                twitter: "#",
-                youtube: "#",
-                instagram: "#",
-                linkedin: "#",
-                spotify: "#",
+                facebook: "",
+                x: "",
+                youtube: "",
+                instagram: "",
+                linkedin: "",
+                spotify: "",
+                showEmpty: "show",
                 size: 16,
               }),
             ]),

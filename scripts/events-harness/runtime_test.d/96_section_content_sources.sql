@@ -32,9 +32,13 @@
 --       tam, gdzie tresc jest, `false` tam, gdzie jej nie ma). Bez tego
 --       „naprawa" mogla by polegac na wyzerowaniu calej kolumny `has_content`,
 --       czyli na wylaczeniu mechanizmu - i przeszla by asercje (a).
---   (c) `materials` nadal `NULL` (zrodla w bazie nie ma) - razem z dowodem, ze
---       nadpisanie z `event_page_sections` w ogole dziala, bo domyslnie ta
---       sekcja jest niewidoczna i bez wiersza redakcji nie wrocila by wcale.
+--   (c) `materials` jest BOOLEAN-em w obie strony, mierzonym na trzech progach
+--       dwustopniowej publikacji (material / przypiecie partnera) - razem
+--       z dowodem, ze nadpisanie z `event_page_sections` w ogole dziala, bo
+--       domyslnie ta sekcja jest niewidoczna i bez wiersza redakcji nie
+--       wrocila by wcale. Do 20260829221500 stal tu NULL z uzasadnieniem
+--       „zrodla w bazie nie ma"; zrodlo (`event_sponsor_materials`) istnialo
+--       od 20260823160000, a NULL kosztowal samotny naglowek nad pustka.
 --   (d) BRAMKI SA NIETKNIETE. To jest asercja o tym, czego migracja NIE miala
 --       zmienic: przy `guest_mode = 'full'` gosc bez zapisu ma `map` OTWARTA
 --       (`lock_reason = 'none'`), a `contact` ZAMKNIETA z powodem
@@ -213,12 +217,22 @@ SELECT pg_temp.assert(
     WHERE s.section_key IN ('agenda', 'speakers', 'sponsors')),
   '96/(b): agenda, speakers i sponsors bez wierszy -> FALSE, nie NULL');
 
--- ── (c) `materials`: NULL, I DOWOD, ZE NADPISANIE REDAKCJI DZIALA ──────────
+-- ── (c) `materials`: BOOLEAN W OBIE STRONY, I DOWOD, ZE NADPISANIE DZIALA ──
 -- Domyslnie `materials` ma `is_visible = false` (_event_default_sections),
 -- wiec bez wiersza redakcji NIE WRACA WCALE - a asercja o jej `has_content`
 -- przechodzila by wtedy na pustym wyniku. Wlaczamy ja wprost i przy okazji
 -- dowodzimy, ze cala maszyneria `event_page_sections`, ktorej ta migracja nie
 -- rusza, nadal scala sie z lista domyslna.
+--
+-- DO 20260829221500 STALO TU „has_content NULL - zrodla w bazie nie ma".
+-- Zdanie bylo nieprawdziwe: `public.event_sponsor_materials` istnieje od
+-- 20260823160000, a `event_sponsor_materials_public` czyta ja dwustopniowym
+-- predykatem publikacji. NULL kosztowal uczestnika samotny naglowek
+-- „Materialy" nad zdaniem o pustce - front nie ma dla tej sekcji zadnego
+-- licznika pustki (odsiewa PRZED naglowkiem wylacznie sekcje praktyczne,
+-- bo tylko one maja tresc w propsach). Od tamtej migracji `materials` jest
+-- SZOSTA sekcja liczona w bazie i musi byc mierzona W OBIE STRONY, tak jak
+-- reszta rodziny w (b).
 SELECT pg_temp.assert(
   NOT EXISTS (
     SELECT 1 FROM public.event_sections('sec-struct') s WHERE s.section_key = 'materials'
@@ -234,10 +248,103 @@ SELECT pg_temp.assert(
     WHERE s.section_key = 'materials') = 1,
   '96/(c): po wlaczeniu przez redakcje materials WRACA (nadpisanie dziala)');
 
+-- STRONA PIERWSZA: wlaczona sekcja BEZ ani jednego materialu -> FALSE, czyli
+-- `shouldRenderSection` ubija ja razem z naglowkiem. To jest cala tresc
+-- naprawy; przed nia wychodzil tu NULL i sekcja zostawala na stronie pusta.
 SELECT pg_temp.assert(
-  (SELECT s.has_content IS NULL FROM public.event_sections('sec-struct') s
-    WHERE s.section_key = 'materials'),
-  '96/(c): materials nadal ma has_content NULL - zrodla w bazie nie ma');
+  (SELECT s.has_content FROM public.event_sections('sec-struct') s
+    WHERE s.section_key = 'materials') = false,
+  '96/(c): wlaczona sekcja materialow bez ani jednego pliku -> FALSE, nie NULL');
+
+-- ---------------------------------------------------------------------------
+-- STRONA DRUGA, I TRZY PROGI PUBLIKACJI PO DRODZE
+--
+-- Publikacja materialu jest DWUSTOPNIOWA (material I przypiecie partnera),
+-- wiec rachunek musi byc mierzony na KAZDYM z trzech stanow, a nie tylko na
+-- ostatnim. Bez progow asercja „true na koncu" przechodzilaby rowniez dla
+-- rachunku, ktory ignoruje `is_published` - czyli dla sekcji zapalanej
+-- szkicem, ktorego czytelnik i tak nie zobaczy.
+--
+-- Firma i przypiecie sa WLASNE (prefiks 96), nie pozyczone z 30_sponsors -
+-- pliki runtime_test.d musza byc niezalezne od siebie i od kolejnosci.
+-- ---------------------------------------------------------------------------
+INSERT INTO public.crm_companies (id, tenant_id, name, domain)
+VALUES ('96c00000-0000-0000-0000-000000000001',
+        '11111111-1111-1111-1111-111111111111', 'Partner Materialowy', 'pm.test');
+
+-- ROLA `partner`, A NIE `sponsor`, I NIE JEST TO OZDOBA:
+-- `event_sponsors_published_sponsor_needs_tier` zada poziomu WYLACZNIE od
+-- opublikowanego sponsora. Sekcja nazywa sie „materialy partnerskie", wiec
+-- partner jest tu i wlasciwa rola, i najkrotsza droga do progu publikacji
+-- bez wciagania cennika, ktorego ten plik nie mierzy.
+INSERT INTO public.event_sponsors
+  (id, tenant_id, event_id, company_id, role, snapshot_name, is_published)
+VALUES ('96500000-0000-0000-0000-000000000001',
+        '11111111-1111-1111-1111-111111111111',
+        '96000000-0000-0000-0000-000000000001',
+        '96c00000-0000-0000-0000-000000000001', 'partner', 'Partner Materialowy', false);
+
+INSERT INTO public.event_sponsor_materials
+  (id, tenant_id, event_id, sponsor_id, title_pl, title_en, url, is_published)
+VALUES ('96d00000-0000-0000-0000-000000000001',
+        '11111111-1111-1111-1111-111111111111',
+        '96000000-0000-0000-0000-000000000001',
+        '96500000-0000-0000-0000-000000000001',
+        'Prezentacja partnera', 'Partner deck', 'https://cdn.test/deck.pdf', false);
+
+SELECT pg_temp.assert(
+  (SELECT s.has_content FROM public.event_sections('sec-struct') s
+    WHERE s.section_key = 'materials') = false,
+  '96/(c): material SZKIC przy przypieciu SZKICU -> nadal FALSE');
+
+UPDATE public.event_sponsor_materials SET is_published = true
+WHERE id = '96d00000-0000-0000-0000-000000000001';
+
+-- PROG, KTORY LAPIE POLOWICZNY RACHUNEK. Material opublikowany, ale partner
+-- nieopublikowany: `event_sponsor_materials_public` nie odda tu ani jednego
+-- wiersza, wiec sekcja nadal NIE MA tresci. Rachunek liczacy sam
+-- `m.is_published` zapalilby ja i zielenil sie na sekcji, ktora dla czytelnika
+-- jest pusta - dokladnie ta usterka od nowa, tylko z drugiej strony.
+SELECT pg_temp.assert(
+  (SELECT s.has_content FROM public.event_sections('sec-struct') s
+    WHERE s.section_key = 'materials') = false,
+  '96/(c): material opublikowany przy przypieciu SZKICU -> nadal FALSE (prog partnera)');
+
+UPDATE public.event_sponsors SET is_published = true
+WHERE id = '96500000-0000-0000-0000-000000000001';
+
+SELECT pg_temp.assert(
+  (SELECT s.has_content FROM public.event_sections('sec-struct') s
+    WHERE s.section_key = 'materials') = true,
+  '96/(c): material I przypiecie opublikowane -> has_content TRUE');
+
+-- KONTRAPUNKT ZGODNOSCI Z POWIERZCHNIA PUBLICZNA. Rachunek i lista maja
+-- oddawac te sama odpowiedz - to jest jedyny powod, dla ktorego predykat
+-- w `event_sections` jest przepisany z `event_sponsor_materials_public`
+-- znak w znak. Bez tej asercji oba moglyby sie rozejsc bez sladu.
+SELECT pg_temp.assert(
+  (SELECT count(*) > 0 FROM public.event_sponsor_materials_public('sec-struct')),
+  '96/(c): ta sama publikacja daje niepusta liste z event_sponsor_materials_public');
+
+-- ZAMEK WYGRYWA Z PUSTKA, TAKZE TUTAJ. Sekcja zamknieta wraca na strone nawet
+-- przy zerze materialow, bo karta zaproszenia JEST jej trescia - identycznie
+-- jak przy `sponsors`. Bez tej asercji naprawa mogla by po cichu zabrac
+-- gosciowi zaproszenie do zapisu.
+UPDATE public.event_sponsor_materials SET is_published = false
+WHERE id = '96d00000-0000-0000-0000-000000000001';
+
+UPDATE public.event_page_sections SET visibility = 'registered'
+WHERE event_id = '96000000-0000-0000-0000-000000000001'
+  AND section_key = 'materials';
+
+SELECT pg_temp.assert(
+  (SELECT s.is_locked = true AND s.has_content = false
+     FROM public.event_sections('sec-struct') s WHERE s.section_key = 'materials'),
+  '96/(c): sekcja zamknieta i pusta WRACA z has_content FALSE (zamek rozstrzyga front)');
+
+UPDATE public.event_page_sections SET visibility = 'public'
+WHERE event_id = '96000000-0000-0000-0000-000000000001'
+  AND section_key = 'materials';
 
 -- ── (d) BRAMKI NIETKNIETE: `map` OTWARTA, `contact` ZAMKNIETA ──────────────
 -- To asercja o tym, czego migracja NIE miala zmienic. `contact` ma domyslna

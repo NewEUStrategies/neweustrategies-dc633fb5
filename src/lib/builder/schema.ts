@@ -87,6 +87,7 @@ export const WIDGET_TYPES = [
   "testimonial",
   "team-member",
   "author-profile-card",
+  "travel-route-card",
   "speakers",
   "pricing",
   "interactive-circle",
