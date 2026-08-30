@@ -22139,6 +22139,7 @@ export type Database = {
         }[]
       }
       club_mark_read: { Args: { p_club_id: string }; Returns: number }
+      club_media_path_readable: { Args: { _path: string }; Returns: boolean }
       club_member_spotlight_current: {
         Args: { p_club_id: string }
         Returns: {
