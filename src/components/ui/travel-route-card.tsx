@@ -271,28 +271,33 @@ export function TravelRouteCard({
           ) : null}
         </div>
 
-        <div className="col-span-1 flex flex-col items-center justify-center text-center">
-          {distance ? (
-            <span
-              data-typography-exempt
-              className="select-none font-bold leading-none tracking-tighter text-white/90"
-              style={{ fontSize: `${Math.max(12, distanceSizePx)}px` }}
-            >
-              {distance}
+        {/* Liczba i jednostka to JEDNA informacja, więc czytnik ekranu dostaje
+            ją RAZ, w całości ("Dystans: 12K km"). Widoczna para jest schowana
+            przed drzewem dostępności - bez tego użytkownik słyszał trzy razy
+            to samo: „12K", „km", „Dystans: 12K km". Jednostka bez liczby nie
+            niesie treści, więc cała kolumna zależy od `distance`. */}
+        {distance ? (
+          <div className="col-span-1 flex flex-col items-center justify-center text-center">
+            <span aria-hidden="true" className="flex flex-col items-center">
+              <span
+                data-typography-exempt
+                className="select-none font-bold leading-none tracking-tighter text-white/90"
+                style={{ fontSize: `${Math.max(12, distanceSizePx)}px` }}
+              >
+                {distance}
+              </span>
+              {distanceCaption ? (
+                <span
+                  data-typography-exempt
+                  className="mt-1 text-xs font-medium uppercase tracking-widest text-white/70"
+                >
+                  {distanceCaption}
+                </span>
+              ) : null}
             </span>
-          ) : null}
-          {distanceCaption ? (
-            <span
-              data-typography-exempt
-              className="mt-1 text-xs font-medium uppercase tracking-widest text-white/70"
-            >
-              {distanceCaption}
-            </span>
-          ) : null}
-          {distance ? (
             <span className="sr-only">{fill(labels.distance, "v", distanceSpoken)}</span>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

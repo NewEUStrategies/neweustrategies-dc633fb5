@@ -18,6 +18,7 @@ import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { travelRouteLikeKey } from "@/lib/builder/travelRouteCard";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { TravelRouteCardView } from "../TravelRouteCardView";
 
 const NODE_ID = "trc-1";
@@ -35,9 +36,16 @@ const BASE: WidgetContent = {
   showLikes: true,
 };
 
-function draw(content: WidgetContent, lang: "pl" | "en" = "pl", editable = false) {
+function draw(content: WidgetContent, lang: "pl" | "en" = "pl") {
+  return render(<TravelRouteCardView c={content} lang={lang} nodeId={NODE_ID} />);
+}
+
+/** Render W KANWIE edytora - dokładnie tak, jak montuje ją builder. */
+function drawInEditor(content: WidgetContent, lang: "pl" | "en" = "pl") {
   return render(
-    <TravelRouteCardView c={content} lang={lang} nodeId={NODE_ID} editable={editable} />,
+    <BuilderModeProvider mode="light">
+      <TravelRouteCardView c={content} lang={lang} nodeId={NODE_ID} />
+    </BuilderModeProvider>,
   );
 }
 
@@ -140,11 +148,22 @@ describe("polubienia (odwzorowanie wzorca)", () => {
     expect(screen.getByText("1.5K")).toBeTruthy();
   });
 
+  // Regresja: kanwa była rozpoznawana po propsie `editable`, a podgląd na żywo
+  // w panelu właściwości montuje providera i JEDNOCZEŚNIE przekazuje
+  // `editable={false}` - polubienie klikniete przez redaktora w miniaturze
+  // lądowało w tym samym wpisie, który czyta strona publiczna.
   it("kanwa buildera NIE zapisuje polubienia redaktora", () => {
-    draw(BASE, "pl", true);
+    drawInEditor(BASE);
     fireEvent.click(likeButton());
     expect(likeButton().getAttribute("aria-pressed")).toBe("true");
     expect(window.localStorage.getItem(travelRouteLikeKey(NODE_ID))).toBeNull();
+  });
+
+  it("podgląd w edytorze nie CZYTA też polubienia odwiedzającego", () => {
+    window.localStorage.setItem(travelRouteLikeKey(NODE_ID), "1");
+    drawInEditor(BASE);
+    expect(likeButton().getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("1.5K")).toBeTruthy();
   });
 
   it("wyłączenie polubień usuwa cały przycisk", () => {
@@ -275,5 +294,22 @@ describe("typografia widgetu steruje kartą", () => {
     expect(screen.getByText("12K").hasAttribute("data-typography-exempt")).toBe(true);
     expect(likeButton().hasAttribute("data-typography-exempt")).toBe(true);
     expect(container.querySelector("h1")).toBeNull();
+  });
+});
+
+describe("dystans jest ogłaszany raz", () => {
+  it("widoczna liczba i jednostka są schowane przed czytnikiem ekranu", () => {
+    draw(BASE);
+    // Regresja: czytnik czytał „12K", „km" i „Dystans: 12K km" - trzy razy to samo.
+    expect(screen.getByText("12K").closest("[aria-hidden='true']")).toBeTruthy();
+    expect(screen.getByText("km").closest("[aria-hidden='true']")).toBeTruthy();
+    const spoken = screen.getByText("Dystans: 12K km");
+    expect(spoken.className).toContain("sr-only");
+    expect(spoken.closest("[aria-hidden='true']")).toBeNull();
+  });
+
+  it("sama jednostka bez liczby nie renderuje kolumny", () => {
+    const { container } = draw({ ...BASE, distance: "", distanceCaption_pl: "km" });
+    expect(container.textContent).not.toContain("km");
   });
 });

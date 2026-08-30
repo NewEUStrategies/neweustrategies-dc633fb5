@@ -6,6 +6,7 @@
 // bezwarunkowo (bramka wierności ustawień porównuje oba zbiory kluczy), więc
 // nie ma tu gałęzi typu "czytaj kolor tylko gdy włączone polubienia".
 import type { WidgetContent } from "@/lib/builder/types";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { asNumInRange, pickI18n } from "@/lib/content-model/contentValue";
@@ -34,15 +35,20 @@ export function TravelRouteCardView({
   c,
   lang,
   nodeId,
-  editable = false,
 }: {
   c: WidgetContent;
   lang: Lang;
   nodeId: string;
-  /** Kanwa buildera: polubienie nie ma zapisywać preferencji redaktora. */
-  editable?: boolean;
 }) {
   const d = TRAVEL_ROUTE_CARD_DEFAULTS;
+  // Kanwa edytora rozpoznawana po KONTEKŚCIE, nie po propsie `editable`.
+  // Podgląd na żywo w panelu właściwości (`WidgetLivePreview`) montuje
+  // `BuilderModeProvider`, ale świadomie przekazuje `editable={false}` - gdyby
+  // to ono decydowało, polubienie klikniete przez redaktora w miniaturze
+  // trafiłoby do tego samego wpisu `localStorage`, który czyta strona
+  // publiczna. Provider montuje WYŁĄCZNIE builder, więc jego obecność jest
+  // dokładnym testem „ten render dzieje się w edytorze".
+  const inEditor = useBuilderMode() !== null;
   return (
     <TravelRouteCard
       title={pickI18n(c, "title", lang)}
@@ -63,7 +69,7 @@ export function TravelRouteCardView({
       likeAccentColor={safeWidgetColor(c.likeAccentColor)}
       animate={getBool(c, "animate", true)}
       hoverLift={getBool(c, "hoverLift", true)}
-      storageKey={editable ? null : travelRouteLikeKey(nodeId)}
+      storageKey={inEditor ? null : travelRouteLikeKey(nodeId)}
       labels={LABELS[lang]}
     />
   );

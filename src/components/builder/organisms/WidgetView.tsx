@@ -1178,10 +1178,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "circular-carousel":
       return wrap(<CircularCarouselView c={c} lang={lang} />);
 
-    // Karta trasy. `editable` przechodzi do widoku, bo w kanwie polubienie NIE
-    // ma zapisywać preferencji redaktora do `localStorage` przeglądarki.
+    // Karta trasy. Widok sam rozpoznaje kanwę edytora (kontekst
+    // `BuilderModeProvider`), bo tylko tam polubienie nie ma prawa zapisać
+    // preferencji redaktora do `localStorage` przeglądarki.
     case "travel-route-card":
-      return wrap(<TravelRouteCardView c={c} lang={lang} nodeId={node.id} editable={editable} />);
+      return wrap(<TravelRouteCardView c={c} lang={lang} nodeId={node.id} />);
 
     case "cta": {
       const tKey = `title_${lang}`;
