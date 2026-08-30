@@ -5,7 +5,6 @@ import {
   Fragment,
   Suspense,
   createContext,
-  lazy,
   memo,
   useCallback,
   useContext,
@@ -14,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
   type ElementType,
   type ReactNode,
@@ -67,10 +67,6 @@ import {
   useExperimentAssignments,
   type AbVariant,
 } from "@/lib/builder/experiments";
-const EmptyContainerPickerBox = lazy(
-  () => import("@/components/admin/builder/ui/organisms/EmptyContainerPickerBox"),
-);
-
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
 // it synchronously before the browser paints, so the user never sees a
@@ -134,17 +130,49 @@ export type EmptyContainerPicker = (
   spans: number[],
 ) => void;
 
-const EmptyContainerPickerContext = createContext<EmptyContainerPicker | null>(null);
+/**
+ * Kształt boksu pickera, KTÓREGO TEN PLIK NIE IMPORTUJE - i to jest cały sens
+ * tego typu.
+ *
+ * Poprzednia wersja trzymała tu `lazy(() => import(".../EmptyContainerPickerBox"))`
+ * z komentarzem obiecującym, że „słowniki edytora nie wchodzą do bundla
+ * publicznego chrome". OBIETNICA BYŁA NIEPRAWDZIWA, i to policzalnie: `lazy()`
+ * zdejmuje moduł ze ścieżki startowej, ale NIE usuwa krawędzi w grafie. Bramka
+ * `check:bundle` liczy do budżetu publicznego wszystko, co jest osiągalne
+ * z publicznej trasy - również przez `import()` - więc `i18n-builder` (31,0 KB),
+ * `StructurePicker` (1,0 KB) i sam boks (0,4 KB) siedziały w budżecie
+ * CZYTELNIKA, mimo że renderują się wyłącznie w kanwie administratora.
+ *
+ * Odwrócenie zależności usuwa krawędź, zamiast ją odraczać: kanwa (kod adminowy)
+ * PODAJE komponent, publiczny renderer zna wyłącznie jego kształt. Typ jest
+ * zadeklarowany tutaj, a nie zaimportowany z katalogu `admin/`, bo import typu
+ * z tamtej strony przywracałby dokładnie tę zależność, którą ta zmiana zdejmuje.
+ */
+export interface EmptyContainerPickerBoxProps {
+  tabsEnabled: boolean;
+  onPick: (spans: number[]) => void;
+}
+
+interface EmptyContainerPickerValue {
+  readonly onPick: EmptyContainerPicker;
+  readonly Box: ComponentType<EmptyContainerPickerBoxProps>;
+}
+
+const EmptyContainerPickerContext = createContext<EmptyContainerPickerValue | null>(null);
 
 export function BuilderEmptyPickerProvider({
   onPick,
+  box,
   children,
 }: {
   onPick: EmptyContainerPicker;
+  /** Komponent boksu - dostarcza go kanwa buildera, patrz `VisualCanvas`. */
+  box: ComponentType<EmptyContainerPickerBoxProps>;
   children: ReactNode;
 }) {
+  const value = useMemo<EmptyContainerPickerValue>(() => ({ onPick, Box: box }), [onPick, box]);
   return (
-    <EmptyContainerPickerContext.Provider value={onPick}>
+    <EmptyContainerPickerContext.Provider value={value}>
       {children}
     </EmptyContainerPickerContext.Provider>
   );
@@ -620,15 +648,15 @@ const RenderSection = memo(function RenderSection({
             }}
           >
             {showEmptyPicker ? (
-              // Edit-mode-only (kontekst dostarcza wyłącznie kanwa buildera).
-              // Lazy: słowniki edytora + StructurePicker nie wchodzą do bundla
-              // publicznego chrome; fallback null nie przesuwa układu, bo boks
-              // pojawia się tylko w kanwie admina.
+              // Edit-mode-only: i komponent, i callback pochodzą z kontekstu,
+              // który wypełnia WYŁĄCZNIE kanwa buildera. Ten plik nie zna boksu
+              // ani jego słowników - patrz `EmptyContainerPickerBoxProps` wyżej.
+              // `Suspense` zostaje, bo kanwa podaje komponent leniwy.
               <Suspense fallback={null}>
-                <EmptyContainerPickerBox
+                <emptyPicker.Box
                   tabsEnabled={tabsEnabled}
                   onPick={(spans) =>
-                    emptyPicker!(section.id, tabsEnabled ? activeTabId : null, spans)
+                    emptyPicker.onPick(section.id, tabsEnabled ? activeTabId : null, spans)
                   }
                 />
               </Suspense>

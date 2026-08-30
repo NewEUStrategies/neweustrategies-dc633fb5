@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
@@ -14,6 +14,22 @@ import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
 import "@/lib/i18n-builder";
+
+// BOKS PICKERA MIESZKA TUTAJ, PO STRONIE ADMINA - i to jest cała treść tej
+// zmiany. Wcześniej leniwy `import()` stał w publicznym `BuilderRenderer`
+// (chrome KAŻDEJ strony) z komentarzem obiecującym, że słowniki edytora nie
+// wejdą do bundla publicznego. `lazy()` zdejmuje moduł ze ścieżki startowej,
+// ale nie usuwa krawędzi w grafie, a bramka `check:bundle` liczy do budżetu
+// czytelnika wszystko OSIĄGALNE z publicznej trasy - również przez `import()`.
+// Zmierzone: `i18n-builder` 31,0 KB + `StructurePicker` 1,0 KB + boks 0,4 KB
+// siedziały w budżecie publicznym, choć renderują się wyłącznie w tej kanwie.
+//
+// Leniwość ZOSTAJE (kanwa też nie musi ich mieć od pierwszego malowania) -
+// przeniósł się wyłącznie WŁAŚCICIEL importu. Publiczny renderer zna teraz sam
+// kształt propsów, nie moduł.
+const EmptyContainerPickerBox = lazy(
+  () => import("@/components/admin/builder/ui/organisms/EmptyContainerPickerBox"),
+);
 
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
@@ -1055,6 +1071,7 @@ export function VisualCanvas({
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
         <BuilderEmptyPickerProvider
+          box={EmptyContainerPickerBox}
           onPick={(sectionId, tabId, spans) => {
             if (tabId) onInsertSectionToTab?.(sectionId, tabId, spans);
             else onInsertSectionToContainer?.(sectionId, spans);
