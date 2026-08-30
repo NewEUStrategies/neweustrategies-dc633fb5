@@ -29,6 +29,7 @@
     "20260830102000_event_registration_set_channels_search_path.sql": "20260830114612",
     "20260830090000_event_registration_checkout_binding.sql": "20260830172534",
     "20260830110000_event_payment_outcome_order_conflict.sql": "20260830172820",
-    "20260830100000_event_set_channels_extensions_path.sql": "20260830114612"
+    "20260830100000_event_set_channels_extensions_path.sql": "20260830114612",
+    "20260830120000_secdef_search_path_pg_temp_last.sql": "20260830181725"
   }
 }
