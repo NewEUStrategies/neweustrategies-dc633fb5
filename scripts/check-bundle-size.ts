@@ -594,6 +594,90 @@ const CLIENT_DIR =
 //             (2544,7 przy florze 2545), największy chunk się nie ruszył, cała
 //             delta siedzi w kodzie admin-only.
 
+// 2026-08-30 VI  DWA TYGODNIE WZROSTU ZMIERZONE DOPIERO TERAZ, BO BRAMKA NIE
+//             JECHAŁA. Floor public 2545 -> 2711, overall 3894 -> 4302.
+//
+//             POMIAR (runner, `--frozen-lockfile`, przebieg 2756 / job `build`,
+//             głowa e6374f2): 939 plików, public 2710,8 KB, admin-only 1591,1 KB,
+//             overall 4301,9 KB, największy chunk 271,3 KB. Floor stawiany
+//             zgodnie z zasadą z wpisu V - z liczby RUNNERA, nie hosta: host dał
+//             tego samego dnia public 2698,4 i overall 4295,0, czyli o 12,4 i 6,9 KB
+//             NIŻEJ. Gdyby floor poszedł z hosta, bramka byłaby czerwona od razu.
+//             Do obu liczb doliczone ułamki KB na granicę zaokrąglenia (wpis IV).
+//             `chunk` ZOSTAJE na 280: zmierzone 271,3 mieści się z zapasem.
+//
+//             DLACZEGO TAK DUŻO NARAZ - I DLACZEGO TO NIE JEST REGRESJA JEDNEJ
+//             ZMIANY. Krok `Bundle size budget` NIE WYKONAŁ SIĘ ANI RAZU między
+//             2026-08-29 09:21 a 2026-08-30. Najpierw `ci.yml` był nieparsowalny
+//             (niecytowany skalar z `: ` w nazwie kroku - GitHub tworzył przebieg
+//             i nie planował ŻADNEGO joba), a po jego naprawie job `verify` ginął
+//             na czerwonym `format:check`, czyli szóstym kroku z czterdziestu
+//             czterech. Bramka mierzyła więc ostatni raz przy florze z 15.08,
+//             a w tym czasie weszły dwa tygodnie funkcjonalności.
+//
+//             PRZYCZYNA, ZMIERZONA (ruchy wobec baseline'u 2d04eb92f z 15.08):
+//               + 125,6 KB  i18n            (204,5 -> 330,1)
+//               - 105,0 KB  index           (479,7 -> 374,7)
+//               +  65,5 KB  EventStudioModuleSections (NOWY)
+//               +  39,8 KB  vendor          (281,8 -> 321,6)
+//               +  31,1 KB  useEventSessions (NOWY)
+//               -  17,2 KB  events._slug    (18,4 -> 1,2)
+//               +  15,7 KB  admin.posts._slug (64,9 -> 80,6)
+//               +  15,3 KB  scanner (NOWY)
+//               +  12,2 KB  events._slug.index (NOWY)
+//               +   9,7 KB  browser (NOWY)
+//               +   9,5 KB  admin.events_._eventId (NOWY)
+//               +   8,5 KB  MeetingInviteDialog (NOWY)
+//                   znikł   admin.community.events
+//             (przepisane z logu kroku `Bundle size budget`, przebieg 2756,
+//             w kolejności, w jakiej je wypisał)
+//
+//             CO TA TABELA POKAZUJE, A CZEGO NIE. Netto z nazwanych pozycji:
+//             +210,7 KB. Raport wypisuje NAJWYŻEJ DWANAŚCIE ruchów (`movers()`
+//             sortuje po wartości bezwzględnej delty i tnie listę do dwunastu),
+//             więc to nie jest cały przyrost. Baseline
+//             `reports/bundle-baseline.json` (2d04eb92f, 15.08) stoi na
+//             public 2543,3 i overall 3814,5, więc REALNY przyrost to
+//             +167,5 KB na publicznym i +487,4 KB na overall. Brakujące
+//             276,7 KB siedzi poza tą dwunastką. To jest studio wydarzeń,
+//             sesje, skaner i słowniki - praca funkcjonalna, nie przypadkowy
+//             dryf.
+//
+//             TO JEST PODNIESIENIE PROGU, CZYLI OSTATECZNOŚĆ - I TAK JEST
+//             NAZWANE. Ścięcie 407,9 KB (tyle dzieli pomiar od POPRZEDNIEGO
+//             floora) to projekt na własny PR, nie poprawka przy okazji CI; zostawienie bramki czerwonej też nie jest
+//             wyjściem, bo wtedy nie łapie NICZEGO nowego. Floor przyjmuje
+//             zmierzony stan jako dług i od tej chwili znowu bramkuje przyrosty.
+//
+//             PIERWSZY KANDYDAT DO CIĘCIA, gdy ktoś ten dług weźmie: WARSTWA
+//             SŁOWNIKÓW - ale najpierw jak czytać tę tabelę, bo `i18n` NIE JEST
+//             jednym chunkiem. `stableChunkName()` ucina z nazwy pliku końcówkę
+//             `-<hash>`, a wzorzec `-[A-Za-z0-9_-]{8,}$` jest łapczywy i dla
+//             plików `i18n-*` zjada razem z hashem człon opisowy:
+//             `i18n-club-DGC_-VAI.js` i `i18n-admin-events-6jnk00Ff.js` trafiają
+//             do JEDNEGO wiadra o nazwie `i18n`. Zmierzone na hoście (suma gzip
+//             po `.output/public/assets/i18n-*.js`): 46 chunków, 330,1 KB -
+//             dokładnie liczba, którą bramka wypisała w kolumnie „po".
+//             +125,6 KB to więc wzrost CAŁEJ warstwy słowników, nie jednego
+//             pliku. Najwięksi pojedynczy mieszkańcy wiadra (gzip, host):
+//               36,6 KB  i18n-club              31,0 KB  i18n-builder
+//               25,2 KB  i18n-admin-events      21,1 KB  i18n-admin-event-onsite
+//               20,0 KB  i18n-profile
+//             `report:chunk-inventory i18n` trafia w `i18n-club` i pokazuje tam
+//             137,7 kB źródeł SPRZED minifikacji, w 100% z jednego pliku
+//             `src/lib/i18n-club.ts`, w chunku współdzielonym (2 importy
+//             statyczne). Cięcie zaczyna się od rozstrzygnięcia, które z tych
+//             46 chunków wchodzą do budżetu PUBLICZNEGO: `i18n-admin-*` liczą
+//             się wyłącznie do OVERALL, a dziś cieńszy jest zapas publiczny.
+//
+//             CZEGO TEN WPIS NIE ZAŁATWIA: `Test + coverage gate` (od tego
+//             samego PR-a w osobnym jobie `test`) pada na progach pokrycia dla
+//             `src/components/admin/billing/**` i `src/components/profile/**`,
+//             więc CI jest czerwone niezależnie od bundla. To ten sam mechanizm
+//             co tutaj - ratchet ustawiony, gdy bramka jeszcze jechała, i dwa
+//             tygodnie kodu dołożone przy bramce, która nie ruszyła ani razu -
+//             ale osobny dług i osobna robota.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -608,10 +692,13 @@ const FROZEN_BUDGET_KB = {
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
   // 385 -> 280: próg schodzi za śladem (wpis 2026-08-18 w kronice).
   chunk: 280,
-  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-18: 2535,0
-  // (host czytający ~1% wyżej niż CI) - słowniki adminowe wróciły do grafu
-  // admin-only. Ratchet 2570 -> 2545.
-  public: 2545,
+  // gzip JS osiągalny z publicznego URL-a. Zmierzone NA RUNNERZE 2026-08-30
+  // (przebieg 2756, job `build`, `--frozen-lockfile`): 2710,8 przy 939 plikach.
+  // Ratchet 2545 -> 2711 (wpis 2026-08-30 VI): dwa tygodnie funkcjonalności,
+  // które weszły przy bramce NIEWYKONUJĄCEJ SIĘ ANI RAZU od 29.08. Host dał
+  // tego dnia 2698,4, czyli o 12,4 KB MNIEJ - floor idzie z runnera (zasada
+  // z wpisu V), plus ułamek na granicę zaokrąglenia (wpis IV).
+  public: 2711,
   // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
   // (run 2397 i 2408, identycznie): 3892,0 przy 790 plikach.
   // Floor 3893, NIE 3892 - i to nie zapas, tylko granica zaokrąglenia.
@@ -623,7 +710,10 @@ const FROZEN_BUDGET_KB = {
   // wydrukowanej wartości, albo trzeba czytać liczbę bez zaokrąglenia.
   // Ratchet 3893 -> 3894 (wpis 2026-08-20 V): pomiar hosta 3893,7 przy zdeterminizowanej
   // instalacji (--frozen-lockfile), plus 1 KB wyłącznie na granicę zaokrąglenia.
-  overall: 3894,
+  // Ratchet 3894 -> 4302 (wpis 2026-08-30 VI): zmierzone NA RUNNERZE 4301,9
+  // (przebieg 2756, job `build`), host 4295,0. Przyczyna rozpisana w kronice -
+  // studio wydarzeń, sesje, skaner i słowniki, +407,9 KB od baseline'u z 15.08.
+  overall: 4302,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */

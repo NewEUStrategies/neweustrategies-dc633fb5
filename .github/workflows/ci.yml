@@ -30,6 +30,14 @@ jobs:
   # najpierw wszystko, co czyta wyłącznie pliki repo, potem typy i lint, potem
   # testy, na końcu build i bramki artefaktu.
   #
+  # 2026-08-30: DWA NAJDROŻSZE BLOKI MAJĄ JUŻ WŁASNE JOBY - `build` (Build plus
+  # trzy bramki artefaktu) i `test` (suita z coverage). Zasada kosztowa nie
+  # zniknęła, tylko przestała być realizowana JEDNYM łańcuchem kroków: wewnątrz
+  # każdego joba nadal idzie od najtańszego, a między jobami kolejność zastąpiła
+  # RÓWNOLEGŁOŚĆ. Powód w komentarzach nad `timeout-minutes` obu tych jobów -
+  # w skrócie: kroki stojące ZA suitą nie uruchamiały się wcale, bo job nie
+  # dożywał do ich numeru.
+  #
   # Ten sam zestaw tanich bramek puszcza lokalnie JEDNA komenda
   # `bun run verify:static` (lista wyprowadzana z package.json, więc nie
   # rozjeżdża się z tym plikiem) - a `bun run verify:blocking` dokłada typy,
@@ -62,16 +70,36 @@ jobs:
     #   Typecheck 2:41, Lint 2:10  ->  6:39 przed testami.
     # Zostaje ~28 min na `Test + coverage gate` plus bramki 35-40.
     #
-    # PRÓG ZOSTAJE NA 35 I JEST TO DECYZJA, NIE PRZEOCZENIE. Rzetelnego czasu
-    # suity wciąż NIE ZNAMY - job nie dobiegł do końca od 2026-08-29, bo do
-    # 30.08 wywracał go nieparsowalny `ci.yml`, a potem czerwony `format:check`.
-    # Podnoszenie progu bez tej liczby byłoby powtórzeniem błędu opisanego
-    # w kronice `check-bundle-size.ts`: próg rośnie, bramka przestaje łapać.
-    # Wydzielenie oddaje ~3,5 min i to musi wystarczyć do pierwszego PEŁNEGO
-    # przebiegu. Jeśli po nim suita nadal nie mieści się w budżecie, następnym
-    # krokiem jest ROZDZIELENIE SUITY (własny job, ewentualnie shardowanie),
-    # a nie kolejna liczba w tej linii - bo to suita rośnie, nie limit maleje.
-    timeout-minutes: 35
+    # 2026-08-30, DRUGA ZMIANA TEGO DNIA: 35 -> 20. Poprzednia wersja tego
+    # komentarza kończyła się zobowiązaniem, które teraz zostaje dotrzymane
+    # co do słowa: „Jeśli po [wydzieleniu Builda] suita nadal nie mieści się
+    # w budżecie, następnym krokiem jest ROZDZIELENIE SUITY (własny job,
+    # ewentualnie shardowanie), a nie kolejna liczba w tej linii". Brakującej
+    # wtedy liczby już nie brakuje: `Test + coverage gate` po raz pierwszy od
+    # 2026-08-29 DOJECHAŁ DO KOŃCA (przebieg 2753, job `verify`, 11:23:25 ->
+    # 11:49:35) i trwał 26:10 - padł na progach pokrycia, nie na limicie czasu,
+    # więc czas jest zmierzony, a nie ucięty.
+    #
+    # RACHUNEK PO WYDZIELENIU SAMEGO BUILDA (przebieg 2756, głowa e6374f2):
+    #   checkout + bun + install + prettier + 25 bramek + typy + lint   7:06
+    #   `Test + coverage gate`                                         26:10
+    #   bramki 35-40 (uprawnienia, i18n, wierność widgetów, SEO)       ~1:04
+    #   ────────────────────────────────────────────────────────────────────
+    #                                                                 ~34:20
+    # przy limicie 35:00. Czterdzieści sekund zapasu na suicie, która od 19.08
+    # urosła z 12:39 do 26:10, to nie jest budżet, tylko następne `cancelled`
+    # w przyszłym tygodniu - i znowu bez ANI JEDNEGO uruchomienia kroków
+    # stojących za suitą. Wydzielenie Builda oddało 3,5 minuty i to naprawdę
+    # nie wystarczyło.
+    #
+    # Suita jedzie więc w jobie `test` niżej. W `verify` zostaje to, co czyta
+    # pliki repo, typy, lint i cztery bramki celowane: ~7:06 + ~1:04 = ~8:10.
+    # Próg 20 minut to ~2,4x zapasu - I JEST TO OBNIŻENIE PROGU, nie kolejne
+    # podniesienie. Liczba 1:04 na bramkach 35-40 pochodzi z przebiegu 2400
+    # (ostatni, w którym się w ogóle wykonały) i jest z konieczności DOLNYM
+    # oszacowaniem - suita od tamtej pory urosła, więc jej podzbiory też.
+    # Zapas 2,4x jest po to, żeby ta niepewność nie kosztowała joba.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -435,13 +463,14 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      # ── TESTY (najdroższy krok) ─────────────────────────────────────────────
-
-      # Tests run WITH the coverage gate so the per-file thresholds in
-      # vitest.config.ts actually block merges (previously CI ran plain
-      # `vitest run`, so the gate was local-only and could silently rot).
-      - name: Test + coverage gate
-        run: bun run test:coverage
+      # ── BRAMKI CELOWANE (podzbiory suity) ───────────────────────────────────
+      #
+      # PEŁNA SUITA Z COVERAGE JEST W JOBIE `test` (patrz niżej), nie tutaj.
+      # Poniższe kroki zostają w `verify`, bo każdy z nich uruchamia WYBRANY
+      # podzbiór vitesta (kilkanaście sekund, bez instrumentacji coverage)
+      # i dwa z nich produkują artefakty czytane przez `post-deploy`.
+      # Przeniesienie ich razem z suitą nic by nie kupiło, a kosztowałoby
+      # przepięcie artefaktów.
 
       # Kontrakt macierzy uprawnień od strony /admin/permissions: wiersze
       # macierzy, role zawężone i rejestr capabilities kontra realne bramki SQL -
@@ -506,6 +535,72 @@ jobs:
             src/routes/-sitemap.xml.test.ts \
             src/lib/ci/__tests__/staticAssetShadowing.test.ts \
             src/lib/server/__tests__/robotsPolicy.test.ts
+
+  # ── SUITA Z COVERAGE: OSOBNY JOB ────────────────────────────────────────────
+  #
+  # DLACZEGO WŁASNY JOB. Bo tak brzmiało zobowiązanie zapisane nad
+  # `timeout-minutes` w `verify` na wypadek, gdyby wydzielenie samego Builda
+  # nie wystarczyło - i nie wystarczyło. Suita urosła z 12:39 (2026-08-19)
+  # do 26:10 (2026-08-30, przebieg 2753) i zjada 3/4 budżetu joba, w którym
+  # stoi. Kroki ZA nią płacą za ten wzrost pierwsze: między 2026-08-29 a 30.08
+  # `Bundle size budget` nie uruchomił się ANI RAZU, więc przekroczenie budżetu
+  # bundla rosło niewidoczne przez dwa tygodnie (kronika w
+  # `scripts/check-bundle-size.ts`, wpis 2026-08-30 VI). To jest ta sama awaria
+  # w drugiej odsłonie, a nie nowa.
+  #
+  # ROZDZIELENIE, NIE PODNIESIENIE PROGU - I TO JEST RÓŻNICA MERYTORYCZNA.
+  # Podniesienie limitu w `verify` z 35 na 45 zmieściłoby suitę na jeden
+  # kwartał i nie zmieniłoby NICZEGO w mechanizmie: bramki dalej stałyby za
+  # najdroższym krokiem i dalej ginęłyby razem z nim, tyle że później.
+  # Po rozdzieleniu suita może rosnąć do 40 minut, nie zabierając ani sekundy
+  # bramkom w `verify` i `build` - bo te jadą RÓWNOLEGLE, a nie po niej.
+  #
+  # KOSZT JEST JAWNY: trzeci raz w tym samym przebiegu płacimy za checkout,
+  # bun i `bun install` (~15 s zmierzone w jobie `build` na przebiegu 2756).
+  # Piętnaście sekund za to, żeby najdroższy krok w repo przestał decydować
+  # o tym, czy pozostałe bramki w ogóle wystartują.
+  #
+  # NASTĘPNY KROK, GDYBY 40 MINUT PRZESTAŁO STARCZAĆ: shardowanie suity
+  # (`vitest --shard`) na kilka równoległych instancji tego joba, z połączeniem
+  # raportów coverage. Znowu: nie kolejna liczba w `timeout-minutes`, bo to
+  # suita rośnie, nie limit maleje.
+  #
+  # CZEGO TEN JOB NIE NAPRAWIA: na dziś suita PADA - nie na czasie, tylko na
+  # progach pokrycia dla `src/components/admin/billing/**` oraz
+  # `src/components/profile/**`. To osobny dług, tej samej klasy co floor
+  # bundla: progi ustawiono, gdy bramka jeszcze jechała, a potem przez dwa
+  # tygodnie dokładano kod przy bramce, która nie ruszyła ani razu.
+  test:
+    runs-on: ubuntu-latest
+    # Zmierzone 2026-08-30 (przebieg 2753): sama suita 26:10, plus ~15 s
+    # setupu. Czterdzieści minut to ~1,5x zapasu na dzisiejszy ślad - ta sama
+    # proporcja, którą przyjęto dla `verify` przy przejściu 20 -> 35, i ten
+    # sam powód: suita rośnie z każdym nowym testem (46,5 tys. asercji).
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      # Ten sam repoint co w `verify` i `build` - `bun.lock` przypina tarbally
+      # do prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja
+      # wyłącznie w CI, nigdy commitowana.
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          npm_config_registry: https://registry.npmjs.org
+
+      # Tests run WITH the coverage gate so the per-file thresholds in
+      # vitest.config.ts actually block merges (previously CI ran plain
+      # `vitest run`, so the gate was local-only and could silently rot).
+      - name: Test + coverage gate
+        run: bun run test:coverage
 
   # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
   #
@@ -814,11 +909,15 @@ jobs:
   # smoke). Uruchamiany na push do main i ręcznie - PR-y nie dotykają produkcji.
   post-deploy:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    # `build` dołączony po wydzieleniu go z `verify` (2026-08-30): bramki
-    # artefaktu (budżet bundla, acykliczność grafu chunków, czystość ścieżki
-    # startowej) przeniosły się tam razem z `Build`, więc bez tej zależności
-    # `post-deploy` ruszałby, nie wiedząc, czy artefakt w ogóle przeszedł.
-    needs: [verify, build, pgtap]
+    # `build` i `test` dołączone po wydzieleniu ich z `verify` (2026-08-30):
+    # bramki artefaktu (budżet bundla, acykliczność grafu chunków, czystość
+    # ścieżki startowej) przeniosły się do `build` razem z `Build`, a suita
+    # z coverage do `test`. Bez tych dwóch zależności `post-deploy` ruszałby,
+    # nie wiedząc ani czy artefakt przeszedł, ani czy testy w ogóle zdały -
+    # a jego produktem jest RAPORT ZGODNOŚCI WDROŻENIA, który podaje liczbę
+    # testów i status CI. Raport wystawiony obok czerwonej suity kłamałby
+    # dokładnie w tym, po co powstał.
+    needs: [verify, test, build, pgtap]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
