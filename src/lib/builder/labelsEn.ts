@@ -1238,6 +1238,46 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
   "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
+  // ------------------------------------------------- widget „Karta trasy"
+  "Karta trasy": "Route card",
+  "Mapa / zdjęcie w tle": "Background map / photo",
+  "Kadr poziomy. Puste = sama płaszczyzna w kolorze nakładki.":
+    "Landscape crop. Empty = just a plane in the overlay colour.",
+  "Tekst alternatywny tła": "Background alt text",
+  "Puste = mapa jest dekoracją i znika z drzewa dostępności. Wypełnij, jeśli obraz niesie własną informację.":
+    "Empty = the map is decorative and leaves the accessibility tree. Fill it in when the image carries information of its own.",
+  "Tytuł trasy": "Route title",
+  "Autor / podpis": "Author / byline",
+  "np. Trasa Pawła": "e.g. Paul's route",
+  "Dystans (duża liczba)": "Distance (the big number)",
+  "Bez jednostki - jednostkę wpisz w podpisie poniżej, żeby nie tłumaczyć jej razem z liczbą.":
+    "No unit here - put the unit in the caption below, so it is translated separately from the number.",
+  "Podpis pod liczbą": "Caption under the number",
+  "Puste = karta nie jest linkiem. Przycisk polubienia działa niezależnie od odnośnika.":
+    "Empty = the card is not a link. The like button works independently of the link.",
+  "Pokaż polubienia": "Show likes",
+  "Polubienie zapisuje się TYLKO w przeglądarce odwiedzającego - nie sumuje się między osobami.":
+    "A like is stored ONLY in the visitor's browser - it is not summed across people.",
+  "Liczba polubień na starcie": "Starting like count",
+  "Powyżej tysiąca licznik skraca się do K/M (1527 -> 1.5K).":
+    "Above a thousand the counter shortens to K/M (1527 -> 1.5K).",
+  "Kolor po polubieniu": "Liked colour",
+  "Puste = czerwień domyślna.": "Empty = the default red.",
+  "Kolor nakładki": "Overlay colour",
+  "Puste = kolor marki. Nakładka daje kontrast dla białego tekstu nad zdjęciem.":
+    "Empty = the brand colour. The overlay gives the white text contrast over the photo.",
+  "Krycie nakładki (0-1)": "Overlay opacity (0-1)",
+  "Wysokość karty (px)": "Card height (px)",
+  "0 = pełna szerokość kolumny.": "0 = the full column width.",
+  "Zaokrąglenie rogów (px)": "Corner radius (px)",
+  "6 px to zaokrąglenie platformy. Wzorzec karty używał 16 px.":
+    "6 px is the platform radius. The source card pattern used 16 px.",
+  "Rozmiar liczby dystansu (px)": "Distance number size (px)",
+  "Liczba jest wyłączona z globalnej typografii widgetu - rozmiar tytułu i opisu ustawiasz w zakładce Styl.":
+    "The number is exempt from the widget's global typography - set the title and description sizes on the Style tab.",
+  "Wyłączone również przy systemowym ograniczeniu animacji.":
+    "Also off when the system asks for reduced motion.",
+  "Powiększ kartę pod kursorem": "Scale the card on hover",
 };
 
 /**

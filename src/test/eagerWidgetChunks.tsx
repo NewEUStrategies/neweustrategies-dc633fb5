@@ -77,6 +77,7 @@ export { AccountMenuWidget } from "@/components/builder/organisms/widget-view/Ac
 export { SpeakersWidget } from "@/components/builder/organisms/widget-view/SpeakersWidget";
 export { TeamMemberWidget } from "@/components/builder/organisms/widget-view/TeamMemberWidget";
 export { AuthorProfileCardWidget } from "@/components/builder/organisms/widget-view/AuthorProfileCardWidget";
+export { TravelRouteCardView } from "@/components/builder/organisms/widget-view/TravelRouteCardView";
 export { InteractiveCircleWidget } from "@/components/builder/organisms/widget-view/InteractiveCircleWidget";
 export { TocWidget } from "@/components/builder/organisms/widget-view/TocWidget";
 export { PricingPlansView } from "@/components/builder/organisms/widget-view/PricingPlansView";

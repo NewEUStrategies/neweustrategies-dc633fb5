@@ -51,14 +51,15 @@ export function brokeredPreviewStorage() {
     new Promise((resolve) => {
       const requestId = newId();
       let done = false;
-      // `timer` domykany przez `finish`, ale przypisywany dopiero na końcu tego
-      // bloku - i to jest bezpieczne, bo do `finish` prowadzą wyłącznie ścieżki
-      // ASYNCHRONICZNE (zdarzenie `message` i sam timeout). `postMessage`
-      // kolejkuje zadanie, więc nic nie zawoła `finish` przed inicjalizacją.
+      // Uchwyt w obiekcie, a nie `let`: `finish` czyta go przez domknięcie
+      // ZANIM timer powstanie (odpowiedź może przyjść przed upływem limitu),
+      // a samo wiązanie zapisujemy raz. `clearTimeout(undefined)` to no-op,
+      // więc wcześniejsze wejście w `finish` zachowuje się jak dotąd.
+      const timer: { id?: ReturnType<typeof setTimeout> } = {};
       const finish = (r: { ok: boolean; value?: string | null } | null) => {
         if (done) return;
         done = true;
-        clearTimeout(timer);
+        clearTimeout(timer.id);
         window.removeEventListener("message", onMessage);
         resolve(r);
       };
@@ -72,7 +73,7 @@ export function brokeredPreviewStorage() {
       if (value !== undefined) msg["value"] = value;
       // targetOrigin per trusted editor origin, so a session token never reaches an arbitrary embedder.
       for (const origin of editorOrigins) window.parent.postMessage(msg, origin);
-      const timer: ReturnType<typeof setTimeout> = setTimeout(() => finish(null), TIMEOUT);
+      timer.id = setTimeout(() => finish(null), TIMEOUT);
     });
 
   // The editor may not be listening yet at the first getItem, so retry once.
