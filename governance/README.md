@@ -21,7 +21,7 @@ przewraca CI tak samo jak błąd typów.
 | `governance/ownership.json`              | **Rejestr** - jedyne źródło prawdy. To tu się edytuje                |
 | `governance/README.md`                   | Ten plik. Jego brak przewraca bramkę                                 |
 | `src/lib/ci/ownership.ts`                | Inwariant: parsowanie, atrybucja, raport. Warstwa czysta, bez IO     |
-| `src/lib/ci/__tests__/ownership.test.ts` | 46 testów inwariantu                                                 |
+| `src/lib/ci/__tests__/ownership.test.ts` | 59 testów inwariantu                                                 |
 | `scripts/check-ownership.ts`             | Cienki runner - odczyt katalogów i kod wyjścia                       |
 | `scripts/generate-codeowners.ts`         | Generator `.github/CODEOWNERS` (+ tryb `--check` bajt w bajt)        |
 | `.github/CODEOWNERS`                     | **Plik generowany.** Nie edytuj ręcznie                              |

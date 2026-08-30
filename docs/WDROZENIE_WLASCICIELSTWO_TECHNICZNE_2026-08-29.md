@@ -44,7 +44,7 @@ Dwie z tych liczb decydują o kształcie naprawy:
 | `governance/ownership.json`              | **Rejestr** - jedyne źródło prawdy o zakresie i właścicielach              |
 | `governance/README.md`                   | Instrukcja edycji rejestru (najczęstsze sytuacje, progi, metoda atrybucji) |
 | `src/lib/ci/ownership.ts`                | Inwariant, warstwa czysta: parsowanie, atrybucja, raport                   |
-| `src/lib/ci/__tests__/ownership.test.ts` | 46 testów jednostkowych inwariantu                                         |
+| `src/lib/ci/__tests__/ownership.test.ts` | 59 testów jednostkowych inwariantu                                         |
 | `scripts/check-ownership.ts`             | Cienki runner bramki (`bun run check:ownership`)                           |
 | `scripts/generate-codeowners.ts`         | Generator i weryfikator `.github/CODEOWNERS` (`--check` bajt w bajt)       |
 | `.github/CODEOWNERS`                     | Plik GENEROWANY z rejestru                                                 |
