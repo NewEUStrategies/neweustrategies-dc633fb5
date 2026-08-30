@@ -78,7 +78,9 @@ function zdrowie(overrides: Partial<WebhookHealth> = {}): WebhookHealth {
     avgDurationMs: 120,
     p95DurationMs: 340,
     avgLagSeconds: 2,
-    byType: [{ eventType: "checkout.session.completed", total: 100, failed: 0, avgDurationMs: 120 }],
+    byType: [
+      { eventType: "checkout.session.completed", total: 100, failed: 0, avgDurationMs: 120 },
+    ],
     recentFailures: [],
     ...overrides,
   };
