@@ -68,7 +68,6 @@ import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/med
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
 import { createEventSpeakerPerson, type EventSpeakerUpsertResult } from "@/lib/admin/community";
 
-
 /** „Bez grupy" nie moze byc pustym napisem: Radix Select rezerwuje "" na reset. */
 const NO_GROUP = "__none__";
 
@@ -188,7 +187,6 @@ function Section({
   );
 }
 
-
 export function EventSpeakerCreateDialog({
   eventId,
   open,
@@ -209,7 +207,6 @@ export function EventSpeakerCreateDialog({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-
 
   // UPLOAD ZDJECIA. Ta sama, jedyna dopuszczalna sciezka co w reszcie panelu:
   // walidacja MIME/rozmiaru -> storage w prefiksie najemcy -> rejestracja w
@@ -237,7 +234,6 @@ export function EventSpeakerCreateDialog({
       if (fileRef.current !== null) fileRef.current.value = "";
     }
   };
-
 
   // Grupy czytamy TYLKO przy otwartym popupie: zamknięty dialog nie ma prawa
   // trzymać zapytania, ktore odpala sie na kazdym wejsciu w ekran prelegentow.
@@ -424,11 +420,16 @@ export function EventSpeakerCreateDialog({
                   if (file !== undefined) void handlePhoto(file);
                 }}
                 className={`group relative flex size-[76px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/40 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                  dragOver ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/60"
+                  dragOver
+                    ? "border-primary bg-primary/10"
+                    : "border-border/60 hover:border-primary/60"
                 }`}
               >
                 {uploading ? (
-                  <Loader2 aria-hidden="true" className="size-5 animate-spin text-muted-foreground" />
+                  <Loader2
+                    aria-hidden="true"
+                    className="size-5 animate-spin text-muted-foreground"
+                  />
                 ) : draft.photoUrl.trim() !== "" ? (
                   <img
                     src={draft.photoUrl}
@@ -495,9 +496,7 @@ export function EventSpeakerCreateDialog({
                   </div>
                 </Field>
               </div>
-
             </div>
-
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field

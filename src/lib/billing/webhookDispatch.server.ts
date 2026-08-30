@@ -338,8 +338,7 @@ async function handleTransaction(
       // Odrzucona płatność jednorazowa: zgłoszenie na wydarzenie zostaje, ale
       // musi być widoczne jako NIEOPŁACONE - inaczej organizator wpuściłby na
       // salę osobę, której karta nie przeszła.
-      const { markOneTimePaymentFailed } =
-        await import("@/lib/billing/oneTimeFulfilment.server");
+      const { markOneTimePaymentFailed } = await import("@/lib/billing/oneTimeFulfilment.server");
       await markOneTimePaymentFailed(data.customData ?? null);
       return;
     }
@@ -403,8 +402,7 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
     typeof data[key] === "string" ? (data[key] as string) : null;
 
   const totals = data.totals as
-    | { total?: string; captured?: string; currencyCode?: string }
-    | undefined;
+    { total?: string; captured?: string; currencyCode?: string } | undefined;
   const totalRaw = totals?.total;
   const amountCents = totalRaw !== undefined ? Math.round(Number(totalRaw)) : null;
   const capturedRaw = totals?.captured;

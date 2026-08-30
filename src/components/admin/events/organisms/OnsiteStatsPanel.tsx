@@ -193,7 +193,7 @@ export function OnsiteStatsPanel({ eventId }: { eventId: string }) {
           </div>
         )}
       </AdminCatalogListState>
-          <OnsiteLiveStatsPanel eventId={eventId} />
-</section>
+      <OnsiteLiveStatsPanel eventId={eventId} />
+    </section>
   );
 }

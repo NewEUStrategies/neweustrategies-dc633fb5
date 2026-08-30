@@ -43,7 +43,6 @@ const createOrderSchema = z.object({
   environment: z.enum(["sandbox", "live"]).optional(),
 });
 
-
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => createOrderSchema.parse(input))
@@ -118,14 +117,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // i kod dostępu rozstrzyga JEDNA funkcja bazy - ta sama, z której czyta
       // publiczna karta biletu. Dwie implementacje progu czasowego znaczyłyby
       // dwie różne kwoty: jedną na karcie, drugą na paragonie.
-      const { data: quote, error: quoteErr } = await supabase.rpc(
-        "event_ticket_checkout_quote",
-        {
-          p_ticket_type_id: data.ticket_type_id,
-          // `undefined` = brak klucza w żądaniu; RPC ma wtedy własny default.
-          p_access_code: data.access_code === "" ? undefined : data.access_code,
-        },
-      );
+      const { data: quote, error: quoteErr } = await supabase.rpc("event_ticket_checkout_quote", {
+        p_ticket_type_id: data.ticket_type_id,
+        // `undefined` = brak klucza w żądaniu; RPC ma wtedy własny default.
+        p_access_code: data.access_code === "" ? undefined : data.access_code,
+      });
       if (quoteErr) throw new Error(quoteErr.message);
       const parsed =
         quote !== null && typeof quote === "object" && !Array.isArray(quote)
@@ -488,8 +484,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const phaseDiscountCents = ticketListPriceCents - amountCents;
       if (eventId && phaseDiscountCents > 0 && amountCents >= 50) {
         const { createStripeClient } = await import("@/lib/stripe.server");
-        const { createAdhocDiscountForCoupon } =
-          await import("@/lib/billing/adhocCheckout.server");
+        const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
         const couponRef = await createAdhocDiscountForCoupon(createStripeClient(environment), {
           code: ticketPhaseLabel || "Rabat",
           discountCents: phaseDiscountCents,

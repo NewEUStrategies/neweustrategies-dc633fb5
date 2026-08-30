@@ -49,10 +49,12 @@ describe("cartStore", () => {
   });
 
   it("sumy są rozbite po walucie", () => {
-    const cart = [item(), item({ eventId: "e2", currency: "EUR", priceCents: 5000 })].map((entry) => ({
-      ...entry,
-      id: cartItemId(entry.eventId, entry.ticketTypeId),
-    }));
+    const cart = [item(), item({ eventId: "e2", currency: "EUR", priceCents: 5000 })].map(
+      (entry) => ({
+        ...entry,
+        id: cartItemId(entry.eventId, entry.ticketTypeId),
+      }),
+    );
     expect(cartTotals(cart)).toEqual({
       count: 2,
       byCurrency: [

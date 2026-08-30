@@ -107,15 +107,7 @@ function ReadField({ label, value }: { label: string; value: string }) {
 }
 
 /** Wiersz funkcji na żywo - etykieta, opis i licznik sesji po prawej. */
-function FeatureRow({
-  label,
-  hint,
-  count,
-}: {
-  label: string;
-  hint: string;
-  count: number;
-}) {
+function FeatureRow({ label, hint, count }: { label: string; hint: string; count: number }) {
   return (
     <li className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 last:border-b-0">
       <div className="min-w-0">
@@ -566,12 +558,8 @@ export function EventTrackWorkspace({
               <Input
                 value={exhibitorQuery}
                 onChange={(event) => setExhibitorQuery(event.target.value)}
-                placeholder={t(
-                  "adminEventAgenda.tracks.workspace.exhibitors.searchPlaceholder",
-                )}
-                aria-label={t(
-                  "adminEventAgenda.tracks.workspace.exhibitors.searchPlaceholder",
-                )}
+                placeholder={t("adminEventAgenda.tracks.workspace.exhibitors.searchPlaceholder")}
+                aria-label={t("adminEventAgenda.tracks.workspace.exhibitors.searchPlaceholder")}
                 className="pl-9"
               />
             </div>
@@ -645,12 +633,8 @@ export function EventTrackWorkspace({
                 <Input
                   value={attendeeQuery}
                   onChange={(event) => setAttendeeQuery(event.target.value)}
-                  placeholder={t(
-                    "adminEventAgenda.tracks.workspace.attendees.searchPlaceholder",
-                  )}
-                  aria-label={t(
-                    "adminEventAgenda.tracks.workspace.attendees.searchPlaceholder",
-                  )}
+                  placeholder={t("adminEventAgenda.tracks.workspace.attendees.searchPlaceholder")}
+                  aria-label={t("adminEventAgenda.tracks.workspace.attendees.searchPlaceholder")}
                   className="pl-9"
                 />
               </div>
@@ -694,9 +678,7 @@ export function EventTrackWorkspace({
                         <td className="px-4 py-2.5">
                           {`${row.first_name ?? ""} ${row.last_name ?? ""}`.trim()}
                         </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">
-                          {row.job_title ?? ""}
-                        </td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{row.job_title ?? ""}</td>
                         <td className="px-4 py-2.5 text-muted-foreground">
                           {row.company_name ?? row.company_text ?? ""}
                         </td>
@@ -745,12 +727,8 @@ export function EventTrackWorkspace({
               />
               <Input
                 disabled
-                placeholder={t(
-                  "adminEventAgenda.tracks.workspace.documents.searchPlaceholder",
-                )}
-                aria-label={t(
-                  "adminEventAgenda.tracks.workspace.documents.searchPlaceholder",
-                )}
+                placeholder={t("adminEventAgenda.tracks.workspace.documents.searchPlaceholder")}
+                aria-label={t("adminEventAgenda.tracks.workspace.documents.searchPlaceholder")}
                 className="pl-9"
               />
             </div>

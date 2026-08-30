@@ -725,7 +725,12 @@ jobs:
       # saved_searches, user_follows) - asercje RLS na zywej bazie, nie analiza
       # statyczna. Audyt 2026-08-29: te polityki bramkowaly sam `auth.uid()`,
       # wiec wiersz z dryfem tenanta przekraczal granice obszaru roboczego.
-      - name: Run tenant-isolation-harness (RLS: media_mentions / saved_searches / user_follows)
+      # Nazwa w cudzysłowie, bo zawiera „RLS: " - dwukropek ze spacją w gołym
+      # skalarze YAML otwiera zagnieżdżone odwzorowanie. GitHub to przepuszcza,
+      # ale prettier (a więc bramka `format:check`, PIERWSZY krok tego joba)
+      # przewraca się na parsowaniu CAŁEGO pliku, więc żaden inny krok nie
+      # zdąży się uruchomić.
+      - name: "Run tenant-isolation-harness (RLS: media_mentions / saved_searches / user_follows)"
         if: ${{ !cancelled() }}
         run: bun run check:tenant-isolation
 

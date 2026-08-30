@@ -120,7 +120,14 @@ describe("buildBadgePrintDocument", () => {
 
   it("osadza rozmiar karty w milimetrach", () => {
     const html = buildBadgePrintDocument(
-      [{ card, qrDataUrl: "data:image/png;base64,AAA", ticketLabel: "Pełny", groupLabel: "Goście" }],
+      [
+        {
+          card,
+          qrDataUrl: "data:image/png;base64,AAA",
+          ticketLabel: "Pełny",
+          groupLabel: "Goście",
+        },
+      ],
       options,
     );
     expect(html).toContain("width: 105mm");

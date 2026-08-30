@@ -168,7 +168,6 @@ export const adminCommunityEventsPl = {
         photoDropHint:
           "Przeciągnij i upuść plik na kafel albo wgraj z dysku - podgląd zobaczysz przed zapisem. Możesz też podać adres https.",
 
-
         headlinePl: "Rola sceniczna PL",
         headlineEn: "Rola sceniczna EN",
         headlineHint: "Druga linia karty prelegenta. Puste pole zostawia stanowisko.",
@@ -370,7 +369,6 @@ export const adminCommunityEventsEn = {
         photoReplace: "Replace photo",
         photoDropHint:
           "Drag and drop a file onto the tile or upload from disk - you see the preview before saving. An https URL also works.",
-
 
         headlinePl: "Stage headline PL",
         headlineEn: "Stage headline EN",

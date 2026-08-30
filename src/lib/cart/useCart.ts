@@ -63,11 +63,7 @@ export interface UseCartResult {
 }
 
 export function useCart(): UseCartResult {
-  const items = useSyncExternalStore(
-    subscribe,
-    current,
-    () => EMPTY,
-  );
+  const items = useSyncExternalStore(subscribe, current, () => EMPTY);
 
   const add = useCallback((item: CartItem) => commit(addCartItem(current(), item)), []);
   const remove = useCallback((id: string) => commit(removeCartItem(current(), id)), []);

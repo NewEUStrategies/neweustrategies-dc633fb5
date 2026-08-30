@@ -167,9 +167,7 @@ export interface PackagePurchaseResult {
   status: string;
 }
 
-export async function purchasePackage(
-  input: PackagePurchaseInput,
-): Promise<PackagePurchaseResult> {
+export async function purchasePackage(input: PackagePurchaseInput): Promise<PackagePurchaseResult> {
   const payload: Record<string, Json> = { package_id: input.packageId };
   if (input.buyerName.trim() !== "") payload.buyer_name = input.buyerName.trim();
   if (input.buyerEmail.trim() !== "") payload.buyer_email = input.buyerEmail.trim();
@@ -220,9 +218,7 @@ export interface BuyerSeatInvite {
  * Zaproszenie wystawia KUPUJACY, nie organizator - dlatego
  * `event_package_seat_invite`, a nie `admin_event_package_seat_invite`.
  */
-export async function inviteMyPackageSeat(
-  input: BuyerSeatInviteInput,
-): Promise<BuyerSeatInvite> {
+export async function inviteMyPackageSeat(input: BuyerSeatInviteInput): Promise<BuyerSeatInvite> {
   const { data, error } = await supabase.rpc("event_package_seat_invite", {
     p_payload: {
       package_order_id: input.orderId,

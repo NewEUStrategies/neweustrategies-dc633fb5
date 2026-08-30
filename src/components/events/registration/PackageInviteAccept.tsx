@@ -82,9 +82,7 @@ export function PackageInviteAccept({ token }: { token: string | null }) {
           <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
           {t("eventRegistration.invite.successTitle")}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("eventRegistration.invite.successBody")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("eventRegistration.invite.successBody")}</p>
 
         {result.qrToken !== null && (
           <div className="space-y-1 rounded-[6px] border border-primary/40 bg-primary/5 p-4">
@@ -95,9 +93,7 @@ export function PackageInviteAccept({ token }: { token: string | null }) {
             <code className="block break-all font-mono text-sm text-foreground">
               {result.qrToken}
             </code>
-            <p className="text-xs text-muted-foreground">
-              {t("eventRegistration.invite.qrHint")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("eventRegistration.invite.qrHint")}</p>
           </div>
         )}
 

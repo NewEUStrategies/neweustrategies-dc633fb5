@@ -37,9 +37,7 @@ describe("packageDraftIssue", () => {
   });
 
   it("wymaga wskazania biletu", () => {
-    expect(packageDraftIssue(valid({ ticketTypeId: "" }))?.errorKey).toBe(
-      "packageTicketRequired",
-    );
+    expect(packageDraftIssue(valid({ ticketTypeId: "" }))?.errorKey).toBe("packageTicketRequired");
   });
 
   it("odrzuca pakiet bez miejsc i ponad limitem", () => {

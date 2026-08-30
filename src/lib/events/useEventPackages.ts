@@ -140,9 +140,7 @@ export function useInvitePackageSeat(
   });
 }
 
-export function useRevokePackageSeat(
-  eventId: string,
-): UseMutationResult<boolean, Error, string> {
+export function useRevokePackageSeat(eventId: string): UseMutationResult<boolean, Error, string> {
   const invalidate = useEventInvalidation(eventId);
   return useMutation({
     mutationFn: revokePackageSeat,
