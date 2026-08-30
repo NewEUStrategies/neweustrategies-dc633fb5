@@ -9,6 +9,16 @@
 // i to jest właściwe: materiały są korzyścią uczestnictwa, nie treścią
 // sprzedażową.
 //
+// ZDANIE O PUSTCE JEST DRUGĄ LINIĄ OBRONY, NIE PIERWSZĄ. Od migracji
+// 20260829221500 pustkę tej sekcji liczy BAZA (`event_sections.has_content`,
+// tym samym dwustopniowym predykatem publikacji, co RPC listy), więc sekcja
+// bez ani jednego materiału nie dociera tu wcale - `shouldRenderSection`
+// ubija ją razem z nagłówkiem, który rysuje `EventPageSections`. Zdanie
+// zostaje, bo sekcja i lista jadą DWOMA osobnymi zapytaniami i mogą się
+// rozjechać w czasie: partner cofa publikację między jednym a drugim.
+// Dokładnie tak samo, i z tego samego powodu, zostało zdanie o pustce
+// w `EventSponsorsSection`.
+//
 // KAŻDY ODNOŚNIK WYCHODZI Z SERWISU. `rel="noopener noreferrer nofollow"` jest
 // tu wymogiem, a nie ostrożnością: adresy pochodzą od partnerów, więc nie
 // przekazujemy im ani uchwytu do okna, ani rankingu.

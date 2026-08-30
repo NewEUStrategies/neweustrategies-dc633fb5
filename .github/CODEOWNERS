@@ -1,0 +1,128 @@
+# PLIK GENEROWANY - nie edytuj ręcznie.
+# Źródło: governance/ownership.json  |  Generator: bun run generate:codeowners
+# Bramka spójności: bun run check:codeowners
+#
+# 75 wzorców tras administracyjnych w 9 domenach.
+# Ten plik pokrywa WYŁĄCZNIE trasy. Własnicielstwo migracji bazy nie da się
+# wyrazić ścieżką (nazwy to znaczniki czasu i UUID-y) - egzekwuje je bramka
+# `bun run check:ownership` na podstawie tego samego rejestru.
+#
+# UWAGA NA KOLEJNOŚĆ: GitHub stosuje regułę OSTATNIEGO trafienia, a rejestr
+# regułę PIERWSZEGO, więc domeny są tu wypisane w kolejności ODWROTNEJ niż
+# w governance/ownership.json. Nie sortuj tego pliku.
+#
+# Zakres każdej domeny, klasa SLA i ścieżka eskalacji: governance/ownership.json
+# Umowa utrzymaniowa: docs/UMOWA_UTRZYMANIOWA.md
+# Niedostępność wykonawcy: docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md
+
+# UWAGA: reguły poniżej są ZAKOMENTOWANE, bo 9 z 9 domen nie ma obsadzonego właściciela,
+# a zespoły GitHub o tych nazwach nie istnieją jeszcze w organizacji. Aktywna reguła
+# wskazująca nieistniejący zespół zablokowałaby merge przy ochronie gałęzi z opcją
+# "Require review from Code Owners". Kolejność: załóż zespół -> ustaw `obsadzone: true`
+# w governance/ownership.json -> `bun run generate:codeowners`.
+
+# ── Platforma i baza (platforma-i-baza) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.tsx @NewEUStrategies/utrzymanie-platforma-i-baza
+# /src/routes/admin.index.tsx @NewEUStrategies/utrzymanie-platforma-i-baza
+# /src/routes/admin.performance.tsx @NewEUStrategies/utrzymanie-platforma-i-baza
+# /src/routes/admin.i18n.tsx @NewEUStrategies/utrzymanie-platforma-i-baza
+
+# ── Tożsamość i uprawnienia (tozsamosc-i-uprawnienia) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.settings.* @NewEUStrategies/utrzymanie-tozsamosc-i-uprawnienia
+# /src/routes/admin.users.* @NewEUStrategies/utrzymanie-tozsamosc-i-uprawnienia
+# /src/routes/admin.permissions.tsx @NewEUStrategies/utrzymanie-tozsamosc-i-uprawnienia
+# /src/routes/admin.authors.tsx @NewEUStrategies/utrzymanie-tozsamosc-i-uprawnienia
+# /src/routes/admin.login-settings.tsx @NewEUStrategies/utrzymanie-tozsamosc-i-uprawnienia
+
+# ── Zgodność i prywatność (zgodnosc-i-prywatnosc) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.settings.privacy.tsx @NewEUStrategies/utrzymanie-zgodnosc-i-prywatnosc
+# /src/routes/admin.settings.cookie-banner.tsx @NewEUStrategies/utrzymanie-zgodnosc-i-prywatnosc
+
+# ── Treść i edytory (tresc-i-edytory) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.posts.* @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.pages.* @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.appearance.* @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.super.* @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.media.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.content-area.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.versions.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.related-posts.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.personalized.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.custom-meta.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.crop-sizes.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.import-wordpress.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.categories.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.category-colors.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.tags.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.glossary.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.theme-options.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.theme-design.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.post-layouts.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.expert-layouts.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.icons.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.greetings.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.names.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.key-takeaways.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.toc.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.reading-time.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.podcasts.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+# /src/routes/admin.web-stories.tsx @NewEUStrategies/utrzymanie-tresc-i-edytory
+
+# ── Kariera i programy (kariera-i-programy) · SLA sla-3 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.careers.tsx @NewEUStrategies/utrzymanie-kariera-i-programy
+# /src/routes/admin.hiring.tsx @NewEUStrategies/utrzymanie-kariera-i-programy
+# /src/routes/admin.expert-requests.tsx @NewEUStrategies/utrzymanie-kariera-i-programy
+# /src/routes/admin.programs.tsx @NewEUStrategies/utrzymanie-kariera-i-programy
+# /src/routes/admin.research-programs.tsx @NewEUStrategies/utrzymanie-kariera-i-programy
+
+# ── CRM i marketing (crm-i-marketing) · SLA sla-2 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.crm.* @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.companies.* @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.workflows.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.integrations.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.contact.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.newsletter.* @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.popups.* @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.seo.* @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.experiments.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.redirects.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.tracker* @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.analytics.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.audience.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+# /src/routes/admin.link-monitor.tsx @NewEUStrategies/utrzymanie-crm-i-marketing
+
+# ── Monetyzacja i płatności (monetyzacja-i-platnosci) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.coupons.* @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.organizations.* @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.monetization.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.paywall.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.pricing.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.membership.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.gifting.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.library.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.ads.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.billing* @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.donations.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+
+# ── Wydarzenia (wydarzenia) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.events_.$eventId.* @NewEUStrategies/utrzymanie-wydarzenia
+# /src/routes/admin.events_.new.tsx @NewEUStrategies/utrzymanie-wydarzenia
+# /src/routes/admin.events.* @NewEUStrategies/utrzymanie-wydarzenia
+# /src/routes/admin.live-blog.tsx @NewEUStrategies/utrzymanie-wydarzenia
+
+# ── Społeczność i kluby (spolecznosc-i-kluby) · SLA sla-1 ──
+#    właściciel: Właściciel techniczny domeny - DO OBSADZENIA | zastępca: Zastępca właściciela technicznego - DO OBSADZENIA
+# /src/routes/admin.community.* @NewEUStrategies/utrzymanie-spolecznosc-i-kluby
+# /src/routes/admin.comments.tsx @NewEUStrategies/utrzymanie-spolecznosc-i-kluby
+
+# ── Rejestr własnicielstwa pilnuje sam siebie ──
+# Zmiana rejestru wymaga zgody właściciela biznesowego (New European Strategies).
+# Odkomentuj, gdy powstanie zespół: /governance/ @NewEUStrategies/<zespół>

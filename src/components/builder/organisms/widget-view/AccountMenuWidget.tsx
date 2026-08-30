@@ -231,6 +231,30 @@ export const ACCOUNT_PRESETS: Array<{
   },
 ];
 
+/**
+ * Etykiety pozycji domyślnych (gdy redakcja nie skonfigurowała ani jednej
+ * pozycji sekcji `auth`).
+ *
+ * MAPA PO JĘZYKU, A NIE TERNARY - ten sam zapis, co `DEMO_DECISION_NOTE`
+ * w `lib/email/tx-preview.server.ts` i co `label_pl`/`label_en` w
+ * `ACCOUNT_PRESETS` wyżej. Ternary po języku jest długiem mierzonym przez
+ * `check:i18n-hardcoded`, a `t()` byłoby tu WPROST BŁĘDNE: `lang` to prop
+ * renderowanej STRONY (builder podaje język edytowanego dokumentu), więc
+ * w podglądzie edytora klucz z i18next szedłby za językiem interfejsu admina
+ * i jedna etykieta rozjechałaby się z pozostałymi pięcioma.
+ *
+ * Krótsze niż odpowiedniki w `ACCOUNT_PRESETS` celowo: to rail domyślny,
+ * nie pełne menu (stąd „Zapisane" wobec presetowego „Zapisane materiały").
+ */
+const DEFAULT_ITEM_LABELS: Record<string, Record<Lang, string>> = {
+  profile: { pl: "Mój profil", en: "My profile" },
+  network: { pl: "Sieć kontaktów", en: "Network" },
+  clubs: { pl: "Kluby dyskusyjne", en: "Discussion clubs" },
+  events: { pl: "Wydarzenia", en: "Events" },
+  messages: { pl: "Czat", en: "Chat" },
+  bookmarks: { pl: "Zapisane", en: "Saved" },
+};
+
 function presetFor(key: string | undefined) {
   return ACCOUNT_PRESETS.find((p) => p.key === key);
 }
@@ -514,7 +538,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             icon: "User",
           },
           href: "/profile",
-          label: lang === "pl" ? "Mój profil" : "My profile",
+          label: DEFAULT_ITEM_LABELS.profile[lang],
           desc: "",
         },
         {
@@ -526,7 +550,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             icon: "UserPlus",
           },
           href: "/network",
-          label: lang === "pl" ? "Sieć kontaktów" : "Network",
+          label: DEFAULT_ITEM_LABELS.network[lang],
           desc: "",
         },
         {
@@ -538,7 +562,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             icon: "Landmark",
           },
           href: "/club",
-          label: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
+          label: DEFAULT_ITEM_LABELS.clubs[lang],
           desc: "",
         },
         {
@@ -550,7 +574,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             icon: "CalendarDays",
           },
           href: "/profile/events",
-          label: lang === "pl" ? "Wydarzenia" : "Events",
+          label: DEFAULT_ITEM_LABELS.events[lang],
           desc: "",
         },
         {
@@ -562,7 +586,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             icon: "MessageCircle",
           },
           href: "/messages",
-          label: lang === "pl" ? "Czat" : "Chat",
+          label: DEFAULT_ITEM_LABELS.messages[lang],
           desc: "",
         },
 
@@ -575,7 +599,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             icon: "Bookmark",
           },
           href: "/profile/bookmarks",
-          label: lang === "pl" ? "Zapisane" : "Saved",
+          label: DEFAULT_ITEM_LABELS.bookmarks[lang],
           desc: "",
         },
 
