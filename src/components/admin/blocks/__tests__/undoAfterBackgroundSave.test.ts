@@ -52,7 +52,9 @@ import { describe, expect, it } from "vitest";
 
 import { replaceFormImageUrls } from "@/components/admin/post-editor/lib/savePayload";
 import type { PostForm } from "@/components/admin/post-editor/types";
-import { BASE_FORM } from "@/test/post-editor/fixtures";
+import { postForm } from "@/test/post-editor/fixtures";
+
+const BASE_FORM = postForm();
 
 /** Formularz z jednym obrazem `data:` w dokumencie blokow. */
 function formWithDataUrlImage(): PostForm {
