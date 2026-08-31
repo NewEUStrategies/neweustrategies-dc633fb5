@@ -269,6 +269,40 @@ export default defineConfig({
           lines: 97,
           branches: 94,
         },
+        // ── IMPORT WORDPRESS, IMPLEMENTACJA DRUGA (STRONY + PLIK WXR) ────────
+        // Audyt (wyd. 7, rozdz. 5.3) nazwal to "najciekawszym znaleziskiem tego
+        // wydania": repozytorium ma DWIE niezalezne implementacje importu
+        // o ludzaco podobnych nazwach, a prog wyzej pilnowal tylko jednej.
+        //
+        // ROZSTRZYGNIECIE: obie sa ZYWE i obie zostaly pokryte. Impl A
+        // (`wordpress-import.functions.ts`, prog wyzej) importuje POSTY; ta
+        // importuje STRONY do `builder_data` i jest JEDYNA sciezka przyjmujaca
+        // plik WXR. Usuniecie ktorejkolwiek usuwa zdolnosc panelu - szczegoly
+        // w docs/RAPORT_MODUL_3_SILNIKI_TRESCI_2026-08-31.md, sekcja 8.
+        //
+        // Startowala z 0% (`wp-import.functions.ts`, `wxr.ts`) i 3,28%
+        // (`elementor.ts` - najgorszy pojedynczy plik tej klasy w repozytorium).
+        //
+        // ZMIERZONE 2026-08-31 (158 przypadkow):
+        //   wp-import.functions.ts  100% instr / 99,44% gal / 100% fn / 100% lin
+        //   wp-import/elementor.ts  100%       / 99,22%     / 100%    / 100%
+        //   wp-import/wxr.ts        96,87%     / 94,69%     / 100%    / 100%
+        //   wp-import/convert.ts    100%       / 94,44%     / 100%    / 100%
+        //   wp-import/buildPage.ts  100%       / 95,23%     / 100%    / 100%
+        //   caly katalog            98,79%     / 95,74%     / 100%    / 100%
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/lib/wp-import.functions.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/wp-import/**": {
+          statements: 96,
+          functions: 98,
+          lines: 97,
+          branches: 92,
+        },
         // ── WARSTWA MUTACJI TRESCI (posty, strony, kategorie, tagi) ──────────
         // Audyt 2026-08-18 (wyd. 7) nazwal ten plik NAJWIEKSZA POJEDYNCZA DZIURA
         // W CALYM REPOZYTORIUM: 458 niepokrytych linii przy 1% galezi, a przez te
