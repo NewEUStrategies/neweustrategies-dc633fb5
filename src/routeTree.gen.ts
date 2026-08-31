@@ -147,6 +147,7 @@ import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminOrganizationsRouteImport } from './routes/admin.organizations'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
 import { Route as AdminNamesRouteImport } from './routes/admin.names'
+import { Route as AdminMonetizationLedgerRouteImport } from './routes/admin.monetization-ledger'
 import { Route as AdminMonetizationRouteImport } from './routes/admin.monetization'
 import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
@@ -1065,6 +1066,11 @@ const AdminNewsletterRoute = AdminNewsletterRouteImport.update({
 const AdminNamesRoute = AdminNamesRouteImport.update({
   id: '/names',
   path: '/names',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMonetizationLedgerRoute = AdminMonetizationLedgerRouteImport.update({
+  id: '/monetization-ledger',
+  path: '/monetization-ledger',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminMonetizationRoute = AdminMonetizationRouteImport.update({
@@ -2383,6 +2389,7 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
+  '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
@@ -2743,6 +2750,7 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
+  '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -3107,6 +3115,7 @@ export interface FileRoutesById {
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
+  '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
@@ -3478,6 +3487,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/membership'
     | '/admin/monetization'
+    | '/admin/monetization-ledger'
     | '/admin/names'
     | '/admin/newsletter'
     | '/admin/organizations'
@@ -3838,6 +3848,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/membership'
     | '/admin/monetization'
+    | '/admin/monetization-ledger'
     | '/admin/names'
     | '/admin/organizations'
     | '/admin/pages'
@@ -4201,6 +4212,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/membership'
     | '/admin/monetization'
+    | '/admin/monetization-ledger'
     | '/admin/names'
     | '/admin/newsletter'
     | '/admin/organizations'
@@ -5563,6 +5575,13 @@ declare module '@tanstack/react-router' {
       path: '/names'
       fullPath: '/admin/names'
       preLoaderRoute: typeof AdminNamesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/monetization-ledger': {
+      id: '/admin/monetization-ledger'
+      path: '/monetization-ledger'
+      fullPath: '/admin/monetization-ledger'
+      preLoaderRoute: typeof AdminMonetizationLedgerRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/monetization': {
@@ -7620,6 +7639,7 @@ interface AdminRouteChildren {
   AdminMediaRoute: typeof AdminMediaRoute
   AdminMembershipRoute: typeof AdminMembershipRoute
   AdminMonetizationRoute: typeof AdminMonetizationRoute
+  AdminMonetizationLedgerRoute: typeof AdminMonetizationLedgerRoute
   AdminNamesRoute: typeof AdminNamesRoute
   AdminNewsletterRoute: typeof AdminNewsletterRouteWithChildren
   AdminOrganizationsRoute: typeof AdminOrganizationsRouteWithChildren
@@ -7698,6 +7718,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminMediaRoute: AdminMediaRoute,
   AdminMembershipRoute: AdminMembershipRoute,
   AdminMonetizationRoute: AdminMonetizationRoute,
+  AdminMonetizationLedgerRoute: AdminMonetizationLedgerRoute,
   AdminNamesRoute: AdminNamesRoute,
   AdminNewsletterRoute: AdminNewsletterRouteWithChildren,
   AdminOrganizationsRoute: AdminOrganizationsRouteWithChildren,
