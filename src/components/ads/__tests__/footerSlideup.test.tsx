@@ -138,6 +138,7 @@ async function tick(ms: number) {
 class ImmediateIntersectionObserver implements IntersectionObserver {
   readonly root: Element | null = null;
   readonly rootMargin: string = "";
+  readonly scrollMargin: string = "";
   readonly thresholds: ReadonlyArray<number> = [];
   private readonly cb: IntersectionObserverCallback;
   constructor(cb: IntersectionObserverCallback) {
