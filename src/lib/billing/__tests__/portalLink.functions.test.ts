@@ -386,61 +386,86 @@ describe("walidator - numer transakcji", () => {
     ).toThrow(ZodError);
   });
 
-  // DEFEKT (nie naprawiam - zakres zadania to testy, nie kod produkcyjny).
+  // DEFEKT NAPRAWIONY 31.08.2026 (`src/lib/billing/transactionId.ts`).
   //
-  // CO JEST ZŁE. Wzorzec `TRANSACTION_ID_PATTERN`
-  // (`src/lib/billing/transactionId.ts:7`) brzmi
-  // `/^(pi_|cs_|in_|ch_|txn_)[A-Za-z0-9]{8,80}$/` - po prefiksie dopuszcza
+  // CO BYŁO ZŁE. Wzorzec `TRANSACTION_ID_PATTERN` brzmiał
+  // `/^(pi_|cs_|in_|ch_|txn_)[A-Za-z0-9]{8,80}$/` - po prefiksie dopuszczał
   // WYŁĄCZNIE znaki alfanumeryczne. Tymczasem identyfikator sesji Checkout
   // u operatora ma postać `cs_test_<...>` w piaskownicy i `cs_live_<...>` na
   // koncie produkcyjnym, czyli zawiera PODKREŚLNIK po członie trybu. Wzorzec
-  // odrzuca więc KAŻDY prawdziwy identyfikator sesji, mimo że prefiks `cs_`
-  // jest w nim wymieniony wprost jako obsługiwany.
+  // odrzucał więc KAŻDY prawdziwy identyfikator sesji, mimo że prefiks `cs_`
+  // był w nim wymieniony wprost jako obsługiwany.
   //
-  // DLACZEGO TO RYZYKO. Implementacja jest gotowa na te identyfikatory:
+  // JAKIE TO BYŁO RYZYKO. Implementacja była gotowa na te identyfikatory:
   // `resolveInvoiceUrl` (`invoice.server.ts`) ma osobną gałąź
   // `transactionId.startsWith("cs_")`, która pobiera sesję i wyciąga z niej
-  // fakturę albo paragon. Ta gałąź jest dziś NIEOSIĄGALNA z obu funkcji
-  // faktur - bramka kształtu odcina wejście, zanim implementacja zdąży
-  // cokolwiek zrobić. Skutki są dwa i oba są operacyjne:
-  //   * użytkownik, który wkleja numer sesji z potwierdzenia zakupu, dostaje
+  // fakturę albo paragon. Ta gałąź była NIEOSIĄGALNA z obu funkcji faktur -
+  // bramka kształtu odcinała wejście, zanim implementacja zdążyła cokolwiek
+  // zrobić. Skutki były dwa i oba operacyjne:
+  //   * użytkownik, który wklejał numer sesji z potwierdzenia zakupu, dostawał
   //     „nieprawidłowy numer transakcji" przy numerze całkowicie poprawnym,
-  //   * obsługa zgłoszeń kopiuje `provider_session_id` z panelu zamówień
-  //     (audyt wypisuje tę kolumnę wprost) i dostaje tę samą odmowę - czyli
+  //   * obsługa zgłoszeń kopiowała `provider_session_id` z panelu zamówień
+  //     (audyt wypisuje tę kolumnę wprost) i dostawała tę samą odmowę - czyli
   //     najprostsza droga „mam identyfikator zamówienia, daj mi dokument"
-  //     nie działa.
+  //     nie działała.
   // Formularz w profilu (`InvoiceLookupCard`) używa tej samej funkcji
-  // `isTransactionId`, więc odmowa pojawia się już przy wpisywaniu - defekt
-  // jest jednakowy po obu stronach.
+  // `isTransactionId`, więc odmowa pojawiała się już przy wpisywaniu.
   //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana KODU PRODUKCYJNEGO
-  // (dopuszczenie podkreślnika w członie po prefiksie, np.
-  // `[A-Za-z0-9_]{8,80}` albo osobna gałąź dla `cs_`), a moim zakresem są
-  // testy. Zmiana wzorca dotyka JEDNOCZEŚNIE walidacji w przeglądarce,
-  // walidatora tych server fn i twardej bramki w `invoice.server.ts`, więc
-  // musi być świadoma. Test zaświeci na zielono dopiero po naprawie - wtedy
-  // trzeba zdjąć `.fails`.
-  it.fails("przyjmuje identyfikator sesji Checkout (`cs_live_...`)", () => {
-    // ASERCJA DOCELOWA: prawdziwy kształt identyfikatora sesji przechodzi
-    // przez bramkę, bo implementacja faktur potrafi go obsłużyć.
+  // JAK ZOSTAŁO NAPRAWIONE. Wzorzec dopuszcza opcjonalny człon trybu
+  // (`cs_test_` / `cs_live_`) WYŁĄCZNIE po prefiksie `cs_`; człon jest
+  // opcjonalny, bo identyfikatory bez niego nadal istnieją. Pozostałe prefiksy
+  // (`pi_`, `in_`, `ch_`, `txn_`) nigdy członu trybu nie mają, więc dla nich
+  // podkreślnik dalej jest odmową. Poprawka jest w JEDNYM miejscu, więc objęła
+  // naraz walidację w przeglądarce, walidatory obu server fn faktur i twardą
+  // bramkę w `invoice.server.ts`.
+  it("przyjmuje identyfikator sesji Checkout (`cs_live_...`)", () => {
+    // Prawdziwy kształt identyfikatora sesji przechodzi przez bramkę, bo
+    // implementacja faktur potrafi go obsłużyć.
     expect(
       validateServerFnInput<WejscieTransakcji>(fetchMyInvoiceByTransaction, {
         transactionId: "cs_live_a1B2c3D4e5F6g7H8i9",
         environment: "live",
       }).transactionId,
     ).toBe("cs_live_a1B2c3D4e5F6g7H8i9");
+    expect(
+      validateServerFnInput<WejscieTransakcji>(fetchInvoiceByTransactionAsAdmin, {
+        transactionId: "cs_test_a1B2c3D4e5F6g7H8i9",
+        environment: "live",
+      }).transactionId,
+    ).toBe("cs_test_a1B2c3D4e5F6g7H8i9");
   });
 
-  it("stan faktyczny: przechodzi tylko identyfikator sesji BEZ członu trybu", () => {
-    // Kontrapunkt do `it.fails` wyżej: prefiks `cs_` sam w sobie jest
-    // obsłużony, więc problemem nie jest lista prefiksów, tylko podkreślnik
-    // w członie `test`/`live`. Ten test ma zniknąć razem z naprawą wzorca.
+  it("sesja BEZ członu trybu nadal przechodzi - człon jest opcjonalny", () => {
+    // Identyfikatory bez członu `test`/`live` istnieją (starsze konta), więc
+    // poprawka wzorca ich nie odcięła. Ten test pilnuje, żeby dopuszczenie
+    // członu trybu nie zamieniło się w JEGO WYMÓG.
     expect(
       validateServerFnInput<WejscieTransakcji>(fetchMyInvoiceByTransaction, {
         transactionId: "cs_a1B2c3D4e5F6g7H8i9",
         environment: "live",
       }).transactionId,
     ).toBe("cs_a1B2c3D4e5F6g7H8i9");
+  });
+
+  it("człon trybu jest dopuszczony WYŁĄCZNIE dla sesji Checkout", () => {
+    // Granica poprawki: podkreślnik nie stał się znakiem dozwolonym wszędzie.
+    // `pi_`/`in_`/`ch_`/`txn_` nie mają członu trybu u operatora, więc
+    // podkreślnik w nich dalej znaczy „to nie jest numer transakcji" - tak samo
+    // jak zmyślony człon w sesji.
+    for (const zle of [
+      "pi_3AbCdEf_GhIjKlMn",
+      "in_1AbCdEf_GhIjKlMn",
+      "ch_3AbCdEf_GhIjKlMn",
+      "txn_01hZzYy_XxWwVv1",
+      "cs_prod_a1B2c3D4e5F6",
+    ]) {
+      expect(() =>
+        validateServerFnInput(fetchMyInvoiceByTransaction, {
+          transactionId: zle,
+          environment: "live",
+        }),
+      ).toThrow(ZodError);
+    }
   });
 });
 

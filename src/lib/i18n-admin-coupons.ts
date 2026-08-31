@@ -12,6 +12,14 @@ import i18n from "./i18n";
 
 const pl = {
   adminCoupons: {
+    // Wspólny komunikat awarii odczytu dla zakładek Realizacje i Analityka.
+    // Oba panele liczą pieniądze, więc pusty wynik i BŁĄD muszą wyglądać
+    // inaczej - inaczej odmowa RLS czyta się jak "w tym okresie nic nie było".
+    loadError: {
+      title: "Nie udało się wczytać danych.",
+      hint: "To NIE jest pusty zakres - odczyt się nie powiódł (uprawnienia, baza albo sieć). Liczby i eksport pozostają niedostępne, dopóki odczyt się nie uda.",
+      placeholder: "Dane niedostępne - odczyt się nie powiódł.",
+    },
     codesGenerated_one: "Wygenerowano {{count}} kod",
     codesGenerated_few: "Wygenerowano {{count}} kody",
     codesGenerated_many: "Wygenerowano {{count}} kodów",
@@ -91,6 +99,11 @@ const pl = {
 
 const en = {
   adminCoupons: {
+    loadError: {
+      title: "Could not load the data.",
+      hint: "This is NOT an empty range - the read failed (permissions, database or network). Figures and export stay unavailable until the read succeeds.",
+      placeholder: "Data unavailable - the read failed.",
+    },
     codesGenerated_one: "Generated {{count}} code",
     codesGenerated_other: "Generated {{count}} codes",
     searchCodeName: "Search by code/name",

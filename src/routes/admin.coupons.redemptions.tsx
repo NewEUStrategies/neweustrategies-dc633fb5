@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
-import { couponPaidCents, sumCouponTotals } from "@/lib/billing/couponMoney";
+import { couponPaidCents, sumCouponTotals, type CouponTotals } from "@/lib/billing/couponMoney";
 import { Stat } from "@/components/admin/coupons/atoms/Stat";
+import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 
 export const Route = createFileRoute("/admin/coupons/redemptions")({
   component: RedemptionsPage,
@@ -40,7 +41,11 @@ interface RedRow {
 }
 
 function RedemptionsPage() {
-  const { i18n } = useTranslation();
+  // Słownik modułu kuponów w chunku trasy - patrz komentarz przy ensureI18n
+  // w lib/i18n-admin-coupons.ts. Komunikat awarii jest WSPÓLNY z zakładką
+  // Analityki, więc musi stać w słowniku, nie w bliźniaku językowym.
+  ensureAdminCouponsI18n();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -75,6 +80,58 @@ function RedemptionsPage() {
   const rows = useMemo<RedRow[]>(() => q.data ?? [], [q.data]);
   const totals = useMemo(() => sumCouponTotals(rows), [rows]);
 
+  /**
+   * KAFLE LICZĄ PER WALUTA. `sumCouponTotals` dodaje grosze wiersz po wierszu,
+   * bez patrzenia na kolumnę `currency` - a kupony B2B są wystawiane także
+   * partnerom rozliczanym w euro. Kafel z gołą liczbą pokazywał więc 80,00 PLN
+   * + 40,00 EUR jako „120.00" i czytał się jak podsumowanie tabeli obok, która
+   * walutę podaje PRZY KAŻDYM wierszu.
+   *
+   * WYBRANE ROZWIĄZANIE: rozbicie po walucie w samym kaflu (zamiast wymuszania
+   * waluty w filtrze albo przeliczania po kursie - to drugie wymaga źródła
+   * kursu z dnia realizacji, czyli nowego kontraktu danych). Grupujemy wiersze
+   * i wołamy ten sam, przetestowany `sumCouponTotals` na każdej grupie, żeby
+   * niezmiennik „applied_cents to RABAT" został w jednym miejscu.
+   *
+   * EKSPORT CSV zostaje bez zmian: ma kolumnę `currency` przy każdym wierszu,
+   * więc nigdy nie mieszał walut w jednej liczbie - kafel był jedynym miejscem,
+   * które to robiło.
+   */
+  const perCurrency = useMemo<{ currency: string; totals: CouponTotals }[]>(() => {
+    const groups = new Map<string, RedRow[]>();
+    for (const row of rows) {
+      const currency = row.currency.toUpperCase();
+      const group = groups.get(currency);
+      if (group) group.push(row);
+      else groups.set(currency, [row]);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([currency, group]) => ({ currency, totals: sumCouponTotals(group) }));
+  }, [rows]);
+
+  /**
+   * Kwota kafla: jedna pozycja na walutę obecną w zakresie. Zakres bez wierszy
+   * daje samo „0.00" - zera nie ma czym podpisać i nie ma czego przekłamać.
+   */
+  const moneyPerCurrency = (pick: (group: CouponTotals) => number): string =>
+    perCurrency.length === 0
+      ? (0).toFixed(2)
+      : perCurrency
+          .map((group) => `${(pick(group.totals) / 100).toFixed(2)} ${group.currency}`)
+          .join(" + ");
+
+  /**
+   * AWARIA ODCZYTU NIE MOŻE WYGLĄDAĆ JAK PUSTY ZAKRES. Bez tej gałęzi odmowa
+   * RLS i padnięty PostgREST dawały ten sam ekran co poprawny odczyt pustego
+   * okna („Brak realizacji w zakresie." + kafle zer), czyli fałszywy fakt
+   * księgowy - a eksport CSV utrwalał go w arkuszu. Kafle pokazują wtedy
+   * kreski (zero jest twierdzeniem o pieniądzach, kreska nie), lista mówi
+   * o niedostępności zamiast o braku realizacji, a eksport jest zablokowany.
+   */
+  const failed = q.isError;
+  const stat = (value: string) => (failed ? "-" : value);
+
   const exportCsv = () => {
     // Nagłówek nazywa kolumny po znaczeniu: `discount` to applied_cents,
     // `paid` to original - applied. Poprzedni „applied" sugerował kwotę
@@ -104,21 +161,36 @@ function RedemptionsPage() {
           <DatePickerField value={from} onChange={setFrom} label={L("Od", "From")} />
           <DatePickerField value={to} onChange={setTo} label={L("Do", "To")} />
         </div>
-        <Button variant="outline" className="h-10 rounded-[6px]" onClick={exportCsv}>
+        <Button
+          variant="outline"
+          className="h-10 rounded-[6px]"
+          onClick={exportCsv}
+          disabled={failed}
+        >
           <Download className="h-4 w-4 mr-2" />
           {L("Eksport CSV", "Export CSV")}
         </Button>
       </div>
 
+      {failed && (
+        <div
+          role="alert"
+          className="rounded-[6px] border border-destructive/40 bg-destructive/5 p-4 text-sm"
+        >
+          <p className="font-medium text-destructive">{t("adminCoupons.loadError.title")}</p>
+          <p className="mt-1 text-muted-foreground">{t("adminCoupons.loadError.hint")}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Stat label={L("Realizacje", "Redemptions")} value={String(totals.count)} />
+        <Stat label={L("Realizacje", "Redemptions")} value={stat(String(totals.count))} />
         <Stat
           label={L("Przychód netto", "Net revenue")}
-          value={`${(totals.revenueCents / 100).toFixed(2)}`}
+          value={stat(moneyPerCurrency((group) => group.revenueCents))}
         />
         <Stat
           label={L("Rabat udzielony", "Discount granted")}
-          value={`${(totals.discountCents / 100).toFixed(2)}`}
+          value={stat(moneyPerCurrency((group) => group.discountCents))}
         />
       </div>
 
@@ -132,6 +204,10 @@ function RedemptionsPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               {L("Wczytywanie…", "Loading…")}
             </div>
+          ) : failed ? (
+            <p className="text-sm text-muted-foreground py-6">
+              {t("adminCoupons.loadError.placeholder")}
+            </p>
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">
               {L("Brak realizacji w zakresie.", "No redemptions in range.")}

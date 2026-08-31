@@ -182,7 +182,7 @@ beforeEach(() => {
 describe("PlacementsPanel - lista", () => {
   it("PUSTA lista mowi wprost, ze pozycji nie ma", async () => {
     await renderPanel([SLOT], []);
-    expect(await screen.findByText(/Brak pozycji/)).toBeInTheDocument();
+    expect(await screen.findByText("adsAdmin.placements.empty")).toBeInTheDocument();
   });
 
   it("odczyt czyta OBIE tabele i sortuje pozycje po `sort_order`", async () => {
@@ -264,7 +264,7 @@ describe("PlacementsPanel - zapis", () => {
     );
     db().setResponse("ad_slots", ok([SLOT]));
     render(<PlacementsPanel />);
-    await screen.findByText(/Brak pozycji/);
+    await screen.findByText("adsAdmin.placements.empty");
     fireEvent.change(selects()[SELECT_SLOT], { target: { value: SLOT.id } });
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.placements\.addAction/ }));
     await waitFor(() =>
@@ -275,7 +275,7 @@ describe("PlacementsPanel - zapis", () => {
 
   it("EDYCJA zapisuje przez UPDATE ZAWEZONY do tego wiersza", async () => {
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.save/ }));
     await waitFor(() =>
       expect(
@@ -292,11 +292,11 @@ describe("PlacementsPanel - zapis", () => {
 
   it("ANULUJ wraca do pustego szkicu i chowa sie w trybie dodawania", async () => {
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     expect(screen.getByText("adsAdmin.placements.editTitle")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+    fireEvent.click(screen.getByRole("button", { name: "adsAdmin.cancel" }));
     expect(screen.getByText("adsAdmin.placements.addTitle")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Anuluj" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "adsAdmin.cancel" })).toBeNull();
   });
 });
 
@@ -307,14 +307,14 @@ describe("PlacementsPanel - pola zalezne od pozycji", () => {
     await renderPanel([SLOT], []);
     fireEvent.change(selects()[SELECT_POSITION], { target: { value: "mid_post" } });
     expect(await screen.findByLabelText("adsAdmin.placements.fieldAfterParagraph")).toHaveValue(4);
-    expect(screen.queryByLabelText("Co N kart")).toBeNull();
+    expect(screen.queryByLabelText("adsAdmin.placements.fieldEveryNCards")).toBeNull();
     expect(screen.queryByLabelText("adsAdmin.placements.fieldDelayMs")).toBeNull();
   });
 
   it("IN_FEED pokazuje `co N kart` i domyslnie 5", async () => {
     await renderPanel([SLOT], []);
     fireEvent.change(selects()[SELECT_POSITION], { target: { value: "in_feed" } });
-    expect(await screen.findByLabelText("Co N kart")).toHaveValue(5);
+    expect(await screen.findByLabelText("adsAdmin.placements.fieldEveryNCards")).toHaveValue(5);
     expect(screen.queryByLabelText("adsAdmin.placements.fieldAfterParagraph")).toBeNull();
   });
 
@@ -334,7 +334,7 @@ describe("PlacementsPanel - pola zalezne od pozycji", () => {
     await waitFor(() =>
       expect(screen.queryByLabelText("adsAdmin.placements.fieldAfterParagraph")).toBeNull(),
     );
-    expect(screen.queryByLabelText("Co N kart")).toBeNull();
+    expect(screen.queryByLabelText("adsAdmin.placements.fieldEveryNCards")).toBeNull();
     expect(screen.queryByLabelText("adsAdmin.placements.fieldDelayMs")).toBeNull();
   });
 
@@ -380,7 +380,7 @@ describe("PlacementsPanel - pola zalezne od pozycji", () => {
     // Gdyby formularz pokazal „4" dla pozycji zapisanej z „3", pierwszy zapis
     // bez dotkniecia pola przesunalby kreacje o jeden paragraf.
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     expect(screen.getByLabelText("adsAdmin.placements.fieldAfterParagraph")).toHaveValue(3);
   });
 
@@ -415,14 +415,14 @@ describe("PlacementsPanel - pola zalezne od pozycji", () => {
 describe("PlacementsPanel - okno czasowe emisji", () => {
   it("obie granice sa PUSTE domyslnie - kampania bez ograniczen", async () => {
     await renderPanel([SLOT], []);
-    expect(screen.getByLabelText("Od razu (bez ograniczenia)")).toHaveValue("");
-    expect(screen.getByLabelText("Bezterminowo")).toHaveValue("");
+    expect(screen.getByLabelText("adsAdmin.placements.startsAtPlaceholder")).toHaveValue("");
+    expect(screen.getByLabelText("adsAdmin.placements.endsAtPlaceholder")).toHaveValue("");
   });
 
   it("ustawiona data POCZATKU trafia do `starts_at`", async () => {
     await renderPanel([SLOT], []);
     fireEvent.change(selects()[SELECT_SLOT], { target: { value: SLOT.id } });
-    fireEvent.change(screen.getByLabelText("Od razu (bez ograniczenia)"), {
+    fireEvent.change(screen.getByLabelText("adsAdmin.placements.startsAtPlaceholder"), {
       target: { value: "2026-03-01T08:00:00.000Z" },
     });
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.placements\.addAction/ }));
@@ -440,10 +440,10 @@ describe("PlacementsPanel - okno czasowe emisji", () => {
     // To jedyny hamulec przed oknem odwroconym (koniec przed poczatkiem),
     // czyli przed kampania, ktora nie leci ani jednego dnia.
     await renderPanel([SLOT], []);
-    fireEvent.change(screen.getByLabelText("Od razu (bez ograniczenia)"), {
+    fireEvent.change(screen.getByLabelText("adsAdmin.placements.startsAtPlaceholder"), {
       target: { value: "2026-03-01T08:00:00.000Z" },
     });
-    expect(screen.getByLabelText("Bezterminowo")).toHaveAttribute(
+    expect(screen.getByLabelText("adsAdmin.placements.endsAtPlaceholder")).toHaveAttribute(
       "data-min",
       "2026-03-01T08:00:00.000Z",
     );
@@ -454,7 +454,7 @@ describe("PlacementsPanel - okno czasowe emisji", () => {
     // „bez ograniczenia" i tylko on jest poprawny.
     await renderPanel([SLOT], []);
     fireEvent.change(selects()[SELECT_SLOT], { target: { value: SLOT.id } });
-    const od = screen.getByLabelText("Od razu (bez ograniczenia)");
+    const od = screen.getByLabelText("adsAdmin.placements.startsAtPlaceholder");
     fireEvent.change(od, { target: { value: "2026-03-01T08:00:00.000Z" } });
     fireEvent.change(od, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.placements\.addAction/ }));
@@ -473,7 +473,7 @@ describe("PlacementsPanel - usuwanie", () => {
   it("POTWIERDZONE usuniecie kasuje TEN wiersz i melduje sukces", async () => {
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
     await waitFor(() =>
       expect(
         db()
@@ -493,7 +493,7 @@ describe("PlacementsPanel - usuwanie", () => {
   it("ANULOWANE potwierdzenie NIE kasuje niczego", async () => {
     h.confirm.mockResolvedValue(false);
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(
       db()
@@ -505,7 +505,7 @@ describe("PlacementsPanel - usuwanie", () => {
   it("dialog potwierdzenia jest oznaczony jako destrukcyjny", async () => {
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(h.confirm.mock.calls[0]![0]).toMatchObject({
       destructive: true,
@@ -520,7 +520,7 @@ describe("PlacementsPanel - usuwanie", () => {
       chain.has("delete") ? fail("permission denied", "42501") : ok([PLACEMENT]),
     );
     render(<PlacementsPanel />);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });

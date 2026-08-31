@@ -54,7 +54,7 @@ const KLIENT_UZYTKOWNIKA = { marker: "klient-z-kontekstu" };
 interface WejscieListy {
   status?: string;
   limit?: number;
-  /** Pola NIE MA w schemacie - patrz `it.fails` o mieszaniu środowisk. */
+  /** Zawężenie do jednego środowiska operatora - patrz „rozdział piaskownicy". */
   environment?: string;
 }
 
@@ -245,40 +245,41 @@ describe("handler - co robi z argumentami", () => {
 });
 
 describe("rozdział piaskownicy od produkcji", () => {
-  // DEFEKT (nie naprawiam - zakres zadania to testy, nie kod produkcyjny).
+  // DEFEKT NAPRAWIONY 31.08.2026 (schemat wejścia tutaj, filtr
+  // `.eq("environment", ...)` w `loadPaymentOrders`, przełącznik
+  // w `AdminPaymentOrdersPanel`).
   //
-  // CO JEST ZŁE. `listPaymentOrders` jest JEDYNĄ funkcją serwerową w module
-  // rozliczeń, której schemat wejścia NIE MA pola `environment`. Wszystkie
+  // CO BYŁO ZŁE. `listPaymentOrders` była JEDYNĄ funkcją serwerową w module
+  // rozliczeń, której schemat wejścia NIE MIAŁ pola `environment`. Wszystkie
   // pozostałe (audyt, diagnostyka, uzgadnianie, rejestr wpłat, katalog,
   // portal, faktury) wymagają go albo mają dla niego bezpieczną wartość
   // domyślną. Tabela `payment_orders` trzyma OBA środowiska w jednej kolumnie
-  // `environment` (NOT NULL, sandbox/live), a `loadPaymentOrders` filtruje
-  // wyłącznie po statusie - więc lista i podsumowanie sklejają zamówienia
+  // `environment` (NOT NULL, sandbox/live), a `loadPaymentOrders` filtrowała
+  // wyłącznie po statusie - więc lista i podsumowanie sklejały zamówienia
   // testowe z prawdziwymi.
   //
-  // DLACZEGO TO RYZYKO. Trzy skutki, wszystkie na ścieżce pieniędzy:
+  // JAKIE TO BYŁO RYZYKO. Trzy skutki, wszystkie na ścieżce pieniędzy:
   //   1. LICZBY. `summary.paid` / `summary.failed` / `summary.stuck` to
   //      liczniki, po których dyżurny ocenia stan sprzedaży. Doliczenie do
   //      nich zakupów z piaskownicy (a każdy test checkoutu je produkuje)
-  //      daje wynik, którego nie da się użyć do niczego poza zgadywaniem.
-  //   2. OKNO WIERSZY. `limit` jest nakładany PRZED jakimkolwiek filtrem
-  //      środowiska (bo takiego filtra nie ma), więc seria zamówień
-  //      piaskownicowych potrafi wypchnąć prawdziwe zamówienia poza 200
+  //      dawało wynik, którego nie dało się użyć do niczego poza zgadywaniem.
+  //   2. OKNO WIERSZY. `limit` był nakładany PRZED jakimkolwiek filtrem
+  //      środowiska (bo takiego filtra nie było), więc seria zamówień
+  //      piaskownicowych potrafiła wypchnąć prawdziwe zamówienia poza 200
   //      wierszy, o które prosi panel. Zamówienie klienta zgłaszającego
-  //      problem po prostu nie pojawia się na liście.
+  //      problem po prostu nie pojawiało się na liście.
   //   3. ROZJAZD Z RESZTĄ PANELU. Sąsiednie ekrany (audyt, uzgadnianie,
   //      diagnostyka) pokazują JEDNO wybrane środowisko. Ten sam administrator
-  //      na sąsiednich zakładkach widzi więc dwa różne obrazy tych samych
-  //      pieniędzy i nie ma jak się dowiedzieć, dlaczego.
+  //      na sąsiednich zakładkach widział więc dwa różne obrazy tych samych
+  //      pieniędzy i nie miał jak się dowiedzieć, dlaczego.
   //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana KODU PRODUKCYJNEGO w trzech
-  // miejscach naraz (pole `environment` w schemacie wejścia, filtr
-  // `.eq("environment", ...)` w `loadPaymentOrders`, przełącznik w
-  // `AdminPaymentOrdersPanel`), a moim zakresem są testy. Test zaświeci na
-  // zielono dopiero, gdy ktoś to zrobi - i wtedy trzeba zdjąć `.fails`.
-  it.fails("filtr środowiska daje się w ogóle podać - dziś schemat go wycina", () => {
-    // ASERCJA DOCELOWA: środowisko przechodzi przez bramkę kształtu, zamiast
-    // być po cichu zdejmowane jako klucz spoza schematu.
+  // JAK ZOSTAŁO NAPRAWIONE. Schemat przyjmuje `environment` (enum bazy,
+  // opcjonalny), handler przekazuje go do implementacji, a ta dokłada
+  // `.eq("environment", ...)` DO ZAPYTANIA - czyli przed `limit`, nie po nim.
+  // Pole zostało opcjonalne świadomie: brak znaczy „oba środowiska", tak jak
+  // `status: "all"` znaczy „każdy status", a panel podaje je zawsze
+  // (przełącznik z domyślną wartością z konfiguracji klienta).
+  it("filtr środowiska przechodzi przez bramkę kształtu", () => {
     expect(
       validateServerFnInput<WejscieListy>(listPaymentOrders, {
         environment: "live",
@@ -286,17 +287,42 @@ describe("rozdział piaskownicy od produkcji", () => {
         limit: 50,
       }).environment,
     ).toBe("live");
+    expect(
+      validateServerFnInput<WejscieListy>(listPaymentOrders, { environment: "sandbox" })
+        .environment,
+    ).toBe("sandbox");
   });
 
-  it("stan faktyczny: środowisko podane przez klienta jest po cichu zdejmowane", () => {
-    // Kontrapunkt do `it.fails` wyżej - pinuje DZISIEJSZE zachowanie, żeby
-    // było jasne, że to nie jest błąd wywołania po stronie panelu, tylko
-    // brak pola w schemacie. Ten test ma zniknąć razem z naprawą.
-    expect(
-      validateServerFnInput<WejscieListy>(listPaymentOrders, {
-        environment: "live",
-        status: "paid",
-      }),
-    ).toEqual({ status: "paid" });
+  it("środowisko spoza słownika bazy jest ODRZUCANE, a nie po cichu zdejmowane", () => {
+    // Ciche zdjęcie klucza jest tu gorsze niż odmowa: panel prosiłby o jedno
+    // środowisko, a dostawał oba i nie miałby jak tego zauważyć.
+    for (const zle of ["", " ", "LIVE", "prod", "production", "test", 1, true, null]) {
+      expect(() => validateServerFnInput(listPaymentOrders, { environment: zle })).toThrow(
+        ZodError,
+      );
+    }
+  });
+
+  it("wybrane środowisko jedzie do implementacji 1:1", async () => {
+    await callServerFn(listPaymentOrders, {
+      data: { status: "paid", limit: 200, environment: "live" },
+      context: kontekst(),
+    });
+
+    expect(h.loadPaymentOrders).toHaveBeenCalledWith(KLIENT_UZYTKOWNIKA, {
+      status: "paid",
+      limit: 200,
+      environment: "live",
+    });
+  });
+
+  it("brak środowiska w żądaniu NIE zmyśla wartości - implementacja dostaje `undefined`", async () => {
+    // Domyślne środowisko wybiera PANEL (zna konfigurację klienta), nie
+    // opakowanie serwerowe. Podstawienie tutaj „live" ukryłoby zamówienia
+    // piaskownicowe przed każdym, kto woła tę funkcję bez przełącznika.
+    await callServerFn(listPaymentOrders, { data: { status: "all" }, context: kontekst() });
+
+    const [, options] = h.loadPaymentOrders.mock.calls.at(-1) as [unknown, WejscieListy];
+    expect(options.environment).toBeUndefined();
   });
 });

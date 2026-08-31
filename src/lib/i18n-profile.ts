@@ -762,6 +762,7 @@ const pl = {
       limitReached: "Wykorzystano limit użyć tego kuponu.",
       planNotEligible: "Ten kupon nie obowiązuje na wybrany plan.",
       currencyMismatch: "Waluta kuponu nie pasuje do zamówienia.",
+      technicalError: "Nie udało się sprawdzić kuponu - spróbuj ponownie za chwilę. To nie znaczy, że kod jest nieprawidłowy.",
     },
   },
   auth: {
@@ -1530,6 +1531,7 @@ const en: ProfileEn = {
       limitReached: "This coupon has reached its usage limit.",
       planNotEligible: "This coupon does not apply to the selected plan.",
       currencyMismatch: "Coupon currency does not match this order.",
+      technicalError: "We could not check this coupon - please try again in a moment. It does not mean the code is invalid.",
     },
   },
   auth: {

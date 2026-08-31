@@ -519,42 +519,42 @@ describe("useCreateGiftLink", () => {
   it("brak wpisu w pamieci NIE produkuje protezy stanu (zadnych pol z niczego)", async () => {
     // Zapis "z niczego" wyprodukowalby stan bez `enabled`, `canGift` itd.,
     // czyli obiekt, ktorego macierz faz nie umie zinterpretowac. Tego kod
-    // pilnuje poprawnie - wklada `null`, nie kadlubek.
+    // pilnuje poprawnie - po naprawie defektu opisanego nizej NIE zaklada
+    // wpisu w ogole (`undefined` = "nie ruszaj pamieci"), a nie wpis `null`.
     h.rpc?.setData("create_gift_link", [linkRow()]);
     const { result, queryClient } = renderHookWithQueryClient(() => useCreateGiftLink(POST));
     act(() => result.current.mutation.mutate());
     await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
-    expect(queryClient.getQueryData(["gift-article-state", POST, UID])).toBeNull();
+    expect(queryClient.getQueryData(["gift-article-state", POST, UID])).toBeUndefined();
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT (nienaprawiany w tym zadaniu - testy nie ruszaja kodu produkcyjnego).
+  // DEFEKT NAPRAWIONY (zachowanie produkcyjne zmienione swiadomie).
   //
-  // CO JEST ZLE. `onSuccess` dopisuje wynik do pamieci stanu popovera przez
+  // CO BYLO ZLE. `onSuccess` dopisywal wynik do pamieci stanu popovera przez
   // `queryClient.setQueryData(giftStateKey(...), (prev) => prev ? {...} : (prev ?? null))`.
-  // Gdy wpisu W OGOLE NIE MA w pamieci, `prev` jest `undefined`, a `prev ?? null`
-  // zamienia to na `null`. W react-query zwrocenie `undefined` z funkcji
+  // Gdy wpisu W OGOLE NIE BYLO w pamieci, `prev` jest `undefined`, a `prev ?? null`
+  // zamienialo to na `null`. W react-query zwrocenie `undefined` z funkcji
   // aktualizujacej znaczy "nie ruszaj pamieci", natomiast zwrocenie `null`
   // ZAKLADA WPIS o wartosci `null` i stempluje go swiezym `dataUpdatedAt`.
   //
-  // DLACZEGO TO RYZYKO. `useGiftArticleState` ma `staleTime: 60_000`. Wpis
-  // zalozony przez mutacje jest wiec przez MINUTE uznawany za swiezy, czyli
-  // obserwator zamontowany po mutacji dostaje `data === null` i NIE odpytuje
+  // DLACZEGO TO BYLO RYZYKO. `useGiftArticleState` ma `staleTime: 60_000`. Wpis
+  // zalozony przez mutacje byl wiec przez MINUTE uznawany za swiezy, czyli
+  // obserwator zamontowany po mutacji dostawal `data === null` i NIE odpytywal
   // bazy. Dla macierzy faz `state === null` znaczy "loading"
   // (`resolveGiftPhase`: `if (stateLoading || !state) return "loading"`), wiec
-  // czytelnik, ktory WLASNIE wygenerowal dzialajacy link, widzi zamiast niego
-  // krecacy sie wskaznik - do minuty albo do zamkniecia karty. Sciezka jest
-  // realna: wystarczy, ze odczyt stanu wczesniej sie NIE UDAL (odmowa, chwilowa
+  // czytelnik, ktory WLASNIE wygenerowal dzialajacy link, widzial zamiast niego
+  // krecacy sie wskaznik - do minuty albo do zamkniecia karty. Sciezka byla
+  // realna: wystarczylo, ze odczyt stanu wczesniej sie NIE UDAL (odmowa, chwilowa
   // awaria sieci), a mutacja przeszla - a wlasnie po to `create_gift_link` jest
   // idempotentny, zeby dzialac takze wtedy.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakres zadania jest testowy. Poprawka polega na
-  // zwroceniu `prev` (czyli `undefined`) zamiast `prev ?? null` - jedno slowo.
-  // Po niej ten wpis wraca do zwyklego `it`, a test wyzej trzeba przestawic
-  // z `toBeNull()` na `toBeUndefined()`.
+  // JAK NAPRAWIONE. `useCreateGiftLink` zwraca teraz `prev` (czyli `undefined`)
+  // zamiast `prev ?? null`, wiec mutacja bez wpisu w pamieci NIE zaklada wpisu.
+  // Test wyzej przestawiony z `toBeNull()` na `toBeUndefined()`.
   // ---------------------------------------------------------------------------
   it("KONTROLA: przelaczenie bramy na `true` natychmiast odpytuje baze", () => {
-    // Pozytywna kontrola dla it.fails ponizej. Dowodzi, ze mechanika pomiaru
+    // Pozytywna kontrola dla testu ponizej. Dowodzi, ze mechanika pomiaru
     // jest poprawna: gdy pamiec stanu jest PUSTA, otwarcie popovera odpala
     // RPC synchronicznie, jeszcze w tym samym przebiegu efektow.
     h.rpc?.setData("gift_article_state", [stateRow()]);
@@ -567,32 +567,31 @@ describe("useCreateGiftLink", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT (nienaprawiany w tym zadaniu - testy nie ruszaja kodu produkcyjnego).
+  // DEFEKT NAPRAWIONY (zachowanie produkcyjne zmienione swiadomie).
   //
-  // CO JEST ZLE. `onSuccess` dopisuje wynik do pamieci stanu popovera przez
+  // CO BYLO ZLE. `onSuccess` dopisywal wynik do pamieci stanu popovera przez
   // `queryClient.setQueryData(giftStateKey(...), (prev) => prev ? {...} : (prev ?? null))`.
-  // Gdy wpisu W OGOLE NIE MA w pamieci, `prev` jest `undefined`, a `prev ?? null`
-  // zamienia to na `null`. W react-query zwrocenie `undefined` z funkcji
+  // Gdy wpisu W OGOLE NIE BYLO w pamieci, `prev` jest `undefined`, a `prev ?? null`
+  // zamienialo to na `null`. W react-query zwrocenie `undefined` z funkcji
   // aktualizujacej znaczy "nie ruszaj pamieci", natomiast zwrocenie `null`
   // ZAKLADA WPIS o wartosci `null` i stempluje go swiezym `dataUpdatedAt`.
   //
-  // DLACZEGO TO RYZYKO. `useGiftArticleState` ma `staleTime: 60_000`, wiec taki
-  // wpis jest przez MINUTE uznawany za swiezy: obserwator zamontowany po
-  // mutacji dostaje `data === null` i NIE odpytuje bazy. Dla macierzy faz
+  // DLACZEGO TO BYLO RYZYKO. `useGiftArticleState` ma `staleTime: 60_000`, wiec
+  // taki wpis byl przez MINUTE uznawany za swiezy: obserwator zamontowany po
+  // mutacji dostawal `data === null` i NIE odpytywal bazy. Dla macierzy faz
   // `state === null` znaczy "loading" (`resolveGiftPhase`:
   // `if (stateLoading || !state) return "loading"`), wiec czytelnik, ktory
-  // WLASNIE wygenerowal dzialajacy link, widzi zamiast niego krecacy sie
-  // wskaznik - do minuty albo do zamkniecia karty. Sciezka jest realna:
-  // wystarczy, ze wczesniejszy odczyt stanu sie NIE UDAL (odmowa, chwilowa
+  // WLASNIE wygenerowal dzialajacy link, widzial zamiast niego krecacy sie
+  // wskaznik - do minuty albo do zamkniecia karty. Sciezka byla realna:
+  // wystarczylo, ze wczesniejszy odczyt stanu sie NIE UDAL (odmowa, chwilowa
   // awaria sieci) albo popover nie byl jeszcze otwarty, a mutacja przeszla -
   // po to `create_gift_link` jest idempotentny, zeby dzialac takze wtedy.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakres zadania jest testowy. Poprawka to zwrocenie
-  // `prev` (czyli `undefined`) zamiast `prev ?? null` - jedno slowo. Po niej
-  // ten wpis wraca do zwyklego `it`, a test "brak wpisu w pamieci..." wyzej
-  // trzeba przestawic z `toBeNull()` na `toBeUndefined()`.
+  // JAK NAPRAWIONE. `useCreateGiftLink` zwraca `prev` (czyli `undefined`)
+  // zamiast `prev ?? null`, wiec pamiec stanu zostaje nietknieta, a otwarcie
+  // popovera po mutacji idzie po swieze dane do bazy.
   // ---------------------------------------------------------------------------
-  it.fails("mutacja bez wpisu w pamieci nie moze uciszyc pozniejszego odczytu stanu", async () => {
+  it("mutacja bez wpisu w pamieci nie moze uciszyc pozniejszego odczytu stanu", async () => {
     h.rpc?.setData("create_gift_link", [linkRow()]);
     h.rpc?.setData("gift_article_state", [stateRow({ existing_code: CODE })]);
 

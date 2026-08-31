@@ -86,6 +86,62 @@ async function admin() {
   return supabaseAdmin;
 }
 
+/**
+ * Kształt identyfikatora operatora. Identyfikator wchodzi do filtra `or(...)`
+ * jako TEKST, więc przecinek czy nawias mogłyby rozszerzyć zapytanie na cudze
+ * zamówienia - bramkujemy go PRZED zapytaniem, na obu ścieżkach.
+ */
+const PROVIDER_REFERENCE_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
+
+/**
+ * Kolumny zamówienia czytane przez OBIE ścieżki korekty. `status`
+ * i `refunded_amount_cents` są tu regułą, nie wygodą: bez nich zwrot nie ma
+ * jak stwierdzić, że zamówienie jest już w całości zwrócone (patrz bramka
+ * powtórki w `revokeOrder`).
+ */
+const ORDER_LOOKUP_COLUMNS =
+  "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, refunded_amount_cents, currency, status";
+
+/**
+ * Zamówienie wskazane przez korektę operatora - JEDNO miejsce dla odebrania
+ * i dla przywrócenia dostępu.
+ *
+ * TRZY KOLUMNY IDENTYFIKATORA: zwrot przychodzi z identyfikatorem intencji
+ * płatności, a zamówienie mogło zapisać sesję checkout albo (historycznie)
+ * sesję w polu intencji. Wcześniej ten sam `or(...)` miało wyłącznie
+ * odebranie dostępu, a przywrócenie szukało po JEDNEJ kolumnie
+ * (`provider_intent_id`) - asymetria działająca jednokierunkowo na niekorzyść
+ * klienta: zamówienie zapisane sesją było znajdowane przy odbieraniu dostępu
+ * i niewidoczne przy jego przywracaniu (spór wygrany, klient bez dostępu).
+ *
+ * FILTR ŚRODOWISKA: ta sama reguła P0, którą nazywa `oneTimeFulfilment.server`
+ * („realizujemy zamówienie WYŁĄCZNIE zdarzeniem z tego samego środowiska"),
+ * tylko o wyższej stawce - zdarzenie z piaskownicy oznaczałoby REALNE
+ * zamówienie jako zwrócone i odebrało dostęp. Kolumna weszła jako
+ * `NOT NULL DEFAULT 'live'` (migracja
+ * `20260731220000_payment_orders_environment_isolation`), więc zamówienia
+ * historyczne zostają widoczne dla ruchu produkcyjnego.
+ */
+async function findOrderForAdjustment(
+  event: RefundEvent,
+  scope: "refund" | "dispute",
+): Promise<Tables<"payment_orders"> | null> {
+  const txnId = event.transactionId;
+  if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
+
+  const supabase = await admin();
+  const { data: matches, error } = await supabase
+    .from("payment_orders")
+    .select(ORDER_LOOKUP_COLUMNS)
+    .or(
+      `provider_payment_intent_id.eq.${txnId},provider_intent_id.eq.${txnId},provider_session_id.eq.${txnId}`,
+    )
+    .eq("environment", event.environment)
+    .limit(1);
+  if (error) throw new Error(`${scope}: order lookup failed: ${error.message}`);
+  return matches?.[0] ?? null;
+}
+
 /** Odbiera uprawnienie subskrypcyjne powiązane z subskrypcją operatora. */
 async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
   const supabase = await admin();

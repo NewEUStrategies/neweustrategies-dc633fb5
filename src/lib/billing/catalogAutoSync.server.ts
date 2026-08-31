@@ -167,18 +167,26 @@ export async function getIntegrationState(env: StripeEnv): Promise<IntegrationSt
 
 /** Zapis wyniku ręcznej synchronizacji z panelu (odświeża odcisk integracji). */
 export async function recordManualSync(env: StripeEnv, report: CatalogSyncReport): Promise<void> {
-  const [supabase, fingerprint, catalog] = await Promise.all([
+  const [supabase, state, fingerprint, catalog] = await Promise.all([
     admin(),
+    readState(env),
     integrationFingerprint(env),
     catalogFingerprint(),
   ]);
+  const status = syncStatusFrom(report);
   await supabase.from("payment_integration_state").upsert(
     {
       environment: env,
       fingerprint,
-      catalog_fingerprint: catalog,
+      // Ta sama reguła, co na ścieżce automatycznej (`runEnsure`): odcisk
+      // cennika znaczy „ten cennik jest u operatora wdrożony", więc zapisujemy
+      // go WYŁĄCZNIE po pełnym powodzeniu. Zapis bezwarunkowy po częściowej
+      // porażce z panelu wyciszał wykrywanie rozjazdu (`catalog_changed`) i
+      // utrwalał cenę, która u operatora nie powstała - koszyk pokazywał jedną
+      // kwotę, a operator pobierał drugą.
+      catalog_fingerprint: status === "ok" ? catalog : state.catalogFingerprint,
       last_synced_at: report.ranAt,
-      last_status: syncStatusFrom(report),
+      last_status: status,
       last_reason: "manual",
       last_error: null,
       last_report: JSON.parse(JSON.stringify(report)) as Json,

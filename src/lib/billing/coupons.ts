@@ -28,6 +28,16 @@ export interface B2bCouponRow {
 
 export interface ValidateCouponResult {
   ok: boolean;
+  /**
+   * Powód odmowy. Wszystkie warianty poza `technical_error` są ORZECZENIEM
+   * O KUPONIE i pochodzą z RPC `validate_b2b_coupon`.
+   *
+   * `technical_error` jest inny z zasady: to brak orzeczenia. Zerwana sieć,
+   * odmowa uprawnień do funkcji i awaria bazy NIE mówią nic o kodzie, który
+   * klient wpisał, a wcześniej wszystkie mapowały się na `not_found` - czyli
+   * na nieprawdziwe zdanie o pieniądzach („tego kuponu nie ma"), po którym
+   * klient płaci pełną cenę albo rezygnuje.
+   */
   error:
     | null
     | "empty_code"
@@ -38,7 +48,8 @@ export interface ValidateCouponResult {
     | "expired"
     | "limit_reached"
     | "plan_not_eligible"
-    | "currency_mismatch";
+    | "currency_mismatch"
+    | "technical_error";
   coupon_id: string | null;
   discount_cents: number;
   final_cents: number;
@@ -83,4 +94,5 @@ export const COUPON_ERROR_I18N_KEY: Record<NonNullable<ValidateCouponResult["err
   limit_reached: "coupon.error.limitReached",
   plan_not_eligible: "coupon.error.planNotEligible",
   currency_mismatch: "coupon.error.currencyMismatch",
+  technical_error: "coupon.error.technicalError",
 };

@@ -415,46 +415,42 @@ describe("awaria dostawcy poczty w trakcie przebiegu", () => {
     expect(writes).toEqual([]);
   });
 
-  it.fails(
-    "DEFEKT: przy padniętej poczcie przebieg raportuje przypomnienia jako wysłane",
-    async () => {
-      // CO JEST ZŁE. `notifyReminderEmail` jest z założenia fail-soft - łapie
-      // każdy wyjątek wysyłki i kończy się bez wartości zwracanej. Pętla
-      // `runBillingReminders` inkrementuje `renewal`/`expiring` zaraz PO tym
-      // wywołaniu, więc licznik mierzy „ile razy zawołaliśmy wysyłkę", a nie
-      // „ile wiadomości poszło". Licznik `skipped`, który istnieje właśnie po
-      // to, żeby zgłaszać nieudane rekordy, przy awarii poczty nie rośnie ani
-      // razu.
-      //
-      // DLACZEGO TO RYZYKO. Ten wynik jest JEDYNYM sygnałem zwrotnym dla
-      // człowieka: `AdminBillingPanel` pokazuje go zielonym toastem
-      // („Przypomnienia: {{renewal}} odnowień, {{expiring}} wygaśnięć"), a
-      // handler crona loguje go jako wynik przebiegu. Przy niedostępnej
-      // kolejce poczty administrator zobaczy zielony komunikat z liczbą
-      // kilkudziesięciu przypomnień, których nikt nie dostał - i nie ma
-      // żadnego powodu, żeby cokolwiek sprawdzać. Przypomnienie przed
-      // automatycznym pobraniem środków jest przy tym elementem obrony przed
-      // obciążeniem zwrotnym, więc jego cicha utrata ma cenę.
-      //
-      // ZNAM KONTRARGUMENT: licznik można czytać jako „przetworzone rekordy".
-      // Nie broni się, bo konsument nazywa go sukcesem wysyłki, a `skipped`
-      // istnieje w tym samym wyniku właśnie dla rekordów nieudanych - gdyby
-      // chodziło o przetworzenie, ten podział nie miałby sensu.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga zmiany KONTRAKTU sąsiada:
-      // `notifyReminderEmail` musiałby zwracać wynik wysyłki (dziś zwraca
-      // `void`), a to zmiana produkcyjna dotykająca wszystkich pięciu funkcji
-      // powiadomień i ich wywołań w webhookach. Test zostaje jako `it.fails`,
-      // żeby naprawa od razu zapaliła się na czerwono i kazała zdjąć znacznik.
-      givenDb({ rows: [subscriptionRow()] });
-      mail.breakProvider(new Error("mail gateway 502"));
+  it("przy padniętej poczcie przebieg raportuje przypomnienia jako POMINIĘTE", async () => {
+    // CO BYŁO ZŁE (defekt naprawiony 31.08.2026). `notifyReminderEmail` jest
+    // z założenia fail-soft - łapie każdy wyjątek wysyłki i kończył się bez
+    // wartości zwracanej. Pętla `runBillingReminders` inkrementowała
+    // `renewal`/`expiring` zaraz PO tym wywołaniu, więc licznik mierzył „ile
+    // razy zawołaliśmy wysyłkę", a nie „ile wiadomości poszło". Licznik
+    // `skipped`, który istnieje właśnie po to, żeby zgłaszać nieudane rekordy,
+    // przy awarii poczty nie rósł ani razu.
+    //
+    // JAKIE TO BYŁO RYZYKO. Ten wynik jest JEDYNYM sygnałem zwrotnym dla
+    // człowieka: `AdminBillingPanel` pokazuje go zielonym toastem
+    // („Przypomnienia: {{renewal}} odnowień, {{expiring}} wygaśnięć"), a
+    // handler crona loguje go jako wynik przebiegu. Przy niedostępnej kolejce
+    // poczty administrator widział zielony komunikat z liczbą kilkudziesięciu
+    // przypomnień, których nikt nie dostał - i nie miał żadnego powodu, żeby
+    // cokolwiek sprawdzać. Przypomnienie przed automatycznym pobraniem środków
+    // jest przy tym elementem obrony przed obciążeniem zwrotnym, więc jego
+    // cicha utrata ma cenę.
+    //
+    // KONTRARGUMENT (licznik można czytać jako „przetworzone rekordy") nie
+    // bronił się, bo konsument nazywa go sukcesem wysyłki, a `skipped` istnieje
+    // w tym samym wyniku właśnie dla rekordów nieudanych - gdyby chodziło
+    // o przetworzenie, ten podział nie miałby sensu.
+    //
+    // JAK NAPRAWIONE. Pięć funkcji powiadomień oddaje teraz wynik wysyłki
+    // (`true` = wiadomość trafiła do dostawcy), a przebieg przypomnień liczy
+    // rekord bez wysyłki jako `skipped` i zostawia ślad w logu. Wywołania
+    // w webhookach wyniku nie czytają - kontrakt jest wstecznie zgodny.
+    givenDb({ rows: [subscriptionRow()] });
+    mail.breakProvider(new Error("mail gateway 502"));
 
-      const result = await runBillingReminders(3, 200, NOW);
+    const result = await runBillingReminders(3, 200, NOW);
 
-      // To przechodzi: żadna wiadomość nie opuściła systemu.
-      expect(mail.sent).toEqual([]);
-      // ASERCJA DOCELOWA - i ta pada: wynik mówi „wysłano jedno".
-      expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 1 });
-    },
-  );
+    // Żadna wiadomość nie opuściła systemu...
+    expect(mail.sent).toEqual([]);
+    // ...i wynik przebiegu mówi dokładnie to samo.
+    expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 1 });
+  });
 });

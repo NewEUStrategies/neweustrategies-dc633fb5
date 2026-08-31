@@ -48,20 +48,42 @@ export function SlotsPanel() {
     load();
   }, []);
 
+  // Bialka lista kolumn EDYTOWALNYCH. „Edytuj" wklada do szkicu caly wiersz
+  // z bazy, wiec `{ ...draft }` odsylalby takze `id`, `tenant_id`, `created_at`
+  // i `updated_at` sprzed edycji - a wtedy znacznik zmiany cofalby sie w czasie
+  // i kazda warstwa sortujaca albo cache'ujaca po `updated_at` widzialaby
+  // kreacje jako niezmieniona. `tenant_id` w ladunku to dodatkowo zapis kolumny
+  // rozdzielajacej najemcow. Tych kolumn pilnuje baza, nie formularz.
+  const payloadOf = (d: Partial<AdSlot>) => ({
+    name: d.name ?? "",
+    kind: d.kind ?? "html",
+    status: d.status ?? "active",
+    html: d.html ?? null,
+    script: d.script ?? null,
+    image_url: d.image_url ?? null,
+    image_link: d.image_link ?? null,
+    image_alt: d.image_alt ?? null,
+    width: d.width ?? null,
+    height: d.height ?? null,
+    requires_consent: d.requires_consent ?? true,
+    targeting: d.targeting ?? {},
+    notes: d.notes ?? null,
+  });
+
   const save = async () => {
     if (!draft.name?.trim()) {
       toast.error(t("adsAdmin.slots.nameRequired"));
       return;
     }
     setBusy(true);
-    const payload = { ...draft } as never;
+    const payload = payloadOf(draft) as never;
     const { error } = draft.id
       ? await supabase.from("ad_slots").update(payload).eq("id", draft.id)
       : await supabase.from("ad_slots").insert(payload);
     setBusy(false);
     if (error) toast.error(error.message);
     else {
-      toast.success("Zapisano slot");
+      toast.success(adminToast.saved());
       setDraft(emptySlot());
       load();
     }
@@ -98,7 +120,9 @@ export function SlotsPanel() {
               <th className="text-left p-3">
                 <TargetingHeader />
               </th>
-              <th className="p-3"></th>
+              <th className="p-3">
+                <span className="sr-only">{t("adsAdmin.columnActions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -121,9 +145,14 @@ export function SlotsPanel() {
                 </td>
                 <td className="p-3 text-right space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setDraft(s)}>
-                    Edytuj
+                    {t("adsAdmin.edit")}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(s.id)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={t("adsAdmin.slots.deleteAction")}
+                    onClick={() => remove(s.id)}
+                  >
                     <Trash className="w-4 h-4" />
                   </Button>
                 </td>
@@ -132,7 +161,7 @@ export function SlotsPanel() {
             {slots.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">
-                  Brak slotów. Dodaj pierwszy poniżej.
+                  {t("adsAdmin.slots.empty")}
                 </td>
               </tr>
             )}
@@ -151,7 +180,7 @@ export function SlotsPanel() {
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
           <div>
-            <Label>Typ</Label>
+            <Label>{t("adsAdmin.slots.fieldKind")}</Label>
             <Select
               value={draft.kind ?? "html"}
               onValueChange={(v) => setDraft({ ...draft, kind: v as AdSlotKind })}
@@ -178,24 +207,20 @@ export function SlotsPanel() {
                 onChange={(e) => setDraft({ ...draft, html: e.target.value })}
                 className="font-mono text-xs"
               />
-              <p className="text-xs text-muted-foreground">
-                Kreacja wykonuje się w izolowanej ramce (sandbox) - bez dostępu do sesji czytelnika
-                i DOM strony.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("adsAdmin.slots.sandboxHtmlHint")}</p>
             </div>
           )}
           {draft.kind === "script" && (
             <div className="sm:col-span-2 space-y-1.5">
               <FloatingTextarea
-                label="Skrypt (np. AdSense)"
+                label={t("adsAdmin.slots.fieldScript")}
                 rows={5}
                 value={draft.script ?? ""}
                 onChange={(e) => setDraft({ ...draft, script: e.target.value })}
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Skrypt wykonuje się w izolowanej ramce (sandbox) - bez dostępu do sesji czytelnika i
-                DOM strony.
+                {t("adsAdmin.slots.sandboxScriptHint")}
               </p>
             </div>
           )}
@@ -203,7 +228,7 @@ export function SlotsPanel() {
             <>
               <FloatingInput
                 containerClassName="sm:col-span-2"
-                label="URL grafiki"
+                label={t("adsAdmin.slots.fieldImageUrl")}
                 value={draft.image_url ?? ""}
                 onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
               />
@@ -242,14 +267,14 @@ export function SlotsPanel() {
               checked={draft.status === "active"}
               onCheckedChange={(v) => setDraft({ ...draft, status: v ? "active" : "paused" })}
             />
-            <Label className="m-0">Aktywny</Label>
+            <Label className="m-0">{t("adsAdmin.slots.fieldActive")}</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch
               checked={!!draft.requires_consent}
               onCheckedChange={(v) => setDraft({ ...draft, requires_consent: v })}
             />
-            <Label className="m-0">Wymaga zgody marketingowej (RODO)</Label>
+            <Label className="m-0">{t("adsAdmin.slots.fieldRequiresConsent")}</Label>
           </div>
 
           <TargetingEditor
@@ -272,7 +297,7 @@ export function SlotsPanel() {
           </Button>
           {draft.id && (
             <Button variant="outline" onClick={() => setDraft(emptySlot())}>
-              Anuluj
+              {t("adsAdmin.cancel")}
             </Button>
           )}
         </div>

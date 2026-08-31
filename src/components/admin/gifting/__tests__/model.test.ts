@@ -73,43 +73,44 @@ describe("isKnownEventType", () => {
   });
 
   it("odrzuca nazwe wlasnosci dziedziczonej po Object - `hasOwnProperty`", () => {
-    // Kontrola pozytywna dla it.fails ponizej: straznik ma odrzucac KAZDA
-    // nazwe spoza mapy. Ten przypadek dzis przechodzi, bo happy-dom nie
+    // Kontrola pozytywna dla przypadku ponizej: straznik ma odrzucac KAZDA
+    // nazwe spoza mapy. Ten przypadek przechodzil takze przed naprawa, bo
+    // happy-dom nie
     // dokleja `hasOwnProperty` jako wlasnosci wyliczalnej - wiec jesli kiedys
     // zacznie padac, to znaczy, ze zmienil sie sam obiekt mapy, a nie straznik.
     expect(Object.prototype.hasOwnProperty.call(EVENT_PILL_CLS, "hasOwnProperty")).toBe(false);
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT (nienaprawiany w tym zadaniu - testy nie ruszaja kodu produkcyjnego).
+  // DEFEKT NAPRAWIONY (dawny `it.fails`).
   //
-  // CO JEST ZLE. `isKnownEventType` jest zaimplementowany jako
+  // CO BYLO ZLE. `isKnownEventType` byl zaimplementowany jako
   // `return type in EVENT_PILL_CLS`. Operator `in` przeszukuje CALY LANCUCH
   // PROTOTYPOW, nie same wlasnosci wlasne obiektu. `EVENT_PILL_CLS` to zwykly
-  // literal obiektu, wiec dziedziczy po `Object.prototype` - a to znaczy, ze
-  // straznik zwraca `true` dla "constructor", "toString", "valueOf",
+  // literal obiektu, wiec dziedziczy po `Object.prototype` - a to znaczylo, ze
+  // straznik zwracal `true` dla "constructor", "toString", "valueOf",
   // "isPrototypeOf" i kilkunastu innych nazw. Deklaracja `type is GiftEventType`
-  // jest wiec NIEPRAWDZIWA: predykat potwierdza przynaleznosc do unii dla
+  // byla wiec NIEPRAWDZIWA: predykat potwierdzal przynaleznosc do unii dla
   // wartosci, ktorej w unii nie ma.
   //
-  // DLACZEGO TO RYZYKO. Straznik istnieje wylacznie po to, zeby nieznany typ
+  // JAKIE TO BYLO RYZYKO. Straznik istnieje wylacznie po to, zeby nieznany typ
   // zdarzenia dostal neutralna tonacje zamiast wysypac render (patrz komentarz
-  // nad `EventPill`). Przy nazwie z prototypu ta obrona sie odwraca: EventPill
-  // wchodzi w galaz "znany" i robi `EVENT_PILL_CLS["constructor"]`, czyli
-  // wstawia do atrybutu `class` FUNKCJE (`function Object() { [native code] }`).
-  // Zamiast pigulki w audycie laduje wtedy smiec w DOM. `event_type` jest
+  // nad `EventPill`). Przy nazwie z prototypu ta obrona sie odwracala: EventPill
+  // wchodzil w galaz "znany" i robil `EVENT_PILL_CLS["constructor"]`, czyli
+  // wstawial do atrybutu `class` FUNKCJE (`function Object() { [native code] }`).
+  // Zamiast pigulki w audycie ladowal wtedy smiec w DOM. `event_type` jest
   // CELOWO otwartym stringiem po stronie typow (`GiftEventAdminRow`), a jedyne,
-  // co dzis blokuje te wartosci, to CHECK w bazie - czyli warstwa, ktorej ten
+  // co blokowalo te wartosci, to CHECK w bazie - czyli warstwa, ktorej ten
   // modul swiadomie NIE traktuje jako gwarancji (inaczej straznik bylby zbedny).
-  // Utrata tego CHECK-a, import historyczny albo nowe zrodlo zdarzen zamienia
+  // Utrata tego CHECK-a, import historyczny albo nowe zrodlo zdarzen zamienialo
   // luke teoretyczna w widoczna.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zadanie ma zakres testowy, a nie naprawczy.
-  // Poprawka jest jednolinijkowa - `Object.prototype.hasOwnProperty.call(
-  // EVENT_PILL_CLS, type)` albo `Object.hasOwn(EVENT_PILL_CLS, type)` - i po
-  // niej ten wpis nalezy zamienic z `it.fails` na zwykle `it`.
+  // JAK NAPRAWIONE. `model.ts` pyta teraz o wlasnosc WLASNA mapy
+  // (`Object.hasOwn(EVENT_PILL_CLS, type)`), wiec zaden identyfikator
+  // z `Object.prototype` nie przechodzi juz przez straznika. Wpis wrocil
+  // z `it.fails` do zwyklego `it`.
   // ---------------------------------------------------------------------------
-  it.fails("odrzuca nazwy z lancucha prototypu Object (DEFEKT: operator `in`)", () => {
+  it("odrzuca nazwy z lancucha prototypu Object", () => {
     for (const name of ["constructor", "toString", "valueOf", "isPrototypeOf"]) {
       expect(isKnownEventType(name), `${name} nie jest typem zdarzenia`).toBe(false);
     }

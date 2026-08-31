@@ -1,6 +1,13 @@
 // Zamówienia płatnicze w panelu admina: pełna lista transakcji z filtrem statusu
-// oraz jawnym wskazaniem zamówień „wiszących" (brak sesji operatora), bo to
-// właśnie one sygnalizują przerwaną ścieżkę checkoutu.
+// i środowiska oraz jawnym wskazaniem zamówień „wiszących" (brak sesji
+// operatora), bo to właśnie one sygnalizują przerwaną ścieżkę checkoutu.
+//
+// PRZEŁĄCZNIK ŚRODOWISKA jest tu bramką liczb, nie ozdobą: tabela zamówień
+// trzyma piaskownicę i produkcję razem, więc bez zawężenia liczniki
+// podsumowania sumowały zakupy testowe z prawdziwymi, a limit 200 wierszy
+// potrafiła zapełnić seria zamówień testowych. Domyślna wartość idzie
+// z konfiguracji klienta (`getStripeEnvironmentSafe`) - tak samo jak
+// w panelu diagnostyki płatności.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,6 +16,7 @@ import "@/lib/i18n-admin-billing";
 import { AlertTriangle, Loader2, Receipt, RefreshCcw } from "lucide-react";
 
 import { listPaymentOrders } from "@/lib/billing/paymentOrders.functions";
+import { getStripeEnvironmentSafe, type StripeEnv } from "@/lib/stripe";
 import { planName } from "@/lib/billing/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +35,9 @@ const STATUS_TONE: Record<string, string> = {
 const FILTERS = ["all", "pending", "processing", "paid", "failed", "refunded", "canceled"] as const;
 type Filter = (typeof FILTERS)[number];
 
+/** Oba środowiska operatora - lista jest zamknięta po stronie bazy (NOT NULL). */
+const ENVIRONMENTS = ["sandbox", "live"] as const;
+
 function money(cents: number, currency: string, lang: "pl" | "en"): string {
   return new Intl.NumberFormat(uiLocale(lang), {
     style: "currency",
@@ -39,10 +50,11 @@ export function AdminPaymentOrdersPanel() {
   const lang = i18n.language === "en" ? "en" : "pl";
 
   const [status, setStatus] = useState<Filter>("all");
+  const [environment, setEnvironment] = useState<StripeEnv>(getStripeEnvironmentSafe);
   const load = useServerFn(listPaymentOrders);
   const q = useQuery({
-    queryKey: ["admin", "payment-orders", status],
-    queryFn: () => load({ data: { status, limit: 200 } }),
+    queryKey: ["admin", "payment-orders", status, environment],
+    queryFn: () => load({ data: { status, limit: 200, environment } }),
     staleTime: 15_000,
   });
 
@@ -86,6 +98,32 @@ export function AdminPaymentOrdersPanel() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Przełącznik środowiska świadomie POZA listą filtrów statusu: to dwa
+            niezależne zawężenia tego samego zapytania, a nie jedna lista. */}
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label={t("adminBilling.environment")}
+        >
+          {ENVIRONMENTS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setEnvironment(value)}
+              aria-pressed={environment === value}
+              className={`rounded-[6px] border px-3 py-1.5 text-[0.8125rem] transition-colors ${
+                environment === value
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {value === "sandbox"
+                ? t("adminBilling.testEnvironment")
+                : t("adminBilling.liveEnvironment")}
+            </button>
+          ))}
+        </div>
+
         <nav className="tabs-scroller -mx-1 px-1" aria-label={t("adminBilling.statusFilter")}>
           <ul className="flex w-max min-w-full gap-2">
             {FILTERS.map((value) => (

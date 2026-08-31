@@ -37,12 +37,18 @@ export function PlacementsPanel() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const [{ data: s }, { data: p }] = await Promise.all([
+    const [slotsRes, placementsRes] = await Promise.all([
       supabase.from("ad_slots").select("*").order("name"),
       supabase.from("ad_placements").select("*").order("sort_order"),
     ]);
-    setSlots((s as AdSlot[]) ?? []);
-    setPlacements((p as AdPlacement[]) ?? []);
+    // Odmowa RLS i awaria sieci daly wczesniej DOKLADNIE ten sam widok, co
+    // pusta tabela („Brak pozycji.") - administrator zakladal wtedy NOWA
+    // pozycje tam, gdzie jedna juz stoi. Panel slotow obok czyta `error` od
+    // zawsze; ten robi to teraz tak samo.
+    const error = slotsRes.error ?? placementsRes.error;
+    if (error) toast.error(error.message);
+    setSlots((slotsRes.data as AdSlot[]) ?? []);
+    setPlacements((placementsRes.data as AdPlacement[]) ?? []);
   };
   useEffect(() => {
     load();
@@ -52,7 +58,7 @@ export function PlacementsPanel() {
 
   const save = async () => {
     if (!draft.slot_id) {
-      toast.error("Wybierz slot");
+      toast.error(t("adsAdmin.placements.selectSlot"));
       return;
     }
     setBusy(true);
@@ -96,11 +102,13 @@ export function PlacementsPanel() {
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground border-b border-border">
             <tr>
-              <th className="text-left p-3">Slot</th>
-              <th className="text-left p-3">Pozycja</th>
-              <th className="text-left p-3">Strony</th>
-              <th className="text-left p-3">Aktywne</th>
-              <th className="p-3"></th>
+              <th className="text-left p-3">{t("adsAdmin.placements.columnSlot")}</th>
+              <th className="text-left p-3">{t("adsAdmin.placements.columnPosition")}</th>
+              <th className="text-left p-3">{t("adsAdmin.placements.columnPages")}</th>
+              <th className="text-left p-3">{t("adsAdmin.placements.columnActive")}</th>
+              <th className="p-3">
+                <span className="sr-only">{t("adsAdmin.columnActions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -112,9 +120,14 @@ export function PlacementsPanel() {
                 <td className="p-3">{p.active ? "✓" : "-"}</td>
                 <td className="p-3 text-right space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setDraft(p)}>
-                    Edytuj
+                    {t("adsAdmin.edit")}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(p.id)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={t("adsAdmin.placements.deleteAction")}
+                    onClick={() => remove(p.id)}
+                  >
                     <Trash className="w-4 h-4" />
                   </Button>
                 </td>
@@ -123,7 +136,7 @@ export function PlacementsPanel() {
             {placements.length === 0 && (
               <tr>
                 <td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">
-                  Brak pozycji.
+                  {t("adsAdmin.placements.empty")}
                 </td>
               </tr>
             )}
@@ -137,7 +150,7 @@ export function PlacementsPanel() {
         </h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <Label>Slot</Label>
+            <Label>{t("adsAdmin.placements.columnSlot")}</Label>
             <Select
               value={draft.slot_id ?? ""}
               onValueChange={(v) => setDraft({ ...draft, slot_id: v })}
@@ -155,7 +168,7 @@ export function PlacementsPanel() {
             </Select>
           </div>
           <div>
-            <Label>Pozycja na stronie</Label>
+            <Label>{t("adsAdmin.placements.fieldPosition")}</Label>
             <Select
               value={draft.position ?? "top_of_post"}
               onValueChange={(v) => setDraft({ ...draft, position: v as AdPosition })}
@@ -173,7 +186,7 @@ export function PlacementsPanel() {
             </Select>
           </div>
           <div>
-            <Label>Typ strony</Label>
+            <Label>{t("adsAdmin.placements.fieldPageType")}</Label>
             <Select
               value={draft.page_type ?? "all"}
               onValueChange={(v) => setDraft({ ...draft, page_type: v as AdPageType })}
@@ -191,7 +204,7 @@ export function PlacementsPanel() {
             </Select>
           </div>
           <FloatingInput
-            label="Sortowanie"
+            label={t("adsAdmin.placements.fieldSortOrder")}
             type="number"
             value={draft.sort_order ?? 0}
             onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
@@ -208,7 +221,7 @@ export function PlacementsPanel() {
           )}
           {draft.position === "in_feed" && (
             <FloatingInput
-              label="Co N kart"
+              label={t("adsAdmin.placements.fieldEveryNCards")}
               type="number"
               min={1}
               value={(cfg.every as number) ?? 5}
@@ -234,19 +247,19 @@ export function PlacementsPanel() {
           )}
 
           <div>
-            <Label>Aktywne od</Label>
+            <Label>{t("adsAdmin.placements.fieldStartsAt")}</Label>
             <DateTimePicker
               value={draft.starts_at ?? null}
               onChange={(iso) => setDraft({ ...draft, starts_at: iso })}
-              placeholder="Od razu (bez ograniczenia)"
+              placeholder={t("adsAdmin.placements.startsAtPlaceholder")}
             />
           </div>
           <div>
-            <Label>Aktywne do</Label>
+            <Label>{t("adsAdmin.placements.fieldEndsAt")}</Label>
             <DateTimePicker
               value={draft.ends_at ?? null}
               onChange={(iso) => setDraft({ ...draft, ends_at: iso })}
-              placeholder="Bezterminowo"
+              placeholder={t("adsAdmin.placements.endsAtPlaceholder")}
               minDate={draft.starts_at ? new Date(draft.starts_at) : undefined}
             />
           </div>
@@ -256,7 +269,7 @@ export function PlacementsPanel() {
               checked={!!draft.active}
               onCheckedChange={(v) => setDraft({ ...draft, active: v })}
             />
-            <Label className="m-0">Aktywne</Label>
+            <Label className="m-0">{t("adsAdmin.placements.fieldActive")}</Label>
           </div>
         </div>
 
@@ -267,7 +280,7 @@ export function PlacementsPanel() {
           </Button>
           {draft.id && (
             <Button variant="outline" onClick={() => setDraft(emptyPlacement())}>
-              Anuluj
+              {t("adsAdmin.cancel")}
             </Button>
           )}
         </div>

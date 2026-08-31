@@ -466,33 +466,34 @@ describe("documentInputFromTransaction - odczyt payloadu operatora", () => {
   });
 });
 
-describe("billingDocuments - DEFEKTY (bramki regresji, świadomie czerwone)", () => {
+describe("billingDocuments - DEFEKTY NAPRAWIONE (bramki regresji)", () => {
   // ---------------------------------------------------------------------
-  // DEFEKT: fallback po ZAMÓWIENIU nie jest zawężony do środowiska.
+  // DEFEKT (naprawiony): fallback po ZAMÓWIENIU nie był zawężony do środowiska.
   //
-  // CO JEST ZŁE. `ownerFor` szuka właściciela dwiema drogami. Droga
-  // subskrypcyjna filtruje `.eq("environment", input.environment)` (dowodzi
-  // tego test wyżej). Droga zamówieniowa filtruje WYŁĄCZNIE
+  // CO BYŁO ZŁE. `ownerFor` szuka właściciela dwiema drogami. Droga
+  // subskrypcyjna filtrowała `.eq("environment", input.environment)` (dowodzi
+  // tego test wyżej). Droga zamówieniowa filtrowała WYŁĄCZNIE
   // `.eq("provider_intent_id", input.transactionId)` - bez środowiska, choć
   // `payment_orders.environment` jest kolumną NOT NULL i jest wypełniona.
   //
-  // DLACZEGO TO RYZYKO. Reguła izolacji sandbox/live jest w tym repo nazwana
+  // JAKIE TO BYŁO RYZYKO. Reguła izolacji sandbox/live jest w tym repo nazwana
   // wprost jako P0 (`oneTimeFulfilment.server`: „realizujemy zamówienie
   // WYŁĄCZNIE zdarzeniem z tego samego środowiska... Bez tego sandboxowy
   // webhook mógłby zrealizować realne zamówienie"). Tu stawka jest inna, ale
-  // z tej samej rodziny: zdarzenie z jednego środowiska ustala WŁAŚCICIELA
-  // dokumentu księgowego zapisanego dla drugiego. Skutkiem nie jest brakujące
+  // z tej samej rodziny: zdarzenie z jednego środowiska ustalało WŁAŚCICIELA
+  // dokumentu księgowego zapisanego dla drugiego. Skutkiem nie było brakujące
   // pole, tylko faktura wystawiona na cudze `user_id` / `tenant_id` -
-  // widoczna w cudzym panelu. Asymetria wewnątrz JEDNEJ funkcji jest tu
+  // widoczna w cudzym panelu. Asymetria wewnątrz JEDNEJ funkcji była tu
   // najmocniejszym dowodem, że to przeoczenie, a nie decyzja.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakaz zmian w kodzie produkcyjnym. Poprawka to
-  // jedna linia (`.eq("environment", input.environment)`), ale wymaga
-  // sprawdzenia danych historycznych: zamówienia sprzed wprowadzenia kolumny
-  // mogą mieć wartość domyślną i dołożenie filtra odcięłoby im dokumenty.
-  // To decyzja właściciela modułu, nie testu.
+  // JAK NAPRAWIONO. Dołożony `.eq("environment", input.environment)` PO filtrze
+  // identyfikatora (kolejność jest częścią kontraktu testu wyżej). Obawa
+  // o dane historyczne odpadła po sprawdzeniu migracji
+  // `20260731220000_payment_orders_environment_isolation`: kolumna weszła jako
+  // `NOT NULL DEFAULT 'live'`, więc zamówienia sprzed niej są 'live' i ruch
+  // produkcyjny nadal je znajduje.
   // ---------------------------------------------------------------------
-  it.fails("zamówienie-właściciel powinno być szukane w środowisku transakcji", async () => {
+  it("zamówienie-właściciel jest szukane w środowisku transakcji", async () => {
     seed({ subscription: ok(null) });
 
     await recordTransactionDocument(input({ environment: "live" }));

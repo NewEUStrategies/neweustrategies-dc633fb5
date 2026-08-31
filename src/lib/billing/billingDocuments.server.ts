@@ -52,10 +52,18 @@ async function ownerFor(
     if (data?.user_id) return { userId: data.user_id, tenantId: data.tenant_id };
   }
 
+  // Zawężenie do środowiska jest TU tak samo obowiązkowe jak w gałęzi
+  // subskrypcyjnej wyżej: identyfikator transakcji z piaskownicy i z produkcji
+  // może się powtórzyć, a ustalony tu właściciel trafia wprost do dokumentu
+  // księgowego (`user_id`, `tenant_id`) - pomyłka to cudza faktura w cudzym
+  // panelu. Historyczne zamówienia sprzed kolumny mają z migracji
+  // `20260731220000_payment_orders_environment_isolation` wartość 'live', więc
+  // filtr nie odcina im dokumentów dla ruchu produkcyjnego.
   const { data: order } = await supabase
     .from("payment_orders")
     .select("user_id, tenant_id")
     .eq("provider_intent_id", input.transactionId)
+    .eq("environment", input.environment)
     .maybeSingle();
   if (order?.user_id) return { userId: order.user_id, tenantId: order.tenant_id };
 

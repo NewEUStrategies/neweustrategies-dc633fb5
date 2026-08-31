@@ -48,6 +48,11 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     // rozjeżdża się między dwoma silnikami checkoutu.
     let discount: { coupon: string } | null = null;
     let couponId: string | null = null;
+    let couponCode: string | null = null;
+    // RABAT policzony przez bazę. Idzie w dwa miejsca naraz: do rezerwacji
+    // (`_applied_cents`, kolumna o semantyce „rabat", nie „kwota zapłacona")
+    // i do metadanych zamówienia, z których historia płatności czyta rabat.
+    let couponDiscountCents = 0;
     if (data.couponCode) {
       const normalizedCode = data.couponCode.trim().toUpperCase();
       const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
@@ -62,6 +67,8 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         return { ok: false as const, error: (row?.error ?? "not_found") as string };
       }
       couponId = row.coupon_id;
+      couponCode = normalizedCode;
+      couponDiscountCents = row.discount_cents;
       if (row.discount_cents > 0) {
         const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
         const { createStripeClient } = await import("@/lib/stripe.server");
@@ -87,17 +94,37 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         provider: "stripe",
         receipt_email: claims.email ?? null,
         environment,
-        metadata: data.couponCode ? { coupon_code: data.couponCode.trim().toUpperCase() } : {},
+        // PEŁNY audyt kuponu, w tym samym kształcie co w drugim silniku
+        // (`checkout.functions.ts`). `paymentHistory.ts` czyta rabat DOKŁADNIE
+        // z tych kluczy, więc bez nich klient widział w swojej historii cenę
+        // bez śladu rabatu - przy zamówieniu, które u operatora zostało
+        // pomniejszone co do grosza. `coupon_id` jest jedynym powiązaniem
+        // zamówienia z konkretnym kuponem poza tabelą realizacji.
+        metadata: couponCode
+          ? {
+              coupon_code: couponCode,
+              coupon_id: couponId,
+              coupon_discount_cents: couponDiscountCents,
+              original_amount_cents: plan.price_cents,
+            }
+          : {},
       } as never)
       .select("id, tenant_id")
       .single();
     if (insertErr) throw insertErr;
 
     if (couponId) {
+      // `_applied_cents` to RABAT, nie kwota zapłacona - semantyka ustalona
+      // jawnie w migracji `20260725090200_fix_coupon_analytics_applied_cents
+      // _inversion.sql` (niezmiennik: `original_cents = applied_cents +
+      // zapłacone`). Przekazywane tu wcześniej zero łamało ten niezmiennik:
+      // raport kosztu kuponów pokazywał zero rabatu, a „przychód netto"
+      // w `b2b_coupons_analytics` i w `monetization_dashboard` był zawyżony
+      // dokładnie o udzielony rabat - i to tylko dla zamówień z TEGO silnika.
       const { data: redeemed, error: redeemErr } = await supabase.rpc("redeem_b2b_coupon", {
         _coupon_id: couponId,
         _order_id: order.id,
-        _applied_cents: 0,
+        _applied_cents: couponDiscountCents,
         _original_cents: plan.price_cents,
         _currency: plan.currency,
       });

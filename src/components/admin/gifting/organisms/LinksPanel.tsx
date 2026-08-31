@@ -119,6 +119,12 @@ export function LinksPanel({ dateLocale }: { dateLocale: string }) {
                 const s = statusOf(r);
                 const cap = r.max_redemptions;
                 const exhausted = giftCapExhausted(r.redemption_count, cap);
+                // Druga linia komorki darczyncy porownuje sie z tym, co
+                // NAPRAWDE stanelo w pierwszej - nie z `creator_name`. Konto
+                // bez `display_name` ma `creator_name === null`, wiec pierwsza
+                // linia pokazuje juz adres; porownanie z nazwa przepuszczalo go
+                // po raz drugi (te same dane osobowe dwa razy pod soba).
+                const creatorLine = r.creator_name ?? r.creator_email ?? "-";
                 return (
                   <tr key={r.id} className="hover:bg-muted/20">
                     <td className="px-3 py-2">
@@ -130,10 +136,8 @@ export function LinksPanel({ dateLocale }: { dateLocale: string }) {
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="text-foreground line-clamp-1">
-                        {r.creator_name ?? r.creator_email ?? "-"}
-                      </div>
-                      {r.creator_email && r.creator_email !== r.creator_name && (
+                      <div className="text-foreground line-clamp-1">{creatorLine}</div>
+                      {r.creator_email && r.creator_email !== creatorLine && (
                         <div className="text-[11px] text-muted-foreground line-clamp-1">
                           {r.creator_email}
                         </div>

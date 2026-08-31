@@ -8,6 +8,19 @@ import type { Tables } from "@/integrations/supabase/types";
 export type PaymentOrderStatusFilter =
   "all" | "pending" | "processing" | "paid" | "failed" | "refunded" | "canceled";
 
+/**
+ * Środowisko operatora, do którego zawężamy listę. Kolumna `payment_orders
+ * .environment` jest NOT NULL i trzyma OBA środowiska w jednej tabeli, więc bez
+ * tego filtra panel sklejał zakupy piaskownicowe z prawdziwymi: liczniki
+ * podsumowania sumowały jedne i drugie, a `limit` (panel prosi o 200) był
+ * nakładany PRZED jakimkolwiek zawężeniem, więc seria zamówień testowych
+ * potrafiła wypchnąć prawdziwe zamówienie klienta poza okno.
+ *
+ * `undefined` znaczy „nie zawężaj" - zostaje dla wywołań, które świadomie chcą
+ * obrazu obu środowisk. Panel administratora podaje środowisko ZAWSZE.
+ */
+export type PaymentOrderEnvironmentFilter = "sandbox" | "live";
+
 export interface PaymentOrderRow {
   id: string;
   createdAt: string;
@@ -79,7 +92,11 @@ const SELECT =
 
 export async function loadPaymentOrders(
   supabase: SupabaseClient,
-  options: { status: PaymentOrderStatusFilter; limit: number },
+  options: {
+    status: PaymentOrderStatusFilter;
+    limit: number;
+    environment?: PaymentOrderEnvironmentFilter;
+  },
 ): Promise<{ rows: PaymentOrderRow[]; summary: PaymentOrdersSummary }> {
   let query = supabase
     .from("payment_orders")
@@ -87,6 +104,10 @@ export async function loadPaymentOrders(
     .order("created_at", { ascending: false })
     .limit(options.limit);
   if (options.status !== "all") query = query.eq("status", options.status);
+  // Zawężenie po środowisku idzie DO BAZY, a nie do pamięci: `limit` musi
+  // działać na wierszach już odsianych, inaczej okno 200 wierszy zapełniają
+  // zamówienia z piaskownicy, zanim ktokolwiek je odfiltruje.
+  if (options.environment) query = query.eq("environment", options.environment);
 
   const { data, error } = await query;
   if (error) throw error;

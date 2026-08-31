@@ -150,7 +150,7 @@ beforeEach(() => {
 describe("SlotsPanel - lista", () => {
   it("PUSTA lista mowi wprost, ze slotow nie ma (a nie pokazuje pustej tabeli)", async () => {
     await renderPanel([]);
-    expect(await screen.findByText(/Brak slot/)).toBeInTheDocument();
+    expect(await screen.findByText("adsAdmin.slots.empty")).toBeInTheDocument();
   });
 
   it("odczyt listy idzie po `ad_slots` i sortuje od najnowszych", async () => {
@@ -280,7 +280,7 @@ describe("SlotsPanel - zapis", () => {
     );
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
-    await screen.findByText(/Brak slot/);
+    await screen.findByText("adsAdmin.slots.empty");
     fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
       target: { value: "Kreacja partnera" },
     });
@@ -300,7 +300,7 @@ describe("SlotsPanel - zapis", () => {
     );
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
-    await screen.findByText(/Brak slot/);
+    await screen.findByText("adsAdmin.slots.empty");
     fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
       target: { value: "Kreacja partnera" },
     });
@@ -313,7 +313,7 @@ describe("SlotsPanel - zapis", () => {
 describe("SlotsPanel - edycja", () => {
   it("EDYTUJ przenosi wiersz do formularza i zmienia naglowek na tryb edycji", async () => {
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     expect(screen.getByLabelText("adsAdmin.slots.fieldName")).toHaveValue("Baner glowny");
     expect(screen.getByText("adsAdmin.slots.editTitle")).toBeInTheDocument();
   });
@@ -321,7 +321,7 @@ describe("SlotsPanel - edycja", () => {
   it("zapis w trybie edycji idzie przez UPDATE ZAWEZONY do tego wiersza", async () => {
     // Brak `eq("id", ...)` przepisalby WSZYSTKIE sloty najemcy jedna trescia.
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
       target: { value: "Baner glowny v2" },
     });
@@ -342,8 +342,8 @@ describe("SlotsPanel - edycja", () => {
 
   it("ANULUJ wychodzi z trybu edycji i przywraca pusty szkic", async () => {
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
+    fireEvent.click(screen.getByRole("button", { name: "adsAdmin.cancel" }));
     expect(screen.getByLabelText("adsAdmin.slots.fieldName")).toHaveValue("");
     expect(screen.getByText("adsAdmin.slots.addTitle")).toBeInTheDocument();
   });
@@ -351,15 +351,15 @@ describe("SlotsPanel - edycja", () => {
   it("przycisk ANULUJ NIE ISTNIEJE przy dodawaniu nowego slotu", async () => {
     // Byloby to jedyne miejsce w formularzu, ktore niczego nie anuluje.
     await renderPanel([]);
-    await screen.findByText(/Brak slot/);
-    expect(screen.queryByRole("button", { name: "Anuluj" })).toBeNull();
+    await screen.findByText("adsAdmin.slots.empty");
+    expect(screen.queryByRole("button", { name: "adsAdmin.cancel" })).toBeNull();
   });
 
   it("edycja wczytuje TARGETING wiersza do edytora chipow", async () => {
     // Chip bez zaznaczenia oznaczalby, ze zapis edycji wyczysci zawezenie
     // kreacji i puscil ja na cala witryne.
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     expect(await screen.findByRole("button", { name: "Unia" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -371,7 +371,7 @@ describe("SlotsPanel - usuwanie", () => {
   it("POTWIERDZONE usuniecie kasuje TEN wiersz i melduje sukces", async () => {
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
     await waitFor(() =>
       expect(
         db()
@@ -391,7 +391,7 @@ describe("SlotsPanel - usuwanie", () => {
     // pozycjami; zwykly dialog „OK/Anuluj" klika sie odruchowo.
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(h.confirm.mock.calls[0]![0]).toMatchObject({
       destructive: true,
@@ -406,7 +406,7 @@ describe("SlotsPanel - usuwanie", () => {
     // kosza kasuje slot mimo wcisnietego „Anuluj".
     h.confirm.mockResolvedValue(false);
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(
       db()
@@ -425,7 +425,7 @@ describe("SlotsPanel - usuwanie", () => {
     );
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
-    fireEvent.click((await screen.findAllByRole("button", { name: "" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
     await waitFor(() =>
       expect(h.toastError).toHaveBeenCalledWith(
         'update or delete on table "ad_slots" violates foreign key constraint',
@@ -439,27 +439,27 @@ describe("SlotsPanel - pola zalezne od rodzaju slotu", () => {
   it("HTML: pole tresci HTML jest, pola skryptu i grafiki NIE MA", async () => {
     await renderPanel([]);
     expect(screen.getByLabelText("adsAdmin.slots.fieldHtml")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Skrypt/)).toBeNull();
-    expect(screen.queryByLabelText("URL grafiki")).toBeNull();
+    expect(screen.queryByLabelText("adsAdmin.slots.fieldScript")).toBeNull();
+    expect(screen.queryByLabelText("adsAdmin.slots.fieldImageUrl")).toBeNull();
     expect(screen.queryByLabelText("adsAdmin.slots.fieldAlt")).toBeNull();
   });
 
   it("SKRYPT: pojawia sie pole skryptu, znika pole HTML", async () => {
     await renderPanel([]);
     fireEvent.change(selectKind(), { target: { value: "script" } });
-    expect(await screen.findByLabelText(/Skrypt/)).toBeInTheDocument();
+    expect(await screen.findByLabelText("adsAdmin.slots.fieldScript")).toBeInTheDocument();
     expect(screen.queryByLabelText("adsAdmin.slots.fieldHtml")).toBeNull();
-    expect(screen.queryByLabelText("URL grafiki")).toBeNull();
+    expect(screen.queryByLabelText("adsAdmin.slots.fieldImageUrl")).toBeNull();
   });
 
   it("GRAFIKA: trzy pola obrazka naraz, bez pol kodu", async () => {
     await renderPanel([]);
     fireEvent.change(selectKind(), { target: { value: "image" } });
-    expect(await screen.findByLabelText("URL grafiki")).toBeInTheDocument();
+    expect(await screen.findByLabelText("adsAdmin.slots.fieldImageUrl")).toBeInTheDocument();
     expect(screen.getByLabelText("adsAdmin.slots.fieldClickUrl")).toBeInTheDocument();
     expect(screen.getByLabelText("adsAdmin.slots.fieldAlt")).toBeInTheDocument();
     expect(screen.queryByLabelText("adsAdmin.slots.fieldHtml")).toBeNull();
-    expect(screen.queryByLabelText(/Skrypt/)).toBeNull();
+    expect(screen.queryByLabelText("adsAdmin.slots.fieldScript")).toBeNull();
   });
 
   it("lista rodzajow pochodzi z mapy kluczy, nie z recznego wyliczenia", async () => {
@@ -589,8 +589,8 @@ describe("SlotsPanel - dostepnosc", () => {
     const { container } = await renderPanel([SLOT_A]);
     await screen.findByText("Baner glowny");
     const naruszenia = await axeViolations(container, {
-      // Przycisk kosza jest osobno zarejestrowany nizej jako defekt - ta
-      // regula bylaby tu wylacznie duplikatem tamtego wpisu.
+      // Nazwa przycisku kosza ma nizej WLASNY przypadek (dawny defekt, dzis
+      // naprawiony) - ta regula bylaby tu wylacznie duplikatem tamtego wpisu.
       "button-name": { enabled: false },
       // `select-name` mierzyloby TU ATRAPE, nie produkcje: Radiksowy Select
       // renderuje przycisk z `aria-haspopup`, a nasza atrapa - natywny
@@ -601,50 +601,48 @@ describe("SlotsPanel - dostepnosc", () => {
       // renderuje `<input type=checkbox>`, a produkcja `<button role=switch>` -
       // czyli kontrolke, ktorej ta regula w ogole nie dotyczy.
       label: { enabled: false },
-      // Pusty naglowek kolumny akcji jest osobno zarejestrowany nizej.
+      // Naglowek kolumny akcji ma nizej wlasny przypadek (dawny defekt, dzis
+      // naprawiony).
       "empty-table-header": { enabled: false },
     });
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 
-  it.fails("przycisk usuwania wiersza ma DOSTEPNA NAZWE", async () => {
-    // CO JEST ZLE. Kosz w wierszu listy to `<Button>` z samym `<svg>` w srodku -
+  it("przycisk usuwania wiersza ma DOSTEPNA NAZWE", async () => {
+    // CO BYLO ZLE. Kosz w wierszu listy byl `<Button>` z samym `<svg>` w srodku -
     // bez `aria-label`, bez tekstu ukrytego dla czytnika ekranu. axe-core
-    // zglasza `button-name`, a `getByRole("button", { name: "" })` w testach
-    // wyzej dokumentuje ten sam brak od drugiej strony.
+    // zglaszal `button-name`, a `getByRole("button", { name: "" })` w testach
+    // wyzej dokumentowal ten sam brak od drugiej strony.
     //
-    // DLACZEGO TO RYZYKO. To jest przycisk NIEODWRACALNY: kasuje slot razem
+    // JAKIE TO BYLO RYZYKO. To jest przycisk NIEODWRACALNY: kasuje slot razem
     // z przypietymi do niego pozycjami. Redaktor korzystajacy z czytnika ekranu
-    // slyszy w wierszu dwa przyciski - „Edytuj" i przycisk bez nazwy - i nie ma
-    // jak odroznic edycji od skasowania inaczej niz przez klikniecie. Ta sama
-    // luka dotyczy nawigacji klawiatura: lista fokusow czyta sie jako
+    // slyszal w wierszu dwa przyciski - „Edytuj" i przycisk bez nazwy - i nie
+    // mial jak odroznic edycji od skasowania inaczej niz przez klikniecie. Ta
+    // sama luka dotyczyla nawigacji klawiatura: lista fokusow czytala sie jako
     // „Edytuj, przycisk, Edytuj, przycisk".
     //
-    // DLACZEGO NIE NAPRAWIAM. Zakres tej pracy to WYLACZNIE testy; poprawka
-    // dotyka kodu produkcyjnego (dodanie `aria-label` z klucza slownika, ktory
-    // trzeba tez zalozyc w `i18n-ads-admin` w obu jezykach). Rejestruje wiec
-    // brak jako `it.fails`: gdy ktos doda etykiete, ten przypadek ZAPALI SIE na
-    // czerwono i zmusi do zdjecia `.fails` - czyli defekt nie zniknie po cichu.
+    // JAK NAPRAWIONE. Kosz ma `aria-label={t("adsAdmin.slots.deleteAction")}`
+    // (klucz zalozony w `i18n-ads-admin` w PL i EN), wiec pozostale przypadki
+    // w tym pliku szukaja go juz po nazwie, a nie po jej braku.
     const { container } = await renderPanel([SLOT_A]);
     await screen.findByText("Baner glowny");
     const naruszenia = await axeViolations(container);
     expect(naruszenia.map((v) => v.id)).not.toContain("button-name");
   });
 
-  it.fails("kolumna akcji ma NAZWE w naglowku tabeli", async () => {
-    // CO JEST ZLE. Ostatnia komorka `<thead>` to `<th className="p-3"></th>` -
-    // pusty naglowek. axe-core zglasza `empty-table-header`.
+  it("kolumna akcji ma NAZWE w naglowku tabeli", async () => {
+    // CO BYLO ZLE. Ostatnia komorka `<thead>` byla `<th className="p-3"></th>` -
+    // pusty naglowek. axe-core zglaszal `empty-table-header`.
     //
-    // DLACZEGO TO RYZYKO. Czytnik ekranu w trybie tabeli zapowiada przy kazdej
-    // komorce nazwe jej kolumny. Dla kolumny akcji zapowiada PUSTKE, wiec
-    // uzytkownik slyszy „Baner glowny, HTML, aktywny, ... , (cisza), przycisk" -
-    // i nie wie, ze wlasnie wszedl w kolumne z nieodwracalnym usuwaniem. To ta
-    // sama luka, co brak nazwy przycisku kosza, tylko od strony nawigacji po
-    // strukturze tabeli.
+    // JAKIE TO BYLO RYZYKO. Czytnik ekranu w trybie tabeli zapowiada przy kazdej
+    // komorce nazwe jej kolumny. Dla kolumny akcji zapowiadal PUSTKE, wiec
+    // uzytkownik slyszal „Baner glowny, HTML, aktywny, ... , (cisza), przycisk" -
+    // i nie wiedzial, ze wlasnie wszedl w kolumne z nieodwracalnym usuwaniem.
+    // To ta sama luka, co brak nazwy przycisku kosza, tylko od strony nawigacji
+    // po strukturze tabeli.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka (tekst dla czytnika w naglowku plus
-    // klucz w slowniku PL/EN) dotyka kodu produkcyjnego, a zakres tej pracy to
-    // wylacznie testy.
+    // JAK NAPRAWIONE. Naglowek niesie `adsAdmin.columnActions` w `sr-only` -
+    // czytnik ekranu zapowiada „Akcje", a uklad tabeli zostaje bez zmian.
     const { container } = await renderPanel([SLOT_A]);
     await screen.findByText("Baner glowny");
     const naruszenia = await axeViolations(container, {
@@ -657,38 +655,40 @@ describe("SlotsPanel - dostepnosc", () => {
 });
 
 // ---------------------------------------------------------------------------
-// BRAKI i18n - ZAREJESTROWANE, NIENAPRAWIONE.
+// BRAKI i18n - NAPRAWIONE (dawne `it.fails`).
 //
-// Atrapa i18n oddaje KLUCZ zamiast tlumaczenia, wiec kazdy napis, ktory pojawia
-// sie w drzewie po polsku, jest dowodem na literal wpisany wprost w kodzie
-// panelu. Panel jest dwujezyczny (PL/EN) - te napisy zobaczy po polsku takze
+// Atrapa i18n oddaje KLUCZ zamiast tlumaczenia, wiec kazdy napis, ktory pojawil
+// sie w drzewie po polsku, byl dowodem na literal wpisany wprost w kodzie
+// panelu. Panel jest dwujezyczny (PL/EN) - te napisy widzial po polsku takze
 // redaktor pracujacy po angielsku.
 //
-// DLACZEGO NIE NAPRAWIAM: zakres tej pracy to wylacznie testy, a poprawka
-// wymaga zalozenia kluczy w `src/lib/i18n-ads-admin.ts` w OBU jezykach i zmiany
-// kodu produkcyjnego. Kazdy przypadek nizej zapali sie na czerwono w chwili,
-// gdy literal zniknie - i wymusi zdjecie `.fails`.
+// JAK NAPRAWIONE: napisy przeniesione do `src/lib/i18n-ads-admin.ts` w OBU
+// jezykach (`adsAdmin.edit`, `adsAdmin.cancel`, `adsAdmin.slots.empty`,
+// `adsAdmin.slots.fieldKind`, `.fieldActive`, `.fieldRequiresConsent`,
+// `.fieldImageUrl`, `.fieldScript`, `.sandboxHtmlHint`, `.sandboxScriptHint`),
+// a panel wola je przez `t()`. Przypadki nizej pilnuja, ze zaden z tych
+// literalow nie wrocil do drzewa.
 // ---------------------------------------------------------------------------
-describe("SlotsPanel - braki i18n (zarejestrowane)", () => {
-  it.fails("etykieta przycisku EDYCJI pochodzi ze slownika", async () => {
+describe("SlotsPanel - braki i18n (naprawione)", () => {
+  it("etykieta przycisku EDYCJI pochodzi ze slownika", async () => {
     await renderPanel([SLOT_A]);
     await screen.findByText("Baner glowny");
     expect(screen.queryByRole("button", { name: "Edytuj" })).toBeNull();
   });
 
-  it.fails("etykieta przycisku ANULUJ pochodzi ze slownika", async () => {
+  it("etykieta przycisku ANULUJ pochodzi ze slownika", async () => {
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     expect(screen.queryByRole("button", { name: "Anuluj" })).toBeNull();
   });
 
-  it.fails("komunikat o pustej liscie pochodzi ze slownika", async () => {
+  it("komunikat o pustej liscie pochodzi ze slownika", async () => {
     await renderPanel([]);
     await waitFor(() => expect(db().chainsFor("ad_slots").length).toBeGreaterThan(0));
     expect(screen.queryByText("Brak slotów. Dodaj pierwszy poniżej.")).toBeNull();
   });
 
-  it.fails("etykiety pol formularza pochodza ze slownika", async () => {
+  it("etykiety pol formularza pochodza ze slownika", async () => {
     // „Typ", „Aktywny", „Wymaga zgody marketingowej (RODO)", „URL grafiki",
     // „Skrypt (np. AdSense)" - piec literalow w jednym formularzu.
     await renderPanel([]);
@@ -698,9 +698,10 @@ describe("SlotsPanel - braki i18n (zarejestrowane)", () => {
     expect(screen.queryByText("Wymaga zgody marketingowej (RODO)")).toBeNull();
   });
 
-  it.fails("toast po zapisie slotu pochodzi ze slownika", async () => {
-    // Usuniecie melduje sie przez `adminToast.deleted()` (slownik), a zapis -
-    // literalem „Zapisano slot". Dwa rozne mechanizmy w jednej funkcji.
+  it("toast po zapisie slotu pochodzi ze slownika", async () => {
+    // Usuniecie meldowalo sie przez `adminToast.deleted()` (slownik), a zapis -
+    // literalem „Zapisano slot": dwa rozne mechanizmy w jednej funkcji. Zapis
+    // idzie teraz przez `adminToast.saved()`, tak jak sasiednie wywolanie.
     await renderPanel([]);
     fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
       target: { value: "Kreacja partnera" },
@@ -712,28 +713,27 @@ describe("SlotsPanel - braki i18n (zarejestrowane)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKT KONTRAKTU ZAPISU - ZAREJESTROWANY, NIENAPRAWIONY.
+// DEFEKT KONTRAKTU ZAPISU - NAPRAWIONY (dawny `it.fails`).
 // ---------------------------------------------------------------------------
-describe("SlotsPanel - kontrakt ladunku UPDATE (defekt)", () => {
-  it.fails("ladunek edycji nie niesie kolumn zarzadzanych przez baze", async () => {
-    // CO JEST ZLE. „Edytuj" wklada do szkicu CALY wiersz odczytany z bazy
-    // (`setDraft(s)`), a zapis wysyla `{ ...draft }` jako ladunek `update`.
-    // Do bazy wraca wiec takze `id`, `tenant_id`, `created_at` i - co
+describe("SlotsPanel - kontrakt ladunku UPDATE", () => {
+  it("ladunek edycji nie niesie kolumn zarzadzanych przez baze", async () => {
+    // CO BYLO ZLE. „Edytuj" wklada do szkicu CALY wiersz odczytany z bazy
+    // (`setDraft(s)`), a zapis wysylal `{ ...draft }` jako ladunek `update`.
+    // Do bazy wracalo wiec takze `id`, `tenant_id`, `created_at` i - co
     // najgorsze - `updated_at` sprzed edycji.
     //
-    // DLACZEGO TO RYZYKO. `updated_at` przestaje znaczyc „kiedy ostatnio
-    // zmieniono": wiersz zapisany dzis wraca ze znacznikiem sprzed tygodnia.
+    // JAKIE TO BYLO RYZYKO. `updated_at` przestawal znaczyc „kiedy ostatnio
+    // zmieniono": wiersz zapisany dzis wracal ze znacznikiem sprzed tygodnia.
     // Kazdy odczyt sortujacy albo cache'ujacy po `updated_at` (a tak dziala
-    // wiekszosc warstw emisji i podgladow) widzi kreacje jako niezmieniona.
+    // wiekszosc warstw emisji i podgladow) widzial kreacje jako niezmieniona.
     // `tenant_id` w ladunku to dodatkowo zapis kolumny rozdzielajacej najemcow -
-    // przechodzi tylko dlatego, ze wartosc jest ta sama, ktora juz tam stoi.
+    // przechodzil tylko dlatego, ze wartosc byla ta sama, ktora juz tam stoi.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana kodu produkcyjnego (bialka
-    // lista pol w ladunku albo odjecie kolumn systemowych przed wyslaniem),
-    // a zakres tej pracy to wylacznie testy. Rejestruje wiec kontrakt, ktorego
-    // dzis NIE MA - przypadek zapali sie, gdy ktos ladunek zawezi.
+    // JAK NAPRAWIONE. `SlotsPanel.payloadOf()` sklada ladunek z BIALEJ LISTY
+    // kolumn edytowalnych, wiec `id`, `tenant_id`, `created_at` i `updated_at`
+    // zostaja po stronie bazy - takze przy zapisie z trybu edycji.
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Edytuj" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.edit" }))[0]);
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.save/ }));
     await waitFor(() =>
       expect(

@@ -1,9 +1,10 @@
 // Live-walidacja kuponu B2B po stronie klienta: `src/hooks/useValidateCoupon.ts`.
 //
-// TEN PLIK REJESTRUJE DWA DEFEKTY, ZAMIAST JE NAPRAWIAC (`it.fails`). Oba
-// dotycza pieniedzy i oba wymagaja decyzji produktowej, a nie technicznej -
-// dlatego zostaja opisane i przypiete testem, ktory ZAPALI SIE SAM, gdy ktos je
-// naprawi (`it.fails` przechodzi tylko dopoki asercja pada).
+// TEN PLIK OPISUJE DWA DEFEKTY PIENIEZNE. PIERWSZY JEST JUZ NAPRAWIONY (blad
+// techniczny odrozniony od nieistniejacego kuponu), DRUGI CZEKA NA MIGRACJE
+// SQL i zostaje `it.fails` - poprawka lezy w ciele RPC `validate_b2b_coupon`,
+// czyli poza warstwa TypeScript (`it.fails` przechodzi tylko dopoki asercja
+// pada, wiec zapali sie sam, gdy migracja powstanie).
 //
 // ATRAPUJEMY GRANICE: klienta Supabase. Normalizacja kodu i mapowanie wyniku
 // biegna prawdziwe.
@@ -29,6 +30,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { useValidateCoupon } from "@/hooks/useValidateCoupon";
+import { COUPON_ERROR_I18N_KEY } from "@/lib/billing/coupons";
 
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 const PLAN = "11111111-1111-1111-1111-111111111111";
@@ -118,28 +120,27 @@ describe("kontrakt wywolania RPC", () => {
 });
 
 // ---------------------------------------------------------------------------
-describe("DEFEKT 1: kazdy blad jest pokazywany jako 'kupon nieprawidlowy'", () => {
+describe("DEFEKT 1 (NAPRAWIONY): blad techniczny nie udaje juz 'kupon nieprawidlowy'", () => {
   /**
-   * CO JEST ZLE. `catch` w `useValidateCoupon.ts` mapuje KAZDY wyjatek na
+   * CO BYLO ZLE. `catch` w `useValidateCoupon.ts` mapowal KAZDY wyjatek na
    * `{ ok: false, error: "not_found" }`. Zerwane polaczenie, awaria RPC, brak
-   * uprawnien i literowka w kodzie kuponu daja uzytkownikowi TO SAMO zdanie:
+   * uprawnien i literowka w kodzie kuponu dawaly uzytkownikowi TO SAMO zdanie:
    * ze jego kupon jest nieprawidlowy (`coupon.error.notFound`).
    *
-   * DLACZEGO TO WAZNE. To jest NIEPRAWDZIWA informacja o pieniadzach. Klient z
-   * waznym kuponem, ktory trafil na sekunde awarii sieci, dowiaduje sie, ze
-   * kupon nie istnieje - i placi pelna cene albo rezygnuje. Zaden log po
-   * stronie klienta tego nie odroznia, bo stan koncowy jest identyczny.
+   * DLACZEGO TO BYLO WAZNE. To byla NIEPRAWDZIWA informacja o pieniadzach.
+   * Klient z waznym kuponem, ktory trafil na sekunde awarii sieci, dowiadywal
+   * sie, ze kupon nie istnieje - i placil pelna cene albo rezygnowal. Zaden log
+   * po stronie klienta tego nie odroznial, bo stan koncowy byl identyczny.
    *
-   * DLACZEGO NIE NAPRAWIAM TEGO TUTAJ. Rozdzielenie stanow (nieprawidlowy
-   * kupon vs. blad techniczny) wymaga nowego wariantu bledu w
-   * `ValidateCouponResult["error"]`, nowego klucza i18n w PL i EN oraz decyzji,
-   * co ma zobaczyc uzytkownik przy awarii - to zmiana produktowa, a zasady tego
-   * zadania zabraniaja zmieniac zachowanie produkcyjne, zeby test przeszedl.
-   * Autorytetem kwoty ten hook NIE jest (serwer waliduje ponownie w
-   * `createCheckoutOrder` i rezerwuje atomowo przy checkoucie), wiec defekt
-   * dotyczy komunikatu, nie rozliczenia.
+   * JAK NAPRAWIONE. `ValidateCouponResult["error"]` ma nowy wariant
+   * `technical_error` (`@/lib/billing/coupons`), `COUPON_ERROR_I18N_KEY`
+   * mapuje go na `coupon.error.technicalError` (PL i EN w `i18n-profile.ts`),
+   * a hook zwraca go z `catch` zamiast `not_found`. `CouponInput` czyta mape
+   * kluczy, wiec pokazuje nowy komunikat bez zmiany w komponencie. Kwota
+   * koncowa zostaje nietknieta - autorytetem rabatu jest serwer
+   * (`createCheckoutOrder` waliduje ponownie i rezerwuje atomowo).
    */
-  it.fails("blad sieci POWINIEN byc odrozniony od nieistniejacego kuponu", async () => {
+  it("blad sieci JEST odrozniony od nieistniejacego kuponu", async () => {
     rpc.throws = new Error("TypeError: Failed to fetch");
     const { result } = setup();
 
@@ -148,12 +149,13 @@ describe("DEFEKT 1: kazdy blad jest pokazywany jako 'kupon nieprawidlowy'", () =
       out = (await result.current.validate("RABAT")) as { error: string | null };
     });
 
-    // Docelowo: osobny wariant bledu technicznego. Dzis: "not_found".
+    // Osobny wariant bledu technicznego zamiast "not_found".
     expect(out!.error).not.toBe("not_found");
+    expect(out!.error).toBe("technical_error");
   });
 
-  it.fails(
-    "blad RPC (np. brak uprawnien) POWINIEN byc odrozniony od literowki w kodzie",
+  it(
+    "blad RPC (np. brak uprawnien) JEST odrozniony od literowki w kodzie",
     async () => {
       rpc.result = { data: null, error: new Error("permission denied for function") };
       const { result } = setup();
@@ -164,10 +166,11 @@ describe("DEFEKT 1: kazdy blad jest pokazywany jako 'kupon nieprawidlowy'", () =
       });
 
       expect(out!.error).not.toBe("not_found");
+      expect(out!.error).toBe("technical_error");
     },
   );
 
-  it("stan zastany (utrwalony): oba powyzsze przypadki daja dzis 'not_found'", async () => {
+  it("awaria nie udaje odmowy: 'technical_error', zerowy rabat, kwota nietknieta", async () => {
     rpc.throws = new Error("Failed to fetch");
     const { result } = setup();
 
@@ -176,9 +179,16 @@ describe("DEFEKT 1: kazdy blad jest pokazywany jako 'kupon nieprawidlowy'", () =
       network = (await result.current.validate("RABAT")) as { ok: boolean; error: string | null };
     });
 
-    expect(network).toMatchObject({ ok: false, error: "not_found", discount_cents: 0 });
+    expect(network).toMatchObject({ ok: false, error: "technical_error", discount_cents: 0 });
     // Kwota koncowa wraca NIETKNIETA - awaria nie potrafi obnizyc ceny.
     expect(network!["final_cents" as keyof typeof network]).toBe(49_900);
+  });
+
+  it("komunikat awarii ma wlasny klucz i18n - inny niz komunikat o zlym kodzie", async () => {
+    // Rozdzielenie stanow ma sens tylko wtedy, gdy uzytkownik widzi INNE
+    // zdanie: `CouponInput` bierze tekst wylacznie z tej mapy.
+    expect(COUPON_ERROR_I18N_KEY.technical_error).toBe("coupon.error.technicalError");
+    expect(COUPON_ERROR_I18N_KEY.technical_error).not.toBe(COUPON_ERROR_I18N_KEY.not_found);
   });
 });
 
@@ -203,9 +213,21 @@ describe("DEFEKT 2: zerowy UUID NIE jest przez RPC traktowany jak NULL", () => {
    * ktorym plan nie jest jeszcze wybrany. Uzytkownik widzi "kupon nie dotyczy
    * tego planu" dla kuponu, ktory jest wazny.
    *
-   * DLACZEGO NIE NAPRAWIAM. Poprawka lezy po stronie SQL (normalizacja zerowego
-   * UUID na NULL w RPC) albo w typach generowanych - obie zmieniaja zachowanie
-   * produkcyjne warstwy pieniedzy i wymagaja osobnej zgody.
+   * DLACZEGO NADAL NIE NAPRAWIONE.
+   *
+   * PROBA NAPRAWY. Jedyna uczciwa poprawka to normalizacja po stronie SQL:
+   * `_plan_id := NULLIF(_plan_id, '00000000-0000-0000-0000-000000000000'::uuid)`
+   * na wejsciu `validate_b2b_coupon`, czyli NOWA MIGRACJA. Zlecenie tej pracy
+   * zabrania pisac migracje SQL, a obejscia po stronie klienta zostaly
+   * odrzucone jako gorsze od defektu:
+   *   - wyslanie `_plan_id: null` lamie typy generowane z bazy (parametr jest
+   *     non-nullable) i wymagaloby rzutowania, ktorego zlecenie zabrania;
+   *   - pominiecie wywolania RPC przy braku planu zabiera uzytkownikowi
+   *     jedyna walidacje live, a serwer i tak odrzuci kupon przy checkoucie;
+   *   - "poprawianie" wyniku `plan_not_eligible` na kliencie, gdy plan nie
+   *     zostal wybrany, KLAMALOBY w druga strone: kupon faktycznie ograniczony
+   *     do innych planow wygladalby na wazny az do checkoutu.
+   * Test zostaje `it.fails` i zapali sie sam, gdy migracja powstanie.
    *
    * Ta asercja czyta PRAWDZIWA definicje RPC z migracji (wzorzec
    * `dbEnumParity.test.ts`), wiec zapali sie sama, gdy ktos ja poprawi.

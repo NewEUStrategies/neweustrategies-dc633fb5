@@ -98,8 +98,17 @@ vi.mock("@/lib/billing/ticketOrders.functions", () => ({
       : Promise.resolve(h.history.current),
 }));
 
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { AdminPaymentOrdersPanel } from "@/components/admin/billing/AdminPaymentOrdersPanel";
 import { AdminTicketOrdersPanel } from "@/components/admin/billing/AdminTicketOrdersPanel";
+
+/**
+ * Środowisko, z którym panel startuje. Bierzemy je z TEJ SAMEJ funkcji, co kod
+ * produkcyjny, zamiast wpisywać „sandbox" na sztywno: wartość zależy od
+ * prefiksu tokena publikowalnego, więc literał w teście przestałby pasować przy
+ * konfiguracji produkcyjnej i „dowodziłby" czegoś, co jest cechą środowiska CI.
+ */
+const DOMYSLNE_SRODOWISKO = getStripeEnvironmentSafe();
 
 function paymentOrder(overrides: Partial<PaymentOrderView> = {}): PaymentOrderView {
   return {
@@ -204,7 +213,9 @@ describe("AdminPaymentOrdersPanel - filtr statusu", () => {
     fireEvent.click(screen.getByText("adminBilling.failed"));
 
     await waitFor(() =>
-      expect(h.listPaymentOrders).toHaveBeenCalledWith({ data: { status: "failed", limit: 200 } }),
+      expect(h.listPaymentOrders).toHaveBeenCalledWith({
+        data: { status: "failed", limit: 200, environment: DOMYSLNE_SRODOWISKO },
+      }),
     );
   });
 
@@ -212,7 +223,9 @@ describe("AdminPaymentOrdersPanel - filtr statusu", () => {
     renderWithQueryClient(<AdminPaymentOrdersPanel />);
 
     await waitFor(() =>
-      expect(h.listPaymentOrders).toHaveBeenCalledWith({ data: { status: "all", limit: 200 } }),
+      expect(h.listPaymentOrders).toHaveBeenCalledWith({
+        data: { status: "all", limit: 200, environment: DOMYSLNE_SRODOWISKO },
+      }),
     );
   });
 
@@ -232,8 +245,71 @@ describe("AdminPaymentOrdersPanel - filtr statusu", () => {
     renderWithQueryClient(<AdminPaymentOrdersPanel />);
 
     await waitFor(() => expect(screen.getByLabelText("adminBilling.statusFilter")).toBeTruthy());
-    // Siedem filtrów: wszystkie + sześć statusów.
+    // Siedem filtrów: wszystkie + sześć statusów. Przełącznik środowiska stoi
+    // POZA tą listą, więc jej długości nie zmienia.
     expect(screen.getAllByRole("listitem")).toHaveLength(7);
+  });
+});
+
+describe("AdminPaymentOrdersPanel - rozdział piaskownicy od produkcji", () => {
+  // Panel MUSI zawężać listę do jednego środowiska operatora. Zamówienia
+  // testowe i prawdziwe leżą w tej samej tabeli, więc bez tego liczniki
+  // podsumowania sumowały jedne z drugimi, a limit 200 wierszy potrafiła
+  // zapełnić seria zakupów z piaskownicy - zamówienie klienta zgłaszającego
+  // problem po prostu nie mieściło się na liście.
+  it("ŚRODOWISKO jest częścią zapytania od pierwszego renderu", async () => {
+    renderWithQueryClient(<AdminPaymentOrdersPanel />);
+
+    await waitFor(() =>
+      expect(h.listPaymentOrders).toHaveBeenCalledWith({
+        data: { status: "all", limit: 200, environment: DOMYSLNE_SRODOWISKO },
+      }),
+    );
+  });
+
+  it("przełączenie środowiska JEST ZAPYTANIEM, nie ukrywaniem wierszy", async () => {
+    renderWithQueryClient(<AdminPaymentOrdersPanel />);
+    await waitFor(() => expect(h.listPaymentOrders).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("adminBilling.liveEnvironment"));
+
+    await waitFor(() =>
+      expect(h.listPaymentOrders).toHaveBeenCalledWith({
+        data: { status: "all", limit: 200, environment: "live" },
+      }),
+    );
+  });
+
+  it("przełącznik środowiska ma kontrakt a11y (grupa z etykietą, `aria-pressed`)", async () => {
+    renderWithQueryClient(<AdminPaymentOrdersPanel />);
+    await waitFor(() => expect(h.listPaymentOrders).toHaveBeenCalled());
+
+    expect(screen.getByLabelText("adminBilling.environment")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("adminBilling.liveEnvironment"));
+
+    await waitFor(() =>
+      expect(screen.getByText("adminBilling.liveEnvironment").getAttribute("aria-pressed")).toBe(
+        "true",
+      ),
+    );
+    expect(screen.getByText("adminBilling.testEnvironment").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+  });
+
+  it("zmiana środowiska nie gubi wybranego statusu", async () => {
+    renderWithQueryClient(<AdminPaymentOrdersPanel />);
+    await waitFor(() => expect(h.listPaymentOrders).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("adminBilling.failed"));
+    fireEvent.click(screen.getByText("adminBilling.liveEnvironment"));
+
+    await waitFor(() =>
+      expect(h.listPaymentOrders).toHaveBeenCalledWith({
+        data: { status: "failed", limit: 200, environment: "live" },
+      }),
+    );
   });
 });
 

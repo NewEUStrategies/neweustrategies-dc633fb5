@@ -385,37 +385,34 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     expect(writePayload("subscriptions", "update")).toMatchObject({ status: "paused" });
   });
 
-  // DEFEKT (nie naprawiam - zakres zadania to testy, nie kod produkcyjny).
+  // DEFEKT NAPRAWIONY 31.08.2026 (kod produkcyjny).
   //
-  // CO JEST ZŁE. `claimSubscriptionEvent` ma JAWNĄ decyzję projektową dla
+  // CO BYŁO ZŁE. `claimSubscriptionEvent` miał JAWNĄ decyzję projektową dla
   // zdarzenia bez wiarygodnego czasu: „brak wiarygodnego czasu - nie
-  // blokujemy" (webhookDispatch.server.ts:86) i przepuszcza je dalej. Trzy
-  // kroki niżej ta sama wartość trafia bez żadnej osłony do
-  // `new Date(occurredAt).toISOString()` w `handleCreated`
-  // (webhookDispatch.server.ts:142) i wywala `RangeError: Invalid time value`.
-  // Moduł sam sobie przeczy: najpierw obiecuje tolerancję, a potem pada na
-  // dokładnie tej wartości, którą przepuścił. Trafia w to WYŁĄCZNIE ścieżka
+  // blokujemy" i przepuszczał je dalej. Trzy kroki niżej ta sama wartość
+  // trafiała bez żadnej osłony do `new Date(occurredAt).toISOString()`
+  // w `handleCreated` i wywalała `RangeError: Invalid time value`. Moduł sam
+  // sobie przeczył: najpierw obiecywał tolerancję, a potem padał na dokładnie
+  // tej wartości, którą przepuścił. Trafiała w to WYŁĄCZNIE ścieżka
   // „zdarzenie stanu wyprzedziło `created`" - czyli ta, która istnieje po to,
   // żeby zakup nie przepadł, gdy operator dostarczy zdarzenia w złej
   // kolejności.
   //
-  // DLACZEGO TO RYZYKO. Skutek to wyjątek zamiast zapisu: trasa zwraca 500,
-  // dziennik zapisuje `failed`, operator ponawia dostawę przez trzy doby (a
-  // każda próba pada tak samo), a klient przez ten czas nie ma uprawnienia,
-  // za które zapłacił. Ponowienie z panelu admina też nie pomoże, bo idzie tą
-  // samą funkcją. Poprawka jest jednolinijkowa (ten sam strażnik
-  // `Number.isNaN(...)` co w `claimSubscriptionEvent` albo pominięcie pola
-  // `last_event_at`), ale to zmiana KODU PRODUKCYJNEGO.
+  // JAKIE TO BYŁO RYZYKO. Skutkiem był wyjątek zamiast zapisu: trasa zwracała
+  // 500, dziennik zapisywał `failed`, operator ponawiał dostawę przez trzy
+  // doby (a każda próba padała tak samo), a klient przez ten czas nie miał
+  // uprawnienia, za które zapłacił. Ponowienie z panelu admina też nie
+  // pomagało, bo idzie tą samą funkcją.
   //
-  // DLACZEGO `it.fails`, A NIE ASERCJA NA WYJĄTEK. Test opisujący dziś
-  // rzucany `RangeError` zamroziłby defekt jako kontrakt i zaświeciłby na
-  // czerwono dopiero przy poprawce - czyli karałby za naprawę. `it.fails`
-  // działa odwrotnie: pilnuje, że po naprawie ktoś ZDEJMIE `.fails`.
-  it.fails("zdarzenie bez wiarygodnego czasu zakłada brakującą subskrypcję", async () => {
+  // JAK NAPRAWIONE. Rozstrzygnięcie czasu zdarzenia zamieszkało w jednej
+  // funkcji `eventStamp` (`webhookDispatch.server.ts`): strażnik kolejności
+  // i `handleCreated` czytają ją tak samo, a czas nie do odczytania znaczy
+  // teraz „bez `last_event_at`", a nie „wyjątek".
+  it("zdarzenie bez wiarygodnego czasu zakłada brakującą subskrypcję", async () => {
     db.setResponse("subscriptions", subscriptionsResponder({ claimed: false, row: null }));
 
-    // ASERCJA DOCELOWA: obsługa ma się domknąć, a nie wywalić na dacie, którą
-    // strażnik świadomie przepuścił.
+    // Obsługa domyka się, zamiast wywalać na dacie, którą strażnik świadomie
+    // przepuścił.
     await expect(
       dispatchWebhookEvent({
         eventType: "subscription.activated",
@@ -1069,7 +1066,10 @@ describe("dane klienta z portalu operatora", () => {
   it("zmiana adresu rozliczeniowego trafia do profilu z kodem kraju wersalikami", async () => {
     // Kraj rozstrzyga o stawce podatku na fakturze - „pl" i „PL" to dla
     // porównań w bazie dwie różne wartości.
-    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy" }));
+    // Powiązanie klienta z kontem niesie TAKŻE najemcę: profil rozliczeniowy
+    // jest jeden na parę (użytkownik, najemca), więc zapis z webhooka bez
+    // `tenant_id` nie miałby jak trafić tylko w ten właściwy.
+    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy", tenant_id: "tenant-alfa" }));
     db.setResponse("billing_profiles", ok([{ id: "bp-1" }]));
 
     await dispatchWebhookEvent({
@@ -1094,7 +1094,7 @@ describe("dane klienta z portalu operatora", () => {
   });
 
   it("dane firmy przestawiają profil na fakturę B2B", async () => {
-    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy" }));
+    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy", tenant_id: "tenant-alfa" }));
     db.setResponse("billing_profiles", ok([{ id: "bp-1" }]));
 
     await dispatchWebhookEvent({
@@ -1114,7 +1114,7 @@ describe("dane klienta z portalu operatora", () => {
   it("puste pola w ładunku nie kasują zapisanych danych profilu", async () => {
     // Operator wysyła `customer.updated` także przy zmianie pola, którego nie
     // trzymamy. Nadpisanie profilu pustką skasowałoby adres do faktury.
-    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy" }));
+    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy", tenant_id: "tenant-alfa" }));
 
     await dispatchWebhookEvent({
       eventType: "customer.updated",

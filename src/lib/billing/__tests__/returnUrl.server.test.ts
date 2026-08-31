@@ -9,13 +9,13 @@
 //   * ŚCIEŻKA - wprost z ładunku żądania (`data.returnPath`), sanityzowana
 //     przez `safeReturnPath` (moduł `returnPath.ts`, testowany osobno);
 //   * ORIGIN - z NAGŁÓWKÓW żądania (`origin`, `x-forwarded-proto`,
-//     `x-forwarded-host`, `host`), bez żadnej listy dozwolonych hostów.
+//     `x-forwarded-host`, `host`), które do 31.08.2026 nie miały ŻADNEJ listy
+//     dozwolonych hostów (trzy defekty zarejestrowane wtedy jako `it.fails`,
+//     dziś naprawione i zielone - opis przy każdym na końcu pliku).
 //
 // Ten plik dowodzi obu połówek naprawdę, a nie „na oko": ścieżkę atakujemy
 // pełnym repertuarem (obca domena, `//host`, `/\host`, `javascript:`, CRLF,
-// przekroczona długość), a origin - podrobionymi nagłówkami. Wynik tej drugiej
-// części jest NEGATYWNY i został zarejestrowany jako trzy `it.fails` na końcu
-// pliku (opis defektu przy każdym).
+// przekroczona długość), a origin - podrobionymi nagłówkami.
 //
 // `safeReturnPath` biegnie PRAWDZIWY - to jest cała sanityzacja tej ścieżki,
 // a test, który by ją atrapował, dowodziłby wyłącznie istnienia atrapy.
@@ -217,71 +217,81 @@ describe("adres powrotu - ścieżka od klienta (open redirect)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY. Poniższe trzy przypadki są ZAREJESTROWANE, nie naprawione: reguła
-// zadania zakazuje zmian w kodzie produkcyjnym, a naprawa nie jest jedną linią
-// (wymaga decyzji, która domena jest dozwolona dla KTÓREGO najemcy - repo jest
-// wielonajemcowe, hosty siedzą w tabeli `tenants`, a `PUBLIC_SITE_URL` niesie
-// tylko jeden adres). To jest projekt bramki, a nie poprawka w teście.
+// DEFEKTY NAPRAWIONE. Poniższe trzy przypadki były ZAREJESTROWANE jako
+// świadomie czerwone (`it.fails`), bo naprawa nie była jedną linią: wymagała
+// projektu bramki dla repo WIELONAJEMCOWEGO (hosty najemców siedzą w tabeli
+// `tenants`, a `PUBLIC_SITE_URL` niesie tylko jeden adres) i decyzji, co robić
+// z hostem spoza listy - odrzucać czy podmieniać na kanoniczny.
+//
+// JAK NAPRAWIONO (wspólnie dla całej trójki): `absoluteReturnUrl` nie skleja
+// już adresu z surowym nagłówkiem - origin przechodzi przez bramkę
+// dozwolonych hostów (kanoniczny `PUBLIC_SITE_URL` + hosty marki + lokalny dev
+// + domeny najemców z `BILLING_RETURN_HOSTS`), a wszystko spoza listy ORAZ
+// wszystko, czego nie da się sparsować, CICHO schodzi na origin kanoniczny.
+// Uzasadnienie wariantu (podmiana zamiast odrzucenia) i powód, dla którego
+// bramka nie pyta bazy o `tenants`, stoją w nagłówku `returnUrl.server.ts`.
+// Te przypadki są teraz bramkami regresji: mają zostać ZIELONE.
 // ---------------------------------------------------------------------------
-describe("DEFEKT: origin adresu powrotu pochodzi z nagłówków bez listy dozwolonych", () => {
-  it.fails("podrobiony nagłówek `origin` przenosi adres powrotu na obcą domenę", () => {
-    // CO JEST ZŁE. `requestOrigin()` bierze `origin` z żądania i używa go bez
-    // sprawdzenia, czy to w ogóle nasza domena. Ścieżka jest sanityzowana
-    // wzorowo, ale skleja się z ORIGINEM NAPASTNIKA - efekt jest ten sam, co
-    // przy open redirect: `return_url` wysyłany operatorowi płatności wskazuje
+describe("origin adresu powrotu przechodzi przez listę dozwolonych hostów", () => {
+  it("podrobiony nagłówek `origin` NIE przenosi adresu powrotu na obcą domenę", () => {
+    // CO BYŁO ZŁE. `absoluteReturnUrl` brało `origin` z żądania i używało go
+    // bez sprawdzenia, czy to w ogóle nasza domena. Ścieżka była sanityzowana
+    // wzorowo, ale sklejała się z ORIGINEM NAPASTNIKA - efekt ten sam, co przy
+    // open redirect: `return_url` wysyłany operatorowi płatności wskazywał
     // `https://evil.example.org/...`.
     //
-    // DLACZEGO TO RYZYKO. Żądanie do server fn nie musi pochodzić z
+    // JAKIE TO BYŁO RYZYKO. Żądanie do server fn nie musi pochodzić z
     // przeglądarki (nagłówek `origin` jest wtedy dowolny), a i w przeglądarce
     // ten adres jest ostatnim, jaki użytkownik widzi po opuszczeniu operatora -
     // fałszywy ekran „płatność nie powiodła się, podaj kartę ponownie" na cudzej
     // domenie jest kompletnym scenariuszem wyłudzenia. Komentarz w
-    // `returnPath.ts` obiecuje, że adres powrotu „nie może stać się wektorem
-    // open redirect" - obietnica dotyczy tylko połowy adresu.
+    // `returnPath.ts` obiecywał, że adres powrotu „nie może stać się wektorem
+    // open redirect" - obietnica dotyczyła tylko połowy adresu.
     //
-    // DLACZEGO NIE NAPRAWIAM. Zakaz zmian w kodzie produkcyjnym; poprawka to
-    // lista dozwolonych hostów (per najemca) plus decyzja, co robić z ruchem
-    // spoza listy - odrzucać czy cicho podmieniać na kanoniczny adres.
+    // JAK NAPRAWIONO. Origin z nagłówka jest przepuszczany przez listę
+    // dozwolonych hostów (`returnHostIsAllowed`), a host spoza listy schodzi
+    // na origin kanoniczny.
     zadanie({ origin: "https://evil.example.org" });
 
     expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);
   });
 
-  it.fails("podrobiony `x-forwarded-host` przenosi adres powrotu na obcą domenę", () => {
-    // CO JEST ZŁE. Druga droga do tego samego skutku - i groźniejsza, bo
+  it("podrobiony `x-forwarded-host` NIE przenosi adresu powrotu na obcą domenę", () => {
+    // CO BYŁO ZŁE. Druga droga do tego samego skutku - i groźniejsza, bo
     // `x-forwarded-host` bywa doklejany przez warstwę pośrednią. Jeżeli
     // KTÓRYKOLWIEK proxy przed aplikacją przepuszcza ten nagłówek od klienta
-    // (typowa domyślna konfiguracja), atakujący ustawia go w zwykłym żądaniu.
+    // (typowa domyślna konfiguracja), atakujący ustawiał go w zwykłym żądaniu.
     //
-    // DLACZEGO TO RYZYKO. Poza przekierowaniem: ten sam mechanizm zatruwa
+    // JAKIE TO BYŁO RYZYKO. Poza przekierowaniem: ten sam mechanizm zatruwa
     // każdy bezwzględny adres budowany z „bieżącego origin" (linki w mailach,
     // wpisy w pamięci podręcznej krawędziowej). Tu widać go na powierzchni
     // płatniczej, bo to ona jako pierwsza dostała test.
     //
-    // DLACZEGO NIE NAPRAWIAM. Jak wyżej - bramka listy hostów jest decyzją
-    // właściciela modułu, a zaufanie do `x-forwarded-*` zależy od konfiguracji
-    // krawędzi, której test jednostkowy nie zna.
+    // JAK NAPRAWIONO. Ta sama bramka co wyżej obejmuje OBA źródła originu -
+    // nagłówek `origin` i host złożony z `x-forwarded-proto`/`x-forwarded-host`
+    // (oraz `host`); żaden z nich nie trafia do adresu bez dopasowania do listy.
     zadanie({ "x-forwarded-host": "evil.example.org", "x-forwarded-proto": "https" });
 
     expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);
   });
 
-  it.fails("bezsensowny `x-forwarded-host` wywraca funkcję zamiast zejść na fallback", () => {
-    // CO JEST ZŁE. Origin z nagłówka trafia wprost do `new URL(...)`. Host ze
-    // spacją (albo z dowolnym znakiem niedozwolonym w nazwie hosta) sprawia,
-    // że konstruktor rzuca `TypeError: Invalid URL` - z FUNKCJI, która ma
+  it("bezsensowny `x-forwarded-host` schodzi na fallback zamiast wywracać funkcję", () => {
+    // CO BYŁO ZŁE. Origin z nagłówka trafiał wprost do `new URL(...)`. Host ze
+    // spacją (albo z dowolnym znakiem niedozwolonym w nazwie hosta) sprawiał,
+    // że konstruktor rzucał `TypeError: Invalid URL` - z FUNKCJI, która ma
     // JEDNO zadanie: zawsze oddać bezpieczny adres.
     //
-    // DLACZEGO TO RYZYKO. Wyjątek leci przez `createStripePortalSession`,
+    // JAKIE TO BYŁO RYZYKO. Wyjątek leciał przez `createStripePortalSession`,
     // która owija go we własny `catch` i oddaje użytkownikowi błąd zamiast
-    // portalu klienta - czyli jednym nagłówkiem da się zablokować anulowanie
+    // portalu klienta - czyli jednym nagłówkiem dało się zablokować anulowanie
     // subskrypcji, zmianę karty i pobranie faktur. Sanityzacja, która przy
     // złym wejściu rzuca zamiast wrócić do wartości domyślnej, jest bramką
     // otwartą na oścież w drugą stronę (odmowa usługi).
     //
-    // DLACZEGO NIE NAPRAWIAM. Ta sama przyczyna źródłowa co wyżej (origin bez
-    // walidacji) i ta sama naprawa - walidacja hosta w `requestOrigin()`.
-    // Rejestruję osobno, bo skutek jest inny: nie przekierowanie, lecz awaria.
+    // JAK NAPRAWIONO. Rozbiór kandydata na origin siedzi w `parseHttpOrigin`
+    // z własnym `try/catch`: nieparsowalny host daje `null` (czyli zejście na
+    // origin kanoniczny), a `absoluteReturnUrl` ma dodatkowo `catch` ostatniej
+    // szansy - nie ma drogi, którą ta funkcja rzuca.
     zadanie({ "x-forwarded-host": "evil example.org" });
 
     expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);

@@ -244,31 +244,31 @@ describe("LinksPanel - stany listy", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT (nienaprawiany w tym zadaniu - testy nie ruszaja kodu produkcyjnego).
+  // DEFEKT NAPRAWIONY (dawny `it.fails`).
   //
-  // CO JEST ZLE. Komorka darczyncy sklada sie z dwoch linii. Pierwsza pokazuje
-  // `r.creator_name ?? r.creator_email ?? "-"`, druga jest warunkowa:
-  // `r.creator_email && r.creator_email !== r.creator_name`. Warunek porownuje
+  // CO BYLO ZLE. Komorka darczyncy sklada sie z dwoch linii. Pierwsza pokazuje
+  // `r.creator_name ?? r.creator_email ?? "-"`, druga byla warunkowa:
+  // `r.creator_email && r.creator_email !== r.creator_name`. Warunek porownywal
   // adres z NAZWA W DANYCH, a nie z tym, co faktycznie stanelo w pierwszej
-  // linii. Przy `creator_name === null` pierwsza linia pokazuje juz adres,
-  // a warunek (`adres !== null`) i tak przepuszcza druga - wiec ten sam adres
-  // wychodzi na ekran DWA RAZY, jeden pod drugim.
+  // linii. Przy `creator_name === null` pierwsza linia pokazywala juz adres,
+  // a warunek (`adres !== null`) i tak przepuszczal druga - wiec ten sam adres
+  // wychodzil na ekran DWA RAZY, jeden pod drugim.
   //
-  // DLACZEGO TO RYZYKO. Konto bez `display_name` (a takze bez pary
+  // JAKIE TO BYLO RYZYKO. Konto bez `display_name` (a takze bez pary
   // imie+nazwisko) to nie przypadek brzegowy - tak wyglada kazdy swiezy
   // uzytkownik, bo `creator_name` jest sklejane w RPC z
   // `COALESCE(display_name, first_name || ' ' || last_name, email)`. Kolumna
   // "Darczynca" jest jednym z dwoch miejsc, po ktorych redakcja identyfikuje
-  // zrodlo wycieku linku; podwojony adres kaze czytac ja dwa razy i sugeruje
-  // dwie rozne osoby przy poboznym przeleceniu wzrokiem. To takze
+  // zrodlo wycieku linku; podwojony adres kazal czytac ja dwa razy i sugerowal
+  // dwie rozne osoby przy poboznym przeleceniu wzrokiem. To bylo takze
   // niepotrzebne powielenie danych osobowych na ekranie (RODO: minimalizacja).
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakres zadania jest testowy. Poprawka to
-  // porownanie z wartoscia WYSWIETLONA (np. wyliczenie `displayed` raz
-  // i warunek `r.creator_email !== displayed`); po niej ten wpis wraca do
-  // zwyklego `it`.
+  // JAK NAPRAWIONE. `LinksPanel` wylicza `creatorLine` RAZ i porownuje adres
+  // z ta wlasnie wartoscia (`r.creator_email !== creatorLine`), wiec druga
+  // linia pojawia sie wylacznie wtedy, gdy niesie cos nowego. Wpis wrocil
+  // z `it.fails` do zwyklego `it`.
   // ---------------------------------------------------------------------------
-  it.fails("adres darczyncy bez nazwy nie moze pojawic sie dwa razy (DEFEKT)", async () => {
+  it("adres darczyncy bez nazwy nie moze pojawic sie dwa razy", async () => {
     await renderPanel([link({ creator_name: null, creator_email: "autor@example.org" })]);
     await waitFor(() => expect(screen.getAllByText("autor@example.org").length).toBeGreaterThan(0));
     expect(screen.getAllByText("autor@example.org")).toHaveLength(1);

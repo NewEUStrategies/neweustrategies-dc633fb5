@@ -15,8 +15,9 @@
 // `checkoutSettings.server`, `markOrderSession.server` i `checkoutLocale` jadą
 // PRAWDZIWE - to one wspólnie stanowią kontrakt tej warstwy.
 //
-// UWAGA: ten plik zawiera DWA zarejestrowane defekty (`it.fails`) dotyczące
-// audytu kuponu. Uzasadnienia stoją przy nich.
+// UWAGA: ten plik zawierał DWA zarejestrowane defekty (`it.fails`) dotyczące
+// audytu kuponu. Oba są naprawione 31.08.2026 - opis „co było złe i jak
+// zostało naprawione" stoi przy testach, które je pilnują.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Database, Tables } from "@/integrations/supabase/types";
@@ -618,91 +619,112 @@ describe("createPlanCheckoutSession - walidacja wejścia", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE (nie naprawiane w tej zmianie - zakres to testy).
+// AUDYT KUPONU - bramki po dwóch naprawionych defektach.
 // ---------------------------------------------------------------------------
 
-describe("createPlanCheckoutSession - audyt kuponu (defekty zarejestrowane)", () => {
-  it.fails(
-    "DEFEKT: rezerwacja zapisuje rabat ZERO, więc analityka kuponów zawyża przychód",
-    async () => {
-      // CO JEST ZŁE
-      // `redeem_b2b_coupon` dostaje z tego pliku `_applied_cents: 0`, mimo że
-      // baza właśnie policzyła rabat (`validate_b2b_coupon.discount_cents`),
-      // a sesja u operatora dostaje ten rabat co do grosza.
-      //
-      // DLACZEGO TO JEST RYZYKO
-      // Semantyka kolumny jest ustalona jawnie w migracji
-      // `20260725090200_fix_coupon_analytics_applied_cents_inversion.sql`:
-      //   COMMENT ON COLUMN b2b_coupon_redemptions.applied_cents
-      //     'RABAT zastosowany przy realizacji kuponu (...), nie kwota zaplacona.
-      //      Niezmiennik: original_cents = applied_cents + zaplacone.'
-      // Przy zerze niezmiennik pęka: `original_cents - applied_cents` (czyli
-      // „przychód netto" w `b2b_coupons_analytics` i w `monetization_dashboard`)
-      // wychodzi PEŁNA cena planu, a suma rabatów - zero. Każde zamówienie
-      // złożone tym silnikiem jest więc niewidoczne w raporcie kosztu kuponów
-      // i zawyża raportowany przychód dokładnie o udzielony rabat. Drugi silnik
-      // (`checkout.functions.ts`) przekazuje w tym miejscu `couponDiscountCents`,
-      // więc te same kupony liczą się różnie w zależności od tego, którym
-      // przyciskiem klient wszedł do kasy.
-      //
-      // DLACZEGO NIE NAPRAWIAM
-      // Zakres tej pracy to testy; zmiana wartości przekazywanej do RPC zmienia
-      // dane księgowe (wiersze `b2b_coupon_redemptions` i pochodne raporty),
-      // więc wymaga decyzji właściciela modułu i najpewniej korekty danych
-      // historycznych. Test stoi jako `it.fails`: zzielenieje sam w dniu
-      // poprawki i wtedy trzeba go przełączyć na zwykłe `it`.
-      await planCall({ couponCode: "PARTNER-CEE" });
+describe("createPlanCheckoutSession - audyt kuponu", () => {
+  // DEFEKT NAPRAWIONY 31.08.2026 (`stripeCheckout.functions.ts`).
+  //
+  // CO BYŁO ZŁE. `redeem_b2b_coupon` dostawał z tego pliku `_applied_cents: 0`,
+  // mimo że baza właśnie policzyła rabat (`validate_b2b_coupon.discount_cents`),
+  // a sesja u operatora dostawała ten rabat co do grosza.
+  //
+  // JAKIE TO BYŁO RYZYKO. Semantyka kolumny jest ustalona jawnie w migracji
+  // `20260725090200_fix_coupon_analytics_applied_cents_inversion.sql`:
+  //   COMMENT ON COLUMN b2b_coupon_redemptions.applied_cents
+  //     'RABAT zastosowany przy realizacji kuponu (...), nie kwota zaplacona.
+  //      Niezmiennik: original_cents = applied_cents + zaplacone.'
+  // Przy zerze niezmiennik pękał: `original_cents - applied_cents` (czyli
+  // „przychód netto" w `b2b_coupons_analytics` i w `monetization_dashboard`)
+  // wychodził PEŁNĄ cenę planu, a suma rabatów - zero. Każde zamówienie
+  // złożone tym silnikiem było więc niewidoczne w raporcie kosztu kuponów
+  // i zawyżało raportowany przychód dokładnie o udzielony rabat. Drugi silnik
+  // (`checkout.functions.ts`) przekazywał w tym miejscu `couponDiscountCents`,
+  // więc te same kupony liczyły się różnie w zależności od tego, którym
+  // przyciskiem klient wszedł do kasy.
+  //
+  // JAK ZOSTAŁO NAPRAWIONE. Rabat z odpowiedzi bazy jedzie do rezerwacji jako
+  // `_applied_cents` - dokładnie ta sama wartość, którą dostaje rabat
+  // u operatora, więc oba silniki liczą kupony tak samo.
+  it("rezerwacja zapisuje RABAT policzony przez bazę, nie zero", async () => {
+    await planCall({ couponCode: "PARTNER-CEE" });
 
-      expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
-        _coupon_id: COUPON_ID,
-        _original_cents: 4900,
-        // ASERCJA DOCELOWA: rabat, a nie zero.
-        _applied_cents: 1000,
-      });
-    },
-  );
+    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+      _coupon_id: COUPON_ID,
+      _original_cents: 4900,
+      _applied_cents: 1000,
+    });
+  });
 
-  it.fails(
-    "DEFEKT: metadane zamówienia nie niosą audytu kuponu, więc historia płatności nie pokaże rabatu",
-    async () => {
-      // CO JEST ZŁE
-      // Zamówienie z tego silnika dostaje w metadanych wyłącznie `coupon_code`.
-      // Brakuje `coupon_id`, `coupon_discount_cents` i `original_amount_cents`,
-      // które wkłada drugi silnik (`checkout.functions.ts`, linie 409-415).
-      //
-      // DLACZEGO TO JEST RYZYKO
-      // `src/lib/billing/paymentHistory.ts` czyta rabat DOKŁADNIE z tych kluczy
-      // (`meta["coupon_discount_cents"] ?? meta["discount_cents"]` oraz
-      // `meta["original_amount_cents"]`). Klient, który kupił plan tym silnikiem
-      // z kuponem partnerskim, widzi w swojej historii płatności cenę bez
-      // śladu rabatu - a to jest dokument, którym tłumaczy sobie kwotę na
-      // wyciągu z karty. Ta sama luka utrudnia ręczne dochodzenie przy
-      // reklamacji, bo powiązanie zamówienia z konkretnym kuponem
-      // (`coupon_id`) istnieje wyłącznie w tabeli realizacji.
-      //
-      // DLACZEGO NIE NAPRAWIAM
-      // To zmiana kształtu danych zapisywanych do `payment_orders.metadata`,
-      // czytanych przez historię płatności, panel administratora i webhook -
-      // czyli decyzja produktowa o parytecie obu silników, a nie poprawka
-      // testowa. Rejestruję ją tutaj, żeby nie zginęła.
-      await planCall({ couponCode: "PARTNER-CEE" });
+  it("kupon o ZEROWYM rabacie rezerwuje użycie z rabatem zero - to nie jest ta sama liczba", async () => {
+    // Granica poprawki: zero nadal jest poprawną wartością, ale tylko wtedy,
+    // gdy baza faktycznie policzyła zerowy rabat (kupon nadający wyłącznie
+    // warstwę członkostwa). Niezmiennik kolumny zostaje spełniony.
+    rpcResponses.set(
+      "validate_b2b_coupon",
+      ok([couponOk({ discount_cents: 0, final_cents: 4900 })]),
+    );
 
-      expect(orderMetadata()).toMatchObject({
-        coupon_code: "PARTNER-CEE",
-        // ASERCJE DOCELOWE: pełny audyt kuponu, tak jak w drugim silniku.
-        coupon_id: COUPON_ID,
-        coupon_discount_cents: 1000,
-        original_amount_cents: 4900,
-      });
-    },
-  );
+    await planCall({ couponCode: "PARTNER-CEE" });
 
-  it("kod kuponu (jedyne, co dziś trafia do metadanych) jest zapisany znormalizowany", async () => {
-    // Stan FAKTYCZNY, utrwalony świadomie: dopóki defekt wyżej nie jest
-    // naprawiony, ten test opisuje, co naprawdę wie zamówienie o kuponie.
+    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+      _applied_cents: 0,
+      _original_cents: 4900,
+    });
+  });
+
+  // DEFEKT NAPRAWIONY 31.08.2026 (`stripeCheckout.functions.ts`).
+  //
+  // CO BYŁO ZŁE. Zamówienie z tego silnika dostawało w metadanych wyłącznie
+  // `coupon_code`. Brakowało `coupon_id`, `coupon_discount_cents` i
+  // `original_amount_cents`, które wkłada drugi silnik
+  // (`checkout.functions.ts`).
+  //
+  // JAKIE TO BYŁO RYZYKO. `src/lib/billing/paymentHistory.ts` czyta rabat
+  // DOKŁADNIE z tych kluczy (`meta["coupon_discount_cents"] ??
+  // meta["discount_cents"]` oraz `meta["original_amount_cents"]`). Klient,
+  // który kupił plan tym silnikiem z kuponem partnerskim, widział w swojej
+  // historii płatności cenę bez śladu rabatu - a to jest dokument, którym
+  // tłumaczy sobie kwotę na wyciągu z karty. Ta sama luka utrudniała ręczne
+  // dochodzenie przy reklamacji, bo powiązanie zamówienia z konkretnym kuponem
+  // (`coupon_id`) istniało wyłącznie w tabeli realizacji.
+  //
+  // JAK ZOSTAŁO NAPRAWIONE. Metadane zamówienia niosą pełny audyt kuponu
+  // w tym samym kształcie, co drugi silnik - czyli parytet obu wejść do kasy.
+  it("metadane zamówienia niosą PEŁNY audyt kuponu, tak jak w drugim silniku", async () => {
+    await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(orderMetadata()).toEqual({
+      coupon_code: "PARTNER-CEE",
+      coupon_id: COUPON_ID,
+      coupon_discount_cents: 1000,
+      original_amount_cents: 4900,
+    });
+  });
+
+  it("kod kuponu jest zapisany ZNORMALIZOWANY - tak jak poszedł do walidacji", async () => {
     await planCall({ couponCode: "partner-cee" });
 
-    expect(orderMetadata()).toEqual({ coupon_code: "PARTNER-CEE" });
+    expect(orderMetadata()).toMatchObject({ coupon_code: "PARTNER-CEE" });
+  });
+
+  it("kwota pierwotna w metadanych pochodzi Z PLANU, nie z odpowiedzi o kuponie", async () => {
+    // `original_amount_cents` musi opisywać cenę katalogową, bo zamówienie
+    // zapisuje pełną kwotę, a rabat udziela dopiero operator. Wzięcie tu
+    // `final_cents` dałoby historię płatności, w której rabat odejmuje się
+    // dwa razy.
+    rpcResponses.set(
+      "validate_b2b_coupon",
+      ok([couponOk({ discount_cents: 2500, final_cents: 2400 })]),
+    );
+
+    await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(orderMetadata()).toMatchObject({
+      coupon_discount_cents: 2500,
+      original_amount_cents: 4900,
+    });
+    expect(insertedOrder()?.amount_cents).toBe(4900);
   });
 });
 

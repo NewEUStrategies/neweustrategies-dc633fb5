@@ -10,6 +10,13 @@ export const EVENT_PILL_CLS: Record<GiftEventType, string> = {
   exhausted: "bg-amber-500/10 text-amber-600 border-amber-500/20",
 };
 
+// `Object.hasOwn`, NIE operator `in`: `in` przeszukuje caly lancuch prototypow,
+// wiec dla nazw dziedziczonych po `Object.prototype` ("constructor", "toString",
+// "valueOf", ...) straznik zwracalby `true`, a `EventPill` wstawialby do
+// atrybutu `class` wartosc spoza mapy (np. cialo funkcji `Object`).
+// `event_type` jest CELOWO otwartym stringiem po stronie typow, wiec ten
+// straznik jest jedyna obrona renderu - musi patrzec wylacznie na wlasnosci
+// wlasne mapy.
 export function isKnownEventType(type: string): type is GiftEventType {
-  return type in EVENT_PILL_CLS;
+  return Object.hasOwn(EVENT_PILL_CLS, type);
 }

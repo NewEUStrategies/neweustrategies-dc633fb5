@@ -224,26 +224,28 @@ describe("retryWebhookEvent - odczyt wiersza dziennika", () => {
     );
   });
 
-  // DEFEKT (nie naprawiam - zakres zadania to testy, nie kod produkcyjny).
+  // DEFEKT NAPRAWIONY 31.08.2026 (kod produkcyjny).
   //
-  // CO JEST ZŁE. Strażnik z linii 57 nazywa swój przypadek wprost: „Zapisany
-  // ładunek jest pusty - nie ma czego ponowić". Nie łapie jednak ładunku
-  // NAJBARDZIEJ pustego z możliwych: kolumna `payload` jest typu `Json`, więc
-  // może trzymać jsonowy `null`, a linia 55 zamienia go na `{}`. Pusty obiekt
-  // jest prawdziwy (`typeof {} === "object"`), więc przechodzi przez warunek
-  // i leci do obsługi jako dane zdarzenia.
+  // CO BYŁO ZŁE. Strażnik pustego ładunku nazywał swój przypadek wprost:
+  // „Zapisany ładunek jest pusty - nie ma czego ponowić". Nie łapał jednak
+  // ładunku NAJBARDZIEJ pustego z możliwych: kolumna `payload` jest typu
+  // `Json`, więc może trzymać jsonowy `null`, a odczyt zamieniał go na `{}`.
+  // Pusty obiekt jest prawdziwy (`typeof {} === "object"`), więc przechodził
+  // przez warunek i leciał do obsługi jako dane zdarzenia.
   //
-  // DLACZEGO TO RYZYKO. Skutek jest taki sam jak przy defekcie kształtu
-  // ładunku niżej: obsługa nie ma na czym pracować, nie robi nic, a panel
-  // pokazuje „przetworzono" i podbija licznik prób. Fałszywy sukces zamyka
-  // zgłoszenie klienta, który nadal nie ma opłaconego uprawnienia. Poprawka to
-  // sprawdzenie, czy obiekt ma jakiekolwiek klucze - ale to zmiana KODU
-  // PRODUKCYJNEGO.
-  it.fails("pusty ładunek zapisany jako `null` też zatrzymuje ponowienie", async () => {
+  // JAKIE TO BYŁO RYZYKO. Skutek był ten sam, co przy defekcie kształtu
+  // ładunku niżej: obsługa nie miała na czym pracować, nie robiła nic, a panel
+  // pokazywał „przetworzono" i podbijał licznik prób. Fałszywy sukces zamyka
+  // zgłoszenie klienta, który nadal nie ma opłaconego uprawnienia.
+  //
+  // JAK NAPRAWIONE. Strażnik sprawdza teraz, czy dane zdarzenia są obiektem
+  // Z JAKIMIKOLWIEK kluczami - `null` w kolumnie, `{ data: null }` i `{}`
+  // znaczą to samo i kończą się tym samym komunikatem.
+  it("pusty ładunek zapisany jako `null` też zatrzymuje ponowienie", async () => {
     db.setResponse("payment_webhook_events", logResponder(logRow({ payload: null })));
 
-    // ASERCJA DOCELOWA: taki sam komunikat jak dla `{ data: null }` - obie
-    // wartości znaczą to samo, czyli „nie ma czego ponowić".
+    // Taki sam komunikat jak dla `{ data: null }` - obie wartości znaczą to
+    // samo, czyli „nie ma czego ponowić".
     await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow(
       "Zapisany ładunek jest pusty - nie ma czego ponowić.",
     );
@@ -410,36 +412,35 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
     expect(result.status).toBe("processed");
   });
 
-  // DEFEKT (nie naprawiam - zakres zadania to testy, nie kod produkcyjny).
+  // DEFEKT NAPRAWIONY 31.08.2026 (kod produkcyjny).
   //
-  // CO JEST ZŁE. Dziennik zdarzeń ma DWÓCH piszących i DWA różne kształty
-  // wiersza, a ponowienie rozumie tylko jeden z nich:
+  // CO BYŁO ZŁE. Dziennik zdarzeń ma DWÓCH piszących i DWA różne kształty
+  // wiersza, a ponowienie rozumiało tylko jeden z nich:
   //   * trasa `/api/public/payments/webhook` zapisuje `event_type` PO
   //     normalizacji ("subscription.updated"), ale `payload` SUROWY, prosto od
   //     operatora (`{ id, type: "customer.subscription.updated", created,
   //     data: { object: { ... } } }`) - webhook.ts:50 (`payload: verified`),
   //   * uzgadnianie (`reconcile.server.ts:275`) zapisuje `payload` już
   //     znormalizowany (`{ eventType, data }`).
-  // `retryWebhookEvent` bierze `payload.data` i podaje je jako dane zdarzenia.
+  // `retryWebhookEvent` brał `payload.data` i podawał je jako dane zdarzenia.
   // Dla wiersza z TRASY (czyli dla każdego zwykłego webhooka) `payload.data` to
   // `{ object: { ... } }` - opakowanie Stripe'a, a nie model domenowy, którego
-  // oczekuje `dispatchWebhookEvent`. Skutek: identyfikator subskrypcji jest
-  // `undefined`, filtry trafiają w pustkę, obsługa nie robi NIC - i kończy się
-  // statusem `processed`.
+  // oczekuje `dispatchWebhookEvent`. Skutek: identyfikator subskrypcji był
+  // `undefined`, filtry trafiały w pustkę, obsługa nie robiła NIC - i kończyła
+  // się statusem `processed`.
   //
-  // DLACZEGO TO RYZYKO. To jest dokładne zaprzeczenie celu tego modułu.
+  // JAKIE TO BYŁO RYZYKO. To było dokładne zaprzeczenie celu tego modułu.
   // Ponowienie uruchamia się wtedy, gdy klient zapłacił, a uprawnienia nie ma;
   // operator przestaje ponawiać po ~3 dobach, więc ten przycisk bywa OSTATNIĄ
-  // szansą na naprawę. Dziś klika się go, panel zapala „przetworzono", licznik
-  // prób rośnie - a uprawnienie dalej nie powstaje. Fałszywy sukces jest przy
+  // szansą na naprawę. Klikało się go, panel zapalał „przetworzono", licznik
+  // prób rósł - a uprawnienie dalej nie powstawało. Fałszywy sukces jest przy
   // tym gorszy od jawnej porażki: zamyka zgłoszenie, zamiast eskalować.
   //
-  // Poprawka jest po stronie KODU PRODUKCYJNEGO (jeden z dwóch wyborów:
-  // trasa zapisuje ładunek znormalizowany, albo ponowienie przepuszcza surowy
-  // ładunek przez `normalizeStripeEvent` i używa `payload.eventType`), więc
-  // zostaje tutaj jako `it.fails` - test zaświeci na zielono dopiero, gdy ktoś
-  // ją zrobi, i wtedy trzeba zdjąć `.fails`.
-  it.fails("ponowienie wiersza zapisanego przez TRASĘ trafia we właściwą subskrypcję", async () => {
+  // JAK NAPRAWIONE. Wybrana została druga z dwóch możliwości (trasa zostaje
+  // nietknięta): ponowienie rozpoznaje surowy kształt zdarzenia i przepuszcza
+  // go przez `normalizeStripeEvent`, czyli tę samą normalizację, którą przeszła
+  // dostawa przychodząca, a do obsługi idzie typ zdarzenia z normalizacji.
+  it("ponowienie wiersza zapisanego przez TRASĘ trafia we właściwą subskrypcję", async () => {
     db.setResponse(
       "payment_webhook_events",
       logResponder(
@@ -469,8 +470,7 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
 
     await callRetry({ id: EVENT_ROW_ID });
 
-    // ASERCJA DOCELOWA: obsługa ma pracować na subskrypcji z ładunku, a nie
-    // na `undefined`.
+    // Obsługa pracuje na subskrypcji z ładunku, a nie na `undefined`.
     expect(db.chainsFor("subscriptions")[0]?.argsOf("eq")).toEqual([
       "provider_subscription_id",
       "sub_stripe_1",

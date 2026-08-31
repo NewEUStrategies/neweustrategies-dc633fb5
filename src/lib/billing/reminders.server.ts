@@ -16,6 +16,13 @@ import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
 /** Domyślne wyprzedzenie przypomnienia (w dniach). */
 export const REMINDER_LEAD_DAYS = 3;
 
+/**
+ * Wynik przebiegu. `renewal` i `expiring` liczą WYSŁANE wiadomości (dostawca
+ * poczty przyjął je do kolejki), `skipped` - rekordy, dla których wysyłki nie
+ * było: brak daty granicznej, brak adresu, odmowa dostawcy, błąd katalogu
+ * planów. Ten podział jest jedynym sygnałem zwrotnym dla człowieka (toast w
+ * panelu, log crona), więc nie wolno w nim zliczać prób jako sukcesów.
+ */
 export interface ReminderRunResult {
   readonly renewal: number;
   readonly expiring: number;
@@ -83,13 +90,23 @@ export async function runBillingReminders(
     const ending = row.status === "canceled" || row.cancel_at_period_end === true;
     try {
       const plan = await resolvePlanForPrice(row.price_id);
-      await notifyReminderEmail({
+      // Liczymy WIADOMOŚCI, KTÓRE POSZŁY, a nie wywołania wysyłki. Wcześniej
+      // licznik rósł zaraz po wywołaniu fail-soft `notifyReminderEmail`, więc
+      // przy padniętej poczcie przebieg raportował dziesiątki przypomnień,
+      // których nikt nie dostał - a `skipped`, jedyny sygnał do ponowienia,
+      // nie ruszał się z zera. Zielony toast w panelu kłamał o wysyłce.
+      const sent = await notifyReminderEmail({
         kind: ending ? "subscription_expiring" : "subscription_renewal_reminder",
         userId: row.user_id,
         planId: plan?.planId ?? null,
         periodEnd,
         idempotencySeed: reminderSeed(row.provider_subscription_id, periodEnd),
       });
+      if (!sent) {
+        skipped += 1;
+        console.error("[billing-reminders] not sent", row.provider_subscription_id);
+        continue;
+      }
       if (ending) expiring += 1;
       else renewal += 1;
     } catch (err) {

@@ -314,43 +314,76 @@ describe("refundTransactionPartially - kontrakt i awarie", () => {
   });
 });
 
-describe("refundProvider - DEFEKTY (bramki regresji, świadomie czerwone)", () => {
+describe("refundProvider - DEFEKTY NAPRAWIONE (bramki regresji)", () => {
   // ---------------------------------------------------------------------
-  // DEFEKT: zlecenie zwrotu NIE NIESIE KLUCZA IDEMPOTENCJI.
+  // DEFEKT (naprawiony): zlecenie zwrotu NIE NIOSŁO KLUCZA IDEMPOTENCJI.
   //
-  // CO JEST ZŁE. `stripe.refunds.create` jest wołane z jednym argumentem -
+  // CO BYŁO ZŁE. `stripe.refunds.create` było wołane z jednym argumentem -
   // samymi parametrami zwrotu. SDK operatora przyjmuje drugi argument
   // (`{ idempotencyKey }`), który gwarantuje, że powtórzone żądanie o tym
   // samym kluczu zwróci TĘ SAMĄ korektę zamiast utworzyć nową.
   //
-  // DLACZEGO TO RYZYKO (droga jest konkretna, nie teoretyczna).
+  // JAKIE TO BYŁO RYZYKO (droga jest konkretna, nie teoretyczna).
   // `oneTimeFulfilment.server.refundIfOversold` wykonuje kolejno:
   //   1. `refundTransactionFully(...)`      <- pieniądze wychodzą,
   //   2. `payment_orders.update(status: "refunded")`,
   //      a przy błędzie zapisu: `throw new Error("oversold status flip failed")`.
   // Wyjątek z kroku 2 zamienia się w HTTP 500, operator ponawia dostarczenie
-  // zdarzenia, ścieżka rusza od nowa i krok 1 wykonuje się DRUGI RAZ - na tej
+  // zdarzenia, ścieżka rusza od nowa i krok 1 wykonywał się DRUGI RAZ - na tej
   // samej transakcji, bez żadnego klucza, który by to powstrzymał. Skutek:
-  // podwójny zwrot tej samej płatności. Ta sama pułapka dotyczy każdego
+  // podwójny zwrot tej samej płatności. Ta sama pułapka dotyczyła każdego
   // ponowienia sieciowego wewnątrz SDK.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zadanie zabrania zmian w kodzie produkcyjnym,
-  // a poprawka nie jest jednolinijkowa: klucz musi być WYPROWADZONY ZE
-  // ZDARZENIA (np. `oversold:${orderId}` albo identyfikator korekty), a nie
-  // losowy - losowy klucz nie chroni przed niczym. Wymaga więc zmiany
-  // sygnatury obu funkcji i wszystkich wywołań, czyli decyzji właściciela
-  // modułu. Test zostaje jako bramka: gdy klucz zostanie dodany, `it.fails`
-  // zapali się na czerwono i każe zamienić go na zwykły `it`.
+  // JAK NAPRAWIONO. Obie funkcje przekazują drugi argument z kluczem
+  // WYPROWADZONYM ZE ZDARZENIA (`refund:full:<transakcja>:<powód>`, a przy
+  // zwrocie częściowym dodatkowo kwota), więc ponowienie tego samego zdarzenia
+  // trafia w tę samą korektę. Klucz NIE jest losowy - losowy nie chroniłby
+  // przed niczym. Doszedł też opcjonalny `idempotencySeed`: wywołujący
+  // z węższym uchwytem zdarzenia (np. `oversold:<id zamówienia>`) podaje go
+  // zamiast identyfikatora transakcji.
   // ---------------------------------------------------------------------
-  it.fails("zwrot pełny powinien nieść klucz idempotencji operatora", async () => {
+  it("zwrot pełny niesie klucz idempotencji operatora", async () => {
     await refundTransactionFully(ENV, PI, "oversold");
 
     expect(refundOptions()?.idempotencyKey).toEqual(expect.any(String));
   });
 
-  it.fails("zwrot częściowy powinien nieść klucz idempotencji operatora", async () => {
+  it("zwrot częściowy niesie klucz idempotencji operatora", async () => {
     await refundTransactionPartially(ENV, PI, 3000, "error");
 
     expect(refundOptions()?.idempotencyKey).toEqual(expect.any(String));
+  });
+
+  it("klucz jest WYPROWADZONY ZE ZDARZENIA, więc ponowienie daje ten sam klucz", async () => {
+    // Sedno naprawy: gdyby klucz był losowy, ponowione dostarczenie webhooka
+    // dostałoby inny klucz i operator oddałby pieniądze DRUGI RAZ.
+    await refundTransactionFully(ENV, PI, "oversold");
+    const first = refundOptions()?.idempotencyKey;
+
+    h.refundsCreate.mockClear();
+    await refundTransactionFully(ENV, PI, "oversold");
+
+    expect(refundOptions()?.idempotencyKey).toBe(first);
+    expect(String(first)).toContain(PI);
+  });
+
+  it("własny `idempotencySeed` wywołującego wygrywa z identyfikatorem transakcji", async () => {
+    // Uchwyt zdarzenia bywa węższy niż transakcja (jedno zamówienie, jedna
+    // korekta) - wtedy to on musi kluczować zlecenie.
+    await refundTransactionFully(ENV, PI, "oversold", "oversold:order-1");
+
+    expect(String(refundOptions()?.idempotencyKey)).toContain("oversold:order-1");
+  });
+
+  it("dwie RÓŻNE korekty częściowe na tej samej transakcji mają różne klucze", async () => {
+    // Klucz musi rozróżniać kwoty, inaczej druga korekta ceny oddałaby
+    // wyłącznie kopię pierwszej, a klient nie zobaczyłby swoich pieniędzy.
+    await refundTransactionPartially(ENV, PI, 3000, "error");
+    const first = refundOptions()?.idempotencyKey;
+
+    h.refundsCreate.mockClear();
+    await refundTransactionPartially(ENV, PI, 1500, "error");
+
+    expect(refundOptions()?.idempotencyKey).not.toBe(first);
   });
 });

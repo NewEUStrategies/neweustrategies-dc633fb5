@@ -79,27 +79,29 @@ describe("EventPill - nieznane typy (straz isKnownEventType)", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT (opisany szerzej w `src/components/admin/gifting/__tests__/model.test.ts`).
+  // DEFEKT NAPRAWIONY (opisany szerzej w
+  // `src/components/admin/gifting/__tests__/model.test.ts`).
   //
-  // CO JEST ZLE. `isKnownEventType` uzywa operatora `in`, ktory przeszukuje
+  // CO BYLO ZLE. `isKnownEventType` uzywal operatora `in`, ktory przeszukuje
   // lancuch prototypow, wiec dla nazw dziedziczonych po `Object.prototype`
-  // ("constructor", "toString", "valueOf", ...) zwraca `true`. EventPill
-  // wchodzi wtedy w galaz "znany typ" i podstawia `EVENT_PILL_CLS["constructor"]`,
-  // czyli FUNKCJE, do atrybutu `class`.
+  // ("constructor", "toString", "valueOf", ...) zwracal `true`. EventPill
+  // wchodzil wtedy w galaz "znany typ" i podstawial
+  // `EVENT_PILL_CLS["constructor"]`, czyli FUNKCJE, do atrybutu `class`.
   //
-  // DLACZEGO TO RYZYKO. Atrybut `class` dostaje zserializowane cialo funkcji
-  // (`function Object() { [native code] }`), wiec pigulka traci tonacje, a do
-  // DOM trafia napis, ktory nie jest zadna klasa CSS. Straznik, ktory istnieje
-  // WYLACZNIE po to, zeby chronic ten render, w tym przypadku sam go psuje.
-  // Wartosc jest dzis nieosiagalna przez CHECK w bazie, ale `event_type` jest
+  // JAKIE TO BYLO RYZYKO. Atrybut `class` dostawal zserializowane cialo funkcji
+  // (`function Object() { [native code] }`), wiec pigulka tracila tonacje, a do
+  // DOM trafial napis, ktory nie jest zadna klasa CSS. Straznik, ktory istnieje
+  // WYLACZNIE po to, zeby chronic ten render, w tym przypadku sam go psul.
+  // Wartosc byla nieosiagalna przez CHECK w bazie, ale `event_type` jest
   // celowo otwartym stringiem po stronie typow - czyli warstwa aplikacji
   // swiadomie NIE traktuje tego CHECK-a jako gwarancji.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakres zadania jest testowy. Poprawka to
-  // `Object.hasOwn(EVENT_PILL_CLS, type)` w `model.ts`; po niej ten wpis
-  // wraca do zwyklego `it`.
+  // JAK NAPRAWIONE. `model.ts` pyta o wlasnosc WLASNA mapy
+  // (`Object.hasOwn(EVENT_PILL_CLS, type)`), wiec nazwa z prototypu trafia
+  // do galezi "nieznany typ" i pigulka dostaje neutralna tonacje `expired`.
+  // Wpis wrocil z `it.fails` do zwyklego `it`.
   // ---------------------------------------------------------------------------
-  it.fails("nazwa z prototypu Object nie moze trafic do atrybutu class (DEFEKT)", () => {
+  it("nazwa z prototypu Object nie moze trafic do atrybutu class", () => {
     render(<EventPill type="constructor" label="nieznane" />);
     expect(screen.getByText("nieznane").className).toContain(EVENT_PILL_CLS.expired);
   });
