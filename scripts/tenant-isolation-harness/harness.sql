@@ -317,10 +317,14 @@ CREATE POLICY "gift links owner read"
 -- dowiezc CIALO FUNKCJI (predykat najemcy w rekurencji) i SCHEMAT
 -- (ograniczenie na `parent_id`), a nie RLS.
 --
--- Drugi powod, dla ktorego RLS tu nie pomaga nawet pod JWT uzytkownika:
--- polityka `"Public reads published pages"` z migracji 20260531182153 brzmi
--- `USING (status = 'published')` - BEZ warunku najemcy. Odtwarzam ja ponizej
--- doslownie, bo bez niej asercja odczytu mierzylaby nie to, co w produkcji.
+-- ZASIEG - sprawdzony na stanie KONCOWYM polityk (lokalna replika, 931
+-- migracji), nie na migracji zalozycielskiej. Polityka
+-- `"Public reads published pages"` NIE jest dzis tenant-slepa: brzmi
+-- `status = 'published' AND deleted_at IS NULL AND tenant_id = public_tenant_id()`.
+-- Odtwarzam ja ponizej W TEJ POSTACI, a nie w tenant-slepej postaci
+-- z 20260531182153 - atrapa ma odwzorowywac produkcje, nie ulatwiac asercji.
+-- Asercje odczytu i tak nie ida przez RLS: wolaja funkcje jako wlasciciel bazy,
+-- czyli w ukladzie uprawnien generatora sitemapy, bo TAM wyciek jest realny.
 --
 -- Ponizej stan SPRZED naprawy: stary, jednokolumnowy klucz obcy na parent_id
 -- i tenant-slepe cialo obu funkcji. Migracje 20260831160000 dobiera run.sh
@@ -333,6 +337,10 @@ CREATE TABLE public.pages (
   parent_id uuid REFERENCES public.pages(id) ON DELETE RESTRICT,
   slug text NOT NULL,
   status text NOT NULL DEFAULT 'draft',
+  -- `deleted_at` jest w atrapie WYLACZNIE dlatego, ze wystepuje w warunku
+  -- odtwarzanej polityki publicznej - kolumna bez niej rozjezdzalaby atrape
+  -- z produkcja w miejscu, ktore ta sekcja mierzy.
+  deleted_at timestamptz,
   UNIQUE (tenant_id, slug)
 );
 
@@ -342,12 +350,10 @@ GRANT ALL ON public.pages TO service_role;
 
 ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
 
--- Doslownie z 20260531182153 - w tym BRAK warunku najemcy, ktory jest tu
--- czescia mierzonego stanu, nie przeoczeniem atrapy.
 CREATE POLICY "Public reads published pages"
   ON public.pages FOR SELECT
   TO anon, authenticated
-  USING (status = 'published');
+  USING (status = 'published' AND deleted_at IS NULL AND tenant_id = public_tenant_id());
 
 CREATE POLICY "Staff reads own tenant pages"
   ON public.pages FOR SELECT

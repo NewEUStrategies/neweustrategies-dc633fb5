@@ -3,18 +3,33 @@
 -- `public.page_full_path(_page_id uuid)` sklada kanoniczna sciezke strony
 -- rekurencyjnym CTE idacym w gore po `pages.parent_id` BEZ PREDYKATU NAJEMCY.
 --
--- DLACZEGO RLS TEGO NIE DOMYKA - trzy niezalezne powody, kazdy wystarczajacy:
+-- DLACZEGO RLS TEGO NIE DOMYKA:
 --   1. Funkcja jest LANGUAGE sql STABLE, czyli SECURITY INVOKER, ale
 --      `src/lib/server/sitemapEntries.server.ts:75` wola ja spod SERVICE-ROLE
 --      (klient `admin`), a service_role ma BYPASSRLS - nad funkcja nie ma wiec
---      zadnej polityki.
---   2. Nawet pod JWT uzytkownika polityka `"Public reads published pages"`
---      (migracja 20260531182153) brzmi `USING (status = 'published')` - BEZ
---      warunku najemcy. Kazda opublikowana strona KAZDEGO najemcy jest wiec
---      czytelna dla `anon`, a rekurencja po niej chodzi swobodnie.
---   3. Schemat tego nie domykal: `pages.parent_id` mial WYLACZNIE
+--      zadnej polityki. TO JEST SCIEZKA, NA KTOREJ WYCIEK JEST REALNY, i to
+--      dokladnie ona zasila sitemape oraz RSS.
+--   2. Schemat tego nie domykal: `pages.parent_id` mial WYLACZNIE
 --      `REFERENCES public.pages(id) ON DELETE RESTRICT` (migracja
---      20260531223436) - bez ograniczenia "ten sam najemca".
+--      20260531223436) - bez ograniczenia "ten sam najemca". Nic nie
+--      przeszkadzalo wiec WYTWORZYC wiersza, ktory taki wyciek powoduje.
+--
+-- UCZCIWIE O ZASIEGU - sprawdzone na stanie KONCOWYM polityk (lokalna replika,
+-- 931 migracji), nie na migracji zalozycielskiej. Polityka
+-- `"Public reads published pages"` NIE jest dzis tenant-slepa: brzmi
+-- `status = 'published' AND deleted_at IS NULL AND tenant_id = public_tenant_id()`,
+-- czyli pod JWT `anon`/`authenticated` rekurencja i tak nie zobaczy wiersza
+-- rodzica z obcego najemcy i lancuch urwie sie sam. Wyciek jest wiec realny
+-- na sciezce SERVICE-ROLE, a nie "wszedzie" - i tak jest tu naprawiany.
+-- Zapisuje to wprost, bo pierwsza wersja tego komentarza twierdzila, ze
+-- polityka publiczna nie ma warunku najemcy (tak brzmi migracja zalozycielska
+-- 20260531182153, ale pozniejsza ja zaostrzyla) - i to bylo NIEPRAWDA
+-- o stanie dzisiejszym.
+--
+-- Nie zmienia to werdyktu o naprawie: zabezpieczenie, ktore trzyma sie
+-- WYLACZNIE tego, ze RLS przypadkiem ukryje wiersz rodzica, jest zabezpieczeniem
+-- przez skutek uboczny. Funkcje sa nadane `anon, authenticated, service_role`
+-- i maja bronic same siebie.
 --
 -- SKUTEK: strona, ktorej rodzic nalezy do innego najemcy, wnosila JEGO slug do
 -- sciezki kanonicznej publikowanej w sitemapie (`sitemapEntries.server.ts`),
