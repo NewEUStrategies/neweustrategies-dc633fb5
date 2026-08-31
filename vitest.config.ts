@@ -1027,20 +1027,38 @@ export default defineConfig({
         // wywrócić portal klienta, czyli zablokować anulowanie subskrypcji.
         //
         // PRÓG NIŻSZY NIŻ KATALOG NADRZĘDNY, i to świadomie. ZMIERZONE
-        // 2026-08-31: 75,93% instrukcji / 79,49% gałęzi / 100% funkcji /
-        // 77,78% linii. Niepokryte zostały ramiona OBRONNE, nie ścieżki
-        // decyzyjne: gałęzie zapasowe kolejnych nagłówków proxy w sytuacji, w
-        // której wcześniejszy nagłówek już rozstrzygnął origin, oraz warianty
-        // `catch` wokół `new URL` osiągalne wyłącznie dla wejść, które
-        // `safeReturnPath` odrzuca krok wcześniej. Bramka stoi tu po to, żeby
-        // ten plik nie osunął się PONIŻEJ dzisiejszego stanu - średnia
-        // dziewięćdziesięciu plików katalogu rozcieńczyłaby taki spadek.
-        // Droga w górę prowadzi przez testy tych ramion, nie przez próg.
+        // BRAMKA OPEN REDIRECT NA POWIERZCHNI PŁATNOŚCI. Ten plik buduje
+        // `return_url`, czyli adres, pod który operator odsyła klienta po
+        // transakcji. Do 31.08.2026 sklejał go z SUROWEGO nagłówka żądania -
+        // trzy warianty open redirectu, w tym jeden zamieniający się w odmowę
+        // usługi (host o złym kształcie wywracał `new URL` i gasił portal
+        // klienta: brak anulowania subskrypcji, zmiany karty, faktur).
+        //
+        // DLACZEGO PRÓG JEST TU WYSOKI, a nie „katalogowy". Naprawa dołożyła
+        // CAŁĄ listę dozwolonych hostów (hosty deweloperskie, domeny marki,
+        // origin kanoniczny wraz z odpowiednikiem www/apex, zmienna
+        // `BILLING_RETURN_HOSTS`) - i pierwszy pomiar po niej pokazał 75,92%
+        // instrukcji. Trzynaście instrukcji NOWEJ bramki bezpieczeństwa nie
+        // było wykonywanych przez żaden test: dokładnie wzorzec z rozdz. 8.4
+        // audytu, w którym przybywa linii ścieżki krytycznej, a pokrycie stoi.
+        // Domknięte 31.08.2026 dwudziestoma czterema przypadkami, z których
+        // KAŻDY dopuszczający ma swój kontrprzykład (`localhost` przechodzi,
+        // `localhost.evil.example.org` nie; wariant www dozwolonej domeny
+        // przechodzi, `evil-najemca.example.org` nie).
+        //
+        // ZMIERZONE 31.08.2026 po domknięciu: 98,14% instrukcji / 97,43%
+        // gałęzi / 100% funkcji / 97,77% linii. Niepokryta została JEDNA
+        // linia - `catch` ostatniej szansy w `absoluteReturnUrl`, nieosiągalny
+        // odkąd obie połówki adresu mają wartość domyślną (moduł mówi o nim
+        // wprost: „nie ma drogi, którą ta funkcja rzuca"). Próg = zmierzone
+        // minus ~4 pp; osunięcie się o cztery punkty NA TEJ POWIERZCHNI ma
+        // zapalić światło natychmiast, a nie rozpłynąć się w średniej
+        // dziewięćdziesięciu plików katalogu.
         "src/lib/billing/returnUrl.server.ts": {
-          statements: 71,
+          statements: 94,
           functions: 96,
-          lines: 73,
-          branches: 75,
+          lines: 93,
+          branches: 93,
         },
         // Warstwa danych ścieżki rezygnacji: parametry kontroferty i katalog
         // powodów odejścia (filtr `active` decyduje, co klient wybierze).

@@ -26,9 +26,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_RETURN_PATH } from "@/lib/billing/returnPath";
 
 /** Kontekst żądania - jedyna granica, jaką ten moduł dotyka. */
-const h = vi.hoisted(() => ({ request: null as { headers: Headers } | null }));
+const h = vi.hoisted(() => ({
+  request: null as { headers: Headers } | null,
+  /** Kontekst zadania poza zadaniem (cron, kolejka) - `getRequest` wtedy rzuca. */
+  throws: false,
+}));
 
-vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => h.request }));
+vi.mock("@tanstack/react-start/server", () => ({
+  getRequest: () => {
+    if (h.throws) throw new Error("poza kontekstem zadania");
+    return h.request;
+  },
+}));
 
 const { absoluteReturnUrl, requestOrigin } = await import("@/lib/billing/returnUrl.server");
 
@@ -42,6 +51,9 @@ function zadanie(headers: Record<string, string>): void {
 
 beforeEach(() => {
   h.request = null;
+  // Flaga „poza kontekstem zadania" MUSI wracac do falszu - inaczej pierwszy
+  // test, ktory ja podniesie, wylaczylby kontekst zadania wszystkim kolejnym.
+  h.throws = false;
   vi.unstubAllEnvs();
 });
 
@@ -295,5 +307,229 @@ describe("origin adresu powrotu przechodzi przez listę dozwolonych hostów", ()
     zadanie({ "x-forwarded-host": "evil example.org" });
 
     expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LISTA DOZWOLONYCH HOSTÓW - druga połowa bramki, dopisana 31.08.2026.
+//
+// PO CO OSOBNA SEKCJA. Naprawa open redirectu dołożyła do tego pliku CAŁĄ
+// listę dozwolonych hostów (hosty deweloperskie, domeny marki, origin
+// kanoniczny wraz z odpowiednikiem www/apex, zmienna `BILLING_RETURN_HOSTS`)
+// - i pierwszy pomiar po naprawie pokazał 75,92% instrukcji. Czyli trzynaście
+// instrukcji NOWEJ bramki bezpieczeństwa nie było wykonywanych przez żaden
+// test: dokładnie wzorzec, przed którym ostrzega rozdz. 8.4 audytu (przybyły
+// linie ścieżki krytycznej, pokrycie stoi w miejscu).
+//
+// Każda gałąź tej listy to osobna decyzja „wolno / nie wolno odesłać tam
+// klienta po zapłacie", więc każda ma tu własny przypadek - i, co ważniejsze,
+// własny KONTRPRZYKŁAD. Reguła, która przepuszcza `localhost`, ale nie
+// odrzuca `localhost.evil.example.org`, nie jest regułą.
+// ---------------------------------------------------------------------------
+describe("lista dozwolonych hostów", () => {
+  describe("hosty deweloperskie", () => {
+    it.each(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"])(
+      "host deweloperski %s zostaje jako origin powrotu",
+      (host) => {
+        zadanie({ origin: `http://${host}:5173` });
+
+        expect(absoluteReturnUrl("/profile/plan")).toBe(`http://${host}:5173/profile/plan`);
+      },
+    );
+
+    it("subdomena .localhost też jest dopuszczona - tak działa dev wielu najemców", () => {
+      zadanie({ origin: "http://nes.localhost:5173" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("http://nes.localhost:5173/profile/plan");
+    });
+
+    it("KONTRPRZYKŁAD: host KOŃCZĄCY SIĘ na localhost, ale cudzy, jest odrzucony", () => {
+      // `localhost.evil.example.org` przechodziłby przez naiwne `includes`.
+      // Reguła sprawdza SUFIKS `.localhost`, więc ten adres nią nie jest.
+      zadanie({ origin: "https://localhost.evil.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+
+    it("KONTRPRZYKŁAD: `notlocalhost` nie jest hostem deweloperskim", () => {
+      zadanie({ origin: "https://notlocalhost" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+  });
+
+  describe("origin kanoniczny i jego odpowiednik www/apex", () => {
+    it("host z PUBLIC_SITE_URL jest dopuszczony", () => {
+      vi.stubEnv("PUBLIC_SITE_URL", "https://konfigurowany.example.com");
+      zadanie({ origin: "https://konfigurowany.example.com" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(
+        "https://konfigurowany.example.com/profile/plan",
+      );
+    });
+
+    it("wariant www hosta kanonicznego jest dopuszczony - to jedna rejestracja, nie dwa serwisy", () => {
+      vi.stubEnv("PUBLIC_SITE_URL", "https://konfigurowany.example.com");
+      zadanie({ origin: "https://www.konfigurowany.example.com" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(
+        "https://www.konfigurowany.example.com/profile/plan",
+      );
+    });
+
+    it("i odwrotnie: apex jest dopuszczony, gdy kanoniczny niesie www", () => {
+      vi.stubEnv("PUBLIC_SITE_URL", "https://www.konfigurowany.example.com");
+      zadanie({ origin: "https://konfigurowany.example.com" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(
+        "https://konfigurowany.example.com/profile/plan",
+      );
+    });
+
+    it("KONTRPRZYKŁAD: przedrostek `www` doklejony do CUDZEJ domeny nic nie daje", () => {
+      vi.stubEnv("PUBLIC_SITE_URL", "https://konfigurowany.example.com");
+      zadanie({ origin: "https://www.evil.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(
+        "https://konfigurowany.example.com/profile/plan",
+      );
+    });
+  });
+
+  describe("BILLING_RETURN_HOSTS - domeny najemców deklarowane przez wdrożenie", () => {
+    it("brak zmiennej znaczy: żadnych dodatkowych hostów", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", undefined);
+      zadanie({ origin: "https://najemca.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+
+    it("pusta zmienna też nie dopuszcza niczego", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "");
+      zadanie({ origin: "https://najemca.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+
+    it("host z listy jest dopuszczony", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+      zadanie({ origin: "https://najemca.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://najemca.example.org/profile/plan");
+    });
+
+    it("lista wielu hostów - każdy z osobna", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "a.example.org,b.example.org");
+      zadanie({ origin: "https://b.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://b.example.org/profile/plan");
+    });
+
+    it("spacje wokół przecinków i WIELKIE LITERY nie psują dopasowania", () => {
+      // Wdrożenie wpisuje tę zmienną ręcznie, więc normalizacja jest tu
+      // regułą, nie uprzejmością: literówka w formatowaniu nie może cicho
+      // wyłączyć hosta najemcy z listy.
+      vi.stubEnv("BILLING_RETURN_HOSTS", "  A.EXAMPLE.ORG , b.example.org  ");
+      zadanie({ origin: "https://a.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://a.example.org/profile/plan");
+    });
+
+    it("wpis śmieciowy jest pomijany, a poprawne z tej samej listy dalej działają", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", ",,   ,dobry.example.org,");
+      zadanie({ origin: "https://dobry.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://dobry.example.org/profile/plan");
+    });
+
+    it("każdy wpis dopuszcza też swój odpowiednik www", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+      zadanie({ origin: "https://www.najemca.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(
+        "https://www.najemca.example.org/profile/plan",
+      );
+    });
+
+    it("KONTRPRZYKŁAD: host spoza listy nie przechodzi, mimo że lista jest ustawiona", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+      zadanie({ origin: "https://evil.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+
+    it("KONTRPRZYKŁAD: przyklejenie dozwolonego hosta jako SUFIKSU nic nie daje", () => {
+      // `evil-najemca.example.org` zawiera `najemca.example.org` jako podciąg.
+      vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+      zadanie({ origin: "https://evil-najemca.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+  });
+
+  describe("schemat adresu", () => {
+    it.each(["ftp://najemca.example.org", "javascript:alert(1)", "data:text/html,x"])(
+      "kandydat %s nie jest http(s) i nie zostaje originem",
+      (candidate) => {
+        vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+        zadanie({ origin: candidate });
+
+        expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+      },
+    );
+  });
+
+  describe("kolejność zaufania nagłówków", () => {
+    it("gdy `origin` i `x-forwarded-host` wskazują RÓŻNE hosty, wygrywa `origin`", () => {
+      // Kolejność jest udokumentowana w module, ale dotąd nie była zapisana
+      // testem - a to ona decyduje, który z dwóch nagłówków atakującego brany
+      // jest pod uwagę jako pierwszy.
+      vi.stubEnv("BILLING_RETURN_HOSTS", "pierwszy.example.org,drugi.example.org");
+      zadanie({
+        origin: "https://pierwszy.example.org",
+        "x-forwarded-host": "drugi.example.org",
+      });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://pierwszy.example.org/profile/plan");
+    });
+
+    it("gdy `origin` jest NIEDOZWOLONY, a `x-forwarded-host` dozwolony - wygrywa ten drugi", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "drugi.example.org");
+      zadanie({
+        origin: "https://evil.example.org",
+        "x-forwarded-host": "drugi.example.org",
+      });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://drugi.example.org/profile/plan");
+    });
+
+    it("`x-forwarded-proto` decyduje o schemacie adresu zbudowanego z hosta proxy", () => {
+      zadanie({ "x-forwarded-proto": "http", "x-forwarded-host": "localhost:5173" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("http://localhost:5173/profile/plan");
+    });
+
+    it("bez `x-forwarded-proto` host proxy dostaje https - nie degradujemy schematu", () => {
+      vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+      zadanie({ "x-forwarded-host": "najemca.example.org" });
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe("https://najemca.example.org/profile/plan");
+    });
+  });
+
+  describe("poza kontekstem żądania", () => {
+    it("gdy `getRequest` RZUCA (cron, kolejka), adres wraca na origin kanoniczny", () => {
+      // Zadania w tle wołają tę samą funkcję, a tam kontekstu żądania nie ma.
+      // Funkcja ma wtedy zejść na adres kanoniczny, a nie wywrócić zadania.
+      h.throws = true;
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
+
+    it("gdy `getRequest` oddaje `null`, zachowanie jest takie samo", () => {
+      h.request = null;
+
+      expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
+    });
   });
 });
