@@ -68,6 +68,31 @@ INSERT INTO public.profiles (id, tenant_id, display_name) VALUES
   ('a0000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'User A'),
   ('b0000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'User B');
 
+-- ── MODUL 3: drzewo stron + wiersz dryfujacy ────────────────────────────────
+-- Drzewo najemcy A (o-nas -> zespol) i strona najemcy B jako kandydat na
+-- "obcego rodzica". `parent_id` osobnym UPDATE-em, bo wiersze odwoluja sie
+-- do siebie.
+INSERT INTO public.pages (id, tenant_id, slug, status) VALUES
+  ('6a000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'o-nas',  'published'),
+  ('6a000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'zespol', 'published'),
+  ('6b000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'tajny-klient', 'published');
+
+UPDATE public.pages SET parent_id = '6a000000-0000-0000-0000-0000000000a1'
+  WHERE id = '6a000000-0000-0000-0000-0000000000a2';
+
+-- ── Plaszczyzna wlasciciela: historia czytania i wyniki testu osobowosci ────
+INSERT INTO public.user_read_history (id, user_id, tenant_id, post_id) VALUES
+  ('7a000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-0000000000a1',
+   '11111111-1111-1111-1111-111111111111', '7f000000-0000-0000-0000-0000000000f1'),
+  ('7a000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-0000000000a1',
+   '22222222-2222-2222-2222-222222222222', '7f000000-0000-0000-0000-0000000000f2');
+
+INSERT INTO public.personality_result_history (id, user_id, tenant_id) VALUES
+  ('7b000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-0000000000a1',
+   '11111111-1111-1111-1111-111111111111'),
+  ('7b000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-0000000000a1',
+   '22222222-2222-2222-2222-222222222222');
+
 -- Wiersze wlasne (tenant zgodny z profilem) + dryfujace (ten sam wlasciciel,
 -- tenant obcy) - wstawiane z pominieciem RLS, bo odtwarzaja stan zastany.
 INSERT INTO public.media_mentions (id, tenant_id, user_id, outlet, title, is_public) VALUES
@@ -365,39 +390,36 @@ END $$;
 \echo '== kanoniczna sciezka strony (page_full_path) =='
 -- Ta sekcja NIE mierzy polityki - mierzy cialo funkcji i schemat. Powod stoi
 -- w harness.sql: sitemape generuje service_role (BYPASSRLS), wiec nad ta
--- funkcja nie ma zadnej polityki, a polityka publiczna na `pages` i tak nie
--- ma warunku najemcy.
+-- funkcja nie ma zadnej polityki.
 --
--- ODCZYT. `admin_path()` wola funkcje jako WLASCICIEL bazy, czyli w tym samym
--- ukladzie uprawnien co generator sitemapy - nie jako `authenticated`. Gdyby
--- asercja szla przez RLS, przechodzilaby z zupelnie innego powodu (niewidoczny
--- wiersz), czyli mierzylaby nie to zjawisko.
+-- KOLEJNOSC ASERCJI JEST TU CZESCIA DOWODU i dlatego jest wymuszona:
+--   1. najpierw SCHEMAT - dowod, ze migracja faktycznie sie wykonala,
+--   2. potem ZAPIS - przy ograniczeniu NADAL ZALOZONYM,
+--   3. na koniec ODCZYT - dopiero tu zdejmujemy ograniczenie i wstawiamy
+--      wiersz dryfujacy, bo inaczej nie da sie odtworzyc stanu zastanego.
+-- Odwrotna kolejnosc byla pierwsza wersja tego pliku i byla BLEDNA: wiersz
+-- dryfujacy wymagal zdjecia ograniczenia w seedzie, a jego przywrocenie
+-- czynilo asercje schematu SAMOSPELNIAJACA - przechodzilaby dlatego, ze test
+-- sam zalozyl ograniczenie, a nie dlatego, ze zrobila to migracja.
+
+-- 1. SCHEMAT.
 DO $$
-DECLARE
-  v_own   text;
-  v_drift text;
-  v_batch text;
 BEGIN
-  SELECT public.page_full_path('6a000000-0000-0000-0000-0000000000a2') INTO v_own;
-  PERFORM pg_temp.assert(v_own = 'o-nas/zespol',
-    'sciezka W OBREBIE najemcy sklada sie normalnie (predykat nie psuje drzewa)');
-
-  SELECT public.page_full_path('6a000000-0000-0000-0000-0000000000a3') INTO v_drift;
-  PERFORM pg_temp.assert(v_drift IS NULL OR v_drift NOT LIKE '%tajny-klient%',
-    'ODCZYT: slug strony obcego najemcy nie wchodzi do sciezki kanonicznej');
-  PERFORM pg_temp.assert(v_drift = 'raport',
-    'ODCZYT: sciezka dryfujacej strony to wylacznie jej wlasny segment');
-
-  SELECT full_path INTO v_batch FROM public.page_full_paths(
-    ARRAY['6a000000-0000-0000-0000-0000000000a3'::uuid])
-   WHERE page_id = '6a000000-0000-0000-0000-0000000000a3';
-  PERFORM pg_temp.assert(v_batch = 'raport',
-    'ODCZYT: wariant WSADOWY (obsluguje sitemape) tez urywa lancuch na granicy');
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM pg_constraint
+             WHERE conrelid = 'public.pages'::regclass
+               AND conname = 'pages_parent_same_tenant_fkey'
+               AND convalidated),
+    'SCHEMAT: ograniczenie pages_parent_same_tenant_fkey zalozone przez migracje i ZWALIDOWANE');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM pg_proc
+      WHERE pronamespace = 'public'::regnamespace
+        AND proname IN ('page_full_path', 'page_full_paths')
+        AND prosrc NOT LIKE '%tenant_id%') = 0,
+    'SCHEMAT: obie funkcje sciezki maja w ciele predykat najemcy');
 END $$;
 
--- ZAPIS (WITH CHECK / ograniczenie schematu). Autor najemcy A nie moze
--- podpiac swojej strony pod strone najemcy B - ani przy INSERT, ani przy
--- UPDATE. Sprawdzane pod rola `authenticated`, czyli tak, jak to robi panel.
+-- 2. ZAPIS (WITH CHECK / ograniczenie schematu) - ograniczenie jest zalozone.
 DO $$
 DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
 BEGIN
@@ -414,31 +436,99 @@ BEGIN
       || 'WHERE id = ''6a000000-0000-0000-0000-0000000000a2'''),
     'ZAPIS: nie da sie przepiac istniejacej strony pod rodzica z obcego najemcy');
 
-  -- Kontrola dodatnia: legalne przepiecie w obrebie najemcy MUSI przechodzic,
+  -- Kontrola dodatnia: legalny zapis w obrebie najemcy MUSI przechodzic,
   -- inaczej asercje wyzej przechodzilyby dlatego, ze zapis nie dziala WCALE.
   PERFORM pg_temp.assert(
     pg_temp.write_as(a,
-      'UPDATE public.pages SET parent_id = ''6a000000-0000-0000-0000-0000000000a1'' '
-      || 'WHERE id = ''6a000000-0000-0000-0000-0000000000a3'''),
-    'ZAPIS: legalne przepiecie w obrebie wlasnego najemcy przechodzi');
+      'INSERT INTO public.pages (tenant_id, slug, status, parent_id) VALUES ('
+      || '''11111111-1111-1111-1111-111111111111'', ''legalna'', ''published'', '
+      || '''6a000000-0000-0000-0000-0000000000a1'')'),
+    'ZAPIS: legalna strona-dziecko w obrebie wlasnego najemcy przechodzi');
 END $$;
 
--- Ograniczenie schematu MUSI istniec pod wlasna nazwa - bez tej asercji
--- sekcja przechodzilaby takze wtedy, gdyby migracja w ogole sie nie wykonala,
--- a same funkcje bronily sie predykatem. Warstwy sa dwie i obie maja dowod.
+-- 3. ODCZYT. Dopiero TERAZ odtwarzamy stan zastany: zdejmujemy ograniczenie
+-- i wstawiamy wiersz, ktory schemat sprzed naprawy przyjmowal bez slowa -
+-- strone najemcy A z rodzicem u najemcy B. To wlasnie on wnosil obcy slug do
+-- sitemapy. Ograniczenie NIE jest przywracane, bo asercje schematu juz
+-- zapadly i nic dalej na nim nie stoi.
+ALTER TABLE public.pages DROP CONSTRAINT pages_parent_same_tenant_fkey;
+INSERT INTO public.pages (id, tenant_id, slug, status, parent_id) VALUES
+  ('6a000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111',
+   'raport', 'published', '6b000000-0000-0000-0000-0000000000b1');
+
+-- Funkcje wolane jako WLASCICIEL BAZY, czyli w ukladzie uprawnien generatora
+-- sitemapy - tam wyciek jest realny. Gdyby asercja szla przez RLS,
+-- przechodzilaby z zupelnie innego powodu (niewidoczny wiersz rodzica), czyli
+-- mierzylaby nie to zjawisko.
 DO $$
+DECLARE
+  v_own   text;
+  v_drift text;
+  v_batch text;
+BEGIN
+  SELECT public.page_full_path('6a000000-0000-0000-0000-0000000000a2') INTO v_own;
+  PERFORM pg_temp.assert(v_own = 'o-nas/zespol',
+    'ODCZYT: sciezka W OBREBIE najemcy sklada sie normalnie (predykat nie psuje drzewa)');
+
+  SELECT public.page_full_path('6a000000-0000-0000-0000-0000000000a3') INTO v_drift;
+  PERFORM pg_temp.assert(v_drift IS NULL OR v_drift NOT LIKE '%tajny-klient%',
+    'ODCZYT: slug strony obcego najemcy nie wchodzi do sciezki kanonicznej');
+  PERFORM pg_temp.assert(v_drift = 'raport',
+    'ODCZYT: sciezka dryfujacej strony to wylacznie jej wlasny segment');
+
+  SELECT full_path INTO v_batch FROM public.page_full_paths(
+    ARRAY['6a000000-0000-0000-0000-0000000000a3'::uuid])
+   WHERE page_id = '6a000000-0000-0000-0000-0000000000a3';
+  PERFORM pg_temp.assert(v_batch = 'raport',
+    'ODCZYT: wariant WSADOWY (obsluguje sitemape) tez urywa lancuch na granicy');
+END $$;
+
+\echo '== user_read_history =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
 BEGIN
   PERFORM pg_temp.assert(
-    EXISTS (SELECT 1 FROM pg_constraint
-             WHERE conrelid = 'public.pages'::regclass
-               AND conname = 'pages_parent_same_tenant_fkey'),
-    'SCHEMAT: ograniczenie pages_parent_same_tenant_fkey jest zalozone');
+    pg_temp.count_as(a, 'SELECT 1 FROM public.user_read_history WHERE id = ''7a000000-0000-0000-0000-000000000001''') = 1,
+    'wlasciciel widzi wlasna historie czytania z wlasnego tenanta');
   PERFORM pg_temp.assert(
-    (SELECT count(*) FROM pg_proc
-      WHERE pronamespace = 'public'::regnamespace
-        AND proname IN ('page_full_path', 'page_full_paths')
-        AND prosrc NOT LIKE '%tenant_id%') = 0,
-    'SCHEMAT: obie funkcje sciezki maja w ciele predykat najemcy');
+    pg_temp.count_as(a, 'SELECT 1 FROM public.user_read_history WHERE id = ''7a000000-0000-0000-0000-000000000002''') = 0,
+    'historia czytania z obcego tenanta jest niewidoczna (RODO: co czlowiek czytal)');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'UPDATE public.user_read_history SET read_at = now() WHERE id = ''7a000000-0000-0000-0000-000000000002'''),
+    'nie da sie zmienic historii czytania z obcego tenanta');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'DELETE FROM public.user_read_history WHERE id = ''7a000000-0000-0000-0000-000000000002'''),
+    'nie da sie skasowac historii czytania z obcego tenanta');
+  -- Zapis do obcego obszaru z JAWNYM tenant_id: default kolumny go NIE chroni,
+  -- bo default dziala tylko wtedy, gdy kolumny nie ma w INSERT-cie.
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.user_read_history (user_id, tenant_id, post_id) VALUES ('
+      || '''' || a || ''', ''22222222-2222-2222-2222-222222222222'', '
+      || '''7f000000-0000-0000-0000-0000000000f3'')'),
+    'nie da sie zapisac historii czytania do obcego tenanta (jawny tenant_id)');
+  -- Kontrola dodatnia: zapis do WLASNEGO obszaru musi przechodzic, inaczej
+  -- asercja powyzej przechodzilaby dlatego, ze INSERT nie dziala wcale.
+  PERFORM pg_temp.assert(
+    pg_temp.write_as(a,
+      'INSERT INTO public.user_read_history (user_id, tenant_id, post_id) VALUES ('
+      || '''' || a || ''', ''11111111-1111-1111-1111-111111111111'', '
+      || '''7f000000-0000-0000-0000-0000000000f4'')'),
+    'zapis historii czytania do WLASNEGO tenanta przechodzi');
+END $$;
+
+\echo '== personality_result_history =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.personality_result_history WHERE id = ''7b000000-0000-0000-0000-000000000001''') = 1,
+    'wlasciciel widzi wlasny wynik testu osobowosci z wlasnego tenanta');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.personality_result_history WHERE id = ''7b000000-0000-0000-0000-000000000002''') = 0,
+    'wynik testu osobowosci z obcego tenanta jest niewidoczny (RODO: profil psychometryczny)');
 END $$;
 
 \echo '== podsumowanie =='
@@ -449,7 +539,8 @@ BEGIN
       WHERE schemaname = 'public'
         AND tablename IN ('media_mentions', 'saved_searches', 'user_follows',
                           'subscriptions', 'membership_grants', 'organization_seats',
-                          'user_purchases', 'user_subscriptions', 'post_gift_links')
+                          'user_purchases', 'user_subscriptions', 'post_gift_links',
+                          'user_read_history', 'personality_result_history')
         AND (qual LIKE '%auth.uid()%' OR with_check LIKE '%auth.uid()%')
         AND coalesce(qual, '') NOT LIKE '%current_tenant_id()%'
         AND coalesce(with_check, '') NOT LIKE '%current_tenant_id()%'

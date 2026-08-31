@@ -401,22 +401,60 @@ $$;
 GRANT EXECUTE ON FUNCTION public.page_full_path(uuid) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.page_full_paths(uuid[]) TO anon, authenticated, service_role;
 
--- Drzewo najemcy A + strona najemcy B jako kandydat na "obcego rodzica".
--- `parent_id` ustawiany osobnym UPDATE-em, bo wiersze odwoluja sie do siebie.
-INSERT INTO public.pages (id, tenant_id, slug, status) VALUES
-  ('6a000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'o-nas',  'published'),
-  ('6a000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'zespol', 'published'),
-  ('6b000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'tajny-klient', 'published');
+-- ==========================================================================
+-- ROZSZERZENIE 2026-08-31 (3): DWIE OSTATNIE REALNE DZIURY PLASZCZYZNY
+-- WLASCICIELA (migracja 20260831170000).
+--
+-- Przeglad na STANIE KONCOWYM polityk (931 migracji na lokalnej replice,
+-- 579 polityk w `public`) dal dziesiec trafien wzorca "wlasciciel przez
+-- auth.uid() bez wzmianki o current_tenant_id"; PIEC bylo bezpiecznych - wiazaly
+-- tenanta innym idiomem (`_caller_tenant()` albo podzapytanie po `profiles`) -
+-- a te dwie tabele nie wiazaly go wcale. Obie niosa DANE OSOBOWE, wiec i tu
+-- dowod musi byc wykonawczy, nie statyczny.
+--
+-- Polityki ponizej odtwarzaja stan SPRZED naprawy; migracja je podmienia.
+-- ==========================================================================
+CREATE TABLE public.user_read_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL DEFAULT current_tenant_id() REFERENCES public.tenants(id) ON DELETE CASCADE,
+  post_id uuid NOT NULL,
+  read_at timestamptz NOT NULL DEFAULT now()
+);
 
-UPDATE public.pages SET parent_id = '6a000000-0000-0000-0000-0000000000a1'
-  WHERE id = '6a000000-0000-0000-0000-0000000000a2';
+CREATE TABLE public.personality_result_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  openness smallint NOT NULL DEFAULT 0,
+  conscientiousness smallint NOT NULL DEFAULT 0,
+  extraversion smallint NOT NULL DEFAULT 0,
+  agreeableness smallint NOT NULL DEFAULT 0,
+  neuroticism smallint NOT NULL DEFAULT 0,
+  taken_at timestamptz NOT NULL DEFAULT now()
+);
 
--- Wiersz DRYFUJACY: strona najemcy A z rodzicem u najemcy B. Taki wiersz
--- schemat SPRZED naprawy przyjmowal bez slowa, i wlasnie on wnosil obcy slug
--- do sitemapy. Migracja 20260831160000 go ODCZEPIA (parent_id := NULL) przed
--- zalozeniem ograniczenia - asercje w runtime_test.sql sprawdzaja OBIE rzeczy:
--- ze sciezka juz nie przekracza granicy i ze nowego takiego wiersza nie da sie
--- zalozyc.
-INSERT INTO public.pages (id, tenant_id, slug, status, parent_id) VALUES
-  ('6a000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111',
-   'raport', 'published', '6b000000-0000-0000-0000-0000000000b1');
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_read_history TO authenticated;
+GRANT ALL ON public.user_read_history TO service_role;
+GRANT SELECT ON public.personality_result_history TO authenticated;
+GRANT ALL ON public.personality_result_history TO service_role;
+
+ALTER TABLE public.user_read_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.personality_result_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "read_history owner select" ON public.user_read_history
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "read_history owner insert" ON public.user_read_history
+  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "read_history owner update" ON public.user_read_history
+  FOR UPDATE TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "read_history owner delete" ON public.user_read_history
+  FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+CREATE POLICY "personality_history_owner_read" ON public.personality_result_history
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+-- WSZYSTKIE wiersze (stron i plaszczyzny wlasciciela) seeduje runtime_test.sql
+-- razem z auth.users i profiles. Taka jest konwencja tej uprzezy: harness.sql
+-- daje SCHEMAT, runtime_test.sql DANE - INSERT tutaj lamalby FK na auth.users,
+-- ktore jest wypelniane dopiero tam.
