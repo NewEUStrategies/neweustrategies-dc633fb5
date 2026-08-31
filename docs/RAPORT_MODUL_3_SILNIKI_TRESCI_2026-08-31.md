@@ -53,22 +53,30 @@ odwraca jej kolejność.
 | `WordPressImportDialog.tsx`                            |            0% | **97,54%** |          - | **92,59%** |
 | `WordPressPreviewDialog.tsx`                           |            0% | **94,73%** |          - | **96,29%** |
 | `WxrUploadPanel.tsx`                                   |            0% | **97,59%** |          - | **95,21%** |
-| `src/components/admin/blocks/**` (całość)              |           ~2% | **86,43%** |          - | **73,74%** |
+| `AdminColorPicker.tsx`                                 | 0%, 0 z 27 fn | **89,81%** |          - | **84,40%** |
+| `LayoutScaffold.tsx`                                   | 0%, 0 z 13 fn |  **96,0%** |          - | **72,97%** |
+| `src/components/admin/blocks/**` (całość)              |           ~2% | **90,34%** |          - | **78,97%** |
 
-Stan `src/components/admin/blocks/**` jako całości: **86,43% instrukcji /
-73,74% gałęzi / 86,17% funkcji / 87,84% linii** (z ~2%).
+Stan `src/components/admin/blocks/**` jako całości: **90,34% instrukcji
+(3350/3708) / 78,97% gałęzi (2205/2792) / 88,89% funkcji (1241/1396) /
+91,85% linii (3067/3339)** - z ~2%.
 
-Cel zadania dla tej ścieżki brzmiał „powyżej 90% linii" i **na tej chwili nie
-jest osiągnięty - brakuje 2,2 pp**. Cała reszta luki siedzi w DWÓCH plikach,
-które nie są rdzeniem edytora, tylko jego sąsiadami w katalogu, i których audyt
-nie wymienia:
+Cel zadania dla tej ścieżki brzmiał „powyżej 90% linii" i **jest osiągnięty:
+91,85%**. Pomiar: 99 plików testowych, 3257 przypadków zielonych + 15
+`it.fails`, `--coverage.include='src/components/admin/blocks/**'`.
 
-- `AdminColorPicker.tsx` - **407 linii, 0%**, wspólny selektor koloru panelu,
-- `LayoutScaffold.tsx` - **484 linie, 0%**, wireframe układu wpisu owijający kanwę.
+Ostatnie 4,01 pp przyszło z dwóch plików, które nie są rdzeniem edytora, tylko
+jego sąsiadami w katalogu, i których audyt nie wymienia - a które trzymały
+jednocześnie **całą pozostałą lukę do progu 90% i całe „zero plików na 0%"**:
 
-To są jednocześnie **jedyne dwa pliki modułu, które zostały na 0%**, więc ten
-sam brak liczy się dwa razy: raz jako 2,2 pp do progu 90%, raz jako
-niedomknięte „zero plików na 0%". Praca nad nimi jest w toku.
+- `AdminColorPicker.tsx` - 407 linii, **0% → 92,55% linii / 84,40% gałęzi**,
+- `LayoutScaffold.tsx` - 484 linie, **0% → 100% linii / 72,97% gałęzi**.
+
+**Zero z 93 plików tej ścieżki nie stoi na 0% linii.** Sprawdzone przez
+policzenie plików w raporcie HTML pokrycia (93 pliki, 0 na zerze), a nie na oko
+
+- `all: true` liczy także pliki, których żaden test nie dotknął, więc plik
+  pominięty pokazałby się tu jako zero.
 
 Cel zadania dla obu wynosił „powyżej 85% gałęzi". Osiągnięte **99,58%** i **97,02%**.
 
@@ -584,8 +592,8 @@ Parytet rejestru **widgetów** z dyspozytorem: dziura analogiczna do
 
 ## 10. Rejestr defektów zarejestrowanych jako `it.fails`
 
-**25 defektów** zarejestrowanych w tej gałęzi. (W całym module jest 29 wpisów
-`it.fails` - pozostałe 4 są wcześniejsze i należą do innych modułów.)
+**27 defektów** zarejestrowanych w tej gałęzi. (W całym repozytorium jest 31
+wpisów `it.fails` - pozostałe 4 są wcześniejsze i należą do innych modułów.)
 
 Każdy wpis został uruchomiony **najpierw jako zwykły `it`** i potwierdzony, że
 pada **na asercji docelowej**, a nie po drodze na błędzie przygotowania. Przy
@@ -702,6 +710,33 @@ klamrowania. Wartość wpisana z klawiatury lub wklejona przechodzi.
 25. **Podsumowanie oznacza podmianę treści o tej samej długości** jako brak
     zmiany - redaktor nie widzi, że wzorzec nadpisze mu treść.
 
+### Wspólny selektor koloru panelu (2)
+
+26. **Nazwa dostępna przełącznika przezroczystości ZNIKA po wciśnięciu.**
+    Treścią guzika staje się znak `✓`, a treść ma pierwszeństwo nad `title`
+    w wyliczaniu nazwy dostępnej - więc czytnik ekranu czyta „✓, wciśnięty"
+    zamiast „Wyłącz przezroczystość". `aria-pressed` jest poprawne, znika samo
+    słowo. Naprawa to `aria-label` obok `title` albo znak wstawiony przez
+    `::after` zamiast do drzewa. Skutkiem uboczym defektu jest to, że testu
+    tego guzika **nie da się napisać po etykiecie** - selektor idzie po
+    `aria-pressed`, i to jest w pliku zapisane.
+27. **Wewnętrzny reset popovera pokazuje redaktorowi SUROWY KLUCZ i18n.**
+    `ac("resetInherited") || ac("resetDefault")` miało być fallbackiem na brak
+    tłumaczenia, ale i18next na brakującym kluczu oddaje **sam klucz** - napis
+    prawdziwy, więc `||` nigdy nie wchodzi i drugi człon jest martwy. Redaktor
+    widzi na guziku `blocks.editors.adminControls.resetInherited`. Brakuje tego
+    klucza w PL i EN. **Dlaczego nie dopisałem klucza:** to dwie różne naprawy
+    o różnym zasięgu - dopisanie klucza gasi ten jeden guzik, a martwy idiom
+    `ac(x) || ac(y)` zostaje i powtórzy się przy następnym. Wybór między nimi
+    jest decyzją o kontrakcie `useBlocksI18n`, nie o tym pliku.
+
+Trzecia rzecz, która wyglądała w tym pliku na defekt, defektem **nie jest**
+i dlatego nie ma wpisu: `isTransparent` rozpoznaje przezroczystość po
+**dokładnym napisie**, nie po parsowaniu kanału alfa, więc `rgba(0,0,0,0.01)`
+to dla niego zwykły kolor. Jest na to kontrola dodatnia w testach, a nie
+`it.fails` - rejestr defektów ma być listą rzeczy do naprawy, nie listą
+wszystkiego, co mnie zaskoczyło.
+
 ## 11. Progi per-ścieżka
 
 | ścieżka                                                | zmierzone (instr./gał./fn/linie) | próg (instr./gał./fn/linie) |
@@ -712,6 +747,7 @@ klamrowania. Wartość wpisana z klawiatury lub wklejona przechodzi.
 | `src/lib/wp-import/**`                                 | 98,79 / 95,74 / 100 / 100        | 96 / 92 / 98 / 97           |
 | `src/components/admin/blocks/edit/**`                  | 96,23 / 85,42 / 96,78 / 97,15    | 94 / 82 / 94 / 95           |
 | `src/components/patterns/**`                           | 100 / 94,73 / 100 / 100          | 97 / 90 / 98 / 97           |
+| `src/components/admin/blocks/**` (całość)              | 90,34 / 78,97 / 88,89 / 91,85    | 87 / 75 / 85 / 88           |
 
 Reguła repozytorium: próg = zmierzone minus ~2-4 pp, z pomiarem w komentarzu.
 Żaden istniejący próg nie został obniżony. Żaden plik nie został wykluczony
@@ -727,10 +763,19 @@ pomiar**, żeby nikt ich nie „poprawił" w górę bez zrozumienia:
   kształtu plików, nie brak pracy testowej.
 - `patterns/**` gałęzie **90** przy 94,73% - ten sam mechanizm w mniejszej skali.
 
-Progu dla `src/components/admin/blocks/**` jako całości **nie dopisałem**:
-ścieżka stoi na 87,84% linii, a dwa pliki na 0% są w trakcie pokrywania, więc
-próg wpisany teraz byłby przyrządem pokazującym liczbę, która za chwilę nie
-będzie pomiarem - dokładnie to, przed czym ostrzega rozdz. 6.1 audytu.
+Trzeci próg ma zapisane to samo, i z tego samego powodu:
+
+- `admin/blocks/**` gałęzie **75**, mimo że jego własny podkatalog `edit/**`
+  ma **82**. Ten glob obejmuje `edit/**` w całości, ale dochodzą do niego pliki
+  rdzenia edytora z gałęziami obsługi błędów nieosiągalnymi z panelu:
+  `LayoutScaffold` 72,97%, `NestedBlocksEditor` 73,52%, `BlockCanvas` 78,41%.
+  Próg liczony od zmierzonej **całości**, nie od najlepszego podkatalogu -
+  inaczej byłby progiem, którego nie da się utrzymać bez usuwania plików
+  z pomiaru.
+
+Globy nakładające się nie są w tym pliku wyjątkiem, a konwencją: tak samo
+działa `admin/clubs/**` obok `admin/clubs/atoms/**` i `admin/events/**` obok
+`admin/events/molecules/**` (sprawdzone - w konfiguracji jest 114 takich par).
 
 ## 12. Stan bramek
 
@@ -744,7 +789,19 @@ Zielone: `check:sql-tenant-scope`, `check:sql-owner-tenant-scope`,
 `check:editor-autosave`, `check:public-assets`, `check:legacy-payment-refs`,
 `check:entry-purity`, `check:ownership`, `check:codeowners`,
 `check:tenant-isolation` (62 asercje), `check:pg-harness`,
-`check:events-harness`, `check:careers-harness`, `check:programs-harness`.
+`check:events-harness`, `check:careers-harness`, `check:programs-harness`,
+`check:chunks`, `check:workflow-env-contract`, `check:rpc-contract`,
+`check:gate-coverage`.
+
+Poza bramkami `check:*`: **`typecheck` zielony** (`tsc --noEmit`, cały projekt),
+**`format:check` zielony** (`prettier --check .`, całe repozytorium).
+
+**Uwaga o `verify:static`:** ten agregat **nie dojeżdża do końca** i to nie jest
+wina tej gałęzi. Zatrzymuje się na 23. z 25 bramek - na
+`check:types-freshness` - i wypisuje wprost: „Pozostałe 2 bramek NIE zostały
+uruchomione". Te dwie to `check:unknown-casts` i `check:workflow-env-contract`;
+**uruchomiłem obie osobno i obie są zielone**, żeby czerwień odziedziczona
+z maina nie zostawiła dwóch bramek bez wyniku.
 
 pgTAP lokalnie: 94 plików OK, 6 z błędem - **wszystkie sześć to artefakty
 sandboxa**, przewidziane przez komentarze samego runnera: locale `C` w `unaccent`
@@ -752,9 +809,23 @@ sandboxa**, przewidziane przez komentarze samego runnera: locale `C` w `unaccent
 z sed-owej atrapy pgvector (1), RLS na atrapie `storage.objects` (1). Żaden nie
 dotyka `pages` ani mojego klucza obcego.
 
-**Czerwone: `check:bundle`** - `overall` 4309,7 vs budżet 4306. Było czerwone
-na czystym mainie (+3,4 KB); mój udział +0,3 KB. Floora nie podniosłem -
-uzasadnienie w §2.
+**Czerwone - cztery bramki, żadna z powodu tej gałęzi:**
+
+1. **`check:bundle`** - `overall` 4309,7 vs budżet 4306. Było czerwone na
+   czystym mainie (+3,4 KB); mój udział +0,3 KB. Floora nie podniosłem -
+   uzasadnienie w §2.
+2. **`check:types-freshness`** - `donations.environment`, kolumna dopisana
+   migracją `20260831140000_donations_environment_isolation.sql`. **To nie jest
+   moja migracja ani mój moduł** (darowizny, moduł 6): commit `2898215` jest
+   przodkiem punktu odbicia tej gałęzi (`85f494a`) - sprawdzone
+   `git merge-base --is-ancestor`. Naprawa to `supabase gen types
+typescript --linked`, czyli wymaga żywej bazy, której sandbox nie ma.
+3. **`check:db-contract`** - „Brak SUPABASE_URL / klucza Supabase". Bramka
+   porównuje się z żywą bazą i w sandboxie nie ma z czym.
+4. **`check:migration-ledger`** - ten sam brak poświadczeń, ten sam powód.
+
+Bramki 3 i 4 nie są czerwone „z winy kodu" - one w tym środowisku **nie mają
+jak się uruchomić**. Zapisuję je jako niezweryfikowane, a nie jako zielone.
 
 ---
 
@@ -772,7 +843,7 @@ uzasadnienie w §2.
 4. **Nie podzieliłem chunku edytora bloków** (184,8 KB, 62 edytory + TipTap
    eager) - uzasadnienie w §4: nie zmniejszy OVERALL, a wymaga granic Suspense
    tam, gdzie ich nie ma, w interakcji z przywracaniem focusu i karetki.
-5. **Nie naprawiłem żadnego z 12 defektów** - wszystkie są zmianami zachowania
+5. **Nie naprawiłem żadnego z 27 defektów** - wszystkie są zmianami zachowania
    produkcyjnego. Każdy ma `it.fails`, dowód wykrywania i notatkę, na czym
    naprawa polega.
 6. **Nie dokończyłem podziału atomowego** `admin/blocks` (brak `organisms/`,
@@ -781,14 +852,86 @@ uzasadnienie w §2.
    z której wynika decyzja z §6, zastosowana konsekwentnie.
 7. **Nie dodałem polityk zapisu** do `personality_result_history` - byłoby to
    rozszerzenie powierzchni produktu przemycone pod naprawą izolacji.
-8. **Nie regenerowałem `routeTree.gen.ts`** - plik pokazuje się jako
+8. **Odłożyłem zaczęty plik `experimentsRuntime.test.ts`** (30 przypadków,
+   `src/lib/builder/experiments.ts` stoi na 30,6%). Dziesięć z trzydziestu
+   przypadków padało, a diagnoza jest jednoznaczna: to **błędy autorskie
+   testu**, nie defekty produkcyjne - przypadki zgadywały wariant `'b'`
+   z losowania i oczekiwały beaconu, którego kod nie wysyła w tym miejscu.
+   Doprowadzenie ich do zieleni to praca na poziomie napisania pliku od nowa,
+   a `experiments.ts` **nie jest w zakresie zadania** - nie stoi na 0% i nie
+   ma go w rozdz. 5.3 ani 8.4 audytu. Dwa pliki na 0% były w zakresie
+   i dostały pierwszeństwo. Plik leży w katalogu roboczym sesji jako
+   `experimentsRuntime.test.ts.parked` i **nie wchodzi do gałęzi** -
+   zostawienie w repozytorium dziesięciu czerwonych przypadków albo
+   dziesięciu `it.fails` opisujących nie defekt, a własną pomyłkę, byłoby
+   zaśmieceniem rejestru defektów.
+9. **Nie regenerowałem `routeTree.gen.ts`** - plik pokazuje się jako
    zmodyfikowany po każdym buildzie (4049 wstawień / 4049 usunięć, czysta
    zmiana kolejności generatora). Cofałem go za każdym razem, żeby nie zaśmiecać
    diffu 8 tysiącami linii bez znaczenia.
 
 ---
 
-## 14. Nota o środowisku
+## 14. Definicja ukończenia - punkt po punkcie
+
+Każdy wiersz odsyła do rozdziału, w którym stoi dowód, a nie deklaracja.
+
+| wymóg zadania                                                            | stan              | gdzie dowód |
+| ------------------------------------------------------------------------ | ----------------- | ----------- |
+| pomiar `check:bundle` PRZED i PO, z liczbami PUBLIC i OVERALL            | **spełnione**     | §2          |
+| każda teza o lazy-loadingu poparta tym pomiarem                          | **spełnione**     | §3          |
+| floor `check:bundle` nietknięty albo obniżony                            | **nietknięty**    | §2, §13.1   |
+| statyczne importy widgetów rozstrzygnięte, każdy z powodem               | **spełnione**     | §3          |
+| rejestr typów: switch czy mapa leniwa - rozstrzygnięte pomiarem          | **spełnione**     | §4          |
+| granice Suspense sprawdzone pomiarem, nie deklaracją                     | **spełnione**     | §5          |
+| `content.functions.ts` powyżej 85% gałęzi                                | **99,58%**        | §1          |
+| `BuilderRenderer.tsx` powyżej 85% gałęzi                                 | **97,02%**        | §1          |
+| `src/components/admin/blocks/**` powyżej 90% linii                       | **91,85%**        | §1, §11     |
+| rdzeń edytora pokryty, wraz z operacjami groźnymi dla treści             | **spełnione**     | §1, §10     |
+| zero plików modułu na 0%                                                 | **0 z 93**        | §1          |
+| dwie implementacje importu WordPressa rozstrzygnięte                     | **spełnione**     | §8          |
+| `page_full_path` z predykatem najemcy                                    | **spełnione**     | §7.1        |
+| ograniczenie schematu na `parent_id`                                     | **spełnione**     | §7.1        |
+| test pgTAP dla tej funkcji (nie było żadnego)                            | **14 asercji**    | §7.2        |
+| asercje w uprzęży izolacji dla odczytu i `WITH CHECK`                    | **45 → 62**       | §7.3        |
+| pozostałe polityki RLS modułu przejrzane i opisane                       | **spełnione**     | §7.4        |
+| progi per-ścieżka dla każdego ruszonego obszaru, z pomiarem w komentarzu | **7 progów**      | §11         |
+| żaden próg nie obniżony, żaden plik nie wykluczony z pomiaru             | **spełnione**     | §11         |
+| snapshot autoryzacji nie regenerowany, żeby zgasić czerwień              | **spełnione**     | §7.5        |
+| rejestr defektów jako `it.fails`, każdy sprawdzony jako zwykły `it`      | **27 wpisów**     | §10         |
+| lista tego, czego świadomie nie zrobiłem                                 | **spełnione**     | §13         |
+| moduł jako całość ≥88% linii i ≥85% gałęzi                               | **nie zmierzone** | poniżej     |
+
+Trzy wiersze **nie są spełnione** i nie udaję, że są:
+
+- **`check:bundle` jest czerwony.** Był czerwony na czystym `main` przed tą
+  gałęzią (dryf maina, +3,4 KB) i moja praca go nie pogorszyła. Floora nie
+  podniosłem, bo zadanie tego zabrania, a podniesienie byłoby decyzją
+  przemyconą w gałęzi o pokryciu testami. Liczby PRZED/PO w §2.
+- **`content.functions.ts` nie został podzielony.** Uzasadnienie i odwrócenie
+  kolejności zadania - §6. Po tej gałęzi plik ma 99,58% gałęzi, więc podział
+  jest dla następnego autora tani i odwracalny; przed nią nie był.
+- **Nie mam pojedynczej liczby dla modułu jako całości.** Mam liczby dla
+  każdego obszaru osobno (§1) i dla `admin/blocks/**` jako całej ścieżki
+  (91,85% linii), ale nie dla sumy modułu. Powód jest mierzalny, nie wygodny:
+  pełna suita to **2002 pliki testowe**, a na czterech rdzeniach tego sandboxa
+  99 plików zajmuje ~20 minut - pomiar sumy modułu (~503 pliki testowe
+  przeciwko ~352 plikom produkcyjnym) to ~100 minut jednego przebiegu.
+  Przygotowałem taki pomiar i **nie uruchomiłem go do końca**, bo praca weszła
+  w fazę scalania. Wolę zapisać, że liczby nie mam, niż podać oszacowanie
+  i nazwać je pomiarem. Skrypt z jawną listą globów leży w katalogu roboczym
+  sesji (`module3-cov.sh`), więc następny przebieg to jedno polecenie, a nie
+  kolejne śledztwo.
+
+  Co **jest** zmierzone i mówi o kierunku: każdy obszar wskazany w rozdz. 5.3
+  i 8.4 audytu przeszedł z 0-10% na 96-100% instrukcji, jedyne dwa pliki
+  modułu na 0% są zamknięte, a największa pojedyncza dziura w całym
+  repozytorium (`content.functions.ts`, 458 niepokrytych linii przy 1%
+  gałęzi) stoi na 100% linii i 99,58% gałęzi.
+
+---
+
+## 15. Nota o środowisku
 
 `bun install --frozen-lockfile` kończy się 403 z prywatnego rejestru
 (`europe-west*-npm.pkg.dev` zablokowany polityką sieci sandboxa). Użyte
