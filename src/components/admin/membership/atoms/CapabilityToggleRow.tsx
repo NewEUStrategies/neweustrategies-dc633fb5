@@ -47,10 +47,10 @@ export function CapabilityToggleRow({
       />
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-semibold leading-tight">{label}</span>
+          <span className="text-xs font-semibold leading-tight">{label}</span>
           <span
             className={cn(
-              "inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              "inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
               item.enforced ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
             )}
             title={item.enforced ? tc("enforcedHint") : tc("decorativeHint")}
@@ -59,7 +59,7 @@ export function CapabilityToggleRow({
             {badge}
           </span>
         </div>
-        <p className="text-xs leading-snug text-muted-foreground">{item.where}</p>
+        <p className="text-[11px] leading-snug text-muted-foreground">{item.where}</p>
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{item.key}</p>
       </div>
     </li>

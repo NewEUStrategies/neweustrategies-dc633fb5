@@ -21,7 +21,7 @@ export function LimitField({
 }) {
   return (
     <div className="space-y-1 font-sans">
-      <Label htmlFor={id} className="text-xs font-medium">
+      <Label htmlFor={id} className="text-[10px] font-medium">
         {label}
       </Label>
       <Input

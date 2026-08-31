@@ -50,7 +50,7 @@ export function TierEditorDialog({
               <DialogTitle className="text-base">
                 {tm("editDialog.title", { name: tier.name_pl })}
               </DialogTitle>
-              <DialogDescription className="text-xs">{tm("editDialog.hint")}</DialogDescription>
+              <DialogDescription className="text-[10px]">{tm("editDialog.hint")}</DialogDescription>
             </DialogHeader>
             <TierEditorCard
               tier={tier}

@@ -37,12 +37,12 @@ export function LabeledField({
   const hintId = `${id}-hint`;
   return (
     <div className={className}>
-      <Label className={cn("text-xs", labelClassName)} htmlFor={id}>
+      <Label className={cn("text-[10px] font-medium", labelClassName)} htmlFor={id}>
         {label}
       </Label>
       {children(hint ? { id, "aria-describedby": hintId } : { id })}
       {hint ? (
-        <p id={hintId} className="mt-1 text-[11px] text-muted-foreground">
+        <p id={hintId} className="mt-1 text-[10px] text-muted-foreground">
           {hint}
         </p>
       ) : null}
