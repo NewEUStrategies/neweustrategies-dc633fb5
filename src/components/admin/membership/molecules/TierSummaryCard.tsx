@@ -13,7 +13,6 @@ import type { MembershipTierRow } from "@/lib/billing/tiers";
 
 export function TierSummaryCard({
   tier,
-  lang,
   name,
   description,
   benefitsCount,
@@ -22,7 +21,6 @@ export function TierSummaryCard({
   onOpen,
 }: {
   tier: MembershipTierRow;
-  lang: "pl" | "en";
   name: string;
   description: string;
   benefitsCount: number;
@@ -32,7 +30,6 @@ export function TierSummaryCard({
 }) {
   const { t } = useTranslation();
   const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
-  void lang;
 
   return (
     <button

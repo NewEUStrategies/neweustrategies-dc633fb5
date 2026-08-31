@@ -265,7 +265,6 @@ export function AdminMembershipWorkspace() {
                   <TierSummaryCard
                     key={tier.id}
                     tier={tier}
-                    lang={lang}
                     name={lang === "pl" ? tier.name_pl : tier.name_en}
                     description={
                       (lang === "pl" ? draft.description_pl : draft.description_en) || ""
