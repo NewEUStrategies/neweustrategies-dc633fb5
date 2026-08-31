@@ -157,7 +157,7 @@ describe("trasa /admin/donations - sklejenie adresu z panelem", () => {
 });
 
 describe("trasa /admin/donations - bramka indeksowania", () => {
-  it("`head()` zabrania indeksowania I podążania za linkami", async () => {
+  it("`head()` zabrania indeksowania I podążania za linkami", () => {
     // Sam `noindex` nie wystarcza: `nofollow` zatrzymuje robota także na
     // linkach WYCHODZĄCYCH z rejestru (karty wpłat, adresy operatora).
     // Czytamy `head()` wprost - bez montowania - bo to czysta funkcja i to
