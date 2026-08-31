@@ -494,7 +494,6 @@ export function FloatingShareBar({
             )}
           </div>
 
-
           {/* Divider */}
           <div className="my-2 h-px bg-border/60" />
 

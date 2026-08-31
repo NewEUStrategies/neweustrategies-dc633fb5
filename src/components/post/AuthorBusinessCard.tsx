@@ -278,7 +278,6 @@ export function AuthorBusinessCard({
           })}
         </div>
       )}
-
     </aside>
   );
 }
