@@ -360,7 +360,6 @@ async function revokeDonation(event: RefundEvent, txnId: string): Promise<Refund
   return data && data.length > 0 ? "donation_refunded" : "skipped";
 }
 
-
 /** Dzwonek w aplikacji. Nigdy nie rzuca. */
 async function pushRefundNotification(
   userId: string,
