@@ -210,7 +210,9 @@ describe("DonationsRecordsPanel - dawny brak i18n", () => {
     // jezyka `{ lng: lang }`, czyli tym samym, ktorym formatowana jest data
     // i kwota w wierszu - tabela nie ma jak przemowic dwoma jezykami naraz.
     const t = realT("en");
-    render(<DonationsRecordsPanel records={[wplata({ recurring: true })]} isPending={false} lang="en" />);
+    render(
+      <DonationsRecordsPanel records={[wplata({ recurring: true })]} isPending={false} lang="en" />,
+    );
     expect(screen.queryByRole("columnheader", { name: "Darczyńca" })).toBeNull();
     expect(
       screen.getByRole("columnheader", { name: t("donate.admin.records.donor") }),

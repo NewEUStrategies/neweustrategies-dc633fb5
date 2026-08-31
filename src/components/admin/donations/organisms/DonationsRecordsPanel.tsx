@@ -19,7 +19,9 @@ export function DonationsRecordsPanel({ records, isPending, lang }: DonationsRec
   const { t } = useTranslation();
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold">{t("donate.admin.records.title", { lng: lang })}</h3>
+      <h3 className="mb-2 text-sm font-semibold">
+        {t("donate.admin.records.title", { lng: lang })}
+      </h3>
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t("admin.loading", { lng: lang })}</p>
       ) : (records?.length ?? 0) === 0 ? (

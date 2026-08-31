@@ -140,9 +140,7 @@ describe("trasa /admin/donations - sklejenie adresu z panelem", () => {
     const view = await zamontuj();
     expect(view.currentPath()).toBe(PATH);
     expect(screen.getByRole("heading", { name: "donate.admin.title" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "donate.admin.engine.title" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "donate.admin.engine.title" })).toBeInTheDocument();
     cleanup();
   });
 

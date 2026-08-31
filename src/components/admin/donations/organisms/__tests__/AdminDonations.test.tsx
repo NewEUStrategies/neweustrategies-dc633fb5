@@ -764,12 +764,8 @@ describe("AdminDonations - dawne defekty", () => {
     await panel();
     const t = realT("en");
     expect(screen.queryByRole("heading", { name: "Darowizny" })).toBeNull();
-    expect(
-      screen.getByRole("heading", { name: t("donate.admin.title") }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: t("donate.admin.sync.title") }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: t("donate.admin.title") })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: t("donate.admin.sync.title") })).toBeInTheDocument();
     // Najostrzejsze miejsce calego panelu: opisy obu srodowisk operatora.
     expect(Array.from(poleSrodowiska().options).map((o) => o.textContent)).toEqual([
       t("donate.admin.sync.sandbox"),
