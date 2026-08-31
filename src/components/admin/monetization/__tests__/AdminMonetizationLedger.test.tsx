@@ -1,7 +1,7 @@
 // Panel monetyzacji (UI): stany zapytania, przełącznik środowiska,
 // zakładki sekcji, maskowanie PII i pigułki statusów w PL/EN.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const { listMonetizationLedger } = vi.hoisted(() => ({ listMonetizationLedger: vi.fn() }));
 vi.mock("@/lib/admin/monetization/ledger.functions", () => ({ listMonetizationLedger }));
@@ -175,11 +175,15 @@ describe("AdminMonetizationLedger", () => {
   });
 
   it("renderuje się po angielsku", async () => {
-    await i18n.changeLanguage("en");
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
     renderWithQueryClient(<AdminMonetizationLedger />);
     expect(await screen.findByText("Monetisation")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Sandbox" })).toBeInTheDocument();
-    await i18n.changeLanguage("pl");
+    await act(async () => {
+      await i18n.changeLanguage("pl");
+    });
   });
 
   it("nadanie bez darowizny źródłowej ma środowisko nieokreślone", async () => {
