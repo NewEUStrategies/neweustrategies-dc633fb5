@@ -339,35 +339,27 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
 /**
  * Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami.
  *
- * BRAK FILTRA ŚRODOWISKA - STAN PRZEJŚCIOWY, DOMKNIĘCIE CZEKA NA WDROŻENIE.
- * Rodzeństwo tej funkcji (`revokeOrder`, `revokeSubscription`) filtruje po
- * `environment`, ta nie - bo `donations` tej kolumny nie miała. Migracja
- * `20260831140000_donations_environment_isolation` DOKŁADA ją na tej samej
- * gałęzi (NOT NULL DEFAULT 'live' + CHECK + indeks), więc brakuje już tylko
- * jednego kroku: `.eq("environment", event.environment)` w zapytaniu poniżej.
- *
- * DLACZEGO NIE TERAZ. Wygenerowany `src/integrations/supabase/types.ts` powstaje
- * z WDROŻONEJ bazy, a nie z pliku migracji, więc dopóki migracja nie pojedzie,
- * typ wiersza `donations` nie zna kolumny `environment` i filtr nie
- * skompilowałby się. Jedynym sposobem obejścia byłoby rzutowanie, którego
- * w tym repozytorium nie ma i nie będzie - kompilator ma tu rację, bo kolumny
- * naprawdę jeszcze nie ma w bazie.
- *
- * KOLEJNOŚĆ: wdrożyć migrację -> `bun run generate:types` -> dopisać filtr.
- * Do tego czasu zdarzenia z piaskownicy i z produkcji rozróżnia w darowiznach
- * wyłącznie identyfikator intencji operatora.
+ * FILTR ŚRODOWISKA jak w rodzeństwie (`revokeOrder`, `revokeSubscription`):
+ * zdarzenie z piaskownicy nie może zamknąć wpłaty produkcyjnej o tym samym
+ * identyfikatorze intencji. Kolumnę `donations.environment` dokłada migracja
+ * `20260831140000_donations_environment_isolation` (NOT NULL DEFAULT 'live'
+ * + CHECK + indeks); filtr działa dopiero po jej wdrożeniu i regeneracji
+ * `src/integrations/supabase/types.ts` - kolejność: migracja ->
+ * `bun run generate:types` -> filtr.
  */
-async function revokeDonation(_event: RefundEvent, txnId: string): Promise<RefundOutcome> {
+async function revokeDonation(event: RefundEvent, txnId: string): Promise<RefundOutcome> {
   const supabase = await admin();
   const { data, error } = await supabase
     .from("donations")
     .update({ status: "refunded" })
     .eq("provider_intent_id", txnId)
+    .eq("environment", event.environment)
     .neq("status", "refunded")
     .select("id");
   if (error) throw new Error(`refund: donation status flip failed: ${error.message}`);
   return data && data.length > 0 ? "donation_refunded" : "skipped";
 }
+
 
 /** Dzwonek w aplikacji. Nigdy nie rzuca. */
 async function pushRefundNotification(
