@@ -60,9 +60,17 @@ export function useValidateCoupon({
         setResult(row);
         return row;
       } catch {
-        const fail: ValidateCouponResult = {
+        // AWARIA NIE JEST ORZECZENIEM O KUPONIE. Zerwane połączenie, odmowa
+        // uprawnień do funkcji i błąd bazy trafiają tu razem z literówką
+        // w kodzie - ale tylko literówka znaczy „takiego kuponu nie ma".
+        // Wcześniej `catch` mapował KAŻDY wyjątek na `not_found`, więc klient
+        // z ważnym kuponem, który trafił na sekundę awarii, dostawał
+        // nieprawdziwą informację o pieniądzach i płacił pełną cenę.
+        // Kwota końcowa zostaje NIETKNIĘTA (awaria nie ma prawa obniżyć ceny),
+        // a autorytetem rabatu i tak jest serwer (`createCheckoutOrder`).
+        const failure: ValidateCouponResult = {
           ok: false,
-          error: "not_found",
+          error: "technical_error",
           coupon_id: null,
           discount_cents: 0,
           final_cents: amountCents,
@@ -70,8 +78,8 @@ export function useValidateCoupon({
           discount_kind: null,
           discount_percent: null,
         };
-        setResult(fail);
-        return fail;
+        setResult(failure);
+        return failure;
       } finally {
         setLoading(false);
       }

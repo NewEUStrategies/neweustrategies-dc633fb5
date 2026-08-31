@@ -24,16 +24,26 @@ function asLang(value: unknown): EmailLang | null {
   return value === "en" ? "en" : value === "pl" ? "pl" : null;
 }
 
-/** E-mail + preferowany język odbiorcy (profil -> newsletter -> PL). */
+/**
+ * E-mail + preferowany język odbiorcy (profil -> newsletter -> PL).
+ *
+ * `null` znaczy DOKŁADNIE „nie ma do kogo pisać" (brak wiersza profilu albo
+ * pusty adres). Błąd odczytu jest czym innym - i musi być rozróżnialny:
+ * potraktowany jak brak konta zamieniał awarię bazy w ciszę, w której mail o
+ * nieudanej płatności czy o rezygnacji przepadał bez jednego śladu w logach.
+ * Dlatego leci wyjątkiem; każdy wywołujący jest fail-soft (łapie i zapisuje
+ * `console.error`), więc webhook operatora nadal się nie wywraca.
+ */
 export async function resolveRecipient(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<Recipient | null> {
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("email, first_name, display_name, prefs")
     .eq("id", userId)
     .maybeSingle();
+  if (error) throw new Error(`odczyt profilu odbiorcy nie powiódł się: ${error.message}`);
 
   const email = (profile?.email ?? "").trim();
   if (!email) return null;
@@ -128,14 +138,21 @@ export interface SubscriptionNotifyInput {
   idempotencySeed: string;
 }
 
-/** Wysyła mail o zmianie stanu subskrypcji. Nigdy nie rzuca. */
-export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): Promise<void> {
+/**
+ * Wysyła mail o zmianie stanu subskrypcji. Nigdy nie rzuca.
+ *
+ * @returns `true`, gdy wiadomość trafiła do dostawcy poczty. `false` znaczy
+ *          „nie wysłano" (brak odbiorcy, odmowa dostawcy, awaria odczytu) -
+ *          wywołujący z przebiegu zbiorczego MUSI to policzyć jako rekord
+ *          nieobsłużony, zamiast raportować wysyłkę, której nie było.
+ */
+export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const supabase = supabaseAdmin as unknown as SupabaseClient;
 
     const recipient = await resolveRecipient(supabase, input.userId);
-    if (!recipient) return;
+    if (!recipient) return false;
 
     const { lang } = recipient;
     const copy = txCopy(input.kind, lang);
@@ -170,7 +187,7 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
 
     const intervalLabel = plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null;
 
-    await sendTxEmail({
+    const result = await sendTxEmail({
       type: input.kind,
       to: recipient.email,
       lang,
@@ -199,8 +216,10 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
       ctaPath: input.kind === "subscription_canceled" ? "/cennik" : PROFILE_PLAN_PATH,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
+    return result.ok;
   } catch (err) {
     console.error("[billing-emails] subscription notify failed", input.kind, err);
+    return false;
   }
 }
 
@@ -216,14 +235,21 @@ export interface EventNotifyInput {
   idempotencySeed: string;
 }
 
-/** Potwierdzenie zapisu na wydarzenie (płatne i bezpłatne). Nigdy nie rzuca. */
-export async function notifyEventRegistration(input: EventNotifyInput): Promise<void> {
+/**
+ * Potwierdzenie zapisu na wydarzenie (płatne i bezpłatne). Nigdy nie rzuca.
+ *
+ * @returns `true`, gdy wiadomość trafiła do dostawcy poczty. `false` znaczy
+ *          „nie wysłano" (brak odbiorcy, odmowa dostawcy, awaria odczytu) -
+ *          wywołujący z przebiegu zbiorczego MUSI to policzyć jako rekord
+ *          nieobsłużony, zamiast raportować wysyłkę, której nie było.
+ */
+export async function notifyEventRegistration(input: EventNotifyInput): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const supabase = supabaseAdmin as unknown as SupabaseClient;
 
     const recipient = await resolveRecipient(supabase, input.userId);
-    if (!recipient) return;
+    if (!recipient) return false;
     const { lang } = recipient;
 
     const { data: event } = await supabase
@@ -231,7 +257,7 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
       .select("slug, title_pl, title_en, starts_at, location, timezone")
       .eq("id", input.eventId)
       .maybeSingle();
-    if (!event) return;
+    if (!event) return false;
 
     const copy = txCopy("event_registered", lang);
     const title = (lang === "en" ? event.title_en : event.title_pl) || event.title_pl || "";
@@ -256,7 +282,7 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
       details.push({ label: copy.labels.transaction, value: input.transactionId });
     }
 
-    await sendTxEmail({
+    const result = await sendTxEmail({
       type: "event_registered",
       to: recipient.email,
       lang,
@@ -266,8 +292,10 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
       ctaPath: event.slug ? `/events/${event.slug}?ticket=1` : "/events",
       idempotencyKey: `event_registered:${input.idempotencySeed}`,
     });
+    return result.ok;
   } catch (err) {
     console.error("[billing-emails] event notify failed", err);
+    return false;
   }
 }
 
@@ -290,14 +318,21 @@ export interface PaymentNotifyInput {
   idempotencySeed: string;
 }
 
-/** Mail o nieudanej / odzyskanej płatności (miękka windykacja). Nigdy nie rzuca. */
-export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<void> {
+/**
+ * Mail o nieudanej / odzyskanej płatności (miękka windykacja). Nigdy nie rzuca.
+ *
+ * @returns `true`, gdy wiadomość trafiła do dostawcy poczty. `false` znaczy
+ *          „nie wysłano" (brak odbiorcy, odmowa dostawcy, awaria odczytu) -
+ *          wywołujący z przebiegu zbiorczego MUSI to policzyć jako rekord
+ *          nieobsłużony, zamiast raportować wysyłkę, której nie było.
+ */
+export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const supabase = supabaseAdmin as unknown as SupabaseClient;
 
     const recipient = await resolveRecipient(supabase, input.userId);
-    if (!recipient) return;
+    if (!recipient) return false;
 
     const { lang } = recipient;
     const copy = txCopy(input.kind, lang);
@@ -333,7 +368,7 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
       details.push({ label: copy.labels.renewsAt, value: formatDate(input.accessUntil, lang) });
     }
 
-    await sendTxEmail({
+    const result = await sendTxEmail({
       type: input.kind,
       to: recipient.email,
       lang,
@@ -354,8 +389,10 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
       ctaPath: PROFILE_PLAN_PATH,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
+    return result.ok;
   } catch (err) {
     console.error("[billing-emails] payment notify failed", input.kind, err);
+    return false;
   }
 }
 
@@ -371,14 +408,21 @@ export interface RefundNotifyInput {
   idempotencySeed: string;
 }
 
-/** Mail o zwrocie płatności (zwrot / obciążenie zwrotne). Nigdy nie rzuca. */
-export async function notifyRefundEmail(input: RefundNotifyInput): Promise<void> {
+/**
+ * Mail o zwrocie płatności (zwrot / obciążenie zwrotne). Nigdy nie rzuca.
+ *
+ * @returns `true`, gdy wiadomość trafiła do dostawcy poczty. `false` znaczy
+ *          „nie wysłano" (brak odbiorcy, odmowa dostawcy, awaria odczytu) -
+ *          wywołujący z przebiegu zbiorczego MUSI to policzyć jako rekord
+ *          nieobsłużony, zamiast raportować wysyłkę, której nie było.
+ */
+export async function notifyRefundEmail(input: RefundNotifyInput): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const supabase = supabaseAdmin as unknown as SupabaseClient;
 
     const recipient = await resolveRecipient(supabase, input.userId);
-    if (!recipient) return;
+    if (!recipient) return false;
 
     const { lang } = recipient;
     const copy = txCopy("payment_refunded", lang);
@@ -399,7 +443,7 @@ export async function notifyRefundEmail(input: RefundNotifyInput): Promise<void>
       details.push({ label: copy.labels.accessUntil, value: formatDate(input.accessUntil, lang) });
     }
 
-    await sendTxEmail({
+    const result = await sendTxEmail({
       type: "payment_refunded",
       to: recipient.email,
       lang,
@@ -414,8 +458,10 @@ export async function notifyRefundEmail(input: RefundNotifyInput): Promise<void>
       ctaPath: PROFILE_PLAN_PATH,
       idempotencyKey: `payment_refunded:${input.idempotencySeed}`,
     });
+    return result.ok;
   } catch (err) {
     console.error("[billing-emails] refund notify failed", err);
+    return false;
   }
 }
 
@@ -433,14 +479,21 @@ export interface ReminderNotifyInput {
   idempotencySeed: string;
 }
 
-/** Przypomnienie o zbliżającym się odnowieniu / wygaśnięciu. Nigdy nie rzuca. */
-export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<void> {
+/**
+ * Przypomnienie o zbliżającym się odnowieniu / wygaśnięciu. Nigdy nie rzuca.
+ *
+ * @returns `true`, gdy wiadomość trafiła do dostawcy poczty. `false` znaczy
+ *          „nie wysłano" (brak odbiorcy, odmowa dostawcy, awaria odczytu) -
+ *          wywołujący z przebiegu zbiorczego MUSI to policzyć jako rekord
+ *          nieobsłużony, zamiast raportować wysyłkę, której nie było.
+ */
+export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const supabase = supabaseAdmin as unknown as SupabaseClient;
 
     const recipient = await resolveRecipient(supabase, input.userId);
-    if (!recipient) return;
+    if (!recipient) return false;
 
     const { lang } = recipient;
     const copy = txCopy(input.kind, lang);
@@ -462,7 +515,7 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<v
       value: formatDate(input.periodEnd, lang),
     });
 
-    await sendTxEmail({
+    const result = await sendTxEmail({
       type: input.kind,
       to: recipient.email,
       lang,
@@ -478,7 +531,9 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<v
       ctaPath: PROFILE_PLAN_PATH,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
+    return result.ok;
   } catch (err) {
     console.error("[billing-emails] reminder notify failed", input.kind, err);
+    return false;
   }
 }

@@ -86,6 +86,34 @@ function str(source: Json, key: string): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+/**
+ * Identyfikator wydarzenia z metadanych - JEDYNE pole, po którym zapytanie
+ * rozpoznaje bilet, więc czytamy je dokładnie tak, jak czyta je baza.
+ *
+ * Filtr zapytania (`metadata->>'event_id' IS NOT NULL`) używa operatora `->>`,
+ * który rzutuje wartość NA TEKST: `{"event_id": 42}` daje w SQL `'42'`, więc
+ * taki wiersz PRZECHODZI filtr i dojeżdża do tej warstwy. Wcześniejsze
+ * czytanie przez `str()` (twarde `typeof === "string"`) oddawało wtedy `null`,
+ * a `flatMap` wyrzucał całe zamówienie - filtr bazy i zawężenie w TypeScripcie
+ * mówiły DWIE RÓŻNE RZECZY o tym samym wierszu, a zamówienie znikało z
+ * jedynego ekranu, na którym ktokolwiek je zobaczy: bez wyjątku, bez
+ * ostrzeżenia, bez pozycji w logu. Kupujący miał potwierdzenie zapłaty, panel
+ * nie miał zamówienia, a uzgodnienie księgowe pokazywało różnicę nie do
+ * wytłumaczenia.
+ *
+ * Liczbę zamieniamy więc na tekst tak samo jak `->>`. Taki identyfikator nie
+ * dopasuje się do żadnego wydarzenia (klucze są UUID-ami), więc wiersz pojawia
+ * się na liście BEZ nazwy wydarzenia - czyli widoczny i możliwy do wyjaśnienia,
+ * zamiast cicho zniknąć. Pozostałe kształty (`null`, tablica, obiekt, wartość
+ * logiczna) nie są identyfikatorem i dalej są odmową.
+ */
+function eventIdOf(source: Json): string | null {
+  const value = asObject(source)?.["event_id"];
+  if (typeof value === "string") return value.trim() ? value : null;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
 function positiveInt(source: Json, key: string): number {
   const value = asObject(source)?.[key];
   const parsed = typeof value === "number" ? value : Number(value);
@@ -117,7 +145,7 @@ export async function loadTicketOrders(
   if (orders.length === 0) return [];
 
   const eventIds = [
-    ...new Set(orders.map((o) => str(o.metadata, "event_id")).filter((v): v is string => !!v)),
+    ...new Set(orders.map((o) => eventIdOf(o.metadata)).filter((v): v is string => !!v)),
   ];
   // Zamówienia zanonimizowane (konto usunięte) nie mają kogo szukać w
   // profilach - wypadają z zapytania, żeby `.in()` nie dostał NULL-a.
@@ -157,7 +185,7 @@ export async function loadTicketOrders(
   );
 
   return orders.flatMap((order) => {
-    const eventId = str(order.metadata, "event_id");
+    const eventId = eventIdOf(order.metadata);
     if (!eventId) return [];
     const event = eventById.get(eventId) ?? null;
     const profile = order.user_id ? (profileById.get(order.user_id) ?? null) : null;
@@ -236,12 +264,23 @@ export async function loadTicketOrderHistory(
   if (transactionId) {
     // Zdarzenia operatora dotyczące tej transakcji - dopasowanie po polu
     // `data.id` w surowym payloadzie (webhook nie zna id naszego zamówienia).
-    const { data: events } = await supabase
+    const { data: events, error: eventsError } = await supabase
       .from("payment_webhook_events")
       .select("id,event_type,status,error,environment,occurred_at,created_at")
       .eq("payload->data->>id", transactionId)
       .order("created_at", { ascending: true })
       .limit(50);
+    // ODMOWA ODCZYTU DZIENNIKA NIE MOŻE BYĆ CICHA. Wcześniej `error` był
+    // pomijany (`const { data: events } = ...`), więc przy odmowie polityki,
+    // literówce w kolumnie albo awarii baza oddawała `null`, a oś czasu
+    // składała się z samych naszych znaczników i wyglądała na KOMPLETNĄ.
+    // A ta oś jest narzędziem diagnostycznym: człowiek patrzy na nią dokładnie
+    // wtedy, gdy pyta „czy webhook w ogóle przyszedł?". Pusta lista zdarzeń
+    // operatora odpowiadała wtedy „nie przyszedł" - nieprawdziwie, a na tej
+    // podstawie obsługa zwraca pieniądze albo wystawia bilet drugi raz.
+    // Zgłaszamy tak samo jak odczyt samego zamówienia wyżej: ekran ma pokazać
+    // awarię, a nie zmyśloną kompletność.
+    if (eventsError) throw new Error(eventsError.message);
     for (const ev of events ?? []) {
       entries.push({
         id: ev.id as string,

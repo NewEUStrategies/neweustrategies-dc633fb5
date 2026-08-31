@@ -930,6 +930,15 @@ export default defineConfig({
         // czterech progów zamiast pracy testowej to już nie re-floor, tylko
         // gaszenie sygnału.
         //
+        // ── 2026-08-31: DŁUG Z TEGO RE-FLOORA JEST SPŁACONY ──────────────────
+        // Wpis wyżej mówił, że droga powrotna prowadzi WYŁĄCZNIE przez testy, i
+        // wskazywał `queries.ts` (gałęzie 80,55%) jako najpilniejszy. Ta praca
+        // te testy dołożyła: wszystkie CZTERY pliki re-floorowane 19.08 mierzą
+        // dziś 100% w każdej z czterech metryk. Podnosimy więc każdą metrykę do
+        // `max(dotychczasowy próg, zmierzone minus 4 pp)` - podłogi ustawione
+        // pod pomiar z 48855ac (branches 80,55 / 85 / 91,11 / 93,65) nie
+        // pilnowały już niczego, bo przepuszczały ~20 pp swobodnego spadku na
+        // najbardziej wrażliwej warstwie modułu. Żadna wartość nie idzie w dół.
         // Co członek FAKTYCZNIE ma: aktywne nadania, nadanie dożywotnie,
         // nadanie wiodące. Reguła decyduje o dostępie bez płatności.
         // PODŁOGA ZMIERZONA (48855ac): statements 98.86, branches 93.65. Progi
@@ -938,7 +947,7 @@ export default defineConfig({
           statements: 98.86,
           functions: 100,
           lines: 100,
-          branches: 93.65,
+          branches: 96,
         },
         // Diagnostyka płatności - narzędzie, którym gasi się pożary. Kontrola
         // świecąca zielono przy zepsutej integracji jest GORSZA niż jej brak.
@@ -947,7 +956,7 @@ export default defineConfig({
           statements: 98,
           functions: 100,
           lines: 100,
-          branches: 91.11,
+          branches: 96,
         },
         // Jednorazowy link do portalu operatora - jedyne miejsce, w którym
         // klient zmienia metodę płatności i pobiera faktury u operatora.
@@ -955,10 +964,10 @@ export default defineConfig({
         // kodów odmowy.
         // PODŁOGA ZMIERZONA (48855ac): statements 93.75, lines 92.59.
         "src/lib/billing/portalLink.server.ts": {
-          statements: 93.75,
+          statements: 96,
           functions: 100,
-          lines: 92.59,
-          branches: 85,
+          lines: 96,
+          branches: 96,
         },
         // Warstwa odczytu rozliczeń klienta: plany, subskrypcja, zamówienia,
         // faktury, dane do faktury. Odczyty per-użytkownik zawężają po sesji,
@@ -968,10 +977,88 @@ export default defineConfig({
         // cienkie pokrycie warstwy odczytu rozliczeń, nie kwestia zaokrąglenia.
         // Do podniesienia testami, nie kolejnym obniżeniem progu.
         "src/lib/billing/queries.ts": {
-          statements: 95.52,
+          statements: 96,
           functions: 100,
           lines: 96,
-          branches: 80.55,
+          branches: 96,
+        },
+        // ── 2026-08-31: KATALOG `billing` DOSTAJE WRESZCIE PRÓG ZBIORCZY ─────
+        // Blok wyżej pilnował SIEDMIU wybranych plików z osiemdziesięciu
+        // dziewięciu. Reszta katalogu - w tym całe warstwy server fn, które
+        // zapisują skutki płatności - nie miała bramki, więc regresja poza tą
+        // siódemką schodziła bez sygnału. Wpis niżej domyka tę lukę: mierzy
+        // ŚREDNIĄ całego katalogu, czyli łapie także spadek w pliku, który
+        // nigdy nie dostał progu własnego.
+        //
+        // CZEGO PILNUJE: jedynej ścieżki, którą pieniądze zamieniają się w
+        // dostęp - i jedynej, którą zwrot ten dostęp odbiera. Każdy plik tego
+        // katalogu albo nadaje uprawnienie, albo je odbiera, albo liczy kwotę,
+        // na podstawie której zapadnie jedna z tych dwóch decyzji.
+        //
+        // ZMIERZONE 2026-08-31 (89 plików, pełna suita): 96,44% instrukcji /
+        // 92,51% gałęzi / 99,13% funkcji / 97,40% linii. W pomiarze SPRZED tej
+        // pracy ten sam katalog stał na 56,50 / 52,50 / 70,43 / 57,86, a
+        // DWADZIEŚCIA CZTERY jego pliki miały okrągłe zero wykonanych linii.
+        // Dziś na zerze nie ma ANI JEDNEGO. Próg = zmierzone minus ~4 pp.
+        "src/lib/billing/**": {
+          statements: 92,
+          functions: 95,
+          lines: 93,
+          branches: 88,
+        },
+        // Zwroty i obciążenia zwrotne. Ten plik jest lustrem `grant.server`:
+        // tam uprawnienie powstaje, tu ZNIKA, i to natychmiast, bez czekania
+        // na koniec opłaconego okresu. Cicha awaria oznacza albo dostęp po
+        // oddaniu pieniędzy, albo odebranie dostępu komuś, kto zapłacił -
+        // dlatego próg jest wyraźnie wyższy niż średnia katalogu.
+        // ZMIERZONE 2026-08-31: 98,14 / 95,03 / 100 / 100.
+        "src/lib/billing/refunds.server.ts": {
+          statements: 94,
+          functions: 96,
+          lines: 96,
+          branches: 91,
+        },
+        // Adres powrotu od operatora płatności. ORIGIN tego adresu pochodzi z
+        // nagłówków żądania, czyli z wartości, które klient podaje dowolnie -
+        // do 31.08.2026 nie pilnowało tego NIC. Zamknięte tą pracą: podrobiony
+        // `origin` i podrobiony `x-forwarded-host` przenoszące `return_url` na
+        // obcą domenę (otwarte przekierowanie w ścieżce płatniczej) oraz host
+        // o nieprawidłowym kształcie, którym jednym nagłówkiem dało się
+        // wywrócić portal klienta, czyli zablokować anulowanie subskrypcji.
+        //
+        // PRÓG NIŻSZY NIŻ KATALOG NADRZĘDNY, i to świadomie. ZMIERZONE
+        // BRAMKA OPEN REDIRECT NA POWIERZCHNI PŁATNOŚCI. Ten plik buduje
+        // `return_url`, czyli adres, pod który operator odsyła klienta po
+        // transakcji. Do 31.08.2026 sklejał go z SUROWEGO nagłówka żądania -
+        // trzy warianty open redirectu, w tym jeden zamieniający się w odmowę
+        // usługi (host o złym kształcie wywracał `new URL` i gasił portal
+        // klienta: brak anulowania subskrypcji, zmiany karty, faktur).
+        //
+        // DLACZEGO PRÓG JEST TU WYSOKI, a nie „katalogowy". Naprawa dołożyła
+        // CAŁĄ listę dozwolonych hostów (hosty deweloperskie, domeny marki,
+        // origin kanoniczny wraz z odpowiednikiem www/apex, zmienna
+        // `BILLING_RETURN_HOSTS`) - i pierwszy pomiar po niej pokazał 75,92%
+        // instrukcji. Trzynaście instrukcji NOWEJ bramki bezpieczeństwa nie
+        // było wykonywanych przez żaden test: dokładnie wzorzec z rozdz. 8.4
+        // audytu, w którym przybywa linii ścieżki krytycznej, a pokrycie stoi.
+        // Domknięte 31.08.2026 dwudziestoma czterema przypadkami, z których
+        // KAŻDY dopuszczający ma swój kontrprzykład (`localhost` przechodzi,
+        // `localhost.evil.example.org` nie; wariant www dozwolonej domeny
+        // przechodzi, `evil-najemca.example.org` nie).
+        //
+        // ZMIERZONE 31.08.2026 po domknięciu: 98,14% instrukcji / 97,43%
+        // gałęzi / 100% funkcji / 97,77% linii. Niepokryta została JEDNA
+        // linia - `catch` ostatniej szansy w `absoluteReturnUrl`, nieosiągalny
+        // odkąd obie połówki adresu mają wartość domyślną (moduł mówi o nim
+        // wprost: „nie ma drogi, którą ta funkcja rzuca"). Próg = zmierzone
+        // minus ~4 pp; osunięcie się o cztery punkty NA TEJ POWIERZCHNI ma
+        // zapalić światło natychmiast, a nie rozpłynąć się w średniej
+        // dziewięćdziesięciu plików katalogu.
+        "src/lib/billing/returnUrl.server.ts": {
+          statements: 94,
+          functions: 96,
+          lines: 93,
+          branches: 93,
         },
         // Warstwa danych ścieżki rezygnacji: parametry kontroferty i katalog
         // powodów odejścia (filtr `active` decyduje, co klient wybierze).
@@ -3853,6 +3940,153 @@ export default defineConfig({
           functions: 82,
           lines: 86,
           branches: 85,
+        },
+
+        // ══ MODUŁ 14: REKLAMY, KUPONY, PODARUNKI, DAROWIZNY (2026-08-31) ══════
+        //
+        // DO DZIŚ TEN MODUŁ NIE MIAŁ ANI JEDNEGO PROGU PER-ŚCIEŻKA - jako
+        // jedyny duży obszar monetyzacji. Audyt notował w nim ruch 0,0 pp
+        // siedem wydań z rzędu i to nie był przypadek: liczba w raporcie była,
+        // bramki nie było, więc każda zmiana osuwająca pokrycie schodziła bez
+        // sygnału, a raport pokazywał ją dopiero przy następnym audycie.
+        // Progi niżej zamieniają pomiar na zaporę. Wszystkie floorowane
+        // ~4 pp pod ZMIERZONYM 2026-08-31 (pełna suita) i wolno je wyłącznie
+        // podnosić.
+        //
+        // PIENIĄDZE WCHODZĄ TU CZTEREMA DROGAMI (reklama, kupon, podarunek,
+        // darowizna) i KAŻDA z nich ma inny sposób cichej awarii - dlatego
+        // każda dostaje wpis osobny, a nie jedną średnią całego modułu.
+
+        // Reguły emisji reklam: zgoda (CMP + Global Privacy Control), okno
+        // czasowe emisji, typ strony, budżet stref na artykule. Cicha awaria
+        // tej warstwy to nie brzydki układ, tylko emisja reklamy komuś, kto
+        // zgody NIE dał - czyli naruszenie, nie usterka.
+        // ZMIERZONE: 82,55 / 77,82 / 84,09 / 85,52 (przed tą pracą 42,66 /
+        // 51,50 / 35,23 / 42,09). PRÓG NAJNIŻSZY W MODULE i wiadomo, czym:
+        // `consent.ts` stoi na 58,06% gałęzi - niepokryte są ramiona
+        // synchronizacji decyzji z rejestrem RODO i tryb podglądu zgód, nie
+        // sama klamra GPC. To następna porcja pracy testowej, nie przeoczenie.
+        "src/lib/ads/**": {
+          statements: 78,
+          functions: 80,
+          lines: 81,
+          branches: 73,
+        },
+        // Powierzchnia renderująca reklamy u czytelnika, razem z ramką
+        // piaskownicy. Bramka pilnuje tego, że kreacja obcego pochodzenia
+        // jedzie do izolowanego `iframe`, a strefa nie renderuje się przed
+        // zgodą. ZMIERZONE: 97,67 / 91,43 / 96,67 / 100 (przed: 32,32 / 37,74
+        // / 26,32 / 33,56, jeden plik na okrągłym zerze).
+        "src/components/ads/**": {
+          statements: 93,
+          functions: 92,
+          lines: 96,
+          branches: 87,
+        },
+        // Beacon zliczający odsłony i kliknięcia reklam. Endpoint publiczny,
+        // bez sesji, przyjmuje ruch od każdego - więc bramka trzyma limiter,
+        // walidację kształtu identyfikatorów i rozpoznanie najemcy po domenie.
+        // Wysyp fałszywych zdarzeń z jednego źródła fałszuje rozliczenie z
+        // reklamodawcą, a `sendBeacon` nigdy nie zobaczy błędu odpowiedzi.
+        // ZMIERZONE: 100 / 96,43 / 100 / 100 (przed tą pracą OKRĄGŁE ZERO).
+        // Plik na 100% z progiem 96 jest mocniejszą bramką niż uśredniony
+        // katalog - dlatego stoi tu osobno.
+        "src/routes/api/public/ad-event.ts": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 92,
+        },
+        // Domena podarunku: budowa i parsowanie linku, arytmetyka budżetu
+        // kliknięć, mapowanie powodów odmowy. Czysta logika bez Reacta, więc
+        // próg wysoki. Pilnuje granicy „pełny artykuł za darmo": pomyłka w
+        // arytmetyce budżetu otwiera treść płatną szerzej, niż ktokolwiek
+        // zdecydował. ZMIERZONE: 97,99 / 95,03 / 100 / 99,19 (przed: 43,94 /
+        // 36,41 / 37,78 / 45,73).
+        "src/lib/gifting/**": {
+          statements: 93,
+          functions: 96,
+          lines: 95,
+          branches: 91,
+        },
+        // Powierzchnia podarunku u czytelnika: przycisk, baner odbiorcy,
+        // miernik zużytego budżetu, kanały udostępniania. Baner odbiorcy jest
+        // jedynym miejscem, które MÓWI odbiorcy, czy dostał dostęp - stan
+        // pokazany błędnie jest tu gorszy niż brak ekranu.
+        // ZMIERZONE: 96,05 / 94,12 / 94,74 / 100.
+        "src/components/gifting/**": {
+          statements: 92,
+          functions: 90,
+          lines: 96,
+          branches: 90,
+        },
+        // Formularz i CTA darowizny. O dopuszczalnej kwocie decyduje serwer,
+        // ale to TA warstwa rozstrzyga, czy darczyńca trafi do naszej kasy,
+        // czy do zbiórki zewnętrznej, i czy SDK operatora w ogóle się załaduje.
+        // ZMIERZONE: 84,00 / 72,02 / 71,43 / 85,71 - najsłabsza powierzchnia
+        // czytelnika w module i próg jest tu uczciwie niski, nie zaokrąglony
+        // w górę. Niepokryte: `DonationsWidgetView` (65,62% gałęzi - warianty
+        // osadzenia widgetu w builderze) oraz ramiona `DonationForm`
+        // obsługujące odmowę operatora w trybie osadzonej kasy (66,67%
+        // funkcji). Podniesienie tego progu wymaga testów tych dwóch rzeczy.
+        "src/components/donations/**": {
+          statements: 80,
+          functions: 67,
+          lines: 81,
+          branches: 68,
+        },
+        // Panel reklam: slot, placement, targetowanie, statystyki. Tu redakcja
+        // USTAWIA to, czego pilnuje `src/lib/ads/**` - błąd w edytorze
+        // targetowania wypuszcza emisję poza zadeklarowaną grupę, a panel jest
+        // jedynym miejscem, w którym widać, że emisja wygasła.
+        // ZMIERZONE: 93,14 / 88,30 / 83,33 / 92,55 (przed tą pracą cały katalog
+        // panelu monetyzacji stał na 40,00 / 50,00 / 42,86 / 43,48).
+        // Funkcje najniżej w module: `SlotsPanel` 75,00% i `PlacementsPanel`
+        // 76,92% - niedobite są procedury zapisu wariantów wymiarów kreacji.
+        "src/components/admin/ads/**": {
+          statements: 89,
+          functions: 79,
+          lines: 88,
+          branches: 84,
+        },
+        // Panel kuponów i kampanii rabatowych. Kupon to RABAT NA PIENIĄDZACH:
+        // pomyłka w zakresie daty albo w limicie użyć nie psuje ekranu, tylko
+        // wydaje pieniądze, i widać ją dopiero w rozliczeniu.
+        // ZMIERZONE: 91,60 / 87,74 / 90,70 / 93,70. Najsłabszy plik:
+        // `DatePickerField` (57,14% funkcji, 65,22% linii) - niepokryte są
+        // ścieżki klawiaturowe wyboru daty; sama walidacja zakresu, która
+        // decyduje o ważności kuponu, jest pokryta.
+        "src/components/admin/coupons/**": {
+          statements: 87,
+          functions: 86,
+          lines: 89,
+          branches: 83,
+        },
+        // Panel podarunków: ustawienia limitów, lista wydanych linków, audyt
+        // odebrań. Pola limitów są lustrem CHECK-ów z bazy - rozjazd między
+        // formularzem, walidacją server fn i bazą oznacza, że panel przyjmuje
+        // wartość, którą baza odrzuci, albo odwrotnie: wpuszcza limit poza
+        // zakres. ZMIERZONE: 100 / 98,46 / 100 / 100 - cały katalog bez ani
+        // jednej niepokrytej linii, więc próg jest tu najwyższy w module.
+        "src/components/admin/gifting/**": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 94,
+        },
+        // Panel darowizn: rejestr wpłat i podsumowania. Jedyne miejsce, w
+        // którym widać, czy wpłata doszła i czy została przypisana do
+        // właściwego środowiska (produkcja / test operatora) - pomyłka w tym
+        // rozdzieleniu wlicza wpłaty testowe do realnych sum.
+        // ZMIERZONE: 100 / 91,43 / 100 / 100. W pomiarze sprzed tej pracy
+        // największy plik katalogu, `AdminDonations.tsx` (414 linii), miał
+        // OKRĄGŁE ZERO wykonanych linii - dziś katalog nie ma ani jednej
+        // niepokrytej linii.
+        "src/components/admin/donations/**": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 87,
         },
       },
     },

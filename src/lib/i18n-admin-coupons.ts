@@ -12,6 +12,14 @@ import i18n from "./i18n";
 
 const pl = {
   adminCoupons: {
+    // Wspólny komunikat awarii odczytu dla zakładek Realizacje i Analityka.
+    // Oba panele liczą pieniądze, więc pusty wynik i BŁĄD muszą wyglądać
+    // inaczej - inaczej odmowa RLS czyta się jak "w tym okresie nic nie było".
+    loadError: {
+      title: "Nie udało się wczytać danych.",
+      hint: "To NIE jest pusty zakres - odczyt się nie powiódł (uprawnienia, baza albo sieć). Liczby i eksport pozostają niedostępne, dopóki odczyt się nie uda.",
+      placeholder: "Dane niedostępne - odczyt się nie powiódł.",
+    },
     codesGenerated_one: "Wygenerowano {{count}} kod",
     codesGenerated_few: "Wygenerowano {{count}} kody",
     codesGenerated_many: "Wygenerowano {{count}} kodów",
@@ -35,9 +43,14 @@ const pl = {
     status: "Status",
     actions: "Akcje",
     copied: "Skopiowano",
+    copyCode: "Kopiuj kod",
+    toggleActive: "Przełącz aktywność kuponu",
+    deleteAction: "Usuń kupon",
     active2: "Aktywny",
     inactive2: "Nieaktywny",
     deleteCoupon: "Usunąć kupon?",
+    deleteCouponBody: "Kod {{code}} zniknie razem z historią użyć. Tej operacji nie można cofnąć.",
+    deleteConfirm: "Usuń",
     enterCode: "Podaj kod",
     percent1100: "Procent 1–100",
     amount0: "Kwota > 0",
@@ -74,6 +87,17 @@ const pl = {
     segment: "Segment",
     generate: "Generuj",
     send: "Wyślij",
+    archiveAction: "Archiwizuj kampanię",
+    // Stany kampanii z kolumny `b2b_coupon_campaigns.status`. Odznaka
+    // renderowala surowa wartosc z bazy, wiec redakcja pracujaca po polsku
+    // musiala zgadywac, czym rozni sie „generated" od „sent" - a od tej roznicy
+    // zalezy, czy kody juz poszly do subskrybentow.
+    campaignStatus: {
+      draft: "Szkic",
+      generated: "Wygenerowana",
+      sent: "Wysłana",
+      archived: "Zarchiwizowana",
+    },
     enterName: "Podaj nazwę",
     campaignCreatedDraft: "Kampania utworzona (draft)",
     newCouponCampaign: "Nowa kampania kuponowa",
@@ -91,6 +115,11 @@ const pl = {
 
 const en = {
   adminCoupons: {
+    loadError: {
+      title: "Could not load the data.",
+      hint: "This is NOT an empty range - the read failed (permissions, database or network). Figures and export stay unavailable until the read succeeds.",
+      placeholder: "Data unavailable - the read failed.",
+    },
     codesGenerated_one: "Generated {{count}} code",
     codesGenerated_other: "Generated {{count}} codes",
     searchCodeName: "Search by code/name",
@@ -112,9 +141,15 @@ const en = {
     status: "Status",
     actions: "Actions",
     copied: "Copied",
+    copyCode: "Copy code",
+    toggleActive: "Toggle coupon active",
+    deleteAction: "Delete coupon",
     active2: "Active",
     inactive2: "Inactive",
     deleteCoupon: "Delete coupon?",
+    deleteCouponBody:
+      "Code {{code}} disappears together with its redemption history. This cannot be undone.",
+    deleteConfirm: "Delete",
     enterCode: "Enter a code",
     percent1100: "Percent 1–100",
     amount0: "Amount > 0",
@@ -151,6 +186,13 @@ const en = {
     segment: "Segment",
     generate: "Generate",
     send: "Send",
+    archiveAction: "Archive campaign",
+    campaignStatus: {
+      draft: "Draft",
+      generated: "Generated",
+      sent: "Sent",
+      archived: "Archived",
+    },
     enterName: "Enter a name",
     campaignCreatedDraft: "Campaign created (draft)",
     newCouponCampaign: "New coupon campaign",

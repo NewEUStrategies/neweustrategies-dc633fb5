@@ -166,3 +166,142 @@ CREATE POLICY "follows owner insert" ON public.user_follows
   FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "follows owner delete" ON public.user_follows
   FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+-- ==========================================================================
+-- ROZSZERZENIE 2026-08-31: plaszczyzna wlasciciela w modulach monetyzacji.
+--
+-- Przeglad polityk modulow 13 (checkout/subskrypcje/billing) i 14 (kupony/
+-- darowizny/prezenty/reklamy) wykazal SZESC dalszych wystapien tego samego
+-- wzorca, co naprawiony 2026-08-29: odczyt wlasciciela bez predykatu tenanta
+-- na tabeli, ktora tenant_id ma. Bramka `check:sql-owner-tenant-scope` ich nie
+-- widzi, bo kazda z tych tabel ma DOKLADNIE JEDNA polityke wlascicielska
+-- (tenanta pilnuje polityka ADMINISTRACYJNA, a wiec nie ma rodzenstwa
+-- deklarujacego intencje) - dlatego dowod musi byc wykonawczy, nie statyczny.
+--
+-- Kolumny sa okrojone do tych, na ktorych stoi RLS. Polityki ponizej odtwarzaja
+-- stan SPRZED naprawy - migracja 20260831060000 je podmienia.
+-- ==========================================================================
+CREATE TABLE public.subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'active',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.membership_grants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tier_key text NOT NULL DEFAULT 'member',
+  source text NOT NULL DEFAULT 'manual',
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.organization_seats (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  org_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  invited_email text,
+  role text NOT NULL DEFAULT 'member',
+  claimed_at timestamptz
+);
+
+CREATE TABLE public.user_purchases (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  amount_cents integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.user_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'active',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Wlascicielem linku prezentowego jest `created_by`, nie `user_id` - dlatego ta
+-- luka jest niewidoczna dla heurystyki nazwy kolumny.
+CREATE TABLE public.post_gift_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.current_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  post_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Atrapa wylacznie po to, by migracja 20260831060000 wykonala sie w calosci:
+-- niesie ona COMMENT ON COLUMN dokumentujacy ROZSTRZYGNIECIE sprawy tenant_id
+-- na tej tabeli. Bez atrapy caly plik migracji zostalby pominiety (--single-
+-- transaction), a asercje ponizej testowalyby stan SPRZED naprawy, milczac.
+CREATE TABLE public.payment_webhook_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.public_tenant_id()
+    REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  provider text NOT NULL DEFAULT 'stripe',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.payment_webhook_events ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.payment_webhook_events TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.subscriptions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.membership_grants TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.organization_seats TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_purchases TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_subscriptions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.post_gift_links TO authenticated;
+GRANT ALL ON public.subscriptions, public.membership_grants, public.organization_seats,
+  public.user_purchases, public.user_subscriptions, public.post_gift_links TO service_role;
+
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.membership_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organization_seats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_purchases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_gift_links ENABLE ROW LEVEL SECURITY;
+
+-- Stan SPRZED naprawy - dokladnie tresc z migracji zrodlowych.
+CREATE POLICY "Users can view own subscription"
+  ON public.subscriptions FOR SELECT TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
+
+CREATE POLICY "grants own read" ON public.membership_grants
+  FOR SELECT TO authenticated
+  USING (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "seats own read" ON public.organization_seats
+  FOR SELECT TO authenticated
+  USING (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "purchases owner read"
+  ON public.user_purchases FOR SELECT TO authenticated
+  USING (user_id = auth.uid()
+    OR (tenant_id = current_tenant_id() AND has_role(auth.uid(), 'admin'::app_role)));
+
+CREATE POLICY "subs owner read"
+  ON public.user_subscriptions FOR SELECT TO authenticated
+  USING (user_id = auth.uid()
+    OR (tenant_id = current_tenant_id() AND has_role(auth.uid(), 'admin'::app_role)));
+
+CREATE POLICY "gift links owner read"
+  ON public.post_gift_links FOR SELECT TO authenticated
+  USING (
+    created_by = auth.uid()
+    OR (
+      tenant_id = current_tenant_id()
+      AND (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+    )
+  );

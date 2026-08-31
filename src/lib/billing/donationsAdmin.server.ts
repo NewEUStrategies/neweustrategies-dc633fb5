@@ -168,8 +168,20 @@ export async function syncDonationsFromStripe(
           });
           report.settled += 1;
         } else if (session.status === "expired") {
-          await supabase.from("donations").update({ status: "canceled" }).eq("id", row.id);
-          report.expired += 1;
+          // ZAPIS MUSI BYĆ SPRAWDZONY. Raport jest jedynym potwierdzeniem,
+          // jakie dostaje człowiek domykający księgę - licznik podniesiony po
+          // zapisie, który się nie udał, znaczy dla niego „uzgodnione", choć
+          // wiersz dalej wisi w `pending`.
+          const { error: cancelErr } = await supabase
+            .from("donations")
+            .update({ status: "canceled" })
+            .eq("id", row.id);
+          if (cancelErr) {
+            report.warnings.push(`expire_write_failed:${row.id}`);
+            console.error("[donations sync] expire write failed", cancelErr.message);
+          } else {
+            report.expired += 1;
+          }
         }
       } catch (e) {
         report.warnings.push(`session_lookup_failed:${sessionId}`);
@@ -179,8 +191,21 @@ export async function syncDonationsFromStripe(
     }
 
     if (row.status === "paid" && (await isChargeRefunded(stripe, row.provider_intent_id))) {
-      await supabase.from("donations").update({ status: "refunded" }).eq("id", row.id);
-      report.refunded += 1;
+      // Jak wyżej: „zwrócono 1" znaczy dla czytającego, że rejestr jest
+      // uzgodniony, status wspierającego cofnięty, a eksport księgowy pokazuje
+      // zwrot. Nieudany zapis raportowany jako wykonany to operacja POZORNIE
+      // WYKONANA - gorsza od zablokowanej, bo rozjazd wychodzi dopiero przy
+      // rocznym rozliczeniu.
+      const { error: refundErr } = await supabase
+        .from("donations")
+        .update({ status: "refunded" })
+        .eq("id", row.id);
+      if (refundErr) {
+        report.warnings.push(`refund_write_failed:${row.id}`);
+        console.error("[donations sync] refund write failed", refundErr.message);
+      } else {
+        report.refunded += 1;
+      }
     }
   }
 
@@ -195,7 +220,15 @@ export async function syncDonationsFromStripe(
     .lt("created_at", staleIso)
     .limit(200);
   for (const row of stale ?? []) {
-    await supabase.from("donations").update({ status: "canceled" }).eq("id", row.id);
+    const { error: staleErr } = await supabase
+      .from("donations")
+      .update({ status: "canceled" })
+      .eq("id", row.id);
+    if (staleErr) {
+      report.warnings.push(`expire_write_failed:${row.id}`);
+      console.error("[donations sync] stale expire write failed", staleErr.message);
+      continue;
+    }
     report.expired += 1;
   }
 
@@ -227,6 +260,23 @@ export async function syncDonationsFromStripe(
           .update({ provider_session_id: session.id })
           .eq("id", session.metadata.donationId);
         report.settled += 1;
+        continue;
+      }
+      // IZOLACJA TENANTA. Klucz operatora jest jeden na ŚRODOWISKO, a nie na
+      // tenanta, więc `checkout.sessions.list` oddaje sesje CAŁEJ instalacji.
+      // Wstawienie sesji bez dowodu przynależności z `tenant_id` wywołującego
+      // znaczyło, że wpłata na kampanię tenanta B ląduje w księdze tenanta A -
+      // tego, którego administrator pierwszy kliknął „uzgodnij". Cudze
+      // pieniądze w cudzym rejestrze idą dalej do publicznych statystyk
+      // zbiórki, do eksportu księgowego i do triggera nadającego status
+      // wspierającego. Przynależność musi więc być STEMPLEM W SESJI
+      // (`metadata.tenantId`, nakładanym przez `createDonationSession`),
+      // a nie domysłem z tego, kto akurat uruchomił uzgodnienie.
+      if (session.metadata?.tenantId !== tenantId) {
+        // Sesja spoza naszego formularza (pulpit operatora, link płatniczy)
+        // stempla nie ma - i nie zgadujemy za nią. Zgłaszamy ją do RĘCZNEGO
+        // przypisania zamiast wciągać w cudzą księgę.
+        report.warnings.push(`import_unassigned:${session.id}`);
         continue;
       }
       const { error: insertError } = await supabase.from("donations").insert({

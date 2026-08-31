@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/lib/billing/__tests__/checkoutOrderPricing.test.ts",
+    "src/lib/billing/__tests__/checkoutOrderCoupon.test.ts",
+    "src/lib/billing/__tests__/checkoutStripeSession.test.ts",
+    "src/lib/billing/__tests__/checkoutSubscriptionOps.test.ts",
+    "src/lib/billing/__tests__/stripeCheckoutFunctions.test.ts"
+  ]
+}

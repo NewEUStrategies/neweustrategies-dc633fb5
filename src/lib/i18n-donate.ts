@@ -5,6 +5,81 @@ import i18n from "./i18n";
 
 export const donatePl = {
   donate: {
+    admin: {
+      title: "Darowizny",
+      intro:
+        "Własny checkout darowizn (jednorazowych i miesięcznych) obsługiwany przez naszego operatora płatności. Publiczny formularz:",
+      summary: {
+        total: "Suma wpłat",
+        month: "W tym miesiącu",
+        count: "Liczba wpłat",
+      },
+      engine: {
+        title: "Silnik wpłat",
+        enabledLabel: "Moduł aktywny",
+        enabledHint: "Wyłączenie ukrywa formularz i CTA darowizn.",
+        enabledToggle: "Zbieraj darowizny",
+        providerLabel: "Tryb",
+        providerHint: "Własny checkout albo przekierowanie do zewnętrznej zbiórki.",
+        providerStripe: "Nasz checkout (karta, BLIK, Apple/Google Pay)",
+        providerExternal: "Zewnętrzna zbiórka (link)",
+        externalUrlLabel: "Adres zbiórki",
+        currencyLabel: "Waluta",
+      },
+      amounts: {
+        title: "Kwoty",
+        presetsLabel: "Kwoty sugerowane",
+        presetsHint:
+          "Kwoty w walucie zbiórki. Rozdzielaj je spacją, średnikiem albo przecinkiem ze spacją (25, 50, 100, 250). Przecinek między cyframi bez spacji zapisuje grosze (12,50).",
+        minLabel: "Kwota minimalna (grosze)",
+        maxLabel: "Kwota maksymalna (grosze)",
+        goalLabel: "Cel zbiórki (grosze)",
+        goalHint: "0 wyłącza pasek postępu.",
+      },
+      form: {
+        title: "Formularz",
+        allowCustom: "Pozwól wpisać własną kwotę",
+        allowRecurring: "Pozwól na wsparcie miesięczne",
+        allowMessage: "Pole wiadomości od darczyńcy",
+        showRecent: "Pokazuj ostatnie wpłaty",
+      },
+      content: {
+        title: "Treści",
+        headlinePl: "Nagłówek (PL)",
+        headlineEn: "Nagłówek (EN)",
+        descriptionPl: "Opis (PL)",
+        descriptionEn: "Opis (EN)",
+      },
+      sync: {
+        title: "Synchronizacja ze Stripe",
+        description:
+          "Uzgadnia rejestr wpłat ze Stripe (ostatnie 7 dni): domyka wpłaty oczekujące, importuje brakujące opłacone sesje i oznacza zwroty. Operacja jest idempotentna.",
+        environmentLabel: "Środowisko synchronizacji",
+        sandbox: "Środowisko testowe",
+        live: "Środowisko produkcyjne",
+        run: "Synchronizuj ze Stripe",
+        running: "Synchronizuję...",
+        failed: "Synchronizacja nie powiodła się.",
+        report:
+          "{{environment}} · Zaksięgowane: {{settled}} · zaimportowane: {{imported}} · zwroty: {{refunded}} · wygasłe: {{expired}} · przejrzane sesje: {{scanned}}",
+        reportWarnings: " · ostrzeżenia: {{warnings}}",
+      },
+      records: {
+        title: "Ostatnie wpłaty",
+        empty: "Brak zarejestrowanych wpłat.",
+        date: "Data",
+        amount: "Kwota",
+        status: "Status",
+        type: "Typ",
+        donor: "Darczyńca",
+        recurring: "miesięczna",
+        oneTime: "jednorazowa",
+      },
+      save: {
+        invalid:
+          "Nie zapisano - publiczna strona odrzuciłaby tę konfigurację i wróciłaby do ustawień domyślnych. Popraw: {{fields}}.",
+      },
+    },
     title: "Wesprzyj niezależną analizę",
     subtitle: "Mecenat obywatelski finansuje tracker legislacyjny UE, raporty i debaty.",
     once: "Jednorazowo",
@@ -42,6 +117,81 @@ export const donatePl = {
 
 export const donateEn = {
   donate: {
+    admin: {
+      title: "Donations",
+      intro:
+        "Our own donation checkout (one-off and monthly) handled by our payment provider. Public form:",
+      summary: {
+        total: "Total raised",
+        month: "This month",
+        count: "Gift count",
+      },
+      engine: {
+        title: "Donation engine",
+        enabledLabel: "Module active",
+        enabledHint: "Turning it off hides the donation form and its CTA.",
+        enabledToggle: "Collect donations",
+        providerLabel: "Mode",
+        providerHint: "Our own checkout or a redirect to an external fundraiser.",
+        providerStripe: "Our checkout (card, BLIK, Apple/Google Pay)",
+        providerExternal: "External fundraiser (link)",
+        externalUrlLabel: "Fundraiser address",
+        currencyLabel: "Currency",
+      },
+      amounts: {
+        title: "Amounts",
+        presetsLabel: "Suggested amounts",
+        presetsHint:
+          "Amounts in the fundraiser currency. Separate them with a space, a semicolon or a comma followed by a space (25, 50, 100, 250). A comma between digits with no space writes the fraction (12,50).",
+        minLabel: "Minimum amount (minor units)",
+        maxLabel: "Maximum amount (minor units)",
+        goalLabel: "Fundraising goal (minor units)",
+        goalHint: "0 hides the progress bar.",
+      },
+      form: {
+        title: "Form",
+        allowCustom: "Allow a custom amount",
+        allowRecurring: "Allow monthly support",
+        allowMessage: "Message field for the donor",
+        showRecent: "Show recent gifts",
+      },
+      content: {
+        title: "Copy",
+        headlinePl: "Headline (PL)",
+        headlineEn: "Headline (EN)",
+        descriptionPl: "Description (PL)",
+        descriptionEn: "Description (EN)",
+      },
+      sync: {
+        title: "Stripe reconciliation",
+        description:
+          "Reconciles the gift register with Stripe (last 7 days): settles pending gifts, imports missing paid sessions and marks refunds. The operation is idempotent.",
+        environmentLabel: "Reconciliation environment",
+        sandbox: "Sandbox environment",
+        live: "Live environment",
+        run: "Reconcile with Stripe",
+        running: "Reconciling...",
+        failed: "The reconciliation failed.",
+        report:
+          "{{environment}} · settled: {{settled}} · imported: {{imported}} · refunds: {{refunded}} · expired: {{expired}} · sessions scanned: {{scanned}}",
+        reportWarnings: " · warnings: {{warnings}}",
+      },
+      records: {
+        title: "Recent gifts",
+        empty: "No gifts recorded yet.",
+        date: "Date",
+        amount: "Amount",
+        status: "Status",
+        type: "Type",
+        donor: "Donor",
+        recurring: "monthly",
+        oneTime: "one-off",
+      },
+      save: {
+        invalid:
+          "Not saved - the public page would reject this configuration and fall back to the defaults. Fix: {{fields}}.",
+      },
+    },
     title: "Support independent analysis",
     subtitle: "Citizen patronage funds our EU legislative tracker, reports and debates.",
     once: "One-off",

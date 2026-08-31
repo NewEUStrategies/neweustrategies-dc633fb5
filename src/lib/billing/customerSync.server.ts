@@ -23,17 +23,31 @@ async function admin() {
   return supabaseAdmin;
 }
 
+/** Właściciel subskrypcji WRAZ z najemcą, w którym ona powstała. */
+interface CustomerOwner {
+  userId: string;
+  tenantId: string;
+}
+
 /**
  * Użytkownik stojący za identyfikatorem klienta u operatora. Jedynym
  * wiarygodnym powiązaniem jest tabela `subscriptions` - to ona powstaje z
  * `custom_data.userId` przy zakupie.
+ *
+ * Czytamy stąd także `tenant_id` (kolumna NOT NULL): ten sam człowiek ma tyle
+ * profili rozliczeniowych, w ilu obszarach roboczych kupował
+ * (`billing_profiles` ma UNIQUE (user_id, tenant_id)), a zapis z webhooka musi
+ * trafić WYŁĄCZNIE w ten, w którym powstała subskrypcja.
  */
-async function userForCustomer(customerId: string | null, env: StripeEnv): Promise<string | null> {
+async function userForCustomer(
+  customerId: string | null,
+  env: StripeEnv,
+): Promise<CustomerOwner | null> {
   if (!customerId) return null;
   const supabase = await admin();
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("user_id")
+    .select("user_id, tenant_id")
     .eq("provider_customer_id", customerId)
     .eq("environment", env)
     .order("created_at", { ascending: false })
@@ -43,7 +57,12 @@ async function userForCustomer(customerId: string | null, env: StripeEnv): Promi
     console.error("[payments] customer lookup failed", customerId, error.message);
     return null;
   }
-  return data?.user_id ?? null;
+  const userId = data?.user_id ?? null;
+  const tenantId = data?.tenant_id ?? null;
+  // Bez najemcy nie ma zapisu: zawężenie tylko po `user_id` przepisywałoby
+  // profile ze WSZYSTKICH obszarów roboczych tego człowieka.
+  if (!userId || !tenantId) return null;
+  return { userId, tenantId };
 }
 
 type ProfilePatch = Partial<{
@@ -60,17 +79,25 @@ type ProfilePatch = Partial<{
   is_company: boolean;
 }>;
 
-/** Aktualizuje istniejący profil; brak profilu = nic do zrobienia. */
-async function patchProfile(userId: string, patch: ProfilePatch): Promise<boolean> {
+/**
+ * Aktualizuje istniejący profil W JEDNYM najemcy; brak profilu = nic do
+ * zrobienia.
+ *
+ * Zapis idzie klientem serwisowym, czyli z pominięciem RLS - filtr najemcy jest
+ * tu więc JEDYNYM zamkiem. Bez niego dane firmy podane w portalu operatora dla
+ * obszaru A (nazwa, numer podatkowy, adres) lądowały na fakturach obszaru B.
+ */
+async function patchProfile(owner: CustomerOwner, patch: ProfilePatch): Promise<boolean> {
   if (Object.keys(patch).length === 0) return false;
   const supabase = await admin();
   const { data, error } = await supabase
     .from("billing_profiles")
     .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("user_id", userId)
+    .eq("user_id", owner.userId)
+    .eq("tenant_id", owner.tenantId)
     .select("id");
   if (error) {
-    console.error("[payments] billing profile sync failed", userId, error.message);
+    console.error("[payments] billing profile sync failed", owner.userId, error.message);
     return false;
   }
   return (data?.length ?? 0) > 0;
@@ -79,22 +106,22 @@ async function patchProfile(userId: string, patch: ProfilePatch): Promise<boolea
 /** `customer.updated` - e-mail i nazwa klienta. */
 export async function syncCustomerProfile(data: unknown, env: StripeEnv): Promise<void> {
   const row = (data ?? {}) as Raw;
-  const userId = await userForCustomer(str(row, "id"), env);
-  if (!userId) return;
+  const owner = await userForCustomer(str(row, "id"), env);
+  if (!owner) return;
 
   const patch: ProfilePatch = {};
   const email = str(row, "email");
   const name = str(row, "name");
   if (email) patch.email = email;
   if (name) patch.full_name = name;
-  await patchProfile(userId, patch);
+  await patchProfile(owner, patch);
 }
 
 /** `address.updated` - adres rozliczeniowy (wpływa na stawkę podatku). */
 export async function syncCustomerAddress(data: unknown, env: StripeEnv): Promise<void> {
   const row = (data ?? {}) as Raw;
-  const userId = await userForCustomer(str(row, "customerId"), env);
-  if (!userId) return;
+  const owner = await userForCustomer(str(row, "customerId"), env);
+  if (!owner) return;
 
   const patch: ProfilePatch = {};
   const line1 = str(row, "firstLine");
@@ -109,14 +136,14 @@ export async function syncCustomerAddress(data: unknown, env: StripeEnv): Promis
   if (region) patch.region = region;
   if (postal) patch.postal_code = postal;
   if (country) patch.country_code = country.toUpperCase();
-  await patchProfile(userId, patch);
+  await patchProfile(owner, patch);
 }
 
 /** `business.updated` - nazwa firmy i numer podatkowy (faktura B2B). */
 export async function syncCustomerBusiness(data: unknown, env: StripeEnv): Promise<void> {
   const row = (data ?? {}) as Raw;
-  const userId = await userForCustomer(str(row, "customerId"), env);
-  if (!userId) return;
+  const owner = await userForCustomer(str(row, "customerId"), env);
+  if (!owner) return;
 
   const patch: ProfilePatch = {};
   const company = str(row, "name");
@@ -126,5 +153,5 @@ export async function syncCustomerBusiness(data: unknown, env: StripeEnv): Promi
     patch.is_company = true;
   }
   if (taxId) patch.tax_id = taxId;
-  await patchProfile(userId, patch);
+  await patchProfile(owner, patch);
 }

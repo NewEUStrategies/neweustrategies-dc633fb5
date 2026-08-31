@@ -78,9 +78,22 @@ export function FooterSlideup({ pageType, pageId }: Props) {
   };
 
   return (
+    // Pasek NIE jest punktem orientacyjnym.
+    //
+    // Do 08.2026 miał własne `role="complementary"` z etykietą
+    // `ads.slideupLabel`, a `AdSlotView` -> `AdContainer` w środku dokładał
+    // drugi region o tej samej nazwie („Reklama"): jedna reklama dawała dwa
+    // nierozróżnialne, ZAGNIEŻDŻONE punkty orientacyjne (axe: `landmark-unique`
+    // i `landmark-complementary-is-top-level`). Zagnieżdżenie sugeruje
+    // strukturę, której nie ma, więc jest gorsze niż brak regionu.
+    //
+    // Z dwóch regionów zostaje TEN WEWNĘTRZNY: to on opisuje samą kreację i to
+    // on niesie nazwę strefy („Reklama - pasek dolny"), więc pasek nie ma czego
+    // dodać poza pozycjonowaniem i przyciskiem zamknięcia (ten ma własną nazwę
+    // dostępną). Etykieta paska przestała być używana i zeszła ze słownika
+    // w obu językach; `data-ad-slideup` zostaje jako stabilny uchwyt.
     <div
-      role="complementary"
-      aria-label={t("ads.slideupLabel")}
+      data-ad-slideup=""
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur shadow-2xl animate-in slide-in-from-bottom"
     >
       <div className="relative mx-auto max-w-6xl px-4 py-3 flex items-center justify-center">

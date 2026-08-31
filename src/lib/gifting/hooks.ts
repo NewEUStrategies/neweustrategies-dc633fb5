@@ -214,9 +214,16 @@ export function useCreateGiftLink(
       };
     },
     onSuccess: (res) => {
+      // `prev` (czyli `undefined`) przy BRAKU wpisu w pamieci, nigdy `null`:
+      // zwrocenie `undefined` z funkcji aktualizujacej react-query znaczy "nie
+      // ruszaj pamieci", a `null` ZAKLADA wpis o wartosci `null` i stempluje go
+      // swiezym `dataUpdatedAt`. Przy `staleTime: 60_000` odczytu stanu taki
+      // wpis-widmo przez minute uchodzi za swiezy, wiec popover otwarty po
+      // mutacji nie odpytuje bazy i pokazuje wskaznik ladowania
+      // (`resolveGiftPhase`: `!state` => "loading") mimo gotowego kodu.
       queryClient.setQueryData<GiftArticleState | null>(
         giftStateKey(postId, uid),
-        (prev): GiftArticleState | null =>
+        (prev): GiftArticleState | null | undefined =>
           prev
             ? {
                 ...prev,
@@ -226,7 +233,7 @@ export function useCreateGiftLink(
                 remaining: res.remaining,
                 budget: res.budget,
               }
-            : (prev ?? null),
+            : prev,
       );
     },
   });

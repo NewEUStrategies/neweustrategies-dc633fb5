@@ -12,6 +12,8 @@ import { EChart } from "@/components/admin/analytics/EChart";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
+import { Stat } from "@/components/admin/coupons/atoms/Stat";
+import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 
 export const Route = createFileRoute("/admin/coupons/analytics")({
   component: AnalyticsPage,
@@ -34,7 +36,11 @@ interface AnalyticsRow {
 }
 
 function AnalyticsPage() {
-  const { i18n } = useTranslation();
+  // Słownik modułu kuponów w chunku trasy - patrz komentarz przy ensureI18n
+  // w lib/i18n-admin-coupons.ts. Komunikat awarii jest WSPÓLNY z zakładką
+  // Realizacji: ten sam kształt, te same klucze, jedna decyzja modułu.
+  ensureAdminCouponsI18n();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -60,7 +66,21 @@ function AnalyticsPage() {
     },
   });
 
+  /**
+   * AWARIA FUNKCJI AGREGUJĄCEJ NIE MOŻE WYGLĄDAĆ JAK ZAKRES BEZ SPRZEDAŻY.
+   * Bez tej gałęzi odmowa uprawnień do `b2b_coupons_analytics`, błąd SQL
+   * w funkcji i zerwana sieć dawały ten sam ekran co poprawny odczyt pustego
+   * okna: „Brak danych." i cztery kafle zer (w tym „Przychód netto: 0.00").
+   * Zera odczytane z awarii to wniosek, że kampania nie przyniosła przychodu -
+   * czyli decyzja o wygaszeniu programu podjęta na podstawie błędu odczytu.
+   *
+   * Kształt komunikatu jest WSPÓLNY z zakładką Realizacji (te same klucze
+   * `adminCoupons.loadError.*`), a kafle pokazują wtedy kreski zamiast zer:
+   * zero jest twierdzeniem o pieniądzach, kreska mówi „nie wiadomo".
+   */
+  const failed = q.isError;
   const rows = q.data ?? [];
+  const stat = (value: string) => (failed ? "-" : value);
   const totalRedemptions = rows.reduce((s, r) => s + Number(r.redemptions), 0);
   const totalRevenue = rows.reduce((s, r) => s + Number(r.revenue_cents), 0);
   const totalDiscount = rows.reduce((s, r) => s + Number(r.discount_cents_total), 0);
@@ -105,14 +125,24 @@ function AnalyticsPage() {
         <DatePickerField value={to} onChange={setTo} label={L("Do", "To")} />
       </div>
 
+      {failed && (
+        <div
+          role="alert"
+          className="rounded-[6px] border border-destructive/40 bg-destructive/5 p-4 text-sm"
+        >
+          <p className="font-medium text-destructive">{t("adminCoupons.loadError.title")}</p>
+          <p className="mt-1 text-muted-foreground">{t("adminCoupons.loadError.hint")}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label={L("Kupony", "Coupons")} value={String(rows.length)} />
-        <Stat label={L("Realizacje", "Redemptions")} value={String(totalRedemptions)} />
+        <Stat label={L("Kupony", "Coupons")} value={stat(String(rows.length))} />
+        <Stat label={L("Realizacje", "Redemptions")} value={stat(String(totalRedemptions))} />
         <Stat
           label={L("Przychód netto", "Net revenue")}
-          value={`${(totalRevenue / 100).toFixed(2)}`}
+          value={stat(`${(totalRevenue / 100).toFixed(2)}`)}
         />
-        <Stat label={L("Konwersja", "Conversion")} value={`${conversion}%`} />
+        <Stat label={L("Konwersja", "Conversion")} value={stat(`${conversion}%`)} />
       </div>
 
       <Card>
@@ -125,6 +155,10 @@ function AnalyticsPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               {L("Wczytywanie…", "Loading…")}
             </div>
+          ) : failed ? (
+            <p className="text-sm text-muted-foreground py-6">
+              {t("adminCoupons.loadError.placeholder")}
+            </p>
           ) : top10.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">{L("Brak danych.", "No data.")}</p>
           ) : (
@@ -140,7 +174,11 @@ function AnalyticsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          {failed ? (
+            <p className="text-sm text-muted-foreground py-6">
+              {t("adminCoupons.loadError.placeholder")}
+            </p>
+          ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">{L("Brak danych.", "No data.")}</p>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4">
@@ -180,16 +218,5 @@ function AnalyticsPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="text-xs uppercase text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      </CardContent>
-    </Card>
   );
 }

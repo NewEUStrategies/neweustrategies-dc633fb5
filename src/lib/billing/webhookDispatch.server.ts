@@ -66,6 +66,21 @@ function readIds(data: SubscriptionData) {
 }
 
 /**
+ * Znacznik czasu zdarzenia w ISO albo `null`, gdy operator (lub wiersz
+ * dziennika przy ponowieniu) podał czas, którego nie da się odczytać.
+ *
+ * JEDNO miejsce na tę decyzję jest tu warunkiem spójności: strażnik kolejności
+ * świadomie PRZEPUSZCZA zdarzenie bez wiarygodnego czasu, więc każdy kolejny
+ * konsument tej samej wartości musi ją znieść tak samo. Wcześniej znosił ją
+ * tylko strażnik, a `handleCreated` wywracał się na `Invalid time value`.
+ */
+function eventStamp(occurredAt: string | null | undefined): string | null {
+  if (!occurredAt) return null;
+  const parsed = new Date(occurredAt);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/**
  * Strażnik kolejności zdarzeń subskrypcji.
  *
  * Operator nie gwarantuje kolejności dostarczenia, a ponowna dostawa starego
@@ -82,9 +97,8 @@ async function claimSubscriptionEvent(
   env: StripeEnv,
   occurredAt: string,
 ): Promise<boolean> {
-  const iso = new Date(occurredAt);
-  if (Number.isNaN(iso.getTime())) return true; // brak wiarygodnego czasu - nie blokujemy
-  const stamp = iso.toISOString();
+  const stamp = eventStamp(occurredAt);
+  if (!stamp) return true; // brak wiarygodnego czasu - nie blokujemy
 
   const supabase = await admin();
   const { data: claimed, error } = await supabase
@@ -122,6 +136,7 @@ async function handleCreated(data: SubscriptionData, env: StripeEnv, occurredAt?
   }
 
   const supabase = await admin();
+  const stamp = eventStamp(occurredAt);
   const { error } = await supabase.from("subscriptions").upsert(
     {
       user_id: userId,
@@ -138,8 +153,11 @@ async function handleCreated(data: SubscriptionData, env: StripeEnv, occurredAt?
       trial_ends_at: trialEndsAt,
       environment: env,
       // Znacznik ostatniego zastosowanego zdarzenia - podstawa strażnika
-      // kolejności przy późniejszych aktualizacjach.
-      ...(occurredAt ? { last_event_at: new Date(occurredAt).toISOString() } : {}),
+      // kolejności przy późniejszych aktualizacjach. Czas nie do odczytania
+      // pomijamy: strażnik przepuścił takie zdarzenie świadomie, więc zapis
+      // nie ma prawa się na nim wywrócić (kolumna zostaje pusta, a następne
+      // zdarzenie z poprawnym czasem i tak ją zajmie).
+      ...(stamp ? { last_event_at: stamp } : {}),
       updated_at: new Date().toISOString(),
     },
     { onConflict: "provider_subscription_id" },
