@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const listMonetizationLedger = vi.fn();
+const { listMonetizationLedger } = vi.hoisted(() => ({ listMonetizationLedger: vi.fn() }));
 vi.mock("@/lib/admin/monetization/ledger.functions", () => ({ listMonetizationLedger }));
 
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
