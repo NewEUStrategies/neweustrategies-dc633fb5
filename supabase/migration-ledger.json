@@ -32,6 +32,8 @@
     "20260830100000_event_set_channels_extensions_path.sql": "20260830114612",
     "20260830120000_secdef_search_path_pg_temp_last.sql": "20260830181725",
     "20260831060000_owner_read_tenant_scope_monetization.sql": "20260831163111",
-    "20260831140000_donations_environment_isolation.sql": "20260831163226"
+    "20260831140000_donations_environment_isolation.sql": "20260831163226",
+    "20260831160000_page_full_path_tenant_scope.sql": "20260831214637",
+    "20260831170000_owner_plane_tenant_scope_read_history.sql": "20260831215103"
   }
 }
