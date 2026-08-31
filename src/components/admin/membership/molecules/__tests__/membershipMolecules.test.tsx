@@ -205,10 +205,18 @@ describe("TierEditorCard - pola formularza", () => {
       />,
     );
 
-    fireEvent.change(screen.getByDisplayValue("Opis PL"), { target: { value: "Nowy opis" } });
+    const pl = screen.getByDisplayValue("Opis PL");
+    const en = screen.getByDisplayValue("Description EN");
+
+    expect(pl).toHaveAttribute("rows", "4");
+    expect(en).toHaveAttribute("rows", "4");
+    expect(pl).toHaveClass("min-h-[88px]");
+    expect(en).toHaveClass("min-h-[88px]");
+
+    fireEvent.change(pl, { target: { value: "Nowy opis" } });
     expect(onChange).toHaveBeenCalledWith({ description_pl: "Nowy opis" });
 
-    fireEvent.change(screen.getByDisplayValue("Description EN"), { target: { value: "New" } });
+    fireEvent.change(en, { target: { value: "New" } });
     expect(onChange).toHaveBeenCalledWith({ description_en: "New" });
   });
 
