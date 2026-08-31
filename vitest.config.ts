@@ -328,6 +328,28 @@ export default defineConfig({
           lines: 95,
           branches: 82,
         },
+        // ── EDYTOR BLOKOW JAKO CALOSC ────────────────────────────────────────
+        // Audyt (wyd. 7) nazwal te powierzchnie asymetria modulu: 93 pliki
+        // produkcyjne kontra 4 pliki testowe, cala sciezka na ~2%.
+        // ZMIERZONE 2026-08-31 (99 plikow testowych, 3257 zielonych + 15
+        // `it.fails`, `--coverage.include='src/components/admin/blocks/**'`):
+        //   90,34% instrukcji (3350/3708) / 78,97% galezi (2205/2792) /
+        //   88,89% funkcji (1241/1396) / 91,85% linii (3067/3339).
+        // Punkt wyjscia: ~2%. Zero plikow tej sciezki nie stoi na 0%.
+        //
+        // DLACZEGO GALEZIE 75, A NIE 82 JAK W `edit/**`: ten glob obejmuje
+        // TAKZE `edit/**`, ale dochodza do niego pliki rdzenia edytora, ktore
+        // maja duzo galezi obslugi bledow nieosiagalnych z panelu -
+        // `LayoutScaffold` 72,97%, `NestedBlocksEditor` 73,52%,
+        // `BlockCanvas` 78,41%. Prog liczony od zmierzonej CALOSCI, nie od
+        // najlepszego podkatalogu. Floor = zmierzone minus ~2-4 pp.
+        // Ten prog wolno wylacznie PODNOSIC.
+        "src/components/admin/blocks/**": {
+          statements: 87,
+          functions: 85,
+          lines: 88,
+          branches: 75,
+        },
         // ── WZORCE TRESCI (PatternPicker) ────────────────────────────────────
         // Audyt (wyd. 7): 0% i 0 z 40 funkcji - jedyny plik swojego katalogu
         // i bez ani jednego testu.
