@@ -218,7 +218,7 @@ export function PopupHost() {
             data-popup-close="true"
             aria-label={lang === "pl" ? "Zamknij" : "Close"}
             onClick={close}
-            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center transition-colors"
+            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-[6px] bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

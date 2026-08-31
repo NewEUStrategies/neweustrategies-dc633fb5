@@ -127,7 +127,7 @@ export function SignupPopupPanel({
           type="button"
           aria-label={t("common.close")}
           onClick={onClose}
-          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border transition-colors hover:opacity-80"
+          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-[6px] border transition-colors hover:opacity-80"
           style={{
             backgroundColor: "color-mix(in srgb, var(--nl-bg) 70%, transparent)",
             borderColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)",
