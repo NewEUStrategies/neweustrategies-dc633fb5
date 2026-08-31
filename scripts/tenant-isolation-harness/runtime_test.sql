@@ -362,6 +362,85 @@ BEGIN
     'nie da sie zapisac linku prezentowego do obcego tenanta');
 END $$;
 
+\echo '== kanoniczna sciezka strony (page_full_path) =='
+-- Ta sekcja NIE mierzy polityki - mierzy cialo funkcji i schemat. Powod stoi
+-- w harness.sql: sitemape generuje service_role (BYPASSRLS), wiec nad ta
+-- funkcja nie ma zadnej polityki, a polityka publiczna na `pages` i tak nie
+-- ma warunku najemcy.
+--
+-- ODCZYT. `admin_path()` wola funkcje jako WLASCICIEL bazy, czyli w tym samym
+-- ukladzie uprawnien co generator sitemapy - nie jako `authenticated`. Gdyby
+-- asercja szla przez RLS, przechodzilaby z zupelnie innego powodu (niewidoczny
+-- wiersz), czyli mierzylaby nie to zjawisko.
+DO $$
+DECLARE
+  v_own   text;
+  v_drift text;
+  v_batch text;
+BEGIN
+  SELECT public.page_full_path('6a000000-0000-0000-0000-0000000000a2') INTO v_own;
+  PERFORM pg_temp.assert(v_own = 'o-nas/zespol',
+    'sciezka W OBREBIE najemcy sklada sie normalnie (predykat nie psuje drzewa)');
+
+  SELECT public.page_full_path('6a000000-0000-0000-0000-0000000000a3') INTO v_drift;
+  PERFORM pg_temp.assert(v_drift IS NULL OR v_drift NOT LIKE '%tajny-klient%',
+    'ODCZYT: slug strony obcego najemcy nie wchodzi do sciezki kanonicznej');
+  PERFORM pg_temp.assert(v_drift = 'raport',
+    'ODCZYT: sciezka dryfujacej strony to wylacznie jej wlasny segment');
+
+  SELECT full_path INTO v_batch FROM public.page_full_paths(
+    ARRAY['6a000000-0000-0000-0000-0000000000a3'::uuid])
+   WHERE page_id = '6a000000-0000-0000-0000-0000000000a3';
+  PERFORM pg_temp.assert(v_batch = 'raport',
+    'ODCZYT: wariant WSADOWY (obsluguje sitemape) tez urywa lancuch na granicy');
+END $$;
+
+-- ZAPIS (WITH CHECK / ograniczenie schematu). Autor najemcy A nie moze
+-- podpiac swojej strony pod strone najemcy B - ani przy INSERT, ani przy
+-- UPDATE. Sprawdzane pod rola `authenticated`, czyli tak, jak to robi panel.
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.pages (tenant_id, slug, status, parent_id) VALUES ('
+      || '''11111111-1111-1111-1111-111111111111'', ''podszywka'', ''published'', '
+      || '''6b000000-0000-0000-0000-0000000000b1'')'),
+    'ZAPIS: nie da sie zalozyc strony z rodzicem u obcego najemcy');
+
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'UPDATE public.pages SET parent_id = ''6b000000-0000-0000-0000-0000000000b1'' '
+      || 'WHERE id = ''6a000000-0000-0000-0000-0000000000a2'''),
+    'ZAPIS: nie da sie przepiac istniejacej strony pod rodzica z obcego najemcy');
+
+  -- Kontrola dodatnia: legalne przepiecie w obrebie najemcy MUSI przechodzic,
+  -- inaczej asercje wyzej przechodzilyby dlatego, ze zapis nie dziala WCALE.
+  PERFORM pg_temp.assert(
+    pg_temp.write_as(a,
+      'UPDATE public.pages SET parent_id = ''6a000000-0000-0000-0000-0000000000a1'' '
+      || 'WHERE id = ''6a000000-0000-0000-0000-0000000000a3'''),
+    'ZAPIS: legalne przepiecie w obrebie wlasnego najemcy przechodzi');
+END $$;
+
+-- Ograniczenie schematu MUSI istniec pod wlasna nazwa - bez tej asercji
+-- sekcja przechodzilaby takze wtedy, gdyby migracja w ogole sie nie wykonala,
+-- a same funkcje bronily sie predykatem. Warstwy sa dwie i obie maja dowod.
+DO $$
+BEGIN
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM pg_constraint
+             WHERE conrelid = 'public.pages'::regclass
+               AND conname = 'pages_parent_same_tenant_fkey'),
+    'SCHEMAT: ograniczenie pages_parent_same_tenant_fkey jest zalozone');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM pg_proc
+      WHERE pronamespace = 'public'::regnamespace
+        AND proname IN ('page_full_path', 'page_full_paths')
+        AND prosrc NOT LIKE '%tenant_id%') = 0,
+    'SCHEMAT: obie funkcje sciezki maja w ciele predykat najemcy');
+END $$;
+
 \echo '== podsumowanie =='
 DO $$
 BEGIN

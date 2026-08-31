@@ -305,3 +305,112 @@ CREATE POLICY "gift links owner read"
       AND (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
     )
   );
+
+-- ==========================================================================
+-- ROZSZERZENIE 2026-08-31 (2): KANONICZNA SCIEZKA STRONY (MODUL 3).
+--
+-- Inna klasa luki niz cala reszta tego pliku i dlatego wymaga innych asercji.
+-- Tam problemem byla POLITYKA gubiaca tenanta. Tu polityki nie ma o co pytac:
+-- `public.page_full_path()` jest wolana SPOD SERVICE-ROLE przez generator
+-- sitemapy (`src/lib/server/sitemapEntries.server.ts:75`), a service_role ma
+-- BYPASSRLS - zadna polityka nad ta funkcja nie stoi. Izolacje musi wiec
+-- dowiezc CIALO FUNKCJI (predykat najemcy w rekurencji) i SCHEMAT
+-- (ograniczenie na `parent_id`), a nie RLS.
+--
+-- Drugi powod, dla ktorego RLS tu nie pomaga nawet pod JWT uzytkownika:
+-- polityka `"Public reads published pages"` z migracji 20260531182153 brzmi
+-- `USING (status = 'published')` - BEZ warunku najemcy. Odtwarzam ja ponizej
+-- doslownie, bo bez niej asercja odczytu mierzylaby nie to, co w produkcji.
+--
+-- Ponizej stan SPRZED naprawy: stary, jednokolumnowy klucz obcy na parent_id
+-- i tenant-slepe cialo obu funkcji. Migracje 20260831160000 dobiera run.sh
+-- i ona te definicje podmienia - dzieki temu harness sprawdza takze, ze
+-- podmiana faktycznie zaszla.
+-- ==========================================================================
+CREATE TABLE public.pages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  parent_id uuid REFERENCES public.pages(id) ON DELETE RESTRICT,
+  slug text NOT NULL,
+  status text NOT NULL DEFAULT 'draft',
+  UNIQUE (tenant_id, slug)
+);
+
+GRANT SELECT ON public.pages TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pages TO authenticated;
+GRANT ALL ON public.pages TO service_role;
+
+ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
+
+-- Doslownie z 20260531182153 - w tym BRAK warunku najemcy, ktory jest tu
+-- czescia mierzonego stanu, nie przeoczeniem atrapy.
+CREATE POLICY "Public reads published pages"
+  ON public.pages FOR SELECT
+  TO anon, authenticated
+  USING (status = 'published');
+
+CREATE POLICY "Staff reads own tenant pages"
+  ON public.pages FOR SELECT
+  TO authenticated
+  USING (
+    tenant_id = current_tenant_id()
+    AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'editor') OR has_role(auth.uid(), 'author'))
+  );
+
+CREATE POLICY "Authors write own tenant pages"
+  ON public.pages FOR ALL
+  TO authenticated
+  USING (tenant_id = current_tenant_id())
+  WITH CHECK (tenant_id = current_tenant_id());
+
+-- Stan SPRZED naprawy: rekurencja bez predykatu najemcy.
+CREATE OR REPLACE FUNCTION public.page_full_path(_page_id uuid)
+RETURNS text LANGUAGE sql STABLE SET search_path = public AS $$
+  WITH RECURSIVE chain AS (
+    SELECT id, parent_id, slug, 1 AS depth FROM public.pages WHERE id = _page_id
+    UNION ALL
+    SELECT p.id, p.parent_id, p.slug, c.depth + 1
+      FROM public.pages p JOIN chain c ON p.id = c.parent_id
+     WHERE c.depth < 50
+  )
+  SELECT string_agg(slug, '/' ORDER BY depth DESC) FROM chain;
+$$;
+
+CREATE OR REPLACE FUNCTION public.page_full_paths(_page_ids uuid[])
+RETURNS TABLE(page_id uuid, full_path text)
+LANGUAGE sql STABLE SET search_path = public AS $$
+  WITH RECURSIVE requested AS (SELECT DISTINCT unnest(_page_ids) AS root_id),
+  chain AS (
+    SELECT r.root_id, p.id, p.parent_id, p.slug, 1 AS depth
+      FROM requested r JOIN public.pages p ON p.id = r.root_id
+    UNION ALL
+    SELECT c.root_id, p.id, p.parent_id, p.slug, c.depth + 1
+      FROM public.pages p JOIN chain c ON p.id = c.parent_id
+     WHERE c.depth < 50
+  )
+  SELECT root_id AS page_id, string_agg(slug, '/' ORDER BY depth DESC) AS full_path
+    FROM chain GROUP BY root_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.page_full_path(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.page_full_paths(uuid[]) TO anon, authenticated, service_role;
+
+-- Drzewo najemcy A + strona najemcy B jako kandydat na "obcego rodzica".
+-- `parent_id` ustawiany osobnym UPDATE-em, bo wiersze odwoluja sie do siebie.
+INSERT INTO public.pages (id, tenant_id, slug, status) VALUES
+  ('6a000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'o-nas',  'published'),
+  ('6a000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'zespol', 'published'),
+  ('6b000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'tajny-klient', 'published');
+
+UPDATE public.pages SET parent_id = '6a000000-0000-0000-0000-0000000000a1'
+  WHERE id = '6a000000-0000-0000-0000-0000000000a2';
+
+-- Wiersz DRYFUJACY: strona najemcy A z rodzicem u najemcy B. Taki wiersz
+-- schemat SPRZED naprawy przyjmowal bez slowa, i wlasnie on wnosil obcy slug
+-- do sitemapy. Migracja 20260831160000 go ODCZEPIA (parent_id := NULL) przed
+-- zalozeniem ograniczenia - asercje w runtime_test.sql sprawdzaja OBIE rzeczy:
+-- ze sciezka juz nie przekracza granicy i ze nowego takiego wiersza nie da sie
+-- zalozyc.
+INSERT INTO public.pages (id, tenant_id, slug, status, parent_id) VALUES
+  ('6a000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111',
+   'raport', 'published', '6b000000-0000-0000-0000-0000000000b1');
