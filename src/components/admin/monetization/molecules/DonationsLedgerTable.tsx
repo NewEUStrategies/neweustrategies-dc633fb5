@@ -34,9 +34,7 @@ export function DonationsLedgerTable({
       <tbody>
         {rows.map((row) => (
           <tr key={row.id} className="border-t border-border">
-            <td className="py-2 font-medium">
-              {formatMoney(row.amountCents, row.currency, lang)}
-            </td>
+            <td className="py-2 font-medium">{formatMoney(row.amountCents, row.currency, lang)}</td>
             <td className="py-2">
               <LedgerStatusPill tone={donationTone(row.status)} label={row.status} />
             </td>
@@ -51,9 +49,14 @@ export function DonationsLedgerTable({
                 t("adminMonetization.donations.anonymous", { lng: lang })}
             </td>
             <td className="py-2 text-muted-foreground">
-              {t(row.recurring ? "adminMonetization.donations.yes" : "adminMonetization.donations.no", {
-                lng: lang,
-              })}
+              {t(
+                row.recurring
+                  ? "adminMonetization.donations.yes"
+                  : "adminMonetization.donations.no",
+                {
+                  lng: lang,
+                },
+              )}
             </td>
             <td className="py-2 text-muted-foreground">{row.createdAt.slice(0, 10)}</td>
           </tr>

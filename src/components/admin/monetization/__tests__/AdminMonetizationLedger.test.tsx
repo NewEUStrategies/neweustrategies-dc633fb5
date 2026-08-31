@@ -163,9 +163,7 @@ describe("AdminMonetizationLedger", () => {
   });
 
   it("puste sekcje mówią to wprost", async () => {
-    listMonetizationLedger.mockResolvedValue(
-      payload({ donations: [], grants: [], giftLinks: [] }),
-    );
+    listMonetizationLedger.mockResolvedValue(payload({ donations: [], grants: [], giftLinks: [] }));
     renderWithQueryClient(<AdminMonetizationLedger />);
     expect(await screen.findByText("Brak wierszy dla wybranego środowiska.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));

@@ -147,10 +147,7 @@ export type GiftLinkStatus = "active" | "revoked" | "expired" | "exhausted";
  * unieważnienie > wygaśnięcie > wyczerpany budżet (`cap > 0 AND count >= cap`).
  */
 export function giftLinkStatus(
-  link: Pick<
-    GiftLinkLedgerRow,
-    "expiresAt" | "revokedAt" | "redemptionCount" | "maxRedemptions"
-  >,
+  link: Pick<GiftLinkLedgerRow, "expiresAt" | "revokedAt" | "redemptionCount" | "maxRedemptions">,
   now: Date,
 ): GiftLinkStatus {
   if (link.revokedAt) return "revoked";

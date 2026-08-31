@@ -197,9 +197,7 @@ describe("loadMonetizationLedger", () => {
       donationRow({ id: "b", amount_cents: 2000, status: "pending" }),
     ];
     const result = await loadMonetizationLedger({ environment: "all", limit: 50 });
-    expect(result.summary.paidTotals).toEqual([
-      { currency: "PLN", amountCents: 1000, count: 1 },
-    ]);
+    expect(result.summary.paidTotals).toEqual([{ currency: "PLN", amountCents: 1000, count: 1 }]);
     expect(result.summary.pendingCount).toBe(1);
   });
 });

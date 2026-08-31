@@ -27,10 +27,7 @@ export function LedgerSummaryCards({
           .map((total) => formatMoney(total.amountCents, total.currency, lang))
           .join(" / ");
   return (
-    <div
-      data-testid="ledger-summary"
-      className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5"
-    >
+    <div data-testid="ledger-summary" className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
       <Card label={t("adminMonetization.summary.paid", { lng: lang })} value={paid} />
       <Card
         label={t("adminMonetization.summary.donations", { lng: lang })}
