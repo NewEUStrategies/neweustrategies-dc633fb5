@@ -456,7 +456,7 @@ export function FloatingShareBar({
             <Share2 className="w-3 h-3" /> {t("share.bar.share")}
           </span>
 
-          {/* Social row */}
+          {/* Social row - to samo zachowanie kafelka co pasek social w nagłówku/stopce */}
           <div className="grid grid-cols-5 gap-1">
             {links.map((l) => {
               const Icon = l.icon;
@@ -468,7 +468,8 @@ export function FloatingShareBar({
                   rel="noopener noreferrer"
                   aria-label={l.label}
                   title={l.label}
-                  className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+                  style={brandTileStyle(l.id)}
+                  className={`${BRAND_TILE_CLASS} h-9 w-full text-muted-foreground`}
                 >
                   <BrandIcon
                     name={l.id}
@@ -485,12 +486,14 @@ export function FloatingShareBar({
                 onClick={onCopy}
                 aria-label={t("share.bar.copy")}
                 title={t("share.bar.copy")}
-                className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+                style={brandTileStyle("website")}
+                className={`${BRAND_TILE_CLASS} h-9 w-full text-muted-foreground`}
               >
                 <Copy className="w-[15px] h-[15px]" />
               </button>
             )}
           </div>
+
 
           {/* Divider */}
           <div className="my-2 h-px bg-border/60" />
