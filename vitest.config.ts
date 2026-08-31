@@ -243,6 +243,37 @@ export default defineConfig({
           lines: 97,
           branches: 94,
         },
+        // ── WARSTWA MUTACJI TRESCI (posty, strony, kategorie, tagi) ──────────
+        // Audyt 2026-08-18 (wyd. 7) nazwal ten plik NAJWIEKSZA POJEDYNCZA DZIURA
+        // W CALYM REPOZYTORIUM: 458 niepokrytych linii przy 1% galezi, a przez te
+        // 1778 linii przechodzi KAZDA redakcyjna mutacja tresci. Przed ta zmiana
+        // jeden z 21 eksportow byl wykonywany przez jakikolwiek test
+        // (`updateCategoryColor`), a 20 pozostalych i wszystkie helpery prywatne
+        // (applyBulkStatus, captureAutoRedirect, writeRevisionSnapshot, uniqueSlug,
+        // resolveDefaultBlogPage, assertSlugAvailable, resolveCanPublish) nie mialy
+        // ani jednej wykonanej linii.
+        //
+        // ZMIERZONE 2026-08-31 (268 przypadkow w pieciu plikach, 262 zielone
+        // + 6 `it.fails`): 99,83% instrukcji (592/593) / 99,58% galezi (481/483) /
+        // 100% funkcji (111/111) / 100% linii (514/514).
+        //
+        // Cel zadania byl "powyzej 85% galezi" - osiagniete 99,58%. Dwie
+        // niepokryte galezie (l. 1599 i 1716) sa NIEOSIAGALNE i opisane
+        // w naglowku contentFunctions.taxonomy.test.ts: walidator
+        // `NonEmptyTrimmed` eliminuje prawa strone `name_pl || name_en`.
+        //
+        // Atrapowane WYLACZNIE granice (createServerFn, require-staff,
+        // rate-limit, audit, client.server) - `evaluateTransition`,
+        // `disclosureGaps`, `shouldSnapshot`, `normalizeSourcePath`,
+        // `isAllowedTtsVoiceId` i `splitAuthors` chodza NAPRAWDE, wiec testy
+        // dowodza, ze bramki strzelaja, a nie ze strzela atrapa.
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/lib/content.functions.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
         // ── SIDEBAR (reduktor draftu + panel) ────────────────────────────────
         // Reduktor draftu sidebara i jego panel. Też startowały z 0%.
         // ZMIERZONE 2026-08-20: reduktor 100/100/100/100,
