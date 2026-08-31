@@ -52,8 +52,8 @@ export function TierEditorCard({
   const set = onChange;
   const setBenefits = (list: TierBenefit[]) => set({ benefits: list });
   return (
-    <article className="flex flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-2.5">
+    <article className="flex flex-col overflow-hidden rounded-b-[6px] bg-card">
+      <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-5 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <BadgeCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate font-sans text-sm font-semibold tracking-tight">
@@ -89,7 +89,7 @@ export function TierEditorCard({
         </Button>
       </header>
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-3 px-5 pb-5 pt-4">
         <Tabs defaultValue="basics" className="w-full">
           <TabsList className="flex w-full gap-1 rounded-[6px] border border-border/60 bg-muted/50 p-1">
             <TabsTrigger value="basics" className={TAB_TRIGGER}>
@@ -106,10 +106,10 @@ export function TierEditorCard({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="basics" className="mt-4 space-y-5">
+          <TabsContent value="basics" className="mt-3 space-y-4">
             <FieldGroupRule label={tm("groups.naming")}>
               <div className="grid grid-cols-2 gap-2">
-                <LabeledField label={tm("fields.namePl")} className="space-y-1">
+                <LabeledField label={tm("fields.namePl")} className="space-y-1" labelClassName="text-[11px]">
                   {(field) => (
                     <Input
                       {...field}
@@ -118,7 +118,7 @@ export function TierEditorCard({
                     />
                   )}
                 </LabeledField>
-                <LabeledField label={tm("fields.nameEn")} className="space-y-1">
+                <LabeledField label={tm("fields.nameEn")} className="space-y-1" labelClassName="text-[11px]">
                   {(field) => (
                     <Input
                       {...field}
@@ -127,7 +127,7 @@ export function TierEditorCard({
                     />
                   )}
                 </LabeledField>
-                <LabeledField label={tm("fields.descriptionPl")} className="space-y-1">
+                <LabeledField label={tm("fields.descriptionPl")} className="space-y-1" labelClassName="text-[11px]">
                   {(field) => (
                     <Textarea
                       {...field}
@@ -137,7 +137,7 @@ export function TierEditorCard({
                     />
                   )}
                 </LabeledField>
-                <LabeledField label={tm("fields.descriptionEn")} className="space-y-1">
+                <LabeledField label={tm("fields.descriptionEn")} className="space-y-1" labelClassName="text-[11px]">
                   {(field) => (
                     <Textarea
                       {...field}
@@ -152,7 +152,7 @@ export function TierEditorCard({
 
             <FieldGroupRule label={tm("groups.status")}>
               <div className="grid grid-cols-3 items-end gap-3">
-                <LabeledField label={tm("fields.rank")} className="space-y-1">
+                <LabeledField label={tm("fields.rank")} className="space-y-1" labelClassName="text-[11px]">
                   {(field) => (
                     <Input
                       {...field}
@@ -178,13 +178,13 @@ export function TierEditorCard({
             </FieldGroupRule>
           </TabsContent>
 
-          <TabsContent value="benefits" className="mt-4">
+          <TabsContent value="benefits" className="mt-3">
             <FieldGroupRule label={tm("groups.benefits")}>
               <TierBenefitsEditor value={draft.benefits} onChange={setBenefits} />
             </FieldGroupRule>
           </TabsContent>
 
-          <TabsContent value="capabilities" className="mt-4">
+          <TabsContent value="capabilities" className="mt-3">
             <FieldGroupRule label={tm("groups.capabilities")}>
               <TierCapabilitiesPanel
                 value={draft.features}

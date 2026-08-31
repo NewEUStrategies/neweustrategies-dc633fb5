@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 
 export function FieldGroupRule({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <fieldset className="space-y-3">
+    <fieldset className="space-y-2">
       <legend className="flex w-full items-center gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
