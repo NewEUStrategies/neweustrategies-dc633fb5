@@ -3,6 +3,7 @@
 // w pełni responsywny i bilingualny (PL/EN).
 import { AppLink } from "@/components/atoms/AppLink";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, Mail, User as UserIcon, Check, Plus } from "@/lib/lucide-shim";
 import { Instagram } from "lucide-react";
