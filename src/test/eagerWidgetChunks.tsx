@@ -91,3 +91,4 @@ export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/
 export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
 export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
 export { Editable } from "@/components/builder/molecules/Editable";
+export { CounterWidget } from "@/components/builder/organisms/widget-view/CounterWidget";
