@@ -11,19 +11,17 @@
 // Karta nie ma własnego stanu - szkic i zapis wstrzykuje zakładka, więc
 // „niezapisane zmiany" żyją w jednym miejscu dla wszystkich warstw.
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, FileJson, Save, Trash2 } from "lucide-react";
+import { BadgeCheck, Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
-import { ExpertRequestQuotaEditor } from "@/components/admin/pricing/ExpertRequestQuotaEditor";
+import { TierCapabilitiesPanel } from "@/components/admin/membership/organisms/TierCapabilitiesPanel";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
-import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
 import type { TierDraft } from "@/lib/admin/membershipDrafts";
 import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
 
@@ -53,7 +51,9 @@ export function TierEditorCard({
       <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <BadgeCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-          <span className="truncate font-mono text-sm font-semibold">{tier.key}</span>
+          <span className="truncate font-sans text-sm font-semibold tracking-tight">
+            {tier.key}
+          </span>
           <Badge variant="secondary" className="rounded-[6px] text-[10px]">
             {tm("rankBadge")} {tier.rank}
           </Badge>
@@ -157,38 +157,10 @@ export function TierEditorCard({
         </FieldGroupRule>
 
         <FieldGroupRule label={tm("groups.capabilities")}>
-          <div className="space-y-3">
-            <div>
-              <Label className="mb-1 block text-xs">{tm("fields.featuresKnown")}</Label>
-              <TierFeatureTogglesEditor
-                value={draft.features}
-                onChange={(features) => set({ features })}
-              />
-            </div>
-            <ExpertRequestQuotaEditor
-              value={draft.features}
-              onChange={(features) => set({ features })}
-            />
-            <LabeledField
-              className="space-y-1"
-              label={
-                <span className="flex items-center gap-1.5">
-                  <FileJson className="h-3 w-3" aria-hidden />
-                  {tm("fields.featuresJson")}
-                </span>
-              }
-              hint={tm("fields.featuresHint")}
-            >
-              {(field) => (
-                <Input
-                  {...field}
-                  value={draft.features}
-                  onChange={(e) => set({ features: e.target.value })}
-                  className="font-mono text-xs"
-                />
-              )}
-            </LabeledField>
-          </div>
+          <TierCapabilitiesPanel
+            value={draft.features}
+            onChange={(features: string) => set({ features })}
+          />
         </FieldGroupRule>
 
         <div className="mt-auto pt-1">
