@@ -48,9 +48,9 @@ export function TierCapabilitiesPanel({
   return (
     <div className="space-y-4 font-sans">
       <header className="rounded-[6px] border border-border/70 bg-background px-3 py-2.5">
-        <h3 className="text-sm font-bold">{tc("heading")}</h3>
-        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{tc("hint")}</p>
-        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+        <h3 className="text-xs font-bold">{tc("heading")}</h3>
+        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{tc("hint")}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold">
           <span className="rounded-[6px] bg-muted px-2 py-0.5 tabular-nums">
             {tc("summary.enabled", { count: summary.enabled, total: summary.total })}
           </span>
@@ -75,8 +75,8 @@ export function TierCapabilitiesPanel({
       </div>
 
       <section className="rounded-[6px] border border-border/70 bg-muted/20 p-3">
-        <h4 className="text-xs font-bold uppercase tracking-wide">{tc("limits.heading")}</h4>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">{tc("limits.hint")}</p>
+        <h4 className="text-[10px] font-bold uppercase tracking-wide">{tc("limits.heading")}</h4>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">{tc("limits.hint")}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {TIER_LIMIT_KEYS.map((key) => (
             <LimitField
@@ -97,13 +97,13 @@ export function TierCapabilitiesPanel({
 
       {unknown.length > 0 && (
         <section className="rounded-[6px] border border-dashed border-border px-3 py-2">
-          <h4 className="text-xs font-bold uppercase tracking-wide">{tc("unknown.heading")}</h4>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{tc("unknown.hint")}</p>
+          <h4 className="text-[10px] font-bold uppercase tracking-wide">{tc("unknown.heading")}</h4>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{tc("unknown.hint")}</p>
           <ul className="mt-1.5 flex flex-wrap gap-1.5">
             {unknown.map((key) => (
               <li
                 key={key}
-                className="rounded-[6px] bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                className="rounded-[6px] bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
               >
                 {key}
               </li>
@@ -113,7 +113,7 @@ export function TierCapabilitiesPanel({
       )}
 
       <details className="group rounded-[6px] border border-border/70 bg-background">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[10px] font-semibold">
           <ChevronDown
             className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
             aria-hidden
@@ -122,7 +122,7 @@ export function TierCapabilitiesPanel({
           {tc("advanced.heading")}
         </summary>
         <div className="space-y-1 border-t border-border/60 p-3">
-          <p className="text-[11px] text-muted-foreground">{tc("advanced.hint")}</p>
+          <p className="text-[10px] text-muted-foreground">{tc("advanced.hint")}</p>
           <Input
             aria-label={tc("advanced.heading")}
             className="h-9 rounded-[6px] text-xs"

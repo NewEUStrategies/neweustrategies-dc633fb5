@@ -109,7 +109,7 @@ export function TierEditorCard({
           <TabsContent value="basics" className="mt-3 space-y-4">
             <FieldGroupRule label={tm("groups.naming")}>
               <div className="grid grid-cols-2 gap-2">
-                <LabeledField label={tm("fields.namePl")} className="space-y-1" labelClassName="text-[11px]">
+                <LabeledField label={tm("fields.namePl")} className="space-y-1">
                   {(field) => (
                     <Input
                       {...field}
@@ -118,7 +118,7 @@ export function TierEditorCard({
                     />
                   )}
                 </LabeledField>
-                <LabeledField label={tm("fields.nameEn")} className="space-y-1" labelClassName="text-[11px]">
+                <LabeledField label={tm("fields.nameEn")} className="space-y-1">
                   {(field) => (
                     <Input
                       {...field}
@@ -127,21 +127,23 @@ export function TierEditorCard({
                     />
                   )}
                 </LabeledField>
-                <LabeledField label={tm("fields.descriptionPl")} className="space-y-1" labelClassName="text-[11px]">
+                <LabeledField label={tm("fields.descriptionPl")} className="col-span-2 space-y-1">
                   {(field) => (
                     <Textarea
                       {...field}
-                      rows={2}
+                      rows={4}
+                      className="min-h-[88px]"
                       value={draft.description_pl}
                       onChange={(e) => set({ description_pl: e.target.value })}
                     />
                   )}
                 </LabeledField>
-                <LabeledField label={tm("fields.descriptionEn")} className="space-y-1" labelClassName="text-[11px]">
+                <LabeledField label={tm("fields.descriptionEn")} className="col-span-2 space-y-1">
                   {(field) => (
                     <Textarea
                       {...field}
-                      rows={2}
+                      rows={4}
+                      className="min-h-[88px]"
                       value={draft.description_en}
                       onChange={(e) => set({ description_en: e.target.value })}
                     />
@@ -152,7 +154,7 @@ export function TierEditorCard({
 
             <FieldGroupRule label={tm("groups.status")}>
               <div className="grid grid-cols-3 items-end gap-3">
-                <LabeledField label={tm("fields.rank")} className="space-y-1" labelClassName="text-[11px]">
+                <LabeledField label={tm("fields.rank")} className="space-y-1">
                   {(field) => (
                     <Input
                       {...field}
@@ -163,11 +165,11 @@ export function TierEditorCard({
                     />
                   )}
                 </LabeledField>
-                <label className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-2 text-xs">
+                <label className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-2 text-[10px]">
                   <Switch checked={draft.active} onCheckedChange={(v) => set({ active: v })} />
                   {tm("fields.active")}
                 </label>
-                <label className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-2 text-xs">
+                <label className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-2 text-[10px]">
                   <Switch
                     checked={draft.is_default}
                     onCheckedChange={(v) => set({ is_default: v })}
