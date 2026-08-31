@@ -1,5 +1,6 @@
 // Molekula: podsumowanie targetingu slotu na liscie.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-ads-admin";
 import { parseAdTargeting, type AdSlot } from "@/lib/ads/types";
 
 // Podsumowanie targetingu na liście slotów, np. "2 kat. - 1 tagi - PL".

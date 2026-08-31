@@ -1,5 +1,6 @@
 // Organizm: kafelki statystyk panelu prezentow.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-gifting-admin";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getGiftAdminStats } from "@/lib/gifting-admin.functions";

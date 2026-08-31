@@ -1,5 +1,6 @@
 // Organizm: zakladka USTAWIENIA panelu prezentow (draft na admin-model).
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-gifting-admin";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";

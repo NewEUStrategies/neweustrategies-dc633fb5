@@ -1,6 +1,7 @@
 // Organizm: dialog tworzenia kampanii kuponowej.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-coupons";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";

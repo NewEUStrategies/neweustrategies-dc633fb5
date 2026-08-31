@@ -1,6 +1,7 @@
 // Organizm: zakladka STATYSTYKI panelu reklam.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-ads-admin";
 import { supabase } from "@/integrations/supabase/client";
 import type { AdSlot } from "@/lib/ads/types";
 

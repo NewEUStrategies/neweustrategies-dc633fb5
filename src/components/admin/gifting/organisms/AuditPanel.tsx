@@ -1,5 +1,6 @@
 // Organizm: zakladka AUDYT panelu prezentow - log zdarzen.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-gifting-admin";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";

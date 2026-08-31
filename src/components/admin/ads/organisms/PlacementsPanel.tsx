@@ -2,6 +2,7 @@
 // stronie plus formularz dodawania/edycji.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-ads-admin";
 import { toast } from "sonner";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";

@@ -1,5 +1,6 @@
 // Molekula: edytor kolumny `ad_slots.targeting`.
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-ads-admin";
 import { Label } from "@/components/ui/label";
 import { useInterestCatalog } from "@/hooks/useInterests";
 import type { AdLanguage, AdTargeting } from "@/lib/ads/types";
