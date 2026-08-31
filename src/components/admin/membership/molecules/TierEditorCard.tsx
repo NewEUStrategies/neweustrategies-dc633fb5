@@ -157,38 +157,10 @@ export function TierEditorCard({
         </FieldGroupRule>
 
         <FieldGroupRule label={tm("groups.capabilities")}>
-          <div className="space-y-3">
-            <div>
-              <Label className="mb-1 block text-xs">{tm("fields.featuresKnown")}</Label>
-              <TierFeatureTogglesEditor
-                value={draft.features}
-                onChange={(features) => set({ features })}
-              />
-            </div>
-            <ExpertRequestQuotaEditor
-              value={draft.features}
-              onChange={(features) => set({ features })}
-            />
-            <LabeledField
-              className="space-y-1"
-              label={
-                <span className="flex items-center gap-1.5">
-                  <FileJson className="h-3 w-3" aria-hidden />
-                  {tm("fields.featuresJson")}
-                </span>
-              }
-              hint={tm("fields.featuresHint")}
-            >
-              {(field) => (
-                <Input
-                  {...field}
-                  value={draft.features}
-                  onChange={(e) => set({ features: e.target.value })}
-                  className="font-mono text-xs"
-                />
-              )}
-            </LabeledField>
-          </div>
+          <TierCapabilitiesPanel
+            value={draft.features}
+            onChange={(features) => set({ features })}
+          />
         </FieldGroupRule>
 
         <div className="mt-auto pt-1">
