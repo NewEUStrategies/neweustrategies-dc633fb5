@@ -233,7 +233,8 @@ export function AuthorBusinessCard({
               target="_blank"
               rel="noreferrer noopener"
               aria-label={label}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-border/70 bg-muted/50 text-foreground/80 transition-colors hover:border-[color:var(--brand)]/50 hover:text-[color:var(--brand)]"
+              style={brandTileStyle(key)}
+              className={`${BRAND_TILE_CLASS} h-8 w-8`}
             >
               <BrandIcon name={key} fallback={Fallback} className="h-3.5 w-3.5" alt={label} />
             </a>
@@ -242,7 +243,8 @@ export function AuthorBusinessCard({
             <a
               href={`mailto:${email}`}
               aria-label={t.email}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-border/70 bg-muted/50 text-foreground/80 transition-colors hover:border-[color:var(--brand)]/50 hover:text-[color:var(--brand)]"
+              style={brandTileStyle("mail")}
+              className={`${BRAND_TILE_CLASS} h-8 w-8`}
             >
               <Mail className="h-3.5 w-3.5" />
             </a>
@@ -257,7 +259,8 @@ export function AuthorBusinessCard({
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={s.label}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-border/70 bg-muted/50 text-foreground/80 transition-colors hover:border-[color:var(--brand)]/50 hover:text-[color:var(--brand)]"
+                style={brandTileStyle("website")}
+                className={`${BRAND_TILE_CLASS} h-8 w-8`}
               >
                 {s.iconUrl ? (
                   <img
@@ -274,6 +277,7 @@ export function AuthorBusinessCard({
           })}
         </div>
       )}
+
     </aside>
   );
 }
