@@ -4,8 +4,9 @@
 // lib/billing/tiers - żaden edytor nie gubi pól zapisanych przez drugi.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, ChevronDown, Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Eye, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BenefitPreviewDialog } from "@/components/admin/membership/molecules/BenefitPreviewDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,8 @@ export function TierBenefitsEditor({
   // Ręcznie rozwinięte wiersze; wiersze z wypełnionymi polami dodatkowymi
   // są otwarte zawsze (nic edytowalnego nie znika z oczu).
   const [expanded, setExpanded] = useState<ExpandedRows>({});
+  // Podgląd „jak to wygląda w cenniku" - indeks benefitu albo null.
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const update = (i: number, patch: Partial<TierBenefit>) => {
     onChange(value.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
@@ -79,6 +82,17 @@ export function TierBenefitsEditor({
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-[11px] font-medium text-muted-foreground">#{i + 1}</span>
                   <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={() => setPreviewIndex(i)}
+                      aria-label={`${tb("preview")} #${i + 1}`}
+                      title={tb("preview")}
+                    >
+                      <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                     <Button
                       type="button"
                       size="icon"
@@ -189,6 +203,13 @@ export function TierBenefitsEditor({
           })}
         </ol>
       )}
+      <BenefitPreviewDialog
+        benefit={previewIndex === null ? null : (value[previewIndex] ?? null)}
+        open={previewIndex !== null}
+        onOpenChange={(next) => {
+          if (!next) setPreviewIndex(null);
+        }}
+      />
     </div>
   );
 }
