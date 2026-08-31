@@ -149,10 +149,7 @@ export function writeLimit(featuresJson: string, key: string, next: number): str
  * widzieć, bo inaczej „znikają" po przejściu na przełączniki, a zostają w bazie.
  */
 export function unknownFlagKeys(featuresJson: string): string[] {
-  const known = new Set<string>([
-    ...TIER_CAPABILITIES.map((c) => c.key),
-    ...NUMERIC_FEATURE_KEYS,
-  ]);
+  const known = new Set<string>([...TIER_CAPABILITIES.map((c) => c.key), ...NUMERIC_FEATURE_KEYS]);
   return Object.keys(parseFeatureFlags(featuresJson))
     .filter((key) => !known.has(key))
     .sort();

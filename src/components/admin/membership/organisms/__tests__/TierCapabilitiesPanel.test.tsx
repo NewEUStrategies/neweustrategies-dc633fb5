@@ -14,12 +14,10 @@ let lang: "pl" | "en" = "pl";
 vi.mock("react-i18next", () => reactI18nextStub(() => lang));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
 
-const { TierCapabilitiesPanel } = await import(
-  "@/components/admin/membership/organisms/TierCapabilitiesPanel"
-);
-const { CapabilityToggleRow } = await import(
-  "@/components/admin/membership/atoms/CapabilityToggleRow"
-);
+const { TierCapabilitiesPanel } =
+  await import("@/components/admin/membership/organisms/TierCapabilitiesPanel");
+const { CapabilityToggleRow } =
+  await import("@/components/admin/membership/atoms/CapabilityToggleRow");
 const { LimitField } = await import("@/components/admin/membership/atoms/LimitField");
 
 function renderPanel(value: string) {

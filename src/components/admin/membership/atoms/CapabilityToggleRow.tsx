@@ -49,9 +49,7 @@ export function CapabilityToggleRow({
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-              item.enforced
-                ? "bg-primary/10 text-primary"
-                : "bg-muted text-muted-foreground",
+              item.enforced ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
             )}
             title={item.enforced ? tc("enforcedHint") : tc("decorativeHint")}
           >

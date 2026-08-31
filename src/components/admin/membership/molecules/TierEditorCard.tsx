@@ -51,7 +51,9 @@ export function TierEditorCard({
       <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <BadgeCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-          <span className="truncate font-sans text-sm font-semibold tracking-tight">{tier.key}</span>
+          <span className="truncate font-sans text-sm font-semibold tracking-tight">
+            {tier.key}
+          </span>
           <Badge variant="secondary" className="rounded-[6px] text-[10px]">
             {tm("rankBadge")} {tier.rank}
           </Badge>

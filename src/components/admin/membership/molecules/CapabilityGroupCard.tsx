@@ -23,9 +23,7 @@ export function CapabilityGroupCard({
     <section className="rounded-[6px] border border-border/70 bg-muted/20 font-sans">
       <header className="flex items-start justify-between gap-3 border-b border-border/60 px-3 py-2">
         <div className="min-w-0">
-          <h4 className="text-xs font-bold uppercase tracking-wide">
-            {tc(`gates.${group.gate}`)}
-          </h4>
+          <h4 className="text-xs font-bold uppercase tracking-wide">{tc(`gates.${group.gate}`)}</h4>
           <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
             {tc(`gateHints.${group.gate}`)}
           </p>
