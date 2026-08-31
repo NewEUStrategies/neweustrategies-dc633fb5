@@ -5996,9 +5996,11 @@ textarea::placeholder {
      `--nl-grid-h`), a kolumna galerii - ciaśniejsze odstępy. */
   @media (max-width: 767px) {
     .nlp [data-showcase-root] {
-      /* Odsuwamy galerię od górnej krawędzi, żeby logo nie było przycięte przez
-         notcha / górny pasek przeglądarki. Nie mniej niż designowy padding. */
-      padding-top: max(var(--nl-root-p, 28px), 36px) !important;
+      /* Logo w galerii ma być wycentrowane w pionie względem ikony zamknięcia.
+         Przycisk X to h-9 (36px) + top-3 (12px), więc jego środek jest na 30px.
+         Dla logo o maksymalnej wysokości 36px górna krawędź powinna zaczynać
+         się na 12px, aby środki obu elementów były na tej samej wysokości. */
+      padding-top: 12px !important;
     }
     .nlp [data-showcase-logo] {
       max-height: 36px;
