@@ -250,21 +250,24 @@ export function AdminMembershipWorkspace() {
             description={tm("sections.tiersDesc")}
             padded={false}
           >
-            <div className="grid gap-4 p-5 xl:grid-cols-2">
+            {/* Kompaktowa siatka kafli - pełna edycja w oknie, bez przewijania. */}
+            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
               {tiers.map((tier) => {
                 const draft = drafts[tier.id] ?? draftFromTier(tier);
+                const summary = summarizeCapabilities(draft.features);
                 return (
-                  <TierEditorCard
+                  <TierSummaryCard
                     key={tier.id}
                     tier={tier}
-                    draft={draft}
-                    saving={saveTier.isPending}
-                    deleting={deleteTier.isPending}
-                    onChange={(patch) =>
-                      setDrafts((d) => ({ ...d, [tier.id]: { ...draft, ...patch } }))
+                    lang={lang}
+                    name={lang === "pl" ? tier.name_pl : tier.name_en}
+                    description={
+                      (lang === "pl" ? draft.description_pl : draft.description_en) || ""
                     }
-                    onSave={() => saveTier.mutate({ id: tier.id, draft })}
-                    onDelete={() => deleteTier.mutate(tier.id)}
+                    benefitsCount={draft.benefits.length}
+                    enabledCount={summary.enabled}
+                    enforcedCount={summary.enforced}
+                    onOpen={() => setEditingId(tier.id)}
                   />
                 );
               })}
