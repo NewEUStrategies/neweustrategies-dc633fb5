@@ -27,24 +27,48 @@ odwraca jej kolejność.
 
 „PRZED" z audytu (wyd. 7), „PO" zmierzone na tym HEAD.
 
-| plik / obszar                                          | instr. PRZED |  instr. PO | gał. PRZED |    gał. PO |
-| ------------------------------------------------------ | -----------: | ---------: | ---------: | ---------: |
-| `src/lib/content.functions.ts`                         |        10,9% | **99,83%** |         1% | **99,58%** |
-| `src/components/builder/organisms/BuilderRenderer.tsx` |         6,9% | **99,52%** |         0% | **97,02%** |
-| `src/lib/wp-import.functions.ts`                       |           0% |   **100%** |         0% | **99,44%** |
-| `src/lib/wp-import/elementor.ts`                       |        3,28% |   **100%** |      2,43% | **99,22%** |
-| `src/lib/wp-import/wxr.ts`                             |           0% | **96,87%** |         0% | **94,69%** |
-| `src/lib/wp-import/convert.ts`                         |        75,0% |   **100%** |          - | **94,44%** |
-| `src/lib/wp-import/buildPage.ts`                       |        62,5% |   **100%** |          - | **95,23%** |
-| `src/lib/wp-import/**` (katalog)                       |         ~40% | **98,79%** |          - | **95,74%** |
-| `src/components/admin/blocks/hooks/**`                 |           0% | **89,94%** |          - | **79,91%** |
-| `src/components/admin/blocks/**` (całość)              |          ~2% | **26,34%** |          - | **19,59%** |
+| plik / obszar                                          |  instr. PRZED |  instr. PO | gał. PRZED |    gał. PO |
+| ------------------------------------------------------ | ------------: | ---------: | ---------: | ---------: |
+| `src/lib/content.functions.ts`                         |         10,9% | **99,83%** |         1% | **99,58%** |
+| `src/components/builder/organisms/BuilderRenderer.tsx` |          6,9% | **99,52%** |         0% | **97,02%** |
+| `src/lib/wp-import.functions.ts`                       |            0% |   **100%** |         0% | **99,44%** |
+| `src/lib/wp-import/elementor.ts`                       |         3,28% |   **100%** |      2,43% | **99,22%** |
+| `src/lib/wp-import/wxr.ts`                             |            0% | **96,87%** |         0% | **94,69%** |
+| `src/lib/wp-import/convert.ts`                         |         75,0% |   **100%** |          - | **94,44%** |
+| `src/lib/wp-import/buildPage.ts`                       |         62,5% |   **100%** |          - | **95,23%** |
+| `src/lib/wp-import/**` (katalog)                       |          ~40% | **98,79%** |          - | **95,74%** |
+| `src/components/admin/blocks/hooks/**`                 |            0% | **89,94%** |          - | **79,91%** |
+| `src/components/admin/blocks/edit/**` (62 edytory)     |          6,7% | **96,23%** |       0-2% | **85,42%** |
+| `src/components/patterns/PatternPicker.tsx`            | 0%, 0 z 40 fn |   **100%** |          - | **94,73%** |
+| `src/components/admin/blocks/BlockCanvas.tsx`          | 0%, 0 z 65 fn | **91,43%** |          - | **78,41%** |
+| `src/components/admin/blocks/BlockEditRenderer.tsx`    |          1,0% |   **100%** |          - |   **100%** |
+| `src/components/admin/blocks/BlockInserter.tsx`        |          1,8% | **97,74%** |          - | **94,59%** |
+| `molecules/NestedBlocksEditor.tsx`                     | 0%, 0 z 41 fn | **89,91%** |          - | **73,52%** |
+| `molecules/SortableBlockItem.tsx`                      | 0%, 0 z 34 fn | **91,08%** |          - | **76,66%** |
+| `hooks/useBlockClipboard.ts`                           | 0%, 0 z 16 fn | **97,89%** |          - | **84,00%** |
+| `WordStyleToolbar.tsx`                                 |          2,6% | **85,55%** |          - | **80,00%** |
+| `MediaWidgetToolbar.tsx`                               | 0%, 0 z 34 fn | **96,36%** |          - |   **100%** |
+| `AutoFootnotesPreview.tsx`                             |            0% | **86,95%** |          - | **78,43%** |
+| `PostBlockEditor.tsx`                                  |            0% | **85,48%** |          - | **89,13%** |
+| `WordPressImportDialog.tsx`                            |            0% | **97,54%** |          - | **92,59%** |
+| `WordPressPreviewDialog.tsx`                           |            0% | **94,73%** |          - | **96,29%** |
+| `WxrUploadPanel.tsx`                                   |            0% | **97,59%** |          - | **95,21%** |
+| `src/components/admin/blocks/**` (całość)              |           ~2% | **86,43%** |          - | **73,74%** |
 
-Ostatni wiersz jest niedokończony i mówię to wprost: rodzina
-`blocks/edit/**` (62 edytory, 8126 linii - **największa część tej
-powierzchni**) stoi na 6,7% instrukcji, bo praca nad nią jeszcze się liczy.
-Cel zadania „`src/components/admin/blocks/**` powyżej 90% linii" **nie jest
-osiągnięty** i nie udaję, że jest.
+Stan `src/components/admin/blocks/**` jako całości: **86,43% instrukcji /
+73,74% gałęzi / 86,17% funkcji / 87,84% linii** (z ~2%).
+
+Cel zadania dla tej ścieżki brzmiał „powyżej 90% linii" i **na tej chwili nie
+jest osiągnięty - brakuje 2,2 pp**. Cała reszta luki siedzi w DWÓCH plikach,
+które nie są rdzeniem edytora, tylko jego sąsiadami w katalogu, i których audyt
+nie wymienia:
+
+- `AdminColorPicker.tsx` - **407 linii, 0%**, wspólny selektor koloru panelu,
+- `LayoutScaffold.tsx` - **484 linie, 0%**, wireframe układu wpisu owijający kanwę.
+
+To są jednocześnie **jedyne dwa pliki modułu, które zostały na 0%**, więc ten
+sam brak liczy się dwa razy: raz jako 2,2 pp do progu 90%, raz jako
+niedomknięte „zero plików na 0%". Praca nad nimi jest w toku.
 
 Cel zadania dla obu wynosił „powyżej 85% gałęzi". Osiągnięte **99,58%** i **97,02%**.
 
@@ -560,93 +584,153 @@ Parytet rejestru **widgetów** z dyspozytorem: dziura analogiczna do
 
 ## 10. Rejestr defektów zarejestrowanych jako `it.fails`
 
-Każdy wpis został uruchomiony **najpierw jako zwykły `it`** i potwierdzony,
-że pada **na asercji docelowej**, nie po drodze na błędzie przygotowania.
+**25 defektów** zarejestrowanych w tej gałęzi. (W całym module jest 29 wpisów
+`it.fails` - pozostałe 4 są wcześniejsze i należą do innych modułów.)
 
-### `content.functions.ts` (6)
+Każdy wpis został uruchomiony **najpierw jako zwykły `it`** i potwierdzony, że
+pada **na asercji docelowej**, a nie po drodze na błędzie przygotowania. Przy
+każdym zapisane, dlaczego nie jest naprawiony: naprawa jest zmianą zachowania
+produkcyjnego, czego ta gałąź nie robi.
+
+### Warstwa mutacji treści (6)
 
 1. **`slugify` zamienia polskie `ł`/`Ł` na myślnik, nie na `l`.** NFD + zdjęcie
-   znaków łącznych nie działa na U+0142/U+0141, które nie mają dekompozycji
-   kanonicznej, więc wpadają w klasę `[^a-z0-9]+`. Ta sama rodzina defektu,
-   którą audyt odnotował w rozdz. 7.2.
-2. **`deleteCategory` raportuje cichą odmowę RLS jako sukces** - brak
-   `.select()` i kontroli liczby wierszy, mimo że każda inna mutacja w pliku to
-   robi, a komentarz przy `deletePost` tłumaczy dlaczego.
+   znaków łącznych nie działa na U+0142/U+0141 (brak dekompozycji kanonicznej),
+   więc wpadają w klasę `[^a-z0-9]+`. Zmierzone: „Wpływ polityki" →
+   `wp-yw-polityki`, „Zażółć Gęślą JAŹŃ" → `zazo-c-gesla-jazn`. **Jedna funkcja
+   karmi slugi wpisów, stron, kategorii I tagów**, więc dotyczy to każdego
+   permalinka w CMS-ie prowadzonym po polsku. Ta sama rodzina defektu, którą
+   audyt odnotował w rozdz. 7.2.
+2. **`deleteCategory` raportuje cichą odmowę RLS jako sukces.** Brak
+   `.select("id")` i kontroli liczby wierszy, mimo że każda inna mutacja w pliku
+   to robi, a komentarz przy `deletePost` tłumaczy dlaczego. Kategoria zostaje po
+   odświeżeniu, a redaktor widział potwierdzenie. Gałąź UPDATE w `upsertCategory`
+   ma tę samą lukę.
 3. **`deleteTag`** - ta sama luka.
 4. **Cztery mutacje bez bramki rate limit** (`deletePost`, `deletePage`,
    `deleteCategory`, `deleteTag`), mimo że nagłówek modułu deklaruje limit dla
-   każdego wywołania, a 17 z 21 eksportów go ma. Kasowanie jest jedyną
-   operacją nieodwracalną.
-5. **`bulkUpdatePages` pozwala na hurtową publikację bez prawa publikacji** -
-   `bulkUpdatePosts` sprawdza `can_publish_content`, `bulkUpdatePages` nie
-   sprawdza nic.
-6. **`bulkUpdatePages` przyjmuje status `scheduled` bez daty publikacji** i bez
+   każdego wywołania, a 17 z 21 eksportów go ma. Kasowanie jest jedyną operacją
+   nieodwracalną, a ścieżki hurtowe limit **mają** - wywołanie wersji
+   jednowierszowej w pętli jest więc obejściem limitu.
+5. **`bulkUpdatePages` pozwala na hurtową publikację bez prawa publikacji.**
+   `bulkUpdatePosts` sprawdza `can_publish_content`; `bulkUpdatePages` nie
+   sprawdza nic. Autor, który nie może opublikować strony pojedynczo, publikuje
+   ją zaznaczając na liście. Trigger `pages_workflow_guard` jest ostatnią linią
+   obrony.
+6. **`bulkUpdatePages` przyjmuje `scheduled` bez daty publikacji** i bez
    `evaluateTransition`, mimo że `BulkPostStatus` świadomie ten status wyklucza.
+   Taka strona **nigdy się nie opublikuje** (scheduler szuka
+   `publish_at <= now()`) i **jednocześnie przestaje być widoczna publicznie** -
+   znika bez śladu w UI.
 
-### `BuilderRenderer.tsx` (3)
+### Publiczny renderer buildera (3)
 
 7-8. **`hideOn` jest honorowany wyłącznie dla widgetów.** Panel wystawia ten sam
 przełącznik na trzech poziomach (widget, sekcja, kolumna), a renderer filtruje
 tylko pierwszy. Sekcja albo kolumna „ukryta na telefonie" jedzie do czytelnika
-z całą treścią i nie ma nawet reguły CSS, która by ją schowała. Tak buduje się
-„ukryj wersję desktopową na telefonie", czyli **podwójna treść i podwójny
-obraz LCP** na łączu komórkowym. 9. **Sanityzacja adresu wideo tła jest martwym kodem.** Renderer liczy adres
-jako `safeImageUrl(background.videoUrl) || background.videoUrl` (L570-573) -
-druga część alternatywy przywraca dokładnie tę wartość, którą pierwsza
-odrzuciła, więc do `<video src>` idzie wartość surowa. Granica szkody nazwana
-uczciwie: `<video src>` nie wykonuje skryptu, więc to **nie XSS** - ale
-sanityzator, który nic nie sanityzuje, jest gorszy niż jego brak, bo czyta
-się jak zabezpieczenie.
+z całą treścią i nie ma nawet reguły CSS, która by ją schowała. Tak właśnie
+buduje się „ukryj wersję desktopową na telefonie", czyli **podwójna treść
+i podwójny obraz LCP** na łączu komórkowym. 9. **Sanityzacja adresu wideo tła jest martwym kodem.** Renderer liczy adres jako
+`safeImageUrl(background.videoUrl) || background.videoUrl` (L570-573) - druga
+część alternatywy przywraca dokładnie tę wartość, którą pierwsza odrzuciła,
+więc do `<video src>` idzie wartość surowa. Granica szkody nazwana uczciwie:
+`<video src>` nie wykonuje skryptu, więc **to nie XSS** - ale sanityzator,
+który nic nie sanityzuje, jest gorszy niż jego brak, bo czyta się jak
+zabezpieczenie.
 
-### Edytor bloków (3)
+### Rodzina 62 edytorów bloków - koercja wartości (7)
 
-10. **`link-preview` bez osiągalnego edytora** - §9.1.
-11. **Brak jakiegokolwiek limitu głębokości zagnieżdżenia.** Pętla
+Wszystkie z jednej przyczyny: `min`/`max` w tych edytorach jest **wyłącznie
+atrybutem HTML**, a `onChange` pisze `Number(e.target.value)` do danych bez
+klamrowania. Wartość wpisana z klawiatury lub wklejona przechodzi.
+
+10. **Poziom nagłówka podany jako `"h2"` daje klasę `cms-hNaN`** i atrybut
+    `data-heading-level = NaN`. To nie hipoteza - **taki właśnie kształt
+    przychodzi z importu WordPressa**.
+11. Wysokość odstępu podana jako `"wysoko"` pokazuje redaktorowi `NaNpx`.
+12. Pasek postępu z wartością `"nic"` pokazuje `NaN%`.
+13. Wykres z wysokością `"wysoko"` pokazuje `NaNpx`.
+14. **Wykres pokazuje wysokość 99 999 px, choć strona narysuje najwyżej 640** -
+    edytor kłamie o tym, co zobaczy czytelnik.
+15. **Obraz z podpisem jako OBIEKT wpisuje w pole `[object Object]`** - i to jest
+    ta wersja, która trafia do danych.
+16. **Lista z pozycjami jako OBIEKTY renderuje `[object Object]`.**
+
+### Rdzeń edytora bloków (4)
+
+17. **`link-preview` to żywy typ bloku bez osiągalnego edytora.** Jest
+    w `IMPLEMENTED_BLOCKS` (101 typów), ma działający i przetestowany renderer
+    publiczny oraz gotowy komponent edytora (146 linii) - ale switch
+    `BlockEditRenderer` ma 100 `case`, bez tego jednego. Redaktor dostaje szarą
+    atrapę `[link-preview]`. `knip` raportuje plik jako nieużywany, ale to **nie
+    martwy kod, to brakujące podłączenie** - usunięcie edytora utrwaliłoby defekt.
+18. **Nie istnieje żaden limit głębokości zagnieżdżenia.** Pętla
     `BlockEditRenderer case group/row/stack/grid/columns → GroupBlock/ColumnsBlock
 → NestedBlocksEditor → BlockInserter → BlockEditRenderer` jest domknięta
     i cała dostępna przez normalne UI. Żaden jej element nie zna swojej
-    głębokości: `NestedBlocksEditor` przyjmuje tylko `{blocks, onChange,
-emptyLabel}`, `BlockInserter` nie ma ani parametru głębokości, ani filtra
-    typów. `BlocksDocSchema` ogranicza **wyłącznie** tablicę najwyższego poziomu
-    (max 500) - 600 bloków na top-level jest odrzucone, a **600 dzieci jednego
-    kontenera przyjęte bez słowa**. Dokument o 200 poziomach przechodzi
+    głębokości. `BlocksDocSchema` ogranicza **wyłącznie** tablicę najwyższego
+    poziomu (max 500) - 600 bloków na top-level jest odrzucone, a **600 dzieci
+    jednego kontenera przyjęte bez słowa**. Dokument o 200 poziomach przechodzi
     walidację i zapisuje się do bazy.
-12. **Cofnięcie po zapisie w tle gubi historię undo - warunkowo.**
+19. **Cofnięcie po zapisie w tle gubi historię undo - warunkowo.**
     `useLocalizedBlocksHistory` zeruje stosy przy zmianie **tożsamości obiektu**
     dokumentu; autosave utrwalający wklejony obraz `data:` taką tożsamość tworzy.
     **Zawężenie wobec pierwszej diagnozy:** rekonesans twierdził „każdy
     autosave" - nieprawda. `replaceFormImageUrls` ma zwarcie na braku trafień
     (`savePayload.ts:123` zwraca **ten sam** obiekt), a `setSlug` jest pod
     `if (result.changed)`. Defekt zapala się dokładnie wtedy, gdy autosave
-    utrwalił wklejony obraz - to nadal codzienna ścieżka redaktora, ale nie każda.
+    utrwalił wklejony obraz - codzienna ścieżka redaktora, ale nie każda.
+20. **Wklejenie z Worda gubi pogrubienie** przez `mso-bidi-font-weight`. Szkoda
+    jest wybiórcza, nie całkowita: treść zostaje, formatowanie ginie.
 
-Przy każdym wpisie zapisane, **dlaczego nie naprawiony**: naprawa jest zmianą
-zachowania produkcyjnego, czego ta gałąź nie robi. Przy wpisach 11 i 12 dodatkowo
-**dlaczego naprawa jest realną decyzją projektową**, a nie jednolinijkowcem:
-przy 11 trzeba wybrać miejsce stróża z trzech kandydatów i przewlec głębokość
-przez kontrakt propsów; przy 12 trzeba odróżnić podmianę pochodzącą z edytora od
-zewnętrznej, czyli poszerzyć kontrakt `lastSyncRef`, nie zdjąć reset.
+### Import WordPressa (4)
 
-Obok wpisów 11 i 12 stoją **asercje stanu faktycznego**, żeby regresja w drugą
-stronę (ciche obcięcie drzewa przy parsowaniu, czyli realna utrata treści) też
-była widoczna, a nie schowała się za oczekiwaną porażką. Przy wpisie 11 pierwsza
-asercja jest **tripwirem odwrotnym**: gdy ktoś doda stałą limitu, test padnie
-i będzie to powód do usunięcia pliku, nie do poprawiania asercji.
+21. **Dwie różne heurystyki języka PL/EN.** `WordPressImportDialog` używa
+    `/-en$|^en-|\/en\/|\ben\b/`, a `WxrUploadPanel` najpierw honoruje meta
+    języka z WXR, a potem `/(^|[-/_])en([-/_]|$)/`. **Ten sam serwis
+    zaimportowany przez konektor i przez plik WXR może sparować języki
+    inaczej** - cicho, per strona. Przed tą gałęzią żadna z heurystyk nie miała
+    ani jednego testu.
+22. **Para wskazana w wierszu EN duplikuje stronę polską** zamiast scalić.
+23. **`normalizeSlug` w impl B ma ten sam defekt transliteracji** co `slugify`
+    (wpis 1) - liter z kreską nie przenosi.
+24. **`wpImportFromWxr` nie ma ani rate limitu, ani wpisu w audycie**, choć impl A
+    ma oba. Jeden synchroniczny handler przyjmuje do 200 stron po 5 MB HTML.
 
----
+### Wzorce treści (1)
+
+25. **Podsumowanie oznacza podmianę treści o tej samej długości** jako brak
+    zmiany - redaktor nie widzi, że wzorzec nadpisze mu treść.
 
 ## 11. Progi per-ścieżka
 
-| ścieżka                                                | zmierzone (instr./gał./fn/linie) | próg              |
-| ------------------------------------------------------ | -------------------------------- | ----------------- |
-| `src/lib/content.functions.ts`                         | 99,83 / 99,58 / 100 / 100        | 97 / 95 / 98 / 98 |
-| `src/components/builder/organisms/BuilderRenderer.tsx` | 99,52 / 97,02 / 100 / 100        | 97 / 93 / 98 / 98 |
+| ścieżka                                                | zmierzone (instr./gał./fn/linie) | próg (instr./gał./fn/linie) |
+| ------------------------------------------------------ | -------------------------------- | --------------------------- |
+| `src/lib/content.functions.ts`                         | 99,83 / 99,58 / 100 / 100        | 97 / 95 / 98 / 98           |
+| `src/components/builder/organisms/BuilderRenderer.tsx` | 99,52 / 97,02 / 100 / 100        | 97 / 93 / 98 / 98           |
+| `src/lib/wp-import.functions.ts`                       | 100 / 99,44 / 100 / 100          | 97 / 95 / 98 / 98           |
+| `src/lib/wp-import/**`                                 | 98,79 / 95,74 / 100 / 100        | 96 / 92 / 98 / 97           |
+| `src/components/admin/blocks/edit/**`                  | 96,23 / 85,42 / 96,78 / 97,15    | 94 / 82 / 94 / 95           |
+| `src/components/patterns/**`                           | 100 / 94,73 / 100 / 100          | 97 / 90 / 98 / 97           |
 
 Reguła repozytorium: próg = zmierzone minus ~2-4 pp, z pomiarem w komentarzu.
 Żaden istniejący próg nie został obniżony. Żaden plik nie został wykluczony
 z pomiaru; `all: true` nietknięte.
 
----
+Dwa progi mają w komentarzu zapisane **dlaczego są niższe, niż wyglądałoby na
+pomiar**, żeby nikt ich nie „poprawił" w górę bez zrozumienia:
+
+- `blocks/edit/**` gałęzie **82** przy zmierzonych 85,42% - wartości domyślne
+  w tych edytorach są kodowane **dwoma idiomami naraz** (`x !== false` znaczy
+  domyślnie WŁĄCZONE, `x === true` domyślnie WYŁĄCZONE), więc część ramion jest
+  nieosiągalna dla danych, które panel realnie produkuje. To ograniczenie
+  kształtu plików, nie brak pracy testowej.
+- `patterns/**` gałęzie **90** przy 94,73% - ten sam mechanizm w mniejszej skali.
+
+Progu dla `src/components/admin/blocks/**` jako całości **nie dopisałem**:
+ścieżka stoi na 87,84% linii, a dwa pliki na 0% są w trakcie pokrywania, więc
+próg wpisany teraz byłby przyrządem pokazującym liczbę, która za chwilę nie
+będzie pomiarem - dokładnie to, przed czym ostrzega rozdz. 6.1 audytu.
 
 ## 12. Stan bramek
 
