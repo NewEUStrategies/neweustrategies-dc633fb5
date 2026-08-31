@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getBillingAudit, exportBillingAudit } from "@/lib/billing/audit.functions";
 import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
-import type { AuditReport } from "@/lib/billing/audit.server";
+import type { AuditOrderRow, AuditReport } from "@/lib/billing/audit.server";
 import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
 import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
 
@@ -26,6 +26,41 @@ type Env = "sandbox" | "live";
 type Tab = "orders" | "webhooks";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Górna granica okna audytu - TA SAMA, którą wymusza schemat funkcji serwerowej. */
+const MAX_WINDOW_HOURS = 8760;
+
+/**
+ * Statusy, które `buildAuditReport` wlicza do „Zaksięgowanych". Reguła jest tu
+ * POWTÓRZONA świadomie i jest to jedyne jej powtórzenie po stronie klienta:
+ * `AuditReport.totals` nie niesie waluty, a kafel musi ją podać. Rozbicie
+ * liczymy z `report.orders`, czyli DOKŁADNIE z tej tablicy, którą serwer
+ * redukuje do `totals` (patrz `audit.server.ts`) - sumy nie mają jak się
+ * rozjechać, także wtedy, gdy raport został przycięty limitem wierszy.
+ */
+const PAID_STATUSES: ReadonlySet<string> = new Set(["paid", "partially_refunded"]);
+
+/** Sumy pieniężne rozbite PO WALUCIE - pusta lista, gdy nic nie wchodzi do sumy. */
+function totalsByCurrency(
+  orders: readonly AuditOrderRow[],
+  pick: (row: AuditOrderRow) => number,
+): Array<{ currency: string; cents: number }> {
+  const sums = new Map<string, number>();
+  for (const row of orders) {
+    const cents = pick(row);
+    if (cents === 0) continue;
+    const currency = (row.currency ?? "PLN").toUpperCase();
+    sums.set(currency, (sums.get(currency) ?? 0) + cents);
+  }
+  return [...sums.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, cents]) => ({ currency, cents }));
+}
+
+/** Treść błędu z granicy serwerowej - operator ma zobaczyć POWÓD, nie ciszę. */
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** Zamienia base64 z serwera na pobranie pliku - bez pośrednictwa sieci. */
 function downloadBase64(fileName: string, mimeType: string, base64: string): void {
@@ -86,13 +121,44 @@ function AdminBillingAudit() {
       })),
   });
 
+  /**
+   * Kwota podpisana KODEM waluty (PLN/EUR), nie symbolem. Panel księgowy
+   * stawia obok siebie zamówienia w różnych walutach, a symbol zależy od
+   * locale i wersji ICU - kod ISO nazywa walutę jednoznacznie w obu językach.
+   */
   const money = (cents: number | null, currency: string | null) =>
     cents === null
       ? "-"
       : new Intl.NumberFormat(locale, {
           style: "currency",
           currency: (currency ?? "PLN").toUpperCase(),
+          currencyDisplay: "code",
         }).format(cents / 100);
+
+  /** Liczba bez waluty - dla zera, którego nie ma czym (i po co) podpisywać. */
+  const plainAmount = (cents: number) =>
+    new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(cents / 100);
+
+  /**
+   * KAFEL SUMY NIE MOŻE PODPISYWAĆ MIESZANKI WALUT JEDNĄ WALUTĄ. Wcześniej
+   * kafle wołały `money(report.totals.paidCents, null)`, czyli formatowały sumę
+   * WSZYSTKICH walut zakresu jako złotówki: 49,00 PLN + 24,75 EUR dawało jedną
+   * liczbę 73,75 podpisaną „zł". Kolumna kwoty w TABELI robiła to poprawnie
+   * (waluta wiersza), więc kafel i wiersze mówiły różne rzeczy o tym samym
+   * zakresie - a kafel jest czytany pierwszy i bez tabeli.
+   *
+   * Kafel rozbija więc sumę po walutach: jedna pozycja na walutę, złączone
+   * w jeden napis, żeby liczba dalej była jedną liczbą na walutę.
+   */
+  const summaryMoney = (orders: readonly AuditOrderRow[], pick: (row: AuditOrderRow) => number) => {
+    const parts = totalsByCurrency(orders, pick);
+    return parts.length === 0
+      ? plainAmount(0)
+      : parts.map((part) => money(part.cents, part.currency)).join(" + ");
+  };
 
   const when = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) : "-";
@@ -122,9 +188,17 @@ function AdminBillingAudit() {
           <input
             type="number"
             min={1}
-            max={8760}
+            max={MAX_WINDOW_HOURS}
             value={sinceHours}
-            onChange={(e) => setSinceHours(Math.max(1, Number(e.target.value) || 1))}
+            // Atrybut `max` w polu liczbowym NIE blokuje wpisania większej
+            // wartości, a schemat funkcji serwerowej ma `max(8760)`. Przycięcie
+            // samego dołu zakresu (`Math.max(1, ...)`) wypuszczało więc 99999
+            // do serwera, gdzie zapytanie odbijało się od schematu - i to bez
+            // śladu na ekranie. Przycinamy obie strony, jak bliźniaczy panel
+            // uzgadniania (`Math.min(720, Math.max(1, ...))`).
+            onChange={(e) =>
+              setSinceHours(Math.min(MAX_WINDOW_HOURS, Math.max(1, Number(e.target.value) || 1)))
+            }
             className="h-9 w-28 rounded-[6px] border border-border bg-background px-2 text-sm text-foreground"
           />
         </label>
@@ -146,16 +220,36 @@ function AdminBillingAudit() {
           onClick={() => exportFile.mutate("csv")}
           disabled={exportFile.isPending}
         >
-          {t("adminBillingAudit.exportCsv")}
+          {exportFile.isPending && exportFile.variables === "csv"
+            ? t("adminBillingAudit.exporting")
+            : t("adminBillingAudit.exportCsv")}
         </Button>
         <Button
           variant="outline"
           onClick={() => exportFile.mutate("xlsx")}
           disabled={exportFile.isPending}
         >
-          {t("adminBillingAudit.exportXlsx")}
+          {exportFile.isPending && exportFile.variables === "xlsx"
+            ? t("adminBillingAudit.exporting")
+            : t("adminBillingAudit.exportXlsx")}
         </Button>
       </div>
+
+      {/* AWARIA MUSI BYĆ SŁYSZALNA. Obie mutacje szły wcześniej bez `onError`
+          i bez odczytu `isError`: odmowa roli, odrzucony schemat i awaria bazy
+          kończyły się ekranem nie do odróżnienia od stanu sprzed kliknięcia.
+          Na ekranie, z którego księgowość zamyka miesiąc, cisza po kliknięciu
+          czyta się jak „zapytanie przeszło, w tym oknie nic nie ma". */}
+      {load.isError && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {t("adminBillingAudit.loadFailed", { error: errorText(load.error) })}
+        </p>
+      )}
+      {exportFile.isError && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {t("adminBillingAudit.exportFailed", { error: errorText(exportFile.error) })}
+        </p>
+      )}
 
       {report && (
         <>
@@ -163,8 +257,13 @@ function AdminBillingAudit() {
             {(
               [
                 ["orders", String(report.totals.orders)],
-                ["paid", money(report.totals.paidCents, null)],
-                ["refunded", money(report.totals.refundedCents, null)],
+                [
+                  "paid",
+                  summaryMoney(report.orders, (row) =>
+                    PAID_STATUSES.has(row.status) ? (row.amountCents ?? 0) : 0,
+                  ),
+                ],
+                ["refunded", summaryMoney(report.orders, (row) => row.refundedCents)],
                 ["failed", String(report.totals.webhooksFailed)],
               ] as const
             ).map(([key, value]) => (

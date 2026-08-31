@@ -222,9 +222,13 @@ describe("trasa /admin/coupons/redemptions - pieniądze", () => {
     // przychód i 80,00 jako rabat - dokładnie ta inwersja żyła w bazie.
     zBazy([realizacja()]);
     await zamontuj();
-    expect(await screen.findByText("100.00 PLN")).toBeInTheDocument();
-    expect(screen.getByText("-20.00 PLN")).toBeInTheDocument();
-    expect(screen.getByText("80.00 PLN")).toBeInTheDocument();
+    // Zawężenie do WIERSZA jest konieczne, odkąd kafle też podają walutę:
+    // przy jednej realizacji kafel „Przychód netto" niesie tę samą kwotę co
+    // kolumna „Zapłacono", a ten przypadek dowodzi kolumn, nie kafli.
+    const wiersz = (await screen.findByText("NES-AAA111")).closest("tr") as HTMLElement;
+    expect(within(wiersz).getByText("100.00 PLN")).toBeInTheDocument();
+    expect(within(wiersz).getByText("-20.00 PLN")).toBeInTheDocument();
+    expect(within(wiersz).getByText("80.00 PLN")).toBeInTheDocument();
     cleanup();
   });
 
@@ -241,10 +245,12 @@ describe("trasa /admin/coupons/redemptions - pieniądze", () => {
     await zamontuj();
     await screen.findByText("NES-AAA111");
     expect(within(kafel("Realizacje")).getByText("2")).toBeInTheDocument();
-    // Przychód netto = (100 - 20) + (300 - 50) = 330,00.
-    expect(within(kafel("Przychód netto")).getByText("330.00")).toBeInTheDocument();
-    // Rabat udzielony = 20 + 50 = 70,00.
-    expect(within(kafel("Rabat udzielony")).getByText("70.00")).toBeInTheDocument();
+    // Przychód netto = (100 - 20) + (300 - 50) = 330,00 PLN. Kafel podaje
+    // WALUTĘ, tak jak każdy wiersz tabeli - patrz naprawiony defekt na końcu
+    // pliku (kafel bez jednostki sumował złote z euro w jedną liczbę).
+    expect(within(kafel("Przychód netto")).getByText("330.00 PLN")).toBeInTheDocument();
+    // Rabat udzielony = 20 + 50 = 70,00 PLN.
+    expect(within(kafel("Rabat udzielony")).getByText("70.00 PLN")).toBeInTheDocument();
     cleanup();
   });
 
@@ -254,7 +260,7 @@ describe("trasa /admin/coupons/redemptions - pieniądze", () => {
     zBazy([realizacja({ original_cents: 5_000, applied_cents: 9_000 })]);
     await zamontuj();
     await screen.findByText("NES-AAA111");
-    expect(within(kafel("Przychód netto")).getByText("0.00")).toBeInTheDocument();
+    expect(within(kafel("Przychód netto")).getByText("0.00 PLN")).toBeInTheDocument();
     cleanup();
   });
 });
@@ -451,55 +457,58 @@ describe("trasa /admin/coupons/redemptions - język i dostępność", () => {
   });
 });
 
-describe("trasa /admin/coupons/redemptions - DEFEKTY (zarejestrowane, nienaprawiane)", () => {
-  it.fails("BŁĄD ODCZYTU wygląda dokładnie jak pusty zakres", async () => {
-    // CO JEST ZŁE. `useQuery` w tej trasie nie ma ŻADNEJ gałęzi błędu:
-    // `rows = q.data ?? []`, a render pyta tylko o `q.isLoading` i o długość
-    // listy. Odmowa RLS, padnięty PostgREST i zerwana sieć dają więc ten sam
+describe("trasa /admin/coupons/redemptions - DEFEKTY (naprawione)", () => {
+  it("BŁĄD ODCZYTU nie wygląda już jak pusty zakres", async () => {
+    // CO BYŁO ZŁE. `useQuery` w tej trasie nie miał ŻADNEJ gałęzi błędu:
+    // `rows = q.data ?? []`, a render pytał tylko o `q.isLoading` i o długość
+    // listy. Odmowa RLS, padnięty PostgREST i zerwana sieć dawały więc ten sam
     // ekran co poprawny odczyt pustego okna: napis „Brak realizacji
     // w zakresie." i kafle 0 / 0.00 / 0.00.
     //
-    // DLACZEGO TO RYZYKO. To ekran rozliczeniowy. Administrator, który
-    // zobaczy „brak realizacji", wyciągnie wniosek O PIENIĄDZACH: że w danym
-    // okresie nikt nie użył kuponów - i tak zaraportuje. Cichy błąd odczytu
-    // zamienia awarię uprawnień w fałszywy fakt księgowy, a eksport CSV
-    // zrobiony z tego samego stanu utrwala go w arkuszu. Ta sama gałąź
-    // odpowiada za sytuację odwrotną: nikt nie dowie się, że raport jest
-    // niepełny, bo panel nie ma jak tego powiedzieć.
+    // DLACZEGO TO BYŁO RYZYKO. To ekran rozliczeniowy. Administrator, który
+    // zobaczył „brak realizacji", wyciągał wniosek O PIENIĄDZACH: że w danym
+    // okresie nikt nie użył kuponów - i tak raportował. Cichy błąd odczytu
+    // zamieniał awarię uprawnień w fałszywy fakt księgowy, a eksport CSV
+    // zrobiony z tego samego stanu utrwalał go w arkuszu.
     //
-    // DLACZEGO NIE NAPRAWIAM. Zadanie zabrania zmian w kodzie produkcyjnym,
-    // a poprawka nie jest jednolinijkowa: trzeba zdecydować, czy błąd ma
-    // wywracać całą zakładkę, czy stawać obok listy, ujednolicić to
-    // z zakładką Analityki (ma dokładnie ten sam brak) i zablokować eksport
-    // CSV ze stanu błędu - inaczej powstałby przycisk pobierający pusty
-    // „komplet". To decyzja właściciela modułu kuponów, nie efekt uboczny
-    // pracy testowej.
+    // JAK NAPRAWIONE. Trasa czyta `q.isError` i wtedy: (1) pokazuje komunikat
+    // `role="alert"` ze słownika `adminCoupons.loadError.*` - ten sam kształt
+    // i te same klucze co zakładka Analityki, (2) stawia w kaflach KRESKI
+    // zamiast zer (zero jest twierdzeniem o pieniądzach), (3) BLOKUJE eksport
+    // CSV, żeby nie dało się pobrać pustego „kompletu", (4) w miejscu listy
+    // mówi o niedostępności danych, a nie o braku realizacji.
     db().setResponse(TABELA, fail("test: odmowa RLS na rejestrze realizacji"));
     await zamontuj();
-    // Stan faktyczny: pusty zakres nie do odróżnienia od awarii.
-    expect(await screen.findByText("Brak realizacji w zakresie.")).toBeInTheDocument();
-    // ASERCJA DOCELOWA: panel MUSI zameldować, że odczyt się nie powiódł.
-    expect(screen.queryByRole("alert")).not.toBeNull();
+    // Awaria MA własny komunikat - i nie udaje pustego zakresu.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Brak realizacji w zakresie.")).toBeNull();
+    // Kafle nie meldują zer, których nikt nie policzył.
+    expect(within(kafel("Przychód netto")).getByText("-")).toBeInTheDocument();
+    expect(within(kafel("Realizacje")).getByText("-")).toBeInTheDocument();
+    // Eksport księgowy ze stanu błędu jest zablokowany.
+    expect(screen.getByRole("button", { name: /Eksport CSV/ })).toBeDisabled();
+    cleanup();
   });
 
-  it.fails("kafle sumują RÓŻNE WALUTY w jedną liczbę i nie podają żadnej", async () => {
-    // CO JEST ZŁE. `sumCouponTotals` dodaje `original_cents`/`applied_cents`
-    // wiersz po wierszu, ignorując kolumnę `currency`, a kafel renderuje samą
+  it("kafle rozbijają RÓŻNE WALUTY zamiast sumować je w jedną liczbę", async () => {
+    // CO BYŁO ZŁE. `sumCouponTotals` dodaje `original_cents`/`applied_cents`
+    // wiersz po wierszu, ignorując kolumnę `currency`, a kafel renderował samą
     // liczbę: `${(totals.revenueCents / 100).toFixed(2)}` - bez jednostki.
-    // Przy realizacji w PLN i realizacji w EUR kafel „Przychód netto" pokazuje
-    // sumę liczb z dwóch walut jako jedną wartość.
+    // Przy realizacji w PLN i realizacji w EUR kafel „Przychód netto" pokazywał
+    // sumę liczb z dwóch walut jako jedną wartość („120.00").
     //
-    // DLACZEGO TO RYZYKO. Tabela tuż pod kaflem pokazuje walutę PRZY KAŻDYM
-    // wierszu, więc kafel czyta się jako podsumowanie tych samych kwot -
-    // i tak trafia do notatki albo do slajdu. Kupony B2B są wystawiane
+    // DLACZEGO TO BYŁO RYZYKO. Tabela tuż pod kaflem pokazuje walutę PRZY
+    // KAŻDYM wierszu, więc kafel czytał się jako podsumowanie tych samych kwot
+    // - i tak trafiał do notatki albo do slajdu. Kupony B2B są wystawiane
     // partnerom rozliczanym w euro (`currency` jest kolumną wiersza, nie
-    // stałą), więc to nie jest przypadek hipotetyczny.
+    // stałą), więc to nie był przypadek hipotetyczny.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to decyzja produktowa, nie literówka:
-    // albo kafle rozbijają się per waluta, albo zakładka wymusza wybór waluty
-    // w filtrze, albo panel przelicza po kursie z dnia realizacji (i wtedy
-    // potrzebuje źródła kursu). Każdy z tych wariantów zmienia też kontrakt
-    // eksportu CSV i zakładkę Analityki. Poza zakresem pracy testowej.
+    // WYBRANE ROZWIĄZANIE (uzasadnienie przy `perCurrency` w trasie): kafel
+    // ROZBIJA kwotę po walutach zamiast wymuszać walutę w filtrze albo
+    // przeliczać po kursie - przeliczanie wymagałoby źródła kursu z dnia
+    // realizacji, czyli nowego kontraktu danych. Eksport CSV zostaje bez
+    // zmian: ma kolumnę `currency` przy każdym wierszu, więc nigdy nie mieszał
+    // walut; kafel był jedynym miejscem, które to robiło.
     zBazy([
       realizacja(),
       realizacja({
@@ -512,9 +521,14 @@ describe("trasa /admin/coupons/redemptions - DEFEKTY (zarejestrowane, nienaprawi
     ]);
     await zamontuj();
     await screen.findByText("NES-AAA111");
-    // Stan faktyczny: 80,00 PLN + 40,00 EUR = „120.00" bez jednostki.
-    expect(within(kafel("Przychód netto")).getByText("120.00")).toBeInTheDocument();
-    // ASERCJA DOCELOWA: kwota w kaflu musi nieść walutę, tak jak w tabeli.
-    expect(kafel("Przychód netto").textContent ?? "").toMatch(/PLN|EUR/);
+    // 80,00 PLN i 40,00 EUR stoją OSOBNO, każde ze swoją walutą - żadnej
+    // liczby „120.00", która nie jest kwotą w żadnej walucie.
+    const przychod = kafel("Przychód netto");
+    expect(przychod.textContent ?? "").toContain("80.00 PLN");
+    expect(przychod.textContent ?? "").toContain("40.00 EUR");
+    expect(przychod.textContent ?? "").not.toContain("120.00");
+    // Kwota w kaflu niesie walutę, tak jak w tabeli.
+    expect(przychod.textContent ?? "").toMatch(/PLN|EUR/);
+    cleanup();
   });
 });

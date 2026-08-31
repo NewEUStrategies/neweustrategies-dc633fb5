@@ -154,17 +154,17 @@ class ImmediateIntersectionObserver implements IntersectionObserver {
 }
 
 /**
- * Zewnętrzny pasek, a NIE wewnętrzne pudełko slotu. Oba są punktami
- * orientacyjnymi `complementary` i w polskim słowniku mają tę samą nazwę
- * („Reklama"), więc samo `queryByRole` z nazwą trafiałoby na dwa elementy -
- * to jest dokładnie defekt opisany niżej przy teście dostępności.
+ * Zewnętrzny pasek, a NIE wewnętrzne pudełko slotu.
+ *
+ * Do 08.2026 pasek miał własne `role="complementary"` i szukało się go po
+ * nazwie - ale nazwa była ta sama, co u pudełka slotu w środku („Reklama"),
+ * więc `queryByRole` trafiał na dwa zagnieżdżone elementy naraz. To był defekt
+ * dostępności opisany niżej i został naprawiony: rolę punktu orientacyjnego ma
+ * dziś wyłącznie pudełko slotu, a pasek jest zwykłym pojemnikiem, oznaczonym
+ * `data-ad-slideup` (stabilny uchwyt, tak jak `data-ad-slot` dla slotu).
  */
 function slideup(): HTMLElement | null {
-  return (
-    screen
-      .queryAllByRole("complementary", { name: t("ads.slideupLabel") })
-      .find((el) => el.querySelector("[data-ad-slot]") !== null) ?? null
-  );
+  return document.querySelector<HTMLElement>("[data-ad-slideup]");
 }
 
 /** Pudełka slotów wyrenderowane wewnątrz paska. */
@@ -458,56 +458,66 @@ describe("wybór kampanii i dostępność", () => {
     expect(screen.queryByAltText("Kreacja rezerwowa")).toBeNull();
   });
 
-  it("pasek jest opisanym punktem orientacyjnym, a nie anonimowym div-em", async () => {
+  it("kreacja w pasku jest opisanym punktem orientacyjnym, a nie anonimowym div-em", async () => {
     respondWith([placement({ config: { delay_ms: 0 } })]);
 
     await renderSlideup();
     await tick(0);
 
-    expect(slideup()).toHaveAttribute("aria-label", t("ads.slideupLabel"));
+    // Punkt orientacyjny jest DOKŁADNIE JEDEN i niesie nazwę strefy, więc
+    // czytelnik korzystający z rotora wie, dokąd skacze - „Reklama - pasek
+    // dolny", a nie kolejna bezimienna „Reklama".
+    const regions = screen.getAllByRole("complementary");
+    expect(regions).toHaveLength(1);
+    expect(regions[0]).toHaveAttribute(
+      "aria-label",
+      `${t("ads.label")} - ${t("ads.zones.footerSlideup")}`,
+    );
+    expect(slideup()?.contains(regions[0])).toBe(true);
   });
 
-  it("nie łamie reguł axe poza unikalnością punktów orientacyjnych", async () => {
+  it("nie łamie reguł axe", async () => {
     respondWith([placement({ config: { delay_ms: 0 } })]);
     const { container } = await renderSlideup();
     await tick(0);
 
-    // Obie reguły o punktach orientacyjnych są tu WYŁĄCZONE świadomie i mają
-    // własny, nazwany test niżej - reszta (tekst alternatywny kreacji, nazwa
-    // przycisku zamknięcia, poprawność ARIA) ma dalej pilnować paska.
-    const violations = await axeViolations(container, {
-      "landmark-unique": { enabled: false },
-      "landmark-complementary-is-top-level": { enabled: false },
-    });
+    // Do 08.2026 obie reguły o punktach orientacyjnych były tu WYŁĄCZONE, bo
+    // pasek zagnieżdżał drugi region o tej samej nazwie (defekt opisany niżej).
+    // Po naprawie nie ma czego wyłączać i cały zestaw reguł pilnuje paska.
+    const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 
   // -------------------------------------------------------------------------
-  // DEFEKT - test celowo oznaczony `it.fails`, kod produkcyjny NIE jest zmieniany.
+  // DEFEKT NAPRAWIONY (08.2026) - test biegnie normalnie.
   //
-  // CO JEST ZŁE. `FooterSlideup` opakowuje kreację własnym punktem orientacyjnym
-  // `role="complementary"` z etykietą `t("ads.slideupLabel")`, a renderowany
-  // w środku `AdSlotView` -> `AdContainer` dokłada DRUGI, zagnieżdżony punkt
-  // orientacyjny `role="complementary"` z etykietą `t("ads.label")`. W polskim
-  // słowniku obie wartości to dosłownie „Reklama" (w angielskim - dwa razy
-  // „Advertisement"), więc jeden pasek reklamowy produkuje dwa nierozróżnialne,
-  // zagnieżdżone punkty orientacyjne. axe-core zgłasza tu `landmark-unique`.
+  // CO BYŁO ZŁE. `FooterSlideup` opakowywał kreację własnym punktem
+  // orientacyjnym `role="complementary"` z etykietą `t("ads.slideupLabel")`,
+  // a renderowany w środku `AdSlotView` -> `AdContainer` dokładał DRUGI,
+  // zagnieżdżony punkt orientacyjny `role="complementary"` z etykietą
+  // `t("ads.label")`. W polskim słowniku obie wartości to dosłownie „Reklama"
+  // (w angielskim - dwa razy „Advertisement"), więc jeden pasek reklamowy
+  // produkował dwa nierozróżnialne, zagnieżdżone punkty orientacyjne.
+  // axe-core zgłaszał tu `landmark-unique`.
   //
-  // DLACZEGO TO RYZYKO. Użytkownik czytnika ekranu, przechodząc po punktach
-  // orientacyjnych, wchodzi w „Reklama", a w środku znajduje kolejną „Reklama" -
-  // i nie ma jak stwierdzić, czy to ta sama rzecz, czy druga reklama. Zagnieżdżenie
+  // DLACZEGO TO BYŁO RYZYKO. Użytkownik czytnika ekranu, przechodząc po punktach
+  // orientacyjnych, wchodził w „Reklama", a w środku znajdował kolejną „Reklama" -
+  // i nie miał jak stwierdzić, czy to ta sama rzecz, czy druga reklama. Zagnieżdżenie
   // dwóch identycznie nazwanych regionów jest gorsze niż brak regionu: sugeruje
-  // strukturę, której nie ma. Dotyczy KAŻDEJ strony serwisu, bo pasek renderuje
+  // strukturę, której nie ma. Dotyczyło KAŻDEJ strony serwisu, bo pasek renderuje
   // się na wpisach, archiwum, wyszukiwarce i stronie głównej.
   //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga rozstrzygnięcia, KTÓRY z dwóch
-  // regionów jest tym właściwym: albo pasek przestaje być punktem orientacyjnym
-  // (wtedy `role`/`aria-label` schodzą z `FooterSlideup`, a etykieta paska staje
-  // się martwym kluczem i18n do usunięcia z PL i EN), albo zostaje, a slot
-  // w środku traci rolę - co zmienia zachowanie WSZYSTKICH stref, nie tylko tej.
-  // To decyzja projektowa nad dwoma plikami produkcyjnymi i słownikiem,
-  // a zadanie zabrania zmian w kodzie produkcyjnym.
-  it.fails("pasek NIE zagnieżdża drugiego punktu orientacyjnego o tej samej nazwie", async () => {
+  // JAK NAPRAWIONE. Z dwóch regionów został TEN WEWNĘTRZNY. Pasek stracił
+  // `role`/`aria-label` (jest pojemnikiem pozycjonującym, a nie treścią) i ma
+  // dziś `data-ad-slideup` jako uchwyt; pudełko slotu zostało punktem
+  // orientacyjnym z nazwą strefy - „Reklama - pasek dolny". Wybrano ten kierunek,
+  // a nie zdejmowanie roli ze slotu, bo rola na slocie jest wspólna dla WSZYSTKICH
+  // stref i to ona opisuje samą kreację; zdjęcie jej zmieniłoby zachowanie
+  // każdej strefy serwisu, żeby naprawić jedną. Etykieta paska
+  // (`ads.slideupLabel`) została martwym kluczem i zeszła ze słownika w obu
+  // językach. Przycisk zamknięcia zachowuje własną nazwę dostępną, więc nadal
+  // da się go znaleźć listą przycisków czytnika.
+  it("pasek NIE zagnieżdża drugiego punktu orientacyjnego o tej samej nazwie", async () => {
     respondWith([placement({ config: { delay_ms: 0 } })]);
     const { container } = await renderSlideup();
     await tick(0);

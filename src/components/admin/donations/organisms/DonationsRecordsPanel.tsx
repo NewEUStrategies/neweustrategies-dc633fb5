@@ -13,24 +13,29 @@ interface DonationsRecordsPanelProps {
 }
 
 export function DonationsRecordsPanel({ records, isPending, lang }: DonationsRecordsPanelProps) {
+  // Wszystkie napisy ida przez `lng: lang` - tym samym jezykiem, ktorym
+  // formatujemy DATE i KWOTE w wierszu. Bez tego tabela mowi dwoma jezykami
+  // naraz, a „miesięczna" jest jedynym sygnalem, ze wplata jest cykliczna.
   const { t } = useTranslation();
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold">Ostatnie wpłaty</h3>
+      <h3 className="mb-2 text-sm font-semibold">{t("donate.admin.records.title", { lng: lang })}</h3>
       {isPending ? (
-        <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>
+        <p className="text-sm text-muted-foreground">{t("admin.loading", { lng: lang })}</p>
       ) : (records?.length ?? 0) === 0 ? (
-        <p className="text-sm text-muted-foreground">Brak zarejestrowanych wpłat.</p>
+        <p className="text-sm text-muted-foreground">
+          {t("donate.admin.records.empty", { lng: lang })}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">Data</th>
-                <th className="px-3 py-2">Kwota</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Typ</th>
-                <th className="px-3 py-2">Darczyńca</th>
+                <th className="px-3 py-2">{t("donate.admin.records.date", { lng: lang })}</th>
+                <th className="px-3 py-2">{t("donate.admin.records.amount", { lng: lang })}</th>
+                <th className="px-3 py-2">{t("donate.admin.records.status", { lng: lang })}</th>
+                <th className="px-3 py-2">{t("donate.admin.records.type", { lng: lang })}</th>
+                <th className="px-3 py-2">{t("donate.admin.records.donor", { lng: lang })}</th>
               </tr>
             </thead>
             <tbody>
@@ -43,7 +48,11 @@ export function DonationsRecordsPanel({ records, isPending, lang }: DonationsRec
                     {formatDonationAmount(row.amountCents, row.currency, lang)}
                   </td>
                   <td className="px-3 py-2">{row.status}</td>
-                  <td className="px-3 py-2">{row.recurring ? "miesięczna" : "jednorazowa"}</td>
+                  <td className="px-3 py-2">
+                    {row.recurring
+                      ? t("donate.admin.records.recurring", { lng: lang })
+                      : t("donate.admin.records.oneTime", { lng: lang })}
+                  </td>
                   <td className="px-3 py-2">{row.donorEmail ?? "-"}</td>
                 </tr>
               ))}

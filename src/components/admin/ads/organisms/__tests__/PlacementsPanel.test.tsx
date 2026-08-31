@@ -473,7 +473,9 @@ describe("PlacementsPanel - usuwanie", () => {
   it("POTWIERDZONE usuniecie kasuje TEN wiersz i melduje sukces", async () => {
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0],
+    );
     await waitFor(() =>
       expect(
         db()
@@ -493,7 +495,9 @@ describe("PlacementsPanel - usuwanie", () => {
   it("ANULOWANE potwierdzenie NIE kasuje niczego", async () => {
     h.confirm.mockResolvedValue(false);
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0],
+    );
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(
       db()
@@ -505,7 +509,9 @@ describe("PlacementsPanel - usuwanie", () => {
   it("dialog potwierdzenia jest oznaczony jako destrukcyjny", async () => {
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT], [PLACEMENT]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0],
+    );
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(h.confirm.mock.calls[0]![0]).toMatchObject({
       destructive: true,
@@ -520,7 +526,9 @@ describe("PlacementsPanel - usuwanie", () => {
       chain.has("delete") ? fail("permission denied", "42501") : ok([PLACEMENT]),
     );
     render(<PlacementsPanel />);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.placements.deleteAction" }))[0],
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
@@ -536,8 +544,8 @@ describe("PlacementsPanel - dostepnosc", () => {
       "select-name": { enabled: false },
       label: { enabled: false },
       "aria-input-field-name": { enabled: false },
-      // Brak nazwy przycisku kosza i pusty naglowek kolumny akcji sa
-      // zarejestrowane nizej jako defekty produkcyjne.
+      // Nazwa przycisku kosza i naglowek kolumny akcji maja nizej wlasne
+      // przypadki (dawne defekty produkcyjne, dzis naprawione).
       "button-name": { enabled: false },
       "empty-table-header": { enabled: false },
     });
@@ -546,23 +554,23 @@ describe("PlacementsPanel - dostepnosc", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE, NIENAPRAWIONE (zakres pracy: wylacznie testy).
+// DEFEKTY NAPRAWIONE (dawne `it.fails`).
 // ---------------------------------------------------------------------------
-describe("PlacementsPanel - defekty (zarejestrowane)", () => {
-  it.fails("BLAD odczytu list konczy sie komunikatem, a nie pusta tabela", async () => {
-    // CO JEST ZLE. `load()` rozpakowuje wynik jako `[{ data: s }, { data: p }]`
-    // i NIGDZIE nie zaglada do `error`. Odmowa RLS, awaria sieci i pusta tabela
-    // daja dokladnie ten sam widok: „Brak pozycji."
+describe("PlacementsPanel - dawne defekty", () => {
+  it("BLAD odczytu list konczy sie komunikatem, a nie pusta tabela", async () => {
+    // CO BYLO ZLE. `load()` rozpakowywal wynik jako `[{ data: s }, { data: p }]`
+    // i NIGDZIE nie zagladal do `error`. Odmowa RLS, awaria sieci i pusta tabela
+    // dawaly dokladnie ten sam widok: „Brak pozycji."
     //
-    // DLACZEGO TO RYZYKO. Panel slotow obok robi to poprawnie (`if (error)
-    // toast.error(...)`), wiec redaktor uczy sie ufac, ze brak komunikatu
-    // znaczy „wszystko przeczytane". Tutaj oznacza rowniez „nic nie
-    // przeczytalem". Konsekwencja jest konkretna: administrator widzi „Brak
-    // pozycji." i zaklada NOWA pozycje w miejscu, w ktorym juz jedna stoi -
+    // JAKIE TO BYLO RYZYKO. Panel slotow obok robil to poprawnie (`if (error)
+    // toast.error(...)`), wiec redaktor uczyl sie ufac, ze brak komunikatu
+    // znaczy „wszystko przeczytane". Tutaj oznaczalo rowniez „nic nie
+    // przeczytalem". Konsekwencja byla konkretna: administrator widzial „Brak
+    // pozycji." i zakladal NOWA pozycje w miejscu, w ktorym juz jedna stoi -
     // dwie kreacje w jednym slocie na tej samej stronie.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana kodu produkcyjnego (odczyt
-    // `error` z obu zapytan i toast), a zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. `load()` bierze OBA wyniki w calosci i melduje pierwszy
+    // `error` przez `toast.error(...)`, dokladnie jak panel slotow.
     db().setResponse("ad_slots", fail("permission denied for table ad_slots", "42501"));
     db().setResponse("ad_placements", fail("permission denied for table ad_placements", "42501"));
     render(<PlacementsPanel />);
@@ -572,35 +580,41 @@ describe("PlacementsPanel - defekty (zarejestrowane)", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalled(), { timeout: 300 });
   });
 
-  it.fails("komunikat o braku wybranego slotu pochodzi ze slownika", async () => {
-    // Literal „Wybierz slot" wprost w kodzie - panel jest dwujezyczny, wiec
-    // redaktor pracujacy po angielsku dostanie polski komunikat bledu.
+  it("komunikat o braku wybranego slotu pochodzi ze slownika", async () => {
+    // BYLO: literal „Wybierz slot" wprost w kodzie - panel jest dwujezyczny,
+    // wiec redaktor pracujacy po angielsku dostawal polski komunikat bledu.
+    // JEST: `t("adsAdmin.placements.selectSlot")`, klucz istnial juz w slowniku
+    // w PL i EN.
     await renderPanel([SLOT], []);
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.placements\.addAction/ }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
     expect(h.toastError).not.toHaveBeenCalledWith("Wybierz slot");
   });
 
-  it.fails("naglowki tabeli pozycji pochodza ze slownika", async () => {
-    // „Slot", „Pozycja", „Strony", „Aktywne" - cztery literale w naglowku,
-    // przy czym etykiety WARTOSCI w tych samych kolumnach ida juz przez `t()`.
-    // Efekt w wersji angielskiej: polskie naglowki nad angielskimi wartosciami.
+  it("naglowki tabeli pozycji pochodza ze slownika", async () => {
+    // BYLO: „Slot", „Pozycja", „Strony", „Aktywne" - cztery literale w
+    // naglowku, przy czym etykiety WARTOSCI w tych samych kolumnach szly juz
+    // przez `t()`. Efekt w wersji angielskiej: polskie naglowki nad angielskimi
+    // wartosciami. JEST: `adsAdmin.placements.columnSlot/columnPosition/
+    // columnPages/columnActive` plus `adsAdmin.columnActions` w kolumnie akcji.
     await renderPanel([SLOT], [PLACEMENT]);
     await tabela().findByText("Baner glowny");
     expect(screen.queryByRole("columnheader", { name: "Pozycja" })).toBeNull();
   });
 
-  it.fails("etykiety pol formularza pozycji pochodza ze slownika", async () => {
-    // „Sortowanie", „Co N kart", „Aktywne od", „Aktywne do", „Typ strony",
-    // „Pozycja na stronie" plus placeholdery obu pol daty.
+  it("etykiety pol formularza pozycji pochodza ze slownika", async () => {
+    // BYLO: „Sortowanie", „Co N kart", „Aktywne od", „Aktywne do", „Typ
+    // strony", „Pozycja na stronie" plus placeholdery obu pol daty - wszystko
+    // wpisane wprost. JEST: klucze `adsAdmin.placements.*` w PL i EN.
     await renderPanel([SLOT], []);
     expect(screen.queryByLabelText("Sortowanie")).toBeNull();
   });
 
-  it.fails("przycisk usuwania pozycji ma DOSTEPNA NAZWE", async () => {
-    // Ten sam defekt, co w panelu slotow: `<Button>` z samym `<svg>` kosza.
-    // Tutaj skutek jest o tyle grozniejszy, ze usuniecie pozycji zdejmuje
+  it("przycisk usuwania pozycji ma DOSTEPNA NAZWE", async () => {
+    // BYL to ten sam defekt, co w panelu slotow: `<Button>` z samym `<svg>`
+    // kosza. Tutaj skutek byl o tyle grozniejszy, ze usuniecie pozycji zdejmuje
     // kreacje ze strony natychmiast, bez zadnego sladu w liscie slotow.
+    // JEST: `aria-label={t("adsAdmin.placements.deleteAction")}`.
     const { container } = await renderPanel([SLOT], [PLACEMENT]);
     await tabela().findByText("Baner glowny");
     const naruszenia = await axeViolations(container, {

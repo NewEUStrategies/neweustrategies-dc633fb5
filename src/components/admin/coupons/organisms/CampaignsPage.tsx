@@ -32,6 +32,16 @@ export interface CampaignRow {
   created_at: string;
 }
 
+// KLUCZE i18n, nie gotowe napisy - ten sam wzorzec, co `AD_POSITION_LABEL_KEYS`
+// w module reklam. Typ `Record<CampaignRow["status"], string>` wymusza
+// kompletnosc: nowy stan kampanii bez etykiety sie nie skompiluje.
+const CAMPAIGN_STATUS_LABEL_KEYS: Record<CampaignRow["status"], string> = {
+  draft: "adminCoupons.campaignStatus.draft",
+  generated: "adminCoupons.campaignStatus.generated",
+  sent: "adminCoupons.campaignStatus.sent",
+  archived: "adminCoupons.campaignStatus.archived",
+};
+
 export function CampaignsPage() {
   // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
   // komentarz przy ensureI18n w lib/i18n-admin-coupons.ts.
@@ -153,10 +163,16 @@ export function CampaignsPage() {
         .single();
       if (error) throw error;
       if (!nl) throw new Error("Newsletter campaign not created");
-      await supabase
+      // Odmowa TEGO zapisu przechodzila wczesniej bez sladu: kampania
+      // newslettera juz istniala, a kampania kuponowa zostawala w stanie
+      // „generated" bez `newsletter_campaign_id`. Panel pokazywal wiec dalej
+      // przycisk „Wyslij" pod komunikatem o sukcesie - i drugie klikniecie
+      // wysylalo DRUGI mail z kodem do tych samych odbiorcow.
+      const { error: linkError } = await supabase
         .from("b2b_coupon_campaigns")
         .update({ newsletter_campaign_id: nl.id, status: "sent" })
         .eq("id", campaign.id);
+      if (linkError) throw linkError;
       return nl.id;
     },
     onSuccess: () => {
@@ -241,15 +257,15 @@ export function CampaignsPage() {
                             {c.grants_duration_days && ` · ${c.grants_duration_days}d`}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                       <td className="py-3 pr-3 text-xs">
-                        {c.newsletter_segment ?? <span className="text-muted-foreground">—</span>}
+                        {c.newsletter_segment ?? <span className="text-muted-foreground">-</span>}
                       </td>
                       <td className="py-3 pr-3">
                         <Badge variant={c.status === "sent" ? "default" : "secondary"}>
-                          {c.status}
+                          {t(CAMPAIGN_STATUS_LABEL_KEYS[c.status])}
                         </Badge>
                       </td>
                       <td className="py-3 text-right">
@@ -293,7 +309,7 @@ export function CampaignsPage() {
                               variant="ghost"
                               className="h-8 w-8"
                               onClick={() => archive.mutate(c.id)}
-                              aria-label="archive"
+                              aria-label={t("adminCoupons.archiveAction")}
                             >
                               <Archive className="h-3.5 w-3.5" />
                             </Button>

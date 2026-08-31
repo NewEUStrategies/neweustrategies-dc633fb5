@@ -169,7 +169,15 @@ export const pl = {
   ads: {
     label: "Reklama",
     consentBlocked: "Treść reklamowa zablokowana - wymaga zgody marketingowej.",
-    slideupLabel: "Reklama",
+    zones: {
+      headerBanner: "pasek nagłówka",
+      topOfPost: "nad artykułem",
+      midPost: "w treści artykułu",
+      bottomOfPost: "pod artykułem",
+      sidebar: "kolumna boczna",
+      inFeed: "w liście wpisów",
+      footerSlideup: "pasek dolny",
+    },
     dismiss: "Zamknij reklamę",
   },
   admin: {

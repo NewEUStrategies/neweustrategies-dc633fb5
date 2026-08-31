@@ -8,7 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import { Constants, type Database } from "@/integrations/supabase/types";
 import {
   matchesAdTargeting,
   parseAdTargeting,
@@ -30,19 +30,22 @@ export interface AdContentContext {
   tagSlugs?: string[];
 }
 
-/** Wartości `ad_page_type`, które baza zna DZISIAJ (bez `event`). */
 type DbAdPageType = Database["public"]["Enums"]["ad_page_type"];
 
-const DB_AD_PAGE_TYPES: readonly DbAdPageType[] = [
-  "all",
-  "home",
-  "post",
-  "page",
-  "category",
-  "tag",
-  "archive",
-  "search",
-];
+/**
+ * Wartości `ad_page_type`, które zna baza - Z WYGENEROWANYCH TYPÓW, nie z listy
+ * pisanej ręcznie.
+ *
+ * Ręczna lista stała tu z komentarzem „które baza zna DZISIAJ (bez `event`)"
+ * i to „dzisiaj" skończyło się migracją `20260823170000_event_front_binding.sql`
+ * (`ALTER TYPE public.ad_page_type ADD VALUE 'event'`). Rozjazd był niemy:
+ * `dbPageTypes("event")` zwracał `["all"]`, więc kampania sprzedana na stronę
+ * wydarzenia nie emitowała się ani razu, a brak reklamy wygląda dokładnie tak
+ * samo jak „nikt nie kupił". `Constants` jedzie z tego samego generatora, co typ
+ * `DbAdPageType`, więc następna wartość enuma trafia tu razem z regeneracją
+ * typów i nie da się jej przeoczyć.
+ */
+const DB_AD_PAGE_TYPES: readonly DbAdPageType[] = Constants.public.Enums.ad_page_type;
 
 function dbPageTypes(pageType: AdPageType): DbAdPageType[] {
   const known = DB_AD_PAGE_TYPES.find((value) => value === pageType);
@@ -59,9 +62,9 @@ async function fetchPlacements({
     .from("ad_placements")
     .select("*, slot:ad_slots!inner(*)")
     .eq("position", position)
-    // `event` jest wartością enuma dopiero po migracji modułu Wydarzeń, dlatego
-    // filtr wysyła ją tylko wtedy, gdy baza ją zna - inaczej PostgREST odrzuca
-    // całe zapytanie i strona zostaje bez reklam.
+    // Filtr wysyła wyłącznie wartości, które baza zna (patrz `DB_AD_PAGE_TYPES`):
+    // typ strony dodany po stronie klienta, a jeszcze nie w enumie, wywróciłby
+    // całe zapytanie w PostgREST i strona zostałaby bez reklam.
     .in("page_type", dbPageTypes(pageType))
     .eq("active", true)
     .eq("slot.status", "active")

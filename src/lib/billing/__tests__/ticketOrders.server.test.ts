@@ -404,29 +404,31 @@ describe("loadTicketOrders - metadane spoza kontraktu", () => {
     await expect(loadTicketOrders(client(), 50)).resolves.toEqual([]);
   });
 
-  it.fails("DEFEKT: bilet z liczbowym `event_id` znika z panelu bez śladu", async () => {
-    // CO JEST ZŁE. Zapytanie przepuszcza wiersz filtrem SQL
+  it("bilet z LICZBOWYM `event_id` zostaje na liście, a nie znika bez śladu", async () => {
+    // DEFEKT NAPRAWIONY 31.08.2026 (`ticketOrders.server.ts`).
+    //
+    // CO BYŁO ZŁE. Zapytanie przepuszcza wiersz filtrem SQL
     // `metadata->>'event_id' IS NOT NULL` - a operator `->>` rzutuje na tekst,
-    // więc `{"event_id": 42}` daje `'42'` i wiersz DOJEŻDŻA do warstwy TS.
-    // Tam `str()` żąda `typeof value === "string"`, dostaje liczbę, zwraca
-    // `null`, a `flatMap` odrzuca całe zamówienie. Filtr bazy i zawężenie
-    // w TypeScripcie mówią więc DWIE RÓŻNE RZECZY o tym samym wierszu.
+    // więc `{"event_id": 42}` daje `'42'` i wiersz DOJEŻDŻAŁ do warstwy TS.
+    // Tam `str()` żądał `typeof value === "string"`, dostawał liczbę, zwracał
+    // `null`, a `flatMap` odrzucał całe zamówienie. Filtr bazy i zawężenie
+    // w TypeScripcie mówiły więc DWIE RÓŻNE RZECZY o tym samym wierszu.
     //
-    // DLACZEGO TO RYZYKO. Zamówienie zniknęło z jedynego ekranu, na którym
+    // JAKIE TO BYŁO RYZYKO. Zamówienie znikało z jedynego ekranu, na którym
     // ktokolwiek je zobaczy - bez wyjątku, bez ostrzeżenia, bez pozycji
-    // w logu. Kupujący ma potwierdzenie zapłaty, panel nie ma zamówienia,
-    // a uzgodnienie księgowe pokazuje różnicę, której nie da się wytłumaczyć.
-    // Nagłówek modułu produkcyjnego opisuje DOKŁADNIE ten objaw ("zamówienie
-    // z nietypowym ładunkiem gubiło `event_id` i wypadało z listy bez śladu")
-    // i deklaruje, że jawne zawężenie go zamyka - zawężenie naprawiło TYP,
-    // ale nie zamknęło cichego zniknięcia.
+    // w logu. Kupujący miał potwierdzenie zapłaty, panel nie miał zamówienia,
+    // a uzgodnienie księgowe pokazywało różnicę, której nie dało się
+    // wytłumaczyć. Nagłówek modułu produkcyjnego opisywał DOKŁADNIE ten objaw
+    // („zamówienie z nietypowym ładunkiem gubiło `event_id` i wypadało z listy
+    // bez śladu") i deklarował, że jawne zawężenie go zamyka - zawężenie
+    // naprawiło TYP, ale nie zamknęło cichego zniknięcia.
     //
-    // DLACZEGO NIE NAPRAWIAM. Naprawa to decyzja produktowa, nie kosmetyka:
-    // trzeba wybrać, czy `event_id` czytamy przez `String(value)` (wtedy
-    // panel pokazuje wiersz i ryzykujemy dopasowanie do wydarzenia po
-    // przypadkowej konwersji), czy zostawiamy odrzucenie, ale GŁOŚNE (log
-    // albo osobna sekcja „zamówienia nieprzypisane"). Ten test jest bramką:
-    // kiedy decyzja zapadnie, przestanie padać.
+    // JAK ZOSTAŁO NAPRAWIONE. Osobny czytnik `eventIdOf` czyta to pole tak,
+    // jak czyta je baza: liczbę zamienia na tekst (`->>`), pozostałe kształty
+    // odrzuca. Wybrane rozwiązanie to WIDOCZNY wiersz, a nie głośna odmowa:
+    // taki identyfikator nie dopasuje się do żadnego wydarzenia (klucze są
+    // UUID-ami), więc zamówienie pojawia się bez nazwy wydarzenia - da się je
+    // zobaczyć i wyjaśnić, zamiast szukać go po zgłoszeniu kupującego.
     chain.setResponse(
       "payment_orders",
       ok([ticketOrder({ id: "order-liczbowy", metadata: { event_id: 42, quantity: 1 } })]),
@@ -436,6 +438,37 @@ describe("loadTicketOrders - metadane spoza kontraktu", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe("order-liczbowy");
+  });
+
+  it("liczbowy identyfikator jest przepisany na tekst - dokładnie jak robi to `->>`", async () => {
+    chain.setResponse(
+      "payment_orders",
+      ok([ticketOrder({ id: "order-liczbowy", metadata: { event_id: 42, quantity: 1 } })]),
+    );
+
+    const rows = await loadTicketOrders(client(), 50);
+
+    expect(rows[0].eventId).toBe("42");
+    // Nazwa wydarzenia zostaje pusta - nic w bazie nie ma takiego klucza.
+    // To jest cena za widoczność wiersza i musi być jawna, a nie domyślana.
+    expect(rows[0].eventTitlePl).toBeNull();
+  });
+
+  it("wartość logiczna i pusty tekst NIE są identyfikatorem - te wiersze dalej odpadają", async () => {
+    // Granica poprawki: dopuszczamy liczbę (bo `->>` daje z niej sensowny
+    // tekst), a nie „cokolwiek da się zamienić na napis". `true` czy `""` nie
+    // wskazują żadnego wydarzenia, więc udawanie, że wskazują, byłoby gorsze
+    // niż odrzucenie.
+    chain.setResponse(
+      "payment_orders",
+      ok([
+        ticketOrder({ id: "o-bool", metadata: { event_id: true } }),
+        ticketOrder({ id: "o-pusty", metadata: { event_id: "   " } }),
+        ticketOrder({ id: "o-obiekt", metadata: { event_id: { id: "event-1" } } }),
+      ]),
+    );
+
+    await expect(loadTicketOrders(client(), 50)).resolves.toEqual([]);
   });
 });
 
@@ -596,37 +629,37 @@ describe("loadTicketOrderHistory", () => {
     expect(entries[0]).toMatchObject({ status: "failed", error: "signature mismatch" });
   });
 
-  it.fails(
-    "DEFEKT: odmowa odczytu dziennika operatora jest przemilczana jako brak zdarzeń",
-    async () => {
-      // CO JEST ZŁE. Odczyt `payment_webhook_events` destrukturyzuje wyłącznie
-      // `data` (`const { data: events } = await ...`), więc `error` znika. Gdy
-      // baza ODMÓWI (polityka, literówka w nazwie kolumny, awaria), moduł
-      // buduje oś czasu z samych własnych znaczników i oddaje ją jako komplet.
-      //
-      // DLACZEGO TO RYZYKO. Oś czasu jest narzędziem DIAGNOSTYCZNYM: człowiek
-      // patrzy na nią dokładnie wtedy, gdy pyta „czy webhook w ogóle
-      // przyszedł?". Pusta lista zdarzeń operatora odpowiada „nie przyszedł" -
-      // i to jest odpowiedź nieprawdziwa, na podstawie której obsługa zwraca
-      // pieniądze albo wystawia bilet drugi raz. Ten sam wzorzec (odrzucony
-      // `error` przy dociąganiu słownika) był już w tym repo DEFEKTEM
-      // naprawionym w `paymentOrders.server.ts` - patrz bramka
-      // „BŁĄD ODCZYTU PLANÓW jest zgłaszany" w `paymentOrders.server.test.ts`.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Nie zmieniam kodu produkcyjnego w tej pracy,
-      // a naprawa nie jest jednoliniowa: trzeba zdecydować, czy oś czasu ma
-      // rzucać (spójnie z odczytem zamówienia wyżej), czy oddać wpis
-      // diagnostyczny „nie udało się odczytać dziennika". Pierwsze zamyka ekran
-      // przy awarii dziennika, drugie wymaga nowego rodzaju wpisu w kontrakcie
-      // `TicketOrderHistoryEntry` i tłumaczeń w panelu.
-      chain.setResponse(
-        "payment_webhook_events",
-        fail("permission denied for table payment_webhook_events"),
-      );
+  it("ODMOWA ODCZYTU dziennika operatora jest zgłaszana, a nie przemilczana", async () => {
+    // DEFEKT NAPRAWIONY 31.08.2026 (`ticketOrders.server.ts`).
+    //
+    // CO BYŁO ZŁE. Odczyt `payment_webhook_events` destrukturyzował wyłącznie
+    // `data` (`const { data: events } = await ...`), więc `error` znikał. Gdy
+    // baza ODMÓWIŁA (polityka, literówka w nazwie kolumny, awaria), moduł
+    // budował oś czasu z samych własnych znaczników i oddawał ją jako komplet.
+    //
+    // JAKIE TO BYŁO RYZYKO. Oś czasu jest narzędziem DIAGNOSTYCZNYM: człowiek
+    // patrzy na nią dokładnie wtedy, gdy pyta „czy webhook w ogóle
+    // przyszedł?". Pusta lista zdarzeń operatora odpowiadała „nie przyszedł" -
+    // i to jest odpowiedź nieprawdziwa, na podstawie której obsługa zwraca
+    // pieniądze albo wystawia bilet drugi raz. Ten sam wzorzec (odrzucony
+    // `error` przy dociąganiu słownika) był już w tym repo DEFEKTEM
+    // naprawionym w `paymentOrders.server.ts` - patrz bramka
+    // „BŁĄD ODCZYTU PLANÓW jest zgłaszany" w `paymentOrders.server.test.ts`.
+    //
+    // JAK ZOSTAŁO NAPRAWIONE. Wybrano zgłoszenie wyjątku - spójnie z odczytem
+    // samego zamówienia w tej samej funkcji i z bliźniaczym modułem zamówień
+    // płatniczych. Panel pokazuje wtedy błąd wczytywania historii (ma na to
+    // gotowy komunikat `adminBilling.couldLoadHistory`), czyli „nie wiemy",
+    // a nie „nic nie przyszło". Wpis diagnostyczny w samej osi czasu wymagałby
+    // nowego rodzaju wpisu w kontrakcie `TicketOrderHistoryEntry` i nowych
+    // tłumaczeń, a niósłby dokładnie tę samą informację.
+    chain.setResponse(
+      "payment_webhook_events",
+      fail("permission denied for table payment_webhook_events"),
+    );
 
-      await expect(loadTicketOrderHistory(client(), "order-ticket-1")).rejects.toThrow(
-        "permission denied for table payment_webhook_events",
-      );
-    },
-  );
+    await expect(loadTicketOrderHistory(client(), "order-ticket-1")).rejects.toThrow(
+      "permission denied for table payment_webhook_events",
+    );
+  });
 });

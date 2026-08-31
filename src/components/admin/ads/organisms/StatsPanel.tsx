@@ -44,17 +44,21 @@ export function StatsPanel() {
     };
   }, []);
 
-  const ctr = (imp: number, clk: number) => (imp > 0 ? `${((clk / imp) * 100).toFixed(1)}%` : "—");
+  // Znak braku danych z klucza slownika, nie literal: pauza (U+2014) wpisana
+  // wprost rozjezdzala sie z reszta panelu (dywiz ASCII), rozsypywala sie przy
+  // eksporcie raportu do arkusza reklamodawcy i nie dawala sie przetlumaczyc.
+  const ctr = (imp: number, clk: number) =>
+    imp > 0 ? `${((clk / imp) * 100).toFixed(1)}%` : t("adsAdmin.stats.noData");
 
   return (
     <section className="border border-border rounded-lg bg-card overflow-hidden">
       <table className="w-full text-sm">
         <thead className="text-xs text-muted-foreground border-b border-border">
           <tr>
-            <th className="text-left p-3">Slot</th>
+            <th className="text-left p-3">{t("adsAdmin.stats.columnSlot")}</th>
             <th className="text-right p-3">{t("adsAdmin.stats.impressions")}</th>
             <th className="text-right p-3">{t("adsAdmin.stats.clicks")}</th>
-            <th className="text-right p-3">CTR</th>
+            <th className="text-right p-3">{t("adsAdmin.stats.columnCtr")}</th>
           </tr>
         </thead>
         <tbody>

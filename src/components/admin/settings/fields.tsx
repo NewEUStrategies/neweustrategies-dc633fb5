@@ -12,15 +12,31 @@ import { cn } from "@/lib/utils";
 export function Field({
   label,
   hint,
+  htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
+  /**
+   * Identyfikator kontrolki, ktora ta etykieta opisuje - `<label for>`.
+   *
+   * DLACZEGO JAWNIE, A NIE Z AUTOMATU. Kuszace bylo wygenerowac id przez
+   * `useId()` i podac je dziecku kontekstem, ale `Field` bywa uzyty z kilkoma
+   * kontrolkami naraz (np. `admin.settings.cookie-banner` ma osiem pol
+   * `Text` w jednej ramce, `google-source` trzy `NumberInput`): kazda dostalaby
+   * TO SAMO id, czyli duplikat identyfikatora w DOM i etykieta wskazujaca
+   * przypadkowa z nich. Kto uklada pole, ten wie, ktora kontrolka jest ta
+   * glowna - dlatego id podaje sie tutaj wprost, a panele, ktore go nie podaja,
+   * zachowuja sie dokladnie jak dotad (etykieta bez powiazania).
+   */
+  htmlFor?: string;
   children: ReactNode;
 }) {
   return (
     <div className="grid md:grid-cols-[200px_1fr] gap-3 md:gap-6 py-4 border-b border-border last:border-0">
-      <label className="text-sm font-medium pt-2">{label}</label>
+      <label htmlFor={htmlFor} className="text-sm font-medium pt-2">
+        {label}
+      </label>
       <div className="min-w-0">
         {children}
         {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}

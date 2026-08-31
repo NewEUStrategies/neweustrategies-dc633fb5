@@ -559,45 +559,42 @@ describe("trasa /pricing - lista planów", () => {
   });
 
   it("nie zostawia cennika z wadami dostępności", async () => {
-    // Reguła `heading-order` jest tu wyłączona ŚWIADOMIE - opisuje ją osobny
-    // `it.fails` niżej razem z powodem, dla którego nie naprawiam jej w tej
-    // pracy. Wyłączenie jest wąskie, więc reszta reguł (nazwy przycisków i
-    // odnośników, semantyka zakładek, poprawność ARIA panelu segmentów) nadal
-    // pilnuje tej strony.
+    // Żadna reguła nie jest tu wyłączona: `heading-order` była wyłączana,
+    // dopóki strona skakała z H1 wprost do H3 (opis niżej) - po naprawie
+    // sprawdzamy pełny zestaw reguł.
     fullCatalogue();
     const view = await mount();
     await screen.findByRole("heading", { level: 3, name: "Członek" });
 
-    const violations = await axeViolations(view.container, {
-      "heading-order": { enabled: false },
-    });
+    const violations = await axeViolations(view.container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it.fails("drabinka cen przeskakuje z nagłówka H1 wprost do H3", async () => {
-    // CO JEST ZŁE. Struktura strony to `h1` („Cennik"), a zaraz po niej karty
-    // warstw z `h3` w nagłówku każdej karty. Poziom `h2` pojawia się DOPIERO
+  it("drabinka cen nie przeskakuje już z nagłówka H1 wprost do H3", async () => {
+    // CO BYŁO ZŁE. Struktura strony to `h1` („Cennik"), a zaraz po niej karty
+    // warstw z `h3` w nagłówku każdej karty. Poziom `h2` pojawiał się DOPIERO
     // niżej (Pozostałe plany, Przepustki, Pełne porównanie, FAQ), więc od
-    // tytułu strony do pierwszej oferty jest przeskok o dwa poziomy. Karty nie
-    // mają też własnego nagłówka sekcji, który mógłby ten poziom domknąć.
+    // tytułu strony do pierwszej oferty był przeskok o dwa poziomy. Karty nie
+    // miały też własnego nagłówka sekcji, który mógłby ten poziom domknąć.
     //
-    // DLACZEGO TO RYZYKO. Czytnik ekranu nawiguje po tej stronie nagłówkami -
-    // to najszybsza droga do porównania ofert. Przeskok poziomu czyta się jak
-    // brakująca sekcja, więc użytkownik szuka „zgubionego" H2 zamiast czytać
-    // ceny. To naruszenie WCAG 1.3.1 na stronie, na której podejmuje się
-    // decyzję zakupową - a więc dokładnie tam, gdzie bariera kosztuje najwięcej.
+    // DLACZEGO TO BYŁO RYZYKO. Czytnik ekranu nawiguje po tej stronie
+    // nagłówkami - to najszybsza droga do porównania ofert. Przeskok poziomu
+    // czyta się jak brakująca sekcja, więc użytkownik szukał „zgubionego" H2
+    // zamiast czytać ceny. To naruszenie WCAG 1.3.1 na stronie, na której
+    // podejmuje się decyzję zakupową - dokładnie tam, gdzie bariera kosztuje
+    // najwięcej.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana struktury nagłówków w
-    // `pricing.tsx` (dołożenie H2 nad siatką kart) albo w `TierCard.tsx`
-    // (zejście na H4) - w obu przypadkach zmiana kodu produkcyjnego i układu
-    // strony, wykraczająca poza zakres „dopisz testy bez zmiany zachowania".
-    // Test zostaje jako wykonywalny opis defektu.
-    //
-    // ASERCJA DOCELOWA: cennik bez naruszeń kolejności nagłówków.
+    // JAK NAPRAWIONE. `pricing.tsx` stawia nad siatką kart nagłówek H2
+    // („Poziomy członkostwa" / „Membership tiers", klucz `pricing.tiers.heading`
+    // istniał już w słowniku PL i EN). Nagłówek jest `sr-only`, czyli poza
+    // układem: siatka, odstępy i responsywność zostają bez zmian, a drabinka
+    // poziomów jest domknięta. Alternatywa - zejście kart na H4 w `TierCard` -
+    // psułaby semantykę karty używanej także poza tą stroną.
     fullCatalogue();
     const view = await mount();
     await screen.findByRole("heading", { level: 3, name: "Członek" });
 
+    expect(screen.getByRole("heading", { level: 2, name: "Poziomy członkostwa" })).toBeVisible();
     const violations = await axeViolations(view.container);
     expect(violations, summarize(violations)).toEqual([]);
   });

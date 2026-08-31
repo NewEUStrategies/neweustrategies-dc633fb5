@@ -95,17 +95,24 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{t("adminCoupons.code")}</Label>
+            <Label htmlFor="coupon-code">{t("adminCoupons.code")}</Label>
             <Input
+              id="coupon-code"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              // Normalizacja JUZ W POLU, nie dopiero przy zapisie: klasa
+              // `uppercase` zmienia wylacznie obraz, wiec zaznaczenie i schowek
+              // oddawaly „nes-b2b-10" tam, gdzie na ekranie stalo „NES-B2B-10".
+              // Roznica ujawniala sie dopiero przy kasie, po wyslaniu kodu
+              // partnerowi.
+              onChange={(e) => setCode(normalizeCouponCode(e.target.value))}
               placeholder="NES-B2B-10"
               className="uppercase h-10 rounded-[6px]"
             />
           </div>
           <div>
-            <Label>{t("adminCoupons.nameOptional")}</Label>
+            <Label htmlFor="coupon-name">{t("adminCoupons.nameOptional")}</Label>
             <Input
+              id="coupon-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-10 rounded-[6px]"
@@ -114,15 +121,20 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
         </div>
 
         <div>
-          <Label>{t("adminCoupons.internalDescription")}</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+          <Label htmlFor="coupon-description">{t("adminCoupons.internalDescription")}</Label>
+          <Textarea
+            id="coupon-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{t("adminCoupons.discountType")}</Label>
+            <Label htmlFor="coupon-discount-kind">{t("adminCoupons.discountType")}</Label>
             <Select value={kind} onValueChange={(v) => setKind(v as CouponDiscountKind)}>
-              <SelectTrigger className="h-10 rounded-[6px]">
+              <SelectTrigger id="coupon-discount-kind" className="h-10 rounded-[6px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -133,8 +145,9 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
           </div>
           {kind === "percent" ? (
             <div>
-              <Label>{t("adminCoupons.percent")}</Label>
+              <Label htmlFor="coupon-percent">{t("adminCoupons.percent")}</Label>
               <Input
+                id="coupon-percent"
                 type="number"
                 min={1}
                 max={100}
@@ -146,8 +159,9 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>{t("adminCoupons.amountCents")}</Label>
+                <Label htmlFor="coupon-cents">{t("adminCoupons.amountCents")}</Label>
                 <Input
+                  id="coupon-cents"
                   type="number"
                   min={1}
                   value={cents}
@@ -156,8 +170,9 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
                 />
               </div>
               <div>
-                <Label>{t("adminCoupons.currency")}</Label>
+                <Label htmlFor="coupon-currency">{t("adminCoupons.currency")}</Label>
                 <Input
+                  id="coupon-currency"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   maxLength={4}
@@ -170,8 +185,9 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{t("adminCoupons.maxRedemptions")}</Label>
+            <Label htmlFor="coupon-max-redemptions">{t("adminCoupons.maxRedemptions")}</Label>
             <Input
+              id="coupon-max-redemptions"
               type="number"
               min={1}
               value={maxRedemptions}
@@ -196,12 +212,14 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
 
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
           <div>
-            <Label>{t("adminCoupons.grantsSubscriptionOptional")}</Label>
+            <Label htmlFor="coupon-grants-tier">
+              {t("adminCoupons.grantsSubscriptionOptional")}
+            </Label>
             <Select
               value={grantsTierKey || "none"}
               onValueChange={(v) => setGrantsTierKey(v === "none" ? "" : v)}
             >
-              <SelectTrigger className="h-10 rounded-[6px]">
+              <SelectTrigger id="coupon-grants-tier" className="h-10 rounded-[6px]">
                 <SelectValue placeholder={t("adminCoupons.none")} />
               </SelectTrigger>
               <SelectContent>
@@ -215,8 +233,9 @@ export function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProp
             </Select>
           </div>
           <div>
-            <Label>{t("adminCoupons.durationDays")}</Label>
+            <Label htmlFor="coupon-duration-days">{t("adminCoupons.durationDays")}</Label>
             <Input
+              id="coupon-duration-days"
               type="number"
               min={1}
               value={grantsDurationDays}

@@ -28,22 +28,35 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import type { ExtRow } from "../CouponsListPage";
 
+/** Ksztalt pytania, ktore panel zadaje przed usunieciem (patrz `@/lib/appDialogs`). */
+type ConfirmDialogOptions = {
+  title: string;
+  description?: string;
+  destructive?: boolean;
+  confirmLabel?: string;
+};
+
 const h = vi.hoisted(() => ({
   from: null as unknown,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   ensureI18n: vi.fn(),
   clipboard: vi.fn(async () => undefined),
-  // happy-dom NIE implementuje `window.confirm` - bez wlasnej atrapy natywne
-  // potwierdzenie byloby `undefined` i test wywracalby sie zanim dojdzie do
-  // asercji. Atrapa jest tez dowodem samym w sobie: gdyby panel przeszedl na
-  // `confirmDialog`, ta funkcja przestalaby byc wolana.
+  // Dialog aplikacji jest GRANICA (`@/lib/appDialogs`): prawdziwy renderuje go
+  // `<AppDialogHost />` z `__root.tsx`, ktorego w tym drzewie nie ma, wiec bez
+  // atrapy obietnica nigdy by sie nie rozwiazala. Sygnatura z argumentem, bo
+  // test asertuje TRESC pytania (kod kuponu, wariant destrukcyjny).
+  confirm: vi.fn<(opts: ConfirmDialogOptions) => Promise<boolean>>(),
+  // happy-dom NIE implementuje `window.confirm`. Atrapa zostaje jako DOWOD
+  // negatywny: panel przeszedl na `confirmDialog`, wiec ta funkcja nie moze
+  // byc juz wolana.
   natywneConfirm: vi.fn((_message?: string) => true),
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
+vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -189,6 +202,8 @@ beforeEach(() => {
     configurable: true,
     value: { writeText: h.clipboard },
   });
+  h.confirm.mockReset();
+  h.confirm.mockResolvedValue(true);
   h.natywneConfirm.mockReset();
   h.natywneConfirm.mockReturnValue(true);
   Object.defineProperty(window, "confirm", {
@@ -302,7 +317,9 @@ describe("CouponsListPage - wiersz kuponu", () => {
     // Kod idzie stad prosto do wiadomosci dla klienta. Skopiowanie nazwy
     // zamiast kodu (albo kodu z bialymi znakami) konczy sie odmowa przy kasie.
     await renderPage([kupon()]);
-    fireEvent.click(within(await wiersz("NES-B2B-10")).getByRole("button", { name: "Kopiuj" }));
+    fireEvent.click(
+      within(await wiersz("NES-B2B-10")).getByRole("button", { name: "adminCoupons.copyCode" }),
+    );
     expect(h.clipboard).toHaveBeenCalledWith("NES-B2B-10");
     expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.copied");
   });
@@ -440,7 +457,7 @@ describe("CouponsListPage - zmiany stanu kuponu", () => {
   it("PRZELACZNIK odwraca `active` i zapisuje ZAWEZONY do tego wiersza", async () => {
     await renderPage([kupon({ active: true })]);
     await screen.findByText("NES-B2B-10");
-    fireEvent.click(screen.getByRole("switch", { name: "toggle-active" }));
+    fireEvent.click(screen.getByRole("switch", { name: "adminCoupons.toggleActive" }));
     await waitFor(() =>
       expect(
         db()
@@ -463,15 +480,15 @@ describe("CouponsListPage - zmiany stanu kuponu", () => {
     db().setResponse("membership_tiers", ok([]));
     renderWithQueryClient(<CouponsListPage />);
     await screen.findByText("NES-B2B-10");
-    fireEvent.click(screen.getByRole("switch", { name: "toggle-active" }));
+    fireEvent.click(screen.getByRole("switch", { name: "adminCoupons.toggleActive" }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
   });
 
   it("POTWIERDZONE usuniecie kasuje TEN kupon", async () => {
-    h.natywneConfirm.mockReturnValue(true);
+    h.confirm.mockResolvedValue(true);
     await renderPage([kupon()]);
     await screen.findByText("NES-B2B-10");
-    fireEvent.click(screen.getByRole("button", { name: "delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
     await waitFor(() =>
       expect(
         db()
@@ -485,16 +502,22 @@ describe("CouponsListPage - zmiany stanu kuponu", () => {
         .find((c) => c.has("delete"))
         ?.argsOf("eq"),
     ).toEqual(["id", "11111111-1111-4111-8111-111111111111"]);
-    // Pytanie zawiera KOD kuponu - bez niego potwierdzenie nie mowi, co ginie.
-    expect(String(h.natywneConfirm.mock.calls[0]![0])).toContain("NES-B2B-10");
+    // Pytanie zawiera KOD kuponu - bez niego potwierdzenie nie mowi, co ginie -
+    // i jest oznaczone jako destrukcyjne, bo kasowania kuponu nie da sie cofnac.
+    expect(h.confirm.mock.calls[0]![0]).toMatchObject({
+      title: "adminCoupons.deleteCoupon",
+      destructive: true,
+      confirmLabel: "adminCoupons.deleteConfirm",
+    });
+    expect(String(h.confirm.mock.calls[0]![0].description)).toContain("NES-B2B-10");
   });
 
   it("ANULOWANE potwierdzenie NIE kasuje niczego", async () => {
-    h.natywneConfirm.mockReturnValue(false);
+    h.confirm.mockResolvedValue(false);
     await renderPage([kupon()]);
     await screen.findByText("NES-B2B-10");
-    fireEvent.click(screen.getByRole("button", { name: "delete" }));
-    await waitFor(() => expect(h.natywneConfirm).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
+    await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(
       db()
         .chainsFor("b2b_coupons")
@@ -532,28 +555,30 @@ describe("CouponsListPage - dialog tworzenia", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE, NIENAPRAWIONE (zakres pracy: wylacznie testy).
+// DEFEKTY NAPRAWIONE (dawne `it.fails`).
 // ---------------------------------------------------------------------------
-describe("CouponsListPage - defekty (zarejestrowane)", () => {
-  it.fails("usuwanie kuponu idzie przez dialog aplikacji, nie przez `window.confirm`", async () => {
-    // CO JEST ZLE. Wiersz kuponu kasuje sie natywnym `confirm(...)`. Reszta
+describe("CouponsListPage - dawne defekty", () => {
+  it("usuwanie kuponu idzie przez dialog aplikacji, nie przez `window.confirm`", async () => {
+    // CO BYLO ZLE. Wiersz kuponu kasowal sie natywnym `confirm(...)`. Reszta
     // panelu administracyjnego - w tym oba panele reklam obok - uzywa
     // `confirmDialog` z `@/lib/appDialogs`.
     //
-    // DLACZEGO TO RYZYKO. Natywne okno (a) blokuje CALA karte przegladarki,
+    // JAKIE TO BYLO RYZYKO. Natywne okno (a) blokuje CALA karte przegladarki,
     // (b) nie da sie go ostylowac ani przetlumaczyc poza tekstem tresci,
     // (c) czesc przegladarek pozwala uzytkownikowi ZABLOKOWAC kolejne takie
     // okna („nie pozwalaj tej stronie tworzyc wiecej okien dialogowych") -
     // a wtedy `confirm` zwraca `false` bez pytania i przycisk kasowania
-    // przestaje dzialac bez zadnego komunikatu, (d) nie jest oznaczone jako
-    // destrukcyjne, wiec kasowanie kuponu wyglada jak zwykle pytanie „OK?".
+    // przestawal dzialac bez zadnego komunikatu, (d) nie bylo oznaczone jako
+    // destrukcyjne, wiec kasowanie kuponu wygladalo jak zwykle pytanie „OK?".
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka zmienia kod produkcyjny (przejscie na
-    // `confirmDialog`, funkcja asynchroniczna, klucze slownika na tytul i
-    // etykiete potwierdzenia), a zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. `askAndRemove()` czeka na `confirmDialog` z tytulem
+    // `adminCoupons.deleteCoupon`, trescia niosaca KOD kuponu
+    // (`adminCoupons.deleteCouponBody`), wariantem destrukcyjnym i etykieta
+    // `adminCoupons.deleteConfirm`. Natywne `window.confirm` nie jest juz
+    // wolane - tego pilnuje asercja nizej.
     await renderPage([kupon()]);
     await screen.findByText("NES-B2B-10");
-    fireEvent.click(screen.getByRole("button", { name: "delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
     await waitFor(() =>
       expect(
         db()
@@ -564,35 +589,38 @@ describe("CouponsListPage - defekty (zarejestrowane)", () => {
     expect(h.natywneConfirm).not.toHaveBeenCalled();
   });
 
-  it.fails("etykiety przyciskow wiersza sa PRZETLUMACZONE, nie surowe", async () => {
-    // CO JEST ZLE. Trzy sterowniki w wierszu maja etykiety wpisane wprost:
+  it("etykiety przyciskow wiersza sa PRZETLUMACZONE, nie surowe", async () => {
+    // CO BYLO ZLE. Trzy sterowniki w wierszu mialy etykiety wpisane wprost:
     // `aria-label="Kopiuj"` (polski literal), `aria-label="toggle-active"`
     // i `aria-label="delete"` (angielskie nazwy techniczne).
     //
-    // DLACZEGO TO RYZYKO. To sa JEDYNE nazwy tych kontrolek - kazda z nich to
-    // sama ikona bez tekstu. Uzytkownik czytnika ekranu slyszy w wierszu
+    // JAKIE TO BYLO RYZYKO. To sa JEDYNE nazwy tych kontrolek - kazda z nich to
+    // sama ikona bez tekstu. Uzytkownik czytnika ekranu slyszal w wierszu
     // „toggle-active, przelacznik" i „delete, przycisk": nazwy z kodu, nie
     // z interfejsu, w innym jezyku niz reszta panelu. „delete" kasuje kupon
     // nieodwracalnie.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga kluczy slownika w obu jezykach
-    // i zmiany kodu produkcyjnego; zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Klucze `adminCoupons.copyCode`, `adminCoupons.toggleActive`
+    // i `adminCoupons.deleteAction` w PL i EN; pozostale przypadki w tym pliku
+    // szukaja tych kontrolek juz po nazwach ze slownika.
     await renderPage([kupon()]);
     await screen.findByText("NES-B2B-10");
     expect(screen.queryByRole("button", { name: "delete" })).toBeNull();
   });
 
-  it.fails("puste pola tabeli uzywaja DYWIZU ASCII, nie pauzy", async () => {
-    // CO JEST ZLE. Kolumny „waznosc" i „plan" wstawiaja „—" (U+2014) dla pustej
-    // wartosci; konwencja repozytorium to dywiz ASCII. Ta sama tabela uzywa
+  it("puste pola tabeli uzywaja DYWIZU ASCII, nie pauzy", async () => {
+    // CO BYLO ZLE. Kolumny „waznosc" i „plan" wstawialy „—" (U+2014) dla pustej
+    // wartosci; konwencja repozytorium to dywiz ASCII. Ta sama tabela uzywala
     // dodatkowo „∞" dla braku daty koncowej.
     //
-    // DLACZEGO TO RYZYKO. Poza rozjazdem z reszta panelu, to sa ZNAKI, a nie
-    // klucze slownika - nie da sie ich zamienic na czytelne „bezterminowo"
+    // JAKIE TO BYLO RYZYKO. Poza rozjazdem z reszta panelu, byly to ZNAKI, a nie
+    // klucze slownika - nie dalo sie ich zamienic na czytelne „bezterminowo"
     // w zadnym jezyku, a czytnik ekranu odczytuje pauze i symbol
     // nieskonczonosci roznie zaleznie od syntezatora.
     //
-    // DLACZEGO NIE NAPRAWIAM. Zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Pusta wartosc to dywiz ASCII, a brak daty koncowej idzie
+    // przez istniejacy klucz `adminCoupons.unlimited2` („bezterminowo" /
+    // „unlimited") zamiast symbolu nieskonczonosci.
     await renderPage([kupon({ valid_from: null, valid_until: null, grants_tier_key: null })]);
     const cells = within(await wiersz("NES-B2B-10"));
     expect(cells.queryByText("—")).toBeNull();

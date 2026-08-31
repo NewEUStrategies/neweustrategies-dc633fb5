@@ -91,11 +91,27 @@ export const Route = createFileRoute("/api/public/billing-cron")({
 
         try {
           const { runBillingReminders } = await import("@/lib/billing/reminders.server");
-          const result = await runBillingReminders(leadDays);
           // Ta sama doba: domykamy karencje miejsc zespołowych, którym minął
           // termin - dostęp gaśnie dopiero tutaj, wraz z mailem końcowym.
           const { expireSeatGrace, sendSeatGraceReminders } =
             await import("@/lib/organizations/teamSeats.server");
+
+          // KAŻDE Z TRZECH ZADAŃ JEST ODDZIELNE. Wcześniej `runBillingReminders`
+          // biegło NAGO we wspólnym `try`, więc pojedyncza czkawka bazy
+          // (timeout puli, `statement_timeout`, zerwane połączenie) przy odczycie
+          // subskrypcji przerywała CAŁY cykl: wspólny `catch` oddawał 500,
+          // a dwa pozostałe zadania nie startowały w ogóle. Harmonogram chodzi
+          // RAZ NA DOBĘ, więc pominięte `expireSeatGrace()` znaczy, że ludzie
+          // po karencji zachowują płatny dostęp do następnej doby, a pominięte
+          // `sendSeatGraceReminders()` znaczy, że próg „1 dzień do końca"
+          // przepada bezpowrotnie (nazajutrz zostało 0 dni i warunek progu
+          // nie zadziała). Jedna sekunda awarii bazy kosztowała więc cichą
+          // utratę całego dnia obsługi zespołów.
+          let remindersError: unknown = null;
+          const result = await runBillingReminders(leadDays).catch((err: unknown) => {
+            remindersError = err;
+            return null;
+          });
           // Najpierw przypomnienia (progi per organizacja albo z body jako
           // nadpisanie), potem domknięcie karencji, żeby ta sama doba nie
           // wysłała przypomnienia i maila końcowego naraz.
@@ -106,6 +122,16 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             perOrg: true,
           }));
           const seats = await expireSeatGrace().catch(() => ({ expired: 0, notified: 0 }));
+
+          // KONTRAKT ODPOWIEDZI ZOSTAJE BEZ ZMIAN: padnięcie przypomnień nadal
+          // daje 500 `cron_failed`, bo zewnętrzny scheduler opiera na tym kodzie
+          // alarmowanie i ponowienie (ponowienie jest bezpieczne - idempotencja
+          // siedzi w warstwie wysyłki). Zmienia się WYŁĄCZNIE to, że pozostałe
+          // zadania zdążyły się wykonać, zanim zgłosimy porażkę.
+          if (result === null) {
+            console.error("[billing-cron] failed", remindersError);
+            return json({ error: "cron_failed" }, 500);
+          }
 
           return json({
             ok: true,

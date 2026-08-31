@@ -232,24 +232,23 @@ describe("StatsPanel - dostepnosc", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE, NIENAPRAWIONE (zakres pracy: wylacznie testy).
+// DEFEKTY NAPRAWIONE (dawne `it.fails`).
 // ---------------------------------------------------------------------------
-describe("StatsPanel - defekty (zarejestrowane)", () => {
-  it.fails("znak braku CTR jest DYWIZEM ASCII, nie pauza", async () => {
-    // CO JEST ZLE. Przy zerowych odslonach kolumna CTR dostaje literal „—"
+describe("StatsPanel - dawne defekty", () => {
+  it("znak braku CTR jest DYWIZEM ASCII, nie pauza", async () => {
+    // CO BYLO ZLE. Przy zerowych odslonach kolumna CTR dostawala literal „—"
     // (U+2014, pauza). Konwencja tego repozytorium mowi wprost: dywiz ASCII.
     //
-    // DLACZEGO TO RYZYKO. Pauza wklejona w kod jest niewidoczna w przegladzie
-    // zmian i rozjezdza sie z reszta panelu, ktora uzywa dywizu (podsumowanie
-    // targetingu, kolumna slotu w pozycjach). Twardszy skutek jest przy
-    // eksporcie: raport CTR kopiowany do arkusza dla reklamodawcy niesie znak,
+    // JAKIE TO BYLO RYZYKO. Pauza wklejona w kod jest niewidoczna w przegladzie
+    // zmian i rozjezdzala sie z reszta panelu, ktora uzywa dywizu (podsumowanie
+    // targetingu, kolumna slotu w pozycjach). Twardszy skutek byl przy
+    // eksporcie: raport CTR kopiowany do arkusza dla reklamodawcy niosl znak,
     // ktorego czesc narzedzi nie odczyta w kodowaniu jednobajtowym, i komorka
-    // konczy jako „â€”". A poniewaz to literal, a nie klucz slownika, nie da
-    // sie go tez podmienic na „brak danych" w wersji angielskiej.
+    // konczyla jako „â€”". A poniewaz byl to literal, a nie klucz slownika, nie
+    // dalo sie go tez podmienic na „brak danych" w wersji angielskiej.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka dotyka kodu produkcyjnego (i najlepiej
-    // powinna isc razem z zalozeniem klucza `adsAdmin.stats.noData` w obu
-    // jezykach), a zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Kolumna wola `t("adsAdmin.stats.noData")`; klucz stoi
+    // w `i18n-ads-admin` w PL i EN z wartoscia „-" (dywiz ASCII).
     db().setResponse("ad_slots", ok([SLOT_A]));
     withCounts({ [`${SLOT_A.id}:impression`]: 0, [`${SLOT_A.id}:click`]: 0 });
     render(<StatsPanel />);
@@ -257,10 +256,11 @@ describe("StatsPanel - defekty (zarejestrowane)", () => {
     expect(within(wiersz("Baner glowny")).queryByText("—")).toBeNull();
   });
 
-  it.fails("naglowek kolumny `Slot` pochodzi ze slownika", async () => {
-    // Trzy z czterech naglowkow tej tabeli ida przez `t()`; „Slot" i „CTR" sa
-    // wpisane wprost. Skrot CTR jest miedzynarodowy, ale „Slot" juz nie -
-    // i tak czy inaczej rozjezdza to jedna tabele na dwa mechanizmy.
+  it("naglowek kolumny `Slot` pochodzi ze slownika", async () => {
+    // BYLO: dwa z czterech naglowkow tej tabeli („Slot" i „CTR") wpisane
+    // wprost, przy dwoch pozostalych idacych przez `t()` - jedna tabela na dwa
+    // mechanizmy. JEST: `adsAdmin.stats.columnSlot` i `adsAdmin.stats.columnCtr`
+    // w PL i EN.
     db().setResponse("ad_slots", ok([SLOT_A]));
     withCounts({});
     render(<StatsPanel />);

@@ -8,8 +8,10 @@
 // zmieniająca pieniądze, suma przychodu doliczająca kwoty zwrócone i wyniesienie
 // danych osobowych kupującego do pliku, który krąży mailem.
 //
-// GRANICE ATRAPOWANE: wyłącznie klient service_role. Zapis CSV
-// (`@/lib/csv/formatCsv`) i generator XLSX zostają PRAWDZIWE - to one
+// GRANICE ATRAPOWANE: klient service_role oraz rozwiązanie najemcy z hosta
+// żądania. To drugie jest granicą tego samego rodzaju co pierwsze - wejście
+// spoza modułu, którego w teście nie ma (katalog domen chciałby pójść do bazy).
+// Zapis CSV (`@/lib/csv/formatCsv`) i generator XLSX zostają PRAWDZIWE - to one
 // odpowiadają za plik, który dostaje księgowość.
 //
 // CZAS: zegar jest zamrożony, bo `sinceIso` i `generatedAt` liczą się od
@@ -30,7 +32,13 @@ import {
   type AuditQuery,
   type AuditReport,
 } from "@/lib/billing/audit.server";
-import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/billing/fixtures";
+import {
+  BILLING_IDS,
+  fail,
+  ok,
+  supabaseFromStub,
+  type SupabaseFromStub,
+} from "@/test/billing/fixtures";
 
 const db = vi.hoisted(() => {
   let active: { from: (table: string) => unknown } | null = null;
@@ -47,6 +55,17 @@ const db = vi.hoisted(() => {
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (table: string) => db.from(table) },
+}));
+
+// Najemca żądania. `null` odwzorowuje sytuację „nie wiadomo, czyje to dane"
+// (host spoza katalogu domen, praca poza kontekstem żądania) - audyt musi się
+// wtedy zamknąć, a nie oddać wszystko.
+const tenant = vi.hoisted(() => ({ current: null as string | null }));
+vi.mock("@/lib/http/requestHost", () => ({
+  currentTenantHost: () => Promise.resolve("panel.example.com"),
+}));
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveTenantIdForHost: () => Promise.resolve(tenant.current),
 }));
 
 // --- rzuty kolumn (z wygenerowanych definicji, rozluźnione o `null`) --------
@@ -174,6 +193,7 @@ const QUERY: AuditQuery = { environment: "sandbox", sinceHours: 24 };
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
+  tenant.current = BILLING_IDS.tenant;
 });
 
 afterEach(() => {
@@ -217,8 +237,11 @@ describe("zakres materiału dowodowego", () => {
       .lastChain("payment_orders")
       ?.calls.filter((c) => c.method === "eq")
       .map((c) => c.args);
+    // Zakres bazowy (środowisko + najemca) zostaje, filtr wydarzenia się do
+    // niego DOKŁADA - zawężenie nie może żadnego z nich zastąpić.
     expect(eqCalls).toEqual([
       ["environment", "sandbox"],
+      ["tenant_id", BILLING_IDS.tenant],
       ["metadata->>event_id", "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"],
     ]);
   });
@@ -227,8 +250,13 @@ describe("zakres materiału dowodowego", () => {
     const stub = givenDb();
     await buildAuditReport({ ...QUERY, eventId: null });
 
-    const eqCalls = stub.lastChain("payment_orders")?.calls.filter((c) => c.method === "eq");
-    expect(eqCalls).toHaveLength(1);
+    // Zostaje sam zakres bazowy - kolumny wymienione z nazwy, bo sama ich
+    // liczba nie odróżniłaby braku filtra metadanych od braku zakresu najemcy.
+    const eqColumns = stub
+      .lastChain("payment_orders")
+      ?.calls.filter((c) => c.method === "eq")
+      .map((c) => c.args[0]);
+    expect(eqColumns).toEqual(["environment", "tenant_id"]);
   });
 
   it("błąd odczytu zamówień przerywa audyt z czytelnym komunikatem", async () => {
@@ -566,54 +594,84 @@ describe("eksport pliku dla księgowości", () => {
 });
 
 describe("izolacja najemcy w audycie rozliczeń", () => {
-  it.fails(
-    "DEFEKT: audyt czyta zamówienia WSZYSTKICH najemców - jedynym zakresem jest środowisko",
-    async () => {
-      // CO JEST ZŁE. `buildAuditReport` biegnie na kliencie `service_role`,
-      // który OMIJA RLS, a jedyny filtr zakresu w zapytaniu to
-      // `.eq("environment", ...)`. Kolumna `payment_orders.tenant_id` istnieje
-      // i jest NOT NULL, ale nie jest ani wybierana, ani filtrowana - tak samo
-      // w `payment_webhook_events`. `AuditQuery` nie ma nawet pola na najemcę,
-      // więc wywołujący nie ma jak zawęzić zakresu.
-      //
-      // DLACZEGO TO RYZYKO. Bramka w `audit.functions.ts` to `assertAdmin`,
-      // czyli `has_role(user, 'admin')` - rola SPRAWDZANA GLOBALNIE, bez
-      // najemcy. W instalacji wielonajemcowej administrator jednego najemcy
-      // pobiera więc pełną historię płatności innego: kwoty, statusy,
-      // identyfikatory klienta i sesji u operatora, w gotowym pliku CSV/XLSX,
-      // który z definicji opuszcza system.
-      //
-      // ŻE TO NIE JEST ŚWIADOMA DECYZJA „audyt jest instancyjny", widać po
-      // bezpośrednim sąsiedzie: `listAdminDonations` w
-      // `src/lib/billing/donationsAdmin.server.ts` to również panel admina nad
-      // pieniędzmi, również na service_role - i tam zapytanie ma
-      // `.eq("tenant_id", tenantId)`, a brak rozwiązanego najemcy zwraca pustą
-      // listę (fail-closed). Repozytorium ma też bramkę statyczną dokładnie na
-      // tę klasę błędu (`src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts`),
-      // ale jej rejestr obejmuje wyłącznie czytniki z `src/lib/server/**`,
-      // więc ten plik nigdy nie był przez nią widziany.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Poprawka zmienia KONTRAKT publiczny: `AuditQuery`
-      // musi dostać najemcę, obie funkcje serwerowe muszą go rozwiązać
-      // (`resolveTenantId`) i zdecydować, co robić przy braku rozwiązania -
-      // a to decyzja produktowa (fail-closed jak w darowiznach czy raport
-      // instancyjny dla operatora platformy). Zmiana produkcyjna wykracza poza
-      // zadanie testowe.
-      //
-      // ASERCJA jest kontraktem ZAPYTANIA, a nie kształtu wyniku, bo moduł nie
-      // wybiera `tenant_id` - po samych danych nie da się odróżnić najemców.
-      // To ten sam rodzaj dowodu, jakiego używa bramka service-role wyżej.
-      const stub = givenDb({ orders: [orderRow()] });
-      await buildAuditReport(QUERY);
+  it("oba zapytania są zawężone do najemcy, nie tylko do środowiska", async () => {
+    // CO BYŁO ZŁE (defekt naprawiony 31.08.2026). `buildAuditReport` biegnie na
+    // kliencie `service_role`, który OMIJA RLS, a jedynym filtrem zakresu było
+    // `.eq("environment", ...)`. Kolumna `payment_orders.tenant_id` istnieje
+    // i jest NOT NULL, ale nie była ani wybierana, ani filtrowana - tak samo
+    // w `payment_webhook_events`. `AuditQuery` nie miał nawet pola na najemcę,
+    // więc wywołujący nie miał jak zawęzić zakresu.
+    //
+    // JAKIE TO BYŁO RYZYKO. Bramka w `audit.functions.ts` to `assertAdmin`,
+    // czyli `has_role(user, 'admin')` - rola SPRAWDZANA GLOBALNIE, bez najemcy.
+    // W instalacji wielonajemcowej administrator jednego najemcy pobierał więc
+    // pełną historię płatności innego: kwoty, statusy, identyfikatory klienta
+    // i sesji u operatora, w gotowym pliku CSV/XLSX, który z definicji opuszcza
+    // system. To ta sama klasa dziury, którą na poziomie polityk RLS domknęła
+    // migracja 20260831060000 - tylko piętro wyżej, w zapytaniu aplikacyjnym.
+    //
+    // ŻE TO NIE BYŁA ŚWIADOMA DECYZJA „audyt jest instancyjny", widać po
+    // bezpośrednim sąsiedzie: `listAdminDonations` w
+    // `src/lib/billing/donationsAdmin.server.ts` to również panel admina nad
+    // pieniędzmi, również na service_role - i tam zapytanie ma
+    // `.eq("tenant_id", tenantId)`, a brak rozwiązanego najemcy zwraca pustą
+    // listę (fail-closed). Repozytorium ma też bramkę statyczną dokładnie na
+    // tę klasę błędu (`src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts`),
+    // ale jej rejestr obejmuje wyłącznie czytniki z `src/lib/server/**`,
+    // więc ten plik nigdy nie był przez nią widziany.
+    //
+    // JAK NAPRAWIONE. Najemca jest rozwiązywany z HOSTA ŻĄDANIA (nie z ładunku,
+    // bo wtedy admin podałby po prostu cudzy identyfikator), oba zapytania
+    // filtrują po `tenant_id`, a brak rozwiązania zamyka raport - dokładnie
+    // wzorem panelu darowizn.
+    //
+    // ASERCJA jest kontraktem ZAPYTANIA, a nie kształtu wyniku, bo moduł nie
+    // wybiera `tenant_id` - po samych danych nie da się odróżnić najemców.
+    // To ten sam rodzaj dowodu, jakiego używa bramka service-role wyżej.
+    const stub = givenDb({ orders: [orderRow()] });
+    await buildAuditReport(QUERY);
 
-      const filtered = (table: string): boolean =>
-        (stub.lastChain(table)?.calls ?? []).some(
-          (c) => c.method === "eq" && c.args[0] === "tenant_id",
-        );
+    const tenantFilter = (table: string): unknown =>
+      (stub.lastChain(table)?.calls ?? []).find(
+        (c) => c.method === "eq" && c.args[0] === "tenant_id",
+      )?.args[1];
 
-      // ASERCJA DOCELOWA - i ta pada: zakres najemcy nie istnieje.
-      expect(filtered("payment_orders")).toBe(true);
-      expect(filtered("payment_webhook_events")).toBe(true);
-    },
-  );
+    expect(tenantFilter("payment_orders")).toBe(BILLING_IDS.tenant);
+    expect(tenantFilter("payment_webhook_events")).toBe(BILLING_IDS.tenant);
+  });
+
+  it("nierozwiązany najemca daje PUSTY raport i ani jednego zapytania", async () => {
+    // Fail-closed jak w panelu darowizn: „nie wiem, czyje to dane" nie może
+    // znaczyć „oddaj wszystko". Okno czasowe zostaje policzone (raport ma być
+    // czytelny w panelu), ale do bazy nie idzie nic.
+    tenant.current = null;
+    const stub = givenDb({ orders: [orderRow()], hooks: [hookRow()] });
+
+    const report = await buildAuditReport(QUERY);
+
+    expect(report.orders).toEqual([]);
+    expect(report.webhooks).toEqual([]);
+    expect(report.totals).toEqual({
+      orders: 0,
+      paidCents: 0,
+      refundedCents: 0,
+      webhooksFailed: 0,
+    });
+    expect(stub.chains).toEqual([]);
+  });
+
+  it("jawnie podany najemca omija rozwiązywanie z hosta", async () => {
+    // Ścieżka dla wywołań spoza kontekstu żądania. Wartość NIGDY nie pochodzi
+    // od klienta - schemat funkcji serwerowej jej nie przyjmuje.
+    tenant.current = null;
+    const stub = givenDb({ orders: [orderRow()] });
+
+    await buildAuditReport({ ...QUERY, tenantId: BILLING_IDS.foreignTenant });
+
+    expect(
+      (stub.lastChain("payment_orders")?.calls ?? []).find(
+        (c) => c.method === "eq" && c.args[0] === "tenant_id",
+      )?.args[1],
+    ).toBe(BILLING_IDS.foreignTenant);
+  });
 });

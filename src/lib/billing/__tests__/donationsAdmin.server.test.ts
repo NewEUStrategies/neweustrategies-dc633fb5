@@ -211,7 +211,14 @@ function respondDonations(recorded: RecordedChain): SupabaseResult {
   return ok(typeof limitArg === "number" ? ordered.slice(0, limitArg) : ordered);
 }
 
-/** Sesja operatora w kształcie czytanym przez uzgodnienie. */
+/**
+ * Sesja operatora w kształcie czytanym przez uzgodnienie.
+ *
+ * Metadane niosą STEMPEL TENANTA (`tenantId`), bo tak stempluje je
+ * `createDonationSession`. To jest dowód przynależności wpłaty: klucz operatora
+ * jest jeden na środowisko, więc lista sesji jest wspólna dla całej instalacji
+ * i bez stempla nie da się powiedzieć, czyja jest sesja.
+ */
 function stripeSession(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "cs_stripe_1",
@@ -224,7 +231,7 @@ function stripeSession(overrides: Record<string, unknown> = {}): Record<string, 
     customer_details: { email: "Darczynca@Example.com" },
     payment_intent: "pi_stripe_1",
     subscription: null,
-    metadata: { purpose: "donation" },
+    metadata: { purpose: "donation", tenantId: TENANT },
     ...overrides,
   };
 }
@@ -704,7 +711,7 @@ describe("syncDonationsFromStripe - import sesji spoza rejestru", () => {
           id: "cs_niepelna",
           status: "complete",
           payment_status: "paid",
-          metadata: { purpose: "donation" },
+          metadata: { purpose: "donation", tenantId: TENANT },
         },
       ],
       has_more: false,
@@ -887,26 +894,28 @@ describe("syncDonationsFromStripe - unieważnienie publicznych statystyk", () =>
 // ---------------------------------------------------------------------------
 
 describe("wiarygodność raportu i izolacja tenanta", () => {
-  it.fails("DEFEKT: nieudany zapis zwrotu jest raportowany jako zwrot wykonany", async () => {
-    // CO JEST ZŁE. Trzy zapisy w tym module nie sprawdzają błędu w ogóle:
-    // `update({status:"refunded"})`, `update({status:"canceled"})` przy sesji
-    // wygasłej i ten sam zapis w pętli wierszy osieroconych. Po każdym z nich
-    // licznik raportu rośnie BEZWARUNKOWO. Gdy zapis się nie powiedzie
-    // (polityka, konflikt, awaria), raport i tak mówi „zwrócono 1".
-    //
-    // DLACZEGO TO RYZYKO. Ten raport jest JEDYNYM potwierdzeniem, jakie
-    // dostaje człowiek domykający księgę. „Zwrócono 1" znaczy dla niego:
-    // rejestr jest uzgodniony, status wspierającego cofnięty, eksport
-    // księgowy pokazuje zwrot. W rzeczywistości wiersz dalej ma `paid`,
-    // darczyńca dalej ma benefity opłacone pieniędzmi, które mu oddano,
-    // a rozbieżność wyjdzie dopiero przy rocznym rozliczeniu. To jest ta
-    // sama klasa ryzyka, którą `src/test/billing/fixtures.ts` nazywa wprost:
-    // operacja POZORNIE WYKONANA jest gorsza od operacji zablokowanej.
-    //
-    // DLACZEGO NIE NAPRAWIAM. Nie zmieniam kodu produkcyjnego w tej pracy.
-    // Naprawa jest prosta (sprawdzić `error` i dorzucić ostrzeżenie
-    // `refund_write_failed:<id>` zamiast inkrementacji), ale dotyka kształtu
-    // raportu, który czyta panel - a to zmiana kontraktu, nie test.
+  // DEFEKT NAPRAWIONY 31.08.2026 (`donationsAdmin.server.ts`).
+  //
+  // CO BYŁO ZŁE. Trzy zapisy w tym module nie sprawdzały błędu w ogóle:
+  // `update({status:"refunded"})`, `update({status:"canceled"})` przy sesji
+  // wygasłej i ten sam zapis w pętli wierszy osieroconych. Po każdym z nich
+  // licznik raportu rósł BEZWARUNKOWO. Gdy zapis się nie powiódł (polityka,
+  // konflikt, awaria), raport i tak mówił „zwrócono 1".
+  //
+  // JAKIE TO BYŁO RYZYKO. Ten raport jest JEDYNYM potwierdzeniem, jakie
+  // dostaje człowiek domykający księgę. „Zwrócono 1" znaczy dla niego:
+  // rejestr jest uzgodniony, status wspierającego cofnięty, eksport księgowy
+  // pokazuje zwrot. W rzeczywistości wiersz dalej miał `paid`, darczyńca dalej
+  // miał benefity opłacone pieniędzmi, które mu oddano, a rozbieżność wyszłaby
+  // dopiero przy rocznym rozliczeniu. To ta sama klasa ryzyka, którą
+  // `src/test/billing/fixtures.ts` nazywa wprost: operacja POZORNIE WYKONANA
+  // jest gorsza od operacji zablokowanej.
+  //
+  // JAK ZOSTAŁO NAPRAWIONE. Każdy z trzech zapisów sprawdza `error`: przy
+  // odmowie licznik NIE rośnie, a raport niesie ostrzeżenie
+  // (`refund_write_failed:<id>` / `expire_write_failed:<id>`) - czyli kanał,
+  // który panel już umie pokazać, bo `warnings` istnieje w kontrakcie raportu.
+  it("nieudany zapis zwrotu NIE jest raportowany jako zwrot wykonany", async () => {
     rows = [donationRow({ status: "paid", provider_intent_id: "pi_1" })];
     h.fns.intentsRetrieve.mockResolvedValue({ id: "pi_1", latest_charge: { id: "ch_1" } });
     h.fns.chargesRetrieve.mockResolvedValue({ refunded: true, amount_refunded: 5000 });
@@ -920,50 +929,137 @@ describe("wiarygodność raportu i izolacja tenanta", () => {
       refunded: 0,
       status: "paid",
     });
+    expect(report.warnings).toContain("refund_write_failed:don-1");
   });
 
-  it.fails(
-    "DEFEKT: sesja bez dowodu przynależności trafia do rejestru tenanta, który akurat kliknął uzgodnienie",
-    async () => {
-      // CO JEST ZŁE. Import „brakujących sesji" pyta operatora o WSZYSTKIE
-      // sesje z okna czasowego (`checkout.sessions.list`) i bierze każdą
-      // z `metadata.purpose === "donation"`. Klucz operatora jest jeden na
-      // ŚRODOWISKO (`STRIPE_LIVE_API_KEY`), a nie na tenanta - lista jest więc
-      // wspólna dla całej instalacji. Sesja, której nie ma w rejestrze, zostaje
-      // wstawiona z `tenant_id` = tenant WYWOŁUJĄCEGO, mimo że nic w sesji nie
-      // mówi, czyja ona jest: `createDonationSession` stempluje metadane
-      // wyłącznie `purpose`, `donationId` i `userId`.
-      //
-      // DLACZEGO TO RYZYKO. Cel tej gałęzi (zgodnie z nagłówkiem modułu) to
-      // wpłaty powstałe POZA naszym formularzem - płatność z pulpitu operatora,
-      // link płatniczy, ręczne domknięcie. Właśnie takie sesje nie mają
-      // `donationId`, więc trafiają tu wszystkie. W instalacji wielotenantowej
-      // wpłata na kampanię tenanta B ląduje w księdze tenanta A, bo to jego
-      // administrator pierwszy kliknął „uzgodnij". Cudze pieniądze w cudzym
-      // rejestrze przechodzą dalej do publicznych statystyk zbiórki, do
-      // eksportu księgowego i do triggera nadającego status wspierającego.
-      // Izolacja tenanta jest w tym repo regułą PIENIĘŻNĄ, nie kosmetyką -
-      // pilnuje jej nawet `tenant_isolation_billing_storage_test.sql`.
-      //
-      // JAK WYGLĄDAŁABY NAPRAWA. Stemplować `tenant_id` w metadanych sesji przy
-      // jej tworzeniu i importować wyłącznie sesje z pasującym stemplem;
-      // sesje bez stempla zgłaszać ostrzeżeniem do ręcznego przypisania.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Wymaga zmiany DWÓCH modułów produkcyjnych
-      // (`donations.server` przy tworzeniu sesji i ten przy imporcie) oraz
-      // decyzji, co zrobić z sesjami już istniejącymi, które stempla nie mają.
-      // To praca projektowa, nie dopisanie testu.
-      h.fns.sessionsList.mockResolvedValue({
-        data: [stripeSession({ id: "cs_sierota_bez_tenanta", amount_total: 30000 })],
-        has_more: false,
-      });
+  it("nieudane zamknięcie WYGASŁEJ sesji też nie podnosi licznika", async () => {
+    rows = [donationRow({ status: "pending", provider_session_id: "cs_alfa_1" })];
+    h.fns.sessionsRetrieve.mockResolvedValue(
+      stripeSession({ id: "cs_alfa_1", status: "expired", payment_status: "unpaid" }),
+    );
+    writeFailure = "permission denied for table donations";
 
-      const report = await syncDonationsFromStripe("sandbox");
+    const report = await syncDonationsFromStripe("sandbox");
 
-      expect({ imported: report.imported, wierszy: rows.length }).toEqual({
-        imported: 0,
-        wierszy: 0,
-      });
-    },
-  );
+    expect({ expired: report.expired, status: rowById("don-1")?.status }).toEqual({
+      expired: 0,
+      status: "pending",
+    });
+    expect(report.warnings).toContain("expire_write_failed:don-1");
+  });
+
+  it("nieudane anulowanie wiersza OSIEROCONEGO nie podnosi licznika", async () => {
+    rows = [
+      donationRow({
+        id: "don-1",
+        status: "pending",
+        provider_session_id: "pending:abc",
+        created_at: "2026-08-01T10:00:00.000Z",
+      }),
+    ];
+    writeFailure = "permission denied for table donations";
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect({ expired: report.expired, status: rowById("don-1")?.status }).toEqual({
+      expired: 0,
+      status: "pending",
+    });
+    expect(report.warnings).toContain("expire_write_failed:don-1");
+  });
+
+  // DEFEKT NAPRAWIONY 31.08.2026 (`donationsAdmin.server.ts` przy imporcie
+  // oraz `donations.server.ts` przy tworzeniu sesji).
+  //
+  // CO BYŁO ZŁE. Import „brakujących sesji" pyta operatora o WSZYSTKIE sesje
+  // z okna czasowego (`checkout.sessions.list`) i brał każdą z
+  // `metadata.purpose === "donation"`. Klucz operatora jest jeden na
+  // ŚRODOWISKO (`STRIPE_LIVE_API_KEY`), a nie na tenanta - lista jest więc
+  // wspólna dla całej instalacji. Sesja, której nie było w rejestrze, była
+  // wstawiana z `tenant_id` = tenant WYWOŁUJĄCEGO, mimo że nic w sesji nie
+  // mówiło, czyja ona jest: `createDonationSession` stemplował metadane
+  // wyłącznie `purpose`, `donationId` i `userId`.
+  //
+  // JAKIE TO BYŁO RYZYKO. Cel tej gałęzi (zgodnie z nagłówkiem modułu) to
+  // wpłaty powstałe POZA naszym formularzem - płatność z pulpitu operatora,
+  // link płatniczy, ręczne domknięcie. Właśnie takie sesje nie mają
+  // `donationId`, więc trafiały tu wszystkie. W instalacji wielotenantowej
+  // wpłata na kampanię tenanta B lądowała w księdze tenanta A, bo to jego
+  // administrator pierwszy kliknął „uzgodnij". Cudze pieniądze w cudzym
+  // rejestrze przechodzą dalej do publicznych statystyk zbiórki, do eksportu
+  // księgowego i do triggera nadającego status wspierającego. Izolacja tenanta
+  // jest w tym repo regułą PIENIĘŻNĄ, nie kosmetyką - pilnuje jej nawet
+  // `tenant_isolation_billing_storage_test.sql`.
+  //
+  // JAK ZOSTAŁO NAPRAWIONE. `createDonationSession` stempluje sesję
+  // `metadata.tenantId`, a import wstawia WYŁĄCZNIE sesje z pasującym
+  // stemplem. Sesja bez stempla (albo z cudzym) nie znika po cichu: raport
+  // niesie `import_unassigned:<id>`, czyli listę do ręcznego przypisania.
+  // Tak wygląda odpowiedź na pytanie „co z sesjami, które stempla nie mają":
+  // nie są przypisywane automatycznie i nie są gubione.
+  it("sesja bez dowodu przynależności NIE trafia do rejestru klikającego tenanta", async () => {
+    h.fns.sessionsList.mockResolvedValue({
+      data: [
+        stripeSession({
+          id: "cs_sierota_bez_tenanta",
+          amount_total: 30000,
+          metadata: { purpose: "donation" },
+        }),
+      ],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect({ imported: report.imported, wierszy: rows.length }).toEqual({
+      imported: 0,
+      wierszy: 0,
+    });
+  });
+
+  it("sesja bez stempla jest ZGŁOSZONA do ręcznego przypisania, a nie przemilczana", async () => {
+    // Cicha odmowa byłaby tu drugą wersją tego samego defektu: wpłata
+    // istnieje u operatora, a nie ma jej w żadnej księdze i nikt o tym nie wie.
+    h.fns.sessionsList.mockResolvedValue({
+      data: [stripeSession({ id: "cs_sierota_bez_tenanta", metadata: { purpose: "donation" } })],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.warnings).toContain("import_unassigned:cs_sierota_bez_tenanta");
+    expect(report.scannedSessions).toBe(1);
+  });
+
+  it("sesja ze stemplem CUDZEGO tenanta też nie wchodzi do naszej księgi", async () => {
+    h.fns.sessionsList.mockResolvedValue({
+      data: [
+        stripeSession({
+          id: "cs_obcego_tenanta",
+          metadata: { purpose: "donation", tenantId: FOREIGN_TENANT },
+        }),
+      ],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.imported).toBe(0);
+    expect(rows).toHaveLength(0);
+    expect(report.warnings).toContain("import_unassigned:cs_obcego_tenanta");
+  });
+
+  it("sesja z NASZYM stemplem jest importowana normalnie", async () => {
+    // Druga strona bramki: zawężenie nie może zabić funkcji, dla której ta
+    // gałąź istnieje.
+    h.fns.sessionsList.mockResolvedValue({
+      data: [stripeSession({ id: "cs_nasza_sierota" })],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.imported).toBe(1);
+    expect(rows[0]).toMatchObject({ tenant_id: TENANT, provider_session_id: "cs_nasza_sierota" });
+  });
 });

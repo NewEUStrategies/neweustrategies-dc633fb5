@@ -89,6 +89,8 @@ type OrderRow = Pick<
   | "amount_cents"
   | "refunded_amount_cents"
   | "currency"
+  // `status` czyta bramka powtórzonego zwrotu (patrz DEFEKT 2 na końcu pliku).
+  | "status"
 >;
 
 /** Wiersz `subscriptions` (operatorski) czytany przez obie ścieżki. */
@@ -114,6 +116,7 @@ function orderRow(overrides: Partial<OrderRow> = {}): OrderRow {
     amount_cents: 4900,
     refunded_amount_cents: 0,
     currency: "PLN",
+    status: "paid",
     ...overrides,
   };
 }
@@ -165,8 +168,9 @@ let scene: Scene;
 function seed(): void {
   db.setResponse("payment_orders", (chain) => {
     if (chain.has("update")) return ok(null);
-    // `revokeOrder` czyta listą (`.limit(1)`), `restoreAccess` - pojedynczym
-    // wierszem (`.maybeSingle()`). Atrapa musi rozróżniać oba kształty.
+    // Odebranie i przywrócenie dostępu czytają zamówienie TĄ SAMĄ funkcją
+    // (`findOrderForAdjustment`), czyli listą z `.limit(1)`. Gałąź
+    // `maybeSingle` zostaje dla atrap, które nadal pytają pojedynczym wierszem.
     if (chain.has("maybeSingle")) return ok(scene.order);
     return ok(scene.order ? [scene.order] : []);
   });
@@ -983,8 +987,11 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
   });
 
   it("błąd flipu na `paid` przerywa, zanim wróci uprawnienie", async () => {
+    // Odczyt oddaje LISTĘ: po naprawie defektu nr 4 przywrócenie dostępu szuka
+    // zamówienia tą samą funkcją co zwrot (`or(...)` + `.limit(1)`), a nie
+    // pojedynczym wierszem po `provider_intent_id`.
     db.setResponse("payment_orders", (chain) =>
-      chain.has("update") ? fail("permission denied", "42501") : ok(orderRow()),
+      chain.has("update") ? fail("permission denied", "42501") : ok([orderRow()]),
     );
 
     await expect(applyRefundEffects(wonEvent())).rejects.toThrow(
@@ -1004,63 +1011,79 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
   });
 });
 
-describe("refunds.server - DEFEKTY (bramki regresji, świadomie czerwone)", () => {
+describe("refunds.server - DEFEKTY NAPRAWIONE (bramki regresji)", () => {
   // =====================================================================
-  // DEFEKT 1: zwrot NIE JEST ZAWĘŻONY DO ŚRODOWISKA.
+  // DEFEKT 1 (naprawiony): zwrot NIE BYŁ ZAWĘŻONY DO ŚRODOWISKA.
   //
-  // CO JEST ZŁE. `revokeOrder` szuka zamówienia wyłącznie po identyfikatorze
+  // CO BYŁO ZŁE. `revokeOrder` szukał zamówienia wyłącznie po identyfikatorze
   // transakcji (`or(provider_payment_intent_id / provider_intent_id /
   // provider_session_id)`) - bez `.eq("environment", event.environment)`.
   // Ta sama funkcja tuż obok (`revokeSubscription`) filtr środowiska MA,
   // i test „subskrypcja jest szukana W TYM SAMYM ŚRODOWISKU" tego dowodzi.
-  // `revokeDonation` też go nie ma.
   //
-  // DLACZEGO TO RYZYKO. Reguła jest w tym repo nazwana wprost jako P0
+  // JAKIE TO BYŁO RYZYKO. Reguła jest w tym repo nazwana wprost jako P0
   // (`oneTimeFulfilment.server`): „realizujemy zamówienie WYŁĄCZNIE zdarzeniem
   // z tego samego środowiska, w którym powstało. Bez tego sandboxowy webhook
   // (opłacony kartą testową) mógłby zrealizować realne zamówienie". Zwrot jest
-  // tą samą operacją odwróconą i o wyższej stawce: skutkiem nie jest darmowy
+  // tą samą operacją odwróconą i o wyższej stawce: skutkiem nie był darmowy
   // dostęp, tylko ODEBRANIE dostępu i oznaczenie realnego zamówienia jako
-  // zwróconego - na podstawie zdarzenia z piaskownicy. Kolumna
-  // `payment_orders.environment` istnieje i jest NOT NULL, więc filtr nie
-  // wymaga żadnej migracji.
+  // zwróconego - na podstawie zdarzenia z piaskownicy.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakaz zmian w kodzie produkcyjnym. Poprawka jest
-  // ponadto szersza niż jedna linia: ten sam filtr trzeba dołożyć w
-  // `revokeDonation` (`donations` nie ma dziś kolumny środowiska) i
-  // w `restoreAccess`, a decyzja o zachowaniu wierszy historycznych należy do
-  // właściciela modułu.
+  // JAK NAPRAWIONO. Wyszukiwanie zamówienia zjechało do JEDNEJ funkcji
+  // (`findOrderForAdjustment`), która filtruje `.eq("environment", ...)` i jest
+  // wołana przez obie ścieżki - odebranie i przywrócenie dostępu. Obawa
+  // o wiersze historyczne odpadła: kolumna weszła jako `NOT NULL DEFAULT 'live'`
+  // (migracja `20260731220000_payment_orders_environment_isolation`).
+  //
+  // CO ZOSTAŁO NIEDOKOŃCZONE. `revokeDonation` nadal nie filtruje środowiska,
+  // bo `donations` NIE MA kolumny `environment` (wygenerowane `types.ts`).
+  // Domknięcie wymaga migracji (kolumna + backfill + indeks), której ta zmiana
+  // świadomie nie dokłada - zgłoszone właścicielowi modułu.
   // =====================================================================
-  it.fails("zwrot powinien szukać zamówienia W ŚRODOWISKU korekty", async () => {
+  it("zwrot szuka zamówienia W ŚRODOWISKU korekty", async () => {
     await applyRefundEffects(refundEvent({ environment: "live" }));
 
     expect(filters("payment_orders", "eq")).toContainEqual(["environment", "live"]);
   });
 
+  it("wygrany spór też szuka zamówienia w środowisku korekty", async () => {
+    // Ta sama funkcja wyszukująca, więc filtr obowiązuje w obie strony:
+    // zdarzenie z piaskownicy nie przywróci realnego zamówienia.
+    await applyRefundEffects(
+      refundEvent({ action: "chargeback", status: "reversed", environment: "live" }),
+    );
+
+    expect(filters("payment_orders", "eq")).toContainEqual(["environment", "live"]);
+  });
+
   // =====================================================================
-  // DEFEKT 2: PODWÓJNY ZWROT jest niewykrywalny - skutki miękkie idą co raz.
+  // DEFEKT 2 (naprawiony): PODWÓJNY ZWROT był niewykrywalny - skutki miękkie
+  // szły co raz.
   //
-  // CO JEST ZŁE. `revokeOrder` zapisuje `update(...).neq("status","refunded")`
-  // i NIE czyta wyniku (`.select("id")` nie ma). Co więcej, `select` na wejściu
-  // nie pobiera kolumny `status`, więc kod nie ma jak stwierdzić, że zamówienie
-  // jest już w całości zwrócone. Ponowione zdarzenie przechodzi więc CAŁĄ
-  // ścieżkę skutków: ponownie odbiera uprawnienie, ponownie anuluje zgłoszenie,
-  // ponownie wstawia dzwonek - i zwraca `order_refunded`, choć baza nie
-  // zmieniła ani jednego wiersza.
+  // CO BYŁO ZŁE. `revokeOrder` zapisywał `update(...).neq("status","refunded")`
+  // i NIE czytał wyniku (`.select("id")` nie było). Co więcej, `select` na
+  // wejściu nie pobierał kolumny `status`, więc kod nie miał jak stwierdzić, że
+  // zamówienie jest już w całości zwrócone. Ponowione zdarzenie przechodziło
+  // CAŁĄ ścieżkę skutków: ponownie odbierało uprawnienie, ponownie anulowało
+  // zgłoszenie, ponownie wstawiało dzwonek - i zwracało `order_refunded`, choć
+  // baza nie zmieniła ani jednego wiersza.
   //
-  // DLACZEGO TO RYZYKO. Wzorzec poprawny stoi kilkadziesiąt linii niżej,
+  // JAKIE TO BYŁO RYZYKO. Wzorzec poprawny stoi kilkadziesiąt linii niżej,
   // w TYM SAMYM PLIKU: `revokeDonation` robi `.select("id")` i oddaje
-  // `skipped`, gdy nic
-  // nie pasowało (dowodzi tego test „darowizna JUŻ ZWRÓCONA..."). Skutkiem
-  // braku tej samej bramki jest kolejny dzwonek „Zwrot płatności" przy każdym
-  // ponowieniu webhooka i wynik, na którym nie da się oprzeć metryki zwrotów.
+  // `skipped`, gdy nic nie pasowało (dowodzi tego test „darowizna JUŻ
+  // ZWRÓCONA..."). Skutkiem braku tej samej bramki był kolejny dzwonek „Zwrot
+  // płatności" przy każdym ponowieniu webhooka i wynik, na którym nie dało się
+  // oprzeć metryki zwrotów.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakaz zmian w kodzie produkcyjnym. Poprawka zmienia
-  // KONTRAKT WYNIKU (`order_refunded` -> `skipped` przy powtórce), który czyta
-  // `webhookDispatch.server` i dziennik zdarzeń - to zmiana zachowania, a nie
-  // dopisanie testu.
+  // JAK NAPRAWIONO. `select` na wejściu pobiera `status`, zapis kończy się
+  // `.select("id")`, a skutki miękkie odcina bramka powtórki: zapis nie objął
+  // żadnego wiersza I zamówienie było już zamknięte zwrotem I zdarzenie nie
+  // podnosi licznika. ZMIANA KONTRAKTU WYNIKU: powtórka oddaje `skipped`
+  // zamiast `order_refunded`. Jedyny wołający (`webhookDispatch.server`)
+  // wyniku nie czyta (`await applyRefundEffects(...)`), więc zmiana nie dotyka
+  // dziennika zdarzeń.
   // =====================================================================
-  it.fails("ponowiony zwrot już zwróconego zamówienia nie powinien wstawiać dzwonka", async () => {
+  it("ponowiony zwrot już zwróconego zamówienia nie wstawia dzwonka", async () => {
     scene.order = orderRow({ amount_cents: 4900, refunded_amount_cents: 4900 });
 
     await applyRefundEffects(refundEvent({ adjustmentId: "adj_ponowione" }));
@@ -1068,63 +1091,113 @@ describe("refunds.server - DEFEKTY (bramki regresji, świadomie czerwone)", () =
     expect(inserted("notifications")).toHaveLength(0);
   });
 
+  it("powtórka oddaje `skipped` i nie rusza uprawnienia ani zgłoszenia", async () => {
+    // Pełny kontrakt powtórki: nie tylko dzwonek, ale ŻADEN skutek miękki -
+    // i wynik, po którym metryka zwrotów odróżnia zwrot od jego ponowienia.
+    scene.order = orderRow({
+      amount_cents: 4900,
+      refunded_amount_cents: 4900,
+      status: "refunded",
+      metadata: { event_id: EVENT_ID },
+    });
+
+    const outcome = await applyRefundEffects(refundEvent({ adjustmentId: "adj_ponowione" }));
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+  });
+
+  it("PIERWSZY zwrot na zamówieniu `paid` nadal przechodzi całą ścieżkę", async () => {
+    // Bramka powtórki nie może zjeść zwrotu, który naprawdę coś zmienia -
+    // dlatego wymaga OBU dowodów naraz (pusty zapis + zamknięte zamówienie).
+    scene.order = orderRow({ amount_cents: 4900, refunded_amount_cents: 0, status: "paid" });
+
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("order_refunded");
+    expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
+    expect(inserted("notifications")).toHaveLength(1);
+  });
+
   // =====================================================================
-  // DEFEKT 3: kwota zwrotu NIE JEST ZACISKANA do kwoty zamówienia.
+  // DEFEKT 3 (naprawiony): kwota zwrotu NIE BYŁA ZACISKANA do kwoty zamówienia.
   //
-  // CO JEST ZŁE. `refundedSoFar = Math.max(order.refunded_amount_cents,
-  // event.amountCents)` trafia do bazy bez porównania z `captured`. Gdy korekta
-  // niesie kwotę WYŻSZĄ niż nasze zamówienie, zapisujemy
-  // `refunded_amount_cents > amount_cents` - i robimy to CICHO, bez logu.
+  // CO BYŁO ZŁE. `refundedSoFar = Math.max(order.refunded_amount_cents,
+  // event.amountCents)` trafiał do bazy bez porównania z `captured`. Gdy korekta
+  // niosła kwotę WYŻSZĄ niż nasze zamówienie, zapisywaliśmy
+  // `refunded_amount_cents > amount_cents` - i robiliśmy to CICHO, bez logu.
   //
-  // DLACZEGO TO RYZYKO. `refunded_amount_cents` jest podstawą rachunku
+  // JAKIE TO BYŁO RYZYKO. `refunded_amount_cents` jest podstawą rachunku
   // „przychód netto = amount_cents - refunded_amount_cents". Wartość większa od
   // kwoty zamówienia daje przychód UJEMNY i psuje każde zestawienie, w którym
   // ta kolumna występuje. Rozjazd kwot nie jest hipotetyczny: `captured`
   // pochodzi z payloadu operatora, a `amount_cents` z naszego checkoutu, więc
   // rozjeżdżają się przy zmianie ceny, kuponie dopisanym po utworzeniu
   // zamówienia albo przy zdarzeniu dotyczącym innej waluty. Sytuacja, w której
-  // te dwie liczby się nie zgadzają, powinna zostawić ślad - dziś nie zostawia
-  // żadnego.
+  // te dwie liczby się nie zgadzają, nie zostawiała ŻADNEGO śladu.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakaz zmian w kodzie produkcyjnym, a poprawka nie
-  // jest oczywista: „zaciśnij do `captured`" i „odrzuć zdarzenie" to dwie różne
-  // decyzje księgowe (pierwsza gubi informację, druga wstrzymuje odebranie
-  // dostępu). Wybór należy do właściciela modułu rozliczeń.
+  // JAK NAPRAWIONO (decyzja księgowa: ZACISK, NIE ODRZUCENIE). Kwota jest
+  // zaciskana do `captured` i rozjazd ląduje w `console.warn`. Odrzucenie
+  // zdarzenia (wyjątek -> ponowienie) wstrzymałoby ODEBRANIE DOSTĘPU przy
+  // korekcie, która u operatora już się wydarzyła: klient miałby i pieniądze,
+  // i treść, a kolejne dostarczenia niosłyby tę samą kwotę, więc pętla nie
+  // miałaby wyjścia bez ręcznej interwencji. Pełne uzasadnienie stoi przy
+  // zacisku w `refunds.server.ts`.
   // =====================================================================
-  it.fails("zwrot PRZEKRACZAJĄCY kwotę zamówienia nie powinien trafić do ksiąg", async () => {
+  it("zwrot PRZEKRACZAJĄCY kwotę zamówienia jest zaciskany, nie księgowany wprost", async () => {
     scene.order = orderRow({ amount_cents: 4900, refunded_amount_cents: 0 });
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await applyRefundEffects(refundEvent({ amountCents: 12000, capturedAmountCents: null }));
 
     const written = Number(patches("payment_orders")[0].refunded_amount_cents);
     expect(written).toBeLessThanOrEqual(4900);
+    // Rozjazd kwot MUSI zostawić ślad - bez niego zacisk po cichu gubiłby
+    // informację o tym, że operator i nasze księgi się nie zgadzają.
+    expect(warnLog).toHaveBeenCalled();
+    warnLog.mockRestore();
+  });
+
+  it("zacisk nie zamienia zwrotu pełnego w częściowy", async () => {
+    // Po zacisku `refundedSoFar === captured`, więc próg „zwrot pełny" musi
+    // zadziałać: dostęp znika, a status zamówienia idzie na `refunded`.
+    scene.order = orderRow({ amount_cents: 4900, refunded_amount_cents: 0 });
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await applyRefundEffects(refundEvent({ amountCents: 12000, capturedAmountCents: null }));
+
+    expect(patches("payment_orders")[0]).toMatchObject({ status: "refunded" });
+    expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
+    warnLog.mockRestore();
   });
 
   // =====================================================================
-  // DEFEKT 4: WYGRANY SPÓR nie przywraca zamówień znalezionych sesją.
+  // DEFEKT 4 (naprawiony): WYGRANY SPÓR nie przywracał zamówień znalezionych
+  // sesją.
   //
-  // CO JEST ZŁE. Odebranie dostępu (`revokeOrder`) szuka zamówienia po TRZECH
+  // CO BYŁO ZŁE. Odebranie dostępu (`revokeOrder`) szukało zamówienia po TRZECH
   // kolumnach: `provider_payment_intent_id`, `provider_intent_id` oraz
   // `provider_session_id` - z komentarzem, że bez tego „zwrot cicho nie
-  // odbierałby dostępu". Przywrócenie (`restoreAccess`) szuka po JEDNEJ:
+  // odbierałby dostępu". Przywrócenie (`restoreAccess`) szukało po JEDNEJ:
   // `.eq("provider_intent_id", ...)`.
   //
-  // DLACZEGO TO RYZYKO. Asymetria jest jednokierunkowa i działa na niekorzyść
-  // klienta: zamówienie zapisane identyfikatorem sesji checkout zostanie
-  // ZNALEZIONE przy odbieraniu dostępu i NIE ZOSTANIE znalezione przy jego
-  // przywracaniu. Efekt: spór wygrany (pieniądze zostają u nas), a klient
-  // bezpowrotnie bez dostępu - i bez żadnego sygnału, bo `restoreAccess` oddaje
-  // wtedy `skipped`, czyli stan nieodróżnialny od „nie było czego przywracać".
+  // JAKIE TO BYŁO RYZYKO. Asymetria była jednokierunkowa i działała na
+  // niekorzyść klienta: zamówienie zapisane identyfikatorem sesji checkout było
+  // ZNAJDOWANE przy odbieraniu dostępu i NIEWIDOCZNE przy jego przywracaniu.
+  // Efekt: spór wygrany (pieniądze zostają u nas), a klient bezpowrotnie bez
+  // dostępu - i bez żadnego sygnału, bo `restoreAccess` oddawał wtedy
+  // `skipped`, czyli stan nieodróżnialny od „nie było czego przywracać".
   // Test poniżej pokazuje obie strony w jednym przebiegu: ten sam wiersz jest
-  // najpierw namierzony przez zwrot, a potem niewidoczny dla przywrócenia.
+  // najpierw namierzony przez zwrot, a potem przez przywrócenie.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakaz zmian w kodzie produkcyjnym. Poprawka to
-  // przepisanie filtra na ten sam `or(...)` co w `revokeOrder` RAZEM z bramką
-  // kształtu identyfikatora (bez niej filtr `or` przyjmuje tekst z payloadu
-  // operatora) - czyli wydzielenie wspólnej funkcji wyszukującej, a nie
-  // podmiana jednej linii.
+  // JAK NAPRAWIONO. Obie ścieżki wołają JEDNĄ funkcję wyszukującą
+  // (`findOrderForAdjustment`): ten sam filtr `or(...)` po trzech kolumnach,
+  // ta sama bramka kształtu identyfikatora (bez niej `or` przyjąłby tekst
+  // z payloadu operatora) i ten sam filtr środowiska.
   // =====================================================================
-  it.fails("wygrany spór powinien przywracać zamówienie znalezione po sesji checkout", async () => {
+  it("wygrany spór przywraca zamówienie znalezione po sesji checkout", async () => {
     const sessionOrder = orderRow();
     // Atrapa naśladuje bazę: wiersz ma TYLKO identyfikator sesji, więc
     // odpowiada na filtr `or(...)`, a nie na `eq("provider_intent_id", ...)`.

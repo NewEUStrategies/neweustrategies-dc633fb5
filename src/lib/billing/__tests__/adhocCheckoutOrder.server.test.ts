@@ -724,9 +724,73 @@ describe("zamówienie i sesja operatora", () => {
 // ---------------------------------------------------------------------------
 
 describe("wyprzedana sala", () => {
-  it("zamówienie NIE powstaje, gdy sala jest pełna", async () => {
+  // DEFEKT NAPRAWIONY 31.08.2026 (`adhocCheckoutOrder.server.ts`).
+  //
+  // CO BYŁO ZŁE. `buildAdhocOrder` ma zadeklarowany kanał odmowy
+  // (`{ ok: false, error }`) i korzystał z niego przy KAŻDEJ innej odmowie
+  // biletowej: `entity_required`, `ticket_not_available`, `event_finished`,
+  // `ticket_included_in_plan`. Jedynym wyjątkiem była pełna sala:
+  // `assertSeatAvailable` rzuca `Error("event_full")`, a ta funkcja nie miała
+  // wokół wyceny żadnego `try`, więc wyjątek leciał przez server fn na zewnątrz.
+  //
+  // JAKIE TO BYŁO RYZYKO. To NAJCZĘSTSZA odmowa popularnego wydarzenia -
+  // i jedyna, której kupujący nie widział jako zdania. Zamiast komunikatu
+  // o braku miejsc dostawał błąd serwera i ogólne „coś poszło nie tak".
+  // Skutek operacyjny: kupujący klika ponownie, obsługa dostaje zgłoszenie
+  // „kasa nie działa", a w logu leży wyjątek nieodróżnialny od awarii bazy.
+  //
+  // JAK ZOSTAŁO NAPRAWIONE. Wywołanie `assertSeatAvailable` stoi w `try`,
+  // a wyjątek o komunikacie `event_full` (i TYLKO on) zamienia się w odmowę
+  // `{ ok: false, error: "event_full" }`. Kod odmowy zostaje ten sam, którym
+  // moduł biletów posługuje się od zawsze - dzięki temu drugie wywołanie
+  // `assertSeatAvailable` (`oneTimeFulfilment.server.ts`), które celowo ŁAPIE
+  // ten wyjątek po nazwie komunikatu, działa bez zmian. Każdy inny wyjątek
+  // (np. awaria odczytu miejsc) leci dalej: to nie jest odmowa i nie wolno go
+  // pokazywać kupującemu jako „brak miejsc".
+  it("brak wolnych miejsc wraca KANAŁEM ODMOWY, a nie wyjątkiem", async () => {
     respondEvents(eventRow(), 10);
     rpc.setData("get_event_rsvp_counts", [{ going: 10, waitlist: 2 }]);
+
+    // Wynik i wyjątek sprowadzone do JEDNEJ wartości, żeby test opisywał
+    // KANAŁ odpowiedzi, a nie tylko jej treść.
+    const outcome = await buildAdhocOrder(
+      args({
+        data: { purpose: "event_ticket", eventId: EVENT, returnUrl: "https://nes.example.com/ok" },
+      }),
+    ).then(
+      (value) => value,
+      (error: unknown) => ({ rzucono: error instanceof Error ? error.message : String(error) }),
+    );
+
+    expect(outcome).toEqual({ ok: false, error: "event_full" });
+  });
+
+  it("zamówienie NIE powstaje, gdy sala jest pełna", async () => {
+    // Odmowa musi zapaść PRZED zapisem: zamówienie założone dla pełnej sali
+    // zostałoby wiszącym `pending` bez sesji, czyli dokładnie tym, czego szuka
+    // panel „zamówień wiszących".
+    respondEvents(eventRow(), 10);
+    rpc.setData("get_event_rsvp_counts", [{ going: 10, waitlist: 2 }]);
+
+    const result = await buildAdhocOrder(
+      args({
+        data: { purpose: "event_ticket", eventId: EVENT, returnUrl: "https://nes.example.com/ok" },
+      }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "event_full" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("AWARIA kontroli miejsc NIE jest zamieniana na „brak miejsc”", async () => {
+    // Granica poprawki: łapiemy wyłącznie wyjątek o komunikacie `event_full`.
+    // Padnięcie transportu w trakcie kontroli miejsc pokazane jako
+    // „wyprzedane" byłoby kłamstwem o dostępności biletu - zamknęłoby sprzedaż
+    // wydarzenia bez żadnego śladu w logu.
+    chain.setResponse("event_rsvps", () => {
+      throw new Error("rsvp transport died");
+    });
 
     await expect(
       buildAdhocOrder(
@@ -738,48 +802,7 @@ describe("wyprzedana sala", () => {
           },
         }),
       ),
-    ).rejects.toThrow("event_full");
+    ).rejects.toThrow("rsvp transport died");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
-  });
-
-  it.fails("DEFEKT: brak wolnych miejsc wychodzi wyjątkiem zamiast kanałem odmowy", async () => {
-    // CO JEST ZŁE. `buildAdhocOrder` ma zadeklarowany kanał odmowy
-    // (`{ ok: false, error }`) i korzysta z niego przy KAŻDEJ innej odmowie
-    // biletowej: `entity_required`, `ticket_not_available`, `event_finished`,
-    // `ticket_included_in_plan`. Jedyny wyjątek to pełna sala:
-    // `assertSeatAvailable` rzuca `Error("event_full")`, a ta funkcja nie ma
-    // wokół wyceny żadnego `try`, więc wyjątek leci przez server fn na zewnątrz.
-    //
-    // DLACZEGO TO RYZYKO. To NAJCZĘSTSZA odmowa popularnego wydarzenia -
-    // i jedyna, której kupujący nie zobaczy jako zdania. Zamiast „brak wolnych
-    // miejsc" (słownik kasy ma na to gotowy wpis `sold_out`, a osobno
-    // `ticket_included_in_plan` i `event_finished`, które TĄ SAMĄ ścieżką
-    // wracają poprawnie) dostaje błąd serwera i ogólne „coś poszło nie tak".
-    // Skutek operacyjny: kupujący klika ponownie, obsługa dostaje zgłoszenie
-    // „kasa nie działa", a w logu leży wyjątek nieodróżnialny od awarii bazy.
-    //
-    // DLACZEGO NIE NAPRAWIAM. Nie zmieniam kodu produkcyjnego, a naprawa jest
-    // decyzją produktową, nie techniczną: trzeba wybrać KOD odmowy widoczny
-    // dla klienta (`event_full` nie ma dziś tłumaczenia, `sold_out` ma) i
-    // sprawdzić drugie wywołanie `assertSeatAvailable`
-    // (`oneTimeFulfilment.server.ts`), które celowo ŁAPIE ten wyjątek po
-    // nazwie komunikatu - zmiana kontraktu dotknęłaby również jego.
-    respondEvents(eventRow(), 10);
-    rpc.setData("get_event_rsvp_counts", [{ going: 10, waitlist: 2 }]);
-
-    // Wynik i wyjątek sprowadzone do JEDNEJ wartości, żeby test padał na
-    // ASERCJI o kanale odmowy, a nie na samym wyjątku - to wyjątek jest tu
-    // przedmiotem badania, a nie awarią testu.
-    const outcome = await buildAdhocOrder(
-      args({
-        data: { purpose: "event_ticket", eventId: EVENT, returnUrl: "https://nes.example.com/ok" },
-      }),
-    ).then(
-      (value) => value,
-      (error: unknown) => ({ rzucono: error instanceof Error ? error.message : String(error) }),
-    );
-
-    expect(outcome).toEqual({ ok: false, error: "event_full" });
   });
 });

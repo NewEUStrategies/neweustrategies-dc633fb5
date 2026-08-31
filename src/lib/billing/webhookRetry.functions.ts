@@ -37,7 +37,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function asVerifiedStripeEvent(payload: Record<string, unknown>): VerifiedWebhookEvent | null {
   const { id, type, created, data } = payload;
-  if (typeof id !== "string" || typeof type !== "string" || typeof created !== "number") return null;
+  if (typeof id !== "string" || typeof type !== "string" || typeof created !== "number")
+    return null;
   if (!isRecord(data) || !isRecord(data.object)) return null;
   return { id, type, created, data: { object: data.object } };
 }

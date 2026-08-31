@@ -22,14 +22,21 @@
 //      Panel, ktory po synchronizacji pokazuje stare liczby, kaze administratorowi
 //      uruchomic ja jeszcze raz - a to operacja na koncie operatora platnosci.
 //
+//   6. JEZYK PANELU. Panel jest dwujezyczny, a od 08.2026 bierze WSZYSTKIE
+//      napisy ze slownika. Rozroznienie „Środowisko testowe" kontra
+//      „Środowisko produkcyjne" jest jedynym, co dzieli uzgodnienie na
+//      piaskownicy od uzgodnienia na koncie produkcyjnym - wiec napis
+//      nieprzetlumaczony jest tu ryzykiem operacyjnym, nie kosmetyka.
+//
 // GRANICE vs SASIEDZI. Atrapowane sa WYLACZNIE granice: funkcje serwerowe
 // (statystyki, rejestr, synchronizacja), silnik ustawien `useSettings`
 // (ma wlasny, wyczerpujacy test - `src/lib/admin/__tests__/useSettings.test.tsx`),
-// odczyt srodowiska operatora, i18n i toasty. PRAWDZIWE biegna: `useDraft`
+// odczyt srodowiska operatora i toasty. PRAWDZIWE biegna: `useDraft`
 // z tego samego modulu (czysty stan Reacta), `donationsConfig`
 // (`DONATIONS_DEFAULTS`, `formatDonationAmount`, schemat konfiguracji), pola
-// formularza panelu i OBA panele skladowe - dzieki temu widac takze, ze dane
-// z zapytan naprawde do nich dojezdzaja.
+// formularza panelu, OBA panele skladowe i PRAWDZIWY slownik i18n - dzieki
+// temu widac takze, ze dane z zapytan naprawde do nich dojezdzaja, a napisy
+// pochodza ze slownika, a nie z kodu.
 //
 // ZERO SIECI, ZERO SEKRETOW: klucz operatora nie jest tu w ogole czytany
 // (`getStripeEnvironmentSafe` to atrapa), a zadna funkcja serwerowa nie biegnie.
@@ -38,6 +45,8 @@
 // (`example.com` / `example.org`).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import i18n from "@/lib/i18n";
+import { realT } from "@/test/i18nReal";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 import {
@@ -50,8 +59,6 @@ import type { DonationsPublicStats } from "@/lib/billing/donations.functions";
 import type { AdminDonationRow, DonationsSyncReport } from "@/lib/billing/donationsAdmin.server";
 
 const h = vi.hoisted(() => ({
-  /** Jezyk interfejsu widziany przez atrape i18n. */
-  language: "pl",
   ensureI18n: vi.fn(),
   /** Srodowisko operatora odczytane z konfiguracji klienta. */
   stripeEnv: vi.fn(() => "sandbox"),
@@ -67,11 +74,23 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-vi.mock("react-i18next", async () =>
-  (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
-);
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
-vi.mock("@/lib/i18n-donate", () => ({ ensureI18n: h.ensureI18n }));
+
+// `react-i18next` NIE JEST atrapowany: panel jest dwujezyczny, a przedmiotem
+// dowodu jest to, ze napisy przychodza ZE SLOWNIKA, wiec test musi czytac ten
+// sam slownik, co uzytkownik (patrz `src/test/i18nReal.ts`). Jezyk przestawia
+// sie tu `i18n.changeLanguage`, nie polem atrapy. Skrotu
+// `vi.mock("react-i18next", () => reactI18nextMock())` uzyc NIE MOZNA - fabryka
+// mocka siegnelaby po `@/lib/i18n`, ktory importuje wlasnie mockowany modul,
+// i plik testowy zawiesilby sie bez komunikatu.
+//
+// Nakladka slownika darowizn jest rozwinieta PRAWDZIWA (`importActual`), zeby
+// `donate.admin.*` bylo w store; podmieniony zostaje wylacznie `ensureI18n`,
+// bo jego wywolanie jest osobnym przedmiotem dowodu.
+vi.mock("@/lib/i18n-donate", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/i18n-donate")>("@/lib/i18n-donate");
+  return { ...actual, ensureI18n: h.ensureI18n };
+});
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironmentSafe: h.stripeEnv }));
 vi.mock("@/lib/billing/donations.functions", () => ({ getDonationsPublicStats: h.getStats }));
 vi.mock("@/lib/billing/donationsAdmin.functions", () => ({
@@ -177,25 +196,40 @@ function wieczneOczekiwanie(): Promise<never> {
 
 // --- lokalizowanie kontrolek ------------------------------------------------
 //
-// `Field` renderuje etykiete jako SIOSTRE kontrolki (uklad dwukolumnowy), a nie
-// jako `<label for>`, wiec `getByLabelText` tu nie dziala. To samo w sobie jest
-// defektem dostepnosci - jest zarejestrowany na dole pliku. Tutaj szukamy
-// kontrolki po widocznej etykiecie, czyli dokladnie tak, jak znajduje ja
-// administrator wzrokiem.
+// Kontrolki znajdujemy PO ETYKIECIE (`getByLabelText`), czyli tak, jak znajduje
+// je i administrator wzrokiem, i czytnik ekranu. Do 08.2026 nie bylo to
+// mozliwe: `Field` renderowal `<label>` jako siostre kontrolki, bez `htmlFor`,
+// wiec test musial siegac po `parentElement.querySelector("input")` - obejscie,
+// ktore przechodzilo takze wtedy, gdy zadna kontrolka nie miala nazwy
+// dostepnej. Teraz kazde uzycie tych helperow jest przy okazji dowodem, ze
+// powiazanie etykiety z kontrolka istnieje.
 
-function polePrzyEtykiecie<T extends Element>(etykieta: string, selektor: string): T {
-  const label = screen.getByText(etykieta);
-  const control = label.parentElement?.querySelector(selektor);
-  if (!control) throw new Error(`test: przy etykiecie "${etykieta}" nie ma "${selektor}"`);
-  return control as T;
-}
+/** Etykiety pol formularza - jedno zrodlo dla testow i dla asercji dostepnosci. */
+const ETYKIETY_POL = [
+  "Kwoty sugerowane",
+  "Kwota minimalna (grosze)",
+  "Kwota maksymalna (grosze)",
+  "Cel zbiórki (grosze)",
+  "Nagłówek (PL)",
+  "Nagłówek (EN)",
+  "Opis (PL)",
+  "Opis (EN)",
+] as const;
 
 function poleTekstowe(etykieta: string): HTMLInputElement {
-  return polePrzyEtykiecie<HTMLInputElement>(etykieta, "input");
+  const control = screen.getByLabelText(etykieta);
+  if (!(control instanceof HTMLInputElement)) {
+    throw new Error(`test: etykieta "${etykieta}" nie opisuje pola tekstowego`);
+  }
+  return control;
 }
 
 function poleWyboru(etykieta: string): HTMLSelectElement {
-  return polePrzyEtykiecie<HTMLSelectElement>(etykieta, "select");
+  const control = screen.getByLabelText(etykieta);
+  if (!(control instanceof HTMLSelectElement)) {
+    throw new Error(`test: etykieta "${etykieta}" nie opisuje listy rozwijanej`);
+  }
+  return control;
 }
 
 /** Pole wyboru srodowiska stoi poza `Field` - rozpoznajemy je po opcjach. */
@@ -233,15 +267,22 @@ function zapisany(): Record<string, unknown> {
   return last;
 }
 
+/** Napis stanu „wczytuje" - ze slownika, nie z klucza. */
+function wczytuje(lang: "pl" | "en" = "pl"): string {
+  return realT(lang)("admin.loading");
+}
+
 /** Renderuje panel i czeka, az OBA zapytania osiadna (znika „wczytuje"). */
 async function panel() {
   const utils = renderWithQueryClient(<AdminDonations />);
-  await waitFor(() => expect(screen.queryByText("admin.loading")).toBeNull());
+  await waitFor(() => expect(screen.queryByText(wczytuje())).toBeNull());
   return utils;
 }
 
-beforeEach(() => {
-  h.language = "pl";
+beforeEach(async () => {
+  // Jezyk jest stanem WSPOLDZIELONEJ instancji i18next - kazdy test zaczyna
+  // od polskiego, inaczej przestawienie w jednym tescie wyciekaloby na kolejne.
+  await i18n.changeLanguage("pl");
   h.stored = konfiguracja();
   h.saves = [];
   h.saving = false;
@@ -265,7 +306,7 @@ describe("AdminDonations - wejscie na panel", () => {
     // zbiorki jednym klikiem w „Zapisz".
     h.stored = null;
     renderWithQueryClient(<AdminDonations />);
-    expect(screen.getByText("admin.loading")).toBeInTheDocument();
+    expect(screen.getByText(wczytuje())).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Darowizny" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Zapis/ })).toBeNull();
   });
@@ -331,7 +372,7 @@ describe("AdminDonations - sklejenie z panelami skladowymi", () => {
     h.listRecords.mockReturnValue(wieczneOczekiwanie());
     renderWithQueryClient(<AdminDonations />);
     await screen.findByRole("heading", { name: "Darowizny" });
-    expect(screen.getByText("admin.loading")).toBeInTheDocument();
+    expect(screen.getByText(wczytuje())).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
     expect(przyciskZapisu()).toBeInTheDocument();
   });
@@ -340,7 +381,7 @@ describe("AdminDonations - sklejenie z panelami skladowymi", () => {
     // Jezyk czyta sie z i18n i podaje obu panelom. Panel podsumowania i wiersz
     // rejestru musza mowic tym samym formatem - inaczej ta sama kwota wyglada
     // na dwie rozne.
-    h.language = "en";
+    await i18n.changeLanguage("en");
     await panel();
     expect(screen.getByText(kwota(125000, "PLN", "en"))).toBeInTheDocument();
     expect(screen.getByText(kwota(15000, "PLN", "en"))).toBeInTheDocument();
@@ -602,8 +643,9 @@ describe("AdminDonations - kwoty", () => {
     // `Number("")` to zero, ale `Number("abc")` to `NaN` - i to `NaN` jest tu
     // ryzykiem, bo po serializacji do JSON staje sie `null` i cala konfiguracja
     // zbiorki przestaje przechodzic walidacje przy odczycie publicznym.
-    // Straznik `|| 0` zamienia oba przypadki na liczbe. (Sama wartosc 0 jest
-    // dla schematu nadal nieprawidlowa - to osobny, zarejestrowany defekt.)
+    // Straznik `|| 0` zamienia oba przypadki na liczbe. Zero PRZECHODZI tu przez
+    // walidacje zapisu, bo `maxCents` ma w schemacie tylko sufit - inaczej niz
+    // `minCents` z podloga 500, ktore od 08.2026 zapis blokuje (test nizej).
     await panel();
     fireEvent.change(poleTekstowe("Kwota maksymalna (grosze)"), { target: { value: "" } });
     const zapis = zapisany();
@@ -665,141 +707,173 @@ describe("AdminDonations - tresci formularza wplaty", () => {
 });
 
 describe("AdminDonations - dostepnosc", () => {
-  it("poza brakiem nazw pol panel nie ma innych naruszen dostepnosci", async () => {
+  it("panel nie ma naruszen dostepnosci - takze po synchronizacji", async () => {
     // Zakres celowo obejmuje stan PO synchronizacji: raport i komunikat bledu
     // to tresc pojawiajaca sie dynamicznie, czyli ta, ktora najlatwiej dodac
     // bez semantyki.
     //
-    // DWIE REGULY SA TU WYLACZONE CELOWO. `label` i `select-name` padaja na
-    // KAZDYM polu tego formularza, bo `Field` nie wiaze etykiety z kontrolka -
-    // to osobny, zarejestrowany defekt (`it.fails` na dole pliku). Gdyby ten
-    // test uruchamial je razem z reszta, bylby na stale czerwony i przestalby
-    // pilnowac wszystkiego innego: kolejnosci naglowkow, semantyki tabeli
-    // rejestru, nazw przyciskow i poprawnosci ARIA.
+    // Do 08.2026 dwie reguly (`label` i `select-name`) byly tu WYLACZONE, bo
+    // padaly na kazdym polu formularza - `Field` nie wiazal etykiety
+    // z kontrolka. Po naprawie nie ma czego wylaczac i test pilnuje calego
+    // zestawu razem z kolejnoscia naglowkow, semantyka tabeli rejestru,
+    // nazwami przyciskow i poprawnoscia ARIA.
     const { container } = await panel();
     fireEvent.click(przyciskSynchronizacji());
     await screen.findByText(/Zaksięgowane/);
-    const naruszenia = await axeViolations(container, {
-      label: { enabled: false },
-      "select-name": { enabled: false },
-    });
+    const naruszenia = await axeViolations(container);
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE, NIENAPRAWIONE (zakres tej pracy: wylacznie testy).
+// DEFEKTY ZAREJESTROWANE I NAPRAWIONE (08.2026).
 // ---------------------------------------------------------------------------
-describe("AdminDonations - defekty (zarejestrowane)", () => {
-  it.fails("caly panel jest przetlumaczalny, a nie wpisany po polsku", async () => {
-    // CO JEST ZLE. Panel WOLA `useTranslation()` i wylicza z niego `lang`,
-    // ale uzywa go WYLACZNIE do formatowania kwot i dat. Cala reszta jest
+describe("AdminDonations - dawne defekty", () => {
+  it("caly panel jest przetlumaczalny, a nie wpisany po polsku", async () => {
+    // CO BYLO ZLE. Panel WOLAL `useTranslation()` i wyliczal z niego `lang`,
+    // ale uzywal go WYLACZNIE do formatowania kwot i dat. Cala reszta byla
     // wpisana w kod po polsku: naglowek „Darowizny", opis modulu, naglowki
     // sekcji („Silnik wpłat", „Kwoty", „Formularz", „Treści", „Synchronizacja
     // ze Stripe"), etykiety wszystkich pol, obie opcje trybu, obie opcje
     // srodowiska, oba stany przycisku synchronizacji, tresc raportu i
     // komunikat zastepczy bledu.
     //
-    // DLACZEGO TO RYZYKO. Efekt jest gorszy niz „brak tlumaczenia": panel
-    // przelaczony na angielski pokazuje kwoty i daty po angielsku POD polskimi
-    // etykietami, wiec wyglada na uszkodzony, a nie na nieprzetlumaczony.
-    // Twardsza konsekwencja jest przy synchronizacji - „Środowisko testowe"
+    // DLACZEGO TO BYLO RYZYKO. Efekt byl gorszy niz „brak tlumaczenia": panel
+    // przelaczony na angielski pokazywal kwoty i daty po angielsku POD polskimi
+    // etykietami, wiec wygladal na uszkodzony, a nie na nieprzetlumaczony.
+    // Twardsza konsekwencja byla przy synchronizacji - „Środowisko testowe"
     // kontra „Środowisko produkcyjne" to JEDYNE rozroznienie miedzy operacja
     // na piaskownicy a operacja na koncie produkcyjnym operatora platnosci.
-    // Administrator, ktory tego nie czyta, wybiera na slepo.
+    // Administrator, ktory tego nie czytal, wybieral na slepo.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga zalozenia kilkudziesieciu kluczy
-    // w slowniku `i18n-donate` w obu jezykach i przepisania kodu produkcyjnego;
-    // zakres tej pracy to wylacznie testy.
-    h.language = "en";
+    // JAK NAPRAWIONE. Wszystkie napisy panelu i obu paneli skladowych ida przez
+    // klucze `donate.admin.*` w nakladce `i18n-donate` (PL i EN) - tej samej,
+    // ktora panel juz rejestrowal `ensureI18n()`. Napisy przycisku zapisu niesie
+    // wspoldzielony `SaveBar` z `@/components/admin/settings/fields` i to jest
+    // OSOBNY, szerszy dlug (dotyczy wszystkich paneli ustawien), wiec ten test
+    // go nie obejmuje.
+    await i18n.changeLanguage("en");
     await panel();
+    const t = realT("en");
     expect(screen.queryByRole("heading", { name: "Darowizny" })).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: t("donate.admin.title") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: t("donate.admin.sync.title") }),
+    ).toBeInTheDocument();
+    // Najostrzejsze miejsce calego panelu: opisy obu srodowisk operatora.
+    expect(Array.from(poleSrodowiska().options).map((o) => o.textContent)).toEqual([
+      t("donate.admin.sync.sandbox"),
+      t("donate.admin.sync.live"),
+    ]);
+    // Kwoty i etykiety mowia teraz jednym jezykiem.
+    expect(screen.getByText(kwota(125000, "PLN", "en"))).toBeInTheDocument();
+    expect(screen.getByText(t("donate.admin.summary.total"))).toBeInTheDocument();
   });
 
-  it.fails("etykiety pol formularza sa POWIAZANE ze swoimi kontrolkami", async () => {
-    // CO JEST ZLE. `Field` (z `@/components/admin/settings/fields`) renderuje
+  it("etykiety pol formularza sa POWIAZANE ze swoimi kontrolkami", async () => {
+    // CO BYLO ZLE. `Field` (z `@/components/admin/settings/fields`) renderowal
     // `<label>` jako SIOSTRE kontrolki, bez `htmlFor` i bez otoczenia jej soba.
-    // Zaden `<input>`, `<select>` ani przelacznik tego panelu nie ma wiec
-    // nazwy dostepnej - axe zglasza to jako naruszenie na kazdym polu.
+    // Zaden `<input>` ani `<select>` tego panelu nie mial wiec nazwy dostepnej -
+    // axe zglaszal to jako naruszenie na kazdym polu (`label` x8,
+    // `select-name` x3).
     //
-    // DLACZEGO TO RYZYKO. Uzytkownik czytnika ekranu przechodzi przez ten
-    // formularz i slyszy „pole edycji", „pole edycji", „lista rozwijana" - bez
+    // DLACZEGO TO BYLO RYZYKO. Uzytkownik czytnika ekranu przechodzil przez ten
+    // formularz i slyszal „pole edycji", „pole edycji", „lista rozwijana" - bez
     // ani jednej nazwy. To formularz, w ktorym ustawia sie KWOTE MINIMALNA,
     // MAKSYMALNA i CEL ZBIORKI: pomylenie dwoch sasiadujacych pol liczbowych
     // ustawia minimum wyzej niz maksimum i wylacza cala zbiorke. Klikniecie
-    // w etykiete nie ustawia tez fokusu w polu, co dla kontrolek o rozmiarze
-    // 18 px (przelaczniki) ma znaczenie takze dla osob z ograniczona
-    // motoryka.
+    // w etykiete nie ustawialo tez fokusu w polu.
     //
-    // DLACZEGO NIE NAPRAWIAM. Zrodlo jest w `@/components/admin/settings/fields`,
-    // wspolnym dla WSZYSTKICH paneli ustawien - poprawka dotyka kodu
-    // produkcyjnego daleko poza tym modulem i wymaga przejscia po kazdym
-    // panelu, ktory tych pol uzywa. Zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. `Field` przyjmuje `htmlFor` i renderuje `<label for>`,
+    // a panel podaje kazdej kontrolce jawne `id` (stala `ID` w `AdminDonations`).
+    // Identyfikator jest JAWNY, a nie generowany przez `useId()` i podawany
+    // dzieciom kontekstem, bo `Field` bywa uzyty z kilkoma kontrolkami naraz
+    // (osiem pol `Text` w panelu banera cookies, trzy `NumberInput`
+    // w google-source) - automat dawalby wtedy duplikaty identyfikatorow.
+    // Wyglad sie nie zmienil: `htmlFor` nie ma reprezentacji wizualnej.
+    // Pole wyboru srodowiska stoi poza `Field` i dostalo `aria-label`.
     const { container } = await panel();
+    for (const etykieta of ETYKIETY_POL) {
+      expect(screen.getByLabelText(etykieta)).toBeInstanceOf(HTMLInputElement);
+    }
+    expect(poleWyboru("Tryb").id).not.toBe("");
+    expect(poleWyboru("Waluta").id).not.toBe("");
+    expect(poleSrodowiska()).toHaveAccessibleName();
     const naruszenia = await axeViolations(container);
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
 
-  it.fails("kwoty sugerowane przyjmuja POLSKI przecinek dziesietny", async () => {
-    // CO JEST ZLE. Pole rozbija wpisany tekst po PRZECINKU, a dopiero potem
-    // probuje w kazdym kawalku zamienic przecinek na kropke
+  it("kwoty sugerowane przyjmuja POLSKI przecinek dziesietny", async () => {
+    // CO BYLO ZLE. Pole rozbijalo wpisany tekst po PRZECINKU, a dopiero potem
+    // probowalo w kazdym kawalku zamienic przecinek na kropke
     // (`part.replace(",", ".")`). Po rozbiciu w kawalku nie ma juz przecinka,
-    // wiec ta zamiana jest KODEM MARTWYM - nie da sie jej wykonac zadnym
-    // wejsciem. Wpisane „12,50" nie daje jednej kwoty 12,50 zl, tylko DWIE
+    // wiec ta zamiana byla KODEM MARTWYM - nie dalo sie jej wykonac zadnym
+    // wejsciem. Wpisane „12,50" nie dawalo jednej kwoty 12,50 zl, tylko DWIE
     // kwoty: 12 zl i 50 zl.
     //
-    // DLACZEGO TO RYZYKO. Przecinek jest polskim separatorem dziesietnym,
-    // a podpowiedz pod polem sama pokazuje przecinek („25, 50, 100, 250") -
-    // czyli w roli separatora listy. Administrator wpisujacy „12,50" dostaje
+    // DLACZEGO TO BYLO RYZYKO. Przecinek jest polskim separatorem dziesietnym,
+    // a podpowiedz pod polem sama pokazywala przecinek („25, 50, 100, 250") -
+    // czyli w roli separatora listy. Administrator wpisujacy „12,50" dostawal
     // wiec dwa dodatkowe przyciski na publicznym formularzu wplaty zamiast
-    // jednego, i nie ma zadnego komunikatu ani sygnalu, ze cos poszlo inaczej,
-    // niz chcial. Obecnosc martwego `replace(",", ".")` dowodzi, ze zapis
-    // dziesietny byl zamierzony - nie zostal tylko nigdy osiagniety.
-    // Kropka dziesietna dziala (osobny, zielony test wyzej), ale nikt jej tu
-    // nie sugeruje.
+    // jednego, bez zadnego komunikatu. Obecnosc martwego `replace(",", ".")`
+    // dowodzila, ze zapis dziesietny byl zamierzony - nie zostal tylko nigdy
+    // osiagniety.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga zmiany parsera pola (inny
-    // separator listy albo rozpoznanie „12,50" jako jednej pozycji) w kodzie
-    // produkcyjnym; zakres tej pracy to wylacznie testy.
+    // JAK ROZSTRZYGNIETO SEPARATORY. Kawalek, ktory jako CALOSC wyglada na
+    // liczbe z przecinkiem dziesietnym („12,50"), jest jedna kwota; poza tym
+    // przecinek nadal rozdziela kwoty, a lista rozdziela sie takze spacja
+    // i srednikiem. Dzieki temu „12,50" znaczy 12,50 zl, a „25, 50, 100"
+    // i „10,20,30" nadal znacza to, na co wygladaja (osobne, zielone testy
+    // wyzej). Podpowiedz pod polem opisuje te regule wprost.
     await panel();
-    fireEvent.change(poleTekstowe("Kwoty sugerowane"), { target: { value: "12,50" } });
+    const pole = poleTekstowe("Kwoty sugerowane");
+    fireEvent.change(pole, { target: { value: "12,50" } });
     expect(zapisany().presetsCents).toEqual([1250]);
+    // Pole pokazuje to, co administrator NAPRAWDE wpisal - kanoniczna postac
+    // nadpisywala wpis przy kazdym znaku i przecinka nie dalo sie wpisac.
+    expect(pole.value).toBe("12,50");
   });
 
-  it.fails("raport synchronizacji mowi, KTOREGO srodowiska dotyczy", async () => {
-    // CO JEST ZLE. Raport niesie pole `environment` (i `sinceIso`), ale panel
-    // wypisuje z niego wylacznie liczniki. Po zmianie srodowiska w polu wyboru
-    // stary raport zostaje na ekranie bez zmian.
+  it("raport synchronizacji mowi, KTOREGO srodowiska dotyczy", async () => {
+    // CO BYLO ZLE. Raport niesie pole `environment` (i `sinceIso`), ale panel
+    // wypisywal z niego wylacznie liczniki. Po zmianie srodowiska w polu wyboru
+    // stary raport zostawal na ekranie bez zmian.
     //
-    // DLACZEGO TO RYZYKO. Administrator uruchamia uzgodnienie na piaskownicy,
-    // widzi „Zaksięgowane: 3", przestawia pole na srodowisko produkcyjne i ma
-    // pod nim ten sam raport. Wniosek „produkcja uzgodniona" jest wtedy
-    // falszywy, a to wlasnie ten ekran sluzy do stwierdzenia, czy rejestr
-    // wplat zgadza sie z operatorem platnosci.
+    // DLACZEGO TO BYLO RYZYKO. Administrator uruchamial uzgodnienie na
+    // piaskownicy, widzial „Zaksięgowane: 3", przestawial pole na srodowisko
+    // produkcyjne i mial pod nim ten sam raport. Wniosek „produkcja uzgodniona"
+    // byl wtedy falszywy, a to wlasnie ten ekran sluzy do stwierdzenia, czy
+    // rejestr wplat zgadza sie z operatorem platnosci.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka (wypisanie srodowiska w raporcie albo
-    // czyszczenie raportu przy zmianie pola wyboru) dotyka kodu produkcyjnego;
-    // zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Raport otwiera nazwa srodowiska WZIETA Z RAPORTU (a nie
+    // z biezacego stanu pola wyboru - opisuje przebieg, ktory sie odbyl),
+    // a zmiana pola wyboru raport czysci.
     await panel();
     fireEvent.click(przyciskSynchronizacji());
     const tekst = (await screen.findByText(/Zaksięgowane/)).textContent ?? "";
     expect(tekst).toMatch(/sandbox|testow/i);
+
+    fireEvent.change(poleSrodowiska(), { target: { value: "live" } });
+    expect(screen.queryByText(/Zaksięgowane/)).toBeNull();
   });
 
-  it.fails("NIEUDANA synchronizacja kasuje nieaktualny raport sukcesu", async () => {
-    // CO JEST ZLE. `syncReport` ustawia sie w `onSuccess` i nigdy nie jest
-    // czyszczony. Po udanym uzgodnieniu i nastepnym nieudanym na ekranie stoja
+  it("NIEUDANA synchronizacja kasuje nieaktualny raport sukcesu", async () => {
+    // CO BYLO ZLE. `syncReport` ustawial sie w `onSuccess` i nigdy nie byl
+    // czyszczony. Po udanym uzgodnieniu i nastepnym nieudanym na ekranie staly
     // JEDNOCZESNIE czerwony komunikat bledu i zielony raport z poprzedniego
     // przebiegu.
     //
-    // DLACZEGO TO RYZYKO. Raport opisuje stan sprzed nieudanej proby, ale nic
-    // tego nie mowi. Odczyt „cos poszlo nie tak, ale widze zaksiegowane 3"
-    // prowadzi do wniosku, ze uzgodnienie czesciowo przeszlo - podczas gdy
+    // DLACZEGO TO BYLO RYZYKO. Raport opisuje stan sprzed nieudanej proby, ale
+    // nic tego nie mowilo. Odczyt „cos poszlo nie tak, ale widze zaksiegowane 3"
+    // prowadzil do wniosku, ze uzgodnienie czesciowo przeszlo - podczas gdy
     // nie zrobilo nic. Przy rejestrze wplat roznica miedzy „czesciowo" a
     // „wcale" decyduje o tym, czy ktos szuka brakujacych wplat recznie.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to wyzerowanie raportu w `onMutate`
-    // albo `onError` - kod produkcyjny; zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. `onMutate` zeruje raport na starcie KAZDEGO przebiegu -
+    // wczesniej niz `onError`, wiec w trakcie uzgodnienia tez nie stoi na
+    // ekranie wynik poprzedniego.
     await panel();
     fireEvent.click(przyciskSynchronizacji());
     await screen.findByText(/Zaksięgowane/);
@@ -809,29 +883,38 @@ describe("AdminDonations - defekty (zarejestrowane)", () => {
     expect(screen.queryByText(/Zaksięgowane/)).toBeNull();
   });
 
-  it.fails("panel nie pozwala zapisac konfiguracji, ktorej publiczna strona odrzuci", async () => {
-    // CO JEST ZLE. Pola liczbowe czytaja `Number(e.target.value) || 0`, wiec
-    // wyczyszczenie „Kwota minimalna (grosze)" zapisuje `minCents: 0`. Schemat
+  it("panel nie pozwala zapisac konfiguracji, ktorej publiczna strona odrzuci", async () => {
+    // CO BYLO ZLE. Pola liczbowe czytaja `Number(e.target.value) || 0`, wiec
+    // wyczyszczenie „Kwota minimalna (grosze)" zapisywalo `minCents: 0`. Schemat
     // `DonationsConfigSchema` wymaga tam minimum 500 (50 gr - minimum operatora
     // platnosci), a atrybut `min` na polu nie blokuje ani wpisania, ani zapisu.
     //
-    // DLACZEGO TO RYZYKO. To nie konczy sie na jednym zlym polu. Publiczna
+    // DLACZEGO TO BYLO RYZYKO. Nie konczylo sie na jednym zlym polu. Publiczna
     // strona czyta konfiguracje przez `parseDonationsConfig`, ktory przy
     // nieudanym `safeParse` zwraca CALE `DONATIONS_DEFAULTS`. Jedno wyczyszczone
-    // pole liczbowe cofa wiec do wartosci domyslnych rowniez tryb zbiorki,
+    // pole liczbowe cofalo wiec do wartosci domyslnych rowniez tryb zbiorki,
     // walute, kwoty sugerowane, cel i oba naglowki - a panel administratora
-    // dalej pokazuje zapisane (wlasne) wartosci, bo trzyma je we wlasnym stanie.
-    // Rozjazd jest cichy i widoczny wylacznie na publicznym formularzu.
-    // Ta sama sciezka dotyczy „Kwota maksymalna" powyzej 5 000 000 i dziewiatej
-    // kwoty sugerowanej.
+    // dalej pokazywal zapisane (wlasne) wartosci, bo trzyma je we wlasnym stanie.
+    // Rozjazd byl cichy i widoczny wylacznie na publicznym formularzu.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to walidacja draftu schematem przed
-    // zapisem (albo `safeParse` w `onSave` z komunikatem) - zmiana kodu
-    // produkcyjnego; zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Zapis idzie przez `DonationsConfigSchema.safeParse`:
+    // konfiguracja, ktorej publiczna strona i tak by nie przyjela, NIE JEDZIE
+    // do bazy, a panel mowi WPROST, ktore pole ja blokuje (nazwa pola ta sama,
+    // co nad kontrolka). Poprawka stoi po stronie panelu, a nie
+    // `parseDonationsConfig`: tamten jest ostatnia linia obrony przed
+    // USZKODZONYM wierszem w bazie i ma sie zachowywac tak samo dla kazdego
+    // zrodla uszkodzenia, a nie zgadywac, ktore pola da sie uratowac.
     await panel();
     fireEvent.change(poleTekstowe("Kwota minimalna (grosze)"), { target: { value: "" } });
+    fireEvent.click(przyciskZapisu());
+    expect(h.saves).toHaveLength(0);
+    expect(screen.getByText(/Kwota minimalna \(grosze\)/)).toBeInTheDocument();
+
+    // Po poprawieniu wartosci zapis przechodzi - i to, co jedzie do bazy,
+    // przechodzi ten sam schemat, ktory czyta publiczna strona.
+    fireEvent.change(poleTekstowe("Kwota minimalna (grosze)"), { target: { value: "1000" } });
     const zapis = zapisany();
-    expect(zapis.minCents).toBe(0);
+    expect(zapis.minCents).toBe(1000);
     expect(DonationsConfigSchema.safeParse(zapis).success).toBe(true);
   });
 });

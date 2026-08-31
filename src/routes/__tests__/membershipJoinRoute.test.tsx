@@ -311,10 +311,21 @@ describe("trasa /membership-join - ścieżka dołączenia", () => {
     // jednocześnie naruszenie WCAG 1.3.1 (info i relacje) na stronie
     // publicznej.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka siedzi w `JoinHero.tsx` i `JoinStat.tsx`
-    // - w komponentach, nie w tej trasie - a zakres tej pracy to dopisanie
-    // testów do pięciu tras modułu 13 bez zmiany kodu produkcyjnego. Test
-    // zostaje jako wykonywalny opis defektu.
+    // DLACZEGO NADAL NIE NAPRAWIONE.
+    //
+    // PRÓBA NAPRAWY (praca „napraw defekty modułu 13"). Naprawa jest znana
+    // i jednoznaczna: `JoinStat` ma renderować `<dt>` (etykieta) i `<dd>`
+    // (liczba) zamiast dwóch `<p>` w `<div>`, a `JoinHero` ma zawinąć każdą
+    // parę w `<div>` dopuszczony przez regułę `definition-list` (albo zejść
+    // z `<dl>` na zwykłą listę `<ul>`). Obie zmiany leżą w
+    // `src/components/membership-join/atoms/JoinStat.tsx` i
+    // `src/components/membership-join/organisms/JoinHero.tsx` - czyli POZA
+    // listą plików produkcyjnych, które ta praca może zmieniać (trasa
+    // `membership-join.tsx` renderuje `JoinHero` i nie ma jak wpłynąć na jego
+    // znaczniki). `JoinStat` jest w dodatku atomem pisanym z myślą o użyciu
+    // w dowolnym module (patrz jego nagłówek), więc wybór między `<dt>/<dd>`
+    // a rezygnacją z `<dl>` jest decyzją właściciela modułu, nie skutkiem
+    // ubocznym naprawy trasy.
     //
     // ASERCJA DOCELOWA: strona bez naruszeń reguły `definition-list`.
     const offer = fullOffer();

@@ -154,21 +154,18 @@ describe("DEFEKT 1 (NAPRAWIONY): blad techniczny nie udaje juz 'kupon nieprawidl
     expect(out!.error).toBe("technical_error");
   });
 
-  it(
-    "blad RPC (np. brak uprawnien) JEST odrozniony od literowki w kodzie",
-    async () => {
-      rpc.result = { data: null, error: new Error("permission denied for function") };
-      const { result } = setup();
+  it("blad RPC (np. brak uprawnien) JEST odrozniony od literowki w kodzie", async () => {
+    rpc.result = { data: null, error: new Error("permission denied for function") };
+    const { result } = setup();
 
-      let out: { error: string | null } | null = null;
-      await act(async () => {
-        out = (await result.current.validate("RABAT")) as { error: string | null };
-      });
+    let out: { error: string | null } | null = null;
+    await act(async () => {
+      out = (await result.current.validate("RABAT")) as { error: string | null };
+    });
 
-      expect(out!.error).not.toBe("not_found");
-      expect(out!.error).toBe("technical_error");
-    },
-  );
+    expect(out!.error).not.toBe("not_found");
+    expect(out!.error).toBe("technical_error");
+  });
 
   it("awaria nie udaje odmowy: 'technical_error', zerowy rabat, kwota nietknieta", async () => {
     rpc.throws = new Error("Failed to fetch");

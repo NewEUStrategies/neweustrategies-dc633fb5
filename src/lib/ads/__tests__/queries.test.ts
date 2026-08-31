@@ -533,34 +533,35 @@ describe("bramka: typy stron znane bazie a filtr wysyłany przez klienta", () =>
   });
 
   // -------------------------------------------------------------------------
-  // DEFEKT - test celowo oznaczony `it.fails`, kod produkcyjny NIE jest zmieniany.
+  // DEFEKT NAPRAWIONY (08.2026) - test biegnie normalnie.
   //
-  // CO JEST ZŁE. `queries.ts` trzyma prywatną listę `DB_AD_PAGE_TYPES` opisaną
+  // CO BYŁO ZŁE. `queries.ts` trzymał prywatną listę `DB_AD_PAGE_TYPES` opisaną
   // komentarzem „wartości `ad_page_type`, które baza zna DZISIAJ (bez `event`)".
   // To „dzisiaj" skończyło się 2026-08-23: migracja
   // `20260823170000_event_front_binding.sql` wykonuje
   // `ALTER TYPE public.ad_page_type ADD VALUE IF NOT EXISTS 'event'`, a
-  // wygenerowane typy (`Database["public"]["Enums"]["ad_page_type"]`) mają już
+  // wygenerowane typy (`Database["public"]["Enums"]["ad_page_type"]`) miały już
   // wariant `event`. Lista w `queries.ts` została stara, więc `dbPageTypes("event")`
-  // zwraca `["all"]` zamiast `["all", "event"]`.
+  // zwracało `["all"]` zamiast `["all", "event"]`.
   //
-  // DLACZEGO TO RYZYKO. Wszystkie trzy pozostałe ogniwa łańcucha SĄ gotowe:
+  // DLACZEGO TO BYŁO RYZYKO. Wszystkie trzy pozostałe ogniwa łańcucha BYŁY gotowe:
   // `adPageTypeForLocation` zwraca "event" dla `/events/*` (pageType.ts:35),
   // panel `PlacementsPanel` oferuje „Wydarzenie" w selektorze (renderuje
   // `AD_PAGE_TYPE_LABEL_KEYS`, w którym `event` jest), a baza wartość przyjmie.
-  // Redaktor sprzeda więc kampanię na stronę wydarzenia, zapisze placement bez
-  // żadnego ostrzeżenia - i ta kampania NIE WYEMITUJE SIĘ ANI RAZU. Awaria jest
-  // całkowicie niema: brak reklamy wygląda identycznie jak „nikt nie kupił",
-  // nie ma błędu w konsoli, nie ma pustego wyniku do zauważenia, a raport
-  // wyświetleń pokaże zero, które wszyscy przypiszą klientowi.
+  // Redaktor sprzedawał więc kampanię na stronę wydarzenia, zapisywał placement
+  // bez żadnego ostrzeżenia - i ta kampania NIE WYEMITOWAŁABY SIĘ ANI RAZU.
+  // Awaria była całkowicie niema: brak reklamy wygląda identycznie jak „nikt nie
+  // kupił", nie ma błędu w konsoli, nie ma pustego wyniku do zauważenia, a raport
+  // wyświetleń pokazałby zero, które wszyscy przypisaliby klientowi.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zadanie zabrania zmian w kodzie produkcyjnym.
-  // Poprawka jest jednoliniowa (dopisać `"event"` do `DB_AD_PAGE_TYPES`), ale
-  // wymaga też decyzji, czy lista ma dalej być pisana ręcznie, czy brana z
-  // `Constants.public.Enums.ad_page_type` z wygenerowanych typów - druga opcja
-  // sprawia, że ten rozjazd nie może się powtórzyć. To zmiana projektowa,
-  // a nie test.
-  it.fails("typ strony 'event' trafia do filtra page_type (DEFEKT: nie trafia)", async () => {
+  // JAK NAPRAWIONE. Ręczna lista ustąpiła miejsca `Constants.public.Enums.ad_page_type`
+  // z wygenerowanych typów - czyli temu samemu źródłu, z którego pochodzi typ
+  // `DbAdPageType`. Wybrano tę opcję, a nie dopisanie `"event"` do listy, właśnie
+  // dlatego, że rozjazd nie może się powtórzyć: następna wartość enuma wjeżdża tu
+  // razem z regeneracją typów. Strażnik na nieznane wartości (`dbPageTypes`
+  // odsiewa typ strony spoza enuma) zostaje - chroni przed odwrotnym rozjazdem,
+  // w którym klient zna wartość, a baza jeszcze nie.
+  it("typ strony 'event' trafia do filtra page_type", async () => {
     respondWith([]);
 
     await loadPlacements("header_banner", "event", null);

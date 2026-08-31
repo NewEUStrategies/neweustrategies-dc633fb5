@@ -371,7 +371,9 @@ describe("SlotsPanel - usuwanie", () => {
   it("POTWIERDZONE usuniecie kasuje TEN wiersz i melduje sukces", async () => {
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0],
+    );
     await waitFor(() =>
       expect(
         db()
@@ -391,7 +393,9 @@ describe("SlotsPanel - usuwanie", () => {
     // pozycjami; zwykly dialog „OK/Anuluj" klika sie odruchowo.
     h.confirm.mockResolvedValue(true);
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0],
+    );
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(h.confirm.mock.calls[0]![0]).toMatchObject({
       destructive: true,
@@ -406,7 +410,9 @@ describe("SlotsPanel - usuwanie", () => {
     // kosza kasuje slot mimo wcisnietego „Anuluj".
     h.confirm.mockResolvedValue(false);
     await renderPanel([SLOT_A]);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0],
+    );
     await waitFor(() => expect(h.confirm).toHaveBeenCalled());
     expect(
       db()
@@ -425,7 +431,9 @@ describe("SlotsPanel - usuwanie", () => {
     );
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
-    fireEvent.click((await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0]);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "adsAdmin.slots.deleteAction" }))[0],
+    );
     await waitFor(() =>
       expect(h.toastError).toHaveBeenCalledWith(
         'update or delete on table "ad_slots" violates foreign key constraint',
@@ -689,8 +697,9 @@ describe("SlotsPanel - braki i18n (naprawione)", () => {
   });
 
   it("etykiety pol formularza pochodza ze slownika", async () => {
-    // „Typ", „Aktywny", „Wymaga zgody marketingowej (RODO)", „URL grafiki",
-    // „Skrypt (np. AdSense)" - piec literalow w jednym formularzu.
+    // BYLO: „Typ", „Aktywny", „Wymaga zgody marketingowej (RODO)",
+    // „URL grafiki", „Skrypt (np. AdSense)" - piec literalow w jednym
+    // formularzu. JEST: klucze `adsAdmin.slots.*` w PL i EN.
     await renderPanel([]);
     await waitFor(() => expect(db().chainsFor("ad_slots").length).toBeGreaterThan(0));
     expect(screen.queryByText("Typ")).toBeNull();

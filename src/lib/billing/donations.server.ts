@@ -167,6 +167,12 @@ export async function createDonationSession(
     const metadata: Record<string, string> = {
       purpose: "donation",
       donationId: donation.id,
+      // STEMPEL TENANTA. Klucz operatora jest jeden na środowisko, więc lista
+      // sesji (`checkout.sessions.list`) jest wspólna dla całej instalacji.
+      // Uzgodnienie rejestru (`donationsAdmin.server`) importuje wyłącznie
+      // sesje z pasującym stemplem - bez niego przynależność wpłaty byłaby
+      // domysłem z tego, czyj administrator akurat kliknął „uzgodnij".
+      tenantId,
       ...(input.userId ? { userId: input.userId } : {}),
     };
 

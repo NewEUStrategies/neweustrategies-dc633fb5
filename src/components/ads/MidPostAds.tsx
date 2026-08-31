@@ -31,6 +31,20 @@ const HOST_ATTR = "data-ad-mid-host";
 // najwcześniejsze (wg config.paragraph) wygrywają; reszta jest pomijana.
 const MAX_MID_POST_ADS = 2;
 
+// Pojemniki, w których akapit NIE należy do głównego toku artykułu: cytat,
+// figura z podpisem, pozycja listy, komórka tabeli, ramka boczna, szczegóły
+// i formularz.
+//
+// DLACZEGO TA LISTA, A NIE `:scope > p`. Wybór miejsca wstawki liczył wcześniej
+// WSZYSTKIE `<p>` w drzewie, a host lądował rodzeństwem trafionego akapitu -
+// więc cytat z dwóch akapitów potrafił dostać reklamę w środku, formalnie
+// wewnątrz `<blockquote>`, czyli w obrębie cudzej wypowiedzi. Kanoniczne
+// `:scope > p` zamyka to, ale zabiera wstawki KAŻDEMU artykułowi owiniętemu
+// dodatkowym `<div>` (a takie wychodzą z buildera bloków). Dlatego kryterium
+// jest odwrotne: akapit należy do głównego toku, dopóki nie siedzi w żadnym
+// z tych pojemników - dowolnie głęboko zagnieżdżone `<div>`-y nadal działają.
+const NON_FLOW_CONTAINERS = "blockquote, figure, li, td, th, table, aside, details, form";
+
 export function MidPostAds({ articleRef, pageType, pageId, scanKey, content }: Props) {
   const { data } = useAdPlacements("mid_post", pageType, pageId, content);
   const [mounts, setMounts] = useState<Mount[]>([]);
@@ -56,8 +70,16 @@ export function MidPostAds({ articleRef, pageType, pageId, scanKey, content }: P
     // Sprzątanie poprzednich hostów (gdyby były).
     root.querySelectorAll(`[${HOST_ATTR}]`).forEach((n) => n.remove());
 
+    // Pojemnika szukamy tylko WEWNĄTRZ artykułu: `closest` idzie w górę bez
+    // końca, więc bez tego warunku artykuł osadzony np. w `<form>` strony
+    // straciłby wszystkie wstawki naraz.
+    const inNonFlowContainer = (p: Element) => {
+      const container = p.closest(NON_FLOW_CONTAINERS);
+      return container !== null && container !== root && root.contains(container);
+    };
+
     const paragraphs = Array.from(root.querySelectorAll<HTMLParagraphElement>("p")).filter(
-      (p) => p.closest(`[${HOST_ATTR}]`) === null,
+      (p) => p.closest(`[${HOST_ATTR}]`) === null && !inNonFlowContainer(p),
     );
 
     const next: Mount[] = [];

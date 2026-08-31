@@ -16,6 +16,7 @@
 // dzwonek) nigdy nie wywracają przetwarzania.
 //
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
+import type { Tables } from "@/integrations/supabase/types";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 /** Kwalifikacja zdarzenia korygującego przysłanego przez operatora. */
@@ -102,6 +103,23 @@ const PROVIDER_REFERENCE_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
 const ORDER_LOOKUP_COLUMNS =
   "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, refunded_amount_cents, currency, status";
 
+/** Zamówienie w kształcie czytanym przez korektę - typ z wygenerowanych definicji bazy. */
+type AdjustmentOrder = Pick<
+  Tables<"payment_orders">,
+  | "id"
+  | "user_id"
+  | "tenant_id"
+  | "plan_id"
+  | "kind"
+  | "entity_type"
+  | "entity_id"
+  | "metadata"
+  | "amount_cents"
+  | "refunded_amount_cents"
+  | "currency"
+  | "status"
+>;
+
 /**
  * Zamówienie wskazane przez korektę operatora - JEDNO miejsce dla odebrania
  * i dla przywrócenia dostępu.
@@ -125,7 +143,7 @@ const ORDER_LOOKUP_COLUMNS =
 async function findOrderForAdjustment(
   event: RefundEvent,
   scope: "refund" | "dispute",
-): Promise<Tables<"payment_orders"> | null> {
+): Promise<AdjustmentOrder | null> {
   const txnId = event.transactionId;
   if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
 
@@ -196,42 +214,49 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
 
   const nowIso = new Date().toISOString();
 
-  // Identyfikator wchodzi do filtra `or(...)` jako tekst - dopuszczamy wyłącznie
-  // kształt identyfikatora operatora, żeby przecinek czy nawias nie mogły
-  // rozszerzyć zapytania.
-  if (!/^[A-Za-z0-9_-]{1,255}$/.test(txnId)) return "skipped";
+  // Kształt identyfikatora bramkujemy PRZED zapytaniem - patrz
+  // `PROVIDER_REFERENCE_SHAPE`. Obcy kształt kończy korektę bez dotykania bazy.
+  if (!PROVIDER_REFERENCE_SHAPE.test(txnId)) return "skipped";
 
-  // Zwrot przychodzi z identyfikatorem intencji płatności, a zamówienie mogło
-  // zapisać sesję checkout albo (historycznie) sesję w polu intencji. Szukamy
-  // po wszystkich trzech, inaczej zwrot cicho nie odbierałby dostępu.
-  const { data: matches, error } = await supabase
-    .from("payment_orders")
-    .select(
-      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, refunded_amount_cents",
-    )
-    .or(
-      `provider_payment_intent_id.eq.${txnId},provider_intent_id.eq.${txnId},provider_session_id.eq.${txnId}`,
-    )
-    .limit(1);
-  const order = matches?.[0] ?? null;
-  if (error) throw new Error(`refund: order lookup failed: ${error.message}`);
+  const order = await findOrderForAdjustment(event, "refund");
   if (!order) return await revokeDonation(event, txnId);
 
   // Ile łącznie wróciło do kupującego. Operator liczy narastająco, więc bierzemy
   // maksimum z zapisanego stanu - ponowione zdarzenie nie może cofnąć licznika.
   const captured = event.capturedAmountCents ?? order.amount_cents ?? null;
-  const refundedSoFar = Math.max(order.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+  const knownCaptured = typeof captured === "number" && captured > 0;
+  const reported = Math.max(order.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+
+  // ZACISK DO KWOTY ZAMÓWIENIA. `refunded_amount_cents` jest podstawą rachunku
+  // „przychód netto = amount_cents - refunded_amount_cents", więc wartość
+  // większa od kwoty zamówienia daje przychód UJEMNY i psuje każde zestawienie,
+  // w którym ta kolumna występuje.
+  //
+  // WYBÓR KSIĘGOWY: ZACISKAMY, NIE ODRZUCAMY ZDARZENIA. Odrzucenie
+  // (wyjątek -> ponowienie u operatora) wstrzymałoby ODEBRANIE DOSTĘPU przy
+  // korekcie, która u operatora już się wydarzyła: pieniądze są u klienta,
+  // a treść zostawałaby otwarta do czasu ręcznej interwencji - i to w pętli,
+  // bo kolejne dostarczenia niosłyby tę samą kwotę. Rozjazd kwot nie jest
+  // hipotetyczny (zmiana ceny, kupon dopisany po utworzeniu zamówienia, inna
+  // waluta zdarzenia), więc gasi się go zapisem spójnym z księgami PLUS
+  // ostrzeżeniem - bo jedyne, czego tu naprawdę brakowało, to ŚLAD.
+  const refundedSoFar = knownCaptured && reported > captured ? captured : reported;
+  if (knownCaptured && reported > captured) {
+    console.warn(
+      "[payments] refund exceeds captured amount - clamped",
+      event.adjustmentId,
+      order.id,
+      { reported, captured },
+    );
+  }
+
   // Zwrot częściowy tylko wtedy, gdy znamy kwotę pierwotną I jest ona wyższa.
   // Bez tej wiedzy zakładamy pełny zwrot - bezpieczniej odebrać dostęp niż
   // zostawić opłacone uprawnienie po oddaniu pieniędzy.
   const isPartial =
-    event.action === "refund" &&
-    typeof captured === "number" &&
-    captured > 0 &&
-    refundedSoFar > 0 &&
-    refundedSoFar < captured;
+    event.action === "refund" && knownCaptured && refundedSoFar > 0 && refundedSoFar < captured;
 
-  const { error: updateErr } = await supabase
+  const { data: flipped, error: updateErr } = await supabase
     .from("payment_orders")
     .update({
       ...(isPartial ? {} : { status: "refunded" }),
@@ -239,8 +264,29 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
       updated_at: nowIso,
     })
     .eq("id", order.id)
-    .neq("status", "refunded");
+    .neq("status", "refunded")
+    .select("id");
   if (updateErr) throw new Error(`refund: order status flip failed: ${updateErr.message}`);
+
+  // BRAMKA POWTÓRZONEGO ZWROTU. Ten sam wzorzec co w `revokeDonation`
+  // i `revokeSubscriptionEntitlement`: po zapisie czytamy `.select("id")`, czyli
+  // wiersze, które NAPRAWDĘ się zmieniły. Bez tego ponowione dostarczenie
+  // webhooka przechodziło całą ścieżkę skutków (odebranie uprawnienia,
+  // anulowanie zgłoszenia, kolejny dzwonek „Zwrot płatności") i oddawało
+  // `order_refunded`, choć baza nie zmieniła ani jednego wiersza.
+  //
+  // Dowody muszą być DWA, bo każdy z osobna bywa mylący: pusty wynik zapisu
+  // zdarza się też wtedy, gdy o ten wiersz konkurowało równoległe dostarczenie
+  // (wtedy wolimy przebiec skutki drugi raz - wszystkie są idempotentne), a sam
+  // odczyt mógł się zestarzeć. Powtórką nazywamy więc sytuację, w której zapis
+  // nie objął żadnego wiersza I wiersz wejściowy jest już zamknięty zwrotem,
+  // I to zdarzenie nie podnosi licznika zwrotów.
+  const changedRow = (flipped ?? []).length > 0;
+  const settledBefore =
+    order.status === "refunded" ||
+    (knownCaptured && (order.refunded_amount_cents ?? 0) >= captured);
+  const bringsNoMoney = (order.refunded_amount_cents ?? 0) >= reported;
+  if (!changedRow && settledBefore && bringsNoMoney) return "skipped";
 
   const metadata = (order.metadata ?? {}) as Record<string, unknown>;
   const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
@@ -288,7 +334,15 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   return "order_refunded";
 }
 
-/** Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami. */
+/**
+ * Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami.
+ *
+ * BRAK FILTRA ŚRODOWISKA JEST ŚWIADOMY I NIEDOKOŃCZONY: `donations` nie ma
+ * dziś kolumny `environment` (patrz wygenerowane `types.ts`), więc zdarzenia
+ * z piaskownicy i z produkcji rozróżnia wyłącznie identyfikator intencji.
+ * Domknięcie wymaga MIGRACJI (kolumna + backfill 'live' + indeks), a tej nie
+ * dokłada się przy okazji naprawy w kodzie - zgłoszone właścicielowi modułu.
+ */
 async function revokeDonation(_event: RefundEvent, txnId: string): Promise<RefundOutcome> {
   const supabase = await admin();
   const { data, error } = await supabase
@@ -410,14 +464,11 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
 
   if (!event.transactionId) return "skipped";
 
-  const { data: order, error: orderErr } = await supabase
-    .from("payment_orders")
-    .select(
-      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, currency",
-    )
-    .eq("provider_intent_id", event.transactionId)
-    .maybeSingle();
-  if (orderErr) throw new Error(`dispute: order lookup failed: ${orderErr.message}`);
+  // TA SAMA funkcja wyszukująca co przy odbieraniu dostępu - inaczej zamówienie
+  // zapisane identyfikatorem sesji checkout jest znajdowane przy zwrocie
+  // i niewidoczne przy przywracaniu (spór wygrany, a klient bezpowrotnie bez
+  // dostępu i bez żadnego sygnału, bo wynikiem jest wtedy `skipped`).
+  const order = await findOrderForAdjustment(event, "dispute");
   if (!order) return "skipped";
 
   const { error: flipErr } = await supabase

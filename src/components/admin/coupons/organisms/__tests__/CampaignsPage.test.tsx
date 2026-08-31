@@ -229,7 +229,7 @@ describe("CampaignsPage - akcje zalezne od stanu kampanii", () => {
     expect(cells.getByRole("button", { name: "adminCoupons.generate" })).toBeInTheDocument();
     expect(cells.queryByRole("button", { name: /CSV/ })).toBeNull();
     expect(cells.queryByRole("button", { name: /adminCoupons\.send/ })).toBeNull();
-    expect(cells.getByRole("button", { name: "archive" })).toBeInTheDocument();
+    expect(cells.getByRole("button", { name: "adminCoupons.archiveAction" })).toBeInTheDocument();
   });
 
   it("WYGENEROWANA ma eksport i wysylke, a NIE MA juz `generuj`", async () => {
@@ -246,7 +246,7 @@ describe("CampaignsPage - akcje zalezne od stanu kampanii", () => {
     const cells = within(await wiersz("Q1 2026 VIP"));
     expect(cells.queryByRole("button", { name: "adminCoupons.generate" })).toBeNull();
     expect(cells.queryByRole("button", { name: /adminCoupons\.send/ })).toBeNull();
-    expect(cells.getByRole("button", { name: "archive" })).toBeInTheDocument();
+    expect(cells.getByRole("button", { name: "adminCoupons.archiveAction" })).toBeInTheDocument();
   });
 
   it("ZARCHIWIZOWANA nie ma zadnej akcji - takze archiwizacji", async () => {
@@ -297,7 +297,11 @@ describe("CampaignsPage - generowanie kodow", () => {
 describe("CampaignsPage - archiwizacja", () => {
   it("archiwizacja ustawia status i jest ZAWEZONA do tego wiersza", async () => {
     await renderPage([kampania({ status: "generated" })]);
-    fireEvent.click(within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: "archive" }));
+    fireEvent.click(
+      within(await wiersz("Q1 2026 VIP")).getByRole("button", {
+        name: "adminCoupons.archiveAction",
+      }),
+    );
     await waitFor(() =>
       expect(
         db()
@@ -319,7 +323,11 @@ describe("CampaignsPage - archiwizacja", () => {
     db().setResponse("membership_tiers", ok([]));
     renderWithQueryClient(<CampaignsPage />);
     await screen.findByText("Q1 2026 VIP");
-    fireEvent.click(within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: "archive" }));
+    fireEvent.click(
+      within(await wiersz("Q1 2026 VIP")).getByRole("button", {
+        name: "adminCoupons.archiveAction",
+      }),
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
   });
 });
@@ -516,24 +524,25 @@ describe("CampaignsPage - dialog tworzenia", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE, NIENAPRAWIONE (zakres pracy: wylacznie testy).
+// DEFEKTY NAPRAWIONE (dawne `it.fails`).
 // ---------------------------------------------------------------------------
-describe("CampaignsPage - defekty (zarejestrowane)", () => {
-  it.fails("nieudane odnotowanie wysylki konczy sie bledem, a nie cichym sukcesem", async () => {
-    // CO JEST ZLE. `sendNewsletter` po utworzeniu kampanii newslettera robi
+describe("CampaignsPage - dawne defekty", () => {
+  it("nieudane odnotowanie wysylki konczy sie bledem, a nie cichym sukcesem", async () => {
+    // CO BYLO ZLE. `sendNewsletter` po utworzeniu kampanii newslettera robil
     // `await supabase.from("b2b_coupon_campaigns").update({...})` i NIE
-    // sprawdza zwroconego `error`. Odmowa tego zapisu przechodzi bez sladu,
-    // a mutacja konczy sie sukcesem.
+    // sprawdzal zwroconego `error`. Odmowa tego zapisu przechodzila bez sladu,
+    // a mutacja konczyla sie sukcesem.
     //
-    // DLACZEGO TO RYZYKO. Kampania newslettera JUZ ISTNIEJE, ale kampania
-    // kuponowa zostaje w stanie „generated" bez `newsletter_campaign_id`.
-    // Panel pokazuje wiec dalej przycisk „Wyslij", a redakcja - widzac
-    // komunikat o sukcesie i niezmieniony status - klika go ponownie.
+    // JAKIE TO BYLO RYZYKO. Kampania newslettera JUZ ISTNIEJE, ale kampania
+    // kuponowa zostawala w stanie „generated" bez `newsletter_campaign_id`.
+    // Panel pokazywal wiec dalej przycisk „Wyslij", a redakcja - widzac
+    // komunikat o sukcesie i niezmieniony status - klikala go ponownie.
     // Efekt: DRUGA kampania newslettera do tego samego segmentu, czyli drugi
     // mail z kodem rabatowym do tych samych odbiorcow.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana kodu produkcyjnego (odczyt
-    // `error` i `throw`), a zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Zapis odnotowujacy wysylke zwraca teraz swoj `error`
+    // do zmiennej `linkError` i rzuca nim; mutacja konczy sie bledem, wiec
+    // toast sukcesu nie pada, a status kampanii zostaje na „generated".
     db().setResponse("newsletter_campaigns", ok({ id: "nl-1" }));
     db().setResponse("b2b_coupon_campaigns", (chain) =>
       chain.has("update")
@@ -556,25 +565,28 @@ describe("CampaignsPage - defekty (zarejestrowane)", () => {
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
-  it.fails("status kampanii jest PRZETLUMACZONY, a nie surowa wartoscia z bazy", async () => {
-    // CO JEST ZLE. Odznaka statusu renderuje `{c.status}` wprost - czyli
+  it("status kampanii jest PRZETLUMACZONY, a nie surowa wartoscia z bazy", async () => {
+    // CO BYLO ZLE. Odznaka statusu renderowala `{c.status}` wprost - czyli
     // „draft", „generated", „sent", „archived" z kolumny bazy.
     //
-    // DLACZEGO TO RYZYKO. Cala reszta tabeli (naglowki, akcje, komunikaty)
-    // idzie przez slownik, wiec panel wyglada na przetlumaczony, a jedna
-    // kolumna mowi po angielsku technicznymi nazwami stanow. Redakcja
-    // pracujaca po polsku musi zgadywac, czym rozni sie „generated" od „sent" -
-    // a od tej roznicy zalezy, czy kody juz poszly do subskrybentow.
+    // JAKIE TO BYLO RYZYKO. Cala reszta tabeli (naglowki, akcje, komunikaty)
+    // idzie przez slownik, wiec panel wygladal na przetlumaczony, a jedna
+    // kolumna mowila po angielsku technicznymi nazwami stanow. Redakcja
+    // pracujaca po polsku musiala zgadywac, czym rozni sie „generated" od
+    // „sent" - a od tej roznicy zalezy, czy kody juz poszly do subskrybentow.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga mapy kluczy i18n na cztery stany
-    // plus wpisow w slowniku PL/EN; zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. `CAMPAIGN_STATUS_LABEL_KEYS` (typ
+    // `Record<CampaignRow["status"], string>`, wiec nowy stan bez etykiety sie
+    // nie skompiluje) wskazuje klucze `adminCoupons.campaignStatus.*`, zalozone
+    // w PL i EN.
     await renderPage([kampania({ status: "generated" })]);
     expect(within(await wiersz("Q1 2026 VIP")).queryByText("generated")).toBeNull();
   });
 
-  it.fails("przycisk archiwizacji ma PRZETLUMACZONA nazwe dostepna", async () => {
-    // `aria-label="archive"` to techniczna nazwa z kodu, w innym jezyku niz
-    // reszta panelu - a jest to JEDYNA nazwa tego przycisku (sama ikona).
+  it("przycisk archiwizacji ma PRZETLUMACZONA nazwe dostepna", async () => {
+    // BYLO: `aria-label="archive"` - techniczna nazwa z kodu, w innym jezyku
+    // niz reszta panelu, a przy tym JEDYNA nazwa tego przycisku (sama ikona).
+    // JEST: `adminCoupons.archiveAction` w PL i EN.
     await renderPage([kampania({ status: "generated" })]);
     await wiersz("Q1 2026 VIP");
     expect(screen.queryByRole("button", { name: "archive" })).toBeNull();

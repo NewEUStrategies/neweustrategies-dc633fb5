@@ -4,8 +4,11 @@
 // jedno wspólne źródło prawdy i mniejsze ryzyko rate-limitów NBP przy
 // równoległych klientach. Cache-Control 6 h, tyle samo co TTL w module.
 //
-// Rate limit: 30 req/min per IP dla GET (żeby botom nie opłacało się bić po
-// NBP przez nasz endpoint) i 6/min per admin dla POST (ręczne odświeżenie).
+// Rate limit: 30 req/min per dzwoniący dla GET (żeby botom nie opłacało się bić
+// po NBP przez nasz endpoint) i 6/min per admin dla POST (ręczne odświeżenie).
+// W obu przypadkach podmiotem licznika jest SOLONY SKRÓT
+// (`requestRateSubject`), nie surowy adres ani identyfikator konta - tabela
+// `rate_limits` nie jest miejscem na dane osobowe.
 // GET fail-open: przy blipie DB wolimy oddać kurs niż zablokować checkout.
 // POST fail-closed: tu odmowa jest pożądana - nie chcemy pozwolić na spam
 // forced-refresh nawet w awarii licznika.
@@ -13,12 +16,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ensureFxRateLoaded, forceRefreshFxRate, getFxState } from "@/lib/billing/fxRate";
 import { rateLimit, guardRateLimit } from "@/lib/server/rate-limit.server";
 import { RateLimitError } from "@/lib/errors/serverErrors";
-
-function clientIp(request: Request): string {
-  const fwd = request.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
-  return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-real-ip") ?? "unknown";
-}
+import { requestRateSubject } from "@/lib/server/rateSubject.server";
 
 function buildPayload(status: "ok" | "stale" | "fallback") {
   const s = getFxState();
@@ -49,10 +47,23 @@ export const Route = createFileRoute("/api/public/fx-rate")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const ip = clientIp(request);
+        // PODMIOT LIMITU JEST SOLONYM SKRÓTEM, nie adresem IP. Wcześniej do
+        // licznika (a więc do tabeli `rate_limits`) trafiał surowy adres, przez
+        // co tabela stawała się rejestrem „kto i kiedy odwiedzał cennik":
+        // dana osobowa w rozumieniu RODO, o nieokreślonej retencji i bez
+        // podstawy w rejestrze czynności. Reszta publicznych bramek (np.
+        // darowizny) używała już `requestRateSubject`, więc ten endpoint był
+        // jedynym niespójnym miejscem. Kubełek nadal jest per dzwoniący -
+        // zmienia się wyłącznie to, co zostaje zapisane.
+        //
+        // UWAGA WDROŻENIOWA: klucz kubełka się ZMIENIA, więc w chwili wdrożenia
+        // istniejące liczniki `fx-rate:get` przestają pasować i limit zaczyna
+        // się od zera. Dla okna jednej minuty to jedno okno bez limitu, a stare
+        // wiersze wygasają same.
+        const subject = requestRateSubject(request.headers);
         const allowed = await rateLimit({
           scope: "fx-rate:get",
-          subjectId: ip,
+          subjectId: subject,
           max: 30,
           windowMinutes: 1,
           failClosed: false,
@@ -111,7 +122,10 @@ export const Route = createFileRoute("/api/public/fx-rate")({
           await guardRateLimit(
             {
               scope: "fx-rate:force",
-              subjectId: userId,
+              // Kubełek jest per KONTO (nie per adres), ale zapisujemy skrót -
+              // ta sama zasada co w GET: `rate_limits` nie ma trzymać ani
+              // adresów, ani identyfikatorów kont.
+              subjectId: requestRateSubject(null, userId),
               max: 6,
               windowMinutes: 1,
               failClosed: true,

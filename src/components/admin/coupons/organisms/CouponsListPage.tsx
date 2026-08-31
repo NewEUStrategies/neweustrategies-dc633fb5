@@ -7,6 +7,7 @@ import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { Plus, Trash2, Copy, Check, Loader2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { confirmDialog } from "@/lib/appDialogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +107,20 @@ export function CouponsListPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] }),
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Dialog APLIKACJI, nie natywny `confirm`: natywne okno blokuje cala karte,
+  // nie da sie go ostylowac ani oznaczyc jako destrukcyjne, a przegladarka
+  // pozwala uzytkownikowi zablokowac kolejne takie okna - wtedy `confirm`
+  // zwraca `false` bez pytania i przycisk kasowania cicho przestaje dzialac.
+  const askAndRemove = async (row: ExtRow) => {
+    const potwierdzone = await confirmDialog({
+      title: t("adminCoupons.deleteCoupon"),
+      description: t("adminCoupons.deleteCouponBody", { code: row.code }),
+      destructive: true,
+      confirmLabel: t("adminCoupons.deleteConfirm"),
+    });
+    if (potwierdzone) remove.mutate(row.id);
+  };
 
   const rows = couponsQ.data ?? [];
   const filtered = useMemo(() => {
@@ -221,7 +236,7 @@ export function CouponsListPage() {
                           <code className="font-mono font-semibold text-sm">{c.code}</code>
                           <button
                             type="button"
-                            aria-label="Kopiuj"
+                            aria-label={t("adminCoupons.copyCode")}
                             className="text-muted-foreground hover:text-foreground"
                             onClick={() => {
                               void navigator.clipboard.writeText(c.code);
@@ -246,9 +261,11 @@ export function CouponsListPage() {
                         {c.max_redemptions != null ? ` / ${c.max_redemptions}` : ""}
                       </td>
                       <td className="py-3 pr-3 text-xs">
-                        {c.valid_from ? new Date(c.valid_from).toLocaleDateString(lang) : "—"}
+                        {c.valid_from ? new Date(c.valid_from).toLocaleDateString(lang) : "-"}
                         {" → "}
-                        {c.valid_until ? new Date(c.valid_until).toLocaleDateString(lang) : "∞"}
+                        {c.valid_until
+                          ? new Date(c.valid_until).toLocaleDateString(lang)
+                          : t("adminCoupons.unlimited2")}
                       </td>
                       <td className="py-3 pr-3 text-xs">
                         {c.grants_tier_key ? (
@@ -263,7 +280,7 @@ export function CouponsListPage() {
                             )}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                       <td className="py-3 pr-3">
@@ -281,17 +298,13 @@ export function CouponsListPage() {
                           <Switch
                             checked={c.active}
                             onCheckedChange={() => toggle.mutate(c)}
-                            aria-label="toggle-active"
+                            aria-label={t("adminCoupons.toggleActive")}
                           />
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="delete"
-                            onClick={() => {
-                              if (confirm(t("adminCoupons.deleteCoupon") + ` ${c.code}`)) {
-                                remove.mutate(c.id);
-                              }
-                            }}
+                            aria-label={t("adminCoupons.deleteAction")}
+                            onClick={() => void askAndRemove(c)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>

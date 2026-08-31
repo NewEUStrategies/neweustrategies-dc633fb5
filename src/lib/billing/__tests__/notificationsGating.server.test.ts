@@ -517,37 +517,34 @@ describe("awaria dostawcy poczty", () => {
 });
 
 describe("odczyt bazy w trakcie ustalania odbiorcy", () => {
-  it(
-    "błąd odczytu profilu jest odróżnialny od braku konta i zostawia ślad",
-    async () => {
-      // CO BYŁO ZŁE (defekt naprawiony 31.08.2026). `resolveRecipient`
-      // destrukturyzował wyłącznie `{ data }` z odpowiedzi PostgREST i ignorował
-      // `error`. Przy przejściowej awarii bazy (timeout puli, restart, chwilowy
-      // 5xx) `data` jest `null`, więc funkcja zwracała `null`, a wywołujący
-      // traktował to jak „użytkownik nie ma adresu" i kończył CICHO - bez
-      // wyjątku, bez `console.error`, bez wiersza w `email_send_log`.
-      //
-      // JAKIE TO BYŁO RYZYKO. Ta ścieżka obsługuje maile o NIEUDANEJ PŁATNOŚCI
-      // i o rezygnacji. Klient, którego karta odmówiła, nie dowiadywał się o
-      // tym wcale, tracił dostęp po karencji, a w systemie nie było ani jednego
-      // śladu, po którym obsługa mogłaby to odtworzyć. Zdarzenie webhooka
-      // zostaje oznaczone jako przetworzone, więc ponowienie też nie pomagało.
-      // To jest awaria niewidzialna - najdroższy rodzaj.
-      //
-      // JAK NAPRAWIONE. `resolveRecipient` rzuca przy błędzie zapytania, a
-      // `null` znaczy odtąd wyłącznie „nie ma do kogo pisać". Wybór między
-      // „przerwać webhooka" a „zostawić ślad" rozstrzyga fail-soft, który ten
-      // moduł ma z założenia: wyjątek łapie `try/catch` funkcji powiadomienia,
-      // więc obsługa zdarzenia biegnie dalej, ale awaria ląduje w logu razem
-      // z rodzajem maila, którego nie udało się wysłać.
-      givenDb({ profileError: "canceling statement due to statement timeout" });
+  it("błąd odczytu profilu jest odróżnialny od braku konta i zostawia ślad", async () => {
+    // CO BYŁO ZŁE (defekt naprawiony 31.08.2026). `resolveRecipient`
+    // destrukturyzował wyłącznie `{ data }` z odpowiedzi PostgREST i ignorował
+    // `error`. Przy przejściowej awarii bazy (timeout puli, restart, chwilowy
+    // 5xx) `data` jest `null`, więc funkcja zwracała `null`, a wywołujący
+    // traktował to jak „użytkownik nie ma adresu" i kończył CICHO - bez
+    // wyjątku, bez `console.error`, bez wiersza w `email_send_log`.
+    //
+    // JAKIE TO BYŁO RYZYKO. Ta ścieżka obsługuje maile o NIEUDANEJ PŁATNOŚCI
+    // i o rezygnacji. Klient, którego karta odmówiła, nie dowiadywał się o
+    // tym wcale, tracił dostęp po karencji, a w systemie nie było ani jednego
+    // śladu, po którym obsługa mogłaby to odtworzyć. Zdarzenie webhooka
+    // zostaje oznaczone jako przetworzone, więc ponowienie też nie pomagało.
+    // To jest awaria niewidzialna - najdroższy rodzaj.
+    //
+    // JAK NAPRAWIONE. `resolveRecipient` rzuca przy błędzie zapytania, a
+    // `null` znaczy odtąd wyłącznie „nie ma do kogo pisać". Wybór między
+    // „przerwać webhooka" a „zostawić ślad" rozstrzyga fail-soft, który ten
+    // moduł ma z założenia: wyjątek łapie `try/catch` funkcji powiadomienia,
+    // więc obsługa zdarzenia biegnie dalej, ale awaria ląduje w logu razem
+    // z rodzajem maila, którego nie udało się wysłać.
+    givenDb({ profileError: "canceling statement due to statement timeout" });
 
-      await notifySubscriptionEmail({ ...CONFIRMED });
+    await notifySubscriptionEmail({ ...CONFIRMED });
 
-      // Przy błędzie odczytu mail nadal nie wychodzi...
-      expect(mail.sendTxEmail).not.toHaveBeenCalled();
-      // ...ale cisza po awarii bazy już nie jest kompletna.
-      expect(errorSpy).toHaveBeenCalled();
-    },
-  );
+    // Przy błędzie odczytu mail nadal nie wychodzi...
+    expect(mail.sendTxEmail).not.toHaveBeenCalled();
+    // ...ale cisza po awarii bazy już nie jest kompletna.
+    expect(errorSpy).toHaveBeenCalled();
+  });
 });

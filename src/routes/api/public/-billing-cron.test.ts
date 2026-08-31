@@ -650,9 +650,12 @@ describe("zadanie 1: przypomnienia o cyklu subskrypcji", () => {
 
     expect(res.status).toBe(200);
     expect(mail.sent).toEqual([]);
-    // Rekord jest jednak policzony jako obsłużony - `notifyReminderEmail` jest
-    // fail-soft i nie zgłasza „nie miałem dokąd wysłać".
-    await expect(body(res)).resolves.toMatchObject({ renewal: 1, skipped: 0 });
+    // Rekord jest policzony jako POMINIĘTY. Do 31.08.2026 wchodził do licznika
+    // `renewal`, bo `notifyReminderEmail` był fail-soft i nie zgłaszał „nie
+    // miałem dokąd wysłać" - wynik przebiegu mówił wtedy o wysyłce, której nie
+    // było. Fail-soft został: cykl nadal kończy się kodem 200, bo brak adresu
+    // u jednego klienta nie może zatrzymać przypomnień dla reszty.
+    await expect(body(res)).resolves.toMatchObject({ renewal: 0, skipped: 1 });
   });
 
   it("KLUCZ IDEMPOTENCJI wiąże subskrypcję z datą graniczną - powtórny bieg nie zdubluje maila", async () => {
@@ -865,36 +868,33 @@ describe("zadanie 3: wygaszenie karencji miejsc", () => {
 // ===========================================================================
 describe("izolacja zadań w cyklu", () => {
   /**
-   * DEFEKT PRODUKCYJNY - test zapisany jako `it.fails`.
+   * DEFEKT NAPRAWIONY 31.08.2026 (`src/routes/api/public/billing-cron.ts`).
    *
-   * CO JEST ZŁE. Handler opakowuje w `.catch()` DWA z trzech zadań
+   * CO BYŁO ZŁE. Handler opakowywał w `.catch()` DWA z trzech zadań
    * (`sendSeatGraceReminders`, `expireSeatGrace`), ale `runBillingReminders`
-   * biegnie NAGO wewnątrz wspólnego `try`. Wystarczy, że odczyt subskrypcji
-   * odmówi (timeout puli, `statement_timeout`, chwilowy brak połączenia) i
-   * `loadDueSubscriptions` rzuca, wspólny `catch` zwraca `500 cron_failed`, a
-   * dwa POZOSTAŁE zadania nie startują w ogóle.
+   * biegło NAGO wewnątrz wspólnego `try`. Wystarczyło, że odczyt subskrypcji
+   * odmówił (timeout puli, `statement_timeout`, chwilowy brak połączenia) i
+   * `loadDueSubscriptions` rzucało, wspólny `catch` zwracał `500 cron_failed`,
+   * a dwa POZOSTAŁE zadania nie startowały w ogóle.
    *
-   * DLACZEGO TO RYZYKO. Harmonogram chodzi RAZ NA DOBĘ. Pominięte
+   * JAKIE TO BYŁO RYZYKO. Harmonogram chodzi RAZ NA DOBĘ. Pominięte
    * `expireSeatGrace()` znaczy, że ludzie, którym karencja minęła, zachowują
    * dostęp do treści płatnych aż do następnej doby - a pominięte
    * `sendSeatGraceReminders()` znaczy, że próg „1 dzień do końca" przepada
    * bezpowrotnie (nazajutrz zostało już 0 dni i warunek `rowDays.includes(left)`
-   * nie zadziała). Jedna sekundowa czkawka bazy kosztuje więc cichą utratę
-   * całego dnia obsługi zespołów - i nikt tego nie zobaczy, bo cron „tylko"
-   * zwrócił 500, które i tak zwraca przy każdej innej awarii.
+   * nie zadziała). Jedna sekundowa czkawka bazy kosztowała więc cichą utratę
+   * całego dnia obsługi zespołów - i nikt tego nie widział, bo cron „tylko"
+   * zwracał 500, które i tak zwraca przy każdej innej awarii.
    *
-   * DLACZEGO NIE NAPRAWIAM. Poprawka jest jednolinijkowa
-   * (`runBillingReminders(leadDays).catch(...)` z domyślką jak w sąsiadach),
-   * ale zmienia KONTRAKT ODPOWIEDZI endpointu: dziś awaria przypomnień daje
-   * 500, po poprawce dałaby 200 z wyzerowanymi licznikami. Zewnętrzny
-   * scheduler może na tym 500 opierać alarmowanie i ponowienie, więc decyzja
-   * „co ma znaczyć porażka cyklu" należy do właściciela modułu rozliczeń, nie
-   * do pracy testowej. Zakres tej pracy to wyłącznie dopisanie testów.
-   *
-   * ASERCJA DOCELOWA: po padnięciu zadania 1 zadanie 3 (wygaszenie karencji)
-   * i tak zostało wywołane.
+   * JAK ZOSTAŁO NAPRAWIONE. Wszystkie trzy zadania są izolowane, a decyzja
+   * o kodzie odpowiedzi zapada PO ich wykonaniu. KONTRAKT ODPOWIEDZI ZOSTAJE
+   * NIETKNIĘTY - padnięcie przypomnień dalej daje `500 cron_failed`, bo
+   * zewnętrzny scheduler opiera na tym kodzie alarmowanie i ponowienie (a
+   * ponowienie jest bezpieczne: idempotencja siedzi w warstwie wysyłki).
+   * Zmienia się wyłącznie to, czego defekt dotyczył: praca dwóch pozostałych
+   * zadań nie przepada razem z pierwszym.
    */
-  it.fails("padnięcie przypomnień NIE POWINNO zabijać wygaszenia karencji", async () => {
+  it("padnięcie przypomnień NIE zabija wygaszenia karencji", async () => {
     seed({ subscriptions: "error", seats: [seat()], expired: [] });
 
     await run();
@@ -902,18 +902,47 @@ describe("izolacja zadań w cyklu", () => {
     expect(db.rpcCalls).toContain("org_expire_seat_grace");
   });
 
-  it("stan faktyczny: padnięcie przypomnień daje 500 i zatrzymuje cały cykl", async () => {
-    // Kontrapunkt do `it.fails` wyżej - dokumentuje zachowanie, które JEST,
-    // żeby przyszła poprawka musiała świadomie ruszyć również ten test.
+  it("padnięcie przypomnień NIE zabija przypomnień o karencji miejsc", async () => {
+    // Drugie z pominiętych zadań i to o skutku nieodwracalnym: próg „1 dzień
+    // do końca" nazajutrz już nie zadziała, bo dni zostanie zero.
+    seed({ subscriptions: "error", seats: [seat({ grace_until: iso(1) })], expired: [] });
+
+    await run();
+
+    expect(mail.sent.map((m) => m.type)).toContain("team_seat_grace_reminder");
+    expect(db.current!.chainsFor("organization_seats")).toHaveLength(1);
+  });
+
+  it("porażka przypomnień nadal jest ZGŁASZANA jako 500 - to sygnał dla schedulera", async () => {
+    // Kontrakt zewnętrzny się nie zmienił: 500 dalej znaczy „ten cykl wymaga
+    // uwagi i ponowienia". Gdyby poprawka zamieniła go na 200, alarmowanie
+    // schedulera zniknęłoby po cichu - to byłaby druga wersja tego samego
+    // defektu, tylko w warstwie obserwowalności.
     seed({ subscriptions: "error", seats: [seat()], expired: [] });
 
     const res = await run();
 
     expect(res.status).toBe(500);
     await expect(body(res)).resolves.toEqual({ error: "cron_failed" });
-    expect(db.rpcCalls).toEqual([]);
-    expect(db.current!.chainsFor("organization_seats")).toHaveLength(0);
-    expect(mail.sent).toEqual([]);
+  });
+
+  it("kolejność zadań po poprawce jest ta sama: przypomnienia, karencja, wygaszenie", async () => {
+    // Izolacja nie może przestawić cyklu: przypomnienie o karencji musi paść
+    // PRZED jej wygaszeniem, żeby ta sama doba nie wysłała „zostało Ci 1 dzień"
+    // i „dostęp wygasł" naraz.
+    seed({
+      subscriptions: [sub()],
+      seats: [seat({ grace_until: iso(1) })],
+      expired: [{ org_id: "org-1", seat_id: "seat-9", email: "byly@example.com" }],
+    });
+
+    await run();
+
+    expect(mail.sent.map((m) => m.type)).toEqual([
+      "subscription_renewal_reminder",
+      "team_seat_grace_reminder",
+      "team_seat_access_ended",
+    ]);
   });
 
   it("wszystkie trzy zadania w jednym udanym przebiegu raportują się osobno", async () => {

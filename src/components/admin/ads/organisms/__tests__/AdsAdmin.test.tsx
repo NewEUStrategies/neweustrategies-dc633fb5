@@ -141,7 +141,7 @@ describe("AdsAdmin", () => {
       "aria-selected",
       "true",
     );
-    expect(await screen.findByText(/Brak slot/)).toBeInTheDocument();
+    expect(await screen.findByText("adsAdmin.slots.empty")).toBeInTheDocument();
   });
 
   it("zakladki NIEAKTYWNE nie czytaja bazy - montuja sie dopiero po kliknieciu", async () => {
@@ -156,7 +156,7 @@ describe("AdsAdmin", () => {
   it("przejscie na POZYCJE montuje panel pozycji i uruchamia jego odczyt", async () => {
     renderWithQueryClient(<AdsAdmin />);
     fireEvent.click(screen.getByRole("tab", { name: "adsAdmin.tabs.placements" }));
-    expect(await screen.findByText(/Brak pozycji/)).toBeInTheDocument();
+    expect(await screen.findByText("adsAdmin.placements.empty")).toBeInTheDocument();
     await waitFor(() => expect(db().chainsFor("ad_placements").length).toBe(1));
   });
 
@@ -166,10 +166,10 @@ describe("AdsAdmin", () => {
     // i wracalby do niego przy nastepnym wejsciu na zakladke.
     renderWithQueryClient(<AdsAdmin />);
     fireEvent.click(screen.getByRole("tab", { name: "adsAdmin.tabs.placements" }));
-    await screen.findByText(/Brak pozycji/);
+    await screen.findByText("adsAdmin.placements.empty");
     fireEvent.click(screen.getByRole("tab", { name: "adsAdmin.tabs.stats" }));
     expect(await screen.findByText("adsAdmin.stats.empty")).toBeInTheDocument();
-    expect(screen.queryByText(/Brak pozycji/)).toBeNull();
+    expect(screen.queryByText("adsAdmin.placements.empty")).toBeNull();
   });
 
   it("powrot na SLOTY czysci niezapisany szkic formularza", async () => {

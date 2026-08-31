@@ -732,34 +732,33 @@ describe("trasa /admin/billing-audit - eksport księgowy", () => {
   });
 });
 
-describe("trasa /admin/billing-audit - defekty udokumentowane, nie naprawiane", () => {
-  // Wszystkie cztery przypadki w tym bloku PADAJĄ na asercji docelowej i są
-  // oznaczone `it.fails`. Każdy uruchomiono najpierw jako zwykły `it` i
-  // potwierdzono, że pada dokładnie na tej asercji, o której mówi komentarz -
-  // czyli że opisuje defekt, a nie własną pomyłkę.
+describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
+  // Wszystkie cztery przypadki w tym bloku były wcześniej `it.fails`: opisywały
+  // defekt, którego wtedy nie naprawiano. Zachowanie produkcyjne zostało
+  // zmienione świadomie (dołożenie komunikatów awarii, przycięcie okna od góry,
+  // rozbicie sum po walutach), więc znacznik `it.fails` zdjęto, a komentarze
+  // opisują teraz, CO było złe i JAK zostało naprawione.
   //
-  // DLACZEGO NIE NAPRAWIAM. Zakres tej pracy to dopisanie testów jednostkowych
-  // do pięciu tras modułu 13. Zmiana zachowania panelu rozliczeń (dołożenie
-  // komunikatów błędu, przycięcie okna, rozbicie sum po walutach) to zmiana
-  // produkcyjna z własnym uzasadnieniem i własną recenzją - a przy sumach
-  // walutowych także zmiana po stronie `audit.server.ts`, poza tym zakresem.
-  // Test zostaje jako wykonywalny opis defektu: gdy ktoś go naprawi, `it.fails`
-  // zacznie oblewać i zmusi do zdjęcia tego znacznika.
+  // Rozbicie sum NIE wymagało zmiany `audit.server.ts`: `AuditReport.totals`
+  // jest redukcją tablicy `report.orders`, którą klient i tak dostaje, więc
+  // kafel liczy per waluta z tego samego materiału, z którego serwer liczy
+  // sumę zbiorczą.
 
-  it.fails("nieudane wczytanie audytu nie mówi operatorowi ANI SŁOWA", async () => {
-    // CO JEST ZŁE. Mutacja `load` nie ma `onError` i nigdzie nie czyta
+  it("nieudane wczytanie audytu mówi operatorowi, CO padło", async () => {
+    // CO BYŁO ZŁE. Mutacja `load` nie miała `onError` i nigdzie nie czytała
     // `load.isError`. Odmowa serwera (brak roli `admin`, awaria bazy, odrzucony
-    // schemat) kończy się dokładnie tym samym ekranem, co przed kliknięciem:
+    // schemat) kończyła się dokładnie tym samym ekranem, co przed kliknięciem:
     // bez raportu, bez komunikatu, z odblokowanym przyciskiem.
     //
-    // DLACZEGO TO RYZYKO. Bliźniaczy panel /admin/billing-reconcile w tej samej
-    // sekcji POKAZUJE `scan.isError` - operator uczy się więc, że brak
-    // komunikatu znaczy „zapytanie przeszło". Tutaj brak komunikatu znaczy
-    // „zapytanie padło", a ekran wygląda jak pusty zakres. Skutek jest
+    // DLACZEGO TO BYŁO RYZYKO. Bliźniaczy panel /admin/billing-reconcile w tej
+    // samej sekcji POKAZUJE `scan.isError` - operator uczył się więc, że brak
+    // komunikatu znaczy „zapytanie przeszło". Tutaj brak komunikatu znaczył
+    // „zapytanie padło", a ekran wyglądał jak pusty zakres. Skutek był
     // konkretny: zgłoszenie reklamacyjne zamykane wnioskiem „w tym oknie nie
     // ma zamówienia", podczas gdy audyt w ogóle się nie wykonał.
     //
-    // ASERCJA DOCELOWA: komunikat awarii widoczny na ekranie.
+    // JAK NAPRAWIONE: `load.isError` renderuje komunikat `role="alert"`
+    // z kluczem `adminBillingAudit.loadFailed` i POWODEM z granicy serwerowej.
     h.audit.mockRejectedValue(new Error("brak uprawnień administratora"));
     await mount();
 
@@ -768,22 +767,25 @@ describe("trasa /admin/billing-audit - defekty udokumentowane, nie naprawiane", 
     await waitFor(() => expect(screen.getByRole("button", { name: "Wczytaj" })).toBeEnabled());
 
     expect(document.body.textContent).toContain("brak uprawnień administratora");
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it.fails("nieudany eksport księgowy kończy się ciszą zamiast komunikatem", async () => {
-    // CO JEST ZŁE. Mutacja `exportFile` też nie ma `onError`. Gdy funkcja
-    // serwerowa odrzuci obietnicę, plik się nie pobiera, przycisk wraca do
-    // stanu wyjściowego i NIC się nie zmienia na ekranie. Osobno: słownik ma
+  it("nieudany eksport księgowy kończy się komunikatem, nie ciszą", async () => {
+    // CO BYŁO ZŁE. Mutacja `exportFile` też nie miała `onError`. Gdy funkcja
+    // serwerowa odrzuciła obietnicę, plik się nie pobierał, przycisk wracał do
+    // stanu wyjściowego i NIC się nie zmieniało na ekranie. Osobno: słownik miał
     // parę kluczy `adminBillingAudit.exporting` („Przygotowuję plik..." /
-    // „Preparing file..."), której komponent nigdy nie używa - etykieta
-    // przycisku nie zmienia się nawet w trakcie udanego eksportu.
+    // „Preparing file..."), której komponent nigdy nie używał - etykieta
+    // przycisku nie zmieniała się nawet w trakcie udanego eksportu.
     //
-    // DLACZEGO TO RYZYKO. Eksport jest ostatnim krokiem zamknięcia miesiąca.
-    // Cisza po kliknięciu czyta się jak „przeglądarka zablokowała pobieranie",
-    // więc księgowość klika kolejny raz, a potem raportuje brak pliku zamiast
-    // realnego powodu (odmowa roli, przekroczony zakres, awaria generatora).
+    // DLACZEGO TO BYŁO RYZYKO. Eksport jest ostatnim krokiem zamknięcia
+    // miesiąca. Cisza po kliknięciu czytała się jak „przeglądarka zablokowała
+    // pobieranie", więc księgowość klikała kolejny raz, a potem raportowała brak
+    // pliku zamiast realnego powodu (odmowa roli, zakres, awaria generatora).
     //
-    // ASERCJA DOCELOWA: komunikat awarii widoczny na ekranie.
+    // JAK NAPRAWIONE: `exportFile.isError` renderuje komunikat `role="alert"`
+    // z kluczem `adminBillingAudit.exportFailed`, a martwy klucz `exporting`
+    // jest wreszcie etykietą przycisku, który właśnie składa plik.
     h.exportAudit.mockRejectedValue(new Error("eksport odrzucony przez serwer"));
     await mount();
 
@@ -792,26 +794,29 @@ describe("trasa /admin/billing-audit - defekty udokumentowane, nie naprawiane", 
     await waitFor(() => expect(screen.getByRole("button", { name: "Eksport CSV" })).toBeEnabled());
 
     expect(document.body.textContent).toContain("eksport odrzucony przez serwer");
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it.fails("suma zaksięgowanych podpisuje mieszankę walut złotówkami", async () => {
-    // CO JEST ZŁE. Kafle podsumowania wołają `money(report.totals.paidCents,
+  it("suma zaksięgowanych rozbija się po walutach, zamiast podpisywać je jedną", async () => {
+    // CO BYŁO ZŁE. Kafle podsumowania wołały `money(report.totals.paidCents,
     // null)`, a `money` dla waluty `null` przyjmuje PLN. Sam raport
     // (`audit.server.ts`) sumuje `amountCents` po WSZYSTKICH zamówieniach
     // zakresu, nie grupując po walucie. Zakres z zamówieniem 49,00 PLN i
-    // 24,75 EUR daje więc jedną liczbę 73,75 podpisaną „zł".
+    // 24,75 EUR dawał więc jedną liczbę 73,75 podpisaną „zł".
     //
-    // DLACZEGO TO RYZYKO. To nie jest usterka kosmetyczna, tylko fałszywy
+    // DLACZEGO TO BYŁO RYZYKO. To nie była usterka kosmetyczna, tylko fałszywy
     // zapis księgowy w miejscu, z którego bierze się kwoty do zamknięcia
-    // miesiąca. Kolumna kwoty w TABELI robi to poprawnie (waluta wiersza), więc
-    // kafel i wiersze mówią różne rzeczy o tym samym zakresie - a kafel jest
-    // czytany pierwszy i bez tabeli.
+    // miesiąca. Kolumna kwoty w TABELI robiła to poprawnie (waluta wiersza),
+    // więc kafel i wiersze mówiły różne rzeczy o tym samym zakresie - a kafel
+    // jest czytany pierwszy i bez tabeli.
     //
-    // DLACZEGO NIE NAPRAWIAM TUTAJ. Uczciwa poprawka to rozbicie sum po
-    // walutach w `AuditReport.totals`, czyli zmiana kontraktu funkcji
-    // serwerowej, eksportu CSV/XLSX i tego widoku naraz.
-    //
-    // ASERCJA DOCELOWA: kafel sumy nie podpisuje mieszanki walut złotówkami.
+    // JAK NAPRAWIONE, BEZ RUSZANIA KONTRAKTU SERWERA. `AuditReport.totals` jest
+    // redukcją tablicy `report.orders` (ten sam, przycięty limitem materiał),
+    // którą klient i tak dostaje - kafel grupuje ją po `currency` i pokazuje
+    // jedną kwotę na walutę. Panel formatuje kwoty KODEM waluty (PLN/EUR),
+    // bo symbol zależy od locale i wersji ICU, a arkusz księgowy nazywa waluty
+    // kodem. Eksport CSV/XLSX niesie kolumnę `currency` per wiersz, więc jego
+    // kontrakt nie wymagał zmiany.
     h.audit.mockResolvedValue(
       report({
         orders: [
@@ -830,30 +835,41 @@ describe("trasa /admin/billing-audit - defekty udokumentowane, nie naprawiane", 
     await load();
 
     await screen.findByRole("table");
-    expect(summaryCard("Zaksięgowane").textContent).not.toContain("zł");
+    const zaksiegowane = summaryCard("Zaksięgowane").textContent ?? "";
+    // Żadnej waluty narzuconej mieszance - obie kwoty stoją ze swoim kodem.
+    expect(zaksiegowane).not.toContain("zł");
+    expect(zaksiegowane).toMatch(moneyPattern(4900));
+    expect(zaksiegowane).toMatch(moneyPattern(2475));
+    expect(zaksiegowane).toContain("PLN");
+    expect(zaksiegowane).toContain("EUR");
+    // I żadnego zlepka 73,75, który nie jest kwotą w żadnej walucie.
+    expect(zaksiegowane).not.toMatch(moneyPattern(7375));
   });
 
-  it.fails("okno ponad zadeklarowane maksimum i tak wychodzi do serwera", async () => {
-    // CO JEST ZŁE. Pole ma `max={8760}`, a funkcja serwerowa `max(8760)` w
-    // schemacie - ale handler `onChange` przycina wyłącznie DÓŁ zakresu
+  it("okno ponad zadeklarowane maksimum nie wychodzi już do serwera", async () => {
+    // CO BYŁO ZŁE. Pole ma `max={8760}`, a funkcja serwerowa `max(8760)` w
+    // schemacie - ale handler `onChange` przycinał wyłącznie DÓŁ zakresu
     // (`Math.max(1, ...)`). Atrybut `max` w polu liczbowym nie blokuje
-    // wpisania większej wartości, więc 99999 jedzie do serwera i odbija się
+    // wpisania większej wartości, więc 99999 jechało do serwera i odbijało się
     // od schematu. Bliźniaczy panel uzgadniania robi to poprawnie:
     // `Math.min(720, Math.max(1, ...))`.
     //
-    // DLACZEGO TO RYZYKO. Odbicie od schematu jest tu NIEWIDOCZNE (patrz
-    // pierwszy `it.fails` w tym bloku), więc operator, który wpisał zbyt duże
-    // okno, dostaje pusty ekran bez żadnego wyjaśnienia i nie ma jak zgadnąć,
+    // DLACZEGO TO BYŁO RYZYKO. Odbicie od schematu było NIEWIDOCZNE (patrz
+    // pierwszy przypadek w tym bloku), więc operator, który wpisał zbyt duże
+    // okno, dostawał pusty ekran bez żadnego wyjaśnienia i nie miał jak zgadnąć,
     // że winna jest liczba w polu obok.
     //
-    // ASERCJA DOCELOWA: zapytanie nie przekracza maksimum przyjmowanego przez
-    // funkcję serwerową.
+    // JAK NAPRAWIONE: `onChange` przycina OBIE strony zakresu do
+    // `MAX_WINDOW_HOURS`, czyli do maksimum ze schematu funkcji serwerowej -
+    // a pole od razu pokazuje przyciętą wartość.
     await mount();
 
     fireEvent.change(auditWindow(), { target: { value: "99999" } });
     await load();
 
     expect(lastAuditQuery().sinceHours).toBeLessThanOrEqual(8760);
+    // Operator widzi, co poszło do serwera - pole nie zostaje z 99999.
+    expect(auditWindow()).toHaveValue(8760);
   });
 });
 

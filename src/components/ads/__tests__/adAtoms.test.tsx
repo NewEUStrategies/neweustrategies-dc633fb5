@@ -18,6 +18,11 @@
 // biegną w całości prawdziwe, na prawdziwym DOM-ie happy-dom.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createRef } from "react";
+// Prawdziwa instancja i18next: `AdContainer` dokleja do etykiety punktu
+// orientacyjnego NAZWĘ STREFY ze słownika. Bez instancji `useTranslation()`
+// sypie ostrzeżeniem i zwraca goły klucz - test „przechodziłby" na napisie,
+// którego użytkownik nigdy nie zobaczy.
+import "@/test/i18nReal";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
 import { AdContainer } from "@/components/ads/atoms/AdContainer";
@@ -226,29 +231,36 @@ describe("AdContainer - atrybuty data-ad-* i stany", () => {
 // ---------------------------------------------------------------------------
 describe("AdContainer - dostępność", () => {
   // -------------------------------------------------------------------------
-  // DEFEKT - test celowo oznaczony `it.fails`, kod produkcyjny NIE jest zmieniany.
+  // DEFEKT NAPRAWIONY (08.2026) - test biegnie normalnie.
   //
-  // CO JEST ZŁE. `AdContainer` nadaje KAŻDEMU slotowi `role="complementary"`
-  // z etykietą `aria-label`, a `AdSlotView` podaje tam zawsze ten sam napis -
+  // CO BYŁO ZŁE. `AdContainer` nadawał KAŻDEMU slotowi `role="complementary"`
+  // z etykietą `aria-label`, a `AdSlotView` podawał tam zawsze ten sam napis -
   // `t("ads.label")`, czyli „Reklama" / „Advertisement". Strona artykułu ma do
   // pięciu stref naraz (top_of_post, mid_post, sidebar, bottom_of_post,
-  // footer_slideup), więc powstaje pięć punktów orientacyjnych o IDENTYCZNEJ
-  // roli i nazwie. axe-core zgłasza tu regułę `landmark-unique`.
+  // footer_slideup), więc powstawało pięć punktów orientacyjnych o IDENTYCZNEJ
+  // roli i nazwie. axe-core zgłaszał tu regułę `landmark-unique`.
   //
-  // DLACZEGO TO RYZYKO. Punkty orientacyjne to główna nawigacja czytnika ekranu
-  // (w NVDA/JAWS klawisz D, w VoiceOver rotor). Lista pięciu identycznych
+  // DLACZEGO TO BYŁO RYZYKO. Punkty orientacyjne to główna nawigacja czytnika
+  // ekranu (w NVDA/JAWS klawisz D, w VoiceOver rotor). Lista pięciu identycznych
   // pozycji „Reklama" jest bezużyteczna: użytkownik nie wie, do którego miejsca
-  // artykułu skacze, ani czy właśnie wrócił tam, gdzie już był. To bariera
+  // artykułu skacze, ani czy właśnie wrócił tam, gdzie już był. To była bariera
   // dostępności w serwisie publicznym, a nie kosmetyka - i jedyna rzecz, której
   // NIE widać w żadnym teście renderującym pojedynczy slot (dlatego przypadek
-  // wyżej, z jednym kontenerem, przechodzi na zielono).
+  // niżej, z jednym kontenerem, przechodził na zielono).
   //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka nie jest lokalna dla tego atomu: trzeba
-  // rozstrzygnąć, skąd bierze się rozróżniająca nazwa (klucz i18n per pozycja,
-  // np. „Reklama - nad artykułem", plus nowe wpisy w PL i EN), a być może w ogóle
-  // zdjąć rolę punktu orientacyjnego ze slotów śródtekstowych. To decyzja
-  // produktowo-językowa, a zadanie zabrania zmian w kodzie produkcyjnym.
-  it.fails("kilka stref na jednej stronie ma ROZRÓŻNIALNE punkty orientacyjne", async () => {
+  // JAK NAPRAWIONE. Rola zostaje (usunięcie jej wywróciłoby każdą asercję
+  // `getByRole("complementary")` w tym pliku i nie dałoby czytelnikowi ekranu
+  // NIC w zamian), a rozróżnia NAZWA: `AdContainer` dokleja do etykiety nazwę
+  // strefy z `ZONE_LABEL_KEYS` - „Reklama - nad artykułem", „Reklama - w treści
+  // artykułu". Klucze (`ads.zones.*`) siedzą w RDZENIU słownika, bo strefy
+  // renderują się na powierzchni publicznej, gdzie nakładki panelu nie jadą.
+  //
+  // CZEGO TA NAPRAWA NIE OBEJMUJE: dwie kreacje w TEJ SAMEJ strefie (sufit
+  // `mid_post` to dwie wstawki na artykuł, `in_feed` powtarza się co N kart)
+  // nadal dostają tę samą nazwę. Rozróżnienie ich wymaga porządkowej liczby
+  // podanej przez wołającego (`AdSlotView`), a ta - z powodu SSR - nie może
+  // pochodzić z licznika w tym atomie.
+  it("kilka stref na jednej stronie ma ROZRÓŻNIALNE punkty orientacyjne", async () => {
     const { container } = render(
       <main>
         <AdContainer

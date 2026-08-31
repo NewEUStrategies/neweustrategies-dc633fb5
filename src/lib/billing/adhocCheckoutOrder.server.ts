@@ -63,8 +63,29 @@ async function resolveAmount(
     if (ev.starts_at && new Date(String(ev.starts_at)).getTime() < Date.now()) {
       return { error: "event_finished" };
     }
+    // BRAK MIEJSC WRACA KANAŁEM ODMOWY, nie wyjątkiem. `assertSeatAvailable`
+    // sygnalizuje pełną salę wyjątkiem `event_full` (tak samo czyta go
+    // `oneTimeFulfilment.server.ts`, dopasowując po komunikacie), a ta funkcja
+    // nie ma wokół wyceny żadnego `try` - więc najczęstsza odmowa popularnego
+    // wydarzenia leciała przez server fn na zewnątrz jako błąd serwera.
+    // Kupujący widział wtedy ogólne „coś poszło nie tak" zamiast zdania
+    // o braku miejsc, klikał ponownie, a w logu zostawał wyjątek nieodróżnialny
+    // od awarii bazy. Wszystkie pozostałe odmowy biletowe (`entity_required`,
+    // `ticket_not_available`, `event_finished`, `ticket_included_in_plan`) już
+    // wracały tym kanałem - ta jedna była wyjątkiem od reguły.
+    //
+    // Kod odmowy zostaje `event_full` (bez zmiany kontraktu
+    // `assertSeatAvailable`, z którego korzysta też domykanie zamówień), więc
+    // wywołujący dostaje tę samą nazwę, którą moduł biletów posługuje się od
+    // zawsze. Inne wyjątki (awaria odczytu miejsc) lecą dalej - one NIE są
+    // odmową i nie wolno ich zamieniać w „brak miejsc".
     const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
-    await assertSeatAvailable(supabase, String(ev.id), userId);
+    try {
+      await assertSeatAvailable(supabase, String(ev.id), userId);
+    } catch (err) {
+      if (!(err instanceof Error) || err.message !== "event_full") throw err;
+      return { error: "event_full" };
+    }
     // Benefity planu liczone TĄ SAMĄ regułą, co w kasie biletowej
     // (`checkout.functions`): stawki ulgowe płacą mniej, a nieużyta pula
     // pokrywa bilet w całości. Kwota zero oznacza, że płatność jest w ogóle

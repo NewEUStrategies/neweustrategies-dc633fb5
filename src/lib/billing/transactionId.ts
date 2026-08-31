@@ -14,8 +14,7 @@
 // wprowadzenia nadal istnieją) i dopuszczony WYŁĄCZNIE dla `cs_`: `pi_`,
 // `in_`, `ch_` i `txn_` nigdy go nie mają, więc podkreślnik w nich dalej
 // jest sygnałem, że to nie jest numer transakcji.
-export const TRANSACTION_ID_PATTERN =
-  /^(?:cs_(?:test_|live_)?|pi_|in_|ch_|txn_)[A-Za-z0-9]{8,80}$/;
+export const TRANSACTION_ID_PATTERN = /^(?:cs_(?:test_|live_)?|pi_|in_|ch_|txn_)[A-Za-z0-9]{8,80}$/;
 
 /** Czy tekst wygląda na identyfikator transakcji dostawcy płatności? */
 export function isTransactionId(value: string): boolean {

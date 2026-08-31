@@ -411,37 +411,37 @@ describe("trasa /admin/coupons/analytics - język i dostępność", () => {
   });
 });
 
-describe("trasa /admin/coupons/analytics - DEFEKTY (zarejestrowane, nienaprawiane)", () => {
-  it.fails("BŁĄD FUNKCJI AGREGUJĄCEJ wygląda jak zakres bez sprzedaży", async () => {
-    // CO JEST ZŁE. `queryFn` rzuca błędem PostgREST, ale render nie ma ani
+describe("trasa /admin/coupons/analytics - DEFEKTY (naprawione)", () => {
+  it("BŁĄD FUNKCJI AGREGUJĄCEJ nie wygląda już jak zakres bez sprzedaży", async () => {
+    // CO BYŁO ZŁE. `queryFn` rzucał błędem PostgREST, ale render nie miał ani
     // jednej gałęzi dla `q.isError`: `rows = q.data ?? []`, więc odmowa
     // uprawnień do `b2b_coupons_analytics`, błąd SQL w funkcji i zerwana sieć
-    // dają dokładnie ten sam ekran co poprawny odczyt pustego okna - „Brak
+    // dawały dokładnie ten sam ekran co poprawny odczyt pustego okna - „Brak
     // danych." i cztery kafle zer (w tym „Przychód netto: 0.00").
     //
-    // DLACZEGO TO RYZYKO. Ten ekran odpowiada na pytanie „czy kupony B2B nam
-    // się opłacają". Zera odczytane z awarii to wniosek, że kampania nie
+    // DLACZEGO TO BYŁO RYZYKO. Ten ekran odpowiada na pytanie „czy kupony B2B
+    // nam się opłacają". Zera odczytane z awarii to wniosek, że kampania nie
     // przyniosła przychodu - czyli decyzja o wygaszeniu programu podjęta na
-    // podstawie błędu odczytu, a nie danych. Kierunek odwrotny jest równie
-    // realny: nikt nie zgłosi awarii funkcji bazodanowej, bo panel wygląda
+    // podstawie błędu odczytu, a nie danych. Kierunek odwrotny był równie
+    // realny: nikt nie zgłaszał awarii funkcji bazodanowej, bo panel wyglądał
     // na sprawny.
     //
-    // DLACZEGO NIE NAPRAWIAM. Zadanie zabrania zmian w kodzie produkcyjnym,
-    // a poprawka jest decyzją modułu, nie literówką: trzeba wybrać kształt
-    // komunikatu (zamiast kafli czy obok nich), ujednolicić go z zakładką
-    // Realizacje (ma ten sam brak - patrz jej plik testowy) i rozstrzygnąć,
-    // czy kafle mają wtedy pokazywać kreski zamiast zer. Rejestruję defekt
-    // z dowodem zamiast go po cichu obejść.
+    // JAK NAPRAWIONE. Trasa czyta `q.isError` i pokazuje komunikat
+    // `role="alert"` o TYM SAMYM kształcie i z tych samych kluczy
+    // (`adminCoupons.loadError.*`) co zakładka Realizacje, kafle stawiają
+    // KRESKI zamiast zer (zero jest twierdzeniem o pieniądzach, kreska mówi
+    // „nie wiadomo"), a obie karty zamiast „Brak danych." mówią o niedostępnym
+    // odczycie.
     h.rpc.mockResolvedValue({
       data: null,
       error: { message: "test: brak uprawnień do funkcji agregującej" },
     });
     await zamontuj();
-    // Stan faktyczny: awaria nie do odróżnienia od zakresu bez realizacji.
-    await waitFor(() => expect(screen.getAllByText("Brak danych.")).toHaveLength(2));
-    expect(within(kafel("Przychód netto")).getByText("0.00")).toBeInTheDocument();
-    // ASERCJA DOCELOWA: panel MUSI zameldować, że agregatów nie udało się
-    // policzyć - inaczej zera są kłamstwem o pieniądzach.
-    expect(screen.queryByRole("alert")).not.toBeNull();
+    // Awaria melduje się sama i nie udaje zakresu bez realizacji.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Brak danych.")).toBeNull();
+    expect(within(kafel("Przychód netto")).getByText("-")).toBeInTheDocument();
+    expect(within(kafel("Realizacje")).getByText("-")).toBeInTheDocument();
+    cleanup();
   });
 });

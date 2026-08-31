@@ -338,22 +338,34 @@ function PricingPage() {
           {cardTiers.length === 0 ? (
             <p className="mt-12 text-center text-muted-foreground">{t("pricing.empty")}</p>
           ) : (
-            <div className={`mt-10 ${gridCls}`}>
-              {cardTiers.map((tier) => (
-                <TierCard
-                  key={tier.id}
-                  tier={tier}
-                  plans={plansMap.get(tier.key) ?? []}
-                  interval={effectiveInterval}
-                  lang={lang}
-                  isCurrentTier={currentTierKey === tier.key}
-                  currentPlanId={currentPlanId}
-                  isAuthenticated={!!session}
-                  onContact={openContact}
-                  highlights={cardHighlights.get(tier.id) ?? []}
-                />
-              ))}
-            </div>
+            <>
+              {/* NAGŁÓWEK SEKCJI KART - dostępnościowo, nie ozdobnie. Strona
+                  szła z `h1` („Cennik") wprost do `h3` w każdej karcie warstwy,
+                  bo poziom `h2` pojawiał się dopiero niżej (Pozostałe plany,
+                  Przepustki, Pełne porównanie, FAQ). Przeskok o dwa poziomy
+                  czyta się w czytniku ekranu jak brakująca sekcja - a nagłówki
+                  są tu najszybszą drogą do porównania ofert (WCAG 1.3.1).
+                  `sr-only` jest poza układem (position: absolute), więc siatka
+                  kart, odstępy i responsywność zostają nietknięte, a klucz
+                  `pricing.tiers.heading` istniał już w słowniku PL i EN. */}
+              <h2 className="sr-only">{t("pricing.tiers.heading")}</h2>
+              <div className={`mt-10 ${gridCls}`}>
+                {cardTiers.map((tier) => (
+                  <TierCard
+                    key={tier.id}
+                    tier={tier}
+                    plans={plansMap.get(tier.key) ?? []}
+                    interval={effectiveInterval}
+                    lang={lang}
+                    isCurrentTier={currentTierKey === tier.key}
+                    currentPlanId={currentPlanId}
+                    isAuthenticated={!!session}
+                    onContact={openContact}
+                    highlights={cardHighlights.get(tier.id) ?? []}
+                  />
+                ))}
+              </div>
+            </>
           )}
 
           {/* Bez warunku na warstwę: darowizna jest osobną ścieżką obok

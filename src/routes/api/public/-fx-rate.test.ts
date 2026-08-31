@@ -172,6 +172,7 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 import { getFxState, setEurPlnRateForTests, ensureFxRateLoaded } from "@/lib/billing/fxRate";
+import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { routeServerHandlers } from "@/test/routeHarness";
 import { Route } from "@/routes/api/public/fx-rate";
 
@@ -459,24 +460,63 @@ describe("GET: cache modułu (TTL 6 h) i deduplikacja lotów", () => {
 // GET - limiter (fail-open)
 // ===========================================================================
 describe("GET: limit 30/min per adres, świadomie FAIL-OPEN", () => {
+  /** Podmiot policzony TĄ SAMĄ funkcją, której używa kod produkcyjny. */
+  const podmiot = (headers: Record<string, string>): string =>
+    requestRateSubject(new Headers(headers));
+
   it("limit liczony jest per ADRES, w zakresie `fx-rate:get`, 30 na minutę", async () => {
     await get("/api/public/fx-rate", { "x-forwarded-for": "203.0.113.7" });
 
     expect(limiter.calls).toEqual([
-      { scope: "fx-rate:get", subject: "203.0.113.7", max: 30, window: 1 },
+      {
+        scope: "fx-rate:get",
+        subject: podmiot({ "x-forwarded-for": "203.0.113.7" }),
+        max: 30,
+        window: 1,
+      },
     ]);
+  });
+
+  it("kubełek ROZRÓŻNIA dzwoniących, choć nie zapisuje ich adresów", async () => {
+    // Sedno rozdziału kubełków: dwa różne adresy dostają dwa różne podmioty,
+    // a ten sam adres - ten sam podmiot. Skrót jest deterministyczny, więc
+    // limit działa tak samo jak przy surowym adresie.
+    await get("/api/public/fx-rate", { "x-forwarded-for": "203.0.113.7" });
+    await get("/api/public/fx-rate", { "x-forwarded-for": "203.0.113.8" });
+    await get("/api/public/fx-rate", { "x-forwarded-for": "203.0.113.7" });
+
+    expect(limiter.calls[0]?.subject).not.toEqual(limiter.calls[1]?.subject);
+    expect(limiter.calls[2]?.subject).toEqual(limiter.calls[0]?.subject);
   });
 
   it("pierwszy wpis `x-forwarded-for` wygrywa nad łańcuchem proxy", async () => {
     await get("/api/public/fx-rate", { "x-forwarded-for": " 203.0.113.9 , 10.0.0.1 , 10.0.0.2" });
 
-    expect(limiter.calls[0]).toMatchObject({ subject: "203.0.113.9" });
+    expect(limiter.calls[0]).toMatchObject({
+      subject: podmiot({ "x-forwarded-for": "203.0.113.9" }),
+    });
   });
 
   it("bez `x-forwarded-for` bierzemy `cf-connecting-ip`", async () => {
     await get("/api/public/fx-rate", { "cf-connecting-ip": "198.51.100.4" });
 
-    expect(limiter.calls[0]).toMatchObject({ subject: "198.51.100.4" });
+    expect(limiter.calls[0]).toMatchObject({
+      subject: podmiot({ "cf-connecting-ip": "198.51.100.4" }),
+    });
+  });
+
+  it("`cf-connecting-ip` WYGRYWA z `x-forwarded-for`, bo tego klient nie podrobi", async () => {
+    // Zmiana świadoma wraz z przejściem na `requestRateSubject`: za Cloudflare
+    // `x-forwarded-for` jest nagłówkiem od klienta, więc jego pierwszeństwo
+    // dawałoby darmowe obejście limitu przez podstawienie dowolnego adresu.
+    await get("/api/public/fx-rate", {
+      "cf-connecting-ip": "198.51.100.4",
+      "x-forwarded-for": "203.0.113.7",
+    });
+
+    expect(limiter.calls[0]).toMatchObject({
+      subject: podmiot({ "cf-connecting-ip": "198.51.100.4" }),
+    });
   });
 
   it("bez żadnego nagłówka adresu wpadamy do WSPÓLNEGO kubełka `unknown`", async () => {
@@ -484,7 +524,8 @@ describe("GET: limit 30/min per adres, świadomie FAIL-OPEN", () => {
     // darmowy kanał do NBP przez nasz serwer.
     await get();
 
-    expect(limiter.calls[0]).toMatchObject({ subject: "unknown" });
+    expect(limiter.calls[0]).toMatchObject({ subject: podmiot({}) });
+    expect(limiter.calls[0]?.subject).toBe(requestRateSubject(new Headers()));
   });
 
   it("PRZEKROCZONY limit oddaje 429, nie rusza dostawcy i nie jest cachowany", async () => {
@@ -524,42 +565,38 @@ describe("GET: limit 30/min per adres, świadomie FAIL-OPEN", () => {
   });
 
   /**
-   * DEFEKT PRODUKCYJNY - test zapisany jako `it.fails`.
+   * DEFEKT NAPRAWIONY 31.08.2026 (`src/routes/api/public/fx-rate.ts`).
    *
-   * CO JEST ZŁE. `GET` przekazuje do licznika SUROWY adres IP jako
+   * CO BYŁO ZŁE. `GET` przekazywał do licznika SUROWY adres IP jako
    * `subjectId`, a licznik zapisuje go do tabeli `rate_limits`. Tymczasem repo
    * ma na dokładnie ten przypadek osobny moduł `@/lib/server/rateSubject.server`
    * z komentarzem otwierającym: „`rate_limits` nie jest miejscem na dane
    * osobowe: wyciek tej tabeli nie może dać listy adresów IP". Publiczna
-   * ścieżka darowizn tego modułu używa (`requestRateSubject`), publiczna
+   * ścieżka darowizn tego modułu używała (`requestRateSubject`), publiczna
    * ścieżka kursu - nie.
    *
-   * DLACZEGO TO RYZYKO. Adres IP jest daną osobową w rozumieniu RODO. Tabela
-   * `rate_limits` staje się przez to rejestrem „kto i kiedy odwiedzał cennik",
-   * o nieokreślonym okresie retencji i bez podstawy w rejestrze czynności.
-   * To ryzyko zgodnościowe, a nie estetyka: ta sama tabela dla innych zakresów
-   * trzyma już wyłącznie solone skróty, więc audyt zobaczy niespójność.
+   * JAKIE TO BYŁO RYZYKO. Adres IP jest daną osobową w rozumieniu RODO. Tabela
+   * `rate_limits` stawała się przez to rejestrem „kto i kiedy odwiedzał
+   * cennik", o nieokreślonym okresie retencji i bez podstawy w rejestrze
+   * czynności. To ryzyko zgodnościowe, a nie estetyka: ta sama tabela dla
+   * innych zakresów trzymała już wyłącznie solone skróty, więc audyt zobaczyłby
+   * niespójność.
    *
-   * DLACZEGO NIE NAPRAWIAM. Poprawka to podmiana `subjectId: ip` na
-   * `subjectId: requestRateSubject(request.headers)`, ale ZMIENIA KLUCZ
-   * kubełka: w chwili wdrożenia wszystkie istniejące liczniki `fx-rate:get`
-   * przestają pasować i limit zeruje się dla całego ruchu. To decyzja
-   * wdrożeniowa (i wymaga sprzątnięcia starych wierszy), a zakres tej pracy to
-   * wyłącznie dopisanie testów. Test zostaje jako `it.fails`, żeby poprawka
-   * zapaliła się na zielono w chwili, w której ktoś ją zrobi.
-   *
-   * ASERCJA DOCELOWA: podmiot zapisany w liczniku NIE zawiera surowego adresu.
+   * JAK ZOSTAŁO NAPRAWIONE. `subjectId` liczy `requestRateSubject(headers)` -
+   * ta sama funkcja, co na pozostałych publicznych bramkach. Kubełek nadal
+   * jest per dzwoniący (skrót jest deterministyczny), zmienia się wyłącznie to,
+   * co ląduje w tabeli. Skutek wdrożeniowy jest znany i opisany przy kodzie:
+   * klucz kubełka się zmienia, więc istniejące liczniki `fx-rate:get`
+   * przestają pasować - przy oknie jednej minuty to jedno okno bez limitu,
+   * a stare wiersze wygasają same.
    */
-  it.fails("podmiot limitu NIE POWINIEN nieść surowego adresu IP", async () => {
+  it("podmiot limitu NIE niesie surowego adresu IP", async () => {
     await get("/api/public/fx-rate", { "x-forwarded-for": "203.0.113.55" });
 
     expect(String(limiter.calls[0]?.subject)).not.toContain("203.0.113.55");
-  });
-
-  it("stan faktyczny: surowy adres trafia do licznika (dokumentacja defektu wyżej)", async () => {
-    await get("/api/public/fx-rate", { "x-forwarded-for": "203.0.113.55" });
-
-    expect(limiter.calls[0]?.subject).toBe("203.0.113.55");
+    // Prefiks rodzaju zostaje jawny, żeby dało się czytać metryki zakresu -
+    // to jest kontrakt `requestRateSubject`, nie przypadek.
+    expect(String(limiter.calls[0]?.subject)).toMatch(/^ip:[0-9a-f]{32}$/);
   });
 
   it("ciało odpowiedzi NIE zawiera adresu klienta ani nagłówków żądania", async () => {
@@ -677,11 +714,21 @@ describe("POST: limit 6/min per admin, świadomie FAIL-CLOSED", () => {
     expect(limiter.calls).toEqual([
       {
         scope: "fx-rate:force",
-        subject: "11111111-1111-4111-8111-111111111111",
+        subject: requestRateSubject(null, "11111111-1111-4111-8111-111111111111"),
         max: 6,
         window: 1,
       },
     ]);
+  });
+
+  it("podmiot limitu POST też nie niesie surowego identyfikatora konta", async () => {
+    // Ta sama reguła, co w GET, i ten sam moduł: `rate_limits` nie ma trzymać
+    // ani adresów, ani identyfikatorów kont. Kubełek pozostaje per konto -
+    // liczy się rozróżnialność, nie czytelność wpisu.
+    await post(BEARER);
+
+    expect(String(limiter.calls[0]?.subject)).not.toContain("11111111-1111-4111-8111-111111111111");
+    expect(String(limiter.calls[0]?.subject)).toMatch(/^user:[0-9a-f]{32}$/);
   });
 
   it("PRZEKROCZONY limit oddaje 429 i NIE puka do dostawcy", async () => {

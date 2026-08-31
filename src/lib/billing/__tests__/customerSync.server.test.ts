@@ -38,9 +38,15 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 const { syncCustomerAddress, syncCustomerBusiness, syncCustomerProfile } =
   await import("@/lib/billing/customerSync.server");
 
-/** Wiersz `subscriptions` w zakresie, jakiego dotyka wyszukiwanie właściciela. */
+/**
+ * Wiersz `subscriptions` w zakresie, jakiego dotyka wyszukiwanie właściciela.
+ * `tenant_id` (kolumna NOT NULL) jest tu tak samo obowiązkowy jak `user_id`:
+ * to on rozstrzyga, KTÓRY z profili rozliczeniowych tego człowieka wolno
+ * zapisać.
+ */
 interface SubscriptionLink {
   user_id: string;
+  tenant_id: string;
 }
 
 /** Miniaturowy wiersz `billing_profiles` - tylko klucze filtrowania. */
@@ -104,7 +110,7 @@ beforeEach(() => {
   h.chain = chain;
   profiles = [{ id: "profile-alfa", user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.tenant }];
   touchedProfiles = [];
-  linkSubscription({ user_id: BILLING_IDS.me });
+  linkSubscription({ user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.tenant });
   chain.setResponse("billing_profiles", (recorded) => {
     const filters = eqFilters(recorded);
     const matched = profiles.filter((row) =>
@@ -139,7 +145,7 @@ describe("powiązanie klienta operatora z kontem", () => {
     // Klucz operatora jest per środowisko, ale identyfikatory klientów bywają
     // podobne. Bez filtra środowiska zdarzenie z piaskownicy przepisywałoby
     // adres na fakturze klienta produkcyjnego.
-    linkSubscription({ user_id: BILLING_IDS.me }, "live");
+    linkSubscription({ user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.tenant }, "live");
 
     await syncCustomerProfile({ id: "cus_1", email: "podmiana@example.com" }, "sandbox");
 
@@ -369,46 +375,40 @@ describe("syncCustomerBusiness - dane firmowe", () => {
 // ---------------------------------------------------------------------------
 
 describe("izolacja tenanta przy zapisie profilu", () => {
-  it.fails(
-    "DEFEKT: aktualizacja profilu przechodzi przez WSZYSTKIE tenanty tego użytkownika",
-    async () => {
-      // CO JEST ZŁE. `patchProfile` zawęża zapis wyłącznie do `user_id`
-      // (`.eq("user_id", userId)`) i robi to KLIENTEM SERWISOWYM, czyli
-      // z pominięciem RLS. Tymczasem `billing_profiles` ma `UNIQUE (user_id,
-      // tenant_id)` (migracja 20260624172041, komentarz „one per user, per
-      // tenant"), więc ten sam człowiek ma tyle profili, w ilu tenantach
-      // kupował. Jedno zdarzenie `customer.updated` przepisuje je wszystkie.
-      //
-      // DLACZEGO TO RYZYKO. To wyciek danych MIĘDZY NAJEMCAMI zapisany naszą
-      // własną ręką: adres firmy podany w portalu operatora dla tenanta A ląduje
-      // na fakturze tenanta B, razem z numerem podatkowym i nazwą firmy.
-      // Kierunek jest szczególnie paskudny, bo dane wjeżdżają Z ZEWNĄTRZ
-      // (webhook operatora), a rola serwisowa nie ma nad sobą żadnej polityki.
-      // Reszta repo traktuje izolację tenanta jako regułę pieniężną -
-      // `tenant_isolation_billing_storage_test.sql` pilnuje jej po stronie bazy,
-      // a `src/test/billing/fixtures.ts` zapisuje ją wprost jako zasadę.
-      //
-      // JAK WYGLĄDAŁABY NAPRAWA. Powiązanie i tak idzie przez `subscriptions`,
-      // a ta tabela ma kolumnę `tenant_id` (NOT NULL). Wystarczy, żeby
-      // `userForCustomer` oddawało parę `{ userId, tenantId }`, a `patchProfile`
-      // dokładało `.eq("tenant_id", tenantId)`.
-      //
-      // DLACZEGO NIE NAPRAWIAM. Zmiana dotyka sygnatur trzech funkcji i ścieżki
-      // webhooka; wychodzi poza zakres tej pracy (dopisanie testów bez zmiany
-      // kodu produkcyjnego). Ten test jest bramką - padnie, dopóki zapis nie
-      // zostanie zawężony do tenanta.
-      profiles = [
-        { id: "profile-alfa", user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.tenant },
-        { id: "profile-beta", user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.foreignTenant },
-      ];
+  it("aktualizacja profilu obejmuje WYŁĄCZNIE tenanta, w którym powstała subskrypcja", async () => {
+    // CO BYŁO ZŁE (defekt naprawiony 31.08.2026). `patchProfile` zawężał
+    // zapis wyłącznie do `user_id` (`.eq("user_id", userId)`) i robił to
+    // KLIENTEM SERWISOWYM, czyli z pominięciem RLS. Tymczasem
+    // `billing_profiles` ma `UNIQUE (user_id, tenant_id)` (migracja
+    // 20260624172041, komentarz „one per user, per tenant"), więc ten sam
+    // człowiek ma tyle profili, w ilu tenantach kupował. Jedno zdarzenie
+    // `customer.updated` przepisywało je wszystkie.
+    //
+    // JAKIE TO BYŁO RYZYKO. To był wyciek danych MIĘDZY NAJEMCAMI zapisany
+    // naszą własną ręką: adres firmy podany w portalu operatora dla tenanta A
+    // lądował na fakturze tenanta B, razem z numerem podatkowym i nazwą firmy.
+    // Kierunek jest szczególnie paskudny, bo dane wjeżdżają Z ZEWNĄTRZ
+    // (webhook operatora), a rola serwisowa nie ma nad sobą żadnej polityki.
+    // Reszta repo traktuje izolację tenanta jako regułę pieniężną -
+    // `tenant_isolation_billing_storage_test.sql` pilnuje jej po stronie bazy,
+    // a `src/test/billing/fixtures.ts` zapisuje ją wprost jako zasadę.
+    //
+    // JAK NAPRAWIONE. Powiązanie i tak idzie przez `subscriptions`, a ta
+    // tabela ma kolumnę `tenant_id` (NOT NULL): `userForCustomer` oddaje
+    // teraz parę `{ userId, tenantId }`, a `patchProfile` dokłada
+    // `.eq("tenant_id", tenantId)`. Wiersz powiązania bez najemcy znaczy
+    // „nie wiem, który profil" i kończy się BRAKIEM zapisu (fail-closed).
+    profiles = [
+      { id: "profile-alfa", user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.tenant },
+      { id: "profile-beta", user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.foreignTenant },
+    ];
 
-      await syncCustomerBusiness(
-        { customerId: "cus_1", name: "NES Sp. z o.o.", taxIdentifier: "PL1234567890" },
-        "sandbox",
-      );
+    await syncCustomerBusiness(
+      { customerId: "cus_1", name: "NES Sp. z o.o.", taxIdentifier: "PL1234567890" },
+      "sandbox",
+    );
 
-      // Zapis MA objąć wyłącznie profil tenanta, w którym powstała subskrypcja.
-      expect(touchedProfiles).toEqual(["profile-alfa"]);
-    },
-  );
+    // Zapis obejmuje wyłącznie profil tenanta, w którym powstała subskrypcja.
+    expect(touchedProfiles).toEqual(["profile-alfa"]);
+  });
 });

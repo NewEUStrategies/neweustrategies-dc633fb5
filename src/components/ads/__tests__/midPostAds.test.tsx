@@ -403,32 +403,34 @@ describe("wstawka a struktura treści", () => {
   });
 
   // -------------------------------------------------------------------------
-  // DEFEKT - test celowo oznaczony `it.fails`, kod produkcyjny NIE jest zmieniany.
+  // DEFEKT NAPRAWIONY (08.2026) - test biegnie normalnie.
   //
-  // CO JEST ZŁE. Wybór miejsca wstawki liczy WSZYSTKIE elementy `<p>` w drzewie
-  // artykułu (`root.querySelectorAll("p")`), a host wstawia się rodzeństwem
+  // CO BYŁO ZŁE. Wybór miejsca wstawki liczył WSZYSTKIE elementy `<p>` w drzewie
+  // artykułu (`root.querySelectorAll("p")`), a host wstawiał się rodzeństwem
   // trafionego akapitu (`target.parentNode.insertBefore`). Akapity zagnieżdżone -
-  // w cytacie blokowym, w `<figure>`, w pozycji listy, w komórce tabeli - liczą
-  // się więc na równi z akapitami głównego toku, a reklama ląduje WEWNĄTRZ tego
-  // pojemnika. Przy cytacie z dwóch akapitów wstawka rozcina cytat na pół.
+  // w cytacie blokowym, w `<figure>`, w pozycji listy, w komórce tabeli - liczyły
+  // się więc na równi z akapitami głównego toku, a reklama lądowała WEWNĄTRZ tego
+  // pojemnika. Przy cytacie z dwóch akapitów wstawka rozcinała cytat na pół.
   //
-  // DLACZEGO TO RYZYKO. Po pierwsze wizualnie: host dziedziczy styl cytatu
-  // (wcięcie, kursywa, lewa krecha), więc reklama wygląda jak część cytowanego
-  // źródła, a klasa `my-8` liczona na pełną szerokość kolumny przestaje pasować.
-  // Po drugie - i poważniej - semantycznie: treść reklamowa znajduje się wtedy
+  // DLACZEGO TO BYŁO RYZYKO. Po pierwsze wizualnie: host dziedziczył styl cytatu
+  // (wcięcie, kursywa, lewa krecha), więc reklama wyglądała jak część cytowanego
+  // źródła, a klasa `my-8` liczona na pełną szerokość kolumny przestawała pasować.
+  // Po drugie - i poważniej - semantycznie: treść reklamowa znajdowała się wtedy
   // wewnątrz `<blockquote>`, czyli formalnie w obrębie cudzej wypowiedzi.
   // Dla serwisu analitycznego, który cytuje dokumenty i wypowiedzi polityków,
-  // to nie jest usterka kosmetyczna - to przypisanie komuś treści reklamowej.
-  // Liczenie akapitów zagnieżdżonych psuje przy okazji SAM numer wstawki: cytat
-  // z trzema akapitami przesuwa „po czwartym akapicie" o trzy pozycje w górę.
+  // to nie była usterka kosmetyczna - to było przypisanie komuś treści reklamowej.
+  // Liczenie akapitów zagnieżdżonych psuło przy okazji SAM numer wstawki: cytat
+  // z trzema akapitami przesuwał „po czwartym akapicie" o trzy pozycje w górę.
   //
-  // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga decyzji redakcyjnej, co jest
-  // „akapitem głównego toku" - najprościej `:scope > p`, ale wtedy artykuły
-  // owinięte dodatkowym `<div>` (a takie wychodzą z buildera bloków) tracą
-  // wstawki całkowicie. To zmiana zachowania na całej bazie treści, wymagająca
-  // przejrzenia rzeczywistych kształtów HTML w bazie, a zadanie zabrania zmian
-  // w kodzie produkcyjnym.
-  it.fails("host NIE ląduje wewnątrz cytatu blokowego", async () => {
+  // JAK NAPRAWIONE. „Akapit głównego toku" jest teraz zdefiniowany PRZEZ
+  // WYKLUCZENIE: akapit należy do toku, dopóki nie siedzi w cytacie, figurze,
+  // pozycji listy, komórce tabeli, ramce bocznej, `<details>` ani formularzu
+  // (`NON_FLOW_CONTAINERS` w `MidPostAds.tsx`). Kanoniczne `:scope > p` zostało
+  // odrzucone świadomie: zabrałoby wstawki KAŻDEMU artykułowi owiniętemu
+  // dodatkowym `<div>`, a takie wychodzą z buildera bloków. Kryterium przez
+  // wykluczenie zostawia dowolnie głębokie `<div>`-y i wycina dokładnie te
+  // pojemniki, w których reklama znaczy coś innego, niż znaczy w toku tekstu.
+  it("host NIE ląduje wewnątrz cytatu blokowego", async () => {
     respondWith([placement({ config: { paragraph: 2 } })]);
 
     await renderArticle({
@@ -440,5 +442,8 @@ describe("wstawka a struktura treści", () => {
 
     await waitFor(() => expect(hosts()).toHaveLength(1));
     expect(hosts()[0].closest("blockquote")).toBeNull();
+    // Akapity cytatu nie liczą się też do NUMERU wstawki: „po drugim akapicie"
+    // to drugi akapit głównego toku, a nie drugi `<p>` w drzewie.
+    expect(afterText(hosts()[0])).toBe("Akapit 2");
   });
 });

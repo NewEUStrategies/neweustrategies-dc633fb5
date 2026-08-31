@@ -166,7 +166,15 @@ export const en = {
   ads: {
     label: "Advertisement",
     consentBlocked: "Advertising content blocked - marketing consent required.",
-    slideupLabel: "Advertisement",
+    zones: {
+      headerBanner: "header banner",
+      topOfPost: "above the article",
+      midPost: "inside the article",
+      bottomOfPost: "below the article",
+      sidebar: "sidebar",
+      inFeed: "in the post list",
+      footerSlideup: "bottom bar",
+    },
     dismiss: "Close ad",
   },
   admin: {

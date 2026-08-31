@@ -47,6 +47,8 @@ const pl = {
     },
     retryOk: "Ponowiono: {{status}}",
     retryFailed: "Ponowienie nie powiodło się: {{error}}",
+    loadFailed: "Nie udało się wczytać audytu: {{error}}",
+    exportFailed: "Eksport nie powiódł się: {{error}}",
   },
 };
 
@@ -95,6 +97,8 @@ const en = {
     },
     retryOk: "Retried: {{status}}",
     retryFailed: "Retry failed: {{error}}",
+    loadFailed: "Loading the audit failed: {{error}}",
+    exportFailed: "Export failed: {{error}}",
   },
 };
 

@@ -107,13 +107,9 @@ function renderDialog(onCreated = vi.fn()) {
 }
 
 function pole(etykieta: string): HTMLElement {
-  // Etykiety NIE sa zwiazane z polami przez `htmlFor`, wiec szukamy pola
-  // w tym samym kontenerze, co etykieta - dokladnie tak, jak robi to oko
-  // uzytkownika. (Brak powiazania jest osobno zarejestrowany jako defekt.)
-  const label = screen.getByText(etykieta);
-  const control = label.parentElement?.querySelector("input, textarea, select");
-  if (!control) throw new Error(`brak kontrolki dla etykiety ${etykieta}`);
-  return control as HTMLElement;
+  // Po naprawie kazda etykieta wskazuje swoje pole przez `htmlFor`/`id`, wiec
+  // test siega po kontrolke DOKLADNIE tak, jak zrobi to czytnik ekranu.
+  return screen.getByLabelText(etykieta);
 }
 
 /** Pierwsza lista wyboru w dialogu to RODZAJ RABATU (druga - poziom). */
@@ -444,42 +440,45 @@ describe("CouponCreateDialog - dostepnosc", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY ZAREJESTROWANE, NIENAPRAWIONE (zakres pracy: wylacznie testy).
+// DEFEKTY NAPRAWIONE (dawne `it.fails`).
 // ---------------------------------------------------------------------------
-describe("CouponCreateDialog - defekty (zarejestrowane)", () => {
-  it.fails("etykiety pol sa POWIAZANE z kontrolkami", async () => {
-    // CO JEST ZLE. Formularz uzywa `<Label>{t(...)}</Label>` bez `htmlFor`
-    // i bez `id` na polach. Zaden `<label>` nie wskazuje wiec swojego pola -
-    // axe-core zglasza regule `label`, a `getByLabelText` nie znajduje w tym
-    // dialogu ani jednej kontrolki (dlatego pomocnik `pole()` w tym pliku musi
-    // szukac po strukturze DOM, a nie po etykiecie).
+describe("CouponCreateDialog - dawne defekty", () => {
+  it("etykiety pol sa POWIAZANE z kontrolkami", async () => {
+    // CO BYLO ZLE. Formularz uzywal `<Label>{t(...)}</Label>` bez `htmlFor`
+    // i bez `id` na polach. Zaden `<label>` nie wskazywal wiec swojego pola -
+    // axe-core zglaszal regule `label`, a `getByLabelText` nie znajdowal w tym
+    // dialogu ani jednej kontrolki (dlatego pomocnik `pole()` w tym pliku
+    // szukal po strukturze DOM, a nie po etykiecie).
     //
-    // DLACZEGO TO RYZYKO. (a) Czytnik ekranu odczytuje pola jako bezimienne
+    // JAKIE TO BYLO RYZYKO. (a) Czytnik ekranu odczytywal pola jako bezimienne
     // („pole edycji"), a jest ich w tym dialogu jedenascie - w tym KOD KUPONU
-    // i KWOTA RABATU. (b) Klikniecie w etykiete nie ustawia fokusu w polu,
-    // co przy polach wysokosci 40 px i gestym ukladzie dwukolumnowym jest
+    // i KWOTA RABATU. (b) Klikniecie w etykiete nie ustawialo fokusu w polu,
+    // co przy polach wysokosci 40 px i gestym ukladzie dwukolumnowym bylo
     // realnym utrudnieniem takze dla osoby widzacej.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana kodu produkcyjnego (dodanie
-    // `id`/`htmlFor` do jedenastu par), a zakres tej pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Kazde pole ma `id`, a jego `<Label>` - `htmlFor`
+    // (`coupon-code`, `coupon-name`, `coupon-description`, `coupon-percent`,
+    // `coupon-cents`, `coupon-currency`, `coupon-max-redemptions`,
+    // `coupon-duration-days` oraz obie listy wyboru). Pomocnik `pole()` pyta
+    // teraz o kontrolke po etykiecie.
     const { container } = renderDialog();
     const naruszenia = await axeViolations(container, { "select-name": { enabled: false } });
     expect(naruszenia.map((v) => v.id)).not.toContain("label");
   });
 
-  it.fails("kod kuponu jest normalizowany takze W POLU, nie tylko przy zapisie", async () => {
-    // CO JEST ZLE. Pole kodu ma klase `uppercase` - CSS pokazuje wielkie
-    // litery, ale WARTOSC pola zostaje taka, jak wpisano. Normalizacja
-    // (`normalizeCouponCode`) dzieje sie dopiero w `submit`.
+  it("kod kuponu jest normalizowany takze W POLU, nie tylko przy zapisie", async () => {
+    // CO BYLO ZLE. Pole kodu ma klase `uppercase` - CSS pokazywal wielkie
+    // litery, ale WARTOSC pola zostawala taka, jak wpisano. Normalizacja
+    // (`normalizeCouponCode`) dzialala dopiero w `submit`.
     //
-    // DLACZEGO TO RYZYKO. Redaktor widzi „NES-B2B-10", a schowek, zaznaczenie
-    // i wklejenie do wiadomosci dla klienta daja „nes-b2b-10". Roznica jest
-    // niewidoczna na ekranie i ujawnia sie dopiero przy kasie, gdzie kod
-    // porownuje sie po wersji znormalizowanej. To jest dokladnie ten rodzaj
-    // bledu, ktory trafia do maila do partnera.
+    // JAKIE TO BYLO RYZYKO. Redaktor widzial „NES-B2B-10", a schowek,
+    // zaznaczenie i wklejenie do wiadomosci dla klienta dawaly „nes-b2b-10".
+    // Roznica byla niewidoczna na ekranie i ujawniala sie dopiero przy kasie,
+    // gdzie kod porownuje sie po wersji znormalizowanej. To jest dokladnie ten
+    // rodzaj bledu, ktory trafia do maila do partnera.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka to zmiana kodu produkcyjnego
-    // (normalizacja w `onChange`, nie tylko przy zapisie).
+    // JAK NAPRAWIONE. `onChange` pola kodu wola `normalizeCouponCode`, wiec
+    // stan komponentu i schowek niosa dokladnie to, co widac na ekranie.
     renderDialog();
     const kod = pole("adminCoupons.code");
     fireEvent.change(kod, { target: { value: "nes-b2b-10" } });

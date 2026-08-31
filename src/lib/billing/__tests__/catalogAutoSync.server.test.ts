@@ -354,43 +354,43 @@ describe("zapis ręcznej synchronizacji z panelu", () => {
     expect(db.chains).toHaveLength(chainsAfterManual);
   });
 
-  // DEFEKT (nie naprawiam - zakres zadania to testy, nie kod produkcyjny).
+  // DEFEKT NAPRAWIONY 31.08.2026 (kod produkcyjny).
   //
-  // CO JEST ZŁE. Ścieżka automatyczna ma tę regułę zapisaną wprost w kodzie
-  // i w komentarzu (`catalogAutoSync.server.ts:227`): „Odcisk cennika
-  // zapisujemy dopiero po udanej synchronizacji - inaczej częściowa porażka
-  // uznałaby zmieniony cennik za wdrożony" - i faktycznie zapisuje
-  // `catalog_fingerprint` tylko przy statusie `ok`. `recordManualSync` (ta sama
-  // tabela, ten sam odcisk, tylko wywołane z przycisku w panelu) zapisuje go
-  // BEZWARUNKOWO, nawet dla raportu z pozycjami `failed`.
+  // CO BYŁO ZŁE. Ścieżka automatyczna ma tę regułę zapisaną wprost w kodzie
+  // i w komentarzu (`runEnsure`): „Odcisk cennika zapisujemy dopiero po udanej
+  // synchronizacji - inaczej częściowa porażka uznałaby zmieniony cennik za
+  // wdrożony" - i faktycznie zapisuje `catalog_fingerprint` tylko przy statusie
+  // `ok`. `recordManualSync` (ta sama tabela, ten sam odcisk, tylko wywołane
+  // z przycisku w panelu) zapisywał go BEZWARUNKOWO, nawet dla raportu
+  // z pozycjami `failed`.
   //
-  // DLACZEGO TO RYZYKO. Zapisany odcisk cennika znaczy „ten cennik jest
+  // JAKIE TO BYŁO RYZYKO. Zapisany odcisk cennika znaczy „ten cennik jest
   // u operatora wdrożony". Po częściowo nieudanej synchronizacji z panelu
-  // automat przestaje widzieć rozjazd (`catalog_changed` nigdy się nie
-  // odpali), więc cena, która NIE zsynchronizowała się u operatora, zostaje
+  // automat przestawał widzieć rozjazd (`catalog_changed` nigdy się nie
+  // odpalał), więc cena, która NIE zsynchronizowała się u operatora, zostawała
   // rozjechana na stałe - do następnej zmiany cennika albo rotacji klucza.
   // Objaw dla klienta: koszyk pokazuje jedną kwotę, operator pobiera drugą.
-  // Naprawa to jedna linia (`catalog_fingerprint: syncStatusFrom(report) ===
-  // "ok" ? catalog : <zapisany>`), ale to zmiana KODU PRODUKCYJNEGO.
-  it.fails(
-    "częściowo nieudana synchronizacja ręczna NIE oznacza cennika jako wdrożony",
-    async () => {
-      const partial = report({
-        items: [
-          { priceId: "pro_monthly", productId: "plan_pro", product: "ok", price: "ok" },
-          { priceId: "plus_monthly", productId: "plan_plus", product: "failed", price: "failed" },
-        ],
-        failed: 1,
-      });
+  //
+  // JAK NAPRAWIONE. `recordManualSync` czyta zapisany stan i przy statusie
+  // innym niż `ok` ZOSTAWIA poprzedni odcisk cennika - dokładnie tak, jak robi
+  // to ścieżka automatyczna. Status (`partial`) zapisuje się nadal, bo to on
+  // jest informacją dla panelu.
+  it("częściowo nieudana synchronizacja ręczna NIE oznacza cennika jako wdrożony", async () => {
+    const partial = report({
+      items: [
+        { priceId: "pro_monthly", productId: "plan_pro", product: "ok", price: "ok" },
+        { priceId: "plus_monthly", productId: "plan_plus", product: "failed", price: "failed" },
+      ],
+      failed: 1,
+    });
 
-      await recordManualSync("sandbox", partial);
+    await recordManualSync("sandbox", partial);
 
-      // ASERCJA DOCELOWA: status `partial` ma zostać zapisany (to jest
-      // poprawne), ale odcisk cennika NIE - bo cennik nie jest wdrożony.
-      expect(stateWrite()).toMatchObject({ last_status: "partial" });
-      expect(stateWrite()?.["catalog_fingerprint"]).toBeNull();
-    },
-  );
+    // Status `partial` zostaje zapisany (to jest poprawne), ale odcisk
+    // cennika nie - bo cennik nie jest wdrożony.
+    expect(stateWrite()).toMatchObject({ last_status: "partial" });
+    expect(stateWrite()?.["catalog_fingerprint"]).toBeNull();
+  });
 });
 
 describe("ensureCatalogSynced - kiedy synchronizacja RUSZA", () => {
