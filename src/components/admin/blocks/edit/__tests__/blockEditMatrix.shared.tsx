@@ -52,6 +52,7 @@ import { fireEvent } from "@testing-library/react";
 
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import type { Block, BlockType, Json } from "@/lib/blocks/types";
+import type { SelectionDirection } from "@/lib/blocks/crossSelection";
 
 import { AffiliateBlock } from "../Affiliate";
 import { ArchivesBlock } from "../Archives";
@@ -241,7 +242,7 @@ afterAll(() => {
  */
 export type BlockEditor = (props: {
   block: Block;
-  isActive?: boolean;
+  isActive: boolean;
   onChange: (next: Block) => void;
   onTransform?: (replacement: Block[]) => void;
   onInsertAfter?: (block: Block) => void;
@@ -250,7 +251,7 @@ export type BlockEditor = (props: {
   onFocusPrevious?: () => boolean;
   onFocusNext?: () => boolean;
   onSelectAllBlocks?: () => void;
-  onExtendBlockSelection?: (dir: "up" | "down" | "left" | "right") => boolean;
+  onExtendBlockSelection?: (dir: SelectionDirection) => boolean;
 }) => ReactNode;
 
 /** Wpis tabeli: nazwa komponentu, komponent, typ bloku ze `switch`a dyspozytora. */

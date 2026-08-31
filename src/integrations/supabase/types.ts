@@ -12731,6 +12731,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pages_parent_same_tenant_fkey"
+            columns: ["parent_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
             foreignKeyName: "pages_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
