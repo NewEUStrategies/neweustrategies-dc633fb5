@@ -1,8 +1,7 @@
 // Panel monetyzacji (UI): stany zapytania, przełącznik środowiska,
 // zakładki sekcji, maskowanie PII i pigułki statusów w PL/EN.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const listMonetizationLedger = vi.fn();
 vi.mock("@/lib/admin/monetization/ledger.functions", () => ({ listMonetizationLedger }));
@@ -123,7 +122,7 @@ describe("AdminMonetizationLedger", () => {
     renderWithQueryClient(<AdminMonetizationLedger />);
     expect(await screen.findByText("Nie udało się wczytać rejestru.")).toBeInTheDocument();
     listMonetizationLedger.mockResolvedValue(payload());
-    await userEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
     expect(await screen.findByTestId("ledger-summary")).toBeInTheDocument();
   });
 
@@ -142,7 +141,7 @@ describe("AdminMonetizationLedger", () => {
   it("zmiana środowiska odpytuje backend z nowym filtrem", async () => {
     renderWithQueryClient(<AdminMonetizationLedger />);
     await screen.findByTestId("ledger-summary");
-    await userEvent.click(screen.getByRole("tab", { name: "Testowe" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Testowe" }));
     await waitFor(() =>
       expect(listMonetizationLedger).toHaveBeenLastCalledWith({
         data: { environment: "sandbox", limit: 50 },
@@ -153,11 +152,11 @@ describe("AdminMonetizationLedger", () => {
   it("zakładki przełączają sekcje rejestru", async () => {
     renderWithQueryClient(<AdminMonetizationLedger />);
     await screen.findByTestId("donations-table");
-    await userEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
     expect(await screen.findByTestId("grants-table")).toBeInTheDocument();
     expect(screen.getByText("Aktywny")).toBeInTheDocument();
     expect(screen.getByText("Cofnięty")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Linki prezentowe" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Linki prezentowe" }));
     expect(await screen.findByTestId("gift-links-table")).toBeInTheDocument();
     expect(screen.getByText("abcdef...")).toBeInTheDocument();
     expect(screen.getByText("2 / 5")).toBeInTheDocument();
@@ -169,9 +168,9 @@ describe("AdminMonetizationLedger", () => {
     );
     renderWithQueryClient(<AdminMonetizationLedger />);
     expect(await screen.findByText("Brak wierszy dla wybranego środowiska.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
     expect(await screen.findByText("Brak wierszy dla wybranego środowiska.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Linki prezentowe" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Linki prezentowe" }));
     expect(await screen.findByText("Brak wierszy dla wybranego środowiska.")).toBeInTheDocument();
   });
 
@@ -186,7 +185,7 @@ describe("AdminMonetizationLedger", () => {
   it("nadanie bez darowizny źródłowej ma środowisko nieokreślone", async () => {
     renderWithQueryClient(<AdminMonetizationLedger />);
     await screen.findByTestId("donations-table");
-    await userEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
     const badges = await screen.findAllByTestId("environment-badge");
     expect(badges.map((b) => b.getAttribute("data-environment"))).toEqual(["live", "unknown"]);
   });
