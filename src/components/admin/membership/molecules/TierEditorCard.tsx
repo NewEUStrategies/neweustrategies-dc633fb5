@@ -11,19 +11,17 @@
 // Karta nie ma własnego stanu - szkic i zapis wstrzykuje zakładka, więc
 // „niezapisane zmiany" żyją w jednym miejscu dla wszystkich warstw.
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, FileJson, Save, Trash2 } from "lucide-react";
+import { BadgeCheck, Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
-import { ExpertRequestQuotaEditor } from "@/components/admin/pricing/ExpertRequestQuotaEditor";
+import { TierCapabilitiesPanel } from "@/components/admin/membership/organisms/TierCapabilitiesPanel";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
-import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
 import type { TierDraft } from "@/lib/admin/membershipDrafts";
 import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
 
