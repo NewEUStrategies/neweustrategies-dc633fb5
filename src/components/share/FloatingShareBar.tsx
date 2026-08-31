@@ -18,6 +18,7 @@ import {
   BookOpen,
 } from "@/lib/lucide-shim";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { useTranslation } from "react-i18next";
 // Słownik paska udostępniania - import jako efekt uboczny trzyma go w chunku,
 // który go czyta (wzorzec `i18n-post-experience.ts`).
