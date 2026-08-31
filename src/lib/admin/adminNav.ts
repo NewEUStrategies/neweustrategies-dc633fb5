@@ -225,6 +225,11 @@ export function buildAdminNavGroups({
       label: t("admin.navGroups.monetization"),
       items: [
         { to: "/admin/monetization", icon: TrendingUp, label: t("admin.nav.monetization") },
+        {
+          to: "/admin/monetization-ledger",
+          icon: TrendingUp,
+          label: t("admin.nav.monetizationLedger"),
+        },
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
         { to: "/admin/pricing", icon: BadgePercent, label: t("admin.nav.pricing") },
         { to: "/admin/membership", icon: Crown, label: t("admin.nav.membership") },
