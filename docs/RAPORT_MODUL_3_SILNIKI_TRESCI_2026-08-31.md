@@ -31,6 +31,20 @@ odwraca jej kolejność.
 | ------------------------------------------------------ | -----------: | ---------: | ---------: | ---------: |
 | `src/lib/content.functions.ts`                         |        10,9% | **99,83%** |         1% | **99,58%** |
 | `src/components/builder/organisms/BuilderRenderer.tsx` |         6,9% | **99,52%** |         0% | **97,02%** |
+| `src/lib/wp-import.functions.ts`                       |           0% |   **100%** |         0% | **99,44%** |
+| `src/lib/wp-import/elementor.ts`                       |        3,28% |   **100%** |      2,43% | **99,22%** |
+| `src/lib/wp-import/wxr.ts`                             |           0% | **96,87%** |         0% | **94,69%** |
+| `src/lib/wp-import/convert.ts`                         |        75,0% |   **100%** |          - | **94,44%** |
+| `src/lib/wp-import/buildPage.ts`                       |        62,5% |   **100%** |          - | **95,23%** |
+| `src/lib/wp-import/**` (katalog)                       |         ~40% | **98,79%** |          - | **95,74%** |
+| `src/components/admin/blocks/hooks/**`                 |           0% | **89,94%** |          - | **79,91%** |
+| `src/components/admin/blocks/**` (całość)              |          ~2% | **26,34%** |          - | **19,59%** |
+
+Ostatni wiersz jest niedokończony i mówię to wprost: rodzina
+`blocks/edit/**` (62 edytory, 8126 linii - **największa część tej
+powierzchni**) stoi na 6,7% instrukcji, bo praca nad nią jeszcze się liczy.
+Cel zadania „`src/components/admin/blocks/**` powyżej 90% linii" **nie jest
+osiągnięty** i nie udaję, że jest.
 
 Cel zadania dla obu wynosił „powyżej 85% gałęzi". Osiągnięte **99,58%** i **97,02%**.
 
