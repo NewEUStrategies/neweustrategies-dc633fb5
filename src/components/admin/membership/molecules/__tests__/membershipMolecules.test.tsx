@@ -17,6 +17,7 @@ import {
   membershipTier,
   radixSelectStub,
   radixSwitchStub,
+  radixTabsStub,
   reactI18nextStub,
 } from "@/test/admin/pricingFixtures";
 import { accessPlan } from "@/test/billing/fixtures";
@@ -26,6 +27,12 @@ let lang: "pl" | "en" = "pl";
 vi.mock("react-i18next", () => reactI18nextStub(() => lang));
 vi.mock("@/components/ui/select", async () => radixSelectStub(await import("react")));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
+vi.mock("@/components/ui/tabs", async () => radixTabsStub(await import("react")));
+
+/** Karta warstwy ma trzy zakładki - test wchodzi w tę, której dotyczy. */
+function openTierTab(key: "basics" | "benefits" | "capabilities") {
+  fireEvent.click(screen.getByRole("tab", { name: `adminMembership.tierTabs.${key}` }));
+}
 
 const { TierEditorCard } = await import("@/components/admin/membership/molecules/TierEditorCard");
 const { PlanTierMappingList } =
@@ -127,11 +134,11 @@ describe("TierEditorCard - pola formularza", () => {
     return { onChange, onSave };
   }
 
-  it("cztery grupy pól są nazwanymi zbiorami, nie płaską listą", () => {
+  it("grupy pól są nazwanymi zbiorami, nie płaską listą", () => {
     renderCard();
 
     const groups = screen.getAllByRole("group");
-    expect(groups.length).toBeGreaterThanOrEqual(4);
+    expect(groups.length).toBeGreaterThanOrEqual(2);
     expect(groups[0].tagName).toBe("FIELDSET");
   });
 
@@ -160,6 +167,7 @@ describe("TierEditorCard - pola formularza", () => {
 
   it("możliwości pokazują się jako jednolinijkowy JSON do ręcznej edycji", () => {
     renderCard(membershipTier({ features: { briefings: true } }));
+    openTierTab("capabilities");
 
     expect(screen.getByDisplayValue('{"briefings":true}')).toBeInTheDocument();
   });
@@ -197,10 +205,18 @@ describe("TierEditorCard - pola formularza", () => {
       />,
     );
 
-    fireEvent.change(screen.getByDisplayValue("Opis PL"), { target: { value: "Nowy opis" } });
+    const pl = screen.getByDisplayValue("Opis PL");
+    const en = screen.getByDisplayValue("Description EN");
+
+    expect(pl).toHaveAttribute("rows", "4");
+    expect(en).toHaveAttribute("rows", "4");
+    expect(pl).toHaveClass("min-h-[88px]");
+    expect(en).toHaveClass("min-h-[88px]");
+
+    fireEvent.change(pl, { target: { value: "Nowy opis" } });
     expect(onChange).toHaveBeenCalledWith({ description_pl: "Nowy opis" });
 
-    fireEvent.change(screen.getByDisplayValue("Description EN"), { target: { value: "New" } });
+    fireEvent.change(en, { target: { value: "New" } });
     expect(onChange).toHaveBeenCalledWith({ description_en: "New" });
   });
 
@@ -220,6 +236,7 @@ describe("TierEditorCard - pola formularza", () => {
     // Molekuła nie waliduje - świadomie. Sprawdzenie składni należy do reguły
     // wywoływanej przy zapisie, żeby redakcja mogła dokończyć wpisywanie.
     const { onChange } = renderCard();
+    openTierTab("capabilities");
 
     fireEvent.change(screen.getByDisplayValue('{"briefings":true}'), {
       target: { value: "{niedokonczony" },
@@ -228,11 +245,18 @@ describe("TierEditorCard - pola formularza", () => {
     expect(onChange).toHaveBeenCalledWith({ features: "{niedokonczony" });
   });
 
-  it("benefity i możliwości są osobnymi grupami pól", () => {
+  it("benefity i możliwości mieszkają w osobnych ZAKŁADKACH, nie w jednej kolumnie", () => {
+    // Katalog warstw przewijał się kilka ekranów - rozdział na zakładki jest
+    // częścią kontraktu UI, nie kosmetyką.
     renderCard();
 
+    openTierTab("benefits");
     expect(screen.getByRole("group", { name: /groups\.benefits/ })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /groups\.capabilities/ })).not.toBeInTheDocument();
+
+    openTierTab("capabilities");
     expect(screen.getByRole("group", { name: /groups\.capabilities/ })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /groups\.benefits/ })).not.toBeInTheDocument();
   });
 
   it("trwający zapis wyłącza przycisk", () => {
@@ -458,19 +482,24 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
       />,
     );
 
+    openTierTab("capabilities");
+    expect(
+      screen.getByLabelText("adminMembership.capabilities.advanced.heading"),
+    ).toBeInTheDocument();
+    openTierTab("basics");
+
     for (const key of [
       "fields.namePl",
       "fields.nameEn",
       "fields.descriptionPl",
       "fields.descriptionEn",
       "fields.rank",
-      "fields.featuresJson",
     ]) {
       expect(screen.getByLabelText(`adminMembership.${key}`)).toBeInTheDocument();
     }
   });
 
-  it("podpowiedź przy surowym JSON-ie bramek jest OPISEM pola", () => {
+  it("bramki są opisane po ludzku, a surowy JSON schowany w sekcji zaawansowanej", () => {
     const tier = membershipTier();
     render(
       <TierEditorCard
@@ -484,9 +513,15 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
       />,
     );
 
+    openTierTab("capabilities");
+
+    expect(screen.getByText("adminMembership.capabilities.heading")).toBeInTheDocument();
     expect(
-      screen.getByLabelText("adminMembership.fields.featuresJson"),
-    ).toHaveAccessibleDescription("adminMembership.fields.featuresHint");
+      screen.getByLabelText("adminMembership.capabilities.labels.premium_content"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("adminMembership.capabilities.advanced.heading"),
+    ).toBeInTheDocument();
   });
 
   it("pola okna nowej warstwy mają dostępne nazwy", () => {

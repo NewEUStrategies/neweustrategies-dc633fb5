@@ -81,7 +81,7 @@ export function NewTierDialog({
                 value={key}
                 onChange={(e) => setKey(e.target.value.toLowerCase())}
                 placeholder="patron"
-                className="font-mono"
+                className="font-sans"
               />
             )}
           </LabeledField>

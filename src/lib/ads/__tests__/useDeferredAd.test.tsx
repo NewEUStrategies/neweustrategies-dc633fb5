@@ -33,6 +33,7 @@ const observers: ObserverRecord[] = [];
 class ControlledIntersectionObserver implements IntersectionObserver {
   readonly root: Element | null = null;
   readonly rootMargin: string;
+  readonly scrollMargin: string = "";
   readonly thresholds: ReadonlyArray<number> = [];
   private readonly cb: IntersectionObserverCallback;
   private readonly record: ObserverRecord;

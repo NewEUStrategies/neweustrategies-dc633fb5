@@ -4,8 +4,9 @@
 // lib/billing/tiers - żaden edytor nie gubi pól zapisanych przez drugi.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, ChevronDown, Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Eye, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BenefitPreviewDialog } from "@/components/admin/membership/molecules/BenefitPreviewDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,8 @@ export function TierBenefitsEditor({
   // Ręcznie rozwinięte wiersze; wiersze z wypełnionymi polami dodatkowymi
   // są otwarte zawsze (nic edytowalnego nie znika z oczu).
   const [expanded, setExpanded] = useState<ExpandedRows>({});
+  // Podgląd „jak to wygląda w cenniku" - indeks benefitu albo null.
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const update = (i: number, patch: Partial<TierBenefit>) => {
     onChange(value.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
@@ -60,14 +63,14 @@ export function TierBenefitsEditor({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <Label className="text-xs">{tb("heading")}</Label>
-        <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={add}>
+        <Label className="text-[10px] font-medium">{tb("heading")}</Label>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={add}>
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           {tb("add")}
         </Button>
       </div>
       {value.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-[10px] text-muted-foreground">
           {tb("empty")}
         </p>
       ) : (
@@ -77,8 +80,19 @@ export function TierBenefitsEditor({
             return (
               <li key={i} className="rounded-md border border-border/60 bg-muted/30 p-2">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-muted-foreground">#{i + 1}</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">#{i + 1}</span>
                   <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={() => setPreviewIndex(i)}
+                      aria-label={`${tb("preview")} #${i + 1}`}
+                      title={tb("preview")}
+                    >
+                      <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                     <Button
                       type="button"
                       size="icon"
@@ -139,7 +153,7 @@ export function TierBenefitsEditor({
                 </div>
                 <button
                   type="button"
-                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                  className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
                   onClick={() => setExpanded((s) => ({ ...s, [i]: !open }))}
                   aria-expanded={open}
                 >
@@ -179,7 +193,7 @@ export function TierBenefitsEditor({
                       onChange={(e) => update(i, { group_en: e.target.value })}
                       className="h-8 text-sm"
                     />
-                    <p className="text-[11px] leading-snug text-muted-foreground sm:col-span-2">
+                    <p className="text-[10px] leading-snug text-muted-foreground sm:col-span-2">
                       {tb("groupHint")}
                     </p>
                   </div>
@@ -189,6 +203,13 @@ export function TierBenefitsEditor({
           })}
         </ol>
       )}
+      <BenefitPreviewDialog
+        benefit={previewIndex === null ? null : (value[previewIndex] ?? null)}
+        open={previewIndex !== null}
+        onOpenChange={(next) => {
+          if (!next) setPreviewIndex(null);
+        }}
+      />
     </div>
   );
 }

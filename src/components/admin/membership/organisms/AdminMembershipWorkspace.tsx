@@ -25,7 +25,8 @@ import { KpiTile } from "@/components/admin/membership/atoms/KpiTile";
 import { SectionCard } from "@/components/admin/membership/atoms/SectionCard";
 import { NewTierDialog } from "@/components/admin/membership/molecules/NewTierDialog";
 import { PlanTierMappingList } from "@/components/admin/membership/molecules/PlanTierMappingList";
-import { TierEditorCard } from "@/components/admin/membership/molecules/TierEditorCard";
+import { TierSummaryCard } from "@/components/admin/membership/molecules/TierSummaryCard";
+import { TierEditorDialog } from "@/components/admin/membership/organisms/TierEditorDialog";
 import { GrantsSection } from "@/components/admin/membership/organisms/GrantsSection";
 import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +38,7 @@ import {
   InvalidFeaturesJsonError,
   type TierDraft,
 } from "@/lib/admin/membershipDrafts";
+import { summarizeCapabilities } from "@/lib/admin/membership/capabilityModel";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { serializeTierBenefits } from "@/lib/billing/tiers";
@@ -66,6 +68,8 @@ export function AdminMembershipWorkspace() {
   });
 
   const [drafts, setDrafts] = useState<Record<string, TierDraft>>({});
+  // Edycja mieszka w oknie - katalog trzyma tylko identyfikator otwartej warstwy.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const tierOptions = useMemo(
     () => (tiersQ.data ?? []).filter((tier) => tier.active),
     [tiersQ.data],
@@ -76,6 +80,8 @@ export function AdminMembershipWorkspace() {
   const defaultTier = tiers.find((tt) => tt.is_default);
   const mappedPlansCount = (plansQ.data ?? []).filter((p) => p.tier_key).length;
   const activeGrantsCount = (grantsPreviewQ.data ?? []).filter((g) => !g.revoked_at).length;
+  const editingTier = tiers.find((tt) => tt.id === editingId) ?? null;
+  const editingDraft = editingTier ? (drafts[editingTier.id] ?? draftFromTier(editingTier)) : null;
 
   const saveTier = useMutation({
     mutationFn: async ({ id, draft }: { id: string; draft: TierDraft }) => {
@@ -165,7 +171,7 @@ export function AdminMembershipWorkspace() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 font-sans">
       {/* Header + KPI: szybki podgląd stanu katalogu warstw. */}
       <header className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -250,21 +256,23 @@ export function AdminMembershipWorkspace() {
             description={tm("sections.tiersDesc")}
             padded={false}
           >
-            <div className="grid gap-4 p-5 lg:grid-cols-2">
+            {/* Kompaktowa siatka kafli - pełna edycja w oknie, bez przewijania. */}
+            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
               {tiers.map((tier) => {
                 const draft = drafts[tier.id] ?? draftFromTier(tier);
+                const summary = summarizeCapabilities(draft.features);
                 return (
-                  <TierEditorCard
+                  <TierSummaryCard
                     key={tier.id}
                     tier={tier}
-                    draft={draft}
-                    saving={saveTier.isPending}
-                    deleting={deleteTier.isPending}
-                    onChange={(patch) =>
-                      setDrafts((d) => ({ ...d, [tier.id]: { ...draft, ...patch } }))
+                    name={lang === "pl" ? tier.name_pl : tier.name_en}
+                    description={
+                      (lang === "pl" ? draft.description_pl : draft.description_en) || ""
                     }
-                    onSave={() => saveTier.mutate({ id: tier.id, draft })}
-                    onDelete={() => deleteTier.mutate(tier.id)}
+                    benefitsCount={draft.benefits.length}
+                    enabledCount={summary.enabled}
+                    enforcedCount={summary.enforced}
+                    onOpen={() => setEditingId(tier.id)}
                   />
                 );
               })}
@@ -304,6 +312,31 @@ export function AdminMembershipWorkspace() {
           <ConfluenceReconciliationCard lang={lang} />
         </TabsContent>
       </Tabs>
+
+      <TierEditorDialog
+        tier={editingTier}
+        draft={editingDraft}
+        saving={saveTier.isPending}
+        deleting={deleteTier.isPending}
+        onOpenChange={(next) => {
+          if (!next) setEditingId(null);
+        }}
+        onChange={(patch) => {
+          if (!editingTier || !editingDraft) return;
+          setDrafts((d) => ({ ...d, [editingTier.id]: { ...editingDraft, ...patch } }));
+        }}
+        onSave={() => {
+          if (editingTier && editingDraft) {
+            saveTier.mutate({ id: editingTier.id, draft: editingDraft });
+          }
+        }}
+        onDelete={() => {
+          if (editingTier) {
+            deleteTier.mutate(editingTier.id);
+            setEditingId(null);
+          }
+        }}
+      />
     </div>
   );
 }

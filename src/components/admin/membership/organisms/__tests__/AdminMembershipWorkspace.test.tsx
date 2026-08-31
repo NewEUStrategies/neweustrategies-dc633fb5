@@ -61,6 +61,20 @@ function openTab(key: "tiers" | "mapping" | "grants" | "orgs") {
   fireEvent.click(screen.getByRole("tab", { name: `adminMembership.tabs.${key}` }));
 }
 
+/**
+ * Katalog pokazuje kafle - edycja mieszka w oknie. Helper otwiera okno
+ * warstwy i (opcjonalnie) jej zakładkę.
+ */
+async function openTierEditor(tab: "basics" | "benefits" | "capabilities" = "basics") {
+  const card = await screen.findByRole("button", { name: /summary\.open/ });
+  fireEvent.click(card);
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.click(
+    within(dialog).getByRole("tab", { name: `adminMembership.tierTabs.${tab}` }),
+  );
+  return dialog;
+}
+
 function tierUpdate(): Record<string, unknown> | undefined {
   const call = chain.chainsFor("membership_tiers").find((c) => c.has("update"));
   return call?.argsOf("update")?.[0] as Record<string, unknown> | undefined;
@@ -110,7 +124,8 @@ describe("AdminMembershipWorkspace - liczniki nagłówka", () => {
     );
     renderWithQueryClient(<AdminMembershipWorkspace />);
 
-    await waitFor(() => expect(screen.getByText("Czytelnik")).toBeInTheDocument());
+    // Nazwa pada dwa razy: kafelek KPI „domyślna warstwa" i kafel katalogu.
+    await waitFor(() => expect(screen.getAllByText("Czytelnik").length).toBeGreaterThan(0));
   });
 
   it("liczy plany ZMAPOWANE wobec wszystkich - plan bez warstwy nie otwiera bramek", async () => {
@@ -165,7 +180,7 @@ describe("AdminMembershipWorkspace - ZAPIS warstwy", () => {
       ok([membershipTier({ id: "t9", description_pl: null, description_en: null })]),
     );
     renderWithQueryClient(<AdminMembershipWorkspace />);
-    await waitFor(() => expect(screen.getByDisplayValue("Członek")).toBeInTheDocument());
+    await openTierEditor("basics");
 
     fireEvent.change(screen.getByDisplayValue("Członek"), { target: { value: "  Członek  " } });
     fireEvent.click(screen.getByRole("button", { name: /^adminMembership\.save$/ }));
@@ -178,7 +193,7 @@ describe("AdminMembershipWorkspace - ZAPIS warstwy", () => {
     // Warstwa z połamanymi bramkami przestałaby otwierać treści, za które
     // klient zapłacił, i to bez śladu w logach.
     renderWithQueryClient(<AdminMembershipWorkspace />);
-    await waitFor(() => expect(screen.getByDisplayValue('{"briefings":true}')).toBeInTheDocument());
+    await openTierEditor("capabilities");
 
     fireEvent.change(screen.getByDisplayValue('{"briefings":true}'), {
       target: { value: "{briefings: true" },
@@ -193,7 +208,7 @@ describe("AdminMembershipWorkspace - ZAPIS warstwy", () => {
 
   it("POPRAWNY JSON bramek przechodzi jako obiekt, nie jako tekst", async () => {
     renderWithQueryClient(<AdminMembershipWorkspace />);
-    await waitFor(() => expect(screen.getByDisplayValue('{"briefings":true}')).toBeInTheDocument());
+    await openTierEditor("capabilities");
 
     fireEvent.change(screen.getByDisplayValue('{"briefings":true}'), {
       target: { value: '{"briefings":false,"expertRequests":2}' },
@@ -214,14 +229,14 @@ describe("AdminMembershipWorkspace - ZAPIS warstwy", () => {
 
     // Odczyt zwrócił błąd, więc katalog jest pusty - to też jest kontrakt:
     // panel nie pokazuje zera warstw jako faktu.
-    expect(screen.queryByDisplayValue("Członek")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /summary\.open/ })).not.toBeInTheDocument();
   });
 });
 
 describe("AdminMembershipWorkspace - USUNIĘCIE warstwy", () => {
   it("usuwa warstwę po potwierdzeniu", async () => {
     renderWithQueryClient(<AdminMembershipWorkspace />);
-    await waitFor(() => expect(screen.getByDisplayValue("Członek")).toBeInTheDocument());
+    await openTierEditor("basics");
 
     fireEvent.click(screen.getByRole("button", { name: /deleteTitle/ }));
 
@@ -251,7 +266,7 @@ describe("AdminMembershipWorkspace - NOWA warstwa", () => {
 
   it("tworzy warstwę z tenantem wziętym z istniejącej (wymóg RLS)", async () => {
     renderWithQueryClient(<AdminMembershipWorkspace />);
-    await waitFor(() => expect(screen.getByDisplayValue("Członek")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1 / 1")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.title/ }));
     const dialog = screen.getByRole("dialog");

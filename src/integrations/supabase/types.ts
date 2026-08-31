@@ -5423,6 +5423,7 @@ export type Database = {
           created_at: string
           currency: string
           donor_email: string | null
+          environment: string
           id: string
           message: string | null
           paid_at: string | null
@@ -5440,6 +5441,7 @@ export type Database = {
           created_at?: string
           currency?: string
           donor_email?: string | null
+          environment?: string
           id?: string
           message?: string | null
           paid_at?: string | null
@@ -5457,6 +5459,7 @@ export type Database = {
           created_at?: string
           currency?: string
           donor_email?: string | null
+          environment?: string
           id?: string
           message?: string | null
           paid_at?: string | null

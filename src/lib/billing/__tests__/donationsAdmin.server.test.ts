@@ -106,6 +106,7 @@ function donationRow(overrides: Partial<DonationRow> = {}): DonationRow {
     recurring: false,
     status: "pending",
     paid_at: null,
+    environment: "live",
     created_at: "2026-08-30T10:00:00.000Z",
     ...overrides,
   };

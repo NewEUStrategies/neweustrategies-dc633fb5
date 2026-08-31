@@ -13,12 +13,14 @@
 // PO nazwie pola, a nie jako osobny, niepowiązany akapit.
 import { useId, type ReactNode } from "react";
 
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 
 export function LabeledField({
   label,
   hint,
   className,
+  labelClassName,
   children,
 }: {
   /** Tekst etykiety; może zawierać ikonę dekoracyjną obok napisu. */
@@ -26,6 +28,8 @@ export function LabeledField({
   /** Zdanie pod polem - trafia do `aria-describedby`, nie tylko na ekran. */
   hint?: string;
   className?: string;
+  /** Dodatkowe klasy dla etykiety (np. zmniejszenie czcionki w kompaktowym oknie). */
+  labelClassName?: string;
   /** Pole formularza; dostaje `id` (i `aria-describedby`, gdy jest podpowiedź). */
   children: (props: { id: string; "aria-describedby"?: string }) => ReactNode;
 }) {
@@ -33,12 +37,12 @@ export function LabeledField({
   const hintId = `${id}-hint`;
   return (
     <div className={className}>
-      <Label className="text-xs" htmlFor={id}>
+      <Label className={cn("text-[10px] font-medium", labelClassName)} htmlFor={id}>
         {label}
       </Label>
       {children(hint ? { id, "aria-describedby": hintId } : { id })}
       {hint ? (
-        <p id={hintId} className="mt-1 text-[11px] text-muted-foreground">
+        <p id={hintId} className="mt-1 text-[10px] text-muted-foreground">
           {hint}
         </p>
       ) : null}

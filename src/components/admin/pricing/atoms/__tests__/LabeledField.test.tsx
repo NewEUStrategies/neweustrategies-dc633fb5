@@ -83,4 +83,16 @@ describe("LabeledField - etykieta powiązana z polem", () => {
     expect(container.firstElementChild).toHaveClass("space-y-1");
     expect(screen.getByLabelText("Ikona")).not.toHaveClass("space-y-1");
   });
+
+  it("etykieta i podpowiedź są kompaktowe", () => {
+    render(
+      <LabeledField label="Skrót" hint="Maksymalnie 3 znaki">
+        {(field) => <input {...field} />}
+      </LabeledField>,
+    );
+
+    const label = document.querySelector('label[for]');
+    expect(label).toHaveClass("text-[10px]");
+    expect(screen.getByText("Maksymalnie 3 znaki")).toHaveClass("text-[10px]");
+  });
 });
