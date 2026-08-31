@@ -174,6 +174,39 @@ describe("AdminMonetizationLedger", () => {
     expect(await screen.findByText("Brak wierszy dla wybranego środowiska.")).toBeInTheDocument();
   });
 
+  it("brak rozliczonych wpłat, link bez limitu i przydział bezterminowy", async () => {
+    listMonetizationLedger.mockResolvedValue(
+      payload({
+        summary: {
+          paidTotals: [],
+          donationCount: 0,
+          pendingCount: 0,
+          activeGrants: 0,
+          activeGiftLinks: 0,
+        },
+        giftLinks: [
+          {
+            id: "l2",
+            code: "kod12",
+            postId: "p2",
+            createdAt: "2026-08-01T10:00:00.000Z",
+            expiresAt: null,
+            revokedAt: null,
+            redemptionCount: 9,
+            maxRedemptions: 0,
+          },
+        ],
+      }),
+    );
+    renderWithQueryClient(<AdminMonetizationLedger />);
+    expect(await screen.findByText("Brak rozliczonych wpłat")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Przydziały członkostwa" }));
+    expect(await screen.findByText("Bezterminowo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Linki prezentowe" }));
+    expect(await screen.findByText("kod12")).toBeInTheDocument();
+    expect(screen.getByText("9 / Bez limitu")).toBeInTheDocument();
+  });
+
   it("renderuje się po angielsku", async () => {
     await act(async () => {
       await i18n.changeLanguage("en");
