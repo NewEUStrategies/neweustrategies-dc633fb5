@@ -464,13 +464,13 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
       "fields.descriptionPl",
       "fields.descriptionEn",
       "fields.rank",
-      "fields.featuresJson",
+      "capabilities.advanced.heading",
     ]) {
       expect(screen.getByLabelText(`adminMembership.${key}`)).toBeInTheDocument();
     }
   });
 
-  it("podpowiedź przy surowym JSON-ie bramek jest OPISEM pola", () => {
+  it("bramki są opisane po ludzku, a surowy JSON schowany w sekcji zaawansowanej", () => {
     const tier = membershipTier();
     render(
       <TierEditorCard
@@ -484,9 +484,13 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
       />,
     );
 
+    expect(screen.getByText("adminMembership.capabilities.heading")).toBeInTheDocument();
     expect(
-      screen.getByLabelText("adminMembership.fields.featuresJson"),
-    ).toHaveAccessibleDescription("adminMembership.fields.featuresHint");
+      screen.getByLabelText("adminMembership.capabilities.labels.premium_content"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("adminMembership.capabilities.advanced.heading"),
+    ).toBeInTheDocument();
   });
 
   it("pola okna nowej warstwy mają dostępne nazwy", () => {
