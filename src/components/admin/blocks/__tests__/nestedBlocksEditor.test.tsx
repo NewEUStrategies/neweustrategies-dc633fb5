@@ -27,7 +27,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { Block } from "@/lib/blocks/types";
-import { readChildBlocks } from "@/lib/blocks/nested";
+import { readChildBlocks, withChildBlocks } from "@/lib/blocks/nested";
 import { NestedBlocksEditor } from "../molecules/NestedBlocksEditor";
 import { realT } from "@/test/i18nReal";
 
@@ -115,7 +115,9 @@ describe("NestedBlocksEditor - zagniezdzanie bez limitu glebokosci", () => {
     // Dziecko-kontener renderowane przez prawdziwy `BlockEditRenderer`
     // dostaje własny `NestedBlocksEditor`, a ten własny `BlockInserter`.
     const wnuk = akapit("w1", "wnuk");
-    const kontener = { id: "g1", type: "group", data: { children: [wnuk] } } as Block;
+    const kontener = withChildBlocks({ id: "g1", type: "group", data: {} } as Block, "children", [
+      wnuk,
+    ]);
     zamontuj([kontener]);
     // Insertery: [0] przed g1, [1] po g1, [2] przed wnukiem, [3] po wnuku.
     const lista = otworzPelnaPalete(2);
@@ -165,11 +167,9 @@ describe("NestedBlocksEditor - operacje na dzieciach", () => {
   });
 
   it("duplikat dziecka wstawia kopię ZA nim i nadaje świeże id także wnukom", () => {
-    const kontener = {
-      id: "g1",
-      type: "group",
-      data: { children: [akapit("w1", "wnuk")] },
-    } as Block;
+    const kontener = withChildBlocks({ id: "g1", type: "group", data: {} } as Block, "children", [
+      akapit("w1", "wnuk"),
+    ]);
     const { onChange } = zamontuj([kontener]);
     fireEvent.click(screen.getAllByRole("button", { name: t("blocks.actions.duplicate") })[0]);
     const dzieci = onChange.mock.calls[0][0];
@@ -201,5 +201,110 @@ describe("NestedBlocksEditor - operacje na dzieciach", () => {
     expect(wiersz).not.toBeNull();
     fireEvent.click(wiersz as Element);
     expect(wiersz?.className).toContain("ring-1");
+  });
+});
+
+// ── PLYNNE PISANIE WEWNATRZ KONTENERA ────────────────────────────────────────
+// Mini-kanwa powtarza kontrakt kanwy glownej: Enter dzieli, Backspace na
+// pustym usuwa, Backspace na poczatku scala, strzalki przechodza miedzy
+// dziecmi. To NIE jest ten sam kod - `NestedBlocksEditor` ma wlasne kopie
+// tych operacji (na `insertChildAt`/`removeChildAt`/`moveChild`), wiec musi
+// miec wlasny dowod. Karetka: patrz nota w `blockCanvasCaretFlow.test.tsx` -
+// swieza instancja ProseMirror ma selekcje na POCZATKU tresci.
+function polePisania(blockId: string): HTMLElement {
+  const wiersz = document.querySelector(`[data-block-id="${blockId}"]`);
+  const el = wiersz?.querySelector('[contenteditable="true"]');
+  if (!(el instanceof HTMLElement)) throw new Error(`brak pola edycji dziecka ${blockId}`);
+  return el;
+}
+
+describe("NestedBlocksEditor - pisanie w dzieciach kontenera", () => {
+  it("Enter dzieli dziecko i dokłada nowe DOKŁADNIE za nim", () => {
+    const { onChange } = zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c1"), { key: "Enter" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci).toHaveLength(3);
+    expect(dzieci[0].id).toBe("c1");
+    expect(dzieci[2].id).toBe("c2");
+  });
+
+  it("Backspace na PUSTYM dziecku usuwa je i zostawia sąsiada", () => {
+    const { onChange } = zamontuj([
+      akapit("c1", "alfa"),
+      { id: "c2", type: "paragraph", data: { html: "" } } as Block,
+    ]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    expect(onChange.mock.calls.at(-1)![0].map((b) => b.id)).toEqual(["c1"]);
+  });
+
+  it("Backspace na OSTATNIM (pustym) dziecku opróżnia kontener - jak w WP", () => {
+    // Kontener bez dzieci jest poprawnym stanem (pokazuje stan pusty), więc
+    // ostatnie dziecko wolno usunąć.
+    const { onChange } = zamontuj([{ id: "c1", type: "paragraph", data: { html: "" } } as Block]);
+    fireEvent.keyDown(polePisania("c1"), { key: "Backspace" });
+    expect(onChange.mock.calls.at(-1)![0]).toEqual([]);
+  });
+
+  it("Backspace na początku dziecka SCALA je z poprzednim, zachowując obie treści", () => {
+    const { onChange } = zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.id)).toEqual(["c1"]);
+    const tresc = String(dzieci[0].data.html);
+    expect(tresc).toContain("alfa");
+    expect(tresc).toContain("beta");
+  });
+
+  it("scalenie dziecka z NAGŁÓWKIEM dokleja tekst do nagłówka", () => {
+    const naglowek = { id: "h1", type: "heading", data: { text: "Tytuł", level: 3 } } as Block;
+    const { onChange } = zamontuj([naglowek, akapit("c2", "ogon")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci.map((b) => b.id)).toEqual(["h1"]);
+    expect(String(dzieci[0].data.text)).toBe("Tytułogon");
+  });
+
+  it("scalenie z dzieckiem NIETEKSTOWYM nie zachodzi", () => {
+    const separator = { id: "s1", type: "separator", data: {} } as Block;
+    const { onChange } = zamontuj([separator, akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c2"), { key: "Backspace" });
+    for (const [dzieci] of onChange.mock.calls) {
+      expect(dzieci.map((b) => b.id)).toEqual(["s1", "c2"]);
+    }
+  });
+
+  it("strzałka w górę przenosi fokus na poprzednie dziecko TEKSTOWE", () => {
+    // Widać to po pierścieniu aktywności - mini-kanwa trzyma aktywne dziecko
+    // u siebie (kanwa główna nie zna dzieci kontenera).
+    const separator = { id: "s1", type: "separator", data: {} } as Block;
+    zamontuj([akapit("c1", "alfa"), separator, akapit("c3", "gamma")]);
+    fireEvent.keyDown(polePisania("c3"), { key: "ArrowUp" });
+    const wiersz = document.querySelector('[data-block-id="c1"]');
+    expect(wiersz?.className).toContain("ring-1");
+    expect(document.querySelector('[data-block-id="s1"]')?.className).not.toContain("ring-1");
+  });
+
+  it("strzałka w dół przenosi fokus na następne dziecko tekstowe", () => {
+    zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
+    fireEvent.keyDown(polePisania("c1"), { key: "ArrowDown" });
+    expect(document.querySelector('[data-block-id="c2"]')?.className).toContain("ring-1");
+  });
+
+  it("menu slash w PUSTYM dziecku PODMIENIA je na wybrany typ (replaceWith)", () => {
+    // To jedyna droga do `replaceWith` mini-kanwy dostepna z klawiatury:
+    // "/" na pustym akapicie otwiera menu, Enter wybiera pozycje, a
+    // `onTransform` podmienia dziecko W MIEJSCU - nie dokleja obok.
+    const { onChange } = zamontuj([
+      { id: "c1", type: "paragraph", data: { html: "" } } as Block,
+      akapit("c2", "beta"),
+    ]);
+    const pole = polePisania("c1");
+    fireEvent.keyDown(pole, { key: "/" });
+    fireEvent.keyDown(pole, { key: "Enter" });
+    const dzieci = onChange.mock.calls.at(-1)![0];
+    expect(dzieci).toHaveLength(2);
+    // Pierwsze dziecko zostalo PODMIENIONE (nowe id, nowy typ), drugie stoi.
+    expect(dzieci[0].id).not.toBe("c1");
+    expect(dzieci[1].id).toBe("c2");
   });
 });

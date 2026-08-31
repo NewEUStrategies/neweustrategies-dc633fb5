@@ -33,7 +33,7 @@
 //     dostarcza (tak samo dziala `lib/blocks/__tests__/wordPaste.test.ts`),
 //     wiec plik zostaje na domyslnym srodowisku suity.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { serializeBlocksForClipboard } from "@/lib/blocks/clipboard";
 
@@ -310,6 +310,47 @@ describe("BlockCanvas - wklejanie wlasnych blokow i zwyklego tekstu", () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(ev.defaultPrevented).toBe(false);
     obca.remove();
+  });
+});
+
+describe("BlockCanvas - wklejanie PLIKOW graficznych", () => {
+  /** Prawdziwy `File` z zawartoscia PNG - `FileReader` da z niego `data:image/png`. */
+  function plikPng(nazwa: string): File {
+    // Minimalny naglowek PNG; tresc nie ma znaczenia, typ MIME ma.
+    const bajty = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    return new File([bajty], nazwa, { type: "image/png" });
+  }
+
+  it("wklejony plik graficzny staje się blokiem obrazu z altem z nazwy pliku", async () => {
+    const { onChange } = zamontuj({ activeId: "p1" });
+    const { ev } = zdarzenie("paste", kanwa(), { files: [plikPng("mapa-europy.png")] });
+    expect(ev.defaultPrevented).toBe(true);
+    // Odczyt pliku jest asynchroniczny (`FileReader`).
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const blocks = onChange.mock.calls[0][0].blocks;
+    const obraz = blocks.find((b) => b.type === "image");
+    expect(obraz).toBeDefined();
+    expect(String(obraz!.data.url)).toMatch(/^data:image\/png/);
+    expect(obraz!.data.alt).toBe("mapa-europy");
+  });
+
+  it("plik NIEgraficzny nie jest wklejany jako obraz", () => {
+    const { onChange } = zamontuj();
+    const dokument = new File(["tekst"], "notatka.txt", { type: "text/plain" });
+    const { ev } = zdarzenie("paste", kanwa(), { files: [dokument] });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(false);
+  });
+
+  it("schowek BEZ danych (clipboardData === null) nie wysadza kanwy", () => {
+    const { onChange } = zamontuj();
+    const ev = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(ev, "clipboardData", { value: null, configurable: true });
+    act(() => {
+      kanwa().dispatchEvent(ev);
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(false);
   });
 });
 

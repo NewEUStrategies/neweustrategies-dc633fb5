@@ -40,6 +40,10 @@
 //   - ściągania mediów: `@/lib/server/wp-media.server` NAPRAWDĘ pobiera pliki
 //     po HTTP i zapisuje w storage, więc jest atrapowany jako granica.
 //
+// GAŁĄŹ NIEOSIĄGALNA: w `wpFetch` wariant BEZ parametrów zapytania
+// (`query ? ... : ""`) - oba miejsca wywołania zawsze podają `fields`, więc
+// pusty `qs` nie ma jak powstać. Osłona zostaje w kodzie, testu na nią nie ma.
+//
 // RODO: żadnych realnych danych osobowych; domeny wyłącznie example.com /
 // example.org, klucze API są jawnie fałszywe.
 import { readFileSync } from "node:fs";
@@ -725,7 +729,7 @@ describe("wpImportPages - nowa strona", () => {
   it("kolizja sluga dokłada kolejne numery, aż trafi wolny", async () => {
     const { wpImportPages } = await fns();
     net.pages.set(27, wpPage({ ID: 27, slug: "kontakt" }));
-    const { stub, context } = makeClient({
+    const { context } = makeClient({
       slugTaken: (slug) => slug === "kontakt" || slug === "kontakt-2",
     });
     const res = await call(

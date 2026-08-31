@@ -34,7 +34,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
-import { readChildBlocks } from "@/lib/blocks/nested";
+import { readChildBlocks, withChildBlocks } from "@/lib/blocks/nested";
 import { realT } from "@/test/i18nReal";
 
 /** Minimalny kształt zdarzenia upuszczenia - tylko to, co czyta handler. */
@@ -75,11 +75,10 @@ function dokument(): BlocksDoc {
     version: 1,
     blocks: [
       akapit("p1", "pierwszy"),
-      {
-        id: "g1",
-        type: "group",
-        data: { children: [akapit("c1", "dziecko A"), akapit("c2", "dziecko B")] },
-      } as Block,
+      withChildBlocks({ id: "g1", type: "group", data: {} } as Block, "children", [
+        akapit("c1", "dziecko A"),
+        akapit("c2", "dziecko B"),
+      ]),
       akapit("p2", "trzeci"),
     ],
   } as BlocksDoc;

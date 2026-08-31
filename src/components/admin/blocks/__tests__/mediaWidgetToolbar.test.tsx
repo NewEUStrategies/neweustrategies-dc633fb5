@@ -253,6 +253,62 @@ describe("MediaWidgetToolbar - ustawienia wideo i audio", () => {
   });
 });
 
+describe("MediaWidgetToolbar - kazdy przycisk paska reaguje", () => {
+  // Przejazd po CALYM pasku: przycisk, ktory nic nie robi (pusty `onClick`,
+  // literowka w nazwie pola), jest w tym UI nierozpoznawalny wzrokiem -
+  // wyglada identycznie jak dzialajacy. Ten przejazd wymaga od kazdego
+  // przycisku ALBO zmiany danych bloku, ALBO otwarcia dialogu.
+  const przyciskiObrazu = [
+    "alignCenter",
+    "alignRight",
+    "sizeSmall",
+    "sizeMedium",
+    "sizeFull",
+    "shadow",
+  ] as const;
+
+  it.each(przyciskiObrazu)("obraz: %s zmienia dane bloku", (klucz) => {
+    const { onChange } = zamontuj("image", { align: "left", size: "small" });
+    fireEvent.click(btn(t(`blocks.toolbar.${klucz}`)));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  const dialogiObrazu = ["replaceUrl", "altText", "link"] as const;
+
+  it.each(dialogiObrazu)("obraz: %s otwiera dialog", async (klucz) => {
+    zamontuj("image");
+    fireEvent.click(btn(t(`blocks.toolbar.${klucz}`)));
+    const zapytanie = await odpowiedz("https://example.org/x");
+    expect(zapytanie.kind).toBe("prompt");
+  });
+
+  const przelacznikiOdtwarzania = ["autoplay", "loop"] as const;
+
+  it.each(przelacznikiOdtwarzania)("wideo: przełącznik %s zmienia dane", (pole) => {
+    const { onChange } = zamontuj("video");
+    fireEvent.click(btn(pole === "autoplay" ? "Autoplay" : "Loop"));
+    expect(ostatnieDane(onChange)[pole]).toBe(true);
+  });
+
+  it.each(["16:9", "4:3", "1:1", "9:16"] as const)("wideo: proporcja %s zapisuje się", (r) => {
+    const { onChange } = zamontuj("video", { aspect: "1:1" });
+    fireEvent.click(btn(`${t("blocks.toolbar.aspect")} ${r}`));
+    expect(ostatnieDane(onChange).aspect).toBe(r);
+  });
+
+  it("audio: przełącznik wyciszenia zmienia dane", () => {
+    const { onChange } = zamontuj("audio");
+    fireEvent.click(btn("Mute"));
+    expect(ostatnieDane(onChange).muted).toBe(true);
+  });
+
+  it("audio: przełącznik odtwarzania w pętli zmienia dane", () => {
+    const { onChange } = zamontuj("audio", { loop: true });
+    fireEvent.click(btn("Loop"));
+    expect(ostatnieDane(onChange).loop).toBe(false);
+  });
+});
+
 describe("MediaWidgetToolbar - dwuetapowy dialog zrodla", () => {
   it("oba kroki wypełnione zapisują opis i URL naraz", async () => {
     const { onChange } = zamontuj("image");
