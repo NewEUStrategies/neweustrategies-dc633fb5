@@ -6,8 +6,11 @@
 // polsku/angielsku (Red Hat Display), klucz zostaje jako drobny podpis dla
 // wdrożeniowca, a opis punktu egzekwowania jest widoczny, nie schowany
 // w tooltipie.
+//
+// Znacznik „deklarowane" NIE ma już ikony (sparkles) - dekoracja myliła się
+// z ostrzeżeniem; egzekwowane zostaje z tarczą, bo to realna bramka.
 import { useTranslation } from "react-i18next";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -27,7 +30,6 @@ export function CapabilityToggleRow({
   const { t } = useTranslation();
   const tc = (k: string) => t(`adminMembership.capabilities.${k}`);
   const badge = item.enforced ? tc("enforcedBadge") : tc("decorativeBadge");
-  const Icon = item.enforced ? ShieldCheck : Sparkles;
 
   return (
     <li
@@ -53,7 +55,7 @@ export function CapabilityToggleRow({
             )}
             title={item.enforced ? tc("enforcedHint") : tc("decorativeHint")}
           >
-            <Icon className="h-3 w-3" aria-hidden />
+            {item.enforced && <ShieldCheck className="h-3 w-3" aria-hidden />}
             {badge}
           </span>
         </div>
