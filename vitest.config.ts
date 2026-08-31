@@ -155,6 +155,32 @@ export default defineConfig({
           lines: 97,
           branches: 87,
         },
+        // ── PUBLICZNY RENDERER DOKUMENTU BUILDERA ────────────────────────────
+        // 917 linii, ktore renderuja KAZDA publiczna strone serwisu. Audyt
+        // (wyd. 7) mierzyl tu 6,9% instrukcji i 0% GALEZI przy 176 niepokrytych
+        // liniach. Przyczyna byla jedna: ZADEN TEST NIGDY TEGO PLIKU NIE
+        // RENDEROWAL - osiem plikow testowych, ktore go wymieniaja, podmienialo
+        // go `vi.mock`, a dwa jedyne czytajace prawdziwy plik czytaly go jako
+        // TEKST przez readFileSync (bramka warstw + zasieg typografii).
+        //
+        // ZMIERZONE 2026-08-31 (173 przypadki w dziewieciu plikach, 170 zielonych
+        // + 3 `it.fails`): 99,52% instrukcji (211/212) / 97,02% galezi (261/269) /
+        // 100% funkcji (59/59) / 100% linii (189/189).
+        // Cel zadania byl "powyzej 85% galezi" - osiagniete 97,02%.
+        //
+        // Granice Suspense, tryb podgladu, nieznany typ widgetu, uszkodzony
+        // dokument, rozstrzyganie urzadzenia, odmowa dostepu i warianty A/B maja
+        // tu dowod wykonawczy. Czego NIE da sie pokryc z tego poziomu i jest to
+        // opisane w naglowkach plikow: `ServerSectionGate` jest nieosiagalny
+        // przez `<StreamingSection>`, bo `import.meta.env.SSR` jest w vitescie
+        // falszem - pokrywa go osobny test montujacy gate bezposrednio.
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/components/builder/organisms/BuilderRenderer.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
         // ── PANELE WŁAŚCIWOŚCI WIDGETÓW ───────────────────────────────────────
         // Audyt 2026-08-18: „jedyna duża powierzchnia MODUŁU 3 BEZ ŻADNEGO progu
         // per-ścieżka - i dlatego jako jedyna osunęła się do 13,6%".
@@ -242,6 +268,130 @@ export default defineConfig({
           functions: 98,
           lines: 97,
           branches: 94,
+        },
+        // ── IMPORT WORDPRESS, IMPLEMENTACJA DRUGA (STRONY + PLIK WXR) ────────
+        // Audyt (wyd. 7, rozdz. 5.3) nazwal to "najciekawszym znaleziskiem tego
+        // wydania": repozytorium ma DWIE niezalezne implementacje importu
+        // o ludzaco podobnych nazwach, a prog wyzej pilnowal tylko jednej.
+        //
+        // ROZSTRZYGNIECIE: obie sa ZYWE i obie zostaly pokryte. Impl A
+        // (`wordpress-import.functions.ts`, prog wyzej) importuje POSTY; ta
+        // importuje STRONY do `builder_data` i jest JEDYNA sciezka przyjmujaca
+        // plik WXR. Usuniecie ktorejkolwiek usuwa zdolnosc panelu - szczegoly
+        // w docs/RAPORT_MODUL_3_SILNIKI_TRESCI_2026-08-31.md, sekcja 8.
+        //
+        // Startowala z 0% (`wp-import.functions.ts`, `wxr.ts`) i 3,28%
+        // (`elementor.ts` - najgorszy pojedynczy plik tej klasy w repozytorium).
+        //
+        // ZMIERZONE 2026-08-31 (158 przypadkow):
+        //   wp-import.functions.ts  100% instr / 99,44% gal / 100% fn / 100% lin
+        //   wp-import/elementor.ts  100%       / 99,22%     / 100%    / 100%
+        //   wp-import/wxr.ts        96,87%     / 94,69%     / 100%    / 100%
+        //   wp-import/convert.ts    100%       / 94,44%     / 100%    / 100%
+        //   wp-import/buildPage.ts  100%       / 95,23%     / 100%    / 100%
+        //   caly katalog            98,79%     / 95,74%     / 100%    / 100%
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/lib/wp-import.functions.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/wp-import/**": {
+          statements: 96,
+          functions: 98,
+          lines: 97,
+          branches: 92,
+        },
+        // ── RODZINA EDYTOROW BLOKOW (62 pliki, 8126 linii) ───────────────────
+        // Audyt (wyd. 7): 6,7% instrukcji, a galezie 0-2% w CALEJ rodzinie -
+        // "te pliki nie sa lekko nieprzetestowane, ani jedna ich decyzja nie
+        // jest sprawdzona". Najwieksza powierzchnia modulu bez zadnego dowodu.
+        //
+        // ZMIERZONE 2026-08-31 (1376 zielonych + 8 `it.fails` w 11 plikach):
+        // 96,23% instrukcji / 85,42% galezi / 96,78% funkcji / 97,15% linii.
+        //
+        // Macierz jest podzielona na SZESC czesci (blockEditMatrix.part1..part6),
+        // nie jeden plik - to nie estetyka, to naprawa znanej awarii: 1486
+        // przypadkow w jednym pliku tracilo forka na SIGKILL, a pokrycie V8
+        // nie dojezdzalo do raportu, zbijajac powierzchnie o 19 pp PRZY
+        // ZIELONYM LOGU (patrz wpis `src/components/admin/builder/**` z 08-27).
+        //
+        // UWAGA O GALEZIACH: 85,42% to nie brak pracy, a ksztalt tych plikow -
+        // wartosci domyslne sa kodowane dwoma idiomami naraz (`x !== false`
+        // = domyslnie WLACZONE, `x === true` = domyslnie WYLACZONE), wiec czesc
+        // ramion jest nieosiagalna dla danych, ktore panel realnie produkuje.
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/components/admin/blocks/edit/**": {
+          statements: 94,
+          functions: 94,
+          lines: 95,
+          branches: 82,
+        },
+        // ── EDYTOR BLOKOW JAKO CALOSC ────────────────────────────────────────
+        // Audyt (wyd. 7) nazwal te powierzchnie asymetria modulu: 93 pliki
+        // produkcyjne kontra 4 pliki testowe, cala sciezka na ~2%.
+        // ZMIERZONE 2026-08-31 (99 plikow testowych, 3257 zielonych + 15
+        // `it.fails`, `--coverage.include='src/components/admin/blocks/**'`):
+        //   90,34% instrukcji (3350/3708) / 78,97% galezi (2205/2792) /
+        //   88,89% funkcji (1241/1396) / 91,85% linii (3067/3339).
+        // Punkt wyjscia: ~2%. Zero plikow tej sciezki nie stoi na 0%.
+        //
+        // DLACZEGO GALEZIE 75, A NIE 82 JAK W `edit/**`: ten glob obejmuje
+        // TAKZE `edit/**`, ale dochodza do niego pliki rdzenia edytora, ktore
+        // maja duzo galezi obslugi bledow nieosiagalnych z panelu -
+        // `LayoutScaffold` 72,97%, `NestedBlocksEditor` 73,52%,
+        // `BlockCanvas` 78,41%. Prog liczony od zmierzonej CALOSCI, nie od
+        // najlepszego podkatalogu. Floor = zmierzone minus ~2-4 pp.
+        // Ten prog wolno wylacznie PODNOSIC.
+        "src/components/admin/blocks/**": {
+          statements: 87,
+          functions: 85,
+          lines: 88,
+          branches: 75,
+        },
+        // ── WZORCE TRESCI (PatternPicker) ────────────────────────────────────
+        // Audyt (wyd. 7): 0% i 0 z 40 funkcji - jedyny plik swojego katalogu
+        // i bez ani jednego testu.
+        // ZMIERZONE 2026-08-31 (37 przypadkow): 100% instrukcji (70/70) /
+        // 94,73% galezi / 100% funkcji (40/40) / 100% linii (59/59).
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/components/patterns/**": {
+          statements: 97,
+          functions: 98,
+          lines: 97,
+          branches: 90,
+        },
+        // ── WARSTWA MUTACJI TRESCI (posty, strony, kategorie, tagi) ──────────
+        // Audyt 2026-08-18 (wyd. 7) nazwal ten plik NAJWIEKSZA POJEDYNCZA DZIURA
+        // W CALYM REPOZYTORIUM: 458 niepokrytych linii przy 1% galezi, a przez te
+        // 1778 linii przechodzi KAZDA redakcyjna mutacja tresci. Przed ta zmiana
+        // jeden z 21 eksportow byl wykonywany przez jakikolwiek test
+        // (`updateCategoryColor`), a 20 pozostalych i wszystkie helpery prywatne
+        // (applyBulkStatus, captureAutoRedirect, writeRevisionSnapshot, uniqueSlug,
+        // resolveDefaultBlogPage, assertSlugAvailable, resolveCanPublish) nie mialy
+        // ani jednej wykonanej linii.
+        //
+        // ZMIERZONE 2026-08-31 (268 przypadkow w pieciu plikach, 262 zielone
+        // + 6 `it.fails`): 99,83% instrukcji (592/593) / 99,58% galezi (481/483) /
+        // 100% funkcji (111/111) / 100% linii (514/514).
+        //
+        // Cel zadania byl "powyzej 85% galezi" - osiagniete 99,58%. Dwie
+        // niepokryte galezie (l. 1599 i 1716) sa NIEOSIAGALNE i opisane
+        // w naglowku contentFunctions.taxonomy.test.ts: walidator
+        // `NonEmptyTrimmed` eliminuje prawa strone `name_pl || name_en`.
+        //
+        // Atrapowane WYLACZNIE granice (createServerFn, require-staff,
+        // rate-limit, audit, client.server) - `evaluateTransition`,
+        // `disclosureGaps`, `shouldSnapshot`, `normalizeSourcePath`,
+        // `isAllowedTtsVoiceId` i `splitAuthors` chodza NAPRAWDE, wiec testy
+        // dowodza, ze bramki strzelaja, a nie ze strzela atrapa.
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/lib/content.functions.ts": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 95,
         },
         // ── SIDEBAR (reduktor draftu + panel) ────────────────────────────────
         // Reduktor draftu sidebara i jego panel. Też startowały z 0%.

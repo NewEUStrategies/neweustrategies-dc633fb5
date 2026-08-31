@@ -198,9 +198,7 @@ export function TierEditorCard({
 
         <div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-3">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <p className="flex-1 text-[11px] leading-snug text-muted-foreground">
-            {tm("saveHint")}
-          </p>
+          <p className="flex-1 text-[11px] leading-snug text-muted-foreground">{tm("saveHint")}</p>
           <Button size="sm" disabled={saving} onClick={onSave}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {tm("save")}

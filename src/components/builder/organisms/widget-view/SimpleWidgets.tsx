@@ -22,7 +22,6 @@ import {
   AccordionWidget,
   SectionLabelWidgetView,
 } from "./lazyWidgets";
-import { TextRotate } from "@/components/ui/text-rotate";
 import {
   COMPACT_ICON_BOX_SIZE,
   COMPACT_WIDGET_MIN_HEIGHT,
@@ -44,6 +43,7 @@ import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicTex
 import {
   ContactFormView,
   AuthFormWidget,
+  CounterWidget,
   DynamicTagWidget,
   GalleryLightboxZone,
   PostsSliderWidget,
@@ -88,7 +88,8 @@ import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget } from "./mediaWidgets";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import type { AccountMenuConfig } from "./AccountMenuWidget";
-import { CounterWidget } from "./CounterWidget";
+// Eager swiadomie - patrz nota "text-rotate" w ./lazyWidgets.
+import { TextRotate } from "@/components/ui/text-rotate";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";

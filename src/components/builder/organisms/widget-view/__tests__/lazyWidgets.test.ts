@@ -12,6 +12,8 @@ import * as lazyWidgets from "@/components/builder/organisms/widget-view/lazyWid
 // zdarzyły się tutaj przy scalaniu gałęzi 2026-08-19. Każdy widget stoi na tej
 // liście dokładnie RAZ.
 const SPLIT_WIDGETS = [
+  // 2026-08-31: przeoczenie zdjete z eager-owej sciezki chrome.
+  "CounterWidget",
   "NewsletterForm",
   "ContactFormView",
   "AuthFormWidget",

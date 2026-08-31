@@ -76,7 +76,13 @@ echo "harness: OK"
 
 # Migracja izolacji tenantow - dobierana po TRESCI, nie po nazwie pliku (panel
 # nadaje migracjom losowe UUID-y). Pusty zestaw to blad, nie sukces.
-MIGRATIONS="$(grep -lE 'POLICY "(media_mentions owner|saved_searches owner|follows owner|purchases owner read|subs owner read|grants own read|seats own read|gift links owner read|Users can view own subscription)' \
+#
+# 2026-08-31 (2): selektor dostal DRUGIE ramie, bo domkniecie kanonicznej
+# sciezki strony (20260831160000) NIE TWORZY ZADNEJ POLITYKI - naprawia cialo
+# funkcji i schemat. Pierwsze ramie szuka nazw polityk i tej migracji nie
+# widzialo, wiec harness aplikowalby atrape i sam ja testowal. Dlatego drugie
+# ramie celuje w nazwe ograniczenia, ktore ta migracja zaklada.
+MIGRATIONS="$(grep -lE 'POLICY "(media_mentions owner|saved_searches owner|follows owner|purchases owner read|subs owner read|grants own read|seats own read|gift links owner read|Users can view own subscription|read_history owner|personality_history_owner_read)|pages_parent_same_tenant_fkey' \
   "$REPO"/supabase/migrations/*.sql | sort -u)"
 count="$(echo "$MIGRATIONS" | grep -c . || true)"
 echo "Migracje dotykajace plaszczyzny wlasciciela: $count"

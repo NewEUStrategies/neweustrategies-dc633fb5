@@ -305,3 +305,156 @@ CREATE POLICY "gift links owner read"
       AND (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
     )
   );
+
+-- ==========================================================================
+-- ROZSZERZENIE 2026-08-31 (2): KANONICZNA SCIEZKA STRONY (MODUL 3).
+--
+-- Inna klasa luki niz cala reszta tego pliku i dlatego wymaga innych asercji.
+-- Tam problemem byla POLITYKA gubiaca tenanta. Tu polityki nie ma o co pytac:
+-- `public.page_full_path()` jest wolana SPOD SERVICE-ROLE przez generator
+-- sitemapy (`src/lib/server/sitemapEntries.server.ts:75`), a service_role ma
+-- BYPASSRLS - zadna polityka nad ta funkcja nie stoi. Izolacje musi wiec
+-- dowiezc CIALO FUNKCJI (predykat najemcy w rekurencji) i SCHEMAT
+-- (ograniczenie na `parent_id`), a nie RLS.
+--
+-- ZASIEG - sprawdzony na stanie KONCOWYM polityk (lokalna replika, 931
+-- migracji), nie na migracji zalozycielskiej. Polityka
+-- `"Public reads published pages"` NIE jest dzis tenant-slepa: brzmi
+-- `status = 'published' AND deleted_at IS NULL AND tenant_id = public_tenant_id()`.
+-- Odtwarzam ja ponizej W TEJ POSTACI, a nie w tenant-slepej postaci
+-- z 20260531182153 - atrapa ma odwzorowywac produkcje, nie ulatwiac asercji.
+-- Asercje odczytu i tak nie ida przez RLS: wolaja funkcje jako wlasciciel bazy,
+-- czyli w ukladzie uprawnien generatora sitemapy, bo TAM wyciek jest realny.
+--
+-- Ponizej stan SPRZED naprawy: stary, jednokolumnowy klucz obcy na parent_id
+-- i tenant-slepe cialo obu funkcji. Migracje 20260831160000 dobiera run.sh
+-- i ona te definicje podmienia - dzieki temu harness sprawdza takze, ze
+-- podmiana faktycznie zaszla.
+-- ==========================================================================
+CREATE TABLE public.pages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  parent_id uuid REFERENCES public.pages(id) ON DELETE RESTRICT,
+  slug text NOT NULL,
+  status text NOT NULL DEFAULT 'draft',
+  -- `deleted_at` jest w atrapie WYLACZNIE dlatego, ze wystepuje w warunku
+  -- odtwarzanej polityki publicznej - kolumna bez niej rozjezdzalaby atrape
+  -- z produkcja w miejscu, ktore ta sekcja mierzy.
+  deleted_at timestamptz,
+  UNIQUE (tenant_id, slug)
+);
+
+GRANT SELECT ON public.pages TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pages TO authenticated;
+GRANT ALL ON public.pages TO service_role;
+
+ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public reads published pages"
+  ON public.pages FOR SELECT
+  TO anon, authenticated
+  USING (status = 'published' AND deleted_at IS NULL AND tenant_id = public_tenant_id());
+
+CREATE POLICY "Staff reads own tenant pages"
+  ON public.pages FOR SELECT
+  TO authenticated
+  USING (
+    tenant_id = current_tenant_id()
+    AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'editor') OR has_role(auth.uid(), 'author'))
+  );
+
+CREATE POLICY "Authors write own tenant pages"
+  ON public.pages FOR ALL
+  TO authenticated
+  USING (tenant_id = current_tenant_id())
+  WITH CHECK (tenant_id = current_tenant_id());
+
+-- Stan SPRZED naprawy: rekurencja bez predykatu najemcy.
+CREATE OR REPLACE FUNCTION public.page_full_path(_page_id uuid)
+RETURNS text LANGUAGE sql STABLE SET search_path = public AS $$
+  WITH RECURSIVE chain AS (
+    SELECT id, parent_id, slug, 1 AS depth FROM public.pages WHERE id = _page_id
+    UNION ALL
+    SELECT p.id, p.parent_id, p.slug, c.depth + 1
+      FROM public.pages p JOIN chain c ON p.id = c.parent_id
+     WHERE c.depth < 50
+  )
+  SELECT string_agg(slug, '/' ORDER BY depth DESC) FROM chain;
+$$;
+
+CREATE OR REPLACE FUNCTION public.page_full_paths(_page_ids uuid[])
+RETURNS TABLE(page_id uuid, full_path text)
+LANGUAGE sql STABLE SET search_path = public AS $$
+  WITH RECURSIVE requested AS (SELECT DISTINCT unnest(_page_ids) AS root_id),
+  chain AS (
+    SELECT r.root_id, p.id, p.parent_id, p.slug, 1 AS depth
+      FROM requested r JOIN public.pages p ON p.id = r.root_id
+    UNION ALL
+    SELECT c.root_id, p.id, p.parent_id, p.slug, c.depth + 1
+      FROM public.pages p JOIN chain c ON p.id = c.parent_id
+     WHERE c.depth < 50
+  )
+  SELECT root_id AS page_id, string_agg(slug, '/' ORDER BY depth DESC) AS full_path
+    FROM chain GROUP BY root_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.page_full_path(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.page_full_paths(uuid[]) TO anon, authenticated, service_role;
+
+-- ==========================================================================
+-- ROZSZERZENIE 2026-08-31 (3): DWIE OSTATNIE REALNE DZIURY PLASZCZYZNY
+-- WLASCICIELA (migracja 20260831170000).
+--
+-- Przeglad na STANIE KONCOWYM polityk (931 migracji na lokalnej replice,
+-- 579 polityk w `public`) dal dziesiec trafien wzorca "wlasciciel przez
+-- auth.uid() bez wzmianki o current_tenant_id"; PIEC bylo bezpiecznych - wiazaly
+-- tenanta innym idiomem (`_caller_tenant()` albo podzapytanie po `profiles`) -
+-- a te dwie tabele nie wiazaly go wcale. Obie niosa DANE OSOBOWE, wiec i tu
+-- dowod musi byc wykonawczy, nie statyczny.
+--
+-- Polityki ponizej odtwarzaja stan SPRZED naprawy; migracja je podmienia.
+-- ==========================================================================
+CREATE TABLE public.user_read_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL DEFAULT current_tenant_id() REFERENCES public.tenants(id) ON DELETE CASCADE,
+  post_id uuid NOT NULL,
+  read_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.personality_result_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  openness smallint NOT NULL DEFAULT 0,
+  conscientiousness smallint NOT NULL DEFAULT 0,
+  extraversion smallint NOT NULL DEFAULT 0,
+  agreeableness smallint NOT NULL DEFAULT 0,
+  neuroticism smallint NOT NULL DEFAULT 0,
+  taken_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_read_history TO authenticated;
+GRANT ALL ON public.user_read_history TO service_role;
+GRANT SELECT ON public.personality_result_history TO authenticated;
+GRANT ALL ON public.personality_result_history TO service_role;
+
+ALTER TABLE public.user_read_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.personality_result_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "read_history owner select" ON public.user_read_history
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "read_history owner insert" ON public.user_read_history
+  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "read_history owner update" ON public.user_read_history
+  FOR UPDATE TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "read_history owner delete" ON public.user_read_history
+  FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+CREATE POLICY "personality_history_owner_read" ON public.personality_result_history
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+-- WSZYSTKIE wiersze (stron i plaszczyzny wlasciciela) seeduje runtime_test.sql
+-- razem z auth.users i profiles. Taka jest konwencja tej uprzezy: harness.sql
+-- daje SCHEMAT, runtime_test.sql DANE - INSERT tutaj lamalby FK na auth.users,
+-- ktore jest wypelniane dopiero tam.

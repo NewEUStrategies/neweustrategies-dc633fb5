@@ -196,6 +196,7 @@
         "admin.coupons.*",
         "admin.organizations.*",
         "admin.monetization.tsx",
+        "admin.monetization-ledger.tsx",
         "admin.paywall.tsx",
         "admin.pricing.tsx",
         "admin.membership.tsx",

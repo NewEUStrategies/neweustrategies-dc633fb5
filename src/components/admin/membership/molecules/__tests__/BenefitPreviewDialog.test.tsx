@@ -8,9 +8,8 @@ import type { TierBenefit } from "@/lib/billing/tiers";
 
 vi.mock("react-i18next", () => reactI18nextStub());
 
-const { BenefitPreviewDialog } = await import(
-  "@/components/admin/membership/molecules/BenefitPreviewDialog"
-);
+const { BenefitPreviewDialog } =
+  await import("@/components/admin/membership/molecules/BenefitPreviewDialog");
 
 const benefit: TierBenefit = {
   pl: "Dostęp do briefingów",

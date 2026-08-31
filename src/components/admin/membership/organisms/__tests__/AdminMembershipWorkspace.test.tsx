@@ -69,9 +69,7 @@ async function openTierEditor(tab: "basics" | "benefits" | "capabilities" = "bas
   const card = await screen.findByRole("button", { name: /summary\.open/ });
   fireEvent.click(card);
   const dialog = await screen.findByRole("dialog");
-  fireEvent.click(
-    within(dialog).getByRole("tab", { name: `adminMembership.tierTabs.${tab}` }),
-  );
+  fireEvent.click(within(dialog).getByRole("tab", { name: `adminMembership.tierTabs.${tab}` }));
   return dialog;
 }
 

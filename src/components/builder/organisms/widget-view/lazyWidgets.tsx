@@ -114,6 +114,7 @@ import type { GalleryLightboxZone as GalleryLightboxZoneImpl } from "./GalleryLi
 import type { AccordionWidget as AccordionWidgetImpl } from "./AccordionWidget";
 import type { SectionLabelWidgetView as SectionLabelWidgetViewImpl } from "@/lib/builder/sectionLabelVariants";
 import type { PostsSliderWidget as PostsSliderWidgetImpl } from "./PostsSliderWidget";
+import type { CounterWidget as CounterWidgetImpl } from "./CounterWidget";
 
 // `LazyFallback` i `withSuspense` żyją w `./lazySuspense`, żeby pojedynczy
 // leniwy komponent dał się skonsumować bez importu całego rejestru (patrz
@@ -473,3 +474,44 @@ const EditableLazy = lazy(() =>
   import("../../molecules/Editable").then((m) => ({ default: m.Editable })),
 ) as ComponentType<ComponentProps<typeof EditableImpl>>;
 export const Editable = withSuspense(EditableLazy);
+
+// --- 2026-08-31: dwa statyczne importy rozstrzygniete jako PRZEOCZENIA ------
+// Przeglad wszystkich 96 renderowalnych typow widgetow (71 leniwych / 25
+// statycznych) wykazal, ze DZIESIEC statycznych typow nie jest objetych
+// kontraktem "co zostaje eager" z naglowka tego pliku. Osiem z nich zostaje
+// eager SWIADOMIE i ma to zapisane przy swoich `case` w SimpleWidgets.tsx;
+// te dwa byly przeoczeniem i schodza tutaj.
+
+// `counter` - animowany licznik Elementora we WLASNYM module (105 linii,
+// petla requestAnimationFrame + IntersectionObserver). SimpleWidgets jest na
+// eager-owej sciezce chrome (Header/Footer -> BuilderRenderer -> WidgetView),
+// wiec statyczny import ladowal ten modul do chunku wejsciowego KAZDEJ strony,
+// takze bez ani jednego licznika. Jedynym konsumentem modulu jest SimpleWidgets,
+// wiec przeniesienie na `import()` FAKTYCZNIE zdejmuje krawedz z grafu - nie
+// tylko odracza pobranie.
+const CounterWidgetLazy = lazy(() =>
+  import("./CounterWidget").then((m) => ({ default: m.CounterWidget })),
+) as ComponentType<ComponentProps<typeof CounterWidgetImpl>>;
+export const CounterWidget = withSuspense(CounterWidgetLazy);
+
+// `text-rotate` - ROZWAZONE I ODRZUCONE NA PODSTAWIE POMIARU, nie przeczucia.
+// Modul (240 linii) wygladal na blizniaczy przypadek `counter`: `animated-heading`
+// obok niego jedzie leniwie od 2026-08-15. Ale `@/components/ui/text-rotate` ma
+// DRUGIEGO statycznego importera na trasie PUBLICZNEJ -
+// `components/careers/organisms/CareersHero.tsx` (`/zatrudniamy`), gdzie jest hero
+// NAD ZGIECIEM, czyli import w pelni zasadny.
+//
+// To jest dokladnie mechanika z komentarza w BuilderRenderer.tsx (l. 133-142):
+// `lazy()` odracza pobranie, ale NIE usuwa krawedzi w grafie, dopoki istnieje
+// inny statyczny importer na publicznej trasie. POMIAR bramki potwierdzil to
+// wprost - wersja lazifikujaca `text-rotate` razem z `counter` dala:
+//   public  2684,0 -> 2685,8 KB (+1,8),
+//   overall 4309,4 -> 4311,6 KB (+2,2),
+//   najwiekszy chunk 270,9 -> 269,7 KB (-1,2).
+// Czyli modul NIE opuscil budzetu PUBLIC (bo trasa karier trzyma go dalej),
+// a doszedl narzut osobnego chunku. Zysk -1,2 KB na chunku startowym pochodzi
+// z `counter`; `text-rotate` dolozyl do tego wylacznie koszt.
+//
+// Zeby ten widget faktycznie zszedl z budzetu PUBLIC, trzeba by zlazifikowac
+// go TAKZE w CareersHero - a tam jest nad zgieciem, wiec byloby to pogorszenie
+// LCP trasy karier w zamian za kilobajt. Zostaje eager, swiadomie.

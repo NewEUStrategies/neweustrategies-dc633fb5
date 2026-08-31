@@ -2,7 +2,7 @@
 # Źródło: governance/ownership.json  |  Generator: bun run generate:codeowners
 # Bramka spójności: bun run check:codeowners
 #
-# 75 wzorców tras administracyjnych w 9 domenach.
+# 76 wzorców tras administracyjnych w 9 domenach.
 # Ten plik pokrywa WYŁĄCZNIE trasy. Własnicielstwo migracji bazy nie da się
 # wyrazić ścieżką (nazwy to znaczniki czasu i UUID-y) - egzekwuje je bramka
 # `bun run check:ownership` na podstawie tego samego rejestru.
@@ -102,6 +102,7 @@
 # /src/routes/admin.coupons.* @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
 # /src/routes/admin.organizations.* @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
 # /src/routes/admin.monetization.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
+# /src/routes/admin.monetization-ledger.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
 # /src/routes/admin.paywall.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
 # /src/routes/admin.pricing.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci
 # /src/routes/admin.membership.tsx @NewEUStrategies/utrzymanie-monetyzacja-i-platnosci

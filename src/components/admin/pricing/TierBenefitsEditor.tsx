@@ -64,7 +64,13 @@ export function TierBenefitsEditor({
     <div>
       <div className="mb-1 flex items-center justify-between">
         <Label className="text-[10px] font-medium">{tb("heading")}</Label>
-        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={add}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[10px]"
+          onClick={add}
+        >
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           {tb("add")}
         </Button>

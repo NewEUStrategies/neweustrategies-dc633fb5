@@ -91,7 +91,7 @@ describe("LabeledField - etykieta powiązana z polem", () => {
       </LabeledField>,
     );
 
-    const label = document.querySelector('label[for]');
+    const label = document.querySelector("label[for]");
     expect(label).toHaveClass("text-[10px]");
     expect(screen.getByText("Maksymalnie 3 znaki")).toHaveClass("text-[10px]");
   });
