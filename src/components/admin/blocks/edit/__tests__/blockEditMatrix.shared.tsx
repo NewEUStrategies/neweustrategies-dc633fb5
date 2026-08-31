@@ -202,6 +202,21 @@ vi.mock("@/integrations/supabase/client", async () => {
   return { supabase: stub };
 });
 
+// KONTEKST NAJEMCY - granica sesji, nie warstwa aplikacji. `MediaPickerDialog`
+// (otwierany z edytorów `author-bio`, `gallery`, `cover`) woła
+// `useRequiredTenant`, które RZUCA bez zalogowanej sesji, bo zapis mediów jest
+// per najemca. Mock jest CZĘŚCIOWY: podmieniamy tylko odczyt identyfikatora
+// najemcy, całą resztę `useAuth` zostawiamy prawdziwą. Ten sam zabieg i to samo
+// uzasadnienie ma tabela paneli właściwości widgetów.
+vi.mock("@/hooks/useAuth", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useRequiredTenant: () => "tenant-test",
+    useCurrentTenantId: () => "tenant-test",
+  };
+});
+
 // `fetch` - granica przeglądarki. Edytor `data-map` dociąga statyczną geometrię
 // z `public/geo/*.json`; w teście ma NIE wychodzić w sieć.
 const realFetch = globalThis.fetch;
@@ -658,6 +673,14 @@ export const RICH_DATA: Record<string, Json> = {
   categories: RICH_STRINGS,
   features: RICH_STRINGS,
   values: [1, 2, 3],
+  images: [
+    { url: "https://cdn.example.com/g1.png", alt: "Pierwsze zdjęcie" },
+    { url: "https://cdn.example.com/g2.png", alt: "Drugie zdjęcie" },
+  ],
+  criteria: [
+    { label: "Jakość", score: 8 },
+    { label: "Cena", score: 6 },
+  ],
   ordered: true,
   open: true,
   autoplay: true,
@@ -666,10 +689,153 @@ export const RICH_DATA: Record<string, Json> = {
 
 const RICH_OVERRIDES: Readonly<Record<string, Record<string, Json>>> = {
   ListBlockEdit: { items: RICH_STRINGS, levels: [1, 2] },
+  // `rows` ma w rodzinie DWA kształty: tabela trzyma tam siatkę napisów,
+  // a `comparison-table` listę obiektów. Jeden literał nie obsłuży obu, więc
+  // tabela dostaje własny - razem z metadanymi scaleń i wyrównań z importu,
+  // bo dopiero one włączają gałąź `hasMeta`.
+  TableBlockEdit: {
+    rows: [
+      ["Nagłówek A", "Nagłówek B"],
+      ["Komórka 1", "Komórka 2"],
+    ],
+    spans: [
+      [
+        [1, 1],
+        [1, 1],
+      ],
+      [
+        [1, 1],
+        [1, 1],
+      ],
+    ],
+    aligns: [
+      ["left", "center"],
+      ["right", ""],
+    ],
+    header: true,
+  },
+  // Separator ma trzy warianty rysowania i ŻADNEGO pola - pokrycie jego
+  // gałęzi bierze się wyłącznie z przejechania wariantów w danych.
+  SeparatorBlock: { variant: "dots" },
 };
 
 function richFor(name: string): Record<string, Json> {
   return { ...RICH_DATA, ...(RICH_OVERRIDES[name] ?? {}) };
+}
+
+/**
+ * TA SAMA pełna treść, ale z DRUGIM zestawem wartości wyliczeniowych i ze
+ * WSZYSTKIMI przełącznikami JAWNIE wyłączonymi. Edytory zmieniają zestaw
+ * widocznych pól w zależności od wariantu, układu, źródła danych i trybu -
+ * bez drugiego przejazdu połowa tych gałęzi nie jest w ogóle renderowana,
+ * a to w nich mieszkają pola, które redaktor faktycznie wypełnia. Wszystkie
+ * flagi są domyślnie WŁĄCZONE (`!== false`), więc dopiero jawne `false`
+ * przechodzi ich drugą gałąź.
+ */
+export const ALT_DATA: Record<string, Json> = {
+  ...RICH_DATA,
+  variant: "minimal",
+  style: "outline",
+  layout: "list",
+  align: "right",
+  size: "sm",
+  kind: "pie",
+  mode: "existing",
+  source: "inline",
+  authorSource: "inline",
+  display: "profile",
+  status: "draft",
+  scope: "world",
+  ordered: false,
+  open: false,
+  allowMultiple: false,
+  animate: false,
+  autoRefresh: false,
+  autoplay: false,
+  bordered: false,
+  dismissible: false,
+  grayscale: false,
+  loop: false,
+  preview: false,
+  requireConsent: false,
+  reverseChronological: false,
+  rounded: false,
+  showAvatar: false,
+  showButton: false,
+  showGrid: false,
+  showHome: false,
+  showIcon: false,
+  showLegend: false,
+  showPhone: false,
+  showPostsCount: false,
+  showSocial: false,
+  showSubject: false,
+  showTitle: false,
+  showValue: false,
+  showValues: false,
+  stacked: false,
+};
+
+const ALT_OVERRIDES: Readonly<Record<string, Record<string, Json>>> = {
+  ListBlockEdit: { items: RICH_STRINGS, levels: [1, 2] },
+  TableBlockEdit: {
+    rows: [
+      ["A", "B", "C"],
+      ["1", "2", "3"],
+    ],
+    header: false,
+  },
+  SeparatorBlock: { variant: "wide" },
+  // `author-bio` ma DWIE osie zależności, które trzeba ustawić razem:
+  // źródło autora (`authorSource: "inline"` włącza cały formularz autora
+  // własnego z listą linków społecznościowych) i wariant prezentacji
+  // (`variant: "profile"` dokłada panel ustawień karty profilu, wspólny
+  // z widgetem `author-profile-card` w builderze). Bez obu naraz połowa
+  // tego edytora nie jest w ogóle montowana.
+  AuthorBioBlock: {
+    variant: "profile",
+    authorSource: "inline",
+    inlineAuthor: {
+      name: "Anna Przykładowa",
+      bio: "Analityczka polityki europejskiej.",
+      avatarUrl: "https://cdn.example.com/a.png",
+      customSocials: [
+        { label: "Strona", url: "https://example.org", iconUrl: "" },
+        { label: "Profil", url: "https://example.org/p", iconUrl: "https://cdn.example.com/i.png" },
+      ],
+    },
+  },
+};
+
+function altFor(name: string): Record<string, Json> {
+  return { ...ALT_DATA, ...(ALT_OVERRIDES[name] ?? {}) };
+}
+
+/** Przejazd po wszystkich sterowaniach jednego renderu - bez asercji. */
+function driveAllControls(container: HTMLElement): void {
+  for (const pole of Array.from(container.querySelectorAll<HTMLInputElement>("input, textarea"))) {
+    if (pole.disabled || pole.readOnly || pole.type === "file") continue;
+    if (pole.type === "checkbox" || pole.type === "radio") {
+      fireEvent.click(pole);
+      continue;
+    }
+    if (pole.type === "number" || pole.type === "range") {
+      fireEvent.change(pole, { target: { value: pole.min === "" ? "1" : pole.min } });
+      fireEvent.change(pole, { target: { value: pole.max === "" ? "7" : pole.max } });
+      continue;
+    }
+    fireEvent.change(pole, { target: { value: probeValue(pole) } });
+  }
+  for (const lista of Array.from(container.querySelectorAll<HTMLSelectElement>("select"))) {
+    if (lista.disabled) continue;
+    for (const opcja of Array.from(lista.options)) {
+      fireEvent.change(lista, { target: { value: opcja.value } });
+    }
+  }
+  for (const przycisk of Array.from(container.querySelectorAll<HTMLButtonElement>("button"))) {
+    if (przycisk.disabled) continue;
+    fireEvent.click(przycisk);
+  }
 }
 
 /**
@@ -1147,6 +1313,24 @@ export function defineBlockEditMatrix(entries: readonly EditorEntry[]): void {
         }
       }
     });
+
+    it.each(entries)(
+      "%s: DRUGI zestaw wartości wyliczeniowych i przełączniki wyłączone",
+      (name, Editor, type) => {
+        // Ten przejazd nie powtarza asercji wyżej - jego przedmiotem są POLA
+        // ZALEŻNE: te, które pojawiają się dopiero przy innym wariancie,
+        // innym układzie albo wyłączonej fladze. Niezmiennik jest ten sam
+        // (poprawny blok na wyjściu), ale przechodzi po innych gałęziach.
+        const start = makeBlock(type, altFor(name));
+        const { container, changes } = renderEditor(Editor, start);
+        assertNoLeak(container, name);
+        driveAllControls(container);
+        for (const [i, next] of changes.entries()) {
+          expect(next.id, `${name}: zapis ${i} zmienił identyfikator bloku`).toBe(start.id);
+          expect(next.type, `${name}: zapis ${i} zmienił typ bloku`).toBe(start.type);
+        }
+      },
+    );
 
     it.each(entries)("%s: co najmniej jedno pole faktycznie zapisuje", (name, Editor, type) => {
       // Edytor, w którym ŻADNE pole nie woła `onChange`, jest atrapą - redaktor

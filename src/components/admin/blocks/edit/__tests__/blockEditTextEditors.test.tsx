@@ -298,4 +298,88 @@ describe("akapit - klawiatura i wklejanie na poziomie samego edytora", () => {
     expect(h.onTransform).not.toHaveBeenCalled();
     expect(h.onInsertAfter).not.toHaveBeenCalled();
   });
+
+  it("wklejenie treści z WordPressa (komentarze `wp:`) daje bloki, nie surowy HTML", () => {
+    // To najczęstsza droga treści do tego panelu: redaktor kopiuje wpis
+    // z WordPressa. Bez tej gałęzi w akapicie wylądowałby tekst ze znacznikami.
+    const { h, pole } = zamontujAkapit(akapit(""));
+    wklej(pole, {
+      html: "<!-- wp:paragraph --><p>Pierwszy</p><!-- /wp:paragraph --><!-- wp:paragraph --><p>Drugi</p><!-- /wp:paragraph -->",
+      plain: "Pierwszy\nDrugi",
+    });
+    expect(h.onTransform).toHaveBeenCalledTimes(1);
+    const bloki = h.onTransform.mock.calls[0][0] as Block[];
+    expect(bloki.length).toBeGreaterThanOrEqual(2);
+    expect(bloki.every((b) => typeof b.type === "string" && b.id)).toBe(true);
+  });
+
+  it("wklejenie treści z WordPressa do akapitu NIEPUSTEGO zachowuje jego treść", () => {
+    // `keepCurrent`: blok, w którym redaktor stoi, nie ma prawa zniknąć razem
+    // z wklejeniem - to byłaby utrata już napisanego tekstu.
+    const { h, pole } = zamontujAkapit(akapit("<p>już napisane</p>"));
+    wklej(pole, {
+      html: "<!-- wp:paragraph --><p>Wklejone</p><!-- /wp:paragraph -->",
+      plain: "Wklejone",
+    });
+    const bloki = h.onTransform.mock.calls[0][0] as Block[];
+    expect(bloki[0].id).toBe("p1");
+    expect(String(bloki[0].data.html)).toContain("już napisane");
+  });
+
+  it("wklejenie PLIKU graficznego ze schowka tworzy blok obrazu", async () => {
+    // Zrzut ekranu wklejony wprost ze schowka - `FileReader` zamienia go na
+    // `data:` URL, a edytor dokłada blok `image` za akapitem.
+    const { h, pole } = zamontujAkapit(akapit(""));
+    const plik = new File([new Uint8Array([1, 2, 3])], "zrzut.png", { type: "image/png" });
+    wklej(pole, { files: [plik] });
+    await vi.waitFor(() => expect(h.onTransform).toHaveBeenCalledTimes(1));
+    const bloki = h.onTransform.mock.calls[0][0] as Block[];
+    expect(bloki.some((b) => b.type === "image")).toBe(true);
+    const obraz = bloki.find((b) => b.type === "image");
+    expect(String(obraz?.data.url)).toMatch(/^data:image\//);
+    // Nazwa pliku staje się tekstem alternatywnym - bez tego obraz wchodzi
+    // do dokumentu bez opisu i psuje dostępność strony.
+    expect(String(obraz?.data.alt).length).toBeGreaterThan(0);
+  });
+});
+
+describe("akapit - strzałki, Ctrl+A i eskalacja zaznaczenia", () => {
+  // Te same gałęzie, co w nagłówku, ale akapit ma dodatkowy warunek: liczy
+  // jeszcze POZYCJĘ W DZIECIACH dokumentu (`inFirstChild`/`inLastChild`),
+  // bo jego treść może mieć wiele akapitów wewnętrznych.
+  it("strzałka w lewo na początku treści przenosi fokus na poprzedni blok", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowLeft" });
+    expect(h.onFocusPrevious).toHaveBeenCalledTimes(1);
+  });
+
+  it("strzałka w prawo na końcu treści (akapit pusty) przenosi fokus dalej", () => {
+    const { h, pole } = zamontujAkapit(akapit(""));
+    fireEvent.keyDown(pole, { key: "ArrowRight" });
+    expect(h.onFocusNext).toHaveBeenCalledTimes(1);
+  });
+
+  it("Shift+strzałka w lewo na krawędzi eskaluje zaznaczenie BLOKOWE w tył", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowLeft", shiftKey: true });
+    expect(h.onExtendBlockSelection).toHaveBeenCalledWith(-1);
+  });
+
+  it("Shift+strzałka w prawo na końcu treści eskaluje zaznaczenie w przód", () => {
+    const { h, pole } = zamontujAkapit(akapit(""));
+    fireEvent.keyDown(pole, { key: "ArrowRight", shiftKey: true });
+    expect(h.onExtendBlockSelection).toHaveBeenCalledWith(1);
+  });
+
+  it("Ctrl+A przy CAŁEJ treści zaznaczonej eskaluje do zaznaczenia dokumentu", () => {
+    const { h, pole } = zamontujAkapit(akapit(""));
+    fireEvent.keyDown(pole, { key: "a", ctrlKey: true });
+    expect(h.onSelectAllBlocks).toHaveBeenCalledTimes(1);
+  });
+
+  it("Ctrl+A przy karetce w treści NIE wychodzi na poziom dokumentu", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa beta</p>"));
+    fireEvent.keyDown(pole, { key: "a", ctrlKey: true });
+    expect(h.onSelectAllBlocks).not.toHaveBeenCalled();
+  });
 });
