@@ -165,7 +165,7 @@ export function AdminMembershipWorkspace() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 font-sans">
       {/* Header + KPI: szybki podgląd stanu katalogu warstw. */}
       <header className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -250,7 +250,7 @@ export function AdminMembershipWorkspace() {
             description={tm("sections.tiersDesc")}
             padded={false}
           >
-            <div className="grid gap-4 p-5 lg:grid-cols-2">
+            <div className="grid gap-4 p-5 xl:grid-cols-2">
               {tiers.map((tier) => {
                 const draft = drafts[tier.id] ?? draftFromTier(tier);
                 return (
