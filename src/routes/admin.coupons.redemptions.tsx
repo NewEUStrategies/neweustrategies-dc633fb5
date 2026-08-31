@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
 import { couponPaidCents, sumCouponTotals } from "@/lib/billing/couponMoney";
+import { Stat } from "@/components/admin/coupons/atoms/Stat";
 
 export const Route = createFileRoute("/admin/coupons/redemptions")({
   component: RedemptionsPage,
@@ -208,16 +209,5 @@ function RedemptionsPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="text-xs uppercase text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      </CardContent>
-    </Card>
   );
 }

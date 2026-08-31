@@ -12,6 +12,7 @@ import { EChart } from "@/components/admin/analytics/EChart";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
+import { Stat } from "@/components/admin/coupons/atoms/Stat";
 
 export const Route = createFileRoute("/admin/coupons/analytics")({
   component: AnalyticsPage,
@@ -180,16 +181,5 @@ function AnalyticsPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="text-xs uppercase text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      </CardContent>
-    </Card>
   );
 }
