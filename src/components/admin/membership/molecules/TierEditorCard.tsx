@@ -157,7 +157,7 @@ export function TierEditorCard({
         <FieldGroupRule label={tm("groups.capabilities")}>
           <TierCapabilitiesPanel
             value={draft.features}
-            onChange={(features) => set({ features })}
+            onChange={(features: string) => set({ features })}
           />
         </FieldGroupRule>
 
