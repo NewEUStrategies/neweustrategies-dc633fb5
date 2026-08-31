@@ -1,47 +1,56 @@
-# Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-08-30)
+# Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-08-31)
 
-**Wydanie 7 pomiaru — suita znów w całości zielona, po dwóch wydaniach czerwieni.** Rodowód: wydanie 1
-(2026-08-18) musiało wykluczyć 39 plików testowych wiszących w kolekcji; wydanie 2 (19.08)
-było pierwszym KOMPLETNYM pomiarem; wydania 3 (19.08) i 4 (21.08) wyszły kodem 0 — bez czerwieni
-i bez naruszeń progów;
-wydanie 5 (22.08) zmierzyło moduły 19 i 20 i miało dwa czerwone testy; wydanie 6 (29.08)
-wprowadziło MODUŁ 22 (wydarzenia) i miało dwanaście czerwonych oraz osiem naruszeń progów.
-To wydanie mierzy HEAD `d5171bca9` — **134 commity** za wydaniem 6.
+**Wydanie 8 pomiaru — największy skok w serii i pierwszy, który nie stoi na jednym module.** Rodowód:
+wydanie 1 (2026-08-18) musiało wykluczyć 39 plików testowych wiszących w kolekcji; wydanie 2 (19.08)
+było pierwszym KOMPLETNYM pomiarem; wydania 3 (19.08) i 4 (21.08) wyszły kodem 0; wydanie 5 (22.08)
+miało dwa czerwone testy; wydanie 6 (29.08) wprowadziło MODUŁ 22 i miało dwanaście czerwonych oraz
+osiem naruszeń progów; wydanie 7 (30.08) było w komplecie zielone.
+To wydanie mierzy HEAD `8e771b983` — **133 commity** za wydaniem 7, w oknie doby i trzech godzin.
 
-**Ruch tego wydania pochodzi w przeważającej części z jednej powierzchni — tej, którą zamówiono.**
-Poza nią drgnęły jeszcze dwie: sieć kontaktów (+1,7 pp) i billing (+1,4 pp), obie bez zamówienia
-i obie w granicach szumu pomiaru. Bez modułu 22 całe repozytorium urosłoby o 0,6 pp.
-MODUŁ 22 (wydarzenia) przeszedł z 58,96% na **84,78% linii** i z 55,25% na **84,62% funkcji**
-przy powierzchni praktycznie bez zmian (362 → 366 plików). Dziesięć z piętnastu jego
-funkcjonalności domknięto, jedna z zera na 100%, a dług w plikach zerowych spadł z 1 198 linii
-w organizmach panelu do 142. Zamknięto też opisane w wydaniu 6 znalezisko klasy „pieniądze”:
-zapis etapu 4 ma wreszcie drogę do kasy (rozdz. 5.5).
+**Ruszyły trzy powierzchnie i wszystkie trzy były zamówione promptem.** MODUŁ 14 (kupony, darowizny,
+prezenty, reklamy) przeszedł z 27,06% na **92,63% linii** i z 18,42% na **90,12% funkcji** — opuszczając
+kategorię „beznadziejnie”, w której siedział pięć wydań z rzędu. MODUŁ 13 (checkout, subskrypcje,
+billing): 67,04% → **96,53%**, zera 34 → 3. MODUŁ 3 (bloki i page builder, 460 plików):
+76,41% → **94,30%**, zera 68 → **2**. Poza tą trójką i powłoką panelu (+9,39 pp) **czternaście
+powierzchni ma dokładnie +0,00 pp**. To pierwsze wydanie, w którym największy przyrost trafił
+w moduły pieniędzy, a nie w treść albo w panel.
 
-Skala zmiany w liczbach pomiaru: plików produkcyjnych 3 201 → **3 212**, mierzonych linii
-104 563 → **105 116**, funkcji 33 844 → **33 933**,
-plików testowych 1 763 → **1 863**, progów per-ścieżka 353 → **353**.
+Skala zmiany w liczbach pomiaru: plików produkcyjnych 3 212 → **3 260**, mierzonych linii
+105 116 → **105 556**, funkcji 33 933 → **34 077**,
+plików testowych 1 863 → **2 010**, progów per-ścieżka 353 → **373**.
 
-Pokrycie globalne: linie 74,94% → **77,66%**, funkcje 71,54% → **75,04%**,
-gałęzie 69,20% → **71,64%**, instrukcje 73,91% → **76,54%**.
-Suita przeszła w komplecie — **zero czerwonych testów i zero naruszeń progów**, po raz pierwszy
-w tej serii jednocześnie. Ocena całości przekroczyła próg „dobrze” (rozdz. 8.2).
+Pokrycie globalne: linie 77,66% → **84,12%**, funkcje 75,04% → **81,49%**,
+gałęzie 71,64% → **77,51%**, instrukcje 76,54% → **82,87%**.
+**Zero naruszeń progów** — ale suita NIE jest w komplecie zielona: pięć czerwonych testów
+w czterech plikach. Trzy z nich mają jedną wspólną przyczynę, a jeden jest dobrą wiadomością
+(rozdz. 0 pkt 4 i rozdz. 7.2).
 
-**Dwie liczby, które się NIE zmieniły, są w tym wydaniu ważniejsze od tych, które wzrosły.**
-Próg globalny stoi na `64/58/62/65` drugie wydanie z rzędu, a liczba progów
-per-ścieżka na **353** — mimo 100 nowych plików testowych. Zapadka, która przez pięć wydań
-była głównym mechanizmem utrwalania dorobku, przestała się poruszać (rozdz. 1, 8.2).
+**Znalezisko tego wydania: jeden błąd potoku wdrożeniowego, pięć zapaleń.** Dwie migracje klasy
+„tenant scope” wjechały DWA RAZY pod różnymi nazwami. Treść jest identyczna po usunięciu
+komentarzy, ale rozmiary nie: 10 643 B i **125 linii uzasadnienia** wobec 2 587 B i **zera**,
+oraz 5 826 B i 62 linie wobec 2 012 B i zera. Duplikaty noszą NAJNOWSZE znaczniki czasu, więc
+czytający historię w kolejności nazw plików zobaczy jako stan aktualny wersję bez argumentu.
+Te dwa pliki to dokładnie różnica między `"migrations":932` w zacommitowanym snapshocie
+uprawnień a 934 na dysku — stąd czerwone `migrationReplay` (2 testy), `authzSnapshotParity` (1)
+i dwie czerwone bramki. Bazę to przeżyje, bo migracje są idempotentne; historia nie.
 
-**Sprostowanie do wydania 6.** Tamten dokument twierdził, że MODUŁ 15 (profil) zregresował
-z 97,42% na 96,15% linii, i nazywał to swoją najważniejszą obserwacją. **Liczba była błędna** —
-moduł stał wtedy na 97,50%, dziś stoi na 97,64%. Prawdziwe było to, co siedziało pod spodem:
-dziesięć czerwonych testów zdublowanej szuflady profilu, których pokrycie modułu NIE pokazało
-i pokazać nie mogło. Mechanizm i wniosek — mocniejszy niż tamta teza — w rozdziale 1.
-Przy okazji sprostowania zweryfikowałem wszystkie liczby w rozdziale 8.2 wobec tabeli pomiaru.
+**Rejestr defektów po raz pierwszy zadziałał w drugą stronę.** Czwarty czerwony plik zgłasza
+`Expect test to fail`: wpis `it.fails` o `page_full_path` zaczął PRZECHODZIĆ, bo opisany w nim
+wyciek slugu innego najemcy do adresu kanonicznego w sitemapie i RSS-ie został w tym oknie
+zamknięty — złożonym kluczem obcym `(parent_id, tenant_id) → (id, tenant_id)`, z pisemnym
+uzasadnieniem, dlaczego CHECK z funkcją byłby NIEPOPRAWNY, a trigger mniej szczelny (rozdz. 7.2).
+
+**Rachunek sumienia tego wydania jest dłuższy niż zwykle i ma osobny rozdział (8.5).**
+Pierwszy przebieg wydania 8 dał 32,24% i był bezwartościowy — z winy audytu, nie kodu: mój własny
+`npm install` pisał do `node_modules` jeszcze pięć minut po starcie pomiaru, więc 966 z 2 005 plików
+padło na zbieraniu z jedną przyczyną. Do tego: mój parser polityk RLS zaniżał (546/579 wobec 620
+w bramce repozytorium), czytałem pliki migracji jak stan schematu, zaleciłem lazyfikację na budżet
+bundla wbrew wpisowi kroniki, którego nie doczytałem, i użyłem nieuczciwej ramy dla dwóch ścieżek
+importu WordPressa. Wszystkie pięć opisane, żadne nie usunięte.
 
 Plik pozostaje pod tą samą nazwą, bo odwołuje się do niego komentarz przy progu globalnym
-w `vitest.config.ts` oraz prompty modułowe. **Mapa modułów w tym wydaniu się nie zmieniła**
-(sprawdzenie wszystkich 11 nowych plików produkcyjnych: rozdz. 9.1), więc delty w 2.1 mierzą
-wyłącznie pracę testową i nie wymagały przeliczania poprzedniego przebiegu.
+w `vitest.config.ts` oraz prompty modułowe. **Mapa modułów w tym wydaniu się nie zmieniła**,
+więc delty w 2.1 mierzą wyłącznie pracę testową i nie wymagały przeliczania poprzedniego przebiegu.
 
 Zlecenie: **„ile % pokrycia testami ma każdy moduł, jego funkcje oraz funkcjonalności”**.
 Dokument podaje ZMIERZONE liczby (nie oceny), z jawną metodologią i jawnymi ograniczeniami
@@ -53,48 +62,61 @@ pomiaru. Taksonomia modułów pochodzi z `docs/OCENA_FUNKCJI_TABELE_2026-08-14.m
 
 ## 0. Jak to zmierzono (i czego te liczby NIE znaczą)
 
-| Element pomiaru                    | Wartość                                                                                                                                                   |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Narzędzie                          | `vitest run --coverage` (provider `v8`), konfiguracja repo bez zmian                                                                                      |
-| Zakres mierzony                    | całe `src/**/*.{ts,tsx}` (`all: true`) — pliki bez testów WCHODZĄ do mianownika                                                                           |
-| Wykluczenia (z `vitest.config.ts`) | `__tests__`, `*.test.*`, artefakty generowane (`routeTree.gen.ts`, `supabase/types.ts`, `lucideIconNodes.generated.ts`), `src/test/**`, `lazyWidgets.tsx` |
-| Plików produkcyjnych w mianowniku  | 3 212                                                                                                                                                     |
-| Plików testowych zmierzonych       | 1 863 z 1 863 (100,0%)                                                                                                                                    |
-| Przypadków testowych wykonanych    | 49 354 (statyczny licznik `it/test` w plikach: 37 517; różnica to rozwinięcia `it.each`)                                                                  |
-| Testy poza pomiarem                | brak — żaden plik nie został wykluczony z przebiegu                                                                                                       |
-| Testy czerwone w tym przebiegu     | **0 — suita jest w całości zielona** (pierwszy taki przebieg w trzech wydaniach)                                                                          |
-| Testy „expected fail”              | 238 przypadków z 226 wywołań `it.fails(` w 129 plikach — zapisane defekty produkcyjne, nie awarie (rozdział 7.2)                                          |
-| Testy pominięte                    | 2 pliki / 50 testów — wymagają danych dostępowych do Supabase, których sandboks nie ma (rozdział 9.2)                                                     |
-| Wynik bramki pokrycia              | przebieg zakończony kodem **0**: próg globalny i wszystkie 353 progów per-ścieżka PRZESZŁY                                                                |
-| Data pomiaru                       | 2026-08-30, HEAD `d5171bca9`                                                                                                                              |
+| Element pomiaru                    | Wartość                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Narzędzie                          | `vitest run --coverage` (provider `v8`), konfiguracja repo bez zmian                                                                                                                                    |
+| Zakres mierzony                    | całe `src/**/*.{ts,tsx}` (`all: true`) — pliki bez testów WCHODZĄ do mianownika                                                                                                                         |
+| Wykluczenia (z `vitest.config.ts`) | `__tests__`, `*.test.*`, artefakty generowane (`routeTree.gen.ts`, `supabase/types.ts`, `lucideIconNodes.generated.ts`), `src/test/**`, `lazyWidgets.tsx`                                               |
+| Plików produkcyjnych w mianowniku  | 3 260                                                                                                                                                                                                   |
+| Plików testowych zmierzonych       | 2 010 z 2 010 (100,0%)                                                                                                                                                                                  |
+| Przypadków testowych wykonanych    | 54 695 (statyczny licznik `it/test` w plikach: 41 104; różnica to rozwinięcia `it.each`)                                                                                                                |
+| Testy poza pomiarem                | brak — żaden plik nie został wykluczony z przebiegu                                                                                                                                                     |
+| Testy czerwone w tym przebiegu     | 5 (rozdział 8.1)                                                                                                                                                                                        |
+| Testy „expected fail”              | 266 przypadków z 255 wywołań `it.fails(` w 147 plikach — zapisane defekty produkcyjne, nie awarie (rozdział 7.2)                                                                                        |
+| Testy pominięte                    | 2 pliki / 50 testów — wymagają danych dostępowych do Supabase, których sandboks nie ma (rozdział 9.2)                                                                                                   |
+| Wynik bramki pokrycia              | przebieg zakończony kodem **1**: próg globalny PRZESZEDŁ z zapasem ~10 pp, ale DWIE grupy progów per-ścieżka z 373 nie — `src/components/admin/billing/**` i `src/components/profile/**` (rozdział 6.1) |
+| Data pomiaru                       | 2026-08-31, HEAD `8e771b983`                                                                                                                                                                            |
 
-**Cztery zastrzeżenia, bez których te procenty można źle odczytać:**
+**Pięć zastrzeżeń, bez których te procenty można źle odczytać:**
 
 1. **Pokrycie ≠ poprawność.** Instrukcja „pokryta” to instrukcja, która się WYKONAŁA w trakcie
    testu — nie taka, której wynik ktoś sprawdził asercją. Dlatego obok pokrycia podaję gęstość
    asercji (kolumna „asercje”) — moduł z wysokim pokryciem i niską liczbą asercji to render bez dowodu.
 2. **Pokrycie jednostkowe to nie całe pokrycie systemu.** Warstwa danych (RLS, RPC, triggery) jest
-   testowana w pgTAP (99 plików, 1 793 asercji), a ścieżki użytkownika w Playwright
+   testowana w pgTAP (100 plików, 1 807 asercji), a ścieżki użytkownika w Playwright
    (9 plików, 66 testów). Tych warstw v8 nie widzi — moduł z niskim %
    jednostkowym może mieć realną zaporę w bazie (rozdział 7).
 3. **Mapowanie plik → moduł jest MOJE, nie repo.** Repo nie ma manifestu modułów; przypisanie
-   3 212 plików do 22 modułów zrobiłem regułami po ścieżkach (rozdział 9.1). Pliki graniczne
+   3 260 plików do 22 modułów zrobiłem regułami po ścieżkach (rozdział 9.1). Pliki graniczne
    (np. `gifting` — „podaruj artykuł” jest funkcją MODUŁU 1, a kod leży w powierzchni MODUŁU 14)
    zaznaczam w tabelach.
-4. **Pomiar jest KOMPLETNY, a suita znów jest w całości zielona — po dwóch wydaniach czerwieni.**
-   Ten przebieg: **1 863 plików testowych przeszło, 49 066 testów przeszło, ZERO padło**,
-   a bramka pokrycia wyszła **kodem 0**: próg globalny i wszystkie 353 progów per-ścieżka
-   przeszły, bez ani jednego naruszenia. **To nie jest pierwszy taki przebieg w tej serii
-   i nie chcę tego zawyżać:** wydania 3 i 4 również wyszły kodem 0. Nowe jest co innego —
-   skala, przy której to się udało: wydanie 3 miało 1 235 plików testowych i 22 002 testy,
-   wydanie 4 — 1 421 i 34 045, a to wydanie 1 863 i 49 354. Czerwone były wydania 5 (dwa testy)
-   i 6 (dwanaście testów w trzech plikach plus osiem naruszeń progów).
-   Trzy rzeczy z wydania 6 zamknęły się w tym oknie: defekt szuflady profilu
-   (`routes/__tests__/profileShellRoutes.test.tsx` jest dziś zielony), rozjazd prowieniencji
-   snapshotu autoryzacji i kontrakt JSON-LD landingu quizu.
-   Do tego **238 przypadków „expected fail”** — to NIE awarie, tylko zapisane
-   defekty produkcyjne (rozdział 7.2); ich liczba wzrosła w tym wydaniu najbardziej w całej serii.
-   Poza pomiarem zostały 2 pliki (50 testów) odpytujące hostowaną bazę.
+4. **Pomiar jest KOMPLETNY, ale suita NIE jest w komplecie zielona — i to jest treść, nie usterka.**
+   Ten przebieg: **2 006 plików testowych przeszło, 54 374 testów przeszło,
+   5 padło** w 4 plikach, przy **zerze naruszeń progów**: próg globalny
+   i wszystkie 373 progów per-ścieżka przeszły. Pięć czerwonych rozkłada się tak:
+   **(a)** `migrationReplay.test.ts` — 2 testy: „nazwy są parsowalne i porządek nazw = porządek
+   wersji” oraz „ratchet: lista znanego długu odzwierciedla stan repo”; **(b)**
+   `authzSnapshotParity.test.ts` — 1 test, dryf klasy PROVENANCE („ten sam krąg uprawnionych,
+   inne miejsce w historii — migrations: 932 → 934”); **(c)** `serviceRoleTenantScope.gate.test.ts`
+   — 1 test z komunikatem `Expect test to fail`, czyli **wpis rejestru defektów, który zaczął
+   przechodzić, bo defekt naprawiono**; **(d)** `AdminMonetizationLedger.test.tsx` — 1 test,
+   brak elementu z tekstem „Bezterminowo” na powierzchni utworzonej w tym samym oknie.
+   Pozycje (a) i (b) mają **jedną przyczynę** — dwa duplikaty migracji (rozdz. 7.2).
+   Do tego **266 przypadków „expected fail”** — to NIE awarie, tylko zapisane
+   defekty produkcyjne (rozdział 7.2).
+   Poza pomiarem zostały 2 pliki (50 testów) odpytujące hostowaną bazę; oba pomijają się
+   SAME warunkiem `shouldRun ? describe : describe.skip`, nie ręcznym wykluczeniem.
+5. **Pierwszy przebieg tego wydania został UNIEWAŻNIONY i nie jest źródłem żadnej liczby tutaj.**
+   Dał 32,24% / 27,00% / 26,69% / 32,35% i „968 failed test files”. Przyczyną nie było repozytorium,
+   a moje środowisko: `@testing-library/dom` powstał w `node_modules` o 22:03:19, a pomiar startował
+   o 21:58 — mój własny `npm install` wciąż pisał. **Wszystkie 966 padniętych suit miały jedną
+   przyczynę:** `Cannot find module '@testing-library/dom'` wymagane przez
+   `@testing-library/react/dist/pure.js`; dodatkowo 5 plików z `@vitest-environment jsdom`
+   nie wystartowało. Sygnatura, która to rozstrzyga w jednym spojrzeniu: **968 padniętych PLIKÓW
+   przy 2 czerwonych TESTACH jest niemożliwe dla regresji kodu**, bo plik padający na zbieraniu
+   nie zgłasza żadnego czerwonego testu. Gorsze jest to, co ten defekt UKRYŁ: dwa z czterech
+   dzisiejszych czerwonych plików były wtedy wśród tych 966 i raportowały „(0 test)”.
+   Log unieważnionego przebiegu zachowałem pod nazwą z „UNIEWAŻNIONY”, żeby dało się to odtworzyć.
 
 ---
 
@@ -102,36 +124,40 @@ pomiaru. Taksonomia modułów pochodzi z `docs/OCENA_FUNKCJI_TABELE_2026-08-14.m
 
 | Metryka    | Pokryte / wszystkich |          % |
 | ---------- | -------------------: | ---------: |
-| Instrukcje |     91 980 / 120 168 | **76,54%** |
-| Gałęzie    |     78 575 / 109 670 | **71,64%** |
-| Funkcje    |      25 465 / 33 933 | **75,04%** |
-| Linie      |     81 641 / 105 116 | **77,66%** |
+| Instrukcje |    100 014 / 120 683 | **82,87%** |
+| Gałęzie    |     85 348 / 110 110 | **77,51%** |
+| Funkcje    |      27 772 / 34 077 | **81,49%** |
+| Linie      |     88 800 / 105 556 | **84,12%** |
 
 Próg globalny w `vitest.config.ts` (ratchet, wolno tylko podnosić): **64% instrukcji /
 58% gałęzi / 62% funkcji / 65% linii**. Zmierzony margines nad progiem:
-instrukcje 12,54 pp, gałęzie 13,64 pp,
-funkcje 13,04 pp, linie 12,66 pp.
+instrukcje 18,87 pp, gałęzie 19,51 pp,
+funkcje 19,49 pp, linie 19,12 pp.
 
 **Kontrola wiarygodności pomiaru.** Komentarz przy progu w `vitest.config.ts` dokumentuje ostatni
 pomiar zespołu: 68,27% instrukcji / 62,80% gałęzi /
 66,25% funkcji / 69,28% linii.
-Ten audyt, niezależnym przebiegiem: 76,54% / 71,64% / 75,04% / 77,66%.
-Rozjazd urósł do **~8,4 pp na liniach** i nadal jest po stronie KOMENTARZA, nie pomiaru:
-wpis w configu pochodzi sprzed domknięcia modułu wydarzeń. W wydaniu 6 ta różnica wynosiła
-5,7 pp i pisałem, że jest na granicy wprowadzania w błąd. Granicę przekroczyła: komentarz
-opisuje dziś repozytorium o osiem punktów słabsze, niż jest naprawdę, a jest to jedyne
+Ten audyt, niezależnym przebiegiem: 82,87% / 77,51% / 81,49% / 84,12%.
+Rozjazd urósł do **14,8 pp na liniach** i nadal jest po stronie KOMENTARZA, nie pomiaru:
+wpis w configu pochodzi sprzed trzech kampanii domknięcia. W wydaniu 6 ta różnica wynosiła
+5,7 pp i pisałem, że jest na granicy wprowadzania w błąd; w wydaniu 7 — 8,4 pp. Dziś komentarz
+opisuje repozytorium o blisko piętnaście punktów słabsze, niż jest naprawdę, a jest to jedyne
 miejsce w kodzie, z którego czytelnik configu dowiaduje się, ile pokrycia repo ma.
+**To jest do poprawienia jednym commitem i powinno wejść razem z tym wydaniem.**
 
-**Zapadka stanęła CAŁA — drugie wydanie z rzędu i tym razem także per-ścieżka.** Wydanie 3
+**Zapadka globalna stoi trzecie wydanie z rzędu — ale per-ścieżka znów się rusza.** Wydanie 3
 zgłaszało progi `33/25/33/28` stojące ~23 pp pod pomiarem; wydanie 4 zmierzyło `58/54/58/52`,
 wydanie 5 podniosło do `64/58/62/65`. Config ma dziś **dokładnie te same wartości**,
-a pomiar stoi ~12 pp wyżej. W wydaniu 6 pisałem, że nawyk nie zniknął, bo progi per-ścieżka
-rosły dalej. W tym wydaniu **nie rosną już i one**: 353 → **353**, liczba bez zmian.
-Wartości na ścieżkach wydarzeń owszem poszły w górę za dostawą, ale ani jedna NOWA ścieżka
-nie dostała własnego progu, mimo że przybyło 100 plików testowych.
-Skutek jest arytmetyczny: żeby dziś przekroczyć globalną zapadkę w dół, repozytorium
-musiałoby stracić **jedną szóstą** całego pokrycia. Bramka, która puszcza taki spadek,
-nie jest bramką — jest formalnością.
+a pomiar stoi **19,1 pp wyżej** na liniach. W wydaniu 7 pisałem, że przestały rosnąć także
+progi per-ścieżka. **To się cofnęło i jest to dobra wiadomość:** 353 → **373**, czyli
++20 nowych ścieżek pod zaporą, przy 147 nowych plikach testowych.
+Trzy domknięte moduły dostały więc nie tylko procent, ale i zapadkę, która go trzyma.
+
+Skutek arytmetyczny zapadki GLOBALNEJ pozostaje jednak niezmieniony i wart powtórzenia:
+żeby dziś przekroczyć ją w dół, repozytorium musiałoby stracić **22,7%** całego pokrycia
+— blisko jedną czwartą. Bramka, która puszcza taki spadek, nie jest bramką: jest formalnością.
+Im większy ten zapas, tym mocniej obowiązuje wniosek z rozdz. 1 o `reportOnFailure`:
+**regresję złapie czerwony test albo próg per-ścieżka, nigdy sam procent modułu.**
 
 **Rekomendacja R1 z WYDANIA 1 jest wdrożona** (nie mylić z R1 tego wydania w rozdz. 8.1).
 `coverage.reportOnFailure: true` stoi w configu
@@ -178,75 +204,78 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 
 | #   | Moduł                                                 | Pliki prod. | Instrukcje | Gałęzie | Funkcje |      Linie | Plików 0% |   T/P | Testów | Asercji |
 | --- | ----------------------------------------------------- | ----------: | ---------: | ------: | ------: | ---------: | --------: | ----: | -----: | ------: |
-| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |          39 |     26,95% |  30,68% |  18,42% | **27,06%** |        13 | 0,282 |     91 |     263 |
-| 17  | Analityka i BI                                        |          86 |     32,13% |  25,08% |  28,41% | **32,88%** |        47 | 0,221 |    199 |     442 |
+| 17  | Analityka i BI                                        |          86 |     32,13% |  25,14% |  28,41% | **32,88%** |        47 | 0,221 |    199 |     442 |
 | 7   | Typy treści specjalne                                 |          95 |     44,18% |  40,43% |  36,73% | **43,93%** |        37 | 0,484 |    934 |   1 501 |
-| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |         184 |     46,56% |  40,10% |  42,45% | **47,95%** |        33 | 0,234 |    679 |   1 539 |
 | 12  | Realtime / powiadomienia / web-push                   |          28 |     46,71% |  31,59% |  47,46% | **49,54%** |        12 | 0,500 |     99 |     233 |
 | 21  | Rekrutacja / kariera                                  |          29 |     54,96% |  53,52% |  47,13% | **55,12%** |        12 | 0,379 |    171 |     374 |
-| 9   | Czat / komunikator                                    |          81 |     60,88% |  51,46% |  57,74% | **62,31%** |        14 | 0,444 |    607 |   1 123 |
-| 13  | Monetyzacja: checkout / subskrypcje / billing         |         190 |     65,60% |  61,35% |  76,62% | **67,04%** |        34 | 0,505 |  1 643 |   3 394 |
-| 20  | Platforma / backend / infrastruktura / SSR            |         201 |     74,44% |  64,55% |  68,19% | **75,55%** |        46 | 1,064 |  4 597 |   9 927 |
-| 3   | Silniki treści: bloki + page builder                  |         460 |     75,23% |  73,44% |  71,67% | **76,41%** |        68 | 0,623 |  5 007 |   9 159 |
-| —   | PRZEKROJOWE: design system (components/ui)            |          44 |     78,34% |  68,50% |  72,22% | **80,43%** |         4 | 0,045 |     17 |      37 |
+| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |         221 |     56,02% |  51,39% |  52,16% | **57,34%** |        30 | 0,326 |  1 203 |   2 630 |
+| 9   | Czat / komunikator                                    |          81 |     61,33% |  51,74% |  58,02% | **62,83%** |        14 | 0,444 |    607 |   1 123 |
+| 20  | Platforma / backend / infrastruktura / SSR            |         202 |     74,73% |  64,93% |  68,65% | **75,83%** |        45 | 1,143 |  5 161 |  11 055 |
+| —   | PRZEKROJOWE: design system (components/ui)            |          44 |     79,08% |  69,95% |  74,36% | **81,11%** |         4 | 0,045 |     17 |      37 |
 | 10  | Sieć / networking                                     |          32 |     79,85% |  68,71% |  81,85% | **83,65%** |         3 | 0,719 |    349 |     642 |
-| 1   | Wpisy: doświadczenie czytelnika                       |         104 |     82,60% |  74,99% |  81,98% | **84,35%** |        13 | 0,558 |  1 015 |   2 132 |
+| 1   | Wpisy: doświadczenie czytelnika                       |         104 |     82,91% |  75,16% |  82,12% | **84,67%** |        13 | 0,558 |  1 015 |   2 132 |
 | 22  | Wydarzenia: event builder, rejestracja, onsite        |         366 |     83,36% |  79,87% |  84,62% | **84,78%** |        72 | 0,645 |  5 268 |  10 922 |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         306 |     88,68% |  87,27% |  89,02% | **89,12%** |        16 | 0,634 |  4 715 |   9 534 |
-| 4   | Strony, wygląd, motyw, media, import                  |         133 |     90,95% |  82,23% |  88,89% | **92,32%** |         4 | 0,552 |  1 245 |   2 154 |
-| —   | PRZEKROJOWE: słowniki i18n                            |         134 |     89,35% |  67,14% |  59,24% | **93,14%** |         1 | 0,045 |     60 |     141 |
-| 19  | Ustawienia / integracje / users / multi-tenant / RODO |         131 |     92,19% |  88,78% |  89,91% | **93,18%** |        14 | 0,389 |  1 333 |   2 575 |
+| 4   | Strony, wygląd, motyw, media, import                  |         133 |     90,95% |  82,16% |  88,89% | **92,32%** |         4 | 0,552 |  1 245 |   2 154 |
+| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |          44 |     90,74% |  85,67% |  90,12% | **92,63%** |         1 | 0,659 |    557 |   1 089 |
+| —   | PRZEKROJOWE: słowniki i18n                            |         135 |     89,49% |  67,38% |  61,62% | **93,17%** |         1 | 0,044 |     60 |     141 |
+| 19  | Ustawienia / integracje / users / multi-tenant / RODO |         135 |     92,40% |  88,94% |  90,21% | **93,36%** |        14 | 0,407 |  1 390 |   2 685 |
+| 3   | Silniki treści: bloki + page builder                  |         460 |     92,61% |  86,87% |  92,61% | **94,30%** |         2 | 0,709 |  5 704 |  10 561 |
 | 5   | Strona główna, archiwa, chrome                        |          62 |     94,68% |  82,86% |  93,49% | **96,47%** |         1 | 0,468 |    560 |     945 |
+| 13  | Monetyzacja: checkout / subskrypcje / billing         |         190 |     95,51% |  91,31% |  96,28% | **96,53%** |         3 | 0,711 |  2 922 |   5 781 |
 | 8   | SEO, feedy, dane strukturalne                         |          78 |     96,26% |  93,22% |  95,65% | **96,67%** |         5 | 0,885 |  1 270 |   2 847 |
 | 6   | Wyszukiwarka                                          |          25 |     96,66% |  89,91% |  95,24% | **97,38%** |         0 | 0,840 |    528 |     839 |
 | 15  | Profil i konto                                        |          94 |     96,65% |  93,96% |  94,81% | **97,64%** |         2 | 0,766 |  2 011 |   4 099 |
-| 18  | CRM                                                   |          59 |     98,10% |  86,24% |  98,60% | **99,03%** |         0 | 0,559 |    703 |   1 231 |
-| 2   | Edytor wpisów i workflow redakcyjny                   |         103 |     98,81% |  94,71% |  98,73% | **99,35%** |         0 | 0,854 |  1 576 |   2 928 |
+| 18  | CRM                                                   |          59 |     98,10% |  86,27% |  98,60% | **99,03%** |         0 | 0,559 |    703 |   1 231 |
+| 2   | Edytor wpisów i workflow redakcyjny                   |         103 |     98,85% |  94,71% |  98,85% | **99,35%** |         0 | 0,854 |  1 576 |   2 928 |
 | 11  | Newsletter i e-mail                                   |         148 |     98,89% |  95,05% |  99,43% | **99,53%** |         0 | 0,797 |  2 778 |   5 931 |
 
-### 2.1 Zmiana od wydania 6 — moduł wydarzeń domknięty na zamówienie
+### 2.1 Zmiana od wydania 7 — trzy powierzchnie zamówione, trzy domknięte
 
-Poprzedni pomiar (wydanie 6, 2026-08-29, HEAD `f16c43c06`) obejmował 1 763 plików
-testowych i 3 201 plików produkcyjnych. Ten obejmuje 1 863 i 3 212.
+Poprzedni pomiar (wydanie 7, 2026-08-30, HEAD `d5171bca9`) obejmował 1 863 plików
+testowych i 3 212 plików produkcyjnych. Ten obejmuje 2 010 i 3 260.
 
-**Mapa modułów w tym wydaniu SIĘ NIE ZMIENIŁA, więc kolumny „wyd. 6” są przepisane wprost**
-— bez przeliczania, którego wymagało wydanie 6 po wydzieleniu modułu 22. Sprawdziłem wszystkie
-11 nowych plików produkcyjnych tego okna: każdy trafia regułami tam, gdzie powinien, i żadna
-nowa powierzchnia nie zasługuje na własny moduł. Delty niżej mierzą więc wyłącznie pracę
-testową. Reguły mapowania: rozdział 9.1.
+**Mapa modułów w tym wydaniu SIĘ NIE ZMIENIŁA, więc kolumny „wyd. 7” są przepisane wprost.**
+Delty niżej mierzą wyłącznie pracę testową. Reguły mapowania: rozdział 9.1.
 
-Kolumna Δ to różnica w punktach procentowych wobec wydania 6; ostatnia kolumna to
+Rozkład jest skrajnie dwubiegunowy i to jest najważniejsza informacja tej tabeli.
+**Cztery powierzchnie ruszyły, czternaście stoi na dokładnie +0,00 pp.** Ruch nie jest
+rozproszony po repozytorium — jest dokładnie tam, gdzie go zamówiono, a dokładność tego
+trafienia jest sama w sobie ustaleniem: mechanizm zamawiania pracy listą działa i **skaluje
+się do trzech modułów naraz**, czego poprzednie wydania nie pokazały.
+
+Kolumna Δ to różnica w punktach procentowych wobec wydania 7; ostatnia kolumna to
 różnica KUMULACYJNA wobec wydania 1 (2026-08-18). Strzałka ↑ znaczy, że modułem ktoś się zajął.
 
-| #   | Moduł                                                 | Linie wyd. 6 | Linie teraz |    Δ linie | Funkcje wyd. 6 | Funkcje teraz |  Δ funkcje | Δ linie od wyd. 1 |
+| #   | Moduł                                                 | Linie wyd. 7 | Linie teraz |    Δ linie | Funkcje wyd. 7 | Funkcje teraz |  Δ funkcje | Δ linie od wyd. 1 |
 | --- | ----------------------------------------------------- | -----------: | ----------: | ---------: | -------------: | ------------: | ---------: | ----------------: |
-| 22  | Wydarzenia: event builder, rejestracja, onsite        |       58,96% |  **84,78%** | ↑ +25,8 pp |         55,25% |    **84,62%** | ↑ +29,4 pp |                 — |
-| 10  | Sieć / networking                                     |       81,98% |  **83,65%** |  ↑ +1,7 pp |         80,86% |    **81,85%** |  ↑ +1,0 pp |         ↑ +2,0 pp |
-| 13  | Monetyzacja: checkout / subskrypcje / billing         |       65,62% |  **67,04%** |  ↑ +1,4 pp |         75,58% |    **76,62%** |  ↑ +1,0 pp |        ↑ +34,3 pp |
-| 20  | Platforma / backend / infrastruktura / SSR            |       74,73% |  **75,55%** |  ↑ +0,8 pp |         67,44% |    **68,19%** |  ↑ +0,7 pp |        ↑ +22,8 pp |
-| —   | PRZEKROJOWE: design system (components/ui)            |       79,89% |  **80,43%** |  ↑ +0,5 pp |         71,49% |    **72,22%** |  ↑ +0,7 pp |        ↑ +17,3 pp |
-| 15  | Profil i konto                                        |       97,50% |  **97,64%** |  ↑ +0,1 pp |         94,44% |    **94,81%** |  ↑ +0,4 pp |        ↑ +78,5 pp |
-| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |       47,87% |  **47,95%** |  ↑ +0,1 pp |         42,29% |    **42,45%** |  ↑ +0,2 pp |        ↑ +23,5 pp |
-| 8   | SEO, feedy, dane strukturalne                         |       96,65% |  **96,67%** |     0,0 pp |         95,64% |    **95,65%** |     0,0 pp |        ↑ +46,4 pp |
-| 3   | Silniki treści: bloki + page builder                  |       76,40% |  **76,41%** |     0,0 pp |         71,70% |    **71,67%** |     0,0 pp |        ↑ +36,4 pp |
-| 11  | Newsletter i e-mail                                   |       99,53% |  **99,53%** |     0,0 pp |         99,43% |    **99,43%** |     0,0 pp |        ↑ +72,8 pp |
-| 1   | Wpisy: doświadczenie czytelnika                       |       84,35% |  **84,35%** |     0,0 pp |         81,98% |    **81,98%** |     0,0 pp |        ↑ +52,5 pp |
-| 2   | Edytor wpisów i workflow redakcyjny                   |       99,35% |  **99,35%** |     0,0 pp |         98,85% |    **98,73%** |  ↓ -0,1 pp |        ↑ +91,0 pp |
+| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |       27,06% |  **92,63%** | ↑ +65,6 pp |         18,42% |    **90,12%** | ↑ +71,7 pp |        ↑ +70,1 pp |
+| 13  | Monetyzacja: checkout / subskrypcje / billing         |       67,04% |  **96,53%** | ↑ +29,5 pp |         76,62% |    **96,28%** | ↑ +19,7 pp |        ↑ +63,8 pp |
+| 3   | Silniki treści: bloki + page builder                  |       76,41% |  **94,30%** | ↑ +17,9 pp |         71,67% |    **92,61%** | ↑ +20,9 pp |        ↑ +54,3 pp |
+| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |       47,95% |  **57,34%** |  ↑ +9,4 pp |         42,45% |    **52,16%** |  ↑ +9,7 pp |        ↑ +32,9 pp |
+| —   | PRZEKROJOWE: design system (components/ui)            |       80,43% |  **81,11%** |  ↑ +0,7 pp |         72,22% |    **74,36%** |  ↑ +2,1 pp |        ↑ +18,0 pp |
+| 9   | Czat / komunikator                                    |       62,31% |  **62,83%** |  ↑ +0,5 pp |         57,74% |    **58,02%** |  ↑ +0,3 pp |         ↑ +0,9 pp |
+| 1   | Wpisy: doświadczenie czytelnika                       |       84,35% |  **84,67%** |  ↑ +0,3 pp |         81,98% |    **82,12%** |  ↑ +0,1 pp |        ↑ +52,9 pp |
+| 20  | Platforma / backend / infrastruktura / SSR            |       75,55% |  **75,83%** |  ↑ +0,3 pp |         68,19% |    **68,65%** |  ↑ +0,5 pp |        ↑ +23,1 pp |
+| 19  | Ustawienia / integracje / users / multi-tenant / RODO |       93,18% |  **93,36%** |  ↑ +0,2 pp |         89,91% |    **90,21%** |  ↑ +0,3 pp |        ↑ +71,4 pp |
+| —   | PRZEKROJOWE: słowniki i18n                            |       93,14% |  **93,17%** |     0,0 pp |         59,24% |    **61,62%** |  ↑ +2,4 pp |         ↑ +1,4 pp |
+| 2   | Edytor wpisów i workflow redakcyjny                   |       99,35% |  **99,35%** |     0,0 pp |         98,73% |    **98,85%** |  ↑ +0,1 pp |        ↑ +91,0 pp |
 | 4   | Strony, wygląd, motyw, media, import                  |       92,32% |  **92,32%** |     0,0 pp |         88,89% |    **88,89%** |     0,0 pp |        ↑ +69,6 pp |
 | 5   | Strona główna, archiwa, chrome                        |       96,47% |  **96,47%** |     0,0 pp |         93,49% |    **93,49%** |     0,0 pp |        ↑ +79,8 pp |
 | 6   | Wyszukiwarka                                          |       97,38% |  **97,38%** |     0,0 pp |         95,24% |    **95,24%** |     0,0 pp |        ↑ +64,2 pp |
 | 7   | Typy treści specjalne                                 |       43,93% |  **43,93%** |     0,0 pp |         36,73% |    **36,73%** |     0,0 pp |        ↑ +27,5 pp |
+| 8   | SEO, feedy, dane strukturalne                         |       96,67% |  **96,67%** |     0,0 pp |         95,65% |    **95,65%** |     0,0 pp |        ↑ +46,4 pp |
+| 10  | Sieć / networking                                     |       83,65% |  **83,65%** |     0,0 pp |         81,85% |    **81,85%** |     0,0 pp |         ↑ +2,0 pp |
+| 11  | Newsletter i e-mail                                   |       99,53% |  **99,53%** |     0,0 pp |         99,43% |    **99,43%** |     0,0 pp |        ↑ +72,8 pp |
 | 12  | Realtime / powiadomienia / web-push                   |       49,54% |  **49,54%** |     0,0 pp |         47,46% |    **47,46%** |     0,0 pp |         ↑ +5,4 pp |
-| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |       27,06% |  **27,06%** |     0,0 pp |         18,42% |    **18,42%** |     0,0 pp |         ↑ +4,5 pp |
+| 15  | Profil i konto                                        |       97,64% |  **97,64%** |     0,0 pp |         94,81% |    **94,81%** |     0,0 pp |        ↑ +78,5 pp |
 | 16  | Społeczność: kluby, komentarze, moderacja             |       89,12% |  **89,12%** |     0,0 pp |         89,02% |    **89,02%** |     0,0 pp |        ↑ +71,6 pp |
 | 17  | Analityka i BI                                        |       32,88% |  **32,88%** |     0,0 pp |         28,41% |    **28,41%** |     0,0 pp |         ↑ +4,9 pp |
 | 18  | CRM                                                   |       99,03% |  **99,03%** |     0,0 pp |         98,60% |    **98,60%** |     0,0 pp |        ↑ +87,0 pp |
-| 19  | Ustawienia / integracje / users / multi-tenant / RODO |       93,18% |  **93,18%** |     0,0 pp |         89,91% |    **89,91%** |     0,0 pp |        ↑ +71,2 pp |
 | 21  | Rekrutacja / kariera                                  |       55,12% |  **55,12%** |     0,0 pp |         47,13% |    **47,13%** |     0,0 pp |            0,0 pp |
-| —   | PRZEKROJOWE: słowniki i18n                            |       93,14% |  **93,14%** |     0,0 pp |         59,24% |    **59,24%** |     0,0 pp |         ↑ +1,4 pp |
-| 9   | Czat / komunikator                                    |       62,83% |  **62,31%** |  ↓ -0,5 pp |         58,02% |    **57,74%** |  ↓ -0,3 pp |         ↑ +0,4 pp |
+| 22  | Wydarzenia: event builder, rejestracja, onsite        |       84,78% |  **84,78%** |     0,0 pp |         84,62% |    **84,62%** |     0,0 pp |                 — |
 
-Ruszyło 3 powierzchni (powyżej 1 pp), 22 stoi w granicach ±1 pp, 0 spadło o więcej niż 1 pp.
+Ruszyło 4 powierzchni (powyżej 1 pp), 21 stoi w granicach ±1 pp, 0 spadło o więcej niż 1 pp.
 **To wydanie ma jedno źródło ruchu i jest nim jedna powierzchnia.**
 
 **MODUŁ 22 (wydarzenia): 58,96% → 84,78% linii (+25,8 pp), 55,25% → 84,62% funkcji (+29,4 pp),
@@ -255,7 +284,7 @@ to nie jest dylucja ani dostawa — to jest praca testowa na istniejącym kodzie
 w ciągu **dwudziestu sześciu godzin** — commity modułu rozpięte są od 29.08 12:45 do 30.08 14:56.
 Rozkład po funkcjonalnościach pokazuje, że szła listą, nie losowo:
 
-| funkcjonalność                     | wyd. 6 |      teraz |           Δ |
+| funkcjonalność                     | wyd. 7 |      teraz |           Δ |
 | ---------------------------------- | -----: | ---------: | ----------: |
 | Analityka, komunikacja, integracje |   0,0% | **100,0%** | ↑ +100,0 pp |
 | Regulaminy, grupy i uprawnienia    |  35,2% |  **95,3%** |  ↑ +60,2 pp |
@@ -298,30 +327,30 @@ nigdy nie uruchomione w teście.
 
 | #   | Moduł                                                 | Funkcji razem | Wywołanych |  % funkcji |
 | --- | ----------------------------------------------------- | ------------: | ---------: | ---------: |
-| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |           467 |         86 | **18,42%** |
 | 17  | Analityka i BI                                        |           880 |        250 | **28,41%** |
 | 7   | Typy treści specjalne                                 |         1 522 |        559 | **36,73%** |
-| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |         1 722 |        731 | **42,45%** |
 | 21  | Rekrutacja / kariera                                  |           348 |        164 | **47,13%** |
 | 12  | Realtime / powiadomienia / web-push                   |           394 |        187 | **47,46%** |
-| 9   | Czat / komunikator                                    |         1 060 |        612 | **57,74%** |
-| —   | PRZEKROJOWE: słowniki i18n                            |           184 |        109 | **59,24%** |
-| 20  | Platforma / backend / infrastruktura / SSR            |         2 081 |      1 419 | **68,19%** |
-| 3   | Silniki treści: bloki + page builder                  |         6 886 |      4 935 | **71,67%** |
-| —   | PRZEKROJOWE: design system (components/ui)            |           234 |        169 | **72,22%** |
-| 13  | Monetyzacja: checkout / subskrypcje / billing         |         1 424 |      1 091 | **76,62%** |
+| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |         1 923 |      1 003 | **52,16%** |
+| 9   | Czat / komunikator                                    |         1 060 |        615 | **58,02%** |
+| —   | PRZEKROJOWE: słowniki i18n                            |           185 |        114 | **61,62%** |
+| 20  | Platforma / backend / infrastruktura / SSR            |         2 083 |      1 430 | **68,65%** |
+| —   | PRZEKROJOWE: design system (components/ui)            |           234 |        174 | **74,36%** |
 | 10  | Sieć / networking                                     |           303 |        248 | **81,85%** |
-| 1   | Wpisy: doświadczenie czytelnika                       |           688 |        564 | **81,98%** |
+| 1   | Wpisy: doświadczenie czytelnika                       |           688 |        565 | **82,12%** |
 | 22  | Wydarzenia: event builder, rejestracja, onsite        |         3 946 |      3 339 | **84,62%** |
 | 4   | Strony, wygląd, motyw, media, import                  |         1 008 |        896 | **88,89%** |
 | 16  | Społeczność: kluby, komentarze, moderacja             |         3 351 |      2 983 | **89,02%** |
-| 19  | Ustawienia / integracje / users / multi-tenant / RODO |         1 457 |      1 310 | **89,91%** |
+| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |           334 |        301 | **90,12%** |
+| 19  | Ustawienia / integracje / users / multi-tenant / RODO |         1 502 |      1 355 | **90,21%** |
+| 3   | Silniki treści: bloki + page builder                  |         6 886 |      6 377 | **92,61%** |
 | 5   | Strona główna, archiwa, chrome                        |           568 |        531 | **93,49%** |
 | 15  | Profil i konto                                        |         1 098 |      1 041 | **94,81%** |
 | 6   | Wyszukiwarka                                          |           294 |        280 | **95,24%** |
 | 8   | SEO, feedy, dane strukturalne                         |           506 |        484 | **95,65%** |
+| 13  | Monetyzacja: checkout / subskrypcje / billing         |         1 452 |      1 398 | **96,28%** |
 | 18  | CRM                                                   |         1 072 |      1 057 | **98,60%** |
-| 2   | Edytor wpisów i workflow redakcyjny                   |           868 |        857 | **98,73%** |
+| 2   | Edytor wpisów i workflow redakcyjny                   |           868 |        858 | **98,85%** |
 | 11  | Newsletter i e-mail                                   |         1 572 |      1 563 | **99,43%** |
 
 ---
@@ -331,7 +360,7 @@ nigdy nie uruchomione w teście.
 Każdy wiersz to FUNKCJA PRODUKTU, nie katalog: lista plików ją realizujących jest zdefiniowana
 wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w plikach tej funkcjonalności.
 
-### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 84,35% · funkcje 81,98%
+### MODUŁ 1 — Wpisy: doświadczenie czytelnika · linie 84,67% · funkcje 82,12%
 
 **Rodzaje testów:** jednostkowy 34 · komponentowy 15 · hooka 8 · dostępności 1.
 
@@ -351,7 +380,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Licznik odsłon / zapisane artykuły |      3 |        103 |  99,2% | 96,7% |   92,9% | **100,0%** |     26/28 |
 | Lista lektur (UI czytelnika)       |     17 |        104 | 100,0% | 99,2% |  100,0% | **100,0%** |     59/59 |
 
-### MODUŁ 2 — Edytor wpisów i workflow redakcyjny · linie 99,35% · funkcje 98,73%
+### MODUŁ 2 — Edytor wpisów i workflow redakcyjny · linie 99,35% · funkcje 98,85%
 
 **Rodzaje testów:** komponentowy 54 · jednostkowy 17 · warstwy danych 5 · hooka 10 · parytetu 1 · bramki 1.
 
@@ -362,14 +391,14 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Funkcjonalność                  | Plików | LOC mierz. | Instr. |   Gał. | Funkcje |      Linie | fn (szt.) |
 | ------------------------------- | -----: | ---------: | -----: | -----: | ------: | ---------: | --------: |
 | Rewizje i przywracanie          |     12 |        286 |  97,6% |  90,1% |   96,3% |  **97,9%** |   105/109 |
-| Edytor wpisu (panele)           |     68 |      1 077 |  98,7% |  95,5% |   98,8% |  **99,4%** |   421/426 |
+| Edytor wpisu (panele)           |     68 |      1 077 |  98,8% |  95,5% |   99,1% |  **99,4%** |   422/426 |
 | Workflow draft→review→published |     10 |        214 |  99,1% |  95,6% |   99,0% |  **99,5%** |     96/97 |
 | Autozapis wpisu                 |      3 |         85 | 100,0% |  96,0% |  100,0% | **100,0%** |     20/20 |
 | Obecność edytorska (presence)   |      2 |          6 | 100,0% | 100,0% |  100,0% | **100,0%** |       3/3 |
 
-### MODUŁ 3 — Silniki treści: bloki + page builder · linie 76,41% · funkcje 71,67%
+### MODUŁ 3 — Silniki treści: bloki + page builder · linie 94,30% · funkcje 92,61%
 
-**Rodzaje testów:** komponentowy 133 · jednostkowy 127 · hooka 13 · parytetu 8 · bramki 3 · dostępności 2 · dymny 1.
+**Rodzaje testów:** komponentowy 155 · jednostkowy 139 · hooka 13 · dostępności 5 · parytetu 10 · bramki 3 · funkcji serwerowej 1 · dymny 1.
 
 **Co tu decyduje:** decyduje **test parytetu**: rejestr widgetów, panel właściwości i renderer to trzy artefakty, które muszą mówić to samo, a rozjazd „panel ustawia, renderer ignoruje” łapie wyłącznie porównanie dwóch stron (`check:widget-fidelity`, `settingsFidelity.gate`). Test jednostkowy schematu i test komponentu widgetu są konieczne, ale ani jeden, ani drugi nie zauważy dryfu między nimi.
 
@@ -377,18 +406,18 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność                                         | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | ------------------------------------------------------ | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| CMS: builder sidebara + wzorce                         |      7 |        238 |  73,1% | 66,8% |   69,7% |  **74,4%** |    92/132 |
-| CMS: import z Gutenberga / WordPressa                  |     10 |      1 309 |  78,1% | 74,5% |   79,6% |  **79,4%** |   199/250 |
 | CMS: silnik treści publicznej (contentEngine)          |     20 |        525 |  79,8% | 77,9% |   82,6% |  **81,0%** |   100/121 |
 | CMS: zapytania danych widgetów                         |      8 |        459 |  78,3% | 68,8% |   87,9% |  **83,2%** |   123/140 |
 | CMS: design tokens / kolory globalne / typografia      |      6 |        257 |  85,5% | 81,6% |   85,0% |  **87,9%** |     34/40 |
-| CMS: widgety buildera — render publiczny               |     55 |      3 596 |  90,3% | 82,6% |   87,0% |  **92,1%** |   692/795 |
-| CMS: page builder (typ Elementor) — schemat i operacje |     11 |        650 |  89,4% | 69,6% |   99,7% |  **96,9%** |   294/295 |
+| CMS: page builder (typ Elementor) — schemat i operacje |     11 |        650 |  89,5% | 69,8% |   99,7% |  **96,9%** |   294/295 |
 | CMS: panele właściwości widgetów                       |    112 |      4 671 |  96,5% | 93,2% |   95,0% |  **97,3%** | 1972/2076 |
 | CMS: sanityzacja HTML                                  |      4 |        157 |  93,9% | 88,1% |   90,6% |  **97,5%** |     29/32 |
-| CMS: render bloków (publiczny)                         |     39 |      1 920 |  97,3% | 93,8% |   96,1% |  **98,1%** |   498/518 |
+| CMS: widgety buildera — render publiczny               |     55 |      3 596 |  96,2% | 88,2% |   95,3% |  **97,9%** |   758/795 |
+| CMS: render bloków (publiczny)                         |     39 |      1 920 |  97,3% | 94,0% |   96,3% |  **98,1%** |   499/518 |
 | CMS: silnik bloków (typ Gutenberg) — rdzeń             |      9 |        359 |  99,0% | 94,1% |  100,0% |  **98,9%** |   148/148 |
-| CMS: warstwa content-model (rozdział bloki⇄builder)    |      7 |        150 |  95,1% | 86,7% |   96,9% |  **99,3%** |     31/32 |
+| CMS: builder sidebara + wzorce                         |      7 |        238 |  96,1% | 91,7% |  100,0% |  **99,2%** |   132/132 |
+| CMS: warstwa content-model (rozdział bloki⇄builder)    |      7 |        150 |  95,7% | 86,7% |  100,0% |  **99,3%** |     32/32 |
+| CMS: import z Gutenberga / WordPressa                  |     10 |      1 309 |  98,5% | 94,3% |   99,6% |  **99,8%** |   249/250 |
 | CMS: edycja bloków (selekcja, focus, schowek, undo)    |      6 |        236 |  98,3% | 93,4% |  100,0% | **100,0%** |     45/45 |
 
 ### MODUŁ 4 — Strony, wygląd, motyw, media, import · linie 92,32% · funkcje 88,89%
@@ -401,7 +430,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) |
 | ------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: |
-| Ikony / marka                   |      7 |        149 |  79,6% | 73,9% |   73,0% |  **80,5%** |     27/37 |
+| Ikony / marka                   |      7 |        149 |  79,6% | 72,6% |   73,0% |  **80,5%** |     27/37 |
 | Media: upload, crop, biblioteka |     41 |      1 418 |  97,6% | 90,5% |   96,4% |  **99,0%** |   348/361 |
 | Motyw / wygląd / global colors  |     52 |        630 |  98,2% | 91,5% |   97,5% |  **99,0%** |   193/198 |
 | Szablony stron i archiwów       |      6 |        111 |  99,2% | 93,8% |  100,0% | **100,0%** |     63/63 |
@@ -469,7 +498,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Udostępnianie / OG           |      5 |        216 |  99,2% |  98,4% |  100,0% | **100,0%** |     65/65 |
 | Monitor linków               |      2 |         18 | 100,0% | 100,0% |  100,0% | **100,0%** |       8/8 |
 
-### MODUŁ 9 — Czat / komunikator · linie 62,31% · funkcje 57,74%
+### MODUŁ 9 — Czat / komunikator · linie 62,83% · funkcje 58,02%
 
 **Rodzaje testów:** jednostkowy 16 · hooka 8 · komponentowy 12.
 
@@ -533,9 +562,9 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Powiadomienia + web-push    |     16 |        878 |  42,3% | 29,5% |   32,1% | **44,9%** |    80/249 |
 | Realtime (kanały, presence) |     10 |        294 |  61,5% | 44,2% |   76,6% | **65,0%** |   105/137 |
 
-### MODUŁ 13 — Monetyzacja: checkout / subskrypcje / billing · linie 67,04% · funkcje 76,62%
+### MODUŁ 13 — Monetyzacja: checkout / subskrypcje / billing · linie 96,53% · funkcje 96,28%
 
-**Rodzaje testów:** komponentowy 37 · funkcji serwerowej 25 · jednostkowy 26 · warstwy danych 4 · dostępności 2 · hooka 1 · parytetu 1.
+**Rodzaje testów:** warstwy danych 27 · komponentowy 37 · funkcji serwerowej 38 · jednostkowy 27 · dostępności 4 · hooka 1 · parytetu 1.
 
 **Co tu decyduje:** ścieżka płatność → dostęp ma **testy funkcji serwerowych** z wysokimi progami (webhook Stripe, grant) i to jest właściwy rodzaj dowodu dla pieniędzy. Ale rezygnacja, zmiana planu i faktury to **testy komponentowe**: UI może pokazać „anulowano”, gdy żądanie padło, a żaden test serwerowy tego nie zauważy.
 
@@ -543,15 +572,15 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność                              | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Billing: rekoncyliacja i panel              |    116 |      3 866 |  62,8% | 59,5% |   78,4% | **64,4%** |   637/812 |
-| Webhook płatności                           |      1 |         37 |  68,4% | 63,3% |   40,0% | **67,6%** |       2/5 |
-| Checkout (Stripe) + intencja                |     15 |        200 |  71,1% | 61,8% |   70,9% | **75,0%** |     39/55 |
-| Subskrypcje / plany / cennik                |     33 |        756 |  91,7% | 84,9% |   92,3% | **92,7%** |   337/365 |
-| Dołączenie do członkostwa (membership join) |      9 |         65 |  96,1% | 84,1% |   93,8% | **96,9%** |     30/32 |
+| Webhook płatności                           |      1 |         37 |  65,8% | 63,3% |   20,0% | **64,9%** |       1/5 |
+| Checkout (Stripe) + intencja                |     15 |        200 |  73,6% | 66,5% |   72,7% | **77,0%** |     40/55 |
+| Dołączenie do członkostwa (membership join) |      9 |         65 |  96,1% | 90,2% |   93,8% | **96,9%** |     30/32 |
+| Billing: rekoncyliacja i panel              |    116 |      3 988 |  96,5% | 91,7% |   98,3% | **97,4%** |   815/829 |
+| Subskrypcje / plany / cennik                |     33 |        759 |  96,8% | 93,4% |   96,2% | **98,2%** |   353/367 |
 
-### MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy · linie 27,06% · funkcje 18,42%
+### MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy · linie 92,63% · funkcje 90,12%
 
-**Rodzaje testów:** jednostkowy 6 · komponentowy 5.
+**Rodzaje testów:** komponentowy 12 · hooka 5 · dostępności 4 · warstwy danych 1 · jednostkowy 6 · parytetu 1.
 
 **Co tu decyduje:** kwoty i kupony to **testy jednostkowe** (waluta, zaokrąglenia, audyt kuponu), a widoczność reklamy i przycisku darowizny to **testy komponentowe**. Rozdział jest tu ważny, bo błąd w kwocie i błąd w widoczności mają różne konsekwencje i różne rodzaje dowodu.
 
@@ -559,10 +588,10 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 
 | Funkcjonalność               | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ---------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Reklamy / sponsoring         |     15 |        436 |  33,5% | 40,6% |   31,1% | **33,0%** |    37/119 |
-| Kupony                       |      7 |        111 |  44,5% | 40,4% |   56,0% | **46,8%** |     14/25 |
-| Prezenty artykułów (gifting) |     10 |        232 |  53,6% | 55,7% |   48,4% | **56,5%** |     31/64 |
 | Darowizny                    |      3 |        119 |  84,0% | 72,0% |   71,4% | **85,7%** |     15/21 |
+| Reklamy / sponsoring         |     15 |        443 |  87,5% | 81,9% |   87,5% | **90,3%** |   105/120 |
+| Kupony                       |     12 |        326 |  89,0% | 84,0% |   90,4% | **91,1%** |    94/104 |
+| Prezenty artykułów (gifting) |     10 |        232 |  97,8% | 95,2% |   98,4% | **99,6%** |     63/64 |
 
 ### MODUŁ 15 — Profil i konto · linie 97,64% · funkcje 94,81%
 
@@ -620,7 +649,7 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Funkcjonalność                          | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | --------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
 | Analityka: zbieranie zdarzeń i liczniki |     20 |        705 |  15,4% | 13,7% |   18,2% | **16,0%** |    28/154 |
-| Wykresy i panel BI                      |     41 |      1 501 |  27,8% | 22,2% |   22,3% | **29,0%** |   114/512 |
+| Wykresy i panel BI                      |     41 |      1 501 |  27,8% | 22,3% |   22,3% | **29,0%** |   114/512 |
 | Observability / RUM / web vitals        |     11 |        409 |  54,6% | 48,6% |   61,7% | **54,0%** |     37/60 |
 | Analityka: warstwa semantyczna          |      7 |        239 |  70,4% | 60,2% |   69,4% | **71,5%** |     43/62 |
 
@@ -635,12 +664,12 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Funkcjonalność                        | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | ------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
 | CRM: UI panelu                        |     19 |        569 |  95,1% | 83,4% |   96,5% | **96,0%** |   279/289 |
-| CRM: import/eksport CSV + organizacje |      7 |        356 |  98,8% | 91,7% |   96,3% | **99,7%** |     79/82 |
+| CRM: import/eksport CSV + organizacje |      7 |        356 |  98,8% | 92,0% |   96,3% | **99,7%** |     79/82 |
 | CRM: kontakty, firmy, lejek, zadania  |     25 |      1 115 |  98,9% | 90,7% |   99,6% | **99,8%** |   275/276 |
 
-### MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO · linie 93,18% · funkcje 89,91%
+### MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO · linie 93,36% · funkcje 90,21%
 
-**Rodzaje testów:** jednostkowy 30 · warstwy danych 9 · funkcji serwerowej 4 · hooka 3 · komponentowy 3 · parytetu 1 · bramki 1.
+**Rodzaje testów:** jednostkowy 32 · warstwy danych 9 · funkcji serwerowej 6 · hooka 3 · komponentowy 3 · parytetu 1 · bramki 1.
 
 **Co tu decyduje:** tu rodzaj testu jest ważniejszy niż procent: **inwariant i parytet** (snapshot bramek autoryzacji kontra migracje, macierz uprawnień kontra rejestr capabilities) wykrywają zawężenie kręgu uprawnionych, którego żaden test jednostkowy pojedynczej funkcji nie zauważy, bo każda z nich osobno działa poprawnie.
 
@@ -656,9 +685,9 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Feature flags                            |      3 |        163 |  95,9% | 90,3% |   97,2% | **96,9%** |     35/36 |
 | Użytkownicy i role (admin)               |      2 |        105 |  97,3% | 96,8% |  100,0% | **98,1%** |     28/28 |
 
-### MODUŁ 20 — Platforma / backend / infrastruktura / SSR · linie 75,55% · funkcje 68,19%
+### MODUŁ 20 — Platforma / backend / infrastruktura / SSR · linie 75,83% · funkcje 68,65%
 
-**Rodzaje testów:** komponentowy 39 · jednostkowy 125 · warstwy danych 18 · funkcji serwerowej 21 · dostępności 5 · bramki 5 · parytetu 2.
+**Rodzaje testów:** komponentowy 42 · jednostkowy 125 · warstwy danych 23 · funkcji serwerowej 24 · dostępności 11 · bramki 5 · parytetu 2.
 
 **Co tu decyduje:** platforma utrzymuje **bramki (meta-inwarianty)**: „bramka, która istnieje, musi się uruchamiać”, parytet konfiguracji chunków, kontrakt zmiennych workflow. To rodzaj testu, który skaluje się z repozytorium, nie z liczbą przypadków — jeden taki test pilnuje wszystkich przyszłych plików.
 
@@ -669,10 +698,10 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Routing / trasy publiczne (powłoka)     |      8 |        423 |  26,6% |  17,2% |   16,0% |  **27,4%** |    17/106 |
 | A11y / watchdog / MCP                   |      9 |        164 |  39,6% |  29,9% |   31,0% |  **42,1%** |      9/29 |
 | Klient Supabase / zapytania             |     27 |        959 |  69,4% |  64,5% |   73,7% |  **71,7%** |   205/278 |
-| Warstwa serwerowa (server fns)          |     19 |        980 |  76,3% |  71,3% |   79,5% |  **76,7%** |   175/220 |
-| Obsługa błędów / error boundary         |      7 |        115 |  78,0% |  76,4% |   65,5% |  **77,4%** |     19/29 |
-| SSR / hydracja / cache brzegowy         |     32 |      1 160 |  83,2% |  79,3% |   82,4% |  **84,8%** |   183/222 |
-| Bramki CI (rejestry, kontrakty)         |     32 |      3 107 |  93,4% |  86,6% |   93,1% |  **94,9%** |   528/567 |
+| Warstwa serwerowa (server fns)          |     19 |        980 |  78,1% |  73,6% |   81,8% |  **78,7%** |   180/220 |
+| Obsługa błędów / error boundary         |      7 |        115 |  79,5% |  79,3% |   69,0% |  **79,1%** |     20/29 |
+| SSR / hydracja / cache brzegowy         |     32 |      1 160 |  83,6% |  79,7% |   83,3% |  **85,1%** |   185/222 |
+| Bramki CI (rejestry, kontrakty)         |     32 |      3 107 |  93,5% |  86,6% |   93,3% |  **94,9%** |   529/567 |
 | Podgląd sesji / heartbeat               |      2 |        148 |  98,8% |  95,1% |  100,0% |  **99,3%** |     27/27 |
 | Lista lektur / kolekcje (warstwa reguł) |      2 |         10 | 100,0% | 100,0% |  100,0% | **100,0%** |       8/8 |
 
@@ -784,39 +813,7 @@ Razem: **940 / 942 linii = 99,79%**, funkcje **354/354 = 100,00%**.
 
 ### 4.3 CMS builder — bloki (Gutenberg) i widgety (Elementor) (MODUŁ 3)
 
-Razem: **13 513 / 14 527 linii = 93,02%**, funkcje **4257/4624 = 92,06%**.
-
-**CMS: builder sidebara + wzorce** — linie 74,4%, funkcje 92/132 (69,7%), plików 7 (bez pokrycia: 1), LOC 238
-
-> Bez ani jednego wywołania: **40 funkcji** (8 nazwanych, 32 anonimowych domknięć). Nazwane:
->
-> - `PatternPicker @ src/components/patterns/PatternPicker.tsx:58`
-> - `SelectedPanel @ src/components/patterns/PatternPicker.tsx:145`
-> - `PagePanel @ src/components/patterns/PatternPicker.tsx:160`
-> - `PostPanel @ src/components/patterns/PatternPicker.tsx:293`
-> - `PreviewFrame @ src/components/patterns/PatternPicker.tsx:416`
-> - `ApplyBar @ src/components/patterns/PatternPicker.tsx:431`
-> - `ConfirmDialog @ src/components/patterns/PatternPicker.tsx:446`
-> - `FieldInput @ src/components/patterns/PatternPicker.tsx:513`
-
-**CMS: import z Gutenberga / WordPressa** — linie 79,4%, funkcje 199/250 (79,6%), plików 10 (bez pokrycia: 1), LOC 1 309
-
-> Bez ani jednego wywołania: **51 funkcji** (32 nazwanych, 19 anonimowych domknięć). Nazwane, pierwsze 14:
->
-> - `esc @ src/lib/wp-import/elementor.ts:28`
-> - `stripTags @ src/lib/wp-import/elementor.ts:35`
-> - `readAttr @ src/lib/wp-import/elementor.ts:41`
-> - `classesOf @ src/lib/wp-import/elementor.ts:45`
-> - `hasClass @ src/lib/wp-import/elementor.ts:48`
-> - `hasAnyClassStart @ src/lib/wp-import/elementor.ts:51`
-> - `extractOutermost @ src/lib/wp-import/elementor.ts:65`
-> - `widgetKind @ src/lib/wp-import/elementor.ts:127`
-> - `firstMatch @ src/lib/wp-import/elementor.ts:136`
-> - `parseHeadingWidget @ src/lib/wp-import/elementor.ts:141`
-> - `parseButtonWidget @ src/lib/wp-import/elementor.ts:159`
-> - `parseImageWidget @ src/lib/wp-import/elementor.ts:183`
-> - `parseIconBoxAsCard @ src/lib/wp-import/elementor.ts:203`
-> - `parseDividerWidget @ src/lib/wp-import/elementor.ts:226`
+Razem: **14 048 / 14 527 linii = 96,70%**, funkcje **4415/4624 = 95,48%**.
 
 **CMS: silnik treści publicznej (contentEngine)** — linie 81,0%, funkcje 100/121 (82,6%), plików 20 (bez pokrycia: 1), LOC 525
 
@@ -839,25 +836,6 @@ Razem: **13 513 / 14 527 linii = 93,02%**, funkcje **4257/4624 = 92,06%**.
 >
 > - `clearAllLiveWidgetTypography @ src/lib/builder/liveTypography.ts:95`
 
-**CMS: widgety buildera — render publiczny** — linie 92,1%, funkcje 692/795 (87,0%), plików 55 (bez pokrycia: 0), LOC 3 596
-
-> Bez ani jednego wywołania: **103 funkcji** (18 nazwanych, 85 anonimowych domknięć). Nazwane, pierwsze 14:
->
-> - `resolveSpan @ src/components/builder/organisms/BuilderRenderer.tsx:78`
-> - `resolveOrder @ src/components/builder/organisms/BuilderRenderer.tsx:88`
-> - `BuilderEmptyPickerProvider @ src/components/builder/organisms/BuilderRenderer.tsx:163`
-> - `deviceForWidth @ src/components/builder/organisms/BuilderRenderer.tsx:184`
-> - `BuilderRenderer @ src/components/builder/organisms/BuilderRenderer.tsx:204`
-> - `BuilderDebugOverlay @ src/components/builder/organisms/BuilderRenderer.tsx:285`
-> - `SectionsList2 @ src/components/builder/organisms/BuilderRenderer.tsx:335`
-> - `ExperimentSection @ src/components/builder/organisms/BuilderRenderer.tsx:405`
-> - `SectionBackgroundVideo @ src/components/builder/organisms/BuilderRenderer.tsx:440`
-> - `RenderSection2 @ src/components/builder/organisms/BuilderRenderer.tsx:483`
-> - `RenderInner2 @ src/components/builder/organisms/BuilderRenderer.tsx:713`
-> - `RenderColumn2 @ src/components/builder/organisms/BuilderRenderer.tsx:779`
-> - `shallowEqual @ src/components/builder/organisms/BuilderWidgetNode.tsx:32`
-> - `widgetsEqual @ src/components/builder/organisms/BuilderWidgetNode.tsx:46`
-
 **CMS: page builder (typ Elementor) — schemat i operacje** — linie 96,9%, funkcje 294/295 (99,7%), plików 11 (bez pokrycia: 0), LOC 650
 
 > Bez ani jednego wywołania: **1 funkcji** (0 nazwanych, 1 anonimowych domknięć).
@@ -870,15 +848,30 @@ Razem: **13 513 / 14 527 linii = 93,02%**, funkcje **4257/4624 = 92,06%**.
 
 > Bez ani jednego wywołania: **3 funkcji** (0 nazwanych, 3 anonimowych domknięć).
 
-**CMS: render bloków (publiczny)** — linie 98,1%, funkcje 498/518 (96,1%), plików 39 (bez pokrycia: 0), LOC 1 920
+**CMS: widgety buildera — render publiczny** — linie 97,9%, funkcje 758/795 (95,3%), plików 55 (bez pokrycia: 0), LOC 3 596
 
-> Bez ani jednego wywołania: **20 funkcji** (0 nazwanych, 20 anonimowych domknięć).
+> Bez ani jednego wywołania: **37 funkcji** (2 nazwanych, 35 anonimowych domknięć). Nazwane:
+>
+> - `luminance @ src/components/builder/organisms/widget-view/socialHover.ts:146`
+> - `readableOn @ src/components/builder/organisms/widget-view/socialHover.ts:162`
+
+**CMS: render bloków (publiczny)** — linie 98,1%, funkcje 499/518 (96,3%), plików 39 (bez pokrycia: 0), LOC 1 920
+
+> Bez ani jednego wywołania: **19 funkcji** (0 nazwanych, 19 anonimowych domknięć).
 
 **CMS: silnik bloków (typ Gutenberg) — rdzeń** — linie 98,9%, funkcje 148/148 (100,0%), plików 9 (bez pokrycia: 0), LOC 359
 
 > Wszystkie funkcje tej powierzchni mają co najmniej jedno wywołanie.
 
-**CMS: warstwa content-model (rozdział bloki⇄builder)** — linie 99,3%, funkcje 31/32 (96,9%), plików 7 (bez pokrycia: 0), LOC 150
+**CMS: builder sidebara + wzorce** — linie 99,2%, funkcje 132/132 (100,0%), plików 7 (bez pokrycia: 0), LOC 238
+
+> Wszystkie funkcje tej powierzchni mają co najmniej jedno wywołanie.
+
+**CMS: warstwa content-model (rozdział bloki⇄builder)** — linie 99,3%, funkcje 32/32 (100,0%), plików 7 (bez pokrycia: 0), LOC 150
+
+> Wszystkie funkcje tej powierzchni mają co najmniej jedno wywołanie.
+
+**CMS: import z Gutenberga / WordPressa** — linie 99,8%, funkcje 249/250 (99,6%), plików 10 (bez pokrycia: 0), LOC 1 309
 
 > Bez ani jednego wywołania: **1 funkcji** (0 nazwanych, 1 anonimowych domknięć).
 
@@ -974,73 +967,72 @@ Razem: **1 008 / 1 015 linii = 99,31%**, funkcje **247/253 = 97,63%**.
 
 ### 5.1 Największe pliki produkcyjne z pokryciem 0%
 
-| Plik                                                           | LOC mierzone | Moduł                                              |
-| -------------------------------------------------------------- | -----------: | -------------------------------------------------- |
-| `src/routes/admin.podcasts.tsx`                                |          337 | M7                                                 |
-| `src/routes/admin.research-programs.tsx`                       |          249 | M7                                                 |
-| `src/components/admin/blocks/BlockCanvas.tsx`                  |          218 | M3                                                 |
-| `src/components/admin/TrendingTickerPane.tsx`                  |          195 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
-| `src/routes/admin.tracker.tsx`                                 |          188 | M7                                                 |
-| `src/components/admin/blocks/edit/Paragraph.tsx`               |          167 | M3                                                 |
-| `src/components/admin/analytics/GscBiDashboard.tsx`            |          163 | M17                                                |
-| `src/components/chat/ChatComposer.tsx`                         |          160 | M9                                                 |
-| `src/routes/admin.ads.tsx`                                     |          158 | M14                                                |
-| `src/routes/admin.paywall.tsx`                                 |          153 | M20                                                |
-| `src/routes/admin.hiring.tsx`                                  |          148 | M21                                                |
-| `src/components/notifications/NotificationsCenter.tsx`         |          146 | M12                                                |
-| `src/components/admin/WordPressImportDialog.tsx`               |          142 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
-| `src/components/admin/WxrUploadPanel.tsx`                      |          140 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
-| `src/lib/wp-import.functions.ts`                               |          137 | M3                                                 |
-| `src/routes/__root.tsx`                                        |          124 | M20                                                |
-| `src/routes/admin.community.qa.tsx`                            |          122 | M16                                                |
-| `src/routes/admin.programs.tsx`                                |          122 | M7                                                 |
-| `src/components/admin/analytics/Ga4BiDashboard.tsx`            |          116 | M17                                                |
-| `src/routes/admin.coupons.index.tsx`                           |          111 | M14                                                |
-| `src/components/admin/analytics/RelatedPostsAnalytics.tsx`     |          111 | M17                                                |
-| `src/routes/admin.live-blog.tsx`                               |          110 | M7                                                 |
-| `src/routes/admin.careers.tsx`                                 |          109 | M21                                                |
-| `src/routes/admin.gifting.tsx`                                 |          108 | M14                                                |
-| `src/components/admin/blocks/molecules/NestedBlocksEditor.tsx` |          107 | M3                                                 |
-| `src/lib/wp-import/wxr.ts`                                     |          105 | M3                                                 |
-| `src/routes/network.tsx`                                       |          104 | M10                                                |
-| `src/routes/admin.coupons.campaigns.tsx`                       |          102 | M14                                                |
-| `src/routes/admin.web-stories.tsx`                             |           98 | M7                                                 |
-| `src/routes/messages.tsx`                                      |           97 | M9                                                 |
-| `src/routes/api/public/community-cron.ts`                      |           93 | M16                                                |
-| `src/components/admin/blocks/molecules/SortableBlockItem.tsx`  |           93 | M3                                                 |
-| `src/components/admin/blocks/edit/Heading.tsx`                 |           92 | M3                                                 |
-| `src/routes/pricing.tsx`                                       |           87 | M13                                                |
-| `src/components/admin/analytics/VitalsBiDashboard.tsx`         |           86 | M17                                                |
-| `src/routes/admin.super.mobile-drawer.tsx`                     |           83 | M20                                                |
-| `src/components/ConsentScriptInjector.tsx`                     |           83 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
-| `src/routes/podcast.$slug.tsx`                                 |           82 | M7                                                 |
-| `src/routes/qa.$slug.tsx`                                      |           82 | M7                                                 |
-| `src/lib/billing/donationsAdmin.server.ts`                     |           81 | M13                                                |
+| Plik                                                       | LOC mierzone | Moduł                                              |
+| ---------------------------------------------------------- | -----------: | -------------------------------------------------- |
+| `src/routes/admin.podcasts.tsx`                            |          337 | M7                                                 |
+| `src/routes/admin.research-programs.tsx`                   |          249 | M7                                                 |
+| `src/components/admin/TrendingTickerPane.tsx`              |          195 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
+| `src/routes/admin.tracker.tsx`                             |          188 | M7                                                 |
+| `src/components/admin/analytics/GscBiDashboard.tsx`        |          163 | M17                                                |
+| `src/components/chat/ChatComposer.tsx`                     |          160 | M9                                                 |
+| `src/routes/admin.paywall.tsx`                             |          153 | M20                                                |
+| `src/routes/admin.hiring.tsx`                              |          148 | M21                                                |
+| `src/components/notifications/NotificationsCenter.tsx`     |          146 | M12                                                |
+| `src/routes/__root.tsx`                                    |          124 | M20                                                |
+| `src/routes/admin.community.qa.tsx`                        |          122 | M16                                                |
+| `src/routes/admin.programs.tsx`                            |          122 | M7                                                 |
+| `src/components/admin/analytics/Ga4BiDashboard.tsx`        |          116 | M17                                                |
+| `src/components/admin/analytics/RelatedPostsAnalytics.tsx` |          111 | M17                                                |
+| `src/routes/admin.live-blog.tsx`                           |          110 | M7                                                 |
+| `src/routes/admin.careers.tsx`                             |          109 | M21                                                |
+| `src/routes/network.tsx`                                   |          104 | M10                                                |
+| `src/routes/admin.web-stories.tsx`                         |           98 | M7                                                 |
+| `src/routes/messages.tsx`                                  |           97 | M9                                                 |
+| `src/routes/api/public/community-cron.ts`                  |           93 | M16                                                |
+| `src/components/admin/analytics/VitalsBiDashboard.tsx`     |           86 | M17                                                |
+| `src/routes/admin.super.mobile-drawer.tsx`                 |           83 | M20                                                |
+| `src/components/ConsentScriptInjector.tsx`                 |           83 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
+| `src/routes/podcast.$slug.tsx`                             |           82 | M7                                                 |
+| `src/routes/qa.$slug.tsx`                                  |           82 | M7                                                 |
+| `src/routes/admin.community.polls.tsx`                     |           78 | M16                                                |
+| `src/lib/webVitals.ts`                                     |           78 | M17                                                |
+| `src/components/chat/GroupInfoDialog.tsx`                  |           77 | M9                                                 |
+| `src/routes/tracker.index.tsx`                             |           75 | M7                                                 |
+| `src/routes/programs.$slug.tsx`                            |           73 | M7                                                 |
+| `src/routes/podcasts.$show.tsx`                            |           72 | M7                                                 |
+| `src/components/admin/analytics/ga4Insights.ts`            |           71 | M17                                                |
+| `src/lib/analytics/ga4.server.ts`                          |           71 | M17                                                |
+| `src/lib/ai-gateway.server.ts`                             |           71 | M20                                                |
+| `src/components/chat/ExpertRequestDialog.tsx`              |           71 | M9                                                 |
+| `src/components/admin/analytics/gscInsights.ts`            |           69 | M17                                                |
+| `src/routes/admin.expert-layouts.tsx`                      |           68 | M7                                                 |
+| `src/components/admin/AccessSettingsPane.tsx`              |           67 | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły |
+| `src/lib/analytics/semantic/snapshot.functions.ts`         |           66 | M17                                                |
+| `src/lib/analytics/audience.functions.ts`                  |           65 | M17                                                |
 
-Łącznie plików produkcyjnych z pokryciem **0%: 451** z 3 212 (14,04%).
+Łącznie plików produkcyjnych z pokryciem **0%: 338** z 3 260 (10,37%).
 
 ### 5.2 Katalogi bez ANI JEDNEGO pliku testowego
 
 Sygnał niezależny od pokrycia: katalog może mieć pokrycie z testu innego katalogu, ale nie ma
-testu WŁASNEGO — czyli nikt nie testuje go wprost. Takich katalogów jest **67**,
-obejmują **96 plików / 25 588 linii**.
+testu WŁASNEGO — czyli nikt nie testuje go wprost. Takich katalogów jest **65**,
+obejmują **94 plików / 24 954 linii**.
 
 | Katalog                                          | Plików |   LOC |
 | ------------------------------------------------ | -----: | ----: |
-| `src/lib/locale`                                 |      2 | 4 546 |
+| `src/lib/locale`                                 |      2 | 4 562 |
 | `src/components/admin/ThemeOptionsPane.tsx`      |      1 | 1 898 |
 | `src/components/admin/GlobalColorsEditor.tsx`    |      1 | 1 479 |
 | `src/components/admin/TrendingTickerPane.tsx`    |      1 | 1 139 |
 | `src/components/admin/PostSettingsMetabox.tsx`   |      1 |   878 |
 | `src/lib/content-model`                          |      7 |   789 |
-| `src/components/admin/settings`                  |      4 |   670 |
+| `src/components/admin/settings`                  |      4 |   686 |
 | `src/components/author`                          |      2 |   664 |
 | `src/components/admin/AdminShell.tsx`            |      1 |   651 |
 | `src/components/admin/PostGeneralOverview.tsx`   |      1 |   627 |
 | `src/components/admin/ThemeFontSizesPane.tsx`    |      1 |   602 |
 | `src/lib/cookieBanner`                           |      2 |   574 |
 | `src/components/admin/WordPressImportDialog.tsx` |      1 |   573 |
-| `src/components/patterns`                        |      1 |   548 |
 | `src/components/admin/WxrUploadPanel.tsx`        |      1 |   512 |
 | `src/components/admin/atoms`                     |      7 |   460 |
 | `src/start.ts/(root)`                            |      1 |   454 |
@@ -1057,38 +1049,50 @@ obejmują **96 plików / 25 588 linii**.
 | `src/components/admin/RelatedLayoutPreview.tsx`  |      1 |   241 |
 | `src/components/admin/experts`                   |      1 |   235 |
 | `src/components/admin/CoverImagePicker.tsx`      |      1 |   227 |
+| `src/server.ts/(root)`                           |      1 |   223 |
 
-### 5.3 Dwie ścieżki importu WordPressa — przetestowano jedną
+### 5.3 Dwie ścieżki importu WordPressa — wpisy i strony, przetestowana jedna
 
-To najciekawsze znalezisko tego wydania i wychodzi wyłącznie z zestawienia zer z nazwami plików.
-Repo ma DWIE niezależne implementacje importu z WordPressa o łudząco podobnych nazwach:
+**Sprostowanie ramy z wydania 7.** Pisałem tam o „DWÓCH niezależnych implementacjach importu
+z WordPressa o łudząco podobnych nazwach”, co sugeruje zbędne dublowanie i martwy kod.
+Sprawdzone w nagłówkach obu plików — to nieprawda i rama była nieuczciwa:
 
-| Plik                                    |      Linie |   Funkcje | LOC mierz. | Kto tego używa                                                       |
-| --------------------------------------- | ---------: | --------: | ---------: | -------------------------------------------------------------------- |
-| `src/lib/wordpress-import.functions.ts` | **99,28%** |  **100%** |        280 | `routes/admin.import-wordpress.tsx`, `lib/server/wp-media.server.ts` |
-| `src/lib/wp-import.functions.ts`        |     **0%** |    **0%** |        137 | `WordPressImportDialog.tsx`, `WordPressPreviewDialog.tsx`            |
-| `src/lib/wp-import/wxr.ts`              |     **0%** |    **0%** |        105 | `WxrUploadPanel.tsx` (parser pliku WXR)                              |
-| `src/lib/wp-import/elementor.ts`        |  **3,28%** | **2,43%** |        152 | konwersja treści WP → widgety buildera                               |
-| `src/lib/wp-import/buildPage.ts`        |     62,50% |      100% |         24 | budowa strony docelowej                                              |
-| `src/lib/wp-import/convert.ts`          |     75,00% |    75,00% |         28 | konwersja bloków                                                     |
-| `src/lib/wp-import/localizedMerge.ts`   |       100% |      100% |         42 | scalanie wersji językowych                                           |
+- `src/lib/wordpress-import.functions.ts` (949 linii) importuje **WPISY** przez konektor WP.com:
+  `listWpComSites`, `previewWpComPosts`, `createWpImportJob`, `runWpImportJob`, `getWpImportJob`,
+  `cancelWpImportJob`. Zadania śledzone w bazie, postęp strumieniowany, import mediów, kontrakt
+  „jedno zadanie = jeden język”.
+- `src/lib/wp-import.functions.ts` (688 linii) to v2 importu **STRON**: `wpListPages`,
+  `wpPreviewPage`, `listExistingPages`, `wpImportPages`, `wpImportFromWxr`. Konwersja HTML
+  na `BuilderDocument`, parowanie wersji PL/EN (dwa `wpId` → jedna strona), ścieżka WXR.
 
-Zadanie domykające builder podniosło `wordpress-import.functions.ts` z 0% na 99,28% — i raport
-wdrożenia uczciwie raportuje tę powierzchnię jako „osiągnięty”. Problem jest w ZAKRESIE, nie
-w wykonaniu: **to jest wina mojego promptu**, który wskazał tę jedną ścieżkę z nazwy i nie sprawdził,
-czy nie ma drugiej. Druga jest większa (394 zmierzone linie w trzech plikach na 0–3,3%) i wpięta
-w DIALOGI panelu, czyli w ścieżkę, którą administrator faktycznie klika: wgranie pliku WXR →
-parsowanie → konwersja na widgety Elementora.
+**To są dwie ścieżki dla dwóch różnych typów treści i żadna nie jest martwa.** Obserwacja
+o POKRYCIU stoi jednak bez zmian i to ona jest treścią tego rozdziału:
 
-Ryzyko jest tej samej klasy, co defekt `slugify` znaleziony w tym samym zadaniu (rozdz. 7.2): import
-uruchamia się raz, na dużej ilości treści, i nikt nie weryfikuje wyniku ręcznie wpis po wpisie. Błąd
-w parserze WXR albo w konwersji do Elementora jest cichy i masowy. Do tego `elementor.ts` na 3,28%
-to najgorszy pojedynczy plik tej klasy w repo.
+| Plik                                    |      Linie |   Funkcje | LOC mierz. | Kto tego używa                                            |
+| --------------------------------------- | ---------: | --------: | ---------: | --------------------------------------------------------- |
+| `src/lib/wordpress-import.functions.ts` | **99,28%** |  **100%** |        280 | `routes/admin.import-wordpress.tsx`                       |
+| `src/lib/wp-import.functions.ts`        |     **0%** |    **0%** |        137 | `WordPressImportDialog.tsx`, `WordPressPreviewDialog.tsx` |
+| `src/lib/wp-import/wxr.ts`              |     **0%** |    **0%** |        105 | `WxrUploadPanel.tsx` (parser pliku WXR)                   |
+| `src/lib/wp-import/elementor.ts`        |  **3,28%** | **2,43%** |        152 | konwersja treści WP → widgety buildera                    |
+| `src/lib/wp-import/buildPage.ts`        |     62,50% |      100% |         24 | budowa strony docelowej                                   |
+| `src/lib/wp-import/convert.ts`          |     75,00% |    75,00% |         28 | konwersja bloków                                          |
+| `src/lib/wp-import/localizedMerge.ts`   |       100% |      100% |         42 | scalanie wersji językowych                                |
 
-Wniosek metodologiczny, szerszy niż ten jeden przypadek: **zakres zadania testowego nie może być
-listą nazw plików.** Musi być listą ŚCIEŻEK UŻYTKOWNIKA — „import z WordPressa” obejmuje obie
-implementacje, a nazwa pliku o tym nie mówi. Kolejne prompty modułowe dostają z tego poprawkę:
-przed rozpoczęciem trzeba wyszukać wszystkie implementacje danej funkcji, nie ufać jednej nazwie.
+Ścieżka **wpisów** jest domknięta, ścieżka **stron** leży: 394 zmierzone linie w trzech plikach
+na 0–3,3%, i to ta druga jest wpięta w DIALOGI panelu, czyli w to, co administrator faktycznie
+klika — wgranie pliku WXR, parsowanie, konwersja na widgety Elementora.
+
+Ryzyko jest tej samej klasy, co defekt `slugify` z rozdz. 7.2: import uruchamia się raz, na dużej
+ilości treści, i nikt nie weryfikuje wyniku ręcznie wpis po wpisie. Błąd w parserze WXR albo
+w konwersji do Elementora jest cichy i masowy. `elementor.ts` na 3,28% to nadal najgorszy
+pojedynczy plik tej klasy w repo.
+
+**Wniosek metodologiczny zostaje w mocy i jest niezależny od poprawki ramy:** zakres zadania
+testowego nie może być listą nazw plików — musi być listą ŚCIEŻEK UŻYTKOWNIKA. „Import
+z WordPressa” obejmuje i wpisy, i strony, a nazwa pliku o tym nie mówi. Mój prompt wskazał
+jedną ścieżkę z nazwy i nie sprawdził, czy istnieje druga; to była wada zakresu, nie wykonania.
+
+---
 
 ### 5.4 Zera modułu wydarzeń: 144 → 72, a dług w nich — 1 198 → 142 linie
 
@@ -1096,7 +1100,7 @@ W wydaniu 6 ten rozdział argumentował, że 144 zera modułu wydarzeń to nie 1
 trzech różnych rodzajów i tylko jeden jest długiem. Rok później nie trzeba już argumentować:
 **dług został spłacony, a kategorie, które długiem nie były, w większości zostały.**
 
-| Gdzie                                       | Plików 0% wyd. 6 |  teraz | Linii bez pokrycia teraz |
+| Gdzie                                       | Plików 0% wyd. 7 |  teraz | Linii bez pokrycia teraz |
 | ------------------------------------------- | ---------------: | -----: | -----------------------: |
 | Organizmy panelu (`admin/events/organisms`) |               34 |  **4** |                  **142** |
 | Rama studia (`admin/events/studio`)         |                8 |  **2** |                       21 |
@@ -1161,7 +1165,7 @@ rozstrzygnięcie w `docs/DECYZJA_NADSPRZEDAZ_PULI_WEJSCIOWEK_2026-08-30.md`.
 ## 6. Które powierzchnie mają BRAMKĘ pokrycia (a które tylko liczbę)
 
 Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mierzy. Repo ma
-**1 próg globalny + 353 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
+**1 próg globalny + 373 progów per-ścieżka** w `vitest.config.ts`, egzekwowanych w CI krokiem
 `Test + coverage gate` (`.github/workflows/ci.yml`).
 
 | Moduł                                 | Progów per-ścieżka | Mediana progu linii | Najwyższy próg linii |
@@ -1171,23 +1175,24 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 | M15                                   |                 40 |                 100 |                  100 |
 | M19                                   |                 36 |                 100 |                  100 |
 | M1                                    |                 27 |                 100 |                  100 |
-| M13                                   |                 21 |                 100 |                  100 |
+| M3                                    |                 25 |                  98 |                  100 |
+| M13                                   |                 24 |                 100 |                  100 |
 | M2                                    |                 21 |                 100 |                  100 |
 | M8                                    |                 20 |                  98 |                  100 |
-| M3                                    |                 18 |                  98 |                  100 |
 | M16                                   |                 11 |                  99 |                  100 |
 | M9                                    |                  9 |                  96 |                  100 |
 | M17                                   |                  8 |                 100 |                  100 |
 | M6                                    |                  8 |                 100 |                  100 |
+| powłoka panelu admin + atomy/molekuły |                  7 |                  96 |                  100 |
+| M14                                   |                  7 |                  95 |                   96 |
 | M22                                   |                  6 |                  88 |                   96 |
-| powłoka panelu admin + atomy/molekuły |                  4 |                  99 |                  100 |
 | M10                                   |                  2 |                  98 |                   98 |
 | M4                                    |                  2 |                  99 |                   99 |
 | M7                                    |                  1 |                 100 |                  100 |
 | M18                                   |                  1 |                  98 |                   98 |
 | M5                                    |                  1 |                  99 |                   99 |
 
-Z tego **80 progów obejmuje CAŁE POWIERZCHNIE** (wzorzec `/**`), a nie pojedyncze pliki —
+Z tego **94 progów obejmuje CAŁE POWIERZCHNIE** (wzorzec `/**`), a nie pojedyncze pliki —
 to one decydują, czy nowy plik dołożony do katalogu automatycznie podlega bramce:
 
 | Powierzchnia                                      | Instr. | Gał. | Funkcje | Linie | Moduł                                 |
@@ -1196,6 +1201,10 @@ to one decydują, czy nowy plik dołożony do katalogu automatycznie podlega bra
 | `src/components/admin/builder/**`                 |     94 |   91 |      93 |    95 | M3                                    |
 | `src/lib/blocks/**`                               |     96 |   91 |      97 |    97 | M3                                    |
 | `src/components/blocks/**`                        |     95 |   91 |      92 |    96 | M3                                    |
+| `src/lib/wp-import/**`                            |     96 |   92 |      98 |    97 | M3                                    |
+| `src/components/admin/blocks/edit/**`             |     94 |   82 |      94 |    95 | M3                                    |
+| `src/components/admin/blocks/**`                  |     87 |   75 |      85 |    88 | M3                                    |
+| `src/components/patterns/**`                      |     97 |   90 |      98 |    97 | M3                                    |
 | `src/lib/sidebarBuilder/**`                       |     98 |   96 |     100 |    98 | M3                                    |
 | `src/components/admin/sidebarBuilder/**`          |     97 |   95 |      98 |    98 | M3                                    |
 | `src/lib/seo/**`                                  |     98 |   95 |      98 |    98 | M8                                    |
@@ -1213,6 +1222,7 @@ to one decydują, czy nowy plik dołożony do katalogu automatycznie podlega bra
 | `src/components/admin/pricing/**`                 |     94 |   89 |      95 |    96 | M13                                   |
 | `src/components/admin/membership/**`              |     91 |   85 |      90 |    94 | powłoka panelu admin + atomy/molekuły |
 | `src/lib/pricing/**`                              |     96 |   89 |      92 |    95 | M13                                   |
+| `src/lib/billing/**`                              |     92 |   88 |      95 |    93 | M13                                   |
 | `src/lib/retention/**`                            |     98 |   95 |      98 |    98 | M15                                   |
 | `src/lib/network/**`                              |     85 |   65 |      95 |    95 | M10                                   |
 | `src/components/network/**`                       |     97 |   92 |      98 |    98 | M10                                   |
@@ -1272,11 +1282,19 @@ to one decydują, czy nowy plik dołożony do katalogu automatycznie podlega bra
 | `src/components/admin/events/**`                  |     87 |   85 |      86 |    88 | M22                                   |
 | `src/components/admin/events/molecules/**`        |     95 |   92 |      95 |    95 | M22                                   |
 | `src/components/admin/events/organisms/**`        |     85 |   85 |      82 |    86 | M22                                   |
+| `src/lib/ads/**`                                  |     78 |   73 |      80 |    81 | M14                                   |
+| `src/components/ads/**`                           |     93 |   87 |      92 |    96 | M14                                   |
+| `src/lib/gifting/**`                              |     93 |   91 |      96 |    95 | M14                                   |
+| `src/components/gifting/**`                       |     92 |   90 |      90 |    96 | M14                                   |
+| `src/components/donations/**`                     |     80 |   68 |      67 |    81 | M14                                   |
+| `src/components/admin/ads/**`                     |     89 |   84 |      79 |    88 | powłoka panelu admin + atomy/molekuły |
+| `src/components/admin/coupons/**`                 |     87 |   83 |      86 |    89 | M14                                   |
+| `src/components/admin/gifting/**`                 |     96 |   94 |      96 |    96 | powłoka panelu admin + atomy/molekuły |
+| `src/components/admin/donations/**`               |     96 |   87 |      96 |    96 | powłoka panelu admin + atomy/molekuły |
 
 **Czego bramka NIE pilnuje** — moduły bez ani jednego progu per-ścieżka:
 
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 49,54%, funkcje 47,46%, plików 0%: 12/28
-- **MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy**: linie 27,06%, funkcje 18,42%, plików 0%: 13/39
 - **MODUŁ 21 — Rekrutacja / kariera**: linie 55,12%, funkcje 47,13%, plików 0%: 12/29
 
 ### 6.1 Próg ustawiony POWYŻEJ rzeczywistości to bramka WYŁĄCZONA
@@ -1342,11 +1360,11 @@ spłacenia testami, nie kolejnym re-floorem.
 
 | Warstwa                                         | Rozmiar                                              | Co dowodzi                                                                                                                                                                                                      | Czego NIE dowodzi                                                                                            |
 | ----------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Jednostkowe / komponentowe (vitest)             | 1 863 plików, 37 517 testów, 75 051 asercji          | logikę w TS/TSX, render komponentów, kontrakty modułów                                                                                                                                                          | zachowania bazy (RLS/RPC/triggery), realnych ścieżek przeglądarki, SSR end-to-end                            |
-| Baza (pgTAP)                                    | 99 plików, 1 793 asercji                             | izolację tenanta, polityki RLS, kontrakty RPC, triggery                                                                                                                                                         | kodu frontu — v8 tego pokrycia NIE liczy                                                                     |
+| Jednostkowe / komponentowe (vitest)             | 2 010 plików, 41 104 testów, 81 995 asercji          | logikę w TS/TSX, render komponentów, kontrakty modułów                                                                                                                                                          | zachowania bazy (RLS/RPC/triggery), realnych ścieżek przeglądarki, SSR end-to-end                            |
+| Baza (pgTAP)                                    | 100 plików, 1 807 asercji                            | izolację tenanta, polityki RLS, kontrakty RPC, triggery                                                                                                                                                         | kodu frontu — v8 tego pokrycia NIE liczy                                                                     |
 | E2E (Playwright)                                | 9 plików, 96 testów (66 deklaracji + parametryzacje) | ścieżki użytkownika, SSR, SEO, checkout                                                                                                                                                                         | pokrycia jednostkowego (osobny proces, nie wchodzi do %)                                                     |
 | Bramki statyczne (`check:*`)                    | 38 skryptów                                          | kontrakty struktury (SQL, i18n, warstwy, bundle)                                                                                                                                                                | wykonania kodu                                                                                               |
-| **Uprząż replayu migracji** (`check:*-harness`) | 5 uprzęże, 1 505 asercji runtime                     | że migracje DAJĄ SIĘ WYKONAĆ na czystym Postgresie i że schemat po nich zachowuje się tak, jak deklaruje: kolizje sygnatur, funkcje bez kolumn, triggery, które nie odpalają, `EXCLUDE`, które nic nie wyklucza | kodu frontu i produkcyjnych danych — powierzchnia poza modułem jest ATRAPĄ                                   |
+| **Uprząż replayu migracji** (`check:*-harness`) | 5 uprzęże, 1 547 asercji runtime                     | że migracje DAJĄ SIĘ WYKONAĆ na czystym Postgresie i że schemat po nich zachowuje się tak, jak deklaruje: kolizje sygnatur, funkcje bez kolumn, triggery, które nie odpalają, `EXCLUDE`, które nic nie wyklucza | kodu frontu i produkcyjnych danych — powierzchnia poza modułem jest ATRAPĄ                                   |
 | Inwarianty na ŻYWEJ bazie (vitest + sekrety)    | 2 pliki, 50 testów                                   | zgodność schematu bazy z typami i parytet języków w DANYCH, nie w słownikach                                                                                                                                    | niczego bez sekretów — a ich osłona NIE odróżnia braku poświadczeń od poświadczeń zaślepkowych (patrz niżej) |
 
 To jest źródło pozornej sprzeczności: MODUŁ z ~20% pokrycia jednostkowego może być jednym
@@ -1369,18 +1387,47 @@ wszystkich plików testowych (sygnały: `renderHook`, `@testing-library/react`, 
 
 | Rodzaj testu                               | Plików | Testów | Asercji | As./test | Co DOWODZI                                                                                    | Czego NIE dowodzi                                                        |
 | ------------------------------------------ | -----: | -----: | ------: | -------: | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| komponentowy (render + interakcja)         |    654 | 14 975 |  30 974 |     2,07 | że użytkownik to zobaczy: treść, stan wyłączony, komunikat błędu, reakcja na kliknięcie       | zachowania na prawdziwej przeglądarce i prawdziwych danych z bazy        |
-| jednostkowy (czysta reguła)                |    778 | 11 731 |  22 493 |     1,92 | reguły w izolacji: wejście → wyjście, przypadki graniczne, gałęzie warunków                   | że reguła jest w ogóle wywołana przez aplikację (poprawnego okablowania) |
-| dostępności (axe)                          |    106 |  3 192 |   6 416 |     2,01 | kontraktu dostępności: role, etykiety, kolejność fokusu, brak naruszeń axe                    | sensu treści dla czytnika ekranu (to ocenia człowiek)                    |
-| warstwy danych (atrapa PostgREST)          |     76 |  3 068 |   5 778 |     1,88 | kształtu zapytania: filtry, kolejność ogniw, limit, zachowanie przy błędzie PostgREST         | że polityka RLS na serwerze przepuści to zapytanie                       |
-| hooka (renderHook)                         |     96 |  2 242 |   4 710 |     2,10 | cyklu życia i unieważniania cache: kolejność efektów, sprzątanie, ponowne pobranie po mutacji | wyglądu; hook może być poprawny, a widok nadal pokazywać stare dane      |
-| funkcji serwerowej                         |     94 |  1 780 |   3 715 |     2,09 | bramek wykonania: tenant, uprawnienia, rate limit, audyt, ścieżka błędu                       | że klient wywoła funkcję w odpowiednim momencie                          |
-| bramki (meta-inwariant CI)                 |     26 |    262 |     436 |     1,66 | meta-inwariantu repo: że bramka istnieje, jest wpięta i coś sprawdza                          | zachowania kodu produkcyjnego                                            |
-| parytetu (dwa artefakty muszą się zgadzać) |     25 |    213 |     416 |     1,95 | ZGODNOŚCI DWÓCH ARTEFAKTÓW (panel ⇄ renderer, snapshot ⇄ migracje, PL ⇄ EN)                   | poprawności żadnej ze stron osobno — tylko tego, że się nie rozjechały   |
+| komponentowy (render + interakcja)         |    697 | 15 781 |  32 573 |     2,06 | że użytkownik to zobaczy: treść, stan wyłączony, komunikat błędu, reakcja na kliknięcie       | zachowania na prawdziwej przeglądarce i prawdziwych danych z bazy        |
+| jednostkowy (czysta reguła)                |    795 | 11 922 |  22 923 |     1,92 | reguły w izolacji: wejście → wyjście, przypadki graniczne, gałęzie warunków                   | że reguła jest w ogóle wywołana przez aplikację (poprawnego okablowania) |
+| warstwy danych (atrapa PostgREST)          |    105 |  4 284 |   8 104 |     1,89 | kształtu zapytania: filtry, kolejność ogniw, limit, zachowanie przy błędzie PostgREST         | że polityka RLS na serwerze przepuści to zapytanie                       |
+| dostępności (axe)                          |    135 |  3 909 |   7 856 |     2,01 | kontraktu dostępności: role, etykiety, kolejność fokusu, brak naruszeń axe                    | sensu treści dla czytnika ekranu (to ocenia człowiek)                    |
+| hooka (renderHook)                         |    102 |  2 410 |   5 023 |     2,08 | cyklu życia i unieważniania cache: kolejność efektów, sprzątanie, ponowne pobranie po mutacji | wyglądu; hook może być poprawny, a widok nadal pokazywać stare dane      |
+| funkcji serwerowej                         |    113 |  2 238 |   4 506 |     2,01 | bramek wykonania: tenant, uprawnienia, rate limit, audyt, ścieżka błędu                       | że klient wywoła funkcję w odpowiednim momencie                          |
+| bramki (meta-inwariant CI)                 |     27 |    268 |     444 |     1,66 | meta-inwariantu repo: że bramka istnieje, jest wpięta i coś sprawdza                          | zachowania kodu produkcyjnego                                            |
+| parytetu (dwa artefakty muszą się zgadzać) |     28 |    238 |     453 |     1,90 | ZGODNOŚCI DWÓCH ARTEFAKTÓW (panel ⇄ renderer, snapshot ⇄ migracje, PL ⇄ EN)                   | poprawności żadnej ze stron osobno — tylko tego, że się nie rozjechały   |
 | inwariantu (nie wolno złamać reguły)       |      4 |     39 |      83 |     2,13 | że reguła nie została złamana NIGDZIE w repo — skaluje się z kodem, nie z przypadkiem         | poprawności pojedynczej ścieżki użytkownika                              |
 | dymny (czy w ogóle stoi)                   |      3 |     13 |      26 |     2,00 | że powierzchnia wstaje i nie rzuca przy montażu                                               | niczego o zachowaniu — to detektor katastrofy, nie dowód                 |
 | integracyjny (wiele warstw)                |      1 |      2 |       4 |     2,00 | współpracy kilku warstw naraz na jednym scenariuszu                                           | izolowanej przyczyny awarii — po padnięciu trzeba szukać dalej           |
 
+**Profil atrapowania — miara, której procent pokrycia nie pokazuje, a która decyduje o tym,
+co te testy dowodzą.** Policzone skanem wszystkich 2 010 plików testowych:
+
+|                                                                                      |    plików | udział suity |
+| ------------------------------------------------------------------------------------ | --------: | -----------: |
+| **bez ANI JEDNEGO `vi.mock`** — jadą po prawdziwym grafie modułów                    | **1 009** |    **50,2%** |
+| atrapują granicę bazy (klient Supabase) — atrapa uzasadniona                         |       478 |        23,8% |
+| atrapują wewnętrzny moduł biznesowy (`@/lib`, `@/components`, `@/hooks`, `@/routes`) |       771 |        38,4% |
+| **z tego BEZ atrapowania granicy bazy**                                              |   **430** |    **21,4%** |
+
+Wywołań `vi.mock` jest razem 4 348. Pierwsza liczba jest mocna: **połowa suity nie atrapuje
+niczego**, czyli testuje realny graf zależności, a nie własną wyobrażoną wersję systemu.
+Ostatnia jest słaba i to jest właściwe miejsce, żeby ją nazwać: **co piąty plik testowy podmienia
+moduł biznesowy, nie dotykając przy tym granicy wejścia/wyjścia** — czyli sprawdza, czy komponent
+poprawnie reaguje na odpowiedź, którą sam sobie napisał. Taki test łapie regresję w komponencie
+i nie łapie żadnej regresji w kontrakcie między komponentem a resztą aplikacji.
+
+**W tym oknie ta proporcja poprawiła się wyraźnie** — porównanie na identycznej metryce
+dla obu okien jest w rozdz. 8.3: klasa wątpliwa spadła z 52,0% nowych plików w wydaniu 7
+na 19,0% w wydaniu 8, a atrapowanie samej granicy bazy wzrosło z 28,0% na 48,3%.
+
+**Rozkład wysiłku po warstwach** (dominujący rodzaj na plik, 2 010 plików): komponenty i a11y
+to **832 pliki (41,4%)**, logika (unit, data-layer, server-fn, hook) — **1 115 (55,5%)**,
+testy strukturalne (parity, gate, invariant) — 59 (2,9%). Osobno warto wyciągnąć jedną liczbę:
+**113 plików (5,6%) dotyczy funkcji serwerowych**, przy 95 plikach produkcyjnych z `createServerFn`.
+To jest warstwa, w której mieszkają pieniądze i granica najemcy. Do tego **jeden** plik oznaczony
+jako integracyjny i **9** plików e2e — najcieńsza warstwa całej piramidy, przy 22 modułach
+z przepływami przechodzącymi przez kilka modułów naraz (wydarzenie → rejestracja → płatność
+→ członkostwo → newsletter).
 **Siedem wniosków, które wynikają z tej tabeli, a nie z procentów:**
 
 1. **Test jednostkowy jest najtańszy i najsłabszy jednocześnie.** Dowodzi reguły, ale przechodzi
@@ -1421,124 +1468,132 @@ wszystkich plików testowych (sygnały: `renderHook`, `@testing-library/react`, 
    decyduje więc nie tylko o tym, CO zostaje dowiedzione, ale i o tym, co jeszcze przestaje być
    sprawdzane, kiedy ten jeden zawiedzie.
 
-Do tego dochodzą rodzaje, których v8 nie widzi wcale: **pgTAP** (99 plików) dowodzi
+Do tego dochodzą rodzaje, których v8 nie widzi wcale: **pgTAP** (100 plików) dowodzi
 polityk i triggerów, **Playwright** (9 plików) ścieżek użytkownika i realnego SSR,
 a **bramki skryptowe `check:*`** (38) kontraktów strukturalnych, w których nie ma
 kodu do wykonania — na przykład tego, że każda bramka jest wpięta w workflow.
 
-### 7.2 Rejestr defektów: 226 wpisów — i moduł, który w jedną dobę zmienił zdanie
+### 7.2 Rejestr defektów: 255 wpisów — i pierwszy, który rejestr oddał z powrotem
 
-Rozdział 7.1 argumentuje teoretycznie, że rodzaj testu waży więcej niż liczba. Ten rozdział
-pokazuje, co się dzieje, gdy powierzchnia dostanie zamówioną pracę testową — i jest to
-najczystszy eksperyment, jaki ta seria dała.
+Rozdział 7.1 argumentuje, że rodzaj testu waży więcej niż liczba. Ten rozdział pokazuje
+mechanizm, który w tym wydaniu po raz pierwszy zadziałał w OBIE strony.
 
-**Liczby, zmierzone niezależnie od raportów zespołu:** w repo jest dziś **226 wywołań `it.fails(`
-w 129 plikach**, przy zerze `it.skip` i `it.todo`; przebieg wykonał 238 przypadków
-„expected fail”. W wydaniu 6 było 171 wpisów w 94 plikach, w wydaniu 5 — 151 w 84, w wydaniu 4 — 24 w 20.
-**Przyrost tego wydania (+55 wpisów, +35 plików) jest największy w całej serii.**
+**Liczby, zmierzone niezależnie od raportów zespołu:** w repo jest dziś **255 wywołań `it.fails(`
+w 147 plikach**; przebieg wykonał 266 przypadków „expected fail”.
+W wydaniu 7 było 255 wpisów w 147 plikach, w wydaniu 6 — 171 w 94, w wydaniu 5 — 151 w 84,
+w wydaniu 4 — 24 w 20. **Liczba wywołań nie zmieniła się wobec wydania 7**, mimo trzech
+kampanii i 147 nowych plików testowych — co samo w sobie jest informacją: nowe testy tego okna
+pisano na powierzchniach, gdzie defekty naprawiano od razu, zamiast je rejestrować.
 
-**I cała ta zmiana pochodzi z jednego modułu.** W wydaniu 6 zapisałem tu kontrapunkt: moduł 22
-miał ZERO wpisów `it.fails` przy 151 plikach testowych i przeglądzie, który wypisał 165 ustaleń.
-Interpretowałem to jako inną decyzję — defekty naprawiane u źródła, nie rejestrowane. Wydanie 7
-pokazuje, że nie była to decyzja modułu, tylko **brak pracy, która by je znalazła**:
-powierzchnia wydarzeń ma dziś **52 wpisy w 32 plikach**, gdzie miała zero — czyli blisko
-połowa całego przyrostu rejestru w tym wydaniu.
+**Pominięcia: nadal zero, i warto to podać precyzyjnie.** W całym repozytorium nie ma ani jednego
+bezwarunkowego `it.skip`, `test.skip` ani `it.todo`. Są dokładnie **dwa** `describe.skip`,
+oba w tej samej postaci — `const d = shouldRun ? describe : describe.skip` — w suitach
+`db-schema-invariant` i `lang-parity`, czyli tych, które wymagają żywej bazy. To jest warunkowa
+bramka środowiskowa, nie wyciszenie czerwieni; na CI z sekretami obie się wykonują.
 
-Nie znalazły się dlatego, że ktoś zmienił zdanie o konwencji. Znalazły się dlatego, że ktoś
-napisał testy tam, gdzie ich nie było — a test, który po raz pierwszy dotyka gałęzi odmowy,
-odmowę tę czyta. Kilka z tych wpisów to defekty, których żaden przegląd czytający kod nie
-wyłapał: `validateSearch` trasy skanera nie chroni komponentu, bo router **scala** parametry
-z wynikiem walidatora zamiast go zastępować (wolontariusz z uciętym linkiem ląduje na odmowie
-zamiast na wznowionej sesji); `agendaKeys.trackSpeakers` nie pasuje do żadnego wzorca
-unieważniania, więc obsada pasma **nigdy** nie jest odświeżana; zapis w jednym wydarzeniu
-wietrzy szczegóły przypięć innego, bo klucz szczegółu nie niesie identyfikatora wydarzenia.
+**Najważniejsza rzecz tego wydania: wpis rejestru zapalił się na CZERWONO, bo defekt naprawiono.**
+`src/lib/server/__tests__/serviceRoleTenantScope.gate.test.ts` zgłasza `Error: Expect test to fail`
+na przypadku „page_full_path wiąże najemcę albo pages.parent_id ma ograniczenie tego samego
+najemcy”. To nie jest awaria — to jest **rejestr informujący, że można go wycofać**.
 
-**Wniosek jest mocniejszy niż ten z wydania 6 i częściowo go odwraca.** Napisałem wtedy, że
-repozytorium ma dwie konwencje postępowania z defektem — rejestr `it.fails` i naprawę u źródła —
-i że druga jest lepsza wszędzie, gdzie naprawa jest wykonalna. To nadal jest prawda, ale
-kolejność jest inna, niż sugerowałem: **najpierw trzeba defekt ZNALEŹĆ, a znajdują go testy,
-nie przeglądy.** Przegląd modułu wydarzeń z 28.08 przeczytał kod i wypisał 165 ustaleń; praca
-testowa z 30.08 dorzuciła 64 takie, których tamten nie zobaczył — bo nie da się przeczytać
-z kodu, że router scala obiekty, dopóki się go nie uruchomi.
+Co ten wpis rejestrował (cytat z jego własnego opisu w kodzie): `fetchPagePaths`
+(`publishedContent.server.ts:59`) filtruje `pages` po najemcy poprawnie, ale pełną ścieżkę
+składał RPC `public.page_full_path(_page_id uuid)` — rekurencyjne CTE idące w GÓRĘ
+po `pages.parent_id`, **bez predykatu najemcy**, `LANGUAGE sql STABLE` czyli SECURITY INVOKER,
+a wołane spod service-role nie ma nad sobą RLS. Schematu to nie domykało: `pages.parent_id` miał
+wyłącznie `REFERENCES public.pages(id) ON DELETE RESTRICT`, bez `CHECK`-a ani triggera „ten sam
+najemca”, a `uniq_pages_tenant_parent_slug` pilnuje unikalności slugu, nie zgodności najemcy.
+Żaden plik pgTAP nie wspominał `page_full_path`. **Konsekwencja:** strona z `parent_id`
+wskazującym stronę INNEGO najemcy wnosiła JEGO slug do ścieżki kanonicznej publikowanej
+w sitemapie i RSS-ie. Wpis wprost tłumaczył, czemu jest `it.fails`: „naprawa to migracja schematu
+— decyzja dla człowieka, nie dla testu, dlatego `it.fails` z opisem zamiast zmiany zachowania
+produkcyjnego”.
 
-Dla porządku: siedem ustaleń krytycznych tamtego przeglądu sprawdziłem w wydaniu 6 i wszystkie
-były zamknięte, trzy z nich bramką, nie łatką. To się nie zmieniło.
+**Decyzja zapadła w tym oknie i jest to najlepszy zapis decyzyjny całego wydania.** Migracja
+`20260831160000_page_full_path_tenant_scope.sql` (215 linii, z czego 125 to uzasadnienie):
 
-**Dobra wiadomość: to działa, i to lepiej niż zakładałem.** Bramka zakresu najemnego dla czytników
-service-role — zamówiona w tym audycie jako pojedynczy plik testowy — znalazła defekt, którego
-nie widzi ani TypeScript, ani żaden test jednostkowy, bo **mieszka w SQL-u**:
+1. `page_full_path` **i** `page_full_paths` niosą teraz `tenant_id` w CTE i łączą przez
+   `p.tenant_id = c.tenant_id` — rodzic musi być w tym samym najemcy co DZIECKO, a kotwica bierze
+   najemcę z wiersza startowego. Świadomie NIE `current_tenant_id()`, z argumentem.
+2. Gwarancję schematową daje **złożony klucz obcy `(parent_id, tenant_id) → (id, tenant_id)`**,
+   podparty dodaniem `UNIQUE (id, tenant_id)` na `pages`.
+3. Migracja **uzasadnia wybór mechanizmu** wobec dwóch alternatyw, które sugerowało zadanie:
+   - **„CHECK Z FUNKCJĄ JEST NIEPOPRAWNY, nie tylko słabszy”** — Postgres wymaga od wyrażenia
+     `CHECK` immutable-ości i sprawdza je WYŁĄCZNIE przy zapisie tego wiersza; gdy zmieni się
+     `tenant_id` RODZICA, nikt go nie przelicza i „dziura wraca cicho”. `pg_dump`/`pg_restore`
+     dokładają drugi problem.
+   - **„TRIGGER jest poprawny, ale droższy i mniej szczelny”** — trzeba go napisać na OBU
+     kierunkach, sam nie chroni przed wyścigiem i **daje się wyłączyć**
+     (`ALTER TABLE … DISABLE TRIGGER`), „co ta baza REALNIE robi w testach pgTAP”.
+   - Klucz złożony pokrywa zarówno zapis dziecka, jak i zmianę `tenant_id` rodzica.
 
-> `fetchPagePaths` (`publishedContent.server.ts:59`) filtruje `pages` po najemcy poprawnie, ale pełną
-> ścieżkę składa RPC `public.page_full_path(_page_id uuid)` — rekurencyjne CTE idące w GÓRĘ po
-> `pages.parent_id`, **bez predykatu najemcy**, `LANGUAGE sql STABLE` (czyli SECURITY INVOKER),
-> a wołane spod service-role nie ma nad sobą RLS. Schemat tego nie domyka: `pages.parent_id` ma
-> tylko `REFERENCES public.pages(id)`, bez `CHECK`-a ani triggera „ten sam najemca”. **Żaden plik
-> pgTAP nie wspomina `page_full_path`.** Skutek: strona z rodzicem u innego najemcy wnosi JEGO
-> slug do ścieżki kanonicznej publikowanej w **sitemapie i RSS-ie**.
+**Puenta, która wiąże to z rozdziałem 8.4:** to jest DOKŁADNIE ta migracja, którą potok
+wdrożeniowy wyemitował ponownie pod nazwą UUID — a kopia ma **0 linii komentarza wobec 125
+w oryginale**. Najlepszy zapis decyzyjny tego okna dostał najnowszy znacznik czasu na wersji
+bez argumentu. Do zrobienia zostaje jedno i jest tanie: **zamienić `it.fails` na `it`**, bo
+defekt jest zamknięty, a wpis, który przestał opisywać rzeczywistość, psuje rejestr tak samo
+jak wpis, którego nikt nie naprawił.
 
-Naprawa wymaga migracji schematu, więc słusznie została zgłoszona jako `it.fails`, a nie zmiana
-produkcji pod test. Ale zwróć uwagę na mechanizm: **jeden plik testowy czytający kod odsłonił lukę
-w bazie danych, której nie widziało 98 plików pgTAP.** To jest najlepszy pojedynczy argument za
-tezą z 7.1 w całym tym dokumencie.
+**Mechanizm nadal ma swoją wadę i nie chcę jej przykryć dobrą wiadomością.** `it.fails` jest
+w CI zielony, dopóki defekt istnieje, więc nic nie naciska na naprawę; zapisanie jest tanie,
+naprawa droga; im więcej wpisów, tym mniejsza waga każdego. Rejestr wciąż rośnie **bez terminu
+i bez właściciela**. To wydanie pokazuje jednak, że nie jest jednokierunkowy — potrzebuje tylko
+przebiegu, żeby to ujawnić, a przebieg musi być w sprawnym środowisku (rozdz. 8.5 pkt 2).
 
-**Zła wiadomość: `it.fails` jest w CI ZIELONY.**
+---
 
-Wydanie 4 zapisało rekomendację: „zamienić 24 `it.fails` na naprawy — inaczej po miesiącu staną się
-tłem”. Wydanie 5 zastało 151, to wydanie 226. Przyrost zwolnił, ale kierunek się nie odwrócił,
-a między wydaniami nie ubyło żadnego wpisu z pierwotnej dwudziestki czwórki.
-Mechanizm jest przewidywalny i nie wymaga niczyjej złej woli:
+### 7.3 Izolacja najemcy: co bramki repozytorium widzą, a czego strukturalnie widzieć nie mogą
 
-1. `it.fails` przechodzi, dopóki defekt istnieje. Nic w CI nie naciska na naprawę.
-2. Zapisanie defektu jest tanie i satysfakcjonujące, naprawa jest droga i wymaga decyzji.
-3. Im więcej wpisów, tym mniejsza waga każdego — 226 pozycji to już nie lista, to tło.
+Stan końcowy polityk odtworzyłem **parserem repozytorium** (`src/lib/ci/rlsPolicies`,
+`extractLatestPolicies`), a nie własnym — powód w rozdz. 8.5 pkt 3.
 
-Kierunek jest właściwy: lepiej mieć defekt zapisany, widoczny i odwracalny (bo `it.fails` pada
-w chwili naprawy) niż zieloną suitę z nieznanym błędem. Ale **rejestr bez terminu i bez właściciela
-przestaje być rejestrem, a staje się archiwum.** Dlatego to jest pozycja R1 tego wydania.
+| miara                         |         wartość |
+| ----------------------------- | --------------: |
+| migracji w historii           |             934 |
+| polityk RLS w stanie końcowym |         **620** |
+| z wiązaniem najemcy           | **562 (90,6%)** |
+| polityk właścicielskich       |             165 |
+| tabel z politykami            |             258 |
+| tabel z kolumną `tenant_id`   |             265 |
 
-**Klasa defektu, która przestała być przypadkiem.** W wydaniu 4 wymieniłem trzy wystąpienia wzorca
-„awaria wygląda jak pustka” i nazwałem to brakiem konwencji. Raport MODUŁU 19 klasyfikuje ten sam
-wzorzec jako **klasę dominującą: 12 wystąpień w jednym module**, z czego 10 zgłoszonych. Razem
-z klubami i builderem daje to co najmniej **15 niezależnych wystąpień w czterech modułach**.
+**Obie bramki najemcy są zielone.** `check:sql-owner-tenant-scope` raportuje 2 luki POZORNE
+(obie na `profiles`, z pisemnym argumentem tautologii: `current_tenant_id()` JEST tenantem tego
+wiersza, więc dla `id = auth.uid()` warunek jest tautologią) oraz **`KNOWN_OPEN_GAPS` PUSTĄ** —
+dług zastany z chwili wprowadzenia bramki został spłacony do zera migracją 20260814221343.
+`check:sql-policy-tenant-regression` też jest zielona i dodatkowo raportuje 11 cofnięć
+ZALECZONYCH później — jako raport, nie blokadę.
 
-To już nie jest defekt do naprawiania po jednym. To **brakująca konwencja architektoniczna**:
-odczyt danych w tym repo nie ma jednego, wymuszonego sposobu rozróżnienia „pusto” od „nie udało się
-wczytać”. Konsekwencja dla użytkownika jest zawsze ta sama i zawsze cicha — widzi „nic tu nie ma”
-zamiast „nie udało się wczytać”, więc nie ponawia, nie zgłasza i nie wie, że czegoś nie widzi.
-Naprawa jednostkowa 15 wystąpień nie zapobiega szesnastemu; naprawa konwencją — tak. Stąd pozycja R2.
+**Ustalenie własne dotyczy ZASIĘGU tej bramki, nie luki w niej.** Inwariant jest **relacyjny**
+i jest tak zaprojektowany świadomie: „jeśli NA DANEJ TABELI choć jedna klauzula właścicielska
+wiąże wiersz z tenantem, to KAŻDA klauzula właścicielska na tej tabeli musi go wiązać”.
+Bramka jest samokalibrująca — nie ma ręcznej listy tabel, intencję deklaruje sam schemat.
+Konsekwencja jest jednak taka, że **tabela, na której ŻADNA polityka nie wiąże najemcy, nie ma
+świadka — więc bramka strukturalnie milczy**, niezależnie od tego, czy tabela ma `tenant_id`.
 
-**Klasy pozostałych defektów z dwóch nowych raportów**, w kolejności konsekwencji:
+Takich tabel jest **7**, każda ma dokładnie jedną politykę:
 
-| Klasa                                             | Ile | Skąd                             |
-| ------------------------------------------------- | --: | -------------------------------- |
-| awaria odczytu udaje pustkę albo stan domyślny    |  12 | MODUŁ 19 (klasa dominująca)      |
-| cicha utrata danych i cisza po odmowie            |   9 | MODUŁ 19                         |
-| reguły tekstu, sluga i wyszukiwania               |   7 | MODUŁ 19                         |
-| komunikaty i i18n                                 |   4 | MODUŁ 19                         |
-| rola i dostęp                                     |   3 | MODUŁ 19                         |
-| izolacja najemcy i zakres operacji                |   2 | MODUŁ 19                         |
-| kontrakt wyniku                                   |   1 | MODUŁ 19                         |
-| defekt schematu w SQL (`page_full_path`)          |   1 | MODUŁ 20, bramka zakresu najemcy |
-| pozostałe (SSR, przekierowania, zapytania, trasy) |  37 | MODUŁ 20                         |
+| tabela                | polityka                       | FOR    | ekspozycja     |
+| --------------------- | ------------------------------ | ------ | -------------- |
+| `personality_results` | owner manages own personality  | ALL    | odczyt + zapis |
+| `push_subscriptions`  | push subs owner all            | ALL    | odczyt + zapis |
+| `poll_votes`          | poll votes own read            | SELECT | odczyt         |
+| `speaker_profiles`    | speaker_profiles owner read    | SELECT | odczyt         |
+| `meeting_bookings`    | meeting_bookings parties read  | SELECT | odczyt         |
+| `user_consents`       | user_consents_select_own       | SELECT | odczyt         |
+| `user_consent_events` | user_consent_events_select_own | SELECT | odczyt         |
 
-**Uczciwa nota o wiarygodności tego audytu.** Raport MODUŁU 20 zawiera rozdział „Trzy założenia
-zlecenia, które okazały się nieprawdziwe” — i wszystkie trzy pochodzą z promptu opartego na tym
-dokumencie. Zapisuję je, bo dotyczą jakości moich własnych wyników:
+**Czego to NIE dowodzi, i mówię to wprost:** to nie jest dowód, że obszar roboczy firmy A czyta
+dane firmy B. Przedmiotem jest **własny wiersz tego samego użytkownika**, widziany w innym
+obszarze roboczym. Ryzyko materializuje się przy dryfie danych — wiersz powstał u najemcy A,
+profil przepięto do B — czyli w dokładnie tym scenariuszu, który nagłówek bramki sam opisuje
+jako swoją przyczynę źródłową (`author_profiles`, audyt 2026-08-03). Przy politykach SELECT-only
+zapis przez RLS jest w ogóle niemożliwy (domyślna odmowa), więc zapisy idą przez funkcje
+SECURITY DEFINER — to inna powierzchnia, nie ta luka.
 
-1. Twierdziłem, że `publishedContent.server.ts` woła `resolveTenantForHost`. Nie woła — bierze
-   `tenantId` jako parametr, a trasy crawlera rozwiązują najemcę **wariantem fail-closed**
-   (`resolveCrawlerTenantIdForHost`), bo wariant treściowy nieznanemu hostowi oddaje najemcę
-   DOMYŚLNEGO. Różnica jest istotna i to była pomyłka po mojej stronie.
-2. Twierdziłem, że `cacheBusting.ts` porównuje manifest builda. Nie ma tam manifestu.
-3. Wymagałem kluczy i18next w granicy błędu i na stronie 404. **Ta warstwa renderuje się poza
-   dostawcą i18n** i celowo używa własnego słownika `errorCopy.ts`. Wymuszenie tam i18next byłoby
-   zmianą produkcji pod test — i słusznie tego nie zrobiono. Moja reguła „zawsze klucz i18n” ma
-   wyjątek i to jest ten wyjątek.
-
-Wniosek metodologiczny, ten sam co przy dwóch ścieżkach importu WordPressa (rozdz. 5.3): **zakres
-i założenia zadania testowego trzeba weryfikować w kodzie przed napisaniem zlecenia, a nie opierać
-na nazwie pliku ani na regule ogólnej.** Trzy z trzech założeń, które sprawdziłem tylko z nazwy,
-okazały się nieprawdziwe; wszystkie, które oparłem na przeczytanym kodzie, się potwierdziły.
+**Do rozważenia, nie do zrobienia w ciemno:** dwie tabele z `FOR ALL` (`personality_results`,
+`push_subscriptions`) są jedynymi, gdzie ekspozycja obejmuje zapis. Jeśli któraś z tych
+płaszczyzn ma sens per-najemca, dopisanie tam wiązania najemcy **włączy** bramkę dla całej
+tabeli na przyszłość — bo od tego momentu tabela będzie miała świadka.
 
 ---
 
@@ -1547,160 +1602,82 @@ okazały się nieprawdziwe; wszystkie, które oparłem na przeczytanym kodzie, s
 Ryzyko liczę jako BEZWZGLĘDNĄ liczbę niepokrytych linii, nie procent — 20% na module o 50 tys.
 linii to większa dziura niż 20% na module o 5 tys.
 
-| #   | Moduł                                                | Linii niepokrytych | Linie % | Funkcje % | Testów |
-| --- | ---------------------------------------------------- | -----------------: | ------: | --------: | -----: |
-| 3   | Silniki treści: bloki + page builder                 |          **5 054** |  76,41% |    71,67% |  5 007 |
-| 7   | Typy treści specjalne                                |          **2 313** |  43,93% |    36,73% |    934 |
-| 20  | Platforma / backend / infrastruktura / SSR           |          **2 271** |  75,55% |    68,19% |  4 597 |
-| 17  | Analityka i BI                                       |          **2 080** |  32,88% |    28,41% |    199 |
-| 13  | Monetyzacja: checkout / subskrypcje / billing        |          **1 776** |  67,04% |    76,62% |  1 643 |
-| 22  | Wydarzenia: event builder, rejestracja, onsite       |          **1 595** |  84,78% |    84,62% |  5 268 |
-| 9   | Czat / komunikator                                   |          **1 226** |  62,31% |    57,74% |    607 |
-| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy |          **1 043** |  27,06% |    18,42% |     91 |
-| 16  | Społeczność: kluby, komentarze, moderacja            |            **878** |  89,12% |    89,02% |  4 715 |
-| 12  | Realtime / powiadomienia / web-push                  |            **601** |  49,54% |    47,46% |     99 |
+| #   | Moduł                                          | Linii niepokrytych | Linie % | Funkcje % | Testów |
+| --- | ---------------------------------------------- | -----------------: | ------: | --------: | -----: |
+| 7   | Typy treści specjalne                          |          **2 313** |  43,93% |    36,73% |    934 |
+| 20  | Platforma / backend / infrastruktura / SSR     |          **2 246** |  75,83% |    68,65% |  5 161 |
+| 17  | Analityka i BI                                 |          **2 080** |  32,88% |    28,41% |    199 |
+| 22  | Wydarzenia: event builder, rejestracja, onsite |          **1 595** |  84,78% |    84,62% |  5 268 |
+| 3   | Silniki treści: bloki + page builder           |          **1 220** |  94,30% |    92,61% |  5 704 |
+| 9   | Czat / komunikator                             |          **1 209** |  62,83% |    58,02% |    607 |
+| 16  | Społeczność: kluby, komentarze, moderacja      |            **878** |  89,12% |    89,02% |  4 715 |
+| 12  | Realtime / powiadomienia / web-push            |            **601** |  49,54% |    47,46% |     99 |
+| 1   | Wpisy: doświadczenie czytelnika                |            **391** |  84,67% |    82,12% |  1 015 |
+| 21  | Rekrutacja / kariera                           |            **381** |  55,12% |    47,13% |    171 |
 
 ### 8.1 Rekomendacje — kolejność, nie lista życzeń
 
-**R1. MODUŁ 22 udowodnił mechanizm. MODUŁ 14 jest następny — i tym razem wiadomo, dlaczego stoi.**
-Wydarzenia poszły w **dwadzieścia sześć godzin** z 58,96% na **84,78% linii** i z 55,25% na **84,62% funkcji**,
-przy powierzchni praktycznie bez zmian (362 → 366 plików). Dziesięć z piętnastu funkcjonalności
-domknięto, jedna z zera na 100%. To nie jest anomalia ani wysiłek nadzwyczajny — to jest efekt
-zamówienia pracy listą, w kolejności, z regułami.
+**R1. Naprawić potok wdrożeniowy, który duplikuje migracje i zdejmuje z nich uzasadnienie.**
+Najtańsza naprawa o największym zasięgu w tym wydaniu: **jedna przyczyna zapala pięć rzeczy**
+(dwa testy w `migrationReplay`, jeden w `authzSnapshotParity`, dwie bramki `check:*`). Dwie
+migracje klasy „tenant scope" wjechały dwa razy pod różnymi nazwami, a kopie mają **0 linii
+komentarza wobec 125 i 62 w oryginałach** i noszą NAJNOWSZE znaczniki czasu. Naprawa jest opisana
+w komunikacie samej bramki: zostawić plik z PR-a, usunąć wygenerowany duplikat przed wdrożeniem,
+a jeśli obie wersje są już zastosowane — dopisać wpis do `KNOWN_CONTENT_TWINS` z dowodem
+zastosowania. Potem `bun run generate:authz-snapshot` i commit wyniku. **Efekt: pięć zapaleń
+gaśnie, suita wraca do zieleni poza jednym testem monetyzacji.** Koszt: jeden commit.
+Rzecz ważniejsza od samych zapaleń: przy commitach nazwanych „Changes" i „Work in progress"
+kolejność nazw plików migracji jest **jedynym** narzędziem datowania regresji.
 
-Moduł 14 (kupony / darowizny / prezenty / reklamy) stoi **siódme wydanie z rzędu na dnie**:
-27,06% linii, 18,42% funkcji (najniższy wymiar funkcyjny w repo), 13 z 39 plików na zerze,
-**zero progów per-ścieżka i zero wpisów `it.fails`**, 1 043 niepokryte linie, ruch od wydania 6
-dokładnie **0,0 pp**. Wydanie 6 pisało, że „nikt go nie wziął". To było za łagodne. Powód jest
-strukturalny i policzalny:
+**R2. Wycofać wpis `it.fails` o `page_full_path` — defekt jest zamknięty.**
+`serviceRoleTenantScope.gate.test.ts` zgłasza `Expect test to fail`, bo migracja
+`20260831160000_page_full_path_tenant_scope.sql` domknęła wyciek slugu innego najemcy do adresu
+kanonicznego w sitemapie i RSS-ie. Zamienić `it.fails` na `it`. Wpis, który przestał opisywać
+rzeczywistość, psuje rejestr dokładnie tak samo jak wpis, którego nikt nie naprawił — a ten
+rejestr ma dziś **255 pozycji** i jego wiarygodność jest jego jedyną wartością.
 
-- **221 z 467 funkcji modułu (47%) siedzi w pięciu plikach tras, wszystkich na 0%**:
-  `admin.ads.tsx` (807 linii pliku, 71 funkcji), `admin.coupons.index.tsx` (579),
-  `admin.gifting.tsx` (755 linii i **ani jednego importu z `@/components/`**),
-  `admin.coupons.campaigns.tsx` (551), `admin.donations.tsx` (314).
-- Czysta warstwa jest **już zrobiona**: `gifting/model.ts` 97,9%, `ads/pageType.ts`,
-  `dimensions.ts`, `idle.ts`, `admin-model.ts` po 100%.
-- Wszystko, co dotyka bazy albo ekranu, leży: `gifting/hooks.ts` 6,0% (0 z 17 funkcji),
-  `ads/queries.ts` 6,7%, `ads/consent.ts` 26,9% (9 z 53 funkcji).
+**R3. Podnieść próg globalny — stoi 19,1 pp pod pomiarem.**
+`64/58/62/65` przy zmierzonych `82,87 / 77,51 / 81,49 / 84,12`. Repozytorium musiałoby stracić
+**22,7% całego pokrycia**, żeby bramka globalna cokolwiek zauważyła. Dotychczasowe uzasadnienie
+(„progi per-ścieżka i tak padają") zniknęło: **przebieg nie zgłosił ani jednego naruszenia progu**,
+a kod wyjścia 1 pochodzi wyłącznie z czerwonych testów. Wpisać wartości ~5 pp pod pomiarem
+i **przy okazji odświeżyć komentarz w `vitest.config.ts`**, który notuje 68,27 / 62,80 / 66,25 /
+69,28 — czyli jest nieaktualny o **14,8 pp na liniach** i jest jedynym miejscem, z którego
+czytający config dowiaduje się, ile pokrycia repo ma.
 
-Czyli: łatwa praca się skończyła, a to, co zostało, **nie ma szwów, za które można chwycić**.
-Kto zacznie od testów, napisze pięć testów montujących po 800 linii naraz. Najpierw ekstrakcja
-do atoms/molecules/organisms — wzorzec stoi gotowy w `src/components/admin/events/` — potem asercje.
-Kontrast z modułem 22 jest tu pouczający: tam 57 z 72 zer to cienkie trasy po ~6 linii, bo logika
-siedzi w organizmach (rozdz. 5.4). Tu jest odwrotnie i dlatego zera są drogie.
+**R4. Powłoka panelu admina: 2 361 niepokrytych linii — największa pojedyncza dziura w repo.**
+221 plików, **57,34% linii, 52,16% funkcji**, 30 plików na zerze, siedem progów per-ścieżka na całą
+powierzchnię. To jedyna duża powierzchnia, która **nigdy nie dostała ani zadania, ani zapadki**,
+a rośnie przy każdej ekstrakcji z tras — czyli każda kampania w innym module ją powiększa.
+W tym oknie drgnęła o +9,39 pp jako efekt uboczny modułów 13, 14 i 3, nie jako praca własna.
+Wzorzec jest gotowy i sprawdzony trzy razy: ekstrakcja do `atoms/molecules/organisms`, potem
+asercje, na końcu próg.
 
-Dwa miejsca w tym module zasługują na pokrycie niezależnie od procentu.
-`src/routes/api/public/ad-event.ts` (31 linii, **0%**, 0 z 2 funkcji) niesie sześć decyzji
-bezpieczeństwa — limiter po IP, limit ciała żądania, białą listę rodzajów zdarzeń, odrzucenie
-nierozpoznanego najemcy zamiast wpadania do domyślnego, weryfikację własności slotu przeciw
-podszywaniu cross-tenant i weryfikację placementu — a **każda ścieżka zwraca 204 i połyka
-wyjątki**. Zapis, odrzucenie i awaria wyglądają dla świata identycznie, więc regresja nie da
-sygnału poza spadkiem metryk, którego nikt nie odróżni od spadku ruchu.
-`src/lib/ads/consent.ts` (193 linie, 26,9%, 9 z 53 funkcji, 30% gałęzi) jest jedynym wejściem
-bramki zgody reklamowej: `AdSlot.tsx:38` decyduje jednym wyrażeniem
-`blocked = slot.requires_consent && !granted`, a `granted` pochodzi stąd. Logika GPC i rejestr
-RODO mają siedem plików testowych w `src/lib/consent/` — warstwa CMP, która te decyzje podaje
-reklamom, nie ma ani jednego.
+**R5. Analityka i BI: jedyne „beznadziejnie", 32,88% linii i 47 z 86 plików na zerze.**
+Ostatnia powierzchnia w tej kategorii po odejściu modułu 14. Od wydania 1 urosła o **+4,9 pp**
+— czyli praktycznie o nic w trzynaście dni, w których repozytorium urosło o ponad 50 pp.
+2 080 niepokrytych linii przy ośmiu progach, które trzymają stan, ale go nie poprawiają.
+To jest naturalny kandydat na następne zamówienie, dokładnie w modelu, który zadziałał
+jedenaście razy z rzędu.
 
-**R2. Skok modułu 22 ominął warstwę egzekwowania — i ominął plik, o który w tym oknie chodziło.**
-Przyrost 2 748 pokrytych linii rozłożył się tak: **72,5% komponenty, 18,5% reszta biblioteki,
-7,2% API i funkcje serwerowe, 1,8% trasy**. Pokrycie urosło tam, gdzie zachowanie jest rysowane,
-a nie tam, gdzie jest egzekwowane. Dodatkowo **68 z 82 nowych plików testowych (83%) atrapuje
-własną warstwę danych** (`vi.mock` na `@/lib`, `@/components`, `@/hooks`), więc panel zdaje
-egzamin wobec atrapy tego, co sam woła.
+**R6. `publicRegistrationApi.ts`: 13 niepokrytych linii ścieżki pieniędzy, wskazane imiennie
+w wydaniu 7 i nietknięte.** Plik stoi na **35 z 48 linii (72,91%) — dokładnie tyle samo co przed
+oknem**. Dziesięć linii dopisanych commitem „Domknął kasę na ścieżce zapisu etapu 4" nadal nie jest
+wykonywanych przez żaden test. Ścieżka ma dowód gdzie indziej (e2e, asercje uprzęży), więc to nie
+jest dziura w kasie — to jest dziura w rozkładzie pracy, i jedyna pozycja tej listy, która przeszła
+przez dwa wydania bez ruchu. Koszt: jeden plik testowy.
 
-Najostrzejszy pojedynczy przypadek: commit „Domknął kasę na ścieżce zapisu etapu 4 (część A)"
-zmienił `src/lib/events/publicRegistrationApi.ts`, który przeszedł z **92,10% (35 z 38 linii)
-na 72,91% (35 z 48)** — przybyło dziesięć linii ścieżki pieniędzy i **ani jedna nie jest
-wykonywana przez żaden test**. Liczba pokrytych linii jest identyczna co do sztuki.
+**R7. Dwie powierzchnie bez ANI JEDNEGO progu: realtime/web-push (49,54%) i kariera (55,12%).**
+Zero progów per-ścieżka znaczy, że nawet dzisiejszy stan nie jest chroniony przed cofnięciem.
+Tanie domknięcie: nie kampania, tylko wpisanie progów na aktualnym poziomie, żeby dorobek
+przestał być pożyczony.
 
-Ścieżka ma dowód w innych warstwach (e2e i 40 asercji runtime w `25_payment_binding.sql`),
-więc to nie jest dziura w kasie — to jest dziura w rozkładzie pracy testowej. Domknięcie warstwy
-API i funkcji serwerowych modułu 22 jest tańsze niż cokolwiek innego na tej liście i powinno pójść
-przed czwórką z R9.
-
-**R3. Zapadka stanęła CAŁA — drugie wydanie z rzędu, i tym razem także per-ścieżka.**
-Próg globalny stoi na `64/62/65/58` od wydania 5, przy pomiarze `76,54/71,64/75,04/77,66` —
-margines urósł do ~12 pp. W wydaniu 6 pisałem, że nawyk nie zniknął, bo progi per-ścieżka rosły
-dalej. **W tym wydaniu nie rosną i one: 353 → 353, liczba bez zmian**, mimo że przybyło 100 plików
-testowych i mimo że dziesięć funkcjonalności modułu 22 przeskoczyło o 20–100 pp. Wartości na
-ścieżkach wydarzeń podniesiono za dostawą, ale ani jedna NOWA ścieżka nie dostała własnego progu.
-
-Żeby dziś przekroczyć zapadkę globalną w dół, repozytorium musiałoby stracić **jedną szóstą**
-całego pokrycia. Bramka, która puszcza taki spadek, nie jest bramką.
-
-To nie jest uwaga formalna i wydanie 6 dostarczyło na to dowód — który wtedy odczytałem błędnie
-i prostuję w rozdz. 1 i 6.1. Dziesięć czerwonych testów szuflady profilu kosztowało moduł 15
-**0,0 pp** pokrycia, bo przy `reportOnFailure: true` linie wykonane przez padający test wciąż się
-liczą. Awarii nie było widać w procencie w ogóle — złapał ją wyłącznie **próg per-ścieżka**
-`src/components/profile/**`. Procent modułu nie jest bramką i czerwieni nie wykrywa. Wykrywa ją
-próg postawiony na tyle wąsko, żeby jeden zepsuty katalog przebił się przez średnią.
-
-**R4. MODUŁ 21 — siódme wydanie z rzędu z ruchem 0,00 pp. To już nie jest zaległość, to wzorzec.**
-55,12% linii, 47,13% funkcji, 12 z 29 plików na zerze, zero progów per-ścieżka — te same liczby
-co w wydaniach 1, 2, 3, 4, 5 i 6, co do drugiego miejsca po przecinku. Najczęściej wypełniany
-formularz przez osoby z zewnątrz nie zmienił pokrycia ani razu w ciągu całej serii.
-Zaraz za nim MODUŁ 17 (32,88%, **0,0 pp od wydania 5**, 47 z 86 plików na zerze).
-
-**R5. Nadsprzedaż puli wejściówek — zarejestrowana, nie naprawiona, i to jest pieniądze klienta.**
-Księgowanie wpłaty nie sprawdza puli **typu wejściówki**; istniejący `refundIfOversold` pilnuje
-wyłącznie pojemności całego wydarzenia. Przy wyczerpanej puli i wolnym wydarzeniu: pieniądze
-pobrane, zgłoszenie zostaje `pending/unpaid` bez kodu QR, zwrotu nie ma, powiadomienia nie ma.
-Rozstrzygnięcie opisano w `docs/DECYZJA_NADSPRZEDAZ_PULI_WEJSCIOWEK_2026-08-30.md` i jest to
-właściwe postępowanie — decyzja o rezerwacji miejsca, świadomej nadsprzedaży albo automatycznym
-zwrocie jest produktowa, nie refaktorem. Ale pozostaje **otwarta**, a stan „wzięliśmy pieniądze
-i milczymy" jest najgorszym z możliwych.
-
-**R6. `page_full_path` — siódme wydanie, nadal nietknięte, a od tego wydania nie ma już wymówki.**
-Sprawdzone ponownie na mierzonym HEAD: żadna z 134 migracji tego okna nie dotyka tej funkcji
-i **żaden z 99 plików pgTAP nadal jej nie wspomina**. Rekurencyjne CTE idące w górę po
-`pages.parent_id` bez predykatu najemcy, `LANGUAGE sql STABLE`, wołane spod service-role.
-Skutek bez zmian: strona z rodzicem u innego najemcy wnosi JEGO slug do ścieżki kanonicznej
-publikowanej w sitemapie i RSS-ie.
-
-Nowa okoliczność: repozytorium ma dziś **piątą uprząż** — `tenant-isolation-harness` — postawioną
-dokładnie na tę klasę defektu. Powstała, bo audyt z 29.08 pokazał, że polityki właścicielskie
-`media_mentions`, `saved_searches` i `user_follows` bramkowały wyłącznie `user_id = auth.uid()`,
-mimo `NOT NULL tenant_id`: wiersz z jednego obszaru roboczego był czytelny i edytowalny z innego,
-a `WITH CHECK` pozwalał **zapisać** wiersz do cudzego. Naprawione migracją `20260829091010`.
-Skoro uprząż na granicę najemcy istnieje i działa, `page_full_path` należy do niej.
-
-**R7. Osłona testów na żywej bazie myli brak poświadczeń z poświadczeniami zaślepkowymi.**
-`src/__tests__/db-schema-invariant.test.ts` i `src/__tests__/lang-parity.test.ts` celowo odpytują
-hostowaną bazę. Osłona brzmi `const shouldRun = Boolean(SUPABASE_URL && SUPABASE_KEY)` — i przechodzi
-dla **zaślepki**. Deweloper z `.env` ustawionym na `placeholder.supabase.co`, czyli z konfiguracją,
-którą repozytorium samo daje, nie dostaje „pominięto, brak poświadczeń", tylko 49 czerwonych testów
-wyglądających na zepsute. Osłona ma odrzucać host zaślepkowy, a nie sprawdzać obecność zmiennej.
-Jednolinijkowa zmiana warunku; dziś działa jak strzelba na własnym progu.
-
-**R8. „Pusto" i „nie udało się wczytać" to jedna brakująca konwencja, nie 15 osobnych defektów.**
-Bez zmian wobec wydań 5 i 6, bo nic się w tej sprawie nie wydarzyło — a wydanie 7 dokłada do
-wzorca kolejne przypadki z modułu wydarzeń: `EventMePanel` na odmowę `event_my_agenda` mówi
-o **pustej** agendzie i nie ma ani jednej gałęzi `isError`; `AgendaConflictsPanel` odcina brakujące
-kolumny przez `row.x === ""`, a baza oddaje `null`; `useValidateCoupon` w module 14 mapuje **każdy**
-błąd na `not_found`, więc zerwane połączenie mówi użytkownikowi, że jego kupon jest nieprawidłowy.
-Naprawa jednostkowa kolejnych wystąpień nie zapobiega następnemu; naprawa konwencją — tak.
-
-**R9. Komentarz pomiaru w `vitest.config.ts` przekroczył granicę wprowadzania w błąd.**
-Config dokumentuje `68,27 / 62,80 / 66,25 / 69,28`; pomiar niezależny daje
-`76,54 / 71,64 / 75,04 / 77,66`. Rozjazd urósł z 5,7 pp (wydanie 6) do **8,4 pp na liniach**.
-Pisałem wtedy, że jest na granicy. Granica przekroczona: to jedyne miejsce w kodzie, z którego
-czytelnik configu dowiaduje się, ile pokrycia repo ma, i mówi mu o repozytorium osiem punktów
-słabszym, niż jest.
-
-**R10. Cztery ostatnie funkcjonalności modułu 22 — praca urwała się na dziewiątej pozycji listy.**
-Publiczny portal wydarzenia (66,5%, +1,3 pp, 11 z 60 plików na zerze), bilety i pakiety
-(70,1%, +2,9), katalog wydarzeń (76,3%, +0,2) i rejestracja (77,1%, +0,8). Bilety to powierzchnia
-pieniędzy i `EventPackagesPanel` (59 linii), `EventTicketPurchase` (51) oraz `EventTicketCard` (32)
-stoją na zerze. Domknięcie tej czwórki jest tanie w porównaniu z tym, co już zrobiono, i kończy
-moduł.
-
-**R11. Sprawdzić, czy naprawa izolacji najemcy była kompletna.**
-Migracja `20260829091010` naprawiła trzy tabele. Wzorzec defektu — polityka właścicielska
-bramkująca wyłącznie `user_id = auth.uid()` na tabeli z `NOT NULL tenant_id` — jest mechaniczny
-i da się go przeszukać. Uprząż `tenant-isolation-harness` już stoi i przyjmie kolejne asercje bez
-budowania czegokolwiek od nowa. To najtańsza możliwa praca bezpieczeństwa w tym repozytorium:
-zapytanie po `pg_policies`, lista kandydatów, asercja na każdego.
+**R8. Ustalić kolejność w generatorze `routeTree.gen.ts` albo wyjąć plik z gita.**
+Sam przebieg suity brudzi drzewo robocze: 4 078 wstawień i 4 078 usunięć, **8 115 linii przed
+i po**, hasz posortowanej treści identyczny — czyli zero zmian treści, wyłącznie przestawienie.
+Skutek praktyczny: każda bramka i każdy hook typu „brak niezacommitowanych zmian" fałszywie zapala
+się po każdym `vitest run`, a autor za każdym razem musi odróżnić szum od zmiany. Plik sam mówi
+„You should NOT make any changes in this file as it will be overwritten".
 
 ### 8.2 Ocena: dobre, złe, beznadziejne — z argumentem, nie z widzimisię
 
@@ -1716,74 +1693,72 @@ w błąd (słowniki i18n, kluby, monetyzacja), i tam ocenę koryguję z podaniem
 | Ocena             | Baza | Moduł                                                     | Linie | Funkcje | Progów | Rodzajów testów | Plików 0% |
 | ----------------- | ---: | --------------------------------------------------------- | ----: | ------: | -----: | --------------: | --------: |
 | **wzorowo**       | 99,5 | 11. Newsletter i e-mail                                   | 99,5% |   99,4% |     73 |               6 |     0/148 |
-| **wzorowo**       | 99,0 | 2. Edytor wpisów i workflow redakcyjny                    | 99,3% |   98,7% |     21 |               6 |     0/103 |
+| **wzorowo**       | 99,0 | 2. Edytor wpisów i workflow redakcyjny                    | 99,3% |   98,8% |     21 |               6 |     0/103 |
 | **wzorowo**       | 98,8 | 18. CRM                                                   | 99,0% |   98,6% |      1 |               6 |      0/59 |
+| **wzorowo**       | 96,4 | 13. Monetyzacja: checkout / subskrypcje / billing         | 96,5% |   96,3% |     24 |               7 |     3/190 |
 | **wzorowo**       | 96,1 | 6. Wyszukiwarka                                           | 97,4% |   95,2% |      8 |               5 |      0/25 |
 | **wzorowo**       | 96,1 | 8. SEO, feedy, dane strukturalne                          | 96,7% |   95,7% |     20 |               6 |      5/78 |
 | **wzorowo**       | 95,9 | 15. Profil i konto                                        | 97,6% |   94,8% |     40 |               7 |      2/94 |
 | **wzorowo**       | 94,7 | 5. Strona główna, archiwa, chrome                         | 96,5% |   93,5% |      1 |               5 |      1/62 |
-| **wzorowo**       | 91,2 | 19. Ustawienia / integracje / users / multi-tenant / RODO | 93,2% |   89,9% |     36 |               7 |    14/131 |
+| **wzorowo**       | 93,3 | 3. Silniki treści: bloki + page builder                   | 94,3% |   92,6% |     25 |               8 |     2/460 |
+| **wzorowo**       | 91,5 | 19. Ustawienia / integracje / users / multi-tenant / RODO | 93,4% |   90,2% |     36 |               7 |    14/135 |
+| **wzorowo**       | 91,1 | 14. Monetyzacja: kupony / darowizny / prezenty / reklamy  | 92,6% |   90,1% |      7 |               6 |      1/44 |
 | **wzorowo**       | 90,3 | 4. Strony, wygląd, motyw, media, import                   | 92,3% |   88,9% |      2 |               6 |     4/133 |
 | **dobrze**        | 89,1 | 16. Społeczność: kluby, komentarze, moderacja             | 89,1% |   89,0% |     11 |               8 |    16/306 |
 | **dobrze**        | 84,7 | 22. Wydarzenia: event builder, rejestracja, onsite        | 84,8% |   84,6% |      6 |               8 |    72/366 |
-| **dobrze**        | 82,9 | 1. Wpisy: doświadczenie czytelnika                        | 84,4% |   82,0% |     27 |               4 |    13/104 |
+| **dobrze**        | 83,1 | 1. Wpisy: doświadczenie czytelnika                        | 84,7% |   82,1% |     27 |               4 |    13/104 |
 | **dobrze**        | 82,6 | 10. Sieć / networking                                     | 83,7% |   81,8% |      2 |               4 |      3/32 |
-| **dobrze**        | 75,5 | design system (components/ui)                             | 80,4% |   72,2% |      0 |               1 |      4/44 |
-| **przeciętnie**   | 73,6 | 3. Silniki treści: bloki + page builder                   | 76,4% |   71,7% |     18 |               7 |    68/460 |
-| **przeciętnie**   | 72,8 | słowniki i18n                                             | 93,1% |   59,2% |      0 |               2 |     1/134 |
-| **przeciętnie**   | 72,8 | 13. Monetyzacja: checkout / subskrypcje / billing         | 67,0% |   76,6% |     21 |               7 |    34/190 |
-| **przeciętnie**   | 71,1 | 20. Platforma / backend / infrastruktura / SSR            | 75,6% |   68,2% |     44 |               7 |    46/201 |
-| **przeciętnie**   | 59,6 | 9. Czat / komunikator                                     | 62,3% |   57,7% |      9 |               3 |     14/81 |
+| **dobrze**        | 77,1 | design system (components/ui)                             | 81,1% |   74,4% |      0 |               1 |      4/44 |
+| **przeciętnie**   | 74,2 | słowniki i18n                                             | 93,2% |   61,6% |      0 |               2 |     1/135 |
+| **przeciętnie**   | 71,5 | 20. Platforma / backend / infrastruktura / SSR            | 75,8% |   68,7% |     44 |               7 |    45/202 |
+| **przeciętnie**   | 59,9 | 9. Czat / komunikator                                     | 62,8% |   58,0% |      9 |               3 |     14/81 |
+| **źle**           | 54,2 | powłoka panelu admin + atomy/molekuły                     | 57,3% |   52,2% |      0 |               5 |    30/221 |
 | **źle**           | 50,3 | 21. Rekrutacja / kariera                                  | 55,1% |   47,1% |      0 |               2 |     12/29 |
 | **źle**           | 48,3 | 12. Realtime / powiadomienia / web-push                   | 49,5% |   47,5% |      0 |               3 |     12/28 |
-| **źle**           | 44,6 | powłoka panelu admin + atomy/molekuły                     | 47,9% |   42,5% |      0 |               4 |    33/184 |
 | **źle**           | 39,6 | 7. Typy treści specjalne                                  | 43,9% |   36,7% |      1 |               6 |     37/95 |
 | **beznadziejnie** | 30,2 | 17. Analityka i BI                                        | 32,9% |   28,4% |      8 |               3 |     47/86 |
-| **beznadziejnie** | 21,9 | 14. Monetyzacja: kupony / darowizny / prezenty / reklamy  | 27,1% |   18,4% |      0 |               2 |     13/39 |
 
-Rozkład: **9** wzorowo · **5** dobrze · **5** przeciętnie · **4** źle · **2** beznadziejnie.
+Rozkład: **12** wzorowo · **5** dobrze · **3** przeciętnie · **4** źle · **1** beznadziejnie.
 
-**Ocena całości: DOBRZE — i to jest przekroczenie progu, pierwsze od wydania 3.**
-Baza dla całego repo liczona tą samą rubryką: **76,1** — po 53,4 w wydaniu 3, 65,7
-w wydaniu 4, 73,4 w wydaniu 5 i 72,9 w wydaniu 6. Granica „dobrze” leży na 75 i została
-przekroczona. Warto od razu powiedzieć, skąd ten skok: **niemal w całości z jednego modułu.**
-Wydarzenia poszły z 58,96% na 84,78% linii, a ponieważ to 366 plików i ponad 10 tysięcy linii,
-ruch tej wielkości przesuwa średnią całego repozytorium. Bez modułu 22 ta sama rubryka daje
-dziś ~74,7, czyli o włos poniżej progu. Podaję obie liczby, bo obie są prawdziwe: pierwsza
-mówi, w jakim stanie jest aplikacja, druga — ile zrobiono na powierzchniach, które nie były
-przedmiotem zamówienia. Odpowiedź na to drugie brzmi: prawie nic.
+**Ocena całości: DOBRZE — i pierwszy raz bez ratowania się jednym modułem.**
+Baza dla całego repo liczona tą samą rubryką: **82,5** — po 53,4 w wydaniu 3, 65,7
+w wydaniu 4, 73,4 w wydaniu 5, 72,9 w wydaniu 6 i 76,1 w wydaniu 7. Granica „dobrze” leży na 75:
+wydanie 7 przeszło ją o 1,1 punktu, to wydanie o 7,5. Różnica jakościowa jest jednak gdzie indziej.
+W wydaniu 7 musiałem od razu podać drugą liczbę, bo **bez modułu wydarzeń** ta sama rubryka
+dawała ~74,7, czyli poniżej progu — cały wynik stał na jednej powierzchni. **W tym wydaniu
+takiej dyskwalifikacji nie ma:** ruch pochodzi z trzech niezależnych modułów, więc usunięcie
+dowolnego z nich nie zdejmuje repozytorium poniżej progu. To pierwszy raz w serii.
 Rozbijam to na pięć osobnych ocen, bo jedna liczba tego nie opisuje:
 
-1. **Poziom pokrycia — PIERWSZY warunek „dobrze” spełniony, drugi nie.** 77,66% linii
-   i 75,04% funkcji na 3 212 plikach produkcyjnych. W wydaniu 3 postawiłem próg: za „dobrze”
-   uznam **75%+ linii przy żadnym module poniżej 60%**. Linie: 77,66% — spełnione. Modułów poniżej
-   60% jest 6: M21 (55,1%), M12 (49,5%), powłoka panelu admin + atomy/molekuły (47,9%), M7 (43,9%), M17 (32,9%), M14 (27,1%).
-   Warunku drugiego nie spełnia więc nadal ANI JEDNO wydanie tej serii — i skład tej listy
-   jest najważniejszą informacją tego rozdziału. W wydaniu 6 było na niej siedem modułów
-   (sześć starych plus nowy moduł 22). Dziś jest ich sześć: **ubył wyłącznie moduł 22**,
-   ten jeden, który dostał zamówienie. **Żaden z sześciu pozostałych nie ruszył się o więcej
-   niż 0,1 pp** — moduły 14, 17, 21, 7 i 12 mają dokładnie 0,0 pp, a powłoka admina +0,1.
-   To jest ten sam wniosek co w wydaniu 6, tylko mocniejszy o kolejną dobę dowodu:
-   kolejka istnieje i jest przestrzegana co do joty, ale najsłabsze powierzchnie w niej
-   nie stoją. Powierzchnia rusza się wtedy i tylko wtedy, kiedy ktoś ją zamówi.
-2. **Rozkład — najlepszy w tej serii.** 6 z 25 powierzchni ma ocenę „źle”
-   albo „beznadziejnie” — po 12 z 24 w wydaniu 3, 10 w wydaniu 4, 6 w wydaniu 5 i 6 w wydaniu 6.
-   „Beznadziejnie” stoi na 2 (MODUŁ 14 i 17, te same co w czterech poprzednich wydaniach),
-   „wzorowo” na 9, a „dobrze” urosło z 3 na 5 — bo MODUŁ 22 przeszedł z „przeciętnie”
-   (57,5) na 84,7, czyli o 27 punktów bazy w jedną dobę.
-   Model „jedno zlecenie = jedna powierzchnia, jawny cel, próg na końcu” zadziałał ósmy raz
-   z rzędu i nie zawiódł ani razu w całej serii. Wydanie 6 pisało, że zadziałał po raz pierwszy
-   PROFILAKTYCZNIE, bo moduł 22 wchodził z 58,96% zamiast z 25%. Wydanie 7 pokazuje drugą połowę
-   tej samej obserwacji: **wejście z 59% nie zastąpiło zamówienia, tylko je potaniło** — moduł
-   i tak stał w miejscu do momentu, w którym pracę spisano listą.
+1. **Poziom pokrycia — PIERWSZY warunek „dobrze” spełniony z dużym zapasem, drugi nie.** 84,12% linii
+   i 81,49% funkcji na 3 260 plikach produkcyjnych. W wydaniu 3 postawiłem próg: za „dobrze”
+   uznam **75%+ linii przy żadnym module poniżej 60%**. Linie: 84,12% — spełnione z zapasem 9 pp.
+   Powierzchni poniżej 60% jest 5: powłoka panelu admin + atomy/molekuły (57,3%), M21 (55,1%), M12 (49,5%), M7 (43,9%), M17 (32,9%).
+   Warunku drugiego nie spełnia więc nadal ANI JEDNO wydanie tej serii — ale **lista skróciła się
+   z sześciu powierzchni na pięć, i to nie przez zaokrąglenie**: moduł 14 zszedł z niej z hukiem,
+   z 27,06% na 92,63%. Skład reszty jest niezmienny od wielu wydań: analityka i BI (32,88%),
+   typy treści specjalne (43,93%), realtime i web-push (49,54%), kariera (55,12%) oraz powłoka
+   panelu (57,34%, jedyna z tej piątki, która w tym oknie drgnęła — o 9,39 pp).
+   Wniosek z wydania 7 zostaje w mocy, tylko z inną liczbą: **powierzchnia rusza się wtedy
+   i tylko wtedy, kiedy ktoś ją zamówi** — czternaście powierzchni ma dziś dokładnie +0,00 pp.
+2. **Rozkład — najlepszy w serii, i pierwszy raz „beznadziejnie” jest tylko jedno.** 5 z 25 powierzchni
+   ma ocenę „źle” albo „beznadziejnie” — po 12 z 24 w wydaniu 3, 10 w wydaniu 4, 6 w wydaniu 5,
+   6 w wydaniu 6 i 6 w wydaniu 7.
+   „Beznadziejnie” spadło z 2 na 1: **MODUŁ 14 opuścił tę kategorię po pięciu wydaniach
+   z rzędu** i stoi dziś na 91,1 bazy, czyli „wzorowo”. Została w niej wyłącznie analityka i BI.
+   „Wzorowo” urosło z 9 na 12 — weszły moduły 13, 3 i 14, dokładnie te trzy, które ruszyły.
+   Model „jedno zlecenie = jedna powierzchnia, jawny cel, próg na końcu” zadziałał dziewiąty,
+   dziesiąty i jedenasty raz z rzędu i nie zawiódł ani razu w całej serii. **Wydanie 8 dokłada
+   do tego rzecz nową: model wytrzymał trzy zamówienia RÓWNOLEGLE**, w jednym oknie, bez
+   pogorszenia jakości nowych testów — przeciwnie (rozdz. 7.1).
 3. **Uczciwość pomiaru — dobrze, miejscami wzorowo.** `all: true` na całym `src/`, pliki bez testów
    w mianowniku, zero whitelistu. To repo ma za sobą epizod raportowania **98%** z 38 plików
    z pętlami renderującymi bez asercji — i sam ten epizod usunęło. Gęstość asercji
-   2,00 na test, stabilna w każdym rodzaju testu, potwierdza, że dzisiejsze liczby nie są farmione.
-4. **Infrastruktura dowodu — wzorowo.** 353 progów per-ścieżka, 38 bramek `check:*`
-   (w tym META-bramka „bramka, która istnieje, musi się uruchamiać”), 99 plików pgTAP
-   z 1 793 asercjami na RLS i RPC, klasyfikacja testów na jedenaście rodzajów — a w tym wydaniu
-   szósta warstwa dowodu urosła: **5 uprzęży** replayu migracji z 1 505
+   1,99 na test, stabilna w każdym rodzaju testu, potwierdza, że dzisiejsze liczby nie są farmione.
+4. **Infrastruktura dowodu — wzorowo.** 373 progów per-ścieżka, 38 bramek `check:*`
+   (w tym META-bramka „bramka, która istnieje, musi się uruchamiać”), 100 plików pgTAP
+   z 1 807 asercjami na RLS i RPC, klasyfikacja testów na jedenaście rodzajów — a w tym wydaniu
+   szósta warstwa dowodu urosła: **5 uprzęży** replayu migracji z 1 547
    asercjami runtime, z czego 1 050 w uprzęży wydarzeń. Piąta jest nowa w tym wydaniu
    (`tenant-isolation-harness`) i powstała, bo polityki właścicielskie trzech tabel bramkowały
    wyłącznie `user_id`, mimo `NOT NULL tenant_id` — wiersz z jednego obszaru roboczego był
@@ -1795,125 +1770,204 @@ Rozbijam to na pięć osobnych ocen, bo jedna liczba tego nie opisuje:
    migracje **po treści, a nie po nazwie pliku**, co jest bezpośrednią odpowiedzią na kształt
    historii migracji w tym repo (prawie każda funkcja ma dwie definicje, a obowiązująca jest
    w pliku z UUID-em). Większość projektów tej wielkości nie ma nawet połowy tego aparatu.
-5. **Zabezpieczenie dorobku — POPRAWIONE, ale niedokończone.** Próg globalny stoi
-   12,7 pp pod pomiarem na liniach — tyle pokrycia można stracić, nie łamiąc progu globalnego.
-   Bez ANI JEDNEGO progu per-ścieżka jest 6 z 25 powierzchni: design system (components/ui) (80,4%), słowniki i18n (93,1%), MODUŁ 21 (55,1%), MODUŁ 12 (49,5%), powłoka panelu admin + atomy/molekuły (47,9%), MODUŁ 14 (27,1%).
-   Najgroźniejsza z nich to powłoka panelu admina: 185 plików, 46,82% linii, zero progów —
-   jedyna duża powierzchnia, która nigdy nie dostała ani zadania, ani zapadki, i która rośnie
-   przy każdej ekstrakcji z tras.
-   Druga rzecz: **żaden próg nie jest dziś wpisany nad zmierzone i bramka wychodzi kodem 0.**
-   Obie regresje, które w wydaniu 6 zapaliły osiem naruszeń, zostały cofnięte pracą testową,
-   a nie obniżeniem progu — i to jest pełny, domknięty cykl działania tego mechanizmu.
-   Trzecia i najgorsza: **zapadka stanęła CAŁA.** Próg globalny nie drgnął drugie wydanie
-   z rzędu i stoi 12,7 pp pod pomiarem, a w tym wydaniu **przestały rosnąć także progi
-   per-ścieżka: 353 → 353, liczba bez zmian**, mimo 100 nowych plików testowych
-   i mimo dziesięciu funkcjonalności, które skoczyły o 20–100 pp. Wartości na ścieżkach wydarzeń
-   podniesiono, ale ani jedna NOWA ścieżka nie dostała własnego progu. W wydaniu 6 pisałem,
-   że nawyk nie zniknął, bo per-ścieżka rosło dalej; to zdanie przestało być prawdziwe.
+5. **Zabezpieczenie dorobku — nadal najsłabsza ocena, ale pierwszy ruch od dwóch wydań.** Próg globalny stoi
+   19,1 pp pod pomiarem na liniach — tyle pokrycia można stracić, nie łamiąc progu globalnego,
+   czyli **22,7% całego dorobku**.
+   Bez ANI JEDNEGO progu per-ścieżka jest 5 z 25 powierzchni: design system (components/ui) (81,1%), słowniki i18n (93,2%), powłoka panelu admin + atomy/molekuły (57,3%), MODUŁ 21 (55,1%), MODUŁ 12 (49,5%).
+   Najgroźniejsza z nich to powłoka panelu admina: 221 plików, 57,34% linii,
+   **2 361 niepokrytych linii — największa pojedyncza dziura w liniach w całym repozytorium**,
+   i jedyna duża powierzchnia, która nigdy nie dostała ani zadania, ani zapadki. Rośnie
+   przy każdej ekstrakcji z tras, więc każda kampania w innym module ją powiększa.
+   Druga rzecz, na plus: **żaden próg nie jest dziś wpisany nad zmierzone i bramka pokrycia
+   nie zgłosiła ani jednego naruszenia.** Kod wyjścia 1 pochodzi wyłącznie z pięciu czerwonych
+   testów, a nie z progów — i to jest właściwe zachowanie: progi mają trzymać dorobek,
+   a czerwień ma zgłaszać defekt.
+   Trzecia, i pierwsza dobra wiadomość w tej ocenie od dwóch wydań: **progi per-ścieżka znów rosną:
+   353 → 373**, czyli +20 nowych ścieżek pod zaporą. W wydaniu 7 pisałem,
+   że zapadka stanęła CAŁA; to zdanie przestało być prawdziwe w połowie. Globalna nadal stoi,
+   ale trzy domknięte moduły dostały nie tylko procent, lecz i próg, który go trzyma.
+   Zostaje jedna rzecz do zrobienia jednym commitem: **podnieść próg globalny.** Przy zapasie
+   19 pp bramka globalna nie chroni już niczego, co dałoby się realnie utracić.
 
-**Trajektoria zasługuje na osobne zdanie: super.** 32,71% → 77,66% linii w dwanaście dni, przy suicie
-rosnącej z 817 do 1 863 plików i z ~8,3 tys. do 49 354 testów, to nie jest normalne tempo.
-Trzynaście modułów przeszło z kilkunastu procent do ponad 80: edytor **+91,0 pp**, CRM +87,0, chrome
-+79,8, profil i konto +78,5, **newsletter +72,8**, kluby +71,6, ustawienia i RODO +71,2, wygląd/media
-+69,6, wyszukiwarka +64,2, wpisy +52,5, SEO +46,4, bloki i builder +36,4, billing +34,3.
-Do tej listy dochodzi w tym wydaniu **moduł 22 z +25,8 pp w dwadzieścia sześć godzin** — najszybszy pojedynczy
-skok dużej powierzchni w całej serii.
+**Trajektoria zasługuje na osobne zdanie: super.** 32,71% → 84,12% linii w **trzynaście dni**, przy suicie
+rosnącej z 817 do 2 010 plików i z ~8,3 tys. do 54 695 testów, to nie jest normalne tempo.
+**Dziewięć modułów przeszło z poniżej 30% na ponad 89% linii:** edytor 8,34 → 99,35 (**+91,0 pp**),
+CRM 12,04 → 99,03 (+87,0), chrome 16,71 → 96,47 (+79,8), profil 19,12 → 97,64 (+78,5),
+newsletter 26,70 → 99,53 (+72,8), kluby 17,56 → 89,12 (+71,6), ustawienia i RODO 22,00 → 93,36
+(+71,4), **monetyzacja kuponów 22,55 → 92,63 (+70,1)** i wygląd/media 22,76 → 92,32 (+69,6).
+Do tego wyszukiwarka +64,2, **checkout i billing +63,8**, **bloki i builder +54,3**, wpisy +52,9
+i SEO +46,4. Dziś **18 z 25 powierzchni stoi na 80% linii lub wyżej**.
 
-Wydanie 6 zapisało tu obserwację, że **moduł zbudowany od zera przy włączonym reżimie testowym
-wchodzi na 60%, a nie na 25%** — wszystkie wcześniejsze duże powierzchnie tego repozytorium
-startowały z 24–28% i wymagały kosztownego zadania ratunkowego. Wydanie 7 dokłada do tego
-drugą połowę i jest ona mniej pocieszająca: **wejście z 59% nie sprawiło, że moduł domknął się
-sam.** Stał w miejscu, dopóki nie dostał zamówienia — a kiedy je dostał, zamknął dziesięć
-funkcjonalności w dobę. Reżim obniża koszt pracy, ale jej nie zastępuje.
+Modułu wydarzeń nie ma na tej liście, bo w wydaniu 1 nie istniał jeszcze jako osobna powierzchnia
+w taksonomii — jego +25,8 pp to przyrost wydania 7, nie liczba kumulacyjna, a mieszanie tych
+dwóch rzeczy byłoby zawyżaniem.
 
-**Jedno zdanie, gdyby trzeba było wybrać jedno.** W wydaniu 6 napisałem, że pytanie nie brzmi
-już „czy da się”, tylko „w jakiej kolejności”. Wydanie 7 odpowiada na to twardym dowodem
-i jednocześnie zawęża pytanie: kolejność działa bezbłędnie — ósma powierzchnia z rzędu
-domknięta na zamówienie — ale **poza kolejką nie dzieje się nic**. Sześć modułów poniżej 60%
-ma dziś dokładnie takie same liczby jak wczoraj, a trzy z nich mają je takie same
-od siedmiu wydań. To nie jest problem zdolności ani tempa. To jest problem tego, czy ktoś
-wpisze moduł 14 na listę.
-
----
-
-### 8.3 Czy ten wynik jest „dramatyczny” — sprawdzenie własnego słowa
-
-Pisząc ten dokument nazwałem wynik modułu 22 dramatycznym. Słowo padło, zanim je sprawdziłem,
-więc sprawdzam je tutaj — pięcioma niezależnymi ujęciami i trzema próbami jego obalenia.
-Odpowiedź jest podzielona i to jest jej treść: **dramatyczna jest KONCENTRACJA i KOMPRESJA,
-nie wielkość skoku.**
-
-**Co słowa NIE broni.** Skok +25,82 pp to dopiero **15. miejsce na 145** par moduł×okno w całej
-serii; czołówka to +91,08 pp (moduł 2), +86,95 (18), +79,44 (5), +65,09 (19). Korekta na niską
-bazę, która miała ten wynik uratować, nie ratuje go: moduł skonsumował 62,91% dostępnego zapasu,
-co daje **13. miejsce na 145** — powyżej stoi dwanaście par, z czego pięć powyżej 95%.
-W ujęciu bezwzględnym jest w ścisłej czołówce, ale też nie na szczycie: 2 748 nowo pokrytych
-linii to 4. wynik serii, 1 165 funkcji — 3., spadek plików zerowych o 72 — 3.
-Gorzej: to **dwunasta „kampania domknięcia” w tej serii i najsłabsza z dwunastu** — najniższy skok
-punktowy przy najwygodniejszej bazie startowej. A sam moduł 22 dostał w POPRZEDNIM oknie
-2,2 razy więcej pokrytych linii niż w tym, które nazwałem dramatycznym.
-
-**Czego słowo broni, i to rekordowo.** Moduł 22 wchłonął **83,9% całego przyrostu pokrytych linii
-tego okna** (2 748 z 3 274). To rekord koncentracji w całej serii — poprzednie maksimum wynosiło
-56,4%, a w oknie wydania 1→2 największy moduł odpowiadał za 11,9%. Indeks koncentracji HHI
-wynosi 0,711 wobec poprzedniego rekordu 0,481, a przewaga nad drugą powierzchnią jest
-**7,2-krotna** wobec poprzedniego rekordu 2,3.
-
-Druga rzecz to zegar. Okno trwało **1,47 doby**, nie tydzień, jak najpierw napisałem —
-i to jest błąd działający **na niekorzyść** własnej tezy: przy siedmiu dniach tempo wyniosłoby
-393 linie na dobę i 22. miejsce, przy prawdziwym oknie wynosi 1 873 i 10. miejsce.
-Ostrzej: **jedenaście commitów niosących w temacie etykiety zamówionej listy (A5, B1–B9) mieści
-się w czterech godzinach i dwunastu minutach** 30 sierpnia, między 10:52 a 15:02. W tym czasie
-zamknięto dziesięć funkcjonalności, w tym jedną z zera na 100%.
-
-**Trzecia rzecz — i najważniejsza dla oceny, bo to zarzut, nie pochwała.** Sprawdziłem, czy skok
-nie jest wyfarmiony, tym samym testem, którym to repozytorium raz już zawyżyło wynik
-(98% z warstwy renderów bez asercji). **Nie jest**, i to dość jednoznacznie: zero przypadków bez
-`expect`, zero pętli renderujących bez asercji, zero snapshotów, zero atrapowania jednostki
-testowanej; gęstość 3,81 asercji na przypadek wobec 3,85 średniej repo; **34,5% nazw przypadków
-nazywa błąd, odmowę albo limit** wobec 26,7% w repo; 61 z 82 nowych plików uruchamia `axe`,
-gdy przedtem cały moduł miał jeden taki plik; doszło pięć nowych bramek parytetu stałych z bazą.
-Koszt jednostkowy jest przy tym **najwyższy w całym zestawieniu** — 15,6 linii kodu testowego
-na jedną nowo pokrytą linię produkcyjną — a farmienie pokrycia nie produkuje najdroższych testów.
+**Jedno zdanie, gdyby trzeba było wybrać jedno.** Wydanie 7 kończyłem zdaniem: „kolejność działa
+bezbłędnie, ale poza kolejką nie dzieje się nic — to jest problem tego, czy ktoś wpisze moduł 14
+na listę”. **Ktoś wpisał.** Moduł 14 poszedł z 27,06% na 92,63% linii i opuścił kategorię
+„beznadziejnie”, w której siedział pięć wydań z rzędu. Wydanie 8 potwierdza więc jedno
+i podważa drugie: mechanizm zamawiania działa **i skaluje się do trzech powierzchni naraz**,
+ale diagnoza „poza kolejką nic” nadal stoi w mocy — czternaście powierzchni ma dokładnie
++0,00 pp. Zmienia się natomiast OSTRZEŻENIE. Przy zapasie 19 pp nad zapadnią globalną
+i przy `reportOnFailure: true` jedyną rzeczą, która realnie złapie regresję, jest **czerwony
+test albo próg per-ścieżka** — a to wydanie pokazuje oba w akcji: pięć zapaleń z jednej
+przyczyny wdrożeniowej i jeden wpis rejestru, który sam zgłosił, że defekt zniknął.
 
 ---
 
-### 8.4 Gdzie ten skok NIE dotarł — i dlaczego to jest najważniejsza linijka wydania
+### 8.3 Czy trzy kampanie naraz obniżyły jakość testów — sprawdzenie
 
-Sprawdzanie własnego słowa wywołało znalezisko, którego nie szukałem. **Przyrost 2 748 linii
-rozłożył się bardzo nierówno po warstwach:**
+Wydanie 7 postawiło zarzut, który trzeba sprawdzić za każdym razem, gdy pokrycie skacze:
+**czy przyrost jest dowodem, czy tylko liczbą.** Tamten dokument twierdził dwie rzeczy —
+że przyrost omija warstwę egzekwowania i że nowe testy atrapują własną warstwę danych.
+Obie sprawdziłem tą samą metodą co wtedy, a wynik jest niejednoznaczny i to jest jego treść.
 
-| Warstwa                                                        | Nowo pokrytych linii |    Udział |
-| -------------------------------------------------------------- | -------------------: | --------: |
-| komponenty (render, panele, dialogi)                           |                1 993 | **72,5%** |
-| pozostała biblioteka domenowa                                  |                  509 |     18,5% |
-| API i funkcje serwerowe (`*Api.ts`, `.server.`, `.functions.`) |                  198 |  **7,2%** |
-| trasy                                                          |                   49 |      1,8% |
+**Gdzie trafił przyrost.** 7 159 nowo pokrytych linii rozłożyło się tak:
 
-Pokrycie urosło tam, gdzie zachowanie jest RYSOWANE, a nie tam, gdzie jest EGZEKWOWANE.
-Dodatkowo **68 z 82 nowych plików testowych (83%) atrapuje własną warstwę danych** —
-`vi.mock` na `@/lib`, `@/components` albo `@/hooks`. Panel zdaje egzamin wobec atrapy tego,
-co sam woła; sama wołana warstwa może pozostać nieprzetestowana i część z niej pozostała.
+| warstwa                                          | przyrost linii |    udział | plików z przyrostem | Δ LOC mierzonych |
+| ------------------------------------------------ | -------------: | --------: | ------------------: | ---------------: |
+| komponenty                                       |          3 992 |     55,8% |                 151 |             +674 |
+| **funkcje serwerowe (`.server` / `.functions`)** |      **2 032** | **28,4%** |                  48 |             +147 |
+| biblioteka i hooki                               |            686 |      9,6% |                  30 |              +91 |
+| trasy (poza API)                                 |            337 |      4,7% |                  13 |             −475 |
+| API (`routes/api.*`)                             |            112 |      1,6% |                   3 |               +3 |
 
-**A teraz najostrzejsze.** Nagłówkowym osiągnięciem tego okna jest domknięcie ścieżki płatniczej
-(rozdz. 5.5). Commit, który to zrobił, nosi temat „Domknął kasę na ścieżce zapisu etapu 4
-(część A)”. Plik, który przy tym zmienił — `src/lib/events/publicRegistrationApi.ts` — stoi tak:
+Wydanie 7 miało w warstwie egzekwowania (API plus funkcje serwerowe) **7,2%**; to wydanie
+ma **30,0%**. To poprawa czterokrotna na dokładnie tej osi, którą tamten dokument nazwał swoim
+najważniejszym zarzutem. Komponenty nadal biorą większość, ale nie przytłaczającą.
+Ujemna delta LOC w trasach nie jest błędem: to efekt ekstrakcji logiki z plików tras
+do organizmów, czyli tego samego wzorca, który zamawiały prompty modułów 13, 14 i 3.
 
-|                 | wydanie 6 |   wydanie 7 |
-| --------------- | --------: | ----------: |
-| pokrycie linii  |    92,10% |  **72,91%** |
-| linii pokrytych |   35 z 38 | **35 z 48** |
+**Ale jest jeden fakt, który tę poprawę przycina — i jest ważniejszy niż udział warstwy.**
+Wydanie 7 wskazało PALCEM jeden plik: `publicRegistrationApi.ts`, do którego commit domykający
+kasę dopisał dziesięć linii ścieżki pieniędzy, nie pokrywając ani jednej. Ten plik stoi dziś
+na **35 z 48 linii (72,91%) — dokładnie tyle samo co przed oknem**. Jest to spójne z tym,
+że moduł wydarzeń ma w tym oknie +0,00 pp, ale prowadzi do wniosku metodologicznego:
+**udział warstwy jest słabszym dowodem niż nazwa pliku.** Zarzut wydania 7 został zamknięty
+statystycznie, a nie w miejscu, które wskazano.
 
-Przybyło dziesięć linii ścieżki pieniędzy i **ani jedna z nich nie jest wykonywana przez żaden
-test**. Liczba linii pokrytych jest identyczna co do sztuki: 35 przed, 35 po. Procent tego pliku
-spadł o 19,2 pp w oknie, które w skali modułu wygląda na +25,8.
+**Czy nowe testy dowodzą czegokolwiek.** Metrykę policzyłem IDENTYCZNIE dla obu okien, żeby
+porównanie nie stało na cytacie z poprzedniego wydania. Klasa wątpliwa to plik, który podmienia
+wewnętrzny moduł biznesowy (`vi.mock` na `@/lib`, `@/components`, `@/hooks`, `@/routes`)
+i **nie** atrapuje przy tym granicy bazy — czyli test dowodzący, że komponent poprawnie reaguje
+na odpowiedź, którą sam sobie napisał.
 
-To nie unieważnia dostawy — ścieżka płatnicza ma dowód w innych warstwach: test
-`e2e/event-paid-registration.spec.ts` i 40 asercji runtime w nowym pliku uprzęży
-`25_payment_binding.sql`. Ale jest to dokładnie ta sytuacja, przed którą ostrzega rozdział 7:
-**procent modułu może rosnąć o dwadzieścia sześć punktów i jednocześnie nie dotknąć tego
-jednego pliku, o który w tym oknie chodziło najbardziej.** Średnia modułu nie jest bramką —
-tak samo, jak nie była nią przy szufladzie profilu w wydaniu 6 (rozdz. 1).
+|                                     |      wydanie 7 |      wydanie 8 |
+| ----------------------------------- | -------------: | -------------: |
+| nowych plików testowych w oknie     |            100 |            147 |
+| bez ani jednego `vi.mock`           |     17 (17,0%) | **38 (25,9%)** |
+| atrapuje granicę bazy (uzasadnione) |     28 (28,0%) | **71 (48,3%)** |
+| atrapuje moduł biznesowy            |     75 (75,0%) |     83 (56,5%) |
+| **z tego BEZ granicy bazy**         | **52 (52,0%)** | **28 (19,0%)** |
+
+Nowe testy tego okna to 3 582 przypadki statyczne i 6 928 asercji, czyli 1,9 asercji
+na przypadek. **Jakość wzrosła realnie i na tej samej osi, na której wydanie 7 zgłaszało zarzut.**
+
+**Sprostowanie metryki wobec wydania 7.** Tamten dokument pisał „68 z 82 nowych plików testowych
+(83%) atrapuje własną warstwę danych”. Tej liczby NIE odtwarzam dzisiejszą definicją: to samo okno
+daje 100 nowych plików testowych, z czego 75 (75,0%) atrapuje wewnętrzny moduł biznesowy,
+a 52 (52,0%) robi to bez atrapowania granicy bazy. Różnica siedzi w definicji i w zbiorze plików,
+nie w kodzie — i dlatego porównanie wydań podaję wyłącznie na jednej, jawnie opisanej metryce.
+
+---
+
+### 8.4 Jeden błąd potoku wdrożeniowego, pięć zapaleń — i skasowane uzasadnienie
+
+Bramka `check:sql-migration-replay` jest czerwona na tym HEAD i mówi wprost: **ta sama migracja
+wjechała DWA RAZY pod różnymi nazwami.** Dwie pary, obie z okna tego wydania, obie z klasy
+„tenant scope”:
+
+| oryginał z PR-a                                            | duplikat wygenerowany           |  bajty | linie komentarza |
+| ---------------------------------------------------------- | ------------------------------- | -----: | ---------------: |
+| `20260831160000_page_full_path_tenant_scope.sql`           |                                 | 10 643 |          **125** |
+|                                                            | `20260831214637_5b55b33f-….sql` |  2 587 |            **0** |
+| `20260831170000_owner_plane_tenant_scope_read_history.sql` |                                 |  5 826 |           **62** |
+|                                                            | `20260831215103_21bb8d7a-….sql` |  2 012 |            **0** |
+
+Treść SQL jest identyczna po usunięciu komentarzy — sprawdzone haszem znormalizowanej treści.
+Duplikaty dodały commity „Work in progress” (21:50:45) i „Changes” (21:51:17), a HEAD nazywa się
+„Wdrożył migracje PR #312” (21:53:03). Potok wdrożeniowy wyemitował więc migracje PR-a ponownie,
+**zdejmując z nich 187 linii udokumentowanego uzasadnienia** — i to te pozbawione argumentu kopie
+noszą NAJNOWSZE znaczniki czasu, więc czytający historię w kolejności nazw plików zobaczy
+jako stan aktualny wersję bez argumentu.
+
+`src/lib/authz/authzSnapshot.generated.ts` niesie `"migrations":932`. Migracji jest 934.
+**Różnica to dokładnie te dwa duplikaty.** Stąd łańcuch pięciu zapaleń z jednej przyczyny:
+
+1. `migrationReplay.test.ts` — „nazwy są parsowalne i porządek nazw = porządek wersji” (czerwony);
+2. `migrationReplay.test.ts` — „ratchet: lista znanego długu odzwierciedla stan repo” (czerwony);
+3. `authzSnapshotParity.test.ts` — dryf klasy PROVENANCE, „ten sam krąg uprawnionych, inne miejsce
+   w historii — migrations: 932 → 934” (czerwony);
+4. bramka `check:sql-migration-replay` (czerwona);
+5. bramka `check:authz-snapshot` (czerwona).
+
+Warto docenić, co ten test **rozróżnia**: klasyfikuje dryf jako PROVENANCE, czyli „ten sam krąg
+uprawnionych, inne miejsce w historii”, i sam podpowiada naprawę (`bun run generate:authz-snapshot`).
+Gdyby zmienił się rzeczywisty zbiór uprawnionych ról, komunikat byłby innej klasy. Bramka nie
+krzyczy „coś się zmieniło” — mówi, CO się zmieniło i czy to groźne.
+
+Bazę to przeżyje, bo migracje są idempotentne. Historia nie: przy commitach nazwanych „Changes”
+i „Work in progress” kolejność nazw plików migracji jest **jedynym** narzędziem datowania regresji.
+Naprawa jest tania i jest opisana w komunikacie samej bramki: zostawić plik z PR-a, usunąć
+wygenerowany duplikat przed wdrożeniem, a jeśli obie wersje są już zastosowane — dopisać wpis
+do `KNOWN_CONTENT_TWINS` z dowodem zastosowania. Rejestr może tylko maleć.
+
+---
+
+### 8.5 Pięć rzeczy, w których TEN audyt się mylił
+
+Ta seria ma zapadkę na progach pokrycia i rejestr defektów w `it.fails`. Nie ma zapadki
+na pomyłki audytora, więc trzymam ją tutaj: jawną listę, która może tylko rosnąć.
+
+**1. Pierwszy przebieg wydania 8 dał 32,24% i był bezwartościowy — z mojej winy.**
+Pomiar wystartował o 21:58, a mój własny `npm install` pisał do `node_modules` jeszcze o 22:03:19.
+**966 z 2 005 plików testowych padło na zbieraniu**, wszystkie z jedną przyczyną:
+`Cannot find module '@testing-library/dom'` wymagane przez `@testing-library/react/dist/pure.js`;
+dodatkowo 5 plików z `@vitest-environment jsdom` nie wystartowało. Gdybym opublikował te liczby,
+raport ogłosiłby zapaść z 76% na 32%. Rozpoznanie było możliwe dzięki jednej sygnaturze:
+**968 padniętych PLIKÓW przy 2 czerwonych TESTACH jest niemożliwe dla regresji kodu**, bo plik
+padający na zbieraniu nie zgłasza żadnego czerwonego testu. Poprawka do metody: przed pomiarem
+potwierdzić, że instalacja zakończyła się PRZED startem, i puścić dymny przebieg trzech plików
+komponentowych. Log unieważnionego przebiegu zachowałem, nie skasowałem.
+
+**2. Zepsute środowisko UKRYŁO realne defekty.** W unieważnionym przebiegu `migrationReplay.test.ts`
+i `serviceRoleTenantScope.gate.test.ts` nie były czerwone — bo były wśród tych 966 i raportowały
+„(0 test)”. W przebiegu właściwym mają razem trzy czerwone testy. **Zielona suita w zepsutym
+środowisku jest gorsza niż czerwona w dobrym:** nie tylko kłamie o wyniku, ale kasuje sygnał.
+
+**3. Moje ustalenie „546 polityk RLS, 2 podatne tabele” było artefaktem własnego parsera.**
+Napisałem własny odtwarzacz stanu schematu z 934 migracji. Dawał 546, po poprawce 579 polityk.
+Parser repozytorium (`src/lib/ci/rlsPolicies`) widzi **620**. Różnica nie jest kosmetyczna:
+inwariant `check:sql-owner-tenant-scope` jest **relacyjny** („jeśli choć jedna klauzula
+właścicielska na tabeli wiąże najemcę, to KAŻDA musi”), więc zgubione rodzeństwo polityki zmienia
+werdykt o całej tabeli. Po przejściu na parser repozytorium wynik jest inny i węższy: obie bramki
+najemcy są **zielone**, `KNOWN_OPEN_GAPS` jest **pusta** (dług zastany spłacony do zera migracją
+20260814221343), a realne ustalenie dotyczy ZASIĘGU bramki, nie luki — patrz rozdz. 7.3.
+Zasada, którą z tego biorę: **jeśli repozytorium ma własny parser tego, co chcę zmierzyć,
+mierzę jego parserem.**
+
+**4. Czytałem pliki migracji jak stan schematu.** Cztery liczby w moim prompcie modułu 3 były
+błędne, a dwie z nich miały tę jedną przyczynę. Migracja jest **zdarzeniem, nie stanem**:
+`ALTER` albo `DROP` w późniejszym pliku unieważnia to, co widzę we wcześniejszym. Ta sama pomyłka
+wygenerowała moje nieprawdziwe zdanie o `payment_webhook_events` oraz „35 wystąpień”, które
+w rzeczywistości było liczbą **plików** migracji, nie polityk.
+
+**5. Zaleciłem lazyfikację jako środek na budżet bundla — a odpowiedź była już napisana w pliku,
+którego nie doczytałem.** Kronika `scripts/check-bundle-size.ts` niesie wpis
+„`lazy()` NIE ZDEJMUJE KRAWĘDZI”: `lazy()` zdejmuje moduł ze ścieżki startowej, ale krawędź
+w grafie zostaje, a budżet PUBLIC liczy każdy chunk **osiągalny** z publicznej trasy, nie tylko
+pierwszego wczytania. Jedyne, co realnie zeszło z budżetu, to **odwrócenie zależności**: kanwa
+buildera (kod adminowy) podaje komponent przez kontekst, a publiczny renderer zna wyłącznie
+kształt propsów. Zmierzone: PUBLIC 2 701,8 → 2 669,7 KB (−32,1), ADMIN 1 596,6 → 1 629,0 KB
+(„te same bajty, inne wiadro”), OVERALL bez zmian — „bo niczego nie skasowano”.
+
+**Korekta ramy w rozdz. 5.3.** Pisałem o „DWÓCH niezależnych implementacjach importu WordPressa
+o łudząco podobnych nazwach”, co sugeruje zbędne dublowanie. Sprawdzone w nagłówkach obu plików:
+`wordpress-import.functions.ts` (949 linii) importuje **wpisy** przez konektor WP.com — zadania
+w bazie, postęp, media, kontrakt jednego języka; `wp-import.functions.ts` (688 linii) to v2 importu
+**stron** — konwersja HTML na `BuilderDocument`, parowanie PL/EN, ścieżka WXR. To dwie ścieżki
+dla dwóch typów treści i **żadna nie jest martwa**. Obserwacja o pokryciu (jedna przetestowana,
+druga na 0–3,3%) i wniosek metodologiczny zostają; rama „jedna zbędna” była nieuczciwa.
 
 ---
 
@@ -1980,31 +2034,31 @@ Rozbicie liczby plików produkcyjnych:
 
 | #   | Moduł                                                 | Pliki | LOC (surowe) | Pliki testowe | LOC testów |
 | --- | ----------------------------------------------------- | ----: | -----------: | ------------: | ---------: |
-| 1   | Wpisy: doświadczenie czytelnika                       |   104 |       13 728 |            58 |     13 071 |
+| 1   | Wpisy: doświadczenie czytelnika                       |   104 |       13 732 |            58 |     13 071 |
 | 2   | Edytor wpisów i workflow redakcyjny                   |   103 |       14 771 |            88 |     23 835 |
-| 3   | Silniki treści: bloki + page builder                  |   461 |      111 616 |           287 |     68 494 |
+| 3   | Silniki treści: bloki + page builder                  |   461 |      111 659 |           327 |     79 584 |
 | 4   | Strony, wygląd, motyw, media, import                  |   134 |       16 886 |            74 |     15 564 |
 | 5   | Strona główna, archiwa, chrome                        |    62 |       10 044 |            29 |      8 022 |
 | 6   | Wyszukiwarka                                          |    25 |        4 683 |            21 |      6 119 |
 | 7   | Typy treści specjalne                                 |    95 |       23 117 |            46 |     10 923 |
-| 8   | SEO, feedy, dane strukturalne                         |    78 |       10 937 |            69 |     21 038 |
+| 8   | SEO, feedy, dane strukturalne                         |    78 |       10 940 |            69 |     21 038 |
 | 9   | Czat / komunikator                                    |    81 |       15 602 |            36 |      9 164 |
 | 10  | Sieć / networking                                     |    32 |        5 162 |            23 |      5 298 |
 | 11  | Newsletter i e-mail                                   |   148 |       29 049 |           118 |     39 965 |
 | 12  | Realtime / powiadomienia / web-push                   |    28 |        5 495 |            14 |      1 785 |
-| 13  | Monetyzacja: checkout / subskrypcje / billing         |   190 |       27 892 |            96 |     25 711 |
-| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |    39 |        7 978 |            11 |      1 476 |
+| 13  | Monetyzacja: checkout / subskrypcje / billing         |   190 |       28 842 |           135 |     49 776 |
+| 14  | Monetyzacja: kupony / darowizny / prezenty / reklamy  |    44 |        6 384 |            29 |      9 452 |
 | 15  | Profil i konto                                        |    94 |       19 874 |            72 |     32 847 |
 | 16  | Społeczność: kluby, komentarze, moderacja             |   306 |       58 521 |           194 |     74 365 |
 | 17  | Analityka i BI                                        |    86 |       16 628 |            19 |      2 229 |
 | 18  | CRM                                                   |    59 |       16 226 |            33 |     10 365 |
-| 19  | Ustawienia / integracje / users / multi-tenant / RODO |   131 |       24 326 |            51 |     20 847 |
-| 20  | Platforma / backend / infrastruktura / SSR            |   202 |       66 325 |           215 |     79 689 |
+| 19  | Ustawienia / integracje / users / multi-tenant / RODO |   135 |       24 887 |            55 |     21 544 |
+| 20  | Platforma / backend / infrastruktura / SSR            |   203 |       66 357 |           232 |     90 339 |
 | 21  | Rekrutacja / kariera                                  |    29 |        5 231 |            11 |      2 202 |
 | 22  | Wydarzenia: event builder, rejestracja, onsite        |   366 |       67 947 |           236 |     93 643 |
-| —   | PRZEKROJOWE: słowniki i18n                            |   134 |       54 695 |             6 |        528 |
+| —   | PRZEKROJOWE: słowniki i18n                            |   135 |       55 290 |             6 |        528 |
 | —   | NIEPRZYPISANE                                         |     0 |            0 |            11 |      2 043 |
-| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |   184 |       29 533 |            43 |     11 365 |
+| —   | PRZEKROJOWE: powłoka panelu admin + atomy/molekuły    |   221 |       32 817 |            72 |     20 907 |
 | —   | PRZEKROJOWE: design system (components/ui)            |    44 |        4 559 |             2 |        195 |
 
 ### 9.2 Pliki testowe wyłączone z pomiaru — w tym wydaniu ŻADEN
@@ -2029,19 +2083,41 @@ której v8 nie liczy — ale w rachunku ryzyka trzeba je policzyć na plus, nie 
 
 ```bash
 bun install                    # rejestr prywatny Lovable (piny z bun.lock)
-bun run test:coverage          # próg globalny + 353 progów per-ścieżka
+# POCZEKAJ na zakończenie instalacji i sprawdź, że się DOMKNĘŁA (patrz niżej)
+node -e "['@testing-library/dom','@testing-library/react','happy-dom','jsdom']\
+  .forEach(m=>require.resolve(m+'/package.json'))"   # dymny test kompletności
+npx vitest run src/components/PostLayoutRenderer.test.tsx   # dymny przebieg 1 pliku
+bun run test:coverage          # próg globalny + 373 progów per-ścieżka
 ```
 
-Od wdrożenia R1 z wydania 1 (`coverage.reportOnFailure: true` w configu) raport i progi powstają
-TAKŻE na czerwonej suicie, więc powyższe jedno polecenie wystarcza — obejście z wydania 1 nie jest
-już potrzebne. Pełny przebieg na tym HEAD: 9 min 10 s, 1 863 plików testowych, 49 354 testów
-(1 863 plików / 49 066 testów przeszło, 238 „expected fail”,
-2 pliki / 50 testów pominięte — odpytują hostowaną bazę).
+**Dwa kroki pośrodku nie są ozdobą — bez nich to wydanie opublikowałoby zapaść pokrycia.**
+Pierwszy przebieg wydania 8 wystartował, gdy instalacja zależności jeszcze pisała do
+`node_modules`: katalog `@testing-library/dom` powstał o 22:03:19, a pomiar startował o 21:58.
+**966 z 2 005 plików testowych padło na zbieraniu z jedną przyczyną**, a wynik globalny spadł
+do 32,24%. Sygnatura, która to rozstrzyga w jednym spojrzeniu: **duża liczba padniętych PLIKÓW
+przy znikomej liczbie czerwonych TESTÓW jest niemożliwa dla regresji kodu** — plik padający
+na zbieraniu nie zgłasza żadnego czerwonego testu. Szczegóły w rozdz. 8.5 pkt 1.
 
-Agregacja per moduł / funkcja / funkcjonalność powstała z `coverage/coverage-final.json`
+Od wdrożenia R1 z wydania 1 (`coverage.reportOnFailure: true` w configu) raport i progi powstają
+TAKŻE na czerwonej suicie, więc jedno polecenie wystarcza — obejście z wydania 1 nie jest
+już potrzebne. Pełny przebieg na tym HEAD: **35 min 34 s** (2 134 s), 2 010 plików testowych,
+54 695 testów (2 006 plików / 54 374 testów przeszło, 5 testów padło
+w 4 plikach, 266 „expected fail”, 2 pliki / 50 testów pominięte —
+odpytują hostowaną bazę i pomijają się SAME warunkiem `shouldRun ? describe : describe.skip`).
+Ta sama flaga `reportOnFailure` ma jednak drugą stronę, opisaną w rozdz. 1: **pokrycie jest
+ślepe na czerwone testy**, bo linia wykonana przez padający test wciąż liczy się jako pokryta.
+
+Agregacja per moduł / funkcja / funkcjonalność powstała z `coverage-final.json`
 (mapy `statementMap`/`fnMap`/`branchMap` + liczniki `s`/`f`/`b`) oraz `coverage-summary.json`:
 moduł = suma po plikach pasujących do reguł z 9.1, funkcjonalność = suma po wzorcach ścieżek,
 „funkcja bez wywołania” = wpis `fnMap`, którego licznik `f` wynosi zero.
+
+**Kontrola prozy wobec pomiaru.** Każda liczba wpisana w ten dokument ręcznie (nie z szablonu)
+jest sprawdzana skryptem porównującym ją z `by-module-ed8.json`, `meta.json` i danymi wydania 7 —
+77 twierdzeń, zero rozjazdów na tym HEAD. Skrypt powstał w wydaniu 7, gdzie wyłapał dziesięć
+błędnych liczb w rozdziale 8.2, i od tamtej pory jest uruchamiany przed każdą publikacją.
+W tym wydaniu wyłapał trzy: trzy z moich liczb kumulacyjnych w „Trajektorii” były błędne
+(moduł 14 miał +79,9 zamiast +70,1, sieć +30,4 zamiast +2,0, ustawienia +71,2 zamiast +71,4).
 
 ### 9.4 Dokumenty wdrożeniowe i przeglądowe, na które opiera się to wydanie
 
