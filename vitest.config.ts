@@ -155,6 +155,32 @@ export default defineConfig({
           lines: 97,
           branches: 87,
         },
+        // ── PUBLICZNY RENDERER DOKUMENTU BUILDERA ────────────────────────────
+        // 917 linii, ktore renderuja KAZDA publiczna strone serwisu. Audyt
+        // (wyd. 7) mierzyl tu 6,9% instrukcji i 0% GALEZI przy 176 niepokrytych
+        // liniach. Przyczyna byla jedna: ZADEN TEST NIGDY TEGO PLIKU NIE
+        // RENDEROWAL - osiem plikow testowych, ktore go wymieniaja, podmienialo
+        // go `vi.mock`, a dwa jedyne czytajace prawdziwy plik czytaly go jako
+        // TEKST przez readFileSync (bramka warstw + zasieg typografii).
+        //
+        // ZMIERZONE 2026-08-31 (173 przypadki w dziewieciu plikach, 170 zielonych
+        // + 3 `it.fails`): 99,52% instrukcji (211/212) / 97,02% galezi (261/269) /
+        // 100% funkcji (59/59) / 100% linii (189/189).
+        // Cel zadania byl "powyzej 85% galezi" - osiagniete 97,02%.
+        //
+        // Granice Suspense, tryb podgladu, nieznany typ widgetu, uszkodzony
+        // dokument, rozstrzyganie urzadzenia, odmowa dostepu i warianty A/B maja
+        // tu dowod wykonawczy. Czego NIE da sie pokryc z tego poziomu i jest to
+        // opisane w naglowkach plikow: `ServerSectionGate` jest nieosiagalny
+        // przez `<StreamingSection>`, bo `import.meta.env.SSR` jest w vitescie
+        // falszem - pokrywa go osobny test montujacy gate bezposrednio.
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/components/builder/organisms/BuilderRenderer.tsx": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
         // ── PANELE WŁAŚCIWOŚCI WIDGETÓW ───────────────────────────────────────
         // Audyt 2026-08-18: „jedyna duża powierzchnia MODUŁU 3 BEZ ŻADNEGO progu
         // per-ścieżka - i dlatego jako jedyna osunęła się do 13,6%".
