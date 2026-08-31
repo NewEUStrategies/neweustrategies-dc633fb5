@@ -324,10 +324,7 @@ describe("kontrakt wywołań u operatora", () => {
       "cus_test_1",
       { expand: ["invoice_settings.default_payment_method"] },
     ]);
-    expect(h.subscriptionArgs[0]).toEqual([
-      "sub_test_1",
-      { expand: ["default_payment_method"] },
-    ]);
+    expect(h.subscriptionArgs[0]).toEqual(["sub_test_1", { expand: ["default_payment_method"] }]);
   });
 
   it("lista kart jest pytana o JEDNĄ pozycję i tylko dla tego klienta", async () => {
@@ -365,17 +362,17 @@ describe("awaria operatora", () => {
     // komunikat, więc odpowiedzialność jest przeniesiona świadomie.
     h.throwOn = "customer";
 
-    await expect(
-      fetchPaymentMethodPreview({ ...WEJSCIE, environment: "sandbox" }),
-    ).rejects.toThrow("operator: 503");
+    await expect(fetchPaymentMethodPreview({ ...WEJSCIE, environment: "sandbox" })).rejects.toThrow(
+      "operator: 503",
+    );
   });
 
   it("błąd przy odczycie subskrypcji wychodzi na zewnątrz", async () => {
     h.throwOn = "subscription";
 
-    await expect(
-      fetchPaymentMethodPreview({ ...WEJSCIE, environment: "sandbox" }),
-    ).rejects.toThrow("operator: 503");
+    await expect(fetchPaymentMethodPreview({ ...WEJSCIE, environment: "sandbox" })).rejects.toThrow(
+      "operator: 503",
+    );
   });
 
   it("błąd przy liście metod wychodzi na zewnątrz", async () => {

@@ -39,9 +39,8 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
-const { getTicketOrderHistory, listTicketOrders } = await import(
-  "@/lib/billing/ticketOrders.functions"
-);
+const { getTicketOrderHistory, listTicketOrders } =
+  await import("@/lib/billing/ticketOrders.functions");
 
 const ORDERS = "payment_orders";
 const EVENTS = "events";

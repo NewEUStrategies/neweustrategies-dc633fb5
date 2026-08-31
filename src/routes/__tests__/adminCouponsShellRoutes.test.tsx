@@ -43,9 +43,13 @@ const h = vi.hoisted(() => ({
   from: null as unknown,
   rpc: vi.fn(),
   ensureI18n: vi.fn(),
+  /** Język interfejsu widziany przez atrapę i18n. */
+  lang: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
 
@@ -126,6 +130,7 @@ beforeEach(() => {
   db().reset();
   h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   h.ensureI18n.mockClear();
+  h.lang = "pl";
 });
 
 describe("układ /admin/coupons - miejsce dla podstron", () => {
@@ -184,6 +189,22 @@ describe("układ /admin/coupons - miejsce dla podstron", () => {
     await waitFor(() => expect(view.currentPath()).toBe("/admin/coupons/analytics"));
     expect(screen.getByText("PODSTRONA: analityka")).toBeInTheDocument();
     expect(zakladka("Analityka")).toHaveAttribute("aria-selected", "true");
+    cleanup();
+  });
+
+  it("wersja angielska opisuje sekcję i zakładki po angielsku", async () => {
+    // Napisy układu są wpisane w komponent (bez słownika), więc jedyne, co je
+    // przełącza, to `i18n.language`. Zgubienie tego warunku daje polski pasek
+    // nawigacji na anglojęzycznym koncie administracyjnym.
+    h.lang = "en";
+    await zamontujUklad(UKLAD);
+    expect(screen.getByRole("heading", { name: /B2B coupons/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Coupons",
+      "Campaigns",
+      "Redemptions",
+      "Analytics",
+    ]);
     cleanup();
   });
 

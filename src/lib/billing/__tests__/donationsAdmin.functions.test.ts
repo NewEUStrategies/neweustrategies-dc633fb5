@@ -110,7 +110,9 @@ describe("walidator listy - sufit liczby wierszy", () => {
 
   it("skrajne wartości z zakresu przechodzą: 1 i 200", () => {
     expect(validateServerFnInput<WejscieListy>(listDonationRecords, { limit: 1 }).limit).toBe(1);
-    expect(validateServerFnInput<WejscieListy>(listDonationRecords, { limit: 200 }).limit).toBe(200);
+    expect(validateServerFnInput<WejscieListy>(listDonationRecords, { limit: 200 }).limit).toBe(
+      200,
+    );
   });
 
   it("wartość ponad sufitem jest ODRZUCANA, a nie przycinana do 200", () => {
@@ -177,9 +179,9 @@ describe("walidator synchronizacji - środowisko i okno czasowe", () => {
     // Zły wybór konta miesza wpłaty testowe z prawdziwymi w liczbach, które
     // idą do sprawozdania publicznego.
     for (const zle of ["prod", "production", "LIVE", " live", "", "test", null]) {
-      expect(() =>
-        validateServerFnInput(syncDonationsWithStripe, { environment: zle }),
-      ).toThrow(ZodError);
+      expect(() => validateServerFnInput(syncDonationsWithStripe, { environment: zle })).toThrow(
+        ZodError,
+      );
     }
   });
 

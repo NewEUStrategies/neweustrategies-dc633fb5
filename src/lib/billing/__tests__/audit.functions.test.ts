@@ -113,9 +113,9 @@ describe("obudowa - bramka i metoda", () => {
 
 describe("walidator zakresu - środowisko", () => {
   it("obie wartości enuma przechodzą i nie są przerabiane", () => {
-    expect(validateServerFnInput<ZakresAudytu>(getBillingAudit, { environment: "sandbox" })).toEqual(
-      { environment: "sandbox", sinceHours: 168 },
-    );
+    expect(
+      validateServerFnInput<ZakresAudytu>(getBillingAudit, { environment: "sandbox" }),
+    ).toEqual({ environment: "sandbox", sinceHours: 168 });
     expect(validateServerFnInput<ZakresAudytu>(getBillingAudit, { environment: "live" })).toEqual({
       environment: "live",
       sinceHours: 168,
@@ -137,8 +137,12 @@ describe("walidator zakresu - środowisko", () => {
     // `.toLowerCase()`. Gdyby ktoś dołożył normalizację, wartość z panelu
     // przestałaby być dosłowna, a enum nie byłby już twardą bramką.
     expect(() => validateServerFnInput(getBillingAudit, { environment: "LIVE" })).toThrow(ZodError);
-    expect(() => validateServerFnInput(getBillingAudit, { environment: " live" })).toThrow(ZodError);
-    expect(() => validateServerFnInput(getBillingAudit, { environment: "live " })).toThrow(ZodError);
+    expect(() => validateServerFnInput(getBillingAudit, { environment: " live" })).toThrow(
+      ZodError,
+    );
+    expect(() => validateServerFnInput(getBillingAudit, { environment: "live " })).toThrow(
+      ZodError,
+    );
   });
 
   it("brak środowiska to odmowa - nie ma wartości domyślnej", () => {
@@ -160,8 +164,9 @@ describe("walidator zakresu - okno czasowe", () => {
   it("brak okna oznacza tydzień (168 h), a nie „od początku świata”", () => {
     // Wartość domyślna jest częścią kontraktu wydajnościowego: audyt ma być
     // szybki i mieścić się w limicie 500 wierszy.
-    expect(validateServerFnInput<ZakresAudytu>(getBillingAudit, { environment: "live" }).sinceHours)
-      .toBe(168);
+    expect(
+      validateServerFnInput<ZakresAudytu>(getBillingAudit, { environment: "live" }).sinceHours,
+    ).toBe(168);
   });
 
   it("skrajne wartości okna przechodzą: 1 godzina i 8760 godzin (rok)", () => {

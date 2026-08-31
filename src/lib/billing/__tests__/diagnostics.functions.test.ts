@@ -52,10 +52,7 @@ vi.mock("@/lib/billing/diagnostics.server", () => ({
   syncCouponDiscounts: h.syncCouponDiscounts,
 }));
 
-import {
-  getPaymentsDiagnostics,
-  syncCouponsToProvider,
-} from "@/lib/billing/diagnostics.functions";
+import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 

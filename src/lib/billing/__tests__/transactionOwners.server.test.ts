@@ -88,9 +88,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   },
 }));
 
-const { resolveEnvironment, retrieveTransactionOwners } = await import(
-  "@/lib/billing/transactions.server"
-);
+const { resolveEnvironment, retrieveTransactionOwners } =
+  await import("@/lib/billing/transactions.server");
 const stripeServer = await import("@/lib/stripe.server");
 
 /** Identyfikatory testowe - bez związku z jakąkolwiek realną transakcją. */

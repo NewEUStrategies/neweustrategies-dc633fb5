@@ -120,6 +120,23 @@ function poleDaty(etykieta: string): HTMLElement {
   return przycisk;
 }
 
+/**
+ * Klika w dzień kalendarza i czeka, aż panel POŚLE nowe zapytanie do bazy.
+ *
+ * Klikamy w pętli, bo warstwa Radiksa PRZEMONTOWUJE kalendarz przy kolejnych
+ * renderach panelu: uchwyt złapany raz bywa już odpięty od dokumentu w chwili
+ * kliknięcia, a klik w odpięty węzeł jest bezgłośny. Dowodem jest więc dopiero
+ * NOWE zapytanie, a nie samo zdarzenie myszy.
+ */
+async function klikDzien(dzien: string, poprzednieZapytania: number): Promise<void> {
+  await screen.findByRole("gridcell", { name: dzien });
+  await waitFor(() => {
+    const komorka = screen.getByRole("gridcell", { name: dzien });
+    fireEvent.click(komorka.querySelector("button") ?? komorka);
+    expect(db().chainsFor(TABELA).length).toBeGreaterThan(poprzednieZapytania);
+  });
+}
+
 /** Ostatnie zapytanie o realizacje - to w nim mieszka kontrakt zakresu dat. */
 function ostatnieZapytanie() {
   const chain = db().lastChain(TABELA);
@@ -218,6 +235,7 @@ describe("trasa /admin/coupons/redemptions - pieniądze", () => {
         id: "55555555-5555-4555-8555-555555555555",
         original_cents: 30_000,
         applied_cents: 5_000,
+        b2b_coupons: { code: "NES-BBB222", name: null, grants_tier_key: null },
       }),
     ]);
     await zamontuj();
@@ -300,10 +318,65 @@ describe("trasa /admin/coupons/redemptions - zakres dat", () => {
     await zamontuj();
     await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
     fireEvent.click(poleDaty("Od"));
-    const komorka = await screen.findByRole("gridcell", { name: "15" });
-    fireEvent.click(komorka.querySelector("button") ?? komorka);
-    await waitFor(() => expect(db().chainsFor(TABELA).length).toBeGreaterThan(1));
+    await screen.findByRole("gridcell", { name: "15" });
+    // Kalendarz w warstwie Radiksa PRZEMONTOWUJE się przy kolejnych renderach
+    // panelu, więc uchwyt do komórki złapany raz bywa już odpięty od dokumentu
+    // w chwili kliknięcia (klik w odpięty węzeł jest bezgłośny). Dlatego
+    // komórkę wyszukujemy i klikamy WEWNĄTRZ pętli oczekiwania - dowodem jest
+    // dopiero NOWE zapytanie do bazy.
+    await waitFor(() => {
+      const komorka = screen.getByRole("gridcell", { name: "15" });
+      fireEvent.click(komorka.querySelector("button") ?? komorka);
+      expect(db().chainsFor(TABELA).length).toBeGreaterThan(1);
+    });
     expect(argDaty("gte").getDate()).toBe(15);
+    cleanup();
+  });
+});
+
+describe("trasa /admin/coupons/redemptions - zakres otwarty i puste dane", () => {
+  it("WYCZYSZCZENIE daty OD zdejmuje dolne ograniczenie z zapytania", async () => {
+    // Ponowne kliknięcie zaznaczonego dnia kasuje wybór - i to jest jedyna
+    // droga do zapytania o CAŁĄ historię realizacji. Panel musi wtedy wysłać
+    // zapytanie BEZ `gte`, a nie z ograniczeniem sprzed czyszczenia.
+    // Wybieramy dzień z BIEŻĄCEGO miesiąca (kalendarz otwiera się właśnie na
+    // nim), żeby test nie zależał od dzisiejszej daty.
+    zBazy([]);
+    await zamontuj();
+    await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
+    fireEvent.click(poleDaty("Od"));
+    await klikDzien("15", 1);
+    await klikDzien("15", db().chainsFor(TABELA).length);
+    expect(ostatnieZapytanie().has("gte")).toBe(false);
+    // Górna granica zostaje - czyszczenie jednego pola nie może po cichu
+    // rozszerzyć zakresu w drugą stronę.
+    expect(ostatnieZapytanie().has("lte")).toBe(true);
+    cleanup();
+  });
+
+  it("WYCZYSZCZENIE daty DO otwiera zakres w górę", async () => {
+    // Symetria do poprzedniego przypadku i osobna gałąź w kodzie: puste pole
+    // „Do" ma zdjąć ograniczenie GÓRNE, zostawiając dolne nietknięte. Wersja,
+    // która przy okazji gubi `gte`, pokazałaby całą historię pod opisem
+    // wybranego okna.
+    zBazy([]);
+    await zamontuj();
+    await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
+    fireEvent.click(poleDaty("Do"));
+    await klikDzien("15", 1);
+    await klikDzien("15", db().chainsFor(TABELA).length);
+    expect(ostatnieZapytanie().has("lte")).toBe(false);
+    expect(ostatnieZapytanie().has("gte")).toBe(true);
+    cleanup();
+  });
+
+  it("NULL zamiast tablicy z bazy nie wywraca panelu", async () => {
+    // PostgREST oddaje `data: null` przy odczycie bez wierszy w części
+    // ścieżek. Brak zabezpieczenia daje tu `rows.map` na `null`, czyli biały
+    // ekran całej zakładki zamiast napisu o pustym zakresie.
+    db().setResponse(TABELA, ok(null));
+    await zamontuj();
+    expect(await screen.findByText("Brak realizacji w zakresie.")).toBeInTheDocument();
     cleanup();
   });
 });
@@ -331,6 +404,22 @@ describe("trasa /admin/coupons/redemptions - eksport księgowy", () => {
     const wiersz = csv.split("\n")[1];
     expect(wiersz).toContain("NES-AAA111");
     expect(wiersz.endsWith("100;20;80;PLN")).toBe(true);
+    cleanup();
+  });
+
+  it("wiersz BEZ kuponu, użytkownika i zamówienia zostawia kolumny PUSTE", async () => {
+    // Puste pole ma zostać puste, a nie zniknąć - inaczej wszystkie kolumny
+    // po nim przesuwają się o jedną i arkusz księgowy czyta walutę jako plan.
+    zBazy([realizacja({ b2b_coupons: null, user_id: null, order_id: null })]);
+    await zamontuj();
+    // Eksport składa plik z tego, co panel MA w ręku - czekamy na wiersz,
+    // nie na samo zapytanie.
+    await screen.findByText("100.00 PLN");
+    fireEvent.click(screen.getByRole("button", { name: /Eksport CSV/ }));
+    await waitFor(() => expect(pobraneBloby).toHaveLength(1));
+    const wiersz = (await pobraneBloby[0].text()).split("\n")[1];
+    expect(wiersz.split(";")).toHaveLength(8);
+    expect(wiersz).toContain(";;;");
     cleanup();
   });
 
@@ -363,7 +452,7 @@ describe("trasa /admin/coupons/redemptions - język i dostępność", () => {
 });
 
 describe("trasa /admin/coupons/redemptions - DEFEKTY (zarejestrowane, nienaprawiane)", () => {
-  it("BŁĄD ODCZYTU wygląda dokładnie jak pusty zakres", async () => {
+  it.fails("BŁĄD ODCZYTU wygląda dokładnie jak pusty zakres", async () => {
     // CO JEST ZŁE. `useQuery` w tej trasie nie ma ŻADNEJ gałęzi błędu:
     // `rows = q.data ?? []`, a render pyta tylko o `q.isLoading` i o długość
     // listy. Odmowa RLS, padnięty PostgREST i zerwana sieć dają więc ten sam
@@ -393,7 +482,7 @@ describe("trasa /admin/coupons/redemptions - DEFEKTY (zarejestrowane, nienaprawi
     expect(screen.queryByRole("alert")).not.toBeNull();
   });
 
-  it("kafle sumują RÓŻNE WALUTY w jedną liczbę i nie podają żadnej", async () => {
+  it.fails("kafle sumują RÓŻNE WALUTY w jedną liczbę i nie podają żadnej", async () => {
     // CO JEST ZŁE. `sumCouponTotals` dodaje `original_cents`/`applied_cents`
     // wiersz po wierszu, ignorując kolumnę `currency`, a kafel renderuje samą
     // liczbę: `${(totals.revenueCents / 100).toFixed(2)}` - bez jednostki.
@@ -418,6 +507,7 @@ describe("trasa /admin/coupons/redemptions - DEFEKTY (zarejestrowane, nienaprawi
         original_cents: 5_000,
         applied_cents: 1_000,
         currency: "EUR",
+        b2b_coupons: { code: "NES-EUR333", name: null, grants_tier_key: null },
       }),
     ]);
     await zamontuj();

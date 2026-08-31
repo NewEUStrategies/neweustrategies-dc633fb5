@@ -39,9 +39,7 @@ const h = vi.hoisted(() => ({
   buckets: [] as string[],
   /** Argumenty podpisu: ścieżka, czas życia, opcje. */
   signArgs: [] as Array<[string, number, Record<string, unknown> | undefined]>,
-  signed: { signedUrl: "https://podpisany.example.com/plik.pdf" } as
-    | { signedUrl?: string }
-    | null,
+  signed: { signedUrl: "https://podpisany.example.com/plik.pdf" } as { signedUrl?: string } | null,
   signError: null as { message: string } | null,
 }));
 
@@ -57,11 +55,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       from: (bucket: string) => {
         h.buckets.push(bucket);
         return {
-          createSignedUrl: (
-            path: string,
-            ttl: number,
-            options?: Record<string, unknown>,
-          ) => {
+          createSignedUrl: (path: string, ttl: number, options?: Record<string, unknown>) => {
             h.signArgs.push([path, ttl, options]);
             return Promise.resolve({ data: h.signed, error: h.signError });
           },
@@ -191,9 +185,7 @@ describe("ścieżka przejścia", () => {
       context: KONTEKST,
     });
 
-    expect(h.signArgs).toEqual([
-      ["2026/analiza-cee.pdf", 120, { download: "analiza-cee.pdf" }],
-    ]);
+    expect(h.signArgs).toEqual([["2026/analiza-cee.pdf", 120, { download: "analiza-cee.pdf" }]]);
   });
 
   it("odpowiedź RPC w postaci pojedynczego wiersza (nie tablicy) też działa", async () => {

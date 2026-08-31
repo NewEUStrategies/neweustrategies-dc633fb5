@@ -193,8 +193,8 @@ describe("uruchomienie przebiegu", () => {
     // przycisku: admin uzna, że przypomnienia poszły, i nie ponowi.
     h.run.mockRejectedValue(new Error("reminder lookup failed: connection reset"));
 
-    await expect(
-      callServerFn(runBillingRemindersNow, { context: KONTEKST }),
-    ).rejects.toThrow("reminder lookup failed: connection reset");
+    await expect(callServerFn(runBillingRemindersNow, { context: KONTEKST })).rejects.toThrow(
+      "reminder lookup failed: connection reset",
+    );
   });
 });
