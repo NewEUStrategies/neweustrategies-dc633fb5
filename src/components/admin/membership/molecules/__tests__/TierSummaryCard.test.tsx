@@ -8,9 +8,7 @@ import { membershipTier, reactI18nextStub } from "@/test/admin/pricingFixtures";
 
 vi.mock("react-i18next", () => reactI18nextStub());
 
-const { TierSummaryCard } = await import(
-  "@/components/admin/membership/molecules/TierSummaryCard"
-);
+const { TierSummaryCard } = await import("@/components/admin/membership/molecules/TierSummaryCard");
 
 function renderCard(overrides: Parameters<typeof membershipTier>[0] = {}) {
   const onOpen = vi.fn();
