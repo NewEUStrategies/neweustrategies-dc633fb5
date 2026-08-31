@@ -43,7 +43,7 @@ export function TierEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto rounded-[6px] font-sans">
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto rounded-[6px] p-0 font-sans">
         {tier && draft && (
           <>
             <DialogHeader>
