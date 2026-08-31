@@ -515,4 +515,3 @@ export const CounterWidget = withSuspense(CounterWidgetLazy);
 // Zeby ten widget faktycznie zszedl z budzetu PUBLIC, trzeba by zlazifikowac
 // go TAKZE w CareersHero - a tam jest nad zgieciem, wiec byloby to pogorszenie
 // LCP trasy karier w zamian za kilobajt. Zostaje eager, swiadomie.
-

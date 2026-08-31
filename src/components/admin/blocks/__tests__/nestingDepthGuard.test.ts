@@ -87,7 +87,10 @@ describe("glebokosc zagniezdzenia blokow", () => {
 
   it("zagniezdzony inserter oferuje te sama palete co top-level - bez filtra typow", () => {
     const inserter = readFileSync(INSERTER, "utf8");
-    const props = inserter.slice(inserter.indexOf("interface Props"), inserter.indexOf("export function"));
+    const props = inserter.slice(
+      inserter.indexOf("interface Props"),
+      inserter.indexOf("export function"),
+    );
     expect(props).not.toMatch(/depth|level|allowed|exclude|filter/i);
     // I ten sam komponent jest realnie uzyty wewnatrz kanwy zagniezdzonej.
     expect(readFileSync(NESTED_EDITOR, "utf8")).toContain("BlockInserter");
@@ -124,7 +127,11 @@ describe("glebokosc zagniezdzenia blokow", () => {
         data: { html: "x" },
       } as Block);
     }
-    const withKids = withChildBlocks({ id: "g", type: "group", data: {} } as Block, "blocks", children);
+    const withKids = withChildBlocks(
+      { id: "g", type: "group", data: {} } as Block,
+      "blocks",
+      children,
+    );
     const nested = { version: 1, blocks: [withKids] };
     expect(BlocksDocSchema.safeParse(nested).success).toBe(true);
     expect(readChildBlocks(withKids.data, "blocks")).toHaveLength(600);

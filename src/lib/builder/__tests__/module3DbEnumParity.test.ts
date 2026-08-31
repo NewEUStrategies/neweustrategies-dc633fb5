@@ -83,7 +83,13 @@ function columnChecks(): Map<string, ColumnCheck> {
         const column = m[2].toLowerCase();
         const values = m[3]
           .split(",")
-          .map((v) => v.trim().replace(/::text$/i, "").replace(/^'|'$/g, "").trim())
+          .map((v) =>
+            v
+              .trim()
+              .replace(/::text$/i, "")
+              .replace(/^'|'$/g, "")
+              .trim(),
+          )
           .filter((v) => v.length > 0 && !v.includes("("));
         if (values.length === 0) continue;
         out.set(`${table}.${column}`, { table, column, values: new Set(values), nullable });
