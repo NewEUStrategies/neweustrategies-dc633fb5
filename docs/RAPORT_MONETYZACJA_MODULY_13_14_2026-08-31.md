@@ -285,6 +285,27 @@ parytet zielony (klucz w obu językach), ratchet zielony (napis idzie przez
 
 ---
 
+## 6b. Kod wyjścia pełnej suity - stan zastany
+
+Przebieg końcowy z progami: **1949 plików zielonych, 51 613 testów, 240 wpisów
+`it.fails`, ZERO błędów progów**. Kod wyjścia to jednak `1`, i to wymaga
+wyjaśnienia, żeby nikt nie uznał tego za regresję.
+
+Powodem są dwa nieobsłużone błędy `connect ECONNREFUSED 127.0.0.1:3000`,
+pochodzące z modułu buildera (`settingsFidelity.gate.test.tsx`,
+`sampleDataLeak.gate.test.tsx`, `allWidgets.smoke.test.tsx`). Liczba jest
+IDENTYCZNA w pomiarze bazowym sprzed tej pracy i w przebiegu końcowym
+(`Errors  2 errors` w obu), więc to stan zastany na `main`, nie skutek tej
+gałęzi.
+
+Sprawdzone wprost: cztery pliki testowe tej pracy, które w logu sąsiadowały
+z tymi błędami (`-fx-rate`, `-ad-event`, `consentGate`, `ads/consent`),
+uruchomione osobno dają **exit 0, 129 testów zielonych, zero błędów** -
+sąsiedztwo w logu wynikało z przeplotu stderr równoległych workerów, nie
+z przyczynowości. Żaden test tej pracy nie wychodzi do sieci.
+
+---
+
 ## 7. Czego świadomie nie zrobiłem
 
 1. **Nie naprawiłem defektu zerowego UUID w RPC kuponu** - wymaga migracji SQL,
