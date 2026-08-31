@@ -190,13 +190,187 @@ BEGIN
     'zapis obserwacji do wlasnego tenanta dziala');
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- ROZSZERZENIE 2026-08-31: plaszczyzna wlasciciela modulow monetyzacji.
+-- Ten sam scenariusz dryfu: wiersz zalozony w tenancie B, wlasciciel (User A)
+-- przepiety do tenanta A. Przed migracja 20260831060000 wlasciciel widzial
+-- swoja historie zakupow, subskrypcji, przydzialow czlonkostwa, miejsc w
+-- organizacji i linkow prezentowych TAKZE spoza swojego obszaru roboczego.
+-- ---------------------------------------------------------------------------
+INSERT INTO public.subscriptions (id, tenant_id, user_id) VALUES
+  ('51111111-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1'),
+  ('51111111-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
+   'a0000000-0000-0000-0000-0000000000a1');
+
+INSERT INTO public.membership_grants (id, tenant_id, user_id) VALUES
+  ('52222222-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1'),
+  ('52222222-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
+   'a0000000-0000-0000-0000-0000000000a1');
+
+INSERT INTO public.organization_seats (id, tenant_id, user_id) VALUES
+  ('53333333-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1'),
+  ('53333333-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
+   'a0000000-0000-0000-0000-0000000000a1');
+
+INSERT INTO public.user_purchases (id, tenant_id, user_id, amount_cents) VALUES
+  ('54444444-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1', 4900),
+  ('54444444-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
+   'a0000000-0000-0000-0000-0000000000a1', 9900);
+
+INSERT INTO public.user_subscriptions (id, tenant_id, user_id) VALUES
+  ('55555555-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1'),
+  ('55555555-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
+   'a0000000-0000-0000-0000-0000000000a1');
+
+INSERT INTO public.post_gift_links (id, tenant_id, created_by) VALUES
+  ('56666666-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1'),
+  ('56666666-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
+   'a0000000-0000-0000-0000-0000000000a1');
+
+\echo '== subscriptions =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.subscriptions WHERE id = ''51111111-0000-0000-0000-000000000001''') = 1,
+    'wlasciciel widzi wlasna subskrypcje w swoim tenancie');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.subscriptions WHERE id = ''51111111-0000-0000-0000-000000000002''') = 0,
+    'wlasciciel NIE widzi wlasnej subskrypcji lezacej w obcym tenancie');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'UPDATE public.subscriptions SET status = ''cancelled'' WHERE id = ''51111111-0000-0000-0000-000000000002'''),
+    'wlasciciel nie zmieni subskrypcji w obcym tenancie');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'DELETE FROM public.subscriptions WHERE id = ''51111111-0000-0000-0000-000000000002'''),
+    'wlasciciel nie skasuje subskrypcji w obcym tenancie');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.subscriptions (tenant_id, user_id) VALUES ('
+      || '''22222222-2222-2222-2222-222222222222'', ''' || a || ''')'),
+    'nie da sie zapisac subskrypcji do obcego tenanta');
+END $$;
+
+\echo '== membership_grants =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.membership_grants') = 1,
+    'widoczny jest wylacznie wlasny przydzial z wlasnego tenanta');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.membership_grants WHERE id = ''52222222-0000-0000-0000-000000000002''') = 0,
+    'dryfujacy przydzial czlonkostwa w obcym tenancie jest niewidoczny');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'UPDATE public.membership_grants SET tier_key = ''vip'' WHERE id = ''52222222-0000-0000-0000-000000000002'''),
+    'nie da sie zmienic przydzialu z obcego tenanta');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'DELETE FROM public.membership_grants WHERE id = ''52222222-0000-0000-0000-000000000002'''),
+    'nie da sie skasowac przydzialu z obcego tenanta');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.membership_grants (tenant_id, user_id) VALUES ('
+      || '''22222222-2222-2222-2222-222222222222'', ''' || a || ''')'),
+    'nie da sie zapisac przydzialu do obcego tenanta');
+END $$;
+
+\echo '== organization_seats =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.organization_seats') = 1,
+    'widoczne jest wylacznie wlasne miejsce z wlasnego tenanta');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.organization_seats WHERE id = ''53333333-0000-0000-0000-000000000002''') = 0,
+    'dryfujace miejsce w organizacji obcego tenanta jest niewidoczne');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'DELETE FROM public.organization_seats WHERE id = ''53333333-0000-0000-0000-000000000002'''),
+    'nie da sie skasowac miejsca z obcego tenanta');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.organization_seats (tenant_id, user_id) VALUES ('
+      || '''22222222-2222-2222-2222-222222222222'', ''' || a || ''')'),
+    'nie da sie zapisac miejsca do obcego tenanta');
+END $$;
+
+\echo '== user_purchases =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.user_purchases WHERE id = ''54444444-0000-0000-0000-000000000001''') = 1,
+    'wlasciciel widzi wlasny zakup w swoim tenancie');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.user_purchases WHERE id = ''54444444-0000-0000-0000-000000000002''') = 0,
+    'historia zakupow z obcego tenanta jest niewidoczna');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'UPDATE public.user_purchases SET amount_cents = 1 WHERE id = ''54444444-0000-0000-0000-000000000002'''),
+    'nie da sie zmienic zakupu z obcego tenanta');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.user_purchases (tenant_id, user_id) VALUES ('
+      || '''22222222-2222-2222-2222-222222222222'', ''' || a || ''')'),
+    'nie da sie zapisac zakupu do obcego tenanta');
+END $$;
+
+\echo '== user_subscriptions =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.user_subscriptions WHERE id = ''55555555-0000-0000-0000-000000000001''') = 1,
+    'wlasciciel widzi wlasna subskrypcje uzytkownika w swoim tenancie');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.user_subscriptions WHERE id = ''55555555-0000-0000-0000-000000000002''') = 0,
+    'subskrypcja uzytkownika z obcego tenanta jest niewidoczna');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'DELETE FROM public.user_subscriptions WHERE id = ''55555555-0000-0000-0000-000000000002'''),
+    'nie da sie skasowac subskrypcji uzytkownika z obcego tenanta');
+END $$;
+
+\echo '== post_gift_links =='
+DO $$
+DECLARE a uuid := 'a0000000-0000-0000-0000-0000000000a1';
+BEGIN
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.post_gift_links WHERE id = ''56666666-0000-0000-0000-000000000001''') = 1,
+    'tworca widzi wlasny link prezentowy w swoim tenancie');
+  PERFORM pg_temp.assert(
+    pg_temp.count_as(a, 'SELECT 1 FROM public.post_gift_links WHERE id = ''56666666-0000-0000-0000-000000000002''') = 0,
+    'link prezentowy zalozony w obcym tenancie jest niewidoczny (wlascicielstwo po created_by)');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'DELETE FROM public.post_gift_links WHERE id = ''56666666-0000-0000-0000-000000000002'''),
+    'nie da sie skasowac linku prezentowego z obcego tenanta');
+  PERFORM pg_temp.assert(
+    NOT pg_temp.write_as(a,
+      'INSERT INTO public.post_gift_links (tenant_id, created_by) VALUES ('
+      || '''22222222-2222-2222-2222-222222222222'', ''' || a || ''')'),
+    'nie da sie zapisac linku prezentowego do obcego tenanta');
+END $$;
+
 \echo '== podsumowanie =='
 DO $$
 BEGIN
   PERFORM pg_temp.assert(
     (SELECT count(*) FROM pg_policies
       WHERE schemaname = 'public'
-        AND tablename IN ('media_mentions', 'saved_searches', 'user_follows')
+        AND tablename IN ('media_mentions', 'saved_searches', 'user_follows',
+                          'subscriptions', 'membership_grants', 'organization_seats',
+                          'user_purchases', 'user_subscriptions', 'post_gift_links')
         AND (qual LIKE '%auth.uid()%' OR with_check LIKE '%auth.uid()%')
         AND coalesce(qual, '') NOT LIKE '%current_tenant_id()%'
         AND coalesce(with_check, '') NOT LIKE '%current_tenant_id()%'

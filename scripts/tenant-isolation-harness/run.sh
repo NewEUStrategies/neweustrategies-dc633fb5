@@ -76,7 +76,7 @@ echo "harness: OK"
 
 # Migracja izolacji tenantow - dobierana po TRESCI, nie po nazwie pliku (panel
 # nadaje migracjom losowe UUID-y). Pusty zestaw to blad, nie sukces.
-MIGRATIONS="$(grep -lE 'POLICY "(media_mentions owner|saved_searches owner|follows owner)' \
+MIGRATIONS="$(grep -lE 'POLICY "(media_mentions owner|saved_searches owner|follows owner|purchases owner read|subs owner read|grants own read|seats own read|gift links owner read|Users can view own subscription)' \
   "$REPO"/supabase/migrations/*.sql | sort -u)"
 count="$(echo "$MIGRATIONS" | grep -c . || true)"
 echo "Migracje dotykajace plaszczyzny wlasciciela: $count"

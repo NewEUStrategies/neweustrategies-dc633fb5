@@ -1,7 +1,9 @@
 # tenant-isolation-harness
 
 Wykonawcza (nie statyczna) bramka izolacji obszarow roboczych dla plaszczyzny
-wlasciciela: `media_mentions`, `saved_searches`, `user_follows`.
+wlasciciela: `media_mentions`, `saved_searches`, `user_follows` oraz - od
+2026-08-31 - `subscriptions`, `membership_grants`, `organization_seats`,
+`user_purchases`, `user_subscriptions`, `post_gift_links`.
 
 ## Po co
 
@@ -21,6 +23,25 @@ obszaru. Naprawa: migracja `20260829091010`.
 3. `runtime_test.sql` - asercje na zywej bazie z wlaczonym RLS i rola
    `authenticated`: brak odczytu, zmiany i kasowania wierszy z obcego obszaru,
    odrzucenie zapisu do obcego obszaru, poprawny obszar domyslny.
+
+## Rozszerzenie 2026-08-31 (moduly monetyzacji)
+
+Przeglad polityk modulow 13 (checkout/subskrypcje/billing) i 14 (kupony/
+darowizny/prezenty/reklamy) wykazal SZESC dalszych wystapien tego samego
+wzorca; domkniete migracja `20260831060000`. Wszystkie sa na kolumnie SELECT,
+wiec przeciekal ODCZYT: historia zakupow, subskrypcji, przydzialow czlonkostwa,
+miejsc w organizacji i linkow prezentowych byla widoczna dla wlasciciela takze
+spoza obszaru, w ktorym powstala.
+
+Dlaczego statyczna bramka `check:sql-owner-tenant-scope` ich nie widziala:
+jest SAMOKALIBRUJACA - zapala sie, gdy na tej samej tabeli jedna klauzula
+WLASCICIELSKA wiaze tenanta, a inna go gubi. Kazda z tych szesciu tabel ma
+dokladnie JEDNA polityke wlascicielska, a tenanta pilnuje polityka
+ADMINISTRACYJNA - nie ma wiec rodzenstwa deklarujacego intencje. Ta klasa luki
+jest poza zasiegiem tamtej bramki z konstrukcji i wymaga dowodu wykonawczego.
+
+`post_gift_links` dokladalo drugi powod niewidocznosci: wlascicielem jest tam
+`created_by`, a nie `user_id`.
 
 ## Uruchomienie
 
