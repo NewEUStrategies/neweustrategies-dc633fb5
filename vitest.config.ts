@@ -303,6 +303,43 @@ export default defineConfig({
           lines: 97,
           branches: 92,
         },
+        // ── RODZINA EDYTOROW BLOKOW (62 pliki, 8126 linii) ───────────────────
+        // Audyt (wyd. 7): 6,7% instrukcji, a galezie 0-2% w CALEJ rodzinie -
+        // "te pliki nie sa lekko nieprzetestowane, ani jedna ich decyzja nie
+        // jest sprawdzona". Najwieksza powierzchnia modulu bez zadnego dowodu.
+        //
+        // ZMIERZONE 2026-08-31 (1376 zielonych + 8 `it.fails` w 11 plikach):
+        // 96,23% instrukcji / 85,42% galezi / 96,78% funkcji / 97,15% linii.
+        //
+        // Macierz jest podzielona na SZESC czesci (blockEditMatrix.part1..part6),
+        // nie jeden plik - to nie estetyka, to naprawa znanej awarii: 1486
+        // przypadkow w jednym pliku tracilo forka na SIGKILL, a pokrycie V8
+        // nie dojezdzalo do raportu, zbijajac powierzchnie o 19 pp PRZY
+        // ZIELONYM LOGU (patrz wpis `src/components/admin/builder/**` z 08-27).
+        //
+        // UWAGA O GALEZIACH: 85,42% to nie brak pracy, a ksztalt tych plikow -
+        // wartosci domyslne sa kodowane dwoma idiomami naraz (`x !== false`
+        // = domyslnie WLACZONE, `x === true` = domyslnie WYLACZONE), wiec czesc
+        // ramion jest nieosiagalna dla danych, ktore panel realnie produkuje.
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/components/admin/blocks/edit/**": {
+          statements: 94,
+          functions: 94,
+          lines: 95,
+          branches: 82,
+        },
+        // ── WZORCE TRESCI (PatternPicker) ────────────────────────────────────
+        // Audyt (wyd. 7): 0% i 0 z 40 funkcji - jedyny plik swojego katalogu
+        // i bez ani jednego testu.
+        // ZMIERZONE 2026-08-31 (37 przypadkow): 100% instrukcji (70/70) /
+        // 94,73% galezi / 100% funkcji (40/40) / 100% linii (59/59).
+        // Floor = zmierzone minus ~2-4 pp. Ten prog wolno wylacznie PODNOSIC.
+        "src/components/patterns/**": {
+          statements: 97,
+          functions: 98,
+          lines: 97,
+          branches: 90,
+        },
         // ── WARSTWA MUTACJI TRESCI (posty, strony, kategorie, tagi) ──────────
         // Audyt 2026-08-18 (wyd. 7) nazwal ten plik NAJWIEKSZA POJEDYNCZA DZIURA
         // W CALYM REPOZYTORIUM: 458 niepokrytych linii przy 1% galezi, a przez te
