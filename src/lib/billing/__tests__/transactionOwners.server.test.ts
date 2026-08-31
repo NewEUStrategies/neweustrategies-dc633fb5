@@ -227,7 +227,7 @@ describe("referencja spoza trzech znanych kształtów", () => {
     // Brak pytania jest tu istotą: nieznana referencja pochodzi z ładunku
     // żądania, więc każde takie pytanie byłoby darmowym ruchem do operatora
     // sterowanym z zewnątrz (i kanałem sondowania cudzych identyfikatorów).
-    await expect(retrieveTransactionOwners("sandbox", "txn_stary_paddle")).resolves.toBeNull();
+    await expect(retrieveTransactionOwners("sandbox", "txn_stary_format")).resolves.toBeNull();
 
     expect(h.ids).toEqual([]);
   });

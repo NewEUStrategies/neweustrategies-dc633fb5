@@ -152,7 +152,7 @@ describe("refundTransactionFully - ODMOWY i awarie", () => {
     // rozwiązać do PaymentIntentu. Odmawiamy PRZED wyjściem na zewnątrz -
     // ślepe wywołanie kończyłoby się zwrotem nie tej transakcji albo błędem
     // operatora zapisanym jako „zwrot wykonany".
-    const result = await refundTransactionFully(ENV, "txn_stary_paddle", "oversold");
+    const result = await refundTransactionFully(ENV, "txn_stary_format", "oversold");
 
     expect(result).toEqual({ ok: false, error: "payment_intent_not_found" });
     expect(h.refundsCreate).not.toHaveBeenCalled();
