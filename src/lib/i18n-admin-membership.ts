@@ -20,6 +20,22 @@ const adminMembershipPl = {
       mappedPlans: "Plany z warstwą",
       activeGrants: "Aktywne nadania",
     },
+    tierTabs: {
+      basics: "Podstawy",
+      benefits: "Benefity",
+      capabilities: "Bramki i limity",
+    },
+    editDialog: {
+      title: "Warstwa: {{name}}",
+      hint: "Zmiany zapisują się dopiero przyciskiem zapisu na dole okna.",
+    },
+    summary: {
+      open: "Otwórz edycję warstwy {{name}}",
+      benefits: "{{count}} benefitów",
+      capabilities: "{{count}} uprawnień",
+      enforced: "{{count}} egzekwowanych",
+    },
+    saveHint: "Zapis dotyczy wszystkich zakładek tej warstwy.",
     tabs: {
       tiers: "Warstwy",
       mapping: "Mapowanie planów",
@@ -219,6 +235,22 @@ const adminMembershipEn = {
       mappedPlans: "Plans with tier",
       activeGrants: "Active grants",
     },
+    tierTabs: {
+      basics: "Basics",
+      benefits: "Benefits",
+      capabilities: "Gates and limits",
+    },
+    editDialog: {
+      title: "Tier: {{name}}",
+      hint: "Changes are stored only after you press save at the bottom of the dialog.",
+    },
+    summary: {
+      open: "Open the {{name}} tier editor",
+      benefits: "{{count}} benefits",
+      capabilities: "{{count}} permissions",
+      enforced: "{{count}} enforced",
+    },
+    saveHint: "Saving covers every tab of this tier.",
     tabs: {
       tiers: "Tiers",
       mapping: "Plan mapping",
