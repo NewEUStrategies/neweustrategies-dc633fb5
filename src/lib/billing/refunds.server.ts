@@ -285,7 +285,9 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   const settledBefore =
     order.status === "refunded" ||
     (knownCaptured && (order.refunded_amount_cents ?? 0) >= captured);
-  const bringsNoMoney = (order.refunded_amount_cents ?? 0) >= reported;
+  // Porównanie z kwotą, KTÓRĄ WŁAŚNIE ZAPISUJEMY (po zacisku), a nie z surową
+  // kwotą zdarzenia: powtórka z zawyżoną kwotą też nie podnosi licznika.
+  const bringsNoMoney = (order.refunded_amount_cents ?? 0) >= refundedSoFar;
   if (!changedRow && settledBefore && bringsNoMoney) return "skipped";
 
   const metadata = (order.metadata ?? {}) as Record<string, unknown>;

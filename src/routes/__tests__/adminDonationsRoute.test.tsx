@@ -41,6 +41,11 @@ const h = vi.hoisted(() => ({
   saves: [] as Record<string, unknown>[],
 }));
 
+// Atrapa i18n zwraca KLUCZ zamiast tlumaczenia - to wystarczy, bo przedmiotem
+// dowodu jest tutaj sklejenie adresu z panelem i naglowek SEO, a nie tresc
+// napisow (te mierzy `AdminDonations.test.tsx` na prawdziwym slowniku).
+// Od 08.2026 panel bierze napisy z `donate.admin.*`, wiec asercje na naglowkach
+// wskazuja klucze, a nie polskie zdania wpisane kiedys w kod.
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/i18n-donate", () => ({ ensureI18n: h.ensureI18n }));
@@ -134,8 +139,10 @@ describe("trasa /admin/donations - sklejenie adresu z panelem", () => {
   it("montuje się POD SWOIM ADRESEM i pokazuje panel darowizn", async () => {
     const view = await zamontuj();
     expect(view.currentPath()).toBe(PATH);
-    expect(screen.getByRole("heading", { name: "Darowizny" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Silnik wpłat" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "donate.admin.title" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "donate.admin.engine.title" }),
+    ).toBeInTheDocument();
     cleanup();
   });
 

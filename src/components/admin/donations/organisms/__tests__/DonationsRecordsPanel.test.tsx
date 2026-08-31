@@ -17,13 +17,18 @@
 // RODO: wszystkie adresy w tym pliku sa z domen zarezerwowanych do przykladow
 // (`example.com` / `example.org`) - w testach nie moze byc realnych danych
 // osobowych darczyncow.
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+// Prawdziwy slownik zamiast atrapy echa kluczy: cala tabela (naglowek sekcji,
+// naglowki kolumn, komunikat pustki, rodzaj wsparcia) bierze napisy
+// z `donate.admin.records.*` i to je ma mierzyc asercja. Nakladka rejestruje
+// sie efektem ubocznym importu.
+import "@/test/i18nReal";
+import "@/lib/i18n-donate";
+import { realT } from "@/test/i18nReal";
 import { axeViolations, summarize } from "@/test/axe";
 import { formatDonationAmount } from "@/lib/billing/donationsConfig";
 import type { AdminDonationRow } from "@/lib/billing/donationsAdmin.server";
-
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
 import { DonationsRecordsPanel } from "../DonationsRecordsPanel";
 
@@ -59,7 +64,7 @@ function wplata(over: Partial<AdminDonationRow> = {}): AdminDonationRow {
 describe("DonationsRecordsPanel - stany listy", () => {
   it("W TRAKCIE odczytu mowi `wczytuje`, a nie `brak wplat`", () => {
     render(<DonationsRecordsPanel records={undefined} isPending lang="pl" />);
-    expect(screen.getByText("admin.loading")).toBeInTheDocument();
+    expect(screen.getByText(realT("pl")("admin.loading"))).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
@@ -185,25 +190,36 @@ describe("DonationsRecordsPanel - dostepnosc", () => {
 });
 
 // ---------------------------------------------------------------------------
-// BRAK i18n - ZAREJESTROWANY, NIENAPRAWIONY.
+// BRAK i18n - ZAREJESTROWANY I NAPRAWIONY (08.2026).
 // ---------------------------------------------------------------------------
-describe("DonationsRecordsPanel - braki i18n (zarejestrowane)", () => {
-  it.fails("naglowek sekcji i naglowki kolumn pochodza ze slownika", async () => {
-    // CO JEST ZLE. Komponent WOLA `useTranslation()` (uzywa `t("admin.loading")`
-    // dla stanu ladowania), ale wszystko pozostale ma wpisane po polsku:
+describe("DonationsRecordsPanel - dawny brak i18n", () => {
+  it("naglowek sekcji i naglowki kolumn pochodza ze slownika", async () => {
+    // CO BYLO ZLE. Komponent WOLAL `useTranslation()` (uzywal `t("admin.loading")`
+    // dla stanu ladowania), ale wszystko pozostale mial wpisane po polsku:
     // „Ostatnie wpłaty", „Data", „Kwota", „Status", „Typ", „Darczyńca",
     // „Brak zarejestrowanych wpłat.", „miesięczna", „jednorazowa".
     //
-    // DLACZEGO TO RYZYKO. Komponent dostaje `lang` i uzywa go do formatowania
-    // DATY i KWOTY - w wersji angielskiej powstaje wiec tabela z angielskimi
+    // DLACZEGO TO BYLO RYZYKO. Komponent dostaje `lang` i uzywa go do formatowania
+    // DATY i KWOTY - w wersji angielskiej powstawala wiec tabela z angielskimi
     // datami i kwotami pod polskimi naglowkami. Dodatkowo „miesięczna" jest
     // JEDYNYM sygnalem, ze wplata jest cykliczna: dla anglojezycznego
-    // uzytkownika ta informacja jest po prostu nieczytelna, a ma wplyw na
+    // uzytkownika ta informacja byla po prostu nieczytelna, a ma wplyw na
     // prognoze przychodu.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga kluczy w `i18n-donate` w obu
-    // jezykach i zmiany kodu produkcyjnego; zakres tej pracy to wylacznie testy.
-    render(<DonationsRecordsPanel records={[wplata()]} isPending={false} lang="en" />);
+    // JAK NAPRAWIONE. Napisy ida przez `donate.admin.records.*` z wymuszeniem
+    // jezyka `{ lng: lang }`, czyli tym samym, ktorym formatowana jest data
+    // i kwota w wierszu - tabela nie ma jak przemowic dwoma jezykami naraz.
+    const t = realT("en");
+    render(<DonationsRecordsPanel records={[wplata({ recurring: true })]} isPending={false} lang="en" />);
     expect(screen.queryByRole("columnheader", { name: "Darczyńca" })).toBeNull();
+    expect(
+      screen.getByRole("columnheader", { name: t("donate.admin.records.donor") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: t("donate.admin.records.title") }),
+    ).toBeInTheDocument();
+    // Rodzaj wsparcia to jedyny sygnal cyklicznosci - musi byc czytelny.
+    expect(screen.getByText(t("donate.admin.records.recurring"))).toBeInTheDocument();
+    expect(screen.queryByText("miesięczna")).toBeNull();
   });
 });

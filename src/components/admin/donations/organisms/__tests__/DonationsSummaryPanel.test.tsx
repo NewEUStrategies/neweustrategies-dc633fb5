@@ -20,6 +20,12 @@
 // sumami, wiec w tym pliku nie ma zadnych danych osobowych.
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+// Prawdziwy slownik: kafelki biora etykiety z `donate.admin.summary.*`, wiec
+// asercja ma mierzyc napis ze slownika, a nie klucz z atrapy. Nakladka
+// rejestruje sie efektem ubocznym importu.
+import "@/test/i18nReal";
+import "@/lib/i18n-donate";
+import { realT } from "@/test/i18nReal";
 import { axeViolations, summarize } from "@/test/axe";
 import { formatDonationAmount } from "@/lib/billing/donationsConfig";
 import type { DonationsPublicStats } from "@/lib/billing/donations.functions";
@@ -146,23 +152,39 @@ describe("DonationsSummaryPanel - dostepnosc", () => {
 });
 
 // ---------------------------------------------------------------------------
-// BRAK i18n - ZAREJESTROWANY, NIENAPRAWIONY.
+// BRAK i18n - ZAREJESTROWANY I NAPRAWIONY (08.2026).
 // ---------------------------------------------------------------------------
-describe("DonationsSummaryPanel - braki i18n (zarejestrowane)", () => {
-  it.fails("etykiety kafelkow pochodza ze slownika", async () => {
-    // CO JEST ZLE. Trzy etykiety („Suma wpłat", „W tym miesiącu", „Liczba
-    // wpłat") sa wpisane w kod wprost, mimo ze komponent dostaje juz `lang`
+describe("DonationsSummaryPanel - dawny brak i18n", () => {
+  it("etykiety kafelkow pochodza ze slownika, w jezyku PODANYM W PROPSIE", async () => {
+    // CO BYLO ZLE. Trzy etykiety („Suma wpłat", „W tym miesiącu", „Liczba
+    // wpłat") byly wpisane w kod wprost, mimo ze komponent dostaje juz `lang`
     // i formatuje po nim KWOTY.
     //
-    // DLACZEGO TO RYZYKO. Efekt jest szczegolnie mylacy: kwota obok etykiety
-    // jest sformatowana po angielsku, a sama etykieta zostaje polska. Panel
-    // wyglada wtedy na uszkodzony, a nie na nieprzetlumaczony - i to jest ten
-    // ekran, ktory pokazuje sie zarzadowi i darczyncom instytucjonalnym.
+    // DLACZEGO TO BYLO RYZYKO. Efekt byl szczegolnie mylacy: kwota obok etykiety
+    // sformatowana po angielsku, a sama etykieta polska. Panel wygladal wtedy
+    // na uszkodzony, a nie na nieprzetlumaczony - i to jest ten ekran, ktory
+    // pokazuje sie zarzadowi i darczyncom instytucjonalnym.
     //
-    // DLACZEGO NIE NAPRAWIAM. Poprawka wymaga zalozenia kluczy w slowniku
-    // `i18n-donate` w obu jezykach i zmiany kodu produkcyjnego; zakres tej
-    // pracy to wylacznie testy.
+    // JAK NAPRAWIONE. Etykiety ida przez `donate.admin.summary.*` z wymuszeniem
+    // jezyka `{ lng: lang }` - tym SAMYM, ktorym formatowana jest kwota obok.
+    // Wymuszenie jest istotne: komponent jest prezentacyjny i dostaje jezyk
+    // propsem, wiec czytanie go z instancji i18n moglo by rozjechac napis
+    // z liczba stojaca pod nim.
+    const t = realT("en");
     render(<DonationsSummaryPanel stats={statystyki()} currency="PLN" lang="en" />);
     expect(screen.queryByText("Suma wpłat")).toBeNull();
+    expect(screen.getByText(t("donate.admin.summary.total"))).toBeInTheDocument();
+    expect(screen.getByText(t("donate.admin.summary.month"))).toBeInTheDocument();
+    expect(screen.getByText(t("donate.admin.summary.count"))).toBeInTheDocument();
+    expect(screen.getByText(kwota(125000, "PLN", "en"))).toBeInTheDocument();
+  });
+
+  it("po polsku kafelki mowia po polsku", () => {
+    // Druga strona tej samej galezi: bez niej test wyzej przechodzilby takze
+    // wtedy, gdyby panel byl na stale angielski.
+    const t = realT("pl");
+    render(<DonationsSummaryPanel stats={statystyki()} currency="PLN" lang="pl" />);
+    expect(screen.getByText(t("donate.admin.summary.total"))).toBeInTheDocument();
+    expect(screen.getByText("Suma wpłat")).toBeInTheDocument();
   });
 });

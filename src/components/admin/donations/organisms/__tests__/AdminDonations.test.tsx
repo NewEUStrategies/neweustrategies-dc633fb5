@@ -272,10 +272,18 @@ function wczytuje(lang: "pl" | "en" = "pl"): string {
   return realT(lang)("admin.loading");
 }
 
-/** Renderuje panel i czeka, az OBA zapytania osiadna (znika „wczytuje"). */
+/**
+ * Renderuje panel i czeka, az OBA zapytania osiadna (znika „wczytuje").
+ * Czekamy na OBA jezyki: test dwujezyczny przestawia instancje i18next, a napis
+ * szukany tylko po polsku znikalby w wersji angielskiej natychmiast - czyli
+ * zanim zapytania wroca.
+ */
 async function panel() {
   const utils = renderWithQueryClient(<AdminDonations />);
-  await waitFor(() => expect(screen.queryByText(wczytuje())).toBeNull());
+  await waitFor(() => {
+    expect(screen.queryByText(wczytuje("pl"))).toBeNull();
+    expect(screen.queryByText(wczytuje("en"))).toBeNull();
+  });
   return utils;
 }
 
@@ -768,7 +776,7 @@ describe("AdminDonations - dawne defekty", () => {
       t("donate.admin.sync.live"),
     ]);
     // Kwoty i etykiety mowia teraz jednym jezykiem.
-    expect(screen.getByText(kwota(125000, "PLN", "en"))).toBeInTheDocument();
+    expect(await screen.findByText(kwota(125000, "PLN", "en"))).toBeInTheDocument();
     expect(screen.getByText(t("donate.admin.summary.total"))).toBeInTheDocument();
   });
 
@@ -908,7 +916,14 @@ describe("AdminDonations - dawne defekty", () => {
     fireEvent.change(poleTekstowe("Kwota minimalna (grosze)"), { target: { value: "" } });
     fireEvent.click(przyciskZapisu());
     expect(h.saves).toHaveLength(0);
-    expect(screen.getByText(/Kwota minimalna \(grosze\)/)).toBeInTheDocument();
+    // Komunikat nazywa pole tym samym napisem, co etykieta nad kontrolka -
+    // administrator ma wiedziec, KTORE pole poprawic, a nie tylko ze „cos jest
+    // nie tak".
+    expect(
+      screen.getByText(
+        realT("pl")("donate.admin.save.invalid", { fields: "Kwota minimalna (grosze)" }),
+      ),
+    ).toBeInTheDocument();
 
     // Po poprawieniu wartosci zapis przechodzi - i to, co jedzie do bazy,
     // przechodzi ten sam schemat, ktory czyta publiczna strona.
