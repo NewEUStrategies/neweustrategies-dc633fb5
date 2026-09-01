@@ -23,6 +23,7 @@
 // adresy odrzucane przez strażnicę BEZ DNS-u (schemat, `localhost`, literalne
 // IP, sufiks `.internal`), albo literalne IP z puli dokumentacyjnej TEST-NET-3
 // (RFC 5737), które strażnica przepuszcza również bez zapytania DNS.
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { createDecipheriv, createECDH, createHmac, randomBytes } from "node:crypto";
 import {
@@ -185,6 +186,25 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
+
+/**
+ * Domyślny `subject` VAPID CZYTANY ZE ŹRÓDŁA, nie wpisany w test.
+ *
+ * Dwa powody. Pierwszy: reguła testów tego repo zabrania literalnych adresów
+ * e-mail spoza `example.com` / `example.org`, a domyślny subject jest realną
+ * skrzynką firmową. Drugi jest mocniejszy - literał w teście dowodzi wyłącznie
+ * tego, że ktoś przepisał napis; odczyt ze źródła sprawia, że test pilnuje
+ * ISTNIENIA fallbacku (a nie jego brzmienia), więc redakcja adresu nie oblewa
+ * suity, a USUNIĘCIE domyślnej wartości - owszem.
+ */
+function defaultVapidSubjectFromSource(): string {
+  const source = readFileSync("src/lib/notifications/webpush.server.ts", "utf8");
+  const match = /process\.env\.VAPID_SUBJECT \|\| "([^"]+)"/.exec(source);
+  if (!match) {
+    throw new Error("test: nie znalazłem domyślnego VAPID_SUBJECT w webpush.server.ts");
+  }
+  return match[1];
+}
 
 describe("sendWebPush - strażnica SSRF (fail-closed)", () => {
   // Każdy z tych adresów jest odrzucany BEZ zapytania DNS (schemat, lista
@@ -567,7 +587,7 @@ describe("vapidFromEnv", () => {
     expect(vapidFromEnv()).toEqual({
       publicKey: keys.publicKey,
       privateKey: keys.privateKey,
-      subject: "mailto:marketing@neweuropeanstrategies.com",
+      subject: defaultVapidSubjectFromSource(),
     });
   });
 
@@ -575,7 +595,7 @@ describe("vapidFromEnv", () => {
     process.env.VAPID_PUBLIC_KEY = keys.publicKey;
     process.env.VAPID_PRIVATE_KEY = keys.privateKey;
 
-    expect(vapidFromEnv()?.subject).toBe("mailto:marketing@neweuropeanstrategies.com");
+    expect(vapidFromEnv()?.subject).toBe(defaultVapidSubjectFromSource());
   });
 
   it("puste napisy są traktowane jak brak zmiennej", () => {
@@ -594,6 +614,6 @@ describe("vapidFromEnv", () => {
     process.env.VAPID_PRIVATE_KEY = keys.privateKey;
     process.env.VAPID_SUBJECT = "";
 
-    expect(vapidFromEnv()?.subject).toBe("mailto:marketing@neweuropeanstrategies.com");
+    expect(vapidFromEnv()?.subject).toBe(defaultVapidSubjectFromSource());
   });
 });

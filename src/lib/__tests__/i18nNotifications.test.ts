@@ -77,6 +77,26 @@ function usedKeys(): string[] {
   return [...keys].sort();
 }
 
+/**
+ * Zwezenie zasobu i18next do `Tree` BEZ rzutowania.
+ *
+ * Rzutowanie przez `unknown` przeszloby kompilacje, ale przepuscilo by tez
+ * wartosc, ktora drzewem NIE jest (liczba, tablica, null w srodku) - a wtedy
+ * `flatten` zwrocilby niepelna liste kluczy i test parytetu bylby zielony na
+ * niekompletnym drzewie. Ta funkcja SPRAWDZA ksztalt w czasie wykonania i przy
+ * okazji jest asercja: slownik ma byc drzewem napisow, nic innego.
+ */
+function asTree(value: unknown, path = "notificationsResources"): Tree {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`test: ${path} nie jest drzewem zasobow i18next`);
+  }
+  const out: Tree = {};
+  for (const [key, child] of Object.entries(value)) {
+    out[key] = typeof child === "string" ? child : asTree(child, `${path}.${key}`);
+  }
+  return out;
+}
+
 /** Odczyt wartosci spod sciezki z kropkami; `undefined`, gdy klucza nie ma. */
 function readKey(tree: Tree, path: string): string | undefined {
   const value = path.split(".").reduce<string | Tree | undefined>((node, part) => {
@@ -87,8 +107,8 @@ function readKey(tree: Tree, path: string): string | undefined {
 }
 
 describe("i18n-notifications", () => {
-  const plTree = notificationsResources.pl as unknown as Tree;
-  const enTree = notificationsResources.en as unknown as Tree;
+  const plTree = asTree(notificationsResources.pl);
+  const enTree = asTree(notificationsResources.en);
   const pl = flatten(plTree).sort();
   const en = flatten(enTree).sort();
 
