@@ -1,33 +1,33 @@
-// `GscBiDashboard` - pulpit Search Console: kolejnosc danych, stany i okablowanie.
+// `GscBiDashboard` - pulpit Search Console: kolejność danych, stany i okablowanie.
 //
-// PO CO. Ten plik stal na zerze (0/163 linii, 0/66 funkcji) - najwiekszy zer w
-// module analityki. Czysta arytmetyka wnioskow zostala juz wyciagnieta do
-// `gscInsights.ts` i ma wlasny, pelny test; TUTAJ przedmiotem dowodu jest to,
+// PO CO. Ten plik stał na zerze (0/163 linii, 0/66 funkcji) - największy zer w
+// module analityki. Czysta arytmetyka wniosków została już wyciągnięta do
+// `gscInsights.ts` i ma własny, pełny test; TUTAJ przedmiotem dowodu jest to,
 // czego tamten plik nie widzi, a co decyduje o tym, czy operator patrzy na
-// POMIAR, czy na atrape pomiaru:
+// POMIAR, czy na atrapę pomiaru:
 //
-//   1. KOLEJNOSC I AGREGACJA. Search Console oddaje wiersze bez gwarancji
-//      porzadku. Panel sam sortuje serie czasowa, przycina rank do 15 fraz,
-//      zwija kraje do osmiu plus „Inne" i skraca sciezki w treemapie. Kazda z
-//      tych operacji jest cicha: zle posortowany trend to wykres, ktory
-//      wyglada poprawnie i klamie o kierunku ruchu.
-//   2. ROZROZNIENIE STANOW. „Search Console niepodlaczony", „ladowanie",
-//      „zero wierszy" i „zapytanie padlo" to CZTERY rozne komunikaty dla
-//      operatora, a wszystkie cztery da sie pomylic z jednym: zerami w
-//      kafelkach KPI. Klucz `configured: false` istnieje wylacznie po to, zeby
-//      tego rozroznienia pilnowac.
-//   3. OKABLOWANIE FILTRA. Zmiana okna ma zmienic WEJSCIE zapytania, nie samo
-//      renderowanie - dlatego asercje ida na argument funkcji serwerowej.
-//   4. IZOLACJA WARSZTATU. Panel czyta dane wlasciwosci przypietej do
-//      biezacego warsztatu; wlasciwosc innego warsztatu nie ma prawa pojawic
-//      sie ani w wyborze, ani w argumencie zapytania.
-//   5. ALTERNATYWA TEKSTOWA. ECharts maluje do kanwy, ktora dla czytnika
-//      ekranu jest pustym prostokatem. Karta ma mechanizm tabeli danych - test
-//      sprawdza, ILE wykresow panelu faktycznie go dostaje.
+//   1. KOLEJNOŚĆ I AGREGACJA. Search Console oddaje wiersze bez gwarancji
+//      porządku. Panel sam sortuje serię czasową, przycina rank do 15 fraz,
+//      zwija kraje do ośmiu plus „Inne" i skraca ścieżki w treemapie. Każda z
+//      tych operacji jest cicha: źle posortowany trend to wykres, który
+//      wygląda poprawnie i kłamie o kierunku ruchu.
+//   2. ROZRÓŻNIENIE STANÓW. „Search Console niepodłączony", „ładowanie",
+//      „zero wierszy" i „zapytanie padło" to CZTERY różne komunikaty dla
+//      operatora, a wszystkie cztery da się pomylić z jednym: zerami w
+//      kafelkach KPI. Klucz `configured: false` istnieje wyłącznie po to, żeby
+//      tego rozróżnienia pilnować.
+//   3. OKABLOWANIE FILTRA. Zmiana okna ma zmienić WEJŚCIE zapytania, nie samo
+//      renderowanie - dlatego asercje idą na argument funkcji serwerowej.
+//   4. IZOLACJA WARSZTATU. Panel czyta dane właściwości przypiętej do
+//      bieżącego warsztatu; właściwość innego warsztatu nie ma prawa pojawić
+//      się ani w wyborze, ani w argumencie zapytania.
+//   5. ALTERNATYWA TEKSTOWA. ECharts maluje do kanwy, która dla czytnika
+//      ekranu jest pustym prostokątem. Karta ma mechanizm tabeli danych - test
+//      sprawdza, ILE wykresów panelu faktycznie go dostaje.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz naglowek `EChart.tsx`): podmieniamy `EChart`
-// atrapa, ktora PRZECHWYTUJE `option`. Dzieki temu asercje o kolejnosci i
-// agregacji ida na strukture danych oddana wykresowi, a nie na piksele.
+// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
+// atrapą, która PRZECHWYTUJE `option`. Dzięki temu asercje o kolejności i
+// agregacji idą na strukturę danych oddaną wykresowi, a nie na piksele.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -53,9 +53,9 @@ const h = vi.hoisted(() => ({
   }>,
 }));
 
-// `useServerFn` staje sie tozsamoscia - wywolanie idzie prosto do atrapy.
-// Mock CZESCIOWY, bo `@/lib/i18n` ciagnie z tego samego pakietu
-// `createIsomorphicFn`, a pelna atrapa wywracalaby inicjalizacje slownika.
+// `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
+// Mock CZĘŚCIOWY, bo `@/lib/i18n` ciągnie z tego samego pakietu
+// `createIsomorphicFn`, a pełna atrapa wywracałaby inicjalizację słownika.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
@@ -66,8 +66,8 @@ vi.mock("@/lib/analytics/gsc.functions", () => ({
   queryGscAnalytics: (...args: unknown[]) => h.queryAnalytics(...args),
 }));
 
-// Atrapa wykresu zapisuje `option`. To jedyne miejsce, w ktorym widac, CO panel
-// policzyl - i jedyny sposob na dowiedzenie kolejnosci bez wciagania echarts do
+// Atrapa wykresu zapisuje `option`. To jedyne miejsce, w którym widać, CO panel
+// policzył - i jedyny sposób na dowiedzenie kolejności bez wciągania echarts do
 // procesu testowego.
 vi.mock("../EChart", () => ({
   EChart: ({
@@ -82,11 +82,11 @@ vi.mock("../EChart", () => ({
   },
 }));
 
-// `react-i18next` NIE JEST atrapowany: panel jest dwujezyczny, a przedmiotem
-// dowodu jest to, ze napisy przychodza ZE SLOWNIKA. Jezyk przestawia sie przez
-// `i18n.changeLanguage`. Skrot `vi.mock("react-i18next", () => reactI18nextMock())`
-// zakleszcza test - fabryka siegnelaby po `@/lib/i18n`, ktory importuje wlasnie
-// atrapowany modul (patrz naglowek `src/test/i18nReal.ts`).
+// `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
+// dowodu jest to, że napisy przychodzą ZE SŁOWNIKA. Język przestawia się przez
+// `i18n.changeLanguage`. Skrót `vi.mock("react-i18next", () => reactI18nextMock())`
+// zakleszcza test - fabryka sięgnęłaby po `@/lib/i18n`, który importuje właśnie
+// atrapowany moduł (patrz nagłówek `src/test/i18nReal.ts`).
 import "@/test/i18nReal";
 import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -120,7 +120,7 @@ function keylessRow(clicks: number, impressions: number, ctr: number, position: 
   return { keys: [], clicks, impressions, ctr, position };
 }
 
-/** Serie dzienne CELOWO w zlej kolejnosci - GSC nie obiecuje porzadku. */
+/** Serie dzienne CELOWO w złej kolejności - GSC nie obiecuje porządku. */
 const DATE_ROWS: GscRow[] = [
   row("2026-08-03", 30, 300, 0.1, 8),
   row("2026-08-01", 10, 200, 0.05, 12),
@@ -147,7 +147,7 @@ const PAGE_ROWS: GscRow[] = [
   ),
   row("https://alfa.example.com/o-nas", 12, 300, 0.04, 9),
 ];
-/** Kraje juz posortowane malejaco - tak jak oddaje je API. */
+/** Kraje już posortowane malejąco - tak jak oddaje je API. */
 const COUNTRY_ROWS: GscRow[] = [
   row("pol", 100, 900, 0.11, 5),
   row("deu", 90, 800, 0.11, 6),
@@ -190,9 +190,9 @@ function todayISO(): string {
 }
 
 /**
- * Odpowiada wierszami wedlug wymiaru. Zapytanie o POPRZEDNIE okno rozpoznajemy
- * po tym, ze jego `endDate` nie jest dzisiejsza data - to jedyne, co je odroznia
- * od zapytania o serie dzienna biezacego okna.
+ * Odpowiada wierszami według wymiaru. Zapytanie o POPRZEDNIE okno rozpoznajemy
+ * po tym, że jego `endDate` nie jest dzisiejszą datą - to jedyne, co je odróżnia
+ * od zapytania o serię dzienną bieżącego okna.
  */
 function respondWith(ds: Dataset): void {
   h.queryAnalytics.mockImplementation(async (arg: { data: AnalyticsInput }) => {
@@ -209,7 +209,7 @@ function respondWith(ds: Dataset): void {
 }
 
 // ---------------------------------------------------------------------------
-// Narzedzia
+// Narzędzia
 // ---------------------------------------------------------------------------
 
 function rec(v: unknown): Opt {
@@ -230,7 +230,7 @@ interface Captured {
   onDataClick?: (params: unknown) => void;
 }
 
-/** OSTATNI przechwycony wykres pasujacy do predykatu - czyli stan po ostatnim renderze. */
+/** OSTATNI przechwycony wykres pasujący do predykatu - czyli stan po ostatnim renderze. */
 function lastChart(label: string, pred: (o: Opt) => boolean): Captured {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
     if (pred(h.charts[i].option)) return h.charts[i];
@@ -242,21 +242,21 @@ function lastOption(label: string, pred: (o: Opt) => boolean): Opt {
   return lastChart(label, pred).option;
 }
 
-/** Ostatnie `n` przechwyconych opcji pasujacych do predykatu, w kolejnosci renderu. */
+/** Ostatnie `n` przechwyconych opcji pasujących do predykatu, w kolejności renderu. */
 function lastOptions(label: string, pred: (o: Opt) => boolean, n: number): Opt[] {
   const hits = h.charts.filter((c) => pred(c.option)).map((c) => c.option);
   if (hits.length < n) throw new Error(`test: przechwycono za malo opcji „${label}"`);
   return hits.slice(hits.length - n);
 }
 
-/** Formater podpowiedzi, ktory panel oddaje wykresowi. */
+/** Formater podpowiedzi, który panel oddaje wykresowi. */
 function tooltipFormatter(o: Opt): (raw: unknown) => string {
   const f = rec(o.tooltip).formatter;
   if (typeof f !== "function") throw new Error("test: wykres nie ma formatera podpowiedzi");
   return f as (raw: unknown) => string;
 }
 
-/** Symuluje klikniecie w element wykresu - dokladnie tak, jak robi to ECharts. */
+/** Symuluje kliknięcie w element wykresu - dokładnie tak, jak robi to ECharts. */
 async function clickChart(chart: Captured, params: ChartClickParams): Promise<void> {
   await act(async () => {
     chart.onDataClick?.(params);
@@ -286,7 +286,7 @@ function spanDays(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
 }
 
-/** Tytuly kart w kolejnosci, w jakiej panel je uklada. */
+/** Tytuły kart w kolejności, w jakiej panel je układa. */
 const CHART_TITLE_KEYS = [
   "adminAnalytics.gsc.charts.trendTitle",
   "adminAnalytics.gsc.charts.topQueriesTitle",
@@ -297,7 +297,7 @@ const CHART_TITLE_KEYS = [
   "adminAnalytics.gsc.charts.calendarTitle",
 ] as const;
 
-/** Tlumacz przypiety do jezyka, ktory instancja i18next ma W TEJ CHWILI. */
+/** Tłumacz przypięty do języka, który instancja i18next ma W TEJ CHWILI. */
 function tNow() {
   return realT(i18n.language?.toLowerCase().startsWith("en") ? "en" : "pl");
 }
@@ -307,16 +307,16 @@ function regionName(lang: "pl" | "en", titleKey: string): string {
   return t("adminAnalytics.chartCard.chartRegion", { title: t(titleKey) });
 }
 
-/** Dostepne nazwy regionow wykresow - jedyne miejsce, w ktorym tytul karty jest UNIKALNY. */
+/** Dostępne nazwy regionów wykresów - jedyne miejsce, w którym tytuł karty jest UNIKALNY. */
 function chartRegionNames(): string[] {
   return screen.getAllByRole("img").map((el) => el.getAttribute("aria-label") ?? "");
 }
 
 /**
- * Wartosc metryki w oknie drazenia, odczytana przy jej etykiecie.
+ * Wartość metryki w oknie drążenia, odczytana przy jej etykiecie.
  *
- * Szukamy WEWNATRZ siatki metryk, nie w calym oknie: podtytul okna bywa nazwa
- * serii („Klikniecia"), wiec ta sama etykieta stoi w dwoch miejscach.
+ * Szukamy WEWNĄTRZ siatki metryk, nie w całym oknie: podtytuł okna bywa nazwą
+ * serii („Kliknięcia"), więc ta sama etykieta stoi w dwóch miejscach.
  */
 function metricValue(label: string): string {
   const d = screen.getByRole("dialog");
@@ -326,7 +326,7 @@ function metricValue(label: string): string {
   return within(grid as HTMLElement).getByText(label).nextElementSibling?.textContent ?? "";
 }
 
-/** Wartosc kafelka KPI stojaca przy podanej etykiecie. */
+/** Wartość kafelka KPI stojąca przy podanej etykiecie. */
 function kpiValue(label: string): string {
   const box = screen.getByText(label).closest("div.min-w-0");
   if (!box) throw new Error(`test: nie znaleziono kafelka KPI „${label}"`);
@@ -345,7 +345,7 @@ function panel(configured = true, client?: QueryClient) {
   };
 }
 
-/** Czeka az wszystkie szesc zapytan panelu odpowie i znikna wskazniki ladowania. */
+/** Czeka aż wszystkie sześć zapytań panelu odpowie i znikną wskaźniki ładowania. */
 async function loaded(): Promise<void> {
   await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
   await waitFor(() => {
@@ -354,7 +354,7 @@ async function loaded(): Promise<void> {
   });
 }
 
-/** Otwiera liste Radiksa klawiatura - pointer events nie dzialaja w happy-dom. */
+/** Otwiera listę Radiksa klawiaturą - pointer events nie działają w happy-dom. */
 function openSelect(trigger: HTMLElement): HTMLElement {
   fireEvent.keyDown(trigger, { key: "ArrowDown" });
   return screen.getByRole("listbox");
@@ -381,12 +381,12 @@ afterEach(cleanup);
 
 // ---------------------------------------------------------------------------
 
-describe("GscBiDashboard - Search Console niepodlaczony", () => {
-  it("mowi, ze integracji nie ma, zamiast pokazywac zera jako pomiar", () => {
+describe("GscBiDashboard - Search Console niepodłączony", () => {
+  it("mówi, że integracji nie ma, zamiast pokazywać zera jako pomiar", () => {
     const t = realT("pl");
     const { container } = panel(false);
 
-    // Caly panel to JEDEN komunikat - zadnego kafelka, zadnego wykresu.
+    // Cały panel to JEDEN komunikat - żadnego kafelka, żadnego wykresu.
     expect(container.textContent).toBe(
       t("adminAnalytics.gsc.notConfiguredPre") +
         t("adminAnalytics.gsc.notConfiguredTab") +
@@ -396,16 +396,16 @@ describe("GscBiDashboard - Search Console niepodlaczony", () => {
     expect(screen.queryAllByTestId("echart")).toHaveLength(0);
   });
 
-  it("nie odpytuje ani listy wlasciwosci, ani Search Analytics", async () => {
+  it("nie odpytuje ani listy właściwości, ani Search Analytics", async () => {
     panel(false);
 
-    // `enabled: configured` ma wstrzymac ODCZYT, nie tylko ukryc wynik -
-    // inaczej niepodlaczony tenant generuje ruch do bramki przy kazdym wejsciu.
+    // `enabled: configured` ma wstrzymać ODCZYT, nie tylko ukryć wynik -
+    // inaczej niepodłączony tenant generuje ruch do bramki przy każdym wejściu.
     await waitFor(() => expect(h.listSites).not.toHaveBeenCalled());
     expect(h.queryAnalytics).not.toHaveBeenCalled();
   });
 
-  it("komunikat o braku integracji ma tresc w EN, nie polska awaryjna", async () => {
+  it("komunikat o braku integracji ma treść w EN, nie polską awaryjną", async () => {
     await i18n.changeLanguage("en");
     const t = realT("en");
     const { container } = panel(false);
@@ -420,8 +420,8 @@ describe("GscBiDashboard - Search Console niepodlaczony", () => {
   });
 });
 
-describe("GscBiDashboard - ladowanie", () => {
-  it("w trakcie pobierania pokazuje wskaznik ladowania ze slownika", async () => {
+describe("GscBiDashboard - ładowanie", () => {
+  it("w trakcie pobierania pokazuje wskaźnik ładowania ze słownika", async () => {
     h.queryAnalytics.mockImplementation(() => new Promise<{ rows: GscRow[] }>(() => {}));
     panel();
 
@@ -431,13 +431,13 @@ describe("GscBiDashboard - ladowanie", () => {
   });
 
   it.fails(
-    "DEFEKT: w trakcie pobierania kafelki KPI pokazuja zera, jakby to byl pomiar",
+    "DEFEKT: w trakcie pobierania kafelki KPI pokazują zera, jakby to był pomiar",
     async () => {
-      // Zero i „jeszcze nie wiem" to dwie rozne informacje. Panel renderuje
-      // pelna siatke KPI natychmiast, wiec operator widzi „0 klikniec" zanim
-      // dane w ogole dojada - i nie ma jak odroznic tego od wlasciwosci, ktora
-      // faktycznie nie ma ruchu. Sasiedni pulpity modulu (`AudienceSegments`,
-      // `RelatedPostsAnalytics`) w takiej sytuacji renderuja komunikat.
+      // Zero i „jeszcze nie wiem" to dwie różne informacje. Panel renderuje
+      // pełną siatkę KPI natychmiast, więc operator widzi „0 kliknięć" zanim
+      // dane w ogóle dojadą - i nie ma jak odróżnić tego od właściwości, która
+      // faktycznie nie ma ruchu. Sąsiedni pulpity modułu (`AudienceSegments`,
+      // `RelatedPostsAnalytics`) w takiej sytuacji renderują komunikat.
       h.queryAnalytics.mockImplementation(() => new Promise<{ rows: GscRow[] }>(() => {}));
       panel();
       await screen.findByText(realT("pl")("adminAnalytics.common.loadingData"));
@@ -448,12 +448,12 @@ describe("GscBiDashboard - ladowanie", () => {
 });
 
 describe("GscBiDashboard - dane", () => {
-  it("kafelki KPI licza sumy okna, a pozycje wazy wyswietleniami", async () => {
+  it("kafelki KPI liczą sumy okna, a pozycję waży wyświetleniami", async () => {
     const t = realT("pl");
     panel();
     await loaded();
 
-    // 10+20+30 klikniec, 200+250+300 wyswietlen, CTR = 60/750,
+    // 10+20+30 kliknięć, 200+250+300 wyświetleń, CTR = 60/750,
     // pozycja = (12*200 + 10*250 + 8*300) / 750 = 9,73.
     await waitFor(() => expect(kpiValue(t("adminAnalytics.gsc.clicks"))).toBe("60"));
     expect(kpiValue(t("adminAnalytics.gsc.impressions"))).toBe("750");
@@ -461,7 +461,7 @@ describe("GscBiDashboard - dane", () => {
     expect(kpiValue(t("adminAnalytics.gsc.avgPosition"))).toBe("9.7");
   });
 
-  it("trend porzadkuje serie chronologicznie mimo wierszy w zlej kolejnosci", async () => {
+  it("trend porządkuje serie chronologicznie mimo wierszy w złej kolejności", async () => {
     panel();
     await loaded();
 
@@ -471,19 +471,19 @@ describe("GscBiDashboard - dane", () => {
     });
     const o = trendOption();
     const s = seriesOf(o);
-    // Klikniecia, wyswietlenia i CTR musza jechac PO TEJ SAMEJ osi czasu -
-    // rozjazd choc jednej serii to wykres, ktory wyglada poprawnie i klamie.
+    // Kliknięcia, wyświetlenia i CTR muszą jechać PO TEJ SAMEJ osi czasu -
+    // rozjazd choć jednej serii to wykres, który wygląda poprawnie i kłamie.
     expect(numList(s[0].data)).toEqual([10, 20, 30]);
     expect(numList(s[1].data)).toEqual([200, 250, 300]);
     expect(numList(s[2].data)).toEqual([5, 8, 10]);
   });
 
-  it("iskry przy KPI jada tym samym porzadkiem co trend", async () => {
+  it("iskry przy KPI jadą tym samym porządkiem co trend", async () => {
     panel();
     await loaded();
 
-    // Iskry licza sie POZA `useMemo`, kazda wlasnym sortem - to osobna okazja,
-    // zeby wykres kierunkowy przy kafelku pokazal cos innego niz duzy trend.
+    // Iskry liczą się POZA `useMemo`, każda własnym sortem - to osobna okazja,
+    // żeby wykres kierunkowy przy kafelku pokazał coś innego niż duży trend.
     await waitFor(() => {
       const [klikniecia, wyswietlenia] = lastOptions(
         "iskra",
@@ -495,7 +495,7 @@ describe("GscBiDashboard - dane", () => {
     });
   });
 
-  it("rank zapytan idzie rosnaco ku gorze wykresu poziomego", async () => {
+  it("rank zapytań idzie rosnąco ku górze wykresu poziomego", async () => {
     panel();
     await loaded();
 
@@ -509,12 +509,12 @@ describe("GscBiDashboard - dane", () => {
         "energia w cee",
       ]);
     });
-    // Os kategorii ECharts rosnie w gore, wiec najmocniejsza fraza musi byc
-    // OSTATNIA - odwrotna kolejnosc dalaby rank do gory nogami.
+    // Oś kategorii ECharts rośnie w górę, więc najmocniejsza fraza musi być
+    // OSTATNIA - odwrotna kolejność dałaby rank do góry nogami.
     expect(numList(seriesOf(topQueriesOption())[0].data)).toEqual([1, 5, 20, 30, 50]);
   });
 
-  it("rank przycina sie do 15 fraz i zostawia te najmocniejsze", async () => {
+  it("rank przycina się do 15 fraz i zostawia te najmocniejsze", async () => {
     const many = Array.from({ length: 18 }, (_, i) =>
       row(`fraza ${String(i + 1).padStart(2, "0")}`, i + 1, (i + 1) * 10, 0.1, 5),
     );
@@ -528,12 +528,12 @@ describe("GscBiDashboard - dane", () => {
       expect(labels[14]).toBe("fraza 18");
       expect(labels[0]).toBe("fraza 04");
     });
-    // Trzy najslabsze frazy wypadaja - gdyby przycinal przed sortowaniem,
-    // wypadlyby przypadkowe.
+    // Trzy najsłabsze frazy wypadają - gdyby przycinał przed sortowaniem,
+    // wypadłyby przypadkowe.
     expect(strList(rec(topQueriesOption().yAxis).data)).not.toContain("fraza 03");
   });
 
-  it("histogram pozycji sumuje wyswietlenia do przedzialow SERP", async () => {
+  it("histogram pozycji sumuje wyświetlenia do przedziałów SERP", async () => {
     panel();
     await loaded();
 
@@ -542,12 +542,12 @@ describe("GscBiDashboard - dane", () => {
       expect(strList(rec(o.xAxis).data)).toEqual(["1-3", "4-10", "11-20", "21-50", "51+"]);
     });
     const s = seriesOf(positionOption());
-    // pozycje 2,4 / 7,2 / 15,5 / 33 / 78 - po jednej frazie na przedzial.
+    // pozycje 2,4 / 7,2 / 15,5 / 33 / 78 - po jednej frazie na przedział.
     expect(numList(s[0].data)).toEqual([500, 600, 900, 400, 100]);
     expect(numList(s[1].data)).toEqual([50, 30, 20, 5, 1]);
   });
 
-  it("donut krajow pokazuje osiem najwiekszych, a reszte zwija w „Inne”", async () => {
+  it("donut krajów pokazuje osiem największych, a resztę zwija w „Inne”", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -569,11 +569,11 @@ describe("GscBiDashboard - dane", () => {
       "bel",
       "cze",
     ]);
-    // „Inne" to dokladnie to, czego donut NIE pokazal: svk 20 + hun 10.
+    // „Inne" to dokładnie to, czego donut NIE pokazał: svk 20 + hun 10.
     expect(slices[8]).toEqual({ name: t("adminAnalytics.gsc.other"), value: 30 });
   });
 
-  it("donut urzadzen nie dokleja „Innych”, gdy wymiar ma mniej niz dziewiec wartosci", async () => {
+  it("donut urządzeń nie dokleja „Innych”, gdy wymiar ma mniej niż dziewięć wartości", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -586,13 +586,13 @@ describe("GscBiDashboard - dane", () => {
   });
 
   it.fails(
-    "DEFEKT: „Inne” w donucie liczy sie z ogona WEJSCIA, nie z reszty poza pierwsza osemka",
+    "DEFEKT: „Inne” w donucie liczy się z ogona WEJŚCIA, nie z reszty poza pierwszą ósemką",
     async () => {
-      // `top` bierze osiem najwiekszych PO wlasnym sortowaniu, ale `otherClicks`
-      // sumuje `rows.slice(8)` - ogon KOLEJNOSCI WEJSCIOWEJ. Gdy API odda
-      // wiersze inaczej niz malejaco, te dwa zbiory zachodza na siebie: kraje
-      // pokazane jako osobne wycinki wchodza JESZCZE RAZ do „Innych", a udzialy
-      // procentowe donuta przestaja sie sumowac do calosci.
+      // `top` bierze osiem największych PO własnym sortowaniu, ale `otherClicks`
+      // sumuje `rows.slice(8)` - ogon KOLEJNOŚCI WEJŚCIOWEJ. Gdy API odda
+      // wiersze inaczej niż malejąco, te dwa zbiory zachodzą na siebie: kraje
+      // pokazane jako osobne wycinki wchodzą JESZCZE RAZ do „Innych", a udziały
+      // procentowe donuta przestają się sumować do całości.
       const t = realT("pl");
       respondWith({ ...FULL, country: [...COUNTRY_ROWS].reverse() });
       panel();
@@ -609,7 +609,7 @@ describe("GscBiDashboard - dane", () => {
     },
   );
 
-  it("treemap obcina domene ze sciezki i skraca dlugie adresy", async () => {
+  it("treemap obcina domenę ze ścieżki i skraca długie adresy", async () => {
     panel();
     await loaded();
 
@@ -621,19 +621,19 @@ describe("GscBiDashboard - dane", () => {
         rawUrl: string;
       }>;
       expect(nodes).toHaveLength(2);
-      // Kafelek pokazuje SCIEZKE, nie caly adres - domena w kazdym kaflu to
-      // szum, ktory zjada miejsce na nazwe strony.
+      // Kafelek pokazuje ŚCIEŻKĘ, nie cały adres - domena w każdym kaflu to
+      // szum, który zjada miejsce na nazwę strony.
       expect(nodes[0].fullPath).toBe("/analizy/bardzo-dluga-sciezka-o-energii-w-regionie");
       expect(nodes[0].name).toBe(
         "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie".slice(0, 30) + "…",
       );
       expect(nodes[0].rawUrl).toBe(PAGE_ROWS[0].keys[0]);
-      // Sortowanie treemapy idzie po WYSWIETLENIACH, nie po klikieciach.
+      // Sortowanie treemapy idzie po WYŚWIETLENIACH, nie po kliknięciach.
       expect(nodes.map((n) => n.value)).toEqual([900, 300]);
     });
   });
 
-  it("kalendarz dostaje pary dzien-klikniecia i zakres od pierwszego do ostatniego dnia", async () => {
+  it("kalendarz dostaje pary dzień-kliknięcia i zakres od pierwszego do ostatniego dnia", async () => {
     panel();
     await loaded();
 
@@ -645,13 +645,13 @@ describe("GscBiDashboard - dane", () => {
         ["2026-08-02", 20],
         ["2026-08-03", 30],
       ]);
-      // Skala koloru musi siegac maksimum serii, inaczej najmocniejszy dzien
-      // jest nieodrozninalny od sredniego.
+      // Skala koloru musi sięgać maksimum serii, inaczej najmocniejszy dzień
+      // jest nieodróżnialny od średniego.
       expect(rec(o.visualMap).max).toBe(30);
     });
   });
 
-  it("sekcja interpretacji dostaje okno i wlasciwosc, ktore panel faktycznie pokazuje", async () => {
+  it("sekcja interpretacji dostaje okno i właściwość, które panel faktycznie pokazuje", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -662,12 +662,12 @@ describe("GscBiDashboard - dane", () => {
   });
 });
 
-describe("GscBiDashboard - podpowiedzi wykresow", () => {
-  // Formater podpowiedzi to JEDYNE miejsce, w ktorym uzytkownik widzi liczby
-  // pojedynczego elementu wykresu. Jest funkcja oddana ECharts, wiec nie
-  // renderuje sie sam z siebie - bez tego bloku etykiety `clicksLabel`,
-  // `impressionsLabel`, `ctrLabel` i `positionLabel` nie maja zadnego dowodu.
-  it("podpowiedz rankingu fraz sklada wszystkie cztery metryki ze slownika", async () => {
+describe("GscBiDashboard - podpowiedzi wykresów", () => {
+  // Formater podpowiedzi to JEDYNE miejsce, w którym użytkownik widzi liczby
+  // pojedynczego elementu wykresu. Jest funkcją oddaną ECharts, więc nie
+  // renderuje się sam z siebie - bez tego bloku etykiety `clicksLabel`,
+  // `impressionsLabel`, `ctrLabel` i `positionLabel` nie mają żadnego dowodu.
+  it("podpowiedź rankingu fraz składa wszystkie cztery metryki ze słownika", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -683,17 +683,17 @@ describe("GscBiDashboard - podpowiedzi wykresow", () => {
     expect(html).toContain(`${t("adminAnalytics.gsc.positionLabel")}2.4`);
   });
 
-  it("podpowiedz rankingu nie zmysla wiersza dla indeksu spoza zbioru", async () => {
+  it("podpowiedź rankingu nie zmyśla wiersza dla indeksu spoza zbioru", async () => {
     panel();
     await loaded();
 
     await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
-    // Pusty napis, a nie „undefined" w dymku - ECharts pokazuje zwrocony tekst
-    // doslownie.
+    // Pusty napis, a nie „undefined" w dymku - ECharts pokazuje zwrócony tekst
+    // dosłownie.
     expect(tooltipFormatter(topQueriesOption())([{ name: "x", value: 0, dataIndex: 99 }])).toBe("");
   });
 
-  it("podpowiedz donuta podaje udzial procentowy obok wartosci", async () => {
+  it("podpowiedź donuta podaje udział procentowy obok wartości", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -710,7 +710,7 @@ describe("GscBiDashboard - podpowiedzi wykresow", () => {
     ).toBe("pol: <b>100</b> (18.5%)");
   });
 
-  it("podpowiedz treemapy pokazuje wyswietlenia, klikniecia i CTR strony", async () => {
+  it("podpowiedź treemapy pokazuje wyświetlenia, kliknięcia i CTR strony", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -726,7 +726,7 @@ describe("GscBiDashboard - podpowiedzi wykresow", () => {
     expect(html).toContain(`${t("adminAnalytics.gsc.ctrLabel")}4.00%`);
   });
 
-  it("podpowiedz kalendarza mowi, ile klikniec przyniosl dany dzien", async () => {
+  it("podpowiedź kalendarza mówi, ile kliknięć przyniósł dany dzień", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -738,12 +738,12 @@ describe("GscBiDashboard - podpowiedzi wykresow", () => {
   });
 });
 
-describe("GscBiDashboard - drazenie wykresow", () => {
-  // Kliknieciem w element wykresu operator otwiera okno ze szczegolami. Cala
-  // ta warstwa to funkcje oddane karcie, wiec bez symulowanego klikniecia
-  // pozostaje martwa - a to ona decyduje, CZY klikniecie w cokolwiek pokaze
-  // liczby TEGO wiersza, czy sasiedniego.
-  it("klikniecie w punkt trendu pokazuje metryki tego dnia", async () => {
+describe("GscBiDashboard - drążenie wykresów", () => {
+  // Kliknięciem w element wykresu operator otwiera okno ze szczegółami. Cała
+  // ta warstwa to funkcje oddane karcie, więc bez symulowanego kliknięcia
+  // pozostaje martwa - a to ona decyduje, CZY kliknięcie w cokolwiek pokaże
+  // liczby TEGO wiersza, czy sąsiedniego.
+  it("kliknięcie w punkt trendu pokazuje metryki tego dnia", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -763,7 +763,7 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(metricValue(t("adminAnalytics.gsc.avgPosition"))).toBe("10.0");
   });
 
-  it("klikniecie w pusty obszar trendu nie otwiera okna bez tresci", async () => {
+  it("kliknięcie w pusty obszar trendu nie otwiera okna bez treści", async () => {
     panel();
     await loaded();
     await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toHaveLength(3));
@@ -773,14 +773,14 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie w slupek rankingu otwiera te fraze, ktora widac na osi", async () => {
+  it("kliknięcie w słupek rankingu otwiera tę frazę, którą widać na osi", async () => {
     const t = realT("pl");
     panel();
     await loaded();
     await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
 
-    // Indeks 4 to gora osi kategorii, czyli fraza NAJMOCNIEJSZA - gdyby drazenie
-    // pomijalo `reverse()`, otworzyloby fraze z drugiego konca rankingu.
+    // Indeks 4 to góra osi kategorii, czyli fraza NAJMOCNIEJSZA - gdyby drążenie
+    // pomijało `reverse()`, otworzyłoby frazę z drugiego końca rankingu.
     await clickChart(lastChart("top zapytan", isTopQueries), { dataIndex: 4 });
 
     const d = screen.getByRole("dialog");
@@ -790,7 +790,7 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(metricValue("CTR")).toBe("10.00%");
   });
 
-  it("klikniecie w przedzial pozycji sumuje wszystkie frazy z tego przedzialu", async () => {
+  it("kliknięcie w przedział pozycji sumuje wszystkie frazy z tego przedziału", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -800,13 +800,13 @@ describe("GscBiDashboard - drazenie wykresow", () => {
 
     const d = screen.getByRole("dialog");
     expect(within(d).getByText(`${t("adminAnalytics.gsc.avgPosition")}: 4-10`)).toBeInTheDocument();
-    // Jedyna fraza w przedziale 4-10: 30 klik. z 600 wyswietlen.
+    // Jedyna fraza w przedziale 4-10: 30 klik. z 600 wyświetleń.
     expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("30");
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("600");
     expect(metricValue("CTR")).toBe("5.00%");
   });
 
-  it("klikniecie w wycinek donuta otwiera kraj, a wycinek „Inne” nic nie otwiera", async () => {
+  it("kliknięcie w wycinek donuta otwiera kraj, a wycinek „Inne” nic nie otwiera", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -821,15 +821,15 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(within(d).getByText(t("adminAnalytics.gsc.charts.countriesTitle"))).toBeInTheDocument();
     expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("90");
 
-    // „Inne" to worek zbiorczy, nie kraj - nie ma czego pokazac i panel ma to
-    // wiedziec, zamiast otwierac okno o pustym wierszu.
+    // „Inne" to worek zbiorczy, nie kraj - nie ma czego pokazać i panel ma to
+    // wiedzieć, zamiast otwierać okno o pustym wierszu.
     fireEvent.keyDown(d, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await clickChart(donut, { name: t("adminAnalytics.gsc.other") });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie w kafel treemapy daje sciezke, metryki i odnosnik do strony", async () => {
+  it("kliknięcie w kafel treemapy daje ścieżkę, metryki i odnośnik do strony", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -843,7 +843,7 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(within(d).getAllByText(path).length).toBeGreaterThan(0);
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("900");
     expect(metricValue("CTR")).toBe("4.40%");
-    // Odnosnik prowadzi do PELNEGO adresu, nie do skroconej etykiety.
+    // Odnośnik prowadzi do PEŁNEGO adresu, nie do skróconej etykiety.
     const link = within(d).getByRole("link", {
       name: t("adminAnalytics.drillDialog.openInNewTab"),
     });
@@ -851,7 +851,7 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("klikniecie w kafel bez sciezki nie otwiera okna", async () => {
+  it("kliknięcie w kafel bez ścieżki nie otwiera okna", async () => {
     panel();
     await loaded();
     await waitFor(() => expect(seriesOf(treemapOption())[0].data).toHaveLength(2));
@@ -861,7 +861,7 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("klikniecie w dzien kalendarza pokazuje pelne metryki tego dnia", async () => {
+  it("kliknięcie w dzień kalendarza pokazuje pełne metryki tego dnia", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -875,14 +875,14 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("300");
   });
 
-  it("dzien spoza serii pokazuje same klikniecia, a nie wymyslone wyswietlenia", async () => {
+  it("dzień spoza serii pokazuje same kliknięcia, a nie wymyślone wyświetlenia", async () => {
     const t = realT("pl");
     panel();
     await loaded();
     await waitFor(() => expect(rec(calendarOption().calendar).range).toBeTruthy());
 
-    // Kalendarz maluje cale tygodnie, wiec da sie kliknac dzien, ktorego nie ma
-    // w danych. Panel ma wtedy pokazac TYLKO to, co niesie sama komorka.
+    // Kalendarz maluje całe tygodnie, więc da się kliknąć dzień, którego nie ma
+    // w danych. Panel ma wtedy pokazać TYLKO to, co niesie sama komórka.
     await clickChart(lastChart("kalendarz", isCalendar), { value: ["2026-07-04", 7] });
 
     const d = screen.getByRole("dialog");
@@ -890,7 +890,7 @@ describe("GscBiDashboard - drazenie wykresow", () => {
     expect(within(d).queryByText(t("adminAnalytics.gsc.impressions"))).toBeNull();
   });
 
-  it("klikniecie w komorke bez wartosci nie otwiera okna", async () => {
+  it("kliknięcie w komórkę bez wartości nie otwiera okna", async () => {
     panel();
     await loaded();
     await waitFor(() => expect(rec(calendarOption().calendar).range).toBeTruthy());
@@ -907,7 +907,7 @@ describe("GscBiDashboard - zero wierszy", () => {
     panel();
     await loaded();
 
-    // `range: [undefined, undefined]` wywrocilby kalendarz ECharts. Panel
+    // `range: [undefined, undefined]` wywróciłby kalendarz ECharts. Panel
     // zwraca wtedy `{ series: [] }` - i to jest kontrakt, nie przypadek.
     await waitFor(() => {
       const empty = lastOption(
@@ -918,7 +918,7 @@ describe("GscBiDashboard - zero wierszy", () => {
     });
   });
 
-  it("przy zerze wierszy nie zmysla wycinkow donuta ani wezlow treemapy", async () => {
+  it("przy zerze wierszy nie zmyśla wycinków donuta ani węzłów treemapy", async () => {
     const t = realT("pl");
     respondWith(EMPTY);
     panel();
@@ -934,12 +934,12 @@ describe("GscBiDashboard - zero wierszy", () => {
   });
 
   it.fails(
-    "DEFEKT: przy zerze wierszy panel nie mowi „brak danych w oknie”, tylko rysuje zera",
+    "DEFEKT: przy zerze wierszy panel nie mówi „brak danych w oknie”, tylko rysuje zera",
     async () => {
-      // Komunikat JEST w slowniku i JEST uzywany przez dwa sasiednie pulpity
-      // tego samego modulu (`AudienceSegmentsDashboard`, `RelatedPostsAnalytics`).
-      // Tutaj wlasciwosc bez ani jednego wyswietlenia wyglada identycznie jak
-      // wlasciwosc, ktorej dane nie dojechaly.
+      // Komunikat JEST w słowniku i JEST używany przez dwa sąsiednie pulpity
+      // tego samego modułu (`AudienceSegmentsDashboard`, `RelatedPostsAnalytics`).
+      // Tutaj właściwość bez ani jednego wyświetlenia wygląda identycznie jak
+      // właściwość, której dane nie dojechały.
       respondWith(EMPTY);
       panel();
       await loaded();
@@ -952,11 +952,11 @@ describe("GscBiDashboard - zero wierszy", () => {
 });
 
 describe("GscBiDashboard - wiersze brzegowe", () => {
-  it("wiersz bez klucza wymiaru nie wstawia „undefined” w zadnym miejscu panelu", async () => {
+  it("wiersz bez klucza wymiaru nie wstawia „undefined” w żadnym miejscu panelu", async () => {
     const t = realT("pl");
-    // Search Console potrafi oddac wiersz z pusta tablica `keys` (agregat bez
-    // wymiaru). Kazde miejsce, w ktorym panel siega po `keys[0]`, ma na to
-    // wlasny zapasowy napis - i wszystkie musza zadzialac naraz, bo jeden
+    // Search Console potrafi oddać wiersz z pustą tablicą `keys` (agregat bez
+    // wymiaru). Każde miejsce, w którym panel sięga po `keys[0]`, ma na to
+    // własny zapasowy napis - i wszystkie muszą zadziałać naraz, bo jeden
     // przeciek renderuje „undefined" na kafelku, w tabeli i w eksporcie CSV.
     respondWith({
       date: [keylessRow(5, 50, 0.1, 4)],
@@ -976,7 +976,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     expect(slices.map((x) => x.name)).toEqual(["?"]);
     const nodes = (seriesOf(treemapOption())[0].data ?? []) as Array<{ name: string }>;
     expect(nodes.map((n) => n.name)).toEqual(["/"]);
-    // Kalendarz bez daty nie moze dostac `range: [undefined, undefined]`.
+    // Kalendarz bez daty nie może dostać `range: [undefined, undefined]`.
     expect(
       strList(rec(calendarOption().calendar).range).every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
     ).toBe(true);
@@ -985,10 +985,10 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
 
   it("wiersz bez klucza obok wierszy z kluczem nie psuje sortowania", async () => {
     const t = realT("pl");
-    // Zbior MIESZANY jest trudniejszy niz jednorodny: porownania w sortowaniu
-    // biegna miedzy wierszem z kluczem i bez, wiec zapasowy napis musi zadzialac
-    // po obu stronach porownania - inaczej `localeCompare` dostaje `undefined`
-    // i seria ustawia sie losowo.
+    // Zbiór MIESZANY jest trudniejszy niż jednorodny: porównania w sortowaniu
+    // biegną między wierszem z kluczem i bez, więc zapasowy napis musi zadziałać
+    // po obu stronach porównania - inaczej `localeCompare` dostaje `undefined`
+    // i seria ustawia się losowo.
     respondWith({
       date: [keylessRow(5, 50, 0.1, 4), row("2026-08-01", 10, 200, 0.05, 12)],
       query: [keylessRow(7, 70, 0.1, 4), row("fraza z kluczem", 3, 30, 0.1, 2)],
@@ -1002,16 +1002,16 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
 
     await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toEqual(["", "2026-08-01"]));
     expect(numList(seriesOf(trendOption())[0].data)).toEqual([5, 10]);
-    // Rank: mocniejszy jest wiersz bez klucza, wiec po odwroceniu stoi na gorze.
+    // Rank: mocniejszy jest wiersz bez klucza, więc po odwróceniu stoi na górze.
     expect(strList(rec(topQueriesOption().yAxis).data)).toEqual(["fraza z kluczem", ""]);
     const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0].data ??
       []) as Array<{ name: string; value: number }>;
     expect(slices.map((x) => x.name)).toEqual(["?", "pol"]);
-    // Podpowiedz wywolana bez ladunku ma oddac tekst, a nie „undefined".
+    // Podpowiedź wywołana bez ładunku ma oddać tekst, a nie „undefined".
     expect(tooltipFormatter(topQueriesOption())([])).not.toContain("undefined");
   });
 
-  it("drazenie wiersza bez klucza otwiera okno z metrykami, a nie z „undefined”", async () => {
+  it("drążenie wiersza bez klucza otwiera okno z metrykami, a nie z „undefined”", async () => {
     const t = realT("pl");
     respondWith({
       date: [keylessRow(5, 50, 0.1, 4), row("2026-08-01", 10, 200, 0.05, 12)],
@@ -1033,13 +1033,13 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     fireEvent.keyDown(trendDialog, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    // Rank: gorna pozycja osi to wiersz bez klucza.
+    // Rank: górna pozycja osi to wiersz bez klucza.
     await clickChart(lastChart("top zapytan", isTopQueries), { dataIndex: 1 });
     expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("7");
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    // Donut: wycinek „?" to nadal konkretny wiersz, wiec ma sie otworzyc.
+    // Donut: wycinek „?" to nadal konkretny wiersz, więc ma się otworzyć.
     await clickChart(
       lastChart("donut krajow", isDonut(t("adminAnalytics.gsc.charts.countriesTitle"))),
       { name: "?" },
@@ -1048,12 +1048,12 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    // Kalendarz: komorka bez daty trafia w ten sam wiersz.
+    // Kalendarz: komórka bez daty trafia w ten sam wiersz.
     await clickChart(lastChart("kalendarz", isCalendar), { value: ["", 5] });
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("50");
   });
 
-  it("klikniecie w trend bez indeksu danych nie otwiera okna", async () => {
+  it("kliknięcie w trend bez indeksu danych nie otwiera okna", async () => {
     panel();
     await loaded();
     await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toHaveLength(3));
@@ -1063,9 +1063,9 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("pozycja spoza wszystkich przedzialow nie doklada sie do zadnego slupka", async () => {
-    // Pozycja 0 nie istnieje w SERP - wpadniecie takiego wiersza do przedzialu
-    // „1-3" zawyzyloby najwazniejszy slupek raportu.
+  it("pozycja spoza wszystkich przedziałów nie dokłada się do żadnego słupka", async () => {
+    // Pozycja 0 nie istnieje w SERP - wpadnięcie takiego wiersza do przedziału
+    // „1-3" zawyżyłoby najważniejszy słupek raportu.
     respondWith({
       ...EMPTY,
       date: DATE_ROWS,
@@ -1080,7 +1080,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     expect(numList(s[1].data)).toEqual([3, 0, 0, 0, 0]);
   });
 
-  it("pusty przedzial pozycji pokazuje CTR 0,00%, a nie dzielenie przez zero", async () => {
+  it("pusty przedział pozycji pokazuje CTR 0,00%, a nie dzielenie przez zero", async () => {
     respondWith({
       ...EMPTY,
       date: DATE_ROWS,
@@ -1096,13 +1096,13 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     expect(metricValue(realT("pl")("adminAnalytics.gsc.impressions"))).toBe("0");
   });
 
-  it("klikniecie bez indeksu danych nie otwiera okna na zadnym wykresie", async () => {
+  it("kliknięcie bez indeksu danych nie otwiera okna na żadnym wykresie", async () => {
     panel();
     await loaded();
     await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
 
-    // ECharts wysyla zdarzenie takze dla elementow bez danych (etykieta osi,
-    // linia progu) - wtedy `dataIndex` nie jest liczba.
+    // ECharts wysyła zdarzenie także dla elementów bez danych (etykieta osi,
+    // linia progu) - wtedy `dataIndex` nie jest liczbą.
     await clickChart(lastChart("top zapytan", isTopQueries), { name: "os" });
     expect(screen.queryByRole("dialog")).toBeNull();
 
@@ -1116,7 +1116,7 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("kafel treemapy bez metryk pokazuje zera, a odnosnik prowadzi do sciezki", async () => {
+  it("kafel treemapy bez metryk pokazuje zera, a odnośnik prowadzi do ścieżki", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1129,36 +1129,36 @@ describe("GscBiDashboard - wiersze brzegowe", () => {
     expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("0");
     expect(metricValue("CTR")).toBe("0.00%");
     expect(metricValue(t("adminAnalytics.gsc.avgPosition"))).toBe("0.0");
-    // Bez pelnego adresu odnosnik musi zostac przy sciezce - nigdy `undefined`.
+    // Bez pełnego adresu odnośnik musi zostać przy ścieżce - nigdy `undefined`.
     expect(
       within(d).getByRole("link", { name: t("adminAnalytics.drillDialog.openInNewTab") }),
     ).toHaveAttribute("href", "/kontakt");
   });
 });
 
-describe("GscBiDashboard - blad zapytania", () => {
-  it("po awarii Search Analytics panel nie jest pusty - narzedzia steruja dalej", async () => {
+describe("GscBiDashboard - błąd zapytania", () => {
+  it("po awarii Search Analytics panel nie jest pusty - narzędzia sterują dalej", async () => {
     const t = realT("pl");
     h.queryAnalytics.mockRejectedValue(new Error("GSC 503: backend error"));
     panel();
 
-    // Minimum, ktore panel dowozi: operator wciaz moze zmienic okno i ponowic.
+    // Minimum, które panel dowozi: operator wciąż może zmienić okno i ponowić.
     expect(
       await screen.findByRole("button", { name: t("adminAnalytics.common.refresh") }),
     ).toBeInTheDocument();
     expect(screen.getByText(t("adminAnalytics.gsc.window"))).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria zapytania nie wystawia zadnego komunikatu bledu", async () => {
-    // Blizniaczy pulpit GA4 z tego samego modulu renderuje w tej sytuacji karte
-    // `adminAnalytics.ga4.apiError`. GSC polyka wyjatek: zapytania sa w stanie
-    // `error`, a panel rysuje pelna siatke zer - operator widzi „brak ruchu"
-    // tam, gdzie w rzeczywistosci padla bramka.
+  it.fails("DEFEKT: awaria zapytania nie wystawia żadnego komunikatu błędu", async () => {
+    // Bliźniaczy pulpit GA4 z tego samego modułu renderuje w tej sytuacji kartę
+    // `adminAnalytics.ga4.apiError`. GSC połyka wyjątek: zapytania są w stanie
+    // `error`, a panel rysuje pełną siatkę zer - operator widzi „brak ruchu"
+    // tam, gdzie w rzeczywistości padła bramka.
     h.queryAnalytics.mockRejectedValue(new Error("GSC 503: backend error"));
     const { container } = panel();
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
 
-    // Krotki limit: dowodzimy BRAKU komunikatu, wiec nie ma na co czekac.
+    // Krótki limit: dowodzimy BRAKU komunikatu, więc nie ma na co czekać.
     await waitFor(
       () => {
         expect(container.textContent ?? "").toMatch(/503|b[łl][ąa]d|error/i);
@@ -1167,7 +1167,7 @@ describe("GscBiDashboard - blad zapytania", () => {
     );
   });
 
-  it.fails("DEFEKT: przy padnietym zapytaniu KPI pokazuje 0 zamiast braku pomiaru", async () => {
+  it.fails("DEFEKT: przy padniętym zapytaniu KPI pokazuje 0 zamiast braku pomiaru", async () => {
     h.queryAnalytics.mockRejectedValue(new Error("GSC 503: backend error"));
     panel();
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
@@ -1176,8 +1176,8 @@ describe("GscBiDashboard - blad zapytania", () => {
   });
 });
 
-describe("GscBiDashboard - wejscie zapytania", () => {
-  it("startowe okno to 28 dni, a poprzednie okno przylega do niego i ma te sama dlugosc", async () => {
+describe("GscBiDashboard - wejście zapytania", () => {
+  it("startowe okno to 28 dni, a poprzednie okno przylega do niego i ma tę samą długość", async () => {
     panel();
     await loaded();
 
@@ -1187,13 +1187,13 @@ describe("GscBiDashboard - wejscie zapytania", () => {
     expect(current).toHaveLength(5);
     expect(previous).toHaveLength(1);
     for (const i of current) expect(spanDays(i.startDate, i.endDate)).toBe(28);
-    // Porownanie „vs poprzedni okres" ma sens tylko wtedy, gdy okna sa rowne
-    // i stykaja sie bez luki - inaczej delta w KPI mierzy dwa rozne odcinki.
+    // Porównanie „vs poprzedni okres" ma sens tylko wtedy, gdy okna są równe
+    // i stykają się bez luki - inaczej delta w KPI mierzy dwa różne odcinki.
     expect(spanDays(previous[0].startDate, previous[0].endDate)).toBe(28);
     expect(previous[0].endDate).toBe(current[0].startDate);
   });
 
-  it("kazdy wymiar jedzie osobnym zapytaniem, a serie dzienna ma wyzszy limit wierszy", async () => {
+  it("każdy wymiar jedzie osobnym zapytaniem, a seria dzienna ma wyższy limit wierszy", async () => {
     panel();
     await loaded();
 
@@ -1206,7 +1206,7 @@ describe("GscBiDashboard - wejscie zapytania", () => {
       ["device"],
       ["date"],
     ]);
-    // 400 dla dni (90-dniowe okno + zapas), 200 dla wymiarow rankingowych.
+    // 400 dla dni (90-dniowe okno + zapas), 200 dla wymiarów rankingowych.
     expect(inputs.filter((i) => i.dimensions[0] === "date").map((i) => i.rowLimit)).toEqual([
       400, 400,
     ]);
@@ -1215,7 +1215,7 @@ describe("GscBiDashboard - wejscie zapytania", () => {
     ]);
   });
 
-  it("zmiana okna na 7 dni przestawia WEJSCIE zapytania, nie tylko etykiete", async () => {
+  it("zmiana okna na 7 dni przestawia WEJŚCIE zapytania, nie tylko etykietę", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1239,7 +1239,7 @@ describe("GscBiDashboard - wejscie zapytania", () => {
     expect(previous.every((i) => spanDays(i.startDate, i.endDate) === 7)).toBe(true);
   });
 
-  it("„Odswiez” ponawia wszystkie szesc zapytan, nie tylko serie dzienna", async () => {
+  it("„Odśwież” ponawia wszystkie sześć zapytań, nie tylko serię dzienną", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1248,8 +1248,8 @@ describe("GscBiDashboard - wejscie zapytania", () => {
     fireEvent.click(screen.getByRole("button", { name: t("adminAnalytics.common.refresh") }));
 
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBe(before + 6));
-    // Ponowienie musi objac KAZDY wymiar - inaczej po odswiezeniu czesc kart
-    // pokazuje dane z poprzedniego stanu obok danych swiezych.
+    // Ponowienie musi objąć KAŻDY wymiar - inaczej po odświeżeniu część kart
+    // pokazuje dane z poprzedniego stanu obok danych świeżych.
     const after = analyticsInputs().slice(before);
     expect(new Set(after.map((i) => i.dimensions[0]))).toEqual(
       new Set(["date", "query", "page", "country", "device"]),
@@ -1257,8 +1257,8 @@ describe("GscBiDashboard - wejscie zapytania", () => {
   });
 });
 
-describe("GscBiDashboard - wybor wlasciwosci", () => {
-  it("bez wskazania operatora panel wybiera wlasciwosc glowna, nie pierwsza z brzegu", async () => {
+describe("GscBiDashboard - wybór właściwości", () => {
+  it("bez wskazania operatora panel wybiera właściwość główną, nie pierwszą z brzegu", async () => {
     h.listSites.mockResolvedValue({
       sites: [site(SITE_A), site(SITE_NES), site(SITE_B)],
       configured: true,
@@ -1269,7 +1269,7 @@ describe("GscBiDashboard - wybor wlasciwosci", () => {
     expect(analyticsInputs().every((i) => i.siteUrl === SITE_NES)).toBe(true);
   });
 
-  it("wybor innej wlasciwosci przestawia argument zapytania", async () => {
+  it("wybór innej właściwości przestawia argument zapytania", async () => {
     h.listSites.mockResolvedValue({ sites: [site(SITE_A), site(SITE_B)], configured: true });
     panel();
     await loaded();
@@ -1286,21 +1286,21 @@ describe("GscBiDashboard - wybor wlasciwosci", () => {
     ).toBe(true);
   });
 
-  it("bez ani jednej wlasciwosci panel nie strzela zapytaniem z pustym adresem", async () => {
+  it("bez ani jednej właściwości panel nie strzela zapytaniem z pustym adresem", async () => {
     h.listSites.mockResolvedValue({ sites: [], configured: true });
     panel();
 
     await waitFor(() => expect(h.listSites).toHaveBeenCalled());
-    // `enabled: Boolean(effectiveSite)` ma trzymac zapytanie, a nie wysylac
-    // `siteUrl: ""` - walidator server fn odrzucilby to bledem 400 na kazdym
-    // wejsciu na zakladke.
+    // `enabled: Boolean(effectiveSite)` ma trzymać zapytanie, a nie wysyłać
+    // `siteUrl: ""` - walidator server fn odrzuciłby to błędem 400 na każdym
+    // wejściu na zakładkę.
     await waitFor(() => expect(h.queryAnalytics).not.toHaveBeenCalled());
     expect(screen.getByText(realT("pl")("adminAnalytics.gsc.selectProperty"))).toBeInTheDocument();
   });
 });
 
-describe("GscBiDashboard - izolacja warsztatow", () => {
-  it("wybor wlasciwosci pokazuje wylacznie wlasciwosci zwrocone dla biezacego warsztatu", async () => {
+describe("GscBiDashboard - izolacja warsztatów", () => {
+  it("wybór właściwości pokazuje wyłącznie właściwości zwrócone dla bieżącego warsztatu", async () => {
     h.listSites.mockResolvedValue({ sites: [site(SITE_A)], configured: true });
     const { container } = panel();
     await loaded();
@@ -1314,9 +1314,9 @@ describe("GscBiDashboard - izolacja warsztatow", () => {
     expect(container.textContent ?? "").not.toContain("beta.example.org");
   });
 
-  it("po przejsciu na inny warsztat panel nie pokazuje danych poprzedniego", async () => {
-    // Wspoldzielony `QueryClient` to najostrzejszy przypadek: gdyby klucz cache
-    // nie niosl wlasciwosci, panel warsztatu B odziedziczylby wiersze warsztatu A.
+  it("po przejściu na inny warsztat panel nie pokazuje danych poprzedniego", async () => {
+    // Współdzielony `QueryClient` to najostrzejszy przypadek: gdyby klucz cache
+    // nie niósł właściwości, panel warsztatu B odziedziczyłby wiersze warsztatu A.
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const first = panel(true, client);
     await loaded();
@@ -1333,22 +1333,22 @@ describe("GscBiDashboard - izolacja warsztatow", () => {
     const second = panel(true, client);
 
     expect(await screen.findByText("beta fraza wlasna")).toBeInTheDocument();
-    // Zapytanie warsztatu A nie ma prawa zostac na ekranie warsztatu B.
+    // Zapytanie warsztatu A nie ma prawa zostać na ekranie warsztatu B.
     expect(within(second.container).queryByText("energia w cee")).toBeNull();
     expect(within(second.container).queryByText("raport nes")).toBeNull();
   });
 
   it.fails(
-    "DEFEKT: klucz cache listy wlasciwosci nie niesie warsztatu, wiec panel B maluje wiersze warsztatu A",
+    "DEFEKT: klucz cache listy właściwości nie niesie warsztatu, więc panel B maluje wiersze warsztatu A",
     async () => {
-      // `queryKey: ["gsc-sites"]` jest STALY - nie ma w nim ani tenanta, ani
-      // uzytkownika. Przy kliencie react-query przezywajacym zmiane warsztatu
-      // panel dostaje z cache liste wlasciwosci POPRZEDNIEGO warsztatu,
-      // `preferredSite` wskazuje cudza wlasciwosc, a wpisy `["gsc-bi", <cudza
-      // wlasciwosc>, ...]` sa jeszcze swieze (`staleTime: 60_000`) - wiec
+      // `queryKey: ["gsc-sites"]` jest STAŁY - nie ma w nim ani tenanta, ani
+      // użytkownika. Przy kliencie react-query przeżywającym zmianę warsztatu
+      // panel dostaje z cache listę właściwości POPRZEDNIEGO warsztatu,
+      // `preferredSite` wskazuje cudzą właściwość, a wpisy `["gsc-bi", <cudza
+      // właściwość>, ...]` są jeszcze świeże (`staleTime: 60_000`) - więc
       // PIERWSZA klatka panelu warsztatu B pokazuje zapytania warsztatu A.
-      // Zadne zapytanie sieciowe przy tym nie leci, co czyni wyciek cichym:
-      // widac go wylacznie na ekranie.
+      // Żadne zapytanie sieciowe przy tym nie leci, co czyni wyciek cichym:
+      // widać go wyłącznie na ekranie.
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const first = panel(true, client);
       await loaded();
@@ -1363,8 +1363,8 @@ describe("GscBiDashboard - izolacja warsztatow", () => {
   );
 });
 
-describe("GscBiDashboard - dostepnosc", () => {
-  it("wykresy z eksportem CSV maja tekstowa alternatywe z tymi samymi liczbami", async () => {
+describe("GscBiDashboard - dostępność", () => {
+  it("wykresy z eksportem CSV mają tekstową alternatywę z tymi samymi liczbami", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1389,7 +1389,7 @@ describe("GscBiDashboard - dostepnosc", () => {
     expect(within(tables[1]).getByText("energia w cee")).toBeInTheDocument();
   });
 
-  it("region kazdego wykresu ma nazwe zbudowana z tytulu karty", async () => {
+  it("region każdego wykresu ma nazwę zbudowaną z tytułu karty", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1404,13 +1404,13 @@ describe("GscBiDashboard - dostepnosc", () => {
   });
 
   it.fails(
-    "DEFEKT: piec z siedmiu wykresow panelu nie ma zadnej alternatywy tekstowej",
+    "DEFEKT: pięć z siedmiu wykresów panelu nie ma żadnej alternatywy tekstowej",
     async () => {
-      // Karta UMIE zbudowac tabele danych - dostaje ja tylko trend i rank fraz.
-      // Rozklad pozycji, kraje, urzadzenia, strony i kalendarz jada bez `csv`,
-      // wiec dla czytnika ekranu sa pustym prostokatem z sama nazwa. Slownik ma
-      // nawet gotowy komunikat na te sytuacje (`chartCard.dataTableMissing`),
-      // ktorego nikt nie uzywa.
+      // Karta UMIE zbudować tabelę danych - dostaje ją tylko trend i rank fraz.
+      // Rozkład pozycji, kraje, urządzenia, strony i kalendarz jadą bez `csv`,
+      // więc dla czytnika ekranu są pustym prostokątem z samą nazwą. Słownik ma
+      // nawet gotowy komunikat na tę sytuację (`chartCard.dataTableMissing`),
+      // którego nikt nie używa.
       panel();
       await loaded();
 
@@ -1422,30 +1422,30 @@ describe("GscBiDashboard - dostepnosc", () => {
     },
   );
 
-  it("poza nienazwanymi przyciskami panel nie ma innych naruszen axe", async () => {
+  it("poza nienazwanymi przyciskami panel nie ma innych naruszeń axe", async () => {
     const { container } = panel();
     await loaded();
     await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
 
-    // Regule `button-name` wylaczamy TYLKO tutaj i tylko po to, zeby jeden znany
-    // defekt (test nizej) nie przykrywal wszystkiego innego: kolejnosci
-    // naglowkow, poprawnosci ARIA, semantyki list i tabel.
+    // Regułę `button-name` wyłączamy TYLKO tutaj i tylko po to, żeby jeden znany
+    // defekt (test niżej) nie przykrywał wszystkiego innego: kolejności
+    // nagłówków, poprawności ARIA, semantyki list i tabel.
     const violations = await axeViolations(container, { "button-name": { enabled: false } });
     expect(summarize(violations)).toBe("");
   });
 
-  it("karta niepodlaczonej integracji jest wolna od naruszen axe", async () => {
+  it("karta niepodłączonej integracji jest wolna od naruszeń axe", async () => {
     const { container } = panel(false);
 
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: dziewiec przyciskow panelu nie ma dostepnej nazwy", async () => {
-    // Dwa pola wyboru w pasku narzedzi (wlasciwosc, okno) maja widoczna
-    // etykiete `<label>`, ale bez `htmlFor` - czyli dla czytnika ekranu sa
-    // bezimienne. Do tego siedem przyciskow „wiecej" na kartach wykresow to
-    // sama ikona `MoreHorizontal` bez `aria-label`, choc przycisk pelnego
-    // ekranu obok - w tym samym pliku `ChartCard.tsx` - nazwe ma.
+  it.fails("DEFEKT: dziewięć przycisków panelu nie ma dostępnej nazwy", async () => {
+    // Dwa pola wyboru w pasku narzędzi (właściwość, okno) mają widoczną
+    // etykietę `<label>`, ale bez `htmlFor` - czyli dla czytnika ekranu są
+    // bezimienne. Do tego siedem przycisków „więcej" na kartach wykresów to
+    // sama ikona `MoreHorizontal` bez `aria-label`, choć przycisk pełnego
+    // ekranu obok - w tym samym pliku `ChartCard.tsx` - nazwę ma.
     const { container } = panel();
     await loaded();
     await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
@@ -1454,8 +1454,8 @@ describe("GscBiDashboard - dostepnosc", () => {
   });
 });
 
-describe("GscBiDashboard - dwujezycznosc", () => {
-  it("wszystkie siedem kart wykresow nazywa sie ze slownika PL", async () => {
+describe("GscBiDashboard - dwujęzyczność", () => {
+  it("wszystkie siedem kart wykresów nazywa się ze słownika PL", async () => {
     const t = realT("pl");
     panel();
     await loaded();
@@ -1467,7 +1467,7 @@ describe("GscBiDashboard - dwujezycznosc", () => {
     expect(screen.getByText(t("adminAnalytics.gsc.avgPosition"))).toBeInTheDocument();
   });
 
-  it("ten sam panel po EN mowi po angielsku, bez ani jednego polskiego tytulu", async () => {
+  it("ten sam panel po EN mówi po angielsku, bez ani jednego polskiego tytułu", async () => {
     await i18n.changeLanguage("en");
     const en = realT("en");
     const pl = realT("pl");
@@ -1477,8 +1477,8 @@ describe("GscBiDashboard - dwujezycznosc", () => {
     await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
     expect(chartRegionNames()).toEqual(CHART_TITLE_KEYS.map((k) => regionName("en", k)));
     for (const key of CHART_TITLE_KEYS) {
-      // Brak klucza w EN oznaczalby cichy fallback na polski tytul - a to
-      // wyglada jak dzialajacy panel, wiec nikt tego nie zglosi.
+      // Brak klucza w EN oznaczałby cichy fallback na polski tytuł - a to
+      // wygląda jak działający panel, więc nikt tego nie zgłosi.
       expect(en(key)).not.toBe(pl(key));
       expect(container.textContent ?? "").not.toContain(pl(key));
     }
@@ -1490,7 +1490,7 @@ describe("GscBiDashboard - dwujezycznosc", () => {
     ).toBeInTheDocument();
   });
 
-  it("naglowki tabeli danych tez sa dwujezyczne", async () => {
+  it("nagłówki tabeli danych też są dwujęzyczne", async () => {
     await i18n.changeLanguage("en");
     const en = realT("en");
     panel();
