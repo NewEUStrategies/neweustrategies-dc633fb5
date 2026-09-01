@@ -424,6 +424,12 @@ describe("moderacja czatu - czyszczenie wygasłych wiadomości", () => {
     await waitFor(() => expect(h.purgeCalls).toBe(1));
     // Liczba jest treścią komunikatu, nie ozdobą: „wyczyszczono 0" i
     // „wyczyszczono 3000" to dwie różne informacje o stanie bazy.
+    //
+    // UWAGA: ta asercja mierzy LICZBĘ i to, że napis wychodzi ze słownika
+    // (i18next nie oddał gołego klucza) - NIE stwierdza, że rzeczownik w tym
+    // komunikacie jest poprawny. Nie jest; patrz `it.fails`
+    // „komunikat po purge liczy wiadomości, nie konwersacje" w sekcji
+    // „defekty zastane".
     const oczekiwany = t("adminCommunity.chat.purged", { count: 3 });
     await waitFor(() => expect(h.toastSuccess).toContain(oczekiwany));
     expect(oczekiwany).toContain("3");
@@ -470,5 +476,41 @@ describe("moderacja czatu - defekty zastane", () => {
       trash.getAttribute("title") ??
       (trash.textContent ?? "").trim();
     expect(nazwa).not.toBe("");
+  });
+
+  /**
+   * ZŁAMANY KONTRAKT: komunikat po czyszczeniu liczy ZŁĄ JEDNOSTKĘ.
+   * Przycisk „Wyczyść" woła `purgeExpiredMessages`, czyli RPC
+   * `chat_purge_expired_messages`, które robi `DELETE FROM public.messages`
+   * i zwraca `ROW_COUNT` skasowanych WIADOMOŚCI (migracja
+   * `20260712214155_2c3c6a7f-7c8b-4219-b807-29be470358a3.sql:378-390`).
+   * Trasa podstawia tę liczbę pod klucz `adminCommunity.chat.purged`
+   * = „Wyczyszczono {{count}} konwersacje" (`admin.community.chat.tsx:90`).
+   * Operator czyta więc, że zniknęły 3 KONWERSACJE - czyli 3 całe wątki
+   * z uczestnikami - podczas gdy zniknęły 3 pojedyncze wiadomości. Na ekranie,
+   * którego drugi przycisk kasuje konwersacje kaskadowo, to nie jest literówka:
+   * to fałszywy raport o zasięgu operacji niszczącej.
+   *
+   * DOWÓD, że to pomyłka, a nie decyzja: TEN SAM `purgeExpiredMessages`
+   * w `src/routes/admin.community.index.tsx:86` jest opisany poprawnie kluczem
+   * `adminCommunity.overview.purgedMessages` = „Wyczyszczono {{count}}
+   * wiadomości". Dwa panele nazywają jedną operację sprzecznie.
+   *
+   * OCZEKIWANY KONTRAKT: komunikat liczy wiadomości - słownik ma już komplet
+   * form `purgedMessages_*`, więc naprawa to podmiana klucza w trasie, bez
+   * nowych tłumaczeń.
+   *
+   * Zapisane jako `it.fails`, bo naprawa wymaga zmiany pliku trasy, a ten test
+   * nie zmienia zachowania produkcyjnego. Po naprawie ten test zacznie
+   * przechodzić (czyli `it.fails` zgaśnie) - wtedy należy go zamienić
+   * na zwykłe `it` i poprawić asercję w teście „purge woła bazę i mówi, ILE
+   * wyczyszczono".
+   */
+  it.fails("komunikat po purge liczy wiadomości, nie konwersacje", async () => {
+    h.purgeCount = 3;
+    await mountChat();
+    fireEvent.click(await screen.findByRole("button", { name: chat.purge }));
+    await waitFor(() => expect(h.toastSuccess).toHaveLength(1));
+    expect(h.toastSuccess[0]).toBe(t("adminCommunity.overview.purgedMessages", { count: 3 }));
   });
 });

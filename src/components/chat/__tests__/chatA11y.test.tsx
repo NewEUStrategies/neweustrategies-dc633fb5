@@ -51,7 +51,7 @@ import {
   peerProfileMap,
   reactionRow,
 } from "@/test/chat/fixtures";
-import { CHAT_THEMES, themeLabelKey } from "@/lib/chat/themes";
+import { CHAT_THEMES, themeLabelKey, type ChatThemeId } from "@/lib/chat/themes";
 import { __resetDraftsForTests } from "@/lib/chat/drafts";
 import type { RuleObject } from "axe-core";
 import type { ChatMessage, PeerProfile, ReactionRow } from "@/lib/chat/types";
@@ -292,12 +292,12 @@ function textarea(): HTMLTextAreaElement {
   return el;
 }
 
-/** Przycisk o zadanej dostępnej nazwie - ze strażnikiem typu zamiast rzutowania. */
+/** Przycisk po DOSTĘPNEJ NAZWIE - tej samej, którą przeczyta czytnik ekranu. */
 function buttonNamed(name: string): HTMLElement {
   return screen.getByRole("button", { name });
 }
 
-/** Ikona wewnątrz przycisku ikonowego (jedyne dziecko `<svg>`). */
+/** Ikona wewnątrz przycisku ikonowego, ze strażnikiem zamiast rzutowania. */
 function iconOf(button: HTMLElement): SVGElement {
   const icon = button.querySelector("svg");
   if (!icon) throw new Error(`test: przycisk "${button.getAttribute("aria-label")}" nie ma ikony`);
@@ -660,7 +660,10 @@ describe("MessageBubble - zarejestrowany defekt potwierdzeń doręczenia", () =>
     async () => {
       const { container } = renderDelivered();
       const violations = await axeViolations(container);
-      expect(summarize(violations)).toBe("");
+      // Filtr po ID reguły, żeby ta porażka mogła mieć TYLKO jedną przyczynę -
+      // inaczej dowolne przyszłe naruszenie trzymałoby ją cicho na zielono.
+      const prohibited = violations.filter((v) => v.id === "aria-prohibited-attr");
+      expect(prohibited, summarize(violations)).toEqual([]);
     },
   );
 });
@@ -795,7 +798,7 @@ describe("ChatAppearanceDialog - audyt axe", () => {
 
 describe("motywy rozmowy - komplet zmiennych CSS dymka NA RENDERZE", () => {
   /** Próbka motywu w dialogu wyglądu - element, który NOSI klasę motywu. */
-  function themeSwatch(themeId: string): HTMLElement {
+  function themeSwatch(themeId: ChatThemeId): HTMLElement {
     const group = screen.getByRole("radiogroup", { name: L.appearance.themeSection });
     const radio = within(group).getByRole("radio", { name: t(themeLabelKey(themeId)) });
     const swatch = radio.querySelector<HTMLElement>('span[style*="linear-gradient"]');
