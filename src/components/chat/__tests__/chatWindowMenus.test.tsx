@@ -503,9 +503,10 @@ describe("ChatWindow - intencje wręczone liście wiadomości", () => {
 });
 
 describe("ChatWindow - kompozytor traci kontekst tylko na żądanie", () => {
-  it("zamknięcie cytatu czyści odpowiedź, a edycji nie dotyka", () => {
+  it("zamknięcie cytatu zdejmuje odpowiedź z kompozytora", () => {
     renderWindow();
     act(() => listProps().onReply(chatMessage({ id: "cytowana" })));
+    expect(composerProps().replyTo?.id).toBe("cytowana");
     act(() => composerProps().onClearReply());
     expect(composerProps().replyTo).toBeNull();
   });
@@ -582,13 +583,18 @@ describe("ChatWindow - warstwy modalne mają drogę powrotną", () => {
     expect(screen.queryByTestId("group-info")).toBeNull();
   });
 
-  it("wyjście z kręgu w wariancie page wraca na listę rozmów", () => {
+  it("wyjście z kręgu w wariancie page wraca na listę rozmów, a nie zamyka okna", () => {
     h.views = [groupConversationView()];
     const back = vi.fn();
-    renderWindow({ conversationId: CHAT_IDS.group, onBack: back });
+    const close = vi.fn();
+    // Oba wejścia podane naraz: powrót na listę MA pierwszeństwo przed
+    // zamknięciem okna, inaczej opuszczenie kręgu na stronie /messages
+    // zwinęłoby całą powierzchnię zamiast wrócić do rozmów.
+    renderWindow({ conversationId: CHAT_IDS.group, onBack: back, onClose: close });
     fireEvent.click(screen.getByRole("button", { name: chatPl.chat.group.info }));
     fireEvent.click(screen.getByTestId("group-info-left"));
-    expect(back).toHaveBeenCalled();
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(close).not.toHaveBeenCalled();
   });
 
   it("wyjście z kręgu w oknie dokowanym zamyka to okno", () => {
@@ -645,17 +651,34 @@ describe("ChatWindow - warstwy modalne mają drogę powrotną", () => {
 });
 
 describe("ChatWindow - ustawienia rozmowy, gdy serwer odmawia", () => {
-  it("potwierdzone czyszczenie historii ZAMYKA dialog, zanim ruszy mutacja", async () => {
+  it("czyszczenie historii rusza DOPIERO po potwierdzeniu i zamyka dialog", async () => {
     renderWindow();
     openMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: chatPl.chat.menu.clear }));
 
     const dialog = await screen.findByRole("alertdialog");
+    // Samo otwarcie dialogu nie czyści niczego - to operacja nieodwracalna.
+    expect(h.mutations.clear?.calls).toEqual([]);
+
     fireEvent.click(within(dialog).getByRole("button", { name: chatPl.chat.menu.clear }));
 
     expect(h.mutations.clear?.calls).toEqual([{ conversationId: CHAT_IDS.conversation }]);
     // Dialog nieodwracalnej operacji nie może wisieć nad wyczyszczonym wątkiem.
+    // (Zamknięcie wnosi też sam `AlertDialogAction`, więc dowodem WŁASNEGO
+    // zamknięcia okna jest ścieżka anulowania w teście obok, nie ta asercja.)
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+
+  it("rezygnacja z czyszczenia historii zostawia wątek nietknięty", async () => {
+    renderWindow();
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: chatPl.chat.menu.clear }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: chatPl.chat.close }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(h.mutations.clear?.calls).toEqual([]);
+    expect(h.toast.success).not.toHaveBeenCalled();
   });
 
   it("nieudane przypięcie z powodu INNEGO niż limit daje ogólny komunikat", () => {
