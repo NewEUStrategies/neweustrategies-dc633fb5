@@ -17,6 +17,28 @@ export type { ClientErrorPayload } from "./report";
 
 let started = false;
 
+/** Kształt wpisu bufora sondy bootu (`lib/observability/bootProbeScript.ts`). */
+interface BootProbeEntry {
+  /** Komunikat błędu. */
+  readonly m?: string;
+  /** Stos, jeśli był dostępny. */
+  readonly s?: string;
+  /** Plik źródłowy ze zdarzenia `error`. */
+  readonly f?: string;
+}
+
+/**
+ * Wpis z sondy -> `Error`, żeby `buildErrorPayload` zachował komunikat i stos.
+ * Plik źródłowy dopisujemy do komunikatu, bo payload błędu nie ma na niego pola,
+ * a przy awarii bootu to NAJWAŻNIEJSZA informacja: mówi, KTÓRY chunk padł.
+ */
+function bootProbeEntryToError(entry: BootProbeEntry): Error {
+  const where = entry.f ? ` (${entry.f})` : "";
+  const error = new Error(`[boot] ${entry.m ?? "nieznany błąd bootu"}${where}`);
+  if (entry.s) error.stack = entry.s;
+  return error;
+}
+
 export function initObservability(): () => void {
   if (started || typeof window === "undefined") return () => {};
   started = true;
@@ -49,9 +71,18 @@ export function initObservability(): () => void {
   //
   // `splice(0)` opróżnia bufor, więc powtórna inicjalizacja (cofnięcie i ponowne
   // udzielenie zgody) nie wysyła tych samych błędów drugi raz.
-  const bootBuffer = (window as unknown as { __nesBootErrors?: unknown[] }).__nesBootErrors;
+  //
+  // ODTWARZAMY `Error`, nie przekazujemy surowego wpisu. `buildErrorPayload`
+  // zachowuje `message` i `stack` WYŁĄCZNIE dla instancji `Error` (albo `string`);
+  // zwykły obiekt `{m, s, f}` z sondy zamieniłby się w „Unknown client error",
+  // czyli beacon dojechałby, a treść awarii zostałaby zgubiona - dokładnie ten
+  // rodzaj mechanizmu, który działa i nie raportuje niczego użytecznego.
+  const bootBuffer = (window as unknown as { __nesBootErrors?: BootProbeEntry[] })
+    .__nesBootErrors;
   if (Array.isArray(bootBuffer) && bootBuffer.length > 0) {
-    for (const entry of bootBuffer.splice(0)) reportClientError(entry, "onerror");
+    for (const entry of bootBuffer.splice(0)) {
+      reportClientError(bootProbeEntryToError(entry), "onerror");
+    }
   }
 
   return () => {
