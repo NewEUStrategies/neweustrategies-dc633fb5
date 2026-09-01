@@ -24,15 +24,16 @@ import {
   BOOT_PROBE_SCRIPT,
 } from "../bootProbeScript";
 
-type ProbeWindow = Window & {
-  __nesBootErrors?: { m: string; s: string; f: string }[];
-  __nesBootT0?: number;
-  __nesBootDead?: number;
-  __nesAppReady?: boolean;
-};
-
-function w(): ProbeWindow {
-  return window as unknown as ProbeWindow;
+/**
+ * BEZ WŁASNEGO TYPU I BEZ RZUTOWANIA. Kształt tego, co sonda zapisuje na
+ * `window`, deklaruje `bootProbeScript.ts` przez `declare global` - ten sam
+ * wzorzec, co `lib/watchdog/appReady.ts`. Lokalna kopia typu (z `as unknown as`)
+ * mogłaby się od produkcyjnej rozjechać i test przechodziłby na własnym,
+ * życzeniowym kształcie. Pola `m`/`s`/`f` są OPCJONALNE i asercje niżej to
+ * respektują.
+ */
+function w(): Window {
+  return window;
 }
 
 /**
@@ -78,7 +79,7 @@ describe("BOOT_PROBE_SCRIPT", () => {
     window.dispatchEvent(event);
     const buffered = w().__nesBootErrors ?? [];
     expect(buffered.length).toBeGreaterThan(0);
-    expect(buffered.every((e) => e.m.includes("odrzucone w boocie"))).toBe(true);
+    expect(buffered.every((e) => (e.m ?? "").includes("odrzucone w boocie"))).toBe(true);
   });
 
   it("łapie niewychwycony błąd okna", () => {
@@ -88,7 +89,7 @@ describe("BOOT_PROBE_SCRIPT", () => {
     );
     const buffered = w().__nesBootErrors ?? [];
     expect(buffered.length).toBeGreaterThan(0);
-    expect(buffered.every((e) => e.m.includes("boom w vendorze"))).toBe(true);
+    expect(buffered.every((e) => (e.m ?? "").includes("boom w vendorze"))).toBe(true);
     expect(buffered.every((e) => e.f === "/assets/vendor-x.js")).toBe(true);
   });
 

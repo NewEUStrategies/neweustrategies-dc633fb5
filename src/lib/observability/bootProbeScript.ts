@@ -32,6 +32,39 @@
 // dokumentu, cokolwiek się w nim stanie.
 
 /** Ile milisekund bez flagi gotowości uznajemy za martwy boot. */
+/**
+ * Kształt jednego wpisu bufora - JEDNO źródło prawdy dla skryptu (który pisze)
+ * i dla `initObservability` (który czyta i wysyła).
+ *
+ * Pola są jednoliterowe, bo ten obiekt powstaje w skrypcie inline'owym
+ * w `<head>` KAŻDEGO dokumentu: dłuższe nazwy to bajty na ścieżce
+ * render-blocking, a bufor nigdy nie opuszcza strony w tej postaci
+ * (`observability/index.ts` odtwarza z niego `Error`).
+ */
+export interface BootProbeEntry {
+  /** Komunikat błędu. */
+  readonly m?: string;
+  /** Stos, jeśli był dostępny. */
+  readonly s?: string;
+  /** Plik źródłowy ze zdarzenia `error`. */
+  readonly f?: string;
+}
+
+/**
+ * Rozszerzenie `Window` - ten sam wzorzec, co `lib/watchdog/appReady.ts`
+ * i `lib/watchdog/previewWatchdog.ts`. Bez niego każdy czytelnik bufora musiał
+ * rzutować `window`, a `as unknown as` omija kontrolę typów tak samo jak `as any`
+ * (bramka `check:unknown-casts`). Deklaracja stoi TUTAJ, bo to ten moduł
+ * definiuje, co skrypt na `window` zapisuje.
+ */
+declare global {
+  interface Window {
+    __nesBootErrors?: BootProbeEntry[];
+    __nesBootT0?: number;
+    __nesBootDead?: number;
+  }
+}
+
 export const BOOT_DEAD_TIMEOUT_MS = 15_000;
 
 /** Maksymalna liczba zbuforowanych błędów - zapora przed pętlą rzucającą. */
