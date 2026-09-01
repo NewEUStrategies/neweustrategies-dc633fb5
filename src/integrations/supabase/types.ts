@@ -11182,7 +11182,6 @@ export type Database = {
           target: string
           visibility: string
           updated_at: string
-          visibility: string
         }
         Insert: {
           created_at?: string
@@ -11202,7 +11201,6 @@ export type Database = {
           target?: string
           visibility?: string
           updated_at?: string
-          visibility?: string
         }
         Update: {
           created_at?: string
@@ -11222,7 +11220,6 @@ export type Database = {
           target?: string
           visibility?: string
           updated_at?: string
-          visibility?: string
         }
         Relationships: [
           {
