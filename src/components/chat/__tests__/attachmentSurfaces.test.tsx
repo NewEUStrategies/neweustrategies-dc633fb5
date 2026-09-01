@@ -563,6 +563,42 @@ describe("ImageLightbox - pełnoekranowy podgląd", () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
+  // Strzałek przy jednym zdjęciu NIE MA w DOM-ie, ale klawiatura omija przyciski
+  // i trafia prosto w `changeIndex` - bez progu `total <= 1` pojedyncze zdjęcie
+  // zgłaszałoby właścicielowi zmianę indeksu na ten sam indeks przy każdym
+  // naciśnięciu strzałki.
+  it("strzałki klawiatury MILCZĄ przy pojedynczym zdjęciu - nie ma dokąd przewijać", () => {
+    const onIndexChange = vi.fn();
+    render(<ImageLightbox {...lightboxProps({ onIndexChange })} />);
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  // Zoom i obrót to stan PODGLĄDU, nie zdjęcia. Bez zerowania przy zmianie
+  // indeksu następne zdjęcie w galerii otwierałoby się powiększone i obrócone
+  // kadrem poprzedniego.
+  it("przejście na następne zdjęcie ZERUJE powiększenie i obrót", () => {
+    const { rerender } = render(
+      <ImageLightbox {...lightboxProps({ images: GALLERY, index: 0 })} />,
+    );
+    fireEvent.keyDown(window, { key: "+" });
+    fireEvent.keyDown(window, { key: "r" });
+    expect(screen.getByText("140%")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "pierwsze.png" }).getAttribute("style")).toContain(
+      "rotate(90deg)",
+    );
+
+    rerender(<ImageLightbox {...lightboxProps({ images: GALLERY, index: 1 })} />);
+
+    expect(screen.getByText("100%")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "drugie.png" }).getAttribute("style")).toContain(
+      "rotate(0deg)",
+    );
+  });
+
   it("klawisze +, - i 0 sterują powiększeniem", () => {
     render(<ImageLightbox {...lightboxProps()} />);
 
@@ -591,6 +627,30 @@ describe("ImageLightbox - pełnoekranowy podgląd", () => {
     );
   });
 
+  // Przycisk „Obróć" i skrót klawiszowy MUSZĄ liczyć tę samą ćwiartkę. Przegląd
+  // mutacyjny pokazał, że przycisk miał własną kopię wyrażenia `(r + 90) % 360`
+  // zamiast wołać regułę `nextRotation`, więc podmiana kroku na 180 stopni
+  // W SAMYM PASKU narzędzi przechodziła cały plik na zielono. Kopia została
+  // usunięta (oba wejścia wołają `nextRotation`), a ten dowód pilnuje, żeby nie
+  // wróciła.
+  it("przycisk „Obróć” obraca o tę samą ćwiartkę co skrót i ZAWIJA się do pełnego koła", () => {
+    render(<ImageLightbox {...lightboxProps()} />);
+    const style = () => screen.getByRole("img", { name: "krajobraz.png" }).getAttribute("style");
+    const rotate = () => screen.getByRole("button", { name: t.preview.rotate });
+    expect(style()).toContain("rotate(0deg)");
+
+    fireEvent.click(rotate());
+    expect(style()).toContain("rotate(90deg)");
+
+    fireEvent.click(rotate());
+    fireEvent.click(rotate());
+    expect(style()).toContain("rotate(270deg)");
+
+    // Czwarta ćwiartka wraca do zera, a nie ucieka na 360 stopni.
+    fireEvent.click(rotate());
+    expect(style()).toContain("rotate(0deg)");
+  });
+
   it("przycisk zamknięcia zgłasza zamknięcie właścicielowi stanu", () => {
     const onOpenChange = vi.fn();
     render(<ImageLightbox {...lightboxProps({ onOpenChange })} />);
@@ -604,8 +664,11 @@ describe("ImageLightbox - pełnoekranowy podgląd", () => {
     render(<ImageLightbox {...lightboxProps({ images: [{ url: "", name: "uszkodzone.png" }] })} />);
 
     expect(screen.getByText(t.mediaHistory.loading)).toBeTruthy();
-    expect(screen.queryByRole("link", { name: t.preview.download })).toBeNull();
-    expect(screen.queryByRole("link", { name: t.preview.openInNewTab })).toBeNull();
+    // Pytamy o ETYKIETĘ, nie o rolę: <a> z pustym `href` traci rolę „link”,
+    // więc samo `queryByRole("link")` przepuściłoby regresję, która renderuje
+    // oba odnośniki z `href=""` - użytkownik widziałby akcje prowadzące donikąd.
+    expect(screen.queryByLabelText(t.preview.download)).toBeNull();
+    expect(screen.queryByLabelText(t.preview.openInNewTab)).toBeNull();
   });
 
   it("gotowy obraz daje pobranie pod nazwą pliku i otwarcie w nowej karcie", () => {

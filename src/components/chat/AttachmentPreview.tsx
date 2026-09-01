@@ -179,10 +179,7 @@ export function ImageLightbox({
           >
             <Maximize2 className="h-4 w-4" aria-hidden />
           </ToolbarButton>
-          <ToolbarButton
-            onClick={() => setRotation((r) => (r + 90) % 360)}
-            label={t("chat.preview.rotate")}
-          >
+          <ToolbarButton onClick={() => setRotation(nextRotation)} label={t("chat.preview.rotate")}>
             <RotateCw className="h-4 w-4" aria-hidden />
           </ToolbarButton>
           {current?.url && (
