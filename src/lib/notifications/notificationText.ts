@@ -36,7 +36,18 @@ export function pickTitle(row: LocalizedNotificationText, lang: AppLang): string
   return row.title_pl;
 }
 
-/** Treść w języku interfejsu; brak obu wersji to null, nie pusty napis. */
+/**
+ * Treść w języku interfejsu; brak obu wersji to null, nie pusty napis.
+ *
+ * UWAGA NA PUSTY NAPIS - to jest różnica wobec `pickTitle` i jest zamierzona
+ * w tym sensie, że tak działa kod od początku (przeniesiony bez zmiany).
+ * Tytuł spada na PL przy `title_en` PUSTYM (truthiness), treść spada na drugą
+ * wersję wyłącznie przy `null`/`undefined` (`??`). Producent zapisujący `""`
+ * zamiast NULL-a dostanie więc pustą treść w EN, a nie polską. Zapisuję to
+ * jawnie, bo pomiar (`notificationText.test.ts`) przybija zachowanie FAKTYCZNE,
+ * a nie deklarowane - gdyby kiedyś ujednolicać, ten akapit jest miejscem,
+ * w którym decyzja ma być odnotowana.
+ */
 export function pickBody(row: LocalizedNotificationText, lang: AppLang): string | null {
   const [preferred, fallback] =
     lang === "en" ? [row.body_en, row.body_pl] : [row.body_pl, row.body_en];
