@@ -11180,6 +11180,7 @@ export type Database = {
           position: number
           ref_id: string | null
           target: string
+          visibility: string
           updated_at: string
           visibility: string
         }
@@ -11199,6 +11200,7 @@ export type Database = {
           position?: number
           ref_id?: string | null
           target?: string
+          visibility?: string
           updated_at?: string
           visibility?: string
         }
@@ -11218,6 +11220,7 @@ export type Database = {
           position?: number
           ref_id?: string | null
           target?: string
+          visibility?: string
           updated_at?: string
           visibility?: string
         }
