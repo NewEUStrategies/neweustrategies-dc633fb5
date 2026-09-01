@@ -1175,9 +1175,10 @@ describe("listy wyboru w edytorze", () => {
     await screen.findByText("Wiedza");
     fireEvent.click(within(row("Wiedza")).getAllByRole("button", { name: "Rozwiń" })[0]);
 
-    fireEvent.keyDown(screen.getAllByRole("combobox")[1], { key: "Enter" });
-    fireEvent.click(screen.getByRole("option", { name: "2" }));
+    // [0] cel odnośnika, [1] widoczność (goście / zalogowani), potem mega.
     fireEvent.keyDown(screen.getAllByRole("combobox")[2], { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "2" }));
+    fireEvent.keyDown(screen.getAllByRole("combobox")[3], { key: "Enter" });
     fireEvent.click(screen.getByRole("option", { name: "Pełna szerokość" }));
 
     await clickSave();
@@ -1185,5 +1186,16 @@ describe("listy wyboru w edytorze", () => {
       mega_config: { columns_per_row: number; width: string };
     };
     expect(saved.mega_config).toMatchObject({ columns_per_row: 2, width: "full" });
+  });
+
+  it("widoczność 'tylko niezalogowani' zapisuje się przy pozycji", async () => {
+    setMenu([item({ id: "a", label_pl: "Zarejestruj się", href: "/membership-registration" })]);
+    render(renderManager());
+    await screen.findByText("Zarejestruj się");
+    fireEvent.click(within(row("Zarejestruj się")).getByRole("button", { name: "Rozwiń" }));
+
+    chooseOption(new RegExp(t("admin.menu.visibility")), t("admin.menu.visibilityGuest"));
+    await clickSave();
+    expect(lastPayload().items[0]).toMatchObject({ visibility: "guest" });
   });
 });
