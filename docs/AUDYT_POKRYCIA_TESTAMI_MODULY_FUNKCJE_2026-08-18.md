@@ -2457,6 +2457,25 @@ i 1 168 linii. To nie jest wykluczenie czegokolwiek z pomiaru - żaden plik nie 
 (10.3) przeniosła powtórzone predykaty z trzech komponentów do trzech nowych modułów, więc trzy
 kopie tego samego kodu zamieniły się w jedną: 23 linie mniej przy większej liczbie plików.
 
+**POTWIERDZONE NA RUNNERZE** (CI, job `test` = `bun run test:coverage`, commit `1f043eb`,
+2 051 plików testowych, 55 530 przypadków, 1 169 s): w logu **ZERO** linii `ERROR: Coverage`,
+czyli wszystkie 410 progów per-ścieżka - w tym 34 dopisane tą kampanią - przechodzą na runnerze,
+a nie tylko na maszynie autora. Pomiar globalny CI: 83,76% instrukcji / 78,23% gałęzi /
+82,26% funkcji / 85,00% linii - zgodny z pomiarem lokalnym co do cyfry.
+
+Katalogi modułu 12, CI wobec pomiaru lokalnego (instr. / gał. / fn / linie):
+
+| Katalog                        | CI                            | lokalnie                      |
+| ------------------------------ | ----------------------------- | ----------------------------- |
+| `src/lib/notifications`        | 97,30 / 93,65 / 99,31 / 98,18 | 97,30 / 93,65 / 99,31 / 98,19 |
+| `src/lib/realtime`             | 98,78 / 93,25 / 98,54 / 99,31 | 98,79 / 93,25 / 98,54 / 99,32 |
+| `src/components/notifications` | 93,66 / 88,78 / 90,90 / 95,93 | 93,71 / 89,24 / 91,01 / 95,97 |
+
+Jedyna zauważalna różnica to gałęzie `src/components/notifications`: **0,46 pp niżej na runnerze**.
+Próg katalogowy stoi na 86, więc zapas wynosi 2,78 pp - ale to jest konkretna liczba dla każdego,
+kto będzie później podnosił progi tej powierzchni: margines 2 pp na plik jest tu dolną granicą
+sensu, nie ostrożnością.
+
 Całe `src/` po kampanii: 85,00% linii (90 121/106 018), 83,76% instrukcji, 82,26% funkcji,
 78,23% gałęzi - wobec 84,44 / 83,17 / 81,66 / 77,64 zapisanych w kronice `vitest.config.ts`
 tego samego dnia przed kampanią. Moduł 12 to 1,1% linii repo, więc +0,56 pp globalnie jest

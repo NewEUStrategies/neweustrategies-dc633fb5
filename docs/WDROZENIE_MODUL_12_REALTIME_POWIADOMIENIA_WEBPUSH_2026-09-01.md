@@ -177,6 +177,15 @@ plus trzy bramki:
 i 31 plikowych. Katalogowe stoją obok plikowych celowo: to one łapią plik DOPISANY do modułu
 bez własnego progu.
 
+**Zapadka dowiedziona NA RUNNERZE, nie tylko lokalnie.** Job `test` w CI (`bun run test:coverage`,
+commit `1f043eb`, 2 051 plików testowych, 55 530 przypadków) nie wypisał **ani jednej** linii
+`ERROR: Coverage` - wszystkie 410 progów przechodzą. Niezerowy kod wyjścia tego joba pochodzi
+wyłącznie z sześciu odziedziczonych czerwonych testów (rozdział 8), nie z pokrycia.
+
+Runner mierzy gałęzie `src/components/notifications` o **0,46 pp niżej** niż maszyna autora
+(88,78 wobec 89,24). Przy progu 86 zapas wynosi 2,78 pp, ale liczbę zapisuję, bo wyznacza dolną
+granicę sensu dla marginesu 2 pp przy kolejnym podnoszeniu progów tej powierzchni.
+
 Reguła marginesu: `floor(zmierzone - 2)` dla pliku, `floor(zmierzone - 3)` dla katalogu.
 Plik nie ma wewnętrznego dryfu - albo test go wykonuje, albo nie - więc szerszy margines byłby
 tu wyłącznie luzem na regres.
