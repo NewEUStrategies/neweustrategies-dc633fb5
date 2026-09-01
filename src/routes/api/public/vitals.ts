@@ -14,6 +14,7 @@ import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { redactUrl } from "@/lib/observability/redact";
+import type { TablesInsert } from "@/integrations/supabase/types";
 
 const VALID_METRICS = new Set(["LCP", "CLS", "INP", "FCP", "TTFB", "FID"]);
 // The client batches (src/lib/webVitals.ts): one request carries FCP+TTFB at
@@ -105,7 +106,16 @@ export const Route = createFileRoute("/api/public/vitals")({
           const incoming = incomingMetrics(parsed).slice(0, MAX_METRICS);
           if (incoming.length === 0) return noContent();
 
-          const rows: Record<string, unknown>[] = [];
+          // TYPOWANY WIERSZ, BEZ `as never`. Stało tu rzutowanie z komentarzem
+          // „tabela z migracji, której nie ma jeszcze w wygenerowanych typach" -
+          // i to przestało być prawdą: `web_vitals` JEST w
+          // `src/integrations/supabase/types.ts` (migracja 20260626210000,
+          // zakres tenanta 20260708150000). Zostawianie rzutowania po
+          // regeneracji typów to dokładnie ten dług, którego pilnują
+          // `check:stale-never-casts` i `check:db-row-casts` - i który tutaj
+          // wyłączał kontrolę kształtu wiersza na ścieżce zapisu dostępnej
+          // publicznie bez sesji.
+          const rows: TablesInsert<"web_vitals">[] = [];
           for (const sample of incoming) {
             const metric = String(sample?.name ?? "");
             const value = metricValue(sample?.value);
@@ -140,12 +150,10 @@ export const Route = createFileRoute("/api/public/vitals")({
           const tenantId = resolved;
           const payload = tenantId ? rows.map((row) => ({ ...row, tenant_id: tenantId })) : rows;
 
-          // `web_vitals` is created by a migration not yet reflected in the
-          // generated Supabase types, so the table name/payload are cast here.
           // ONE multi-row insert for the whole batch (symmetric to
           // /api/public/track), replacing one round-trip per metric.
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("web_vitals").insert(payload as never);
+          await supabaseAdmin.from("web_vitals").insert(payload);
         } catch {
           // Ingest is best-effort - never error the beacon.
         }
