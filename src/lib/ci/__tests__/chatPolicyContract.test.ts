@@ -244,8 +244,14 @@ describe("message_reactions i message_stars - własność plus przynależność"
   });
 });
 
-describe("expert_requests - czy prośba ekspercka przecina obszary robocze", () => {
-  const policies = policiesFor("expert_requests");
+describe("prośby eksperckie - czy przecinają obszary robocze", () => {
+  // UWAGA NA NAZWĘ TABELI. Audyt wydania 8 mówi o `expert_requests` i tak
+  // nazywa ją interfejs, ale w bazie tabela nazywa się dziś `expert_inmails`:
+  // migracja 20260723180000 przemianowała `expert_inmails` -> `expert_requests`,
+  // a 20260806160001 i 20260806185055 przemianowały ją Z POWROTEM i założyły
+  // polityki pod starą nazwą. Stan końcowy jest więc pod kluczem
+  // `expert_inmails`, nie `expert_requests`.
+  const live = policiesFor("expert_inmails");
 
   it("ODPOWIEDŹ: NIE. Zapis wymusza tego samego tenanta u obu stron", () => {
     // To jest ustalenie, o które prosił audyt, i mieszka ono w JEDYNYM
@@ -258,57 +264,56 @@ describe("expert_requests - czy prośba ekspercka przecina obszary robocze", () 
   });
 
   it("INSERT jest CELOWO zamknięty - jedyną drogą zapisu jest RPC", () => {
-    const insert = policies.find((policy) => policy.command === "insert");
-    expect(insert?.name).toBe("expert_requests: no direct insert");
+    const insert = live.find((policy) => policy.command === "insert");
+    expect(insert?.name).toBe("expert_inmails: no direct insert");
     expect((insert?.withCheck ?? "").trim().toLowerCase()).toBe("false");
   });
 
   it("tabela MA kolumnę tenanta, więc jest czym zawężać", () => {
-    // Kolumna istnieje od `CREATE TABLE public.expert_inmails` (tabela została
-    // później przemianowana na `expert_requests`), jest NOT NULL i wskazuje
-    // na `tenants`. Bez tego dowodu propozycja polityki niżej byłaby pusta.
     expect(ALL_SQL).toMatch(/CREATE TABLE public\.expert_inmails[\s\S]*?tenant_id uuid NOT NULL/);
-    expect(ALL_SQL).toMatch(
-      /ALTER TABLE IF EXISTS public\.expert_inmails RENAME TO expert_requests/,
-    );
   });
 
-  it.fails("DEFEKT: odczyt i aktualizacja prośby eksperckiej NIE wiążą tenanta", () => {
-    // ZŁAMANY KONTRAKT. Zapis wymusza jeden obszar roboczy (dowód wyżej),
-    // ale `SELECT` i `UPDATE` bramkują wyłącznie tożsamość:
-    //   sender_id = auth.uid() OR recipient_id = auth.uid() OR is_super_admin(...)
-    // Przy DRYFIE DANYCH (profil przepięty do innego obszaru roboczego) ten
-    // sam wiersz zostaje czytelny i edytowalny spoza obszaru, w którym
-    // powstał - dokładnie ta klasa defektu, którą repo zamknęło migracją
-    // 20260829091010 dla `media_mentions`, `saved_searches` i `user_follows`
-    // (patrz `tenantIsolationPolicies.test.ts`). Każda inna tabela czatu
-    // wiąże `tenant_id`; ta jedna nie.
-    //
-    // OCZEKIWANY KONTRAKT - proponowana polityka (do osobnej migracji,
-    // NIE w tym zadaniu, bo to zmiana schematu):
-    //
-    //   DROP POLICY "expert_requests: participants and admin can read"
-    //     ON public.expert_requests;
-    //   CREATE POLICY "expert_requests: participants and admin can read"
-    //     ON public.expert_requests FOR SELECT TO authenticated
-    //     USING (
-    //       tenant_id = (SELECT public.current_tenant_id())
-    //       AND (sender_id = (SELECT auth.uid())
-    //            OR recipient_id = (SELECT auth.uid())
-    //            OR public.is_super_admin((SELECT auth.uid())))
-    //     );
-    //
-    //   -- analogicznie dla UPDATE, w USING i w WITH CHECK.
-    //
-    // UWAGA przy wdrożeniu: `is_super_admin` musi zachować dostęp
-    // ponadtenantowy albo nie - to jest osobna decyzja produktowa; powyższa
-    // propozycja zawęża TAKŻE super-admina, co jest spójne z
-    // `messages_staff_read` (sztab też jest zawężony do swojego tenanta).
-    const unscoped = policies
+  it("ODCZYT I AKTUALIZACJA WIĄŻĄ TENANTA - inwariant spełniony w stanie końcowym", () => {
+    // Domknięte migracjami 20260806160001 / 20260806185055. Każda polityka
+    // inna niż `INSERT` (ten jest `WITH CHECK false`) wiąże `tenant_id`,
+    // więc dryf profilu do innego obszaru roboczego odcina dostęp do
+    // korespondencji założonej w poprzednim - dokładnie ten inwariant, który
+    // repo domknęło dla `media_mentions`, `saved_searches` i `user_follows`
+    // migracją 20260829091010.
+    const unscoped = live
       .filter((policy) => policy.command !== "insert")
-      .filter((policy) => !/tenant_id/.test(predicates(policy)))
+      .filter((policy) => !/tenant_id\s*=\s*current_tenant_id\(\)/.test(predicates(policy)))
       .map((policy) => policy.name);
     expect(unscoped).toEqual([]);
+    expect(live.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("DUCHY po przemianowaniu tabeli - ograniczenie `extractLatestPolicies`, nie stan bazy", () => {
+    // ZNALEZISKO Z TEJ PRACY, warte osobnego dowodu. `extractLatestPolicies`
+    // kluczuje politykę po NAZWIE TABELI odczytanej z tekstu migracji i NIE
+    // ZNA `ALTER TABLE … RENAME TO`. Skutek: polityki założone pod nazwą
+    // `expert_requests` mają klucz `expert_requests::…`, a późniejsze
+    // `DROP POLICY … ON public.expert_inmails` trafiają w klucz
+    // `expert_inmails::…` i tamtych NIE KASUJĄ. W stanie końcowym widać więc
+    // trzy DUCHY - polityki, których w bazie już nie ma.
+    //
+    // DLACZEGO TO WAŻNE POZA CZATEM. Na tych samych duchach stoją trzy
+    // bramki (`check:sql-owner-tenant-scope`, `check:sql-policy-tenant-regression`,
+    // `check:sql-anon-insert`), więc przemianowanie tabeli może im pokazać
+    // lukę, której nie ma - albo ukryć taką, która jest. Pierwsza wersja TEJ
+    // bramki dała się na to nabrać i zgłaszała `expert_requests` jako defekt
+    // izolacji tenanta; dowód wykonawczy na żywej bazie
+    // (`scripts/tenant-isolation-harness`) pokazał, że wiersz z obcego obszaru
+    // jest niewidoczny. Dopóki ekstraktor nie nauczy się przemianowań, ten
+    // test trzyma zjawisko na widoku.
+    const ghosts = policiesFor("expert_requests");
+    expect(ghosts.length).toBeGreaterThan(0);
+    for (const ghost of ghosts) {
+      expect(ghost.file).toMatch(/^20260723180000_/);
+    }
+    // Duchy są tenant-ślepe, żywe polityki nie - i to jest dokładnie ta
+    // różnica, która wywróciłaby czytanie stanu końcowego po nazwie.
+    expect(ghosts.some((policy) => !/tenant_id/.test(predicates(policy)))).toBe(true);
   });
 });
 
