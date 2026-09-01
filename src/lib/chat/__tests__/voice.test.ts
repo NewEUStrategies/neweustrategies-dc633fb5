@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { MAX_VOICE_SECONDS } from "../attachments";
 import { formatVoiceDuration, pickRecordingMime, useVoiceRecorder } from "../voice";
+import type { RecordedVoice, VoiceRecorder } from "../voice";
 
 interface FakeTrack {
   stop: () => void;
@@ -64,6 +65,20 @@ class FakeMediaRecorder {
   emitChunk(data: Blob): void {
     this.ondataavailable?.({ data });
   }
+}
+
+/**
+ * Zakończenie nagrania opakowane w `act`. Wynik wędruje przez TABLICĘ, a nie
+ * przez `let voice = null`: przypisanie w domknięciu jest niewidoczne dla
+ * analizy przepływu TypeScriptu, więc tamten wariant wymagałby rzutowania -
+ * a rzutowań w tym repo nie ma.
+ */
+async function finishRecording(recorder: VoiceRecorder): Promise<RecordedVoice | null> {
+  const collected: Array<RecordedVoice | null> = [];
+  await act(async () => {
+    collected.push(await recorder.finish());
+  });
+  return collected[0] ?? null;
 }
 
 let tracks: FakeTrack[] = [];
@@ -198,13 +213,11 @@ describe("useVoiceRecorder", () => {
     });
     expect(result.current.elapsed).toBeGreaterThan(0);
 
-    let voice: Awaited<ReturnType<typeof result.current.finish>> = null;
-    await act(async () => {
-      voice = await result.current.finish();
-    });
+    const voice = await finishRecording(result.current);
 
     expect(voice).not.toBeNull();
-    const recorded = voice as unknown as { file: File; durationSeconds: number };
+    if (!voice) throw new Error("test: nagranie nie powstało");
+    const recorded = voice;
     // `;codecs=opus` MUSI zniknąć - allowlista kubełka zna wyłącznie `audio/webm`.
     expect(recorded.file.type).toBe("audio/webm");
     expect(recorded.file.name).toMatch(/^voice-\d+\.webm$/);
@@ -223,11 +236,9 @@ describe("useVoiceRecorder", () => {
       lastRecorder().emitChunk(new Blob(["dzwiek"]));
     });
 
-    let voice: Awaited<ReturnType<typeof result.current.finish>> = null;
-    await act(async () => {
-      voice = await result.current.finish();
-    });
-    const recorded = voice as unknown as { file: File };
+    const voice = await finishRecording(result.current);
+    if (!voice) throw new Error("test: nagranie nie powstało");
+    const recorded = voice;
     expect(recorded.file.name.endsWith(".m4a")).toBe(true);
     expect(recorded.file.type).toBe("audio/mp4");
   });
@@ -239,10 +250,7 @@ describe("useVoiceRecorder", () => {
       await result.current.start();
     });
 
-    let voice: Awaited<ReturnType<typeof result.current.finish>> = null;
-    await act(async () => {
-      voice = await result.current.finish();
-    });
+    const voice = await finishRecording(result.current);
     expect(voice).toBeNull();
     expect(result.current.state).toBe("idle");
   });
@@ -250,10 +258,7 @@ describe("useVoiceRecorder", () => {
   it("zakończenie bez rozpoczęcia nie wywraca hooka", async () => {
     installMediaStack({ supported: ["audio/webm"] });
     const { result } = renderHook(() => useVoiceRecorder());
-    let voice: Awaited<ReturnType<typeof result.current.finish>> = null;
-    await act(async () => {
-      voice = await result.current.finish();
-    });
+    const voice = await finishRecording(result.current);
     expect(voice).toBeNull();
   });
 
@@ -342,10 +347,7 @@ describe("useVoiceRecorder", () => {
       lastRecorder().emitChunk(new Blob([]));
     });
 
-    let voice: Awaited<ReturnType<typeof result.current.finish>> = null;
-    await act(async () => {
-      voice = await result.current.finish();
-    });
+    const voice = await finishRecording(result.current);
     expect(voice).toBeNull();
   });
 });

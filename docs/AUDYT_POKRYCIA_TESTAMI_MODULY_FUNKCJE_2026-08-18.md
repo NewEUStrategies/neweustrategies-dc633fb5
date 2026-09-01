@@ -513,6 +513,21 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,3% | 83,3% |   95,6% |  **97,6%** |   130/136 |
 | Czat: reguły wątku (kolejność, separator, skok) |      5 |        159 |  99,5% | 98,5% |   97,5% | **100,0%** |     39/40 |
 
+> **ZASTRZEŻENIE DO TABELI (dopisane 2026-09-01, wydanie 9): wiersz „Czat: kompozytor + wzmianki" NIE OPISUJE KOMPOZYTORA CZATU.**
+>
+> Zakres tego wiersza to `src/lib/composer/`, `src/components/composer/`, `src/lib/mentions/`, `src/components/mentions/` - dziesięć plików, 229 LOC. **Ani jeden z nich nie jest używany przez czat.** Zweryfikowane na tym HEAD:
+>
+> - `grep -rln "mention" src/components/chat src/lib/chat` nie zwraca nic - czat nie ma wzmianek;
+> - `src/components/chat/ChatComposer.tsx` (606 linii źródła) nie importuje niczego z tych czterech katalogów;
+> - `ComposerShell.tsx` konsumują `components/comments/CommentComposerShell.tsx` i `components/forms/MessageComposerField.tsx`;
+> - `MentionTextarea.tsx` - komentarze (`CommentsSection.tsx`, `CommentComposerShell.tsx`) i dwie trasy klubów;
+> - `useMentionAutocomplete` - `components/forms/MessageComposerField.tsx`;
+> - `useMentionProfile` - `components/clubs/atoms/ClubInlineText.tsx`.
+>
+> Wynik 84,3% opisuje więc kompozytor KOMENTARZY, FORMULARZY i KLUBÓW, a nie czatu. Prawdziwy kompozytor czatu to `ChatComposer.tsx`, który w wydaniu 8 stał na **0/160 linii i 0/40 funkcji** - największym pojedynczym zerze całego modułu - i był ukryty w wierszu „okno rozmowy i atomy UI".
+>
+> **Dlaczego zostawiamy to jako zastrzeżenie, a nie poprawiamy definicji funkcjonalności.** Ujednolicenie kompozytorów (przepisanie czatu na `ComposerShell`, dołożenie wzmianek do czatu) byłoby ZMIANĄ PRODUKTOWĄ pod test, a nie poprawą pomiaru - i jako taka wymaga własnej decyzji, nie commitu w pracy nad pokryciem. Do czasu tej decyzji tabelę czyta się z tym zastrzeżeniem, a wiersz „kompozytor + wzmianki" traktuje jako **infrastrukturę komentarzy i klubów mierzoną wewnątrz modułu 09**.
+
 ### MODUŁ 10 — Sieć / networking · linie 83,65% · funkcje 81,85%
 
 **Rodzaje testów:** komponentowy 17 · hooka 3 · jednostkowy 2 · bramki 1.
