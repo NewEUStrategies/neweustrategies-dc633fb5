@@ -1971,6 +1971,263 @@ druga na 0–3,3%) i wniosek metodologiczny zostają; rama „jedna zbędna” b
 
 ---
 
+### 8.6 SSR, hydratacja i pierwsze wczytanie strony
+
+Ten rozdział powstał na osobne pytanie: **czy pierwsze wczytanie strony dzieje się sprawnie,
+precyzyjnie i szybko.** Odpowiedź jest asymetryczna i to jest jej treść: **infrastruktura jest
+klasy, której w tej klasie produktu się nie spotyka, a droga krytyczna nie jest tą infrastrukturą
+chroniona.** Ustalenia zebrano dziewięcioma niezależnymi ujęciami i przepuszczono przez trzy
+adwersarialne soczewki (czy prawdziwe / czy dotyczy pierwszego wczytania / czy już pilnowane):
+54 ustalenia, **zero obalonych, 29 z poprawką** — czyli soczewki nie przystemplowały, tylko
+doprecyzowały ponad połowę. Każde twierdzenie niżej sprawdziłem osobiście w kodzie albo
+w artefakcie builda; te, których nie dało się potwierdzić, są wymienione jako niepotwierdzone.
+
+#### Skala warstwy
+
+`src/lib/ssr/` (580 linii w 5 plikach) plus `src/lib/http/` (3 422 linie w 24 plikach) to
+**4 002 linie kodu poświęconego wyłącznie potokowi SSR, cache'owi i nagłówkom.** To nie jest
+aplikacja, w której SSR „po prostu jest".
+
+#### Co jest zrobione powyżej normy
+
+**Własny dwupoziomowy cache dokumentów SSR.** L1 to mapa w pamięci izolatu, L2 to Cloudflare
+Cache API per-colo z kluczem wersjonowanym przy purge, współdzielona między izolatami kolonii,
+a poza Workers degradująca do no-op. HIT znaczy „zero SSR, zero odczytów bazy"; L1 miss próbuje
+L2 i przy trafieniu zasiewa L1, więc świeży izolat grzeje się jednym odczytem z kolonii zamiast
+pełnym renderem. STALE serwuje natychmiast, a odświeżenie biegnie ZA odpowiedzią pod
+`ctx.waitUntil`, single-flight per klucz — nieudane odświeżenie zostawia wpis nietknięty, więc
+stale działa też jako bezpiecznik na czkawkę bazy. Klucz jest prefiksowany hostem najemcy
+walidowanym wobec `tenants.domain` („by construction, multi-tenant safe").
+
+**Warianty cache są rozdzielone poprawnie.** Sesja Supabase siedzi w `localStorage`, dokument
+publiczny jest anonimową skorupą, a BYPASS dotyczy tylko żądań z `Authorization` albo ciasteczkiem
+`sb-*`. Wszystkie trzy middleware ustawiające `Set-Cookie` (GPC, asercja najemcy, negocjacja
+języka) siedzą POWYŻEJ `documentCacheMiddleware`, więc cudze ciasteczko nie ma jak wejść
+do zapisanego wpisu.
+
+**Dwa incydenty zapisane razem z naprawą, nie tylko z komentarzem.** Pierwszy: wisząca
+serializacja seroval trzymała strumień otwarty do wewnętrznego limitu frameworka — cytat
+z nagłówka `src/server.ts`: „każda strona »odpowiada« po ~61 s, a monitory (np. operatora
+płatności) raportują serwis jako offline"; dziś pilnuje tego `documentStreamGuard.server.ts`
+(414 linii, budżet idle 12 s / max 20 s). Drugi: `tee` strumienia w środku łańcucha middleware
+łamał tożsamość body koperty SSR i framework ubijał serwerowy cykl życia renderu w trakcie
+streamowania — dlatego zapis do cache jest ODROCZONY i wykonywany w `server.ts` za egzekutorem.
+
+**Najostrzejszy inwariant serializacji jest ustawiony poprawnie i z uzasadnieniem.**
+`dehydrate.shouldDehydrateQuery` przepuszcza wyłącznie `status === "success"`, bo zapytanie
+w stanie _pending_ serializuje obietnicę w locie i seroval blokuje wtedy CAŁY dokument
+do jej rozwiązania — co przy anulowanym fetchu nie następuje nigdy.
+
+**Fonty i obraz LCP są zrobione wzorowo.** Self-hosting zamiast Google Fonts, dwa podziały
+unicode, `font-display: swap`, metrycznie dopasowany fallback capsize (`size-adjust: 96,03%`),
+preload per język z obowiązkowym `crossOrigin` powtórzony jako nagłówek HTTP `Link`; odcisk palca
+pliku fontu w preloadzie jest identyczny z tym w arkuszu, więc preload nie jest drugim pobraniem.
+Obraz LCP jest wyznaczany na SERWERZE i emitowany jako `preload as=image fetchpriority=high`
+z `imagesrcset`/`imagesizes` bajtowo zgodnymi z malowanym `<img>`; przy parze light/dark moduł
+jawnie ODMAWIA zgadywania i zwraca `null` — właściwa asymetria, bo zły preload kosztuje zawsze.
+
+**Rozstrzyganie języka jest w całości serwerowe.** Język z prefiksu ścieżki, cookie tylko
+dla ścieżek nielokalizowalnych, `Accept-Language` wyłącznie jako 302 dla gołego `/`. Nie ma
+schematu „najpierw domyślny, potem podmiana", czyli nie ma migania tekstu.
+
+**Bramka acykliczności grafu chunków jest prawdziwa.** `check:chunks` (parser statycznych importów
+zbudowanych chunków plus Tarjan SCC) uruchomiona na obecnym artefakcie: **942 chunki, 5 456
+statycznych krawędzi importu, graf acykliczny.** To jedyne zabezpieczenie klasy „martwa hydratacja",
+które nie jest deklaracją — i powstało po realnym incydencie z 20.07.
+
+#### Co realnie opóźnia pierwsze wczytanie, po skutku malejąco
+
+Najpierw jedna rzecz strukturalna, bo bez niej reszta się nie układa: **framework awaituje
+WSZYSTKIE loadery przed renderem.** Do tego momentu nie leci ani jeden bajt HTML, a `Suspense`
+przy `Outlet` nie ma czego pokazać. Strumieniowanie jest realne, ale zaczyna się dopiero po
+rozstrzygnięciu loaderów. **Strażnik strumienia dokumentu mierzy wyłącznie fazę strumieniowania
+— faza loaderów nie ma ŻADNEGO globalnego sufitu.** To jest najważniejsze zdanie tego rozdziału.
+
+**1. Do 5 s bez jednego bajtu HTML: dwie sekwencyjne fale rozgrzewki w loaderze korzenia.**
+Fala 1 (ustawienia, tokeny, kolory, layout wpisów) jest awaitowana z budżetem
+`ROOT_WARM_BUDGET_MS = 2 500`. Fala 2 (ticker, widgety headera i stopki) startuje dopiero po jej
+rozstrzygnięciu, bo potrzebuje ustawień — i ma ten sam budżet. Sam korzeń może więc utrzymać
+dokument 5 s, na KAŻDEJ trasie publicznej. Zweryfikowane w `src/routes/__root.tsx:70`, `:296-303`,
+`:398`.
+
+**2. Kolejne do 6 s na stronie głównej: prefetch całego dokumentu buildera.**
+`src/routes/index.tsx:200-201` woła na serwerze `prefetchCachedRouteQueries` dla **całego**
+dokumentu, nie tylko sekcji nad zgięciem, z budżetem 6 000 ms. Cała strona czeka więc
+na najwolniejsze zapytanie spod zgięcia. **Do tego dwa komentarze obiecują mechanizm, którego
+tam nie ma:** `index.tsx:192-193` („Anything past the budget still streams via the
+ServerSectionGate as before") i `sectionStreaming.tsx:219-223`. Zweryfikowane:
+`HomeBuilderContent.tsx:32` renderuje `<BuilderRenderer doc={doc} lang={lang} />` **bez propa
+`stream`**, a domyślna wartość to `stream = false` (`BuilderRenderer.tsx:208`). Zapytanie widgetu,
+które nie zmieści się w 6 s, ląduje w HTML jako pusty widget — bez szkieletu i bez dociągnięcia.
+
+**3. Bariera między pierwszym bajtem a pierwszym widocznym tekstem: jeden arkusz 570 KB.**
+`rootHead.ts:61` emituje goły `{ rel: "stylesheet", href: assets.appCss }` — bez `media`,
+bez `onload`, bez krytycznego CSS inline. Pomiar artefaktu: **570 419 B surowo, 81 256 B po gzip,
+około 6 700 bloków reguł.** Gzip sprowadza transfer do 81 KB, ale **koszt budowy CSSOM dla
+6 700 bloków nie kompresuje się wcale**. To jedyna bariera, której NIE skraca edge cache:
+nawet przy TTFB bliskim zeru czytelnik czeka na arkusz.
+
+**4. Jeden szeregowy round-trip przed hydratacją: chunk słownika bez preloadu.**
+Rdzeń słownika jest dociągany **top-level awaitem w tym samym chunku, w którym stoi**
+`hydrateRoot` (`src/lib/i18n.ts:108-109`). Chunki `pl-*.js` (25,4 KB gzip) i `en-*.js` (22,2 KB)
+nie występują w 9 preloadach manifestu korzenia. Przeglądarka pobiera 573,4 KB gzip preloadów,
+zaczyna wykonywać entry, **dopiero wtedy odkrywa import słownika** i płaci pełny kolejny hop.
+
+**5. Dla botów, monitorów i Lighthouse strumieniowanie jest WYŁĄCZONE.** Gdy
+`isbot(User-Agent)`, framework czeka na `stream.allReady`, czyli buforuje cały dokument i TTFB
+równa się pełnemu czasowi renderu. Zweryfikowane w instalowanej bibliotece
+(`renderRouterToStream.tsx`, gałąź `isbot`). Praktyczny skutek: **każdy zewnętrzny monitor
+i każdy pomiar Lighthouse widzi najgorszy możliwy TTFB**, a ścieżka strumieniowa, na której stoi
+cała optymalizacja shella, nie jest mierzona przez nic.
+
+**6. Early Hints i `modulepreload` z manifestu są nieosiągalne.** Framework czyta `onEarlyHints`,
+`responseLinkHeader` i `inlineCss` z DRUGIEGO argumentu `fetch`, a `src/server.ts:197` woła
+`handler.fetch(request, env, ctx)` — więc w tym miejscu ląduje obiekt `env` Cloudflare
+i wszystkie te pola są `undefined`. Ręcznie budowany nagłówek `Link` nie zawiera więc
+`modulepreload` chunków klienta, które framework zna z manifestu.
+
+**7. Zdegradowany render jest cacheowany i serwowany kolejnym czytelnikom.** Nagłówek ustawiony
+przez trasę fizycznie nie dociera do decyzji o zapisie: loadery ustawiają go na nagłówkach
+zdarzenia h3, a te scalają się z odpowiedzią dopiero za całym łańcuchem middleware. Skutek jest
+pełnym rozjazdem: **klient na MISS dostaje `private, no-store`, a do L1/L2 zapisuje się
+`s-maxage=900, stale-while-revalidate=86400`.** Jedna czkawka bazy w momencie zimnego MISS-a
+zamraża pustą powłokę archiwum bloga **na 24 h**. Kontrola jest tylko po statusie (wymagane 200),
+więc `throw notFound()` jest bezpieczny, a ścieżki degradacji zwracające 200 — nie.
+
+**8. Cztery powierzchnie publiczne emitują komunikat błędu przy HTTP 200.** To nie opóźnienie,
+to brak treści. Mechanika jest wszędzie ta sama: `useQuery` na serwerze nie startuje fetcha,
+a `isLoading` jest w SSR **false**, więc komponent renderuje nie szkielet, tylko swoją gałąź
+„brak danych". Dotyczy: całego modułu `/events/$slug` i 7 podstron (akapit `loadError`, `<Outlet />`
+nie renderowany, `head()` zahardkodowany, **zero JSON-LD `schema.org/Event`**), stron sekcyjnych
+`archive_listing` („Brak opublikowanych wpisów w tej sekcji" zamiast listy do 60 wpisów),
+`/series/$slug` (pełny ekran 404 przy statusie 200) i `/glossary` (brak węzła JSON-LD).
+Trasy sekcyjne są typowo najsilniejsze linkowo, a HTML z tym błędem wchodzi do cache na 24 h.
+
+#### Poprawność hydratacji — klasa cicha
+
+React 19 przy rozjeździe tekstu **porzuca serwerowe poddrzewo i renderuje je od zera na kliencie**,
+więc objawem nie jest błąd, tylko utrata dokładnie tego HTML-a, który SSR miał dostarczyć.
+Wszystkie potwierdzone defekty należą do jednej rodziny: **czas i język czytane w renderze**,
+przy HTML-u cacheowanym na brzegu do 24 h i serwerze zawsze w UTC. Sprawdziłem każdy osobiście:
+
+| #   | Miejsce                                                                                                                                                         | Co robi                                                                                                                                | Wzorzec poprawny w tym samym repo                                                                                            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `blocks/InteractiveViews.tsx:198`                                                                                                                               | `useState<number>(() => Date.now())` i sekundy renderowane do HTML                                                                     | `EventCountdownView.tsx:71-73`: `useState<number \| null>(null)` z komentarzem „SSR i pierwszy render klienta są identyczne" |
+| 2   | `blocks/CodeBlockView.tsx:24-25`                                                                                                                                | czyta `document.documentElement.lang` w ciele renderu; SSR zawsze emituje „Kopiuj kod", klient EN chce „Copy code"                     | `lang` jest w sygnaturze `BlockRenderer`                                                                                     |
+| 3   | cztery miejsca z `Date.now()` w renderze (`ContextBlockViews.tsx:17`, `DynamicTagWidgets.tsx:85`, `LiveBlogBlock.tsx:89`, rok w stopce `SimpleWidgets.tsx:855`) | etykiety względne; rozjazd nie o sekundy, o godziny albo dni                                                                           | jw.                                                                                                                          |
+| 4   | `lib/i18n/format.ts:38`                                                                                                                                         | `new Intl.DateTimeFormat(uiLocale(lang), opts)` **bez `timeZone`**; `formatDateTime` z godziną rozjeżdża się o 1-2 h przy KAŻDEJ dacie | `PostChangelog.tsx:29` (`timeZone: "UTC"`) — jedyny precedens w całym `src/`                                                 |
+| 5   | `Header.tsx:93-95`, `atoms/BrandIcon.tsx:96-97`                                                                                                                 | logo mobilne wybiera `src` z `useTheme()`; to nie rozjazd, ale FOUC z drugą pobierką na elemencie nad zgięciem i kandydacie na LCP     | widget obrazu buildera trzyma oba warianty w DOM i chowa jeden CSS-em                                                        |
+
+Pozycja 4 zasługuje na osobne zdanie, bo jest największa: **ten sam plik nazywa tę klasę błędu
+dla locale** („SSR i klient renderują różny tekst") **i nie domyka jej dla strefy czasowej**.
+Dotyczy każdej daty z godziną na całej powierzchni publicznej.
+
+#### Czym to jest pilnowane, a czym NIE
+
+Pilnowane realnie: kompletność strumienia SSR na 4 trasach i hydratacja PL/EN
+(`e2e/ssr-completeness.spec.ts`), brak 5xx i soft-200 przy martwym backendzie na 12 trasach
+(`e2e/ssr-degradation.spec.ts`), mechanika strażników i budżetów (5 plików testowych, m.in.
+`queryStreamGuard.test.ts` — 500 linii i 30 przypadków, z progami per plik), acykliczność grafu
+chunków, czystość ścieżki bootowania, budżety bajtów JS, parytet `<link>` i nagłówka `Link`,
+oraz dwa historyczne rozjazdy hydratacji przez `renderToString` — **to jedyne dwa pliki testowe
+w `src/`, które używają `renderToString`.**
+
+Niepilnowane, mimo istniejącej deklaracji — i to jest sedno:
+
+- **Rozmiar tego, co pobiera PIERWSZE wczytanie, nie ma żadnego progu.** Skrypt mówi to o sobie
+  wprost: „PUBLIC liczy KAŻDY chunk osiągalny z publicznego URL-a, nie pierwsze wczytanie".
+  Symetrycznie: dołożenie 100 KB do chunku startowego przechodzi, dopóki mieści się w progu
+  280 KB na największy chunk. Dziś zapas na chunk to 9,5 KB, a przyrost rozłożony na 8 vendorów
+  ścieżki bootowania nie zapali floora ani o bajt.
+- **Arkusz CSS nie ma bramki w ogóle.** Bramka rozmiaru bierze wyłącznie `.js`. Render-blokujący
+  arkusz może rosnąć dowolnie bez czerwonego CI.
+- **Boot-test przeglądarkowy na artefakcie produkcyjnym nie istnieje.** `vite.config.ts:327-329`
+  obiecuje, że klasę awarii z 20.07 pilnują dwie rzeczy: `check-chunk-graph.ts` **oraz** boot-test
+  na buildzie `vite.smoke.config.ts`. Drugi nie jest uruchamiany nigdzie — Playwright startuje
+  aplikację przez `bun run dev`, gdzie chunków nie ma z definicji. Pilnowany jest więc parytet
+  konfiguracji smoke'a, którego nikt nie uruchamia.
+- **Niezgodność hydratacji nie ma żadnego detektora.** Zero wystąpień `hydrateRoot` w suicie
+  testowej, zero nasłuchu `console.error` w e2e (sześć trafień `page.on(` i wszystkie to
+  `pageerror`). Jedyny ślad przekroczenia budżetu hydratacji to `console.warn`, którego nikt
+  nie zbiera. Powtórka incydentu z 20.07 zostałaby zgłoszona nagraniem użytkownika, nie alarmem.
+- **Trzy mechanizmy chroniące przed martwą hydratacją mają ZERO pokrytych linii.** Zweryfikowane
+  w `coverage-ed8/coverage-summary.json`: `src/router.tsx` **0 z 38 linii i 0 z 13 funkcji**,
+  `src/routes/__root.tsx` **0 z 124 linii i 0 z 48 funkcji**. `src/router.tsx` nie jest importowany
+  przez żaden plik testowy. To najostrzejsza pojedyncza obserwacja całego wydania: **pliki, które
+  posiadają wszystkie budżety SSR i hydratacji, są niepokryte w repozytorium mierzącym 84,12%** —
+  i próg globalny tego nie widzi, bo jest agregatem.
+- **Jedyny pomiar czasu w CI jest nieblokujący i mierzy serwer deweloperski.** `lighthouserc.json`
+  startuje `bun run dev`, wszystkie asercje mają poziom `warn`. Zapisany artefakt
+  `.lighthouseci/assertion-results.json`: **LCP 31 215 ms przy budżecie 2 500** i TBT 1 985 przy 300,
+  oba na poziomie `warn`. Liczby są nieprzenoszalne na produkcję, ale sam fakt jest przenoszalny:
+  **nie ma dziś ani jednego blokującego progu czasu.** Jedyna wiarygodna niezależnie od trybu:
+  `cumulative-layout-shift = 0`.
+
+**Stan bramek zależnych od builda, uruchomiony na obecnym artefakcie:** `check:chunks` zielona
+(942 chunki, graf acykliczny), `check:entry-purity` zielona („ścieżka bootowania czysta"),
+**`check:bundle` CZERWONA na `overall`: 4 318,3 KB przy florze 4 306 KB**, przy PUBLIC 2 684,8
+z 2 715 i największym chunku 270,5 z 280. Największe ruchy: `+65,5 KB EventStudioModuleSections`
+(nowy), `+40,1 KB vendor`, `+31,1 KB useEventSessions` (nowy).
+
+#### Czego NIE potwierdziłem
+
+Zapisuję to, bo audyt bez tej listy udaje kompletność. **(1)** Liczby „59 tras publicznych z SSR
+i bez loadera" — w repo nie ma skryptu, który to mierzy; potwierdzona jest próbka z tabeli wyżej
+plus `/publications` i `/tracker/changes`. **(2)** Czy `vendor-radix` jest statycznie osiągalny
+z entry. **(3)** Udziału obrazów bez `width`/`height` — brak podanej metody zliczania, a CLS
+mierzony na artefakcie wynosi 0. **(4)** Czy Supabase negocjuje AVIF/WebP — transformacje idą
+bez jawnego `format`. **(5)** Zachowania zewnętrznego CDN wobec `Vary: Sec-GPC`. **(6)** Czy
+zmienna `LHCI_URL` jest ustawiona, czyli czy blokujący tryb Lighthouse kiedykolwiek się włącza.
+Dodatkowo **krytyk kompletności tego badania padł na limicie sesji**, więc lista „czego brakuje"
+nie została napisana przez niezależnego agenta — to jest znana luka tego rozdziału.
+
+#### Kolejność naprawy — jedenaście punktów, każdy z efektem i kosztem
+
+1. **Zdjąć drugą falę rozgrzewki korzenia z drogi krytycznej** (`__root.tsx:398`). Fala 2 nie jest
+   potrzebna do wyrenderowania treści: przenieść za `Suspense` albo obniżyć budżet do 300-500 ms
+   i nie awaitować. Efekt: **do 2,5 s, a w najgorszym razie do 5 s, z czasu do pierwszego bajtu
+   na KAŻDEJ trasie publicznej.** Koszt: niski, jeden plik.
+2. **Zawęzić prefetch strony głównej do sekcji nad zgięciem** i włączyć `stream`
+   w `HomeBuilderContent`. Efekt: do 6 s na MISS strony głównej; przywraca sens budżetu
+   `SERVER_SECTION_STREAM_BUDGET_MS = 2 000`. Jeśli decyzja będzie odwrotna — poprawić dwa
+   komentarze, żeby nie kłamały. Koszt: średni.
+3. **Naprawić martwy opt-out `no-store` dla renderów zdegradowanych.** Bez tego punkty 1 i 2
+   ZWIĘKSZAJĄ ryzyko: krótsze budżety oznaczają więcej renderów zdegradowanych, a te dziś
+   wchodzą do cache na 24 h. Koszt: średni, dotyka granicy middleware/handler.
+4. **Dodać loader czterem powierzchniom publicznym, które w SSR emitują komunikat błędu.**
+   To nie przyspieszenie, to naprawa poprawności: dziś crawler i użytkownik bez JS dostają stronę
+   błędu albo „404" przy HTTP 200 i pełnym cache. Koszt: niski na trasę.
+5. **Rozbić render-blokujący arkusz i postawić na niego bramkę**, w kolejności taniości:
+   (a) dodać `.css` do bramki rozmiaru; (b) wyciąć panel i buildera z `@source` do osobnego
+   arkusza; (c) rozważyć `server.build.inlineCss` frameworka (dziś nieużyte). Efekt: FCP i LCP
+   każdej trasy publicznej — jedyna bariera, której nie skraca edge cache.
+6. **Preloadować chunk słownika aktywnego języka.** Zdejmuje jeden szeregowy round-trip
+   (25,4 KB PL / 22,2 KB EN) z okna przed `hydrateRoot`. Koszt: niski, test parytetu już istnieje.
+7. **Domknąć rodzinę „czas i język w renderze"** — dziewięć niezależnych zmian, wzorce są
+   już w repo, każdą da się domknąć testem `renderToString`. Największy pojedynczy zysk:
+   `formatDateTime` bez strefy dotyczy każdej daty z godziną.
+8. **Postawić próg na rozmiar domknięcia startowego** i naprawić `stableChunkName`, który zwija
+   10 chunków `vendor-*` do jednego wiadra, więc raport ruchów nie wskazuje biblioteki.
+9. **Odblokować drugi argument `handler.fetch`** — otwiera `responseLinkHeader` (modulepreload
+   z manifestu), `onEarlyHints` (103) i `inlineCss` z punktu 5c. Zysk realny na MISS i na HIT,
+   bo nagłówek `Link` jest utrwalany w cache.
+10. **Uruchomić boot-test przeglądarkowy na artefakcie produkcyjnym** — zamyka jedyną klasę
+    awarii, która w tym repozytorium WYSTĄPIŁA i miała pełny promień rażenia, a której obecne
+    bramki łapią tylko jedną przyczynę (cykle).
+11. **Zacząć mierzyć czas na czymkolwiek produkcyjnym.** Dziś jedyny zapisany pomiar to LCP
+    31 215 ms na serwerze deweloperskim, na poziomie `warn`. Wszystkie punkty 1-9 są dziś
+    **nieweryfikowalne liczbą** — i to jest najpoważniejszy brak tego obszaru, bo bez pomiaru
+    każda z tych napraw jest hipotezą.
+
+**Ocena tego obszaru: dobrze na infrastrukturze, przeciętnie na drodze krytycznej.** Repozytorium
+ma dwupoziomowy cache brzegowy z kluczem per najemca, strażniki strumienia, trzy bezpieczniki
+serializacji i dwa incydenty spisane razem z naprawą. I jednocześnie: do 11 s budżetów loaderów
+przed pierwszym bajtem, arkusz 570 KB bez bramki, słownik bez preloadu, zdegradowany render
+wchodzący do cache na dobę, cztery publiczne powierzchnie oddające błąd przy statusie 200
+i **zero pokrytych linii w dwóch plikach, które posiadają wszystkie te budżety.**
+
+---
+
 ## 9. Załączniki
 
 ### 9.1 Reguły mapowania plik → moduł
