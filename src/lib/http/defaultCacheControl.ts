@@ -93,18 +93,36 @@ export function planDefaultCacheControl(
   routeDirective?: string | null,
 ): string | null {
   if (request.method !== "GET") return null;
-  // Trasa wie lepiej: jakikolwiek własny nagłówek JUŻ NA ODPOWIEDZI (feedy,
-  // sitemapy, mapy statyczne) wygrywa i nie jest ruszany.
-  if (response.headers.get("cache-control")) return null;
+  const onResponse = response.headers.get("cache-control");
+
+  // OPT-OUT TRASY WYPRZEDZA WSZYSTKO - także nagłówek już obecny na odpowiedzi,
+  // status i typ treści. `no-store`/`private` wyłącznie ZAWĘŻA uprawnienia
+  // pośrednika, więc nie da się nim niczego zepsuć, a bez tej kolejności jest
+  // MARTWY w dwóch niezależnych miejscach:
+  //   1. h3 scala nagłówki ZDARZENIA tylko dla `val.ok`
+  //      (`prepareResponse`: `if (!preparedHeaders || nested || !val.ok) return val`),
+  //      a `attachResponseHeaders` dla odpowiedzi non-ok scala WYŁĄCZNIE
+  //      `Set-Cookie`. ZMIERZONE: `setCacheControlHeader("private, no-store")`
+  //      w loaderze daje na drucie `null` przy 302 i przy 404, a poprawną
+  //      wartość dopiero przy 200. Bez tej gałęzi intencja z `post.$slug.tsx`,
+  //      `$.tsx` (cztery miejsca), `category.$slug.tsx` i `author.$slug.tsx`
+  //      NIGDY nie dociera do klienta i trwałe 301 wychodzą BEZ ŻADNEJ
+  //      dyrektywy cache - czyli zdane na heurystyki pośrednika.
+  //   2. Trasa z opcją `headers` na poziomie routera (frameworkowo dostępna,
+  //      dziś nieużywana - `getStartResponseHeaders` scala `match.headers`)
+  //      przywracałaby naprawianą tu dziurę o jedną warstwę wyżej.
+  // Warunek `!forbidsStorage(onResponse)` nie dopuszcza pętli: gdy odpowiedź
+  // już niesie opt-out, nie ma czego nadpisywać.
+  if (routeDirective && forbidsStorage(routeDirective) && !forbidsStorage(onResponse ?? "")) {
+    return routeDirective;
+  }
+
+  // Poza opt-outem: własny nagłówek JUŻ NA ODPOWIEDZI (feedy, sitemapy, strona
+  // 500 z `src/start.ts`) wygrywa i nie jest ruszany.
+  if (onResponse) return null;
   if (response.status !== 200) return null;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("text/html")) return null;
-
-  // Opt-out trasy (render zdegradowany, preview, personalizacja) obowiązuje
-  // BEZWARUNKOWO i jako pierwszy: `no-store`/`private` wyłącznie zawęża, więc
-  // nie da się nim popsuć żadnej z decyzji niżej. To jest ta jedna ścieżka,
-  // której brak zamrażał pustą powłokę na brzegu na 24 h.
-  if (routeDirective && forbidsStorage(routeDirective)) return routeDirective;
 
   // Sesyjne żądania nie dostają współdzielonej polityki (pas i szelki - NES
   // Edge Cache i tak je BYPASS-uje, ale nagłówek public na odpowiedzi dla
@@ -119,9 +137,14 @@ export function planDefaultCacheControl(
   // Zasoby z rozszerzeniem mają własne polityki (sitemapy, feedy, robots).
   if (/\.[a-z0-9]+$/i.test(pathname)) return null;
   if (isDeniedPath(pathname)) return null;
-  // Czysty render: intencja trasy nadal wygrywa z domyślną, bo trasa zna swoją
-  // powierzchnię lepiej (np. `/live` deklaruje świeżość w sekundach).
-  if (routeDirective) return routeDirective;
+  // POWIERZCHNIA ŻYWA WYPRZEDZA dyrektywę czystego renderu, nie odwrotnie.
+  // Odwrotna kolejność wyglądała naturalnie („trasa wie lepiej"), ale
+  // reintrodukowałaby naprawiany tu defekt PO ŚCIEŻCE: strona CMS opublikowana
+  // pod `/live/<slug>` jest obsługiwana przez `$.tsx`, który deklaruje
+  // `contentCacheControl()`, więc wpis zamarzałby na 180 s zamiast 30 s.
+  // Ścieżka jest tu jedynym źródłem prawdy o „żywości" powierzchni.
   if (isLivePath(pathname)) return liveCacheControl();
+  // Czysty render: intencja trasy wygrywa z polityką domyślną treści.
+  if (routeDirective) return routeDirective;
   return contentCacheControl();
 }

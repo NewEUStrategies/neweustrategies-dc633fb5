@@ -216,7 +216,7 @@ describe("render zdegradowany a ZAPIS do NES Edge Cache (kolejność potoku)", (
     );
   });
 
-  it("własny nagłówek JUŻ NA ODPOWIEDZI (feedy, sitemapy) zostaje nietknięty", async () => {
+  it("czysta dyrektywa NIE nadpisuje własnego nagłówka odpowiedzi (feedy, sitemapy)", () => {
     const request = {
       method: "GET",
       url: "https://tenant-a.eu/blog",
@@ -233,6 +233,13 @@ describe("render zdegradowany a ZAPIS do NES Edge Cache (kolejność potoku)", (
         },
       },
     };
-    expect(planDefaultCacheControl(request, response, "private, no-store")).toBeNull();
+    // Czysta dyrektywa ustępuje nagłówkowi, który trasa nadała wprost.
+    expect(planDefaultCacheControl(request, response, contentCacheControl())).toBeNull();
+    // OPT-OUT jednak wygrywa: `no-store` wyłącznie zawęża, a bez tej kolejności
+    // jest martwy na każdej odpowiedzi non-ok (h3 scala nagłówki zdarzenia tylko
+    // dla `val.ok`) - patrz defaultCacheControl.test.ts.
+    expect(planDefaultCacheControl(request, response, "private, no-store")).toBe(
+      "private, no-store",
+    );
   });
 });
