@@ -214,19 +214,25 @@ describe("LiveBlogBlock - znaczniki czasu", () => {
     assertNoLeak(container, `liveblog czas ${occurred_at}`);
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - „Invalid Date" NA STRONIE.
-  // `fmtTime` opakowuje formatowanie w `try/catch`, licząc na to, że zły ISO
-  // rzuci. Nie rzuca: `new Date("to-nie-data").toLocaleString(...)` zwraca
-  // NAPIS „Invalid Date", więc `catch` nigdy się nie wykonuje i ten napis leci
-  // prosto do znacznika `<time>` widocznego dla czytelnika. `fmtRelative` ma
-  // poprawną straż (`Number.isFinite`), ale deleguje do `fmtTime` - i tam
-  // straży już nie ma. Naprawa to sprawdzenie `Number.isFinite(date.getTime())`
-  // w `fmtTime` przed formatowaniem - zmiana zachowania produkcyjnego, poza
-  // zakresem zadania pokryciowego. Test STOI jako dowód.
-  it.fails.each([
+  // DEFEKT ZAMKNIĘTY 2026-09-01 - „Invalid Date" NA STRONIE.
+  //
+  // Historia, bo jest pouczająca. `fmtTime` opakowywał formatowanie w
+  // `try/catch`, licząc na to, że zły ISO rzuci. NIE RZUCA:
+  // `new Date("to-nie-data").toLocaleString(...)` zwraca NAPIS „Invalid Date",
+  // więc `catch` nigdy się nie wykonywał i ten napis leciał prosto do znacznika
+  // `<time>` widocznego dla czytelnika. `fmtRelative` miał poprawną straż
+  // (`Number.isFinite`), ale delegował do `fmtTime` - i tam straży nie było.
+  // Test stał tu jako `it.fails`, czyli DOWÓD zgłoszonego defektu.
+  //
+  // Zamknęła go naprawa strefy czasowej (punkt 7 audytu): `fmtTime` przechodzi
+  // teraz przez `formatDate` z `lib/i18n/format.ts`, a ta funkcja ma straż
+  // `Number.isNaN(d.getTime())` PRZED formatowaniem i zwraca pustkę, po której
+  // `fmtTime` podstawia surową wartość. Dwa oczekiwania odwrócone poniżej:
+  // brak wycieku jest teraz KONTRAKTEM, a nie znanym defektem.
+  it.each([
     ["data nieprawidłowa", "to-nie-data"],
     ["data pusta", ""],
-  ])("%s NIE POWINNA wypisywać Invalid Date", async (_l, occurred_at) => {
+  ])("%s NIE WYPISUJE Invalid Date", async (_l, occurred_at) => {
     h.entries = [entry({ occurred_at })];
     const { container } = renderBlock();
     await waitFor(() => expect(container.textContent).toContain("Wpis pierwszy"));
@@ -236,11 +242,11 @@ describe("LiveBlogBlock - znaczniki czasu", () => {
   it.each([
     ["data nieprawidłowa", "to-nie-data"],
     ["data pusta", ""],
-  ])("dziś %s pokazuje czytelnikowi napis Invalid Date", async (_l, occurred_at) => {
+  ])("%s pokazuje SUROWĄ wartość z bazy, nie Invalid Date", async (_l, occurred_at) => {
     h.entries = [entry({ occurred_at })];
     const { container } = renderBlock();
     await waitFor(() => expect(container.textContent).toContain("Wpis pierwszy"));
-    expect(container.querySelector("time")?.getAttribute("title")).toBe("Invalid Date");
+    expect(container.querySelector("time")?.getAttribute("title")).toBe(occurred_at);
   });
 
   it("etykiety względne odświeżają się co 30 sekund", async () => {

@@ -187,6 +187,20 @@ function diff(
   return { d, h, m, s, done };
 }
 
+/**
+ * Komórka pierwszego przejścia: DOKŁADNIE ta sama struktura i te same klasy co
+ * `Cell` niżej, tylko bez wartości. Rozjazd struktury byłby tym samym defektem
+ * co rozjazd tekstu.
+ */
+function PlaceholderCell({ unit }: { unit: string }) {
+  return (
+    <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-card border border-border min-w-[64px]">
+      <span className="text-2xl font-bold tabular-nums text-foreground">--</span>
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit}</span>
+    </div>
+  );
+}
+
 export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }: CountdownProps) {
   const t = L[lang];
   const target = useMemo(() => {
@@ -195,15 +209,43 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
     return Number.isFinite(ms) ? ms : null;
   }, [targetAt]);
 
-  const [now, setNow] = useState<number>(() => Date.now());
+  // „TERAZ" STARTUJE DOPIERO PO MONTAŻU, więc SSR i pierwszy render klienta są
+  // identyczne (placeholdery „--"). Wcześniej `useState(() => Date.now())`
+  // wpisywało do HTML-a SEKUNDY policzone na serwerze - a zegar Workers jest
+  // kwantowany do ostatniego I/O i dokument jedzie do cache'a brzegowego na
+  // godziny, więc klient MUSIAŁ policzyć inną liczbę. React 19 przy rozjeździe
+  // tekstu porzuca całe serwerowe poddrzewo. Ten blok jedzie w SSR, bo jest
+  // importowany eager do publicznego renderera bloków.
+  //
+  // Wzorzec przeniesiony 1:1 z `EventCountdownView` („SSR i pierwszy render
+  // klienta są identyczne, więc hydratacja nigdy się nie rozjeżdża").
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
     if (target === null) return;
+    setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, [target]);
 
   if (target === null) return null;
+
+  // Pierwsze przejście (serwer + hydratacja): struktura ta sama, wartości
+  // nieznane. Bez tego kroku placeholder i wynik miałyby różne drzewa.
+  if (now === null) {
+    return (
+      <div className={`flex flex-col items-start gap-2 ${cls ?? ""}`}>
+        {label ? <span className="text-sm text-muted-foreground">{label}</span> : null}
+        <div className="flex items-center gap-2" aria-live="polite">
+          <PlaceholderCell unit={t.days} />
+          <PlaceholderCell unit={t.hours} />
+          <PlaceholderCell unit={t.minutes} />
+          <PlaceholderCell unit={t.seconds} />
+        </div>
+      </div>
+    );
+  }
+
   const { d, h, m, s, done } = diff(target, now);
   const finished = expiredText && expiredText.trim() ? expiredText : t.expired;
 

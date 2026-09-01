@@ -93,6 +93,7 @@ import { TextRotate } from "@/components/ui/text-rotate";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
+import { siteYear } from "@/lib/i18n/format";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -852,7 +853,8 @@ export function renderSimpleWidget(
       const brand = getStr(c, "brand");
       return (
         <div className="text-xs text-muted-foreground text-center">
-          {showYear && `© ${new Date().getFullYear()} `}
+          {/* Rok w STREFIE SERWISU, nie w strefie maszyny - patrz siteYear(). */}
+          {showYear && `© ${siteYear()} `}
           {brand}
           {brand && txt ? ". " : ""}
           {txt}
