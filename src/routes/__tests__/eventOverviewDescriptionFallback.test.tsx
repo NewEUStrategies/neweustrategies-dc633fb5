@@ -108,9 +108,23 @@ const row = vi.hoisted(() => ({
 
 vi.mock("@/lib/community/publicQueries", async () => {
   const { publicEventRow } = await import("@/test/events/publicEventRow");
+  const fetchPublicEventBySlug = vi.fn(async () => publicEventRow(row.overrides));
+  const fetchEventPageHeader = vi.fn(async () => null);
   return {
-    fetchPublicEventBySlug: vi.fn(async () => publicEventRow(row.overrides)),
-    fetchEventPageHeader: vi.fn(async () => null),
+    fetchPublicEventBySlug,
+    fetchEventPageHeader,
+    // Fabryki queryOptions - trasa czyta je od 2026-09-01 zamiast składać klucz
+    // literałem, bo ten sam klucz grzeje teraz loader powłoki. Atrapa oddaje
+    // DOKŁADNIE te klucze, których używa produkcja, żeby test nie przechodził
+    // dzięki rozjechanemu kluczowi.
+    publicEventBySlugQueryOptions: (slug: string) => ({
+      queryKey: ["public-event", slug],
+      queryFn: fetchPublicEventBySlug,
+    }),
+    eventPageHeaderQueryOptions: (slug: string, viewer: string) => ({
+      queryKey: ["event-page-header", slug, viewer],
+      queryFn: fetchEventPageHeader,
+    }),
     fetchEventAccess: vi.fn(async () => null),
     fetchEventRsvpCounts: vi.fn(async () => new Map()),
     fetchEventWaitlistPosition: vi.fn(async () => null),
@@ -147,7 +161,8 @@ async function renderOverview() {
     path: "/events/$slug/",
     initialEntry: `/events/${EVENT_SLUG}`,
   });
-  // Ta trasa NIE MA loadera - wydarzenie jedzie zwykłym `useQuery`, więc
+  // Ten harness montuje SAM przegląd, bez loadera powłoki (`events.$slug.tsx`),
+  // który w produkcji grzeje `["public-event", slug]` przed renderem - więc tu
   // pierwszy render to jeszcze pustka. Asercja bez oczekiwania mierzyłaby ją.
   await waitFor(() => expect(screen.getByText(/Kongres|European/)).toBeTruthy());
   return route;
