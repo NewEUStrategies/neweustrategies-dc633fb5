@@ -16,11 +16,50 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 // tenant of the site being browsed. fetchWithTenantHost dokleja x-tenant-host
 // z bieżącego żądania - bez niego public_tenant_id() zawsze zwraca
 // DOMYŚLNEGO tenanta (patrz tenant-host-fetch.ts).
-function client() {
+function createAnonClient() {
   return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     global: { fetch: fetchWithTenantHost },
   });
+}
+
+// JEDEN klient na izolat, tworzony LENIWIE.
+//
+// PO CO. `client()` był wołany W ŚRODKU handlera, więc każde `recordPostView`
+// - a to najgorętsze wywołanie tego modułu, jedno na odsłonę artykułu -
+// budowało nowego klienta Supabase od zera.
+//
+// DLACZEGO TO JEST BEZPIECZNE W IZOLACIE WIELOTENANTOWYM, a to jest tu jedyne
+// pytanie, które się liczy: jeden izolat Workers obsługuje RÓWNOLEGLE żądania
+// z różnych domen, więc współdzielony klient musiałby nie nieść ŻADNEGO stanu
+// żądania. I nie niesie:
+//   * nagłówki egzemplarza to sam `X-Client-Info` - opcje globalne wyżej nie
+//     ustawiają `headers`, a `x-tenant-host` i `x-tenant-assert` dokleja
+//     `fetchWithTenantHost` PER WYWOŁANIE, czytając kontekst bieżącego żądania
+//     (patrz `integrations/supabase/tenant-host-fetch.ts`), nie kontekst z
+//     chwili konstrukcji;
+//   * `persistSession: false` daje storage PAMIĘCIOWY, do którego ten moduł
+//     nigdy nie pisze (nie ma tu żadnego `sb.auth.*`), więc `Authorization`
+//     to zawsze klucz anon - nie ma czego przeciec między tenantami.
+// Dowodem jest `__tests__/postViewsClientReuse.test.ts`: dwa żądania z RÓŻNYCH
+// hostów dostają różne nagłówki tenanta z TEGO SAMEGO egzemplarza klienta.
+//
+// LENIWIE, nie `const` na poziomie modułu: `createClient` rzuca przy braku
+// `SUPABASE_URL`, a przy inicjalizacji modułu ten wyjątek wywróciłby CAŁY chunk
+// (plik wisi w grafie strony wpisu przez `useRecordPostView`) zamiast jednego
+// wywołania server function. Ten sam wzorzec, co
+// `src/lib/auth/optionalUser.server.ts` i `src/integrations/supabase/client.ts`.
+//
+// UCZCIWIE O WIELKOŚCI ZYSKU: to jest oszczędność CPU, nie latencji.
+// Konstrukcja klienta jest o dwa rzędy wielkości tańsza niż round-trip do
+// Supabase, więc na czasie ściany nie widać jej wcale. Uzasadnia ją model
+// rozliczeniowy Workers, w którym czas CPU jest zasobem bilowanym i
+// limitowanym - a nie „szybciej wczyta się strona".
+let cachedClient: ReturnType<typeof createAnonClient> | undefined;
+
+function client(): ReturnType<typeof createAnonClient> {
+  cachedClient ??= createAnonClient();
+  return cachedClient;
 }
 
 const recordSchema = z.object({
