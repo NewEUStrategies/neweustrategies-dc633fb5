@@ -7,8 +7,7 @@ import { MENU_ITEM_VISIBILITIES, type MenuItemVisibility } from "./types";
 
 /** Wartość z bazy (może być pusta / nieznana) sprowadzona do kontraktu. */
 export function normalizeMenuVisibility(value: unknown): MenuItemVisibility {
-  return typeof value === "string" &&
-    (MENU_ITEM_VISIBILITIES as readonly string[]).includes(value)
+  return typeof value === "string" && (MENU_ITEM_VISIBILITIES as readonly string[]).includes(value)
     ? (value as MenuItemVisibility)
     : "all";
 }
