@@ -62,7 +62,11 @@ import {
 } from ".";
 import { asServerFn, callServerFn } from "@/test/serverFnHarness";
 import type { Ga4Report, Ga4ReportRequest } from "../ga4.server";
-import type { SemanticSnapshotResult } from "./snapshot.functions";
+import type {
+  SemanticDelta,
+  SemanticSnapshotResult,
+  SemanticStreamHealth,
+} from "./snapshot.functions";
 
 // ---------------------------------------------------------------------------
 // Atrapy modułów
@@ -318,22 +322,24 @@ function ga4Dziala(biezacy: Ga4Report = GA4_BIEZACY, poprzedni: Ga4Report = GA4_
 // Skróty asercyjne
 // ---------------------------------------------------------------------------
 
+// Brak elementu jest BŁĘDEM struktury odpowiedzi, nie brakiem danych - dlatego
+// rzucamy z nazwą metryki zamiast rzutować i padać potem na `undefined`.
 function wpis(res: SemanticSnapshotResult, id: MetricId): ReconciliationEntry {
   const found = res.entries.find((e) => e.metricId === id);
-  expect(found, `brak wpisu metryki ${id}`).toBeDefined();
-  return found as ReconciliationEntry;
+  if (!found) throw new Error(`test: migawka nie zawiera metryki ${id}`);
+  return found;
 }
 
-function zdrowie(res: SemanticSnapshotResult, id: StreamId) {
+function zdrowie(res: SemanticSnapshotResult, id: StreamId): SemanticStreamHealth {
   const found = res.streams.find((s) => s.streamId === id);
-  expect(found, `brak zdrowia strumienia ${id}`).toBeDefined();
-  return found as SemanticSnapshotResult["streams"][number];
+  if (!found) throw new Error(`test: migawka nie zawiera strumienia ${id}`);
+  return found;
 }
 
-function delta(res: SemanticSnapshotResult, id: MetricId) {
+function delta(res: SemanticSnapshotResult, id: MetricId): SemanticDelta {
   const found = res.deltas.find((d) => d.metricId === id);
-  expect(found, `brak delty ${id}`).toBeDefined();
-  return found as SemanticSnapshotResult["deltas"][number];
+  if (!found) throw new Error(`test: migawka nie zawiera delty ${id}`);
+  return found;
 }
 
 let ostrzezenia: ReturnType<typeof vi.spyOn>;
