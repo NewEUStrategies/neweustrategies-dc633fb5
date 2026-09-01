@@ -16,7 +16,13 @@ import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url"
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { appendLinkHeader } from "../lib/http/responseHeaders";
 import { buildRootHead } from "../lib/seo/meta";
-import { rootDocumentLinks, rootLinkHeaderValues, type RootAssets } from "../lib/seo/rootHead";
+import {
+  dictionaryPreloadLinkHeaderValue,
+  rootDocumentLinks,
+  rootLinkHeaderValues,
+  type RootAssets,
+} from "../lib/seo/rootHead";
+import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
@@ -267,9 +273,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // HIT/STALE - to fundament pod 103 Early Hints na Cloudflare. Zestaw jest
     // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
     // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
-    for (const value of rootLinkHeaderValues(currentLang(), ROOT_ASSETS)) {
+    const renderLang = currentLang();
+    for (const value of rootLinkHeaderValues(renderLang, ROOT_ASSETS)) {
       appendLinkHeader(value);
     }
+    // Chunk rdzenia SŁOWNIKA aktywnego języka - WYŁĄCZNIE nagłówkiem, nigdy
+    // `<link>`-iem w `<head>`. Nazwa pliku jest znana tylko w środowisku
+    // serwerowym (bundel przeglądarki wczytuje moduł wirtualny, zanim chunki
+    // dostaną nazwy), więc węzeł w `<head>` byłby rozjazdem tożsamości korzenia
+    // dokumentu. Pełne uzasadnienie: `lib/seo/rootHead.ts` przy
+    // `dictionaryPreloadLinkHeaderValue` i nagłówek
+    // `scripts/lib/localeChunkPlugin.ts`.
+    const dictionaryHint = dictionaryPreloadLinkHeaderValue(LOCALE_CHUNK_URLS[renderLang]);
+    if (dictionaryHint) appendLinkHeader(dictionaryHint);
     // Warm site_settings + design tokens / global colors / post-layout so
     // <DesignTokensStyle />, <ContentAreaStyle /> and friends render their
     // `<style>` server-side. Without this the first paint uses raw styles.css
