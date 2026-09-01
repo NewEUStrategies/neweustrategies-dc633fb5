@@ -42,9 +42,26 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  // WYŁĄCZNIE boot-test. Reszta suity e2e jest napisana pod dev-server
+  // WYŁĄCZNIE testy artefaktu. Reszta suity e2e jest napisana pod dev-server
   // (`playwright.config.ts`) i nie ma powodu płacić za nią drugim buildem.
-  testMatch: /boot-artifact\.spec\.ts$/,
+  //
+  // DWA PLIKI, JEDEN BUILD I JEDEN SERWER. Wzorzec obejmuje `boot-artifact`
+  // (czy artefakt ŻYJE - interaktywność po hydratacji) i `boot-timing` (ILE TO
+  // KOSZTUJE - TTFB, czas do gotowości, transfer ścieżki bootowania). Rozdział
+  // na dwa pliki jest celowy: pierwszy jest bramką POPRAWNOŚCI i jego awaria
+  // znaczy „strona jest martwa", drugi jest bramką BUDŻETU i jego awaria znaczy
+  // „strona żyje, ale wolniej niż wolno". Zlanie ich w jeden plik zamieniłoby
+  // te dwa komunikaty w jeden nieczytelny. Wspólna konfiguracja, bo najdroższy
+  // składnik - build artefaktu (>=3 min 30 s w CI) i start serwera - jest
+  // dokładnie ten sam, a `fullyParallel: false` daje im ustaloną kolejność.
+  //
+  // KOLEJNOŚĆ (alfabetyczna: artifact, potem timing) ma skutek dla POMIARU:
+  // `boot-timing` jedzie po CIEPŁYM serwerze. Jest to świadome - liczba
+  // z ciepłego procesu jest powtarzalna, a zimna zawiera jednorazowy koszt
+  // rozgrzewki JIT-u i cache'u modułów, którego produkcyjny czytelnik na
+  // Cloudflare i tak nie płaci przy każdym wejściu. Zmierzona różnica
+  // zimny -> ciepły jest wpisana w progach `e2e/boot-timing.spec.ts`.
+  testMatch: /boot-(artifact|timing)\.spec\.ts$/,
   // Hojniej niż 30 s z konfiguracji dev: pierwszy render zimnego artefaktu
   // z zaślepkami Supabase idzie przez pełne budżety loaderów.
   timeout: 90_000,

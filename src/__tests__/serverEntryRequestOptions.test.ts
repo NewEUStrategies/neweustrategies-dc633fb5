@@ -152,9 +152,10 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
     );
     await response.text();
 
-    const forwarded = hoisted.calls[0]!.slice(1);
-    expect(forwarded).toEqual([]);
-    // Kontrola pozytywna: gdyby obiekt jechał dalej, TO byłoby widoczne.
+    // Nie ma ŻADNEGO argumentu za `request` - ani `env`, ani `ctx`.
+    expect(hoisted.calls[0]!.slice(1)).toEqual([]);
+    // Ta sama rzecz po tożsamości obiektu: to ten konkretny `env` sprawdzamy,
+    // a nie tylko długość tablicy.
     expect(hoisted.calls[0]).not.toContain(HOSTILE_ENV);
   });
 
@@ -204,8 +205,9 @@ describe("entry SSR: nagłówek `Link` przeżywa całą drogę", () => {
     const response = await entryFetch(new Request("https://tenant-a.eu/"), HOSTILE_ENV);
     const body = await response.text();
 
-    // Nagłówek zdarzenia h3 scalony w `toResponse()` przeżył normalizację 500,
-    // odroczony zapis i strażnika strumienia.
+    // Nagłówek zdarzenia h3, scalony na odpowiedź w `toResponse()`, przeszedł
+    // dalej cały ogon entry: normalizator katastrofy (200 wychodzi z niego
+    // nietknięte), odroczony zapis i strażnika strumienia.
     expect(response.headers.get("link")).toBe(hint);
     // Strażnik NAPRAWDĘ przepakował odpowiedź - asercja wyżej nie jest pozorna.
     expect(response.headers.get("x-ssr-doc-guard")).toBe("on");

@@ -774,7 +774,32 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
-      - name: Boot test on the production artifact
+      # DWA PLIKI W TYM JEDNYM KROKU (`playwright.artifact.config.ts` łapie oba):
+      #   * `e2e/boot-artifact.spec.ts` - czy artefakt ŻYJE (interaktywność po
+      #     hydratacji). Awaria znaczy „strona jest martwa";
+      #   * `e2e/boot-timing.spec.ts` - ILE TO KOSZTUJE (TTFB, czas do gotowości
+      #     hydratacji, transfer ścieżki bootowania). Awaria znaczy „strona żyje,
+      #     ale wolniej niż wolno".
+      #
+      # DRUGI PLIK MIERZY CZAS NA TYM SAMYM ARTEFAKCIE, PO KTÓRYM JEDZIE
+      # BOOT-TEST - i to jest inny instrument niż job `lighthouse`, nie jego
+      # duplikat. Tamten (od 2026-09-01 też na artefakcie, nie na dev-serverze)
+      # mierzy METRYKI CZYTELNIKA przez Chrome'a z emulacją sieci i CPU; ten
+      # mierzy TRZY LICZBY Z SAMEJ PRZEGLĄDARKI (TTFB dokumentu, czas od
+      # `__nesBootT0` do `__nesAppReady`, transfer ścieżki bootowania) bez
+      # emulacji, więc jest tańszy, deterministyczny i biegnie w tym samym
+      # jobie, co reszta bramek artefaktu. Tryb naprawdę blokujący Lighthouse'a
+      # (`lighthouserc.deployed.json`) wymaga zmiennej repozytorium `LHCI_URL`,
+      # która nigdy nie była ustawiona, więc nie włączył się ANI RAZU - dopóki
+      # to się nie zmieni, ten krok jest jedynym pomiarem czasu na artefakcie,
+      # który faktycznie się wykonuje.
+      #
+      # Progi w `boot-timing` są policzone na hoście deweloperskim i ŚWIADOMIE
+      # luźne - liczby z tego runnera nie istniały w chwili ich stawiania. Spec
+      # wypisuje zmierzone wartości w logu także przy zielonym przebiegu
+      # (`[boot-timing] ...`) właśnie po to, żeby PIERWSZY przebieg CI dał
+      # podstawę do przefloorowania.
+      - name: Boot test and first-load timing on the production artifact
         run: bun run test:e2e:artifact
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}

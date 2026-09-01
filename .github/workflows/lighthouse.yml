@@ -2,8 +2,9 @@ name: Lighthouse CI
 
 on:
   # Active on PRs and pushes to main (see ci.yml). Lighthouse runs in one of two
-  # honest modes (deployed vs dev-server) depending on whether LHCI_URL is set;
-  # the concurrency group cancels superseded runs to keep Actions minutes bounded.
+  # honest modes (deployed vs production artifact) depending on whether LHCI_URL
+  # is set; the concurrency group cancels superseded runs to keep Actions minutes
+  # bounded.
   push:
     branches: [main]
   pull_request:
@@ -13,28 +14,67 @@ concurrency:
   group: lhci-${{ github.ref }}
   cancel-in-progress: true
 
-# Lighthouse runs in one of two HONEST modes, chosen by whether a real deployed
-# URL is configured in the repository variable `LHCI_URL`:
+# Lighthouse jedzie w JEDNYM z DWÓCH UCZCIWYCH TRYBÓW, wybieranym przez to, czy
+# w zmiennej repozytorium `LHCI_URL` jest prawdziwy wdrożony URL:
 #
-#   MODE A - blocking, representative (LHCI_URL is set)
-#     Audits the actual deployed SSR app at LHCI_URL and ENFORCES the budgets in
-#     lighthouserc.deployed.json (assertions are "error"; the job gates merges).
-#     This is the trustworthy gate: it measures what users actually get.
-#     To enable: set a repo variable LHCI_URL to a deployed preview/prod URL
+#   TRYB A - blokujący, reprezentatywny (LHCI_URL USTAWIONE)
+#     Audytuje faktycznie wdrożoną aplikację SSR pod LHCI_URL i WYMUSZA budżety
+#     z lighthouserc.deployed.json (asercje na `error`; job bramkuje merge).
+#     To jedyny tryb, który mierzy to, co dostają czytelnicy.
+#     Włączenie: zmienna repo LHCI_URL = URL preview/prod
 #     (Settings -> Secrets and variables -> Actions -> Variables).
 #
-#   MODE B - non-blocking smoke (LHCI_URL is empty, the default)
-#     Builds the client and audits the local `bun run preview` static server.
-#     That preview is NOT the SSR/edge runtime users hit, so its scores are not
-#     representative enough to BLOCK merges - assertions are "warn" and the step
-#     is continue-on-error. It runs purely for visibility.
+#   TRYB C - blokujący, na ARTEFAKCIE PRODUKCYJNYM (LHCI_URL PUSTE, domyślnie)
+#     Buduje artefakt `vite.smoke.config.ts` (nitro preset `node-server`, czyli
+#     `bun run build:smoke`), uruchamia go `node .output/server/index.mjs`,
+#     rozgrzewa JAWNYM UA Chrome i audytuje przez lighthouserc.json.
+#     BLOKUJE na dwóch asercjach `error` - `total-blocking-time` i
+#     `cumulative-layout-shift` - czyli na metrykach KSZTAŁTU ARTEFAKTU, dla
+#     których istnieje zmierzony zapas (TBT: mediana 101 ms wobec budżetu 300;
+#     CLS: dokładnie 0 w siedmiu przebiegach na siedem). Reszta zostaje `warn`,
+#     bo w tym środowisku dominuje ją nieosiągalny `placeholder.supabase.co` -
+#     pełne uzasadnienie i cała tabela pomiarów są w `_comment`
+#     w lighthouserc.json i to jest miejsce do czytania PRZED ruszeniem liczb.
 #
-# Either way, the always-on bundle-size budget in ci.yml is the reliable BLOCKING
-# performance floor (deterministic, no browser/server required).
+# CZEGO TU JUŻ NIE MA: TRYBU B. Do 2026-09-01 drugim trybem był smoke na
+# SERWERZE DEWELOPERSKIM (`bun run dev`), a poprzedni komentarz uzasadniał to
+# zdaniem „No build step: the production build targets the Cloudflare edge
+# runtime (a Worker) and `vite preview` is incompatible with it". Pierwsza połowa
+# tego zdania jest prawdą, druga to nie-sequitur: nieuruchamialny lokalnie jest
+# PRESET cloudflare-module, a nie „build produkcyjny". Repo ma od punktu 10
+# `vite.smoke.config.ts` z presetem `node-server` i `playwright.artifact.config.ts`,
+# który tym artefaktem jeździ - więc pomiar na czymś produkcyjnym był dostępny,
+# tylko nikt Lighthouse'a na to nie skierował. Zmierzone, ile kosztowało
+# mierzenie deva (mediany 3 przebiegów, artefakt <-> dev, ta sama maszyna):
+# TBT zawyżone 15,9x (1602 -> 101 ms), LCP 8,6x (34031 -> 3939 ms), waga bajtów
+# 9,5x (32,3 MB -> 3,4 MB), liczba żądań 9,1x (1080 -> 119); FCP ZANIŻONE 2,8x
+# (970 -> 2681 ms); `server-response-time` w zapisanym w repo wyniku CI 81x za
+# niskie (64 ms wobec 5033 ms). Dev nie potrafił nawet nazwać elementu LCP -
+# artefakt nazywa go w każdym przebiegu identycznie i jest to AKAPIT BANERA
+# COOKIE w nakładce `position: fixed`.
+#
+# TRYB A NIE URUCHOMIŁ SIĘ ANI RAZU I NIE DA SIĘ TEGO ZAMKNĄĆ Z REPO.
+# `LHCI_URL` jest ZMIENNĄ REPOZYTORIUM (`vars.*`), więc z konstrukcji nie może
+# żyć w drzewie: szukanie „LHCI_URL" w całym repo daje tylko konsumentów (ten
+# plik) i wzmianki w docs/ (m.in. docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md:265, gdzie
+# jest pozycją 7 ręcznej listy wdrożeniowej). Ani ten workflow, ani żaden agent
+# nie może jej ustawić - robi to człowiek w ustawieniach repozytorium. Dopóki
+# tego nie zrobi, TRYB C jest JEDYNYM działającym instrumentem, a wszystkie
+# liczby w lighthouserc.deployed.json są kontraktem, nie pomiarem.
+#
+# Niezależnie od trybu: zawsze włączony budżet rozmiaru bundla w ci.yml
+# (`check:bundle`) pozostaje najtwardszym, deterministycznym floorem wydajności -
+# bez przeglądarki i bez serwera.
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 20 -> 30 min. TRYB C robi PEŁNY build artefaktu (`build:smoke`), a ci.yml
+    # zmierzył jego koszt na tym samym runnerze: >= 3 min 30 s, plus Chromium
+    # ~40 s, plus instalacja ~15 s. Do tego 6 przebiegów Lighthouse'a
+    # (2 URL-e x numberOfRuns 3) po stronie z TTFB ~5 s. 20 minut było policzone
+    # pod smoke bez builda; przy limicie GitHub raportuje job jako `cancelled`,
+    # nie `failure`, więc wyczerpanie limitu nie wygląda nawet na awarię bramki.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -42,13 +82,13 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # ---- MODE A: real deployed URL configured -> blocking gate ----
-      # LHCI_URL audits the homepage. The optional repo variable LHCI_EXTRA_PATHS
-      # (comma-separated paths, e.g. "/blog,/category/gospodarka") extends the
-      # blocking audit beyond the homepage - an article and an archive page have
-      # different perf profiles (cover LCP, ad zones, list grids), and a gate
-      # that only ever sees "/" misses regressions on the surfaces readers
-      # actually spend time on. Every URL must pass the same error-level budgets.
+      # ---- TRYB A: prawdziwy wdrożony URL -> bramka blokująca ----
+      # LHCI_URL audytuje stronę główną. Opcjonalna zmienna repo LHCI_EXTRA_PATHS
+      # (ścieżki po przecinku, np. "/blog,/category/gospodarka") rozszerza audyt
+      # blokujący poza stronę główną - artykuł i archiwum mają inne profile
+      # (LCP okładki, strefy reklamowe, siatki list), a bramka, która widzi tylko
+      # "/", nie zobaczy regresji na powierzchniach, na których czytelnicy
+      # spędzają czas. Każdy URL przechodzi te same budżety na poziomie `error`.
       - name: Lighthouse against deployed URL (blocking)
         if: ${{ vars.LHCI_URL != '' }}
         run: |
@@ -62,84 +102,27 @@ jobs:
           done
           bunx @lhci/cli@0.15.x autorun "${flags[@]}"
 
-      # ---- MODE B: no deployed URL -> non-blocking local-preview smoke ----
-      # See ci.yml: the committed bun.lock pins tarballs to the build platform's private GAR
-      # cache; repoint to the public npm registry for CI (edit is never committed).
+      # ---- TRYB C: brak wdrożonego URL-a -> pomiar na artefakcie produkcyjnym ----
+      # Ten sam repoint co w ci.yml: `bun.lock` przypina tarbally do prywatnego
+      # cache GAR, nieosiągalnego z publicznego CI. Edycja wyłącznie w CI, nigdy
+      # commitowana.
       - name: Repoint lockfile to the public npm registry
         if: ${{ vars.LHCI_URL == '' }}
         run: |
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
+      # `--frozen-lockfile` doszło razem z buildem: ten job stawia teraz floory
+      # z liczb zmierzonych NA RUNNERZE, a build z innych wersji zależności daje
+      # inny podział chunków (udokumentowana w scripts/check-bundle-size.ts
+      # rozbieżność host <-> runner). Bez tej flagi log z tego joba przestaje być
+      # podstawą ratchetu. Ta sama kolejność (sed, potem `--frozen-lockfile`)
+      # jedzie w jobie `build` w ci.yml.
       - name: Install dependencies
         if: ${{ vars.LHCI_URL == '' }}
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      # No build step: the production build targets the Cloudflare edge runtime (a
-      # Worker) and `vite preview` is incompatible with it, so the smoke drives the
-      # app via the dev server (see lighthouserc.json startServerCommand). Scores
-      # are "warn" - dev-mode numbers aren't representative enough to block - but
-      # the step is NOT continue-on-error, so a broken Lighthouse setup fails
-      # VISIBLY instead of silently passing. Real a11y enforcement lives in the
-      # axe unit tests (ci.yml, blocking); the deployed-URL mode above is the
-      # representative blocking gate for perf/a11y/SEO.
-      #
-      # 2026-08-12: this smoke started failing on a Chrome DevTools RUNTIME error,
-      # not on an assertion: "Waiting for DevTools protocol response has exceeded
-      # the allotted time. (Method: Network.getResponseBody)". It fired on a commit
-      # whose entire diff was a CI script the browser never loads, so the change
-      # could not have caused it, and the same config + the same Chrome passes
-      # locally - i.e. it is a runner-side timeout, not a regression.
-      # `lighthouserc.json` therefore skips the audits that pull the BODY OF EVERY
-      # RESPONSE, because the Vite dev server serves several hundred separate ESM
-      # modules instead of a few bundles. Nothing of value is lost - on
-      # unminified, unbundled dev output those audits measure the dev server, not
-      # the product - and MODE A above keeps them in full against the real
-      # artifact. No assertion was weakened.
-      #
-      # The first attempt at this list FAILED and the reason is worth keeping:
-      # it named only the pre-12.x audit ids (`duplicated-javascript`,
-      # `legacy-javascript`), while Lighthouse 12 runs `-insight` VARIANTS of the
-      # same audits, which kept fetching bodies. The log also ends the failing run
-      # at "Generating results...", i.e. inside `script-treemap-data` - the report
-      # gatherer that fetches every script body. Both are now on the list.
-      #
-      # The trace-parser failure that motivated the pin below is GONE once the
-      # pinned Chromium is used: no more "SyntheticEventsManager" warnings and no
-      # more `Network.getResponseBody` runtime error in the log. What surfaced
-      # next was the pinned browser CRASHING at launch ("Unable to connect to
-      # Chrome", stack trace from .cache/ms-playwright/chromium-*/chrome), which
-      # is the usual CI sandbox/shm problem - hence the `chromeFlags` in
-      # lighthouserc.json (`--no-sandbox --disable-dev-shm-usage`), the same two
-      # flags this smoke needs to run locally.
-      #
-      # That value MUST be a STRING under `collect.settings.chromeFlags`. Both
-      # other spellings were tried and both are silently ignored by this LHCI
-      # version - an ARRAY in the same place, and a string under
-      # `collect.chromeFlags` - each leaving "Unable to connect to Chrome" with no
-      # hint that the flags never arrived. Verified locally: the string form runs
-      # to completion, the other two do not.
-      #
-      # With Chrome finally launching cleanly, the log stopped guessing and named
-      # the actual chain - and it was NOT the audit list I had been trimming:
-      #   * the dev server needed 53 s for the first load (17:46:06 -> 17:47:00);
-      #     Vite compiles several hundred modules on a 2-core runner
-      #     (benchmarkIndex 2434),
-      #   * the test URL "/" REDIRECTS to "/en", and Lighthouse says so itself in
-      #     a runWarning: "Try testing the second URL directly",
-      #   * the trace came back without a navigation start (NO_NAVSTART), which is
-      #     what every one of those ~15 gatherer warnings actually descends from,
-      #   * the timing-out gatherer was ResponseCompression
-      #     ("ResponseCompression:error PROTOCOL_TIMEOUT" immediately followed by
-      #     the burst of Network.getResponseBody errors) - i.e.
-      #     `uses-text-compression`, which was never on the skip list.
-      # So lighthouserc.json now audits /en directly, skips
-      # `uses-text-compression` (meaningless on an uncompressed dev server), and
-      # raises maxWaitForLoad to 120 s because 60 s was within seconds of that
-      # measured 53 s cold compile. If it STILL fails, the next step is to stop
-      # letting LHCI cold-start the server: start the dev server in its own step,
-      # curl /en once to force the compile, and point LHCI at the warm server.
       # Chrome PRZYPIĘTY do buildu Playwrighta, nie do tego, co runner ma
       # zainstalowane. Powód jest zmierzony: smoke padał serią ~15 ostrzeżeń
       # „Attempted to get a SyntheticEventsManager without initializing" i błędem
@@ -147,8 +130,8 @@ jobs:
       # radził sobie z buildem Chrome runnera. Ta sama konfiguracja i ten sam
       # Lighthouse przechodzą na Chromium Playwrighta (sprawdzone lokalnie,
       # exit 0). Playwright jest już zależnością tego repo i tak samo instaluje
-      # przeglądarkę w `e2e.yml`, więc nie dokładamy ani zależności, ani
-      # zewnętrznej akcji - używamy przeglądarki, którą repo i tak przypina.
+      # przeglądarkę w `e2e.yml` oraz w jobie `build` w ci.yml, więc nie
+      # dokładamy ani zależności, ani zewnętrznej akcji.
       - name: Install pinned Chromium for Lighthouse
         if: ${{ vars.LHCI_URL == '' }}
         run: bunx playwright install --with-deps chromium
@@ -169,11 +152,106 @@ jobs:
             echo "UWAGA: nie znaleziono Chromium Playwrighta w $root - Lighthouse uzyje Chrome runnera."
           fi
 
-      - name: Lighthouse smoke on dev server (scores advisory; the run must succeed)
+      # `vite.smoke.config.ts` = ten sam config co produkcyjny, z jedną różnicą:
+      # nitro celuje w `node-server` zamiast `cloudflare-module`, więc artefakt
+      # jest zwykłym serwerem Node i `node .output/server/index.mjs` go
+      # uruchamia. Artefakt cloudflare'owy eksportuje moduł workera z
+      # `fetch(req, env, ctx)` i `node` go nie odpali - dlatego smoke config
+      # w ogóle istnieje.
+      #
+      # KOLEJNOŚĆ W CI.YML JEST KONTRAKTEM, TU NIE MA Z CZYM KOLIDOWAĆ:
+      # `build:smoke` NADPISUJE `.output/`, więc w jobie `build` w ci.yml musi
+      # biec PO `check:bundle`/`check:chunks`/`check:entry-purity`, które mierzą
+      # artefakt cloudflare'owy. W TYM jobie nie ma żadnej bramki na artefakcie
+      # cloudflare'owym, więc smoke build jest jedynym buildem i nic nie
+      # nadpisuje.
+      - name: Build production artifact for a node server (smoke preset)
         if: ${{ vars.LHCI_URL == '' }}
-        run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json
+        run: bun run build:smoke
         env:
+          # Zaślepki, żeby Vite miał zdefiniowane VITE_* w czasie builda; realne
+          # wartości przychodzą z sekretów projektu w środowiskach wdrożeniowych.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+
+      # SERWER PODNOSI TEN KROK, A NIE `startServerCommand` W CONFIGU - I TO NIE
+      # JEST PREFERENCJA. Rozgrzewka MUSI wysłać jawny User-Agent Chrome:
+      # isbot@5.1.39 ocenia domyślny UA `curl` („curl/x.y") jako BOTA, a
+      # @tanstack/react-router dla bota renderuje INNĄ gałąź
+      # (renderRouterToStream.tsx:67-69 `await stream.allReady` / :161
+      # `onAllReady`) niż dla przeglądarki (:166 `onShellReady`) - i zapisuje to
+      # inne ciało w cache dokumentu. Rozgrzewka bare-curlem rozgrzałaby więc
+      # ścieżkę, której Lighthouse NIE mierzy (Lighthouse 12 nadpisuje UA strony
+      # emulowanym Chrome, dla którego isbot() = false; sprawdzone). Tego
+      # `startServerCommand` nie umie wyrazić. Sama poprzednia wersja tego pliku
+      # zapowiadała ten krok: „stop letting LHCI cold-start the server: start the
+      # dev server in its own step, curl /en once to force the compile" - ale bez
+      # uwagi o UA ta recepta rozgrzewałaby złą gałąź.
+      #
+      # Pętla gotowości jest jednocześnie rozgrzewką: pierwsze żądanie do zimnego
+      # artefaktu z zaślepkami Supabase idzie przez pełne budżety loaderów
+      # (zmierzone TTFB ~5 s na /en, ~8 s na /blog), a `[ssr-query-timeout]`
+      # w logu serwera jest wtedy OCZEKIWANY, nie awaryjny.
+      # PORT/HOST/NITRO_PORT/NITRO_HOST są ustawione W LINII `run`, a nie w bloku
+      # `env:` - świadomie. Bramka kontraktu env (`bun run check:workflow-env`,
+      # src/lib/ci/workflowEnvContract.ts) wymaga, by każda zmienna eksportowana
+      # przez workflow miała odbiorcę W KODZIE REPO albo wpis w `TOOL_CONSUMED`.
+      # Te cztery czyta wyłącznie serwer nitro, więc w `env:` byłyby „martwym
+      # eksportem" - a rozszerzanie `TOOL_CONSUMED` dla jednego kroku jest
+      # gorsze niż podanie ich tam, gdzie faktycznie działają. To ta sama para
+      # portów, którą `playwright.artifact.config.ts` podaje w `webServer.env`.
+      - name: Start the production artifact and warm it with a Chrome UA
+        if: ${{ vars.LHCI_URL == '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+        run: |
+          PORT=4173 HOST=127.0.0.1 NITRO_PORT=4173 NITRO_HOST=127.0.0.1 \
+            node .output/server/index.mjs > artifact-server.log 2>&1 &
+          echo "$!" > artifact-server.pid
+          ua='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          code=""
+          for _ in $(seq 1 45); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' -A "$ua" --max-time 60 http://127.0.0.1:4173/en || true)"
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          echo "rozgrzewka /en -> HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "ARTEFAKT NIE ODPOWIEDZIAL 200 NA /en - ostatnie 60 linii logu serwera:"
+            tail -n 60 artifact-server.log || true
+            exit 1
+          fi
+          # Drugi cel audytu rozgrzewamy tym samym UA - inaczej pierwszy przebieg
+          # Lighthouse'a na /blog zmierzyłby zimny loader, a nie stronę.
+          curl -s -o /dev/null -A "$ua" --max-time 120 http://127.0.0.1:4173/blog || true
+          echo "rozgrzewka /blog zakonczona"
+
+      # Krok NIE jest `continue-on-error`: dwie asercje w lighthouserc.json są na
+      # poziomie `error` (TBT, CLS), więc ta bramka BLOKUJE - a poza tym zepsuta
+      # konfiguracja Lighthouse'a ma padać WIDOCZNIE, nie przechodzić po cichu.
+      - name: Lighthouse on the production artifact (TBT and CLS are blocking)
+        if: ${{ vars.LHCI_URL == '' }}
+        run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json
+
+      # Log z RUNNERA jest jedyną podstawą do zaciśnięcia floorów (reguła
+      # ratchetu z `_comment` w lighthouserc.json i FROZEN_BUDGET_KB
+      # w scripts/check-bundle-size.ts: floor stawia się z liczby zmierzonej na
+      # runnerze, nie na hoście). Bez tego artefaktu każde kolejne dotknięcie
+      # tych liczb byłoby znowu zgadywaniem.
+      - name: Upload Lighthouse reports and the artifact server log
+        if: ${{ vars.LHCI_URL == '' && !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-production-artifact
+          path: |
+            .lighthouseci/
+            artifact-server.log
+          if-no-files-found: warn
+
+      - name: Stop the production artifact
+        if: ${{ always() && vars.LHCI_URL == '' }}
+        run: |
+          [ -f artifact-server.pid ] && kill "$(cat artifact-server.pid)" 2>/dev/null || true

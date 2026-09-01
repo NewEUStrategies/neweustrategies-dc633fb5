@@ -1,19 +1,50 @@
 {
   "ci": {
+    "_comment": [
+      "TRYB A - BLOKUJĄCA BRAMKA NA WDROŻONYM URL-u. Kontrakt pomiarowy; przeczytaj PRZED zmianą jakiejkolwiek liczby niżej.",
+      "",
+      "STAN FAKTYCZNY, KTÓRY TRZEBA POWIEDZIEĆ WPROST: TEN PLIK NIE URUCHOMIŁ SIĘ ANI RAZU. Krok „Lighthouse against deployed URL (blocking)\" w .github/workflows/lighthouse.yml jest bramkowany przez `vars.LHCI_URL`, czyli ZMIENNĄ REPOZYTORIUM GitHuba. Takiej zmiennej nie da się ustawić z repo - z definicji nie istnieje w drzewie. Wyszukanie „LHCI_URL\" w całym repozytorium daje wyłącznie KONSUMENTÓW (`vars.LHCI_URL` w tym workflow) i wzmianki w docs/; nie ma jej ani w .env.example, ani w ci.yml, ani nigdzie indziej. Ustawia ją człowiek w Settings -> Secrets and variables -> Actions -> Variables (pozycja 7 listy w docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md:265) albo nikt. WNIOSEK: KAŻDA liczba wydajnościowa, jaką to repo kiedykolwiek wyprodukowało, pochodzi z serwera DEWELOPERSKIEGO. Dopóki ktoś nie ustawi LHCI_URL, ten plik jest kontraktem, nie pomiarem, a instrumentem jest TRYB C w lighthouserc.json (artefakt produkcyjny).",
+      "",
+      "DLACZEGO TEN KLUCZ TAK WYGLĄDA. `_comment` jest przez LHCI IGNOROWANY - `loadAndParseRcFile` (@lhci/utils/src/lighthouserc.js) zwraca wyłącznie `aggregationMethod`, `assertions`, `numberOfRuns`, `settings` i `target`; sprawdzone uruchomieniem na tym pliku. Komentarza `//` tu być NIE MOŻE: lighthouserc.js:88 parsuje `.json` przez `JSON.parse`, który rzuca i na `//`, i na `/* */` (tylko `.yml`/`.yaml` idą przez js-yaml, linia 84).",
+      "",
+      "KTÓRĄ ŚCIEŻKĘ SSR OPISUJĄ TE LICZBY. Lighthouse 12.x nadpisuje User-Agent strony swoim emulowanym (lighthouse/core/config/constants.js:41-42), desktop: „Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36\". isbot@5.1.39 zwraca dla niego FALSE - sprawdzone uruchomieniem; token „ Chrome-Lighthouse\" zniknął po Lighthouse 9 i w pakiecie 12.6.1 jest już tylko w changelog-pre10.md. WNIOSEK: te budżety mierzą ŚCIEŻKĘ STRUMIENIOWĄ @tanstack/react-router (renderRouterToStream.tsx:166 `onShellReady`). Ścieżka BUFOROWANA (:67-69 `if (isbot(...)) await waitForReadyOrAbort(stream.allReady, ...)` i :161 `onAllReady`) - to, co dostają Googlebot, monitoring na HeadlessChrome i healthchecki `curl` - NIE jest mierzona przez nic w tym repo. Kto chce na nią budżet, dokłada drugi URL zbierany z jawnym UA bota.",
+      "",
+      "SPÓJNOŚĆ ZESTAWU - TO BYŁ DEFEKT TEGO PLIKU, NIE JEGO OSTROŚĆ. Poprzedni zestaw (LCP 2500, TBT 300, SI 3400, CLS 0,1, FCP niezabramkowane) był wewnętrznie sprzeczny z asercją `categories:performance >= 0,8` stojącą CZTERY LINIE WYŻEJ. Policzone lighthouse'owym `getLogNormalScore` po krzywych desktopowych czytanych z core/audits/metrics/*.js (LCP p10=1200 median=2400; TBT 150/350; SI 1311/2300; FCP 934/1600; CLS 0,1/0,25) i wagach kategorii z LHR (FCP 10, SI 10, LCP 25, TBT 30, CLS 25): przebieg spełniający WSZYSTKIE CZTERY budżety DOKŁADNIE dawał `categories:performance` 0,59-0,63, więc padał na linii wyżej, a żadna asercja metryczna nie zdążyła wskazać winnego. Cztery bramki metryczne były MARTWYM BALASTEM: luźniejsze od bramki kategorii, więc niezdolne kiedykolwiek zadziałać pierwsze.",
+      "MODEL JEST SPRAWDZONY, NIE ZGADYWANY: tą samą funkcją odtworzyłem 0,6032 dla zmierzonych median artefaktu (LCP 3939, TBT 101, SI 4495, CLS 0, FCP 2681) i 0,3428 dla median dev-servera (34031, 1602, 6113, 0, 970) - Lighthouse zaraportował odpowiednio 0,60 i 0,34.",
+      "",
+      "SKĄD BIORĄ SIĘ LICZBY NIŻEJ. NIE są zmierzone (patrz akapit pierwszy - nie ma z czego) i NIE są ambicjami. Są WYPROWADZONE z jedynego progu, który w tym pliku był już zacommitowany i którego nie wolno obniżyć: `categories:performance >= 0,8`. Każdy budżet metryczny stoi na WŁASNYM punkcie 0,80 krzywej desktopowej Lighthouse'a, więc zestaw jest teraz WARUNKIEM WYSTARCZAJĄCYM dla bramki kategorii:",
+      "  FCP 1100 -> 0,8138 (waga 10);  SI 1600 -> 0,7960 (10);  LCP 1500 -> 0,8076 (25);  TBT 200 -> 0,8013 (30);  CLS 0,10 -> 0,9000 (25)",
+      "  categories:performance przy DOKŁADNYM spełnieniu wszystkich pięciu = 0,8283, czyli 0,0283 nad progiem.",
+      "Skutek: bramka kategorii NIE MOŻE już paść, gdy wszystkie bramki metryczne przechodzą, a jej upadek ZAWSZE wskazuje co najmniej jedną metrykę po nazwie.",
+      "`first-contentful-paint` MUSIAŁ dojść, żeby to zdanie było prawdziwe: przy FCP niezabramkowanym najgorszy przypadek „wszystkie pozostałe przechodzą\" to 0,7469, czyli poniżej 0,8.",
+      "KOSZT TEJ SPÓJNOŚCI, POWIEDZIANY WPROST: zestaw jest teraz OSTRZEJSZY, nie tylko zgodny. Przebieg z `categories:performance` 0,85 może paść na pojedynczej metryce (np. LCP 1600 nadrobione świetnym TBT). To decyzja projektowa, nie efekt ubóczny: budżety metryczne są tu FLOORAMI, a nie tylko diagnostyką kategorii.",
+      "ŻADNA LICZBA NIE ZOSTAŁA ROZLUŹNIONA. LCP 2500 -> 1500, TBT 300 -> 200, SI 3400 -> 1600 to ZACIEŚNIENIA; CLS 0,1 bez zmian; wszystkie cztery progi kategorii bez zmian; FCP i server-response-time to NOWE asercje tam, gdzie nie było żadnej.",
+      "",
+      "JEDYNA LICZBA Z INNEGO ŹRÓDŁA: `server-response-time` 600 ms to własna stała Lighthouse'a (core/audits/server-response-time.js:26 TOO_SLOW_THRESHOLD_MS - „we set our failure threshold to 600ms to avoid those false positives but we want devs to shoot for 100ms\"). Nie było jej w ŻADNYM z dwóch configów, a to najużyteczniejsza bramka, jaką ta aplikacja może mieć: to dokładnie ta metryka, którą smoke na dev-serverze podawał 81x za nisko (64 ms w zapisie CI wobec 5033 ms zmierzonych na artefakcie produkcyjnym). Zmierzone na artefakcie 5033 ms to NIE latencja sieci, a 22 wystąpienia `[ssr-query-timeout] query exceeded 5000ms during SSR and was cancelled` - w tym sandboksie z powodu nieosiągalnego `placeholder.supabase.co`. Jeśli pierwszy prawdziwy przebieg pokaże, że 600 ms jest na tej platformie nieosiągalne, decyzja o ruszeniu tej liczby NALEŻY DO CZŁOWIEKA - progi w tym repo wolno wyłącznie zacieśniać.",
+      "",
+      "DLACZEGO `categories:seo 0,9` ZOSTAJE `error` WŁAŚNIE TUTAJ. Na 127.0.0.1 jest niespełnialne z konstrukcji (zmierzone 0,58 i w dev, i na artefakcie: `is-crawlable` blokuje dyrektywa z /robots.txt, bo src/lib/seo/robots.ts:150 wystawia `X-Robots-Tag: noindex, nofollow` dla klasy hostów nieindeksowalnych, a `canonical` dostaje „Multiple conflicting URLs (https://127.0.0.1:..., http://127.0.0.1:...)\"). Ten plik celuje w PRAWDZIWY host HTTPS, gdzie obie przyczyny znikają - dlatego tu `error`, a w lighthouserc.json `warn`.",
+      "",
+      "DLACZEGO `aggregationMethod: median`. Domyślną wartością @lhci/utils/src/assertions.js:139 jest `optimistic`, a linia 65 sprowadza ją dla asercji `max*` do MINIMUM z przebiegów (dla `min*` do maksimum) - czyli najlepszy z trzech, co przy `numberOfRuns: 3` ukrywało cały wolny ogon. Zmierzone na tej aplikacji: trzy kolejne przebiegi po tym samym serwerze dały LCP 1050 / 34031 / 34142 ms; `optimistic` zaraportowałoby 1050. `median` jest jednostronnie ostrzejsza od `optimistic`.",
+      "",
+      "RATCHET - reguła identyczna jak FROZEN_BUDGET_KB w scripts/check-bundle-size.ts. Pierwszy przebieg z ustawionym LHCI_URL jest JEDYNYM momentem, w którym te liczby wolno skonfrontować z rzeczywistością; wynik zapisz tu (wartość, URL, data, runner) i od tego zaciskaj. Rozluźnianie jest zabronione - jeśli pomiar nie mieści się w zestawie, to jest zadanie dla punktów naprawczych 1-6, nie dla tego pliku."
+    ],
     "collect": {
       "numberOfRuns": 3,
       "settings": { "preset": "desktop" }
     },
     "assert": {
+      "aggregationMethod": "median",
       "assertions": {
         "categories:performance": ["error", { "minScore": 0.8 }],
         "categories:accessibility": ["error", { "minScore": 0.9 }],
         "categories:seo": ["error", { "minScore": 0.9 }],
         "categories:best-practices": ["error", { "minScore": 0.9 }],
-        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "largest-contentful-paint": ["error", { "maxNumericValue": 1500 }],
         "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
-        "total-blocking-time": ["error", { "maxNumericValue": 300 }],
-        "speed-index": ["error", { "maxNumericValue": 3400 }]
+        "total-blocking-time": ["error", { "maxNumericValue": 200 }],
+        "speed-index": ["error", { "maxNumericValue": 1600 }],
+        "first-contentful-paint": ["error", { "maxNumericValue": 1100 }],
+        "server-response-time": ["error", { "maxNumericValue": 600 }]
       }
     },
     "upload": { "target": "temporary-public-storage" }
