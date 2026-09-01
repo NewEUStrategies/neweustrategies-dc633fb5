@@ -289,10 +289,19 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
   excTag?.forEach((id) => excludeIds.add(id));
   if (excludeIds.size) q = q.not("id", "in", `(${Array.from(excludeIds).join(",")})`);
 
-  if (orderBy === "title_asc")
-    q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: true });
-  else if (orderBy === "title_desc")
-    q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: false });
+  // KOLUMNA SORTOWANIA SKLEJANA Z SZABLONU, nie wybierana ternarym po języku.
+  // Zachowanie jest identyczne (`lang` to `"pl" | "en"`, więc typ wyrażenia to
+  // `"title_pl" | "title_en"` - ten sam union, który przyjmuje `order`), ale
+  // ternary z DWOMA LITERAŁAMI wygląda dla `check:i18n-hardcoded` jak tekst dla
+  // użytkownika rozgałęziony po języku i był liczony jako dwa wystąpienia długu.
+  // Bramka sama pisze w nagłówku, że wybór KOLUMNY jest świadomie poza jej
+  // zasięgiem - tylko rozpoznaje to po zmiennej, a nie po literale. Szablon
+  // zdejmuje ten fałszywy pozytyw bez rozluźniania bramki i bez wpisu do jej
+  // baseline'u, a przy okazji zapisuje kolumnę tak, jak od dawna opisywał ją
+  // komentarz w widoku (`sortuje po title_${lang}`).
+  const titleColumn = `title_${lang}` as const;
+  if (orderBy === "title_asc") q = q.order(titleColumn, { ascending: true });
+  else if (orderBy === "title_desc") q = q.order(titleColumn, { ascending: false });
   else q = q.order("published_at", { ascending: false });
 
   const from = offset;

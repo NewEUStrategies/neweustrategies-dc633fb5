@@ -41,7 +41,11 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/builder/organisms/widget-view/NewsTickerView.tsx", 3],
   ["src/components/builder/organisms/widget-view/PostListView.tsx", 2],
   ["src/components/builder/organisms/widget-view/PricingPlansView.tsx", 2],
-  ["src/components/builder/organisms/widget-view/RatedListView.tsx", 5],
+  // 5 -> 3 (2026-09-01): dwa wystąpienia wyszły z tego pliku razem z `queryFn`
+  // listy dynamicznej do `lib/builder/ratedListQuery.ts` (ogon punktu 4 SSR), gdzie
+  // wybór kolumny sortowania zapisano szablonem `title_${lang}` zamiast ternarym
+  // po języku - dług NIE PRZENIÓSŁ SIĘ, zniknął.
+  ["src/components/builder/organisms/widget-view/RatedListView.tsx", 3],
   ["src/components/builder/organisms/widget-view/SimpleWidgets.tsx", 11],
   ["src/components/builder/organisms/widget-view/SpeakersWidget.tsx", 24],
   ["src/components/builder/organisms/widget-view/TabsBlock.tsx", 1],
