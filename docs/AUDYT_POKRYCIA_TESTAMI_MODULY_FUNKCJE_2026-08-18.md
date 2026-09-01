@@ -1759,7 +1759,7 @@ Rozbijam to na pięć osobnych ocen, bo jedna liczba tego nie opisuje:
    (w tym META-bramka „bramka, która istnieje, musi się uruchamiać”), 100 plików pgTAP
    z 1 807 asercjami na RLS i RPC, klasyfikacja testów na jedenaście rodzajów — a w tym wydaniu
    szósta warstwa dowodu urosła: **5 uprzęży** replayu migracji z 1 547
-   asercjami runtime, z czego 1 050 w uprzęży wydarzeń. Piąta jest nowa w tym wydaniu
+   asercjami runtime, z czego 1 050 w uprzęży wydarzeń. Piąta powstała w wydaniu 7
    (`tenant-isolation-harness`) i powstała, bo polityki właścicielskie trzech tabel bramkowały
    wyłącznie `user_id`, mimo `NOT NULL tenant_id` — wiersz z jednego obszaru roboczego był
    czytelny i edytowalny z innego, a `WITH CHECK` pozwalał ZAPISAĆ wiersz do cudzego.
