@@ -11180,6 +11180,7 @@ export type Database = {
           position: number
           ref_id: string | null
           target: string
+          visibility: string
           updated_at: string
         }
         Insert: {
@@ -11198,6 +11199,7 @@ export type Database = {
           position?: number
           ref_id?: string | null
           target?: string
+          visibility?: string
           updated_at?: string
         }
         Update: {
@@ -11216,6 +11218,7 @@ export type Database = {
           position?: number
           ref_id?: string | null
           target?: string
+          visibility?: string
           updated_at?: string
         }
         Relationships: [

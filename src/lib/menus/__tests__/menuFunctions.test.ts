@@ -38,6 +38,7 @@ function itemRow(over: Record<string, unknown> = {}) {
     href: "/blog",
     target: "_self",
     css_class: "",
+      visibility: "all" as const,
     icon: null,
     mega_enabled: false,
     mega_config: DEFAULT_MEGA_CONFIG,
@@ -140,6 +141,7 @@ describe("fetchMenuWithItems", () => {
       href: "",
       target: "_self",
       css_class: "",
+      visibility: "all" as const,
       icon: "",
       mega_enabled: false,
     });
@@ -228,6 +230,7 @@ function input(items: Partial<MenuItemInput>[]): SaveMenuInput {
       href: "/",
       target: "_self",
       css_class: "",
+      visibility: "all" as const,
       icon: "",
       mega_enabled: false,
       mega_config: DEFAULT_MEGA_CONFIG,

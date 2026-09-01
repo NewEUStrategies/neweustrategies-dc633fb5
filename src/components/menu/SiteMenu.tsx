@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { AppLink } from "@/components/atoms/AppLink";
+import { useAuth } from "@/hooks/useAuth";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
 import { MegaPanelView } from "@/components/menu/MegaPanelView";
@@ -20,6 +21,7 @@ import { MegaPanelView } from "@/components/menu/MegaPanelView";
 // ten plik jest kompozycją nagłówka, nie miejscem na logikę.
 import {
   buildPublicMenuTree,
+  filterMenuItemsForViewer,
   hasPanel,
   megaColumnsFor,
   megaPanelHasContent,
@@ -449,7 +451,12 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 
 function SiteMenuImpl({ menuKey, lang, mobile }: Props) {
   const { data, isPending } = useQuery(menuWithItemsQueryOptions(menuKey || "main"));
-  const items = data?.items ?? [];
+  // Widoczność per stan zalogowania (np. „Zarejestruj się" tylko dla gości).
+  // Sesja na SSR i w PIERWSZYM renderze klienta jest `null`, więc znacznik
+  // serwera zgadza się z hydratacją, a pozycje tylko-dla-zalogowanych
+  // pojawiają się po rozwiązaniu sesji.
+  const { session } = useAuth();
+  const items = filterMenuItemsForViewer(data?.items ?? [], Boolean(session));
   const tree = buildPublicMenuTree(items);
 
   if (tree.length === 0) {
