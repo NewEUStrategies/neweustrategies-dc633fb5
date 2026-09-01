@@ -170,17 +170,49 @@ const MAX_READY_MS = 6_000;
  */
 const MAX_BOOT_JS_TRANSFER_KB = 3_000;
 
-// ── ZMIERZONE WARTOŚCI BAZOWE (host deweloperski, NIE runner) ───────────────
+// ── ZMIERZONE WARTOŚCI BAZOWE - HOST I RUNNER ──────────────────────────────
 // Wpisane jako komentarz, nie jako asercja: to punkt odniesienia dla następnej
-// osoby, która będzie te progi zacieśniać. Nie wolno ich zamienić w bramkę,
-// bo runner ma inne liczby i nikt ich jeszcze nie widział.
+// osoby, która będzie te progi zacieśniać.
+//
+// PIERWSZY POMIAR Z RUNNERA GITHUBA (2026-09-01, przebieg 33512138238, job
+// `build`, head `71b5dc8` - pierwszy przebieg, w którym ten krok w ogóle się
+// wykonał; wcześniej był SKIPPED za czerwoną bramką bundla):
+//
+//   [boot-timing] TTFB=5030.1ms ready=356ms (exact=true)
+//                 bootJS=2562.8KB/66 (statyczne 1982.3KB/12 + dynamiczne 580.5KB/54)
+//                 decoded=2543.5KB (x0.99) FCP=5272.0ms
+//
+//   POMIAR    RUNNER       PRÓG        KROTNOŚĆ ZAPASU
+//   TTFB      5030,1 ms    8000 ms     1,59x
+//   READY       356   ms   6000 ms    16,9x
+//   bootJS    2562,8 KB    3000 KB     1,17x
+//   FCP       5272,0 ms    brak        -
+//
+// DWA WNIOSKI Z TEGO POMIARU, oba nieoczywiste przed nim:
+//
+// 1. RUNNER JEST SZYBSZY OD HOSTA, nie wolniejszy - gotowość 356 ms wobec
+//    461-616 ms. Zakładałem odwrotnie, stawiając progi „z zapasem na wolniejszy
+//    runner"; dla dwóch metryk czasowych zapas okazał się jeszcze większy.
+//
+// 2. I WŁAŚNIE DLATEGO TRANSFER WYSZEDŁ WYŻSZY: 2562,8 KB wobec 2270-2294 KB
+//    na hoście. Wiadro STATYCZNE jest praktycznie identyczne (1982,3 KB/12 vs
+//    1965,9 KB/12), a cała różnica siedzi w DYNAMICZNYM: 580,5 KB w 54 plikach
+//    wobec 304,1 KB w 21. Szybsza maszyna zdąża dociągnąć więcej leniwych
+//    chunków PRZED flagą gotowości, więc ta metryka rośnie ze SZYBKOŚCIĄ
+//    MASZYNY, a nie z wagą artefaktu.
+//    KONSEKWENCJA DLA PROGU: `MAX_BOOT_JS_TRANSFER_KB` ZOSTAJE na 3000 i NIE
+//    jest zacieśniany, choć zapas spadł z zaprojektowanych 1,31x do 1,17x.
+//    Zacieśnienie karałoby za szybszy runner, czyli mierzyłoby nie to, co ma.
+//    Metryką, która pilnuje WAGI artefaktu, jest floor `boot` w
+//    `scripts/check-bundle-size.ts` (domknięcie statyczne, gzip) - i wiadro
+//    statyczne tego pomiaru potwierdza go niezależnie, bo jest stałe.
 //
 // 2026-09-01, artefakt `vite.smoke.config.ts`, `/cookies`, zaślepki Supabase.
 // SZEŚĆ przebiegów (trzy razy sam ten plik, trzy razy pełne `test:e2e:artifact`),
 // podane jako ZAKRESY, bo pojedyncza wartość udawałaby powtarzalność, której
 // tu nie ma:
 //
-//   POMIAR    ZAKRES Z 6 PRZEBIEGÓW        PRÓG        KROTNOŚĆ ZAPASU
+//   POMIAR    ZAKRES Z 6 PRZEBIEGÓW (HOST)  PRÓG       KROTNOŚĆ ZAPASU
 //   TTFB      5075,6 - 5194,9 ms           8000 ms     1,54x
 //   READY      461   -  616   ms           6000 ms     9,7x
 //   bootJS    2270,1 - 2294,2 KB           3000 KB     1,31x

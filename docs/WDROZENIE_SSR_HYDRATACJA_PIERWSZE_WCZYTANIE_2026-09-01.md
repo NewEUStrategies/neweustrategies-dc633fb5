@@ -658,9 +658,41 @@ rozszerzeniu `.js`, z rozbiciem statyczne/dynamiczne - i to rozbicie jest przy
 okazji najlepszą dostępną miarą szumu: wiadro statyczne to 1965,9 KB w 12
 plikach, IDENTYCZNE co do 0,1 KB we wszystkich sześciu przebiegach.
 
-**Czego ten punkt NIE dowozi:** ani jednej liczby z runnera GitHuba (pierwszy
-przebieg CI jest podstawą do przefloorowania - spec wypisuje `[boot-timing] ...`
-także na zielono właśnie po to), LCP/CLS/TBT bez Lighthouse'a (wymagają
+### Punkt 11 - PIERWSZY POMIAR Z RUNNERA (dopisane po przebiegu CI)
+
+Krok wykonał się na runnerze GitHuba po naprawie warunków `if:` (rozdz. 3.3) -
+przebieg 33512138238, job `build`, head `71b5dc8`. **Oba specy artefaktowe
+przeszły**, a spec wypisał liczby, na które kronika kazała czekać:
+
+```
+[boot-timing] TTFB=5030.1ms ready=356ms (exact=true)
+              bootJS=2562.8KB/66 (statyczne 1982.3KB/12 + dynamiczne 580.5KB/54)
+              decoded=2543.5KB (x0.99) FCP=5272.0ms
+```
+
+| pomiar              | host (6 przebiegów) | **runner**    | próg    | zapas na runnerze |
+| ------------------- | ------------------- | ------------- | ------- | ----------------- |
+| TTFB                | 5075,6 - 5194,9 ms  | **5030,1 ms** | 8000 ms | 1,59x             |
+| gotowość hydratacji | 461 - 616 ms        | **356 ms**    | 6000 ms | 16,9x             |
+| transfer JS bootu   | 2270,1 - 2294,2 KB  | **2562,8 KB** | 3000 KB | **1,17x**         |
+| FCP                 | 5348,0 - 5732,0 ms  | **5272,0 ms** | brak    | -                 |
+
+**Dwa wnioski, oba nieoczywiste przed tym pomiarem:**
+
+1. **Runner jest SZYBSZY od hosta, nie wolniejszy** - gotowość 356 ms wobec
+   461-616 ms. Zakładałem odwrotnie, stawiając progi „z zapasem na wolniejszy
+   runner". Dla metryk czasowych zapas okazał się jeszcze większy, niż liczyłem.
+2. **I właśnie dlatego transfer wyszedł WYŻSZY.** Wiadro statyczne jest
+   praktycznie identyczne (1982,3 KB/12 wobec 1965,9 KB/12), a cała różnica
+   siedzi w DYNAMICZNYM: 580,5 KB w 54 plikach wobec 304,1 KB w 21. Szybsza
+   maszyna zdąża dociągnąć więcej leniwych chunków PRZED flagą gotowości, więc ta
+   metryka rośnie ze **szybkością maszyny**, a nie z wagą artefaktu.
+   **Dlatego progu NIE zacieśniam**, choć zapas spadł z 1,31x do 1,17x -
+   zacieśnienie karałoby za szybszy runner. Wagi artefaktu pilnuje floor `boot`
+   w `check-bundle-size.ts` (domknięcie statyczne, gzip), a wiadro statyczne tego
+   pomiaru potwierdza go niezależnie, bo jest stałe.
+
+**Czego ten punkt NADAL nie dowozi:** LCP/CLS/TBT bez Lighthouse'a (wymagają
 throttlingu i modelu CPU), TTFB przy żywej bazie oraz `LHCI_URL`.
 
 ---
@@ -732,6 +764,24 @@ Wszystkie trzy nowe progi per-ścieżka **przeszły w tym przebiegu**: `router.t
 100/100/100/100 wobec progu 96/100/96/92, `hydrateBudget.ts` 100/80/100/100
 wobec 96/75/100/96, `__root.tsx` 45,07/53,19/14,58/51,2 wobec 40/48/12/46
 (kolejność: instrukcje / gałęzie / funkcje / linie).
+
+**POTWIERDZENIE PO PODNIESIENIU PROGÓW** (drugi pełny przebieg, już z ratchetem
+79/77/80/73 i z reporterem `json-summary`): **zero błędów progów**, ani
+globalnych, ani per-ścieżka. Liczby z `coverage/coverage-summary.json`, czyli
+z pliku, o który prosiło zlecenie i który wcześniej nie powstawał:
+
+```
+statements   83,17%  (100 827 / 121 220)
+branches     77,63%  ( 85 789 / 110 506)
+functions    81,66%  ( 27 895 /  34 158)
+lines        84,44%  ( 89 526 / 106 017)
+```
+
+Przy okazji rozstrzygnięty jeden otwarty punkt z rozdz. 3.7:
+`src/routes/api/public/payments/webhook.ts` daje na PEŁNEJ suicie
+**68,42 / 63,33 / 40,00 / 67,56** - dokładnie tyle, ile na podzbiorze, na którym
+postawiłem jego próg. Podzbiór pokrywał więc wszystko, co ten plik dotyka,
+i próg nie wymaga zacieśnienia.
 
 **Ustalenie, które zmienia ocenę jednego bezpiecznika.** Budżet hydratacji
 **nie ma dziś czego ścinać**: `options.hydrate` zainstalowanej integracji czyta
