@@ -1696,11 +1696,21 @@ export default defineConfig({
         // NIŻSZĄ z dwóch liczb, żeby próg trzymał na obu pomiarach).
         // Nowe progi to pomiar minus <= 1 pp. Luz zabrany jednym ruchem na
         // 36 plikach, zanim powstał pierwszy nowy test.
+        //
+        // 2026-09-01, DRUGIE PODNIESIENIE (wydanie 9 audytu, po dobiciu
+        // pokrycia). Pomiar pełnej suity z `all: true`:
+        // instrukcje 95,44% · funkcje 97,95% · linie 98,75% · gałęzie 89,95%.
+        // Progi to PODŁOGA z pomiaru, czyli luz PONIŻEJ 1 pp na każdej z
+        // czterech metryk - tak jak przy pierwszym zaciśnięciu. Dobite:
+        // nagrywanie głosu, toasty przychodzące, katalog osób, pseudonimy,
+        // wersje robocze, obecność, szyna doku oraz DWA NOWE moduły reguł
+        // wyprowadzone z `ChatComposer.tsx` (`composerRules`,
+        // `attachmentPresentation`), które mają własne progi niżej.
         "src/lib/chat/**": {
-          statements: 79,
-          functions: 85,
-          lines: 82,
-          branches: 72,
+          statements: 95,
+          functions: 97,
+          lines: 98,
+          branches: 89,
         },
         // CZYSTE MODUŁY WĄTKU trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak pozostałe czyste moduły w tym pliku. To one
@@ -1736,16 +1746,107 @@ export default defineConfig({
         // WARSTWA DANYCH ROZMOWY - dwa pliki, od których zależy, czy wiadomość
         // dojdzie i czy nie wycieknie między tenantami. Startowały z 0% i 12%.
         "src/lib/chat/useMessages.ts": {
-          statements: 86,
-          functions: 87,
-          lines: 91,
-          branches: 78,
+          statements: 88,
+          functions: 89,
+          lines: 93,
+          branches: 80,
         },
         "src/lib/chat/useConversations.ts": {
-          statements: 90,
-          functions: 96,
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // ── REGUŁY WYPROWADZONE Z KOMPOZYTORA (wydanie 9) ────────────────────
+        // `ChatComposer.tsx` stał na 0/160 linii i 0/40 funkcji, bo NIE MIAŁ
+        // ani jednej funkcji modułowej: każda decyzja (co robi Enter, czy
+        // pokazać szybką emotkę, czy plik wolno wysłać, co znaczy ta odmowa
+        // magazynu) siedziała w domknięciu wewnątrz komponentu i wymagała
+        // pełnego renderu z sesją, tenantem, kanałem realtime i atrapą
+        // `MediaRecorder`. Reguły wyszły do dwóch czystych modułów - i to one
+        // niosą dziś ciężar dowodu, a render sprawdza wyłącznie SKLEJENIE.
+        // Progi pod 100%, bo obie ekstrakcje są wierne co do gałęzi.
+        "src/lib/chat/composerRules.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/chat/attachmentPresentation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ── CZTERY RUINY WARSTWY DANYCH (wydanie 9) ──────────────────────────
+        // Wszystkie cztery szły z zera albo z okolic zera. `voice.ts` niesie
+        // nagrywanie notatki głosowej (uprawnienie mikrofonu, `MediaRecorder`,
+        // sprzątanie ścieżek), `useIncomingChatToasts` decyduje, czy powiadomienie
+        // ma się w ogóle pokazać (wyciszenie rozmowy, własna wiadomość, okno na
+        // wierzchu), `usePeopleDirectory` buduje katalog osób do nowej rozmowy,
+        // a `nicknames` trzyma pseudonimy per rozmowa.
+        "src/lib/chat/voice.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/lib/chat/useIncomingChatToasts.ts": {
+          statements: 87,
+          functions: 86,
+          lines: 91,
+          branches: 87,
+        },
+        "src/lib/chat/usePeopleDirectory.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 96,
+        },
+        "src/lib/chat/nicknames.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // ── OBRZEŻA POWIERZCHNI CZATU (wydanie 9) ────────────────────────────
+        // Wersje robocze (przetrwanie po zamknięciu okna), obecność (renderowana
+        // także na serwerze - stąd osobny test SSR), szyna doku (limit okien).
+        "src/lib/chat/drafts.ts": {
+          statements: 92,
+          functions: 98,
           lines: 96,
-          branches: 80,
+          branches: 85,
+        },
+        "src/lib/chat/presence.ts": {
+          statements: 91,
+          functions: 98,
+          lines: 94,
+          branches: 81,
+        },
+        "src/lib/chat/chatDockBus.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/chat/attachments.ts": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 82,
+        },
+        "src/lib/chat/time.ts": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 87,
+        },
+        "src/lib/chat/themes.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
         // WARSTWA KOMPONENTÓW: 17,32% -> 44,63%. Próg jest niższy niż w warstwie
         // danych i to jest uczciwe: kompozytor (585 linii), panel mediów, dialogi
@@ -1760,18 +1861,166 @@ export default defineConfig({
         // NIŻSZA z dwóch liczb minus <= 1 pp - stąd gałęzie 38, a nie 39:
         // 39 przechodzi na tym HEAD, ale nie przeszłoby na pomiarze wydania 8,
         // a próg ma trzymać na obu.
+        //
+        // 2026-09-01, DRUGIE PODNIESIENIE (wydanie 9 audytu). DWANAŚCIE plików
+        // tego globu nie zostało nigdy wyrenderowane w teście - kompozytor,
+        // picker emotek, oba dialogi kręgu, dialog wyglądu, panel mediów,
+        // wyszukiwarka rozmówców, cała rodzina zapytań eksperckich i wiersz
+        // wątku demo. Każdy z nich ma dziś własny próg niżej, żeby dołek
+        // pojedynczego pliku nie chował się w średniej 35 plików. Pomiar
+        // pełnej suity z `all: true`:
+        // instrukcje 96,88% · funkcje 96,72% · linie 98,32% · gałęzie 90,77%.
+        // Progi to PODŁOGA z pomiaru - luz poniżej 1 pp na każdej metryce.
         "src/components/chat/**": {
-          statements: 45,
-          functions: 40,
-          lines: 46,
-          branches: 38,
+          statements: 96,
+          functions: 96,
+          lines: 98,
+          branches: 90,
         },
-        // Organizm okna rozmowy - z 0% na 83,55% po podziale na atomy.
+        // Organizm okna rozmowy - z 0% na 83,55% po podziale na atomy, a w
+        // wydaniu 9 na komplet 73/73 funkcji. Próg funkcji stał na 60, czyli
+        // przepuszczał utratę TRZYNASTU domknięć (menu kontekstowe, dialogi
+        // znikania, przekazywanie, blokowanie) bez ani jednego czerwonego testu.
         "src/components/chat/ChatWindow.tsx": {
-          statements: 78,
-          functions: 60,
-          lines: 84,
-          branches: 70,
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 86,
+        },
+        // ── DWANAŚCIE POWIERZCHNI ZDJĘTYCH Z ZERA (wydanie 9) ────────────────
+        // Każda dostała ten sam zestaw dowodów: otwarcie, walidacja, akcja,
+        // odmowa serwera i zamknięcie bez zapisu. Dialog kręgu i picker członków
+        // dostały dodatkowo test tenanta (zapytanie o kandydatów NIE MOŻE
+        // wyjść poza obszar roboczy).
+        "src/components/chat/ChatComposer.tsx": {
+          statements: 95,
+          functions: 93,
+          lines: 96,
+          branches: 88,
+        },
+        "src/components/chat/ChatAppearanceDialog.tsx": {
+          statements: 96,
+          functions: 93,
+          lines: 96,
+          branches: 98,
+        },
+        "src/components/chat/ChatMediaPanel.tsx": {
+          statements: 95,
+          functions: 89,
+          lines: 95,
+          branches: 89,
+        },
+        "src/components/chat/DemoBotListItem.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/chat/EmojiPicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        "src/components/chat/ExpertRequestDialog.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/components/chat/ExpertRequestDialogHost.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 48,
+        },
+        "src/components/chat/ExpertRequestsInbox.tsx": {
+          statements: 88,
+          functions: 98,
+          lines: 93,
+          branches: 73,
+        },
+        "src/components/chat/GroupCreateDialog.tsx": {
+          statements: 86,
+          functions: 88,
+          lines: 85,
+          branches: 82,
+        },
+        "src/components/chat/GroupInfoDialog.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/components/chat/GroupMemberPicker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        "src/components/chat/NewChatSearch.tsx": {
+          statements: 94,
+          functions: 88,
+          lines: 93,
+          branches: 93,
+        },
+        // ── ATOMY WIADOMOŚCI I ZAŁĄCZNIKA (wydanie 9) ────────────────────────
+        // Dymek niesie macierz stanów (własna/cudza, w locie/doręczona/odczytana,
+        // usunięta, edytowana, odpowiedź, reakcje), lista - separatory dni,
+        // skok do trafienia i stopkę potwierdzeń. Podgląd zdjęcia ma gesty
+        // (zoom, obrót, przeciąganie), których nie widzi żaden inny test.
+        "src/components/chat/MessageBubble.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        "src/components/chat/MessageList.tsx": {
+          statements: 90,
+          functions: 90,
+          lines: 94,
+          branches: 85,
+        },
+        "src/components/chat/AttachmentContent.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        "src/components/chat/AttachmentPreview.tsx": {
+          statements: 94,
+          functions: 90,
+          lines: 96,
+          branches: 96,
+        },
+        "src/components/chat/DemoBotChat.tsx": {
+          statements: 95,
+          functions: 93,
+          lines: 97,
+          branches: 92,
+        },
+        "src/components/chat/MediaHistoryDialog.tsx": {
+          statements: 93,
+          functions: 79,
+          lines: 92,
+          branches: 81,
+        },
+        // ── TRASY CZATU (wydanie 9) ──────────────────────────────────────────
+        // Obie startowały z CZYSTEGO ZERA. `/messages` to 687 linii źródła i
+        // jedyne wejście do skrzynki; `/admin/community/chat` niesie operacje
+        // NISZCZĄCE (czyszczenie historii, kasowanie rozmowy kaskadowo), więc
+        // brak dowodu był tam najdroższy w całym module.
+        "src/routes/messages.tsx": {
+          statements: 89,
+          functions: 83,
+          lines: 89,
+          branches: 83,
+        },
+        "src/routes/admin.community.chat.tsx": {
+          statements: 89,
+          functions: 82,
+          lines: 89,
+          branches: 75,
         },
         // Bramka symetrii FTS: czysty analizator migracji. Niedobite gałęzie to
         // ramiona obronne dla wzorców, których w repo nie ma (konfiguracja
