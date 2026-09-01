@@ -101,7 +101,9 @@ describe("zapis batcha", () => {
   });
 
   it("tenant rozwiązywany jest RAZ na batch, nie raz na próbkę", async () => {
-    await post({ metrics: [sample(), sample({ name: "CLS", value: 0 }), sample({ name: "INP", value: 90 })] });
+    await post({
+      metrics: [sample(), sample({ name: "CLS", value: 0 }), sample({ name: "INP", value: 90 })],
+    });
 
     expect(h.tenantCalls).toBe(1);
     for (const row of rows()) expect(row).toMatchObject({ tenant_id: "tenant-1" });

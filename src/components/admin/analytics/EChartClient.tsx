@@ -6,7 +6,7 @@
  * treemap / gauge / radar / sankey + tooltip/legend/grid/dataZoom/etc.) so the
  * client chunk stays smaller than `import "echarts"`.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 // `echarts-for-react` (główny entry) robi `import * as echarts from "echarts"`,
 // czyli ciągnie CAŁĄ bibliotekę i unieważnia modularną rejestrację poniżej
 // (chunk miał ~590 KB gzip). Wariant lib/core przyjmuje instancję echarts
@@ -42,7 +42,14 @@ import {
   CalendarComponent,
 } from "echarts/components";
 import type { EChartsCoreOption, ECharts } from "echarts/core";
-import { resolveChartTheme, baseOption, type ResolvedTheme } from "./chartTheme";
+import {
+  baseOption,
+  chartThemeSnapshot,
+  notifyChartThemeChanged,
+  scheduleChartThemeRefresh,
+  subscribeChartTheme,
+  type ResolvedTheme,
+} from "./chartTheme";
 import type { ChartClickParams } from "./ChartDrillDialog";
 
 echartsUse([
@@ -91,17 +98,38 @@ export function EChartClient({
   themeVersion = 0,
 }: EChartClientProps) {
   const ref = useRef<ReactECharts | null>(null);
-  const [tick, setTick] = useState(0);
-  const theme = useMemo(() => resolveChartTheme(), [themeVersion, tick]);
+  // JEDNA subskrypcja motywu na dokument, nie jeden efekt na wykres.
+  //
+  // Stało tu `useState` + `useEffect(() => setTick(v => v + 1), [])`: efekt
+  // bezwarunkowy, więc KAŻDY wykres renderował się dwa razy i dwa razy
+  // rozwiązywał motyw, choćby tokeny były gotowe od pierwszego malowania.
+  // Powód, dla którego istniał, jest prawdziwy (`DesignTokensStyle` wstrzykuje
+  // paletę tenanta z bazy i może dojechać po montowaniu) i został ZACHOWANY -
+  // przeniesiony do wspólnego magazynu w `chartTheme.ts`, który przelicza motyw
+  // raz, porównuje z poprzednim i budzi wykresy tylko przy realnej zmianie.
+  // Zmierzone na panelu dziesięciu wykresów: 20 -> 10 renderów, 20 -> 2
+  // rozwiązania motywu, 200 -> 2 wywołania `getComputedStyle`.
+  const theme = useSyncExternalStore(subscribeChartTheme, chartThemeSnapshot, chartThemeSnapshot);
   const merged = useMemo(() => mergeWithTheme(option, theme), [option, theme]);
   const clickRef = useRef<((p: ChartClickParams) => void) | undefined>(onDataClick);
   clickRef.current = onDataClick;
 
-  // Re-read tokens after mount in case the theme provider hasn't written
-  // ready-to-use values on the html element on the very first paint.
+  // Po zamontowaniu: JEDNO odświeżenie na turę dla całego panelu, choćby
+  // zawołało je dziesięć wykresów naraz (koalescencja w `chartTheme.ts`).
   useEffect(() => {
-    setTick((v) => v + 1);
+    scheduleChartThemeRefresh();
   }, []);
+
+  // Jawny sygnał od wywołującego (przełącznik trybu jasny/ciemny wędruje przez
+  // `ChartCard`): przelicz i rozgłoś WSZYSTKIM wykresom, żeby panel nie został
+  // z dwiema paletami naraz. Referencja zjada przebieg montujący - bez niej
+  // każdy wykres wołałby to na starcie i wróciłby koszt sprzed zmiany.
+  const lastThemeVersion = useRef(themeVersion);
+  useEffect(() => {
+    if (lastThemeVersion.current === themeVersion) return;
+    lastThemeVersion.current = themeVersion;
+    notifyChartThemeChanged();
+  }, [themeVersion]);
 
   useEffect(() => {
     if (!ref.current) return;
