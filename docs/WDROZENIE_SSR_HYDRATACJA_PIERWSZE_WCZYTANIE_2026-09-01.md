@@ -480,9 +480,153 @@ Detekcja martwej hydratacji w produkcji, dwa braki:
    uruchomi. Sonda wyłącznie BUFORUJE w pamięci strony; wysyłka jest
    w `lib/observability`, za istniejącą bramką zgody.
 
-**CZEGO NIE TWIERDZĘ:** nie widziałem boot-testu na zielono w tym środowisku.
-`build:smoke` nadpisałby `.output/`, którego potrzebowały równolegle liczone
-bramki rozmiaru. Test jest wdrożony i uruchomi się w CI.
+**URUCHOMIONY NA ARTEFAKCIE - I OBLAŁ SIĘ. To jest najważniejsza rzecz w tym
+punkcie.** Wcześniejsza wersja tego rozdziału mówiła „nie widziałem boot-testu
+na zielono w tym środowisku, test jest wdrożony i uruchomi się w CI". Kiedy
+w końcu pojechał po zbudowanym artefakcie, wywrócił się - czyli krok, który
+dodałem do CI, byłby czerwony od pierwszego przebiegu. Obie przyczyny
+zdiagnozowane do linii, żadna nie jest defektem tej aplikacji, żadnej nie
+gaszę hurtem.
+
+**(1) Defekt biblioteki, wypisywany na KAŻDYM dokumencie.**
+`@tanstack/router-ssr-query-core` (`dist/esm/index.js:93-95`) ma w pętli odczytu
+strumienia zapytań dwie instrukcje w złej kolejności:
+
+```js
+reader.read().then(async function handle({ done, value }) {
+  hydrate(queryClient, value, hydrateOptions);   // WOŁANE PRZED...
+  if (done) return;                              // ...sprawdzeniem `done`
+```
+
+Ostatni odczyt domkniętego strumienia to z definicji `{done: true, value:
+undefined}`, a `hydrate(qc, undefined)` czyta `dehydratedState.mutations`
+i rzuca `TypeError` - sprawdzone wywołaniem, nie z lektury. Rzut leci do
+`.catch` biblioteki, który loguje `Error reading query stream: ...`. Skutek jest
+KOSMETYCZNY i mówię to wprost, żeby nikt nie gasił tego pośpiesznie: rzut
+wypada na odczycie TERMINALNYM, więc wszystkie prawdziwe porcje strumienia są
+już zhydratowane i nie ginie ani jedno zapytanie. Cena to jeden `console.error`
+na dokument - czyli dokładnie ten rodzaj szumu, który przykrywa błędy prawdziwe,
+i to on jest powodem, dla którego ten test w ogóle zbiera `console`.
+
+Naprawy u siebie NIE MA i to jest sprawdzone, nie założone: `src/router.tsx`
+owija `options.hydrate`, ale biblioteka woła `dehydrated.queryStream.getReader()`
+sama, a kontrakt `ReadableStream` nie pozwala oddać terminalnego odczytu
+z wartością inną niż `undefined`. Zostają obejścia - czytnik, który nigdy się
+nie rozstrzyga, albo atrapa `getReader` w miejscu typowanym na `ReadableStream`
+(rzutowanie, którego ta gałąź nie dopuszcza). **Zmiana zachowania produkcyjnego
+obejściem dla zgaszenia logu to decyzja człowieka**, więc jej nie podejmuję.
+Zamiast tego przyczyna jest PRZYPIĘTA dwoma testami w `src/__tests__/router.test.tsx`:
+że `hydrate(qc, undefined)` rzuca i że biblioteka nadal woła `hydrate` przed
+`if (done)`. Gdy górna rzeka to naprawi, tamten test zapali się sam i będzie
+sygnałem do zdjęcia wyjątku z boot-testu - wyjątek nie przeżyje defektu.
+
+**(2) Transport do obcego hosta.** Test jedzie po artefakcie BEZ backendu:
+`SUPABASE_URL` to `placeholder.supabase.co`, host, który z konstrukcji nie
+istnieje. Zmierzone: od dwóch do czterech żądań kończy się
+`net::ERR_TUNNEL_CONNECTION_FAILED` (`site_settings`, `post_layout_settings`,
+`newsletter_settings`, `builder_popups`), a Chromium loguje każde jako
+`console.error`. Liczba jest NIEDETERMINISTYCZNA, więc wyjątek idzie po
+POCHODZENIU, nie po liczbie: przepuszczane są wyłącznie awarie transportu
+(`net::ERR_*`) do hosta innego niż ten, z którego zszedł dokument. Brakujący
+chunk aplikacji to awaria na URL-u WŁASNEGO pochodzenia albo status HTTP -
+i nadal wywraca ten test, bo to jest ta klasa, dla której go napisano.
+
+Po obu poprawkach: `npx playwright test --config playwright.artifact.config.ts`
+-> **2 passed**.
+
+---
+
+### Punkt 11 - mierzyć czas na czymś produkcyjnym
+
+**ZROBIONE W CZĘŚCI, KTÓRA JEST W NASZEJ MOCY.** Commity `b524af5`, `4102a76`.
+Rozdz. 1 stoi bez zmian: `LHCI_URL` to zmienna repozytorium GitHuba,
+nieustawialna z kodu, więc tryb blokujący Lighthouse'a nie uruchomił się ani
+razu. Ta część zostaje jednym zdaniem, a nie pozornym domknięciem.
+
+**ILE DEV-SERVER KŁAMAŁ - ZMIERZONE**, mediany 3 przebiegów, ta sama maszyna,
+Lighthouse 12.6.1, preset desktop, `/en`. Trzecia kolumna to jedyny zapis, jaki
+CI kiedykolwiek wyprodukował (`.lighthouseci/`):
+
+| | artefakt | dev-server | zapis CI |
+|---|---|---|---|
+| `categories:performance` | 0,60 | 0,34 | 0,34 |
+| `first-contentful-paint` | 2681 | 970 | 1005 |
+| `largest-contentful-paint` | 3939 | 34031 | 31215 |
+| `total-blocking-time` | 101 | 1602 | 1985 |
+| `speed-index` | 4495 | 6113 | 6104 |
+| `server-response-time` | 5033 | 5174 | **64** |
+| `total-byte-weight` | 3 414 549 | 32 311 216 | 30 975 220 |
+| `network-requests` | 119 | 1080 | 1034 |
+
+Dev zawyżał TBT **15,9x**, LCP **8,6x**, wagę bajtów **9,5x** i liczbę żądań
+**9,1x**, a ZANIŻAŁ FCP **2,8x**; zapisany w repo `server-response-time` był
+**81x za niski**. Dev nie potrafił nawet nazwać elementu LCP
+(`largest-contentful-paint-element` -> `scoreDisplayMode: "error"` we wszystkich
+przebiegach i w zapisie CI); artefakt nazywa go identycznie za każdym razem
+i jest to **akapit banera cookie w nakładce `position: fixed`**. Dev nie był też
+sam ze sobą zgodny: LCP 1050 / 34031 / 34142 ms w trzech kolejnych przebiegach
+po tym samym rozgrzanym serwerze.
+
+**Co się zmieniło:**
+
+- `lighthouserc.json` celuje w artefakt `vite.smoke.config.ts` uruchomiony
+  `node .output/server/index.mjs` - ten sam, po którym jedzie boot-test;
+- `numberOfRuns` 1 -> 3 i `aggregationMethod: median`. Domyślny `optimistic`
+  sprowadza asercje `max*` do MINIMUM z przebiegów, czyli z trójki
+  1050/34031/34142 raportowałby 1050 - `median` jest jednostronnie ostrzejsza
+  i dopiero ona nadaje sens `numberOfRuns` większemu od jednego;
+- `total-blocking-time` i `cumulative-layout-shift` z `warn` na **`error`** -
+  tylko te dwie, bo tylko dla nich jest pomiar z zapasem (TBT mediana 101 ms
+  przy budżecie 300, czyli 3,0x; CLS dokładnie 0 w siedmiu przebiegach na
+  siedem) i tylko one opisują KSZTAŁT ARTEFAKTU, a nie sieć w tym sandboksie;
+- `skipAudits` (13 pozycji) usunięte. Istniały, bo dev serwował 1034 osobne
+  moduły ESM i gatherery pobierające ciało KAŻDEJ odpowiedzi przewracały
+  przebieg błędem WYKONANIA (`Network.getResponseBody` timeout), nie asercji.
+  Artefakt podaje 119 żądań, więc te audyty są i tanie, i wreszcie sensowne;
+- `lighthouserc.deployed.json`: LCP 2500 -> **1500**, TBT 300 -> **200**,
+  SI 3400 -> **1600**, plus NOWE asercje FCP 1100 i `server-response-time` 600.
+  Każda liczba stoi na własnym punkcie 0,80 krzywej desktopowej Lighthouse'a,
+  więc zestaw jest teraz **warunkiem wystarczającym** dla
+  `categories:performance >= 0,8`. Poprzedni był od niej LUŹNIEJSZY, czyli
+  cztery bramki metryczne były martwym balastem: przebieg spełniający wszystkie
+  cztery DOKŁADNIE dawał 0,59-0,63 i padał na linii wyżej, nie wskazując
+  winnego. `first-contentful-paint` musiał dojść, żeby to zdanie było prawdziwe
+  (bez niego najgorszy przypadek to 0,7469).
+
+**Nowa bramka czasu na artefakcie** (`e2e/boot-timing.spec.ts`) - trzy liczby
+z samej przeglądarki, bez emulacji, w tym samym jobie co pozostałe bramki
+artefaktu. Sześć przebiegów, podane jako ZAKRESY, bo pojedyncza wartość
+udawałaby powtarzalność, której na tym hoście nie ma:
+
+| pomiar | zakres z 6 przebiegów | próg | krotność zapasu |
+|---|---|---|---|
+| TTFB | 5075,6 - 5194,9 ms | 8000 ms | 1,54x |
+| gotowość hydratacji | 461 - 616 ms | 6000 ms | 9,7x |
+| transfer JS bootu | 2270,1 - 2294,2 KB | 3000 KB | 1,31x |
+| FCP | 5348,0 - 5732,0 ms | brak | - |
+
+**TTFB jest w całości WYJAŚNIONY, a nie tylko zmierzony:**
+`SSR_QUERY_TIMEOUT_MS = 5000` i dziesięć zapytań loaderów korzenia bez backendu,
+więc render czeka pełny budżet, a `postRenderSweep` je przycina (log serwera:
+`pruned=10`). Próg 8000 leży MIĘDZY jednym budżetem SSR i dwoma, czyli pilnuje
+szeregowania fal loaderów, a nie tego, że w CI nie ma bazy. Próg gotowości jest
+zakotwiczony PONIŻEJ `BOOT_DEAD_TIMEOUT_MS = 15000`, żeby awaria budżetu nie
+wyglądała jak martwa hydratacja.
+
+**Poprawka miary wobec zlecenia, z pomiaru.** Zlecenie kazało sumować
+`transferSize` zasobów `initiatorType === "script"`. To daje 306,3 KB, czyli
+**13%** właściwej liczby: Chromium klasyfikuje moduły pobrane przez skaner
+preloadu dokumentu jako `other`, i tam siedzi całe domknięcie statyczne (13
+wpisów, 2 039 910 B). Wiadro `script` to wyłącznie importy DYNAMICZNE, więc
+bramka na nim **rosłaby, gdy ścieżka bootu się kurczy**. Filtr jest po
+rozszerzeniu `.js`, z rozbiciem statyczne/dynamiczne - i to rozbicie jest przy
+okazji najlepszą dostępną miarą szumu: wiadro statyczne to 1965,9 KB w 12
+plikach, IDENTYCZNE co do 0,1 KB we wszystkich sześciu przebiegach.
+
+**Czego ten punkt NIE dowozi:** ani jednej liczby z runnera GitHuba (pierwszy
+przebieg CI jest podstawą do przefloorowania - spec wypisuje `[boot-timing] ...`
+także na zielono właśnie po to), LCP/CLS/TBT bez Lighthouse'a (wymagają
+throttlingu i modelu CPU), TTFB przy żywej bazie oraz `LHCI_URL`.
 
 ---
 
@@ -611,6 +755,22 @@ Kolejność kroków w CI jest KONTRAKTEM i jest tak opisana w workflow:
 `build:smoke` NADPISUJE `.output/`, więc musi biec PO `check:bundle`,
 `check:chunks` i `check:entry-purity`, które mierzą artefakt cloudflare'owy.
 
+Ta sama konfiguracja łapie od punktu 11 **drugi plik**
+(`e2e/boot-timing.spec.ts`) - najdroższy składnik, czyli build artefaktu
+i start serwera, jest dokładnie ten sam. Podział jest celowy: awaria pierwszego
+znaczy „strona jest MARTWA", awaria drugiego „strona żyje, ale WOLNIEJ niż
+wolno". Zlanie ich w jeden plik zamieniłoby te dwa komunikaty w jeden
+nieczytelny. Kolejność plików NIE jest stabilna i sprawdzone, że pomiar od niej
+nie zależy (skrajne wartości wypadły w różnych trybach i różnych kolejnościach).
+
+**Dwa wyjątki w kolektorze `console`, oba wąskie i oba nazwane** (pełne
+uzasadnienie: rozdz. 2, punkt 10): defekt terminalnego odczytu strumienia
+w `@tanstack/router-ssr-query-core`, przypięty dwoma testami w
+`src/__tests__/router.test.tsx`, żeby zgoda nie przeżyła defektu; oraz awarie
+TRANSPORTU (`net::ERR_*`) do hosta INNEGO niż własne pochodzenie dokumentu -
+bo artefakt jedzie bez backendu. Brakujący chunk aplikacji (własne pochodzenie
+albo status HTTP) nadal wywraca ten test.
+
 ### 3.4. Progi pokrycia per ścieżka (sekcja 3 zlecenia)
 
 Trzy nowe wpisy w `vitest.config.ts`, każdy z uzasadnieniem liczby w komentarzu:
@@ -730,7 +890,7 @@ pojawia. Zmiana zostaje jako higiena i jest tak opisana w kodzie.
 | rozmiar arkusza CSS | **POTWIERDZONE: 570 392 B surowo, 79 807 B gzip -9, 6 739 bloków reguł** |
 | domknięcie startowe | **ZMIERZONE: 571,4 KB gzip w 9 chunkach** |
 | `LHCI_URL` ustawione | **NIE** - zmienna repozytorium, nieustawialna z kodu (rozdz. 1) |
-| „59 tras publicznych z SSR bez loadera" | **ZAPRZECZONE** - patrz niżej |
+| „59 tras publicznych z SSR bez loadera" | **ZAPRZECZONE: 82 trasy publiczne z SSR, 13 bez loadera w łańcuchu, 21 razem z tymi, których loader grzeje inne klucze; 16 karmi cache pustym HTML-em** - patrz niżej |
 
 ### „59 tras publicznych z SSR bez loadera" - ZAPRZECZONE
 
@@ -746,21 +906,23 @@ Skrypt spisu: `bun run report:route-loaders`
   - panel /admin                       194
   = PUBLICZNE STRONY SSR                82
 
-  SSR BEZ TREŚCI - render czyta dane, loadera nie ma                20
-  SSR BEZ TREŚCI - loader jest, ale nic nie grzeje                   4
-  OK - render czyta dane, loader je rozgrzewa                       47
+  SSR BEZ TREŚCI - loadera nie ma w ŁAŃCUCHU                        13
+  SSR BEZ TREŚCI - loader jest, ale tych kluczy nie grzeje            8
+  TREŚĆ Z PRZODKA - zimne własne, ale dokument dowozi rodzic          5
+  OK - klucz treści rozgrzany                                       45
   LOADER ZBĘDNY - render nie czyta danych                           11
 
-  DO ROBOTY: 24 z 82;  indeksowanych 17, noindex 7
-  PUSTY DOKUMENT W NES EDGE CACHE: 19 z 24
+  DO ROBOTY: 21 z 82;  indeksowanych 11, noindex/poza cache 10
+  PUSTY DOKUMENT W NES EDGE CACHE: 16 z 21
 ```
 
 **Liczby 59 nie da się odtworzyć** żadnym naiwnym pomiarem: `grep -L "loader:"`
 bez `admin*` daje 65, po odjęciu gałęzi `/profile` 42, po odjęciu `ssr: false`
-56. Prawdziwa liczba to **20 bez loadera / 24 z trywialnymi**, z czego **19 karmi
-NES Edge Cache pustym dokumentem** na do 24 h - i to jest ta część, która boli.
+56. Prawdziwa liczba to **13 bez loadera w łańcuchu / 21 razem z tymi, których
+loader grzeje inne klucze**, z czego **16 karmi NES Edge Cache pustym
+dokumentem** na do 24 h - i to jest ta część, która boli.
 
-Cztery rozróżnienia, bez których liczba nie znaczy nic (wszystkie zapisane
+Pięć rozróżnień, bez których liczba nie znaczy nic (wszystkie zapisane
 w nagłówku skryptu):
 
 1. Trasy z `routeTree.gen.ts`, nie z `readdir` - to jedyne miejsce znające reguły
@@ -772,25 +934,48 @@ w nagłówku skryptu):
    modułów powłoki `__root.tsx`**, których dane grzeje loader korzenia. Bez tego
    odjęcia każda z 82 tras wyglądałaby na defekt, bo `Footer.tsx:32` woła
    `useQuery(siteSettingsQueryOptions)`.
-4. „Loader grzeje" znaczy **zapisuje do cache zapytań**, a nie „ściąga". `/qa`
-   i `/qa/$slug` wołają `fetchPublicQaSessions()` i oddają wynik jako
-   `loaderData` dla `head()` - klucz zostaje zimny, `useQuery` startuje od gałęzi
-   ładowania. To dwie z czterech tras w kategorii „loader jest, ale nic nie
-   grzeje".
+4. **Loader PRZODKA jest zaliczany, ale tylko przy dopasowaniu KLUCZA.** To była
+   poprawka pierwszej wersji tego spisu, złapana ręcznie na jednym wierszu:
+   `/events/$slug` to w drzewie plik `events.$slug.index.tsx`, a loader stoi
+   w LAYOUCIE `events.$slug.tsx` i grzeje dokładnie te fabryki, które dziecko
+   czyta. Odjęcie powłoki `__root.tsx` jest w tej regule szczególnym przypadkiem
+   (korzeń to po prostu ostatni przodek), ale **nie zostało z nią scalone** -
+   i to jest pomiar, nie gust: w wariancie scalonym `BrandIcon.tsx:25` woła
+   `useQuery` LITERAŁEM klucza, którego korzeń nie grzeje, więc jedna
+   nierozgrzana ikona pojawiłaby się jako zimne zapytanie na WSZYSTKICH 82
+   trasach. „Czyja to treść" i „czy jest rozgrzana" to dwa pytania.
+5. „Loader grzeje" znaczy **zapisuje do cache zapytań ten klucz, który render
+   czyta**, a nie „ściąga cokolwiek". `/qa` i `/qa/$slug` wołają
+   `fetchPublicQaSessions()` i oddają wynik jako `loaderData` dla `head()` -
+   klucz zostaje zimny, `useQuery` startuje od gałęzi ładowania.
+
+**Wymóg dopasowania klucza wykrył cztery FAŁSZYWE NEGATYWY** pierwszej wersji,
+których nie widziałem: `/polityka-prywatnosci`, `/regulamin`,
+`/zwroty-i-reklamacje` i `/zatrudniamy` uchodziły za rozgrzane, choć ich loader
+grzeje WYŁĄCZNIE `staticPageSeoQueryOptions`, a treść czyta `useLegalDocument`
+/ `useCareerContent`. Weszły do długu.
+
+**Sprostowanie mojej własnej tezy, zmierzone.** Twierdziłem, że rodzina
+`/events/$slug/*` to sześć tras rozgrzanych przez przodka. Rozgrzane są **dwie**
+(`/events/$slug` i `/events/$slug/speakers` - czytają te same fabryki); cztery
+pozostałe zakładki czytają `resolvedContentQueryOptions` (`EventModulePage.tsx:73`)
+i `publicEventKeys.sponsors/materials`, których powłoka NIE grzeje. Wypadają
+z długu tylko dlatego, że dokument dostaje nagłówek i JSON-LD od rodzica - i są
+w osobnym kubełku TREŚĆ Z PRZODKA, nie w OK.
 
 Lista jest **górnym oszacowaniem** i tak jest opisana: jeden fałszywy pozytyw
-sprawdzony ręcznie (`/quiz` - treść to statyczny iframe, wszystkie 12 zapytań
-przychodzą z `ReadingHeader` i `BrandIcon`).
+sprawdzony ręcznie (`/quiz` - treść to statyczny iframe, dwa zimne zapytania
+przychodzą z `BrandIcon` i `NotificationsBell`).
 
 **Do dalszej roboty, priorytet 1** (indeksowane, pusty dokument wchodzi do
-cache'a): `/events/$slug` + pięć podstron modułowych, `/tracker/explorer`,
-`/tracker/changes`, `/publications`, `/search`, `/donate`, `/club`,
-`/club/apply`, `/club/specialization/$slug`, `/qa`, `/qa/$slug`. Rodzina
-`/events/$slug/*` czyta przez wspólne `EventModulePage` +
-`lib/events/usePublicEvent.ts`, więc jedna rozgrzewka w loaderze obsłuży całą
-szóstkę; podobnie `lib/tracker/queries.ts` dla obu tras trackera. `BrandIcon`
-(12 tras) to kandydat na rozgrzewkę w korzeniu, nie na dwanaście loaderów. To
-jest osobny zakres - ten spis go NAZYWA, nie wykonuje.
+cache'a): `/club`, `/club/apply`, `/club/specialization/$slug`, `/donate`,
+`/publications`, `/qa`, `/qa/$slug`, `/search`, `/tracker/changes`,
+`/tracker/explorer`. `lib/tracker/queries.ts` obsłuży obie trasy trackera jedną
+rozgrzewką; `BrandIcon` (12 tras) to kandydat na rozgrzewkę w korzeniu, nie na
+dwanaście loaderów. To jest osobny zakres - ten spis go NAZYWA, nie wykonuje.
+
+Progi zamrożone w skrypcie (`--gate`, domyślnie wyłączone) zostały **obniżone
+razem z pomiarem**: 24 -> 21 i 19 -> 16.
 
 ---
 
@@ -833,23 +1018,32 @@ check:chunk-parity ZIELONA: 3 przypadki
 ### Wyjście (artefakt z tej gałęzi)
 
 ```
-check:bundle       CZERWONA: overall 4321,3 KB przy florze 4306 KB
-                   public       2687,3 / 2715   ZIELONA
-                   największy    272,6 / 280    ZIELONA (index-CQJOHGUv.js)
+check:bundle       CZERWONA: overall 4320,2 KB przy florze 4306 KB
+                   public       2686,5 / 2715   ZIELONA
+                   największy    273,5 / 280    ZIELONA (index-Cy7s1xWZ.js)
                    css            81,0 / 82     ZIELONA (nowa bramka, rozdz. 3.1)
-                   domknięcie    575,3 / 579    ZIELONA (nowa bramka, rozdz. 3.2)
-                                 575,3 KB gzip / 1951,3 KB surowych, 9 chunków
+                   domknięcie    576,2 / 579    ZIELONA (nowa bramka, rozdz. 3.2)
+                                 576,2 KB gzip / 1954,6 KB surowych, 9 chunków
 check:chunks       ZIELONA: 941 chunków, 5455 statycznych krawędzi, graf acykliczny
 check:entry-purity ZIELONA: 9 chunków na ścieżce bootowania, czysta
 check:chunk-parity ZIELONA: 3 przypadki
+test:e2e:artifact  ZIELONA: 2 przypadki (boot-test + budżet czasu, rozdz. 3.3)
 ```
+
+Przebieg e2e na artefakcie, dla porządku - to są liczby, nie tylko kolor:
+`[boot-timing] TTFB=5156.9ms ready=659ms (exact=true) bootJS=2270.1KB/33
+(statyczne 1965.9KB/12 + dynamiczne 304.1KB/21) decoded=2260.4KB (x1.00)
+FCP=5616.0ms`.
 
 ### `overall` - czerwień odziedziczona plus 3,3 KB, które dołożyłem
 
 `check:bundle` była czerwona **na wejściu, na `main`** (4318,0 przy florze 4306)
-- 12 KB długu, którego to zadanie nie zaciągnęło. Do tego doszły **+3,3 KB
+- 12 KB długu, którego to zadanie nie zaciągnęło. Do tego doszły **+2,2 KB
 z tej gałęzi** i to trzeba powiedzieć wprost, a nie ukryć w liczbie
-odziedziczonej.
+odziedziczonej. (Pomiar w trakcie zmiany dawał +3,3 KB; różnica to
+`rated-list`, który PRZENIÓSŁ `queryFn` z leniwego chunku widoku do modułu
+w grafie eager - domknięcie bootu rośnie o 0,9 KB, a `overall` o mniej, bo
+leniwy chunk chudnie.)
 
 Zlecenie mówi: „Nie podnoś floora - zmierz przyczynę i zmniejsz". **Floora nie
 podniosłem** (4306 zostaje) i nie zamierzam - to jest właściwa decyzja także
@@ -864,6 +1058,7 @@ Skład moich +3,3 KB, wszystko wchodzące do grafu eager przez statyczne importy
 | `appReady.ts` + `markAppReady()` w korzeniu | 10 | nie: bez flagi gotowości boot-test nie ma czego czekać, a martwej hydratacji nie da się odróżnić od wolnej |
 | trzy moduły zapytań buildera (taksonomie, media, cennik) | 4 | nie: `widgetQueryOptionsList` jest SYNCHRONICZNE, więc fabryki muszą być w grafie eager |
 | `hydrateBudget.ts`, `useNowMs.ts`, `localeChunks.ts` | 7, 6 | nie bez cofnięcia punktów, które je wprowadziły |
+| `ratedListQuery.ts` - `queryFn` przeniesiony z leniwego chunku | 4 | nie: rejestr prefetchu jest synchroniczny, więc fabryka musi być w grafie eager (netto +0,9 KB domknięcia bootu, bo chunk widoku chudnie o 1,1 KB) |
 
 Każda z tych pozycji jest wymaganiem zlecenia, więc „zmniejszyć" znaczyłoby tu
 „nie zrobić punktu 4 albo 10". Zamiast tego dwie nowe bramki (rozdz. 3.1 i 3.2)
