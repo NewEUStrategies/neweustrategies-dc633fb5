@@ -41,7 +41,17 @@ export default defineConfig({
     hookTimeout: 20000,
     coverage: {
       provider: "v8",
-      reporter: ["text-summary", "text", "html"],
+      // `json-summary` DOSZŁO 2026-09-01 i to nie jest kosmetyka. Trzy
+      // dotychczasowe reportery są WYŁĄCZNIE do czytania oczami: `text` do tego
+      // dokłada pułapkę - POMIJA wiersze plików pokrytych w 100%, więc
+      // `src/router.tsx` (100/100/100/100, zmierzone) w tabeli NIE ISTNIEJE
+      // i wygląda jak plik wypadnięty z pomiaru. Kto raportuje liczby pokrycia,
+      // musi mieć je maszynowo, a nie zdrapywać z tabeli tekstowej;
+      // `coverage/coverage-summary.json` jest dokładnie tym plikiem i do dziś
+      // nie powstawał wcale. Reporter nie rusza ŻADNEGO progu ani zakresu
+      // pomiaru - dokłada wyłącznie drugie, sprawdzalne wyjście tych samych
+      // liczb.
+      reporter: ["text-summary", "text", "html", "json-summary"],
       // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
       // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
       // z niego natychmiast przy pierwszym padniętym teście

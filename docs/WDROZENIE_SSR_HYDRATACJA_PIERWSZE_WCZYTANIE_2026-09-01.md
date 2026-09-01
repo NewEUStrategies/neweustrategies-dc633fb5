@@ -14,10 +14,25 @@ wprost, czego brakuje). Nie ma tu liczb szacowanych.
 
 ## 0. Streszczenie dla niecierpliwych
 
-Zamknięte w pełni: punkty 1, 2, 3, 4, 6, 7, 10 oraz sekcja 3 zlecenia
-(pokrycie dwóch plików, które posiadają wszystkie budżety).
+Zamknięte w pełni: punkty **1, 2, 3, 4, 5a, 6, 7, 8, 9, 10, 11** oraz sekcje
+3 i 4 zlecenia. Nie zrobione i wymienione z powodem: 5b, 5c oraz ustawienie
+`LHCI_URL` (rozdz. 4 i 1).
 
-**Trzy defekty, których w zleceniu nie było**, znalezione przy trasowaniu:
+Stan bramek na FINALNYM artefakcie cloudflare'owym: `check:chunks`,
+`check:entry-purity`, `check:chunk-parity` i `test:e2e:artifact` **zielone**;
+`check:bundle` czerwona **wyłącznie na `overall`** (4320,2 przy florze 4306 -
+12 KB długu z `main` plus 2,2 KB moje, rozliczone pozycja po pozycji w rozdz. 7).
+Floora nie podniosłem. Dwie nowe bramki wagowe, których wcześniej NIE BYŁO,
+są zielone: CSS 81,0/82 KB i domknięcie ścieżki bootowania 576,2/579 KB.
+
+Pełna suita z pokryciem: **83,17% instrukcji / 77,63% gałęzi / 81,66% funkcji /
+84,44% linii**, 54 623 testy zielone, **pięć czerwonych - dokładnie te, które są
+czerwone na `main`** (sprawdzone osobnym przebiegiem w worktree). Zero regresji
+z tej gałęzi, choć pierwszy przebieg dał siedemnaście czerwonych i jedenaście
+z nich było moich.
+
+**SZEŚĆ defektów, których w zleceniu nie było** - trzy znalezione przy
+trasowaniu, dwa we WŁASNEJ pracy tego zadania i jeden w bibliotece:
 
 1. Opt-out `no-store` był martwy **także na odpowiedziach 302 i 404** - siedem
    linii w czterech trasach było bezczynne, a trwałe 301 wychodziły BEZ ŻADNEJ
@@ -33,9 +48,29 @@ widoczny dla czytelnika w relacjach na żywo. Stał w repozytorium jako `it.fail
 z adnotacją „poza zakresem zadania pokryciowego". Naprawa strefy czasowej domyka
 go, bo `formatDate` ma straż `Number.isNaN` PRZED formatowaniem.
 
+4. **We własnej pracy: hint słownika był MARTWY w artefakcie.** Wtyczka bez
+   `enforce` widziała kod PO transpilacji, a esbuild usuwa przecinek końcowy,
+   którego szukał literał - podmiana nie zadziałała ANI RAZU. Złapało to
+   ostrzeżenie tej samej wtyczki; test był zielony, bo karmił hook treścią pliku
+   ŹRÓDŁOWEGO, czyli innym wejściem niż to, które dostaje build (rozdz. 2 pkt 6
+   i 3.6).
+5. **We własnej pracy: floor domknięcia bootu postawiony na pomiarze wziętym
+   W TRAKCIE zmiany** - zostawiał 0,29% zapasu, czyli mniej niż udokumentowana
+   rozbieżność host↔runner. Przefloorowany 577 -> 579 tego samego dnia
+   (rozdz. 3.2); `rated-list` zabrał z tego zapasu 0,9 KB, więc przy 577 bramka
+   byłaby dziś czerwona.
+6. **W bibliotece: `console.error` na KAŻDYM wczytaniu strony publicznej.**
+   `@tanstack/router-ssr-query-core` woła `hydrate(queryClient, value)` PRZED
+   `if (done) return`, a terminalny odczyt strumienia ma `value === undefined`.
+   Znalezione przez boot-test na artefakcie, przypięte dwoma testami, naprawa
+   u nas wymagałaby obejścia - decyzja człowieka (rozdz. 2 pkt 10).
+
 **Pięć sprostowań do audytu i zlecenia** - patrz rozdz. 5. Najważniejsze: teza
 „`isLoading` jest w SSR false, więc komponent renderuje gałąź «brak danych»" jest
-prawdziwa WYŁĄCZNIE dla zapytania z `enabled: false`.
+prawdziwa WYŁĄCZNIE dla zapytania z `enabled: false`. Do tego dwa sprostowania
+MOICH WŁASNYCH tez, oba zmierzone: metoda spisu tras nie zaliczała loaderów
+przodków (dług 24 -> 21), a rodzina `/events/$slug/*` ma rozgrzane DWIE trasy,
+nie sześć (rozdz. 6).
 
 ---
 
@@ -634,10 +669,21 @@ throttlingu i modelu CPU), TTFB przy żywej bazie oraz `LHCI_URL`.
 
 **ZROBIONE.** Commity `08d4cdb`, `b59d0d3`.
 
-**Uwaga metodologiczna:** `coverage-ed8/coverage-summary.json` **nie istnieje**
-i nie mógł - `vitest.config.ts` nie ma reportera `json-summary`. Zmierzyłem sam,
-v8, z zawężonym `--coverage.include` i reporterem `json-summary` do katalogu
-tymczasowego.
+**Uwaga metodologiczna - i jedna pułapka, którą trzeba nazwać.** Zlecenie prosiło
+o liczby z `coverage-summary.json`. Ten plik **nie powstawał wcale**:
+`vitest.config.ts` miał reportery `["text-summary", "text", "html"]`, czyli
+wyłącznie do czytania oczami. Dołożyłem `json-summary` - reporter nie rusza ani
+jednego progu ani zakresu pomiaru, dokłada drugie, SPRAWDZALNE wyjście tych
+samych liczb.
+
+Powód, dla którego to nie jest kosmetyka: reporter `text` **POMIJA wiersze plików
+pokrytych w 100%**. `src/router.tsx` w tabeli tekstowej pełnego przebiegu NIE
+ISTNIEJE - i wygląda dokładnie jak plik, który wypadł z pomiaru. Sprawdziłem to,
+zamiast uznać za artefakt: przebieg z `--coverage.reporter=json-summary` daje dla
+tego pliku **100,00% instrukcji (35/35), 100,00% gałęzi (12/12), 100,00% funkcji
+(11/11), 100,00% linii (32/32)**. Grupa katalogu `src` w tabeli tekstowej ma
+przy tym 15,15% instrukcji, mając wypisane tylko dwa pliki po 0% - ta arytmetyka
+jest jedynym widocznym śladem, że wiersze są ukrywane.
 
 | plik | przed | po |
 |---|---|---|
@@ -657,6 +703,35 @@ opisany w konfiguracji: 43 z 48 funkcji to komponenty Reacta i callbacki w ich
 środku, w tym 17 samych fabryk `lazy(() => import(...))`. **Niczego nie wyłączono
 z pomiaru**; droga w górę jest nazwana (opcjonalny `rootRoute`
 w `src/test/routeHarness.tsx` - zmiana harness'u testowego, nie produkcji).
+
+**PEŁNY PRZEBIEG SUITY Z POKRYCIEM na tym HEAD-zie** (2026-09-01, host
+deweloperski, 40 minut, `reportOnFailure: true`):
+
+```
+Test Files  4 failed | 2020 passed | 2 skipped (2026)
+Tests       5 failed | 54623 passed | 268 expected fail | 51 skipped (54947)
+
+Statements : 83,17%  (100 824 / 121 220)
+Branches   : 77,63%  ( 85 792 / 110 506)
+Functions  : 81,66%  ( 27 894 /  34 158)
+Lines      : 84,44%  ( 89 523 / 106 017)
+```
+
+**Pięć czerwonych to DOKŁADNIE te, które są czerwone na `main`** - sprawdzone
+osobnym przebiegiem tych samych plików na `origin/main` w oddzielnym worktree:
+snapshot bramek autoryzacji (zlecenie wprost zabrania regenerowania go dla
+zgaszenia czerwieni), dwa przypadki `migrationReplay`, `serviceRoleTenantScope`
+i `AdminMonetizationLedger`. **Zero regresji z tej gałęzi.** To nie było tak od
+początku: pierwszy pełny przebieg dał siedemnaście czerwonych, z czego
+**jedenaście było moich** - naprawione w `4a17bdb` i opisane w tym samym
+commicie (dziesięć to atrapy modułu, które nie przechwytują wywołania WEWNĄTRZ
+modułu po przeniesieniu `queryFn` do fabryki; jedna to asercja, która mierzyła
+`TZ` maszyny testowej zamiast zachowania produktu).
+
+Wszystkie trzy nowe progi per-ścieżka **przeszły w tym przebiegu**: `router.tsx`
+100/100/100/100 wobec progu 96/100/96/92, `hydrateBudget.ts` 100/80/100/100
+wobec 96/75/100/96, `__root.tsx` 45,07/53,19/14,58/51,2 wobec 40/48/12/46
+(kolejność: instrukcje / gałęzie / funkcje / linie).
 
 **Ustalenie, które zmienia ocenę jednego bezpiecznika.** Budżet hydratacji
 **nie ma dziś czego ścinać**: `options.hydrate` zainstalowanej integracji czyta
