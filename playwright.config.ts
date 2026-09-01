@@ -17,6 +17,25 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // SPECY ARTEFAKTOWE NIE JADĄ TĄ KONFIGURACJĄ - i to musi być WYMUSZONE, nie
+  // tylko napisane. `playwright.artifact.config.ts` twierdził w nagłówku, że
+  // `boot-artifact` i `boot-timing` są „uruchamiane WYŁĄCZNIE przez tę
+  // konfigurację, nigdy przez zwykłe `bun run test:e2e`" - i było to
+  // nieprawdziwe, bo `testDir` bierze cały katalog. Zmierzone na runnerze
+  // (przebieg 33512138275, job `e2e`): oba specy pojechały po DEV-SERVERZE
+  // i padły dokładnie tak, jak muszą - `readyMs` 19 963 ms wobec budżetu 6 000
+  // (dev nie ma chunków, boot idzie przez kompilację kilkuset modułów ESM),
+  // `staticGraphCount` = 0 („dokument nie pobrał domknięcia statycznego" - bo
+  // w dev domknięcia statycznego NIE MA), a sonda uznała boot za martwy po
+  // 15 001 ms. To nie jest awaria produktu; to pomiar wykonany na czymś, czego
+  // ten pomiar nie dotyczy.
+  //
+  // Wzorzec jest DOKŁADNIE tym samym, co `testMatch` w
+  // `playwright.artifact.config.ts`, a parytet obu pilnuje bramka
+  // `src/lib/ci/__tests__/playwrightConfigParity.test.ts` - bez niej rozjazd
+  // dwóch plików konfiguracyjnych znowu byłby niewidoczny do pierwszego
+  // czerwonego przebiegu.
+  testIgnore: /boot-(artifact|timing)\.spec\.ts$/,
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,
