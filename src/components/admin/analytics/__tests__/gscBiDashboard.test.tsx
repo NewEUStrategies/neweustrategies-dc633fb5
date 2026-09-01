@@ -29,9 +29,10 @@
 // atrapa, ktora PRZECHWYTUJE `option`. Dzieki temu asercje o kolejnosci i
 // agregacji ida na strukture danych oddana wykresowi, a nie na piksele.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GscRow, GscSite } from "@/lib/analytics/gsc.functions";
+import type { ChartClickParams } from "../ChartDrillDialog";
 
 type Opt = Record<string, unknown>;
 
@@ -46,7 +47,10 @@ interface AnalyticsInput {
 const h = vi.hoisted(() => ({
   listSites: vi.fn(),
   queryAnalytics: vi.fn(),
-  chartOptions: [] as Record<string, unknown>[],
+  charts: [] as Array<{
+    option: Record<string, unknown>;
+    onDataClick?: (params: unknown) => void;
+  }>,
 }));
 
 // `useServerFn` staje sie tozsamoscia - wywolanie idzie prosto do atrapy.
@@ -66,8 +70,14 @@ vi.mock("@/lib/analytics/gsc.functions", () => ({
 // policzyl - i jedyny sposob na dowiedzenie kolejnosci bez wciagania echarts do
 // procesu testowego.
 vi.mock("../EChart", () => ({
-  EChart: ({ option }: { option: Record<string, unknown> }) => {
-    h.chartOptions.push(option);
+  EChart: ({
+    option,
+    onDataClick,
+  }: {
+    option: Record<string, unknown>;
+    onDataClick?: (params: unknown) => void;
+  }) => {
+    h.charts.push({ option, onDataClick });
     return <div data-testid="echart" />;
   },
 }));
@@ -105,6 +115,11 @@ function row(
   return { keys: [key], clicks, impressions, ctr, position };
 }
 
+/** Wiersz BEZ klucza wymiaru - Search Console oddaje takie przy agregatach. */
+function keylessRow(clicks: number, impressions: number, ctr: number, position: number): GscRow {
+  return { keys: [], clicks, impressions, ctr, position };
+}
+
 /** Serie dzienne CELOWO w zlej kolejnosci - GSC nie obiecuje porzadku. */
 const DATE_ROWS: GscRow[] = [
   row("2026-08-03", 30, 300, 0.1, 8),
@@ -123,7 +138,13 @@ const QUERY_ROWS: GscRow[] = [
   row("dlugi ogon frazy", 1, 100, 0.01, 78),
 ];
 const PAGE_ROWS: GscRow[] = [
-  row("https://alfa.example.com/analizy/bardzo-dluga-sciezka-o-energii-w-regionie", 40, 900, 0.044, 6),
+  row(
+    "https://alfa.example.com/analizy/bardzo-dluga-sciezka-o-energii-w-regionie",
+    40,
+    900,
+    0.044,
+    6,
+  ),
   row("https://alfa.example.com/o-nas", 12, 300, 0.04, 9),
 ];
 /** Kraje juz posortowane malejaco - tak jak oddaje je API. */
@@ -204,41 +225,58 @@ function numList(v: unknown): number[] {
   return Array.isArray(v) ? (v as unknown[]).map(Number) : [];
 }
 
-/** OSTATNIA przechwycona opcja pasujaca do predykatu - czyli stan po ostatnim renderze. */
-function lastOption(label: string, pred: (o: Opt) => boolean): Opt {
-  for (let i = h.chartOptions.length - 1; i >= 0; i -= 1) {
-    if (pred(h.chartOptions[i])) return h.chartOptions[i];
+interface Captured {
+  option: Opt;
+  onDataClick?: (params: unknown) => void;
+}
+
+/** OSTATNI przechwycony wykres pasujacy do predykatu - czyli stan po ostatnim renderze. */
+function lastChart(label: string, pred: (o: Opt) => boolean): Captured {
+  for (let i = h.charts.length - 1; i >= 0; i -= 1) {
+    if (pred(h.charts[i].option)) return h.charts[i];
   }
-  throw new Error(`test: nie przechwycono opcji wykresu „${label}"`);
+  throw new Error(`test: nie przechwycono wykresu „${label}"`);
+}
+
+function lastOption(label: string, pred: (o: Opt) => boolean): Opt {
+  return lastChart(label, pred).option;
 }
 
 /** Ostatnie `n` przechwyconych opcji pasujacych do predykatu, w kolejnosci renderu. */
 function lastOptions(label: string, pred: (o: Opt) => boolean, n: number): Opt[] {
-  const hits = h.chartOptions.filter(pred);
+  const hits = h.charts.filter((c) => pred(c.option)).map((c) => c.option);
   if (hits.length < n) throw new Error(`test: przechwycono za malo opcji „${label}"`);
   return hits.slice(hits.length - n);
 }
 
-const trendOption = () =>
-  lastOption("trend", (o) => seriesOf(o).length === 3 && "dataZoom" in o);
-const topQueriesOption = () =>
-  lastOption(
-    "top zapytan",
-    (o) => !Array.isArray(o.yAxis) && rec(o.yAxis).type === "category",
-  );
-const positionOption = () =>
-  lastOption(
-    "rozklad pozycji",
-    (o) => Array.isArray(o.yAxis) && seriesOf(o)[0]?.type === "bar",
-  );
-const donutOption = (name: string) =>
-  lastOption(
-    `donut ${name}`,
-    (o) => seriesOf(o)[0]?.type === "pie" && seriesOf(o)[0]?.name === name,
-  );
-const treemapOption = () =>
-  lastOption("treemap", (o) => seriesOf(o)[0]?.type === "treemap");
-const calendarOption = () => lastOption("kalendarz", (o) => "calendar" in o);
+/** Formater podpowiedzi, ktory panel oddaje wykresowi. */
+function tooltipFormatter(o: Opt): (raw: unknown) => string {
+  const f = rec(o.tooltip).formatter;
+  if (typeof f !== "function") throw new Error("test: wykres nie ma formatera podpowiedzi");
+  return f as (raw: unknown) => string;
+}
+
+/** Symuluje klikniecie w element wykresu - dokladnie tak, jak robi to ECharts. */
+async function clickChart(chart: Captured, params: ChartClickParams): Promise<void> {
+  await act(async () => {
+    chart.onDataClick?.(params);
+  });
+}
+
+const isTrend = (o: Opt) => seriesOf(o).length === 3 && "dataZoom" in o;
+const isTopQueries = (o: Opt) => !Array.isArray(o.yAxis) && rec(o.yAxis).type === "category";
+const isPosition = (o: Opt) => Array.isArray(o.yAxis) && seriesOf(o)[0]?.type === "bar";
+const isDonut = (name: string) => (o: Opt) =>
+  seriesOf(o)[0]?.type === "pie" && seriesOf(o)[0]?.name === name;
+const isTreemap = (o: Opt) => seriesOf(o)[0]?.type === "treemap";
+const isCalendar = (o: Opt) => "calendar" in o;
+
+const trendOption = () => lastOption("trend", isTrend);
+const topQueriesOption = () => lastOption("top zapytan", isTopQueries);
+const positionOption = () => lastOption("rozklad pozycji", isPosition);
+const donutOption = (name: string) => lastOption(`donut ${name}`, isDonut(name));
+const treemapOption = () => lastOption("treemap", isTreemap);
+const calendarOption = () => lastOption("kalendarz", isCalendar);
 
 function analyticsInputs(): AnalyticsInput[] {
   return h.queryAnalytics.mock.calls.map((c) => (c[0] as { data: AnalyticsInput }).data);
@@ -259,6 +297,11 @@ const CHART_TITLE_KEYS = [
   "adminAnalytics.gsc.charts.calendarTitle",
 ] as const;
 
+/** Tlumacz przypiety do jezyka, ktory instancja i18next ma W TEJ CHWILI. */
+function tNow() {
+  return realT(i18n.language?.toLowerCase().startsWith("en") ? "en" : "pl");
+}
+
 function regionName(lang: "pl" | "en", titleKey: string): string {
   const t = realT(lang);
   return t("adminAnalytics.chartCard.chartRegion", { title: t(titleKey) });
@@ -269,6 +312,20 @@ function chartRegionNames(): string[] {
   return screen.getAllByRole("img").map((el) => el.getAttribute("aria-label") ?? "");
 }
 
+/**
+ * Wartosc metryki w oknie drazenia, odczytana przy jej etykiecie.
+ *
+ * Szukamy WEWNATRZ siatki metryk, nie w calym oknie: podtytul okna bywa nazwa
+ * serii („Klikniecia"), wiec ta sama etykieta stoi w dwoch miejscach.
+ */
+function metricValue(label: string): string {
+  const d = screen.getByRole("dialog");
+  const head = within(d).getByText(tNow()("adminAnalytics.drillDialog.metrics"));
+  const grid = head.nextElementSibling;
+  if (!grid) throw new Error("test: okno drazenia nie ma siatki metryk");
+  return within(grid as HTMLElement).getByText(label).nextElementSibling?.textContent ?? "";
+}
+
 /** Wartosc kafelka KPI stojaca przy podanej etykiecie. */
 function kpiValue(label: string): string {
   const box = screen.getByText(label).closest("div.min-w-0");
@@ -277,8 +334,7 @@ function kpiValue(label: string): string {
 }
 
 function panel(configured = true, client?: QueryClient) {
-  const queryClient =
-    client ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = client ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return {
     ...render(
       <QueryClientProvider client={queryClient}>
@@ -314,7 +370,7 @@ function comboboxWithText(text: string): HTMLElement {
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
-  h.chartOptions.length = 0;
+  h.charts.length = 0;
   h.listSites.mockReset();
   h.queryAnalytics.mockReset();
   h.listSites.mockResolvedValue({ sites: [site(SITE_A)], configured: true });
@@ -360,9 +416,7 @@ describe("GscBiDashboard - Search Console niepodlaczony", () => {
         t("adminAnalytics.gsc.notConfiguredPost"),
     );
     expect(container.textContent).toContain("Search Console");
-    expect(container.textContent).not.toContain(
-      realT("pl")("adminAnalytics.gsc.notConfiguredTab"),
-    );
+    expect(container.textContent).not.toContain(realT("pl")("adminAnalytics.gsc.notConfiguredTab"));
   });
 });
 
@@ -502,8 +556,8 @@ describe("GscBiDashboard - dane", () => {
       const data = donutOption(t("adminAnalytics.gsc.charts.countriesTitle")).series;
       expect(Array.isArray(data)).toBe(true);
     });
-    const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0]
-      .data ?? []) as Array<{ name: string; value: number }>;
+    const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0].data ??
+      []) as Array<{ name: string; value: number }>;
     expect(slices).toHaveLength(9);
     expect(slices.slice(0, 8).map((s) => s.name)).toEqual([
       "pol",
@@ -603,10 +657,247 @@ describe("GscBiDashboard - dane", () => {
     await loaded();
 
     expect(
-      await screen.findByText(
-        t("adminAnalytics.gsc.insightsSubtitle", { site: SITE_A, days: 28 }),
-      ),
+      await screen.findByText(t("adminAnalytics.gsc.insightsSubtitle", { site: SITE_A, days: 28 })),
     ).toBeInTheDocument();
+  });
+});
+
+describe("GscBiDashboard - podpowiedzi wykresow", () => {
+  // Formater podpowiedzi to JEDYNE miejsce, w ktorym uzytkownik widzi liczby
+  // pojedynczego elementu wykresu. Jest funkcja oddana ECharts, wiec nie
+  // renderuje sie sam z siebie - bez tego bloku etykiety `clicksLabel`,
+  // `impressionsLabel`, `ctrLabel` i `positionLabel` nie maja zadnego dowodu.
+  it("podpowiedz rankingu fraz sklada wszystkie cztery metryki ze slownika", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
+    const html = tooltipFormatter(topQueriesOption())([
+      { name: "energia w cee", value: 50, dataIndex: 4 },
+    ]);
+    expect(html).toContain("energia w cee");
+    expect(html).toContain(`${t("adminAnalytics.gsc.clicksLabel")}<b>50</b>`);
+    expect(html).toContain(`${t("adminAnalytics.gsc.impressionsLabel")}500`);
+    expect(html).toContain(`${t("adminAnalytics.gsc.ctrLabel")}10.00%`);
+    expect(html).toContain(`${t("adminAnalytics.gsc.positionLabel")}2.4`);
+  });
+
+  it("podpowiedz rankingu nie zmysla wiersza dla indeksu spoza zbioru", async () => {
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
+    // Pusty napis, a nie „undefined" w dymku - ECharts pokazuje zwrocony tekst
+    // doslownie.
+    expect(tooltipFormatter(topQueriesOption())([{ name: "x", value: 0, dataIndex: 99 }])).toBe("");
+  });
+
+  it("podpowiedz donuta podaje udzial procentowy obok wartosci", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+
+    await waitFor(() =>
+      expect(seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))).toHaveLength(1),
+    );
+    expect(
+      tooltipFormatter(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))({
+        name: "pol",
+        value: 100,
+        percent: 18.5,
+      }),
+    ).toBe("pol: <b>100</b> (18.5%)");
+  });
+
+  it("podpowiedz treemapy pokazuje wyswietlenia, klikniecia i CTR strony", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(seriesOf(treemapOption())[0].data).toHaveLength(2));
+    const html = tooltipFormatter(treemapOption())({
+      name: "/o-nas",
+      value: 300,
+      data: { ctr: 0.04, clicks: 12 },
+    });
+    expect(html).toContain(`${t("adminAnalytics.gsc.impressionsLabel")}<b>300</b>`);
+    expect(html).toContain(`${t("adminAnalytics.gsc.clicksLabel")}12`);
+    expect(html).toContain(`${t("adminAnalytics.gsc.ctrLabel")}4.00%`);
+  });
+
+  it("podpowiedz kalendarza mowi, ile klikniec przyniosl dany dzien", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(rec(calendarOption().calendar).range).toBeTruthy());
+    expect(tooltipFormatter(calendarOption())({ value: ["2026-08-02", 20] })).toBe(
+      `2026-08-02: <b>20</b> ${t("adminAnalytics.gsc.clicksShort")}`,
+    );
+  });
+});
+
+describe("GscBiDashboard - drazenie wykresow", () => {
+  // Kliknieciem w element wykresu operator otwiera okno ze szczegolami. Cala
+  // ta warstwa to funkcje oddane karcie, wiec bez symulowanego klikniecia
+  // pozostaje martwa - a to ona decyduje, CZY klikniecie w cokolwiek pokaze
+  // liczby TEGO wiersza, czy sasiedniego.
+  it("klikniecie w punkt trendu pokazuje metryki tego dnia", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toHaveLength(3));
+
+    await clickChart(lastChart("trend", isTrend), {
+      dataIndex: 1,
+      seriesName: t("adminAnalytics.gsc.clicks"),
+    });
+
+    const d = screen.getByRole("dialog");
+    expect(within(d).getByText(t("adminAnalytics.gsc.charts.trendTitle"))).toBeInTheDocument();
+    expect(within(d).getByText("2026-08-02")).toBeInTheDocument();
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("20");
+    expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("250");
+    expect(metricValue("CTR")).toBe("8.00%");
+    expect(metricValue(t("adminAnalytics.gsc.avgPosition"))).toBe("10.0");
+  });
+
+  it("klikniecie w pusty obszar trendu nie otwiera okna bez tresci", async () => {
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toHaveLength(3));
+
+    await clickChart(lastChart("trend", isTrend), { dataIndex: 99 });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("klikniecie w slupek rankingu otwiera te fraze, ktora widac na osi", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
+
+    // Indeks 4 to gora osi kategorii, czyli fraza NAJMOCNIEJSZA - gdyby drazenie
+    // pomijalo `reverse()`, otworzyloby fraze z drugiego konca rankingu.
+    await clickChart(lastChart("top zapytan", isTopQueries), { dataIndex: 4 });
+
+    const d = screen.getByRole("dialog");
+    expect(within(d).getByText("energia w cee")).toBeInTheDocument();
+    expect(within(d).getByText(t("adminAnalytics.gsc.charts.topQueriesTitle"))).toBeInTheDocument();
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("50");
+    expect(metricValue("CTR")).toBe("10.00%");
+  });
+
+  it("klikniecie w przedzial pozycji sumuje wszystkie frazy z tego przedzialu", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(positionOption().xAxis).data)).toHaveLength(5));
+
+    await clickChart(lastChart("rozklad pozycji", isPosition), { dataIndex: 1 });
+
+    const d = screen.getByRole("dialog");
+    expect(within(d).getByText(`${t("adminAnalytics.gsc.avgPosition")}: 4-10`)).toBeInTheDocument();
+    // Jedyna fraza w przedziale 4-10: 30 klik. z 600 wyswietlen.
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("30");
+    expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("600");
+    expect(metricValue("CTR")).toBe("5.00%");
+  });
+
+  it("klikniecie w wycinek donuta otwiera kraj, a wycinek „Inne” nic nie otwiera", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() =>
+      expect(seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))).toHaveLength(1),
+    );
+    const donut = lastChart("donut krajow", isDonut(t("adminAnalytics.gsc.charts.countriesTitle")));
+
+    await clickChart(donut, { name: "deu" });
+    const d = screen.getByRole("dialog");
+    expect(within(d).getByText("deu")).toBeInTheDocument();
+    expect(within(d).getByText(t("adminAnalytics.gsc.charts.countriesTitle"))).toBeInTheDocument();
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("90");
+
+    // „Inne" to worek zbiorczy, nie kraj - nie ma czego pokazac i panel ma to
+    // wiedziec, zamiast otwierac okno o pustym wierszu.
+    fireEvent.keyDown(d, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await clickChart(donut, { name: t("adminAnalytics.gsc.other") });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("klikniecie w kafel treemapy daje sciezke, metryki i odnosnik do strony", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(seriesOf(treemapOption())[0].data).toHaveLength(2));
+    const node = (seriesOf(treemapOption())[0].data as unknown[])[0];
+
+    await clickChart(lastChart("treemap", isTreemap), { data: node });
+
+    const d = screen.getByRole("dialog");
+    const path = "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie";
+    expect(within(d).getAllByText(path).length).toBeGreaterThan(0);
+    expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("900");
+    expect(metricValue("CTR")).toBe("4.40%");
+    // Odnosnik prowadzi do PELNEGO adresu, nie do skroconej etykiety.
+    const link = within(d).getByRole("link", {
+      name: t("adminAnalytics.drillDialog.openInNewTab"),
+    });
+    expect(link).toHaveAttribute("href", PAGE_ROWS[0].keys[0]);
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("klikniecie w kafel bez sciezki nie otwiera okna", async () => {
+    panel();
+    await loaded();
+    await waitFor(() => expect(seriesOf(treemapOption())[0].data).toHaveLength(2));
+
+    await clickChart(lastChart("treemap", isTreemap), { data: undefined });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("klikniecie w dzien kalendarza pokazuje pelne metryki tego dnia", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(rec(calendarOption().calendar).range).toBeTruthy());
+
+    await clickChart(lastChart("kalendarz", isCalendar), { value: ["2026-08-03", 30] });
+
+    const d = screen.getByRole("dialog");
+    expect(within(d).getByText(t("adminAnalytics.gsc.charts.calendarTitle"))).toBeInTheDocument();
+    expect(within(d).getByText("2026-08-03")).toBeInTheDocument();
+    expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("300");
+  });
+
+  it("dzien spoza serii pokazuje same klikniecia, a nie wymyslone wyswietlenia", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(rec(calendarOption().calendar).range).toBeTruthy());
+
+    // Kalendarz maluje cale tygodnie, wiec da sie kliknac dzien, ktorego nie ma
+    // w danych. Panel ma wtedy pokazac TYLKO to, co niesie sama komorka.
+    await clickChart(lastChart("kalendarz", isCalendar), { value: ["2026-07-04", 7] });
+
+    const d = screen.getByRole("dialog");
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("7");
+    expect(within(d).queryByText(t("adminAnalytics.gsc.impressions"))).toBeNull();
+  });
+
+  it("klikniecie w komorke bez wartosci nie otwiera okna", async () => {
+    panel();
+    await loaded();
+    await waitFor(() => expect(rec(calendarOption().calendar).range).toBeTruthy());
+
+    await clickChart(lastChart("kalendarz", isCalendar), { value: undefined });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
@@ -660,6 +951,191 @@ describe("GscBiDashboard - zero wierszy", () => {
   );
 });
 
+describe("GscBiDashboard - wiersze brzegowe", () => {
+  it("wiersz bez klucza wymiaru nie wstawia „undefined” w zadnym miejscu panelu", async () => {
+    const t = realT("pl");
+    // Search Console potrafi oddac wiersz z pusta tablica `keys` (agregat bez
+    // wymiaru). Kazde miejsce, w ktorym panel siega po `keys[0]`, ma na to
+    // wlasny zapasowy napis - i wszystkie musza zadzialac naraz, bo jeden
+    // przeciek renderuje „undefined" na kafelku, w tabeli i w eksporcie CSV.
+    respondWith({
+      date: [keylessRow(5, 50, 0.1, 4)],
+      query: [keylessRow(5, 50, 0.1, 4)],
+      page: [keylessRow(5, 50, 0.1, 4)],
+      country: [keylessRow(5, 50, 0.1, 4)],
+      device: [keylessRow(5, 50, 0.1, 4)],
+      prev: [],
+    });
+    const { container } = panel();
+    await loaded();
+
+    await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toEqual([""]));
+    expect(strList(rec(topQueriesOption().yAxis).data)).toEqual([""]);
+    const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0].data ??
+      []) as Array<{ name: string }>;
+    expect(slices.map((x) => x.name)).toEqual(["?"]);
+    const nodes = (seriesOf(treemapOption())[0].data ?? []) as Array<{ name: string }>;
+    expect(nodes.map((n) => n.name)).toEqual(["/"]);
+    // Kalendarz bez daty nie moze dostac `range: [undefined, undefined]`.
+    expect(
+      strList(rec(calendarOption().calendar).range).every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+    ).toBe(true);
+    expect(container.textContent ?? "").not.toContain("undefined");
+  });
+
+  it("wiersz bez klucza obok wierszy z kluczem nie psuje sortowania", async () => {
+    const t = realT("pl");
+    // Zbior MIESZANY jest trudniejszy niz jednorodny: porownania w sortowaniu
+    // biegna miedzy wierszem z kluczem i bez, wiec zapasowy napis musi zadzialac
+    // po obu stronach porownania - inaczej `localeCompare` dostaje `undefined`
+    // i seria ustawia sie losowo.
+    respondWith({
+      date: [keylessRow(5, 50, 0.1, 4), row("2026-08-01", 10, 200, 0.05, 12)],
+      query: [keylessRow(7, 70, 0.1, 4), row("fraza z kluczem", 3, 30, 0.1, 2)],
+      page: [],
+      country: [keylessRow(9, 90, 0.1, 4), row("pol", 4, 40, 0.1, 3)],
+      device: [],
+      prev: [],
+    });
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toEqual(["", "2026-08-01"]));
+    expect(numList(seriesOf(trendOption())[0].data)).toEqual([5, 10]);
+    // Rank: mocniejszy jest wiersz bez klucza, wiec po odwroceniu stoi na gorze.
+    expect(strList(rec(topQueriesOption().yAxis).data)).toEqual(["fraza z kluczem", ""]);
+    const slices = (seriesOf(donutOption(t("adminAnalytics.gsc.charts.countriesTitle")))[0].data ??
+      []) as Array<{ name: string; value: number }>;
+    expect(slices.map((x) => x.name)).toEqual(["?", "pol"]);
+    // Podpowiedz wywolana bez ladunku ma oddac tekst, a nie „undefined".
+    expect(tooltipFormatter(topQueriesOption())([])).not.toContain("undefined");
+  });
+
+  it("drazenie wiersza bez klucza otwiera okno z metrykami, a nie z „undefined”", async () => {
+    const t = realT("pl");
+    respondWith({
+      date: [keylessRow(5, 50, 0.1, 4), row("2026-08-01", 10, 200, 0.05, 12)],
+      query: [keylessRow(7, 70, 0.1, 4), row("fraza z kluczem", 3, 30, 0.1, 2)],
+      page: [],
+      country: [keylessRow(9, 90, 0.1, 4), row("pol", 4, 40, 0.1, 3)],
+      device: [],
+      prev: [],
+    });
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toEqual(["", "2026-08-01"]));
+
+    // Trend: pierwszy punkt to wiersz bez daty.
+    await clickChart(lastChart("trend", isTrend), { dataIndex: 0 });
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("5");
+    const trendDialog = screen.getByRole("dialog");
+    expect(trendDialog.textContent ?? "").not.toContain("undefined");
+    fireEvent.keyDown(trendDialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // Rank: gorna pozycja osi to wiersz bez klucza.
+    await clickChart(lastChart("top zapytan", isTopQueries), { dataIndex: 1 });
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("7");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // Donut: wycinek „?" to nadal konkretny wiersz, wiec ma sie otworzyc.
+    await clickChart(
+      lastChart("donut krajow", isDonut(t("adminAnalytics.gsc.charts.countriesTitle"))),
+      { name: "?" },
+    );
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("9");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // Kalendarz: komorka bez daty trafia w ten sam wiersz.
+    await clickChart(lastChart("kalendarz", isCalendar), { value: ["", 5] });
+    expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("50");
+  });
+
+  it("klikniecie w trend bez indeksu danych nie otwiera okna", async () => {
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(trendOption().xAxis).data)).toHaveLength(3));
+
+    await clickChart(lastChart("trend", isTrend), { seriesName: "CTR" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("pozycja spoza wszystkich przedzialow nie doklada sie do zadnego slupka", async () => {
+    // Pozycja 0 nie istnieje w SERP - wpadniecie takiego wiersza do przedzialu
+    // „1-3" zawyzyloby najwazniejszy slupek raportu.
+    respondWith({
+      ...EMPTY,
+      date: DATE_ROWS,
+      query: [row("pozycja zerowa", 7, 70, 0.1, 0), row("uczciwa fraza", 3, 30, 0.1, 2)],
+    });
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(strList(rec(positionOption().xAxis).data)).toHaveLength(5));
+    const s = seriesOf(positionOption());
+    expect(numList(s[0].data)).toEqual([30, 0, 0, 0, 0]);
+    expect(numList(s[1].data)).toEqual([3, 0, 0, 0, 0]);
+  });
+
+  it("pusty przedzial pozycji pokazuje CTR 0,00%, a nie dzielenie przez zero", async () => {
+    respondWith({
+      ...EMPTY,
+      date: DATE_ROWS,
+      query: [row("uczciwa fraza", 3, 30, 0.1, 2)],
+    });
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(positionOption().xAxis).data)).toHaveLength(5));
+
+    await clickChart(lastChart("rozklad pozycji", isPosition), { dataIndex: 4 });
+
+    expect(metricValue("CTR")).toBe("0.00%");
+    expect(metricValue(realT("pl")("adminAnalytics.gsc.impressions"))).toBe("0");
+  });
+
+  it("klikniecie bez indeksu danych nie otwiera okna na zadnym wykresie", async () => {
+    panel();
+    await loaded();
+    await waitFor(() => expect(strList(rec(topQueriesOption().yAxis).data)).toHaveLength(5));
+
+    // ECharts wysyla zdarzenie takze dla elementow bez danych (etykieta osi,
+    // linia progu) - wtedy `dataIndex` nie jest liczba.
+    await clickChart(lastChart("top zapytan", isTopQueries), { name: "os" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await clickChart(lastChart("rozklad pozycji", isPosition), { name: "os" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await clickChart(
+      lastChart("donut krajow", isDonut(realT("pl")("adminAnalytics.gsc.charts.countriesTitle"))),
+      { dataIndex: 0 },
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("kafel treemapy bez metryk pokazuje zera, a odnosnik prowadzi do sciezki", async () => {
+    const t = realT("pl");
+    panel();
+    await loaded();
+    await waitFor(() => expect(seriesOf(treemapOption())[0].data).toHaveLength(2));
+
+    await clickChart(lastChart("treemap", isTreemap), { data: { fullPath: "/kontakt" } });
+
+    const d = screen.getByRole("dialog");
+    expect(metricValue(t("adminAnalytics.gsc.clicks"))).toBe("0");
+    expect(metricValue(t("adminAnalytics.gsc.impressions"))).toBe("0");
+    expect(metricValue("CTR")).toBe("0.00%");
+    expect(metricValue(t("adminAnalytics.gsc.avgPosition"))).toBe("0.0");
+    // Bez pelnego adresu odnosnik musi zostac przy sciezce - nigdy `undefined`.
+    expect(
+      within(d).getByRole("link", { name: t("adminAnalytics.drillDialog.openInNewTab") }),
+    ).toHaveAttribute("href", "/kontakt");
+  });
+});
+
 describe("GscBiDashboard - blad zapytania", () => {
   it("po awarii Search Analytics panel nie jest pusty - narzedzia steruja dalej", async () => {
     const t = realT("pl");
@@ -682,9 +1158,13 @@ describe("GscBiDashboard - blad zapytania", () => {
     const { container } = panel();
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
 
-    await waitFor(() => {
-      expect(container.textContent ?? "").toMatch(/503|b[łl][ąa]d|error/i);
-    });
+    // Krotki limit: dowodzimy BRAKU komunikatu, wiec nie ma na co czekac.
+    await waitFor(
+      () => {
+        expect(container.textContent ?? "").toMatch(/503|b[łl][ąa]d|error/i);
+      },
+      { timeout: 400 },
+    );
   });
 
   it.fails("DEFEKT: przy padnietym zapytaniu KPI pokazuje 0 zamiast braku pomiaru", async () => {
@@ -799,7 +1279,11 @@ describe("GscBiDashboard - wybor wlasciwosci", () => {
     fireEvent.click(within(listbox).getByRole("option", { name: SITE_B }));
 
     await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThan(before));
-    expect(analyticsInputs().slice(before).every((i) => i.siteUrl === SITE_B)).toBe(true);
+    expect(
+      analyticsInputs()
+        .slice(before)
+        .every((i) => i.siteUrl === SITE_B),
+    ).toBe(true);
   });
 
   it("bez ani jednej wlasciwosci panel nie strzela zapytaniem z pustym adresem", async () => {
@@ -811,9 +1295,7 @@ describe("GscBiDashboard - wybor wlasciwosci", () => {
     // `siteUrl: ""` - walidator server fn odrzucilby to bledem 400 na kazdym
     // wejsciu na zakladke.
     await waitFor(() => expect(h.queryAnalytics).not.toHaveBeenCalled());
-    expect(
-      screen.getByText(realT("pl")("adminAnalytics.gsc.selectProperty")),
-    ).toBeInTheDocument();
+    expect(screen.getByText(realT("pl")("adminAnalytics.gsc.selectProperty"))).toBeInTheDocument();
   });
 });
 
@@ -824,7 +1306,11 @@ describe("GscBiDashboard - izolacja warsztatow", () => {
     await loaded();
 
     const listbox = openSelect(comboboxWithText(SITE_A));
-    expect(within(listbox).getAllByRole("option").map((o) => o.textContent)).toEqual([SITE_A]);
+    expect(
+      within(listbox)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual([SITE_A]);
     expect(container.textContent ?? "").not.toContain("beta.example.org");
   });
 
@@ -888,7 +1374,11 @@ describe("GscBiDashboard - dostepnosc", () => {
     expect(tables).toHaveLength(2);
 
     const trend = tables[0];
-    expect(within(trend).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+    expect(
+      within(trend)
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual([
       t("adminAnalytics.gsc.csvHeaders.date"),
       t("adminAnalytics.gsc.csvHeaders.clicks"),
       t("adminAnalytics.gsc.csvHeaders.impressions"),

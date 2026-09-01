@@ -154,11 +154,11 @@ describe("CartesianChart - wczesne wyjścia i filtr serii", () => {
 });
 
 describe("CartesianChart - kolumny pionowe", () => {
-  const base = {
+  const base: Record<string, Json> = {
     kind: "bar",
     categories: ["2021", "2022", "2023"],
     series: [{ name: "Eksport", values: [10, -5, 20] }],
-  } as const;
+  };
 
   it("baza kolumny siedzi na zerze skali, a wartość ujemna rośnie W DÓŁ", () => {
     const { container } = render(<CartesianChart config={cfg({ ...base })} lang="pl" />);
@@ -369,11 +369,11 @@ describe("CartesianChart - kolumny pionowe", () => {
 });
 
 describe("CartesianChart - słupki poziome", () => {
-  const base = {
+  const base: Record<string, Json> = {
     kind: "bar-horizontal",
     categories: ["Polska", "Niemcy"],
     series: [{ name: "PKB", values: [10, -4] }],
-  } as const;
+  };
 
   it("wartość mierzy się po osi X, a kategorie schodzą po osi Y", () => {
     const { container } = render(<CartesianChart config={cfg({ ...base })} lang="pl" />);
@@ -449,7 +449,7 @@ describe("CartesianChart - słupki poziome", () => {
 });
 
 describe("CartesianChart - stack", () => {
-  const stos = {
+  const stos: Record<string, Json> = {
     kind: "bar",
     stacked: true,
     categories: ["2025", "2026"],
@@ -457,7 +457,7 @@ describe("CartesianChart - stack", () => {
       { name: "A", values: [10, 6] },
       { name: "B", values: [5, 4] },
     ],
-  } as const;
+  };
 
   it("segmenty stackują się na sobie, a skala sięga SUMY, nie maksimum serii", () => {
     const { container } = render(<CartesianChart config={cfg({ ...stos })} lang="pl" />);
@@ -836,7 +836,7 @@ describe("CartesianChart - oś wartości, siatka i języki", () => {
     const pl = render(<CartesianChart config={config} lang="pl" />);
     const en = render(<CartesianChart config={config} lang="en" />);
 
-    expect(textOf(pl.container, SEL.tick).join("|")).toMatch(/5 mln/);
+    expect(textOf(pl.container, SEL.tick).join("|")).toMatch(/5[\s\u00a0]mln/);
     expect(textOf(en.container, SEL.tick)).toEqual(["0", "5M", "10M", "15M"]);
   });
 
@@ -851,7 +851,7 @@ describe("CartesianChart - oś wartości, siatka i języki", () => {
     const pl = render(<CartesianChart config={config} lang="pl" />);
     const en = render(<CartesianChart config={config} lang="en" />);
 
-    expect(textOf(pl.container, SEL.valueLabel)[0]).toMatch(/^1[\s  ]?234,5%$/);
+    expect(textOf(pl.container, SEL.valueLabel)[0]).toMatch(/^1[\s\u00a0\u202f]?234,5%$/);
     expect(textOf(en.container, SEL.valueLabel)).toEqual(["1,234.5%"]);
   });
 
@@ -873,7 +873,7 @@ describe("CartesianChart - oś wartości, siatka i języki", () => {
 });
 
 describe("CartesianChart - interakcja", () => {
-  const dwieSerie = {
+  const dwieSerie: Record<string, Json> = {
     kind: "bar",
     unit: "%",
     categories: ["a", "b", "c"],
@@ -881,7 +881,7 @@ describe("CartesianChart - interakcja", () => {
       { name: "Alfa", values: [1, null, 3] },
       { name: "Beta", values: [2, 5, 6] },
     ],
-  } as const;
+  };
 
   it("strzałka w prawo aktywuje pierwszą kategorię i pokazuje WSZYSTKIE serie w jednym tooltipie", () => {
     const { container } = render(<CartesianChart config={cfg({ ...dwieSerie })} lang="pl" />);
@@ -1118,9 +1118,7 @@ describe("CartesianChart - interakcja", () => {
       />,
     );
     fireEvent.keyDown(box(container), { key: "ArrowRight" });
-    expect(container.querySelector(SEL.tooltip)?.getAttribute("style")).toContain(
-      "translate(12px",
-    );
+    expect(container.querySelector(SEL.tooltip)?.getAttribute("style")).toContain("translate(12px");
     for (let i = 0; i < 4; i++) fireEvent.keyDown(box(container), { key: "ArrowRight" });
     expect(container.querySelector(SEL.tooltip)?.getAttribute("style")).toContain("-100%");
   });

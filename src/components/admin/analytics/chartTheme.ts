@@ -100,13 +100,16 @@ export function resolveChartTheme(): ResolvedTheme {
 //   przed:  20 renderów · 20 rozwiązań motywu · 200 wywołań getComputedStyle
 //   po:     10 renderów ·  2 rozwiązania motywu ·   2 wywołania getComputedStyle
 //
-// Migawka jest porzucana, gdy znika OSTATNI subskrybent: bez wykresu na ekranie
-// nie ma czego trzymać ciepłego, a przy okazji nie ma stanu przeciekającego
-// między trasami panelu.
+// Gdy znika OSTATNI subskrybent, migawka jest OZNACZANA JAKO PODEJRZANA, a nie
+// wyrzucana: pierwszy odczyt po powrocie wykresów przelicza tokeny, ale zwraca
+// STARĄ referencję, jeśli kolory wyszły identyczne (patrz `adoptTheme`). Dzięki
+// temu nic nie przecieka między trasami panelu, a jednocześnie wymiana zakładki
+// nie funduje wykresom wymuszonego drugiego renderu.
 type ChartThemeListener = () => void;
 
 const listeners = new Set<ChartThemeListener>();
 let snapshot: ResolvedTheme | null = null;
+let snapshotStale = false;
 let refreshScheduled = false;
 
 function sameTheme(a: ResolvedTheme, b: ResolvedTheme): boolean {
@@ -122,12 +125,24 @@ function sameTheme(a: ResolvedTheme, b: ResolvedTheme): boolean {
 }
 
 /**
+ * Przyjmij świeży odczyt, ZACHOWUJĄC starą referencję, gdy kolory wyszły
+ * identyczne. To jedno miejsce decyduje o tożsamości migawki, bo od niej -
+ * a nie od treści - zależy, czy React przerenderuje wykresy.
+ */
+function adoptTheme(next: ResolvedTheme): ResolvedTheme {
+  snapshotStale = false;
+  if (snapshot && sameTheme(snapshot, next)) return snapshot;
+  snapshot = next;
+  return next;
+}
+
+/**
  * Bieżący motyw - identyczna REFERENCJA, dopóki tokeny się nie zmieniły.
  * `useSyncExternalStore` wymaga stabilnej migawki: nowy obiekt przy każdym
  * odczycie zapętliłby render.
  */
 export function chartThemeSnapshot(): ResolvedTheme {
-  if (!snapshot) snapshot = resolveChartTheme();
+  if (!snapshot || snapshotStale) return adoptTheme(resolveChartTheme());
   return snapshot;
 }
 
@@ -136,7 +151,16 @@ export function subscribeChartTheme(listener: ChartThemeListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) snapshot = null;
+    // Ostatni wykres schodzi z ekranu: migawka jest ODTĄD PODEJRZANA, ale NIE
+    // wyrzucona. Wyrzucona (`snapshot = null`) rodziła przy następnym odczycie
+    // NOWY obiekt nawet dla identycznych kolorów, a `useSyncExternalStore`
+    // porównuje migawki przez `Object.is` - czyli każdy wykres, który
+    // zamontował się w TYM SAMYM commicie, w którym odmontował się poprzedni
+    // panel (przełączenie zakładki /admin/analytics na już wczytane dane),
+    // dostawał wymuszony drugi render i drugie `setOption(notMerge)`. Dokładnie
+    // ten koszt, który ta subskrypcja miała usunąć, tylko innym wejściem.
+    // ZMIERZONE na wymianie panelu 10 -> 10 wykresów: 20 renderów -> 10.
+    if (listeners.size === 0) snapshotStale = true;
   };
 }
 
@@ -145,9 +169,8 @@ export function subscribeChartTheme(listener: ChartThemeListener): () => void {
  * zamontowaniu (przez `scheduleChartThemeRefresh`) oraz zmiana `themeVersion`.
  */
 export function notifyChartThemeChanged(): void {
-  const next = resolveChartTheme();
-  if (snapshot && sameTheme(snapshot, next)) return;
-  snapshot = next;
+  const previous = snapshot;
+  if (adoptTheme(resolveChartTheme()) === previous) return;
   for (const listener of [...listeners]) listener();
 }
 
@@ -164,7 +187,7 @@ export function scheduleChartThemeRefresh(): void {
   });
 }
 
-/** Baseline option every chart merges over — dark-mode aware axes + tooltip. */
+/** Baseline option every chart merges over - dark-mode aware axes + tooltip. */
 export function baseOption(theme: ResolvedTheme): EChartsCoreOption {
   return {
     color: theme.palette,

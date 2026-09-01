@@ -187,13 +187,67 @@ describe("koszt renderu panelu (N8)", () => {
   });
 
   it("zmiana `themeVersion` PRZELICZA motyw - przełącznik trybu nie może zostawić starej palety", async () => {
+    // Asercja jest na SKUTKU, nie na liczniku: po podbiciu `themeVersion`
+    // wykres MUSI malować się nową paletą. Wcześniej stało tu tylko
+    // `computedStyleCalls === before + 1`, czyli „coś policzono" - to przechodzi
+    // także wtedy, gdy przeliczony motyw nigdy nie dojedzie do wykresu.
     const { rerender } = render(<EChartClient option={OPTION} themeVersion={0} />);
-    const before = computedStyleCalls;
+    await settle();
+    document.documentElement.style.setProperty("--chart-1", "#0000ff");
 
     rerender(<EChartClient option={OPTION} themeVersion={1} />);
-
-    expect(computedStyleCalls).toBe(before + 1);
     await settle();
+
+    expect((h.lastOption?.color as string[])[0]).toBe("#0000ff");
+    document.documentElement.style.removeProperty("--chart-1");
+  });
+
+  it("przełączenie trybu na panelu to JEDNO rozwiązanie motywu, nie dziesięć", async () => {
+    // `themeVersion` zmienia się CAŁEMU panelowi naraz, więc efekt każdego
+    // wykresu odpala się na tej samej turze. Póki wołał `notifyChartThemeChanged`
+    // bezpośrednio, jedno przełączenie trybu kosztowało dziesięć rozwiązań
+    // motywu (ZMIERZONE: 10 wywołań `getComputedStyle`) - dziewięć z nich
+    // wyłącznie po to, żeby porównać wynik z samym sobą i wyjść.
+    const p = (v: number) => (
+      <>
+        {Array.from({ length: 10 }, (_, i) => (
+          <EChartClient key={i} option={OPTION} themeVersion={v} />
+        ))}
+      </>
+    );
+    const { rerender } = render(p(0));
+    await settle();
+    computedStyleCalls = 0;
+
+    rerender(p(1));
+    await settle();
+
+    expect(computedStyleCalls).toBe(1);
+  });
+
+  it("wymiana panelu na panel to dziesięć renderów, nie dwadzieścia", async () => {
+    // Zakładki `/admin/analytics` na wczytanych już danych: stary panel
+    // odmontowuje się w TYM SAMYM commicie, w którym montuje się nowy.
+    // Póki ostatni `unsubscribe` WYRZUCAŁ migawkę (`snapshot = null`), pierwszy
+    // odczyt po wymianie rodził NOWY obiekt o identycznych kolorach,
+    // `useSyncExternalStore` porównywał go przez `Object.is` i wymuszał
+    // każdemu nowemu wykresowi drugi render - czyli dokładnie ten koszt, który
+    // wspólna subskrypcja miała usunąć. ZMIERZONE: 20 renderów -> 10.
+    const p = (tag: string) => (
+      <>
+        {Array.from({ length: 10 }, (_, i) => (
+          <EChartClient key={`${tag}-${i}`} option={OPTION} />
+        ))}
+      </>
+    );
+    const { rerender } = render(p("a"));
+    await settle();
+    h.chartRenders = 0;
+
+    rerender(p("b"));
+    await settle();
+
+    expect(h.chartRenders).toBe(10);
   });
 });
 

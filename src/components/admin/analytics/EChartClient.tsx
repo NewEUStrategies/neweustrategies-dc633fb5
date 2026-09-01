@@ -45,7 +45,6 @@ import type { EChartsCoreOption, ECharts } from "echarts/core";
 import {
   baseOption,
   chartThemeSnapshot,
-  notifyChartThemeChanged,
   scheduleChartThemeRefresh,
   subscribeChartTheme,
   type ResolvedTheme,
@@ -124,11 +123,17 @@ export function EChartClient({
   // `ChartCard`): przelicz i rozgłoś WSZYSTKIM wykresom, żeby panel nie został
   // z dwiema paletami naraz. Referencja zjada przebieg montujący - bez niej
   // każdy wykres wołałby to na starcie i wróciłby koszt sprzed zmiany.
+  //
+  // Przez `scheduleChartThemeRefresh`, NIE przez `notifyChartThemeChanged`:
+  // `themeVersion` zmienia się CAŁEMU panelowi naraz, więc bezpośrednie
+  // rozgłoszenie znaczyło N rozwiązań motywu na jedno przełączenie trybu
+  // (ZMIERZONE na dziesięciu wykresach: 10 wywołań `getComputedStyle` -> 1).
+  // Ścieżka montująca koalescencjonuje od początku; ta nie miała powodu być inna.
   const lastThemeVersion = useRef(themeVersion);
   useEffect(() => {
     if (lastThemeVersion.current === themeVersion) return;
     lastThemeVersion.current = themeVersion;
-    notifyChartThemeChanged();
+    scheduleChartThemeRefresh();
   }, [themeVersion]);
 
   useEffect(() => {
