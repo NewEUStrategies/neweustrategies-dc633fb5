@@ -706,6 +706,9 @@ jobs:
           npm_config_registry: https://registry.npmjs.org
 
       - name: Build
+        # `id` jest tu potrzebne dla warunków `if:` niżej - patrz komentarz przy
+        # „Bundle size budget".
+        id: build
         run: bun run build
         env:
           # Placeholders so Vite has defined VITE_* at build time; real values
@@ -718,7 +721,30 @@ jobs:
       # Blocking perf gate: fails the build if the gzipped client bundle grows
       # past budget (largest chunk / total). Reliable - no server or browser
       # needed - unlike the separate Lighthouse job.
+      # WARUNEK `if:` NA TYM I NA KAŻDYM NASTĘPNYM KROKU TEGO JOBA - i to jest
+      # NAPRAWA, nie ozdoba. Domyślnie krok w GitHub Actions nie wykonuje się,
+      # gdy wcześniejszy padł, więc jedna czerwona bramka WYŁĄCZAŁA wszystkie
+      # następne. Zmierzone na artefakcie bazowym tej gałęzi (main `1d5d0ed`,
+      # przebieg CI 33471613171, job `build`): „Bundle size budget" padł na
+      # `overall`, a „Chunk graph acyclicity" i „Client boot path free of
+      # payment SDKs" zaraportowały się jako SKIPPED. Ponieważ czerwień
+      # `overall` jest długiem odziedziczonym z maina, a nie regresją, oznaczało
+      # to, że trzy bramki - w tym boot-test przeglądarkowy i budżet czasu
+      # pierwszego wczytania, dołożone tym samym PR-em - NIE URUCHOMIŁYBY SIĘ
+      # W CI ANI RAZU. Bramka, która nie biegnie, nie jest bramką.
+      #
+      # `!cancelled()` zamiast `always()`: przy anulowaniu przebiegu nie ma po co
+      # dokładać minut. Bramki MIERZĄCE ARTEFAKT dodatkowo wymagają, żeby krok
+      # `Build` się udał (`steps.build.outcome == 'success'`) - bez artefaktu
+      # zgłaszałyby „brak plików", czyli szum zamiast pomiaru. Kroki
+      # `build:smoke` i `test:e2e:artifact` budują sobie WŁASNY artefakt, więc
+      # potrzebują wyłącznie udanej instalacji zależności.
+      #
+      # KOLEJNOŚĆ KROKÓW POZOSTAJE KONTRAKTEM: `if:` nie zmienia porządku
+      # wykonania, a `build:smoke` nadal NADPISUJE `.output/` po bramkach
+      # mierzących artefakt cloudflare'owy.
       - name: Bundle size budget
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:bundle
 
       # Blocking boot-safety gate: fails on any import cycle between built
@@ -726,6 +752,7 @@ jobs:
       # (2026-07-20: dead hydration on every page - full SSR visuals, zero
       # interactivity) and is invisible to dev mode and unit tests.
       - name: Chunk graph acyclicity
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:chunks
 
       # Blokująca bramka architektury bundla: żaden ciężki SDK operatora
@@ -737,6 +764,7 @@ jobs:
       # -> @stripe/*, przez co każdy anonimowy czytelnik artykułu pobierał SDK
       # bramki płatniczej (marker js.stripe.com w chunku entry).
       - name: Client boot path free of payment SDKs
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:entry-purity
 
       # ── BOOT-TEST PRZEGLĄDARKOWY NA ARTEFAKCIE PRODUKCYJNYM ─────────────────
@@ -764,9 +792,11 @@ jobs:
       # wszystkie asercje `ssr-completeness` są spełnione przez w pełni
       # wyrenderowany, całkowicie martwy dokument.
       - name: Install Playwright Chromium
+        if: ${{ !cancelled() }}
         run: bunx playwright install --with-deps chromium
 
       - name: Build production artifact for a node server (smoke preset)
+        if: ${{ !cancelled() }}
         run: bun run build:smoke
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
@@ -800,6 +830,7 @@ jobs:
       # (`[boot-timing] ...`) właśnie po to, żeby PIERWSZY przebieg CI dał
       # podstawę do przefloorowania.
       - name: Boot test and first-load timing on the production artifact
+        if: ${{ !cancelled() }}
         run: bun run test:e2e:artifact
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
