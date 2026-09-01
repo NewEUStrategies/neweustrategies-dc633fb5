@@ -25,6 +25,8 @@ import {
 import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
+import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
+import { markAppReady } from "../lib/watchdog/appReady";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
 import { getOrigin } from "../lib/seo/request";
@@ -523,6 +525,13 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* PIERWSZY skrypt w dokumencie - wszystko po nim jest obserwowalne.
+            Klasyczny, nie modułowy: musi przeżyć rzut w chunku vendorowym,
+            czyli awarię z 2026-07-20, której żaden handler zainstalowany
+            z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje
+            w pamięci strony - wysyłka jest w lib/observability, za bramką
+            zgody analitycznej. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_PROBE_SCRIPT }} />
         {supabaseConfigScript ? (
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
         ) : null}
@@ -577,9 +586,17 @@ function RootComponent() {
         return true;
       }
     })();
+    // FLAGA GOTOWOŚCI JEST KONTRAKTEM PRODUKCYJNYM, nie instalacją podglądu:
+    // czyta ją boot-test na artefakcie produkcyjnym i sonda martwej hydratacji.
+    // Ustawiamy ją SYNCHRONICZNIE tutaj, bez round-tripu po leniwy chunk -
+    // wcześniej siedziała w środku `previewWatchdog`, importowanego tylko
+    // w iframie edytora, więc na publikowanej stronie nie było ANI JEDNEGO
+    // sygnału odróżniającego „zhydratowano" od „martwe".
+    // PRZEŁADOWANIE zostaje iframe-only (patrz previewWatchdog) - publikowana
+    // strona nigdy nie jest przeładowywana pod prawdziwym czytelnikiem.
+    markAppReady();
     if (inPreviewIframe) {
       void import("../lib/watchdog/previewWatchdog").then((m) => {
-        m.markPreviewAppReady();
         stopWatchdog = m.startPreviewWatchdog();
       });
     }

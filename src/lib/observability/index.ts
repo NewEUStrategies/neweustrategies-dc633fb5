@@ -37,6 +37,23 @@ export function initObservability(): () => void {
   window.addEventListener("error", onError);
   window.addEventListener("unhandledrejection", onRejection);
 
+  // BŁĘDY BOOTU zbuforowane, ZANIM ten moduł w ogóle istniał.
+  //
+  // Sonda `BOOT_PROBE_SCRIPT` to klasyczny skrypt w `<head>`, pierwszy
+  // w dokumencie - łapie rzut w chunku vendorowym, czyli awarię, której ten
+  // moduł nie ma jak zobaczyć (instaluje się z efektu montowania Reacta, więc
+  // PO zdarzeniu). Sonda tylko buforuje w pamięci strony; beaconowanie odbywa
+  // się DOPIERO TUTAJ, czyli dopiero za bramką zgody analitycznej - i to jest
+  // powód, dla którego samo przechwytywanie nie ma bramki zgody: bufor nigdy
+  // nie opuścił strony.
+  //
+  // `splice(0)` opróżnia bufor, więc powtórna inicjalizacja (cofnięcie i ponowne
+  // udzielenie zgody) nie wysyła tych samych błędów drugi raz.
+  const bootBuffer = (window as unknown as { __nesBootErrors?: unknown[] }).__nesBootErrors;
+  if (Array.isArray(bootBuffer) && bootBuffer.length > 0) {
+    for (const entry of bootBuffer.splice(0)) reportClientError(entry, "onerror");
+  }
+
   return () => {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onRejection);

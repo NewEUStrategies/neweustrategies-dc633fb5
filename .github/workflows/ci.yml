@@ -672,10 +672,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     # Zmierzone na przebiegu 2754: setup+install ~15 s, `Build` ~2:20, trzy
-    # bramki artefaktu ~60 s. Piętnaście minut to ~4x zapasu - job jest krótki
-    # i taki ma zostać; gdy zacznie się zbliżać do limitu, przyczyną będzie
-    # `Build`, a nie sąsiedzi w tym samym jobie.
-    timeout-minutes: 15
+    # bramki artefaktu ~60 s. Gdy job zacznie się zbliżać do limitu, przyczyną
+    # będzie któryś z DWÓCH buildów, a nie sąsiedzi w tym samym jobie.
+    #
+    # 2026-09-01: 15 -> 30 min. Job robi teraz DRUGI pełny build (preset
+    # `node-server`, `bun run build:smoke`) plus instalację Chromium i boot-test
+    # na artefakcie. Zmierzony koszt dodatków: Chromium ~40 s, drugi build
+    # >=3 min 30 s, boot-test <1 min. Poprzednie 15 minut było policzone jako
+    # ~4x zapasu dla JEDNEGO builda - drugi ten zapas zjada.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -733,6 +738,57 @@ jobs:
       # bramki płatniczej (marker js.stripe.com w chunku entry).
       - name: Client boot path free of payment SDKs
         run: bun run check:entry-purity
+
+      # ── BOOT-TEST PRZEGLĄDARKOWY NA ARTEFAKCIE PRODUKCYJNYM ─────────────────
+      #
+      # KOLEJNOŚĆ JEST KONTRAKTEM, NIE PREFERENCJĄ: `build:smoke` NADPISUJE
+      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`
+      # i `check:entry-purity`. Te trzy mierzą artefakt cloudflare'owy; gdyby
+      # smoke build je wyprzedził, mierzyłyby artefakt node-server i ich floory
+      # przestałyby cokolwiek znaczyć.
+      #
+      # PO CO TO ISTNIEJE. `vite.config.ts` przy `manualChunks` obiecuje, że
+      # klasę awarii z 2026-07-20 (cykl chunków -> wywrócona kolejność
+      # inicjalizacji -> boot padnie PRZED hydrateRoot, strona zostaje statycznym
+      # SSR-em) pilnują DWIE rzeczy: `check-chunk-graph.ts` ORAZ boot-test na
+      # buildzie `vite.smoke.config.ts`. Pierwsza połowa działała od dawna,
+      # DRUGA NIE ISTNIAŁA: żaden skrypt nie budował tego configu, żaden workflow
+      # go nie wołał, a Playwright startował aplikację przez `bun run dev`, gdzie
+      # chunków nie ma z definicji. Pilnowany był więc PARYTET KONFIGURACJI
+      # smoke'a, którego nikt nie uruchamiał.
+      #
+      # `check:chunks` łapie WYŁĄCZNIE cykle. Artefakt bez cyklu też może paść
+      # przed hydratacją (interop CJS, brakujący eksport, rzut w chunku
+      # vendorowym) - i tylko prawdziwa przeglądarka na zbudowanym serwerze to
+      # zobaczy. Test WYKONUJE INTERAKCJĘ, nie sprawdza samego braku błędu:
+      # wszystkie asercje `ssr-completeness` są spełnione przez w pełni
+      # wyrenderowany, całkowicie martwy dokument.
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build production artifact for a node server (smoke preset)
+        run: bun run build:smoke
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+
+      - name: Boot test on the production artifact
+        run: bun run test:e2e:artifact
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+
+      - name: Upload artifact boot report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-artifact-boot
+          path: playwright-report/
+          retention-days: 7
 
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
