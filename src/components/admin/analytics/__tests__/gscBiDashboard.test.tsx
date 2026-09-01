@@ -212,6 +212,13 @@ function lastOption(label: string, pred: (o: Opt) => boolean): Opt {
   throw new Error(`test: nie przechwycono opcji wykresu „${label}"`);
 }
 
+/** Ostatnie `n` przechwyconych opcji pasujacych do predykatu, w kolejnosci renderu. */
+function lastOptions(label: string, pred: (o: Opt) => boolean, n: number): Opt[] {
+  const hits = h.chartOptions.filter(pred);
+  if (hits.length < n) throw new Error(`test: przechwycono za malo opcji „${label}"`);
+  return hits.slice(hits.length - n);
+}
+
 const trendOption = () =>
   lastOption("trend", (o) => seriesOf(o).length === 3 && "dataZoom" in o);
 const topQueriesOption = () =>
@@ -239,6 +246,27 @@ function analyticsInputs(): AnalyticsInput[] {
 
 function spanDays(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+}
+
+/** Tytuly kart w kolejnosci, w jakiej panel je uklada. */
+const CHART_TITLE_KEYS = [
+  "adminAnalytics.gsc.charts.trendTitle",
+  "adminAnalytics.gsc.charts.topQueriesTitle",
+  "adminAnalytics.gsc.charts.positionTitle",
+  "adminAnalytics.gsc.charts.countriesTitle",
+  "adminAnalytics.gsc.charts.devicesTitle",
+  "adminAnalytics.gsc.charts.pagesTitle",
+  "adminAnalytics.gsc.charts.calendarTitle",
+] as const;
+
+function regionName(lang: "pl" | "en", titleKey: string): string {
+  const t = realT(lang);
+  return t("adminAnalytics.chartCard.chartRegion", { title: t(titleKey) });
+}
+
+/** Dostepne nazwy regionow wykresow - jedyne miejsce, w ktorym tytul karty jest UNIKALNY. */
+function chartRegionNames(): string[] {
+  return screen.getAllByRole("img").map((el) => el.getAttribute("aria-label") ?? "");
 }
 
 /** Wartosc kafelka KPI stojaca przy podanej etykiecie. */
@@ -396,15 +424,20 @@ describe("GscBiDashboard - dane", () => {
     expect(numList(s[2].data)).toEqual([5, 8, 10]);
   });
 
-  it("iskra przy KPI klikniec jedzie tym samym porzadkiem co trend", async () => {
+  it("iskry przy KPI jada tym samym porzadkiem co trend", async () => {
     panel();
     await loaded();
 
-    // Iskra bierze dane osobna sciezka niz trend (poza `useMemo`), wiec ma
-    // wlasny sort - i wlasna okazje, zeby sie rozjechac.
+    // Iskry licza sie POZA `useMemo`, kazda wlasnym sortem - to osobna okazja,
+    // zeby wykres kierunkowy przy kafelku pokazal cos innego niz duzy trend.
     await waitFor(() => {
-      const spark = lastOption("iskra", (o) => rec(o.xAxis).show === false);
-      expect(numList(seriesOf(spark)[0].data)).toEqual([10, 20, 30]);
+      const [klikniecia, wyswietlenia] = lastOptions(
+        "iskra",
+        (o) => rec(o.xAxis).show === false,
+        2,
+      );
+      expect(numList(seriesOf(klikniecia)[0].data)).toEqual([10, 20, 30]);
+      expect(numList(seriesOf(wyswietlenia)[0].data)).toEqual([200, 250, 300]);
     });
   });
 
@@ -537,7 +570,9 @@ describe("GscBiDashboard - dane", () => {
       // Kafelek pokazuje SCIEZKE, nie caly adres - domena w kazdym kaflu to
       // szum, ktory zjada miejsce na nazwe strony.
       expect(nodes[0].fullPath).toBe("/analizy/bardzo-dluga-sciezka-o-energii-w-regionie");
-      expect(nodes[0].name).toBe("/analizy/bardzo-dluga-sciez…".slice(0, 30) + "…");
+      expect(nodes[0].name).toBe(
+        "/analizy/bardzo-dluga-sciezka-o-energii-w-regionie".slice(0, 30) + "…",
+      );
       expect(nodes[0].rawUrl).toBe(PAGE_ROWS[0].keys[0]);
       // Sortowanie treemapy idzie po WYSWIETLENIACH, nie po klikieciach.
       expect(nodes.map((n) => n.value)).toEqual([900, 300]);
@@ -696,7 +731,7 @@ describe("GscBiDashboard - wejscie zapytania", () => {
       400, 400,
     ]);
     expect(inputs.filter((i) => i.dimensions[0] !== "date").map((i) => i.rowLimit)).toEqual([
-      200, 200, 200,
+      200, 200, 200, 200,
     ]);
   });
 
@@ -818,23 +853,26 @@ describe("GscBiDashboard - izolacja warsztatow", () => {
   });
 
   it.fails(
-    "DEFEKT: klucz cache listy wlasciwosci nie niesie warsztatu, wiec panel odpytuje cudza wlasciwosc",
+    "DEFEKT: klucz cache listy wlasciwosci nie niesie warsztatu, wiec panel B maluje wiersze warsztatu A",
     async () => {
-      // `queryKey: ["gsc-sites"]` jest STALY. Przy wspoldzielonym kliencie panel
-      // kolejnego warsztatu dostaje z cache liste wlasciwosci poprzedniego i
-      // NATYCHMIAST strzela do Search Analytics po cudzy adres - jeszcze zanim
-      // dojedzie odswiezona lista. Wystarczyloby dopisac do klucza tenanta.
+      // `queryKey: ["gsc-sites"]` jest STALY - nie ma w nim ani tenanta, ani
+      // uzytkownika. Przy kliencie react-query przezywajacym zmiane warsztatu
+      // panel dostaje z cache liste wlasciwosci POPRZEDNIEGO warsztatu,
+      // `preferredSite` wskazuje cudza wlasciwosc, a wpisy `["gsc-bi", <cudza
+      // wlasciwosc>, ...]` sa jeszcze swieze (`staleTime: 60_000`) - wiec
+      // PIERWSZA klatka panelu warsztatu B pokazuje zapytania warsztatu A.
+      // Zadne zapytanie sieciowe przy tym nie leci, co czyni wyciek cichym:
+      // widac go wylacznie na ekranie.
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const first = panel(true, client);
       await loaded();
       first.unmount();
 
       h.listSites.mockResolvedValue({ sites: [site(SITE_B)], configured: true });
-      h.queryAnalytics.mockClear();
-      panel(true, client);
+      respondWith({ ...EMPTY, query: [row("beta fraza wlasna", 4, 40, 0.1, 3)] });
+      const second = panel(true, client);
 
-      await waitFor(() => expect(h.queryAnalytics.mock.calls.length).toBeGreaterThanOrEqual(6));
-      expect(analyticsInputs().some((i) => i.siteUrl === SITE_A)).toBe(false);
+      expect(second.container.textContent ?? "").not.toContain("energia w cee");
     },
   );
 });
@@ -894,34 +932,48 @@ describe("GscBiDashboard - dostepnosc", () => {
     },
   );
 
-  it("panel z danymi nie ma naruszen axe", async () => {
+  it("poza nienazwanymi przyciskami panel nie ma innych naruszen axe", async () => {
     const { container } = panel();
     await loaded();
     await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
 
-    const violations = await axeViolations(container);
+    // Regule `button-name` wylaczamy TYLKO tutaj i tylko po to, zeby jeden znany
+    // defekt (test nizej) nie przykrywal wszystkiego innego: kolejnosci
+    // naglowkow, poprawnosci ARIA, semantyki list i tabel.
+    const violations = await axeViolations(container, { "button-name": { enabled: false } });
     expect(summarize(violations)).toBe("");
+  });
+
+  it("karta niepodlaczonej integracji jest wolna od naruszen axe", async () => {
+    const { container } = panel(false);
+
+    expect(summarize(await axeViolations(container))).toBe("");
+  });
+
+  it.fails("DEFEKT: dziewiec przyciskow panelu nie ma dostepnej nazwy", async () => {
+    // Dwa pola wyboru w pasku narzedzi (wlasciwosc, okno) maja widoczna
+    // etykiete `<label>`, ale bez `htmlFor` - czyli dla czytnika ekranu sa
+    // bezimienne. Do tego siedem przyciskow „wiecej" na kartach wykresow to
+    // sama ikona `MoreHorizontal` bez `aria-label`, choc przycisk pelnego
+    // ekranu obok - w tym samym pliku `ChartCard.tsx` - nazwe ma.
+    const { container } = panel();
+    await loaded();
+    await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
+
+    expect(summarize(await axeViolations(container))).toBe("");
   });
 });
 
 describe("GscBiDashboard - dwujezycznosc", () => {
-  it("tytuly kart i etykiety narzedzi ida ze slownika PL", async () => {
+  it("wszystkie siedem kart wykresow nazywa sie ze slownika PL", async () => {
     const t = realT("pl");
     panel();
     await loaded();
 
-    for (const key of [
-      "adminAnalytics.gsc.charts.trendTitle",
-      "adminAnalytics.gsc.charts.topQueriesTitle",
-      "adminAnalytics.gsc.charts.positionTitle",
-      "adminAnalytics.gsc.charts.countriesTitle",
-      "adminAnalytics.gsc.charts.devicesTitle",
-      "adminAnalytics.gsc.charts.pagesTitle",
-      "adminAnalytics.gsc.charts.calendarTitle",
-    ]) {
-      expect(screen.getByText(t(key))).toBeInTheDocument();
-    }
+    await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
+    expect(chartRegionNames()).toEqual(CHART_TITLE_KEYS.map((k) => regionName("pl", k)));
     expect(screen.getByText(t("adminAnalytics.gsc.property"))).toBeInTheDocument();
+    expect(screen.getByText(t("adminAnalytics.gsc.window"))).toBeInTheDocument();
     expect(screen.getByText(t("adminAnalytics.gsc.avgPosition"))).toBeInTheDocument();
   });
 
@@ -932,16 +984,12 @@ describe("GscBiDashboard - dwujezycznosc", () => {
     const { container } = panel();
     await loaded();
 
-    for (const key of [
-      "adminAnalytics.gsc.charts.trendTitle",
-      "adminAnalytics.gsc.charts.topQueriesTitle",
-      "adminAnalytics.gsc.charts.positionTitle",
-      "adminAnalytics.gsc.charts.countriesTitle",
-      "adminAnalytics.gsc.charts.devicesTitle",
-      "adminAnalytics.gsc.charts.pagesTitle",
-      "adminAnalytics.gsc.charts.calendarTitle",
-    ]) {
-      expect(screen.getByText(en(key))).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole("img").length).toBe(7));
+    expect(chartRegionNames()).toEqual(CHART_TITLE_KEYS.map((k) => regionName("en", k)));
+    for (const key of CHART_TITLE_KEYS) {
+      // Brak klucza w EN oznaczalby cichy fallback na polski tytul - a to
+      // wyglada jak dzialajacy panel, wiec nikt tego nie zglosi.
+      expect(en(key)).not.toBe(pl(key));
       expect(container.textContent ?? "").not.toContain(pl(key));
     }
     expect(

@@ -56,7 +56,8 @@ export const Route = createFileRoute("/api/public/client-errors")({
           let meta: Json | null = null;
           if (body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)) {
             const json = JSON.stringify(body.meta);
-            if (json.length <= 4000) meta = redactMeta(body.meta as Record<string, Json | undefined>);
+            if (json.length <= 4000)
+              meta = redactMeta(body.meta as Record<string, Json | undefined>);
           }
 
           // Attribute the error to the browsed host's tenant so per-tenant error

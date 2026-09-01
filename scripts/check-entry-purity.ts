@@ -187,6 +187,22 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
     // incydentu 2026-08-06. Jedno `import` w złym miejscu - i build pada, a
     // dowiadujemy się o tym z CI, nie z komunikatu wskazującego krawędź.
     //
+    // ZAKRES - PRZECZYTAJ, ZANIM UZNASZ TĘ POZYCJĘ ZA PEŁNĄ OBRONĘ. Ta bramka
+    // liczy DOMKNIĘCIE ŚCIEŻKI BOOTOWANIA KLIENTA, nie graf SSR. Łapie więc
+    // przypadek „coś osiągalnego z bootu wciągnęło ECharts" - słownik, shell
+    // trasy, wspólny helper - i to jest ta sama klasa, co reszta pliku. NIE
+    // ŁAPIE natomiast krawędzi `EChart -> EChartClient`, czyli dokładnie tej,
+    // której zabrania nagłówek `EChart.tsx`: wszyscy importerzy `EChart` siedzą
+    // na powierzchniach tras LENIWYCH (ChartCard, KpiTile, panele BI,
+    // ClubInsights, admin.coupons.analytics), a `manualChunks` w
+    // `vite.config.ts` nie ma kubełka na echarts ani łapacza końcowego - więc
+    // biblioteka wylądowałaby w chunku osiągalnym wyłącznie z chunków leniwych,
+    // POZA domknięciem bootu, a ta bramka zostałaby zielona przy padającym
+    // buildzie SSR. Tamtą krawędź pilnuje bramka źródłowa:
+    // `src/lib/ci/__tests__/echartsStaticEdge.test.ts`. Dwa różne dowody;
+    // żaden nie zastępuje drugiego i żadnego nie wolno skasować, powołując się
+    // na istnienie drugiego.
+    //
     // WYBÓR MARKERÓW. Oba MUSZĄ przeżyć build PRODUKCYJNY, a nie tylko
     // deweloperski - i to jest tu pułapka nieoczywista: prawie wszystkie ładne,
     // czytelne komunikaty ECharts („There is a chart instance already
