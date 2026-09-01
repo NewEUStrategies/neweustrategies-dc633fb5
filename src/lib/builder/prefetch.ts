@@ -33,6 +33,7 @@ import {
 // wciągnięta przez loadery /pricing, /membership-join i /plans/$planId) stoi
 // w nagłówku `pricingPlansQuery.ts` - razem z pomiarem, na którym się opiera.
 import { activePlansQueryOptions, pricingUsesPlansSource } from "@/lib/builder/pricingPlansQuery";
+import { ratedListQueryOptions, ratedListUsesDynamicSource } from "@/lib/builder/ratedListQuery";
 import {
   speakersByIdsQueryOptions,
   speakersQueryOptions,
@@ -150,6 +151,7 @@ export type BuilderSectionQuery =
   | ReturnType<typeof podcastLatestQueryOptions>
   | ReturnType<typeof webStoriesCarouselQueryOptions>
   | ReturnType<typeof activePlansQueryOptions>
+  | ReturnType<typeof ratedListQueryOptions>
   | ReturnType<typeof sliderFallbackImagesQueryOptions>
   | ReturnType<typeof sliderPostsQueryOptions>
   | ReturnType<typeof menuWithItemsQueryOptions>
@@ -250,6 +252,16 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   // czyta), stąd bramka na źródło - precedens stylu to gałąź `speakers` niżej.
   if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {
     out.push(activePlansQueryOptions());
+  }
+  // Lista oceniana/rankingowa w trybie dynamicznym. Klucz i `queryFn` stały
+  // WPROST w `RatedListView.tsx` (12 pól wejścia + ~135 linii zapytania), więc
+  // rejestr tego typu nie widział: siatka wychodziła z serwera bez wierszy
+  // (same numery tła), a tytuły i byline doskakiwały po hydratacji. Zapytanie
+  // przeniesiono do `ratedListQuery.ts`, więc widok i rejestr czytają JEDNĄ
+  // fabrykę - rozjazd klucza jest niewyrażalny. Tryb `manual` renderuje
+  // pozycje z treści widgetu i danych nie czyta, stąd bramka źródła.
+  if (widget.type === "rated-list" && ratedListUsesDynamicSource(widget.content)) {
+    out.push(ratedListQueryOptions(widget.content, lang));
   }
   if (isCountdownWidget(widget)) {
     const eventId = countdownEventId(widget.content);
@@ -441,6 +453,10 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   }
   if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {
     const opts = activePlansQueryOptions();
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "rated-list" && ratedListUsesDynamicSource(widget.content)) {
+    const opts = ratedListQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (isCountdownWidget(widget)) {

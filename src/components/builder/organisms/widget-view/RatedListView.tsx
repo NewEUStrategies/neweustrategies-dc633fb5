@@ -1,7 +1,6 @@
 // Organism: rated/ranked post list with manual/dynamic sourcing and rich styling.
 import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
 import {
@@ -13,7 +12,16 @@ import {
   pickI18n,
   type ContentBag,
 } from "@/lib/content-model/contentValue";
-import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+// Klucz, swiezosc i cale `queryFn` listy dynamicznej mieszkaja we WSPOLNYM
+// module - tym samym, po ktory siega rejestr prefetchu SSR
+// (`lib/builder/prefetch.widgetQueryOptionsList`). Wczesniej stalo to wprost
+// tutaj, wiec rejestr tego typu nie widzial: sekcja z sama lista ocenianna
+// wychodzila z serwera bez wierszy i liczyla sie jako statyczna.
+import {
+  ratedListQueryOptions,
+  ratedListUsesDynamicSource,
+  type RatedListItem,
+} from "@/lib/builder/ratedListQuery";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
@@ -35,54 +43,16 @@ const autoDark = (light: string, dark: string): string =>
 const RL_TABLET_MIN_PX = 641;
 const RL_DESKTOP_MIN_PX = 1024;
 
-/**
- * Swiezosc listy dynamicznej. Ta sama wartosc co `postListQuery` - to ta sama
- * klasa danych (opublikowane wpisy), wiec rozjazd TTL-i byloby zaskoczeniem.
- * Wczesniej TTL byl niejawny (domyslny dla klienta), a klucz nie zawieral
- * jezyka, wiec przelaczenie PL/EN pokazywalo stary jezyk az do wygasniecia.
- */
-const RATED_LIST_STALE_MS = 2 * 60_000;
-
 /** Sentinel: "uzytkownik nie ustawil liczby" (odrozniane od zera). */
 const UNSET_NUMBER = Number.NaN;
 
 type Lang = "pl" | "en";
-
-type RatedItem = {
-  title: string;
-  excerpt: string;
-  author: string;
-  authorAvatar?: string;
-  authorHref?: string;
-  rating: number;
-  href?: string;
-  category?: string;
-  date?: string;
-  format?: string;
-};
-
-type PostRow = {
-  id: string;
-  slug: string;
-  title_pl: string;
-  title_en: string;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
-  published_at: string | null;
-  post_format: string | null;
-  author_id: string | null;
-};
-
-/** Publiczna projekcja profilu (`profiles_public`) - `id` bywa nullowalne w typach widoku. */
-type ProfileRow = { id: string | null; display_name: string | null; avatar_url: string | null };
 
 const FONT_FAMILIES = ["display", "sans", "serif", "mono"] as const;
 const NUMBER_POSITIONS = ["behind", "left", "top"] as const;
 const SCROLLING_MODES = ["none", "scroll", "loadmore", "carousel"] as const;
 const GRID_BORDERS = ["none", "between", "full"] as const;
 const COLOR_SCHEMES = ["auto", "light", "dark"] as const;
-const ORDER_BY = ["last_published", "title_asc", "title_desc", "random"] as const;
-const SOURCES = ["manual", "dynamic"] as const;
 
 export function RatedListView({
   c,
@@ -94,7 +64,11 @@ export function RatedListView({
   mode?: "light" | "dark";
 }) {
   const bag: ContentBag = c;
-  const source = asOneOf(bag.source, SOURCES, "manual");
+  // JEDNA bramka zrodla, wspoldzielona z rejestrem prefetchu SSR: gdyby widok
+  // liczyl ja wlasnym wyrazeniem, rozjazd o jedna koercje dawalby rozgrzany
+  // wpis, w ktory widget nigdy nie trafia (SSR pusty, klient placi drugie
+  // zapytanie, nic nie zglasza bledu).
+  const dynamic = ratedListUsesDynamicSource(c);
   const numFont = asOneOf(bag.numberFont, FONT_FAMILIES, "display");
   // Weight: widget override wins; otherwise inherit Theme Design token.
   const numWeight = asStr(bag.numberWeight) || "var(--td-li-weight, 700)";
@@ -122,7 +96,7 @@ export function RatedListView({
   // Ocena istnieje wylacznie w recznych pozycjach - tabela `posts` nie ma
   // kolumny z ocena, wiec w trybie dynamicznym przelacznik jest ukryty w
   // edytorze i tutaj tez nie ma czego wlaczac.
-  const showRating = source === "manual" && asBool(bag.showRating, true);
+  const showRating = !dynamic && asBool(bag.showRating, true);
 
   const showCategory = asBool(bag.showCategory, false);
   const categoryColor = asStr(bag.categoryColor) || "#dc2626";
@@ -212,7 +186,7 @@ export function RatedListView({
     opacity: numOpacity,
   };
 
-  const manualItems: RatedItem[] = (
+  const manualItems: RatedListItem[] = (
     Array.isArray(c.items) ? (c.items as Array<Record<string, unknown>>) : []
   ).map((it) => ({
     title: pickI18n(it, "title", lang),
@@ -228,188 +202,18 @@ export function RatedListView({
     format: asStr(it.format) || "standard",
   }));
 
-  const csv = (k: string) =>
-    asStr(bag[k])
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  const cats = csv("categoriesFilter");
-  const excludeCats = csv("excludeCategories");
-  const tagSlugs = csv("tagsFilter");
-  const excludeTagSlugs = csv("excludeTags");
-  const postFormat = asStr(bag.postFormatFilter);
-  const authors = csv("authorFilter");
-  const postIds = csv("postIdsFilter");
-  const excludePostIds = csv("excludePostIds");
-  const orderBy = asOneOf(bag.orderBy, ORDER_BY, "last_published");
-  const limit = asNumInRange(bag.numberOfPosts, 4, 1, 50);
-  const offset = Math.max(0, asNum(bag.postOffset, 0));
-
-  // `lang` NALEZY do klucza: queryFn sortuje po `title_${lang}` i wpieka
-  // zlokalizowany tytul/zajawke w cache'owane wiersze. Bez jezyka w kluczu
-  // przelaczenie PL/EN oddawalo poprzedni jezyk az do wygasniecia swiezosci.
-  const queryKey = [
-    WIDGET_QUERY_ROOTS.ratedList,
-    {
-      lang,
-      cats,
-      excludeCats,
-      tagSlugs,
-      excludeTagSlugs,
-      postFormat,
-      authors,
-      postIds,
-      excludePostIds,
-      orderBy,
-      limit,
-      offset,
-    },
-  ];
+  // Klucz, swiezosc i queryFn pochodza z JEDNEJ fabryki
+  // (`lib/builder/ratedListQuery`), po ktora siega tez rejestr prefetchu SSR.
+  // Rozjazd kluczy jest wiec strukturalnie niewyrazalny: nie ma drugiego
+  // literalu ani drugiej koercji, ktora moglaby sie rozjechac. `lang` NALEZY do
+  // klucza, bo queryFn sortuje po `title_${lang}` i wpieka zlokalizowany
+  // tytul/zajawke w cache'owane wiersze.
   const { data: dynItems } = useQuery({
-    queryKey,
-    enabled: source === "dynamic",
-    staleTime: RATED_LIST_STALE_MS,
-    // Tenant scoping: wszystkie tabele ponizej (posts, post_categories,
-    // post_tags, profiles) sa odcinane przez RLS po public_tenant_id() - taki
-    // sam wzorzec jak w sasiednich zapytaniach widgetowych (postListQuery).
-    queryFn: async (): Promise<RatedItem[]> => {
-      const resolveByCategory = async (slugs: string[]) => {
-        if (!slugs.length) return null;
-        const { data } = await supabase
-          .from("post_categories")
-          .select("post_id, categories!inner(slug)")
-          .in("categories.slug", slugs);
-        return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
-      };
-      const resolveByTag = async (slugs: string[]) => {
-        if (!slugs.length) return null;
-        const { data } = await supabase
-          .from("post_tags")
-          .select("post_id, tags!inner(slug)")
-          .in("tags.slug", slugs);
-        return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
-      };
-
-      const [incCat, excCat, incTag, excTag] = await Promise.all([
-        resolveByCategory(cats),
-        resolveByCategory(excludeCats),
-        resolveByTag(tagSlugs),
-        resolveByTag(excludeTagSlugs),
-      ]);
-
-      // Filtr autora MUSI zawezic zapytanie, a nie jego wynik. Filtrowanie po
-      // stronie klienta dzialo sie PO `.range(offset, offset+limit-1)`, wiec
-      // widget oddawal mniej wierszy niz `numberOfPosts` (a przy autorze spoza
-      // pierwszej strony - zero). Rozwiazujemy nazwy na identyfikatory i
-      // wkladamy je do zapytania o wpisy. Trzymamy tez avatar_url, zeby
-      // renderowac spojny byline (12 px / 20 px) zamiast samego tekstu.
-      //
-      // IZOLACJA NAJEMCY: `profiles_public` zamiast tabeli `profiles`. Widok
-      // zawezony do `public_tenant_id()` wystawia wylacznie kolumny publiczne,
-      // wiec filtr "autor o nazwie X" nie ma jak trafic w profil z obszaru
-      // roboczego innej firmy (ani ujawnic, ze taki profil istnieje).
-      const authorById = new Map<string, ProfileRow>();
-      let authorIdFilter: string[] | null = null;
-      if (authors.length) {
-        const { data: matched } = await supabase
-          .from("profiles_public")
-          .select("id, display_name, avatar_url")
-          .in("display_name", authors);
-        // Widok publiczny typuje `id` jako nullowalne - zawezamy raz, zeby
-        // dalsza czesc zapytania pracowala na pewnych identyfikatorach.
-        const matchedRows = ((matched ?? []) as ProfileRow[]).filter(
-          (row): row is ProfileRow & { id: string } => !!row.id,
-        );
-        for (const p of matchedRows) {
-          if (p.display_name) authorById.set(p.id, p);
-        }
-        authorIdFilter = matchedRows.map((p) => p.id);
-        // Zaden profil o takiej nazwie = pusty wynik. Bez tego `.in()` z pusta
-        // lista i tak nie zwrocilby nic, ale oszczedzamy round-trip.
-        if (authorIdFilter.length === 0) return [];
-      }
-
-      let q = supabase
-        .from("posts")
-        .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id",
-        )
-        .eq("status", "published");
-
-      if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
-      if (postIds.length) q = q.in("id", postIds);
-      if (authorIdFilter) q = q.in("author_id", authorIdFilter);
-
-      const includeIds = new Set<string>();
-      let haveInclude = false;
-      if (incCat) {
-        haveInclude = true;
-        incCat.forEach((id) => includeIds.add(id));
-      }
-      if (incTag) {
-        if (haveInclude) {
-          for (const id of Array.from(includeIds)) if (!incTag.has(id)) includeIds.delete(id);
-        } else {
-          haveInclude = true;
-          incTag.forEach((id) => includeIds.add(id));
-        }
-      }
-      if (haveInclude) {
-        if (includeIds.size === 0) return [];
-        q = q.in("id", Array.from(includeIds));
-      }
-
-      const excludeIds = new Set<string>([...excludePostIds]);
-      excCat?.forEach((id) => excludeIds.add(id));
-      excTag?.forEach((id) => excludeIds.add(id));
-      if (excludeIds.size) q = q.not("id", "in", `(${Array.from(excludeIds).join(",")})`);
-
-      if (orderBy === "title_asc")
-        q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: true });
-      else if (orderBy === "title_desc")
-        q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: false });
-      else q = q.order("published_at", { ascending: false });
-
-      const from = offset;
-      const to = from + limit - 1;
-      q = q.range(from, to);
-
-      const { data } = await q;
-      let rows = (data ?? []) as PostRow[];
-
-      const missingAuthorIds = Array.from(
-        new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
-      ).filter((id) => !authorById.has(id));
-      if (missingAuthorIds.length) {
-        const { data: profs } = await supabase
-          .from("profiles_public")
-          .select("id, display_name, avatar_url")
-          .in("id", missingAuthorIds);
-        for (const p of (profs ?? []) as ProfileRow[]) {
-          if (p.id && p.display_name) authorById.set(p.id, p);
-        }
-      }
-      if (orderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
-
-      return rows.map((r) => {
-        const profile = r.author_id ? authorById.get(r.author_id) : undefined;
-        return {
-          title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
-          excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
-          author: profile?.display_name || "",
-          authorAvatar: profile?.avatar_url || undefined,
-          authorHref: `/post/${r.slug}`,
-          // Wpisy nie maja oceny w bazie - patrz `showRating` wyzej.
-          rating: 0,
-          href: `/post/${r.slug}`,
-          date: r.published_at || "",
-          format: r.post_format || "standard",
-        };
-      });
-    },
+    ...ratedListQueryOptions(c, lang),
+    enabled: dynamic,
   });
 
-  const allItems: RatedItem[] = source === "dynamic" ? (dynItems ?? []) : manualItems;
+  const allItems: RatedListItem[] = dynamic ? (dynItems ?? []) : manualItems;
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const items = scrollingMode === "loadmore" ? allItems.slice(0, visibleCount) : allItems;
 

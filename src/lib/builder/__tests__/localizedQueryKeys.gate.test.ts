@@ -37,6 +37,7 @@ import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { eventsListQueryOptions } from "@/lib/builder/eventsQuery";
 import { speakersQueryOptions } from "@/lib/builder/speakersQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
+import { ratedListQueryOptions } from "@/lib/builder/ratedListQuery";
 
 const SRC = resolve(process.cwd(), "src");
 const BUILDER_LIB = resolve(SRC, "lib/builder");
@@ -82,6 +83,17 @@ const LANG_AWARE_FACTORIES: ReadonlyArray<{
     name: "postRefQueryOptions",
     module: "contentRefs.ts",
     call: (lang) => postRefQueryOptions("post-1", lang).queryKey,
+  },
+  {
+    // `rated-list` w trybie dynamicznym. Język JEST w kluczu i to nie jest
+    // ozdoba: `queryFn` sortuje po `title_${lang}` i wpieka zlokalizowany
+    // tytuł oraz zajawkę w cache'owane wiersze, więc jeden wpis na oba języki
+    // oddawałby po przełączeniu PL/EN poprzedni język aż do wygaśnięcia
+    // świeżości (2 min). Ta fabryka NIE MOŻE trafić na listę `LANG_FREE`.
+    name: "ratedListQueryOptions",
+    module: "ratedListQuery.ts",
+    call: (lang) =>
+      ratedListQueryOptions({ source: "dynamic", orderBy: "title_asc" }, lang).queryKey,
   },
 ];
 

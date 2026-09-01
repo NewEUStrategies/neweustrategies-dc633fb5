@@ -32,6 +32,14 @@ import {
   webStoriesCarouselQueryOptions,
 } from "@/lib/builder/mediaListQuery";
 import { activePlansQueryOptions } from "@/lib/builder/pricingPlansQuery";
+import {
+  RATED_LIST_POST_COLUMNS,
+  RATED_LIST_PROFILE_COLUMNS,
+  RATED_LIST_STALE_MS,
+  ratedListInput,
+  ratedListQueryOptions,
+  ratedListUsesDynamicSource,
+} from "@/lib/builder/ratedListQuery";
 import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { billingKeys } from "@/lib/billing/keys";
@@ -607,27 +615,174 @@ describe("ogon punktu 4 - typy CELOWO bez gałęzi", () => {
   });
 
   /**
-   * `rated-list` w trybie dynamicznym JEST bezpieczny serwerowo (czyta wyłącznie
-   * `posts` / `post_categories` / `post_tags` / `profiles_public` przez RLS
-   * `public_tenant_id()`), ale nie da się go zarejestrować bez przeniesienia
-   * klucza i ~135-liniowego `queryFn` z `RatedListView.tsx` do modułu w
-   * `lib/builder`. Ten plik jest POZA partycją tej zmiany, a napisanie drugiej
-   * kopii zapytania byłoby dokładnie tym dryfem, który ta praca zamyka:
-   * klucz niesie 12 pól wyliczanych z treści, a `queryFn` wpieka zlokalizowany
-   * tytuł w cache'owane wiersze - dwie kopie rozjechałyby się przy pierwszej
-   * zmianie filtra i SSR oddawałby wiersze o innym kształcie niż widok.
-   *
-   * `it.fails` zamiast `it.skip`: asercja MA teraz padać i ma zgasnąć sama
-   * w chwili, gdy gałąź powstanie - wtedy ten test zrobi się czerwony
-   * ("oczekiwano porażki") i zmusi do usunięcia `.fails`.
+   * `rated-list` MIAŁ tu `it.fails` z adnotacją "ekstrakcja z widoku to decyzja
+   * dla człowieka". Decyzja została podjęta i wykonana: klucz oraz cały
+   * `queryFn` PRZENIESIONO z `RatedListView.tsx` do `lib/builder/ratedListQuery.ts`
+   * (dało się, bo zapytanie zależało wyłącznie od treści widgetu i od `lang` -
+   * zero stanu komponentu). Asercja jest teraz twierdząca i mieszka
+   * w opisie niżej ("ogon punktu 4 - rated-list").
    */
-  it.fails(
-    "rated-list (dynamic) nie ma jeszcze gałęzi - ekstrakcja z widoku to decyzja dla człowieka",
-    () => {
-      const widget = makeWidget("rated-list", {
-        content: { source: "dynamic", orderBy: "title_asc" },
-      } as Partial<WidgetNode>);
-      expect(widgetQueryOptionsList(widget, "pl")).toHaveLength(1);
-    },
-  );
+});
+
+describe("ogon punktu 4 - rated-list w trybie dynamicznym", () => {
+  const DYN_CONTENT = {
+    source: "dynamic",
+    categoriesFilter: "polityka, gospodarka",
+    excludeCategories: "sport",
+    tagsFilter: "ue",
+    excludeTags: "",
+    postFormatFilter: "standard",
+    authorFilter: "Redakcja",
+    postIdsFilter: "",
+    excludePostIds: "p9",
+    orderBy: "title_asc",
+    numberOfPosts: 6,
+    postOffset: 2,
+  };
+
+  it("grzeje DOKŁADNIE wpis, po który sięga RatedListView", () => {
+    const widget = makeWidget("rated-list", { content: DYN_CONTENT } as Partial<WidgetNode>);
+    const opts = widgetQueryOptionsList(widget, "pl");
+    expect(opts).toHaveLength(1);
+    // Widok woła TĘ SAMĄ fabrykę, więc równość kluczy nie jest porównaniem
+    // dwóch kopii, a tożsamością - jest jeden literał i jedno `queryFn`.
+    expect(opts[0].queryKey).toEqual(ratedListQueryOptions(DYN_CONTENT, "pl").queryKey);
+    expect(opts[0].queryKey).toEqual([
+      WIDGET_QUERY_ROOTS.ratedList,
+      {
+        lang: "pl",
+        cats: ["polityka", "gospodarka"],
+        excludeCats: ["sport"],
+        tagSlugs: ["ue"],
+        excludeTagSlugs: [],
+        postFormat: "standard",
+        authors: ["Redakcja"],
+        postIds: [],
+        excludePostIds: ["p9"],
+        orderBy: "title_asc",
+        limit: 6,
+        offset: 2,
+      },
+    ]);
+    // Korzeń MUSI być kanoniczny, bo to on zasila inwalidację live
+    // (`LIVE_INVALIDATED_ROOTS`) po publikacji wpisu.
+    expect(opts[0].queryKey[0]).toBe(WIDGET_QUERY_ROOTS.ratedList);
+
+    const targets = widgetCacheTargets(widget, "pl");
+    expect(targets).toHaveLength(1);
+    expect(targets[0].key).toEqual(opts[0].queryKey);
+    // Zero oznaczałoby dla `useSectionPreload.isSectionFresh` "zawsze
+    // przestarzałe", czyli rozgrzewkę tej sekcji po każdym renderze.
+    expect(targets[0].staleTime).toBe(RATED_LIST_STALE_MS);
+    expect(targets[0].staleTime).toBeGreaterThan(0);
+  });
+
+  it("sekcja z samą listą ocenianą przestaje być klasyfikowana jako statyczna", () => {
+    const widget = makeWidget("rated-list", { content: DYN_CONTENT } as Partial<WidgetNode>);
+    expect(streamsWithData(widget)).toBe(true);
+  });
+
+  it("PL i EN to dwa wpisy - queryFn sortuje po `title_${lang}` i wpieka tytuł", () => {
+    const widget = makeWidget("rated-list", { content: DYN_CONTENT } as Partial<WidgetNode>);
+    const pl = widgetQueryOptionsList(widget, "pl")[0].queryKey;
+    const en = widgetQueryOptionsList(widget, "en")[0].queryKey;
+    expect(pl).not.toEqual(en);
+    expect((pl[1] as { lang: string }).lang).toBe("pl");
+    expect((en[1] as { lang: string }).lang).toBe("en");
+  });
+
+  it("tryb ręczny nie ma zapytania i pozostaje sekcją statyczną", () => {
+    const manual = makeWidget("rated-list", {
+      content: { items: [{ title_pl: "Pozycja" }] },
+    } as Partial<WidgetNode>);
+    expect(ratedListUsesDynamicSource(manual.content)).toBe(false);
+    expect(widgetQueryOptionsList(manual, "pl")).toEqual([]);
+    expect(widgetCacheTargets(manual, "pl")).toEqual([]);
+    expect(streamsWithData(manual)).toBe(false);
+  });
+
+  it("bramka źródła znosi spacje dokładnie tak, jak `asOneOf` w widoku", () => {
+    // `asOneOf` trymuje wartość PRZED porównaniem, więc " dynamic " to nadal
+    // tryb dynamiczny. Gdyby rejestr porównywał surowy string (jak `pricing`),
+    // taki dokument miałby prefetch wyłączony bez żadnego sygnału.
+    expect(ratedListUsesDynamicSource({ source: " dynamic " })).toBe(true);
+    expect(ratedListUsesDynamicSource({ source: "DYNAMIC" })).toBe(false);
+    expect(ratedListUsesDynamicSource({})).toBe(false);
+  });
+
+  it("koercje wejścia klucza są tymi samymi wyrażeniami, co w widoku", () => {
+    // `limit` = asNumInRange(numberOfPosts, 4, 1, 50); `offset` = max(0, asNum(...)).
+    expect(ratedListInput({}, "pl").limit).toBe(4);
+    expect(ratedListInput({ numberOfPosts: 0 }, "pl").limit).toBe(1);
+    expect(ratedListInput({ numberOfPosts: 999 }, "pl").limit).toBe(50);
+    expect(ratedListInput({ numberOfPosts: "12" }, "pl").limit).toBe(12);
+    expect(ratedListInput({ postOffset: -5 }, "pl").offset).toBe(0);
+    expect(ratedListInput({ postOffset: "7" }, "pl").offset).toBe(7);
+    // CSV: trim + odrzucenie pustych, BEZ sortowania i BEZ deduplikacji -
+    // kolejność elementów tablicy JEST częścią hasha klucza (patrz niżej).
+    expect(ratedListInput({ categoriesFilter: " b , ,a ,b " }, "pl").cats).toEqual(["b", "a", "b"]);
+    // Nierozpoznane sortowanie wraca do wartości domyślnej widoku.
+    expect(ratedListInput({ orderBy: "wymyślone" }, "pl").orderBy).toBe("last_published");
+  });
+
+  /**
+   * CO USTALONO O HASZOWANIU KLUCZY OBIEKTOWYCH W REACT-QUERY 5 (nie zgadnięte).
+   * `@tanstack/query-core` 5.102.8, `src/utils.ts:223`:
+   *   export function hashKey(queryKey) {
+   *     return JSON.stringify(queryKey, (_, val) =>
+   *       isPlainObject(val) ? Object.keys(val).sort().reduce(...) : val);
+   *   }
+   * czyli klucze KAŻDEGO zwykłego obiektu są SORTOWANE przed serializacją -
+   * kolejność pól w obiekcie wejścia nie wpływa na to, w który wpis cache
+   * trafimy. Tablica nie przechodzi `isPlainObject`, więc jej kolejność JUŻ
+   * wpływa. Test dowodzi obu połów przez publiczne API (bez importu z
+   * query-core, który nie jest bezpośrednią zależnością projektu).
+   */
+  it("kolejność PÓL obiektu klucza jest nieistotna, kolejność ELEMENTÓW tablic - istotna", () => {
+    const qc = new QueryClient();
+    const root = WIDGET_QUERY_ROOTS.ratedList;
+    qc.setQueryData([root, { lang: "pl", cats: ["a", "b"], limit: 4 }], ["zapisane"]);
+    // Te same pola, inna kolejność zapisu -> TEN SAM wpis.
+    expect(qc.getQueryData([root, { limit: 4, cats: ["a", "b"], lang: "pl" }])).toEqual([
+      "zapisane",
+    ]);
+    // Ta sama zawartość tablicy, inna kolejność -> INNY wpis.
+    expect(qc.getQueryData([root, { lang: "pl", cats: ["b", "a"], limit: 4 }])).toBeUndefined();
+  });
+
+  /**
+   * BRAMKA DRYFU - tu w wariancie "widok nadal woła fabrykę".
+   *
+   * Dla taksonomii i mediów bramka porównuje LITERAŁY dwóch kopii zapytania, bo
+   * kopie istnieją. Tutaj kopii nie ma: `queryFn` został przeniesiony, więc
+   * jedyny sposób na ciche rozejście się prefetchu z widokiem to napisanie
+   * w widoku DRUGIEGO zapytania obok fabryki. Dokładnie to sprawdzamy.
+   */
+  it("RatedListView nie odtworzył własnego zapytania obok fabryki (bramka dryfu)", () => {
+    const view = viewSource("RatedListView.tsx");
+    expect(view).toContain("...ratedListQueryOptions(c, lang)");
+    expect(view).toContain("ratedListUsesDynamicSource(c)");
+    // Żadnego drugiego klucza, żadnego drugiego `queryFn`, żadnego bezpośredniego
+    // sięgnięcia do Supabase - inaczej wróciłyby dwie rozjeżdżające się kopie.
+    expect(view).not.toContain("queryKey:");
+    expect(view).not.toContain("queryFn:");
+    expect(view).not.toContain("@/integrations/supabase/client");
+    // Kolumny wiersza są jednym literałem w module danych.
+    const dataModule = readFileSync(resolve(SRC, "lib/builder/ratedListQuery.ts"), "utf8");
+    expect(dataModule).toContain(`"${RATED_LIST_POST_COLUMNS}"`);
+    // IZOLACJA NAJEMCY zostaje na tej samej drodze, co miał widok: publiczna
+    // projekcja `profiles_public` (zawężona do `public_tenant_id()`), anonimowy
+    // klient `@/integrations/supabase/client`, zero klienta serwisowego.
+    expect(dataModule).toContain(`"${RATED_LIST_PROFILE_COLUMNS}"`);
+    expect(dataModule).toContain(`.from("profiles_public")`);
+    expect(dataModule).toContain(`from "@/integrations/supabase/client"`);
+    // Asercje ZAPRZECZAJĄCE liczymy na KODZIE bez komentarzy - inaczej sam
+    // nagłówek modułu (który obiecuje "żadnego service_role") wywracałby test.
+    const dataCode = dataModule
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join("\n");
+    expect(dataCode).not.toContain("service_role");
+    expect(dataCode).not.toContain(`.from("profiles")`);
+  });
 });
