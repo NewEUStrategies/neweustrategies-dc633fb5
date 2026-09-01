@@ -36,17 +36,21 @@
 //      incydent 2026-07-20 zepsuł: drogę od pierwszego bajtu skryptu do
 //      interaktywnej strony. `boot-artifact.spec.ts` sprawdza, że ta droga
 //      ISTNIEJE; ten plik sprawdza, ile ona kosztuje;
-//   3. TRANSFER ŚCIEŻKI BOOTOWANIA - suma `transferSize` zasobów
-//      `initiatorType === "script"` z `PerformanceResourceTiming`. To liczba,
-//      którą płaci pierwsze wejście, i jedyny pomiar, który potwierdza floor
-//      `boot` z `scripts/check-bundle-size.ts` PO STRONIE PRZEGLĄDARKI: tamten
-//      skrypt liczy domknięcie statyczne z grafu chunków, ten liczy to, co
-//      karta faktycznie pobrała;
+//   3. TRANSFER ŚCIEŻKI BOOTOWANIA - suma `transferSize` wszystkich pobranych
+//      plików `.js` z `PerformanceResourceTiming`, rozbita na domknięcie
+//      STATYCZNE i importy DYNAMICZNE. To liczba, którą płaci pierwsze wejście,
+//      i jedyny pomiar, który sprawdza floor `boot` ze
+//      `scripts/check-bundle-size.ts` PO STRONIE PRZEGLĄDARKI: tamten skrypt
+//      liczy domknięcie statyczne z grafu chunków (więc leniwych chunków
+//      dociąganych W TRAKCIE bootu nie widzi w ogóle), ten liczy to, co karta
+//      faktycznie pobrała. Dlaczego filtr jest po rozszerzeniu, a nie po
+//      `initiatorType` - patrz stała `MAX_BOOT_JS_TRANSFER_KB`, tam jest pomiar;
 //   4. FCP z `PerformancePaintTiming` - patrz komentarz przy `FCP` niżej,
 //      z powodem, dla którego NIE JEST bramkowany.
 //
-// CENA: ~3 s do przebiegu `test:e2e:artifact` (drugi `page.goto` na tym samym
-// serwerze). Bez drugiego builda i bez drugiego serwera.
+// CENA: zmierzone 7,0 s w pełnym przebiegu `test:e2e:artifact` - z czego ~5,1 s
+// to budżet zapytań SSR, a nie koszt samego pomiaru. Bez drugiego builda i bez
+// drugiego serwera; oba pliki jadą na tym samym procesie.
 import { expect, test } from "@playwright/test";
 
 // ── PROGI ───────────────────────────────────────────────────────────────────
@@ -56,10 +60,10 @@ import { expect, test } from "@playwright/test";
 //
 // SKĄD LICZBY BAZOWE. Host deweloperski tego repozytorium (sandbox, ten sam,
 // na którym stoi `bun run dev`), artefakt `bun run build:smoke`, Chromium
-// z `/opt/pw-browsers`, trasa `/cookies`, po dwa przebiegi w dwóch trybach:
-// ZIMNY (tylko ten plik, pierwsze żądanie do świeżo wystartowanego procesu)
-// i CIEPŁY (pełne `test:e2e:artifact`, więc po `boot-artifact.spec.ts`).
-// Zmierzone wartości są wpisane przy każdej stałej.
+// z `/opt/pw-browsers`, trasa `/cookies`, zaślepki Supabase takie jak w CI.
+// Dwa TRYBY uruchomienia, pięć przebiegów: SAM TEN PLIK (`playwright test ...
+// boot-timing`) i PEŁNA konfiguracja artefaktu (`bun run test:e2e:artifact`).
+// Zmierzone wartości są wpisane przy każdej stałej i w tabeli niżej.
 //
 // SKĄD ZAPAS. Tego pomiaru NIE MA ANI RAZU Z RUNNERA GitHuba. Runner
 // `ubuntu-latest` to 2 vCPU bez gwarancji sąsiedztwa; `scripts/check-bundle-size.ts`
@@ -77,44 +81,122 @@ import { expect, test } from "@playwright/test";
 /**
  * TTFB dokumentu (`responseStart - requestStart`).
  *
- * ZMIERZONE: patrz `MEASURED_*` niżej. Próg jest bramką na klasę awarii
- * „render dokumentu zaczął czekać na coś, na co nie powinien" - synchroniczny
- * round-trip do bazy w renderze, utrata cache dokumentu, blokujący loader
- * w korzeniu. Każda z nich przenosi TTFB w sekundy, nie w dziesiątki ms.
+ * TA LICZBA JEST WIĘKSZA, NIŻ WYGLĄDA NA ROZSĄDNĄ, I MA POWÓD. Zmierzone:
+ * 5075,6 - 5194,9 ms w sześciu przebiegach. To nie jest wolny render - to
+ * `SSR_QUERY_TIMEOUT_MS` = 5 000 ms z `lib/ssr/queryTimeout.ts`. Boot-test jedzie
+ * z zaślepkami Supabase (`https://placeholder.supabase.co`, tak samo jak w CI),
+ * więc DZIESIĘĆ zapytań loaderów korzenia nie ma dokąd pójść i render czeka na
+ * cały budżet, po czym `postRenderSweep` je przycina (widać to w logu serwera:
+ * `pruned=10`). Progu NIE WOLNO więc stawiać pod 5 000 - byłby bramką na to,
+ * że w środowisku testowym nie ma bazy, a nie na wydajność artefaktu.
+ *
+ * CZEGO WIĘC PILNUJE. Jednego, bardzo konkretnego regresu: SZEREGOWANIA
+ * BUDŻETÓW. Jeden budżet 5 s to 5 s; dwie fale loaderów w serii to 10 s, trzy
+ * to 15 s - i to jest awaria, która na produkcji z żywą bazą przekłada się na
+ * TTFB rzędu sekund, a nie milisekund. 8 000 ms leży między jednym budżetem
+ * (zmierzone do 5 194,9) i dwoma (10 000), czyli dokładnie tam, gdzie oddziela
+ * „czekamy raz" od „czekamy dwa razy po kolei".
+ *
+ * KIEDY TO PRZEFLOOROWAĆ. Gdy artefakt zacznie w CI dostawać PRAWDZIWE sekrety
+ * Supabase (dziś `secrets.SUPABASE_URL || 'https://placeholder.supabase.co'`),
+ * TTFB spadnie do czasu realnego renderu i próg trzeba będzie zaciąć o rząd
+ * niżej. Do tego czasu ta liczba jest uczciwie luźna, nie ambitnie fałszywa.
  */
-const MAX_TTFB_MS = 2_500;
+const MAX_TTFB_MS = 8_000;
 
 /**
  * Czas od `__nesBootT0` do `__nesAppReady === true`.
  *
- * Górna granica jest ZAKOTWICZONA, nie wybrana: sonda bootu uznaje boot za
- * MARTWY po `BOOT_DEAD_TIMEOUT_MS` = 15 000 ms
- * (`lib/observability/bootProbeScript`). Próg poniżej tej granicy jest więc
- * jedyną wartością, która ma sens - powyżej dublowałby sygnał, który już
- * istnieje, tylko bez jego diagnostyki.
+ * ZMIERZONE: 461 - 616 ms w sześciu przebiegach, za każdym razem
+ * `readyExact=true`, czyli z przechwyconego przypisania, nie z odpytywania.
+ * Próg 6 000 ms to ~9,7-krotność najgorszego z tych pomiarów.
+ *
+ * SKĄD AŻ TYLE ZAPASU - dwa niezależne powody, oba sprawdzone:
+ *   * hydratacja jest jedyną z tych czterech liczb, która zależy WYŁĄCZNIE od
+ *     CPU (parsowanie i wykonanie 33-37 plików JS, render Reacta). Runner
+ *     `ubuntu-latest` ma 2 vCPU bez gwarancji sąsiedztwa, a tego pomiaru nie ma
+ *     stamtąd ANI RAZU. Zacieśnianie progu przed pierwszym przebiegiem byłoby
+ *     zgadywaniem, które zamienia bramkę w migotanie;
+ *   * górna granica jest ZAKOTWICZONA, nie wybrana: sonda bootu uznaje boot za
+ *     MARTWY po `BOOT_DEAD_TIMEOUT_MS` = 15 000 ms
+ *     (`lib/observability/bootProbeScript`), a `boot-artifact.spec.ts` czeka na
+ *     flagę 60 s. Próg musi zostać PONIŻEJ 15 000, żeby te trzy sygnały nie
+ *     nakładały się na siebie i żeby awaria budżetu nie wyglądała jak martwa
+ *     hydratacja.
  */
-const MAX_READY_MS = 10_000;
+const MAX_READY_MS = 6_000;
 
 /**
- * Suma `transferSize` zasobów `initiatorType === "script"`, w kilobajtach.
+ * Transfer CAŁEGO JS-u pobranego do momentu gotowości, w kilobajtach.
  *
- * UWAGA NA JEDNOSTKĘ: to jest TRANSFER, nie rozmiar źródeł i nie gzip
- * z `check:bundle`. Artefakt `node-server` serwuje statyki BEZ KOMPRESJI
- * (nitro nie włącza jej domyślnie), więc ta liczba jest bliska sumie RAW plus
- * ~300 B nagłówków na zasób - i tak ją należy czytać. Odpowiednikiem po
- * stronie bramki bajtów jest kolumna RAW z `check:bundle` (`Boot closure:
- * ... KB raw`), nie floor gzip 577 KB.
+ * FILTR JEST PO ROZSZERZENIU, NIE PO `initiatorType` - I TO JEST POPRAWKA
+ * Z POMIARU, nie swoboda interpretacji. Zlecenie mówiło „suma `transferSize`
+ * zasobów `initiatorType === "script"`" i tak było napisane pierwsze podejście.
+ * Zmierzone (host deweloperski, artefakt smoke, `/cookies`) rozbicie
+ * WSZYSTKICH zasobów po `initiatorType`:
+ *
+ *   script: n=22  transfer 313 674 B   <- WYŁĄCZNIE importy dynamiczne
+ *   other:  n=13  transfer 2 039 910 B <- CAŁE domknięcie statyczne bootu
+ *   link:   n=3   transfer 616 024 B   <- CSS i fonty, ani jednego `.js`
+ *
+ * W wiadrze `other` leżą: `index-*.js` (924 353 B), `vendor-react`,
+ * `vendor-tanstack`, `vendor-supabase`, `vendor-radix`, `vendor-lucide`,
+ * `vendor-zod`, `vendor-i18n`, `vendor-tw-merge`, chunk trasy `cookies-*.js`
+ * oraz `card`/`badge`. Czyli DOKŁADNIE to, co `scripts/check-bundle-size.ts`
+ * nazywa domknięciem bootu - a `initiatorType === "script"` tego NIE WIDZI
+ * (Chromium tak klasyfikuje moduły pobrane przez skaner preloadu dokumentu,
+ * nie przez wykonanie `import()`). Bramkowanie samego `script` mierzyłoby więc
+ * 13% właściwej liczby i rosłoby, gdy ścieżka bootowania się KURCZY.
+ * Sprawdzone też: ZERO zasobów `.js` z `initiatorType === "link"`, więc żadne
+ * wiadro dla hintów `modulepreload` nie jest potrzebne.
+ *
+ * ZMIERZONA SUMA: 2 270,1 - 2 294,2 KB (statyczne stale 1 965,9 KB w 12 plikach
+ * + dynamiczne 304,1 - 328,2 KB), `decoded` równe transferowi (iloraz x1,00),
+ * czyli artefakt `node-server` serwuje statyki BEZ KOMPRESJI - sprawdzone tą
+ * właśnie parą liczb, nie założone. Liczba jest zatem porównywalna z kolumną RAW
+ * z `check:bundle` (tam domknięcie bootu to ~1 876-2 179 KB raw; różnica to
+ * ~300 B nagłówków na zasób plus chunki dociągane dynamicznie w trakcie bootu,
+ * których statyczne domknięcie nie liczy), a NIE z floorem gzip 577 KB.
+ * Test wypisuje `decoded` i iloraz na każdym przebiegu, żeby zmiana
+ * konfiguracji kompresji na runnerze nie została odczytana jako regresja bajtów.
+ *
+ * PRÓG 3 000 KB to ~1,31-krotność najgorszego pomiaru (2 294,2 KB). Dla BAJTÓW zapas
+ * mógłby być ciaśniejszy niż dla czasu (`check-bundle-size.ts` dokumentuje
+ * rozbieżność host <-> runner rzędu 10 KB), ale nie tutaj i z konkretnego
+ * powodu: dziś artefakt gada z zaślepką Supabase, więc widżety globalne
+ * z loadera korzenia NIE renderują się i ich leniwe chunki nigdy się nie
+ * dociągają. Gdy CI dostanie prawdziwe sekrety, wiadro DYNAMICZNE urośnie -
+ * i to jest jedyna niepewność, której z tego hosta nie da się zmierzyć.
  */
-const MAX_SCRIPT_TRANSFER_KB = 3_600;
+const MAX_BOOT_JS_TRANSFER_KB = 3_000;
 
-// ── ZMIERZONE WARTOŚCI BAZOWE (host deweloperski, nie runner) ───────────────
+// ── ZMIERZONE WARTOŚCI BAZOWE (host deweloperski, NIE runner) ───────────────
 // Wpisane jako komentarz, nie jako asercja: to punkt odniesienia dla następnej
 // osoby, która będzie te progi zacieśniać. Nie wolno ich zamienić w bramkę,
 // bo runner ma inne liczby i nikt ich jeszcze nie widział.
 //
-//   TRYB    TTFB      READY      SCRIPTS            FCP
-//   zimny   MEASURED_COLD
-//   ciepły  MEASURED_WARM
+// 2026-09-01, artefakt `vite.smoke.config.ts`, `/cookies`, zaślepki Supabase.
+// SZEŚĆ przebiegów (trzy razy sam ten plik, trzy razy pełne `test:e2e:artifact`),
+// podane jako ZAKRESY, bo pojedyncza wartość udawałaby powtarzalność, której
+// tu nie ma:
+//
+//   POMIAR    ZAKRES Z 6 PRZEBIEGÓW        PRÓG        KROTNOŚĆ ZAPASU
+//   TTFB      5075,6 - 5194,9 ms           8000 ms     1,54x
+//   READY      461   -  616   ms           6000 ms     9,7x
+//   bootJS    2270,1 - 2294,2 KB           3000 KB     1,31x
+//   FCP       5348,0 - 5732,0 ms           brak        -
+//
+// Rozrzut NIE koreluje ani z trybem uruchomienia, ani z kolejnością plików
+// (Playwright ustawiał `boot-timing` raz jako pierwszy, raz jako drugi, a
+// skrajne wartości wypadły w różnych trybach) - to szum hosta, nie efekt
+// rozgrzania serwera.
+//
+// Rozbicie bootJS: wiadro STATYCZNE to 1965,9 KB w 12 plikach i jest IDENTYCZNE
+// co do 0,1 KB we wszystkich sześciu przebiegach - cała zmienność (304,1 do
+// 328,2 KB, 21 do 25 plików) siedzi w wiadrze dynamicznym. To najlepsza
+// dostępna miara szumu tego pomiaru: bajty domknięcia statycznego są stałe,
+// bajty leniwych chunków zależą od tego, co zdąży się dociągnąć do gotowości.
+// `decoded` równe transferowi (iloraz x1,00) w każdym przebiegu.
 
 /** Kopia PL z `src/routes/cookies.tsx` - dowód, że mierzymy stronę, a nie błąd. */
 const UNDECIDED = "Nie zapisano jeszcze wyboru";
@@ -126,14 +208,20 @@ interface BootTiming {
   readyMs: number;
   /** Czy `readyMs` pochodzi z przechwyconego przypisania, czy z odpytania. */
   readyExact: boolean;
-  /** Suma `transferSize` zasobów `initiatorType === "script"` (bajty). */
-  scriptTransferBytes: number;
-  /** Ile takich zasobów - bez tego suma nie mówi, czy to jeden plik, czy sto. */
-  scriptCount: number;
-  /** Suma `transferSize` plików `.js` pobranych przez `modulepreload` (bajty). */
-  preloadJsTransferBytes: number;
-  /** Ile takich zasobów. */
-  preloadJsCount: number;
+  /** Suma `transferSize` WSZYSTKICH pobranych plików `.js` (bajty). */
+  bootJsTransferBytes: number;
+  /** Suma `decodedBodySize` tych samych plików - daje iloraz kompresji. */
+  bootJsDecodedBytes: number;
+  /** Ile plików `.js` - bez tego suma nie mówi, czy to jeden plik, czy sto. */
+  bootJsCount: number;
+  /** Część z domknięcia STATYCZNEGO (entry + vendory; `initiatorType !== "script"`). */
+  staticGraphBytes: number;
+  /** Ile plików w domknięciu statycznym. */
+  staticGraphCount: number;
+  /** Część z importów DYNAMICZNYCH w trakcie bootu (`initiatorType === "script"`). */
+  dynamicImportBytes: number;
+  /** Ile plików z importów dynamicznych. */
+  dynamicImportCount: number;
   /** `first-contentful-paint` z PerformancePaintTiming (ms) albo null. */
   fcpMs: number | null;
 }
@@ -172,6 +260,19 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
     }
   });
 
+  // TYLKO `pageerror`, ŚWIADOMIE BEZ `console` - i to nie jest przeoczenie ani
+  // niekonsekwencja wobec `boot-artifact.spec.ts`, który zbiera oba.
+  //
+  // Ten plik jest bramką BUDŻETU, sąsiedni jest bramką POPRAWNOŚCI. Gdyby oba
+  // czytały `console.error`, każdy defekt poprawności zapalałby DWIE bramki na
+  // czerwono, a druga wiadomość („nie mieścisz się w budżecie czasu") byłaby
+  // wtedy nieprawdziwa i myląca. ZMIERZONE 2026-09-01 na tym artefakcie:
+  // `boot-artifact.spec.ts` oblewa się na `console.error: Error reading query
+  // stream: TypeError: Cannot read properties of undefined (reading
+  // 'mutations')` - i to jest poprawne zachowanie TAMTEJ bramki, natomiast ta
+  // ma w tym samym przebiegu przejść i podać liczby. Rzut na stronie (`pageerror`)
+  // to inna sprawa: on unieważnia sam POMIAR, bo mierzyłby boot, który
+  // częściowo padł - dlatego jest tu zbierany i sprawdzany na końcu.
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${String(e)}`));
 
@@ -192,18 +293,16 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
   const timing: BootTiming = await page.evaluate(() => {
     const w = window as unknown as { __nesBootT0?: number; __nesReadyAt?: number };
     const nav = performance.getEntriesByType("navigation")[0] as
-      | PerformanceNavigationTiming
-      | undefined;
+      PerformanceNavigationTiming | undefined;
     const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
-    // DWA WIADRA, NIE JEDNO - i to jest wynik pomiaru, nie ostrożność. Patrz
-    // komentarz przy `MAX_BOOT_JS_TRANSFER_KB`: chunki objęte hintem
-    // `modulepreload` mają `initiatorType === "link"`, nie `"script"`.
-    const scripts = resources.filter((e) => e.initiatorType === "script");
-    const preloads = resources.filter(
-      (e) => e.initiatorType === "link" && new URL(e.name).pathname.endsWith(".js"),
-    );
+    // WSZYSTKIE `.js`, NIEZALEŻNIE OD `initiatorType` - i to jest POPRAWKA
+    // Z POMIARU, nie ostrożność. Patrz komentarz przy `MAX_BOOT_JS_TRANSFER_KB`:
+    // domknięcie statyczne bootu przychodzi z `initiatorType === "other"`.
+    const js = resources.filter((e) => new URL(e.name).pathname.endsWith(".js"));
     const bytes = (list: PerformanceResourceTiming[]) =>
       list.reduce((sum, e) => sum + e.transferSize, 0);
+    const staticGraph = js.filter((e) => e.initiatorType !== "script");
+    const dynamicImports = js.filter((e) => e.initiatorType === "script");
     const paint = performance.getEntriesByName("first-contentful-paint")[0];
     const t0 = w.__nesBootT0 ?? 0;
     const readyAt = w.__nesReadyAt;
@@ -211,26 +310,32 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
       ttfbMs: nav ? nav.responseStart - nav.requestStart : -1,
       readyMs: readyAt !== undefined ? readyAt - t0 : Date.now() - t0,
       readyExact: readyAt !== undefined,
-      scriptTransferBytes: bytes(scripts),
-      scriptCount: scripts.length,
-      preloadJsTransferBytes: bytes(preloads),
-      preloadJsCount: preloads.length,
+      bootJsTransferBytes: bytes(js),
+      bootJsDecodedBytes: js.reduce((sum, e) => sum + e.decodedBodySize, 0),
+      bootJsCount: js.length,
+      staticGraphBytes: bytes(staticGraph),
+      staticGraphCount: staticGraph.length,
+      dynamicImportBytes: bytes(dynamicImports),
+      dynamicImportCount: dynamicImports.length,
       fcpMs: paint ? paint.startTime : null,
     };
   });
 
-  const scriptKb = timing.scriptTransferBytes / 1024;
-  const preloadKb = timing.preloadJsTransferBytes / 1024;
-  const bootJsKb = scriptKb + preloadKb;
+  const bootJsKb = timing.bootJsTransferBytes / 1024;
+  const staticKb = timing.staticGraphBytes / 1024;
+  const dynamicKb = timing.dynamicImportBytes / 1024;
+  const decodedKb = timing.bootJsDecodedBytes / 1024;
+  const ratio = bootJsKb > 0 ? decodedKb / bootJsKb : 0;
   // Log jest CZĘŚCIĄ WARTOŚCI tego testu, nie ozdobą: dopóki nie ma ani jednej
   // liczby z runnera, przebieg CI jest jedynym sposobem, żeby ją zdobyć -
   // i musi ją WYPISAĆ także wtedy, gdy przechodzi.
   console.log(
     `[boot-timing] TTFB=${timing.ttfbMs.toFixed(1)}ms ` +
       `ready=${timing.readyMs}ms (exact=${timing.readyExact}) ` +
-      `bootJS=${bootJsKb.toFixed(1)}KB ` +
-      `(script ${scriptKb.toFixed(1)}KB/${timing.scriptCount} + ` +
-      `modulepreload ${preloadKb.toFixed(1)}KB/${timing.preloadJsCount}) ` +
+      `bootJS=${bootJsKb.toFixed(1)}KB/${timing.bootJsCount} ` +
+      `(statyczne ${staticKb.toFixed(1)}KB/${timing.staticGraphCount} + ` +
+      `dynamiczne ${dynamicKb.toFixed(1)}KB/${timing.dynamicImportCount}) ` +
+      `decoded=${decodedKb.toFixed(1)}KB (x${ratio.toFixed(2)}) ` +
       `FCP=${timing.fcpMs === null ? "brak" : `${timing.fcpMs.toFixed(1)}ms`}`,
   );
 
@@ -252,15 +357,14 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
     `hydratacja gotowa po ${timing.readyMs} ms > ${MAX_READY_MS} ms`,
   ).toBeLessThan(MAX_READY_MS);
 
-  // 3. TRANSFER ŚCIEŻKI BOOTOWANIA. Zero zasobów typu `script` znaczy, że
-  // dokument nie wykonał ANI JEDNEGO importu modułowego - czyli jest statycznym
-  // SSR-em, dokładnie tą awarią, którą pilnuje `boot-artifact.spec.ts`. Tu
-  // wychodzi jako awaria przyrządu i tak jest sprawdzane. To samo dla wiadra
-  // `modulepreload`: jego wyzerowanie znaczyłoby, że `localeChunkPlugin`
-  // przestał wstawiać hinty, a wtedy liczba przestaje być porównywalna
-  // z poprzednimi przebiegami (bajty przechodzą do wiadra `script`).
-  expect(timing.scriptCount, "dokument nie pobrał żadnego skryptu").toBeGreaterThan(0);
-  expect(timing.preloadJsCount, "dokument nie niesie hintów modulepreload").toBeGreaterThan(0);
+  // 3. TRANSFER ŚCIEŻKI BOOTOWANIA. Zero pobranych plików `.js` znaczy, że
+  // dokument jest statycznym SSR-em - dokładnie tą awarią, którą pilnuje
+  // `boot-artifact.spec.ts`. Tu wychodzi jako awaria przyrządu i tak jest
+  // sprawdzane. Puste wiadro DYNAMICZNE sprawdzam osobno, bo to ono niesie
+  // chunk locale i wyspy zgód: jego wyzerowanie znaczyłoby, że dokument
+  // przestał je ciągnąć, a wtedy spadek sumy wyglądałby na poprawę.
+  expect(timing.staticGraphCount, "dokument nie pobrał domknięcia statycznego").toBeGreaterThan(0);
+  expect(timing.dynamicImportCount, "dokument nie wykonał importu dynamicznego").toBeGreaterThan(0);
   expect(
     bootJsKb,
     `transfer JS bootu ${bootJsKb.toFixed(1)} KB > ${MAX_BOOT_JS_TRANSFER_KB} KB`,
@@ -269,9 +373,10 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
   // 4. FCP - ZMIERZONY, ŚWIADOMIE NIE BRAMKOWANY.
   //
   // Chromium W TYM TRYBIE RAPORTUJE `first-contentful-paint` - sprawdzone,
-  // zmierzone niżej w tabeli. Powód, dla którego nie ma dla niego stałej
+  // wartości w tabeli progów. Powód, dla którego nie ma dla niego stałej
   // `MAX_*`, jest inny i mocniejszy niż „może nie przyjść": zmierzone
-  // FCP = 5508,0 ms przy TTFB = 5110,7 ms, czyli SAM PAINT to ~397 ms, a 93%
+  // FCP = 5348,0 ms przy TTFB = 5075,6 ms, czyli SAM PAINT to ~272 ms (w sześciu
+  // przebiegach 272 - 537 ms), a 91-95%
   // liczby to czas serwera, który jest już bramkowany osobno i lepiej -
   // z własnym komunikatem błędu. Próg na FCP byłby DRUGĄ, GŁOŚNIEJSZĄ KOPIĄ
   // bramki TTFB: padałby na tej samej regresji, tylko wskazując gorsze miejsce.

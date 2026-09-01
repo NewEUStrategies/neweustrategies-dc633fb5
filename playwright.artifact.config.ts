@@ -53,14 +53,21 @@ export default defineConfig({
   // „strona żyje, ale wolniej niż wolno". Zlanie ich w jeden plik zamieniłoby
   // te dwa komunikaty w jeden nieczytelny. Wspólna konfiguracja, bo najdroższy
   // składnik - build artefaktu (>=3 min 30 s w CI) i start serwera - jest
-  // dokładnie ten sam, a `fullyParallel: false` daje im ustaloną kolejność.
+  // dokładnie ten sam, a `fullyParallel: false` gwarantuje, że nie mierzą się
+  // wzajemnie: bez tego drugi plik jechałby po serwerze obsługującym pierwszy.
   //
-  // KOLEJNOŚĆ (alfabetyczna: artifact, potem timing) ma skutek dla POMIARU:
-  // `boot-timing` jedzie po CIEPŁYM serwerze. Jest to świadome - liczba
-  // z ciepłego procesu jest powtarzalna, a zimna zawiera jednorazowy koszt
-  // rozgrzewki JIT-u i cache'u modułów, którego produkcyjny czytelnik na
-  // Cloudflare i tak nie płaci przy każdym wejściu. Zmierzona różnica
-  // zimny -> ciepły jest wpisana w progach `e2e/boot-timing.spec.ts`.
+  // KOLEJNOŚĆ NIE JEST STABILNA I NIE MA BYĆ - to też jest zmierzone, nie
+  // założone. Na przebiegach pełnej konfiguracji `boot-timing` wypadał raz jako
+  // numer 1, raz jako numer 2 (`fullyParallel: false` gwarantuje szeregowość,
+  // nie porządek plików). Gdyby pomiar czasu zależał od tego, który plik
+  // odwiedził serwer pierwszy, ta bramka byłaby migotaniem.
+  //
+  // SPRAWDZONE, ŻE NIE ZALEŻY: sześć przebiegów (trzy razy sam `boot-timing`,
+  // trzy razy pełna konfiguracja, w obu kolejnościach) dały TTFB
+  // 5075,6 - 5194,9 ms i gotowość 461 - 616 ms, a skrajne wartości WYPADŁY
+  // W RÓŻNYCH TRYBACH I RÓŻNYCH KOLEJNOŚCIACH. To szum hosta, nie efekt
+  // rozgrzania serwera - progi z `e2e/boot-timing.spec.ts` obowiązują więc
+  // niezależnie od tego, jak Playwright ustawi pliki.
   testMatch: /boot-(artifact|timing)\.spec\.ts$/,
   // Hojniej niż 30 s z konfiguracji dev: pierwszy render zimnego artefaktu
   // z zaślepkami Supabase idzie przez pełne budżety loaderów.
