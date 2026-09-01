@@ -586,7 +586,9 @@ describe("NotificationsBell - dostępność", () => {
     await mountBell();
     await openBell();
 
-    const ids = await panelViolationIds();
-    expect(ids.filter((id) => !ZNANE_DEFEKTY_A11Y.includes(id))).toEqual([]);
+    const nowe = (await axeViolations(document.body)).filter(
+      (violation) => !ZNANE_DEFEKTY_A11Y.includes(violation.id),
+    );
+    expect(nowe, summarize(nowe)).toEqual([]);
   });
 });

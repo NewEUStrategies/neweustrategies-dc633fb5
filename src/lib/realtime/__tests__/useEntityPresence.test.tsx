@@ -22,7 +22,8 @@ const POST_ID = "66666666-6666-4666-a666-666666666666";
 interface AuthUserStub {
   id: string;
   email: string | null;
-  user_metadata: Record<string, unknown>;
+  /** Opcjonalne CELOWO - sesja odtworzona ze storage bywa bez metadanych. */
+  user_metadata?: Record<string, unknown>;
 }
 
 const h = vi.hoisted(() => ({
@@ -301,6 +302,19 @@ describe("useEntityPresence - nazwa wyświetlana", () => {
     unmount();
   });
 
+  it("sesja BEZ metadanych nie wywraca hooka i schodzi do adresu e-mail", () => {
+    // `user_metadata` bywa nieobecne w sesji odtworzonej ze storage. Odczyt
+    // pola z `undefined` rzuciłby w efekcie, czyli w miejscu, które wywraca
+    // cały edytor - a jedyne, co jest tu do zrobienia, to sięgnąć po e-mail.
+    h.auth.user = { id: ME, email: "anna@example.org" };
+    const { unmount } = renderHook(() => useEntityPresence("post", POST_ID));
+
+    const tracked = liveChannel().sent.filter((payload) => payload.type === "presence");
+    expect(tracked[0].name).toBe("anna@example.org");
+
+    unmount();
+  });
+
   it("przycina białe znaki wokół nazwy", () => {
     h.auth.user = { id: ME, email: null, user_metadata: { display_name: "  Anna Kowalska  " } };
     const { unmount } = renderHook(() => useEntityPresence("post", POST_ID));
@@ -343,6 +357,37 @@ describe("useEntityPresence - warunki, w których kanał nie może powstać", ()
     const { result, unmount } = renderHook(() => useEntityPresence("post", POST_ID));
     expect(result.current).toEqual([]);
     expect(rt().channels).toEqual([]);
+    unmount();
+  });
+
+  it("status INNY niż SUBSCRIBED nie ogłasza obecności", () => {
+    // Nieudana subskrypcja (CHANNEL_ERROR, TIMED_OUT) nie może kończyć się
+    // wysłaniem `track` - ładunek presence z nazwiskiem poszedłby wtedy na
+    // kanał, którego serwer nie autoryzował.
+    const { unmount } = renderHook(() => useEntityPresence("post", POST_ID));
+    const channel = liveChannel();
+    const before = channel.sent.filter((payload) => payload.type === "presence").length;
+    expect(before).toBe(1);
+
+    act(() => channel.emitStatus("CHANNEL_ERROR"));
+    act(() => channel.emitStatus("TIMED_OUT"));
+    act(() => channel.emitStatus("CLOSED"));
+
+    expect(channel.sent.filter((payload) => payload.type === "presence")).toHaveLength(1);
+
+    unmount();
+  });
+
+  it("ponowne SUBSCRIBED po zerwaniu połączenia ogłasza obecność jeszcze raz", () => {
+    // Po reconnect serwer nie pamięta rosteru - bez ponownego `track`
+    // użytkownik znika z listy obecnych mimo otwartego edytora.
+    const { unmount } = renderHook(() => useEntityPresence("post", POST_ID));
+    const channel = liveChannel();
+
+    act(() => channel.emitStatus("SUBSCRIBED"));
+
+    expect(channel.sent.filter((payload) => payload.type === "presence")).toHaveLength(2);
+
     unmount();
   });
 

@@ -200,6 +200,23 @@ async function renderPanelSettled() {
   return rendered;
 }
 
+/**
+ * Wpisy HISTORII (a nie wiersze zgód) - obie listy renderują `<li>`, więc
+ * `findAllByRole("listitem")` spełnia się już na samych wierszach zgód, zanim
+ * zapytanie o historię zdąży się rozwiązać. Filtrowanie WYNIKU tamtej obietnicy
+ * dawało więc pustą tablicę, gdy testy biegły pod obciążeniem (przypadek
+ * zaobserwowany przy pełnym przebiegu katalogu, nie przy pojedynczym pliku).
+ * Tu czekamy na SAME wpisy historii - rozpoznawalne po sufiksie wersji.
+ */
+async function historyEntries(expected: number): Promise<HTMLElement[]> {
+  let found: HTMLElement[] = [];
+  await waitFor(() => {
+    found = screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("(v1.0)"));
+    expect(found).toHaveLength(expected);
+  });
+  return found;
+}
+
 beforeEach(async () => {
   stub.reset();
   h.user.current = { id: "u-1" };
@@ -383,9 +400,7 @@ describe("ConsentsPanel - historia zdarzeń", () => {
       eventRow({ id: "ev-2", consent_key: "analytics", given: false }),
     ]);
     await renderPanelSettled();
-    const items = await screen.findAllByRole("listitem");
-    const history = items.filter((li) => li.textContent?.includes("(v1.0)"));
-    expect(history).toHaveLength(2);
+    const history = await historyEntries(2);
     const first = history[0].textContent ?? "";
     expect(first).toContain(itemTitle("marketing_email"));
     expect(first).toContain(label("notifications.consents.stateGiven"));
@@ -405,7 +420,7 @@ describe("ConsentsPanel - historia zdarzeń", () => {
   it("nota o kolumnie GPC NIE pojawia się, gdy żaden wpis nie ma gpc", async () => {
     h.listMyConsentEvents.mockResolvedValue([eventRow({ id: "ev-1", gpc: false })]);
     await renderPanelSettled();
-    await screen.findAllByRole("listitem");
+    await historyEntries(1);
     expect(screen.queryByTestId("gpc-registry-note")).not.toBeInTheDocument();
   });
 
@@ -566,8 +581,7 @@ describe("ConsentsPanel - dwujęzyczność", () => {
     await i18n.changeLanguage("en");
     h.listMyConsentEvents.mockResolvedValue([eventRow({ id: "ev-1" })]);
     await renderPanelSettled();
-    const items = await screen.findAllByRole("listitem");
-    const history = items.filter((li) => li.textContent?.includes("(v1.0)"));
+    const history = await historyEntries(1);
     expect(history[0].textContent).toContain(
       new Date("2026-08-01T10:00:00.000Z").toLocaleString("en-GB", {
         dateStyle: "medium",

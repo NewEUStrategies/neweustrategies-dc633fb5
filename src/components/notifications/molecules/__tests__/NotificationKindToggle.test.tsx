@@ -35,9 +35,10 @@ const LABEL = "Wiadomości na czacie";
 const SECURITY_LABEL = "Alerty bezpieczeństwa (zawsze włączone)";
 
 /** Wiersz w wariancie przełączalnym - domyślne wejście testów. */
-function renderToggle(
-  props: Partial<NotificationKindToggleProps> = {},
-): { onCheckedChange: ReturnType<typeof vi.fn>; container: HTMLElement } {
+function renderToggle(props: Partial<NotificationKindToggleProps> = {}): {
+  onCheckedChange: ReturnType<typeof vi.fn>;
+  container: HTMLElement;
+} {
   const onCheckedChange = vi.fn<(checked: boolean) => void>();
   const { container } = render(
     <NotificationKindToggle
