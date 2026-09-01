@@ -128,9 +128,20 @@ export function anyDegraded(...results: readonly ResilientLoad<unknown>[]): bool
  * pustą powłokę kolejnym czytelnikom przez cały okres świeżości, długo po tym,
  * jak backend wrócił do zdrowia. `no-store` sprawia, że blip kosztuje jedno
  * żądanie, a nie okno cache'a.
+ *
+ * `cleanPolicy` pozwala trasie podać WŁASNĄ politykę czystego renderu. Domyślne
+ * `contentCacheControl()` (s-maxage 900) jest poprawne dla archiwów i list, ale
+ * NIE dla powierzchni „żywych": `/live` deklaruje w
+ * `lib/http/defaultCacheControl.ts` świeżość w sekundach
+ * (`liveCacheControl()`, s-maxage 30) i przed 2026-09-01 nadpisywał ją tutaj
+ * na 900 - czytelnik relacji na żywo mógł dostać wpis sprzed 15 minut wbrew
+ * deklaracji. Parametr jest wartością czystej polityki, nie nowym wariantem.
  */
-export function resilientCacheControl(degraded: boolean): string {
-  return degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl();
+export function resilientCacheControl(
+  degraded: boolean,
+  cleanPolicy: string = contentCacheControl(),
+): string {
+  return degraded ? cacheControlHeader({ cacheable: false }) : cleanPolicy;
 }
 
 function noop(): void {}

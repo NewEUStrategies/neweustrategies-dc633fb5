@@ -56,7 +56,7 @@ const h = vi.hoisted(() => ({
   renderLang: "pl" as "pl" | "en",
   /** Adres żądania widziany przez `head()` (pusty = render bez originu). */
   requestUrl: "https://neweuropeanstrategies.com/",
-  /** `true` = renderujemy jako SSR (rozgrzewka WSZYSTKICH sekcji). */
+  /** `true` = renderujemy jako SSR. */
   server: false,
   homePage: null as PageData | null,
   homePageFails: false,
@@ -151,9 +151,9 @@ vi.mock("@/lib/builder/prefetch", async (importOriginal) => ({
 }));
 
 vi.mock("@/components/builder/organisms/BuilderRenderer", () => ({
-  BuilderRenderer: ({ lang }: { lang: string }) => {
+  BuilderRenderer: ({ lang, stream }: { lang: string; stream?: boolean }) => {
     if (h.builderThrows) throw new Error("kanwa nie umiała się wyrenderować");
-    return <div data-testid="kanwa" data-lang={lang} />;
+    return <div data-testid="kanwa" data-lang={lang} data-stream={stream ? "1" : "0"} />;
   },
 }));
 vi.mock("@/components/ads/FooterSlideup", () => ({ FooterSlideup: () => null }));
@@ -389,7 +389,15 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(metaByProperty(view.meta(), "og:image")).toBe(COVER);
   });
 
-  it("SSR czeka na WSZYSTKIE sekcje, nawigacja klientowa tylko na te nad zgięciem", async () => {
+  // REGRESJA 2026-09-01. Do tej daty SSR strony głównej rozgrzewał CAŁY dokument
+  // buildera (`prefetchCachedRouteQueries`, budżet 6 000 ms), więc pierwszy bajt
+  // najważniejszej trasy serwisu wisiał na najwolniejszym zapytaniu SPOD
+  // ZGIĘCIA - i to na każdym cache MISS. Dwa komentarze obiecywały przy tym, że
+  // resztę „dostrumieniowuje ServerSectionGate", a `HomeBuilderContent`
+  // renderował `<BuilderRenderer>` BEZ propa `stream` (domyślnie `false`).
+  // Ten test pilnuje OBU połów naprawy naraz - inaczej wróciłaby ta sama
+  // rozbieżność między obietnicą a kodem.
+  it("i SSR, i nawigacja klientowa czekają TYLKO na sekcje nad zgięciem", async () => {
     await mountHome();
     expect(h.prefetch).toEqual(["nad-zgieciem"]);
 
@@ -397,7 +405,15 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.prefetch = [];
     h.server = true;
     await mountHome();
-    expect(h.prefetch).toEqual(["wszystkie-sekcje"]);
+    expect(h.prefetch).toEqual(["nad-zgieciem"]);
+    expect(h.prefetch).not.toContain("wszystkie-sekcje");
+  });
+
+  it("kanwa strony głównej strumieniuje sekcje spod zgięcia", async () => {
+    await mountHome();
+    // Bez `stream` sekcja spod zgięcia, która nie zmieści się w budżecie,
+    // ląduje w HTML-u jako PUSTY widget: bez szkieletu i bez dociągnięcia.
+    expect(screen.getByTestId("kanwa")).toHaveAttribute("data-stream", "1");
   });
 
   it("PUSTA kanwa daje zdanie „zajrzyj wkrótce”, a nie pustą powłokę buildera", async () => {

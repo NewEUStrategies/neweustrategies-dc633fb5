@@ -53,7 +53,6 @@ import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
-import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColors";
 import type { HeaderSettings } from "../components/Header";
 import type { BuilderDocument } from "../lib/builder/types";
@@ -64,10 +63,31 @@ import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/gl
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
-import { defaultPostLayoutSettings } from "../lib/postLayouts";
 import { withBudget } from "../lib/asyncBudget";
 
 const ROOT_WARM_BUDGET_MS = 2_500;
+
+/**
+ * Twardy sufit DRUGIEJ fali (dekoracja chrome'u: ticker, menu, widgety headera
+ * i stopki). Do 2026-09-01 fala 2 miała ten sam budżet co fala 1, a startuje
+ * dopiero po jej rozstrzygnięciu (potrzebuje ustawień), więc sam korzeń mógł
+ * trzymać dokument 2 × 2 500 = 5 000 ms BEZ JEDNEGO BAJTU HTML-a - na KAŻDEJ
+ * trasie publicznej. Strażnik strumienia dokumentu tego okna nie mierzy: liczy
+ * czas od utworzenia strumienia, a tu jesteśmy jeszcze przed renderem
+ * (framework awaituje wszystkie loadery, patrz createStartHandler).
+ *
+ * DLACZEGO 500 ms, a NIE „nie awaituj wcale": `router.options.dehydrate`
+ * (src/router.tsx:142) woła `sweepQueryCacheForSerialization` PRZED renderem
+ * Reacta, a ten anuluje (`revert: true`) i usuwa każde zapytanie, które nie
+ * zdążyło się rozstrzygnąć. Rozgrzewka „fire-and-forget" nie dowozi więc
+ * NICZEGO: ticker renderuje null, menu maluje szkielet - dokładnie te dwie
+ * regresje, które opisują komentarze niżej (ticker = najgorszy CLS serwisu,
+ * menu = „Menu jest puste..." mimo skonfigurowanego menu). Krótki, ale
+ * awaitowany budżet zachowuje dowóz w stanie ustalonym (wszystkie odnogi stoją
+ * za `edgeTtlCache`, 60 s TTL per host najemcy) i ogranicza koszt zimnego
+ * renderu do pół sekundy zamiast dwóch i pół.
+ */
+const CHROME_WARM_BUDGET_MS = 500;
 
 // Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
 // malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym
@@ -258,8 +278,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     //
     // CRITICAL: this loader runs on EVERY route, so it MUST NOT be a single
     // point of total failure. These are all presentation-layer caches with
-    // built-in defaults (resolveSetting / EMPTY_TOKENS / EMPTY_GLOBAL_COLORS /
-    // defaultPostLayoutSettings). Warming them is best-effort: a failed fetch
+    // built-in defaults (resolveSetting / EMPTY_TOKENS / EMPTY_GLOBAL_COLORS).
+    // Warming them is best-effort: a failed fetch
     // (transient network blip, cold edge worker, momentarily unreachable
     // backend, one corrupt row) must degrade to defaults, never throw and 500
     // the whole site. `allSettled` never rejects; per-route content loaders
@@ -293,27 +313,58 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         ]
       : [];
 
+    // FALA 1 - wyłącznie to, czego render nie ma czym zastąpić.
+    //
+    // `postLayoutSettings` NIE JEST tu już rozgrzewane: to OSOBNY klucz
+    // `edgeTtlCache("post_layout_settings:row")`, czyli osobny round-trip na
+    // każdej trasie publicznej, a jedyny jego konsument widoczny w SSR
+    // (`ContentAreaStyle`) renderuje `null` bez danych - traci więc wyłącznie
+    // typografię prozy, i to na trasach, które i tak jej nie mają. Trasa
+    // wpisu/strony grzeje je sobie sama (`routes/$.tsx`).
+    //
+    // `globalColors` ZOSTAJE, wbrew pozorom bezkosztowo: jego `queryFn` i
+    // `queryFn` tokenów wołają TEN SAM `fetchSiteDesignTokensRow()` z dedupem
+    // in-flight i wspólnym `edgeTtlCache("site_design_tokens:row")`
+    // (lib/builder/designTokens.ts:79-97), więc oba zapytania zbiegają do
+    // JEDNEGO fetcha. Wyrzucenie go nie oszczędza ani milisekundy, a zabiera
+    // z SSR-owego HTML-a całą połowę `<DesignTokensStyle/>`: `--gc-*`,
+    // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
+    // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
+    // stronie. Zmierzone: 3 równoległe podżądania -> 2.
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
         context.queryClient.ensureQueryData(designTokensQueryOptions),
         context.queryClient.ensureQueryData(globalColorsQueryOptions),
-        context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
       ]),
       ROOT_WARM_BUDGET_MS,
     );
+    // `updatedAt: 0` - zasiew MUSI rodzić się PRZETERMINOWANY.
+    //
+    // Bez tego argumentu `setQueryData` stempluje wpis `Date.now()`, a
+    // `staleTime` tych zapytań to 5-10 minut: jedna czkawka bazy w oknie fali 1
+    // przypinała WBUDOWANE DOMYŚLNE w cache'u klienta na cały ten czas i klient
+    // nigdy nie dociągał prawdziwej wartości. Dla `site_settings` skutek był
+    // najostrzejszy: `Header` zwraca `null`, gdy `builder_data.sections` jest
+    // puste (components/Header.tsx), czyli czytelnik oglądał stronę BEZ
+    // NAGŁÓWKA do końca wizyty. Doktryna jest w repo o jedną trasę dalej
+    // (routes/index.tsx - zasiew z `{ updatedAt: 0 }`, przypięty testem
+    // homeRoute.test.tsx: "inaczej strona nie wyleczy się sama po powrocie
+    // backendu"); tu jej brakowało.
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}));
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}), {
+        updatedAt: 0,
+      });
     }
     if (!context.queryClient.getQueryData(designTokensQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(designTokensQueryOptions.queryKey, EMPTY_TOKENS);
+      context.queryClient.setQueryData(designTokensQueryOptions.queryKey, EMPTY_TOKENS, {
+        updatedAt: 0,
+      });
     }
     if (!context.queryClient.getQueryData(globalColorsQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(globalColorsQueryOptions.queryKey, EMPTY_GLOBAL_COLORS);
-    }
-    const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
-    if (!context.queryClient.getQueryData(postLayoutKey)) {
-      context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings());
+      context.queryClient.setQueryData(globalColorsQueryOptions.queryKey, EMPTY_GLOBAL_COLORS, {
+        updatedAt: 0,
+      });
     }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
@@ -383,11 +434,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         const chromeWarm: Promise<unknown>[] = [tickerWarm, ...menuWarm];
         if (headerVisible && header.builder_data) {
           chromeWarm.push(
-            prefetchCachedRouteQueries(context.queryClient, header.builder_data, lang, 2500),
+            prefetchCachedRouteQueries(
+              context.queryClient,
+              header.builder_data,
+              lang,
+              CHROME_WARM_BUDGET_MS,
+            ),
           );
         }
         if (footerDoc?.sections?.length) {
-          chromeWarm.push(prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, 2500));
+          chromeWarm.push(
+            prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, CHROME_WARM_BUDGET_MS),
+          );
         }
         // Ten sam twardy budżet obowiązuje przy pierwszym SSR i przy każdej
         // nawigacji klientowej. Menu/ticker/widget chrome są dekoracją i nie
@@ -395,13 +453,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // klik, ale ekran pozostaje bezczynny, bo jeden fetch czeka bez końca).
         // Niedokończone zapytania pozostają w React Query i mogą uzupełnić UI
         // po rozwiązaniu trasy; render ma bezpieczne wartości domyślne.
-        await withBudget(Promise.allSettled(chromeWarm), ROOT_WARM_BUDGET_MS);
+        await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.
+        // Predykat ZAWĘŻONY do zapytań, które NIE MOGĄ się już rozstrzygnąć:
+        // `pending` + `fetchStatus: "idle"` + brak danych. Ten sam warunek co
+        // `isUnresolvableQuery` (lib/ssr/pruneUnresolvedQueries.ts).
+        //
+        // Sam `status === "pending"` był za szeroki i przy budżecie 500 ms staje
+        // się AKTYWNĄ ŚCIEŻKĄ UTRATY DANYCH: zapytanie, któremu wyczerpał się
+        // budżet, ale które NADAL LECI, zdąży się jeszcze rozstrzygnąć w oknie
+        // renderu i pojechać do klienta strumieniem integracji
+        // router<->query - a usunięcie go tutaj gwarantuje zamiast tego pusty
+        // fallback i refetch po hydratacji. Prawdziwy przypadek anulowania (HMR,
+        // `revert: true`) łapie i ten predykat, i strażnik w `dehydrate`.
         for (const key of ["main", "footer"] as const) {
           const state = context.queryClient.getQueryState(["menu-with-items", key]);
-          if (state?.status === "pending") {
+          if (
+            state?.status === "pending" &&
+            state.fetchStatus === "idle" &&
+            state.data === undefined
+          ) {
             context.queryClient.removeQueries({ queryKey: ["menu-with-items", key], exact: true });
           }
         }

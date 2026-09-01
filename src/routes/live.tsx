@@ -15,6 +15,7 @@ import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { isLiveNow, liveBlogsQueryOptions, type LiveBlogListItem } from "@/lib/queries/liveBlogs";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { liveCacheControl } from "@/lib/http/defaultCacheControl";
 import { activeLang } from "@/lib/seo/head";
 import {
   SITE_CANONICAL_ORIGIN,
@@ -38,7 +39,11 @@ export const Route = createFileRoute("/live")({
       liveBlogsQueryOptions(),
       NO_LIVE_BLOGS,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    // Czysty render relacji na żywo dostaje POLITYKĘ ŻYWĄ (s-maxage 30 s), nie
+    // domyślną politykę treści (900 s): czytelnik trwającej relacji nie może
+    // dostawać wpisu sprzed 15 minut. Ta sama wartość, którą dla `/live`
+    // deklaruje `planDefaultCacheControl` - jedna doktryna, jedno źródło.
+    setCacheControlHeader(resilientCacheControl(degraded, liveCacheControl()));
     return { degraded };
   },
   head: () => {

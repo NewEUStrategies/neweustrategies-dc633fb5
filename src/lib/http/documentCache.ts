@@ -60,8 +60,8 @@ export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
  * Limit rozmiaru pojedynczego dokumentu (większe nie wchodzą do cache).
  *
  * 2026-08-18: 1 MiB -> 2 MiB. Strona główna niesie w HTML-u dehydratowane
- * dane WSZYSTKICH sekcji (celowo - patrz prefetchCachedRouteQueries) plus
- * pełną mapę site_settings z builder_data chrome'u; dokument potrafi
+ * dane WSZYSTKICH sekcji plus pełną mapę site_settings z builder_data
+ * chrome'u; dokument potrafi
  * przekroczyć 1 MiB i wtedy NAJWAŻNIEJSZA trasa serwisu wypadała z cache'a
  * PO CICHU - każdy czytelnik płacił pełny render SSR (sekundy TTFB), a
  * liczniki pokazywały wyłącznie rosnące MISS-y bez śladu przyczyny. Odrzut
@@ -70,6 +70,12 @@ export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
  * zamiast objawiać się wolnym pierwszym wejściem. Budżet całego magazynu
  * (24 MiB, approx-LRU) pozostaje nadrzędny, więc koszt pamięci jest
  * ograniczony z konstrukcji.
+ *
+ * 2026-09-01: limit ZOSTAJE na 2 MiB, choć strona główna strumieniuje już
+ * sekcje spod zgięcia. Strumieniowanie przenosi te dane z początkowej paczki
+ * dehydratacji do strumienia zapytań, ale NIE zdejmuje ich z dokumentu - ciało
+ * zapisywane w cache'u jest zbierane do końca strumienia
+ * (`applyDeferredDocumentStore`), więc presja na ten limit jest ta sama.
  */
 export const DOCUMENT_CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 /** Budżet bajtów całego magazynu per isolate (approx-LRU eviction). */

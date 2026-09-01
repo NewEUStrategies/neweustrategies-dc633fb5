@@ -301,7 +301,13 @@ export const Route = createFileRoute("/$")({
     // - views fall back to their own client fetch.
     await withBudget(
       Promise.allSettled([
-        data.kind === "post"
+        // Także dla STRON, nie tylko wpisów: `ContentAreaStyle` renderuje
+        // typografię prozy (`.post-content`, odstępy akapitów, style linków)
+        // dla obu rodzajów treści, a od 2026-09-01 korzeń nie grzeje już tego
+        // klucza w fali 1 (osobny round-trip na KAŻDEJ trasie publicznej -
+        // patrz komentarz przy fali 1 w routes/__root.tsx). Tutaj płaci za to
+        // tylko powierzchnia, która tę typografię realnie pokazuje.
+        data.kind === "post" || data.kind === "page"
           ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
           : Promise.resolve(),
         doc.sections.length > 0
