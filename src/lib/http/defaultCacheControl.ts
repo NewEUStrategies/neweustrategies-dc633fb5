@@ -28,6 +28,7 @@ import {
   type DocumentCacheRequest,
 } from "./documentCache";
 import { cacheControlHeader, contentCacheControl } from "./cachePolicy";
+import { parseCacheControl } from "./parseCacheControl";
 
 /**
  * Powierzchnie "żywe" (live blog): dokument jest publiczny i cache'owalny,
@@ -63,23 +64,70 @@ export type DefaultCacheControlResponse = Pick<Response, "status"> & {
 };
 
 /**
+ * Czy dyrektywa trasy WYKLUCZA zapis w jakimkolwiek cache. Taka wartość wolno
+ * nadać odpowiedzi bezwarunkowo - tylko zawęża, nigdy nie poszerza uprawnień
+ * pośrednika.
+ */
+function forbidsStorage(directive: string): boolean {
+  const cc = parseCacheControl(directive);
+  return cc.noStore || cc.private;
+}
+
+/**
  * Nagłówek Cache-Control, który należy domyślnie nadać odpowiedzi, albo null,
  * gdy odpowiedź ma zostać nietknięta. Czysta funkcja - pełna macierz decyzji
  * jest pokryta testami jednostkowymi.
+ *
+ * `routeDirective` to intencja ustawiona przez loader trasy
+ * (`setCacheControlHeader` -> `readRouteCacheDirective`). Nagłówek zdarzenia h3
+ * scala się z odpowiedzią dopiero ZA tym middleware, więc bez tego argumentu
+ * decyzja trasy nie ma jak dotrzeć do polityki ZAPISU w NES Edge Cache -
+ * szczegóły i dowód w `responseHeaders.ts` przy `routeCacheDirectives`.
+ * Dyrektywa trasy jest NADRZĘDNA nad polityką domyślną; jej wartość powstaje
+ * w czystych politykach (`cachePolicy.ts`, `liveCacheControl` niżej,
+ * `resilientCacheControl`), więc warstwa wykonawcza nadal nie wymyśla polityk.
  */
 export function planDefaultCacheControl(
   request: DocumentCacheRequest,
   response: DefaultCacheControlResponse,
+  routeDirective?: string | null,
 ): string | null {
   if (request.method !== "GET") return null;
-  // Trasa wie lepiej: jakikolwiek własny nagłówek (w tym no-store) wygrywa.
-  if (response.headers.get("cache-control")) return null;
+  const onResponse = response.headers.get("cache-control");
+
+  // OPT-OUT TRASY WYPRZEDZA WSZYSTKO - także nagłówek już obecny na odpowiedzi,
+  // status i typ treści. `no-store`/`private` wyłącznie ZAWĘŻA uprawnienia
+  // pośrednika, więc nie da się nim niczego zepsuć, a bez tej kolejności jest
+  // MARTWY w dwóch niezależnych miejscach:
+  //   1. h3 scala nagłówki ZDARZENIA tylko dla `val.ok`
+  //      (`prepareResponse`: `if (!preparedHeaders || nested || !val.ok) return val`),
+  //      a `attachResponseHeaders` dla odpowiedzi non-ok scala WYŁĄCZNIE
+  //      `Set-Cookie`. ZMIERZONE: `setCacheControlHeader("private, no-store")`
+  //      w loaderze daje na drucie `null` przy 302 i przy 404, a poprawną
+  //      wartość dopiero przy 200. Bez tej gałęzi intencja z `post.$slug.tsx`,
+  //      `$.tsx` (cztery miejsca), `category.$slug.tsx` i `author.$slug.tsx`
+  //      NIGDY nie dociera do klienta i trwałe 301 wychodzą BEZ ŻADNEJ
+  //      dyrektywy cache - czyli zdane na heurystyki pośrednika.
+  //   2. Trasa z opcją `headers` na poziomie routera (frameworkowo dostępna,
+  //      dziś nieużywana - `getStartResponseHeaders` scala `match.headers`)
+  //      przywracałaby naprawianą tu dziurę o jedną warstwę wyżej.
+  // Warunek `!forbidsStorage(onResponse)` nie dopuszcza pętli: gdy odpowiedź
+  // już niesie opt-out, nie ma czego nadpisywać.
+  if (routeDirective && forbidsStorage(routeDirective) && !forbidsStorage(onResponse ?? "")) {
+    return routeDirective;
+  }
+
+  // Poza opt-outem: własny nagłówek JUŻ NA ODPOWIEDZI (feedy, sitemapy, strona
+  // 500 z `src/start.ts`) wygrywa i nie jest ruszany.
+  if (onResponse) return null;
   if (response.status !== 200) return null;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("text/html")) return null;
+
   // Sesyjne żądania nie dostają współdzielonej polityki (pas i szelki - NES
   // Edge Cache i tak je BYPASS-uje, ale nagłówek public na odpowiedzi dla
-  // żądania z tokenem byłby mylący dla pośredników).
+  // żądania z tokenem byłby mylący dla pośredników). Dotyczy to także
+  // dyrektywy trasy: `public` z loadera nie może obejść tej bariery.
   if (request.headers.get("authorization")) return null;
   const cookie = request.headers.get("cookie") ?? "";
   if (/(?:^|;\s*)sb-[^=]*=/.test(cookie)) return null;
@@ -89,6 +137,14 @@ export function planDefaultCacheControl(
   // Zasoby z rozszerzeniem mają własne polityki (sitemapy, feedy, robots).
   if (/\.[a-z0-9]+$/i.test(pathname)) return null;
   if (isDeniedPath(pathname)) return null;
+  // POWIERZCHNIA ŻYWA WYPRZEDZA dyrektywę czystego renderu, nie odwrotnie.
+  // Odwrotna kolejność wyglądała naturalnie („trasa wie lepiej"), ale
+  // reintrodukowałaby naprawiany tu defekt PO ŚCIEŻCE: strona CMS opublikowana
+  // pod `/live/<slug>` jest obsługiwana przez `$.tsx`, który deklaruje
+  // `contentCacheControl()`, więc wpis zamarzałby na 180 s zamiast 30 s.
+  // Ścieżka jest tu jedynym źródłem prawdy o „żywości" powierzchni.
   if (isLivePath(pathname)) return liveCacheControl();
+  // Czysty render: intencja trasy wygrywa z polityką domyślną treści.
+  if (routeDirective) return routeDirective;
   return contentCacheControl();
 }

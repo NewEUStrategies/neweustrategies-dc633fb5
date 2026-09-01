@@ -24,7 +24,8 @@
 //     `menu.offsetLeft`. W referencji pasek stoi w wycentrowanym kontenerze bez
 //     przewijania, więc oba układy odniesienia się pokrywają; u nas pasek jest
 //     `position: fixed`, gdzie offsetLeft dałby przesunięcie.
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { BottomBarTab } from "./BottomBarTab";
@@ -97,7 +98,16 @@ export function MobileBottomBarView({
     border.style.transform = `translate3d(${left}px, 0, 0)`;
   }, [activeIndex, hasActive]);
 
-  useLayoutEffect(() => {
+  // Gałąź layoutowa na kliencie (garb trafia pod aktywną pozycję przed
+  // malowaniem), `useEffect` w renderze serwerowym. Pasek jedzie w SSR na
+  // KAŻDEJ stronie, a ciało tego efektu woła `window.requestAnimationFrame`
+  // BEZWARUNKOWO - dziś jest to bezpieczne wyłącznie dlatego, że React nie
+  // uruchamia efektów podczas renderu serwerowego, czyli bezpieczne PRZEZ
+  // PRZYPADEK. Tu ten warunek jest napisany.
+  //
+  // Serwerowy HTML niesie więc `ready === false` i garb bez transformu -
+  // deterministycznie, identycznie jak pierwszy render klienta.
+  useIsomorphicLayoutEffect(() => {
     offsetBorder();
     // Druga próba po pierwszej klatce: ikony i webfont etykiet mogą dojechać po
     // layoucie, a garb musi trafić w ostateczne wymiary.

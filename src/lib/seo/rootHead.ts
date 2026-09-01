@@ -72,6 +72,38 @@ export function rootDocumentLinks(
 }
 
 /**
+ * Wartość nagłówka `Link` dla chunku rdzenia słownika AKTYWNEGO języka.
+ *
+ * PO CO. Rdzeń słownika jest dociągany top-level awaitem w tym samym chunku,
+ * w którym stoi `hydrateRoot` (`lib/i18n.ts`). Przeglądarka pobiera komplet
+ * preloadów manifestu korzenia, zaczyna wykonywać chunk wejściowy, DOPIERO WTEDY
+ * odkrywa `import("@/lib/locale/pl")` i płaci pełny, kolejny SZEREGOWY hop -
+ * w oknie, w którym cała reszta już czeka na hydratację.
+ *
+ * CO TO REALNIE DAJE, ŻEBY NIE OBIECYWAĆ ZA DUŻO: treść SSR jest w tym momencie
+ * JUŻ NA EKRANIE (arkusz i fonty mają własne hinty), więc zysk idzie w czas do
+ * INTERAKTYWNOŚCI, nie w FCP.
+ *
+ * TO JEST JEDYNA ŚWIADOMA ASYMETRIA między `<link>` a nagłówkiem `Link` w tym
+ * module i dlatego stoi w osobnej funkcji, a nie w liście wyżej. Nazwa pliku
+ * chunku jest znana WYŁĄCZNIE w środowisku serwerowym: bundel przeglądarki
+ * wczytuje moduł wirtualny, zanim chunki dostaną nazwy. Węzeł
+ * `<link rel="modulepreload">` w `<head>` byłby więc obecny w SSR-owym HTML-u
+ * i nieobecny w pierwszym renderze klienta - czyli ROZJAZD TOŻSAMOŚCI
+ * W KORZENIU DOKUMENTU, ta sama klasa awarii, którą ten obszar naprawia.
+ * Nagłówek HTTP nie jest częścią DOM-u, więc problemu nie ma z konstrukcji,
+ * a przy tym działa WCZEŚNIEJ niż `<link>` (przed sparsowaniem `<head>`)
+ * i jest utrwalany w NES Edge Cache na HIT/STALE.
+ */
+export function dictionaryPreloadLinkHeaderValue(chunkUrl: string | null): string | null {
+  if (!chunkUrl) return null;
+  // `modulepreload` (nie `preload as=script`): przeglądarka ma nie tylko pobrać
+  // plik, ale też sparsować go i wstawić do mapy modułów - inaczej `import()`
+  // w entry nadal czekałby na kompilację.
+  return `<${chunkUrl}>; rel="modulepreload"`;
+}
+
+/**
  * Wartości nagłówka HTTP `Link` dla tych samych zasobów krytycznych.
  *
  * Kolejność jest kontraktem: arkusz stylów pierwszy (blokuje render),

@@ -10,6 +10,7 @@ import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { isPreviewHost } from "@/lib/http/host";
 import { tenantAssertionMiddleware } from "@/lib/http/tenantAssertionCookie.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
+import { readRouteCacheDirective } from "@/lib/http/responseHeaders";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { renderErrorPage } from "@/lib/error-page";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
@@ -298,12 +299,22 @@ const seo404Middleware = createMiddleware().server(async ({ request, next }) => 
  * documentCacheMiddleware - żeby NES Edge Cache widział już wzbogaconą
  * odpowiedź i mógł ją zapisać. Trasa, która ustawiła własny nagłówek
  * (degradacja home -> no-store, preview, personalized), zawsze wygrywa.
+ *
+ * Intencja trasy dociera tu DRUGIM kanałem (`readRouteCacheDirective`), nie
+ * nagłówkiem odpowiedzi: `setResponseHeader` z loadera pisze na nagłówkach
+ * ZDARZENIA h3, a te scalają się z odpowiedzią dopiero w `toResponse()` na
+ * granicy requestHandlera - czyli ZA tym middleware I ZA
+ * `documentCacheMiddleware`. Do 2026-09-01 skutkiem był pełny rozjazd:
+ * czytelnik dostawał `private, no-store`, a do L1/L2 wchodziło domyślne
+ * `s-maxage=900, stale-while-revalidate=86400` - pusta powłoka zamarzała na
+ * brzegu na 24 h. Dowód mechanizmu i pełny opis: `responseHeaders.ts`
+ * (`routeCacheDirectives`).
  */
 const defaultCacheControlMiddleware = createMiddleware().server(async ({ request, next }) => {
   const result = await next();
   const response = getMiddlewareResponse(result);
   if (!response) return result;
-  const defaultPolicy = planDefaultCacheControl(request, response);
+  const defaultPolicy = planDefaultCacheControl(request, response, readRouteCacheDirective());
   if (!defaultPolicy) return result;
   // Nowa Response: nagłówki odpowiedzi routera mogą być immutable (patrz
   // applySecurityHeaders) - przebudowa daje własną, mutowalną listę nagłówków

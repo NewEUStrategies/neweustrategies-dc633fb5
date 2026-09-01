@@ -15,6 +15,7 @@ import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { isLiveNow, liveBlogsQueryOptions, type LiveBlogListItem } from "@/lib/queries/liveBlogs";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { liveCacheControl } from "@/lib/http/defaultCacheControl";
 import { activeLang } from "@/lib/seo/head";
 import {
   SITE_CANONICAL_ORIGIN,
@@ -23,7 +24,8 @@ import {
   splitUrl,
 } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
-import { uiLocale } from "@/lib/i18n/format";
+import { formatDate } from "@/lib/i18n/format";
+import { useNowMs } from "@/lib/time/useNowMs";
 
 /** Pusta lista jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
 const NO_LIVE_BLOGS: LiveBlogListItem[] = [];
@@ -38,7 +40,11 @@ export const Route = createFileRoute("/live")({
       liveBlogsQueryOptions(),
       NO_LIVE_BLOGS,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    // Czysty render relacji na żywo dostaje POLITYKĘ ŻYWĄ (s-maxage 30 s), nie
+    // domyślną politykę treści (900 s): czytelnik trwającej relacji nie może
+    // dostawać wpisu sprzed 15 minut. Ta sama wartość, którą dla `/live`
+    // deklaruje `planDefaultCacheControl` - jedna doktryna, jedno źródło.
+    setCacheControlHeader(resilientCacheControl(degraded, liveCacheControl()));
     return { degraded };
   },
   head: () => {
@@ -91,7 +97,13 @@ function LiveIndex() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const locale = uiLocale(lang);
+  // „TERAZ" DOPIERO PO MONTAŻU. `isLiveNow()` domyśla sobie `Date.now()`, więc
+  // plakietka „Na żywo" / „Zakończona" była liczona ZEGAREM SERWERA - na Workers
+  // kwantowanym do ostatniego I/O - i konserwowana w cache brzegowym. Klient po
+  // hydratacji liczył ją inaczej, a to nie jest rozjazd TEKSTU, tylko
+  // STRUKTURY: gałąź „na żywo" niesie trzy dodatkowe elementy z animacją.
+  // React 19 odpowiada na to przebudową całego poddrzewa.
+  const nowMs = useNowMs(30_000);
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8">
@@ -125,7 +137,9 @@ function LiveIndex() {
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
           {data.map(({ post, lastEntryAt, entryCount }) => {
-            const live = isLiveNow(lastEntryAt);
+            // Pierwsze przejście (serwer + hydratacja) NIE ZGADUJE: dopóki nie
+            // znamy chwili klienta, relacja jest opisana neutralnie.
+            const live = nowMs === null ? false : isLiveNow(lastEntryAt, nowMs);
             const title =
               (lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en) ??
               post.slug;
@@ -155,7 +169,17 @@ function LiveIndex() {
                     )}
                     <span className="text-muted-foreground">
                       {L("Ostatni wpis:", "Last update:")}{" "}
-                      {new Date(lastEntryAt).toLocaleString(locale)}
+                      {/* `formatDate` domyka strefę serwisu. `toLocaleString`
+                          bez opcji brał strefę MASZYNY (UTC na serwerze,
+                          strefa czytelnika w przeglądarce) - czyli inną
+                          godzinę po obu stronach hydratacji. */}
+                      {formatDate(lastEntryAt, lang, {
+                        year: "numeric",
+                        month: "numeric",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   </div>
                   <h2 className="font-display text-xl leading-snug m-0">{title}</h2>

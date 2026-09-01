@@ -37,6 +37,7 @@ import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { eventsListQueryOptions } from "@/lib/builder/eventsQuery";
 import { speakersQueryOptions } from "@/lib/builder/speakersQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
+import { ratedListQueryOptions } from "@/lib/builder/ratedListQuery";
 
 const SRC = resolve(process.cwd(), "src");
 const BUILDER_LIB = resolve(SRC, "lib/builder");
@@ -83,6 +84,17 @@ const LANG_AWARE_FACTORIES: ReadonlyArray<{
     module: "contentRefs.ts",
     call: (lang) => postRefQueryOptions("post-1", lang).queryKey,
   },
+  {
+    // `rated-list` w trybie dynamicznym. Język JEST w kluczu i to nie jest
+    // ozdoba: `queryFn` sortuje po `title_${lang}` i wpieka zlokalizowany
+    // tytuł oraz zajawkę w cache'owane wiersze, więc jeden wpis na oba języki
+    // oddawałby po przełączeniu PL/EN poprzedni język aż do wygaśnięcia
+    // świeżości (2 min). Ta fabryka NIE MOŻE trafić na listę `LANG_FREE`.
+    name: "ratedListQueryOptions",
+    module: "ratedListQuery.ts",
+    call: (lang) =>
+      ratedListQueryOptions({ source: "dynamic", orderBy: "title_asc" }, lang).queryKey,
+  },
 ];
 
 function sourceOf(moduleFile: string): string {
@@ -127,6 +139,23 @@ describe("konwencja `lang` / `_lang` jest prawdziwa, nie dekoracyjna", () => {
 describe("rejestr fabryk nie ma dziur", () => {
   /** Fabryki BEZ parametru języka - zapytania niezależne od wersji językowej. */
   const LANG_FREE = new Set([
+    // Taksonomie (`categories` / `tags`): `select` pobiera OBA języki
+    // (`name_pl` + `name_en`), a wybór następuje w renderze. To jest wzorzec
+    // POPRAWNY i komentarz przy `LANG_TOKEN` w `ci/localizedQueryKeys.ts`
+    // wskazuje dokładnie te dwa widgety jako jego przykład. Klucz z językiem
+    // trzymałby dwa identyczne wpisy cache za te same wiersze.
+    "categoriesQueryOptions",
+    "tagsQueryOptions",
+    // Podcast i Web Stories: wiersz niesie oba języki (`title_pl`/`title_en`),
+    // a widget wybiera przy renderze (`podcastTitle` / `storyTitle`). Fabryki
+    // biorą WYŁĄCZNIE treść widgetu, żeby policzyć `limit` wchodzący do klucza.
+    "podcastLatestQueryOptions",
+    "webStoriesCarouselQueryOptions",
+    // Katalog planów (`access_plans`): wiersz ma `name_pl`/`name_en` i
+    // `features_pl`/`features_en`, a `PricingPlansView` wybiera przy renderze.
+    // Klucz jest współdzielony z `/pricing` i `/checkout` (billingKeys), więc
+    // dołożenie języka rozdwoiłoby cache całego cennika.
+    "activePlansQueryOptions",
     // Widgety klubów: RPC zwraca OBIE wersje językowe w jednym wierszu
     // (`name_pl`/`name_en`, `club_name_pl`/`club_name_en`), a komponent wybiera
     // przy renderze. Klucz z językiem trzymałby dwa identyczne wpisy cache.

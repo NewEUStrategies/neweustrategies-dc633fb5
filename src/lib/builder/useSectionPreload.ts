@@ -67,9 +67,16 @@ export function useSectionPreload(
   options: { rootMargin?: string; enabled?: boolean } = {},
 ): React.RefObject<HTMLElement | null> {
   // 1200px lookahead: start fetching a section's data well before it scrolls
-  // into view so it is warm by the time the reader arrives. (Edge-cached routes
-  // server-render the whole document via prefetchCachedRouteQueries, so this
-  // mainly covers the budget-fallback tail and any uncached / very long pages.)
+  // into view so it is warm by the time the reader arrives.
+  //
+  // Od 2026-09-01 to jest ŚCIEŻKA GŁÓWNA dla sekcji spod zgięcia, nie tylko
+  // ogon awaryjny: publiczne trasy edge-cache'owane (`$.tsx` oraz strona
+  // główna) blokują SSR wyłącznie na `ABOVE_FOLD_SECTION_COUNT` pierwszych
+  // sekcjach, a resztę albo dostrumieniowuje `ServerSectionGate` w renderze
+  // serwerowym, albo - po hydratacji i przy nawigacji SPA - dogrzewa właśnie
+  // ten obserwator. Wcześniej stało tu, że „trasy edge-cache'owane renderują
+  // serwerowo CAŁY dokument przez prefetchCachedRouteQueries"; ta funkcja
+  // grzeje dziś już tylko chrome (header/footer) w loaderze korzenia.
   const { rootMargin = "1200px 0px", enabled = true } = options;
   const ref = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();

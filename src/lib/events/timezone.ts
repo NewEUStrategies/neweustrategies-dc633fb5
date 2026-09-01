@@ -36,14 +36,19 @@
 // a nie do strefy maszyny.
 //
 // GRANICA WARSTW: zero Reacta, zero i18next. Moduł jest liściem.
-import { uiLocale, type UiLang } from "@/lib/i18n/format";
+import { SITE_TIME_ZONE, uiLocale, type UiLang } from "@/lib/i18n/format";
 
 /**
  * Strefa domyślna serwisu. Ta sama wartość, którą trzymał prywatny
  * `DEFAULT_EVENT_TZ` w `EventsListView` - organizacja jest polska, a wydarzenie
  * bez strefy dzieje się tam, gdzie jej biuro.
  */
-export const EVENT_DEFAULT_TZ = "Europe/Warsaw";
+// JEDEN LITERAŁ, NIE DWA: strefa serwisu mieszka w `lib/i18n/format.ts`
+// (`SITE_TIME_ZONE`), bo to liść, który importuje już cała aplikacja. Dwie
+// niezależne stałe "Europe/Warsaw" mogłyby się rozjechać przy przenosinach
+// redakcji, a wtedy daty wpisów i godziny wydarzeń pokazywałyby dwie różne
+// strefy tego samego serwisu.
+export const EVENT_DEFAULT_TZ = SITE_TIME_ZONE;
 
 /**
  * Pamięć rozstrzygnięć `Intl` dla identyfikatorów strefy.

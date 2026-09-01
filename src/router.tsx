@@ -11,6 +11,7 @@ import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
+import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
@@ -140,9 +141,22 @@ export const getRouter = () => {
     // See lib/ssr/queryStreamGuard.
     const integrationDehydrate = router.options.dehydrate;
     router.options.dehydrate = async () => {
-      // Render się zakończył: anulujemy wiszące fetch-e i usuwamy zapytania,
-      // które nigdy się nie rozstrzygną, ZANIM integracja zrobi snapshot
-      // cache'u. Inaczej seroval czeka na ich promisy do twardego limitu.
+      // KOLEJNOŚĆ, SPROSTOWANA 2026-09-01. Stało tu „Render się zakończył",
+      // a to jest odwrotnie: `createStartHandler` woła
+      // `routerInstance.load()` (wszystkie loadery), potem
+      // `serverSsr.dehydrate()` - czyli TĘ funkcję - i DOPIERO POTEM render
+      // Reacta. Zamiatanie biegnie więc PRZED renderem, nigdy po nim (mimo
+      // nazwy modułu `postRenderSweep`, która też o tym kłamie).
+      //
+      // Konsekwencja jest praktyczna, nie kosmetyczna: obietnica, której loader
+      // nie awaituje, zostaje tu ANULOWANA i USUNIĘTA, zanim React wyrenderuje
+      // choćby bajt. Rozgrzewka „fire-and-forget" nie dowozi w tym repozytorium
+      // NICZEGO - i to jest powód, dla którego druga fala w `__root.tsx` ma
+      // krótki budżet, a nie brak awaita.
+      //
+      // Anulujemy wiszące fetch-e i usuwamy zapytania, które nigdy się nie
+      // rozstrzygną, ZANIM integracja zrobi snapshot cache'u. Inaczej seroval
+      // czeka na ich promisy do twardego limitu.
       sweepQueryCacheForSerialization(queryClient, {
         label: router.state.location.pathname,
         reason: "dehydrate",
@@ -177,21 +191,13 @@ export const getRouter = () => {
       // przeglądarce, `integrationHydrate` nigdy się nie rozstrzyga, React nie
       // hydratuje i cała strona zostaje statycznym HTML-em (przyciski i linki
       // nie reagują). Brakujące dane po prostu dociągną się przez refetch.
-      const HYDRATE_BUDGET_MS = 1500;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await Promise.race([
-          integrationHydrate?.(dehydrated),
-          new Promise<void>((resolve) => {
-            timer = setTimeout(() => {
-              console.warn("[ssr-hydrate] hydration stream exceeded budget - continuing");
-              resolve();
-            }, HYDRATE_BUDGET_MS);
-          }),
-        ]);
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
+      //
+      // Mechanika mieszka w `lib/ssr/hydrateBudget.ts`: stała jest tam
+      // EKSPORTOWANA, a raport WSTRZYKIWALNY, więc budżet jest kontraktem,
+      // a nie literałem i szpiegowaniem globalnej konsoli. Zachowanie
+      // produkcyjne bez zmian. Tam też jest zapisane, czego ten bezpiecznik
+      // w obecnej wersji integracji NIE ŚCINA (zmierzone).
+      await withHydrateBudget(integrationHydrate?.(dehydrated), { label: "router-hydrate" });
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
   }

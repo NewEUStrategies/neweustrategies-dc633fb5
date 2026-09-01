@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { History } from "lucide-react";
 import { useId } from "react";
+import { formatDateOnly } from "@/lib/i18n/format";
 
 const HEADINGS = {
   pl: "Historia aktualizacji",
@@ -17,17 +18,6 @@ interface ChangelogRow {
   entry_date: string;
   note_pl: string;
   note_en: string | null;
-}
-
-function formatDate(iso: string, lang: "pl" | "en"): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 export function PostChangelog({ postId, lang }: { postId: string; lang: "pl" | "en" }) {
@@ -66,7 +56,7 @@ export function PostChangelog({ postId, lang }: { postId: string; lang: "pl" | "
               dateTime={entry.entry_date}
               className="shrink-0 tabular-nums text-muted-foreground"
             >
-              {formatDate(entry.entry_date, lang)}
+              {formatDateOnly(entry.entry_date, lang)}
             </time>
             <span className="text-foreground/90">
               {lang === "en" ? entry.note_en || entry.note_pl : entry.note_pl || entry.note_en}

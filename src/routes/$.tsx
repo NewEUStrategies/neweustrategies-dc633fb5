@@ -35,6 +35,7 @@ import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
 import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
+import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
 import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts";
 import { useRecordPostView } from "@/hooks/useRecordPostView";
 import { ContactForm } from "@/components/pages/ContactForm";
@@ -301,7 +302,13 @@ export const Route = createFileRoute("/$")({
     // - views fall back to their own client fetch.
     await withBudget(
       Promise.allSettled([
-        data.kind === "post"
+        // Także dla STRON, nie tylko wpisów: `ContentAreaStyle` renderuje
+        // typografię prozy (`.post-content`, odstępy akapitów, style linków)
+        // dla obu rodzajów treści, a od 2026-09-01 korzeń nie grzeje już tego
+        // klucza w fali 1 (osobny round-trip na KAŻDEJ trasie publicznej -
+        // patrz komentarz przy fali 1 w routes/__root.tsx). Tutaj płaci za to
+        // tylko powierzchnia, która tę typografię realnie pokazuje.
+        data.kind === "post" || data.kind === "page"
           ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
           : Promise.resolve(),
         doc.sections.length > 0
@@ -333,6 +340,15 @@ export const Route = createFileRoute("/$")({
             })
           : Promise.resolve(),
         context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
+        // STRONY SEKCYJNE (`template_type === 'archive_listing'`): lista do 60
+        // dzieci jest CAŁĄ treścią takiej strony, a jechała zwykłym `useQuery`
+        // w `ArchiveListing`, który na serwerze nie startuje fetcha. SSR emitował
+        // więc gałąź przejściową i ten HTML wchodził do NES Edge Cache na do
+        // 24 h - a trasy sekcyjne są typowo najsilniejsze linkowo w całym
+        // serwisie. Ta sama fabryka, ten sam klucz, co w komponencie.
+        data.kind === "page" && data.item.template_type === "archive_listing"
+          ? context.queryClient.prefetchQuery(archiveListingQueryOptions(data.item.id))
+          : Promise.resolve(),
       ]),
       SECONDARY_PREFETCH_BUDGET_MS,
     );

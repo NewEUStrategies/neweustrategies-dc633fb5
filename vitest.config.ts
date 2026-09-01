@@ -41,7 +41,17 @@ export default defineConfig({
     hookTimeout: 20000,
     coverage: {
       provider: "v8",
-      reporter: ["text-summary", "text", "html"],
+      // `json-summary` DOSZŁO 2026-09-01 i to nie jest kosmetyka. Trzy
+      // dotychczasowe reportery są WYŁĄCZNIE do czytania oczami: `text` do tego
+      // dokłada pułapkę - POMIJA wiersze plików pokrytych w 100%, więc
+      // `src/router.tsx` (100/100/100/100, zmierzone) w tabeli NIE ISTNIEJE
+      // i wygląda jak plik wypadnięty z pomiaru. Kto raportuje liczby pokrycia,
+      // musi mieć je maszynowo, a nie zdrapywać z tabeli tekstowej;
+      // `coverage/coverage-summary.json` jest dokładnie tym plikiem i do dziś
+      // nie powstawał wcale. Reporter nie rusza ŻADNEGO progu ani zakresu
+      // pomiaru - dokłada wyłącznie drugie, sprawdzalne wyjście tych samych
+      // liczb.
+      reporter: ["text-summary", "text", "html", "json-summary"],
       // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
       // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
       // z niego natychmiast przy pierwszym padniętym teście
@@ -131,10 +141,46 @@ export default defineConfig({
         // dowiozła praca nad MODUŁEM 20 (platforma/backend/SSR) - mierzone na
         // tym samym zbiorze plików PRZED (`6426bd039`) i PO. Reszta odjechania
         // od 62,93% to praca nad klubami, która weszła na maina wcześniej.
-        statements: 64,
-        functions: 62,
-        lines: 65,
-        branches: 58,
+        //
+        // 2026-09-01: RATCHET W GÓRĘ. Pomiar CAŁEGO src/ na tym HEAD (pełna
+        // suita, 2 026 plików testowych, 54 623 testy zielone, 268 `it.fails`,
+        // 5 czerwonych DZIEDZICZONYCH z maina - sprawdzone osobnym przebiegiem
+        // tych samych plików na `origin/main` w oddzielnym worktree):
+        // 83,17% instrukcji (100 824/121 220) / 77,63% gałęzi (85 792/110 506) /
+        // 81,66% funkcji (27 894/34 158) / 84,44% linii (89 523/106 017).
+        // Poprzedni próg (64/62/65/58) przepuszczał ~19 pp swobodnego spadku,
+        // czyli nie łapał już żadnej realnej regresji - tylko katastrofę.
+        //
+        // REGUŁA ZASTOSOWANA DOSŁOWNIE, nie „na oko": `floor(zmierzone - 4)`.
+        // Sprawdzone, że to jest reguła FAKTYCZNIE stosowana w tej kronice,
+        // a nie tylko opisana: trzy ostatnie ratchety (18.08, 20.08, 22.08)
+        // trafiły w tę liczbę co do jedności w 12 przypadkach na 12, a dwa
+        // z nich są ROZSTRZYGAJĄCE, bo zaokrąglenie dałoby więcej, a w pliku
+        // stało mniej (linie 62,93 -> 58, gałęzie 62,80 -> 58). Wpis z 06.08,
+        // który tę regułę OGŁOSIŁ, sam jej nie dopełnił (trzy z czterech
+        // marginesów poniżej 4 pp) - piszę to, żeby następny czytelnik nie brał
+        // tamtych liczb za wzór.
+        // 83,1744 -> 79 (margines 4,17 pp);  81,6617 -> 77 (4,66 pp);
+        // 84,4421 -> 80 (4,44 pp);           77,6356 -> 73 (4,64 pp).
+        //
+        // CZEGO NIE MAM, powiedziane wprost: ZAPISANEGO pomiaru pokrycia
+        // z runnera CI nie ma w repo ANI JEDNEGO (`coverage/` jest w
+        // `.gitignore`, a reporter `json-summary` dołożono dopiero dziś).
+        // Jedyna udokumentowana w tym repozytorium rozbieżność host <-> runner
+        // dotyczy INNEJ metryki i wynosi +0,466% (kronika
+        // `scripts/check-bundle-size.ts`) - margines 4 pp przy poziomie ~80% to
+        // ~5% względnych, czyli o rząd wielkości więcej. Sprawdzone też, że CI
+        // mierzy pokrycie na PEŁNEJ suicie, a nie na podzbiorze
+        // (`.github/workflows/ci.yml` -> `bun run test:coverage` ->
+        // `vitest run --coverage`, bez `--shard` i bez filtra ścieżek), więc
+        // scenariusz „próg z pełnego przebiegu wobec CI na wycinku" nie zachodzi.
+        // Pięć czerwonych testów to razem 1 755 linii produkcyjnych z 680 622
+        // w `src/` (0,26%), a ich strata JUŻ SIEDZI w pomiarze wyżej.
+        // Pierwszy zielony log runnera jest podstawą do korekty tych liczb.
+        statements: 79,
+        functions: 77,
+        lines: 80,
+        branches: 73,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
@@ -862,14 +908,41 @@ export default defineConfig({
           branches: 85,
         },
         // Billing critical path (payment -> access). Floored just below the
-        // achieved coverage. webhooks.stripe: the un-hit arms are the framework
-        // POST route-arrow (handle() is tested directly) and the catch-all 500,
-        // which is why functions/branches sit below 100.
-        "src/routes/api/public/webhooks.stripe.ts": {
-          statements: 90,
-          functions: 85,
-          lines: 90,
-          branches: 75,
+        // achieved coverage.
+        //
+        // 2026-09-01: KLUCZ BYŁ MARTWY OD POCZĄTKU I TO JEST NAJWAŻNIEJSZA
+        // RZECZ W TYM WPISIE. Stało tu `src/routes/api/public/webhooks.stripe.ts`
+        // - plik, KTÓRY NIE ISTNIEJE i nigdy nie istniał (`git log --all` po tej
+        // ścieżce jest pusty, `--diff-filter=D` też, czyli to nie ślad po
+        // usunięciu, a literówka). Zmierzone: ten glob pasuje do ZERA z 3 272
+        // plików wchodzących do pomiaru - i to jest jedyny taki przypadek na 376
+        // progów per-ścieżka w tym pliku.
+        //
+        // DLACZEGO BYŁO CICHO, a nie czerwono: dla pustego zbioru istanbulowe
+        // `percent(covered, total)` przy `total === 0` zwraca 100, więc
+        // porównanie 100 >= 90 zachodzi i przechodzi trywialnie. Próg nad
+        // krytyczną ścieżką płatności świecił się na zielono, nie mając czego
+        // zmierzyć.
+        //
+        // Prawdziwy odbiornik to `src/routes/api/public/payments/webhook.ts`
+        // (nagłówek „Odbiornik zdarzeń od Stripe", weryfikacja HMAC
+        // `stripe-signature`, `export const __handleForTests = handleWebhookRequest`,
+        // catch-all 500) - czyli dokładnie to, co opisywał komentarz wyżej. Ten
+        // plik nie pasował do ŻADNEGO z 376 globów.
+        //
+        // LICZBY SĄ ZMIERZONE I ŚWIADOMIE NISKIE. 68,42% instrukcji (26/38),
+        // 63,33% gałęzi (19/30), 40,00% funkcji (2/5), 67,56% linii (25/37) -
+        // z PODZBIORU testów (`payments/-webhook.test.ts` + `lib/billing`),
+        // czyli pełna suita może dać więcej, nigdy mniej. Próg = `floor(pomiar
+        // - 4)` na tym podzbiorze, więc jest FLOOREM, którego pełny przebieg nie
+        // może oblać. NIE wpisuję tu dawnych 90/85/90/75: tamte liczby nigdy nie
+        // zostały na tym pliku zmierzone i były opisem pliku, który nie istniał.
+        // Do przefloorowania z pierwszego pełnego przebiegu i z runnera.
+        "src/routes/api/public/payments/webhook.ts": {
+          statements: 64,
+          functions: 36,
+          lines: 63,
+          branches: 59,
         },
         "src/lib/billing/grant.server.ts": {
           statements: 100,
@@ -3789,6 +3862,83 @@ export default defineConfig({
           functions: 100,
           lines: 96,
           branches: 82,
+        },
+
+        // ── DWA PLIKI, KTÓRE POSIADAJĄ WSZYSTKIE BUDŻETY SSR I HYDRATACJI ────
+        //
+        // Audyt pokrycia (wyd. 8, rozdz. 8.6) nazwał to najostrzejszą
+        // pojedynczą obserwacją całego wydania: `src/router.tsx` miał 0 z 38
+        // linii i 0 z 13 funkcji, `src/routes/__root.tsx` 0 z 124 linii i 0 z 48
+        // funkcji - w repozytorium mierzącym wtedy 84,12% całości. `router.tsx`
+        // nie był importowany przez ŻADEN plik testowy; jedyny kontakt suity
+        // z korzeniem polegał na odczytaniu pliku jako TEKSTU
+        // (`lib/seo/__tests__/rootHead.test.ts`). Próg globalny tego nie widział,
+        // bo jest agregatem po całym `src/`. Bez progów per-ścieżka ten dorobek
+        // jest pożyczony - dlatego wchodzą tym samym commitem co testy.
+        //
+        // ZMIERZONE 2026-09-01 (17 przypadków w `src/__tests__/router.test.tsx`,
+        // 16 zielonych + 1 `it.fails`): router.tsx 100% instrukcji / 100% gałęzi
+        // / 100% funkcji / 100% linii (35/35, 12/12, 11/11, 32/32).
+        //
+        // `functions: 100` jest tu ŚWIADOME, nie przez przypadek: plik ma
+        // jedenaście funkcji i każda z nich posiada jakiś inwariant SSR
+        // (`shouldDehydrateQuery`, `retryDelay`, obie gałęzie `rewrite`, owijka
+        // `dehydrate`, owijka `hydrate`, dwa ekrany błędu). Dołożenie
+        // nieprzetestowanej funkcji do TEGO pliku ma zapalić bramkę - taki sam
+        // próg stoi wyżej na `queryStreamGuard.ts` i `queryTimeout.ts`.
+        "src/router.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 92,
+        },
+        // Budżet hydratacji wyciągnięty z `router.tsx`, żeby przestał być
+        // nieobserwowalny (stała lokalna w ciele strzałki + `console.warn` jako
+        // jedyny ślad). ZMIERZONE: 100% instrukcji / 80% gałęzi / 100% funkcji /
+        // 100% linii.
+        //
+        // GAŁĘZIE NIŻEJ NIŻ RESZTA I TO NIE POMYŁKA: nieosiągnięta jest fałszywa
+        // gałąź `if (timer) clearTimeout(timer)` w bloku `finally`. `timer` jest
+        // przypisywany synchronicznie w konstruktorze obietnicy budżetu, która
+        // ZAWSZE wchodzi do `Promise.race`, więc w chwili wejścia w `finally`
+        // nie może być `undefined`. Straż zostaje, bo TypeScript nie zna tego
+        // porządku, a `clearTimeout(undefined)` byłoby cichym no-opem
+        // maskującym przyszłą zmianę kolejności.
+        "src/lib/ssr/hydrateBudget.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 75,
+        },
+        // ZMIERZONE 2026-09-01 (19 przypadków w
+        // `src/routes/__tests__/rootRoute.test.tsx` +
+        // `rootShellRender.test.tsx`): 44,20% instrukcji / 53,33% gałęzi /
+        // 14,58% funkcji / 50% linii.
+        //
+        // DLACZEGO FUNKCJE SĄ TAK NISKO I DLACZEGO TO NIE JEST DŁUG DO UKRYCIA:
+        // z 48 funkcji tego pliku 43 to KOMPONENTY REACTA albo callbacki w ich
+        // środku, a 17 z nich to same fabryki `lazy(() => import(...))`, czyli
+        // czysty klej podziału kodu (dokładnie ta kategoria, którą blok
+        // `exclude` wyżej wyłącza dla `widget-view/lazyWidgets.tsx` - tutaj
+        // NICZEGO NIE WYŁĄCZAMY, tylko mierzymy uczciwie).
+        //
+        // Pokryta jest CAŁA logika, która ma inwarianty: loader (rozgrzewka
+        // dwufalowa, zasiew przeterminowany, strażnik anulowanych zapytań menu,
+        // nagłówki `Link`), `head()` i powłoka dokumentu przez
+        // `renderToStaticMarkup`.
+        //
+        // DROGA W GÓRĘ JEST ZNANA I NAZWANA: `RootComponent` nie montuje się
+        // z gołego renderu (`Link`/`useRouterState` czytają pusty kontekst
+        // routera), więc podniesienie metryki funkcji wymaga prawdziwego
+        // `RouterProvider` z `__root` JAKO KORZENIEM - czyli opcjonalnego
+        // `rootRoute` w `src/test/routeHarness.tsx`. To zmiana harness'u
+        // testowego, nie produkcji, i osobna praca. Ten próg wolno wyłącznie
+        // podnosić.
+        "src/routes/__root.tsx": {
+          statements: 40,
+          functions: 12,
+          lines: 46,
+          branches: 48,
         },
 
         // Menedżer przekierowań: cztery warstwy kontraktu (requireStaff, Zod,

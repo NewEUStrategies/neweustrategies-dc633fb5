@@ -10,6 +10,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { liveBlogEntriesBlockQueryOptions, type LiveBlogEntryRow } from "@/lib/queries/blocks";
+import { formatDate } from "@/lib/i18n/format";
+import { useNowMs } from "@/lib/time/useNowMs";
 
 const LABELS = {
   pl: {
@@ -38,23 +40,31 @@ interface Props {
   autoRefresh?: boolean;
 }
 
+/**
+ * `timeZone` JEST TU OBOWIĄZKOWE. `toLocaleString` bez strefy bierze strefę
+ * MASZYNY: UTC na Cloudflare Workers, strefa czytelnika w przeglądarce - więc
+ * ta sama chwila drukowała się o 1-2 h inaczej po obu stronach hydratacji.
+ * Relacja NA ŻYWO jest powierzchnią, na której godzina jest treścią, a nie
+ * dekoracją. `formatDate` domyka `SITE_TIME_ZONE` (patrz lib/i18n/format.ts).
+ */
 function fmtTime(iso: string, lang: "pl" | "en"): string {
-  try {
-    return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "2-digit",
-      month: "short",
-    });
-  } catch {
-    return iso;
-  }
+  const out = formatDate(iso, lang, {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+  });
+  return out || iso;
 }
 
 // Relative label ("2 min temu" / "2 min ago"); the absolute time stays in the
 // row's title=. `now` is threaded from a 30s tick so labels stay fresh without
 // every row owning its own timer.
-function fmtRelative(iso: string, lang: "pl" | "en", now: number): string {
+function fmtRelative(iso: string, lang: "pl" | "en", now: number | null): string {
+  // `now === null` = SSR i pierwszy render klienta: etykieta względna nie ma
+  // sensu (a serwer policzyłby ją do HTML-a trzymanego na brzegu), więc
+  // degradujemy do godziny absolutnej, identycznej po obu stronach.
+  if (now === null) return fmtTime(iso, lang);
   try {
     const then = new Date(iso).getTime();
     if (!Number.isFinite(then)) return fmtTime(iso, lang);
@@ -86,7 +96,11 @@ export function LiveBlogBlock({
   const qc = useQueryClient();
   const [pulsing, setPulsing] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  // „TERAZ" DOPIERO PO MONTAŻU (wzorzec: lib/time/useNowMs). Wcześniej
+  // `useState(() => Date.now())` wpisywało do SSR-owego HTML-a etykietę
+  // policzoną zegarem Workers - kwantowanym do ostatniego I/O i konserwowanym
+  // na brzegu - więc klient po hydratacji liczył inną liczbę.
+  const now = useNowMs(30_000);
 
   // Shared query options: the SSR prefetch (blockQueryOptionsList) warms the
   // exact same key, so hydration reads the cache instead of flashing "empty".
@@ -96,12 +110,6 @@ export function LiveBlogBlock({
   );
   const { data } = useQuery(queryOpts);
   const entries = useMemo(() => data ?? [], [data]);
-
-  // Refresh relative timestamps every 30s (interval cleared on unmount).
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
 
   // realtime subscription - merges live changes into the SAME cache entry
   // (queryOpts.queryKey), so refetches never clobber pushes and vice versa.
@@ -204,7 +212,8 @@ function LiveEntryRow({
 }: {
   entry: LiveBlogEntry;
   lang: "pl" | "en";
-  now: number;
+  /** `null` w SSR i w pierwszym renderze klienta - patrz lib/time/useNowMs. */
+  now: number | null;
   isNew: boolean;
 }) {
   const html = sanitizeHtml(entry.body_html);

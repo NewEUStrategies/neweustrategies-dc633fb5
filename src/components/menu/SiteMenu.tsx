@@ -5,7 +5,8 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
@@ -245,7 +246,13 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     setAnchor({ top: r.bottom, left: r.left, width: r.width });
   };
 
-  useLayoutEffect(() => {
+  // Pomiar kotwicy zostaje w gałęzi LAYOUTOWEJ na kliencie (panel dostaje
+  // współrzędne przed malowaniem, więc nie mruga w lewym górnym rogu), a w
+  // renderze serwerowym schodzi do `useEffect`. Menu jedzie w SSR na każdej
+  // stronie; `open` jest tam `false`, więc ciało i tak byłoby puste - ale
+  // `getBoundingClientRect()` w efekcie layoutowym nie ma prawa zależeć od tego,
+  // że React nie odpala efektów na serwerze. Wybór gałęzi jest tu NAPISANY.
+  useIsomorphicLayoutEffect(() => {
     if (open) updateAnchor();
   }, [open]);
 

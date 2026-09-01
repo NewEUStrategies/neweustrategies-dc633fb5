@@ -1,6 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { isServer } from "@tanstack/router-core/isServer";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,7 +13,7 @@ import { HomeNotFoundNotice } from "@/components/home/molecules/HomeNotFoundNoti
 import { LatestPostsHome } from "@/components/home/organisms/LatestPostsHome";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
-import { prefetchAboveFoldQueries, prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
+import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import {
   blogArchiveQueryOptions,
   BLOG_PAGE_SIZE,
@@ -178,41 +177,47 @@ export const Route = createFileRoute("/")({
         };
       }
     }
-    // Settle every data-bound widget query BEFORE the router dehydrates - the
-    // same model as $.tsx. Settled queries ship as plain data in the initial
-    // dehydrated payload and hydrate synchronously, so client hydration sees
-    // exactly what the server rendered. A query still pending at dehydration
-    // time travels over the async query STREAM instead; a widget reading it
-    // hydrates against its skeleton while the server HTML has real content -
-    // a mismatch React 19 answers by rebuilding the whole page client-side
-    // (visible blank + full refetch; the old router-with-query bridge made
-    // this the norm here). The prefetch runs in parallel with a hard budget
-    // (see prefetchCachedRouteQueries) and is internally allSettled, so it can
-    // never throw - and the homepage is edge-cached, so the cost is paid once
-    // per revalidation, not per visitor. Anything past the budget still streams
-    // via the ServerSectionGate as before. W trybie "najnowsze wpisy" homePage
-    // jest null z konstrukcji (homePageQueryOptions), więc prefetch widgetów
-    // buildera w ogóle nie startuje - zero zmarnowanych round-tripów.
+    // JEDNA ścieżka dla serwera i klienta - dokładnie ten sam kontrakt co
+    // `$.tsx`: blokujemy odpowiedź WYŁĄCZNIE na sekcjach nad zgięciem
+    // (`ABOVE_FOLD_SECTION_COUNT` = 3, budżet 2,5 s).
+    //
+    // CO BYŁO WCZEŚNIEJ: serwer wołał tu `prefetchCachedRouteQueries` dla
+    // CAŁEGO dokumentu z budżetem 6 000 ms, więc pierwszy bajt najważniejszej
+    // trasy serwisu wisiał na najwolniejszym zapytaniu SPOD ZGIĘCIA - na
+    // każdym cache MISS. Dwa komentarze (ten oraz `sectionStreaming.tsx`)
+    // obiecywały przy tym, że „cokolwiek poza budżetem nadal jedzie strumieniem
+    // przez ServerSectionGate" - a `HomeBuilderContent` renderował
+    // `<BuilderRenderer>` BEZ propa `stream`, którego domyślną wartością jest
+    // `false`. Zapytanie widgetu, które nie zmieściło się w 6 s, lądowało
+    // w HTML-u jako pusty widget: bez szkieletu i bez dociągnięcia.
+    //
+    // CO JEST TERAZ: sekcje poniżej zgięcia idą przez `ServerSectionGate`
+    // (`HomeBuilderContent` przekazuje `stream`) - powłoka flushuje się
+    // natychmiast, a ich HTML dostrumieniowuje się wraz z danymi, więc ciało
+    // zapisane w NES Edge Cache i widziane przez crawlery zostaje kompletne
+    // (dla `isbot` framework czeka na `stream.allReady`). Dane rozstrzygnięte
+    // w fazie renderu jadą strumieniem zapytań, na który `router.options.hydrate`
+    // czeka PRZED hydratacją Reacta, więc widget nigdy nie hydratuje się
+    // przeciw szkieletowi. Prefetch jest wewnętrznie `allSettled` i nie potrafi
+    // rzucić.
+    //
+    // Na kliencie bramka jest tree-shaken (`import.meta.env.SSR`), więc widgety
+    // niżej to zwykłe `useQuery` (szkielet, bez suspenda), a ich dane dogrzewa
+    // `useSectionPreload` (IntersectionObserver z wyprzedzeniem 1200 px).
+    //
+    // W trybie "najnowsze wpisy" homePage jest null z konstrukcji
+    // (homePageQueryOptions), więc prefetch widgetów buildera w ogóle nie
+    // startuje - zero zmarnowanych round-tripów.
     if (homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
-        if (isServer) {
-          await prefetchCachedRouteQueries(queryClient, doc, lang);
-        } else {
-          // Nawigacja klientowa (np. klik w logo z artykułu): loader biegnie
-          // ponownie i pełna rozgrzewka WSZYSTKICH sekcji (budżet 6 s)
-          // blokowała przejście na najwolniejszym zapytaniu spod zgięcia.
-          // Klient czeka wyłącznie na 3 sekcje nad zgięciem (budżet 2,5 s);
-          // widgety niżej to zwykłe useQuery (szkielet, bez suspenda),
-          // a ich dane dogrzewa useSectionPreload (IntersectionObserver
-          // z wyprzedzeniem 1200 px). Ścieżka serwerowa zostaje bajt w bajt
-          // ta sama - edge-cache, dehydratacja i hydratacja bez zmian.
-          await prefetchAboveFoldQueries(queryClient, doc, lang);
-        }
-        // Zapytania widgetów są już rozgrzane, więc pierwszy malowany obraz
-        // sekcji nad zgięciem (slider / post-lista / obraz) jest w pełni
-        // wyznaczalny - head() wyemituje go jako <link rel="preload">.
+        await prefetchAboveFoldQueries(queryClient, doc, lang);
+        // Rozgrzane okno (3 sekcje) to DOKŁADNIE okno skanowane przez
+        // `builderHeroPreload` (lib/seo/heroImage.ts - `aboveFoldSections`
+        // domyślnie `ABOVE_FOLD_SECTION_COUNT`), więc obraz LCP pozostaje
+        // w pełni wyznaczalny: head() wyemituje go jako `<link rel="preload">`,
+        // a loader jako nagłówek `Link`.
         coverPreload = builderHeroPreload(doc, queryClient, lang);
       }
     }

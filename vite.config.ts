@@ -11,6 +11,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv, type Rollup } from "vite";
 
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
+import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
@@ -92,7 +93,7 @@ export default defineConfig({
     // Przyrząd pomiarowy składu bundla - INERTNY, dopóki nie ustawisz
     // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
     // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
-    plugins: [chunkInventoryPlugin()],
+    plugins: [chunkInventoryPlugin(), localeChunkPlugin()],
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz

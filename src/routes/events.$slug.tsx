@@ -36,37 +36,217 @@
 // to dzieci NIEZAMONTOWANE, czyli zero zapytań o menu, uczestników i program
 // przy wyłączonym module. Warunek powtórzony w każdym dziecku zatrzymywałby
 // rysowanie, ale nie zapytania.
-import { createFileRoute, Link, Outlet, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, notFound, Outlet, useParams } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 
-import { fetchPublicEventBySlug } from "@/lib/community/publicQueries";
+import {
+  eventPageHeaderQueryOptions,
+  publicEventBySlugQueryOptions,
+  type EventPageHeader,
+  type PublicEvent,
+} from "@/lib/community/publicQueries";
+import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { EventPortalShell } from "@/components/events/public/organisms/EventPortalShell";
 import { EventTabsNav } from "@/components/events/public/organisms/EventTabsNav";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
+/**
+ * Lekka projekcja nagłówka pod `head()`. Pełny wiersz jedzie raz - w
+ * dehydratowanym cache React Query - a tutaj zostaje tylko to, czego potrzebuje
+ * synchroniczna funkcja `head()`. Ten sam podział, co w `events.index.tsx`.
+ */
+interface EventHeadData {
+  readonly slug: string;
+  readonly titlePl: string;
+  readonly titleEn: string;
+  readonly descriptionPl: string | null;
+  readonly descriptionEn: string | null;
+  readonly cover: string | null;
+  readonly publishedAt: string | null;
+}
+
+interface EventShellLoaderData {
+  readonly headEvent: EventHeadData | null;
+  /** Wydarzenie nie dojechało w budżecie SSR - body pokazuje uczciwy komunikat. */
+  readonly degraded: boolean;
+}
+
+/** Fallbacki zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_EVENT: PublicEvent | null = null;
+const NO_HEADER: EventPageHeader | null = null;
+
 export const Route = createFileRoute("/events/$slug")({
+  // LOADER, KTÓREGO TA TRASA NIE MIAŁA - i to nie było przyspieszenie, tylko
+  // brak treści. `useQuery` w komponencie nie startuje na serwerze fetcha, więc
+  // SSR-owy HTML CAŁEGO modułu `/events/$slug` (powłoka + 7 podstron) nie
+  // zawierał ani wydarzenia, ani `<Outlet />`, ani węzła schema.org/Event -
+  // wyłącznie stan przejściowy, a po hydratacji akapit „nie udało się
+  // załadować". Ten HTML wchodził potem do NES Edge Cache na 24 h, a `head()`
+  // był zahardkodowany, więc KAŻDE wydarzenie serwisu dzieliło jeden tytuł,
+  // jeden opis i jeden obraz społecznościowy.
+  //
+  // DWA ŹRÓDŁA, DWIE RÓŻNE ROLE - i to NIE jest zdublowane zapytanie:
+  //   * `event_page_header` jest SECURITY DEFINER i oddaje wiersz każdemu, kto
+  //     zna slug opublikowanego wydarzenia tego najemcy; bramkę warstwy tylko
+  //     ETYKIETUJE. Pusty wynik znaczy więc dokładnie jedno - wydarzenia nie ma.
+  //     To jest JEDYNE poprawne wejście dla `notFound()`;
+  //   * `fetchPublicEventBySlug` stoi pod RLS i niesie pola, których nagłówek
+  //     nie oddaje (`host_user_id`, `status`, `early_rsvp_rank`) plus adres
+  //     strukturalny do węzła JSON-LD. Jego `null` przy ISTNIEJĄCYM nagłówku
+  //     znaczy „nie masz dostępu" - czyli strona 200 z zaproszeniem, nie błąd.
+  // Odwrotne przypisanie ról byłoby regresją GORSZĄ od naprawianego defektu:
+  // odczyt serwerowy jest zawsze anonimowy, więc 404 oparte na zapytaniu pod RLS
+  // zamieniłoby każde wydarzenie `members` w twarde 404 dla uprawnionego
+  // czytelnika przy przeładowaniu strony.
+  //
+  // Transport fail-soft: rzut z loadera dawał HTTP 500, więc blip backendu
+  // wypadał z cache'a i wyglądał dla crawlera na awarię serwera.
+  loader: async ({ context, params }): Promise<EventShellLoaderData> => {
+    const settings = await context.queryClient
+      .ensureQueryData(siteSettingsQueryOptions)
+      .catch(() => undefined);
+    const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
+    // Moduł wyłączony: `<Outlet />` się nie renderuje, więc nie ma po co grzać
+    // ani wydarzenia, ani nagłówka.
+    if (!modules.events_enabled) return { headEvent: null, degraded: false };
+
+    // RÓWNOLEGLE, nie sekwencyjnie: budżety biegną współbieżnie, więc dwa wolne
+    // zapytania kosztują tyle co jedno (patrz komentarz przy `anyDegraded`).
+    const [header, event] = await Promise.all([
+      loadResilient(
+        context.queryClient,
+        // "anon": dokument SSR jest anonimową skorupą, a to jest ten sam klucz,
+        // który czyta przegląd (`user?.id ?? "anon"`) - zero dodatkowych
+        // round-tripów po hydratacji dla czytelnika NIEZALOGOWANEGO. Dla
+        // zalogowanego klucz jest inny (`user.id`), więc jeden refetch po
+        // hydratacji jest tu z założenia - nagłówek jest personalizowany.
+        eventPageHeaderQueryOptions(params.slug, "anon"),
+        NO_HEADER,
+      ),
+      loadResilient(context.queryClient, publicEventBySlugQueryOptions(params.slug), NO_EVENT),
+    ]);
+    const degraded = anyDegraded(header, event);
+    setCacheControlHeader(resilientCacheControl(degraded));
+    // `notFound()` WYŁĄCZNIE z CZYSTEGO odczytu. `degraded` znaczy „nie wiemy",
+    // a 404 z niewiedzy wyrzuciłoby żywe wydarzenie z indeksu na dobę.
+    if (!degraded && header.data === null) throw notFound();
+
+    // WPIS ANONIMOWY NIE MOŻE ZOSTAĆ WYDANY ZALOGOWANEMU JAKO ŚWIEŻY.
+    //
+    // Znalezione w recenzji Codeksa na PR #314 (P1), potwierdzone sondą na
+    // query-core 5.102.8. Mechanizm, ogniwo po ogniwie:
+    //   * `publicEventBySlugQueryOptions` ma klucz BEZ widza
+    //     (`["public-event", slug]`) i `staleTime: 60_000`;
+    //   * odczyt serwerowy jest ZAWSZE anonimowy (`previewAuthStorage` zwraca
+    //     `undefined` bez `window`, więc gotrue nie ma sesji, a PostgREST leci
+    //     na kluczu publikowalnym), a RLS `events public read` oddaje wiersz
+    //     wyłącznie dla `visibility='public' AND COALESCE(min_tier_rank,0)=0`;
+    //   * dla wydarzenia za bramką warstwy odczyt anonimowy daje więc `null`,
+    //     a `loadResilient` widzi `success` z `data !== undefined`, czyli
+    //     dehydratuje ten `null` ze STEMPLEM CZASU SERWERA;
+    //   * `notFound()` nie leci, bo nagłówek definerowy wiersz ma - i tak ma
+    //     być, wydarzenie ISTNIEJE;
+    //   * po hydratacji `EventShellBody` czyta ten `null` i zwraca upsell
+    //     PRZED `<Outlet />`, więc padają wszystkie zakładki naraz;
+    //   * nic tego nie unieważnia: `useAuth.reauthorizeContent` obejmuje
+    //     `["public","resolved"]` i `["unlocked-body"]`, a przy przeładowaniu
+    //     leci `INITIAL_SESSION`, dla którego `reauthorizeContent` jest
+    //     świadomie POMIJANE.
+    // ZMIERZONE sondą: dokument w wieku 5 s i 59 s -> `queryFn` wołany ZERO
+    // razy, dane zostają `null` na zawsze; dokument w wieku 300 s -> jeden
+    // refetch i widoczny przeskok upsell -> treść. Czyli dla wydarzenia za
+    // bramką (a to są strony o najmniejszym ruchu, więc dominuje MISS cache'a)
+    // uprawniony członek dostawał zaproszenie do planów bez wyjścia.
+    //
+    // NAPRAWA NIE JEST TĄ, KTÓRĄ ZAPROPONOWAŁ RECENZENT, i to jest świadome.
+    // Dołożenie widza do klucza cofnęłoby cały zysk punktu 4: serwer umie
+    // rozgrzać wyłącznie wariant anonimowy, więc KAŻDY zalogowany czytelnik
+    // hydratowałby się w PUDŁO cache'a, `useSuspenseQuery` niżej zawieszałby
+    // się bez danych i strumieniowana powłoka znowu zniknęłaby za fallbackiem -
+    // dokładnie defekt, który ta gałąź naprawia, tylko zawężony do
+    // zalogowanych. Do tego `edgeTtlCache` kluczuje wpisy PO HOŚCIE NAJEMCY,
+    // więc zapytanie z widzem w kluczu i tak zostałoby wypełnione wpisem
+    // pobranym pod inną tożsamością.
+    //
+    // Zamiast tego jedna gałąź: „odczyt anonimowy nie oddał nic dla wydarzenia,
+    // które PROWADNIE ISTNIEJE" znaczy „nie wiem, czy ten czytelnik ma dostęp"
+    // - więc wpis rodzi się PRZETERMINOWANY, tym samym `{ updatedAt: 0 }`,
+    // którym `resilientLoad` zasiewa swoje fallbacki. Wpis zostaje `success`,
+    // więc `useSuspenseQuery` nadal rozstrzyga się w SSR bez zawieszenia
+    // (sprawdzone: `wouldSuspend: false` w każdym scenariuszu sondy), HTML dla
+    // gościa nie zmienia się ani o bajt, a po hydratacji leci DOKŁADNIE JEDEN
+    // refetch - już z odtworzoną sesją, więc członek dostaje wiersz.
+    // Ścieżka szczęśliwa (wydarzenie publiczne, wiersz jest) nie płaci nic.
+    if (!degraded && header.data !== null && event.data === null) {
+      context.queryClient.setQueryData(publicEventBySlugQueryOptions(params.slug).queryKey, null, {
+        updatedAt: 0,
+      });
+    }
+    const h = header.data;
+    return {
+      degraded,
+      headEvent:
+        h === null
+          ? null
+          : {
+              slug: h.slug,
+              titlePl: h.title_pl,
+              titleEn: h.title_en,
+              descriptionPl: h.description_pl,
+              descriptionEn: h.description_en,
+              cover: h.cover_url,
+              publishedAt: h.published_at,
+            },
+    };
+  },
   component: EventShell,
-  head: ({ params }) => {
+  // `head()` JEST TERAZ STEROWANY DANYMI. Węzeł schema.org/Event ŚWIADOMIE tu
+  // NIE WCHODZI: stoi w `events.$slug.index.tsx`, bo powłoka jest wspólna dla
+  // siedmiu zakładek i emisja węzła tutaj rozsiałaby ten sam `Event` pod
+  // siedmioma URL-ami.
+  head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/events/${params.slug}`;
     const lang = activeLang(url);
+    const ev = loaderData?.headEvent ?? null;
+    const title = ev
+      ? lang === "en"
+        ? ev.titleEn || ev.titlePl
+        : ev.titlePl || ev.titleEn
+      : lang === "en"
+        ? "Event"
+        : "Wydarzenie";
+    const description = ev
+      ? (lang === "en"
+          ? ev.descriptionEn || ev.descriptionPl
+          : ev.descriptionPl || ev.descriptionEn) ||
+        (lang === "en"
+          ? "Community event details, RSVP and live link."
+          : "Szczegóły wydarzenia, zapis i link do transmisji.")
+      : lang === "en"
+        ? "Community event details, RSVP and live link."
+        : "Szczegóły wydarzenia, zapis i link do transmisji.";
     return buildContentHead({
       url,
       lang,
       type: "article",
-      title:
-        lang === "en" ? "Event - New European Strategies" : "Wydarzenie - New European Strategies",
-      description:
-        lang === "en"
-          ? "Community event details, RSVP and live link."
-          : "Szczegóły wydarzenia, zapis i link do transmisji.",
+      title,
+      // Marka w tytule karty przeglądarki i w SERP; `og:title` zostaje krótki.
+      documentTitle: `${title} - ${SITE_NAME}`,
+      description,
+      ...(ev?.cover ? { image: ev.cover } : {}),
+      ...(ev?.publishedAt ? { publishedAt: ev.publishedAt } : {}),
     });
   },
 });
@@ -75,39 +255,56 @@ function EventShell() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureCommunityI18n();
   ensureEventFrontI18n();
+  const modules = useCommunityModules();
+  const { degraded } = Route.useLoaderData();
+
+  if (!modules.events_enabled) return <CommunityDisabled />;
+  // Render ZDEGRADOWANY mówi prawdę zamiast udawać brak wydarzenia, i ma
+  // przycisk ponowienia. Nagłówek `no-store` ustawił już loader, więc ten HTML
+  // nie zamarza na brzegu (patrz lib/http/responseHeaders - dyrektywa trasy).
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" />
+      </div>
+    );
+  }
+  return <EventShellBody />;
+}
+
+/**
+ * Ciało powłoki wydzielone, bo `useSuspenseQuery` nie zna opcji `enabled`:
+ * bramkę modułu i ścieżkę degradacji rozstrzyga rodzic (przy wyłączonym module
+ * loader nie grzeje zapytania, a to ciało się nie montuje). Ten sam podział
+ * stoi w `events.index.tsx`.
+ */
+function EventShellBody() {
   const { slug } = useParams({ from: "/events/$slug" });
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  const modules = useCommunityModules();
+  // TEN SAM KLUCZ, CO W PRZEGLĄDZIE I W POZOSTAŁYCH ZAKŁADKACH - loader
+  // rozgrzał go przez `ensureQueryData`, więc `useSuspenseQuery` rozstrzyga się
+  // synchronicznie i w SSR, i po hydratacji. Przekazywanie wydarzenia przez
+  // kontekst trasy dałoby drugie źródło tej samej migawki.
+  const { data } = useSuspenseQuery(publicEventBySlugQueryOptions(slug));
 
-  // TEN SAM KLUCZ, CO W PRZEGLĄDZIE I W POZOSTAŁYCH ZAKŁADKACH. Powłoka
-  // potrzebuje nazwy i brandingu, przegląd potrzebuje wszystkiego - a react-query
-  // scala oba wywołania w JEDNO zapytanie po kluczu. Przekazywanie wydarzenia
-  // przez kontekst trasy dałoby drugie źródło tej samej migawki.
-  const eventQ = useQuery({
-    queryKey: ["public-event", slug],
-    queryFn: () => fetchPublicEventBySlug(slug),
-    enabled: modules.events_enabled,
-  });
-
-  if (!modules.events_enabled) return <CommunityDisabled />;
-  if (eventQ.isLoading) {
-    return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">{t("community.common.loading")}</div>
-    );
-  }
-  if (!eventQ.data) {
+  // NIE MA JUŻ EKRANU „nie udało się załadować". Brak wydarzenia rozstrzygnął
+  // loader (`notFound()` na pustym nagłówku definerowym), a awarię transportu -
+  // gałąź `degraded` w rodzicu. `null` tutaj znaczy więc DOKŁADNIE JEDNO: RLS
+  // ucięło wiersz adresatowi bramki warstwy. Adresat bramki ma dostać
+  // zaproszenie, nie komunikat błędu.
+  if (data === null) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <p className="text-muted-foreground">{t("community.common.loadError")}</p>
-        <Link to="/events" className="mt-4 inline-block text-sm text-primary">
-          {t("community.events.backToList")}
+        <p className="text-muted-foreground">{t("community.events.tierRequiredGeneric")}</p>
+        <Link to="/pricing" className="mt-4 inline-block text-sm text-primary">
+          {t("community.events.tierUpgradeCta")}
         </Link>
       </div>
     );
   }
 
-  const ev = eventQ.data;
+  const ev = data;
   const title = lang === "en" ? ev.title_en || ev.title_pl : ev.title_pl || ev.title_en;
 
   return (

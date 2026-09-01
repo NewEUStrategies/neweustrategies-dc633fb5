@@ -23,6 +23,20 @@
  * na INTENCJĘ zakupu (patrz `components/checkout/EmbeddedCheckoutFrame.tsx`).
  * Ładowanie leniwe jest w porządku; statyczna krawędź z bootu - nie.
  *
+ * TA BRAMKA NIE WAŻY BAJTÓW - I NADAL NIE MA WAŻYĆ (2026-09-01). Domknięcie
+ * liczone niżej ma od dziś swój FLOOR KILOBAJTOWY, ale w `check-bundle-size.ts`
+ * (`FROZEN_BUDGET_KB.boot`, wpis X w tamtejszej kronice). Podział jest celowy:
+ * suma kilobajtów jest KOMPENSOWALNA (zetnij jeden vendor, dołóż tyle samo do
+ * entry - suma stoi, a bramka milczy), więc próg wagowy tutaj uczyniłby akapit
+ * wyżej nieprawdziwym. Tutaj zostaje dowód architektoniczny: KTÓRA KRAWĘDŹ.
+ * Tam - ile to waży, bo tylko tam istnieje mechanizm zamrażania progów
+ * (`budget()` + ignorowanie env w CI), ostrzeżenie o zapasie i baseline.
+ * CENA: `findBootChunks()` i filtr `import(` mają teraz DRUGI egzemplarz w tamtym
+ * pliku i te dwa nie mogą się rozjechać. Trzyma je razem ta sama zmienna
+ * `ENTRY_CHUNKS`, ten sam wzorzec krawędzi i te dwa odwołania w komentarzach.
+ * Docelowo: wspólny `scripts/lib/bootClosure.ts` importowany przez oba - osobny
+ * PR, bo dotyka charteru obu plików.
+ *
  * Usage: bun run scripts/check-entry-purity.ts   (po `bun run build`)
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -194,7 +208,9 @@ function listJs(dir: string): string[] {
  * Chunki startowe: to, co serwer wstrzykuje jako `<script type="module">` przy
  * renderze SSR. Czytamy je z manifestu TanStack Start zamiast zgadywać po
  * nazwie/rozmiarze - manifest jest jedynym miejscem, które NAPRAWDĘ mówi, co
- * pobiera przeglądarka. Override: ENTRY_CHUNKS="a.js,b.js".
+ * pobiera przeglądarka. Override: ENTRY_CHUNKS="a.js,b.js" - CELOWO ta sama
+ * zmienna, co w `check-bundle-size.ts` (floor `boot`): jeden artefakt, jedna
+ * pokrętka, żeby te dwie bramki nie mogły policzyć różnych korzeni.
  */
 function findBootChunks(): string[] {
   const override = process.env["ENTRY_CHUNKS"];
@@ -221,7 +237,10 @@ function findBootChunks(): string[] {
 
 /**
  * Statyczne krawędzie chunk -> chunk. `import(` NIE tworzy krawędzi
- * inicjalizacyjnej (ten sam filtr, co w `check-chunk-graph.ts`).
+ * inicjalizacyjnej (ten sam filtr, co w `check-chunk-graph.ts` i co
+ * `STATIC_EDGE_RE` w `check-bundle-size.ts`). UWAGA na trzeci wzorzec w tamtym
+ * pliku: `EDGE_RE` w `adminOnlyByGraph()` dopasowuje `import(` ŚWIADOMIE, bo
+ * pyta o OSIĄGALNOŚĆ, nie o inicjalizację. Nie „ujednolicaj" ich.
  */
 const IMPORT_RE = /(import\s*\(?\s*|from\s*)["'](\.\/[^"']+\.js)["']/g;
 
@@ -320,7 +339,7 @@ function main(): void {
 
   console.log(
     `Sciezka bootowania: ${boot.join(", ")} -> ${bootGraph.size} chunkow statycznie osiagalnych ` +
-      `(z ${files.length}).`,
+      `(z ${files.length}). Wage tego domkniecia bramkuje floor \`boot\` w check:bundle.`,
   );
 
   if (violations.length > 0) {

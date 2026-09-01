@@ -27,12 +27,25 @@ import {
   revalidationHeader,
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
-import { runAfterResponse } from "./lib/http/waitUntil.server";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
+import type { Register } from "@tanstack/react-router";
+import type { RequestHandler } from "@tanstack/react-start/server";
 
-type ServerEntry = {
-  fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
-};
+/**
+ * Kontrakt bundlowanego handlera bierzemy WPROST z frameworka, zamiast
+ * przepisywać go strukturalnie u siebie. `RequestHandler<Register>` to
+ * `(request: Request, opts?: RequestOptions<Register>)`
+ * (@tanstack/start-server-core/src/request-handler.ts:79-88), a `RequestOptions`
+ * ma dokładnie cztery pola: `context` | `inlineCss` | `onEarlyHints` |
+ * `responseLinkHeader` (tamże :60-68).
+ *
+ * Dlaczego typ frameworka, a nie własny: drugi argument nie może się już
+ * rozjechać z kontraktem. Gdy ktoś zadeklaruje `server.requestContext`
+ * w `Register`, `opts` przestanie być opcjonalne i `tsc` wskaże OBA wywołania
+ * `handler.fetch` w tym pliku - zamiast pozwolić im dalej wołać handler bez
+ * kontekstu, którego framework od tej chwili wymaga.
+ */
+type ServerEntry = { fetch: RequestHandler<Register> };
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
@@ -98,33 +111,52 @@ async function normalizeCatastrophicSsrResponse(
   });
 }
 
-/**
- * Odświeżanie wpisów NES Edge Cache ZA odpowiedzią (stale-while-revalidate).
- *
- * Dlaczego tutaj, a nie w middleware: rewalidacja musi przejść PEŁNY potok
- * (router → normalizacja 500 → odroczony zapis), a `documentCache.server.ts`
- * zna tylko swoje middleware. Zwrócenie z middleware innej odpowiedzi niż ta,
- * którą zwrócił render, złamałoby tożsamość body koperty SSR i uruchomiło
- * `serverSsr.cleanup()` w trakcie streamowania - dokładnie mechanizm incydentu
- * ~61 s. Dlatego odświeżenie to OSOBNY, pełnoprawny przebieg potoku na
- * syntetycznym żądaniu: własny cykl życia renderu, tożsamość body nienaruszona.
- */
-
-/**
- * `env` workera jest stałe w obrębie deploymentu, więc ostatnio widziane
- * wystarcza przebiegowi w tle. `ctx` NIE jest - należy do konkretnego żądania
- * i po jego domknięciu `waitUntil` rzuca. Przebieg w tle dostaje więc własny
- * kontekst, którego `waitUntil` deleguje do modułowego `runAfterResponse`
- * (`cloudflare:workers`), ważnego niezależnie od cyklu życia pojedynczego ctx.
- */
-let lastEnv: unknown;
-
-const REVALIDATION_CTX = {
-  waitUntil(promise: Promise<unknown>): void {
-    runAfterResponse(Promise.resolve(promise));
-  },
-  passThroughOnException(): void {},
-};
+// ANI `env`, ANI `ExecutionContext` nie jadą argumentami do handlera - i nie
+// mają czym jechać. W tym miejscu stał do 2026-09-01 komentarz twierdzący, że
+// „`env` workera jest stałe w obrębie deploymentu, więc ostatnio widziane
+// wystarcza przebiegowi w tle", a `ctx` przebiegu w tle dostaje własny
+// `REVALIDATION_CTX`. Zdanie o stałości `env` jest prawdziwe, ale przesłanka -
+// że entry KIEDYKOLWIEK te argumenty dostaje i że handler je czyta - nie była.
+//
+// 1. Ten plik wołał `handler.fetch(request, env, ctx)`. DRUGI argument należy
+//    jednak do frameworka (`RequestOptions`, patrz `ServerEntry` wyżej),
+//    a TRZECIEGO `requestHandler` nie ma w sygnaturze
+//    (@tanstack/start-server-core/src/request-response.ts:124) - `REVALIDATION_CTX`
+//    był więc kodem MARTWYM, a `env` w slocie opcji renderu KOLIZJĄ KONTRAKTU:
+//    binding albo zmienna o nazwie `inlineCss` czy `onEarlyHints` zostałaby po
+//    cichu wzięta za opcję żądania (`inlineCss: "false"` jako string jest
+//    prawdziwe, a nie-funkcja w `onEarlyHints` rzuca w środku renderu).
+// 2. Oba były do tego `undefined`. Pod presetem `cloudflare-module` entry
+//    workera to nitro (`_module-handler.mjs`), a nasz moduł jest środowiskiem
+//    „ssr" vite, wołanym JEDNYM argumentem: `fetchViteEnv("ssr", req)` ->
+//    `viteEnv.fetch(request)` (nitro/dist/runtime/internal/vite/ssr-renderer.mjs:5,
+//    nitro/dist/runtime/vite.mjs:8). W dev drugi slot istnieje, ale nitro
+//    przekazuje w nim swoje `init` żądania, a nie `env` workera
+//    (nitro/dist/runtime/internal/vite/dev-worker.mjs:84). Dlatego `fetch`
+//    niżej deklaruje TYLKO `request`: nadmiarowe argumenty runtime JS ignoruje,
+//    a sygnatura przestaje kłamać o tym, co w tych slotach jest.
+// 3. Nikt nic na tym nie traci. Bindingi env czyta cała aplikacja przez
+//    `process.env` - unenv czyta `globalThis.__env__`, ustawiane przez preset na
+//    KAŻDYM fetchu workera, czyli warstwę wyżej niż my i niezależnie od naszej
+//    sygnatury. Pracę „za odpowiedzią" rejestruje `runAfterResponse`
+//    (`cloudflare:workers`, lib/http/waitUntil.server.ts): `waitUntil` modułowy,
+//    ważny niezależnie od cyklu życia pojedynczego ExecutionContext - dokładnie
+//    to, co miał udawać `REVALIDATION_CTX`, tylko na drodze, którą framework
+//    faktycznie czyta.
+// 4. Drugi argument zostaje więc PUSTY - też świadomie, a nie z zaniechania.
+//    `responseLinkHeader` NIE jest tu addytywne: na granicy `requestHandler`
+//    h3 scala nagłówki zdarzenia na odpowiedź przez `target.set` (wyjątkiem jest
+//    tylko `set-cookie`, h3-v2/dist/h3-Bz4OPZv_.mjs:256-258), więc na 2xx nasza
+//    złączona wartość z `appendLinkHeader` NADPISUJE wartości frameworka,
+//    a na odpowiedzi !ok h3 pomija scalanie w całości (tamże :244) i ginie
+//    nasza. Włączenie flagi dałoby na 2xx zero zmian, a na 404 wysypałoby
+//    preloady tras na dokument błędu. `inlineCss` jest w tym buildzie no-opem
+//    (`server.build.inlineCss` domyślnie `false`, projekt go nie ustawia,
+//    a zbudowany manifest nie ma ani jednego wpisu `inlineCss`) i tylko zająłby
+//    drugi slot cache'a finalnego manifestu. `onEarlyHints` miałoby sens
+//    wyłącznie jako kolektor do scalenia `Link` ZA tą granicą, czego nie robimy -
+//    a poza tym jest wyłączone w dev (`TSS_DEV_SERVER`), czyli lokalnie
+//    nieweryfikowalne.
 
 /**
  * Nagłówki syntetycznego żądania odświeżenia. Świadomie WĄSKA lista:
@@ -159,6 +191,17 @@ function revalidationHeaders(request: Request): Headers {
   return headers;
 }
 
+/**
+ * Odświeżanie wpisów NES Edge Cache ZA odpowiedzią (stale-while-revalidate).
+ *
+ * Dlaczego tutaj, a nie w middleware: rewalidacja musi przejść PEŁNY potok
+ * (router → normalizacja 500 → odroczony zapis), a `documentCache.server.ts`
+ * zna tylko swoje middleware. Zwrócenie z middleware innej odpowiedzi niż ta,
+ * którą zwrócił render, złamałoby tożsamość body koperty SSR i uruchomiło
+ * `serverSsr.cleanup()` w trakcie streamowania - dokładnie mechanizm incydentu
+ * ~61 s. Dlatego odświeżenie to OSOBNY, pełnoprawny przebieg potoku na
+ * syntetycznym żądaniu: własny cykl życia renderu, tożsamość body nienaruszona.
+ */
 async function revalidateDocument(request: Request): Promise<boolean> {
   const synthetic = new Request(request.url, {
     method: "GET",
@@ -166,7 +209,7 @@ async function revalidateDocument(request: Request): Promise<boolean> {
     redirect: "manual",
   });
   const handler = await getServerEntry();
-  const rendered = await handler.fetch(synthetic, lastEnv, REVALIDATION_CTX);
+  const rendered = await handler.fetch(synthetic);
   const normalized = await normalizeCatastrophicSsrResponse(synthetic, rendered);
 
   let storeWork: Promise<boolean> | null = null;
@@ -190,11 +233,10 @@ async function revalidateDocument(request: Request): Promise<boolean> {
 setDocumentRevalidator(revalidateDocument);
 
 export default {
-  async fetch(request: Request, env: unknown, ctx: unknown): Promise<Response> {
-    lastEnv = env;
+  async fetch(request: Request): Promise<Response> {
     try {
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await handler.fetch(request);
       const normalized = await normalizeCatastrophicSsrResponse(request, response);
       // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
       // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -

@@ -147,10 +147,13 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
 };
 
 /** Blok kodu z podświetlaniem. */
-export const renderCode: BlockRenderer = ({ block, cls }) => {
+export const renderCode: BlockRenderer = ({ block, cls, lang: uiLang }) => {
   const code = str(block.data, "code");
   const lang = str(block.data, "lang");
-  return <CodeBlockView code={code} lang={lang} className={cls} />;
+  // `uiLang` z renderera, nie z `document.documentElement.lang` - patrz
+  // komentarz w CodeBlockView. Etykieta przycisku kopiowania musi być
+  // identyczna w SSR i po hydratacji.
+  return <CodeBlockView code={code} lang={lang} uiLang={uiLang} className={cls} />;
 };
 
 /** Embed (YouTube/Vimeo/X…) jako iframe lub fallback-link dla bezpiecznego URL. */

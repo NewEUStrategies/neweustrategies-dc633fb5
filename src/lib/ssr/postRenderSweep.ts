@@ -1,6 +1,19 @@
-// Post-render sweep of the per-request SSR QueryClient.
+// Zamiatanie per-żądaniowego SSR QueryClienta przed serializacją.
 //
-// PROBLEM: gdy render się kończy, w cache potrafią zostać zapytania, które
+// NAZWA TEGO MODUŁU KŁAMIE I TO JEST ŚWIADOMY DŁUG. „postRender" sugeruje, że
+// zamiatanie biegnie PO renderze - biegnie PRZED. `createStartHandler` woła
+// `routerInstance.load()` (wszystkie loadery), potem `serverSsr.dehydrate()` -
+// stamtąd woła nas `src/router.tsx` - i DOPIERO POTEM render Reacta. Nazwa
+// zostaje, bo jest w imporcie w kilku miejscach i zmiana jej to osobna, czysto
+// mechaniczna zmiana; ten akapit istnieje, żeby następny czytelnik nie zbudował
+// na odwrotnym modelu (co już się raz zdarzyło - patrz sprostowanie
+// w `src/router.tsx` przy `options.dehydrate`).
+//
+// KONSEKWENCJA PRAKTYCZNA: obietnica, której loader nie awaituje, zostaje tu
+// anulowana i usunięta, zanim React wyrenderuje choćby bajt. Rozgrzewka
+// „fire-and-forget" nie dowozi w tym repozytorium NICZEGO.
+//
+// PROBLEM: w chwili dehydratacji w cache potrafią zostać zapytania, które
 // nigdy się nie rozstrzygną w tym żądaniu:
 //   * `fetchStatus !== "idle"` - fetch wciąż wisi (upstream nie odpowiada),
 //   * `status === "pending"`, `fetchStatus === "idle"`, brak danych i
@@ -9,7 +22,7 @@
 // uciętym HTML-em: "Serialization timeout after app render finished".
 //
 // SOLUTION: raz, w deterministycznym momencie (zamknięcie strażnika strumienia
-// i tuż przed dehydratacją), anulujemy to, co jeszcze leci (`revert: true`,
+// i na wejściu w dehydratację), anulujemy to, co jeszcze leci (`revert: true`,
 // `silent: true`), a następnie usuwamy z cache wszystko, co nie może się już
 // rozstrzygnąć. Nic nie tracimy - takie zapytania nie mają danych, a klient
 // pobiera je ponownie po hydracji.

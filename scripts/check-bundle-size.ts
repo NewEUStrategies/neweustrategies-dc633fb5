@@ -1,11 +1,16 @@
 /**
- * Dependency-free client bundle-size budget. Gzips every JS asset in the built
- * client output and fails (exit 1) if a budget is exceeded - a CI gate that
- * catches dependency creep / lost code splitting before it ships. Deterministic:
- * no browser or server required (unlike the Lighthouse job).
+ * Dependency-free client bundle-size budget. Gzips every JS **and CSS** asset in
+ * the built client output and fails (exit 1) if a budget is exceeded - a CI gate
+ * that catches dependency creep / lost code splitting before it ships.
+ * Deterministic: no browser or server required (unlike the Lighthouse job).
  *
- * Three budgets, because a single "total app JS" number conflates two very
- * different costs:
+ * (Do 2026-09-01 ten nagłówek mówił „Gzips every JS asset" i było to prawdą -
+ * dokładnie w tym była wada: `walkJs()` zbierał WYŁĄCZNIE `.js`, więc arkusz
+ * stylów render-blocking, 79,6 KB gzip na KAŻDYM URL-u, nie był mierzony przez
+ * ŻADNĄ bramkę w repo. Wpis IX w kronice niżej.)
+ *
+ * Five budgets, because a single "total app JS" number conflates costs that are
+ * paid by different people at different moments:
  *
  *   PUBLIC  - every chunk a public visitor can ever download (first load plus
  *             in-session navigation across public routes). THIS is the
@@ -17,6 +22,14 @@
  *             auth-gated /admin routes and is unreachable from any public URL.
  *   CHUNK   - the largest single chunk, to catch a lost code-split or a giant
  *             dependency landing in one file.
+ *   CSS     - gzip każdego wyemitowanego arkusza. Zdominowany przez arkusz
+ *             korzenia, który `rootHead.ts` wypisuje jako `<link
+ *             rel=stylesheet>` PLUS pierwszą wartość nagłówka `Link`, czyli
+ *             blokuje render na każdym URL-u (wpis IX).
+ *   BOOT    - gzip STATYCZNEGO DOMKNIĘCIA ścieżki bootowania: chunki, które SSR
+ *             wstrzykuje jako `<script type="module">`, plus wszystko osiągalne
+ *             z nich krawędzią statyczną. Jedyna z tych liczb, którą czytelnik
+ *             płaci CAŁĄ, zanim ruszy hydratacja (wpis X).
  *
  * Counting admin-only chunks against the PUBLIC budget would penalise shipping a
  * richer CMS that has zero user-facing cost, so they are billed to OVERALL only.
@@ -768,11 +781,250 @@ const CLIENT_DIR =
 //             i dlatego floor OVERALL jest osobną, uczciwą decyzją, a floor
 //             PUBLIC nie musiał nią być.
 
+// 2026-09-01 IX  CZWARTY FLOOR: ARKUSZ STYLÓW RENDER-BLOCKING. Ta zmiana NIE
+//             podnosi żadnego progu - dokłada bramkę tam, gdzie do dziś nie
+//             było ŻADNEJ.
+//
+//             CO BYŁO NIEMIERZONE. `walkJs()` (niżej, dawniej jedyny enumerator
+//             plików w tym skrypcie) miał jedną linię aperturą:
+//             `e.name.endsWith(".js")`. Ten sam filtr stoi w
+//             `check-chunk-graph.ts` i `check-entry-purity.ts`, a
+//             `lighthouserc.json` ma `unused-css-rules`, `unminified-css`
+//             i `uses-text-compression` w `skipAudits` i wszystkie asercje na
+//             `warn`. Wynik: ZERO bramek w repo mierzyło CSS.
+//             Zmierzone dziś na artefakcie cloudflare'owym (tą samą funkcją
+//             `Bun.gzipSync`, którą liczy ta bramka):
+//               styles-BQZz5a-B.css          570 392 B surowe / 81 501 B gzip
+//               BlocksRenderer-BU-unhS5.css    5 321 B surowe /  1 402 B gzip
+//               razem                        575 713 B surowe / 82 903 B gzip
+//                                                            = 80,96 KB
+//             Dla skali: floor największego chunku to 280 KB, a arkusz korzenia
+//             waży 79,6 KB gzip, czyli 28% tego budżetu - i w odróżnieniu od
+//             `EChartClient` jest RENDER-BLOCKING na KAŻDYM URL-u, bo
+//             `rootDocumentLinks` wypisuje go bezwarunkowo
+//             (`src/lib/seo/rootHead.ts`) i promuje na PIERWSZĄ wartość
+//             nagłówka `Link` („Kolejność jest kontraktem: arkusz stylów
+//             pierwszy (blokuje render)").
+//
+//             DLACZEGO JEDNA LICZBA, A NIE PUBLIC/ADMIN. `adminOnlyByGraph()`
+//             dowodzi adminowości z LITERALNYCH krawędzi importu między
+//             wyemitowanymi `.js`. Arkusz nie ma krawędzi importu - wchodzi do
+//             `__root.tsx` przez `?url`, czyli jako zasób, nie jako moduł. Nie
+//             ma więc z czego zbudować dowodu i floor CSS jest świadomie
+//             POJEDYNCZY, w kształcie OVERALL. Rozbicie public/admin wymaga
+//             DRUGIEGO wejścia CSS (osobny `@source`, osobny `<link>` na
+//             layoucie /admin) i to jest osobna, ryzykowna praca: zmierzone
+//             +52 KB gzip duplikacji w parze arkuszy przy -10,6 KB zysku dla
+//             czytelnika, a do tego dziewięć selektorów z przestrzeni adminowej
+//             ma PUBLICZNYCH odbiorców (m.in. `lib/interests/joinUsSizeCss.ts`
+//             liczy specyficzność na `.admin-compact li/label/span`). Nie
+//             wchodzimy w to przy okazji stawiania progu.
+//
+//             CZEGO TEN FLOOR NIE ROBI: nie zlicza bloków reguł ani nie patrzy
+//             w strukturę arkusza. Ten skrypt jest ZALEŻNOŚCIOWO PUSTY z
+//             charakteru (nagłówek: „Dependency-free"), a policzenie reguł
+//             wymaga parsera CSS. Kto będzie ciął arkusz, robi to pomiarem
+//             obok bramki, nie w bramce.
+//
+//             FLOOR 82 - I TO JEST LICZBA Z HOSTA, DO PRZEFLOOROWANIA. Pomiar
+//             80,96 KB (wydruk „81.0"). Do floora doliczone 0,5% na
+//             udokumentowaną rozbieżność host <-> runner (wpis VII: PUBLIC host
+//             2701,7 -> runner 2714,3, czyli +0,466% - największa zmierzona w
+//             tej kronice), potem sufit do pełnego KB. Zapas wychodzi 1,04 KB
+//             (1,27%), więc bramka od pierwszego zielonego przebiegu wypisze
+//             ostrzeżenie „ZAPAS BUDŻETU PONIŻEJ 2%" - i tak ma być, to ten sam
+//             koszt maksymalnej czułości, który policzył wpis VII. ZASADA Z
+//             WPISU V OBOWIĄZUJE: pierwszy zielony log runnera jest podstawą do
+//             przefloorowania tej liczby (w górę albo w dół), bo do tej chwili
+//             nikt nie zmierzył CSS na runnerze ANI RAZU.
+
+// 2026-09-01 X  PIĄTY FLOOR: DOMKNIĘCIE ŚCIEŻKI BOOTOWANIA. Też bez podnoszenia
+//             czegokolwiek - to metryka, którą ta kronika mierzyła RĘCZNIE
+//             (wpis 2026-08-18: „pełne domknięcie statyczne bootu: 654 -> ~554
+//             KB gz / 2179 -> ~1876 KB surowych") i nigdy nie bramkowała.
+//
+//             DLACZEGO ISTNIEJĄCE CZTERY TEGO NIE ŁAPIĄ. `chunk` mierzy
+//             NAJWIĘKSZY PLIK, więc mierzy raz entry, raz coś zupełnie innego:
+//             08-18 entry zszedł 373,9 -> 253,2, a próg schodził za
+//             `EChartClient` (266,8, lazy), czyli za liczbą, której czytelnik na
+//             pierwszym wejściu nie pobiera. `public` i `overall` mierzą
+//             OSIĄGALNOŚĆ, nie pierwsze wczytanie (akapit „DLACZEGO
+//             PUBLIC/OVERALL NIE MOGŁY SPAŚĆ"), więc przeniesienie kodu z eager
+//             do lazy nie rusza ich ani o bajt - i symetrycznie: powrót
+//             statycznej krawędzi do entry nie zapala ich ani o bajt. `css`
+//             mierzy arkusze. Żadna z tych liczb nie mówi, ile waży to, co
+//             przeglądarka MUSI pobrać, sparsować i wykonać przed
+//             `hydrateRoot`.
+//
+//             CO JEST LICZONE. Domknięcie TRANZYTYWNE po krawędziach WYŁĄCZNIE
+//             STATYCZNYCH, z korzeni czytanych z manifestu TanStack Start
+//             (`scripts:[{… src:"/assets/*.js"}]` w `.output/server`) - czyli
+//             dokładnie ten sam zbiór, który liczy `check:entry-purity`.
+//             `import()` NIE jest krawędzią inicjalizacyjną, i dlatego ten floor
+//             NIE MOŻE użyć `EDGE_RE` z `adminOnlyByGraph()`: tamten wzorzec
+//             ŚWIADOMIE dopasowuje `import(`, bo pyta o OSIĄGALNOŚĆ (wpis VIII:
+//             „`lazy()` NIE ZDEJMUJE KRAWĘDZI"). Dwa różne pytania, dwa różne
+//             wzorce - `STATIC_EDGE_RE` niżej.
+//
+//             POMIAR (host, 2026-09-01, artefakt cloudflare'owy, 944 pliki):
+//               korzeń `index-RQbuiFhe.js` -> 9 chunków statycznie osiągalnych
+//               573,2 KB gzip / 1944,3 KB surowych
+//               270,5 index  71,5 vendor-radix  60,0 vendor-react
+//                56,4 vendor-supabase  49,8 vendor-tanstack  29,5 vendor-lucide
+//                15,5 vendor-i18n  12,1 vendor-zod  8,0 vendor-tw-merge
+//             To 21,4% budżetu PUBLIC i 13,3% OVERALL - i JEDYNA z tych liczb,
+//             którą płaci KAŻDE pierwsze wejście. Wobec ręcznego pomiaru z
+//             08-18 (~554 KB) to +19 KB dryfu, którego nikt nie widział, bo nie
+//             było progu.
+//
+//             DLACZEGO TU, A NIE W `check-entry-purity.ts`. Tamta bramka mierzy
+//             PRZYCZYNĘ (krawędź w grafie) i jej nagłówek mówi wprost, że
+//             DLATEGO jest odporna na kompensację. Suma kilobajtów jest
+//             kompensowalna z definicji: zetnij `vendor-lucide` o 29 KB, dołóż
+//             29 KB do entry - domknięcie stoi, a bramka milczy. Floor
+//             kilobajtowy postawiony tam uczyniłby tamten nagłówek
+//             NIEPRAWDZIWYM, a wpis VIII jest właśnie o komentarzu, który „stał
+//             tam i był nieprawdziwy przez cały czas swojego istnienia". Do
+//             tego: `budget()` + `IN_CI` (jedyny mechanizm zamrażania progów w
+//             repo), `HEADROOM_WARN_PCT`, baseline i ta kronika istnieją
+//             WYŁĄCZNIE w tym pliku. Próg postawiony gdziekolwiek indziej niż
+//             przez `budget()` nie ma żadnej dyscypliny zamrożenia, czyli jest
+//             „sugestią, nie bramką".
+//             CENA, NAZWANA UCZCIWIE: odczyt manifestu i chodzenie po
+//             krawędziach statycznych mają teraz DRUGI egzemplarz i te dwa nie
+//             mogą się rozjechać. Trzymamy je razem trzema rzeczami: ta sama
+//             zmienna `ENTRY_CHUNKS`, ten sam filtr `import(`, wzajemne
+//             odwołania w komentarzach obu plików. Właściwym końcem tej drogi
+//             jest wspólny `scripts/lib/bootClosure.ts` importowany przez oba -
+//             i to jest osobny PR, bo dotyka pliku o innym charterze.
+//
+//             FLOOR 579 - LICZBA Z HOSTA, DO PRZEFLOOROWANIA. Pierwsza wersja
+//             tego wpisu stawiała 577 na pomiarze 573,17 KB i BYŁA POMIAREM
+//             W TRAKCIE ZMIANY: sonda bootu, `hydrateBudget`, `useNowMs`,
+//             `appReady`, `localeChunks` i trzy nowe moduły zapytań buildera
+//             weszły do domknięcia PO tym pomiarze. Na domkniętym drzewie
+//             artefakt daje 575,3 KB gzip / 1951,3 KB surowych (te same
+//             9 chunków), czyli floorowi 577 zostawało 0,29% zapasu - mniej niż
+//             udokumentowana rozbieżność host <-> runner (+0,466%), więc bramka
+//             padłaby na runnerze na własnym szumie. 579 = 575,3 + 0,5%, sufit
+//             do pełnego KB, zapas 3,7 KB (0,64%). Ostrzeżenie o zapasie poniżej
+//             2% zapali się i tak - to ten sam koszt maksymalnej czułości.
+//             Ryzyko rozjazdu host <-> runner jest tu najmniejsze z pięciu
+//             progów: jedyny ROZŁOŻONY pomiar (wpis III) pokazał deltę
+//             SKUPIONĄ w `admin.posts._slug` przy NAJWIĘKSZYM CHUNKU
+//             IDENTYCZNYM - a domknięcie bootu to entry plus osiem vendorów,
+//             czyli dokładnie ta część artefaktu, która się nie rozjechała. To
+//             ARGUMENT, NIE DOWÓD: floor idzie z runnera (wpis V).
+
+// 2026-09-01 XI  `stableChunkName()` NAPRAWIONE - RAPORT PRZESTAJE SKLEJAĆ
+//             RÓŻNE CHUNKI W JEDNO WIADRO. Ta zmiana nie rusza ani jednego
+//             progu i nie usuwa ani jednego bajtu: naprawia PRZYRZĄD, którym od
+//             15.08 czytamy przyczyny. Wpis VI opisał tę pułapkę dokładnie („bo
+//             `i18n` NIE JEST jednym chunkiem") i OBSZEDŁ ją prozą, licząc sumę
+//             ręcznie po `.output/public/assets/i18n-*.js`. Obchodzenie
+//             własnego przyrządu w komentarzu jest dokładnie tym, czego zakazuje
+//             wpis VIII: komentarz nie jest bramką.
+//
+//             PRZYCZYNA, JEDEN ZNAK. Wzorzec `-[A-Za-z0-9_-]{8,}$` ma OTWARTY
+//             kwantyfikator nad klasą, która ZAWIERA `-`, a hash Vite to
+//             DOKŁADNIE osiem znaków base64url (`A-Za-z0-9_-`). Dopasowanie idzie
+//             od lewej, więc już przy PIERWSZYM myślniku nazwy warunek „co
+//             najmniej osiem znaków do końca" jest spełniony i zjadane są razem
+//             z hashem wszystkie członki opisowe. `.` w klasie NIE MA - dlatego
+//             trasy kropkowane (`admin.posts._slug`) przeżywały, a myślnikowane
+//             nie. Naprawa: `{8,}` -> `{8}`. Wzorzec jest zakotwiczony na `$`,
+//             a hash ma dokładnie osiem znaków, więc kandydat jest tylko jeden:
+//             ostatnie dziewięć znaków nazwy.
+//
+//             DRUGA POŁOWA NAPRAWY: `.css`. Funkcja ucinała rozszerzenie
+//             wzorcem `/\.js$/`, więc dla arkusza zwracała nazwę Z HASHEM
+//             (`styles-BQZz5a-B.css`) - hash-strip nie łapie, bo `.` nie należy
+//             do klasy. Wpuszczenie CSS do raportu (wpis IX) bez tej poprawki
+//             dawałoby wiersz `(NOWY)` na KAŻDYM buildzie. Stąd
+//             `/\.(js|css)$/`.
+//
+//             ZMIERZONE (host, 946 wyemitowanych plików = 944 `.js` + 2 `.css`):
+//             124 pliki zmieniają wiadro (122 `.js` + 2 `.css`), wiader
+//             813 -> 879. Wzorzec sprawdzony PRZECIW PRAWDZIE, nie tylko
+//             przeciw poprzedniej wersji: dla każdego pliku „nazwa bez ośmiu
+//             znaków hasha" zgadza się z wynikiem funkcji w 946 przypadkach na
+//             946. Wariant BEZ `-` w klasie (`-[A-Za-z0-9_]{8}$`) daje wprawdzie
+//             893 wiadra, ale ZOSTAWIA hash na 98 plikach - bo 98 z 946 hashy
+//             zawiera literalny myślnik (`vendor-zod-oLpi5p-c`,
+//             `useEventSessions-BR0xmR-H`, `webVitals-i2-4S9YH`) - czyli
+//             produkuje świeży wiersz `(NOWY)` na każdym buildzie NA ZAWSZE.
+//             Odrzucony właśnie dlatego. Pliki bez hasha (`push-sw.js`,
+//             `scanner-sw.js`) zachowują się identycznie w obu wersjach.
+//
+//             `vendor` - WIADRO, KTÓRE NAPRAWA ROZBIJA. Kolumna `vendor +39,8`
+//             z wpisu VI i `vendor 281,8 -> 321,6` to nie chunk, to DZIESIĘĆ
+//             plików. Zmierzone dziś, 321,7 KB gzip razem:
+//               71,5 vendor-radix     60,0 vendor-react    56,4 vendor-supabase
+//               49,8 vendor-tanstack  29,5 vendor-lucide   15,5 vendor-i18n
+//               12,1 vendor-zod        8,0 vendor-tw-merge
+//               vendor-dompurify + vendor-sonner (reszta)
+//             Osiem z tych dziesięciu leży na ŚCIEŻCE BOOTOWANIA (floor `boot`,
+//             wpis X), a dwa - `vendor-dompurify` i `vendor-sonner` - zeszły z
+//             niej 18.08 i pilnuje ich `check:entry-purity`. Sklejone w jedno
+//             wiadro te dwie klasy były w raporcie NIEROZRÓŻNIALNE: powrót
+//             sonnera do bootu i przyrost radixa dawały tę samą linijkę
+//             `vendor +N`. Po naprawie każdy vendor ma własną pozycję.
+//
+//             `index` - WIADRO, KTÓREGO NAPRAWA NIE RUSZA, I DLATEGO OSOBNY
+//             AKAPIT. `index` to dziś SIEDEM plików, 374,3 KB, i wszystkie
+//             nazywają się `index` NAPRAWDĘ - kolizja nie bierze się z hasha,
+//             więc żaden wzorzec jej nie zdejmie:
+//               270,5 index-RQbuiFhe  <- chunk WEJŚCIOWY, korzeń bootu
+//               100,0 index-BSktzxww  <- importer: DocumentViewerBody
+//                 1,3 / 1,2 / 0,5 / 0,4 / 0,4  <- chunki tras, wciągane `import()`
+//             Konsekwencja dla czytania tej kroniki: linia `index -105,0
+//             (479,7 -> 374,7)` z wpisu VI NIE MÓWI, ile spadł chunk wejściowy -
+//             to suma wiadra. Pierwszy transfer czytelnika mierzy od dziś floor
+//             `boot`, nie kolumna `index`.
+//             DRUGA KONSEKWENCJA, DO OSOBNEJ ROBOTY: `isEntryChunk()` w
+//             `adminOnlyByGraph()` to `basename(p).startsWith("index-")`, więc
+//             WSZYSTKIE SIEDEM jest bezwarunkowo wyjmowane ze zbioru adminowego
+//             i liczone do PUBLIC BEZ DOWODU Z GRAFU - choć chunkiem WEJŚCIOWYM
+//             jest z nich JEDEN. To ta sama klasa luki, którą recenzja PR #232
+//             zamknęła dla kotwic nazwowych (wpis 08-15 (2)): nazwa zwiera
+//             dowód.
+//             POPRAWKA DO POMIARU, KTÓRY PODEJRZEWAŁ TU CZYNNĄ REGRESJĘ: dziś ta
+//             luka NIE zawyża budżetu publicznego. Sprawdzone na artefakcie -
+//             `index-BSktzxww` (100,0 KB) ma DOKŁADNIE JEDNEGO importera,
+//             `DocumentViewerBody-DVu8NsOy.js`, a tego importuje PUBLICZNA trasa
+//             `club._clubSlug.index-*.js`. Dowód z grafu dałby więc PUBLIC tak
+//             samo; nazwa niczego tu nie przemyca. Wadą jest sam BRAK dowodu:
+//             gdyby ta krawędź kiedyś przeszła pod /admin, bramka nadal
+//             liczyłaby te 100 KB czytelnikowi i nikt by tego nie zobaczył.
+//             NIE zamykamy tego tutaj - naprawa rusza liczby PUBLIC/ADMIN, więc
+//             zasługuje na własny pomiar przed/po i własne review.
+//
+//             BASELINE: KLUCZE SIĘ ZMIENIAJĄ, WIĘC RAPORT MUSI TO WIEDZIEĆ.
+//             `reports/bundle-baseline.json` (2d04eb92f, 15.08) był pisany
+//             STARĄ konwencją wiader. Sprawdzone: porównanie nowych kluczy ze
+//             starym plikiem daje szum - w dwunastce ruchów osiem wierszy to
+//             `(NOWY)` po samym przemianowaniu (`vendor-radix 0,0 -> 71,5`,
+//             `i18n-club 0,0 -> 36,6`), plus „znikł vendor" i „znikł i18n", a
+//             PRAWDZIWE ruchy (i18n +129,0, EventStudio +65,5) wypadają z
+//             listy. Baseline dostaje więc pole `bucketConvention` i dopóki
+//             plik go nie ma, `movers()` porównuje po kluczach STAREJ
+//             konwencji, mówiąc o tym jedną linią. Diagnoza jest wtedy
+//             identyczna jak przed naprawą (sprawdzone: te same dwanaście
+//             wierszy) plus jeden PRAWDZIWY nowy wiersz `styles.css`.
+//             DLACZEGO NIE PRZEPISUJEMY BASELINE'U W TYM COMMICIE: zasada z
+//             wpisu V mówi „z ZIELONEGO buildu RUNNERA", a ten pomiar jest z
+//             hosta i bramka jest CZERWONA na `overall` (4318,0 > 4306, dług
+//             odziedziczony z maina, nie z tej zmiany). Zapisanie baseline'u
+//             teraz zabetonowałoby liczby hosta z czerwonego artefaktu.
+//             `--update-baseline` na pierwszym zielonym runnerze wpisze
+//             `bucketConvention: 2` i tryb zgodności przestanie się włączać.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
  * commita, jest sugestią, nie bramką. W CI zmienne MAX_CHUNK_KB /
- * MAX_PUBLIC_KB / MAX_TOTAL_KB są więc IGNOROWANE (skrypt mówi to głośno):
+ * MAX_PUBLIC_KB / MAX_TOTAL_KB / MAX_CSS_KB / MAX_BOOT_KB są więc IGNOROWANE
+ * (skrypt mówi to głośno):
  * obowiązują wyłącznie stałe poniżej, a ich zmiana przechodzi przez review
  * razem z przyczyną wzrostu i wpisem do kroniki. Poza CI nadpisanie działa -
  * do lokalnego eksperymentu „ile zejdzie, jeśli...".
@@ -809,6 +1061,40 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4302 -> 4306 (wpis 2026-08-30 VII): runner 4305,2 po scaleniu
   // PR #307 (941 plików zamiast 939); host na tym drzewie 4298,1.
   overall: 4306,
+  // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
+  // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
+  // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
+  // Do 2026-09-01 nie mierzyła go ŻADNA bramka w repo: `walkJs()` zbierał
+  // wyłącznie `.js` (wpis IX).
+  // Zmierzone 2026-09-01 NA HOŚCIE (artefakt cloudflare'owy, 2 arkusze):
+  // 80,96 KB gzip (82 903 B; styles 79,6 + BlocksRenderer 1,4).
+  // Floor 82 = pomiar + 0,5% na rozbieżność host <-> runner (wpis VII: PUBLIC
+  // host 2701,7 -> runner 2714,3, +0,466%) i sufit do pełnego KB. Zapas 1,04 KB
+  // (1,27%), więc ostrzeżenie o zapasie poniżej 2% zapala się od razu.
+  // TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z PIERWSZEGO ZIELONEGO
+  // LOGU RUNNERA (zasada z wpisu V) - CSS nie był mierzony na runnerze ANI RAZU.
+  css: 82,
+  // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
+  // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne
+  // KRAWĘDZIĄ STATYCZNĄ (`import()` krawędzią inicjalizacyjną nie jest). Ten sam
+  // zbiór, który liczy `check:entry-purity` - tam mierzy się PRZYCZYNĘ
+  // (krawędź), tu wagę (wpis X).
+  // Zmierzone 2026-09-01 NA HOŚCIE: 9 chunków, 573,17 KB gzip / 1944,3 KB
+  // surowych (entry 270,5 + osiem vendorów).
+  // Kronika mierzyła tę liczbę RĘCZNIE 18.08 (~554 KB) i nigdy jej nie
+  // bramkowała; +19 KB dryfu w dwa tygodnie to koszt braku progu.
+  // PRZEFLOOROWANE 577 -> 579 W TYM SAMYM DNIU, i to jest przyznanie się do
+  // błędu metody, nie ratchet za wzrostem: pomiar 573,17 KB został wzięty
+  // w TRAKCIE zmiany, przed wejściem sondy bootu (`bootProbeScript`), modułu
+  // `hydrateBudget`, `useNowMs`, `appReady`, `localeChunks` i trzech nowych
+  // modułów zapytań buildera w rejestrze prefetchu. Na DOMKNIĘTYM drzewie
+  // artefakt daje 575,3 KB, więc floor 577 miał 1,7 KB (0,29%) zapasu - mniej
+  // niż udokumentowana rozbieżność host <-> runner (+0,466%, wpis VII), czyli
+  // bramka zapaliłaby się na runnerze na własnym szumie, nie na regresji.
+  // Floor 579 = 575,3 + 0,5% (578,2) i sufit do pełnego KB; zapas 3,7 KB
+  // (0,64%). TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z RUNNERA
+  // (wpis V) - w dół, jeśli runner pokaże mniej.
+  boot: 579,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
@@ -836,6 +1122,8 @@ function budget(name: keyof typeof FROZEN_BUDGET_KB, envVar: string): number {
 const MAX_CHUNK_KB = budget("chunk", "MAX_CHUNK_KB");
 const MAX_PUBLIC_KB = budget("public", "MAX_PUBLIC_KB");
 const MAX_TOTAL_KB = budget("overall", "MAX_TOTAL_KB");
+const MAX_CSS_KB = budget("css", "MAX_CSS_KB");
+const MAX_BOOT_KB = budget("boot", "MAX_BOOT_KB");
 
 /**
  * ODSETEK ZAPASU, PONIŻEJ KTÓREGO BRAMKA KRZYCZY, CHOĆ JESZCZE PRZECHODZI.
@@ -867,15 +1155,56 @@ const HEADROOM_WARN_PCT = 2;
  */
 const BASELINE_PATH = "reports/bundle-baseline.json";
 
+/**
+ * WERSJA KONWENCJI NAZW WIADER. 2026-09-01 (wpis XI) `stableChunkName()`
+ * przestał zjadać członki opisowe nazw, więc 124 z 946 plików trafia do INNEGO
+ * wiadra niż w baseline'ie z 15.08. Porównanie nowych kluczy ze starym plikiem
+ * daje szum zamiast diagnozy (sprawdzone: osiem z dwunastu wierszy to `(NOWY)`
+ * po samym przemianowaniu), więc baseline nosi numer konwencji, a `movers()`
+ * czyta plik bez numeru przez `legacyChunkName()`. Baseline zapisany
+ * `--update-baseline` na zielonym runnerze dostaje numer 2 i tryb zgodności
+ * przestaje się włączać.
+ */
+const BUCKET_CONVENTION = 2;
+
 interface BaselineFile {
   readonly measuredAt: string;
   readonly commit: string;
-  readonly totals: { readonly public: number; readonly overall: number; readonly chunk: number };
+  /** Brak pola = plik z epoki łapczywego wzorca (konwencja 1). */
+  readonly bucketConvention?: number;
+  readonly totals: {
+    readonly public: number;
+    readonly overall: number;
+    readonly chunk: number;
+    /** Dopisane 2026-09-01 (wpisy IX i X); starsze pliki ich nie mają. */
+    readonly css?: number;
+    readonly boot?: number;
+  };
   readonly chunks: Readonly<Record<string, number>>;
 }
 
-/** `assets/index-HSMM7HnQ.js` -> `index`; `_libs/echarts.js` -> `echarts`. */
+/**
+ * `assets/index-HSMM7HnQ.js` -> `index`; `vendor-tw-merge-CPcsbTWB.js` ->
+ * `vendor-tw-merge`; `styles-BQZz5a-B.css` -> `styles`; plik bez hasha
+ * (`push-sw.js`) zostaje bez zmian.
+ *
+ * KWANTYFIKATOR JEST DOKŁADNY (`{8}`), NIE OTWARTY. Hash Vite to osiem znaków
+ * base64url, a klasa zawiera `-`, więc `{8,}` dopasowywał się już przy PIERWSZYM
+ * myślniku nazwy i sklejał `vendor-radix` z `vendor-react` w jedno wiadro
+ * `vendor` (wpisy VI i XI w kronice). Rozszerzenie ucinamy razem z `.css`, bo od
+ * wpisu IX arkusze też wchodzą do raportu per wiadro.
+ */
 function stableChunkName(file: string): string {
+  const base = file.split("/").pop() ?? file;
+  return base.replace(/\.(js|css)$/, "").replace(/-[A-Za-z0-9_-]{8}$/, "");
+}
+
+/**
+ * Nazwa wiadra STARĄ konwencją - WYŁĄCZNIE do czytania baseline'u sprzed
+ * naprawy z wpisu XI. Nie używaj jej do niczego nowego: to jest właśnie ten
+ * łapczywy wzorzec, który sklejał `i18n-club` z `i18n-admin-events`.
+ */
+function legacyChunkName(file: string): string {
   const base = file.split("/").pop() ?? file;
   return base.replace(/\.js$/, "").replace(/-[A-Za-z0-9_-]{8,}$/, "");
 }
@@ -951,7 +1280,17 @@ function isAdminRoot(file: string): boolean {
   return ADMIN_ROOT.test(basename(file));
 }
 
-function walkJs(dir: string): string[] {
+/**
+ * Rekurencyjny enumerator plików o jednym rozszerzeniu.
+ *
+ * DLACZEGO `walkJs` ZOSTAJE OSOBNĄ NAZWĄ, A NIE PARAMETREM W MIEJSCU WYWOŁANIA:
+ * autodetekcja `CLIENT_DIR` (na górze pliku) wybiera pierwszy katalog z
+ * kandydatów, który zawiera JS. Gdyby sondowała „jakiekolwiek pliki", katalog z
+ * arkuszami stylów, a bez chunków, mógłby wygrać i bramka mierzyłaby nie ten
+ * artefakt. Deklaracje funkcji, nie stałe strzałkowe, bo `CLIENT_DIR` woła
+ * `walkJs` PRZED tym miejscem w pliku i liczy na hoisting.
+ */
+function walkAssets(dir: string, ext: string): string[] {
   let out: string[] = [];
   let entries: ReturnType<typeof readdirSync>;
   try {
@@ -961,14 +1300,97 @@ function walkJs(dir: string): string[] {
   }
   for (const e of entries) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) out = out.concat(walkJs(p));
-    else if (e.name.endsWith(".js")) out.push(p);
+    if (e.isDirectory()) out = out.concat(walkAssets(p, ext));
+    else if (e.name.endsWith(ext)) out.push(p);
   }
   return out;
 }
 
+function walkJs(dir: string): string[] {
+  return walkAssets(dir, ".js");
+}
+
+/** Arkusze stylów - mierzone od 2026-09-01 (wpis IX), wcześniej niemierzone. */
+function walkCss(dir: string): string[] {
+  return walkAssets(dir, ".css");
+}
+
 function gzipKb(file: string): number {
   return Bun.gzipSync(readFileSync(file)).length / 1024;
+}
+
+/**
+ * KORZENIE ŚCIEŻKI BOOTOWANIA (2026-09-01, wpis X).
+ *
+ * Czytane z manifestu TanStack Start, nie zgadywane po nazwie ani po rozmiarze -
+ * manifest jest jedynym miejscem, które NAPRAWDĘ mówi, co serwer wstrzykuje jako
+ * `<script type="module">`. Override `ENTRY_CHUNKS` jest CELOWO tą samą zmienną,
+ * co w `check-entry-purity.ts`: jeden artefakt, jedna pokrętka, żeby te dwie
+ * bramki nie mogły policzyć różnych korzeni.
+ */
+const SERVER_DIRS = [".output/server", "dist/server"] as const;
+
+function findBootChunks(): string[] {
+  const override = process.env["ENTRY_CHUNKS"];
+  if (override) return override.split(",").map((s) => basename(s.trim()));
+
+  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const found = new Set<string>();
+  for (const dir of SERVER_DIRS) {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const file of entries) {
+      if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
+      for (const m of readFileSync(join(dir, file), "utf8").matchAll(scriptRe)) found.add(m[1]);
+    }
+    if (found.size > 0) break;
+  }
+  return [...found];
+}
+
+/**
+ * Krawędzie WYŁĄCZNIE STATYCZNE. To NIE jest `EDGE_RE` z `adminOnlyByGraph()`:
+ * tamten wzorzec ŚWIADOMIE liczy `import(` jako krawędź, bo pyta o OSIĄGALNOŚĆ
+ * (wpis VIII: „`lazy()` NIE ZDEJMUJE KRAWĘDZI"). Tu pytamy o INICJALIZACJĘ, więc
+ * `import(` trzeba odfiltrować - identycznie jak w `check-entry-purity.ts`
+ * i `check-chunk-graph.ts`.
+ */
+const STATIC_EDGE_RE = /(import\s*\(?\s*|from\s*)["'](\.\/[^"']+\.js)["']/g;
+
+function bootClosure(paths: readonly string[]): Set<string> {
+  const byBase = new Map<string, string>();
+  for (const p of paths) byBase.set(basename(p), p);
+  const roots = findBootChunks()
+    .map((b) => byBase.get(b))
+    .filter((p): p is string => p !== undefined);
+  // Cicha kapitulacja jest tu gorsza niż czerwona bramka: floor, który po
+  // zmianie układu artefaktu po prostu przestaje istnieć, to znowu „sugestia,
+  // nie bramka" (akapit PROGI SĄ ZAMROŻONE).
+  if (roots.length === 0) {
+    console.error(
+      "✗ Nie udalo sie ustalic chunku startowego z manifestu TanStack Start.\n" +
+        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` w: ${SERVER_DIRS.join(", ")}.\n` +
+        "  Jesli adapter zmienil uklad artefaktu, podaj chunk jawnie: ENTRY_CHUNKS=index-HASH.js",
+    );
+    process.exit(1);
+  }
+  const seen = new Set<string>();
+  const stack = [...roots];
+  while (stack.length > 0) {
+    const node = stack.pop() as string;
+    if (seen.has(node)) continue;
+    seen.add(node);
+    for (const m of readFileSync(node, "utf8").matchAll(STATIC_EDGE_RE)) {
+      if (m[1].trimEnd().endsWith("(")) continue;
+      const next = byBase.get(basename(m[2]));
+      if (next !== undefined && next !== node) stack.push(next);
+    }
+  }
+  return seen;
 }
 
 /**
@@ -1051,6 +1473,9 @@ let adminRootTotal = 0;
 let max = 0;
 let maxFile = "";
 const perChunk = new Map<string, number>();
+// Ten sam podział wiader, ale kluczami STAREJ konwencji - wyłącznie po to, by
+// `movers()` umiał czytać baseline sprzed wpisu XI. Patrz `BUCKET_CONVENTION`.
+const perChunkLegacy = new Map<string, number>();
 for (const f of files) {
   const kb = gzipKb(f);
   total += kb;
@@ -1058,12 +1483,51 @@ for (const f of files) {
   else if (isAdminRoot(f)) adminRootTotal += kb;
   const name = stableChunkName(f);
   perChunk.set(name, (perChunk.get(name) ?? 0) + kb);
+  const legacy = legacyChunkName(f);
+  perChunkLegacy.set(legacy, (perChunkLegacy.get(legacy) ?? 0) + kb);
   if (kb > max) {
     max = kb;
     maxFile = f;
   }
 }
 const adminTotal = total - publicTotal;
+
+// ── CSS: arkusze, których do 2026-09-01 nie mierzyła żadna bramka (wpis IX) ──
+const cssFiles = walkCss(CLIENT_DIR);
+if (cssFiles.length === 0) {
+  // Bramka, która po zmianie układu artefaktu po cichu mierzy 0 KB, jest gorsza
+  // niż brak bramki: świeci na zielono i nikt nie wie, że nic nie pilnuje.
+  console.error(
+    `✗ Brak arkuszy CSS w ${CLIENT_DIR}, a arkusz korzenia jest wypisywany bezwarunkowo\n` +
+      "  (`src/lib/seo/rootHead.ts`). Albo build jest niepełny, albo adapter zmienił\n" +
+      "  układ artefaktu - w drugim przypadku popraw `walkCss`/`CLIENT_DIR`, nie floor.",
+  );
+  process.exit(1);
+}
+let cssTotal = 0;
+for (const f of cssFiles) {
+  const kb = gzipKb(f);
+  cssTotal += kb;
+  // Arkusz dostaje SUFIKS `.css` w nazwie wiadra, bo `stableChunkName` zdejmuje
+  // rozszerzenie i bez sufiksu `BlocksRenderer-*.css` (1,4 KB) wpadałby do
+  // wiadra chunku `BlocksRenderer-*.js` (41,9 KB w baseline'ie) - dwie klasy
+  // zasobów w jednej liczbie to dokładnie ta wada, którą naprawia wpis XI.
+  const name = `${stableChunkName(f)}.css`;
+  perChunk.set(name, (perChunk.get(name) ?? 0) + kb);
+  perChunkLegacy.set(name, (perChunkLegacy.get(name) ?? 0) + kb);
+}
+
+// ── BOOT: to, co przeglądarka wykonuje przed hydratacją (wpis X) ─────────────
+const bootFiles = bootClosure(files);
+let bootTotal = 0;
+let bootRaw = 0;
+for (const f of bootFiles) {
+  bootTotal += gzipKb(f);
+  // Surowe bajty raportowane obok gzipu, bo parse/compile skaluje się z nimi,
+  // nie z gzipem (wpis 2026-08-18). Raportowane, NIE bramkowane - jedna
+  // metryka, jeden próg.
+  bootRaw += readFileSync(f).length / 1024;
+}
 
 console.log(`Client JS: ${files.length} files, ${total.toFixed(1)} KB gzip total`);
 console.log(`  public:      ${publicTotal.toFixed(1)} KB  (budget ≤ ${MAX_PUBLIC_KB} KB)`);
@@ -1073,6 +1537,15 @@ console.log(
 );
 console.log(`  overall:     ${total.toFixed(1)} KB  (budget ≤ ${MAX_TOTAL_KB} KB)`);
 console.log(`Largest chunk: ${max.toFixed(1)} KB gzip (${maxFile})  (budget ≤ ${MAX_CHUNK_KB} KB)`);
+console.log(
+  `Client CSS: ${cssFiles.length} files, ${cssTotal.toFixed(1)} KB gzip  ` +
+    `(render-blocking na każdym URL-u; budget ≤ ${MAX_CSS_KB} KB)`,
+);
+console.log(
+  `Boot closure: ${bootTotal.toFixed(1)} KB gzip / ${bootRaw.toFixed(1)} KB raw  ` +
+    `(${bootFiles.size} chunków statycznie osiągalnych ze SSR-owego <script>; ` +
+    `budget ≤ ${MAX_BOOT_KB} KB)`,
+);
 
 // Audyt dowodu na żądanie: pełna lista chunków adminowych z grafu, z wagami.
 if (process.argv.includes("--admin-proof")) {
@@ -1093,10 +1566,13 @@ if (process.argv.includes("--update-baseline")) {
   const snapshot: BaselineFile = {
     measuredAt: new Date().toISOString(),
     commit,
+    bucketConvention: BUCKET_CONVENTION,
     totals: {
       public: Number(publicTotal.toFixed(1)),
       overall: Number(total.toFixed(1)),
       chunk: Number(max.toFixed(1)),
+      css: Number(cssTotal.toFixed(1)),
+      boot: Number(bootTotal.toFixed(1)),
     },
     chunks: Object.fromEntries(
       [...perChunk.entries()]
@@ -1132,8 +1608,16 @@ function movers(): string[] {
   } catch {
     return [`${BASELINE_PATH} jest nieczytelny - pomijam diagnozę ruchów.`];
   }
+  // TRYB ZGODNOŚCI Z BASELINE'EM SPRZED WPISU XI. Naprawa `stableChunkName()`
+  // przemianowała 124 z 946 wiader, więc porównanie nowych kluczy ze starym
+  // plikiem dawałoby listę `(NOWY)`/`znikł` zamiast diagnozy. Dla takiego pliku
+  // porównujemy po kluczach STAREJ konwencji: raport jest wtedy identyczny jak
+  // przed naprawą (te same dwanaście wierszy), a nie pusty ani zaszumiony.
+  const legacyBaseline = (base.bucketConvention ?? 1) < BUCKET_CONVENTION;
+  const current = legacyBaseline ? perChunkLegacy : perChunk;
+
   const deltas: Array<{ name: string; delta: number; now: number; was: number }> = [];
-  for (const [name, kb] of perChunk) {
+  for (const [name, kb] of current) {
     const was = base.chunks[name];
     if (was === undefined) {
       if (kb >= 5) deltas.push({ name: `${name} (NOWY)`, delta: kb, now: kb, was: 0 });
@@ -1142,10 +1626,17 @@ function movers(): string[] {
     const delta = kb - was;
     if (Math.abs(delta) >= 1) deltas.push({ name, delta, now: kb, was });
   }
-  const gone = Object.keys(base.chunks).filter((n) => !perChunk.has(n) && base.chunks[n] >= 5);
+  const gone = Object.keys(base.chunks).filter((n) => !current.has(n) && base.chunks[n] >= 5);
   if (deltas.length === 0 && gone.length === 0) return [];
 
   const lines = [`Ruchy względem baseline'u (${base.commit}, ${base.measuredAt.slice(0, 10)}):`];
+  if (legacyBaseline) {
+    lines.push(
+      `  (baseline pisany STARĄ konwencją wiader - nazwy niżej są sklejone, np. jedno ` +
+        `\`vendor\` na dziesięć plików. Przepisz go na zielonym buildzie runnera: ` +
+        `bun run scripts/check-bundle-size.ts --update-baseline)`,
+    );
+  }
   for (const d of deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12)) {
     const sign = d.delta > 0 ? "+" : "";
     lines.push(
@@ -1161,6 +1652,9 @@ if (max > MAX_CHUNK_KB) errors.push(`largest chunk ${max.toFixed(1)} KB > ${MAX_
 if (publicTotal > MAX_PUBLIC_KB)
   errors.push(`public total ${publicTotal.toFixed(1)} KB > ${MAX_PUBLIC_KB} KB`);
 if (total > MAX_TOTAL_KB) errors.push(`overall total ${total.toFixed(1)} KB > ${MAX_TOTAL_KB} KB`);
+if (cssTotal > MAX_CSS_KB) errors.push(`css total ${cssTotal.toFixed(1)} KB > ${MAX_CSS_KB} KB`);
+if (bootTotal > MAX_BOOT_KB)
+  errors.push(`boot closure ${bootTotal.toFixed(1)} KB > ${MAX_BOOT_KB} KB`);
 
 if (errors.length) {
   console.error(`✗ Bundle budget exceeded: ${errors.join("; ")}`);
@@ -1179,6 +1673,8 @@ const headroom = [
   { name: "largest chunk", now: max, limit: MAX_CHUNK_KB },
   { name: "public total", now: publicTotal, limit: MAX_PUBLIC_KB },
   { name: "overall total", now: total, limit: MAX_TOTAL_KB },
+  { name: "css total", now: cssTotal, limit: MAX_CSS_KB },
+  { name: "boot closure", now: bootTotal, limit: MAX_BOOT_KB },
 ].map((b) => ({ ...b, left: b.limit - b.now, pct: ((b.limit - b.now) / b.limit) * 100 }));
 
 const tight = headroom.filter((b) => b.pct < HEADROOM_WARN_PCT);

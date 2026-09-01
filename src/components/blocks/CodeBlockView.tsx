@@ -9,20 +9,32 @@ import { highlightCode, isHighlightableLang } from "@/lib/code/highlight";
 
 interface Props {
   code: string;
+  /** Język KODU (np. "ts", "sql") - nie język interfejsu. */
   lang: string;
+  /**
+   * Język INTERFEJSU dla etykiet przycisku kopiowania. Przekazywany przez
+   * `BlockRenderer` (ma go w sygnaturze), nie odczytywany z DOM - patrz
+   * komentarz przy `copyLabel` niżej.
+   */
+  uiLang?: "pl" | "en";
   className?: string;
 }
 
 const COPY_LABEL = { pl: "Kopiuj kod", en: "Copy code" } as const;
 const COPIED_LABEL = { pl: "Skopiowano", en: "Copied" } as const;
 
-export function CodeBlockView({ code, lang, className }: Props) {
+export function CodeBlockView({ code, lang, uiLang = "pl", className }: Props) {
   const tokens = useMemo(() => highlightCode(code, lang), [code, lang]);
   const [copied, setCopied] = useState(false);
-  // Język dokumentu steruje copy przycisku; blok bywa renderowany poza
-  // kontekstem i18n (druk, cache), więc czytamy atrybut zamiast hooka.
-  const uiLang: "pl" | "en" =
-    typeof document !== "undefined" && document.documentElement.lang === "en" ? "en" : "pl";
+  // JĘZYK PRZYCHODZI PROPEM, nie z DOM.
+  //
+  // Stało tu `document.documentElement.lang === "en"` czytane W CIELE RENDERU.
+  // Na serwerze `document` nie istnieje, więc SSR emitował ZAWSZE „Kopiuj kod",
+  // a klient na trasie /en liczył „Copy code" - rozjazd tekstu, po którym
+  // React 19 porzuca serwerowe poddrzewo i renderuje je od zera. Uzasadnienie
+  // („blok bywa renderowany poza kontekstem i18n") było trafne co do problemu
+  // i błędne co do rozwiązania: `lang` jest w sygnaturze `BlockRenderer`, więc
+  // nie potrzebujemy ani hooka i18next, ani odczytu z przeglądarki.
 
   const copy = async () => {
     try {

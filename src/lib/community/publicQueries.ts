@@ -174,6 +174,69 @@ export async function fetchEventPageHeader(slug: string): Promise<EventPageHeade
   return data?.[0] ?? null;
 }
 
+// Prefiks `public-event` jest ZAREJESTROWANY w lib/realtime/eventInvalidationMap
+// (trzy miejsca), więc zmiana tego literału zerwałaby unieważnianie na żywo -
+// dokładnie ta sama ostrożność, co przy kluczu listy wyżej.
+const publicEventQueryKey = (slug: string) => ["public-event", slug] as const;
+
+const EVENT_SSR_TTL_MS = 60_000;
+
+/**
+ * Współdzielone queryOptions STRONY wydarzenia: loader SSR (`ensureQueryData`)
+ * i render klienta widzą ten sam klucz, więc treść schodzi z serwera zamiast
+ * dociągać się po hydratacji. Ten sam kontrakt, co `publicEventsQueryOptions`
+ * wyżej - w tym per-tenantowy TTL cache na serwerze.
+ *
+ * Odczyt SERWEROWY jest zawsze ANONIMOWY (sesja Supabase żyje w localStorage,
+ * dokument publiczny to anonimowa skorupa), a `edgeTtlCache` kluczuje wpisy po
+ * hoście najemcy, więc wpis jednego wołającego nie ma jak zostać wydany
+ * drugiemu. Izolację danych i tak egzekwuje RLS przez `public_tenant_id()`.
+ */
+export const publicEventBySlugQueryOptions = (slug: string) =>
+  queryOptions({
+    queryKey: publicEventQueryKey(slug),
+    queryFn: () =>
+      edgeTtlCache(`public:event:${slug}`, EVENT_SSR_TTL_MS, () => fetchPublicEventBySlug(slug)),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
+
+/**
+ * Nagłówek strony wydarzenia jako queryOptions - żeby loader mógł go rozgrzać
+ * przez `ensureQueryData` tą samą drogą co reszta.
+ *
+ * TO JEST JEDYNE POPRAWNE WEJŚCIE DLA `notFound()`. `event_page_header` jest
+ * SECURITY DEFINER i oddaje wiersz KAŻDEMU, kto zna slug OPUBLIKOWANEGO
+ * wydarzenia tego najemcy (`WHERE e.tenant_id = public_tenant_id() AND
+ * e.slug = ... AND e.status = 'published'`), a bramkę warstwy tylko ETYKIETUJE.
+ * Pusty wynik znaczy więc dokładnie jedno: wydarzenia nie ma.
+ *
+ * `fetchPublicEventBySlug` NIE nadaje się na tę decyzję: stoi pod RLS, a odczyt
+ * serwerowy jest anonimowy, więc każde wydarzenie `visibility='members'` albo
+ * `min_tier_rank > 0` dawałoby TWARDE 404 uprawnionemu czytelnikowi przy
+ * przeładowaniu strony - regresja gorsza od naprawianego miękkiego 404.
+ *
+ * `viewer` JEST CZĘŚCIĄ KLUCZA i musi nim zostać: RPC personalizuje odpowiedź
+ * (`my_*`, `tier_locked`, `chatham_house_locked`), więc wpis bez tożsamości
+ * wołającego wydałby stan jednego czytelnika drugiemu. Loader SSR podaje
+ * `"anon"` - dokument publiczny jest anonimową skorupą - i to jest DOKŁADNIE
+ * ten klucz, który czyta przegląd (`user?.id ?? "anon"`), więc rozgrzewka
+ * serwerowa nie dokłada ani jednego round-tripu.
+ *
+ * ŚWIADOMIE BEZ `edgeTtlCache`, w odróżnieniu od dwóch fabryk wyżej: cache TTL
+ * kluczowany po hoście najemcy nie widzi tożsamości wołającego, a ta odpowiedź
+ * jest personalizowana. Dziś na serwerze wołający jest zawsze anonimowy, ale to
+ * jest inwariant środowiska, nie kontrakt tej funkcji - i nie wolno na nim
+ * oprzeć współdzielenia wiersza.
+ */
+export const eventPageHeaderQueryOptions = (slug: string, viewer: string) =>
+  queryOptions({
+    queryKey: ["event-page-header", slug, viewer] as const,
+    queryFn: () => fetchEventPageHeader(slug),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
+
 export interface EventAccess {
   can_join: boolean;
   join_url: string | null;
