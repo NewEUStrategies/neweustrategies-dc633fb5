@@ -30,6 +30,7 @@ import { chatPl } from "@/lib/i18n-chat";
 import { realT } from "@/test/i18nReal";
 import { CHAT_IDS, chatMessage, peerProfile } from "@/test/chat/fixtures";
 import { GROUP_WINDOW_MS } from "@/lib/chat/time";
+import { MESSAGE_TTL_OPTIONS } from "@/lib/chat/receipts";
 import type { ChatMessage, PeerProfile, ReactionRow } from "@/lib/chat/types";
 
 // `ChatAvatar` potrafi linkować do profilu publicznego przez <Link> TanStacka,
@@ -190,6 +191,24 @@ function agoIso(milliseconds: number): string {
 }
 
 /**
+ * Punkt DZISIEJSZEGO południa (czas lokalny) przesunięty o `offsetMs`.
+ *
+ * Grupowanie i separatory dni liczą od realnego zegara, więc kotwiczenie
+ * testów przez `Date.now() - godzina` wprowadza CICHĄ FLAKĘ: przebieg tuż po
+ * północy przesuwa bazę na wczoraj (asercja o „Dzisiaj" gaśnie), a przebieg
+ * o 03:00 potrafi rozdzielić parę wiadomości granicą doby i podbić `groupStart`
+ * mimo mieszczenia się w oknie grupowania. Południe jest odległe od obu granic
+ * doby o dwanaście godzin, więc żadne przesunięcie liczone tu w minutach jej
+ * nie przekroczy. Znacznik może wypaść w przyszłości - dla `crossesDay`,
+ * `sameGroup` i `dayLabel` liczy się wyłącznie kalendarz, nie kierunek.
+ */
+function todayAt(offsetMs = 0): string {
+  const noon = new Date();
+  noon.setHours(12, 0, 0, 0);
+  return new Date(noon.getTime() + offsetMs).toISOString();
+}
+
+/**
  * Etykieta dnia wyliczona NIEZALEŻNIE od produkcji (własny formatter Intl), żeby
  * asercja mierzyła WYMAGANIE, a nie kopię implementacji. Rok dopisujemy tylko
  * przy innym roku - inaczej plik zapalałby się na czerwono w pierwszych dniach
@@ -324,11 +343,10 @@ describe("separatory dni i grupowanie", () => {
   });
 
   it("wiadomości tego samego dnia i nadawcy NIE dostają drugiego separatora", () => {
-    const base = Date.now() - 3600_000;
     renderList({
       messages: [
-        chatMessage({ id: "m-1", created_at: new Date(base).toISOString() }),
-        chatMessage({ id: "m-2", created_at: new Date(base + 60_000).toISOString() }),
+        chatMessage({ id: "m-1", created_at: todayAt() }),
+        chatMessage({ id: "m-2", created_at: todayAt(60_000) }),
       ],
     });
 
@@ -336,12 +354,11 @@ describe("separatory dni i grupowanie", () => {
   });
 
   it("seria tego samego nadawcy ma JEDEN avatar - na ostatnim dymku, reszta to rozpórka", () => {
-    const base = Date.now() - 3600_000;
     const { container } = renderList({
       messages: [
-        chatMessage({ id: "m-1", created_at: new Date(base).toISOString() }),
-        chatMessage({ id: "m-2", created_at: new Date(base + 60_000).toISOString() }),
-        chatMessage({ id: "m-3", created_at: new Date(base + 120_000).toISOString() }),
+        chatMessage({ id: "m-1", created_at: todayAt() }),
+        chatMessage({ id: "m-2", created_at: todayAt(60_000) }),
+        chatMessage({ id: "m-3", created_at: todayAt(120_000) }),
       ],
     });
 
@@ -362,14 +379,10 @@ describe("separatory dni i grupowanie", () => {
   });
 
   it("granica okna grupowania jest DOKŁADNIE `GROUP_WINDOW_MS` - sekunda mniej scala, równo rozbija", () => {
-    const base = Date.now() - 3 * 3600_000;
     const inside = renderList({
       messages: [
-        chatMessage({ id: "m-1", created_at: new Date(base).toISOString() }),
-        chatMessage({
-          id: "m-2",
-          created_at: new Date(base + GROUP_WINDOW_MS - 1000).toISOString(),
-        }),
+        chatMessage({ id: "m-1", created_at: todayAt() }),
+        chatMessage({ id: "m-2", created_at: todayAt(GROUP_WINDOW_MS - 1000) }),
       ],
     });
     expect(bubbles()[1]?.getAttribute("data-group-start")).toBe("false");
@@ -378,8 +391,8 @@ describe("separatory dni i grupowanie", () => {
 
     const outside = renderList({
       messages: [
-        chatMessage({ id: "m-1", created_at: new Date(base).toISOString() }),
-        chatMessage({ id: "m-2", created_at: new Date(base + GROUP_WINDOW_MS).toISOString() }),
+        chatMessage({ id: "m-1", created_at: todayAt() }),
+        chatMessage({ id: "m-2", created_at: todayAt(GROUP_WINDOW_MS) }),
       ],
     });
     expect(bubbles()[1]?.getAttribute("data-group-start")).toBe("true");
@@ -388,15 +401,10 @@ describe("separatory dni i grupowanie", () => {
   });
 
   it("zmiana nadawcy rozbija grupę nawet w tej samej minucie", () => {
-    const base = Date.now() - 3600_000;
     renderList({
       messages: [
-        chatMessage({ id: "m-1", created_at: new Date(base).toISOString() }),
-        chatMessage({
-          id: "m-2",
-          sender_id: CHAT_IDS.me,
-          created_at: new Date(base + 10_000).toISOString(),
-        }),
+        chatMessage({ id: "m-1", created_at: todayAt() }),
+        chatMessage({ id: "m-2", sender_id: CHAT_IDS.me, created_at: todayAt(10_000) }),
       ],
     });
 
@@ -452,13 +460,12 @@ describe("atrybucja nadawcy w kręgu", () => {
   });
 
   it("podpis pojawia się RAZ na grupę, nie nad każdym dymkiem", () => {
-    const base = Date.now() - 3600_000;
     renderList({
       isGroup: true,
       senderProfiles: profiles,
       messages: [
-        chatMessage({ id: "m-1", created_at: new Date(base).toISOString() }),
-        chatMessage({ id: "m-2", created_at: new Date(base + 60_000).toISOString() }),
+        chatMessage({ id: "m-1", created_at: todayAt() }),
+        chatMessage({ id: "m-2", created_at: todayAt(60_000) }),
       ],
     });
 
@@ -559,14 +566,19 @@ describe("separator nieprzeczytanych", () => {
 });
 
 describe("chip znikających wiadomości", () => {
-  it("każde okno TTL ma własną etykietę", () => {
+  it("każde okno TTL z panelu ustawień ma własną etykietę", () => {
     const cases = [
       { ttlSeconds: 86400, window: L.disappearing.day },
       { ttlSeconds: 604800, window: L.disappearing.week },
-      { ttlSeconds: 3600, window: L.disappearing.quarter },
+      { ttlSeconds: 7776000, window: L.disappearing.quarter },
     ];
-    // Zapasowa gałąź (`quarter`) obsługuje KAŻDĄ inną wartość, więc trzy okna
-    // muszą dać trzy RÓŻNE napisy - inaczej użytkownik nie wie, co ustawił.
+    // Testujemy DOKŁADNIE wartości, które da się ustawić (`MESSAGE_TTL_OPTIONS`).
+    // Podstawienie tu wygodnej liczby spoza tej listy (np. godziny) dowodziłoby
+    // tylko tego, że gałąź zapasowa łapie wszystko - a nie tego, że NAJDŁUŻSZE
+    // realne okno ma poprawny napis. Gdy dojdzie czwarta opcja, wpadnie cicho
+    // w `quarter` („90 dni") i ta asercja ma to wyłapać.
+    expect(cases.map((c) => c.ttlSeconds)).toEqual([...MESSAGE_TTL_OPTIONS]);
+    // Trzy okna muszą dać trzy RÓŻNE napisy - inaczej użytkownik nie wie, co ustawił.
     expect(new Set(cases.map((c) => c.window)).size).toBe(3);
 
     for (const c of cases) {
@@ -658,14 +670,20 @@ describe("doładowanie starszych stron", () => {
 });
 
 describe("skok do wyniku wyszukiwania", () => {
-  it("cel obecny w oknie zgłasza obsłużenie skoku", () => {
+  it("cel obecny w oknie dostaje podświetlenie i zgłasza obsłużenie skoku", () => {
     const onJumpHandled = vi.fn();
-    renderList({
+    const { container } = renderList({
       messages: [chatMessage({ id: "m-1" }), chatMessage({ id: "m-2", created_at: agoIso(1000) })],
       jumpToId: "m-2",
       onJumpHandled,
     });
 
+    // Samo `onJumpHandled` NIE dowodzi trafienia: efekt woła je bezwarunkowo po
+    // `jumpToMessage`, a ta cicho wychodzi, gdy nie znajdzie wiersza. Dowodem,
+    // że skok dosięgnął CELU, jest klasa błysku - jedyny skutek `jumpToMessage`
+    // obserwowalny bez layoutu (samo przewinięcie happy-dom przemilcza).
+    expect(rowOf(container, "m-2").classList.contains("chat-jump-flash")).toBe(true);
+    expect(rowOf(container, "m-1").classList.contains("chat-jump-flash")).toBe(false);
     expect(onJumpHandled).toHaveBeenCalledTimes(1);
   });
 
@@ -827,6 +845,24 @@ describe("stopka - potwierdzenia odczytu", () => {
     });
 
     expect(screen.queryByText(L.seen)).toBeNull();
+  });
+
+  // Towarzysz poniższego `it.fails`. `it.fails` zielenieje po KAŻDYM wyjątku,
+  // więc sam nie odróżnia „brakuje napisu w stopce" od „render się wysypał"
+  // albo „klucz `chat.sending` wypadł ze słownika" - a wtedy cicho pilnowałby
+  // czegoś innego, niż głosi jego nazwa. Ten test odcina obie alternatywy:
+  // dymek JEST na liście, klucz JEST w słowniku i w żywej instancji i18next,
+  // a mimo to stopka zostaje pusta. Zostanie usunięty razem z `it.fails`, gdy
+  // produkcja przestanie gubić stan „w locie".
+  it("wiadomość w locie renderuje się poprawnie - martwa jest wyłącznie stopka", () => {
+    renderList({
+      messages: [chatMessage({ id: "m-1", sender_id: CHAT_IDS.me, pending: true })],
+    });
+
+    expect(bubbles()).toHaveLength(1);
+    expect(L.sending.length).toBeGreaterThan(0);
+    expect(t("chat.sending")).toBe(L.sending);
+    expect(screen.queryByText(L.sending)).toBeNull();
   });
 
   // DEFEKT PRODUKCYJNY (`MessageList.tsx`, `lastMine` + stopka).

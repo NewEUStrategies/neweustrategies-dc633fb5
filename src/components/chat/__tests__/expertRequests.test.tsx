@@ -33,7 +33,7 @@
 // RODO: wszystkie osoby, tematy i treści są zmyślone, linki wskazują wyłącznie
 // na `example.org`, identyfikatory pochodzą z `CHAT_IDS`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { CHAT_IDS, type RecordedRpc, type SupabaseRpcStub } from "@/test/chat/fixtures";
@@ -255,10 +255,23 @@ describe("ExpertRequestDialog - otwarcie z szyny", () => {
     expect(screen.getByText(T.dialogSubtitle)).toBeInTheDocument();
     expect(screen.getByText(T.recipientLabel)).toBeInTheDocument();
     expect(screen.getByText("Zofia Testowa")).toBeInTheDocument();
+    // Bez zdjęcia odbiorca ma inicjały, nie pustą plamę.
+    expect(screen.getByText("ZT")).toBeInTheDocument();
     await waitFor(() => expect(subjectField().value).toBe("Pakiet energetyczny 2030"));
     // Uzasadnienie jest ŚWIADOMIE puste: szyna niesie tylko temat, a serwer
     // wymaga 20 znaków kontekstu - użytkownik musi je napisać sam.
     expect(reasonField().value).toBe("");
+  });
+
+  it("odbiorca bez nazwy nie renderuje pustki ani „undefined”", () => {
+    renderDialog({ prefill: prefillOf({ recipientName: null, subject: "" }) });
+
+    expect(screen.getByText(T.recipientLabel)).toBeInTheDocument();
+    // Kreska i znak zapytania to jedyne dozwolone zastępniki - katalog
+    // ekspertów potrafi oddać rekord bez wypełnionego imienia.
+    expect(screen.getByText("-")).toBeInTheDocument();
+    expect(screen.getByText("?")).toBeInTheDocument();
+    expect(subjectField().value).toBe("");
   });
 
   it("zamknięty dialog nie renderuje formularza (nie da się wysłać zapytania z ukrycia)", () => {

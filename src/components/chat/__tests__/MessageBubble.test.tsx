@@ -130,6 +130,11 @@ function reactorsTitle(emoji: string): string {
   return t.reactions.reactorsTitle.replace("{{emoji}}", emoji);
 }
 
+/** Inicjał w kółku reagującego - ta sama reguła, co w komponencie. */
+function initialOf(label: string): string {
+  return label.trim().charAt(0).toUpperCase();
+}
+
 function chip(emoji: string): HTMLElement {
   const found = document.querySelector<HTMLElement>(`button[data-emoji="${emoji}"]`);
   if (!found) throw new Error(`test: brak chipa reakcji ${emoji}`);
@@ -559,7 +564,7 @@ describe("reakcje", () => {
     // Zofia nie ma avatara - zostaje inicjał.
     expect(within(tip).getByText("Z")).toBeTruthy();
     // Ja też nie mam profilu w mapie - inicjał liczy się z etykiety „Ty".
-    expect(within(tip).getByText("T")).toBeTruthy();
+    expect(within(tip).getByText(initialOf(t.reactions.you))).toBeTruthy();
   });
 
   it("reagujący bez profilu jest „Ktoś”, a profil z pustą nazwą daje znak zapytania", () => {
@@ -581,7 +586,7 @@ describe("reakcje", () => {
     // Profil z pustą nazwą: brak inicjału do pokazania.
     expect(within(tip).getByText("?")).toBeTruthy();
     // Brak profilu: inicjał liczy się z wyświetlanej etykiety („Ktoś").
-    expect(within(tip).getByText("K")).toBeTruthy();
+    expect(within(tip).getByText(initialOf(t.reactions.someone))).toBeTruthy();
   });
 });
 
@@ -768,6 +773,19 @@ describe("menu kontekstowe", () => {
     });
     openContextMenu(screen.getByTestId("attachment-file"));
     expect(screen.queryByRole("menuitem", { name: t.forward.action })).toBeNull();
+  });
+
+  // STRAŻNIK ZAŁOŻENIA dla `it.fails` poniżej. `it.fails` zielenieje od
+  // DOWOLNEGO wyjątku, więc sam z siebie nie odróżnia „pasek się nie otworzył"
+  // od „pozycji menu w ogóle nie ma". Ten test trzyma założenie osobno: gdyby
+  // pozycja „Dodaj reakcję" zniknęła albo została wyłączona, czerwieni się TU,
+  // a nie chowa pod oczekiwaną porażką.
+  it("pozycja „reaguj” JEST w menu i jest klikalna", () => {
+    renderBubble();
+    openContextMenu(screen.getByText(BODY));
+    const item = menuItem(t.react);
+    expect(item.getAttribute("aria-disabled")).not.toBe("true");
+    expect(item.getAttribute("data-disabled")).toBeNull();
   });
 
   // DEFEKT PRODUKCYJNY - zapisany jako `it.fails`, komponentu NIE ruszam.
