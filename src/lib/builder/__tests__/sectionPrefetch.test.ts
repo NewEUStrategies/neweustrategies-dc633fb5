@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { QueryClient } from "@tanstack/react-query";
 import type { BuilderDocument, SectionNode, WidgetNode } from "@/lib/builder/types";
 import {
@@ -10,10 +12,29 @@ import {
   prefetchAboveFoldQueries,
   prefetchCachedRouteQueries,
   widgetQueryOptionsList,
+  widgetCacheTargets,
   sectionQueryOptionsList,
   pendingSectionQueries,
   ABOVE_FOLD_SECTION_COUNT,
 } from "@/lib/builder/prefetch";
+import { shouldStreamSection } from "@/lib/builder/sectionStreaming";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import {
+  CATEGORY_CHIP_COLUMNS,
+  TAG_CHIP_COLUMNS,
+  categoriesQueryOptions,
+  tagsQueryOptions,
+} from "@/lib/builder/taxonomyQuery";
+import {
+  podcastLatestLimit,
+  webStoriesCarouselLimit,
+  podcastLatestQueryOptions,
+  webStoriesCarouselQueryOptions,
+} from "@/lib/builder/mediaListQuery";
+import { activePlansQueryOptions } from "@/lib/builder/pricingPlansQuery";
+import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
+import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
+import { billingKeys } from "@/lib/billing/keys";
 
 function makeWidget(type: WidgetNode["type"], extra: Partial<WidgetNode> = {}): WidgetNode {
   return {
@@ -230,7 +251,11 @@ describe("prefetchCachedRouteQueries", () => {
   it("warms EVERY section, not just the above-the-fold cap", async () => {
     const spy = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
     const sectionCount = ABOVE_FOLD_SECTION_COUNT + 5;
-    await prefetchCachedRouteQueries(qc, docOfSections(sectionCount), "pl");
+    // Budżet jest teraz WYMAGANY: martwe domyślne 6000 ms zniknęło razem
+    // z jedynym wywołaniem, które na nim polegało (strona główna przeszła na
+    // `prefetchAboveFoldQueries`). `0` = czekaj do końca, bez czapki - dla
+    // tego testu deterministyczniej niż jakikolwiek zegar.
+    await prefetchCachedRouteQueries(qc, docOfSections(sectionCount), "pl", 0);
     // One post-list prefetch per section - the whole document, uncapped.
     expect(spy).toHaveBeenCalledTimes(sectionCount);
   });
@@ -364,4 +389,245 @@ describe("pendingSectionQueries", () => {
     if (query && state) query.setState({ ...state, status: "error", error: new Error("boom") });
     expect(pendingSectionQueries(qc, section, "pl")).toHaveLength(0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// OGON PUNKTU 4: siedem typów widgetów bez gałęzi w rejestrze prefetchu.
+//
+// KLASA DEFEKTU. Brak gałęzi w `widgetQueryOptionsList` wyłącza NARAZ dwie
+// rzeczy, i to bez jednego komunikatu błędu:
+//   * prefetch SSR (`prefetchWidgets` iteruje po tym rejestrze) - serwer oddaje
+//     widget bez danych, treść doskakuje po hydratacji,
+//   * bramkę strumieniowania (`shouldStreamSection` wymaga NIEPUSTEJ listy
+//     zapytań sekcji) - sekcja liczy się jako statyczna, więc nawet
+//     `ServerSectionGate` nie ma na co czekać.
+// Dlatego każdy typ ma tu DWIE asercje: klucz zgodny z odczytem widoku ORAZ
+// niepusta lista widziana przez bramkę.
+//
+// DRUGA POŁOWA TEGO TESTU JEST STATYCZNA i to nie jest ozdoba. Klucz, którego
+// widget nie czyta, jest AWARIĄ CICHĄ: rozgrzany wpis nikogo nie obsługuje,
+// SSR zostaje pusty i nic nie płonie. Dopóki widoki mają własne `useQuery`
+// (przełączenie ich na te fabryki to zmiana w `components/.../widget-view/`,
+// poza tą), jedynym czujnikiem rozjazdu jest odczyt ich źródła.
+// ---------------------------------------------------------------------------
+
+const SRC = resolve(process.cwd(), "src");
+const WIDGET_VIEW = resolve(SRC, "components/builder/organisms/widget-view");
+
+function viewSource(file: string): string {
+  return readFileSync(resolve(WIDGET_VIEW, file), "utf8");
+}
+
+/** Sekcja spod zgięcia: index === aboveFoldCount, czyli pierwsza strumieniowa. */
+function streamsWithData(widget: WidgetNode): boolean {
+  return shouldStreamSection(makeSection([widget]), "pl", 3, 3, true);
+}
+
+describe("ogon punktu 4 - taksonomie (categories / tags)", () => {
+  it("categories grzeje DOKŁADNIE klucz czytany przez CategoriesView", () => {
+    const widget = makeWidget("categories");
+    const opts = widgetQueryOptionsList(widget, "pl");
+    expect(opts).toHaveLength(1);
+    expect(opts[0].queryKey).toEqual([WIDGET_QUERY_ROOTS.categories]);
+    expect(opts[0].queryKey).toEqual(categoriesQueryOptions().queryKey);
+    // Klucz jest niezależny od języka: PL i EN dzielą jeden wpis cache, bo
+    // `select` pobiera oba języki, a wybór następuje w renderze.
+    expect(widgetQueryOptionsList(widget, "en")[0].queryKey).toEqual(opts[0].queryKey);
+
+    const targets = widgetCacheTargets(widget, "pl");
+    expect(targets).toHaveLength(1);
+    expect(targets[0].key).toEqual(opts[0].queryKey);
+    // Zero oznaczałoby dla `useSectionPreload.isSectionFresh` "zawsze
+    // przestarzałe", czyli rozgrzewkę tej sekcji po każdym renderze.
+    expect(targets[0].staleTime).toBeGreaterThan(0);
+  });
+
+  it("tags grzeje DOKŁADNIE klucz czytany przez TagsView", () => {
+    const widget = makeWidget("tags");
+    const opts = widgetQueryOptionsList(widget, "pl");
+    expect(opts).toHaveLength(1);
+    expect(opts[0].queryKey).toEqual([WIDGET_QUERY_ROOTS.tags]);
+    expect(opts[0].queryKey).toEqual(tagsQueryOptions().queryKey);
+
+    const targets = widgetCacheTargets(widget, "pl");
+    expect(targets).toHaveLength(1);
+    expect(targets[0].key).toEqual(opts[0].queryKey);
+    expect(targets[0].staleTime).toBeGreaterThan(0);
+  });
+
+  it("sekcja z samymi chipami przestaje być klasyfikowana jako statyczna", () => {
+    expect(streamsWithData(makeWidget("categories"))).toBe(true);
+    expect(streamsWithData(makeWidget("tags"))).toBe(true);
+  });
+
+  it("widoki nadal czytają ten sam korzeń klucza i te same kolumny (bramka dryfu)", () => {
+    const cats = viewSource("CategoriesView.tsx");
+    expect(cats).toContain("queryKey: [WIDGET_QUERY_ROOTS.categories]");
+    expect(cats).toContain(`.select("${CATEGORY_CHIP_COLUMNS}")`);
+
+    const tags = viewSource("TagsView.tsx");
+    expect(tags).toContain("queryKey: [WIDGET_QUERY_ROOTS.tags]");
+    expect(tags).toContain(`.select("${TAG_CHIP_COLUMNS}")`);
+  });
+});
+
+describe("ogon punktu 4 - podcast-latest", () => {
+  it("grzeje ten sam wpis, po który sięga PodcastLatestView", () => {
+    const widget = makeWidget("podcast-latest", { content: { limit: 6 } } as Partial<WidgetNode>);
+    const opts = widgetQueryOptionsList(widget, "pl");
+    expect(opts).toHaveLength(1);
+    // Widok woła `latestPodcastsQueryOptions(getNum(c, "limit", 4))` - ta sama
+    // fabryka, ta sama liczba, więc ten sam wpis cache.
+    expect(opts[0].queryKey).toEqual(latestPodcastsQueryOptions(6).queryKey);
+    expect(opts[0].queryKey).toEqual(["podcasts", "latest", 6]);
+
+    const targets = widgetCacheTargets(widget, "pl");
+    expect(targets).toHaveLength(1);
+    expect(targets[0].key).toEqual(opts[0].queryKey);
+    expect(targets[0].staleTime).toBeGreaterThan(0);
+    expect(streamsWithData(widget)).toBe(true);
+  });
+
+  it("koercja `limit` jest kopią widoku - liczba, sam ciąg cyfr, albo 4", () => {
+    // Gdyby prefetch użył `asNum` z content-model, " 4 " i "4.5" dałyby INNY
+    // klucz niż widok - rozgrzewka trafiałaby w pustkę.
+    expect(podcastLatestLimit({ limit: 9 })).toBe(9);
+    expect(podcastLatestLimit({ limit: "9" })).toBe(9);
+    expect(podcastLatestLimit({ limit: " 9 " })).toBe(4);
+    expect(podcastLatestLimit({ limit: "4.5" })).toBe(4);
+    expect(podcastLatestLimit({ limit: "-2" })).toBe(4);
+    expect(podcastLatestLimit({})).toBe(4);
+    expect(podcastLatestQueryOptions({}).queryKey).toEqual(["podcasts", "latest", 4]);
+  });
+
+  it("widok nadal liczy `limit` tym samym wyrażeniem (bramka dryfu klucza)", () => {
+    const view = viewSource("PodcastLatestView.tsx");
+    expect(view).toContain(`getNum(c, "limit", 4)`);
+    expect(view).toContain("latestPodcastsQueryOptions(limit)");
+  });
+});
+
+describe("ogon punktu 4 - web-stories-carousel", () => {
+  it("grzeje ten sam wpis, po który sięga WebStoriesCarouselView", () => {
+    const widget = makeWidget("web-stories-carousel", {
+      content: { limit: 12 },
+    } as Partial<WidgetNode>);
+    const opts = widgetQueryOptionsList(widget, "pl");
+    expect(opts).toHaveLength(1);
+    expect(opts[0].queryKey).toEqual(latestWebStoriesQueryOptions(12).queryKey);
+    expect(opts[0].queryKey).toEqual(["web-stories", "latest", 12]);
+
+    const targets = widgetCacheTargets(widget, "pl");
+    expect(targets).toHaveLength(1);
+    expect(targets[0].key).toEqual(opts[0].queryKey);
+    expect(targets[0].staleTime).toBeGreaterThan(0);
+    expect(streamsWithData(widget)).toBe(true);
+  });
+
+  it("klamra 2..20 JEST częścią klucza, więc liczy ją rejestr, nie queryFn", () => {
+    expect(webStoriesCarouselLimit({})).toBe(8);
+    expect(webStoriesCarouselLimit({ limit: 1 })).toBe(2);
+    expect(webStoriesCarouselLimit({ limit: 99 })).toBe(20);
+    expect(webStoriesCarouselLimit({ limit: "3" })).toBe(3);
+    expect(webStoriesCarouselQueryOptions({ limit: 99 }).queryKey).toEqual([
+      "web-stories",
+      "latest",
+      20,
+    ]);
+  });
+
+  it("widok nadal zacieśnia `limit` tym samym wyrażeniem (bramka dryfu klucza)", () => {
+    const view = viewSource("WebStoriesCarouselView.tsx");
+    expect(view).toContain(`Math.max(2, Math.min(20, getNum(c, "limit", 8)))`);
+    expect(view).toContain("latestWebStoriesQueryOptions(limit)");
+  });
+});
+
+describe("ogon punktu 4 - pricing w trybie katalogu planów", () => {
+  it("grzeje `plans-active` tylko przy source === plans", () => {
+    const plans = makeWidget("pricing", { content: { source: "plans" } } as Partial<WidgetNode>);
+    const opts = widgetQueryOptionsList(plans, "pl");
+    expect(opts).toHaveLength(1);
+    // Ten sam klucz co widok i co loadery /pricing, /membership-join,
+    // /plans/$planId - jeden literał z billingKeys, więc rozjazd niewyrażalny.
+    expect(opts[0].queryKey).toEqual(billingKeys.plansActive());
+    expect(opts[0].queryKey).toEqual(activePlansQueryOptions().queryKey);
+
+    const targets = widgetCacheTargets(plans, "pl");
+    expect(targets).toHaveLength(1);
+    expect(targets[0].key).toEqual(opts[0].queryKey);
+    expect(targets[0].staleTime).toBeGreaterThan(0);
+    expect(streamsWithData(plans)).toBe(true);
+  });
+
+  it("tryb ręczny nie ma zapytania i pozostaje sekcją statyczną", () => {
+    const manual = makeWidget("pricing", {
+      content: { plans: [{ name_pl: "Podstawowy" }] },
+    } as Partial<WidgetNode>);
+    expect(widgetQueryOptionsList(manual, "pl")).toEqual([]);
+    expect(widgetCacheTargets(manual, "pl")).toEqual([]);
+    expect(streamsWithData(manual)).toBe(false);
+  });
+
+  it("bramka źródła jest kopią tej z SimpleWidgets (bramka dryfu)", () => {
+    const dispatch = readFileSync(resolve(WIDGET_VIEW, "SimpleWidgets.tsx"), "utf8");
+    expect(dispatch).toContain(`getStr(c, "source") === "plans"`);
+    const view = viewSource("PricingPlansView.tsx");
+    expect(view).toContain("billingKeys.plansActive()");
+    expect(view).toContain("queryFn: fetchActivePlans");
+  });
+});
+
+describe("ogon punktu 4 - typy CELOWO bez gałęzi", () => {
+  /**
+   * `tailored-must-reads` NIE MOŻE dostać gałęzi prefetchu SSR i to nie jest
+   * niedokończona praca, tylko decyzja - dlatego asercja jest twierdząca.
+   *
+   * TRZY NIEZALEŻNE POWODY:
+   *  1. ZATRUCIE WPISU GOŚCIA. `useRecommendedPosts` czyta zainteresowania
+   *     z `localStorage` (`anonMerge.readJson` zwraca `null`, gdy nie ma
+   *     `window`), a klucz gościa `["recommended-posts","anon",N]` jest po obu
+   *     stronach IDENTYCZNY. Rozgrzewka serwerowa wpisałaby więc do tego
+   *     klucza listę BEZ personalizacji, a klient serwowałby ją przez cały
+   *     `staleTime` 60 s - to jest GORSZE niż brak prefetchu.
+   *  2. BRAK TOŻSAMOŚCI NA SERWERZE. Klucz niesie `user?.id ?? "anon"`, a
+   *     sesję rozwiązuje przeglądarkowy klient Supabase - SSR widzi zawsze
+   *     `null`, więc dla zalogowanego grzalibyśmy wpis, którego widget nie
+   *     przeczyta.
+   *  3. KLUCZ ZALEŻNY OD WYNIKU. `useAuthorsMap` kluczuje po id autorów
+   *     WYLICZONYCH z rezultatu zapytania 1 - statyczny rejestr nie ma jak
+   *     tego wyrazić.
+   */
+  it("tailored-must-reads pozostaje poza rejestrem - rozgrzewka zatruwałaby klucz gościa", () => {
+    const widget = makeWidget("tailored-must-reads", {
+      content: { limit: 3 },
+    } as Partial<WidgetNode>);
+    expect(widgetQueryOptionsList(widget, "pl")).toEqual([]);
+    expect(widgetCacheTargets(widget, "pl")).toEqual([]);
+  });
+
+  /**
+   * `rated-list` w trybie dynamicznym JEST bezpieczny serwerowo (czyta wyłącznie
+   * `posts` / `post_categories` / `post_tags` / `profiles_public` przez RLS
+   * `public_tenant_id()`), ale nie da się go zarejestrować bez przeniesienia
+   * klucza i ~135-liniowego `queryFn` z `RatedListView.tsx` do modułu w
+   * `lib/builder`. Ten plik jest POZA partycją tej zmiany, a napisanie drugiej
+   * kopii zapytania byłoby dokładnie tym dryfem, który ta praca zamyka:
+   * klucz niesie 12 pól wyliczanych z treści, a `queryFn` wpieka zlokalizowany
+   * tytuł w cache'owane wiersze - dwie kopie rozjechałyby się przy pierwszej
+   * zmianie filtra i SSR oddawałby wiersze o innym kształcie niż widok.
+   *
+   * `it.fails` zamiast `it.skip`: asercja MA teraz padać i ma zgasnąć sama
+   * w chwili, gdy gałąź powstanie - wtedy ten test zrobi się czerwony
+   * ("oczekiwano porażki") i zmusi do usunięcia `.fails`.
+   */
+  it.fails(
+    "rated-list (dynamic) nie ma jeszcze gałęzi - ekstrakcja z widoku to decyzja dla człowieka",
+    () => {
+      const widget = makeWidget("rated-list", {
+        content: { source: "dynamic", orderBy: "title_asc" },
+      } as Partial<WidgetNode>);
+      expect(widgetQueryOptionsList(widget, "pl")).toHaveLength(1);
+    },
+  );
 });
