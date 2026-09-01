@@ -130,22 +130,32 @@ describe("getRouter - kontrakt opcji", () => {
   });
 });
 
+/**
+ * `rewrite.input`/`output` są typowane jako `string | URL`, a nasze przepisanie
+ * zawsze zwraca `URL` (mutuje wejście i je oddaje). Ten helper zawęża typ
+ * w JEDNYM miejscu, zamiast rzutować w każdej asercji.
+ */
+function pathOf(result: string | URL | undefined): string {
+  if (result === undefined) throw new Error("rewrite zwrócił undefined");
+  return typeof result === "string" ? new URL(result).pathname : result.pathname;
+}
+
 describe("getRouter - przepisywanie adresu na język", () => {
   it("input ZDEJMUJE prefiks języka przed dopasowaniem trasy", () => {
     const rw = getRouter().options.rewrite!;
-    expect(rw.input!({ url: new URL("https://x.test/en/o-nas") } as never).pathname).toBe("/o-nas");
+    expect(pathOf(rw.input!({ url: new URL("https://x.test/en/o-nas") } as never))).toBe("/o-nas");
     // Adres bez prefiksu zostaje nietknięty.
-    expect(rw.input!({ url: new URL("https://x.test/o-nas") } as never).pathname).toBe("/o-nas");
+    expect(pathOf(rw.input!({ url: new URL("https://x.test/o-nas") } as never))).toBe("/o-nas");
   });
 
   it("output DOKŁADA prefiks z języka renderu - obie gałęzie", () => {
     h.lang = "pl";
     const rwPl = getRouter().options.rewrite!;
-    expect(rwPl.output!({ url: new URL("https://x.test/o-nas") } as never).pathname).toBe("/o-nas");
+    expect(pathOf(rwPl.output!({ url: new URL("https://x.test/o-nas") } as never))).toBe("/o-nas");
     // EN to jedyna gałąź, w której `pathname` jest realnie mutowany.
     h.lang = "en";
     const rwEn = getRouter().options.rewrite!;
-    expect(rwEn.output!({ url: new URL("https://x.test/o-nas") } as never).pathname).toBe(
+    expect(pathOf(rwEn.output!({ url: new URL("https://x.test/o-nas") } as never))).toBe(
       "/en/o-nas",
     );
     h.lang = "pl";
@@ -220,7 +230,9 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     h.hydrateImpl = () => new Promise<void>(() => {});
     const r = getRouter();
     let done = false;
-    void r.options.hydrate!({} as never).then(() => {
+    // `options.hydrate` jest typowane jako `Awaitable<void>`, więc opakowujemy
+    // w `Promise.resolve` zamiast zakładać `.then`.
+    void Promise.resolve(r.options.hydrate!({} as never)).then(() => {
       done = true;
     });
     await vi.advanceTimersByTimeAsync(HYDRATE_BUDGET_MS - 1);
@@ -240,7 +252,7 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     h.server = false;
     h.hydrateImpl = async () => {};
-    const p = getRouter().options.hydrate!({} as never);
+    const p = Promise.resolve(getRouter().options.hydrate!({} as never));
     await vi.advanceTimersByTimeAsync(3 * HYDRATE_BUDGET_MS);
     await p;
     // Brak ostrzeżenia po trzykrotnym budżecie dowodzi, że timer jest
@@ -272,7 +284,7 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
 describe("getRouter - domyślne ekrany błędu", () => {
   it("defaultNotFoundComponent renderuje przyjazny ekran 404 z copy z errorCopy", () => {
     const NotFound = getRouter().options.defaultNotFoundComponent!;
-    const html = renderToStaticMarkup(<NotFound data={undefined} />);
+    const html = renderToStaticMarkup(<NotFound data={undefined} isNotFound routeId="__root__" />);
     expect(html).toContain("<h1");
     expect(html.length).toBeGreaterThan(50);
   });

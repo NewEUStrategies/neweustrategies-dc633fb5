@@ -121,7 +121,8 @@ vi.mock("@/lib/builder/prefetch", async (o) => ({
       // Fetch menu startuje po rozstrzygnięciu dynamicznego importu - anulujemy
       // DOPIERO gdy naprawdę leci, inaczej `cancelQueries` nie ma czego złapać.
       await new Promise((r) => setTimeout(r, 0));
-      await qcArg.cancelQueries({ queryKey: ["menu-with-items"], revert: true });
+      // `revert` jest OPCJĄ anulowania, nie filtrem - drugi argument.
+      await qcArg.cancelQueries({ queryKey: ["menu-with-items"] }, { revert: true });
     }
   },
 }));
@@ -290,7 +291,11 @@ describe("__root head()", () => {
 
 describe("__root wiring", () => {
   it("ma powłokę, komponent, 404 i ekran błędu", () => {
-    expect(typeof Route.options.shellComponent).toBe("function");
+    // `shellComponent` nie jest w publicznym typie `RouteOptions` korzenia
+    // (framework czyta je z opcji dynamicznie), więc czytamy przez zawężenie -
+    // NIE przez `any`, którego ten repozytorium zakazuje.
+    const opts = Route.options as unknown as Record<string, unknown>;
+    expect(typeof opts["shellComponent"]).toBe("function");
     expect(typeof Route.options.component).toBe("function");
     expect(typeof Route.options.notFoundComponent).toBe("function");
     expect(typeof Route.options.errorComponent).toBe("function");

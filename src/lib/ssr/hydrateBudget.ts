@@ -63,7 +63,11 @@ export interface HydrateBudgetOptions {
  * i zbędne wybudzenia; w przeglądarce - wyciek).
  */
 export async function withHydrateBudget(
-  work: Promise<unknown> | undefined,
+  // `PromiseLike`, nie `Promise`: hak `options.hydrate` frameworka jest typowany
+  // jako `Awaitable<void>`, czyli może być też wartością synchroniczną. Węższy
+  // typ wymuszałby rzutowanie w punkcie wywołania, a rzutowanie w takim miejscu
+  // to dokładnie ten rodzaj obejścia, który później ukrywa realną zmianę API.
+  work: PromiseLike<unknown> | void | undefined,
   options: HydrateBudgetOptions = {},
 ): Promise<void> {
   const { budgetMs = HYDRATE_BUDGET_MS, report = warnHydrateBudget, label } = options;

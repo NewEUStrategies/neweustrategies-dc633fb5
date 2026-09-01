@@ -47,11 +47,12 @@ vi.mock("@/lib/i18n", async (o) => {
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub, supabaseAuthStub, ok } = await import("@/test/supabase");
   const from = supabaseFromStub();
-  from.setDefaultResponse?.(ok([]));
   return {
     supabase: {
       from: from.from,
-      auth: supabaseAuthStub(),
+      // `supabaseAuthStub` wymaga identyfikatora - `null` znaczy ANONIM, czyli
+      // dokładnie stan, w jakim renderuje się publiczna powłoka dokumentu.
+      auth: supabaseAuthStub(null),
       channel: () => ({
         on: () => ({ subscribe: () => ({ unsubscribe: () => undefined }) }),
         subscribe: () => ({ unsubscribe: () => undefined }),
@@ -67,7 +68,10 @@ const { Route } = await import("@/routes/__root");
 
 describe("RootShell", () => {
   it("renderuje <html lang>, <head> i <body> - pełny dokument, nie fragment", () => {
-    const Shell = Route.options.shellComponent as unknown as (p: {
+    // `shellComponent` nie jest w publicznym typie `RouteOptions` (framework
+    // czyta je dynamicznie) - zawężamy przez `Record`, nie przez `any`.
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
       children: React.ReactNode;
     }) => React.ReactElement;
     const html = renderToStaticMarkup(<Shell>{null}</Shell>);
