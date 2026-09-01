@@ -1,13 +1,16 @@
 // Publiczny słowniczek pojęć (A7): /glossary - lista alfabetyczna z
 // definicjami PL/EN + JSON-LD DefinedTermSet/DefinedTerm (long-tail SEO).
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
 import { glossaryTermsQueryOptions } from "@/lib/queries/glossary";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import type { GlossaryTerm } from "@/lib/queries/glossary";
 
 const COPY = {
   pl: {
@@ -22,7 +25,27 @@ const COPY = {
   },
 } as const;
 
+/** Fallback zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_TERMS: GlossaryTerm[] = [];
+
 export const Route = createFileRoute("/glossary")({
+  // LOADER, KTÓREGO TA TRASA NIE MIAŁA. Bez niego SSR nie zawierał ani jednego
+  // terminu, a węzeł JSON-LD `DefinedTermSet` był z konstrukcji `null`
+  // (`if (!terms || terms.length === 0) return null`). Cała wartość tej strony
+  // to long-tail SEO, więc brak węzła strukturalnego kasował jej sens - a HTML
+  // bez terminów wchodził do NES Edge Cache na do 24 h.
+  //
+  // Ta trasa NIE ma tu `notFound()`: pusty słowniczek jest legalnym stanem
+  // (redakcja go dopiero uzupełnia) i ma własny, dwujęzyczny komunikat.
+  loader: async ({ context }) => {
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      glossaryTermsQueryOptions(),
+      NO_TERMS,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/glossary";
     const lang = activeLang(url);
@@ -42,7 +65,8 @@ function GlossaryPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const c = COPY[lang];
-  const { data: terms } = useQuery(glossaryTermsQueryOptions());
+  // Loader rozgrzał ten klucz, więc terminy i węzeł JSON-LD schodzą z SERWERA.
+  const { data: terms } = useSuspenseQuery(glossaryTermsQueryOptions());
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof terms>();

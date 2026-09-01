@@ -2,30 +2,13 @@
 // template_type === 'archive_listing'. Używa public Data API z
 // `posts.parent_page_id = parentPageId`.
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { PostListCard } from "@/components/molecules/PostListCard";
-import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
 
 interface Props {
   parentPageId: string;
   lang: "pl" | "en";
   parentPath: string; // e.g. "blog" or "news/2024"
-}
-
-interface Row {
-  id: string;
-  slug: string;
-  title_pl: string;
-  title_en: string;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
-  cover_image_url: string | null;
-  published_at: string | null;
-  // Wymagane przez `PostCardData` - oznaczenie pozycji listy jest obowiązkiem
-  // (UPNPR art. 7 pkt 11a), więc typ nie pozwala go pominąć w selekcie.
-  is_sponsored: boolean | null;
-  sponsored_kind: string | null;
-  sponsored_affiliate: boolean | null;
 }
 
 const L = {
@@ -35,24 +18,11 @@ const L = {
 
 export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
   const t = L[lang] ?? L.pl;
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["archive-listing", parentPageId] as const,
-    queryFn: async (): Promise<Row[]> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(
-          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, ${SPONSORED_LIST_COLS}`,
-        )
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .eq("parent_page_id", parentPageId)
-        .order("published_at", { ascending: false })
-        .limit(60);
-      if (error) throw error;
-      return (data ?? []) as Row[];
-    },
-    staleTime: 2 * 60_000,
-  });
+  // TA SAMA FABRYKA, CO W LOADERZE `/$` - jedno źródło klucza. Loader grzeje ją
+  // przez `ensureQueryData`, więc na serwerze wpis jest już rozstrzygnięty i ten
+  // komponent renderuje LISTĘ, nie gałąź przejściową (do 2026-09-01 SSR strony
+  // sekcyjnej nie zawierał ani jednego wpisu).
+  const { data: rows = [], isLoading } = useQuery(archiveListingQueryOptions(parentPageId));
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-6">...</p>;
   if (rows.length === 0) return <p className="text-sm text-muted-foreground py-6">{t.empty}</p>;
