@@ -114,12 +114,12 @@ do obcego obszaru. Nazwa `expert_requests` bywa jednak myląca, bo zostaje w
 mapie `extractLatestPolicies` jako duch po RENAME, którego statyczny parser nie
 umie odtworzyć:
 
-| migracja | co robi |
-| --- | --- |
-| `20260723090707` | `CREATE TABLE public.expert_inmails` + polityki `inmails: …` |
+| migracja         | co robi                                                                 |
+| ---------------- | ----------------------------------------------------------------------- |
+| `20260723090707` | `CREATE TABLE public.expert_inmails` + polityki `inmails: …`            |
 | `20260723180000` | RENAME na `expert_requests` + polityki `expert_requests: …` BEZ tenanta |
-| `20260806160001` | RENAME z powrotem na `expert_inmails` („rename nigdy nie wjechał") |
-| `20260806185055` | DROP obu starych rodzin nazw + polityki `expert_inmails: …` Z tenantem |
+| `20260806160001` | RENAME z powrotem na `expert_inmails` („rename nigdy nie wjechał")      |
+| `20260806185055` | DROP obu starych rodzin nazw + polityki `expert_inmails: …` Z tenantem  |
 
 Polityki podróżują z tabelą, więc stan końcowy siedzi na `expert_inmails`.
 `extractLatestPolicies` kluczuje po nazwie tabeli wyczytanej Z TEKSTU, więc
