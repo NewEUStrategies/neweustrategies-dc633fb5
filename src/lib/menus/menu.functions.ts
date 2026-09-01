@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { normalizeMenuVisibility } from "./visibility";
 import {
   parseMegaConfig,
   saveMenuInputSchema,
@@ -90,7 +91,7 @@ export async function fetchMenuWithItems(
     supabase
       .from("menu_items")
       .select(
-        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config, menus!inner(key)",
+        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, visibility, icon, mega_enabled, mega_config, menus!inner(key)",
       )
       .eq("menus.key", key)
       .order("position"),
@@ -118,6 +119,7 @@ export async function fetchMenuWithItems(
     href: (row.href as string) ?? "",
     target: (row.target as string) ?? "_self",
     css_class: (row.css_class as string) ?? "",
+    visibility: normalizeMenuVisibility((row as { visibility?: string | null }).visibility),
     icon: ((row as { icon?: string | null }).icon as string | null) ?? "",
     mega_enabled: Boolean(row.mega_enabled),
     mega_config: parseMegaConfig(row.mega_config),
@@ -199,6 +201,7 @@ export async function saveMenuItems(
     href: it.href,
     target: it.target,
     css_class: it.css_class,
+    visibility: it.visibility,
     icon: it.icon,
     mega_enabled: it.mega_enabled,
     mega_config: it.mega_config,

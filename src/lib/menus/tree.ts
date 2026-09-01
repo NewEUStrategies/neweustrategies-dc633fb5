@@ -19,6 +19,7 @@ import {
   type MegaConfig,
   type MenuItemInput,
   type MenuItemType,
+  type MenuItemVisibility,
 } from "./types";
 
 /** Maksymalna liczba POZIOMÓW menu (1 = same pozycje najwyższego rzędu). */
@@ -46,6 +47,7 @@ export interface MenuClientItem extends MenuTreeItem {
   href: string;
   target: "_self" | "_blank";
   css_class: string;
+  visibility: MenuItemVisibility;
   icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
@@ -306,6 +308,7 @@ export function appendMenuItems(
     href: draft.href,
     target: "_self",
     css_class: "",
+    visibility: "all",
     icon: "",
     mega_enabled: false,
     mega_config: DEFAULT_MEGA_CONFIG,
@@ -355,6 +358,7 @@ export function toSavePayload(
       href: it.href,
       target: it.target,
       css_class: it.css_class,
+      visibility: it.visibility,
       icon: it.icon,
       mega_enabled: it.mega_enabled,
       mega_config: it.mega_config,

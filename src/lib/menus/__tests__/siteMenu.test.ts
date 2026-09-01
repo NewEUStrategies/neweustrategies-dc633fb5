@@ -43,6 +43,7 @@ function row(over: Partial<MenuItemRow> & { id: string }): MenuItemRow {
     href: "",
     target: "_self",
     css_class: "",
+      visibility: "all" as const,
     icon: "",
     mega_enabled: false,
     mega_config: DEFAULT_MEGA_CONFIG,

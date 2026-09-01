@@ -293,6 +293,7 @@ describe("Powierzchnie SSR-owe z pomiarem przed malowaniem (D10-D13)", () => {
       href: "",
       target: "_self",
       css_class: "",
+      visibility: "all" as const,
       icon: "",
       mega_enabled: false,
       mega_config: DEFAULT_MEGA_CONFIG,
