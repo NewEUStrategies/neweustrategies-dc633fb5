@@ -318,7 +318,16 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
   describe("integracja router<->query: terminalny odczyt strumienia", () => {
     it("`hydrate(qc, undefined)` RZUCA - to jest przyczyna logu na każdym dokumencie", async () => {
       const { hydrate, QueryClient } = await import("@tanstack/query-core");
-      expect(() => hydrate(new QueryClient(), undefined)).toThrow(/mutations/);
+      // WYWOŁANIE REFLEKSYJNE, i to jest część dowodu, nie obejście lintera:
+      // sygnatura `hydrate` NIE DOPUSZCZA `undefined` (`Partial<DehydratedState>`),
+      // więc `tsc` odrzuca ten argument wprost. Biblioteka dochodzi do tego
+      // wywołania tylko dlatego, że w jej buildzie `value` z
+      // `ReadableStreamReadResult` nie jest opcjonalne - czyli typ obiecuje coś,
+      // czego strumień na odczycie terminalnym nie dowozi. `Reflect.apply` woła
+      // to tak, jak zrobi to przeglądarka, bez rzutowania w naszym kodzie.
+      expect(() => Reflect.apply(hydrate, undefined, [new QueryClient(), undefined])).toThrow(
+        /mutations/,
+      );
     });
 
     it("biblioteka nadal woła `hydrate` PRZED sprawdzeniem `done`", async () => {
