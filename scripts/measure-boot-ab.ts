@@ -84,8 +84,23 @@ function buildArtifact(tree: string): boolean {
   }).ok;
 }
 
+/**
+ * Uruchamia sondę i oddaje próbkę - albo `null`, jeśli przebieg PADŁ.
+ *
+ * SPRAWDZENIE `ok` JEST KONIECZNE, nie ostrożnościowe, i to jest naprawa
+ * znaleziska z recenzji. Sonda wypisuje próbkę `console.log`-iem ZANIM dojdzie
+ * do swojej asercji integralności („dokument SSR nie jest pusty"). Gdy ta
+ * asercja pada, Playwright kończy się kodem niezerowym, ale komplet JSON-a
+ * ZOSTAJE na standardowym wyjściu. Wersja, która brała tylko `stdout`, parsowała
+ * ten JSON, przyjmowała próbkę z PADNIĘTEGO przebiegu i kończyła orkiestrator
+ * zerem - czyli unieważniała jedyną asercję integralności, jaką ten pomiar ma.
+ * Kolejność w sondzie nie jest przy tym przypadkowa i nie chcę jej odwracać:
+ * próbka musi zostać wypisana także wtedy, gdy asercja pada, bo wtedy jest
+ * materiałem diagnostycznym. Odpowiedzialność za odrzucenie jej należy więc
+ * TUTAJ.
+ */
 function probe(tree: string, label: string, port: number, route: string): BootSample | null {
-  const { stdout } = run(
+  const { ok, stdout } = run(
     "./node_modules/.bin/playwright",
     ["test", "--config", "playwright.ab.config.ts"],
     {
@@ -94,6 +109,14 @@ function probe(tree: string, label: string, port: number, route: string): BootSa
       label: `pomiar ${label} na ${route}`,
     },
   );
+  if (!ok) {
+    process.stderr.write(
+      `Sonda ${label} PADŁA (kod niezerowy). Próbka z padniętego przebiegu jest ` +
+        "odrzucana, nawet jeśli JSON został wypisany - ostatnie linie wyjścia:\n",
+    );
+    process.stderr.write(stdout.split("\n").slice(-30).join("\n") + "\n");
+    return null;
+  }
   const sample = parseProbeOutput(stdout, label);
   if (!sample) process.stderr.write(stdout.split("\n").slice(-25).join("\n") + "\n");
   return sample;
