@@ -2,7 +2,8 @@
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
 // Colors and label overridable per light/dark via CSS custom properties.
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -480,7 +481,13 @@ function TickerGlassMarquee({
 
   // One lap = half of the duplicated track. Measuring it keeps the configured
   // speed honest (px/s) no matter how many posts or how long the titles are.
-  useLayoutEffect(() => {
+  // This bar is server-rendered on every page, so the measurement branch is
+  // stated explicitly: the layout hook on the client (the correction lands
+  // before paint), plain useEffect on the server, where no effect body runs at
+  // all. The server therefore keeps lapPx === 0 and falls back to `estimated`
+  // below - a deterministic value, identical in the SSR HTML and in the
+  // client's first pass.
+  useIsomorphicLayoutEffect(() => {
     const el = trackRef.current;
     if (!el) return;
     const measure = () => setLapPx(el.scrollWidth / 2);
