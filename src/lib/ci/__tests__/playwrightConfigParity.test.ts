@@ -31,6 +31,14 @@ const DEFAULT_CONFIG = "playwright.config.ts";
 const ARTIFACT_CONFIG = "playwright.artifact.config.ts";
 const E2E_DIR = "e2e";
 
+// TRZECIA konfiguracja - pomiar porównawczy pierwszego wczytania. Rozwiązuje
+// ten sam problem INNYM sposobem niż dwie pierwsze i to jest świadome: zamiast
+// trzeciego wzorca do utrzymania w dwóch miejscach ma WŁASNY KATALOG, którego
+// `testDir: "./e2e"` nie widzi z definicji. Asercje na dole pilnują, że ten
+// rozdział naprawdę jest strukturalny, a nie tylko zadeklarowany w komentarzu.
+const AB_CONFIG = "playwright.ab.config.ts";
+const AB_DIR = "e2e-ab";
+
 /**
  * Wyciąga literał wyrażenia regularnego stojący po podanym kluczu.
  *
@@ -45,6 +53,23 @@ function regexLiteralAfter(source: string, key: string): string {
   return match[1];
 }
 
+/**
+ * Wyciąga ZADEKLAROWANĄ wartość `testDir`, a nie pierwsze wystąpienie napisu.
+ *
+ * TO JEST POPRAWKA Z CZERWONEGO PRZEBIEGU, nie ostrożność. Pierwsza wersja tej
+ * asercji sprawdzała po prostu, czy w źródle NIE MA napisu `testDir: "./e2e"` -
+ * i padła słusznie, bo `playwright.ab.config.ts` ma ten napis W KOMENTARZU,
+ * który wyjaśnia, czym różni się od dwóch pozostałych konfiguracji. Asercja
+ * o KODZIE nie może patrzeć na prozę: zakotwiczenie na początku linii
+ * (`^\s*testDir:`) przepuszcza wyłącznie deklarację właściwości, bo w komentarzu
+ * przed nazwą stoi `//`.
+ */
+function declaredTestDir(source: string, label: string): string {
+  const match = /^\s*testDir:\s*"([^"]+)"/m.exec(source);
+  if (!match) throw new Error(`nie znalazłem deklaracji \`testDir\` w ${label}`);
+  return match[1];
+}
+
 /** Literał `/wzorzec/flagi` -> działający `RegExp`. */
 function toRegExp(literal: string): RegExp {
   const lastSlash = literal.lastIndexOf("/");
@@ -53,6 +78,7 @@ function toRegExp(literal: string): RegExp {
 
 const defaultSource = readFileSync(DEFAULT_CONFIG, "utf8");
 const artifactSource = readFileSync(ARTIFACT_CONFIG, "utf8");
+const abSource = readFileSync(AB_CONFIG, "utf8");
 
 const ignoreLiteral = regexLiteralAfter(defaultSource, "testIgnore");
 const matchLiteral = regexLiteralAfter(artifactSource, "testMatch");
@@ -119,5 +145,71 @@ describe("parytet konfiguracji Playwrighta", () => {
       return match[1];
     };
     expect(portOf(defaultSource)).not.toBe(portOf(artifactSource));
+  });
+});
+
+// ── TRZECIA KONFIGURACJA: POMIAR PORÓWNAWCZY ────────────────────────────────
+//
+// Rozdział przez KATALOG, nie przez wzorzec - i to jest wybór, nie przypadek.
+// Dwie pierwsze konfiguracje dzielą katalog `e2e/` i muszą trzymać dwa wzorce
+// zgodne znak w znak; trzecia mogłaby wejść w ten sam schemat i wtedy każdy nowy
+// spec artefaktowy wymagałby aktualizacji TRZECH miejsc. Własny katalog zdejmuje
+// to sprzężenie u źródła: `testDir: "./e2e"` nie ma jak podnieść pliku z `e2e-ab/`.
+//
+// Skoro jednak gwarancja przeniosła się z wzorca na strukturę katalogów, to TA
+// struktura musi być pilnowana - inaczej wystarczy, żeby ktoś przeniósł spec
+// „bliżej reszty testów", i pomiar pojedzie po dev-serwerze. Dokładnie ta awaria
+// wydarzyła się już raz (przebieg 33512138275).
+describe("rozdział katalogów: pomiar porównawczy vs reszta suity", () => {
+  it("konfiguracja pomiaru czyta WŁASNY katalog, nie `e2e`", () => {
+    expect(declaredTestDir(abSource, AB_CONFIG)).toBe(`./${AB_DIR}`);
+  });
+
+  it("obie pozostałe konfiguracje czytają `e2e`, więc `e2e-ab` jest dla nich niewidoczne", () => {
+    // To jest ZAŁOŻENIE, na którym stoi cały ten rozdział - pinujemy je, bo
+    // zmiana `testDir` na `"."` w którejkolwiek z nich cicho wciągnęłaby spec
+    // pomiarowy do suity dev-serwera.
+    expect(declaredTestDir(defaultSource, DEFAULT_CONFIG)).toBe("./e2e");
+    expect(declaredTestDir(artifactSource, ARTIFACT_CONFIG)).toBe("./e2e");
+  });
+
+  it("katalog pomiaru NIE JEST pusty - inaczej ta bramka pilnuje pustki", () => {
+    // Kontrola pozytywna, ta sama zasada co przy wzorcu artefaktowym wyżej.
+    const abSpecs = readdirSync(AB_DIR).filter((name) => name.endsWith(".spec.ts"));
+    expect(abSpecs.length, `\`${AB_DIR}/\` nie zawiera ani jednego specu`).toBeGreaterThan(0);
+  });
+
+  it("ŻADEN spec pomiarowy nie leży w `e2e` - tam pojechałby po dev-serwerze", () => {
+    // Nazwa pliku jest tu jedynym sygnałem, jakim dysponujemy z zewnątrz, i to
+    // wystarcza: spec pomiaru porównawczego nazywa się `bootCompare`, a jego
+    // obecność w `e2e/` znaczyłaby, że wrócił pod domyślną konfigurację.
+    const strays = specs.filter((name) => /bootCompare/i.test(name));
+    expect(strays, "spec pomiaru porównawczego wrócił do katalogu dev-serwera").toEqual([]);
+  });
+
+  it("wszystkie trzy konfiguracje mierzą RÓŻNE porty", () => {
+    const portOf = (source: string, label: string): string => {
+      const match = /const PORT = (?:Number\(process\.env\.\w+ \?\? )?(\d+)/.exec(source);
+      if (!match) throw new Error(`nie znalazłem stałej PORT w ${label}`);
+      return match[1];
+    };
+    const ports = [
+      portOf(defaultSource, DEFAULT_CONFIG),
+      portOf(artifactSource, ARTIFACT_CONFIG),
+      portOf(abSource, AB_CONFIG),
+    ];
+    expect(new Set(ports).size, `porty: ${ports.join(", ")}`).toBe(ports.length);
+  });
+
+  it("konfiguracja pomiaru NIE przejmuje cudzego serwera", () => {
+    // Tu stawka jest wyższa niż przy konfiguracji artefaktowej: przejęcie
+    // serwera z PIERWSZEJ połowy porównania oddałoby różnicę zero przy realnej
+    // zmianie, czyli awarię pomiaru w jego najcichszej postaci.
+    expect(abSource).toMatch(/reuseExistingServer:\s*false/);
+  });
+
+  it("pomiar nie POWTARZA przebiegu - powtórka podmieniłaby próbkę", () => {
+    expect(abSource).toMatch(/retries:\s*0/);
+    expect(abSource).toMatch(/workers:\s*1/);
   });
 });
