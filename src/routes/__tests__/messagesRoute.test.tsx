@@ -526,13 +526,19 @@ describe("trasa /messages - deep link i wybór rozmowy", () => {
     expect(h.chatWindow?.conversationId).toBe(CHAT_IDS.otherConversation);
   });
 
-  it("bez deep linku pulpit otwiera najnowszy AKTYWNY wątek, nigdy zarchiwizowanego", async () => {
-    h.views = [archivedThread(ARCHIVED_ONE, "Archiwum jeden"), janThread()];
-    await mountMessages();
+  it("bez deep linku pulpit otwiera PIERWSZY aktywny wątek, nigdy zarchiwizowanego", async () => {
+    // Archiwalny wątek stoi NA CZELE listy, a aktywnych jest dwa. Oba warunki
+    // są potrzebne: przy jednym aktywnym kandydacie test przechodziłby także
+    // implementacji biorącej `views.at(-1)`, a bez archiwum na czele - takiej,
+    // która bierze `views[0]` i otwiera użytkownikowi to, co sam schował.
+    h.views = [archivedThread(ARCHIVED_ONE, "Archiwum jeden"), janThread(), zofiaThread()];
+    const view = await mountMessages();
 
     await waitFor(() => expect(h.chatWindow?.conversationId).toBe(CHAT_IDS.otherConversation));
-    // Auto-otwarcie nie dotyka adresu - deep link zostaje pusty.
-    expect(screen.queryByTestId("chat-window")).toBeInTheDocument();
+    // Auto-otwarcie idzie przez `setSelected` BEZ `navigate`, więc deep link
+    // zostaje pusty - inaczej odświeżenie strony przyklejałoby przypadkowe
+    // `?c=`, którego użytkownik nigdy nie wybrał.
+    expect(view.search()).toEqual({});
   });
 
   it("lista rozmów jest podpięta pod aktualizacje na żywo", async () => {
@@ -609,6 +615,34 @@ describe("trasa /messages - filtry listy rozmów", () => {
     expect(screen.getByText(chatPl.chat.filters.empty)).toBeInTheDocument();
     expect(screen.queryByText(chatPl.chat.noConversations)).toBeNull();
   });
+
+  // ZACHOWANIE OBECNE, NIE POŻĄDANE - test pinujący, nie aprobata.
+  // Fallback pustej listy keyuje się o `searched.length` (messages.tsx ~490),
+  // czyli o wynik filtrowania PO NAZWIE, a nie o to, czy użytkownik w ogóle
+  // coś wpisał. Skutek: fraza bez trafień dostaje „Brak rozmów. Znajdź osoby
+  // i rozpocznij pierwszą rozmowę." plus CTA „Nowa wiadomość" - komunikat o
+  // PUSTEJ SKRZYNCE pokazany komuś, kto ma trzy rozmowy i tylko źle wpisał
+  // nazwę. Zapisane jako test przechodzący, a nie `it.fails`, bo to podział
+  // wprost z kontraktu zadania (`noConversations` dla pustego `searched`) -
+  // zmiana należy do koordynatora produktu. Sens tego testu jest taki, że gdy
+  // ta decyzja zapadnie, poprawka ZŁAMIE go głośno, zamiast przejść
+  // niezauważona przez zestaw, który tej gałęzi w ogóle nie dotykał.
+  it("fraza bez trafień pokazuje DZIŚ komunikat pustej skrzynki wraz z CTA", async () => {
+    await mountMessages();
+    fireEvent.change(filterInput(), { target: { value: "fraza-bez-trafien" } });
+
+    await waitFor(() => expect(screen.queryByText("Zofia Testowa")).toBeNull());
+    // Lista NIE jest pusta - to samo wpisanie frazy wyczyściło widok.
+    expect(screen.queryByText("Jan Przykładowy")).toBeNull();
+    expect(screen.queryByText("Krąg energetyczny")).toBeNull();
+
+    const emptyBox = screen.getByText(chatPl.chat.noConversations).parentElement;
+    if (!emptyBox) throw new Error("test: komunikat pustej listy bez kontenera");
+    expect(screen.queryByText(chatPl.chat.filters.empty)).toBeNull();
+    expect(
+      within(emptyBox).getByRole("button", { name: chatPl.chat.newMessage }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("trasa /messages - sekcja archiwum", () => {
@@ -672,8 +706,31 @@ describe("trasa /messages - wyszukiwanie w treści wiadomości", () => {
       target: { value: "zofia".slice(0, MESSAGE_SEARCH_MIN_CHARS) },
     });
     expect(section()).toBeInTheDocument();
-    // Skrzynka szuka po WSZYSTKICH rozmowach (null), nie po otwartej.
-    expect(h.searchArgs.at(-1)?.conversationId).toBeNull();
+  });
+
+  it("wpisana fraza dojeżdża do wyszukiwarki treści i szuka po WSZYSTKICH rozmowach", async () => {
+    await mountMessages();
+    const phrase = "zofia";
+    fireEvent.change(filterInput(), { target: { value: phrase } });
+
+    // Zapytanie jest WYCISZONE (`useDebouncedValue`, 220 ms), więc pierwsze
+    // wywołania hooka po wpisaniu lecą jeszcze ze STARĄ frazą. Bez tego
+    // oczekiwania asercja na `at(-1)` czytałaby pusty łańcuch i „przechodziła"
+    // dla implementacji, która wpisanego tekstu nigdy nie podaje dalej.
+    await waitFor(() => expect(h.searchArgs.at(-1)?.q).toBe(phrase));
+    const last = h.searchArgs.at(-1);
+    // `null` = szukamy po wszystkich rozmowach, nie tylko po otwartej.
+    expect(last?.conversationId).toBeNull();
+    expect(last?.enabled).toBe(true);
+  });
+
+  it("poza zakładką czatu wyszukiwanie treści w ogóle nie rusza", async () => {
+    await mountMessages("/messages?view=notifications");
+
+    // Hook jest wołany bezwarunkowo (reguły hooków), więc dowodem nie jest
+    // brak wywołań, tylko to, że ANI RAZ nie dostał zgody na odpytanie RPC.
+    expect(h.searchArgs.length).toBeGreaterThan(0);
+    expect(h.searchArgs.map((a) => a.enabled)).not.toContain(true);
   });
 
   it("klik w trafienie otwiera właściwą rozmowę i przekazuje żądanie skoku", async () => {
@@ -717,6 +774,41 @@ describe("trasa /messages - wątek demonstracyjny", () => {
     fireEvent.click(screen.getByRole("button", { name: chatPl.chat.demoBot.openAria }));
     await waitFor(() => expect(screen.getByTestId("demo-bot-chat")).toBeInTheDocument());
     expect(view.search()).toEqual({ c: DEMO_BOT_ID });
+  });
+});
+
+describe("trasa /messages - tworzenie kręgu", () => {
+  it("dialog kręgu otwiera się z nagłówka listy, a utworzony krąg ląduje w adresie", async () => {
+    h.views = [zofiaThread()];
+    const view = await mountMessages();
+
+    expect(h.groupCreateDialog?.open).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: chatPl.chat.group.new }));
+    await waitFor(() => expect(h.groupCreateDialog?.open).toBe(true));
+
+    const dialog = h.groupCreateDialog;
+    if (!dialog) throw new Error("test: atrapa GroupCreateDialog nie dostała propsów");
+    act(() => dialog.onCreated(CHAT_IDS.otherConversation));
+
+    // `onCreated` idzie tą samą drogą co klik w listę (`openConversation`),
+    // więc świeży krąg ma się otworzyć I zapisać w adresie - inaczej po
+    // odświeżeniu użytkownik wraca do rozmowy sprzed założenia kręgu.
+    await waitFor(() => expect(view.search()).toEqual({ c: CHAT_IDS.otherConversation }));
+    expect(h.chatWindow?.conversationId).toBe(CHAT_IDS.otherConversation);
+  });
+
+  it("zamknięcie dialogu nie otwiera żadnej rozmowy ani nie rusza adresu", async () => {
+    h.views = [zofiaThread()];
+    const view = await mountMessages();
+    fireEvent.click(screen.getByRole("button", { name: chatPl.chat.group.new }));
+    await waitFor(() => expect(h.groupCreateDialog?.open).toBe(true));
+
+    const dialog = h.groupCreateDialog;
+    if (!dialog) throw new Error("test: atrapa GroupCreateDialog nie dostała propsów");
+    act(() => dialog.onClose());
+
+    await waitFor(() => expect(h.groupCreateDialog?.open).toBe(false));
+    expect(view.search()).toEqual({});
   });
 });
 
