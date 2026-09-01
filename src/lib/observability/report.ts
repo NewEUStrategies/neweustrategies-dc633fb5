@@ -9,15 +9,34 @@
 
 /** Built-in ingest route used when no external endpoint is configured. */
 export const INTERNAL_ERROR_ENDPOINT = "/api/public/client-errors";
+/** Built-in RUM ingest route - the vitals counterpart of the route above. */
+export const INTERNAL_VITALS_ENDPOINT = "/api/public/vitals";
 
-export function observabilityEndpoint(): string {
+/**
+ * Resolve the beacon target: the external sink wins when configured, otherwise
+ * the caller's OWN built-in route.
+ *
+ * The fallback is a PARAMETER, not a constant, because the two internal ingest
+ * routes are not interchangeable: `/api/public/client-errors` requires a
+ * `message` and drops anything without one, `/api/public/vitals` requires a
+ * known metric `name` and drops anything without one. Hard-coding the error
+ * route here and calling it from the vitals reporter would send every RUM
+ * sample into the error ingest, which answers 204 and inserts nothing - a
+ * silent, total loss of vitals with no failing request to notice it by.
+ */
+export function observabilityEndpoint(fallback: string = INTERNAL_ERROR_ENDPOINT): string {
   try {
     const env = import.meta.env as unknown as Record<string, string | undefined>;
     const url = env.VITE_OBSERVABILITY_ENDPOINT;
-    return url && url.length > 0 ? url : INTERNAL_ERROR_ENDPOINT;
+    return url && url.length > 0 ? url : fallback;
   } catch {
-    return INTERNAL_ERROR_ENDPOINT;
+    return fallback;
   }
+}
+
+/** Beacon target for Core Web Vitals: external sink, else the RUM ingest route. */
+export function vitalsEndpoint(): string {
+  return observabilityEndpoint(INTERNAL_VITALS_ENDPOINT);
 }
 
 export interface ClientErrorPayload {

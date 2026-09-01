@@ -450,6 +450,112 @@ describe("reguła flushu (unikanie zalewania zerami)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Defekt N1 (audyt wyd. 8, rozdz. 4): jedna wspólna zapadka `flushed` gubiła
+// CLS i INP narosłe PO pierwszym zrzucie na TEJ SAMEJ ścieżce. Każdy przypadek
+// w tym bloku jest CZERWONY na kodzie sprzed naprawy.
+describe("kumulacja po pierwszym zrzucie (N1)", () => {
+  it("po zrzucie na UKRYCIU karty kolejny `pagehide` raportuje NAROSŁE CLS i INP tej samej ścieżki", async () => {
+    const { initWebVitals } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2000)]);
+    FakeObserver.forType("layout-shift").emit([shift(0.05, 100)]);
+    FakeObserver.forType("event").emit([interaction(120)]);
+
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("hidden");
+    window.dispatchEvent(new Event("visibilitychange"));
+    expect(reportsFor("CLS")[0]?.metric.value).toBeCloseTo(0.05, 10);
+    expect(reportsFor("INP")[0]?.metric.value).toBe(120);
+
+    // Czytelnik wraca na TĘ SAMĄ stronę: doładowany obrazek przesuwa układ,
+    // kolejna interakcja jest wolniejsza.
+    visibility.mockReturnValue("visible");
+    window.dispatchEvent(new Event("visibilitychange"));
+    clearReports();
+    FakeObserver.forType("layout-shift").emit([shift(0.06, 900)]);
+    FakeObserver.forType("event").emit([interaction(300, 2)]);
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    const cls = reportsFor("CLS");
+    expect(cls).toHaveLength(1);
+    expect(cls[0]?.path).toBe("/en");
+    // WARTOŚĆ SKUMULOWANA, nie przyrost: wiersz niesie własną ocenę, a
+    // agregator liczy p75 po surowych wierszach.
+    expect(cls[0]?.metric.value).toBeCloseTo(0.11, 10);
+    const inp = reportsFor("INP");
+    expect(inp).toHaveLength(1);
+    expect(inp[0]?.metric.value).toBe(300);
+    // LCP jest finalne - drugi zrzut nie ma prawa go zdublować.
+    expect(reportsFor("LCP")).toHaveLength(0);
+  });
+
+  it("ocena ponownie zaraportowanego CLS idzie od SUMY, nie od przyrostu", async () => {
+    // Cztery przyrosty po 0,1 to cztery wiersze „good"; suma 0,4 to jeden
+    // wiersz „poor". Histogram ocen w panelu czyta ocenę z wiersza, więc
+    // przyrost dosłownie zamalowałby problem na zielono.
+    const { initWebVitals } = await loadWebVitals();
+    initWebVitals();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+
+    for (const [i, value] of [0.1, 0.1, 0.1, 0.1].entries()) {
+      FakeObserver.forType("layout-shift").emit([shift(value, 100 * (i + 1))]);
+      visibility.mockReturnValue("hidden");
+      window.dispatchEvent(new Event("visibilitychange"));
+      visibility.mockReturnValue("visible");
+      window.dispatchEvent(new Event("visibilitychange"));
+    }
+
+    const cls = reportsFor("CLS");
+    expect(cls).toHaveLength(4);
+    expect(cls.at(-1)?.metric.value).toBeCloseTo(0.4, 10);
+    expect(cls.at(-1)?.metric.rating).toBe("poor");
+  });
+
+  it("kolejne ukrycia BEZ nowych pomiarów nie dublują wierszy", async () => {
+    // „Tylko gdy urosło" jest tym, co powstrzymuje serię ukryć i powrotów
+    // przed zalaniem ingestu identycznymi próbkami.
+    const { initWebVitals } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("layout-shift").emit([shift(0.07, 100)]);
+    FakeObserver.forType("event").emit([interaction(90)]);
+
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    for (let i = 0; i < 4; i += 1) {
+      visibility.mockReturnValue("hidden");
+      window.dispatchEvent(new Event("visibilitychange"));
+      visibility.mockReturnValue("visible");
+      window.dispatchEvent(new Event("visibilitychange"));
+    }
+
+    expect(reportsFor("CLS")).toHaveLength(1);
+    expect(reportsFor("INP")).toHaveLength(1);
+  });
+
+  it("miękka nawigacja PO zrzucie nadal zeruje akumulatory dla nowej ścieżki", async () => {
+    // Zdjęcie wspólnej zapadki nie może przywrócić przeciekania próbek między
+    // ścieżkami - to jest obietnica z nagłówka docbloku modułu.
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("layout-shift").emit([shift(0.2, 100)]);
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("hidden");
+    window.dispatchEvent(new Event("visibilitychange"));
+
+    markWebVitalsPage("/blog");
+    clearReports();
+    FakeObserver.forType("layout-shift").emit([shift(0.01, 900)]);
+    window.dispatchEvent(new Event("pagehide"));
+
+    const cls = reportsFor("CLS");
+    expect(cls).toHaveLength(1);
+    expect(cls[0]?.path).toBe("/blog");
+    // 0,01 - a NIE 0,21: akumulator poprzedniej ścieżki nie przechodzi dalej.
+    expect(cls[0]?.metric.value).toBeCloseTo(0.01, 10);
+  });
+});
+
 describe("teardown - kontrakt cofnięcia zgody RODO", () => {
   it("rozłącza KAŻDY obserwer, zdejmuje listenery flushu i zwalnia flagę", async () => {
     const { initWebVitals } = await loadWebVitals();
@@ -562,17 +668,27 @@ describe("ścieżka produkcyjna: beacon", () => {
     });
   });
 
-  function captureBeacons(): Array<{ url: string; body: string }> {
-    const sent: Array<{ url: string; body: string }> = [];
+  function captureBeacons(): Array<{ url: string; body: BodyInit | null | undefined }> {
+    const sent: Array<{ url: string; body: BodyInit | null | undefined }> = [];
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       writable: true,
       value: (url: string | URL, body?: BodyInit | null) => {
-        sent.push({ url: String(url), body: String(body) });
+        sent.push({ url: String(url), body });
         return true;
       },
     });
     return sent;
+  }
+
+  /**
+   * The transport beacons a `Blob` (`sendBeaconPayload`), so the body CANNOT be
+   * read with `String(body)` - that yields "[object Blob]" and `JSON.parse`
+   * throws. Read it as text, tolerating a plain string for good measure.
+   */
+  async function beaconJson(body: BodyInit | null | undefined): Promise<unknown> {
+    const text = body instanceof Blob ? await body.text() : String(body);
+    return JSON.parse(text);
   }
 
   it("bije w wewnętrzną trasę ingest i nie loguje do konsoli", async () => {
@@ -587,17 +703,31 @@ describe("ścieżka produkcyjna: beacon", () => {
     expect(sent.length).toBeGreaterThanOrEqual(1);
     expect(sent[0]?.url).toBe("/api/public/vitals");
 
-    const payload = JSON.parse(String(sent[0]?.body)) as {
-      name: string;
-      value: number;
-      rating: string;
-      id: string;
-      url: string;
-      ts: number;
+    // The client BATCHES: one beacon carries `{metrics:[...]}`, not a bare
+    // sample. LCP and CLS leave together on the soft-navigation boundary.
+    const payload = (await beaconJson(sent[0]?.body)) as {
+      metrics: Array<{ name: string; value: number; rating: string; id: string; url: string; ts: number }>;
     };
-    expect(payload).toMatchObject({ name: "LCP", value: 2100, rating: "good", url: "/en" });
-    expect(payload.ts).toBeTypeOf("number");
-    expect(payload.id).toBeTypeOf("string");
+    const lcp = payload.metrics.find((m) => m.name === "LCP")!;
+    expect(lcp).toMatchObject({ name: "LCP", value: 2100, rating: "good", url: "/en" });
+    expect(lcp.ts).toBeTypeOf("number");
+    expect(lcp.id).toBeTypeOf("string");
+  });
+
+  it("beaconuje BLOB `application/json` - ten sam transport co raporty błędów", async () => {
+    // Ujednolicony transport (`sendBeaconPayload`) pakuje ładunek w Blob;
+    // trasa ingest czyta `req.text()`, więc oba kształty ciała są dla niej
+    // równoważne - patrz `src/routes/api/public/-vitals.test.ts`.
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    const sent = captureBeacons();
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+    markWebVitalsPage("/blog");
+
+    const body = sent[0]?.body;
+    expect(body).toBeInstanceOf(Blob);
+    expect((body as Blob).type).toBe("application/json");
   });
 
   it("zewnętrzny VITE_OBSERVABILITY_ENDPOINT wygrywa z trasą wewnętrzną", async () => {
@@ -637,6 +767,104 @@ describe("ścieżka produkcyjna: beacon", () => {
     initWebVitals();
     FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(1000)]);
     expect(() => markWebVitalsPage("/blog")).not.toThrow();
+  });
+
+  // -------------------------------------------------------------------------
+  // Defekt N2 (audyt wyd. 8, rozdz. 4): zdarzenia analityczne były batchowane
+  // (`src/lib/analytics/track.ts`), a metryki wydajności - nie. Jedno pierwsze
+  // wczytanie wysyłało do pięciu osobnych żądań HTTP i tyle samo osobnych
+  // round-tripów INSERT.
+  describe("batchowanie (N2)", () => {
+    it("PIERWSZE WCZYTANIE z pięcioma metrykami wychodzi JEDNYM żądaniem", async () => {
+      vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+      const sent = captureBeacons();
+      vi.spyOn(performance, "getEntriesByName").mockReturnValue([
+        { name: "first-contentful-paint", entryType: "paint", startTime: 900, duration: 0 },
+      ] as unknown as PerformanceEntryList);
+      vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+        { entryType: "navigation", responseStart: 210 },
+      ] as unknown as PerformanceEntryList);
+
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      FakeObserver.forType("layout-shift").emit([shift(0.03, 100)]);
+      FakeObserver.forType("event").emit([interaction(150)]);
+      // Granica zrzutu: zamknięcie karty. FCP i TTFB czekają w buforze od
+      // inicjalizacji, bo zaplanowany drain jest zadaniem makro.
+      window.dispatchEvent(new Event("pagehide"));
+
+      expect(sent).toHaveLength(1);
+      const payload = (await beaconJson(sent[0]?.body)) as { metrics: Array<{ name: string }> };
+      expect(payload.metrics.map((m) => m.name).sort()).toEqual([
+        "CLS",
+        "FCP",
+        "INP",
+        "LCP",
+        "TTFB",
+      ]);
+    });
+
+    it("pusta kolejka NIE bije beaconem - zrzut bez metryk to zero żądań", async () => {
+      vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+
+      window.dispatchEvent(new Event("pagehide"));
+      window.dispatchEvent(new Event("pagehide"));
+
+      expect(sent).toHaveLength(0);
+    });
+
+    it("KAŻDA granica zrzutu wysyła własne żądanie, a bufor nie przecieka między nimi", async () => {
+      vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(1500)]);
+      markWebVitalsPage("/blog");
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(1700)]);
+      markWebVitalsPage("/blog/wpis");
+
+      expect(sent).toHaveLength(2);
+      const first = (await beaconJson(sent[0]?.body)) as { metrics: Array<{ url: string }> };
+      const second = (await beaconJson(sent[1]?.body)) as { metrics: Array<{ url: string }> };
+      expect(first.metrics.every((m) => m.url === "/en")).toBe(true);
+      expect(second.metrics.every((m) => m.url === "/blog")).toBe(true);
+    });
+
+    it("ścieżka dłuższa niż limit kolumny jest przycinana PO STRONIE KLIENTA", async () => {
+      // Jedna zbyt długa próbka mogłaby przepchnąć całe ciało ponad MAX_BODY
+      // serwera i zabrać ze sobą pozostałe metryki tego samego zrzutu.
+      vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(1000)]);
+      markWebVitalsPage("/" + "p".repeat(900));
+
+      const payload = (await beaconJson(sent[0]?.body)) as { metrics: Array<{ url: string }> };
+      expect(payload.metrics[0]?.url.length).toBeLessThanOrEqual(512);
+    });
+
+    it("cofnięcie zgody PORZUCA to, co zostało w buforze - nic nie wychodzi po teardownie", async () => {
+      // Kontrakt RODO: po cofnięciu zgody nie może wyjść ANI JEDNA próbka,
+      // także ta, która czekała na zaplanowany zrzut.
+      vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+      const sent = captureBeacons();
+      vi.spyOn(performance, "getEntriesByName").mockReturnValue([
+        { name: "first-contentful-paint", entryType: "paint", startTime: 700, duration: 0 },
+      ] as unknown as PerformanceEntryList);
+
+      const { initWebVitals } = await loadWebVitals();
+      const teardown = initWebVitals();
+      teardown();
+      window.dispatchEvent(new Event("pagehide"));
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      expect(sent).toHaveLength(0);
+    });
   });
 });
 
