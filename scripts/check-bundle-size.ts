@@ -898,10 +898,17 @@ const CLIENT_DIR =
 //             jest wspólny `scripts/lib/bootClosure.ts` importowany przez oba -
 //             i to jest osobny PR, bo dotyka pliku o innym charterze.
 //
-//             FLOOR 577 - LICZBA Z HOSTA, DO PRZEFLOOROWANIA. Pomiar 573,17 KB
-//             (wydruk „573.2") plus 0,5% na rozbieżność host <-> runner (wpis
-//             VII), sufit do pełnego KB. Zapas 3,8 KB (0,66%), więc ostrzeżenie
-//             o zapasie poniżej 2% zapali się od pierwszego zielonego przebiegu.
+//             FLOOR 579 - LICZBA Z HOSTA, DO PRZEFLOOROWANIA. Pierwsza wersja
+//             tego wpisu stawiała 577 na pomiarze 573,17 KB i BYŁA POMIAREM
+//             W TRAKCIE ZMIANY: sonda bootu, `hydrateBudget`, `useNowMs`,
+//             `appReady`, `localeChunks` i trzy nowe moduły zapytań buildera
+//             weszły do domknięcia PO tym pomiarze. Na domkniętym drzewie
+//             artefakt daje 575,3 KB gzip / 1951,3 KB surowych (te same
+//             9 chunków), czyli floorowi 577 zostawało 0,29% zapasu - mniej niż
+//             udokumentowana rozbieżność host <-> runner (+0,466%), więc bramka
+//             padłaby na runnerze na własnym szumie. 579 = 575,3 + 0,5%, sufit
+//             do pełnego KB, zapas 3,7 KB (0,64%). Ostrzeżenie o zapasie poniżej
+//             2% zapali się i tak - to ten sam koszt maksymalnej czułości.
 //             Ryzyko rozjazdu host <-> runner jest tu najmniejsze z pięciu
 //             progów: jedyny ROZŁOŻONY pomiar (wpis III) pokazał deltę
 //             SKUPIONĄ w `admin.posts._slug` przy NAJWIĘKSZYM CHUNKU
@@ -1074,11 +1081,20 @@ const FROZEN_BUDGET_KB = {
   // (krawędź), tu wagę (wpis X).
   // Zmierzone 2026-09-01 NA HOŚCIE: 9 chunków, 573,17 KB gzip / 1944,3 KB
   // surowych (entry 270,5 + osiem vendorów).
-  // Floor 577 = pomiar + 0,5% (jak wyżej) i sufit do pełnego KB. Zapas 3,8 KB
-  // (0,66%). Kronika mierzyła tę liczbę RĘCZNIE 18.08 (~554 KB) i nigdy jej nie
+  // Kronika mierzyła tę liczbę RĘCZNIE 18.08 (~554 KB) i nigdy jej nie
   // bramkowała; +19 KB dryfu w dwa tygodnie to koszt braku progu.
-  // TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z RUNNERA (wpis V).
-  boot: 577,
+  // PRZEFLOOROWANE 577 -> 579 W TYM SAMYM DNIU, i to jest przyznanie się do
+  // błędu metody, nie ratchet za wzrostem: pomiar 573,17 KB został wzięty
+  // w TRAKCIE zmiany, przed wejściem sondy bootu (`bootProbeScript`), modułu
+  // `hydrateBudget`, `useNowMs`, `appReady`, `localeChunks` i trzech nowych
+  // modułów zapytań buildera w rejestrze prefetchu. Na DOMKNIĘTYM drzewie
+  // artefakt daje 575,3 KB, więc floor 577 miał 1,7 KB (0,29%) zapasu - mniej
+  // niż udokumentowana rozbieżność host <-> runner (+0,466%, wpis VII), czyli
+  // bramka zapaliłaby się na runnerze na własnym szumie, nie na regresji.
+  // Floor 579 = 575,3 + 0,5% (578,2) i sufit do pełnego KB; zapas 3,7 KB
+  // (0,64%). TA LICZBA JEST Z HOSTA I CZEKA NA PRZEFLOOROWANIE Z RUNNERA
+  // (wpis V) - w dół, jeśli runner pokaże mniej.
+  boot: 579,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
