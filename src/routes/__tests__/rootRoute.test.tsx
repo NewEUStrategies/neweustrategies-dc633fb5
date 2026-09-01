@@ -196,6 +196,38 @@ describe("__root loader", () => {
     expect(qc.getQueryState(["global-colors"])?.dataUpdatedAt).toBe(0);
   });
 
+  // ── ZASIEW UKŁADU TREŚCI - bez rozgrzewki sieciowej, ale MUSI BYĆ ─────────
+  //
+  // Defekt zgłoszony w recenzji PR #314 (P2). Wyrzucając `postLayoutSettings`
+  // z fali 1 wyrzuciłem razem z nim ZASIEW DOMYŚLNYCH, którego `main` miał
+  // w tym samym pliku, i tego nie zauważyłem. Zmierzone sondą na PRAWDZIWYM
+  // `ContentAreaStyle` przez `renderToStaticMarkup`: z pustym cache'em
+  // komponent emituje DOSŁOWNIE ZERO BAJTÓW, z wpisem - blok z
+  // `margin-bottom: 1.5rem`. Zastępstwa w CSS-ie nie ma:
+  // `@tailwindcss/typography` NIE jest zainstalowany (czyli `prose prose-lg`
+  // jest martwe), a `preflight.css` trzyma `* { margin: 0 }`. Skutek na trasach
+  // renderujących treść redakcyjną poza `/$`: akapity bez odstępów w SSR
+  // i przesunięcie układu po hydratacji.
+  //
+  // Ten przypadek pilnuje OBU połów naprawy: że zasiew jest, i że rodzi się
+  // przeterminowany - inaczej domyślne przypięłyby się na 5-10 minut i wartości
+  // najemcy nigdy by nie doszły.
+  it("zasiewa domyślny układ treści, i to PRZETERMINOWANY", async () => {
+    await runLoader(qc);
+    const state = qc.getQueryState(["post-layout-settings"]);
+    expect(state, "bez zasiewu ContentAreaStyle emituje w SSR zero bajtów").toBeTruthy();
+    expect(state?.dataUpdatedAt).toBe(0);
+  });
+
+  it("zasiew układu treści NIE nadpisuje wartości, którą ktoś już rozgrzał", async () => {
+    // `/$` grzeje ten klucz sam; zasiew korzenia nie może mu wejść w drogę.
+    const own = { list_style: "disc" };
+    qc.setQueryData(["post-layout-settings"], own);
+    await runLoader(qc);
+    expect(qc.getQueryData(["post-layout-settings"])).toBe(own);
+    expect(qc.getQueryState(["post-layout-settings"])?.dataUpdatedAt).toBeGreaterThan(0);
+  });
+
   it("NIE nadpisuje prawdziwych ustawień zasiewem", async () => {
     h.settings = { header: { builder_data: { sections: [] } } };
     await runLoader(qc);

@@ -42,6 +42,8 @@ import { AuthProvider } from "../hooks/useAuth";
 import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
+import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
+import { defaultPostLayoutSettings } from "../lib/postLayouts";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
@@ -333,12 +335,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
     // FALA 1 - wyłącznie to, czego render nie ma czym zastąpić.
     //
-    // `postLayoutSettings` NIE JEST tu już rozgrzewane: to OSOBNY klucz
+    // `postLayoutSettings` NIE JEST tu już ROZGRZEWANE SIECIOWO: to OSOBNY klucz
     // `edgeTtlCache("post_layout_settings:row")`, czyli osobny round-trip na
-    // każdej trasie publicznej, a jedyny jego konsument widoczny w SSR
-    // (`ContentAreaStyle`) renderuje `null` bez danych - traci więc wyłącznie
-    // typografię prozy, i to na trasach, które i tak jej nie mają. Trasa
-    // wpisu/strony grzeje je sobie sama (`routes/$.tsx`).
+    // każdej trasie publicznej. Trasa wpisu/strony grzeje go sobie sama
+    // (`routes/$.tsx`), a tu zostaje wyłącznie ZASIEW DOMYŚLNYCH (niżej) -
+    // za zero round-tripów.
+    //
+    // SPROSTOWANIE WŁASNEGO KOMENTARZA (Codex, PR #314, P2). Stało tu, że render
+    // „traci wyłącznie typografię prozy, i to na trasach, które i tak jej nie
+    // mają". OBA CZŁONY BYŁY NIEPRAWDZIWE i zasiew wypadł razem z rozgrzewką,
+    // czego nie zauważyłem. Zmierzone sondą na PRAWDZIWYM `ContentAreaStyle`
+    // przez `renderToStaticMarkup`: z pustym cache'em komponent emituje
+    // DOSŁOWNIE ZERO BAJTÓW (`components/ContentAreaStyle.tsx:12-13`), a z wpisem
+    // - blok z `margin-bottom: 1.5rem` dla akapitu. Zastępstwa w CSS-ie NIE MA:
+    // parser `styles.css` znajduje dokładnie dwie reguły marginesu akapitu i obie
+    // celują w kanwę edytora, `@tailwindcss/typography` NIE JEST w tym projekcie
+    // zainstalowany (czyli `prose prose-lg` w `ContentRenderer` jest MARTWE),
+    // a `preflight.css` trzyma `* { margin: 0 }`. Skutek na trasach, które
+    // renderują treść redakcyjną, a nie są `/$` (m.in. `/support`, podglądy,
+    // `/checkout/success`): akapity schodzą z serwera BEZ ODSTĘPÓW i dostają je
+    // po hydratacji - czyli realne przesunięcie układu, nie kosmetyka.
+    //
+    // Zasiew niżej zamyka to za zero round-tripów i jest PRZYWRÓCENIEM stanu
+    // z `main` (tam ten sam `defaultPostLayoutSettings()` był zasiewany
+    // w `__root.tsx`), więc nie może być regresją wobec bazy - tylko że tutaj
+    // rodzi się `{ updatedAt: 0 }`, czego wersja z maina nie miała.
     //
     // `globalColors` ZOSTAJE, wbrew pozorom bezkosztowo: jego `queryFn` i
     // `queryFn` tokenów wołają TEN SAM `fetchSiteDesignTokensRow()` z dedupem
@@ -381,6 +402,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     }
     if (!context.queryClient.getQueryData(globalColorsQueryOptions.queryKey)) {
       context.queryClient.setQueryData(globalColorsQueryOptions.queryKey, EMPTY_GLOBAL_COLORS, {
+        updatedAt: 0,
+      });
+    }
+    // ZASIEW BEZ ROZGRZEWKI - jedyny taki tutaj i dlatego z osobnym zdaniem.
+    // Trzy zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
+    // domyka klucz, którego fala 1 świadomie NIE dotyka (uzasadnienie wyżej).
+    // Bez niego `ContentAreaStyle` emituje w SSR zero bajtów, a odstępy akapitów
+    // dochodzą po hydratacji. `{ updatedAt: 0 }` znaczy, że klient i tak
+    // dociągnie wartości najemcy natychmiast po hydratacji - domyślne są tu
+    // pierwszym malowaniem, nie ostatnim słowem.
+    const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
+    if (!context.queryClient.getQueryData(postLayoutKey)) {
+      context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings(), {
         updatedAt: 0,
       });
     }

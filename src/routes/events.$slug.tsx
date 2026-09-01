@@ -129,7 +129,9 @@ export const Route = createFileRoute("/events/$slug")({
         context.queryClient,
         // "anon": dokument SSR jest anonimową skorupą, a to jest ten sam klucz,
         // który czyta przegląd (`user?.id ?? "anon"`) - zero dodatkowych
-        // round-tripów po hydratacji dla czytelnika niezalogowanego.
+        // round-tripów po hydratacji dla czytelnika NIEZALOGOWANEGO. Dla
+        // zalogowanego klucz jest inny (`user.id`), więc jeden refetch po
+        // hydratacji jest tu z założenia - nagłówek jest personalizowany.
         eventPageHeaderQueryOptions(params.slug, "anon"),
         NO_HEADER,
       ),
@@ -140,6 +142,58 @@ export const Route = createFileRoute("/events/$slug")({
     // `notFound()` WYŁĄCZNIE z CZYSTEGO odczytu. `degraded` znaczy „nie wiemy",
     // a 404 z niewiedzy wyrzuciłoby żywe wydarzenie z indeksu na dobę.
     if (!degraded && header.data === null) throw notFound();
+
+    // WPIS ANONIMOWY NIE MOŻE ZOSTAĆ WYDANY ZALOGOWANEMU JAKO ŚWIEŻY.
+    //
+    // Znalezione w recenzji Codeksa na PR #314 (P1), potwierdzone sondą na
+    // query-core 5.102.8. Mechanizm, ogniwo po ogniwie:
+    //   * `publicEventBySlugQueryOptions` ma klucz BEZ widza
+    //     (`["public-event", slug]`) i `staleTime: 60_000`;
+    //   * odczyt serwerowy jest ZAWSZE anonimowy (`previewAuthStorage` zwraca
+    //     `undefined` bez `window`, więc gotrue nie ma sesji, a PostgREST leci
+    //     na kluczu publikowalnym), a RLS `events public read` oddaje wiersz
+    //     wyłącznie dla `visibility='public' AND COALESCE(min_tier_rank,0)=0`;
+    //   * dla wydarzenia za bramką warstwy odczyt anonimowy daje więc `null`,
+    //     a `loadResilient` widzi `success` z `data !== undefined`, czyli
+    //     dehydratuje ten `null` ze STEMPLEM CZASU SERWERA;
+    //   * `notFound()` nie leci, bo nagłówek definerowy wiersz ma - i tak ma
+    //     być, wydarzenie ISTNIEJE;
+    //   * po hydratacji `EventShellBody` czyta ten `null` i zwraca upsell
+    //     PRZED `<Outlet />`, więc padają wszystkie zakładki naraz;
+    //   * nic tego nie unieważnia: `useAuth.reauthorizeContent` obejmuje
+    //     `["public","resolved"]` i `["unlocked-body"]`, a przy przeładowaniu
+    //     leci `INITIAL_SESSION`, dla którego `reauthorizeContent` jest
+    //     świadomie POMIJANE.
+    // ZMIERZONE sondą: dokument w wieku 5 s i 59 s -> `queryFn` wołany ZERO
+    // razy, dane zostają `null` na zawsze; dokument w wieku 300 s -> jeden
+    // refetch i widoczny przeskok upsell -> treść. Czyli dla wydarzenia za
+    // bramką (a to są strony o najmniejszym ruchu, więc dominuje MISS cache'a)
+    // uprawniony członek dostawał zaproszenie do planów bez wyjścia.
+    //
+    // NAPRAWA NIE JEST TĄ, KTÓRĄ ZAPROPONOWAŁ RECENZENT, i to jest świadome.
+    // Dołożenie widza do klucza cofnęłoby cały zysk punktu 4: serwer umie
+    // rozgrzać wyłącznie wariant anonimowy, więc KAŻDY zalogowany czytelnik
+    // hydratowałby się w PUDŁO cache'a, `useSuspenseQuery` niżej zawieszałby
+    // się bez danych i strumieniowana powłoka znowu zniknęłaby za fallbackiem -
+    // dokładnie defekt, który ta gałąź naprawia, tylko zawężony do
+    // zalogowanych. Do tego `edgeTtlCache` kluczuje wpisy PO HOŚCIE NAJEMCY,
+    // więc zapytanie z widzem w kluczu i tak zostałoby wypełnione wpisem
+    // pobranym pod inną tożsamością.
+    //
+    // Zamiast tego jedna gałąź: „odczyt anonimowy nie oddał nic dla wydarzenia,
+    // które PROWADNIE ISTNIEJE" znaczy „nie wiem, czy ten czytelnik ma dostęp"
+    // - więc wpis rodzi się PRZETERMINOWANY, tym samym `{ updatedAt: 0 }`,
+    // którym `resilientLoad` zasiewa swoje fallbacki. Wpis zostaje `success`,
+    // więc `useSuspenseQuery` nadal rozstrzyga się w SSR bez zawieszenia
+    // (sprawdzone: `wouldSuspend: false` w każdym scenariuszu sondy), HTML dla
+    // gościa nie zmienia się ani o bajt, a po hydratacji leci DOKŁADNIE JEDEN
+    // refetch - już z odtworzoną sesją, więc członek dostaje wiersz.
+    // Ścieżka szczęśliwa (wydarzenie publiczne, wiersz jest) nie płaci nic.
+    if (!degraded && header.data !== null && event.data === null) {
+      context.queryClient.setQueryData(publicEventBySlugQueryOptions(params.slug).queryKey, null, {
+        updatedAt: 0,
+      });
+    }
     const h = header.data;
     return {
       degraded,

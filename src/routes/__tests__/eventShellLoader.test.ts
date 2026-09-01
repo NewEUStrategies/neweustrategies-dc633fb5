@@ -94,11 +94,29 @@ type LoaderCtx = {
 type Loader = (ctx: LoaderCtx) => Promise<ShellLoaderData>;
 
 function runLoader(slug = "szczyt"): Promise<ShellLoaderData> {
+  return runLoaderWithClient(slug).then(({ data }) => data);
+}
+
+/**
+ * Ten sam przebieg, ale oddaje też KLIENT ZAPYTAŃ - bo część kontraktu tego
+ * loadera nie jest widoczna w jego wartości zwrotnej, tylko w STEMPLU CZASU
+ * wpisu cache'a (patrz przypadki o wpisie anonimowym niżej).
+ */
+async function runLoaderWithClient(
+  slug = "szczyt",
+): Promise<{ data: ShellLoaderData; queryClient: QueryClient }> {
   const loader = (EventShellRoute as unknown as { options: { loader: Loader } }).options.loader;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  return loader({ context: { queryClient }, params: { slug } });
+  const data = await loader({ context: { queryClient }, params: { slug } });
+  return { data, queryClient };
+}
+
+/** Stempel czasu wpisu `["public-event", slug]` - `null`, gdy wpisu nie ma. */
+function eventEntryUpdatedAt(queryClient: QueryClient, slug = "szczyt"): number | null {
+  const state = queryClient.getQueryState<unknown>(["public-event", slug]);
+  return state ? state.dataUpdatedAt : null;
 }
 
 const HEADER_ROW = {
@@ -135,6 +153,62 @@ describe("loader powłoki /events/$slug", () => {
     const data = await runLoader();
     expect(data.degraded).toBe(false);
     expect(data.headEvent?.slug).toBe("szczyt");
+  });
+
+  // ── WPIS ANONIMOWY NIE MOŻE ZOSTAĆ WYDANY ZALOGOWANEMU JAKO ŚWIEŻY ────────
+  //
+  // Defekt zgłoszony w recenzji PR #314 (P1) i potwierdzony sondą na
+  // query-core: klucz `["public-event", slug]` NIE niesie widza, a `staleTime`
+  // to 60 s. Odczyt serwerowy jest anonimowy, więc dla wydarzenia za bramką
+  // warstwy dehydratuje się `null` ze stemplem czasu serwera - i uprawniony
+  // członek po odtworzeniu sesji czyta ten `null`, dostając zaproszenie do
+  // planów PRZED `<Outlet />`, czyli tracąc wszystkie zakładki naraz. Nic tego
+  // nie unieważnia: `reauthorizeContent` tego klucza nie obejmuje, a przy
+  // przeładowaniu leci `INITIAL_SESSION`, dla którego jest ono pomijane.
+  // ZMIERZONE: dokument w wieku 5 s i 59 s -> zero refetchów, dane zostają
+  // `null` NA ZAWSZE.
+  //
+  // Te trzy przypadki pilnują naprawy po STEMPLU, a nie po wartości - bo
+  // wartość (`null`) jest w obu wariantach identyczna i test na niej
+  // przechodziłby przed naprawą i po niej.
+  it("wpis anonimowy dla wydarzenia ZA BRAMKĄ rodzi się PRZETERMINOWANY", async () => {
+    h.header = HEADER_ROW;
+    h.event = null;
+    const { queryClient } = await runLoaderWithClient();
+    expect(
+      eventEntryUpdatedAt(queryClient),
+      "bez `updatedAt: 0` uprawniony członek czyta anonimowy null przez 60 s",
+    ).toBe(0);
+  });
+
+  it("wydarzenie PUBLICZNE zachowuje normalny stempel - ścieżka szczęśliwa nic nie płaci", async () => {
+    h.header = HEADER_ROW;
+    h.event = { id: "e1", slug: "szczyt" };
+    const { queryClient } = await runLoaderWithClient();
+    const stamp = eventEntryUpdatedAt(queryClient);
+    expect(stamp).not.toBeNull();
+    expect(
+      stamp,
+      "przeterminowanie ścieżki szczęśliwej kosztowałoby refetch na każdym wejściu",
+    ).toBeGreaterThan(0);
+  });
+
+  it("przy DEGRADACJI transportu wpis też jest przeterminowany - ale robi to `loadResilient`", async () => {
+    // TEN PRZYPADEK NAPISAŁEM NAJPIERW ŹLE i zostawiam ślad, bo pomyłka jest
+    // pouczająca. Zakładałem, że gałąź degradacji stempla nie rusza, więc
+    // asercja brzmiała `not.toBe(0)`. Pomiar pokazał `0`: `loadResilient`
+    // ZASIEWA swój fallback z `{ updatedAt: 0 }` (`lib/ssr/resilientLoad.ts`),
+    // więc wpis rodzi się przeterminowany niezależnie od nowej gałęzi wyżej.
+    //
+    // Wniosek jest mocniejszy niż moja pierwotna teza: obie ścieżki „nie wiem"
+    // - brak dostępu i awaria transportu - kończą się wpisem, który klient
+    // dociągnie po hydratacji, tylko robią to DWA różne mechanizmy. Ten test
+    // pilnuje, żeby wypadnięcie któregokolwiek z nich było widoczne.
+    h.header = HEADER_ROW;
+    h.eventThrows = true;
+    const { data, queryClient } = await runLoaderWithClient();
+    expect(data.degraded).toBe(true);
+    expect(eventEntryUpdatedAt(queryClient)).toBe(0);
   });
 
   it("NIE rzuca 404 przy degradacji transportu - 404 z niewiedzy jest gorsze", async () => {
