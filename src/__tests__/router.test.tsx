@@ -279,6 +279,73 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
       expect(setupRouterSsrQueryIntegration.length).toBe(-1);
     },
   );
+
+  // ── DEFEKT BIBLIOTEKI, PRZYPIĘTY - nie mój, ale mój boot-test go widzi ────
+  //
+  // ZNALEZIONY PRZEZ `e2e/boot-artifact.spec.ts` na ZBUDOWANYM artefakcie:
+  // każde wczytanie strony publicznej wypisuje do konsoli
+  //   Error reading query stream: TypeError: Cannot read properties of
+  //   undefined (reading 'mutations')
+  // Przyczyna jest w `@tanstack/router-ssr-query-core` (dist/esm/index.js:93-95)
+  // i jest jednoliniowa - kolejność dwóch instrukcji:
+  //   reader.read().then(async function handle({ done, value }) {
+  //     hydrate(queryClient, value, hydrateOptions);   // <- WOŁANE PRZED...
+  //     if (done) return;                              // <- ...sprawdzeniem `done`
+  // Ostatni odczyt domkniętego strumienia to z definicji `{done: true, value:
+  // undefined}`, a `hydrate(qc, undefined)` czyta `dehydratedState.mutations`
+  // i rzuca. Rzut leci do `.catch`, który loguje `console.error`.
+  //
+  // SKUTEK JEST KOSMETYCZNY, i to trzeba powiedzieć wprost, żeby nikt nie
+  // gasił tego pośpiesznie: rzut wypada na odczycie TERMINALNYM, więc wszystkie
+  // PRAWDZIWE porcje strumienia są już zhydratowane. Nie ginie ani jedno
+  // zapytanie. Cena to jeden `console.error` na każdy dokument - czyli dokładnie
+  // ten rodzaj szumu, który przykrywa błędy prawdziwe.
+  //
+  // DLACZEGO NIE NAPRAWIAM TEGO U SIEBIE. `src/router.tsx` owija
+  // `options.hydrate`, więc seam wygląda na dostępny - nie jest. Biblioteka
+  // czyta `dehydrated.queryStream.getReader()` SAMA, a `ReadableStream` nie
+  // pozwala oddać terminalnego odczytu z wartością inną niż `undefined`
+  // (kontrakt strumienia). Zostają tylko obejścia: podstawić czytnik, który
+  // nigdy się nie rozstrzyga (wieczna obietnica na dokument), albo atrapę
+  // `getReader` w miejscu typowanym na `ReadableStream` (rzutowanie, którego
+  // ta gałąź nie dopuszcza). Zmiana zachowania produkcyjnego takim obejściem,
+  // żeby zgasić log, jest DECYZJĄ CZŁOWIEKA - nie robię jej przy okazji.
+  //
+  // CO ROBI TEN TEST. Przypina PRZYCZYNĘ, żeby zgoda na ten jeden komunikat
+  // w boot-teście nie przeżyła defektu. Gdy biblioteka to naprawi (przestawi
+  // dwie instrukcje albo przestanie rzucać na `undefined`), ten test zapali się
+  // sam i będzie sygnałem do zdjęcia wyjątku z `e2e/boot-artifact.spec.ts`.
+  describe("integracja router<->query: terminalny odczyt strumienia", () => {
+    it("`hydrate(qc, undefined)` RZUCA - to jest przyczyna logu na każdym dokumencie", async () => {
+      const { hydrate, QueryClient } = await import("@tanstack/query-core");
+      expect(() => hydrate(new QueryClient(), undefined)).toThrow(/mutations/);
+    });
+
+    it("biblioteka nadal woła `hydrate` PRZED sprawdzeniem `done`", async () => {
+      // Asercja po ŹRÓDLE paczki, bo tej ścieżki nie da się wywołać bez
+      // prawdziwego strumienia SSR-owego: klient integracji instaluje się
+      // wyłącznie w gałęzi `!isServer`, a w tym pliku integracja jest atrapą.
+      const { readFileSync } = await import("node:fs");
+      const source = readFileSync(
+        "node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js",
+        "utf8",
+      );
+      const readLoop = source.slice(source.indexOf("reader.read().then"));
+      const hydrateAt = readLoop.indexOf("hydrate(queryClient, value");
+      const doneAt = readLoop.indexOf("if (done)");
+      expect(
+        hydrateAt,
+        "kształt pętli odczytu się zmienił - przejrzyj defekt od nowa",
+      ).toBeGreaterThan(-1);
+      expect(
+        doneAt,
+        "kształt pętli odczytu się zmienił - przejrzyj defekt od nowa",
+      ).toBeGreaterThan(-1);
+      // GDY TO PRZESTANIE BYĆ PRAWDĄ, defekt jest naprawiony w górze rzeki
+      // i wyjątek w `e2e/boot-artifact.spec.ts` trzeba ZDJĄĆ.
+      expect(hydrateAt).toBeLessThan(doneAt);
+    });
+  });
 });
 
 describe("getRouter - domyślne ekrany błędu", () => {

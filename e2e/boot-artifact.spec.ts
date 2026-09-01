@@ -40,14 +40,78 @@ const GRANTED = "Włączone";
 /** Cztery kategorie zgód w `CATEGORIES` - tyle kafelków musi pokazać stan po kliku. */
 const CATEGORY_COUNT = 4;
 
+/**
+ * JEDYNY TOLEROWANY `console.error` - DEFEKT BIBLIOTEKI, NIE TEJ APLIKACJI.
+ *
+ * `@tanstack/router-ssr-query-core` (dist/esm/index.js:93-95) czyta strumień
+ * zapytań w pętli, w której `hydrate(queryClient, value)` stoi PRZED
+ * `if (done) return`. Ostatni odczyt domkniętego strumienia to z definicji
+ * `{done: true, value: undefined}`, a `hydrate(qc, undefined)` czyta
+ * `dehydratedState.mutations` i rzuca `TypeError`. Rzut leci do `.catch`
+ * biblioteki, który loguje ten komunikat - na KAŻDYM dokumencie.
+ *
+ * DLACZEGO TO WOLNO PRZEPUŚCIĆ, a nie jest to rozluźnienie bramki: rzut wypada
+ * na odczycie TERMINALNYM, więc wszystkie prawdziwe porcje strumienia są już
+ * zhydratowane i nie ginie ani jedno zapytanie. Wyjątek jest przy tym WĄSKI -
+ * wymaga OBU fragmentów naraz - a każdy inny `console.error` nadal wywraca ten
+ * test, bo po to on istnieje.
+ *
+ * WYJĄTEK NIE PRZEŻYJE DEFEKTU: przyczyna jest przypięta w
+ * `src/__tests__/router.test.tsx` („integracja router<->query: terminalny odczyt
+ * strumienia") asercją, że biblioteka NADAL woła `hydrate` przed sprawdzeniem
+ * `done`. Gdy to się zmieni, tamten test zapali się sam i będzie sygnałem do
+ * ZDJĘCIA tego wyjątku. Naprawa obejściem u nas (podstawiony czytnik, który
+ * nigdy się nie rozstrzyga) to zmiana zachowania produkcyjnego dla zgaszenia
+ * logu i DECYZJA NALEŻY DO CZŁOWIEKA - patrz komentarz w tamtym teście.
+ */
+const TOLERATED_LIBRARY_ERROR = ["Error reading query stream:", "mutations"] as const;
+
+function isToleratedLibraryError(text: string): boolean {
+  return TOLERATED_LIBRARY_ERROR.every((fragment) => text.includes(fragment));
+}
+
+/**
+ * DRUGI I OSTATNI WYJĄTEK: TRANSPORT DO OBCEGO HOSTA.
+ *
+ * Ten test jedzie po artefakcie BEZ BACKENDU - i w CI, i tutaj `SUPABASE_URL`
+ * to `https://placeholder.supabase.co`, host, który z konstrukcji nie istnieje.
+ * Zmierzone na artefakcie: od dwóch do czterech żądań na ten host kończy się
+ * `net::ERR_TUNNEL_CONNECTION_FAILED` (`site_settings`, `post_layout_settings`,
+ * `newsletter_settings`, `builder_popups`), a Chromium loguje każde jako
+ * `console.error`. LICZBA JEST NIEDETERMINISTYCZNA - zależy od tego, ile
+ * zapytań zdąży wystartować - więc wyjątek MUSI iść po pochodzeniu, nie po
+ * liczbie.
+ *
+ * GRANICA JEST WĄSKA I TO JEST W NIEJ NAJWAŻNIEJSZE. Przepuszczamy WYŁĄCZNIE
+ * awarie transportu (`net::ERR_*`) do hosta INNEGO niż ten, z którego zszedł
+ * dokument. Brakujący chunk aplikacji to `Failed to load resource` na URL-u
+ * WŁASNEGO pochodzenia (albo status HTTP, nie `net::ERR_*`) - i to nadal
+ * wywraca ten test, bo dokładnie po to on istnieje: awaria pobrania chunku
+ * bootu jest tą klasą, dla której go napisano.
+ */
+function isForeignTransportError(text: string, url: string, origin: string): boolean {
+  if (!text.includes("net::ERR_")) return false;
+  if (url === "") return false;
+  try {
+    return new URL(url).origin !== origin;
+  } catch {
+    return false;
+  }
+}
+
 test("zbudowany artefakt hydratuje się i ZOSTAJE interaktywny (/cookies)", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${String(e)}`));
   // `console` obok `pageerror` - i to nie jest pas i szelki. Awaria hydratacji
   // integracji router<->query objawia się `console.error`, który `pageerror`
   // przepuszcza; wszystkie istniejące nasłuchy w e2e/ są tylko `pageerror`.
+  const appOrigin = new URL(test.info().project.use.baseURL ?? "http://127.0.0.1").origin;
   page.on("console", (m) => {
-    if (m.type() === "error") errors.push(`console.error: ${m.text()}`);
+    if (m.type() !== "error") return;
+    const text = m.text();
+    if (isToleratedLibraryError(text)) return;
+    if (isForeignTransportError(text, m.location().url, appOrigin)) return;
+    errors.push(`console.error: ${text}`);
   });
 
   await page.goto("/cookies", { waitUntil: "load" });
