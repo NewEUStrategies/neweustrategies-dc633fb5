@@ -37,6 +37,26 @@
 // jawnym fallbackiem `null` i korzeń po prostu nie wysyła hintu - czyli
 // dokładnie dzisiejsze zachowanie. Rozjazd KSZTAŁTU literału jest zgłaszany
 // ostrzeżeniem builda, nie przemilczany.
+//
+// DLACZEGO `enforce: "pre"` I DLACZEGO WZORZEC, A NIE LITERAŁ - jedno i drugie
+// jest NAPRAWĄ, nie ostrożnością. Pierwsza wersja tej wtyczki nie miała
+// `enforce` i szukała literału `"{\n  pl: null,\n  en: null,\n}"` znak
+// w znak. Bez `enforce` wtyczka użytkownika trafia do koszyka „normal", czyli
+// ZA rdzeniowy `vite:esbuild`, więc do `transform` przychodził już kod PO
+// transpilacji TS - a esbuild USUWA PRZECINEK KOŃCOWY:
+//   źródło:      `{\n  pl: null,\n  en: null,\n}`
+//   po esbuildzie: `{\n  pl: null,\n  en: null\n}`
+// Literał nie pasował więc ANI RAZU. Zmierzone na buildzie 2026-09-01: wtyczka
+// wypisała swoje własne ostrzeżenie („nie znalazłem literału do podmiany"),
+// artefakt pojechał z `null` i hint słownika był MARTWY - dokładnie ta klasa
+// cichej straty, którą to zadanie zamyka, tylko wewnątrz jej własnej naprawy.
+// Ostrzeżenie zadziałało; nie zadziałał test, bo karmił hook TREŚCIĄ PLIKU
+// ŹRÓDŁOWEGO, czyli innym wejściem niż to, które dostaje build.
+// `enforce: "pre"` przywraca zamierzone wejście (surowy TS), a wzorzec niżej
+// zdejmuje samo SPRZĘŻENIE Z FORMATOWANIEM: przecinek końcowy, szerokość linii
+// i styl wcięć przestają decydować o tym, czy hint istnieje. Wzorzec pozostaje
+// WĄSKI - zakotwiczony na obu nazwach pól i na `null` - więc zmiana nazwy pola
+// nadal daje ostrzeżenie, a nie po cichu hint wskazujący w nic.
 import type { Plugin } from "vite";
 
 /** Moduły rdzenia słownika, po jednym na język interfejsu. */
@@ -52,8 +72,16 @@ const CORE_MODULES: Readonly<Record<"pl" | "en", string>> = {
  */
 const TARGET_MODULE = "src/lib/seo/localeChunks.ts";
 
-/** Literał, który podmieniamy - musi być zgodny z treścią pliku docelowego. */
-const PLACEHOLDER = "{\n  pl: null,\n  en: null,\n}";
+/**
+ * Literał, który podmieniamy. WZORZEC, nie tekst - uzasadnienie w nagłówku
+ * (przecinek końcowy zniknął po transpilacji i literał nie pasował ani razu).
+ *
+ * Wąski celowo: wymaga OBU nazw pól i OBU wartości `null`, więc przemianowanie
+ * pola nadal wywraca dopasowanie i zapala ostrzeżenie. Bez flagi `g`, bo
+ * `lastIndex` współdzielonego wyrażenia z flagą globalną fałszowałby drugie
+ * wywołanie w tym samym procesie (dwa środowiska builda, przypadki testowe).
+ */
+const PLACEHOLDER_RE = /\{\s*pl:\s*null\s*,\s*en:\s*null\s*,?\s*\}/;
 
 export type LocaleChunkUrls = Readonly<Record<"pl" | "en", string | null>>;
 
@@ -77,6 +105,10 @@ export function localeChunkPlugin(): Plugin {
   return {
     name: "nes:locale-chunks",
     apply: "build",
+    // PRZED rdzeniowym `vite:esbuild` - inaczej `transform` dostaje kod PO
+    // transpilacji TS, a nie treść pliku (patrz nagłówek: to był defekt, który
+    // unieważnił hint w całości).
+    enforce: "pre",
 
     transform(code, id) {
       if (!id.replace(/\\/g, "/").endsWith(TARGET_MODULE)) return null;
@@ -84,7 +116,7 @@ export function localeChunkPlugin(): Plugin {
       // przeglądarki nie jest - i tak ma być, bo klient tej wartości nie używa
       // (nagłówek HTTP jest wyłącznie serwerowy).
       if (discovered.pl === null && discovered.en === null) return null;
-      if (!code.includes(PLACEHOLDER)) {
+      if (!PLACEHOLDER_RE.test(code)) {
         // GŁOŚNO, nie po cichu: rozjazd kształtu literału znaczyłby hint
         // wskazujący w nic albo brak hintu bez żadnego śladu.
         this.warn(
@@ -94,7 +126,10 @@ export function localeChunkPlugin(): Plugin {
         return null;
       }
       return {
-        code: code.replace(PLACEHOLDER, JSON.stringify(discovered)),
+        // FUNKCJA zamiast łańcucha w drugim argumencie `replace`: w łańcuchu
+        // `$` jest znakiem sterującym (`$&`, `$1`), a nazwa pliku pochodzi
+        // z Rollupa, nie od nas. Funkcja wstawia wartość dosłownie.
+        code: code.replace(PLACEHOLDER_RE, () => JSON.stringify(discovered)),
         map: null,
       };
     },

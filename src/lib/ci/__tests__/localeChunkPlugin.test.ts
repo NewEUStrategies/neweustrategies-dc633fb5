@@ -10,6 +10,7 @@
 // Testujemy hooki wtyczki bezpośrednio, bez uruchamiania builda: to ten sam kod,
 // który wykona Rollup, tylko bez pięciu minut kompilacji.
 import { readFileSync } from "node:fs";
+import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 
 import { localeChunkPlugin } from "../../../../scripts/lib/localeChunkPlugin";
@@ -28,6 +29,7 @@ const TARGET = "/repo/src/lib/seo/localeChunks.ts";
 const SOURCE = readFileSync("src/lib/seo/localeChunks.ts", "utf8");
 
 type PluginWithHooks = {
+  enforce?: "pre" | "post";
   transform: (
     this: { warn: (m: string) => void },
     code: string,
@@ -106,16 +108,103 @@ describe("nes:locale-chunks - sprzężenie kształtu literału", () => {
   });
 
   it("rozjazd kształtu jest ZGŁASZANY ostrzeżeniem, nie przemilczany", () => {
+    // WSAD ZMIENIONY 2026-09-01: stał tu literał jednolinijkowy, który po
+    // zdjęciu sprzężenia z formatowaniem PRZECHODZI (i słusznie - patrz ostatni
+    // przypadek w tym pliku). Rozjazdem, który musi krzyczeć, jest zmiana
+    // KSZTAŁTU DANYCH, nie szerokości linii: brakujące pole, inna nazwa pola,
+    // wartość inna niż `null`.
     const p = plugin();
     p.generateBundle({ dir: "/repo/.output/public" }, CLIENT_BUNDLE);
     const warn = vi.fn();
     const out = p.transform.call(
       { warn },
-      "export const LOCALE_CHUNK_URLS = { pl: null, en: null };",
+      'export const LOCALE_CHUNK_URLS = { pl: "", en: null };',
       TARGET,
     );
     expect(out).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]![0]).toContain("modulepreload");
+  });
+});
+
+// ── TO, CO DOSTAJE BUILD, A CO DOSTAWAŁ TEN TEST ──────────────────────────────
+//
+// TU BYŁA DZIURA I KOSZTOWAŁA CAŁY HINT. Przypadki wyżej karmią hook TREŚCIĄ
+// PLIKU ŹRÓDŁOWEGO. Build karmił go czymś innym: wtyczka nie deklarowała
+// `enforce`, więc trafiała do koszyka „normal", czyli ZA rdzeniowy
+// `vite:esbuild`, i widziała kod PO transpilacji TS - a esbuild usuwa PRZECINEK
+// KOŃCOWY, którego szukał literał. Skutek na buildzie 2026-09-01: ostrzeżenie
+// wtyczki, artefakt z `null`, hint MARTWY. Test był zielony przez cały ten czas,
+// bo mierzył WEJŚCIE, KTÓREGO NIE MA W PRODUKCJI.
+//
+// Dlatego niżej transpilujemy plik PRAWDZIWYM esbuildem (tym samym, którego
+// używa Vite), zamiast wpisywać oczekiwany kształt z ręki: gdyby esbuild
+// kiedykolwiek zmienił formatowanie, ten przypadek zapali się sam.
+describe("nes:locale-chunks - wejście, które NAPRAWDĘ dostaje build", () => {
+  /** Dokładnie to, co widziałaby wtyczka bez `enforce: "pre"`. */
+  const TRANSPILED = transformSync(SOURCE, { loader: "ts", target: "esnext" }).code;
+
+  it("esbuild ZDEJMUJE przecinek końcowy - dowód przyczyny, nie domysł", () => {
+    expect(SOURCE).toContain("en: null,");
+    expect(TRANSPILED).toContain("en: null\n}");
+    expect(TRANSPILED).not.toContain("en: null,");
+  });
+
+  it("podmiana działa TAKŻE na kodzie po transpilacji", () => {
+    const p = plugin();
+    p.generateBundle({ dir: "/repo/.output/public" }, CLIENT_BUNDLE);
+    const out = p.transform.call(noopCtx, TRANSPILED, TARGET);
+    expect(out, "wzorzec znowu sprzęgł się z formatowaniem").not.toBeNull();
+    expect(out!.code).toContain('"pl":"/assets/pl-DEZyBPCt.js"');
+    expect(out!.code).not.toContain("pl: null");
+  });
+
+  it("wtyczka deklaruje `enforce: \"pre\"`, więc widzi ŹRÓDŁO, nie wynik esbuilda", () => {
+    // Bez tego pola wejście testu i wejście builda znowu byłyby dwiema różnymi
+    // rzeczami - a to jest dokładnie ta różnica, która unieważniła hint.
+    expect(plugin().enforce).toBe("pre");
+  });
+
+  it("nazwa pliku z `$` nie jest interpretowana jako grupa wsteczna", () => {
+    // `String.prototype.replace` z łańcuchem traktuje `$&` i `$1` jako sterujące,
+    // a nazwa chunku pochodzi z Rollupa. Wstawiamy więc wartość funkcją.
+    const p = plugin();
+    p.generateBundle(
+      { dir: "/repo/.output/public" },
+      {
+        "assets/pl-$&x_1234.js": chunk("assets/pl-$&x_1234.js", "/repo/src/lib/locale/pl.ts"),
+        "assets/en-CE_0LNFU.js": chunk("assets/en-CE_0LNFU.js", "/repo/src/lib/locale/en.ts"),
+      },
+    );
+    const out = p.transform.call(noopCtx, SOURCE, TARGET);
+    expect(out).not.toBeNull();
+    expect(out!.code).toContain('"pl":"/assets/pl-$&x_1234.js"');
+  });
+
+  it("przemianowanie pola NADAL jest ostrzeżeniem - wzorzec został wąski", () => {
+    const p = plugin();
+    p.generateBundle({ dir: "/repo/.output/public" }, CLIENT_BUNDLE);
+    const warn = vi.fn();
+    const out = p.transform.call(
+      { warn },
+      "export const LOCALE_CHUNK_URLS = {\n  polski: null,\n  en: null,\n};\n",
+      TARGET,
+    );
+    expect(out).toBeNull();
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("reformat na jedną linię PRZECHODZI - sprzężenie z formatowaniem zdjęte", () => {
+    // Ten sam wsad, który w poprzedniej wersji wtyczki był ostrzeżeniem. Zmiana
+    // jest zamierzona: szerokość linii nie ma prawa decydować o istnieniu hintu.
+    const p = plugin();
+    p.generateBundle({ dir: "/repo/.output/public" }, CLIENT_BUNDLE);
+    const out = p.transform.call(
+      noopCtx,
+      "export const LOCALE_CHUNK_URLS = { pl: null, en: null };",
+      TARGET,
+    );
+    expect(out).not.toBeNull();
+    expect(out!.code).toContain('"en":"/assets/en-CE_0LNFU.js"');
   });
 });
