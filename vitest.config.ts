@@ -1686,11 +1686,21 @@ export default defineConfig({
         // Niedobita reszta to nagrywanie głosu (MediaRecorder), toasty
         // przychodzące, katalog osób i pseudonimy - powierzchnie z własnymi
         // warstwami danych, które są następnym krokiem, nie regresją tego.
+        //
+        // 2026-09-01 - ZACIŚNIĘCIE BEZ JEDNEGO NOWEGO TESTU. Progi stały
+        // 4,8-5,8 pp POD pomiarem, czyli przepuszczały regresję o rozmiarze
+        // całego pliku (`useConversations.ts` to 5,4 pp tego globu) bez ani
+        // jednego czerwonego testu. Pomiar pełnej suity na tym HEAD:
+        // instrukcje 79,48% · funkcje 85,78% · linie 82,82% · gałęzie 72,83%
+        // (wydanie 8 audytu raportowało 80,51 / 86,51 / 84,06 / 73,58 - biorę
+        // NIŻSZĄ z dwóch liczb, żeby próg trzymał na obu pomiarach).
+        // Nowe progi to pomiar minus <= 1 pp. Luz zabrany jednym ruchem na
+        // 36 plikach, zanim powstał pierwszy nowy test.
         "src/lib/chat/**": {
-          statements: 74,
-          functions: 80,
-          lines: 77,
-          branches: 67,
+          statements: 79,
+          functions: 85,
+          lines: 82,
+          branches: 72,
         },
         // CZYSTE MODUŁY WĄTKU trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak pozostałe czyste moduły w tym pliku. To one
@@ -1743,11 +1753,18 @@ export default defineConfig({
         // co ten PR faktycznie pokrył: okna rozmowy w obu wariantach, menu, doku
         // z limitem okien, dzwonka, wiersza listy z potwierdzeniami i wersją
         // roboczą, paska wyszukiwania oraz przekazywania wiadomości.
+        //
+        // 2026-09-01 - to samo zaciśnięcie, co w warstwie danych wyżej. Pomiar
+        // pełnej suity: instrukcje 45,26% · funkcje 40,69% · linie 46,34% ·
+        // gałęzie 39,16% (wydanie 8: 45,24 / 40,69 / 46,18 / 38,72). Progi to
+        // NIŻSZA z dwóch liczb minus <= 1 pp - stąd gałęzie 38, a nie 39:
+        // 39 przechodzi na tym HEAD, ale nie przeszłoby na pomiarze wydania 8,
+        // a próg ma trzymać na obu.
         "src/components/chat/**": {
-          statements: 40,
-          functions: 36,
-          lines: 41,
-          branches: 34,
+          statements: 45,
+          functions: 40,
+          lines: 46,
+          branches: 38,
         },
         // Organizm okna rozmowy - z 0% na 83,55% po podziale na atomy.
         "src/components/chat/ChatWindow.tsx": {
