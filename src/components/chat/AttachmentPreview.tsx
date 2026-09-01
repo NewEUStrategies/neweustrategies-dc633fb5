@@ -20,11 +20,23 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  LIGHTBOX_MAX_ZOOM,
+  LIGHTBOX_MIN_ZOOM,
+  LIGHTBOX_ZOOM_STEP,
+  clampLightboxIndex,
+  lightboxKeyIntent,
+  nextRotation,
+  shouldZoomOnWheel,
+  wheelZoomDelta,
+  wrapLightboxIndex,
+  zoomBy,
+} from "@/lib/chat/attachmentPresentation";
 import { cn } from "@/lib/utils";
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 6;
-const ZOOM_STEP = 0.4;
+const MIN_ZOOM = LIGHTBOX_MIN_ZOOM;
+const MAX_ZOOM = LIGHTBOX_MAX_ZOOM;
+const ZOOM_STEP = LIGHTBOX_ZOOM_STEP;
 
 export interface LightboxImage {
   url: string;
@@ -48,7 +60,7 @@ export function ImageLightbox({
 }: ImageLightboxProps) {
   const { t } = useTranslation();
   const total = images.length;
-  const clamped = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
+  const clamped = clampLightboxIndex(index, total);
   const current = images[clamped];
 
   const [zoom, setZoom] = useState(1);
@@ -68,8 +80,7 @@ export function ImageLightbox({
   const changeIndex = useCallback(
     (delta: number) => {
       if (!onIndexChange || total <= 1) return;
-      const next = (clamped + delta + total) % total;
-      onIndexChange(next);
+      onIndexChange(wrapLightboxIndex(clamped, delta, total));
     },
     [clamped, total, onIndexChange],
   );
@@ -78,25 +89,17 @@ export function ImageLightbox({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        changeIndex(1);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        changeIndex(-1);
-      } else if (e.key === "+" || e.key === "=") {
-        e.preventDefault();
-        setZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)));
-      } else if (e.key === "-" || e.key === "_") {
-        e.preventDefault();
-        setZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)));
-      } else if (e.key === "0") {
-        e.preventDefault();
+      const intent = lightboxKeyIntent(e.key);
+      if (intent === "none") return;
+      e.preventDefault();
+      if (intent === "next") changeIndex(1);
+      else if (intent === "prev") changeIndex(-1);
+      else if (intent === "zoom-in") setZoom((z) => zoomBy(z, ZOOM_STEP));
+      else if (intent === "zoom-out") setZoom((z) => zoomBy(z, -ZOOM_STEP));
+      else if (intent === "rotate") setRotation(nextRotation);
+      else {
         setZoom(1);
         setOffset({ x: 0, y: 0 });
-      } else if (e.key.toLowerCase() === "r") {
-        e.preventDefault();
-        setRotation((r) => (r + 90) % 360);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -104,10 +107,10 @@ export function ImageLightbox({
   }, [open, changeIndex]);
 
   const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (!e.ctrlKey && !e.metaKey && Math.abs(e.deltaY) < 20) return;
+    if (!shouldZoomOnWheel(e)) return;
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(z + delta).toFixed(2))));
+    const delta = wheelZoomDelta(e.deltaY);
+    setZoom((z) => zoomBy(z, delta));
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -150,7 +153,7 @@ export function ImageLightbox({
             </span>
           )}
           <ToolbarButton
-            onClick={() => setZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)))}
+            onClick={() => setZoom((z) => zoomBy(z, -ZOOM_STEP))}
             disabled={zoom <= MIN_ZOOM}
             label={t("chat.preview.zoomOut")}
           >
@@ -160,7 +163,7 @@ export function ImageLightbox({
             {Math.round(zoom * 100)}%
           </span>
           <ToolbarButton
-            onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)))}
+            onClick={() => setZoom((z) => zoomBy(z, ZOOM_STEP))}
             disabled={zoom >= MAX_ZOOM}
             label={t("chat.preview.zoomIn")}
           >
