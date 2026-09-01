@@ -65,7 +65,7 @@ import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { withBudget } from "../lib/asyncBudget";
 
-const ROOT_WARM_BUDGET_MS = 2_500;
+export const ROOT_WARM_BUDGET_MS = 2_500;
 
 /**
  * Twardy sufit DRUGIEJ fali (dekoracja chrome'u: ticker, menu, widgety headera
@@ -87,7 +87,7 @@ const ROOT_WARM_BUDGET_MS = 2_500;
  * za `edgeTtlCache`, 60 s TTL per host najemcy) i ogranicza koszt zimnego
  * renderu do pół sekundy zamiast dwóch i pół.
  */
-const CHROME_WARM_BUDGET_MS = 500;
+export const CHROME_WARM_BUDGET_MS = 500;
 
 // Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
 // malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym

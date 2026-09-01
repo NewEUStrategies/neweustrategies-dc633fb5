@@ -3791,6 +3791,83 @@ export default defineConfig({
           branches: 82,
         },
 
+        // ── DWA PLIKI, KTÓRE POSIADAJĄ WSZYSTKIE BUDŻETY SSR I HYDRATACJI ────
+        //
+        // Audyt pokrycia (wyd. 8, rozdz. 8.6) nazwał to najostrzejszą
+        // pojedynczą obserwacją całego wydania: `src/router.tsx` miał 0 z 38
+        // linii i 0 z 13 funkcji, `src/routes/__root.tsx` 0 z 124 linii i 0 z 48
+        // funkcji - w repozytorium mierzącym wtedy 84,12% całości. `router.tsx`
+        // nie był importowany przez ŻADEN plik testowy; jedyny kontakt suity
+        // z korzeniem polegał na odczytaniu pliku jako TEKSTU
+        // (`lib/seo/__tests__/rootHead.test.ts`). Próg globalny tego nie widział,
+        // bo jest agregatem po całym `src/`. Bez progów per-ścieżka ten dorobek
+        // jest pożyczony - dlatego wchodzą tym samym commitem co testy.
+        //
+        // ZMIERZONE 2026-09-01 (17 przypadków w `src/__tests__/router.test.tsx`,
+        // 16 zielonych + 1 `it.fails`): router.tsx 100% instrukcji / 100% gałęzi
+        // / 100% funkcji / 100% linii (35/35, 12/12, 11/11, 32/32).
+        //
+        // `functions: 100` jest tu ŚWIADOME, nie przez przypadek: plik ma
+        // jedenaście funkcji i każda z nich posiada jakiś inwariant SSR
+        // (`shouldDehydrateQuery`, `retryDelay`, obie gałęzie `rewrite`, owijka
+        // `dehydrate`, owijka `hydrate`, dwa ekrany błędu). Dołożenie
+        // nieprzetestowanej funkcji do TEGO pliku ma zapalić bramkę - taki sam
+        // próg stoi wyżej na `queryStreamGuard.ts` i `queryTimeout.ts`.
+        "src/router.tsx": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 92,
+        },
+        // Budżet hydratacji wyciągnięty z `router.tsx`, żeby przestał być
+        // nieobserwowalny (stała lokalna w ciele strzałki + `console.warn` jako
+        // jedyny ślad). ZMIERZONE: 100% instrukcji / 80% gałęzi / 100% funkcji /
+        // 100% linii.
+        //
+        // GAŁĘZIE NIŻEJ NIŻ RESZTA I TO NIE POMYŁKA: nieosiągnięta jest fałszywa
+        // gałąź `if (timer) clearTimeout(timer)` w bloku `finally`. `timer` jest
+        // przypisywany synchronicznie w konstruktorze obietnicy budżetu, która
+        // ZAWSZE wchodzi do `Promise.race`, więc w chwili wejścia w `finally`
+        // nie może być `undefined`. Straż zostaje, bo TypeScript nie zna tego
+        // porządku, a `clearTimeout(undefined)` byłoby cichym no-opem
+        // maskującym przyszłą zmianę kolejności.
+        "src/lib/ssr/hydrateBudget.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 96,
+          branches: 75,
+        },
+        // ZMIERZONE 2026-09-01 (19 przypadków w
+        // `src/routes/__tests__/rootRoute.test.tsx` +
+        // `rootShellRender.test.tsx`): 44,20% instrukcji / 53,33% gałęzi /
+        // 14,58% funkcji / 50% linii.
+        //
+        // DLACZEGO FUNKCJE SĄ TAK NISKO I DLACZEGO TO NIE JEST DŁUG DO UKRYCIA:
+        // z 48 funkcji tego pliku 43 to KOMPONENTY REACTA albo callbacki w ich
+        // środku, a 17 z nich to same fabryki `lazy(() => import(...))`, czyli
+        // czysty klej podziału kodu (dokładnie ta kategoria, którą blok
+        // `exclude` wyżej wyłącza dla `widget-view/lazyWidgets.tsx` - tutaj
+        // NICZEGO NIE WYŁĄCZAMY, tylko mierzymy uczciwie).
+        //
+        // Pokryta jest CAŁA logika, która ma inwarianty: loader (rozgrzewka
+        // dwufalowa, zasiew przeterminowany, strażnik anulowanych zapytań menu,
+        // nagłówki `Link`), `head()` i powłoka dokumentu przez
+        // `renderToStaticMarkup`.
+        //
+        // DROGA W GÓRĘ JEST ZNANA I NAZWANA: `RootComponent` nie montuje się
+        // z gołego renderu (`Link`/`useRouterState` czytają pusty kontekst
+        // routera), więc podniesienie metryki funkcji wymaga prawdziwego
+        // `RouterProvider` z `__root` JAKO KORZENIEM - czyli opcjonalnego
+        // `rootRoute` w `src/test/routeHarness.tsx`. To zmiana harness'u
+        // testowego, nie produkcji, i osobna praca. Ten próg wolno wyłącznie
+        // podnosić.
+        "src/routes/__root.tsx": {
+          statements: 40,
+          functions: 12,
+          lines: 46,
+          branches: 48,
+        },
+
         // Menedżer przekierowań: cztery warstwy kontraktu (requireStaff, Zod,
         // audit_log, limit) i parytet normalizacji z `lib/seo/redirects`.
         // Zmierzone: 95,5 / 89,47 / 100 / 100.
