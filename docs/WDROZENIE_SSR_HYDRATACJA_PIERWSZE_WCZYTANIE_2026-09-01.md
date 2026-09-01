@@ -76,8 +76,8 @@ nie sześć (rozdz. 6).
 
 ## 1. Punkt 11 jest warunkiem wstępnym i mówię to wprost
 
-Zlecenie samo to przewiduje: *„Jeśli nie ma czym zmierzyć, punkt 11 jest
-warunkiem wstępnym, nie opcją - powiedz to wprost, zamiast szacować."*
+Zlecenie samo to przewiduje: _„Jeśli nie ma czym zmierzyć, punkt 11 jest
+warunkiem wstępnym, nie opcją - powiedz to wprost, zamiast szacować."_
 
 **Stan faktyczny, sprawdzony:**
 
@@ -106,9 +106,9 @@ Metoda: produkcyjny `withBudget` z `Promise.allSettled` nad obietnicami, które
 nigdy się nie rozstrzygają, w kolejności i z budżetami DOKŁADNIE takimi, jakie
 mają loadery przed i po zmianie.
 
-| powierzchnia | przed | po | zysk |
-|---|---|---|---|
-| korzeń - **każda** trasa publiczna | **5 001 ms** | **3 001 ms** | **-2 000 ms** |
+| powierzchnia                                | przed         | po           | zysk          |
+| ------------------------------------------- | ------------- | ------------ | ------------- |
+| korzeń - **każda** trasa publiczna          | **5 001 ms**  | **3 001 ms** | **-2 000 ms** |
 | strona główna (korzeń + prefetch dokumentu) | **11 007 ms** | **5 505 ms** | **-5 502 ms** |
 
 Liczba 11 007 ms potwierdza tezę audytu („do 11 s budżetów loaderów przed
@@ -131,13 +131,13 @@ punkt 11 w trybie blokującym.
 
 Mechanizm udowodniony w ZAINSTALOWANYCH wersjach, nie odgadnięty:
 
-| krok | plik | co się dzieje |
-|---|---|---|
-| loader woła `setResponseHeader` | `start-server-core/request-response.js:106-112` | wartość ląduje na `h3Event.res.headers`, NIE na żadnej `Response` |
-| łańcuch middleware | `createStartHandler.js:403-419` | cały łańcuch biegnie WEWNĄTRZ `requestHandler` |
-| granica handlera | `request-response.js:46` | `toResponse(attachResponseHeaders(eventStorage.run(handler), h3Event), h3Event)` |
-| `attachResponseHeaders` | tamże `:17-25` | scala **wyłącznie `Set-Cookie`** i **tylko dla non-ok** |
-| realne scalenie | `h3-v2:244-247`, `:256-260` | `mergeHeaders(val.headers, preparedHeaders, val.headers)` - nagłówki ZDARZENIA nadpisują nagłówki odpowiedzi (`target.set`), i **tylko dla `val.ok`** |
+| krok                            | plik                                            | co się dzieje                                                                                                                                         |
+| ------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| loader woła `setResponseHeader` | `start-server-core/request-response.js:106-112` | wartość ląduje na `h3Event.res.headers`, NIE na żadnej `Response`                                                                                     |
+| łańcuch middleware              | `createStartHandler.js:403-419`                 | cały łańcuch biegnie WEWNĄTRZ `requestHandler`                                                                                                        |
+| granica handlera                | `request-response.js:46`                        | `toResponse(attachResponseHeaders(eventStorage.run(handler), h3Event), h3Event)`                                                                      |
+| `attachResponseHeaders`         | tamże `:17-25`                                  | scala **wyłącznie `Set-Cookie`** i **tylko dla non-ok**                                                                                               |
+| realne scalenie                 | `h3-v2:244-247`, `:256-260`                     | `mergeHeaders(val.headers, preparedHeaders, val.headers)` - nagłówki ZDARZENIA nadpisują nagłówki odpowiedzi (`target.set`), i **tylko dla `val.ok`** |
 
 Skutek przed naprawą: czytelnik na MISS dostawał `private, no-store`, a do L1/L2
 wchodziło domyślne `public, max-age=60, s-maxage=900,
@@ -195,12 +195,12 @@ powłoka jest serwowana kolejnym czytelnikom". Przed: do 24 h. Po: 0.
 
 **ZROBIONE.** Commit `d283fc2`.
 
-| | przed | po | metoda |
-|---|---|---|---|
-| budżet fali 1 | 2 500 ms | 2 500 ms | stała w kodzie |
-| budżet fali 2 | 2 500 ms | **500 ms** | stała w kodzie |
-| **faza loaderów korzenia, martwy backend** | **5 001 ms** | **3 001 ms** | ZMIERZONE (rozdz. 1) |
-| równoległe podżądania w fali 1 | 3 | **2** | zliczone po kluczach `edgeTtlCache` |
+|                                            | przed        | po           | metoda                              |
+| ------------------------------------------ | ------------ | ------------ | ----------------------------------- |
+| budżet fali 1                              | 2 500 ms     | 2 500 ms     | stała w kodzie                      |
+| budżet fali 2                              | 2 500 ms     | **500 ms**   | stała w kodzie                      |
+| **faza loaderów korzenia, martwy backend** | **5 001 ms** | **3 001 ms** | ZMIERZONE (rozdz. 1)                |
+| równoległe podżądania w fali 1             | 3            | **2**        | zliczone po kluczach `edgeTtlCache` |
 
 **Odstąpiłem od literalnego brzmienia zlecenia w dwóch miejscach i oba
 uzasadniam.**
@@ -251,12 +251,12 @@ po powrocie backendu").
 
 **ZROBIONE.** Commit `d283fc2`.
 
-| | przed | po |
-|---|---|---|
-| co grzeje SSR strony głównej | **cały** dokument buildera | 3 sekcje nad zgięciem |
-| budżet | 6 000 ms | 2 500 ms |
-| `<BuilderRenderer stream>` na `/` | **brak** (domyślnie `false`) | `stream` |
-| **faza loaderów `/`, martwy backend** | **11 007 ms** | **5 505 ms** | ZMIERZONE (rozdz. 1) |
+|                                       | przed                        | po                    |
+| ------------------------------------- | ---------------------------- | --------------------- |
+| co grzeje SSR strony głównej          | **cały** dokument buildera   | 3 sekcje nad zgięciem |
+| budżet                                | 6 000 ms                     | 2 500 ms              |
+| `<BuilderRenderer stream>` na `/`     | **brak** (domyślnie `false`) | `stream`              |
+| **faza loaderów `/`, martwy backend** | **11 007 ms**                | **5 505 ms**          | ZMIERZONE (rozdz. 1) |
 
 **Rozstrzygnięcie, o które zlecenie prosiło jako pierwsze:** dowieziona jest
 OBIETNICA, nie jej wykreślenie. Dwa komentarze twierdziły, że „cokolwiek poza
@@ -304,12 +304,12 @@ głównej - incydent z 15.08 jest na poziomie WIDGETU, nie sekcji).
 
 **ZROBIONE.** Commity `f12a8ca`, `27730ee`.
 
-| powierzchnia | przed | po |
-|---|---|---|
-| `/events/$slug` + 7 podstron | stan przejściowy, `<Outlet/>` nierenderowany, `head()` zahardkodowany, zero JSON-LD Event | loader + `useSuspenseQuery`, `head()` sterowany danymi, JSON-LD w SSR |
-| strony sekcyjne `archive_listing` | brak listy do 60 wpisów | fabryka `queryOptions` + rozgrzewka w loaderze `/$` |
-| `/series/$slug` | brak nazwy cyklu i części; 404 przy statusie 200 | loader + `notFound()` z czystego odczytu |
-| `/glossary` | zero terminów, węzeł `DefinedTermSet` z konstrukcji `null` | loader |
+| powierzchnia                      | przed                                                                                     | po                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `/events/$slug` + 7 podstron      | stan przejściowy, `<Outlet/>` nierenderowany, `head()` zahardkodowany, zero JSON-LD Event | loader + `useSuspenseQuery`, `head()` sterowany danymi, JSON-LD w SSR |
+| strony sekcyjne `archive_listing` | brak listy do 60 wpisów                                                                   | fabryka `queryOptions` + rozgrzewka w loaderze `/$`                   |
+| `/series/$slug`                   | brak nazwy cyklu i części; 404 przy statusie 200                                          | loader + `notFound()` z czystego odczytu                              |
+| `/glossary`                       | zero terminów, węzeł `DefinedTermSet` z konstrukcji `null`                                | loader                                                                |
 
 **Decyzja bezpieczeństwowa, na której stoi cała naprawa wydarzeń.** `notFound()`
 opieramy WYŁĄCZNIE na `event_page_header` - funkcji SECURITY DEFINER, scopeowanej
@@ -582,16 +582,16 @@ razu. Ta część zostaje jednym zdaniem, a nie pozornym domknięciem.
 Lighthouse 12.6.1, preset desktop, `/en`. Trzecia kolumna to jedyny zapis, jaki
 CI kiedykolwiek wyprodukował (`.lighthouseci/`):
 
-| | artefakt | dev-server | zapis CI |
-|---|---|---|---|
-| `categories:performance` | 0,60 | 0,34 | 0,34 |
-| `first-contentful-paint` | 2681 | 970 | 1005 |
-| `largest-contentful-paint` | 3939 | 34031 | 31215 |
-| `total-blocking-time` | 101 | 1602 | 1985 |
-| `speed-index` | 4495 | 6113 | 6104 |
-| `server-response-time` | 5033 | 5174 | **64** |
-| `total-byte-weight` | 3 414 549 | 32 311 216 | 30 975 220 |
-| `network-requests` | 119 | 1080 | 1034 |
+|                            | artefakt  | dev-server | zapis CI   |
+| -------------------------- | --------- | ---------- | ---------- |
+| `categories:performance`   | 0,60      | 0,34       | 0,34       |
+| `first-contentful-paint`   | 2681      | 970        | 1005       |
+| `largest-contentful-paint` | 3939      | 34031      | 31215      |
+| `total-blocking-time`      | 101       | 1602       | 1985       |
+| `speed-index`              | 4495      | 6113       | 6104       |
+| `server-response-time`     | 5033      | 5174       | **64**     |
+| `total-byte-weight`        | 3 414 549 | 32 311 216 | 30 975 220 |
+| `network-requests`         | 119       | 1080       | 1034       |
 
 Dev zawyżał TBT **15,9x**, LCP **8,6x**, wagę bajtów **9,5x** i liczbę żądań
 **9,1x**, a ZANIŻAŁ FCP **2,8x**; zapisany w repo `server-response-time` był
@@ -633,12 +633,12 @@ z samej przeglądarki, bez emulacji, w tym samym jobie co pozostałe bramki
 artefaktu. Sześć przebiegów, podane jako ZAKRESY, bo pojedyncza wartość
 udawałaby powtarzalność, której na tym hoście nie ma:
 
-| pomiar | zakres z 6 przebiegów | próg | krotność zapasu |
-|---|---|---|---|
-| TTFB | 5075,6 - 5194,9 ms | 8000 ms | 1,54x |
-| gotowość hydratacji | 461 - 616 ms | 6000 ms | 9,7x |
-| transfer JS bootu | 2270,1 - 2294,2 KB | 3000 KB | 1,31x |
-| FCP | 5348,0 - 5732,0 ms | brak | - |
+| pomiar              | zakres z 6 przebiegów | próg    | krotność zapasu |
+| ------------------- | --------------------- | ------- | --------------- |
+| TTFB                | 5075,6 - 5194,9 ms    | 8000 ms | 1,54x           |
+| gotowość hydratacji | 461 - 616 ms          | 6000 ms | 9,7x            |
+| transfer JS bootu   | 2270,1 - 2294,2 KB    | 3000 KB | 1,31x           |
+| FCP                 | 5348,0 - 5732,0 ms    | brak    | -               |
 
 **TTFB jest w całości WYJAŚNIONY, a nie tylko zmierzony:**
 `SSR_QUERY_TIMEOUT_MS = 5000` i dziesięć zapytań loaderów korzenia bez backendu,
@@ -685,11 +685,11 @@ tego pliku **100,00% instrukcji (35/35), 100,00% gałęzi (12/12), 100,00% funkc
 przy tym 15,15% instrukcji, mając wypisane tylko dwa pliki po 0% - ta arytmetyka
 jest jedynym widocznym śladem, że wiersze są ukrywane.
 
-| plik | przed | po |
-|---|---|---|
-| `src/router.tsx` | 0/38 linii, 0/42 instr., 0/13 funkcji, 0/14 gałęzi | **100% / 100% / 100% / 100%** (32/32, 35/35, 11/11, 12/12) |
-| `src/lib/ssr/hydrateBudget.ts` | (nie istniał) | 100% / 100% / 100% / 80% |
-| `src/routes/__root.tsx` | 0/122 linii, 0/138 instr., 0/48 funkcji, 0/45 gałęzi | **50% linii / 44,20% instr. / 14,58% funkcji / 53,33% gałęzi** |
+| plik                           | przed                                                | po                                                             |
+| ------------------------------ | ---------------------------------------------------- | -------------------------------------------------------------- |
+| `src/router.tsx`               | 0/38 linii, 0/42 instr., 0/13 funkcji, 0/14 gałęzi   | **100% / 100% / 100% / 100%** (32/32, 35/35, 11/11, 12/12)     |
+| `src/lib/ssr/hydrateBudget.ts` | (nie istniał)                                        | 100% / 100% / 100% / 80%                                       |
+| `src/routes/__root.tsx`        | 0/122 linii, 0/138 instr., 0/48 funkcji, 0/45 gałęzi | **50% linii / 44,20% instr. / 14,58% funkcji / 53,33% gałęzi** |
 
 Mianownik linii `__root.tsx` to **122, nie 124** - audyt mierzył inny HEAD.
 Mianownik `router.tsx` spadł z 38 do 32, bo ciało budżetu hydratacji przeniosło
@@ -1052,12 +1052,12 @@ pojawia. Zmiana zostaje jako higiena i jest tak opisana w kodzie.
 
 ## 6. Sekcja 4 zlecenia - czego audyt nie potwierdził
 
-| ustalenie | stan |
-|---|---|
-| `vendor-radix` osiągalny z entry | **POTWIERDZONE, 71,3 KB gzip** (zmierzone z grafu chunków) |
-| rozmiar arkusza CSS | **POTWIERDZONE: 570 392 B surowo, 79 807 B gzip -9, 6 739 bloków reguł** |
-| domknięcie startowe | **ZMIERZONE: 571,4 KB gzip w 9 chunkach** |
-| `LHCI_URL` ustawione | **NIE** - zmienna repozytorium, nieustawialna z kodu (rozdz. 1) |
+| ustalenie                               | stan                                                                                                                                                                  |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vendor-radix` osiągalny z entry        | **POTWIERDZONE, 71,3 KB gzip** (zmierzone z grafu chunków)                                                                                                            |
+| rozmiar arkusza CSS                     | **POTWIERDZONE: 570 392 B surowo, 79 807 B gzip -9, 6 739 bloków reguł**                                                                                              |
+| domknięcie startowe                     | **ZMIERZONE: 571,4 KB gzip w 9 chunkach**                                                                                                                             |
+| `LHCI_URL` ustawione                    | **NIE** - zmienna repozytorium, nieustawialna z kodu (rozdz. 1)                                                                                                       |
 | „59 tras publicznych z SSR bez loadera" | **ZAPRZECZONE: 82 trasy publiczne z SSR, 13 bez loadera w łańcuchu, 21 razem z tymi, których loader grzeje inne klucze; 16 karmi cache pustym HTML-em** - patrz niżej |
 
 ### „59 tras publicznych z SSR bez loadera" - ZAPRZECZONE
@@ -1085,8 +1085,7 @@ Skrypt spisu: `bun run report:route-loaders`
 ```
 
 **Liczby 59 nie da się odtworzyć** żadnym naiwnym pomiarem: `grep -L "loader:"`
-bez `admin*` daje 65, po odjęciu gałęzi `/profile` 42, po odjęciu `ssr: false`
-56. Prawdziwa liczba to **13 bez loadera w łańcuchu / 21 razem z tymi, których
+bez `admin*` daje 65, po odjęciu gałęzi `/profile` 42, po odjęciu `ssr: false` 56. Prawdziwa liczba to **13 bez loadera w łańcuchu / 21 razem z tymi, których
 loader grzeje inne klucze**, z czego **16 karmi NES Edge Cache pustym
 dokumentem** na do 24 h - i to jest ta część, która boli.
 
@@ -1206,12 +1205,13 @@ FCP=5616.0ms`.
 ### `overall` - czerwień odziedziczona plus 3,3 KB, które dołożyłem
 
 `check:bundle` była czerwona **na wejściu, na `main`** (4318,0 przy florze 4306)
+
 - 12 KB długu, którego to zadanie nie zaciągnęło. Do tego doszły **+2,2 KB
-z tej gałęzi** i to trzeba powiedzieć wprost, a nie ukryć w liczbie
-odziedziczonej. (Pomiar w trakcie zmiany dawał +3,3 KB; różnica to
-`rated-list`, który PRZENIÓSŁ `queryFn` z leniwego chunku widoku do modułu
-w grafie eager - domknięcie bootu rośnie o 0,9 KB, a `overall` o mniej, bo
-leniwy chunk chudnie.)
+  z tej gałęzi** i to trzeba powiedzieć wprost, a nie ukryć w liczbie
+  odziedziczonej. (Pomiar w trakcie zmiany dawał +3,3 KB; różnica to
+  `rated-list`, który PRZENIÓSŁ `queryFn` z leniwego chunku widoku do modułu
+  w grafie eager - domknięcie bootu rośnie o 0,9 KB, a `overall` o mniej, bo
+  leniwy chunk chudnie.)
 
 Zlecenie mówi: „Nie podnoś floora - zmierz przyczynę i zmniejsz". **Floora nie
 podniosłem** (4306 zostaje) i nie zamierzam - to jest właściwa decyzja także
@@ -1220,13 +1220,13 @@ wtedy, gdy bramka zostaje czerwona.
 Skład moich +3,3 KB, wszystko wchodzące do grafu eager przez statyczne importy
 `__root.tsx` i `prefetch.ts`:
 
-| pozycja | punkt zlecenia | czy da się zdjąć |
-|---|---|---|
-| `bootProbeScript.ts` - sonda w `<head>` jako string | 10 | nie: musi być klasycznym skryptem inline, bo łapie rzut PRZED wykonaniem jakiegokolwiek modułu |
-| `appReady.ts` + `markAppReady()` w korzeniu | 10 | nie: bez flagi gotowości boot-test nie ma czego czekać, a martwej hydratacji nie da się odróżnić od wolnej |
-| trzy moduły zapytań buildera (taksonomie, media, cennik) | 4 | nie: `widgetQueryOptionsList` jest SYNCHRONICZNE, więc fabryki muszą być w grafie eager |
-| `hydrateBudget.ts`, `useNowMs.ts`, `localeChunks.ts` | 7, 6 | nie bez cofnięcia punktów, które je wprowadziły |
-| `ratedListQuery.ts` - `queryFn` przeniesiony z leniwego chunku | 4 | nie: rejestr prefetchu jest synchroniczny, więc fabryka musi być w grafie eager (netto +0,9 KB domknięcia bootu, bo chunk widoku chudnie o 1,1 KB) |
+| pozycja                                                        | punkt zlecenia | czy da się zdjąć                                                                                                                                   |
+| -------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bootProbeScript.ts` - sonda w `<head>` jako string            | 10             | nie: musi być klasycznym skryptem inline, bo łapie rzut PRZED wykonaniem jakiegokolwiek modułu                                                     |
+| `appReady.ts` + `markAppReady()` w korzeniu                    | 10             | nie: bez flagi gotowości boot-test nie ma czego czekać, a martwej hydratacji nie da się odróżnić od wolnej                                         |
+| trzy moduły zapytań buildera (taksonomie, media, cennik)       | 4              | nie: `widgetQueryOptionsList` jest SYNCHRONICZNE, więc fabryki muszą być w grafie eager                                                            |
+| `hydrateBudget.ts`, `useNowMs.ts`, `localeChunks.ts`           | 7, 6           | nie bez cofnięcia punktów, które je wprowadziły                                                                                                    |
+| `ratedListQuery.ts` - `queryFn` przeniesiony z leniwego chunku | 4              | nie: rejestr prefetchu jest synchroniczny, więc fabryka musi być w grafie eager (netto +0,9 KB domknięcia bootu, bo chunk widoku chudnie o 1,1 KB) |
 
 Każda z tych pozycji jest wymaganiem zlecenia, więc „zmniejszyć" znaczyłoby tu
 „nie zrobić punktu 4 albo 10". Zamiast tego dwie nowe bramki (rozdz. 3.1 i 3.2)

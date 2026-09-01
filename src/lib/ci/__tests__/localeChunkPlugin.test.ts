@@ -159,7 +159,7 @@ describe("nes:locale-chunks - wejście, które NAPRAWDĘ dostaje build", () => {
     expect(out!.code).not.toContain("pl: null");
   });
 
-  it("wtyczka deklaruje `enforce: \"pre\"`, więc widzi ŹRÓDŁO, nie wynik esbuilda", () => {
+  it('wtyczka deklaruje `enforce: "pre"`, więc widzi ŹRÓDŁO, nie wynik esbuilda', () => {
     // Bez tego pola wejście testu i wejście builda znowu byłyby dwiema różnymi
     // rzeczami - a to jest dokładnie ta różnica, która unieważniła hint.
     expect(plugin().enforce).toBe("pre");
