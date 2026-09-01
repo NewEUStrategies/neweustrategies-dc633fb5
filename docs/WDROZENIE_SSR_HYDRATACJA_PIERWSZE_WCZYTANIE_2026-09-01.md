@@ -889,6 +889,99 @@ i wejście builda przestały być dwiema różnymi rzeczami.
 
 ---
 
+### 3.7. Audyt progów pokrycia - jeden próg MARTWY, ratchet i trzy dziury strukturalne
+
+Powstał, bo przy raportowaniu pokrycia zauważyłem, że `src/router.tsx` nie ma
+wiersza w tabeli (patrz sekcja 3 zlecenia: to artefakt reportera). Skoro
+sprawdzałem, czy któryś próg nie mierzy niczego, sprawdziłem WSZYSTKIE 376.
+Metoda: konfiguracja wczytana po ewaluacji (nie sparsowana wzrokiem - plik ma
+4 331 linii), zbiór plików pomiarowych odtworzony tym samym `tinyglobby`
+i `picomatch`, których używa vitest 4.1.7, i dopasowanie globów tą samą
+semantyką, co `resolveThresholds()` w
+`node_modules/vitest/dist/chunks/coverage.DM_a_rWm.js:816`. Każde ustalenie
+przeszło przez osobnego kontrolera, którego zadaniem było je OBALIĆ.
+
+**(1) JEDEN PRÓG NA 376 BYŁ MARTWY - i stał nad krytyczną ścieżką płatności.**
+Klucz `src/routes/api/public/webhooks.stripe.ts` wskazywał plik, który **nie
+istnieje i nigdy nie istniał**: `git log --all` po tej ścieżce jest pusty,
+`--diff-filter=D` też, czyli to nie ślad po usunięciu, a literówka od początku.
+Glob pasuje do **zera z 3 272** plików wchodzących do pomiaru.
+
+Dlaczego było CICHO, a nie czerwono - i to jest część, której nie znałem:
+dla pustego zbioru istanbulowe `percent(covered, total)` przy `total === 0`
+zwraca **100**, więc porównanie `100 >= 90` zachodzi i przechodzi trywialnie.
+Próg opisany w konfiguracji jako „Billing critical path (payment -> access)"
+świecił zielono, nie mając czego zmierzyć.
+
+Prawdziwy odbiornik to `src/routes/api/public/payments/webhook.ts` (nagłówek
+„Odbiornik zdarzeń od Stripe", HMAC `stripe-signature`, `__handleForTests`,
+catch-all 500) - dokładnie to, co opisywał komentarz nad martwym progiem. Ten
+plik nie pasował do **żadnego** z 376 globów. Przekierowałem klucz na niego,
+z liczbami **zmierzonymi**: 68,42% instrukcji (26/38), 63,33% gałęzi (19/30),
+40,00% funkcji (2/5), 67,56% linii (25/37), próg = `floor(pomiar - 4)`.
+Nie wpisałem dawnych 90/85/90/75 - tamte liczby nigdy na tym pliku nie zostały
+zmierzone i były opisem pliku, który nie istniał.
+
+**Sprostowanie do własnego ustalenia**, bo kontroler je poprawił: „sekcja jest
+niepilnowana" było przesadą. Bez bramki jest wyłącznie CIENKA WARSTWA HTTP tej
+trasy; logika, do której deleguje, ma swoje progi (`src/lib/billing/**`
+92/95/93/88, `grant.server.ts` 100/100/100/95).
+
+**(2) RATCHET PROGU GLOBALNEGO: 64/62/65/58 -> 79/77/80/73.** Między zmierzonymi
+83,17/77,63/81,66/84,44 a progiem 64/62/65/58 było **~19 pp swobodnego spadku**,
+czyli bramka nie łapała już regresji, tylko katastrofę.
+
+Reguła nie jest moja - jest zapisana w kronice tego pliku („próg = zmierzone
+minus ~4 pp marginesu na dryf CI") i sprawdziłem, że jest FAKTYCZNIE stosowana,
+a nie tylko opisana: trzy ostatnie ratchety trafiły w `floor(zmierzone - 4)` co
+do jedności w **12 przypadkach na 12**, a dwa z nich są rozstrzygające, bo
+zaokrąglenie dałoby więcej, a w pliku stało mniej (linie 62,93 -> 58, gałęzie
+62,80 -> 58). Przy okazji: wpis z 06.08, który tę regułę OGŁOSIŁ, sam jej nie
+dopełnił - trzy z czterech marginesów są poniżej 4 pp. Zapisałem to w kronice,
+żeby następny czytelnik nie brał tamtych liczb za wzór.
+
+**Czego nie mam i mówię to wprost:** zapisanego pomiaru pokrycia z runnera CI
+nie ma w repo ANI JEDNEGO (`coverage/` jest w `.gitignore`, a `json-summary`
+dołożyłem dopiero dziś). Dwie rzeczy sprawdzone, żeby ten brak nie był
+strzałem w ciemno: CI mierzy pokrycie na **pełnej suicie**, a nie na wycinku
+(`ci.yml` -> `bun run test:coverage` -> `vitest run --coverage`, bez `--shard`
+i bez filtra ścieżek), a jedyna udokumentowana w tym repozytorium rozbieżność
+host <-> runner dotyczy innej metryki i wynosi **+0,466%** - margines 4 pp przy
+poziomie ~80% to ~5% względnych, czyli o rząd wielkości więcej. Pięć czerwonych
+testów to razem 1 755 linii produkcyjnych z 680 622 w `src/` (0,26%), a ich
+strata już siedzi w pomiarze.
+
+**(3) TRZY DZIURY STRUKTURALNE, KTÓRYCH NIE NAPRAWIAM - i dlaczego.** Wszystkie
+trzy są poza zakresem zadania SSR, a każda dotyka dziesiątek progów naraz, więc
+naprawa to osobna praca z osobnym pomiarem. Zapisuję je, bo są zmierzone
+i dlatego, że dwie pierwsze sprawiają, że próg **obiecuje coś, czego nie robi**.
+
+- **`thresholds.perFile` nie jest ustawione, więc wszystkie 376 progów są
+  SUMAMI KATALOGU, nie progami na plik.** Komentarze w konfiguracji mówią
+  o konkretnych plikach i konkretnych dowodach, a `checkThresholds` porównuje
+  próg z jednym podsumowaniem całego globa. Zmierzone na flagowej bramce
+  `src/components/builder/organisms/widget-view/**` (52 pliki, 13 507 linii,
+  `lines: 97`): luz to **405 linii**, a **44 z 52 plików są od niego mniejsze** -
+  czyli dowolny z nich może spaść z „pokryty" na 0% i bramka zostanie zielona.
+- **Zagnieżdżone globy potrafią uczynić próg zewnętrzny NIEOSIĄGALNYM OD DOŁU.**
+  Zmierzony przypadek: `src/components/admin/versions/**` (8 plików, 819 linii,
+  `lines: 7`) zawiera `src/components/admin/versions/lib/**` (`lines: 100`,
+  109 linii = 13,3% sumy). Ten jeden plik sam wnosi 13,3 pp, więc pozostałych
+  siedem paneli może stać na **dokładnie 0%**, a próg resztkowy wynosi **-7,3%**.
+  Komentarz nad tym progiem deklaruje wprost: „żeby nie wróciły na zero przy
+  kolejnym refaktorze" - a to jest jedyna rzecz, której ten próg nie potrafi
+  wykryć. Ten sam mechanizm dotyka `src/components/admin/workflows/**`.
+- **Sześć wpisów ma progi `{0,0,0,0}` albo trzy z czterech metryk na zerze**
+  (`src/routes/sitemap.tsx`, `src/lib/profile/export.functions.ts`,
+  `src/routes/robots[.]txt.ts` i rodzina), a kilka węższych globów jest
+  ŁAGODNIEJSZYCH od otaczających je szerszych (m.in.
+  `src/routes/platform/email/auth/webhook.ts` 93/82/98/96 wobec
+  `src/routes/platform/email/**` 96/92/99/98). W tabeli 376 wpisów każdy z nich
+  wygląda identycznie jak realna bramka. Intencja bywa udokumentowana
+  w komentarzu - siła wiążąca jest zerowa.
+
+---
+
 ## 4. Czego NIE zrobiłem i dlaczego - jedno zdanie na punkt
 
 **Punkt 5b (podział arkusza CSS na publiczny i adminowy): ODRZUCONE.** Dziewięć
