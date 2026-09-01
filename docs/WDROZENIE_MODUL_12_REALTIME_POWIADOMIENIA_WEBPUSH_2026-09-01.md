@@ -141,24 +141,34 @@ w axe", żeby `it.fails` nie stał się workiem na przyszłe regresje.
 
 ---
 
-## 6. i18n: klucze, których żadna bramka nie widziała
+## 6. i18n: sprostowanie i to, co z niego zostało
 
-`check:i18n-parity` porównuje ZADEKLAROWANE drzewa kluczy. Klucz sklejany w kodzie
-(`t(\`notifications.settings.kinds.${kind}\`)`) nie jest dla niej rozjazdem - jest ciszą.
+**Pierwsza wersja tego rozdziału była nieprawdziwa i zostaje wycofana.** Twierdziła, że 17 z 18
+przełączników rodzaju i 10 z 10 zgód RODO pokazywało w obu językach surowe slugi. Nie pokazywało:
+te klucze od dawna są w rdzeniu `src/lib/locale/{pl,en}.ts` i renderują się poprawnie.
 
-Zastane: **17 z 18** przełączników rodzaju pokazywało w OBU językach surowy slug z bazy
-(„crm_task", „profile_view"), **10 z 10** zgód RODO swój klucz rejestru („marketing_email")
-zamiast nazwy oświadczenia, a `notifications.unread` w ogóle nie istniał - `UnreadBadge` czyta
-go jako `aria-label` przy `aria-live`, więc czytnik ekranu ogłaszał surowy klucz przy każdej
-zmianie licznika.
+Sprawdziłem tylko nakładkę `src/lib/i18n-notifications.ts`, zobaczyłem w niej brak tych kluczy
+i uznałem to za lukę w tłumaczeniach. Nakładka jest warstwą, nie całym słownikiem.
 
-Dopisane w PL i EN: 18 rodzajów, 4 sekcje z podpowiedziami, 5 kategorii zgód, 10 zgód
-(nazwa + opis), formy mnogie licznika. `i18nNotifications.test.ts` mierzy je teraz OD STRONY
-KATALOGU (`NOTIFICATION_KINDS`, `NOTIFICATION_KIND_GROUPS`, `CONSENT_CATALOG`), a osobna asercja
-pilnuje, że etykieta nie jest slugiem - bo wpis `crm_task: "crm_task"` przeszedłby sam test
-obecności.
+Skutek błędu był poważniejszy niż sam nadmiarowy wpis: nakładka rejestruje się przez
+`addResourceBundle(..., true, true)` - ostatnie `true` znaczy NADPISZ - więc od wejścia na trasę
+powiadomień podmieniłaby kanoniczne treści. W tym opis zgody marketingowej **bez pouczenia
+„Możesz wycofać zgodę w każdej chwili"**, przy niezmienionej wersji `1.0` w `CONSENT_CATALOG`.
+Dwa materialnie różne brzmienia zgody pod jedną wersją w rejestrze RODO to defekt materiału
+dowodowego z art. 7 ust. 1, nie literówka.
 
----
+Wychwycił to automatyczny przegląd na PR #316 (uwaga P1), nie ja. **Zmiana cofnięta w całości** -
+nakładka wróciła do stanu sprzed kampanii, co do bajtu.
+
+**Trwały wynik.** `src/lib/__tests__/i18nNotifications.test.ts` mierzył dotąd samą nakładkę.
+Mierzy teraz SŁOWNIK EFEKTYWNY (rdzeń + nakładka) przez to samo `t`, którego używa aplikacja,
+plus trzy bramki:
+
+| Bramka                         | Co pilnuje                                                                                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| prawna, **bez listy wyjątków** | nakładka nie podmienia żadnego `notifications.consents.items.*` ani `.categories.*` - zmiana treści oświadczenia należy do rdzenia ORAZ do bumpa wersji w `consentCatalog.ts` |
+| ratchet                        | pozostałe rozjazdy nakładka-rdzeń: zastano **24** (wszystkie w EN, żaden w treści zgód), lista może tylko maleć                                                               |
+| katalogowa                     | każdy rodzaj, sekcja i zgoda z katalogów renderuje się w obu językach i nie jest surowym slugiem - broni przed dopisaniem rodzaju bez tłumaczenia                             |
 
 ## 7. Progi per-ścieżka
 
@@ -208,10 +218,15 @@ mismatch` w `encryptPushPayload`, eksmisja z cache'u VAPID przy 64 wpisach.
 5. **`NotificationsBell.tsx` ma 84,62% funkcji** - najniższy wynik wśród komponentów. Niepokryte
    są domknięcia, których nie da się wywołać bez otwarcia popovera w konfiguracji, której Radix
    pod happy-dom nie odtwarza wiernie.
-6. **`pickBody` i `pickTitle` traktują pusty napis inaczej** (`??` kontra truthiness), więc
+6. **Własny błąd, złapany dopiero w przeglądzie, nie przeze mnie:** nadpisanie kanonicznych
+   treści zgód RODO napisami z nakładki (rozdział 6). Cofnięte w całości i zabezpieczone bramką
+   bez listy wyjątków. Zapisuję to tutaj, bo raport przemilczający własną pomyłkę nie jest
+   sprawdzalny - a mechanizm tej pomyłki (sprawdzenie warstwy zamiast słownika efektywnego)
+   powtórzy się każdemu, kto dopisze klucz do nakładki `i18n-*.ts`.
+7. **`pickBody` i `pickTitle` traktują pusty napis inaczej** (`??` kontra truthiness), więc
    producent zapisujący `""` zamiast NULL-a dostanie w EN pustą treść, a nie polską. Zachowanie
    przeniesiono BEZ ZMIANY i przypięto testem wykonującym się (nie `it.fails`) - to kandydat
    do ujednolicenia, nie defekt z konsekwencjami dziś.
-7. **Defekty 1-5 z rozdziału 5 pozostają w produkcji.** Zlecenie zabrania zmiany zachowania
+8. **Defekty 1-5 z rozdziału 5 pozostają w produkcji.** Zlecenie zabrania zmiany zachowania
    produkcyjnego w tej kampanii, więc są przypięte, opisane i czekają na osobną decyzję.
    Defekt 1 ma gotową, dowiedzioną testem poprawkę jednolinijkową (`Array.isArray`).

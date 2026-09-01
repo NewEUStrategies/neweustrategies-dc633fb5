@@ -29,13 +29,6 @@ export const notificationsPl = {
     deleteGroup: "Usuń całą rozmowę",
     openInbox: "Otwórz skrzynkę",
     searchPlaceholder: "Szukaj po treści, nadawcy...",
-    // Etykieta dostępności licznika (`UnreadBadge` czyta `notifications.unread`
-    // z licznikiem). Bez tych kluczy czytnik ekranu ogłaszał SUROWY KLUCZ -
-    // badge jest `aria-live`, więc odczytywał go przy każdej zmianie liczby.
-    unread_one: "{{count}} nieprzeczytane powiadomienie",
-    unread_few: "{{count}} nieprzeczytane powiadomienia",
-    unread_many: "{{count}} nieprzeczytanych powiadomień",
-    unread_other: "{{count}} nieprzeczytanych powiadomień",
     filters: {
       all: "Wszystkie",
       unread: "Nieprzeczytane",
@@ -55,45 +48,8 @@ export const notificationsPl = {
       behaviourHeader: "Zachowanie domyślne",
       channelsHeader: "Kanały doręczeń",
       channelsSubtitle: "Powiadomienia poza aplikacją: push w przeglądarce i zbiorczy e-mail.",
-      // Etykiety rodzajów. Panel renderuje je przez
-      // `t(`notifications.settings.kinds.${kind}`)`, czyli klucz DYNAMICZNY -
-      // dlatego brak wpisu nie był rozjazdem PL/EN, tylko ciszą: siedemnaście
-      // z osiemnastu przełączników pokazywało w OBU językach surowy slug z bazy
-      // („crm_task", „profile_view"). Kompletność względem katalogu
-      // NOTIFICATION_KINDS pilnuje src/lib/__tests__/i18nNotifications.test.ts.
       kinds: {
-        system: "Komunikaty systemowe",
-        comment: "Komentarze pod treściami",
-        follow: "Nowi obserwujący",
-        subscription: "Subskrypcja i płatności",
-        content: "Nowe publikacje",
         security: "Alerty bezpieczeństwa (zawsze włączone)",
-        message: "Wiadomości na czacie",
-        tracker: "Tracker legislacyjny",
-        connection: "Zaproszenia do kontaktów",
-        saved_search: "Zapisane wyszukiwania",
-        crm_task: "Zadania i follow-upy CRM",
-        expert_request: "Zapytania do eksperta",
-        introduction: "Przedstawienia kontaktów",
-        recommendation: "Rekomendacje",
-        endorsement: "Poparcia umiejętności",
-        profile_view: "Wyświetlenia profilu",
-        meeting_booking: "Rezerwacje spotkań",
-        club: "Kluby dyskusyjne",
-      },
-      // Sekcje tematyczne ustawień - klucz i podpowiedź per grupa z katalogu
-      // NOTIFICATION_KIND_GROUPS. Podpowiedź jest tu po to, żeby nazwa sekcji
-      // nie musiała być pełnym zdaniem.
-      kindGroups: {
-        conversations: "Rozmowy",
-        conversationsHint:
-          "Wiadomości bezpośrednie, zapytania do eksperta i wątki w klubach dyskusyjnych.",
-        network: "Sieć kontaktów",
-        networkHint: "Zaproszenia, przedstawienia, rekomendacje i aktywność wokół Twojego profilu.",
-        content: "Treści",
-        contentHint: "Komentarze, nowe publikacje, zapisane wyszukiwania i tracker legislacyjny.",
-        workspace: "Obszar roboczy",
-        workspaceHint: "Zadania CRM, sprawy subskrypcji i komunikaty systemowe.",
       },
       push: "Powiadomienia push w tej przeglądarce",
       pushHint: "Alert pojawi się nawet przy zamkniętej karcie. Każde urządzenie włączasz osobno.",
@@ -119,67 +75,6 @@ export const notificationsPl = {
       title: "Zgody komunikacji",
       subtitle:
         "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO.",
-      categories: {
-        cookies: "Pliki cookie",
-        legal: "Wymagane prawnie",
-        communications: "Komunikacja",
-        product: "Produkt",
-        analytics: "Analityka",
-      },
-      // Treści zgód. Panel czyta je kluczem DYNAMICZNYM
-      // (`notifications.consents.items.${key}.title`), więc brak wpisu nie
-      // zapalał parytetu - pokazywał surowy klucz rejestru („marketing_email")
-      // jako nazwę zgody, na którą użytkownik ma świadomie odpowiedzieć.
-      // To jest powierzchnia RODO: nazwa i opis SĄ treścią oświadczenia woli.
-      // Bump wersji zgody w `consentCatalog.ts` wymaga przejrzenia tych opisów.
-      items: {
-        transactional: {
-          title: "Wiadomości serwisowe",
-          description:
-            "Potwierdzenia, zmiany w koncie i komunikaty bezpieczeństwa. Niezbędne do korzystania z serwisu, więc nie da się ich wycofać.",
-        },
-        marketing_email: {
-          title: "E-maile marketingowe",
-          description:
-            "Zaproszenia na wydarzenia, zapowiedzi raportów i oferty New European Strategies.",
-        },
-        newsletter_digest: {
-          title: "Newsletter i podsumowania",
-          description: "Cykliczny przegląd analiz i nowych publikacji w jednej wiadomości.",
-        },
-        push_marketing: {
-          title: "Push marketingowy",
-          description:
-            "Alerty w przeglądarce o wydarzeniach i ofertach - osobno od powiadomień serwisowych.",
-        },
-        product_updates: {
-          title: "Nowości produktowe",
-          description: "Informacje o nowych funkcjach platformy i zmianach w interfejsie.",
-        },
-        personalization: {
-          title: "Personalizacja treści",
-          description:
-            "Dopasowanie rekomendacji i kolejności treści do Twojej aktywności w serwisie.",
-        },
-        analytics: {
-          title: "Analityka użycia",
-          description:
-            "Pomiar tego, jak korzystasz z serwisu, żeby poprawiać jego działanie. Dane są zagregowane.",
-        },
-        cookies_functional: {
-          title: "Cookies funkcjonalne",
-          description: "Zapamiętanie ustawień: język, układ strony i preferencje widoku.",
-        },
-        cookies_analytics: {
-          title: "Cookies analityczne",
-          description:
-            "Statystyki odwiedzin i ruchu. Bez nich nie wiemy, które treści są realnie czytane.",
-        },
-        cookies_marketing: {
-          title: "Cookies marketingowe",
-          description: "Dopasowanie reklam i pomiar skuteczności kampanii.",
-        },
-      },
       requiredBadge: "Wymagana",
       notDecided: "Nie podjęto decyzji",
       given: "Udzielono {{date}}",
@@ -221,8 +116,6 @@ export const notificationsEn = {
     deleteGroup: "Delete the whole conversation",
     openInbox: "Open inbox",
     searchPlaceholder: "Search by content, sender...",
-    unread_one: "{{count}} unread notification",
-    unread_other: "{{count}} unread notifications",
     filters: {
       all: "All",
       unread: "Unread",
@@ -243,35 +136,7 @@ export const notificationsEn = {
       channelsHeader: "Delivery channels",
       channelsSubtitle: "Notifications outside the app: browser push and a batched email.",
       kinds: {
-        system: "System messages",
-        comment: "Comments on content",
-        follow: "New followers",
-        subscription: "Subscription and payments",
-        content: "New publications",
         security: "Security alerts (always on)",
-        message: "Chat messages",
-        tracker: "Legislative tracker",
-        connection: "Connection invitations",
-        saved_search: "Saved searches",
-        crm_task: "CRM tasks and follow-ups",
-        expert_request: "Expert requests",
-        introduction: "Contact introductions",
-        recommendation: "Recommendations",
-        endorsement: "Skill endorsements",
-        profile_view: "Profile views",
-        meeting_booking: "Meeting bookings",
-        club: "Discussion clubs",
-      },
-      kindGroups: {
-        conversations: "Conversations",
-        conversationsHint: "Direct messages, expert requests and discussion club threads.",
-        network: "Network",
-        networkHint:
-          "Invitations, introductions, recommendations and activity around your profile.",
-        content: "Content",
-        contentHint: "Comments, new publications, saved searches and the legislative tracker.",
-        workspace: "Workspace",
-        workspaceHint: "CRM tasks, subscription matters and system messages.",
       },
       push: "Push notifications in this browser",
       pushHint: "The alert shows even when the tab is closed. Enable it separately on each device.",
@@ -297,60 +162,6 @@ export const notificationsEn = {
       title: "Communication consents",
       subtitle:
         "Decide which messages may reach you. Every change is recorded in an immutable GDPR register.",
-      categories: {
-        cookies: "Cookies",
-        legal: "Legally required",
-        communications: "Communications",
-        product: "Product",
-        analytics: "Analytics",
-      },
-      items: {
-        transactional: {
-          title: "Service messages",
-          description:
-            "Confirmations, account changes and security notices. Essential to using the service, so they cannot be withdrawn.",
-        },
-        marketing_email: {
-          title: "Marketing emails",
-          description:
-            "Event invitations, report announcements and New European Strategies offers.",
-        },
-        newsletter_digest: {
-          title: "Newsletter and digests",
-          description: "A recurring round-up of analyses and new publications in one message.",
-        },
-        push_marketing: {
-          title: "Marketing push",
-          description:
-            "Browser alerts about events and offers - separate from service notifications.",
-        },
-        product_updates: {
-          title: "Product updates",
-          description: "News about new platform features and interface changes.",
-        },
-        personalization: {
-          title: "Content personalisation",
-          description: "Tailoring recommendations and content order to your activity here.",
-        },
-        analytics: {
-          title: "Usage analytics",
-          description:
-            "Measuring how you use the service so we can improve it. The data is aggregated.",
-        },
-        cookies_functional: {
-          title: "Functional cookies",
-          description: "Remembering settings: language, page layout and view preferences.",
-        },
-        cookies_analytics: {
-          title: "Analytics cookies",
-          description:
-            "Visit and traffic statistics. Without them we do not know which content is actually read.",
-        },
-        cookies_marketing: {
-          title: "Marketing cookies",
-          description: "Ad targeting and campaign effectiveness measurement.",
-        },
-      },
       requiredBadge: "Required",
       notDecided: "No decision yet",
       given: "Given {{date}}",

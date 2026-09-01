@@ -2581,20 +2581,45 @@ Ustalenia:
   polityce i żadna tenanta nie wiąże, więc bramka strukturalnie nie ma czego porównać. Ten test
   jest dla obu tabel tym brakującym świadkiem.
 
-### 10.6. i18n: klucze, których żadna bramka nie widziała
+### 10.6. i18n: SPROSTOWANIE do wcześniejszej wersji tego rozdziału
 
-`check:i18n-parity` porównuje ZADEKLAROWANE drzewa kluczy, więc klucz SKLEJANY w kodzie
-(`t(\`notifications.settings.kinds.${kind}\`)`) nie jest dla niej rozjazdem - jest ciszą.
-Skutek: **siedemnaście z osiemnastu** przełączników rodzaju pokazywało w OBU językach surowy slug
-z bazy („crm_task", „profile_view"), a **każda z dziesięciu zgód RODO** swój klucz rejestru
-(„marketing_email") zamiast nazwy oświadczenia, na które użytkownik ma świadomie odpowiedzieć.
-Brakowało też `notifications.unread`-`UnreadBadge`czyta ten klucz jako`aria-label`przy`aria-live`, więc czytnik ekranu ogłaszał surowy klucz przy każdej zmianie licznika.
+**Pierwsza wersja tego rozdziału była nieprawdziwa i zostaje wycofana w całości.**
 
-Dopisane w PL i EN: 18 rodzajów, 4 sekcje z podpowiedziami, 5 kategorii zgód, 10 zgód
-(nazwa + opis), formy mnogie licznika. `src/lib/__tests__/i18nNotifications.test.ts` mierzy je
-teraz OD STRONY KATALOGU (`NOTIFICATION_KINDS`, `NOTIFICATION_KIND_GROUPS`, `CONSENT_CATALOG`),
-a osobna asercja pilnuje, że etykieta nie jest slugiem - bo wpis `crm_task: "crm_task"` przeszedłby
-sam test obecności.
+Twierdziła, że siedemnaście z osiemnastu przełączników rodzaju pokazywało w obu językach
+surowy slug z bazy, a każda z dziesięciu zgód RODO swój klucz rejestru zamiast nazwy
+oświadczenia. To nieprawda. Klucze `notifications.settings.kinds.*`,
+`notifications.settings.kindGroups.*`, `notifications.consents.items.*`,
+`notifications.consents.categories.*` i `notifications.unread_*` **od dawna są w rdzeniu**
+(`src/lib/locale/{pl,en}.ts`) i renderują się poprawnie w obu językach.
+
+Skąd błąd: sprawdziłem NAKŁADKĘ (`src/lib/i18n-notifications.ts`) i zobaczyłem tam brak tych
+kluczy. Nakładka jest jednak WARSTWĄ, nie całym słownikiem - a rdzenia nie sprawdziłem.
+
+**Co z tego wynikło.** Dopisałem do nakładki własne brzmienia, a nakładka rejestruje się przez
+`addResourceBundle(lang, ns, tree, true, true)`, gdzie ostatnie `true` znaczy NADPISZ. Od chwili
+wejścia na trasę powiadomień użytkownik zobaczyłby więc moje napisy zamiast kanonicznych -
+w tym opis zgody marketingowej **bez pouczenia „Możesz wycofać zgodę w każdej chwili"**, które
+jest w rdzeniu. Ponieważ `CONSENT_CATALOG` zapisuje decyzje z wersją `1.0`, dwa materialnie różne
+brzmienia zgody trafiałyby do rejestru RODO pod jedną wersją, a wpisy sprzed podmiany przestałyby
+odpowiadać temu, co użytkownik faktycznie przeczytał.
+
+Wychwycił to automatyczny przegląd na PR-ze (uwaga P1), nie ja. Zmiana została **cofnięta
+w całości** - nakładka wróciła do stanu sprzed kampanii, co do bajtu.
+
+**Co z tego zostaje jako trwały wynik.** Test `src/lib/__tests__/i18nNotifications.test.ts` mierzył
+dotąd wyłącznie nakładkę, czyli odpowiadał na pytanie, którego nikt nie zadaje. Mierzy teraz
+SŁOWNIK EFEKTYWNY (rdzeń + nakładka) przez to samo `t`, którego używa aplikacja, a do tego ma trzy
+nowe bramki:
+
+- **prawną, bez listy wyjątków**: nakładka nie może podmienić żadnego klucza
+  `notifications.consents.items.*` ani `.categories.*`, bo to treść oświadczenia woli - jej zmiana
+  należy do rdzenia ORAZ do bumpa wersji w `consentCatalog.ts`;
+- **ratchet** na pozostałe rozjazdy nakładka-rdzeń: zastano **24** (wszystkie w EN, żaden w treści
+  zgód), lista może tylko maleć;
+- **katalogową**: każdy rodzaj z `NOTIFICATION_KINDS`, każda sekcja z `NOTIFICATION_KIND_GROUPS`
+  i każda zgoda z `CONSENT_CATALOG` musi renderować się w obu językach i nie być surowym slugiem.
+  Ta ostatnia broni przed realnym scenariuszem, którego wcześniej nie łapało nic: dopisaniem
+  rodzaju do katalogu bez tłumaczenia.
 
 ### 10.7. Czego NIE osiągnięto
 
@@ -2619,6 +2644,10 @@ mismatch` w `encryptPushPayload` (asekuracja własnego inwariantu długości AES
 - **`domainEvents.ts` stoi na 66,67% funkcji** i jest jedynym plikiem modułu poniżej 80% na tej
   metryce. Ma własne, wcześniejsze testy i nie był w zakresie tej kampanii; próg zapadkowy został
   mu wpisany na zmierzonym poziomie, żeby nie osunął się dalej.
+- **Własny błąd, złapany dopiero w przeglądzie:** nadpisanie kanonicznych treści zgód RODO
+  napisami z nakładki (patrz 10.6). Cofnięte w całości, zabezpieczone bramką bez listy wyjątków.
+  Zapisuję to tutaj, a nie tylko w historii commitów, bo raport, który przemilcza własną pomyłkę,
+  nie jest sprawdzalny.
 - **`pickBody` i `pickTitle` traktują PUSTY NAPIS inaczej** (`??` kontra truthiness), więc
   producent zapisujący `""` zamiast NULL-a dostanie w EN pustą treść, a nie polską. Zachowanie
   przeniesiono bez zmiany i przypięto testem WYKONUJĄCYM SIĘ (nie `it.fails`), z akapitem
