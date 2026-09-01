@@ -43,6 +43,10 @@ const h = vi.hoisted(() => ({
     finish: vi.fn(),
     cancel: vi.fn(),
   },
+  recorderOptions: null as {
+    onLimitReached?: (voice: RecordedVoice | null) => void;
+    onError?: (kind: "denied" | "unsupported") => void;
+  } | null,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -73,10 +77,21 @@ vi.mock("@/lib/chat/attachments", async (importOriginal) => {
 });
 
 // Nagrywanie ma własny plik testowy (`src/lib/chat/__tests__/voice.test.ts`).
-// Tutaj liczy się wyłącznie to, czy kompozytor ODCZYTUJE `supported` i `state`.
+// Tutaj liczy się wyłącznie to, czy kompozytor ODCZYTUJE `supported` i `state`
+// oraz co robi z CALLBACKAMI, które sam nagrywarce podaje - dlatego atrapa
+// zapamiętuje opcje wręczone przez kompozytor.
 vi.mock("@/lib/chat/voice", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/chat/voice")>();
-  return { ...real, useVoiceRecorder: () => h.recorder };
+  return {
+    ...real,
+    useVoiceRecorder: (options?: {
+      onLimitReached?: (voice: RecordedVoice | null) => void;
+      onError?: (kind: "denied" | "unsupported") => void;
+    }) => {
+      h.recorderOptions = options ?? null;
+      return h.recorder;
+    },
+  };
 });
 
 import { ChatComposer, type ChatComposerProps } from "../ChatComposer";
@@ -149,6 +164,7 @@ beforeEach(() => {
   h.recorder.start = vi.fn();
   h.recorder.finish = vi.fn(async (): Promise<RecordedVoice | null> => null);
   h.recorder.cancel = vi.fn();
+  h.recorderOptions = null;
   createdObjectUrls = [];
   revokedObjectUrls = [];
   let seq = 0;
@@ -513,6 +529,152 @@ describe("załączniki", () => {
     const { container } = renderComposer();
     pickFile(container, fileOfSize("raport.pdf", "application/pdf", 2048));
     expect(screen.getByRole("button", { name: t.attach })).toBeDisabled();
+  });
+});
+
+describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
+  /** Nagranie w kształcie, jaki oddaje `useVoiceRecorder`. */
+  function recordedVoice(sizeBytes = 4096, durationSeconds = 7): RecordedVoice {
+    const file = new File(["x"], "voice-1.webm", { type: "audio/webm" });
+    Object.defineProperty(file, "size", { value: sizeBytes, configurable: true });
+    return { file, durationSeconds };
+  }
+
+  it("zakończone nagranie leci jako wiadomość `audio` z DŁUGOŚCIĄ", async () => {
+    h.recorder.state = "recording";
+    h.recorder.finish = vi.fn(async () => recordedVoice(4096, 7));
+    const { props } = renderComposer();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+    });
+
+    expect(h.uploads).toHaveLength(1);
+    expect(props.onSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "audio",
+        attachment: expect.objectContaining({ duration: 7 }),
+      }),
+    );
+    expect(props.onClearReply).toHaveBeenCalled();
+  });
+
+  it("PUSTE nagranie nie wysyła niczego", async () => {
+    h.recorder.state = "recording";
+    h.recorder.finish = vi.fn(async () => null);
+    const { props } = renderComposer();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+    });
+
+    expect(h.uploads).toHaveLength(0);
+    expect(props.onSend).not.toHaveBeenCalled();
+  });
+
+  it("nagranie ponad limit załącznika NIE startuje przesyłania", async () => {
+    h.recorder.state = "recording";
+    h.recorder.finish = vi.fn(async () => recordedVoice(MAX_ATTACHMENT_BYTES + 1, 600));
+    renderComposer();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+    });
+
+    expect(h.toast.error).toHaveBeenCalledWith(t.attachmentTooLarge);
+    expect(h.uploads).toHaveLength(0);
+  });
+
+  it("nieudane przesłanie notatki nazywa awarię i zdejmuje pasek postępu", async () => {
+    h.uploadOutcome = { kind: "reject", error: new Error("chat-attachment:network") };
+    h.recorder.state = "recording";
+    h.recorder.finish = vi.fn(async () => recordedVoice());
+    renderComposer();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+    });
+
+    expect(h.toast.error).toHaveBeenCalledWith(t.uploadFailed);
+    await waitFor(() => expect(screen.queryByText("42%")).toBeNull());
+  });
+
+  it("OSIĄGNIĘTY LIMIT DŁUGOŚCI wysyła nagranie sam, bez kliknięcia", async () => {
+    renderComposer();
+    expect(h.recorderOptions?.onLimitReached).toBeTypeOf("function");
+
+    await act(async () => {
+      h.recorderOptions?.onLimitReached?.(recordedVoice(2048, 600));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(h.uploads).toHaveLength(1));
+  });
+
+  it("odmowa mikrofonu i brak wsparcia mają OSOBNE komunikaty", () => {
+    renderComposer();
+    h.recorderOptions?.onError?.("denied");
+    expect(h.toast.error).toHaveBeenCalledWith(t.voice.micDenied);
+
+    h.toast.error.mockClear();
+    h.recorderOptions?.onError?.("unsupported");
+    expect(h.toast.error).toHaveBeenCalledWith(t.voice.unsupported);
+  });
+
+  it("bez tenanta nagranie NIE jest przesyłane", async () => {
+    h.auth.tenantId = null;
+    h.recorder.state = "recording";
+    h.recorder.finish = vi.fn(async () => recordedVoice());
+    const { props } = renderComposer();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+    });
+
+    expect(h.uploads).toHaveLength(0);
+    expect(props.onSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("wstawianie emotki z pickera", () => {
+  /** Otwiera popover emoji i czeka na doładowanie leniwego pickera. */
+  async function openEmojiPicker(): Promise<void> {
+    fireEvent.click(screen.getByRole("button", { name: t.emoji }));
+    await screen.findByPlaceholderText(t.emojiSearch);
+  }
+
+  /** Klika pierwszą emotkę w siatce i zwraca jej znak. */
+  function clickFirstEmoji(): string {
+    // Kafelki mają `role="option"` (siatka jest listboksem), a nie `button` -
+    // zapytanie po roli przycisku trafiłoby w zakładki kategorii.
+    const first = screen.getAllByRole("option")[0];
+    if (!first) throw new Error("test: picker nie wyrenderował ani jednej emotki");
+    const emoji = first.textContent ?? "";
+    fireEvent.click(first);
+    return emoji;
+  }
+
+  it("wybrana emotka trafia W MIEJSCE KURSORA, nie na koniec", async () => {
+    renderComposer();
+    type("ab");
+    const el = textarea();
+    el.setSelectionRange(1, 1);
+
+    await openEmojiPicker();
+    const emoji = clickFirstEmoji();
+
+    await waitFor(() => expect(textarea().value).toBe(`a${emoji}b`));
+  });
+
+  it("zaznaczony fragment jest ZASTĘPOWANY emotką", async () => {
+    renderComposer();
+    type("abc");
+    textarea().setSelectionRange(0, 3);
+
+    await openEmojiPicker();
+    const emoji = clickFirstEmoji();
+
+    await waitFor(() => expect(textarea().value).toBe(emoji));
   });
 });
 
