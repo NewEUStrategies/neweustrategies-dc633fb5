@@ -34,7 +34,7 @@
  * tylko `node:fs`/`node:path`.
  *
  * --gate JEST DOMYŚLNIE WYŁĄCZONE i to jest decyzja, nie przeoczenie. Bramka na
- * „zero tras bez treści w SSR" byłaby dziś czerwona na `main` (patrz liczby
+ * „zero tras o samych zimnych kluczach" byłaby dziś czerwona na `main` (patrz liczby
  * niżej), a bramka czerwona na wejściu nie pilnuje niczego - uczy tylko
  * obchodzenia. Wariant `--gate` porównuje z ZAMROŻONYM stanem wejściowym, czyli
  * nie pozwala listy WYDŁUŻYĆ i wymaga obniżenia progu przy każdej naprawie -
@@ -43,16 +43,27 @@
  * PROGI - ZMIERZONE 2026-09-01 tym skryptem, gałąź
  * `claude/ssr-hydration-public-page-wkrnre`, HEAD `1e3e1a4`:
  *   368 tras w `routeTree.gen.ts` -> 82 publiczne strony SSR
- *   -> 24 oddaje HTML bez własnej treści (20 bez loadera + 4 z loaderem, który
- *      nic nie grzeje) -> z tego 19 wchodzi do NES Edge Cache, 5 stoi na
- *      deny-liście.
- * `FROZEN_MISSING` = 24 pilnuje całości, `FROZEN_CACHEABLE` = 19 tej części,
+ *   -> 21 czyta WYŁĄCZNIE zimne klucze (13 bez loadera w łańcuchu + 8
+ *      z loaderem, który tych kluczy nie grzeje) -> z tego 16 wchodzi do NES
+ *      Edge Cache, 5 stoi na deny-liście.
+ * `FROZEN_MISSING` = 21 pilnuje całości, `FROZEN_CACHEABLE` = 16 tej części,
  * która realnie kosztuje. Oba są SUFITAMI, nie podłogami: rosnąć nie wolno
  * żadnemu, a naprawa obniża oba.
  *
+ * POPRAWKA WZGLĘDEM PIERWSZEJ WERSJI (progi 24/19). Spis nie zaliczał loaderów
+ * tras PRZODKÓW, więc `/events/$slug` i `/events/$slug/speakers` wychodziły na
+ * zimne, choć ich nagłówek grzeje loader powłoki `events.$slug.tsx:116`.
+ * W drugą stronę spis zaliczał loader po samym fakcie, że coś grzeje - stąd
+ * cztery strony dokumentowe (`/polityka-prywatnosci`, `/regulamin`,
+ * `/zwroty-i-reklamacje`, `/zatrudniamy`) uchodziły za rozgrzane, choć ich
+ * loader grzeje tylko `staticPageSeoQueryOptions`, a treść schodzi z innego
+ * klucza. Poprawka dodała też kubełek dla pięciu podstron modułowych wydarzeń
+ * (treść dowozi przodek) - stąd 24 -> 21.
+ *
  * ILE Z „59" ZOSTAŁO. Ustalenie audytu nie potwierdza się w żadnym czytaniu:
- * tras publicznych z SSR jest 82, a bez loadera - 20 (24 z tymi, których loader
- * nic nie grzeje). Liczba 59 nie wychodzi też z żadnego naiwnego pomiaru:
+ * tras publicznych z SSR jest 82, a takich, których żadnego klucza nie grzeje
+ * loader w łańcuchu - 21 (13 bez loadera w łańcuchu + 8 z loaderem, który tych
+ * kluczy nie dotyka). Liczba 59 nie wychodzi też z żadnego naiwnego pomiaru:
  * `grep -L "loader:" src/routes/*.tsx` bez `admin*` daje 65, po odjęciu gałęzi
  * `/profile` - 42, po odjęciu tras `ssr: false` - 56. Metoda, która dała 59,
  * nie jest w audycie zapisana i nie da się jej odtworzyć.
@@ -72,9 +83,9 @@ const ROUTE_TREE = "src/routeTree.gen.ts";
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "coverage"]);
 const SCANNABLE = /\.(ts|tsx)$/;
 /** Stan wejściowy całej listy „SSR bez treści" - sufit dla `--gate`. Obniżaj przy naprawach. */
-const FROZEN_MISSING = 24;
+const FROZEN_MISSING = 21;
 /** Ta część listy, której pusty dokument NAPRAWDĘ wchodzi do NES Edge Cache. */
-const FROZEN_CACHEABLE = 19;
+const FROZEN_CACHEABLE = 16;
 const RULE = "-".repeat(78);
 
 function walk(dir: string, out: string[]): string[] {
@@ -127,8 +138,8 @@ function main(): void {
   console.log("");
   console.log(RULE);
   console.log(
-    `PUSTY DOKUMENT W NES EDGE CACHE: ${cacheable.length} z ${missing.length} tras bez treści ` +
-      "w SSR wchodzi do cache dokumentów",
+    `PUSTY DOKUMENT W NES EDGE CACHE: ${cacheable.length} z ${missing.length} tras o samych ` +
+      "zimnych kluczach wchodzi do cache dokumentów",
   );
   console.log(
     `(reszta - ${denied.length} - stoi pod PUBLIC_DOCUMENT_DENY_PREFIXES, ` +
@@ -137,7 +148,7 @@ function main(): void {
   console.log("");
   for (const route of cacheable) {
     const flags = [route.noindex ? "noindex" : "indeksowana"];
-    if (route.queriesInRouteFile) flags.push("zapytanie w pliku trasy");
+    if (route.coldQueriesInRouteFile) flags.push("zimne zapytanie w pliku trasy");
     console.log(`  CACHE   ${route.fullPath.padEnd(40)} [${flags.join(", ")}]`);
   }
   for (const route of denied) {

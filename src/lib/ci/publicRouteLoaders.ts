@@ -6,7 +6,7 @@
  * potwierdzić, ani zaprzeczyć (rozdz. 6 raportu
  * `docs/WDROZENIE_SSR_HYDRATACJA_PIERWSZE_WCZYTANIE_2026-09-01.md`). Sam
  * `grep -L "loader:" src/routes/*.tsx` daje liczbę, która NIC NIE MÓWI, bo
- * w jednym worku trzyma trzy zupełnie różne stany:
+ * w jednym worku trzyma pięć zupełnie różnych stanów:
  *
  *   1. `/cart`, `/checkout/cancel`, `/cookies`, `/error` - treść stoi w JSX,
  *      loader nie ma czego rozgrzewać (11 tras);
@@ -14,14 +14,20 @@
  *      a serwer sesji NIE MA (stan auth siedzi w localStorage - patrz komentarz
  *      przy `ssr: false` w `routes/admin.tsx`), więc loader nie zmieniłby ani
  *      bajtu SSR-owego HTML-a (27 tras);
- *   3. `/tracker/explorer`, `/events/$slug/speakers` - render czyta dane przez
- *      React Query, więc bez loadera serwer oddaje szkielet ładowania, który
- *      wchodzi do NES Edge Cache na do 24 h (24 trasy, klasa defektu z punktu 4
- *      zlecenia).
+ *   3. `/events/$slug`, `/blog` - klucz treści grzeje loader TRASY ALBO PRZODKA
+ *      (45 tras);
+ *   4. `/events/$slug/agenda` i cztery inne podstrony modułowe - własne
+ *      zapytania zakładki są zimne, ale dokument NIE jest pusty, bo nagłówek,
+ *      tytuł i JSON-LD dowozi rozgrzana powłoka `events.$slug.tsx` (5 tras);
+ *   5. `/tracker/explorer`, `/qa`, `/publications` - żaden czytany klucz nie
+ *      jest rozgrzany, więc serwer oddaje szkielet ładowania, który wchodzi do
+ *      NES Edge Cache na do 24 h (21 tras, klasa defektu z punktu 4 zlecenia).
  *
- * Dopiero trzecia grupa jest defektem. Ten moduł liczy każdą z osobna.
+ * Dopiero PIĄTA grupa jest długiem SSR. Ten moduł liczy każdą z osobna.
  * ZMIERZONE 2026-09-01 (HEAD `1e3e1a4`): 368 tras w drzewie -> 82 publiczne
- * strony SSR -> 24 bez treści w SSR, z czego 19 wchodzi do cache dokumentów.
+ * strony SSR -> 21 z samymi zimnymi kluczami, z czego 16 wchodzi do cache
+ * dokumentów. Wersja bez zaliczania loaderów PRZODKÓW dawała tu 24 i myliła się
+ * w obie strony - patrz „ŁAŃCUCH PRZODKÓW" niżej.
  *
  * ---
  *
@@ -59,6 +65,25 @@
  *     KAŻDA z 82 tras publicznych wyglądałaby na czytającą dane, więc spis nie
  *     rozróżniałby niczego.
  *
+ * ŁAŃCUCH PRZODKÓW - JEDNA REGUŁA, NIE DWA MECHANIZMY. Rozgrzanie zaliczamy
+ * z loadera TRASY oraz z loaderów WSZYSTKICH jej przodków w drzewie, a `__root`
+ * jest w tej pętli ostatnim przodkiem, nie osobnym przypadkiem. Bez tego
+ * `/events/$slug` (plik `events.$slug.index.tsx`) wychodził na „SSR bez treści",
+ * choć jego nagłówek i opis grzeje loader rodzica `events.$slug.tsx:116`.
+ * Osobno stoi PRZEBIEG 4: dokument liścia zawiera komponenty całego łańcucha,
+ * więc trasa, której własne zapytania są zimne, ale której PRZODEK dowozi
+ * rozgrzaną treść, dostaje własny kubełek (`tresc-z-przodka`) i nie liczy się
+ * do długu.
+ *
+ * Odjęcie 279 modułów powłoki NIE zostało scalone z tą regułą i to jest
+ * decyzja, nie przeoczenie. Zmierzyłem wariant scalony (domknięcie `__root`
+ * wchodzi do ścieżki renderu każdej trasy, kredyt idzie z loadera korzenia):
+ * chrome ma zapytania, których loader korzenia NIE grzeje - `BrandIcon.tsx:25`
+ * woła `useQuery(["icon-library", …])` z literałem klucza, bez fabryki - więc
+ * jedna nierozgrzana ikona pojawiłaby się jako zimne zapytanie na WSZYSTKICH
+ * 82 trasach. Odjęcie powłoki odpowiada na inne pytanie („czyja to treść"),
+ * niż kredyt z loadera („czy jest rozgrzana"), i dlatego zostaje osobno.
+ *
  * ZAPYTANIE = wywołanie czytającego hooka React Query: `useQuery`,
  * `useQueries`, `useSuspenseQuery`, `useSuspenseQueries`, `useInfiniteQuery`,
  * `useSuspenseInfiniteQuery`. `useMutation` i `useQueryClient` nie liczą się -
@@ -91,15 +116,35 @@
  *     `useHeaderProfile`) i z atomu `components/atoms/BrandIcon.tsx:25`.
  *     Zostaje w spisie, bo dowód przy każdej trasie (plik:linia + hop) pozwala
  *     ten przypadek rozpoznać, a ręczna lista wyjątków rozjechałaby się z kodem.
- * (b) Nie sprawdza, czy loader rozgrzewa TE SAME klucze, które czyta render.
- *     Loader grzejący wyłącznie `staticPageSeoQueryOptions` (6 stron
- *     dokumentowych: `/contribute`, `/cookies`, `/polityka-prywatnosci`,
- *     `/regulamin`, `/zatrudniamy`, `/zwroty-i-reklamacje`) liczy się jako
- *     grzejący - i słusznie, bo treść tych stron stoi w JSX, a z bazy schodzi
- *     tylko override SEO.
- * (c) Nie ocenia, czy brak treści w SSR jest KOSZTOWNY. Trasę `noindex` i trasę
+ *     Po naprawie z tej wersji `/quiz` ma 2 zimne zapytania i 10 z tożsamością
+ *     czytelnika w kluczu - rozbicie jest w raporcie przy każdej trasie.
+ * (b) SPROSTOWANIE DO PIERWSZEJ WERSJI TEGO NAGŁÓWKA. Stało tu, że loader
+ *     grzejący wyłącznie `staticPageSeoQueryOptions` liczy się jako grzejący,
+ *     „bo treść tych stron stoi w JSX". Pomiar to obalił dla czterech z sześciu:
+ *     `/polityka-prywatnosci`, `/regulamin` i `/zwroty-i-reklamacje` czytają
+ *     treść z bazy (`lib/legal/useLegalDocument.ts:29`), a `/zatrudniamy` -
+ *     oferty (`lib/careers/useCareerContent.ts:29`). Od tej wersji dopasowanie
+ *     idzie po FABRYCE KLUCZA, więc te strony trafiają do kubełka zimnego.
+ * (c) FAŁSZYWY POZYTYW ZE STAŁĄ ZAPASOWĄ, zmierzony ręcznie: trzy strony prawne.
+ *     `useLegalDocumentCopy(key, COPY, lang)` kończy się
+ *     `pickLegalCopy(data ?? null, fallback, lang)` - fallback jest BEZWARUNKOWY,
+ *     więc SSR renderuje pełną treść z `PRIVACY_CONTENT`/`TERMS_CONTENT`, tylko
+ *     bez nadpisania z bazy. Kontrprzykład z tej samej rodziny: `/zatrudniamy`
+ *     ma fallback ZA warunkiem `if (isLoading) return []`, a `isLoading` jest
+ *     w SSR `true` (rozdz. 5 raportu), więc tam dokument naprawdę jest pusty.
+ *     Rozróżnienie wymaga analizy przepływu danych, której ten spis nie robi -
+ *     dlatego trzy strony prawne zostają w liczbie i są tu WYMIENIONE.
+ * (d) DOPASOWANIE IDZIE PO NAZWIE FABRYKI, NIE PO WARTOŚCI KLUCZA.
+ *     `eventPageHeaderQueryOptions(params.slug, "anon")` w loaderze i
+ *     `eventPageHeaderQueryOptions(slug, user?.id ?? "anon")` w dziecku liczą
+ *     się jako ten sam klucz - dla anonimowego dokumentu SSR to prawda, dla
+ *     zalogowanego czytelnika już nie. Ponadto zbiór fabryk czytamy z CAŁEGO
+ *     ciała loadera (gdy zawiera wywołanie grzejące), bo `tracker.index.tsx:68`
+ *     grzeje przez alias `const itemsOptions = publishedItemsQueryOptions()`.
+ *     Oba rozluźnienia ZANIŻAJĄ dług - i to jest ich znany kierunek błędu.
+ * (e) Nie ocenia, czy brak treści w SSR jest KOSZTOWNY. Trasę `noindex` i trasę
  *     spod deny-listy NES Edge Cache raportuje osobno (runner).
- * (d) Jeden URL może wystąpić DWA RAZY: układ (`club.tsx`) i jego dziecko
+ * (f) Jeden URL może wystąpić DWA RAZY: układ (`club.tsx`) i jego dziecko
  *     `index` (`club.index.tsx`) mają tę samą pełną ścieżkę `/club`. To nie
  *     pomyłka - to dwa różne pliki z osobnymi opcjami trasy, więc każdy dostaje
  *     własny werdykt, a raport rozróżnia je kolumną z plikiem.
@@ -125,8 +170,21 @@ export type RouteExclusion =
 export type LoaderVerdict =
   /** Render nie czyta danych - loader nie ma czego rozgrzewać. */
   | "bez-zapytan"
-  /** Render czyta dane, loader je rozgrzewa. */
+  /** Render czyta dane i co najmniej jeden klucz grzeje loader trasy albo przodka. */
   | "loader-grzeje"
+  /**
+   * WŁASNE zapytania tej trasy są zimne, ale dokument NIE jest pusty: treść
+   * dowozi komponent przodka, którego loader grzeje swoje klucze. Tak działa
+   * `/events/$slug/agenda` - nagłówek, tytuł i JSON-LD renderuje powłoka
+   * `events.$slug.tsx`, a zakładka dokłada własną, nierozgrzaną sekcję.
+   */
+  | "tresc-z-przodka"
+  /**
+   * Nierozgrzane zostały WYŁĄCZNIE zapytania z tożsamością czytelnika w kluczu.
+   * Serwer renderuje anonimowo, więc dałoby się dograć tylko widok gościa - to
+   * decyzja produktowa per powierzchnia, nie dług SSR tej samej klasy.
+   */
+  | "tylko-widok-goscia"
   /** Render czyta dane, loader istnieje, ale nic nie grzeje. */
   | "loader-trywialny"
   /** Render czyta dane, loadera nie ma - SSR oddaje szkielet. */
@@ -139,6 +197,22 @@ export interface QuerySite {
   readonly hook: string;
   /** Odległość modułu od pliku trasy w grafie statycznych importów (0 = sam plik trasy). */
   readonly distance: number;
+  /** Fabryki klucza widoczne w argumencie hooka (`publicEventBySlugQueryOptions`). */
+  readonly symbols: readonly string[];
+  /** Klucz niesie tożsamość czytelnika - serwer może rozgrzać tylko wariant gościa. */
+  readonly viewerKeyed: boolean;
+  /** Rozgrzane przez loader TEJ trasy albo któregoś PRZODKA (etykieta trasy). */
+  readonly warmedBy: string | null;
+  /** Czy rozgrzał to PRZODEK, a nie ta trasa - porównanie po tożsamości węzła. */
+  readonly warmedByAncestor: boolean;
+}
+
+/** Trasa, której loader rozgrzewa daną fabrykę klucza. */
+interface WarmSource {
+  /** Identyfikator węzła z `routeTree.gen.ts` - jedyny pewny sposób porównania. */
+  readonly ident: string;
+  /** URL do komunikatu (dla korzenia: `/ (__root)`). */
+  readonly label: string;
 }
 
 /** Moduł z zapytaniem + w ilu trasach publicznych stoi na ścieżce renderu. */
@@ -166,8 +240,16 @@ export interface RouteFacts {
   readonly renderModuleCount: number;
   /** Liczba wywołań czytającego hooka na ścieżce renderu (po odjęciu powłoki). */
   readonly queryCount: number;
-  /** Czy dane czyta SAM PLIK TRASY (hop 0) - fakt, nie heurystyka. */
-  readonly queriesInRouteFile: boolean;
+  /** Z tego: rozgrzane loaderem tej trasy albo przodka (dopasowanie po fabryce klucza). */
+  readonly warmQueryCount: number;
+  /** Z tego: z tożsamością czytelnika w kluczu - rozgrzać da się tylko widok gościa. */
+  readonly viewerQueryCount: number;
+  /** Z tego: ZIMNE - nikt ich nie grzeje i nic nie stoi na przeszkodzie. */
+  readonly coldQueryCount: number;
+  /** Czy ZIMNE zapytanie stoi w SAMYM PLIKU TRASY (hop 0) - fakt, nie heurystyka. */
+  readonly coldQueriesInRouteFile: boolean;
+  /** Trasy-przodkowie, których loadery rozgrzały cokolwiek z tej ścieżki renderu. */
+  readonly warmedByAncestors: readonly string[];
   /** Do trzech NAJBLIŻSZYCH wywołań (sort po odległości) - dowód dla werdyktu. */
   readonly querySites: readonly QuerySite[];
 }
@@ -181,6 +263,12 @@ export interface PublicRouteLoaderReport {
   readonly topQueryModules: readonly QueryModuleStat[];
   /** Ile modułów na ścieżkach renderu tras publicznych zawiera zapytanie. */
   readonly queryModuleCount: number;
+  /**
+   * Trasy z werdyktem `loader-grzeje`, które MIMO TO mają zimne zapytania
+   * peryferyjne. Nie są długiem tej samej klasy (dokument SSR ma treść), ale
+   * przemilczenie tej liczby zamieniłoby próg „co najmniej jedno" w wymówkę.
+   */
+  readonly partiallyWarmCount: number;
 }
 
 // --- parser drzewa tras -----------------------------------------------------
@@ -299,24 +387,6 @@ export function staticImportClosure(
   return depth;
 }
 
-/**
- * Czytające hooki React Query. `useQueryClient(` i `useMutation(` nie pasują -
- * pierwszy nie czyta, drugi nie jest treścią pierwszego renderu.
- */
-const QUERY_HOOK_RE = /\buse(?:Suspense)?(?:Infinite)?(Query|Queries)\s*\(/g;
-
-export function findQuerySites(file: string, source: string, distance = 0): QuerySite[] {
-  const clean = stripTsComments(source);
-  const out: QuerySite[] = [];
-  const lines = clean.split("\n");
-  for (let i = 0; i < lines.length; i += 1) {
-    for (const match of lines[i].matchAll(QUERY_HOOK_RE)) {
-      out.push({ file, line: i + 1, hook: match[0].replace(/\s*\($/, ""), distance });
-    }
-  }
-  return out;
-}
-
 /** Wywołania, po których poznajemy, że loader ROZGRZEWA cache zapytań. */
 const WARMING_CALLS = [
   "ensureQueryData",
@@ -328,6 +398,113 @@ const WARMING_CALLS = [
   "setQueryData",
   "loadResilient",
 ] as const;
+
+/**
+ * Czytające hooki React Query. `useQueryClient(` i `useMutation(` nie pasują -
+ * pierwszy nie czyta, drugi nie jest treścią pierwszego renderu.
+ */
+const QUERY_HOOK_RE = /\buse(?:Suspense)?(?:Infinite)?(Query|Queries)\s*\(/g;
+
+/**
+ * Tekst argumentów wywołania - od `(` na pozycji `open` do jego pary.
+ * Potrzebny, bo o kluczu zapytania decyduje TREŚĆ argumentu (`...xQueryOptions(
+ * slug)`, `queryKey: [..., user?.id]`), a nie sama nazwa hooka.
+ */
+export function balancedArgs(source: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === "(" || ch === "{" || ch === "[") depth += 1;
+    else if (ch === ")" || ch === "}" || ch === "]") {
+      depth -= 1;
+      if (depth === 0) return source.slice(open + 1, i);
+    }
+  }
+  return source.slice(open + 1);
+}
+
+/**
+ * FABRYKI KLUCZA rozpoznawane w tekście: `*QueryOptions`, `*QueryKey` oraz
+ * `xKeys.y` / `xkeys.y`. To jedyny wspólny mianownik, po którym da się STATYCZNIE
+ * porównać „co grzeje loader" z „co czyta render": nazwa fabryki jest w obu
+ * miejscach tym samym importowanym identyfikatorem, a wartość klucza nie -
+ * `eventPageHeaderQueryOptions(params.slug, "anon")` w loaderze powłoki
+ * i `eventPageHeaderQueryOptions(slug, user?.id ?? "anon")` w dziecku to ten sam
+ * import i (dla anonimowego dokumentu SSR) ten sam klucz.
+ *
+ * Kryterium jest NAZWOWE i to jest jego granica - patrz nagłówek pliku,
+ * akapit „CZEGO TEN SPIS NIE WIE", punkt (e).
+ */
+const KEY_FACTORY_RE = /\b([A-Za-z_$][\w$]*(?:Query(?:Options|Key)|[Kk]eys\.[A-Za-z_$][\w$]*))\b/g;
+
+export function keyFactorySymbols(text: string): string[] {
+  return [...new Set([...text.matchAll(KEY_FACTORY_RE)].map((match) => match[1]))];
+}
+
+/**
+ * TOŻSAMOŚĆ CZYTELNIKA W KLUCZU. Serwer renderuje anonimowo (stan auth siedzi
+ * w localStorage), więc dla takiego zapytania da się rozgrzać WYŁĄCZNIE wariant
+ * gościa - wariant zalogowanego nie istnieje w chwili renderu. To inna kategoria
+ * niż „nikt tego nie rozgrzał" i raport liczy ją osobno.
+ *
+ * Wzorce pochodzą z KODU, nie z nazw wymyślonych na zapas:
+ *   `user?.id` / `user.id`          - `events.$slug.index.tsx:139` (`rsvpQ`)
+ *   `viewer` / `useViewerId`        - `lib/events/usePublicEvent.ts:89,107,118…`
+ *                                     (`publicEventKeys.sections(slug, viewer)`)
+ *   `session?.user?.id`, `userId`, `uid` - pozostałe warianty tego samego
+ *                                     pojęcia w tym repo.
+ */
+const VIEWER_KEY_RE =
+  /\b(?:useViewerId|viewer|userId|uid)\b|\buser\s*\??\.\s*id\b|\bsession\s*\??\.\s*user\s*\??\.\s*id\b/;
+
+export function findQuerySites(file: string, source: string, distance = 0): QuerySite[] {
+  const clean = stripTsComments(source);
+  const out: QuerySite[] = [];
+  for (const match of clean.matchAll(QUERY_HOOK_RE)) {
+    const at = match.index ?? 0;
+    const open = at + match[0].length - 1;
+    const args = balancedArgs(clean, open);
+    out.push({
+      file,
+      line: clean.slice(0, at).split("\n").length,
+      hook: match[0].replace(/\s*\($/, ""),
+      distance,
+      symbols: keyFactorySymbols(args),
+      viewerKeyed: VIEWER_KEY_RE.test(args),
+      warmedBy: null,
+      warmedByAncestor: false,
+    });
+  }
+  return out;
+}
+
+/**
+ * Fabryki klucza, które ROZGRZEWA loader tego pliku trasy.
+ *
+ * Wynik jest zbiorem NAZW, nie kluczy - dlatego niżej (`analyse…`) zaliczamy
+ * rozgrzanie tylko wtedy, gdy render czyta TĘ SAMĄ fabrykę. Sama obecność
+ * loadera u przodka nie wystarcza; loader `/qa` woła `fetchPublicQaSessions()`
+ * bez żadnej fabryki i zbiór wychodzi pusty, więc trasa dalej jest zimna.
+ */
+export function loaderWarmedSymbols(source: string): string[] {
+  const block = routeOptionsBlock(source);
+  if (block === null) return [];
+  const body = topLevelOption(block, "loader");
+  if (body === null) return [];
+  // WARUNEK WSTĘPNY: loader musi w ogóle grzać. Bez tego `/qa` (loader woła
+  // `fetchPublicQaSessions()` i oddaje wynik do `head()`) zaliczałby fabryki,
+  // których do cache nie wpisuje.
+  if (!WARMING_CALLS.some((call) => body.includes(call))) return [];
+  // CAŁE ciało, nie tylko argument wywołania grzejącego. Powód zmierzony
+  // na `routes/tracker.index.tsx:68`: loader robi
+  // `const itemsOptions = publishedItemsQueryOptions();` i dopiero potem
+  // `ensureQueryData(itemsOptions)`. Czytanie samego argumentu widziało tam
+  // `itemsOptions` (nie fabrykę) i uznawało trasę za zimną - fałszywy pozytyw.
+  // CENA tego rozluźnienia: fabryka WSPOMNIANA w loaderze, ale nie przekazana
+  // do rozgrzewki, też się zaliczy. Kierunek błędu jest więc ZANIŻAJĄCY dług
+  // i jest wpisany w nagłówek pliku, punkt (e).
+  return keyFactorySymbols(body);
+}
 
 /**
  * Obiekt opcji z `createFileRoute("/x")({ … })` - z dopasowaniem nawiasów.
@@ -445,6 +622,8 @@ export function hasNoindex(source: string): boolean {
 const MAX_QUERY_EVIDENCE = 3;
 const SHELL_ENTRY = "src/routes/__root.tsx";
 const ADMIN_PATH_PREFIX = "/admin";
+/** Pseudo-ident korzenia: `__root` nie jest węzłem w `routeTree.gen.ts`. */
+const ROOT_IDENT = "__rootRoute";
 const TOP_QUERY_MODULES = 15;
 
 /** Kandydat na trasę publiczną z SSR - wynik pierwszego przebiegu. */
@@ -457,11 +636,39 @@ interface Candidate {
   readonly noindex: boolean;
   /** Moduł -> odległość od pliku trasy, po odjęciu powłoki i tras rodzeństwa. */
   readonly renderModules: ReadonlyMap<string, number>;
+  /** Fabryka klucza -> trasa w ŁAŃCUCHU PRZODKÓW, której loader ją grzeje. */
+  readonly warmedInChain: ReadonlyMap<string, WarmSource>;
 }
 
-function verdictFor(queryCount: number, loader: LoaderFacts): LoaderVerdict {
-  if (queryCount === 0) return "bez-zapytan";
-  if (loader.warms) return "loader-grzeje";
+/**
+ * Werdykt liczony z ROZBICIA zapytań, nie z ich liczby.
+ *
+ * PYTANIE, NA KTÓRE ODPOWIADA „loader-grzeje": czy dokument SSR tej trasy
+ * zawiera JAKĄKOLWIEK treść dowiezioną loaderem. Wystarczy jedno rozgrzane
+ * zapytanie, i to jest świadomie ustawiony próg: prawie każda strona publiczna
+ * ciągnie oprócz swojej treści garść zapytań peryferyjnych (powiązane wpisy,
+ * box newslettera, widgety), których nikt nie grzeje i których brak w SSR nie
+ * czyni z niej „strony bez treści". Wariant ostrzejszy („wszystkie klucze
+ * rozgrzane") ZMIERZYŁEM: daje 9 tras OK i 59 w kubełku „SSR bez treści",
+ * czyli nazywa defektem stronę wydarzenia, która nagłówek i opis MA z loadera.
+ * Dlatego zostaje próg „co najmniej jedno", a niedopokrycie jest widoczne
+ * osobno - w rozbiciu per trasa (`coldQueryCount`) i w liczniku
+ * `partiallyWarmCount`, nie w liście długu.
+ *
+ * Kolejność rozstrzygania: rozgrzane wygrywa nad „widok gościa", bo jeśli
+ * loader w łańcuchu grzeje tę fabrykę, to dokument SSR (anonimowy z definicji)
+ * ma treść - niezależnie od tego, że ta sama fabryka dla ZALOGOWANEGO da inny
+ * klucz i drugi round-trip po hydratacji.
+ */
+function verdictFor(
+  counts: { readonly cold: number; readonly viewer: number; readonly warm: number },
+  loader: LoaderFacts,
+  ancestorDeliversContent: boolean,
+): LoaderVerdict {
+  if (counts.cold + counts.viewer + counts.warm === 0) return "bez-zapytan";
+  if (counts.warm > 0) return "loader-grzeje";
+  if (ancestorDeliversContent) return "tresc-z-przodka";
+  if (counts.cold === 0) return "tylko-widok-goscia";
   return loader.hasLoader ? "loader-trywialny" : "brak-loadera";
 }
 
@@ -522,6 +729,51 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
     return null;
   }
 
+  // ŁAŃCUCH PRZODKÓW I ICH LOADERY.
+  //
+  // DEFEKT, KTÓRY TO NAPRAWIA (zmierzony ręcznie 2026-09-01). `/events/$slug`
+  // to w drzewie plik `events.$slug.index.tsx`, a loader stoi w RODZICU
+  // `events.$slug.tsx:116`: grzeje `siteSettingsQueryOptions` oraz - przez
+  // `loadResilient` - `eventPageHeaderQueryOptions(params.slug, "anon")`
+  // i `publicEventBySlugQueryOptions(params.slug)`. Dziecko czyta DOKŁADNIE te
+  // fabryki (linie 115 i 127, komentarz w kodzie: „TA SAMA FABRYKA, CO
+  // W POWŁOCE"). Poprzednia wersja spisu widziała tylko loader własny trasy
+  // i raportowała tę trasę jako „SSR bez treści" - fałszywy pozytyw.
+  //
+  // Korzeń jest tu PIERWSZYM PRZODKIEM, nie osobnym mechanizmem: `__root.tsx`
+  // wchodzi do łańcucha tą samą pętlą, a jego loader (`siteSettings`, tokeny,
+  // menu chrome'u) trafia do tej samej mapy.
+  const warmedByRoute = new Map<string, readonly string[]>();
+  for (const node of nodes.values()) {
+    const file = fileByImportIdent.get(node.importIdent);
+    const source = file === undefined ? undefined : sources.get(file);
+    warmedByRoute.set(node.ident, source === undefined ? [] : loaderWarmedSymbols(source));
+  }
+  const rootWarmed = loaderWarmedSymbols(sources.get(SHELL_ENTRY) ?? "");
+
+  /**
+   * Fabryka klucza -> najbliższa trasa w łańcuchu, która ją grzeje.
+   *
+   * Trzymamy IDENT, nie ścieżkę: dziecko `index` ma DOKŁADNIE TĘ SAMĄ pełną
+   * ścieżkę co jego rodzic (`shell.index.tsx` i `shell.tsx` to oba `/shell`),
+   * więc porównanie „czy rozgrzał to przodek, czy ja sam" po ścieżce daje
+   * fałszywy remis i gubi atrybucję - złapał to test na tym właśnie układzie.
+   */
+  function chainWarmedSymbols(ident: string): Map<string, WarmSource> {
+    const out = new Map<string, WarmSource>();
+    let cursor: string | undefined = ident;
+    while (cursor !== undefined && nodes.has(cursor)) {
+      const owner: WarmSource = { ident: cursor, label: fullPath(cursor) };
+      for (const symbol of warmedByRoute.get(cursor) ?? []) {
+        if (!out.has(symbol)) out.set(symbol, owner);
+      }
+      cursor = nodes.get(cursor)?.parent;
+    }
+    const root: WarmSource = { ident: ROOT_IDENT, label: "/ (__root)" };
+    for (const symbol of rootWarmed) if (!out.has(symbol)) out.set(symbol, root);
+    return out;
+  }
+
   // --- PRZEBIEG 1: wyklucz, co nie jest publiczną stroną SSR ---------------
   const excluded: RouteFacts[] = [];
   const candidates: Candidate[] = [];
@@ -538,7 +790,11 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
       loaderWarms: false,
       renderModuleCount: 0,
       queryCount: 0,
-      queriesInRouteFile: false,
+      warmQueryCount: 0,
+      viewerQueryCount: 0,
+      coldQueryCount: 0,
+      coldQueriesInRouteFile: false,
+      warmedByAncestors: [] as readonly string[],
       querySites: [] as readonly QuerySite[],
       verdict: null,
     };
@@ -594,6 +850,7 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
       loader,
       noindex: withLoader.noindex,
       renderModules,
+      warmedInChain: chainWarmedSymbols(node.ident),
     });
   }
 
@@ -627,33 +884,113 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
     }))
     .sort((a, b) => b.routeCount - a.routeCount || a.module.localeCompare(b.module));
 
-  // --- PRZEBIEG 3: werdykty -------------------------------------------------
-  const classified: RouteFacts[] = candidates.map((candidate) => {
+  // --- PRZEBIEG 3: rozbicie zapytań na rozgrzane / z tożsamością / zimne ----
+  interface Split {
+    readonly candidate: Candidate;
+    readonly sites: readonly QuerySite[];
+    readonly warm: readonly QuerySite[];
+    readonly cold: readonly QuerySite[];
+    readonly viewer: readonly QuerySite[];
+    readonly ancestors: readonly string[];
+  }
+
+  const splits = new Map<string, Split>();
+  for (const candidate of candidates) {
     const sites: QuerySite[] = [];
     for (const [module, distance] of candidate.renderModules) {
-      for (const site of sitesByModule.get(module) ?? []) sites.push({ ...site, distance });
+      for (const site of sitesByModule.get(module) ?? []) {
+        // Rozgrzane = któraś z fabryk klucza widocznych w argumencie hooka jest
+        // grzana przez loader tej trasy albo przodka. Dopasowanie po FABRYCE,
+        // nie po wartości klucza - granica opisana w nagłówku, punkt (e).
+        let owner: WarmSource | null = null;
+        for (const symbol of site.symbols) {
+          const found = candidate.warmedInChain.get(symbol);
+          if (found !== undefined) {
+            owner = found;
+            break;
+          }
+        }
+        sites.push({
+          ...site,
+          distance,
+          warmedBy: owner === null ? null : owner.label,
+          warmedByAncestor: owner !== null && owner.ident !== candidate.ident,
+        });
+      }
     }
-    // Sort po ODLEGŁOŚCI: przy `/events/$slug/agenda` dowodem ma być komponent
-    // agendy (hop 1), a nie `BrandIcon` (hop 1, ale wspólny atom) ani pierwszy
-    // moduł alfabetycznie - poprzednia wersja sortowała po nazwie pliku i dowód
-    // dla każdej trasy zaczynał się od `components/atoms/BrandIcon.tsx`.
     sites.sort(
       (a, b) => a.distance - b.distance || a.file.localeCompare(b.file) || a.line - b.line,
     );
+    const warm = sites.filter((site) => site.warmedBy !== null);
+    splits.set(candidate.ident, {
+      candidate,
+      sites,
+      warm,
+      cold: sites.filter((site) => site.warmedBy === null && !site.viewerKeyed),
+      viewer: sites.filter((site) => site.warmedBy === null && site.viewerKeyed),
+      ancestors: [
+        ...new Set(
+          warm
+            .filter((site) => site.warmedByAncestor)
+            .map((site) => site.warmedBy)
+            .filter((label): label is string => label !== null),
+        ),
+      ].sort(),
+    });
+  }
+
+  // --- PRZEBIEG 4: czy TREŚĆ DOKUMENTU dowozi przodek -----------------------
+  //
+  // Dokument pod adresem liścia to komponenty CAŁEGO łańcucha: TanStack renderuje
+  // rodzica, a dziecko wchodzi w jego `<Outlet />`. Jeśli więc powłoka
+  // `events.$slug.tsx` ma rozgrzany nagłówek, tytuł i węzeł JSON-LD, to dokument
+  // `/events/$slug/agenda` NIE jest pusty - nawet gdy własne zapytania zakładki
+  // są zimne. Bez tego przebiegu pięć podstron modułowych wyglądało na „SSR bez
+  // treści", choć serwer oddaje dla nich pełny nagłówek wydarzenia.
+  //
+  // To NIE jest zaliczenie na kredyt: dziecko nie dostaje werdyktu „OK", tylko
+  // osobny kubełek `tresc-z-przodka`, a jego własne zimne zapytania są dalej
+  // policzone i wypisane z dowodem.
+  function ancestorDeliversContent(ident: string): boolean {
+    let cursor = nodes.get(ident)?.parent;
+    while (cursor !== undefined && nodes.has(cursor)) {
+      if ((splits.get(cursor)?.warm.length ?? 0) > 0) return true;
+      cursor = nodes.get(cursor)?.parent;
+    }
+    return false;
+  }
+
+  const classified: RouteFacts[] = candidates.map((candidate) => {
+    const split = splits.get(candidate.ident);
+    if (split === undefined) throw new Error(`brak rozbicia dla ${candidate.path}`);
+    const { sites, warm, cold, viewer, ancestors } = split;
+
+    // DOWÓD idzie za werdyktem: przy trasie zimnej pokazujemy ZIMNE wywołania
+    // (to jest lista do naprawy), przy „widoku gościa" - te z tożsamością
+    // w kluczu. Pokazywanie rozgrzanych nie pomaga w niczym.
+    const evidence = cold.length > 0 ? cold : viewer.length > 0 ? viewer : warm;
 
     return {
       fullPath: candidate.path,
       file: candidate.file,
       exclusion: null,
       exclusionFrom: null,
-      verdict: verdictFor(sites.length, candidate.loader),
+      verdict: verdictFor(
+        { cold: cold.length, viewer: viewer.length, warm: warm.length },
+        candidate.loader,
+        ancestorDeliversContent(candidate.ident),
+      ),
       hasLoader: candidate.loader.hasLoader,
       loaderWarms: candidate.loader.warms,
       noindex: candidate.noindex,
       renderModuleCount: candidate.renderModules.size,
       queryCount: sites.length,
-      queriesInRouteFile: sites.some((site) => site.distance === 0),
-      querySites: sites.slice(0, MAX_QUERY_EVIDENCE),
+      warmQueryCount: warm.length,
+      viewerQueryCount: viewer.length,
+      coldQueryCount: cold.length,
+      coldQueriesInRouteFile: cold.some((site) => site.distance === 0),
+      warmedByAncestors: ancestors,
+      querySites: evidence.slice(0, MAX_QUERY_EVIDENCE),
     };
   });
 
@@ -663,6 +1000,9 @@ export function analysePublicRouteLoaders(input: PublicRouteLoaderInput): Public
     shellModuleCount: shell.size,
     topQueryModules: stats.slice(0, TOP_QUERY_MODULES),
     queryModuleCount: stats.length,
+    partiallyWarmCount: classified.filter(
+      (route) => route.coldQueryCount > 0 && route.verdict === "loader-grzeje",
+    ).length,
   };
 }
 
@@ -678,14 +1018,18 @@ const EXCLUSION_LABEL: Record<RouteExclusion, string> = {
 
 const VERDICT_LABEL: Record<LoaderVerdict, string> = {
   "bez-zapytan": "LOADER ZBĘDNY - render nie czyta danych",
-  "loader-grzeje": "OK - render czyta dane, loader je rozgrzewa",
-  "loader-trywialny": "SSR BEZ TREŚCI - loader jest, ale nic nie grzeje",
-  "brak-loadera": "SSR BEZ TREŚCI - render czyta dane, loadera nie ma",
+  "loader-grzeje": "OK - klucz treści grzeje loader trasy albo przodka",
+  "tresc-z-przodka": "TREŚĆ Z PRZODKA - własne zapytania zimne, dokument nie jest pusty",
+  "tylko-widok-goscia": "TOŻSAMOŚĆ W KLUCZU - dograć da się tylko widok gościa",
+  "loader-trywialny": "ZIMNE ZAPYTANIA - loader jest, ale tych kluczy nie grzeje",
+  "brak-loadera": "ZIMNE ZAPYTANIA - loadera nie ma nigdzie w łańcuchu",
 };
 
 const VERDICT_ORDER: readonly LoaderVerdict[] = [
   "brak-loadera",
   "loader-trywialny",
+  "tresc-z-przodka",
+  "tylko-widok-goscia",
   "loader-grzeje",
   "bez-zapytan",
 ];
@@ -703,6 +1047,19 @@ export function routesMissingWarmedLoader(report: PublicRouteLoaderReport): read
   return report.routes.filter(
     (route) => route.verdict === "brak-loadera" || route.verdict === "loader-trywialny",
   );
+}
+
+/**
+ * Trasy, w których nierozgrzane zostały WYŁĄCZNIE zapytania z tożsamością
+ * czytelnika w kluczu. Liczone osobno od `routesMissingWarmedLoader`, bo
+ * rozgrzewka anonimowa wpisze tam widok GOŚCIA - to decyzja produktowa per
+ * powierzchnia (lista prelegentów: tak; własny RSVP: bez sensu), nie ten sam
+ * dług SSR. Ten sam powód, dla którego bramka spisu widgetów
+ * (`lib/builder/__tests__/widgetViewPrefetchCoverage.test.ts`) wyklucza
+ * `AccountMenuWidget` i `MeetingBookingView`.
+ */
+export function routesGuestViewOnly(report: PublicRouteLoaderReport): readonly RouteFacts[] {
+  return report.routes.filter((route) => route.verdict === "tylko-widok-goscia");
 }
 
 function pad(value: number, width: number): string {
@@ -746,16 +1103,27 @@ export function renderPublicRouteLoaderReport(report: PublicRouteLoaderReport): 
     for (const route of rows) {
       const flags: string[] = [];
       if (route.noindex) flags.push("noindex");
-      if (route.hasLoader && !route.loaderWarms) flags.push("loader nic nie grzeje");
-      const suffix = flags.length > 0 ? `  [${flags.join(", ")}]` : "";
+      if (route.hasLoader && !route.loaderWarms) flags.push("własny loader nic nie grzeje");
+      if (route.warmedByAncestors.length > 0) {
+        flags.push(`grzane przez przodka: ${route.warmedByAncestors.join(", ")}`);
+      }
+      const suffix = flags.length > 0 ? `  [${flags.join("; ")}]` : "";
       lines.push(`  ${route.fullPath.padEnd(44)} ${route.file}${suffix}`);
-      if (verdict === "brak-loadera" || verdict === "loader-trywialny") {
-        for (const site of route.querySites) {
-          lines.push(`      ${site.hook} <- ${site.file}:${site.line} (hop ${site.distance})`);
-        }
-        if (route.queryCount > route.querySites.length) {
-          lines.push(`      … i ${route.queryCount - route.querySites.length} dalszych wywołań`);
-        }
+      if (verdict === "loader-grzeje" || verdict === "bez-zapytan") continue;
+      // Rozbicie zapytań stoi przy każdej trasie z długiem: bez niego nie da się
+      // zobaczyć, że część kluczy JEST rozgrzana przez przodka.
+      lines.push(
+        `      zapytania: ${route.queryCount} = ${route.coldQueryCount} zimnych, ` +
+          `${route.viewerQueryCount} z tożsamością w kluczu, ${route.warmQueryCount} rozgrzanych`,
+      );
+      const shown =
+        verdict === "tylko-widok-goscia" ? route.viewerQueryCount : route.coldQueryCount;
+      for (const site of route.querySites) {
+        const mark = site.viewerKeyed ? " [tożsamość w kluczu]" : "";
+        lines.push(`      ${site.hook} <- ${site.file}:${site.line} (hop ${site.distance})${mark}`);
+      }
+      if (shown > route.querySites.length) {
+        lines.push(`      … i ${shown - route.querySites.length} dalszych`);
       }
     }
     lines.push("");
@@ -782,12 +1150,12 @@ export function renderPublicRouteLoaderReport(report: PublicRouteLoaderReport): 
   lines.push("");
 
   const missing = routesMissingWarmedLoader(report);
-  const own = missing.filter((route) => route.queriesInRouteFile);
+  const own = missing.filter((route) => route.coldQueriesInRouteFile);
   const indexed = missing.filter((route) => !route.noindex);
   lines.push("-".repeat(78));
   lines.push(
-    `DO ROBOTY: ${missing.length} z ${publicSsr.length} tras publicznych z SSR oddaje HTML ` +
-      "bez treści.",
+    `DO ROBOTY: ${missing.length} z ${publicSsr.length} tras publicznych z SSR czyta WYŁĄCZNIE ` +
+      "zimne klucze - żadnego nie grzeje loader trasy ani przodka.",
   );
   lines.push(
     `  indeksowanych (koszt w SEO):            ${pad(indexed.length, 3)}   ` +
@@ -798,10 +1166,15 @@ export function renderPublicRouteLoaderReport(report: PublicRouteLoaderReport): 
       `tylko przez importowane moduły:       ${pad(missing.length - own.length, 3)}`,
   );
   lines.push("");
-  lines.push("Uwaga na kierunek błędu: analiza jest statyczna, więc zapytanie za warunkiem");
-  lines.push("(`{open && <Dialog/>}`) liczy się jak zapytanie w treści - ta lista jest GÓRNYM");
-  lines.push("oszacowaniem. Dowód przy każdej trasie (plik:linia + hop) pozwala to rozstrzygnąć");
-  lines.push("bez ponownego przeszukiwania repozytorium.");
+  lines.push(
+    `  tras z werdyktem OK, które MIMO TO mają zimne zapytania peryferyjne: ${report.partiallyWarmCount}`,
+  );
+  lines.push("");
+  lines.push("Kierunek błędu (znany, opisany w nagłówku modułu): analiza jest statyczna, więc");
+  lines.push("zapytanie za warunkiem liczy się jak zapytanie w treści, a strona ze stałą zapasową");
+  lines.push("(trzy strony prawne) wygląda na pustą, choć nie jest - lista jest GÓRNYM");
+  lines.push("oszacowaniem. W drugą stronę zaniża: klucz dopasowujemy po NAZWIE FABRYKI, nie po");
+  lines.push("wartości. Dowód przy każdej trasie (plik:linia + hop) pozwala to rozstrzygnąć.");
 
   return lines.join("\n");
 }

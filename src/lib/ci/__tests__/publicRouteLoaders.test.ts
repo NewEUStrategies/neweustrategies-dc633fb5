@@ -17,7 +17,11 @@
 import { describe, expect, it } from "vitest";
 import {
   analysePublicRouteLoaders,
+  balancedArgs,
   findQuerySites,
+  keyFactorySymbols,
+  loaderWarmedSymbols,
+  routesGuestViewOnly,
   hasSessionGate,
   hasSsrDisabled,
   readLoaderFacts,
@@ -260,6 +264,57 @@ describe("hasSsrDisabled / hasSessionGate / findQuerySites", () => {
   });
 });
 
+describe("keyFactorySymbols / loaderWarmedSymbols", () => {
+  it("rozpoznaje fabryki `*QueryOptions`, `*QueryKey` i `xKeys.y`", () => {
+    expect(keyFactorySymbols("...publicEventBySlugQueryOptions(slug)")).toEqual([
+      "publicEventBySlugQueryOptions",
+    ]);
+    expect(keyFactorySymbols("queryKey: legalVersionQueryKey(key)")).toEqual([
+      "legalVersionQueryKey",
+    ]);
+    expect(keyFactorySymbols("queryKey: publicEventKeys.sections(slug, viewer)")).toEqual([
+      "publicEventKeys.sections",
+    ]);
+    // Literał klucza NIE jest fabryką - `BrandIcon` woła `["icon-library", …]`.
+    expect(keyFactorySymbols('queryKey: ["icon-library", kind]')).toEqual([]);
+  });
+
+  it("czyta fabryki z loadera - także przez ALIAS lokalny", () => {
+    // Regresja: `tracker.index.tsx:68` grzeje przez
+    // `const itemsOptions = publishedItemsQueryOptions()`, a czytanie samego
+    // argumentu `ensureQueryData(itemsOptions)` nie widziało tam fabryki.
+    const source = [
+      `export const Route = createFileRoute("/tracker/")({`,
+      `  loader: async ({ context }) => {`,
+      `    const itemsOptions = publishedItemsQueryOptions();`,
+      `    await context.queryClient.ensureQueryData(itemsOptions);`,
+      `  },`,
+      `  component: Page,`,
+      `});`,
+    ].join("\n");
+    expect(loaderWarmedSymbols(source)).toEqual(["publishedItemsQueryOptions"]);
+  });
+
+  it("loader BEZ wywołania grzejącego nie zalicza żadnej fabryki", () => {
+    // `/qa` ściąga dane dla `head()` i nie wpisuje ich do cache zapytań.
+    const source = [
+      `export const Route = createFileRoute("/qa")({`,
+      `  loader: async () => {`,
+      `    const sessions = await fetchPublicQaSessions();`,
+      `    return { sessions, key: qaListQueryOptions };`,
+      `  },`,
+      `  component: Page,`,
+      `});`,
+    ].join("\n");
+    expect(loaderWarmedSymbols(source)).toEqual([]);
+  });
+
+  it("balancedArgs bierze argument z zagnieżdżonymi nawiasami", () => {
+    const text = "useQuery({ ...o(a, [1, 2]), enabled: x })";
+    expect(balancedArgs(text, text.indexOf("("))).toBe("{ ...o(a, [1, 2]), enabled: x }");
+  });
+});
+
 describe("analysePublicRouteLoaders", () => {
   /**
    * Drzewo zastępcze pokrywające wszystkie kubełki werdyktu i wykluczenia.
@@ -333,7 +388,7 @@ describe("analysePublicRouteLoaders", () => {
     expect(at("/cold")?.verdict).toBe("brak-loadera");
     expect(at("/cold")?.queryCount).toBe(1);
     // Zapytanie stoi w `lib/rows.ts`, nie w pliku trasy - hop 1.
-    expect(at("/cold")?.queriesInRouteFile).toBe(false);
+    expect(at("/cold")?.coldQueriesInRouteFile).toBe(false);
     expect(at("/cold")?.querySites[0]).toMatchObject({ file: "src/lib/rows.ts", distance: 1 });
   });
 
@@ -352,6 +407,76 @@ describe("analysePublicRouteLoaders", () => {
     expect(rendered).toContain("src/lib/rows.ts:3");
     // 5 publicznych stron SSR z 10 tras drzewa: /, /static, /warm, /cold, /trivial.
     expect(rendered).toContain("DO ROBOTY: 2 z 5");
+  });
+});
+
+describe("łańcuch przodków i tożsamość w kluczu", () => {
+  /**
+   * Drzewo odwzorowuje układ, który zawiódł na prawdziwym repo:
+   * `/shell` = powłoka z loaderem (jak `events.$slug.tsx`), `/shell/` = jej
+   * dziecko `index` czytające TĘ SAMĄ fabrykę (jak `events.$slug.index.tsx`),
+   * `/shell/tab` = zakładka z WŁASNĄ, nierozgrzaną fabryką (jak
+   * `events.$slug.agenda.tsx`).
+   */
+  const input: PublicRouteLoaderInput = {
+    routeTree: routeTree([
+      { ident: "ShellRoute", file: "routes/shell", path: "/shell", parent: "rootRouteImport" },
+      { ident: "ShellIndexRoute", file: "routes/shell.index", path: "/", parent: "ShellRoute" },
+      { ident: "ShellTabRoute", file: "routes/shell.tab", path: "/tab", parent: "ShellRoute" },
+      { ident: "ViewerRoute", file: "routes/viewer", path: "/viewer", parent: "rootRouteImport" },
+      { ident: "DecoyRoute", file: "routes/decoy", path: "/decoy", parent: "rootRouteImport" },
+    ]),
+    sources: sources({
+      "src/routes/__root.tsx": ROOT,
+      "src/components/Footer.tsx": "",
+      "src/routes/shell.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/shell")({\n  loader: ({ context }) => context.queryClient.ensureQueryData(rowsQueryOptions()),\n  component: Shell,\n});`,
+      "src/routes/shell.index.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/shell/")({ component: Page });`,
+      "src/routes/shell.tab.tsx": `import { useOther } from "@/lib/other";\nexport const Route = createFileRoute("/shell/tab")({ component: Page });`,
+      "src/routes/viewer.tsx": `import { useMine } from "@/lib/viewer";\nexport const Route = createFileRoute("/viewer")({ component: Page });`,
+      // Loader JEST i grzeje - ale INNĄ fabrykę niż ta, którą czyta render.
+      "src/routes/decoy.tsx": `import { useOther } from "@/lib/other";\nexport const Route = createFileRoute("/decoy")({\n  loader: ({ context }) => context.queryClient.ensureQueryData(decoyQueryOptions()),\n  component: Page,\n});`,
+      "src/lib/rows.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useRows() {\n  return useQuery(rowsQueryOptions());\n}`,
+      "src/lib/other.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useOther() {\n  return useQuery(otherQueryOptions());\n}`,
+      "src/lib/viewer.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useMine(viewer: string) {\n  return useQuery({ queryKey: mineKeys.own(viewer), queryFn: fetchMine });\n}`,
+    }),
+  };
+
+  const report = analysePublicRouteLoaders(input);
+  const at = (path: string, file?: string) =>
+    report.routes.find(
+      (route) => route.fullPath === path && (file === undefined || route.file === file),
+    );
+
+  it("dziecko bez loadera JEST rozgrzane, gdy loader PRZODKA grzeje tę samą fabrykę", () => {
+    const child = at("/shell", "src/routes/shell.index.tsx");
+    expect(child?.hasLoader).toBe(false);
+    expect(child?.verdict).toBe("loader-grzeje");
+    expect(child?.warmQueryCount).toBe(1);
+    expect(child?.warmedByAncestors).toEqual(["/shell"]);
+  });
+
+  it("zakładka z WŁASNĄ zimną fabryką dostaje `tresc-z-przodka`, nie długu", () => {
+    const tab = at("/shell/tab");
+    expect(tab?.verdict).toBe("tresc-z-przodka");
+    expect(tab?.coldQueryCount).toBe(1);
+    expect(routesMissingWarmedLoader(report).map((r) => r.fullPath)).not.toContain("/shell/tab");
+  });
+
+  it("sama OBECNOŚĆ grzejącego loadera nie wystarcza - musi grzać CZYTANY klucz", () => {
+    const decoy = at("/decoy");
+    expect(decoy?.hasLoader).toBe(true);
+    expect(decoy?.loaderWarms).toBe(true);
+    expect(decoy?.verdict).toBe("loader-trywialny");
+    expect(decoy?.coldQueryCount).toBe(1);
+  });
+
+  it("tożsamość czytelnika w kluczu to OSOBNA kategoria, nie dług SSR", () => {
+    const viewer = at("/viewer");
+    expect(viewer?.verdict).toBe("tylko-widok-goscia");
+    expect(viewer?.viewerQueryCount).toBe(1);
+    expect(viewer?.coldQueryCount).toBe(0);
+    expect(routesGuestViewOnly(report).map((r) => r.fullPath)).toEqual(["/viewer"]);
+    expect(routesMissingWarmedLoader(report).map((r) => r.fullPath)).not.toContain("/viewer");
   });
 });
 
