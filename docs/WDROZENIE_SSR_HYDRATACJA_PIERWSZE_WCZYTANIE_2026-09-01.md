@@ -298,6 +298,63 @@ awarię serwera.
 **Efekt:** nie ma tu metryki czasu, bo to nie przyspieszenie. Jednostką jest
 obecność treści w SSR-owym HTML-u, dowiedziona przez `renderToString`.
 
+#### Ogon punktu 4 - typy widgetów brakujące w `widgetQueryOptionsList`
+
+Commity `2579a34` i `ede44b9`. Zamknięte **sześć typów**: `categories`, `tags`,
+`podcast-latest`, `web-stories-carousel`, `pricing` (tylko w trybie katalogu
+planów) i `rated-list`. Za każdym razem ten sam mechanizm awarii, dwuczłonowy
+i cichy: loader nie grzał żadnego wpisu, więc widget wychodził z serwera w stanie
+`isLoading`, a sekcja złożona z samych takich widgetów miała PUSTĄ listę zapytań,
+czyli `shouldStreamSection` liczyła ją jako statyczną i `ServerSectionGate` nie
+miał na co czekać.
+
+Każdy typ ma teraz fabrykę `queryOptions` w `lib/builder/`, wołaną **zarówno
+przez rejestr, jak i przez widok** - bo klucz jest kontraktem: rozjazd o jedną
+koercję liczby daje rozgrzany wpis, w który widget nigdy nie trafi (prefetch bez
+skutku, a przy tym drugie zapytanie po hydratacji). Tam, gdzie widok zachował
+własne `useQuery`, dryf pilnuje **bramka czytająca plik widoku** i porównująca
+literały kolumn oraz wyrażenia liczące wejście do klucza.
+
+**Liczba „brakujących typów" przestała być liczbą w dokumencie.** Zlecenie mówiło
+o siedmiu; nie powtarzam tej liczby, bo `widgetViewPrefetchCoverage.test.ts`
+liczy ją teraz z kodu przy każdym przebiegu:
+
+```
+widoków czytających dane: 23; w rejestrze: 17 (19 typów widgetów);
+wykluczonych z powodem: 6; nierozstrzygniętych: 0
+```
+
+Asercja `w rejestrze + wykluczone === wszystkie` domyka sumę, więc nowy widok
+z zapytaniem psuje bramkę natychmiast, a nie przy następnym audycie. Bramka
+sprawdza też, że wykluczenie nie jest samym komentarzem (obie funkcje rejestru
+muszą dla takiego typu zwrócić pustkę) i że powód nie jest zaślepką (odrzuca
+„TODO", „nie zdążyłem").
+
+Sześć wykluczeń, po jednym powodzie: `AccountMenuWidget` i
+`PurchaseConfirmationView` (klucz niesie tożsamość czytelnika, więc anonimowa
+rozgrzewka podałaby zalogowanemu widok wylogowanego), `TailoredMustReadsView`
+(klucz gościa jest po obu stronach identyczny, więc rozgrzewka nadpisałaby
+personalizację na cały `staleTime`), `DynamicTagWidgets` (klucz zależy od
+kontekstu trasy, nie od treści widgetu - statyczny rejestr nie ma jak tego
+wyrazić), `MeetingBookingView` (wiersz RPC niesie `booked_by_me`, a nagłówek
+`meetingsQuery.ts` jawnie odmawia ramienia SSR), `mediaWidgets` - **już pokryty,
+tylko inną drogą**: loader korzenia grzeje `siteSettingsQueryOptions` na każdej
+trasie, więc gałąź per-widget byłaby drugim rozgrzaniem tego samego klucza.
+
+**Czego ten ogon NIE zamknął, jednym zdaniem:** liczniki RSVP
+(`eventRsvpCountsQueryOptions` w `EventsListView` i `EventCountdownCardView`) nie
+mają ani gałęzi w rejestrze, ani łańcuchowego rozgrzania, bo ich klucz zależy od
+WYNIKU pierwszego zapytania (`rows.map(r => r.id)`), czyli statyczny rejestr
+przyjmujący sam `WidgetNode` nie może go wyrazić - dorobienie im łańcucha takiego
+jak dla autorów slidera jest osobnym zakresem i osobną decyzją.
+
+**Cena, którą trzeba nazwać:** `prefetch.ts` jest statycznym importem korzenia,
+więc każda nowa fabryka wchodzi do domknięcia ścieżki bootowania. Dla
+`rated-list` zmierzone esbuildem: moduł 1 530 B gzip standalone, przy czym leniwy
+chunk widoku chudnie o 1 143 B - netto ~1,0-1,5 KB. To jest część moich +3,3 KB
+na `overall` rozliczonych w rozdz. 7 i dokładnie ten rodzaj kosztu, który od dziś
+mierzy floor `boot` (rozdz. 3.2).
+
 ---
 
 ### Punkt 6 - preload chunku słownika
@@ -673,7 +730,69 @@ pojawia. Zmiana zostaje jako higiena i jest tak opisana w kodzie.
 | rozmiar arkusza CSS | **POTWIERDZONE: 570 392 B surowo, 79 807 B gzip -9, 6 739 bloków reguł** |
 | domknięcie startowe | **ZMIERZONE: 571,4 KB gzip w 9 chunkach** |
 | `LHCI_URL` ustawione | **NIE** - zmienna repozytorium, nieustawialna z kodu (rozdz. 1) |
-| „59 tras publicznych z SSR bez loadera" | patrz rozdz. 7 (skrypt spisu) |
+| „59 tras publicznych z SSR bez loadera" | **ZAPRZECZONE** - patrz niżej |
+
+### „59 tras publicznych z SSR bez loadera" - ZAPRZECZONE
+
+Skrypt spisu: `bun run report:route-loaders`
+(`scripts/report-public-route-loaders.ts` + logika w `src/lib/ci/publicRouteLoaders.ts`,
+26 testów). Zmierzone ze źródeł, bez builda:
+
+```
+  tras w routeTree.gen.ts              368
+  - za bramką sesji                     27
+  - ssr: false                           9
+  - bez komponentu (server: handlers)   56
+  - panel /admin                       194
+  = PUBLICZNE STRONY SSR                82
+
+  SSR BEZ TREŚCI - render czyta dane, loadera nie ma                20
+  SSR BEZ TREŚCI - loader jest, ale nic nie grzeje                   4
+  OK - render czyta dane, loader je rozgrzewa                       47
+  LOADER ZBĘDNY - render nie czyta danych                           11
+
+  DO ROBOTY: 24 z 82;  indeksowanych 17, noindex 7
+  PUSTY DOKUMENT W NES EDGE CACHE: 19 z 24
+```
+
+**Liczby 59 nie da się odtworzyć** żadnym naiwnym pomiarem: `grep -L "loader:"`
+bez `admin*` daje 65, po odjęciu gałęzi `/profile` 42, po odjęciu `ssr: false`
+56. Prawdziwa liczba to **20 bez loadera / 24 z trywialnymi**, z czego **19 karmi
+NES Edge Cache pustym dokumentem** na do 24 h - i to jest ta część, która boli.
+
+Cztery rozróżnienia, bez których liczba nie znaczy nic (wszystkie zapisane
+w nagłówku skryptu):
+
+1. Trasy z `routeTree.gen.ts`, nie z `readdir` - to jedyne miejsce znające reguły
+   `-`, `[.]` i sufiks `_`.
+2. „Publiczna" wyklucza trasy za bramką sesji **dziedziczoną w dół drzewa** (stąd
+   23 z 27 tras `/profile/*`): serwer nie ma sesji, więc loader nie zmieniłby tam
+   ani bajtu SSR-owego HTML-a.
+3. Ścieżka renderu to domknięcie **wyłącznie statycznych** importów **minus 279
+   modułów powłoki `__root.tsx`**, których dane grzeje loader korzenia. Bez tego
+   odjęcia każda z 82 tras wyglądałaby na defekt, bo `Footer.tsx:32` woła
+   `useQuery(siteSettingsQueryOptions)`.
+4. „Loader grzeje" znaczy **zapisuje do cache zapytań**, a nie „ściąga". `/qa`
+   i `/qa/$slug` wołają `fetchPublicQaSessions()` i oddają wynik jako
+   `loaderData` dla `head()` - klucz zostaje zimny, `useQuery` startuje od gałęzi
+   ładowania. To dwie z czterech tras w kategorii „loader jest, ale nic nie
+   grzeje".
+
+Lista jest **górnym oszacowaniem** i tak jest opisana: jeden fałszywy pozytyw
+sprawdzony ręcznie (`/quiz` - treść to statyczny iframe, wszystkie 12 zapytań
+przychodzą z `ReadingHeader` i `BrandIcon`).
+
+**Do dalszej roboty, priorytet 1** (indeksowane, pusty dokument wchodzi do
+cache'a): `/events/$slug` + pięć podstron modułowych, `/tracker/explorer`,
+`/tracker/changes`, `/publications`, `/search`, `/donate`, `/club`,
+`/club/apply`, `/club/specialization/$slug`, `/qa`, `/qa/$slug`. Rodzina
+`/events/$slug/*` czyta przez wspólne `EventModulePage` +
+`lib/events/usePublicEvent.ts`, więc jedna rozgrzewka w loaderze obsłuży całą
+szóstkę; podobnie `lib/tracker/queries.ts` dla obu tras trackera. `BrandIcon`
+(12 tras) to kandydat na rozgrzewkę w korzeniu, nie na dwanaście loaderów. To
+jest osobny zakres - ten spis go NAZYWA, nie wykonuje.
+
+---
 
 Domknięcie startowe, zmierzone (gzip -9, ścieżka bootowania z manifestu
 TanStack Start, krawędzie statyczne tą samą metodą co `check-entry-purity`):
