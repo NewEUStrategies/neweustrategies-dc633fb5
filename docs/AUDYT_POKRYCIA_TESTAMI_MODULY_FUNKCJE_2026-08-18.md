@@ -2529,7 +2529,7 @@ Siedem `it.fails`, każdy z opisem złamanego kontraktu i kierunkiem naprawy.
 
 ### 10.5. Warstwa danych: pgTAP na żywej bazie
 
-`supabase/tests/module12_notifications_rls_test.sql` - 43 asercje, WYKONANE (935 migracji
+`supabase/tests/module12_notifications_rls_test.sql` - 45 asercji, WYKONANE (935 migracji
 zaaplikowanych lokalnie), kształt z `pg_catalog` ORAZ skutek realnymi `INSERT`/`UPDATE`/`SELECT`
 w sesji z ustawionym `request.jwt.claims`. Sam kształt przechodzi na literówce w nazwie polityki,
 sam skutek nie łapie „ktoś dopisał drugą politykę obok".
@@ -2563,6 +2563,18 @@ Ustalenia:
   wiersz, a `notification_preferences` odmawia wszystkiego, łącznie z odczytem własnych
   przełączników. Impersonacja rozjazdu nie tworzy (wydawana jest prawdziwa sesja konta docelowego),
   sesja bez profilu też nie (obie fail-closed).
+- **Poprawka po pierwszym przebiegu CI (odnotowana, bo zmienia to, CO test mierzy):** trzy
+  asercje pytały o GRANTY dla `anon`/`authenticated` i oczekiwały zera. Przechodziły na lokalnym
+  harnessie (goły PostgreSQL + same migracje), a oblały na `supabase db start`, bo obraz bazowy
+  Supabase nadaje rolom klienckim szeroki grant na schemacie `public` z automatu - i to jest
+  NORMALNY stan tej platformy, nie luka. W Supabase bramką nie jest grant, tylko RLS: tabela
+  z włączonym RLS i bez polityki dla danej roli nie oddaje jej ani jednego wiersza. Asercje
+  pytają teraz o polityki (identyczne w obu środowiskach, bo pochodzą z migracji), o brak
+  przywilejów ZAPISU na `user_consents` oraz - dowodowo - o to, że sesja anonimowa nie wyciąga
+  ani jednego powiadomienia mimo niepustej tabeli. Przy okazji odnotowane, nie naprawiane:
+  `TRUNCATE` dla `authenticated` omija RLS z definicji; przez PostgREST nie da się go wywołać
+  (HTTP nie ma takiego czasownika), ale to przywilej platformowy dotyczący KAŻDEJ tabeli
+  schematu, nie tylko modułu 12.
 - **Dlaczego `check:sql-owner-tenant-scope` tego nie łapie:** bramka jest relacyjna
   i samokalibrująca się - zapala się dopiero, gdy na TEJ SAMEJ tabeli choć jedna klauzula
   właścicielska wiąże tenanta („świadek"). `push_subscriptions` i `user_consents` mają po jednej

@@ -156,7 +156,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(43);
+SELECT plan(45);
 
 -- Na auth.users i notifications wisza triggery uzytkownika (auto-provisioning
 -- profilu/tenanta oraz `notifications_enforce_tenant`, ktory nie pozwala
@@ -267,27 +267,71 @@ SELECT is(
   0,
   'zadna tabela modulu 12 nie ma grantu dla roli klienckiej przy WYLACZONYM RLS');
 
--- 7. `anon` nie ma na tym module NICZEGO. Powiadomienia, preferencje, zgody i
--- subskrypcje push sa z definicji danymi zalogowanej osoby - sesja anonimowa nie
--- ma tu nawet czego odczytac.
+-- 7. `anon` nie widzi na tym module NICZEGO. Powiadomienia, preferencje, zgody
+-- i subskrypcje push sa z definicji danymi zalogowanej osoby.
+--
+-- MIERZONE POLITYKAMI, NIE GRANTAMI - i to jest poprawka po pierwszym przebiegu
+-- w CI. Wersja pierwotna liczyla granty dla `anon` i oczekiwala zera; przeszla
+-- na lokalnym harnessie (`scripts/pgtap-local`, ktory stawia goly PostgreSQL
+-- i aplikuje same migracje), a OBLALA na `supabase db start`, bo obraz bazowy
+-- Supabase nadaje `anon`/`authenticated` szeroki grant na schemacie `public`
+-- z automatu - i to jest NORMALNY stan tej platformy, nie luka. W Supabase
+-- bramka nie stoi na grancie, tylko na RLS: tabela z wlaczonym RLS i BEZ
+-- polityki dla danej roli nie oddaje jej ANI JEDNEGO wiersza, choćby grant
+-- SELECT istnial. Dlatego asercja pyta o to, co realnie rozstrzyga.
+--
+-- Rownowaznosc obu srodowisk jest tu warunkiem sensu: polityki pochodza
+-- z migracji, wiec sa identyczne lokalnie i w CI; granty NIE sa.
 SELECT is(
-  (SELECT count(*)::int FROM information_schema.role_table_grants
-    WHERE table_schema = 'public'
-      AND table_name IN ('notifications', 'notification_preferences',
-                         'notification_push_queue', 'push_subscriptions',
-                         'user_consents', 'user_consent_events')
-      AND grantee IN ('anon', 'PUBLIC')),
+  (SELECT count(*)::int FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN ('notifications', 'notification_preferences',
+                        'notification_push_queue', 'push_subscriptions',
+                        'user_consents', 'user_consent_events')
+      AND (roles && ARRAY['anon', 'public']::name[])),
   0,
-  'anon/PUBLIC nie ma ZADNEGO grantu na tabelach modulu 12');
+  'zadna polityka modulu 12 nie wpuszcza roli anon ani public');
 
--- 8. Kolejka doreczen jest wylacznie serwerowa. Polityka odczytu dla admina na
--- niej wisi, ale bez grantu jest martwa - i taki ma pozostac stan domyslny.
+-- 7b. Dowod WYKONAWCZY dla asercji wyzej: sesja anonimowa nie wyciaga wiersza
+-- z `notifications` mimo istniejacego wiersza w tabeli. Blad uprawnien i pusty
+-- wynik to dla tego kontraktu TA SAMA odpowiedz („anon nic nie widzi"), wiec
+-- funkcja pomocnicza sprowadza oba srodowiska do jednej liczby - inaczej test
+-- bylby zielony w jednym i czerwony w drugim przy identycznym bezpieczenstwie.
+CREATE FUNCTION pg_temp.anon_visible_notifications() RETURNS int
+LANGUAGE plpgsql AS $anon$
+DECLARE n int;
+BEGIN
+  EXECUTE 'SELECT count(*) FROM public.notifications' INTO n;
+  RETURN n;
+EXCEPTION WHEN insufficient_privilege THEN
+  RETURN 0;
+END
+$anon$;
+
+-- Najpierw dowod NIEPUSTOSCI. Bez niego asercja nizej byla by zielona takze
+-- wtedy, gdyby fixture w ogole nie wstawil wierszy - czyli mierzylaby pusta
+-- tabele, a nie dzialanie RLS.
+SELECT cmp_ok(
+  (SELECT count(*)::int FROM public.notifications), '>', 0,
+  'fixture wstawil powiadomienia - probka anonimowa ma co NIE zobaczyc');
+
+SET LOCAL ROLE anon;
+SELECT is(pg_temp.anon_visible_notifications(), 0,
+  'anon nie wyciaga ANI JEDNEGO powiadomienia (RLS bez polityki dla tej roli)');
+RESET ROLE;
+
+-- 8. Kolejka doreczen jest wylacznie serwerowa. Na tabeli wisi DOKLADNIE JEDNA
+-- polityka - odczyt dla administratora tenanta - i zadna sciezka zapisu dla
+-- roli klienckiej. Zapisuje do niej trigger `tg_notifications_enqueue_push`
+-- i dyspozytor na service_role, wiec polityka INSERT/UPDATE/DELETE dla
+-- `authenticated` oznaczalaby, ze klient moze wstrzykiwac albo kasowac cudze
+-- zadania wysylki push.
 SELECT is(
-  (SELECT count(*)::int FROM information_schema.role_table_grants
-    WHERE table_schema = 'public' AND table_name = 'notification_push_queue'
-      AND grantee IN ('anon', 'authenticated', 'PUBLIC')),
+  (SELECT count(*)::int FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'notification_push_queue'
+      AND cmd <> 'SELECT'),
   0,
-  'notification_push_queue: zero grantow klienckich (kolejka nalezy do service_role)');
+  'notification_push_queue: ZERO polityk zapisu (kolejka nalezy do service_role)');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- C. push_subscriptions - KSZTALT
@@ -430,15 +474,29 @@ SELECT is(
   0,
   'user_consents: ZERO polityk INSERT/UPDATE/DELETE dla authenticated (zapis tylko przez set_user_consent)');
 
--- 21. Ta sama bramka na poziomie przywilejow - polityka i grant to dwie osobne
+-- 21. Ta sama bramka na poziomie PRZYWILEJOW - polityka i grant to dwie osobne
 -- warstwy i obie musza zostac zamkniete.
+--
+-- Asercja pyta WYLACZNIE o przywileje zapisu i to jest swiadome zawezenie po
+-- pierwszym przebiegu w CI. Wersja pierwotna zadala doslownie `SELECT` i oblala
+-- na `supabase db start`, gdzie `authenticated` ma dodatkowo REFERENCES,
+-- TRIGGER i TRUNCATE - nadane hurtem przez obraz bazowy Supabase wszystkim
+-- tabelom schematu `public`, nie przez zadna migracje tego repo. Migracja
+-- `20260803190927` odebrala z tego zestawu dokladnie to, co mialo zniknac:
+-- INSERT, UPDATE i DELETE. I to jest kontrakt wart pilnowania.
+--
+-- ODNOTOWANE, NIE NAPRAWIANE TUTAJ: `TRUNCATE` dla `authenticated` omija RLS
+-- z definicji. Przez PostgREST nie da sie go wywolac (HTTP nie ma takiego
+-- czasownika), wiec to nie jest dziura w powierzchni aplikacji - ale jest to
+-- przywilej platformowy, ktorego RLS nie ogranicza, i dotyczy KAZDEJ tabeli
+-- w tym schemacie, nie tylko modulu 12. Naprawa nalezy do warstwy platformy.
 SELECT is(
-  (SELECT string_agg(privilege_type, ',' ORDER BY privilege_type)
-     FROM information_schema.role_table_grants
+  (SELECT count(*)::int FROM information_schema.role_table_grants
     WHERE table_schema = 'public' AND table_name = 'user_consents'
-      AND grantee = 'authenticated'),
-  'SELECT',
-  'user_consents: authenticated ma WYLACZNIE grant SELECT');
+      AND grantee = 'authenticated'
+      AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE')),
+  0,
+  'user_consents: authenticated NIE MA przywileju INSERT/UPDATE/DELETE (zapis tylko przez set_user_consent)');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',

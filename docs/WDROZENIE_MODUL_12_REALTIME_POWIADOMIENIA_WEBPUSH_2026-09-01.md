@@ -115,7 +115,7 @@ mockowany** - z atrapą huba refcount nie mierzyłby niczego.
 **Komponenty i trasy (4 pliki, 104 przypadki):** `NotificationsCenter`, `NotificationsBell`,
 `NotificationKindToggle`, `adminCommunityNotificationsRoute`.
 
-**Warstwa danych w bazie (1 plik, 43 asercje):** `supabase/tests/module12_notifications_rls_test.sql`,
+**Warstwa danych w bazie (1 plik, 45 asercji):** `supabase/tests/module12_notifications_rls_test.sql`,
 **wykonany** lokalnie po zaaplikowaniu 935 migracji.
 
 Rodzaje testów, których moduł nie miał wcale przed tą kampanią: komponentowe, dostępnościowe
