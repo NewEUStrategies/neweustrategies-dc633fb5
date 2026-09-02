@@ -358,6 +358,7 @@ export function buildAdminNavGroups({
         label: t("admin.navGroups.analytics"),
         items: [
           { to: "/admin/analytics", icon: TrendingUp, label: t("admin.nav.analytics") },
+          { to: "/admin/analytics/bi", icon: BarChart3, label: t("admin.nav.analyticsBi") },
           { to: "/admin/audience", icon: TrendingUp, label: t("admin.nav.audience") },
           { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
           { to: "/admin/i18n", icon: Globe2, label: t("admin.nav.i18nAudit") },
