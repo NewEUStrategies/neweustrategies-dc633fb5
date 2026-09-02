@@ -907,6 +907,574 @@ export default defineConfig({
           lines: 97,
           branches: 85,
         },
+        // ------------------------------------------------------------------
+        // MODUŁ 17 (analityka i BI) - kampania 2026-09-02. Progi postawione na
+        // ZMIERZONEJ wartości minus 1 pp, na plikach, które osiągnęły >= 70%
+        // linii. Margines jest po to, żeby drobna zmiana rozkładu wykonania
+        // (inny podział na forki) nie zapalała bramki, a nie po to, żeby
+        // ukryć spadek: 1 pp na pliku 40-linijkowym to mniej niż jedna linia.
+        //
+        // Plik, który MIAŁ już próg, nie dostaje drugiego - nowy próg nie ma
+        // prawa leżeć niżej niż istniejący (zlecenie: progi wolno wyłącznie
+        // podnosić). Pliki poniżej 70% linii świadomie zostają bez progu:
+        // progu nie stawia się nad powierzchnią, której nie domknięto.
+        //
+        // Podstawa pomiaru: pełny przebieg `vitest run --coverage`
+        // (all: true, 2084 pliki testowe, 56 880 przypadków).
+        // ------------------------------------------------------------------
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/AudienceSegmentsDashboard.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 94.6% gał
+        "src/components/admin/analytics/ChartCard.tsx": {
+          statements: 94,
+          functions: 99,
+          lines: 99,
+          branches: 93,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 71.4% gał
+        "src/components/admin/analytics/ChartDataTable.tsx": {
+          statements: 80,
+          functions: 99,
+          lines: 99,
+          branches: 70,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 93.0% gał
+        "src/components/admin/analytics/ChartDrillDialog.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 92,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/chartTheme.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/ClientErrorsDashboard.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/EChart.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 90.0% gał
+        "src/components/admin/analytics/EChartClient.tsx": {
+          statements: 95,
+          functions: 99,
+          lines: 99,
+          branches: 89,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/exportChart.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/FooterAnalyticsPanel.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 85.6% gał
+        "src/components/admin/analytics/Ga4BiDashboard.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 84,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/ga4Insights.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 95.5% gał
+        "src/components/admin/analytics/GscBiDashboard.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 94,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/gscInsights.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/InsightSection.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 89.8% gał
+        "src/components/admin/analytics/KpiTile.tsx": {
+          statements: 94,
+          functions: 99,
+          lines: 99,
+          branches: 88,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/RelatedPostsAnalytics.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/semantic/atoms/StreamChip.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 0.0% gał
+        "src/components/admin/analytics/semantic/atoms/VerdictBadge.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 100,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 92.9% gał
+        "src/components/admin/analytics/semantic/molecules/MetricDefinitionPopover.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 91,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/semantic/molecules/ReconciliationRow.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/semantic/molecules/StreamHealthGrid.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/semantic/molecules/WindowProvenance.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 83.3% gał
+        "src/components/admin/analytics/semantic/organisms/MetricDictionary.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 82,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/semantic/organisms/SemanticReconciliationPanel.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/admin/analytics/semantic/semanticInsights.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 86.7% gał
+        "src/components/admin/analytics/TimeRangeFilter.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 85,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 96.3% gał
+        "src/components/admin/analytics/VitalsBiDashboard.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 95,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 93.3% gał
+        "src/components/admin/analytics/VitalsRecommendations.tsx": {
+          statements: 96,
+          functions: 99,
+          lines: 99,
+          branches: 92,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 94.8% gał
+        "src/components/admin/performance/EdgeCacheCard.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 93,
+        },
+        // zmierzone: 99.4% linii · 100.0% fn · 95.1% gał
+        "src/components/charts/CartesianChart.tsx": {
+          statements: 97,
+          functions: 99,
+          lines: 98,
+          branches: 94,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 81.8% gał
+        "src/components/charts/Chart.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 80,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 94.7% gał
+        "src/components/charts/ChartFrame.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 93,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/charts/ChartTooltip.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/components/charts/ChoroplethMap.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 97.4% gał
+        "src/components/charts/PieChart.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 96,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/audience.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 0.0% gał
+        "src/lib/analytics/config.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 100,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/events.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 97.3% gał
+        "src/lib/analytics/footerAnalytics.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 96,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/footerTracking.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/ga4.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/ga4.server.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/gateway.server.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/gsc.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/semantic/snapshot.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/status.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 75.0% linii · 62.5% fn · 62.3% gał
+        "src/lib/analytics/track.ts": {
+          statements: 68,
+          functions: 61,
+          lines: 74,
+          branches: 61,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 84.2% gał
+        "src/lib/charts/csv.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 83,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/charts/format.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/charts/geoQuery.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 98.6% gał
+        "src/lib/charts/parse.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // zmierzone: 97.2% linii · 100.0% fn · 90.9% gał
+        "src/lib/charts/scale.ts": {
+          statements: 93,
+          functions: 99,
+          lines: 96,
+          branches: 89,
+        },
+        // zmierzone: 100.0% linii · 0.0% fn · 0.0% gał
+        "src/lib/charts/types.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 100,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/counters/keys.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/counters/usePendingCounters.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 0.0% fn · 0.0% gał
+        "src/lib/observability/bootProbeScript.ts": {
+          statements: 99,
+          functions: 100,
+          lines: 99,
+          branches: 100,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/observability/clientErrors.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 88.2% gał
+        "src/lib/observability/clientErrorsAggregate.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 87,
+        },
+        // zmierzone: 73.9% linii · 83.3% fn · 43.8% gał
+        "src/lib/observability/index.ts": {
+          statements: 71,
+          functions: 82,
+          lines: 72,
+          branches: 42,
+        },
+        // zmierzone: 92.5% linii · 100.0% fn · 81.5% gał
+        "src/lib/observability/redact.ts": {
+          statements: 86,
+          functions: 99,
+          lines: 91,
+          branches: 80,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/observability/vitals.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 0.0% gał
+        "src/lib/tracker-admin.functions.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 100,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/views/headerTickerQuery.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 92.9% gał
+        "src/lib/views/tickerDraftBridge.ts": {
+          statements: 95,
+          functions: 99,
+          lines: 99,
+          branches: 91,
+        },
+        // zmierzone: 91.3% linii · 94.1% fn · 81.4% gał
+        "src/lib/views/tickerVariants.ts": {
+          statements: 91,
+          functions: 93,
+          lines: 90,
+          branches: 80,
+        },
+        // zmierzone: 92.9% linii · 100.0% fn · 83.3% gał
+        "src/lib/views/viewerHash.ts": {
+          statements: 84,
+          functions: 99,
+          lines: 91,
+          branches: 82,
+        },
+        // zmierzone: 96.2% linii · 94.4% fn · 95.9% gał
+        "src/lib/webVitals.ts": {
+          statements: 94,
+          functions: 93,
+          lines: 95,
+          branches: 94,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 98.4% gał
+        "src/routes/admin.analytics.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/routes/admin.coupons.analytics.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/routes/admin.events_.$eventId.analytics.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/routes/admin.experiments.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 94.9% gał
+        "src/routes/admin.link-monitor.tsx": {
+          statements: 96,
+          functions: 99,
+          lines: 99,
+          branches: 93,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/routes/admin.performance.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 98.1% gał
+        "src/routes/admin.settings.analytics.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 97,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/routes/api/public/client-errors.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/routes/api/public/experiment-event.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 97.7% linii · 100.0% fn · 97.2% gał
+        "src/routes/api/public/track.ts": {
+          statements: 95,
+          functions: 99,
+          lines: 96,
+          branches: 96,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 97.5% gał
+        "src/routes/api/public/vitals.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 96,
+        },
         // Billing critical path (payment -> access). Floored just below the
         // achieved coverage.
         //

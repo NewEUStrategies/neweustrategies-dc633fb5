@@ -396,7 +396,7 @@ describe("brama wczytywania statusu", () => {
     expect(screen.queryByText("Sposoby podłączenia GA4")).toBeNull();
   });
 
-  it("zakładka Web Vitals dziala BEZ statusu - RUM nie zależy od kluczy Google", async () => {
+  it("zakładka Web Vitals działa BEZ statusu - RUM nie zależy od kluczy Google", async () => {
     h.statusError = new Error("Forbidden");
     await mount();
 
@@ -890,6 +890,54 @@ describe("mini-panel RUM w przeglądzie", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Przegląd to jedyna zakładka BEZ atrapy w środku - pastylki, kafelki RUM i
+// wnioski renderują się prawdziwe, więc axe-core ma tu co mierzyć. Pozostałe
+// sześć zakładek to atrapy pulpitów, których dostępność jest sprawdzana w ich
+// własnych plikach.
+describe("dostępność przeglądu", () => {
+  /** Pełny przegląd z danymi - stan, w którym axe ma co mierzyć. */
+  async function mountFullOverview() {
+    h.status = status({ gsc: true, ga4: { hasServiceAccount: true }, vitals: true });
+    h.vitals = vitalsSummary([
+      metric({ metric: "LCP", p75: 900, count: 10 }),
+      metric({ metric: "CLS", p75: 0.05, count: 11 }),
+    ]);
+    return mount();
+  }
+
+  const violationIds = async (container: Element): Promise<string[]> => {
+    const { axeViolations } = await import("@/test/axe");
+    return (await axeViolations(container)).map((v) => v.id).sort();
+  };
+
+  // ZAPADKA W DOBRĄ STRONĘ. Naruszenie jest JEDNO i jest znane (przypięte
+  // niżej), więc ta asercja nie udaje zieleni: pilnuje, żeby nie doszło
+  // DRUGIE. Każda nowa klasa naruszenia - obraz bez alternatywy, przycisk bez
+  // nazwy, nieprawidłowy atrybut ARIA - oblewa ten test natychmiast, a
+  // naprawa kolejności nagłówków skróci listę do zera bez ruszania go.
+  it("JEDYNYM naruszeniem axe jest znany przeskok poziomów nagłówków", async () => {
+    const view = await mountFullOverview();
+
+    expect(await violationIds(view.container)).toEqual(["heading-order"]);
+  });
+
+  it("lista zakładek jest poprawną listą zakładek ARIA", async () => {
+    const view = await mount();
+
+    expect(screen.getByRole("tablist")).toBeTruthy();
+    // Sama zakładkowość jest czysta - naruszenie siedzi w nagłówkach treści,
+    // nie w `Tabs`, i test to rozdziela.
+    expect(await violationIds(view.container)).toEqual(["heading-order"]);
+  });
+
+  it("nagłówek pierwszego poziomu jest DOKŁADNIE jeden", async () => {
+    await mountFullOverview();
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PRZYPIĘTE DEFEKTY. Zgodnie z zamówieniem nie zmieniamy tu zachowania
 // produkcyjnego - defekt zostaje opisany testem, który JEST czerwony, i to
 // czerwień jest jego dokumentacją.
@@ -945,6 +993,33 @@ describe("defekty przypięte (it.fails)", () => {
   // Asercja: po zamontowaniu z atrapą i18n (echo klucza) KAŻDY widoczny napis
   // zdaniowy jest echem klucza. Zmierzone przy pisaniu tego testu: dziesiątki
   // napisów niebędących kluczami (dokładna liczba rośnie z zawartością kart).
+  // DEFEKT 3 - PRZESKOK POZIOMÓW NAGŁÓWKÓW W PRZEGLĄDZIE.
+  //
+  // Trasa daje `<h1>`, a `InsightSection` - jedyny nagłówek treści w przeglądzie -
+  // renderuje `<h3>`. Poziom drugi nie istnieje, więc czytnik ekranu ogłasza
+  // zejście o dwa poziomy i tworzy w drzewie dokumentu pustą gałąź: nawigacja
+  // po nagłówkach (podstawowy sposób skanowania strony bez wzroku) pokazuje
+  // „Analityka" i od razu „Stan integracji i rekomendacje" jako pod-pod-sekcję
+  // czegoś, czego nie ma. Zmierzone axe-core: `heading-order`, jedno naruszenie,
+  // jeden węzeł.
+  //
+  // DLACZEGO NIE NAPRAWIAM TEGO TUTAJ. `InsightSection` jest współdzielony przez
+  // wszystkie pulpity BI modułu (GSC, GA4, Web Vitals, audytorium, stopka) i ma
+  // twardo zapisany `<h3>`. Poprawna naprawa to sparametryzowanie poziomu (albo
+  // zejście na `<h2>` w tym komponencie i podniesienie hierarchii w pulpitach),
+  // czyli zmiana dotykająca SZEŚCIU powierzchni - poza zakresem zlecenia N1-N8
+  // i nie do przeprowadzenia bez przejrzenia każdej z nich.
+  //
+  // Kontrakt złamany: poziomy nagłówków nie przeskakują (WCAG 1.3.1, reguła
+  // `heading-order`).
+  it.fails("przegląd nie ma ŻADNEGO naruszenia axe-core", async () => {
+    h.status = status({ gsc: true, ga4: { hasServiceAccount: true }, vitals: true });
+    const view = await mount();
+
+    const { axeViolations, summarize } = await import("@/test/axe");
+    expect(summarize(await axeViolations(view.container))).toBe("");
+  });
+
   it.fails(
     "tekst panelu idzie ze słownika - dziś kilkadziesiąt literałów PL omija `t()`",
     async () => {

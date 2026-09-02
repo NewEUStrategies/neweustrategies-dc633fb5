@@ -1,23 +1,23 @@
-// Dostepnosc kart wykresow BI: kanwa ECharts jest dla czytnika ekranu pusta,
-// wiec region musi miec nazwe, a dane - tekstowa alternatywe.
+// Dostępność kart wykresów BI: kanwa ECharts jest dla czytnika ekranu pusta,
+// więc region musi mieć nazwę, a dane - tekstową alternatywę.
 //
-// Do 12.08 karta renderowala kanwe bez ani jednego atrybutu dostepnosci: caly
-// pulpit /admin/analytics byl dla osoby niewidzacej zbiorem nieopisanych
-// prostokatow, mimo ze dane do tabeli i tak jechaly obok wykresu na potrzeby
+// Do 12.08 karta renderowała kanwę bez ani jednego atrybutu dostępności: cały
+// pulpit /admin/analytics był dla osoby niewidzącej zbiorem nieopisanych
+// prostokątów, mimo że dane do tabeli i tak jechały obok wykresu na potrzeby
 // eksportu CSV.
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-// EChart montuje prawdziwa instancje ECharts (kanwa + ResizeObserver) - w tescie
-// zastepujemy go znacznikiem, bo przedmiotem testu jest OTOCZKA dostepnosci,
+// EChart montuje prawdziwą instancję ECharts (kanwa + ResizeObserver) - w teście
+// zastępujemy go znacznikiem, bo przedmiotem testu jest OTOCZKA dostępności,
 // nie renderer wykresu.
 vi.mock("../EChart", () => ({
   EChart: () => <div data-testid="echart-canvas" />,
 }));
 
-// Podmieniamy WYLACZNIE `useTranslation`, resztę modułu zostawiamy prawdziwą:
-// `src/lib/i18n.ts` wola `i18n.use(initReactI18next)` przy ewaluacji, a slownik
-// analityki jest importowany przez ChartDataTable - pelny mock wywracal init.
+// Podmieniamy WYŁĄCZNIE `useTranslation`, resztę modułu zostawiamy prawdziwą:
+// `src/lib/i18n.ts` woła `i18n.use(initReactI18next)` przy ewaluacji, a słownik
+// analityki jest importowany przez ChartDataTable - pełny mock wywracał init.
 vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
@@ -44,27 +44,27 @@ const CSV: NonNullable<ChartCardProps["csv"]> = {
   ],
 };
 
-describe("ChartCard - dostepnosc", () => {
-  it("opisuje region wykresu nazwa zbudowana z tytulu", () => {
+describe("ChartCard - dostępność", () => {
+  it("opisuje region wykresu nazwą zbudowaną z tytułu", () => {
     render(<ChartCard title="Odslony wpisow" option={{}} />);
 
     expect(screen.getByRole("img", { name: "Chart: Odslony wpisow" })).toBeTruthy();
   });
 
-  it("udostepnia dane jako tabele z naglowkami kolumn i wierszami", () => {
+  it("udostępnia dane jako tabelę z nagłówkami kolumn i wierszami", () => {
     render(<ChartCard title="Odslony wpisow" option={{}} csv={CSV} />);
 
     const table = screen.getByRole("table");
     expect(table).toBeTruthy();
-    // Naglowki musza byc `<th scope="col">`, inaczej czytnik nie zwiaze komorki
-    // z kolumna przy nawigacji po tabeli.
+    // Nagłówki muszą być `<th scope="col">`, inaczej czytnik nie zwiąże komórki
+    // z kolumną przy nawigacji po tabeli.
     const columnHeaders = screen.getAllByRole("columnheader");
     expect(columnHeaders.map((h) => h.textContent)).toEqual(["Dzien", "Odslony"]);
     expect(screen.getByText("2026-08-02")).toBeTruthy();
     expect(screen.getByText("1,580")).toBeTruthy();
   });
 
-  it("wiaze region wykresu z tabela przez aria-describedby", () => {
+  it("wiąże region wykresu z tabelą przez aria-describedby", () => {
     render(<ChartCard title="Odslony wpisow" option={{}} csv={CSV} />);
 
     const region = screen.getByRole("img", { name: "Chart: Odslony wpisow" });
@@ -73,7 +73,7 @@ describe("ChartCard - dostepnosc", () => {
     expect(document.getElementById(describedBy ?? "")).toBeTruthy();
   });
 
-  it("bez danych nie zmyśla tabeli, ale region nadal ma nazwe", () => {
+  it("bez danych nie zmyśla tabeli, ale region nadal ma nazwę", () => {
     render(<ChartCard title="Bez danych" option={{}} />);
 
     expect(screen.queryByRole("table")).toBeNull();
@@ -83,10 +83,10 @@ describe("ChartCard - dostepnosc", () => {
   it.each([
     ["puste wiersze", { filename: "e.csv", headers: ["Dzien"], rows: [] }],
     ["puste naglowki", { filename: "e.csv", headers: [], rows: [["x"]] }],
-  ])("nie zostawia wiszacego aria-describedby przy %s", (_label, csv) => {
-    // Zgloszone w recenzji PR #220: `csv` moze ISTNIEC i byc pusty - pulpit
-    // w trakcie ladowania albo raport, ktory legalnie nie ma wynikow. Tabela
-    // sie wtedy nie renderuje, wiec atrybut wskazywalby element, ktorego nie ma:
+  ])("nie zostawia wiszącego aria-describedby przy %s", (_label, csv) => {
+    // Zgłoszone w recenzji PR #220: `csv` może ISTNIEĆ i być pusty - pulpit
+    // w trakcie ładowania albo raport, który legalnie nie ma wyników. Tabela
+    // się wtedy nie renderuje, więc atrybut wskazywałby element, którego nie ma:
     // czytnik obiecuje opis i go nie dostarcza.
     render(<ChartCard title="Puste" option={{}} csv={csv as NonNullable<ChartCardProps["csv"]>} />);
 
@@ -95,9 +95,9 @@ describe("ChartCard - dostepnosc", () => {
     expect(region.getAttribute("aria-describedby")).toBeNull();
   });
 
-  it("dwie karty na jednej stronie maja ROZNE id tabel", () => {
-    // slug(title) dawalby ten sam id dla dwoch kart o tym samym tytule w roznych
-    // sekcjach pulpitu, a zduplikowany id rozjezdza aria-describedby.
+  it("dwie karty na jednej stronie mają RÓŻNE id tabel", () => {
+    // slug(title) dawałby ten sam id dla dwóch kart o tym samym tytule w różnych
+    // sekcjach pulpitu, a zduplikowany id rozjeżdża aria-describedby.
     render(
       <>
         <ChartCard title="Ten sam tytul" option={{}} csv={CSV} />

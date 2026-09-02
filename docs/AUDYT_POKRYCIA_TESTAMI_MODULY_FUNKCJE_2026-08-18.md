@@ -653,6 +653,557 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Observability / RUM / web vitals        |     11 |        409 |  54,6% | 48,6% |   61,7% | **54,0%** |     37/60 |
 | Analityka: warstwa semantyczna          |      7 |        239 |  70,4% | 60,2% |   69,4% | **71,5%** |     43/62 |
 
+### MODUŁ 17 - kampania 2026-09-01/02: linie 36,07% -> 96,24%, funkcje 31,18% -> 95,96%, plików na zerze 47 -> 0
+
+**Punktem odniesienia tego rozdziału nie jest wyłącznie wydanie 8.** Między pomiarem
+wydania 8 (HEAD `8e771b983`) a startem tej kampanii main przyjął **59 commitów**, a
+w module 17 przybył m.in. pierwszy test reportera Core Web Vitals
+(`src/lib/__tests__/webVitals.test.ts`, 33 przypadki) - czyli plik, który wydanie 8
+wymienia jako `webVitals.ts 0/78, 0/14 funkcji`. Liczby wydania 8 nie opisują więc
+stanu, od którego ta kampania startowała. Żeby delta była uczciwa, stan WYJŚCIOWY
+zmierzyłem sam: pełnym przebiegiem `vitest run --coverage` w osobnym drzewie roboczym
+przypiętym do commitu sprzed pierwszej zmiany (`3eb5e92`). Podaję obie liczby i nie
+mieszam ich.
+
+**Zastrzeżenie do podziału wewnątrz modułu.** Reguła ścieżkowa MODUŁU 17 jest w tym
+dokumencie opublikowana (rozdz. 9.1) i użyłem jej dosłownie, więc liczby CAŁEGO modułu
+są porównywalne między wydaniami. Podział na cztery funkcjonalności nie jest
+opublikowany jako regexy, a mój (niżej) przypisuje np. cały
+`src/components/admin/analytics/semantic/` do warstwy semantycznej - stąd „plików" nie
+zgadza się z tabelą wydania 8. Dla funkcjonalności porównywalna jest zatem DELTA W
+OBRĘBIE TEJ KAMPANII (ta sama reguła po obu stronach pomiaru), a nie różnica wobec
+wydania 8.
+
+Reguła podziału, w kolejności rozstrzygania: (1) **warstwa semantyczna** -
+`lib/analytics/semantic/`, `components/admin/analytics/semantic/`, trasy z członem
+`semantic`; (2) **observability / RUM** - `lib/observability/`, `lib/webVitals`,
+`/api/public/(vitals|client-errors)`, `admin.performance`,
+`components/admin/performance/`; (3) **wykresy i panel BI** - `components/charts/`,
+`components/admin/analytics/`, `lib/charts/`,
+`admin.(analytics|experiments|link-monitor)`; (4) **zbieranie zdarzeń i liczniki** -
+reszta modułu.
+
+**Moduł 17 razem.**
+
+| metryka    | wejście (`3eb5e92`) | po kampanii | delta | cel zlecenia |
+| ---------- | ------------------: | ----------: | ----: | -----------: |
+| linie | 36,07% (1134/3144) | **96,24%** (3099/3220) | +60,17 pp | ≥ 65% |
+| instrukcje | 35,31% (1283/3634) | **95,54%** (3556/3722) | +60,23 pp | - |
+| gałęzie | 27,30% (917/3359) | **92,17%** (3145/3412) | +64,87 pp | ≥ 52% |
+| funkcje | 31,18% (280/898) | **95,96%** (878/915) | +64,78 pp | ≥ 62% |
+| plików na zerze | 47 | **0** | -47 | - |
+
+Plików w mianowniku: 89 (wejście) / 89 (po).
+
+**Cztery funkcjonalności.** Ta sama reguła podziału po obu stronach pomiaru.
+
+| Funkcjonalność | Plików | linie wejście | linie po | gałęzie po | funkcje po | cel (linie/fn/gał) |
+| -------------- | -----: | ------------: | -------: | ---------: | ---------: | -----------------: |
+| Analityka: zbieranie zdarzeń i liczniki | 21 | 15,68% | **85,63%** | 78,15% | 77,56% (121/156) | 70 / 65 / 55 |
+| Wykresy i panel BI | 38 | 32,20% | **99,82%** | 95,90% | 100,00% (568/568) | 60 / 55 / 45 |
+| Observability / RUM / web vitals | 14 | 64,54% | **97,29%** | 93,48% | 97,78% (88/90) | 85 / 85 / 75 |
+| Analityka: warstwa semantyczna | 16 | 56,66% | **99,43%** | 95,79% | 100,00% (101/101) | 92 / 90 / 80 |
+
+#### Rejestr N1-N8: osiem zleceń, osiem rozstrzygnięć
+
+Każdy punkt ma jeden z trzech statusów. Żaden nie wyszedł „odroczony".
+
+**N1 - gubione CLS i INP po pierwszym zrzucie. NAPRAWIONY.**
+Jedna wspólna flaga `flushed` zamykała się przy pierwszym zrzucie i była czyszczona
+wyłącznie przez nawigację miękką. Skutek jest gorszy, niż mówiło zlecenie: po
+pierwszym ukryciu karty ścieżka milkła NA STAŁE - każdy kolejny cykl ukryć i powrotów
+oraz `pagehide` były no-opem, a przywrócenie z bfcache dawało całą sesję bez pomiaru.
+Zapadka rozbita na stan per metryka. LCP zostaje jednorazowe (jest finalne z
+definicji), CLS i INP są wysyłane PONOWNIE, gdy urosły.
+
+Zlecenie mówiło „zrzuć deltę". Odstąpiłem od tego świadomie i wysyłam wartość
+SKUMULOWANĄ, bo delta w tym ingeście jest gorsza niż defekt, który miała naprawić:
+wiersz `web_vitals` niesie WŁASNĄ ocenę good/needs-improvement/poor, a
+`aggregateVitals` liczy p75 po surowych wierszach i tej ocenie ufa. Strona o realnym
+CLS 0,4 („poor") rozbita na cztery przyrosty po 0,1 dałaby cztery wiersze „good"
+i zero „poor", a prawdziwa wartość nie pojawiłaby się w populacji p75 ani razu -
+zniknąłby dokładnie ten ogon rozkładu, dla którego p75 się liczy. Warunek „tylko gdy
+urosło" nie pozwala serii ukryć zalać ingestu identycznymi wierszami. Koszt przyjęty
+świadomie: odsłona z dwoma zrzutami zostawia dwa wiersze CLS, więc `count` zawyża
+liczbę odsłon.
+
+Dowód: `src/lib/__tests__/webVitals.test.ts`, blok „kumulacja po pierwszym zrzucie
+(N1)" - cztery przypadki, z których DWA są czerwone na kodzie sprzed naprawy
+(zweryfikowane przez chwilowe przywrócenie starej wersji `flushCurrent`, nie przez
+rozumowanie). Pozostałe dwa to strażnicy regresji: seria ukryć bez nowych pomiarów
+nie dubluje wierszy, a nawigacja miękka nadal zeruje akumulatory.
+
+**N2 - brak batchowania metryk RUM. NAPRAWIONY.**
+Klient buforuje i zrzuca JEDNYM beaconem na każdej granicy (nawigacja miękka,
+`visibilitychange` -> hidden, `pagehide`), endpoint przyjmuje `{metrics:[...]}` i robi
+JEDEN wielowierszowy insert. Pierwsze wczytanie kosztuje jedno żądanie zamiast pięciu.
+
+Korekta do zlecenia: komentarz w endpoincie mówił „a page load emits ~6 vitals" i to
+było zawyżone. `VALID_METRICS` dopuszcza FID, ale unia typów klienta nie umie go
+wyprodukować; realne wczytanie bez interakcji emituje CZTERY metryki (FCP, TTFB, LCP,
+CLS), bo INP wymaga zdarzenia z `interactionId` i `duration > 40`.
+
+Bufor nie jest oknem batchowania i to jest cała jego konstrukcja: każda granica
+zrzutu drenuje kolejkę SYNCHRONICZNIE, a timer istnieje wyłącznie dlatego, że FCP
+i TTFB są kolejkowane przy inicjalizacji, która własnej granicy nie ma - stąd ma
+zerowe opóźnienie. Karty w tle mają timery dławione do ~1/min, więc gwarancją są
+listenery ukrycia, nigdy timer. Cofnięcie zgody PORZUCA to, co zostało w buforze.
+
+Zgodność wsteczna jest obowiązkowa i przetestowana: strona zbuforowana przed zmianą
+- albo otwarta w karcie w tle od wczoraj - nadal wysyła pojedynczy obiekt
+`{name,value,...}` i nadal jest zapisywana. Endpoint normalizuje trzy kształty ciała
+do listy.
+
+Limiter przeliczony: 60/1 -> 20/0,2. Budżet jest liczony w WIERSZACH, nie w żądaniach,
+bo żądanie, które wstawiało jeden wiersz, wstawia teraz do ośmiu: 12 żądań/min razy
+MAX_METRICS = 8 daje ~96 wierszy/min, ten sam rząd wielkości co 60 wierszy/min przy
+starej nastawie.
+
+**N3 - dwie ścieżki beaconu do tego samego zadania. NAPRAWIONY.**
+`webVitals.ts` woła teraz `sendBeaconPayload` i `vitalsEndpoint()` zamiast własnego
+`navigator.sendBeacon` z surowym napisem i drugiego, inline'owego odczytu zmiennej
+środowiskowej.
+
+Pułapka, którą trzeba było ominąć: `observabilityEndpoint()` miała fallback na
+`/api/public/client-errors`, a `webVitals.ts` - na `/api/public/vitals`. Naiwne
+podstawienie wspólnej funkcji wysłałoby WSZYSTKIE metryki RUM do ingestu błędów, który
+wymaga pola `message`, więc odpowiedziałby 204 i nie zapisał ani jednego wiersza -
+cicha, całkowita utrata danych bez jednego czerwonego żądania, po którym można by to
+zauważyć. Dlatego fallback jest PARAMETREM, a nie stałą.
+
+Dowód: test, że ingest przyjmuje OBA kształty ciała - napis (stary transport) i Blob
+`application/json` (nowy) - po obu stronach: w teście klienta i w teście endpointu.
+
+**N4 - niezmienność „ECharts nigdy w grafie SSR" bez bramki. NAPRAWIONY, ale nie tak,
+jak zakładało zlecenie.**
+Zlecenie mówiło: dopisz echarts do `HEAVY_MODULES` w `check-entry-purity.ts`.
+Dopisałem - i to za mało, bo TA BRAMKA TEJ KRAWĘDZI NIE ŁAPIE. `check-entry-purity`
+liczy domknięcie ŚCIEŻKI BOOTOWANIA KLIENTA: startuje od chunków wstrzykiwanych przez
+SSR jako `<script type="module">` i idzie po statycznych krawędziach chunk -> chunk.
+Niezmienność z nagłówka `EChart.tsx` dotyczy natomiast grafu SSR (OOM V8 wywalał
+renderer chunków Rollupa na przebiegu Cloudflare/Nitro). Prześledzone: wszyscy
+importerzy `EChart` siedzą na powierzchniach tras LENIWYCH (`ChartCard`, `KpiTile`,
+cztery panele BI, `ClubInsights`, `admin.coupons.analytics`), a `manualChunks`
+w `vite.config.ts` nie ma kubełka na echarts ani łapacza końcowego - statyczny import
+wylądowałby więc w chunku osiągalnym wyłącznie z chunków leniwych, POZA domknięciem
+bootu. Bramka chunkowa zostałaby zielona przy padającym buildzie.
+
+Stąd DRUGA bramka, źródłowa: `src/lib/ci/__tests__/echartsStaticEdge.test.ts`. Czyta
+importy w `src/`, nie chunki - jest tańsza (nie wymaga builda), wcześniejsza (zapala
+się w PR) i wskazuje plik. Dowodzi czterech rzeczy: wartościowo ECharts importuje
+DOKŁADNIE JEDEN plik, `EChart.tsx` nie importuje modułu wykresu statycznie ale NADAL
+wciąga go przez `import()`, nikt nie omija mostu sięgając po `EChartClient` wprost,
+a sam moduł wykresu nadal używa modularnej rejestracji zamiast `import "echarts"`.
+`import type` jest dozwolone i to nie jest furtka - importy typów są kasowane przy
+kompilacji, a dziesięć plików panelu bierze z `echarts/core` wyłącznie typy. Piąty
+przypadek jest sondą samego wykrywacza: gdyby mylił typ z wartością, pierwsza reguła
+zapalałaby się na tych dziesięciu plikach i ktoś rozbroiłby ją, żeby uciszyć fałszywy
+alarm. Sprawdzone, że bramka nie jest martwa: po chwilowym dopisaniu zakazanego
+importu dwa przypadki padają.
+
+Wybór markerów dla bramki chunkowej miał własną pułapkę, wartą zapisania, bo
+kosztowała pierwszy wybór: prawie wszystkie czytelne komunikaty ECharts („There is
+a chart instance already initialized on the dom.", „Initialize failed: invalid dom.",
+„ECharts#one is deprecated.") siedzą w `process.env.NODE_ENV !== 'production'` i w
+`echarts.min.js` ICH NIE MA. Sonda po nich dałaby bramkę, która nigdy się nie zapala.
+Markery finalne (`_echarts_instance_` z `lib/core/echarts.js` i treść `throw new Error`
+z `lib/util/clazz.js`) występują w wydaniu produkcyjnym i pochodzą z dwóch niezależnych
+modułów rdzenia. Pilnuje tego trzecia bramka -
+`src/lib/ci/__tests__/entryPurityEchartsMarkers.test.ts` - która sprawdza, że każdy
+marker faktycznie jest w `echarts.min.js`, że żaden nie trafia we własny kod (fałszywy
+alarm rozbroiłby zaufanie do bramki równie skutecznie jak jej brak) i że nie wróciły
+markery wycięte z wydania produkcyjnego.
+
+**N5 - klient Supabase tworzony na każde wywołanie. NAPRAWIONY, z korektą uzasadnienia.**
+`postViews.functions.ts` tworzy teraz klienta raz na izolat, leniwie. Bezpieczne
+w izolacie wielotenantowym, bo w kliencie nie ma NIC związanego z żądaniem:
+`x-tenant-host` i `x-tenant-assert` rozstrzyga `fetchWithTenantHost` per wywołanie
+z kontekstu żądania, a `persistSession: false` daje storage pamięciowy, do którego ten
+moduł nie pisze. Leniwie, nie `const` na poziomie modułu, bo `createClient` rzuca przy
+braku `SUPABASE_URL` i przy inicjalizacji modułu wywróciłby cały chunk strony wpisu
+zamiast jednego wywołania server function.
+
+DWIE KOREKTY DO ZLECENIA, obie istotne dla tego, jak tę zmianę opisywać.
+Po pierwsze: to jest oszczędność CPU, nie latencji. Około 110 us i 16 kB na
+konstrukcję wobec round-tripu Supabase rzędu 20-150 ms to 0,1-0,5% czasu ściany. Sam
+„gorący plik" tego nie uzasadnia. Uzasadnia to model rozliczeniowy Workers, w którym
+czas CPU jest zasobem BILOWANYM i limitowanym.
+Po drugie: pytanie zlecenia o budżet SSR nie ma tu zastosowania. `/admin` ma
+`ssr: false` (`src/routes/admin.tsx:11`), więc `admin.analytics.tsx` nie jest
+renderowana serwerowo wcale, a na wejściu odpala DWA zapytania server-fn, i to
+SEKWENCYJNIE (`getVitalsSummary` żyje w panelu montowanym dopiero po odpowiedzi
+statusu). Szczyt równoległości z tej trasy to 1. Ani limit 6 subrequestów, ani
+`SSR_DB_DEADLINE_MS` nie są w grze. Sześć ciężkich pulpitów siedzi za
+niezamontowanymi zakładkami.
+
+**N6 - `ga4.server.ts` na zerze, w tym podpisywanie JWT. NAPRAWIONY.**
+0/71 linii i 0/17 funkcji -> 100% linii, funkcji, instrukcji i gałęzi. Wzorzec
+skopiowany z `webpush.test.ts`: klucz RSA generowany W TEŚCIE, `fetch` podmieniony,
+zero sieci i zero sekretów. Podpis weryfikuje się kluczem publicznym i NIE weryfikuje
+obcym; klucz z literalnymi `\n` jest odescape'owany przed podpisaniem; token w oknie
+ważności jest reużywany, wygasający - podpisywany na nowo.
+
+Korekta do zlecenia: hipoteza o wycieku tokenu jest NEGATYWNA. Żadna ścieżka błędu
+w `ga4.server.ts` nie umieszcza podpisanej asercji ani bearera w komunikacie.
+Te przypadki są więc strażnikami regresji, nie znaleziskami.
+
+**N7 - `as never` na zapisie `web_vitals`. NAPRAWIONY - i przyczyna była inna, niż
+mówiło zlecenie.**
+Zlecenie kazało zregenerować typy albo zapisać, dlaczego rzutowanie musi zostać.
+Trzecia możliwość okazała się prawdziwa: typy JUŻ SĄ zregenerowane. `web_vitals`
+(migracja 20260626210000) i `client_errors` (20260626230000) są w
+`src/integrations/supabase/types.ts`. Komentarz „tabela z migracji, której nie ma
+jeszcze w wygenerowanych typach" przestał być prawdziwy i nikt tego nie zauważył, więc
+rzutowanie było już tylko wyłączeniem kontroli kształtu wiersza - na DWÓCH ścieżkach
+zapisu osiągalnych publicznie, bez sesji i bez podpisu. Oba wiersze mają teraz
+`TablesInsert<"web_vitals">` i `TablesInsert<"client_errors">`.
+
+Dlaczego `check:stale-never-casts` tego nie złapał: bramka rozpoznaje rzutowanie
+zapisane INLINE przy nazwie tabeli, a po zbatchowaniu ingestu cast przeniósł się na
+zmienną (`insert(payload as never)`). Poszerzenie skanera to osobna zmiana, dotykająca
+charteru bramki; tutaj usunąłem przyczynę.
+
+**N8 - dodatkowy render na każdy wykres. NAPRAWIONY, z pomiarem przed i po.**
+`useEffect(() => setTick(v => v + 1), [])` zastąpiony jedną wspólną subskrypcją motywu.
+Powód, dla którego efekt istniał, jest PRAWDZIWY i został zachowany: `DesignTokensStyle`
+wstrzykuje paletę tenanta z bazy przez zapytanie react-query, więc `--primary` czy
+`--foreground` mogą dojechać po pierwszym malowaniu wykresu. Zmieniło się narzędzie:
+motyw jest rozwiązywany raz, porównywany z poprzednim i rozgłaszany WYŁĄCZNIE gdy się
+różni. Do tego `resolveChartTheme` pobiera migawkę stylu RAZ zamiast raz na token
+(dziesięć tokenów to było dziesięć wymuszeń przeliczenia stylu).
+
+ZMIERZONE, panel dziesięciu wykresów (`__tests__/EChartClient.test.tsx`):
+
+| wielkość                | przed | po  |
+| ----------------------- | ----: | --: |
+| renderów wykresu        |    20 |  10 |
+| rozwiązań motywu        |    20 |   2 |
+| wywołań getComputedStyle |   200 |   2 |
+
+Test „tokeny, które dojechały PO pierwszym malowaniu, trafiają do wykresu" pilnuje,
+żeby oszczędność nie została kupiona za poprawność. Osobna subtelność, znaleziona
+pomiarem: porzucenie migawki przy zniknięciu ostatniego subskrybenta rodziło NOWY
+obiekt dla identycznych kolorów, a `useSyncExternalStore` porównuje migawki przez
+`Object.is` - czyli przełączenie zakładki panelu na wczytane dane dawało wymuszony
+drugi render mimo całej zmiany. Migawka jest więc znaczona jako podejrzana, nie
+wyrzucana.
+
+#### Trasy panelu: cztery ekrany z zera do stu
+
+Krok 13 zlecenia wymieniał pięć powierzchni panelu stojących na zerze. Wszystkie
+wyszły z zera, cztery z nich na 100% linii i 100% funkcji:
+
+| plik                            | wejście   | linie |   funkcje |  gałęzie | przypadków |
+| ------------------------------- | --------- | ----: | --------: | -------: | ---------: |
+| `src/routes/admin.analytics.tsx`      | 0/54, 0/27 | 100% | 100% (27/27) | 98,42% |  51 |
+| `src/routes/admin.link-monitor.tsx`   | 0/33, 0/7  | 100% | 100% (7/7)   | 94,87% |  38 |
+| `src/routes/admin.experiments.tsx`    | 0/26, 0/8  | 100% | 100% (8/8)   |   100% |  20 |
+| `src/routes/admin.performance.tsx`    | 0/8, 0/3   | 100% | 100% (3/3)   |   100% |  12 |
+| `src/components/admin/performance/EdgeCacheCard.tsx` | 0/43, 0/18 | 100% | 100% (18/18) | 94,83% | 21 |
+| `src/lib/charts/geoQuery.ts`          | 0/4, 0/1   | 100% | 100% (2/2)   |   100% |  12 |
+| `src/lib/tracker-admin.functions.ts`  | 0/3, 0/1   | 100% | 100% (1/1)   |      - |  10 |
+
+**Dlaczego to nie jest pokrycie „na sam render".** W tych plikach SKLEJENIE JEST
+LOGIKĄ, a nie detalem implementacji:
+
+`/admin/performance` trzyma aktywną zakładkę W ADRESIE (`?tab=errors`), więc zakładka
+jest linkowalna - i właśnie dlatego `validateSearch` musi ZERWAĆ każdą nieznaną
+wartość do `undefined`. Parametr przepuszczony wprost do `Tabs value=` daje panel bez
+ŻADNEJ widocznej zakładki, czyli podrzucony `?tab=cokolwiek` wywraca stronę. Testowane
+są też dwie własności, których sam render nie dotyka: powrót na zakładkę DOMYŚLNĄ
+czyści parametr (jeden widok = jeden adres, inaczej historia mnoży wpisy przy każdym
+przełączeniu), a nawigacja jest `replace`.
+
+`/admin/analytics` NIE trzyma zakładki w adresie i test to przypina - nie jako
+zalecenie, ale jako stan faktyczny, żeby ewentualne przejście na zakładki linkowalne
+było zmianą jawną. Ważniejsze: w tej trasie STATUS DECYDUJE, CO SIĘ RENDERUJE.
+Nieskonfigurowany GA4 dostaje instrukcję konfiguracji, a NIE pulpit odpytujący Data
+API bez kluczy; zakładka GSC bez danych statusu renderuje `null`, a nie pulpit
+z `configured: undefined`. Stanów GA4 jest TRZY, nie dwa: „podłączony", „jest service
+account, brak `GA4_PROPERTY_ID`" i „nic nie ma" - zlepienie środkowego ze skrajnym
+kosztuje administratora godzinę, bo albo szuka klucza, który już wgrał, albo czeka na
+dane, które nie przyjdą. Przycisk testowego eventu Measurement Protocol ma cztery
+rozłączne wyjścia, w tym WCZESNE wyjście przy `configured: false` (bez `return`
+panel dokładał drugi komunikat o odpowiedzi, której nie było). Osadzony raport Looker
+Studio wymaga flagi ORAZ adresu - flaga bez adresu dawałaby pustą ramkę 720 px
+udającą raport.
+
+`/admin/link-monitor` opiera się na jednym ogniwie zapytania: `.eq("ok", false)`. Bez
+niego tabela pokazuje wszystkie sprawdzone linki, w większości działające, a tytuł
+panelu zaczyna kłamać - przy czym PUSTY panel przy zdrowej witrynie jest wynikiem
+POPRAWNYM, więc test musi rozróżniać „nie ma zepsutych" od „zapytanie nie filtruje".
+Próg alertu asertowany jest po IMPORTOWANEJ stałej `BROKEN_LINK_ALERT_THRESHOLD`, a
+nie po wpisanej w test dziesiątce: skaner wysyła powiadomienie od tego samego progu,
+więc zmiana polityki musi przestawić panel i powiadomienie naraz albo oblać test.
+Sugestia zamiany ma ZAWSZE adres - konkretną migawkę, gdy skaner ją znalazł, albo
+uniwersalny `web/2/`; wiersz bez linku odsyłałby redaktora do ręcznego wklejania
+adresów do Wayback Machine, czyli do stanu przed tym panelem.
+
+`/admin/experiments` liczy werdykt PRAWDZIWYM `zScore` i `conversionRate` (atrapowane
+są tylko dwa hooki danych), bo atrapa w tym miejscu zamieniłaby test w sprawdzanie
+własnych liczb. Dwie asercje warte wymienienia: zero ekspozycji daje „brak danych", a
+nie „różnica nieistotna" - przy zerowym ruchu `zScore` zwraca 0, więc naiwny render
+ogłaszałby brak istotności na próbce, której nie ma; a zwycięzcą jest wariant o
+wyższej KONWERSJI, nie o wyższej liczbie konwersji - wariant A z 5/100 bije B z
+10/1000, choć liczba bezwzględna „wygląda lepiej". Pomyłka w tym miejscu przestawia
+treść strony na gorszą i nikt tego nie zauważy.
+
+`lib/tracker-admin.functions.ts` to trzy linie, w których dwie decyzje są decyzjami
+bezpieczeństwa: handler bierze klienta SERVICE ROLE (tick musi zadziałać ponad RLS, bo
+drenuje kolejki pocztowe i push wszystkich najemców - podmiana na `context.supabase`
+uciszyłaby połowę jobów bez jednego błędu w logu, bo RLS po prostu nie oddałby
+wierszy), a funkcja NIE MA walidatora, więc nie da się z zewnątrz podać ani najemcy,
+ani operatora, ani zakresu jobów.
+
+`lib/charts/geoQuery.ts` ma cztery linie i jedną własność, którą łatwo zepsuć
+„porządkując" klucze cache: `["public", "geo", region]` NIE nosi identyfikatora
+najemcy ani języka - i to jest poprawne, bo zasób to wersjonowany plik statyczny
+(`/geo/europe-50m.v1.json`) identyczny dla każdego obszaru roboczego. Dorzucenie
+czegokolwiek zmiennego zwielokrotniłoby pobrania setek kilobajtów geometrii raz na
+najemcę i raz na język. `staleTime: Infinity` jest wnioskiem z wersji w NAZWIE PLIKU,
+nie optymizmem.
+
+**Higiena tych testów.** Żaden nie wychodzi w sieć: ramka Looker Studio biegnie
+z `disableIframePageLoading` (happy-dom NAPRAWDĘ nawiguje `<iframe src>`; ten sam
+wzorzec i to samo uzasadnienie co w `LazyQuizIframe.test.tsx`), a zasoby geometrii
+mają atrapę `fetch`. Adresy e-mail wyłącznie na `example.com`. Oczekiwanie idzie na
+STAN CACHE'U react-query, nie na liczbę mikrotasków - asercja po dwóch
+`await Promise.resolve()` mierzy PIERWSZĄ KLATKĘ i przechodzi także wtedy, gdy
+zapytanie nie zwróciło danych (sprawdzone: w pierwszej wersji testu monitora linków
+19 z 35 przypadków „przechodziło" właśnie na pustej tabeli). Dostępność obu dużych
+tras sprawdza `axe-core` przez `src/test/axe.ts` na drzewie Z DANYMI, bo pusty widok
+nie ma czego naruszyć.
+
+**Czego te testy NIE dowodzą.** Uprawnień. Żadna z tych tras nie ma własnego
+middleware - rolę sztabową wymuszają funkcje serwerowe (`requireAdmin`,
+`requireStaff`) i RLS, a nie render; w teście nie ma sesji, więc „użytkownik bez roli
+sztabowej nie widzi panelu" nie jest tu rozstrzygalne i pilnuje tego bramka
+`check:authz-snapshot`. Izolacji najemcy również nie dowodzą na poziomie tras, i to
+jest wniosek z lektury, nie skrót: zapytanie monitora linków ŚWIADOMIE nie ma
+`.eq("tenant_id", …)`, bo `outbound_link_checks` stoi pod RLS
+`tenant_id = public.current_tenant_id() AND public.is_staff()` (migracja
+20260720135000), a `useExperimentsAdmin` filtruje `tenant_id` i skaluje klucz cache
+po tenancie już poza trasą. Powtarzanie tych warunków w atrapie klienta dowodziłoby
+wyłącznie treści atrapy - dowód mieszka w `check:tenant-isolation`.
+
+#### Czy suita jest zielona: warunek, bez którego procenty nie znaczą nic
+
+`coverage.reportOnFailure: true` w `vitest.config.ts` jest w tym repozytorium
+świadomą decyzją (raport i progi muszą powstać także na czerwonej suicie), ale ma
+skutek uboczny, który trzeba wypowiedzieć: **linia wykonana przez PADAJĄCY test
+nadal liczy się jako pokryta.** Wzrost procentu na czerwonej suicie może więc być
+wzrostem pozornym. Dlatego liczby wyżej podaję razem z rachunkiem przebiegu, a nie
+zamiast niego.
+
+Pełny przebieg `vitest run --coverage` na tym HEAD: **2 084 pliki testowe, 2 077
+zielonych, 2 pominięte, 5 czerwonych; 56 880 przypadków, z tego 56 461 zielonych,
+361 oczekiwanych porażek (`it.fails`), 51 pominiętych, 7 padnięć.**
+
+Wszystkie 5 czerwonych plików leży POZA modułem 17 i wszystkie 5 padało już przed
+kampanią. To nie jest wniosek z lektury, to pomiar: te same cztery pliki uruchomiłem
+w worktree przypiętym do commitu wyjściowego `3eb5e92` i w drzewie końcowym -
+**baseline 5 failed / 69 passed, drzewo końcowe 5 failed / 69 passed**, bloki
+padnięć identyczne poza prefiksem ścieżki w stack trace. Wszystkie cztery pliki
+testowe są bajt-identyczne w obu drzewach (te same sumy MD5), a kampania nie dotknęła
+katalogu `supabase/` ani jednym plikiem.
+
+| plik | przypadek | przyczyna | pada w baseline |
+| ---- | --------- | --------- | --------------- |
+| `lib/ci/__tests__/migrationReplay.test.ts` | porządek nazw = porządek wersji | `expected true to be false` | TAK |
+| `lib/ci/__tests__/migrationReplay.test.ts` | ratchet bliźniaków treści | dwie nowe pary bliźniaków z gałęzi Lovable (`page_full_path_tenant_scope`, `owner_plane_tenant_scope_read_history`) | TAK |
+| `lib/authz/__tests__/authzSnapshotParity.test.ts` | snapshot vs migracje | PROVENANCE, `migrations: 932 -> 935` | TAK |
+| `lib/server/__tests__/serviceRoleTenantScope.gate.test.ts` | `page_full_path` wiąże najemcę | `it.fails`, który ZACZĄŁ przechodzić - czyli dług naprawiony, przypięcie nieusunięte | TAK |
+| `components/admin/monetization/__tests__/AdminMonetizationLedger.test.tsx` | przydział bezterminowy | brak tekstu „Bezterminowo" po 5 s | TAK |
+
+Czwarty wiersz zasługuje na komentarz, bo jest lustrem tej kampanii: `it.fails`
+przestaje być dokumentacją długu w chwili, w której dług zniknie, a wtedy zaczyna
+blokować suitę. Przypięcia z tego rozdziału trzeba będzie zdejmować tak samo -
+zgaśnięcie przypięcia jest sygnałem do jego usunięcia, nie do zignorowania.
+
+Jedyny plik modułu 17, który w tym przebiegu był czerwony, to
+`routes/__tests__/adminAnalyticsRoute.test.tsx` - dwa padnięcia asercji `axe-core`
+dopisane w trakcie przebiegu. Naruszenie jest realne (`heading-order`, jeden węzeł),
+zostało przypięte jako defekt i plik jest zielony (52 przypadki + 3 przypięcia).
+Pokrycie tego pliku nie zależało od tych dwóch asercji: 100% linii i 27/27 funkcji
+zmierzone osobno przed i po ich dopisaniu.
+
+#### Progi per-ścieżka: 376 -> 455
+
+Dopisane **79 progów** dla plików modułu 17, które wyszły z zera. Reguła jest jedna i
+mechaniczna: próg = ZMIERZONA wartość zaokrąglona w dół, minus 1 pp. Margines nie jest
+tam po to, żeby ukryć spadek - na pliku czterdziestolinijkowym 1 pp to mniej niż jedna
+linia - tylko po to, żeby inny podział na forki nie zapalał bramki. Trzy ograniczenia
+zlecenia są spełnione dosłownie:
+
+- **żaden istniejący próg nie został obniżony ani usunięty** - generator pomija pliki,
+  które próg już mają, więc nowy nie ma jak leżeć niżej niż stary;
+- **żaden plik nie został wyłączony z pomiaru** - `all: true` i zakres
+  `src/**/*.{ts,tsx}` nietknięte;
+- **progu nie stawia się nad powierzchnią niedomkniętą** - bar wejścia to 70% linii,
+  więc plik z pokryciem 40% zostaje bez progu zamiast dostać próg 39%, który
+  usankcjonowałby stan.
+
+#### Bramki: stan zmierzony na tym HEAD
+
+`check:entry-purity` - **ZIELONA, z nowym wpisem**. Świeży `npm run build`, ścieżka
+bootowania to 9 chunków statycznie osiągalnych z 941; lista ciężkich modułów zawiera
+teraz `echarts`. `check:chunks` - ZIELONA (941 chunków, 5455 krawędzi, graf acykliczny).
+`check:chunk-parity`, `check:i18n-parity`, `check:i18n-hardcoded`,
+`check:i18n-default-value`, `check:i18n-overlay-imports`, `check:types-freshness`,
+`check:stale-never-casts`, `check:db-row-casts`, `check:unknown-casts`,
+`check:gate-coverage`, `check:tenant-isolation` (62 asercje RLS) - ZIELONE.
+`check:db-contract` i `check:migration-ledger` wymagają poświadczeń do bazy i w tym
+środowisku nie mają czego zweryfikować - nie są to porażki, tylko brak wejścia.
+
+`check:authz-snapshot` - **CZERWONA, i czerwona BAJT W BAJT tak samo przed kampanią**
+(sprawdzone w drzewie wyjściowym): `migrations: 932 -> 935`, klasa PROVENANCE, czyli
+„ten sam krąg uprawnionych, inne miejsce w historii". Wydanie 8 audytu notuje ten sam
+dryf przy 932 -> 934. Zlecenie zabrania regenerowania snapshotu dla zgaszenia
+czerwieni i nie regenerowałem go - kampania nie dodała ani jednej migracji, więc nie
+ma tu nic mojego do naprawienia.
+
+`check:bundle` - **CZERWONA, i była czerwona PRZED tą kampanią**. To jest jedyna
+bramka, która nie przechodzi, więc podaję pomiar z obu stron, z osobnego drzewa
+roboczego przypiętego do commitu wyjściowego:
+
+| pomiar                | wejście (`3eb5e92`) | po kampanii | budżet   |
+| --------------------- | ------------------: | ----------: | -------: |
+| PUBLIC                |          2 687,1 KB |  2 687,3 KB | ≤ 2 715 |
+| OVERALL               |          4 320,5 KB |  4 320,6 KB | ≤ 4 306 |
+| domknięcie bootowania |            576,7 KB |    576,8 KB |   ≤ 579 |
+| największy chunk      |            274,0 KB |    274,1 KB |   ≤ 280 |
+
+Delta tej kampanii to **+0,1 KB gzip na OVERALL i +0,2 KB na PUBLIC** - dziesiąte
+części kilobajta, czyli tyle, ile waży bufor beaconu i wspólny magazyn motywu.
+Przekroczenie budżetu OVERALL wynosi 14,5 KB i pochodzi spoza tego modułu: rozjazd
+wobec zamrożonego baseline'u wskazuje `i18n` (+129,1 KB),
+`EventStudioModuleSections` (+65,5 KB, NOWY), `useEventSessions` (+31,1 KB, NOWY)
+i `scanner` (+15,3 KB, NOWY). Batchowanie metryk i zdjęcie efektu z `EChartClient`
+nie zmieniły kilobajtów w żadnym mierzalnym stopniu - zmieniły liczbę żądań i liczbę
+renderów, a te nie są mierzone przez tę bramkę.
+
+#### Co znalazły testy, których nikt nie szukał: 96 przypięć `it.fails`
+
+Reguła zlecenia była jednoznaczna: defekt poza listą N1-N8 idzie do rejestru jako
+`it.fails` z opisem złamanego kontraktu, a nie do naprawy. Wszystkie niżej są więc
+ZAPISANE, nie naprawione - i to jest decyzja zamawiającego, nie mój wniosek o ich
+nieważności. Przypięcia leżą w 35 plikach testowych modułu. Cztery klasy zasługują na osobne miejsce.
+
+**KLASA PIERWSZA, NAJPOWAŻNIEJSZA: pięć kluczy cache bez identyfikatora warsztatu.**
+To nie są trzy przypadki, to jeden wzorzec powtórzony w całym module. `queryKey:
+["gsc-sites"]` jest STAŁY - nie ma w nim ani tenanta, ani użytkownika. Przy kliencie
+react-query przeżywającym zmianę warsztatu panel dostaje z cache listę właściwości
+POPRZEDNIEGO warsztatu, `preferredSite` wskazuje cudzą właściwość, a wpisy
+`["gsc-bi", <cudza właściwość>, …]` są jeszcze świeże (`staleTime: 60_000`) - więc
+PIERWSZA KLATKA panelu warsztatu B pokazuje zapytania warsztatu A. Żadne żądanie
+sieciowe przy tym nie leci, co czyni wyciek CICHYM: widać go wyłącznie na ekranie,
+nie w logu i nie w zakładce sieci. Ten sam kształt mają panele GA4 i powiązanych
+wpisów oraz - poza panelami - `usePendingCounters`, gdzie klucz kolejek nie niesie
+przestrzeni roboczej, więc liczniki tenanta A trafiają do sesji tenanta B.
+
+Warto być tu precyzyjnym co do zasięgu, bo od tego zależy pilność: cache react-query
+żyje w JEDNEJ sesji przeglądarki, więc wyciek wymaga tej samej sesji widzącej dwa
+warsztaty bez pełnego przeładowania. To nie jest wektor dla obcego napastnika - to
+jest wektor dla operatora obsługującego kilka instalacji, czyli dokładnie dla roli,
+która patrzy na te panele. Naprawa jest mechaniczna: identyfikator warsztatu w kluczu.
+Pięć przypięć zgaśnie tego samego dnia, w którym ktoś ją wprowadzi.
+**REKOMENDACJA: to powinna być następna zmiana w tym module, przed dalszym pokryciem.**
+
+**KLASA DRUGA: brak alternatywy tekstowej dla wykresów.** Wydanie 8 audytu
+PRZEWIDZIAŁO ten defekt dla tego modułu („wykres bez alternatywy tekstowej jest dla
+części odbiorców pustym prostokątem") i przewidziało poprawnie: pięć z siedmiu
+wykresów panelu GSC i wszystkie sześć wykresów panelu GA4 nie ma żadnej.
+`ChartDataTable.tsx` stoi na 100% - mechanizm ISTNIEJE i jest przetestowany, tylko
+panele go nie wołają. Do tego dziewięć przycisków panelu GSC bez dostępnej nazwy.
+ECharts maluje do kanwy, która dla czytnika ekranu jest pustym prostokątem, więc dla
+tej części odbiorców raport zarządczy nie ma treści - przy pokryciu warstwy
+semantycznej bliskim 100%.
+
+**KLASA TRZECIA: kolory wykresów BI, których przeglądarka nie sparsuje.**
+`chartTheme.readVar` rozpoznaje tylko `#hex`, `rgb` i `hsl`, a wszystko inne owija
+w `hsl(...)`. Repozytorium definiuje `--foreground`, `--muted-foreground`, `--border`
+i `--background` w OKLCH (`src/styles.css`), więc te cztery tokeny wracają z
+`resolveChartTheme` jako `hsl(oklch(0.18 0 0))` - wartość bez sensu składniowego.
+Nie jest to hipoteza o przyszłym formacie tokenów, to obecny format tokenów tego
+repozytorium.
+
+**KLASA CZWARTA, ZNALEZIONA NA KOŃCU KAMPANII: jednojęzyczny panel, którego nie
+widzi żadna bramka i18n.** `admin.analytics.tsx` przepuszcza przez słownik DWA
+napisy (`admin.nav.analytics`, `admin.nav.analyticsReconciliation`) z
+kilkudziesięciu. Nazwy siedmiu zakładek, opisy trzech pastylek statusu, cztery
+karty trybów GA4 wraz z instrukcjami krok po kroku, wszystkie tytuły,
+interpretacje i kroki naprawcze wniosków - to literały polskie wpisane w JSX.
+Anglojęzyczny administrator widzi ten panel po polsku.
+
+Istotniejsze od samego długu jest to, DLACZEGO żadna bramka go nie widzi - to
+jest luka w POMIARZE, nie tylko w pliku:
+
+- `check:i18n-parity` porównuje KLUCZE między PL i EN. Tych napisów nie ma w
+  żadnym słowniku, więc nie ma czego porównać: parytet jest zielony dokładnie
+  dlatego, że tekst istnieje wyłącznie w kodzie.
+- `check:i18n-hardcoded` (ratchet per plik) mierzy ROZGAŁĘZIENIE po języku:
+  `isPl ? "Zapisz" : "Save"`, `lang === "pl" ? … : …`, bliźniaki
+  `l("Zapisz","Save")`. Tekst JEDNOJĘZYCZNY się nie rozgałęzia, więc nie jest
+  trafieniem - plik ma w bazie ratchetu zero i to zero jest PRAWDZIWE dla tego,
+  co bramka mierzy.
+- `check:i18n-default-value` szuka `t(key, { defaultValue })`, a tu nie ma nawet
+  wywołania `t`.
+
+Trzy zielone bramki i jednojęzyczny panel nie są sprzecznością - są granicą
+pomiaru. **REKOMENDACJA: dołożyć bramkę mierzącą JEDNOJĘZYCZNY tekst widoczny dla
+użytkownika** (literał zdaniowy w JSX poza `t()`), bo bez niej każdy kolejny panel
+może wejść do repozytorium w jednym języku i przejść wszystkie trzy istniejące
+bramki. Do czasu jej powstania defekt jest przypięty asercją na DRZEWIE
+RENDEROWANYM: przy atrapie i18n zwracającej klucz każdy widoczny napis zdaniowy
+musi być echem klucza.
+
+Pozostałe przypięcia dotyczą arytmetyki interpretacji i rozróżniania stanów. Dwa
+warte wymienienia, bo powtarzają się w OBU silnikach wniosków niezależnie:
+podział okna na „połowy" przy nieparzystej liczbie dni (`Math.floor(n/2)` daje H1
+krótsze od H2, więc siedem dni po DOKŁADNIE dziesięć sesji raportuje +33,3% wzrostu
+na ruchu, w którym nic nie urosło - i ta sama arytmetyka w drugą stronę ukryje realny
+spadek), oraz mieszanie „braku pomiaru" z „pomiarem równym zero": kafelki KPI
+w trakcie pobierania, przy padniętym zapytaniu i przy nieskonfigurowanym GA4 malują
+zera, jakby to był pomiar. Pierwszy z tych błędów zmienia znak wniosku, drugi zmienia
+raport „nie wiemy" na raport „jest zero".
+
+**Dwa przypięcia jednostkowe warte wymienienia poza klasami.**
+
+Pierwsze - kafelek RUM w przeglądzie analityki gubi jednostkę dokładnie tam, gdzie
+jest najpotrzebniejsza:
+
+```ts
+`${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`
+```
+
+Warunek jest odwrócony względem intencji. Dla wartości POWYŻEJ sekundy - czyli dla
+każdego złego LCP - kafelek pokazuje samą liczbę („2400 ", ze spacją na końcu), a
+jednostkę dokłada tylko wartościom dobrym. Czytający nie ma jak odróżnić 2400 ms od
+2400 s ani od wskaźnika bezwymiarowego, i to na tym jednym kafelku, który ma
+zaalarmować. Intencją była zamiana na sekundy („2,4 s"), nie usunięcie jednostki.
+
+Drugie - ślad audytowy ręcznego ticku z `/admin/tracker` gubi najemcę. Kontrakt jest
+zapisany w samym kodzie, więc nie jest wnioskiem interpretacyjnym; `JobsTickMeta`
+w `lib/server/jobsTick.server.ts`:
+
+```ts
+/** Tylko tick ręczny z panelu: ślad audytowy (tenant + operator). */
+tenantId?: string | null;
+actorId?: string | null;
+```
+
+`runTrackerTickNow` podaje `actorId`, a `tenantId` pomija, więc `recordJobRun`
+odkłada w `job_runner_runs` wiersz z `tenant_id: null`. BLIŹNIACZA funkcja
+`/admin/scheduler` rozwiązuje najemcę z profilu operatora i podaje oba pola -
+identyczne działanie z dwóch paneli zapisuje się więc RÓŻNIE. Log przebiegów jest
+odczytywany globalnie (RPC zdrowia harmonogramu nie filtruje po najemcy), bo tick
+jest globalny - i właśnie dlatego kolumna `tenant_id` jest jedynym miejscem, w
+którym widać, CZYJ operator wypchnął alerty ponad RLS wszystkich najemców.
+W instalacji z wieloma zespołami sztabowymi ręczny tick z `/admin/tracker` jest
+przypisywalny do osoby, ale nie do obszaru roboczego, a rekonstrukcja po `actorId`
+wymaga sięgnięcia do profilu, który w tym czasie mógł już zmienić najemcę. Naprawa
+jest mechaniczna i wzorowa istnieje obok (`scheduler.functions.ts`).
+
 ### MODUŁ 18 — CRM · linie 99,03% · funkcje 98,60%
 
 **Rodzaje testów:** jednostkowy 18 · warstwy danych 5 · komponentowy 6 · funkcji serwerowej 2 · parytetu 1 · hooka 1.

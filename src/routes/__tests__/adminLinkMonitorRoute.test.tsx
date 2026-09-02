@@ -618,6 +618,33 @@ describe("skan na żądanie", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Panel jest TABELĄ z akcjami - klasa widoku, w której najczęściej brakuje
+// nagłówków kolumn powiązanych z komórkami i dostępnych nazw przycisków
+// ikonowych. axe-core biegnie na pełnym drzewie z danymi, bo pusta tabela nie
+// ma czego naruszyć.
+describe("dostępność", () => {
+  it("tabela z danymi nie ma naruszeń axe-core", async () => {
+    h.rows = [
+      row({ id: "a", archive_url: "https://web.archive.org/web/2/a", archive_timestamp: "20250104120000" }),
+      row({ id: "b", status_code: null, error: "ENOTFOUND", posts: null }),
+    ];
+    const view = await mount();
+
+    const { axeViolations, summarize } = await import("@/test/axe");
+    const violations = await axeViolations(view.container);
+    expect(summarize(violations)).toBe("");
+  });
+
+  it("panel z ALERTEM progowym też jest czysty - `role=\"alert\"` musi mieć treść", async () => {
+    h.rows = rows(BROKEN_LINK_ALERT_THRESHOLD);
+    const view = await mount();
+
+    const { axeViolations, summarize } = await import("@/test/axe");
+    expect(summarize(await axeViolations(view.container))).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Klucze asertowane wyżej istnieją tylko jako ECHO atrapy i18n. Ten blok
 // sprawdza je w PRAWDZIWYM słowniku - w obu językach - więc usunięcie klucza
 // albo dodanie go tylko po polsku oblewa test, a nie przechodzi cicho.
