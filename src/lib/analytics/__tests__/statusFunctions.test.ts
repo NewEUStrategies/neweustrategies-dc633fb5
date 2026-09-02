@@ -41,8 +41,8 @@
 // adminów dwóch najemców dostaje swoje property, a stara rola admina z obcego
 // najemcy nie otwiera bramki (i nie kosztuje ani jednego odczytu).
 //
-// DEFEKT PINOWANY NIŻEJ (`it.fails`): pusty sekret przesłania konfigurację
-// zapisaną przez workspace - patrz komentarz przy przypadku.
+// GRANICA PILNOWANA NIŻEJ: pusty sekret znaczy BRAK sekretu i NIE przesłania
+// konfiguracji zapisanej przez workspace - patrz komentarz przy przypadku.
 //
 // CZEGO TU NIE MA. Middleware `requireSupabaseAuth` nie jest uruchamiane
 // (`serverFnStubModule` go nie wykonuje), więc zieleń tego pliku mówi „handler
@@ -598,39 +598,55 @@ describe("konfiguracja z bazy najemcy", () => {
     expect(b.odczyty).toHaveLength(1);
   });
 
-  it.fails(
-    "pusty sekret musi znaczyć BRAK sekretu, a nie skasowanie konfiguracji workspace'u",
-    async () => {
-      // DEFEKT. `process.env.GA4_PROPERTY_ID ?? (stored.ga4_property_id?.trim() || null)`
-      // używa `??`, które łapie wyłącznie null/undefined - a zadeklarowana, pusta
-      // zmienna środowiskowa to PUSTY STRING. Skutek: wpis `GA4_PROPERTY_ID=`
-      // w .env albo sekret wyczyszczony bez usunięcia klucza (typowe przy
-      // rotacji) przesłania property, które admin zapisał w UI, i panel melduje
-      // „GA4 nieskonfigurowane" KAŻDEMU najemcy, który ma poprawną konfigurację
-      // w bazie. To samo dotyczy Measurement ID w linijce obok.
-      //
-      // Że to błąd, a nie decyzja, widać po trzech rzeczach: (1) druga strona
-      // tego samego wyrażenia (`trim() || null`) traktuje pusty wpis jak brak;
-      // (2) siostrzany kod dla tego samego sekretu w `ga4.functions.ts`
-      // (`process.env.GA4_MEASUREMENT_ID?.trim() || stored...`) używa `||`,
-      // więc przy `GA4_MEASUREMENT_ID=` panel powie „nieskonfigurowane", a
-      // `sendGa4Event` mimo to wyśle event zapisanym w bazie identyfikatorem -
-      // dwie funkcje tego samego modułu przeczą sobie co do tej samej wartości;
-      // (3) `ga4.server.ts` ma dokładnie tę samą pomyłkę w `resolveGa4PropertyId`
-      // i jest ona pinowana osobno w `__tests__/ga4Server.test.ts`.
-      vi.stubEnv("GA4_PROPERTY_ID", "");
-      vi.stubEnv("GA4_MEASUREMENT_ID", "");
-      ustawServiceAccount();
+  it("pusty sekret znaczy BRAK sekretu, a nie skasowanie konfiguracji workspace'u", async () => {
+    // PILNUJE granicy „pusty sekret to brak sekretu" dla OBU identyfikatorów.
+    // Oba wyrażenia używają `env?.trim() || stored?.trim() || null`, a nie
+    // `??`, bo `??` łapie wyłącznie null/undefined - a zadeklarowana, pusta
+    // zmienna środowiskowa to PUSTY STRING. Z `??` wpis `GA4_PROPERTY_ID=`
+    // w .env albo sekret wyczyszczony bez usunięcia klucza (typowe przy
+    // rotacji) przesłaniał property zapisane przez admina w UI, a panel
+    // meldował „GA4 nieskonfigurowane" KAŻDEMU najemcy z poprawną
+    // konfiguracją w bazie. To samo dotyczyło Measurement ID w linijce obok.
+    //
+    // Dlaczego to była pomyłka, a nie decyzja, widać po trzech rzeczach:
+    // (1) druga strona tego samego wyrażenia (`trim() || null`) zawsze
+    // traktowała pusty wpis jak brak; (2) siostrzany kod dla tego samego
+    // sekretu w `ga4.functions.ts`
+    // (`process.env.GA4_MEASUREMENT_ID?.trim() || stored...`) używa `||`, więc
+    // przy `GA4_MEASUREMENT_ID=` panel mówił „nieskonfigurowane", a
+    // `sendGa4Event` mimo to wysyłał event zapisanym w bazie identyfikatorem -
+    // dwie funkcje tego samego modułu przeczyły sobie co do tej samej
+    // wartości; (3) `ga4.server.ts` miał tę samą pomyłkę w
+    // `resolveGa4PropertyId` i jest ona domknięta osobnym przypadkiem
+    // w `__tests__/ga4Server.test.ts`.
+    vi.stubEnv("GA4_PROPERTY_ID", "");
+    vi.stubEnv("GA4_MEASUREMENT_ID", "");
+    ustawServiceAccount();
 
-      const wynik = await statusAdmina({
-        ga4_property_id: "100000001",
-        ga4_measurement_id: "G-NAJEMCA-A",
-      });
+    const wynik = await statusAdmina({
+      ga4_property_id: "100000001",
+      ga4_measurement_id: "G-NAJEMCA-A",
+    });
 
-      expect(wynik.ga4.propertyId).toBe("100000001");
-      expect(wynik.ga4.measurementId).toBe("G-NAJEMCA-A");
-    },
-  );
+    expect(wynik.ga4.propertyId).toBe("100000001");
+    expect(wynik.ga4.measurementId).toBe("G-NAJEMCA-A");
+    // Konsekwencja, o którą w tym defekcie chodziło: panel widzi konfigurację.
+    expect(wynik.ga4.hasPropertyId).toBe(true);
+    expect(wynik.ga4.configured).toBe(true);
+    expect(wynik.ga4.missingSecrets).toEqual([]);
+  });
+
+  it("sekret z samych białych znaków też nie kasuje konfiguracji najemcy", async () => {
+    // Wariant tej samej granicy: `GA4_PROPERTY_ID="   "` po wklejeniu ze
+    // schowka. Przycięcie po stronie sekretu domyka symetrię z przycięciem
+    // wpisu z bazy, pilnowanym przypadkiem wyżej.
+    vi.stubEnv("GA4_PROPERTY_ID", "   ");
+    ustawServiceAccount();
+
+    const wynik = await statusAdmina({ ga4_property_id: "100000001" });
+
+    expect(wynik.ga4.propertyId).toBe("100000001");
+  });
 });
 
 // ---------------------------------------------------------------------------

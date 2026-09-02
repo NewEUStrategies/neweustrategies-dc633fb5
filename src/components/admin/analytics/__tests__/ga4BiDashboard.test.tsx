@@ -28,7 +28,9 @@
 //      więc każda delta % była zaniżona) - obietnica bez testu wraca.
 //   5. IZOLACJA WARSZTATÓW. Właściwość GA4 rozwiązuje serwer z ustawień
 //      bieżącego warsztatu; klient nie ma prawa jej podać, a dane jednego
-//      warsztatu nie mają prawa pojawić się w panelu drugiego.
+//      warsztatu nie mają prawa pojawić się w panelu drugiego - także przez
+//      CACHE, bo `QueryClient` stoi w korzeniu aplikacji i przeżywa
+//      przelogowanie, więc klucz zapytania musi nieść warsztat.
 //   6. ALTERNATYWA TEKSTOWA. ECharts maluje do kanwy, która dla czytnika
 //      ekranu jest pustym prostokątem - test liczy, ile wykresów panelu
 //      faktycznie dostaje mechanizm tabeli danych, który `ChartCard` ma.
@@ -56,6 +58,7 @@ interface ReportInput {
 
 const h = vi.hoisted(() => ({
   runReport: vi.fn(),
+  tenantId: "warsztat-a",
   charts: [] as Array<{ option: Record<string, unknown>; onDataClick?: (p: unknown) => void }>,
 }));
 
@@ -69,6 +72,14 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 
 vi.mock("@/lib/analytics/ga4.functions", () => ({
   runGa4Report: (...args: unknown[]) => h.runReport(...args),
+}));
+
+// Podmieniamy WYŁĄCZNIE hook warsztatu: jego droga do `profiles` ma własny test
+// (`src/lib/tenant.ts`), a tutaj liczy się to, CZYM panel skleja klucz cache.
+// Sterowanie `h.tenantId` pozwala zamontować dwa panele dwóch warsztatów na
+// jednym `QueryClient` - dokładnie tak, jak dzieje się to po przelogowaniu.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 // Atrapa wykresu zapisuje `option` i ZNAKUJE swój węzeł indeksem zapisu. Bez
@@ -388,6 +399,7 @@ function openSelect(trigger: HTMLElement): HTMLElement {
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
+  h.tenantId = "warsztat-a";
   h.charts.length = 0;
   h.runReport.mockReset();
   respondWith(FULL);
@@ -452,20 +464,21 @@ describe("Ga4BiDashboard - ładowanie", () => {
     expect(screen.queryByText(realT("pl")("adminAnalytics.common.loading"))).toBeNull();
   });
 
-  it.fails(
-    "DEFEKT: w trakcie pobierania kafelki KPI pokazują zera, jakby to był pomiar",
-    async () => {
-      // Zero i „jeszcze nie wiem" to dwie różne informacje. Panel renderuje pełną
-      // siatkę KPI natychmiast, więc operator widzi „0 sesji", zanim dane w ogóle
-      // dojadą - i nie ma jak odróżnić tego od właściwości bez ruchu. Sąsiednie
-      // pulpity modułu w takiej sytuacji renderują komunikat.
-      h.runReport.mockImplementation(() => new Promise<Ga4Report>(() => {}));
-      panel();
-      await screen.findByText(realT("pl")("adminAnalytics.common.loading"));
+  it("w trakcie pobierania kafelki KPI nie malują zer - zero nie jest pomiarem", async () => {
+    // PILNUJE ROZRÓŻNIENIA „0 sesji" od „jeszcze nie wiem". Panel renderuje
+    // siatkę KPI natychmiast, więc dopóki raport dobowy nie odpowie, kafelek
+    // musi mówić o trwającym pomiarze - zero byłoby nieodróżnialne od
+    // właściwości bez ruchu, choć to zupełnie inna informacja dla operatora.
+    const t = realT("pl");
+    h.runReport.mockImplementation(() => new Promise<Ga4Report>(() => {}));
+    panel();
+    await screen.findByText(t("adminAnalytics.common.loading"));
 
-      expect(kpiValue(realT("pl")("adminAnalytics.ga4.sessions"))).not.toBe("0");
-    },
-  );
+    expect(kpiValue(t("adminAnalytics.ga4.sessions"))).not.toBe("0");
+    expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe(
+      t("adminAnalytics.common.measuringShort"),
+    );
+  });
 });
 
 describe("Ga4BiDashboard - błąd Data API", () => {
@@ -504,22 +517,24 @@ describe("Ga4BiDashboard - błąd Data API", () => {
     ).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: odrzucone wywołanie server fn nie wystawia żadnego komunikatu", async () => {
-    // `anyError` szuka pola `error` w `q.data`, a odrzucone zapytanie ma
-    // `data === undefined`. Awaria transportu (500 z bramki, brak sieci,
-    // wyjątek w middleware) kończy się więc pełną siatką zer bez ani jednego
-    // słowa ostrzeżenia - operator widzi „brak ruchu" tam, gdzie padł backend.
+  it("odrzucone wywołanie server fn wystawia komunikat z przyczyną, nie siatkę zer", async () => {
+    // PILNUJE DRUGIEJ DROGI DO BŁĘDU. Pole `error` mieszka w `q.data`, a
+    // odrzucone zapytanie ma `data === undefined` - awaria transportu (500
+    // z bramki, brak sieci, wyjątek w middleware) nie wykazuje się tam NIGDY.
+    // Panel czyta osobno `q.isError` i cytuje treść wyjątku; bez tego operator
+    // widziałby „brak ruchu" dokładnie tam, gdzie padł backend.
     h.runReport.mockRejectedValue(new Error("GA4 503: backend error"));
     const { container } = panel();
     await waitFor(() => expect(h.runReport.mock.calls.length).toBeGreaterThanOrEqual(7));
 
-    // Krótki limit: dowodzimy BRAKU komunikatu, więc nie ma na co czekać.
-    await waitFor(
-      () => {
-        expect(container.textContent ?? "").toMatch(/503|b[łl][ąa]d|error/i);
-      },
-      { timeout: 400 },
-    );
+    expect(
+      await screen.findByText(
+        realT("pl")("adminAnalytics.ga4.apiError", { error: "GA4 503: backend error" }),
+      ),
+    ).toBeInTheDocument();
+    // Komunikat WYPIERA liczby: siatka zer obok błędu wygląda jak pomiar.
+    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(container.textContent ?? "").toMatch(/503/);
   });
 });
 
@@ -884,28 +899,34 @@ describe("Ga4BiDashboard - zero ruchu a brak konfiguracji", () => {
     );
   });
 
-  it.fails("DEFEKT: raport z `configured: false` maluje się jak zmierzone zero ruchu", async () => {
-    // `runGa4Report` oddaje `EMPTY_GA4_REPORT` (czyli `configured: false`,
-    // BEZ pola `error`), gdy zabraknie property albo gdy odświeżenie tokenu
-    // Google padnie w locie. Prop `configured` pochodzi tymczasem ze statusu
-    // liczonego z ENV, więc jest wtedy `true` - i panel rysuje pełną siatkę
-    // zer. Pole `configured` z odpowiedzi nie jest czytane W OGÓLE: „nie mam
-    // dostępu do właściwości" i „właściwość nie miała ruchu" dają na ekranie
-    // dokładnie ten sam obraz, choć pierwsze wymaga interwencji admina,
-    // a drugie nie wymaga niczego.
+  it("raport z `configured: false` mówi o braku dostępu, a nie o zerze ruchu", async () => {
+    // PILNUJE PRZYPADKU POŚREDNIEGO, najgroźniejszego z całej czwórki stanów.
+    // `runGa4Report` oddaje `EMPTY_GA4_REPORT` (czyli `configured: false`, BEZ
+    // pola `error`), gdy zabraknie property albo gdy odświeżenie tokenu Google
+    // padnie w locie - a prop `configured` pochodzi ze statusu liczonego z ENV
+    // i jest wtedy nadal `true`. Panel czyta pole `configured` Z ODPOWIEDZI,
+    // bo „nie mam dostępu do właściwości" wymaga interwencji admina, a
+    // „właściwość nie miała ruchu" nie wymaga niczego - a siatka zer pokazywała
+    // oba stany identycznie.
     respondWith(NOT_CONFIGURED_ON_SERVER);
     const { container } = panel();
-    await loaded();
+    await waitFor(() => expect(h.runReport.mock.calls.length).toBeGreaterThanOrEqual(7));
 
-    expect(container.textContent ?? "").toContain(
-      realT("pl")("adminAnalytics.ga4.notConfiguredPre"),
+    await waitFor(() =>
+      expect(container.textContent ?? "").toContain(
+        realT("pl")("adminAnalytics.ga4.notConfiguredPre"),
+      ),
     );
+    // Komunikat WYPIERA wykresy - inaczej zera stałyby obok ostrzeżenia.
+    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
   });
 
-  it.fails("DEFEKT: przy zerze ruchu panel nie mówi „brak danych w oknie”", async () => {
-    // Komunikat JEST w słowniku (`adminAnalytics.common.noDataWindow`) i JEST
-    // używany przez sąsiednie pulpity tego samego modułu. Tutaj właściwość bez
-    // ani jednej sesji wygląda identycznie jak taka, której dane nie dojechały.
+  it("przy zerze ruchu panel mówi „brak danych w oknie”, a nie tylko rysuje zera", async () => {
+    // PILNUJE NAZWANIA ZMIERZONEGO ZERA. `adminAnalytics.common.noDataWindow`
+    // znaczy w tym module dokładnie „okno odczytane, po prostu bez zdarzeń" -
+    // i tylko w tym jednym stanie siatka zer jest prawdą. Bez tego napisu
+    // właściwość bez ani jednej sesji wygląda identycznie jak taka, której dane
+    // nie dojechały, choć pierwsza nie wymaga żadnej interwencji.
     respondWith(ZERO_TRAFFIC);
     panel();
     await loaded();
@@ -1238,31 +1259,41 @@ describe("Ga4BiDashboard - izolacja warsztatów", () => {
     expect(second.container.textContent ?? "").not.toContain("Poland");
   });
 
-  it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu, więc panel B maluje ruch warsztatu A",
-    async () => {
-      // `queryKey: ["ga4-bi", presetId, start, end, r.key]` nie ma ani tenanta,
-      // ani użytkownika. Przy kliencie react-query przeżywającym zmianę
-      // warsztatu (a tak jest w aplikacji - `QueryClient` stoi w korzeniu)
-      // wpisy poprzedniego warsztatu są jeszcze świeże (`staleTime: 60_000`),
-      // więc panel warsztatu B dostaje je Z CACHE i NIE WYSYŁA ani jednego
-      // zapytania. Wyciek jest cichy: nie widać go w ruchu sieciowym, widać go
-      // wyłącznie na ekranie.
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      const first = panel({ client });
-      await loaded();
-      first.unmount();
+  it("klucz cache niesie warsztat, więc panel B nie maluje ruchu warsztatu A", async () => {
+    // PILNUJE IZOLACJI PRZEZ CACHE. `QueryClient` stoi w KORZENIU aplikacji,
+    // więc przeżywa przelogowanie do innego warsztatu, a wpisy poprzedniego są
+    // jeszcze świeże (`staleTime: 60_000`). Klucz bez identyfikatora warsztatu
+    // oddawał je panelowi warsztatu B Z CACHE, bez ani jednego zapytania -
+    // wyciek niewidoczny w ruchu sieciowym, widoczny wyłącznie na ekranie.
+    // Dlatego klucz niesie `tenantId`, a zapytanie czeka na rozwiązanie
+    // warsztatu (`enabled`), zamiast pytać „bez warsztatu".
+    //
+    // RÓŻNICA WOBEC PIERWOTNEJ ASERCJI: pierwotna montowała oba panele dla TEGO
+    // SAMEGO warsztatu, więc wspólny wpis cache był poprawnym trafieniem, a nie
+    // wyciekiem - spełnić dałoby się ją tylko przez wyłączenie cache, czyli
+    // regres. Tutaj warsztat zmienia się MIĘDZY montowaniami, dokładnie jak
+    // w aplikacji, i to jest właściwy kontrakt.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    h.tenantId = "warsztat-a";
+    const first = panel({ client });
+    await loaded();
+    first.unmount();
 
-      respondWith({
-        ...ZERO_TRAFFIC,
-        source: report(["sessions"], { rows: [row("beta.example.org", 7)] }),
-      });
-      const second = panel({ client });
-      await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(6));
+    respondWith({
+      ...ZERO_TRAFFIC,
+      source: report(["sessions"], { rows: [row("beta.example.org", 7)] }),
+    });
+    const before = h.runReport.mock.calls.length;
+    h.tenantId = "warsztat-b";
+    const second = panel({ client });
+    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(6));
 
-      expect(second.container.textContent ?? "").not.toContain("google (150)");
-    },
-  );
+    // Siedem zapytań PONOWNIE: przy wspólnym kluczu panel B nie wysłałby ani
+    // jednego i pokazałby ruch warsztatu A.
+    await waitFor(() => expect(h.runReport.mock.calls.length).toBe(before + 7));
+    await waitFor(() => expect(second.container.textContent ?? "").toContain("beta.example.org"));
+    expect(second.container.textContent ?? "").not.toContain("google (150)");
+  });
 });
 
 describe("Ga4BiDashboard - dostępność", () => {
@@ -1281,22 +1312,25 @@ describe("Ga4BiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it("poza nienazwanymi przyciskami panel nie ma innych naruszeń axe", async () => {
+  it("panel z danymi nie ma ANI JEDNEGO naruszenia axe - bez wyjątków od reguł", async () => {
     const { container } = panel();
     await loaded();
 
-    // Regułę `button-name` wyłączamy TYLKO tutaj i tylko po to, żeby jeden znany
-    // defekt (test niżej) nie przykrywał wszystkiego innego: kolejności
-    // nagłówków, poprawności ARIA i semantyki list.
-    const violations = await axeViolations(container, { "button-name": { enabled: false } });
-    expect(summarize(violations)).toBe("");
+    // Przebieg BEZ wyłączania czegokolwiek. Wcześniej `button-name` musiała tu
+    // być wygaszona, żeby jeden znany defekt (bezimienne wyzwalacze menu
+    // eksportu) nie przykrywał wszystkiego innego - kolejności nagłówków,
+    // poprawności ARIA i semantyki list. Defekt jest zamknięty, więc wyjątek
+    // zniknął: pełny zestaw reguł na pełnym pulpicie.
+    expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: żaden z sześciu wykresów panelu nie ma alternatywy tekstowej", async () => {
-    // `ChartCard` UMIE zbudować tabelę danych - wystarczy podać jej `csv`.
-    // `Ga4BiDashboard` nie podaje go ANI RAZ, więc dla czytnika ekranu cały
-    // pulpit to sześć pustych prostokątów z samą nazwą. Bliźniaczy pulpit GSC
-    // podaje `csv` dla dwóch kart, więc mechanizm jest sprawdzony w praktyce.
+  it("każdy z sześciu wykresów ma alternatywę tekstową powiązaną z regionem", async () => {
+    // PILNUJE DOSTĘPU DO DANYCH BEZ WZROKU. ECharts maluje do kanwy, która dla
+    // czytnika ekranu jest pustym prostokątem, więc sam `role="img"` z tytułem
+    // mówi tylko „tu jest wykres X". `ChartCard` buduje tabelę tych samych
+    // danych, gdy dostanie `csv`, i wiąże ją z regionem przez
+    // `aria-describedby` - liczymy regiony BEZ tego powiązania, bo każdy taki
+    // region to jeden wykres, którego treści nie da się przeczytać.
     panel();
     await loaded();
 
@@ -1306,20 +1340,32 @@ describe("Ga4BiDashboard - dostępność", () => {
     expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
   });
 
-  it.fails(
-    "DEFEKT: pole wyboru okna i przyciski kart wykresów nie mają dostępnych nazw",
-    async () => {
-      // Etykieta „Okno" jest zwykłym `<label>` bez `htmlFor`, a wyzwalacz Radiksa
-      // nie ma `aria-label` - dla czytnika ekranu pole wyboru jest bezimienne.
-      // Do tego sześć przycisków „więcej" na kartach to sama ikona
-      // `MoreHorizontal`, choć sąsiedni przycisk pełnego ekranu - w tym samym
-      // pliku `ChartCard.tsx` - nazwę ma.
-      const { container } = panel();
-      await loaded();
+  it("pole wyboru okna i przyciski kart mają dostępne nazwy, nie same ikony", async () => {
+    // PILNUJE NAZW KONKRETNYCH KONTROLEK. Etykieta „Okno" jest widoczna, ale
+    // wyzwalacz Radiksa to `<button role="combobox">` - element
+    // NIEETYKIETOWALNY, więc `htmlFor` by go nie nazwał i wiązanie idzie przez
+    // `aria-labelledby` na tym samym widocznym napisie. Sześć wyzwalaczy menu
+    // eksportu to sama ikona `MoreHorizontal` i nazwę bierze ze słownika, tak
+    // samo jak sąsiedni przełącznik pełnego ekranu.
+    //
+    // RÓŻNICA WOBEC PIERWOTNEJ ASERCJI: tam stało zbiorcze `axeViolations` na
+    // całym panelu, czyli to samo, czego pilnuje przypadek wyżej. Tutaj
+    // sprawdzamy NAZWY WPROST - agregat nie powiedziałby, KTÓRA kontrolka
+    // odzyskała nazwę ani czy nie jest nią przypadkiem tekst wartości.
+    const t = realT("pl");
+    panel();
+    await loaded();
 
-      expect(summarize(await axeViolations(container))).toBe("");
-    },
-  );
+    expect(
+      screen.getByRole("combobox", { name: t("adminAnalytics.ga4.window") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: t("adminAnalytics.chartCard.exportMenu") }),
+    ).toHaveLength(6);
+    expect(
+      screen.getAllByRole("button", { name: t("adminAnalytics.chartCard.fullscreen") }),
+    ).toHaveLength(6);
+  });
 });
 
 describe("Ga4BiDashboard - dwujęzyczność", () => {

@@ -198,14 +198,16 @@ describe("KpiTile - metryka, w której MNIEJ znaczy lepiej", () => {
     expect((chip() as HTMLElement).className).toContain("text-muted-foreground");
   });
 
-  it.fails("DEFEKT: strzałka przeczy ZNAKOWI liczby przy „mniej znaczy lepiej”", () => {
-    // `DeltaIcon = neutral ? Minus : good ? ArrowUpRight : ArrowDownRight` -
-    // ikona koduje OCENĘ, nie kierunek, choć stoi bezpośrednio przy liczbie ze
-    // znakiem. Dla `higherIsBetter: false` (wszystkie metryki Web Vitals w
-    // `VitalsBiDashboard`) daje to chip „+42.9%" ze strzałką W DÓŁ: liczba mówi
-    // „wzrosło", strzałka mówi „spadło". Kanał oceny już istnieje i działa - to
-    // KOLOR (zielony/czerwony, sprawdzony w dwóch testach wyżej) - więc strzałka
-    // powinna iść za znakiem delty, a nie dublować ocenę wbrew liczbie.
+  it("strzałka idzie za ZNAKIEM liczby, nie za oceną, przy „mniej znaczy lepiej”", () => {
+    // ROZDZIELENIE KANAŁÓW: strzałka koduje KIERUNEK (znak delty), kolor koduje
+    // OCENĘ. Gdy ikona liczyła się z oceny
+    // (`neutral ? Minus : good ? ArrowUpRight : ArrowDownRight`), przy
+    // `higherIsBetter: false` (wszystkie metryki Web Vitals w
+    // `VitalsBiDashboard`) chip pokazywał „+42.9%" ze strzałką W DÓŁ - liczba
+    // mówiła „wzrosło", strzałka stojąca bezpośrednio przy niej „spadło".
+    // Kanał oceny istnieje osobno i jest sprawdzony w dwóch przypadkach wyżej
+    // (zielony dla spadku, czerwony dla wzrostu), więc dublowanie go strzałką
+    // wbrew znakowi nic nie dodawało, a odbierało wiarygodność obu.
     kafelek({ current: 6.0, previous: 4.2, higherIsBetter: false });
 
     const c = chip() as HTMLElement;
@@ -367,39 +369,36 @@ describe("KpiTile - izolacja warsztatów i dostępność", () => {
     expect((chip() as HTMLElement).textContent?.startsWith("-")).toBe(true);
   });
 
-  // DEFEKT PRZYPIĘTY - ETYKIETA I WARTOŚĆ NIE SĄ POWIĄZANE PROGRAMOWO.
+  // ETYKIETA I WARTOŚĆ SĄ POWIĄZANE PROGRAMOWO - to cała treść informacyjna
+  // kafelka.
   //
   // `KpiTile` renderuje parę jako dwa sąsiednie `<div>`-y w `<div class="min-w-0">`:
-  // etykieta jest `<span>`-em, wartość osobnym `<div>`-em. Nie ma ani
-  // `<dl>/<dt>/<dd>`, ani `aria-labelledby`, ani wspólnej dostępnej nazwy.
-  // Czytnik ekranu ogłasza więc DWA NIEPOWIĄZANE węzły tekstowe - „Sesje" i
-  // „1 240" - i nic w drzewie dostępności nie mówi, że druga liczba jest
-  // wartością pierwszej etykiety. Na pulpicie z sześcioma kafelkami obok siebie
-  // daje to dwanaście luźnych napisów w kolejności wizualnej, a nie sześć par.
-  // Cała treść informacyjna kafelka to WŁAŚNIE to powiązanie.
+  // etykieta jest `<span>`-em, wartość osobnym `<div>`-em. Gdy oba były zwykłymi
+  // `<div>`-ami bez roli, czytnik ekranu ogłaszał DWA NIEPOWIĄZANE węzły
+  // tekstowe - „Sesje" i „1 240" - i nic w drzewie dostępności nie mówiło, że
+  // druga liczba jest wartością pierwszej etykiety. Na pulpicie z sześcioma
+  // kafelkami obok siebie dawało to dwanaście luźnych napisów w kolejności
+  // wizualnej, a nie sześć par. Powiązanie niesie dziś para ról
+  // `term`/`definition` na tych samych `<div>`-ach.
   //
-  // DLACZEGO `axe` TEGO NIE ŁAPIE (przypadek wyżej jest zielony i słusznie):
-  // axe-core nie ma reguły wymagającej semantyki listy definicji dla dowolnej
-  // pary `<div>`-ów - nie da się odróżnić „etykieta i wartość" od dwóch
-  // niezależnych akapitów bez znajomości intencji. Zieleń axe i ten defekt nie
-  // są sprzeczne: to granica tego, co bramka strukturalna może zmierzyć.
+  // DLACZEGO `axe` TEGO NIE PILNUJE ZA NAS (przypadek niżej jest zielony
+  // i słusznie): axe-core nie ma reguły wymagającej semantyki listy definicji
+  // dla dowolnej pary `<div>`-ów - nie da się odróżnić „etykieta i wartość" od
+  // dwóch niezależnych akapitów bez znajomości intencji. Zieleń axe i ten
+  // przypadek nie są sprzeczne: to granica tego, co bramka strukturalna może
+  // zmierzyć, i dlatego kontrakt musi mieć własny test.
   //
-  // SKUTEK UBOCZNY, WIDOCZNY W CAŁYM MODULE: skoro powiązania nie ma, testy
-  // pulpitów muszą trafiać w wartość po KLASIE UKŁADU. Pomocnik `kpiValue()`
-  // w pięciu plikach (`gscBiDashboard`, `ga4BiDashboard`, `vitalsBiDashboard`,
+  // ROLE DOŁOŻONO OBOK ZNACZNIKÓW, NIE ZAMIAST NICH. `<dl>/<dt>/<dd>` wymagałoby
+  // przebudowy drzewa, a pomocnik `kpiValue()` w pięciu plikach
+  // (`gscBiDashboard`, `ga4BiDashboard`, `vitalsBiDashboard`,
   // `clientErrorsDashboard`, `relatedPostsAnalytics`) ma postać
-  // `getByText(label).closest("div.min-w-0")` + indeks dziecka. Kilkadziesiąt
-  // asercji KPI wisi więc na klasie prezentacyjnej, bo nie ma czego zapytać
-  // semantycznie. Naprawa po stronie produkcji zamyka defekt dostępności
-  // i kruchość tych asercji JEDNĄ zmianą.
+  // `getByText(label).closest("div.min-w-0")` + ostatnie dziecko. Kilkadziesiąt
+  // asercji KPI wisi na tej klasie i na kolejności dzieci, więc `min-w-0`
+  // i układ zostały nietknięte - zmiana jest czysto semantyczna.
   //
-  // NIE NAPRAWIAM TEGO TUTAJ: `KpiTile` jest współdzielony przez pięć pulpitów,
-  // a zmiana znaczników pociąga przepisanie tych pomocników - poza zakresem
-  // zlecenia N1-N8.
-  //
-  // Kontrakt złamany: wartość wskaźnika jest programowo powiązana ze swoją
+  // Kontrakt pilnowany: wartość wskaźnika jest programowo powiązana ze swoją
   // etykietą (WCAG 1.3.1 - informacja i relacje).
-  it.fails("etykieta i wartość są parą w drzewie dostępności, nie dwoma napisami", () => {
+  it("etykieta i wartość są parą w drzewie dostępności, nie dwoma napisami", () => {
     kafelek({ label: "Sesje", value: "1 240" });
 
     // Naturalną postacią tej pary jest lista definicji: `<dt>` ma rolę `term`,

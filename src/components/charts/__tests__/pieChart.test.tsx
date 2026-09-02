@@ -8,10 +8,11 @@
 // albo etykieta stoi w wycinku innego koloru niż jej tło.
 //
 // KONKRETNIE ŁAPIEMY:
-//   * mianownik udziału. `useMemo` odsiewa `null`, zero i wartości UJEMNE
-//     przed sumowaniem, więc suma tarczy to suma DODATNICH - a tabela danych
-//     w `Chart.tsx` sumuje wszystko. Dla zestawu z ujemną wartością grafika
-//     i jej alternatywa tekstowa podają dwa różne udziały (zapięte `it.fails`);
+//   * mianownik udziału. Model tarczy (`pieModel`) odsiewa `null`, zero
+//     i wartości UJEMNE przed sumowaniem, więc suma to suma DODATNICH -
+//     i tym SAMYM mianownikiem liczy udziały tabela danych w `Chart.tsx`.
+//     Pilnujemy, żeby zestaw z wartością ujemną nie dawał grafiki i jej
+//     alternatywy tekstowej z dwoma różnymi udziałami;
 //   * dzielenie przez zero. Zestaw z samymi zerami MUSI zniknąć przed
 //     geometrią, a nie wyprodukować tarczy z `NaN` w ścieżkach;
 //   * łuk 100%. Jeden wycinek zamyka pełny obrót; gdyby oba końce łuku wypadły
@@ -19,8 +20,9 @@
 //     endpoints are identical ... equivalent to omitting the arc");
 //   * slot palety. Etykieta bierze `--chart-ink-N` z TEGO SAMEGO N co
 //     wypełnienie - rozjazd numeru daje czarny tekst na granacie. Do tego
-//     dziewiąta kategoria ZAWIJA na `--chart-1` (kartezjański w tej sytuacji
-//     obcina serie), więc kolor przestaje identyfikować wycinek;
+//     nadmiar kategorii nie może zawijać palety na `--chart-1` (kolor
+//     przestałby identyfikować wycinek) ani wypadać z mianownika - schodzi do
+//     jednego wycinka zbiorczego w ostatnim slocie;
 //   * kontrast pary wypełnienie/etykieta w OBU motywach - liczony wprost
 //     z `src/styles.css`, bo happy-dom nie ma silnika stylów, a reguła
 //     `color-contrast` w axe jest z tego powodu wyłączona;
@@ -371,36 +373,65 @@ describe("PieChart - suma w środku pierścienia", () => {
   });
 });
 
-describe("PieChart - paleta i zawijanie slotów", () => {
+describe("PieChart - paleta i nadmiar kategorii", () => {
   const dziesiec: Record<string, Json> = {
     kind: "pie",
     categories: Array.from({ length: 10 }, (_, i) => `K${i + 1}`),
     series: [{ name: "S", values: Array.from({ length: 10 }, () => 10) }],
   };
 
-  it("sloty idą sekwencyjnie 1..8, a jedenasta kategoria ZAWIJA na --chart-1", () => {
-    // Stan faktyczny, sprzeczny z kartezjańskim (tam nadmiar serii jest
-    // OBCINANY): koło liczy slot jako (i % MAX_SERIES) + 1.
+  it("sloty idą sekwencyjnie 1..8, a nadmiar kategorii schodzi do wycinka zbiorczego", () => {
+    // Slot to POZYCJA kategorii, więc kategorie 1..7 zachowują własny kolor,
+    // a ostatni slot niesie sumę ogona (3 x 10). Ani zawijania palety (dwa
+    // wycinki jednego koloru), ani obcięcia (dane poza mianownikiem).
     const { container } = render(<PieChart config={cfg(dziesiec)} lang="pl" />);
-    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual([
-      ...Array.from({ length: MAX_SERIES }, (_, i) => `var(--chart-${i + 1})`),
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(
+      Array.from({ length: MAX_SERIES }, (_, i) => `var(--chart-${i + 1})`),
+    );
+    const etykiety = slices(container).map((s) => s.getAttribute("aria-label"));
+    expect(etykiety).toHaveLength(MAX_SERIES);
+    // Mianownik obejmuje CAŁY zestaw (100), a nie osiem narysowanych pozycji:
+    // 7 x 10% + 30% domyka 100%.
+    expect(etykiety[0]).toBe("K1: 10 (10%)");
+    expect(etykiety[MAX_SERIES - 1]).toBe("Pozostałe: 30 (30%)");
+  });
+
+  it("nazwa wycinka zbiorczego jest przetłumaczona, a jedyna kategoria ogona zachowuje własną", () => {
+    const en = render(<PieChart config={cfg(dziesiec)} lang="en" />);
+    expect(slices(en.container).at(-1)?.getAttribute("aria-label")).toBe("Other: 30 (30%)");
+
+    // Ogon z JEDNĄ daną nie ma czego agregować - zbiorczy wycinek zabrałby
+    // tylko nazwę, więc kategoria zostaje przy swojej.
+    const jedna = render(
+      <PieChart
+        config={cfg({
+          kind: "pie",
+          categories: Array.from({ length: 10 }, (_, i) => `K${i + 1}`),
+          series: [{ name: "S", values: [10, null, null, null, null, null, null, null, null, 5] }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(slices(jedna.container).map((s) => s.getAttribute("aria-label"))).toEqual([
+      "K1: 10 (67%)",
+      "K10: 5 (33%)",
+    ]);
+    expect(slices(jedna.container).map((s) => s.getAttribute("fill"))).toEqual([
       "var(--chart-1)",
-      "var(--chart-2)",
+      `var(--chart-${MAX_SERIES})`,
     ]);
   });
 
-  it.fails(
-    "kolor MUSI identyfikować wycinek: dwie kategorie nie mogą dostać tego samego slotu palety",
-    () => {
-      // Reguła palety z `src/styles.css`: "Sloty przypisuje się sekwencyjnie
-      // serii 1..8 - NIGDY po obwodzie". Koło zawija modulo, więc przy >=9
-      // kategoriach próbka w legendzie wskazuje DWA wycinki naraz i przestaje
-      // być kluczem. Kartezjański rozwiązuje to obcięciem do MAX_SERIES.
-      const { container } = render(<PieChart config={cfg(dziesiec)} lang="pl" />);
-      const uzyte = slices(container).map((s) => s.getAttribute("fill"));
-      expect(new Set(uzyte).size).toBe(uzyte.length);
-    },
-  );
+  it("kolor identyfikuje wycinek: dwie kategorie nie dostają tego samego slotu palety", () => {
+    // Reguła palety z `src/styles.css`: "Sloty przypisuje się sekwencyjnie
+    // serii 1..8 - NIGDY po obwodzie". Zawijanie modulo dawało przy >=9
+    // kategoriach próbkę w legendzie wskazującą DWA wycinki naraz, czyli
+    // klucz, który przestaje być kluczem. Nadmiar schodzi więc do jednego
+    // wycinka zbiorczego w ostatnim slocie.
+    const { container } = render(<PieChart config={cfg(dziesiec)} lang="pl" />);
+    const uzyte = slices(container).map((s) => s.getAttribute("fill"));
+    expect(new Set(uzyte).size).toBe(uzyte.length);
+  });
 });
 
 describe("PieChart - tooltip i fokus", () => {
@@ -644,36 +675,37 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     }
   });
 
-  it.fails(
-    "tabela danych MUSI podawać ten sam udział co tarcza - wartość ujemna rozjeżdża mianowniki",
-    () => {
-      // Tarcza odsiewa ujemne przed sumowaniem (mianownik 100), tabela w
-      // `Chart.tsx` sumuje wszystko (mianownik 90). Skutek: grafika mówi
-      // "B = 100%", jej alternatywa tekstowa "B = 111%" i "A = -11,1%".
-      // Udział poza zakresem 0..100% jest w tabeli udziałów bełkotem.
-      const { container } = render(
-        <Chart
-          config={cfg({
-            kind: "pie",
-            title: "Saldo",
-            categories: ["korekta", "obrót"],
-            series: [{ name: "S", values: [-10, 100] }],
-          })}
-          lang="pl"
-        />,
-      );
-      expect(slices(container)).toHaveLength(1);
-      expect(slices(container)[0].getAttribute("aria-label")).toBe("obrót: 100 (100%)");
-      const table = openTable(container, "Pokaż dane");
-      const udzialy = [...table.querySelectorAll("td.text-right:last-child")].map(
-        (td) => td.textContent,
-      );
-      for (const u of udzialy) {
-        expect(u).not.toContain("-");
-        expect(Number.parseFloat((u ?? "").replace(",", "."))).toBeLessThanOrEqual(100);
-      }
-    },
-  );
+  it("tabela danych podaje TEN SAM udział co tarcza, choć zestaw ma wartość ujemną", () => {
+    // Jeden mianownik dla obu dróg: suma DODATNICH (`pieModel`). Rację ma
+    // grafika, bo kąt nie umie zakodować wartości ujemnej - gdy tabela
+    // sumowała wszystko (mianownik 90 wobec 100 na tarczy), przy "B = 100%"
+    // na rysunku jej alternatywa tekstowa podawała "B = 111%" i
+    // "A = -11,1%", a udział poza zakresem 0..100% jest bełkotem. Wiersz
+    // wartości ujemnej zostaje w tabeli - zajmuje na tarczy 0%.
+    const { container } = render(
+      <Chart
+        config={cfg({
+          kind: "pie",
+          title: "Saldo",
+          categories: ["korekta", "obrót"],
+          series: [{ name: "S", values: [-10, 100] }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(slices(container)).toHaveLength(1);
+    expect(slices(container)[0].getAttribute("aria-label")).toBe("obrót: 100 (100%)");
+    const table = openTable(container, "Pokaż dane");
+    const udzialy = [...table.querySelectorAll("td.text-right:last-child")].map(
+      (td) => td.textContent,
+    );
+    for (const u of udzialy) {
+      expect(u).not.toContain("-");
+      expect(Number.parseFloat((u ?? "").replace(",", "."))).toBeLessThanOrEqual(100);
+    }
+    // Konkretnie: korekta zajmuje 0% tarczy, obrót całe 100%.
+    expect(udzialy).toEqual(["0%", "100%"]);
+  });
 });
 
 describe("PieChart - kontrast palety w OBU motywach", () => {
@@ -726,23 +758,32 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
     }
   });
 
-  it.fails(
-    "etykieta 12 px w wypełnieniu MUSI mieć 4,5:1 (WCAG AA) - jasny slot 1 ma 4,46:1",
-    () => {
-      // Etykieta udziału to 12 px / waga 600, a linia wartości 11 px / 500 -
-      // żadna nie jest "dużym tekstem" (18,66 px bold albo 24 px), więc próg
-      // AA wynosi 4,5:1. Para #2a78d6 / #0b0b0b w jasnym motywie daje 4,46:1,
-      // a slot 1 to PIERWSZY wycinek każdej tarczy - najczęstsza etykieta
-      // w całym silniku. Komentarz przy tokenach obiecuje kontrast "dobrany
-      // WCAG do konkretnego odcienia".
-      for (const [nazwa, block] of MOTYWY) {
-        for (let n = 1; n <= MAX_SERIES; n++) {
-          const r = kontrast(token(block, `--chart-${n}`), token(block, `--chart-ink-${n}`));
-          expect(r, `${nazwa} slot ${n}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
-        }
+  it("etykieta 12 px w wypełnieniu ma 4,5:1 (WCAG AA) w KAŻDYM slocie i obu motywach", () => {
+    // Etykieta udziału to 12 px / waga 600, a linia wartości 11 px / 500 -
+    // żadna nie jest "dużym tekstem" (18,66 px bold albo 24 px), więc próg
+    // AA wynosi 4,5:1, nie 3:1.
+    //
+    // NAPRAWIONE W TOKENIE, NIE W KOMPONENCIE, i to jest tu istotne: asercja
+    // czyta WYŁĄCZNIE `src/styles.css`, więc żadna zmiana w silniku wykresów
+    // nie mogłaby jej spełnić. Para #2a78d6 / #0b0b0b w motywie jasnym dawała
+    // 4,458:1 - pękała o cztery setne. Pomiar wszystkich szesnastu par pokazał,
+    // że była to JEDYNA poniżej progu (pozostałe od 4,945:1 do 9,090:1),
+    // a slot 1 to pierwszy wycinek KAŻDEJ tarczy, czyli najczęstsza etykieta
+    // w całym silniku. Tusz slotu 1 w motywie jasnym to teraz czerń pełna:
+    // 4,756:1.
+    //
+    // Ta pętla jest ZAPADKĄ NA CAŁĄ PALETĘ, nie na jeden slot. Dowolna zmiana
+    // któregokolwiek z szesnastu tokenów - wypełnienia albo tuszu, w jasnym
+    // albo ciemnym motywie - oblewa ją natychmiast, i to jest jedyny sposób,
+    // w jaki paleta może być pilnowana: kontrast nie jest widoczny w DOM,
+    // więc test renderujący nigdy go nie zobaczy.
+    for (const [nazwa, block] of MOTYWY) {
+      for (let n = 1; n <= MAX_SERIES; n++) {
+        const r = kontrast(token(block, `--chart-${n}`), token(block, `--chart-ink-${n}`));
+        expect(r, `${nazwa} slot ${n}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
       }
-    },
-  );
+    }
+  });
 
   it("wycinek odcina się od powierzchni karty obrysem w kolorze karty, nie ramką", () => {
     const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);

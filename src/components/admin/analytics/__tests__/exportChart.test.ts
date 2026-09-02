@@ -211,41 +211,57 @@ describe("buildCsv - zgodność z RFC 4180", () => {
     expect(csv).toBe(`${BOM}n,b,d\r\n3.14,true,2026-09-01T00:00:00.000Z`);
   });
 
-  it.fails(
-    "komórka zaczynająca się od '=' jest NEUTRALIZOWANA - plik jest przeznaczony dla Excela",
-    () => {
-      // DEFEKT (CWE-1236, wstrzyknięcie formuły do arkusza), NIE HIPOTEZA.
-      //
-      // Nagłówek `exportChart.ts` sam deklaruje Excela jako odbiorcę („The BOM
-      // prefix makes Excel treat the file as UTF-8"), a `escapeCell` cytuje
-      // WYŁĄCZNIE ze względu na format CSV - komórka `=cmd|'/c calc'!A0` jest
-      // dla RFC 4180 zwykłym tekstem bez przecinka, więc wychodzi z pliku
-      // nietknięta i Excel wykonuje ją przy otwarciu.
-      //
-      // DROGA WEJŚCIA JEST ZEWNĘTRZNA, nie tylko administracyjna:
-      // `GscBiDashboard.tsx:560` buduje wiersze eksportu z `r.keys[0]`, czyli z
-      // FRAZY WYSZUKIWANIA z Google Search Console. Frazę wstawia tam dowolna
-      // osoba, która wyszuka spreparowany napis i wejdzie na stronę tenanta -
-      // GSC raportuje zapytania już od jednej wyświetlonej pozycji. Ładunek
-      // ląduje potem w pliku, który administrator tenanta otwiera lokalnie.
-      //
-      // Standardowa neutralizacja to prefiks apostrofem albo cytowanie z
-      // wiodącym znakiem sterującym dla komórek zaczynających się od
-      // `= + - @ TAB CR`. Poprawka należy do produkcji i dotyczy CAŁEGO repo -
-      // ten sam brak mają `subscribersToCsv`, `suppressionsToCsv`,
-      // `RegistrationsListPanel` i `EventsListManager` - więc test jest tu jako
-      // przypinka na POWIERZCHNI, którą właśnie pokrywam, a nie jako wybór
-      // konkretnej implementacji.
-      const csv = buildCsv(["fraza"], [["=cmd|'/c calc'!A0"], ["+1+1"], ["@SUM(A1:A9)"]]);
+  it("komórka zaczynająca się od '=', '+' albo '@' jest NEUTRALIZOWANA - plik jest przeznaczony dla Excela", () => {
+    // WSTRZYKNIĘCIE FORMUŁY DO ARKUSZA (CWE-1236) - zamknięte i pilnowane tutaj.
+    //
+    // Nagłówek `exportChart.ts` sam deklaruje Excela jako odbiorcę („The BOM
+    // prefix makes Excel treat the file as UTF-8"), a cytowanie z RFC 4180
+    // ładunku nie dotyka: komórka `=cmd|'/c calc'!A0` nie ma przecinka ani
+    // cudzysłowa, więc dla formatu CSV jest zwykłym tekstem i wychodziła z
+    // pliku nietknięta, a Excel wykonywał ją przy otwarciu. Dlatego
+    // `escapeCell` neutralizuje ładunek PRZED cytowaniem formatu.
+    //
+    // DROGA WEJŚCIA JEST ZEWNĘTRZNA, nie tylko administracyjna:
+    // `GscBiDashboard.tsx` buduje wiersze eksportu z `r.keys[0]`, czyli z
+    // FRAZY WYSZUKIWANIA z Google Search Console. Frazę wstawia tam dowolna
+    // osoba, która wyszuka spreparowany napis i wejdzie na stronę tenanta -
+    // GSC raportuje zapytania już od jednej wyświetlonej pozycji. Ładunek
+    // ląduje potem w pliku, który administrator tenanta otwiera lokalnie, więc
+    // wykonanie następuje na JEGO komputerze, poza aplikacją.
+    //
+    // WYBRANĄ TECHNIKĄ jest prefiks apostrofu - znacznik „to jest tekst" w
+    // Excelu, LibreOffice i Arkuszach Google - nałożony WYŁĄCZNIE na komórkę,
+    // która zaczyna się od `= + - @ TAB CR` i nie jest liczbą. Prefiks dla
+    // WSZYSTKICH komórek (rozwiązanie najprostsze) zamieniłby kolumnę liczbową
+    // w tekst, dlatego niżej stoi druga asercja: `-12.5` zostaje liczbą
+    // ujemną, a `2026-08-30` datą, bo reguła patrzy na PIERWSZY znak i omija
+    // wartości liczbowe. Uzasadnienie wyboru w całości: docblok
+    // `neutralizeFormula` w `exportChart.ts`.
+    //
+    // ZASIĘG. Ten sam brak mają `subscribersToCsv`, `suppressionsToCsv`,
+    // `RegistrationsListPanel` i `EventsListManager` - poza tym plikiem, więc
+    // poza tym testem; ten przypadek pilnuje POWIERZCHNI eksportu BI.
+    const csv = buildCsv(["fraza"], [["=cmd|'/c calc'!A0"], ["+1+1"], ["@SUM(A1:A9)"]]);
 
-      const komorki = csv.split("\r\n").slice(1);
-      for (const komorka of komorki) {
-        expect(komorka.replace(/^"/, "").startsWith("=")).toBe(false);
-        expect(komorka.replace(/^"/, "").startsWith("+")).toBe(false);
-        expect(komorka.replace(/^"/, "").startsWith("@")).toBe(false);
-      }
-    },
-  );
+    const komorki = csv.split("\r\n").slice(1);
+    for (const komorka of komorki) {
+      expect(komorka.replace(/^"/, "").startsWith("=")).toBe(false);
+      expect(komorka.replace(/^"/, "").startsWith("+")).toBe(false);
+      expect(komorka.replace(/^"/, "").startsWith("@")).toBe(false);
+    }
+
+    // CZYTELNOŚĆ: ładunek jest w pliku W CAŁOŚCI, tylko poprzedzony apostrofem.
+    // Neutralizacja nie koduje, nie obcina i nie podmienia znaków - odbiorca
+    // raportu widzi frazę, którą ktoś wyszukał, i może ją ocenić.
+    expect(csv).toContain("'=cmd|'/c calc'!A0");
+
+    // LICZBY I DATY BEZ USZKODZENIA: dokładnie ta granica, którą łamie prefiks
+    // nałożony na wszystko. Asercja na CAŁYM pliku, nie na fragmencie, bo
+    // dowodem jest brak JAKIEJKOLWIEK dodatkowej zmiany bajtów.
+    expect(buildCsv(["zmiana", "dzień"], [["-12.5", "2026-08-30"]])).toBe(
+      `${BOM}zmiana,dzień\r\n-12.5,2026-08-30`,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -30,6 +30,32 @@ interface ResolvedTheme {
 }
 
 /**
+ * Goła TRÓJKA HSL - JEDYNA postać tokenu, która wymaga opakowania w `hsl(...)`.
+ *
+ * Kierunek rozpoznawania jest tu ODWROTNY do listy dozwolonych prefiksów
+ * (`#`, `rgb`, `hsl`), na której ten plik stał wcześniej. Składni koloru w CSS
+ * jest dużo i wciąż ich przybywa (`oklch`, `lab`, `lch`, `color-mix`, `var`),
+ * więc lista prefiksów z natury zostaje o krok z tyłu, a każdy napis, którego
+ * nie znała, wychodził stąd jako `hsl(<napis>)` - wartość, której żadna
+ * przeglądarka nie sparsuje. Ten projekt wdepnął w to od pierwszego dnia:
+ * `src/styles.css` trzyma `--foreground`, `--muted-foreground`, `--border` i
+ * `--background` w `oklch(...)`, więc cztery z pięciu niepaletowych pól motywu
+ * jechały do ECharts jako `hsl(oklch(0.18 0 0))` - kolor tekstu, etykiet osi,
+ * siatki i tła dymka na KAŻDYM wykresie panelu /admin/analytics. ECharts koloru
+ * nie waliduje, tylko podaje go kanwie, a kanwa przy nieparsowalnym napisie
+ * zostaje przy poprzedniej wartości `fillStyle` - awaria wygląda jak „etykiety
+ * są jakoś ciemne", nie jak błąd.
+ *
+ * Dlatego opakowujemy WYŁĄCZNIE to, co samo w sobie kolorem nie jest: kąt,
+ * procent i procent (zapis shadcn, np. `221 83% 53%` - także z przecinkami i z
+ * kanałem alfa po ukośniku). Każdy inny NIEPUSTY token idzie dalej dosłownie:
+ * jeśli jest poprawnym kolorem CSS, przeglądarka go zrozumie, a jeśli nie jest,
+ * to opakowanie w `hsl()` i tak by go nie uratowało.
+ */
+const BARE_HSL_TRIPLE =
+  /^-?\d*\.?\d+(?:deg|grad|rad|turn)?[\s,]+-?\d*\.?\d+%[\s,]+-?\d*\.?\d+%(?:\s*\/\s*-?\d*\.?\d+%?)?$/;
+
+/**
  * Odczyt JEDNEGO tokenu z JUŻ POBRANEJ migawki stylu.
  *
  * Migawka jest PARAMETREM, a nie pobierana tutaj, i to jest cała treść tej
@@ -43,9 +69,7 @@ interface ResolvedTheme {
 function readVar(style: CSSStyleDeclaration, name: string, fallback: string): string {
   const raw = style.getPropertyValue(name).trim();
   if (!raw) return fallback;
-  // Support both raw colours ("#123abc") and hsl-triplet tokens ("221 83% 53%").
-  if (raw.startsWith("#") || raw.startsWith("rgb") || raw.startsWith("hsl")) return raw;
-  return `hsl(${raw})`;
+  return BARE_HSL_TRIPLE.test(raw) ? `hsl(${raw})` : raw;
 }
 
 export function resolveChartTheme(): ResolvedTheme {

@@ -10,6 +10,7 @@
  * knowing about paths, queries, metrics etc. Every field is optional except
  * the title so partial payloads still render sensibly.
  */
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-analytics";
 import { ExternalLink, Calendar, Info } from "lucide-react";
@@ -87,13 +88,50 @@ export interface ChartDrillDialogProps {
 
 export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialogProps) {
   const { t } = useTranslation();
+  // Element, który miał ognisko w chwili otwarcia okna. Radiks w trybie
+  // modalnym oddaje ognisko `triggerRef`, a tutaj wyzwalacza NIE MA - okno
+  // otwiera kliknięcie w wykres, nie `<DialogTrigger>`. Bez własnego
+  // zapamiętania ognisko przepadałoby na `<body>`, a osoba nawigująca
+  // klawiaturą musiałaby przejść cały panel od nowa (WCAG 2.4.3).
+  const powrotOgniskaRef = useRef<HTMLElement | null>(null);
+
+  const zapamietajOgnisko = useCallback(() => {
+    // `onOpenAutoFocus` leci z `FocusScope` PRZED przeniesieniem ogniska
+    // do okna, więc `activeElement` to jeszcze element wołającego.
+    const aktywny = document.activeElement;
+    powrotOgniskaRef.current = aktywny instanceof HTMLElement ? aktywny : null;
+  }, []);
+
+  const przywrocOgnisko = useCallback((event: Event) => {
+    const powrot = powrotOgniskaRef.current;
+    powrotOgniskaRef.current = null;
+    // Bez sensownego celu nie blokujemy Radiksa - jego własna ścieżka kończy
+    // się tym samym (`triggerRef` jest `null`), a `body.focus()` nic nie daje.
+    if (!powrot || !powrot.isConnected || powrot === document.body) return;
+    event.preventDefault();
+    powrot.focus();
+  }, []);
+
   if (!detail) return null;
 
-  const external = detail.url ? isExternal(detail.url, true) : false;
+  // Autodetekcja z `isExternal`: adres względny (`/analizy/...`) zostaje
+  // w panelu, absolutny idzie do nowej karty. Stały drugi argument `true`
+  // wyrzucałby operatora z panelu na jego własnej ścieżce i przeczył temu, jak
+  // ten sam adres renderuje się na liście „Powiązane".
+  const external = detail.url ? isExternal(detail.url) : false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg rounded-[6px]">
+      <DialogContent
+        className="max-w-lg rounded-[6px]"
+        onOpenAutoFocus={zapamietajOgnisko}
+        onCloseAutoFocus={przywrocOgnisko}
+        // Radiks generuje id opisu ZAWSZE i wstawia je w `aria-describedby`,
+        // ale `DialogDescription` renderuje się tylko z podtytułem. Bez
+        // podtytułu atrybut wskazywałby element, którego w dokumencie nie ma -
+        // czytnik obiecuje opis i milknie. Jawne `undefined` zdejmuje atrybut.
+        {...(detail.subtitle ? {} : { "aria-describedby": undefined })}
+      >
         <DialogHeader>
           <DialogTitle className="font-display text-base leading-tight">{detail.title}</DialogTitle>
           {detail.subtitle ? (

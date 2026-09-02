@@ -15,13 +15,30 @@
  *   6. Donut - device distribution
  *   7. Treemap - top 20 pages by impressions with CTR colour scale
  *   8. Calendar heatmap - daily clicks activity
+ *
+ * IZOLACJA WARSZTATU. Każdy klucz react-query niesie identyfikator najemcy
+ * (`useCurrentTenantId`), a zapytania startują dopiero po jego rozwiązaniu.
+ * Bez tego wpis `["gsc-sites"]` był WSPÓLNY dla wszystkich warsztatów: klient
+ * react-query przeżywa zmianę warsztatu, więc panel warsztatu B odczytywał
+ * z cache listę właściwości warsztatu A, `preferredSite` wskazywał cudzą
+ * właściwość, a świeże wpisy `["gsc-bi", <cudza właściwość>, ...]` malowały
+ * cudze frazy BEZ jednego zapytania sieciowego - wyciek widoczny wyłącznie na
+ * ekranie.
+ *
+ * CZTERY STANY, KTÓRE NIE SĄ POMIAREM. Kafelki KPI nie malują zer, dopóki
+ * pomiaru nie ma: `measuringShort` w trakcie odczytu, `readFailedShort` po
+ * awarii bramki (z osobnym komunikatem `readFailedReason` nad siatką),
+ * `notConfiguredShort` gdy warsztat nie ma ani jednej właściwości. Zero jest
+ * ZMIERZONE tylko wtedy, gdy wszystkie sześć zapytań wróciło - wtedy panel
+ * dopisuje `noDataWindow`.
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-analytics";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Search as SearchIcon } from "lucide-react";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -79,13 +96,22 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const { t } = useTranslation();
   const fetchSites = useServerFn(listGscSites);
   const fetchAnalytics = useServerFn(queryGscAnalytics);
+  const tenantId = useCurrentTenantId();
   const [siteUrl, setSiteUrl] = useState<string>("");
   const [days, setDays] = useState<number>(28);
+  // Etykiety paska narzędzi są WIDOCZNE, ale `<label>` nie nazywa przycisku -
+  // dostępną nazwę wyzwalaczy Radiksa (rola `combobox`) buduje wyłącznie autor,
+  // więc każdy dostaje `aria-labelledby` do swojej etykiety. Nazwa dostępna
+  // jest wtedy DOKŁADNIE napisem widocznym na ekranie (WCAG 2.5.3).
+  const propertyLabelId = useId();
+  const windowLabelId = useId();
 
   const sitesQ = useQuery({
-    queryKey: ["gsc-sites"],
+    // Najemca W KLUCZU, nie tylko w RLS: cache react-query przeżywa zmianę
+    // warsztatu, a stała `["gsc-sites"]` oddawała listę właściwości poprzedniego.
+    queryKey: ["gsc-sites", tenantId ?? ""],
     queryFn: () => fetchSites(),
-    enabled: configured,
+    enabled: configured && Boolean(tenantId),
   });
 
   const sites = sitesQ.data?.sites ?? [];
@@ -110,7 +136,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const queries = useQueries({
     queries: [
       ...dims.map((d) => ({
-        queryKey: ["gsc-bi", effectiveSite, days, d],
+        queryKey: ["gsc-bi", tenantId ?? "", effectiveSite, days, d],
         queryFn: () =>
           fetchAnalytics({
             data: {
@@ -121,11 +147,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
               rowLimit: d === "date" ? 400 : 200,
             },
           }),
-        enabled: Boolean(effectiveSite),
+        enabled: Boolean(tenantId) && Boolean(effectiveSite),
         staleTime: 60_000,
       })),
       {
-        queryKey: ["gsc-bi", effectiveSite, days, "date-prev"],
+        queryKey: ["gsc-bi", tenantId ?? "", effectiveSite, days, "date-prev"],
         queryFn: () =>
           fetchAnalytics({
             data: {
@@ -136,14 +162,21 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
               rowLimit: 400,
             },
           }),
-        enabled: Boolean(effectiveSite),
+        enabled: Boolean(tenantId) && Boolean(effectiveSite),
         staleTime: 60_000,
       },
     ],
   });
 
   const [dateQ, queryQ, pageQ, countryQ, deviceQ, prevDateQ] = queries;
-  const anyLoading = queries.some((q) => q.isLoading);
+  // Nierozwiązany najemca to nadal ODCZYT W TOKU, nie „brak źródła": zapytania
+  // są wtedy wstrzymane, więc bez tego składnika panel ogłaszałby brak
+  // właściwości, zanim w ogóle zdążył o nią zapytać.
+  const anyLoading = !tenantId || sitesQ.isLoading || queries.some((q) => q.isLoading);
+  const failure = queries.find((q) => q.isError)?.error ?? sitesQ.error;
+  const readFailed = Boolean(failure);
+  /** Wszystkie sześć okien odczytanych - dopiero wtedy zero jest ZMIERZONE. */
+  const readComplete = queries.every((q) => q.isSuccess);
   const dateRows = dateQ.data?.rows ?? [];
   const queryRows = queryQ.data?.rows ?? [];
   const pageRows = pageQ.data?.rows ?? [];
@@ -154,10 +187,39 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const totals = useMemo(() => totalsOf(dateRows), [dateRows]);
   const prevTotals = useMemo(() => totalsOf(prevRows), [prevRows]);
 
+  /** ZMIERZONE ZERO: odczyt się udał i w oknie nie ma ani jednego wiersza. */
+  const measuredZero =
+    readComplete &&
+    !readFailed &&
+    dateRows.length === 0 &&
+    queryRows.length === 0 &&
+    pageRows.length === 0 &&
+    countryRows.length === 0 &&
+    deviceRows.length === 0;
+
+  /**
+   * Napis, który staje NA MIEJSCU liczby, kiedy pomiaru nie ma.
+   *
+   * `null` znaczy „mamy pomiar" - tylko wtedy kafelek dostaje liczbę, deltę
+   * i iskrę. W pozostałych stanach zero byłoby kłamstwem o danych, a delta
+   * „0%" liczona z dwóch nieznanych okien - kłamstwem o kierunku.
+   */
+  const kpiPlaceholder: string | null = readFailed
+    ? t("adminAnalytics.common.readFailedShort")
+    : anyLoading
+      ? t("adminAnalytics.common.measuringShort")
+      : effectiveSite
+        ? null
+        : t("adminAnalytics.common.notConfiguredShort");
+
+  /** Seria dzienna w porządku chronologicznym - GSC nie obiecuje kolejności. */
+  const sortedDateRows = useMemo(
+    () => dateRows.slice().sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? "")),
+    [dateRows],
+  );
+
   const trendOption = useMemo<EChartsCoreOption>(() => {
-    const sorted = dateRows
-      .slice()
-      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    const sorted = sortedDateRows;
     return {
       legend: {
         data: [t("adminAnalytics.gsc.clicks"), t("adminAnalytics.gsc.impressions"), "CTR"],
@@ -218,7 +280,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [dateRows, t]);
+  }, [sortedDateRows, t]);
 
   const topQueriesOption = useMemo<EChartsCoreOption>(() => {
     const top = queryRows
@@ -253,7 +315,12 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     };
   }, [queryRows, t]);
 
-  const positionHistogramOption = useMemo<EChartsCoreOption>(() => {
+  /**
+   * Przedziały SERP-owe policzone RAZ: z tej samej tablicy jedzie wykres i jego
+   * tabela danych. Dwa niezależne przebiegi po `queryRows` znaczyłyby, że
+   * tekstowa alternatywa może pokazać inne liczby niż słupki.
+   */
+  const positionBuckets = useMemo(() => {
     const buckets = POSITION_BUCKETS.map((b) => ({ ...b, impressions: 0, clicks: 0 }));
     for (const r of queryRows) {
       const b = buckets.find((x) => r.position >= x.min && r.position <= x.max);
@@ -261,6 +328,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       b.impressions += r.impressions;
       b.clicks += r.clicks;
     }
+    return buckets;
+  }, [queryRows]);
+
+  const positionHistogramOption = useMemo<EChartsCoreOption>(() => {
+    const buckets = positionBuckets;
     return {
       legend: {
         data: [t("adminAnalytics.gsc.impressions"), t("adminAnalytics.gsc.clicks")],
@@ -285,14 +357,17 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         },
       ],
     };
-  }, [queryRows, t]);
+  }, [positionBuckets, t]);
 
   const donutOption = (rows: GscRow[], title: string): EChartsCoreOption => {
-    const top = rows
-      .slice()
-      .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 8);
-    const otherClicks = rows.slice(8).reduce((acc, r) => acc + r.clicks, 0);
+    // JEDNA kolejność dla wycinków i dla „Innych": ósemka pokazana osobno i
+    // ogon zwinięty w „Inne" muszą być rozłączne. Liczenie ogona z kolejności
+    // WEJŚCIOWEJ (`rows.slice(8)`) dawało przy niesortowanej odpowiedzi API te
+    // same kraje dwa razy - raz jako wycinek, raz w „Innych" - więc udziały
+    // procentowe donuta przestawały sumować się do całości.
+    const sorted = rows.slice().sort((a, b) => b.clicks - a.clicks);
+    const top = sorted.slice(0, 8);
+    const otherClicks = sorted.slice(8).reduce((acc, r) => acc + r.clicks, 0);
     const data = top.map((r) => ({ name: r.keys[0] ?? "?", value: r.clicks }));
     if (otherClicks > 0) data.push({ name: t("adminAnalytics.gsc.other"), value: otherClicks });
     return {
@@ -367,10 +442,8 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   }, [pageRows, t]);
 
   const calendarOption = useMemo<EChartsCoreOption>(() => {
-    if (!dateRows.length) return { series: [] };
-    const sorted = dateRows
-      .slice()
-      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    if (!sortedDateRows.length) return { series: [] };
+    const sorted = sortedDateRows;
     const data = sorted.map((r) => [r.keys[0] ?? "", r.clicks]);
     const max = Math.max(1, ...sorted.map((r) => r.clicks));
     const first = sorted[0]?.keys[0] ?? todayISO();
@@ -402,7 +475,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       },
       series: [{ type: "heatmap", coordinateSystem: "calendar", data }],
     };
-  }, [dateRows, t]);
+  }, [sortedDateRows, t]);
 
   // ---- Drill-down handlers ----
   const gscRowMetrics = (r: GscRow) => [
@@ -413,11 +486,8 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   ];
 
   const trendClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const sorted = dateRows
-      .slice()
-      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
     const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const row = sorted[idx];
+    const row = sortedDateRows[idx];
     if (!row) return null;
     return {
       title: t("adminAnalytics.gsc.charts.trendTitle"),
@@ -543,48 +613,85 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     t("adminAnalytics.gsc.csvHeaders.ctr"),
     t("adminAnalytics.gsc.csvHeaders.position"),
   ];
+  /** Wiersz metryk w kolejności `metricHeaders` - jeden kształt dla wszystkich tabel. */
+  const metricCells = (r: GscRow) => [
+    r.clicks,
+    r.impressions,
+    (r.ctr * 100).toFixed(2),
+    r.position.toFixed(2),
+  ];
   const trendCsv = {
     filename: "gsc-trend",
     headers: [t("adminAnalytics.gsc.csvHeaders.date"), ...metricHeaders],
-    rows: dateRows.map((r) => [
-      r.keys[0] ?? "",
-      r.clicks,
-      r.impressions,
-      (r.ctr * 100).toFixed(2),
-      r.position.toFixed(2),
-    ]),
+    // Tabela idzie porządkiem WYKRESU, nie kolejnością odpowiedzi API - inaczej
+    // tekstowa alternatywa czyta się jak inny pomiar niż ten na osi czasu.
+    rows: sortedDateRows.map((r) => [r.keys[0] ?? "", ...metricCells(r)]),
   };
   const queriesCsv = {
     filename: "gsc-queries",
     headers: [t("adminAnalytics.gsc.csvHeaders.query"), ...metricHeaders],
-    rows: queryRows.map((r) => [
-      r.keys[0] ?? "",
-      r.clicks,
-      r.impressions,
-      (r.ctr * 100).toFixed(2),
-      r.position.toFixed(2),
-    ]),
+    rows: queryRows.map((r) => [r.keys[0] ?? "", ...metricCells(r)]),
+  };
+  // ALTERNATYWA TEKSTOWA DLA WSZYSTKICH SIEDMIU WYKRESÓW. ECharts maluje do
+  // kanwy, która dla czytnika ekranu jest pustym prostokątem - `ChartCard`
+  // wiąże region wykresu z tabelą (`aria-describedby`) tylko wtedy, gdy dostanie
+  // `csv`. Pięć kart jechało bez niego, więc rozkład pozycji, kraje, urządzenia,
+  // strony i kalendarz były dla osoby niewidzącej nieczytelne.
+  const positionCsv = {
+    filename: "gsc-positions",
+    headers: [
+      t("adminAnalytics.gsc.csvHeaders.position"),
+      t("adminAnalytics.gsc.csvHeaders.impressions"),
+      t("adminAnalytics.gsc.csvHeaders.clicks"),
+    ],
+    // Bez ani jednego zapytania przedziały są ZEROWE, nie zmierzone - tabela
+    // pięciu zer udawałaby pomiar, więc wtedy nie ma jej wcale.
+    rows:
+      queryRows.length === 0 ? [] : positionBuckets.map((b) => [b.label, b.impressions, b.clicks]),
+  };
+  const dimensionCsv = (rows: GscRow[], filename: string, dimHeader: string) => ({
+    filename,
+    headers: [dimHeader, ...metricHeaders],
+    rows: rows.map((r) => [r.keys[0] ?? "?", ...metricCells(r)]),
+  });
+  const countriesCsv = dimensionCsv(
+    countryRows,
+    "gsc-countries",
+    t("adminAnalytics.gsc.charts.countriesTitle"),
+  );
+  const devicesCsv = dimensionCsv(
+    deviceRows,
+    "gsc-devices",
+    t("adminAnalytics.gsc.charts.devicesTitle"),
+  );
+  const pagesCsv = {
+    filename: "gsc-pages",
+    headers: [t("adminAnalytics.gsc.charts.pagesTitle"), ...metricHeaders],
+    // Pełny adres, nie skrócona ścieżka z kafla: tabela jest też materiałem do
+    // eksportu, a przycięta nazwa nie identyfikuje strony.
+    rows: pageRows.map((r) => [r.keys[0] ?? "/", ...metricCells(r)]),
+  };
+  const calendarCsv = {
+    filename: "gsc-calendar",
+    headers: [t("adminAnalytics.gsc.csvHeaders.date"), t("adminAnalytics.gsc.csvHeaders.clicks")],
+    rows: sortedDateRows.map((r) => [r.keys[0] ?? "", r.clicks]),
   };
 
-  const sparkClicks = dateRows
-    .slice()
-    .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""))
-    .map((r) => r.clicks);
-  const sparkImpr = dateRows
-    .slice()
-    .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""))
-    .map((r) => r.impressions);
+  // Iskra przy kafelku i duży trend jadą z TEGO SAMEGO posortowanego zbioru -
+  // dwa osobne sorty były osobną okazją na rozjazd kierunku.
+  const sparkClicks = sortedDateRows.map((r) => r.clicks);
+  const sparkImpr = sortedDateRows.map((r) => r.impressions);
 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[220px]">
-          <label className="text-xs text-muted-foreground block mb-1">
+          <label id={propertyLabelId} className="text-xs text-muted-foreground block mb-1">
             {t("adminAnalytics.gsc.property")}
           </label>
           <Select value={effectiveSite} onValueChange={setSiteUrl}>
-            <SelectTrigger className="h-9 text-sm">
+            <SelectTrigger className="h-9 text-sm" aria-labelledby={propertyLabelId}>
               <SelectValue placeholder={t("adminAnalytics.gsc.selectProperty")} />
             </SelectTrigger>
             <SelectContent>
@@ -597,11 +704,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           </Select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">
+          <label id={windowLabelId} className="text-xs text-muted-foreground block mb-1">
             {t("adminAnalytics.gsc.window")}
           </label>
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-9 text-sm w-32">
+            <SelectTrigger className="h-9 text-sm w-32" aria-labelledby={windowLabelId}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -627,36 +734,58 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         ) : null}
       </div>
 
+      {/* STANY, KTÓRE NIE SĄ POMIAREM - komunikat, nie milczenie. Awaria bramki
+          i zmierzone zero wyglądały do tej pory identycznie: siatka zer. Karta
+          zostaje NAD wykresami, a wykresy się nie zwijają, bo operator musi
+          nadal móc zmienić okno i ponowić odczyt. */}
+      {readFailed ? (
+        <Card role="alert" className="border-destructive/40 p-3 text-sm">
+          <div className="font-medium text-destructive">
+            {t("adminAnalytics.common.readFailedReason", {
+              reason: failure?.message?.trim() || t("adminAnalytics.common.unknownReason"),
+            })}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {t("adminAnalytics.common.readFailedHint")}
+          </div>
+        </Card>
+      ) : null}
+      {measuredZero ? (
+        <Card role="status" className="p-3 text-sm text-muted-foreground">
+          {t("adminAnalytics.common.noDataWindow")}
+        </Card>
+      ) : null}
+
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiTile
           label={t("adminAnalytics.gsc.clicks")}
-          value={totals.clicks.toLocaleString("pl-PL")}
-          current={totals.clicks}
-          previous={prevTotals.clicks}
-          series={sparkClicks}
+          value={kpiPlaceholder ?? totals.clicks.toLocaleString("pl-PL")}
+          current={kpiPlaceholder ? undefined : totals.clicks}
+          previous={kpiPlaceholder ? undefined : prevTotals.clicks}
+          series={kpiPlaceholder ? undefined : sparkClicks}
           icon={<SearchIcon className="w-3 h-3" />}
         />
         <KpiTile
           label={t("adminAnalytics.gsc.impressions")}
-          value={totals.impressions.toLocaleString("pl-PL")}
-          current={totals.impressions}
-          previous={prevTotals.impressions}
-          series={sparkImpr}
+          value={kpiPlaceholder ?? totals.impressions.toLocaleString("pl-PL")}
+          current={kpiPlaceholder ? undefined : totals.impressions}
+          previous={kpiPlaceholder ? undefined : prevTotals.impressions}
+          series={kpiPlaceholder ? undefined : sparkImpr}
         />
         <KpiTile
           label="CTR"
-          value={`${(totals.ctr * 100).toFixed(2)}%`}
-          current={totals.ctr}
-          previous={prevTotals.ctr}
+          value={kpiPlaceholder ?? `${(totals.ctr * 100).toFixed(2)}%`}
+          current={kpiPlaceholder ? undefined : totals.ctr}
+          previous={kpiPlaceholder ? undefined : prevTotals.ctr}
           absoluteDelta
           deltaSuffix="pp"
         />
         <KpiTile
           label={t("adminAnalytics.gsc.avgPosition")}
-          value={totals.position ? totals.position.toFixed(1) : "-"}
-          current={totals.position}
-          previous={prevTotals.position}
+          value={kpiPlaceholder ?? (totals.position ? totals.position.toFixed(1) : "-")}
+          current={kpiPlaceholder ? undefined : totals.position}
+          previous={kpiPlaceholder ? undefined : prevTotals.position}
           higherIsBetter={false}
         />
       </div>
@@ -687,6 +816,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           title={t("adminAnalytics.gsc.charts.positionTitle")}
           subtitle={t("adminAnalytics.gsc.charts.positionSubtitle")}
           option={positionHistogramOption}
+          csv={positionCsv}
           height={280}
           onDataClick={positionBucketClick}
         />
@@ -694,6 +824,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           title={t("adminAnalytics.gsc.charts.countriesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.countriesSubtitle")}
           option={donutOption(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
+          csv={countriesCsv}
           height={280}
           onDataClick={donutClickFrom(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
         />
@@ -701,6 +832,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           title={t("adminAnalytics.gsc.charts.devicesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.devicesSubtitle")}
           option={donutOption(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
+          csv={devicesCsv}
           height={280}
           onDataClick={donutClickFrom(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
         />
@@ -712,6 +844,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           title={t("adminAnalytics.gsc.charts.pagesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.pagesSubtitle")}
           option={treemapOption}
+          csv={pagesCsv}
           height={320}
           onDataClick={pageTreemapClick}
         />
@@ -719,6 +852,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           title={t("adminAnalytics.gsc.charts.calendarTitle")}
           subtitle={t("adminAnalytics.gsc.charts.calendarSubtitle")}
           option={calendarOption}
+          csv={calendarCsv}
           height={320}
           onDataClick={calendarClick}
         />

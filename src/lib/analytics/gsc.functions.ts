@@ -41,11 +41,30 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
   }
 }
 
+/**
+ * Sentinel braku konektora. Nie jest komunikatem dla użytkownika: żadna
+ * funkcja tego modułu nie ma prawa wypuścić go do przeglądarki - patrz
+ * `isGscNotConfigured` i trzy handlery niżej.
+ */
+const GSC_NOT_CONFIGURED = "GSC_NOT_CONFIGURED";
+
+/**
+ * Czy to brak konfiguracji konektora, a nie awaria bramki.
+ *
+ * Porównanie idzie po treści, bo runtime workera potrafi odrzucić obietnicę
+ * napisem, a nie `Error` (limit podzapytań) - i wtedy NIE wolno wziąć awarii
+ * za „konektor niepodłączony". Wołający zawsze rzuca dalej ORYGINALNĄ
+ * wartością, żeby nie przebierać cudzego błędu w `Error`.
+ */
+function isGscNotConfigured(e: unknown): boolean {
+  return (e instanceof Error ? e.message : String(e)) === GSC_NOT_CONFIGURED;
+}
+
 function gwHeaders(): HeadersInit {
   const lk = process.env.LOVABLE_API_KEY;
   const gk = process.env.GOOGLE_SEARCH_CONSOLE_API_KEY;
   if (!lk || !gk) {
-    throw new Error("GSC_NOT_CONFIGURED");
+    throw new Error(GSC_NOT_CONFIGURED);
   }
   return {
     Authorization: `Bearer ${lk}`,
@@ -81,8 +100,7 @@ export const listGscSites = createServerFn({ method: "GET" })
       const res = await gwFetch<{ siteEntry?: GscSite[] }>("/webmasters/v3/sites");
       return { sites: res.siteEntry ?? [], configured: true };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "GSC_NOT_CONFIGURED") return { sites: [], configured: false };
+      if (isGscNotConfigured(e)) return { sites: [], configured: false };
       throw e;
     }
   });
@@ -120,11 +138,22 @@ export const queryGscAnalytics = createServerFn({ method: "POST" })
       dimensions: data.dimensions,
       rowLimit: data.rowLimit,
     };
-    const res = await gwFetch<{ rows?: GscRow[] }>(path, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    return { rows: res.rows ?? [] };
+    try {
+      const res = await gwFetch<{ rows?: GscRow[] }>(path, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      return { rows: res.rows ?? [] };
+    } catch (e) {
+      // Brak konektora to PIERWSZORZĘDNY STAN całej warstwy analityki, nie
+      // awaria - dokładnie jak `EMPTY_GA4_REPORT` z `configured: false` po
+      // stronie GA4 i jak `listGscSites` w tym samym pliku. Bez tej gałęzi
+      // panel świeżej instalacji (albo instalacji po rotacji kluczy)
+      // pokazywałby adminowi surowy napis „GSC_NOT_CONFIGURED" zamiast stanu
+      // „nie podłączono". Każdy inny błąd leci dalej nietknięty.
+      if (isGscNotConfigured(e)) return { rows: [] };
+      throw e;
+    }
   });
 
 // ---------- URL inspection ----------
@@ -140,9 +169,17 @@ export const inspectGscUrl = createServerFn({ method: "POST" })
   .validator((i: unknown) => inspectInput.parse(i))
   .handler(async ({ data, context }): Promise<{ raw: string }> => {
     await requireAdmin(context as unknown as GatewayCtx);
-    const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-    return { raw: JSON.stringify(res) };
+    try {
+      const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      return { raw: JSON.stringify(res) };
+    } catch (e) {
+      // Ta sama granica, co w `queryGscAnalytics` - trzeci kanał tego samego
+      // wycieku. Pusty obiekt jest tu odpowiednikiem pustej odpowiedzi bramki,
+      // którą panel już umie pokazać.
+      if (isGscNotConfigured(e)) return { raw: "{}" };
+      throw e;
+    }
   });

@@ -319,17 +319,17 @@ describe("KPI CTR - tabela benchmarku, luka do benchmarku i próg zmiany", () =>
     expect(i.title).toBe("CTR 5.12% przy pozycji 8.4");
   });
 
-  it.fails(
-    "pusty raport nie może wyglądać jak alarm CTR - pozycja 0 to brak danych, nie miejsce w TOP 3",
-    () => {
-      // Przy zerowych wyświetleniach `totalsOf` w `GscBiDashboard` oddaje
-      // position = 0. `expectedCtr(0)` wpada do kubełka „maxPos: 3" i moduł
-      // ogłasza lukę -18 pp oraz nakazuje przepisać meta title na stronach,
-      // których w raporcie w ogóle nie ma.
-      const i = pick(build(), "kpi-ctr");
-      expect(i.severity).not.toBe("warn");
-    },
-  );
+  it("pusty raport nie może wyglądać jak alarm CTR - pozycja 0 to brak danych, nie miejsce w TOP 3", () => {
+    // Przy zerowych wyświetleniach `totalsOf` w `GscBiDashboard` oddaje
+    // position = 0. Gdyby `expectedCtr(0)` wpadało do kubełka „maxPos: 3",
+    // moduł ogłaszałby lukę -18 pp i nakazywał przepisać meta title na
+    // stronach, których w raporcie w ogóle nie ma. Pozycja niższa od 1.0 jest
+    // dla GSC niemożliwa, więc znaczy „brak pomiaru" i dostaje najgłębszy
+    // benchmark (0,8%) - ten sam, co uszkodzony payload z NaN kilka
+    // przypadków wyżej. Pusty raport zostaje więc obserwacją.
+    const i = pick(build(), "kpi-ctr");
+    expect(i.severity).not.toBe("warn");
+  });
 });
 
 describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
@@ -410,17 +410,17 @@ describe("Trend widoczności - podział okna na połowy", () => {
     ).toBe("warn");
   });
 
-  it.fails(
-    "płaska seria klików w oknie o NIEPARZYSTEJ liczbie dni jest raportowana jako wzrost",
-    () => {
-      // 5 dni po 10 klików. `half = floor(5/2) = 2`, więc „pierwsza połowa" to
-      // 2 dni (20 klików), a „druga" to 3 dni (30 klików) - moduł ogłasza
-      // +50% wzrostu na serii, która nie drgnęła. Połowy muszą mieć tę samą
-      // liczbę dni albo trend trzeba liczyć na średniej dziennej.
-      const i = pick(build({ dateRows: days(5, () => 10) }), "trend");
-      expect(i.severity).toBe("info");
-    },
-  );
+  it("płaska seria klików w oknie o NIEPARZYSTEJ liczbie dni nie jest wzrostem", () => {
+    // 5 dni po 10 klików. Przy `slice(0, half)` / `slice(half)` „pierwsza
+    // połowa" miałaby 2 dni (20 klików), a „druga" 3 dni (30 klików) - moduł
+    // ogłaszałby +50% wzrostu na serii, która nie drgnęła (a w drugą stronę
+    // ukrywałby realny spadek). Połowy mają teraz tę samą liczbę dni: dzień
+    // środkowy nie należy do żadnej, więc H1 = H2 = 20 i trend to dokładnie 0%.
+    const i = pick(build({ dateRows: days(5, () => 10) }), "trend");
+    expect(i.severity).toBe("info");
+    expect(i.title).toBe("Druga połowa okna: +0.0% klik. vs pierwsza");
+    expect(i.detail).toBe("Kliknięcia H1: 20, H2: 20. Kierunek trendu w oknie 28 dni.");
+  });
 });
 
 describe("Top zapytania - udział brandu i frazy bez kliknięć", () => {
@@ -664,19 +664,25 @@ describe("Urządzenia - luka CTR mobile vs desktop", () => {
     expect(i.fixes).toEqual(lista("adminAnalytics.gsc.insights.devices.fixesEven"));
   });
 
-  it.fails(
-    "przewaga mobile'a nad desktopem nie może być opisana jako równomierny rozkład CTR",
-    () => {
-      // gap = desktop - mobile jest wtedy UJEMNY, więc kod wpada w gałąź „even".
-      // Użytkownik czyta „Równomierny rozkład CTR" przy różnicy 18 pp.
-      const t = realT("pl");
-      const i = pick(
-        build({ deviceRows: [dev("mobile", 200, 1000, 0.2), dev("desktop", 20, 1000, 0.02)] }),
-        "devices",
-      );
-      expect(i.detail).not.toContain(t("adminAnalytics.gsc.insights.devices.noteEven"));
-    },
-  );
+  it("przewaga mobile'a nad desktopem nie może być opisana jako równomierny rozkład CTR", () => {
+    // `gap = desktop - mobile` jest wtedy UJEMNY, więc porównanie tylko od
+    // góry (`gap > 0.02`) wpadało w gałąź „even" i użytkownik czytał
+    // „Równomierny rozkład CTR" przy różnicy 18 pp. Rozkład jest równomierny
+    // dopiero wtedy, gdy różnica jest poniżej progu W OBIE strony, więc tu
+    // noty o równomierności nie ma. Nie ma też noty „Desktop przoduje": ona
+    // opisuje słaby snippet mobile, a to nie ten przypadek - detal zostaje
+    // przy dwóch zmierzonych CTR-ach.
+    const t = realT("pl");
+    const i = pick(
+      build({ deviceRows: [dev("mobile", 200, 1000, 0.2), dev("desktop", 20, 1000, 0.02)] }),
+      "devices",
+    );
+    expect(i.detail).not.toContain(t("adminAnalytics.gsc.insights.devices.noteEven"));
+    expect(i.detail).not.toContain(t("adminAnalytics.gsc.insights.devices.noteGap"));
+    expect(i.detail).toBe("CTR: mobile 20.00%, desktop 2.00%.");
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(lista("adminAnalytics.gsc.insights.devices.fixesEven"));
+  });
 });
 
 describe("Strony - benchmark CTR na wierszu strony", () => {

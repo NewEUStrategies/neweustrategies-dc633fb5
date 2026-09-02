@@ -126,11 +126,27 @@ export function ChartCard({
         <div className="flex items-center gap-1 shrink-0">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
+              {/* Wyzwalacz to sama ikona „trzech kropek" - bez `aria-label`
+                  czytnik ekranu ogłaszałby jedyne wejście do eksportu PNG i CSV
+                  jako bezimienny „przycisk". Nazwa idzie ze słownika, tak samo
+                  jak w sąsiednim przełączniku pełnego ekranu. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label={t("adminAnalytics.chartCard.exportMenu")}
+              >
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-44 p-1">
+            {/* Radiksowy `PopoverContent` renderuje `role="dialog"`; rola okna
+                bez nazwy jest ogłaszana jako samo „dialog", więc menu dostaje
+                tę samą nazwę co jego wyzwalacz. */}
+            <PopoverContent
+              align="end"
+              className="w-44 p-1"
+              aria-label={t("adminAnalytics.chartCard.exportMenu")}
+            >
               <button
                 type="button"
                 onClick={doPng}

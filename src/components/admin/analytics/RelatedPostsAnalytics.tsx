@@ -12,6 +12,21 @@
  *
  * Dane pochodzą z `getRelatedInsights` (RPC `related_posts_signals`).
  * Wszystko izolowane per tenant przez auth-middleware + admin gate.
+ *
+ * STANY, KTÓRE NIE SĄ POMIAREM. Panel rozdziela „trwa pomiar", „odczyt padł"
+ * i „okno zostało odczytane i nic w nim nie ma" na trzy różne karty ze słownika
+ * `adminAnalytics.common.*`. Jeden komunikat na trzy stany stawiał twierdzenie
+ * o pomiarze, którego nie było: „Brak danych w oknie." wisiało zarówno w
+ * pierwszej sekundzie po wejściu, jak i po padniętym RPC.
+ *
+ * IZOLACJA WARSZTATÓW. Klucz react-query niesie identyfikator najemcy, a
+ * zapytanie jest wstrzymane do jego rozwiązania - inaczej panel następnego
+ * warsztatu trafiałby w ten sam wpis cache i (przy `staleTime`) malował
+ * kategorie, tagi i tytuły wpisów poprzedniego bez ani jednego żądania w sieci.
+ *
+ * ALTERNATYWA TEKSTOWA. Każdy z sześciu wykresów dostaje `csv`, więc `ChartCard`
+ * wiąże jego region z tabelą tych samych danych (`aria-describedby`) i wystawia
+ * eksport CSV. Kanwa ECharts jest dla czytnika ekranu pustym prostokątem.
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { EChartsCoreOption } from "echarts/core";
 import { getRelatedInsights } from "@/lib/relatedInsights.functions";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
 import { KpiTile } from "@/components/admin/analytics/KpiTile";
 import {
@@ -38,18 +54,48 @@ function nice(n: number): string {
   return String(n);
 }
 
+/** Kształt `csv` przyjmowany przez `ChartCard` (eksport + tabela danych). */
+interface ChartCsv {
+  filename: string;
+  headers: string[];
+  rows: ReadonlyArray<ReadonlyArray<unknown>>;
+}
+
+/** Podpis wpisu na osi i w tabeli: tytuł, a bez niego skrócony identyfikator. */
+function postLabel(title: string | null, postId: string, chars = 8): string {
+  return title ?? postId.slice(0, chars);
+}
+
 export function RelatedPostsAnalytics() {
   const { t } = useTranslation();
   const fetchInsights = useServerFn(getRelatedInsights);
+  const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("30d"));
 
   const query = useQuery({
-    queryKey: ["related-insights", range.days],
+    // NAJEMCA W KLUCZU, nie tylko okno. Klient react-query powstaje raz na
+    // aplikację i przeżywa przełączenie warsztatu, więc bez identyfikatora
+    // najemcy panel warsztatu B trafiał w TEN SAM wpis co panel warsztatu A -
+    // a przy `staleTime: 60_000` react-query nie ponawiał zapytania, czyli
+    // wyciek szedł bez ani jednego żądania w sieci i był widoczny wyłącznie
+    // na ekranie.
+    queryKey: ["related-insights", tenantId ?? "", range.days],
     queryFn: () => fetchInsights({ data: { days: range.days } }),
+    // Odczyt puszczony przed rozwiązaniem najemcy wpadłby do cache pod kluczem
+    // z pustym warsztatem - i stamtąd trafiłby do pierwszego, który zapyta.
+    enabled: Boolean(tenantId),
     staleTime: 60_000,
   });
   const report = query.data;
-  const isLoading = query.isLoading;
+  // POMIAR W TOKU to także nierozwiązany najemca: zapytanie jest wtedy
+  // wstrzymane, więc `isLoading` z react-query jest fałszywe, a panel nadal
+  // nie ma CZEGO pokazać.
+  const isMeasuring = !tenantId || query.isLoading;
+  const readError = query.error;
+  const readReason =
+    readError instanceof Error && readError.message
+      ? readError.message
+      : t("adminAnalytics.common.unknownReason");
 
   const tagIdToName = useMemo(() => {
     const m = new Map<string, string>();
@@ -57,9 +103,19 @@ export function RelatedPostsAnalytics() {
     return m;
   }, [report]);
 
+  // ---- Zbiory wierszy ----------------------------------------------------
+  // Wykres i jego tabela danych jadą z JEDNEGO przyciętego zbioru. Dwa osobne
+  // `slice`/`reverse` to dwie okazje na rozjazd: tabela czytałaby się wtedy jak
+  // inny pomiar niż słupki nad nią, przy niezmienionym wyglądzie panelu.
+  const cats = useMemo(() => (report?.top_categories ?? []).slice(0, 15), [report]);
+  const tags = useMemo(() => (report?.top_tags ?? []).slice(0, 20), [report]);
+  const popRows = useMemo(() => (report?.popularity ?? []).slice(0, 40), [report]);
+  const clickPairs = useMemo(() => (report?.click_pairs ?? []).slice(0, 25), [report]);
+  /** Huby w kolejności RANKINGU (najmocniejszy pierwszy); oś Y odwraca ją niżej. */
+  const hubsRanked = useMemo(() => (report?.hub_targets ?? []).slice(0, 12), [report]);
+
   // ---- Wykresy -----------------------------------------------------------
   const topCatsOption = useMemo<EChartsCoreOption>(() => {
-    const cats = (report?.top_categories ?? []).slice(0, 15);
     return {
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
@@ -78,10 +134,9 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report]);
+  }, [cats]);
 
   const topTagsOption = useMemo<EChartsCoreOption>(() => {
-    const tags = (report?.top_tags ?? []).slice(0, 20);
     return {
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
@@ -100,9 +155,17 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report]);
+  }, [tags]);
 
-  const coocurrenceOption = useMemo<EChartsCoreOption>(() => {
+  /**
+   * Macierz współwystępowania: nazwy osi, komórki i pary do tabeli danych.
+   *
+   * Jeden memo na trzy rzeczy, bo wszystkie trzy muszą wyjść z TEGO SAMEGO
+   * przycięcia do 25 tagów. Komórka wskazująca poza macierz to `undefined`
+   * w indeksie - ECharts narysowałby ją w rogu jako fałszywe współwystępowanie,
+   * a tabela wypisałaby pustą nazwę tagu.
+   */
+  const cooc = useMemo(() => {
     const pairs = report?.tag_cooccurrence ?? [];
     const idSet = new Set<string>();
     pairs.forEach((p) => {
@@ -114,13 +177,22 @@ export function RelatedPostsAnalytics() {
     const names = ids.map((id) => tagIdToName.get(id) ?? id.slice(0, 6));
     const maxC = pairs.reduce((mx, p) => Math.max(mx, p.c), 0);
     const cells: [number, number, number][] = [];
+    // Tabela dostaje PARY, nie komórki: macierz jest symetryczna, więc dwie
+    // lustrzane komórki to jedna informacja, a drugi wiersz byłby duplikatem.
+    const rows: Array<[string, number]> = [];
     pairs.forEach((p) => {
       const i = idx.get(p.a);
       const j = idx.get(p.b);
       if (i === undefined || j === undefined) return;
       cells.push([i, j, p.c]);
       cells.push([j, i, p.c]);
+      rows.push([`${names[i]} × ${names[j]}`, p.c]);
     });
+    return { names, cells, maxC, rows };
+  }, [report, tagIdToName]);
+
+  const coocurrenceOption = useMemo<EChartsCoreOption>(() => {
+    const { names, cells, maxC } = cooc;
     return {
       tooltip: {
         position: "top",
@@ -156,10 +228,10 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report, tagIdToName, t]);
+  }, [cooc, t]);
 
   const popularityScatterOption = useMemo<EChartsCoreOption>(() => {
-    const rows = (report?.popularity ?? []).slice(0, 40);
+    const rows = popRows;
     return {
       tooltip: {
         trigger: "item",
@@ -176,17 +248,17 @@ export function RelatedPostsAnalytics() {
           type: "scatter",
           symbolSize: (v: number[]) => Math.max(6, Math.min(28, Math.sqrt(v[0]) * 1.5)),
           data: rows.map((r) => ({
-            name: r.title ?? r.post_id.slice(0, 8),
+            name: postLabel(r.title, r.post_id),
             value: [r.views, r.uniques],
           })),
           itemStyle: { color: "#eda100", opacity: 0.75 },
         },
       ],
     };
-  }, [report, t]);
+  }, [popRows, t]);
 
   const sankeyOption = useMemo<EChartsCoreOption>(() => {
-    const pairs = (report?.click_pairs ?? []).slice(0, 25);
+    const pairs = clickPairs;
     const nodeSet = new Set<string>();
     pairs.forEach((p) => {
       nodeSet.add(`s:${p.source_post_id}|${p.source_title ?? p.source_post_id.slice(0, 6)}`);
@@ -229,10 +301,13 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report, t]);
+  }, [clickPairs, t]);
 
   const hubBarOption = useMemo<EChartsCoreOption>(() => {
-    const rows = (report?.hub_targets ?? []).slice(0, 12).reverse();
+    // Oś Y rysuje kategorie od dołu, więc ranking idzie tu ODWROTNIE, a
+    // podpowiedź czyta ten sam odwrócony porządek - inaczej dymek nad słupkiem
+    // pokazywałby liczby sąsiada.
+    const rows = [...hubsRanked].reverse();
     return {
       tooltip: {
         trigger: "axis",
@@ -241,14 +316,14 @@ export function RelatedPostsAnalytics() {
           const arr = raw as Array<{ dataIndex: number; value: number; name: string }>;
           if (!arr[0]) return "";
           const row = rows[arr[0].dataIndex];
-          return `${row.title ?? row.post_id.slice(0, 8)}<br/>${t("adminAnalytics.related.hubClicksLabel")}<b>${row.clicks}</b><br/>${t("adminAnalytics.related.hubSourcesLabel")}${row.sources}`;
+          return `${postLabel(row.title, row.post_id)}<br/>${t("adminAnalytics.related.hubClicksLabel")}<b>${row.clicks}</b><br/>${t("adminAnalytics.related.hubSourcesLabel")}${row.sources}`;
         },
       },
       grid: { left: 8, right: 24, top: 12, bottom: 20, containLabel: true },
       xAxis: { type: "value" },
       yAxis: {
         type: "category",
-        data: rows.map((r) => r.title ?? r.post_id.slice(0, 8)),
+        data: rows.map((r) => postLabel(r.title, r.post_id)),
         axisLabel: { fontSize: 10, width: 170, overflow: "truncate" },
       },
       series: [
@@ -260,7 +335,72 @@ export function RelatedPostsAnalytics() {
         },
       ],
     };
-  }, [report, t]);
+  }, [hubsRanked, t]);
+
+  // ---- Alternatywa tekstowa dla SZEŚCIU wykresów --------------------------
+  // `ChartCard` wiąże region wykresu z tabelą danych (`aria-describedby`)
+  // WYŁĄCZNIE wtedy, gdy dostanie `csv`. Bez niego sześć kanw tego panelu było
+  // dla czytnika ekranu sześcioma pustymi prostokątami z samą nazwą, a eksport
+  // CSV nie istniał.
+  //
+  // KOLUMNY IDĄ ZA TYM, CO JEST NA DANYM WYKRESIE. Nagłówek wymiaru bierze
+  // tytuł karty (tak samo jak pulpity GSC i GA4), a kolumny wartości - te same
+  // klucze słownika, które opisują liczby w podpowiedzi tego wykresu. Wiersze
+  // idą PORZĄDKIEM RANKINGU (najmocniejszy pierwszy), czyli tak, jak czyta się
+  // słupki poziome od góry: oś Y jest odwrócona tylko dlatego, że ECharts
+  // rysuje kategorie od dołu.
+  const catsCsv: ChartCsv = {
+    filename: "related-top-categories",
+    headers: [
+      t("adminAnalytics.related.charts.topCatsTitle"),
+      t("adminAnalytics.related.charts.topCatsSubtitle"),
+    ],
+    rows: cats.map((c) => [c.name, c.posts_count]),
+  };
+  const tagsCsv: ChartCsv = {
+    filename: "related-top-tags",
+    headers: [
+      t("adminAnalytics.related.charts.topTagsTitle"),
+      t("adminAnalytics.related.charts.topTagsSubtitle"),
+    ],
+    rows: tags.map((tg) => [tg.name, tg.posts_count]),
+  };
+  const coocCsv: ChartCsv = {
+    filename: "related-tag-cooccurrence",
+    headers: [t("adminAnalytics.related.charts.coocTitle"), t("adminAnalytics.related.coocLabel")],
+    rows: cooc.rows,
+  };
+  const popularityCsv: ChartCsv = {
+    filename: "related-popularity",
+    headers: [
+      t("adminAnalytics.related.charts.popularityTitle"),
+      t("adminAnalytics.related.views"),
+      t("adminAnalytics.related.uniques"),
+    ],
+    rows: popRows.map((r) => [postLabel(r.title, r.post_id), r.views, r.uniques]),
+  };
+  const sankeyCsv: ChartCsv = {
+    filename: "related-click-paths",
+    // Para „źródło → cel" jedzie w JEDNEJ kolumnie, bo jednym elementem wykresu
+    // jest tu wstęga między dwoma węzłami, a nie osobny węzeł.
+    headers: [
+      t("adminAnalytics.related.charts.sankeyTitle"),
+      t("adminAnalytics.related.clicksShort"),
+    ],
+    rows: clickPairs.map((p) => [
+      `${postLabel(p.source_title, p.source_post_id, 6)} → ${postLabel(p.target_title, p.target_post_id, 6)}`,
+      p.clicks,
+    ]),
+  };
+  const hubsCsv: ChartCsv = {
+    filename: "related-hubs",
+    headers: [
+      t("adminAnalytics.related.charts.hubTitle"),
+      t("adminAnalytics.related.hubClicksLabel"),
+      t("adminAnalytics.related.hubSourcesLabel"),
+    ],
+    rows: hubsRanked.map((hb) => [postLabel(hb.title, hb.post_id), hb.clicks, hb.sources]),
+  };
 
   // ---- Interpretacja + rekomendacje ---------------------------------------
   const insights = useMemo<Insight[]>(() => {
@@ -399,7 +539,7 @@ export function RelatedPostsAnalytics() {
           size="sm"
           onClick={() => query.refetch()}
           className="h-7"
-          disabled={isLoading}
+          disabled={isMeasuring}
         >
           <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t("adminAnalytics.common.refresh")}
         </Button>
@@ -409,14 +549,41 @@ export function RelatedPostsAnalytics() {
             days: report?.summary.window_days ?? range.days,
           })}
         </div>
-        {isLoading ? (
+        {isMeasuring ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loading")}
           </span>
         ) : null}
       </div>
 
-      {!report ? (
+      {/* TRZY STANY, TRZY KARTY - nie jeden komunikat na trzy sytuacje.
+          „Brak danych w oknie." jest TWIERDZENIEM O POMIARZE i wolno je
+          postawić dopiero wtedy, gdy pomiar się odbył. Wcześniej ten sam napis
+          obsługiwał także „jeszcze nie wiem" i „odczyt padł": administrator z
+          padniętym RPC `related_posts_signals` czytał z ekranu, że silnik
+          rekomendacji nie ma danych, choć o danych nikt się nie dowiedział.
+          Kolejność gałęzi jest istotna: pomiar w toku wyprzedza awarię, bo
+          `error` z poprzedniego okna przeżywa start nowego zapytania. */}
+      {isMeasuring ? (
+        <Card className="p-6 text-sm text-muted-foreground space-y-1">
+          <div className="inline-flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            {t("adminAnalytics.common.measuring")}
+          </div>
+          <p className="text-xs">{t("adminAnalytics.common.measuringHint")}</p>
+        </Card>
+      ) : readError ? (
+        <Card role="alert" className="p-6 text-sm space-y-1 border-destructive/40 bg-destructive/5">
+          <div className="font-medium text-destructive">
+            {t("adminAnalytics.common.readFailedReason", { reason: readReason })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("adminAnalytics.common.readFailedHint")}
+          </p>
+        </Card>
+      ) : !report ? (
+        // Odczyt się odbył i nie przyniósł raportu (RPC oddało `null`) - to
+        // ZMIERZONE ZERO, więc tu i tylko tu wolno postawić ten komunikat.
         <Card className="p-6 text-sm text-muted-foreground">
           {t("adminAnalytics.common.noDataWindow")}
         </Card>
@@ -449,12 +616,14 @@ export function RelatedPostsAnalytics() {
               title={t("adminAnalytics.related.charts.topCatsTitle")}
               subtitle={t("adminAnalytics.related.charts.topCatsSubtitle")}
               option={topCatsOption}
+              csv={catsCsv}
               height={360}
             />
             <ChartCard
               title={t("adminAnalytics.related.charts.topTagsTitle")}
               subtitle={t("adminAnalytics.related.charts.topTagsSubtitle")}
               option={topTagsOption}
+              csv={tagsCsv}
               height={360}
             />
           </div>
@@ -463,6 +632,7 @@ export function RelatedPostsAnalytics() {
             title={t("adminAnalytics.related.charts.coocTitle")}
             subtitle={t("adminAnalytics.related.charts.coocSubtitle")}
             option={coocurrenceOption}
+            csv={coocCsv}
             height={440}
           />
 
@@ -471,12 +641,14 @@ export function RelatedPostsAnalytics() {
               title={t("adminAnalytics.related.charts.popularityTitle")}
               subtitle={t("adminAnalytics.related.charts.popularitySubtitle")}
               option={popularityScatterOption}
+              csv={popularityCsv}
               height={360}
             />
             <ChartCard
               title={t("adminAnalytics.related.charts.hubTitle")}
               subtitle={t("adminAnalytics.related.charts.hubSubtitle")}
               option={hubBarOption}
+              csv={hubsCsv}
               height={360}
             />
           </div>
@@ -485,6 +657,7 @@ export function RelatedPostsAnalytics() {
             title={t("adminAnalytics.related.charts.sankeyTitle")}
             subtitle={t("adminAnalytics.related.charts.sankeySubtitle")}
             option={sankeyOption}
+            csv={sankeyCsv}
             height={420}
           />
 

@@ -1050,35 +1050,36 @@ describe("zdrowie strumieni", () => {
     expect(wlasne.map((m) => m.id)).toEqual(["content_views", "related_clicks", "reads"]);
   });
 
-  it.fails(
-    "DEFEKT: strumień first-party dowożący odsłony jest raportowany jako `no_data`",
-    async () => {
-      // Workspace bez CTA i bez wyszukiwarki wewnętrznej, ale z ruchem: RPC oddaje
-      // 5 200 odsłon, 1 400 sesji i 1 100 wizytujących z `analytics_events`.
-      // `available` liczy się WYŁĄCZNIE z metryk, dla których first-party jest
-      // AUTORYTATYWNY (`cta_clicks`, `internal_searches`) - a odsłony i sesje są
-      // autorytatywnie GA4. Skutek: ta sama odpowiedź pokazuje w `entries`
-      // obserwacje first-party z tysiącami zdarzeń i jednocześnie ogłasza w
-      // `streams`, że tego strumienia „nie ma w liczbach".
-      ga4Dziala();
-      const n = najemca({
-        settings: ustawieniaGa4(),
-        snapshot: () =>
-          ok({
-            first_party: {
-              page_views: 5200,
-              sessions: 1400,
-              visitors: 1100,
-              cta_clicks: 0,
-              searches: 0,
-            },
-          }),
-      });
-      const res = await wywolaj(n);
+  it("strumień dowożący odsłony jako obserwacja potwierdzająca jest dostępny, nie `no_data`", async () => {
+    // Workspace bez CTA i bez wyszukiwarki wewnętrznej, ale z ruchem: RPC oddaje
+    // 5 200 odsłon, 1 400 sesji i 1 100 wizytujących z `analytics_events`.
+    // `available` liczy się z WSZYSTKICH obserwacji strumienia, nie tylko z
+    // metryk, dla których jest AUTORYTATYWNY (`cta_clicks`,
+    // `internal_searches`) - odsłony i sesje są autorytatywnie GA4, a
+    // first-party jest tam obserwacją potwierdzającą. Gdyby liczyły się
+    // wyłącznie metryki własne, TA SAMA odpowiedź pokazywałaby w `entries`
+    // obserwacje first-party z tysiącami zdarzeń i jednocześnie ogłaszała w
+    // `streams`, że tego strumienia „nie ma w liczbach" - panel podawałby
+    // liczbę i zaprzeczał jej istnieniu w jednym widoku. Ten przypadek pilnuje
+    // obu połów jednocześnie: obserwacji w `entries` i statusu w `streams`.
+    ga4Dziala();
+    const n = najemca({
+      settings: ustawieniaGa4(),
+      snapshot: () =>
+        ok({
+          first_party: {
+            page_views: 5200,
+            sessions: 1400,
+            visitors: 1100,
+            cta_clicks: 0,
+            searches: 0,
+          },
+        }),
+    });
+    const res = await wywolaj(n);
 
-      const fp = wpis(res, "page_views").observations.find((o) => o.streamId === "first_party");
-      expect(fp?.value).toBe(5200);
-      expect(zdrowie(res, "first_party").available).toBe(true);
-    },
-  );
+    const fp = wpis(res, "page_views").observations.find((o) => o.streamId === "first_party");
+    expect(fp?.value).toBe(5200);
+    expect(zdrowie(res, "first_party").available).toBe(true);
+  });
 });

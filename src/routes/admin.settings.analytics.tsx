@@ -39,6 +39,10 @@ import {
   type Ga4Mode,
 } from "@/lib/analytics/status.functions";
 import type { ReactNode } from "react";
+// Nakładka wnosi `admin.analyticsSettings.status.error` i `.refresh` - dwa
+// klucze, których rdzeń słownika nie ma. Bez tego importu i18next zwróciłby
+// same identyfikatory.
+import "@/lib/i18n-admin-extras";
 
 export const Route = createFileRoute("/admin/settings/analytics")({
   head: () => ({
@@ -47,7 +51,17 @@ export const Route = createFileRoute("/admin/settings/analytics")({
   component: AnalyticsSettings,
 });
 
-type StatusKind = "connected" | "partial" | "off" | "loading" | "disabled";
+/**
+ * Stany wskaźnika połączenia.
+ *
+ * `error` NIE JEST ozdobą. Bez niego odrzucone zapytanie diagnostyki
+ * (`statusQ.isError`) zostawiało `data === undefined`, więc wskaźnik pokazywał
+ * „Sprawdzanie…" - ten sam napis co w trakcie sprawdzania. Brak roli admina,
+ * padnięta bramka Google i zerwana sieć były nieodróżnialne od „jeszcze
+ * czekam", a operator nie miał czego naprawić: właściwym zachowaniem jest iść
+ * po uprawnienia albo po sekrety, nie czekać.
+ */
+type StatusKind = "connected" | "partial" | "off" | "loading" | "disabled" | "error";
 
 function StatusBadge({ kind, label }: { kind: StatusKind; label: string }) {
   const map: Record<StatusKind, { icon: ReactNode; cls: string }> = {
@@ -70,6 +84,10 @@ function StatusBadge({ kind, label }: { kind: StatusKind; label: string }) {
     loading: {
       icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />,
       cls: "bg-muted text-muted-foreground border-border",
+    },
+    error: {
+      icon: <AlertTriangle className="w-3.5 h-3.5" />,
+      cls: "bg-destructive/10 text-destructive border-destructive/30",
     },
   };
   const { icon, cls } = map[kind];
@@ -124,8 +142,10 @@ function ga4Kind(
   s: AnalyticsStatus["ga4"] | undefined,
   measurementId: string,
   enabled: boolean,
+  /** Diagnostyka ODRZUCIŁA zapytanie - to nie to samo co „jeszcze nie wróciła". */
+  failed: boolean,
 ): StatusKind {
-  if (!s) return "loading";
+  if (!s) return failed ? "error" : "loading";
   if (!enabled) return "disabled";
   if (s.configured) return "connected";
   if (measurementId.trim() || s.hasMeasurementId || s.hasEmbedUrl || s.hasPropertyId)
@@ -271,11 +291,18 @@ function AnalyticsSettings() {
     partial: t("admin.analyticsSettings.status.partial"),
     loading: t("admin.analyticsSettings.status.checking"),
     disabled: t("admin.analyticsSettings.ga4.disabled"),
+    error: t("admin.analyticsSettings.status.error"),
   };
   const badge = (k: StatusKind) => <StatusBadge kind={k} label={tStatus[k]} />;
 
-  const ga4K = ga4Kind(st?.ga4, draft.ga4_measurement_id, draft.ga4_enabled);
-  const gscK: StatusKind = !st ? "loading" : st.gsc.configured ? "connected" : "off";
+  const ga4K = ga4Kind(st?.ga4, draft.ga4_measurement_id, draft.ga4_enabled, statusQ.isError);
+  const gscK: StatusKind = !st
+    ? statusQ.isError
+      ? "error"
+      : "loading"
+    : st.gsc.configured
+      ? "connected"
+      : "off";
   const plausibleK: StatusKind = draft.plausible_domain.trim() ? "connected" : "off";
 
   const openGa4Connect = () => setGa4Dialog(true);
@@ -334,7 +361,11 @@ function AnalyticsSettings() {
           disabled={statusQ.isFetching}
         >
           <RefreshCw className={`w-3.5 h-3.5 mr-2 ${statusQ.isFetching ? "animate-spin" : ""}`} />
-          {tStatus.loading}
+          {/* NAZWA AKCJI, nie napis stanu. Przycisk z etykietą „Sprawdzanie…"
+              wyglądał na wskaźnik, więc nikt go nie klikał - a to jedyna droga
+              do ponownej diagnostyki. Trwanie sprawdzania niesie kręcąca się
+              ikona i `disabled`, nie podmiana etykiety. */}
+          {t("admin.analyticsSettings.status.refresh")}
         </Button>
       </header>
 

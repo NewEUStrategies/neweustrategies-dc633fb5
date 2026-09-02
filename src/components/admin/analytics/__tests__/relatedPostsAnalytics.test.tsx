@@ -10,9 +10,9 @@
 //
 // KLASY DEFEKTÓW, KTÓRE TEN PLIK ŁAPIE:
 //   * ZERO UDAJĄCE POMIAR. „Jeszcze nie wiem", „zapytanie padło" i „w oknie
-//     naprawdę nie ma danych" to trzy różne informacje dla operatora. Panel ma
-//     na nie JEDEN komunikat, więc każdy z tych stanów jest tu asertowany
-//     osobno - a tam, gdzie się zlewają, stoi `it.fails`.
+//     naprawdę nie ma danych" to trzy różne informacje dla operatora, więc
+//     każdy z tych stanów jest tu asertowany OSOBNO: panel ma na nie trzy
+//     różne karty i żadna z nich nie ma prawa wystąpić w cudzym stanie.
 //   * ODWRÓCONA AGREGACJA. Słupki poziome są odwracane (`.reverse()`), listy
 //     przycinane (15 kategorii / 20 tagów / 25 par / 40 wpisów / 12 hubów),
 //     a heatmapa symetryzowana. Przestawiony `.reverse()` daje wykres, który
@@ -24,10 +24,11 @@
 //     odwrotne działanie naprawcze.
 //   * OKABLOWANIE FILTRA OKNA. Zmiana zakresu ma przestawić WEJŚCIE zapytania,
 //     nie tylko etykietę, dlatego asercje idą na argument funkcji serwerowej.
-//   * IZOLACJA WARSZTATÓW. Klucz cache to `["related-insights", days]` - nie ma
-//     w nim ani tenanta, ani użytkownika. Test dowodzi, że przy świeżym
-//     kliencie panel warsztatu B nie widzi wierszy warsztatu A, i przypina
-//     `it.fails` sytuację, w której klient react-query przeżywa przełączenie.
+//   * IZOLACJA WARSZTATÓW. Klucz cache niesie NAJEMCĘ (`["related-insights",
+//     tenantId, days]`), a zapytanie czeka na jego rozwiązanie. Testy dowodzą
+//     tego z dwóch stron: przy świeżym kliencie panel warsztatu B nie widzi
+//     wierszy warsztatu A, i to samo na kliencie WSPÓŁDZIELONYM, czyli tam,
+//     gdzie cache przeżywa przełączenie warsztatu.
 //   * SŁOWNIK. Asercje idą przez `realT("pl")` i `realT("en")`, czyli tę samą
 //     instancję i18next, którą widzi użytkownik: usunięty klucz wypada surowym
 //     `adminAnalytics.…`, a brak klucza EN cicho spada na polski fallback.
@@ -55,7 +56,17 @@ type Opt = Record<string, unknown>;
 
 const h = vi.hoisted(() => ({
   fetchInsights: vi.fn(),
+  tenantId: "tenant-related" as string | null,
   charts: [] as Array<{ option: Record<string, unknown> }>,
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i sesję `useAuth`, a przedmiotem dowodu jest tylko to, że
+// identyfikator warsztatu WCHODZI DO KLUCZA react-query. Sterowanie nim z testu
+// (`h.tenantId`) daje jedyny sposób odegrania przejścia między warsztatami na
+// TYM SAMYM kliencie cache. Ten sam wzorzec: `vitalsBiDashboard.test.tsx`.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -265,6 +276,23 @@ function insightCard(): HTMLElement {
   return card as HTMLElement;
 }
 
+/**
+ * Napisy z NAGŁÓWKÓW kart wykresów - tytuły i podtytuły.
+ *
+ * PO CO ZAWĘŻENIE. Tytuł i podtytuł karty są jednocześnie nagłówkami kolumn w
+ * tabeli danych wykresu (alternatywa tekstowa dla kanwy), więc ten sam napis
+ * występuje w dokumencie DWA RAZY i `getByText` przestał być rozstrzygalny.
+ * Asercja i tak dotyczyła zawsze nagłówka karty - tu jest to powiedziane
+ * wprost, zamiast liczyć na jedyność napisu w całym panelu.
+ */
+function cardHeaderTexts(): string[] {
+  // `div.border-b > div.min-w-0` to nagłówek karty wykresu; kafelek KPI ma
+  // własne `div.min-w-0`, ale bez obramowania dolnego, więc tu nie wchodzi.
+  return Array.from(document.querySelectorAll("div.border-b > div.min-w-0 > div")).map((el) =>
+    (el.textContent ?? "").trim(),
+  );
+}
+
 function panel(client?: QueryClient) {
   const queryClient = client ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return {
@@ -316,6 +344,9 @@ function subtree(lang: AppLang, path: string[]): unknown {
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.charts.length = 0;
+  // Najemca wraca do wartości domyślnej, żeby przypadek przełączający warsztat
+  // nie zostawiał swojego identyfikatora następnym.
+  h.tenantId = "tenant-related";
   h.fetchInsights.mockReset();
   h.fetchInsights.mockResolvedValue(WORKSPACE_A);
 });
@@ -336,25 +367,38 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     expect(screen.queryAllByTestId("echart")).toHaveLength(0);
   });
 
-  it.fails("DEFEKT: w trakcie ładowania panel twierdzi, że w oknie NIE MA danych", async () => {
-    // `!report` obsługuje jednym komunikatem dwa różne stany: „jeszcze nie
-    // wiem" i „wiem, że pusto". Operator patrzący na „Brak danych w oknie."
-    // w pierwszej sekundzie po wejściu dostaje twierdzenie o pomiarze, który
-    // się jeszcze nie odbył. Wskaźnik ładowania stoi obok, ale to on jest
-    // dopiskiem, a nie tamten komunikat.
+  it("w trakcie pomiaru panel NIE twierdzi, że w oknie NIE MA danych", async () => {
+    // „Jeszcze nie wiem" i „wiem, że pusto" to dwie różne informacje, a
+    // `!report` obsługiwał je jednym komunikatem: operator patrzący na „Brak
+    // danych w oknie." w pierwszej sekundzie po wejściu dostawał twierdzenie o
+    // pomiarze, który się jeszcze nie odbył. Wskaźnik ładowania stał obok, ale
+    // to on był dopiskiem, a nie tamten komunikat.
+    //
+    // Dziś stan pomiaru ma własną kartę, a „Brak danych w oknie." jest
+    // zarezerwowany dla odczytu, który się ODBYŁ i nic nie przyniósł.
     h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
     panel();
     await screen.findByText(common("loading"));
 
+    expect(screen.getByText(common("measuring"))).toBeInTheDocument();
+    expect(screen.getByText(common("measuringHint"))).toBeInTheDocument();
     expect(screen.queryByText(common("noDataWindow"))).toBeNull();
   });
 
-  it("brak raportu pokazuje komunikat o braku danych ze słownika", async () => {
-    // Panel bez raportu to JEDEN komunikat - żadnego kafelka, żadnego wykresu.
-    h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
+  it("odczyt BEZ raportu (RPC oddało null) pokazuje komunikat o braku danych", async () => {
+    // Ten komunikat znaczy ZMIERZONE ZERO, więc odgrywany jest tu jedyny stan,
+    // w którym wolno go postawić: zapytanie się rozstrzygnęło, nie padło, a
+    // ładunek jest pusty (jsonb `null` z RPC). Wcześniej ten sam napis wisiał
+    // także w trakcie pobierania - dlatego przypadek jedzie na ROZSTRZYGNIĘTYM
+    // zapytaniu, a nie na obietnicy, która nigdy się nie kończy.
+    h.fetchInsights.mockResolvedValue(null);
     panel();
+    await settled();
 
-    expect(await screen.findByText(common("noDataWindow"))).toBeInTheDocument();
+    expect(screen.getByText(common("noDataWindow"))).toBeInTheDocument();
+    // Żadnego kafelka i żadnego wykresu - nie ma z czego ich zbudować.
+    expect(screen.queryByText(dict("kpi.posts"))).toBeNull();
+    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
   });
 
   it("PUSTY raport to zera z pomiaru, a nie zmyślone węzły wykresów", async () => {
@@ -388,17 +432,23 @@ describe("RelatedPostsAnalytics - stany panelu", () => {
     ).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: awaria zapytania wygląda DOKŁADNIE jak pusty raport", async () => {
+  it("awaria zapytania NIE wygląda jak pusty raport - podaje przyczynę", async () => {
+    // `query.error` nie był w ogóle czytany: panel rysował „Brak danych w
+    // oknie.", czyli twierdził o pomiarze, którego nie było. Administrator
+    // widział „silnik rekomendacji nie ma danych" tam, gdzie w rzeczywistości
+    // padło RPC `related_posts_signals` - a to dwie różne decyzje naprawcze.
     // Bliźniaczy pulpit GA4 z tego samego modułu renderuje w tej sytuacji kartę
-    // błędu. Tutaj `query.error` nie jest w ogóle czytany: panel rysuje
-    // „Brak danych w oknie.", czyli twierdzi o pomiarze, którego nie było.
-    // Administrator widzi „silnik rekomendacji nie ma danych" tam, gdzie w
-    // rzeczywistości padło RPC.
+    // błędu; dziś ten też, z `role="alert"` i przyczyną z wyjątku.
     h.fetchInsights.mockRejectedValue(new Error("RPC 500: related_posts_signals failed"));
     const { container } = panel();
     await settled();
 
     expect(container.textContent ?? "").toMatch(/500|b[lł][aą]d|error/i);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent ?? "").toContain("RPC 500: related_posts_signals failed");
+    expect(within(alert).getByText(common("readFailedHint"))).toBeInTheDocument();
+    // Awaria nie ma prawa udawać zmierzonego zera.
+    expect(screen.queryByText(common("noDataWindow"))).toBeNull();
   });
 });
 
@@ -1064,30 +1114,53 @@ describe("RelatedPostsAnalytics - izolacja warsztatów", () => {
     expect(JSON.stringify(h.charts)).not.toContain("Alfa");
   });
 
-  it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu, więc panel B maluje raport warsztatu A",
-    async () => {
-      // `queryKey: ["related-insights", range.days]` nie zawiera ani tenanta,
-      // ani użytkownika. Gdy klient react-query przeżywa przełączenie warsztatu
-      // (a przeżywa - jest tworzony raz na aplikację), panel warsztatu B trafia
-      // w TEN SAM wpis cache. Przy `staleTime: 60_000` dane są jeszcze świeże,
-      // więc react-query NIE ponawia zapytania: administrator warsztatu B widzi
-      // kategorie, tagi, huby i tytuły wpisów warsztatu A, i to bez ani jednego
-      // żądania sieciowego. Wyciek jest całkowicie cichy - widać go wyłącznie
-      // na ekranie.
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      h.fetchInsights.mockResolvedValue(WORKSPACE_A);
-      const first = panel(client);
-      await loaded();
-      first.unmount();
+  it("WSPÓŁDZIELONY klient nie przenosi raportu przez przełączenie warsztatu", async () => {
+    // `queryKey: ["related-insights", days]` nie zawierał ani tenanta, ani
+    // użytkownika. Klient react-query jest tworzony raz na aplikację, więc
+    // PRZEŻYWA przełączenie warsztatu - a wtedy panel warsztatu B trafiał
+    // w TEN SAM wpis cache. Przy `staleTime: 60_000` dane są jeszcze świeże,
+    // więc react-query NIE ponawiał zapytania: administrator warsztatu B
+    // widział kategorie, tagi, huby i tytuły wpisów warsztatu A, i to bez ani
+    // jednego żądania sieciowego. Wyciek był całkowicie cichy - widać go było
+    // wyłącznie na ekranie.
+    //
+    // Dziś najemca jest CZĘŚCIĄ KLUCZA, więc przełączenie warsztatu to inny
+    // wpis cache i realny odczyt. Dowód jest dwuczłonowy: na ekranie nie ma
+    // ani jednego napisu warsztatu A ORAZ poszło drugie żądanie - bez tego
+    // drugiego członu ten sam zielony wynik dałby panel, który po prostu nic
+    // nie pokazuje.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    h.tenantId = "warsztat-a";
+    h.fetchInsights.mockResolvedValue(WORKSPACE_A);
+    const first = panel(client);
+    await loaded();
+    expect(
+      screen.getByText(dict("insights.hub.title", { name: "Alfa hub wlasny" })),
+    ).toBeInTheDocument();
+    first.unmount();
+    h.charts.length = 0;
 
-      h.fetchInsights.mockResolvedValue(WORKSPACE_B);
-      const second = panel(client);
-      await loaded();
+    h.tenantId = "warsztat-b";
+    h.fetchInsights.mockResolvedValue(WORKSPACE_B);
+    const second = panel(client);
+    await loaded();
 
-      expect(second.container.textContent ?? "").not.toContain("Alfa hub wlasny");
-    },
-  );
+    expect(h.fetchInsights.mock.calls.length).toBe(2);
+    expect(second.container.textContent ?? "").not.toContain("Alfa hub wlasny");
+    expect(JSON.stringify(h.charts)).not.toContain("Alfa");
+  });
+
+  it("dopóki najemca się nie rozwiązał, panel NIE odpytuje serwera", async () => {
+    // Odczyt puszczony przed rozwiązaniem warsztatu wpadłby do cache pod
+    // kluczem z pustym najemcą - i stamtąd trafiłby do pierwszego, który zapyta.
+    // Panel stoi wtedy na karcie pomiaru, bo nadal nie ma CZEGO pokazać.
+    h.tenantId = null;
+    panel();
+
+    expect(await screen.findByText(common("measuring"))).toBeInTheDocument();
+    expect(h.fetchInsights).not.toHaveBeenCalled();
+    expect(screen.queryByText(common("noDataWindow"))).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1121,36 +1194,71 @@ describe("RelatedPostsAnalytics - dostępność", () => {
   });
 
   it("karta braku danych jest wolna od naruszeń axe", async () => {
-    h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
+    // Pusty ładunek z RPC, nie wisząca obietnica: „Brak danych w oknie." stoi
+    // dziś wyłącznie po ROZSTRZYGNIĘTYM odczycie.
+    h.fetchInsights.mockResolvedValue(null);
     const { container } = panel();
+    await settled();
     await screen.findByText(common("noDataWindow"));
 
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: przyciski „więcej” na kartach wykresów nie mają dostępnej nazwy", async () => {
-    // `ChartCard` daje `aria-label` przyciskowi pełnego ekranu, ale przycisk
-    // menu obok to sama ikona `MoreHorizontal`. Sześć wykresów = sześć
-    // bezimiennych przycisków, przez które chodzi eksport PNG/CSV.
+  it("karta pomiaru i karta awarii są wolne od naruszeń axe", async () => {
+    // Dwie karty, które doszły razem z rozdzieleniem stanów - obie wchodzą do
+    // drzewa dostępności, a karta awarii dodatkowo jako `role="alert"`.
+    h.fetchInsights.mockImplementation(() => new Promise<RelatedInsightsResult>(() => {}));
+    const measuring = panel();
+    await screen.findByText(common("measuring"));
+    expect(summarize(await axeViolations(measuring.container))).toBe("");
+    measuring.unmount();
+
+    h.fetchInsights.mockRejectedValue(new Error("RPC 500: related_posts_signals failed"));
+    const failed = panel();
+    await settled();
+
+    expect(summarize(await axeViolations(failed.container))).toBe("");
+  });
+
+  it("KAŻDY przycisk panelu ma dostępną nazwę, także sześć przycisków menu eksportu", async () => {
+    // NAPRAWIONE W KOMPONENCIE WSPÓŁDZIELONYM. `ChartCard` dawał `aria-label`
+    // tylko przyciskowi pełnego ekranu, a przycisk menu obok był samą ikoną
+    // `MoreHorizontal` - sześć wykresów tego panelu dawało sześć bezimiennych
+    // przycisków, przez które chodzi cały eksport PNG i CSV. Dziś wyzwalacz
+    // menu nosi `aria-label` ze słownika, więc axe nie zgłasza `button-name`.
+    //
+    // Przypadek zostaje TUTAJ, choć naprawa siedzi w `ChartCard`: liczba
+    // wykresów jest własnością TEGO panelu, więc dodanie siódmego wykresu
+    // z pominięciem `ChartCard` zapali się właśnie tu.
     const { container } = panel();
     await loaded();
 
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
-  it.fails("DEFEKT: żaden wykres panelu nie dostaje tekstowej alternatywy", async () => {
+  it("KAŻDY z sześciu wykresów ma tekstową alternatywę powiązaną z regionem", async () => {
     // `ChartCard` UMIE zbudować tabelę danych z `csv` i podpiąć ją przez
-    // `aria-describedby`. Ten panel nie podaje `csv` ANI RAZU, więc dla
-    // czytnika ekranu wszystkie sześć wykresów to pusty prostokąt z samą
-    // nazwą. Słownik ma nawet gotowy komunikat na tę sytuację
-    // (`chartCard.dataTableMissing`), którego nikt nie używa.
+    // `aria-describedby`, ale panel nie podawał `csv` ANI RAZU - dla czytnika
+    // ekranu wszystkie sześć wykresów było pustym prostokątem z samą nazwą.
+    //
+    // Asercja idzie na OBA końce powiązania: region musi mieć
+    // `aria-describedby`, a wskazany identyfikator musi istnieć w dokumencie.
+    // Sam atrybut bez elementu jest gorszy niż jego brak - czytnik obiecuje
+    // opis i milknie.
     panel();
     await loaded();
 
-    const withoutText = screen
-      .getAllByRole("img")
-      .filter((el) => !el.getAttribute("aria-describedby"));
+    const regions = screen.getAllByRole("img");
+    expect(regions).toHaveLength(6);
+    const withoutText = regions.filter((el) => !el.getAttribute("aria-describedby"));
     expect(withoutText.map((el) => el.getAttribute("aria-label"))).toEqual([]);
+    for (const region of regions) {
+      const id = region.getAttribute("aria-describedby") ?? "";
+      expect(document.getElementById(id), `wiszące aria-describedby: ${id}`).not.toBeNull();
+    }
+    // Tabela niesie te same wiersze co wykres, nie zaślepkę ze słownika.
+    expect(screen.queryByText(realT("pl")("adminAnalytics.chartCard.dataTableMissing"))).toBeNull();
+    expect(screen.getAllByText(realT("pl")("adminAnalytics.chartCard.dataTable"))).toHaveLength(6);
   });
 });
 
@@ -1171,8 +1279,8 @@ describe("RelatedPostsAnalytics - dwujęzyczność", () => {
     await loaded();
 
     for (const key of TITLE_KEYS) {
-      expect(screen.getByText(dict(key))).toBeInTheDocument();
-      expect(screen.getByText(dict(`${key.replace("Title", "Subtitle")}`))).toBeInTheDocument();
+      expect(cardHeaderTexts()).toContain(dict(key));
+      expect(cardHeaderTexts()).toContain(dict(`${key.replace("Title", "Subtitle")}`));
     }
   });
 
@@ -1182,7 +1290,7 @@ describe("RelatedPostsAnalytics - dwujęzyczność", () => {
     await loaded("en");
 
     for (const key of TITLE_KEYS) {
-      expect(screen.getByText(dict(key, {}, "en"))).toBeInTheDocument();
+      expect(cardHeaderTexts()).toContain(dict(key, {}, "en"));
       expect(screen.queryByText(dict(key, {}, "pl"))).toBeNull();
     }
     // Kafelki i podpis okna też, nie tylko nagłówki kart.

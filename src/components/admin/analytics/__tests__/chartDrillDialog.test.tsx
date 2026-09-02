@@ -14,9 +14,10 @@
 //      dostarcza. To jest ten rodzaj regresu, który przechodzi code review.
 //   2. CEL NAWIGACJI. `isExternal` decyduje, czy link dostanie `target="_blank"`
 //      i `rel="noopener noreferrer"`. Pomyłka w jedną stronę wyrzuca operatora
-//      z panelu (utrata stanu pulpitu), w drugą - otwiera obcą domenę z
-//      dostępem do `window.opener`. Tu jest realny defekt, przypięty niżej
-//      przez `it.fails`.
+//      z panelu (utrata stanu pulpitu), w drugą - otwiera obcą domenę
+//      z dostępem do `window.opener`. Chip adresu pod nagłówkiem wymuszał
+//      kiedyś `external: true` na stałe; dziś przechodzi przez tę samą
+//      autodetekcję co lista „Powiązane" i jest to tu przypilnowane.
 //
 // DIALOG JEST PRAWDZIWY, NIE ATRAPĄ. W repo dominuje wzorzec podmiany
 // `@/components/ui/dialog` na przezroczysty `<div>`. Tutaj byłby bezużyteczny:
@@ -135,17 +136,18 @@ describe("ChartDrillDialog - nagłówek i chipy kontekstu", () => {
     expect(okno().getAttribute("aria-describedby")).toBe(opis.id);
   });
 
-  it.fails("DEFEKT: bez podtytułu okno zostawia WISZĄCE `aria-describedby`", () => {
-    // Ten sam błąd, który karta wykresu ma już przypięty w `chartCardA11y`:
-    // atrybut wskazuje identyfikator elementu, którego w dokumencie nie ma.
-    // Radiks generuje id opisu ZAWSZE i oddaje je treści okna; `DialogDescription`
-    // renderuje się tu tylko, gdy ładunek ma `subtitle` - a większość kliknięć
-    // w wykres go nie ma (klik w wycinek treemapy, w dzień trendu). Czytnik
-    // ekranu obiecuje wtedy opis i milknie. Radiks sam to zgłasza na konsolę
-    // („Missing `Description` or `aria-describedby={undefined}`"), więc dowód
-    // na to, że ostrzeżenie jest prawdziwe, należy do testu.
-    // Naprawa: `<DialogContent aria-describedby={detail.subtitle ? undefined : undefined}>`
-    // - czyli jawne `undefined`, gdy podtytułu nie ma.
+  it("bez podtytułu okno NIE zostawia wiszącego `aria-describedby`", () => {
+    // Ta sama reguła, której karta wykresu pilnuje w `chartCardA11y`: atrybut
+    // nie może wskazywać identyfikatora elementu, którego w dokumencie nie ma.
+    // MECHANIZM. Radiks generuje id opisu ZAWSZE i wstawia je treści okna, ale
+    // `DialogDescription` renderuje się tylko wtedy, gdy ładunek ma `subtitle` -
+    // a większość kliknięć w wykres go nie ma (klik w wycinek treemapy, w dzień
+    // trendu). Bez bariery czytnik ekranu obiecywałby wtedy opis i milkł.
+    // Komponent zdejmuje atrybut jawnym `undefined` (warunkowy rozkład propsów
+    // na `<DialogContent>`), co zarazem gasi ostrzeżenie Radiksa na konsoli
+    // („Missing `Description` or `aria-describedby={undefined}`") - jego brak
+    // w przebiegu tego pliku jest dodatkowym dowodem, że atrybut naprawdę
+    // zniknął, a nie tylko wskazuje coś innego.
     otworz({ title: "Bez podtytułu" });
 
     expect(okno().getAttribute("aria-describedby")).toBeNull();
@@ -321,16 +323,17 @@ describe("ChartDrillDialog - linki i cel nawigacji", () => {
     expect(w.getByRole("link", { name: "Edytuj" })).toBeTruthy();
   });
 
-  it.fails("DEFEKT: względny adres w `detail.url` jest wyrzucany do nowej karty", () => {
-    // `ChartDrillDialog.tsx:92` woła `isExternal(detail.url, true)` - drugi
-    // argument jest STAŁĄ, więc autodetekcja z `isExternal` (jedyny powód
-    // istnienia tej funkcji) jest dla chipa adresu martwa. Skutek jest
-    // sprzeczny sam ze sobą W TYM SAMYM oknie: `Ga4BiDashboard.tsx:425`
-    // podaje `url: path` (ścieżka względna) i jednocześnie
-    // `links: [{ href: path, external: false }]` - ten sam adres renderuje
-    // się raz jako wewnętrzny (lista „Powiązane"), a raz jako zewnętrzny
-    // (chip pod nagłówkiem). Operator klika chip i wypada z panelu do nowej
-    // karty, tracąc stan pulpitu.
+  it("względny adres w `detail.url` ZOSTAJE w panelu, jak każdy inny link okna", () => {
+    // Chip adresu pod nagłówkiem przechodzi przez tę samą autodetekcję co lista
+    // „Powiązane": `isExternal(detail.url)` bez wymuszonego drugiego argumentu.
+    // Stała `true` w tym miejscu (`isExternal(detail.url, true)`) czyniła
+    // autodetekcję - jedyny powód istnienia tej funkcji - martwą i dawała
+    // sprzeczność W TYM SAMYM oknie: `Ga4BiDashboard.tsx:425` podaje
+    // `url: path` (ścieżka względna) i jednocześnie
+    // `links: [{ href: path, external: false }]`, więc ten sam adres
+    // renderował się raz jako wewnętrzny (lista), a raz jako zewnętrzny (chip).
+    // Operator klikał chip i wypadał z panelu do nowej karty, tracąc stan
+    // pulpitu. Ten przypadek pilnuje, żeby oba miejsca decydowały tak samo.
     otworz({ title: "Ścieżka wewnętrzna", url: "/analizy/energia-w-cee" });
 
     const chip = within(okno()).getByRole("link");
@@ -373,17 +376,20 @@ describe("ChartDrillDialog - zamykanie i ognisko", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
-  it.fails("DEFEKT: po zamknięciu ognisko NIE wraca tam, skąd przyszło", async () => {
-    // Bez powrotu ogniska osoba nawigująca klawiaturą po zamknięciu okna ląduje
-    // na `<body>` i musi przejść cały panel od nowa (WCAG 2.4.3).
+  it("po zamknięciu ognisko WRACA tam, skąd przyszło", async () => {
+    // Bez powrotu ogniska osoba nawigująca klawiaturą po zamknięciu okna
+    // lądowałaby na `<body>` i musiała przejść cały panel od nowa (WCAG 2.4.3).
     //
-    // MECHANIZM. `DialogContent` w trybie modalnym Radiksa BLOKUJE domyślny
-    // powrót ogniska (`event.preventDefault()` w `onCloseAutoFocus`) i zamiast
-    // niego ustawia ognisko na `triggerRef.current`. Tutaj wyzwalacza nie ma
-    // ani być nie może: okno otwiera KLIKNIĘCIE W WYKRES, a nie
-    // `<DialogTrigger>`, więc `triggerRef.current` jest `null` i ognisko przepada.
-    // Naprawa należy do `ChartDrillDialog`: własne `onCloseAutoFocus`, które
-    // odda ognisko regionowi wykresu (`role="img"` z `ChartCard`).
+    // MECHANIZM, KTÓREGO PILNUJE TEN PRZYPADEK. `DialogContent` w trybie
+    // modalnym Radiksa BLOKUJE domyślny powrót ogniska
+    // (`event.preventDefault()` w `onCloseAutoFocus`) i zamiast niego ustawia
+    // ognisko na `triggerRef.current`. Tutaj wyzwalacza nie ma ani być nie
+    // może: okno otwiera KLIKNIĘCIE W WYKRES, a nie `<DialogTrigger>`, więc
+    // `triggerRef.current` jest `null`. Dlatego `ChartDrillDialog` prowadzi
+    // powrót SAM: zapamiętuje `document.activeElement` w `onOpenAutoFocus`
+    // (leci PRZED przeniesieniem ogniska do okna) i oddaje mu ognisko we
+    // własnym `onCloseAutoFocus`. Przypadek stoi na straży obu połówek tego
+    // mechanizmu - zapamiętania i oddania.
     document.body.innerHTML = '<button id="wyzwalacz" type="button">Wykres</button>';
     const wyzwalacz = document.getElementById("wyzwalacz") as HTMLButtonElement;
     wyzwalacz.focus();

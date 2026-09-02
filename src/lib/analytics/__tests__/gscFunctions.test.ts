@@ -17,10 +17,11 @@
 //     Testy niżej sprawdzają KAŻDĄ ścieżkę błędu pod kątem obu kluczy.
 //
 //  2) BRAK KONFIGURACJI JAKO AWARIA. Moduł ma na to sentinel
-//     (`GSC_NOT_CONFIGURED`), ale łapie go DOKŁADNIE JEDNA z trzech funkcji.
-//     Świeża instalacja bez konektora dostaje więc raz uporządkowany stan
-//     `configured: false`, a dwa razy surowy wyjątek - to jest pinowane niżej
-//     jako defekt (`it.fails`).
+//     (`GSC_NOT_CONFIGURED`) i KAŻDA z trzech funkcji łapie go u siebie:
+//     świeża instalacja bez konektora dostaje trzy razy uporządkowany stan
+//     („nie podłączono"), a nie raz stan i dwa razy surowy wyjątek z nazwą
+//     sentinela w treści. Trzy przypadki niżej pilnują tego osobno dla każdej
+//     funkcji, bo załatanie jednej zostawiało dwa pozostałe kanały wycieku.
 //
 //  3) WEJŚCIE OD ADMINA WPROST W URL I W CIAŁO ŻĄDANIA. `siteUrl` trafia do
 //     ścieżki (`sc-domain:example.com` MUSI być zakodowane, inaczej dwukropek
@@ -262,46 +263,52 @@ describe("brak konfiguracji konektora", () => {
     await expect(listuj()).resolves.toEqual({ sites: [], configured: false });
   });
 
-  it.fails(
-    "brak konfiguracji GSC nie może wyciekać do klienta jako surowy sentinel - kwerenda",
-    async () => {
-      // DEFEKT. Sentinel `GSC_NOT_CONFIGURED` jest łapany WYŁĄCZNIE w
-      // `listGscSites`. `queryGscAnalytics` rzuca nim wprost, więc panel
-      // świeżej instalacji (albo instalacji po rotacji kluczy) pokazuje
-      // adminowi napis „GSC_NOT_CONFIGURED" zamiast stanu „nie podłączono".
-      // Kontrakt całej warstwy analityki jest przeciwny: brak konfiguracji to
-      // PIERWSZORZĘDNY STAN, nie awaria - dokładnie tak zachowuje się GA4
-      // (`EMPTY_GA4_REPORT` z `configured: false`) i tak zachowuje się
-      // sąsiednia funkcja tego samego pliku. Ta niespójność jest widoczna
-      // wyłącznie na instalacji bez konektora, czyli nigdy u dewelopera,
-      // który ma klucze w .env.
-      vi.stubEnv("LOVABLE_API_KEY", undefined);
-      vi.stubEnv("GOOGLE_SEARCH_CONSOLE_API_KEY", undefined);
+  it("brak konfiguracji GSC nie wycieka do klienta jako surowy sentinel - kwerenda", async () => {
+    // PILNUJE, żeby sentinel `GSC_NOT_CONFIGURED` nie opuścił serwera tym
+    // kanałem. `queryGscAnalytics` łapie go u siebie, bo rzucany wprost
+    // pokazywał adminowi świeżej instalacji (albo instalacji po rotacji
+    // kluczy) napis „GSC_NOT_CONFIGURED" zamiast stanu „nie podłączono".
+    // Kontrakt całej warstwy analityki jest taki: brak konfiguracji to
+    // PIERWSZORZĘDNY STAN, nie awaria - dokładnie tak zachowuje się GA4
+    // (`EMPTY_GA4_REPORT` z `configured: false`) i tak zachowuje się
+    // sąsiednia funkcja tego samego pliku. Granica jest widoczna wyłącznie na
+    // instalacji bez konektora, czyli nigdy u dewelopera z kluczami w .env -
+    // dlatego pilnuje jej test, a nie przegląd kodu.
+    vi.stubEnv("LOVABLE_API_KEY", undefined);
+    vi.stubEnv("GOOGLE_SEARCH_CONSOLE_API_KEY", undefined);
 
-      await expect(pytaj(ZAPYTANIE)).resolves.toEqual({ rows: [] });
-    },
-  );
+    await expect(pytaj(ZAPYTANIE)).resolves.toEqual({ rows: [] });
+  });
 
-  it.fails(
-    "brak konfiguracji GSC nie może wyciekać do klienta jako surowy sentinel - inspekcja URL",
-    async () => {
-      // Ta sama luka co wyżej, trzecia funkcja modułu. Trzymana osobno, bo
-      // poprawka musi objąć OBIE - załatanie jednej zostawiłoby drugą.
-      vi.stubEnv("LOVABLE_API_KEY", undefined);
-      vi.stubEnv("GOOGLE_SEARCH_CONSOLE_API_KEY", undefined);
+  it("brak konfiguracji GSC nie wycieka do klienta jako surowy sentinel - inspekcja URL", async () => {
+    // Ta sama granica co wyżej, trzecia funkcja modułu. Trzymana osobno, bo
+    // domknięcie musiało objąć OBIE - załatanie jednej zostawiłoby drugi
+    // kanał. Pusty obiekt jest tu odpowiednikiem pustej odpowiedzi bramki,
+    // którą panel już umie pokazać.
+    vi.stubEnv("LOVABLE_API_KEY", undefined);
+    vi.stubEnv("GOOGLE_SEARCH_CONSOLE_API_KEY", undefined);
 
-      const wynik = await inspekcja(INSPEKCJA);
+    const wynik = await inspekcja(INSPEKCJA);
 
-      expect(wynik.raw).toBe("{}");
-    },
-  );
+    expect(wynik.raw).toBe("{}");
+  });
 
-  it("surowy sentinel, którym moduł dziś rzuca, nie zawiera żadnego klucza", async () => {
+  it("brak JEDNEGO klucza degraduje kwerendę i nie wypuszcza ani sentinela, ani klucza", async () => {
+    // Wcześniej ten przypadek pilnował treści surowego sentinela, którym
+    // moduł wtedy rzucał („nie zawiera żadnego klucza"). Sentinel do klienta
+    // już nie wychodzi, a intencja zostaje: degradacja jest cicha i niesie
+    // ZERO materiału uwierzytelniającego. Wystarczy brak JEDNEGO z dwóch
+    // kluczy - typowe w połowie rotacji.
     vi.stubEnv("LOVABLE_API_KEY", undefined);
 
-    const blad = await przechwycBlad(pytaj(ZAPYTANIE));
+    const wynik = await pytaj(ZAPYTANIE);
 
-    expect(blad.message).toBe("GSC_NOT_CONFIGURED");
+    expect(wynik).toEqual({ rows: [] });
+    const zserializowany = JSON.stringify(wynik);
+    expect(zserializowany).not.toContain("GSC_NOT_CONFIGURED");
+    expect(zserializowany).not.toContain(LOVABLE_KEY);
+    expect(zserializowany).not.toContain(GSC_KEY);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

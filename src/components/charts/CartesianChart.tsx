@@ -30,9 +30,8 @@ interface CartesianChartProps {
   lang: ChartLang;
 }
 
-interface ActivePoint {
-  index: number;
-  /** Pozycja kotwicy tooltipa w px kontenera. */
+/** Pozycja kotwicy tooltipa w px kontenera - liczona z indeksu przy renderze. */
+interface Anchor {
   x: number;
   y: number;
 }
@@ -69,7 +68,9 @@ function barPath(
 export function CartesianChart({ config, lang }: CartesianChartProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
   const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
-  const [active, setActive] = useState<ActivePoint | null>(null);
+  // W stanie siedzi WYŁĄCZNIE indeks kategorii, a nie gotowa kotwica: piksele
+  // zależą od geometrii, a ta zmienia się z każdą podmianą configu.
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const horizontal = config.kind === "bar-horizontal";
   const isLine = config.kind === "line" || config.kind === "area";
@@ -183,22 +184,24 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     return Math.max(0, Math.min(n - 1, Math.floor(alongAxis / band)));
   };
 
-  const anchorFor = (index: number): ActivePoint => {
+  const anchorFor = (index: number): Anchor => {
     const c = catCenter(index);
     const positions = series
       .map((s) => s.values[index])
       .filter((v): v is number => v !== null)
       .map((v) => value(v));
     if (horizontal) {
-      return { index, x: positions.length ? Math.max(...positions) : zeroPos, y: c };
+      return { x: positions.length ? Math.max(...positions) : zeroPos, y: c };
     }
     const yTop = positions.length ? Math.min(...positions) : padTop;
-    return { index, x: c, y: Math.max(padTop, yTop) };
+    return { x: c, y: Math.max(padTop, yTop) };
   };
 
-  const setActiveIndex = (index: number | null) => {
-    setActive(index === null ? null : anchorFor(index));
-  };
+  // Klamra na indeksie: aktywna kategoria przeżywa podmianę configu (to ten
+  // sam, żywy komponent), a nowy zestaw bywa KRÓTSZY. Bez klamry indeks
+  // wskazywałby poza tablicę, a tooltip czytałby wartość z niczego.
+  const active = activeIndex === null ? null : Math.max(0, Math.min(n - 1, activeIndex));
+  const anchor = active === null ? null : anchorFor(active);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const forwardKey = horizontal ? "ArrowDown" : "ArrowRight";
@@ -206,10 +209,10 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
     if (e.key === forwardKey || e.key === backKey) {
       e.preventDefault();
       const delta = e.key === forwardKey ? 1 : -1;
-      const next = active === null ? 0 : Math.max(0, Math.min(n - 1, active.index + delta));
+      const next = active === null ? 0 : Math.max(0, Math.min(n - 1, active + delta));
       setActiveIndex(next);
     } else if (e.key === "Escape" || e.key === "Tab") {
-      setActive(null);
+      setActiveIndex(null);
     }
   };
 
@@ -239,7 +242,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
           .map((s) => ({
             name: s.name,
             colorSlot: s.colorSlot as number | null,
-            raw: s.values[active.index],
+            raw: s.values[active],
           }))
           .filter((r) => r.raw !== null)
           .map((r) => ({
@@ -266,7 +269,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
         role="img"
         aria-label={config.title || undefined}
         onKeyDown={onKeyDown}
-        onBlur={() => setActive(null)}
+        onBlur={() => setActiveIndex(null)}
       >
         <svg width={width} height={height} className="block overflow-visible">
           {/* Siatka + podziałki osi wartości */}
@@ -436,7 +439,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                             key={i}
                             cx={catCenter(i)}
                             cy={value(v)}
-                            r={active?.index === i ? 5 : 4}
+                            r={active === i ? 5 : 4}
                             fill={seriesColor(s)}
                             stroke="var(--card)"
                             strokeWidth={2}
@@ -473,7 +476,11 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
                     const b = value(to);
                     // Zaokrąglony koniec tylko dla segmentu domykajacego pas
                     // danych (ostatnia seria stacka lub słupek pojedynczy).
-                    const isDataEnd = !stacked || si === lastStackIndexFor(series, stacks, i);
+                    // Pas dodatni i ujemny rosną z tej samej bazy w PRZECIWNE
+                    // strony, więc każdy z nich domyka INNA seria - pytamy
+                    // o znak tego konkretnego segmentu.
+                    const isDataEnd =
+                      !stacked || si === lastStackIndexFor(series, stacks, i, v >= 0);
                     const center = catCenter(i);
                     const offset = stacked
                       ? -barW / 2
@@ -565,15 +572,15 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             (isLine ? (
               <line
                 className="neh-crosshair"
-                x1={horizontal ? padLeft : catCenter(active.index)}
-                x2={horizontal ? padLeft + innerW : catCenter(active.index)}
-                y1={horizontal ? catCenter(active.index) : padTop}
-                y2={horizontal ? catCenter(active.index) : padTop + innerH}
+                x1={horizontal ? padLeft : catCenter(active)}
+                x2={horizontal ? padLeft + innerW : catCenter(active)}
+                y1={horizontal ? catCenter(active) : padTop}
+                y2={horizontal ? catCenter(active) : padTop + innerH}
               />
             ) : horizontal ? (
               <rect
                 x={padLeft}
-                y={catCenter(active.index) - band / 2}
+                y={catCenter(active) - band / 2}
                 width={innerW}
                 height={band}
                 fill="var(--foreground)"
@@ -582,7 +589,7 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
               />
             ) : (
               <rect
-                x={catCenter(active.index) - band / 2}
+                x={catCenter(active) - band / 2}
                 y={padTop}
                 width={band}
                 height={innerH}
@@ -603,16 +610,16 @@ export function CartesianChart({ config, lang }: CartesianChartProps) {
             fill="transparent"
             className="neh-hit"
             onPointerMove={(e) => setActiveIndex(indexFromPointer(e))}
-            onPointerLeave={() => setActive(null)}
+            onPointerLeave={() => setActiveIndex(null)}
           />
         </svg>
 
         <ChartTooltip
           visible={active !== null}
-          x={active?.x ?? 0}
-          y={active?.y ?? 0}
+          x={anchor?.x ?? 0}
+          y={anchor?.y ?? 0}
           containerWidth={width}
-          title={active !== null ? config.categories[active.index] : ""}
+          title={active !== null ? config.categories[active] : ""}
           rows={tooltipRows}
         />
       </div>
@@ -627,17 +634,27 @@ function lastNonNullIndex(values: readonly (number | null)[]): number {
   return -1;
 }
 
-/** Indeks serii domykającej pas dodatni stacka w danej kategorii. */
+/**
+ * Indeks serii domykającej pas stacka O DANYM ZNAKU w danej kategorii.
+ *
+ * Szukanie po znaku, a nie "ostatnia seria z wartością dodatnią", bo pas
+ * ujemny ma własny kursor (`stackSeries`) i domyka go ostatnia seria ujemna.
+ * Fallback `series.length - 1` zostaje wyłącznie dla wykresu bez stacka -
+ * w stacku wskazywałby serię, która w tej kategorii może nic nie rysować
+ * (luka), i zaokrąglenie 4px przepadałoby na całym pasie.
+ */
 function lastStackIndexFor(
   series: readonly ChartSeries[],
   stacks: ReturnType<typeof stackSeries> | null,
   categoryIndex: number,
+  positive: boolean,
 ): number {
   if (!stacks) return series.length - 1;
   let last = -1;
   for (let si = 0; si < series.length; si++) {
     const v = stacks[si][categoryIndex].value;
-    if (v !== null && v > 0) last = si;
+    if (v === null || v === 0) continue;
+    if (positive ? v > 0 : v < 0) last = si;
   }
-  return last === -1 ? series.length - 1 : last;
+  return last;
 }
