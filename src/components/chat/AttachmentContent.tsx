@@ -17,6 +17,7 @@ import {
   File as FileIcon,
 } from "lucide-react";
 import { useAttachmentUrl, formatBytes } from "@/lib/chat/attachments";
+import { fileIconKind, type FileIconKind } from "@/lib/chat/attachmentPresentation";
 import { formatVoiceDuration } from "@/lib/chat/voice";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
@@ -192,12 +193,17 @@ export function AttachmentAudio({
   );
 }
 
+// Rodzina ikony liczy czysta reguła (`fileIconKind`, testowana osobno);
+// tutaj zostaje wyłącznie mapa na komponenty ikon.
+const FILE_ICONS: Record<FileIconKind, typeof FileIcon> = {
+  spreadsheet: FileSpreadsheet,
+  presentation: Presentation,
+  document: FileText,
+  generic: FileIcon,
+};
+
 function fileIconFor(mime: string | null) {
-  if (!mime) return FileIcon;
-  if (mime.includes("spreadsheet") || mime.includes("excel") || mime === "text/csv")
-    return FileSpreadsheet;
-  if (mime.includes("presentation") || mime.includes("powerpoint")) return Presentation;
-  return FileText;
+  return FILE_ICONS[fileIconKind(mime)];
 }
 
 export function AttachmentFile({

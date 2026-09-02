@@ -46,7 +46,7 @@ function clientItem(over: Partial<MenuClientItem> & { local_id: string }): MenuC
     href: "",
     target: "_self",
     css_class: "",
-      visibility: "all" as const,
+    visibility: "all" as const,
     icon: "",
     mega_enabled: false,
     mega_config: DEFAULT_MEGA_CONFIG,

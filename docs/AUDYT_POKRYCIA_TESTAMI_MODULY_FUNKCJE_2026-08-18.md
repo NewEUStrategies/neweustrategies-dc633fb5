@@ -513,6 +513,98 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,3% | 83,3% |   95,6% |  **97,6%** |   130/136 |
 | Czat: reguły wątku (kolejność, separator, skok) |      5 |        159 |  99,5% | 98,5% |   97,5% | **100,0%** |     39/40 |
 
+> **ZASTRZEŻENIE DO TABELI (dopisane 2026-09-01, wydanie 9): wiersz „Czat: kompozytor + wzmianki" NIE OPISUJE KOMPOZYTORA CZATU.**
+>
+> Zakres tego wiersza to `src/lib/composer/`, `src/components/composer/`, `src/lib/mentions/`, `src/components/mentions/` - dziesięć plików, 229 LOC. **Ani jeden z nich nie jest używany przez czat.** Zweryfikowane na tym HEAD:
+>
+> - `grep -rln "mention" src/components/chat src/lib/chat` nie zwraca nic - czat nie ma wzmianek;
+> - `src/components/chat/ChatComposer.tsx` (606 linii źródła) nie importuje niczego z tych czterech katalogów;
+> - `ComposerShell.tsx` konsumują `components/comments/CommentComposerShell.tsx` i `components/forms/MessageComposerField.tsx`;
+> - `MentionTextarea.tsx` - komentarze (`CommentsSection.tsx`, `CommentComposerShell.tsx`) i dwie trasy klubów;
+> - `useMentionAutocomplete` - `components/forms/MessageComposerField.tsx`;
+> - `useMentionProfile` - `components/clubs/atoms/ClubInlineText.tsx`.
+>
+> Wynik 84,3% opisuje więc kompozytor KOMENTARZY, FORMULARZY i KLUBÓW, a nie czatu. Prawdziwy kompozytor czatu to `ChatComposer.tsx`, który w wydaniu 8 stał na **0/160 linii i 0/40 funkcji** - największym pojedynczym zerze całego modułu - i był ukryty w wierszu „okno rozmowy i atomy UI".
+>
+> **Dlaczego zostawiamy to jako zastrzeżenie, a nie poprawiamy definicji funkcjonalności.** Ujednolicenie kompozytorów (przepisanie czatu na `ComposerShell`, dołożenie wzmianek do czatu) byłoby ZMIANĄ PRODUKTOWĄ pod test, a nie poprawą pomiaru - i jako taka wymaga własnej decyzji, nie commitu w pracy nad pokryciem. Do czasu tej decyzji tabelę czyta się z tym zastrzeżeniem, a wiersz „kompozytor + wzmianki" traktuje jako **infrastrukturę komentarzy i klubów mierzoną wewnątrz modułu 09**.
+
+#### MODUŁ 9 — WYDANIE 9 (2026-09-01) · linie 62,83% → **97,25%** · funkcje 58,02% → **95,47%**
+
+**Rodzaje testów dołożone w tym wydaniu:** komponentowy 14 · jednostkowy 5 · hooka 3 · trasy 2 (pierwsze w module) · bramki 1 · dostępności 1 (pierwszy w module). Razem 26 nowych plików testowych, +14 068 linii, plus rozszerzenie uprzęży wykonawczej RLS z 62 na 126 asercji.
+
+**Pomiar:** `vitest run --coverage` na PEŁNEJ suicie, `all: true`, zakres modułu dokładnie taki, jak w tabeli zakresów niżej. Kolumna „wyd. 8" to liczby z tabeli wyżej.
+
+**MODUŁ 09 RAZEM** - 83 pliki (81 w wydaniu 8; przybyły dwa moduły reguł wyprowadzone z kompozytora), 3 304 mierzone linie:
+
+| Metryka    | Wydanie 8 |  Wydanie 9 |          Δ | Cel zlecenia |    Zapas |
+| ---------- | --------: | ---------: | ---------: | -----------: | -------: |
+| Linie      |    62,83% | **97,25%** | ↑ +34,4 pp |        ≥ 78% | +19,3 pp |
+| Funkcje    |    58,02% | **95,47%** | ↑ +37,5 pp |        ≥ 75% | +20,5 pp |
+| Gałęzie    |    51,74% | **88,36%** | ↑ +36,6 pp |        ≥ 65% | +23,4 pp |
+| Instrukcje |    61,33% | **94,98%** | ↑ +33,7 pp |            - |        - |
+
+W liczbach bezwzględnych: linie 3 213/3 304, funkcje 1 032/1 081, gałęzie 2 923/3 308. **Zero plików modułu stoi na zerowym pokryciu linii** (w wydaniu 8 było ich szesnaście, w tym dwanaście dialogów i paneli interfejsu oraz obie trasy).
+
+**CZTERY FUNKCJONALNOŚCI** - zakresy plików identyczne, co w tabeli wydania 8 wyżej:
+
+| Funkcjonalność                                  | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |      Linie | fn (szt.) | Linie wyd. 8 |    Δ linie |
+| ----------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | ---------: | --------: | -----------: | ---------: |
+| Czat: okno rozmowy i atomy UI                   |     35 |      1 490 |  96,9% | 90,8% |   96,7% |  **98,3%** |   502/519 |        46,2% | ↑ +52,1 pp |
+| Czat: kompozytor + wzmianki                     |     10 |        229 |  81,6% | 68,8% |   77,2% |  **84,3%** |     44/57 |        84,3% |  bez zmian |
+| Czat: warstwa danych (rozmowy, wiadomości)      |      3 |        374 |  92,6% | 83,6% |   95,6% |  **97,6%** |   130/136 |        97,6% |  bez zmian |
+| Czat: reguły wątku (kolejność, separator, skok) |      5 |        155 |  99,5% | 98,1% |  100,0% | **100,0%** |     42/42 |       100,0% |  bez zmian |
+
+**Wiersz „kompozytor + wzmianki" stoi w miejscu CELOWO** - i to jest dowód zastrzeżenia z poprzedniej sekcji, a nie przeoczenie. Te dziesięć plików nie ma z czatem nic wspólnego, więc praca nad czatem nie mogła ich ruszyć. Prawdziwy kompozytor czatu siedzi w wierszu „okno rozmowy i atomy UI" i to on odpowiada za +52,1 pp: `ChatComposer.tsx` przeszedł **z 0/160 linii i 0/40 funkcji na 152/155 linii i 38/40 funkcji**.
+
+**Cele szczegółowe zlecenia - wynik:**
+
+| Cel                                 |    Wymóg | Pomiar wydania 9                |
+| ----------------------------------- | -------: | ------------------------------- |
+| „okno rozmowy i atomy UI" - linie   |    ≥ 75% | **98,3%**                       |
+| „okno rozmowy i atomy UI" - funkcje |    ≥ 70% | **96,7%**                       |
+| „okno rozmowy i atomy UI" - gałęzie |    ≥ 60% | **90,8%**                       |
+| `routes/messages.tsx`               | ≥ 60/55% | **91,8% linii / 85,7% funkcji** |
+| `routes/admin.community.chat.tsx`   | ≥ 70/65% | **91,3% linii / 84,0% funkcji** |
+| `lib/chat/voice.ts`                 | ≥ 70/70% | **100% linii / 100% funkcji**   |
+| `lib/chat/usePeopleDirectory.ts`    | ≥ 70/70% | **100% linii / 100% funkcji**   |
+| `lib/chat/useIncomingChatToasts.ts` | ≥ 70/70% | **93,0% linii / 88,9% funkcji** |
+| `AttachmentContent.tsx` - gałęzie   |    ≥ 55% | **83,6%**                       |
+| `DemoBotChat.tsx` - gałęzie         |    ≥ 65% | **94,3%**                       |
+| `ChatWindow.tsx` - funkcje          |    ≥ 85% | **100,0% (73/73)**              |
+
+**Pomiar wykonano na ZIELONEJ suicie w sensie tej pracy:** `vitest run --coverage`, 2 055 plików testowych, 55 456 testów zielonych, 279 `it.fails`, **6 czerwonych testów w 5 plikach - wszystkie zastane, reprodukowane co do jednego na `origin/main`** w osobnym worktree (`router.test.tsx`, `authzSnapshotParity`, `migrationReplay` ×2, `serviceRoleTenantScope`, `AdminMonetizationLedger`). Żaden z nich nie leży w module 09 i żaden nie został naprawiony ani wyciszony - snapshot autoryzacji w szczególności NIE był regenerowany.
+
+**Bramki `check:*` po tej pracy:** trzydzieści zielonych. Cztery czerwone (`check:authz-snapshot`, `check:permissions-parity`, `check:sql-migration-replay`, `check:i18n-parity`) sprowadzają się do tych samych dwóch zastanych plików - same reguły i18n przechodzą w komplecie (48 plików). Dwie (`check:db-contract`, `check:migration-ledger`) wymagają poświadczeń Supabase, niedostępnych w tym środowisku.
+
+**Jedyny ślad tej pracy poza testami - i jest mierzalny.** `check:bundle` jest czerwony NA `origin/main`: całość 4 320,9 KB gzip przy budżecie 4 306 KB, czyli przekroczenie o 14,9 KB pochodzące spoza czatu (`i18n` +129 KB, `EventStudioModuleSections` +65,5 KB, `useEventSessions` +31,1 KB, `scanner` +15,3 KB względem baseline'u z 2026-08-15). Po tej pracy jest 4 321,5 KB, czyli **+0,6 KB gzip** - koszt dwóch modułów reguł przekraczających granicę chunku. Sprawdzone tym samym buildem na obu drzewach. Świadomie nie podnoszę tu budżetu: przekroczenie nie jest tej pracy, a 0,6 KB to cena, którą płaci się za możliwość testowania decyzji kompozytora bez pełnego renderu z atrapą `MediaRecorder`.
+
+**Co zmieniło się względem wydania 8.** Wydanie 8 opisywało moduł jako „wzorcową mieszankę po refaktorze" - i miało rację co do WARSTWY DANYCH (97,6% linii, 130 ze 136 funkcji, jedenaście polityk na `messages`). Całe ryzyko siedziało gdzie indziej: w 35 plikach interfejsu, z których **dwanaście nie zostało nigdy wyrenderowane w teście**, oraz w dwóch trasach na czystym zerze - skrzynce `/messages` (687 linii źródła) i panelu moderacji `/admin/community/chat` z operacjami niszczącymi.
+
+**Co decyduje w wydaniu 9:** trzy rodzaje dowodu, których moduł wcześniej nie miał wcale.
+
+1. **Ekstrakcja reguł przed asercjami.** `ChatComposer.tsx` (606 linii, 0/160 linii pokrycia) nie miał ANI JEDNEJ funkcji modułowej, więc żadnej jego decyzji nie dało się sprawdzić bez pełnego renderu z sesją, tenantem, kanałem realtime i atrapą `MediaRecorder`. Reguły wyprowadzone do `lib/chat/composerRules.ts` i `lib/chat/attachmentPresentation.ts` mają dziś testy jednostkowe, a render dowodzi wyłącznie SKLEJENIA. Ekstrakcja jest wierna co do gałęzi - nie jest zmianą zachowania pod test.
+2. **Test trasy** (`@/test/routeHarness`) - pierwszy w module. Dowodzi tego, czego test komponentu nie dotyka: kontraktu adresu (`?c=`, `?view=`), nagłówka (`noindex, nofollow`), `ssr: false` i bramek widoczności (AuthGate, moduł czatu wyłączony przez administratora, zakładka zarezerwowana dla ekspertów).
+3. **Bramka kontraktu polityk RLS** (`src/lib/ci/__tests__/chatPolicyContract.test.ts`) - stan końcowy polityk czytany z forward-only migracji przez `extractLatestPolicies` - **oraz jej wykonawczy kontrapunkt**: uprząż `scripts/tenant-isolation-harness` rozszerzona z 62 na 126 asercji, która zakłada polityki płaszczyzny czatu na prawdziwym Postgresie i próbuje przez nie czytać oraz pisać jako trzy różne osoby z dwóch obszarów roboczych. Odpowiadają na trzy pytania, które wydanie 8 zostawiło otwarte (patrz „Trzy ustalenia" niżej) - i rozjazd między nimi wykrył ograniczenie samej analizy statycznej, opisane w ustaleniu 1.
+
+**Bez tego rodzaju przechodzi taki defekt:** dokładnie te, które ta praca znalazła. Jedenaście pozycji zapisanych jako `it.fails` z opisem złamanego i oczekiwanego kontraktu - m.in. **martwa gałąź „Wysyłanie…"** w stopce listy (`lastMine` filtruje `!pending`, a stopka pyta `lastMine?.pending`, więc warunek nigdy nie jest prawdziwy), **martwa pozycja menu „Dodaj reakcję"** w dymku (menu Radiksa zamyka świeżo otwarty popover), **historia mediów** przekazująca do podglądu galerię JEDNOELEMENTOWĄ wbrew własnemu opisowi w nagłówku pliku, **wyszukiwarka rozmówców** myląca ODMOWĘ serwera z brakiem kontaktów, **przycisk kasujący kaskadowo rozmowę bez nazwy dostępnej** w panelu moderacji oraz **potwierdzenia doręczenia niewidoczne dla czytnika ekranu** (`aria-label` na `<span>` bez roli - ARIA tego zabrania, więc etykieta jest ignorowana).
+
+**Trzy ustalenia o politykach RLS** (przypięte bramką, bez zmiany schematu w tej pracy):
+
+1. **Czy prośba ekspercka przecina obszary robocze? NIE - i polityki tego pilnują.** Jedyny pisarz tabeli, `send_expert_request`, czyta tenanta nadawcy i odbiorcy z `profiles` i odmawia, gdy się różnią; `INSERT` jest celowo `WITH CHECK false`, więc RPC jest jedyną drogą. Czytanie i zmiana też wiążą obszar roboczy: każda żywa polityka `expert_inmails` inna niż `INSERT` ma `tenant_id = current_tenant_id()`. **To ustalenie kosztowało jedną korektę własnej bramki i jest tu warte opisania**, bo pokazuje granicę analizy statycznej: `extractLatestPolicies` kluczuje politykę po nazwie tabeli WYCZYTANEJ Z TEKSTU migracji i nie rozumie `ALTER TABLE … RENAME`. Migracja `20260723180000` przemianowała `expert_inmails` na `expert_requests` i założyła tenant-ślepe polityki; `20260806160001` cofnęła nazwę („rename nigdy nie wjechał"), a `20260806185055` skasowała obie stare rodziny i założyła dzisiejsze, tenant-wiążące. DROP-y adresowane do `public.expert_inmails` nie trafiły w klucze założone jako `public.expert_requests`, więc tenant-ślepa rodzina **została w mapie jako duch** - i pierwsza wersja tej bramki wzięła ducha za stan bazy. Rozstrzygnęło wykonanie: rozszerzona uprząż `scripts/tenant-isolation-harness` zakłada te polityki na prawdziwym Postgresie i pokazuje, że wiersz dryfujący do obcego obszaru roboczego jest niewidoczny nawet dla własnego nadawcy. Bramka statyczna asertuje dziś niezmiennik wprost, a duchy przypina OSOBNYM przechodzącym testem opisanym jako ograniczenie parsera. Pułapka zostaje zastawiona na regresję: przywrócenie tenant-ślepych polityk wywala i bramkę, i uprząż.
+2. **Czy dwa sposoby wyznaczania tenanta są równoważne? CO DO WARTOŚCI TAK.** `current_tenant_id()` to dosłownie `SELECT tenant_id FROM public.profiles WHERE id = auth.uid()`, czyli ta sama kwerenda, którą `user_blocks` ma wpisaną wprost w `WITH CHECK`. Różnica, która zostaje: funkcja jest SECURITY DEFINER i omija RLS na `profiles`, a podzapytanie biegnie jako wołający. Obie formy rozjadą się dokładnie wtedy, gdy `profiles` przestanie pozwalać czytać własny wiersz - i ten warunek jest teraz przypięty.
+3. **Brak polityki INSERT na `conversations` i brak polityk zapisu na `conversation_participants` to DECYZJA**, nie luka: zapis idzie wyłącznie przez `get_or_create_direct_conversation` i `create_group_conversation`. Bramka pilnuje OBU połówek naraz (brak polityki zapisu ORAZ istnienie RPC), żeby nikt później nie „naprawił" tego dopisaniem polityki.
+
+**Progi.** Oba globi modułu zostały zaciśnięte OSOBNYM commitem, przed napisaniem pierwszego testu - luz wynosił 4,8-5,8 pp, czyli przepuszczał regresję o rozmiarze całego pliku bez ani jednego czerwonego testu (`useConversations.ts` to 5,4 pp globu `src/lib/chat/**`). Po dobiciu pokrycia progi podniesiono DRUGI raz, tym razem do podłogi z pomiaru - luz poniżej 1 pp na każdej z czterech metryk:
+
+| Glob                     |   Wydanie 8 | Po commicie 1 |       Wydanie 9 |
+| ------------------------ | ----------: | ------------: | --------------: |
+| `src/lib/chat/**`        | 74/80/77/67 |   79/85/82/72 | **95/97/98/89** |
+| `src/components/chat/**` | 40/36/41/34 |   45/40/46/38 | **96/96/98/90** |
+
+(kolejność: instrukcje / funkcje / linie / gałęzie)
+
+Do tego **32 nowe progi per-plikowe**: szesnaście dla plików zdjętych z zera (dwanaście dialogów i paneli, dwa nowe moduły reguł, obie trasy) i szesnaście dla powierzchni, które audyt wskazał imiennie - atomy wiadomości i załącznika oraz reszta warstwy danych czatu. Liczba progów per-ścieżka w repo rośnie z **376 na 408**. (Wydanie 8 raportowało 373; na `origin/main` jest ich dziś 376 - liczba potwierdzona tytułem commita `85af2c6` „Audyt 376 progów pokrycia". Liczone kluczami obiektu `thresholds` w `vitest.config.ts`, bez duplikatów.) Osobno podniesiony `ChatWindow.tsx`: próg funkcji stał na **60** przy pomiarze 100% (73/73), czyli przepuszczał utratę trzynastu domknięć - menu kontekstowego, dialogów znikania, przekazywania i blokowania - bez ani jednego czerwonego testu.
+
 ### MODUŁ 10 — Sieć / networking · linie 83,65% · funkcje 81,85%
 
 **Rodzaje testów:** komponentowy 17 · hooka 3 · jednostkowy 2 · bramki 1.
