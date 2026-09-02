@@ -22,10 +22,15 @@
 //     przestawia kliknięcia do innego kubelka w panelu i zafałszowuje raport.
 //     Testy trzymają również PIERWSZEŃSTWO: grupa `legal` wygrywa z heurystyką
 //     po adresie.
-//  3. PODWÓJNY BEACON MA BYĆ NIEZALEŻNY. Brak `window.gtag` (GA4 niewczytane)
-//     nie może zabrać pierwszego beacona, a `dataLayer` podstawiony pod `gtag`
+//  3. PODWÓJNY BEACON MA BYĆ NIEZALEŻNY - I NIE TYLKO WTEDY, GDY DRUGI KANAŁ
+//     PO PROSTU NIE ISTNIEJE. Brak `window.gtag` (GA4 niewczytane) nie może
+//     zabrać pierwszego beacona, a `dataLayer` podstawiony pod `gtag`
 //     (klasyczna pomyłka wdrożeniowa - tablica zamiast funkcji) nie może
-//     wywrócić handlera kliknięcia.
+//     wywrócić handlera kliknięcia. Osobny, ostatni blok pilnuje mocniejszego
+//     przypadku: kanał ISTNIEJE i RZUCA. Bramka `gtagIfConsented()` odpowiada
+//     wyłącznie za to, CZY nadajemy - o tym, co się dzieje, gdy nadanie padnie
+//     w środku, rozstrzygają dziś dwie OSOBNE granice błędu w module
+//     produkcyjnym (`fireBeacon`), a ten plik trzyma je w obie strony.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJĘ:
 //  - `src/lib/ads/__tests__/consent.test.tsx` - katalog zgód, migracje kluczy,
@@ -41,11 +46,25 @@ import { GPC_COOKIE, GPC_COOKIE_VALUE } from "@/lib/consent/gpc";
 
 const beacons = vi.hoisted(() => ({
   wyslane: [] as Array<{ endpoint: string; payload: unknown }>,
+  /** Odtwarza rzucający `navigator.sendBeacon` (przekroczony limit ładunku). */
+  rzucaj: false,
+  /** Licznik realnych rzutów transportu - pilnuje, że test nie jest pusty. */
+  rzuty: 0,
 }));
 
+/** Komunikat rzucającego transportu (`sendBeacon` po przekroczeniu limitu). */
+const RZUCA_TRANSPORT = "test: sendBeacon padl na limicie ladunku";
+
 // ZERO SIECI: `sendBeaconPayload` to jedyne wyjście transportowe track.ts.
+// Flaga `rzucaj` pozwala odtworzyć awarię PIERWSZEGO beacona bez zmiany
+// produkcji: `track()` woła `flush()` W SWOIM WNĘTRZU, gdy bufor dobije do
+// `MAX_BATCH`, więc rzucający transport pada wewnątrz `track()`, a nie po nim.
 vi.mock("@/lib/observability/report", () => ({
   sendBeaconPayload: (endpoint: string, payload: unknown) => {
+    if (beacons.rzucaj) {
+      beacons.rzuty += 1;
+      throw new Error(RZUCA_TRANSPORT);
+    }
     beacons.wyslane.push({ endpoint, payload });
     return true;
   },
@@ -127,6 +146,10 @@ function wyslaneZdarzenia(): Array<Record<string, unknown>> {
 }
 
 beforeEach(() => {
+  // Flaga gaśnie PRZED drenażem: rzucający transport zostawiony z poprzedniego
+  // testu wywróciłby sam hook, a nie test, który go włączył.
+  beacons.rzucaj = false;
+  beacons.rzuty = 0;
   // Kolejka track.ts to stan MODUŁU - resztka z poprzedniego testu udawałaby
   // beacon wysłany przez ten test. Najpierw drenaż, dopiero potem czyszczenie.
   flush(true);
@@ -138,6 +161,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  beacons.rzucaj = false;
   flush(true);
   beacons.wyslane.length = 0;
   wyczyscCiasteczka();
@@ -439,5 +463,93 @@ describe("footerTracking - bramka zgody obejmuje OBA beacony, nie tylko własny"
 
     expect(wyslaneZdarzenia()).toEqual([]);
     expect(ga).toEqual([]);
+  });
+});
+
+describe("footerTracking - granica błędu OSOBNO dla każdego beacona", () => {
+  // Bramka zgody (blok wyżej) pilnuje, CZY nadajemy. Ten blok pilnuje, co się
+  // dzieje, gdy nadanie PADNIE - a to był realny defekt bliźniaczego modułu
+  // `googleSourceBadgeAnalytics`: jedna sekwencja bez `try` znaczy, że wyjątek
+  // z pierwszego kanału przeskakuje drugi i wychodzi z nasłuchu w `Footer.tsx`
+  // (klik w fazie przechwytywania oraz `submit` newslettera). Tutaj oba
+  // kierunki awarii są przypięte osobno, bo oba mają WŁASNE przyczyny:
+  // magazyn/transport po stronie `track()` i cudzy kod GA4 po stronie `gtag`.
+  const RZUCA_GTAG = "test: gtag GA4 padl";
+
+  /** `gtag`, który rejestruje nadanie i DOPIERO POTEM rzuca. */
+  function podstawRzucajacyGtag(): WywolanieGtag[] {
+    const zapis: WywolanieGtag[] = [];
+    const fn: GtagFn = (_command, name, params) => {
+      zapis.push({ name, params });
+      throw new Error(RZUCA_GTAG);
+    };
+    oknoGtag().gtag = fn;
+    return zapis;
+  }
+
+  it("rzucający gtag NIE unieważnia własnego beacona kliknięcia ani nie wychodzi z nasłuchu", () => {
+    zapiszZgode({ analytics: true });
+    const ga = podstawRzucajacyGtag();
+
+    expect(() =>
+      trackFooterLink({ href: "/analizy", label: "Analizy", group: "editorial" }),
+    ).not.toThrow();
+
+    expect(ga).toHaveLength(1);
+    const [zdarzenie] = wyslaneZdarzenia();
+    expect(zdarzenie).toMatchObject({ name: "footer_link_click", entity_id: "/analizy" });
+  });
+
+  it("rzucający gtag NIE unieważnia beacona konwersji newslettera", () => {
+    zapiszZgode({ analytics: true });
+    const ga = podstawRzucajacyGtag();
+
+    expect(() => trackFooterNewsletterSubmit("success", { form_id: "footer" })).not.toThrow();
+
+    expect(ga).toHaveLength(1);
+    const [zdarzenie] = wyslaneZdarzenia();
+    expect(zdarzenie).toMatchObject({ name: "footer_newsletter_signup" });
+    expect(zdarzenie.meta).toEqual({ status: "success", form_id: "footer" });
+  });
+
+  it("rzucający transport PIERWSZEGO beacona nie zabiera GA4 i nie wychodzi z nasłuchu", () => {
+    zapiszZgode({ analytics: true });
+    beacons.rzucaj = true;
+    const ga = podstawGtag();
+
+    // `track()` drenuje bufor SAM, gdy dojdzie do `MAX_BATCH` (20 w track.ts),
+    // więc pętla przekracza próg i rzucający `sendBeacon` pada W ŚRODKU
+    // pierwszego beacona - dokładnie tak, jak przy przekroczonym limicie
+    // ładunku w przeglądarce. Bez własnej granicy błędu 20. kliknięcie
+    // przerwałoby pętlę wyjątkiem.
+    expect(() => {
+      for (let i = 0; i < 25; i += 1) {
+        trackFooterLink({ href: `/analizy/${i}`, label: `Analiza ${i}`, group: "editorial" });
+      }
+    }).not.toThrow();
+
+    // Bez tej asercji test byłby PUSTY: gdyby próg `MAX_BATCH` urósł ponad
+    // długość pętli, transport nigdy by nie rzucił, a granica błędu nie
+    // zostałaby dotknięta.
+    expect(beacons.rzuty).toBeGreaterThan(0);
+    // Drugi kanał dostał WSZYSTKIE 25 nadań, w tym to, na którym padł pierwszy.
+    expect(ga).toHaveLength(25);
+    expect(ga[19].params).toMatchObject({ link_url: "/analizy/19" });
+    expect(ga[24].params).toMatchObject({ link_url: "/analizy/24" });
+  });
+
+  it("granica błędu NIE otwiera GA4 bez zgody - rzucający gtag nie zostaje nawet zawołany", () => {
+    // Gdyby ktoś „naprawił" połknięty błąd, przenosząc nadanie przed bramkę
+    // (albo omijając `gtagIfConsented()` w nowym `catch`), ten przypadek padnie
+    // ZANIM zdarzenie po odmowie zgody trafi do Google.
+    zapiszZgode({ analytics: false });
+    const ga = podstawRzucajacyGtag();
+
+    expect(() =>
+      trackFooterLink({ href: "/analizy", label: "Analizy", group: "editorial" }),
+    ).not.toThrow();
+
+    expect(ga).toEqual([]);
+    expect(wyslaneZdarzenia()).toEqual([]);
   });
 });

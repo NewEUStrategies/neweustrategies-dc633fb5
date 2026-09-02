@@ -332,7 +332,16 @@ describe("KPI CTR - tabela benchmarku, luka do benchmarku i próg zmiany", () =>
   });
 });
 
-describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
+// GRANICA POZYCJI. `kpi-position` podejmuje DWIE decyzje o tej samej liczbie:
+// wagę wpisu (kolor ramki, miejsce w posortowanej liście, wpis do odznaki
+// „do poprawy”) oraz zestaw kroków pod nagłówkiem. Operator widzi je razem,
+// w JEDNYM kafelku (`InsightSection` renderuje ikonę wagi i `fixes` w tym samym
+// `<li>`), więc kafelek ostrzegawczy z jedyną poradą „utrzymaj tempo” jest dla
+// niego sprzecznością: alarm i instrukcja bezczynności w jednym miejscu.
+// Granica jest więc JEDNA i DOMKNIĘTA - ±0.5 miejsca - a asercje niżej pilnują
+// jej jako reguły: równoważności „waga `warn`” ⇔ „zestaw naprawczy” na całej
+// skali delty, z osobnymi przypadkami DOKŁADNIE na progu i po obu jego stronach.
+describe("KPI pozycja - jedna domknięta granica 0.5 miejsca dla wagi i dla działań", () => {
   const at = (pos: number, prevPos: number): Insight =>
     pick(
       build({
@@ -341,14 +350,92 @@ describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
       }),
       "kpi-position",
     );
+  const STABILNE = lista("adminAnalytics.gsc.insights.position.fixesStable");
+  const NAPRAWCZE = lista("adminAnalytics.gsc.insights.position.fixesWorse");
 
-  it("poprawa o dokładnie 0.5 miejsca to już „good”, o 0.4 jeszcze „info”", () => {
-    expect(at(9.5, 10).severity).toBe("good");
-    expect(at(9.6, 10).severity).toBe("info");
+  it("dwa zestawy porad naprawdę się różnią - inaczej reszta bloku nie dowodziłaby niczego", () => {
+    expect(NAPRAWCZE).not.toEqual(STABILNE);
+    expect(STABILNE.length).toBeGreaterThan(0);
   });
 
-  it("pogorszenie o dokładnie 0.5 miejsca to już „warn”, o 0.4 jeszcze „info”", () => {
+  it("pogorszenie DOKŁADNIE o 0.5 miejsca: waga `warn` I zestaw naprawczy razem", () => {
+    const i = at(10.5, 10);
+    expect(i.severity).toBe("warn");
+    expect(i.fixes).toEqual(NAPRAWCZE);
+  });
+
+  it("pogorszenie o 0.4 miejsca zostaje pod progiem: waga `info` i porady stabilne", () => {
+    const i = at(10.4, 10);
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("pogorszenie o 0.6 miejsca dalej trzyma tę samą parę: `warn` i zestaw naprawczy", () => {
+    const i = at(10.6, 10);
+    expect(i.severity).toBe("warn");
+    expect(i.fixes).toEqual(NAPRAWCZE);
+  });
+
+  it("poprawa DOKŁADNIE o 0.5 miejsca: waga `good`, a kroki podtrzymujące, nie naprawcze", () => {
+    const i = at(9.5, 10);
+    expect(i.severity).toBe("good");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("poprawa o 0.4 miejsca zostaje pod progiem: waga `info` i porady stabilne", () => {
+    const i = at(9.6, 10);
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("poprawa o 0.6 miejsca to `good` z poradami stabilnymi", () => {
+    const i = at(9.4, 10);
+    expect(i.severity).toBe("good");
+    expect(i.fixes).toEqual(STABILNE);
+  });
+
+  it("na progu kafelek NIE stawia obok siebie alarmu i porady „trzymaj kurs”", () => {
+    // To zdanie ze słownika jest całą listą działań wariantu stabilnego. Jeśli
+    // pojawi się w kafelku o wadze `warn`, operator czyta ostrzeżenie i
+    // instrukcję bezczynności w jednym miejscu - dokładnie ten defekt.
+    const i = at(10.5, 10);
+    expect(i.severity).toBe("warn");
+    expect(i.detail).toBe("Pozycja pogorszyła się o 0.5 miejsc - spadek widoczności.");
+    expect(i.fixes).not.toContain("Utrzymaj tempo linkowania wewnętrznego i publikacji.");
+  });
+
+  it("na całej skali delty waga `warn` zachodzi DOKŁADNIE wtedy, gdy porady są naprawcze", () => {
+    // Tabela prawdy zamiast powtórzenia warunku ze źródła: każdy wiersz mówi,
+    // co operator ma zobaczyć przy danej zmianie pozycji. Przesunięcie
+    // KTÓREGOKOLWIEK z dwóch progów o jeden znak porównania oblewa wiersz
+    // ±0.5, a rozjechanie ich względem siebie - wiersz 0.5 w obu kolumnach.
+    const naprawczy = (fixes: string[]): boolean =>
+      fixes.length === NAPRAWCZE.length && fixes.every((f, idx) => f === NAPRAWCZE[idx]);
+    const delty = [-2, -0.6, -0.5, -0.4, 0, 0.4, 0.5, 0.6, 2];
+    const zmierzone = delty.map((d) => {
+      const i = at(10 + d, 10);
+      return { delta: d, ostrzezenie: i.severity === "warn", naprawcze: naprawczy(i.fixes) };
+    });
+    expect(zmierzone).toEqual([
+      { delta: -2, ostrzezenie: false, naprawcze: false },
+      { delta: -0.6, ostrzezenie: false, naprawcze: false },
+      { delta: -0.5, ostrzezenie: false, naprawcze: false },
+      { delta: -0.4, ostrzezenie: false, naprawcze: false },
+      { delta: 0, ostrzezenie: false, naprawcze: false },
+      { delta: 0.4, ostrzezenie: false, naprawcze: false },
+      { delta: 0.5, ostrzezenie: true, naprawcze: true },
+      { delta: 0.6, ostrzezenie: true, naprawcze: true },
+      { delta: 2, ostrzezenie: true, naprawcze: true },
+    ]);
+  });
+
+  it("granica jest SYMETRYCZNA - pół miejsca w dół waży tyle samo, co pół miejsca w górę", () => {
+    // Gdyby pogorszenie o równo 0.5 spadło do „info” (próg wagi otwarty na
+    // `> 0.5`), moduł traktowałby ten sam ruch jako sygnał w górę i jako szum
+    // w dół - czyli zawyżałby obraz widoczności. Ta para wierszy tego pilnuje.
+    expect(at(9.5, 10).severity).toBe("good");
     expect(at(10.5, 10).severity).toBe("warn");
+    expect(at(9.6, 10).severity).toBe("info");
     expect(at(10.4, 10).severity).toBe("info");
   });
 
@@ -358,14 +445,18 @@ describe("KPI pozycja - próg 0.5 miejsca w obie strony", () => {
     expect(at(10, 10).detail).toBe("Pozycja stabilna względem poprzedniego okna.");
   });
 
-  it("brak zmiany zapisuje deltę ze znakiem plus - `signed()` traktuje zero jako nieujemne", () => {
-    expect(at(10, 10).title).toBe("Średnia pozycja: 10.0 (+0.0)");
+  it("detal ma WŁASNĄ, zerową granicę - opisuje kierunek, nie wagę ruchu", () => {
+    // Ruch o 0.1 miejsca to jeszcze `info` z poradami stabilnymi, ale detal
+    // już nazywa kierunek. To nie jest rozjazd progów: zdanie opisowe i ocena
+    // odpowiadają na dwa różne pytania i nie mogą mieć wspólnej granicy.
+    const i = at(10.1, 10);
+    expect(i.severity).toBe("info");
+    expect(i.fixes).toEqual(STABILNE);
+    expect(i.detail).toBe("Pozycja pogorszyła się o 0.1 miejsc - spadek widoczności.");
   });
 
-  it("zestaw naprawczy dopiero POWYŻEJ 0.5 - przy równo 0.5 severity to warn, ale porady stabilne", () => {
-    // Świadomie zapisany rozjazd progów w źródle: severity `>= 0.5`, porady `> 0.5`.
-    expect(at(10.5, 10).fixes).toEqual(lista("adminAnalytics.gsc.insights.position.fixesStable"));
-    expect(at(10.6, 10).fixes).toEqual(lista("adminAnalytics.gsc.insights.position.fixesWorse"));
+  it("brak zmiany zapisuje deltę ze znakiem plus - `signed()` traktuje zero jako nieujemne", () => {
+    expect(at(10, 10).title).toBe("Średnia pozycja: 10.0 (+0.0)");
   });
 });
 

@@ -41,6 +41,13 @@ const CTR_BENCHMARK_BY_POS: Array<{ maxPos: number; expected: number }> = [
 const CTR_BENCHMARK_DEEPEST = CTR_BENCHMARK_BY_POS[CTR_BENCHMARK_BY_POS.length - 1].expected;
 
 /**
+ * Martwa strefa dla zmiany średniej pozycji, w miejscach SERP. Jedna liczba
+ * obsługuje OBA kierunki i OBIE decyzje wpisu (ocena + lista działań) -
+ * uzasadnienie przy `kpi-position`.
+ */
+const POS_DEADBAND = 0.5;
+
+/**
  * Oczekiwany CTR dla średniej pozycji. Pozycja GSC startuje od 1.0, więc
  * wartość mniejsza (0 z okna bez wyświetleń) albo nieliczbowa (uszkodzony
  * payload API) NIE jest miejscem w TOP 3 - to brak pomiaru. Taki przypadek
@@ -115,11 +122,27 @@ export function buildGscInsights(p: Params): Insight[] {
   });
 
   // ── 3. KPI: pozycja ────────────────────────────────────────────────
+  // Ocena i lista działań łamią się na TEJ SAMEJ, DOMKNIĘTEJ granicy
+  // ±`POS_DEADBAND`, bo trafiają do użytkownika jako jeden kafelek: ta sama
+  // ramka, ten sam nagłówek, a pod nim wypunktowanie kroków (`InsightSection`).
+  // Wcześniej ocena łamała się na `>= 0.5`, a lista na `> 0.5`, więc
+  // pogorszenie DOKŁADNIE o pół miejsca dawało kafelek ostrzegawczy -
+  // bursztynowy, wyniesiony sortowaniem na szczyt listy i doliczony do odznaki
+  // „do poprawy” - którego jedyną poradą było „utrzymaj tempo”. Operator był
+  // kierowany uwagą tam, gdzie sam wpis mówił mu, że nie ma nic do zrobienia.
+  // Domykamy stronę porad, a nie otwieramy strony oceny, bo strona poprawy
+  // jest domknięta (`<= -POS_DEADBAND` to już „good”): przy otwartym `> 0.5`
+  // pół miejsca w górę byłoby sygnałem, a pół miejsca w dół szumem, czyli
+  // moduł reagowałby czulej na dobrą wiadomość niż na złą i zawyżałby obraz
+  // widoczności. `detail` ma własną, ZEROWĄ granicę i to jest zamierzone -
+  // opisuje kierunek ruchu, nie jego wagę.
   const dPos = totals.position - prevTotals.position;
+  const posBetter = dPos <= -POS_DEADBAND;
+  const posWorse = dPos >= POS_DEADBAND;
   out.push({
     id: "kpi-position",
     element: t(`${B}.position.element`),
-    severity: dPos <= -0.5 ? "good" : dPos >= 0.5 ? "warn" : "info",
+    severity: posBetter ? "good" : posWorse ? "warn" : "info",
     title: t(`${B}.position.title`, {
       pos: totals.position.toFixed(1),
       delta: signed(dPos),
@@ -130,7 +153,7 @@ export function buildGscInsights(p: Params): Insight[] {
         : dPos < 0
           ? t(`${B}.position.detailBetter`, { n: Math.abs(dPos).toFixed(1) })
           : t(`${B}.position.detailStable`),
-    fixes: dPos > 0.5 ? arr(`${B}.position.fixesWorse`) : arr(`${B}.position.fixesStable`),
+    fixes: posWorse ? arr(`${B}.position.fixesWorse`) : arr(`${B}.position.fixesStable`),
   });
 
   // ── 4. Trend widoczności ───────────────────────────────────────────

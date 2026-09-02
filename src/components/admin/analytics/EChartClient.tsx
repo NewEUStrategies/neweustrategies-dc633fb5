@@ -45,6 +45,7 @@ import type { EChartsCoreOption, ECharts } from "echarts/core";
 import {
   baseOption,
   chartThemeSnapshot,
+  mergeChartOption,
   scheduleChartThemeRefresh,
   subscribeChartTheme,
   type ResolvedTheme,
@@ -83,9 +84,26 @@ export interface EChartClientProps {
   themeVersion?: number;
 }
 
+/**
+ * Opcja panelu ZŁOŻONA na bazie motywu - GŁĘBOKO, nie płasko.
+ *
+ * Stało tu `{ ...base, ...option }`. Rozłożenie płaskie podmienia CAŁĄ wartość
+ * pod kluczem, więc panel, który podawał `yAxis` choćby tylko po to, żeby
+ * ustawić `max` albo `axisLabel.formatter`, wyrzucał z tej osi WSZYSTKO, co
+ * baza w niej umotywowała (`axisLine`, `axisTick`, `splitLine`, `axisLabel`).
+ * ZMIERZONE: 27 opcji wykresów w 8 plikach, 89 wystąpień sekcji, 74 z nich
+ * z kolorami motywu - rachunek i reguły złączenia stoją nad
+ * `mergeChartOption` w `./chartTheme.ts`.
+ *
+ * Rzutowania są tutaj, a nie w `mergeChartOption`, bo tamta funkcja jest
+ * strukturalna i nie wie nic o ECharts - dzięki temu sprawdza się bez atrapy
+ * silnika wykresów.
+ */
 function mergeWithTheme(option: EChartsCoreOption, theme: ResolvedTheme): EChartsCoreOption {
-  const base = baseOption(theme) as Record<string, unknown>;
-  return { ...base, ...(option as Record<string, unknown>) } as EChartsCoreOption;
+  return mergeChartOption(
+    baseOption(theme) as Record<string, unknown>,
+    option as Record<string, unknown>,
+  ) as EChartsCoreOption;
 }
 
 export function EChartClient({

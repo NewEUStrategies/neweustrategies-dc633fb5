@@ -21,9 +21,22 @@
 //   4. GAŁĘZI SSR (`typeof window === "undefined"`) - z dowodem, że to
 //      właśnie ona ucina GA4: `gtag` zostaje osiągalny jako globalna funkcja,
 //      a mimo to nie jest wołany.
-//   5. DEFEKTU: wyjątek z pierwszego beacona zabiera drugi i wychodzi z
-//      handlera kliknięcia (patrz `it.fails` na końcu) - to dokładnie
-//      zaprzeczenie „podwójnego beacona".
+//   5. NIEZALEŻNOŚCI OBU BEACONÓW - W OBIE STRONY: rzucający `track()` NIE
+//      zabiera GA4, rzucający `gtag` NIE unieważnia zapisu w
+//      `analytics_events`, a ŻADEN z nich nie wychodzi wyjątkiem do
+//      wołającego. Tak ma być, bo ta funkcja jest wołana WPROST z `onClick`
+//      linku wychodzącego (`GooglePreferredSourceBadge`): analityka jest
+//      fire-and-forget i kliknięcie ma prowadzić do nawigacji, a nie do
+//      `window.onerror`. Mechanizm dowodu ten sam co przed naprawą - atrapa
+//      `track` z flagą `throwFromTrack` odtwarza awarię pierwszego kanału
+//      (zablokowany magazyn w trybie prywatnym, `sendBeacon` po przekroczeniu
+//      limitu ładunku) bez dotykania sieci.
+//   6. RODO PO NAPRAWIE: granica błędu NIE jest obejściem bramki zgody. Moduł
+//      nie ma własnego transportu (żadnego `fetch`, żadnego `sendBeacon` - ani
+//      przed wyjątkiem, ani po nim), więc jedyną drogą do `analytics_events`
+//      zostaje `track()` z bramką `hasAnalyticsConsent()`; nie tworzy też sam
+//      `window.gtag` ani `dataLayer`, więc GA4 pozostaje nieosiągalne, dopóki
+//      CMP nie wczyta skryptu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //   - `src/lib/analytics/track.ts` - kolejkowanie, `sendBeacon`, bramka zgody
@@ -80,6 +93,8 @@ type GtagFn = (command: "event", name: string, params?: Record<string, unknown>)
  */
 interface GtagWindow extends Window {
   gtag?: unknown;
+  /** Sprawdzane w bloku RODO: moduł nie ma prawa sam zakładać kolejki GA4. */
+  dataLayer?: unknown;
 }
 
 const gtagWindow = (): GtagWindow => window;
@@ -266,39 +281,134 @@ describe("gałąź SSR (typeof window === 'undefined')", () => {
   });
 });
 
-describe("awaria pierwszego beacona - stan faktyczny i defekt", () => {
-  it("STAN FAKTYCZNY: wyjątek z track() wychodzi na zewnątrz i GA4 nie dostaje nic", () => {
-    // Przypięcie, nie życzenie. Kolejność w produkcji to `track(...)` a POTEM
-    // `gtag()?.(...)`, bez żadnego `try`, więc porażka pierwszego wywołania
-    // przerywa całą funkcję.
+describe("niezależność obu beaconów - granica błędu w OBIE strony", () => {
+  // PO CO TE PRZYPADKI. Do naprawy kod robił `track({...})` a POTEM
+  // `gtag()?.(...)` bez żadnego `try`, więc porażka pierwszego wywołania
+  // przerywała funkcję: GA4 nie dostawał nic ORAZ wyjątek wychodził z handlera
+  // kliknięcia. Dwie złe rzeczy naraz - „podwójny beacon" przestawał być
+  // podwójny dokładnie w chwili, w której druga ścieżka miała ratować
+  // pierwszą, a kliknięcie w link „Preferowane źródło" zgłaszało błąd
+  // aplikacji (`window.onerror`, a w panelach - granica błędu Reacta).
+  // Produkcja trzyma dziś KAŻDE nadanie w osobnym `try`/`catch`, więc oba
+  // kierunki awarii są tu przypięte osobno.
+  const RZUCA_GTAG = "test: gtag GA4 padł";
+
+  /** `gtag`, który rejestruje wywołanie i DOPIERO POTEM rzuca. */
+  const gtagRzucajacy = (): ReturnType<typeof vi.fn> => {
+    const gtag = vi.fn(() => {
+      throw new Error(RZUCA_GTAG);
+    });
+    gtagWindow().gtag = gtag;
+    return gtag;
+  };
+
+  it("rzucający track() NIE zabiera GA4 - drugi beacon leci z pełnym ładunkiem", () => {
     const gtag = vi.fn();
     gtagWindow().gtag = gtag;
     h.throwFromTrack = true;
-    expect(() => trackGoogleSourceBadgeClick(payload())).toThrow(
-      "test: beacon /api/public/track padł",
-    );
+    const input = payload({ device: "mobile", variant: "icon", lang: "de", entityId: "post-9" });
+
+    trackGoogleSourceBadgeClick(input);
+
     expect(h.track).toHaveBeenCalledTimes(1);
-    expect(gtag).not.toHaveBeenCalled();
+    // Ładunek GA4 co do znaku: awaria pierwszego kanału nie ma prawa zubożyć
+    // drugiego, bo to on zostaje jedynym pomiarem tego kliknięcia.
+    expect(gtag).toHaveBeenCalledTimes(1);
+    expect(gtag).toHaveBeenCalledWith("event", GOOGLE_SOURCE_BADGE_EVENT, {
+      link_url: input.href,
+      device: "mobile",
+      variant: "icon",
+      language: "de",
+      outbound: true,
+    });
   });
 
-  it.fails("DEFEKT: awaria pierwszego beacona zabiera drugi i wychodzi z handlera", () => {
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: ta funkcja jest wołana WPROST z `onClick`
-    // linku badge (`GooglePreferredSourceBadge`), a badge stoi w stopce i przy
-    // każdym artykule. `track()` czyta `localStorage`/`sessionStorage`
-    // (zgoda RODO, identyfikator sesji) - w przeglądarce z zablokowanym
-    // magazynem (tryb prywatny, polityka firmowa, wygaszony origin) odczyt
-    // rzuca. Wtedy dzieją się DWIE złe rzeczy naraz:
-    //   * GA4 nie dostaje zdarzenia, choć skrypt jest wczytany i zgoda jest -
-    //     czyli „podwójny beacon" przestaje być podwójny dokładnie w chwili,
-    //     w której druga ścieżka miała ratować pierwszą;
-    //   * niewyłapany wyjątek leci z handlera kliknięcia i trafia do
-    //     `window.onerror` (a w panelach z granicą błędu - do niej), więc
-    //     kliknięcie w link „Preferowane źródło" zgłasza błąd aplikacji.
-    // NAPRAWA (w produkcji, nie w teście): oba beacony w osobnych `try`/`catch`
-    // - analityka jest fire-and-forget i nie ma prawa wywrócić nawigacji. Po
-    // takiej zmianie ten `it.fails` natychmiast się wywali, a test „STAN
-    // FAKTYCZNY" wyżej trzeba będzie przepisać na oczekiwanie wywołania GA4.
-    h.throwFromTrack = true;
+  it("rzucający gtag NIE unieważnia zapisu przez track() - ładunek dojeżdża cały", () => {
+    const gtag = gtagRzucajacy();
+    const input = payload({ href: "https://google.com/y", lang: "en-GB", entityId: "post-3" });
+
+    trackGoogleSourceBadgeClick(input);
+
+    expect(gtag).toHaveBeenCalledTimes(1);
+    expect(h.track).toHaveBeenCalledTimes(1);
+    expect(h.track.mock.calls[0][0]).toEqual(expectedTrackEvent(input, "post-3"));
+  });
+
+  it.each([
+    ["rzuca tylko track()", true, false],
+    ["rzuca tylko gtag", false, true],
+    ["rzucają OBA naraz", true, true],
+  ])("%s: wołający nie widzi wyjątku, a każdy sprawny kanał nadaje", (_case, zTrack, zGtag) => {
+    // Klucz do konsekwencji dla użytkownika: `expect(...).not.toThrow()` jest
+    // tu odpowiednikiem „kliknięcie prowadzi do nawigacji". Trzeci wiersz
+    // (oba kanały padają) pilnuje, że granice są NIEZALEŻNE, a nie jedna
+    // wspólna - wspólny `try` przeszedłby dwa pierwsze wiersze i przewrócił
+    // się dopiero na trzecim, gdyby drugi `catch` nie istniał.
+    h.throwFromTrack = zTrack;
+    const gtag = zGtag ? gtagRzucajacy() : vi.fn();
+    if (!zGtag) gtagWindow().gtag = gtag;
+
     expect(() => trackGoogleSourceBadgeClick(payload())).not.toThrow();
+
+    expect(h.track).toHaveBeenCalledTimes(1);
+    expect(gtag).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RODO - granica błędu nie jest obejściem bramki zgody", () => {
+  // Naprawa dodała `catch`, a nie kanał awaryjny. Te przypadki pilnują, że po
+  // zmianie moduł NADAL nie ma jak ominąć dwóch bramek zgody, które leżą poza
+  // nim: `hasAnalyticsConsent()` wewnątrz prawdziwego `track()` oraz sam fakt
+  // wczytania skryptu GA4 przez CMP (dopóki go nie ma, `window.gtag` nie
+  // istnieje). Dlatego szpieguję WSZYSTKIE wyjścia sieciowe przeglądarki:
+  // gdyby ktoś „poprawił" połknięty błąd na ponowną próbę przez `fetch` albo
+  // `navigator.sendBeacon`, zdarzenie poszłoby do serwera bez zgody.
+  const podstawWyjsciaSieciowe = (): {
+    fetch: ReturnType<typeof vi.fn>;
+    sendBeacon: ReturnType<typeof vi.fn>;
+  } => {
+    const fetchSpy = vi.fn();
+    const sendBeacon = vi.fn(() => true);
+    vi.stubGlobal("fetch", fetchSpy);
+    // Moduł nie dotyka `navigator`, więc podstawienie całego obiektu jest
+    // bezpieczne, a `vi.unstubAllGlobals()` w `afterEach` je zdejmuje.
+    vi.stubGlobal("navigator", { sendBeacon });
+    return { fetch: fetchSpy, sendBeacon };
+  };
+
+  it("jedyną drogą do analytics_events jest track() - zero własnej sieci", () => {
+    const siec = podstawWyjsciaSieciowe();
+    gtagWindow().gtag = vi.fn();
+
+    trackGoogleSourceBadgeClick(payload());
+
+    expect(h.track).toHaveBeenCalledTimes(1);
+    expect(siec.fetch).not.toHaveBeenCalled();
+    expect(siec.sendBeacon).not.toHaveBeenCalled();
+  });
+
+  it("po awarii track() NIE ma ponownej próby innym kanałem", () => {
+    const siec = podstawWyjsciaSieciowe();
+    h.throwFromTrack = true;
+
+    expect(() => trackGoogleSourceBadgeClick(payload())).not.toThrow();
+
+    expect(h.track).toHaveBeenCalledTimes(1);
+    expect(siec.fetch).not.toHaveBeenCalled();
+    expect(siec.sendBeacon).not.toHaveBeenCalled();
+  });
+
+  it("moduł nie tworzy sam window.gtag ani dataLayer - GA4 zostaje niedostępne", () => {
+    // Bez zgody marketingowej CMP nie wstrzykuje snippetu GA4, więc ani
+    // `window.gtag`, ani kolejka `dataLayer` nie istnieją. Nadawca nie ma
+    // prawa ich założyć „na wszelki wypadek" - byłby to pomiar przed zgodą.
+    delete gtagWindow().dataLayer;
+    expect(gtagWindow().gtag).toBeUndefined();
+
+    trackGoogleSourceBadgeClick(payload());
+
+    expect(gtagWindow().gtag).toBeUndefined();
+    expect(gtagWindow().dataLayer).toBeUndefined();
+    expect(h.track).toHaveBeenCalledTimes(1);
   });
 });

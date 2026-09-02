@@ -249,6 +249,30 @@ describe("InsightSection - treść wpisu", () => {
     ]);
   });
 
+  it("waga i lista działań są w JEDNYM kafelku - dlatego muszą mówić to samo", () => {
+    // Ta asercja jest przesłanką decyzji o progach w generatorach wniosków
+    // (`gscInsights`, `ga4Insights`): ponieważ ikona i ramka wagi stoją w tym
+    // samym `<li>`, co wypunktowanie kroków, wpis o wadze `warn` z poradą
+    // „nic nie rób” jest dla operatora sprzecznością widoczną na jednym
+    // ekranie, a nie dwiema niezależnymi informacjami. Gdyby sekcja rozdzielała
+    // te dwie rzeczy na osobne miejsca, rozjazd progów wagi i porad byłby
+    // dopuszczalny - nie jest, i to jest tutaj udowodnione.
+    render(
+      <InsightSection
+        insights={[wniosek("x", "warn", { fixes: ["Utrzymaj tempo publikacji"] })]}
+      />,
+    );
+
+    const wpis = wpisy()[0];
+    expect(wpis.className).toContain("border-amber-500/30");
+    expect(within(wpis).getByText("Wniosek x")).toBeTruthy();
+    expect(
+      within(wpis)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent?.replace("→", "").trim()),
+    ).toEqual(["Utrzymaj tempo publikacji"]);
+  });
+
   it("PUSTA lista działań nie zostawia pustego wypunktowania", () => {
     render(<InsightSection insights={[wniosek("x", "info", { fixes: [] })]} />);
 
