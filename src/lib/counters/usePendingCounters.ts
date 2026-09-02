@@ -10,6 +10,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { pendingCounterKeys } from "./keys";
 
@@ -49,17 +50,34 @@ export function useUserCounter(key: UserCounterKey): number {
   return q.data?.[key] ?? 0;
 }
 
-/** Liczniki kolejek staffu (RLS: tylko staff tenanta widzi wiersze). */
+/**
+ * Liczniki kolejek staffu (RLS: tylko staff tenanta widzi wiersze).
+ *
+ * PRZESTRZEŃ ROBOCZA JEST W KLUCZU I W FILTRZE - obie granice, nie jedna.
+ * Klucz (`tenantScoped`) decyduje, czyj wynik oddaje CACHE po zmianie
+ * tożsamości; `.eq("tenant_id", …)` decyduje, o co pytamy BAZĘ. Klucz bez
+ * filtra zostawia zapytanie zależne wyłącznie od RLS w chwili pobrania, filtr
+ * bez klucza - cache oddający licznik zgłoszeń poprzedniego najemcy jeszcze
+ * przez 15 s (`staleTime`). Wzorzec jest ten sam co w panelach BI
+ * (`GscBiDashboard`): najemca z `useCurrentTenantId`, `enabled` dopiero po
+ * jego rozwiązaniu.
+ */
 export function useTenantPendingCounters(enabled: boolean): UseQueryResult<CounterMap> {
   const { user } = useAuth();
+  const tenantId = useCurrentTenantId();
   return useQuery({
-    queryKey: pendingCounterKeys.tenant(),
-    enabled: enabled && !!user,
+    queryKey: pendingCounterKeys.tenantScoped(tenantId, user?.id),
+    enabled: enabled && !!user && Boolean(tenantId),
     staleTime: 15_000,
     queryFn: async (): Promise<CounterMap> => {
+      // `enabled` wyżej gwarantuje najemcę. Rzut zamiast pustego filtra: gdyby
+      // ta bramka kiedyś zmiękła, zapytanie ma paść, a nie po cichu spytać
+      // o kolejki WSZYSTKICH najemców.
+      if (!tenantId) throw new Error("liczniki kolejek bez rozwiązanej przestrzeni roboczej");
       const { data, error } = await supabase
         .from("tenant_pending_counters")
-        .select("counter_key, value");
+        .select("counter_key, value")
+        .eq("tenant_id", tenantId);
       if (error) throw error;
       const map: Record<string, number> = {};
       for (const row of data ?? []) map[row.counter_key] = row.value;
@@ -88,6 +106,9 @@ export function usePendingCountersRealtime(options: { tenant?: boolean } = {}): 
     if (withTenant) {
       unsubscribes.push(
         subscribeToTable({ table: "tenant_pending_counters" }, () => {
+          // PREFIKS, nie klucz konkretnej pary (najemca, konto): kanał nie
+          // niesie najemcy, a unieważnienie całej gałęzi tylko wymusza
+          // ponowne pobranie - danych nikomu nie pokazuje.
           void qc.invalidateQueries({ queryKey: pendingCounterKeys.tenant() });
         }),
       );

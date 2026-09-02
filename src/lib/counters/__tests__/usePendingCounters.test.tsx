@@ -27,6 +27,11 @@ const h = vi.hoisted(() => ({
   from: null as SupabaseFromStub | null,
   rpc: vi.fn<(fn: string, args?: unknown) => Promise<{ error: unknown }>>(),
   user: { current: "user-a" as string | null },
+  /** Najemca per konto - konto poza mapą znaczy „najemca nierozwiązany". */
+  tenantOf: { "user-a": "tenant-a", "user-z-innego-tenanta": "tenant-b" } as Record<
+    string,
+    string | undefined
+  >,
   unsubscribe: vi.fn(),
   channels: [] as Array<{ table: string; filter?: string; handler: RealtimeHandler }>,
 }));
@@ -40,6 +45,17 @@ vi.mock("@/integrations/supabase/client", async () => {
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: h.user.current ? { id: h.user.current } : null }),
+}));
+
+// Najemca jest ATRAPĄ, a nie prawdziwym `useCurrentTenantId`: tamten ciągnie
+// klienta Supabase i własne zapytanie o profil, a przedmiotem dowodu jest to,
+// że identyfikator przestrzeni roboczej WCHODZI DO KLUCZA i DO FILTRA.
+// Odwzorowanie idzie z konta, bo w produkcji najemca wynika z profilu
+// wołającego - zmiana konta w teście odgrywa więc przejście między
+// przestrzeniami roboczymi na TYM SAMYM kliencie cache. Konto bez wpisu
+// odgrywa „profil jeszcze nie wrócił" (`null`).
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => (h.user.current ? (h.tenantOf[h.user.current] ?? null) : null),
 }));
 
 vi.mock("@/lib/realtime/tableChannelHub", () => ({
@@ -263,31 +279,66 @@ describe("useTenantPendingCounters - kolejki staffu", () => {
     expect(result.current.data).toEqual({});
   });
 
-  it.fails(
-    "DEFEKT: klucz kolejek NIE niesie przestrzeni roboczej - liczniki tenanta A dostaje sesja tenanta B",
-    async () => {
-      // `pendingCounterKeys.tenant()` to stałe ["pending-counters", "tenant"],
-      // bez `tenantId` i bez `uid` - wbrew regule, którą `keys.ts` zapisuje
-      // wprost przy kluczu użytkownika („zmiana konta nie serwowała cudzych
-      // badge'ów z cache"). Zapytanie też nie ma `.eq("tenant_id", …)`, więc
-      // JEDYNĄ granicą jest RLS w chwili POBRANIA - a cache serwuje wynik
-      // sprzed zmiany tożsamości bez ani jednego round-tripu (staleTime 15 s).
-      // Dziś nie przecieka, bo tenant wynika z hosta, a QueryClient żyje w
-      // obrębie jednej karty; przecieknie w dniu, w którym pojawi się
-      // przełącznik przestrzeni roboczej albo współdzielony host.
-      const client = makeClient();
-      stub().setResponse(TENANT_TABLE, counters({ comments_pending: 11 }));
-      const a = renderHook(() => useTenantPendingCounters(true), { wrapper: wrapperFor(client) });
-      await waitFor(() => expect(a.result.current.data?.comments_pending).toBe(11));
-      a.unmount();
+  it("klucz kolejek NIESIE przestrzeń roboczą - liczniki tenanta A nie trafiają do sesji tenanta B", async () => {
+    // `pendingCounterKeys.tenantScoped()` niesie najemcę i konto, wbrew
+    // dawnemu stałemu ["pending-counters", "tenant"] - zgodnie z regułą,
+    // którą `keys.ts` zapisuje wprost przy kluczu użytkownika („zmiana konta
+    // nie serwowała cudzych badge'ów z cache"). Bez tego członu JEDYNĄ
+    // granicą był RLS w chwili POBRANIA, a cache oddawał wynik sprzed
+    // zmiany tożsamości bez ani jednego round-tripu (staleTime 15 s).
+    // Dopóki najemca wynikał z hosta, a QueryClient żył w obrębie jednej
+    // karty, nie przeciekało; przeciekłoby w dniu, w którym pojawi się
+    // przełącznik przestrzeni roboczej albo współdzielony host - i ten
+    // przypadek odgrywa właśnie taki dzień.
+    const client = makeClient();
+    stub().setResponse(TENANT_TABLE, counters({ comments_pending: 11 }));
+    const a = renderHook(() => useTenantPendingCounters(true), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(a.result.current.data?.comments_pending).toBe(11));
+    a.unmount();
 
-      h.user.current = "user-z-innego-tenanta";
-      stub().setResponse(TENANT_TABLE, counters({ comments_pending: 0 }));
-      const b = renderHook(() => useTenantPendingCounters(true), { wrapper: wrapperFor(client) });
+    h.user.current = "user-z-innego-tenanta";
+    stub().setResponse(TENANT_TABLE, counters({ comments_pending: 0 }));
+    const b = renderHook(() => useTenantPendingCounters(true), { wrapper: wrapperFor(client) });
 
-      expect(b.result.current.data?.comments_pending).not.toBe(11);
-    },
-  );
+    expect(b.result.current.data?.comments_pending).not.toBe(11);
+    // Pierwsza klatka nowej tożsamości jest PUSTA, a licznik poprzedniej
+    // przestrzeni zostaje pod swoim kluczem, nietknięty.
+    expect(b.result.current.data).toBeUndefined();
+    await waitFor(() => expect(b.result.current.data?.comments_pending).toBe(0));
+    expect(client.getQueryData(pendingCounterKeys.tenantScoped("tenant-a", "user-a"))).toEqual({
+      comments_pending: 11,
+    });
+  });
+
+  it("zapytanie kolejek jest ZAWĘŻONE do najemcy, nie tylko przez RLS", async () => {
+    // Druga połowa tej samej granicy: klucz pilnuje cache, a filtr - tego,
+    // o co w ogóle pytamy bazę. Zapytanie bez `.eq("tenant_id", …)` oddaje
+    // wszystko, co przepuści polityka w chwili pobrania, więc każde jej
+    // poluzowanie (nowa rola sztabowa, widok serwisowy) natychmiast staje się
+    // przeciekiem po stronie klienta.
+    stub().setResponse(TENANT_TABLE, counters({ comments_pending: 4 }));
+    const { result } = renderHook(() => useTenantPendingCounters(true), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(stub().lastChain(TENANT_TABLE)?.argsOf("eq")).toEqual(["tenant_id", "tenant-a"]);
+  });
+
+  it("bez rozwiązanej przestrzeni roboczej zapytanie NIE startuje", async () => {
+    // Pierwszy render po zalogowaniu nie zna jeszcze najemcy (`useCurrentTenantId`
+    // ma własne zapytanie). Pytanie bez filtra byłoby wtedy zapytaniem o
+    // kolejki WSZYSTKICH najemców - dlatego bramką jest `Boolean(tenantId)`.
+    h.user.current = "user-bez-profilu";
+    stub().setResponse(TENANT_TABLE, counters({ comments_pending: 7 }));
+    const { result } = renderHook(() => useTenantPendingCounters(true), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await act(async () => undefined);
+    expect(stub().chainsFor(TENANT_TABLE)).toHaveLength(0);
+    expect(result.current.fetchStatus).toBe("idle");
+  });
 });
 
 describe("usePendingCountersRealtime - kanały", () => {

@@ -30,6 +30,15 @@
  * lose it is one task, not seconds. Hidden tabs throttle timers to ~1/min,
  * which is precisely why the hide listeners - never the timer - are the
  * guarantee.
+ *
+ * DEFINICJE CLS I INP SĄ TE SAME, CO W BRAMCE CI. Obie metryki liczymy tak,
+ * jak liczy je specyfikacja Web Vitals (a za nią Chrome, CrUX i Lighthouse):
+ * CLS to MAKSIMUM Z OKIEN SESYJNYCH (patrz `CLS_SESSION_GAP_MS`), a INP to
+ * WYSOKI PERCENTYL opóźnień interakcji (patrz `INP_INTERACTIONS_PER_DISCARD`).
+ * Bez tego RUM i bramka `cumulative-layout-shift <= 0.1` z `lighthouserc.json`
+ * mierzyłyby INNE WIELKOŚCI pod tymi samymi nazwami, a progi
+ * `VITAL_THRESHOLDS` (CLS `[0.1, 0.25]`, INP `[200, 500]`) - progi okna
+ * sesyjnego i percentyla - oceniałyby liczby, których nie opisują.
  */
 
 import { rateVital, type VitalName, type VitalRating } from "@/lib/observability/vitalsThresholds";
@@ -74,6 +83,32 @@ const FLUSH_DELAY_MS = 0;
  * the only unbounded field itself.
  */
 const MAX_PATH = 512;
+
+/**
+ * OKNO SESYJNE CLS - przerwa, która je ZAMYKA. Specyfikacja Web Vitals grupuje
+ * przesunięcia w okna: kolejne przesunięcie należy do bieżącego okna, dopóki
+ * od poprzedniego minęło MNIEJ niż 1 s i od pierwszego w oknie mniej niż 5 s
+ * (`CLS_SESSION_MAX_MS`). Metryką jest MAKSIMUM sum z okien - nie suma z
+ * całego życia strony. Różnica nie jest kosmetyczna dla SPA: dwa niezależne
+ * skupiska po 0,06 rozdzielone minutą to CLS 0,06 („good"), a nie 0,12
+ * („needs-improvement"), więc długa sesja z sumą bez ograniczeń
+ * SYSTEMATYCZNIE przeszacowuje metrykę - tym bardziej, im dłużej czytelnik
+ * zostaje na stronie.
+ */
+const CLS_SESSION_GAP_MS = 1_000;
+/** Maksymalny czas życia jednego okna sesyjnego CLS - druga granica ze spec. */
+const CLS_SESSION_MAX_MS = 5_000;
+/**
+ * PERCENTYL INP - jedna odrzucona interakcja na każde 50. Specyfikacja nie
+ * bierze najgorszej interakcji, a tę na pozycji `floor(liczba / 50)` w liście
+ * uporządkowanej malejąco (przy 150 interakcjach odpadają trzy najgorsze,
+ * przy mniej niż 50 - żadna, czyli tam percentyl DEGENERUJE do maksimum).
+ * Powód: bez tego JEDEN wyjątkowy przypadek (zablokowany wątek przy
+ * pierwszym kliknięciu, zimny cache, przełączenie karty w trakcie renderu)
+ * definiuje metrykę całej odsłony - 600 ms wobec 50 ms, jakie czuje
+ * użytkownik przez pozostałe 147 interakcji.
+ */
+const INP_INTERACTIONS_PER_DISCARD = 50;
 
 const queue: QueuedVital[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,8 +170,28 @@ interface EventTimingEntry extends PerformanceEntry {
 // Per-page accumulators. Reset on soft navigation via `markWebVitalsPage`.
 let currentPath = "/";
 let lcpValue = 0;
+/** RAPORTOWANY CLS: maksimum z sum okien sesyjnych widzianych na tej ścieżce. */
 let clsValue = 0;
-let inpMax = 0;
+/** Suma przesunięć BIEŻĄCEGO okna sesyjnego. */
+let clsWindowValue = 0;
+/** `startTime` pierwszego i ostatniego przesunięcia bieżącego okna. */
+let clsWindowStart = 0;
+let clsWindowLast = 0;
+/** Czy okno jest otwarte - osobna flaga, bo 0 jest poprawną sumą okna. */
+let clsWindowOpen = false;
+/**
+ * Opóźnienie każdej interakcji na tej ścieżce, po `interactionId`.
+ *
+ * GRUPOWANIE JEST CZĘŚCIĄ DEFINICJI, nie optymalizacją: jedna interakcja
+ * (pointerdown, pointerup, click) daje KILKA wpisów `event` z tym samym
+ * `interactionId`, a jej opóźnieniem jest najdłuższy z nich. Liczenie wpisów
+ * zamiast interakcji zawyżałoby mianownik percentyla i odrzucało za dużo.
+ *
+ * Mapa rośnie o jeden wpis na interakcję i jest czyszczona przy miękkiej
+ * nawigacji (`resetAccumulators`) - jej rozmiar ogranicza więc liczba gestów
+ * w obrębie JEDNEJ odsłony, nie długość sesji.
+ */
+const interactionLatencies = new Map<number, number>();
 
 // CO JUŻ ZOSTAŁO ZARAPORTOWANE dla `currentPath` - stan PER METRYKA, nie jedna
 // wspólna zapadka.
@@ -152,8 +207,9 @@ let inpMax = 0;
 // ścieżka zostawała głucha na stałe (kolejne cykle ukrycia też nie raportują).
 //
 // LCP jest jednorazowe z definicji (największe malowanie jest finalne) - i tam
-// zapadka była POPRAWNA. CLS (suma) i INP (maksimum) są kumulacyjne i nie mogą
-// dzielić z nim jednej flagi.
+// zapadka była POPRAWNA. CLS (maksimum z okien sesyjnych) i INP (percentyl
+// opóźnień interakcji) narastają w trakcie odsłony i nie mogą dzielić z nim
+// jednej flagi.
 //
 // DLACZEGO WARTOŚĆ SKUMULOWANA, A NIE PRZYROST. Wiersz w `web_vitals` niesie
 // WŁASNĄ ocenę good/needs-improvement/poor (`rate()` niżej), a
@@ -170,11 +226,65 @@ let inpMax = 0;
 // zawyża liczbę odsłon, a p75 dostaje kilka próbek z dolnej strony. To błąd
 // mniejszy niż gubienie maksimum - a warunek „tylko gdy urosło" nie pozwala
 // serii ukryć/powrotów zalać ingestu identycznymi wierszami.
+//
+// INP A WARUNEK „TYLKO GDY UROSŁO". Percentyl - inaczej niż maksimum - może
+// SPAŚĆ w trakcie odsłony: przekroczenie 50. interakcji przesuwa wskaźnik na
+// drugą najgorszą i wartość maleje. Wysyłamy nadal wyłącznie wzrost, więc w
+// bazie zostaje najwyższy percentyl, jaki ta odsłona kiedykolwiek miała.
+// Świadomy wybór: dosłanie SPADKU dołożyłoby wiersz „good" do tej samej
+// odsłony i zjechałoby p75 w dół - dokładnie ta strata ogona, przed którą
+// broni akapit wyżej.
 let lcpReported = false;
 /** Ostatnio zaraportowany CLS; -1 znaczy „jeszcze nic", bo 0 jest poprawną wartością. */
 let clsReported = -1;
 /** Ostatnio zaraportowany INP; 0 jest naturalnym „jeszcze nic" (INP > 0 zawsze). */
 let inpReported = 0;
+
+/**
+ * Dołóż przesunięcie do bieżącego okna sesyjnego albo otwórz nowe.
+ *
+ * Przesunięcia PO ŚWIEŻEJ INTERAKCJI (`hadRecentInput`) tu nie docierają, więc
+ * nie wpływają ani na sumę okna, ani na jego granice czasowe - zgodnie ze
+ * specyfikacją są dla CLS niebyłe.
+ */
+function addLayoutShift(value: number, startTime: number): void {
+  const continuesWindow =
+    clsWindowOpen &&
+    startTime - clsWindowLast < CLS_SESSION_GAP_MS &&
+    startTime - clsWindowStart < CLS_SESSION_MAX_MS;
+  if (continuesWindow) {
+    clsWindowValue += value;
+    clsWindowLast = startTime;
+  } else {
+    clsWindowOpen = true;
+    clsWindowValue = value;
+    clsWindowStart = startTime;
+    clsWindowLast = startTime;
+  }
+  // Metryką jest MAKSIMUM z okien, więc raportowana wartość nigdy nie maleje -
+  // to ona (a nie suma bieżącego okna) jest wartością SKUMULOWANĄ odsłony.
+  if (clsWindowValue > clsValue) clsValue = clsWindowValue;
+}
+
+/** Zapamiętaj interakcję: jej opóźnieniem jest NAJDŁUŻSZE z jej zdarzeń. */
+function addInteraction(interactionId: number, duration: number): void {
+  const known = interactionLatencies.get(interactionId);
+  if (known === undefined || duration > known) interactionLatencies.set(interactionId, duration);
+}
+
+/**
+ * Bieżący INP: percentyl opóźnień interakcji (0, dopóki żadnej nie było).
+ *
+ * Sortowanie biegnie w chwili ZRZUTU, a nie przy każdym wpisie - granic jest
+ * kilka na odsłonę, a wpisów `event` tysiące.
+ */
+function currentInp(): number {
+  const count = interactionLatencies.size;
+  if (count === 0) return 0;
+  const byLatencyDesc = [...interactionLatencies.values()].sort((a, b) => b - a);
+  const index = Math.min(count - 1, Math.floor(count / INP_INTERACTIONS_PER_DISCARD));
+  return byLatencyDesc[index] ?? 0;
+}
 
 function flushCurrent(pathname: string): void {
   if (lcpValue > 0 && !lcpReported) {
@@ -186,16 +296,21 @@ function flushCurrent(pathname: string): void {
     clsReported = clsValue;
     report({ name: "CLS", value: clsValue, rating: rate("CLS", clsValue), id: uid() }, pathname);
   }
-  if (inpMax > inpReported) {
-    inpReported = inpMax;
-    report({ name: "INP", value: inpMax, rating: rate("INP", inpMax), id: uid() }, pathname);
+  const inpValue = currentInp();
+  if (inpValue > inpReported) {
+    inpReported = inpValue;
+    report({ name: "INP", value: inpValue, rating: rate("INP", inpValue), id: uid() }, pathname);
   }
 }
 
 function resetAccumulators(): void {
   lcpValue = 0;
   clsValue = 0;
-  inpMax = 0;
+  clsWindowValue = 0;
+  clsWindowStart = 0;
+  clsWindowLast = 0;
+  clsWindowOpen = false;
+  interactionLatencies.clear();
   lcpReported = false;
   clsReported = -1;
   inpReported = 0;
@@ -241,11 +356,11 @@ export function initWebVitals(): () => void {
     /* unsupported */
   }
 
-  // CLS - sum layout shifts without recent input.
+  // CLS - maksimum z okien sesyjnych, bez przesunięć po świeżej interakcji.
   try {
     const clsObs = new PerformanceObserver((list) => {
       for (const e of list.getEntries() as LayoutShiftEntry[]) {
-        if (!e.hadRecentInput) clsValue += e.value;
+        if (!e.hadRecentInput) addLayoutShift(e.value, e.startTime);
       }
     });
     clsObs.observe({ type: "layout-shift", buffered: true });
@@ -254,11 +369,12 @@ export function initWebVitals(): () => void {
     /* unsupported */
   }
 
-  // INP - worst interaction duration.
+  // INP - percentyl opóźnień interakcji; wpisy bez `interactionId` (czyste
+  // zdarzenia, np. pointermove) nie są interakcjami i nie wchodzą do puli.
   try {
     const inpObs = new PerformanceObserver((list) => {
       for (const e of list.getEntries() as EventTimingEntry[]) {
-        if (e.interactionId && e.duration > inpMax) inpMax = e.duration;
+        if (e.interactionId) addInteraction(e.interactionId, e.duration);
       }
     });
     inpObs.observe({
