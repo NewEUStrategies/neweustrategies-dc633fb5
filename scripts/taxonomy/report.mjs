@@ -6,7 +6,14 @@
 // w ogóle zmierzył to, co obiecuje.
 //
 // Użycie:
-//   node scripts/coverage/report.mjs [--summary <ścieżka>] [--module 16] [--json]
+//   node scripts/taxonomy/report.mjs [--summary <ścieżka>] [--module 16] [--json]
+//                                     [--root <katalog>]
+//
+// `--root` jest po to, żeby dało się przeliczyć raport WYPRODUKOWANY W INNYM
+// DRZEWIE ROBOCZYM (np. pomiar „przed" przypięty do commitu sprzed kampanii).
+// Klucze reportera `json-summary` są ścieżkami ABSOLUTNYMI tamtego drzewa,
+// więc bez tego przełącznika każdy plik pomiaru „przed" wypadłby poza mapę
+// modułów - i delta mierzyłaby przeprowadzkę katalogu, a nie pracę testową.
 import { readFileSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,18 +23,19 @@ import { FEATURES, FEATURE_NAMES, featureForPath } from "./features.mjs";
 const REPO = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 
 function parseArgs(argv) {
-  const out = { summary: "coverage/coverage-summary.json", module: null, json: false };
+  const out = { summary: "coverage/coverage-summary.json", module: null, json: false, root: null };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--summary") out.summary = argv[(i += 1)];
     else if (argv[i] === "--module") out.module = Number(argv[(i += 1)]);
+    else if (argv[i] === "--root") out.root = argv[(i += 1)];
     else if (argv[i] === "--json") out.json = true;
   }
   return out;
 }
 
 /** Ścieżka repo-względna w formie POSIX (klucze raportu są absolutne). */
-function repoPath(key) {
-  return relative(REPO, key).split(sep).join("/");
+function repoPath(key, root) {
+  return relative(root, key).split(sep).join("/");
 }
 
 const EMPTY = () => ({
@@ -57,7 +65,7 @@ function cell(metric) {
   return `${pct(metric)} (${metric.covered}/${metric.total})`;
 }
 
-export function buildReport(summaryPath) {
+export function buildReport(summaryPath, root = REPO) {
   const raw = JSON.parse(readFileSync(summaryPath, "utf8"));
   const modules = new Map();
   const features = new Map();
@@ -65,7 +73,7 @@ export function buildReport(summaryPath) {
 
   for (const [key, entry] of Object.entries(raw)) {
     if (key === "total") continue;
-    const path = repoPath(key);
+    const path = repoPath(key, root);
     const { module } = classifyPath(path);
     if (module === null) continue;
     if (!modules.has(module)) modules.set(module, EMPTY());
@@ -118,7 +126,10 @@ function featureTable(features, moduleId) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const report = buildReport(resolve(REPO, args.summary));
+  const report = buildReport(
+    resolve(REPO, args.summary),
+    args.root === null ? REPO : resolve(args.root),
+  );
   if (args.json) {
     const toJson = (map) =>
       Object.fromEntries(
