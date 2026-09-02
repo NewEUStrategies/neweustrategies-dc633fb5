@@ -5495,6 +5495,73 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+
+        // ---------------------------------------------------------------
+        // MODUŁ 07 - kampania 2026-09-02, część I: powierzchnie crawlera.
+        //
+        // Sześć powierzchni, które CDN zapamiętuje na godziny, a katalogi
+        // (Apple Podcasts, Spotify, Google Discover) czytają jako stan
+        // faktyczny. Wszystkie szły z ZERA; po dopisaniu ich do kontraktu
+        // `routes/__tests__/feedRoutesDegradation.test.ts` (plik z 47 na 142
+        // testy) ZMIERZONE: 100% instrukcji, 100% linii, 100% funkcji,
+        // 93,57% gałęzi łącznie. Zlecenie żądało >= 90 / >= 90 / >= 80.
+        //
+        // Progi = zmierzone minus ~4 pp marginesu na dryf CI, ta sama reguła
+        // co w kronice progu globalnego. Gałęzie per plik, bo różnią się
+        // realnie: kanał programu scala trzy warstwy metadanych (program ->
+        // kanał -> marka), kanał sieciowy dwie, a tracker i feed programu
+        // badawczego całą mechanikę mają w modułach `lib/`.
+        // ---------------------------------------------------------------
+        "src/routes/podcast.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/podcasts.$show.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/routes/live_.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Tracker i feed programu badawczego to CIENKIE trasy - cała
+        // mechanika siedzi w `lib/tracker/feed.server.ts` i
+        // `lib/seo/taxonomyFeed.server.ts`, więc same pliki tras nie mają
+        // ani jednej gałęzi. Próg na gałęziach zostaje mimo to, żeby
+        // dołożenie warunku do trasy nie weszło bez testu.
+        "src/routes/tracker.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/programs.$slug.rss[.]xml.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
+        "src/routes/web-stories.$slug.amp.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Jeden kontrakt TTL kanałów - wydzielony z pięciu kopii literału.
+        // Zmierzone 100/100/100/100; to czysta funkcja, więc próg jest
+        // wysoki i ma zostać wysoki.
+        "src/lib/seo/feedCache.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
       },
     },
   },

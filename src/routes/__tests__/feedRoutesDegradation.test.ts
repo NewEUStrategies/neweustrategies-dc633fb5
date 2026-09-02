@@ -191,6 +191,10 @@ interface FeedPostStub {
 const state = vi.hoisted(() => ({
   /** Host zwracany przez `trustedPublicHost` (null = brak zaufanego hosta). */
   host: "neweuropeanstrategies.com" as string | null,
+  /** Adres żądania - prefiks `/en/` przestawia kanał na angielski. */
+  requestUrl: "https://neweuropeanstrategies.com/" as string,
+  /** Nagłówki żądania - `x-forwarded-proto` decyduje o schemacie w adresach. */
+  requestHeaders: { host: "neweuropeanstrategies.com" } as Record<string, string>,
   /** Tenant hosta (null = nieznany host). */
   tenantId: "t-1" as string | null,
   /** Czy degradacja jest bezpieczna (host podglądowy / pusty katalog domen). */
@@ -244,6 +248,11 @@ const state = vi.hoisted(() => ({
   taxonomy: null as TaxonomyStub,
   /** Wpisy kanału taksonomii. */
   taxonomyPosts: [] as FeedPostStub[],
+  /**
+   * Rozmiar i MIME plików audio z biblioteki mediów. PUSTA MAPA = odcinek na
+   * URL-u zewnętrznym (kanał emituje wtedy `length="0"` i MIME z rozszerzenia).
+   */
+  mediaMeta: new Map<string, { sizeBytes: number | null; mimeType: string | null }>(),
   /** Awaria hipotetyczna czytnika podcastów (patrz uwaga o `resilient`). */
   podcastsFailure: null as "throw" | "pgError" | null,
   /** Awaria hipotetyczna czytnika wpisów relacji. */
@@ -269,10 +278,11 @@ function failOrEmpty<T>(mode: "throw" | "pgError" | null, empty: T, table = "pos
 }
 
 vi.mock("@tanstack/react-start/server", () => ({
-  getRequest: () =>
-    new Request("https://neweuropeanstrategies.com/", {
-      headers: { host: "neweuropeanstrategies.com" },
-    }),
+  // Adres i nagłówki żądania są STEROWANE STANEM, bo język kanału bierze się
+  // z prefiksu ścieżki (`stripLangPrefix`), a schemat z `x-forwarded-proto`.
+  // Przy stałym adresie gałąź EN każdego kanału jest nieosiągalna - a kanał
+  // EN to połowa kontraktu dwujęzycznego serwisu, nie wariant ozdobny.
+  getRequest: () => new Request(state.requestUrl, { headers: state.requestHeaders }),
 }));
 
 vi.mock("@/lib/http/requestHost", () => ({
@@ -304,13 +314,7 @@ vi.mock("@/lib/server/publishedContent.server", () => ({
     Promise.resolve(failOrEmpty(state.podcastsFailure, state.show, "podcast_shows")),
   fetchPublishedPodcastsByShow: () =>
     Promise.resolve(failOrEmpty(state.podcastsFailure, state.showEpisodes, "podcasts")),
-  fetchMediaMetaByUrls: () =>
-    Promise.resolve(
-      failOrEmpty(
-        state.podcastsFailure,
-        new Map<string, { sizeBytes: number | null; mimeType: string | null }>(),
-      ),
-    ),
+  fetchMediaMetaByUrls: () => Promise.resolve(failOrEmpty(state.podcastsFailure, state.mediaMeta)),
   fetchPublishedWebStoryBySlug: () =>
     Promise.resolve(failOrEmpty(state.webStoryFailure, state.webStory, "web_stories")),
   fetchLiveCoverageEntries: () =>
@@ -506,6 +510,8 @@ function feedPost(): FeedPostStub {
 
 const HEALTHY = {
   host: "neweuropeanstrategies.com",
+  requestUrl: "https://neweuropeanstrategies.com/",
+  requestHeaders: { host: "neweuropeanstrategies.com" } as Record<string, string>,
   tenantId: "t-1" as string | null,
   degradeSafe: false,
   settings: null as unknown,
@@ -526,6 +532,7 @@ const HEALTHY = {
   trackerSources: trackerSources(),
   taxonomy: taxonomy(),
   taxonomyPosts: [feedPost()] as FeedPostStub[],
+  mediaMeta: new Map<string, { sizeBytes: number | null; mimeType: string | null }>(),
   podcastsFailure: null,
   liveFailure: null,
   trackerFailure: null,
@@ -1597,5 +1604,282 @@ describe("moduł 07: nieznany slug to 404, nie pusty dokument", () => {
     const body = await res.text();
     expect(body).toContain("<amp-story");
     expect(body).toContain("Europa w pięciu obrazkach");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4.7 Kanał dwujęzyczny i tożsamość odcinka
+//
+// CO TU JEST STAWKĄ. Serwis jest dwujęzyczny i kanały są ADRESOWANE JĘZYKIEM
+// (`/podcast/rss.xml` kontra `/en/podcast/rss.xml`), więc gałąź EN każdej trasy
+// jest połową kontraktu, nie wariantem ozdobnym. Dwie rzeczy mogą tu pójść źle
+// cicho:
+//   * kanał EN podaje polskie tytuły (albo odwrotnie) - czytelnik dostaje
+//     kanał w języku, którego nie zamawiał, i nikt tego nie zgłosi;
+//   * `<guid>` odcinka RÓŻNI SIĘ między kanałami językowymi - wtedy czytnik
+//     i katalog widzą DWA odcinki tam, gdzie jest jeden, więc subskrybent
+//     dostaje ten sam odcinek dwa razy. Trasa dokumentuje to wprost
+//     („Tożsamość odcinka jest jedna dla obu kanałów językowych - adres
+//     kanoniczny bez prefiksu"), ale nic tego nie pilnowało.
+// ---------------------------------------------------------------------------
+
+describe("moduł 07: kanał EN kontra kanał PL", () => {
+  /** Przestawia żądanie na wariant angielski (prefiks ścieżki, jak w routerze). */
+  function requestEn(path: string): void {
+    state.requestUrl = `https://neweuropeanstrategies.com/en${path}`;
+  }
+
+  it("/podcast/rss.xml w wariancie EN podaje ANGIELSKIE tytuły i angielski język kanału", async () => {
+    requestEn("/podcast/rss.xml");
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("Talking Europe, episode one");
+    expect(body, "kanał EN nie może podawać polskiego tytułu").not.toContain(
+      "Rozmowy o Europie, odcinek pierwszy",
+    );
+    expect(body).toContain("<language>en</language>");
+  });
+
+  it("kontrola dodatnia: wariant PL podaje POLSKIE tytuły", async () => {
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("Rozmowy o Europie, odcinek pierwszy");
+    expect(body).toContain("<language>pl</language>");
+  });
+
+  it("guid odcinka jest TEN SAM w obu kanałach językowych - jeden odcinek, jedna tożsamość", async () => {
+    const pl = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    requestEn("/podcast/rss.xml");
+    const en = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    const guid = (body: string): string | undefined => /<guid[^>]*>([^<]+)<\/guid>/.exec(body)?.[1];
+    expect(guid(pl), "kanał PL musi mieć guid, inaczej test nie dowodzi niczego").toBeDefined();
+    expect(guid(en)).toBe(guid(pl));
+    expect(guid(pl), "guid jest adresem KANONICZNYM, bez prefiksu języka").not.toContain("/en/");
+  });
+
+  it("link odcinka RÓŻNI się między językami, choć guid jest wspólny", async () => {
+    // Rozróżnienie względem testu wyżej: tożsamość jest jedna, ale ADRES
+    // prowadzi do wersji językowej - inaczej czytnik EN wysyłałby czytelnika
+    // na polską stronę odcinka.
+    requestEn("/podcast/rss.xml");
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("<link>https://neweuropeanstrategies.com/en/podcast/");
+  });
+
+  it("/podcasts/$show/rss.xml w wariancie EN podaje angielski tytuł programu", async () => {
+    requestEn("/podcasts/rozmowy-o-europie/rss.xml");
+    const body = await (
+      await surfaceGet("../podcasts.$show.rss[.]xml", {
+        show: "rozmowy-o-europie",
+      })
+    ).text();
+    expect(body).toContain("Talking Europe");
+    expect(body).toContain("<language>en</language>");
+  });
+
+  it("/live/rss.xml w wariancie EN przepuszcza wpisy EN, a odcina PL", async () => {
+    // Wpisy relacji są JEDNOJĘZYCZNE (kolumna `live_blog_entries.lang`), więc
+    // filtr języka jest tu treścią kanału, nie kosmetyką.
+    state.liveEntries = [
+      liveEntry({ id: "pl-1", lang: "pl", bodyHtml: "<p>Wpis polski.</p>" }),
+      liveEntry({ id: "en-1", lang: "en", bodyHtml: "<p>English entry.</p>" }),
+    ];
+    requestEn("/live/rss.xml");
+    const body = await (await surfaceGet("../live_.rss[.]xml")).text();
+    expect(body).toContain("English entry.");
+    expect(body, "kanał EN nie może wpuścić wpisu polskiego").not.toContain("Wpis polski.");
+  });
+
+  it("/tracker/rss.xml w wariancie EN podaje angielskie noty dossier", async () => {
+    requestEn("/tracker/rss.xml");
+    const body = await (await surfaceGet("../tracker.rss[.]xml")).text();
+    expect(body).toContain("Digital Services Act");
+    expect(body).toContain("<language>en</language>");
+  });
+
+  it("/programs/$slug/rss.xml w wariancie EN podaje angielską nazwę programu", async () => {
+    requestEn("/programs/polityka-cyfrowa/rss.xml");
+    const body = await (
+      await surfaceGet("../programs.$slug.rss[.]xml", {
+        slug: "polityka-cyfrowa",
+      })
+    ).text();
+    expect(body).toContain("Digital policy");
+  });
+
+  it("schemat adresów bierze się z x-forwarded-proto, nie ze zgadywania", async () => {
+    // Kanał za terminatorem TLS, który podaje `http`, nie może reklamować
+    // adresów `https` - czytnik dostałby link, którego origin nie odpowiada.
+    state.requestHeaders = { host: "neweuropeanstrategies.com", "x-forwarded-proto": "http" };
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("<link>http://neweuropeanstrategies.com/podcast/");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4.8 Kontrakt <enclosure> i pola iTunes odcinka
+//
+// KONSEKWENCJA. `<enclosure length type>` jest w kanale podcastowym POLEM
+// WYMAGANYM: odtwarzacze używają `length` do pokazania paska postępu przed
+// pobraniem całości, a Apple odrzuca kanał, w którym `type` nie zgadza się
+// z plikiem. Rozmiar i MIME znamy tylko dla plików z biblioteki mediów, więc
+// obie ścieżki - „mamy metadane" i „URL zewnętrzny" - muszą być pokryte.
+// ---------------------------------------------------------------------------
+
+describe("moduł 07: enclosure i pola iTunes odcinka", () => {
+  it("odcinek z biblioteki mediów dostaje PRAWDZIWY rozmiar i MIME", async () => {
+    state.mediaMeta = new Map([
+      [
+        "https://media.example.org/rozmowy-01.mp3",
+        { sizeBytes: 24_117_248, mimeType: "audio/mpeg" },
+      ],
+    ]);
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain('length="24117248"');
+    expect(body).toContain('type="audio/mpeg"');
+  });
+
+  it("odcinek na URL-u ZEWNĘTRZNYM dostaje length=0 i MIME z rozszerzenia", async () => {
+    // Rozróżnienie: bez wpisu w bibliotece mediów nie znamy rozmiaru, a
+    // zgadywanie go byłoby gorsze niż zero - odtwarzacz pokazałby fałszywy
+    // pasek postępu. MIME da się wyprowadzić z rozszerzenia i to jest zrobione.
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain('length="0"');
+    expect(body).toContain('type="audio/mpeg"');
+  });
+
+  it("odcinek OZNACZONY jako explicit wychodzi z itunes:explicit yes", async () => {
+    state.podcasts = [podcastRow({ explicit: true })];
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("<itunes:explicit>yes</itunes:explicit>");
+  });
+
+  it("nieznany episode_type degraduje do `full`, a nie do pustego tagu", async () => {
+    // `<itunes:episodeType>` przyjmuje dokładnie trzy wartości. Wartość
+    // spoza tego zbioru (literówka w panelu, nowa kolumna) nie może wyjść
+    // do kanału, bo Apple odrzuca kanał, nie pojedynczy wpis.
+    state.podcasts = [podcastRow({ episode_type: "nieistniejacy-typ" })];
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("<itunes:episodeType>full</itunes:episodeType>");
+    expect(body).not.toContain("nieistniejacy-typ");
+  });
+
+  it.each(["trailer", "bonus"] as const)(
+    "episode_type `%s` przechodzi bez zmiany",
+    async (kind) => {
+      state.podcasts = [podcastRow({ episode_type: kind })];
+      const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+      expect(body).toContain(`<itunes:episodeType>${kind}</itunes:episodeType>`);
+    },
+  );
+
+  it("odcinek bez sezonu i bez numeru nie emituje pustych tagów iTunes", async () => {
+    state.podcasts = [podcastRow({ season: null, episode_number: null })];
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).not.toContain("<itunes:season>");
+    expect(body).not.toContain("<itunes:episode>");
+  });
+
+  it("odcinek bez opisu w języku kanału spada na opis z drugiego języka", async () => {
+    // Kanał bez opisu odcinka jest gorszy niż kanał z opisem w drugim języku:
+    // czytnik pokazuje pustą kartę odcinka, a katalog liczy to jako braki
+    // metadanych.
+    state.podcasts = [podcastRow({ excerpt_pl: null })];
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("What this season is about.");
+  });
+
+  it("odcinek bez ŻADNEGO tytułu spada na slug, a nie na pusty tytuł", async () => {
+    state.podcasts = [podcastRow({ title_pl: "", title_en: "" })];
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("rozmowy-o-europie-01");
+  });
+
+  it("metadane kanału NIEUSTAWIONE spadają na domyślne marki, nie na pustkę", async () => {
+    // Kanał bez `<itunes:image>`, kategorii i właściciela jest odrzucany
+    // przez Apple - i to jest awaria cicha (patrz `lib/podcast/applePodcast.ts`).
+    state.podcastChannelMeta = null;
+    const body = await (await surfaceGet("../podcast.rss[.]xml")).text();
+    expect(body).toContain("<itunes:image");
+    expect(body).toContain("<itunes:category");
+  });
+
+  it("program NADPISUJE metadane kanału sieciowego, a brakujące dziedziczy", async () => {
+    state.show = {
+      ...podcastShow()!,
+      itunes_author: "Autor programu",
+      itunes_category: "Society & Culture",
+    };
+    const body = await (
+      await surfaceGet("../podcasts.$show.rss[.]xml", {
+        show: "rozmowy-o-europie",
+      })
+    ).text();
+    expect(body, "nadpisanie programu wygrywa").toContain("Autor programu");
+    expect(body, "pole nienadpisane dziedziczy z kanału").toContain("redakcja@example.org");
+  });
+
+  it("program ZAKOŃCZONY emituje itunes:complete - katalog przestaje czekać na odcinki", async () => {
+    state.show = { ...podcastShow()!, itunes_complete: true };
+    const body = await (
+      await surfaceGet("../podcasts.$show.rss[.]xml", {
+        show: "rozmowy-o-europie",
+      })
+    ).text();
+    expect(body).toContain("<itunes:complete>yes</itunes:complete>");
+  });
+
+  it("program bez opisu spada na tytuł serwisu, nie na pusty <description>", async () => {
+    state.show = { ...podcastShow()!, description_pl: "", description_en: "" };
+    const body = await (
+      await surfaceGet("../podcasts.$show.rss[.]xml", {
+        show: "rozmowy-o-europie",
+      })
+    ).text();
+    expect(/<description>\s*<\/description>/.test(body), "pusty opis kanału").toBe(false);
+  });
+});
+
+describe("moduł 07: kanał programu - zapasy tytułu i opisu między językami", () => {
+  // Program wypełniony tylko w jednym języku jest normalnym stanem redakcji
+  // (tłumaczenie wchodzi później). Kanał w drugim języku nie może z tego
+  // powodu wyjść bez tytułu - czytnik pokazałby wtedy kanał bez nazwy, a
+  // katalog uznałby metadane za niekompletne.
+  async function showFeed(params = { show: "rozmowy-o-europie" }): Promise<string> {
+    return (await surfaceGet("../podcasts.$show.rss[.]xml", params)).text();
+  }
+
+  it("kanał PL programu bez tytułu PL spada na tytuł EN", async () => {
+    state.show = { ...podcastShow()!, title_pl: "" };
+    expect(await showFeed()).toContain("Talking Europe");
+  });
+
+  it("kanał EN programu bez tytułu EN spada na tytuł PL", async () => {
+    state.requestUrl = "https://neweuropeanstrategies.com/en/podcasts/rozmowy-o-europie/rss.xml";
+    state.show = { ...podcastShow()!, title_en: "" };
+    expect(await showFeed()).toContain("Rozmowy o Europie");
+  });
+
+  it("program BEZ ŻADNEGO tytułu spada na slug, nie na pusty <title>", async () => {
+    state.show = { ...podcastShow()!, title_pl: "", title_en: "" };
+    const body = await showFeed();
+    expect(body).toContain("rozmowy-o-europie");
+    expect(/<title>\s*<\/title>/.test(body), "pusty tytuł kanału").toBe(false);
+  });
+
+  it("kanał EN programu bez opisu EN spada na opis PL", async () => {
+    state.requestUrl = "https://neweuropeanstrategies.com/en/podcasts/rozmowy-o-europie/rss.xml";
+    state.show = { ...podcastShow()!, description_en: "" };
+    expect(await showFeed()).toContain("Cykl rozmów o polityce europejskiej.");
+  });
+
+  it("odcinek programu bez tytułu w języku kanału spada na drugi język", async () => {
+    state.showEpisodes = [podcastRow({ title_pl: "", show_id: "show-1" })];
+    expect(await showFeed()).toContain("Talking Europe, episode one");
+  });
+
+  it("odcinek programu bez ŻADNEGO opisu nie wywala kanału", async () => {
+    state.showEpisodes = [podcastRow({ excerpt_pl: null, excerpt_en: null, show_id: "show-1" })];
+    const body = await showFeed();
+    expect(xmlIsWellFormed(body), "kanał musi zostać domknięty").toBe(true);
+    expect(body).toContain("<item>");
   });
 });
