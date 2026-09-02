@@ -15,6 +15,13 @@ const pl = {
       // Klucze poniżej opisują stany, w których pomiaru NIE MA WCALE - kafelek
       // KPI nie może wtedy malować zera, bo zero byłoby kłamstwem o danych.
       noDataWindow: "Brak danych w oknie.",
+      // ROZRÓŻNIENIE „okno puste" od „filtr bez trafień". `noDataWindow`
+      // twierdzi o CAŁYM oknie pomiarowym, więc wypisany pod aktywnym filtrem
+      // każe operatorowi szukać awarii pomiaru tam, gdzie po prostu zawężono
+      // widok - a to dwie różne decyzje: „sprawdź ingest" kontra „zdejmij filtr".
+      noDataFilter: "Brak danych dla wybranego filtra.",
+      noDataFilterHint:
+        "Okno ma zdarzenia, ale żadne nie należy do wybranego zakresu - zdejmij filtr, żeby zobaczyć całość.",
       measuring: "Trwa pomiar...",
       measuringShort: "Pomiar",
       measuringHint: "Odczyt źródła w toku - wartości pojawią się po pobraniu.",
@@ -776,6 +783,9 @@ const en = {
       loading: "Loading...",
       loadingData: "Loading data...",
       noDataWindow: "No data in this window.",
+      noDataFilter: "No data for the selected filter.",
+      noDataFilterHint:
+        "The window has events, but none fall into the selected range - clear the filter to see everything.",
       measuring: "Measuring...",
       measuringShort: "Measuring",
       measuringHint: "Reading the source - values appear once the fetch completes.",
