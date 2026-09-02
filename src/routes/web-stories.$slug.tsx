@@ -73,7 +73,9 @@ export const Route = createFileRoute("/web-stories/$slug")({
     const title = storyTitle(s, lang) || "Web Story";
     const description =
       storyDescription(s, lang).slice(0, 300) ||
-      (lang === "en" ? "A web story by New European Strategies." : "Web story New European Strategies.");
+      (lang === "en"
+        ? "A web story by New European Strategies."
+        : "Web story New European Strategies.");
     // JSON-LD CreativeWork: pozwala wyszukiwarkom rozpoznać web story jako
     // samodzielną treść (nazwa, okładka, data publikacji).
     const jsonLd = {
@@ -114,7 +116,9 @@ export const Route = createFileRoute("/web-stories/$slug")({
   errorComponent: (props) => (
     <RouteErrorFallback
       {...props}
-      title={activeLang() === "en" ? "Failed to load the story" : "Nie udało się załadować historii"}
+      title={
+        activeLang() === "en" ? "Failed to load the story" : "Nie udało się załadować historii"
+      }
     />
   ),
   notFoundComponent: () => (

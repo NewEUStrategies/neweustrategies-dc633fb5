@@ -781,13 +781,13 @@ reszta modułu.
 
 **Moduł 17 razem.**
 
-| metryka    | wejście (`3eb5e92`) | po kampanii | delta | cel zlecenia |
-| ---------- | ------------------: | ----------: | ----: | -----------: |
-| linie | 36,07% (1134/3144) | **96,24%** (3099/3220) | +60,17 pp | ≥ 65% |
-| instrukcje | 35,31% (1283/3634) | **95,54%** (3556/3722) | +60,23 pp | - |
-| gałęzie | 27,30% (917/3359) | **92,17%** (3145/3412) | +64,87 pp | ≥ 52% |
-| funkcje | 31,18% (280/898) | **95,96%** (878/915) | +64,78 pp | ≥ 62% |
-| plików na zerze | 47 | **0** | -47 | - |
+| metryka         | wejście (`3eb5e92`) |            po kampanii |     delta | cel zlecenia |
+| --------------- | ------------------: | ---------------------: | --------: | -----------: |
+| linie           |  36,07% (1134/3144) | **96,24%** (3099/3220) | +60,17 pp |        ≥ 65% |
+| instrukcje      |  35,31% (1283/3634) | **95,54%** (3556/3722) | +60,23 pp |            - |
+| gałęzie         |   27,30% (917/3359) | **92,17%** (3145/3412) | +64,87 pp |        ≥ 52% |
+| funkcje         |    31,18% (280/898) |   **95,96%** (878/915) | +64,78 pp |        ≥ 62% |
+| plików na zerze |                  47 |                  **0** |       -47 |            - |
 
 Plików w mianowniku: 89 (wejście) / 89 (po).
 
@@ -812,12 +812,12 @@ ani dodane, ani usunięte. W całej kampanii zero `it.skip`, zero `it.todo`, zer
 
 **Cztery funkcjonalności.** Ta sama reguła podziału po obu stronach pomiaru.
 
-| Funkcjonalność | Plików | linie wejście | linie po | gałęzie po | funkcje po | cel (linie/fn/gał) |
-| -------------- | -----: | ------------: | -------: | ---------: | ---------: | -----------------: |
-| Analityka: zbieranie zdarzeń i liczniki | 21 | 15,68% | **85,63%** | 78,15% | 77,56% (121/156) | 70 / 65 / 55 |
-| Wykresy i panel BI | 38 | 32,20% | **99,82%** | 95,90% | 100,00% (568/568) | 60 / 55 / 45 |
-| Observability / RUM / web vitals | 14 | 64,54% | **97,29%** | 93,48% | 97,78% (88/90) | 85 / 85 / 75 |
-| Analityka: warstwa semantyczna | 16 | 56,66% | **99,43%** | 95,79% | 100,00% (101/101) | 92 / 90 / 80 |
+| Funkcjonalność                          | Plików | linie wejście |   linie po | gałęzie po |        funkcje po | cel (linie/fn/gał) |
+| --------------------------------------- | -----: | ------------: | ---------: | ---------: | ----------------: | -----------------: |
+| Analityka: zbieranie zdarzeń i liczniki |     21 |        15,68% | **85,63%** |     78,15% |  77,56% (121/156) |       70 / 65 / 55 |
+| Wykresy i panel BI                      |     38 |        32,20% | **99,82%** |     95,90% | 100,00% (568/568) |       60 / 55 / 45 |
+| Observability / RUM / web vitals        |     14 |        64,54% | **97,29%** |     93,48% |    97,78% (88/90) |       85 / 85 / 75 |
+| Analityka: warstwa semantyczna          |     16 |        56,66% | **99,43%** |     95,79% | 100,00% (101/101) |       92 / 90 / 80 |
 
 #### Rejestr N1-N8: osiem zleceń, osiem rozstrzygnięć
 
@@ -865,9 +865,10 @@ zerowe opóźnienie. Karty w tle mają timery dławione do ~1/min, więc gwaranc
 listenery ukrycia, nigdy timer. Cofnięcie zgody PORZUCA to, co zostało w buforze.
 
 Zgodność wsteczna jest obowiązkowa i przetestowana: strona zbuforowana przed zmianą
+
 - albo otwarta w karcie w tle od wczoraj - nadal wysyła pojedynczy obiekt
-`{name,value,...}` i nadal jest zapisywana. Endpoint normalizuje trzy kształty ciała
-do listy.
+  `{name,value,...}` i nadal jest zapisywana. Endpoint normalizuje trzy kształty ciała
+  do listy.
 
 Limiter przeliczony: 60/1 -> 20/0,2. Budżet jest liczony w WIERSZACH, nie w żądaniach,
 bo żądanie, które wstawiało jeden wiersz, wstawia teraz do ośmiu: 12 żądań/min razy
@@ -989,10 +990,10 @@ różni. Do tego `resolveChartTheme` pobiera migawkę stylu RAZ zamiast raz na t
 
 ZMIERZONE, panel dziesięciu wykresów (`__tests__/EChartClient.test.tsx`):
 
-| wielkość                | przed | po  |
-| ----------------------- | ----: | --: |
-| renderów wykresu        |    20 |  10 |
-| rozwiązań motywu        |    20 |   2 |
+| wielkość                 | przed |  po |
+| ------------------------ | ----: | --: |
+| renderów wykresu         |    20 |  10 |
+| rozwiązań motywu         |    20 |   2 |
 | wywołań getComputedStyle |   200 |   2 |
 
 Test „tokeny, które dojechały PO pierwszym malowaniu, trafiają do wykresu" pilnuje,
@@ -1008,15 +1009,15 @@ wyrzucana.
 Krok 13 zlecenia wymieniał pięć powierzchni panelu stojących na zerze. Wszystkie
 wyszły z zera, cztery z nich na 100% linii i 100% funkcji:
 
-| plik                            | wejście   | linie |   funkcje |  gałęzie | przypadków |
-| ------------------------------- | --------- | ----: | --------: | -------: | ---------: |
-| `src/routes/admin.analytics.tsx`      | 0/54, 0/27 | 100% | 100% (27/27) | 98,42% |  51 |
-| `src/routes/admin.link-monitor.tsx`   | 0/33, 0/7  | 100% | 100% (7/7)   | 94,87% |  38 |
-| `src/routes/admin.experiments.tsx`    | 0/26, 0/8  | 100% | 100% (8/8)   |   100% |  20 |
-| `src/routes/admin.performance.tsx`    | 0/8, 0/3   | 100% | 100% (3/3)   |   100% |  12 |
-| `src/components/admin/performance/EdgeCacheCard.tsx` | 0/43, 0/18 | 100% | 100% (18/18) | 94,83% | 21 |
-| `src/lib/charts/geoQuery.ts`          | 0/4, 0/1   | 100% | 100% (2/2)   |   100% |  12 |
-| `src/lib/tracker-admin.functions.ts`  | 0/3, 0/1   | 100% | 100% (1/1)   |      - |  10 |
+| plik                                                 | wejście    | linie |      funkcje | gałęzie | przypadków |
+| ---------------------------------------------------- | ---------- | ----: | -----------: | ------: | ---------: |
+| `src/routes/admin.analytics.tsx`                     | 0/54, 0/27 |  100% | 100% (27/27) |  98,42% |         51 |
+| `src/routes/admin.link-monitor.tsx`                  | 0/33, 0/7  |  100% |   100% (7/7) |  94,87% |         38 |
+| `src/routes/admin.experiments.tsx`                   | 0/26, 0/8  |  100% |   100% (8/8) |    100% |         20 |
+| `src/routes/admin.performance.tsx`                   | 0/8, 0/3   |  100% |   100% (3/3) |    100% |         12 |
+| `src/components/admin/performance/EdgeCacheCard.tsx` | 0/43, 0/18 |  100% | 100% (18/18) |  94,83% |         21 |
+| `src/lib/charts/geoQuery.ts`                         | 0/4, 0/1   |  100% |   100% (2/2) |    100% |         12 |
+| `src/lib/tracker-admin.functions.ts`                 | 0/3, 0/1   |  100% |   100% (1/1) |       - |         10 |
 
 **Dlaczego to nie jest pokrycie „na sam render".** W tych plikach SKLEJENIE JEST
 LOGIKĄ, a nie detalem implementacji:
@@ -1122,13 +1123,13 @@ padnięć identyczne poza prefiksem ścieżki w stack trace. Wszystkie cztery pl
 testowe są bajt-identyczne w obu drzewach (te same sumy MD5), a kampania nie dotknęła
 katalogu `supabase/` ani jednym plikiem.
 
-| plik | przypadek | przyczyna | pada w baseline |
-| ---- | --------- | --------- | --------------- |
-| `lib/ci/__tests__/migrationReplay.test.ts` | porządek nazw = porządek wersji | `expected true to be false` | TAK |
-| `lib/ci/__tests__/migrationReplay.test.ts` | ratchet bliźniaków treści | dwie nowe pary bliźniaków z gałęzi Lovable (`page_full_path_tenant_scope`, `owner_plane_tenant_scope_read_history`) | TAK |
-| `lib/authz/__tests__/authzSnapshotParity.test.ts` | snapshot vs migracje | PROVENANCE, `migrations: 932 -> 935` | TAK |
-| `lib/server/__tests__/serviceRoleTenantScope.gate.test.ts` | `page_full_path` wiąże najemcę | `it.fails`, który ZACZĄŁ przechodzić - czyli dług naprawiony, przypięcie nieusunięte | TAK |
-| `components/admin/monetization/__tests__/AdminMonetizationLedger.test.tsx` | przydział bezterminowy | brak tekstu „Bezterminowo" po 5 s | TAK |
+| plik                                                                       | przypadek                       | przyczyna                                                                                                           | pada w baseline |
+| -------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `lib/ci/__tests__/migrationReplay.test.ts`                                 | porządek nazw = porządek wersji | `expected true to be false`                                                                                         | TAK             |
+| `lib/ci/__tests__/migrationReplay.test.ts`                                 | ratchet bliźniaków treści       | dwie nowe pary bliźniaków z gałęzi Lovable (`page_full_path_tenant_scope`, `owner_plane_tenant_scope_read_history`) | TAK             |
+| `lib/authz/__tests__/authzSnapshotParity.test.ts`                          | snapshot vs migracje            | PROVENANCE, `migrations: 932 -> 935`                                                                                | TAK             |
+| `lib/server/__tests__/serviceRoleTenantScope.gate.test.ts`                 | `page_full_path` wiąże najemcę  | `it.fails`, który ZACZĄŁ przechodzić - czyli dług naprawiony, przypięcie nieusunięte                                | TAK             |
+| `components/admin/monetization/__tests__/AdminMonetizationLedger.test.tsx` | przydział bezterminowy          | brak tekstu „Bezterminowo" po 5 s                                                                                   | TAK             |
 
 Czwarty wiersz zasługuje na komentarz, bo jest lustrem tej kampanii: `it.fails`
 przestaje być dokumentacją długu w chwili, w której dług zniknie, a wtedy zaczyna
@@ -1224,9 +1225,10 @@ którekolwiek z 96 przypięć niżej.
 
 `check:authz-snapshot` - CZERWONA, klasa **PROVENANCE**: `migrations: 932 -> 935`,
 czyli „ten sam krąg uprawnionych, inne miejsce w historii". `check:permissions-parity`
+
 - CZERWONA Z TEJ SAMEJ PRZYCZYNY: 234 przypadki przechodzą, 1 oczekiwana porażka,
-a jedyne padnięcie to `authzSnapshotParity.test.ts`, czyli ten sam dryf zapakowany
-w test.
+  a jedyne padnięcie to `authzSnapshotParity.test.ts`, czyli ten sam dryf zapakowany
+  w test.
 
 Że to dryf metadanych, a nie regresja uprawnień, jest sprawdzalne, nie deklarowane:
 reporter dryfu zwrócił **dokładnie jeden** wpis, kategorii `stats`, o twardo
@@ -1295,15 +1297,15 @@ Pomiar po obu stronach kampanii, na CZYSTYCH buildach, tym samym instrumentem
 identyczne w `3eb5e92` i na HEAD, a `vite.config.ts` i `package.json` kampania
 nie tknęła):
 
-| pomiar                | wejście (`3eb5e92`) | po kampanii | budżet    | stan |
-| --------------------- | ------------------: | ----------: | --------: | ---- |
-| liczba plików JS      |                 943 |         943 |         - | - |
-| PUBLIC                |          2 687,0 KB |  2 687,6 KB | ≤ 2 715 KB | ZIELONY, zapas 27,4 KB |
-| admin-only            |          1 633,4 KB |  1 633,5 KB | bilowane do overall | - |
-| OVERALL               |          4 320,4 KB |  4 321,1 KB | ≤ 4 306 KB | CZERWONY |
-| największy chunk      |            274,0 KB |    274,0 KB |   ≤ 280 KB | ZIELONY |
-| CSS klienta           |     81,0 KB / 2 pl. | 81,0 KB / 2 |    ≤ 82 KB | ZIELONY |
-| domknięcie bootowania |    576,7 KB / 9 ch. | 576,7 KB / 9 |   ≤ 579 KB | ZIELONY |
+| pomiar                | wejście (`3eb5e92`) |  po kampanii |              budżet | stan                   |
+| --------------------- | ------------------: | -----------: | ------------------: | ---------------------- |
+| liczba plików JS      |                 943 |          943 |                   - | -                      |
+| PUBLIC                |          2 687,0 KB |   2 687,6 KB |          ≤ 2 715 KB | ZIELONY, zapas 27,4 KB |
+| admin-only            |          1 633,4 KB |   1 633,5 KB | bilowane do overall | -                      |
+| OVERALL               |          4 320,4 KB |   4 321,1 KB |          ≤ 4 306 KB | CZERWONY               |
+| największy chunk      |            274,0 KB |     274,0 KB |            ≤ 280 KB | ZIELONY                |
+| CSS klienta           |     81,0 KB / 2 pl. |  81,0 KB / 2 |             ≤ 82 KB | ZIELONY                |
+| domknięcie bootowania |    576,7 KB / 9 ch. | 576,7 KB / 9 |            ≤ 579 KB | ZIELONY                |
 
 **Kampania modułu 17 dołożyła +0,7 KB gzip do bundla klienta, z czego +0,6 KB do
 wiadra PUBLIC.** Siedem dziesiątych kilobajta. Przekroczenie budżetu OVERALL
@@ -1318,12 +1320,12 @@ Delta per chunk, policzona przez zgzipowanie i zsumowanie po 809 wiadrach obu
 baseline'u z 15 sierpnia, której świadomie nie cytuję, bo jest pisana STARĄ
 konwencją wiader (sama bramka o tym ostrzega):
 
-| chunk           |     delta | co się w nim zmieniło |
-| --------------- | --------: | --------------------- |
-| `EChartClient`  | +0,25 KB | wspólny magazyn motywu (N8); niesie zinline'owany `chartTheme.ts` |
-| `webVitals`     | +0,15 KB | kolejka i drenaż metryk (N2) |
-| `index`         | +0,01 KB | `report.ts` - parametryzacja endpointu |
-| `i18n`, `_`     | +0,03 KB | poziom zaokrąglenia rehashowania |
+| chunk          |    delta | co się w nim zmieniło                                             |
+| -------------- | -------: | ----------------------------------------------------------------- |
+| `EChartClient` | +0,25 KB | wspólny magazyn motywu (N8); niesie zinline'owany `chartTheme.ts` |
+| `webVitals`    | +0,15 KB | kolejka i drenaż metryk (N2)                                      |
+| `index`        | +0,01 KB | `report.ts` - parametryzacja endpointu                            |
+| `i18n`, `_`    | +0,03 KB | poziom zaokrąglenia rehashowania                                  |
 
 Jeden szczegół z tego pomiaru jest dowodem per-plik, nie założeniem: literał
 `/api/public/vitals` **przeniósł się** z `webVitals.js` (wejście) do `index.js`
@@ -1346,7 +1348,6 @@ czerwieni przez zmianę progu i przepisanie baseline'u jest właśnie tym.
 niesiony przez słowniki i18n, `vendor` i powierzchnie edytora/buildera - w żadnym
 z tych wiader kampania nie ruszyła ani kilobajta. Ale próg jest przebity i wymaga
 własnej diagnozy.
-
 
 #### Co znalazły testy, których nikt nie szukał: 100 przypięć `it.fails`
 
@@ -1458,7 +1459,7 @@ Pierwsze - kafelek RUM w przeglądzie analityki gubi jednostkę dokładnie tam, 
 jest najpotrzebniejsza:
 
 ```ts
-`${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`
+`${Math.round(m.p75)} ${m.p75 >= 1000 ? "" : "ms"}`;
 ```
 
 Warunek jest odwrócony względem intencji. Dla wartości POWYŻEJ sekundy - czyli dla
@@ -1489,7 +1490,6 @@ przypisywalny do osoby, ale nie do obszaru roboczego, a rekonstrukcja po `actorI
 wymaga sięgnięcia do profilu, który w tym czasie mógł już zmienić najemcę. Naprawa
 jest mechaniczna i wzorowa istnieje obok (`scheduler.functions.ts`).
 
-
 #### Rozkład wag i kolejność naprawy
 
 Pełny rejestr 100 przypięć - plik, przypadek, złamany kontrakt - jest w plikach
@@ -1497,12 +1497,12 @@ testowych, przy każdym przypadku, w komentarzu nad nim; tutaj podaję rozkład
 i kolejność, bo to one czynią z rejestru listę roboczą, a nie anegdotę.
 Klasyfikacja idzie po SKUTKU dla odbiorcy, nie po miejscu w kodzie:
 
-| waga | przypięć | co znaczy |
-| ---- | -------: | --------- |
-| izolacja | 13 | dane albo liczniki jednego obszaru roboczego mogą trafić do drugiego |
-| poprawność | 44 | zmienia LICZBĘ albo ZNAK wniosku w raporcie |
-| dostępność | 33 | odbiera treść części odbiorców |
-| odporność | 8 | nie kłamie, ale wywraca się albo gubi dane na wejściu brzegowym |
+| waga       | przypięć | co znaczy                                                            |
+| ---------- | -------: | -------------------------------------------------------------------- |
+| izolacja   |       13 | dane albo liczniki jednego obszaru roboczego mogą trafić do drugiego |
+| poprawność |       44 | zmienia LICZBĘ albo ZNAK wniosku w raporcie                          |
+| dostępność |       33 | odbiera treść części odbiorców                                       |
+| odporność  |        8 | nie kłamie, ale wywraca się albo gubi dane na wejściu brzegowym      |
 
 **Ten rozkład mówi jedno: moduł 17 nie jest kruchy, jest NIEWIARYGODNY.** Tylko
 8 przypięć opisuje kod, który się wywraca - a 44 opisują kod, który odpowiada

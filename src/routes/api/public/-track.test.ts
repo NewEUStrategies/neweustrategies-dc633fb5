@@ -83,7 +83,11 @@ async function post(body: unknown, raw?: string, headers?: Record<string, string
 
 /** Skrót: batch jednego prawidłowego zdarzenia z nadpisanymi polami. */
 async function postOne(event: EventInput, headers?: Record<string, string>) {
-  return post({ events: [{ type: "cta_click", name: "pricing_signup_click", ...event }] }, undefined, headers);
+  return post(
+    { events: [{ type: "cta_click", name: "pricing_signup_click", ...event }] },
+    undefined,
+    headers,
+  );
 }
 
 /** Wiersze przekazane do `insert` w ostatnim wywołaniu. */
@@ -251,7 +255,11 @@ describe("walidacja wejścia", () => {
 
   it("zdarzenie bez NAZWY jest pomijane - wiersz bez nazwy jest niepoliczalny", async () => {
     await post({
-      events: [{ type: "page_view" }, { type: "page_view", name: "   " }, { type: "page_view", name: "ok" }],
+      events: [
+        { type: "page_view" },
+        { type: "page_view", name: "   " },
+        { type: "page_view", name: "ok" },
+      ],
     });
 
     expect(insertedRows()).toHaveLength(1);

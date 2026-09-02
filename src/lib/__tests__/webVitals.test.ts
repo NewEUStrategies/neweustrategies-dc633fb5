@@ -706,7 +706,14 @@ describe("ścieżka produkcyjna: beacon", () => {
     // The client BATCHES: one beacon carries `{metrics:[...]}`, not a bare
     // sample. LCP and CLS leave together on the soft-navigation boundary.
     const payload = (await beaconJson(sent[0]?.body)) as {
-      metrics: Array<{ name: string; value: number; rating: string; id: string; url: string; ts: number }>;
+      metrics: Array<{
+        name: string;
+        value: number;
+        rating: string;
+        id: string;
+        url: string;
+        ts: number;
+      }>;
     };
     const lcp = payload.metrics.find((m) => m.name === "LCP")!;
     expect(lcp).toMatchObject({ name: "LCP", value: 2100, rating: "good", url: "/en" });
