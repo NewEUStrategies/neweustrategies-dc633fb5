@@ -38,6 +38,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
+import { chartThemeSnapshot } from "../chartTheme";
 import type {
   VitalMetricSummary,
   VitalPathRow,
@@ -1039,11 +1040,12 @@ describe("VitalsBiDashboard - metryka bez próbek to LUKA, nie zero", () => {
       name: string;
       itemStyle: { color: string };
     }>;
+    const theme = chartThemeSnapshot();
     expect(cells.map((c) => c.itemStyle.color)).toEqual([
-      "#64748b",
-      "#16a34a",
-      "#f59e0b",
-      "#dc2626",
+      theme.muted,
+      theme.success,
+      theme.warning,
+      theme.danger,
     ]);
   });
 
