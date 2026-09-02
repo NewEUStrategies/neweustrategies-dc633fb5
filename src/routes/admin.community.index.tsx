@@ -19,6 +19,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminBiStrip } from "@/components/admin/analytics/AdminBiStrip";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
