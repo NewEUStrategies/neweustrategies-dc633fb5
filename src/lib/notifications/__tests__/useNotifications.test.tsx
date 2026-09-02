@@ -197,7 +197,7 @@ describe("useNotificationsInfinite - klucz cache", () => {
     expect(db().chainsFor("notifications")).toHaveLength(1);
   });
 
-  it("normalizuje klucz do (uid, onlyUnread, kind, pageSize)", async () => {
+  it("normalizuje klucz do (uid, onlyUnread, kind, excludeKinds, pageSize)", async () => {
     db().setResponse("notifications", ok([]));
     const { result, queryClient } = renderHookWithQueryClient(() => useNotificationsInfinite({}));
 
@@ -205,9 +205,10 @@ describe("useNotificationsInfinite - klucz cache", () => {
     expect(queryClient.getQueryCache().getAll()[0]?.queryKey).toEqual([
       "notifications",
       UID,
-      { onlyUnread: false, kind: null, pageSize: NOTIFICATIONS_PAGE_SIZE },
+      { onlyUnread: false, kind: null, excludeKinds: null, pageSize: NOTIFICATIONS_PAGE_SIZE },
     ]);
   });
+
 
   it("RÓŻNY filtr to RÓŻNY slot cache i osobny request", async () => {
     db().setResponse("notifications", ok([]));

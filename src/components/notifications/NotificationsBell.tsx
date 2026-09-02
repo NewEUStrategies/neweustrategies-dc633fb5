@@ -44,7 +44,7 @@ import {
   useNotificationsRealtime,
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
-  useUnreadCount,
+  useUnreadCountExcluding,
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
   useMarkNotificationUnread,
@@ -102,6 +102,10 @@ const KIND_ICON_BY_NAME: Readonly<Record<string, React.ComponentType<{ className
 // w `@/lib/notifications/notificationLink` - jedna kopia dla dzwonka, skrzynki
 // i warstwy profili aktorów.
 
+/** Rodzaje obsługiwane przez ikonę czatu - dzwonek ich nie pokazuje. */
+const CHAT_KINDS: readonly NotificationKind[] = ["message"];
+
+
 export interface NotificationsBellProps {
   panelWidth?: number;
 }
@@ -118,8 +122,12 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
   useNotificationPreferencesRealtime();
   // Współdzielony cache z NotificationsCenter (identyczny queryKey przy pustym
   // filtrze) - jedno zapytanie zasila dzwonek i skrzynkę po zalogowaniu.
-  const listQ = useNotificationsInfinite({});
-  const countQ = useUnreadCount();
+  // Powiadomienia o wiadomościach czatu NIE należą do dzwonka - ich miejscem
+  // jest ikona czatu (licznik + podgląd treści), więc odcinamy rodzaj
+  // `message` zarówno z listy, jak i z badge'a.
+  const listQ = useNotificationsInfinite({ excludeKinds: CHAT_KINDS });
+  const countQ = useUnreadCountExcluding(CHAT_KINDS);
+
   const prefsQ = useNotificationPreferences();
   const markAll = useMarkAllNotificationsRead();
   const markMany = useMarkNotificationsRead();

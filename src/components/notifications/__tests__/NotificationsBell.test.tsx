@@ -131,7 +131,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
+import { ok, okCount, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { realtimeStub, type FakeChannel, type RealtimeStub } from "@/test/supabase/realtime";
 import { axeViolations, summarize } from "@/test/axe";
@@ -226,7 +226,16 @@ beforeEach(() => {
 
   // Lista + operacje zbiorcze na tabeli `notifications` idą tym samym
   // łańcuchem, więc responder rozróżnia je po wywołanym ogniwie.
-  db.setResponse("notifications", (chain) => (chain.has("select") ? ok(rows) : ok(null)));
+  db.setResponse("notifications", (chain) => {
+    // Dzwonek nie pokazuje rodzaju `message` (ten mieszka w ikonie czatu),
+    // więc licznik idzie zapytaniem LICZĄCYM po `notifications`, a nie po
+    // zmaterializowanym `user_pending_counters`.
+    const head = chain.argsOf("select")?.[1];
+    const isCount =
+      typeof head === "object" && head !== null && (head as { head?: boolean }).head === true;
+    if (isCount) return okCount(unreadCount);
+    return chain.has("select") ? ok(rows) : ok(null);
+  });
   db.setResponse("user_pending_counters", () => ok({ value: unreadCount }));
   db.setResponse("notification_preferences", () => ok(DEFAULT_NOTIFICATION_PREFERENCES));
   // Profile aktorów: puste zbiory to poprawna odpowiedź (rozmówca spoza sieci
