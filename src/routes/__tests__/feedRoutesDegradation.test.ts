@@ -495,7 +495,7 @@ function taxonomy(): TaxonomyStub {
   };
 }
 
-function feedPost(): FeedPostStub {
+function feedPost(overrides: Partial<FeedPostStub> = {}): FeedPostStub {
   return {
     slug: "pierwsza-analiza",
     path: "/analizy/pierwsza-analiza",
@@ -505,6 +505,7 @@ function feedPost(): FeedPostStub {
     excerpt_en: "Analysis summary.",
     published_at: "2026-01-10T08:00:00Z",
     cover_image_url: null,
+    ...overrides,
   };
 }
 
@@ -802,19 +803,42 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     expect(xmlIsWellFormed(await res.text())).toBe(true);
   });
 
-  it.fails(
-    "DEFEKT: pusta news-sitemap dostaje ten sam TTL co pełna, mimo że świeżość jest jej całym sensem",
-    async () => {
-      const { Route } = await import("../news-sitemap[.]xml");
-      const res = await routeServerHandlers(Route).GET!({});
-      // KONSEKWENCJA: Google News czyta ten plik po to, żeby zobaczyć wpisy
-      // z ostatnich 48 h. Pusty dokument zapamiętany na `s-maxage=300` plus
-      // `stale-while-revalidate=600` wypada z okna nowości - materiał
-      // opublikowany w czasie awarii nigdy nie trafi do News, bo do momentu
-      // wygaśnięcia cache przestanie być świeży.
-      expect(res.headers.get("cache-control") ?? "").not.toMatch(/stale-while-revalidate/);
-    },
-  );
+  it("pusta news-sitemap NIE dostaje TTL pełnej - NAPRAWIONE 2026-09-02", async () => {
+    // HISTORIA. Stał tu `it.fails` z opisem konsekwencji: Google News czyta
+    // ten plik po to, żeby zobaczyć wpisy z ostatnich 48 h, a pusty dokument
+    // zapamiętany na `s-maxage=300` plus `stale-while-revalidate=600` wypada
+    // z okna nowości - materiał opublikowany w czasie awarii nigdy do News nie
+    // trafi, bo do wygaśnięcia cache przestanie być świeży.
+    //
+    // Przypięcie przestało być uzasadnione w chwili, gdy powstał
+    // `lib/seo/feedCache.ts`: naprawa nie wymagała żadnej decyzji produktowej,
+    // tylko podania liczby wpisów do gotowego kontraktu. Zostawienie `it.fails`
+    // przy naprawie leżącej w jednej linii byłoby wymówką, nie odroczeniem.
+    const { Route } = await import("../news-sitemap[.]xml");
+    const cc = (await routeServerHandlers(Route).GET!({})).headers.get("cache-control") ?? "";
+    expect(cc, "pusta news-sitemap nie może być podawana jako stale").not.toMatch(
+      /stale-while-revalidate/,
+    );
+    expect(cc, "pusta news-sitemap musi rewalidować u klienta").toContain("must-revalidate");
+  });
+
+  it("kontrola dodatnia: news-sitemap Z WPISAMI zachowuje SWÓJ, krótszy TTL pełny", async () => {
+    // Bez tej kontroli naprawa wyżej „przechodziłaby" także wtedy, gdyby ktoś
+    // skrócił TTL wszystkim news-sitemapom - a TTL pełnej jest tu świadomym
+    // wyjątkiem (minuty, nie pół godziny), bo świeżość jest całym jej sensem.
+    state.tenantId = "t-1";
+    state.degradeSafe = false;
+    // Data publikacji MUSI wpaść w okno nowości Google News (48 h od
+    // ustalonego zegara testu, 2026-02-03), inaczej wpis nie wejdzie do
+    // dokumentu i „kontrola dodatnia" mierzyłaby pustkę.
+    state.posts = [feedPost({ published_at: "2026-02-03T08:00:00Z" })];
+    const { Route } = await import("../news-sitemap[.]xml");
+    const res = await routeServerHandlers(Route).GET!({});
+    expect(await res.clone().text(), "dokument MUSI mieć wpis").toContain("<url>");
+    expect(res.headers.get("cache-control")).toBe(
+      "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
+    );
+  });
 
   it("/sitemap.xml oddaje domknięty indeks, gdy nie ma żadnej sekcji do ogłoszenia", async () => {
     const { Route } = await import("../sitemap[.]xml");

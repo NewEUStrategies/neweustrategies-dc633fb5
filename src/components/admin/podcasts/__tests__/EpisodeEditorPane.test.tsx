@@ -13,9 +13,17 @@
 //     odcinek do kanału RSS bez `pubDate`.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE: czterech edytorów warstw (mają własny plik),
-// kontraktu zapytań (`queries.test.ts`), kształtu payloadu (`shape.test.ts`),
-// automatycznego wykrywania czasu trwania z pliku audio (to `Audio` przeglądarki
-// - ma sens tylko w teście end-to-end) ani mechaniki Radiksa.
+// kontraktu zapytań (`queries.test.ts`), kształtu payloadu (`shape.test.ts`)
+// ani mechaniki Radiksa.
+//
+// SPROSTOWANIE. Stało tu wcześniej, że automatycznego wykrywania czasu trwania
+// z pliku audio ten plik nie dubluje, „bo to `Audio` przeglądarki - ma sens
+// tylko w teście end-to-end". To była błędna ocena: `Audio` jest konstruktorem
+// na obiekcie globalnym i daje się podmienić atrapą, a cała logika wokół niego
+// (sprzątanie nasłuchów, odrzucenie `Infinity`, zakaz nadpisywania czasu
+// wpisanego przez redakcję) jest nasza. Dowód mieszka w
+// `EpisodeEditorPaneAudio.test.tsx` - osobnym pliku, bo wymaga własnej atrapy
+// globalnej, której nie chcemy zakładać na wszystkie testy edytora.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";

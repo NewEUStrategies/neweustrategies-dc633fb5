@@ -21,9 +21,13 @@ export const adminPodcastsPl = {
     colTitle: "Tytuł",
     colShow: "Program",
     colTime: "Czas",
-    // Nagłówek kolumny „sezon / odcinek". Skrót, bo kolumna ma 24 jednostki
-    // szerokości - pełne słowa łamałyby nagłówek tabeli.
-    colSeasonEpisode: "Sezon / odc.",
+    // Nagłówek kolumny „sezon / odcinek". SKRÓT, bo komórka ma `w-24` (96 px)
+    // przy `text-xs` - zastane „S/E" mieściło się w niej dokładnie dlatego, że
+    // było trzyznakowe. Pierwsza wersja tego klucza brzmiała „Sezon / odc."
+    // (12 znaków) i łamała nagłówek: przeniesienie tekstu do słownika nie jest
+    // powodem, żeby zmienić jego DŁUGOŚĆ. Wartości w komórkach są w formacie
+    // „S2 · E7", więc skrót w nagłówku czyta się razem z nimi.
+    colSeasonEpisode: "S/O",
     colStatus: "Status",
     fieldSlug: "Slug",
     fieldStatus: "Status",
@@ -244,7 +248,7 @@ export const adminPodcastsEn = {
     colTitle: "Title",
     colShow: "Show",
     colTime: "Time",
-    colSeasonEpisode: "Season / ep.",
+    colSeasonEpisode: "S/E",
     colStatus: "Status",
     fieldSlug: "Slug",
     fieldStatus: "Status",

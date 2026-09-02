@@ -90,11 +90,42 @@ describe("PodcastFeedReadinessCard - kanał gotowy", () => {
     expect(screen.getByText(napis("readinessOk"))).toBeInTheDocument();
   });
 
-  it("bez żadnej drogi wejścia karta nie zmyśla braków", () => {
-    // Świadomie udokumentowane: brak informacji o brakach renderuje się jak
-    // brak braków. Karta nie ma skąd wiedzieć więcej, a straszenie redakcji
-    // pustą listą byłoby fałszywym alarmem.
-    renderWithQueryClient(<PodcastFeedReadinessCard />);
+  it("bez ŻADNEJ drogi wejścia karta nie renderuje NICZEGO", () => {
+    // SPROSTOWANIE 2026-09-02 (przegląd adwersarialny). Stało tu, że „brak
+    // informacji o brakach renderuje się jak brak braków", z uzasadnieniem, że
+    // straszenie redakcji pustą listą byłoby fałszywym alarmem. Pierwsza połowa
+    // tego uzasadnienia jest słuszna, wniosek nie: wszystkie cztery propsy są
+    // opcjonalne, więc `<PodcastFeedReadinessCard />` KOMPILUJE SIĘ, a reguła
+    // dla pustego wejścia zwraca zero braków - karta rysowała ZIELONĄ ramkę
+    // „kanał spełnia wymagania Apple", nie wiedząc o kanale nic.
+    //
+    // KONSEKWENCJA: jedynym zadaniem tej karty jest wyłapać awarię CICHĄ (brak
+    // wymaganego tagu = odrzucenie kanału z katalogu, o którym nikt się nie
+    // dowie, dopóki ktoś nie zauważy, że audycja się nie pojawiła). Fałszywe
+    // „gotowe" jest tą samą awarią cichą, tylko wprowadzoną przez mechanizm,
+    // który miał jej zapobiegać.
+    //
+    // Brak wejścia to teraz BRAK KARTY - co zaspokaja oba argumenty naraz:
+    // nie ma fałszywego alarmu ANI fałszywej zgody, a rodzic, który zapomniał
+    // podać dane, widzi dziurę w panelu.
+    const { container } = renderWithQueryClient(<PodcastFeedReadinessCard />);
+    expect(container.querySelector("section"), "brak danych to brak karty").toBeNull();
+  });
+
+  it("propsy podane jako null też nie dają zielonej ramki", () => {
+    // `null` jest realnym stanem, nie teorią: `useAdminPodcastSettings()`
+    // oddaje `undefined` przed odczytem, a wołający przepisuje to na `null`.
+    const { container } = renderWithQueryClient(
+      <PodcastFeedReadinessCard gaps={null} channel={null} readiness={null} />,
+    );
+    expect(container.querySelector("section")).toBeNull();
+  });
+
+  it("kontrola dodatnia: PUSTA lista braków (a nie brak wejścia) DAJE zieloną kartę", () => {
+    // Rozróżnienie, na którym stoi cała ta naprawa: „policzyłem i nie ma
+    // braków" jest wynikiem, a „nie mam czego policzyć" nie jest. Pierwsze
+    // musi dalej dawać zieloną kartę - inaczej naprawa zabrałaby ścieżkę zdrową.
+    renderWithQueryClient(<PodcastFeedReadinessCard gaps={[]} />);
     expect(screen.getByText(napis("readinessOk"))).toBeInTheDocument();
   });
 });

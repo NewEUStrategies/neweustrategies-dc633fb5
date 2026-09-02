@@ -8,6 +8,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { buildNewsSitemapXml, type NewsSitemapEntry } from "@/lib/seo/newsSitemap";
+import { feedCacheControl } from "@/lib/seo/feedCache";
 import { effectiveNewsPublicationName, parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
 import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
@@ -71,10 +72,25 @@ export const Route = createFileRoute("/news-sitemap.xml")({
           publicationName: effectiveNewsPublicationName(settings),
           entries,
         });
+        // NAPRAWA 2026-09-02: pusta news-sitemapa dostawała ten sam TTL co
+        // pełna, mimo że ŚWIEŻOŚĆ jest jej całym sensem. Google News czyta ten
+        // plik po to, żeby zobaczyć wpisy z ostatnich 48 h; pusty dokument
+        // zapamiętany na `s-maxage=300` plus `stale-while-revalidate=600`
+        // wypada z okna nowości, a materiał opublikowany w czasie awarii nigdy
+        // do News nie trafia. Defekt był przypięty jako `it.fails`
+        // w `routes/__tests__/feedRoutesDegradation.test.ts`; przypięcie
+        // przestało być uzasadnione w chwili, gdy powstał `lib/seo/feedCache.ts` -
+        // naprawa to podanie liczby wpisów do gotowego kontraktu.
         return new Response(xml, {
           headers: {
             "Content-Type": "application/xml; charset=utf-8",
-            "Cache-Control": "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
+            // TTL PEŁNEJ news-sitemapy jest KRÓTSZY niż kanałów (minuty, nie
+            // pół godziny) - świadomy wyjątek, taki sam jak dla relacji na
+            // żywo, więc idzie jako `whenFull`.
+            "Cache-Control": feedCacheControl(
+              entries.length,
+              "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
+            ),
           },
         });
       },

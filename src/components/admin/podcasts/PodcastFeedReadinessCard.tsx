@@ -39,8 +39,22 @@ export function PodcastFeedReadinessCard({
   channel,
   show,
   readiness,
-}: Props): React.ReactElement {
+}: Props): React.ReactElement | null {
   const { t } = useTranslation();
+  // FAIL-CLOSED WOBEC BRAKU WEJŚCIA. Wszystkie cztery propsy są opcjonalne,
+  // bo karta obsługuje trzy różne drogi wejścia - a to znaczy, że
+  // `<PodcastFeedReadinessCard />` bez ŻADNEGO wejścia kompiluje się. Reguła
+  // dla pustego wejścia zwraca zero braków, więc karta rysowałaby ZIELONĄ
+  // ramkę „kanał gotowy do zgłoszenia", nie wiedząc o kanale nic. To jest
+  // najgorszy możliwy stan tej karty: jej jedynym zadaniem jest wyłapać awarię
+  // CICHĄ, a fałszywe „gotowe" jest właśnie awarią cichą.
+  //
+  // Dlatego brak wejścia to BRAK KARTY, nie karta zielona. Renderowanie
+  // niczego jest tu poprawne: nie ma o czym orzekać, a rodzic, który zapomniał
+  // podać dane, zobaczy dziurę w panelu zamiast fałszywej zgody.
+  const hasInput = gaps != null || channel != null || readiness != null;
+  if (!hasInput) return null;
+
   const resolved = resolveApplePodcastGaps({ gaps, channel, show, readiness });
   const blocking = applePodcastBlockingGaps(resolved);
   const warnings = applePodcastWarningGaps(resolved);

@@ -36,7 +36,16 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-/** Pauza (em dash). Zapisana kodem znaku, żeby ten plik sam jej nie zawierał. */
+/**
+ * Pauza (em dash, U+2014) - znak, którego ta bramka szuka.
+ *
+ * Zapisany DOSŁOWNIE, nie jako `\u2014`, i to jest celowe: skan czyta ŹRÓDŁO
+ * plików słowników, więc gdyby wzorzec był sekwencją ucieczki, nie dopasowałby
+ * się do znaku wpisanego dosłownie - a dokładnie tak pauza trafia do słownika,
+ * bo wkleja ją człowiek z edytora tekstu. Znak w TYM pliku bramki nie fałszuje
+ * wyniku: skan obejmuje wyłącznie `src/lib/locale/*.ts` i `src/lib/i18n-*.ts`,
+ * a ten plik jest w `__tests__/`.
+ */
 const EM_DASH = "—";
 
 const LOCALE_DIR = "src/lib/locale";
