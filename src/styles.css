@@ -8792,7 +8792,11 @@ h3 .cms-inline-status-icon {
 .coc-overlay {
   background: linear-gradient(
     to top,
-    color-mix(in oklab, var(--coc-overlay-color, #111827) var(--coc-overlay-bottom, 50%), transparent),
+    color-mix(
+      in oklab,
+      var(--coc-overlay-color, #111827) var(--coc-overlay-bottom, 50%),
+      transparent
+    ),
     color-mix(in oklab, var(--coc-overlay-color, #111827) var(--coc-overlay-top, 25%), transparent)
   );
 }
@@ -8807,5 +8811,7 @@ h3 .cms-inline-status-icon {
   transition: box-shadow 300ms ease-out;
 }
 .coc-lift:hover {
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
 }

@@ -19,7 +19,10 @@
 //     kontrolki „Rozmiar tytułu / opisu" działają tu tak samo jak w listach,
 //   * `line-clamp-3` -> `clampLines` z panelu (1-6).
 import type { CSSProperties } from "react";
-import { COVER_OVERLAY_CARD_DEFAULTS, COVER_OVERLAY_DEFAULT_COLOR } from "@/lib/builder/coverOverlayCard";
+import {
+  COVER_OVERLAY_CARD_DEFAULTS,
+  COVER_OVERLAY_DEFAULT_COLOR,
+} from "@/lib/builder/coverOverlayCard";
 import { cn } from "@/lib/utils";
 
 export interface CoverOverlayCardProps {
