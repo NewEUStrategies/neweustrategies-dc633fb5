@@ -38,7 +38,14 @@
 // zero identyfikatorów osób.
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-import { fail, ok, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
+import {
+  fail,
+  ok,
+  okCount,
+  supabaseFromStub,
+  type RecordedChain,
+  type SupabaseResult,
+} from "@/test/supabaseChain";
 import {
   callServerFn,
   serverFnMiddlewareNames,
@@ -91,9 +98,22 @@ let zdarzenia: EventRow[] = [];
 const stub = supabaseFromStub();
 
 /**
+ * Czy to zapytanie LICZĄCE - `select("*", { count: "exact", head: true })`.
+ * PostgREST nie zwraca na nie wierszy, tylko licznik, więc atrapa musi je
+ * rozpoznać: inaczej „prawdziwy rozmiar okna" testowałby się sam z siebie na
+ * przyciętej próbce i przycięcie zostałoby niezauważone.
+ */
+function czyZapytanieLiczace(chain: RecordedChain): boolean {
+  const opcje = chain.argsOf("select")?.[1];
+  if (typeof opcje !== "object" || opcje === null) return false;
+  return "count" in opcje && opcje.count === "exact" && "head" in opcje && opcje.head === true;
+}
+
+/**
  * Klient NAJEMCY: odtwarza to, co robi RLS - oddaje wyłącznie wiersze tego
  * najemcy, do którego należy wołający. Filtry `in`/`gte`/`limit` z łańcucha są
- * stosowane wiernie, żeby test czytał skutki zapytania, a nie zamiar.
+ * stosowane wiernie, żeby test czytał skutki zapytania, a nie zamiar; łańcuch
+ * liczący dostaje sam licznik (bez wierszy i bez limitu), dokładnie jak baza.
  */
 function klientNajemcy(tenantId: string): ServerFnContext["supabase"] {
   const from = stub.from;
@@ -107,6 +127,7 @@ function klientNajemcy(tenantId: string): ServerFnContext["supabase"] {
       rows = rows.filter((r) => nazwy.has(r.event_name));
     }
     if (gte && gte[0] === "created_at") rows = rows.filter((r) => r.created_at >= String(gte[1]));
+    if (czyZapytanieLiczace(chain)) return okCount(rows.length);
     rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     if (typeof limit?.[0] === "number") rows = rows.slice(0, limit[0]);
     return ok(rows.map(({ tenant_id: _t, ...rest }) => rest));
@@ -477,6 +498,11 @@ describe("getFooterAnalytics - brzegi odczytu", () => {
       rows: [],
       daily: [],
       windowDays: 3,
+      // Puste okno jest zmierzone CAŁE - `sampled` równe totalowi, `capped`
+      // fałszywe. Pola przycięcia są częścią kontraktu, nie dodatkiem tylko
+      // dla dużego ruchu, dlatego stoją tu w asercji dokładnego kształtu.
+      sampled: 0,
+      capped: false,
     });
   });
 
@@ -516,18 +542,76 @@ describe("getFooterAnalytics - brzegi odczytu", () => {
   });
 });
 
-describe("getFooterAnalytics - defekt: `totals.total` nie jest totalem okna", () => {
-  // `totals.total` to `events.length`, a `events` pochodzi z odczytu z twardym
-  // `limit(10_000)`. Pole nazwane „total" przestaje więc być totalem dokładnie
-  // wtedy, gdy jest najbardziej potrzebne - przy dużym ruchu. Wynik nie niesie
-  // przy tym ŻADNEJ flagi przycięcia (inaczej niż `getAudienceSegments`, które
-  // oddaje `truncated`), więc zaniżony total wygląda w panelu identycznie jak
-  // realny spadek kliknięć w stopce.
-  it.fails("`totals.total` liczy wszystkie zdarzenia okna, nie tylko pierwsze 10 000", async () => {
+describe("getFooterAnalytics - `totals.total` jest totalem OKNA, nie próbki", () => {
+  // Pole nazwane „total" nie może przestawać być totalem dokładnie wtedy, gdy
+  // jest najbardziej potrzebne - przy dużym ruchu. Agregacja w pamięci nadal
+  // biegnie po najnowszych `SAMPLE_CAP` wierszach (transfer i pamięć muszą
+  // zostać ograniczone), ale licznik okna idzie osobnym `COUNT(*)`, a rozjazd
+  // między jednym a drugim jest JAWNY: `sampled` mówi „tyle zmierzyłem",
+  // `capped` mówi „to była próbka". Bez tego zaniżony total wygląda w panelu
+  // identycznie jak realny spadek kliknięć w stopce - a to jest ta sama klasa
+  // błędu, którą `getAudienceSegments` zamyka flagą `truncated`.
+  it("`totals.total` liczy wszystkie zdarzenia okna, nie tylko pierwsze 10 000", async () => {
     zdarzenia = Array.from({ length: 10_050 }, (_v, i) =>
       klik({ meta: { href: `/link-${i % 50}` }, created_at: godzinTemu(1 + (i % 600)) }),
     );
     const wynik = await wywolaj(TENANT_A, { days: 30 });
     expect(wynik.totals.total).toBe(10_050);
+  });
+
+  it("przycięte okno oznacza się jawnie: `capped` i `sampled` obok totalu", async () => {
+    zdarzenia = Array.from({ length: 10_050 }, (_v, i) =>
+      klik({ meta: { href: `/link-${i % 50}` }, created_at: godzinTemu(1 + (i % 600)) }),
+    );
+    const wynik = await wywolaj(TENANT_A, { days: 30 });
+    expect(wynik.capped).toBe(true);
+    expect(wynik.sampled).toBe(10_000);
+    // Rozbicia po nazwie zdarzenia liczą się z PRÓBKI - dlatego suma liczników
+    // szczegółowych jest mniejsza od totalu i musi być tak podpisana.
+    expect(wynik.totals.link_clicks).toBe(10_000);
+  });
+
+  it("okno w granicy nie jest przycięte - `sampled` równa się totalowi", async () => {
+    zdarzenia = Array.from({ length: 12 }, (_v, i) => klik({ meta: { href: `/link-${i}` } }));
+    const wynik = await wywolaj(TENANT_A, { days: 30 });
+    expect(wynik.totals.total).toBe(12);
+    expect(wynik.sampled).toBe(12);
+    expect(wynik.capped).toBe(false);
+  });
+
+  it("licznik okna czyta DOKŁADNIE te same filtry co odczyt wierszy", async () => {
+    // Licznik na innym oknie (albo bez filtra nazw) byłby gorszy niż brak
+    // licznika: panel dostałby liczbę, której nie da się pogodzić z rankingiem.
+    await wywolaj(TENANT_A, { days: 30 });
+    const [liczacy, czytajacy] = stub.chainsFor("analytics_events");
+    expect(liczacy.argsOf("select")).toEqual(["*", { count: "exact", head: true }]);
+    expect(liczacy.argsOf("in")).toEqual(czytajacy.argsOf("in"));
+    expect(liczacy.argsOf("gte")).toEqual(czytajacy.argsOf("gte"));
+    // Zapytanie liczące nie wozi wierszy ani limitu - to cały sens `head`.
+    expect(liczacy.has("limit")).toBe(false);
+    expect(liczacy.has("order")).toBe(false);
+  });
+
+  it("brak licznika z bazy spada na rozmiar próbki, a nie na wyjątek", async () => {
+    // Starsze PostgREST (albo atrapa bez `count`) nie odda licznika. Wynik ma
+    // wtedy zostać najlepszym możliwym przybliżeniem, a nie 500-ką.
+    const context: ServerFnContext = {
+      supabase: {
+        from: () => {
+          stub.setResponse("analytics_events", () =>
+            ok([{ event_name: "footer_link_click", meta: null, created_at: godzinTemu(1) }]),
+          );
+          return stub.from("analytics_events");
+        },
+      },
+      userId: "99999999-9999-4999-8999-999999999999",
+    };
+    const wynik = await callServerFn<FooterAnalyticsResult>(getFooterAnalytics, {
+      data: { days: 3 },
+      context,
+    });
+    expect(wynik.totals.total).toBe(1);
+    expect(wynik.sampled).toBe(1);
+    expect(wynik.capped).toBe(false);
   });
 });

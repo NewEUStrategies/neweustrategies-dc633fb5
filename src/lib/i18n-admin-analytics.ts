@@ -1,7 +1,7 @@
 // Zasoby i18n dla dashboardów BI w panelu analityki (/admin/analytics).
 // Obejmuje wspólne prymitywy (ChartCard, TimeRangeFilter, InsightSection) oraz
-// dashboardy: Related, Web Vitals, Audytorium, GSC i GA4 wraz z generatorami
-// interpretacji (gscInsights / ga4Insights).
+// dashboardy: Related, Web Vitals, Audytorium, GSC, GA4 i Stopka wraz z
+// generatorami interpretacji (gscInsights / ga4Insights).
 import i18n from "@/lib/i18n";
 
 const pl = {
@@ -773,6 +773,66 @@ const pl = {
       expand: "Pokaż szczegóły",
       collapse: "Zwiń szczegóły",
     },
+    // POWIERZCHNIA STOPKI (`FooterAnalyticsPanel`, /admin/analytics -> Stopka).
+    // Panel długo nie miał warstwy i18n WCALE: nagłówek, etykiety kafelków,
+    // nazwy grup, nazwy zdarzeń i nagłówki kolumn stały po polsku w JSX, choć
+    // trasa `/admin/analytics` jest dwujęzyczna - angielski administrator
+    // czytał polszczyznę. Te klucze są odtąd JEDYNYM źródłem tych napisów.
+    footer: {
+      title: "Kliknięcia w stopce",
+      // ZDANIE O ŹRÓDLE i ZDANIE O OKNIE stoją w dwóch kluczach, bo drugie
+      // zmienia się przy każdym wyborze zakresu, a pierwsze nie. Zlanie ich w
+      // jeden klucz zmuszałoby tłumacza do przenoszenia liczby przez środek
+      // zdania osobno w każdym języku.
+      subtitle:
+        "Zdarzenia zbierane przez {{endpoint}} (GA4 równolegle, jeśli zgoda marketingowa aktywna).",
+      windowInfo: "Okno: ostatnie {{days}} dni.",
+      loading: "Ładowanie danych stopki...",
+      readFailed: "Nie udało się pobrać danych: {{reason}}",
+      // BRAK POMIARU KONTRA ZMIERZONE ZERO. Zapytanie wstrzymane brakiem sieci
+      // ma `fetchStatus: "paused"`, więc `isLoading` jest fałszem, choć nie
+      // przyjechał ani jeden wiersz. Kafelek nie może wtedy malować zera - zero
+      // to twierdzenie o pomiarze, a pomiaru nie ma; `notMeasuredShort` stoi w
+      // podpowiedzi kafelka, `notMeasured` zamiast tabeli.
+      notMeasured: "Panel nie wykonał odczytu - pomiar jest wstrzymany.",
+      notMeasuredHint:
+        "Zapytanie czeka na połączenie sieciowe albo na identyfikator warsztatu. Zero na kafelku byłoby twierdzeniem o danych, których nie ma.",
+      notMeasuredShort: "Brak pomiaru",
+      kpiTotal: "Wszystkie zdarzenia",
+      kpiLinkClicks: "Linki treści",
+      kpiLegalClicks: "Linki prawne",
+      kpiNewsletterClicks: "Kliknięcia newsletter",
+      kpiNewsletterSignups: "Zapisy z newslettera",
+      conversion: "{{pct}}% konwersji",
+      // LEJEK NIEDOMKNIĘTY. `footer_newsletter_signup` leci przy KAŻDYM wyniku
+      // wysyłki formularza, a `footer_newsletter_click` tylko z linku, który ma
+      // "newsletter" w adresie - zapisów bywa więc więcej niż kliknięć. Odsetek
+      // jest wtedy ograniczony do stu procent i JAWNIE oznaczony tym napisem,
+      // bo "300.0% konwersji" nie jest wskaźnikiem, tylko usterką.
+      conversionOpen: "{{pct}}% konwersji (lejek niedomknięty: zapisów więcej niż kliknięć)",
+      topLinks: "Top linki",
+      allGroups: "Wszystkie grupy",
+      emptyWindow: "Brak zdarzeń w wybranym oknie.",
+      groups: {
+        editorial: "Redakcja",
+        topics: "Tematy",
+        community: "Społeczność",
+        institute: "Instytut",
+        legal: "Prawne",
+        unknown: "Inne",
+      },
+      events: {
+        footer_link_click: "Link stopki",
+        footer_legal_click: "Link prawny",
+        footer_newsletter_click: "Newsletter (link)",
+        footer_newsletter_signup: "Newsletter (zapis)",
+      },
+      colLabel: "Etykieta / URL",
+      colGroup: "Grupa",
+      colEvent: "Zdarzenie",
+      colClicks: "Kliknięcia",
+      colLastSeen: "Ostatnie",
+    },
   },
 };
 
@@ -1524,6 +1584,47 @@ const en = {
       },
       expand: "Show details",
       collapse: "Hide details",
+    },
+    footer: {
+      title: "Footer clicks",
+      subtitle:
+        "Events collected through {{endpoint}} (GA4 in parallel when marketing consent is active).",
+      windowInfo: "Window: last {{days}} days.",
+      loading: "Loading footer data...",
+      readFailed: "Could not fetch the data: {{reason}}",
+      notMeasured: "The panel has not completed a read - measurement is paused.",
+      notMeasuredHint:
+        "The query is waiting for a network connection or for the workspace id. A zero on the tile would be a claim about data that does not exist.",
+      notMeasuredShort: "Not measured",
+      kpiTotal: "All events",
+      kpiLinkClicks: "Content links",
+      kpiLegalClicks: "Legal links",
+      kpiNewsletterClicks: "Newsletter clicks",
+      kpiNewsletterSignups: "Newsletter signups",
+      conversion: "{{pct}}% conversion",
+      conversionOpen: "{{pct}}% conversion (open funnel: more signups than clicks)",
+      topLinks: "Top links",
+      allGroups: "All groups",
+      emptyWindow: "No events in the selected window.",
+      groups: {
+        editorial: "Editorial",
+        topics: "Topics",
+        community: "Community",
+        institute: "Institute",
+        legal: "Legal",
+        unknown: "Other",
+      },
+      events: {
+        footer_link_click: "Footer link",
+        footer_legal_click: "Legal link",
+        footer_newsletter_click: "Newsletter (link)",
+        footer_newsletter_signup: "Newsletter (signup)",
+      },
+      colLabel: "Label / URL",
+      colGroup: "Group",
+      colEvent: "Event",
+      colClicks: "Clicks",
+      colLastSeen: "Last seen",
     },
   },
 };

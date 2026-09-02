@@ -8,8 +8,9 @@
 //
 // Dlaczego to nie jest test „czy się wywołało":
 //
-//  1. BRAMKA ZGODY RODO JEST FUNKCJĄ, NIE DEKORACJĄ. Beacon do
-//     `/api/public/track` ma NIE POWSTAĆ bez zgody `analytics`. Dlatego w tym
+//  1. BRAMKA ZGODY RODO JEST FUNKCJĄ, NIE DEKORACJĄ. Bez zgody `analytics` ma
+//     NIE POWSTAĆ ani beacon do `/api/public/track`, ani nadanie do GA4 -
+//     bramka obejmuje OBA kanały wyjścia (ostatni blok w tym pliku). Dlatego w tym
 //     pliku `track()` i `hasCategoryConsent()` biegną PRAWDZIWE - atrapa
 //     `track` (wygodna, użyta w teście badge Google) dowiodłaby wyłącznie tego,
 //     że funkcja została zawołana, czyli akurat nie tego, co jest tu wymogiem
@@ -404,18 +405,22 @@ describe("trackFooterNewsletterSubmit", () => {
   });
 });
 
-describe("footerTracking - defekt: cofnięta zgoda zatrzymuje tylko JEDEN z dwóch beaconów", () => {
-  // Nagłówek modułu uzasadnia zgodność z RODO tak: „track() sam sprawdza
-  // analytics-consent, a window.gtag istnieje tylko gdy użytkownik wyraził
-  // zgodę marketingową". Drugie założenie jest nieprawdziwe w DWÓCH miejscach:
+describe("footerTracking - bramka zgody obejmuje OBA beacony, nie tylko własny", () => {
+  // Te dwa przypadki pilnują szczelności bramki RODO na drugim kanale wyjścia.
+  // Nie wystarczy, że `track()` sam sprawdza zgodę analityczną: `window.gtag`
+  // PRZEŻYWA cofnięcie zgody w dwóch niezależnych miejscach mechanizmu -
   //  * GA4 wstrzykuje `loadAnalytics()` w `ConsentScriptInjector.tsx`, czyli
-  //    kategoria ANALYTICS, nie marketingowa;
-  //  * jego sprzątanie (`removeMarked`) usuwa ELEMENT <script>, a nie globalną
+  //    pod kategorią ANALYTICS, a nie marketingową (założenie o „zgodzie
+  //    marketingowej" nigdy nie było prawdziwe);
+  //  * sprzątanie (`removeMarked`) usuwa ELEMENT <script>, a nie globalną
   //    funkcję `window.gtag`, którą ten skrypt zdefiniował - po cofnięciu zgody
-  //    (albo po włączeniu GPC w trakcie sesji) `gtag` nadal jest funkcją.
-  // Skutek: własny beacon milknie zgodnie z prawem, a GA4 dostaje zdarzenie
-  // dalej. Bramka zgody musi być PRZED oboma nadaniami, nie tylko przed jednym.
-  it.fails("cofnięta zgoda analytics zatrzymuje TAKŻE zdarzenie GA4", () => {
+  //    (albo po włączeniu GPC w trakcie sesji) `gtag` NADAL jest funkcją.
+  // Dlatego oba nadania idą dziś przez tę samą bramkę (`gtagIfConsented()` w
+  // module produkcyjnym): własny beacon milczy i GA4 milczy razem z nim.
+  // Gdyby ktoś usunął bramkę z akcesora GA4 - albo dopisał nowe zdarzenie
+  // stopki obok niego - te przypadki padną, zanim zdarzenie po odmowie zgody
+  // trafi do Google.
+  it("cofnięta zgoda analytics zatrzymuje TAKŻE zdarzenie GA4", () => {
     zapiszZgode({ analytics: false });
     const ga = podstawGtag();
 
@@ -425,7 +430,7 @@ describe("footerTracking - defekt: cofnięta zgoda zatrzymuje tylko JEDEN z dwó
     expect(ga).toEqual([]);
   });
 
-  it.fails("aktywny sygnał GPC zatrzymuje TAKŻE zdarzenie GA4", () => {
+  it("aktywny sygnał GPC zatrzymuje TAKŻE zdarzenie GA4", () => {
     zapiszZgode({ analytics: true, marketing: true });
     document.cookie = `${GPC_COOKIE}=${GPC_COOKIE_VALUE}; path=/`;
     const ga = podstawGtag();
