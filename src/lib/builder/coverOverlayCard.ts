@@ -27,7 +27,15 @@ export const COVER_OVERLAY_CARD_DEFAULTS = {
 /** Kolor nakładki, gdy panel nie narzucił własnego (`gray-900` wzorca). */
 export const COVER_OVERLAY_DEFAULT_COLOR = "#111827";
 
-const LOCALE: Record<"pl" | "en", string> = { pl: "pl-PL", en: "en-GB" };
+/**
+ * Format daty per język trzyma się TABLICY, nie warunku po języku w kodzie -
+ * warunek `lang === "pl" ? … : …` omija bramkę parytetu PL/EN i zamyka drogę
+ * do trzeciego języka.
+ */
+const DATE_FORMAT: Record<"pl" | "en", Intl.DateTimeFormatOptions & { locale: string }> = {
+  pl: { locale: "pl-PL", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" },
+  en: { locale: "en-GB", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" },
+};
 
 /**
  * Data ISO (`RRRR-MM-DD`) sprowadzona do atrybutu `datetime`.
@@ -49,10 +57,6 @@ export function formatCoverCardDate(raw: string, lang: "pl" | "en"): string {
   const value = coverCardDateAttr(raw);
   if (!value) return raw.trim();
   const date = new Date(`${value}T00:00:00Z`);
-  return new Intl.DateTimeFormat(LOCALE[lang], {
-    day: "numeric",
-    month: lang === "pl" ? "long" : "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
+  const { locale, ...options } = DATE_FORMAT[lang];
+  return new Intl.DateTimeFormat(locale, options).format(date);
 }
