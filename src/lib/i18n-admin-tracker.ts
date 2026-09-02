@@ -8,7 +8,7 @@
 // w świat. Bramka parytetu nie miała czego z czym porównać.
 import i18n from "./i18n";
 
-const pl = {
+export const adminTrackerPl = {
   adminTracker: {
     tickComplete_one: "Tick uruchomiony. Wysłano {{count}} powiadomienie.",
     tickComplete_few: "Tick uruchomiony. Wysłano {{count}} powiadomienia.",
@@ -22,6 +22,13 @@ const pl = {
     runTickNow: "Uruchom tick teraz",
     newDossier: "Nowe dossier",
     editDossier: "Edycja dossier",
+    titlePl: "Tytuł PL",
+    titleEn: "Tytuł EN",
+    summaryPl: "Opis PL",
+    summaryEn: "Opis EN",
+    updateNotePl: "Notatka PL",
+    updateNoteEn: "Notatka EN",
+    noteEn: "Nota EN",
     reference: "Referencja",
     area: "Obszar",
     stage: "Etap",
@@ -68,7 +75,7 @@ const pl = {
   },
 };
 
-const en = {
+export const adminTrackerEn = {
   adminTracker: {
     tickComplete_one: "Tick complete. {{count}} notification sent.",
     tickComplete_other: "Tick complete. {{count}} notifications sent.",
@@ -80,6 +87,13 @@ const en = {
     runTickNow: "Run tick now",
     newDossier: "New dossier",
     editDossier: "Edit dossier",
+    titlePl: "Title PL",
+    titleEn: "Title EN",
+    summaryPl: "Summary PL",
+    summaryEn: "Summary EN",
+    updateNotePl: "Note PL",
+    updateNoteEn: "Note EN",
+    noteEn: "Note EN",
     reference: "Reference",
     area: "Area",
     stage: "Stage",
@@ -125,8 +139,8 @@ const en = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
+i18n.addResourceBundle("pl", "translation", adminTrackerPl, true, true);
+i18n.addResourceBundle("en", "translation", adminTrackerEn, true, true);
 
 /**
  * No-op wołany w KOMPONENCIE trasy (nie side-effectowym importem w pliku

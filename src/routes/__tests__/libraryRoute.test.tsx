@@ -56,12 +56,15 @@ const h = vi.hoisted(() => ({
   errorToasts: [] as string[],
   /** Adres żądania widziany przez `head()`. */
   requestUrl: "https://nes.example.org/library",
+  /** Etykiety odczytów W KOLEJNOŚCI - podstawa pomiaru round-tripów. */
+  reads: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub, ok, fail } = await import("@/test/supabase/chain");
   const stub = supabaseFromStub();
   stub.setResponse("member_resources", () => {
+    h.reads.push("member_resources");
     if (h.broken) return fail("test: tabela member_resources niedostepna");
     // Polityka publiczna: tylko wiersze tenanta przeglądanej domeny.
     return ok(h.resources.filter((row) => row.tenant_id === h.tenantId));
@@ -195,6 +198,7 @@ beforeEach(async () => {
   h.opened = [];
   h.errorToasts = [];
   h.requestUrl = "https://nes.example.org/library";
+  h.reads = [];
   vi.spyOn(window, "open").mockImplementation((url) => {
     h.opened.push(String(url));
     return null;
@@ -217,7 +221,9 @@ describe("trasa /library - karta materiału", () => {
       screen.getByRole("heading", { level: 1, name: "Biblioteka materiałów" }),
     ).toBeInTheDocument();
     const card = resourceCard("Raport o zielonym wodorze");
-    expect(within(card).getByText("Przegląd projektów wodorowych w Europie Środkowej.")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Przegląd projektów wodorowych w Europie Środkowej."),
+    ).toBeInTheDocument();
     expect(within(card).getByText("Raport")).toBeInTheDocument();
     expect(within(card).getByText("2.0 MB")).toBeInTheDocument();
   });
@@ -246,11 +252,11 @@ describe("trasa /library - karta materiału", () => {
     await i18n.changeLanguage("en");
     await mount();
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Members' library" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Members' library" })).toBeInTheDocument();
     const card = resourceCard("Green hydrogen report");
-    expect(within(card).getByText("A review of hydrogen projects in Central Europe.")).toBeInTheDocument();
+    expect(
+      within(card).getByText("A review of hydrogen projects in Central Europe."),
+    ).toBeInTheDocument();
     expect(within(card).getByText("Report")).toBeInTheDocument();
     expect(screen.queryByText("Raport o zielonym wodorze")).not.toBeInTheDocument();
   });
@@ -446,9 +452,7 @@ describe("trasa /library - bramka rangi i pobranie", () => {
     await waitFor(() =>
       expect(h.errorToasts).toEqual(["Nie udało się przygotować pliku. Spróbuj ponownie."]),
     );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Pobierz" })).not.toBeDisabled(),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pobierz" })).not.toBeDisabled());
   });
 
   it("gość dostaje na górze strony podpowiedź o logowaniu, zalogowany już nie", async () => {
@@ -507,5 +511,63 @@ describe("trasa /library - nagłówek dokumentu", () => {
     const robots = (routeHead(LibraryRoute).meta ?? []).filter((e) => e.name === "robots");
 
     expect(robots).toEqual([]);
+  });
+});
+
+// ── LICZBA ZAPYTAŃ NA PIERWSZYM WCZYTANIU (zapadka) ─────────────────────────
+//
+// POMIAR, NIE OPINIA. Loader zasiewa `["library-resources"]`, więc siatka kart
+// jest w HTML z serwera. Zasiew ma jednak wartość tylko wtedy, gdy dane są
+// PO hydratacji jeszcze świeże - inaczej `useQuery` pobiera tę samą listę
+// drugi raz zaraz po montażu i loader płaci za nic (dokładnie ten defekt
+// zmierzono na `/polls`). Zapadka pilnuje więc jednej rzeczy: lista schodzi
+// z serwera i NIE jest ponawiana z przeglądarki.
+//
+// CO ZOSTAJE KLIENCKIE I DLACZEGO. `useCurrentTier` (RPC
+// `current_membership_tier`) NIE wchodzi do loadera: to czysta
+// PERSONALIZACJA, a dokument `/library` idzie do cache'a brzegowego, więc
+// zasiew rangi wysłałby każdemu kolejnemu czytelnikowi warstwę pierwszego.
+// Metadane są publiczne z premedytacją, ranga nie jest.
+describe("trasa /library - zapadka na liczbie odczytów listy", () => {
+  it("loader zasiewa listę materiałów - siatka kart jest w HTML z serwera", async () => {
+    const queryClient = freshClient();
+    const loader: unknown = LibraryRoute.options.loader;
+    if (typeof loader !== "function") throw new Error("test: trasa nie ma loadera");
+    await (loader as (ctx: { context: { queryClient: QueryClient } }) => Promise<unknown>)({
+      context: { queryClient },
+    });
+
+    expect(h.reads).toEqual(["member_resources"]);
+    expect(queryClient.getQueryData(["library-resources"])).toBeDefined();
+  });
+
+  it("po hydratacji NIE pobiera tej samej listy drugi raz", async () => {
+    // Każdy ponowny odczyt tu to round-trip z pełnym opóźnieniem sieci
+    // czytelnika za dane, które właśnie przyjechały w dokumencie.
+    const queryClient = freshClient();
+    const loader: unknown = LibraryRoute.options.loader;
+    if (typeof loader !== "function") throw new Error("test: trasa nie ma loadera");
+    await (loader as (ctx: { context: { queryClient: QueryClient } }) => Promise<unknown>)({
+      context: { queryClient },
+    });
+    const afterLoader = [...h.reads];
+
+    const view = await mount(PATH, queryClient);
+    await screen.findByRole("heading", { level: 1 });
+    await waitFor(() => expect(view.queryClient.isFetching()).toBe(0));
+
+    const clientReads = h.reads.slice(afterLoader.length);
+    expect(clientReads, `odczyty klienta: ${clientReads.join(", ")}`).toEqual([]);
+  });
+
+  it("KONTROLA DODATNIA: bez zasiewu lista JEST pobierana z przeglądarki", async () => {
+    // Bez tej pary poprzedni test przechodziłby też wtedy, gdyby atrapa
+    // odczytu w ogóle nie liczyła wywołań - albo gdyby komponent przestał
+    // czytać listę.
+    const view = await mount(PATH, freshClient());
+    await screen.findByRole("heading", { level: 1 });
+    await waitFor(() => expect(view.queryClient.isFetching()).toBe(0));
+
+    expect(h.reads).toContain("member_resources");
   });
 });

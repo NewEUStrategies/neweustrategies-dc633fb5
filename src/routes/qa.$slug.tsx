@@ -19,9 +19,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   askQaQuestion,
-  fetchPublicQaSessionBySlug,
-  fetchPublicQaQuestions,
   fetchQaSummaryPost,
+  publicQaQuestionsQueryOptions,
+  publicQaSessionQueryOptions,
   type PublicQaSession,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
@@ -70,15 +70,6 @@ interface QaSessionHeadData {
   answered: QaSessionHeadQuestion[];
 }
 
-/**
- * Klucze cache sesji i jej pytań - JEDNO źródło dla loadera i dla widoku.
- * Rozjazd tych dwóch miejsc nie psuje niczego widocznie: zasiew po prostu
- * przestaje być odczytany i round-trip po hydratacji wraca po cichu.
- */
-export const qaSessionQueryKey = (slug: string) => ["public-qa-session", slug] as const;
-export const qaQuestionsQueryKey = (sessionId: string | null) =>
-  ["public-qa-questions", sessionId] as const;
-
 export const Route = createFileRoute("/qa/$slug")({
   component: QaDetail,
   // ── DWIE RÓŻNE PRAWDY, DWIE RÓŻNE ODPOWIEDZI ─────────────────────────────
@@ -92,19 +83,17 @@ export const Route = createFileRoute("/qa/$slug")({
   //     404 przy blipie bazy WYPISAŁBY z indeksu działające sesje, więc ta
   //     gałąź świadomie NIE jest 404 (ten sam błąd popełnia `programs.$slug`).
   //
-  // Loader ZASIEWA też cache react-query tymi samymi kluczami, których używa
-  // komponent (`["public-qa-session", slug]`, `["public-qa-questions", id]`).
-  // Wcześniej wołał fetchery WPROST, więc oba odczyty leciały drugi raz
-  // z przeglądarki po hydratacji - a to treść NAD ZGIĘCIEM (tytuł sesji,
-  // lista pytań). Zasiew jest w `ensureQueryData`, więc dehydrowany ładunek
-  // SSR niesie je do klienta, zamiast dwóch round-tripów.
+  // Loader ZASIEWA też cache react-query TYMI SAMYMI `queryOptions`, których
+  // używa komponent (`publicQaSessionQueryOptions`,
+  // `publicQaQuestionsQueryOptions`). Wcześniej wołał fetchery WPROST, więc
+  // oba odczyty leciały drugi raz z przeglądarki po hydratacji - a to treść
+  // NAD ZGIĘCIEM (tytuł sesji, wprowadzenie, lista pytań). Wspólne
+  // `queryOptions` niosą też `staleTime`, bez którego zasiew jest
+  // przeterminowany w chwili hydratacji i refetch wraca po cichu.
   loader: async ({ context, params }): Promise<QaSessionHeadData | null> => {
     let session: PublicQaSession | null;
     try {
-      session = await context.queryClient.ensureQueryData({
-        queryKey: qaSessionQueryKey(params.slug),
-        queryFn: () => fetchPublicQaSessionBySlug(params.slug),
-      });
+      session = await context.queryClient.ensureQueryData(publicQaSessionQueryOptions(params.slug));
     } catch {
       return null;
     }
@@ -114,10 +103,9 @@ export const Route = createFileRoute("/qa/$slug")({
     const found = session;
     let answered: QaSessionHeadQuestion[] = [];
     try {
-      const questions = await context.queryClient.ensureQueryData({
-        queryKey: qaQuestionsQueryKey(found.id),
-        queryFn: () => fetchPublicQaQuestions(found.id),
-      });
+      const questions = await context.queryClient.ensureQueryData(
+        publicQaQuestionsQueryOptions(found.id),
+      );
       answered = questions
         .filter((q) => (q.answer_body ?? "").trim().length > 0)
         .slice(0, 20)
@@ -230,15 +218,13 @@ function QaDetail() {
   const qc = useQueryClient();
 
   const sessionQ = useQuery({
-    queryKey: qaSessionQueryKey(slug),
-    queryFn: () => fetchPublicQaSessionBySlug(slug),
+    ...publicQaSessionQueryOptions(slug),
     enabled: modules.qa_enabled,
   });
 
   const sessionId = sessionQ.data?.id ?? null;
   const questionsQ = useQuery({
-    queryKey: qaQuestionsQueryKey(sessionId),
-    queryFn: () => fetchPublicQaQuestions(sessionId!),
+    ...publicQaQuestionsQueryOptions(sessionId ?? ""),
     enabled: !!sessionId,
   });
 
@@ -257,7 +243,7 @@ function QaDetail() {
       askQaQuestion({ sessionId: sessionId!, body, anonymous }),
     onSuccess: () => {
       toast.success(t("community.qa.submitted"));
-      void qc.invalidateQueries({ queryKey: qaQuestionsQueryKey(sessionId) });
+      void qc.invalidateQueries({ queryKey: ["public-qa-questions", sessionId] });
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "";
@@ -278,7 +264,7 @@ function QaDetail() {
         .insert({ question_id: questionId, user_id: user.id, tenant_id });
       if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: qaQuestionsQueryKey(sessionId) }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["public-qa-questions", sessionId] }),
     onError: () => toast.error(t("community.qa.voteError")),
   });
 

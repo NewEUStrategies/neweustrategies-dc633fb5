@@ -11,7 +11,7 @@
 // o ZESTAW form liczby mnogiej.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
-// - `src/lib/__tests__/i18nOverlayDashGate.test.ts` pilnuje pauzy „—" nad
+// - `src/lib/__tests__/i18nOverlayDashGate.test.ts` pilnuje pauzy typograficznej nad
 //   WSZYSTKIMI nakładkami, więc tutaj nie ma osobnej asercji o pauzie;
 // - `src/__tests__/i18nParity.gate.test.ts` porównuje rdzeń;
 // - render katalogu ma własny plik

@@ -4,7 +4,7 @@ import i18n from "./i18n";
 // Rejestrowany jako nakładka na bazowe i18n - importowany przez strony
 // /author/$slug, /experts oraz /profile/author.
 
-export const expertsPl = {
+const pl = {
   expert: {
     // Nagłówek profilu
     expertBadge: "Ekspert",
@@ -124,7 +124,7 @@ export const expertsPl = {
   },
 };
 
-export const expertsEn: typeof expertsPl = {
+const en: typeof pl = {
   expert: {
     expertBadge: "Expert",
     verifiedBadge: "Verified",
@@ -231,8 +231,18 @@ export const expertsEn: typeof expertsPl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", expertsPl, true, true);
-i18n.addResourceBundle("en", "translation", expertsEn, true, true);
+/**
+ * Nazwa `pl`/`en` jest tu KONWENCJĄ, nie gustem: bramka
+ * `check:i18n-overlay-imports` czyta klucze nakładki wyrażeniem
+ * `const pl = ...` (patrz `src/lib/ci/i18nOverlayImports.ts`), więc
+ * przemianowanie tej stałej ODCIĘŁOBY ten plik od bramki - i to bez żadnego
+ * czerwonego testu, bo bramka po prostu przestałaby widzieć jego klucze.
+ * Nazwane eksporty niżej są aliasami dla testu parytetu.
+ */
+i18n.addResourceBundle("pl", "translation", pl, true, true);
+i18n.addResourceBundle("en", "translation", en, true, true);
+
+export { pl as expertsPl, en as expertsEn };
 
 /**
  * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.

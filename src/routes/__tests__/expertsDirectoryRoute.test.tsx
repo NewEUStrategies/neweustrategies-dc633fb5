@@ -209,9 +209,7 @@ describe("trasa /experts - karta eksperta", () => {
     // dorobku eksperta - a po to katalog istnieje.
     await mount();
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Eksperci" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Eksperci" })).toBeInTheDocument();
     expect(screen.getByText("Zofia Wietrzna")).toBeInTheDocument();
     expect(screen.getByText("Analityczka klimatyczna · NES")).toBeInTheDocument();
     // Nazwa obszaru pada w dwóch miejscach (opcja filtra i plakietka karty),
@@ -248,7 +246,10 @@ describe("trasa /experts - karta eksperta", () => {
     cleanup();
 
     h.posts = [1, 2, 3, 4, 5].map(() => ({ author_id: "u1", tenant_id: "tenant-a" }));
-    const five = await mount(PATH, new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    const five = await mount(
+      PATH,
+      new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+    );
     expect(five.container.textContent).toContain("5 publikacji");
   });
 
@@ -394,7 +395,10 @@ describe("trasa /experts - filtry z adresu", () => {
     // To jest deep-link linkowany z huba eksperta. Adres, który nic nie robi,
     // wysyła czytelnika na pełną listę bez śladu, czego szukał.
     h.badges = [badge("u1"), badge("u2")];
-    h.profiles = [profile(), profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" })];
+    h.profiles = [
+      profile(),
+      profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" }),
+    ];
     h.authorProfiles = [authorProfile(), authorProfile({ user_id: "u2" })];
     h.areaLinks = [
       { user_id: "u1", sort_order: 0, area: AREA_CLIMATE },
@@ -440,7 +444,10 @@ describe("trasa /experts - filtry z adresu", () => {
 
   it("filtr programu ZAWĘŻA listę (dowód, że fasety programów nie są ozdobą)", async () => {
     h.badges = [badge("u1"), badge("u2")];
-    h.profiles = [profile(), profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" })];
+    h.profiles = [
+      profile(),
+      profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" }),
+    ];
     h.authorProfiles = [authorProfile(), authorProfile({ user_id: "u2" })];
     h.programLinks = [{ user_id: "u1", sort_order: 0, program: PROGRAM_EAST }];
     await mount();
@@ -458,7 +465,10 @@ describe("trasa /experts - filtry z adresu", () => {
     // ma tylko Adama, a program „prog-1" tylko Zofię. To jedyna droga do
     // gałęzi „żaden nie pasuje" - i realna, bo oba filtry są niezależne.
     h.badges = [badge("u1"), badge("u2")];
-    h.profiles = [profile(), profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" })];
+    h.profiles = [
+      profile(),
+      profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" }),
+    ];
     h.authorProfiles = [authorProfile(), authorProfile({ user_id: "u2" })];
     h.areaLinks = [
       { user_id: "u1", sort_order: 0, area: AREA_CLIMATE },
@@ -507,7 +517,10 @@ describe("trasa /experts - filtry z adresu", () => {
     // Para do `it.fails` wyżej. Bez niej tamten test „przechodziłby" także
     // wtedy, gdyby adres z `?program=` w ogóle wywracał trasę.
     h.badges = [badge("u1"), badge("u2")];
-    h.profiles = [profile(), profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" })];
+    h.profiles = [
+      profile(),
+      profile({ id: "u2", slug: "adam-morski", display_name: "Adam Morski" }),
+    ];
     h.authorProfiles = [authorProfile(), authorProfile({ user_id: "u2" })];
     h.programLinks = [{ user_id: "u1", sort_order: 0, program: PROGRAM_EAST }];
     const view = await mount("/experts?program=prog-1");

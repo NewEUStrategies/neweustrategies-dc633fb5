@@ -85,8 +85,9 @@ vi.mock("@/integrations/supabase/client", async () => {
         const id = typeof args?._page_id === "string" ? args._page_id : "";
         return { data: h.paths[id] ?? null, error: null };
       },
-      // `.bind(rt)` jest KONIECZNY - bez niego `this` w atrapie gubi rejestr
-      // kanałów i zapadka na wycieku przestaje cokolwiek mierzyć.
+      // Kanały idą przez WŁASNE opakowanie (a nie `rt.channel.bind(rt)`),
+      // bo zapadka niżej mierzy BILANS otwarć i zamknięć - a to wymaga
+      // policzenia obu wywołań, nie tylko podstawienia atrapy.
       channel: (name: string, config?: Record<string, unknown>) => {
         h.channelNames.push(name);
         return rt.channel(name, config);
@@ -217,10 +218,10 @@ describe("trasa /live - lista relacji", () => {
     // redakcja umieściła pod inną stroną nadrzędną.
     await mount();
 
+    expect(screen.getByRole("heading", { level: 1, name: /Relacje na żywo/ })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 1, name: /Relacje na żywo/ }),
+      screen.getByRole("heading", { level: 2, name: "Szczyt energetyczny - relacja" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Szczyt energetyczny - relacja" })).toBeInTheDocument();
     expect(screen.getByText("Minuta po minucie z obrad.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Szczyt energetyczny/ })).toHaveAttribute(
       "href",
@@ -263,7 +264,9 @@ describe("trasa /live - lista relacji", () => {
     await mount();
 
     expect(screen.getByRole("heading", { level: 1, name: /Live coverage/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Energy summit - live" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Energy summit - live" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Minute by minute from the talks.")).toBeInTheDocument();
     expect(screen.queryByText("Minuta po minucie z obrad.")).not.toBeInTheDocument();
   });
@@ -369,7 +372,9 @@ describe("trasa /live - stan pusty i render zdegradowany", () => {
     await mount();
 
     expect(screen.queryByText(/Nie udało się załadować relacji/)).toBeNull();
-    expect(screen.getByRole("heading", { level: 2, name: /Szczyt energetyczny/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: /Szczyt energetyczny/ }),
+    ).toBeInTheDocument();
   });
 });
 
