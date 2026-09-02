@@ -2,7 +2,7 @@
 // z alertami oraz oś czasu aktualizacji. Publiczny odczyt (RLS: published).
 // Loader prefetchuje dossier pod head() - meta i JSON-LD (schema.org
 // Legislation) renderują się w SSR, a komponent czyta ten sam cache.
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, type ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Bell, BellOff, ExternalLink, Landmark } from "lucide-react";
@@ -13,7 +13,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import {
   itemBySlugQueryOptions,
+  itemUpdatesQueryOptions,
   type PolicyItem,
+  type PolicyUpdate,
   useItemBySlug,
   useItemPositions,
   useItemUpdates,
@@ -34,8 +36,16 @@ import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 import { ClubAnchorThreads } from "@/components/clubs/organisms/ClubAnchorThreads";
 import { uiLocale } from "@/lib/i18n/format";
-import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+
+/** Budżet DRUGIEJ fali (oś czasu). Krótszy niż domyślny budżet odpornego
+ *  ładowania, bo ta fala biegnie PO odczycie dossier i jej czas dodaje się do
+ *  TTFB, a nie biegnie równolegle. */
+const TIMELINE_BUDGET_MS = 2_000;
+
+/** Fallback zdegradowanego renderu osi czasu (patrz lib/ssr/resilientLoad). */
+const NO_UPDATES: PolicyUpdate[] = [];
 
 export const Route = createFileRoute("/tracker/$slug")({
   // 404 ROZSTRZYGA LOADER, NIE KOMPONENT (naprawa N4, 2026-09-02).
@@ -52,18 +62,48 @@ export const Route = createFileRoute("/tracker/$slug")({
   // wyrzuciłoby żywe dossier z indeksu na czas blipu backendu - dlatego
   // `degraded` prowadzi do strony 200 z `robots: noindex, follow` z `head()`
   // (adres wraca do indeksu sam, gdy backend wróci), a nie do twardego 404.
+  //
+  // OŚ CZASU JEDZIE DRUGĄ FALĄ (naprawa N4, 2026-09-02). Do dziś loader grzał
+  // wyłącznie wiersz dossier, więc oś czasu była w całości kliencka - a KANAŁ
+  // `/tracker/rss.xml` linkuje pozycje WPROST do wpisu (`#update-<id>`, patrz
+  // komentarz przy kotwicy niżej). Czytnik i crawler otwierały więc adres
+  // z fragmentem, którego w oddanym dokumencie NIE BYŁO: przewinięcie nie
+  // miało do czego doskoczyć, a treść, którą kanał już obiecał, schodziła
+  // dopiero po hydratacji. Klucz osi zawiera identyfikator dossier, więc ta
+  // fala jest z konstrukcji sekwencyjna - dostaje krótszy budżet, a jej blip
+  // degraduje nagłówek cache'a, nigdy nie wywraca strony.
+  //
+  // ODRZUCONE ŚWIADOMIE Z TEJ FALI: stanowiska państw (mapa ładuje osobno
+  // ~200 kB geometrii i tak, a jej tabela alternatywna montuje się razem
+  // z danymi), powiązane akty (sekcja pod całą treścią) i lista własnych
+  // obserwacji (dana czytelnika, nie treść - nie ma prawa wejść do cache'a
+  // wspólnego). Zapadka na dzisiejszej liczbie odczytów klienckich stoi
+  // w `trackerDossierRoute.test.tsx`.
   loader: async ({ params, context }) => {
+    const queryClient = context.queryClient;
     let item: PolicyItem | null = null;
     let degraded = false;
     try {
-      item = await context.queryClient.ensureQueryData(itemBySlugQueryOptions(params.slug));
+      item = await queryClient.ensureQueryData(itemBySlugQueryOptions(params.slug));
     } catch {
       degraded = true;
     }
-    // Zdegradowany render nie może utrwalić się na brzegu: kolejni czytelnicy
-    // dostawaliby zapamiętane „nie znaleziono" długo po powrocie bazy.
+    if (!degraded && !item) {
+      // Zdegradowany render nie może utrwalić się na brzegu: kolejni czytelnicy
+      // dostawaliby zapamiętane „nie znaleziono" długo po powrocie bazy.
+      setCacheControlHeader(resilientCacheControl(false));
+      throw notFound();
+    }
+    if (item) {
+      const updates = await loadResilient(
+        queryClient,
+        itemUpdatesQueryOptions(item.id),
+        NO_UPDATES,
+        { budgetMs: TIMELINE_BUDGET_MS },
+      );
+      degraded = degraded || updates.degraded;
+    }
     setCacheControlHeader(resilientCacheControl(degraded));
-    if (!degraded && !item) throw notFound();
     return { item };
   },
   head: ({ loaderData, params }) => {
@@ -151,10 +191,21 @@ export const Route = createFileRoute("/tracker/$slug")({
   // statusem odpowiedzi (404 kontra 200 przy degradacji), a to jest cała
   // sprawa dla crawlera.
   notFoundComponent: () => <TrackerNotFound />,
-  errorComponent: (props) => (
-    <RouteErrorFallback {...props} title="Nie udało się załadować dossier" />
-  ),
+  errorComponent: (props) => <TrackerErrorFallback {...props} />,
 });
+
+/**
+ * Ekran awarii trasy mówiący JĘZYKIEM STRONY. Wcześniej `errorComponent` podawał
+ * tytuł zahardkodowanym literałem, więc czytelnik wersji angielskiej dostawał
+ * jedyny polski napis na całej stronie. `errorComponent` renderuje się jak każdy
+ * komponent, więc wolno mu wziąć zdanie ze słownika - klucz `tracker.loadError`
+ * istnieje w PL i EN, więc nie dopisujemy nowego.
+ */
+function TrackerErrorFallback(props: ErrorComponentProps) {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("tracker.loadError")} />;
+}
 
 /** Ekran „nie ma takiego dossier" - dwujęzyczny, z drogą powrotu do listy. */
 function TrackerNotFound() {
@@ -196,7 +247,16 @@ function ProgressRail({ stage, lang }: { stage: string; lang: Lang }) {
   const idx = stageIndex(stage);
   return (
     <div>
-      <div className="flex items-center gap-1" aria-label={t("tracker.progressLabel")}>
+      {/* `aria-label` NA GOŁYM `<div>` JEST IGNOROWANY (axe: aria-prohibited-attr,
+          waga serious): element bez roli nie ma nazwy dostępnej, więc pasek
+          postępu procedury nie istniał dla czytnika ekranu - a to jedyna
+          informacja o etapie nad zgięciem. `role="img"` z etykietą niosącą
+          etap I pozycję na osi, tak samo jak `StageRail` w indeksie. */}
+      <div
+        className="flex items-center gap-1"
+        role="img"
+        aria-label={`${t("tracker.progressLabel")}: ${stageLabel(stage, lang)} (${idx + 1}/${POLICY_STAGES.length})`}
+      >
         {POLICY_STAGES.map((s, i) => (
           <div key={s} className="flex flex-1 items-center gap-1">
             <div

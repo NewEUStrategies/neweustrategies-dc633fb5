@@ -105,11 +105,19 @@ function GlossaryPage() {
         {(terms ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{c.empty}</p>
         ) : (
-          <dl className="space-y-8">
+          // LISTA DEFINICJI MUSI BYĆ POPRAWNA STRUKTURALNIE. Wcześniej `<dl>`
+          // otaczało CAŁY słowniczek, a między nim i parami `<dt>`/`<dd>`
+          // stały `<section>` i `<div>`, więc żadna para nie miała rodzica
+          // `<dl>` (axe: „Description list item does not have a <dl> parent
+          // element", waga serious). Czytnik ekranu traci wtedy powiązanie
+          // hasła z definicją i czyta dwa niezależne akapity - a to jedyna
+          // treść tej strony. Poprawka: `<dl>` PER GRUPA LITEROWĄ, wewnątrz
+          // sekcji; nagłówek litery zostaje poza listą.
+          <div className="space-y-8">
             {groups.map(([letter, items]) => (
               <section key={letter} aria-label={letter}>
                 <h2 className="font-display text-lg text-brand mb-3">{letter}</h2>
-                <div className="space-y-4">
+                <dl className="space-y-4">
                   {(items ?? []).map((term) => (
                     <div key={term.id} id={term.slug}>
                       <dt className="font-semibold">
@@ -122,10 +130,10 @@ function GlossaryPage() {
                       </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </section>
             ))}
-          </dl>
+          </div>
         )}
       </div>
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}

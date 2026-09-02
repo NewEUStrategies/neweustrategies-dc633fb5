@@ -209,11 +209,22 @@ export function useItemBySlug(slug: string) {
   return useQuery({ ...itemBySlugQueryOptions(slug), enabled: !!slug });
 }
 
+/** Wspólne opcje osi czasu dossier - loader SSR `/tracker/$slug` i hook czytają
+ *  DOKŁADNIE ten klucz. Oś czasu nie jest ozdobą: pozycje kanału
+ *  `/tracker/rss.xml` linkują wprost do wpisu (`#update-<id>`), więc kotwica
+ *  MUSI istnieć w dokumencie, który dostaje czytnik i crawler. */
+export function itemUpdatesQueryOptions(itemId: string) {
+  return {
+    queryKey: ["tracker", "updates", itemId] as const,
+    queryFn: () => fetchUpdates(itemId),
+    staleTime: 60_000,
+  };
+}
+
 export function useItemUpdates(itemId: string | undefined) {
   return useQuery({
-    queryKey: ["tracker", "updates", itemId ?? "none"] as const,
+    ...itemUpdatesQueryOptions(itemId ?? "none"),
     queryFn: () => fetchUpdates(itemId!),
-    staleTime: 60_000,
     enabled: !!itemId,
   });
 }
@@ -291,12 +302,21 @@ export async function fetchPositionsForItems(itemIds: string[]): Promise<PolicyP
   return (data ?? []) as PolicyPosition[];
 }
 
-export function usePositionsForItems(itemIds: string[]) {
-  const key = [...itemIds].sort().join(",");
-  return useQuery({
-    queryKey: ["tracker", "positions-bulk", key] as const,
+/** Wspólne opcje macierzy stanowisk (explorer). Klucz z POSORTOWANYCH id jest
+ *  stabilny niezależnie od kolejności listy dossier, więc loader SSR
+ *  `/tracker/explorer` i hook trafiają w ten sam wpis cache - inaczej macierz
+ *  wyrenderowana serwerowo byłaby po hydratacji pobierana po raz drugi. */
+export function positionsForItemsQueryOptions(itemIds: string[]) {
+  return {
+    queryKey: ["tracker", "positions-bulk", [...itemIds].sort().join(",")] as const,
     queryFn: () => fetchPositionsForItems(itemIds),
     staleTime: 60_000,
+  };
+}
+
+export function usePositionsForItems(itemIds: string[]) {
+  return useQuery({
+    ...positionsForItemsQueryOptions(itemIds),
     enabled: itemIds.length > 0,
   });
 }
@@ -466,12 +486,19 @@ export async function fetchTrackerStats(): Promise<TrackerStats> {
   };
 }
 
-export function useTrackerStats() {
-  return useQuery({
+/** Wspólne opcje kafli statystyk - loader SSR `/tracker/explorer` i hook czytają
+ *  DOKŁADNIE ten klucz, więc liczby schodzą z serwera zamiast mrugać z zaślepki
+ *  po hydratacji. */
+export function trackerStatsQueryOptions() {
+  return {
     queryKey: ["tracker", "stats"] as const,
     queryFn: fetchTrackerStats,
     staleTime: 5 * 60_000,
-  });
+  };
+}
+
+export function useTrackerStats() {
+  return useQuery(trackerStatsQueryOptions());
 }
 
 /** Toggle obserwowania z invalidacją listy obserwacji i liczników. */

@@ -5,9 +5,14 @@ import { useTranslation } from "react-i18next";
 import { webStoryBySlugQueryOptions, latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { StoryViewer } from "@/components/web-stories/StoryViewer";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { storyTitle, storyDescription } from "@/lib/web-stories/types";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 import {
+  SITE_NAME,
+  buildContentHead,
   imagePreloadLink,
   imagePreloadLinkHeaderValue,
   type ImagePreloadInput,
@@ -37,11 +42,38 @@ export const Route = createFileRoute("/web-stories/$slug")({
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { story: data, coverPreload };
   },
+  // ── NAGŁÓWEK PRZEZ WSPÓLNY BUDOWNIK, NIE RĘCZNIE ──────────────────────────
+  // Ta trasa była JEDYNĄ powierzchnią treściową modułu, która składała `meta`
+  // z palca. Kosztowało to cztery rzeczy naraz: (1) brak adresu kanonicznego
+  // i klastra hreflang PL/EN, więc `/web-stories/x` i `/en/web-stories/x`
+  // konkurowały ze sobą w indeksie; (2) brak `og:url` i `og:site_name`, więc
+  // udostępnienie wychodziło bez marki; (3) tytuł BRANY ZAWSZE z `title_pl`
+  // niezależnie od języka renderu - czytelnik `/en/...` dostawał polską nazwę
+  // w karcie linku; (4) separator „·" zamiast dywizu i brak `SITE_NAME`.
   head: ({ loaderData }) => {
+    const url = getRequestUrl() || "/web-stories";
+    const lang = activeLang(url);
     const s = loaderData?.story;
-    if (!s) return { meta: [{ title: "Web Story" }] };
-    const title = s.title_pl || s.title_en || "Web Story";
-    const description = (s.description_pl || s.description_en || "").slice(0, 300) || undefined;
+    // `head()` bywa wołane bez ładunku loadera (przerwana nawigacja, 404).
+    // Strona bez historii nie ma czego obiecywać, więc wychodzi z indeksu
+    // zamiast zostawić w nim pusty tytuł.
+    if (!s) {
+      return buildContentHead({
+        url,
+        lang,
+        type: "website",
+        // Nazwa formatu jest ta sama w obu językach - ternary o identycznych
+        // gałęziach byłby tu tylko szumem (patrz lib/ci/hardcodedLanguage).
+        title: "Web Story",
+        description:
+          lang === "en" ? "This web story is unavailable." : "Ta historia jest niedostępna.",
+        robots: "noindex",
+      });
+    }
+    const title = storyTitle(s, lang) || "Web Story";
+    const description =
+      storyDescription(s, lang).slice(0, 300) ||
+      (lang === "en" ? "A web story by New European Strategies." : "Web story New European Strategies.");
     // JSON-LD CreativeWork: pozwala wyszukiwarkom rozpoznać web story jako
     // samodzielną treść (nazwa, okładka, data publikacji).
     const jsonLd = {
@@ -52,32 +84,42 @@ export const Route = createFileRoute("/web-stories/$slug")({
       ...(s.cover_url ? { image: s.cover_url } : {}),
       ...(s.published_at ? { datePublished: s.published_at } : {}),
     };
+    const head = buildContentHead({
+      url,
+      lang,
+      type: "article",
+      title,
+      documentTitle: `${title} - ${SITE_NAME}`,
+      description,
+      image: s.cover_url,
+      publishedAt: s.published_at,
+    });
     return {
-      meta: [
-        { title: `${title} · Web Story` },
-        ...(description ? [{ name: "description", content: description }] : []),
-        { property: "og:title", content: title },
-        { property: "og:type", content: "article" },
-        ...(description ? [{ property: "og:description", content: description }] : []),
-        ...(s.cover_url ? [{ property: "og:image", content: s.cover_url }] : []),
-      ],
+      ...head,
       // Równoległy dokument <amp-story> (kwalifikacja do prezentacji Web
       // Stories w Google); URL względny rozwiązuje się do bieżącego hosta.
       // Do tego preload okładki (LCP) - fetch rusza z <head>, zanim parser
       // dojdzie do <img> w body.
       links: [
+        ...head.links,
         ...(s.cover_url ? [{ rel: "amphtml", href: `/web-stories/${s.slug}/amp` }] : []),
         ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
       ],
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };
   },
-  errorComponent: ({ error }) => (
-    <div className="container mx-auto p-8 text-sm">{error.message}</div>
+  // Surowy `error.message` (komunikat PostgREST) NIE idzie do odwiedzającego:
+  // to jednocześnie wyciek szczegółów bazy i zdanie wyłącznie po angielsku,
+  // bez drogi powrotu. Wspólny fallback ma jedno i drugie.
+  errorComponent: (props) => (
+    <RouteErrorFallback
+      {...props}
+      title={activeLang() === "en" ? "Failed to load the story" : "Nie udało się załadować historii"}
+    />
   ),
   notFoundComponent: () => (
     <div className="container mx-auto p-8 text-sm text-muted-foreground">
-      Nie znaleziono historii.
+      {activeLang() === "en" ? "Story not found." : "Nie znaleziono historii."}
     </div>
   ),
   component: WebStorySinglePage,

@@ -2,7 +2,7 @@
 // opublikowanych dossier, grupowane po dniach, z plakietką zmiany etapu.
 // URL: /tracker/changes. Publiczny odczyt (RLS: tylko opublikowane dossier).
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -78,8 +78,21 @@ export const Route = createFileRoute("/tracker/changes")({
     });
   },
   component: TrackerChangesPage,
-  errorComponent: (props) => <RouteErrorFallback {...props} title="Tracker" />,
+  errorComponent: (props) => <TrackerErrorFallback {...props} />,
 });
+
+/**
+ * Ekran awarii trasy mówiący JĘZYKIEM STRONY. Wcześniej `errorComponent` podawał
+ * tytuł zahardkodowanym literałem, więc czytelnik wersji angielskiej dostawał
+ * jedyny polski napis na całej stronie. `errorComponent` renderuje się jak każdy
+ * komponent, więc wolno mu wziąć zdanie ze słownika - klucz `tracker.loadError`
+ * istnieje w PL i EN, więc nie dopisujemy nowego.
+ */
+function TrackerErrorFallback(props: ErrorComponentProps) {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("tracker.loadError")} />;
+}
 
 type Lang = "pl" | "en";
 

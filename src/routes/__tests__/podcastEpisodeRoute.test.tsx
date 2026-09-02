@@ -43,12 +43,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
-const TENANT_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const TENANT_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const EPISODE_ID = "11111111-1111-4111-8111-111111111111";
-const OTHER_EPISODE_ID = "22222222-2222-4222-8222-222222222222";
-const SHOW_ID = "33333333-3333-4333-8333-333333333333";
-const SLUG = "rozmowa-o-energii";
+// Identyfikatory przez `vi.hoisted`, nie przez zwykle `const`: fabryki
+// `vi.mock` I bloki `vi.hoisted` sa wciagane NAD importy, wiec `vi.hoisted`
+// czytajacy zwykla stala modulu wywala plik na `Cannot access 'TENANT_A'
+// before initialization` - i to jest blad calego pliku, nie jednego testu.
+const { TENANT_A, TENANT_B, EPISODE_ID, OTHER_EPISODE_ID, SHOW_ID, SLUG } = vi.hoisted(() => ({
+  TENANT_A: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  TENANT_B: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  EPISODE_ID: "11111111-1111-4111-8111-111111111111",
+  OTHER_EPISODE_ID: "22222222-2222-4222-8222-222222222222",
+  SHOW_ID: "33333333-3333-4333-8333-333333333333",
+  SLUG: "rozmowa-o-energii",
+}));
 
 const h = vi.hoisted(() => ({
   /** Wiersze tabeli `podcasts` ze WSZYSTKICH obszarów roboczych. */
@@ -65,15 +71,17 @@ const h = vi.hoisted(() => ({
    * `x-tenant-host`, a baza odsiewa wiersze. Test modeluje SKUTEK, bo trasa
    * własnego porównania tenantów nie ma i mieć nie powinna.
    */
-  tenantId: TENANT_A,
+  tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   /** Tabele, których odczyt ma paść (blip backendu). */
   broken: new Set<string>(),
   /** Etykiety odczytów w kolejności - PODSTAWA POMIARU zapytań (blok N5). */
   reads: [] as string[],
   /** Adres żądania widziany przez `head()` - decyduje o języku i kanonicznym. */
-  requestUrl: `https://nes.example.org/podcast/${SLUG}`,
+  requestUrl: "https://nes.example.org/podcast/rozmowa-o-energii",
   /** Wartości nagłówka HTTP `Link` dopisane przez loader (preload okładki). */
   linkHeaders: [] as string[],
+  /** Wartości `Cache-Control`, jakie loader ustawił na odpowiedzi. */
+  cacheControl: [] as string[],
   /** Propsy, jakie atrapa odtwarzacza dostała od trasy. */
   playerProps: {} as Record<string, unknown>,
   /** Sekundy przekazane do `seek` zarejestrowanego przez odtwarzacz. */
@@ -137,7 +145,7 @@ vi.mock("@/lib/seo/request", () => ({
 }));
 vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (value: string) => void h.linkHeaders.push(value),
-  setCacheControlHeader: () => {},
+  setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
   readRouteCacheDirective: () => null,
 }));
 // Odtwarzacz: atrapa-marker + przechwycenie `registerSeek`. Lista rozdziałów
@@ -245,7 +253,14 @@ async function mount(slug = SLUG, queryClient?: QueryClient) {
 }
 
 /** Wartość `content` wpisu meta - z twardym błędem, gdy wpisu nie ma. */
-function metaContent(head: RouteHeadResult, key: "name" | "property", value: string): string {
+// `httpEquiv` w unii kluczy: `head()` tych tras emituje nie tylko
+// `name`/`property`, ale też `http-equiv` (np. `content-language`),
+// a helper skopiowany z innego testu tego klucza nie znał.
+function metaContent(
+  head: RouteHeadResult,
+  key: "name" | "property" | "httpEquiv" | "httpEquiv",
+  value: string,
+): string {
   const found = (head.meta ?? []).find((entry) => entry[key] === value);
   const content = found?.content;
   if (typeof content !== "string") throw new Error(`test: brak meta ${key}="${value}"`);
@@ -270,6 +285,7 @@ beforeEach(async () => {
   h.reads = [];
   h.requestUrl = `https://nes.example.org/podcast/${SLUG}`;
   h.linkHeaders = [];
+  h.cacheControl = [];
   h.playerProps = {};
   h.seeks = [];
 });
@@ -389,7 +405,9 @@ describe("trasa /podcast/$slug - stan pusty i brak odcinka", () => {
     // sekcji i nie wywrotka trasy.
     const view = await mount();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Rozmowa o energii" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Rozmowa o energii" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("podcast-player")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Rozdziały" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Osoby" })).not.toBeInTheDocument();
@@ -414,9 +432,15 @@ describe("trasa /podcast/$slug - stan pusty i brak odcinka", () => {
     h.broken.add("podcasts");
     await mount();
 
-    expect(
-      await screen.findByText("Nie udało się wczytać odcinka. Spróbuj ponownie później."),
-    ).toBeInTheDocument();
+    // `waitFor` + `getByText`, a NIE `expect(await findByText(...))`: rzut
+    // z loadera wywołuje jeszcze jedno przejście routera, które PODMIENIA węzeł
+    // komunikatu. Referencja zwrócona przez `findByText` bywa wtedy już
+    // odczepiona od dokumentu i asercja pada na w pełni poprawnym renderze.
+    await waitFor(() =>
+      expect(
+        screen.getByText("Nie udało się wczytać odcinka. Spróbuj ponownie później."),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("po angielsku komunikat 404 też jest angielski", async () => {
@@ -540,7 +564,11 @@ describe("trasa /podcast/$slug - nagłówek dokumentu", () => {
     // TEN SAM wariant, który strona maluje, inaczej przeglądarka pobiera dwa.
     await mount();
 
-    expect(h.linkHeaders.some((value) => value.includes("as=image"))).toBe(true);
+    // ZMIERZONE, nie zgadnięte: `imagePreloadLinkHeaderValue` składa parametry
+    // RFC 8288 z wartościami W CUDZYSŁOWACH (`as="image"`), więc asercja na
+    // `as=image` przechodziłaby tylko przez przypadek - i nie przechodziła.
+    expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(true);
+    expect(h.linkHeaders.some((value) => value.includes('rel="preload"'))).toBe(true);
   });
 });
 
@@ -648,6 +676,26 @@ describe("trasa /podcast/$slug - zapadka na liczbie zapytań pierwszego malowani
 
     expect(loaderReads).not.toContain("podcasts:show_id");
     expect(clientReads).toEqual(["podcasts:show_id"]);
+  });
+
+  it("blip na zapytaniu wtórnym ZDEJMUJE render ze wspólnego cache'a", async () => {
+    // Warunek drugi przeniesienia: odcinek bez nazwy programu i bez
+    // prowadzących nie może utrwalić się na brzegu CDN, bo brzeg serwowałby tę
+    // okaleczoną stronę kolejnym czytelnikom przez cały okres świeżości.
+    h.broken.add("podcast_shows");
+    await mount();
+
+    expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it("KONTROLA DODATNIA: czysty render NIE dopisuje własnego Cache-Control", async () => {
+    // Bez tej pary poprzedni test przechodziłby też wtedy, gdyby trasa
+    // deklarowała `no-store` ZAWSZE - a to skasowałoby cache brzegowy całej
+    // sieci podcastów, nie tylko renderu zdegradowanego.
+    h.settings = { tenant_id: TENANT_A, default_player_variant: "full" };
+    await mount();
+
+    expect(h.cacheControl).toEqual([]);
   });
 
   it("blip na zapytaniu wtórnym NIE zamienia strony odcinka w ekran błędu", async () => {

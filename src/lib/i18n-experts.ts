@@ -4,7 +4,7 @@ import i18n from "./i18n";
 // Rejestrowany jako nakładka na bazowe i18n - importowany przez strony
 // /author/$slug, /experts oraz /profile/author.
 
-const pl = {
+export const expertsPl = {
   expert: {
     // Nagłówek profilu
     expertBadge: "Ekspert",
@@ -86,9 +86,18 @@ const pl = {
     directorySubtitle: "Zespół analityczny New European Strategies.",
     directoryEmpty: "Brak ekspertów do wyświetlenia.",
     directoryEmptyFiltered: "Żaden ekspert nie pasuje do wybranych filtrów.",
+    // Render ZDEGRADOWANY (lib/ssr/resilientLoad): pusty katalog i „nic nie
+    // dojechało" to dwie różne prawdy i czytelnik ma prawo je rozróżnić.
+    directoryLoadFailed: "Nie udało się załadować katalogu ekspertów.",
     filterArea: "Obszar",
     allAreas: "Wszystkie obszary",
-    publicationsCount: "{{count}} publikacji",
+    // 1 publikacja / 2-4 publikacje / 5+ publikacji. Wcześniej stała tu jedna
+    // forma („{{count}} publikacji"), więc karta eksperta z jedną pozycją
+    // pokazywała „1 publikacji".
+    publicationsCount_one: "{{count}} publikacja",
+    publicationsCount_few: "{{count}} publikacje",
+    publicationsCount_many: "{{count}} publikacji",
+    publicationsCount_other: "{{count}} publikacji",
     viewProfile: "Zobacz profil",
     // Edytor persony eksperta (/profile/author)
     editHubHeading: "Hub eksperta",
@@ -115,7 +124,7 @@ const pl = {
   },
 };
 
-const en = {
+export const expertsEn: typeof expertsPl = {
   expert: {
     expertBadge: "Expert",
     verifiedBadge: "Verified",
@@ -191,9 +200,13 @@ const en = {
     directorySubtitle: "The New European Strategies analytical team.",
     directoryEmpty: "No experts to display.",
     directoryEmptyFiltered: "No expert matches the selected filters.",
+    directoryLoadFailed: "Could not load the experts directory.",
     filterArea: "Area",
     allAreas: "All areas",
-    publicationsCount: "{{count}} publications",
+    publicationsCount_one: "{{count}} publication",
+    publicationsCount_few: "{{count}} publications",
+    publicationsCount_many: "{{count}} publications",
+    publicationsCount_other: "{{count}} publications",
     viewProfile: "View profile",
     editHubHeading: "Expert hub",
     fullBioPl: "Full biography (PL)",
@@ -218,10 +231,8 @@ const en = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
-export {};
+i18n.addResourceBundle("pl", "translation", expertsPl, true, true);
+i18n.addResourceBundle("en", "translation", expertsEn, true, true);
 
 /**
  * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.

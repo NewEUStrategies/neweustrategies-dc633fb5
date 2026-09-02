@@ -164,6 +164,10 @@ export const communityPl = {
       noQuestions: "Nikt jeszcze nie zadał pytania - bądź pierwszy.",
       answered: "Odpowiedź",
       backToList: "Wróć do listy sesji",
+      // Sesja, której nie ma pod tym adresem (HTTP 404 z loadera). Osobne
+      // zdanie od `common.loadError`: „nie ma" i „nie udało się pobrać" to
+      // dwie różne prawdy i czytelnik musi wiedzieć, czy wracać później.
+      sessionNotFound: "Nie znaleziono takiej sesji Q&A.",
       viewSession: "Wejdź do sesji",
       anonymous: "Anonimowo",
       priorityBadge: "Priorytet Pro",
@@ -388,6 +392,7 @@ export const communityEn = {
       noQuestions: "No questions yet - be the first to ask.",
       answered: "Answer",
       backToList: "Back to sessions",
+      sessionNotFound: "No such Q&A session was found.",
       viewSession: "Enter session",
       anonymous: "Anonymous",
       priorityBadge: "Pro priority",
