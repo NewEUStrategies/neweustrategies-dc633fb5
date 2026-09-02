@@ -3197,6 +3197,31 @@ wydarzeniami nie są, a wpadały do modułu 7 przez człon `event` w łapaczu
 Korekta z wydania 5 (przeniesienie `components/home`, `components/readingList`,
 `components/people` z X-shell do modułów 5, 1 i 15) pozostaje w mocy i nie była zmieniana.
 
+**UZUPEŁNIENIE 2026-09-02 (kampania modułu 07) - CZWARTY wyjątek łapacza tras, tej samej
+klasy co trzy wyjątki z wydania 6.** Odtworzenie mappera przy tej kampanii wykazało, że
+`src/routes/admin.newsletter.deliverability.tsx` wpada do **MODUŁU 7**, choć należy do
+**MODUŁU 11** (newsletter): łapacz tras modułu 7 zawiera człon `live`, a „de**live**rability"
+go zawiera. Łapacz modułu 11 (`^src\/routes\/.*newsletter`) stoi PO nim, więc pierwsze
+trafienie oddaje tę trasę modułowi 7. Mechanizm jest identyczny jak przy `popup-event.ts`
+i pozostałych dwóch: człon łapacza trafia w środek innego słowa. Rozstrzygnięcie: **ta trasa
+należy do modułu 11** i tak jest liczona w rozdziale kampanii na końcu tego dokumentu.
+
+**Trzy pozostałe pliki, których wydanie 8 nie mogło widzieć.** Poza powyższym artefaktem
+łapacz modułu 7 objął trzy trasy dopisane na maina **2026-08-29**, czyli jedenaście dni po
+tym wydaniu: `admin.community.polls.tsx` (człon `poll`), `admin.community.qa.tsx` (człon
+`qa`) i `club.$clubSlug.experts.tsx` (człon `expert`). Wszystkie trzy są w module 7 zgodnie
+z regułami - to nie artefakty, tylko nowa powierzchnia produktowa.
+
+**KONSEKWENCJA DLA DELT.** Mianownik modułu 7 wyrósł z **95 na 99 plików bez żadnej pracy
+testowej**, wyłącznie przez ruch na mainie. Delta liczona „nowe 99 wobec starych 95"
+mierzyłaby przesunięcie granicy, nie pracę - dokładnie ten błąd, przed którym wydanie 6
+zabezpieczyło się, przeliczając cały poprzedni przebieg nową mapą po wydzieleniu modułu 22.
+Dlatego rozdział kampanii podaje **dwie liczby**: pomiar na dzisiejszym zbiorze plików
+i pomiar zawężony do tych 95, które wydanie 8 faktycznie mierzyło. Sprawdzenie wiarygodności
+odtworzonego mappera: reprodukuje **biblioteczną połowę modułu 7 co do jednego pliku**
+(58 wobec 58 w wydaniu 8), a cała rozbieżność 41 wobec 37 tras rozkłada się na cztery pliki
+wymienione wyżej.
+
 | #   | Moduł                                                 | Wzorce ścieżek                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Wpisy: doświadczenie czytelnika                       | `^src\/lib\/access\/`, `^src\/lib\/toc\/`, `^src\/lib\/footnotes`, `^src\/lib\/manualToc`, `^src\/lib\/keyTakeaways\/`, `^src\/lib\/citations\/`, `^src\/lib\/audio\/`, `^src\/lib\/readingTime`, `^src\/lib\/postLayouts`, `^src\/lib\/relatedPosts`, `^src\/lib\/relatedInsights`, `^src\/lib\/relatedClickBeacon`, `^src\/components\/post\/`, `^src\/components\/PostLayoutRenderer`, `^src\/components\/Paywall`, `^src\/components\/author\/`, `^src\/components\/audio\/`, `^src\/components\/molecules\/MeterBanner`, `^src\/components\/atoms\/QuotaMeter`, `^src\/hooks\/(useContentAccess                                                                                                                                                                                                                                              | useUnlockedContent                                           | usePasswordUnlock                                           | useRecordPostView                                   | useSaveArticle                        | useBookmarks                     | useReadingTimeSettings                                                        | usePostLayoutSettings                        | useRecommendedPosts)`, `^src\/components\/readingList\/`, `^src\/routes\/post\.`, `^src\/routes\/preview\.`, `^src\/routes\/admin\.(key-takeaways | toc           | post-layouts | related-posts)`, `^src\/routes\/api\/public\/(post-tts | related-click)`, `^src\/routes\/api\/(tts | stt)` |
