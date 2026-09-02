@@ -1,35 +1,35 @@
-// `FooterAnalyticsPanel` - pulpit klikniec w stopce: konwersja newslettera,
-// filtr grup, trzy stany i izolacja warsztatow.
+// `FooterAnalyticsPanel` - pulpit kliknięć w stopce: konwersja newslettera,
+// filtr grup, trzy stany i izolacja warsztatów.
 //
-// PO CO. Plik stal na zerze. Agregacja siedzi w server function
-// (`footerAnalytics.functions.ts`) i testuja ja inni - TUTAJ przedmiotem dowodu
-// jest to, co panel robi Z TYMI liczbami, bo tego nie widzi zaden test
+// PO CO. Plik stał na zerze. Agregacja siedzi w server function
+// (`footerAnalytics.functions.ts`) i testują ją inni - TUTAJ przedmiotem dowodu
+// jest to, co panel robi Z TYMI liczbami, bo tego nie widzi żaden test
 // serwerowy:
 //
 //   1. KONWERSJA JEST TU LICZONA NA MIEJSCU. `signups / clicks * 100` to jedyna
-//      liczba na tym pulpicie, ktorej nie ma w raporcie - powstaje w JSX.
-//      Zabezpieczenie przed dzieleniem przez zero jest miekkie
-//      (`totals && totals.newsletter_clicks`), a gornej granicy nie ma zadnej.
-//      Tymczasem `trackFooterNewsletterSubmit` wysyla `footer_newsletter_signup`
-//      przy KAZDYM wyniku wysylki (takze "error" i "throttled") i BEZ
-//      poprzedzajacego `footer_newsletter_click`, bo klikniecie jest raportowane
-//      tylko dla linkow z "newsletter" w adresie. Zapisow moze wiec byc wiecej
-//      niz klikniec - i panel wypisuje wtedy konwersje powyzej 100%. Przypiete.
-//   2. FILTR GRUP KLAMIE O OKNIE. Puste `rows` po filtrowaniu daja komunikat
-//      "Brak zdarzen w wybranym oknie", chociaz okno moze byc pelne zdarzen -
-//      tylko nie z tej grupy. Operator dostaje twierdzenie o danych, ktore
-//      jest falszywe. Przypiete `it.fails`.
-//   3. TRZY STANY. Ladowanie i awaria maja tu WLASNE galezie (rzadkosc w tym
-//      katalogu) - i to jest sprawdzane pozytywnie, zeby regres ich nie sciagnal
-//      do wspolnego "brak danych".
-//   4. SLOWNIK. Panel nie importuje i18n ani razu: naglowki, etykiety kafelkow,
-//      nazwy grup (`GROUP_LABEL`) i nazwy zdarzen (`EVENT_LABEL`) sa wpisane po
-//      polsku w kodzie. Angielski administrator czyta polszczyzne. Przypiete.
-//   5. IZOLACJA WARSZTATOW. `queryKey: ["footer-analytics", days]` to stala i
-//      liczba dni - ani tenanta, ani uzytkownika, ani znacznika czasu.
+//      liczba na tym pulpicie, której nie ma w raporcie - powstaje w JSX.
+//      Zabezpieczenie przed dzieleniem przez zero jest miękkie
+//      (`totals && totals.newsletter_clicks`), a górnej granicy nie ma żadnej.
+//      Tymczasem `trackFooterNewsletterSubmit` wysyła `footer_newsletter_signup`
+//      przy KAŻDYM wyniku wysyłki (także "error" i "throttled") i BEZ
+//      poprzedzającego `footer_newsletter_click`, bo kliknięcie jest raportowane
+//      tylko dla linków z "newsletter" w adresie. Zapisów może więc być więcej
+//      niż kliknięć - i panel wypisuje wtedy konwersję powyżej 100%. Przypięte.
+//   2. FILTR GRUP KŁAMIE O OKNIE. Puste `rows` po filtrowaniu dają komunikat
+//      "Brak zdarzeń w wybranym oknie", chociaż okno może być pełne zdarzeń -
+//      tylko nie z tej grupy. Operator dostaje twierdzenie o danych, które
+//      jest fałszywe. Przypięte `it.fails`.
+//   3. TRZY STANY. Ładowanie i awaria mają tu WŁASNE gałęzie (rzadkość w tym
+//      katalogu) - i to jest sprawdzane pozytywnie, żeby regres ich nie ściągnął
+//      do wspólnego "brak danych".
+//   4. SŁOWNIK. Panel nie importuje i18n ani razu: nagłówki, etykiety kafelków,
+//      nazwy grup (`GROUP_LABEL`) i nazwy zdarzeń (`EVENT_LABEL`) są wpisane po
+//      polsku w kodzie. Angielski administrator czyta polszczyznę. Przypięte.
+//   5. IZOLACJA WARSZTATÓW. `queryKey: ["footer-analytics", days]` to stała i
+//      liczba dni - ani tenanta, ani użytkownika, ani znacznika czasu.
 //
-// ECHARTS: ten panel nie renderuje `EChart`, wiec nie ma czego atrapowac - i
-// biblioteka nie wchodzi do procesu testowego (patrz naglowek `EChart.tsx`).
+// ECHARTS: ten panel nie renderuje `EChart`, więc nie ma czego atrapować - i
+// biblioteka nie wchodzi do procesu testowego (patrz nagłówek `EChart.tsx`).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
@@ -40,9 +40,9 @@ import type {
 
 const h = vi.hoisted(() => ({ fetchFooter: vi.fn() }));
 
-// `useServerFn` staje sie tozsamoscia - wywolanie idzie prosto do atrapy.
-// Mock CZESCIOWY, bo `@/lib/i18n` ciagnie z tego samego pakietu
-// `createIsomorphicFn`, a pelna atrapa wywracalaby inicjalizacje slownika.
+// `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
+// Mock CZĘŚCIOWY, bo `@/lib/i18n` ciągnie z tego samego pakietu
+// `createIsomorphicFn`, a pełna atrapa wywracałaby inicjalizację słownika.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
@@ -52,7 +52,7 @@ vi.mock("@/lib/analytics/footerAnalytics.functions", () => ({
   getFooterAnalytics: (...args: unknown[]) => h.fetchFooter(...args),
 }));
 
-// Prawdziwa instancja i18next - potrzebna do dowodu, ze przelaczenie jezyka NIE
+// Prawdziwa instancja i18next - potrzebna do dowodu, że przełączenie języka NIE
 // zmienia w tym panelu ani jednego napisu.
 import "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -97,7 +97,7 @@ function report(over: {
 
 const EMPTY = report({});
 
-/** Okno "roboze": po jednym wierszu na kazda grupe i na kazdy typ zdarzenia. */
+/** Okno "roboze": po jednym wierszu na każdą grupę i na każdy typ zdarzenia. */
 const BUSY = report({
   totals: {
     total: 148,
@@ -135,26 +135,26 @@ const BUSY = report({
   ],
 });
 
-/** Warsztat A - kazdy napis niesie rozpoznawalny prefiks. */
+/** Warsztat A - każdy napis niesie rozpoznawalny prefiks. */
 const WORKSPACE_A = report({
   totals: { total: 3, link_clicks: 3 },
   rows: [row({ href: "/alfa/analizy", label: "ALFA analizy", clicks: 3 })],
 });
 
-/** Warsztat B - rozlaczny z A na kazdym napisie. */
+/** Warsztat B - rozłączny z A na każdym napisie. */
 const WORKSPACE_B = report({
   totals: { total: 1, link_clicks: 1 },
   rows: [row({ href: "/beta/raporty", label: "BETA raporty", clicks: 1 })],
 });
 
 // ---------------------------------------------------------------------------
-// Narzedzia
+// Narzędzia
 // ---------------------------------------------------------------------------
 
 /**
- * Kafelek `Stat` stojacy przy podanej etykiecie. Etykieta jest golym wezlem
- * tekstowym obok ikony, wiec `getByText` zwraca ten wiersz, a jego rodzic to
- * cala karta: [0] etykieta, [1] wartosc, [2] opcjonalna podpowiedz.
+ * Kafelek `Stat` stojący przy podanej etykiecie. Etykieta jest gołym węzłem
+ * tekstowym obok ikony, więc `getByText` zwraca ten wiersz, a jego rodzic to
+ * cała karta: [0] etykieta, [1] wartość, [2] opcjonalna podpowiedź.
  */
 function statCard(label: string): HTMLElement {
   const card = screen.getByText(label).parentElement;
@@ -174,7 +174,7 @@ function tableRows(): HTMLElement[] {
   return Array.from(table.querySelectorAll("tbody > tr")) as HTMLElement[];
 }
 
-/** Komorki jednego wiersza tabeli w kolejnosci renderu. */
+/** Komórki jednego wiersza tabeli w kolejności renderu. */
 function cells(tr: HTMLElement): string[] {
   return Array.from(tr.querySelectorAll("td")).map((td) => td.textContent ?? "");
 }
@@ -184,7 +184,7 @@ function columnHeaders(): string[] {
   return Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent ?? "");
 }
 
-/** Radix Select otwiera liste klawiszem - w happy-dom to najpewniejsza droga. */
+/** Radix Select otwiera listę klawiszem - w happy-dom to najpewniejsza droga. */
 async function pickOption(comboboxIndex: number, name: string): Promise<void> {
   const trigger = screen.getAllByRole("combobox")[comboboxIndex];
   fireEvent.keyDown(trigger, { key: "Enter" });
@@ -208,15 +208,15 @@ function panel(client?: QueryClient) {
 }
 
 /**
- * Czeka, az raport DOJEDZIE do panelu.
+ * Czeka, aż raport DOJEDZIE do panelu.
  *
- * SWIADOMIE NIE OPIERA SIE na zniknieciu wskaznika postepu. Wskaznik pokazuje
- * `isFetching`, a przy obciazonej maszynie pierwszy render moze wypasc PRZED
- * startem zapytania: wskaznika nie ma jeszcze wcale, wiec asercja "nie ma
- * wskaznika" przechodzi na PUSTYM panelu i test mierzy stan przejsciowy.
- * Dokladnie tak oblewaly sie cztery przypadki przy `load average` 34. Dlatego
- * czekamy na rozstrzygniecie obietnic, ktore atrapa naprawde oddala, wewnatrz
- * `act` - i tylko dla porzadku domykamy spokojnym paskiem narzedzi.
+ * ŚWIADOMIE NIE OPIERA SIĘ na zniknięciu wskaźnika postępu. Wskaźnik pokazuje
+ * `isFetching`, a przy obciążonej maszynie pierwszy render może wypaść PRZED
+ * startem zapytania: wskaźnika nie ma jeszcze wcale, więc asercja "nie ma
+ * wskaźnika" przechodzi na PUSTYM panelu i test mierzy stan przejściowy.
+ * Dokładnie tak oblewały się cztery przypadki przy `load average` 34. Dlatego
+ * czekamy na rozstrzygnięcie obietnic, które atrapa naprawdę oddała, wewnątrz
+ * `act` - i tylko dla porządku domykamy spokojnym paskiem narzędzi.
  */
 async function loaded(): Promise<void> {
   await waitFor(() => expect(h.fetchFooter).toHaveBeenCalled());
@@ -241,19 +241,19 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("FooterAnalyticsPanel - trzy stany panelu", () => {
-  it("w trakcie pobierania panel mowi o ladowaniu i NIE pokazuje ani jednego kafelka", async () => {
+  it("w trakcie pobierania panel mówi o ładowaniu i NIE pokazuje ani jednego kafelka", async () => {
     h.fetchFooter.mockImplementation(() => new Promise<FooterAnalyticsResult>(() => {}));
     panel();
 
     expect(await screen.findByText(/Ładowanie danych stopki/)).toBeInTheDocument();
-    // Zero na kafelku to twierdzenie o pomiarze; dopoki go nie ma, kafelka tez
-    // nie ma - i to jest tu zrobione poprawnie, w odroznieniu od pozostalych
-    // pulpitow w tym katalogu.
+    // Zero na kafelku to twierdzenie o pomiarze; dopóki go nie ma, kafelka też
+    // nie ma - i to jest tu zrobione poprawnie, w odróżnieniu od pozostałych
+    // pulpitów w tym katalogu.
     expect(screen.queryByText("Wszystkie zdarzenia")).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("w trakcie pobierania selektor okna zyje - operator moze zmienic zakres", async () => {
+  it("w trakcie pobierania selektor okna żyje - operator może zmienić zakres", async () => {
     h.fetchFooter.mockImplementation(() => new Promise<FooterAnalyticsResult>(() => {}));
     panel();
     await screen.findByText(/Ładowanie danych stopki/);
@@ -262,19 +262,19 @@ describe("FooterAnalyticsPanel - trzy stany panelu", () => {
     expect(screen.getByRole("button", { name: "Odśwież" })).toBeEnabled();
   });
 
-  it("awaria odczytu ma WLASNY komunikat i niesie tresc bledu, a nie ciszy", async () => {
+  it("awaria odczytu ma WŁASNY komunikat i niesie treść błędu, a nie ciszy", async () => {
     h.fetchFooter.mockRejectedValue(new Error("analytics_events read failed: 500"));
     const { container } = panel();
     await loaded();
 
     expect(container.textContent ?? "").toContain("Nie udało się pobrać danych");
     expect(container.textContent ?? "").toContain("analytics_events read failed: 500");
-    // Awaria nie udaje pustego okna - ani kafelkow, ani tabeli.
+    // Awaria nie udaje pustego okna - ani kafelków, ani tabeli.
     expect(screen.queryByText("Wszystkie zdarzenia")).toBeNull();
     expect(screen.queryByText("Brak zdarzeń w wybranym oknie.")).toBeNull();
   });
 
-  it("puste okno pokazuje kafelki z zerami i komunikat o braku zdarzen", async () => {
+  it("puste okno pokazuje kafelki z zerami i komunikat o braku zdarzeń", async () => {
     h.fetchFooter.mockResolvedValue(EMPTY);
     panel();
     await loaded();
@@ -294,13 +294,13 @@ describe("FooterAnalyticsPanel - trzy stany panelu", () => {
 
   it.fails("DEFEKT: przy braku sieci panel maluje pięć zer jako pomiar", async () => {
     // `q.isLoading` w react-query v5 to `isPending && isFetching`. Zapytanie
-    // wstrzymane brakiem sieci ma `fetchStatus: "paused"`, wiec `isFetching`
-    // jest falszem - a wraz z nim `isLoading`, mimo ze nie przyszedl ani jeden
-    // wiersz. Panel wchodzi wtedy w galaz "mam dane", `totals` jest
-    // `undefined`, a pięć kafelkow wypisuje swoje `?? 0`. Operator w tunelu
-    // dostaje twierdzenie, ze stopka nie zebrala ani jednego klikniecia -
-    // zamiast informacji, ze panel nie ma polaczenia. To ta sama klasa bledu,
-    // ktora w galezi `isLoading` jest obsluzona poprawnie.
+    // wstrzymane brakiem sieci ma `fetchStatus: "paused"`, więc `isFetching`
+    // jest fałszem - a wraz z nim `isLoading`, mimo że nie przyszedł ani jeden
+    // wiersz. Panel wchodzi wtedy w gałąź "mam dane", `totals` jest
+    // `undefined`, a pięć kafelków wypisuje swoje `?? 0`. Operator w tunelu
+    // dostaje twierdzenie, że stopka nie zebrała ani jednego kliknięcia -
+    // zamiast informacji, że panel nie ma połączenia. To ta sama klasa błędu,
+    // która w gałęzi `isLoading` jest obsłużona poprawnie.
     onlineManager.setOnline(false);
     panel();
     await waitFor(() => expect(screen.getByText("Wszystkie zdarzenia")).toBeInTheDocument());
@@ -315,7 +315,7 @@ describe("FooterAnalyticsPanel - trzy stany panelu", () => {
     expect(shown).not.toEqual(["0", "0", "0", "0", "0"]);
   });
 
-  it("przycisk odswiezania ponawia odczyt tego samego okna", async () => {
+  it("przycisk odświeżania ponawia odczyt tego samego okna", async () => {
     panel();
     await loaded();
 
@@ -329,7 +329,7 @@ describe("FooterAnalyticsPanel - trzy stany panelu", () => {
 // ---------------------------------------------------------------------------
 
 describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
-  it("kazdy kafelek bierze WLASNE pole raportu, bez przeliczania na miejscu", async () => {
+  it("każdy kafelek bierze WŁASNE pole raportu, bez przeliczania na miejscu", async () => {
     panel();
     await loaded();
 
@@ -340,11 +340,11 @@ describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
     expect(statValue("Zapisy z newslettera")).toBe("8");
   });
 
-  it("suma laczna NIE jest przeliczana z podliczen - to osobne pole raportu", async () => {
+  it("suma łączna NIE jest przeliczana z podliczeń - to osobne pole raportu", async () => {
     // 100 + 20 + 20 + 8 = 148, ale `totals.total` to `events.length` po
-    // stronie serwera i moze byc WIEKSZE (zdarzenie `footer_*`, ktorego panel
-    // nie zna, wpada do sumy, a nie do zadnego podliczenia). Panel nie ma prawa
-    // "poprawiac" tej liczby.
+    // stronie serwera i może być WIĘKSZE (zdarzenie `footer_*`, którego panel
+    // nie zna, wpada do sumy, a nie do żadnego podliczenia). Panel nie ma prawa
+    // "poprawiać" tej liczby.
     h.fetchFooter.mockResolvedValue(
       report({ totals: { total: 200, link_clicks: 1, legal_clicks: 1 } }),
     );
@@ -354,7 +354,7 @@ describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
     expect(statValue("Wszystkie zdarzenia")).toBe("200");
   });
 
-  it("konwersja newslettera liczy sie z dwoch licznikow, z jednym miejscem po przecinku", async () => {
+  it("konwersja newslettera liczy się z dwóch liczników, z jednym miejscem po przecinku", async () => {
     h.fetchFooter.mockResolvedValue(
       report({ totals: { total: 33, newsletter_clicks: 80, newsletter_signups: 25 } }),
     );
@@ -365,7 +365,7 @@ describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
     expect(statHint("Zapisy z newslettera")).toBe("31.3% konwersji");
   });
 
-  it("zero klikniec nie daje dzielenia przez zero - podpowiedz w ogole nie powstaje", async () => {
+  it("zero kliknięć nie daje dzielenia przez zero - podpowiedź w ogóle nie powstaje", async () => {
     h.fetchFooter.mockResolvedValue(
       report({ totals: { total: 5, newsletter_clicks: 0, newsletter_signups: 5 } }),
     );
@@ -376,7 +376,7 @@ describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
     expect(statCard("Zapisy z newslettera").children).toHaveLength(2);
   });
 
-  it("pozostale kafelki nie maja podpowiedzi - nie ma tam czego doliczac", async () => {
+  it("pozostałe kafelki nie mają podpowiedzi - nie ma tam czego doliczać", async () => {
     panel();
     await loaded();
 
@@ -384,15 +384,15 @@ describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
     expect(statCard("Kliknięcia newsletter").children).toHaveLength(2);
   });
 
-  it.fails("DEFEKT: konwersja newslettera potrafi przekroczyc 100%", async () => {
-    // Licznik i mianownik nie pochodza z tego samego lejka.
-    // `trackFooterNewsletterSubmit` wysyla `footer_newsletter_signup` przy
-    // KAZDYM wyniku wysylki (w tym "error" i "throttled"), a
-    // `footer_newsletter_click` powstaje wylacznie przy klikniecu w link, ktory
+  it.fails("DEFEKT: konwersja newslettera potrafi przekroczyć 100%", async () => {
+    // Licznik i mianownik nie pochodzą z tego samego lejka.
+    // `trackFooterNewsletterSubmit` wysyła `footer_newsletter_signup` przy
+    // KAŻDYM wyniku wysyłki (w tym "error" i "throttled"), a
+    // `footer_newsletter_click` powstaje wyłącznie przy klikniecu w link, który
     // ma "newsletter" w adresie - formularz w stopce nie wymaga takiego
-    // klikniecia w ogole. Zapisow bywa wiec wiecej niz klikniec, a panel
-    // wypisuje wtedy "300.0% konwersji". Zaden odsetek nie ma prawa przekroczyc
-    // stu procent: albo trzeba go ograniczyc, albo nazwac inaczej niz
+    // kliknięcia w ogóle. Zapisów bywa więc więcej niż kliknięć, a panel
+    // wypisuje wtedy "300.0% konwersji". Żaden odsetek nie ma prawa przekroczyć
+    // stu procent: albo trzeba go ograniczyć, albo nazwać inaczej niż
     // "konwersja".
     h.fetchFooter.mockResolvedValue(
       report({ totals: { total: 34, newsletter_clicks: 2, newsletter_signups: 6 } }),
@@ -408,8 +408,8 @@ describe("FooterAnalyticsPanel - kafelki sumaryczne", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("FooterAnalyticsPanel - tabela top linkow", () => {
-  it("wiersz niesie etykiete, adres, grupe, zdarzenie, liczbe i date", async () => {
+describe("FooterAnalyticsPanel - tabela top linków", () => {
+  it("wiersz niesie etykietę, adres, grupę, zdarzenie, liczbę i datę", async () => {
     h.fetchFooter.mockResolvedValue(
       report({
         totals: { total: 60, link_clicks: 60 },
@@ -428,7 +428,7 @@ describe("FooterAnalyticsPanel - tabela top linkow", () => {
     expect(c[4]).toBe(new Date("2026-08-20T10:05:00.000Z").toLocaleString("pl-PL"));
   });
 
-  it("kazda grupa dostaje swoja etykiete, a nie klucz techniczny", async () => {
+  it("każda grupa dostaje swoją etykietę, a nie klucz techniczny", async () => {
     panel();
     await loaded();
 
@@ -444,7 +444,7 @@ describe("FooterAnalyticsPanel - tabela top linkow", () => {
     ]);
   });
 
-  it("kazde zdarzenie dostaje swoja etykiete - cztery typy sa rozroznialne", async () => {
+  it("każde zdarzenie dostaje swoją etykietę - cztery typy są rozróżnialne", async () => {
     panel();
     await loaded();
 
@@ -454,9 +454,9 @@ describe("FooterAnalyticsPanel - tabela top linkow", () => {
     );
   });
 
-  it("nieznana grupa i nieznane zdarzenie spadaja na wartosc surowa, nie na puste pole", async () => {
-    // Nowa grupa w stopce albo nowe zdarzenie `footer_*` nie moze wyzerowac
-    // komorki - operator musi zobaczyc chocby klucz.
+  it("nieznana grupa i nieznane zdarzenie spadają na wartość surową, nie na puste pole", async () => {
+    // Nowa grupa w stopce albo nowe zdarzenie `footer_*` nie może wyzerować
+    // komórki - operator musi zobaczyć choćby klucz.
     h.fetchFooter.mockResolvedValue(
       report({
         totals: { total: 1 },
@@ -471,7 +471,7 @@ describe("FooterAnalyticsPanel - tabela top linkow", () => {
     expect(c[2]).toBe("footer_partner_click");
   });
 
-  it("brak daty ostatniego klikniecia daje kreske, a nie Invalid Date", async () => {
+  it("brak daty ostatniego kliknięcia daje kreskę, a nie Invalid Date", async () => {
     h.fetchFooter.mockResolvedValue(
       report({ totals: { total: 1 }, rows: [row({ last_at: null, clicks: 1 })] }),
     );
@@ -482,16 +482,16 @@ describe("FooterAnalyticsPanel - tabela top linkow", () => {
     expect(screen.getByRole("table").textContent ?? "").not.toContain("Invalid Date");
   });
 
-  it("kolejnosc wierszy jest ta, ktora dal serwer - panel nie sortuje po swojemu", async () => {
+  it("kolejność wierszy jest ta, którą dał serwer - panel nie sortuje po swojemu", async () => {
     panel();
     await loaded();
 
     expect(tableRows().map((tr) => Number(cells(tr)[3]))).toEqual([60, 25, 15, 10, 20, 20, 8]);
   });
 
-  it("wiersz jest identyfikowany para zdarzenie-adres, wiec ten sam adres moze wystapic dwa razy", async () => {
-    // Klucz `${event_name}::${href}` - ten sam link raz jako klikniecie, raz
-    // jako zapis. Kolizja klucza zgubilaby jeden z wierszy.
+  it("wiersz jest identyfikowany parą zdarzenie-adres, więc ten sam adres może wystąpić dwa razy", async () => {
+    // Klucz `${event_name}::${href}` - ten sam link raz jako kliknięcie, raz
+    // jako zapis. Kolizja klucza zgubiłaby jeden z wierszy.
     h.fetchFooter.mockResolvedValue(
       report({
         totals: { total: 12 },
@@ -515,14 +515,14 @@ describe("FooterAnalyticsPanel - tabela top linkow", () => {
 // ---------------------------------------------------------------------------
 
 describe("FooterAnalyticsPanel - filtr grup", () => {
-  it("domyslnie widac wszystkie grupy", async () => {
+  it("domyślnie widać wszystkie grupy", async () => {
     panel();
     await loaded();
 
     expect(tableRows()).toHaveLength(BUSY.rows.length);
   });
 
-  it("wybor grupy zawezá tabele DO TEJ grupy, bez ponownego odczytu z serwera", async () => {
+  it("wybór grupy zawęża tabelę DO TEJ grupy, bez ponownego odczytu z serwera", async () => {
     panel();
     await loaded();
 
@@ -530,12 +530,12 @@ describe("FooterAnalyticsPanel - filtr grup", () => {
 
     await waitFor(() => expect(tableRows()).toHaveLength(1));
     expect(cells(tableRows()[0])[1]).toBe("Prawne");
-    // Filtrowanie jest po stronie klienta - okno sie nie zmienilo, wiec drugie
-    // zapytanie byloby marnotrawstwem.
+    // Filtrowanie jest po stronie klienta - okno się nie zmieniło, więc drugie
+    // zapytanie byłoby marnotrawstwem.
     expect(queriedDays()).toEqual([30]);
   });
 
-  it("powrot do wszystkich grup przywraca pelna tabele", async () => {
+  it("powrót do wszystkich grup przywraca pełną tabelę", async () => {
     panel();
     await loaded();
     await pickOption(1, "Instytut");
@@ -546,7 +546,7 @@ describe("FooterAnalyticsPanel - filtr grup", () => {
     await waitFor(() => expect(tableRows()).toHaveLength(BUSY.rows.length));
   });
 
-  it("filtr grupy „Inne” lapie wiersze o nieznanej grupie", async () => {
+  it("filtr grupy „Inne” łapie wiersze o nieznanej grupie", async () => {
     panel();
     await loaded();
 
@@ -556,7 +556,7 @@ describe("FooterAnalyticsPanel - filtr grup", () => {
     expect(cells(tableRows()[0])[2]).toBe("Newsletter (zapis)");
   });
 
-  it("filtr nie rusza kafelkow sumarycznych - one opisuja cale okno", async () => {
+  it("filtr nie rusza kafelków sumarycznych - one opisują całe okno", async () => {
     panel();
     await loaded();
 
@@ -567,7 +567,7 @@ describe("FooterAnalyticsPanel - filtr grup", () => {
     expect(statValue("Linki treści")).toBe("100");
   });
 
-  it("filtr oferuje wszystkie znane grupy plus pozycje zbiorcza", async () => {
+  it("filtr oferuje wszystkie znane grupy plus pozycję zbiorczą", async () => {
     panel();
     await loaded();
 
@@ -584,11 +584,11 @@ describe("FooterAnalyticsPanel - filtr grup", () => {
     ]);
   });
 
-  it.fails("DEFEKT: filtr bez trafien twierdzi, ze w OKNIE nie bylo zdarzen", async () => {
-    // `rows.length === 0` obsluguje dwa rozne stany jednym zdaniem: "okno
-    // jest puste" i "ta grupa jest pusta". Tu okno ma 148 zdarzen, a panel
-    // pisze "Brak zdarzeń w wybranym oknie." - operator moze na tej podstawie
-    // uznac, ze tracking stopki nie dziala, i zaczac szukac awarii, ktorej
+  it.fails("DEFEKT: filtr bez trafień twierdzi, że w OKNIE nie było zdarzeń", async () => {
+    // `rows.length === 0` obsługuje dwa różne stany jednym zdaniem: "okno
+    // jest puste" i "ta grupa jest pusta". Tu okno ma 148 zdarzeń, a panel
+    // pisze "Brak zdarzeń w wybranym oknie." - operator może na tej podstawie
+    // uznać, że tracking stopki nie działa, i zacząć szukać awarii, której
     // nie ma.
     h.fetchFooter.mockResolvedValue(
       report({
@@ -609,21 +609,21 @@ describe("FooterAnalyticsPanel - filtr grup", () => {
 // ---------------------------------------------------------------------------
 
 describe("FooterAnalyticsPanel - okno czasu", () => {
-  it("startowe okno to 30 dni i taka liczba trafia do WEJSCIA funkcji", async () => {
+  it("startowe okno to 30 dni i taka liczba trafia do WEJŚCIA funkcji", async () => {
     panel();
     await loaded();
 
     expect(queriedDays()).toEqual([30]);
   });
 
-  it("naglowek podaje dlugosc okna, ktora panel naprawde odpytal", async () => {
+  it("nagłówek podaje długość okna, którą panel naprawdę odpytał", async () => {
     const { container } = panel();
     await loaded();
 
     expect(container.textContent ?? "").toContain("Okno: ostatnie 30 dni");
   });
 
-  it("wybor krotszego okna przestawia WEJSCIE zapytania i opis okna", async () => {
+  it("wybór krótszego okna przestawia WEJŚCIE zapytania i opis okna", async () => {
     panel();
     await loaded();
 
@@ -633,7 +633,7 @@ describe("FooterAnalyticsPanel - okno czasu", () => {
     expect(document.body.textContent ?? "").toContain("Okno: ostatnie 7 dni");
   });
 
-  it("wybor najdluzszego okna daje dziewiecdziesiat dni", async () => {
+  it("wybór najdłuższego okna daje dziewięćdziesiąt dni", async () => {
     panel();
     await loaded();
 
@@ -642,7 +642,7 @@ describe("FooterAnalyticsPanel - okno czasu", () => {
     await waitFor(() => expect(queriedDays()).toEqual([30, 90]));
   });
 
-  it("zmiana okna nie gubi danych poprzedniego - kazde okno ma wlasny wpis cache", async () => {
+  it("zmiana okna nie gubi danych poprzedniego - każde okno ma własny wpis cache", async () => {
     h.fetchFooter.mockResolvedValueOnce(BUSY);
     h.fetchFooter.mockResolvedValueOnce(report({ totals: { total: 3, link_clicks: 3 } }));
     panel();
@@ -657,7 +657,7 @@ describe("FooterAnalyticsPanel - okno czasu", () => {
     expect(queriedDays()).toEqual([30, 7]);
   });
 
-  it("wybrana grupa PRZEZYWA zmiane okna - filtr jest niezalezny od zapytania", async () => {
+  it("wybrana grupa PRZEŻYWA zmianę okna - filtr jest niezależny od zapytania", async () => {
     panel();
     await loaded();
     await pickOption(1, "Prawne");
@@ -673,8 +673,8 @@ describe("FooterAnalyticsPanel - okno czasu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("FooterAnalyticsPanel - izolacja warsztatow", () => {
-  it("panel warsztatu B pokazuje WYLACZNIE linki warsztatu B", async () => {
+describe("FooterAnalyticsPanel - izolacja warsztatów", () => {
+  it("panel warsztatu B pokazuje WYŁĄCZNIE linki warsztatu B", async () => {
     h.fetchFooter.mockResolvedValue(WORKSPACE_B);
     const { container } = panel();
     await loaded();
@@ -684,7 +684,7 @@ describe("FooterAnalyticsPanel - izolacja warsztatow", () => {
     expect(container.textContent ?? "").not.toContain("/alfa/");
   });
 
-  it("swiezy klient react-query nie przenosi raportu miedzy warsztatami", async () => {
+  it("świeży klient react-query nie przenosi raportu między warsztatami", async () => {
     h.fetchFooter.mockResolvedValue(WORKSPACE_A);
     const first = panel();
     await loaded();
@@ -702,13 +702,13 @@ describe("FooterAnalyticsPanel - izolacja warsztatow", () => {
   it.fails(
     "DEFEKT: klucz cache nie niesie warsztatu - drugi panel z tym samym oknem widzi cudze linki",
     async () => {
-      // `queryKey: ["footer-analytics", days]` to jedna stala i liczba dni. Nie
-      // ma w nim ani tenanta, ani uzytkownika, ani - inaczej niz w pulpitach
+      // `queryKey: ["footer-analytics", days]` to jedna stała i liczba dni. Nie
+      // ma w nim ani tenanta, ani użytkownika, ani - inaczej niż w pulpitach
       // opartych o `TimeRangeFilter` - znacznika czasu okna. Dwa montowania z
-      // domyslnym oknem 30 dni trafiaja wiec ZAWSZE w ten sam wpis cache, a
-      // `staleTime: 60_000` sprawia, ze react-query nie ponawia zapytania.
+      // domyślnym oknem 30 dni trafiają więc ZAWSZE w ten sam wpis cache, a
+      // `staleTime: 60_000` sprawia, że react-query nie ponawia zapytania.
       // Administrator warsztatu B czyta etykiety i adresy warsztatu A, i nie
-      // leci przy tym ani jedno zadanie sieciowe.
+      // leci przy tym ani jedno żądanie sieciowe.
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       h.fetchFooter.mockResolvedValue(WORKSPACE_A);
       const first = panel(client);
@@ -726,15 +726,15 @@ describe("FooterAnalyticsPanel - izolacja warsztatow", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("FooterAnalyticsPanel - slownik", () => {
-  it.fails("DEFEKT: panel nie ma warstwy i18n - po angielsku dalej mowi po polsku", async () => {
-    // Ani jednego `useTranslation`, ani jednego importu nakladki slownika.
-    // Naglowek, opis, pięć etykiet kafelkow, pięć pozycji filtra, cztery nazwy
-    // zdarzen i pięć naglowkow kolumn sa wpisane po polsku w kodzie
-    // komponentu - a `/admin/analytics` jest dostepne w obu jezykach. Kazdy
+describe("FooterAnalyticsPanel - słownik", () => {
+  it.fails("DEFEKT: panel nie ma warstwy i18n - po angielsku dalej mówi po polsku", async () => {
+    // Ani jednego `useTranslation`, ani jednego importu nakładki słownika.
+    // Nagłówek, opis, pięć etykiet kafelków, pięć pozycji filtra, cztery nazwy
+    // zdarzeń i pięć nagłówków kolumn są wpisane po polsku w kodzie
+    // komponentu - a `/admin/analytics` jest dostępne w obu językach. Każdy
     // inny pulpit w tym katalogu (`AudienceSegmentsDashboard`,
     // `ClientErrorsDashboard`, `VitalsBiDashboard`) bierze te napisy z
-    // `@/lib/i18n-admin-analytics`, wiec to rozjazd, nie decyzja produktowa.
+    // `@/lib/i18n-admin-analytics`, więc to rozjazd, nie decyzja produktowa.
     await i18n.changeLanguage("en");
     const { container } = panel();
     await loaded();
@@ -743,10 +743,10 @@ describe("FooterAnalyticsPanel - slownik", () => {
     expect(container.textContent ?? "").not.toContain("Wszystkie zdarzenia");
   });
 
-  it.fails("DEFEKT: daty w tabeli sa formatowane zaszytym pl-PL takze po angielsku", async () => {
-    // `new Date(r.last_at).toLocaleString("pl-PL")` ignoruje jezyk interfejsu.
+  it.fails("DEFEKT: daty w tabeli są formatowane zaszytym pl-PL także po angielsku", async () => {
+    // `new Date(r.last_at).toLocaleString("pl-PL")` ignoruje język interfejsu.
     // `ClientErrorsDashboard` w tym samym katalogu wybiera locale z
-    // `i18n.language`, wiec wzorzec w repo istnieje.
+    // `i18n.language`, więc wzorzec w repo istnieje.
     await i18n.changeLanguage("en");
     h.fetchFooter.mockResolvedValue(report({ totals: { total: 1 }, rows: [row({ clicks: 1 })] }));
     panel();
@@ -760,8 +760,8 @@ describe("FooterAnalyticsPanel - slownik", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("FooterAnalyticsPanel - dostepnosc", () => {
-  it("tabela ma naglowki kolumn, wiec czytnik ekranu wie, co jest w komorce", async () => {
+describe("FooterAnalyticsPanel - dostępność", () => {
+  it("tabela ma nagłówki kolumn, więc czytnik ekranu wie, co jest w komórce", async () => {
     panel();
     await loaded();
 
@@ -772,16 +772,16 @@ describe("FooterAnalyticsPanel - dostepnosc", () => {
       "Kliknięcia",
       "Ostatnie",
     ]);
-    // Kazdy wiersz ma tyle komorek, ile jest naglowkow - inaczej powiazanie
-    // komorka-kolumna rozjezdza sie dla czytnika ekranu.
+    // Każdy wiersz ma tyle komórek, ile jest nagłówków - inaczej powiązanie
+    // komórka-kolumna rozjeżdża się dla czytnika ekranu.
     for (const tr of tableRows()) expect(cells(tr)).toHaveLength(5);
   });
 
-  it("caly dlug dostepnosci panelu to DWA bezimienne selektory", async () => {
-    // Asercja jest na PELNEJ liscie naruszen: dopisanie dowolnego innego
-    // problemu (tabela bez naglowkow, plakietka bez nazwy, zla kolejnosc
-    // naglowkow) oblewa ten test. Dwa wpisy `button-name`, ktore tu stoja, sa
-    // przypiete osobno nizej.
+  it("cały dług dostępności panelu to DWA bezimienne selektory", async () => {
+    // Asercja jest na PEŁNEJ liście naruszeń: dopisanie dowolnego innego
+    // problemu (tabela bez nagłówków, plakietka bez nazwy, zła kolejność
+    // nagłówków) oblewa ten test. Dwa wpisy `button-name`, które tu stoją, są
+    // przypięte osobno niżej.
     const { container } = panel();
     await loaded();
 
@@ -793,7 +793,7 @@ describe("FooterAnalyticsPanel - dostepnosc", () => {
     expect(violations[0].nodes).toHaveLength(2);
   });
 
-  it("panel bez danych nie dokłada naruszen poza selektorem okna", async () => {
+  it("panel bez danych nie dokłada naruszeń poza selektorem okna", async () => {
     h.fetchFooter.mockResolvedValue(EMPTY);
     const { container } = panel();
     await loaded();
@@ -802,11 +802,11 @@ describe("FooterAnalyticsPanel - dostepnosc", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it.fails("DEFEKT: ani selektor okna, ani filtr grup nie ma nazwy dostepnej", async () => {
-    // Oba `SelectTrigger` renderuja `<button role="combobox">` bez `aria-label`
-    // i bez `<label>`. `SelectValue` nie ma nawet `placeholder`, wiec do
-    // pierwszego otwarcia listy przyciski sa PUSTE - czytnik ekranu oglasza dwa
-    // nieopisane comboboxy stojace obok siebie i nie da sie ich rozroznic.
+  it.fails("DEFEKT: ani selektor okna, ani filtr grup nie ma nazwy dostępnej", async () => {
+    // Oba `SelectTrigger` renderują `<button role="combobox">` bez `aria-label`
+    // i bez `<label>`. `SelectValue` nie ma nawet `placeholder`, więc do
+    // pierwszego otwarcia listy przyciski są PUSTE - czytnik ekranu ogłasza dwa
+    // nieopisane comboboxy stojące obok siebie i nie da się ich rozróżnić.
     const { container } = panel();
     await loaded();
 

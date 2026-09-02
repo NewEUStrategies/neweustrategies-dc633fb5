@@ -1,39 +1,39 @@
 // PO CO TEN PLIK. `src/lib/analytics/events.ts` (30 linii, dwie funkcje) wchodzi
-// tu z ZEREM wykonanych linii. Modul jest krotki, ale jego kontrakt jest
-// PRAWNY, nie techniczny: wlasny komentarz deklaruje, ze baner zgod klasyfikuje
-// `ad_event` i `popup_event` jako kategorie MARKETING i ze beacon leci
-// WYLACZNIE po jej wyrazeniu - „inaczej implementacja przeczylaby deklaracji
-// polityki". Bez testu tej deklaracji nie pilnuje NIC: usuniecie jednej linii
-// `if (!hasCategoryConsent("marketing")) return;` nie psuje ani typow, ani
-// zadnego innego testu, a zamienia opt-out uzytkownika w fikcje.
+// tu z ZEREM wykonanych linii. Moduł jest krótki, ale jego kontrakt jest
+// PRAWNY, nie techniczny: własny komentarz deklaruje, że baner zgód klasyfikuje
+// `ad_event` i `popup_event` jako kategorie MARKETING i że beacon leci
+// WYŁĄCZNIE po jej wyrażeniu - „inaczej implementacja przeczyłaby deklaracji
+// polityki". Bez testu tej deklaracji nie pilnuje NIC: usunięcie jednej linii
+// `if (!hasCategoryConsent("marketing")) return;` nie psuje ani typów, ani
+// żadnego innego testu, a zamienia opt-out użytkownika w fikcję.
 //
-// Trzy klasy defektow, ktore te testy lapia:
+// Trzy klasy defektów, które te testy łapią:
 //
-//  1. BRAMKA NA ZLEJ KATEGORII. Podmiana `marketing` na `analytics` (albo na
-//     `hasAnalyticsConsent()`, ktore siedzi tuz obok w `track.ts`) przechodzi
-//     przez recenzje niezauwazona i wyglada jak porzadkowanie. Dowodzimy tego
-//     KRZYZOWO: sama zgoda analytics NIE wypuszcza beacona, a sama zgoda
-//     marketing - wypuszcza. Zaden z tych dwoch testow nie przechodzi po
+//  1. BRAMKA NA ZŁEJ KATEGORII. Podmiana `marketing` na `analytics` (albo na
+//     `hasAnalyticsConsent()`, które siedzi tuż obok w `track.ts`) przechodzi
+//     przez recenzję niezauważona i wygląda jak porządkowanie. Dowodzimy tego
+//     KRZYŻOWO: sama zgoda analytics NIE wypuszcza beacona, a sama zgoda
+//     marketing - wypuszcza. Żaden z tych dwóch testów nie przechodzi po
 //     zamianie kategorii.
-//  2. SYGNAL GPC OMINIETY. `hasCategoryConsent` klamruje marketing przy
-//     aktywnym `Sec-GPC`; bramka musi z tego korzystac, a nie czytac surowego
+//  2. SYGNAŁ GPC OMINIĘTY. `hasCategoryConsent` klamruje marketing przy
+//     aktywnym `Sec-GPC`; bramka musi z tego korzystać, a nie czytać surowego
 //     localStorage.
-//  3. LADUNEK NIEZGODNY Z INGESTEM. `/api/public/ad-event` i
-//     `/api/public/popup-event` czytaja konkretne klucze (`slot_id`,
-//     `placement_id`, `popup_id`, `path`); literowka albo `undefined` zamiast
-//     `null` konczy sie 204 i CICHA utrata zdarzenia - beacon nie ma odpowiedzi,
-//     wiec nikt sie o tym nie dowie.
+//  3. ŁADUNEK NIEZGODNY Z INGESTEM. `/api/public/ad-event` i
+//     `/api/public/popup-event` czytają konkretne klucze (`slot_id`,
+//     `placement_id`, `popup_id`, `path`); literówka albo `undefined` zamiast
+//     `null` kończy się 204 i CICHĄ utratą zdarzenia - beacon nie ma odpowiedzi,
+//     więc nikt się o tym nie dowie.
 //
-// ATRAPUJEMY WYLACZNIE GRANICE: transport `sendBeaconPayload` (zero sieci)
-// i klienta Supabase importowanego przez modul zgod (zero bazy). Sama logika
-// zgody, localStorage, sessionStorage i cookie GPC dzialaja naprawde - to ich
+// ATRAPUJEMY WYŁĄCZNIE GRANICE: transport `sendBeaconPayload` (zero sieci)
+// i klienta Supabase importowanego przez moduł zgód (zero bazy). Sama logika
+// zgody, localStorage, sessionStorage i cookie GPC działają naprawdę - to ich
 // zachowanie jest tu przedmiotem dowodu.
 //
-// CZEGO SWIADOMIE NIE DUBLUJE: `src/routes/api/public/-popup-event.test.ts`
+// CZEGO ŚWIADOMIE NIE DUBLUJĘ: `src/routes/api/public/-popup-event.test.ts`
 // (strona odbiorcza: walidacja, 204, zapis), `src/lib/ads/__tests__/consent.test.tsx`
-// (katalog zgod i klamra GPC jako temat sam w sobie).
+// (katalog zgód i klamra GPC jako temat sam w sobie).
 //
-// RODO: zero prawdziwych danych - identyfikatory slotow i popupow sa umowne.
+// RODO: zero prawdziwych danych - identyfikatory slotów i popupów są umowne.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GPC_COOKIE, GPC_COOKIE_VALUE } from "@/lib/consent/gpc";
@@ -104,7 +104,7 @@ afterEach(() => {
 });
 
 describe("beaconAdEvent - bramka zgody marketingowej", () => {
-  it("bez zapisanej decyzji NIE wysyla nic", () => {
+  it("bez zapisanej decyzji NIE wysyła nic", () => {
     beaconAdEvent("impression", "slot-hero");
     expect(beacons.wyslane).toEqual([]);
   });
@@ -115,7 +115,7 @@ describe("beaconAdEvent - bramka zgody marketingowej", () => {
     expect(beacons.wyslane).toEqual([]);
   });
 
-  it("SAMA zgoda analytics NIE wystarcza - to kategoria marketing rzadzi reklamami", () => {
+  it("SAMA zgoda analytics NIE wystarcza - to kategoria marketing rządzi reklamami", () => {
     zapiszZgode({ analytics: true });
     beaconAdEvent("impression", "slot-hero");
     beaconPopupEvent("view", "popup-1");
@@ -129,7 +129,7 @@ describe("beaconAdEvent - bramka zgody marketingowej", () => {
     expect(beacons.wyslane[0].endpoint).toBe("/api/public/ad-event");
   });
 
-  it("aktywny sygnal GPC klamruje marketing mimo zgody w localStorage", () => {
+  it("aktywny sygnał GPC klamruje marketing mimo zgody w localStorage", () => {
     zapiszZgode({ marketing: true });
     document.cookie = `${GPC_COOKIE}=${GPC_COOKIE_VALUE}; path=/`;
     beaconAdEvent("impression", "slot-hero");
@@ -137,7 +137,7 @@ describe("beaconAdEvent - bramka zgody marketingowej", () => {
     expect(beacons.wyslane).toEqual([]);
   });
 
-  it("tryb podgladu zgod steruje bramka - odmowa w podgladzie ucina beacon", () => {
+  it("tryb podglądu zgód steruje bramką - odmowa w podglądzie ucina beacon", () => {
     zapiszZgode({ marketing: true });
     window.sessionStorage.setItem(
       PREVIEW_KEY,
@@ -149,7 +149,7 @@ describe("beaconAdEvent - bramka zgody marketingowej", () => {
     expect(beacons.wyslane).toEqual([]);
   });
 
-  it("cofniecie zgody miedzy odslonami zatrzymuje kolejne beacony", () => {
+  it("cofnięcie zgody między odsłonami zatrzymuje kolejne beacony", () => {
     zapiszZgode({ marketing: true });
     beaconAdEvent("impression", "slot-a");
     zapiszZgode({ marketing: false });
@@ -160,12 +160,12 @@ describe("beaconAdEvent - bramka zgody marketingowej", () => {
   });
 });
 
-describe("beaconAdEvent - ladunek dla /api/public/ad-event", () => {
+describe("beaconAdEvent - ładunek dla /api/public/ad-event", () => {
   beforeEach(() => {
     zapiszZgode({ marketing: true });
   });
 
-  it("niesie rodzaj, slot, placement i sciezke - dokladnie te klucze", () => {
+  it("niesie rodzaj, slot, placement i ścieżkę - dokładnie te klucze", () => {
     window.history.pushState({}, "", "/analizy/bezpieczenstwo?utm_source=nl");
     beaconAdEvent("click", "slot-hero", "placement-77");
 
@@ -182,7 +182,7 @@ describe("beaconAdEvent - ladunek dla /api/public/ad-event", () => {
     ]);
   });
 
-  it("pominiety placement jest jawnym null, a nie undefined gubionym w JSON", () => {
+  it("pominięty placement jest jawnym null, a nie undefined gubionym w JSON", () => {
     beaconAdEvent("impression", "slot-hero");
     const payload = beacons.wyslane[0].payload as Record<string, unknown>;
     expect(payload.placement_id).toBeNull();
@@ -199,19 +199,19 @@ describe("beaconAdEvent - ladunek dla /api/public/ad-event", () => {
     expect(beacons.wyslane[0].payload).toMatchObject({ kind });
   });
 
-  it("sciezka pomija query string - raport grupuje po stronie, nie po kampanii", () => {
+  it("ścieżka pomija query string - raport grupuje po stronie, nie po kampanii", () => {
     window.history.pushState({}, "", "/eksperci?ref=newsletter");
     beaconAdEvent("impression", "slot-side");
     expect(beacons.wyslane[0].payload).toMatchObject({ path: "/eksperci" });
   });
 });
 
-describe("beaconPopupEvent - ladunek dla /api/public/popup-event", () => {
+describe("beaconPopupEvent - ładunek dla /api/public/popup-event", () => {
   beforeEach(() => {
     zapiszZgode({ marketing: true });
   });
 
-  it("niesie wylacznie rodzaj i identyfikator popupu", () => {
+  it("niesie wyłącznie rodzaj i identyfikator popupu", () => {
     beaconPopupEvent("view", "popup-newsletter");
     expect(beacons.wyslane).toEqual([
       {
@@ -221,7 +221,7 @@ describe("beaconPopupEvent - ladunek dla /api/public/popup-event", () => {
     ]);
   });
 
-  it("konwersja idzie tym samym kanalem z innym rodzajem", () => {
+  it("konwersja idzie tym samym kanałem z innym rodzajem", () => {
     beaconPopupEvent("conversion", "popup-newsletter");
     expect(beacons.wyslane[0].payload).toEqual({
       kind: "conversion",
@@ -229,7 +229,7 @@ describe("beaconPopupEvent - ladunek dla /api/public/popup-event", () => {
     });
   });
 
-  it("bez zgody marketingowej konwersja tez nie wychodzi", () => {
+  it("bez zgody marketingowej konwersja też nie wychodzi", () => {
     zapiszZgode({ marketing: false });
     beaconPopupEvent("conversion", "popup-newsletter");
     expect(beacons.wyslane).toEqual([]);
@@ -245,8 +245,8 @@ describe("beaconPopupEvent - ladunek dla /api/public/popup-event", () => {
   });
 });
 
-describe("beaconAdEvent - brak `location` (render poza przegladarka)", () => {
-  it("nie rzuca i nie wysyla nic, nawet przy zgodzie marketingowej", () => {
+describe("beaconAdEvent - brak `location` (render poza przeglądarką)", () => {
+  it("nie rzuca i nie wysyła nic, nawet przy zgodzie marketingowej", () => {
     zapiszZgode({ marketing: true });
     vi.stubGlobal("location", undefined);
 

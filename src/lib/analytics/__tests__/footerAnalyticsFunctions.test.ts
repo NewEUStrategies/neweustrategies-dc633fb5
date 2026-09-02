@@ -1,41 +1,41 @@
 // PO CO TEN PLIK. `src/lib/analytics/footerAnalytics.functions.ts` (124 linie,
-// jedna server fn) wchodzi tu z ZEREM wykonanych linii, a zasila zakladke
-// „stopka" w panelu admin/analytics. Cala jego wartosc to AGREGACJA: z surowych
-// wierszy `analytics_events` robi totale, ranking linkow i szereg dzienny.
-// Kazdy z tych trzech wynikow jest liczba, ktora ktos zobaczy i na jej
-// podstawie przestawi nawigacje - blad w kluczu kubelka albo w mapowaniu nazwy
-// zdarzenia nie wywala niczego, tylko cicho oddaje NIEPRAWDE.
+// jedna server fn) wchodzi tu z ZEREM wykonanych linii, a zasila zakładkę
+// „stopka" w panelu admin/analytics. Cała jego wartość to AGREGACJA: z surowych
+// wierszy `analytics_events` robi totale, ranking linków i szereg dzienny.
+// Każdy z tych trzech wyników jest liczbą, którą ktoś zobaczy i na jej
+// podstawie przestawi nawigację - błąd w kluczu kubelka albo w mapowaniu nazwy
+// zdarzenia nie wywala niczego, tylko cicho oddaje NIEPRAWDĘ.
 //
-// Klasy defektow, ktore te testy lapia:
+// Klasy defektów, które te testy łapią:
 //
 //  1. ODCZYT SPOZA NAJEMCY. Tabela `analytics_events` NIE ma tu filtra
 //     `tenant_id` w zapytaniu - polityka RLS `analytics_events_admin_read`
-//     (migracja 20260730085737) zawezaja do `current_tenant_id()`, a to dziala
-//     WYLACZNIE wtedy, gdy zapytanie leci klientem NAJEMCY z kontekstu
+//     (migracja 20260730085737) zawężają do `current_tenant_id()`, a to działa
+//     WYŁĄCZNIE wtedy, gdy zapytanie leci klientem NAJEMCY z kontekstu
 //     middleware. Podmiana `context.supabase` na `supabaseAdmin` (service role
-//     omija RLS) wygladalaby w diffie jak optymalizacja, a oddalaby adminowi
-//     najemcy A klikniecia najemcy B. Dowodzimy wiec DWOCH rzeczy naraz:
-//     ze odczyt idzie klientem z kontekstu (dwa konteksty = dwa rozlaczne
-//     zbiory) i ze klient service role nie jest tu tkniety ANI RAZU.
-//  2. ZBYT SZEROKIE ZAPYTANIE. `.in("event_name", …)` musi wymieniac dokladnie
-//     cztery zdarzenia `footer_*`; dorzucenie piatego (albo zgubienie filtra)
-//     zmieszaloby dashboard stopki z innymi CTA - i to jest w komentarzu modulu
+//     omija RLS) wyglądałaby w diffie jak optymalizacja, a oddałaby adminowi
+//     najemcy A kliknięcia najemcy B. Dowodzimy więc DWÓCH rzeczy naraz:
+//     że odczyt idzie klientem z kontekstu (dwa konteksty = dwa rozłączne
+//     zbiory) i że klient service role nie jest tu tknięty ANI RAZU.
+//  2. ZBYT SZEROKIE ZAPYTANIE. `.in("event_name", …)` musi wymieniać dokładnie
+//     cztery zdarzenia `footer_*`; dorzucenie piątego (albo zgubienie filtra)
+//     zmieszałoby dashboard stopki z innymi CTA - i to jest w komentarzu modułu
 //     obiecane wprost.
-//  3. GRANICE OKNA I WALIDATOR: 1..180 dni, calkowite, domyslnie 30, `since`
+//  3. GRANICE OKNA I WALIDATOR: 1..180 dni, całkowite, domyślnie 30, `since`
 //     liczone od `Date.now()`.
-//  4. MAPOWANIE KUBELKOW: klucz `nazwa::href`, fallbacki `href` (meta -> encja
+//  4. MAPOWANIE KUBELKÓW: klucz `nazwa::href`, fallbacki `href` (meta -> encja
 //     -> „-"), `label` (meta -> href), `group` (meta -> „unknown"), `last_at`
-//     jako MAKSIMUM, ranking malejaco z limitem 100, szereg dzienny rosnaco,
-//     a `footer_newsletter_signup` liczony jako konwersja, nie klikniecie.
-//  5. AWARIA ODCZYTU jako blad, a nie cicha zerowka.
+//     jako MAKSIMUM, ranking malejąco z limitem 100, szereg dzienny rosnąco,
+//     a `footer_newsletter_signup` liczony jako konwersja, nie kliknięcie.
+//  5. AWARIA ODCZYTU jako błąd, a nie cicha zerówka.
 //
-// CZEGO TEN PLIK NIE UDAJE. Harness nie uruchamia middleware, wiec „obcy nie
-// wejdzie" nie jest tu dowodzone zachowaniem - jest dowodzone DEKLARACJA
+// CZEGO TEN PLIK NIE UDAJE. Harness nie uruchamia middleware, więc „obcy nie
+// wejdzie" nie jest tu dowodzone zachowaniem - jest dowodzone DEKLARACJĄ
 // `requireAdmin` (test strukturalny) plus bramka statyczna
 // `check:authz-snapshot`; sama polityka RLS to domena pgTAP.
 //
-// RODO: zadnych prawdziwych danych - adresy wylacznie w domenie example.com,
-// zero identyfikatorow osob.
+// RODO: żadnych prawdziwych danych - adresy wyłącznie w domenie example.com,
+// zero identyfikatorów osób.
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 import { fail, ok, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
@@ -55,8 +55,8 @@ vi.mock("@/integrations/supabase/require-staff", () => ({
 }));
 
 /**
- * Licznik siegniec po klienta SERVICE ROLE. Handler nie ma prawa go dotknac -
- * ten klient omija RLS, wiec kazde jego uzycie tutaj to wyciek miedzy najemcami.
+ * Licznik sięgnięć po klienta SERVICE ROLE. Handler nie ma prawa go dotknąć -
+ * ten klient omija RLS, więc każde jego użycie tutaj to wyciek między najemcami.
  */
 const h = vi.hoisted(() => ({ adminTouches: [] as string[] }));
 
@@ -74,7 +74,7 @@ import { getFooterAnalytics, type FooterAnalyticsResult } from "../footerAnalyti
 const TENANT_A = "11111111-1111-4111-8111-111111111111";
 const TENANT_B = "22222222-2222-4222-8222-222222222222";
 
-/** Zamrozony „teraz" - `since` i szereg dzienny musza byc deterministyczne. */
+/** Zamrożony „teraz" - `since` i szereg dzienny muszą być deterministyczne. */
 const NOW = new Date("2026-03-15T12:00:00.000Z");
 
 interface EventRow {
@@ -85,15 +85,15 @@ interface EventRow {
   entity_id: string | null;
 }
 
-/** „Baza" obu najemcow naraz - brak zawezenia widac natychmiast w liczbach. */
+/** „Baza" obu najemców naraz - brak zawężenia widać natychmiast w liczbach. */
 let zdarzenia: EventRow[] = [];
 
 const stub = supabaseFromStub();
 
 /**
- * Klient NAJEMCY: odtwarza to, co robi RLS - oddaje wylacznie wiersze tego
- * najemcy, do ktorego nalezy wolajacy. Filtry `in`/`gte`/`limit` z lancucha sa
- * stosowane wiernie, zeby test czytal skutki zapytania, a nie zamiar.
+ * Klient NAJEMCY: odtwarza to, co robi RLS - oddaje wyłącznie wiersze tego
+ * najemcy, do którego należy wołający. Filtry `in`/`gte`/`limit` z łańcucha są
+ * stosowane wiernie, żeby test czytał skutki zapytania, a nie zamiar.
  */
 function klientNajemcy(tenantId: string): ServerFnContext["supabase"] {
   const from = stub.from;
@@ -129,7 +129,7 @@ async function wywolaj(tenantId: string, data?: unknown): Promise<FooterAnalytic
   });
 }
 
-/** Znacznik czasu przesuniety o `hours` godzin wstecz od zamrozonego „teraz". */
+/** Znacznik czasu przesunięty o `hours` godzin wstecz od zamrożonego „teraz". */
 function godzinTemu(hours: number): string {
   return new Date(NOW.getTime() - hours * 3_600_000).toISOString();
 }
@@ -159,7 +159,7 @@ afterEach(() => {
 });
 
 describe("getFooterAnalytics - obudowa server fn", () => {
-  it("deklaruje bramke requireAdmin, metode POST i walidator", () => {
+  it("deklaruje bramkę requireAdmin, metodę POST i walidator", () => {
     expect(serverFnMiddlewareNames(getFooterAnalytics)).toEqual(["requireAdmin"]);
     expect(Reflect.get(getFooterAnalytics as object, "method")).toBe("POST");
     expect(validateServerFnInput(getFooterAnalytics, {})).toEqual({ days: 30 });
@@ -167,7 +167,7 @@ describe("getFooterAnalytics - obudowa server fn", () => {
 });
 
 describe("getFooterAnalytics - walidator okna", () => {
-  it("brak wejscia oznacza 30 dni", () => {
+  it("brak wejścia oznacza 30 dni", () => {
     expect(validateServerFnInput(getFooterAnalytics, undefined)).toEqual({ days: 30 });
     expect(validateServerFnInput(getFooterAnalytics, null)).toEqual({ days: 30 });
   });
@@ -186,13 +186,13 @@ describe("getFooterAnalytics - walidator okna", () => {
     expect(() => validateServerFnInput(getFooterAnalytics, { days })).toThrow();
   });
 
-  it("odrzuca liczbe podana jako tekst", () => {
+  it("odrzuca liczbę podaną jako tekst", () => {
     expect(() => validateServerFnInput(getFooterAnalytics, { days: "30" })).toThrow();
   });
 });
 
-describe("getFooterAnalytics - ksztalt zapytania", () => {
-  it("czyta wylacznie cztery zdarzenia stopki, w oknie, malejaco, z limitem 10 000", async () => {
+describe("getFooterAnalytics - kształt zapytania", () => {
+  it("czyta wyłącznie cztery zdarzenia stopki, w oknie, malejąco, z limitem 10 000", async () => {
     await wywolaj(TENANT_A, { days: 30 });
     const chain = stub.lastChain("analytics_events");
 
@@ -214,7 +214,7 @@ describe("getFooterAnalytics - ksztalt zapytania", () => {
     expect(chain?.argsOf("limit")).toEqual([10_000]);
   });
 
-  it("okno przesuwa `since` - wiersz starszy o godzine od granicy wypada", async () => {
+  it("okno przesuwa `since` - wiersz starszy o godzinę od granicy wypada", async () => {
     zdarzenia = [
       klik({ created_at: godzinTemu(7 * 24 - 1), meta: { href: "/w-oknie" }, entity_id: null }),
       klik({ created_at: godzinTemu(7 * 24 + 1), meta: { href: "/poza-oknem" }, entity_id: null }),
@@ -226,7 +226,7 @@ describe("getFooterAnalytics - ksztalt zapytania", () => {
   });
 });
 
-describe("getFooterAnalytics - izolacja najemcow", () => {
+describe("getFooterAnalytics - izolacja najemców", () => {
   beforeEach(() => {
     zdarzenia = [
       klik({ tenant_id: TENANT_A, meta: { href: "/a-only", label: "A", group: "editorial" } }),
@@ -240,7 +240,7 @@ describe("getFooterAnalytics - izolacja najemcow", () => {
     ];
   });
 
-  it("admin najemcy A nie widzi ANI JEDNEGO klikniecia najemcy B", async () => {
+  it("admin najemcy A nie widzi ANI JEDNEGO kliknięcia najemcy B", async () => {
     const a = await wywolaj(TENANT_A, { days: 30 });
     expect(a.totals).toEqual({
       total: 2,
@@ -253,24 +253,24 @@ describe("getFooterAnalytics - izolacja najemcow", () => {
     expect(a.rows.map((r) => r.href)).not.toContain("/b-only");
   });
 
-  it("admin najemcy B widzi wylacznie swoje - ta sama atrapa, inny kontekst", async () => {
+  it("admin najemcy B widzi wyłącznie swoje - ta sama atrapa, inny kontekst", async () => {
     const b = await wywolaj(TENANT_B, { days: 30 });
     expect(b.totals).toMatchObject({ total: 2, link_clicks: 1, newsletter_signups: 1 });
     expect(b.rows.map((r) => r.href).sort()).toEqual(["/b-news", "/b-only"]);
   });
 
-  it("odczyt idzie klientem z kontekstu, a klient service role nie jest tkniety", async () => {
+  it("odczyt idzie klientem z kontekstu, a klient service role nie jest tknięty", async () => {
     await wywolaj(TENANT_A, { days: 30 });
-    // Zapytanie NIE niesie wlasnego filtra tenant_id - granica najemcy stoi
-    // wylacznie na RLS klienta z kontekstu, wiec siegniecie po service role
-    // (ktory RLS omija) byloby tu natychmiastowym wyciekiem.
+    // Zapytanie NIE niesie własnego filtra tenant_id - granica najemcy stoi
+    // wyłącznie na RLS klienta z kontekstu, więc sięgnięcie po service role
+    // (który RLS omija) byłoby tu natychmiastowym wyciekiem.
     expect(stub.lastChain("analytics_events")?.has("eq")).toBe(false);
     expect(h.adminTouches).toEqual([]);
   });
 });
 
 describe("getFooterAnalytics - totale wg nazwy zdarzenia", () => {
-  it("kazde z czterech zdarzen ladunkuje wlasny licznik, a `total` liczy wszystkie", async () => {
+  it("każde z czterech zdarzeń ładunkuje własny licznik, a `total` liczy wszystkie", async () => {
     zdarzenia = [
       klik({ event_name: "footer_link_click", meta: { href: "/1" } }),
       klik({ event_name: "footer_link_click", meta: { href: "/2" } }),
@@ -290,8 +290,8 @@ describe("getFooterAnalytics - totale wg nazwy zdarzenia", () => {
   });
 });
 
-describe("getFooterAnalytics - kubelki linkow", () => {
-  it("kubelek jest wspolny dla pary nazwa+href, a rozny href to rozne wiersze", async () => {
+describe("getFooterAnalytics - kubelki linków", () => {
+  it("kubelek jest wspólny dla pary nazwa+href, a różny href to różne wiersze", async () => {
     zdarzenia = [
       klik({ meta: { href: "/analizy", label: "Analizy", group: "editorial" } }),
       klik({ meta: { href: "/analizy", label: "Analizy", group: "editorial" } }),
@@ -318,7 +318,7 @@ describe("getFooterAnalytics - kubelki linkow", () => {
     ]);
   });
 
-  it("ten sam href pod inna nazwa zdarzenia to OSOBNY kubelek", async () => {
+  it("ten sam href pod inną nazwą zdarzenia to OSOBNY kubelek", async () => {
     zdarzenia = [
       klik({ event_name: "footer_link_click", meta: { href: "/newsletter" } }),
       klik({ event_name: "footer_newsletter_click", meta: { href: "/newsletter" } }),
@@ -331,7 +331,7 @@ describe("getFooterAnalytics - kubelki linkow", () => {
     ]);
   });
 
-  it("`last_at` to MAKSIMUM znacznikow kubelka, nie ostatni przetworzony wiersz", async () => {
+  it("`last_at` to MAKSIMUM znaczników kubelka, nie ostatni przetworzony wiersz", async () => {
     zdarzenia = [
       klik({ created_at: godzinTemu(50) }),
       klik({ created_at: godzinTemu(2) }),
@@ -342,7 +342,7 @@ describe("getFooterAnalytics - kubelki linkow", () => {
     expect(wynik.rows[0].last_at).toBe(godzinTemu(2));
   });
 
-  it("ranking jest malejacy po liczbie klikniec", async () => {
+  it("ranking jest malejący po liczbie kliknięć", async () => {
     zdarzenia = [
       klik({ meta: { href: "/rzadki" } }),
       klik({ meta: { href: "/czesty" } }),
@@ -359,7 +359,7 @@ describe("getFooterAnalytics - kubelki linkow", () => {
     ]);
   });
 
-  it("ranking jest przyciety do stu wierszy mimo stu dwudziestu linkow", async () => {
+  it("ranking jest przycięty do stu wierszy mimo stu dwudziestu linków", async () => {
     zdarzenia = Array.from({ length: 120 }, (_v, i) => klik({ meta: { href: `/link-${i}` } }));
     const wynik = await wywolaj(TENANT_A);
     expect(wynik.rows).toHaveLength(100);
@@ -376,7 +376,7 @@ describe("getFooterAnalytics - fallbacki metadanych", () => {
     expect(wgHref["-"]).toMatchObject({ label: "-", group: "unknown", clicks: 1 });
   });
 
-  it("meta o zlym typie jest traktowana jak brak, a nie wpychana do raportu", async () => {
+  it("meta o złym typie jest traktowana jak brak, a nie wpychana do raportu", async () => {
     zdarzenia = [
       klik({
         meta: { href: 42, label: ["Analizy"], group: { pl: "editorial" } },
@@ -403,7 +403,7 @@ describe("getFooterAnalytics - fallbacki metadanych", () => {
 });
 
 describe("getFooterAnalytics - szereg dzienny", () => {
-  it("konwersje newslettera nie wchodza do slupka klikniec i rosna osobno", async () => {
+  it("konwersje newslettera nie wchodzą do słupka kliknięć i rosną osobno", async () => {
     zdarzenia = [
       klik({ created_at: "2026-03-15T09:00:00.000Z" }),
       klik({ created_at: "2026-03-15T10:00:00.000Z", event_name: "footer_newsletter_signup" }),
@@ -419,11 +419,11 @@ describe("getFooterAnalytics - szereg dzienny", () => {
     ]);
   });
 
-  it("szereg wychodzi rosnaco nawet gdy wiersze przyjda w dowolnej kolejnosci", async () => {
-    // `daily` jest sortowane PO agregacji, wiec nie moze zalezec od kolejnosci
-    // odczytu. Ten przypadek celowo omija `order` z lancucha: gdyby ktos usunal
-    // koncowe sortowanie „bo baza i tak sortuje", wykres dzienny zaczalby
-    // rysowac dni od tylu i nikt by tego nie zlapal na uporzadkowanym odczycie.
+  it("szereg wychodzi rosnąco nawet gdy wiersze przyjdą w dowolnej kolejności", async () => {
+    // `daily` jest sortowane PO agregacji, więc nie może zależeć od kolejności
+    // odczytu. Ten przypadek celowo omija `order` z łańcucha: gdyby ktoś usunął
+    // końcowe sortowanie „bo baza i tak sortuje", wykres dzienny zacząłby
+    // rysować dni od tyłu i nikt by tego nie złapał na uporządkowanym odczycie.
     const wiersze = [
       klik({ created_at: "2026-03-11T09:00:00.000Z" }),
       klik({ created_at: "2026-03-14T09:00:00.000Z" }),
@@ -453,7 +453,7 @@ describe("getFooterAnalytics - szereg dzienny", () => {
     ]);
   });
 
-  it("szereg zawiera wylacznie dni z ruchem - dziury nie sa zerowane", async () => {
+  it("szereg zawiera wyłącznie dni z ruchem - dziury nie są zerowane", async () => {
     zdarzenia = [
       klik({ created_at: "2026-03-15T09:00:00.000Z" }),
       klik({ created_at: "2026-03-10T09:00:00.000Z" }),
@@ -480,7 +480,7 @@ describe("getFooterAnalytics - brzegi odczytu", () => {
     });
   });
 
-  it("`data: null` z PostgREST to puste okno, a nie wyjatek", async () => {
+  it("`data: null` z PostgREST to puste okno, a nie wyjątek", async () => {
     const context: ServerFnContext = {
       supabase: {
         from: () => {
@@ -498,7 +498,7 @@ describe("getFooterAnalytics - brzegi odczytu", () => {
     expect(wynik.rows).toEqual([]);
   });
 
-  it("awaria odczytu jest bledem z komunikatem bazy, a nie cicha zerowka", async () => {
+  it("awaria odczytu jest błędem z komunikatem bazy, a nie cichą zerówką", async () => {
     const context: ServerFnContext = {
       supabase: {
         from: () => {
@@ -518,11 +518,11 @@ describe("getFooterAnalytics - brzegi odczytu", () => {
 
 describe("getFooterAnalytics - defekt: `totals.total` nie jest totalem okna", () => {
   // `totals.total` to `events.length`, a `events` pochodzi z odczytu z twardym
-  // `limit(10_000)`. Pole nazwane „total" przestaje wiec byc totalem dokladnie
-  // wtedy, gdy jest najbardziej potrzebne - przy duzym ruchu. Wynik nie niesie
-  // przy tym ZADNEJ flagi przyciecia (inaczej niz `getAudienceSegments`, ktore
-  // oddaje `truncated`), wiec zanizony total wyglada w panelu identycznie jak
-  // realny spadek klikniec w stopce.
+  // `limit(10_000)`. Pole nazwane „total" przestaje więc być totalem dokładnie
+  // wtedy, gdy jest najbardziej potrzebne - przy dużym ruchu. Wynik nie niesie
+  // przy tym ŻADNEJ flagi przycięcia (inaczej niż `getAudienceSegments`, które
+  // oddaje `truncated`), więc zaniżony total wygląda w panelu identycznie jak
+  // realny spadek kliknięć w stopce.
   it.fails("`totals.total` liczy wszystkie zdarzenia okna, nie tylko pierwsze 10 000", async () => {
     zdarzenia = Array.from({ length: 10_050 }, (_v, i) =>
       klik({ meta: { href: `/link-${i % 50}` }, created_at: godzinTemu(1 + (i % 600)) }),

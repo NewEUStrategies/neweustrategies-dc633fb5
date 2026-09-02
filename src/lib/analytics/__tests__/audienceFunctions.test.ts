@@ -1,43 +1,43 @@
 // PO CO TEN PLIK. `src/lib/analytics/audience.functions.ts` (190 linii, jedna
-// server fn) wchodzi tu z ZEREM wykonanych linii, a jest jedynym zrodlem
-// zakladki „audytorium" w panelu BI: dzieli ruch na zalogowanych i anonimowych,
-// liczy unikalnych czytelnikow i pokazuje top posty. Handler czyta przez
-// `supabaseAdmin`, czyli klienta SERVICE ROLE, ktory OMIJA RLS - jedyna granica
-// najemcy jest tu recznie dopisanym `.eq("tenant_id", …)`. Skasowanie tego
+// server fn) wchodzi tu z ZEREM wykonanych linii, a jest jedynym źródłem
+// zakładki „audytorium" w panelu BI: dzieli ruch na zalogowanych i anonimowych,
+// liczy unikalnych czytelników i pokazuje top posty. Handler czyta przez
+// `supabaseAdmin`, czyli klienta SERVICE ROLE, który OMIJA RLS - jedyna granica
+// najemcy jest tu ręcznie dopisanym `.eq("tenant_id", …)`. Skasowanie tego
 // jednego ogniwa przechodzi przez `tsc`, przez lintera i przez oczy recenzenta,
-// a w produkcji oznacza, ze admin najemcy A czyta odslony (i tytuly!) najemcy B.
-// Ten plik jest jedynym miejscem, ktore taki blad zatrzymuje.
+// a w produkcji oznacza, że admin najemcy A czyta odsłony (i tytuły!) najemcy B.
+// Ten plik jest jedynym miejscem, które taki błąd zatrzymuje.
 //
-// Klasy defektow, ktore te testy lapia:
+// Klasy defektów, które te testy łapią:
 //
-//  1. BRAMKA ROLI, KTORA WPUSZCZA. `has_role` oddaje `{ data, error }`.
-//     Potraktowanie bledu jak „nie wiem, przepusc", uznanie `null` za prawde
-//     albo zapytanie o CUDZA tozsamosc otwiera panel bez zmiany logiki
+//  1. BRAMKA ROLI, KTÓRA WPUSZCZA. `has_role` oddaje `{ data, error }`.
+//     Potraktowanie błędu jak „nie wiem, przepuść", uznanie `null` za prawdę
+//     albo zapytanie o CUDZĄ tożsamość otwiera panel bez zmiany logiki
 //     biznesowej. Dowodzimy odmowy PRZED jakimkolwiek odczytem tabeli - odmowa
-//     ma wyprzedzic prace, a nie ja posprzatac.
-//  2. UCIECZKA POZA NAJEMCE. Atrapa PostgREST oddaje wiersze OBU najemcow, gdy
-//     w lancuchu nie ma filtra `tenant_id` - dokladnie tak zachowuje sie
-//     service role. Dwoch adminow, dwa najemce, te same identyfikatory postow:
-//     kazdy widzi wylacznie swoje liczby i swoje tytuly.
-//  3. GRANICE OKNA. Walidator (1..365, calkowite, domyslnie 28) oraz `since`
-//     liczone od `Date.now()` - wiersz starszy o godzine od granicy NIE MOZE
-//     wejsc do KPI.
-//  4. MAPOWANIE AGREGATU. Podzial logged/anon po `user_id`, unikalnosc po
+//     ma wyprzedzić pracę, a nie ją posprzątać.
+//  2. UCIECZKA POZA NAJEMCĘ. Atrapa PostgREST oddaje wiersze OBU najemców, gdy
+//     w łańcuchu nie ma filtra `tenant_id` - dokładnie tak zachowuje się
+//     service role. Dwóch adminów, dwa najemce, te same identyfikatory postów:
+//     każdy widzi wyłącznie swoje liczby i swoje tytuły.
+//  3. GRANICE OKNA. Walidator (1..365, całkowite, domyślnie 28) oraz `since`
+//     liczone od `Date.now()` - wiersz starszy o godzinę od granicy NIE MOŻE
+//     wejść do KPI.
+//  4. MAPOWANIE AGREGATU. Podział logged/anon po `user_id`, unikalność po
 //     `user_id` (zalogowani) i `viewer_hash` (anonimowi), seria z zerami dla
-//     dni bez ruchu, top-10 posortowany malejaco, fallback tytulu
+//     dni bez ruchu, top-10 posortowany malejąco, fallback tytułu
 //     (`title_pl` -> `title_en` -> „(bez tytułu)").
-//  5. DEGRADACJA ZAMIAST WYWROTKI. Awaria odczytu `post_views` ma oddac pusty
-//     wynik z zachowanym `window_days`, a NIE 500-ke na calym panelu - i nie
-//     wolno jej pociagnac za soba drugiego zapytania.
+//  5. DEGRADACJA ZAMIAST WYWROTKI. Awaria odczytu `post_views` ma oddać pusty
+//     wynik z zachowanym `window_days`, a NIE 500-kę na całym panelu - i nie
+//     wolno jej pociągnąć za sobą drugiego zapytania.
 //
 // CZEGO TEN PLIK NIE UDAJE. Harness `@/test/serverFnHarness` nie uruchamia
-// middleware, wiec „nieuwierzytelniony nie wejdzie" nie jest tu dowodzone -
+// middleware, więc „nieuwierzytelniony nie wejdzie" nie jest tu dowodzone -
 // od tego jest runtime i bramka statyczna `check:authz-snapshot`. Tutaj
-// dowodzimy DEKLARACJI middleware (test strukturalny) oraz bramki roli, ktora
-// zyje w ciele handlera. RLS tabel `post_views`/`posts` to domena pgTAP.
+// dowodzimy DEKLARACJI middleware (test strukturalny) oraz bramki roli, która
+// żyje w ciele handlera. RLS tabel `post_views`/`posts` to domena pgTAP.
 //
-// RODO: zero prawdziwych danych. Identyfikatory sa umowne, hashe czytelnikow
-// syntetyczne, zadnego adresu e-mail ani IP.
+// RODO: zero prawdziwych danych. Identyfikatory są umowne, hashe czytelników
+// syntetyczne, żadnego adresu e-mail ani IP.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
@@ -57,9 +57,9 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 }));
 
 /**
- * Uchwyt na atrape klienta service role. `vi.mock` jest hoistowane nad importy,
- * wiec fabryka nie moze zamknac sie na obiekcie zbudowanym nizej - czyta wiec
- * mutowalne pole, ktore `beforeEach` podstawia przed kazdym testem.
+ * Uchwyt na atrapę klienta service role. `vi.mock` jest hoistowane nad importy,
+ * więc fabryka nie może zamknąć się na obiekcie zbudowanym niżej - czyta więc
+ * mutowalne pole, które `beforeEach` podstawia przed każdym testem.
  */
 const h = vi.hoisted(() => ({ adminFrom: null as ((table: string) => unknown) | null }));
 
@@ -79,7 +79,7 @@ const TENANT_B = "22222222-2222-4222-8222-222222222222";
 const ADMIN_A = "33333333-3333-4333-8333-333333333333";
 const ADMIN_B = "44444444-4444-4444-8444-444444444444";
 
-/** Zamrozony „teraz" - seria dni i granica okna musza byc deterministyczne. */
+/** Zamrożony „teraz" - seria dni i granica okna muszą być deterministyczne. */
 const NOW = new Date("2026-03-15T12:00:00.000Z");
 
 interface ViewRow {
@@ -98,9 +98,9 @@ interface PostRow {
   slug: string | null;
 }
 
-/** Katalog rol - kto jest adminem. Modeluje `has_role(_user_id, 'admin')`. */
+/** Katalog ról - kto jest adminem. Modeluje `has_role(_user_id, 'admin')`. */
 const ADMINI = new Set<string>([ADMIN_A, ADMIN_B]);
-/** Przypisanie uzytkownik -> najemca, czytane z `profiles` jak w produkcji. */
+/** Przypisanie użytkownik -> najemca, czytane z `profiles` jak w produkcji. */
 const NAJEMCA: Record<string, string> = { [ADMIN_A]: TENANT_A, [ADMIN_B]: TENANT_B };
 
 interface WywolanieRpc {
@@ -111,15 +111,15 @@ interface WywolanieRpc {
 const stub = supabaseFromStub();
 const rpcCalls: WywolanieRpc[] = [];
 
-/** Stan sterujacy odpowiedzia bramki roli - osobno dla bledu i dla wartosci. */
+/** Stan sterujący odpowiedzią bramki roli - osobno dla błędu i dla wartości. */
 const gate = {
   value: null as unknown,
   error: null as string | null,
 };
 
 /**
- * Klient najemcy wstrzykiwany przez middleware. Ma WYLACZNIE `rpc` - gdyby
- * handler kiedykolwiek siegnal po `from()` na tym kliencie, test wywali sie
+ * Klient najemcy wstrzykiwany przez middleware. Ma WYŁĄCZNIE `rpc` - gdyby
+ * handler kiedykolwiek sięgnął po `from()` na tym kliencie, test wywali się
  * z komunikatem, a nie po cichu przejdzie.
  */
 function klientNajemcy(): ServerFnContext["supabase"] {
@@ -142,14 +142,14 @@ function kontekst(userId: string): ServerFnContext {
   return { supabase: klientNajemcy(), userId, claims: { sub: userId } };
 }
 
-/** Zbior wierszy „bazy": oba najemce naraz, zeby wyciek bylo widac. */
+/** Zbiór wierszy „bazy": oba najemce naraz, żeby wyciek było widać. */
 let widoki: ViewRow[] = [];
 let posty: PostRow[] = [];
 
 /**
- * Odpowiedz dla `post_views` odtwarzajaca zachowanie PostgREST: filtr `eq`,
+ * Odpowiedź dla `post_views` odtwarzająca zachowanie PostgREST: filtr `eq`,
  * granica `gte`, sortowanie `order` i `limit`. BRAK filtra `tenant_id` oddaje
- * wiersze WSZYSTKICH najemcow - dokladnie tak, jak zrobilby to service role.
+ * wiersze WSZYSTKICH najemców - dokładnie tak, jak zrobiłby to service role.
  */
 function odpowiedzWidokow(): void {
   stub.setResponse("post_views", (chain): SupabaseResult => {
@@ -188,7 +188,7 @@ function odpowiedzProfili(): void {
   });
 }
 
-/** Znacznik czasu przesuniety o `hours` godzin wstecz od zamrozonego „teraz". */
+/** Znacznik czasu przesunięty o `hours` godzin wstecz od zamrożonego „teraz". */
 function godzinTemu(hours: number): string {
   return new Date(NOW.getTime() - hours * 3_600_000).toISOString();
 }
@@ -221,7 +221,7 @@ afterEach(() => {
 });
 
 describe("getAudienceSegments - obudowa server fn", () => {
-  it("deklaruje uwierzytelnienie, metode POST i walidator wejscia", () => {
+  it("deklaruje uwierzytelnienie, metodę POST i walidator wejścia", () => {
     expect(serverFnMiddlewareNames(getAudienceSegments)).toContain("requireSupabaseAuth");
     expect(Reflect.get(getAudienceSegments as object, "method")).toBe("POST");
     expect(validateServerFnInput(getAudienceSegments, {})).toEqual({ days: 28 });
@@ -229,7 +229,7 @@ describe("getAudienceSegments - obudowa server fn", () => {
 });
 
 describe("getAudienceSegments - walidator okna", () => {
-  it("brak wejscia oznacza okno 28 dni, a nie brak okna", () => {
+  it("brak wejścia oznacza okno 28 dni, a nie brak okna", () => {
     expect(validateServerFnInput(getAudienceSegments, undefined)).toEqual({ days: 28 });
     expect(validateServerFnInput(getAudienceSegments, null)).toEqual({ days: 28 });
   });
@@ -248,18 +248,18 @@ describe("getAudienceSegments - walidator okna", () => {
     expect(() => validateServerFnInput(getAudienceSegments, { days })).toThrow();
   });
 
-  it("odrzuca liczbe podana jako tekst - brak cichej koercji", () => {
+  it("odrzuca liczbę podaną jako tekst - brak cichej koercji", () => {
     expect(() => validateServerFnInput(getAudienceSegments, { days: "30" })).toThrow();
   });
 });
 
 describe("getAudienceSegments - bramka roli admina", () => {
-  it("pyta o role WOLAJACEGO i o role admin", async () => {
+  it("pyta o rolę WOŁAJĄCEGO i o rolę admin", async () => {
     await wywolaj(ADMIN_A, { days: 7 });
     expect(rpcCalls).toEqual([{ fn: "has_role", args: { _user_id: ADMIN_A, _role: "admin" } }]);
   });
 
-  it("brak roli admina konczy sie odmowa PRZED jakimkolwiek odczytem tabeli", async () => {
+  it("brak roli admina kończy się odmową PRZED jakimkolwiek odczytem tabeli", async () => {
     gate.value = false;
     await expect(wywolaj("55555555-5555-4555-8555-555555555555")).rejects.toThrow(
       "Forbidden: admin role required",
@@ -269,19 +269,19 @@ describe("getAudienceSegments - bramka roli admina", () => {
 
   it("puste `data` z has_role (brak wiersza roli) nie otwiera panelu", async () => {
     gate.value = null;
-    // Katalog rol nie zna tego uzytkownika - has_role oddaje `false`.
+    // Katalog ról nie zna tego użytkownika - has_role oddaje `false`.
     await expect(wywolaj("66666666-6666-4666-8666-666666666666")).rejects.toThrow("Forbidden");
     expect(stub.chains).toHaveLength(0);
   });
 
-  it("blad odczytu roli jest awaria, a nie domyslnym „przepusc”", async () => {
+  it("błąd odczytu roli jest awarią, a nie domyślnym „przepuść”", async () => {
     gate.error = "role lookup exploded";
     await expect(wywolaj(ADMIN_A)).rejects.toThrow("role lookup exploded");
     expect(stub.chains).toHaveLength(0);
   });
 });
 
-describe("getAudienceSegments - izolacja najemcow", () => {
+describe("getAudienceSegments - izolacja najemców", () => {
   beforeEach(() => {
     widoki = [
       {
@@ -339,7 +339,7 @@ describe("getAudienceSegments - izolacja najemcow", () => {
     ];
   });
 
-  it("odczyt odslon jest zawezony do najemcy WOLAJACEGO, ustalonego z profiles", async () => {
+  it("odczyt odsłon jest zawężony do najemcy WOŁAJĄCEGO, ustalonego z profiles", async () => {
     const wynik = await wywolaj(ADMIN_A, { days: 7 });
 
     const profil = stub.lastChain("profiles");
@@ -353,20 +353,20 @@ describe("getAudienceSegments - izolacja najemcow", () => {
     expect(wynik.kpi.views_total).toBe(2);
   });
 
-  it("admin najemcy A nie widzi ANI JEDNEJ odslony najemcy B", async () => {
+  it("admin najemcy A nie widzi ANI JEDNEJ odsłony najemcy B", async () => {
     const a = await wywolaj(ADMIN_A, { days: 7 });
     expect(a.kpi).toMatchObject({ views_total: 2, views_logged: 1, views_anon: 1 });
     expect(a.top_anon.map((p) => p.post_id)).toEqual(["post-1"]);
     expect(a.top_anon.map((p) => p.post_id)).not.toContain("post-9");
   });
 
-  it("admin najemcy B widzi wylacznie swoje liczby - ta sama atrapa, inny kontekst", async () => {
+  it("admin najemcy B widzi wyłącznie swoje liczby - ta sama atrapa, inny kontekst", async () => {
     const b = await wywolaj(ADMIN_B, { days: 7 });
     expect(b.kpi).toMatchObject({ views_total: 3, views_logged: 1, views_anon: 2 });
     expect(b.top_anon.map((p) => p.post_id).sort()).toEqual(["post-1", "post-9"]);
   });
 
-  it("tytuly top postow tez sa czytane z najemcy wolajacego - ten sam id, inny tytul", async () => {
+  it("tytuły top postów też są czytane z najemcy wołającego - ten sam id, inny tytuł", async () => {
     const a = await wywolaj(ADMIN_A, { days: 7 });
     const b = await wywolaj(ADMIN_B, { days: 7 });
 
@@ -387,7 +387,7 @@ describe("getAudienceSegments - izolacja najemcow", () => {
     expect(zapytaniaPostow[0].argsOf("in")).toEqual(["id", ["post-1"]]);
   });
 
-  it("uzytkownik bez najemcy nie dostaje odczytu bez filtra, tylko odmowe", async () => {
+  it("użytkownik bez najemcy nie dostaje odczytu bez filtra, tylko odmowę", async () => {
     ADMINI.add("77777777-7777-4777-8777-777777777777");
     try {
       await expect(wywolaj("77777777-7777-4777-8777-777777777777")).rejects.toThrow(
@@ -401,7 +401,7 @@ describe("getAudienceSegments - izolacja najemcow", () => {
 });
 
 describe("getAudienceSegments - granica okna", () => {
-  it("`since` odcina wiersz starszy o godzine od granicy okna", async () => {
+  it("`since` odcina wiersz starszy o godzinę od granicy okna", async () => {
     widoki = [
       {
         tenant_id: TENANT_A,
@@ -428,7 +428,7 @@ describe("getAudienceSegments - granica okna", () => {
     expect(wynik.kpi.unique_anon).toBe(1);
   });
 
-  it("dlugosc serii rowna sie dlugosci okna, a ostatni punkt to dzisiaj", async () => {
+  it("długość serii równa się długości okna, a ostatni punkt to dzisiaj", async () => {
     const wynik = await wywolaj(ADMIN_A, { days: 5 });
     expect(wynik.series).toHaveLength(5);
     expect(wynik.series.map((p) => p.day)).toEqual([
@@ -445,7 +445,7 @@ describe("getAudienceSegments - granica okna", () => {
 describe("getAudienceSegments - mapowanie agregatu", () => {
   beforeEach(() => {
     widoki = [
-      // Zalogowany: dwie odslony tego samego uzytkownika = jeden unikalny.
+      // Zalogowany: dwie odsłony tego samego użytkownika = jeden unikalny.
       {
         tenant_id: TENANT_A,
         post_id: "post-1",
@@ -460,7 +460,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
         viewer_hash: "h1",
         viewed_at: godzinTemu(3),
       },
-      // Anonimowi: dwa hashe na post-2 i jeden powtorzony hash na post-1.
+      // Anonimowi: dwa hashe na post-2 i jeden powtórzony hash na post-1.
       {
         tenant_id: TENANT_A,
         post_id: "post-2",
@@ -501,7 +501,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     ];
   });
 
-  it("dzieli odslony po obecnosci user_id i liczy unikalnych po wlasciwym kluczu", async () => {
+  it("dzieli odsłony po obecności user_id i liczy unikalnych po właściwym kluczu", async () => {
     const wynik = await wywolaj(ADMIN_A, { days: 7 });
     expect(wynik.kpi).toEqual({
       views_total: 5,
@@ -514,7 +514,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     });
   });
 
-  it("seria rozklada odslony na wlasciwe dni i zeruje dni bez ruchu", async () => {
+  it("seria rozkłada odsłony na właściwe dni i zeruje dni bez ruchu", async () => {
     const wynik = await wywolaj(ADMIN_A, { days: 4 });
     expect(wynik.series).toEqual([
       { day: "2026-03-12", logged: 0, anon: 0 },
@@ -524,7 +524,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     ]);
   });
 
-  it("top anonimowych jest posortowany malejaco, a `uniques` liczy hashe, nie odslony", async () => {
+  it("top anonimowych jest posortowany malejąco, a `uniques` liczy hashe, nie odsłony", async () => {
     const wynik = await wywolaj(ADMIN_A, { days: 7 });
     expect(wynik.top_anon).toEqual([
       { post_id: "post-2", title: "Second analysis", slug: null, views: 2, uniques: 2 },
@@ -532,7 +532,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     ]);
   });
 
-  it("tytul zalogowanych bierze title_pl przed title_en", async () => {
+  it("tytuł zalogowanych bierze title_pl przed title_en", async () => {
     const wynik = await wywolaj(ADMIN_A, { days: 7 });
     expect(wynik.top_logged).toEqual([
       { post_id: "post-1", title: "Pierwsza analiza", slug: "pierwsza", views: 2, uniques: 1 },
@@ -540,7 +540,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     expect(wynik.truncated).toBe(false);
   });
 
-  it("pusty i bialoznakowy tytul spadaja na fallback, tak jak brak wiersza posta", async () => {
+  it("pusty i białoznakowy tytuł spadają na fallback, tak jak brak wiersza posta", async () => {
     widoki = [
       {
         tenant_id: TENANT_A,
@@ -581,7 +581,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     expect(wgId["post-brak"]).toMatchObject({ title: "(bez tytułu)", slug: null });
   });
 
-  it("top jest przyciety do dziesieciu postow mimo dwunastu w oknie", async () => {
+  it("top jest przycięty do dziesięciu postów mimo dwunastu w oknie", async () => {
     widoki = Array.from({ length: 12 }, (_v, i) => ({
       tenant_id: TENANT_A,
       post_id: `post-${i}`,
@@ -595,7 +595,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     expect(wynik.kpi.views_anon).toBe(12);
   });
 
-  it("nie pyta o tytuly, gdy okno nie ma ani jednej odslony", async () => {
+  it("nie pyta o tytuły, gdy okno nie ma ani jednej odsłony", async () => {
     widoki = [];
     const wynik = await wywolaj(ADMIN_A, { days: 3 });
     expect(stub.chainsFor("posts")).toHaveLength(0);
@@ -603,7 +603,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     expect(wynik.series).toHaveLength(3);
   });
 
-  it("`data: null` z odczytu odslon to puste okno, a nie wyjatek", async () => {
+  it("`data: null` z odczytu odsłon to puste okno, a nie wyjątek", async () => {
     stub.setResponse("post_views", () => ok(null));
 
     const wynik = await wywolaj(ADMIN_A, { days: 3 });
@@ -612,7 +612,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     expect(wynik.series).toHaveLength(3);
   });
 
-  it("blad odczytu tytulow nie wywraca raportu - zostaja same identyfikatory", async () => {
+  it("błąd odczytu tytułów nie wywraca raportu - zostają same identyfikatory", async () => {
     stub.setResponse("posts", () => fail("posts read denied"));
     const wynik = await wywolaj(ADMIN_A, { days: 7 });
     expect(wynik.kpi.views_total).toBe(5);
@@ -623,7 +623,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
     });
   });
 
-  it("`truncated` podnosi sie dokladnie na limicie 50 000 wierszy", async () => {
+  it("`truncated` podnosi się dokładnie na limicie 50 000 wierszy", async () => {
     const przyciete = Array.from({ length: 50_000 }, (_v, i) => ({
       post_id: "post-1",
       user_id: null,
@@ -639,7 +639,7 @@ describe("getAudienceSegments - mapowanie agregatu", () => {
 });
 
 describe("getAudienceSegments - degradacja przy awarii odczytu", () => {
-  it("awaria post_views oddaje puste okno zamiast wyjatku i nie pyta o tytuly", async () => {
+  it("awaria post_views oddaje puste okno zamiast wyjątku i nie pyta o tytuły", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     stub.setResponse("post_views", () => fail("post_views unavailable"));
 
@@ -664,7 +664,7 @@ describe("getAudienceSegments - degradacja przy awarii odczytu", () => {
     expect(warn).toHaveBeenCalledWith("[audience-segments] read failed:", "post_views unavailable");
   });
 
-  it("degradacja nie moze przeciec do kolejnego wywolania - poprawny odczyt znow dziala", async () => {
+  it("degradacja nie może przeciec do kolejnego wywołania - poprawny odczyt znów działa", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     stub.setResponse("post_views", () => fail("chwilowa awaria"));
     expect((await wywolaj(ADMIN_A, { days: 3 })).kpi.views_total).toBe(0);
@@ -683,13 +683,13 @@ describe("getAudienceSegments - degradacja przy awarii odczytu", () => {
   });
 });
 
-describe("getAudienceSegments - defekt: KPI i wykres licza inne okno", () => {
-  // KPI liczy WSZYSTKO od `since` (= teraz minus days*24h, godzina w godzine),
-  // ale seria ma dokladnie `days` punktow liczonych od DZISIAJ wstecz, czyli
-  // zaczyna sie od `today - (days-1)`. Wiersz z pierwszej, czesciowej doby okna
-  // wchodzi wiec do `views_total`, ale nie ma go na wykresie - suma slupkow
-  // rozjezdza sie z liczba nad wykresem i nie da sie tego wyjasnic uzytkownikowi.
-  it.fails("suma serii rowna sie views_total dla wiersza z czesciowej pierwszej doby", async () => {
+describe("getAudienceSegments - defekt: KPI i wykres liczą inne okno", () => {
+  // KPI liczy WSZYSTKO od `since` (= teraz minus days*24h, godzina w godzinę),
+  // ale seria ma dokładnie `days` punktów liczonych od DZISIAJ wstecz, czyli
+  // zaczyna się od `today - (days-1)`. Wiersz z pierwszej, częściowej doby okna
+  // wchodzi więc do `views_total`, ale nie ma go na wykresie - suma słupków
+  // rozjeżdża się z liczbą nad wykresem i nie da się tego wyjaśnić użytkownikowi.
+  it.fails("suma serii równa się views_total dla wiersza z częściowej pierwszej doby", async () => {
     widoki = [
       {
         tenant_id: TENANT_A,

@@ -1,40 +1,40 @@
-// `ClientErrorsDashboard` - pulpit telemetrii bledow przegladarki: zgodnosc z
-// agregatorem, redakcja PII na ekranie, trzy stany i izolacja warsztatow.
+// `ClientErrorsDashboard` - pulpit telemetrii błędów przeglądarki: zgodność z
+// agregatorem, redakcja PII na ekranie, trzy stany i izolacja warsztatów.
 //
-// PO CO. Plik stal na zerze. Sama matematyka grupowania (`clientErrorsAggregate`)
-// ma wlasne testy - TUTAJ przedmiotem dowodu jest to, czego tamten plik nie
-// widzi, a co decyduje o tym, czy administrator czyta telemetrie, czy jej
-// atrape:
+// PO CO. Plik stał na zerze. Sama matematyka grupowania (`clientErrorsAggregate`)
+// ma własne testy - TUTAJ przedmiotem dowodu jest to, czego tamten plik nie
+// widzi, a co decyduje o tym, czy administrator czyta telemetrię, czy jej
+// atrapę:
 //
-//   1. PANEL MUSI POKAZAC TO, CO POLICZYL AGREGATOR. Fixtury sa tu budowane
-//      PRAWDZIWYM `aggregateClientErrors`, nie recznie: gdyby panel liczyl
-//      cokolwiek u siebie (przeliczal udzialy, sortowal inaczej, gubil grupe
-//      poza `maxGroups`), asercje rozjechalyby sie z tym, co widzi baza. Dwa
-//      pola sa tu szczegolnie latwe do pomylenia: `total` to liczba PROBEK po
+//   1. PANEL MUSI POKAZAĆ TO, CO POLICZYŁ AGREGATOR. Fixtury są tu budowane
+//      PRAWDZIWYM `aggregateClientErrors`, nie ręcznie: gdyby panel liczył
+//      cokolwiek u siebie (przeliczał udziały, sortował inaczej, gubił grupę
+//      poza `maxGroups`), asercje rozjechałyby się z tym, co widzi baza. Dwa
+//      pola są tu szczególnie łatwe do pomylenia: `total` to liczba PRÓBEK po
 //      cap-ie, a `windowTotal` to prawdziwa liczba wierszy w oknie. Kafelek
-//      "Bledy w oknie" musi brac drugie, a udzial grupy - pierwsze.
-//   2. PII NIE MOZE WROCIC NA EKRAN. `redact.ts` czysci komunikaty i stacki na
-//      ingestcie, wiec panel dostaje tekst z markerami `[redacted-*]`. Panel
-//      ma go pokazac DOKLADNIE takim, jaki dostal, i ani nie skladac go z
-//      powrotem, ani nie interpretowac jako znacznikow HTML - stack to tekst
-//      przyslany przez obca przegladarke. Osobno: stack jest tresci schowana,
-//      wiec w stanie zwinietym nie ma go w DOM w ogole.
-//   3. TRZY STANY, JEDEN KOMUNIKAT. "Jeszcze nie wiem", "odczyt padl" i "w
-//      oknie naprawde nie bylo bledow" konczy sie tym samym zielonym
-//      "Brak bledow w wybranym oknie. To dobrze". Bramka roli w server function
-//      RZUCA (`Forbidden: admin role required`), wiec ten komunikat obsluguje
-//      takze odmowe dostepu. Przypiete `it.fails`.
-//   4. IZOLACJA WARSZTATOW. `queryKey` niesie wylacznie granice okna - nie ma
-//      w nim ani tenanta, ani uzytkownika.
-//   5. SLOWNIK PL/EN. Napisy sa asertowane przez `realT("pl")` / `realT("en")`.
-//      Formatowanie liczb i dat jest tu zalezne od jezyka (`en-GB` / `pl-PL`) -
+//      "Błędy w oknie" musi brać drugie, a udział grupy - pierwsze.
+//   2. PII NIE MOŻE WRÓCIĆ NA EKRAN. `redact.ts` czyści komunikaty i stacki na
+//      ingestcie, więc panel dostaje tekst z markerami `[redacted-*]`. Panel
+//      ma go pokazać DOKŁADNIE takim, jaki dostał, i ani nie składać go z
+//      powrotem, ani nie interpretować jako znaczników HTML - stack to tekst
+//      przysłany przez obcą przeglądarkę. Osobno: stack jest treści schowana,
+//      więc w stanie zwiniętym nie ma go w DOM w ogóle.
+//   3. TRZY STANY, JEDEN KOMUNIKAT. "Jeszcze nie wiem", "odczyt padł" i "w
+//      oknie naprawdę nie było błędów" kończy się tym samym zielonym
+//      "Brak błędów w wybranym oknie. To dobrze". Bramka roli w server function
+//      RZUCA (`Forbidden: admin role required`), więc ten komunikat obsługuje
+//      także odmowę dostępu. Przypięte `it.fails`.
+//   4. IZOLACJA WARSZTATÓW. `queryKey` niesie wyłącznie granice okna - nie ma
+//      w nim ani tenanta, ani użytkownika.
+//   5. SŁOWNIK PL/EN. Napisy są asertowane przez `realT("pl")` / `realT("en")`.
+//      Formatowanie liczb i dat jest tu zależne od języka (`en-GB` / `pl-PL`) -
 //      i to jest sprawdzane, a nie deklarowane.
 //
-// ECHARTS JEST TU ZAKAZANY (patrz naglowek `EChart.tsx`): podmieniamy `EChart`
-// atrapa, ktora PRZECHWYTUJE `option`. Trend i iskra KPI sa wiec badane na
+// ECHARTS JEST TU ZAKAZANY (patrz nagłówek `EChart.tsx`): podmieniamy `EChart`
+// atrapą, która PRZECHWYTUJE `option`. Trend i iskra KPI są więc badane na
 // strukturze danych oddanej wykresowi - i ~1 MB biblioteki nigdy nie wchodzi do
-// procesu testowego. Atrapa lapie zarowno import `../EChart` z `ChartCard`, jak
-// i z `KpiTile`, bo oba wskazuja ten sam modul.
+// procesu testowego. Atrapa łapie zarówno import `../EChart` z `ChartCard`, jak
+// i z `KpiTile`, bo oba wskazują ten sam moduł.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -54,9 +54,9 @@ const h = vi.hoisted(() => ({
   charts: [] as Array<{ option: Record<string, unknown> }>,
 }));
 
-// `useServerFn` staje sie tozsamoscia - wywolanie idzie prosto do atrapy.
-// Mock CZESCIOWY, bo `@/lib/i18n` ciagnie z tego samego pakietu
-// `createIsomorphicFn`, a pelna atrapa wywracalaby inicjalizacje slownika.
+// `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
+// Mock CZĘŚCIOWY, bo `@/lib/i18n` ciągnie z tego samego pakietu
+// `createIsomorphicFn`, a pełna atrapa wywracałaby inicjalizację słownika.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
@@ -73,8 +73,8 @@ vi.mock("../EChart", () => ({
   },
 }));
 
-// `react-i18next` NIE JEST atrapowany: panel jest dwujezyczny, a przedmiotem
-// dowodu jest to, ze napisy przychodza ZE SLOWNIKA.
+// `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
+// dowodu jest to, że napisy przychodzą ZE SŁOWNIKA.
 import "@/test/i18nReal";
 import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -82,7 +82,7 @@ import { axeViolations, summarize } from "@/test/axe";
 import { ClientErrorsDashboard } from "../ClientErrorsDashboard";
 
 // ---------------------------------------------------------------------------
-// Slownik
+// Słownik
 // ---------------------------------------------------------------------------
 
 function ce(path: string, vars: Record<string, unknown> = {}, lang: AppLang = "pl"): string {
@@ -102,7 +102,7 @@ function presetLabel(id: "24h" | "7d" | "30d" | "90d", lang: AppLang = "pl"): st
 // Dane - budowane PRAWDZIWYM agregatorem
 // ---------------------------------------------------------------------------
 
-/** Zamrozony punkt odniesienia: `last24h` i seria dzienna musza byc powtarzalne. */
+/** Zamrożony punkt odniesienia: `last24h` i seria dzienna muszą być powtarzalne. */
 const NOW_MS = Date.parse("2026-08-20T12:00:00.000Z");
 const HOUR = 3_600_000;
 
@@ -131,9 +131,9 @@ function agg(
 }
 
 /**
- * Stack "z ingestu": surowa tresc z obcej przegladarki PRZEPUSZCZONA przez
- * `redactPii`, czyli dokladnie to, co trafia do kolumny `client_errors.stack`.
- * Surowe wartosci sa trzymane osobno, zeby test mogl dowiesc ich BRAKU na
+ * Stack "z ingestu": surowa treść z obcej przeglądarki PRZEPUSZCZONA przez
+ * `redactPii`, czyli dokładnie to, co trafia do kolumny `client_errors.stack`.
+ * Surowe wartości są trzymane osobno, żeby test mógł dowieść ich BRAKU na
  * ekranie.
  */
 const RAW_EMAIL = "jan.kowalski@example.com";
@@ -148,13 +148,13 @@ const RAW_STACK = [
 ].join("\n");
 const SCRUBBED_STACK = redactPii(RAW_STACK) ?? "";
 
-/** Warsztat A - kazdy napis niesie rozpoznawalny prefiks. */
+/** Warsztat A - każdy napis niesie rozpoznawalny prefiks. */
 const WORKSPACE_A = agg([
   sample("ALFA: chunk 12 failed", { path: "/alfa/analizy", stack: "at alfaBoot (alfa.js:1:1)" }),
   sample("ALFA: chunk 44 failed", { path: "/alfa/analizy" }),
 ]);
 
-/** Warsztat B - rozlaczny z A na kazdym napisie. */
+/** Warsztat B - rozłączny z A na każdym napisie. */
 const WORKSPACE_B = agg([
   sample("BETA: hydration mismatch", { path: "/beta/raporty", stack: "at betaBoot (beta.js:2:2)" }),
 ]);
@@ -162,8 +162,8 @@ const WORKSPACE_B = agg([
 const EMPTY = agg([]);
 
 /**
- * Okno "roboze": trzy grupy o roznej licznosci, dwa zrodla, trzy sciezki,
- * jeden stack. Wystarcza do sprawdzenia kolejnosci, udzialow i plakietek.
+ * Okno "roboze": trzy grupy o różnej liczności, dwa źródła, trzy ścieżki,
+ * jeden stack. Wystarcza do sprawdzenia kolejności, udziałów i plakietek.
  */
 const BUSY = agg([
   sample("Loading chunk 7 failed", {
@@ -198,7 +198,7 @@ const BUSY = agg([
 ]);
 
 // ---------------------------------------------------------------------------
-// Narzedzia
+// Narzędzia
 // ---------------------------------------------------------------------------
 
 function rec(v: unknown): Opt {
@@ -214,7 +214,7 @@ function strList(v: unknown): string[] {
   return Array.isArray(v) ? (v as unknown[]).map(String) : [];
 }
 
-/** Wykres trendu - jedyny slupkowy w panelu. */
+/** Wykres trendu - jedyny słupkowy w panelu. */
 function trendChart(): Opt {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
     const o = h.charts[i].option as Opt;
@@ -223,7 +223,7 @@ function trendChart(): Opt {
   throw new Error("test: nie przechwycono wykresu trendu");
 }
 
-/** Iskra kafelka KPI - jedyna linia z ukryta osia. */
+/** Iskra kafelka KPI - jedyna linia z ukrytą osią. */
 function sparkChart(): Opt {
   for (let i = h.charts.length - 1; i >= 0; i -= 1) {
     const o = h.charts[i].option as Opt;
@@ -232,14 +232,14 @@ function sparkChart(): Opt {
   throw new Error("test: nie przechwycono iskry KPI");
 }
 
-/** Wartosc kafelka KPI stojaca przy podanej etykiecie. */
+/** Wartość kafelka KPI stojąca przy podanej etykiecie. */
 function kpiValue(label: string): string {
   const box = screen.getByText(label).closest("div.min-w-0");
   if (!box) throw new Error(`test: nie znaleziono kafelka KPI "${label}"`);
   return box.children[1]?.textContent ?? "";
 }
 
-/** Karta "Problemy wg czestosci". */
+/** Karta "Problemy wg częstości". */
 function groupsCard(lang: AppLang = "pl"): HTMLElement {
   const heading = screen.getByRole("heading", { name: ce("groupsTitle", {}, lang) });
   const card = heading.parentElement?.parentElement;
@@ -263,12 +263,12 @@ function rowMessage(row: HTMLElement): string {
   return row.querySelector("span.font-mono")?.textContent ?? "";
 }
 
-/** Liczba wystapien - drugi `span` przycisku, wyrownany do prawej. */
+/** Liczba wystąpień - drugi `span` przycisku, wyrównany do prawej. */
 function rowCount(row: HTMLElement): string {
   return row.querySelector("span.justify-self-end")?.textContent ?? "";
 }
 
-/** Udzial w procentach - jedyny `span` o szerokosci `w-9`. */
+/** Udział w procentach - jedyny `span` o szerokości `w-9`. */
 function rowShare(row: HTMLElement): string {
   return row.querySelector("span.w-9")?.textContent ?? "";
 }
@@ -310,17 +310,17 @@ function panel(client?: QueryClient) {
   };
 }
 
-/** Czeka, az raport dojedzie i karta grup przestanie meldowac ladowanie. */
+/** Czeka, aż raport dojedzie i karta grup przestanie meldować ładowanie. */
 /**
- * Czeka, az raport DOJEDZIE do panelu.
+ * Czeka, aż raport DOJEDZIE do panelu.
  *
- * SWIADOMIE NIE OPIERA SIE na zniknieciu wskaznika postepu. Wskaznik pokazuje
- * `isFetching`, a przy obciazonej maszynie pierwszy render moze wypasc PRZED
- * startem zapytania: wskaznika nie ma jeszcze wcale, wiec asercja "nie ma
- * wskaznika" przechodzi na PUSTYM panelu i test mierzy stan przejsciowy.
- * Dokladnie tak oblewaly sie cztery przypadki przy `load average` 34. Dlatego
- * czekamy na rozstrzygniecie obietnic, ktore atrapa naprawde oddala, wewnatrz
- * `act` - i tylko dla porzadku domykamy spokojnym paskiem narzedzi.
+ * ŚWIADOMIE NIE OPIERA SIĘ na zniknięciu wskaźnika postępu. Wskaźnik pokazuje
+ * `isFetching`, a przy obciążonej maszynie pierwszy render może wypaść PRZED
+ * startem zapytania: wskaźnika nie ma jeszcze wcale, więc asercja "nie ma
+ * wskaźnika" przechodzi na PUSTYM panelu i test mierzy stan przejściowy.
+ * Dokładnie tak oblewały się cztery przypadki przy `load average` 34. Dlatego
+ * czekamy na rozstrzygnięcie obietnic, które atrapa naprawdę oddała, wewnątrz
+ * `act` - i tylko dla porządku domykamy spokojnym paskiem narzędzi.
  */
 async function loaded(lang: AppLang = "pl"): Promise<void> {
   await waitFor(() => expect(h.fetchReport).toHaveBeenCalled());
@@ -354,9 +354,9 @@ describe("ClientErrorsDashboard - wartownicy fixtur", () => {
     expect(SCRUBBED_STACK).toContain("[redacted-ip]");
   });
 
-  it("agregator naprawde sklada warianty chunka w jedna grupe", () => {
-    // Gdyby normalizacja przestala sklejac liczby, fixtura `BUSY` mialaby inna
-    // liczbe grup i asercje o kolejnosci przestalyby cokolwiek znaczyc.
+  it("agregator naprawdę składa warianty chunka w jedną grupę", () => {
+    // Gdyby normalizacja przestała sklejać liczby, fixtura `BUSY` miałaby inną
+    // liczbę grup i asercje o kolejności przestałyby cokolwiek znaczyć.
     expect(BUSY.groups).toHaveLength(3);
     expect(BUSY.groups[0].count).toBe(3);
     expect(BUSY.uniqueGroups).toBe(3);
@@ -366,7 +366,7 @@ describe("ClientErrorsDashboard - wartownicy fixtur", () => {
 // ---------------------------------------------------------------------------
 
 describe("ClientErrorsDashboard - trzy stany panelu", () => {
-  it("w trakcie pobierania karta grup melduje ladowanie i nie ma ani jednego stacka", async () => {
+  it("w trakcie pobierania karta grup melduje ładowanie i nie ma ani jednego stacka", async () => {
     h.fetchReport.mockImplementation(() => new Promise<ClientErrorsReport>(() => {}));
     const { container } = panel();
 
@@ -375,7 +375,7 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(container.querySelector("pre")).toBeNull();
   });
 
-  it("w trakcie pobierania przycisk odswiezania jest zablokowany", async () => {
+  it("w trakcie pobierania przycisk odświeżania jest zablokowany", async () => {
     h.fetchReport.mockImplementation(() => new Promise<ClientErrorsReport>(() => {}));
     panel();
 
@@ -383,10 +383,10 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(btn).toBeDisabled();
   });
 
-  it.fails("DEFEKT: w trakcie pobierania cztery kafelki melduja ZERO bledow", async () => {
-    // `(report?.windowTotal ?? 0).toLocaleString(locale)` nie odroznia
-    // "nie wiem" od "nie bylo". Zero na pulpicie bledow czyta sie jako
-    // twierdzenie o zdrowiu aplikacji, ktorego pomiar sie nie odbyl.
+  it.fails("DEFEKT: w trakcie pobierania cztery kafelki meldują ZERO błędów", async () => {
+    // `(report?.windowTotal ?? 0).toLocaleString(locale)` nie odróżnia
+    // "nie wiem" od "nie było". Zero na pulpicie błędów czyta się jako
+    // twierdzenie o zdrowiu aplikacji, którego pomiar się nie odbył.
     h.fetchReport.mockImplementation(() => new Promise<ClientErrorsReport>(() => {}));
     panel();
     await screen.findByText(common("loadingData"));
@@ -400,7 +400,7 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(shown).not.toEqual(["0", "0", "0", "0"]);
   });
 
-  it("okno bez bledow pokazuje komunikat ze slownika i zero wierszy", async () => {
+  it("okno bez błędów pokazuje komunikat ze słownika i zero wierszy", async () => {
     h.fetchReport.mockResolvedValue(EMPTY);
     panel();
     await loaded();
@@ -410,7 +410,7 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(kpiValue(ce("kpiTotal"))).toBe("0");
   });
 
-  it("po awarii odczytu pasek narzedzi zyje - operator moze zmienic okno i ponowic", async () => {
+  it("po awarii odczytu pasek narzędzi żyje - operator może zmienić okno i ponowić", async () => {
     h.fetchReport.mockRejectedValue(new Error("Forbidden: admin role required"));
     panel();
     await loaded();
@@ -419,13 +419,13 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(screen.getByRole("button", { name: presetLabel("30d") })).toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: odmowa dostepu melduje sie jako dobra wiadomosc", async () => {
-    // `reportQuery.isError` i `.error` nie sa w tym pliku czytane ani raz, a
-    // server function RZUCA przy braku roli admina i przy padniete
+  it.fails("DEFEKT: odmowa dostępu melduje się jako dobra wiadomość", async () => {
+    // `reportQuery.isError` i `.error` nie są w tym pliku czytane ani raz, a
+    // server function RZUCA przy braku roli admina i przy padnięte
     // uwierzytelnieniu (degraduje do pustego raportu tylko brak tabeli). Panel
-    // maluje wtedy "Brak bledow w wybranym oknie. To dobrze - beacony (...)
-    // trafiaja tu automatycznie" - czyli zapewnia, ze telemetria dziala, w
-    // sytuacji, w ktorej odczyt zostal odrzucony.
+    // maluje wtedy "Brak błędów w wybranym oknie. To dobrze - beacony (...)
+    // trafiają tu automatycznie" - czyli zapewnia, że telemetria działa, w
+    // sytuacji, w której odczyt został odrzucony.
     h.fetchReport.mockRejectedValue(new Error("Forbidden: admin role required"));
     const { container } = panel();
     await loaded();
@@ -434,7 +434,7 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
     expect(container.textContent ?? "").toMatch(/Forbidden|b[lł][aą]d|error/i);
   });
 
-  it("przycisk odswiezania ponawia odczyt tego samego okna", async () => {
+  it("przycisk odświeżania ponawia odczyt tego samego okna", async () => {
     panel();
     await loaded();
     const before = queryInputs();
@@ -449,22 +449,22 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
-  it("liczba wierszy i ich kolejnosc odpowiadaja grupom z agregatora", async () => {
+describe("ClientErrorsDashboard - zgodność z agregatorem", () => {
+  it("liczba wierszy i ich kolejność odpowiadają grupom z agregatora", async () => {
     panel();
     await loaded();
 
     const rows = groupRows();
     expect(rows).toHaveLength(BUSY.groups.length);
     expect(rows.map(rowMessage)).toEqual(BUSY.groups.map((g) => g.message));
-    // Agregator sortuje malejaco po licznosci - panel nie ma prawa tego zmienic.
+    // Agregator sortuje malejąco po liczności - panel nie ma prawa tego zmienić.
     expect(rows.map((r) => Number(rowCount(r)))).toEqual([3, 2, 1]);
   });
 
-  it("wiersz pokazuje REPREZENTATYWNY komunikat, a nie odcisk z zaslonami", async () => {
-    // Grupa "chunk" powstala z trzech roznych numerow. Odcisk brzmi
+  it("wiersz pokazuje REPREZENTATYWNY komunikat, a nie odcisk z zasłonami", async () => {
+    // Grupa "chunk" powstała z trzech różnych numerów. Odcisk brzmi
     // "Loading chunk <n> failed" i jest kluczem technicznym - operator ma
-    // zobaczyc prawdziwy komunikat najswiezszej probki.
+    // zobaczyć prawdziwy komunikat najświeższej próbki.
     panel();
     await loaded();
 
@@ -474,7 +474,7 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
     expect(groupsCard().textContent ?? "").not.toContain("<n>");
   });
 
-  it("kafelki KPI biora pola raportu, kazde swoje", async () => {
+  it("kafelki KPI biorą pola raportu, każde swoje", async () => {
     panel();
     await loaded();
 
@@ -482,16 +482,16 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
     expect(kpiValue(ce("kpiGroups"))).toBe(String(BUSY.uniqueGroups));
     expect(kpiValue(ce("kpiPaths"))).toBe(String(BUSY.affectedPaths));
     expect(kpiValue(ce("kpiLast24h"))).toBe(String(BUSY.last24h));
-    // Probka bez sciezki (`path: null`) nie moze podniesc licznika sciezek.
+    // Próbka bez ścieżki (`path: null`) nie może podnieść licznika ścieżek.
     expect(BUSY.affectedPaths).toBe(3);
-    // Trzy probki z ostatnich 24 h, przy szesciu w oknie.
+    // Trzy próbki z ostatnich 24 h, przy sześciu w oknie.
     expect(BUSY.last24h).toBe(3);
   });
 
-  it("kafelek liczby bledow bierze PRAWDZIWA liczbe wierszy, nie liczbe probek", async () => {
-    // To sa dwa rozne pola: `total` = probki po cap-ie, `windowTotal` = COUNT.
-    // Podmiana jednego na drugie zaniza pulpit o cala odcieta czesc okna i jest
-    // niewidoczna, dopoki cap nie zadziala.
+  it("kafelek liczby błędów bierze PRAWDZIWĄ liczbę wierszy, nie liczbę próbek", async () => {
+    // To są dwa różne pola: `total` = próbki po cap-ie, `windowTotal` = COUNT.
+    // Podmiana jednego na drugie zaniża pulpit o całą odciętą część okna i jest
+    // niewidoczna, dopóki cap nie zadziała.
     const capped = agg([sample("Boom")], {
       windowTotal: 41_234,
       capped: true,
@@ -504,9 +504,9 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
     expect(kpiValue(ce("kpiTotal"))).not.toBe(String(capped.total));
   });
 
-  it("udzial grupy liczy sie wzgledem PROBEK, a nie wzgledem calego okna", async () => {
-    // Grupy powstaly z probek, wiec mianownikiem jest `total`. Uzycie
-    // `windowTotal` przy dzialajacym cap-ie zgnioloby wszystkie paski do 0%.
+  it("udział grupy liczy się względem PRÓBEK, a nie względem całego okna", async () => {
+    // Grupy powstały z próbek, więc mianownikiem jest `total`. Użycie
+    // `windowTotal` przy działającym cap-ie zgniotłoby wszystkie paski do 0%.
     const capped = agg([sample("Boom"), sample("Boom"), sample("Inny blad")], {
       windowTotal: 10_000,
       capped: true,
@@ -519,15 +519,15 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
     expect(rowShare(groupRows()[1])).toBe("33%");
   });
 
-  it("plakietka o przycieciu podaje OBA liczniki, sformatowane wg jezyka", async () => {
+  it("plakietka o przycięciu podaje OBA liczniki, sformatowane wg języka", async () => {
     const capped = agg([sample("Boom")], { windowTotal: 41_234, capped: true });
     h.fetchReport.mockResolvedValue(capped);
     const { container } = panel();
     await loaded();
 
-    // `toContain` na `textContent`, nie `getByText`: separator tysiecy w pl-PL
-    // to twarda spacja (U+00A0), a normalizator testing-library zamienia ja na
-    // zwykla - porownanie przez `getByText` mierzyloby wtedy normalizator, nie
+    // `toContain` na `textContent`, nie `getByText`: separator tysięcy w pl-PL
+    // to twarda spacja (U+00A0), a normalizator testing-library zamienia ją na
+    // zwykłą - porównanie przez `getByText` mierzyłoby wtedy normalizator, nie
     // panel.
     expect(container.textContent ?? "").toContain(
       ce("cappedNote", {
@@ -537,7 +537,7 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
     );
   });
 
-  it("bez przyciecia plakietka o cap-ie NIE powstaje", async () => {
+  it("bez przycięcia plakietka o cap-ie NIE powstaje", async () => {
     panel();
     await loaded();
 
@@ -549,7 +549,7 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
     ).toBeNull();
   });
 
-  it("zrodla grupy sa tlumaczone, a nieznane zrodlo spada na wartosc surowa", async () => {
+  it("źródła grupy są tłumaczone, a nieznane źródło spada na wartość surową", async () => {
     h.fetchReport.mockResolvedValue(
       agg([
         sample("Z boundary", { source: "react_error_boundary" }),
@@ -565,31 +565,31 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
       ce("sourceLabels.react_error_boundary"),
       ce("sourceLabels.unhandledrejection"),
     ]);
-    // Bez `defaultValue` na ekranie stanelaby surowa sciezka klucza i18n.
+    // Bez `defaultValue` na ekranie stanęłaby surowa ścieżka klucza i18n.
     expect(rowSources(rows[1])).toEqual(["webworker_onerror"]);
   });
 
-  it("trend dzienny oddaje kanwie DOKLADNIE serie dzienna agregatora", async () => {
+  it("trend dzienny oddaje kanwie DOKŁADNIE serię dzienną agregatora", async () => {
     panel();
     await loaded();
 
     const opt = trendChart();
     expect(numList(seriesOf(opt)[0].data)).toEqual(BUSY.daily.map((d) => d.count));
-    // Etykieta osi jest skrocona do "MM-DD" - rok jest w oknie, nie w slupku.
+    // Etykieta osi jest skrócona do "MM-DD" - rok jest w oknie, nie w słupku.
     expect(strList(rec(opt.xAxis).data)).toEqual(BUSY.daily.map((d) => d.day.slice(5)));
     expect(BUSY.daily).toHaveLength(7);
     expect(seriesOf(opt)[0].name).toBe(ce("trendSeries"));
   });
 
-  it("iskra kafelka KPI niesie te sama serie dzienna co trend", async () => {
+  it("iskra kafelka KPI niesie tę samą serię dzienną co trend", async () => {
     panel();
     await loaded();
 
     expect(numList(seriesOf(sparkChart())[0].data)).toEqual(BUSY.daily.map((d) => d.count));
   });
 
-  it("okno bez bledow daje trend z samymi zerami, a nie wykres bez danych", async () => {
-    // Zero w dniu bez bledow to uczciwy pomiar; dziura w serii czytalaby sie
+  it("okno bez błędów daje trend z samymi zerami, a nie wykres bez danych", async () => {
+    // Zero w dniu bez błędów to uczciwy pomiar; dziura w serii czytałaby się
     // jako "brak telemetrii".
     h.fetchReport.mockResolvedValue(EMPTY);
     panel();
@@ -602,22 +602,22 @@ describe("ClientErrorsDashboard - zgodnosc z agregatorem", () => {
 // ---------------------------------------------------------------------------
 
 describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
-  it("zwiniety wiersz NIE MA stacka w DOM - ani w tresci, ani w atrybucie", async () => {
+  it("zwinięty wiersz NIE MA stacka w DOM - ani w treści, ani w atrybucie", async () => {
     panel();
     await loaded();
 
     const row = groupRows()[0];
     expect(rowStack(row)).toBeNull();
     expect(row.textContent ?? "").not.toContain("submitForm");
-    // `title` zwinietego wiersza to komunikat, nie stack - inaczej cala tresc
-    // wyjechalaby w podpowiedzi przegladarki.
+    // `title` zwiniętego wiersza to komunikat, nie stack - inaczej cała treść
+    // wyjechałaby w podpowiedzi przeglądarki.
     expect(row.querySelector("span.font-mono")?.getAttribute("title")).toBe(
       "Loading chunk 7 failed",
     );
     expect(document.body.innerHTML).not.toContain("submitForm");
   });
 
-  it("rozwiniety wiersz pokazuje stack DOKLADNIE taki, jaki przyszedl z ingestu", async () => {
+  it("rozwinięty wiersz pokazuje stack DOKŁADNIE taki, jaki przyszedł z ingestu", async () => {
     panel();
     await loaded();
 
@@ -629,7 +629,7 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
     expect(pre?.textContent).toBe(SCRUBBED_STACK);
   });
 
-  it("rozwiniety stack niesie markery redakcji, a nie surowe dane osobowe", async () => {
+  it("rozwinięty stack niesie markery redakcji, a nie surowe dane osobowe", async () => {
     panel();
     await loaded();
     fireEvent.click(rowToggle(groupRows()[0]));
@@ -638,18 +638,18 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
     expect(shown).toContain("[redacted-email]");
     expect(shown).toContain("[redacted-jwt]");
     expect(shown).toContain("[redacted-ip]");
-    // I to jest wlasciwa asercja: panel nie sklada niczego z powrotem.
+    // I to jest właściwa asercja: panel nie składa niczego z powrotem.
     expect(shown).not.toContain(RAW_EMAIL);
     expect(shown).not.toContain(RAW_JWT);
     expect(shown).not.toContain(RAW_IP);
     expect(document.body.innerHTML).not.toContain(RAW_EMAIL);
   });
 
-  it("stack z zawartoscia HTML jest TEKSTEM, nie znacznikami", async () => {
-    // Stack przychodzi z obcej przegladarki i przechodzi przez `redactPii`,
-    // ktore nie jest sanitizerem HTML. Jedyne, co go tu unieszkodliwia, to
+  it("stack z zawartością HTML jest TEKSTEM, nie znacznikami", async () => {
+    // Stack przychodzi z obcej przeglądarki i przechodzi przez `redactPii`,
+    // które nie jest sanitizerem HTML. Jedyne, co go tu unieszkodliwia, to
     // renderowanie jako dziecko tekstowe - `dangerouslySetInnerHTML` w tym
-    // miejscu byloby XSS-em w panelu admina.
+    // miejscu byłoby XSS-em w panelu admina.
     const hostile = '<img src=x onerror="alert(1)"> at boot (app.js:1:1)';
     h.fetchReport.mockResolvedValue(agg([sample("Wrogi stack", { stack: hostile })]));
     panel();
@@ -661,7 +661,7 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
     expect(pre?.textContent).toBe(hostile);
   });
 
-  it("zwiniecie wiersza usuwa stack z DOM, nie tylko go ukrywa", async () => {
+  it("zwinięcie wiersza usuwa stack z DOM, nie tylko go ukrywa", async () => {
     panel();
     await loaded();
     const row = groupRows()[0];
@@ -674,10 +674,10 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
     expect(document.body.innerHTML).not.toContain("submitForm");
   });
 
-  it("grupa bez stacka mowi to wprost, zamiast pokazywac pusty blok", async () => {
+  it("grupa bez stacka mówi to wprost, zamiast pokazywać pusty blok", async () => {
     panel();
     await loaded();
-    // Druga grupa ("Hydration failed") nie ma ani jednej probki ze stackiem.
+    // Druga grupa ("Hydration failed") nie ma ani jednej próbki ze stackiem.
     const row = groupRows()[1];
     fireEvent.click(rowToggle(row));
 
@@ -685,7 +685,7 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
     expect(rowStack(row)).toBeNull();
   });
 
-  it("grupa bez sciezek nie renderuje pustej sekcji sciezek", async () => {
+  it("grupa bez ścieżek nie renderuje pustej sekcji ścieżek", async () => {
     h.fetchReport.mockResolvedValue(agg([sample("Script error.", { path: null })]));
     panel();
     await loaded();
@@ -698,8 +698,8 @@ describe("ClientErrorsDashboard - redakcja PII na ekranie", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ClientErrorsDashboard - rozwijanie szczegolow", () => {
-  it("przycisk wiersza oglasza stan rozwiniecia i zmienia podpowiedz", async () => {
+describe("ClientErrorsDashboard - rozwijanie szczegółów", () => {
+  it("przycisk wiersza ogłasza stan rozwinięcia i zmienia podpowiedź", async () => {
     panel();
     await loaded();
     const toggle = rowToggle(groupRows()[0]);
@@ -712,7 +712,7 @@ describe("ClientErrorsDashboard - rozwijanie szczegolow", () => {
     expect(toggle).toHaveAttribute("title", ce("collapse"));
   });
 
-  it("kazdy wiersz ma WLASNY stan - rozwiniecie jednego nie otwiera reszty", async () => {
+  it("każdy wiersz ma WŁASNY stan - rozwinięcie jednego nie otwiera reszty", async () => {
     panel();
     await loaded();
     const rows = groupRows();
@@ -724,7 +724,7 @@ describe("ClientErrorsDashboard - rozwijanie szczegolow", () => {
     expect(rowToggle(rows[2])).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("szczegoly podaja pierwsze i ostatnie wystapienie, sformatowane wg jezyka", async () => {
+  it("szczegóły podają pierwsze i ostatnie wystąpienie, sformatowane wg języka", async () => {
     panel();
     await loaded();
     const row = groupRows()[0];
@@ -737,7 +737,7 @@ describe("ClientErrorsDashboard - rozwijanie szczegolow", () => {
     expect(row).toHaveTextContent(ce("colLastSeen"));
   });
 
-  it("najczestsze sciezki przychodza z agregatora, z licznikiem wystapien", async () => {
+  it("najczęstsze ścieżki przychodzą z agregatora, z licznikiem wystąpień", async () => {
     panel();
     await loaded();
     const row = groupRows()[0];
@@ -756,20 +756,20 @@ describe("ClientErrorsDashboard - rozwijanie szczegolow", () => {
 // ---------------------------------------------------------------------------
 
 describe("ClientErrorsDashboard - okno czasu", () => {
-  it("startowe okno to 7 dni i oba konce sa znacznikami ISO", async () => {
+  it("startowe okno to 7 dni i oba końce są znacznikami ISO", async () => {
     panel();
     await loaded();
 
     const inputs = queryInputs();
     expect(inputs).toHaveLength(1);
     expect(spanDays(inputs[0])).toBe(7);
-    // Walidator server fn wymaga `z.string().datetime()` - kazdy inny format
-    // wracalby bledem walidacji, a nie raportem.
+    // Walidator server fn wymaga `z.string().datetime()` - każdy inny format
+    // wracałby błędem walidacji, a nie raportem.
     expect(inputs[0].sinceIso).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
     expect(inputs[0].untilIso).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
   });
 
-  it("zmiana presetu przestawia WEJSCIE zapytania, nie tylko etykiete", async () => {
+  it("zmiana presetu przestawia WEJŚCIE zapytania, nie tylko etykietę", async () => {
     panel();
     await loaded();
 
@@ -779,7 +779,7 @@ describe("ClientErrorsDashboard - okno czasu", () => {
     expect(spanDays(queryInputs()[1])).toBe(30);
   });
 
-  it("najkrotsze okno to jeden dzien - liczone w godzinach, nie w dniach", async () => {
+  it("najkrótsze okno to jeden dzień - liczone w godzinach, nie w dniach", async () => {
     panel();
     await loaded();
 
@@ -792,8 +792,8 @@ describe("ClientErrorsDashboard - okno czasu", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ClientErrorsDashboard - izolacja warsztatow", () => {
-  it("panel warsztatu B pokazuje WYLACZNIE bledy warsztatu B", async () => {
+describe("ClientErrorsDashboard - izolacja warsztatów", () => {
+  it("panel warsztatu B pokazuje WYŁĄCZNIE błędy warsztatu B", async () => {
     h.fetchReport.mockResolvedValue(WORKSPACE_B);
     const { container } = panel();
     await loaded();
@@ -802,11 +802,11 @@ describe("ClientErrorsDashboard - izolacja warsztatow", () => {
     expect(container.textContent ?? "").toContain("BETA: hydration mismatch");
     expect(container.textContent ?? "").not.toContain("ALFA");
     expect(container.textContent ?? "").not.toContain("/alfa/");
-    // Sciezki i komunikaty jada takze do eksportu CSV i do kanwy.
+    // Ścieżki i komunikaty jadą także do eksportu CSV i do kanwy.
     expect(JSON.stringify(h.charts)).not.toContain("ALFA");
   });
 
-  it("swiezy klient react-query nie przenosi raportu miedzy warsztatami", async () => {
+  it("świeży klient react-query nie przenosi raportu między warsztatami", async () => {
     h.fetchReport.mockResolvedValue(WORKSPACE_A);
     const first = panel();
     await loaded();
@@ -823,7 +823,7 @@ describe("ClientErrorsDashboard - izolacja warsztatow", () => {
     expect(second.container.textContent ?? "").not.toContain("alfaBoot");
   });
 
-  it("wspoldzielony klient odpytuje ponownie, gdy okno przesunelo sie w czasie", async () => {
+  it("współdzielony klient odpytuje ponownie, gdy okno przesunęło się w czasie", async () => {
     const clock = vi.spyOn(Date, "now");
     const t0 = Date.parse("2026-08-20T10:00:00.000Z");
     clock.mockReturnValue(t0);
@@ -843,16 +843,16 @@ describe("ClientErrorsDashboard - izolacja warsztatow", () => {
   });
 
   it.fails(
-    "DEFEKT: klucz cache nie niesie warsztatu - to samo okno oznacza wspolny raport",
+    "DEFEKT: klucz cache nie niesie warsztatu - to samo okno oznacza wspólny raport",
     async () => {
       // `queryKey: ["admin","client-errors", sinceIso, untilIso]` nie zawiera
-      // ani tenanta, ani uzytkownika. Dzis chroni to WYLACZNIE znacznik czasu:
-      // `buildPresetRange("7d")` woła `Date.now()` przy montowaniu, wiec dwa
-      // montowania prawie zawsze daja rozne granice. "Prawie" nie jest
-      // gwarancja - zamrozony zegar modeluje przelaczenie warsztatu w tej samej
+      // ani tenanta, ani użytkownika. Dziś chroni to WYŁĄCZNIE znacznik czasu:
+      // `buildPresetRange("7d")` woła `Date.now()` przy montowaniu, więc dwa
+      // montowania prawie zawsze dają różne granice. "Prawie" nie jest
+      // gwarancją - zamrożony zegar modeluje przełączenie warsztatu w tej samej
       // klatce, a przy `staleTime: 60_000` react-query NIE ponawia zapytania.
       // Administrator warsztatu B czyta wtedy komunikaty i stacki warsztatu A,
-      // i nie leci przy tym ani jedno zadanie sieciowe.
+      // i nie leci przy tym ani jedno żądanie sieciowe.
       const clock = vi.spyOn(Date, "now");
       clock.mockReturnValue(Date.parse("2026-08-20T10:00:00.000Z"));
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -872,8 +872,8 @@ describe("ClientErrorsDashboard - izolacja warsztatow", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ClientErrorsDashboard - slownik PL/EN", () => {
-  it("po przelaczeniu na angielski etykiety KPI i naglowki przychodza z galezi EN", async () => {
+describe("ClientErrorsDashboard - słownik PL/EN", () => {
+  it("po przełączeniu na angielski etykiety KPI i nagłówki przychodzą z gałęzi EN", async () => {
     await i18n.changeLanguage("en");
     panel();
     await loaded("en");
@@ -883,8 +883,8 @@ describe("ClientErrorsDashboard - slownik PL/EN", () => {
     expect(screen.getByText(ce("kpiPaths", {}, "en"))).toBeInTheDocument();
     expect(screen.getByText(ce("kpiLast24h", {}, "en"))).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: ce("groupsTitle", {}, "en") })).toBeInTheDocument();
-    // Ten sam klucz po polsku brzmi inaczej - gdyby EN spadl na fallback,
-    // asercje wyzej przeszlyby, a ta oblalaby.
+    // Ten sam klucz po polsku brzmi inaczej - gdyby EN spadł na fallback,
+    // asercje wyżej przeszłyby, a ta oblałaby.
     expect(ce("kpiTotal", {}, "en")).not.toBe(ce("kpiTotal"));
   });
 
@@ -899,7 +899,7 @@ describe("ClientErrorsDashboard - slownik PL/EN", () => {
   });
 
   it("angielski interfejs formatuje liczby i daty w locale en-GB", async () => {
-    // To jest DZIALAJACA sciezka, wiec asercja jest pozytywna: panel wybiera
+    // To jest DZIAŁAJĄCA ścieżka, więc asercja jest pozytywna: panel wybiera
     // locale z `i18n.language`, a nie z zaszytego "pl-PL".
     await i18n.changeLanguage("en");
     const big = agg([sample("Boom")], { windowTotal: 41_234, capped: true });
@@ -912,7 +912,7 @@ describe("ClientErrorsDashboard - slownik PL/EN", () => {
     expect(groupRows("en")[0]).toHaveTextContent(shortDateTime(big.groups[0].lastSeen, "en-GB"));
   });
 
-  it("angielskie zrodla i podpowiedzi rozwijania przychodza z galezi EN", async () => {
+  it("angielskie źródła i podpowiedzi rozwijania przychodzą z gałęzi EN", async () => {
     await i18n.changeLanguage("en");
     panel();
     await loaded("en");
@@ -927,8 +927,8 @@ describe("ClientErrorsDashboard - slownik PL/EN", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ClientErrorsDashboard - dostepnosc", () => {
-  it("wykres trendu ma nazwe regionu zbudowana z tytulu karty", async () => {
+describe("ClientErrorsDashboard - dostępność", () => {
+  it("wykres trendu ma nazwę regionu zbudowaną z tytułu karty", async () => {
     panel();
     await loaded();
 
@@ -936,13 +936,13 @@ describe("ClientErrorsDashboard - dostepnosc", () => {
     expect(names).toContain(chrome("chartRegion", { title: ce("trendTitle") }));
   });
 
-  it("wypelniony panel z rozwinieta grupa nie ma naruszen axe", async () => {
-    // `button-name` wylaczone SWIADOMIE: jedyne naruszenie w tym poddrzewie to
+  it("wypełniony panel z rozwiniętą grupą nie ma naruszeń axe", async () => {
+    // `button-name` wyłączone ŚWIADOMIE: jedyne naruszenie w tym poddrzewie to
     // wyzwalacz menu eksportu w `ChartCard` (sama ikona `MoreHorizontal` bez
-    // `aria-label`), przypiety `it.fails` w `chartCard.test.tsx`. Nie nalezy do
-    // tego panelu i nie ma sensu pinowac go drugi raz. Wszystko, co ten pulpit
+    // `aria-label`), przypięty `it.fails` w `chartCard.test.tsx`. Nie należy do
+    // tego panelu i nie ma sensu pinować go drugi raz. Wszystko, co ten pulpit
     // dodaje od siebie - przyciski rozwijania z `aria-expanded`, lista grup,
-    // plakietki zrodel, blok `pre` ze stackiem - przechodzi bez ulg.
+    // plakietki źródeł, blok `pre` ze stackiem - przechodzi bez ulg.
     const { container } = panel();
     await loaded();
     fireEvent.click(rowToggle(groupRows()[0]));
@@ -951,7 +951,7 @@ describe("ClientErrorsDashboard - dostepnosc", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("panel bez bledow nie ma naruszen axe", async () => {
+  it("panel bez błędów nie ma naruszeń axe", async () => {
     h.fetchReport.mockResolvedValue(EMPTY);
     const { container } = panel();
     await loaded();
@@ -960,10 +960,10 @@ describe("ClientErrorsDashboard - dostepnosc", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("caly dlug dostepnosci panelu to JEDEN przycisk, i to nie jego wlasny", async () => {
-    // Kontrapunkt dla ulgi wyzej: bez wylaczonej reguly lista naruszen ma
-    // dokladnie jedna pozycje i jest nia wyzwalacz menu `ChartCard`. Dopisanie
-    // przez ten panel wlasnego bezimiennego przycisku oblewa ten test.
+  it("cały dług dostępności panelu to JEDEN przycisk, i to nie jego własny", async () => {
+    // Kontrapunkt dla ulgi wyżej: bez wyłączonej reguły lista naruszeń ma
+    // dokładnie jedną pozycję i jest nią wyzwalacz menu `ChartCard`. Dopisanie
+    // przez ten panel własnego bezimiennego przycisku oblewa ten test.
     const { container } = panel();
     await loaded();
 
@@ -975,7 +975,7 @@ describe("ClientErrorsDashboard - dostepnosc", () => {
     expect(violations[0].nodes).toHaveLength(1);
   });
 
-  it("lista grup jest lista - kolejnosc niesie znaczenie dla czytnika ekranu", async () => {
+  it("lista grup jest listą - kolejność niesie znaczenie dla czytnika ekranu", async () => {
     panel();
     await loaded();
 
